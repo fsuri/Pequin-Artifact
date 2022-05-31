@@ -1,5 +1,5 @@
-# Basil: Breaking up BFT with ACID transactions - SOSP21 Artifact 
-This is the repository for the Artifact Evaluation of SOSP'21 proceeding: "Basil: Breaking up BFT with ACID transactions".
+# BFT Query Processing -- Pequin Artifact 
+This is the repository for the code artifact of "Pequin: Spicing up BFT with Query Processing".
 
 For all questions about the artifact please e-mail (or message over google hangouts) Florian Suri-Payer <fsp@cs.cornell.edu>. For specific questions about 1) building the codebase or 2) running TxBFTSmart, additionally please
 CC Zheng Wang <zw494@cornell.edu>. For questions about 3) running TxHotstuff,
