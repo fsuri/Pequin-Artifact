@@ -496,7 +496,7 @@ On branches TxHotstuff and TxBFTSmart you will need to complete the following pr
 3. **TxBFTSmart**
    1. Navigate to `Pequin-Artifact/src/scripts`
    2. Run `./one_step_config.sh <Local Pequin-Artifact directory> <cloudlab-user> <experiment-name> <project-name> <cluster-domain-name>`
-   3. For example: `./one_step_config.sh /home/floriansuri/Pequin/Pequin-Artifact fs435 indicus morty-pg0 utah.cloudlab.us`
+   3. For example: `./one_step_config.sh /home/floriansuri/Research/Projects/Pequin/Pequin-Artifact fs435 indicus morty-pg0 utah.cloudlab.us`
    4. This will upload the necessary configurations for the BFTSmart Conesnsus module to the Cloudlab machines.
       - Troubleshooting: Make sure files `server-hosts` and `client-hosts` in `/src/scripts/` do not contain empty lines at the end
 
@@ -509,11 +509,11 @@ To run an experiment, you simply need to run: `python3 Pequin-Artifact/experimen
    - change the value field to the name of your Cloudlab project `<project-name>`. On cloudlab.us (utah cluster) you will generally need to add "-pg0" to your project_name in order to ssh into the machines. To confirm which is the case for you, try to ssh into a machine directly using `ssh <cloudlab-user>@us-east-1-0.<experiment-name>.<project-name>.utah.cloudlab.us`.  
 2. `"experiment_name": "indicus"`
    - change the value field to the name of your Cloudlab experiment `<experiment-name>`.
-3. `"base_local_exp_directory": “home/florian/Indicus/output”`
+3. `"base_local_exp_directory": “home/floriansuri/Research/Projects/Pequin/output”`
    - Set the value field to be the local path (on your machine or the control machine) where experiment output files will be downloaded to and aggregated. 
 4. `"base_remote_bin_directory_nfs": “users/<cloudlab-user>/indicus”` 
    - Set the field `<cloudlab-user>`. This is the directory on the Cloudlab machines where the binaries will be uploaded
-5. `"src_directory" : “/home/floriansuri/Pequin/Pequin-Artifact/src”` 
+5. `"src_directory" : “/home/floriansuri/Research/Projects/Pequin/Pequin-Artifact/src”` 
    - Set the value field to your local path (on your machine or the control machine) to the source directory 
 6. `"emulab_user": "<cloudlab-username>"`
    - Set the field `<cloudlab-user>`. 
