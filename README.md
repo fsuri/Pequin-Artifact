@@ -78,8 +78,9 @@ The ReadMe is organized into the following high level sections:
 ## Installing Dependencies (Skip if using Cloudlab control machine using supplied images) <a name="installing"></a>
 
 The high-level requirements for compiling Basil and the baselines are: 
-- Operating System: Ubuntu 18.04 LTS, Bionic 
-   - We recommend running on Ubuntu 18.04 LTS, Bionic, as a) binaries were built and run on this operating system, and b) our supplied images use Ubuntu 18.04 LTS.    - If you cannot do this locally, consider using a CloudLab controller machine - see section "Setting up CloudLab".
+- Operating System: Ubuntu 20.04 LTS, Focal 
+   - We recommend running on Ubuntu 20.04 LTS, Focal, as a) the binaries of our experimental evaluation were built and run on this operating system, and b) our supplied images use Ubuntu 20.04 LTS.    - If you cannot do this locally, consider using a CloudLab controller machine - see section "Setting up CloudLab".
+   - Prior Basil builds used Ubuntu 18.04 (Bionic) and should have remained backwards compatbile.
    <!-- You may try to use Ubuntu 20.04.2 LTS instead of 18.04 LTS. However, we do not guarantee a fully documented install process, nor precise repicability of our results. Note, that using Ubuntu 20.04.2 LTS locally (or as control machine) to generate and upload binaries may *not* be compatible with running Cloudlab machines using our cloud lab images (as they use 18.04 LTS(. In order to use Ubuntu 20.04.2 LTS you may have to manually create new disk images for CloudLab instead of using our supplied images for 18.04 LTS to guarantee library compatibility. -->
    <!-- You may try to run on Mac, which has worked for us in the past, but is not documented in the following ReadMe and may not easily be trouble-shooted by us. -->
   
@@ -114,8 +115,8 @@ The prototype implementations depend the following development libraries:
 - libuv1-dev
 
 You may install them directly using:
-- `sudo apt install libsodium-dev libgflags-dev libssl-dev libevent-dev libevent-openssl-2.1-6 libevent-pthreads-2.1-6 libboost-all-dev libuv1-dev`
-- If using Ubuntu 20, use `sudo apt install libevent-openssl-2.1-7 libevent-pthreads-2.1-7` instead for openssl and pthreads.
+- `sudo apt install libsodium-dev libgflags-dev libssl-dev libevent-dev libevent-openssl-2.1-7 libevent-pthreads-2.1-7 libboost-all-dev libuv1-dev`
+- If using Ubuntu 18.04, use `sudo apt install libevent-openssl-2.1-6 libevent-pthreads-2.1-6` instead for openssl and pthreads.
 
 In addition, you will need to install the following libraries from source (detailed instructions below):
 - [googletest-1.10](https://github.com/google/googletest/releases/tag/release-1.10.0)
@@ -423,7 +424,7 @@ If you decide to instead [create your own profile](https://www.cloudlab.us/manag
 ### Building and configuring disk images from scratch (skip if using pre-supplied images)
 If you want to build an image from scratch, follow the instructions below:
 
-Start by choosing to load a default Ubuntu 18.04 LTS image as "Replica disk image" and "Client disk image": `urn:publicid:IDN+emulab.net+image+emulab-ops:UBUNTU18-64-STD`. <!-- for Ubuntu 20.04 LTS use: `urn:publicid:IDN+emulab.net+image+emulab-ops:UBUNTU20-64-STD`. --> 
+Start by choosing to load a default Ubuntu 20.04 LTS image as "Replica disk image" and "Client disk image": `urn:publicid:IDN+emulab.net+image+emulab-ops:UBUNTU20-64-STD`.  (For Ubuntu 18.04 LTS use: `urn:publicid:IDN+emulab.net+image+emulab-ops:UBUNTU18-64-STD`.)
 
 Next, follow the above manual installation guide (section "Installing Dependencies" to install all dependencies (you can skip adding tbb setvars.sh to .bashrc). 
 
