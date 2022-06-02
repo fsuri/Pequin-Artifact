@@ -20,7 +20,7 @@ LIB-indicus-client := $(LIB-udptransport) \
 
 
 LIB-proto := $(o)indicus-proto.o
-#-I/home/floriansuri/Indicus/BFT-DB/src/store/common
+#-I/home/floriansuri/Research/Projects/Pequin/Pequin-Artifact/src/store/common
 $(d)proto_bench: $(LIB-latency) $(LIB-crypto) $(LIB-batched-sigs) $(LIB-store-common) $(LIB-proto) $(o)proto_bench.o
 
 BINS += $(d)proto_bench
