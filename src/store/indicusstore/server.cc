@@ -522,14 +522,15 @@ void Server::HandleRead(const TransportAddress &remote,
   }
 
   std::pair<Timestamp, Server::Value> tsVal;
+  //find committed write value to read from
   bool exists = store.get(msg.key(), ts, tsVal);
 
   proto::ReadReply* readReply = GetUnusedReadReply();
   readReply->set_req_id(msg.req_id());
   readReply->set_key(msg.key());
   if (exists) {
-    Debug("READ[%lu] Committed value of length %lu bytes with ts %lu.%lu.",
-        msg.req_id(), tsVal.second.val.length(), tsVal.first.getTimestamp(),
+    Debug("READ[%lu:%lu] Committed value of length %lu bytes with ts %lu.%lu.",
+        msg.timestamp().id(), msg.req_id(), tsVal.second.val.length(), tsVal.first.getTimestamp(),
         tsVal.first.getID());
     readReply->mutable_write()->set_committed_value(tsVal.second.val);
     tsVal.first.serialize(readReply->mutable_write()->mutable_committed_timestamp());
@@ -540,23 +541,21 @@ void Server::HandleRead(const TransportAddress &remote,
 
   TransportAddress *remoteCopy = remote.clone();
 
+
+  //auto sendCB = [this, remoteCopy, readReply, c_id = msg.timestamp().id(), req_id=msg.req_id()]() {
+  //Debug("Sent ReadReply[%lu:%lu]", c_id, req_id);  
   auto sendCB = [this, remoteCopy, readReply]() {
     this->transport->SendMessage(this, *remoteCopy, *readReply);
     delete remoteCopy;
     FreeReadReply(readReply);
   };
 
-//Sets RTS timestamp. Favors readers commit chances.
-//Disable if worried about Byzantine Readers DDos, or if one wants to favor writers.
+  //If MVTSO: Read prepared, Set RTS
   if (occType == MVTSO) {
-    /* update rts */
-    // TODO: For "proper Aborts": how to track RTS by transaction without knowing transaction digest?
-
-    //XXX multiple RTS as set:
-    //  if(params.mainThreadDispatching) rtsMutex.lock();
-    // rts[msg.key()].insert(ts);
-    //  if(params.mainThreadDispatching) rtsMutex.unlock();
-    //XXX single RTS that updates:
+  
+    //Sets RTS timestamp. Favors readers commit chances.
+    //Disable if worried about Byzantine Readers DDos, or if one wants to favor writers.
+    Debug("Set up RTS for READ[%lu:%lu]", msg.timestamp().id(), msg.req_id());
      auto itr = rts.find(msg.key());
      if(itr != rts.end()){
        if(ts.getTimestamp() > itr->second ) {
@@ -566,13 +565,22 @@ void Server::HandleRead(const TransportAddress &remote,
      else{
        rts[msg.key()] = ts.getTimestamp();
      }
+     /* update rts */
+    // TODO: For "proper Aborts": how to track RTS by transaction without knowing transaction digest?
+
+    //XXX multiple RTS as set:
+    //  if(params.mainThreadDispatching) rtsMutex.lock();
+    // rts[msg.key()].insert(ts);
+    //  if(params.mainThreadDispatching) rtsMutex.unlock();
+    //XXX single RTS that updates:
 
 
+    //find prepared write to read from
     /* add prepared deps */
     if (params.maxDepDepth > -2) {
+      Debug("Look for prepared value to READ[%lu:%lu]", msg.timestamp().id(), msg.req_id());
       const proto::Transaction *mostRecent = nullptr;
 
-      //TODO:: make threadsafe.
       //std::pair<std::shared_mutex,std::map<Timestamp, const proto::Transaction *>> &x = preparedWrites[write.key()];
       auto itr = preparedWrites.find(msg.key());
       if (itr != preparedWrites.end()){
@@ -614,7 +622,7 @@ void Server::HandleRead(const TransportAddress &remote,
 
   if (params.validateProofs && params.signedMessages &&
       (readReply->write().has_committed_value() || (params.verifyDeps && readReply->write().has_prepared_value()))) {
-
+    Debug("Sign Read Reply for READ[%lu:%lu]", msg.timestamp().id(), msg.req_id());
 //If readReplyBatch is false then respond immediately, otherwise respect batching policy
     if (params.readReplyBatch) {
       proto::Write* write = new proto::Write(readReply->write());
@@ -900,8 +908,8 @@ void Server::HandlePhase1(const TransportAddress &remote,
     c.release();
   } else{ // FIRST P1 request received (i.e. from original client). Gossip if desired and check whether dependencies are valid
     c.release();
-    if(params.replicaGossip) ForwardPhase1(msg);
-    if(!replicaGossip) msg.set_replica_gossip(false); //unset it.
+    if(params.replicaGossip) ForwardPhase1(msg); //If params.replicaGossip is enabled then set msg.replica_gossip to true and forward.
+    if(!replicaGossip) msg.set_replica_gossip(false); //unset msg.replica_gossip (which we possibly just set to foward) if the message was received by the client
 
     if (params.validateProofs && params.signedMessages && params.verifyDeps) {
       for (const auto &dep : msg.txn().deps()) {
@@ -2363,8 +2371,9 @@ bool Server::ManageDependencies(const std::string &txnDigest, const proto::Trans
      //TODO: instead, take a per txnDigest lock in the loop for each dep, (add the mutex if necessary, and remove it at the end)
 
      Debug("Called ManageDependencies for txn: %s", BytesToHex(txnDigest, 16).c_str());
+     Debug("Manage Dependencies runs on Thread: %d", sched_getcpu());
      for (const auto &dep : txn.deps()) {
-       if (dep.involved_group() != groupIdx) {
+       if (dep.involved_group() != groupIdx) { //only check deps at the responsible shard.
          continue;
        }
 
@@ -2745,14 +2754,15 @@ void Server::CheckDependents(const std::string &txnDigest) {
    if(params.mainThreadDispatching) waitingDependenciesMutex.lock();
   //Latency_End(&waitingOnLocks);
   Debug("Called CheckDependents for txn: %s", BytesToHex(txnDigest, 16).c_str());
+  
   dependentsMap::const_accessor e;
   bool dependentsItr = dependents.find(e, txnDigest);
+  
   //auto dependentsItr = dependents.find(txnDigest);
   if(dependentsItr){
   //if (dependentsItr != dependents.end()) {
     for (const auto &dependent : e->second) {
     //for (const auto &dependent : dependentsItr->second) {
-
       waitingDependenciesMap::accessor f;
       bool dependenciesItr = waitingDependencies_new.find(f, dependent);
       //if(!dependenciesItr){
@@ -3013,6 +3023,7 @@ void Server::SendPhase1Reply(uint64_t reqId,
 
 void Server::CleanDependencies(const std::string &txnDigest) {
    //if(params.mainThreadDispatching) dependentsMutex.lock();
+   Debug("Called CleanDependencies for txn %s", BytesToHex(txnDigest, 16).c_str());
    if(params.mainThreadDispatching) waitingDependenciesMutex.lock();
 
   waitingDependenciesMap::accessor f;
@@ -3582,6 +3593,8 @@ void Server::SendRelayP1(const TransportAddress &remote, const std::string &depe
 }
 
 bool Server::ForwardWriteback(const TransportAddress &remote, uint64_t ReqId, const std::string &txnDigest){
+  
+  Debug("Checking for existing WB message for txn %s", BytesToHex(txnDigest, 16).c_str());
   //1) COMMIT CASE
   if(committed.find(txnDigest) != committed.end()){
       Debug("ForwardingWriteback Commit for txn: %s", BytesToHex(txnDigest, 64).c_str());
@@ -3639,6 +3652,9 @@ bool Server::ForwardWriteback(const TransportAddress &remote, uint64_t ReqId, co
       transport->SendMessage(this, remote, phase1FBReply);
       return true;
   }
+  
+  Debug("No existing WB message found for txn %s", BytesToHex(txnDigest, 16).c_str());
+  return false;
 }
 
 bool Server::ForwardWritebackMulti(const std::string &txnDigest, interestedClientsMap::accessor &i){
@@ -3711,11 +3727,12 @@ void Server::HandlePhase1FB(const TransportAddress &remote, proto::Phase1FB &msg
 
   //check if already committed. reply with whole proof so client can forward that.
   //1) COMMIT CASE, 2) ABORT CASE
+
   if(ForwardWriteback(remote, msg.req_id(), txnDigest)){
     if(params.mainThreadDispatching && (!params.dispatchMessageReceive || params.parallel_CCC)) FreePhase1FBmessage(&msg);
     return;
   }
-
+  
   //Otherwise, keep track of interested clients to message in the future
   interestedClientsMap::accessor i;
   bool interestedClientsItr = interestedClients.insert(i, txnDigest);
