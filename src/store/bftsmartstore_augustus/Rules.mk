@@ -5,8 +5,8 @@ SRCS += $(addprefix $(d), app.cc replica.cc slots.cc common.cc server.cc shardcl
 PROTOS += $(addprefix $(d), pbft-proto.proto server-proto.proto)
 
 # HotStuff static libraries
-LIB-bftsmart-augustus-interface := store/bftsmartstore_augustus/libhotstuff/examples/libindicus_interface.a store/bftsmartstore_augustus/libhotstuff/salticidae/libsalticidae.a store/bftsmartstore_augustus/libhotstuff/libhotstuff.a store/bftsmartstore_augustus/libhotstuff/secp256k1/.libs/libsecp256k1.a
-
+#LIB-bftsmart-augustus-interface := store/bftsmartstore_augustus/libhotstuff/examples/libindicus_interface.a store/bftsmartstore_augustus/libhotstuff/salticidae/libsalticidae.a store/bftsmartstore_augustus/libhotstuff/libhotstuff.a store/bftsmartstore_augustus/libhotstuff/secp256k1/.libs/libsecp256k1.a
+LIB-bftsmart-augustus-interface := store/hotstuffstore/libhotstuff/examples/libindicus_interface.a store/hotstuffstore/libhotstuff/salticidae/libsalticidae.a store/hotstuffstore/libhotstuff/libhotstuff.a store/hotstuffstore/libhotstuff/secp256k1/.libs/libsecp256k1.a
 
 LIB-pbft-batched-sigs := $(LIB-crypto) $(o)pbft_batched_sigs.o 
 

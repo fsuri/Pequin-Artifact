@@ -307,29 +307,29 @@ print-%:
 # Targets
 #
 
-.PHONY: bftsmart
-bftsmart: 
-	@echo '====== Start Building BftSmart ======'
-	cd ./store/bftsmartstore/libhotstuff/; ./build.sh
-	@echo '====== Finish Building BftSmart ======'
+#.PHONY: bftsmart
+#bftsmart: 
+#	@echo '====== Start Building BftSmart ======'
+#	cd ./store/bftsmartstore/libhotstuff/; ./build.sh
+#	@echo '====== Finish Building BftSmart ======'
 
-.PHONY: bftsmart2
-bftsmart2: 
-	@echo '====== Start Building BftSmart2 ======'
-	cd ./scripts; ./build_bftsmart.sh
-	@echo '====== Finish Building BftSmart2 ======'
+#.PHONY: bftsmart2
+#bftsmart2: 
+#	@echo '====== Start Building BftSmart2 ======'
+#	cd ./scripts; ./build_bftsmart.sh
+#	@echo '====== Finish Building BftSmart2 ======'
 
-.PHONY: augustus_smart
-augustus: 
-	@echo '====== Start Building BftSmart_Augustus ======'
-	cd ./store/bftsmartstore_augustus/libhotstuff/; ./build.sh
-	@echo '====== Finish Building BftSmart_Augustus ======'
+#.PHONY: augustus_smart
+#augustus: 
+#	@echo '====== Start Building BftSmart_Augustus ======'
+#	cd ./store/bftsmartstore_augustus/libhotstuff/; ./build.sh
+#	@echo '====== Finish Building BftSmart_Augustus ======'
 
-.PHONY: stable
-stable: 
-	@echo '====== Start Building BftSmart_stable ======'
-	cd ./store/bftsmartstore_stable/libhotstuff/; ./build.sh
-	@echo '====== Finish Building BftSmart_stable ======'
+#.PHONY: stable
+#stable: 
+#	@echo '====== Start Building BftSmart_stable ======'
+#	cd ./store/bftsmartstore_stable/libhotstuff/; ./build.sh
+#	@echo '====== Finish Building BftSmart_stable ======'
 
 .PHONY: hotstuff
 hotstuff: 
@@ -337,13 +337,21 @@ hotstuff:
 	cd ./store/hotstuffstore/libhotstuff/; ./build.sh
 	@echo '====== Finish Building HotStuff ======'
 
+.PHONY: bftsmart
+bftsmart2: 
+	@echo '====== Start Building BftSmart ======'
+	cd ./scripts; ./build_bftsmart.sh
+	@echo '====== Finish Building BftSmart ======'
+#NOTE: bftsmartstore_stable and bftsmartstore_augustus don't need to build their own jars
+#because the one_step_config.sh script always uploads the jars from the bftsmartstore folder -- i.e. they are used for all.
 
 .PHONY: indicus
 indicus: $(BINS)
 
 
 .PHONY: all
-all: bftsmart bftsmart2 hotstuff augustus_smart stable
+#all: bftsmart bftsmart2 hotstuff augustus_smart stable
+all: hotstuff bftsmart
 	@echo '====== Start Building Indicus ======'
 	$(MAKE) indicus 
 	@echo '====== Finish Building Indicus ======'
