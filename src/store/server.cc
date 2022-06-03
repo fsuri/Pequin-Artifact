@@ -122,7 +122,7 @@ const std::string protocol_args[] = {
     "hotstuff",
     "augustus-hs", //not used currently by experiment scripts (deprecated)
   "bftsmart",
-	"augustus"
+	"augustus" //currently used as augustus version -- maps to BFTSmart Augustus implementation
 };
 const protocol_t protos[] {
   PROTO_TAPIR,
