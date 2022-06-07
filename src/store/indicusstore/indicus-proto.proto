@@ -1,0 +1,368 @@
+syntax = "proto2";
+
+import "store/common/common-proto.proto";
+
+package indicusstore.proto;
+
+
+enum CommitDecision {
+  COMMIT = 0;
+  ABORT = 1;
+}
+
+message HMACs {
+  map<uint64, bytes> hmacs = 1;
+}
+
+message SignedMessage {
+  required bytes data = 1;
+  required uint64 process_id = 2;
+  required bytes signature = 3;
+}
+
+message SignedMessages{
+  repeated SignedMessage sig_msgs = 1;
+}
+
+message Signature {
+  required uint64 process_id = 1;
+  required bytes signature = 2;
+}
+
+message Signatures {
+  repeated Signature sigs = 1;
+}
+
+message Read {
+  required uint64 req_id = 1;
+  required bytes key = 2;
+  required TimestampMessage timestamp = 3;
+}
+
+message GroupedSignatures {
+  map<uint64, Signatures> grouped_sigs = 1;
+}
+
+
+message CommittedProof {
+  required Transaction txn = 1;
+  oneof reply_oneof {
+    GroupedSignatures p1_sigs = 2;
+    GroupedSignatures p2_sigs = 3;
+  }
+  optional uint64 p2_view = 4;
+}
+
+message AbortedProof {
+  optional Transaction txn = 1;
+  oneof reply_oneof {
+    GroupedSignatures p1_sigs = 2;
+    GroupedSignatures p2_sigs = 3;
+    CommittedProof conflict = 4;
+  }
+  optional uint64 p2_view = 5;
+}
+
+
+message CommittedWrite {
+  optional CommittedProof proof = 3;
+}
+
+message Dependency {
+  required Write write = 1;
+  optional Signatures write_sigs = 2;
+  required int64 involved_group = 3;
+}
+
+message Write {
+  optional bytes committed_value = 1;
+  optional TimestampMessage committed_timestamp = 2;
+  optional bytes prepared_value = 3;
+  optional TimestampMessage prepared_timestamp = 4;
+  optional bytes prepared_txn_digest = 5;
+}
+
+message ReadReply {
+  required uint64 req_id = 1;
+  required bytes key = 2;
+  optional CommittedProof proof = 3;
+  oneof prepared_oneof {
+    Write write = 4;
+    SignedMessage signed_write = 5;
+  }
+}
+
+// Phase 1
+message Transaction {
+  required uint64 client_id = 1;
+  required uint64 client_seq_num = 2;
+  repeated int64 involved_groups = 3;
+  repeated ReadMessage read_set = 4;
+  repeated WriteMessage write_set = 5;
+  repeated Dependency deps = 6;
+  required TimestampMessage timestamp = 7;
+}
+
+message Phase1 {
+  required uint64 req_id = 1;
+  required Transaction txn = 2;
+  optional bool crash_failure = 3;
+  optional bool replica_gossip = 4;
+}
+
+
+
+message ConcurrencyControl {
+  enum Result {
+    COMMIT = 0;
+    ABORT = 1;
+    ABSTAIN = 2;
+    WAIT = 3;
+    RETRY = 4;
+  }
+  required Result ccr = 2;
+  optional CommittedProof committed_conflict = 3;
+  optional bytes txn_digest = 4;
+  optional uint64 involved_group = 5;
+}
+
+message Phase1Reply {
+  required uint64 req_id = 1;
+  oneof concurrency_oneof {
+    ConcurrencyControl cc = 2;
+    SignedMessage signed_cc = 3;
+  }
+  optional Transaction abstain_conflict = 4;
+}
+
+message Phase1Replies {
+  repeated Phase1Reply replies = 1;
+}
+
+//message Phase2ClientDecision {
+//  required CommitDecision decision = 1;
+//  optional bytes txn_digest = 2;
+//}
+
+
+//before verifying sig, check that id in SignedMessage (auth_p2dec.process_id) matches txn.client_id
+//TODO: refactor code to use this Phase2 version.
+//message authenticatedPhase2 {
+//  required uint64 req_id = 1;
+//  oneof p2dec_oneof {
+//    Phase2ClientDecision p2dec = 2;
+//    SignedMessage auth_p2dec = 3;
+//  }
+//  optional Transaction txn = 4;
+//  optional GroupedSignatures grouped_sigs = 5;
+//}
+
+//TODO:: Could change so p1 version just does normal Phase2 (therefore can use same callbacks), but server checks if ID != ORIGINAL
+//TODO: Make P2FB only for p2 proofs, those do not need to be delayed anyways because they are already based on decisions from originial!!
+message Phase2 {
+  required uint64 req_id = 1;
+  required CommitDecision decision = 2;
+  optional Transaction txn = 3;
+  optional bytes txn_digest = 4;
+  optional GroupedSignatures grouped_sigs = 5;
+  optional bool simulated_equiv = 6;
+  optional bool real_equiv = 7;
+}
+
+//ADD MATCHING VIEW, make it required?
+message Phase2Decision {
+  required CommitDecision decision = 1;
+  optional bytes txn_digest = 2;
+  optional uint64 involved_group = 3;
+  optional uint64 view = 4;
+}
+
+message Phase2Reply {
+  required uint64 req_id = 1;
+  oneof p2_decision_oneof {
+    Phase2Decision p2_decision = 2;
+    SignedMessage signed_p2_decision = 3;
+  }
+}
+
+
+message Writeback {
+  required CommitDecision decision = 1;
+  optional bytes txn_digest = 2;
+  optional Transaction txn = 3;
+  oneof reply_oneof {
+    GroupedSignatures p1_sigs = 4; // fast path commit
+    GroupedSignatures p2_sigs = 5; // slow path commit or abort
+    CommittedProof conflict = 6;   // fast path abort
+  }
+  optional uint64 p2_view = 7;
+}
+
+//does not include Transaction. Client can supply Transaction itself.
+message ForwardWriteback {
+  required CommitDecision decision = 1;
+  optional uint64 req_id = 2;
+  optional bytes txn_digest = 3;
+  oneof reply_oneof {
+    GroupedSignatures p1_sigs = 4; // fast path commit
+    GroupedSignatures p2_sigs = 5; // slow path commit or abort
+    CommittedProof conflict = 6;   // fast path abort
+  }
+  optional uint64 p2_view = 7;
+}
+
+message AbortInternal {
+  required TimestampMessage ts = 1;
+  repeated bytes read_set = 2;
+}
+
+message Abort {
+  oneof internal_oneof {
+    AbortInternal internal = 1;
+    SignedMessage signed_internal = 2;
+  }
+}
+
+/////////////////////////////////////////////////////// FB:
+
+message RelayP1 {  //datatype that replicas send clients to inform them that they can start a FB etc.
+  required uint64 dependent_id = 1; //this is the ID of the txn that has the p1 as a dependency
+  required Phase1 p1 = 2;  //this is the dependency.
+  optional bytes dependent_txn = 3; //this is the txnDigest of the txn that has the p1 as a dependency
+}
+
+
+// fallback Phase1
+message Phase1FB {
+  required uint64 req_id =1;
+  required Transaction txn  =2;
+}
+
+message CurrentView{
+  required uint64 current_view = 1;
+  required bytes txn_digest = 2;
+  required uint64 replica_id = 3;
+}
+
+message AttachedView{
+  oneof current_view_oneof {
+    CurrentView current_view = 1;
+    SignedMessage signed_current_view = 2;   //TODO: PACKAGE VIEW INTO WHATEVER THE SIGNED MESSAGE WE ALREADY RETURN SO THERE IS JUST A SINGLE SIGNED MESSAGE TO VERIFY. requires changing the verification logic for those functions but that is ok.
+  }
+}
+
+
+
+//fallback Phase1 reply
+message Phase1FBReply {
+  required uint64 req_id = 1;
+  required bytes txn_digest = 2;
+  optional Writeback wb =3;
+  optional Phase1Reply p1r =4;
+  optional Phase2Reply p2r =5;
+  optional AttachedView attached_view = 6;
+  //oneof current_view_oneof {
+  //   CurrentView current_view = 6;
+  //   SignedMessage signed_current_view = 7;   //TODO: PACKAGE VIEW INTO WHATEVER THE SIGNED MESSAGE WE ALREADY RETURN SO THERE IS JUST A SINGLE SIGNED MESSAGE TO VERIFY. requires changing the verification logic for those functions but that is ok.
+ //}
+  optional uint64 replica_id = 7;
+
+}
+
+message P1FBreplies {
+  repeated Phase1FBReply fbreplies = 1;
+}
+
+message GroupedP1FBreplies{
+    map<uint64, P1FBreplies> grouped_fbreplies = 1;
+}
+
+message P2Replies {
+  repeated Phase2Reply p2replies = 1;
+}
+
+//TODO: Needs to include the p1 or p2 proofs necessary to write a p2.
+//fallback Phase2
+message Phase2FB {
+  required uint64 req_id = 1;
+  required CommitDecision decision = 2;
+  optional Transaction txn = 3;
+  optional bytes txn_digest = 4;
+  optional GroupedSignatures p1_sigs = 5; //this is for p1 proof
+  //optional GroupedSignatures p2_sigs = 6; //this is for p2 proof
+  optional P2Replies p2_replies = 6; // this is for p2 proof
+  //old: GroupedP1FBreplies grp_p1_fb = 5;
+}
+//fallback phase2R: Can be the same Phase2R as normal.
+
+message Phase2FBReply {
+  required uint64 req_id = 1;
+  required bytes txn_digest = 2;
+  required Phase2Reply p2r = 3;
+  optional AttachedView attached_view = 4;
+//  oneof current_view_oneof {
+//    CurrentView current_view = 4;
+//   SignedMessage signed_current_view = 5;   //TODO: PACKAGE VIEW INTO WHATEVER THE SIGNED MESSAGE WE ALREADY RETURN SO THERE IS JUST A SINGLE SIGNED MESSAGE TO VERIFY. requires changing the verification logic for those functions but that is ok.
+//  }
+
+}
+
+//TODO: Dont include the Phase2FB component if that replica has already received it and answered with it.
+//change this to include the signed views for a txn digest.
+//fallback Invoke; info from p2fb is sort of redundant
+message InvokeFB {
+  required uint64 req_id = 1;
+  optional bytes txn_digest = 2;
+  optional Phase2FB p2fb = 3;
+  optional uint64 proposed_view = 4;
+  optional bool catchup = 5; //just signifies whether we need 3f+1 or f+1 to justify proposed view
+  //optional Signatures view_sigs = 6;  //expect client to attach just the signatures necessary to prove his proposed view.
+  optional SignedMessages view_signed = 6;//THIS NEEDS TO CHANGE TO SIGNED MESSAGES, (because of vote subsumtion)
+}
+
+
+// all to all move to new views; upon reception of a InvokeFB request and timeout on FB result message reception, this message is sent to all replicas, and forwarded if f+1 are received. Only forward once per view.
+// Just assume for simplicty that only honest clients start invocations and therefore this message is never necessary. (Its fine if we always send it, but it might be unecessary and requires us to implement MACs too; or pay heavy signature price.)
+message MoveViewMessage {
+  required uint64 req_id = 1; //not really needed.
+  required bytes txn_digest = 2;
+  required uint64 view = 3;
+}
+
+message MoveView {
+  oneof move_view_oneof{
+    MoveViewMessage msg = 1;
+    SignedMessage signed_msg =2;
+  }
+}
+
+
+//fallback elect. Send this message to replica at view = v upon reception of InvokeFB or f+1 MoveView requests.
+message ElectMessage {
+  required uint64 req_id = 1;
+  required bytes txn_digest = 2;
+  required CommitDecision decision = 3;
+  required uint64 elect_view = 4; //this is not the decision view, it is the proposed view used for round robin iteration mapping.
+}
+
+message ElectFB{
+ oneof electfb_oneof{
+  ElectMessage elect_fb = 1;
+  SignedMessage signed_elect_fb = 2;
+  }
+}
+
+message DecisionFB {
+  required uint64 req_id = 1;
+  required bytes txn_digest = 2;
+  required CommitDecision decision = 3;
+  required uint64 view = 4;
+  //repeated SignedMessage elect_sigs =5; // want to send the Quorum of ElectFB messages. not sure if this is the correct way
+  optional Signatures elect_sigs = 5;
+}
+
+message SendView {
+  required uint64 req_id = 1;
+  required bytes txn_digest = 2;
+  required AttachedView attached_view = 3;
+}

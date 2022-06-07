@@ -23,6 +23,18 @@ This artifact contains, and allows to reproduce, experiments for all figures inc
 
 It contains a prototype implemententation of Basil, a replicated Byzantine Fault Tolerant key-value store offering interactive transactions and sharding. The prototype uses cryptographically secure hash functions and signatures for all replicas, but does not sign client requests on any of the evaluated prototype systems, as we delegate this problem to the application layer. The Basil prototype can simulate Byzantine Clients failing via Stalling or Equivocation, and is robust to both. While the Basil prototype tolerates many obvious faults such as message corruptions and duplications, it does *not* exhaustively implement defences against arbitrary failures or data format corruptions, nor does it simulate all possible behaviors. For example, while the prototype implements fault tolerance (safety) to leader failures during recovery, it does not include code to simulate these, nor does it implement explicit exponential timeouts to enter new views that are necessary for theoretical liveness under partial synchrony.
 
+# Prototypes: Basil, TAPIR, TxHotstuff and TxBFTSmart
+
+This repository includes the prototype code used for "Basil: Breaking up BFT with ACID (transactions)" as well as "TAPIR -- the Transaction Application Protocol for Inconsistent Replication." 
+
+TAPIR is a protocol for linearizable distributed transactions built using replication with no consistency guarantees. By enforcing consistency only at the transaction layer, TAPIR eliminates coordination at the replication layer, enabling TAPIR to provide the same transaction model and consistency guarantees as existing systems, like Spanner, with better latency and throughput.
+More information on TAPIR can be found here: https://github.com/UWSysLab/tapir.
+
+Basil is a Byzantine Fault Tolerant system that implements distributed and interactive transactions, that like TAPIR does not rely on strong consistency at the replication level. Basil allows transactions to commit across shards in just a single round trip in the common case, and at most two under failure. Transaction processing in Basil is client-driven, and independent of other concurrent but non-conflicting transactions. This combination of low latency and parallelism allows Basil to scale beyond transactional systems built atop strongly consistent BFT SMR protocols. 
+
+Additionally, this repository includes prototype code implementing two transactional key-value stores -- "TxHotstuff" and "TxBFTSmart" -- that serve as BFT baseline systems to compare against Basil. TxHotstuff implements distributed transactions and atomic commit atop libhotstuff, an open source BFT state machine replication library implementing the Hotstuff protocol. More information on Hotstuff can be found here: https://github.com/hot-stuff/libhotstuff
+TxBFTSmart implements distributed transactions and atomic commit atop BFTSMaRT, an open source BFT state machine replication library implementing a full-fledged adaptation of the PBFT consensus protocol. More information on BFTSMaRT can be found here: https://github.com/bft-smart/library
+
 > **[NOTE]** The Basil prototype codebase is henceforth called "*Indicus*". Throughout this document you will find references to Indicus, and many configuration files are named accordingly. All these occurences refer to the Basil prototype.
 
 Basils current codebase (Indicus) was modified beyond some of the results reported in the paper to include the fallback protocol used to defend against client failures. While takeaways remain consistent, individual performance results may differ slightly across the microbenchmarks (better performance in some cases) as other minor modifications to the codebase were necessary to support the fallback protocol implementation.
@@ -44,14 +56,11 @@ In addition to Basil, this artifact contains prototype implementations for three
 
 ## Artifact Organization <a name="artifact"></a>
 
-The artifact spans across the following four branches. Please checkout the corresponding branch when validating claims for a given system.
-1. Branch main: Contains the Readme, the paper, the exeriment scripts, experiment configurations to validate results, and sample validated outputs.
-2. Branch Basil/Tapir: Contains the source code used for all Basil and Tapir evaluation.
-3. Branch TxHotstuff: Contains the source code used for TxHotstuff evaluation.
-4. Branch TxBFTSmart: Contains the source code used for TxBFTSmart evaluation.
-
-For convenience, all branches include the experiment scripts and configurations necessary to reproduce our results. Do however, *make sure* to only run the configs for a specific system on the respective branch (i.e. only run configs for Basil from the Basil branch, Hotstuff from TxHotstuff, etc.).
-Since we require edits to the configs (see Section "Running experiments"), we recommend copying the configs (and experiement scripts) to a separate location, outside the github folder, to avoid duplicating your changes for every branch that you check out.
+The core prototype logic of each system is located in the following folders: 
+1. `src/store/indicusstore`: Contains the source code implementing the Basil protype logic (Indicus).
+2. `src/store/tapirstore`: Contains the source code implementing the Tapir protype logic. Tapir makes use of the Inconsistent Replication module located under `/src/replication/ir`
+3. `src/store/hotstuffstore`: Contains the source code implementing the TxHotstuff protype. Includes `/libhotstuff`, which contains the Hotstuff SMR module.
+4. `src/store/bftsmartstore`: Contains the source code implementing the TxBFTSmart protype. Includes `/library`, which contains the BFTSmart SMR module.
 
 
 ## Validating the Claims - Overview <a name="validating"></a>
@@ -62,7 +71,7 @@ The ReadMe is organized into the following high level sections:
 
 1. *Installing pre-requisites and building binaries*
 
-   To build Basil and baseline source code in any of the branches several dependencies must be installed. Refer to section "Installing Dependencies" for detailed instructions on how to install dependencies and compile the code. You may skip this step if you choose to use a dedicated Cloudlab "control" machine using *our* supplied fully configured disk images. Note that, if you choose to use a control machine but not use our images, you will have to follow the Installation guide too, and additionally create your own disk images. More on disk images can be found in section "Setting up Cloudlab".
+   To build Basil and baseline source code several dependencies must be installed. Refer to section "Installing Dependencies" for detailed instructions on how to install dependencies and compile the code. You may skip this step if you choose to use a dedicated Cloudlab "control" machine using *our* supplied fully configured disk images. Note that, if you choose to use a control machine but not use our images, you will have to follow the Installation guide too, and additionally create your own disk images. More on disk images can be found in section "Setting up Cloudlab".
   
 
 2. *Setting up experiments on Cloudlab* 
@@ -72,7 +81,7 @@ The ReadMe is organized into the following high level sections:
 
 3. *Running experiments*
 
-     To reproduce our results you will need to checkout the respective branch, and run the supplied experiment scripts using the supplied experiment configurations. Section "Running Experiments" includes instructions for using the experiment scripts, modifying the configurations, and parsing the output. TxHotstuff and TxBFTSmart require additional configuration steps, also detailed in section "Running Experiments".
+     To reproduce our results you will need to build the code, and run the supplied experiment scripts using the supplied experiment configurations. Section "Running Experiments" includes instructions for using the experiment scripts, modifying the configurations, and parsing the output. TxHotstuff and TxBFTSmart require additional configuration steps, also detailed in section "Running Experiments".
      
 
 ## Installing Dependencies (Skip if using Cloudlab control machine using supplied images) <a name="installing"></a>
@@ -272,11 +281,9 @@ Note, that this must be done everytime you open a new terminal. You may add it t
 (When building on a Cloudlab controller instead of locally, the setvars.sh must be sourced manually everytime since bashrc will not be persisted across images. All other experiment machines will be source via the experiment scripts, so no further action is necessary there.)
 
 
-This completes all requires installs for branches Basil/Tapir and TxHotstuff. 
+This completes all required dependencies for Basil, Tapir and TxHotstuff. To successfully build the binary (and run TxBFTSmart) the following additional steps are necessary:
 
-When building TxBFTSmart (on branch TxBFTSmart) the following additional steps are necessary:
-
-#### Additional prereq for BFTSmart (only on TxBFTSmart branch)
+#### Additional prereq for BFTSmart 
 
 First, install Java open jdk 1.11.0 in /usr/lib/jvm and export your LD_LIBRARY_Path:
 
@@ -294,7 +301,7 @@ If it is not installed in `/usr/lib/jvm` then source the `LD_LIBRARY_PATH` accor
 
 ### Building binaries:
    
-Finally, you can build the binaries (you will need to do this anew on each branch):
+Finally, you can build the binaries:
 Navigate to `Pequin-Artifact/src` and build:
 - `make -j $(nproc)`
 
@@ -363,7 +370,7 @@ To run experiments on [Cloudlab](https://www.cloudlab.us/) you will need to requ
 
 We have included screenshots below for easy usebility. Follow the [cloudlab manual](http://docs.cloudlab.us/) if you need additional information for any of the outlined steps. 
 
-If you face any issues with registering, please make a post at the [Cloudlab forum](https://groups.google.com/g/cloudlab-users?pli=1). Replies are usually very swift during workdays on US mountain time (MT). Alternatively -- but *not recommended* --, if you are unable to get access to create a new project, request to join project "morty" and wait to be accepted. Reach out to Matthew Burke <matthelb@cs.cornell.edu> if you are not accepted, or unsure how to join.
+If you face any issues with registering, please make a post at the [Cloudlab forum](https://groups.google.com/g/cloudlab-users?pli=1). Replies are usually very swift during workdays on US mountain time (MT). Alternatively -- but *not recommended* --, if you are unable to get access to create a new project, request to join project "pequin" and wait to be accepted. Reach out to Florian Suri-Payer <fsp@cs.cornell.edu> if you are not accepted, or unsure how to join.
 
 ![image](https://user-images.githubusercontent.com/42611410/129490833-eb99f58c-8f0a-43d9-8b99-433af5dab559.png)
 
@@ -373,7 +380,7 @@ Install ssh if you do not already have it: `sudo apt-get install ssh`. To create
 
 Next, you are ready to start up an experiment:
 
-To use a pre-declared profile supplied by us, start an experiment using the public profile ["SOSP108"](https://www.cloudlab.us/p/morty/SOSP108). If you face any issues using this profile (or the disk images specified below), please make a post at the [Cloudlab forum](https://groups.google.com/g/cloudlab-users?pli=1) or contact Florian Suri-Payer <fs435@cornell.edu> and Matthew Burke <matthelb@cs.cornell.edu>.
+To use a pre-declared profile supplied by us, start an experiment using the public profile ["SOSP108"](https://www.cloudlab.us/p/morty/SOSP108). If you face any issues using this profile (or the disk images specified below), please make a post at the [Cloudlab forum](https://groups.google.com/g/cloudlab-users?pli=1) or contact Florian Suri-Payer <fs435@cornell.edu>.
 ![image](https://user-images.githubusercontent.com/42611410/129490911-8c97d826-caa7-4f04-95a7-8a2c8f3874f7.png)
 
 This profile by default starts with 18 server machines and 18 client machines, all of which use m510 hardware on the Utah cluster. This profile includes two disk images "SOSP108.server" (`urn:publicid:IDN+utah.cloudlab.us+image+morty-PG0:SOSP108.server`) and "SOSP108.client" (`urn:publicid:IDN+utah.cloudlab.us+image+morty-PG0:SOSP108.client`) that already include all dependencies and additional setup necessary to run experiments. Check the box "Use Control Machine" if you want to build binaries and run all experiments from one of the Cloudlab machines.
@@ -458,7 +465,7 @@ Additionally, you will have to install the following requisites:
 
 4. **Helper scripts**: 
 
-    (On branch main) Navigate to Pequin-Artifact/helper-scripts. Copy both these scripts (with the exact name) and place them in `/usr/local/etc` on the Cloudlab machine. Add execution permissions: `chmod +x disable_HT.sh; chmod +x turn_off_turbo.sh` The scripts are used at runtime by the experiments to disable hyperthreading and turbo respectively.
+    Navigate to Pequin-Artifact/helper-scripts. Copy both these scripts (with the exact name) and place them in `/usr/local/etc` on the Cloudlab machine. Add execution permissions: `chmod +x disable_HT.sh; chmod +x turn_off_turbo.sh` The scripts are used at runtime by the experiments to disable hyperthreading and turbo respectively.
 
    
 Once complete, create a new disk image (separate ones for server and client if you want to save space/time). Then, start the profile by choosing the newly created disk image.
@@ -471,18 +478,18 @@ To create a disk image, select "Create Disk Image" and name it accordingly.
 
 ## Running experiments <a name="experiments"></a>
 
-Hurray! You have completed the tedious process of installing the binaries and setting up Cloudlab. Next, we will cover how to run experiments in order to re-produce all results. This is a straightforward but time-consuming process, and importantly requires good network connectivity to upload binaries to the remote machines and download experiment results. Uploading binaries on high speed (e.g university) connections takes a few minutes and needs to be done only once per branch -- however, if your uplink speed is low it may take (as I have painstakingly experienced in preparing this documentation for you) several hours. Downloading experiment outputs requires a moderate amount of download bandwidth and is usually quite fast. This section is split into 4 subsections: 1) Pre-configurations for Hotstuff and BFTSmart, 2) Using the experiment scripts, 3) Parsing outputs, and finally 4) reproducing experiment claims 1-by-1.
+Hurray! You have completed the tedious process of installing the binaries and setting up Cloudlab. Next, we will cover how to run experiments in order to re-produce all results. This is a straightforward but time-consuming process, and importantly requires good network connectivity to upload binaries to the remote machines and download experiment results. Uploading binaries on high speed (e.g university) connections takes a few minutes and needs to be done only once per instantiated cloudlab experiment -- however, if your uplink speed is low it may take (as I have painstakingly experienced in preparing this documentation for you) several hours. Downloading experiment outputs requires a moderate amount of download bandwidth and is usually quite fast. This section is split into 4 subsections: 1) Pre-configurations for Hotstuff and BFTSmart, 2) Using the experiment scripts, 3) Parsing outputs, and finally 4) reproducing experiment claims 1-by-1.
 
 Before you proceed, please confirm that the following credentials are accurate:
 1. Cloudlab-username `<cloudlab-user>`: e.g. "fs435"
-2. Cloudlab experiment name `<experiment-name>`: e.g. "indicus"
-3. Cloudlab project name `<project-name`>: e.g. "morty-pg0"  (May need the "-pg0" extension)
+2. Cloudlab experiment name `<experiment-name>`: e.g. "pequin"
+3. Cloudlab project name `<project-name`>: e.g. "pequin-pg0"  (May need the "-pg0" extension)
 
 Confirm these by attempting to ssh into a machine you started (on the Utah cluster): `ssh <cloudlab-user>@us-east-1-0.<experiment-name>.<project-name>.utah.cloudlab.us`
 
 ### 1) Pre-configurations for Hotstuff and BFTSmart
 
-On branches TxHotstuff and TxBFTSmart you will need to complete the following pre-configuration steps before running an experiment script:
+When evaluating TxHotstuff and TxBFTSmart you will need to complete the following pre-configuration steps before running an experiment script:
 
 1. **TxHotstuff**
    1. Navigate to `Pequin-Artifact/src/scripts`
@@ -496,7 +503,7 @@ On branches TxHotstuff and TxBFTSmart you will need to complete the following pr
 3. **TxBFTSmart**
    1. Navigate to `Pequin-Artifact/src/scripts`
    2. Run `./one_step_config.sh <Local Pequin-Artifact directory> <cloudlab-user> <experiment-name> <project-name> <cluster-domain-name>`
-   3. For example: `./one_step_config.sh /home/floriansuri/Research/Projects/Pequin/Pequin-Artifact fs435 indicus morty-pg0 utah.cloudlab.us`
+   3. For example: `./one_step_config.sh /home/floriansuri/Research/Projects/Pequin/Pequin-Artifact fs435 pequin pequin-pg0 utah.cloudlab.us`
    4. This will upload the necessary configurations for the BFTSmart Conesnsus module to the Cloudlab machines.
       - Troubleshooting: Make sure files `server-hosts` and `client-hosts` in `/src/scripts/` do not contain empty lines at the end
 
@@ -505,9 +512,9 @@ On branches TxHotstuff and TxBFTSmart you will need to complete the following pr
 To run an experiment, you simply need to run: `python3 Pequin-Artifact/experiment-scripts/run_multiple_experiments.py <CONFIG>` using a specified configuration JSON file (see below). The script will load all binaries and configurations onto the remote Cloudlab machines, and collect experiment data upon completion. We have provided experiment configurations for all experiments claimed by the paper, which you can find under `Pequin-Artifact/experiment-configs`. In order for you to use them, you will need to make the following modifications to each file (Ctrl F and Replace in all the configs to save time):
 
 #### Required Modifications:
-1. `"project_name": "morty-pg0"`
+1. `"project_name": "pequin-pg0"`
    - change the value field to the name of your Cloudlab project `<project-name>`. On cloudlab.us (utah cluster) you will generally need to add "-pg0" to your project_name in order to ssh into the machines. To confirm which is the case for you, try to ssh into a machine directly using `ssh <cloudlab-user>@us-east-1-0.<experiment-name>.<project-name>.utah.cloudlab.us`.  
-2. `"experiment_name": "indicus"`
+2. `"experiment_name": "pequin"`
    - change the value field to the name of your Cloudlab experiment `<experiment-name>`.
 3. `"base_local_exp_directory": “home/floriansuri/Research/Projects/Pequin/output”`
    - Set the value field to be the local path (on your machine or the control machine) where experiment output files will be downloaded to and aggregated. 
@@ -544,7 +551,7 @@ To run an experiment, you simply need to run: `python3 Pequin-Artifact/experimen
    - For convenience, we have included such series (in comments) in all configuration files. To use them, uncomment them (by removing the underscore `_`) and comment out the pre-specified single settings (by adding an underscore `_`).
    - 
 #### Starting an experiment:
-You are ready to start an experiment. Use any of the provided JSON configs under `Pequin-Artifact/experiment-configs/<PATH>/<config>.json`. **Make sure** to use the binaries from a respective branch when running configs for Basil/Tapir, TxHotstuff, and TxBFTSmart respectively. All microbenchmark configs are Basil exclusive.
+You are ready to start an experiment. Use any of the provided JSON configs under `Pequin-Artifact/experiment-configs/<PATH>/<config>.json`. **Note that** all microbenchmark configs are Basil (Indicus) exclusive.
 
 Run: `python3 <PATH>/Pequin-Artifact/experiment-scripts/run_multiple_experiments.py <PATH>Pequin-Artifact/experiment-configs/<PATH>/<config>.json` and wait!
 
@@ -600,13 +607,13 @@ Next, we will go over each included experiment individually to provide some poin
    
 We have included recently re-validated experiment outputs (for most of the experiments) for easy cross-validation of the claimed througput (and latency) numbers under `/sample-output/ValidatedResults`. To directly compare against the numbers reported in our paper please refer to the figures there -- we include rough numbers below as well. Some of Basil' reported microbenchmark performances have changed slightly (documented below) as the codebase has since matured, but all takeaways remain consistent.
 
+> :warning: Make sure to have set up a CloudLab experiment (with correct disk images matching your local/controllers package dependencies) and built all binaries locally before running (see instructions above).
+
 #### **1 - Workloads**:
 We report evaluation results for 3 workloads (TPCC, Smallbank, Retwis) and 4 systems: Tapir (Crash Failure baseline), Basil (our system), TxHotstuff (BFT baseline), and TxBFTSmart (BFT baseline). All systems were evaluated using 3 shards each, but use different replication factors.
 
    1. **Tapir**: 
-   
-   > :warning: Make sure to run on branch `Basil/Tapir`. Build the binaries before running (see instructions above)
-   
+ 
    Reproducing our claimed results is straightforward and requires no additional setup besides running the included configs under `/experiment-configs/1-Workloads/1.Tapir`.  Reported peak results were roughly:
    
       - TPCC: Throughput: ~20k tx/s, Latency: ~7 ms
@@ -616,7 +623,6 @@ We report evaluation results for 3 workloads (TPCC, Smallbank, Retwis) and 4 sys
 
 
    2. **Basil**: 
-   > :warning: Make sure to run on branch `Basil/Tapir`. Build the binaries before running (see instructions above)
    
    Use the configurations under `/experiment-configs/1-Workloads/2.Basil`. Reported peak results were roughly:
    
@@ -627,7 +633,6 @@ We report evaluation results for 3 workloads (TPCC, Smallbank, Retwis) and 4 sys
    > **[NOTE]** On both Smallbank and Retwis throughput has decreased (and Latency has increased) ever so slightly since the reported paper results, as the system now additionally implements failure handling, which is optimistically triggered even under absence of failures. To disable this option set the JSON value `"no_fallback" : "true"`. We note, that none of the baseline systems (implement and) run with failure handling.\
          
    3. **TxHotstuff:** 
-   > :warning: Make sure to run on branch `TxHotstuff`. Build the binaries before running (see instructions above)
    
    Use the configurations under `/experiment-configs/1-Workloads/3.TxHotstuff`. Before running these configs, you must configure Hotstuff using the instructions from section "1) Pre-configurations for Hotstuff and BFTSmart" (see above). Use a batch size of 4 when running TPCC, and 16 for Smallbank and Retwis for optimal results. Note, that you must re-run `src/scripts/remote_config.sh` **after** updating the batch size and **before** starting an experiment. 
    
@@ -636,10 +641,9 @@ We report evaluation results for 3 workloads (TPCC, Smallbank, Retwis) and 4 sys
       - Smallbank: Throughput: ~6.4k tx/s Latency: ~42 ms
       - Retwis: Throughput: ~5.2k tx/s, Latency: ~48 ms
       
-   > :warning: **[WARNING]**: Hotstuffs performance is quite volatile with respect to total number of clients and the batch size specified. Since the Hotstuff protocol uses a pipelined consensus mechanism, it requires at least `batch_size x 4` active client requests per shard at any given time for progress. Using too few clients, and too large of a batch size will get Hotstuff stuck. In turn, using too many total clients will result in contention that is too high, causing exponential backoffs which leads to few active clients, hence slowing down the remaining active clients. These slow downs in turn lead to more contention and aborts, resulting in no throughput. The configs provided by us roughly capture the window of balance that allows for peak throughput. \  
+   > :warning: **[WARNING]**: Hotstuffs performance can be quite volatile with respect to total number of clients and the batch size specified. Since the Hotstuff protocol uses a pipelined consensus mechanism, it requires at least `batch_size x 4` active client requests per shard at any given time for progress. Using too few clients, and too large of a batch size will get Hotstuff stuck. In turn, using too many total clients will result in contention that is too high, causing exponential backoffs which leads to few active clients, hence slowing down the remaining active clients. These slow downs in turn lead to more contention and aborts, resulting in no throughput. The configs provided by us roughly capture the window of balance that allows for peak throughput. \  
       
    4. **TxBFTSmart**: 
-   > :warning: Make sure to run on branch `TxBFTSmart`. Build the binaries before running (see instructions above)
    
    Use the configurations under `/experiment-configs/1-Workloads/4.TxBFTSmart`. Before running these configs, you must configure Hotstuff using the instructions from section "1) Pre-configurations for Hotstuff and BFTSmart" (see above). You can, but do not need to manually set the batch size for BFTSmart (see optional instruction below). Note, that you must re-run `src/scripts/one_step_config.sh` **after** updating the batch size and **before** starting an experiment. 
       
@@ -727,8 +731,6 @@ We report evaluation results for 3 workloads (TPCC, Smallbank, Retwis) and 4 sys
 
 #### **Microbenchmarks**:
 Finally, we review the reported Microbenchmarks.
-
-> :warning: Make sure to run on branch `Basil/Tapir`. Build the binaries before running (see instructions above)
 
 #### **3-Crypto Overheads**:
 To reproduce the reported evaluation of the impact of proofs and cryptography on the system navigate to `experiment-configs/3-Micro:Crypto`. The evaluation covers the RW-U workload as well as RW-Z, and for each includes a config with Crypto/Proofs disabled and enabled respectively. Since signatures induce a high amount of overhead the full Basil system is multithreaded and uses several worker threads to handle cryptography - Since this overhead falls to the wayside, the Non-Crypto/Proofs version instead runs single-threaded (no crypto worker threads) and instead uses the available cores to run more shards. In total, the Non-Crypto/Proofs version uses 24 shards, vs normal Basil using 3.

@@ -150,7 +150,7 @@
     }
 
   ],
-  "experiment_name": "indicus",
+"experiment_name": "pequin",
   "codebase_name": "indicus",
 
 "client_total": [
@@ -183,7 +183,7 @@
   "default_remote_shell": "bash",
   "server_host_format_str": "%s.%s.%s.utah.cloudlab.us",
   "client_host_format_str": "client-%d-%d.%s.%s.utah.cloudlab.us",
-  "project_name": "morty-pg0",
+"project_name": "pequin-pg0",
   "fault_tolerance": 1,
   "server_names": [
    
