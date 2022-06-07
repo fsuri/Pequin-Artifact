@@ -45,10 +45,12 @@ namespace hotstuffstore {
 
 class Client : public ::Client {
  public:
-  Client(const transport::Configuration& config, int nGroups, int nShards,
+  Client(const transport::Configuration& config, uint64_t id, int nShards, int nGroups,
+      const std::vector<int> &closestReplicas,
       Transport *transport, Partitioner *part,
-      uint64_t readQuorumSize, bool signMessages,
+      uint64_t readMessages, uint64_t readQuorumSize, bool signMessages,
       bool validateProofs, KeyManager *keyManager,
+      bool order_commit = false, bool validate_abort = false,
       TrueTime timeserver = TrueTime(0,0));
   ~Client();
 
@@ -86,6 +88,7 @@ class Client : public ::Client {
   // Client for each shard
   std::vector<ShardClient *> bclient;
   Partitioner *part;
+  uint64_t readMessages;
   uint64_t readQuorumSize;
   bool signMessages;
   bool validateProofs;
@@ -93,6 +96,10 @@ class Client : public ::Client {
   // TrueTime server.
   TrueTime timeServer;
   int client_seq_num;
+
+  //addtional knobs: 1) order commit, 2) validate abort
+  bool order_commit = false;
+  bool validate_abort = false;
 
   struct PendingPrepare {
     proto::Transaction txn;
@@ -131,11 +138,15 @@ class Client : public ::Client {
   /* Debug State */
   std::unordered_map<std::string, uint32_t> statInts;
 
+  void WriteBackSigned(const proto::ShardSignedDecisions& dec, const proto::Transaction& txn, std::string digest);
+
   void WriteBackSigned(const proto::ShardSignedDecisions& dec, const proto::Transaction& txn,
     commit_callback ccb, commit_timeout_callback ctcb, uint32_t timeout);
 
   void WriteBack(const proto::ShardDecisions& dec, const proto::Transaction& txn,
     commit_callback ccb, commit_timeout_callback ctcb, uint32_t timeout);
+
+  void AbortTxnSigned(const proto::ShardSignedDecisions& dec, const proto::Transaction& txn, std::string& digest);
 
   void AbortTxn(const proto::Transaction& txn);
 

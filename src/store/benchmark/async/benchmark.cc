@@ -57,6 +57,14 @@
 #include "store/pbftstore/client.h"
 // HotStuff
 #include "store/hotstuffstore/client.h"
+// Augustus-Hotstuff
+#include "store/augustusstore/client.h"
+//BFTSmart
+#include "store/bftsmartstore/client.h"
+// Augustus-BFTSmart
+#include "store/bftsmartstore_augustus/client.h"
+#include "store/bftsmartstore_stable/client.h"
+
 #include "store/common/frontend/one_shot_client.h"
 #include "store/common/frontend/async_one_shot_adapter_client.h"
 #include "store/benchmark/async/common/zipf_key_selector.h"
@@ -78,7 +86,13 @@ enum protomode_t {
   PROTO_INDICUS,
 	PROTO_PBFT,
     // HotStuff
-    PROTO_HOTSTUFF
+    PROTO_HOTSTUFF,
+    // Augustus-Hotstuff
+    PROTO_AUGUSTUS,
+    // Bftsmart
+    PROTO_BFTSMART,
+    // Augustus-Hotstuff
+		PROTO_AUGUSTUS_SMART
 };
 
 enum benchmode_t {
@@ -164,6 +178,9 @@ static bool ValidateReadQuorum(const char* flagname,
 DEFINE_string(indicus_read_quorum, read_quorum_args[0], "size of read quorums"
     " (for Indicus)");
 DEFINE_validator(indicus_read_quorum, &ValidateReadQuorum);
+
+DEFINE_bool(indicus_optimistic_read_quorum, true, "if true = read only from read_quorum many replicas; if false = read from f more for liveness");
+
 const std::string read_dep_args[] = {
   "one-honest",
 	"one"
@@ -241,8 +258,11 @@ DEFINE_bool(indicus_batch_verification, false, "using ed25519 donna batch verifi
 DEFINE_uint64(indicus_batch_verification_size, 64, "batch size for ed25519 donna batch verification");
 DEFINE_uint64(indicus_batch_verification_timeout, 5, "batch verification timeout, ms");
 
-DEFINE_bool(pbft_order_commit, false, "order commit writebacks as well");
-DEFINE_bool(pbft_validate_abort, false, "validate abort writebacks as well");
+DEFINE_bool(pbft_order_commit, true, "order commit writebacks as well");
+DEFINE_bool(pbft_validate_abort, true, "validate abort writebacks as well");
+
+
+DEFINE_string(bftsmart_codebase_dir, "", "path to directory containing bftsmart configurations");
 
 DEFINE_bool(indicus_parallel_CCC, true, "sort read/write set for parallel CCC locking at server");
 
@@ -319,7 +339,13 @@ const std::string protocol_args[] = {
   "indicus",
 	"pbft",
 // HotStuff
-    "hotstuff"
+    "hotstuff",
+// Augustus-Hotstuff
+    "augustus-hs",
+// BFTSmart
+  "bftsmart",
+// Augustus-BFTSmart
+	"augustus"
 };
 const protomode_t protomodes[] {
   PROTO_TAPIR,
@@ -332,7 +358,13 @@ const protomode_t protomodes[] {
   PROTO_INDICUS,
       PROTO_PBFT,
   // HotStuff
-      PROTO_HOTSTUFF
+      PROTO_HOTSTUFF,
+  // Augustus-Hotstuff
+      PROTO_AUGUSTUS,
+  // BFTSmart
+  PROTO_BFTSMART,
+  // Augustus-BFTSmart
+	PROTO_AUGUSTUS_SMART
 };
 const strongstore::Mode strongmodes[] {
   strongstore::Mode::MODE_UNKNOWN,
@@ -721,7 +753,7 @@ int main(int argc, char **argv) {
 
   switch (trans) {
     case TRANS_TCP:
-      tport = new TCPTransport(0.0, 0.0, 0, false, 0, 1, FLAGS_indicus_hyper_threading, false);
+      tport = new TCPTransport(0.0, 0.0, 0, false, 0, 1, FLAGS_indicus_hyper_threading, false, 0);
       break;
     case TRANS_UDP:
       tport = new UDPTransport(0.0, 0.0, 0, nullptr);
@@ -729,6 +761,8 @@ int main(int argc, char **argv) {
     default:
       NOT_REACHABLE();
   }
+
+  Debug("transport protocol used: %d",trans);
 
 
   KeySelector *keySelector;
@@ -852,7 +886,7 @@ int main(int argc, char **argv) {
         break;
     }
     case PROTO_INDICUS: {
-        uint64_t readQuorumSize = 0;
+        uint64_t readQuorumSize = 0; //number of replies necessary to form a quorum
         switch (read_quorum) {
         case READ_QUORUM_ONE:
             readQuorumSize = 1;
@@ -873,10 +907,11 @@ int main(int argc, char **argv) {
             NOT_REACHABLE();
         }
 
-        uint64_t readMessages = 0;
+        uint64_t readMessages = 0; //number of messages sent to replicas to request replies
+        uint64_t pessimistic_quorum_bonus = FLAGS_indicus_optimistic_read_quorum? 0 : config->f; //by default only sends read to the same amount of replicas that we need replies from; if there are faults, we may need to send to more.
         switch (read_messages) {
         case READ_MESSAGES_READ_QUORUM:
-            readMessages = readQuorumSize;// + config->f;
+            readMessages = readQuorumSize + pessimistic_quorum_bonus;
             break;
         case READ_MESSAGES_MAJORITY:
             readMessages = (config->n + 1) / 2;
@@ -983,15 +1018,160 @@ int main(int argc, char **argv) {
         default:
             NOT_REACHABLE();
         }
+				uint64_t readMessages = 0;
+        uint64_t pessimistic_quorum_bonus = FLAGS_indicus_optimistic_read_quorum? 0 : config->f;
+        switch (read_messages) {
+        case READ_MESSAGES_READ_QUORUM:
+            readMessages = readQuorumSize + pessimistic_quorum_bonus; //config->n;
+            break;
+        case READ_MESSAGES_MAJORITY:
+            readMessages = (config->n + 1) / 2;
+            break;
+        case READ_MESSAGES_ALL:
+            readMessages = config->n;
+            break;
+        default:
+            NOT_REACHABLE();
+        }
 
-        client = new hotstuffstore::Client(*config, FLAGS_num_shards,
-                                           FLAGS_num_groups, tport, part,
-                                           readQuorumSize,
-                                           FLAGS_indicus_sign_messages, FLAGS_indicus_validate_proofs,
-                                           keyManager, TrueTime(FLAGS_clock_skew, FLAGS_clock_error));
+        client = new hotstuffstore::Client(*config, clientId, FLAGS_num_shards,
+                                       FLAGS_num_groups, closestReplicas,
+																			  tport, part,
+                                       readMessages, readQuorumSize,
+                                       FLAGS_indicus_sign_messages, FLAGS_indicus_validate_proofs,
+                                       keyManager,
+																			 FLAGS_pbft_order_commit, FLAGS_pbft_validate_abort,
+																			 TrueTime(FLAGS_clock_skew, FLAGS_clock_error));
         break;
     }
 
+		// BFTSmart
+		    case PROTO_BFTSMART: {
+		      uint64_t readQuorumSize = 0;
+		        switch (read_quorum) {
+		        case READ_QUORUM_ONE:
+		            readQuorumSize = 1;
+		            break;
+		        case READ_QUORUM_ONE_HONEST:
+		            readQuorumSize = config->f + 1;
+		            break;
+		        case READ_QUORUM_MAJORITY_HONEST:
+		            readQuorumSize = config->f * 2 + 1;
+		            break;
+		        default:
+		            NOT_REACHABLE();
+		        }
+						uint64_t readMessages = 0;
+            uint64_t pessimistic_quorum_bonus = FLAGS_indicus_optimistic_read_quorum? 0 : config->f;
+		        switch (read_messages) {
+		        case READ_MESSAGES_READ_QUORUM:
+		            readMessages = readQuorumSize + pessimistic_quorum_bonus; //config->n;
+		            break;
+		        case READ_MESSAGES_MAJORITY:
+		            readMessages = (config->n + 1) / 2;
+		            break;
+		        case READ_MESSAGES_ALL:
+		            readMessages = config->n;
+		            break;
+		        default:
+		            NOT_REACHABLE();
+		        }
+
+		        client = new bftsmartstore::Client(*config, clientId, FLAGS_num_shards,
+		                                       FLAGS_num_groups, closestReplicas,
+																					  tport, part,
+		                                       readMessages, readQuorumSize,
+		                                       FLAGS_indicus_sign_messages, FLAGS_indicus_validate_proofs,
+		                                       keyManager, FLAGS_bftsmart_codebase_dir,
+																					 FLAGS_pbft_order_commit, FLAGS_pbft_validate_abort,
+																					 TrueTime(FLAGS_clock_skew, FLAGS_clock_error));
+		        break;
+		    }
+
+		case PROTO_AUGUSTUS_SMART: {
+			uint64_t readQuorumSize = 0;
+				switch (read_quorum) {
+				case READ_QUORUM_ONE:
+						readQuorumSize = 1;
+						break;
+				case READ_QUORUM_ONE_HONEST:
+						readQuorumSize = config->f + 1;
+						break;
+				case READ_QUORUM_MAJORITY_HONEST:
+						readQuorumSize = config->f * 2 + 1;
+						break;
+				default:
+						NOT_REACHABLE();
+				}
+				uint64_t readMessages = 0;
+        uint64_t pessimistic_quorum_bonus = FLAGS_indicus_optimistic_read_quorum? 0 : config->f;
+				switch (read_messages) {
+				case READ_MESSAGES_READ_QUORUM:
+						readMessages = readQuorumSize + pessimistic_quorum_bonus; //config->n;
+						break;
+				case READ_MESSAGES_MAJORITY:
+						readMessages = (config->n + 1) / 2;
+						break;
+				case READ_MESSAGES_ALL:
+						readMessages = config->n;
+						break;
+				default:
+						NOT_REACHABLE();
+				}
+
+				client = new bftsmartstore_stable::Client(*config, clientId, FLAGS_num_shards,
+																			 FLAGS_num_groups, closestReplicas,
+																				tport, part,
+																			 readMessages, readQuorumSize,
+																			 FLAGS_indicus_sign_messages, FLAGS_indicus_validate_proofs,
+																			 keyManager,
+																			 FLAGS_pbft_order_commit, FLAGS_pbft_validate_abort,
+																			 TrueTime(FLAGS_clock_skew, FLAGS_clock_error));
+				break;
+		}
+
+// Augustus
+    case PROTO_AUGUSTUS: {
+        uint64_t readQuorumSize = 0;
+        switch (read_quorum) {
+        case READ_QUORUM_ONE:
+            readQuorumSize = 1;
+            break;
+        case READ_QUORUM_ONE_HONEST:
+            readQuorumSize = config->f + 1;
+            break;
+        case READ_QUORUM_MAJORITY_HONEST:
+            readQuorumSize = config->f * 2 + 1;
+            break;
+        default:
+            NOT_REACHABLE();
+        }
+				uint64_t readMessages = 0;
+        uint64_t pessimistic_quorum_bonus = FLAGS_indicus_optimistic_read_quorum? 0 : config->f;
+        switch (read_messages) {
+        case READ_MESSAGES_READ_QUORUM:
+            readMessages = readQuorumSize; + pessimistic_quorum_bonus; //config->n;
+            break;
+        case READ_MESSAGES_MAJORITY:
+            readMessages = (config->n + 1) / 2;
+            break;
+        case READ_MESSAGES_ALL:
+            readMessages = config->n;
+            break;
+        default:
+            NOT_REACHABLE();
+        }
+
+        client = new augustusstore::Client(*config, clientId, FLAGS_num_shards,
+                                       FLAGS_num_groups, closestReplicas,
+																			  tport, part,
+                                       readMessages, readQuorumSize,
+                                       FLAGS_indicus_sign_messages, FLAGS_indicus_validate_proofs,
+                                       keyManager,
+																			 FLAGS_pbft_order_commit, FLAGS_pbft_validate_abort,
+																			 TrueTime(FLAGS_clock_skew, FLAGS_clock_error));
+        break;
+    }
 
     default:
         NOT_REACHABLE();
@@ -1075,6 +1255,7 @@ int main(int argc, char **argv) {
             FLAGS_abort_backoff, FLAGS_retry_aborted, FLAGS_max_backoff,
             FLAGS_max_attempts);
         break;
+
       default:
         NOT_REACHABLE();
     }

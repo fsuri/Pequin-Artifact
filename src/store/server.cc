@@ -50,6 +50,17 @@
 // HotStuff
 #include "store/hotstuffstore/replica.h"
 #include "store/hotstuffstore/server.h"
+// Augustus
+#include "store/augustusstore/replica.h"
+#include "store/augustusstore/server.h"
+// BftSmart
+#include "store/bftsmartstore/replica.h"
+#include "store/bftsmartstore/server.h"
+// Augustus-BftSmart
+#include "store/bftsmartstore_augustus/replica.h"
+#include "store/bftsmartstore_augustus/server.h"
+#include "store/bftsmartstore_stable/replica.h"
+#include "store/bftsmartstore_stable/server.h"
 
 #include "store/benchmark/async/tpcc/tpcc-proto.pb.h"
 #include "store/indicusstore/common.h"
@@ -65,7 +76,13 @@ enum protocol_t {
   PROTO_INDICUS,
 	PROTO_PBFT,
     // HotStuff
-    PROTO_HOTSTUFF
+    PROTO_HOTSTUFF,
+    // Augustus-Hotstuff
+    PROTO_AUGUSTUS,
+    // BftSmart
+    PROTO_BFTSMART,
+    // Augustus-BFTSmart
+		PROTO_AUGUSTUS_SMART
 };
 
 enum transmode_t {
@@ -103,7 +120,10 @@ const std::string protocol_args[] = {
   "strong",
   "indicus",
 	"pbft",
-    "hotstuff"
+    "hotstuff",
+    "augustus-hs", //not used currently by experiment scripts (deprecated)
+  "bftsmart",
+	"augustus" //currently used as augustus version -- maps to BFTSmart Augustus implementation
 };
 const protocol_t protos[] {
   PROTO_TAPIR,
@@ -111,7 +131,10 @@ const protocol_t protos[] {
   PROTO_STRONG,
   PROTO_INDICUS,
       PROTO_PBFT,
-      PROTO_HOTSTUFF
+      PROTO_HOTSTUFF,
+      PROTO_AUGUSTUS,
+      PROTO_BFTSMART,
+			PROTO_AUGUSTUS_SMART
 };
 static bool ValidateProtocol(const char* flagname,
     const std::string &value) {
@@ -260,6 +283,8 @@ DEFINE_uint64(indicus_use_coordinator, false, "use coordinator"
     " make primary the coordinator for atomic broadcast (for Indicus)");
 DEFINE_uint64(indicus_request_tx, false, "request tx"
     " request tx (for Indicus)");
+
+DEFINE_string(bftsmart_codebase_dir, "", "path to directory containing bftsmart configurations");
 		//
 //DEFINE_bool(indicus_clientAuthenticated, false, "Client messages signed");
 DEFINE_bool(indicus_multi_threading, true, "dispatch crypto to parallel threads");
@@ -287,9 +312,8 @@ DEFINE_uint64(pbft_esig_batch, 1, "signature batch size"
 DEFINE_uint64(pbft_esig_batch_timeout, 10, "signature batch timeout ms"
 		" sig batch timeout (for PBFT decision phase)");
 
-DEFINE_bool(pbft_order_commit, false, "order commit writebacks as well");
-DEFINE_bool(pbft_validate_abort, false, "validate abort writebacks as well");
-
+DEFINE_bool(pbft_order_commit, true, "order commit writebacks as well");
+DEFINE_bool(pbft_validate_abort, true, "validate abort writebacks as well");
 
 const std::string occ_type_args[] = {
 	"tapir",
@@ -420,6 +444,10 @@ int main(int argc, char **argv) {
     }
   }
 
+  int threadpool_mode = 0; //default for Basil.
+  if(proto == PROTO_HOTSTUFF || proto == PROTO_AUGUSTUS) threadpool_mode = 1;
+  if(proto == PROTO_BFTSMART || proto == PROTO_AUGUSTUS_SMART) threadpool_mode = 2;
+
   switch (trans) {
     case TRANS_TCP:
 			Notice("process_id flag = %d", FLAGS_indicus_process_id);
@@ -428,7 +456,7 @@ int main(int argc, char **argv) {
 			// 	tport = new TCPTransport(0.0, 0.0, 0, false, 0, 1);
 			// 	break;
 			// }
-      tport = new TCPTransport(0.0, 0.0, 0, false, FLAGS_indicus_process_id, FLAGS_indicus_total_processes, FLAGS_indicus_hyper_threading, true);
+      tport = new TCPTransport(0.0, 0.0, 0, false, FLAGS_indicus_process_id, FLAGS_indicus_total_processes, FLAGS_indicus_hyper_threading, true, threadpool_mode);
 			 //TODO: add: process_id + total processes (max_grpid/ machines (= servers/n))
       break;
     case TRANS_UDP:
@@ -598,19 +626,140 @@ int main(int argc, char **argv) {
       //FLAGS_pbft_esig_batch, FLAGS_pbft_esig_batch_timeout,
       break;
   }
+
       // HotStuff
   case PROTO_HOTSTUFF: {
+      int num_cpus = std::thread::hardware_concurrency();
+      num_cpus /= FLAGS_indicus_total_processes;
+
+      int hotstuff_cpu;
+      if (FLAGS_num_shards == 6) {
+          hotstuff_cpu = FLAGS_indicus_process_id * num_cpus + num_cpus - 1;
+      } else if(FLAGS_num_shards == 3) {
+				//hotstuff_cpu = 1;
+				hotstuff_cpu = FLAGS_indicus_process_id * num_cpus + num_cpus - 1;
+			}
+			else{
+          // FLAGS_num_shards should be 12 or 24
+          hotstuff_cpu = FLAGS_indicus_process_id * num_cpus;
+      }
+
       server = new hotstuffstore::Server(config, &keyManager,
                                      FLAGS_group_idx, FLAGS_replica_idx, FLAGS_num_shards, FLAGS_num_groups,
                                      FLAGS_indicus_sign_messages, FLAGS_indicus_validate_proofs,
-                                     FLAGS_indicus_time_delta, part);
+                                     FLAGS_indicus_time_delta, part, tport,
+																	   FLAGS_pbft_order_commit, FLAGS_pbft_validate_abort);
+
       replica = new hotstuffstore::Replica(config, &keyManager,
                                        dynamic_cast<hotstuffstore::App *>(server),
                                        FLAGS_group_idx, FLAGS_replica_idx, FLAGS_indicus_sign_messages,
-                                       FLAGS_indicus_sig_batch,
-																			 FLAGS_indicus_sig_batch_timeout, FLAGS_indicus_use_coordinator, FLAGS_indicus_request_tx, tport);
+                                       FLAGS_indicus_sig_batch, FLAGS_indicus_sig_batch_timeout,
+                                       FLAGS_pbft_esig_batch, FLAGS_pbft_esig_batch_timeout,
+                                       FLAGS_indicus_use_coordinator, FLAGS_indicus_request_tx,
+																			 hotstuff_cpu, FLAGS_num_shards, tport);
+
       break;
   }
+
+      // Augustus running on top of Hotstuff
+  case PROTO_AUGUSTUS: {
+      int num_cpus = std::thread::hardware_concurrency();
+      num_cpus /= FLAGS_indicus_total_processes;
+
+      int augustus_cpu;
+      if (FLAGS_num_shards == 6) {
+          augustus_cpu = FLAGS_indicus_process_id * num_cpus + num_cpus - 1;
+      } else if(FLAGS_num_shards == 3) {
+				//augustus_cpu = 1;
+				augustus_cpu = FLAGS_indicus_process_id * num_cpus + num_cpus - 1;
+			}
+			else{
+          // FLAGS_num_shards should be 12 or 24
+          augustus_cpu = FLAGS_indicus_process_id * num_cpus;
+      }
+
+      server = new augustusstore::Server(config, &keyManager,
+                                     FLAGS_group_idx, FLAGS_replica_idx, FLAGS_num_shards, FLAGS_num_groups,
+                                     FLAGS_indicus_sign_messages, FLAGS_indicus_validate_proofs,
+                                     FLAGS_indicus_time_delta, part, tport,
+																	   FLAGS_pbft_order_commit, FLAGS_pbft_validate_abort);
+
+      replica = new augustusstore::Replica(config, &keyManager,
+                                       dynamic_cast<augustusstore::App *>(server),
+                                       FLAGS_group_idx, FLAGS_replica_idx, FLAGS_indicus_sign_messages,
+                                       FLAGS_indicus_sig_batch, FLAGS_indicus_sig_batch_timeout,
+                                       FLAGS_pbft_esig_batch, FLAGS_pbft_esig_batch_timeout,
+                                       FLAGS_indicus_use_coordinator, FLAGS_indicus_request_tx,
+																			 augustus_cpu, FLAGS_num_shards, tport);
+
+      break;
+  }
+
+	case PROTO_BFTSMART: {
+		int num_cpus = std::thread::hardware_concurrency();
+			num_cpus /= FLAGS_indicus_total_processes;
+
+			int hotstuff_cpu;
+			if (FLAGS_num_shards == 6) {
+					hotstuff_cpu = FLAGS_indicus_process_id * num_cpus + num_cpus - 1;
+			} else if(FLAGS_num_shards == 3) {
+				//hotstuff_cpu = 1;
+				hotstuff_cpu = FLAGS_indicus_process_id * num_cpus + num_cpus - 1;
+			}
+			else{
+					// FLAGS_num_shards should be 12 or 24
+					hotstuff_cpu = FLAGS_indicus_process_id * num_cpus;
+			}
+
+			server = new bftsmartstore::Server(config, &keyManager,
+																		 FLAGS_group_idx, FLAGS_replica_idx, FLAGS_num_shards, FLAGS_num_groups,
+																		 FLAGS_indicus_sign_messages, FLAGS_indicus_validate_proofs,
+																		 FLAGS_indicus_time_delta, part, tport,
+																		 FLAGS_pbft_order_commit, FLAGS_pbft_validate_abort);
+      std::cerr << "FLAGS: bftsmart config path: " << FLAGS_bftsmart_codebase_dir << std::endl;
+			replica = new bftsmartstore::Replica(config, &keyManager,
+																			 dynamic_cast<bftsmartstore::App *>(server),
+																			 FLAGS_group_idx, FLAGS_replica_idx, FLAGS_indicus_sign_messages,
+																			 FLAGS_indicus_sig_batch, FLAGS_indicus_sig_batch_timeout,
+																			 FLAGS_pbft_esig_batch, FLAGS_pbft_esig_batch_timeout,
+																			 FLAGS_indicus_use_coordinator, FLAGS_indicus_request_tx,
+																			 hotstuff_cpu, FLAGS_num_shards, tport, FLAGS_bftsmart_codebase_dir);
+
+			break;
+	}
+		// Augustus running on top of BFT smart.
+	case PROTO_AUGUSTUS_SMART: {
+		int num_cpus = std::thread::hardware_concurrency();
+		num_cpus /= FLAGS_indicus_total_processes;
+
+		int augustus_cpu;
+		if (FLAGS_num_shards == 6) {
+				augustus_cpu = FLAGS_indicus_process_id * num_cpus + num_cpus - 1;
+		} else if(FLAGS_num_shards == 3) {
+			//hotstuff_cpu = 1;
+		    augustus_cpu = FLAGS_indicus_process_id * num_cpus + num_cpus - 1;
+		}
+		else{
+				// FLAGS_num_shards should be 12 or 24
+				augustus_cpu = FLAGS_indicus_process_id * num_cpus;
+		}
+
+		server = new bftsmartstore_stable::Server(config, &keyManager,
+																	 FLAGS_group_idx, FLAGS_replica_idx, FLAGS_num_shards, FLAGS_num_groups,
+																	 FLAGS_indicus_sign_messages, FLAGS_indicus_validate_proofs,
+																	 FLAGS_indicus_time_delta, part, tport,
+																	 FLAGS_pbft_order_commit, FLAGS_pbft_validate_abort);
+
+		replica = new bftsmartstore_stable::Replica(config, &keyManager,
+																		 dynamic_cast<bftsmartstore_stable::App *>(server),
+																		 FLAGS_group_idx, FLAGS_replica_idx, FLAGS_indicus_sign_messages,
+																		 FLAGS_indicus_sig_batch, FLAGS_indicus_sig_batch_timeout,
+																		 FLAGS_pbft_esig_batch, FLAGS_pbft_esig_batch_timeout,
+																		 FLAGS_indicus_use_coordinator, FLAGS_indicus_request_tx,
+																		 augustus_cpu, FLAGS_num_shards, tport);
+
+		break;
+	}
 
   default: {
       NOT_REACHABLE();
@@ -709,17 +858,17 @@ int main(int argc, char **argv) {
   CALLGRIND_START_INSTRUMENTATION;
 	//SET THREAD AFFINITY if running multi_threading:
 	//if(FLAGS_indicus_multi_threading){
-	if((proto == PROTO_INDICUS || proto == PROTO_PBFT)&& FLAGS_indicus_multi_threading){
+	if((proto == PROTO_INDICUS || proto == PROTO_PBFT || proto == PROTO_HOTSTUFF || proto == PROTO_AUGUSTUS || proto == PROTO_BFTSMART || proto == PROTO_AUGUSTUS_SMART) && FLAGS_indicus_multi_threading){
 		cpu_set_t cpuset;
 		CPU_ZERO(&cpuset);
 		//bool hyperthreading = true;
-	  int num_cpus = std::thread::hardware_concurrency();///(2-FLAGS_indicus_hyper_threading);
+        int num_cpus = std::thread::hardware_concurrency();///(2-FLAGS_indicus_hyper_threading);
 		//CPU_SET(num_cpus-1, &cpuset); //last core is for main
 		num_cpus /= FLAGS_indicus_total_processes;
-	  int offset = FLAGS_indicus_process_id * num_cpus;
+        int offset = FLAGS_indicus_process_id * num_cpus;
 		//int offset = FLAGS_indicus_process_id;
 		CPU_SET(0 + offset, &cpuset); //first assigned core is for main
-		pthread_setaffinity_np(pthread_self(),	sizeof(cpu_set_t), &cpuset);
+		//pthread_setaffinity_np(pthread_self(),	sizeof(cpu_set_t), &cpuset);
 		Debug("MainThread running on CPU %d.", sched_getcpu());
 	}
 

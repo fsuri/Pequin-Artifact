@@ -51,7 +51,7 @@ public:
   // copy constructor panics
   ThreadPool(const ThreadPool& tp) { Panic("Unimplemented"); }
 
-  void start(int process_id=0, int total_processes=1, bool hyperthreading =  true, bool server = true);
+  void start(int process_id=0, int total_processes=1, bool hyperthreading =  true, bool server = true, int mode = 0);  // 0 = Indicus, 1 = Hotstuff, 2 = BFTSmart
   void stop();
 
   void dispatch(std::function<void*()> f, std::function<void(void*)> cb, event_base* libeventBase);
@@ -81,29 +81,18 @@ private:
   void FreeEvent(event* event);
 
 
-  std::mutex worklistMutex;
   std::mutex EventInfoMutex;
   std::mutex EventMutex;
   std::condition_variable cv;
   std::vector<EventInfo*> eventInfos;
   std::vector<event*> events;
-  std::deque<std::pair<std::function<void*()>, EventInfo*> > worklist;
-  std::deque <std::function<void*()>> worklist2; //try with deque
+  
   bool running;
   std::vector<std::thread*> threads;
 
-  std::deque <std::function<void*()>> main_worklist;
+  moodycamel::BlockingConcurrentQueue<std::pair<std::function<void*()>, EventInfo*>> worker_thread_request_list;
+  moodycamel::BlockingConcurrentQueue<std::function<void*()>> main_thread_request_list;
 
-  moodycamel::BlockingConcurrentQueue<std::pair<std::function<void*()>, EventInfo*>> test_worklist;
-  moodycamel::BlockingConcurrentQueue<std::function<void*()>> test_main_worklist;
-
-  //tbb::concurrent_queue <std::pair<std::function<void*()>, EventInfo*>> testlist;
-  //std::shared_mutex dummyMutex;
-  //testlist.push()
-  //testlist.try_pop(&job)
-  //testlist.size_type
-  std::mutex main_worklistMutex;
-  std::condition_variable cv_main;
 };
 
 #endif  // _LIB_THREADPOOL_H_

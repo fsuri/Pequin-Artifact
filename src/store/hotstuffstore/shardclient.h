@@ -39,6 +39,7 @@
 #include "store/common/common-proto.pb.h"
 #include "store/hotstuffstore/pbft-proto.pb.h"
 #include "store/hotstuffstore/server-proto.pb.h"
+#include <sys/time.h>
 
 #include <map>
 #include <string>
@@ -60,9 +61,9 @@ class ShardClient : public TransportReceiver {
  public:
   /* Constructor needs path to shard config. */
   ShardClient(const transport::Configuration& config, Transport *transport,
-      uint64_t group_idx,
+      uint64_t client_id, uint64_t group_idx, const std::vector<int> &closestReplicas_,
       bool signMessages, bool validateProofs,
-      KeyManager *keyManager, Stats* stats);
+      KeyManager *keyManager, Stats* stats, bool order_commit = false, bool validate_abort = false);
   ~ShardClient();
 
   void ReceiveMessage(const TransportAddress &remote,
@@ -71,7 +72,7 @@ class ShardClient : public TransportReceiver {
 
   // Get the value corresponding to key.
   void Get(const std::string &key, const Timestamp &ts,
-      uint64_t numResults, read_callback gcb, read_timeout_callback gtcb,
+      uint64_t readMessages, uint64_t numResults, read_callback gcb, read_timeout_callback gtcb,
       uint32_t timeout);
 
   // send a request with this as the packed message
@@ -85,9 +86,14 @@ class ShardClient : public TransportReceiver {
   void CommitSigned(const std::string& txn_digest, const proto::ShardSignedDecisions& dec,
       writeback_callback wcb, writeback_timeout_callback wtcp, uint32_t timeout);
 
-  void Abort(std::string txn_digest);
+  void CommitSigned(const std::string& txn_digest, const proto::ShardSignedDecisions& dec);
+
+  void Abort(std::string& txn_digest, const proto::ShardSignedDecisions& dec);
 
  private:
+   uint64_t start_time;
+   uint64_t total_elapsed = 0 ;
+   uint64_t total_prepare = 0;
 
   transport::Configuration config;
   Transport *transport; // Transport layer.
@@ -96,7 +102,15 @@ class ShardClient : public TransportReceiver {
   bool validateProofs;
   KeyManager *keyManager;
 
+  //addtional knobs: 1) order commit, 2) validate abort
+  bool order_commit = false;
+  bool validate_abort = false;
+
   uint64_t readReq;
+  std::vector<int> closestReplicas;
+  inline size_t GetNthClosestReplica(size_t idx) const {
+    return closestReplicas[idx];
+  }
 
   struct PendingRead {
     // the set of ids that we have received a read reply for
@@ -118,6 +132,7 @@ class ShardClient : public TransportReceiver {
   void HandleReadReply(const proto::ReadReply& reply, const proto::SignedMessage& signedMsg);
 
   std::string CreateValidPackedDecision(std::string digest);
+  std::string CreateFailedPackedDecision(std::string digest);
 
   struct PendingPrepare {
     proto::TransactionDecision validDecision;
@@ -133,8 +148,10 @@ class ShardClient : public TransportReceiver {
   struct PendingSignedPrepare {
     // the serialized packed message containing the valid transaction decision
     std::string validDecisionPacked;
+    std::string failedDecisionPacked;
     // map from id to valid signature
     std::unordered_map<uint64_t, std::string> receivedValidSigs;
+    std::unordered_map<uint64_t, std::string> receivedFailedSigs;
     std::unordered_set<uint64_t> receivedFailedIds;
     signed_prepare_callback pcb;
 

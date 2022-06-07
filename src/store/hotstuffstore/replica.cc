@@ -25,6 +25,7 @@
  *
  **********************************************************************/
 #include "store/hotstuffstore/replica.h"
+#include "store/hotstuffstore/pbft_batched_sigs.h"
 #include "store/hotstuffstore/common.h"
 
 namespace hotstuffstore {
@@ -55,13 +56,14 @@ using namespace std;
 
 Replica::Replica(const transport::Configuration &config, KeyManager *keyManager,
   App *app, int groupIdx, int idx, bool signMessages, uint64_t maxBatchSize,
-  uint64_t batchTimeoutMS, bool primaryCoordinator, bool requestTx, Transport *transport)
+                 uint64_t batchTimeoutMS, uint64_t EbatchSize, uint64_t EbatchTimeoutMS, bool primaryCoordinator, bool requestTx, int hotstuff_cpu, int numShards, Transport *transport)
     : config(config),
-      // HotStuff
-      hotstuff_interface(groupIdx, idx),
+#ifdef USE_HOTSTUFF_STORE
+      hotstuff_interface(groupIdx, idx, hotstuff_cpu),
+#endif
       keyManager(keyManager), app(app), groupIdx(groupIdx), idx(idx),
     id(groupIdx * config.n + idx), signMessages(signMessages), maxBatchSize(maxBatchSize),
-    batchTimeoutMS(batchTimeoutMS), primaryCoordinator(primaryCoordinator), requestTx(requestTx), transport(transport) {
+      batchTimeoutMS(batchTimeoutMS), EbatchSize(EbatchSize), EbatchTimeoutMS(EbatchTimeoutMS), primaryCoordinator(primaryCoordinator), requestTx(requestTx), numShards(numShards), transport(transport) {
   transport->Register(this, config, groupIdx, idx);
 
   // intial view
@@ -74,9 +76,20 @@ Replica::Replica(const transport::Configuration &config, KeyManager *keyManager,
   batchTimerRunning = false;
   nextBatchNum = 0;
 
+  EbatchTimerRunning = false;
+  for (int i = 0; i < EbatchSize; i++) {
+    EsignedMessages.push_back(new proto::SignedMessage());
+  }
+  for (uint64_t i = 1; i <= EbatchSize; i++) {
+   EbStatNames[i] = "ebsize_" + std::to_string(i);
+  }
+
   Debug("Initialized replica at %d %d", groupIdx, idx);
 
   stats = app->mutableStats();
+  for (uint64_t i = 1; i <= maxBatchSize; i++) {
+   bStatNames[i] = "bsize_" + std::to_string(i);
+  }
 
 
   // assume these are somehow secretly shared before hand
@@ -121,50 +134,130 @@ void Replica::CreateHMACedMessage(const ::google::protobuf::Message &msg, proto:
 
 void Replica::ReceiveMessage(const TransportAddress &remote, const string &t,
                           const string &d, void *meta_data) {
-    string type;
-    string data;
-    bool recvSignedMessage = false;
+  string type;
+  string data;
+  bool recvSignedMessage = false;
 
-    Debug("Received message of type %s", t.c_str());
+  Debug("Received message of type %s", t.c_str());
 
-    // This may be obsolete because it is for PBFT
-    if (t == tmpsignedMessage.GetTypeName()) {
-        if (!tmpsignedMessage.ParseFromString(d)) {
-            return;
-        }
+  if (t == tmpsignedMessage.GetTypeName()) {
+    if (!tmpsignedMessage.ParseFromString(d)) {
+      return;
+    }
 
-        if (!ValidateHMACedMessage(tmpsignedMessage, data, type)) {
-            Debug("Message is invalid!");
-            stats->Increment("invalid_sig",1);
-            return;
-        }
-        recvSignedMessage = true;
-        Debug("Message is valid!");
-        Debug("Message is from %lu", tmpsignedMessage.replica_id());
+    if (!ValidateHMACedMessage(tmpsignedMessage, data, type)) {
+      Debug("Message is invalid!");
+      stats->Increment("invalid_sig",1);
+      return;
+    }
+    recvSignedMessage = true;
+    Debug("Message is valid!");
+    Debug("Message is from %lu", tmpsignedMessage.replica_id());
+  } else {
+    type = t;
+    data = d;
+  }
+
+  if (type == recvrequest.GetTypeName()) {
+    recvrequest.ParseFromString(data);
+    HandleRequest(remote, recvrequest);
+  } else if (type == recvbatchedRequest.GetTypeName()) {
+    recvbatchedRequest.ParseFromString(data);
+    HandleBatchedRequest(remote, recvbatchedRequest);
+  } else if (type == recvab.GetTypeName()) {
+    recvab.ParseFromString(data);
+    if (slots.getSlotDigest(recvab.seqnum(), recvab.viewnum()) == recvab.digest()) {
+      stats->Increment("valid_ab", 1);
+
+      proto::Preprepare preprepare;
+      preprepare.set_seqnum(recvab.seqnum());
+      preprepare.set_viewnum(recvab.viewnum());
+      preprepare.set_digest(recvab.digest());
+      sendMessageToAll(preprepare);
     } else {
-        type = t;
-        data = d;
+      stats->Increment("invalid_ab", 1);
+    }
+  } else if (type == recvrr.GetTypeName()) {
+    recvrr.ParseFromString(data);
+    std::string digest = recvrr.digest();
+    if (requests.find(digest) != requests.end()) {
+      Debug("Resending request");
+      stats->Increment("request_rr",1);
+      DebugHash(digest);
+      proto::Request reqReply;
+      reqReply.set_digest(digest);
+      *reqReply.mutable_packed_msg() = requests[digest];
+      transport->SendMessage(this, remote, reqReply);
+    }
+    if (batchedRequests.find(digest) != batchedRequests.end()) {
+      Debug("Resending batch");
+      stats->Increment("batch_rr",1);
+      DebugHash(digest);
+      transport->SendMessage(this, remote, batchedRequests[digest]);
+    }
+  } else if (type == recvpreprepare.GetTypeName()) {
+    if (signMessages && !recvSignedMessage) {
+      stats->Increment("invalid_sig_pp",1);
+      return;
     }
 
-
-    if (type == recvgrouped.GetTypeName() ||
-        type == recvbatchedRequest.GetTypeName() ||
-        type == recvab.GetTypeName() ||
-        type == recvrr.GetTypeName() ||
-        type == recvpreprepare.GetTypeName() ||
-        type == recvprepare.GetTypeName() ||
-        type == recvcommit.GetTypeName()) {
-        // old message types for PBFT
-        Panic("unimplemented: PBFT message received by replica");
+    recvpreprepare.ParseFromString(data);
+    HandlePreprepare(remote, recvpreprepare, tmpsignedMessage);
+  } else if (type == recvprepare.GetTypeName()) {
+    recvprepare.ParseFromString(data);
+    if (signMessages && !recvSignedMessage) {
+      stats->Increment("invalid_sig_p",1);
+      return;
     }
 
-    if (type == recvrequest.GetTypeName()) {
-        // Prepare message from shardclient
-        recvrequest.ParseFromString(data);
-        HandleRequest(remote, recvrequest);
-    } else if (true) {
-        // Other requests from shardclient (Read)
-        Notice("Sending request to app");
+    HandlePrepare(remote, recvprepare, tmpsignedMessage);
+  } else if (type == recvcommit.GetTypeName()) {
+    recvcommit.ParseFromString(data);
+    if (signMessages && !recvSignedMessage) {
+      stats->Increment("invalid_sig_c",1);
+      return;
+    }
+
+    HandleCommit(remote, recvcommit, tmpsignedMessage);
+  } else if (type == recvgrouped.GetTypeName()) {
+    recvgrouped.ParseFromString(data);
+
+    HandleGrouped(remote, recvgrouped);
+  } else {
+    Debug("Sending request to app");
+    handleMessage(remote, type, data);
+
+  }
+}
+
+void Replica::handleMessage(const TransportAddress &remote, const string &type, const string &data){
+    static int count = 0;
+    count++;
+    if((numShards <= 6 || numShards == 12)){
+        TransportAddress* clientAddr = remote.clone();
+        auto f = [this, clientAddr, type, data](){
+            //std::unique_lock lock(atomicMutex);
+            ::google::protobuf::Message* reply = app->HandleMessage(type, data);
+            if (reply != nullptr) {
+                this->transport->SendMessage(this, *clientAddr, *reply);
+                delete reply;
+            } else {
+                Debug("Invalid request of type %s", type.c_str());
+            }
+            return (void*) true;
+        };
+        //transport->DispatchTP_main(f);
+
+        if (numShards <= 6)
+            transport->DispatchTP_noCB(f);
+        else // numShards == 12
+            transport->DispatchTP_main(f);
+    }
+    else{
+       std::cerr<< "handle message not being dispatched for pbft" << std::endl;
+        // if (numShards != 24)
+        //     Panic("Currently only support numShards = 6, 12 or 24");
+
         ::google::protobuf::Message* reply = app->HandleMessage(type, data);
         if (reply != nullptr) {
             transport->SendMessage(this, remote, *reply);
@@ -175,45 +268,6 @@ void Replica::ReceiveMessage(const TransportAddress &remote, const string &t,
     }
 }
 
-void Replica::HandleRequest(const TransportAddress &remote,
-                               const proto::Request &request) {
-  Notice("Handling request message");
-
-  string digest = request.digest();
-
-  if (requests.find(digest) == requests.end()) {
-      Notice("new request: %s with digest %d bytes", request.packed_msg().type().c_str(), digest.length());
-
-    requests[digest] = request.packed_msg();
-    // clone remote mapped to request for reply
-    replyAddrs[digest] = remote.clone();
-
-    // prepare the callback function for HotStuff
-    hotstuff_exec_callback execb = [this](const std::string &digest) {
-        if (requests.find(digest) != requests.end()) {
-            proto::PackedMessage packedMsg = requests[digest];
-            std::vector<::google::protobuf::Message*> replies = app->Execute(packedMsg.type(), packedMsg.msg());
-            for (const auto& reply : replies) {
-                if (reply != nullptr) {
-                    Debug("Sending reply");
-                    stats->Increment("execs_sent",1);
-                    transport->SendMessage(this, *replyAddrs[digest], *reply);
-                    delete reply;
-                } else {
-                    Debug("Invalid execution");
-                }
-            }
-        } else {
-            Panic("unimplemented: try to execute request that has not been received");
-        }
-    };
-
-    // use digest to go through HotStuff consensus
-    hotstuff_interface.propose(digest, execb);
-  }
-}
-
-    
 bool Replica::sendMessageToPrimary(const ::google::protobuf::Message& msg) {
   int primaryIdx = config.GetLeaderIndex(currentView);
   if (signMessages) {
@@ -256,9 +310,133 @@ bool Replica::sendMessageToAll(const ::google::protobuf::Message& msg) {
   }
 }
 
+void Replica::HandleRequest(const TransportAddress &remote,
+                               const proto::Request &request) {
+  Debug("Handling request message");
+
+  string digest = request.digest();
+  DebugHash(digest);
+
+#ifdef USE_HOTSTUFF_STORE
+
+  if (requests_dup.find(digest) == requests_dup.end()) {
+      Debug("new request: %s", request.packed_msg().type().c_str());
+      stats->Increment("handle_new_count",1);
+
+      // This unordered map is only used here so read doesn't require locks.
+      requests_dup[digest] = request.packed_msg();
+
+      TransportAddress* clientAddr = remote.clone();
+      proto::PackedMessage packedMsg = request.packed_msg();
+      std::function<void(const std::string&, uint32_t seqnum)> execb = [this, digest, packedMsg, clientAddr](const std::string &digest_param, uint32_t seqnum) {
+          if(numShards <= 6 || numShards == 12){
+              auto f = [this, digest, packedMsg, clientAddr, digest_param, seqnum](){
+                  // Debug("Callback: %d, %ld", idx, seqnum);
+                  stats->Increment("hotstuff_exec_callback",1);
+
+                  // prepare data structures for executeSlots()
+                  assert(digest == digest_param);
+                  requests[digest] = packedMsg;
+                  replyAddrs[digest] = clientAddr;
+
+                  proto::BatchedRequest batchedRequest;
+                  (*batchedRequest.mutable_digests())[0] = digest_param;
+                  string batchedDigest = BatchedDigest(batchedRequest);
+                  batchedRequests[batchedDigest] = batchedRequest;
+                  pendingExecutions[seqnum] = batchedDigest;
+
+                  executeSlots();
+                  return (void*) true;
+              };
+              transport->DispatchTP_main(f);
+              //transport->DispatchTP_noCB(f);
+          } else {
+              // numShards should be 24
+              if (numShards != 24)
+                  Panic("Currently only support numShards == 6, 12 or 24");
+
+              // Debug("Callback: %d, %ld", idx, seqnum);
+              stats->Increment("hotstuff_exec_callback",1);
+
+              // prepare data structures for executeSlots()
+              assert(digest == digest_param);
+              requests[digest] = packedMsg;
+              replyAddrs[digest] = clientAddr;
+
+              proto::BatchedRequest batchedRequest;
+              (*batchedRequest.mutable_digests())[0] = digest_param;
+              string batchedDigest = BatchedDigest(batchedRequest);
+              batchedRequests[batchedDigest] = batchedRequest;
+              pendingExecutions[seqnum] = batchedDigest;
+
+              executeSlots();
+          }
+
+      };
+      hotstuff_interface.propose(digest, execb);
+
+      // digest[0] = 'b';
+      // digest[1] = 'u';
+      // digest[2] = 'b';
+      // digest[3] = 'b';
+      // digest[4] = 'l';
+      // digest[5] = 'e';
+
+      // std::string digest_b("bubble");
+      //
+      // std::function<void(const std::string&, uint32_t seqnum)> execb_bubble =
+      //   [this, digest_b](const std::string&, uint32_t seqnum){
+      //     stats->Increment("hotstuff_exec_bubble", 1);
+      //     std::cerr<<"Calling bubble dummt execute slots" << std::endl;
+      //     pendingExecutions[seqnum] = digest_b;
+      //     executeSlots();
+      //   };
+      //   hotstuff_interface.propose(digest_b, execb_bubble);
+  }
+
+#else // use PBFT store
+
+  if (requests.find(digest) == requests.end()) {
+    Debug("new request: %s", request.packed_msg().type().c_str());
+
+    requests[digest] = request.packed_msg();
+
+    // clone remote mapped to request for reply
+    //replyAddrsMutex.lock();
+    replyAddrs[digest] = remote.clone();
+    //replyAddrsMutex.unlock();
+
+    int currentPrimaryIdx = config.GetLeaderIndex(currentView);
+    if (currentPrimaryIdx == idx) {
+      stats->Increment("handle_request",1);
+      pendingBatchedDigests[nextBatchNum++] = digest;
+      if (pendingBatchedDigests.size() >= maxBatchSize) {
+        Debug("Batch is full, sending");
+        if (batchTimerRunning) {
+          transport->CancelTimer(batchTimerId);
+          batchTimerRunning = false;
+        }
+        sendBatchedPreprepare();
+      } else if (!batchTimerRunning) {
+        batchTimerRunning = true;
+        Debug("Starting batch timer");
+        batchTimerId = transport->Timer(batchTimeoutMS, [this]() {
+          Debug("Batch timer expired, sending");
+          this->batchTimerRunning = false;
+          this->sendBatchedPreprepare();
+        });
+      }
+    }
+
+    // this could be the message that allows us to execute a slot
+    executeSlots();
+  }
+#endif
+}
 
 void Replica::sendBatchedPreprepare() {
   proto::BatchedRequest batchedRequest;
+  stats->Increment(bStatNames[pendingBatchedDigests.size()], 1);
   for (const auto& pair : pendingBatchedDigests) {
     (*batchedRequest.mutable_digests())[pair.first] = pair.second;
   }
@@ -293,6 +471,11 @@ void Replica::SendPreprepare(uint64_t seqnum, const proto::Preprepare& preprepar
 void Replica::HandleBatchedRequest(const TransportAddress &remote,
                                proto::BatchedRequest &request) {
   Debug("Handling batched request message");
+
+  #ifdef USE_HOTSTUFF_STORE
+  // HotStuff should never use this function
+  assert(false);
+  #endif
 
   string digest = BatchedDigest(request);
   batchedRequests[digest] = request;
@@ -517,16 +700,43 @@ void Replica::testSlot(uint64_t seqnum, uint64_t viewnum, string digest, bool go
 
     Debug("seqnum: %lu", seqnum);
 
+    #ifdef USE_HOTSTUFF_STORE
+    assert(false);
+    #endif
+
     executeSlots();
   }
 }
 
-void Replica::executeSlots() {
+void Replica::executeSlots(){
+  if(false){
+    // auto f = [this](){
+    //   //std::unique_lock lock(atomicMutex);
+    //   this->executeSlots_internal();
+    //   return (void*) true;
+    // };
+    // transport->DispatchTP_main(f);
+#ifdef USE_HOTSTUFF_STORE
+      assert(false);
+#endif
+
+    executeSlots_internal_multi();
+  }
+  else{
+    executeSlots_internal();
+  }
+
+}
+
+void Replica::executeSlots_internal_multi() {
   Debug("exec seq num: %lu", execSeqNum);
+  //std::unique_lock lock(batchMutex);
   while(pendingExecutions.find(execSeqNum) != pendingExecutions.end()) {
     // cancel the commit timer
-    transport->CancelTimer(seqnumCommitTimers[execSeqNum]);
-    seqnumCommitTimers.erase(execSeqNum);
+    if (seqnumCommitTimers.find(execSeqNum) != seqnumCommitTimers.end()) {
+      transport->CancelTimer(seqnumCommitTimers[execSeqNum]);
+      seqnumCommitTimers.erase(execSeqNum);
+    }
 
     string batchDigest = pendingExecutions[execSeqNum];
     // only execute when we have the batched request
@@ -538,25 +748,72 @@ void Replica::executeSlots() {
         stats->Increment("exec_request",1);
         Debug("executing seq num: %lu %lu", execSeqNum, execBatchNum);
         proto::PackedMessage packedMsg = requests[digest];
-        std::vector<::google::protobuf::Message*> replies = app->Execute(packedMsg.type(), packedMsg.msg());
-        for (const auto& reply : replies) {
-          if (reply != nullptr) {
-            Debug("Sending reply");
-            stats->Increment("execs_sent",1);
-            transport->SendMessage(this, *replyAddrs[digest], *reply);
-            delete reply;
-          } else {
-            Debug("Invalid execution");
-          }
-        }
 
+        ///DISPATCH EXECUTE TO TP
+        // auto f = [this, packedMsg, batchDigest, digest](){
+        //   std::vector<::google::protobuf::Message*> *replies = new std::vector<::google::protobuf::Message*>();
+        //   *replies = this->app->Execute(packedMsg.type(), packedMsg.msg());
+        //
+        //   auto cb = [this, batchDigest, digest, replies](void* arg){
+        //     std::cerr << "Calling Issued CB" << std::endl;
+        //     this->executeSlots_callback(replies, batchDigest, digest);
+        //     replies->clear();
+        //     delete replies;
+        //   };
+        //   std::cerr << "Issuing CB" << std::endl;
+        //   this->transport->IssueCB(cb, (void*) true);
+        // //
+        //   // this->transport->Timer(0, [this, batchDigest, digest, replies]() {
+        //   //   std::cerr << "Calling execSlots callback" << std::endl;
+        //   //   this->executeSlots_callback(replies, batchDigest, digest);
+        //   //   replies->clear();
+        //   //   delete replies;
+        //   // }
+        //   // );
+        //   return (void*) true;
+        // };
+        //  transport->DispatchTP_main(f);
+
+
+
+        //std::vector<::google::protobuf::Message*> *replies = new std::vector<::google::protobuf::Message*>();
+        //lock.unlock();
+        auto f = [this, packedMsg, batchDigest, digest](){
+
+          //std::cerr << "running on CPU: " << sched_getcpu() << std::endl;
+          std::vector<::google::protobuf::Message*> replies = this->app->Execute(packedMsg.type(), packedMsg.msg());
+          //std::unique_lock lock(this->atomicMutex);
+          this->executeSlots_callback(replies, batchDigest, digest);
+          //replies->clear();
+          //delete replies;
+
+          return (void*) true;
+        };
+        //
+        // // auto cb = [this, batchDigest, digest, replies](void* arg){
+        // //     this->executeSlots_callback(replies, batchDigest, digest);
+        // //     replies->clear();
+        // //     delete replies;
+        // //   };
+        // // transport->DispatchTP(f, cb);
+        transport->DispatchTP_main(f);
+
+        //std::unique_lock lock(batchMutex);
         execBatchNum++;
         if ((int) execBatchNum >= batchedRequests[batchDigest].digests_size()) {
           Debug("Done executing batch");
           execBatchNum = 0;
           execSeqNum++;
         }
+
       } else {
+#ifdef USE_HOTSTUFF_STORE
+
+          stats->Increment("miss_hotstuff_req_txn",1);
+          // request resend not implemented for HotStuff
+          break;
+
+#else
         Debug("request from batch %lu not yet received", execSeqNum);
         if (requestTx) {
           stats->Increment("req_txn",1);
@@ -569,8 +826,17 @@ void Replica::executeSlots() {
           transport->SendMessageToReplica(this, groupIdx, primaryIdx, rr);
         }
         break;
+#endif
       }
     } else {
+#ifdef USE_HOTSTUFF_STORE
+
+        stats->Increment("miss_hotstuff_req_batch",1);
+        // batch resend not implemented for HotStuff
+        break;
+
+#else
+
       Debug("Batch request not yet received");
       if (requestTx) {
         stats->Increment("req_batch",1);
@@ -580,8 +846,255 @@ void Replica::executeSlots() {
         transport->SendMessageToReplica(this, groupIdx, primaryIdx, rr);
       }
       break;
+#endif
     }
   }
+}
+
+
+void Replica::executeSlots_callback(std::vector<::google::protobuf::Message*> &replies,
+  string batchDigest, string digest){
+        //std::vector<::google::protobuf::Message*> *replies = (std::vector<::google::protobuf::Message*> *) replies_void;
+
+        //std::cerr << "executing callback on CPU " << sched_getcpu() << std::endl;
+
+        std::unique_lock lock(batchMutex);
+        for (const auto& reply : replies) {
+          if (reply != nullptr) {
+            Debug("Sending reply");
+            stats->Increment("execs_sent",1);
+            EpendingBatchedMessages.push_back(reply);
+            EpendingBatchedDigs.push_back(digest);
+            if (EpendingBatchedMessages.size() >= EbatchSize) {
+              Debug("EBatch is full, sending");
+              // if (false && EbatchTimerRunning) {
+              //   transport->CancelTimer(EbatchTimerId);
+              //   EbatchTimerRunning = false;
+              // }
+              //std::cerr << "callingEbatch" << std::endl;
+              sendEbatch();
+            } else if (!EbatchTimerRunning) {
+              EbatchTimerRunning = true;
+              Debug("Starting ebatch timer");
+              // EbatchTimerId = transport->Timer(EbatchTimeoutMS, [this]() {
+              //   std::unique_lock lock(batchMutex);
+
+              //   Debug("EBatch timer expired, sending");
+              //   this->EbatchTimerRunning = false;
+              //   if(this->EpendingBatchedMessages.size()==0) return;
+              //   //std::cerr << "calling Timer Ebatch" << std::endl;
+              //   this->sendEbatch();
+              // });
+            }
+          } else {
+            Debug("Invalid execution");
+          }
+        }
+        //delete replies;
+        // std::unique_lock lock(batchMutex);
+        // execBatchNum++;
+        // if ((int) execBatchNum >= batchedRequests[batchDigest].digests_size()) {
+        //   Debug("Done executing batch");
+        //   execBatchNum = 0;
+        //   execSeqNum++;
+        // }
+
+}
+
+void Replica::executeSlots_internal() {
+  Debug("exec seq num: %lu", execSeqNum);
+  while(pendingExecutions.find(execSeqNum) != pendingExecutions.end()) {
+    // cancel the commit timer
+    if (seqnumCommitTimers.find(execSeqNum) != seqnumCommitTimers.end()) {
+      transport->CancelTimer(seqnumCommitTimers[execSeqNum]);
+      seqnumCommitTimers.erase(execSeqNum);
+    }
+
+    string batchDigest = pendingExecutions[execSeqNum];
+
+    // std::string digest_b("bubble");
+    // if(batchDigest == digest_b) {
+    //   std::cerr<<"Calling bubble dummt execute slots" << std::endl;
+    //   execSeqNum++;
+    //   continue;
+    // }
+    // only execute when we have the batched request
+    if (batchedRequests.find(batchDigest) != batchedRequests.end()) {
+      string digest = (*batchedRequests[batchDigest].mutable_digests())[execBatchNum];
+      DebugHash(digest);
+      // only execute if we have the full request
+      if (requests.find(digest) != requests.end()) {
+        stats->Increment("exec_request",1);
+        Debug("executing seq num: %lu %lu", execSeqNum, execBatchNum);
+        proto::PackedMessage packedMsg = requests[digest];
+
+        std::vector<::google::protobuf::Message*> replies = app->Execute(packedMsg.type(), packedMsg.msg());
+
+        for (const auto& reply : replies) {
+          if (reply != nullptr) {
+            Debug("Sending reply");
+            stats->Increment("execs_sent",1);
+            EpendingBatchedMessages.push_back(reply);
+            EpendingBatchedDigs.push_back(digest);
+            if (EpendingBatchedMessages.size() >= EbatchSize) {
+              Debug("EBatch is full, sending");
+
+              // HotStuff: disable timer for HotStuff due to concurrency bugs
+              // if (EbatchTimerRunning) {
+              //   transport->CancelTimer(EbatchTimerId);
+              //   EbatchTimerRunning = false;
+              // }
+              sendEbatch();
+            } else if (!EbatchTimerRunning) {
+              EbatchTimerRunning = true;
+              Debug("Starting ebatch timer");
+              // EbatchTimerId = transport->Timer(EbatchTimeoutMS, [this]() {
+              //   Debug("EBatch timer expired, sending");
+              //   this->EbatchTimerRunning = false;
+              //   this->sendEbatch();
+              // });
+            }
+          } else {
+            Debug("Invalid execution");
+          }
+        }
+
+        execBatchNum++;
+        if ((int) execBatchNum >= batchedRequests[batchDigest].digests_size()) {
+          Debug("Done executing batch");
+          execBatchNum = 0;
+          execSeqNum++;
+        }
+      } else {
+#ifdef USE_HOTSTUFF_STORE
+
+          stats->Increment("miss_hotstuff_req_txn",1);
+          // request resend not implemented for HotStuff
+          break;
+
+#else
+
+          Debug("request from batch %lu not yet received", execSeqNum);
+          if (requestTx) {
+              stats->Increment("req_txn",1);
+              proto::RequestRequest rr;
+              rr.set_digest(digest);
+              int primaryIdx = config.GetLeaderIndex(currentView);
+              if (primaryIdx == idx) {
+                  stats->Increment("primary_req_txn",1);
+              }
+              transport->SendMessageToReplica(this, groupIdx, primaryIdx, rr);
+          }
+          break;
+#endif
+      }
+    } else {
+#ifdef USE_HOTSTUFF_STORE
+
+        stats->Increment("miss_hotstuff_req_batch",1);
+        // batch resend not implemented for HotStuff
+        break;
+
+#else
+
+        Debug("Batch request not yet received");
+        if (requestTx) {
+            stats->Increment("req_batch",1);
+            proto::RequestRequest rr;
+            rr.set_digest(batchDigest);
+            int primaryIdx = config.GetLeaderIndex(currentView);
+            transport->SendMessageToReplica(this, groupIdx, primaryIdx, rr);
+        }
+        break;
+#endif
+    }
+  }
+}
+void Replica::sendEbatch(){
+  if(true){
+    // std::function<void*> f(std::bind(&Replica::delegateEbatch, this, EpendingBatchedMessages,
+    //            EsignedMessages, EpendingBatchedDigs));
+    auto f = [this, EpendingBatchedMessages_ = EpendingBatchedMessages,
+               EpendingBatchedDigs_ = EpendingBatchedDigs](){
+      this->delegateEbatch(EpendingBatchedMessages_,
+                 EpendingBatchedDigs_);
+      return (void*) true;
+    };
+    EpendingBatchedDigs.clear();
+    EpendingBatchedMessages.clear();
+    transport->DispatchTP_noCB(std::move(f));
+  }
+  else{
+    sendEbatch_internal();
+  }
+}
+
+void Replica::sendEbatch_internal() {
+  //std::cerr << "executing sendEbatch" << std::endl;
+  stats->Increment(EbStatNames[EpendingBatchedMessages.size()], 1);
+  std::vector<std::string*> messageStrs;
+  //std::cerr << "EbatchMessages.size: " << EpendingBatchedMessages.size() << std::endl;
+  for (unsigned int i = 0; i < EpendingBatchedMessages.size(); i++) {
+    EsignedMessages[i]->Clear();
+    EsignedMessages[i]->set_replica_id(id);
+    proto::PackedMessage packedMsg;
+    *packedMsg.mutable_msg() = EpendingBatchedMessages[i]->SerializeAsString();
+    *packedMsg.mutable_type() = EpendingBatchedMessages[i]->GetTypeName();
+    UW_ASSERT(packedMsg.SerializeToString(EsignedMessages[i]->mutable_packed_msg()));
+    messageStrs.push_back(EsignedMessages[i]->mutable_packed_msg());
+  }
+
+  std::vector<std::string*> sigs;
+  for (unsigned int i = 0; i < EpendingBatchedMessages.size(); i++) {
+    sigs.push_back(EsignedMessages[i]->mutable_signature());
+  }
+
+  hotstuffBatchedSigs::generateBatchedSignatures(messageStrs, keyManager->GetPrivateKey(id), sigs);
+
+  //replyAddrsMutex.lock();
+  for (unsigned int i = 0; i < EpendingBatchedMessages.size(); i++) {
+    transport->SendMessage(this, *replyAddrs[EpendingBatchedDigs[i]], *EsignedMessages[i]);
+    //std::cerr << "deleting reply" << std::endl;
+    delete EpendingBatchedMessages[i];
+  }
+  //replyAddrsMutex.unlock();
+  EpendingBatchedDigs.clear();
+  EpendingBatchedMessages.clear();
+}
+
+//Use:
+// auto f = [args](){ delegateEbatch}, Clear structures, dispatch->
+void Replica::delegateEbatch(std::vector<::google::protobuf::Message*> EpendingBatchedMessages_,
+   std::vector<std::string> EpendingBatchedDigs_){
+
+    std::vector<proto::SignedMessage> EsignedMessages_;
+    std::vector<std::string*> messageStrs;
+    //std::cerr << "EbatchMessages.size: " << EpendingBatchedMessages.size() << std::endl;
+    for (unsigned int i = 0; i < EpendingBatchedMessages_.size(); i++) {
+      EsignedMessages_.push_back(proto::SignedMessage());
+      //EsignedMessages_[i].Clear();
+      EsignedMessages_[i].set_replica_id(id);
+      proto::PackedMessage packedMsg;
+      *packedMsg.mutable_msg() = EpendingBatchedMessages_[i]->SerializeAsString();
+      *packedMsg.mutable_type() = EpendingBatchedMessages_[i]->GetTypeName();
+      UW_ASSERT(packedMsg.SerializeToString(EsignedMessages_[i].mutable_packed_msg()));
+      messageStrs.push_back(EsignedMessages_[i].mutable_packed_msg());
+    }
+
+    std::vector<std::string*> sigs;
+    for (unsigned int i = 0; i < EpendingBatchedMessages_.size(); i++) {
+      sigs.push_back(EsignedMessages_[i].mutable_signature());
+    }
+
+    hotstuffBatchedSigs::generateBatchedSignatures(messageStrs, keyManager->GetPrivateKey(id), sigs);
+
+    //replyAddrsMutex.lock();
+    for (unsigned int i = 0; i < EpendingBatchedMessages_.size(); i++) {
+      transport->SendMessage(this, *replyAddrs[EpendingBatchedDigs_[i]], EsignedMessages_[i]);
+      //std::cerr << "deleting reply" << std::endl;
+      delete EpendingBatchedMessages_[i];
+    }
+
 }
 
 void Replica::startActionTimer(uint64_t seq_num, uint64_t viewnum, std::string digest) {

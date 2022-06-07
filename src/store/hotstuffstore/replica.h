@@ -42,10 +42,13 @@
 #include "store/hotstuffstore/slots.h"
 #include "store/hotstuffstore/app.h"
 #include "store/hotstuffstore/common.h"
+#include <mutex>
+#include "tbb/concurrent_unordered_map.h"
 
-// HotStuff library
+// use HotStuff library
+// comment out the below macro to switch back to pbftstore
+#define USE_HOTSTUFF_STORE
 #include "store/hotstuffstore/libhotstuff/examples/indicus_interface.h"
-
 
 namespace hotstuffstore {
 
@@ -53,7 +56,7 @@ class Replica : public TransportReceiver {
 public:
   Replica(const transport::Configuration &config, KeyManager *keyManager,
     App *app, int groupIdx, int idx, bool signMessages, uint64_t maxBatchSize,
-    uint64_t batchTimeoutMS, bool primaryCoordinator, bool requestTx, Transport *transport);
+          uint64_t batchTimeoutMS, uint64_t EbatchSize, uint64_t EbatchTimeoutMS, bool primaryCoordinator, bool requestTx, int hotstuff_cpu, int numShards, Transport *transport);
   ~Replica();
 
   // Message handlers.
@@ -76,10 +79,11 @@ public:
                           const proto::GroupedSignedMessage &msg);
 
  private:
-  // HotStuff
-  typedef std::function<void(const std::string&)> hotstuff_exec_callback;
+#ifdef USE_HOTSTUFF_STORE
   IndicusInterface hotstuff_interface;
-  
+  std::unordered_map<std::string, proto::PackedMessage> requests_dup;
+#endif
+
   const transport::Configuration &config;
   KeyManager *keyManager;
   App *app;
@@ -89,11 +93,14 @@ public:
   bool signMessages;
   uint64_t maxBatchSize;
   uint64_t batchTimeoutMS;
+  uint64_t EbatchSize;
+  uint64_t EbatchTimeoutMS;
   bool primaryCoordinator;
   bool requestTx;
   Transport *transport;
   int currentView;
   int nextSeqNum;
+  int numShards;
 
   // members to reduce alloc
   proto::SignedMessage tmpsignedMessage;
@@ -118,6 +125,19 @@ public:
   // the map from 0..(N-1) to pending digests
   std::unordered_map<uint64_t, std::string> pendingBatchedDigests;
   void sendBatchedPreprepare();
+  std::unordered_map<uint64_t, std::string> bStatNames;
+
+  bool EbatchTimerRunning;
+  int EbatchTimerId;
+  std::vector<::google::protobuf::Message*> EpendingBatchedMessages;
+  std::vector<std::string> EpendingBatchedDigs;
+  void EsendBatchedPreprepare();
+  std::unordered_map<uint64_t, std::string> EbStatNames;
+  void sendEbatch();
+  void sendEbatch_internal();
+  void delegateEbatch(std::vector<::google::protobuf::Message*> EpendingBatchedMessages_,
+     std::vector<std::string> EpendingBatchedDigs_);
+  std::vector<proto::SignedMessage*> EsignedMessages;
 
   bool sendMessageToAll(const ::google::protobuf::Message& msg);
   bool sendMessageToPrimary(const ::google::protobuf::Message& msg);
@@ -139,12 +159,23 @@ public:
   std::unordered_map<uint64_t, int> seqnumCommitTimers;
 
   // map from tx digest to reply address
-  std::unordered_map<std::string, TransportAddress*> replyAddrs;
+  //std::unordered_map<std::string, TransportAddress*> replyAddrs;
+  tbb::concurrent_unordered_map<std::string, TransportAddress*> replyAddrs;
+  //std::mutex replyAddrsMutex;
 
   // tests to see if we are ready to send commit or executute the slot
   void testSlot(uint64_t seqnum, uint64_t viewnum, std::string digest, bool gotPrepare);
 
   void executeSlots();
+
+  void executeSlots_internal();
+  void executeSlots_internal_multi();
+
+  void executeSlots_callback(std::vector<::google::protobuf::Message*> &replies, string batchDigest, string digest);
+
+  std::mutex batchMutex;
+
+  void handleMessage(const TransportAddress &remote, const string &type, const string &data);
 
   // map from seqnum to view num to
   std::unordered_map<uint64_t, std::unordered_map<uint64_t, std::unordered_map<std::string, int>>> actionTimers;

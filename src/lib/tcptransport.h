@@ -57,8 +57,8 @@ public:
     virtual TCPTransportAddress * clone() const;
     virtual ~TCPTransportAddress() {}
     sockaddr_in addr;
-private:
     TCPTransportAddress(const sockaddr_in &addr);
+private:    
 
     friend class TCPTransport;
     friend bool operator==(const TCPTransportAddress &a,
@@ -75,7 +75,7 @@ public:
     TCPTransport(double dropRate = 0.0, double reogrderRate = 0.0,
                     int dscp = 0, bool handleSignals = true,
                      int process_id = 0, int total_processes = 1,
-                     bool hyperthreading = true, bool server = true);
+                     bool hyperthreading = true, bool server = true, int mode = 0);
     virtual ~TCPTransport();
     virtual void Register(TransportReceiver *receiver,
                   const transport::Configuration &config,

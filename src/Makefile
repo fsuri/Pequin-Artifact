@@ -57,6 +57,12 @@ GMOCK_DIR := /usr/src/gtest-1.10.0/googlemock
 
 CFLAGS += -I$(GTEST_DIR)/include -I$(GMOCK_DIR)/include -isystem $(GTEST_DIR) -isystem $(GMOCK_DIR)
 
+# Java and JNI
+JAVA_HOME := /usr/lib/jvm/java-11-openjdk-amd64
+
+CFLAGS += -I$(JAVA_HOME)/include -I$(JAVA_HOME)/include/linux
+LDFLAGS += -L/usr/lib/jvm/java-1.11.0-openjdk-amd64/lib/server -ljvm
+
 # Additional flags
 PARANOID = 1
 ifneq ($(PARANOID),0)
@@ -158,6 +164,10 @@ include store/weakstore/Rules.mk
 include store/indicusstore/Rules.mk
 include store/pbftstore/Rules.mk
 include store/hotstuffstore/Rules.mk
+include store/augustusstore/Rules.mk
+include store/bftsmartstore/Rules.mk
+include store/bftsmartstore_augustus/Rules.mk
+include store/bftsmartstore_stable/Rules.mk
 include store/benchmark/async/tpcc/Rules.mk
 include store/Rules.mk
 include store/benchmark/Rules.mk
@@ -296,6 +306,29 @@ print-%:
 ##################################################################
 # Targets
 #
+#.PHONY: bftsmart
+#bftsmart: 
+#	@echo '====== Start Building BftSmart ======'
+#	cd ./store/bftsmartstore/libhotstuff/; ./build.sh
+#	@echo '====== Finish Building BftSmart ======'
+
+#.PHONY: bftsmart2
+#bftsmart2: 
+#	@echo '====== Start Building BftSmart2 ======'
+#	cd ./scripts; ./build_bftsmart.sh
+#	@echo '====== Finish Building BftSmart2 ======'
+
+#.PHONY: augustus_smart
+#augustus: 
+#	@echo '====== Start Building BftSmart_Augustus ======'
+#	cd ./store/bftsmartstore_augustus/libhotstuff/; ./build.sh
+#	@echo '====== Finish Building BftSmart_Augustus ======'
+
+#.PHONY: stable
+#stable: 
+#	@echo '====== Start Building BftSmart_stable ======'
+#	cd ./store/bftsmartstore_stable/libhotstuff/; ./build.sh
+#	@echo '====== Finish Building BftSmart_stable ======'
 
 .PHONY: hotstuff
 hotstuff: 
@@ -303,13 +336,21 @@ hotstuff:
 	cd ./store/hotstuffstore/libhotstuff/; ./build.sh
 	@echo '====== Finish Building HotStuff ======'
 
+.PHONY: bftsmart
+bftsmart2: 
+	@echo '====== Start Building BftSmart ======'
+	cd ./scripts; ./build_bftsmart.sh
+	@echo '====== Finish Building BftSmart ======'
+#NOTE: bftsmartstore_stable and bftsmartstore_augustus don't need to build their own jars
+#because the one_step_config.sh script always uploads the jars from the bftsmartstore folder -- i.e. they are used for all.
 
 .PHONY: indicus
 indicus: $(BINS)
 
 
 .PHONY: all
-all: hotstuff
+#all: bftsmart bftsmart2 hotstuff augustus_smart stable
+all: hotstuff bftsmart
 	@echo '====== Start Building Indicus ======'
 	$(MAKE) indicus 
 	@echo '====== Finish Building Indicus ======'

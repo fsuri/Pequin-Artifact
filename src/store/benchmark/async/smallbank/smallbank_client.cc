@@ -141,8 +141,7 @@ std::string SmallbankClient::GetCustomerKey() {
   return all_keys_[relevantKeyDistribution(GetRand()) + offset];
 };
 
-std::pair<std::string, std::string> SmallbankClient::GetCustomerKeyPair(
-    ) {
+std::pair<std::string, std::string> SmallbankClient::GetCustomerKeyPair() {
   std::uniform_int_distribution<int> hotspotDistribution(
       0, num_hotspot_keys_ + num_non_hotspot_keys_ - 1);
   bool inHotspot =

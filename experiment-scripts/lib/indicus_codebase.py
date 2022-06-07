@@ -83,6 +83,8 @@ class IndicusCodebase(ExperimentCodebase):
         if config['replication_protocol'] == 'indicus' or config['replication_protocol'] == 'pbft' or config['replication_protocol'] == 'hotstuff' or config['replication_protocol'] == 'bftsmart' or config['replication_protocol'] == 'augustus':
             if 'read_quorum' in config['replication_protocol_settings']:
                 client_command += ' --indicus_read_quorum %s' % config['replication_protocol_settings']['read_quorum']
+            if 'optimistic_read_quorum' in config['replication_protocol_settings']:
+                client_command += ' --indicus_optimistic_read_quorum %s' % str(config['replication_protocol_settings']['optimistic_read_quorum']).lower()
             if 'read_dep' in config['replication_protocol_settings']:
                 client_command += ' --indicus_read_dep %s' % config['replication_protocol_settings']['read_dep']
             if 'read_messages' in config['replication_protocol_settings']:
