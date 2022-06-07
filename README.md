@@ -298,6 +298,8 @@ If it is not installed in `/usr/lib/jvm` then source the `LD_LIBRARY_PATH` accor
 - `CFLAGS += -I$(JAVA_HOME)/include -I$(JAVA_HOME)/include/linux`
 - `LDFLAGS += -L/usr/lib/jvm/java-1.11.0-openjdk-amd64/lib/server -ljvm`  (adjust this)
 
+Afterwards, navigate to `/usr/lib/jvm/java-11-openjdk-amd64/conf/security/java.security`and comment out (or remove) the following line: `jdk.tls.disabledAlgorithms=SSLv3, TLSv1, RC4, DES, MD5withRSA, DH keySize < 1024 EC keySize < 224, 3DES_EDE_CBC, anon, NULL`
+
 
 ### Building binaries:
    
@@ -380,12 +382,12 @@ Install ssh if you do not already have it: `sudo apt-get install ssh`. To create
 
 Next, you are ready to start up an experiment:
 
-To use a pre-declared profile supplied by us, start an experiment using the public profile ["SOSP108"](https://www.cloudlab.us/p/morty/SOSP108). If you face any issues using this profile (or the disk images specified below), please make a post at the [Cloudlab forum](https://groups.google.com/g/cloudlab-users?pli=1) or contact Florian Suri-Payer <fs435@cornell.edu>.
+To use a pre-declared profile supplied by us, start an experiment using the public profile ["pequin-base"](https://www.cloudlab.us/p/pequin/pequin-base). If you face any issues using this profile (or the disk images specified below), please make a post at the [Cloudlab forum](https://groups.google.com/g/cloudlab-users?pli=1) or contact Florian Suri-Payer <fsp@cs.cornell.edu>.
 ![image](https://user-images.githubusercontent.com/42611410/129490911-8c97d826-caa7-4f04-95a7-8a2c8f3874f7.png)
 
-This profile by default starts with 18 server machines and 18 client machines, all of which use m510 hardware on the Utah cluster. This profile includes two disk images "SOSP108.server" (`urn:publicid:IDN+utah.cloudlab.us+image+morty-PG0:SOSP108.server`) and "SOSP108.client" (`urn:publicid:IDN+utah.cloudlab.us+image+morty-PG0:SOSP108.client`) that already include all dependencies and additional setup necessary to run experiments. Check the box "Use Control Machine" if you want to build binaries and run all experiments from one of the Cloudlab machines.
+This profile by default starts with 18 server machines and 18 client machines, all of which use m510 hardware on the Utah cluster. This profile includes two disk images "pequin-base.server" (`urn:publicid:IDN+utah.cloudlab.us+image+pequin-PG0:pequin-base.server`) and "pequin-base.client" (`urn:publicid:IDN+utah.cloudlab.us+image+pequin-PG0:pequin-base.client`) that already include all dependencies and additional setup necessary to run experiments. Check the box "Use Control Machine" if you want to build binaries and run all experiments from one of the Cloudlab machines.
 ![image](https://user-images.githubusercontent.com/42611410/129490922-a99a1287-6ecc-4d50-b05d-dfe7bd0496d9.png)
-Click "Next" and name your experiment (e.g. "sosp108"). In the example below, our experiment name is "indicus", and the project name is "morty". All our pre-supplied experiment configurations use these names as default, and you will need to change them accordingly to your chosen names (see section "Running Experiments").
+Click "Next" and name your experiment (e.g. "pequin"). In the example below, our experiment name is "indicus", and the project name is "morty". All our pre-supplied experiment configurations use these names as default, and you will need to change them accordingly to your chosen names (see section "Running Experiments").
 ![image](https://user-images.githubusercontent.com/42611410/129490940-6c527b08-5def-4158-afd2-bc544e4758ab.png)
 Finally, set a duration and start your experiment. Starting all machines may take a decent amount of time, as the server disk images contain large datasets that need to be loaded. Wait for it to be "ready":
 ![image](https://user-images.githubusercontent.com/42611410/129490974-f2b26280-d5e9-42ca-a9fe-82b80b8e2349.png)
@@ -438,7 +440,7 @@ Next, follow the above manual installation guide (section "Installing Dependenci
 Additionally, you will have to install the following requisites:
 1. **NTP**:  https://vitux.com/how-to-install-ntp-server-and-client-on-ubuntu/ 
    
-   Confirm that it is running: sudo service ntp status (check for status Active)
+   Confirm that it is running: `sudo service ntp status` (check for status Active)
 
 2. **Data Sets**: Build TPCC/Smallbank data sets and move them to /usr/local/etc/ 
    
@@ -460,12 +462,16 @@ Additionally, you will have to install the following requisites:
 3. **Public Keys**: Generate Pub/Priv key-pairs, move them to /usr/local/etc/donna/
 
     - Navigate to `Pequin-Artifact/src` and run `keygen.sh`
-    - By default keygen.sh uses type 4 = Ed25519 (this is what we evaluated unde); it can be modifed secp256k1 (type 3), but this requires editing the config files as well. (do not do this, to re-produce our experiments)
+    - By default keygen.sh uses type 4 = Ed25519 (this is what we evaluated the systems with); it can be modifed secp256k1 (type 3), but this requires editing the config files as well. (do not do this, to re-produce our experiments)
     - Move the key-pairs in the `/keys` folder to `/usr/local/etc/indicus-keys/donna/` (or to `/usr/local/etc/indicus-keys/secp256k1/` depending on what type used)
 
 4. **Helper scripts**: 
 
     Navigate to Pequin-Artifact/helper-scripts. Copy both these scripts (with the exact name) and place them in `/usr/local/etc` on the Cloudlab machine. Add execution permissions: `chmod +x disable_HT.sh; chmod +x turn_off_turbo.sh` The scripts are used at runtime by the experiments to disable hyperthreading and turbo respectively.
+    
+5. **Pre-Troubleshooting**:
+
+   To avoid any issue when running *TxBFTSmart* locate your `java.security` file (`/usr/lib/jvm/java-11-openjdk-amd64/conf/security/java.security`) and comment out (or remove) the following line: `jdk.tls.disabledAlgorithms=SSLv3, TLSv1, RC4, DES, MD5withRSA, DH keySize < 1024 EC keySize < 224, 3DES_EDE_CBC, anon, NULL`
 
    
 Once complete, create a new disk image (separate ones for server and client if you want to save space/time). Then, start the profile by choosing the newly created disk image.
