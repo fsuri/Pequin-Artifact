@@ -945,7 +945,7 @@ int main(int argc, char **argv) {
 				//failure.enabled = FLAGS_client_id < floor(72 * FLAGS_indicus_inject_failure_proportion / 100);
 				//	std::cerr << "client_id = " << FLAGS_client_id << " < ?" << (72* FLAGS_indicus_inject_failure_proportion/100) << ". Failure enabled: "<< failure.enabled <<  std::endl;
 				failure.enabled = FLAGS_num_client_hosts * i + FLAGS_client_id < floor(FLAGS_num_client_hosts * FLAGS_num_clients * FLAGS_indicus_inject_failure_proportion / 100);
-					std::cerr << "client_id = " << FLAGS_client_id << "thread_id = " << i << ". Failure enabled: "<< failure.enabled <<  std::endl;
+					std::cerr << "client_id = " << clientId << ", client_process = " << FLAGS_client_id << ", thread_id = " << i << ". Failure enabled: "<< failure.enabled <<  std::endl;
 				failure.frequency = FLAGS_indicus_inject_failure_freq;
 
         indicusstore::Parameters params(FLAGS_indicus_sign_messages,

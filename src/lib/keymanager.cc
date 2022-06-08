@@ -62,3 +62,14 @@ crypto::PrivKey* KeyManager::GetPrivateKey(uint64_t id) {
 }
 
 //Todo add function support for Client keys also. Just add a second key path folder for those keys.
+//Or split the keyspace (i.e. < 100 servers, > 100 clients...) -- check what keyspace replicas use.
+//If I do this -- turn it into a flag or make it dynamic depending on the size of n (the latter seems best).
+//Throw Panic error during start up if #available keys < required num for servers + clients.
+//Load in required amount of keys preemptively, and not reactively
+
+//Note: clientIds are shifted by 6, i.e. (x 64): first client process = 0, second client process = 64.., 
+//      144th process = 9152 --> Cannot directly use id as is currently with only 1000 active keys.
+//TODO: take information about threadcount into account to translate into a contiguous space.
+//      e.g. "real ID" = (top bits) cID >> 6 + bottom bits (=tid) * client_total_processes
+//      e.g. process 0, thread 0 => cID = 0, realID=0; p1,t0 => cID = 64, realId=1; p0,t1 = cID = 1, realId=144
+//  Alternatively: realID = ((top bits) cID >> 6) * num_threads + bottom bits (=tid)
