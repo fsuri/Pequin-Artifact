@@ -105,9 +105,13 @@ message Transaction {
 
 message Phase1 {
   required uint64 req_id = 1;
-  required Transaction txn = 2;
-  optional bool crash_failure = 3;
-  optional bool replica_gossip = 4;
+  oneof transaction {
+    Transaction txn = 2;
+    SignedMessage signed_txn =3;
+  }
+  //required Transaction txn = 2;
+  optional bool crash_failure = 4;
+  optional bool replica_gossip = 5;
 }
 
 

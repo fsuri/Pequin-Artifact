@@ -28,17 +28,22 @@
 #define LIB_KEYMANAGER_H
 
 #include "lib/crypto.h"
+#include "lib/message.h"
 
 #include <map>
 #include <mutex>
 
 class KeyManager {
  public:
-  KeyManager(const std::string &keyPath, crypto::KeyType t, bool precompute);
+  KeyManager(const std::string &keyPath, crypto::KeyType t, bool precompute, uint64_t num_replicas = 0, uint64_t num_clients = 0);
   virtual ~KeyManager();
 
   crypto::PubKey* GetPublicKey(uint64_t id);
   crypto::PrivKey* GetPrivateKey(uint64_t id);
+  void PreLoadPubKeys(bool isServer);
+  void PreLoadPrivKey(uint64_t id, bool isClient);
+  uint64_t GetClientKeyId(uint64_t client_id);
+
 
  private:
   const std::string keyPath;
@@ -47,6 +52,8 @@ class KeyManager {
   std::map<uint64_t, crypto::PubKey*> publicKeys;
   std::map<uint64_t, crypto::PrivKey*> privateKeys;
   std::mutex keyMutex;
+  uint64_t num_replicas; //defaults to 0 -- equivalent to clientSignatures not in use.
+  uint64_t num_clients; //defaults to 0; Load does nothing.
 };
 
 #endif

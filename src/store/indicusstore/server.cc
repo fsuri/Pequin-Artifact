@@ -94,6 +94,7 @@ Server::Server(const transport::Configuration &config, int groupIdx, int idx,
   //_Latency_Init(&waitOnProtoLock, "proto_lock_lat");
   //_Latency_Init(&store.storeLockLat, "store_lock_lat");
 
+  //define signer and verifier for replica signatures
   if (params.signatureBatchSize == 1) {
     //verifier = new BasicVerifier(transport);
     verifier = new BasicVerifier(transport, batchTimeoutMicro, params.validateProofs &&
@@ -123,6 +124,9 @@ Server::Server(const transport::Configuration &config, int groupIdx, int idx,
         params.signatureBatchSize > 1 && params.adjustBatchSize, params.verificationBatchSize);
     }
   }
+  //define verifier that handles client signatures -- this can always be a basic verifier.
+  client_verifier = new BasicVerifier(transport, batchTimeoutMicro, params.validateProofs &&
+      params.signedMessages && params.adjustBatchSize, params.verificationBatchSize);
 
   // this is needed purely from loading data without executing transactions
   proto::CommittedProof *proof = new proto::CommittedProof();
@@ -289,6 +293,8 @@ void Server::ReceiveMessageInternal(const TransportAddress &remote,
 
     //Use only with OCC parallel, not full parallel P1. Suffers from non-atomicity in the latter case
     if(!params.mainThreadDispatching || (params.dispatchMessageReceive && !params.parallel_CCC)){
+      //if no dispatching intended, or already on main worker thread but no parallel OCC needed
+                                    //i.e. resources do not need to be copied again.
      phase1.ParseFromString(data);
      HandlePhase1(remote, phase1);
     }
@@ -299,10 +305,10 @@ void Server::ReceiveMessageInternal(const TransportAddress &remote,
         this->HandlePhase1(remote, *phase1Copy);
         return (void*) true;
       };
-      if(params.dispatchMessageReceive){
+      if(params.dispatchMessageReceive){ // == if parallel OCC and currently already on main worker thread
         f();
       }
-      else{
+      else{ //== if currently on receiving thread
         Debug("Dispatching HandlePhase1");
         transport->DispatchTP_main(f);
         //transport->DispatchTP_noCB(f); //use if want to dispatch to all workers
@@ -555,7 +561,8 @@ void Server::HandleRead(const TransportAddress &remote,
   
     //Sets RTS timestamp. Favors readers commit chances.
     //Disable if worried about Byzantine Readers DDos, or if one wants to favor writers.
-    Debug("Set up RTS for READ[%lu:%lu]", msg.timestamp().id(), msg.req_id());
+    if(params.rtsMode == 1){
+      Debug("Set up RTS for READ[%lu:%lu]", msg.timestamp().id(), msg.req_id());
      auto itr = rts.find(msg.key());
      if(itr != rts.end()){
        if(ts.getTimestamp() > itr->second ) {
@@ -567,13 +574,20 @@ void Server::HandleRead(const TransportAddress &remote,
      }
      /* update rts */
     // TODO: For "proper Aborts": how to track RTS by transaction without knowing transaction digest?
-
-    //XXX multiple RTS as set:
-    //  if(params.mainThreadDispatching) rtsMutex.lock();
-    // rts[msg.key()].insert(ts);
-    //  if(params.mainThreadDispatching) rtsMutex.unlock();
-    //XXX single RTS that updates:
-
+    }
+    else if(params.rtsMode == 2){
+      //XXX multiple RTS as set:
+      Debug("Set up RTS for READ[%lu:%lu]", msg.timestamp().id(), msg.req_id());
+      std::pair<std::shared_mutex, std::set<Timestamp>> &rts_set = rts_list[msg.key()];
+      {
+        std::unique_lock lock(rts_set.first);
+        rts_set.second.insert(ts);
+      }
+    }
+    else{
+      //No RTS
+    }
+      
 
     //find prepared write to read from
     /* add prepared deps */
@@ -689,6 +703,7 @@ void Server::HandleRead(const TransportAddress &remote,
 
 //////////////////////
 
+//DEPRECATED
 //Optional Code Handler in case one wants to parallelize P1 handling as well. Currently deprecated (possibly not working)
 //Skip to HandlePhase1(...)
 void Server::HandlePhase1_atomic(const TransportAddress &remote,
@@ -824,13 +839,23 @@ void Server::HandlePhase1(const TransportAddress &remote,
     proto::Phase1 &msg) {
   //dummyTx = msg.txn(); //PURELY TESTING PURPOSES!!: NOTE WARNING
 
-  std::string txnDigest = TransactionDigest(msg.txn(), params.hashDigest); //could parallelize it too hypothetically
+  proto::Transaction *txn;
+  if(params.signClientProposals){
+    txn = new proto::Transaction();
+     txn->ParseFromString(msg.signed_txn().data());
+  }
+  else{
+     txn = msg.mutable_txn();
+     //TODO: Delete in the first two if else cases.
+  }
 
-  //if(waiting.count(txnDigest) > 0){ Panic("P1 did eventually arrive");}
 
-  Debug("PHASE1[%lu:%lu][%s] with ts %lu.", msg.txn().client_id(),
-      msg.txn().client_seq_num(), BytesToHex(txnDigest, 16).c_str(),
-      msg.txn().timestamp().timestamp());
+  std::string txnDigest = TransactionDigest(*txn, params.hashDigest); //could parallelize it too hypothetically
+
+
+  Debug("PHASE1[%lu:%lu][%s] with ts %lu.", txn->client_id(),
+      txn->client_seq_num(), BytesToHex(txnDigest, 16).c_str(),
+      txn->timestamp().timestamp());
   proto::ConcurrencyControl::Result result;
   const proto::CommittedProof *committedProof;
   const proto::Transaction *abstain_conflict = nullptr;
@@ -838,60 +863,29 @@ void Server::HandlePhase1(const TransportAddress &remote,
   if(msg.has_crash_failure() && msg.crash_failure()){
     stats.Increment("total_crash_received", 1);
   }
-  //KEEP track of interested client //TODO: keep track of original client
-  // interestedClientsMap::accessor i;
-  // bool interestedClientsItr = interestedClients.insert(i, txnDigest);
-  // i->second.insert(remote.clone());
-  // i.release();
-  // //interestedClients[txnDigest].insert(remote.clone());
+  //KEEP track of interested client //TODO: keep track of original client? 
+  //--> Not doing this currently. Instead: We let the original client always do its P1/P2/Writeback processing
+  //                                       even if it is possibly redundant. The current code does this for simplicity,
+  //                                       but it can be updated in the future
+          // interestedClientsMap::accessor i;
+          // bool interestedClientsItr = interestedClients.insert(i, txnDigest);
+          // i->second.insert(remote.clone());
+          // i.release();
+          // //interestedClients[txnDigest].insert(remote.clone());
 
-  // no-replays property, i.e. recover existing decision/result from storage
+  
+  bool isGossip = msg.replica_gossip(); //Check if P1 was forwarded by another replica.
+
+// no-replays property, i.e. recover existing decision/result from storage
   //Ignore duplicate requests that are already committed, aborted, or ongoing
-
-  //TODO: parallelize whole HandlePhase1. (could try to reclaim 2nd main thread duties and use it as worker too.)
-  //TODO: remove/fix ongoing check  (move it into has no P1 case.)
-  //TODO: run again without lock, but no garbage collection. Is GC the problem?
-
-  // ongoingMap::accessor b;
-  // if(ongoing.find(b, txnDigest)){
-  //   b.release();
-  //   if(params.mainThreadDispatching && (!params.dispatchMessageReceive || params.parallel_CCC)) FreePhase1message(&msg);
-  //   //TODO: check if hasP1 and continue
-  //   //TODO: else, add to original client list and return.
-  //           // TODO:  before sending. Check for all interested p1 clients. and send P1FB message.
-  //           //TODO: sepearte interested clients into p1 and p2?
-  //
-  //   return;
-  // }
-  // //TODO: think about order of this check?
-  // //TODO: if it is already committed/aborted, reply to original client with full WB too.
-  // if(committed.find(txnDigest) != committed.end() || aborted.find(txnDigest) != aborted.end()){
-  //   if(params.mainThreadDispatching && (!params.dispatchMessageReceive || params.parallel_CCC)) FreePhase1message(&msg);
-  //
-  //   //TODO: forward writeback.
-  //   return;
-  // }
-  //
-  //proto::Transaction *txn = msg.release_txn();
-  // ongoing.insert(b, std::make_pair(txnDigest, txn));
-  // b.release();
-
-
-  //TODO: try allocating accessor and deleting it only after.
-  //ongoingMap::accessor *b = new ongoingMap::accessor();
-
-  //add to ongoing, lock ongoing and send to all when done.
-  bool replicaGossip = msg.replica_gossip();
-
   p1MetaDataMap::const_accessor c;
-  //std::cerr << "[Normal] acquire lock for txn: " << BytesToHex(txnDigest, 64) << std::endl;
-  //p1MetaDataMap::const_accessor c;
   p1MetaData.insert(c, txnDigest);  //TODO: next: make P1 part of ongoing? same for P2?
-  //c->second.P1meta_mutex.lock();
+ 
   bool hasP1 = c->second.hasP1;
-  if(hasP1 && replicaGossip){  // If P1 has already been received and current message is a gossip one, do nothing.
+  if(hasP1 && isGossip){  // If P1 has already been received and current message is a gossip one, do nothing.
     //Do not need to reply to forwarded P1. If adding replica GC -> want to forward it to leader.
     //Inform_P1_GC_Leader(proto::Phase1Reply &reply, proto::Transaction &txn, std::string &txnDigest, int64_t grpLeader);
+    if(params.signClientProposals) delete txn;
   }
   else if(hasP1){ // If P1 has already been received (sent by a fallback) and current message is from original client, then only inform client of blocked dependencies so it can issue fallbacks of its own
     result = c->second.result;
@@ -906,29 +900,18 @@ void Server::HandlePhase1(const TransportAddress &remote,
       UW_ASSERT(committedProof != nullptr);
     }
     c.release();
+    HandlePhase1CB(&msg, result, committedProof, txnDigest, remote, abstain_conflict, isGossip); // Reply directly without doing 
+    if(params.signClientProposals) delete txn;
   } else{ // FIRST P1 request received (i.e. from original client). Gossip if desired and check whether dependencies are valid
     c.release();
     if(params.replicaGossip) ForwardPhase1(msg); //If params.replicaGossip is enabled then set msg.replica_gossip to true and forward.
-    if(!replicaGossip) msg.set_replica_gossip(false); //unset msg.replica_gossip (which we possibly just set to foward) if the message was received by the client
+    if(!isGossip) msg.set_replica_gossip(false); //unset msg.replica_gossip (which we possibly just set to foward) if the message was received by the client
 
-    if (params.validateProofs && params.signedMessages && params.verifyDeps) {
-      for (const auto &dep : msg.txn().deps()) {
-    //  for (const auto &dep : txn->deps()) {
-        if (!dep.has_write_sigs()) {
-          Debug("Dep for txn %s missing signatures.",
-              BytesToHex(txnDigest, 16).c_str());
-          if(params.mainThreadDispatching && (!params.dispatchMessageReceive || params.parallel_CCC)) FreePhase1message(&msg);
-          return;
-        }
-        if (!ValidateDependency(dep, &config, params.readDepSize, keyManager,
-              verifier)) {
-          Debug("VALIDATE Dependency failed for txn %s.",
-              BytesToHex(txnDigest, 16).c_str());
-          // safe to ignore Byzantine client
-          if(params.mainThreadDispatching && (!params.dispatchMessageReceive || params.parallel_CCC)) FreePhase1message(&msg);
-          return;
-        }
-      }
+    if (params.validateProofs && params.signedMessages && params.verifyDeps) { 
+      //Check whether claimed dependencies are actually dependencies, and whether f+1 replicas signed them
+      //Currently not used: Instead, replicas only accept dependencies they have seen already. (More pessimistic, but more cost efficient)
+      if(!VerifyDependencies(msg, txn, txnDigest)) return;
+      
     }
 
     //current_views[txnDigest] = 0;
@@ -936,60 +919,48 @@ void Server::HandlePhase1(const TransportAddress &remote,
     p2MetaDatas.insert(p, txnDigest);
     p.release();
 
-    proto::Transaction *txn = msg.release_txn();
+    if(!params.signClientProposals) txn = msg.release_txn(); //Only release it here so that we can forward complete P1 message without making any wasteful copies
 
-     // //if(params.mainThreadDispatching) ongoingMutex.lock();
      ongoingMap::accessor b;
      ongoing.insert(b, std::make_pair(txnDigest, txn));
      b.release();
-     //normal.insert(txnDigest);
-     //std::cerr << "[N] Added tx to ongoing: " << BytesToHex(txnDigest, 16) << std::endl;
-     // //ongoing[txnDigest] = txn;
-     // //if(params.mainThreadDispatching) ongoingMutex.unlock();
+     //TODO: DO BOTH OF THESE META DATA INSERTS ONLY IF VALIDATION PASSES, i.e. move them into TryPrepare?
+     //OR DELETE THEM AGAIN IF VALIDATION FAILS.
 
-    Timestamp retryTs;
+    
+    //TODO: refactor function so it deserializes Transaction from signed message.
+          //  --> or change proto: its easier if it contains both the TX + the signed bytes.
+          //      Tradeoff: deserialization cost vs double bytes...
+          // In remainder of code: Signature is on serialized message, not on hash. That is easier than 
+          // defining our own hash function for all messages. Since we compute the hash here its a bit redundant
+          // but thats okay.
+    //TODO: Add client sig verification:
+    // if sig verification + parallel OCC: dispatch both together
+    // if just parallel OCC: keep everyting
+    // if just client sig: dispatch client sig, on callback dispatch OCC + HandleCB again to mainthread.
+    //Try Prepare
+    //if(!params.signClientProposals) TryPrepare();
+    //if(params.signClientProposals && !)
+    //if(params.signClientProposals && params.parallel_CCC && ){
+      //Verify..
+      //TryPrepare
+    //}
+    //else if(params.signClientProposals)
 
-    if(!params.parallel_CCC || !params.mainThreadDispatching){
-      result = DoOCCCheck(msg.req_id(), remote, txnDigest, *txn, retryTs,
-          committedProof, abstain_conflict, false, replicaGossip); //forwarded messages dont need to be treated as original client.
-      BufferP1Result(result, committedProof, txnDigest);
-    }
-    else{
-      auto f = [this, msg_ptr = &msg, remote_ptr = &remote, txnDigest, txn, committedProof, abstain_conflict, replicaGossip]() mutable {
-        Timestamp retryTs;
-          //check if concurrently committed/aborted already, and if so return
-          ongoingMap::const_accessor b;
-          if(!ongoing.find(b, txnDigest)){
-            Debug("Already concurrently Committed/Aborted txn[%s]", BytesToHex(txnDigest, 16).c_str());
-            if(params.mainThreadDispatching && (!params.dispatchMessageReceive || params.parallel_CCC)) FreePhase1message(msg_ptr);
-            return (void*) false;
-          }
-          b.release();
-        Debug("starting occ check for txn: %s", BytesToHex(txnDigest, 16).c_str());
-        proto::ConcurrencyControl::Result *result = new proto::ConcurrencyControl::Result(this->DoOCCCheck(msg_ptr->req_id(),
-        *remote_ptr, txnDigest, *txn, retryTs, committedProof, abstain_conflict, false, replicaGossip));
-        BufferP1Result(*result, committedProof, txnDigest);
-        //c->second.P1meta_mutex.unlock();
-        //std::cerr << "[Normal] release lock for txn: " << BytesToHex(txnDigest, 64) << std::endl;
-        HandlePhase1CB(msg_ptr, *result, committedProof, txnDigest, *remote_ptr, abstain_conflict, replicaGossip);
-        delete result;
-        return (void*) true;
-      };
-      transport->DispatchTP_noCB(std::move(f));
-      return;
-    }
+    TryPrepare(msg, remote, txn, txnDigest, committedProof, abstain_conflict, isGossip, result); //Includes call to HandlePhase1CB(..);
+    // Then change TryPrepare to be defined fully as lambda .
   }
 
-  HandlePhase1CB(&msg, result, committedProof, txnDigest, remote, abstain_conflict, replicaGossip);
+  //HandlePhase1CB(&msg, result, committedProof, txnDigest, remote, abstain_conflict, isGossip);
 }
 
 //Called after Concurrency Control Check completes
 //Sends P1Reply to client. Sends no reply if P1 receives was simply forwarded by another replica.
 //TODO: move p1Decision into this function (not sendp1: Then, can unlock here.)
 void Server::HandlePhase1CB(proto::Phase1 *msg, proto::ConcurrencyControl::Result result,
-  const proto::CommittedProof* &committedProof, std::string &txnDigest, const TransportAddress &remote, const proto::Transaction *abstain_conflict, bool replicaGossip){
+  const proto::CommittedProof* &committedProof, std::string &txnDigest, const TransportAddress &remote, const proto::Transaction *abstain_conflict, bool isGossip){
 
-  if (result != proto::ConcurrencyControl::WAIT && !replicaGossip) { //forwarded P1 needs no reply.
+  if (result != proto::ConcurrencyControl::WAIT && !isGossip) { //forwarded P1 needs no reply.
     //XXX setting client time outs for Fallback
     // if(client_starttime.find(txnDigest) == client_starttime.end()){
     //   struct timeval tv;
@@ -1763,7 +1734,7 @@ void Server::HandleAbort(const TransportAddress &remote,
     }
 
     //Latency_Start(&verifyLat);
-    if (!verifier->Verify(keyManager->GetPublicKey(msg.signed_internal().process_id()),
+    if (!client_verifier->Verify(keyManager->GetPublicKey(keyManager->GetClientKeyId(msg.signed_internal().process_id())),
           msg.signed_internal().data(),
           msg.signed_internal().signature())) {
       //Latency_End(&verifyLat);
@@ -1785,12 +1756,27 @@ void Server::HandleAbort(const TransportAddress &remote,
     abort = &msg.internal();
   }
 
-  //RECOMMENT XXX currently displaced by RTS version with no set, but only a single replacing RTS
+  //RECOMMENT XXX currently displaced by RTS implementation that has no set, but only a single RTS version that keeps getting replaced.
   //  if(params.mainThreadDispatching) rtsMutex.lock();
   // for (const auto &read : abort->read_set()) {
   //   rts[read].erase(abort->ts());
   // }
   //  if(params.mainThreadDispatching) rtsMutex.unlock();
+  if(params.rtsMode == 1){
+    //Do nothing -- If we removed latest RTS then smaller ones that should be subsumed become inactive too.
+  }
+  else if(params.rtsMode == 2){
+    for (const auto &read : abort->read_set()) {
+    std::pair<std::shared_mutex, std::set<Timestamp>> &rts_set = rts_list[read];
+      {
+        std::unique_lock lock(rts_set.first);
+        rts_set.second.erase(abort->ts());
+      }
+  }
+  }
+  else{
+    //No RTS
+  }
 }
 
 proto::ConcurrencyControl::Result Server::DoOCCCheck(
@@ -1798,7 +1784,7 @@ proto::ConcurrencyControl::Result Server::DoOCCCheck(
     const std::string &txnDigest, const proto::Transaction &txn,
     Timestamp &retryTs, const proto::CommittedProof* &conflict,
     const proto::Transaction* &abstain_conflict,
-    bool fallback_flow, bool replicaGossip) {
+    bool fallback_flow, bool isGossip) {
 
   locks_t locks;
   //lock keys to perform an atomic OCC check when parallelizing OCC checks.
@@ -1810,7 +1796,7 @@ proto::ConcurrencyControl::Result Server::DoOCCCheck(
     case TAPIR:
       return DoTAPIROCCCheck(txnDigest, txn, retryTs);
     case MVTSO:
-      return DoMVTSOOCCCheck(reqId, remote, txnDigest, txn, conflict, abstain_conflict, fallback_flow, replicaGossip);
+      return DoMVTSOOCCCheck(reqId, remote, txnDigest, txn, conflict, abstain_conflict, fallback_flow, isGossip);
     default:
       Panic("Unknown OCC type: %d.", occType);
       return proto::ConcurrencyControl::ABORT;
@@ -2100,7 +2086,7 @@ proto::ConcurrencyControl::Result Server::DoMVTSOOCCCheck(
     uint64_t reqId, const TransportAddress &remote,
     const std::string &txnDigest, const proto::Transaction &txn,
     const proto::CommittedProof* &conflict, const proto::Transaction* &abstain_conflict,
-    bool fallback_flow, bool replicaGossip) {
+    bool fallback_flow, bool isGossip) {
   Debug("PREPARE[%lu:%lu][%s] with ts %lu.%lu.",
       txn.client_id(), txn.client_seq_num(),
       BytesToHex(txnDigest, 16).c_str(),
@@ -2265,59 +2251,53 @@ proto::ConcurrencyControl::Result Server::DoMVTSOOCCCheck(
           }
         }
       }
-
-       //RECOMMENT XXX Set version of RTS implementation; currently using single replacing RTS
-      //  //Latency_Start(&waitingOnLocks);
-      //  if(params.mainThreadDispatching) rtsMutex.lock_shared();
-      //  //Latency_End(&waitingOnLocks);
-      // auto rtsItr = rts.find(write.key());
-      // if (rtsItr != rts.end()) {
-      //   auto rtsRBegin = rtsItr->second.rbegin();
-      //   if (rtsRBegin != rtsItr->second.rend()) {
-      //     Debug("Largest rts for write to key %s: %lu.%lu.",
-      //       BytesToHex(write.key(), 16).c_str(), rtsRBegin->getTimestamp(),
-      //       rtsRBegin->getID());
-      //   }
-      //   auto rtsLB = rtsItr->second.lower_bound(ts);
-      //   if (rtsLB != rtsItr->second.end()) {
-      //     Debug("Lower bound rts for write to key %s: %lu.%lu.",
-      //       BytesToHex(write.key(), 16).c_str(), rtsLB->getTimestamp(),
-      //       rtsLB->getID());
-      //     if (*rtsLB == ts) {
-      //       rtsLB++;
-      //     }
-      //     if (rtsLB != rtsItr->second.end()) {
-      //       if (*rtsLB > ts) {
-      //         Debug("[%lu:%lu][%s] ABSTAIN larger rts acquired for key %s: rts %lu.%lu >"
-      //             " this txn's ts %lu.%lu.",
-      //             txn.client_id(),
-      //             txn.client_seq_num(),
-      //             BytesToHex(txnDigest, 16).c_str(),
-      //             BytesToHex(write.key(), 16).c_str(),
-      //             rtsLB->getTimestamp(),
-      //             rtsLB->getID(), ts.getTimestamp(), ts.getID());
-      //         stats.Increment("cc_abstains", 1);
-      //         stats.Increment("cc_abstains_rts", 1);
-      //          if(params.mainThreadDispatching) rtsMutex.unlock_shared();
-      //         return proto::ConcurrencyControl::ABSTAIN;
-      //       }
-      //     }
-      //   }
-      // }
-      //  if(params.mainThreadDispatching) rtsMutex.unlock_shared();
-      auto rtsItr = rts.find(write.key());
-      if(rtsItr != rts.end()){
-        if(rtsItr->second > ts.getTimestamp()){
-          ///TODO XXX Re-introduce ID also, for finer ordering. This is safe, since the
-          //RTS check is just an additional heuristic; The prepare/commit checks guarantee serializability on their own
-          stats.Increment("cc_abstains", 1);
-          stats.Increment("cc_abstains_rts", 1);
-          return proto::ConcurrencyControl::ABSTAIN;
-        }
-      }
-
       // TODO: add additional rts dep check to shrink abort window  (aka Exceptions)
       //    Is this still a thing?  -->> No currently not
+      if(params.rtsMode == 1){
+        //Single RTS version
+        auto rtsItr = rts.find(write.key());
+        if(rtsItr != rts.end()){
+          if(rtsItr->second > ts.getTimestamp()){
+            ///TODO XXX Re-introduce ID also, for finer ordering. This is safe, since the
+            //RTS check is just an additional heuristic; The prepare/commit checks guarantee serializability on their own
+            stats.Increment("cc_abstains", 1);
+            stats.Increment("cc_abstains_rts", 1);
+            return proto::ConcurrencyControl::ABSTAIN;
+          }
+        }
+      }
+      else if(params.rtsMode == 2){
+        //Multiple RTS versions
+        std::pair<std::shared_mutex, std::set<Timestamp>> &rts_set = rts_list[write.key()];
+        {
+          std::shared_lock lock(rts_set.first);
+          auto rtsRBegin = rts_set.second.rbegin();
+          if (rtsRBegin != rts_set.second.rend()) {
+            Debug("Largest rts for write to key %s: %lu.%lu.", BytesToHex(write.key(), 16).c_str(), rtsRBegin->getTimestamp(), rtsRBegin->getID());
+          }
+          //find largest RTS greater equal to Ts
+          auto rtsLB = rts_set.second.lower_bound(ts);
+          if (rtsLB != rts_set.second.end()) {
+            Debug("Lower bound rts for write to key %s: %lu.%lu.", BytesToHex(write.key(), 16).c_str(), rtsLB->getTimestamp(), rtsLB->getID());
+            if (*rtsLB == ts) {
+              rtsLB++;
+            }
+            if (rtsLB != rts_set.second.end()) {
+              if (*rtsLB > ts) { //TODO: Can refine. Technically only need to abort if this Reader read something smaller than TS.
+                Debug("[%lu:%lu][%s] ABSTAIN larger rts acquired for key %s: rts %lu.%lu > this txn's ts %lu.%lu.",
+                    txn.client_id(), txn.client_seq_num(), BytesToHex(txnDigest, 16).c_str(), BytesToHex(write.key(), 16).c_str(),
+                    rtsLB->getTimestamp(), rtsLB->getID(), ts.getTimestamp(), ts.getID());
+                stats.Increment("cc_abstains", 1);
+                stats.Increment("cc_abstains_rts", 1);
+                return proto::ConcurrencyControl::ABSTAIN;
+              }
+            }
+          }
+        }
+      }
+      else{
+        //No RTS
+      }
     }
 
     if (params.validateProofs && params.signedMessages && !params.verifyDeps) {
@@ -2347,7 +2327,7 @@ proto::ConcurrencyControl::Result Server::DoMVTSOOCCCheck(
      a.release();
   }
 
-  bool allFinished = ManageDependencies(txnDigest, txn, remote, reqId, fallback_flow, replicaGossip);
+  bool allFinished = ManageDependencies(txnDigest, txn, remote, reqId, fallback_flow, isGossip);
 
   if (!allFinished) {
     stats.Increment("cc_waits", 1);
@@ -2360,7 +2340,7 @@ proto::ConcurrencyControl::Result Server::DoMVTSOOCCCheck(
 //TODO: relay Deeper depth when result is already wait. (If I always re-did the P1 it would be handled)
 // PRoblem: Dont want to re-do P1, otherwise a past Abort can turn into a commit. Hence we
 // ForwardWriteback
-bool Server::ManageDependencies(const std::string &txnDigest, const proto::Transaction &txn, const TransportAddress &remote, uint64_t reqId, bool fallback_flow, bool replicaGossip){
+bool Server::ManageDependencies(const std::string &txnDigest, const proto::Transaction &txn, const TransportAddress &remote, uint64_t reqId, bool fallback_flow, bool isGossip){
 
   bool allFinished = true;
 
@@ -2390,7 +2370,7 @@ bool Server::ManageDependencies(const std::string &txnDigest, const proto::Trans
 
          //XXX start RelayP1 to initiate Fallback handling
 
-         if(!params.no_fallback && true && !replicaGossip){ //do not send relay if it is a gossiped message. Unless we are doinig replica leader gargabe Collection (unimplemented)
+         if(!params.no_fallback && true && !isGossip){ //do not send relay if it is a gossiped message. Unless we are doinig replica leader gargabe Collection (unimplemented)
            // ongoingMap::const_accessor b;
            // bool inOngoing = ongoing.find(b, dep.write().prepared_txn_digest()); //TODO can remove this redundant lookup since it will be checked again...
            // if (inOngoing) {
@@ -2429,7 +2409,7 @@ bool Server::ManageDependencies(const std::string &txnDigest, const proto::Trans
            waitingDependencies_new.insert(f, txnDigest);
            //f->second = WaitingDependency();
          }
-         if(!fallback_flow && !replicaGossip){
+         if(!fallback_flow && !isGossip){
            f->second.original_client = true;
            f->second.reqId = reqId;
            f->second.remote = remote.clone();  //&remote;
@@ -2504,6 +2484,14 @@ void Server::Prepare(const std::string &txnDigest,
       std::pair<std::shared_mutex, std::set<const proto::Transaction *>> &y = preparedReads[read.key()];
       std::unique_lock lock(y.first);
       y.second.insert(a->second.second);
+
+      // if(params.rtsMode == 2){ //remove RTS now that its prepared? --> Kind of pointless, since prepare fulfills the same thing.
+      //   std::pair<std::shared_mutex, std::set<Timestamp>> &rts_set = rts_list[read.key()];
+      //   {
+      //     std::unique_lock lock(rts_set.first);
+      //     rts_set.second.erase(txn.timestamp());
+      //   }
+      // }
     }
   }
 
@@ -2603,20 +2591,26 @@ void Server::Commit(const std::string &txnDigest, proto::Transaction *txn,
     store.put(write.key(), val, ts);
 
 
-
-     //RECOMMENT XXX RTS version with set of timestamps
-    //  //Latency_Start(&waitingOnLocks);
-    //  if(params.mainThreadDispatching) rtsMutex.lock();
-    //  //Latency_End(&waitingOnLocks);
-    // auto rtsItr = rts.find(write.key());
-    // if (rtsItr != rts.end()) {
-    //   auto itr = rtsItr->second.begin();
-    //   auto endItr = rtsItr->second.upper_bound(ts);
-    //   while (itr != endItr) {
-    //     itr = rtsItr->second.erase(itr);
-    //   }
-    // }
-    //  if(params.mainThreadDispatching) rtsMutex.unlock();
+    if(params.rtsMode == 1){
+      //Do nothing
+    }
+    else if(params.rtsMode == 2){
+      //Remove obsolete RTS. TODO: Can be more refined: Only remove
+      std::pair<std::shared_mutex, std::set<Timestamp>> &rts_set = rts_list[write.key()];
+      {
+          std::unique_lock lock(rts_set.first);
+          auto itr = rts_set.second.lower_bound(ts); //begin
+          auto endItr = rts_set.second.end();        //upper_bound  --> Old version felt wrong, why would we remove the smaller RTS..
+          //delete all RTS >= committed TS. Those RTS can no longer claim the space < RTS since a write successfully committed.
+          //TODO: Ideally this would be more refined: RTS should include the timestamp of the write read, i.e. an RTS claims range <read-write, timestamp>
+          while (itr != endItr) {
+            itr = rts_set.second.erase(itr);
+          }
+      }
+    }
+    else{
+      //No RTS
+    }
   }
 
   Clean(txnDigest);

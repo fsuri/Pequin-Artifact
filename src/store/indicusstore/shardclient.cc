@@ -203,8 +203,16 @@ void ShardClient::Phase1(uint64_t id, const proto::Transaction &transaction, con
   // create prepare request
   phase1.Clear();
   phase1.set_req_id(reqId);
-  *phase1.mutable_txn() = transaction;
   phase1.set_replica_gossip(false);
+
+  if(params.signClientProposals){
+    //uint64_t keyId = keyManager->GetClientKeyId(client_id); 
+    //Sign with client_key id, but include client id -- so server can confirm Txn Timestamp.
+     SignMessage(&transaction, keyManager->GetPrivateKey(keyManager->GetClientKeyId(client_id)), client_id, phase1.mutable_signed_txn());
+  }
+  else{
+    *phase1.mutable_txn() = transaction;
+  }
 
 
   if(failureActive && params.injectFailure.type == InjectFailureType::CLIENT_SEND_PARTIAL_P1){
@@ -221,7 +229,7 @@ void ShardClient::Phase1(uint64_t id, const proto::Transaction &transaction, con
   else if(failureActive && params.injectFailure.type == InjectFailureType::CLIENT_CRASH) {
     transport->SendMessageToGroup(this, group, phase1);
   }
-  else{
+  else{ //Normal case: No failure
     transport->SendMessageToGroup(this, group, phase1);
   }
   //transport->SendMessageToGroup(this, group, phase1);
@@ -577,15 +585,20 @@ void ShardClient::Abort(uint64_t id, const TimestampMessage &ts) {
 
   if (params.validateProofs && params.signedMessages) {
     proto::AbortInternal internal(abort.internal());
-    if (params.signatureBatchSize == 1) {
-      SignMessage(&internal, keyManager->GetPrivateKey(client_id % 1024), client_id % 1024,
-          abort.mutable_signed_internal());
-    } else {
-      std::vector<::google::protobuf::Message*> messages = {&internal};
-      std::vector<proto::SignedMessage*> signedMessages = {abort.mutable_signed_internal()};
-      SignMessages(messages, keyManager->GetPrivateKey(client_id % 1024), client_id % 1024,
-          signedMessages, params.merkleBranchFactor);
-    }
+
+    //Not using batchsigner -- Server is now configured to use client_verifier. Uses new client_id mapping.
+    SignMessage(&internal, keyManager->GetPrivateKey(keyManager->GetClientKeyId(client_id)), client_id, abort.mutable_signed_internal());
+          //deprecated: Server no longer accomodates batch verifying for client signatures.
+          // if (params.signatureBatchSize == 1) {
+          //   //hack: wraps around; can result in multiple clients/servers using the same keys. 
+          //   SignMessage(&internal, keyManager->GetPrivateKey(client_id % 1024), client_id % 1024,
+          //       abort.mutable_signed_internal());
+          // } else {
+          //   std::vector<::google::protobuf::Message*> messages = {&internal};
+          //   std::vector<proto::SignedMessage*> signedMessages = {abort.mutable_signed_internal()};
+          //   SignMessages(messages, keyManager->GetPrivateKey(client_id % 1024), client_id % 1024,
+          //       signedMessages, params.merkleBranchFactor);
+          // }
   }
 
   transport->SendMessageToGroup(this, group, abort);

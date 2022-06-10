@@ -27,9 +27,21 @@
 #include "lib/keymanager.h"
 
 #include <string>
+#include <sys/stat.h>
 
-KeyManager::KeyManager(const std::string &keyPath, crypto::KeyType t, bool precompute) :
-  keyPath(keyPath), keyType(t), precompute(precompute) {
+KeyManager::KeyManager(const std::string &keyPath, crypto::KeyType t, bool precompute,
+   uint64_t replica_total, uint64_t client_total) :
+  keyPath(keyPath), keyType(t), precompute(precompute), 
+  num_replicas(replica_total), num_clients(client_total) {
+
+  //Check if we have enough keys generated.
+  std::string last_required_key_file = keyPath + "/" + std::to_string(replica_total+client_total-1) + ".priv";
+  struct stat buffer;
+  if(stat (last_required_key_file.c_str(), &buffer) != 0){
+   Panic("Insufficient number of keys for number of replicas and clients. "
+     "Require %d keys.", replica_total + client_total);
+  }
+  
 }
 
 KeyManager::~KeyManager() {
@@ -61,6 +73,21 @@ crypto::PrivKey* KeyManager::GetPrivateKey(uint64_t id) {
   }
 }
 
+void KeyManager::PreLoadPubKeys(bool isServer){
+  //Assumes Id's are perfectly matched to key space; Client keyIds start after servers.
+  for(int id=0; id<(num_replicas+ isServer * num_clients); ++id){ //only loads client keys at replicas.
+    GetPublicKey(id);
+  }
+}
+
+void KeyManager::PreLoadPrivKey(uint64_t id, bool isClient){
+  isClient? GetPrivateKey(GetClientKeyId(id)) : GetPrivateKey(id);
+}
+
+uint64_t KeyManager::GetClientKeyId(uint64_t client_id){
+  return client_id + num_replicas;
+}
+
 //Todo add function support for Client keys also. Just add a second key path folder for those keys.
 //Or split the keyspace (i.e. < 100 servers, > 100 clients...) -- check what keyspace replicas use.
 //If I do this -- turn it into a flag or make it dynamic depending on the size of n (the latter seems best).
@@ -73,3 +100,6 @@ crypto::PrivKey* KeyManager::GetPrivateKey(uint64_t id) {
 //      e.g. "real ID" = (top bits) cID >> 6 + bottom bits (=tid) * client_total_processes
 //      e.g. process 0, thread 0 => cID = 0, realID=0; p1,t0 => cID = 64, realId=1; p0,t1 = cID = 1, realId=144
 //  Alternatively: realID = ((top bits) cID >> 6) * num_threads + bottom bits (=tid)
+
+//TODO: instead of changing this conversion: Simply update the benchmark.cc -- since we pass the 
+//number of threads, there is no need to blindly shift IDs by 6 bits if we only use 2 threads.

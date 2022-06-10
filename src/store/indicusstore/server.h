@@ -112,6 +112,8 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
     std::string val;
     const proto::CommittedProof *proof;
   };
+
+  //Protocol
   void ReceiveMessageInternal(const TransportAddress &remote,
       const std::string &type, const std::string &data,
       void *meta_data);
@@ -129,7 +131,7 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
       proto::Phase1 &msg);
   void HandlePhase1CB(proto::Phase1 *msg, proto::ConcurrencyControl::Result result,
         const proto::CommittedProof* &committedProof, std::string &txnDigest, const TransportAddress &remote,
-        const proto::Transaction *abstain_conflict, bool replicaGossip = false);
+        const proto::Transaction *abstain_conflict, bool isGossip = false);
 
   void HandlePhase2CB(TransportAddress *remote, proto::Phase2 *msg, const std::string* txnDigest,
         signedCallback sendCB, proto::Phase2Reply* phase2Reply, cleanCallback cleanCB, void* valid); //bool valid);
@@ -288,13 +290,14 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
     bool ForwardWriteback(const TransportAddress &remote, uint64_t ReqId, const std::string &txnDigest);
     bool ForwardWritebackMulti(const std::string &txnDigest, interestedClientsMap::accessor &i);
 
-  //general helper functions
+  //general helper functions & tools -- TODO: Move implementations into servertools.cc
+
   proto::ConcurrencyControl::Result DoOCCCheck(
       uint64_t reqId, const TransportAddress &remote,
       const std::string &txnDigest, const proto::Transaction &txn,
       Timestamp &retryTs, const proto::CommittedProof* &conflict,
       const proto::Transaction* &abstain_conflict,
-      bool fallback_flow = false, bool replicaGossip = false);
+      bool fallback_flow = false, bool isGossip = false);
   proto::ConcurrencyControl::Result DoTAPIROCCCheck(
       const std::string &txnDigest, const proto::Transaction &txn,
       Timestamp &retryTs);
@@ -302,9 +305,16 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
       uint64_t reqId, const TransportAddress &remote,
       const std::string &txnDigest, const proto::Transaction &txn,
       const proto::CommittedProof* &conflict, const proto::Transaction* &abstain_conflict,
-      bool fallback_flow = false, bool replicaGossip = false);
+      bool fallback_flow = false, bool isGossip = false);
 
-  bool ManageDependencies(const std::string &txnDigest, const proto::Transaction &txn, const TransportAddress &remote, uint64_t reqId, bool fallback_flow = false, bool replicaGossip = false);
+  bool VerifyDependencies(proto::Phase1 &msg, proto::Transaction *txn, std::string &txnDigest);
+  void TryPrepare(proto::Phase1 &msg, const TransportAddress &remote, proto::Transaction *txn,
+                        std::string &txnDigest, const proto::CommittedProof *committedProof, 
+                        const proto::Transaction *abstain_conflict, bool isGossip,
+                        proto::ConcurrencyControl::Result &result);
+  void* VerifyClientProposal(proto::Phase1 &msg, proto::Transaction *txn);
+
+  bool ManageDependencies(const std::string &txnDigest, const proto::Transaction &txn, const TransportAddress &remote, uint64_t reqId, bool fallback_flow = false, bool isGossip = false);
 
   void GetWriteTimestamps(
       std::unordered_map<std::string, std::set<Timestamp>> &writes);
@@ -401,6 +411,7 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
   TrueTime timeServer;
   BatchSigner *batchSigner;
   Verifier *verifier;
+  Verifier *client_verifier;
 
   //ThreadPool* tp;
   std::mutex transportMutex;
@@ -501,7 +512,8 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
   tbb::concurrent_unordered_map<std::string, std::pair<std::shared_mutex, std::set<committedRead>>> committedReads;
   //std::unordered_map<std::string, std::set<Timestamp>> rts;
   tbb::concurrent_unordered_map<std::string, std::atomic_int> rts;
-  //tbb::concurrent_hash_map<std::string, std::set<Timestamp>> rts;
+  //tbb::concurrent_hash_map<std::string, std::set<Timestamp>> rts; //TODO: if want to use this again: need per key locks like below.
+  tbb::concurrent_unordered_map<std::string, std::pair<std::shared_mutex, std::set<Timestamp>>> rts_list;
 
   // Digest -> V
   //std::unordered_map<std::string, proto::Transaction *> ongoing;

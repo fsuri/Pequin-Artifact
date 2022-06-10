@@ -245,6 +245,11 @@ DEFINE_int64(indicus_max_dep_depth, -1, "maximum length of dependency chain"
     " allowed by honest replicas [-1 is no maximum, -2 is no deps] (for Indicus)");
 DEFINE_uint64(indicus_key_type, 4, "key type (see create keys for mappings)"
     " key type (for Indicus)");
+
+DEFINE_bool(indicus_sign_client_proposals, false, "add signatures to client proposals "
+    " -- used for optimistic tx-ids. Can be used for access control (unimplemented)");
+
+//Client failure configurations    
 DEFINE_uint64(indicus_inject_failure_ms, 0, "number of milliseconds to wait"
     " before injecting a failure (for Indicus)");
 DEFINE_uint64(indicus_inject_failure_proportion, 0, "proportion of clients that"
@@ -253,6 +258,7 @@ DEFINE_uint64(indicus_inject_failure_freq, 100, "number of transactions per ONE 
 		    " in a Byz client (for Indicus)");
 
 DEFINE_uint64(indicus_phase1DecisionTimeout, 1000UL, "p1 timeout before going slowpath");
+//Verification computation configurations
 DEFINE_bool(indicus_multi_threading, false, "dispatch crypto to parallel threads");
 DEFINE_bool(indicus_batch_verification, false, "using ed25519 donna batch verification");
 DEFINE_uint64(indicus_batch_verification_size, 64, "batch size for ed25519 donna batch verification");
@@ -433,7 +439,7 @@ DEFINE_uint64(cooldown_secs, 5, "time (in seconds) to cool down system after"
     " recording stats");
 DEFINE_uint64(tput_interval, 0, "time (in seconds) between throughput"
     " measurements");
-DEFINE_uint64(num_clients, 1, "number of clients to run in this process");
+DEFINE_uint64(num_client_threads, 1, "number of client threads to run in this process");
 DEFINE_uint64(num_client_hosts, 1, "number of client processes across all nodes and servers");
 DEFINE_uint64(num_requests, -1, "number of requests (transactions) per"
     " client");
@@ -800,7 +806,7 @@ int main(int argc, char **argv) {
 
   bench_done_callback bdcb = [&]() {
     ++clientsDone;
-    if (clientsDone == FLAGS_num_clients) {
+    if (clientsDone == FLAGS_num_client_threads) {
       Latency_t sum;
       _Latency_Init(&sum, "total");
       for (unsigned int i = 0; i < benchClients.size(); i++) {
@@ -855,7 +861,11 @@ int main(int argc, char **argv) {
   default:
     throw "unimplemented";
   }
-  KeyManager* keyManager = new KeyManager(FLAGS_indicus_key_path, keyType, true);
+
+  uint64_t replica_total = FLAGS_num_shards * config->n;
+  uint64_t client_total = FLAGS_num_client_hosts * FLAGS_num_client_threads;
+  KeyManager* keyManager = new KeyManager(FLAGS_indicus_key_path, keyType, true, replica_total, client_total);
+  keyManager->PreLoadPubKeys(false);
 
   if (closestReplicas.size() > 0 && closestReplicas.size() != static_cast<size_t>(config->n)) {
     std::cerr << "If specifying closest replicas, must specify all "
@@ -864,18 +874,23 @@ int main(int argc, char **argv) {
     return 1;
   }
 
-  if (FLAGS_num_clients > (1 << 6)) {
+  if (FLAGS_num_client_threads > (1 << 6)) {
     std::cerr << "Only support up to " << (1 << 6) << " clients in one process." << std::endl;
+    Panic("Unsupported number of client threads.");
     return 1;
   }
 
-  for (size_t i = 0; i < FLAGS_num_clients; i++) {
+  for (size_t i = 0; i < FLAGS_num_client_threads; i++) {
     Client *client = nullptr;
     AsyncClient *asyncClient = nullptr;
     SyncClient *syncClient = nullptr;
     OneShotClient *oneShotClient = nullptr;
 
-    uint64_t clientId = (FLAGS_client_id << 6) | i;
+    //uint64_t clientId = (FLAGS_client_id << 6) | i;
+    uint64_t clientId = FLAGS_client_id + FLAGS_num_client_hosts * i;
+    keyManager->PreLoadPrivKey(clientId, true);
+    // Alternatively: uint64_t clientId = FLAGS_client_id * FLAGS_num_client_threads + i;
+    
     switch (mode) {
     case PROTO_TAPIR: {
         client = new tapirstore::Client(config, clientId,
@@ -944,7 +959,7 @@ int main(int argc, char **argv) {
 				//TODO: WARNING: This is a hack based on 72 total clients --> pass total_clients down as flag.
 				//failure.enabled = FLAGS_client_id < floor(72 * FLAGS_indicus_inject_failure_proportion / 100);
 				//	std::cerr << "client_id = " << FLAGS_client_id << " < ?" << (72* FLAGS_indicus_inject_failure_proportion/100) << ". Failure enabled: "<< failure.enabled <<  std::endl;
-				failure.enabled = FLAGS_num_client_hosts * i + FLAGS_client_id < floor(FLAGS_num_client_hosts * FLAGS_num_clients * FLAGS_indicus_inject_failure_proportion / 100);
+				failure.enabled = FLAGS_num_client_hosts * i + FLAGS_client_id < floor(FLAGS_num_client_hosts * FLAGS_num_client_threads * FLAGS_indicus_inject_failure_proportion / 100);
 					std::cerr << "client_id = " << clientId << ", client_process = " << FLAGS_client_id << ", thread_id = " << i << ". Failure enabled: "<< failure.enabled <<  std::endl;
 				failure.frequency = FLAGS_indicus_inject_failure_freq;
 
@@ -965,7 +980,9 @@ int main(int argc, char **argv) {
 																				FLAGS_indicus_all_to_all_fb,
 																			  FLAGS_indicus_no_fallback,
 																				FLAGS_indicus_relayP1_timeout,
-																			  false);
+																			  false,
+                                        FLAGS_indicus_sign_client_proposals,
+                                        0);
 
         client = new indicusstore::Client(config, clientId,
                                           FLAGS_num_shards,

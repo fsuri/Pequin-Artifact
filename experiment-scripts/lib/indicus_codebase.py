@@ -12,7 +12,7 @@
 
  The above copyright notice and this permission notice shall be
  included in all copies or substantial portions of the Software.
- 
+
  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
  EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
  MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
@@ -67,7 +67,7 @@ class IndicusCodebase(ExperimentCodebase):
             '--num_groups', config['num_groups'],
             '--protocol_mode', config['client_protocol_mode'],
             '--stats_file', stats_file,
-            '--num_clients', client_threads,
+            '--num_client_threads', client_threads,
             '--num_client_hosts', config['client_total']]])
 
         if config['server_emulate_wan']:
@@ -188,7 +188,7 @@ class IndicusCodebase(ExperimentCodebase):
         elif config['benchmark_name'] == 'rw':
             client_command += ' --num_keys %d' % config['client_num_keys']
             client_command += ' --num_ops_txn %d' % config['rw_num_ops_txn']
-            if 'rw_read_only' in config:            
+            if 'rw_read_only' in config:
                 client_command += ' --rw_read_only=%s' % (str(config['rw_read_only']).lower())
             if 'client_key_selector' in config:
                 client_command += ' --key_selector %s' % config['client_key_selector']
@@ -293,6 +293,8 @@ class IndicusCodebase(ExperimentCodebase):
             n = 2 * config['fault_tolerance'] + 1
         xx = len(config['server_names']) // n
 
+        client_threads = 1 if not 'client_threads_per_process' in config else config['client_threads_per_process']
+
         replica_command = ' '.join([str(x) for x in [
             path_to_server_bin,
             '--config_path', config_file,
@@ -301,7 +303,9 @@ class IndicusCodebase(ExperimentCodebase):
             '--num_shards', config['num_shards'],
             '--num_groups', config['num_groups'],
             '--stats_file', stats_file,
-            '--group_idx', group]])
+            '--group_idx', group,
+            '--num_clients', client_threads *config['client_total']
+            ]])
 
         #add multiple processes commands for threadpool assignments.
         replica_command += ' --indicus_process_id %d' % k
@@ -397,7 +401,7 @@ class IndicusCodebase(ExperimentCodebase):
                 replica_command += ' --indicus_all_to_all_fb=%s' % str(config['replication_protocol_settings']['all_to_all_fb']).lower()
             if 'replica_gossip' in config['replication_protocol_settings']:
                 replica_command += ' --indicus_replica_gossip=%s' % str(config['replication_protocol_settings']['replica_gossip']).lower()
-                
+
             #pbft/hotstuff options
             if 'order_commit' in config['replication_protocol_settings']:
                 replica_command += ' --pbft_order_commit=%s' % str(config['replication_protocol_settings']['order_commit']).lower()
@@ -409,7 +413,7 @@ class IndicusCodebase(ExperimentCodebase):
         #    replica_command += ' --rw_or_retwis=%s' % str(config['rw_or_retwis']).lower()
 
         if config['replication_protocol'] == 'bftsmart':
-            replica_command += " --bftsmart_codebase_dir=%s" % str(config['bftsmart_codebase_dir'])        
+            replica_command += " --bftsmart_codebase_dir=%s" % str(config['bftsmart_codebase_dir'])
 
         if 'server_debug_stats' in config and config['server_debug_stats']:
             replica_command += ' --debug_stats'

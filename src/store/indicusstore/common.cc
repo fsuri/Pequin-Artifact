@@ -68,7 +68,7 @@ void FreeMessageString(std::string *msg){
   MessageStrings.push_back(msg);
 }
 
-void SignMessage(::google::protobuf::Message* msg,
+void SignMessage(const ::google::protobuf::Message* msg,
     crypto::PrivKey* privateKey, uint64_t processId,
     proto::SignedMessage *signedMessage) {
   signedMessage->set_process_id(processId);
@@ -80,7 +80,7 @@ void SignMessage(::google::protobuf::Message* msg,
       signedMessage->data());
 }
 
-void* asyncSignMessage(::google::protobuf::Message* msg,
+void* asyncSignMessage(const ::google::protobuf::Message* msg,
     crypto::PrivKey* privateKey, uint64_t processId,
     proto::SignedMessage *signedMessage) {
 
