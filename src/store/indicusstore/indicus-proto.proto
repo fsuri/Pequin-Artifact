@@ -239,7 +239,10 @@ message RelayP1 {  //datatype that replicas send clients to inform them that the
 // fallback Phase1
 message Phase1FB {
   required uint64 req_id =1;
-  required Transaction txn  =2;
+  oneof transaction {
+    Transaction txn = 2;
+    SignedMessage signed_txn =3;
+  }
 }
 
 message CurrentView{

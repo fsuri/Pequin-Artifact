@@ -208,6 +208,7 @@ void ShardClient::Phase1(uint64_t id, const proto::Transaction &transaction, con
   if(params.signClientProposals){
     //uint64_t keyId = keyManager->GetClientKeyId(client_id); 
     //Sign with client_key id, but include client id -- so server can confirm Txn Timestamp.
+    //std::cerr << "Signing txn: " << BytesToHex(TransactionDigest(transaction, params.hashDigest), 16).c_str() << " client id: " << client_id << "; clientKeyid: " << keyManager->GetClientKeyId(client_id) << std::endl;
      SignMessage(&transaction, keyManager->GetPrivateKey(keyManager->GetClientKeyId(client_id)), client_id, phase1.mutable_signed_txn());
   }
   else{

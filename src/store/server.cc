@@ -287,7 +287,7 @@ DEFINE_uint64(indicus_request_tx, false, "request tx"
 
 DEFINE_int32(indicus_rts_mode, 1, "Mode for managing RTS: 0 == no RTS, 1 == single RTS, 2 == set of RTS"); //set of RTS can be refined further to include interval from "read value" to TS
 
-DEFINE_bool(indicus_sign_client_proposals, false, "add signatures to client proposals "
+DEFINE_bool(indicus_sign_client_proposals, true, "add signatures to client proposals "
     " -- used for optimistic tx-ids. Can be used for access control (unimplemented)");
 
 DEFINE_string(bftsmart_codebase_dir, "", "path to directory containing bftsmart configurations");
@@ -548,6 +548,7 @@ int main(int argc, char **argv) {
   }
 
   uint64_t replica_total = FLAGS_num_shards * config.n;
+  // std::cerr << "config n: " << config.n << " num_shards: " << FLAGS_num_shards << " replica_total: " << replica_total << std::endl;
   KeyManager keyManager(FLAGS_indicus_key_path, keyType, true, replica_total, FLAGS_num_clients);
   keyManager.PreLoadPubKeys(true);
 

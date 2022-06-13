@@ -214,7 +214,7 @@ Server::~Server() {
 // DispatchTP_noCB(f);
 // Main dispatches serialization, and lets serialization thread dispatch to main2
 
-
+//Upcall from Network layer with new message. Called by TCPReadableCallback(..)
  void Server::ReceiveMessage(const TransportAddress &remote,
        const std::string &type, const std::string &data, void *meta_data) {
 
@@ -233,256 +233,50 @@ Server::~Server() {
  }
 
 //Calls function handlers for respective message types.
-// Manages Multithread assignments:
-// 1. mainThreadDispatching: Deserialize messages on thread receiving messages, but dispatch message handling to main worker thread
-// 2. dispatchMessageReceive: Dispatch both message deserialization and message handling to main worker thread.
-//TODO: Full CPU utilization parallelism: Assign all handler functions to different threads.
+// ManageDsipatch_ Manages respective Multithread assignments
 void Server::ReceiveMessageInternal(const TransportAddress &remote,
       const std::string &type, const std::string &data, void *meta_data) {
 
-
   if (type == read.GetTypeName()) {
+    ManageDispatchRead(remote, data);
 
-    //if no dispatching OR if dispatching both deser and Handling to 2nd main thread (no workers)
-    if(!params.mainThreadDispatching || (params.dispatchMessageReceive && !params.parallel_reads) ){
-      read.ParseFromString(data);
-      HandleRead(remote, read);
-    }
-    //if dispatching to second main or other workers
-    else{
-      proto::Read* readCopy = GetUnusedReadmessage();
-      readCopy->ParseFromString(data);
-      auto f = [this, &remote, readCopy](){
-        this->HandleRead(remote, *readCopy);
-        return (void*) true;
-      };
-      if(params.parallel_reads){
-        transport->DispatchTP_noCB(std::move(f));
-      }
-      else{
-        transport->DispatchTP_main(std::move(f));
-      }
-    }
+  // Normal Protocol Messages
   } else if (type == phase1.GetTypeName()) {
-
-// edit for atomic parallel P1. (OUTDATED)
-    // if(!params.mainThreadDispatching || (params.dispatchMessageReceive && !params.parallel_CCC)){
-    //  phase1.ParseFromString(data);
-    //  HandlePhase1_atomic(remote, phase1);
-    // }
-    // else{
-    //   proto::Phase1 *phase1Copy = GetUnusedPhase1message();
-    //   phase1Copy->ParseFromString(data);
-    //   auto f = [this, &remote, phase1Copy]() {
-    //     this->HandlePhase1_atomic(remote, *phase1Copy);
-    //     return (void*) true;
-    //   };
-    //   // if(params.parallel_CCC){
-    //   //   transport->DispatchTP_noCB(std::move(f));
-    //   // }
-    //   // else
-    //   if(params.dispatchMessageReceive){
-    //     f();
-    //   }
-    //   else{
-    //     Debug("Dispatching HandlePhase1");
-    //     transport->DispatchTP_main(std::move(f));
-    //     //transport->DispatchTP_noCB(f); //use if want to dispatch to all workers
-    //   }
-    // }
-
-    //Use only with OCC parallel, not full parallel P1. Suffers from non-atomicity in the latter case
-    if(!params.mainThreadDispatching || (params.dispatchMessageReceive && !params.parallel_CCC)){
-      //if no dispatching intended, or already on main worker thread but no parallel OCC needed
-                                    //i.e. resources do not need to be copied again.
-     phase1.ParseFromString(data);
-     HandlePhase1(remote, phase1);
-    }
-    else{
-      proto::Phase1 *phase1Copy = GetUnusedPhase1message();
-      phase1Copy->ParseFromString(data);
-      auto f = [this, &remote, phase1Copy]() {
-        this->HandlePhase1(remote, *phase1Copy);
-        return (void*) true;
-      };
-      if(params.dispatchMessageReceive){ // == if parallel OCC and currently already on main worker thread
-        f();
-      }
-      else{ //== if currently on receiving thread
-        Debug("Dispatching HandlePhase1");
-        transport->DispatchTP_main(f);
-        //transport->DispatchTP_noCB(f); //use if want to dispatch to all workers
-      }
-    }
+    ManageDispatchPhase1(remote, data);
 
   } else if (type == phase2.GetTypeName()) {
-
-      if(!params.multiThreading && (!params.mainThreadDispatching || params.dispatchMessageReceive)){
-        phase2.ParseFromString(data);
-        HandlePhase2(remote, phase2);
-      }
-      else{
-        proto::Phase2* p2 = GetUnusedPhase2message();
-        p2->ParseFromString(data);
-        if(!params.mainThreadDispatching || params.dispatchMessageReceive){
-          HandlePhase2(remote, *p2);
-        }
-        else{
-          auto f = [this, &remote, p2](){
-            this->HandlePhase2(remote, *p2);
-            return (void*) true;
-          };
-          transport->DispatchTP_main(std::move(f));
-        }
-      }
+    ManageDispatchPhase2(remote, data);
 
   } else if (type == writeback.GetTypeName()) {
-
-      if(!params.multiThreading && (!params.mainThreadDispatching || params.dispatchMessageReceive)){
-        writeback.ParseFromString(data);
-        HandleWriteback(remote, writeback);
-      }
-      else{
-        proto::Writeback *wb = GetUnusedWBmessage();
-        wb->ParseFromString(data);
-        if(!params.mainThreadDispatching || params.dispatchMessageReceive){
-          HandleWriteback(remote, *wb);
-        }
-        else{
-          auto f = [this, &remote, wb](){
-            this->HandleWriteback(remote, *wb);
-            return (void*) true;
-          };
-          transport->DispatchTP_main(std::move(f));
-        }
-      }
+    ManageDispatchWriteback(remote, data);
 
   } else if (type == abort.GetTypeName()) {
     abort.ParseFromString(data);
     HandleAbort(remote, abort);
+
   } else if (type == ping.GetTypeName()) {
     ping.ParseFromString(data);
     Debug("Ping is called");
     HandlePingMessage(this, remote, ping);
 
-// Add all Fallback signedMessages
+  // Fallback Messages
   } else if (type == phase1FB.GetTypeName()) {
-
-    if(!params.mainThreadDispatching || (params.dispatchMessageReceive && !params.parallel_CCC)){
-      phase1FB.ParseFromString(data);
-      HandlePhase1FB(remote, phase1FB);
-    }
-    else{
-      proto::Phase1FB *phase1FBCopy = GetUnusedPhase1FBmessage();
-      phase1FBCopy->ParseFromString(data);
-      auto f = [this, &remote, phase1FBCopy]() {
-        this->HandlePhase1FB(remote, *phase1FBCopy);
-        return (void*) true;
-      };
-      if(params.dispatchMessageReceive){
-        f();
-      }
-      else{
-        Debug("Dispatching HandlePhase1");
-        transport->DispatchTP_main(std::move(f));
-        //transport->DispatchTP_noCB(f); //use if want to dispatch to all workers
-      }
-    }
+    ManageDispatchPhase1FB(remote, data);
 
   } else if (type == phase2FB.GetTypeName()) {
-
-      if(!params.multiThreading && (!params.mainThreadDispatching || params.dispatchMessageReceive)){
-        phase2FB.ParseFromString(data);
-        HandlePhase2FB(remote, phase2FB);
-      }
-      else{
-        proto::Phase2FB* p2FB = GetUnusedPhase2FBmessage();
-        p2FB->ParseFromString(data);
-        if(!params.mainThreadDispatching || params.dispatchMessageReceive){
-          HandlePhase2FB(remote, *p2FB);
-        }
-        else{
-          auto f = [this, &remote, p2FB](){
-            this->HandlePhase2FB(remote, *p2FB);
-            return (void*) true;
-          };
-          transport->DispatchTP_main(std::move(f));
-        }
-      }
+    ManageDispatchPhase2FB(remote, data);
 
   } else if (type == invokeFB.GetTypeName()) {
-
-    if((params.all_to_all_fb || !params.multiThreading) && (!params.mainThreadDispatching || params.dispatchMessageReceive)){
-      invokeFB.ParseFromString(data);
-      HandleInvokeFB(remote, invokeFB);
-    }
-    else{
-      proto::InvokeFB* invFB = GetUnusedInvokeFBmessage();
-      invFB->ParseFromString(data);
-      if(!params.mainThreadDispatching || params.dispatchMessageReceive){
-        HandleInvokeFB(remote, *invFB);
-      }
-      else{
-        auto f = [this, &remote, invFB](){
-          this->HandleInvokeFB(remote, *invFB);
-          return (void*) true;
-        };
-        transport->DispatchTP_main(std::move(f));
-      }
-    }
+    ManageDispatchInvokeFB(remote, data);
 
   } else if (type == electFB.GetTypeName()) {
-
-    if(!params.mainThreadDispatching || params.dispatchMessageReceive){
-      electFB.ParseFromString(data);
-      HandleElectFB(electFB);
-    }
-    else{
-      proto::ElectFB* elFB = GetUnusedElectFBmessage();
-      elFB->ParseFromString(data);
-      auto f = [this, elFB](){
-          this->HandleElectFB(*elFB);
-          return (void*) true;
-      };
-      transport->DispatchTP_main(std::move(f));
-    }
+    ManageDispatchElectFB(remote, data);
 
   } else if (type == decisionFB.GetTypeName()) {
-
-    if(!params.multiThreading && (!params.mainThreadDispatching || params.dispatchMessageReceive)){
-      decisionFB.ParseFromString(data);
-      HandleDecisionFB(decisionFB);
-    }
-    else{
-      proto::DecisionFB* decFB = GetUnusedDecisionFBmessage();
-      decFB->ParseFromString(data);
-      if(!params.mainThreadDispatching || params.dispatchMessageReceive){
-        HandleDecisionFB(*decFB);
-      }
-      else{
-        auto f = [this, decFB](){
-          this->HandleDecisionFB( *decFB);
-          return (void*) true;
-        };
-        transport->DispatchTP_main(std::move(f));
-      }
-    }
+    ManageDispatchDecisionFB(remote, data);
 
   } else if (type == moveView.GetTypeName()) {
-
-    if(!params.mainThreadDispatching || params.dispatchMessageReceive){
-      moveView.ParseFromString(data);
-      HandleMoveView(moveView); //Send only to other replicas
-    }
-    else{
-      proto::MoveView* mvView = GetUnusedMoveView();
-      mvView->ParseFromString(data);
-      auto f = [this, mvView](){
-          this->HandleMoveView( *mvView);
-          return (void*) true;
-      };
-      transport->DispatchTP_main(std::move(f));
-    }
+    ManageDispatchMoveView(remote, data);
 
   } else {
     Panic("Received unexpected message type: %s", type.c_str());
@@ -843,10 +637,12 @@ void Server::HandlePhase1(const TransportAddress &remote,
   if(params.signClientProposals){
     txn = new proto::Transaction();
      txn->ParseFromString(msg.signed_txn().data());
+      //  Alternatively change proto to contain txn in addition to signed bytes: its easier if it contains both the TX + the signed bytes.
+          //      Tradeoff: deserialization cost vs double bytes...
+          // In remainder of code: Signature is on serialized message, not on hash. That is easier than defining our own hash function for all messages. Since we compute the hash here its a bit redundant but thats okay.
   }
   else{
      txn = msg.mutable_txn();
-     //TODO: Delete in the first two if else cases.
   }
 
 
@@ -910,7 +706,8 @@ void Server::HandlePhase1(const TransportAddress &remote,
     if (params.validateProofs && params.signedMessages && params.verifyDeps) { 
       //Check whether claimed dependencies are actually dependencies, and whether f+1 replicas signed them
       //Currently not used: Instead, replicas only accept dependencies they have seen already. (More pessimistic, but more cost efficient)
-      if(!VerifyDependencies(msg, txn, txnDigest)) return;
+      if(!VerifyDependencies(msg, txn, txnDigest)) return; 
+      //CURRENTLY NOT USED: IF WE USE IT --> REFACTOR TO ALSO BE MULTITHREADED VERIFICATION: ADD IT TOGETHER WITH THE OTHER CLIENT SIG VERIFICATION>
       
     }
 
@@ -928,29 +725,8 @@ void Server::HandlePhase1(const TransportAddress &remote,
      //OR DELETE THEM AGAIN IF VALIDATION FAILS.
 
     
-    //TODO: refactor function so it deserializes Transaction from signed message.
-          //  --> or change proto: its easier if it contains both the TX + the signed bytes.
-          //      Tradeoff: deserialization cost vs double bytes...
-          // In remainder of code: Signature is on serialized message, not on hash. That is easier than 
-          // defining our own hash function for all messages. Since we compute the hash here its a bit redundant
-          // but thats okay.
-    //TODO: Add client sig verification:
-    // if sig verification + parallel OCC: dispatch both together
-    // if just parallel OCC: keep everyting
-    // if just client sig: dispatch client sig, on callback dispatch OCC + HandleCB again to mainthread.
-    //Try Prepare
-    //if(!params.signClientProposals) TryPrepare();
-    //if(params.signClientProposals && !)
-    //if(params.signClientProposals && params.parallel_CCC && ){
-      //Verify..
-      //TryPrepare
-    //}
-    //else if(params.signClientProposals)
-
-    TryPrepare(msg, remote, txn, txnDigest, committedProof, abstain_conflict, isGossip, result); //Includes call to HandlePhase1CB(..);
-    // Then change TryPrepare to be defined fully as lambda .
+    ProcessProposal(msg, remote, txn, txnDigest, committedProof, abstain_conflict, isGossip, result);
   }
-
   //HandlePhase1CB(&msg, result, committedProof, txnDigest, remote, abstain_conflict, isGossip);
 }
 
@@ -2099,6 +1875,7 @@ proto::ConcurrencyControl::Result Server::DoMVTSOOCCCheck(
   //if (preparedItr == prepared.end()) {
   if(!preparedItr){
     a.release();
+    //1) Reject Transactions with TS above Watermark
     if (CheckHighWatermark(ts)) {
       Debug("[%lu:%lu][%s] ABSTAIN ts %lu beyond high watermark.",
           txn.client_id(), txn.client_seq_num(),
@@ -2108,13 +1885,14 @@ proto::ConcurrencyControl::Result Server::DoMVTSOOCCCheck(
       stats.Increment("cc_abstains_watermark", 1);
       return proto::ConcurrencyControl::ABSTAIN;
     }
+    //2) Validate read set conflicts.
     for (const auto &read : txn.read_set()) {
       // TODO: remove this check when txns only contain read set/write set for the
       //   shards stored at this replica
       if (!IsKeyOwned(read.key())) {
         continue;
       }
-
+      // Check for conflicts against committed writes
       std::vector<std::pair<Timestamp, Server::Value>> committedWrites;
       GetCommittedWrites(read.key(), read.readtime(), committedWrites);
       for (const auto &committedWrite : committedWrites) {
@@ -2138,7 +1916,7 @@ proto::ConcurrencyControl::Result Server::DoMVTSOOCCCheck(
           return proto::ConcurrencyControl::ABORT;
         }
       }
-
+      // Check for conflicts against prepared writes
       const auto preparedWritesItr = preparedWrites.find(read.key());
       if (preparedWritesItr != preparedWrites.end()) {
 
@@ -2161,18 +1939,20 @@ proto::ConcurrencyControl::Result Server::DoMVTSOOCCCheck(
             //   std::cerr<< "Abstain ["<<BytesToHex(txnDigest, 16)<<"] against prepared write from tx[" << BytesToHex(TransactionDigest(*preparedTs.second, params.hashDigest), 16) << "]" << std::endl;
             // }
             //std::cerr << "Abstain caused by txn: " << BytesToHex(TransactionDigest(*abstain_conflict, params.hashDigest), 16) << std::endl;
-            abstain_conflict = preparedTs.second;
+            abstain_conflict = preparedTs.second; 
+            //TODO: add handling for returning full signed p1.
             return proto::ConcurrencyControl::ABSTAIN;
           }
         }
       }
     }
 
+    //3) Validate write set for conflicts.
     for (const auto &write : txn.write_set()) {
-      if (!IsKeyOwned(write.key())) {
+      if (!IsKeyOwned(write.key())) { //Only do OCC check for keys in this group.
         continue;
       }
-
+      // Check for conflicts against committed reads.
       auto committedReadsItr = committedReads.find(write.key());
 
       if (committedReadsItr != committedReads.end()){
@@ -2205,7 +1985,7 @@ proto::ConcurrencyControl::Result Server::DoMVTSOOCCCheck(
           }
         }
       }
-
+      // check for conflicts against prepared reads
       const auto preparedReadsItr = preparedReads.find(write.key());
       if (preparedReadsItr != preparedReads.end()) {
 
@@ -2251,6 +2031,9 @@ proto::ConcurrencyControl::Result Server::DoMVTSOOCCCheck(
           }
         }
       }
+
+      // 4) check for write conflicts with tentative reads (not prepared)
+
       // TODO: add additional rts dep check to shrink abort window  (aka Exceptions)
       //    Is this still a thing?  -->> No currently not
       if(params.rtsMode == 1){
@@ -2300,6 +2083,7 @@ proto::ConcurrencyControl::Result Server::DoMVTSOOCCCheck(
       }
     }
 
+    //5) Validate Deps: Check whether server has prepared dep itself
     if (params.validateProofs && params.signedMessages && !params.verifyDeps) {
 
       Debug("Exec MessageToSign by CPU: %d", sched_getcpu());
@@ -2307,6 +2091,7 @@ proto::ConcurrencyControl::Result Server::DoMVTSOOCCCheck(
         if (dep.involved_group() != groupIdx) {
           continue;
         }
+        //Checks only for those deps that have not committed/aborted already.
         if (committed.find(dep.write().prepared_txn_digest()) == committed.end() &&
             aborted.find(dep.write().prepared_txn_digest()) == aborted.end()) {
           //check whether we (i.e. the server) have prepared it ourselves: This alleviates having to verify dep proofs
@@ -2321,19 +2106,24 @@ proto::ConcurrencyControl::Result Server::DoMVTSOOCCCheck(
         }
       }
     }
+    //6) Prepare Transaction: No conflicts --> Make writes visible.
     Prepare(txnDigest, txn);
   }
   else{
      a.release();
   }
 
+  //7) Check whether all outstanding dependencies have committed
+    // If not, wait.
   bool allFinished = ManageDependencies(txnDigest, txn, remote, reqId, fallback_flow, isGossip);
 
   if (!allFinished) {
     stats.Increment("cc_waits", 1);
     return proto::ConcurrencyControl::WAIT;
   } else {
+    //8) Check whether all dependencies are committed (i.e. none abort)
     return CheckDependencies(txn);
+    //TODO: Current Implementation iterates through dependencies 3 times -- re-factor code to do this once.
   }
 }
 

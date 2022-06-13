@@ -41,7 +41,6 @@ KeyManager::KeyManager(const std::string &keyPath, crypto::KeyType t, bool preco
    Panic("Insufficient number of keys for number of replicas and clients. "
      "Require %d keys.", replica_total + client_total);
   }
-  
 }
 
 KeyManager::~KeyManager() {

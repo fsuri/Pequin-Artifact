@@ -246,7 +246,7 @@ DEFINE_int64(indicus_max_dep_depth, -1, "maximum length of dependency chain"
 DEFINE_uint64(indicus_key_type, 4, "key type (see create keys for mappings)"
     " key type (for Indicus)");
 
-DEFINE_bool(indicus_sign_client_proposals, false, "add signatures to client proposals "
+DEFINE_bool(indicus_sign_client_proposals, true, "add signatures to client proposals "
     " -- used for optimistic tx-ids. Can be used for access control (unimplemented)");
 
 //Client failure configurations    
@@ -888,6 +888,7 @@ int main(int argc, char **argv) {
 
     //uint64_t clientId = (FLAGS_client_id << 6) | i;
     uint64_t clientId = FLAGS_client_id + FLAGS_num_client_hosts * i;
+    std::cerr <<  "num hosts=" << FLAGS_num_client_hosts << "; num_threads=" << FLAGS_num_client_threads << std::endl;
     keyManager->PreLoadPrivKey(clientId, true);
     // Alternatively: uint64_t clientId = FLAGS_client_id * FLAGS_num_client_threads + i;
     

@@ -113,50 +113,68 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
     const proto::CommittedProof *proof;
   };
 
-  //Protocol
+//Protocol
   void ReceiveMessageInternal(const TransportAddress &remote,
       const std::string &type, const std::string &data,
       void *meta_data);
 
+  //Read Handling
+  void ManageDispatchRead(const TransportAddress &remote, const std::string &data);
   void HandleRead(const TransportAddress &remote, proto::Read &msg);
-  void HandlePhase1_atomic(const TransportAddress &remote,
-      proto::Phase1 &msg);
-  void ProcessPhase1_atomic(const TransportAddress &remote,
-      proto::Phase1 &msg, proto::Transaction *txn, std::string &txnDigest);
 
-  void ForwardPhase1(proto::Phase1 &msg);
-  void Inform_P1_GC_Leader(proto::Phase1Reply &reply, proto::Transaction &txn, std::string &txnDigest, int64_t grpLeader);
-
+  //Phase1 Handling
+  void ManageDispatchPhase1(const TransportAddress &remote, const std::string &data);
   void HandlePhase1(const TransportAddress &remote,
       proto::Phase1 &msg);
   void HandlePhase1CB(proto::Phase1 *msg, proto::ConcurrencyControl::Result result,
         const proto::CommittedProof* &committedProof, std::string &txnDigest, const TransportAddress &remote,
         const proto::Transaction *abstain_conflict, bool isGossip = false);
+  //Gossip
+  void ForwardPhase1(proto::Phase1 &msg);
+  void Inform_P1_GC_Leader(proto::Phase1Reply &reply, proto::Transaction &txn, std::string &txnDigest, int64_t grpLeader);
+      //Atomic Phase1 Handlers for fully parallel P1: Currently deprecated.
+      void HandlePhase1_atomic(const TransportAddress &remote,
+          proto::Phase1 &msg);
+      void ProcessPhase1_atomic(const TransportAddress &remote,
+          proto::Phase1 &msg, proto::Transaction *txn, std::string &txnDigest);
 
+ //Phase2 Handling
+  void ManageDispatchPhase2(const TransportAddress &remote, const std::string &data);
   void HandlePhase2CB(TransportAddress *remote, proto::Phase2 *msg, const std::string* txnDigest,
         signedCallback sendCB, proto::Phase2Reply* phase2Reply, cleanCallback cleanCB, void* valid); //bool valid);
   void SendPhase2Reply(proto::Phase2 *msg, proto::Phase2Reply *phase2Reply, signedCallback sendCB);
   void HandlePhase2(const TransportAddress &remote,
              proto::Phase2 &msg);
 
-
-  void WritebackCallback(proto::Writeback *msg, const std::string* txnDigest,
-    proto::Transaction* txn, void* valid); //bool valid);
+ //Writeback Handling
+  void ManageDispatchWriteback(const TransportAddress &remote, const std::string &data);
   void HandleWriteback(const TransportAddress &remote,
       proto::Writeback &msg);
+  void WritebackCallback(proto::Writeback *msg, const std::string* txnDigest,
+    proto::Transaction* txn, void* valid); //bool valid);
+  
+  //Handle Abort during Execution
   void HandleAbort(const TransportAddress &remote, const proto::Abort &msg);
 
   //Fallback handler functions
+  //Phase1FB Handling
+  void ManageDispatchPhase1FB(const TransportAddress &remote, const std::string &data);
   void HandlePhase1FB(const TransportAddress &remote, proto::Phase1FB &msg);
-
+  //Phase2FB Handling
+  void ManageDispatchPhase2FB(const TransportAddress &remote, const std::string &data);
   void HandlePhase2FB(const TransportAddress &remote, const proto::Phase2FB &msg);
-
+  //InvokeFB Handling (start fallback reconciliaton)
+  void ManageDispatchInvokeFB(const TransportAddress &remote, const std::string &data);
   void HandleInvokeFB(const TransportAddress &remote,proto::InvokeFB &msg);
+  //ElectFB Handling (elect fallback leader)
+  void ManageDispatchElectFB(const TransportAddress &remote, const std::string &data);
   //void HandleFB_Elect: If 4f+1 Elect messages received -> form Decision based on majority, and forward the elect set (send FB_Dec) to all replicas in logging shard. (This includes the FB replica itself - Just skip ahead to HandleFB_Dec automatically: send P2R to clients)
   void HandleElectFB(proto::ElectFB &msg);
-
+  //DecisionFB Handling (receive fallback leader decision)
+  void ManageDispatchDecisionFB(const TransportAddress &remote, const std::string &data);
   void HandleDecisionFB(proto::DecisionFB &msg);
-
+  //MoveView Handling (all to all view change)
+  void ManageDispatchMoveView(const TransportAddress &remote, const std::string &data);
   void HandleMoveView(proto::MoveView &msg);
 
     // Fallback helper functions
@@ -239,6 +257,7 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
       const proto::CommittedProof *conflict;
       bool hasP1;
       std::mutex P1meta_mutex;
+      proto::SignedMessage *signed_txn;
     };
     typedef tbb::concurrent_hash_map<std::string, P1MetaData> p1MetaDataMap;
 
@@ -308,11 +327,15 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
       bool fallback_flow = false, bool isGossip = false);
 
   bool VerifyDependencies(proto::Phase1 &msg, proto::Transaction *txn, std::string &txnDigest);
-  void TryPrepare(proto::Phase1 &msg, const TransportAddress &remote, proto::Transaction *txn,
+  void* TryPrepare(proto::Phase1 &msg, const TransportAddress &remote, proto::Transaction *txn,
+                        std::string &txnDigest, const proto::CommittedProof *committedProof, 
+                        const proto::Transaction *abstain_conflict, bool isGossip,
+                        proto::ConcurrencyControl::Result &result, bool combineProposalVerification=false);
+  void* VerifyClientProposal(proto::Phase1 &msg, proto::Transaction *txn, std::string &txnDigest);
+  void ProcessProposal(proto::Phase1 &msg, const TransportAddress &remote, proto::Transaction *txn,
                         std::string &txnDigest, const proto::CommittedProof *committedProof, 
                         const proto::Transaction *abstain_conflict, bool isGossip,
                         proto::ConcurrencyControl::Result &result);
-  void* VerifyClientProposal(proto::Phase1 &msg, proto::Transaction *txn);
 
   bool ManageDependencies(const std::string &txnDigest, const proto::Transaction &txn, const TransportAddress &remote, uint64_t reqId, bool fallback_flow = false, bool isGossip = false);
 

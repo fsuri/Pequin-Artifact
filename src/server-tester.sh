@@ -43,6 +43,6 @@ for j in `seq 0 $((NUM_GROUPS-1))`; do
 	#echo Starting Group $j
 	for i in `seq 0 $((N-1))`; do
 		#echo Starting Replica $(($i+$j*$N))
-		DEBUG=store/$STORE/* store/server --config_path $CONFIG --group_idx $j --num_groups $GROUPS --num_shards $GROUPS --replica_idx $i --protocol $PROTOCOL --num_keys $NUM_KEYS_IN_DB --debug_stats --indicus_key_path $KEY_PATH &> server$(($i+$j*$N)).out &
+		DEBUG=store/$STORE/* store/server --config_path $CONFIG --group_idx $j --num_groups $NUM_GROUPS --num_shards $NUM_GROUPS --replica_idx $i --protocol $PROTOCOL --num_keys $NUM_KEYS_IN_DB --debug_stats --indicus_key_path $KEY_PATH &> server$(($i+$j*$N)).out &
 	done;
 done;
