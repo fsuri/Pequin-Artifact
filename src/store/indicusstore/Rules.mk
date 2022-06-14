@@ -1,12 +1,12 @@
 d := $(dir $(lastword $(MAKEFILE_LIST)))
 
-SRCS += $(addprefix $(d), client.cc shardclient.cc server.cc servertools.cc store.cc common.cc \
+SRCS += $(addprefix $(d), client.cc shardclient.cc server.cc servertools.cc concurrencycontrol.cc store.cc common.cc \
 		phase1validator.cc localbatchsigner.cc sharedbatchsigner.cc \
 		basicverifier.cc localbatchverifier.cc sharedbatchverifier.cc proto_bench.cc)
 
 PROTOS += $(addprefix $(d), indicus-proto.proto)
 
-LIB-indicus-store := $(o)server.o $(o)servertools.o $(LIB-latency) \
+LIB-indicus-store := $(o)server.o $(o)servertools.o $(o)concurrencycontrol.o $(LIB-latency) \
 	$(o)indicus-proto.o  $(o)common.o $(LIB-crypto) $(LIB-batched-sigs) $(LIB-bft-tapir-config) \
 	$(LIB-configuration) $(LIB-store-common) $(LIB-transport) $(o)phase1validator.o \
 	$(o)localbatchsigner.o $(o)sharedbatchsigner.o $(o)basicverifier.o \

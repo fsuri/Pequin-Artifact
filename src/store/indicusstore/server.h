@@ -129,6 +129,10 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
   void HandlePhase1CB(proto::Phase1 *msg, proto::ConcurrencyControl::Result result,
         const proto::CommittedProof* &committedProof, std::string &txnDigest, const TransportAddress &remote,
         const proto::Transaction *abstain_conflict, bool isGossip = false);
+  void SendPhase1Reply(uint64_t reqId, proto::ConcurrencyControl::Result result,
+        const proto::CommittedProof *conflict, const std::string &txnDigest, const TransportAddress *remote,
+        const proto::Transaction *abstain_conflict = nullptr);
+
   //Gossip
   void ForwardPhase1(proto::Phase1 &msg);
   void Inform_P1_GC_Leader(proto::Phase1Reply &reply, proto::Transaction &txn, std::string &txnDigest, int64_t grpLeader);
@@ -140,16 +144,19 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
 
  //Phase2 Handling
   void ManageDispatchPhase2(const TransportAddress &remote, const std::string &data);
+  void HandlePhase2(const TransportAddress &remote, proto::Phase2 &msg);
+  void ManagePhase2Validation(const TransportAddress &remote, proto::Phase2 &msg, const std::string *txnDigest, const proto::Transaction *txn,
+      const std::function<void()> &sendCB, proto::Phase2Reply* phase2Reply, const std::function<void()> &cleanCB, 
+      const int64_t &myProcessId, const proto::ConcurrencyControl::Result &myResult);
   void HandlePhase2CB(TransportAddress *remote, proto::Phase2 *msg, const std::string* txnDigest,
         signedCallback sendCB, proto::Phase2Reply* phase2Reply, cleanCallback cleanCB, void* valid); //bool valid);
   void SendPhase2Reply(proto::Phase2 *msg, proto::Phase2Reply *phase2Reply, signedCallback sendCB);
-  void HandlePhase2(const TransportAddress &remote,
-             proto::Phase2 &msg);
 
  //Writeback Handling
   void ManageDispatchWriteback(const TransportAddress &remote, const std::string &data);
   void HandleWriteback(const TransportAddress &remote,
       proto::Writeback &msg);
+  void ManageWritebackValidation(proto::Writeback &msg, const std::string *txnDigest, proto::Transaction *txn);
   void WritebackCallback(proto::Writeback *msg, const std::string* txnDigest,
     proto::Transaction* txn, void* valid); //bool valid);
   
@@ -326,13 +333,13 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
       const proto::CommittedProof* &conflict, const proto::Transaction* &abstain_conflict,
       bool fallback_flow = false, bool isGossip = false);
 
-  bool VerifyDependencies(proto::Phase1 &msg, proto::Transaction *txn, std::string &txnDigest);
-  void* TryPrepare(proto::Phase1 &msg, const TransportAddress &remote, proto::Transaction *txn,
+  bool VerifyDependencies(proto::Phase1 &msg, const proto::Transaction *txn, std::string &txnDigest);
+  void* TryPrepare(proto::Phase1 &msg, const TransportAddress &remote, const proto::Transaction *txn,
                         std::string &txnDigest, const proto::CommittedProof *committedProof, 
                         const proto::Transaction *abstain_conflict, bool isGossip,
                         proto::ConcurrencyControl::Result &result, bool combineProposalVerification=false);
-  void* VerifyClientProposal(proto::Phase1 &msg, proto::Transaction *txn, std::string &txnDigest);
-  void ProcessProposal(proto::Phase1 &msg, const TransportAddress &remote, proto::Transaction *txn,
+  void* VerifyClientProposal(proto::Phase1 &msg, const proto::Transaction *txn, std::string &txnDigest);
+  void ProcessProposal(proto::Phase1 &msg, const TransportAddress &remote, const proto::Transaction *txn,
                         std::string &txnDigest, const proto::CommittedProof *committedProof, 
                         const proto::Transaction *abstain_conflict, bool isGossip,
                         proto::ConcurrencyControl::Result &result);
@@ -363,11 +370,7 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
     const proto::CommittedProof *conflict, const std::string &txnDigest, int fb = 0);
   void BufferP1Result(p1MetaDataMap::accessor &c, proto::ConcurrencyControl::Result &result,
     const proto::CommittedProof *conflict, const std::string &txnDigest, int fb = 0);
-  void SendPhase1Reply(uint64_t reqId,
-    proto::ConcurrencyControl::Result result,
-    const proto::CommittedProof *conflict, const std::string &txnDigest,
-    const TransportAddress *remote,
-    const proto::Transaction *abstain_conflict = nullptr);
+  
   void Clean(const std::string &txnDigest);
   void CleanDependencies(const std::string &txnDigest);
   void LookupP1Decision(const std::string &txnDigest, int64_t &myProcessId,
