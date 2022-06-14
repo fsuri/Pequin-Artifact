@@ -162,7 +162,9 @@ proto::ConcurrencyControl::Result Server::DoMVTSOOCCCheck(
             //   std::cerr<< "Abstain ["<<BytesToHex(txnDigest, 16)<<"] against prepared write from tx[" << BytesToHex(TransactionDigest(*preparedTs.second, params.hashDigest), 16) << "]" << std::endl;
             // }
             //std::cerr << "Abstain caused by txn: " << BytesToHex(TransactionDigest(*abstain_conflict, params.hashDigest), 16) << std::endl;
-            abstain_conflict = preparedTs.second; 
+     
+            abstain_conflict = preparedTs.second;
+        
             //TODO: add handling for returning full signed p1.
             return proto::ConcurrencyControl::ABSTAIN;
           }
@@ -674,7 +676,7 @@ uint64_t Server::DependencyDepth(const proto::Transaction *txn) const {
     maxDepth = std::max(maxDepth, curr.second);
     for (const auto &dep : curr.first->deps()) {
       ongoingMap::const_accessor b;
-      auto oitr = ongoing.find(b, dep.write().prepared_txn_digest());
+      bool oitr = ongoing.find(b, dep.write().prepared_txn_digest());
       if(oitr){
       //if (oitr != ongoing.end()) {
         //q.push(std::make_pair(oitr->second, curr.second + 1));

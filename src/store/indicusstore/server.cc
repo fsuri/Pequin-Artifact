@@ -647,6 +647,7 @@ void Server::HandlePhase1(const TransportAddress &remote,
 
 
   std::string txnDigest = TransactionDigest(*txn, params.hashDigest); //could parallelize it too hypothetically
+  *txn->mutable_txndigest() = txnDigest; //Hack to have access to txnDigest inside TXN later (used for abstain conflict)
 
 
   Debug("PHASE1[%lu:%lu][%s] with ts %lu.", txn->client_id(),
@@ -722,8 +723,9 @@ void Server::HandlePhase1(const TransportAddress &remote,
      ongoing.insert(b, std::make_pair(txnDigest, txn));
      b.release();
      //TODO: DO BOTH OF THESE META DATA INSERTS ONLY IF VALIDATION PASSES, i.e. move them into TryPrepare?
-     //OR DELETE THEM AGAIN IF VALIDATION FAILS.
-
+     //OR DELETE THEM AGAIN IF VALIDATION FAILS. (requires a counter of num_ongoing inserts to gaurantee its not removed if a parallel client added it.)
+  //NOTE: Ongoing *must* be added before p2/wb since the latter dont include it themselves as an optimization
+  //TCP FIFO guarantees that this happens, but one cannot dispatch parallel P1 before logging ongoing or else it could be ordered after p2/wb. (p2/wb can be received based on other replicas/shards replies -- i.e. without this replicas p1 completion)
     
     ProcessProposal(msg, remote, txn, txnDigest, committedProof, abstain_conflict, isGossip, result);
   }
@@ -763,11 +765,21 @@ void Server::SendPhase1Reply(uint64_t reqId,
   phase1Reply->set_req_id(reqId);
   TransportAddress *remoteCopy = remote->clone();
 
-  //NOTE WARNING PURELY testing
-  //if(result == proto::ConcurrencyControl::ABSTAIN) *phase1Reply->mutable_abstain_conflict() = dummyTx;
+      //if(result == proto::ConcurrencyControl::ABSTAIN) *phase1Reply->mutable_abstain_conflict() = dummyTx; //NOTE WARNING: PURELY for testing
   if(abstain_conflict != nullptr){
     //Panic("setting abstain_conflict");
-    *phase1Reply->mutable_abstain_conflict() = *abstain_conflict;
+    phase1Reply->mutable_abstain_conflict()->set_req_id(0);
+    if(params.signClientProposals){
+      p1MetaDataMap::accessor c;
+      p1MetaData.find(c, abstain_conflict->txndigest());
+      *phase1Reply->mutable_abstain_conflict()->mutable_signed_txn() = *c->second.signed_txn;
+      c.release();
+    }
+    else{
+      *phase1Reply->mutable_abstain_conflict()->mutable_txn() = *abstain_conflict;
+    }
+    // *phase1Reply->mutable_abstain_conflict() = *abstain_conflict;
+    
  }
 
   auto sendCB = [remoteCopy, this, phase1Reply]() {
@@ -1451,12 +1463,12 @@ void Server::Abort(const std::string &txnDigest) {
    //if(params.mainThreadDispatching) abortedMutex.lock();
   aborted.insert(txnDigest);
    //if(params.mainThreadDispatching) abortedMutex.unlock();
-  Clean(txnDigest);
+  Clean(txnDigest, true);
   CheckDependents(txnDigest);
   CleanDependencies(txnDigest);
 }
 
-void Server::Clean(const std::string &txnDigest) {
+void Server::Clean(const std::string &txnDigest, bool abort) {
 
   //Latency_Start(&waitingOnLocks);
   //auto ongoingMutexScope = params.mainThreadDispatching ? std::unique_lock<std::shared_mutex>(ongoingMutex) : std::unique_lock<std::shared_mutex>();
@@ -1474,14 +1486,13 @@ void Server::Clean(const std::string &txnDigest) {
   //Latency_End(&waitingOnLocks);
 
   ongoingMap::accessor b;
-  if(ongoing.find(b, txnDigest)){
-      ongoing.erase(b);
-  }
+  bool is_ongoing = ongoing.find(b, txnDigest);
+    
   //ongoing.erase(txnDigest);
 
   preparedMap::accessor a;
-  auto preparedItr = prepared.find(a, txnDigest);
-  if(preparedItr){
+  bool is_prepared = prepared.find(a, txnDigest);
+  if(is_prepared){
   //if (itr != prepared.end()) {
     for (const auto &read : a->second.second->read_set()) {
     //for (const auto &read : itr->second.second->read_set()) {
@@ -1506,6 +1517,11 @@ void Server::Clean(const std::string &txnDigest) {
     prepared.erase(a);
   }
   a.release();
+
+  if(is_ongoing){
+      if(abort) delete b->second; //delete allocated txn.
+      ongoing.erase(b);
+  }
   b.release(); //Release only at the end, so that Prepare and Clean in parallel for the same TX are atomic.
   //TODO: might want to move release all the way to the end.
 
@@ -1545,16 +1561,15 @@ void Server::Clean(const std::string &txnDigest) {
 
   //TODO: try to merge more/if not all tx local state into ongoing and hold ongoing locks for simpler atomicity.
 
-  //TODO: XXX Recomment P1MetaData garbage collection.
-  // XXX Problem: honest client that receives P1 for a tx that has already finished, will do p2, and undo p2 garbage collection
-      //Solution: Call clean on redunndant calls of Writeback?
-  // p1MetaDataMap::accessor c;
-  // bool hasP1 = p1MetaData.find(c, txnDigest);
-  // //p1Decisions.erase(txnDigest);
-  // if(hasP1) p1MetaData.erase(c);
-  // c.release();
+//Currently commented out so that original client does not re-do work if p1/p2 has already happened
+//--> TODO: Make original client dynamic, i.e. it can directly receive a writeback if it exists, instead of HAVING to finish normal case.
+  p1MetaDataMap::accessor c;
+  bool hasP1 = p1MetaData.find(c, txnDigest);
+  if(hasP1) delete c->second.signed_txn;
+  //if(hasP1) p1MetaData.erase(c);
+  c.release();
 
-  //TODO: Recomment P2MetaData garbage collection.
+  
   // p2MetaDataMap::accessor p;
   // if(p2MetaDatas.find(p, txnDigest)){
   //   p2MetaDatas.erase(p);
@@ -1595,13 +1610,14 @@ void Server::SendRelayP1(const TransportAddress &remote, const std::string &depe
 
   Debug("RelayP1[%s] timed out. Sending now!", BytesToHex(dependent_txnDig, 256).c_str());
   proto::Transaction *tx;
+  proto::SignedMessage *signed_tx;
 
   //ongoingMap::const_accessor b;
   ongoingMap::accessor b;
   bool ongoingItr = ongoing.find(b, dependency_txnDig);
   if(!ongoingItr) return;  //If txnDigest no longer ongoing, then no FB necessary as it has completed already
-
   tx = b->second;
+  p1MetaDataMap::accessor c;
   //b.release();
 
   //proto::RelayP1 relayP1; //use global object.
@@ -1609,7 +1625,17 @@ void Server::SendRelayP1(const TransportAddress &remote, const std::string &depe
   relayP1.set_dependent_id(dependent_id);
   relayP1.mutable_p1()->set_req_id(0); //doesnt matter, its not used for fallback requests really.
   //*relayP1.mutable_p1()->mutable_txn() = *tx; //TODO:: avoid copy by allocating, and releasing again after.
-  relayP1.mutable_p1()->set_allocated_txn(tx);
+
+  if(!params.signClientProposals){
+    relayP1.mutable_p1()->set_allocated_txn(tx);  
+  }
+  else{ //signClientProposals == true
+    //b.release();
+    p1MetaData.find(c, dependency_txnDig);
+    signed_tx = c->second.signed_txn;
+    relayP1.mutable_p1()->set_allocated_signed_txn(signed_tx);
+  }
+  
 
   if(dependent_id == -1) relayP1.set_dependent_txn(dependent_txnDig);
 
@@ -1620,8 +1646,15 @@ void Server::SendRelayP1(const TransportAddress &remote, const std::string &depe
   stats.Increment("Relays_Sent", 1);
   transport->SendMessage(this, remote, relayP1);
 
-  b->second = relayP1.mutable_p1()->release_txn();
-  b.release();
+  if(!params.signClientProposals){
+    b->second = relayP1.mutable_p1()->release_txn();
+    //b.release();
+  }
+  else{
+    c->second.signed_txn = relayP1.mutable_p1()->release_signed_txn();
+    c.release();
+  }
+  b.release(); //keep ongoing locked the full duration: this guarantees that if ongoing exists, p1Meta.signed_tx exists too, since it is deleted after ongoing in Clean()
 
   Debug("Sent RelayP1[%s].", BytesToHex(dependent_txnDig, 256).c_str());
 }
@@ -1753,6 +1786,10 @@ bool Server::ForwardWritebackMulti(const std::string &txnDigest, interestedClien
 //For example, 1) case for committed could fail, but all consecutive fail too because it was committed inbetween.
 //Could just put abort cases last; but makes for redundant work if it should occur inbetween.
 void Server::HandlePhase1FB(const TransportAddress &remote, proto::Phase1FB &msg) {
+
+  if(msg.has_signed_txn()){
+    Panic("Fallback client verification not yet implemented");
+  }
 
   stats.Increment("total_p1FB_received", 1);
   std::string txnDigest = TransactionDigest(msg.txn(), params.hashDigest);
@@ -1940,6 +1977,7 @@ bool Server::ExecP1(p1MetaDataMap::accessor &c, proto::Phase1FB &msg, const Tran
   // p.release();
 
   proto::Transaction *txn = msg.release_txn();
+  *txn->mutable_txndigest() = txnDigest; //HACK to include txnDigest to lookup signed_tx.
   ongoingMap::accessor b;
   ongoing.insert(b, std::make_pair(txnDigest, txn));
   b.release();
@@ -1986,7 +2024,22 @@ void Server::SetP1(uint64_t reqId, proto::Phase1Reply *p1Reply, const std::strin
       *p1Reply->mutable_cc()->mutable_committed_conflict() = *conflict;
     }
   }
-  if(abstain_conflict != nullptr) *p1Reply->mutable_abstain_conflict() = *abstain_conflict;
+  //if(abstain_conflict != nullptr) *p1Reply->mutable_abstain_conflict() = *abstain_conflict;
+
+  if(abstain_conflict != nullptr){
+    //Panic("setting abstain_conflict");
+    p1Reply->mutable_abstain_conflict()->set_req_id(0);
+    if(params.signClientProposals){
+      p1MetaDataMap::accessor c;
+      p1MetaData.find(c, abstain_conflict->txndigest());
+      *p1Reply->mutable_abstain_conflict()->mutable_signed_txn() = *c->second.signed_txn;
+      c.release();
+    }
+    else{
+      *p1Reply->mutable_abstain_conflict()->mutable_txn() = *abstain_conflict;
+    }
+  
+ }
 
 }
 

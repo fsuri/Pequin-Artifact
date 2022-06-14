@@ -150,6 +150,7 @@ class Client : public ::Client {
     proto::CommittedProof conflict;
     //added this for fallback handling
     proto::Transaction txn;
+    proto::SignedMessage signed_txn;
     proto::P2Replies p2Replies;
 
     int64_t logGrp;
@@ -199,7 +200,7 @@ class Client : public ::Client {
   void ForwardWBcallback(uint64_t txnId, int group, proto::ForwardWriteback &forwardWB);
 
   // Fallback logic
-  void FinishConflict(uint64_t reqId, const std::string &txnDigest, proto::Transaction *txn);
+  void FinishConflict(uint64_t reqId, const std::string &txnDigest, proto::Phase1 *p1);
   bool isDep(const std::string &txnDigest, proto::Transaction &Req_txn);
   bool StillActive(uint64_t conflict_id, std::string &txnDigest);
   void CleanFB(PendingRequest *pendingFB, const std::string &txnDigest, bool clean_shards = true);

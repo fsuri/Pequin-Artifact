@@ -401,7 +401,7 @@ void* Server::TryPrepare(proto::Phase1 &msg, const TransportAddress &remote, con
             Debug("Already concurrently Committed/Aborted txn[%s]", BytesToHex(txnDigest, 16).c_str());
             if(params.mainThreadDispatching && (!params.dispatchMessageReceive || params.parallel_CCC)) FreePhase1message(msg_ptr);
             if(params.signClientProposals) delete txn;
-            Panic("is original client dead?");
+            //Panic("is original client dead?");
             return (void*) false;
           }
           b.release();

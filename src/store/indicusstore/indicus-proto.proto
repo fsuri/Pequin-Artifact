@@ -101,6 +101,7 @@ message Transaction {
   repeated WriteMessage write_set = 5;
   repeated Dependency deps = 6;
   required TimestampMessage timestamp = 7;
+  optional bytes txndigest = 8; //NOT PART OF TX. HACK HERE TO STORE txn digest in the local txn version without changing data structures that hold TXN.
 }
 
 message Phase1 {
@@ -136,7 +137,8 @@ message Phase1Reply {
     ConcurrencyControl cc = 2;
     SignedMessage signed_cc = 3;
   }
-  optional Transaction abstain_conflict = 4;
+  optional Phase1 abstain_conflict = 4;
+  //optional Transaction abstain_conflict = 4;
 }
 
 message Phase1Replies {

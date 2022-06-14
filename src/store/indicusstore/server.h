@@ -258,13 +258,18 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
 
     struct P1MetaData {
       P1MetaData(): conflict(nullptr), hasP1(false){}
-      P1MetaData(proto::ConcurrencyControl::Result result): result(result), conflict(nullptr), hasP1(false){}
-      ~P1MetaData(){}
+      P1MetaData(proto::ConcurrencyControl::Result result): result(result), conflict(nullptr), hasP1(false), sub_original(false){}
+      ~P1MetaData(){
+        if(signed_txn != nullptr) delete signed_txn;
+      }
       proto::ConcurrencyControl::Result result;
       const proto::CommittedProof *conflict;
       bool hasP1;
       std::mutex P1meta_mutex;
       proto::SignedMessage *signed_txn;
+      // Not used currently: In case we want to subscribe original client to P1 also to avoid ongoing bug.
+      bool sub_original; 
+      const TransportAddress *original;
     };
     typedef tbb::concurrent_hash_map<std::string, P1MetaData> p1MetaDataMap;
 
@@ -371,7 +376,7 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
   void BufferP1Result(p1MetaDataMap::accessor &c, proto::ConcurrencyControl::Result &result,
     const proto::CommittedProof *conflict, const std::string &txnDigest, int fb = 0);
   
-  void Clean(const std::string &txnDigest);
+  void Clean(const std::string &txnDigest, bool abort = false);
   void CleanDependencies(const std::string &txnDigest);
   void LookupP1Decision(const std::string &txnDigest, int64_t &myProcessId,
       proto::ConcurrencyControl::Result &myResult) const;

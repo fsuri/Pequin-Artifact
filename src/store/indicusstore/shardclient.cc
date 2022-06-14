@@ -1081,7 +1081,7 @@ void ShardClient::ProcessP1R(proto::Phase1Reply &reply, bool FB_path, PendingFB 
 
   //Keep track of conflicts.
   if(reply.has_abstain_conflict()){
-    proto::Transaction* abstain_conflict = reply.release_abstain_conflict();
+    proto::Phase1* abstain_conflict = reply.release_abstain_conflict();
     pendingPhase1->abstain_conflicts.insert(abstain_conflict);
   }
 
@@ -1479,7 +1479,7 @@ void ShardClient::Phase1Decision(
   pendingPhase1->pcb(pendingPhase1->decision, pendingPhase1->fast, pendingPhase1->conflict_flag,
       pendingPhase1->conflict, pendingPhase1->p1ReplySigs, eqv_ready);
 
-  //Start FB for conflicts if we abstained twice or more in a row:
+  //Start FB for conflicts if we abstained consecutiveMax (e.g. two) times or more in a row:
   if(pendingPhase1->decision == proto::ABORT && !pendingPhase1->conflict_flag){
     consecutive_abstains++;
   }
@@ -1487,11 +1487,19 @@ void ShardClient::Phase1Decision(
     consecutive_abstains = 0;
   }
   if(!params.no_fallback && consecutive_abstains >= consecutiveMax){
-    for(auto txn: pendingPhase1->abstain_conflicts){
+    for(auto p1: pendingPhase1->abstain_conflicts){
+      proto::Transaction txn;
+      if(params.signClientProposals){
+        txn.ParseFromString(p1->signed_txn().data());
+      }
+      else{
+        txn = p1->txn();
+      }
+
       //TODO: dont process redundant digests
-      if(!TransactionsConflict(pendingPhase1->txn_, *txn)) continue;
-      std::string txnDigest(TransactionDigest(*txn, params.hashDigest));
-      pendingPhase1->ConflictCB(txnDigest, txn);
+      if(!TransactionsConflict(pendingPhase1->txn_, txn)) continue;
+      std::string txnDigest(TransactionDigest(txn, params.hashDigest));
+      pendingPhase1->ConflictCB(txnDigest, p1);
     }
   }
 
@@ -1655,7 +1663,15 @@ void ShardClient::EraseRelay(const std::string &txnDigest){
 
 void ShardClient::HandlePhase1Relay(proto::RelayP1 &relayP1){
 
-  std::string txnDigest(TransactionDigest(relayP1.p1().txn(), params.hashDigest));
+  proto::Transaction *txn = new proto::Transaction();
+  if(params.signClientProposals){
+    txn->ParseFromString(relayP1.p1().signed_txn().data());
+  }
+  else{
+    txn = relayP1.mutable_p1()->mutable_txn();
+  }
+  std::string txnDigest(TransactionDigest(*txn, params.hashDigest));
+  delete txn;
 
   //only process the first relay for a txn.
   //if (!pendingRelays.insert(txnDigest).second) return; //USING this works? seemingly does not either.
@@ -1685,7 +1701,7 @@ void ShardClient::HandlePhase1Relay(proto::RelayP1 &relayP1){
 }
 
 //TODO: Move all callbacks (also in client.)
-void ShardClient::Phase1FB(uint64_t reqId, proto::Transaction &txn, const std::string &txnDigest,
+void ShardClient::Phase1FB(uint64_t reqId, proto::Transaction &txn, proto::SignedMessage &signed_txn, const std::string &txnDigest,
  relayP1FB_callback rP1FB, phase1FB_callbackA p1FBcbA, phase1FB_callbackB p1FBcbB,
  phase2FB_callback p2FBcb, writebackFB_callback wbFBcb, invokeFB_callback invFBcb, int64_t logGrp) {
 
@@ -1713,7 +1729,12 @@ void ShardClient::Phase1FB(uint64_t reqId, proto::Transaction &txn, const std::s
   // create prepare request
   phase1FB.Clear();
   phase1FB.set_req_id(reqId);
-  *phase1FB.mutable_txn() = txn;
+  if(params.signClientProposals){
+    *phase1FB.mutable_signed_txn() = signed_txn;
+  }
+  else{
+    *phase1FB.mutable_txn() = txn;
+  }
 
   transport->SendMessageToGroup(this, group, phase1FB);
 
