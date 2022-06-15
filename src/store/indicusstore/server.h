@@ -257,7 +257,7 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
     };
 
     struct P1MetaData {
-      P1MetaData(): conflict(nullptr), hasP1(false){}
+      P1MetaData(): conflict(nullptr), hasP1(false), sub_original(false){}
       P1MetaData(proto::ConcurrencyControl::Result result): result(result), conflict(nullptr), hasP1(false), sub_original(false){}
       ~P1MetaData(){
         if(signed_txn != nullptr) delete signed_txn;
@@ -276,7 +276,8 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
     void RelayP1(const std::string &dependency_txnDig, bool fallback_flow, uint64_t reqId, const TransportAddress &remote, const std::string &txnDigest);
     void SendRelayP1(const TransportAddress &remote, const std::string &dependency_txnDig, uint64_t dependent_id, const std::string &dependent_txnDig);
 
-    bool ExecP1(p1MetaDataMap::accessor &c, proto::Phase1FB &msg, const TransportAddress &remote,
+    //p1MetaDataMap::accessor &c, 
+    bool ExecP1(proto::Phase1FB &msg, const TransportAddress &remote,
       const std::string &txnDigest, proto::ConcurrencyControl::Result &result,
       const proto::CommittedProof* &committedProof,
       const proto::Transaction *abstain_conflict = nullptr);
@@ -338,13 +339,14 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
       const proto::CommittedProof* &conflict, const proto::Transaction* &abstain_conflict,
       bool fallback_flow = false, bool isGossip = false);
 
+  void* CheckProposalValidity(proto::Phase1 &msg, const proto::Transaction *txn, std::string &txnDigest);
   bool VerifyDependencies(proto::Phase1 &msg, const proto::Transaction *txn, std::string &txnDigest);
-  void* TryPrepare(proto::Phase1 &msg, const TransportAddress &remote, const proto::Transaction *txn,
+  bool VerifyClientProposal(proto::Phase1 &msg, const proto::Transaction *txn, std::string &txnDigest);
+  void* TryPrepare(proto::Phase1 &msg, const TransportAddress &remote, proto::Transaction *txn,
                         std::string &txnDigest, const proto::CommittedProof *committedProof, 
                         const proto::Transaction *abstain_conflict, bool isGossip,
                         proto::ConcurrencyControl::Result &result, bool combineProposalVerification=false);
-  void* VerifyClientProposal(proto::Phase1 &msg, const proto::Transaction *txn, std::string &txnDigest);
-  void ProcessProposal(proto::Phase1 &msg, const TransportAddress &remote, const proto::Transaction *txn,
+  void ProcessProposal(proto::Phase1 &msg, const TransportAddress &remote, proto::Transaction *txn,
                         std::string &txnDigest, const proto::CommittedProof *committedProof, 
                         const proto::Transaction *abstain_conflict, bool isGossip,
                         proto::ConcurrencyControl::Result &result);

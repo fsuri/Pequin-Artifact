@@ -546,8 +546,9 @@ void Server::ProcessPhase1_atomic(const TransportAddress &remote,
   const proto::Transaction *abstain_conflict = nullptr;
       //NOTE : make sure c and b dont conflict on lock order
   p1MetaDataMap::accessor c;
-  p1MetaData.insert(c, txnDigest);
-  bool hasP1 = c->second.hasP1;
+  bool hasP1 = p1MetaData.find(c, txnDigest);
+  // p1MetaData.insert(c, txnDigest);
+  // bool hasP1 = c->second.hasP1;
   // no-replays property, i.e. recover existing decision/result from storage
   //Ignore duplicate requests that are already committed, aborted, or ongoing
   if(hasP1){
@@ -676,13 +677,16 @@ void Server::HandlePhase1(const TransportAddress &remote,
 // no-replays property, i.e. recover existing decision/result from storage
   //Ignore duplicate requests that are already committed, aborted, or ongoing
   p1MetaDataMap::const_accessor c;
-  p1MetaData.insert(c, txnDigest);  //TODO: next: make P1 part of ongoing? same for P2?
- 
-  bool hasP1 = c->second.hasP1;
+  // p1MetaData.insert(c, txnDigest);  //TODO: next: make P1 part of ongoing? same for P2?
+  // bool hasP1 = c->second.hasP1;
+  bool hasP1 = p1MetaData.find(c, txnDigest);
   if(hasP1 && isGossip){  // If P1 has already been received and current message is a gossip one, do nothing.
     //Do not need to reply to forwarded P1. If adding replica GC -> want to forward it to leader.
     //Inform_P1_GC_Leader(proto::Phase1Reply &reply, proto::Transaction &txn, std::string &txnDigest, int64_t grpLeader);
+    c.release();
     if(params.signClientProposals) delete txn;
+    if(params.mainThreadDispatching && (!params.dispatchMessageReceive || params.parallel_CCC)) FreePhase1message(&msg);
+    return;
   }
   else if(hasP1){ // If P1 has already been received (sent by a fallback) and current message is from original client, then only inform client of blocked dependencies so it can issue fallbacks of its own
     result = c->second.result;
@@ -704,28 +708,8 @@ void Server::HandlePhase1(const TransportAddress &remote,
     if(params.replicaGossip) ForwardPhase1(msg); //If params.replicaGossip is enabled then set msg.replica_gossip to true and forward.
     if(!isGossip) msg.set_replica_gossip(false); //unset msg.replica_gossip (which we possibly just set to foward) if the message was received by the client
 
-    if (params.validateProofs && params.signedMessages && params.verifyDeps) { 
-      //Check whether claimed dependencies are actually dependencies, and whether f+1 replicas signed them
-      //Currently not used: Instead, replicas only accept dependencies they have seen already. (More pessimistic, but more cost efficient)
-      if(!VerifyDependencies(msg, txn, txnDigest)) return; 
-      //CURRENTLY NOT USED: IF WE USE IT --> REFACTOR TO ALSO BE MULTITHREADED VERIFICATION: ADD IT TOGETHER WITH THE OTHER CLIENT SIG VERIFICATION>
-      
-    }
-
-    //current_views[txnDigest] = 0;
-    p2MetaDataMap::accessor p;
-    p2MetaDatas.insert(p, txnDigest);
-    p.release();
-
-    if(!params.signClientProposals) txn = msg.release_txn(); //Only release it here so that we can forward complete P1 message without making any wasteful copies
-
-     ongoingMap::accessor b;
-     ongoing.insert(b, std::make_pair(txnDigest, txn));
-     b.release();
-     //TODO: DO BOTH OF THESE META DATA INSERTS ONLY IF VALIDATION PASSES, i.e. move them into TryPrepare?
-     //OR DELETE THEM AGAIN IF VALIDATION FAILS. (requires a counter of num_ongoing inserts to gaurantee its not removed if a parallel client added it.)
-  //NOTE: Ongoing *must* be added before p2/wb since the latter dont include it themselves as an optimization
-  //TCP FIFO guarantees that this happens, but one cannot dispatch parallel P1 before logging ongoing or else it could be ordered after p2/wb. (p2/wb can be received based on other replicas/shards replies -- i.e. without this replicas p1 completion)
+    //TODO: DispatchTP_noCB(Verify Client Proposals) 
+    // Verification calls DispatchTP_main (ProcessProposal.) -- Re-cecheck hasP1 (if used multithread branch)
     
     ProcessProposal(msg, remote, txn, txnDigest, committedProof, abstain_conflict, isGossip, result);
   }
@@ -1792,6 +1776,15 @@ void Server::HandlePhase1FB(const TransportAddress &remote, proto::Phase1FB &msg
     Panic("Fallback client verification not yet implemented");
   }
 
+  proto::Transaction *txn; //TODO: change all references below.
+  if(params.signClientProposals){
+    txn = new proto::Transaction();
+     txn->ParseFromString(msg.signed_txn().data());
+  }
+  else{
+     txn = msg.mutable_txn();
+  }
+
   stats.Increment("total_p1FB_received", 1);
   std::string txnDigest = TransactionDigest(msg.txn(), params.hashDigest);
   Debug("Received PHASE1FB[%lu][%s]", msg.req_id(), BytesToHex(txnDigest, 16).c_str());
@@ -1818,10 +1811,10 @@ void Server::HandlePhase1FB(const TransportAddress &remote, proto::Phase1FB &msg
   //Alternatively, keep around the decision proof and send it. For now/simplicity, p2 suffices
   //TODO: could store p2 and p1 signatures (until writeback) in order to avoid re-computation
   //XXX CHANGED IT TO ACCESSOR FOR LOCK TEST
-  p1MetaDataMap::accessor c;
-  p1MetaData.insert(c, txnDigest);
-  //c->second.P1meta_mutex.lock();
-  bool hasP1 = c->second.hasP1;
+  p1MetaDataMap::const_accessor c;
+  bool hasP1 = p1MetaData.find(c, txnDigest);
+  // p1MetaData.insert(c, txnDigest);
+  // bool hasP1 = c->second.hasP1;
   //std::cerr << "[FB] acquire lock for txn: " << BytesToHex(txnDigest, 64) << std::endl;
   p2MetaDataMap::const_accessor p;
   p2MetaDatas.insert(p, txnDigest);
@@ -1891,7 +1884,7 @@ void Server::HandlePhase1FB(const TransportAddress &remote, proto::Phase1FB &msg
   else if(hasP2){
       Debug("Txn[%s] has only P2, execute P1 as well", BytesToHex(txnDigest, 64).c_str());
 
-      //c.release();
+      c.release();
       proto::CommitDecision decision = p->second.p2Decision;
       uint64_t decision_view = p->second.decision_view;
       p.release();
@@ -1905,11 +1898,11 @@ void Server::HandlePhase1FB(const TransportAddress &remote, proto::Phase1FB &msg
       proto::ConcurrencyControl::Result result;
       const proto::Transaction *abstain_conflict = nullptr;
 
-      if (ExecP1(c, msg, remote, txnDigest, result, committedProof, abstain_conflict)) { //only send if the result is not Wait
+      if (ExecP1(msg, remote, txnDigest, result, committedProof, abstain_conflict)) { //only send if the result is not Wait
           SetP1(msg.req_id(), p1fb_organizer->p1fbr->mutable_p1r(), txnDigest, result, committedProof, abstain_conflict);
       }
       //c->second.P1meta_mutex.unlock();
-      c.release();
+      //c.release();
       //std::cerr << "[FB:3] release lock for txn: " << BytesToHex(txnDigest, 64) << std::endl;
       SendPhase1FBReply(p1fb_organizer, txnDigest);
       Debug("Sent Phase1FBReply on path P2 + ExecP1 for txn: %s, sent by client: %d", BytesToHex(txnDigest, 16).c_str(), msg.req_id());
@@ -1918,14 +1911,18 @@ void Server::HandlePhase1FB(const TransportAddress &remote, proto::Phase1FB &msg
   //6) NO STATE STORED: Do p1 normally. copied logic from HandlePhase1(remote, msg)
   else{
       Debug("Txn[%s] has no P1 or P2, execute P1", BytesToHex(txnDigest, 64).c_str());
-      //c.release();
+      c.release();
       p.release();
 
       const proto::CommittedProof *committedProof;
       proto::ConcurrencyControl::Result result;
       const proto::Transaction *abstain_conflict = nullptr;
 
-      if (ExecP1(c, msg, remote, txnDigest, result, committedProof, abstain_conflict)) { //only send if the result is not Wait
+      //TODO: Add Validation here: Call ManageClient Proposal
+      //If Valid: insert into P1Meta and check again: If now already in P1Meta then use this existing result.
+      // TODO: Do also in case 5) --Nevermind: Do not need to validate if we have P2 --> implies that other servers validated for us.
+
+      if (ExecP1(msg, remote, txnDigest, result, committedProof, abstain_conflict)) { //only send if the result is not Wait
           P1FBorganizer *p1fb_organizer = new P1FBorganizer(msg.req_id(), txnDigest, remote, this);
           SetP1(msg.req_id(), p1fb_organizer->p1fbr->mutable_p1r(), txnDigest, result, committedProof, abstain_conflict);
           SendPhase1FBReply(p1fb_organizer, txnDigest);
@@ -1935,7 +1932,7 @@ void Server::HandlePhase1FB(const TransportAddress &remote, proto::Phase1FB &msg
         Debug("WAITING on dep in order to send Phase1FBReply on path ExecP1 for txn: %s, sent by client: %d", BytesToHex(txnDigest, 16).c_str(), msg.req_id());
       }
       //c->second.P1meta_mutex.unlock();
-      c.release();
+      //c.release();
       //std::cerr << "[FB:4] release lock for txn: " << BytesToHex(txnDigest, 64) << std::endl;
   }
 
@@ -1943,7 +1940,8 @@ void Server::HandlePhase1FB(const TransportAddress &remote, proto::Phase1FB &msg
 }
 
 //TODO: merge this code with the normal case operation.
-bool Server::ExecP1(p1MetaDataMap::accessor &c, proto::Phase1FB &msg, const TransportAddress &remote,
+//p1MetaDataMap::accessor &c, 
+bool Server::ExecP1(proto::Phase1FB &msg, const TransportAddress &remote,
   const std::string &txnDigest, proto::ConcurrencyControl::Result &result,
   const proto::CommittedProof* &committedProof,
   const proto::Transaction *abstain_conflict){
@@ -1992,7 +1990,7 @@ bool Server::ExecP1(p1MetaDataMap::accessor &c, proto::Phase1FB &msg, const Tran
       remote, txnDigest, *txn, retryTs, committedProof, abstain_conflict, true);
 
   //std::cerr << "Exec P1 called, for txn: " << BytesToHex(txnDigest, 64) << std::endl;
-  BufferP1Result(c, result, committedProof, txnDigest, 1);
+  BufferP1Result(result, committedProof, txnDigest, 1);
   //std::cerr << "FB: Buffered result:" << result << " for txn: " << BytesToHex(txnDigest, 64) << std::endl;
 
 

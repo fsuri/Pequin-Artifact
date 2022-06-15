@@ -306,6 +306,19 @@ void Server::ManageDispatchMoveView(const TransportAddress &remote, const std::s
 
 //////////////////////////////////////////////////////// Protocol Helper Functions
 
+void* Server::CheckProposalValidity(proto::Phase1 &msg, const proto::Transaction *txn, std::string &txnDigest){
+     if (params.validateProofs && params.signedMessages && params.verifyDeps) { 
+      //Check whether claimed dependencies are actually dependencies, and whether f+1 replicas signed them
+      //Currently not used: Instead, replicas only accept dependencies they have seen already. (More pessimistic, but more cost efficient)
+         if(!VerifyDependencies(msg, txn, txnDigest)) return (void*) false; 
+      //CURRENTLY NOT USED: IF WE USE IT --> REFACTOR TO ALSO BE MULTITHREADED VERIFICATION: ADD IT TOGETHER WITH THE OTHER CLIENT SIG VERIFICATION> 
+    }
+    if (params.signClientProposals){
+        if(!VerifyClientProposal(msg, txn, txnDigest)) return (void*) false;
+    }
+    return (void*) true;
+
+}
 
 //Checks for a given client proposals read set whether all dependencies that are claimed are valid
 //A dependency is valid if: 1) It was signed by f+1 replicas (proving existence)
@@ -336,20 +349,75 @@ bool Server::VerifyDependencies(proto::Phase1 &msg, const proto::Transaction *tx
     return true;
 }
 
+//Called on network thread. cont// is dispatch wrapper 
+// void* Server::ManageClientProposal(proto::Phase1 *msg, const TransportAddress &remote){
+
+//     proto::Transaction *txn;
+//     if(params.signClientProposals){
+//         txn = new proto::Transaction();
+//         txn->ParseFromString(msg.signed_txn().data());
+//     }
+//     else{
+//         txn = msg.mutable_txn();
+//     }
+
+//     std::string txnDigest = TransactionDigest(*txn, params.hashDigest); //could parallelize it too hypothetically
+//   *txn->mutable_txndigest() = txnDigest; //Hack to have access to txnDigest inside TXN later (used for abstain conflict)
+
+//    //check if p1MetaData contains 
+//    p1MetaDataMap::const_accessor c;
+//    bool hasP1 = p1MetaData.find(c, txnDigest); // why does it have to be insert. Is there a way to get hasP1 without?
+//    c.release();
+//    if(hasP1) return (void*) txn;
+
+   
+
+//    //Offload: to other thread, include callback cont. 
+//    auto f =[](){
+//        //Verification
+//    };
+//    auto cb = [this, msg](void* valid_tx){
+//        if(valid_tx){ //implies valid_tx was proto tx.
+//             auto cont = [this, msg, tx](){
+//                 this->HandlePhase1(remote, msg, (proto::Transaction*) tx);
+//                 return (void*) true;
+//             }
+//             transport->DispatchTP_main(std::move(cont));
+//        }
+//        else{ //implies valid_tx was bool==false
+//        // Free MSG
+//        // Delete Tx
+//          return;
+//        }
+//    };
+
+//    if(params.signClientProposals){
+//         //if(!VerifyDependencies()) return (void*) false;
+//         if(!VerifyClientProposal(msg, txn, txnDigest)) return (void*) false;
+//     }
+//     return (void*) txn;
+// }
+//Network handler then calls:
+// HandlePhase1(msg, (proto::Transaction*) txn)
+
+
+//For fallback: If has p2 or writeback. Also skip.
+
+
+
 //Verifies whether Client proposal was signed by correct client.
 //A proposal (p1) is valid if: 1) The client_id included in the txn (in TS) matches the signer
 //                             2) The signature matches the txn contents
-void* Server::VerifyClientProposal(proto::Phase1 &msg, const proto::Transaction *txn, std::string &txnDigest)
+bool Server::VerifyClientProposal(proto::Phase1 &msg, const proto::Transaction *txn, std::string &txnDigest)
     {
     
-
          //1. check TXN.TS.id = client_id (only signing client should claim this id in timestamp
          if(txn->timestamp().id() != msg.signed_txn().process_id()){
             Debug("Client id[%d] does not match Timestamp with id[%d] for txn %s", 
                    msg.signed_txn().process_id(), txn->timestamp().id(), BytesToHex(txnDigest, 16).c_str());
             if(params.mainThreadDispatching && (!params.dispatchMessageReceive || params.parallel_CCC)) FreePhase1message(&msg);
             if(params.signClientProposals) delete txn; //true by definition of reaching this function (kept param for readability)
-            return (void*) false;
+            return false;
          }
          //2. check signature matches txn signed by client (use GetClientID)
          //Verify directly (without verifier object) -- alternatively 
@@ -360,27 +428,43 @@ void* Server::VerifyClientProposal(proto::Phase1 &msg, const proto::Transaction 
               Debug("Client signatures invalid for txn %s", BytesToHex(txnDigest, 16).c_str());
             if(params.mainThreadDispatching && (!params.dispatchMessageReceive || params.parallel_CCC)) FreePhase1message(&msg);
             if(params.signClientProposals) delete txn; //true by definition of reaching this function (kept param for readability)
-            return (void*) false;
+            return false;
           }
           //3. Store signed p1 for future relays.
           p1MetaDataMap::accessor c;
-          p1MetaData.find(c, txnDigest);
+          p1MetaData.insert(c, txnDigest);
           c->second.signed_txn = msg.release_signed_txn();
           c.release();
 
           Debug("Client verification successful for txn %s", BytesToHex(txnDigest, 16).c_str());
       //Latency_End(&verifyLat);
-      return (void*) true;
+      return true;
     
     }
 
 //Tries to Prepare a transaction by calling the OCC-Check and the Reply Handler afterwards
 //Dispatches the job to a worker thread if parallel_CCC = true
-void* Server::TryPrepare(proto::Phase1 &msg, const TransportAddress &remote, const proto::Transaction *txn,
+void* Server::TryPrepare(proto::Phase1 &msg, const TransportAddress &remote, proto::Transaction *txn,
                         std::string &txnDigest, const proto::CommittedProof *committedProof, 
                         const proto::Transaction *abstain_conflict, bool isGossip,
                         proto::ConcurrencyControl::Result &result, bool combineProposalVerification)
   {
+
+    //current_views[txnDigest] = 0;
+    p2MetaDataMap::accessor p;
+    p2MetaDatas.insert(p, txnDigest);
+    p.release();
+
+    if(!params.signClientProposals) txn = msg.release_txn(); //Only release it here so that we can forward complete P1 message without making any wasteful copies
+
+     ongoingMap::accessor b;
+     ongoing.insert(b, std::make_pair(txnDigest, txn));
+     b.release();
+     //TODO: DO BOTH OF THESE META DATA INSERTS ONLY IF VALIDATION PASSES, i.e. move them into TryPrepare?
+     //OR DELETE THEM AGAIN IF VALIDATION FAILS. (requires a counter of num_ongoing inserts to gaurantee its not removed if a parallel client added it.)
+  //NOTE: Ongoing *must* be added before p2/wb since the latter dont include it themselves as an optimization
+  //TCP FIFO guarantees that this happens, but one cannot dispatch parallel P1 before logging ongoing or else it could be ordered after p2/wb. (p2/wb can be received based on other replicas/shards replies -- i.e. without this replicas p1 completion)
+    
 
     Timestamp retryTs;
 
@@ -406,11 +490,11 @@ void* Server::TryPrepare(proto::Phase1 &msg, const TransportAddress &remote, con
           }
           b.release();
 
-        if(combineProposalVerification){
-          if(!VerifyClientProposal(*msg_ptr, txn, txnDigest)){
-              return (void*) false; //Ignore P1 request.
-          }
-        }  
+        // if(combineProposalVerification){
+        //   if(!VerifyClientProposal(*msg_ptr, txn, txnDigest)){
+        //       return (void*) false; //Ignore P1 request.
+        //   }
+        // }  
 
         Debug("starting occ check for txn: %s", BytesToHex(txnDigest, 16).c_str());
         proto::ConcurrencyControl::Result *result = new proto::ConcurrencyControl::Result(this->DoOCCCheck(msg_ptr->req_id(),
@@ -428,44 +512,68 @@ void* Server::TryPrepare(proto::Phase1 &msg, const TransportAddress &remote, con
   }
 
 //TODO: Add remote.clone() for better style..
-  void Server::ProcessProposal(proto::Phase1 &msg, const TransportAddress &remote, const proto::Transaction *txn,
+  void Server::ProcessProposal(proto::Phase1 &msg, const TransportAddress &remote, proto::Transaction *txn,
                         std::string &txnDigest, const proto::CommittedProof *committedProof, 
                         const proto::Transaction *abstain_conflict, bool isGossip,
                         proto::ConcurrencyControl::Result &result){
 
-    if(!params.signClientProposals){
-      TryPrepare(msg, remote, txn, txnDigest, committedProof, abstain_conflict, isGossip, result); //Includes call to HandlePhase1CB(..);
-    } 
-    else{ //signClientProposals == true (requires verification)
-      Debug("Verifying client signature for transaction %s", BytesToHex(txnDigest, 16).c_str());
-      if(!params.multiThreading){
-        if(!VerifyClientProposal(msg, txn, txnDigest)){
-          return; //Ignore P1 request.
-        }
+    if(!params.multiThreading){
+        bool valid = CheckProposalValidity(msg, txn, txnDigest);
+        if(!valid) return; //Check Proposal Validity already cleans up message in this case.
         TryPrepare(msg, remote, txn, txnDigest, committedProof, abstain_conflict, isGossip, result); //Includes call to HandlePhase1CB(..);
-      }
-      else{ //multiThreading == true
-        if(params.parallel_CCC && params.mainThreadDispatching){ //if OCC check is multithreaded: just dispatch proposal verification with it together!
-          TryPrepare(msg, remote, txn, txnDigest, committedProof, abstain_conflict, isGossip, result, true); //Calls VerifyClientProposal
-        }
-        else{ //parallel_CCC == false, or mainThreadDispatching = false Dispatch verification, and then callback to mainthread to continue with OCC check
-            proto::Phase1 *msg_ptr = new proto::Phase1(msg);
-            if(params.mainThreadDispatching && (!params.dispatchMessageReceive || params.parallel_CCC)) FreePhase1message(&msg); //create a copy and delete the old one if applicable.
-            auto f(std::bind(&Server::VerifyClientProposal, this, std::ref(*msg_ptr), txn, txnDigest));
-            auto g(std::bind(&Server::TryPrepare, this, std::ref(*msg_ptr), std::ref(remote), txn, txnDigest, committedProof, abstain_conflict, isGossip, result, false));
-            
-            auto cb = [this, g](void* valid){
-              if(valid){ //ingore p1 otherwise
-                transport->DispatchTP_main(std::move(g));
-              }
-            };
-            transport->DispatchTP(std::move(f), std::move(cb));
-        }
-      }
     }
+    else{
+        auto try_prep = std::bind(&Server::TryPrepare, this, std::ref(msg), std::ref(remote), txn, txnDigest, committedProof, abstain_conflict, isGossip, result);
+        auto f = [this, msg_ptr = &msg, txn, txnDigest](){
+            bool valid = CheckProposalValidity(msg, txn, txnDigest);
+            if(!valid) return (void*) false;
+            transport->DispatchTP_main(try_prep);
+            return (void*) true;
+        };
+        transport->DispatchTP_noCB(std::move(f));
+    }
+
+    //TODO: EDIT TRY PREPARE TO REMOVE combined verification.
+
+   
+   //////Old.
+
+
+    // if(!params.signClientProposals){
+    //   TryPrepare(msg, remote, txn, txnDigest, committedProof, abstain_conflict, isGossip, result); //Includes call to HandlePhase1CB(..);
+    // } 
+    // else{ //signClientProposals == true (requires verification)
+    //   Debug("Verifying client signature for transaction %s", BytesToHex(txnDigest, 16).c_str());
+    //   if(!params.multiThreading){
+    //     if(!VerifyClientProposal(msg, txn, txnDigest)){
+    //       return; //Ignore P1 request.
+    //     }
+    //     TryPrepare(msg, remote, txn, txnDigest, committedProof, abstain_conflict, isGossip, result); //Includes call to HandlePhase1CB(..);
+    //   }
+    //   else{ //multiThreading == true
+    //     if(params.parallel_CCC && params.mainThreadDispatching){ //if OCC check is multithreaded: just dispatch proposal verification with it together!
+    //       TryPrepare(msg, remote, txn, txnDigest, committedProof, abstain_conflict, isGossip, result, true); //Calls VerifyClientProposal
+    //     }
+    //     else{ //parallel_CCC == false, or mainThreadDispatching = false Dispatch verification, and then callback to mainthread to continue with OCC check
+    //         proto::Phase1 *msg_ptr = new proto::Phase1(msg);
+    //         if(params.mainThreadDispatching && (!params.dispatchMessageReceive || params.parallel_CCC)) FreePhase1message(&msg); //create a copy and delete the old one if applicable.
+    //         auto f(std::bind(&Server::VerifyClientProposal, this, std::ref(*msg_ptr), txn, txnDigest));
+    //         auto g(std::bind(&Server::TryPrepare, this, std::ref(*msg_ptr), std::ref(remote), txn, txnDigest, committedProof, abstain_conflict, isGossip, result, false));
+            
+    //         auto cb = [this, g](void* valid){
+    //           if(valid){ //ingore p1 otherwise
+    //             transport->DispatchTP_main(std::move(g));
+    //           }
+    //         };
+    //         transport->DispatchTP(std::move(f), std::move(cb));
+    //     }
+    //   }
+    // }
   }
 
 
+//BufferP1Result. Ensures that only the first P1 result is buffered and used.
+//It is possible for multiple different (fallback) clients to execute OCC check -- but only one result should ever be used.
 //XXX if you *DONT* want to buffer Wait results then call BufferP1Result only inside SendPhase1Reply
 void Server::BufferP1Result(proto::ConcurrencyControl::Result &result,
   const proto::CommittedProof *conflict, const std::string &txnDigest, int fb){
