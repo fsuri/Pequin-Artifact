@@ -215,8 +215,8 @@ virtual void Phase2Equivocate_Simulate(uint64_t id, const proto::Transaction &tx
       if (decisionTimeout != nullptr) {
         delete decisionTimeout;
       }
-      for(auto txn : abstain_conflicts){
-        delete txn;
+      for(auto p1 : abstain_conflicts){
+        delete p1;
       }
     }
     bool first_decision; // Just a sanity flag. remove again...

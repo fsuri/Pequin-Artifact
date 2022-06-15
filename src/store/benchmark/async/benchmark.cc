@@ -246,7 +246,7 @@ DEFINE_int64(indicus_max_dep_depth, -1, "maximum length of dependency chain"
 DEFINE_uint64(indicus_key_type, 4, "key type (see create keys for mappings)"
     " key type (for Indicus)");
 
-DEFINE_bool(indicus_sign_client_proposals, false, "add signatures to client proposals "
+DEFINE_bool(indicus_sign_client_proposals, true, "add signatures to client proposals "
     " -- used for optimistic tx-ids. Can be used for access control (unimplemented)");
 
 //Client failure configurations    

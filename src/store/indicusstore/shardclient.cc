@@ -1487,19 +1487,24 @@ void ShardClient::Phase1Decision(
     consecutive_abstains = 0;
   }
   if(!params.no_fallback && consecutive_abstains >= consecutiveMax){
-    for(auto p1: pendingPhase1->abstain_conflicts){
-      proto::Transaction txn;
+    for(proto::Phase1 *p1: pendingPhase1->abstain_conflicts){
+      
+      proto::Transaction *txn;
       if(params.signClientProposals){
-        txn.ParseFromString(p1->signed_txn().data());
+        txn = new proto::Transaction();
+        txn->ParseFromString(p1->signed_txn().data());
       }
       else{
-        txn = p1->txn();
+        txn = p1->mutable_txn();
       }
 
       //TODO: dont process redundant digests
-      if(!TransactionsConflict(pendingPhase1->txn_, txn)) continue;
-      std::string txnDigest(TransactionDigest(txn, params.hashDigest));
+      if(!TransactionsConflict(pendingPhase1->txn_, *txn)) continue;
+      std::string txnDigest(TransactionDigest(*txn, params.hashDigest));
+
+      if(params.signClientProposals) p1->set_allocated_txn(txn); 
       pendingPhase1->ConflictCB(txnDigest, p1);
+      //if(params.signClientProposals) delete txn;
     }
   }
 
@@ -1663,15 +1668,17 @@ void ShardClient::EraseRelay(const std::string &txnDigest){
 
 void ShardClient::HandlePhase1Relay(proto::RelayP1 &relayP1){
 
-  proto::Transaction *txn = new proto::Transaction();
+  proto::Transaction *txn;
   if(params.signClientProposals){
+    txn = new proto::Transaction();
     txn->ParseFromString(relayP1.p1().signed_txn().data());
   }
   else{
     txn = relayP1.mutable_p1()->mutable_txn();
   }
   std::string txnDigest(TransactionDigest(*txn, params.hashDigest));
-  delete txn;
+  //if(params.signClientProposals) delete txn;
+  if(params.signClientProposals) relayP1.mutable_p1()->set_allocated_txn(txn);
 
   //only process the first relay for a txn.
   //if (!pendingRelays.insert(txnDigest).second) return; //USING this works? seemingly does not either.

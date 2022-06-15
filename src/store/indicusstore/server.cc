@@ -1626,14 +1626,15 @@ void Server::SendRelayP1(const TransportAddress &remote, const std::string &depe
   relayP1.mutable_p1()->set_req_id(0); //doesnt matter, its not used for fallback requests really.
   //*relayP1.mutable_p1()->mutable_txn() = *tx; //TODO:: avoid copy by allocating, and releasing again after.
 
-  if(!params.signClientProposals){
-    relayP1.mutable_p1()->set_allocated_txn(tx);  
-  }
-  else{ //signClientProposals == true
+  if(params.signClientProposals){
     //b.release();
-    p1MetaData.find(c, dependency_txnDig);
+    p1MetaData.find(c, dependency_txnDig); //If txn is in ongoing, then it must have been added to P1Meta --> since we add to ongoing in HandleP1 or HandleP1FB. 
+                                                                                          // (TODO FIX: Current verification --adds signed_txn-- happens only after inster ongoing. Should be swapped to guarantee the above.)
     signed_tx = c->second.signed_txn;
     relayP1.mutable_p1()->set_allocated_signed_txn(signed_tx);
+  }
+  else{ //no Client sigs --> just send txn.
+    relayP1.mutable_p1()->set_allocated_txn(tx);  
   }
   
 
@@ -1646,13 +1647,13 @@ void Server::SendRelayP1(const TransportAddress &remote, const std::string &depe
   stats.Increment("Relays_Sent", 1);
   transport->SendMessage(this, remote, relayP1);
 
-  if(!params.signClientProposals){
-    b->second = relayP1.mutable_p1()->release_txn();
-    //b.release();
-  }
-  else{
+  if(params.signClientProposals){
     c->second.signed_txn = relayP1.mutable_p1()->release_signed_txn();
     c.release();
+  }
+  else{
+    b->second = relayP1.mutable_p1()->release_txn();
+    //b.release();
   }
   b.release(); //keep ongoing locked the full duration: this guarantees that if ongoing exists, p1Meta.signed_tx exists too, since it is deleted after ongoing in Clean()
 

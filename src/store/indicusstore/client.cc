@@ -707,7 +707,7 @@ void Client::Writeback(PendingRequest *req) {
   //this function truncates sigs for the Abort p1 fast case
   WritebackProcessing(req);
 
-  if(req->decision ==1 && client_id == 1) Panic("Testing client 1 fail stop after preparing.");
+  //if(req->decision ==0 && client_id == 1) Panic("Testing client 1 fail stop after preparing."); //Manual testing.
 
   for (auto group : txn.involved_groups()) {
     bclient[group]->Writeback(client_seq_num, txn, req->txnDigest,
@@ -887,14 +887,11 @@ void Client::FinishConflict(uint64_t reqId, const std::string &txnDigest, proto:
   PendingRequest* pendingFB = new PendingRequest(0, this); //Id doesnt really matter here
   //pendingFB->txn = std::move(*txn);
   if(params.signClientProposals){
-     std::cerr <<"triggered finish conflict" << std::endl;
-
      pendingFB->signed_txn = std::move(p1->signed_txn());
-     std::cerr << " p1 has signed tx: " << (p1->has_signed_txn() ? "True" : "False") << std::endl;
   }
-  else{
+  //else{ //Always move txn as well: SendingPhase1FB requires the txn. Shardclient parses txn from signed_txn and adds it to P1.
      pendingFB->txn = std::move(p1->txn());
-  }
+  //}
 
   pendingFB->txnDigest = txnDigest;
   pendingFB->has_dependent = false;
@@ -902,6 +899,7 @@ void Client::FinishConflict(uint64_t reqId, const std::string &txnDigest, proto:
 
   Debug("Started Phase1FB for txn: %s, for conflicting ID: %d", BytesToHex(txnDigest, 16).c_str(), reqId);
   SendPhase1FB(reqId, txnDigest, pendingFB); //TODO change so that it does not require p1.
+  //delete p1; already deleted inside shard client PendingPhase1 destructor.
   //delete txn; //WARNING dont delete, since shard client already deletes itself.
   if(!failureEnabled) stats.Increment("total_honest_conflict_FB_started", 1);
 }
@@ -1055,15 +1053,13 @@ void Client::Phase1FB(const std::string &txnDigest, uint64_t conflict_id, proto:
 
   PendingRequest* pendingFB = new PendingRequest(p1->req_id(), this); //Id doesnt really matter here
   if(params.signClientProposals){
-    std::cerr << " p1 has signed tx: " << (p1->has_signed_txn() ? "True" : "False") << std::endl;
      pendingFB->signed_txn = std::move(p1->signed_txn()); 
      // QUESTION: Should Clients verify signed txn they receive themselves before proposing them for fallback?
      // ANSWER: No need. If a byz replica forwarded a txn with a wrong signature, then the client is doing some wasteful work by starting a FB that will be rejected, but it doesnt affect anything else.
-     std::cerr << "succeeded moving signed txn" << std::endl;
   }
-  else{
+  //else{ //Always move txn as well: SendingPhase1FB requires the txn. Shardclient parses txn from signed_txn and adds it to P1.
      pendingFB->txn = std::move(p1->txn());
-  }
+  //}
   pendingFB->txnDigest = txnDigest;
   pendingFB->has_dependent = false;
   FB_instances[txnDigest] = pendingFB;
@@ -1088,9 +1084,9 @@ void Client::Phase1FB_deeper(uint64_t conflict_id, const std::string &txnDigest,
   if(params.signClientProposals){
      pendingFB->signed_txn = std::move(p1->signed_txn());
   }
-  else{
+  //else{ //Always move txn as well: SendingPhase1FB requires the txn. Shardclient parses txn from signed_txn and adds it to P1.
      pendingFB->txn = std::move(p1->txn());
-  }
+  //}
   pendingFB->txnDigest = txnDigest;
   pendingFB->has_dependent = true;
   pendingFB->dependent = dependent_txnDigest;
@@ -1104,7 +1100,7 @@ void Client::Phase1FB_deeper(uint64_t conflict_id, const std::string &txnDigest,
 }
 
 void Client::SendPhase1FB(uint64_t conflict_id, const std::string &txnDigest, PendingRequest *pendingFB){
-  std::cerr << "trying to send" << std::endl;
+  std::cerr <<" trying to send Phase1FB" << std::endl;
   pendingFB->logGrp = GetLogGroup(pendingFB->txn, txnDigest);
   for (auto group : pendingFB->txn.involved_groups()) {
       Debug("Client %d, Send Phase1FB for txn %s to involved group %d", client_id, BytesToHex(txnDigest, 16).c_str(), group);
@@ -1129,6 +1125,7 @@ void Client::SendPhase1FB(uint64_t conflict_id, const std::string &txnDigest, Pe
       pendingFB->outstandingPhase1s++;
     }
   Debug("Sent all Phase1FB for txn[%s]", BytesToHex(txnDigest, 64).c_str());
+   std::cerr <<" sent out all Phase1FB" << std::endl;
   return;
 
 }

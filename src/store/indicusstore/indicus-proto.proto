@@ -106,10 +106,10 @@ message Transaction {
 
 message Phase1 {
   required uint64 req_id = 1;
-  oneof transaction {
-    Transaction txn = 2;
-    SignedMessage signed_txn =3;
-  }
+  //oneof transaction { //In code still one-of: hack so that we can assign parsed txn to p1 in shardclient + client.
+  optional Transaction txn = 2;
+  optional SignedMessage signed_txn =3;
+  //}
   //required Transaction txn = 2;
   optional bool crash_failure = 4;
   optional bool replica_gossip = 5;
