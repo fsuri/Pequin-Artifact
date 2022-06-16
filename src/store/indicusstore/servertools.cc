@@ -306,15 +306,15 @@ void Server::ManageDispatchMoveView(const TransportAddress &remote, const std::s
 
 //////////////////////////////////////////////////////// Protocol Helper Functions
 
-void* Server::CheckProposalValidity(proto::Phase1 &msg, const proto::Transaction *txn, std::string &txnDigest){
-     if (params.validateProofs && params.signedMessages && params.verifyDeps) { 
+void* Server::CheckProposalValidity(::google::protobuf::Message &msg, const proto::Transaction *txn, std::string &txnDigest, bool fallback){
+    if (params.validateProofs && params.signedMessages && params.verifyDeps) { 
       //Check whether claimed dependencies are actually dependencies, and whether f+1 replicas signed them
       //Currently not used: Instead, replicas only accept dependencies they have seen already. (More pessimistic, but more cost efficient)
-         if(!VerifyDependencies(msg, txn, txnDigest)) return (void*) false; 
+         if(!VerifyDependencies(msg, txn, txnDigest, fallback)) return (void*) false; 
       //CURRENTLY NOT USED: IF WE USE IT --> REFACTOR TO ALSO BE MULTITHREADED VERIFICATION: ADD IT TOGETHER WITH THE OTHER CLIENT SIG VERIFICATION> 
     }
     if (params.signClientProposals){
-        if(!VerifyClientProposal(msg, txn, txnDigest)) return (void*) false;
+        if(!VerifyClientProposal(msg, txn, txnDigest, fallback)) return (void*) false;
     }
     return (void*) true;
 
@@ -326,13 +326,16 @@ void* Server::CheckProposalValidity(proto::Phase1 &msg, const proto::Transaction
 //                           (currently not checked -- a correct client wouldnt lie, and a byz could always add more reads)
 //                            -- But we should still check to make sure read set isnt artificially smaller than dep set (which would improve prepare chances, while increasing opportunity to block maliciously)
 // CURRENTLY NOT USED -- instead, servers pessimistically only accept dependencies they have locally prepared (or committed)                         
-bool Server::VerifyDependencies(proto::Phase1 &msg, const proto::Transaction *txn, std::string &txnDigest){
+bool Server::VerifyDependencies(::google::protobuf::Message &msg, const proto::Transaction *txn, std::string &txnDigest, bool fallback){
     for (const auto &dep : txn->deps()) {
     //  for (const auto &dep : txn->deps()) {
         if (!dep.has_write_sigs()) {
           Debug("Dep for txn %s missing signatures.",
               BytesToHex(txnDigest, 16).c_str());
-          if(params.mainThreadDispatching && (!params.dispatchMessageReceive || params.parallel_CCC)) FreePhase1message(&msg);
+           if(params.mainThreadDispatching && (!params.dispatchMessageReceive || params.parallel_CCC)){
+                if(fallback)  FreePhase1FBmessage(&static_cast<proto::Phase1FB&>(msg));
+                if(!fallback) FreePhase1message(&static_cast<proto::Phase1&>(msg));
+            } 
           if(params.signClientProposals) delete txn;
           return false;
         }
@@ -341,7 +344,10 @@ bool Server::VerifyDependencies(proto::Phase1 &msg, const proto::Transaction *tx
           Debug("VALIDATE Dependency failed for txn %s.",
               BytesToHex(txnDigest, 16).c_str());
           // safe to ignore Byzantine client
-          if(params.mainThreadDispatching && (!params.dispatchMessageReceive || params.parallel_CCC)) FreePhase1message(&msg);
+           if(params.mainThreadDispatching && (!params.dispatchMessageReceive || params.parallel_CCC)){
+                if(fallback)  FreePhase1FBmessage(&static_cast<proto::Phase1FB&>(msg));
+                if(!fallback) FreePhase1message(&static_cast<proto::Phase1&>(msg));
+            } 
           if(params.signClientProposals) delete txn;
           return false;
         }
@@ -404,13 +410,24 @@ bool Server::VerifyDependencies(proto::Phase1 &msg, const proto::Transaction *tx
 //For fallback: If has p2 or writeback. Also skip.
 
 
+bool Server::VerifyClientProposal(::google::protobuf::Message &msg, const proto::Transaction *txn, std::string &txnDigest, bool fallback)
+    {
+        if(fallback){
+            return VerifyClientProposal(static_cast<proto::Phase1FB&>(msg), txn, txnDigest);
+        }
+        else{
+            return VerifyClientProposal(static_cast<proto::Phase1&>(msg), txn, txnDigest);
+        }
+    }
 
 //Verifies whether Client proposal was signed by correct client.
 //A proposal (p1) is valid if: 1) The client_id included in the txn (in TS) matches the signer
 //                             2) The signature matches the txn contents
 bool Server::VerifyClientProposal(proto::Phase1 &msg, const proto::Transaction *txn, std::string &txnDigest)
     {
-    
+       
+       Debug("Verifying Client proposal on Normal path. txn: %s", BytesToHex(txnDigest, 16).c_str());
+
          //1. check TXN.TS.id = client_id (only signing client should claim this id in timestamp
          if(txn->timestamp().id() != msg.signed_txn().process_id()){
             Debug("Client id[%d] does not match Timestamp with id[%d] for txn %s", 
@@ -419,6 +436,7 @@ bool Server::VerifyClientProposal(proto::Phase1 &msg, const proto::Transaction *
             if(params.signClientProposals) delete txn; //true by definition of reaching this function (kept param for readability)
             return false;
          }
+    
          //2. check signature matches txn signed by client (use GetClientID)
          //Verify directly (without verifier object) -- alternatively 
          //std::cerr << "Verifying txn: " << BytesToHex(txnDigest, 16).c_str() << " client id: " << msg.signed_txn().process_id() << "; clientKeyid: " << keyManager->GetClientKeyId(msg.signed_txn().process_id()) << std::endl;
@@ -430,9 +448,48 @@ bool Server::VerifyClientProposal(proto::Phase1 &msg, const proto::Transaction *
             if(params.signClientProposals) delete txn; //true by definition of reaching this function (kept param for readability)
             return false;
           }
+        
           //3. Store signed p1 for future relays.
           p1MetaDataMap::accessor c;
           p1MetaData.insert(c, txnDigest);
+          c->second.hasSignedP1 = true;
+          c->second.signed_txn = msg.release_signed_txn();
+          c.release();
+
+          Debug("Client verification successful for txn %s", BytesToHex(txnDigest, 16).c_str());
+      //Latency_End(&verifyLat);
+      return true;
+    
+    }
+
+bool Server::VerifyClientProposal(proto::Phase1FB &msg, const proto::Transaction *txn, std::string &txnDigest)
+    {
+       
+         Debug("Verifying Client proposal on FB path. txn: %s", BytesToHex(txnDigest, 16).c_str());
+
+         //1. check TXN.TS.id = client_id (only signing client should claim this id in timestamp
+         if(txn->timestamp().id() != msg.signed_txn().process_id()){
+            Debug("Client id[%d] does not match Timestamp with id[%d] for txn %s", 
+                   msg.signed_txn().process_id(), txn->timestamp().id(), BytesToHex(txnDigest, 16).c_str());
+            if(params.mainThreadDispatching && (!params.dispatchMessageReceive || params.parallel_CCC))FreePhase1FBmessage(&msg);          
+            if(params.signClientProposals) delete txn; //true by definition of reaching this function (kept param for readability)
+            return false;
+         }
+         //2. check signature matches txn signed by client (use GetClientID)
+         //Verify directly (without verifier object) -- alternatively 
+         //std::cerr << "Verifying txn: " << BytesToHex(txnDigest, 16).c_str() << " client id: " << msg.signed_txn().process_id() << "; clientKeyid: " << keyManager->GetClientKeyId(msg.signed_txn().process_id()) << std::endl;
+         if (!client_verifier->Verify(keyManager->GetPublicKey(keyManager->GetClientKeyId(msg.signed_txn().process_id())),
+          msg.signed_txn().data(),
+          msg.signed_txn().signature())) {
+              Debug("Client signatures invalid for txn %s", BytesToHex(txnDigest, 16).c_str());
+            if(params.mainThreadDispatching && (!params.dispatchMessageReceive || params.parallel_CCC)) FreePhase1FBmessage(&msg);          
+            if(params.signClientProposals) delete txn; //true by definition of reaching this function (kept param for readability)
+            return false;
+          }
+          //3. Store signed p1 for future relays.
+          p1MetaDataMap::accessor c;
+          p1MetaData.insert(c, txnDigest);
+          c->second.hasSignedP1 = true;
           c->second.signed_txn = msg.release_signed_txn();
           c.release();
 
@@ -518,26 +575,23 @@ void* Server::TryPrepare(proto::Phase1 &msg, const TransportAddress &remote, pro
                         proto::ConcurrencyControl::Result &result){
 
     if(!params.multiThreading){
-        bool valid = CheckProposalValidity(msg, txn, txnDigest);
+        void* valid = CheckProposalValidity(msg, txn, txnDigest);
         if(!valid) return; //Check Proposal Validity already cleans up message in this case.
         TryPrepare(msg, remote, txn, txnDigest, committedProof, abstain_conflict, isGossip, result); //Includes call to HandlePhase1CB(..);
     }
     else{
-        auto try_prep = std::bind(&Server::TryPrepare, this, std::ref(msg), std::ref(remote), txn, txnDigest, committedProof, abstain_conflict, isGossip, result);
-        auto f = [this, msg_ptr = &msg, txn, txnDigest](){
-            bool valid = CheckProposalValidity(msg, txn, txnDigest);
-            if(!valid) return (void*) false;
+        auto try_prep(std::bind(&Server::TryPrepare, this, std::ref(msg), std::ref(remote), txn, txnDigest, committedProof, abstain_conflict, isGossip, result, false));
+        auto f = [this, msg_ptr = &msg, txn, txnDigest, try_prep]() mutable {
+            void* valid = CheckProposalValidity(*msg_ptr, txn, txnDigest);
+            if(!valid) return (void*) false; 
+
             transport->DispatchTP_main(try_prep);
             return (void*) true;
         };
         transport->DispatchTP_noCB(std::move(f));
     }
 
-    //TODO: EDIT TRY PREPARE TO REMOVE combined verification.
-
-   
    //////Old.
-
 
     // if(!params.signClientProposals){
     //   TryPrepare(msg, remote, txn, txnDigest, committedProof, abstain_conflict, isGossip, result); //Includes call to HandlePhase1CB(..);

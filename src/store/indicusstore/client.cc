@@ -1100,7 +1100,7 @@ void Client::Phase1FB_deeper(uint64_t conflict_id, const std::string &txnDigest,
 }
 
 void Client::SendPhase1FB(uint64_t conflict_id, const std::string &txnDigest, PendingRequest *pendingFB){
-  std::cerr <<" trying to send Phase1FB" << std::endl;
+  Debug("trying to send Phase1FB for txn %s", BytesToHex(txnDigest, 16).c_str());
   pendingFB->logGrp = GetLogGroup(pendingFB->txn, txnDigest);
   for (auto group : pendingFB->txn.involved_groups()) {
       Debug("Client %d, Send Phase1FB for txn %s to involved group %d", client_id, BytesToHex(txnDigest, 16).c_str(), group);
@@ -1125,7 +1125,6 @@ void Client::SendPhase1FB(uint64_t conflict_id, const std::string &txnDigest, Pe
       pendingFB->outstandingPhase1s++;
     }
   Debug("Sent all Phase1FB for txn[%s]", BytesToHex(txnDigest, 64).c_str());
-   std::cerr <<" sent out all Phase1FB" << std::endl;
   return;
 
 }

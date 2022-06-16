@@ -1492,7 +1492,7 @@ void ShardClient::Phase1Decision(
       proto::Transaction *txn;
       if(params.signClientProposals){
         txn = new proto::Transaction();
-        txn->ParseFromString(p1->signed_txn().data());
+        UW_ASSERT(txn->ParseFromString(p1->signed_txn().data()));
       }
       else{
         txn = p1->mutable_txn();
@@ -1671,7 +1671,7 @@ void ShardClient::HandlePhase1Relay(proto::RelayP1 &relayP1){
   proto::Transaction *txn;
   if(params.signClientProposals){
     txn = new proto::Transaction();
-    txn->ParseFromString(relayP1.p1().signed_txn().data());
+    UW_ASSERT(txn->ParseFromString(relayP1.p1().signed_txn().data()));
   }
   else{
     txn = relayP1.mutable_p1()->mutable_txn();

@@ -106,7 +106,7 @@ message Transaction {
 
 message Phase1 {
   required uint64 req_id = 1;
-  //oneof transaction { //In code still one-of: hack so that we can assign parsed txn to p1 in shardclient + client.
+  //oneof transaction { //In code still effectively oneof: making both optional is a hack so that we can assign parsed txn to p1 in shardclient + client.
   optional Transaction txn = 2;
   optional SignedMessage signed_txn =3;
   //}

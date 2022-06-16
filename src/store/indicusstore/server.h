@@ -257,8 +257,8 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
     };
 
     struct P1MetaData {
-      P1MetaData(): conflict(nullptr), hasP1(false), sub_original(false){}
-      P1MetaData(proto::ConcurrencyControl::Result result): result(result), conflict(nullptr), hasP1(false), sub_original(false){}
+      P1MetaData(): conflict(nullptr), hasP1(false), sub_original(false), hasSignedP1(false){}
+      P1MetaData(proto::ConcurrencyControl::Result result): result(result), conflict(nullptr), hasP1(false), sub_original(false), hasSignedP1(false){}
       ~P1MetaData(){
         if(signed_txn != nullptr) delete signed_txn;
       }
@@ -266,6 +266,7 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
       const proto::CommittedProof *conflict;
       bool hasP1;
       std::mutex P1meta_mutex;
+      bool hasSignedP1;
       proto::SignedMessage *signed_txn;
       // Not used currently: In case we want to subscribe original client to P1 also to avoid ongoing bug.
       bool sub_original; 
@@ -276,11 +277,12 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
     void RelayP1(const std::string &dependency_txnDig, bool fallback_flow, uint64_t reqId, const TransportAddress &remote, const std::string &txnDigest);
     void SendRelayP1(const TransportAddress &remote, const std::string &dependency_txnDig, uint64_t dependent_id, const std::string &dependent_txnDig);
 
+    void ProcessProposalFB(proto::Phase1FB &msg, const TransportAddress &remote, std::string &txnDigest, proto::Transaction* txn);
+    void* TryExec(proto::Phase1FB &msg, const TransportAddress &remote, std::string &txnDigest, proto::Transaction* txn);
     //p1MetaDataMap::accessor &c, 
     bool ExecP1(proto::Phase1FB &msg, const TransportAddress &remote,
-      const std::string &txnDigest, proto::ConcurrencyControl::Result &result,
-      const proto::CommittedProof* &committedProof,
-      const proto::Transaction *abstain_conflict = nullptr);
+      const std::string &txnDigest, proto::Transaction* txn, proto::ConcurrencyControl::Result &result,
+      const proto::CommittedProof* &committedProof, const proto::Transaction *abstain_conflict = nullptr);
 
     void SetP1(uint64_t reqId, proto::Phase1Reply *p1Reply, const std::string &txnDigest,
       proto::ConcurrencyControl::Result &result, const proto::CommittedProof *conflict,
@@ -339,9 +341,11 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
       const proto::CommittedProof* &conflict, const proto::Transaction* &abstain_conflict,
       bool fallback_flow = false, bool isGossip = false);
 
-  void* CheckProposalValidity(proto::Phase1 &msg, const proto::Transaction *txn, std::string &txnDigest);
-  bool VerifyDependencies(proto::Phase1 &msg, const proto::Transaction *txn, std::string &txnDigest);
-  bool VerifyClientProposal(proto::Phase1 &msg, const proto::Transaction *txn, std::string &txnDigest);
+  void* CheckProposalValidity(::google::protobuf::Message &msg, const proto::Transaction *txn, std::string &txnDigest, bool fallback = false);
+  bool VerifyDependencies(::google::protobuf::Message &msg, const proto::Transaction *txn, std::string &txnDigest, bool fallback = false);
+  bool VerifyClientProposal(::google::protobuf::Message &msg, const proto::Transaction *txn, std::string &txnDigest, bool fallback = false);
+      bool VerifyClientProposal(proto::Phase1 &msg, const proto::Transaction *txn, std::string &txnDigest);
+      bool VerifyClientProposal(proto::Phase1FB &msg, const proto::Transaction *txn, std::string &txnDigest);
   void* TryPrepare(proto::Phase1 &msg, const TransportAddress &remote, proto::Transaction *txn,
                         std::string &txnDigest, const proto::CommittedProof *committedProof, 
                         const proto::Transaction *abstain_conflict, bool isGossip,
