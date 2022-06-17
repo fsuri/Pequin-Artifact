@@ -92,6 +92,8 @@ class IndicusCodebase(ExperimentCodebase):
             if 'sign_messages' in config['replication_protocol_settings']:
                 client_command += ' --indicus_sign_messages=%s' % str(config['replication_protocol_settings']['sign_messages']).lower()
                 client_command += ' --indicus_key_path %s' % config['replication_protocol_settings']['key_path']
+            if 'sign_client_proposals' in config['replication_protocol_settings']:
+                client_command += ' --indicus_sign_client_proposals=%s' % str(config['replication_protocol_settings']['sign_client_proposals']).lower()
             if 'validate_proofs' in config['replication_protocol_settings']:
                 client_command += ' --indicus_validate_proofs=%s' % str(config['replication_protocol_settings']['validate_proofs']).lower()
             if 'hash_digest' in config['replication_protocol_settings']:
@@ -337,6 +339,8 @@ class IndicusCodebase(ExperimentCodebase):
             if 'sign_messages' in config['replication_protocol_settings']:
                 replica_command += ' --indicus_sign_messages=%s' % str(config['replication_protocol_settings']['sign_messages']).lower()
                 replica_command += ' --indicus_key_path %s' % config['replication_protocol_settings']['key_path']
+            if 'sign_client_proposals' in config['replication_protocol_settings']:
+                replica_command += ' --indicus_sign_client_proposals=%s' % str(config['replication_protocol_settings']['sign_client_proposals']).lower()
             if 'validate_proofs' in config['replication_protocol_settings']:
                 replica_command += ' --indicus_validate_proofs=%s' % str(config['replication_protocol_settings']['validate_proofs']).lower()
             if 'hash_digest' in config['replication_protocol_settings']:

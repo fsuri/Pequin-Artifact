@@ -356,7 +356,7 @@ proto::ConcurrencyControl::Result Server::DoMVTSOOCCCheck(
 // PRoblem: Dont want to re-do P1, otherwise a past Abort can turn into a commit. Hence we
 // ForwardWriteback
 bool Server::ManageDependencies(const std::string &txnDigest, const proto::Transaction &txn, const TransportAddress &remote, uint64_t reqId, bool fallback_flow, bool isGossip){
-
+  
   bool allFinished = true;
 
   if(params.maxDepDepth > -2){

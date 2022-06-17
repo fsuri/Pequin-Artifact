@@ -80,7 +80,7 @@ void ThreadPool::start(int process_id, int total_processes, bool hyperthreading,
                     while (true) {
                         std::function<void*()> job;
                         
-                        Debug("Thread %d running on CPU %d.", i, sched_getcpu());
+                        Debug("Main Thread %d running on CPU %d.", i, sched_getcpu());
                         main_thread_request_list.wait_dequeue(job);
                            
                         if (!running) {
@@ -96,7 +96,7 @@ void ThreadPool::start(int process_id, int total_processes, bool hyperthreading,
                     while (true) {
                         std::pair<std::function<void*()>, EventInfo*> job;
                       
-                        Debug("Thread %d running on CPU %d.", i, sched_getcpu());
+                        Debug("Worker Thread %d running on CPU %d.", i, sched_getcpu());
                         worker_thread_request_list.wait_dequeue(job);
                            
                         Debug("popped job on CPU %d.", i);
@@ -128,7 +128,7 @@ void ThreadPool::start(int process_id, int total_processes, bool hyperthreading,
         if (rc != 0) {
             Panic("Error calling pthread_setaffinity_np: %d", rc);
         }
-        Debug("MainThread running on CPU %d.", sched_getcpu());
+        Debug("Main Process running on CPU %d.", sched_getcpu());
         threads.push_back(t);
         t->detach();
     }
