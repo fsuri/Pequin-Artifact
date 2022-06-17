@@ -692,6 +692,9 @@ void TCPTransport::IssueCB(std::function<void(void*)> cb, void* arg){
   //std::lock_guard<std::mutex> lck(mtx);
   tp.issueCallback(std::move(cb), arg, libeventBase);
 }
+void TCPTransport::IssueCB_main(std::function<void(void*)> cb, void* arg){
+  tp.issueMainThreadCallback(std::move(cb), arg);
+}
 
 void
 TCPTransport::LogCallback(int severity, const char *msg)

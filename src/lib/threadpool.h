@@ -60,6 +60,7 @@ public:
   void detatch_ptr(std::function<void*()> *f);
   void detatch_main(std::function<void*()> f);
   void issueCallback(std::function<void(void*)> cb, void* arg, event_base* libeventBase);
+  void issueMainThreadCallback(std::function<void(void*)> cb, void* arg);
 
 private:
 

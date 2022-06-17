@@ -145,6 +145,9 @@ void ReplTransport::DispatchTP_main(std::function<void*()> f) {
 void ReplTransport::IssueCB(std::function<void(void*)> cb, void* arg){
   Panic("unimplemented");
 }
+void ReplTransport::IssueCB_main(std::function<void(void*)> cb, void* arg){
+  Panic("unimplemented");
+}
 
 bool ReplTransport::DeliverMessage(const ReplTransportAddress &addr,
                                    int index) {

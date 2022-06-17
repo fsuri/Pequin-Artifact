@@ -265,6 +265,15 @@ void ThreadPool::issueCallback(std::function<void(void*)> cb, void* arg, event_b
   event_active(info->ev, 0, 0);
 }
 
+void ThreadPool::issueMainThreadCallback(std::function<void(void*)> cb, void* arg){
+
+  auto f = [cb, arg](){
+    cb(arg);
+    return (void*) true;
+  };
+  main_thread_request_list.enqueue(std::move(f));
+}
+
 ////////////////////////////////////////
 
 

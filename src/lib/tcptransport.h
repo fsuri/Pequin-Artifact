@@ -99,6 +99,7 @@ public:
     void DispatchTP_noCB_ptr(std::function<void*()> *f);
     void DispatchTP_main(std::function<void*()> f);
     void IssueCB(std::function<void(void*)> cb, void* arg);
+    void IssueCB_main(std::function<void(void*)> cb, void* arg);
 
     TCPTransportAddress
     LookupAddress(const transport::Configuration &cfg,

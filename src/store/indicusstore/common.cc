@@ -393,7 +393,8 @@ void asyncValidateP1RepliesCallback(asyncVerification* verifyObj, uint32_t group
   }
   else{
     Debug("Issuing MCB to be scheduled as mainthread event ");
-    verifyObj->tp->IssueCB(std::move(verifyObj->mcb), (void*) true);
+    //verifyObj->tp->IssueCB(std::move(verifyObj->mcb), (void*) true);
+    verifyObj->tp->IssueCB_main(std::move(verifyObj->mcb), (void*) true);
   }
 
   if(verifyObj->deletable == 0){
@@ -618,7 +619,8 @@ void asyncValidateP1Replies(proto::CommitDecision decision,
                   }
                   else{
                     Debug("Issuing MCB to be scheduled as mainthread event ");
-                    verifyObj->tp->IssueCB(std::move(verifyObj->mcb), (void*) true);
+                    //verifyObj->tp->IssueCB(std::move(verifyObj->mcb), (void*) true);
+                    verifyObj->tp->IssueCB_main(std::move(verifyObj->mcb), (void*) true);
                   }
                   delete verifyObj;
                   return;
@@ -630,7 +632,8 @@ void asyncValidateP1Replies(proto::CommitDecision decision,
                 }
                 else{
                   Debug("Issuing MCB to be scheduled as mainthread event ");
-                  verifyObj->tp->IssueCB(std::move(verifyObj->mcb), (void*) true);
+                  //verifyObj->tp->IssueCB(std::move(verifyObj->mcb), (void*) true);
+                  verifyObj->tp->IssueCB_main(std::move(verifyObj->mcb), (void*) true);
                 }
                 delete verifyObj;
                 return;
@@ -892,7 +895,8 @@ void asyncValidateP2RepliesCallback(asyncVerification* verifyObj, uint32_t group
       verifyObj->mcb((void*) true);
     }
     else{
-      verifyObj->tp->IssueCB(std::move(verifyObj->mcb), (void*) true);
+      //verifyObj->tp->IssueCB(std::move(verifyObj->mcb), (void*) true);
+      verifyObj->tp->IssueCB_main(std::move(verifyObj->mcb), (void*) true);
     }
 
     if(verifyObj->deletable == 0){

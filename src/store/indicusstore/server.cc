@@ -1019,7 +1019,7 @@ void Server::HandlePhase2CB(TransportAddress *remote, proto::Phase2 *msg, const 
     return;
   }
 
-  auto f = [this, remote, msg, txnDigest, sendCB = std::move(sendCB), phase2Reply, cleanCB = std::move(cleanCB), valid ]() mutable {
+  //auto f = [this, remote, msg, txnDigest, sendCB = std::move(sendCB), phase2Reply, cleanCB = std::move(cleanCB), valid ]() mutable {
 
     p2MetaDataMap::accessor p;
     p2MetaDatas.insert(p, *txnDigest);
@@ -1053,15 +1053,16 @@ void Server::HandlePhase2CB(TransportAddress *remote, proto::Phase2 *msg, const 
     // }
 
     SendPhase2Reply(msg, phase2Reply, sendCB);
-    return (void*) true;
- };
+    return;
+    //return (void*) true;
+ //};
 
- if(params.multiThreading && params.mainThreadDispatching && params.dispatchCallbacks){
-   transport->DispatchTP_main(std::move(f));
- }
- else{
-   f();
- }
+//  if(params.multiThreading && params.mainThreadDispatching && params.dispatchCallbacks){
+//    transport->DispatchTP_main(std::move(f));
+//  }
+//  else{
+//    f();
+//  }
 }
 
 //Dispatch Message signing and sending to a worker thread
@@ -1185,7 +1186,7 @@ void Server::WritebackCallback(proto::Writeback *msg, const std::string* txnDige
     return;
   }
 
-  auto f = [this, msg, txnDigest, txn, valid]() mutable {
+  //auto f = [this, msg, txnDigest, txn, valid]() mutable {
       Debug("WRITEBACK Callback[%s] being called", BytesToHex(*txnDigest, 16).c_str());
 
       ///////////////////////////// Below: Only executed by MainThread
@@ -1229,15 +1230,16 @@ void Server::WritebackCallback(proto::Writeback *msg, const std::string* txnDige
       if(params.multiThreading || params.mainThreadDispatching){
         FreeWBmessage(msg);
       }
-      return (void*) true;
-  };
+      return;
+      //return (void*) true;
+  //};
 
- if(params.multiThreading && params.mainThreadDispatching && params.dispatchCallbacks){
-   transport->DispatchTP_main(std::move(f));
- }
- else{
-   f();
- }
+//  if(params.multiThreading && params.mainThreadDispatching && params.dispatchCallbacks){
+//    transport->DispatchTP_main(std::move(f));
+//  }
+//  else{
+//    f();
+//  }
 
 }
 

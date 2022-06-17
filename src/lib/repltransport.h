@@ -221,6 +221,7 @@ public:
     void DispatchTP_noCB_ptr(std::function<void*()> *f);
     void DispatchTP_main(std::function<void*()> f);
     void IssueCB(std::function<void(void*)> cb, void* arg);
+    void IssueCB_main(std::function<void(void*)> cb, void* arg);
 
     // DeliverMessage(addr, i) delivers the ith queued inbound message to the
     // receiver with address addr. It's possible to send a message to the

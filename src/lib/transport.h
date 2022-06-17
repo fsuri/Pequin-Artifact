@@ -143,6 +143,7 @@ public:
     virtual void DispatchTP_noCB_ptr(std::function<void*()> *f) = 0;
     virtual void DispatchTP_main(std::function<void*()> f) = 0;
     virtual void IssueCB(std::function<void(void*)> cb, void* arg) = 0;
+    virtual void IssueCB_main(std::function<void(void*)> cb, void* arg) = 0;
 };
 
 class Timeout

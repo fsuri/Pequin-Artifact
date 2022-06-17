@@ -312,6 +312,9 @@ void SimulatedTransport::DispatchTP_main(std::function<void*()> f) {
 void SimulatedTransport::IssueCB(std::function<void(void*)> cb, void* arg){
   Panic("unimplemented");
 }
+void SimulatedTransport::IssueCB_main(std::function<void(void*)> cb, void* arg){
+  Panic("unimplemented");
+}
 
 const SimulatedTransportAddress *
 SimulatedTransport::LookupFCAddress(const transport::Configuration *cfg)

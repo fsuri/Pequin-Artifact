@@ -1009,6 +1009,9 @@ void UDPTransport::DispatchTP_main(std::function<void*()> f) {
 void UDPTransport::IssueCB(std::function<void(void*)> cb, void* arg){
   tp.issueCallback(std::move(cb), arg, libeventBase);
 }
+void UDPTransport::IssueCB_main(std::function<void(void*)> cb, void* arg){
+  tp.issueMainThreadCallback(std::move(cb), arg);
+}
 
 
 void

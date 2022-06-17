@@ -93,6 +93,7 @@ public:
     virtual void DispatchTP_noCB_ptr(std::function<void*()> *f) override;
     virtual void DispatchTP_main(std::function<void*()> f) override;
     virtual void IssueCB(std::function<void(void*)> cb, void* arg) override;
+    virtual void IssueCB_main(std::function<void(void*)> cb, void* arg) override;
 
 private:
     int TimerInternal(struct timeval &tv, timer_callback_t cb);
