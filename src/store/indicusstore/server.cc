@@ -883,6 +883,16 @@ void Server::HandlePhase2(const TransportAddress &remote,
   *phase2Reply->mutable_p2_decision()->mutable_txn_digest() = *txnDigest;
   phase2Reply->mutable_p2_decision()->set_involved_group(groupIdx);
 
+// if (!(params.validateProofs && params.signedMessages)){
+//         //TransportAddress *remoteCopy2 = remote.clone();
+//           phase2Reply->mutable_p2_decision()->set_decision(msg.decision());
+//           SendPhase2Reply(&msg, phase2Reply, sendCB);
+//           //HandlePhase2CB(remoteCopy2, &msg, txnDigest, sendCB, phase2Reply, cleanCB, (void*) true);
+//           return;
+//         }
+
+//   // ELSE: i.e. if (params.validateProofs && params.signedMessages)
+
   // no-replays property, i.e. recover existing decision/result from storage (do this for HandlePhase1 as well.)
   p2MetaDataMap::accessor p;
   p2MetaDatas.insert(p, *txnDigest);
@@ -1379,6 +1389,7 @@ void Server::Commit(const std::string &txnDigest, proto::Transaction *txn,
   val.proof = proof;
 
   auto committedItr = committed.insert(std::make_pair(txnDigest, proof));
+  std::cerr << "COMMITTED INSERT "<< BytesToHex(txnDigest, 16).c_str()  << " On CPU: " << sched_getcpu()<< std::endl;
   //auto committedItr =committed.emplace(txnDigest, proof);
 
   if (params.validateProofs) {
@@ -1463,6 +1474,7 @@ void Server::Commit(const std::string &txnDigest, proto::Transaction *txn,
 void Server::Abort(const std::string &txnDigest) {
    //if(params.mainThreadDispatching) abortedMutex.lock();
   aborted.insert(txnDigest);
+  std::cerr << "ABORTED INSERT "<< BytesToHex(txnDigest, 16).c_str()  << " On CPU: " << sched_getcpu()<< std::endl;
    //if(params.mainThreadDispatching) abortedMutex.unlock();
   Debug("Calling CLEAN for aborting txn[%s]", BytesToHex(txnDigest, 16).c_str());
   Clean(txnDigest, true);
@@ -1520,7 +1532,7 @@ void Server::Clean(const std::string &txnDigest, bool abort) {
   a.release();
 
   if(is_ongoing){
-      std::cerr <<"deleting on CPU: " << sched_getcpu() << std::endl;
+      std::cerr << "ONGOING ERASE: " << BytesToHex(txnDigest, 16).c_str() << " On CPU: " << sched_getcpu()<< std::endl;
       //if(abort) delete b->second; //delete allocated txn.
       //ongoing.erase(b);
   }
@@ -2006,6 +2018,7 @@ bool Server::ExecP1(proto::Phase1FB &msg, const TransportAddress &remote,
   *txn->mutable_txndigest() = txnDigest; //HACK to include txnDigest to lookup signed_tx.
   
   ongoingMap::accessor b;
+  std::cerr << "ONGOING INSERT (Fallback): " << BytesToHex(txnDigest, 16).c_str() << " On CPU: " << sched_getcpu()<< std::endl;
   ongoing.insert(b, std::make_pair(txnDigest, txn));
   b.release();
   //fallback.insert(txnDigest);

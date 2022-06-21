@@ -515,6 +515,7 @@ void* Server::TryPrepare(proto::Phase1 &msg, const TransportAddress &remote, pro
     if(!params.signClientProposals) txn = msg.release_txn(); //Only release it here so that we can forward complete P1 message without making any wasteful copies
 
      ongoingMap::accessor b;
+     std::cerr << "ONGOING INSERT (Normal): " << BytesToHex(txnDigest, 16).c_str() << " On CPU: " << sched_getcpu()<< std::endl;
      ongoing.insert(b, std::make_pair(txnDigest, txn));
      b.release();
      //TODO: DO BOTH OF THESE META DATA INSERTS ONLY IF VALIDATION PASSES, i.e. move them into TryPrepare?
