@@ -571,8 +571,8 @@ proto::ConcurrencyControl::Result Server::CheckDependencies(
    //if(params.mainThreadDispatching) ongoingMutex.lock_shared();
    //Latency_End(&waitingOnLocks);
   ongoingMap::const_accessor b;
-  auto txnItr = ongoing.find(b, txnDigest);
-  if(!txnItr){
+  bool isOngoing = ongoing.find(b, txnDigest);
+  if(!isOngoing){
 
   //if(txnItr == ongoing.end()){
     Debug("Tx with txn digest [%s] has already committed/aborted", BytesToHex(txnDigest, 16).c_str());
@@ -596,7 +596,7 @@ proto::ConcurrencyControl::Result Server::CheckDependencies(
   //UW_ASSERT(txnItr != ongoing.end());
    //if(params.mainThreadDispatching) ongoingMutex.unlock_shared();
   //return CheckDependencies(*txnItr->second);
-  return CheckDependencies(*b->second);
+  return CheckDependencies(*b->second.txn);
 }
 
 proto::ConcurrencyControl::Result Server::CheckDependencies(
@@ -680,7 +680,7 @@ uint64_t Server::DependencyDepth(const proto::Transaction *txn) const {
       if(oitr){
       //if (oitr != ongoing.end()) {
         //q.push(std::make_pair(oitr->second, curr.second + 1));
-        q.push(std::make_pair(b->second, curr.second + 1));
+        q.push(std::make_pair(b->second.txn, curr.second + 1));
       }
       b.release();
     }

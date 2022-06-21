@@ -44,7 +44,7 @@ void ThreadPool::start(int process_id, int total_processes, bool hyperthreading,
         fprintf(stderr, "process_id: %d, total_processes: %d \n", process_id, total_processes);
     //TODO: add config param for hyperthreading
     //bool hyperthreading = true;
-    int num_cpus = 8; //std::thread::hardware_concurrency(); ///(2-hyperthreading);
+    int num_cpus = std::thread::hardware_concurrency(); ///(2-hyperthreading);
         fprintf(stderr, "Total Num_cpus on server: %d \n", num_cpus);
     num_cpus /= total_processes;
         fprintf(stderr, "Num_cpus used for replica #%d: %d \n", process_id, num_cpus);
@@ -72,6 +72,7 @@ void ThreadPool::start(int process_id, int total_processes, bool hyperthreading,
     }
     else Panic("No valid system defined");
        
+    Debug("Main Process running on CPU %d.", sched_getcpu());
     for (uint32_t i = start; i < end; i++) {    
         std::thread *t;
         //Mainthread
@@ -80,7 +81,7 @@ void ThreadPool::start(int process_id, int total_processes, bool hyperthreading,
                     while (true) {
                         std::function<void*()> job;
                         
-                        Debug("Main Thread %d running on CPU %d.", i, sched_getcpu());
+                        Debug("Main Thread %d running on CPU %d", i, sched_getcpu());
                         main_thread_request_list.wait_dequeue(job);
                            
                         if (!running) {
@@ -96,7 +97,7 @@ void ThreadPool::start(int process_id, int total_processes, bool hyperthreading,
                     while (true) {
                         std::pair<std::function<void*()>, EventInfo*> job;
                       
-                        Debug("Worker Thread %d running on CPU %d.", i, sched_getcpu());
+                        Debug("Worker Thread %d running on CPU %d", i, sched_getcpu());
                         worker_thread_request_list.wait_dequeue(job);
                            
                         Debug("popped job on CPU %d.", i);
@@ -122,13 +123,12 @@ void ThreadPool::start(int process_id, int total_processes, bool hyperthreading,
         CPU_ZERO(&cpuset);
         CPU_SET(i+offset, &cpuset);
         if(i+offset > 7) return; //XXX This is a hack to support the non-crypto experiment that does not actually use multiple cores 
-        std::cerr << "Trying to pin to core: " << i << " + " << offset << std::endl;
+        std::cerr << "THREADPOOL SETUP: Trying to pin thread to core: " << i << " + " << offset << std::endl;
         int rc = pthread_setaffinity_np(t->native_handle(),
                                         sizeof(cpu_set_t), &cpuset);
         if (rc != 0) {
             Panic("Error calling pthread_setaffinity_np: %d", rc);
         }
-        Debug("Main Process running on CPU %d.", sched_getcpu());
         threads.push_back(t);
         t->detach();
     }

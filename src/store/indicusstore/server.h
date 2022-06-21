@@ -554,7 +554,16 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
 
   // Digest -> V
   //std::unordered_map<std::string, proto::Transaction *> ongoing;
-  typedef tbb::concurrent_hash_map<std::string, proto::Transaction *> ongoingMap;
+  // typedef tbb::concurrent_hash_map<std::string, proto::Transaction *> ongoingMap;
+  // ongoingMap ongoing;
+
+  struct ongoingData {
+    ongoingData() : txn(nullptr), num_concurrent_clients(0UL){}
+    ~ongoingData(){}
+    proto::Transaction *txn;
+    uint64_t num_concurrent_clients;
+  };
+  typedef tbb::concurrent_hash_map<std::string, ongoingData> ongoingMap;
   ongoingMap ongoing;
   // std::unordered_set<std::string> normal;
   // std::unordered_set<std::string> fallback;

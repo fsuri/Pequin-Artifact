@@ -887,6 +887,7 @@ void asyncValidateP2RepliesCallback(asyncVerification* verifyObj, uint32_t group
 
 
   if (verifyObj->groupCounts[groupId] == verifyObj->quorumSize) {
+     Debug("Phase2Replies for logging group %d successfully verified.", (int)groupId);
     verifyObj->terminate = true;
     verifyObj->callback = false;
     //bool* ret = new bool(true);
@@ -896,6 +897,7 @@ void asyncValidateP2RepliesCallback(asyncVerification* verifyObj, uint32_t group
     }
     else{
       //verifyObj->tp->IssueCB(std::move(verifyObj->mcb), (void*) true);
+      Debug("Dispatching Writeback Callback back to Main Thread.");
       verifyObj->tp->IssueCB_main(std::move(verifyObj->mcb), (void*) true);
     }
 

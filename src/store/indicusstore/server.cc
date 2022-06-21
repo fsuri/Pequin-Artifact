@@ -162,7 +162,8 @@ Server::~Server() {
    //if(params.mainThreadDispatching) committedMutex.unlock();
    ////if(params.mainThreadDispatching) ongoingMutex.lock();
   for (const auto &o : ongoing) {     ///XXX technically not threadsafe
-    delete o.second;
+    //delete o.second;
+    delete o.second.txn;
   }
    ////if(params.mainThreadDispatching) ongoingMutex.unlock();
    if(params.mainThreadDispatching) readReplyProtoMutex.lock();
@@ -514,7 +515,10 @@ void Server::HandlePhase1_atomic(const TransportAddress &remote,
   //NOTE: Ongoing *must* be added before p2/wb since the latter dont include it themselves as an optimization
   //TCP guarantees that this happens, but I cannot dispatch parallel P1 before logging ongoing or else it could be ordered after p2/wb.
   ongoingMap::accessor b;
-  ongoing.insert(b, std::make_pair(txnDigest, txn));
+  //ongoing.insert(b, std::make_pair(txnDigest, txn));
+  ongoing.insert(b, txnDigest);
+  b->second.txn = txn;
+  b->second.num_concurrent_clients++;
   b.release();
 
   //NOTE: "Problem": If client comes after writeback, it will try to do a p2/wb itself but fail
@@ -630,10 +634,12 @@ void Server::Inform_P1_GC_Leader(proto::Phase1Reply &reply, proto::Transaction &
 //Manages ongoing transactions
 //Executes Concurrency Control Check
 //Replies with signed Phase1Reply voting on whether to Commit/Abort the transaction
+//NOTE: Current Client Implementation in the Normal Case is "non-adaptive", i.e. it always expects a P1Reply, and cannot handle a P2Reply or WritebackAck (e.g. if the replica already has committed the tx). 
+                                                                           // Optimize this in future iterations.
 void Server::HandlePhase1(const TransportAddress &remote,
     proto::Phase1 &msg) {
   //dummyTx = msg.txn(); //PURELY TESTING PURPOSES!!: NOTE WARNING
-
+ 
   proto::Transaction *txn;
   if(params.signClientProposals){
     txn = new proto::Transaction();
@@ -645,11 +651,10 @@ void Server::HandlePhase1(const TransportAddress &remote,
   else{
      txn = msg.mutable_txn();
   }
-
-
+  
   std::string txnDigest = TransactionDigest(*txn, params.hashDigest); //could parallelize it too hypothetically
   *txn->mutable_txndigest() = txnDigest; //Hack to have access to txnDigest inside TXN later (used for abstain conflict)
-
+  
 
   Debug("PHASE1[%lu:%lu][%s] with ts %lu.", txn->client_id(),
       txn->client_seq_num(), BytesToHex(txnDigest, 16).c_str(),
@@ -683,11 +688,12 @@ void Server::HandlePhase1(const TransportAddress &remote,
   if(hasP1 && isGossip){  // If P1 has already been received and current message is a gossip one, do nothing.
     //Do not need to reply to forwarded P1. If adding replica GC -> want to forward it to leader.
     //Inform_P1_GC_Leader(proto::Phase1Reply &reply, proto::Transaction &txn, std::string &txnDigest, int64_t grpLeader);
+    Debug("P1 message for txn[%s] received is of type Gossip, and P1 has already been received", BytesToHex(txnDigest, 16).c_str());
     c.release();
     if(params.signClientProposals) delete txn;
     if(params.mainThreadDispatching && (!params.dispatchMessageReceive || params.parallel_CCC)) FreePhase1message(&msg);
     return;
-  }
+  } 
   else if(hasP1){ // If P1 has already been received (sent by a fallback) and current message is from original client, then only inform client of blocked dependencies so it can issue fallbacks of its own
     result = c->second.result;
     // need to check if result is WAIT: if so, need to add to waitingDeps original client..
@@ -701,9 +707,24 @@ void Server::HandlePhase1(const TransportAddress &remote,
       UW_ASSERT(committedProof != nullptr);
     }
     c.release();
+    Debug("P1 message for txn[%s] received is of type Normal, and P1 has already been received with result %d", BytesToHex(txnDigest, 16).c_str(), result);
     HandlePhase1CB(&msg, result, committedProof, txnDigest, remote, abstain_conflict, isGossip); // Reply directly without doing 
     if(params.signClientProposals) delete txn;
-  } else{ // FIRST P1 request received (i.e. from original client). Gossip if desired and check whether dependencies are valid
+  } 
+  else if(committed.find(txnDigest) != committed.end()){ //has already committed Txn
+      c.release();
+      SendPhase1Reply(msg.req_id(), proto::ConcurrencyControl::COMMIT, nullptr, txnDigest, &remote, nullptr); //TODO: Eventually update to send direct WritebackAck
+      if(params.mainThreadDispatching && (!params.dispatchMessageReceive || params.parallel_CCC)) FreePhase1message(&msg);
+      if(params.signClientProposals) delete txn;
+  } 
+  else if(aborted.find(txnDigest) != aborted.end()){ //has already aborted Txn
+      c.release();
+      SendPhase1Reply(msg.req_id(), proto::ConcurrencyControl::ABSTAIN, nullptr, txnDigest, &remote, nullptr); //TODO: Eventually update to send direct WritebackAck
+     if(params.mainThreadDispatching && (!params.dispatchMessageReceive || params.parallel_CCC)) FreePhase1message(&msg);
+     if(params.signClientProposals) delete txn;
+
+  } 
+  else{ // FIRST P1 request received (i.e. from original client). Gossip if desired and check whether dependencies are valid
     c.release();
     if(params.replicaGossip) ForwardPhase1(msg); //If params.replicaGossip is enabled then set msg.replica_gossip to true and forward.
     if(!isGossip) msg.set_replica_gossip(false); //unset msg.replica_gossip (which we possibly just set to foward) if the message was received by the client
@@ -711,6 +732,7 @@ void Server::HandlePhase1(const TransportAddress &remote,
     //TODO: DispatchTP_noCB(Verify Client Proposals) 
     // Verification calls DispatchTP_main (ProcessProposal.) -- Re-cecheck hasP1 (if used multithread branch)
     
+    Debug("P1 message for txn[%s] received is of type Normal, no P1 result exist. Calling ProcessProposal", BytesToHex(txnDigest, 16).c_str());
     ProcessProposal(msg, remote, txn, txnDigest, committedProof, abstain_conflict, isGossip, result);
   }
   //HandlePhase1CB(&msg, result, committedProof, txnDigest, remote, abstain_conflict, isGossip);
@@ -971,7 +993,7 @@ void Server::HandlePhase2(const TransportAddress &remote,
           ongoingMap::const_accessor b;
           auto txnItr = ongoing.find(b, msg.txn_digest());
           if(txnItr){
-            txn = b->second;
+            txn = b->second.txn;
             b.release();
           }
           else{
@@ -997,6 +1019,7 @@ void Server::HandlePhase2(const TransportAddress &remote,
               //transport->Timer(10000, [this](){Panic("Fail in P2");});
               //Panic("Cannot validate p2 because server does not have tx for this reqId");
               Warning("Cannot validate p2 because server does not have tx for this reqId");
+              Panic("This should not be happening with TCP");
               //std::cerr << "Cannot validate p2 because do not have tx for special id: " << msg.req_id() << std::endl;
               return;
             }
@@ -1146,7 +1169,7 @@ void Server::HandleWriteback(const TransportAddress &remote,
     ongoingMap::const_accessor b;
     bool hasTxn = ongoing.find(b, msg.txn_digest());
     if(hasTxn){
-      txn = b->second;
+      txn = b->second.txn;
       b.release();
     }
     else{
@@ -1196,6 +1219,7 @@ void Server::WritebackCallback(proto::Writeback *msg, const std::string* txnDige
 std::cerr << "Writeback Callback on CPU: " << sched_getcpu() << std::endl;
   if(!valid){
     Debug("VALIDATE Writeback for TX %s failed.", BytesToHex(*txnDigest, 16).c_str());
+    Panic("Writeback Validation should not fail");
     if(params.multiThreading || (params.mainThreadDispatching && !params.dispatchMessageReceive)){
       FreeWBmessage(msg);
     }
@@ -1237,7 +1261,7 @@ std::cerr << "Writeback Callback on CPU: " << sched_getcpu() << std::endl;
         stats.Increment("total_transactions_abort", 1);
         Debug("WRITEBACK[%s] successfully aborting.", BytesToHex(*txnDigest, 16).c_str());
         //msg->set_allocated_txn(txn); //dont need to set since client will?
-        writebackMessages[*txnDigest] = *msg;  //Only necessary for fallback... (could avoid storing these, if one just replied with a p2 vote instea - but that is not as responsive)
+        writebackMessages[*txnDigest] = *msg;  //Only necessary for fallback... (could avoid storing these, if one just replied with a p2 vote instead - but that is not as responsive)
         ///CAUTION: msg might no longer hold txn; could have been released in HanldeWriteback
 
         Abort(*txnDigest);
@@ -1330,7 +1354,7 @@ void Server::Prepare(const std::string &txnDigest,
     Debug("Already concurrently Committed/Aborted txn[%s]", BytesToHex(txnDigest, 16).c_str());
     return;
   }
-  const proto::Transaction *ongoingTxn = b->second;
+  const proto::Transaction *ongoingTxn = b->second.txn;
   //const proto::Transaction *ongoingTxn = ongoing.at(txnDigest);
 
   preparedMap::accessor a;
@@ -1501,7 +1525,7 @@ void Server::Clean(const std::string &txnDigest, bool abort) {
 
   ongoingMap::accessor b;
   bool is_ongoing = ongoing.find(b, txnDigest);
-  if(is_ongoing) ongoing.erase(txnDigest);
+  if(is_ongoing) ongoing.erase(b);
 
   preparedMap::accessor a;
   bool is_prepared = prepared.find(a, txnDigest);
@@ -1533,7 +1557,7 @@ void Server::Clean(const std::string &txnDigest, bool abort) {
 
   if(is_ongoing){
       std::cerr << "ONGOING ERASE: " << BytesToHex(txnDigest, 16).c_str() << " On CPU: " << sched_getcpu()<< std::endl;
-      //if(abort) delete b->second; //delete allocated txn.
+      //if(abort) delete b->second.txn; //delete allocated txn.
       //ongoing.erase(b);
   }
   b.release(); //Release only at the end, so that Prepare and Clean in parallel for the same TX are atomic.
@@ -1633,7 +1657,7 @@ void Server::SendRelayP1(const TransportAddress &remote, const std::string &depe
   ongoingMap::accessor b;
   bool ongoingItr = ongoing.find(b, dependency_txnDig);
   if(!ongoingItr) return;  //If txnDigest no longer ongoing, then no FB necessary as it has completed already
-  tx = b->second;
+  tx = b->second.txn;
   p1MetaDataMap::accessor c;
   //b.release();
 
@@ -1670,7 +1694,7 @@ void Server::SendRelayP1(const TransportAddress &remote, const std::string &depe
     c.release();
   }
   else{
-    b->second = relayP1.mutable_p1()->release_txn();
+    b->second.txn = relayP1.mutable_p1()->release_txn();
     //b.release();
   }
   b.release(); //keep ongoing locked the full duration: this guarantees that if ongoing exists, p1Meta.signed_tx exists too, since it is deleted after ongoing in Clean()
@@ -1913,7 +1937,7 @@ void Server::HandlePhase1FB(const TransportAddress &remote, proto::Phase1FB &msg
   }
   //5) ONLY P2 CASE  (received p2, but was not part of p1)
   // if you dont have a p1, then execute it yourself. (see case 3) discussion)
-  else if(hasP2){
+  else if(hasP2){ // With TCP this case will never be triggered: Any replica that receives P2 also has P1.
       Debug("Txn[%s] has only P2, execute P1 as well", BytesToHex(txnDigest, 64).c_str());
 
       c.release();
@@ -1962,16 +1986,47 @@ void Server::HandlePhase1FB(const TransportAddress &remote, proto::Phase1FB &msg
 
 void Server::ProcessProposalFB(proto::Phase1FB &msg, const TransportAddress &remote, std::string &txnDigest, proto::Transaction* txn){
   
+  ongoingMap::accessor b;
+     std::cerr << "ONGOING INSERT (Fallback): " << BytesToHex(txnDigest, 16).c_str() << " On CPU: " << sched_getcpu()<< std::endl;
+     //ongoing.insert(b, std::make_pair(txnDigest, txn));
+     ongoing.insert(b, txnDigest);
+     b->second.txn = txn;
+     b->second.num_concurrent_clients++;
+     b.release();
+
   //Todo: Improve efficiency if Valid: insert into P1Meta and check conditions again: If now already in P1Meta then use this existing result.
   if(!params.multiThreading){
-    if(!CheckProposalValidity(msg, txn, txnDigest, true)) return;
+    if(!CheckProposalValidity(msg, txn, txnDigest, true)){
+       ongoingMap::accessor b;
+       std::cerr << "ONGOING ERASE (Fallback-INVALID): " << BytesToHex(txnDigest, 16).c_str() << " On CPU: " << sched_getcpu()<< std::endl;
+       ongoing.find(b, txnDigest);
+       b->second.num_concurrent_clients--;
+       if(b->second.num_concurrent_clients==0){
+          delete b->second.txn;
+          ongoing.erase(b);
+       }
+       b.release();
+       return;
+    } 
     TryExec(msg, remote, txnDigest, txn);
   }
   else{
     auto try_exec(std::bind(&Server::TryExec, this, std::ref(msg), std::ref(remote), txnDigest, txn));
         auto f = [this, msg_ptr = &msg, txn, txnDigest, try_exec]() mutable {
             void* valid = CheckProposalValidity(*msg_ptr, txn, txnDigest);
-            if(!valid) return (void*) false;
+            if(!valid){
+              ongoingMap::accessor b;
+              std::cerr << "ONGOING ERASE (Fallback-INVALID): " << BytesToHex(txnDigest, 16).c_str() << " On CPU: " << sched_getcpu()<< std::endl;
+              ongoing.find(b, txnDigest);
+              b->second.num_concurrent_clients--;
+              if(b->second.num_concurrent_clients==0){
+                  delete b->second.txn;
+                  ongoing.erase(b);
+              }
+              b.release();
+              return (void*) false;
+            } 
+            
             transport->DispatchTP_main(try_exec);
             return (void*) true;
         };
@@ -2019,7 +2074,10 @@ bool Server::ExecP1(proto::Phase1FB &msg, const TransportAddress &remote,
   
   ongoingMap::accessor b;
   std::cerr << "ONGOING INSERT (Fallback): " << BytesToHex(txnDigest, 16).c_str() << " On CPU: " << sched_getcpu()<< std::endl;
-  ongoing.insert(b, std::make_pair(txnDigest, txn));
+  //ongoing.insert(b, std::make_pair(txnDigest, txn));
+  ongoing.insert(b, txnDigest);
+  b->second.txn = txn;
+  b->second.num_concurrent_clients++;
   b.release();
   //fallback.insert(txnDigest);
   //std::cerr << "[FB] Added tx to ongoing: " << BytesToHex(txnDigest, 16) << std::endl;
@@ -2415,7 +2473,7 @@ void Server::ProcessP2FB(const TransportAddress &remote, const std::string &txnD
   ongoingMap::const_accessor b;
   bool isOngoing = ongoing.find(b, txnDigest);
   if(isOngoing){
-    txn = b->second;
+    txn = b->second.txn;
     b.release();
   }
   else{
@@ -2651,7 +2709,7 @@ void Server::HandleInvokeFB(const TransportAddress &remote, proto::InvokeFB &msg
     ongoingMap::const_accessor b;
     bool isOngoing = ongoing.find(b, txnDigest);
     if(isOngoing){
-        txn = b->second;
+        txn = b->second.txn;
     }
     else if(msg.has_p2fb()){
         const proto::Phase2FB &p2fb = msg.p2fb();
@@ -2697,7 +2755,7 @@ void Server::InvokeFBProcessP2FB(const TransportAddress &remote, const std::stri
   ongoingMap::const_accessor b;
   bool isOngoing = ongoing.find(b, txnDigest);
   if(isOngoing){
-    txn = b->second;
+    txn = b->second.txn;
     b.release();
   }
   else{
@@ -3192,7 +3250,7 @@ void Server::HandleDecisionFB(proto::DecisionFB &msg){
     ongoingMap::const_accessor b;
     bool isOngoing = ongoing.find(b, txnDigest);
     if(isOngoing){
-        txn = b->second;
+        txn = b->second.txn;
     }
     else{
       if(params.multiThreading || (params.mainThreadDispatching && !params.dispatchMessageReceive)) FreeDecisionFBmessage(&msg);

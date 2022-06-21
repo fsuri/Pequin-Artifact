@@ -62,7 +62,7 @@
       "validate_proofs": true,
       "sign_messages": true,
       "sign_client_proposals": false,
-      "no_fallback": false,
+      "no_fallback": true,
       
       "signature_type": 4,
       "sig_batch": 4,
@@ -106,7 +106,7 @@
   "pin_server_processes": [0, 1, 2, 3, 4, 5, 6, 7],
   "pin_client_processes": [0, 1, 2, 3, 4, 5, 6, 7],
   "client_debug_output": false,
-  "server_debug_output": false,
+  "server_debug_output": true,
   "server_debug_stats": false,
   "client_debug_stats": false,
   "client_experiment_length": 20,
