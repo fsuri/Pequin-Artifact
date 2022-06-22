@@ -597,8 +597,10 @@ void* Server::TryPrepare(proto::Phase1 &msg, const TransportAddress &remote, pro
 
     if(!params.signClientProposals) txn = msg.release_txn(); //Only release it here so that we can forward complete P1 message without making any wasteful copies
 
+    //Add txn speculative to ongoing BEFORE validation to ensure it exists in ongoing before any P2 or Writeback could arrive
+    //If verification fails, remove it again. Keep track of num_concurrent_clients to make sure we don't delete if it is still necessary.
     ongoingMap::accessor b;
-     std::cerr << "ONGOING INSERT (Normal): " << BytesToHex(txnDigest, 16).c_str() << " On CPU: " << sched_getcpu()<< std::endl;
+     //std::cerr << "ONGOING INSERT (Normal): " << BytesToHex(txnDigest, 16).c_str() << " On CPU: " << sched_getcpu()<< std::endl;
      //ongoing.insert(b, std::make_pair(txnDigest, txn));
      ongoing.insert(b, txnDigest);
      b->second.txn = txn;
@@ -611,7 +613,7 @@ void* Server::TryPrepare(proto::Phase1 &msg, const TransportAddress &remote, pro
         if(!valid){
             Panic("Proposal should be valid");
             ongoingMap::accessor b;
-            std::cerr << "ONGOING ERASE (Normal-INVALID): " << BytesToHex(txnDigest, 16).c_str() << " On CPU: " << sched_getcpu()<< std::endl;
+            //std::cerr << "ONGOING ERASE (Normal-INVALID): " << BytesToHex(txnDigest, 16).c_str() << " On CPU: " << sched_getcpu()<< std::endl;
             ongoing.find(b, txnDigest);
             b->second.num_concurrent_clients--;
             if(b->second.num_concurrent_clients==0){
@@ -631,7 +633,7 @@ void* Server::TryPrepare(proto::Phase1 &msg, const TransportAddress &remote, pro
             if(!valid){
                 Panic("Proposal should be valid");
                 ongoingMap::accessor b;
-                std::cerr << "ONGOING ERASE (Normal-INVALID): " << BytesToHex(txnDigest, 16).c_str() << " On CPU: " << sched_getcpu()<< std::endl;
+                //std::cerr << "ONGOING ERASE (Normal-INVALID): " << BytesToHex(txnDigest, 16).c_str() << " On CPU: " << sched_getcpu()<< std::endl;
                 ongoing.find(b, txnDigest);
                 b->second.num_concurrent_clients--;
                 if(b->second.num_concurrent_clients==0){
@@ -866,7 +868,7 @@ void Server::ManageWritebackValidation(proto::Writeback &msg, const std::string 
   if (params.validateProofs ) {
       if(params.multiThreading){
 
-          Debug("1: TAKING MULTITHREADING BRANCH, generating MCB");
+          Debug("1: TAKING MULTITHREADING BRANCH, generating MCB for txn %s WB validation", BytesToHex(*txnDigest, 16).c_str());
           mainThreadCallback mcb(std::bind(&Server::WritebackCallback, this, &msg,
             txnDigest, txn, std::placeholders::_1));
 
@@ -885,13 +887,13 @@ void Server::ManageWritebackValidation(proto::Writeback &msg, const std::string 
             LookupP1Decision(*txnDigest, myProcessId, myResult);
 
             if(params.batchVerification){
-              Debug("2: Taking batch branch p1 commit/abort");
+              Debug("2: Taking batch branch p1 commit/abort for txn %s WB validation", BytesToHex(*txnDigest, 16).c_str());
               asyncBatchValidateP1Replies(msg.decision(),
                     true, txn, txnDigest, msg.p1_sigs(), keyManager, &config, myProcessId,
                     myResult, verifier, std::move(mcb), transport, true);
             }
             else{
-              Debug("2: Taking non-batch branch p1 commit/abort");
+              Debug("2: Taking non-batch branch p1 commit/abort for txn %s WB validation", BytesToHex(*txnDigest, 16).c_str());
               asyncValidateP1Replies(msg.decision(),
                   true, txn, txnDigest, msg.p1_sigs(), keyManager, &config, myProcessId,
                   myResult, verifier, std::move(mcb), transport, true);
@@ -908,13 +910,13 @@ void Server::ManageWritebackValidation(proto::Writeback &msg, const std::string 
               LookupP2Decision(*txnDigest, myProcessId, myDecision);
 
               if(params.batchVerification){
-                Debug("2: Taking batch branch p2");
+                Debug("2: Taking batch branch p2 for txn %s WB validation", BytesToHex(*txnDigest, 16).c_str());
                 asyncBatchValidateP2Replies(msg.decision(), msg.p2_view(),
                       txn, txnDigest, msg.p2_sigs(), keyManager, &config, myProcessId,
                       myDecision, verifier, std::move(mcb), transport, true);
               }
               else{
-                Debug("2: Taking non-batch branch p2");
+                Debug("2: Taking non-batch branch p2 for txn %s WB validation", BytesToHex(*txnDigest, 16).c_str());
                 asyncValidateP2Replies(msg.decision(), msg.p2_view(),
                       txn, txnDigest, msg.p2_sigs(), keyManager, &config, myProcessId,
                       myDecision, verifier, std::move(mcb), transport, true);
@@ -925,6 +927,7 @@ void Server::ManageWritebackValidation(proto::Writeback &msg, const std::string 
           else if (msg.decision() == proto::ABORT && msg.has_conflict()) {
              stats.Increment("total_transactions_fast_Abort_conflict", 1);
 
+            Debug("2: Taking Aborted conflict branch for txn %s WB validation", BytesToHex(*txnDigest, 16).c_str());
               std::string committedTxnDigest = TransactionDigest(msg.conflict().txn(),
                   params.hashDigest);
               asyncValidateCommittedConflict(msg.conflict(), &committedTxnDigest, txn,

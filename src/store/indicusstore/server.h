@@ -277,6 +277,7 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
     void RelayP1(const std::string &dependency_txnDig, bool fallback_flow, uint64_t reqId, const TransportAddress &remote, const std::string &txnDigest);
     void SendRelayP1(const TransportAddress &remote, const std::string &dependency_txnDig, uint64_t dependent_id, const std::string &dependent_txnDig);
 
+    void AddOngoing(proto::Phase1FB &msg, std::string &txnDigest, proto::Transaction* txn);
     void ProcessProposalFB(proto::Phase1FB &msg, const TransportAddress &remote, std::string &txnDigest, proto::Transaction* txn);
     void* TryExec(proto::Phase1FB &msg, const TransportAddress &remote, std::string &txnDigest, proto::Transaction* txn);
     //p1MetaDataMap::accessor &c, 
@@ -317,8 +318,19 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
 
     //keep list of all remote addresses == interested client_seq_num
     //TODO: store original client separately..
-    typedef tbb::concurrent_hash_map<std::string, tbb::concurrent_unordered_set<const TransportAddress*>> interestedClientsMap;
+    struct interestedClient {
+      interestedClient(): client_id(0UL), client_address(nullptr) {}
+      ~interestedClient() {
+        if(client_address != nullptr) delete client_address;
+      }
+      uint64_t client_id;
+      const TransportAddress* client_address;
+    };
+    //typedef tbb::concurrent_hash_map<std::string, tbb::concurrent_unordered_set<interestedClient>> interestedClientsMap;
+    //typedef tbb::concurrent_hash_map<std::string, tbb::concurrent_unordered_set<const TransportAddress*>> interestedClientsMap;
+    typedef tbb::concurrent_hash_map<std::string, tbb::concurrent_unordered_map<uint64_t, const TransportAddress*>> interestedClientsMap;
     interestedClientsMap interestedClients;
+
     tbb::concurrent_hash_map<std::string, std::pair<uint64_t, const TransportAddress*>> originalClient;
 
     bool ForwardWriteback(const TransportAddress &remote, uint64_t ReqId, const std::string &txnDigest);

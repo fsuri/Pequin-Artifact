@@ -245,7 +245,14 @@ virtual void Phase2Equivocate_Simulate(uint64_t id, const proto::Transaction &tx
     finishConflictCB ConflictCB;
   };
 
-  typedef std::pair<std::unordered_set<uint64_t>, std::map<proto::CommitDecision, proto::Signatures>> view_p2ReplySigs;
+  //typedef std::pair<std::unordered_set<uint64_t>, std::map<proto::CommitDecision, proto::Signatures>> view_p2ReplySigs;
+
+  struct view_p2ReplySigs{
+    view_p2ReplySigs(){}
+    ~view_p2ReplySigs(){}
+    std::unordered_set<uint64_t> replicasVerified;
+    std::map<proto::CommitDecision, proto::Signatures> decision_sigs;
+  };
 
   struct PendingPhase2 {
     PendingPhase2() : requestTimeout(nullptr), matchingReplies(0UL) {}

@@ -640,6 +640,7 @@ void Server::HandlePhase1(const TransportAddress &remote,
     proto::Phase1 &msg) {
   //dummyTx = msg.txn(); //PURELY TESTING PURPOSES!!: NOTE WARNING
  
+ Debug("Received Phase1 message");
   proto::Transaction *txn;
   if(params.signClientProposals){
     txn = new proto::Transaction();
@@ -712,6 +713,7 @@ void Server::HandlePhase1(const TransportAddress &remote,
     if(params.signClientProposals) delete txn;
   } 
   else if(committed.find(txnDigest) != committed.end()){ //has already committed Txn
+      Debug("Already committed txn[%s]. Replying with result %d", BytesToHex(txnDigest, 16).c_str(), 0);
       c.release();
       SendPhase1Reply(msg.req_id(), proto::ConcurrencyControl::COMMIT, nullptr, txnDigest, &remote, nullptr); //TODO: Eventually update to send direct WritebackAck
       if(params.mainThreadDispatching && (!params.dispatchMessageReceive || params.parallel_CCC)) FreePhase1message(&msg);
@@ -719,6 +721,7 @@ void Server::HandlePhase1(const TransportAddress &remote,
   } 
   else if(aborted.find(txnDigest) != aborted.end()){ //has already aborted Txn
       c.release();
+       Debug("Already committed txn[%s]. Replying with result %d", BytesToHex(txnDigest, 16).c_str(), 1);
       SendPhase1Reply(msg.req_id(), proto::ConcurrencyControl::ABSTAIN, nullptr, txnDigest, &remote, nullptr); //TODO: Eventually update to send direct WritebackAck
      if(params.mainThreadDispatching && (!params.dispatchMessageReceive || params.parallel_CCC)) FreePhase1message(&msg);
      if(params.signClientProposals) delete txn;
@@ -1165,7 +1168,7 @@ void Server::HandleWriteback(const TransportAddress &remote,
       }
       return;  //TODO: Forward to all interested clients and empty it?
     }
-   std::cerr <<"Handle Writeback called on CPU " << sched_getcpu() << std::endl;
+   
     ongoingMap::const_accessor b;
     bool hasTxn = ongoing.find(b, msg.txn_digest());
     if(hasTxn){
@@ -1183,7 +1186,7 @@ void Server::HandleWriteback(const TransportAddress &remote,
         Debug("Writeback[%s] message does not contain txn, but have not seen"
             " txn_digest previously.", BytesToHex(msg.txn_digest(), 16).c_str());
         Warning("Cannot process Writeback because ongoing does not contain tx for this request. Should not happen with TCP.... CPU %d", sched_getcpu());
-        //Panic("When using TCP the tx should always be ongoing before doing WB");
+        Panic("When using TCP the tx should always be ongoing before doing WB");
         return WritebackCallback(&msg, txnDigest, txn, (void*) false);
       }
     }
@@ -1216,10 +1219,10 @@ void Server::HandleWriteback(const TransportAddress &remote,
 void Server::WritebackCallback(proto::Writeback *msg, const std::string* txnDigest,
   proto::Transaction* txn, void* valid){
 
-std::cerr << "Writeback Callback on CPU: " << sched_getcpu() << std::endl;
+
   if(!valid){
     Debug("VALIDATE Writeback for TX %s failed.", BytesToHex(*txnDigest, 16).c_str());
-    Panic("Writeback Validation should not fail");
+    Panic("Writeback Validation should not fail for TX %s ", BytesToHex(*txnDigest, 16).c_str());
     if(params.multiThreading || (params.mainThreadDispatching && !params.dispatchMessageReceive)){
       FreeWBmessage(msg);
     }
@@ -1413,7 +1416,7 @@ void Server::Commit(const std::string &txnDigest, proto::Transaction *txn,
   val.proof = proof;
 
   auto committedItr = committed.insert(std::make_pair(txnDigest, proof));
-  std::cerr << "COMMITTED INSERT "<< BytesToHex(txnDigest, 16).c_str()  << " On CPU: " << sched_getcpu()<< std::endl;
+  Debug("Inserted txn %s into Committed on CPU %d",BytesToHex(txnDigest, 16).c_str(), sched_getcpu());
   //auto committedItr =committed.emplace(txnDigest, proof);
 
   if (params.validateProofs) {
@@ -1498,7 +1501,7 @@ void Server::Commit(const std::string &txnDigest, proto::Transaction *txn,
 void Server::Abort(const std::string &txnDigest) {
    //if(params.mainThreadDispatching) abortedMutex.lock();
   aborted.insert(txnDigest);
-  std::cerr << "ABORTED INSERT "<< BytesToHex(txnDigest, 16).c_str()  << " On CPU: " << sched_getcpu()<< std::endl;
+  Debug("Inserted txn %s into ABORTED on CPU: %d", BytesToHex(txnDigest, 16).c_str(), sched_getcpu());
    //if(params.mainThreadDispatching) abortedMutex.unlock();
   Debug("Calling CLEAN for aborting txn[%s]", BytesToHex(txnDigest, 16).c_str());
   Clean(txnDigest, true);
@@ -1555,11 +1558,11 @@ void Server::Clean(const std::string &txnDigest, bool abort) {
   }
   a.release();
 
-  if(is_ongoing){
-      std::cerr << "ONGOING ERASE: " << BytesToHex(txnDigest, 16).c_str() << " On CPU: " << sched_getcpu()<< std::endl;
-      //if(abort) delete b->second.txn; //delete allocated txn.
-      //ongoing.erase(b);
-  }
+  // if(is_ongoing){
+  //     std::cerr << "ONGOING ERASE: " << BytesToHex(txnDigest, 16).c_str() << " On CPU: " << sched_getcpu()<< std::endl;
+  //     //if(abort) delete b->second.txn; //delete allocated txn.
+  //     //ongoing.erase(b);
+  // }
   b.release(); //Release only at the end, so that Prepare and Clean in parallel for the same TX are atomic.
   //TODO: might want to move release all the way to the end.
 
@@ -1570,8 +1573,8 @@ void Server::Clean(const std::string &txnDigest, bool abort) {
   auto jtr = interestedClients.find(i, txnDigest);
   if(jtr){
   //if (jtr != interestedClients.end()) {
-    for (const auto addr : i->second) {
-      delete addr;
+    for (const auto client : i->second) {
+      delete client.second;
     }
     interestedClients.erase(i);
   }
@@ -1813,11 +1816,11 @@ bool Server::ForwardWritebackMulti(const std::string &txnDigest, interestedClien
     return false;
   }
 
-  for (const auto addr : i->second) {
+  for (const auto client : i->second) {
     Debug("ForwardingWritebackMulti for txn: %s to +1 clients", BytesToHex(txnDigest, 64).c_str()); //would need to store client ID with it to print.
 
-    transport->SendMessage(this, *addr, phase1FBReply);
-    delete addr;
+    transport->SendMessage(this, *client.second, phase1FBReply);
+    delete client.second;
   }
   interestedClients.erase(i);
   //i.release();
@@ -1841,7 +1844,7 @@ void Server::HandlePhase1FB(const TransportAddress &remote, proto::Phase1FB &msg
 
   stats.Increment("total_p1FB_received", 1);
   std::string txnDigest = TransactionDigest(*txn, params.hashDigest);
-  Debug("Received PHASE1FB[%lu][%s]", msg.req_id(), BytesToHex(txnDigest, 16).c_str());
+  Debug("Received PHASE1FB[%lu][%s] from client %lu. This is server: %lu", msg.req_id(), BytesToHex(txnDigest, 16).c_str(), msg.client_id(), id);
 
 
   //check if already committed. reply with whole proof so client can forward that.
@@ -1856,8 +1859,11 @@ void Server::HandlePhase1FB(const TransportAddress &remote, proto::Phase1FB &msg
   //Otherwise, keep track of interested clients to message in the future
   interestedClientsMap::accessor i;
   bool interestedClientsItr = interestedClients.insert(i, txnDigest);
-  i->second.insert(remote.clone());
+  const TransportAddress* remoteCopy = remote.clone();
+  //i->second.insert(remoteCopy);
+  i->second[msg.client_id()] = remoteCopy;
   i.release();
+
   //interestedClients[txnDigest].insert(remote.clone());
 
 
@@ -1896,13 +1902,14 @@ void Server::HandlePhase1FB(const TransportAddress &remote, proto::Phase1FB &msg
        else{
          //Relay deeper depths.
         ManageDependencies(txnDigest, *txn, remote, 0, true);
+        Debug("P1 decision for txn: %s is WAIT. Not including in reply.", BytesToHex(txnDigest, 16).c_str());
        }
        //c.release();
 
        SetP2(msg.req_id(), p1fb_organizer->p1fbr->mutable_p2r(), txnDigest, decision, decision_view);
        SendPhase1FBReply(p1fb_organizer, txnDigest);
 
-       Debug("Sent Phase1FBReply on path hasP2+hasP1 for txn: %s, sent by client: %d", BytesToHex(txnDigest, 16).c_str(), msg.req_id());
+       Debug("Sent Phase1FBReply on path hasP2+hasP1 for txn: %s, sent by client: %d. P1 result = %d", BytesToHex(txnDigest, 16).c_str(), msg.client_id(), result);
        if(params.signClientProposals) delete txn;
        // c.release();
        // p.release();
@@ -1928,7 +1935,7 @@ void Server::HandlePhase1FB(const TransportAddress &remote, proto::Phase1FB &msg
         }
         else{
           ManageDependencies(txnDigest, *txn, remote, 0, true);
-          Debug("WAITING on dep in order to send Phase1FBReply on path hasP1 for txn: %s, sent by client: %d", BytesToHex(txnDigest, 16).c_str(), msg.req_id());
+          Debug("WAITING on dep in order to send Phase1FBReply on path hasP1 for txn: %s, sent by client: %d", BytesToHex(txnDigest, 16).c_str(), msg.client_id());
         }
         if(params.signClientProposals) delete txn;
         // c.release();
@@ -1955,6 +1962,9 @@ void Server::HandlePhase1FB(const TransportAddress &remote, proto::Phase1FB &msg
       const proto::Transaction *abstain_conflict = nullptr;
 
       if(!VerifyDependencies(msg, txn, txnDigest, true)) return; //Verify Deps explicitly -- since its no longer part of ExecP1
+     
+      //Add to ongoing before Exec
+      AddOngoing(msg, txnDigest, txn);
       if (ExecP1(msg, remote, txnDigest, txn, result, committedProof, abstain_conflict)) { //only send if the result is not Wait
           SetP1(msg.req_id(), p1fb_organizer->p1fbr->mutable_p1r(), txnDigest, result, committedProof, abstain_conflict);
       }
@@ -1962,7 +1972,7 @@ void Server::HandlePhase1FB(const TransportAddress &remote, proto::Phase1FB &msg
       //c.release();
       //std::cerr << "[FB:3] release lock for txn: " << BytesToHex(txnDigest, 64) << std::endl;
       SendPhase1FBReply(p1fb_organizer, txnDigest);
-      Debug("Sent Phase1FBReply on path P2 + ExecP1 for txn: %s, sent by client: %d", BytesToHex(txnDigest, 16).c_str(), msg.req_id());
+      Debug("Sent Phase1FBReply on path P2 + ExecP1 for txn: %s, sent by client: %d", BytesToHex(txnDigest, 16).c_str(), msg.client_id());
   }
 
   //6) NO STATE STORED: Do p1 normally. copied logic from HandlePhase1(remote, msg)
@@ -1984,21 +1994,32 @@ void Server::HandlePhase1FB(const TransportAddress &remote, proto::Phase1FB &msg
   if(params.mainThreadDispatching && (!params.dispatchMessageReceive || params.parallel_CCC)) FreePhase1FBmessage(&msg); 
 }
 
+void Server::AddOngoing(proto::Phase1FB &msg, std::string &txnDigest, proto::Transaction* txn ){
+   //Add to ongoing Before calling Exec
+      if(!params.signClientProposals) txn = msg.release_txn();
+      *txn->mutable_txndigest() = txnDigest; //HACK to include txnDigest to lookup signed_tx.
+
+      ongoingMap::accessor b;
+      //std::cerr << "ONGOING INSERT (Fallback): " << BytesToHex(txnDigest, 16).c_str() << " On CPU: " << sched_getcpu()<< std::endl;
+      //ongoing.insert(b, std::make_pair(txnDigest, txn));
+      ongoing.insert(b, txnDigest);
+      b->second.txn = txn;
+      b->second.num_concurrent_clients++;
+      b.release();
+
+    return;
+}
+
 void Server::ProcessProposalFB(proto::Phase1FB &msg, const TransportAddress &remote, std::string &txnDigest, proto::Transaction* txn){
   
-  ongoingMap::accessor b;
-     std::cerr << "ONGOING INSERT (Fallback): " << BytesToHex(txnDigest, 16).c_str() << " On CPU: " << sched_getcpu()<< std::endl;
-     //ongoing.insert(b, std::make_pair(txnDigest, txn));
-     ongoing.insert(b, txnDigest);
-     b->second.txn = txn;
-     b->second.num_concurrent_clients++;
-     b.release();
+
+  AddOngoing(msg, txnDigest, txn);
 
   //Todo: Improve efficiency if Valid: insert into P1Meta and check conditions again: If now already in P1Meta then use this existing result.
   if(!params.multiThreading){
     if(!CheckProposalValidity(msg, txn, txnDigest, true)){
        ongoingMap::accessor b;
-       std::cerr << "ONGOING ERASE (Fallback-INVALID): " << BytesToHex(txnDigest, 16).c_str() << " On CPU: " << sched_getcpu()<< std::endl;
+       //std::cerr << "ONGOING ERASE (Fallback-INVALID): " << BytesToHex(txnDigest, 16).c_str() << " On CPU: " << sched_getcpu()<< std::endl;
        ongoing.find(b, txnDigest);
        b->second.num_concurrent_clients--;
        if(b->second.num_concurrent_clients==0){
@@ -2016,7 +2037,7 @@ void Server::ProcessProposalFB(proto::Phase1FB &msg, const TransportAddress &rem
             void* valid = CheckProposalValidity(*msg_ptr, txn, txnDigest);
             if(!valid){
               ongoingMap::accessor b;
-              std::cerr << "ONGOING ERASE (Fallback-INVALID): " << BytesToHex(txnDigest, 16).c_str() << " On CPU: " << sched_getcpu()<< std::endl;
+              //std::cerr << "ONGOING ERASE (Fallback-INVALID): " << BytesToHex(txnDigest, 16).c_str() << " On CPU: " << sched_getcpu()<< std::endl;
               ongoing.find(b, txnDigest);
               b->second.num_concurrent_clients--;
               if(b->second.num_concurrent_clients==0){
@@ -2054,6 +2075,7 @@ void* Server::TryExec(proto::Phase1FB &msg, const TransportAddress &remote, std:
   return (void*) true;
 }
 
+//TODO: Should now be fully safe to be executed multithread (parallel_CCC)
 //TODO: merge this code with the normal case operation.
 //p1MetaDataMap::accessor &c, 
 bool Server::ExecP1(proto::Phase1FB &msg, const TransportAddress &remote,
@@ -2069,16 +2091,16 @@ bool Server::ExecP1(proto::Phase1FB &msg, const TransportAddress &remote,
   // p2MetaDatas.insert(p, txnDigest);
   // p.release();
 
-  if(!params.signClientProposals) txn = msg.release_txn();
-  *txn->mutable_txndigest() = txnDigest; //HACK to include txnDigest to lookup signed_tx.
+  // if(!params.signClientProposals) txn = msg.release_txn();
+  // *txn->mutable_txndigest() = txnDigest; //HACK to include txnDigest to lookup signed_tx.
   
-  ongoingMap::accessor b;
-  std::cerr << "ONGOING INSERT (Fallback): " << BytesToHex(txnDigest, 16).c_str() << " On CPU: " << sched_getcpu()<< std::endl;
-  //ongoing.insert(b, std::make_pair(txnDigest, txn));
-  ongoing.insert(b, txnDigest);
-  b->second.txn = txn;
-  b->second.num_concurrent_clients++;
-  b.release();
+  // ongoingMap::accessor b;
+  // std::cerr << "ONGOING INSERT (Fallback): " << BytesToHex(txnDigest, 16).c_str() << " On CPU: " << sched_getcpu()<< std::endl;
+  // //ongoing.insert(b, std::make_pair(txnDigest, txn));
+  // ongoing.insert(b, txnDigest);
+  // b->second.txn = txn;
+  // b->second.num_concurrent_clients++;
+  // b.release();
   //fallback.insert(txnDigest);
   //std::cerr << "[FB] Added tx to ongoing: " << BytesToHex(txnDigest, 16) << std::endl;
 
@@ -2199,8 +2221,8 @@ void Server::SendPhase1FBReply(P1FBorganizer *p1fb_organizer, const std::string 
         interestedClientsMap::const_accessor i;
         bool has_interested = interestedClients.find(i, p1fb_organizer->p1fbr->txn_digest());
         if(has_interested){
-          for (const auto addr : i->second) {
-            transport->SendMessage(this, *addr, *p1fb_organizer->p1fbr);
+          for (const auto client : i->second) {
+            transport->SendMessage(this, *client.second, *p1fb_organizer->p1fbr);
           }
         }
         i.release();
@@ -2218,9 +2240,11 @@ void Server::SendPhase1FBReply(P1FBorganizer *p1fb_organizer, const std::string 
         p1fb_organizer->p1_sig_outstanding = true;
       }
       if(p1FBReply->has_p2r()){
+        Debug("FB sending P2 result:[%d] for txn: %s", p1FBReply->p2r().p2_decision().decision(), BytesToHex(txnDigest, 16).c_str());
         p1fb_organizer->p2_sig_outstanding = true;
       }
       //Next, dispatch respective signature functions
+      //TODO: Improve code to buffer previous signatures, instead of always re-generating.
 
       //1) sign current view
       if(!params.all_to_all_fb){
@@ -2272,6 +2296,7 @@ void Server::HandlePhase2FB(const TransportAddress &remote,
 
   //std::string txnDigest = TransactionDigest(msg.txn(), params.hashDigest);
   const std::string &txnDigest = msg.txn_digest();
+  Debug("Received PHASE2FB[%lu][%s] from client %lu. This is server %lu", msg.req_id(), BytesToHex(txnDigest, 16).c_str(), msg.client_id(), id);
   //Debug("PHASE2FB[%lu:%lu][%s] with ts %lu.", msg.txn().client_id(),
   //    msg.txn().client_seq_num(), BytesToHex(txnDigest, 16).c_str(),
   //    msg.txn().timestamp().timestamp());
@@ -2387,8 +2412,8 @@ void Server::SendPhase2FBReply(P2FBorganizer *p2fb_organizer, const std::string 
         bool has_interested = interestedClients.find(i, p2fb_organizer->p2fbr->txn_digest());
         //std::cerr << "Number of interested clients: " << i->second.size() << std::endl;
         if(has_interested){
-          for (const auto addr : i->second) {
-            transport->SendMessage(this, *addr, *p2fb_organizer->p2fbr);
+          for (const auto client : i->second) {
+            transport->SendMessage(this, *client.second, *p2fb_organizer->p2fbr);
           }
         }
         i.release();

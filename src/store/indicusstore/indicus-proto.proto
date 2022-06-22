@@ -245,6 +245,7 @@ message Phase1FB {
     Transaction txn = 2;
     SignedMessage signed_txn =3;
   }
+  optional uint64 client_id = 4;
 }
 
 message CurrentView{
@@ -301,6 +302,7 @@ message Phase2FB {
   //optional GroupedSignatures p2_sigs = 6; //this is for p2 proof
   optional P2Replies p2_replies = 6; // this is for p2 proof
   //old: GroupedP1FBreplies grp_p1_fb = 5;
+  optional uint64 client_id = 7;
 }
 //fallback phase2R: Can be the same Phase2R as normal.
 

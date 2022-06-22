@@ -533,8 +533,8 @@ void Server::CheckDependents(const std::string &txnDigest) {
 
         //Send it to all interested FB clients too:
           interestedClientsMap::accessor i;
-          auto jtr = interestedClients.find(i, dependent);
-          if(jtr){
+          bool hasInterested = interestedClients.find(i, dependent);
+          if(hasInterested){
             if(!ForwardWritebackMulti(dependent, i)){
               P1FBorganizer *p1fb_organizer = new P1FBorganizer(0, dependent, this);
               SetP1(0, p1fb_organizer->p1fbr->mutable_p1r(), dependent, result, conflict);
