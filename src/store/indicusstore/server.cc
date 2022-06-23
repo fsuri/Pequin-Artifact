@@ -573,7 +573,7 @@ void Server::ProcessPhase1_atomic(const TransportAddress &remote,
         if (!dep.has_write_sigs()) {
           Debug("Dep for txn %s missing signatures.",
               BytesToHex(txnDigest, 16).c_str());
-          if(params.mainThreadDispatching && (!params.dispatchMessageReceive || params.parallel_CCC)) FreePhase1message(&msg);
+          if((params.mainThreadDispatching && (!params.dispatchMessageReceive || params.parallel_CCC)) || (params.multiThreading && params.signClientProposals)) FreePhase1message(&msg);
           return;
         }
         if (!ValidateDependency(dep, &config, params.readDepSize, keyManager,
@@ -581,7 +581,7 @@ void Server::ProcessPhase1_atomic(const TransportAddress &remote,
           Debug("VALIDATE Dependency failed for txn %s.",
               BytesToHex(txnDigest, 16).c_str());
           // safe to ignore Byzantine client
-          if(params.mainThreadDispatching && (!params.dispatchMessageReceive || params.parallel_CCC)) FreePhase1message(&msg);
+          if((params.mainThreadDispatching && (!params.dispatchMessageReceive || params.parallel_CCC)) || (params.multiThreading && params.signClientProposals)) FreePhase1message(&msg);
           return;
         }
       }
@@ -684,18 +684,18 @@ void Server::HandlePhase1(const TransportAddress &remote,
   //Ignore duplicate requests that are already committed, aborted, or ongoing
   p1MetaDataMap::const_accessor c;
   // p1MetaData.insert(c, txnDigest);  //TODO: next: make P1 part of ongoing? same for P2?
-  // bool hasP1 = c->second.hasP1;
-  bool hasP1 = p1MetaData.find(c, txnDigest);
-  if(hasP1 && isGossip){  // If P1 has already been received and current message is a gossip one, do nothing.
+  //p1MetaData.find(c, txnDigest);
+  bool hasP1result = p1MetaData.find(c, txnDigest) ? c->second.hasP1 : false;
+  if(hasP1result && isGossip){  // If P1 has already been received and current message is a gossip one, do nothing.
     //Do not need to reply to forwarded P1. If adding replica GC -> want to forward it to leader.
     //Inform_P1_GC_Leader(proto::Phase1Reply &reply, proto::Transaction &txn, std::string &txnDigest, int64_t grpLeader);
     Debug("P1 message for txn[%s] received is of type Gossip, and P1 has already been received", BytesToHex(txnDigest, 16).c_str());
     c.release();
     if(params.signClientProposals) delete txn;
-    if(params.mainThreadDispatching && (!params.dispatchMessageReceive || params.parallel_CCC)) FreePhase1message(&msg);
+    if((params.mainThreadDispatching && (!params.dispatchMessageReceive || params.parallel_CCC)) || (params.multiThreading && params.signClientProposals)) FreePhase1message(&msg);
     return;
   } 
-  else if(hasP1){ // If P1 has already been received (sent by a fallback) and current message is from original client, then only inform client of blocked dependencies so it can issue fallbacks of its own
+  else if(hasP1result){ // If P1 has already been received (sent by a fallback) and current message is from original client, then only inform client of blocked dependencies so it can issue fallbacks of its own
     result = c->second.result;
     // need to check if result is WAIT: if so, need to add to waitingDeps original client..
         //(TODO) Instead: use original client list and store pairs <txnDigest, <reqID, remote>>
@@ -716,14 +716,14 @@ void Server::HandlePhase1(const TransportAddress &remote,
       Debug("Already committed txn[%s]. Replying with result %d", BytesToHex(txnDigest, 16).c_str(), 0);
       c.release();
       SendPhase1Reply(msg.req_id(), proto::ConcurrencyControl::COMMIT, nullptr, txnDigest, &remote, nullptr); //TODO: Eventually update to send direct WritebackAck
-      if(params.mainThreadDispatching && (!params.dispatchMessageReceive || params.parallel_CCC)) FreePhase1message(&msg);
+      if((params.mainThreadDispatching && (!params.dispatchMessageReceive || params.parallel_CCC)) || (params.multiThreading && params.signClientProposals)) FreePhase1message(&msg);
       if(params.signClientProposals) delete txn;
   } 
   else if(aborted.find(txnDigest) != aborted.end()){ //has already aborted Txn
       c.release();
        Debug("Already committed txn[%s]. Replying with result %d", BytesToHex(txnDigest, 16).c_str(), 1);
       SendPhase1Reply(msg.req_id(), proto::ConcurrencyControl::ABSTAIN, nullptr, txnDigest, &remote, nullptr); //TODO: Eventually update to send direct WritebackAck
-     if(params.mainThreadDispatching && (!params.dispatchMessageReceive || params.parallel_CCC)) FreePhase1message(&msg);
+     if((params.mainThreadDispatching && (!params.dispatchMessageReceive || params.parallel_CCC)) || (params.multiThreading && params.signClientProposals)) FreePhase1message(&msg);
      if(params.signClientProposals) delete txn;
 
   } 
@@ -758,7 +758,7 @@ void Server::HandlePhase1CB(proto::Phase1 *msg, proto::ConcurrencyControl::Resul
 
     SendPhase1Reply(msg->req_id(), result, committedProof, txnDigest, &remote, abstain_conflict);
   }
-  if(params.mainThreadDispatching && (!params.dispatchMessageReceive || params.parallel_CCC)) FreePhase1message(msg);
+  if((params.mainThreadDispatching && (!params.dispatchMessageReceive || params.parallel_CCC)) || (params.multiThreading && params.signClientProposals)) FreePhase1message(msg);
 }
 
 void Server::SendPhase1Reply(uint64_t reqId,
@@ -780,8 +780,8 @@ void Server::SendPhase1Reply(uint64_t reqId,
     //phase1Reply->mutable_abstain_conflict()->set_req_id(0);
     if(params.signClientProposals){
       p1MetaDataMap::accessor c;
-      p1MetaData.find(c, abstain_conflict->txndigest());
-      if(c->second.hasSignedP1){ //only send if conflicting tx not yet finished
+      bool p1MetaExists = p1MetaData.find(c, abstain_conflict->txndigest());
+      if(p1MetaExists && c->second.hasSignedP1){ //only send if conflicting tx not yet finished
         phase1Reply->mutable_abstain_conflict()->set_req_id(0);
         *phase1Reply->mutable_abstain_conflict()->mutable_signed_txn() = *c->second.signed_txn;
       } 
@@ -1047,7 +1047,6 @@ void Server::HandlePhase2CB(TransportAddress *remote, proto::Phase2 *msg, const 
   }
 
   if(!valid){
-    Panic("P2 verification was invalid -- this should never happen?");
     stats.Increment("total_p2_invalid", 1);
     Debug("VALIDATE P1Replies for TX %s failed.", BytesToHex(*txnDigest, 16).c_str());
     cleanCB(); //deletes SendCB resources should SendCB not be called.
@@ -1055,6 +1054,7 @@ void Server::HandlePhase2CB(TransportAddress *remote, proto::Phase2 *msg, const 
       FreePhase2message(msg); //const_cast<proto::Phase2&>(msg));
     }
     delete remote;
+    Panic("P2 verification was invalid -- this should never happen?");
     return;
   }
 
@@ -1222,10 +1222,10 @@ void Server::WritebackCallback(proto::Writeback *msg, const std::string* txnDige
 
   if(!valid){
     Debug("VALIDATE Writeback for TX %s failed.", BytesToHex(*txnDigest, 16).c_str());
-    Panic("Writeback Validation should not fail for TX %s ", BytesToHex(*txnDigest, 16).c_str());
     if(params.multiThreading || (params.mainThreadDispatching && !params.dispatchMessageReceive)){
       FreeWBmessage(msg);
     }
+     Panic("Writeback Validation should not fail for TX %s ", BytesToHex(*txnDigest, 16).c_str());
     return;
   }
 
@@ -1605,8 +1605,8 @@ void Server::Clean(const std::string &txnDigest, bool abort) {
 //Currently commented out so that original client does not re-do work if p1/p2 has already happened
 //--> TODO: Make original client dynamic, i.e. it can directly receive a writeback if it exists, instead of HAVING to finish normal case.
   p1MetaDataMap::accessor c;
-  bool hasP1 = p1MetaData.find(c, txnDigest);
-  if(hasP1){
+  bool p1MetaExists = p1MetaData.find(c, txnDigest);
+  if(p1MetaExists){
     if(c->second.hasSignedP1) delete c->second.signed_txn; //Delete signed txn if not needed anymore.
     c->second.hasSignedP1 = false;
   } 
@@ -1672,10 +1672,10 @@ void Server::SendRelayP1(const TransportAddress &remote, const std::string &depe
 
   if(params.signClientProposals){
     //b.release();
-    p1MetaData.find(c, dependency_txnDig); //If txn is in ongoing, then it must have been added to P1Meta --> since we add to ongoing in HandleP1 or HandleP1FB. 
+    bool p1MetaExists = p1MetaData.find(c, dependency_txnDig); //If txn is in ongoing, then it must have been added to P1Meta --> since we add to ongoing in HandleP1 or HandleP1FB. 
                                                                                           // (TODO FIX: Current verification --adds signed_txn-- happens only after inster ongoing. Should be swapped to guarantee the above.)
+     if(!p1MetaExists || c->second.hasSignedP1 == false) Panic("Should exist since ongoing is still true");
     signed_tx = c->second.signed_txn;
-    if(c->second.hasSignedP1 == false) Panic("Should exist since ongoing is still true");
     relayP1.mutable_p1()->set_allocated_signed_txn(signed_tx);
   }
   else{ //no Client sigs --> just send txn.
@@ -1851,7 +1851,7 @@ void Server::HandlePhase1FB(const TransportAddress &remote, proto::Phase1FB &msg
   //1) COMMIT CASE, 2) ABORT CASE
 
   if(ForwardWriteback(remote, msg.req_id(), txnDigest)){
-    if(params.mainThreadDispatching && (!params.dispatchMessageReceive || params.parallel_CCC)) FreePhase1FBmessage(&msg);
+    if((params.mainThreadDispatching && (!params.dispatchMessageReceive || params.parallel_CCC)) || (params.multiThreading && params.signClientProposals)) FreePhase1FBmessage(&msg);
     if(params.signClientProposals) delete txn;
     return;
   }
@@ -1873,15 +1873,15 @@ void Server::HandlePhase1FB(const TransportAddress &remote, proto::Phase1FB &msg
   //TODO: could store p2 and p1 signatures (until writeback) in order to avoid re-computation
   //XXX CHANGED IT TO ACCESSOR FOR LOCK TEST
   p1MetaDataMap::const_accessor c;
-  bool hasP1 = p1MetaData.find(c, txnDigest);
+  //p1MetaData.find(c, txnDigest);
   // p1MetaData.insert(c, txnDigest);
-  // bool hasP1 = c->second.hasP1;
+  bool hasP1result = p1MetaData.find(c, txnDigest) ? c->second.hasP1 : false;
   //std::cerr << "[FB] acquire lock for txn: " << BytesToHex(txnDigest, 64) << std::endl;
   p2MetaDataMap::const_accessor p;
   p2MetaDatas.insert(p, txnDigest);
-  bool hasP2 = p->second.hasP2;
+  bool hasP2result = p->second.hasP2;
 
-  if(hasP2 && hasP1){
+  if(hasP2result && hasP1result){
     Debug("Txn[%s] has both P1 and P2", BytesToHex(txnDigest, 64).c_str());
        proto::ConcurrencyControl::Result result = c->second.result; //p1Decisions[txnDigest];
        //if(result == proto::ConcurrencyControl::ABORT);
@@ -1916,7 +1916,7 @@ void Server::HandlePhase1FB(const TransportAddress &remote, proto::Phase1FB &msg
   }
 
   //4) ONLY P1 CASE: (already did p1 but no p2)
-  else if(hasP1){
+  else if(hasP1result){
     Debug("Txn[%s] has only P1", BytesToHex(txnDigest, 64).c_str());
         proto::ConcurrencyControl::Result result = c->second.result; //p1Decisions[txnDigest];
         //if(result == proto::ConcurrencyControl::ABORT);
@@ -1944,7 +1944,7 @@ void Server::HandlePhase1FB(const TransportAddress &remote, proto::Phase1FB &msg
   }
   //5) ONLY P2 CASE  (received p2, but was not part of p1)
   // if you dont have a p1, then execute it yourself. (see case 3) discussion)
-  else if(hasP2){ // With TCP this case will never be triggered: Any replica that receives P2 also has P1.
+  else if(hasP2result){ // With TCP this case will never be triggered: Any replica that receives P2 also has P1.
       Debug("Txn[%s] has only P2, execute P1 as well", BytesToHex(txnDigest, 64).c_str());
 
       c.release();
@@ -1991,7 +1991,7 @@ void Server::HandlePhase1FB(const TransportAddress &remote, proto::Phase1FB &msg
       //std::cerr << "[FB:4] release lock for txn: " << BytesToHex(txnDigest, 64) << std::endl;
   }
 
-  if(params.mainThreadDispatching && (!params.dispatchMessageReceive || params.parallel_CCC)) FreePhase1FBmessage(&msg); 
+  if((params.mainThreadDispatching && (!params.dispatchMessageReceive || params.parallel_CCC)) || (params.multiThreading && params.signClientProposals)) FreePhase1FBmessage(&msg); 
 }
 
 void Server::AddOngoing(proto::Phase1FB &msg, std::string &txnDigest, proto::Transaction* txn ){
@@ -2016,7 +2016,7 @@ void Server::ProcessProposalFB(proto::Phase1FB &msg, const TransportAddress &rem
   AddOngoing(msg, txnDigest, txn);
 
   //Todo: Improve efficiency if Valid: insert into P1Meta and check conditions again: If now already in P1Meta then use this existing result.
-  if(!params.multiThreading){
+  if(!params.multiThreading || !params.signClientProposals){
     if(!CheckProposalValidity(msg, txn, txnDigest, true)){
        ongoingMap::accessor b;
        //std::cerr << "ONGOING ERASE (Fallback-INVALID): " << BytesToHex(txnDigest, 16).c_str() << " On CPU: " << sched_getcpu()<< std::endl;
@@ -2034,7 +2034,7 @@ void Server::ProcessProposalFB(proto::Phase1FB &msg, const TransportAddress &rem
   else{
     auto try_exec(std::bind(&Server::TryExec, this, std::ref(msg), std::ref(remote), txnDigest, txn));
         auto f = [this, msg_ptr = &msg, txn, txnDigest, try_exec]() mutable {
-            void* valid = CheckProposalValidity(*msg_ptr, txn, txnDigest);
+            void* valid = CheckProposalValidity(*msg_ptr, txn, txnDigest, true);
             if(!valid){
               ongoingMap::accessor b;
               //std::cerr << "ONGOING ERASE (Fallback-INVALID): " << BytesToHex(txnDigest, 16).c_str() << " On CPU: " << sched_getcpu()<< std::endl;
@@ -2070,7 +2070,7 @@ void* Server::TryExec(proto::Phase1FB &msg, const TransportAddress &remote, std:
   else{
         Debug("WAITING on dep in order to send Phase1FBReply on path ExecP1 for txn: %s, sent by client: %d", BytesToHex(txnDigest, 16).c_str(), msg.req_id());
   }
-  if(params.mainThreadDispatching && (!params.dispatchMessageReceive || params.parallel_CCC)) FreePhase1FBmessage(&msg); 
+  if((params.mainThreadDispatching && (!params.dispatchMessageReceive || params.parallel_CCC)) || (params.multiThreading && params.signClientProposals)) FreePhase1FBmessage(&msg); 
 
   return (void*) true;
 }
@@ -2151,8 +2151,8 @@ void Server::SetP1(uint64_t reqId, proto::Phase1Reply *p1Reply, const std::strin
      //p1Reply->mutable_abstain_conflict()->set_req_id(0);
     if(params.signClientProposals){
       p1MetaDataMap::accessor c;
-      p1MetaData.find(c, abstain_conflict->txndigest());
-      if(c->second.hasSignedP1){ //only send a abstain conflict if the signed message still exists -- if it does not, then the conflict in question has already committed/aborted
+      bool p1MetaExists = p1MetaData.find(c, abstain_conflict->txndigest());
+      if(p1MetaExists && c->second.hasSignedP1){ //only send a abstain conflict if the signed message still exists -- if it does not, then the conflict in question has already committed/aborted
         p1Reply->mutable_abstain_conflict()->set_req_id(0);
         *p1Reply->mutable_abstain_conflict()->mutable_signed_txn() = *c->second.signed_txn;
       } 

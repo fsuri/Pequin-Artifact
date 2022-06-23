@@ -521,9 +521,10 @@ void Server::CheckDependents(const std::string &txnDigest) {
         //waitingDependencies.erase(dependent);
         const proto::CommittedProof *conflict = nullptr;
 
-        p1MetaDataMap::accessor c;
-        BufferP1Result(c, result, conflict, dependent, 2);
-        c.release();
+        //p1MetaDataMap::accessor c;
+        //BufferP1Result(c, result, conflict, dependent, 2);
+        //c.release();
+        BufferP1Result(result, conflict, dependent, 2);
 
         if(f->second.original_client){
           SendPhase1Reply(f->second.reqId, result, conflict, dependent,

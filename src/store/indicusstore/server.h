@@ -258,7 +258,7 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
 
     struct P1MetaData {
       P1MetaData(): conflict(nullptr), hasP1(false), sub_original(false), hasSignedP1(false){}
-      P1MetaData(proto::ConcurrencyControl::Result result): result(result), conflict(nullptr), hasP1(false), sub_original(false), hasSignedP1(false){}
+      P1MetaData(proto::ConcurrencyControl::Result result): result(result), conflict(nullptr), hasP1(true), sub_original(false), hasSignedP1(false){}
       ~P1MetaData(){
         if(signed_txn != nullptr) delete signed_txn;
       }

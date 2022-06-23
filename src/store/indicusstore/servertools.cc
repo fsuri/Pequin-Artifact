@@ -94,13 +94,13 @@ void Server::ManageDispatchRead(const TransportAddress &remote, const std::strin
 
 void Server::ManageDispatchPhase1(const TransportAddress &remote, const std::string &data){
     //Use only with OCC parallel, not full parallel P1. Suffers from non-atomicity in the latter case
-    if(!params.mainThreadDispatching || (params.dispatchMessageReceive && !params.parallel_CCC)){
+    if((!params.mainThreadDispatching || (params.dispatchMessageReceive && !params.parallel_CCC)) && (!params.multiThreading || !params.signClientProposals)){
       //if no dispatching intended, or already on main worker thread but no parallel OCC needed
                                     //i.e. resources do not need to be copied again.
      phase1.ParseFromString(data);
      HandlePhase1(remote, phase1);
     }
-    else{ // mainThreadDispatch == true && (dispatchMessageReceive == false, or parallel_CCC == true)   TODO add.. OR  (multiThreading && signClientProposals)
+    else{ // (mainThreadDispatch == true && (dispatchMessageReceive == false, or parallel_CCC == true))  ||  (multiThreading && signClientProposals)
       proto::Phase1 *phase1Copy = GetUnusedPhase1message();
       phase1Copy->ParseFromString(data);
       auto f = [this, &remote, phase1Copy]() {
@@ -187,7 +187,7 @@ void Server::ManageDispatchWriteback(const TransportAddress &remote, const std::
 }
 
 void Server::ManageDispatchPhase1FB(const TransportAddress &remote, const std::string &data){
-    if(!params.mainThreadDispatching || (params.dispatchMessageReceive && !params.parallel_CCC)){
+    if(!params.mainThreadDispatching || (params.dispatchMessageReceive && !params.parallel_CCC) && (!params.multiThreading || !params.signClientProposals)){
       phase1FB.ParseFromString(data);
       HandlePhase1FB(remote, phase1FB);
     }
@@ -338,7 +338,7 @@ bool Server::VerifyDependencies(::google::protobuf::Message &msg, const proto::T
         if (!dep.has_write_sigs()) {
           Debug("Dep for txn %s missing signatures.",
               BytesToHex(txnDigest, 16).c_str());
-           if(params.mainThreadDispatching && (!params.dispatchMessageReceive || params.parallel_CCC)){
+           if((params.mainThreadDispatching && (!params.dispatchMessageReceive || params.parallel_CCC)) || (params.multiThreading && params.signClientProposals)){
                 if(fallback)  FreePhase1FBmessage(&static_cast<proto::Phase1FB&>(msg));
                 if(!fallback) FreePhase1message(&static_cast<proto::Phase1&>(msg));
             } 
@@ -350,7 +350,7 @@ bool Server::VerifyDependencies(::google::protobuf::Message &msg, const proto::T
           Debug("VALIDATE Dependency failed for txn %s.",
               BytesToHex(txnDigest, 16).c_str());
           // safe to ignore Byzantine client
-           if(params.mainThreadDispatching && (!params.dispatchMessageReceive || params.parallel_CCC)){
+           if((params.mainThreadDispatching && (!params.dispatchMessageReceive || params.parallel_CCC)) || (params.multiThreading && params.signClientProposals)){
                 if(fallback)  FreePhase1FBmessage(&static_cast<proto::Phase1FB&>(msg));
                 if(!fallback) FreePhase1message(&static_cast<proto::Phase1&>(msg));
             } 
@@ -438,7 +438,7 @@ bool Server::VerifyClientProposal(proto::Phase1 &msg, const proto::Transaction *
          if(txn->timestamp().id() != msg.signed_txn().process_id()){
             Debug("Client id[%d] does not match Timestamp with id[%d] for txn %s", 
                    msg.signed_txn().process_id(), txn->timestamp().id(), BytesToHex(txnDigest, 16).c_str());
-            if(params.mainThreadDispatching && (!params.dispatchMessageReceive || params.parallel_CCC)) FreePhase1message(&msg);
+            if((params.mainThreadDispatching && (!params.dispatchMessageReceive || params.parallel_CCC)) || (params.multiThreading && params.signClientProposals)) FreePhase1message(&msg);
             //if(params.signClientProposals) delete txn; //true by definition of reaching this function (kept param for readability)
             return false;
          }
@@ -450,7 +450,7 @@ bool Server::VerifyClientProposal(proto::Phase1 &msg, const proto::Transaction *
           msg.signed_txn().data(),
           msg.signed_txn().signature())) {
               Debug("Client signatures invalid for txn %s", BytesToHex(txnDigest, 16).c_str());
-            if(params.mainThreadDispatching && (!params.dispatchMessageReceive || params.parallel_CCC)) FreePhase1message(&msg);
+            if((params.mainThreadDispatching && (!params.dispatchMessageReceive || params.parallel_CCC)) || (params.multiThreading && params.signClientProposals)) FreePhase1message(&msg);
             //if(params.signClientProposals) delete txn; //true by definition of reaching this function (kept param for readability)
             return false;
           }
@@ -477,7 +477,7 @@ bool Server::VerifyClientProposal(proto::Phase1FB &msg, const proto::Transaction
          if(txn->timestamp().id() != msg.signed_txn().process_id()){
             Debug("Client id[%d] does not match Timestamp with id[%d] for txn %s", 
                    msg.signed_txn().process_id(), txn->timestamp().id(), BytesToHex(txnDigest, 16).c_str());
-            if(params.mainThreadDispatching && (!params.dispatchMessageReceive || params.parallel_CCC))FreePhase1FBmessage(&msg);          
+            if((params.mainThreadDispatching && (!params.dispatchMessageReceive || params.parallel_CCC)) || (params.multiThreading && params.signClientProposals))FreePhase1FBmessage(&msg);          
             //if(params.signClientProposals) delete txn; //true by definition of reaching this function (kept param for readability)
             return false;
          }
@@ -488,7 +488,7 @@ bool Server::VerifyClientProposal(proto::Phase1FB &msg, const proto::Transaction
           msg.signed_txn().data(),
           msg.signed_txn().signature())) {
               Debug("Client signatures invalid for txn %s", BytesToHex(txnDigest, 16).c_str());
-            if(params.mainThreadDispatching && (!params.dispatchMessageReceive || params.parallel_CCC)) FreePhase1FBmessage(&msg);          
+            if((params.mainThreadDispatching && (!params.dispatchMessageReceive || params.parallel_CCC)) || (params.multiThreading && params.signClientProposals)) FreePhase1FBmessage(&msg);          
             //if(params.signClientProposals) delete txn; //true by definition of reaching this function (kept param for readability)
             return false;
           }
@@ -562,7 +562,7 @@ void* Server::TryPrepare(proto::Phase1 &msg, const TransportAddress &remote, pro
             else{
                 Panic("No longer ongoing, but neither committed nor aborted");
             }
-            if(params.mainThreadDispatching && (!params.dispatchMessageReceive || params.parallel_CCC)) FreePhase1message(msg_ptr);
+            if((params.mainThreadDispatching && (!params.dispatchMessageReceive || params.parallel_CCC)) || (params.multiThreading && params.signClientProposals)) FreePhase1message(msg_ptr);
             //if(params.signClientProposals) delete txn; //Could've been concurrently moved to committed --> cannot risk deleting that version. Risking possible leak here instead (although will never really be called)
             return (void*) false;
           }
@@ -607,11 +607,11 @@ void* Server::TryPrepare(proto::Phase1 &msg, const TransportAddress &remote, pro
      b->second.num_concurrent_clients++;
      b.release();
 
-    if(!params.multiThreading){
+    if(!params.multiThreading || !params.signClientProposals){
+    //if(!params.multiThreading){
         Debug("ProcessProposal for txn[%s] on MainThread %d", BytesToHex(txnDigest, 16).c_str(), sched_getcpu());
         void* valid = CheckProposalValidity(msg, txn, txnDigest);
         if(!valid){
-            Panic("Proposal should be valid");
             ongoingMap::accessor b;
             //std::cerr << "ONGOING ERASE (Normal-INVALID): " << BytesToHex(txnDigest, 16).c_str() << " On CPU: " << sched_getcpu()<< std::endl;
             ongoing.find(b, txnDigest);
@@ -621,17 +621,17 @@ void* Server::TryPrepare(proto::Phase1 &msg, const TransportAddress &remote, pro
                 ongoing.erase(b);
             }
             b.release();
+            Panic("Proposal should be valid");
             return; //Check Proposal Validity already cleans up message in this case.
         } 
         TryPrepare(msg, remote, txn, txnDigest, committedProof, abstain_conflict, isGossip, result); //Includes call to HandlePhase1CB(..);
     }
-    else{
+    else{ //multithreading && sign Client Proposal
         auto try_prep(std::bind(&Server::TryPrepare, this, std::ref(msg), std::ref(remote), txn, txnDigest, committedProof, abstain_conflict, isGossip, result, false));
         auto f = [this, msg_ptr = &msg, txn, txnDigest, try_prep]() mutable {
             Debug("ProcessProposal for txn[%s] on WorkerThread %d", BytesToHex(txnDigest, 16).c_str(), sched_getcpu());
             void* valid = CheckProposalValidity(*msg_ptr, txn, txnDigest);
             if(!valid){
-                Panic("Proposal should be valid");
                 ongoingMap::accessor b;
                 //std::cerr << "ONGOING ERASE (Normal-INVALID): " << BytesToHex(txnDigest, 16).c_str() << " On CPU: " << sched_getcpu()<< std::endl;
                 ongoing.find(b, txnDigest);
@@ -641,6 +641,7 @@ void* Server::TryPrepare(proto::Phase1 &msg, const TransportAddress &remote, pro
                     ongoing.erase(b);
                 }
                 b.release();
+                Panic("Proposal should be valid");
                 return (void*) false; 
             } 
 
@@ -669,7 +670,7 @@ void* Server::TryPrepare(proto::Phase1 &msg, const TransportAddress &remote, pro
     //     }
     //     else{ //parallel_CCC == false, or mainThreadDispatching = false Dispatch verification, and then callback to mainthread to continue with OCC check
     //         proto::Phase1 *msg_ptr = new proto::Phase1(msg);
-    //         if(params.mainThreadDispatching && (!params.dispatchMessageReceive || params.parallel_CCC)) FreePhase1message(&msg); //create a copy and delete the old one if applicable.
+    //         if((params.mainThreadDispatching && (!params.dispatchMessageReceive || params.parallel_CCC)) || (params.multiThreading && params.signClientProposals)) FreePhase1message(&msg); //create a copy and delete the old one if applicable.
     //         auto f(std::bind(&Server::VerifyClientProposal, this, std::ref(*msg_ptr), txn, txnDigest));
     //         auto g(std::bind(&Server::TryPrepare, this, std::ref(*msg_ptr), std::ref(remote), txn, txnDigest, committedProof, abstain_conflict, isGossip, result, false));
             
@@ -692,35 +693,7 @@ void Server::BufferP1Result(proto::ConcurrencyControl::Result &result,
   const proto::CommittedProof *conflict, const std::string &txnDigest, int fb){
 
     p1MetaDataMap::accessor c;
-    p1MetaData.insert(c, txnDigest);
-    if(!c->second.hasP1){
-      c->second.result = result;
-      //std::cerr << "Path[" << fb << "] Buffered initial result: " << c->second.result << " for txn: " << BytesToHex(txnDigest, 64) << std::endl;
-
-      //add abort proof so we can use it for fallbacks easily.
-      //if(result == proto::ConcurrencyControl::ABORT) XXX //by default nullptr if passed
-      c->second.conflict = conflict;
-      c->second.hasP1 = true;
-    }
-    else{
-      if(result != proto::ConcurrencyControl::WAIT){
-        //If a result was already loggin in parallel, adopt it.
-        if(c->second.result != proto::ConcurrencyControl::WAIT){
-          //std::cerr << "Path[" << fb << "] Tried replacing result: " << c->second.result << " with result:" << result << " for txn: " << BytesToHex(txnDigest, 64) << std::endl;
-          result = c->second.result;
-          conflict = c->second.conflict;
-          // Panic("Should not be replacing");
-        }
-        else{
-          c->second.result = result;
-          c->second.conflict = conflict; //by default nullptr if passed; should never be called here since WAIT can only change to COMMIT/ABSTAIN
-          //std::cerr << "Path[" << fb << "] Replacing result: " << c->second.result << " with result:" << result << " for txn: " << BytesToHex(txnDigest, 64) << std::endl;
-        }
-      }
-      else{
-        //std::cerr << "Path[" << fb << "] Unable to buffer result: " << result << " for txn: " << BytesToHex(txnDigest, 64) << std::endl;
-      }
-    }
+    BufferP1Result(c, result, conflict, txnDigest, fb);
     c.release();
 }
 
@@ -764,8 +737,9 @@ void Server::LookupP1Decision(const std::string &txnDigest, int64_t &myProcessId
    //if(params.mainThreadDispatching) p1DecisionsMutex.lock();
   p1MetaDataMap::const_accessor c;
 
-  auto hasP1 = p1MetaData.find(c, txnDigest);
-  if(hasP1){
+  p1MetaData.find(c, txnDigest);
+  bool hasP1result = p1MetaData.find(c, txnDigest)? c->second.hasP1 : false;
+  if(hasP1result){
   //if (p1DecisionItr != p1Decisions.end()) {
     if(c->second.result != proto::ConcurrencyControl::WAIT){
       myProcessId = id;

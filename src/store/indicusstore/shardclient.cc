@@ -1298,7 +1298,7 @@ void ShardClient::HandlePhase2Reply(const proto::Phase2Reply &reply) {
 
     if (!itr->second->replicasVerified.insert(reply.signed_p2_decision().process_id()).second) {
       Debug("Already verified signature from %lu.", reply.signed_p2_decision().process_id());
-      Panic("received duplicate P2 from server %lu", reply.signed_p2_decision().process_id());
+      //Panic("received duplicate P2 from server %lu", reply.signed_p2_decision().process_id());
       return;
     }
 
@@ -1419,7 +1419,7 @@ void ShardClient::HandlePhase2Reply_MultiView(const proto::Phase2Reply &reply) {
     if (!viewP2RS.replicasVerified.insert(reply.signed_p2_decision().process_id()).second) {
     //if (!viewP2RS.first.insert(reply.signed_p2_decision().process_id()).second) {
       Debug("Already verified signature from %lu. for view %lu", reply.signed_p2_decision().process_id(), p2Decision->view());
-      Panic("duplicate P2 from server %lu", reply.signed_p2_decision().process_id());
+      //Panic("duplicate P2 from server %lu", reply.signed_p2_decision().process_id());
       return;
     }
   }
