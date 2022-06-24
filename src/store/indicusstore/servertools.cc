@@ -510,7 +510,7 @@ bool Server::VerifyClientProposal(proto::Phase1FB &msg, const proto::Transaction
 void* Server::TryPrepare(proto::Phase1 &msg, const TransportAddress &remote, proto::Transaction *txn,
                         std::string &txnDigest, const proto::CommittedProof *committedProof, 
                         const proto::Transaction *abstain_conflict, bool isGossip,
-                        proto::ConcurrencyControl::Result &result, bool combineProposalVerification)
+                        proto::ConcurrencyControl::Result &result)
   {
 
     Debug("Calling TryPrepare for txn[%s] on MainThread %d", BytesToHex(txnDigest, 16).c_str(), sched_getcpu());
@@ -545,7 +545,7 @@ void* Server::TryPrepare(proto::Phase1 &msg, const TransportAddress &remote, pro
       return (void*) true;
     }
     else{ // if mainThreadDispatching && parallel OCC.
-      auto f = [this, msg_ptr = &msg, remote_ptr = &remote, txnDigest, txn, committedProof, abstain_conflict, isGossip, combineProposalVerification]() mutable {
+      auto f = [this, msg_ptr = &msg, remote_ptr = &remote, txnDigest, txn, committedProof, abstain_conflict, isGossip]() mutable {
         Timestamp retryTs;
           //check if concurrently committed/aborted already, and if so return
           ongoingMap::const_accessor b;
@@ -568,11 +568,6 @@ void* Server::TryPrepare(proto::Phase1 &msg, const TransportAddress &remote, pro
           }
           b.release();
 
-        // if(combineProposalVerification){
-        //   if(!VerifyClientProposal(*msg_ptr, txn, txnDigest)){
-        //       return (void*) false; //Ignore P1 request.
-        //   }
-        // }  
 
         Debug("starting occ check for txn: %s", BytesToHex(txnDigest, 16).c_str());
         proto::ConcurrencyControl::Result *result = new proto::ConcurrencyControl::Result(this->DoOCCCheck(msg_ptr->req_id(),
@@ -627,7 +622,7 @@ void* Server::TryPrepare(proto::Phase1 &msg, const TransportAddress &remote, pro
         TryPrepare(msg, remote, txn, txnDigest, committedProof, abstain_conflict, isGossip, result); //Includes call to HandlePhase1CB(..);
     }
     else{ //multithreading && sign Client Proposal
-        auto try_prep(std::bind(&Server::TryPrepare, this, std::ref(msg), std::ref(remote), txn, txnDigest, committedProof, abstain_conflict, isGossip, result, false));
+        auto try_prep(std::bind(&Server::TryPrepare, this, std::ref(msg), std::ref(remote), txn, txnDigest, committedProof, abstain_conflict, isGossip, result));
         auto f = [this, msg_ptr = &msg, txn, txnDigest, try_prep]() mutable {
             Debug("ProcessProposal for txn[%s] on WorkerThread %d", BytesToHex(txnDigest, 16).c_str(), sched_getcpu());
             void* valid = CheckProposalValidity(*msg_ptr, txn, txnDigest);

@@ -85,6 +85,7 @@ Server::Server(const transport::Configuration &config, int groupIdx, int idx,
   stats.Increment("total_equiv_received_adopt", 0);
 
   fprintf(stderr, "Starting Indicus replica. ID: %d, IDX: %d, GROUP: %d\n", id, idx, groupIdx);
+  fprintf(stderr, "Sign Client Proposals? %s\n", params.signClientProposals ? "True" : "False");
   Debug("Starting Indicus replica %d.", id);
   transport->Register(this, config, groupIdx, idx);
   _Latency_Init(&committedReadInsertLat, "committed_read_insert_lat");
@@ -654,7 +655,7 @@ void Server::HandlePhase1(const TransportAddress &remote,
   }
   
   std::string txnDigest = TransactionDigest(*txn, params.hashDigest); //could parallelize it too hypothetically
-  *txn->mutable_txndigest() = txnDigest; //Hack to have access to txnDigest inside TXN later (used for abstain conflict)
+  if(params.signClientProposals) *txn->mutable_txndigest() = txnDigest; //Hack to have access to txnDigest inside TXN later (used for abstain conflict)
   
 
   Debug("PHASE1[%lu:%lu][%s] with ts %lu.", txn->client_id(),
@@ -1997,7 +1998,7 @@ void Server::HandlePhase1FB(const TransportAddress &remote, proto::Phase1FB &msg
 void Server::AddOngoing(proto::Phase1FB &msg, std::string &txnDigest, proto::Transaction* txn ){
    //Add to ongoing Before calling Exec
       if(!params.signClientProposals) txn = msg.release_txn();
-      *txn->mutable_txndigest() = txnDigest; //HACK to include txnDigest to lookup signed_tx.
+      if(params.signClientProposals) *txn->mutable_txndigest() = txnDigest; //HACK to include txnDigest to lookup signed_tx.
 
       ongoingMap::accessor b;
       //std::cerr << "ONGOING INSERT (Fallback): " << BytesToHex(txnDigest, 16).c_str() << " On CPU: " << sched_getcpu()<< std::endl;

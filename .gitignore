@@ -47,6 +47,9 @@ src/store/bftsmartstore_augustus/library/remote
 src/store/bftsmartstore_stable/library/remote
 src/store/bftsmartstore/library/jars
 
+src/.vscode
+src/.vscode/*
+
 ################################################################################
 # vim
 ################################################################################

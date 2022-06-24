@@ -361,7 +361,7 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
   void* TryPrepare(proto::Phase1 &msg, const TransportAddress &remote, proto::Transaction *txn,
                         std::string &txnDigest, const proto::CommittedProof *committedProof, 
                         const proto::Transaction *abstain_conflict, bool isGossip,
-                        proto::ConcurrencyControl::Result &result, bool combineProposalVerification=false);
+                        proto::ConcurrencyControl::Result &result);
   void ProcessProposal(proto::Phase1 &msg, const TransportAddress &remote, proto::Transaction *txn,
                         std::string &txnDigest, const proto::CommittedProof *committedProof, 
                         const proto::Transaction *abstain_conflict, bool isGossip,
