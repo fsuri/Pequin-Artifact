@@ -203,17 +203,8 @@ void ShardClient::Phase1(uint64_t id, const proto::Transaction &transaction, con
   // create prepare request
   phase1.Clear();
   phase1.set_req_id(reqId);
+  *phase1.mutable_txn() = transaction;
   phase1.set_replica_gossip(false);
-
-  if(params.signClientProposals){
-    //uint64_t keyId = keyManager->GetClientKeyId(client_id); 
-    //Sign with client_key id, but include client id -- so server can confirm Txn Timestamp.
-    //std::cerr << "Signing txn: " << BytesToHex(TransactionDigest(transaction, params.hashDigest), 16).c_str() << " client id: " << client_id << "; clientKeyid: " << keyManager->GetClientKeyId(client_id) << std::endl;
-     SignMessage(&transaction, keyManager->GetPrivateKey(keyManager->GetClientKeyId(client_id)), client_id, phase1.mutable_signed_txn());
-  }
-  else{
-    *phase1.mutable_txn() = transaction;
-  }
 
 
   if(failureActive && params.injectFailure.type == InjectFailureType::CLIENT_SEND_PARTIAL_P1){
@@ -230,7 +221,7 @@ void ShardClient::Phase1(uint64_t id, const proto::Transaction &transaction, con
   else if(failureActive && params.injectFailure.type == InjectFailureType::CLIENT_CRASH) {
     transport->SendMessageToGroup(this, group, phase1);
   }
-  else{ //Normal case: No failure
+  else{
     transport->SendMessageToGroup(this, group, phase1);
   }
   //transport->SendMessageToGroup(this, group, phase1);
@@ -586,20 +577,15 @@ void ShardClient::Abort(uint64_t id, const TimestampMessage &ts) {
 
   if (params.validateProofs && params.signedMessages) {
     proto::AbortInternal internal(abort.internal());
-
-    //Not using batchsigner -- Server is now configured to use client_verifier. Uses new client_id mapping.
-    SignMessage(&internal, keyManager->GetPrivateKey(keyManager->GetClientKeyId(client_id)), client_id, abort.mutable_signed_internal());
-          //deprecated: Server no longer accomodates batch verifying for client signatures.
-          // if (params.signatureBatchSize == 1) {
-          //   //hack: wraps around; can result in multiple clients/servers using the same keys. 
-          //   SignMessage(&internal, keyManager->GetPrivateKey(client_id % 1024), client_id % 1024,
-          //       abort.mutable_signed_internal());
-          // } else {
-          //   std::vector<::google::protobuf::Message*> messages = {&internal};
-          //   std::vector<proto::SignedMessage*> signedMessages = {abort.mutable_signed_internal()};
-          //   SignMessages(messages, keyManager->GetPrivateKey(client_id % 1024), client_id % 1024,
-          //       signedMessages, params.merkleBranchFactor);
-          // }
+    if (params.signatureBatchSize == 1) {
+      SignMessage(&internal, keyManager->GetPrivateKey(client_id % 1024), client_id % 1024,
+          abort.mutable_signed_internal());
+    } else {
+      std::vector<::google::protobuf::Message*> messages = {&internal};
+      std::vector<proto::SignedMessage*> signedMessages = {abort.mutable_signed_internal()};
+      SignMessages(messages, keyManager->GetPrivateKey(client_id % 1024), client_id % 1024,
+          signedMessages, params.merkleBranchFactor);
+    }
   }
 
   transport->SendMessageToGroup(this, group, abort);
@@ -1026,7 +1012,7 @@ void ShardClient::ProcessP1R(proto::Phase1Reply &reply, bool FB_path, PendingFB 
 
   const proto::ConcurrencyControl *cc = nullptr;
   if (hasSigned) {
-    Debug("[group %i] Verifying signed_cc from server %lu with signatures bytes %lu"
+    Debug("[group %i] Verifying signed_cc from %lu with signatures bytes %lu"
         " because has_cc %d and ccr %d.",
         group, reply.signed_cc().process_id(), reply.signed_cc().signature().length(),
         reply.has_cc(),
@@ -1037,7 +1023,6 @@ void ShardClient::ProcessP1R(proto::Phase1Reply &reply, bool FB_path, PendingFB 
 
     if (!pendingPhase1->replicasVerified.insert(reply.signed_cc().process_id()).second) {
       Debug("Already verified signature from %lu.", reply.signed_cc().process_id());
-      //Panic("Why are we receiving 2 P1 replies from a replica... client %lu", client_id);
       return;
     }
 
@@ -1068,7 +1053,7 @@ void ShardClient::ProcessP1R(proto::Phase1Reply &reply, bool FB_path, PendingFB 
     cc = &reply.cc();
   }
 
-  Debug("[group %i][replica %lu] PHASE1R process ccr=%d", group, reply.signed_cc().process_id(), cc->ccr());
+  Debug("[group %i] PHASE1R process ccr=%d", group, cc->ccr());
 
   if (!pendingPhase1->p1Validator.ProcessMessage(*cc, (failureActive && !FB_path) )) {
     return;
@@ -1082,7 +1067,7 @@ void ShardClient::ProcessP1R(proto::Phase1Reply &reply, bool FB_path, PendingFB 
 
   //Keep track of conflicts.
   if(reply.has_abstain_conflict()){
-    proto::Phase1* abstain_conflict = reply.release_abstain_conflict();
+    proto::Transaction* abstain_conflict = reply.release_abstain_conflict();
     pendingPhase1->abstain_conflicts.insert(abstain_conflict);
   }
 
@@ -1280,7 +1265,6 @@ void ShardClient::ProcessP1R(proto::Phase1Reply &reply, bool FB_path, PendingFB 
   }
 }
 
-//WARNING: This version does not implement handling for receiving P2 Replies in views > 0. It expects view = 0. Only use for microbenchmark of signature costs (with fallback off)
 void ShardClient::HandlePhase2Reply(const proto::Phase2Reply &reply) {
   auto itr = this->pendingPhase2s.find(reply.req_id());
   if (itr == this->pendingPhase2s.end()) {
@@ -1298,7 +1282,7 @@ void ShardClient::HandlePhase2Reply(const proto::Phase2Reply &reply) {
 
     if (!itr->second->replicasVerified.insert(reply.signed_p2_decision().process_id()).second) {
       Debug("Already verified signature from %lu.", reply.signed_p2_decision().process_id());
-      //Panic("received duplicate P2 from server %lu", reply.signed_p2_decision().process_id());
+      Panic("duplicate P2 from server %lu", reply.signed_p2_decision().process_id());
       return;
     }
 
@@ -1308,6 +1292,7 @@ void ShardClient::HandlePhase2Reply(const proto::Phase2Reply &reply) {
       return;
     }
 
+    //TODO: RECOMMENT, just testing
     if (!verifier->Verify(keyManager->GetPublicKey(
             reply.signed_p2_decision().process_id()),
           reply.signed_p2_decision().data(),
@@ -1416,10 +1401,9 @@ void ShardClient::HandlePhase2Reply_MultiView(const proto::Phase2Reply &reply) {
   view_p2ReplySigs &viewP2RS =  itr->second->manage_p2ReplySigs[p2Decision->view()];
 
   if (params.validateProofs && params.signedMessages) {
-    if (!viewP2RS.replicasVerified.insert(reply.signed_p2_decision().process_id()).second) {
-    //if (!viewP2RS.first.insert(reply.signed_p2_decision().process_id()).second) {
+    if (!viewP2RS.first.insert(reply.signed_p2_decision().process_id()).second) {
       Debug("Already verified signature from %lu. for view %lu", reply.signed_p2_decision().process_id(), p2Decision->view());
-      //Panic("duplicate P2 from server %lu", reply.signed_p2_decision().process_id());
+      Panic("duplicate P2 from server %lu", reply.signed_p2_decision().process_id());
       return;
     }
   }
@@ -1432,7 +1416,7 @@ void ShardClient::HandlePhase2Reply_MultiView(const proto::Phase2Reply &reply) {
   //       fprintf(stderr, "Expected decision %d, but got decision %d from view %lu", itr->second->decision, p2Decision->decision(), p2Decision->view());
   // }
 
-  proto::Signatures &p2RS = viewP2RS.decision_sigs[p2Decision->decision()];
+  proto::Signatures &p2RS = viewP2RS.second[p2Decision->decision()];
 
   if (params.validateProofs && params.signedMessages) {
     proto::Signature *sig = p2RS.add_sigs();
@@ -1481,7 +1465,7 @@ void ShardClient::Phase1Decision(
   pendingPhase1->pcb(pendingPhase1->decision, pendingPhase1->fast, pendingPhase1->conflict_flag,
       pendingPhase1->conflict, pendingPhase1->p1ReplySigs, eqv_ready);
 
-  //Start FB for conflicts if we abstained consecutiveMax (e.g. two) times or more in a row:
+  //Start FB for conflicts if we abstained twice or more in a row:
   if(pendingPhase1->decision == proto::ABORT && !pendingPhase1->conflict_flag){
     consecutive_abstains++;
   }
@@ -1489,24 +1473,11 @@ void ShardClient::Phase1Decision(
     consecutive_abstains = 0;
   }
   if(!params.no_fallback && consecutive_abstains >= consecutiveMax){
-    for(proto::Phase1 *p1: pendingPhase1->abstain_conflicts){
-      
-      proto::Transaction *txn;
-      if(params.signClientProposals){
-        txn = new proto::Transaction();
-        UW_ASSERT(txn->ParseFromString(p1->signed_txn().data()));
-      }
-      else{
-        txn = p1->mutable_txn();
-      }
-
+    for(auto txn: pendingPhase1->abstain_conflicts){
       //TODO: dont process redundant digests
       if(!TransactionsConflict(pendingPhase1->txn_, *txn)) continue;
       std::string txnDigest(TransactionDigest(*txn, params.hashDigest));
-
-      if(params.signClientProposals) p1->set_allocated_txn(txn); 
-      pendingPhase1->ConflictCB(txnDigest, p1);
-      //if(params.signClientProposals) delete txn;
+      pendingPhase1->ConflictCB(txnDigest, txn);
     }
   }
 
@@ -1670,17 +1641,7 @@ void ShardClient::EraseRelay(const std::string &txnDigest){
 
 void ShardClient::HandlePhase1Relay(proto::RelayP1 &relayP1){
 
-  proto::Transaction *txn;
-  if(params.signClientProposals){
-    txn = new proto::Transaction();
-    UW_ASSERT(txn->ParseFromString(relayP1.p1().signed_txn().data()));
-  }
-  else{
-    txn = relayP1.mutable_p1()->mutable_txn();
-  }
-  std::string txnDigest(TransactionDigest(*txn, params.hashDigest));
-  //if(params.signClientProposals) delete txn;
-  if(params.signClientProposals) relayP1.mutable_p1()->set_allocated_txn(txn);
+  std::string txnDigest(TransactionDigest(relayP1.p1().txn(), params.hashDigest));
 
   //only process the first relay for a txn.
   //if (!pendingRelays.insert(txnDigest).second) return; //USING this works? seemingly does not either.
@@ -1710,7 +1671,7 @@ void ShardClient::HandlePhase1Relay(proto::RelayP1 &relayP1){
 }
 
 //TODO: Move all callbacks (also in client.)
-void ShardClient::Phase1FB(uint64_t reqId, proto::Transaction &txn, proto::SignedMessage &signed_txn, const std::string &txnDigest,
+void ShardClient::Phase1FB(uint64_t reqId, proto::Transaction &txn, const std::string &txnDigest,
  relayP1FB_callback rP1FB, phase1FB_callbackA p1FBcbA, phase1FB_callbackB p1FBcbB,
  phase2FB_callback p2FBcb, writebackFB_callback wbFBcb, invokeFB_callback invFBcb, int64_t logGrp) {
 
@@ -1738,15 +1699,7 @@ void ShardClient::Phase1FB(uint64_t reqId, proto::Transaction &txn, proto::Signe
   // create prepare request
   phase1FB.Clear();
   phase1FB.set_req_id(reqId);
-  if(params.signClientProposals){
-    *phase1FB.mutable_signed_txn() = signed_txn;
-  }
-  else{
-    *phase1FB.mutable_txn() = txn;
-  }
-
-  //Debugging + set interested clients
-  phase1FB.set_client_id(client_id);
+  *phase1FB.mutable_txn() = txn;
 
   transport->SendMessageToGroup(this, group, phase1FB);
 
@@ -1841,9 +1794,6 @@ void ShardClient::ProcessP1FBR(proto::Phase1Reply &reply, PendingFB *pendingFB, 
     if (params.validateProofs && params.signedMessages) {
       *phase2FB.mutable_p1_sigs() = groupedSigs;
     }
-    //Debugging + set interested clients.
-    phase2FB.set_client_id(client_id);
-
     transport->SendMessageToGroup(this, group, phase2FB);
 
 
@@ -1864,9 +1814,6 @@ void ShardClient::ProcessP1FBR(proto::Phase1Reply &reply, PendingFB *pendingFB, 
     if (params.validateProofs && params.signedMessages) {
       *phase2FB.mutable_p2_replies() = p2Replies;
     }
-    //Debugging + set interested clients.
-    phase2FB.set_client_id(client_id);
-
     transport->SendMessageToGroup(this, group, phase2FB);
 
 
@@ -1994,7 +1941,6 @@ bool ShardClient::ProcessP2FBR(proto::Phase2Reply &reply, PendingFB *pendingFB, 
         Debug("[group %i] Phase2FBReply missing signed_p2_decision.", group);
         return false;
       }
-
       if (!IsReplicaInGroup(reply.signed_p2_decision().process_id(), group, config)) {
         Debug("[group %d] Phase2FBReply from replica %lu who is not in group.",
             group, reply.signed_p2_decision().process_id());
@@ -2018,8 +1964,8 @@ bool ShardClient::ProcessP2FBR(proto::Phase2Reply &reply, PendingFB *pendingFB, 
     uint64_t view = p2Decision->view();
     uint64_t reqID = reply.req_id();
 
-    Debug("[group %i][replica %lu] PHASE2FB reply with decision %d and view %lu for txn %s", group, reply.signed_p2_decision().process_id(),
-        decision, view, BytesToHex(txnDigest, 16).c_str());
+    Debug("[group %i] PHASE2FB reply with decision %d and view %lu", group,
+        decision, view);
     //fprintf(stderr, "[group %i] PHASE2FB reply with decision %d and view %lu \n", group, decision, view);
 
     //that message is from likely obsolete views.
@@ -2034,12 +1980,6 @@ bool ShardClient::ProcessP2FBR(proto::Phase2Reply &reply, PendingFB *pendingFB, 
     PendingPhase2 &pendingP2 = pendingFB->pendingP2s[view][decision];
     pendingP2.reqId = reqID;
     pendingP2.decision = decision;
-
-    if (!pendingP2.replicasVerified.insert(reply.signed_p2_decision().process_id()).second) {
-      Debug("Already verified signature from server %lu in view %d for txn %s.", reply.signed_p2_decision().process_id(), view, BytesToHex(txnDigest, 16).c_str());
-      //Panic("received duplicate P2 from server %lu in view %d for txn %s. client: %lu", reply.signed_p2_decision().process_id(), view, BytesToHex(txnDigest, 16).c_str(), client_id);
-      return false;
-    }
     if (params.validateProofs && params.signedMessages) {
       proto::Signature *sig = pendingP2.p2ReplySigs.add_sigs();
       sig->set_process_id(reply.signed_p2_decision().process_id());

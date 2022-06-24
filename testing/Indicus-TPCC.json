@@ -61,7 +61,7 @@
 	
       "validate_proofs": true,
       "sign_messages": true,
-      "sign_client_proposals": false,
+      "_sign_client_proposals": false,
       "no_fallback": true,
       
       "signature_type": 4,

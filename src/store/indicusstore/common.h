@@ -123,11 +123,11 @@ template<typename T> static void* pointerWrapper(std::function<T()> func){
 
 void* BoolPointerWrapper(std::function<bool()> func);
 
-void SignMessage(const ::google::protobuf::Message* msg,
+void SignMessage(::google::protobuf::Message* msg,
     crypto::PrivKey* privateKey, uint64_t processId,
     proto::SignedMessage *signedMessage);
 
-void* asyncSignMessage(const::google::protobuf::Message* msg,
+void* asyncSignMessage(::google::protobuf::Message* msg,
     crypto::PrivKey* privateKey, uint64_t processId,
     proto::SignedMessage *signedMessage);
 
@@ -136,9 +136,9 @@ void SignMessages(const std::vector<::google::protobuf::Message*>& msgs,
     const std::vector<proto::SignedMessage*>& signedMessages,
     uint64_t merkleBranchFactor);
 
-void SignMessages(const std::vector<Triplet>& batch,
-    crypto::PrivKey* privateKey, uint64_t processId,
-    uint64_t merkleBranchFactor);
+    void SignMessages(const std::vector<Triplet>& batch,
+        crypto::PrivKey* privateKey, uint64_t processId,
+        uint64_t merkleBranchFactor);
 
 void* asyncSignMessages(const std::vector<::google::protobuf::Message*> msgs,
     crypto::PrivKey* privateKey, uint64_t processId,
@@ -389,9 +389,6 @@ typedef struct Parameters {
   const uint64_t relayP1_timeout;
   const bool replicaGossip;
 
-  const bool signClientProposals;
-  const uint32_t rtsMode;
-
   Parameters(bool signedMessages, bool validateProofs, bool hashDigest, bool verifyDeps,
     int signatureBatchSize, int64_t maxDepDepth, uint64_t readDepSize,
     bool readReplyBatch, bool adjustBatchSize, bool sharedMemBatches,
@@ -404,9 +401,7 @@ typedef struct Parameters {
     bool all_to_all_fb,
     bool no_fallback,
     uint64_t relayP1_timeout,
-    bool replicaGossip,
-    bool signClientProposals,
-    uint32_t rtsMode) :
+    bool replicaGossip) :
     signedMessages(signedMessages), validateProofs(validateProofs),
     hashDigest(hashDigest), verifyDeps(verifyDeps), signatureBatchSize(signatureBatchSize),
     maxDepDepth(maxDepDepth), readDepSize(readDepSize),
@@ -423,9 +418,7 @@ typedef struct Parameters {
     all_to_all_fb(all_to_all_fb),
     no_fallback(no_fallback),
     relayP1_timeout(relayP1_timeout),
-    replicaGossip(replicaGossip),
-    signClientProposals(signClientProposals),
-    rtsMode(rtsMode) { }
+    replicaGossip(replicaGossip) { }
 } Parameters;
 
 } // namespace indicusstore
