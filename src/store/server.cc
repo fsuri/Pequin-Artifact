@@ -112,7 +112,8 @@ DEFINE_uint64(group_idx, 0, "index of the group to which this replica belongs");
 DEFINE_uint64(num_groups, 1, "number of replica groups in the system");
 DEFINE_uint64(num_shards, 1, "number of shards in the system");
 DEFINE_bool(debug_stats, false, "record stats related to debugging");
-DEFINE_uint64(num_clients, 0, "total number of clients");
+DEFINE_uint64(num_client_hosts, 0, "total number of client processes");
+DEFINE_uint64(num_client_threads, 1, "total number of threads per client process");
 
 DEFINE_bool(rw_or_retwis, true, "true for rw, false for retwis");
 const std::string protocol_args[] = {
@@ -287,7 +288,7 @@ DEFINE_uint64(indicus_request_tx, false, "request tx"
 
 DEFINE_int32(indicus_rts_mode, 1, "Mode for managing RTS: 0 == no RTS, 1 == single RTS, 2 == set of RTS"); //set of RTS can be refined further to include interval from "read value" to TS
 
-DEFINE_bool(indicus_sign_client_proposals, true, "add signatures to client proposals "
+DEFINE_bool(indicus_sign_client_proposals, false, "add signatures to client proposals "
     " -- used for optimistic tx-ids. Can be used for access control (unimplemented)");
 
 DEFINE_string(bftsmart_codebase_dir, "", "path to directory containing bftsmart configurations");
@@ -548,8 +549,9 @@ int main(int argc, char **argv) {
   }
 
   uint64_t replica_total = FLAGS_num_shards * config.n;
+  uint64_t client_total = FLAGS_num_client_hosts * FLAGS_num_client_threads;
   // std::cerr << "config n: " << config.n << " num_shards: " << FLAGS_num_shards << " replica_total: " << replica_total << std::endl;
-  KeyManager keyManager(FLAGS_indicus_key_path, keyType, true, replica_total, FLAGS_num_clients);
+  KeyManager keyManager(FLAGS_indicus_key_path, keyType, true, replica_total, client_total, FLAGS_num_client_hosts);
   keyManager.PreLoadPubKeys(true);
 
   switch (proto) {
@@ -613,10 +615,9 @@ int main(int argc, char **argv) {
 																			FLAGS_indicus_dispatchCallbacks,
 																			FLAGS_indicus_all_to_all_fb,
 																		  FLAGS_indicus_no_fallback, FLAGS_indicus_relayP1_timeout,
-																		  FLAGS_indicus_replica_gossip);
-                                      // ,
-                                      // FLAGS_indicus_sign_client_proposals,
-                                      // FLAGS_indicus_rts_mode);
+																		  FLAGS_indicus_replica_gossip,
+                                      FLAGS_indicus_sign_client_proposals,
+                                      FLAGS_indicus_rts_mode);
       Debug("Starting new server object");
       server = new indicusstore::Server(config, FLAGS_group_idx,
                                         FLAGS_replica_idx, FLAGS_num_shards, FLAGS_num_groups, tport,

@@ -78,7 +78,7 @@ typedef std::function<void(proto::ForwardWriteback &)> forwardWB_callback;
 //Fallback typedefs:
 typedef std::function<void(proto::RelayP1 &, std::string &)> relayP1_callback;
 typedef std::function<void(const std::string &, proto::RelayP1 &, std::string &)> relayP1FB_callback;
-typedef std::function<void(const std::string &, proto::Transaction*)> finishConflictCB;
+typedef std::function<void(const std::string &, proto::Phase1*)> finishConflictCB;
 
 typedef std::function<void(proto::CommitDecision, bool, bool, const proto::CommittedProof &,
   const std::map<proto::ConcurrencyControl::Result, proto::Signatures> &)> phase1FB_callbackA;
@@ -153,7 +153,7 @@ virtual void Phase2Equivocate_Simulate(uint64_t id, const proto::Transaction &tx
   virtual void CleanFB(const std::string &txnDigest);
   virtual void EraseRelay(const std::string &txnDigest);
   virtual void StopP1FB(std::string &txnDigest);
-  virtual void Phase1FB(uint64_t reqId, proto::Transaction &txn, const std::string &txnDigest,
+  virtual void Phase1FB(uint64_t reqId, proto::Transaction &txn, proto::SignedMessage &signed_txn, const std::string &txnDigest,
    relayP1FB_callback rP1FB, phase1FB_callbackA p1FBcbA, phase1FB_callbackB p1FBcbB,
    phase2FB_callback p2FBcb, writebackFB_callback wbFBcb, invokeFB_callback invFBcb, int64_t logGrp);
   virtual void Phase2FB(uint64_t id,const proto::Transaction &txn, const std::string &txnDigest,proto::CommitDecision decision,
@@ -215,8 +215,8 @@ virtual void Phase2Equivocate_Simulate(uint64_t id, const proto::Transaction &tx
       if (decisionTimeout != nullptr) {
         delete decisionTimeout;
       }
-      for(auto txn : abstain_conflicts){
-        delete txn;
+      for(auto p1 : abstain_conflicts){
+        delete p1;
       }
     }
     bool first_decision; // Just a sanity flag. remove again...
@@ -241,11 +241,18 @@ virtual void Phase2Equivocate_Simulate(uint64_t id, const proto::Transaction &tx
 
     forwardWB_callback fwb;
 
-    std::unordered_set<proto::Transaction*> abstain_conflicts;
+    std::unordered_set<proto::Phase1*> abstain_conflicts;
     finishConflictCB ConflictCB;
   };
 
-  typedef std::pair<std::unordered_set<uint64_t>, std::map<proto::CommitDecision, proto::Signatures>> view_p2ReplySigs;
+  //typedef std::pair<std::unordered_set<uint64_t>, std::map<proto::CommitDecision, proto::Signatures>> view_p2ReplySigs;
+
+  struct view_p2ReplySigs{
+    view_p2ReplySigs(){}
+    ~view_p2ReplySigs(){}
+    std::unordered_set<uint64_t> replicasVerified;
+    std::map<proto::CommitDecision, proto::Signatures> decision_sigs;
+  };
 
   struct PendingPhase2 {
     PendingPhase2() : requestTimeout(nullptr), matchingReplies(0UL) {}

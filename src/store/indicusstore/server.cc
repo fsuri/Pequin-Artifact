@@ -85,6 +85,7 @@ Server::Server(const transport::Configuration &config, int groupIdx, int idx,
   stats.Increment("total_equiv_received_adopt", 0);
 
   fprintf(stderr, "Starting Indicus replica. ID: %d, IDX: %d, GROUP: %d\n", id, idx, groupIdx);
+  fprintf(stderr, "Sign Client Proposals? %s\n", params.signClientProposals ? "True" : "False");
   Debug("Starting Indicus replica %d.", id);
   transport->Register(this, config, groupIdx, idx);
   _Latency_Init(&committedReadInsertLat, "committed_read_insert_lat");
@@ -94,6 +95,7 @@ Server::Server(const transport::Configuration &config, int groupIdx, int idx,
   //_Latency_Init(&waitOnProtoLock, "proto_lock_lat");
   //_Latency_Init(&store.storeLockLat, "store_lock_lat");
 
+  //define signer and verifier for replica signatures
   if (params.signatureBatchSize == 1) {
     //verifier = new BasicVerifier(transport);
     verifier = new BasicVerifier(transport, batchTimeoutMicro, params.validateProofs &&
@@ -123,6 +125,9 @@ Server::Server(const transport::Configuration &config, int groupIdx, int idx,
         params.signatureBatchSize > 1 && params.adjustBatchSize, params.verificationBatchSize);
     }
   }
+  //define verifier that handles client signatures -- this can always be a basic verifier.
+  client_verifier = new BasicVerifier(transport, batchTimeoutMicro, params.validateProofs &&
+      params.signedMessages && params.adjustBatchSize, params.verificationBatchSize);
 
   // this is needed purely from loading data without executing transactions
   proto::CommittedProof *proof = new proto::CommittedProof();
@@ -158,7 +163,8 @@ Server::~Server() {
    //if(params.mainThreadDispatching) committedMutex.unlock();
    ////if(params.mainThreadDispatching) ongoingMutex.lock();
   for (const auto &o : ongoing) {     ///XXX technically not threadsafe
-    delete o.second;
+    //delete o.second;
+    delete o.second.txn;
   }
    ////if(params.mainThreadDispatching) ongoingMutex.unlock();
    if(params.mainThreadDispatching) readReplyProtoMutex.lock();
@@ -210,7 +216,7 @@ Server::~Server() {
 // DispatchTP_noCB(f);
 // Main dispatches serialization, and lets serialization thread dispatch to main2
 
-
+//Upcall from Network layer with new message. Called by TCPReadableCallback(..)
  void Server::ReceiveMessage(const TransportAddress &remote,
        const std::string &type, const std::string &data, void *meta_data) {
 
@@ -229,254 +235,50 @@ Server::~Server() {
  }
 
 //Calls function handlers for respective message types.
-// Manages Multithread assignments:
-// 1. mainThreadDispatching: Deserialize messages on thread receiving messages, but dispatch message handling to main worker thread
-// 2. dispatchMessageReceive: Dispatch both message deserialization and message handling to main worker thread.
-//TODO: Full CPU utilization parallelism: Assign all handler functions to different threads.
+// ManageDsipatch_ Manages respective Multithread assignments
 void Server::ReceiveMessageInternal(const TransportAddress &remote,
       const std::string &type, const std::string &data, void *meta_data) {
 
-
   if (type == read.GetTypeName()) {
+    ManageDispatchRead(remote, data);
 
-    //if no dispatching OR if dispatching both deser and Handling to 2nd main thread (no workers)
-    if(!params.mainThreadDispatching || (params.dispatchMessageReceive && !params.parallel_reads) ){
-      read.ParseFromString(data);
-      HandleRead(remote, read);
-    }
-    //if dispatching to second main or other workers
-    else{
-      proto::Read* readCopy = GetUnusedReadmessage();
-      readCopy->ParseFromString(data);
-      auto f = [this, &remote, readCopy](){
-        this->HandleRead(remote, *readCopy);
-        return (void*) true;
-      };
-      if(params.parallel_reads){
-        transport->DispatchTP_noCB(std::move(f));
-      }
-      else{
-        transport->DispatchTP_main(std::move(f));
-      }
-    }
+  // Normal Protocol Messages
   } else if (type == phase1.GetTypeName()) {
-
-// edit for atomic parallel P1. (OUTDATED)
-    // if(!params.mainThreadDispatching || (params.dispatchMessageReceive && !params.parallel_CCC)){
-    //  phase1.ParseFromString(data);
-    //  HandlePhase1_atomic(remote, phase1);
-    // }
-    // else{
-    //   proto::Phase1 *phase1Copy = GetUnusedPhase1message();
-    //   phase1Copy->ParseFromString(data);
-    //   auto f = [this, &remote, phase1Copy]() {
-    //     this->HandlePhase1_atomic(remote, *phase1Copy);
-    //     return (void*) true;
-    //   };
-    //   // if(params.parallel_CCC){
-    //   //   transport->DispatchTP_noCB(std::move(f));
-    //   // }
-    //   // else
-    //   if(params.dispatchMessageReceive){
-    //     f();
-    //   }
-    //   else{
-    //     Debug("Dispatching HandlePhase1");
-    //     transport->DispatchTP_main(std::move(f));
-    //     //transport->DispatchTP_noCB(f); //use if want to dispatch to all workers
-    //   }
-    // }
-
-    //Use only with OCC parallel, not full parallel P1. Suffers from non-atomicity in the latter case
-    if(!params.mainThreadDispatching || (params.dispatchMessageReceive && !params.parallel_CCC)){
-     phase1.ParseFromString(data);
-     HandlePhase1(remote, phase1);
-    }
-    else{
-      proto::Phase1 *phase1Copy = GetUnusedPhase1message();
-      phase1Copy->ParseFromString(data);
-      auto f = [this, &remote, phase1Copy]() {
-        this->HandlePhase1(remote, *phase1Copy);
-        return (void*) true;
-      };
-      if(params.dispatchMessageReceive){
-        f();
-      }
-      else{
-        Debug("Dispatching HandlePhase1");
-        transport->DispatchTP_main(f);
-        //transport->DispatchTP_noCB(f); //use if want to dispatch to all workers
-      }
-    }
+    ManageDispatchPhase1(remote, data);
 
   } else if (type == phase2.GetTypeName()) {
-
-      if(!params.multiThreading && (!params.mainThreadDispatching || params.dispatchMessageReceive)){
-        phase2.ParseFromString(data);
-        HandlePhase2(remote, phase2);
-      }
-      else{
-        proto::Phase2* p2 = GetUnusedPhase2message();
-        p2->ParseFromString(data);
-        if(!params.mainThreadDispatching || params.dispatchMessageReceive){
-          HandlePhase2(remote, *p2);
-        }
-        else{
-          auto f = [this, &remote, p2](){
-            this->HandlePhase2(remote, *p2);
-            return (void*) true;
-          };
-          transport->DispatchTP_main(std::move(f));
-        }
-      }
+    ManageDispatchPhase2(remote, data);
 
   } else if (type == writeback.GetTypeName()) {
-
-      if(!params.multiThreading && (!params.mainThreadDispatching || params.dispatchMessageReceive)){
-        writeback.ParseFromString(data);
-        HandleWriteback(remote, writeback);
-      }
-      else{
-        proto::Writeback *wb = GetUnusedWBmessage();
-        wb->ParseFromString(data);
-        if(!params.mainThreadDispatching || params.dispatchMessageReceive){
-          HandleWriteback(remote, *wb);
-        }
-        else{
-          auto f = [this, &remote, wb](){
-            this->HandleWriteback(remote, *wb);
-            return (void*) true;
-          };
-          transport->DispatchTP_main(std::move(f));
-        }
-      }
+    ManageDispatchWriteback(remote, data);
 
   } else if (type == abort.GetTypeName()) {
     abort.ParseFromString(data);
     HandleAbort(remote, abort);
+
   } else if (type == ping.GetTypeName()) {
     ping.ParseFromString(data);
     Debug("Ping is called");
     HandlePingMessage(this, remote, ping);
 
-// Add all Fallback signedMessages
+  // Fallback Messages
   } else if (type == phase1FB.GetTypeName()) {
-
-    if(!params.mainThreadDispatching || (params.dispatchMessageReceive && !params.parallel_CCC)){
-      phase1FB.ParseFromString(data);
-      HandlePhase1FB(remote, phase1FB);
-    }
-    else{
-      proto::Phase1FB *phase1FBCopy = GetUnusedPhase1FBmessage();
-      phase1FBCopy->ParseFromString(data);
-      auto f = [this, &remote, phase1FBCopy]() {
-        this->HandlePhase1FB(remote, *phase1FBCopy);
-        return (void*) true;
-      };
-      if(params.dispatchMessageReceive){
-        f();
-      }
-      else{
-        Debug("Dispatching HandlePhase1");
-        transport->DispatchTP_main(std::move(f));
-        //transport->DispatchTP_noCB(f); //use if want to dispatch to all workers
-      }
-    }
+    ManageDispatchPhase1FB(remote, data);
 
   } else if (type == phase2FB.GetTypeName()) {
-
-      if(!params.multiThreading && (!params.mainThreadDispatching || params.dispatchMessageReceive)){
-        phase2FB.ParseFromString(data);
-        HandlePhase2FB(remote, phase2FB);
-      }
-      else{
-        proto::Phase2FB* p2FB = GetUnusedPhase2FBmessage();
-        p2FB->ParseFromString(data);
-        if(!params.mainThreadDispatching || params.dispatchMessageReceive){
-          HandlePhase2FB(remote, *p2FB);
-        }
-        else{
-          auto f = [this, &remote, p2FB](){
-            this->HandlePhase2FB(remote, *p2FB);
-            return (void*) true;
-          };
-          transport->DispatchTP_main(std::move(f));
-        }
-      }
+    ManageDispatchPhase2FB(remote, data);
 
   } else if (type == invokeFB.GetTypeName()) {
-
-    if((params.all_to_all_fb || !params.multiThreading) && (!params.mainThreadDispatching || params.dispatchMessageReceive)){
-      invokeFB.ParseFromString(data);
-      HandleInvokeFB(remote, invokeFB);
-    }
-    else{
-      proto::InvokeFB* invFB = GetUnusedInvokeFBmessage();
-      invFB->ParseFromString(data);
-      if(!params.mainThreadDispatching || params.dispatchMessageReceive){
-        HandleInvokeFB(remote, *invFB);
-      }
-      else{
-        auto f = [this, &remote, invFB](){
-          this->HandleInvokeFB(remote, *invFB);
-          return (void*) true;
-        };
-        transport->DispatchTP_main(std::move(f));
-      }
-    }
+    ManageDispatchInvokeFB(remote, data);
 
   } else if (type == electFB.GetTypeName()) {
-
-    if(!params.mainThreadDispatching || params.dispatchMessageReceive){
-      electFB.ParseFromString(data);
-      HandleElectFB(electFB);
-    }
-    else{
-      proto::ElectFB* elFB = GetUnusedElectFBmessage();
-      elFB->ParseFromString(data);
-      auto f = [this, elFB](){
-          this->HandleElectFB(*elFB);
-          return (void*) true;
-      };
-      transport->DispatchTP_main(std::move(f));
-    }
+    ManageDispatchElectFB(remote, data);
 
   } else if (type == decisionFB.GetTypeName()) {
-
-    if(!params.multiThreading && (!params.mainThreadDispatching || params.dispatchMessageReceive)){
-      decisionFB.ParseFromString(data);
-      HandleDecisionFB(decisionFB);
-    }
-    else{
-      proto::DecisionFB* decFB = GetUnusedDecisionFBmessage();
-      decFB->ParseFromString(data);
-      if(!params.mainThreadDispatching || params.dispatchMessageReceive){
-        HandleDecisionFB(*decFB);
-      }
-      else{
-        auto f = [this, decFB](){
-          this->HandleDecisionFB( *decFB);
-          return (void*) true;
-        };
-        transport->DispatchTP_main(std::move(f));
-      }
-    }
+    ManageDispatchDecisionFB(remote, data);
 
   } else if (type == moveView.GetTypeName()) {
-
-    if(!params.mainThreadDispatching || params.dispatchMessageReceive){
-      moveView.ParseFromString(data);
-      HandleMoveView(moveView); //Send only to other replicas
-    }
-    else{
-      proto::MoveView* mvView = GetUnusedMoveView();
-      mvView->ParseFromString(data);
-      auto f = [this, mvView](){
-          this->HandleMoveView( *mvView);
-          return (void*) true;
-      };
-      transport->DispatchTP_main(std::move(f));
-    }
+    ManageDispatchMoveView(remote, data);
 
   } else {
     Panic("Received unexpected message type: %s", type.c_str());
@@ -555,7 +357,8 @@ void Server::HandleRead(const TransportAddress &remote,
   
     //Sets RTS timestamp. Favors readers commit chances.
     //Disable if worried about Byzantine Readers DDos, or if one wants to favor writers.
-    Debug("Set up RTS for READ[%lu:%lu]", msg.timestamp().id(), msg.req_id());
+    if(params.rtsMode == 1){
+      Debug("Set up RTS for READ[%lu:%lu]", msg.timestamp().id(), msg.req_id());
      auto itr = rts.find(msg.key());
      if(itr != rts.end()){
        if(ts.getTimestamp() > itr->second ) {
@@ -567,13 +370,20 @@ void Server::HandleRead(const TransportAddress &remote,
      }
      /* update rts */
     // TODO: For "proper Aborts": how to track RTS by transaction without knowing transaction digest?
-
-    //XXX multiple RTS as set:
-    //  if(params.mainThreadDispatching) rtsMutex.lock();
-    // rts[msg.key()].insert(ts);
-    //  if(params.mainThreadDispatching) rtsMutex.unlock();
-    //XXX single RTS that updates:
-
+    }
+    else if(params.rtsMode == 2){
+      //XXX multiple RTS as set:
+      Debug("Set up RTS for READ[%lu:%lu]", msg.timestamp().id(), msg.req_id());
+      std::pair<std::shared_mutex, std::set<Timestamp>> &rts_set = rts_list[msg.key()];
+      {
+        std::unique_lock lock(rts_set.first);
+        rts_set.second.insert(ts);
+      }
+    }
+    else{
+      //No RTS
+    }
+      
 
     //find prepared write to read from
     /* add prepared deps */
@@ -689,6 +499,7 @@ void Server::HandleRead(const TransportAddress &remote,
 
 //////////////////////
 
+//DEPRECATED
 //Optional Code Handler in case one wants to parallelize P1 handling as well. Currently deprecated (possibly not working)
 //Skip to HandlePhase1(...)
 void Server::HandlePhase1_atomic(const TransportAddress &remote,
@@ -705,7 +516,10 @@ void Server::HandlePhase1_atomic(const TransportAddress &remote,
   //NOTE: Ongoing *must* be added before p2/wb since the latter dont include it themselves as an optimization
   //TCP guarantees that this happens, but I cannot dispatch parallel P1 before logging ongoing or else it could be ordered after p2/wb.
   ongoingMap::accessor b;
-  ongoing.insert(b, std::make_pair(txnDigest, txn));
+  //ongoing.insert(b, std::make_pair(txnDigest, txn));
+  ongoing.insert(b, txnDigest);
+  b->second.txn = txn;
+  b->second.num_concurrent_clients++;
   b.release();
 
   //NOTE: "Problem": If client comes after writeback, it will try to do a p2/wb itself but fail
@@ -737,8 +551,9 @@ void Server::ProcessPhase1_atomic(const TransportAddress &remote,
   const proto::Transaction *abstain_conflict = nullptr;
       //NOTE : make sure c and b dont conflict on lock order
   p1MetaDataMap::accessor c;
-  p1MetaData.insert(c, txnDigest);
-  bool hasP1 = c->second.hasP1;
+  bool hasP1 = p1MetaData.find(c, txnDigest);
+  // p1MetaData.insert(c, txnDigest);
+  // bool hasP1 = c->second.hasP1;
   // no-replays property, i.e. recover existing decision/result from storage
   //Ignore duplicate requests that are already committed, aborted, or ongoing
   if(hasP1){
@@ -759,7 +574,7 @@ void Server::ProcessPhase1_atomic(const TransportAddress &remote,
         if (!dep.has_write_sigs()) {
           Debug("Dep for txn %s missing signatures.",
               BytesToHex(txnDigest, 16).c_str());
-          if(params.mainThreadDispatching && (!params.dispatchMessageReceive || params.parallel_CCC)) FreePhase1message(&msg);
+          if((params.mainThreadDispatching && (!params.dispatchMessageReceive || params.parallel_CCC)) || (params.multiThreading && params.signClientProposals)) FreePhase1message(&msg);
           return;
         }
         if (!ValidateDependency(dep, &config, params.readDepSize, keyManager,
@@ -767,7 +582,7 @@ void Server::ProcessPhase1_atomic(const TransportAddress &remote,
           Debug("VALIDATE Dependency failed for txn %s.",
               BytesToHex(txnDigest, 16).c_str());
           // safe to ignore Byzantine client
-          if(params.mainThreadDispatching && (!params.dispatchMessageReceive || params.parallel_CCC)) FreePhase1message(&msg);
+          if((params.mainThreadDispatching && (!params.dispatchMessageReceive || params.parallel_CCC)) || (params.multiThreading && params.signClientProposals)) FreePhase1message(&msg);
           return;
         }
       }
@@ -820,17 +635,32 @@ void Server::Inform_P1_GC_Leader(proto::Phase1Reply &reply, proto::Transaction &
 //Manages ongoing transactions
 //Executes Concurrency Control Check
 //Replies with signed Phase1Reply voting on whether to Commit/Abort the transaction
+//NOTE: Current Client Implementation in the Normal Case is "non-adaptive", i.e. it always expects a P1Reply, and cannot handle a P2Reply or WritebackAck (e.g. if the replica already has committed the tx). 
+                                                                           // Optimize this in future iterations.
 void Server::HandlePhase1(const TransportAddress &remote,
     proto::Phase1 &msg) {
   //dummyTx = msg.txn(); //PURELY TESTING PURPOSES!!: NOTE WARNING
+ 
+ Debug("Received Phase1 message");
+  proto::Transaction *txn;
+  if(params.signClientProposals){
+    txn = new proto::Transaction();
+     txn->ParseFromString(msg.signed_txn().data());
+      //  Alternatively change proto to contain txn in addition to signed bytes: its easier if it contains both the TX + the signed bytes.
+          //      Tradeoff: deserialization cost vs double bytes...
+          // In remainder of code: Signature is on serialized message, not on hash. That is easier than defining our own hash function for all messages. Since we compute the hash here its a bit redundant but thats okay.
+  }
+  else{
+     txn = msg.mutable_txn();
+  }
+  
+  std::string txnDigest = TransactionDigest(*txn, params.hashDigest); //could parallelize it too hypothetically
+  if(params.signClientProposals) *txn->mutable_txndigest() = txnDigest; //Hack to have access to txnDigest inside TXN later (used for abstain conflict)
+  
 
-  std::string txnDigest = TransactionDigest(msg.txn(), params.hashDigest); //could parallelize it too hypothetically
-
-  //if(waiting.count(txnDigest) > 0){ Panic("P1 did eventually arrive");}
-
-  Debug("PHASE1[%lu:%lu][%s] with ts %lu.", msg.txn().client_id(),
-      msg.txn().client_seq_num(), BytesToHex(txnDigest, 16).c_str(),
-      msg.txn().timestamp().timestamp());
+  Debug("PHASE1[%lu:%lu][%s] with ts %lu.", txn->client_id(),
+      txn->client_seq_num(), BytesToHex(txnDigest, 16).c_str(),
+      txn->timestamp().timestamp());
   proto::ConcurrencyControl::Result result;
   const proto::CommittedProof *committedProof;
   const proto::Transaction *abstain_conflict = nullptr;
@@ -838,67 +668,40 @@ void Server::HandlePhase1(const TransportAddress &remote,
   if(msg.has_crash_failure() && msg.crash_failure()){
     stats.Increment("total_crash_received", 1);
   }
-  //KEEP track of interested client //TODO: keep track of original client
-  // interestedClientsMap::accessor i;
-  // bool interestedClientsItr = interestedClients.insert(i, txnDigest);
-  // i->second.insert(remote.clone());
-  // i.release();
-  // //interestedClients[txnDigest].insert(remote.clone());
+  //KEEP track of interested client //TODO: keep track of original client? 
+  //--> Not doing this currently. Instead: We let the original client always do its P1/P2/Writeback processing
+  //                                       even if it is possibly redundant. The current code does this for simplicity,
+  //                                       but it can be updated in the future
+          // interestedClientsMap::accessor i;
+          // bool interestedClientsItr = interestedClients.insert(i, txnDigest);
+          // i->second.insert(remote.clone());
+          // i.release();
+          // //interestedClients[txnDigest].insert(remote.clone());
 
-  // no-replays property, i.e. recover existing decision/result from storage
+  
+  bool isGossip = msg.replica_gossip(); //Check if P1 was forwarded by another replica.
+
+// no-replays property, i.e. recover existing decision/result from storage
   //Ignore duplicate requests that are already committed, aborted, or ongoing
-
-  //TODO: parallelize whole HandlePhase1. (could try to reclaim 2nd main thread duties and use it as worker too.)
-  //TODO: remove/fix ongoing check  (move it into has no P1 case.)
-  //TODO: run again without lock, but no garbage collection. Is GC the problem?
-
-  // ongoingMap::accessor b;
-  // if(ongoing.find(b, txnDigest)){
-  //   b.release();
-  //   if(params.mainThreadDispatching && (!params.dispatchMessageReceive || params.parallel_CCC)) FreePhase1message(&msg);
-  //   //TODO: check if hasP1 and continue
-  //   //TODO: else, add to original client list and return.
-  //           // TODO:  before sending. Check for all interested p1 clients. and send P1FB message.
-  //           //TODO: sepearte interested clients into p1 and p2?
-  //
-  //   return;
-  // }
-  // //TODO: think about order of this check?
-  // //TODO: if it is already committed/aborted, reply to original client with full WB too.
-  // if(committed.find(txnDigest) != committed.end() || aborted.find(txnDigest) != aborted.end()){
-  //   if(params.mainThreadDispatching && (!params.dispatchMessageReceive || params.parallel_CCC)) FreePhase1message(&msg);
-  //
-  //   //TODO: forward writeback.
-  //   return;
-  // }
-  //
-  //proto::Transaction *txn = msg.release_txn();
-  // ongoing.insert(b, std::make_pair(txnDigest, txn));
-  // b.release();
-
-
-  //TODO: try allocating accessor and deleting it only after.
-  //ongoingMap::accessor *b = new ongoingMap::accessor();
-
-  //add to ongoing, lock ongoing and send to all when done.
-  bool replicaGossip = msg.replica_gossip();
-
   p1MetaDataMap::const_accessor c;
-  //std::cerr << "[Normal] acquire lock for txn: " << BytesToHex(txnDigest, 64) << std::endl;
-  //p1MetaDataMap::const_accessor c;
-  p1MetaData.insert(c, txnDigest);  //TODO: next: make P1 part of ongoing? same for P2?
-  //c->second.P1meta_mutex.lock();
-  bool hasP1 = c->second.hasP1;
-  if(hasP1 && replicaGossip){  // If P1 has already been received and current message is a gossip one, do nothing.
+  // p1MetaData.insert(c, txnDigest);  //TODO: next: make P1 part of ongoing? same for P2?
+  //p1MetaData.find(c, txnDigest);
+  bool hasP1result = p1MetaData.find(c, txnDigest) ? c->second.hasP1 : false;
+  if(hasP1result && isGossip){  // If P1 has already been received and current message is a gossip one, do nothing.
     //Do not need to reply to forwarded P1. If adding replica GC -> want to forward it to leader.
     //Inform_P1_GC_Leader(proto::Phase1Reply &reply, proto::Transaction &txn, std::string &txnDigest, int64_t grpLeader);
-  }
-  else if(hasP1){ // If P1 has already been received (sent by a fallback) and current message is from original client, then only inform client of blocked dependencies so it can issue fallbacks of its own
+    Debug("P1 message for txn[%s] received is of type Gossip, and P1 has already been received", BytesToHex(txnDigest, 16).c_str());
+    c.release();
+    if(params.signClientProposals) delete txn;
+    if((params.mainThreadDispatching && (!params.dispatchMessageReceive || params.parallel_CCC)) || (params.multiThreading && params.signClientProposals)) FreePhase1message(&msg);
+    return;
+  } 
+  else if(hasP1result){ // If P1 has already been received (sent by a fallback) and current message is from original client, then only inform client of blocked dependencies so it can issue fallbacks of its own
     result = c->second.result;
     // need to check if result is WAIT: if so, need to add to waitingDeps original client..
         //(TODO) Instead: use original client list and store pairs <txnDigest, <reqID, remote>>
     if(result == proto::ConcurrencyControl::WAIT){
-        ManageDependencies(txnDigest, msg.txn(), remote, msg.req_id());
+        ManageDependencies(txnDigest, *txn, remote, msg.req_id());
     }
 
     if (result == proto::ConcurrencyControl::ABORT) {
@@ -906,90 +709,46 @@ void Server::HandlePhase1(const TransportAddress &remote,
       UW_ASSERT(committedProof != nullptr);
     }
     c.release();
-  } else{ // FIRST P1 request received (i.e. from original client). Gossip if desired and check whether dependencies are valid
+    Debug("P1 message for txn[%s] received is of type Normal, and P1 has already been received with result %d", BytesToHex(txnDigest, 16).c_str(), result);
+    HandlePhase1CB(&msg, result, committedProof, txnDigest, remote, abstain_conflict, isGossip); // Reply directly without doing 
+    if(params.signClientProposals) delete txn;
+  } 
+  else if(committed.find(txnDigest) != committed.end()){ //has already committed Txn
+      Debug("Already committed txn[%s]. Replying with result %d", BytesToHex(txnDigest, 16).c_str(), 0);
+      c.release();
+      SendPhase1Reply(msg.req_id(), proto::ConcurrencyControl::COMMIT, nullptr, txnDigest, &remote, nullptr); //TODO: Eventually update to send direct WritebackAck
+      if((params.mainThreadDispatching && (!params.dispatchMessageReceive || params.parallel_CCC)) || (params.multiThreading && params.signClientProposals)) FreePhase1message(&msg);
+      if(params.signClientProposals) delete txn;
+  } 
+  else if(aborted.find(txnDigest) != aborted.end()){ //has already aborted Txn
+      c.release();
+       Debug("Already committed txn[%s]. Replying with result %d", BytesToHex(txnDigest, 16).c_str(), 1);
+      SendPhase1Reply(msg.req_id(), proto::ConcurrencyControl::ABSTAIN, nullptr, txnDigest, &remote, nullptr); //TODO: Eventually update to send direct WritebackAck
+     if((params.mainThreadDispatching && (!params.dispatchMessageReceive || params.parallel_CCC)) || (params.multiThreading && params.signClientProposals)) FreePhase1message(&msg);
+     if(params.signClientProposals) delete txn;
+
+  } 
+  else{ // FIRST P1 request received (i.e. from original client). Gossip if desired and check whether dependencies are valid
     c.release();
     if(params.replicaGossip) ForwardPhase1(msg); //If params.replicaGossip is enabled then set msg.replica_gossip to true and forward.
-    if(!replicaGossip) msg.set_replica_gossip(false); //unset msg.replica_gossip (which we possibly just set to foward) if the message was received by the client
+    if(!isGossip) msg.set_replica_gossip(false); //unset msg.replica_gossip (which we possibly just set to foward) if the message was received by the client
 
-    if (params.validateProofs && params.signedMessages && params.verifyDeps) {
-      for (const auto &dep : msg.txn().deps()) {
-    //  for (const auto &dep : txn->deps()) {
-        if (!dep.has_write_sigs()) {
-          Debug("Dep for txn %s missing signatures.",
-              BytesToHex(txnDigest, 16).c_str());
-          if(params.mainThreadDispatching && (!params.dispatchMessageReceive || params.parallel_CCC)) FreePhase1message(&msg);
-          return;
-        }
-        if (!ValidateDependency(dep, &config, params.readDepSize, keyManager,
-              verifier)) {
-          Debug("VALIDATE Dependency failed for txn %s.",
-              BytesToHex(txnDigest, 16).c_str());
-          // safe to ignore Byzantine client
-          if(params.mainThreadDispatching && (!params.dispatchMessageReceive || params.parallel_CCC)) FreePhase1message(&msg);
-          return;
-        }
-      }
-    }
-
-    //current_views[txnDigest] = 0;
-    p2MetaDataMap::accessor p;
-    p2MetaDatas.insert(p, txnDigest);
-    p.release();
-
-    proto::Transaction *txn = msg.release_txn();
-
-     // //if(params.mainThreadDispatching) ongoingMutex.lock();
-     ongoingMap::accessor b;
-     ongoing.insert(b, std::make_pair(txnDigest, txn));
-     b.release();
-     //normal.insert(txnDigest);
-     //std::cerr << "[N] Added tx to ongoing: " << BytesToHex(txnDigest, 16) << std::endl;
-     // //ongoing[txnDigest] = txn;
-     // //if(params.mainThreadDispatching) ongoingMutex.unlock();
-
-    Timestamp retryTs;
-
-    if(!params.parallel_CCC || !params.mainThreadDispatching){
-      result = DoOCCCheck(msg.req_id(), remote, txnDigest, *txn, retryTs,
-          committedProof, abstain_conflict, false, replicaGossip); //forwarded messages dont need to be treated as original client.
-      BufferP1Result(result, committedProof, txnDigest);
-    }
-    else{
-      auto f = [this, msg_ptr = &msg, remote_ptr = &remote, txnDigest, txn, committedProof, abstain_conflict, replicaGossip]() mutable {
-        Timestamp retryTs;
-          //check if concurrently committed/aborted already, and if so return
-          ongoingMap::const_accessor b;
-          if(!ongoing.find(b, txnDigest)){
-            Debug("Already concurrently Committed/Aborted txn[%s]", BytesToHex(txnDigest, 16).c_str());
-            if(params.mainThreadDispatching && (!params.dispatchMessageReceive || params.parallel_CCC)) FreePhase1message(msg_ptr);
-            return (void*) false;
-          }
-          b.release();
-        Debug("starting occ check for txn: %s", BytesToHex(txnDigest, 16).c_str());
-        proto::ConcurrencyControl::Result *result = new proto::ConcurrencyControl::Result(this->DoOCCCheck(msg_ptr->req_id(),
-        *remote_ptr, txnDigest, *txn, retryTs, committedProof, abstain_conflict, false, replicaGossip));
-        BufferP1Result(*result, committedProof, txnDigest);
-        //c->second.P1meta_mutex.unlock();
-        //std::cerr << "[Normal] release lock for txn: " << BytesToHex(txnDigest, 64) << std::endl;
-        HandlePhase1CB(msg_ptr, *result, committedProof, txnDigest, *remote_ptr, abstain_conflict, replicaGossip);
-        delete result;
-        return (void*) true;
-      };
-      transport->DispatchTP_noCB(std::move(f));
-      return;
-    }
+    //TODO: DispatchTP_noCB(Verify Client Proposals) 
+    // Verification calls DispatchTP_main (ProcessProposal.) -- Re-cecheck hasP1 (if used multithread branch)
+    
+    Debug("P1 message for txn[%s] received is of type Normal, no P1 result exist. Calling ProcessProposal", BytesToHex(txnDigest, 16).c_str());
+    ProcessProposal(msg, remote, txn, txnDigest, committedProof, abstain_conflict, isGossip, result);
   }
-
-  HandlePhase1CB(&msg, result, committedProof, txnDigest, remote, abstain_conflict, replicaGossip);
+  //HandlePhase1CB(&msg, result, committedProof, txnDigest, remote, abstain_conflict, isGossip);
 }
 
 //Called after Concurrency Control Check completes
 //Sends P1Reply to client. Sends no reply if P1 receives was simply forwarded by another replica.
 //TODO: move p1Decision into this function (not sendp1: Then, can unlock here.)
 void Server::HandlePhase1CB(proto::Phase1 *msg, proto::ConcurrencyControl::Result result,
-  const proto::CommittedProof* &committedProof, std::string &txnDigest, const TransportAddress &remote, const proto::Transaction *abstain_conflict, bool replicaGossip){
+  const proto::CommittedProof* &committedProof, std::string &txnDigest, const TransportAddress &remote, const proto::Transaction *abstain_conflict, bool isGossip){
 
-  if (result != proto::ConcurrencyControl::WAIT && !replicaGossip) { //forwarded P1 needs no reply.
+  if (result != proto::ConcurrencyControl::WAIT && !isGossip) { //forwarded P1 needs no reply.
     //XXX setting client time outs for Fallback
     // if(client_starttime.find(txnDigest) == client_starttime.end()){
     //   struct timeval tv;
@@ -1000,109 +759,82 @@ void Server::HandlePhase1CB(proto::Phase1 *msg, proto::ConcurrencyControl::Resul
 
     SendPhase1Reply(msg->req_id(), result, committedProof, txnDigest, &remote, abstain_conflict);
   }
-  if(params.mainThreadDispatching && (!params.dispatchMessageReceive || params.parallel_CCC)) FreePhase1message(msg);
+  if((params.mainThreadDispatching && (!params.dispatchMessageReceive || params.parallel_CCC)) || (params.multiThreading && params.signClientProposals)) FreePhase1message(msg);
 }
 
-//Sends a signed P2 reply to the client, containing Commit/Abort respectively. 
-//Echos the decision carried in P2 if none buffered, and returns previously buffered decision otherwise
-void Server::HandlePhase2CB(TransportAddress *remote, proto::Phase2 *msg, const std::string* txnDigest,
-  signedCallback sendCB, proto::Phase2Reply* phase2Reply, cleanCallback cleanCB, void* valid){
+void Server::SendPhase1Reply(uint64_t reqId,
+    proto::ConcurrencyControl::Result result,
+    const proto::CommittedProof *conflict, const std::string &txnDigest,
+    const TransportAddress *remote,
+    const proto::Transaction *abstain_conflict) {
 
-  Debug("HandlePhase2CB invoked");
+  Debug("Normal sending P1 result:[%d] for txn: %s", result, BytesToHex(txnDigest, 16).c_str());
+  //BufferP1Result(result, conflict, txnDigest);
 
-  if(msg->has_simulated_equiv() && msg->simulated_equiv()){
-    valid = (void*) true; //Code to simulate equivocation even when necessary equiv signatures do not exist.
-    if(msg->decision() == proto::COMMIT) stats.Increment("total_equiv_COMMIT", 1);
-    if(msg->decision() == proto::ABORT) stats.Increment("total_equiv_ABORT", 1);
-  }
+  proto::Phase1Reply* phase1Reply = GetUnusedPhase1Reply();
+  phase1Reply->set_req_id(reqId);
+  TransportAddress *remoteCopy = remote->clone();
 
-  if(!valid){
-    stats.Increment("total_p2_invalid", 1);
-    Debug("VALIDATE P1Replies for TX %s failed.", BytesToHex(*txnDigest, 16).c_str());
-    cleanCB(); //deletes SendCB resources should SendCB not be called.
-    if(params.multiThreading || (params.mainThreadDispatching && !params.dispatchMessageReceive)){
-      FreePhase2message(msg); //const_cast<proto::Phase2&>(msg));
+      //if(result == proto::ConcurrencyControl::ABSTAIN) *phase1Reply->mutable_abstain_conflict() = dummyTx; //NOTE WARNING: PURELY for testing
+  if(abstain_conflict != nullptr){
+    //Panic("setting abstain_conflict");
+    //phase1Reply->mutable_abstain_conflict()->set_req_id(0);
+    if(params.signClientProposals){
+      p1MetaDataMap::accessor c;
+      bool p1MetaExists = p1MetaData.find(c, abstain_conflict->txndigest());
+      if(p1MetaExists && c->second.hasSignedP1){ //only send if conflicting tx not yet finished
+        phase1Reply->mutable_abstain_conflict()->set_req_id(0);
+        *phase1Reply->mutable_abstain_conflict()->mutable_signed_txn() = *c->second.signed_txn;
+      } 
+      c.release();
     }
-    delete remote;
-    return;
-  }
-
-  auto f = [this, remote, msg, txnDigest, sendCB = std::move(sendCB), phase2Reply, cleanCB = std::move(cleanCB), valid ]() mutable {
-
-    p2MetaDataMap::accessor p;
-    p2MetaDatas.insert(p, *txnDigest);
-    bool hasP2 = p->second.hasP2;
-    if(hasP2){
-      phase2Reply->mutable_p2_decision()->set_decision(p->second.p2Decision);
-      //std::cerr << "Already had P2 from FB. Setting P2 Decision for specialal id: " << phase2Reply->req_id() << std::endl;
+    else{ //TODO: ideally also check if ongoing still exists, and only send conflict if so.
+      phase1Reply->mutable_abstain_conflict()->set_req_id(0);
+      *phase1Reply->mutable_abstain_conflict()->mutable_txn() = *abstain_conflict;
     }
-    else{
-      p->second.p2Decision = msg->decision();
-      p->second.hasP2 = true;
-      phase2Reply->mutable_p2_decision()->set_decision(msg->decision());
-      //std::cerr << "First time: Setting P2 Decision for speical id: " << phase2Reply->req_id() << std::endl;
-    }
-
-    if (params.validateProofs) {
-      phase2Reply->mutable_p2_decision()->set_view(p->second.decision_view);
-    }
-    //NOTE: Temporary hack fix to subscribe original client to p2 decisions from views > 0
-    p->second.has_original = true;
-    p->second.original_msg_id = msg->req_id();
-    p->second.original_address = remote;
-    p.release();
-
-    //XXX start client timeout for Fallback relay
-    // if(client_starttime.find(*txnDigest) == client_starttime.end()){
-    //   struct timeval tv;
-    //   gettimeofday(&tv, NULL);
-    //   uint64_t start_time HandlePhase2CB= (tv.tv_sec*1000000+tv.tv_usec)/1000;  //in miliseconds
-    //   client_starttime[*txnDigest] = start_time;
-    // }
-
-    SendPhase2Reply(msg, phase2Reply, sendCB);
-    return (void*) true;
- };
-
- if(params.multiThreading && params.mainThreadDispatching && params.dispatchCallbacks){
-   transport->DispatchTP_main(std::move(f));
+    // *phase1Reply->mutable_abstain_conflict() = *abstain_conflict;
+    
  }
- else{
-   f();
- }
-}
 
-//Dispatch Message signing and sending to a worker thread
-void Server::SendPhase2Reply(proto::Phase2 *msg, proto::Phase2Reply *phase2Reply, signedCallback sendCB){
+  auto sendCB = [remoteCopy, this, phase1Reply]() {
+    this->transport->SendMessage(this, *remoteCopy, *phase1Reply);
+    FreePhase1Reply(phase1Reply);
+    delete remoteCopy;
+  };
 
-  if (params.validateProofs && params.signedMessages) {
-    proto::Phase2Decision* p2Decision = new proto::Phase2Decision(phase2Reply->p2_decision());
+  phase1Reply->mutable_cc()->set_ccr(result);
+  if (params.validateProofs) {
+    *phase1Reply->mutable_cc()->mutable_txn_digest() = txnDigest;
+    phase1Reply->mutable_cc()->set_involved_group(groupIdx);
+    if (result == proto::ConcurrencyControl::ABORT) {
+      *phase1Reply->mutable_cc()->mutable_committed_conflict() = *conflict;
+    } else if (params.signedMessages) {
+      proto::ConcurrencyControl* cc = new proto::ConcurrencyControl(phase1Reply->cc());
+      //Latency_Start(&signLat);
+      Debug("PHASE1[%s] Batching Phase1Reply.",
+            BytesToHex(txnDigest, 16).c_str());
 
-    MessageToSign(p2Decision, phase2Reply->mutable_signed_p2_decision(),
-      [sendCB, p2Decision, msg, this]() {
-        sendCB();
-        delete p2Decision;
-        //Free allocated memory
-        if(params.multiThreading || params.mainThreadDispatching){
-          FreePhase2message(msg); // const_cast<proto::Phase2&>(msg));
-        }
-      });
-    return;
-  }
-  else{
-    sendCB();
-    //Free allocated memory
-    if(params.multiThreading || params.mainThreadDispatching){
-      FreePhase2message(msg); // const_cast<proto::Phase2&>(msg));
+      MessageToSign(cc, phase1Reply->mutable_signed_cc(),
+        [sendCB, cc, txnDigest, this, phase1Reply]() {
+          Debug("PHASE1[%s] Sending Phase1Reply with signature %s from priv key %lu.",
+            BytesToHex(txnDigest, 16).c_str(),
+            BytesToHex(phase1Reply->signed_cc().signature(), 100).c_str(),
+            phase1Reply->signed_cc().process_id());
+
+          sendCB();
+          delete cc;
+        });
+      //Latency_End(&signLat);
+      return;
     }
-    return;
   }
+  sendCB();
 }
+
+
+////////////////////////// Phase2 Handling
 
 //TODO: ADD AUTHENTICATION IN ORDER TO ENFORCE FB TIMEOUTS. ANYBODY THAT IS NOT THE ORIGINAL CLIENT SHOULD ONLY BE ABLE TO SEND P2FB messages and NOT normal P2!!!!!!
-// //TODO: client signatures need to be implemented. keymanager needs to associate with client ids.
-// client ids can just start after all replica ids
-
 //     if(params.clientAuthenticated){ //TODO: this branch needs to go around the validate Proofs.
 //       if(!msg.has_auth_p2dec()){
 //         Debug("PHASE2 message not authenticated");
@@ -1177,15 +909,15 @@ void Server::HandlePhase2(const TransportAddress &remote,
   *phase2Reply->mutable_p2_decision()->mutable_txn_digest() = *txnDigest;
   phase2Reply->mutable_p2_decision()->set_involved_group(groupIdx);
 
-  if (!(params.validateProofs && params.signedMessages)){
-  //TransportAddress *remoteCopy2 = remote.clone();
-    phase2Reply->mutable_p2_decision()->set_decision(msg.decision());
-    SendPhase2Reply(&msg, phase2Reply, sendCB);
-    //HandlePhase2CB(remoteCopy2, &msg, txnDigest, sendCB, phase2Reply, cleanCB, (void*) true);
-    return;
-  }
+// if (!(params.validateProofs && params.signedMessages)){
+//         //TransportAddress *remoteCopy2 = remote.clone();
+//           phase2Reply->mutable_p2_decision()->set_decision(msg.decision());
+//           SendPhase2Reply(&msg, phase2Reply, sendCB);
+//           //HandlePhase2CB(remoteCopy2, &msg, txnDigest, sendCB, phase2Reply, cleanCB, (void*) true);
+//           return;
+//         }
 
-  // ELSE: i.e. if (params.validateProofs && params.signedMessages)
+//   // ELSE: i.e. if (params.validateProofs && params.signedMessages)
 
   // no-replays property, i.e. recover existing decision/result from storage (do this for HandlePhase1 as well.)
   p2MetaDataMap::accessor p;
@@ -1249,33 +981,27 @@ void Server::HandlePhase2(const TransportAddress &remote,
         LookupP1Decision(*txnDigest, myProcessId, myResult);
       }
 
+      if (!(params.validateProofs && params.signedMessages)){
+        //TransportAddress *remoteCopy2 = remote.clone();
+          phase2Reply->mutable_p2_decision()->set_decision(msg.decision());
+          SendPhase2Reply(&msg, phase2Reply, sendCB);
+          //HandlePhase2CB(remoteCopy2, &msg, txnDigest, sendCB, phase2Reply, cleanCB, (void*) true);
+          return;
+        }
+
+  // ELSE: i.e. if (params.validateProofs && params.signedMessages)
 
 
        // i.e. if (params.validateProofs && params.signedMessages) {
-
         if(msg.has_txn_digest()) {
           ongoingMap::const_accessor b;
           auto txnItr = ongoing.find(b, msg.txn_digest());
           if(txnItr){
-            txn = b->second;
+            txn = b->second.txn;
             b.release();
           }
           else{
-            // if(committed.find(*txnDigest) != committed.end()){
-            //   auto itr = committed.find(*txnDigest);
-            //   bool fast = itr->second->has_p1_sigs();
-            //    std::cerr << "txn already committd for special id: " << msg.req_id() << "  FAST? " << (fast? "yes" : "no")<< std::endl;
-            //
-            // } else if(aborted.find(*txnDigest) != aborted.end()){
-            //   auto itr = writebackMessages.find(*txnDigest);
-            //   bool fast = itr->second.has_p1_sigs();
-            //   bool has_conflict = itr->second.has_conflict();
-            //   std::cerr << "txn already aborted for special id: " << msg.req_id() << "  FAST? " << (fast ? "yes" : "no") << " HasConflict? " << (has_conflict? "yes" : "no")<< std::endl;
-            // } else{
-            //   std::cerr << "Neither committed/aborted for txn special id: " << msg.req_id() << std::endl;
-            // }
-            // Panic("no txn");
-
+         
             b.release();
             if(msg.has_txn()){
               txn = &msg.txn();
@@ -1297,57 +1023,195 @@ void Server::HandlePhase2(const TransportAddress &remote,
               //transport->Timer(10000, [this](){Panic("Fail in P2");});
               //Panic("Cannot validate p2 because server does not have tx for this reqId");
               Warning("Cannot validate p2 because server does not have tx for this reqId");
+              Panic("This should not be happening with TCP");
               //std::cerr << "Cannot validate p2 because do not have tx for special id: " << msg.req_id() << std::endl;
               return;
             }
           }
         }
 
-        TransportAddress *remoteCopy2 = remote.clone();
-        if(params.multiThreading){
-          mainThreadCallback mcb(std::bind(&Server::HandlePhase2CB, this, remoteCopy2,
-             &msg, txnDigest, sendCB, phase2Reply, cleanCB, std::placeholders::_1));
-
-          //OPTION 1: Validation itself is synchronous, i.e. is one job (Would need to be extended with thread safety)
-              //std::function<void*()> f (std::bind(&ValidateP1RepliesWrapper, msg_copy.decision(), false, txn, txnDigest, msg.grouped_sigs(), keyManager, &config, myProcessId, myResult, verifier));
-              //transport->DispatchTP(f, mcb);
-
-          //OPTION2: Validation itself is asynchronous (each verification = 1 job)
-          if(params.batchVerification){
-            asyncBatchValidateP1Replies(msg.decision(),
-                  false, txn, txnDigest, msg.grouped_sigs(), keyManager, &config, myProcessId,
-                  myResult, verifier, std::move(mcb), transport, true);
-            return;
-
-          }
-          else{
-            asyncValidateP1Replies(msg.decision(),
-                  false, txn, txnDigest, msg.grouped_sigs(), keyManager, &config, myProcessId,
-                  myResult, verifier, std::move(mcb), transport, true);
-            return;
-          }
-        }
-        else{
-          if(params.batchVerification){
-            mainThreadCallback mcb(std::bind(&Server::HandlePhase2CB, this, remoteCopy2,
-              &msg, txnDigest, sendCB, phase2Reply, cleanCB, std::placeholders::_1));
-
-            asyncBatchValidateP1Replies(msg.decision(),
-                  false, txn, txnDigest, msg.grouped_sigs(), keyManager, &config, myProcessId,
-                  myResult, verifier, std::move(mcb), transport, false);
-            return;
-          }
-          else{
-            if(!ValidateP1Replies(msg.decision(),
-                  false, txn, txnDigest, msg.grouped_sigs(), keyManager, &config, myProcessId,
-                  myResult, verifier)) {
-              Debug("VALIDATE P1Replies failed.");
-              return HandlePhase2CB(remoteCopy2, &msg, txnDigest, sendCB, phase2Reply, cleanCB, (void*) false);
-            }
-          }
-        }
-
+        ManagePhase2Validation(remote, msg, txnDigest, txn, sendCB, phase2Reply, cleanCB, myProcessId, myResult);
   }
+}
+
+//Sends a signed P2 reply to the client, containing Commit/Abort respectively. 
+//Echos the decision carried in P2 if none buffered, and returns previously buffered decision otherwise
+void Server::HandlePhase2CB(TransportAddress *remote, proto::Phase2 *msg, const std::string* txnDigest,
+  signedCallback sendCB, proto::Phase2Reply* phase2Reply, cleanCallback cleanCB, void* valid){
+
+  Debug("HandlePhase2CB invoked");
+
+  if(msg->has_simulated_equiv() && msg->simulated_equiv()){
+    valid = (void*) true; //Code to simulate equivocation even when necessary equiv signatures do not exist.
+    if(msg->decision() == proto::COMMIT) stats.Increment("total_equiv_COMMIT", 1);
+    if(msg->decision() == proto::ABORT) stats.Increment("total_equiv_ABORT", 1);
+  }
+
+  if(!valid){
+    stats.Increment("total_p2_invalid", 1);
+    Debug("VALIDATE P1Replies for TX %s failed.", BytesToHex(*txnDigest, 16).c_str());
+    cleanCB(); //deletes SendCB resources should SendCB not be called.
+    if(params.multiThreading || (params.mainThreadDispatching && !params.dispatchMessageReceive)){
+      FreePhase2message(msg); //const_cast<proto::Phase2&>(msg));
+    }
+    delete remote;
+    Panic("P2 verification was invalid -- this should never happen?");
+    return;
+  }
+
+  auto f = [this, remote, msg, txnDigest, sendCB = std::move(sendCB), phase2Reply, cleanCB = std::move(cleanCB), valid ]() mutable {
+
+    p2MetaDataMap::accessor p;
+    p2MetaDatas.insert(p, *txnDigest);
+    bool hasP2 = p->second.hasP2;
+    if(hasP2){
+      phase2Reply->mutable_p2_decision()->set_decision(p->second.p2Decision);
+      //std::cerr << "Already had P2 from FB. Setting P2 Decision for specialal id: " << phase2Reply->req_id() << std::endl;
+    }
+    else{
+      p->second.p2Decision = msg->decision();
+      p->second.hasP2 = true;
+      phase2Reply->mutable_p2_decision()->set_decision(msg->decision());
+      //std::cerr << "First time: Setting P2 Decision for speical id: " << phase2Reply->req_id() << std::endl;
+    }
+
+    if (params.validateProofs) {
+      phase2Reply->mutable_p2_decision()->set_view(p->second.decision_view);
+    }
+    //NOTE: Temporary hack fix to subscribe original client to p2 decisions from views > 0
+    p->second.has_original = true;
+    p->second.original_msg_id = msg->req_id();
+    p->second.original_address = remote;
+    p.release();
+
+    //XXX start client timeout for Fallback relay
+    // if(client_starttime.find(*txnDigest) == client_starttime.end()){
+    //   struct timeval tv;
+    //   gettimeofday(&tv, NULL);
+    //   uint64_t start_time HandlePhase2CB= (tv.tv_sec*1000000+tv.tv_usec)/1000;  //in miliseconds
+    //   client_starttime[*txnDigest] = start_time;
+    // }
+
+    SendPhase2Reply(msg, phase2Reply, sendCB);
+    //return;
+    return (void*) true;
+ };
+
+ if(params.multiThreading && params.mainThreadDispatching && params.dispatchCallbacks){
+   transport->DispatchTP_main(std::move(f));
+ }
+ else{
+   f();
+ }
+}
+
+//Dispatch Message signing and sending to a worker thread
+void Server::SendPhase2Reply(proto::Phase2 *msg, proto::Phase2Reply *phase2Reply, signedCallback sendCB){
+
+  if (params.validateProofs && params.signedMessages) {
+    proto::Phase2Decision* p2Decision = new proto::Phase2Decision(phase2Reply->p2_decision());
+
+    MessageToSign(p2Decision, phase2Reply->mutable_signed_p2_decision(),
+      [sendCB, p2Decision, msg, this]() {
+        sendCB();
+        delete p2Decision;
+        //Free allocated memory
+        if(params.multiThreading || params.mainThreadDispatching){
+          FreePhase2message(msg); // const_cast<proto::Phase2&>(msg));
+        }
+      });
+    return;
+  }
+  else{
+    sendCB();
+    //Free allocated memory
+    if(params.multiThreading || params.mainThreadDispatching){
+      FreePhase2message(msg); // const_cast<proto::Phase2&>(msg));
+    }
+    return;
+  }
+}
+
+/////////////////////////////// Writeback Handling
+
+//Handler for Writeback Message
+//Verifies correctness of request (quorum of P1replies or P2 replies depending on Fast/Slow Path)
+//Dispatches verification to worker threads if multiThreading enabled
+void Server::HandleWriteback(const TransportAddress &remote,
+    proto::Writeback &msg) {
+
+  stats.Increment("total_writeback_received", 1);
+        //simulating failures in local experiment
+        // fail_writeback++;
+        // if(fail_writeback %2 == 1){
+        //   return;
+        // }
+
+
+  proto::Transaction *txn;
+  const std::string *txnDigest;
+  std::string computedTxnDigest;
+  if (!msg.has_txn() && !msg.has_txn_digest()) {
+    Debug("WRITEBACK message contains neither txn nor txn_digest.");
+    return WritebackCallback(&msg, txnDigest, txn, (void*) false);
+  }
+
+  if (msg.has_txn_digest() ) {
+    txnDigest = &msg.txn_digest();
+     Debug("WRITEBACK[%s] received with decision %d.",
+      BytesToHex(*txnDigest, 16).c_str(), msg.decision());
+
+    if(committed.find(*txnDigest) != committed.end() || aborted.find(*txnDigest) != aborted.end()){
+      if(params.multiThreading || (params.mainThreadDispatching && !params.dispatchMessageReceive)){
+        Debug("Calling Re-CLEAN on Writeback for Txn[%s]", BytesToHex(*txnDigest, 16).c_str());
+        Clean(*txnDigest); //XXX Clean again since client could have added it back to ongoing...
+        FreeWBmessage(&msg);
+      }
+      return;  //TODO: Forward to all interested clients and empty it?
+    }
+   
+    ongoingMap::const_accessor b;
+    bool hasTxn = ongoing.find(b, msg.txn_digest());
+    if(hasTxn){
+      txn = b->second.txn;
+      b.release();
+    }
+    else{
+      b.release();
+      if(msg.has_txn()){
+        txn = msg.release_txn();
+        // check that digest and txn match..
+         if(*txnDigest !=TransactionDigest(*txn, params.hashDigest)) return;
+      }
+      else{
+        Debug("Writeback[%s] message does not contain txn, but have not seen"
+            " txn_digest previously.", BytesToHex(msg.txn_digest(), 16).c_str());
+        Warning("Cannot process Writeback because ongoing does not contain tx for this request. Should not happen with TCP.... CPU %d", sched_getcpu());
+        Panic("When using TCP the tx should always be ongoing before doing WB");
+        return WritebackCallback(&msg, txnDigest, txn, (void*) false);
+      }
+    }
+  } else {
+    txn = msg.release_txn();
+    computedTxnDigest = TransactionDigest(*txn, params.hashDigest);
+    txnDigest = &computedTxnDigest;
+
+    if(committed.find(*txnDigest) != committed.end() || aborted.find(*txnDigest) != aborted.end()){
+      if(params.multiThreading || (params.mainThreadDispatching && !params.dispatchMessageReceive)){
+        Clean(*txnDigest); //XXX Clean again since client could have added it back to ongoing...
+        FreeWBmessage(&msg);
+        delete txn;
+      }
+      return;  //TODO: Forward to all interested clients and empty it?
+    }
+  }
+
+  Debug("WRITEBACK[%s] with decision %d. Begin Validation",
+      BytesToHex(*txnDigest, 16).c_str(), msg.decision());
+
+  //Verify Writeback Proofs + Call WritebackCallback
+  ManageWritebackValidation(msg, txnDigest, txn);
+  
 }
 
 //Called after Writeback request has been verified
@@ -1356,11 +1220,13 @@ void Server::HandlePhase2(const TransportAddress &remote,
 void Server::WritebackCallback(proto::Writeback *msg, const std::string* txnDigest,
   proto::Transaction* txn, void* valid){
 
+
   if(!valid){
     Debug("VALIDATE Writeback for TX %s failed.", BytesToHex(*txnDigest, 16).c_str());
     if(params.multiThreading || (params.mainThreadDispatching && !params.dispatchMessageReceive)){
       FreeWBmessage(msg);
     }
+     Panic("Writeback Validation should not fail for TX %s ", BytesToHex(*txnDigest, 16).c_str());
     return;
   }
 
@@ -1399,7 +1265,7 @@ void Server::WritebackCallback(proto::Writeback *msg, const std::string* txnDige
         stats.Increment("total_transactions_abort", 1);
         Debug("WRITEBACK[%s] successfully aborting.", BytesToHex(*txnDigest, 16).c_str());
         //msg->set_allocated_txn(txn); //dont need to set since client will?
-        writebackMessages[*txnDigest] = *msg;  //Only necessary for fallback... (could avoid storing these, if one just replied with a p2 vote instea - but that is not as responsive)
+        writebackMessages[*txnDigest] = *msg;  //Only necessary for fallback... (could avoid storing these, if one just replied with a p2 vote instead - but that is not as responsive)
         ///CAUTION: msg might no longer hold txn; could have been released in HanldeWriteback
 
         Abort(*txnDigest);
@@ -1408,6 +1274,7 @@ void Server::WritebackCallback(proto::Writeback *msg, const std::string* txnDige
       if(params.multiThreading || params.mainThreadDispatching){
         FreeWBmessage(msg);
       }
+      //return;
       return (void*) true;
   };
 
@@ -1420,339 +1287,6 @@ void Server::WritebackCallback(proto::Writeback *msg, const std::string* txnDige
 
 }
 
-//Handler for Writeback Message
-//Verifies correctness of request (quorum of P1replies or P2 replies depending on Fast/Slow Path)
-//Dispatches verification to worker threads if multiThreading enabled
-void Server::HandleWriteback(const TransportAddress &remote,
-    proto::Writeback &msg) {
-  stats.Increment("total_writeback_received", 1);
-  //simulating failures in local experiment
-  // fail_writeback++;
-  // if(fail_writeback %2 == 1){
-  //   return;
-  // }
-
-
-  proto::Transaction *txn;
-  const std::string *txnDigest;
-  std::string computedTxnDigest;
-  if (!msg.has_txn() && !msg.has_txn_digest()) {
-    Debug("WRITEBACK message contains neither txn nor txn_digest.");
-    return WritebackCallback(&msg, txnDigest, txn, (void*) false);
-  }
-
-  if (msg.has_txn_digest() ) {
-    txnDigest = &msg.txn_digest();
-
-    if(committed.find(*txnDigest) != committed.end() || aborted.find(*txnDigest) != aborted.end()){
-      if(params.multiThreading || (params.mainThreadDispatching && !params.dispatchMessageReceive)){
-        Clean(*txnDigest); //XXX Clean again since client could have added it back to ongoing...
-        FreeWBmessage(&msg);
-      }
-      return;  //TODO: Forward to all interested clients and empty it?
-    }
-
-    ongoingMap::const_accessor b;
-    auto txnItr = ongoing.find(b, msg.txn_digest());
-    if(txnItr){
-      txn = b->second;
-      b.release();
-    }
-    else{
-      b.release();
-      if(msg.has_txn()){
-        txn = msg.release_txn();
-        // check that digest and txn match..
-         if(*txnDigest !=TransactionDigest(*txn, params.hashDigest)) return;
-      }
-      else{
-        Debug("Writeback[%s] message does not contain txn, but have not seen"
-            " txn_digest previously.", BytesToHex(msg.txn_digest(), 16).c_str());
-        // std::cerr << "Aborting for txn: " << BytesToHex(msg.txn_digest(), 16) << std::endl;
-        // if(normal.count(*txnDigest) > 0){ std::cerr << "was added on normal P1" << std::endl;}
-        // else if(fallback.count(*txnDigest) > 0){ std::cerr << "was added on ExecP1 FB" << std::endl;}
-        // else{ std::cerr << "have not seen p1" << std::endl;}
-        // waiting.insert(msg.txn_digest());
-        //transport->Timer(10000, [this](){Panic("Fail in WB");});
-        Warning("Cannot process Writeback because ongoing does not contain tx for this request. Should not happen with TCP...");
-        //Panic("When using TCP the tx should always be ongoing before doing WB");
-        return WritebackCallback(&msg, txnDigest, txn, (void*) false);
-      }
-    }
-  } else {
-    txn = msg.release_txn();
-    computedTxnDigest = TransactionDigest(msg.txn(), params.hashDigest);
-    txnDigest = &computedTxnDigest;
-
-    if(committed.find(*txnDigest) != committed.end() || aborted.find(*txnDigest) != aborted.end()){
-      if(params.multiThreading || (params.mainThreadDispatching && !params.dispatchMessageReceive)){
-        Clean(*txnDigest); //XXX Clean again since client could have added it back to ongoing...
-        FreeWBmessage(&msg);
-      }
-      return;  //TODO: Forward to all interested clients and empty it?
-    }
-  }
-
-
-  Debug("WRITEBACK[%s] with decision %d.",
-      BytesToHex(*txnDigest, 16).c_str(), msg.decision());
-
-  //Verifying signatures
-  //XXX batchVerification branches are currently deprecated
-  if (params.validateProofs ) {
-      if(params.multiThreading){
-
-          Debug("1: TAKING MULTITHREADING BRANCH, generating MCB");
-          mainThreadCallback mcb(std::bind(&Server::WritebackCallback, this, &msg,
-            txnDigest, txn, std::placeholders::_1));
-
-          if(params.signedMessages && msg.decision() == proto::COMMIT && msg.has_p1_sigs()){
-            stats.Increment("total_transactions_fast_commit", 1);
-            int64_t myProcessId;
-            proto::ConcurrencyControl::Result myResult;
-            LookupP1Decision(*txnDigest, myProcessId, myResult);
-
-            if(params.batchVerification){
-              Debug("2: Taking batch branch p1 commit");
-              asyncBatchValidateP1Replies(msg.decision(),
-                    true, txn, txnDigest, msg.p1_sigs(), keyManager, &config, myProcessId,
-                    myResult, verifier, std::move(mcb), transport, true);
-            }
-            else{
-              Debug("2: Taking non-batch branch p1 commit");
-              asyncValidateP1Replies(msg.decision(),
-                  true, txn, txnDigest, msg.p1_sigs(), keyManager, &config, myProcessId,
-                  myResult, verifier, std::move(mcb), transport, true);
-            }
-            return;
-          }
-          else if(params.signedMessages && msg.decision() == proto::ABORT && msg.has_p1_sigs()){
-            stats.Increment("total_transactions_fast_Abort_sigs", 1);
-            int64_t myProcessId;
-            proto::ConcurrencyControl::Result myResult;
-            LookupP1Decision(*txnDigest, myProcessId, myResult);
-
-            if(params.batchVerification){
-              Debug("2: Taking batch branch p1 abort");
-              asyncBatchValidateP1Replies(msg.decision(),
-                    true, txn, txnDigest, msg.p1_sigs(), keyManager, &config, myProcessId,
-                    myResult, verifier, std::move(mcb), transport, true);
-            }
-            else{
-              Debug("2: Taking non-batch branch p1 abort");
-            asyncValidateP1Replies(msg.decision(),
-                  true, txn, txnDigest, msg.p1_sigs(), keyManager, &config, myProcessId,
-                  myResult, verifier, std::move(mcb), transport, true);
-            }
-            return;
-          }
-
-          else if (params.signedMessages && msg.has_p2_sigs()) {
-             stats.Increment("total_transactions_slow", 1);
-              // require clients to include view for easier matching
-              if(!msg.has_p2_view()) return;
-              int64_t myProcessId;
-              proto::CommitDecision myDecision;
-              LookupP2Decision(*txnDigest, myProcessId, myDecision);
-
-              if(params.batchVerification){
-                Debug("2: Taking batch branch p2");
-                asyncBatchValidateP2Replies(msg.decision(), msg.p2_view(),
-                      txn, txnDigest, msg.p2_sigs(), keyManager, &config, myProcessId,
-                      myDecision, verifier, std::move(mcb), transport, true);
-              }
-              else{
-                Debug("2: Taking non-batch branch p2");
-                asyncValidateP2Replies(msg.decision(), msg.p2_view(),
-                      txn, txnDigest, msg.p2_sigs(), keyManager, &config, myProcessId,
-                      myDecision, verifier, std::move(mcb), transport, true);
-              }
-              return;
-          }
-
-          else if (msg.decision() == proto::ABORT && msg.has_conflict()) {
-             stats.Increment("total_transactions_fast_Abort_conflict", 1);
-
-              std::string committedTxnDigest = TransactionDigest(msg.conflict().txn(),
-                  params.hashDigest);
-              asyncValidateCommittedConflict(msg.conflict(), &committedTxnDigest, txn,
-                    txnDigest, params.signedMessages, keyManager, &config, verifier,
-                    std::move(mcb), transport, true, params.batchVerification);
-              return;
-          }
-          else if (params.signedMessages) {
-
-             Debug("WRITEBACK[%s] decision %d, has_p1_sigs %d, has_p2_sigs %d, and"
-                 " has_conflict %d.", BytesToHex(*txnDigest, 16).c_str(),
-                 msg.decision(), msg.has_p1_sigs(), msg.has_p2_sigs(), msg.has_conflict());
-             return WritebackCallback(&msg, txnDigest, txn, (void*) false);;
-          }
-
-      }
-      //If I make the else case use the async function too, then I can collapse the duplicate code here
-      //and just pass params.multiThreading as argument...
-      //Currently NOT doing that because the async version does additional copies (binds) that are avoided in the single threaded code.
-      else{
-
-          if (params.signedMessages && msg.decision() == proto::COMMIT && msg.has_p1_sigs()) {
-            int64_t myProcessId;
-            proto::ConcurrencyControl::Result myResult;
-            LookupP1Decision(*txnDigest, myProcessId, myResult);
-
-            if(params.batchVerification){
-              mainThreadCallback mcb(std::bind(&Server::WritebackCallback, this, &msg, txnDigest, txn, std::placeholders::_1));
-              asyncBatchValidateP1Replies(proto::COMMIT,
-                    true, txn, txnDigest,msg.p1_sigs(), keyManager, &config, myProcessId,
-                    myResult, verifier, std::move(mcb), transport, false);
-              return;
-            }
-            else{
-              if (!ValidateP1Replies(proto::COMMIT, true, txn, txnDigest, msg.p1_sigs(),
-                    keyManager, &config, myProcessId, myResult, verifyLat, verifier)) {
-                Debug("WRITEBACK[%s] Failed to validate P1 replies for fast commit.",
-                    BytesToHex(*txnDigest, 16).c_str());
-                return WritebackCallback(&msg, txnDigest, txn, (void*) false);
-              }
-            }
-          }
-          else if (params.signedMessages && msg.decision() == proto::ABORT && msg.has_p1_sigs()) {
-            int64_t myProcessId;
-            proto::ConcurrencyControl::Result myResult;
-            LookupP1Decision(*txnDigest, myProcessId, myResult);
-
-            if(params.batchVerification){
-              mainThreadCallback mcb(std::bind(&Server::WritebackCallback, this, &msg, txnDigest, txn, std::placeholders::_1));
-              asyncBatchValidateP1Replies(proto::ABORT,
-                    true, txn, txnDigest,msg.p1_sigs(), keyManager, &config, myProcessId,
-                    myResult, verifier, std::move(mcb), transport, false);
-              return;
-            }
-            else{
-              if (!ValidateP1Replies(proto::ABORT, true, txn, txnDigest, msg.p1_sigs(),
-                    keyManager, &config, myProcessId, myResult, verifyLat, verifier)) {
-                Debug("WRITEBACK[%s] Failed to validate P1 replies for fast abort.",
-                    BytesToHex(*txnDigest, 16).c_str());
-                return WritebackCallback(&msg, txnDigest, txn, (void*) false);
-              }
-            }
-          }
-
-          else if (params.signedMessages && msg.has_p2_sigs()) {
-            if(!msg.has_p2_view()) return;
-            int64_t myProcessId;
-            proto::CommitDecision myDecision;
-            LookupP2Decision(*txnDigest, myProcessId, myDecision);
-
-
-            if(params.batchVerification){
-              mainThreadCallback mcb(std::bind(&Server::WritebackCallback, this, &msg, txnDigest, txn, std::placeholders::_1));
-              asyncBatchValidateP2Replies(msg.decision(), msg.p2_view(),
-                    txn, txnDigest, msg.p2_sigs(), keyManager, &config, myProcessId,
-                    myDecision, verifier, std::move(mcb), transport, false);
-              return;
-            }
-            else{
-              if (!ValidateP2Replies(msg.decision(), msg.p2_view(), txn, txnDigest, msg.p2_sigs(),
-                    keyManager, &config, myProcessId, myDecision, verifyLat, verifier)) {
-                Debug("WRITEBACK[%s] Failed to validate P2 replies for decision %d.",
-                    BytesToHex(*txnDigest, 16).c_str(), msg.decision());
-                return WritebackCallback(&msg, txnDigest, txn, (void*) false);
-              }
-            }
-
-          } else if (msg.decision() == proto::ABORT && msg.has_conflict()) {
-            std::string committedTxnDigest = TransactionDigest(msg.conflict().txn(),
-                params.hashDigest);
-
-                if(params.batchVerification){
-                  mainThreadCallback mcb(std::bind(&Server::WritebackCallback, this, &msg, txnDigest, txn, std::placeholders::_1));
-                  asyncValidateCommittedConflict(msg.conflict(), &committedTxnDigest, txn,
-                        txnDigest, params.signedMessages, keyManager, &config, verifier,
-                        std::move(mcb), transport, false, params.batchVerification);
-                  return;
-                }
-                else{
-                  if (!ValidateCommittedConflict(msg.conflict(), &committedTxnDigest, txn,
-                        txnDigest, params.signedMessages, keyManager, &config, verifier)) {
-                    Debug("WRITEBACK[%s] Failed to validate committed conflict for fast abort.",
-                        BytesToHex(*txnDigest, 16).c_str());
-                    return WritebackCallback(&msg, txnDigest, txn, (void*) false);
-                }
-
-            }
-          } else if (params.signedMessages) {
-            Debug("WRITEBACK[%s] decision %d, has_p1_sigs %d, has_p2_sigs %d, and"
-                " has_conflict %d.", BytesToHex(*txnDigest, 16).c_str(),
-                msg.decision(), msg.has_p1_sigs(), msg.has_p2_sigs(), msg.has_conflict());
-            return WritebackCallback(&msg, txnDigest, txn, (void*) false);
-          }
-        }
-
-  }
-
-  WritebackCallback(&msg, txnDigest, txn, (void*) true);
-}
-
-// bool Server::ForwardWriteback(const TransportAddress &remote, uint64_t ReqId, const std::string &txnDigest){
-//   //1) COMMIT CASE
-//   if(committed.find(txnDigest) != committed.end()){
-//       Debug("ForwardingWriteback Commit for txn: %s", BytesToHex(txnDigest, 64).c_str());
-//       proto::ForwardWriteback forwardWB;
-//       forwardWB.Clear();
-//       forwardWB.set_req_id(ReqId);
-//       forwardWB.set_txn_digest(txnDigest);
-//
-//       proto::CommittedProof* proof = committed[txnDigest];
-//
-//       if(proof->has_p1_sigs()){
-//         *forwardWB.mutable_p1_sigs() = proof->p1_sigs();
-//       }
-//       else if(proof->has_p2_sigs()){
-//         *forwardWB.mutable_p2_sigs() = proof->p2_sigs();
-//         forwardWB.set_p2_view(proof->p2_view());
-//       }
-//       else{
-//         Panic("Commit proof has no signatures"); //error, should not happen
-//         // A Commit proof
-//         return false;
-//       }
-//
-//       transport->SendMessage(this, remote, forwardWB);
-//       return true;
-//   }
-//
-//   //2) ABORT CASE
-//   //currently for simplicity just forward writeback message that we received and stored.
-//   //writebackMessages only contains Abort copies. (when can one delete these?)
-//   //(A blockchain stores all request too, whether commit/abort)
-//   if(writebackMessages.find(txnDigest) != writebackMessages.end()){
-//       Debug("ForwardingWriteback Abort for txn: %s", BytesToHex(txnDigest, 64).c_str());
-//       proto::ForwardWriteback forwardWB;
-//       forwardWB.Clear();
-//       forwardWB.set_req_id(ReqId);
-//       forwardWB.set_txn_digest(txnDigest);
-//       proto::Writeback &wb = writebackMessages[txnDigest];
-//
-//       if(wb.has_p1_sigs()){
-//         *forwardWB.mutable_p1_sigs() = wb.p1_sigs();
-//       }
-//       else if(wb.has_p2_sigs()){
-//         *forwardWB.mutable_p2_sigs() = wb.p2_sigs();
-//         forwardWB.set_p2_view(proof->p2_view());
-//       }
-//       else if(wb.has_conflict()){
-//         *forwardWB.mutable_conflict() = wb.conflict();
-//       }
-//       else{
-//         Panic("Abort 'proof' has no proof"); //error, should not happen
-//         return false;
-//       }
-//
-//       transport->SendMessage(this, remote, forwardWB);
-//       return true;
-//   }
-// }
-
 
 void Server::HandleAbort(const TransportAddress &remote,
     const proto::Abort &msg) {
@@ -1762,14 +1296,14 @@ void Server::HandleAbort(const TransportAddress &remote,
       return;
     }
 
-    //Latency_Start(&verifyLat);
-    if (!verifier->Verify(keyManager->GetPublicKey(msg.signed_internal().process_id()),
+    Latency_Start(&verifyLat);
+    if (!client_verifier->Verify(keyManager->GetPublicKey(keyManager->GetClientKeyId(msg.signed_internal().process_id())),
           msg.signed_internal().data(),
           msg.signed_internal().signature())) {
       //Latency_End(&verifyLat);
       return;
     }
-    //Latency_End(&verifyLat);
+    Latency_End(&verifyLat);
 
     if (!abortInternal.ParseFromString(msg.signed_internal().data())) {
       return;
@@ -1785,696 +1319,31 @@ void Server::HandleAbort(const TransportAddress &remote,
     abort = &msg.internal();
   }
 
-  //RECOMMENT XXX currently displaced by RTS version with no set, but only a single replacing RTS
+  //RECOMMENT XXX currently displaced by RTS implementation that has no set, but only a single RTS version that keeps getting replaced.
   //  if(params.mainThreadDispatching) rtsMutex.lock();
   // for (const auto &read : abort->read_set()) {
   //   rts[read].erase(abort->ts());
   // }
   //  if(params.mainThreadDispatching) rtsMutex.unlock();
-}
-
-proto::ConcurrencyControl::Result Server::DoOCCCheck(
-    uint64_t reqId, const TransportAddress &remote,
-    const std::string &txnDigest, const proto::Transaction &txn,
-    Timestamp &retryTs, const proto::CommittedProof* &conflict,
-    const proto::Transaction* &abstain_conflict,
-    bool fallback_flow, bool replicaGossip) {
-
-  locks_t locks;
-  //lock keys to perform an atomic OCC check when parallelizing OCC checks.
-  if(params.parallel_CCC){
-    locks = LockTxnKeys_scoped(txn);
+  if(params.rtsMode == 1){
+    //Do nothing -- If we removed latest RTS then smaller ones that should be subsumed become inactive too.
   }
-
-  switch (occType) {
-    case TAPIR:
-      return DoTAPIROCCCheck(txnDigest, txn, retryTs);
-    case MVTSO:
-      return DoMVTSOOCCCheck(reqId, remote, txnDigest, txn, conflict, abstain_conflict, fallback_flow, replicaGossip);
-    default:
-      Panic("Unknown OCC type: %d.", occType);
-      return proto::ConcurrencyControl::ABORT;
+  else if(params.rtsMode == 2){
+    for (const auto &read : abort->read_set()) {
+    std::pair<std::shared_mutex, std::set<Timestamp>> &rts_set = rts_list[read];
+      {
+        std::unique_lock lock(rts_set.first);
+        rts_set.second.erase(abort->ts());
+      }
   }
-}
-
-locks_t Server::LockTxnKeys_scoped(const proto::Transaction &txn) {
-    // timeval tv1;
-    // gettimeofday(&tv1, 0);
-    // int id = std::rand();
-    // std::cerr << "starting locking for id: " << id << std::endl;
-    locks_t locks;
-
-    auto itr_r = txn.read_set().begin();
-    auto itr_w = txn.write_set().begin();
-
-    //for(int i = 0; i < txn.read_set().size() + txn.write_set().size(); ++i){
-    while(itr_r != txn.read_set().end() || itr_w != txn.write_set().end()){
-      //skip duplicate keys (since the list is sorted they should be next)
-      if(itr_r != txn.read_set().end() && std::next(itr_r) != txn.read_set().end()){
-        if(itr_r->key() == std::next(itr_r)->key()){
-          itr_r++;
-          continue;
-        }
-      }
-      if(itr_w != txn.write_set().end() && std::next(itr_w) != txn.write_set().end()){
-        if(itr_w->key() == std::next(itr_w)->key()){
-          itr_w++;
-          continue;
-        }
-      }
-      //lock and advance read/write respectively if the other set is done
-      if(itr_r == txn.read_set().end()){
-        //std::cerr<< "Locking Write [" << txn.client_id() << "," << txn.client_seq_num()  << " : " << BytesToHex(itr_w->key(), 16).c_str() << "]" << std::endl;
-        locks.emplace_back(mutex_map[itr_w->key()]);
-        itr_w++;
-      }
-      else if(itr_w == txn.write_set().end()){
-        //std::cerr<< "Locking Read [" << txn.client_id() << "," << txn.client_seq_num()  << " : " << BytesToHex(itr_r->key(), 16).c_str() << "]" << std::endl;
-        locks.emplace_back(mutex_map[itr_r->key()]);
-        itr_r++;
-      }
-      //lock and advance read/write iterators in order
-      else{
-        if(itr_r->key() <= itr_w->key()){
-          //std::cerr<< "Locking Read/Write [" << txn.client_id() << "," << txn.client_seq_num()  << " : " << BytesToHex(itr_r->key(), 16).c_str() << "]" << std::endl;
-          locks.emplace_back(mutex_map[itr_r->key()]);
-          //If read set and write set share keys, must not acquire lock twice.
-          if(itr_r->key() == itr_w->key()) {
-            itr_w++;
-          }
-          itr_r++;
-        }
-        else{
-          //std::cerr<< "Locking Write [" << txn.client_id() << "," << txn.client_seq_num()  << " : " << BytesToHex(itr_w->key(), 16).c_str() << "]" << std::endl;
-          locks.emplace_back(mutex_map[itr_w->key()]);
-          itr_w++;
-        }
-      }
-    }
-    // timeval tv2;
-    // gettimeofday(&tv2, 0);
-    // total_lock_time_ms += (tv2.tv_sec * 1000  + tv2.tv_usec / 1000) - (tv1.tv_sec * 1000  + tv1.tv_usec / 1000);
-    // std::cerr << "ending locking for id: " << id << std::endl;
-    return locks;
-}
-
-//XXX DEPRECATED
-void Server::LockTxnKeys(proto::Transaction &txn){
-  // Lock all (read/write) keys in order for atomicity if using parallel OCC
-
-    auto itr_r = txn.read_set().begin();
-    auto itr_w = txn.write_set().begin();
-    //for(int i = 0; i < txn.read_set().size() + txn.write_set().size(); ++i){
-    while(itr_r != txn.read_set().end() || itr_w != txn.write_set().end()){
-      if(itr_r == txn.read_set().end()){
-        lock_keys[itr_w->key()].lock();
-        itr_w++;
-      }
-      else if(itr_w == txn.write_set().end()){
-        lock_keys[itr_r->key()].lock();
-        itr_r++;
-      }
-      else{
-        if(itr_r->key() <= itr_w->key()){
-          lock_keys[itr_r->key()].lock();
-          //If read set and write set share keys, must not acquire lock twice.
-          if(itr_r->key() == itr_w->key()) { itr_w++;}
-          itr_r++;
-        }
-        else{
-          lock_keys[itr_w->key()].lock();
-          itr_w++;
-        }
-      }
-    }
-}
-//XXX DEPRECATED
-void Server::UnlockTxnKeys(proto::Transaction &txn){
-  // Lock all (read/write) keys in order for atomicity if using parallel OCC
-    auto itr_r = txn.read_set().rbegin();
-    auto itr_w = txn.write_set().rbegin();
-    //for(int i = 0; i < txn.read_set().size() + txn.write_set().size(); ++i){
-    while(itr_r != txn.read_set().rend() || itr_w != txn.write_set().rend()){
-      if(itr_r == txn.read_set().rend()){
-        lock_keys[itr_w->key()].unlock();
-        itr_w++;
-      }
-      else if(itr_w == txn.write_set().rend()){
-        lock_keys[itr_r->key()].unlock();
-        itr_r++;
-      }
-      else{
-        if(itr_r->key() > itr_w->key()){
-          lock_keys[itr_r->key()].unlock();
-          itr_r++;
-        }
-        else{
-          lock_keys[itr_w->key()].unlock();
-          if(itr_r->key() == itr_w->key()) { itr_r++;}
-          itr_w++;
-        }
-      }
-    }
-}
-
-proto::ConcurrencyControl::Result Server::DoTAPIROCCCheck(
-    const std::string &txnDigest, const proto::Transaction &txn,
-    Timestamp &retryTs) {
-  Debug("[%s] START PREPARE", txnDigest.c_str());
-
-
-  if(params.mainThreadDispatching) preparedMutex.lock_shared();
-  preparedMap::const_accessor a;
-  auto preparedItr = prepared.find(a, txnDigest);
-  if(preparedItr){
-      if(a->second.first == txn.timestamp()){
-  //if (preparedItr != prepared.end()) {
-  //  if (preparedItr->second.first == txn.timestamp()) {
-      Warning("[%s] Already Prepared!", txnDigest.c_str());
-      if(params.mainThreadDispatching) preparedMutex.unlock_shared();
-      return proto::ConcurrencyControl::COMMIT;
-    } else {
-      // run the checks again for a new timestamp
-      if(params.mainThreadDispatching) preparedMutex.unlock_shared();
-      Clean(txnDigest);
-    }
-  }
-  a.release();
-  // do OCC checks
-  std::unordered_map<std::string, std::set<Timestamp>> pReads;
-  GetPreparedReadTimestamps(pReads);
-
-  // check for conflicts with the read set
-  for (const auto &read : txn.read_set()) {
-    std::pair<Timestamp, Timestamp> range;
-     //if(params.mainThreadDispatching) storeMutex.lock();
-    bool ret = store.getRange(read.key(), read.readtime(), range);
-     //if(params.mainThreadDispatching) storeMutex.unlock();
-
-    Debug("Range %lu %lu %lu", Timestamp(read.readtime()).getTimestamp(),
-        range.first.getTimestamp(), range.second.getTimestamp());
-
-    // if we don't have this key then no conflicts for read
-    if (!ret) {
-      continue;
-    }
-
-    // if we don't have this version then no conflicts for read
-    if (range.first != read.readtime()) {
-      continue;
-    }
-
-    // if the value is still valid
-    if (!range.second.isValid()) {
-      // check pending writes.
-      //auto preparedWritesMutexScope = params.mainThreadDispatching ? std::shared_lock<std::shared_mutex>(preparedWritesMutex) : std::shared_lock<std::shared_mutex>();
-
-      if (preparedWrites.find(read.key()) != preparedWrites.end()) {
-        Debug("[%lu,%lu] ABSTAIN rw conflict w/ prepared key %s.",
-            txn.client_id(),
-            txn.client_seq_num(),
-            BytesToHex(read.key(), 16).c_str());
-        stats.Increment("cc_abstains", 1);
-        stats.Increment("cc_abstains_rw_conflict", 1);
-        return proto::ConcurrencyControl::ABSTAIN;
-      }
-    } else {
-      // if value is not still valtxnDigest, then abort.
-      /*if (Timestamp(txn.timestamp()) <= range.first) {
-        Warning("timestamp %lu <= range.first %lu (range.second %lu)",
-            txn.timestamp().timestamp(), range.first.getTimestamp(),
-            range.second.getTimestamp());
-      }*/
-      //UW_ASSERT(timestamp > range.first);
-      Debug("[%s] ABORT rw conflict: %lu > %lu", txnDigest.c_str(),
-          txn.timestamp().timestamp(), range.second.getTimestamp());
-      stats.Increment("cc_aborts", 1);
-      stats.Increment("cc_aborts_rw_conflict", 1);
-      return proto::ConcurrencyControl::ABORT;
-    }
-  }
-
-  // check for conflicts with the write set
-  for (const auto &write : txn.write_set()) {
-    std::pair<Timestamp, Server::Value> val;
-    // if this key is in the store
-     //if(params.mainThreadDispatching) storeMutex.lock();
-    if (store.get(write.key(), val)) {
-      Timestamp lastRead;
-      bool ret;
-
-      // if the last committed write is bigger than the timestamp,
-      // then can't accept
-      if (val.first > Timestamp(txn.timestamp())) {
-        Debug("[%s] RETRY ww conflict w/ prepared key:%s", txnDigest.c_str(),
-            write.key().c_str());
-        retryTs = val.first;
-        stats.Increment("cc_retries_committed_write", 1);
-         //if(params.mainThreadDispatching) storeMutex.unlock();
-        return proto::ConcurrencyControl::ABSTAIN;
-      }
-
-      // if last committed read is bigger than the timestamp, can't
-      // accept this transaction, but can propose a retry timestamp
-
-      // we get the timestamp of the last read ever on this object
-      ret = store.getLastRead(write.key(), lastRead);
-
-      // if this key is in the store and has been read before
-      if (ret && lastRead > Timestamp(txn.timestamp())) {
-        Debug("[%s] RETRY wr conflict w/ prepared key:%s", txnDigest.c_str(),
-            write.key().c_str());
-        retryTs = lastRead;
-         //if(params.mainThreadDispatching) storeMutex.unlock();
-        return proto::ConcurrencyControl::ABSTAIN;
-      }
-    }
-     //if(params.mainThreadDispatching) storeMutex.unlock();
-
-    // if there is a pending write for this key, greater than the
-    // proposed timestamp, retry
-
-     //if(params.mainThreadDispatching) preparedWritesMutex.lock_shared();
-
-     auto itr = preparedWrites.find(write.key());
-
-    if (itr != preparedWrites.end()) {
-      itr->second.first.lock_shared();
-      std::map<Timestamp, const proto::Transaction *>::iterator it =
-          itr->second.second.upper_bound(txn.timestamp());
-      if (it != itr->second.second.end() ) {
-        Debug("[%s] RETRY ww conflict w/ prepared key:%s", txnDigest.c_str(),
-            write.key().c_str());
-        retryTs = it->first;
-        stats.Increment("cc_retries_prepared_write", 1);
-         //if(params.mainThreadDispatching) preparedWritesMutex.unlock_shared();
-         itr->second.first.unlock_shared();
-        return proto::ConcurrencyControl::ABSTAIN;
-      }
-      itr->second.first.unlock_shared();
-    }
-     //if(params.mainThreadDispatching) preparedWritesMutex.unlock_shared();
-
-
-    //if there is a pending read for this key, greater than the
-    //propsed timestamp, abstain
-    if (pReads.find(write.key()) != pReads.end() &&
-        pReads[write.key()].upper_bound(txn.timestamp()) !=
-        pReads[write.key()].end()) {
-      Debug("[%s] ABSTAIN wr conflict w/ prepared key: %s",
-            txnDigest.c_str(), write.key().c_str());
-      stats.Increment("cc_abstains", 1);
-      return proto::ConcurrencyControl::ABSTAIN;
-    }
-  }
-
-  // Otherwise, prepare this transaction for commit
-  Prepare(txnDigest, txn);
-
-  Debug("[%s] PREPARED TO COMMIT", txnDigest.c_str());
-
-  return proto::ConcurrencyControl::COMMIT;
-}
-
-proto::ConcurrencyControl::Result Server::DoMVTSOOCCCheck(
-    uint64_t reqId, const TransportAddress &remote,
-    const std::string &txnDigest, const proto::Transaction &txn,
-    const proto::CommittedProof* &conflict, const proto::Transaction* &abstain_conflict,
-    bool fallback_flow, bool replicaGossip) {
-  Debug("PREPARE[%lu:%lu][%s] with ts %lu.%lu.",
-      txn.client_id(), txn.client_seq_num(),
-      BytesToHex(txnDigest, 16).c_str(),
-      txn.timestamp().timestamp(), txn.timestamp().id());
-  Timestamp ts(txn.timestamp());
-
-
-  preparedMap::const_accessor a;
-  bool preparedItr = prepared.find(a, txnDigest);
-  //if (preparedItr == prepared.end()) {
-  if(!preparedItr){
-    a.release();
-    if (CheckHighWatermark(ts)) {
-      Debug("[%lu:%lu][%s] ABSTAIN ts %lu beyond high watermark.",
-          txn.client_id(), txn.client_seq_num(),
-          BytesToHex(txnDigest, 16).c_str(),
-          ts.getTimestamp());
-      stats.Increment("cc_abstains", 1);
-      stats.Increment("cc_abstains_watermark", 1);
-      return proto::ConcurrencyControl::ABSTAIN;
-    }
-    for (const auto &read : txn.read_set()) {
-      // TODO: remove this check when txns only contain read set/write set for the
-      //   shards stored at this replica
-      if (!IsKeyOwned(read.key())) {
-        continue;
-      }
-
-      std::vector<std::pair<Timestamp, Server::Value>> committedWrites;
-      GetCommittedWrites(read.key(), read.readtime(), committedWrites);
-      for (const auto &committedWrite : committedWrites) {
-        // readVersion < committedTs < ts
-        //     GetCommittedWrites only returns writes larger than readVersion
-        if (committedWrite.first < ts) {
-          if (params.validateProofs) {
-            conflict = committedWrite.second.proof;
-          }
-          Debug("[%lu:%lu][%s] ABORT wr conflict committed write for key %s:"
-              " this txn's read ts %lu.%lu < committed ts %lu.%lu < this txn's ts %lu.%lu.",
-              txn.client_id(),
-              txn.client_seq_num(),
-              BytesToHex(txnDigest, 16).c_str(),
-              BytesToHex(read.key(), 16).c_str(),
-              read.readtime().timestamp(),
-              read.readtime().id(), committedWrite.first.getTimestamp(),
-              committedWrite.first.getID(), ts.getTimestamp(), ts.getID());
-          stats.Increment("cc_aborts", 1);
-          stats.Increment("cc_aborts_wr_conflict", 1);
-          return proto::ConcurrencyControl::ABORT;
-        }
-      }
-
-      const auto preparedWritesItr = preparedWrites.find(read.key());
-      if (preparedWritesItr != preparedWrites.end()) {
-
-        std::shared_lock lock(preparedWritesItr->second.first);
-        for (const auto &preparedTs : preparedWritesItr->second.second) {
-          if (Timestamp(read.readtime()) < preparedTs.first && preparedTs.first < ts) {
-            Debug("[%lu:%lu][%s] ABSTAIN wr conflict prepared write for key %s:"
-              " this txn's read ts %lu.%lu < prepared ts %lu.%lu < this txn's ts %lu.%lu.",
-                txn.client_id(),
-                txn.client_seq_num(),
-                BytesToHex(txnDigest, 16).c_str(),
-                BytesToHex(read.key(), 16).c_str(),
-                read.readtime().timestamp(),
-                read.readtime().id(), preparedTs.first.getTimestamp(),
-                preparedTs.first.getID(), ts.getTimestamp(), ts.getID());
-            stats.Increment("cc_abstains", 1);
-            stats.Increment("cc_abstains_wr_conflict", 1);
-
-            // if(fallback_flow){
-            //   std::cerr<< "Abstain ["<<BytesToHex(txnDigest, 16)<<"] against prepared write from tx[" << BytesToHex(TransactionDigest(*preparedTs.second, params.hashDigest), 16) << "]" << std::endl;
-            // }
-            //std::cerr << "Abstain caused by txn: " << BytesToHex(TransactionDigest(*abstain_conflict, params.hashDigest), 16) << std::endl;
-            abstain_conflict = preparedTs.second;
-            return proto::ConcurrencyControl::ABSTAIN;
-          }
-        }
-      }
-    }
-
-    for (const auto &write : txn.write_set()) {
-      if (!IsKeyOwned(write.key())) {
-        continue;
-      }
-
-      auto committedReadsItr = committedReads.find(write.key());
-
-      if (committedReadsItr != committedReads.end()){
-         std::shared_lock lock(committedReadsItr->second.first);
-         if(committedReadsItr->second.second.size() > 0) {
-          for (auto ritr = committedReadsItr->second.second.rbegin();
-              ritr != committedReadsItr->second.second.rend(); ++ritr) {
-            if (ts >= std::get<0>(*ritr)) {
-              // iterating over committed reads from largest to smallest committed txn ts
-              //    if ts is larger than current itr, it is also larger than all subsequent itrs
-              break;
-            } else if (std::get<1>(*ritr) < ts) {
-              if (params.validateProofs) {
-                conflict = std::get<2>(*ritr);
-              }
-              Debug("[%lu:%lu][%s] ABORT rw conflict committed read for key %s: committed"
-                  " read ts %lu.%lu < this txn's ts %lu.%lu < committed ts %lu.%lu.",
-                  txn.client_id(),
-                  txn.client_seq_num(),
-                  BytesToHex(txnDigest, 16).c_str(),
-                  BytesToHex(write.key(), 16).c_str(),
-                  std::get<1>(*ritr).getTimestamp(),
-                  std::get<1>(*ritr).getID(), ts.getTimestamp(),
-                  ts.getID(), std::get<0>(*ritr).getTimestamp(),
-                  std::get<0>(*ritr).getID());
-              stats.Increment("cc_aborts", 1);
-              stats.Increment("cc_aborts_rw_conflict", 1);
-              return proto::ConcurrencyControl::ABORT;
-            }
-          }
-        }
-      }
-
-      const auto preparedReadsItr = preparedReads.find(write.key());
-      if (preparedReadsItr != preparedReads.end()) {
-
-        std::shared_lock lock(preparedReadsItr->second.first);
-
-        for (const auto preparedReadTxn : preparedReadsItr->second.second) {
-          bool isDep = false;
-          for (const auto &dep : preparedReadTxn->deps()) {
-            if (txnDigest == dep.write().prepared_txn_digest()) {
-              isDep = true;
-              break;
-            }
-          }
-
-          bool isReadVersionEarlier = false;
-          Timestamp readTs;
-          for (const auto &read : preparedReadTxn->read_set()) {
-            if (read.key() == write.key()) {
-              readTs = Timestamp(read.readtime());
-              isReadVersionEarlier = readTs < ts;
-              break;
-            }
-          }
-          if (!isDep && isReadVersionEarlier &&
-              ts < Timestamp(preparedReadTxn->timestamp())) {
-            Debug("[%lu:%lu][%s] ABSTAIN rw conflict prepared read for key %s: prepared"
-                " read ts %lu.%lu < this txn's ts %lu.%lu < committed ts %lu.%lu.",
-                txn.client_id(),
-                txn.client_seq_num(),
-                BytesToHex(txnDigest, 16).c_str(),
-                BytesToHex(write.key(), 16).c_str(),
-                readTs.getTimestamp(),
-                readTs.getID(), ts.getTimestamp(),
-                ts.getID(), preparedReadTxn->timestamp().timestamp(),
-                preparedReadTxn->timestamp().id());
-            stats.Increment("cc_abstains", 1);
-            stats.Increment("cc_abstains_rw_conflict", 1);
-
-            // if(fallback_flow){
-            //   std::cerr<< "Abstain ["<<BytesToHex(txnDigest, 16)<<"] against prepared read from tx[" << BytesToHex(TransactionDigest(*preparedReadTxn, params.hashDigest), 16) << "]" << std::endl;
-            // }
-            return proto::ConcurrencyControl::ABSTAIN;
-          }
-        }
-      }
-
-       //RECOMMENT XXX Set version of RTS implementation; currently using single replacing RTS
-      //  //Latency_Start(&waitingOnLocks);
-      //  if(params.mainThreadDispatching) rtsMutex.lock_shared();
-      //  //Latency_End(&waitingOnLocks);
-      // auto rtsItr = rts.find(write.key());
-      // if (rtsItr != rts.end()) {
-      //   auto rtsRBegin = rtsItr->second.rbegin();
-      //   if (rtsRBegin != rtsItr->second.rend()) {
-      //     Debug("Largest rts for write to key %s: %lu.%lu.",
-      //       BytesToHex(write.key(), 16).c_str(), rtsRBegin->getTimestamp(),
-      //       rtsRBegin->getID());
-      //   }
-      //   auto rtsLB = rtsItr->second.lower_bound(ts);
-      //   if (rtsLB != rtsItr->second.end()) {
-      //     Debug("Lower bound rts for write to key %s: %lu.%lu.",
-      //       BytesToHex(write.key(), 16).c_str(), rtsLB->getTimestamp(),
-      //       rtsLB->getID());
-      //     if (*rtsLB == ts) {
-      //       rtsLB++;
-      //     }
-      //     if (rtsLB != rtsItr->second.end()) {
-      //       if (*rtsLB > ts) {
-      //         Debug("[%lu:%lu][%s] ABSTAIN larger rts acquired for key %s: rts %lu.%lu >"
-      //             " this txn's ts %lu.%lu.",
-      //             txn.client_id(),
-      //             txn.client_seq_num(),
-      //             BytesToHex(txnDigest, 16).c_str(),
-      //             BytesToHex(write.key(), 16).c_str(),
-      //             rtsLB->getTimestamp(),
-      //             rtsLB->getID(), ts.getTimestamp(), ts.getID());
-      //         stats.Increment("cc_abstains", 1);
-      //         stats.Increment("cc_abstains_rts", 1);
-      //          if(params.mainThreadDispatching) rtsMutex.unlock_shared();
-      //         return proto::ConcurrencyControl::ABSTAIN;
-      //       }
-      //     }
-      //   }
-      // }
-      //  if(params.mainThreadDispatching) rtsMutex.unlock_shared();
-      auto rtsItr = rts.find(write.key());
-      if(rtsItr != rts.end()){
-        if(rtsItr->second > ts.getTimestamp()){
-          ///TODO XXX Re-introduce ID also, for finer ordering. This is safe, since the
-          //RTS check is just an additional heuristic; The prepare/commit checks guarantee serializability on their own
-          stats.Increment("cc_abstains", 1);
-          stats.Increment("cc_abstains_rts", 1);
-          return proto::ConcurrencyControl::ABSTAIN;
-        }
-      }
-
-      // TODO: add additional rts dep check to shrink abort window  (aka Exceptions)
-      //    Is this still a thing?  -->> No currently not
-    }
-
-    if (params.validateProofs && params.signedMessages && !params.verifyDeps) {
-
-      Debug("Exec MessageToSign by CPU: %d", sched_getcpu());
-      for (const auto &dep : txn.deps()) {
-        if (dep.involved_group() != groupIdx) {
-          continue;
-        }
-        if (committed.find(dep.write().prepared_txn_digest()) == committed.end() &&
-            aborted.find(dep.write().prepared_txn_digest()) == aborted.end()) {
-          //check whether we (i.e. the server) have prepared it ourselves: This alleviates having to verify dep proofs
-
-          preparedMap::const_accessor a2;
-          auto preparedItr = prepared.find(a2, dep.write().prepared_txn_digest());
-          if(!preparedItr){
-          //if (preparedItr == prepared.end()) {
-            return proto::ConcurrencyControl::ABSTAIN;
-          }
-          a2.release();
-        }
-      }
-    }
-    Prepare(txnDigest, txn);
   }
   else{
-     a.release();
-  }
-
-  bool allFinished = ManageDependencies(txnDigest, txn, remote, reqId, fallback_flow, replicaGossip);
-
-  if (!allFinished) {
-    stats.Increment("cc_waits", 1);
-    return proto::ConcurrencyControl::WAIT;
-  } else {
-    return CheckDependencies(txn);
+    //No RTS
   }
 }
 
-//TODO: relay Deeper depth when result is already wait. (If I always re-did the P1 it would be handled)
-// PRoblem: Dont want to re-do P1, otherwise a past Abort can turn into a commit. Hence we
-// ForwardWriteback
-bool Server::ManageDependencies(const std::string &txnDigest, const proto::Transaction &txn, const TransportAddress &remote, uint64_t reqId, bool fallback_flow, bool replicaGossip){
 
-  bool allFinished = true;
-
-  if(params.maxDepDepth > -2){
-
-      //if(params.mainThreadDispatching) dependentsMutex.lock();
-     if(params.mainThreadDispatching) waitingDependenciesMutex.lock();
-     //TODO: instead, take a per txnDigest lock in the loop for each dep, (add the mutex if necessary, and remove it at the end)
-
-     Debug("Called ManageDependencies for txn: %s", BytesToHex(txnDigest, 16).c_str());
-     Debug("Manage Dependencies runs on Thread: %d", sched_getcpu());
-     for (const auto &dep : txn.deps()) {
-       if (dep.involved_group() != groupIdx) { //only check deps at the responsible shard.
-         continue;
-       }
-
-       // tbb::concurrent_hash_map<std::string, std::mutex>::const_accessor z;
-       // bool currently_completing = completing.find(z, dep.write().prepared_txn_digest());
-       // if(currently_completing) //z->second.lock();
-
-       if (committed.find(dep.write().prepared_txn_digest()) == committed.end() &&
-           aborted.find(dep.write().prepared_txn_digest()) == aborted.end()) {
-         Debug("[%lu:%lu][%s] WAIT for dependency %s to finish.",
-             txn.client_id(), txn.client_seq_num(),
-             BytesToHex(txnDigest, 16).c_str(),
-             BytesToHex(dep.write().prepared_txn_digest(), 16).c_str());
-
-         //XXX start RelayP1 to initiate Fallback handling
-
-         if(!params.no_fallback && true && !replicaGossip){ //do not send relay if it is a gossiped message. Unless we are doinig replica leader gargabe Collection (unimplemented)
-           // ongoingMap::const_accessor b;
-           // bool inOngoing = ongoing.find(b, dep.write().prepared_txn_digest()); //TODO can remove this redundant lookup since it will be checked again...
-           // if (inOngoing) {
-           //   std::string dependency_txnDig = dep.write().prepared_txn_digest();
-           //   RelayP1(dep.write().prepared_txn_digest(), fallback_flow, reqId, remote, txnDigest);
-             uint64_t conflict_id = !fallback_flow ? reqId : -1;
-             SendRelayP1(remote, dep.write().prepared_txn_digest(), conflict_id, txnDigest);
-           // }
-           // b.release();
-         }
-
-         allFinished = false;
-         //dependents[dep.write().prepared_txn_digest()].insert(txnDigest);
-
-         // auto dependenciesItr = waitingDependencies.find(txnDigest);
-         // if (dependenciesItr == waitingDependencies.end()) {
-         //   auto inserted = waitingDependencies.insert(std::make_pair(txnDigest,
-         //         WaitingDependency()));
-         //   UW_ASSERT(inserted.second);
-         //   dependenciesItr = inserted.first;
-         // }
-         // dependenciesItr->second.reqId = reqId;
-         // dependenciesItr->second.remote = remote.clone();  //&remote;
-         // dependenciesItr->second.deps.insert(dep.write().prepared_txn_digest());
-
-         Debug("Tx:[%s] Added tx %s to %s dependents.", BytesToHex(txnDigest, 16).c_str(), BytesToHex(txnDigest, 16).c_str(), BytesToHex(dep.write().prepared_txn_digest(), 16).c_str());
-         dependentsMap::accessor e;
-         dependents.insert(e, dep.write().prepared_txn_digest());
-         e->second.insert(txnDigest);
-         e.release();
-
-         Debug("Tx:[%s] Added %s to waitingDependencies.", BytesToHex(txnDigest, 16).c_str(), BytesToHex(dep.write().prepared_txn_digest(), 16).c_str());
-         waitingDependenciesMap::accessor f;
-         bool dependenciesItr = waitingDependencies_new.find(f, txnDigest);
-         if (!dependenciesItr) {
-           waitingDependencies_new.insert(f, txnDigest);
-           //f->second = WaitingDependency();
-         }
-         if(!fallback_flow && !replicaGossip){
-           f->second.original_client = true;
-           f->second.reqId = reqId;
-           f->second.remote = remote.clone();  //&remote;
-         }
-         f->second.deps.insert(dep.write().prepared_txn_digest());
-         f.release();
-       }
-      // if(currently_completing) //z->second.unlock();
-      // z.release();
-     }
-
-      //if(params.mainThreadDispatching) dependentsMutex.unlock();
-      if(params.mainThreadDispatching) waitingDependenciesMutex.unlock();
-  }
-
-  return allFinished;
-}
-
-void Server::GetPreparedReadTimestamps(
-    std::unordered_map<std::string, std::set<Timestamp>> &reads) {
-  // gather up the set of all writes that are currently prepared
-   if(params.mainThreadDispatching) preparedMutex.lock_shared();
-  for (const auto &t : prepared) {
-    for (const auto &read : t.second.second->read_set()) {
-      if (IsKeyOwned(read.key())) {
-        reads[read.key()].insert(t.second.first);
-      }
-    }
-  }
-   if(params.mainThreadDispatching) preparedMutex.unlock_shared();
-}
-
-void Server::GetPreparedReads(
-    std::unordered_map<std::string, std::vector<const proto::Transaction*>> &reads) {
-  // gather up the set of all writes that are currently prepared
-   if(params.mainThreadDispatching) preparedMutex.lock_shared();
-  for (const auto &t : prepared) {
-    for (const auto &read : t.second.second->read_set()) {
-      if (IsKeyOwned(read.key())) {
-        reads[read.key()].push_back(t.second.second);
-      }
-    }
-  }
-   if(params.mainThreadDispatching) preparedMutex.unlock_shared();
-}
+/////////////////////////////////////// PREPARE, COMMIT AND ABORT LOGIC  + Cleanup
 
 void Server::Prepare(const std::string &txnDigest,
     const proto::Transaction &txn) {
@@ -2489,7 +1358,7 @@ void Server::Prepare(const std::string &txnDigest,
     Debug("Already concurrently Committed/Aborted txn[%s]", BytesToHex(txnDigest, 16).c_str());
     return;
   }
-  const proto::Transaction *ongoingTxn = b->second;
+  const proto::Transaction *ongoingTxn = b->second.txn;
   //const proto::Transaction *ongoingTxn = ongoing.at(txnDigest);
 
   preparedMap::accessor a;
@@ -2504,6 +1373,14 @@ void Server::Prepare(const std::string &txnDigest,
       std::pair<std::shared_mutex, std::set<const proto::Transaction *>> &y = preparedReads[read.key()];
       std::unique_lock lock(y.first);
       y.second.insert(a->second.second);
+
+      // if(params.rtsMode == 2){ //remove RTS now that its prepared? --> Kind of pointless, since prepare fulfills the same thing.
+      //   std::pair<std::shared_mutex, std::set<Timestamp>> &rts_set = rts_list[read.key()];
+      //   {
+      //     std::unique_lock lock(rts_set.first);
+      //     rts_set.second.erase(txn.timestamp());
+      //   }
+      // }
     }
   }
 
@@ -2523,16 +1400,6 @@ void Server::Prepare(const std::string &txnDigest,
   b.release(); //Relase only at the end, so that Prepare and Clean in parallel for the same TX are atomic.
 }
 
-void Server::GetCommittedWrites(const std::string &key, const Timestamp &ts,
-    std::vector<std::pair<Timestamp, Server::Value>> &writes) {
-
-  std::vector<std::pair<Timestamp, Server::Value>> values;
-  if (store.getCommittedAfter(key, ts, values)) {
-    for (const auto &p : values) {
-      writes.push_back(p);
-    }
-  }
-}
 
 void Server::Commit(const std::string &txnDigest, proto::Transaction *txn,
       proto::GroupedSignatures *groupedSigs, bool p1Sigs, uint64_t view) {
@@ -2550,6 +1417,7 @@ void Server::Commit(const std::string &txnDigest, proto::Transaction *txn,
   val.proof = proof;
 
   auto committedItr = committed.insert(std::make_pair(txnDigest, proof));
+  Debug("Inserted txn %s into Committed on CPU %d",BytesToHex(txnDigest, 16).c_str(), sched_getcpu());
   //auto committedItr =committed.emplace(txnDigest, proof);
 
   if (params.validateProofs) {
@@ -2603,22 +1471,29 @@ void Server::Commit(const std::string &txnDigest, proto::Transaction *txn,
     store.put(write.key(), val, ts);
 
 
-
-     //RECOMMENT XXX RTS version with set of timestamps
-    //  //Latency_Start(&waitingOnLocks);
-    //  if(params.mainThreadDispatching) rtsMutex.lock();
-    //  //Latency_End(&waitingOnLocks);
-    // auto rtsItr = rts.find(write.key());
-    // if (rtsItr != rts.end()) {
-    //   auto itr = rtsItr->second.begin();
-    //   auto endItr = rtsItr->second.upper_bound(ts);
-    //   while (itr != endItr) {
-    //     itr = rtsItr->second.erase(itr);
-    //   }
-    // }
-    //  if(params.mainThreadDispatching) rtsMutex.unlock();
+    if(params.rtsMode == 1){
+      //Do nothing
+    }
+    else if(params.rtsMode == 2){
+      //Remove obsolete RTS. TODO: Can be more refined: Only remove
+      std::pair<std::shared_mutex, std::set<Timestamp>> &rts_set = rts_list[write.key()];
+      {
+          std::unique_lock lock(rts_set.first);
+          auto itr = rts_set.second.lower_bound(ts); //begin
+          auto endItr = rts_set.second.end();        //upper_bound  --> Old version felt wrong, why would we remove the smaller RTS..
+          //delete all RTS >= committed TS. Those RTS can no longer claim the space < RTS since a write successfully committed.
+          //TODO: Ideally this would be more refined: RTS should include the timestamp of the write read, i.e. an RTS claims range <read-write, timestamp>
+          while (itr != endItr) {
+            itr = rts_set.second.erase(itr);
+          }
+      }
+    }
+    else{
+      //No RTS
+    }
   }
 
+  Debug("Calling CLEAN for committing txn[%s]", BytesToHex(txnDigest, 16).c_str());
   Clean(txnDigest);
   CheckDependents(txnDigest);
   CleanDependencies(txnDigest);
@@ -2627,13 +1502,15 @@ void Server::Commit(const std::string &txnDigest, proto::Transaction *txn,
 void Server::Abort(const std::string &txnDigest) {
    //if(params.mainThreadDispatching) abortedMutex.lock();
   aborted.insert(txnDigest);
+  Debug("Inserted txn %s into ABORTED on CPU: %d", BytesToHex(txnDigest, 16).c_str(), sched_getcpu());
    //if(params.mainThreadDispatching) abortedMutex.unlock();
-  Clean(txnDigest);
+  Debug("Calling CLEAN for aborting txn[%s]", BytesToHex(txnDigest, 16).c_str());
+  Clean(txnDigest, true);
   CheckDependents(txnDigest);
   CleanDependencies(txnDigest);
 }
 
-void Server::Clean(const std::string &txnDigest) {
+void Server::Clean(const std::string &txnDigest, bool abort) {
 
   //Latency_Start(&waitingOnLocks);
   //auto ongoingMutexScope = params.mainThreadDispatching ? std::unique_lock<std::shared_mutex>(ongoingMutex) : std::unique_lock<std::shared_mutex>();
@@ -2651,14 +1528,12 @@ void Server::Clean(const std::string &txnDigest) {
   //Latency_End(&waitingOnLocks);
 
   ongoingMap::accessor b;
-  if(ongoing.find(b, txnDigest)){
-      ongoing.erase(b);
-  }
-  //ongoing.erase(txnDigest);
+  bool is_ongoing = ongoing.find(b, txnDigest);
+  if(is_ongoing) ongoing.erase(b);
 
   preparedMap::accessor a;
-  auto preparedItr = prepared.find(a, txnDigest);
-  if(preparedItr){
+  bool is_prepared = prepared.find(a, txnDigest);
+  if(is_prepared){
   //if (itr != prepared.end()) {
     for (const auto &read : a->second.second->read_set()) {
     //for (const auto &read : itr->second.second->read_set()) {
@@ -2683,6 +1558,12 @@ void Server::Clean(const std::string &txnDigest) {
     prepared.erase(a);
   }
   a.release();
+
+  // if(is_ongoing){
+  //     std::cerr << "ONGOING ERASE: " << BytesToHex(txnDigest, 16).c_str() << " On CPU: " << sched_getcpu()<< std::endl;
+  //     //if(abort) delete b->second.txn; //delete allocated txn.
+  //     //ongoing.erase(b);
+  // }
   b.release(); //Release only at the end, so that Prepare and Clean in parallel for the same TX are atomic.
   //TODO: might want to move release all the way to the end.
 
@@ -2693,8 +1574,8 @@ void Server::Clean(const std::string &txnDigest) {
   auto jtr = interestedClients.find(i, txnDigest);
   if(jtr){
   //if (jtr != interestedClients.end()) {
-    for (const auto addr : i->second) {
-      delete addr;
+    for (const auto client : i->second) {
+      delete client.second;
     }
     interestedClients.erase(i);
   }
@@ -2722,16 +1603,18 @@ void Server::Clean(const std::string &txnDigest) {
 
   //TODO: try to merge more/if not all tx local state into ongoing and hold ongoing locks for simpler atomicity.
 
-  //TODO: XXX Recomment P1MetaData garbage collection.
-  // XXX Problem: honest client that receives P1 for a tx that has already finished, will do p2, and undo p2 garbage collection
-      //Solution: Call clean on redunndant calls of Writeback?
-  // p1MetaDataMap::accessor c;
-  // bool hasP1 = p1MetaData.find(c, txnDigest);
-  // //p1Decisions.erase(txnDigest);
-  // if(hasP1) p1MetaData.erase(c);
-  // c.release();
+//Currently commented out so that original client does not re-do work if p1/p2 has already happened
+//--> TODO: Make original client dynamic, i.e. it can directly receive a writeback if it exists, instead of HAVING to finish normal case.
+  p1MetaDataMap::accessor c;
+  bool p1MetaExists = p1MetaData.find(c, txnDigest);
+  if(p1MetaExists){
+    if(c->second.hasSignedP1) delete c->second.signed_txn; //Delete signed txn if not needed anymore.
+    c->second.hasSignedP1 = false;
+  } 
+  //if(hasP1) p1MetaData.erase(c);
+  c.release();
 
-  //TODO: Recomment P2MetaData garbage collection.
+  
   // p2MetaDataMap::accessor p;
   // if(p2MetaDatas.find(p, txnDigest)){
   //   p2MetaDatas.erase(p);
@@ -2748,798 +1631,9 @@ void Server::Clean(const std::string &txnDigest) {
   // z.release();
 }
 
-void Server::CheckDependents(const std::string &txnDigest) {
-  //Latency_Start(&waitingOnLocks);
-   //if(params.mainThreadDispatching) dependentsMutex.lock(); //read lock
-   if(params.mainThreadDispatching) waitingDependenciesMutex.lock();
-  //Latency_End(&waitingOnLocks);
-  Debug("Called CheckDependents for txn: %s", BytesToHex(txnDigest, 16).c_str());
-  
-  dependentsMap::const_accessor e;
-  bool dependentsItr = dependents.find(e, txnDigest);
-  
-  //auto dependentsItr = dependents.find(txnDigest);
-  if(dependentsItr){
-  //if (dependentsItr != dependents.end()) {
-    for (const auto &dependent : e->second) {
-    //for (const auto &dependent : dependentsItr->second) {
-      waitingDependenciesMap::accessor f;
-      bool dependenciesItr = waitingDependencies_new.find(f, dependent);
-      //if(!dependenciesItr){
-      UW_ASSERT(dependenciesItr);  //technically this should never fail, since if it were not
-      // in the waitingDep struct anymore, it wouldve also removed itself from the
-      //dependents set of txnDigest. XXX Need to reason carefully whether this is still true
-      // with parallel OCC --> or rather parallel Commit (this is only affected by parallel commit)
 
-      f->second.deps.erase(txnDigest);
-      Debug("Removed %s from waitingDependencies of %s.", BytesToHex(txnDigest, 16).c_str(), BytesToHex(dependent, 16).c_str());
-      if (f->second.deps.size() == 0) {
-        Debug("Dependencies of %s have all committed or aborted.",
-            BytesToHex(dependent, 16).c_str());
 
-        proto::ConcurrencyControl::Result result = CheckDependencies(
-            dependent);
-        UW_ASSERT(result != proto::ConcurrencyControl::ABORT);
-        Debug("print remote: %p", f->second.remote);
-        //waitingDependencies.erase(dependent);
-        const proto::CommittedProof *conflict = nullptr;
-
-        p1MetaDataMap::accessor c;
-        BufferP1Result(c, result, conflict, dependent, 2);
-        c.release();
-
-        if(f->second.original_client){
-          SendPhase1Reply(f->second.reqId, result, conflict, dependent,
-              f->second.remote);
-          delete f->second.remote;
-        }
-
-        //Send it to all interested FB clients too:
-          interestedClientsMap::accessor i;
-          auto jtr = interestedClients.find(i, dependent);
-          if(jtr){
-            if(!ForwardWritebackMulti(dependent, i)){
-              P1FBorganizer *p1fb_organizer = new P1FBorganizer(0, dependent, this);
-              SetP1(0, p1fb_organizer->p1fbr->mutable_p1r(), dependent, result, conflict);
-
-              p2MetaDataMap::const_accessor p;
-              p2MetaDatas.insert(p, dependent);
-              if(p->second.hasP2){
-                proto::CommitDecision decision = p->second.p2Decision;
-                uint64_t decision_view = p->second.decision_view;
-                SetP2(0, p1fb_organizer->p1fbr->mutable_p2r(), dependent, decision, decision_view);
-              }
-              p.release();
-              //TODO: If need reqId, can store it as pairs with the interested client.
-              Debug("Sending Phase1FBReply MULTICAST for txn: %s", BytesToHex(dependent, 64).c_str());
-              SendPhase1FBReply(p1fb_organizer, dependent, true);
-            }
-          }
-          i.release();
-        /////
-
-        waitingDependencies_new.erase(f);
-      }
-      f.release();
-    }
-  }
-  e.release();
-   //if(params.mainThreadDispatching) dependentsMutex.unlock();
-   if(params.mainThreadDispatching) waitingDependenciesMutex.unlock();
-}
-
-proto::ConcurrencyControl::Result Server::CheckDependencies(
-    const std::string &txnDigest) {
-      //Latency_Start(&waitingOnLocks);
-   //if(params.mainThreadDispatching) ongoingMutex.lock_shared();
-   //Latency_End(&waitingOnLocks);
-  ongoingMap::const_accessor b;
-  auto txnItr = ongoing.find(b, txnDigest);
-  if(!txnItr){
-
-  //if(txnItr == ongoing.end()){
-    Debug("Tx with txn digest [%s] has already committed/aborted", BytesToHex(txnDigest, 16).c_str());
-    {
-      //std::shared_lock lock(committedMutex);
-      //std::shared_lock lock2(abortedMutex);
-      if(committed.find(txnDigest) != committed.end()){
-        //if(params.mainThreadDispatching) ongoingMutex.unlock_shared();
-        return proto::ConcurrencyControl::COMMIT;
-      }
-      else if(aborted.find(txnDigest) != aborted.end()){
-        //if(params.mainThreadDispatching) ongoingMutex.unlock_shared();
-        return proto::ConcurrencyControl::ABSTAIN;
-      }
-      else{
-        Panic("has to be either committed or aborted");
-      }
-    }
-  }
-
-  //UW_ASSERT(txnItr != ongoing.end());
-   //if(params.mainThreadDispatching) ongoingMutex.unlock_shared();
-  //return CheckDependencies(*txnItr->second);
-  return CheckDependencies(*b->second);
-}
-
-proto::ConcurrencyControl::Result Server::CheckDependencies(
-    const proto::Transaction &txn) {
-
-   //if(params.mainThreadDispatching) committedMutex.lock_shared();
-  for (const auto &dep : txn.deps()) {
-    if (dep.involved_group() != groupIdx) {
-      continue;
-    }
-    if (committed.find(dep.write().prepared_txn_digest()) != committed.end()) {
-      if (Timestamp(dep.write().prepared_timestamp()) > Timestamp(txn.timestamp())) {
-        stats.Increment("cc_aborts", 1);
-        stats.Increment("cc_aborts_dep_ts", 1);
-         //if(params.mainThreadDispatching) committedMutex.unlock_shared();
-        return proto::ConcurrencyControl::ABSTAIN;
-      }
-    } else {
-      stats.Increment("cc_aborts", 1);
-      stats.Increment("cc_aborts_dep_aborted", 1);
-       //if(params.mainThreadDispatching) committedMutex.unlock_shared();
-      return proto::ConcurrencyControl::ABSTAIN;
-    }
-  }
-   //if(params.mainThreadDispatching) committedMutex.unlock_shared();
-  return proto::ConcurrencyControl::COMMIT;
-}
-
-bool Server::CheckHighWatermark(const Timestamp &ts) {
-  Timestamp highWatermark(timeServer.GetTime());
-  // add delta to current local time
-  highWatermark.setTimestamp(highWatermark.getTimestamp() + timeDelta);
-  Debug("High watermark: %lu.", highWatermark.getTimestamp());
-  return ts > highWatermark;
-}
-
-//XXX if you *DONT* want to buffer Wait results then call BufferP1Result only inside SendPhase1Reply
-void Server::BufferP1Result(proto::ConcurrencyControl::Result &result,
-  const proto::CommittedProof *conflict, const std::string &txnDigest, int fb){
-
-    p1MetaDataMap::accessor c;
-    p1MetaData.insert(c, txnDigest);
-    if(!c->second.hasP1){
-      c->second.result = result;
-      //std::cerr << "Path[" << fb << "] Buffered initial result: " << c->second.result << " for txn: " << BytesToHex(txnDigest, 64) << std::endl;
-
-      //add abort proof so we can use it for fallbacks easily.
-      //if(result == proto::ConcurrencyControl::ABORT) XXX //by default nullptr if passed
-      c->second.conflict = conflict;
-      c->second.hasP1 = true;
-    }
-    else{
-      if(result != proto::ConcurrencyControl::WAIT){
-        //If a result was already loggin in parallel, adopt it.
-        if(c->second.result != proto::ConcurrencyControl::WAIT){
-          //std::cerr << "Path[" << fb << "] Tried replacing result: " << c->second.result << " with result:" << result << " for txn: " << BytesToHex(txnDigest, 64) << std::endl;
-          result = c->second.result;
-          conflict = c->second.conflict;
-          // Panic("Should not be replacing");
-        }
-        else{
-          c->second.result = result;
-          c->second.conflict = conflict; //by default nullptr if passed; should never be called here since WAIT can only change to COMMIT/ABSTAIN
-          //std::cerr << "Path[" << fb << "] Replacing result: " << c->second.result << " with result:" << result << " for txn: " << BytesToHex(txnDigest, 64) << std::endl;
-        }
-      }
-      else{
-        //std::cerr << "Path[" << fb << "] Unable to buffer result: " << result << " for txn: " << BytesToHex(txnDigest, 64) << std::endl;
-      }
-    }
-    c.release();
-}
-
-void Server::BufferP1Result(p1MetaDataMap::accessor &c, proto::ConcurrencyControl::Result &result,
-  const proto::CommittedProof *conflict, const std::string &txnDigest, int fb){
-
-    p1MetaData.insert(c, txnDigest);
-    if(!c->second.hasP1){
-      c->second.result = result;
-      //std::cerr << "Path[" << fb << "] Buffered initial result: " << c->second.result << " for txn: " << BytesToHex(txnDigest, 64) << std::endl;
-
-      //add abort proof so we can use it for fallbacks easily.
-      //if(result == proto::ConcurrencyControl::ABORT) XXX //by default nullptr if passed
-      c->second.conflict = conflict;
-      c->second.hasP1 = true;
-    }
-    else{
-      if(result != proto::ConcurrencyControl::WAIT){
-        //If a result was already loggin in parallel, adopt it.
-        if(c->second.result != proto::ConcurrencyControl::WAIT){
-          //std::cerr << "Path[" << fb << "] Tried replacing result: " << c->second.result << " with result:" << result << " for txn: " << BytesToHex(txnDigest, 64) << std::endl;
-          result = c->second.result;
-          conflict = c->second.conflict;
-        }
-        else{
-          c->second.result = result;
-          c->second.conflict = conflict; //by default nullptr if passed; should never be called here since WAIT can only change to COMMIT/ABSTAIN
-          //std::cerr << "Path[" << fb << "] Replacing result: " << c->second.result << " with result:" << result << " for txn: " << BytesToHex(txnDigest, 64) << std::endl;
-        }
-      }
-      else{
-        //std::cerr << "Path[" << fb << "] Unable to buffer result: " << result << " for txn: " << BytesToHex(txnDigest, 64) << std::endl;
-      }
-    }
-}
-
-void Server::SendPhase1Reply(uint64_t reqId,
-    proto::ConcurrencyControl::Result result,
-    const proto::CommittedProof *conflict, const std::string &txnDigest,
-    const TransportAddress *remote,
-    const proto::Transaction *abstain_conflict) {
-
-  Debug("Normal sending P1 result:[%d] for txn: %s", result, BytesToHex(txnDigest, 16).c_str());
-  //BufferP1Result(result, conflict, txnDigest);
-
-  proto::Phase1Reply* phase1Reply = GetUnusedPhase1Reply();
-  phase1Reply->set_req_id(reqId);
-  TransportAddress *remoteCopy = remote->clone();
-
-  //NOTE WARNING PURELY testing
-  //if(result == proto::ConcurrencyControl::ABSTAIN) *phase1Reply->mutable_abstain_conflict() = dummyTx;
-  if(abstain_conflict != nullptr){
-    //Panic("setting abstain_conflict");
-    *phase1Reply->mutable_abstain_conflict() = *abstain_conflict;
- }
-
-  auto sendCB = [remoteCopy, this, phase1Reply]() {
-    this->transport->SendMessage(this, *remoteCopy, *phase1Reply);
-    FreePhase1Reply(phase1Reply);
-    delete remoteCopy;
-  };
-
-  phase1Reply->mutable_cc()->set_ccr(result);
-  if (params.validateProofs) {
-    *phase1Reply->mutable_cc()->mutable_txn_digest() = txnDigest;
-    phase1Reply->mutable_cc()->set_involved_group(groupIdx);
-    if (result == proto::ConcurrencyControl::ABORT) {
-      *phase1Reply->mutable_cc()->mutable_committed_conflict() = *conflict;
-    } else if (params.signedMessages) {
-      proto::ConcurrencyControl* cc = new proto::ConcurrencyControl(phase1Reply->cc());
-      //Latency_Start(&signLat);
-      Debug("PHASE1[%s] Batching Phase1Reply.",
-            BytesToHex(txnDigest, 16).c_str());
-
-      MessageToSign(cc, phase1Reply->mutable_signed_cc(),
-        [sendCB, cc, txnDigest, this, phase1Reply]() {
-          Debug("PHASE1[%s] Sending Phase1Reply with signature %s from priv key %lu.",
-            BytesToHex(txnDigest, 16).c_str(),
-            BytesToHex(phase1Reply->signed_cc().signature(), 100).c_str(),
-            phase1Reply->signed_cc().process_id());
-
-          sendCB();
-          delete cc;
-        });
-      //Latency_End(&signLat);
-      return;
-    }
-  }
-  sendCB();
-}
-
-void Server::CleanDependencies(const std::string &txnDigest) {
-   //if(params.mainThreadDispatching) dependentsMutex.lock();
-   Debug("Called CleanDependencies for txn %s", BytesToHex(txnDigest, 16).c_str());
-   if(params.mainThreadDispatching) waitingDependenciesMutex.lock();
-
-  waitingDependenciesMap::accessor f;
-  bool dependenciesItr = waitingDependencies_new.find(f, txnDigest);
-  if (dependenciesItr ) {
-  //auto dependenciesItr = waitingDependencies.find(txnDigest);
-  //if (dependenciesItr != waitingDependencies.end()) {
-    //for (const auto &dependency : dependenciesItr->second.deps) {
-    for (const auto &dependency : f->second.deps) {
-      dependentsMap::accessor e;
-      auto dependentItr = dependents.find(e, dependency);
-      if (dependentItr) {
-        e->second.erase(txnDigest);
-      }
-      e.release();
-      // auto dependentItr = dependents.find(dependency);
-      // if (dependentItr != dependents.end()) {
-      //   dependentItr->second.erase(txnDigest);
-      // }
-
-    }
-    waitingDependencies_new.erase(f);
-    //waitingDependencies.erase(dependenciesItr);
-  }
-  f.release();
-  dependentsMap::accessor e;
-  if(dependents.find(e, txnDigest)){
-    dependents.erase(e);
-  }
-  e.release();
-  //dependents.erase(txnDigest);
-   //if(params.mainThreadDispatching) dependentsMutex.unlock();
-   if(params.mainThreadDispatching) waitingDependenciesMutex.unlock();
-}
-
-void Server::LookupP1Decision(const std::string &txnDigest, int64_t &myProcessId,
-    proto::ConcurrencyControl::Result &myResult) const {
-  myProcessId = -1;
-  // see if we participated in this decision
-   //if(params.mainThreadDispatching) p1DecisionsMutex.lock();
-  p1MetaDataMap::const_accessor c;
-
-  auto hasP1 = p1MetaData.find(c, txnDigest);
-  if(hasP1){
-  //if (p1DecisionItr != p1Decisions.end()) {
-    if(c->second.result != proto::ConcurrencyControl::WAIT){
-      myProcessId = id;
-      myResult = c->second.result;
-    }
-    // else{
-    //   std::cerr << "LookupP1Decision returned WAIT for txn: " <<  BytesToHex(txnDigest, 64) << std::endl;
-    // }
-  }
-  c.release();
-   //if(params.mainThreadDispatching) p1DecisionsMutex.unlock();
-}
-
-void Server::LookupP2Decision(const std::string &txnDigest, int64_t &myProcessId,
-    proto::CommitDecision &myDecision) const {
-  myProcessId = -1;
-  // see if we participated in this decision
-
-  p2MetaDataMap::const_accessor p;
-  bool hasP2Meta = p2MetaDatas.find(p, txnDigest);
-  if(hasP2Meta){
-    bool hasP2 = p->second.hasP2;
-    if (hasP2) {
-      myProcessId = id;
-      myDecision = p->second.p2Decision;
-    }
-  }
-  p.release();
-}
-
-void Server::LookupCurrentView(const std::string &txnDigest,
-    uint64_t &myCurrentView) const {
-
-  // get our current view for a txn, by default = 0
-  p2MetaDataMap::const_accessor p;
-  bool hasP2Meta = p2MetaDatas.find(p, txnDigest);
-  if(hasP2Meta){
-    myCurrentView = p->second.current_view;
-  }
-  else{
-    myCurrentView = 0;
-  }
-  p.release();
-
-}
-
-uint64_t Server::DependencyDepth(const proto::Transaction *txn) const {
-  uint64_t maxDepth = 0;
-  std::queue<std::pair<const proto::Transaction *, uint64_t>> q;
-  q.push(std::make_pair(txn, 0UL));
-
-  //auto ongoingMutexScope = params.mainThreadDispatching ? std::shared_lock<std::shared_mutex>(ongoingMutex) : std::shared_lock<std::shared_mutex>();
-
-  while (!q.empty()) {
-    std::pair<const proto::Transaction *, uint64_t> curr = q.front();
-    q.pop();
-    maxDepth = std::max(maxDepth, curr.second);
-    for (const auto &dep : curr.first->deps()) {
-      ongoingMap::const_accessor b;
-      auto oitr = ongoing.find(b, dep.write().prepared_txn_digest());
-      if(oitr){
-      //if (oitr != ongoing.end()) {
-        //q.push(std::make_pair(oitr->second, curr.second + 1));
-        q.push(std::make_pair(b->second, curr.second + 1));
-      }
-      b.release();
-    }
-  }
-  return maxDepth;
-}
-
-void Server::MessageToSign(::google::protobuf::Message* msg,
-      proto::SignedMessage *signedMessage, signedCallback cb) {
-
-
-  ////auto lockScope = params.mainThreadDispatching ? std::unique_lock<std::mutex>(mainThreadMutex) : std::unique_lock<std::mutex>();
-  Debug("Exec MessageToSign by CPU: %d", sched_getcpu());
-
-  if(params.multiThreading){
-      if (params.signatureBatchSize == 1) {
-
-          Debug("(multithreading) dispatching signing");
-          auto f = [this, msg, signedMessage, cb = std::move(cb)](){
-            SignMessage(msg, keyManager->GetPrivateKey(id), id, signedMessage);
-            cb();
-            return (void*) true;
-          };
-          transport->DispatchTP_noCB(std::move(f));
-      }
-
-      else {
-        Debug("(multithreading) adding sig request to localbatchSigner");
-
-        batchSigner->asyncMessageToSign(msg, signedMessage, std::move(cb));
-      }
-  }
-  else{
-    if (params.signatureBatchSize == 1) {
-
-      SignMessage(msg, keyManager->GetPrivateKey(id), id, signedMessage);
-      cb();
-      //if multithread: Dispatch f: SignMessage and cb.
-    } else {
-      batchSigner->MessageToSign(msg, signedMessage, std::move(cb));
-    }
-  }
-}
-
-//TODO: replace all of these with moodycamel queue (just check that try_dequeue is successful)
-proto::ReadReply *Server::GetUnusedReadReply() {
-  return new proto::ReadReply();
-
-  // std::unique_lock<std::mutex> lock(readReplyProtoMutex);
-  // proto::ReadReply *reply;
-  // if (readReplies.size() > 0) {
-  //   reply = readReplies.back();
-  //   reply->Clear();
-  //   readReplies.pop_back();
-  // } else {
-  //   reply = new proto::ReadReply();
-  // }
-  // return reply;
-}
-
-proto::Phase1Reply *Server::GetUnusedPhase1Reply() {
-  return new proto::Phase1Reply();
-
-  // //Latency_Start(&waitOnProtoLock);
-  // std::unique_lock<std::mutex> lock(p1ReplyProtoMutex);
-  // //Latency_End(&waitOnProtoLock);
-  // proto::Phase1Reply *reply;
-  // if (p1Replies.size() > 0) {
-  //   reply = p1Replies.back();
-  //   //reply->Clear(); //can move this to Free if want more work at threads
-  //   p1Replies.pop_back();
-  // } else {
-  //   reply = new proto::Phase1Reply();
-  // }
-  // return reply;
-}
-
-proto::Phase2Reply *Server::GetUnusedPhase2Reply() {
-  return new proto::Phase2Reply();
-
-  // //Latency_Start(&waitOnProtoLock);
-  // std::unique_lock<std::mutex> lock(p2ReplyProtoMutex);
-  // //Latency_End(&waitOnProtoLock);
-  // proto::Phase2Reply *reply;
-  // if (p2Replies.size() > 0) {
-  //   reply = p2Replies.back();
-  //   //reply->Clear();
-  //   p2Replies.pop_back();
-  // } else {
-  //   reply = new proto::Phase2Reply();
-  // }
-  // return reply;
-}
-
-proto::Read *Server::GetUnusedReadmessage() {
-  return new proto::Read();
-
-  // std::unique_lock<std::mutex> lock(readProtoMutex);
-  // proto::Read *msg;
-  // if (readMessages.size() > 0) {
-  //   msg = readMessages.back();
-  //   msg->Clear();
-  //   readMessages.pop_back();
-  // } else {
-  //   msg = new proto::Read();
-  // }
-  // return msg;
-}
-
-proto::Phase1 *Server::GetUnusedPhase1message() {
-  return new proto::Phase1();
-
-  // //Latency_Start(&waitOnProtoLock);
-  // std::unique_lock<std::mutex> lock(p1ProtoMutex);
-  // //Latency_End(&waitOnProtoLock);
-  // proto::Phase1 *msg;
-  // if (p1messages.size() > 0) {
-  //   msg = p1messages.back();
-  //   msg->Clear();
-  //   p1messages.pop_back();
-  // } else {
-  //   msg = new proto::Phase1();
-  // }
-  // return msg;
-}
-
-proto::Phase2 *Server::GetUnusedPhase2message() {
-  return new proto::Phase2();
-
-  // //Latency_Start(&waitOnProtoLock);
-  // std::unique_lock<std::mutex> lock(p2ProtoMutex);
-  // //Latency_End(&waitOnProtoLock);
-  // proto::Phase2 *msg;
-  // if (p2messages.size() > 0) {
-  //   msg = p2messages.back();
-  //   msg->Clear();
-  //   p2messages.pop_back();
-  // } else {
-  //   msg = new proto::Phase2();
-  // }
-  // return msg;
-}
-
-proto::Writeback *Server::GetUnusedWBmessage() {
-  return new proto::Writeback();
-
-  // //Latency_Start(&waitOnProtoLock);
-  // std::unique_lock<std::mutex> lock(WBProtoMutex);
-  // //Latency_End(&waitOnProtoLock);
-  // proto::Writeback *msg;
-  // if (WBmessages.size() > 0) {
-  //   msg = WBmessages.back();
-  //   msg->Clear();
-  //   WBmessages.pop_back();
-  // } else {
-  //   msg = new proto::Writeback();
-  // }
-  // return msg;
-}
-
-void Server::FreeReadReply(proto::ReadReply *reply) {
-  delete reply;
-  // std::unique_lock<std::mutex> lock(readReplyProtoMutex);
-  // //reply->Clear();
-  // readReplies.push_back(reply);
-}
-
-void Server::FreePhase1Reply(proto::Phase1Reply *reply) {
-  delete reply;
-  // std::unique_lock<std::mutex> lock(p1ReplyProtoMutex);
-  //
-  // reply->Clear();
-  // p1Replies.push_back(reply);
-}
-
-void Server::FreePhase2Reply(proto::Phase2Reply *reply) {
-  delete reply;
-  // std::unique_lock<std::mutex> lock(p2ReplyProtoMutex);
-  // reply->Clear();
-  // p2Replies.push_back(reply);
-}
-
-void Server::FreeReadmessage(proto::Read *msg) {
-  delete msg;
-  // std::unique_lock<std::mutex> lock(readProtoMutex);
-  // readMessages.push_back(msg);
-}
-
-void Server::FreePhase1message(proto::Phase1 *msg) {
-  delete msg;
-  // //Latency_Start(&waitOnProtoLock);
-  // std::unique_lock<std::mutex> lock(p1ProtoMutex);
-  // //Latency_End(&waitOnProtoLock);
-  // p1messages.push_back(msg);
-}
-
-void Server::FreePhase2message(proto::Phase2 *msg) {
-  delete msg;
-  // //Latency_Start(&waitOnProtoLock);
-  // std::unique_lock<std::mutex> lock(p2ProtoMutex);
-  // //Latency_End(&waitOnProtoLock);
-  // p2messages.push_back(msg);
-}
-
-void Server::FreeWBmessage(proto::Writeback *msg) {
-  delete msg;
-  // //Latency_Start(&waitOnProtoLock);
-  // std::unique_lock<std::mutex> lock(WBProtoMutex);
-  // //Latency_End(&waitOnProtoLock);
-  // WBmessages.push_back(msg);
-}
-
-
-//Fallback message re-use allocators
-
-proto::Phase1FB *Server::GetUnusedPhase1FBmessage() {
-  return new proto::Phase1FB();
-
-  // //Latency_Start(&waitOnProtoLock);
-  // std::unique_lock<std::mutex> lock(p1ProtoMutex);
-  // //Latency_End(&waitOnProtoLock);
-  // proto::Phase1FB *msg;
-  // if (p1FBmessages.size() > 0) {
-  //   msg = p1FBmessages.back();
-  //   msg->Clear();
-  //   p1FBmessages.pop_back();
-  // } else {
-  //   msg = new proto::Phase1FB();
-  // }
-  // return msg;
-}
-
-void Server::FreePhase1FBmessage(proto::Phase1FB *msg) {
-  delete msg;
-  // //Latency_Start(&waitOnProtoLock);
-  // std::unique_lock<std::mutex> lock(p1FBProtoMutex);
-  // //Latency_End(&waitOnProtoLock);
-  // p1FBmessages.push_back(msg);
-}
-
-proto::Phase1FBReply *Server::GetUnusedPhase1FBReply(){
-  return new proto::Phase1FBReply();
-  // //Latency_Start(&waitOnProtoLock);
-  // std::unique_lock<std::mutex> lock(P1FBRProtoMutex);
-  // //Latency_End(&waitOnProtoLock);
-  // proto::Phase1FBReply *msg;
-  // if (P1FBReplies.size() > 0) {
-  //   msg = P1FBReplies.back();
-  //   msg->Clear();
-  //   P1FBReplies.pop_back();
-  // } else {
-  //   msg = new proto::proto::Phase1FBReply();
-  // }
-  // return msg;
-}
-
-void Server::FreePhase1FBReply(proto::Phase1FBReply *msg){
-  delete msg;
-  // //Latency_Start(&waitOnProtoLock);
-  // std::unique_lock<std::mutex> lock(P1FBRProtoMutex);
-  // //Latency_End(&waitOnProtoLock);
-  // P1FBReplies.push_back(msg);
-}
-
-proto::Phase2FB *Server::GetUnusedPhase2FBmessage() {
-  return new proto::Phase2FB();
-
-  // //Latency_Start(&waitOnProtoLock);
-  // std::unique_lock<std::mutex> lock(p2FBProtoMutex);
-  // //Latency_End(&waitOnProtoLock);
-  // proto::Phase2FB *msg;
-  // if (p2FBmessages.size() > 0) {
-  //   msg = p2FBmessages.back();
-  //   msg->Clear();
-  //   p2FBmessages.pop_back();
-  // } else {
-  //   msg = new proto::Phase2FB();
-  // }
-  // return msg;
-}
-
-void Server::FreePhase2FBmessage(const proto::Phase2FB *msg) {
-  delete msg;
-  // //Latency_Start(&waitOnProtoLock);
-  // std::unique_lock<std::mutex> lock(p2FBProtoMutex);
-  // //Latency_End(&waitOnProtoLock);
-  // p2FBmessages.push_back(msg);
-}
-
-proto::Phase2FBReply *Server::GetUnusedPhase2FBReply(){
-  return new proto::Phase2FBReply();
-  // //Latency_Start(&waitOnProtoLock);
-  // std::unique_lock<std::mutex> lock(P2FBRProtoMutex);
-  // //Latency_End(&waitOnProtoLock);
-  // proto::Phase2FBReply *msg;
-  // if (P2FBReplies.size() > 0) {
-  //   msg = P2FBReplies.back();
-  //   msg->Clear();
-  //   P2FBReplies.pop_back();
-  // } else {
-  //   msg = new proto::proto::Phase2FBReply();
-  // }
-  // return msg;
-}
-
-void Server::FreePhase2FBReply(proto::Phase2FBReply *msg){
-  delete msg;
-  // //Latency_Start(&waitOnProtoLock);
-  // std::unique_lock<std::mutex> lock(P2FBRProtoMutex);
-  // //Latency_End(&waitOnProtoLock);
-  // P2FBReplies.push_back(msg);
-}
-
-
-proto::InvokeFB *Server::GetUnusedInvokeFBmessage(){
-  return new proto::InvokeFB();
-}
-
-void Server::FreeInvokeFBmessage(proto::InvokeFB *msg){
-  delete msg;
-}
-
-proto::SendView *Server::GetUnusedSendViewMessage(){
-  return new proto::SendView();
-}
-
-void Server::FreeSendViewMessage(proto::SendView *msg){
-  delete msg;
-}
-
-proto::ElectMessage *Server::GetUnusedElectMessage(){
-  return new proto::ElectMessage();
-}
-
-void Server::FreeElectMessage(proto::ElectMessage *msg){
-  delete msg;
-}
-
-proto::ElectFB *Server::GetUnusedElectFBmessage(){
-  return new proto::ElectFB();
-}
-
-void Server::FreeElectFBmessage(proto::ElectFB *msg){
-  delete msg;
-}
-
-proto::DecisionFB *Server::GetUnusedDecisionFBmessage(){
-  return new proto::DecisionFB();
-}
-
-void Server::FreeDecisionFBmessage(proto::DecisionFB *msg){
-  delete msg;
-}
-
-proto::MoveView *Server::GetUnusedMoveView(){
-  return new proto::MoveView();
-}
-
-void Server::FreeMoveView(proto::MoveView *msg){
-  delete msg;
-}
-
-
-
-
-//XXX Simulated HMAC code
-std::unordered_map<uint64_t, std::string> sessionKeys;
-void CreateSessionKeys();
-bool ValidateHMACedMessage(const proto::SignedMessage &signedMessage);
-void CreateHMACedMessage(const ::google::protobuf::Message &msg, proto::SignedMessage& signedMessage);
-// assume these are somehow secretly shared before hand
-
-//TODO: If one wants to use Macs for Clients, need to add it to keymanager (in advance or dynamically based off id)
-//can use client id to replica id (group * n + idx)
-void Server::CreateSessionKeys(){
-  for (uint64_t i = 0; i < config.n; i++) {
-    if (i > idx) {
-      sessionKeys[i] = std::string(8, (char) idx + 0x30) + std::string(8, (char) i + 0x30);
-    } else {
-      sessionKeys[i] = std::string(8, (char) i + 0x30) + std::string(8, (char) idx + 0x30);
-    }
-  }
-}
-
-// create MAC messages and verify them: Used for all to all leader election.
-bool Server::ValidateHMACedMessage(const proto::SignedMessage &signedMessage) {
-
-proto::HMACs hmacs;
-hmacs.ParseFromString(signedMessage.signature());
-return crypto::verifyHMAC(signedMessage.data(), (*hmacs.mutable_hmacs())[idx], sessionKeys[signedMessage.process_id() % config.n]);
-}
-
-void Server::CreateHMACedMessage(const ::google::protobuf::Message &msg, proto::SignedMessage& signedMessage) {
-
-const std::string &msgData = msg.SerializeAsString();
-signedMessage.set_data(msgData);
-signedMessage.set_process_id(id);
-
-proto::HMACs hmacs;
-for (uint64_t i = 0; i < config.n; i++) {
-  (*hmacs.mutable_hmacs())[i] = crypto::HMAC(msgData, sessionKeys[i]);
-}
-signedMessage.set_signature(hmacs.SerializeAsString());
-}
-
-
-
-////////////////////// XXX Fallback realm beings here...
+///////////////////////////////////////// FALLBACK PROTOCOL LOGIC (Enter the Fallback realm!)
 
 //TODO: change arguments (move strings) to avoid the copy in Timer.
 void Server::RelayP1(const std::string &dependency_txnDig, bool fallback_flow, uint64_t reqId, const TransportAddress &remote, const std::string &txnDigest){
@@ -3561,13 +1655,14 @@ void Server::SendRelayP1(const TransportAddress &remote, const std::string &depe
 
   Debug("RelayP1[%s] timed out. Sending now!", BytesToHex(dependent_txnDig, 256).c_str());
   proto::Transaction *tx;
+  proto::SignedMessage *signed_tx;
 
   //ongoingMap::const_accessor b;
   ongoingMap::accessor b;
   bool ongoingItr = ongoing.find(b, dependency_txnDig);
   if(!ongoingItr) return;  //If txnDigest no longer ongoing, then no FB necessary as it has completed already
-
-  tx = b->second;
+  tx = b->second.txn;
+  p1MetaDataMap::accessor c;
   //b.release();
 
   //proto::RelayP1 relayP1; //use global object.
@@ -3575,7 +1670,19 @@ void Server::SendRelayP1(const TransportAddress &remote, const std::string &depe
   relayP1.set_dependent_id(dependent_id);
   relayP1.mutable_p1()->set_req_id(0); //doesnt matter, its not used for fallback requests really.
   //*relayP1.mutable_p1()->mutable_txn() = *tx; //TODO:: avoid copy by allocating, and releasing again after.
-  relayP1.mutable_p1()->set_allocated_txn(tx);
+
+  if(params.signClientProposals){
+    //b.release();
+    bool p1MetaExists = p1MetaData.find(c, dependency_txnDig); //If txn is in ongoing, then it must have been added to P1Meta --> since we add to ongoing in HandleP1 or HandleP1FB. 
+                                                                                          // (TODO FIX: Current verification --adds signed_txn-- happens only after inster ongoing. Should be swapped to guarantee the above.)
+     if(!p1MetaExists || c->second.hasSignedP1 == false) Panic("Should exist since ongoing is still true");
+    signed_tx = c->second.signed_txn;
+    relayP1.mutable_p1()->set_allocated_signed_txn(signed_tx);
+  }
+  else{ //no Client sigs --> just send txn.
+    relayP1.mutable_p1()->set_allocated_txn(tx);  
+  }
+  
 
   if(dependent_id == -1) relayP1.set_dependent_txn(dependent_txnDig);
 
@@ -3586,8 +1693,15 @@ void Server::SendRelayP1(const TransportAddress &remote, const std::string &depe
   stats.Increment("Relays_Sent", 1);
   transport->SendMessage(this, remote, relayP1);
 
-  b->second = relayP1.mutable_p1()->release_txn();
-  b.release();
+  if(params.signClientProposals){
+    c->second.signed_txn = relayP1.mutable_p1()->release_signed_txn();
+    c.release();
+  }
+  else{
+    b->second.txn = relayP1.mutable_p1()->release_txn();
+    //b.release();
+  }
+  b.release(); //keep ongoing locked the full duration: this guarantees that if ongoing exists, p1Meta.signed_tx exists too, since it is deleted after ongoing in Clean()
 
   Debug("Sent RelayP1[%s].", BytesToHex(dependent_txnDig, 256).c_str());
 }
@@ -3703,11 +1817,11 @@ bool Server::ForwardWritebackMulti(const std::string &txnDigest, interestedClien
     return false;
   }
 
-  for (const auto addr : i->second) {
+  for (const auto client : i->second) {
     Debug("ForwardingWritebackMulti for txn: %s to +1 clients", BytesToHex(txnDigest, 64).c_str()); //would need to store client ID with it to print.
 
-    transport->SendMessage(this, *addr, phase1FBReply);
-    delete addr;
+    transport->SendMessage(this, *client.second, phase1FBReply);
+    delete client.second;
   }
   interestedClients.erase(i);
   //i.release();
@@ -3720,24 +1834,37 @@ bool Server::ForwardWritebackMulti(const std::string &txnDigest, interestedClien
 //Could just put abort cases last; but makes for redundant work if it should occur inbetween.
 void Server::HandlePhase1FB(const TransportAddress &remote, proto::Phase1FB &msg) {
 
+  proto::Transaction *txn; 
+  if(params.signClientProposals){
+    txn = new proto::Transaction();
+     txn->ParseFromString(msg.signed_txn().data());
+  }
+  else{
+     txn = msg.mutable_txn();
+  }
+
   stats.Increment("total_p1FB_received", 1);
-  std::string txnDigest = TransactionDigest(msg.txn(), params.hashDigest);
-  Debug("Received PHASE1FB[%lu][%s]", msg.req_id(), BytesToHex(txnDigest, 16).c_str());
+  std::string txnDigest = TransactionDigest(*txn, params.hashDigest);
+  Debug("Received PHASE1FB[%lu][%s] from client %lu. This is server: %lu", msg.req_id(), BytesToHex(txnDigest, 16).c_str(), msg.client_id(), id);
 
 
   //check if already committed. reply with whole proof so client can forward that.
   //1) COMMIT CASE, 2) ABORT CASE
 
   if(ForwardWriteback(remote, msg.req_id(), txnDigest)){
-    if(params.mainThreadDispatching && (!params.dispatchMessageReceive || params.parallel_CCC)) FreePhase1FBmessage(&msg);
+    if((params.mainThreadDispatching && (!params.dispatchMessageReceive || params.parallel_CCC)) || (params.multiThreading && params.signClientProposals)) FreePhase1FBmessage(&msg);
+    if(params.signClientProposals) delete txn;
     return;
   }
   
   //Otherwise, keep track of interested clients to message in the future
   interestedClientsMap::accessor i;
   bool interestedClientsItr = interestedClients.insert(i, txnDigest);
-  i->second.insert(remote.clone());
+  const TransportAddress* remoteCopy = remote.clone();
+  //i->second.insert(remoteCopy);
+  i->second[msg.client_id()] = remoteCopy;
   i.release();
+
   //interestedClients[txnDigest].insert(remote.clone());
 
 
@@ -3746,16 +1873,16 @@ void Server::HandlePhase1FB(const TransportAddress &remote, proto::Phase1FB &msg
   //Alternatively, keep around the decision proof and send it. For now/simplicity, p2 suffices
   //TODO: could store p2 and p1 signatures (until writeback) in order to avoid re-computation
   //XXX CHANGED IT TO ACCESSOR FOR LOCK TEST
-  p1MetaDataMap::accessor c;
-  p1MetaData.insert(c, txnDigest);
-  //c->second.P1meta_mutex.lock();
-  bool hasP1 = c->second.hasP1;
+  p1MetaDataMap::const_accessor c;
+  //p1MetaData.find(c, txnDigest);
+  // p1MetaData.insert(c, txnDigest);
+  bool hasP1result = p1MetaData.find(c, txnDigest) ? c->second.hasP1 : false;
   //std::cerr << "[FB] acquire lock for txn: " << BytesToHex(txnDigest, 64) << std::endl;
   p2MetaDataMap::const_accessor p;
   p2MetaDatas.insert(p, txnDigest);
-  bool hasP2 = p->second.hasP2;
+  bool hasP2result = p->second.hasP2;
 
-  if(hasP2 && hasP1){
+  if(hasP2result && hasP1result){
     Debug("Txn[%s] has both P1 and P2", BytesToHex(txnDigest, 64).c_str());
        proto::ConcurrencyControl::Result result = c->second.result; //p1Decisions[txnDigest];
        //if(result == proto::ConcurrencyControl::ABORT);
@@ -3775,20 +1902,22 @@ void Server::HandlePhase1FB(const TransportAddress &remote, proto::Phase1FB &msg
        }
        else{
          //Relay deeper depths.
-        ManageDependencies(txnDigest, msg.txn(), remote, 0, true);
+        ManageDependencies(txnDigest, *txn, remote, 0, true);
+        Debug("P1 decision for txn: %s is WAIT. Not including in reply.", BytesToHex(txnDigest, 16).c_str());
        }
        //c.release();
 
        SetP2(msg.req_id(), p1fb_organizer->p1fbr->mutable_p2r(), txnDigest, decision, decision_view);
        SendPhase1FBReply(p1fb_organizer, txnDigest);
 
-       Debug("Sent Phase1FBReply on path hasP2+hasP1 for txn: %s, sent by client: %d", BytesToHex(txnDigest, 16).c_str(), msg.req_id());
+       Debug("Sent Phase1FBReply on path hasP2+hasP1 for txn: %s, sent by client: %d. P1 result = %d", BytesToHex(txnDigest, 16).c_str(), msg.client_id(), result);
+       if(params.signClientProposals) delete txn;
        // c.release();
        // p.release();
   }
 
   //4) ONLY P1 CASE: (already did p1 but no p2)
-  else if(hasP1){
+  else if(hasP1result){
     Debug("Txn[%s] has only P1", BytesToHex(txnDigest, 64).c_str());
         proto::ConcurrencyControl::Result result = c->second.result; //p1Decisions[txnDigest];
         //if(result == proto::ConcurrencyControl::ABORT);
@@ -3806,20 +1935,20 @@ void Server::HandlePhase1FB(const TransportAddress &remote, proto::Phase1FB &msg
 
         }
         else{
-          ManageDependencies(txnDigest, msg.txn(), remote, 0, true);
-          Debug("WAITING on dep in order to send Phase1FBReply on path hasP1 for txn: %s, sent by client: %d", BytesToHex(txnDigest, 16).c_str(), msg.req_id());
+          ManageDependencies(txnDigest, *txn, remote, 0, true);
+          Debug("WAITING on dep in order to send Phase1FBReply on path hasP1 for txn: %s, sent by client: %d", BytesToHex(txnDigest, 16).c_str(), msg.client_id());
         }
-
+        if(params.signClientProposals) delete txn;
         // c.release();
         // p.release();
 
   }
   //5) ONLY P2 CASE  (received p2, but was not part of p1)
   // if you dont have a p1, then execute it yourself. (see case 3) discussion)
-  else if(hasP2){
+  else if(hasP2result){ // With TCP this case will never be triggered: Any replica that receives P2 also has P1.
       Debug("Txn[%s] has only P2, execute P1 as well", BytesToHex(txnDigest, 64).c_str());
 
-      //c.release();
+      c.release();
       proto::CommitDecision decision = p->second.p2Decision;
       uint64_t decision_view = p->second.decision_view;
       p.release();
@@ -3833,71 +1962,129 @@ void Server::HandlePhase1FB(const TransportAddress &remote, proto::Phase1FB &msg
       proto::ConcurrencyControl::Result result;
       const proto::Transaction *abstain_conflict = nullptr;
 
-      if (ExecP1(c, msg, remote, txnDigest, result, committedProof, abstain_conflict)) { //only send if the result is not Wait
+      if(!VerifyDependencies(msg, txn, txnDigest, true)) return; //Verify Deps explicitly -- since its no longer part of ExecP1
+     
+      //Add to ongoing before Exec
+      AddOngoing(msg, txnDigest, txn);
+      if (ExecP1(msg, remote, txnDigest, txn, result, committedProof, abstain_conflict)) { //only send if the result is not Wait
           SetP1(msg.req_id(), p1fb_organizer->p1fbr->mutable_p1r(), txnDigest, result, committedProof, abstain_conflict);
       }
       //c->second.P1meta_mutex.unlock();
-      c.release();
+      //c.release();
       //std::cerr << "[FB:3] release lock for txn: " << BytesToHex(txnDigest, 64) << std::endl;
       SendPhase1FBReply(p1fb_organizer, txnDigest);
-      Debug("Sent Phase1FBReply on path P2 + ExecP1 for txn: %s, sent by client: %d", BytesToHex(txnDigest, 16).c_str(), msg.req_id());
+      Debug("Sent Phase1FBReply on path P2 + ExecP1 for txn: %s, sent by client: %d", BytesToHex(txnDigest, 16).c_str(), msg.client_id());
   }
 
   //6) NO STATE STORED: Do p1 normally. copied logic from HandlePhase1(remote, msg)
   else{
       Debug("Txn[%s] has no P1 or P2, execute P1", BytesToHex(txnDigest, 64).c_str());
-      //c.release();
+      c.release();
       p.release();
 
-      const proto::CommittedProof *committedProof;
-      proto::ConcurrencyControl::Result result;
-      const proto::Transaction *abstain_conflict = nullptr;
+      //Calls Validation before trying to Exec 
+      //Do not need to validate P1 proposal if we have P2 (case 5) --> it follow transitively from the verification of P2 proof.
+      ProcessProposalFB(msg, remote, txnDigest, txn);
+      return; //msg free are handled within
 
-      if (ExecP1(c, msg, remote, txnDigest, result, committedProof, abstain_conflict)) { //only send if the result is not Wait
+      //c->second.P1meta_mutex.unlock();
+      //c.release();
+      //std::cerr << "[FB:4] release lock for txn: " << BytesToHex(txnDigest, 64) << std::endl;
+  }
+
+  if((params.mainThreadDispatching && (!params.dispatchMessageReceive || params.parallel_CCC)) || (params.multiThreading && params.signClientProposals)) FreePhase1FBmessage(&msg); 
+}
+
+void Server::AddOngoing(proto::Phase1FB &msg, std::string &txnDigest, proto::Transaction* txn ){
+   //Add to ongoing Before calling Exec
+      if(!params.signClientProposals) txn = msg.release_txn();
+      if(params.signClientProposals) *txn->mutable_txndigest() = txnDigest; //HACK to include txnDigest to lookup signed_tx.
+
+      ongoingMap::accessor b;
+      //std::cerr << "ONGOING INSERT (Fallback): " << BytesToHex(txnDigest, 16).c_str() << " On CPU: " << sched_getcpu()<< std::endl;
+      //ongoing.insert(b, std::make_pair(txnDigest, txn));
+      ongoing.insert(b, txnDigest);
+      b->second.txn = txn;
+      b->second.num_concurrent_clients++;
+      b.release();
+
+    return;
+}
+
+void Server::ProcessProposalFB(proto::Phase1FB &msg, const TransportAddress &remote, std::string &txnDigest, proto::Transaction* txn){
+  
+
+  AddOngoing(msg, txnDigest, txn);
+
+  //Todo: Improve efficiency if Valid: insert into P1Meta and check conditions again: If now already in P1Meta then use this existing result.
+  if(!params.multiThreading || !params.signClientProposals){
+    if(!CheckProposalValidity(msg, txn, txnDigest, true)){
+       ongoingMap::accessor b;
+       //std::cerr << "ONGOING ERASE (Fallback-INVALID): " << BytesToHex(txnDigest, 16).c_str() << " On CPU: " << sched_getcpu()<< std::endl;
+       ongoing.find(b, txnDigest);
+       b->second.num_concurrent_clients--;
+       if(b->second.num_concurrent_clients==0){
+          delete b->second.txn;
+          ongoing.erase(b);
+       }
+       b.release();
+       return;
+    } 
+    TryExec(msg, remote, txnDigest, txn);
+  }
+  else{
+    auto try_exec(std::bind(&Server::TryExec, this, std::ref(msg), std::ref(remote), txnDigest, txn));
+        auto f = [this, msg_ptr = &msg, txn, txnDigest, try_exec]() mutable {
+            void* valid = CheckProposalValidity(*msg_ptr, txn, txnDigest, true);
+            if(!valid){
+              ongoingMap::accessor b;
+              //std::cerr << "ONGOING ERASE (Fallback-INVALID): " << BytesToHex(txnDigest, 16).c_str() << " On CPU: " << sched_getcpu()<< std::endl;
+              ongoing.find(b, txnDigest);
+              b->second.num_concurrent_clients--;
+              if(b->second.num_concurrent_clients==0){
+                  delete b->second.txn;
+                  ongoing.erase(b);
+              }
+              b.release();
+              return (void*) false;
+            } 
+            
+            transport->DispatchTP_main(try_exec);
+            return (void*) true;
+        };
+        transport->DispatchTP_noCB(std::move(f));
+  }
+}
+
+void* Server::TryExec(proto::Phase1FB &msg, const TransportAddress &remote, std::string &txnDigest, proto::Transaction* txn){
+
+  const proto::CommittedProof *committedProof;
+  proto::ConcurrencyControl::Result result;
+  const proto::Transaction *abstain_conflict = nullptr;
+
+  if (ExecP1(msg, remote, txnDigest, txn, result, committedProof, abstain_conflict)) { //only send if the result is not Wait
           P1FBorganizer *p1fb_organizer = new P1FBorganizer(msg.req_id(), txnDigest, remote, this);
           SetP1(msg.req_id(), p1fb_organizer->p1fbr->mutable_p1r(), txnDigest, result, committedProof, abstain_conflict);
           SendPhase1FBReply(p1fb_organizer, txnDigest);
           Debug("Sent Phase1FBReply on path ExecP1 for txn: %s, sent by client: %d", BytesToHex(txnDigest, 16).c_str(), msg.req_id());
       }
-      else{
+  else{
         Debug("WAITING on dep in order to send Phase1FBReply on path ExecP1 for txn: %s, sent by client: %d", BytesToHex(txnDigest, 16).c_str(), msg.req_id());
-      }
-      //c->second.P1meta_mutex.unlock();
-      c.release();
-      //std::cerr << "[FB:4] release lock for txn: " << BytesToHex(txnDigest, 64) << std::endl;
   }
+  if((params.mainThreadDispatching && (!params.dispatchMessageReceive || params.parallel_CCC)) || (params.multiThreading && params.signClientProposals)) FreePhase1FBmessage(&msg); 
 
-  if(params.mainThreadDispatching && (!params.dispatchMessageReceive || params.parallel_CCC)) FreePhase1FBmessage(&msg);
+  return (void*) true;
 }
 
+//TODO: Should now be fully safe to be executed multithread (parallel_CCC)
 //TODO: merge this code with the normal case operation.
-bool Server::ExecP1(p1MetaDataMap::accessor &c, proto::Phase1FB &msg, const TransportAddress &remote,
-  const std::string &txnDigest, proto::ConcurrencyControl::Result &result,
-  const proto::CommittedProof* &committedProof,
-  const proto::Transaction *abstain_conflict){
-
-  Debug("FB exec PHASE1[%lu:%lu][%s] with ts %lu.", msg.txn().client_id(),
-      msg.txn().client_seq_num(), BytesToHex(txnDigest, 16).c_str(),
-      msg.txn().timestamp().timestamp());
-
-  if (params.validateProofs && params.signedMessages && params.verifyDeps) {
-    for (const auto &dep : msg.txn().deps()) {
-      if (!dep.has_write_sigs()) {
-        Debug("Dep for txn %s missing signatures.",
-          BytesToHex(txnDigest, 16).c_str());
-
-        return false;
-      }
-      if (!ValidateDependency(dep, &config, params.readDepSize, keyManager,
-            verifier)) {
-        Debug("VALIDATE Dependency failed for txn %s.",
-            BytesToHex(txnDigest, 16).c_str());
-        // safe to ignore Byzantine client
-
-        return false;
-      }
-    }
-  }
+//p1MetaDataMap::accessor &c, 
+bool Server::ExecP1(proto::Phase1FB &msg, const TransportAddress &remote,
+  const std::string &txnDigest, proto::Transaction *txn, proto::ConcurrencyControl::Result &result,
+  const proto::CommittedProof* &committedProof, const proto::Transaction *abstain_conflict){
+  Debug("FB exec PHASE1[%lu:%lu][%s] with ts %lu.", txn->client_id(),
+     txn->client_seq_num(), BytesToHex(txnDigest, 16).c_str(),
+     txn->timestamp().timestamp());
 
   //start new current view
   // current_views[txnDigest] = 0;
@@ -3905,10 +2092,16 @@ bool Server::ExecP1(p1MetaDataMap::accessor &c, proto::Phase1FB &msg, const Tran
   // p2MetaDatas.insert(p, txnDigest);
   // p.release();
 
-  proto::Transaction *txn = msg.release_txn();
-  ongoingMap::accessor b;
-  ongoing.insert(b, std::make_pair(txnDigest, txn));
-  b.release();
+  // if(!params.signClientProposals) txn = msg.release_txn();
+  // *txn->mutable_txndigest() = txnDigest; //HACK to include txnDigest to lookup signed_tx.
+  
+  // ongoingMap::accessor b;
+  // std::cerr << "ONGOING INSERT (Fallback): " << BytesToHex(txnDigest, 16).c_str() << " On CPU: " << sched_getcpu()<< std::endl;
+  // //ongoing.insert(b, std::make_pair(txnDigest, txn));
+  // ongoing.insert(b, txnDigest);
+  // b->second.txn = txn;
+  // b->second.num_concurrent_clients++;
+  // b.release();
   //fallback.insert(txnDigest);
   //std::cerr << "[FB] Added tx to ongoing: " << BytesToHex(txnDigest, 16) << std::endl;
 
@@ -3919,7 +2112,7 @@ bool Server::ExecP1(p1MetaDataMap::accessor &c, proto::Phase1FB &msg, const Tran
       remote, txnDigest, *txn, retryTs, committedProof, abstain_conflict, true);
 
   //std::cerr << "Exec P1 called, for txn: " << BytesToHex(txnDigest, 64) << std::endl;
-  BufferP1Result(c, result, committedProof, txnDigest, 1);
+  BufferP1Result(result, committedProof, txnDigest, 1);
   //std::cerr << "FB: Buffered result:" << result << " for txn: " << BytesToHex(txnDigest, 64) << std::endl;
 
 
@@ -3952,7 +2145,26 @@ void Server::SetP1(uint64_t reqId, proto::Phase1Reply *p1Reply, const std::strin
       *p1Reply->mutable_cc()->mutable_committed_conflict() = *conflict;
     }
   }
-  if(abstain_conflict != nullptr) *p1Reply->mutable_abstain_conflict() = *abstain_conflict;
+  //if(abstain_conflict != nullptr) *p1Reply->mutable_abstain_conflict() = *abstain_conflict;
+
+  if(abstain_conflict != nullptr){
+    //Panic("setting abstain_conflict");
+     //p1Reply->mutable_abstain_conflict()->set_req_id(0);
+    if(params.signClientProposals){
+      p1MetaDataMap::accessor c;
+      bool p1MetaExists = p1MetaData.find(c, abstain_conflict->txndigest());
+      if(p1MetaExists && c->second.hasSignedP1){ //only send a abstain conflict if the signed message still exists -- if it does not, then the conflict in question has already committed/aborted
+        p1Reply->mutable_abstain_conflict()->set_req_id(0);
+        *p1Reply->mutable_abstain_conflict()->mutable_signed_txn() = *c->second.signed_txn;
+      } 
+      c.release();
+    }
+    else{ //TODO: ideally update to check whether ongoing still exists or not before sending
+      p1Reply->mutable_abstain_conflict()->set_req_id(0);
+      *p1Reply->mutable_abstain_conflict()->mutable_txn() = *abstain_conflict;
+    }
+  
+ }
 
 }
 
@@ -4010,8 +2222,8 @@ void Server::SendPhase1FBReply(P1FBorganizer *p1fb_organizer, const std::string 
         interestedClientsMap::const_accessor i;
         bool has_interested = interestedClients.find(i, p1fb_organizer->p1fbr->txn_digest());
         if(has_interested){
-          for (const auto addr : i->second) {
-            transport->SendMessage(this, *addr, *p1fb_organizer->p1fbr);
+          for (const auto client : i->second) {
+            transport->SendMessage(this, *client.second, *p1fb_organizer->p1fbr);
           }
         }
         i.release();
@@ -4029,9 +2241,11 @@ void Server::SendPhase1FBReply(P1FBorganizer *p1fb_organizer, const std::string 
         p1fb_organizer->p1_sig_outstanding = true;
       }
       if(p1FBReply->has_p2r()){
+        Debug("FB sending P2 result:[%d] for txn: %s", p1FBReply->p2r().p2_decision().decision(), BytesToHex(txnDigest, 16).c_str());
         p1fb_organizer->p2_sig_outstanding = true;
       }
       //Next, dispatch respective signature functions
+      //TODO: Improve code to buffer previous signatures, instead of always re-generating.
 
       //1) sign current view
       if(!params.all_to_all_fb){
@@ -4083,6 +2297,7 @@ void Server::HandlePhase2FB(const TransportAddress &remote,
 
   //std::string txnDigest = TransactionDigest(msg.txn(), params.hashDigest);
   const std::string &txnDigest = msg.txn_digest();
+  Debug("Received PHASE2FB[%lu][%s] from client %lu. This is server %lu", msg.req_id(), BytesToHex(txnDigest, 16).c_str(), msg.client_id(), id);
   //Debug("PHASE2FB[%lu:%lu][%s] with ts %lu.", msg.txn().client_id(),
   //    msg.txn().client_seq_num(), BytesToHex(txnDigest, 16).c_str(),
   //    msg.txn().timestamp().timestamp());
@@ -4198,8 +2413,8 @@ void Server::SendPhase2FBReply(P2FBorganizer *p2fb_organizer, const std::string 
         bool has_interested = interestedClients.find(i, p2fb_organizer->p2fbr->txn_digest());
         //std::cerr << "Number of interested clients: " << i->second.size() << std::endl;
         if(has_interested){
-          for (const auto addr : i->second) {
-            transport->SendMessage(this, *addr, *p2fb_organizer->p2fbr);
+          for (const auto client : i->second) {
+            transport->SendMessage(this, *client.second, *p2fb_organizer->p2fbr);
           }
         }
         i.release();
@@ -4284,7 +2499,7 @@ void Server::ProcessP2FB(const TransportAddress &remote, const std::string &txnD
   ongoingMap::const_accessor b;
   bool isOngoing = ongoing.find(b, txnDigest);
   if(isOngoing){
-    txn = b->second;
+    txn = b->second.txn;
     b.release();
   }
   else{
@@ -4520,7 +2735,7 @@ void Server::HandleInvokeFB(const TransportAddress &remote, proto::InvokeFB &msg
     ongoingMap::const_accessor b;
     bool isOngoing = ongoing.find(b, txnDigest);
     if(isOngoing){
-        txn = b->second;
+        txn = b->second.txn;
     }
     else if(msg.has_p2fb()){
         const proto::Phase2FB &p2fb = msg.p2fb();
@@ -4566,7 +2781,7 @@ void Server::InvokeFBProcessP2FB(const TransportAddress &remote, const std::stri
   ongoingMap::const_accessor b;
   bool isOngoing = ongoing.find(b, txnDigest);
   if(isOngoing){
-    txn = b->second;
+    txn = b->second.txn;
     b.release();
   }
   else{
@@ -5061,7 +3276,7 @@ void Server::HandleDecisionFB(proto::DecisionFB &msg){
     ongoingMap::const_accessor b;
     bool isOngoing = ongoing.find(b, txnDigest);
     if(isOngoing){
-        txn = b->second;
+        txn = b->second.txn;
     }
     else{
       if(params.multiThreading || (params.mainThreadDispatching && !params.dispatchMessageReceive)) FreeDecisionFBmessage(&msg);

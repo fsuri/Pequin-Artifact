@@ -61,6 +61,8 @@
 	
       "validate_proofs": true,
       "sign_messages": true,
+      "sign_client_proposals": true,
+      
       "signature_type": 4,
       "sig_batch": 4,
       "_sig_batch_timeout": 5000,

@@ -306,7 +306,8 @@ class IndicusCodebase(ExperimentCodebase):
             '--num_groups', config['num_groups'],
             '--stats_file', stats_file,
             '--group_idx', group,
-            '--num_clients', client_threads *config['client_total']
+            '--num_client_hosts', config['client_total'],
+            '--num_client_threads', client_threads
             ]])
 
         #add multiple processes commands for threadpool assignments.

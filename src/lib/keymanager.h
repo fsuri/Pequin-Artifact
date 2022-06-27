@@ -35,7 +35,7 @@
 
 class KeyManager {
  public:
-  KeyManager(const std::string &keyPath, crypto::KeyType t, bool precompute, uint64_t num_replicas = 0, uint64_t num_clients = 0);
+  KeyManager(const std::string &keyPath, crypto::KeyType t, bool precompute, uint64_t num_replicas = 0, uint64_t num_clients = 0, uint64_t num_client_processes = 0);
   virtual ~KeyManager();
 
   crypto::PubKey* GetPublicKey(uint64_t id);
@@ -53,7 +53,8 @@ class KeyManager {
   std::map<uint64_t, crypto::PrivKey*> privateKeys;
   std::mutex keyMutex;
   uint64_t num_replicas; //defaults to 0 -- equivalent to clientSignatures not in use.
-  uint64_t num_clients; //defaults to 0; Load does nothing.
+  uint64_t num_clients; // num_client_processes * threads_per_client defaults to 0; Load does nothing.
+  uint64_t num_client_processes; //defaults to 0
 };
 
 #endif

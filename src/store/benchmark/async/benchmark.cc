@@ -246,7 +246,7 @@ DEFINE_int64(indicus_max_dep_depth, -1, "maximum length of dependency chain"
 DEFINE_uint64(indicus_key_type, 4, "key type (see create keys for mappings)"
     " key type (for Indicus)");
 
-DEFINE_bool(indicus_sign_client_proposals, true, "add signatures to client proposals "
+DEFINE_bool(indicus_sign_client_proposals, false, "add signatures to client proposals "
     " -- used for optimistic tx-ids. Can be used for access control (unimplemented)");
 
 //Client failure configurations    
@@ -864,7 +864,7 @@ int main(int argc, char **argv) {
 
   uint64_t replica_total = FLAGS_num_shards * config->n;
   uint64_t client_total = FLAGS_num_client_hosts * FLAGS_num_client_threads;
-  KeyManager* keyManager = new KeyManager(FLAGS_indicus_key_path, keyType, true, replica_total, client_total);
+  KeyManager* keyManager = new KeyManager(FLAGS_indicus_key_path, keyType, true, replica_total, client_total, FLAGS_num_client_hosts);
   keyManager->PreLoadPubKeys(false);
 
   if (closestReplicas.size() > 0 && closestReplicas.size() != static_cast<size_t>(config->n)) {
@@ -886,10 +886,10 @@ int main(int argc, char **argv) {
     SyncClient *syncClient = nullptr;
     OneShotClient *oneShotClient = nullptr;
 
-    //uint64_t clientId = (FLAGS_client_id << 6) | i;
-    uint64_t clientId = FLAGS_client_id + FLAGS_num_client_hosts * i;
+    uint64_t clientId = (FLAGS_client_id << 6) | i;
+    //uint64_t clientId = FLAGS_client_id + FLAGS_num_client_hosts * i;
     std::cerr <<  "num hosts=" << FLAGS_num_client_hosts << "; num_threads=" << FLAGS_num_client_threads << std::endl;
-    keyManager->PreLoadPrivKey(clientId, true);
+    //keyManager->PreLoadPrivKey(clientId, true);
     // Alternatively: uint64_t clientId = FLAGS_client_id * FLAGS_num_client_threads + i;
     
     switch (mode) {
@@ -981,10 +981,9 @@ int main(int argc, char **argv) {
 																				FLAGS_indicus_all_to_all_fb,
 																			  FLAGS_indicus_no_fallback,
 																				FLAGS_indicus_relayP1_timeout,
-																			  false);
-                                        // ,
-                                        // FLAGS_indicus_sign_client_proposals,
-                                        // 0);
+																			  false,
+                                        FLAGS_indicus_sign_client_proposals,
+                                        0);
 
         client = new indicusstore::Client(config, clientId,
                                           FLAGS_num_shards,

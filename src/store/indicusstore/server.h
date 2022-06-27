@@ -112,49 +112,76 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
     std::string val;
     const proto::CommittedProof *proof;
   };
+
+//Protocol
   void ReceiveMessageInternal(const TransportAddress &remote,
       const std::string &type, const std::string &data,
       void *meta_data);
 
+  //Read Handling
+  void ManageDispatchRead(const TransportAddress &remote, const std::string &data);
   void HandleRead(const TransportAddress &remote, proto::Read &msg);
-  void HandlePhase1_atomic(const TransportAddress &remote,
-      proto::Phase1 &msg);
-  void ProcessPhase1_atomic(const TransportAddress &remote,
-      proto::Phase1 &msg, proto::Transaction *txn, std::string &txnDigest);
 
-  void ForwardPhase1(proto::Phase1 &msg);
-  void Inform_P1_GC_Leader(proto::Phase1Reply &reply, proto::Transaction &txn, std::string &txnDigest, int64_t grpLeader);
-
+  //Phase1 Handling
+  void ManageDispatchPhase1(const TransportAddress &remote, const std::string &data);
   void HandlePhase1(const TransportAddress &remote,
       proto::Phase1 &msg);
   void HandlePhase1CB(proto::Phase1 *msg, proto::ConcurrencyControl::Result result,
         const proto::CommittedProof* &committedProof, std::string &txnDigest, const TransportAddress &remote,
-        const proto::Transaction *abstain_conflict, bool replicaGossip = false);
+        const proto::Transaction *abstain_conflict, bool isGossip = false);
+  void SendPhase1Reply(uint64_t reqId, proto::ConcurrencyControl::Result result,
+        const proto::CommittedProof *conflict, const std::string &txnDigest, const TransportAddress *remote,
+        const proto::Transaction *abstain_conflict = nullptr);
 
+  //Gossip
+  void ForwardPhase1(proto::Phase1 &msg);
+  void Inform_P1_GC_Leader(proto::Phase1Reply &reply, proto::Transaction &txn, std::string &txnDigest, int64_t grpLeader);
+      //Atomic Phase1 Handlers for fully parallel P1: Currently deprecated.
+      void HandlePhase1_atomic(const TransportAddress &remote,
+          proto::Phase1 &msg);
+      void ProcessPhase1_atomic(const TransportAddress &remote,
+          proto::Phase1 &msg, proto::Transaction *txn, std::string &txnDigest);
+
+ //Phase2 Handling
+  void ManageDispatchPhase2(const TransportAddress &remote, const std::string &data);
+  void HandlePhase2(const TransportAddress &remote, proto::Phase2 &msg);
+  void ManagePhase2Validation(const TransportAddress &remote, proto::Phase2 &msg, const std::string *txnDigest, const proto::Transaction *txn,
+      const std::function<void()> &sendCB, proto::Phase2Reply* phase2Reply, const std::function<void()> &cleanCB, 
+      const int64_t &myProcessId, const proto::ConcurrencyControl::Result &myResult);
   void HandlePhase2CB(TransportAddress *remote, proto::Phase2 *msg, const std::string* txnDigest,
         signedCallback sendCB, proto::Phase2Reply* phase2Reply, cleanCallback cleanCB, void* valid); //bool valid);
   void SendPhase2Reply(proto::Phase2 *msg, proto::Phase2Reply *phase2Reply, signedCallback sendCB);
-  void HandlePhase2(const TransportAddress &remote,
-             proto::Phase2 &msg);
 
-
-  void WritebackCallback(proto::Writeback *msg, const std::string* txnDigest,
-    proto::Transaction* txn, void* valid); //bool valid);
+ //Writeback Handling
+  void ManageDispatchWriteback(const TransportAddress &remote, const std::string &data);
   void HandleWriteback(const TransportAddress &remote,
       proto::Writeback &msg);
+  void ManageWritebackValidation(proto::Writeback &msg, const std::string *txnDigest, proto::Transaction *txn);
+  void WritebackCallback(proto::Writeback *msg, const std::string* txnDigest,
+    proto::Transaction* txn, void* valid); //bool valid);
+  
+  //Handle Abort during Execution
   void HandleAbort(const TransportAddress &remote, const proto::Abort &msg);
 
   //Fallback handler functions
+  //Phase1FB Handling
+  void ManageDispatchPhase1FB(const TransportAddress &remote, const std::string &data);
   void HandlePhase1FB(const TransportAddress &remote, proto::Phase1FB &msg);
-
+  //Phase2FB Handling
+  void ManageDispatchPhase2FB(const TransportAddress &remote, const std::string &data);
   void HandlePhase2FB(const TransportAddress &remote, const proto::Phase2FB &msg);
-
+  //InvokeFB Handling (start fallback reconciliaton)
+  void ManageDispatchInvokeFB(const TransportAddress &remote, const std::string &data);
   void HandleInvokeFB(const TransportAddress &remote,proto::InvokeFB &msg);
+  //ElectFB Handling (elect fallback leader)
+  void ManageDispatchElectFB(const TransportAddress &remote, const std::string &data);
   //void HandleFB_Elect: If 4f+1 Elect messages received -> form Decision based on majority, and forward the elect set (send FB_Dec) to all replicas in logging shard. (This includes the FB replica itself - Just skip ahead to HandleFB_Dec automatically: send P2R to clients)
   void HandleElectFB(proto::ElectFB &msg);
-
+  //DecisionFB Handling (receive fallback leader decision)
+  void ManageDispatchDecisionFB(const TransportAddress &remote, const std::string &data);
   void HandleDecisionFB(proto::DecisionFB &msg);
-
+  //MoveView Handling (all to all view change)
+  void ManageDispatchMoveView(const TransportAddress &remote, const std::string &data);
   void HandleMoveView(proto::MoveView &msg);
 
     // Fallback helper functions
@@ -230,23 +257,33 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
     };
 
     struct P1MetaData {
-      P1MetaData(): conflict(nullptr), hasP1(false){}
-      P1MetaData(proto::ConcurrencyControl::Result result): result(result), conflict(nullptr), hasP1(false){}
-      ~P1MetaData(){}
+      P1MetaData(): conflict(nullptr), hasP1(false), sub_original(false), hasSignedP1(false){}
+      P1MetaData(proto::ConcurrencyControl::Result result): result(result), conflict(nullptr), hasP1(true), sub_original(false), hasSignedP1(false){}
+      ~P1MetaData(){
+        if(signed_txn != nullptr) delete signed_txn;
+      }
       proto::ConcurrencyControl::Result result;
       const proto::CommittedProof *conflict;
       bool hasP1;
       std::mutex P1meta_mutex;
+      bool hasSignedP1;
+      proto::SignedMessage *signed_txn;
+      // Not used currently: In case we want to subscribe original client to P1 also to avoid ongoing bug.
+      bool sub_original; 
+      const TransportAddress *original;
     };
     typedef tbb::concurrent_hash_map<std::string, P1MetaData> p1MetaDataMap;
 
     void RelayP1(const std::string &dependency_txnDig, bool fallback_flow, uint64_t reqId, const TransportAddress &remote, const std::string &txnDigest);
     void SendRelayP1(const TransportAddress &remote, const std::string &dependency_txnDig, uint64_t dependent_id, const std::string &dependent_txnDig);
 
-    bool ExecP1(p1MetaDataMap::accessor &c, proto::Phase1FB &msg, const TransportAddress &remote,
-      const std::string &txnDigest, proto::ConcurrencyControl::Result &result,
-      const proto::CommittedProof* &committedProof,
-      const proto::Transaction *abstain_conflict = nullptr);
+    void AddOngoing(proto::Phase1FB &msg, std::string &txnDigest, proto::Transaction* txn);
+    void ProcessProposalFB(proto::Phase1FB &msg, const TransportAddress &remote, std::string &txnDigest, proto::Transaction* txn);
+    void* TryExec(proto::Phase1FB &msg, const TransportAddress &remote, std::string &txnDigest, proto::Transaction* txn);
+    //p1MetaDataMap::accessor &c, 
+    bool ExecP1(proto::Phase1FB &msg, const TransportAddress &remote,
+      const std::string &txnDigest, proto::Transaction* txn, proto::ConcurrencyControl::Result &result,
+      const proto::CommittedProof* &committedProof, const proto::Transaction *abstain_conflict = nullptr);
 
     void SetP1(uint64_t reqId, proto::Phase1Reply *p1Reply, const std::string &txnDigest,
       proto::ConcurrencyControl::Result &result, const proto::CommittedProof *conflict,
@@ -281,20 +318,32 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
 
     //keep list of all remote addresses == interested client_seq_num
     //TODO: store original client separately..
-    typedef tbb::concurrent_hash_map<std::string, tbb::concurrent_unordered_set<const TransportAddress*>> interestedClientsMap;
+    struct interestedClient {
+      interestedClient(): client_id(0UL), client_address(nullptr) {}
+      ~interestedClient() {
+        if(client_address != nullptr) delete client_address;
+      }
+      uint64_t client_id;
+      const TransportAddress* client_address;
+    };
+    //typedef tbb::concurrent_hash_map<std::string, tbb::concurrent_unordered_set<interestedClient>> interestedClientsMap;
+    //typedef tbb::concurrent_hash_map<std::string, tbb::concurrent_unordered_set<const TransportAddress*>> interestedClientsMap;
+    typedef tbb::concurrent_hash_map<std::string, tbb::concurrent_unordered_map<uint64_t, const TransportAddress*>> interestedClientsMap;
     interestedClientsMap interestedClients;
+
     tbb::concurrent_hash_map<std::string, std::pair<uint64_t, const TransportAddress*>> originalClient;
 
     bool ForwardWriteback(const TransportAddress &remote, uint64_t ReqId, const std::string &txnDigest);
     bool ForwardWritebackMulti(const std::string &txnDigest, interestedClientsMap::accessor &i);
 
-  //general helper functions
+  //general helper functions & tools -- TODO: Move implementations into servertools.cc
+
   proto::ConcurrencyControl::Result DoOCCCheck(
       uint64_t reqId, const TransportAddress &remote,
       const std::string &txnDigest, const proto::Transaction &txn,
       Timestamp &retryTs, const proto::CommittedProof* &conflict,
       const proto::Transaction* &abstain_conflict,
-      bool fallback_flow = false, bool replicaGossip = false);
+      bool fallback_flow = false, bool isGossip = false);
   proto::ConcurrencyControl::Result DoTAPIROCCCheck(
       const std::string &txnDigest, const proto::Transaction &txn,
       Timestamp &retryTs);
@@ -302,9 +351,23 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
       uint64_t reqId, const TransportAddress &remote,
       const std::string &txnDigest, const proto::Transaction &txn,
       const proto::CommittedProof* &conflict, const proto::Transaction* &abstain_conflict,
-      bool fallback_flow = false, bool replicaGossip = false);
+      bool fallback_flow = false, bool isGossip = false);
 
-  bool ManageDependencies(const std::string &txnDigest, const proto::Transaction &txn, const TransportAddress &remote, uint64_t reqId, bool fallback_flow = false, bool replicaGossip = false);
+  void* CheckProposalValidity(::google::protobuf::Message &msg, const proto::Transaction *txn, std::string &txnDigest, bool fallback = false);
+  bool VerifyDependencies(::google::protobuf::Message &msg, const proto::Transaction *txn, std::string &txnDigest, bool fallback = false);
+  bool VerifyClientProposal(::google::protobuf::Message &msg, const proto::Transaction *txn, std::string &txnDigest, bool fallback = false);
+      bool VerifyClientProposal(proto::Phase1 &msg, const proto::Transaction *txn, std::string &txnDigest);
+      bool VerifyClientProposal(proto::Phase1FB &msg, const proto::Transaction *txn, std::string &txnDigest);
+  void* TryPrepare(proto::Phase1 &msg, const TransportAddress &remote, proto::Transaction *txn,
+                        std::string &txnDigest, const proto::CommittedProof *committedProof, 
+                        const proto::Transaction *abstain_conflict, bool isGossip,
+                        proto::ConcurrencyControl::Result &result);
+  void ProcessProposal(proto::Phase1 &msg, const TransportAddress &remote, proto::Transaction *txn,
+                        std::string &txnDigest, const proto::CommittedProof *committedProof, 
+                        const proto::Transaction *abstain_conflict, bool isGossip,
+                        proto::ConcurrencyControl::Result &result);
+
+  bool ManageDependencies(const std::string &txnDigest, const proto::Transaction &txn, const TransportAddress &remote, uint64_t reqId, bool fallback_flow = false, bool isGossip = false);
 
   void GetWriteTimestamps(
       std::unordered_map<std::string, std::set<Timestamp>> &writes);
@@ -330,12 +393,8 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
     const proto::CommittedProof *conflict, const std::string &txnDigest, int fb = 0);
   void BufferP1Result(p1MetaDataMap::accessor &c, proto::ConcurrencyControl::Result &result,
     const proto::CommittedProof *conflict, const std::string &txnDigest, int fb = 0);
-  void SendPhase1Reply(uint64_t reqId,
-    proto::ConcurrencyControl::Result result,
-    const proto::CommittedProof *conflict, const std::string &txnDigest,
-    const TransportAddress *remote,
-    const proto::Transaction *abstain_conflict = nullptr);
-  void Clean(const std::string &txnDigest);
+  
+  void Clean(const std::string &txnDigest, bool abort = false);
   void CleanDependencies(const std::string &txnDigest);
   void LookupP1Decision(const std::string &txnDigest, int64_t &myProcessId,
       proto::ConcurrencyControl::Result &myResult) const;
@@ -401,6 +460,7 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
   TrueTime timeServer;
   BatchSigner *batchSigner;
   Verifier *verifier;
+  Verifier *client_verifier;
 
   //ThreadPool* tp;
   std::mutex transportMutex;
@@ -501,11 +561,21 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
   tbb::concurrent_unordered_map<std::string, std::pair<std::shared_mutex, std::set<committedRead>>> committedReads;
   //std::unordered_map<std::string, std::set<Timestamp>> rts;
   tbb::concurrent_unordered_map<std::string, std::atomic_int> rts;
-  //tbb::concurrent_hash_map<std::string, std::set<Timestamp>> rts;
+  //tbb::concurrent_hash_map<std::string, std::set<Timestamp>> rts; //TODO: if want to use this again: need per key locks like below.
+  tbb::concurrent_unordered_map<std::string, std::pair<std::shared_mutex, std::set<Timestamp>>> rts_list;
 
   // Digest -> V
   //std::unordered_map<std::string, proto::Transaction *> ongoing;
-  typedef tbb::concurrent_hash_map<std::string, proto::Transaction *> ongoingMap;
+  // typedef tbb::concurrent_hash_map<std::string, proto::Transaction *> ongoingMap;
+  // ongoingMap ongoing;
+
+  struct ongoingData {
+    ongoingData() : txn(nullptr), num_concurrent_clients(0UL){}
+    ~ongoingData(){}
+    proto::Transaction *txn;
+    uint64_t num_concurrent_clients;
+  };
+  typedef tbb::concurrent_hash_map<std::string, ongoingData> ongoingMap;
   ongoingMap ongoing;
   // std::unordered_set<std::string> normal;
   // std::unordered_set<std::string> fallback;

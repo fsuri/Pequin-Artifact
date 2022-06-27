@@ -68,7 +68,7 @@ void FreeMessageString(std::string *msg){
   MessageStrings.push_back(msg);
 }
 
-void SignMessage(::google::protobuf::Message* msg,
+void SignMessage(const ::google::protobuf::Message* msg,
     crypto::PrivKey* privateKey, uint64_t processId,
     proto::SignedMessage *signedMessage) {
   signedMessage->set_process_id(processId);
@@ -80,7 +80,7 @@ void SignMessage(::google::protobuf::Message* msg,
       signedMessage->data());
 }
 
-void* asyncSignMessage(::google::protobuf::Message* msg,
+void* asyncSignMessage(const ::google::protobuf::Message* msg,
     crypto::PrivKey* privateKey, uint64_t processId,
     proto::SignedMessage *signedMessage) {
 
@@ -394,6 +394,7 @@ void asyncValidateP1RepliesCallback(asyncVerification* verifyObj, uint32_t group
   else{
     Debug("Issuing MCB to be scheduled as mainthread event ");
     verifyObj->tp->IssueCB(std::move(verifyObj->mcb), (void*) true);
+    //verifyObj->tp->IssueCB_main(std::move(verifyObj->mcb), (void*) true);
   }
 
   if(verifyObj->deletable == 0){
@@ -619,6 +620,7 @@ void asyncValidateP1Replies(proto::CommitDecision decision,
                   else{
                     Debug("Issuing MCB to be scheduled as mainthread event ");
                     verifyObj->tp->IssueCB(std::move(verifyObj->mcb), (void*) true);
+                    //verifyObj->tp->IssueCB_main(std::move(verifyObj->mcb), (void*) true);
                   }
                   delete verifyObj;
                   return;
@@ -631,6 +633,7 @@ void asyncValidateP1Replies(proto::CommitDecision decision,
                 else{
                   Debug("Issuing MCB to be scheduled as mainthread event ");
                   verifyObj->tp->IssueCB(std::move(verifyObj->mcb), (void*) true);
+                  //verifyObj->tp->IssueCB_main(std::move(verifyObj->mcb), (void*) true);
                 }
                 delete verifyObj;
                 return;
@@ -884,6 +887,7 @@ void asyncValidateP2RepliesCallback(asyncVerification* verifyObj, uint32_t group
 
 
   if (verifyObj->groupCounts[groupId] == verifyObj->quorumSize) {
+     Debug("Phase2Replies for logging group %d successfully verified.", (int)groupId);
     verifyObj->terminate = true;
     verifyObj->callback = false;
     //bool* ret = new bool(true);
@@ -893,6 +897,8 @@ void asyncValidateP2RepliesCallback(asyncVerification* verifyObj, uint32_t group
     }
     else{
       verifyObj->tp->IssueCB(std::move(verifyObj->mcb), (void*) true);
+      Debug("Dispatching Writeback Callback back to Main Thread.");
+      //verifyObj->tp->IssueCB_main(std::move(verifyObj->mcb), (void*) true);
     }
 
     if(verifyObj->deletable == 0){
@@ -1004,12 +1010,10 @@ void asyncValidateP2Replies(proto::CommitDecision decision, uint64_t view,
     p2Decision.SerializeToString(p2DecisionMsg);
 
     if (groupedSigs.grouped_sigs().size() != 1) {
-      Debug("Expected exactly 1 group but saw %lu", groupedSigs.grouped_sigs().size());
+      Debug("Expected exactly 1 group for txn %s but saw %lu", BytesToHex(*txnDigest, 16).c_str(), groupedSigs.grouped_sigs().size());
       mcb((void*) false);
       return;
     }
-
-
 
     const auto &sigs = groupedSigs.grouped_sigs().begin(); //this is an iterator
     // verifyObj->deletable = sigs->second.sigs_size();  // redundant
@@ -1018,7 +1022,7 @@ void asyncValidateP2Replies(proto::CommitDecision decision, uint64_t view,
     int64_t logGrp = GetLogGroup(*txn, *txnDigest);
     //verify that this group corresponds to the log group
     if(sigs->first != logGrp){
-      Debug("P2 replies from group (%lu) that is not logging group (%lu).", sigs->first, logGrp);
+      Debug("P2 replies from group (%lu) that is not logging group (%lu) for txn %s.", sigs->first, logGrp, BytesToHex(*txnDigest, 16).c_str());
       //delete verifyObj;
       mcb((void*) false);
       return;
@@ -1027,16 +1031,18 @@ void asyncValidateP2Replies(proto::CommitDecision decision, uint64_t view,
     verifyObj->ccMsgs.push_back(p2DecisionMsg);
     std::vector<std::pair<std::function<void*()>,std::function<void(void*)>>> verificationJobs;
 
+    Debug("%d P2 signatures included for txn %s", sigs->second.sigs().size(), BytesToHex(*txnDigest, 16).c_str());
+
     for (const auto &sig : sigs->second.sigs()) {
 
       if (!IsReplicaInGroup(sig.process_id(), sigs->first, config)) {
-        Debug("Signature for group %lu from replica %lu who is not in group.", sigs->first, sig.process_id());
+        Debug("Signature for group %lu from replica %lu who is not in group; txn %s.", sigs->first, sig.process_id(), BytesToHex(*txnDigest, 16).c_str());
         verifyObj->mcb((void*) false);
         delete verifyObj;
         return;
       }
       if (!replicasVerified.insert(sig.process_id()).second) {
-        Debug("Already verified signature from %lu.", sig.process_id());
+        Debug("Duplicate signature from %lu for txn %s", sig.process_id(), BytesToHex(*txnDigest, 16).c_str() );
         verifyObj->mcb((void*) false);
         delete verifyObj;
         return;
@@ -1046,8 +1052,10 @@ void asyncValidateP2Replies(proto::CommitDecision decision, uint64_t view,
       if (sig.process_id() == myProcessId && myProcessId >= 0) {
         if (p2Decision.decision() == myDecision) {
           skip = true;
+          Debug("Skipping verification of local signature for txn %s", BytesToHex(*txnDigest, 16).c_str() );
           verifyObj->groupCounts[sigs->first]++;
           if (verifyObj->groupCounts[sigs->first] == verifyObj->quorumSize) {
+            Debug("Completed Quorum for txn %s", BytesToHex(*txnDigest, 16).c_str() );
             verifyObj->mcb((void*) true);
             delete verifyObj;
             return;
@@ -1780,6 +1788,7 @@ bool operator!=(const proto::Write &pw1, const proto::Write &pw2) {
 
 
 //should hashing be parallelized?
+//ignores txnDigest field --> this is not part of protocol contents, just a hack for storage.
 std::string TransactionDigest(const proto::Transaction &txn, bool hashDigest) {
   if (hashDigest) {
     blake3_hasher hasher;

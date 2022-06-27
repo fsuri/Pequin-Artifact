@@ -8,7 +8,7 @@ make: *** /home/floriansuri/Pequin/Basil_SOSP21_artifact/src/: No such file or d
 # This is free software: you are free to change and redistribute it.
 # There is NO WARRANTY, to the extent permitted by law.
 
-# Make data base, printed on Tue Jun  7 13:37:58 2022
+# Make data base, printed on Fri Jun 24 15:04:52 2022
 
 # Variables
 
@@ -45,7 +45,7 @@ VSCODE_NLS_CONFIG = {"locale":"en-us","availableLanguages":{},"_languagePackSupp
 # environment
 _ = /usr/share/code/code
 # environment
-JOURNAL_STREAM = 9:286849
+JOURNAL_STREAM = 9:283603
 # environment
 XDG_CONFIG_DIRS = /etc/xdg/xdg-ubuntu:/etc/xdg
 # environment
@@ -61,7 +61,7 @@ MANDATORY_PATH = /usr/share/gconf/ubuntu.mandatory.path
 # environment
 XDG_DATA_DIRS = /usr/share/ubuntu:/usr/local/share/:/usr/share/:/var/lib/snapd/desktop
 # environment
-DBUS_SESSION_BUS_ADDRESS = unix:path=/run/user/1000/bus
+DBUS_SESSION_BUS_ADDRESS = unix:path=/run/user/1000/bus,guid=03969a1d8b6e5886561630ed62912827
 # environment
 VSCODE_VERBOSE_LOGGING = true
 # environment
@@ -91,7 +91,7 @@ VSCODE_LOG_STACK = false
 # environment
 ELECTRON_RUN_AS_NODE = 1
 # environment
-INVOCATION_ID = de72a46c59d248978cf6a01dc594758a
+INVOCATION_ID = 2acbe61e91344dbe934690df3f00625b
 # default
 .FEATURES := target-specific order-only second-expansion else-if shortest-stem undefine oneshell archives jobserver output-sync check-symlink load
 # environment
@@ -101,7 +101,7 @@ XDG_SESSION_DESKTOP = ubuntu
 # environment
 SSH_AUTH_SOCK = /run/user/1000/keyring/ssh
 # environment
-GIO_LAUNCHED_DESKTOP_FILE_PID = 1864811
+GIO_LAUNCHED_DESKTOP_FILE_PID = 2076673
 # environment
 DISPLAY = :0
 # environment
@@ -151,7 +151,7 @@ SHLVL = 0
 # environment
 GNOME_SHELL_SESSION_MODE = ubuntu
 # environment
-VSCODE_IPC_HOOK_EXTHOST = /run/user/1000/vscode-ipc-f3d1c2bb-83dd-47db-ba0b-9d1d84d8da06.sock
+VSCODE_IPC_HOOK_EXTHOST = /run/user/1000/vscode-ipc-387faae7-bf7b-4454-a3e6-3cbce148c011.sock
 # environment
 USER = floriansuri
 # environment
@@ -173,13 +173,11 @@ DEFAULTS_PATH = /usr/share/gconf/ubuntu.default.path
 # environment
 LC_ALL = C
 # environment
-GJS_DEBUG_TOPICS = JS ERROR;JS LOG
+DBUS_STARTER_BUS_TYPE = session
 # environment
 CHROME_DESKTOP = code-url-handler.desktop
 # environment
 WINDOWPATH = 2
-# environment
-GJS_DEBUG_OUTPUT = stderr
 # environment
 DERBY_HOME = /usr/lib/jvm/java-8-oracle/db
 # default
@@ -189,7 +187,9 @@ IM_CONFIG_CHECK_ENV = 1
 # environment
 LANG = C
 # environment
-VSCODE_PID = 1864811
+VSCODE_PID = 2076673
+# environment
+DBUS_STARTER_ADDRESS = unix:path=/run/user/1000/bus,guid=03969a1d8b6e5886561630ed62912827
 # variable set hash-table stats:
 # Load=89/1024=9%, Rehash=0, Collisions=9/93=10%
 
@@ -229,6 +229,6 @@ all:
 # strcache performance: lookups = 3 / hit rate = 33%
 # hash-table stats:
 # Load=2/8192=0%, Rehash=0, Collisions=0/3=0%
-# Finished Make data base on Tue Jun  7 13:37:58 2022
+# Finished Make data base on Fri Jun 24 15:04:52 2022
 
  
