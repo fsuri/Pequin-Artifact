@@ -91,6 +91,7 @@ uint64_t KeyManager::GetClientKeyId(uint64_t client_id){
   uint64_t clientProcess = (client_id - clientThread) >> 6;
   //Map to linear space.
   uint64_t clientKeyId = clientProcess + num_client_processes * clientThread;
+  // uint64_t clientKeyId = client_id;
   //Offset by replicas;
   return clientKeyId + num_replicas; 
   //return client_id + num_replicas;

@@ -325,12 +325,13 @@ void Server::HandleRead(const TransportAddress &remote,
 
   std::pair<Timestamp, Server::Value> tsVal;
   //find committed write value to read from
-  bool exists = store.get(msg.key(), ts, tsVal);
+  bool committed_exists = store.get(msg.key(), ts, tsVal);
 
   proto::ReadReply* readReply = GetUnusedReadReply();
   readReply->set_req_id(msg.req_id());
   readReply->set_key(msg.key());
-  if (exists) {
+  if (committed_exists) {
+    //if(tsVal.first > ts) Panic("Should not read committed value with larger TS than read");
     Debug("READ[%lu:%lu] Committed value of length %lu bytes with ts %lu.%lu.",
         msg.timestamp().id(), msg.req_id(), tsVal.second.val.length(), tsVal.first.getTimestamp(),
         tsVal.first.getID());
@@ -399,14 +400,27 @@ void Server::HandleRead(const TransportAddress &remote,
         std::shared_lock lock(itr->second.first);
         if(itr->second.second.size() > 0) {
 
+          // //Find biggest prepared write smaller than TS.
+          // auto it = itr->second.second.lower_bound(ts); //finds smallest element greater equal TS
+          // if(it != itr->second.second.begin()) { //If such an elem exists; go back one == greates element less than TS
+          //     --it;
+          // }
+          // if(it != itr->second.second.begin()){ //if such elem exists: read from it.
+          //     mostRecent = it->second;
+          //     if(exists && tsVal.first > Timestamp(mostRecent->timestamp())) mostRecent = nullptr; // don't include prepared read if it is smaller than committed.
+          // }
+
           // there is a prepared write for the key being read
           for (const auto &t : itr->second.second) {
+            if(t.first > ts) break; //only consider it if it is smaller than TS
+            if(committed_exists && t.first < tsVal.first) continue; //only consider it if bigger than committed value.
             if (mostRecent == nullptr || t.first > Timestamp(mostRecent->timestamp())) { //TODO: for efficiency only use it if its bigger than the committed write..
               mostRecent = t.second;
             }
           }
 
           if (mostRecent != nullptr) {
+            //if(Timestamp(mostRecent->timestamp()) > ts) Panic("Reading prepared write with TS larger than read ts");
             std::string preparedValue;
             for (const auto &w : mostRecent->write_set()) {
               if (w.key() == msg.key()) {

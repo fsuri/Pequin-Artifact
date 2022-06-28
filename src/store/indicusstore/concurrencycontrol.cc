@@ -321,11 +321,11 @@ proto::ConcurrencyControl::Result Server::DoMVTSOOCCCheck(
         //If a dep has already aborted, abort as well.
         if(aborted.find(dep.write().prepared_txn_digest()) != aborted.end()){
           stats.Increment("cc_aborts", 1);
-          stats.Increment("cc_aborts_dep_aborted", 1);
+          stats.Increment("cc_aborts_dep_aborted_early", 1);
           return proto::ConcurrencyControl::ABSTAIN; //Technically could fully Abort here: But then need to attach also proof of dependency abort --> which currently is not implemented/supported
         }
        
-        if (committed.find(dep.write().prepared_txn_digest()) == committed.end()) {
+        if (committed.find(dep.write().prepared_txn_digest()) == committed.end() && aborted.find(dep.write().prepared_txn_digest()) == aborted.end() ) {
         //If it has not yet aborted, nor committed, check whether the replica has prepared the tx itself: This alleviates having to verify dep proofs, although slightly more pessimistically
 
           preparedMap::const_accessor a2;
