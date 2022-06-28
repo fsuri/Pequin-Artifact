@@ -445,7 +445,7 @@ void Server::HandleRead(const TransportAddress &remote,
 
 
   if (params.validateProofs && params.signedMessages &&
-      (readReply->write().has_committed_value() || (params.verifyDeps && readReply->write().has_prepared_value()))) {
+      (readReply->write().has_committed_value() || (params.verifyDeps && readReply->write().has_prepared_value()))) { //remove params.verifyDeps requirement to sign prepared. Not sure if it causes a bug so I kept it for now -- realistically never triggered
     Debug("Sign Read Reply for READ[%lu:%lu]", msg.timestamp().id(), msg.req_id());
 //If readReplyBatch is false then respond immediately, otherwise respect batching policy
     if (params.readReplyBatch) {

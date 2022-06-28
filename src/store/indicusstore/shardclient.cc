@@ -893,24 +893,31 @@ void ShardClient::HandleReadReply(const proto::ReadReply &reply) {
       }
 
       write = &validatedPrepared;
+       //if(!write->has_committed_value() && write->has_prepared_value()) std::cerr << "Prepared write was signed on its own.\n";
     } else {
       if (reply.has_write() && reply.write().has_committed_value()) {
         Debug("[group %i] Reply contains unsigned committed value.", group);
         return;
       }
 
+           //params.verifyDeps &&
       if (params.verifyDeps && reply.has_write() && reply.write().has_prepared_value()) {
+        //Panic("getting lost here");
         Debug("[group %i] Reply contains unsigned prepared value.", group);
         return;
       }
 
       write = &reply.write();
+      //if(!write->has_committed_value() && write->has_prepared_value()) Panic("Prepared write was not signed.\n");
+  
       UW_ASSERT(!write->has_committed_value());
       UW_ASSERT(!write->has_prepared_value() || !params.verifyDeps);
     }
   } else {
     write = &reply.write();
   }
+
+ 
 
   // value and timestamp are valid
   req->numReplies++;
@@ -961,13 +968,14 @@ void ShardClient::HandleReadReply(const proto::ReadReply &reply) {
     } else if (preparedItr->second.first == *write) {
       preparedItr->second.second += 1;
     }
-
+    //if(!write->has_committed_value() && write->has_prepared_value()) std::cerr << "Prepared write was processed.\n";
     if (params.validateProofs && params.signedMessages && params.verifyDeps) {
       proto::Signature *sig = req->preparedSigs[preparedTs].add_sigs();
       sig->set_process_id(reply.signed_write().process_id());
       *sig->mutable_signature() = reply.signed_write().signature();
     }
   }
+
 
   if (req->numReplies >= req->rqs) {
     if (params.maxDepDepth > -2) {
@@ -995,6 +1003,7 @@ void ShardClient::HandleReadReply(const proto::ReadReply &reply) {
     *read->mutable_key() = req->key;
     req->maxTs.serialize(read->mutable_readtime());
     readValues[req->key] = req->maxValue;
+    //if(!write->has_committed_value() && write->has_prepared_value()) std::cerr << "Calling gcb for prepared write.\n";
     req->gcb(REPLY_OK, req->key, req->maxValue, req->maxTs, req->dep,
         req->hasDep, true);
     delete req;
