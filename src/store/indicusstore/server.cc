@@ -412,9 +412,9 @@ void Server::HandleRead(const TransportAddress &remote,
 
           // there is a prepared write for the key being read
           for (const auto &t : itr->second.second) {
-            if(t.first > ts) break; //only consider it if it is smaller than TS
-            if(committed_exists && t.first < tsVal.first) continue; //only consider it if bigger than committed value.
-            if (mostRecent == nullptr || t.first > Timestamp(mostRecent->timestamp())) { //TODO: for efficiency only use it if its bigger than the committed write..
+            if(t.first > ts) break; //only consider it if it is smaller than TS (Map is ordered, so break should be fine here.)
+            if(committed_exists && t.first <= tsVal.first) continue; //only consider it if bigger than committed value. 
+            if (mostRecent == nullptr || t.first > Timestamp(mostRecent->timestamp())) { 
               mostRecent = t.second;
             }
           }
