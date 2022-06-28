@@ -316,22 +316,31 @@ proto::ConcurrencyControl::Result Server::DoMVTSOOCCCheck(
         if (dep.involved_group() != groupIdx) {
           continue;
         }
-        //Checks only for those deps that have not committed/aborted already.
-        if (committed.find(dep.write().prepared_txn_digest()) == committed.end() &&
-            aborted.find(dep.write().prepared_txn_digest()) == aborted.end()) {
-          //check whether we (i.e. the server) have prepared it ourselves: This alleviates having to verify dep proofs
+         //Checks only for those deps that have not committed/aborted already.
+
+        //If a dep has already aborted, abort as well.
+        if(aborted.find(dep.write().prepared_txn_digest()) != aborted.end()){
+          stats.Increment("cc_aborts", 1);
+          stats.Increment("cc_aborts_dep_aborted", 1);
+          return proto::ConcurrencyControl::ABSTAIN; //Technically could fully Abort here: But then need to attach also proof of dependency abort --> which currently is not implemented/supported
+        }
+       
+        if (committed.find(dep.write().prepared_txn_digest()) == committed.end()) {
+        //If it has not yet aborted, nor committed, check whether the replica has prepared the tx itself: This alleviates having to verify dep proofs, although slightly more pessimistically
 
           preparedMap::const_accessor a2;
-          auto preparedItr = prepared.find(a2, dep.write().prepared_txn_digest());
-          if(!preparedItr){
-          //if (preparedItr == prepared.end()) {
+          auto isPrepared = prepared.find(a2, dep.write().prepared_txn_digest());
+          if(!isPrepared){
+            stats.Increment("cc_aborts", 1);
+            stats.Increment("cc_aborts_dep_not_prepared", 1);
             return proto::ConcurrencyControl::ABSTAIN;
           }
           a2.release();
         }
+        
       }
     }
-    //6) Prepare Transaction: No conflicts --> Make writes visible.
+    //6) Prepare Transaction: No conflicts, No dependencies aborted --> Make writes visible.
     Prepare(txnDigest, txn);
   }
   else{
@@ -346,9 +355,10 @@ proto::ConcurrencyControl::Result Server::DoMVTSOOCCCheck(
     stats.Increment("cc_waits", 1);
     return proto::ConcurrencyControl::WAIT;
   } else {
-    //8) Check whether all dependencies are committed (i.e. none abort)
-    return CheckDependencies(txn);
+    //8) Check whether all dependencies are committed (i.e. none abort), and whether TS still valid
+    return CheckDependencies(txn); //abort checks are redundant with new abort check in 5)
     //TODO: Current Implementation iterates through dependencies 3 times -- re-factor code to do this once.
+    //Move check 5) up and outside the if/else case for whether prepared exists: if !params.verifyDeps, then CheckDependencies is mostly obsolete.
   }
 }
 
@@ -527,6 +537,7 @@ void Server::CheckDependents(const std::string &txnDigest) {
         BufferP1Result(result, conflict, dependent, 2);
 
         if(f->second.original_client){
+          Debug("Sending Phase1 Reply for txn: %s, id: %d", BytesToHex(dependent, 64).c_str(), f->second.reqId);
           SendPhase1Reply(f->second.reqId, result, conflict, dependent,
               f->second.remote);
           delete f->second.remote;
@@ -537,8 +548,10 @@ void Server::CheckDependents(const std::string &txnDigest) {
           bool hasInterested = interestedClients.find(i, dependent);
           if(hasInterested){
             if(!ForwardWritebackMulti(dependent, i)){
+              
               P1FBorganizer *p1fb_organizer = new P1FBorganizer(0, dependent, this);
               SetP1(0, p1fb_organizer->p1fbr->mutable_p1r(), dependent, result, conflict);
+              Debug("Sending Phase1FBReply MULTICAST for txn: %s with result %d", BytesToHex(dependent, 64).c_str(), result);
 
               p2MetaDataMap::const_accessor p;
               p2MetaDatas.insert(p, dependent);
@@ -546,10 +559,11 @@ void Server::CheckDependents(const std::string &txnDigest) {
                 proto::CommitDecision decision = p->second.p2Decision;
                 uint64_t decision_view = p->second.decision_view;
                 SetP2(0, p1fb_organizer->p1fbr->mutable_p2r(), dependent, decision, decision_view);
+                Debug("Including P2 Decision %d in Phase1FBReply MULTICAST for txn: %s", decision, BytesToHex(dependent, 64).c_str());
               }
               p.release();
               //TODO: If need reqId, can store it as pairs with the interested client.
-              Debug("Sending Phase1FBReply MULTICAST for txn: %s", BytesToHex(dependent, 64).c_str());
+              
               SendPhase1FBReply(p1fb_organizer, dependent, true);
             }
           }
@@ -609,6 +623,7 @@ proto::ConcurrencyControl::Result Server::CheckDependencies(
       continue;
     }
     if (committed.find(dep.write().prepared_txn_digest()) != committed.end()) {
+      //Check if dependency still has smaller timestamp than reader: Could be violated if dependency re-tried with higher TS and committed -- Currently retries are not implemented.
       if (Timestamp(dep.write().prepared_timestamp()) > Timestamp(txn.timestamp())) {
         stats.Increment("cc_aborts", 1);
         stats.Increment("cc_aborts_dep_ts", 1);
