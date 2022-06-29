@@ -900,7 +900,7 @@ void ShardClient::HandleReadReply(const proto::ReadReply &reply) {
         return;
       }
 
-           //params.verifyDeps &&
+           //TODO: remove params.verifyDeps if one wants to always sign prepared (this edge case realistically never happens)
       if (params.verifyDeps && reply.has_write() && reply.write().has_prepared_value()) {
         //Panic("getting lost here");
         Debug("[group %i] Reply contains unsigned prepared value.", group);
