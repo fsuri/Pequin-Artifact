@@ -162,6 +162,7 @@ include store/tapirstore/Rules.mk
 include store/strongstore/Rules.mk
 include store/weakstore/Rules.mk
 include store/indicusstore/Rules.mk
+include store/pequinstore/Rules.mk
 include store/pbftstore/Rules.mk
 include store/hotstuffstore/Rules.mk
 include store/augustusstore/Rules.mk
