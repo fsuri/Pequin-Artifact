@@ -30,6 +30,7 @@
 #include "lib/configuration.h"
 #include "lib/keymanager.h"
 #include "store/common/timestamp.h"
+#include "store/pequinstore/query-proto.pb.h"
 #include "store/pequinstore/pequin-proto.pb.h"
 #include "lib/latency.h"
 #include "store/pequinstore/verifier.h"

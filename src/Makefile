@@ -9,9 +9,9 @@ EXPAND = lib/tmpl/expand
 
 #CFLAGS := -g -Wall -pthread -iquote.obj/gen -Wno-uninitialized -O2 -DNUW_ASSERT
 CFLAGS :=  -g -no-pie -Wall -pthread -iquote.obj/gen -Wno-uninitialized -O2#-O3#-O1#-O2
-CXXFLAGS := -g -no-pie -std=c++17 #-fsanitize=address -fno-omit-frame-pointer -fno-optimize-sibling-calls #-fsanitize=thread
+CXXFLAGS := -g -no-pie -std=c++17 -fsanitize=address -fno-omit-frame-pointer -fno-optimize-sibling-calls #-fsanitize=thread
 # -luv for HotStuff
-LDFLAGS := -levent_pthreads -lrt -luv #-fsanitize=address -fno-omit-frame-pointer -fno-optimize-sibling-calls #-fsanitize=thread #
+LDFLAGS := -levent_pthreads -lrt -luv -fsanitize=address -fno-omit-frame-pointer -fno-optimize-sibling-calls #-fsanitize=thread #
 
 ## Debian package: check
 #CHECK_CFLAGS := $(shell pkg-config --cflags check)
@@ -181,6 +181,7 @@ include lockserver/Rules.mk
 include timeserver/Rules.mk
 include libtapir/Rules.mk
 include create_keys/Rules.mk
+include simple_app/Rules.mk
 ##################################################################
 # General rules
 #

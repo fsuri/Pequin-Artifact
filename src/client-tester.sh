@@ -11,11 +11,9 @@ ZIPF=0.0
 NUM_OPS_TX=2
 NUM_KEYS_IN_DB=1
 KEY_PATH="keys"
+BENCHMARK="rw"
 
-
-
-
-while getopts c:f:g:cpath:p:d:z:num_ops:num_keys: option; do
+while getopts c:f:g:cpath:p:d:z:num_ops:num_keys:b: option; do
 case "${option}" in
 c) CLIENTS=${OPTARG};;
 f) F=${OPTARG};;
@@ -26,6 +24,7 @@ d) DURATION=${OPTARG};;
 z) ZIPF=${OPTARG};;
 num_ops) NUM_OPS_TX=${OPTARG};;
 num_keys) NUM_KEYS_IN_DB=${OPTARG};;
+b) BENCHMARK=${OPTARG};;
 esac;
 done
 
@@ -37,14 +36,14 @@ for i in `seq 1 $((CLIENTS-1))`; do
   #DEBUG=store/indicusstore/*client.cc
   store/benchmark/async/benchmark --config_path $CONFIG --num_groups $NUM_GROUPS \
     --num_shards $NUM_GROUPS \
-    --protocol_mode $PROTOCOL --num_keys $NUM_KEYS_IN_DB --benchmark rw --num_ops_txn $NUM_OPS_TX \
+    --protocol_mode $PROTOCOL --num_keys $NUM_KEYS_IN_DB --benchmark $BENCHMARK --num_ops_txn $NUM_OPS_TX \
     --exp_duration $DURATION --client_id $i --num_client_hosts $CLIENTS --warmup_secs 0 --cooldown_secs 0 \
     --key_selector zipf --zipf_coefficient $ZIPF --indicus_key_path $KEY_PATH &> client-$i.out &
 done;
 
 #valgrind
 DEBUG=store/$STORE/*client.cc store/benchmark/async/benchmark --config_path $CONFIG --num_groups $NUM_GROUPS \
-  --num_shards $NUM_GROUPS --protocol_mode $PROTOCOL --num_keys $NUM_KEYS_IN_DB --benchmark rw \
+  --num_shards $NUM_GROUPS --protocol_mode $PROTOCOL --num_keys $NUM_KEYS_IN_DB --benchmark $BENCHMARK \
   --num_ops_txn $NUM_OPS_TX --exp_duration $DURATION --client_id 0 --num_client_hosts $CLIENTS --warmup_secs 0 \
   --cooldown_secs 0 --key_selector zipf --zipf_coefficient $ZIPF \
   --stats_file "stats-0.json" --indicus_key_path $KEY_PATH &> client-0.out &

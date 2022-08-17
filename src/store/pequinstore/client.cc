@@ -240,6 +240,46 @@ void Client::Put(const std::string &key, const std::string &value,
   });
 }
 
+//TODO: Define query callback, define result format.
+//Simulate Select * for now
+// --> Return all rows in the store.
+// void Client::Query(const std::string &query, query_callback qcb,
+//     query_timeout_callback qtcb, uint32_t timeout) {
+
+//   transport->Timer(0, [this, query, qcb, qtcb, timeout]() {
+//     // Latency_Start(&getLatency);
+
+//     Debug("Query[%lu:%lu]", client_id, client_seq_num,
+//         BytesToHex(key, 16).c_str());
+
+//     // Contact the appropriate shard to execute the query on.
+//     //Requires parsing the Query statement to extract tables touched? Might touch multiple shards...
+//     //Assume for now only touching one group. (single sharded system)
+//     int i = 0;
+
+//     // If needed, add this shard to set of participants and send BEGIN.
+//     if (!IsParticipant(i)) {
+//       txn.add_involved_groups(i);
+//       bclient[i]->Begin(client_seq_num);
+//     }
+
+//     std::pair<uint64_t, uint64_t> queryId(client_id, client_seq_num);
+
+//     read_callback rcb = [gcb, queryId, this](int status, 
+//         const std::string &result, const Timestamp &ts, const std::string &resultHash) {
+
+//        //store QueryID + result hash in transaction.
+//       //callback to application
+//       qcb(status, result, ts);
+//     };
+//     result_timeout_callback rtcb = qtcb;
+
+//     // Send the GET operation to appropriate shard.
+//     bclient[i]->Query(client_seq_num, key, txn.timestamp(), readMessages,
+//         readQuorumSize, params.readDepSize, rcb, rtcb, timeout);
+//   });
+// }
+
 void Client::Commit(commit_callback ccb, commit_timeout_callback ctcb,
     uint32_t timeout) {
   transport->Timer(0, [this, ccb, ctcb, timeout]() {

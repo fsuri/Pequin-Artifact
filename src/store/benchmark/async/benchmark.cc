@@ -45,6 +45,7 @@
 #include "store/strongstore/client.h"
 #include "store/weakstore/client.h"
 #include "store/tapirstore/client.h"
+//benchmark clients
 #include "store/benchmark/async/bench_client.h"
 #include "store/benchmark/async/common/key_selector.h"
 #include "store/benchmark/async/common/uniform_key_selector.h"
@@ -53,6 +54,9 @@
 #include "store/benchmark/async/tpcc/sync/tpcc_client.h"
 #include "store/benchmark/async/tpcc/async/tpcc_client.h"
 #include "store/benchmark/async/smallbank/smallbank_client.h"
+#include "store/benchmark/async/toy/toy_client.h"
+//protocol clients
+// Basil
 #include "store/indicusstore/client.h"
 #include "store/pbftstore/client.h"
 // HotStuff
@@ -101,7 +105,8 @@ enum benchmode_t {
   BENCH_TPCC,
   BENCH_SMALLBANK_SYNC,
   BENCH_RW,
-  BENCH_TPCC_SYNC
+  BENCH_TPCC_SYNC,
+  BENCH_TOY
 };
 
 enum keysmode_t {
@@ -406,14 +411,16 @@ const std::string benchmark_args[] = {
   "tpcc",
   "smallbank",
   "rw",
-  "tpcc-sync"
+  "tpcc-sync",
+  "toy"
 };
 const benchmode_t benchmodes[] {
   BENCH_RETWIS,
   BENCH_TPCC,
   BENCH_SMALLBANK_SYNC,
   BENCH_RW,
-  BENCH_TPCC_SYNC
+  BENCH_TPCC_SYNC,
+  BENCH_TOY
 };
 static bool ValidateBenchmark(const char* flagname, const std::string &value) {
   int n = sizeof(benchmark_args);
@@ -1211,6 +1218,12 @@ int main(int argc, char **argv) {
           syncClient = new SyncClient(client);
         }
         break;
+      case BENCH_TOY:
+        if (syncClient == nullptr) {
+            UW_ASSERT(client != nullptr);
+            syncClient = new SyncClient(client);
+          }
+          break;
       default:
         NOT_REACHABLE();
     }
@@ -1273,7 +1286,15 @@ int main(int argc, char **argv) {
             FLAGS_abort_backoff, FLAGS_retry_aborted, FLAGS_max_backoff,
             FLAGS_max_attempts);
         break;
-
+      case BENCH_TOY:
+        UW_ASSERT(syncClient != nullptr);
+        // bench = new toy::ToyClient(*syncClient, *tport,
+        //     seed,
+        //     FLAGS_num_requests, FLAGS_exp_duration, FLAGS_delay,
+        //     FLAGS_warmup_secs, FLAGS_cooldown_secs, FLAGS_tput_interval,
+        //     FLAGS_abort_backoff, FLAGS_retry_aborted, FLAGS_max_backoff, FLAGS_max_attempts,
+        //     FLAGS_timeout);
+        break;
       default:
         NOT_REACHABLE();
     }
@@ -1298,6 +1319,27 @@ int main(int argc, char **argv) {
               syncBench->IncrementSent(result);
             }
             bdcb();
+        }));
+        break;
+      }
+      case BENCH_TOY: {
+       SyncTransactionBenchClient *syncBench = dynamic_cast<SyncTransactionBenchClient *>(bench);
+        toy::ToyClient *toyClient =  dynamic_cast<toy::ToyClient *>(syncBench);
+        threads.push_back(new std::thread([toyClient, bdcb](){
+          //TODO: Write ToyBench class. Main function "Run All"
+            // std::cerr << "Started client thread\n";
+            // uint32_t timeout = UINT_MAX;
+            // syncClient->Begin(timeout);
+            // std::cerr << "Invoked Begin\n";
+            // syncClient->Put("x", "5", timeout);
+            // std::string readValue;
+            // syncClient->Get("x", readValue, timeout);
+            // std::cerr << "value read for x: " << readValue << "\n";
+            // syncClient->Commit(timeout);
+            // std::cerr << "Committed value for x\n";
+            toyClient->ExecuteToy();
+            bdcb();
+            //TODO: needs to return/cleanup directly. Does not provide same latency interfaces etc...
         }));
         break;
       }
