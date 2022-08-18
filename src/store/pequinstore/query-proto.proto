@@ -1,0 +1,162 @@
+syntax = "proto2";
+
+import "store/common/common-proto.proto";
+import "store/pequinstore/pequin-proto.proto";
+
+package pequinstore.proto;
+
+/////////////////////////// Query Exec ///////////////////////////
+message Query {
+   required uint64 query_id = 1;
+   required uint64 client_id = 2; //(query_id, client_id) uniquely defines a corret clients query. A byz one can have duplicates, but thats only hurting its own progress                               
+   // Unless: Dependency on another TX which has a query that is invalid... (will abort by default) --> but then TX should not have prepared --> TxID still uniquely defines which query is used.
+   // For now: Treat Query just as a read, and assume read set will be included in tx (instead of cached) -- all worries about attack are complications due to caching.
+   required bytes query = 3;      //SQL statement as string --> parse at Replica
+                                  //Alternatively: Already parsed into AST at client --> send AST (What format?)
+   required TimestampMessage query_timestamp = 4; //Timestamp at which to read query.
+
+}
+
+message RequestQuery {
+  oneof query_oneof {
+    Query query = 1;
+    SignedMessage signed_query = 2; //Need to sign query to a) provide access control (could use Macs instead), b) prove that (query_id, client_id) was proposed only by client with client_id
+    //private channels from client to replicas should suffice?
+  }
+}
+
+message QueryReply {
+    //identify query
+    required uint64 query_id = 1;
+    required uint64 client_id = 2;
+    //include result: this may be anything: e.g. an integer, a table (list of values). TBD how to encode
+    required bytes result = 3;
+    required bytes read_set_hash = 4; //Hash of (QueryID, Result Merkle Root) --> uniquely identifies a queries read set.
+}
+
+////////////////////////// Query Synchronization ///////////////////////////
+
+//replica receives Query and replies with local snapshot of relevant state for ExecQuery
+message LocalSnapshot {
+  //identify query
+  required uint64 query_id = 1;
+  required uint64 client_id = 2;
+  //list of txn that materialize local exec snapshot
+  repeated bytes ss_txns = 3;
+  required uint64 replica_id = 4; 
+}
+message SyncReplicaState {
+  oneof snapshot_oneof {
+    LocalSnapshot local_ss = 1;
+    SignedMessage signed_local_ss = 2;
+  }
+}
+
+message ReplicaList {
+  repeated uint64 replicas = 1; //list of replicas
+}
+
+//can use this instead of map <string, ReplicaList>
+message TxnReplicaKeyPair {
+  required bytes txn = 1;
+  repeated uint64 replicas = 2; //list of replicas that have txn.
+}
+
+message MergedSnapshot {
+   //identify query
+   required uint64 query_id = 1;
+   required uint64 client_id = 2;
+   //include snapshot proposal. 
+   map<string, ReplicaList> cp_txns = 3; //map from txn digest to replicas that have txn.
+}
+
+//client sends proposed merged snapshot. Replicas use it to ExecQuery and send back QueryReply
+message SyncClientProposal {
+ oneof snapshot_oneof {
+   MergedSnapshot merged_ss = 1;
+   SignedMessage signed_merged_ss = 2;
+ }
+}
+
+message RequestMissingTxns {
+   repeated bytes list_txn = 1; //list of txn digests;
+}
+
+message SupplyMissingTxns {
+   map<string, Transaction> txns = 1; //map from txn digest to Transaction object
+}
+
+////////////////////////// Modified Concurrency Control ///////////////////////////
+//TODO: Redefine Transaction to include also query information.
+message TransactionQuery {
+  //Same as Transaction, but additional fields for query information
+  required Transaction txn = 1;
+  repeated QueryReply query_reply= 2;
+}
+
+////////////////////////// Checkpointing ///////////////////////////
+message LocalCheckpointSnapshot {
+  required uint64 checkpoint_id = 1;
+  repeated bytes transactions = 2; //list of txn that form current checkpoint
+  required uint64 replica_id = 3;
+  required uint64 checkpoint_view = 4;
+  //TODO: needs to be signed by replica.
+}
+
+message CheckpointVote {
+  //send local snapshot from replica to
+  required uint64 checkpoint_view = 1; //duplicate just for easier access?
+  oneof local_snapshot {
+    LocalCheckpointSnapshot local_cp_ss = 2;
+    SignedMessage signed_local_cp_ss = 3;
+  }
+}
+
+message CheckpointVotes {
+  repeated CheckpointVote votes = 1;
+}
+
+message MergedCheckpointSnapshot {
+  map<string, ReplicaList> relevant_txns = 1; //map from txn digest to replicas that have txn. --> technically just need set of votes, since replicas need to reassemble themselves anyways.
+  oneof merged_proof {
+    CheckpointVotes cp_votes = 2;
+    SignedMessages signed_cp_votes = 3;
+  }
+}
+
+message CheckpointProposal {
+   //send local snapshot from replica to
+   required uint64 checkpoint_view = 1;
+   required uint64 checkpoint_id = 2;
+   required bytes cp_hash = 3; //send hash of MergedCheckpointSnapshot.
+   optional MergedCheckpointSnapshot local_cp_ss = 4;  //first leader needs to include it; replicas will only accept hash if they have set of merged snapshot checkpoints.
+   //TODO: Needs to be signed by leader of view.
+}
+
+//replica echos CheckpointProposal (if first to be received in view, and no higher view received)
+message CheckpointAccept {
+  //simply an echo (possibly signed) of proposal.
+  required uint64 replica_id = 1;
+  oneof accept_oneof {
+    CheckpointProposal cp_proposal = 2;   //Remove local_cp_ss before sending.
+    SignedMessage signed_cp_proposal = 3;
+  }
+}
+
+//leader confirms checkpoint. replicas accept if valid.
+//Does not need to be signed -- anybody can issue a confirm since the existance of it guarantees that nothing else can be confirmed.
+message CheckpointConfirm {
+  required uint64 checkpoint_view = 1;
+  required uint64 checkpoint_id = 2;
+  required bytes cp_hash = 3; //send hash of MergedCheckpointSnapshot.
+  optional MergedCheckpointSnapshot local_cp_ss = 4;
+  optional Signatures cp_votes = 5; //Set of CheckpointAccept messages (or rather, sigs belonging to it)
+}
+
+// Checkpoint view change messages.
+message RequestNewCPLeader {
+   // Just need mechanism to complain --> If f+1 complaints received, or timed out, increment view
+   //If timeout to receive Checkpoint proposal --> send new votes to next leader
+   //If timeout to receive Checkpoint Confirm --> send checkpoint accept to next leader. (also include)
+
+}

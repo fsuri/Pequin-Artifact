@@ -1211,6 +1211,7 @@ int main(int argc, char **argv) {
           asyncClient = new AsyncAdapterClient(client, FLAGS_message_timeout);
         }
         break;
+      case BENCH_TOY: 
       case BENCH_SMALLBANK_SYNC:
       case BENCH_TPCC_SYNC:
         if (syncClient == nullptr) {
@@ -1218,12 +1219,6 @@ int main(int argc, char **argv) {
           syncClient = new SyncClient(client);
         }
         break;
-      case BENCH_TOY:
-        if (syncClient == nullptr) {
-            UW_ASSERT(client != nullptr);
-            syncClient = new SyncClient(client);
-          }
-          break;
       default:
         NOT_REACHABLE();
     }
@@ -1288,12 +1283,12 @@ int main(int argc, char **argv) {
         break;
       case BENCH_TOY:
         UW_ASSERT(syncClient != nullptr);
-        // bench = new toy::ToyClient(*syncClient, *tport,
-        //     seed,
-        //     FLAGS_num_requests, FLAGS_exp_duration, FLAGS_delay,
-        //     FLAGS_warmup_secs, FLAGS_cooldown_secs, FLAGS_tput_interval,
-        //     FLAGS_abort_backoff, FLAGS_retry_aborted, FLAGS_max_backoff, FLAGS_max_attempts,
-        //     FLAGS_timeout);
+        bench = new toy::ToyClient(*syncClient, *tport,
+            seed,
+            FLAGS_num_requests, FLAGS_exp_duration, FLAGS_delay,
+            FLAGS_warmup_secs, FLAGS_cooldown_secs, FLAGS_tput_interval,
+            FLAGS_abort_backoff, FLAGS_retry_aborted, FLAGS_max_backoff, FLAGS_max_attempts,
+            FLAGS_timeout);
         break;
       default:
         NOT_REACHABLE();
@@ -1326,20 +1321,10 @@ int main(int argc, char **argv) {
        SyncTransactionBenchClient *syncBench = dynamic_cast<SyncTransactionBenchClient *>(bench);
         toy::ToyClient *toyClient =  dynamic_cast<toy::ToyClient *>(syncBench);
         threads.push_back(new std::thread([toyClient, bdcb](){
-          //TODO: Write ToyBench class. Main function "Run All"
-            // std::cerr << "Started client thread\n";
-            // uint32_t timeout = UINT_MAX;
-            // syncClient->Begin(timeout);
-            // std::cerr << "Invoked Begin\n";
-            // syncClient->Put("x", "5", timeout);
-            // std::string readValue;
-            // syncClient->Get("x", readValue, timeout);
-            // std::cerr << "value read for x: " << readValue << "\n";
-            // syncClient->Commit(timeout);
-            // std::cerr << "Committed value for x\n";
+          //Simply calls whatever toy code is declared in ExecuteToy.
+          //Could extend toyClient interface to declare toy code as explicit transaction, and run transaction multiple times.
             toyClient->ExecuteToy();
             bdcb();
-            //TODO: needs to return/cleanup directly. Does not provide same latency interfaces etc...
         }));
         break;
       }

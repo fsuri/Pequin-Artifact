@@ -17,8 +17,16 @@
 #include "store/common/frontend/sync_client.h"
 #include "store/common/truetime.h"
 #include "store/tapirstore/client.h"
+#include "store/common/frontend/sync_transaction.h"
 
 namespace toy {
+
+class ToyTransaction : public SyncTransaction {
+public:
+    ToyTransaction();
+    virtual ~ToyTransaction();
+    transaction_status_t Execute(SyncClient &client);
+};  
 
 class ToyClient : public SyncTransactionBenchClient {
  public:

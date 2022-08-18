@@ -44,6 +44,15 @@
 
 namespace toy {
 
+ToyTransaction::ToyTransaction(): SyncTransaction(10000) {
+}
+
+ToyTransaction::~ToyTransaction(){}
+
+transaction_status_t ToyTransaction::Execute(SyncClient &client){
+    return COMMITTED;
+}
+
 ToyClient::ToyClient(
      SyncClient &client, Transport &transport, uint64_t id,
     int numRequests, int expDuration, uint64_t delay, int warmupSec,
@@ -71,7 +80,8 @@ void ToyClient::ExecuteToy(){
 }
 
  SyncTransaction *ToyClient::GetNextTransaction() {
-  return SyncTransaction();
+    ToyTransaction *toyTx = new ToyTransaction();
+  return toyTx;
 }
 std::string ToyClient::GetLastOp() const { return ""; }
 
