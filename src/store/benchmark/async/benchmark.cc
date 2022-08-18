@@ -899,6 +899,8 @@ int main(int argc, char **argv) {
     //keyManager->PreLoadPrivKey(clientId, true);
     // Alternatively: uint64_t clientId = FLAGS_client_id * FLAGS_num_client_threads + i;
     
+    ////////////////// PROTOCOL CLIENTS
+    /////////////////
     switch (mode) {
     case PROTO_TAPIR: {
         client = new tapirstore::Client(config, clientId,
@@ -1201,6 +1203,20 @@ int main(int argc, char **argv) {
     default:
         NOT_REACHABLE();
     }
+
+//////////////////////////////////// Benchmark Clients
+////////////////////////////
+///////// Structure:  
+////////              Protocol Proxy: syncClient/asyncClient (depending on whether benchmark uses synchronous or asynchronous design --> common/frontend/async_adapter_client.cc or sync_client.cc)
+/////////             Workload Driver: bench = BenchmarkTypeClient (benchmark/async/workload/workload_client.cc) --> inherits Sync/AsyncTransactionBenchClient (benchmark/async/async_transaction_bench_client.cc) 
+//                                             --> inherits BenchmarkClient (benchmark/async/bench_client.cc).   BenchmarkClient manages warump/cooldown, measures latencies
+///                                                
+//////// Workflow: 
+///////               Sync:  bench->Start() calls BenchmarkClient->Start() --> calls SyncTransactionBenchClient-->SendNext() --> calls BenchmarkTypeClient --> GetNextTransaction which returns a txn to execute (type_transaction.cc); 
+///////                      SendNext() also calls txn->Execute(syncClient) which in turn calls syncClient->Begin/Get/Put/Commit(operation) -- returns a Commit/Abort result for the txn. Retries Txn if aborted by system
+//////                       Execution loop keeps calling SendNext() until workload->isFullyDone() ()
+//////                Async: works mostly the same, but calls are wrapped in callbacks for asynchronous workflow: AsyncTransactionBenchClient->SendNext() calls GetNextTransaction and asyncClient.Execute(txn, callback) which in turn 
+/////                         calls asyncAdapterClient->Begin/Put/Get/Commit (in an async fashion). Callback calls BenchmarkClient-->OnReply(result), which then calls AsyncTransactionBenchClient->SendNext() again
 
     switch (benchMode) {
       case BENCH_RETWIS:
