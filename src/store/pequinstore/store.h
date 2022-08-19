@@ -29,8 +29,8 @@
  *
  **********************************************************************/
 
-#ifndef _INDICUS_STORE_H_
-#define _INDICUS_STORE_H_
+#ifndef _PEQUIN_STORE_H_
+#define _PEQUIN_STORE_H_
 
 #include "lib/assert.h"
 #include "lib/message.h"
@@ -82,4 +82,4 @@ private:
 
 } // namespace pequinstore
 
-#endif /* _INDICUS_STORE_H_ */
+#endif /* _PEQUIN_STORE_H_ */

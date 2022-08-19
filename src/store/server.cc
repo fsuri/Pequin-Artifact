@@ -40,11 +40,16 @@
 #include "lib/io_utils.h"
 
 #include "store/common/partitioner.h"
+#include "store/common/failures.h"
 #include "store/server.h"
 #include "store/strongstore/server.h"
 #include "store/tapirstore/server.h"
 #include "store/weakstore/server.h"
+//Pesto
+#include "store/pequinstore/server.h"
+//Basil
 #include "store/indicusstore/server.h"
+//PBFT (deprecated)
 #include "store/pbftstore/replica.h"
 #include "store/pbftstore/server.h"
 // HotStuff
@@ -73,6 +78,7 @@ enum protocol_t {
 	PROTO_TAPIR,
 	PROTO_WEAK,
 	PROTO_STRONG,
+  PROTO_PEQUIN,
   PROTO_INDICUS,
 	PROTO_PBFT,
     // HotStuff
@@ -120,6 +126,7 @@ const std::string protocol_args[] = {
 	"tapir",
   "weak",
   "strong",
+  "pequin",
   "indicus",
 	"pbft",
     "hotstuff",
@@ -131,6 +138,7 @@ const protocol_t protos[] {
   PROTO_TAPIR,
   PROTO_WEAK,
   PROTO_STRONG,
+  PROTO_PEQUIN,
   PROTO_INDICUS,
       PROTO_PBFT,
       PROTO_HOTSTUFF,
@@ -507,7 +515,7 @@ int main(int argc, char **argv) {
       break;
     }
   }
-  if (proto == PROTO_INDICUS && occ_type == OCC_TYPE_UNKNOWN) {
+  if ((proto == PROTO_INDICUS || proto == PROTO_PEQUIN) && occ_type == OCC_TYPE_UNKNOWN) {
     std::cerr << "Unknown occ type." << std::endl;
     return 1;
   }
@@ -521,7 +529,7 @@ int main(int argc, char **argv) {
       break;
     }
   }
-  if (proto == PROTO_INDICUS && read_dep == READ_DEP_UNKNOWN) {
+  if ((proto == PROTO_INDICUS || proto == PROTO_PEQUIN) && read_dep == READ_DEP_UNKNOWN) {
     std::cerr << "Unknown read dep." << std::endl;
     return 1;
   }
@@ -572,6 +580,58 @@ int main(int argc, char **argv) {
                                                tport, 1, dynamic_cast<replication::AppReplica *>(server));
       break;
   }
+  case PROTO_PEQUIN: {
+      uint64_t readDepSize = 0;
+      switch (read_dep) {
+      case READ_DEP_ONE:
+          readDepSize = 1;
+          break;
+      case READ_DEP_ONE_HONEST:
+          readDepSize = config.f + 1;
+          break;
+      default:
+          NOT_REACHABLE();
+      }
+      pequinstore::OCCType pequinOCCType;  //TODO: Extend this later with Semantic OCC check options.
+      switch (occ_type) {
+      case OCC_TYPE_TAPIR:
+          pequinOCCType = pequinstore::TAPIR;
+          break;
+      case OCC_TYPE_MVTSO:
+          pequinOCCType = pequinstore::MVTSO;
+          break;
+      default:
+          NOT_REACHABLE();
+      }
+      uint64_t timeDelta = (FLAGS_indicus_time_delta / 1000) << 32;
+      timeDelta = timeDelta | (FLAGS_indicus_time_delta % 1000) * 1000;
+
+      pequinstore::Parameters params(FLAGS_indicus_sign_messages,
+                                      FLAGS_indicus_validate_proofs, FLAGS_indicus_hash_digest,
+                                      FLAGS_indicus_verify_deps, FLAGS_indicus_sig_batch,
+                                      FLAGS_indicus_max_dep_depth, readDepSize,
+                                      FLAGS_indicus_read_reply_batch, FLAGS_indicus_adjust_batch_size,
+                                      FLAGS_indicus_shared_mem_batch, FLAGS_indicus_shared_mem_verify,
+                                      FLAGS_indicus_merkle_branch_factor, InjectFailure(),
+                                      FLAGS_indicus_multi_threading, FLAGS_indicus_batch_verification,
+																			FLAGS_indicus_batch_verification_size,
+																			FLAGS_indicus_mainThreadDispatching,
+																			FLAGS_indicus_dispatchMessageReceive,
+																			FLAGS_indicus_parallel_reads,
+																			FLAGS_indicus_parallel_CCC,
+																			FLAGS_indicus_dispatchCallbacks,
+																			FLAGS_indicus_all_to_all_fb,
+																		  FLAGS_indicus_no_fallback, FLAGS_indicus_relayP1_timeout,
+																		  FLAGS_indicus_replica_gossip,
+                                      FLAGS_indicus_sign_client_proposals,
+                                      FLAGS_indicus_rts_mode);
+      Debug("Starting new server object");
+      server = new pequinstore::Server(config, FLAGS_group_idx,
+                                        FLAGS_replica_idx, FLAGS_num_shards, FLAGS_num_groups, tport,
+                                        &keyManager, params, timeDelta, pequinOCCType, part,
+                                        FLAGS_indicus_sig_batch_timeout);
+      break;
+  }
   case PROTO_INDICUS: {
       uint64_t readDepSize = 0;
       switch (read_dep) {
@@ -605,7 +665,7 @@ int main(int argc, char **argv) {
                                       FLAGS_indicus_max_dep_depth, readDepSize,
                                       FLAGS_indicus_read_reply_batch, FLAGS_indicus_adjust_batch_size,
                                       FLAGS_indicus_shared_mem_batch, FLAGS_indicus_shared_mem_verify,
-                                      FLAGS_indicus_merkle_branch_factor, indicusstore::InjectFailure(),
+                                      FLAGS_indicus_merkle_branch_factor, InjectFailure(),
                                       FLAGS_indicus_multi_threading, FLAGS_indicus_batch_verification,
 																			FLAGS_indicus_batch_verification_size,
 																			FLAGS_indicus_mainThreadDispatching,

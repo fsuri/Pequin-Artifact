@@ -24,8 +24,8 @@
  * SOFTWARE.
  *
  **********************************************************************/
-#ifndef LOCAL_BATCH_SIGNER_H
-#define LOCAL_BATCH_SIGNER_H
+#ifndef PEQUIN_LOCAL_BATCH_SIGNER_H
+#define PEQUIN_LOCAL_BATCH_SIGNER_H
 
 #include <functional>
 #include <vector>
@@ -102,4 +102,4 @@ class LocalBatchSigner : public BatchSigner {
 
 } // namespace pequinstore
 
-#endif /* LOCAL_BATCH_SIGNER_H */
+#endif /* PEQUIN_LOCAL_BATCH_SIGNER_H */

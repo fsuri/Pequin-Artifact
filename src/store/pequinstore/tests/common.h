@@ -24,8 +24,8 @@
  * SOFTWARE.
  *
  **********************************************************************/
-#ifndef INDICUS_TESTS_COMMON_H
-#define INDICUS_TESTS_COMMON_H
+#ifndef PEQUIN_TESTS_COMMON_H
+#define PEQUIN_TESTS_COMMON_H
 
 #include <gmock/gmock.h>
 
@@ -49,4 +49,4 @@ void PopulateCommitProof(proto::CommittedProof &proof, int n);
 
 } // namespace pequinstore
 
-#endif /* INDICUS_TESTS_COMMON_H */
+#endif /* PEQUIN_TESTS_COMMON_H */

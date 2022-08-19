@@ -129,10 +129,9 @@ void Client::Begin(begin_callback bcb, begin_timeout_callback btcb,
     if(failureActive) stats.Increment("failure_attempts", 1);
     if(failureEnabled) stats.Increment("total_fresh_tx_byz", 1);
     if(!failureEnabled) stats.Increment("total_fresh_tx_honest", 1);
-
   }
 
-  transport->Timer(0, [this, bcb, btcb, timeout]() {
+  transport->Timer(0, [this, bcb, btcb, timeout]() { 
     if (pingReplicas) {
       if (!first && !startedPings) {
         startedPings = true;
@@ -154,6 +153,7 @@ void Client::Begin(begin_callback bcb, begin_timeout_callback btcb,
     // Optimistically choose a read timestamp for all reads in this transaction
     txn.mutable_timestamp()->set_timestamp(timeServer.GetTime());
     txn.mutable_timestamp()->set_id(client_id);
+
     bcb(client_seq_num);
   });
 }
@@ -240,45 +240,61 @@ void Client::Put(const std::string &key, const std::string &value,
   });
 }
 
-//TODO: Define query callback, define result format.
+
 //Simulate Select * for now
-// --> Return all rows in the store.
-// void Client::Query(const std::string &query, query_callback qcb,
-//     query_timeout_callback qtcb, uint32_t timeout) {
+// TODO: --> Return all rows in the store.
+void Client::Query(const std::string &query, query_callback qcb,
+    query_timeout_callback qtcb, uint32_t timeout) {
 
-//   transport->Timer(0, [this, query, qcb, qtcb, timeout]() {
-//     // Latency_Start(&getLatency);
+  transport->Timer(0, [this, query, qcb, qtcb, timeout]() {
+    // Latency_Start(&getLatency);
 
-//     Debug("Query[%lu:%lu]", client_id, client_seq_num,
-//         BytesToHex(key, 16).c_str());
+    Debug("Query[%lu:%lu] %s", client_id, client_seq_num, query);
 
-//     // Contact the appropriate shard to execute the query on.
-//     //Requires parsing the Query statement to extract tables touched? Might touch multiple shards...
-//     //Assume for now only touching one group. (single sharded system)
-//     int i = 0;
+    // Contact the appropriate shard to execute the query on.
+    //Requires parsing the Query statement to extract tables touched? Might touch multiple shards...
+    //Assume for now only touching one group. (single sharded system)
+    int i = 0;
 
-//     // If needed, add this shard to set of participants and send BEGIN.
-//     if (!IsParticipant(i)) {
-//       txn.add_involved_groups(i);
-//       bclient[i]->Begin(client_seq_num);
-//     }
+    // If needed, add this shard to set of participants and send BEGIN.
+    if (!IsParticipant(i)) {
+      txn.add_involved_groups(i);
+      bclient[i]->Begin(client_seq_num);
+    }
 
-//     std::pair<uint64_t, uint64_t> queryId(client_id, client_seq_num);
+    std::pair<uint64_t, uint64_t> queryId(client_id, client_seq_num);
 
-//     read_callback rcb = [gcb, queryId, this](int status, 
-//         const std::string &result, const Timestamp &ts, const std::string &resultHash) {
+    //should be called with query identifier instead of query?
+    //If the client is fully synchronous, and only issues 1 request at a time, then this is fine (don't even need any query to be passed back)
+    result_callback rcb = [qcb, queryId, this](int status, const std::string &query, const std::string &result) {
+      qcb(status, query, result); //callback to application
+    };
+    result_timeout_callback rtcb = qtcb;
 
-//        //store QueryID + result hash in transaction.
-//       //callback to application
-//       qcb(status, result, ts);
-//     };
-//     result_timeout_callback rtcb = qtcb;
+//TODO: Parameterize all of these
+    uint64_t queryQuorumSize = 2 *config->f+1; //Sync Client should wait for 2f+1 replies
+    uint64_t queryMessages = queryQuorumSize + config->f; //To receive 2f+1 replies, send to 3f+1 (parameterize this, optimistic does not send to more)
+    uint64_t mergeThreshold = config->f+1; //Can be optimistic and set it to 1 == include all tx ==> utmost freshness, but no guarantee of validity; can be pessimistic and set it higher ==> less fresh tx, but more widely prepared.
+                                  // Note: This only affects the client progress. Servers will only adopt committed values if they are certified, and prepared values only if they locally vote Prepare.
+    uint64_t syncMessages = 2 *config->f+1;      //Sync Client then sends sync CP to 2f+1, and waits for f+1 matching replies  (Most optimistic: only send to f+1)
+                                                  //Send to 3f+1 (parameterize) if using optimistic tx-ids.
+    uint64_t replyThreshold = config->f+1; //can be optimistic and trust replica --> only wait for 1 reply.
+    
+    // Send the Query operation to appropriate shard & manage execution
+    // bclient[i]->Query(client_seq_num, query, txn.timestamp(), queryMessages,
+    //     queryQuorumSize, mergeThreshold, syncMessages, replyThreshold, rcb, rtcb, timeout);
+    // Shard Client upcalls only if it is the leader for the query, and if it gets matching result hashes  ..........const std::string &resultHash
+       //store QueryID + result hash in transaction.
 
-//     // Send the GET operation to appropriate shard.
-//     bclient[i]->Query(client_seq_num, key, txn.timestamp(), readMessages,
-//         readQuorumSize, params.readDepSize, rcb, rtcb, timeout);
-//   });
-// }
+//FIXME: 
+       //TODO: Next:
+       // a) Client.h interface at all clients --> might not be necessary since it is not a pure virtual function. But it does mean that they should not call it; --> Turned it into panic.
+       // b) Shardclient sends out query
+       // c) Server receives query
+       // d) Server parses, executes, and replies directly
+       // e) Sync protocol with a single/f+1 parties.
+  });
+}
 
 void Client::Commit(commit_callback ccb, commit_timeout_callback ctcb,
     uint32_t timeout) {

@@ -24,8 +24,8 @@
  * SOFTWARE.
  *
  **********************************************************************/
-#ifndef BASIC_VERIFIER_H
-#define BASIC_VERIFIER_H
+#ifndef PEQUIN_BASIC_VERIFIER_H
+#define PEQUIN_BASIC_VERIFIER_H
 
 #include <vector>
 #include <mutex>
@@ -108,4 +108,4 @@ private:
 
 } // namespace pequinstore
 
-#endif /* BASIC_VERIFIER_H */
+#endif /* PEQUIN_BASIC_VERIFIER_H */

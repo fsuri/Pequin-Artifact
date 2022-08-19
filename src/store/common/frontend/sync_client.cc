@@ -110,6 +110,18 @@ void SyncClient::Abort(uint32_t timeout) {
   promise.GetReply();
 }
 
+void SyncClient::Query(const std::string &query, std::string &result, uint32_t timeout) {
+  Promise promise(timeout);
+  
+  client->Query(query, std::bind(&SyncClient::QueryCallback, this, &promise,
+        std::placeholders::_1, std::placeholders::_2, std::placeholders::_3), 
+        std::bind(&SyncClient::GetTimeoutCallback, this,
+        &promise, std::placeholders::_1, std::placeholders::_2), timeout);
+ result = promise.GetValue();
+}
+
+///////// Callbacks
+
 void SyncClient::GetCallback(Promise *promise, int status,
     const std::string &key, const std::string &value, Timestamp ts){
   promise->Reply(status, ts, value);
@@ -143,5 +155,13 @@ void SyncClient::AbortCallback(Promise *promise) {
 
 void SyncClient::AbortTimeoutCallback(Promise *promise) {
   promise->Reply(REPLY_TIMEOUT);
+}
+
+void SyncClient::QueryCallback(Promise *promise, int status, const std::string &query, const std::string &result){
+  promise->Reply(status, result); //Result = string for now. Can be list of values, rows, anthing. Format and interface TBD. For now just return serialized protobuf. That protobuf can be whatever representation.
+}
+
+void SyncClient::QueryTimeoutCallback(Promise *promise, int status, const std::string &query){
+  promise->Reply(status);
 }
 

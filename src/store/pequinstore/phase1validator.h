@@ -24,8 +24,8 @@
  * SOFTWARE.
  *
  **********************************************************************/
-#ifndef PHASE1_VALIDATOR_H
-#define PHASE1_VALIDATOR_H
+#ifndef PEQUIN_PHASE1_VALIDATOR_H
+#define PEQUIN_PHASE1_VALIDATOR_H
 
 #include <string>
 #include <vector>
@@ -90,4 +90,4 @@ class Phase1Validator {
 
 } // namespace pequinstore
 
-#endif /* PHASE1_VALIDATOR_H */
+#endif /* PEQUIN_PHASE1_VALIDATOR_H */

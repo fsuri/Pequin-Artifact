@@ -44,6 +44,10 @@ typedef std::function<void()> commit_timeout_callback;
 typedef std::function<void()> abort_callback;
 typedef std::function<void()> abort_timeout_callback;
 
+typedef std::function<void(int, const std::string &, const std::string &)> query_callback;
+typedef std::function<void(int, const std::string &)> query_timeout_callback;
+
+
 class Stats;
 
 class Client {
@@ -70,6 +74,10 @@ class Client {
   // Abort all Get(s) and Put(s) since Begin().
   virtual void Abort(abort_callback acb, abort_timeout_callback atcb,
       uint32_t timeout) = 0;
+
+  // Get the value corresponding to key.
+  inline virtual void Query(const std::string &query, query_callback qcb,
+      query_timeout_callback qtcb, uint32_t timeout){Panic("unimplemented"); };    
 
   inline const Stats &GetStats() const { return stats; }
 

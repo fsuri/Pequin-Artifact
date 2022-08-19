@@ -29,8 +29,8 @@
  *
  **********************************************************************/
 
-#ifndef _INDICUS_SERVER_H_
-#define _INDICUS_SERVER_H_
+#ifndef _PEQUIN_SERVER_H_
+#define _PEQUIN_SERVER_H_
 
 #include "lib/latency.h"
 #include "lib/transport.h"
@@ -713,4 +713,4 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
 
 } // namespace pequinstore
 
-#endif /* _INDICUS_SERVER_H_ */
+#endif /* _PEQUIN_SERVER_H_ */

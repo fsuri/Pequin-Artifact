@@ -24,8 +24,8 @@
  * SOFTWARE.
  *
  **********************************************************************/
-#ifndef INDICUS_COMMON_H
-#define INDICUS_COMMON_H
+#ifndef PEQUIN_CLIENTTOOLS_H
+#define PEQUIN_CLIENTTOOLS_H
 
 #include "lib/configuration.h"
 #include "lib/keymanager.h"
@@ -54,4 +54,4 @@ namespace pequinstore {
 
 } // namespace pequinstore
 
-#endif /* INDICUS_COMMON_H */
+#endif /* PEQUIN_CLIENTTOOLS_H */

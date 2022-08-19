@@ -39,6 +39,7 @@
 #include "store/common/truetime.h"
 #include "store/common/stats.h"
 #include "store/common/partitioner.h"
+#include "store/common/failures.h"
 #include "store/common/frontend/sync_client.h"
 #include "store/common/frontend/async_client.h"
 #include "store/common/frontend/async_adapter_client.h"
@@ -56,6 +57,8 @@
 #include "store/benchmark/async/smallbank/smallbank_client.h"
 #include "store/benchmark/async/toy/toy_client.h"
 //protocol clients
+//Pesto
+#include "store/pequinstore/client.h"
 // Basil
 #include "store/indicusstore/client.h"
 #include "store/pbftstore/client.h"
@@ -87,6 +90,7 @@ enum protomode_t {
 	PROTO_TAPIR,
 	PROTO_WEAK,
 	PROTO_STRONG,
+  PROTO_PEQUIN,
   PROTO_INDICUS,
 	PROTO_PBFT,
     // HotStuff
@@ -258,9 +262,9 @@ DEFINE_bool(indicus_sign_client_proposals, false, "add signatures to client prop
 DEFINE_uint64(indicus_inject_failure_ms, 0, "number of milliseconds to wait"
     " before injecting a failure (for Indicus)");
 DEFINE_uint64(indicus_inject_failure_proportion, 0, "proportion of clients that"
-    " will inject a failure (for Indicus)");
+    " will inject a failure (for Indicus)"); //default 0
 DEFINE_uint64(indicus_inject_failure_freq, 100, "number of transactions per ONE failure"
-		    " in a Byz client (for Indicus)");
+		    " in a Byz client (for Indicus)"); //default 100
 
 DEFINE_uint64(indicus_phase1DecisionTimeout, 1000UL, "p1 timeout before going slowpath");
 //Verification computation configurations
@@ -291,12 +295,12 @@ const std::string if_args[] = {
 	"client-stall-after-p1",
 	"client-send-partial-p1"
 };
-const indicusstore::InjectFailureType iff[] {
-  indicusstore::InjectFailureType::CLIENT_CRASH,
-  indicusstore::InjectFailureType::CLIENT_EQUIVOCATE,
-	indicusstore::InjectFailureType::CLIENT_EQUIVOCATE_SIMULATE,
-	indicusstore::InjectFailureType::CLIENT_STALL_AFTER_P1,
-	indicusstore::InjectFailureType::CLIENT_SEND_PARTIAL_P1
+const InjectFailureType iff[] {
+  InjectFailureType::CLIENT_CRASH, //client sends p1, but does not wait reply
+  InjectFailureType::CLIENT_EQUIVOCATE, //client receives p1 replies, and tried to equiv only if both commit and abort p2 quorums available
+	InjectFailureType::CLIENT_EQUIVOCATE_SIMULATE, //client receives p1 replies, and always equivs p2 (even though it is not allowed to -- we simualate as if)
+	InjectFailureType::CLIENT_STALL_AFTER_P1, //client sends p1, and waits for p1 replies --> finishes fallback of other transactions to unblock itself
+	InjectFailureType::CLIENT_SEND_PARTIAL_P1 //client sends p1 to only some replicas, does not wait.
 };
 static bool ValidateInjectFailureType(const char* flagname,
     const std::string &value) {
@@ -347,6 +351,7 @@ const std::string protocol_args[] = {
   "lock",
   "span-occ",
   "span-lock",
+  "pequin",
   "indicus",
 	"pbft",
 // HotStuff
@@ -366,6 +371,8 @@ const protomode_t protomodes[] {
   PROTO_STRONG,
   PROTO_STRONG,
   PROTO_STRONG,
+  //
+  PROTO_PEQUIN,
   PROTO_INDICUS,
       PROTO_PBFT,
   // HotStuff
@@ -681,7 +688,7 @@ int main(int argc, char **argv) {
       break;
     }
   }
-  if (mode == PROTO_INDICUS && read_quorum == READ_QUORUM_UNKNOWN) {
+  if (mode != PROTO_TAPIR && read_quorum == READ_QUORUM_UNKNOWN) { //All other ProtoModes require a ReadQuorum Size as input.
     std::cerr << "Unknown read quorum." << std::endl;
     return 1;
   }
@@ -695,13 +702,13 @@ int main(int argc, char **argv) {
       break;
     }
   }
-  if (mode == PROTO_INDICUS && read_messages == READ_MESSAGES_UNKNOWN) {
+  if ((mode != PROTO_TAPIR && mode != PROTO_PBFT) && read_messages == READ_MESSAGES_UNKNOWN) { //All other protocols require a ReadMessage Size as input
     std::cerr << "Unknown read messages." << std::endl;
     return 1;
   }
 
   // parse inject failure
-  indicusstore::InjectFailureType injectFailureType = indicusstore::InjectFailureType::CLIENT_EQUIVOCATE;
+  InjectFailureType injectFailureType = InjectFailureType::CLIENT_EQUIVOCATE;
   int numInjectFailure = sizeof(if_args);
   for (int i = 0; i < numInjectFailure; ++i) {
     if (FLAGS_indicus_inject_failure_type == if_args[i]) {
@@ -719,7 +726,7 @@ int main(int argc, char **argv) {
       break;
     }
   }
-  if (mode == PROTO_INDICUS && read_dep == READ_DEP_UNKNOWN) {
+  if ((mode == PROTO_INDICUS || mode == PROTO_PEQUIN) && read_dep == READ_DEP_UNKNOWN) {
     std::cerr << "Unknown read dep." << std::endl;
     return 1;
   }
@@ -900,7 +907,108 @@ int main(int argc, char **argv) {
     // Alternatively: uint64_t clientId = FLAGS_client_id * FLAGS_num_client_threads + i;
     
     ////////////////// PROTOCOL CLIENTS
-    /////////////////
+
+    ///////////////// Additional parameter configurations
+    uint64_t readQuorumSize = 0; //number of replies necessary to form a quorum
+    uint64_t readMessages = 0; //number of messages sent to replicas to request replies
+    uint64_t pessimistic_quorum_bonus = FLAGS_indicus_optimistic_read_quorum? 0 : config->f; //by default only sends read to the same amount of replicas that we need replies from; if there are faults, we may need to send to more.
+    uint64_t readDepSize = 0; //number of replica replies needed to form dependency  
+    InjectFailure failure; //Type of Failure to be injected
+
+    switch (mode) {
+      case PROTO_TAPIR:
+           break;
+      case PROTO_PEQUIN:
+      case PROTO_INDICUS:
+         switch (read_quorum) {
+            case READ_QUORUM_ONE:
+                readQuorumSize = 1;
+                break;
+            case READ_QUORUM_ONE_HONEST:
+                readQuorumSize = config->f + 1;
+                break;
+            case READ_QUORUM_MAJORITY_HONEST:
+                readQuorumSize = config->f * 2 + 1;
+                break;
+            case READ_QUORUM_MAJORITY:
+                readQuorumSize = (config->n + 1) / 2;
+                break;
+            case READ_QUORUM_ALL:
+                readQuorumSize = config->f * 4 + 1;
+                break;
+            default:
+                NOT_REACHABLE();
+        }
+
+        switch (read_messages) {
+          case READ_MESSAGES_READ_QUORUM:
+              readMessages = readQuorumSize + pessimistic_quorum_bonus;
+              break;
+          case READ_MESSAGES_MAJORITY:
+              readMessages = (config->n + 1) / 2;
+              break;
+          case READ_MESSAGES_ALL:
+              readMessages = config->n;
+              break;
+          default:
+              NOT_REACHABLE();
+          }
+          Debug("Configuring Indicus to send read messages to %lu replicas and wait for %lu replies.", readMessages, readQuorumSize);
+          UW_ASSERT(readMessages >= readQuorumSize);
+
+          switch (read_dep) {
+          case READ_DEP_ONE:
+              readDepSize = 1;
+              break;
+          case READ_DEP_ONE_HONEST:
+              readDepSize = config->f + 1;
+              break;
+          default:
+              NOT_REACHABLE();
+          }
+
+          failure.type = injectFailureType;
+          failure.timeMs = FLAGS_indicus_inject_failure_ms + rand() % 100; //offset client failures a bit.
+          //	std::cerr << "client_id = " << FLAGS_client_id << " < ?" << (72* FLAGS_indicus_inject_failure_proportion/100) << ". Failure enabled: "<< failure.enabled <<  std::endl;
+          failure.enabled = FLAGS_num_client_hosts * i + FLAGS_client_id < floor(FLAGS_num_client_hosts * FLAGS_num_client_threads * FLAGS_indicus_inject_failure_proportion / 100);
+            std::cerr << "client_id = " << clientId << ", client_process = " << FLAGS_client_id << ", thread_id = " << i << ". Failure enabled: "<< failure.enabled <<  std::endl;
+          failure.frequency = FLAGS_indicus_inject_failure_freq;
+        break;
+      case PROTO_PBFT:
+      case PROTO_HOTSTUFF:
+      case PROTO_BFTSMART:
+      case PROTO_AUGUSTUS_SMART:
+      case PROTO_AUGUSTUS:
+        switch (read_quorum) {
+          case READ_QUORUM_ONE:
+              readQuorumSize = 1;
+              break;
+          case READ_QUORUM_ONE_HONEST:
+              readQuorumSize = config->f + 1;
+              break;
+          case READ_QUORUM_MAJORITY_HONEST:
+              readQuorumSize = config->f * 2 + 1;
+              break;
+          default:
+              NOT_REACHABLE();
+        }
+				
+        switch (read_messages) {
+          case READ_MESSAGES_READ_QUORUM:
+              readMessages = readQuorumSize + pessimistic_quorum_bonus; 
+              break;
+          case READ_MESSAGES_MAJORITY:
+              readMessages = (config->n + 1) / 2;
+              break;
+          case READ_MESSAGES_ALL:
+              readMessages = config->n;
+              break;
+          default:
+              NOT_REACHABLE();
+        }
+    }
+
+
     switch (mode) {
     case PROTO_TAPIR: {
         client = new tapirstore::Client(config, clientId,
@@ -910,69 +1018,38 @@ int main(int argc, char **argv) {
                                                  FLAGS_clock_error));
         break;
     }
+    case PROTO_PEQUIN: {
+        pequinstore::Parameters params(FLAGS_indicus_sign_messages,
+                                        FLAGS_indicus_validate_proofs, FLAGS_indicus_hash_digest,
+                                        FLAGS_indicus_verify_deps, FLAGS_indicus_sig_batch,
+                                        FLAGS_indicus_max_dep_depth, readDepSize,
+																				false, false,
+																				false, false,
+                                        FLAGS_indicus_merkle_branch_factor, failure,
+                                        FLAGS_indicus_multi_threading, FLAGS_indicus_batch_verification,
+																				FLAGS_indicus_batch_verification_size,
+																				false,
+																				false,
+																				false,
+																				FLAGS_indicus_parallel_CCC,
+																				false,
+																				FLAGS_indicus_all_to_all_fb,
+																			  FLAGS_indicus_no_fallback,
+																				FLAGS_indicus_relayP1_timeout,
+																			  false,
+                                        FLAGS_indicus_sign_client_proposals,
+                                        0);
+
+        client = new pequinstore::Client(config, clientId,
+                                          FLAGS_num_shards,
+                                          FLAGS_num_groups, closestReplicas, FLAGS_ping_replicas, tport, part,
+                                          FLAGS_tapir_sync_commit, readMessages, readQuorumSize,
+                                          params, keyManager, FLAGS_indicus_phase1DecisionTimeout,
+																					FLAGS_indicus_max_consecutive_abstains,
+																					TrueTime(FLAGS_clock_skew, FLAGS_clock_error));
+        break;
+    }
     case PROTO_INDICUS: {
-        uint64_t readQuorumSize = 0; //number of replies necessary to form a quorum
-        switch (read_quorum) {
-        case READ_QUORUM_ONE:
-            readQuorumSize = 1;
-            break;
-        case READ_QUORUM_ONE_HONEST:
-            readQuorumSize = config->f + 1;
-            break;
-        case READ_QUORUM_MAJORITY_HONEST:
-            readQuorumSize = config->f * 2 + 1;
-            break;
-        case READ_QUORUM_MAJORITY:
-            readQuorumSize = (config->n + 1) / 2;
-            break;
-        case READ_QUORUM_ALL:
-            readQuorumSize = config->f * 4 + 1;
-            break;
-        default:
-            NOT_REACHABLE();
-        }
-
-        uint64_t readMessages = 0; //number of messages sent to replicas to request replies
-        uint64_t pessimistic_quorum_bonus = FLAGS_indicus_optimistic_read_quorum? 0 : config->f; //by default only sends read to the same amount of replicas that we need replies from; if there are faults, we may need to send to more.
-        switch (read_messages) {
-        case READ_MESSAGES_READ_QUORUM:
-            readMessages = readQuorumSize + pessimistic_quorum_bonus;
-            break;
-        case READ_MESSAGES_MAJORITY:
-            readMessages = (config->n + 1) / 2;
-            break;
-        case READ_MESSAGES_ALL:
-            readMessages = config->n;
-            break;
-        default:
-            NOT_REACHABLE();
-        }
-        Debug("Configuring Indicus to send read messages to %lu replicas and wait for %lu replies.", readMessages, readQuorumSize);
-        UW_ASSERT(readMessages >= readQuorumSize);
-
-        uint64_t readDepSize = 0;
-        switch (read_dep) {
-        case READ_DEP_ONE:
-            readDepSize = 1;
-            break;
-        case READ_DEP_ONE_HONEST:
-            readDepSize = config->f + 1;
-            break;
-        default:
-            NOT_REACHABLE();
-        }
-
-        indicusstore::InjectFailure failure;
-        failure.type = injectFailureType;
-        failure.timeMs = FLAGS_indicus_inject_failure_ms + rand() % 100; //offset client failures a bit.
-        //failure.enabled = rand() % 100 < FLAGS_indicus_inject_failure_proportion;
-				//TODO: WARNING: This is a hack based on 72 total clients --> pass total_clients down as flag.
-				//failure.enabled = FLAGS_client_id < floor(72 * FLAGS_indicus_inject_failure_proportion / 100);
-				//	std::cerr << "client_id = " << FLAGS_client_id << " < ?" << (72* FLAGS_indicus_inject_failure_proportion/100) << ". Failure enabled: "<< failure.enabled <<  std::endl;
-				failure.enabled = FLAGS_num_client_hosts * i + FLAGS_client_id < floor(FLAGS_num_client_hosts * FLAGS_num_client_threads * FLAGS_indicus_inject_failure_proportion / 100);
-					std::cerr << "client_id = " << clientId << ", client_process = " << FLAGS_client_id << ", thread_id = " << i << ". Failure enabled: "<< failure.enabled <<  std::endl;
-				failure.frequency = FLAGS_indicus_inject_failure_freq;
-
         indicusstore::Parameters params(FLAGS_indicus_sign_messages,
                                         FLAGS_indicus_validate_proofs, FLAGS_indicus_hash_digest,
                                         FLAGS_indicus_verify_deps, FLAGS_indicus_sig_batch,
@@ -1004,21 +1081,8 @@ int main(int argc, char **argv) {
         break;
     }
     case PROTO_PBFT: {
-        uint64_t readQuorumSize = 0;
-        switch (read_quorum) {
-        case READ_QUORUM_ONE:
-            readQuorumSize = 1;
-            break;
-        case READ_QUORUM_ONE_HONEST:
-            readQuorumSize = config->f + 1;
-            break;
-        case READ_QUORUM_MAJORITY_HONEST:
-            readQuorumSize = config->f * 2 + 1;
-            break;
-        default:
-            NOT_REACHABLE();
-        }
-
+      //Currently deprecated
+      //Note: does not use readMessage size as input parameter. Should have this option. 
         client = new pbftstore::Client(*config, FLAGS_num_shards,
                                        FLAGS_num_groups, tport, part,
                                        readQuorumSize,
@@ -1031,36 +1095,6 @@ int main(int argc, char **argv) {
 
 // HotStuff
     case PROTO_HOTSTUFF: {
-        uint64_t readQuorumSize = 0;
-        switch (read_quorum) {
-        case READ_QUORUM_ONE:
-            readQuorumSize = 1;
-            break;
-        case READ_QUORUM_ONE_HONEST:
-            readQuorumSize = config->f + 1;
-            break;
-        case READ_QUORUM_MAJORITY_HONEST:
-            readQuorumSize = config->f * 2 + 1;
-            break;
-        default:
-            NOT_REACHABLE();
-        }
-				uint64_t readMessages = 0;
-        uint64_t pessimistic_quorum_bonus = FLAGS_indicus_optimistic_read_quorum? 0 : config->f;
-        switch (read_messages) {
-        case READ_MESSAGES_READ_QUORUM:
-            readMessages = readQuorumSize + pessimistic_quorum_bonus; //config->n;
-            break;
-        case READ_MESSAGES_MAJORITY:
-            readMessages = (config->n + 1) / 2;
-            break;
-        case READ_MESSAGES_ALL:
-            readMessages = config->n;
-            break;
-        default:
-            NOT_REACHABLE();
-        }
-
         client = new hotstuffstore::Client(*config, clientId, FLAGS_num_shards,
                                        FLAGS_num_groups, closestReplicas,
 																			  tport, part,
@@ -1074,36 +1108,6 @@ int main(int argc, char **argv) {
 
 		// BFTSmart
 		    case PROTO_BFTSMART: {
-		      uint64_t readQuorumSize = 0;
-		        switch (read_quorum) {
-		        case READ_QUORUM_ONE:
-		            readQuorumSize = 1;
-		            break;
-		        case READ_QUORUM_ONE_HONEST:
-		            readQuorumSize = config->f + 1;
-		            break;
-		        case READ_QUORUM_MAJORITY_HONEST:
-		            readQuorumSize = config->f * 2 + 1;
-		            break;
-		        default:
-		            NOT_REACHABLE();
-		        }
-						uint64_t readMessages = 0;
-            uint64_t pessimistic_quorum_bonus = FLAGS_indicus_optimistic_read_quorum? 0 : config->f;
-		        switch (read_messages) {
-		        case READ_MESSAGES_READ_QUORUM:
-		            readMessages = readQuorumSize + pessimistic_quorum_bonus; //config->n;
-		            break;
-		        case READ_MESSAGES_MAJORITY:
-		            readMessages = (config->n + 1) / 2;
-		            break;
-		        case READ_MESSAGES_ALL:
-		            readMessages = config->n;
-		            break;
-		        default:
-		            NOT_REACHABLE();
-		        }
-
 		        client = new bftsmartstore::Client(*config, clientId, FLAGS_num_shards,
 		                                       FLAGS_num_groups, closestReplicas,
 																					  tport, part,
@@ -1115,37 +1119,8 @@ int main(int argc, char **argv) {
 		        break;
 		    }
 
+    //Augustus on top of BFTSmart
 		case PROTO_AUGUSTUS_SMART: {
-			uint64_t readQuorumSize = 0;
-				switch (read_quorum) {
-				case READ_QUORUM_ONE:
-						readQuorumSize = 1;
-						break;
-				case READ_QUORUM_ONE_HONEST:
-						readQuorumSize = config->f + 1;
-						break;
-				case READ_QUORUM_MAJORITY_HONEST:
-						readQuorumSize = config->f * 2 + 1;
-						break;
-				default:
-						NOT_REACHABLE();
-				}
-				uint64_t readMessages = 0;
-        uint64_t pessimistic_quorum_bonus = FLAGS_indicus_optimistic_read_quorum? 0 : config->f;
-				switch (read_messages) {
-				case READ_MESSAGES_READ_QUORUM:
-						readMessages = readQuorumSize + pessimistic_quorum_bonus; //config->n;
-						break;
-				case READ_MESSAGES_MAJORITY:
-						readMessages = (config->n + 1) / 2;
-						break;
-				case READ_MESSAGES_ALL:
-						readMessages = config->n;
-						break;
-				default:
-						NOT_REACHABLE();
-				}
-
 				client = new bftsmartstore_stable::Client(*config, clientId, FLAGS_num_shards,
 																			 FLAGS_num_groups, closestReplicas,
 																				tport, part,
@@ -1157,38 +1132,8 @@ int main(int argc, char **argv) {
 				break;
 		}
 
-// Augustus
+// Augustus on top of Hotstuff
     case PROTO_AUGUSTUS: {
-        uint64_t readQuorumSize = 0;
-        switch (read_quorum) {
-        case READ_QUORUM_ONE:
-            readQuorumSize = 1;
-            break;
-        case READ_QUORUM_ONE_HONEST:
-            readQuorumSize = config->f + 1;
-            break;
-        case READ_QUORUM_MAJORITY_HONEST:
-            readQuorumSize = config->f * 2 + 1;
-            break;
-        default:
-            NOT_REACHABLE();
-        }
-				uint64_t readMessages = 0;
-        uint64_t pessimistic_quorum_bonus = FLAGS_indicus_optimistic_read_quorum? 0 : config->f;
-        switch (read_messages) {
-        case READ_MESSAGES_READ_QUORUM:
-            readMessages = readQuorumSize; + pessimistic_quorum_bonus; //config->n;
-            break;
-        case READ_MESSAGES_MAJORITY:
-            readMessages = (config->n + 1) / 2;
-            break;
-        case READ_MESSAGES_ALL:
-            readMessages = config->n;
-            break;
-        default:
-            NOT_REACHABLE();
-        }
-
         client = new augustusstore::Client(*config, clientId, FLAGS_num_shards,
                                        FLAGS_num_groups, closestReplicas,
 																			  tport, part,
@@ -1208,7 +1153,7 @@ int main(int argc, char **argv) {
 ////////////////////////////
 ///////// Structure:  
 ////////              Protocol Proxy: syncClient/asyncClient (depending on whether benchmark uses synchronous or asynchronous design --> common/frontend/async_adapter_client.cc or sync_client.cc)
-/////////             Workload Driver: bench = BenchmarkTypeClient (benchmark/async/workload/workload_client.cc) --> inherits Sync/AsyncTransactionBenchClient (benchmark/async/async_transaction_bench_client.cc) 
+/////////             Workload Driver: bench = BenchmarkTypeClient (benchmark/async/workload/workload_client.cc, e.g. smallbank_client) --> inherits Sync/AsyncTransactionBenchClient (benchmark/async/async_transaction_bench_client.cc) 
 //                                             --> inherits BenchmarkClient (benchmark/async/bench_client.cc).   BenchmarkClient manages warump/cooldown, measures latencies
 ///                                                
 //////// Workflow: 

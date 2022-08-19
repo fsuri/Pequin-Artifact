@@ -29,8 +29,8 @@
  *
  **********************************************************************/
 
-#ifndef _INDICUS_SHARDCLIENT_H_
-#define _INDICUS_SHARDCLIENT_H_
+#ifndef _PEQUIN_SHARDCLIENT_H_
+#define _PEQUIN_SHARDCLIENT_H_
 
 
 #include "lib/keymanager.h"
@@ -48,6 +48,7 @@
 #include "store/pequinstore/pequin-proto.pb.h"
 #include "store/pequinstore/phase1validator.h"
 #include "store/common/pinginitiator.h"
+#include "store/pequinstore/common.h"
 
 #include <map>
 #include <string>
@@ -57,10 +58,19 @@ namespace pequinstore {
 static int callP2FB = 0;
 static int successful_invoke = 0;
 
+//// CALLBACKS 
+
+///////// Reads
 typedef std::function<void(int, const std::string &,
     const std::string &, const Timestamp &, const proto::Dependency &,
     bool, bool)> read_callback;
 typedef std::function<void(int, const std::string &)> read_timeout_callback;
+
+////////// Queries
+typedef std::function<void(int, const std::string &, const std::string &)> result_callback;
+typedef std::function<void(int, const std::string &)> result_timeout_callback;
+
+/////////// Basil protocol
 
 typedef std::function<void(proto::CommitDecision, bool, bool,
     const proto::CommittedProof &,
@@ -486,4 +496,4 @@ virtual void Phase2Equivocate_Simulate(uint64_t id, const proto::Transaction &tx
 
 } // namespace pequinstore
 
-#endif /* _INDICUS_SHARDCLIENT_H_ */
+#endif /* _PEQUIN_SHARDCLIENT_H_ */

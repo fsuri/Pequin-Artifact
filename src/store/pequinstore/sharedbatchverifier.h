@@ -24,8 +24,8 @@
  * SOFTWARE.
  *
  **********************************************************************/
-#ifndef SHARED_BATCH_VERIFIER_H
-#define SHARED_BATCH_VERIFIER_H
+#ifndef PEQUIN_SHARED_BATCH_VERIFIER_H
+#define PEQUIN_SHARED_BATCH_VERIFIER_H
 
 #include "store/pequinstore/verifier.h"
 #include "store/common/stats.h"
@@ -77,4 +77,4 @@ class SharedBatchVerifier : public Verifier {
 
 } // namespace pequinstore
 
-#endif /* SHARED_BATCH_VERIFIER_H */
+#endif /* PEQUIN_SHARED_BATCH_VERIFIER_H */

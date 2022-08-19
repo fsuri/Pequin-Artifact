@@ -24,8 +24,8 @@
  * SOFTWARE.
  *
  **********************************************************************/
-#ifndef INDICUS_COMMON_H
-#define INDICUS_COMMON_H
+#ifndef PEQUIN_COMMON_H
+#define PEQUIN_COMMON_H
 
 #include "lib/configuration.h"
 #include "lib/keymanager.h"
@@ -46,6 +46,8 @@
 #include <google/protobuf/message.h>
 
 #include "store/common/stats.h"
+
+#include "store/common/failures.h"
 
 namespace pequinstore {
 
@@ -341,24 +343,24 @@ bool IsReplicaInGroup(uint64_t id, uint32_t group,
 
 int64_t GetLogGroup(const proto::Transaction &txn, const std::string &txnDigest);
 
-enum InjectFailureType {
-  CLIENT_EQUIVOCATE = 0,
-  CLIENT_CRASH = 1,
-  CLIENT_EQUIVOCATE_SIMULATE = 2,
-  CLIENT_STALL_AFTER_P1 = 3,
-  CLIENT_SEND_PARTIAL_P1 = 4
-};
+// enum InjectFailureType {
+//   CLIENT_EQUIVOCATE = 0,
+//   CLIENT_CRASH = 1,
+//   CLIENT_EQUIVOCATE_SIMULATE = 2,
+//   CLIENT_STALL_AFTER_P1 = 3,
+//   CLIENT_SEND_PARTIAL_P1 = 4
+// };
 
-struct InjectFailure {
-  InjectFailure() { }
-  InjectFailure(const InjectFailure &failure) : type(failure.type),
-      timeMs(failure.timeMs), enabled(failure.enabled), frequency(failure.frequency) { }
+// struct InjectFailure {
+//   InjectFailure() { }
+//   InjectFailure(const InjectFailure &failure) : type(failure.type),
+//       timeMs(failure.timeMs), enabled(failure.enabled), frequency(failure.frequency) { }
 
-  InjectFailureType type;
-  uint32_t timeMs;
-  bool enabled;
-  uint32_t frequency;
-};
+//   InjectFailureType type;
+//   uint32_t timeMs;
+//   bool enabled;
+//   uint32_t frequency;
+// };
 
 typedef struct Parameters {
   const bool signedMessages;
@@ -431,4 +433,4 @@ typedef struct Parameters {
 
 } // namespace pequinstore
 
-#endif /* INDICUS_COMMON_H */
+#endif /* PEQUIN_COMMON_H */

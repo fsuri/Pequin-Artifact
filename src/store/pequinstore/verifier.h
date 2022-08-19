@@ -24,8 +24,8 @@
  * SOFTWARE.
  *
  **********************************************************************/
-#ifndef VERIFIER_H
-#define VERIFIER_H
+#ifndef PEQUIN_VERIFIER_H
+#define PEQUIN_VERIFIER_H
 
 #include <string>
 
@@ -63,4 +63,4 @@ class Verifier {
 
 } // namespace indiucsstore
 
-#endif /* VERIFIER_H */
+#endif /* PEQUIN_VERIFIER_H */

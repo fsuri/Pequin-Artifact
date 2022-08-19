@@ -24,8 +24,8 @@
  * SOFTWARE.
  *
  **********************************************************************/
-#ifndef SHARED_BATCH_SIGNER_H
-#define SHARED_BATCH_SIGNER_H
+#ifndef PEQUIN_SHARED_BATCH_SIGNER_H
+#define PEQUIN_SHARED_BATCH_SIGNER_H
 
 #include <condition_variable>
 #include <functional>
@@ -142,4 +142,4 @@ class SharedBatchSigner : public BatchSigner {
 
 } // namespace pequinstore
 
-#endif /* SHARED_BATCH_SIGNER_H */
+#endif /* PEQUIN_SHARED_BATCH_SIGNER_H */

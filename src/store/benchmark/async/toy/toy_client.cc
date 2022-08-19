@@ -68,6 +68,7 @@ ToyClient::~ToyClient() {}
 
 void ToyClient::ExecuteToy(){
     std::cerr << "Started client thread\n";
+    //Calling directly into syncClient here. Usually SyncTransactionBenchClient calls SendNext, which generates a new transaction. This transaction then calls the operations on the SyncClient.
             uint32_t timeout = UINT_MAX;
             client.Begin(timeout);
             std::cerr << "Invoked Begin\n";
@@ -75,6 +76,11 @@ void ToyClient::ExecuteToy(){
             std::string readValue;
             client.Get("x", readValue, timeout);
             std::cerr << "value read for x: " << readValue << "\n";
+            
+            std::string query = "SELECT *";
+            std::string queryResult;
+            client.Query(query, queryResult, timeout);  //--> Edit API in frontend sync_client.
+                                           //For real benchmarks: Also edit in sync_transaction_bench_client.
             client.Commit(timeout);
             std::cerr << "Committed value for x\n";
 }

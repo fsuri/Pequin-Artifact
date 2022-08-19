@@ -48,6 +48,7 @@
 #include "store/indicusstore/indicus-proto.pb.h"
 #include "store/indicusstore/phase1validator.h"
 #include "store/common/pinginitiator.h"
+#include "store/indicusstore/common.h"
 
 #include <map>
 #include <string>

@@ -3,7 +3,7 @@
 F=0
 NUM_GROUPS=1
 CONFIG="shard-r1.config"
-PROTOCOL="indicus"
+PROTOCOL="pequin"
 STORE=${PROTOCOL}store
 DURATION=10
 ZIPF=0.0

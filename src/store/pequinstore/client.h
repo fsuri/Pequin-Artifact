@@ -29,8 +29,8 @@
  *
  **********************************************************************/
 
-#ifndef _INDICUS_CLIENT_H_
-#define _INDICUS_CLIENT_H_
+#ifndef _PEQUIN_CLIENT_H_
+#define _PEQUIN_CLIENT_H_
 
 #include "lib/assert.h"
 #include "lib/keymanager.h"
@@ -88,6 +88,9 @@ class Client : public ::Client {
   virtual void Put(const std::string &key, const std::string &value,
       put_callback pcb, put_timeout_callback ptcb,
       uint32_t timeout = PUT_TIMEOUT) override;
+
+  virtual void Query(const std::string &query, query_callback qcb,
+    query_timeout_callback qtcb, uint32_t timeout) override; //TODO: ::Client client class needs to expose Query interface too.. --> All other clients need to support the interface.
 
   // Commit all Get(s) and Put(s) since Begin().
   virtual void Commit(commit_callback ccb, commit_timeout_callback ctcb,
@@ -305,4 +308,4 @@ class Client : public ::Client {
 
 } // namespace pequinstore
 
-#endif /* _INDICUS_CLIENT_H_ */
+#endif /* _PEQUIN_CLIENT_H_ */

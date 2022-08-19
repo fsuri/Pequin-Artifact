@@ -24,8 +24,8 @@
  * SOFTWARE.
  *
  **********************************************************************/
-#ifndef LOCAL_BATCH_VERIFIER_H
-#define LOCAL_BATCH_VERIFIER_H
+#ifndef PEQUIN_LOCAL_BATCH_VERIFIER_H
+#define PEQUIN_LOCAL_BATCH_VERIFIER_H
 
 #include "store/pequinstore/verifier.h"
 #include "store/pequinstore/localbatchverifier.h"
@@ -120,4 +120,4 @@ class LocalBatchVerifier : public Verifier {
 
 } // namespace pequinstore
 
-#endif /* LOCAL_BATCH_VERIFIER_H */
+#endif /* PEQUIN)LOCAL_BATCH_VERIFIER_H */
