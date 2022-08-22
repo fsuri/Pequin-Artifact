@@ -264,10 +264,16 @@ void Client::Query(const std::string &query, query_callback qcb,
 
     std::pair<uint64_t, uint64_t> queryId(client_id, client_seq_num);
 
-    //should be called with query identifier instead of query?
-    //If the client is fully synchronous, and only issues 1 request at a time, then this is fine (don't even need any query to be passed back)
-    result_callback rcb = [qcb, queryId, this](int status, const std::string &query, const std::string &result) {
-      qcb(status, query, result); //callback to application
+    //result_callback rcb = qcb;
+    result_callback rcb = [qcb, queryId, this](int status, const std::string &query, const std::string &result, const std::string &result_hash, bool success) { //possibly add read-set
+      //If !success --> restart query: Needs to happen across all involved shards? //TODO: How should this work: 
+                                                            // 1) Re-send query, but this time don't use optimistic id's, 2) start fall-back for responsible ids. 
+                                                            //TODO: Replica that observes duplicate: Send Report message with payload: list<pairs: txn>> (pairs of txn with same optimistic id)
+                                                            //   Note: For replica to observe duplicate: Gossip is necessary to receive both.
+                                                            // If replica instead sends full read set to client, then client can look at read sets to figure out divergence: 
+                                                                          // Find mismatched keys, or keys with different versions. Send to replicas request for tx for (key, version) --> replica replies with txn-digest.
+      //TODO: Store result_hash as part of transaction -- or even read set (what format? --> includes dependencies?) if we want to be flexible.
+       qcb(status, query, result); //callback to application //FIXME: Don't see a reason why query should be passed to upcall; identifier should be enough (maybe not even encessary)
     };
     result_timeout_callback rtcb = qtcb;
 
@@ -278,11 +284,18 @@ void Client::Query(const std::string &query, query_callback qcb,
                                   // Note: This only affects the client progress. Servers will only adopt committed values if they are certified, and prepared values only if they locally vote Prepare.
     uint64_t syncMessages = 2 *config->f+1;      //Sync Client then sends sync CP to 2f+1, and waits for f+1 matching replies  (Most optimistic: only send to f+1)
                                                   //Send to 3f+1 (parameterize) if using optimistic tx-ids.
+                                                  //Send to 5f+1 if we want to cache read set.
     uint64_t replyThreshold = config->f+1; //can be optimistic and trust replica --> only wait for 1 reply.
+    //FIXME: Unless we intend for these settings to be set differently on a per tx-basis, we don't need to pass them and can use as matching client and serverside only flags.
+    bool readPrepared = false; //read only committed values, or prepared ones as well.
+    bool optimisticTXids = false; //perform sync protocol with unique tx-ids, vs optimistic timestamps
+    bool cacheReadSet = false;// cache read set server side
     
     // Send the Query operation to appropriate shard & manage execution
-    // bclient[i]->Query(client_seq_num, query, txn.timestamp(), queryMessages,
-    //     queryQuorumSize, mergeThreshold, syncMessages, replyThreshold, rcb, rtcb, timeout);
+     bclient[i]->Query(client_seq_num, query, txn.timestamp(), 
+                       queryMessages, queryQuorumSize, mergeThreshold, syncMessages, replyThreshold, 
+                       readPrepared, optimisticTXids, cacheReadSet,
+                       rcb, rtcb, timeout);
     // Shard Client upcalls only if it is the leader for the query, and if it gets matching result hashes  ..........const std::string &resultHash
        //store QueryID + result hash in transaction.
 

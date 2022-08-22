@@ -133,6 +133,8 @@ void ShardClient::Begin(uint64_t id) {
   readValues.clear();
 }
 
+//////////// Execution Protocol 
+
 void ShardClient::Get(uint64_t id, const std::string &key,
     const TimestampMessage &ts, uint64_t readMessages, uint64_t rqs,
     uint64_t rds, read_callback gcb, read_timeout_callback gtcb,
@@ -174,7 +176,56 @@ void ShardClient::Put(uint64_t id, const std::string &key,
   pcb(REPLY_OK, key, value);
 }
 
+//TODO: Add message handler
+//TODO: Add Query reply handler + sync intermediaries.
+//FIXME: Fix Query function
+void ShardClient::Query(uint64_t id, const std::string &query, const TimestampMessage &ts,
+      uint64_t queryMessages, uint64_t queryQuorumSize, uint64_t mergeThreshold, uint64_t syncMessages, uint64_t replyThreshold, 
+      bool readPrepared, bool optimisticTXids, bool cacheReadSet,
+      result_callback rcb, result_timeout_callback rtcb, uint32_t timeout) {
+  
+  //FIXME: how to execute query in such a way that it includes possibly buffered write values. --> Could imagine sending Put Buffer alongside query, such that servers use it to compute result. 
+  // No clue how that would affect read set though (such versions should always pass CC check), and whether it can be used by byz to equivocate read set, causing abort.
+  //Note: Byz client can also equivocate query contents for same id. It could then send same sync set to all. This would produce different read sets, but it would not be detected.
+  // ---> Implies that query contents must be uniquely hashed too? To guarantee every replica gets same query. I.e. Query id = hash(seq_no, client_id, query-string)?
 
+  uint64_t reqId = lastReqId++;
+  PendingQuery *pendingQuery = new PendingQuery(reqId);
+  pendingQueries[reqId] = pendingQuery;
+  pendingQuery->query = query; //Is this necessary to store? In case of re-send?
+  //pendingQuery->query_id = hash(query, reqId, client_id); //TODO: define hash function (Probably enough if generate serverside)
+
+//FIXME: if we parameterize all these, and they are not meant to be tx individual (but binary wide settings) then we don't need to store them...
+  pendingQuery->queryQuorumSize = queryQuorumSize;
+  pendingQuery->mergeThreshold = mergeThreshold;
+  pendingQuery->syncMessages = syncMessages;
+  pendingQuery->replyThreshold = replyThreshold;
+  pendingQuery->readPrepared = readPrepared;
+  pendingQuery->optimisticTXids = optimisticTXids;
+  pendingQuery->cacheReadSet = cacheReadSet;
+
+  pendingQuery->rcb = rcb;
+  pendingQuery->rtcb = rtcb;
+
+  proto::Query query = proto::Query(); //TODO: make global object.
+  query.Clear();
+  query.set_req_id(reqId);
+  query.set_client_id(client_id);
+  *query.mutable_query() = query;
+  *query.mutable_timestamp() = ts;  //FIXME: Why Timestamped Message and not timestamp?
+  //TODO: Sign --> RequestQuery..
+
+  UW_ASSERT(queryMessages <= closestReplicas.size());
+  for (size_t i = 0; i < queryMessages; ++i) {
+    Debug("[group %i] Sending GET to replica %lu", group, GetNthClosestReplica(i));
+    transport->SendMessageToReplica(this, group, GetNthClosestReplica(i), query);
+  }
+
+  Debug("[group %i] Sent Query [%lu : %lu]", group, id, reqId);
+}
+
+
+//////////// Commit Protocol 
 
 void ShardClient::Phase1(uint64_t id, const proto::Transaction &transaction, const std::string &txnDigest,
   phase1_callback pcb, phase1_timeout_callback ptcb, relayP1_callback rcb, finishConflictCB fcb, uint32_t timeout) {

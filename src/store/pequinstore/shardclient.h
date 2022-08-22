@@ -67,7 +67,7 @@ typedef std::function<void(int, const std::string &,
 typedef std::function<void(int, const std::string &)> read_timeout_callback;
 
 ////////// Queries
-typedef std::function<void(int, const std::string &, const std::string &)> result_callback;
+typedef std::function<void(int, const std::string &, const std::string &, const std::string &, bool)> result_callback;
 typedef std::function<void(int, const std::string &)> result_timeout_callback;
 
 /////////// Basil protocol
@@ -117,6 +117,8 @@ class ShardClient : public TransportReceiver, public PingInitiator, public PingT
       const std::string &type, const std::string &data,
       void *meta_data) override;
 
+//////////// Execution Protocol
+
   // Begin a transaction.
   virtual void Begin(uint64_t id);
 
@@ -130,6 +132,15 @@ class ShardClient : public TransportReceiver, public PingInitiator, public PingT
       const std::string &value, put_callback pcb, put_timeout_callback ptcb,
       uint32_t timeout);
 
+  // Perform a query computation
+  virtual void Query(uint64_t id, const std::string &query, const TimestampMessage &ts,
+      uint64_t queryMessages, uint64_t queryQuorumSize, uint64_t mergeThreshold, uint64_t syncMessages, uint64_t replyThreshold, 
+      bool readPrepared, bool optimisticTXids, bool cacheReadSet,
+      result_callback rcb, result_timeout_callback rtcb, uint32_t timeout);
+
+///////////// End Execution Protocol
+
+ //////////// Commit Protocol
   virtual void Phase1(uint64_t id, const proto::Transaction &transaction, const std::string &txnDigest,
     phase1_callback pcb, phase1_timeout_callback ptcb, relayP1_callback rcb, finishConflictCB fcb, uint32_t timeout);
   virtual void StopP1(uint64_t client_seq_num);
@@ -151,6 +162,7 @@ virtual void Phase2Equivocate_Simulate(uint64_t id, const proto::Transaction &tx
   virtual void WritebackFB(const proto::Transaction &transaction, const std::string &txnDigest,
       proto::CommitDecision decision, bool fast, const proto::CommittedProof &conflict,
       const proto::GroupedSignatures &p1Sigs, const proto::GroupedSignatures &p2Sigs);
+////////////// End Commit Protocol
 
   virtual void Abort(uint64_t id, const TimestampMessage &ts);
   virtual bool SendPing(size_t replica, const PingMessage &ping);
@@ -193,8 +205,8 @@ virtual void Phase2Equivocate_Simulate(uint64_t id, const proto::Transaction &tx
     uint64_t reqId;
     std::string key;
     Timestamp rts;
-    uint64_t rqs;
-    uint64_t rds;
+    uint64_t rqs; //readQuorumSize
+    uint64_t rds; //readDependencySize
     Timestamp maxTs;
     std::string maxValue;
     uint64_t numReplies;
@@ -207,6 +219,36 @@ virtual void Phase2Equivocate_Simulate(uint64_t id, const proto::Transaction &tx
     read_timeout_callback gtcb;
     bool firstCommittedReply;
   };
+
+//TODO: Define management object fully
+  struct PendingQuery {
+    PendingQuery(uint64_t reqId) : reqId(reqId),
+        numReplies(0UL), success(false) { }
+    ~PendingQuery() { }
+    uint64_t reqId;
+    std::string query;
+    Timestamp qts;
+
+    uint64_t queryMessages;
+    uint64_t queryQuorumSize;
+    uint64_t numReplies;
+
+    uint64_t mergeThreshold;
+    uint64_t syncMessages;
+    uint64_t replyThreshold;
+        
+    bool readPrepared;
+    bool optimisticTXids;
+    bool cacheReadSet;
+    
+    std::string result;
+    std::string result_hash;
+    
+    result_callback rcb;
+    result_timeout_callback rtcb;
+    bool success;
+  };
+
 
   struct PendingPhase1 {
     PendingPhase1(uint64_t reqId, int group, const proto::Transaction &txn,
@@ -451,6 +493,7 @@ virtual void Phase2Equivocate_Simulate(uint64_t id, const proto::Transaction &tx
   std::map<std::string, std::string> readValues;
 
   std::unordered_map<uint64_t, PendingQuorumGet *> pendingGets;
+  std::unordered_map<uint64_t, PendingQuery *> pendingQueries;
   std::unordered_map<uint64_t, PendingPhase1 *> pendingPhase1s;
   std::unordered_map<uint64_t, PendingPhase2 *> pendingPhase2s;
   std::unordered_map<uint64_t, PendingAbort *> pendingAborts;
