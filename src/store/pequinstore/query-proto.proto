@@ -13,7 +13,7 @@ message Query {
    // For now: Treat Query just as a read, and assume read set will be included in tx (instead of cached) -- all worries about attack are complications due to caching.
    required bytes query = 3;      //SQL statement as string --> parse at Replica
                                   //Alternatively: Already parsed into AST at client --> send AST (What format?)
-   required TimestampMessage query_timestamp = 4; //Timestamp at which to read query.
+   required TimestampMessage timestamp = 4; //Timestamp at which to read query.
 
 }
 

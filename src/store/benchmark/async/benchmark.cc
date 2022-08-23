@@ -283,11 +283,12 @@ DEFINE_bool(indicus_parallel_CCC, true, "sort read/write set for parallel CCC lo
 
 DEFINE_bool(indicus_hyper_threading, true, "use hyperthreading");
 
+//Indicus failure handling and injection
 DEFINE_bool(indicus_no_fallback, false, "turn off fallback protocol");
 DEFINE_uint64(indicus_max_consecutive_abstains, 1, "number of consecutive conflicts before fallback is triggered");
 DEFINE_bool(indicus_all_to_all_fb, false, "use the all to all view change method");
 DEFINE_uint64(indicus_relayP1_timeout, 1, "time (ms) after which to send RelayP1");
-
+//
 const std::string if_args[] = {
   "client-crash",
 	"client-equivocate",
@@ -316,6 +317,88 @@ static bool ValidateInjectFailureType(const char* flagname,
 DEFINE_string(indicus_inject_failure_type, if_args[0], "type of failure to"
     " inject (for Indicus)");
 DEFINE_validator(indicus_inject_failure_type, &ValidateInjectFailureType);
+
+//Pequin Sync protocol
+enum query_sync_quorum_t {
+  QUERY_SYNC_QUORUM_UNKNOWN,
+  QUERY_SYNC_QUROUM_ONE,
+  QUERY_SYNC_QUORUM_ONE_HONEST,  //at least f+1 --> 1 honest
+  QUERY_SYNC_QUORUM_MAJORITY_HONEST, //at least 2f+1 --> f+1 honest
+  QUERY_SYNC_QUORUM_MAJORITY, // at least 3f+1 --> 2f+1 honest (supermajority)
+  QUERY_SYNC_QUORUM_ALL_POSSIBLE // at least 4f+1 (all that one can expect to receive)
+};
+const std::string query_sync_quorum_args[] = {
+	"query-one",
+  "query-one-honest",
+  "query-majority-honest",
+  "query-super-majority-honest",
+  "query-all-possible"
+};
+const query_sync_quorum_t query_sync_quorums[] {
+  QUERY_SYNC_QUROUM_ONE,
+  QUERY_SYNC_QUORUM_ONE_HONEST,  //at least f+1 --> 1 honest
+  QUERY_SYNC_QUORUM_MAJORITY_HONEST, //at least 2f+1 --> f+1 honest
+  QUERY_SYNC_QUORUM_MAJORITY, // at least 3f+1 --> 2f+1 honest (supermajority)
+  QUERY_SYNC_QUORUM_ALL_POSSIBLE // at least 4f+1 (all that one can expect to receive)
+};
+static bool ValidateQuerySyncQuorum(const char* flagname,
+    const std::string &value) {
+  int n = sizeof(query_sync_quorum_args);
+  for (int i = 0; i < n; ++i) {
+    if (value == query_sync_quorum_args[i]) return true;
+  }
+  std::cerr << "Invalid value for --" << flagname << ": " << value << std::endl;
+  return false;
+}
+
+enum query_messages_t {
+  QUERY_MESSAGES_UNKNOWN,
+  QUERY_MESSAGES_QUERY_QUORUM, //send to no only #Query_sync_quorum many replicas
+  QUERY_MESSAGES_PESSIMISTIC_BONUS, //send to f additional replicas
+  QUERY_MESSAGES_ALL //send to all replicas
+};
+const std::string query_messages_args[] = {
+	"query-quorum",
+  "pessimistic-bonus",
+  "all"
+};
+const query_messages_t query_messages[] {
+  QUERY_MESSAGES_QUERY_QUORUM,
+  QUERY_MESSAGES_PESSIMISTIC_BONUS,
+  QUERY_MESSAGES_ALL
+};
+static bool ValidateQueryMessages(const char* flagname,
+    const std::string &value) {
+  int n = sizeof(query_messages_args);
+  for (int i = 0; i < n; ++i) {
+    if (value == query_messages_args[i]) return true;
+  }
+  std::cerr << "Invalid value for --" << flagname << ": " << value << std::endl;
+  return false;
+}
+
+DEFINE_string(pequin_query_sync_quorum, query_sync_quorum_args[0], "number of replica replies required for sync quorum");
+DEFINE_validator(pequin_query_sync_quorum, &ValidateQuerySyncQuorum);
+
+DEFINE_string(pequin_query_messages, query_messages_args[0], "number of replicas to send query to");
+DEFINE_validator(pequin_query_messages, &ValidateQueryMessages);
+
+DEFINE_string(pequin_query_merge_threshold, query_sync_quorum_args[0], "number of replica votes necessary to include tx in sync snapshot"); 
+DEFINE_validator(pequin_query_merge_threshold, &ValidateQuerySyncQuorum);
+
+DEFINE_bool(pequin_query_result_honest, false, "require at least 1 honest replica reply"); //if false, use first reply; if true, wait for f+1 matching. Keep waiting (or retry) depending on sync_message size.
+
+DEFINE_string(pequin_sync_messages, query_messages_args[0], "number of replicas to send sync snapshot to"); //send to at least as many as results are required; f additional if optimistic ids enabled; or all, if read set caching is enabled.
+DEFINE_validator(pequin_sync_messages, &ValidateQueryMessages);
+
+DEFINE_bool(pequin_query_read_prepared, false, "allow query to read prepared values");
+DEFINE_bool(pequin_query_optimistic_txid, false, "use optimistic tx-id for sync protocol");
+DEFINE_bool(pequin_query_cache_read_set, false, "cache query read set at replicas");
+
+
+
+
+///////////////////////////////////////////////////////////
 
 DEFINE_bool(debug_stats, false, "record stats related to debugging");
 
@@ -730,6 +813,38 @@ int main(int argc, char **argv) {
     std::cerr << "Unknown read dep." << std::endl;
     return 1;
   }
+
+  // parse query sync quorum
+  query_sync_quorum_t query_sync_quorum = QUERY_SYNC_QUORUM_UNKNOWN;
+  int numQuerySyncQuorums = sizeof(query_sync_quorum_args);
+  for (int i = 0; i < numQuerySyncQuorums; ++i) {
+    if (FLAGS_pequin_query_sync_quorum == query_sync_quorum_args[i]) {
+      query_sync_quorum = query_sync_quorums[i];
+      break;
+    }
+  }
+  if (mode == PROTO_PEQUIN && query_sync_quorum == QUERY_SYNC_QUORUM_UNKNOWN) { 
+    std::cerr << "Unknown query sync quorum." << std::endl;
+    return 1;
+  }
+  
+  // parse query messages
+  query_messages_t query_message = QUERY_MESSAGES_UNKNOWN;
+  int numQueryMessages = sizeof(query_messages_args);
+  for (int i = 0; i < numQueryMessages; ++i) {
+    if (FLAGS_pequin_query_messages == query_messages_args[i]) {
+      query_message = query_messages[i];
+      break;
+    }
+  }
+  if (mode == PROTO_PEQUIN && query_message == QUERY_MESSAGES_UNKNOWN) { 
+    std::cerr << "Unknown query messages." << std::endl;
+    return 1;
+  }
+
+
+
+
 
   // parse closest replicas
   std::vector<int> closestReplicas;

@@ -186,6 +186,7 @@ void ShardClient::Query(uint64_t id, const std::string &query, const TimestampMe
   
   //FIXME: how to execute query in such a way that it includes possibly buffered write values. --> Could imagine sending Put Buffer alongside query, such that servers use it to compute result. 
   // No clue how that would affect read set though (such versions should always pass CC check), and whether it can be used by byz to equivocate read set, causing abort.
+  
   //Note: Byz client can also equivocate query contents for same id. It could then send same sync set to all. This would produce different read sets, but it would not be detected.
   // ---> Implies that query contents must be uniquely hashed too? To guarantee every replica gets same query. I.e. Query id = hash(seq_no, client_id, query-string)?
 
@@ -207,18 +208,18 @@ void ShardClient::Query(uint64_t id, const std::string &query, const TimestampMe
   pendingQuery->rcb = rcb;
   pendingQuery->rtcb = rtcb;
 
-  proto::Query query = proto::Query(); //TODO: make global object.
-  query.Clear();
-  query.set_req_id(reqId);
-  query.set_client_id(client_id);
-  *query.mutable_query() = query;
-  *query.mutable_timestamp() = ts;  //FIXME: Why Timestamped Message and not timestamp?
+  proto::Query queryMsg = proto::Query(); //TODO: make global object.
+  queryMsg.Clear();
+  queryMsg.set_req_id(reqId);
+  queryMsg.set_client_id(client_id);
+  *queryMsg.mutable_query() = query;
+  *queryMsg.mutable_timestamp() = ts;  //FIXME: Why Timestamped Message and not timestamp?
   //TODO: Sign --> RequestQuery..
 
   UW_ASSERT(queryMessages <= closestReplicas.size());
   for (size_t i = 0; i < queryMessages; ++i) {
     Debug("[group %i] Sending GET to replica %lu", group, GetNthClosestReplica(i));
-    transport->SendMessageToReplica(this, group, GetNthClosestReplica(i), query);
+    transport->SendMessageToReplica(this, group, GetNthClosestReplica(i), queryMsg);
   }
 
   Debug("[group %i] Sent Query [%lu : %lu]", group, id, reqId);
