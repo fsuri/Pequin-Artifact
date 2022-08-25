@@ -14,6 +14,7 @@ message Query {
    required bytes query = 3;      //SQL statement as string --> parse at Replica
                                   //Alternatively: Already parsed into AST at client --> send AST (What format?)
    required TimestampMessage timestamp = 4; //Timestamp at which to read query.
+   optional bool optimistic_txid = 5;
 
 }
 

@@ -277,25 +277,8 @@ void Client::Query(const std::string &query, query_callback qcb,
     };
     result_timeout_callback rtcb = qtcb;
 
-//TODO: Parameterize all of these
-    uint64_t queryQuorumSize = 2 *config->f+1; //Sync Client should wait for 2f+1 replies
-    uint64_t queryMessages = queryQuorumSize + config->f; //To receive 2f+1 replies, send to 3f+1 (parameterize this, optimistic does not send to more)
-    uint64_t mergeThreshold = config->f+1; //Can be optimistic and set it to 1 == include all tx ==> utmost freshness, but no guarantee of validity; can be pessimistic and set it higher ==> less fresh tx, but more widely prepared.
-                                  // Note: This only affects the client progress. Servers will only adopt committed values if they are certified, and prepared values only if they locally vote Prepare.
-    uint64_t syncMessages = 2 *config->f+1;      //Sync Client then sends sync CP to 2f+1, and waits for f+1 matching replies  (Most optimistic: only send to f+1)
-                                                  //Send to 3f+1 (parameterize) if using optimistic tx-ids.
-                                                  //Send to 5f+1 if we want to cache read set.
-    uint64_t replyThreshold = config->f+1; //can be optimistic and trust replica --> only wait for 1 reply.
-    //FIXME: Unless we intend for these settings to be set differently on a per tx-basis, we don't need to pass them and can use as matching client and serverside only flags.
-    bool readPrepared = false; //read only committed values, or prepared ones as well.
-    bool optimisticTXids = false; //perform sync protocol with unique tx-ids, vs optimistic timestamps
-    bool cacheReadSet = false;// cache read set server side
-    
     // Send the Query operation to appropriate shard & manage execution
-     bclient[i]->Query(client_seq_num, query, txn.timestamp(), 
-                       queryMessages, queryQuorumSize, mergeThreshold, syncMessages, replyThreshold, 
-                       readPrepared, optimisticTXids, cacheReadSet,
-                       rcb, rtcb, timeout);
+     bclient[i]->Query(client_seq_num, query, txn.timestamp(), rcb, rtcb, timeout);
     // Shard Client upcalls only if it is the leader for the query, and if it gets matching result hashes  ..........const std::string &resultHash
        //store QueryID + result hash in transaction.
 

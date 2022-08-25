@@ -358,11 +358,11 @@ enum query_messages_t {
   QUERY_MESSAGES_ALL //send to all replicas
 };
 const std::string query_messages_args[] = {
-	"query-quorum",
+	"quorum",
   "pessimistic-bonus",
   "all"
 };
-const query_messages_t query_messages[] {
+const query_messages_t query_messagess[] {
   QUERY_MESSAGES_QUERY_QUORUM,
   QUERY_MESSAGES_PESSIMISTIC_BONUS,
   QUERY_MESSAGES_ALL
@@ -377,23 +377,31 @@ static bool ValidateQueryMessages(const char* flagname,
   return false;
 }
 
-DEFINE_string(pequin_query_sync_quorum, query_sync_quorum_args[0], "number of replica replies required for sync quorum");
+DEFINE_string(pequin_query_sync_quorum, query_sync_quorum_args[2], "number of replica replies required for sync quorum"); //by default: SyncClient should wait for 2f+1 replies
 DEFINE_validator(pequin_query_sync_quorum, &ValidateQuerySyncQuorum);
 
-DEFINE_string(pequin_query_messages, query_messages_args[0], "number of replicas to send query to");
+DEFINE_string(pequin_query_messages, query_messages_args[0], "number of replicas to send query to"); //by default: To receive 2f+1 replies, need to send to 2f+1 
 DEFINE_validator(pequin_query_messages, &ValidateQueryMessages);
 
-DEFINE_string(pequin_query_merge_threshold, query_sync_quorum_args[0], "number of replica votes necessary to include tx in sync snapshot"); 
+DEFINE_string(pequin_query_merge_threshold, query_sync_quorum_args[1], "number of replica votes necessary to include tx in sync snapshot");  //by default: f+1
+//Can be optimistic and set it to 1 == include all tx ==> utmost freshness, but no guarantee of validity; can be pessimistic and set it higher ==> less fresh tx, but more widely prepared.
+            // Note: This only affects the client progress. Servers will only adopt committed values if they are certified, and prepared values only if they locally vote Prepare.
 DEFINE_validator(pequin_query_merge_threshold, &ValidateQuerySyncQuorum);
 
-DEFINE_bool(pequin_query_result_honest, false, "require at least 1 honest replica reply"); //if false, use first reply; if true, wait for f+1 matching. Keep waiting (or retry) depending on sync_message size.
+DEFINE_bool(pequin_query_result_honest, true, "require at least 1 honest replica reply"); //by default: true
+//-->if false, use first reply; if true, wait for f+1 matching. Keep waiting (or retry) depending on sync_message size.
 
-DEFINE_string(pequin_sync_messages, query_messages_args[0], "number of replicas to send sync snapshot to"); //send to at least as many as results are required; f additional if optimistic ids enabled; or all, if read set caching is enabled.
+DEFINE_string(pequin_sync_messages, query_messages_args[0], "number of replicas to send sync snapshot to for execution"); 
+//send to at least as many as results are required; f additional if optimistic ids enabled; 
+ //By default: Sync Client then sends sync CP to f+1, and waits for f+1 matching replies  (For liveness --pessimistic bonus -- must send to 2+1)
+                                                  //Send to f additional when using optimistic tx-ids.
+                                                  //Send to 5f+1 if we want to cache read set.
+
 DEFINE_validator(pequin_sync_messages, &ValidateQueryMessages);
 
 DEFINE_bool(pequin_query_read_prepared, false, "allow query to read prepared values");
 DEFINE_bool(pequin_query_optimistic_txid, false, "use optimistic tx-id for sync protocol");
-DEFINE_bool(pequin_query_cache_read_set, false, "cache query read set at replicas");
+DEFINE_bool(pequin_query_cache_read_set, false, "cache query read set at replicas"); // Send syncMessages to all if read set caching is enabled -- but still only sync_messages many replicas are tasked to execute and reply.
 
 
 
@@ -829,22 +837,49 @@ int main(int argc, char **argv) {
   }
   
   // parse query messages
-  query_messages_t query_message = QUERY_MESSAGES_UNKNOWN;
+  query_messages_t query_messages = QUERY_MESSAGES_UNKNOWN;
   int numQueryMessages = sizeof(query_messages_args);
   for (int i = 0; i < numQueryMessages; ++i) {
     if (FLAGS_pequin_query_messages == query_messages_args[i]) {
-      query_message = query_messages[i];
+      query_messages = query_messagess[i];
       break;
     }
   }
-  if (mode == PROTO_PEQUIN && query_message == QUERY_MESSAGES_UNKNOWN) { 
+  if (mode == PROTO_PEQUIN && query_messages == QUERY_MESSAGES_UNKNOWN) { 
     std::cerr << "Unknown query messages." << std::endl;
     return 1;
   }
 
+    // parse query sync quorum merge threshold
+  query_sync_quorum_t query_merge_threshold = QUERY_SYNC_QUORUM_UNKNOWN;
+  int numQueryMergeThresholds = sizeof(query_sync_quorum_args);
+  for (int i = 0; i < numQueryMergeThresholds; ++i) {
+    if (FLAGS_pequin_query_merge_threshold == query_sync_quorum_args[i]) {
+      query_merge_threshold = query_sync_quorums[i];
+      break;
+    }
+  }
+  if (mode == PROTO_PEQUIN && query_merge_threshold == QUERY_SYNC_QUORUM_UNKNOWN) { 
+    std::cerr << "Unknown query merge threshold." << std::endl;
+    return 1;
+  }
+
+  // parse sync messages
+  query_messages_t sync_messages = QUERY_MESSAGES_UNKNOWN;
+  int numSyncMessages = sizeof(query_messages_args);
+  for (int i = 0; i < numSyncMessages; ++i) {
+    if (FLAGS_pequin_sync_messages == query_messages_args[i]) {
+      sync_messages = query_messagess[i];
+      break;
+    }
+  }
+  if (mode == PROTO_PEQUIN && sync_messages == QUERY_MESSAGES_UNKNOWN) { 
+    std::cerr << "Unknown sync messages." << std::endl;
+    return 1;
+  }
 
 
-
+//////////////////////////
 
   // parse closest replicas
   std::vector<int> closestReplicas;
@@ -1024,16 +1059,100 @@ int main(int argc, char **argv) {
     ////////////////// PROTOCOL CLIENTS
 
     ///////////////// Additional parameter configurations
-    uint64_t readQuorumSize = 0; //number of replies necessary to form a quorum
-    uint64_t readMessages = 0; //number of messages sent to replicas to request replies
+    uint64_t readQuorumSize = 0; //number of replies necessary to form a read quorum
+    uint64_t readMessages = 0; //number of read messages sent to replicas to request replies
     uint64_t pessimistic_quorum_bonus = FLAGS_indicus_optimistic_read_quorum? 0 : config->f; //by default only sends read to the same amount of replicas that we need replies from; if there are faults, we may need to send to more.
     uint64_t readDepSize = 0; //number of replica replies needed to form dependency  
     InjectFailure failure; //Type of Failure to be injected
+
+    uint64_t syncQuorumSize = 0; //number of replies necessary to form a sync quorum
+    uint64_t queryMessages = 0; //number of query messages sent to replicas to request sync replies
+    uint64_t mergeThreshold = 1; //number of tx instances required to observe to include in sync snapshot
+    uint64_t syncMessages = 0;    //number of sync messages sent to replicas to request result replies
+    uint64_t resultQuorum = FLAGS_pequin_query_result_honest? config->f + 1 : 1;
+
 
     switch (mode) {
       case PROTO_TAPIR:
            break;
       case PROTO_PEQUIN:
+         switch (query_sync_quorum) {
+          case QUERY_SYNC_QUROUM_ONE:
+            syncQuorumSize = 1;
+            break;
+          case QUERY_SYNC_QUORUM_ONE_HONEST:
+            syncQuorumSize = config->f + 1;
+            break;
+          case QUERY_SYNC_QUORUM_MAJORITY_HONEST:
+            syncQuorumSize = config->f * 2 + 1;  //majority of quorum will be honest
+            break;
+          case QUERY_SYNC_QUORUM_MAJORITY:
+            syncQuorumSize = config->f * 3 + 1; //== majority of all honest will be included in quorum
+            break;
+          case QUERY_SYNC_QUORUM_ALL_POSSIBLE:
+            syncQuorumSize = config->f * 4 + 1;
+            break;
+          default: 
+            NOT_REACHABLE();
+         }
+         switch (query_merge_threshold) { 
+          case QUERY_SYNC_QUROUM_ONE:
+            mergeThreshold = 1;
+            break;
+          case QUERY_SYNC_QUORUM_ONE_HONEST:
+            mergeThreshold = config->f + 1;
+            break;
+          //NOTE: These cases realistically will never be used -- but supported here anyways
+          case QUERY_SYNC_QUORUM_MAJORITY_HONEST:
+            mergeThreshold = config->f * 2 + 1;  //majority of quorum will be honest
+            break;
+          case QUERY_SYNC_QUORUM_MAJORITY:
+            mergeThreshold = config->f * 3 + 1; //== majority of all honest will be included in quorum
+            break;
+          case QUERY_SYNC_QUORUM_ALL_POSSIBLE:
+            mergeThreshold = config->f * 4 + 1;
+            break;
+          default: 
+            NOT_REACHABLE();
+         }
+         if(mergeThreshold > syncQuorumSize) Panic("Merge Threshold for Query Sync cannot be larger than Quorum itself");
+         if(mergeThreshold + config->f > syncQuorumSize) std::cerr << "WARNING: Query Sync Merge is not live in presence of byzantine replies in Query Sync Quorum" << std::endl;
+        
+         switch (query_messages) {
+          case QUERY_MESSAGES_QUERY_QUORUM:
+              queryMessages = syncQuorumSize;
+              break;
+          case QUERY_MESSAGES_PESSIMISTIC_BONUS:
+              queryMessages = syncQuorumSize + config->f;
+              break;
+          case QUERY_MESSAGES_ALL:
+              queryMessages = config->n;
+              break;
+          default:
+              NOT_REACHABLE();
+          }
+          if(syncQuorumSize > queryMessages) Panic("Query Quorum size cannot be larger than number of Query requests sent");
+          if(syncQuorumSize + config->f > queryMessages) std::cerr << "WARNING: Query Sync is not live in presence of byzantine replies witholding query sync replies (omission faults)" << std::endl;
+         
+         switch (sync_messages) {
+          case QUERY_MESSAGES_QUERY_QUORUM:
+              syncMessages = resultQuorum;
+              break;
+          case QUERY_MESSAGES_PESSIMISTIC_BONUS:
+              syncMessages = resultQuorum + config->f;
+              break;
+          case QUERY_MESSAGES_ALL:
+              syncMessages = config->n;
+              break;
+          default:
+              NOT_REACHABLE();
+          }
+         
+         if(FLAGS_pequin_query_optimistic_txid) syncMessages = std::max((uint64_t) config->n, syncMessages + config->n);
+         // if read_cache is True:--> send sync to all, but still only ask syncMessages many to execute.
+
+        Debug("Configuring Pequin to send query messages to %lu replicas and wait for %lu replies. Merge Threshold is %lu. %lu Sync messages are being sent", queryMessages, syncQuorumSize, mergeThreshold, syncMessages);
+
       case PROTO_INDICUS:
          switch (read_quorum) {
             case READ_QUORUM_ONE:
@@ -1123,6 +1242,7 @@ int main(int argc, char **argv) {
         }
     }
 
+//Declare Protocol Clients
 
     switch (mode) {
     case PROTO_TAPIR: {
@@ -1134,6 +1254,15 @@ int main(int argc, char **argv) {
         break;
     }
     case PROTO_PEQUIN: {
+      pequinstore::QueryParameters query_params(syncQuorumSize,
+                                                 queryMessages,
+                                                 mergeThreshold,
+                                                 syncMessages,
+                                                 resultQuorum,
+                                                 FLAGS_pequin_query_read_prepared,
+                                                 FLAGS_pequin_query_optimistic_txid,
+                                                 FLAGS_pequin_query_cache_read_set);
+
         pequinstore::Parameters params(FLAGS_indicus_sign_messages,
                                         FLAGS_indicus_validate_proofs, FLAGS_indicus_hash_digest,
                                         FLAGS_indicus_verify_deps, FLAGS_indicus_sig_batch,
@@ -1153,7 +1282,8 @@ int main(int argc, char **argv) {
 																				FLAGS_indicus_relayP1_timeout,
 																			  false,
                                         FLAGS_indicus_sign_client_proposals,
-                                        0);
+                                        0,
+                                        query_params);
 
         client = new pequinstore::Client(config, clientId,
                                           FLAGS_num_shards,

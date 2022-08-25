@@ -362,6 +362,24 @@ int64_t GetLogGroup(const proto::Transaction &txn, const std::string &txnDigest)
 //   uint32_t frequency;
 // };
 
+typedef struct QueryParameters {
+    const uint64_t syncQuorum; //number of replies necessary to form a sync quorum
+    const uint64_t queryMessages; //number of query messages sent to replicas to request sync replies
+    const uint64_t mergeThreshold; //number of tx instances required to observe to include in sync snapshot
+    const uint64_t syncMessages;    //number of sync messages sent to replicas to request result replies
+    const uint64_t resultQuorum ;   //number of matching query replies necessary to return
+    
+    const bool readPrepared; //read only committed or also prepared values in query?
+    const bool optimisticTxID; //use unique hash tx ids (normal ids), or optimistically use timestamp as identifier?
+    const bool cacheReadSet; //return query read set to client, or cache it locally at servers?
+
+    QueryParameters(uint64_t syncQuorum, uint64_t queryMessages, uint64_t mergeThreshold, uint64_t syncMessages, uint64_t resultQuorum,
+        bool readPrepared, bool optimisticTxID, bool cacheReadSet ) : 
+        syncQuorum(syncQuorum), queryMessages(queryMessages), mergeThreshold(mergeThreshold), syncMessages(syncMessages), resultQuorum(resultQuorum),
+        readPrepared(readPrepared), optimisticTxID(optimisticTxID), cacheReadSet(cacheReadSet) {}
+
+} QueryParameters;
+
 typedef struct Parameters {
   const bool signedMessages;
   const bool validateProofs;
@@ -395,6 +413,8 @@ typedef struct Parameters {
   const bool signClientProposals;
   const uint32_t rtsMode;
 
+  const QueryParameters query_params;
+
   Parameters(bool signedMessages, bool validateProofs, bool hashDigest, bool verifyDeps,
     int signatureBatchSize, int64_t maxDepDepth, uint64_t readDepSize,
     bool readReplyBatch, bool adjustBatchSize, bool sharedMemBatches,
@@ -409,7 +429,8 @@ typedef struct Parameters {
     uint64_t relayP1_timeout,
     bool replicaGossip,
     bool signClientProposals,
-    uint32_t rtsMode) :
+    uint32_t rtsMode,
+    QueryParameters query_params) :
     signedMessages(signedMessages), validateProofs(validateProofs),
     hashDigest(hashDigest), verifyDeps(verifyDeps), signatureBatchSize(signatureBatchSize),
     maxDepDepth(maxDepDepth), readDepSize(readDepSize),
@@ -428,7 +449,8 @@ typedef struct Parameters {
     relayP1_timeout(relayP1_timeout),
     replicaGossip(replicaGossip),
     signClientProposals(signClientProposals),
-    rtsMode(rtsMode) { }
+    rtsMode(rtsMode),
+    query_params(query_params) { }
 } Parameters;
 
 } // namespace pequinstore

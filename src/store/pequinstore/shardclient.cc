@@ -180,13 +180,11 @@ void ShardClient::Put(uint64_t id, const std::string &key,
 //TODO: Add Query reply handler + sync intermediaries.
 //FIXME: Fix Query function
 void ShardClient::Query(uint64_t id, const std::string &query, const TimestampMessage &ts,
-      uint64_t queryMessages, uint64_t queryQuorumSize, uint64_t mergeThreshold, uint64_t syncMessages, uint64_t replyThreshold, 
-      bool readPrepared, bool optimisticTXids, bool cacheReadSet,
-      result_callback rcb, result_timeout_callback rtcb, uint32_t timeout) {
+      result_callback rcb, result_timeout_callback rtcb, uint32_t timeout, bool retry) {
   
   //FIXME: how to execute query in such a way that it includes possibly buffered write values. --> Could imagine sending Put Buffer alongside query, such that servers use it to compute result. 
   // No clue how that would affect read set though (such versions should always pass CC check), and whether it can be used by byz to equivocate read set, causing abort.
-  
+
   //Note: Byz client can also equivocate query contents for same id. It could then send same sync set to all. This would produce different read sets, but it would not be detected.
   // ---> Implies that query contents must be uniquely hashed too? To guarantee every replica gets same query. I.e. Query id = hash(seq_no, client_id, query-string)?
 
@@ -196,15 +194,7 @@ void ShardClient::Query(uint64_t id, const std::string &query, const TimestampMe
   pendingQuery->query = query; //Is this necessary to store? In case of re-send?
   //pendingQuery->query_id = hash(query, reqId, client_id); //TODO: define hash function (Probably enough if generate serverside)
 
-//FIXME: if we parameterize all these, and they are not meant to be tx individual (but binary wide settings) then we don't need to store them...
-  pendingQuery->queryQuorumSize = queryQuorumSize;
-  pendingQuery->mergeThreshold = mergeThreshold;
-  pendingQuery->syncMessages = syncMessages;
-  pendingQuery->replyThreshold = replyThreshold;
-  pendingQuery->readPrepared = readPrepared;
-  pendingQuery->optimisticTXids = optimisticTXids;
-  pendingQuery->cacheReadSet = cacheReadSet;
-
+  pendingQuery->retry = retry;
   pendingQuery->rcb = rcb;
   pendingQuery->rtcb = rtcb;
 
@@ -214,10 +204,11 @@ void ShardClient::Query(uint64_t id, const std::string &query, const TimestampMe
   queryMsg.set_client_id(client_id);
   *queryMsg.mutable_query() = query;
   *queryMsg.mutable_timestamp() = ts;  //FIXME: Why Timestamped Message and not timestamp?
+  queryMsg.set_optimistic_txid(!retry); //On retry use unique/deterministic tx id only.
   //TODO: Sign --> RequestQuery..
 
-  UW_ASSERT(queryMessages <= closestReplicas.size());
-  for (size_t i = 0; i < queryMessages; ++i) {
+  UW_ASSERT(params.query_params.queryMessages <= closestReplicas.size());
+  for (size_t i = 0; i < params.query_params.queryMessages; ++i) {
     Debug("[group %i] Sending GET to replica %lu", group, GetNthClosestReplica(i));
     transport->SendMessageToReplica(this, group, GetNthClosestReplica(i), queryMsg);
   }

@@ -134,9 +134,7 @@ class ShardClient : public TransportReceiver, public PingInitiator, public PingT
 
   // Perform a query computation
   virtual void Query(uint64_t id, const std::string &query, const TimestampMessage &ts,
-      uint64_t queryMessages, uint64_t queryQuorumSize, uint64_t mergeThreshold, uint64_t syncMessages, uint64_t replyThreshold, 
-      bool readPrepared, bool optimisticTXids, bool cacheReadSet,
-      result_callback rcb, result_timeout_callback rtcb, uint32_t timeout);
+      result_callback rcb, result_timeout_callback rtcb, uint32_t timeout, bool retry=false);
 
 ///////////// End Execution Protocol
 
@@ -229,17 +227,19 @@ virtual void Phase2Equivocate_Simulate(uint64_t id, const proto::Transaction &tx
     std::string query;
     Timestamp qts;
 
-    uint64_t queryMessages;
-    uint64_t queryQuorumSize;
+    // uint64_t queryMessages;
+    // uint64_t queryQuorumSize;
     uint64_t numReplies;
 
-    uint64_t mergeThreshold;
-    uint64_t syncMessages;
-    uint64_t replyThreshold;
+    // uint64_t mergeThreshold;
+    // uint64_t syncMessages;
+    // uint64_t replyThreshold;
         
-    bool readPrepared;
-    bool optimisticTXids;
-    bool cacheReadSet;
+    // bool readPrepared;
+    // bool optimisticTXids;
+    // bool cacheReadSet;
+
+    bool retry;
     
     std::string result;
     std::string result_hash;
