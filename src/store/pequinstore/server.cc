@@ -280,7 +280,28 @@ void Server::ReceiveMessageInternal(const TransportAddress &remote,
   } else if (type == moveView.GetTypeName()) {
     ManageDispatchMoveView(remote, data);
 
-  } else {
+  } 
+  
+  //Query Protocol Messages
+  else if(type == query.GetTypeName()){
+    ManageDispatchQuery(remote, data);
+  }
+  else if(type == syncMsg.GetTypeName()){
+    ManageDispatchSync(remote, data);
+  }
+  else if(type == requestTx.GetTypeName()){
+    ManageDispatchRequestTx(remote, data);
+  }
+  else if(type == supplyTx.GetTypeName()){
+    ManageDispatchRequestTx(remote, data);
+  }
+
+  //Checkpoint Messages
+  
+  
+  ///////
+  
+  else {
     Panic("Received unexpected message type: %s", type.c_str());
   }
 }

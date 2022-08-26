@@ -184,6 +184,23 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
   void ManageDispatchMoveView(const TransportAddress &remote, const std::string &data);
   void HandleMoveView(proto::MoveView &msg);
 
+  //Query handler functions
+  void ManageDispatchQuery(const TransportAddress &remote, const std::string &data);
+  void HandleQuery(const TransportAddress &remote, proto::Query &msg);
+
+  void ManageDispatchSync(const TransportAddress &remote, const std::string &data);
+  void HandleSync(const TransportAddress &remote, proto::SyncClientProposal &msg);
+
+  void ManageDispatchRequestTx(const TransportAddress &remote, const std::string &data);
+  void HandleRequestTx(const TransportAddress &remote, proto::RequestMissingTxns &msg);
+
+  void ManageDispatchSupplyTx(const TransportAddress &remote, const std::string &data);
+  void HandleSupplyTx(const TransportAddress &remote, proto::SupplyMissingTxns &msg);
+
+
+
+///////////////////////
+
     // Fallback helper functions
     //FALLBACK helper datastructures
     struct P1FBorganizer {
@@ -542,6 +559,12 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
   proto::ElectFB electFB;
   proto::DecisionFB decisionFB;
   proto::MoveView moveView;
+
+  //Query messages
+  proto::Query query;
+  proto::SyncClientProposal syncMsg;
+  proto::RequestMissingTxns requestTx;
+  proto::SupplyMissingTxns supplyTx;
 
   PingMessage ping;
 

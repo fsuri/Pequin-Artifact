@@ -69,6 +69,7 @@ message MergedSnapshot {
    required uint64 client_id = 2;
    //include snapshot proposal. 
    map<string, ReplicaList> cp_txns = 3; //map from txn digest to replicas that have txn.
+   required bool execute = 4; //designate whether this replica should execute and reply, or just sync, execute, and cache read set.
 }
 
 //client sends proposed merged snapshot. Replicas use it to ExecQuery and send back QueryReply
