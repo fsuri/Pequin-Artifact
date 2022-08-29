@@ -134,7 +134,8 @@ class ShardClient : public TransportReceiver, public PingInitiator, public PingT
 
   // Perform a query computation
   virtual void Query(uint64_t id, const std::string &query, const TimestampMessage &ts,
-      result_callback rcb, result_timeout_callback rtcb, uint32_t timeout, bool retry=false);
+      result_callback rcb, result_timeout_callback rtcb, uint32_t timeout);
+  virtual void RequestQuery(PendingQuery *pendingQuery, bool retry = false);
 
 ///////////// End Execution Protocol
 
@@ -221,15 +222,16 @@ virtual void Phase2Equivocate_Simulate(uint64_t id, const proto::Transaction &tx
 //TODO: Define management object fully
   struct PendingQuery {
     PendingQuery(uint64_t reqId) : reqId(reqId),
-        numReplies(0UL), success(false) { }
+        numSyncReplies(0UL), numResults(0UL), success(false) { }
     ~PendingQuery() { }
     uint64_t reqId;
+    uint64_t client_seq_num;
     std::string query;
     Timestamp qts;
 
     // uint64_t queryMessages;
     // uint64_t queryQuorumSize;
-    uint64_t numReplies;
+    uint64_t numSyncReplies;
 
     // uint64_t mergeThreshold;
     // uint64_t syncMessages;
@@ -240,7 +242,7 @@ virtual void Phase2Equivocate_Simulate(uint64_t id, const proto::Transaction &tx
     // bool cacheReadSet;
 
     bool retry;
-    
+    uint64_t numResults;
     std::string result;
     std::string result_hash;
     
@@ -510,6 +512,7 @@ virtual void Phase2Equivocate_Simulate(uint64_t id, const proto::Transaction &tx
   std::unordered_map<uint64_t, uint64_t> test_mapping;
   //keep additional maps for this from txnDigest ->Pending For Fallback instances?
 
+//Main protocol
   proto::Read read;
   proto::Phase1 phase1;
   proto::Phase2 phase2;
@@ -535,6 +538,10 @@ virtual void Phase2Equivocate_Simulate(uint64_t id, const proto::Transaction &tx
   proto::Write validatedPrepared;
   proto::ConcurrencyControl validatedCC;
   proto::Phase2Decision validatedP2Decision;
+
+  //Query protocol
+  proto::SyncReplicaState syncReplicaState;
+  proto::QueryResult queryResult;
 };
 
 } // namespace pequinstore

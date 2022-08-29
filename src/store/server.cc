@@ -326,6 +326,7 @@ DEFINE_bool(indicus_replica_gossip, false, "use gossip between replicas to excha
 DEFINE_bool(pequin_query_read_prepared, false, "allow query to read prepared values");
 DEFINE_bool(pequin_query_optimistic_txid, false, "use optimistic tx-id for sync protocol");
 DEFINE_bool(pequin_query_cache_read_set, false, "cache query read set at replicas");
+DEFINE_bool(pequin_sign_client_queries, false, "sign query and sync messages"); //proves non-equivocation of query contents, and query snapshot respectively.
 
 //Baseline settings
 DEFINE_string(bftsmart_codebase_dir, "", "path to directory containing bftsmart configurations");
@@ -659,7 +660,8 @@ int main(int argc, char **argv) {
                                                  0,
                                                  FLAGS_pequin_query_read_prepared,
                                                  FLAGS_pequin_query_optimistic_txid,
-                                                 FLAGS_pequin_query_cache_read_set);
+                                                 FLAGS_pequin_query_cache_read_set,
+                                                 FLAGS_pequin_sign_client_queries);
 
       pequinstore::Parameters params(FLAGS_indicus_sign_messages,
                                       FLAGS_indicus_validate_proofs, FLAGS_indicus_hash_digest,

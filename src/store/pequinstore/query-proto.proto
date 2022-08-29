@@ -7,28 +7,30 @@ package pequinstore.proto;
 
 /////////////////////////// Query Exec ///////////////////////////
 message Query {
-   required uint64 req_id = 1;
-   required uint64 client_id = 2; //query id = (req_id, client_id) uniquely defines a corret clients query. A byz one can have duplicates, but thats only hurting its own progress                               
+   required uint64 client_seq_num = 1;
+   required uint64 client_id = 2; //query id = (client_seq_num, client_id) uniquely defines a corret clients query. A byz one can have duplicates, but thats only hurting its own progress                               
    // Unless: Dependency on another TX which has a query that is invalid... (will abort by default) --> but then TX should not have prepared --> TxID still uniquely defines which query is used.
    // For now: Treat Query just as a read, and assume read set will be included in tx (instead of cached) -- all worries about attack are complications due to caching.
    required bytes query = 3;      //SQL statement as string --> parse at Replica
                                   //Alternatively: Already parsed into AST at client --> send AST (What format?)
    required TimestampMessage timestamp = 4; //Timestamp at which to read query.
-   optional bool optimistic_txid = 5;
+   
 
 }
 
-message RequestQuery {
+message QueryRequest {
+  required uint64 req_id = 1;
   oneof query_oneof {
-    Query query = 1;
-    SignedMessage signed_query = 2; //Need to sign query to a) provide access control (could use Macs instead), b) prove that (query_id, client_id) was proposed only by client with client_id
+    Query query = 2;
+    SignedMessage signed_query = 3; //Need to sign query to a) provide access control (could use Macs instead), b) prove that (query_id, client_id) was proposed only by client with client_id
     //private channels from client to replicas should suffice?
   }
+  optional bool optimistic_txid = 4;
 }
 
-message QueryReply {
+message QueryResult {
     //identify query
-    required uint64 query_id = 1;
+    required uint64 req_id = 1;
     required uint64 client_id = 2;
     //include result: this may be anything: e.g. an integer, a table (list of values). TBD how to encode
     required bytes result = 3;

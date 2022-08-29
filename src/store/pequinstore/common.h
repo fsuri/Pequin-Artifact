@@ -328,6 +328,8 @@ bool operator!=(const proto::Write &pw1, const proto::Write &pw2);
 
 std::string TransactionDigest(const proto::Transaction &txn, bool hashDigest);
 
+std::string QueryDigest(const proto::Query &query, bool queryHashDigest);
+
 std::string BytesToHex(const std::string &bytes, size_t maxLength);
 
 bool TransactionsConflict(const proto::Transaction &a,
@@ -373,10 +375,12 @@ typedef struct QueryParameters {
     const bool optimisticTxID; //use unique hash tx ids (normal ids), or optimistically use timestamp as identifier?
     const bool cacheReadSet; //return query read set to client, or cache it locally at servers?
 
+    const bool signClientQueries;
+
     QueryParameters(uint64_t syncQuorum, uint64_t queryMessages, uint64_t mergeThreshold, uint64_t syncMessages, uint64_t resultQuorum,
-        bool readPrepared, bool optimisticTxID, bool cacheReadSet ) : 
+        bool readPrepared, bool optimisticTxID, bool cacheReadSet, bool signClientQueries) : 
         syncQuorum(syncQuorum), queryMessages(queryMessages), mergeThreshold(mergeThreshold), syncMessages(syncMessages), resultQuorum(resultQuorum),
-        readPrepared(readPrepared), optimisticTxID(optimisticTxID), cacheReadSet(cacheReadSet) {}
+        readPrepared(readPrepared), optimisticTxID(optimisticTxID), cacheReadSet(cacheReadSet), signClientQueries(signClientQueries) {}
 
 } QueryParameters;
 

@@ -3,7 +3,7 @@ d := $(dir $(lastword $(MAKEFILE_LIST)))
 SRCS += $(addprefix $(d), client.cc shardclient.cc server.cc servertools.cc concurrencycontrol.cc store.cc common.cc \
 		phase1validator.cc localbatchsigner.cc sharedbatchsigner.cc \
 		basicverifier.cc localbatchverifier.cc sharedbatchverifier.cc proto_bench.cc \
-		querysync.cc queryexec.cc checkpointing.cc)
+		querysync-server.cc querysync-client.cc queryexec.cc checkpointing.cc)
 
 PROTOS += $(addprefix $(d), pequin-proto.proto)
 PROTOS += $(addprefix $(d), query-proto.proto)
