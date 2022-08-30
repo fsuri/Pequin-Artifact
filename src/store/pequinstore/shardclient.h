@@ -135,7 +135,6 @@ class ShardClient : public TransportReceiver, public PingInitiator, public PingT
   // Perform a query computation
   virtual void Query(uint64_t id, const std::string &query, const TimestampMessage &ts,
       result_callback rcb, result_timeout_callback rtcb, uint32_t timeout);
-  virtual void RequestQuery(PendingQuery *pendingQuery, bool retry = false);
 
 ///////////// End Execution Protocol
 
@@ -227,19 +226,15 @@ virtual void Phase2Equivocate_Simulate(uint64_t id, const proto::Transaction &tx
     uint64_t reqId;
     uint64_t client_seq_num;
     std::string query;
-    Timestamp qts;
+    TimestampMessage qts;
 
     // uint64_t queryMessages;
     // uint64_t queryQuorumSize;
+    std::unordered_set<uint64_t> replicasVerified;
     uint64_t numSyncReplies;
+    std::unordered_map<std::string, std::set<uint64_t>> txn_freq; //replicas that have txn committed.
+    proto::MergedSnapshot merged_ss;
 
-    // uint64_t mergeThreshold;
-    // uint64_t syncMessages;
-    // uint64_t replyThreshold;
-        
-    // bool readPrepared;
-    // bool optimisticTXids;
-    // bool cacheReadSet;
 
     bool retry;
     uint64_t numResults;
@@ -469,6 +464,13 @@ virtual void Phase2Equivocate_Simulate(uint64_t id, const proto::Transaction &tx
 
   void HandleForwardWB(proto::ForwardWriteback &forwardWB);
 
+  //private query functions
+  void RequestQuery(PendingQuery *pendingQuery, bool retry = false);
+  void HandleQuerySyncReply(proto::SyncReplicaState &syncReplicaState);
+  void SyncReplicas(PendingQuery *pendingQuery);
+  void HandleQueryResult(proto::QueryResult queryResult);
+
+
   inline size_t GetNthClosestReplica(size_t idx) const {
     if (pingReplicas && GetOrderedReplicas().size() > 0) {
       return GetOrderedReplicas()[idx];
@@ -540,7 +542,10 @@ virtual void Phase2Equivocate_Simulate(uint64_t id, const proto::Transaction &tx
   proto::Phase2Decision validatedP2Decision;
 
   //Query protocol
+  proto::Query queryMsg;
+  proto::QueryRequest queryReq;
   proto::SyncReplicaState syncReplicaState;
+  proto::LocalSnapshot validated_local_ss;
   proto::QueryResult queryResult;
 };
 

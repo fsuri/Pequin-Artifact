@@ -1839,6 +1839,41 @@ std::string TransactionDigest(const proto::Transaction &txn, bool hashDigest) {
   }
 }
 
+std::string QueryDigest(const proto::Query &query, bool queryHashDigest){
+    //TODO: Change Txn to also include Query + query digest.
+    if (queryHashDigest) {
+    blake3_hasher hasher;
+    blake3_hasher_init(&hasher);
+    std::string digest(BLAKE3_OUT_LEN, 0);
+
+    uint64_t client_id = query.client_id();
+    uint64_t client_seq_num = query.client_seq_num();
+    blake3_hasher_update(&hasher, (unsigned char *) &client_id, sizeof(client_id));
+    blake3_hasher_update(&hasher, (unsigned char *) &client_seq_num, sizeof(client_seq_num));
+  
+    blake3_hasher_update(&hasher, (unsigned char *) query.query()[0], query.query().length());
+
+    uint64_t timestampId = query.timestamp().id();
+    uint64_t timestampTs = query.timestamp().timestamp();
+    blake3_hasher_update(&hasher, (unsigned char *) &timestampId,
+        sizeof(timestampId));
+    blake3_hasher_update(&hasher, (unsigned char *) &timestampTs,
+        sizeof(timestampTs));
+
+    // blake3_hasher_update(&hasher, (unsigned char *) &query.optimistic_txid(),
+    //     sizeof(query.optimistic_txid));
+
+    blake3_hasher_finalize(&hasher, (unsigned char *) &digest[0], BLAKE3_OUT_LEN);
+
+    return digest;
+  } else {
+    char digestChar[16];
+    *reinterpret_cast<uint64_t *>(digestChar) = query.client_id();
+    *reinterpret_cast<uint64_t *>(digestChar + 8) = query.client_seq_num();;
+    return std::string(digestChar, 16);
+  }
+}
+
 std::string BytesToHex(const std::string &bytes, size_t maxLength) {
   static const char digits[] = "0123456789abcdef";
   std::string hex;

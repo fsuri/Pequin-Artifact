@@ -122,11 +122,11 @@ void ShardClient::ReceiveMessage(const TransportAddress &remote,
     HandleSendViewMessage(sendView);
   }
   // Query Protocol Messages
-  else if(type == syncReplicaState.getTypeName()){
+  else if(type == syncReplicaState.GetTypeName()){
     syncReplicaState.ParseFromString(data);
     HandleQuerySyncReply(syncReplicaState);
   }
-  else if(type == queryResult.getTypeName()){
+  else if(type == queryResult.GetTypeName()){
     queryResult.ParseFromString(data);
     HandleQueryResult(queryResult);
     
@@ -1064,6 +1064,7 @@ void ShardClient::ProcessP1R(proto::Phase1Reply &reply, bool FB_path, PendingFB 
       return;
     }
 
+    //TODO technically should do these checks also when unsiged -- however, "no-sigs" is just a microbenchmark so its not important to support full functionality
     if (!pendingPhase1->replicasVerified.insert(reply.signed_cc().process_id()).second) {
       Debug("Already verified signature from %lu.", reply.signed_cc().process_id());
       //Panic("Why are we receiving 2 P1 replies from a replica... client %lu", client_id);

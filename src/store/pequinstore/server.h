@@ -561,7 +561,7 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
   proto::MoveView moveView;
 
   //Query messages
-  proto::Query query;
+  proto::Query queryMsg;
   proto::SyncClientProposal syncMsg;
   proto::RequestMissingTxns requestTx;
   proto::SupplyMissingTxns supplyTx;

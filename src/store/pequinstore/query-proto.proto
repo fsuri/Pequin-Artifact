@@ -42,16 +42,18 @@ message QueryResult {
 //replica receives Query and replies with local snapshot of relevant state for ExecQuery
 message LocalSnapshot {
   //identify query
-  required uint64 query_id = 1;
+  required uint64 client_seq_num = 1;
   required uint64 client_id = 2;
   //list of txn that materialize local exec snapshot
-  repeated bytes ss_txns = 3;
-  required uint64 replica_id = 4; 
+  repeated bytes local_txns_committed = 3;
+  repeated bytes local_txns_prepared = 4;
+  required uint64 replica_id = 5; 
 }
 message SyncReplicaState {
+  required uint64 req_id = 1;
   oneof snapshot_oneof {
-    LocalSnapshot local_ss = 1;
-    SignedMessage signed_local_ss = 2;
+    LocalSnapshot local_ss = 2;
+    SignedMessage signed_local_ss = 3;
   }
 }
 
@@ -60,18 +62,21 @@ message ReplicaList {
 }
 
 //can use this instead of map <string, ReplicaList>
-message TxnReplicaKeyPair {
+message TxnData {
   required bytes txn = 1;
   repeated uint64 replicas = 2; //list of replicas that have txn.
+  required bool committed = 3 ; // true if committed, false if prepared
 }
 
 message MergedSnapshot {
    //identify query
-   required uint64 query_id = 1;
+   required uint64 client_seq_num = 1;
    required uint64 client_id = 2;
    //include snapshot proposal. 
-   map<string, ReplicaList> cp_txns = 3; //map from txn digest to replicas that have txn.
-   required bool execute = 4; //designate whether this replica should execute and reply, or just sync, execute, and cache read set.
+   map<string, ReplicaList> merged_txns_committed = 3; //map from txn digest to replicas that have txn.
+   map<string, ReplicaList> merged_txns_prepared = 4; //dont think one needs to distinguish at this point.
+   //repeated TxnData cp_txns = 3;
+   required bool execute = 5; //designate whether this replica should execute and reply, or just sync, execute, and cache read set.
 }
 
 //client sends proposed merged snapshot. Replicas use it to ExecQuery and send back QueryReply
@@ -95,7 +100,7 @@ message SupplyMissingTxns {
 message TransactionQuery {
   //Same as Transaction, but additional fields for query information
   required Transaction txn = 1;
-  repeated QueryReply query_reply= 2;
+  repeated QueryResult query_result= 2;
 }
 
 ////////////////////////// Checkpointing ///////////////////////////

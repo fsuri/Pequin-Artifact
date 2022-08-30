@@ -304,6 +304,26 @@ void Server::ManageDispatchMoveView(const TransportAddress &remote, const std::s
     }
 }
 
+
+void Server::ManageDispatchQuery(const TransportAddress &remote, const std::string &data){
+  queryMsg.ParseFromString(data);
+  HandleQuery(remote, queryMsg);
+}
+void Server::ManageDispatchSync(const TransportAddress &remote, const std::string &data){
+  syncMsg.ParseFromString(data);
+  HandleSync(remote, syncMsg);
+}
+void Server::ManageDispatchRequestTx(const TransportAddress &remote, const std::string &data){
+  requestTx.ParseFromString(data);
+  HandleRequestTx(remote, requestTx);
+}
+
+void Server::ManageDispatchSupplyTx(const TransportAddress &remote, const std::string &data){
+  supplyTx.ParseFromString(data);
+  HandleSupplyTx(remote, supplyTx);
+}
+
+
 //////////////////////////////////////////////////////// Protocol Helper Functions
 
 void* Server::CheckProposalValidity(::google::protobuf::Message &msg, const proto::Transaction *txn, std::string &txnDigest, bool fallback){

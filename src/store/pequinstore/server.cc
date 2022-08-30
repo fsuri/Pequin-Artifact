@@ -283,7 +283,7 @@ void Server::ReceiveMessageInternal(const TransportAddress &remote,
   } 
   
   //Query Protocol Messages
-  else if(type == query.GetTypeName()){
+  else if(type == queryMsg.GetTypeName()){
     ManageDispatchQuery(remote, data);
   }
   else if(type == syncMsg.GetTypeName()){
@@ -295,10 +295,8 @@ void Server::ReceiveMessageInternal(const TransportAddress &remote,
   else if(type == supplyTx.GetTypeName()){
     ManageDispatchRequestTx(remote, data);
   }
-
   //Checkpoint Messages
-  
-  
+
   ///////
   
   else {
