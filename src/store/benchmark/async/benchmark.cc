@@ -1148,7 +1148,8 @@ int main(int argc, char **argv) {
               NOT_REACHABLE();
           }
          
-         if(FLAGS_pequin_query_optimistic_txid) syncMessages = std::max((uint64_t) config->n, syncMessages + config->n);
+         // ==> Moved to client logic in order to account for retries.
+         //if(FLAGS_pequin_query_optimistic_txid) syncMessages = std::max((uint64_t) config->n, syncMessages + config->n); //If optimisticTxID enabled send to f additional replicas to guarantee result. 
          // if read_cache is True:--> send sync to all, but still only ask syncMessages many to execute.
 
         Debug("Configuring Pequin to send query messages to %lu replicas and wait for %lu replies. Merge Threshold is %lu. %lu Sync messages are being sent", queryMessages, syncQuorumSize, mergeThreshold, syncMessages);

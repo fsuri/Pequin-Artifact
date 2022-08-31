@@ -238,6 +238,7 @@ virtual void Phase2Equivocate_Simulate(uint64_t id, const proto::Transaction &tx
 
     bool retry;
     uint64_t numResults;
+    std::unordered_set<uint64_t> resultsVerified;
     std::string result;
     std::string result_hash;
     
@@ -547,6 +548,7 @@ virtual void Phase2Equivocate_Simulate(uint64_t id, const proto::Transaction &tx
   proto::SyncReplicaState syncReplicaState;
   proto::LocalSnapshot validated_local_ss;
   proto::QueryResult queryResult;
+  proto::Result validated_result;
 };
 
 } // namespace pequinstore

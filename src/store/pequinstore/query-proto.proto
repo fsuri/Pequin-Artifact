@@ -28,14 +28,25 @@ message QueryRequest {
   optional bool optimistic_txid = 4;
 }
 
+message Result {
+  required uint64 client_seq_num = 1;
+  required uint64 client_id = 2;
+  //include result: this may be anything: e.g. an integer, a table (list of values). TBD how to encode
+  required bytes query_result = 3;
+  required bytes query_result_hash = 4; //Hash of (QueryID, Read Set Merkle Root) --> uniquely identifies a queries read set.
+  required uint64 replica_id = 5;
+}
+
 message QueryResult {
     //identify query
     required uint64 req_id = 1;
-    required uint64 client_id = 2;
-    //include result: this may be anything: e.g. an integer, a table (list of values). TBD how to encode
-    required bytes result = 3;
-    required bytes read_set_hash = 4; //Hash of (QueryID, Result Merkle Root) --> uniquely identifies a queries read set.
+    oneof result_oneof {
+      Result result = 2;
+      SignedMessage signed_result = 3;
+    }
 }
+
+
 
 ////////////////////////// Query Synchronization ///////////////////////////
 
@@ -76,15 +87,16 @@ message MergedSnapshot {
    map<string, ReplicaList> merged_txns_committed = 3; //map from txn digest to replicas that have txn.
    map<string, ReplicaList> merged_txns_prepared = 4; //dont think one needs to distinguish at this point.
    //repeated TxnData cp_txns = 3;
-   required bool execute = 5; //designate whether this replica should execute and reply, or just sync, execute, and cache read set.
 }
 
 //client sends proposed merged snapshot. Replicas use it to ExecQuery and send back QueryReply
 message SyncClientProposal {
+ required uint64t req_id = 1;
  oneof snapshot_oneof {
-   MergedSnapshot merged_ss = 1;
-   SignedMessage signed_merged_ss = 2;
+   MergedSnapshot merged_ss = 2;
+   SignedMessage signed_merged_ss = 3;
  }
+ required bool reply = 4; //designate whether this replica should execute and reply, or just sync, execute, and cache read set.
 }
 
 message RequestMissingTxns {

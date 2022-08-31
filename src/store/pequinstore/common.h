@@ -40,6 +40,7 @@
 #include <string>
 #include <vector>
 #include <functional>
+#include <algorithm>
 #include <mutex>
 #include "tbb/concurrent_vector.h"
 
