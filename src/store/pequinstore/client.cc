@@ -267,17 +267,29 @@ void Client::Query(const std::string &query, query_callback qcb,
 
     query_seq_num++;
 
+    //TODO: Ideally construct and pass proto::Query object here already.
+    //TODO: just create a new object.. allocate is easier..
+    queryMsg.Clear();
+    queryMsg.set_query_seq_num(query_seq_num);
+    *queryMsg.mutable_query = std::move(query);
+    *queryMsg.mutable_timestamp() = txn.timestamp();
+    
+
+
+    //TODO: store --> so we can access it with query_seq_num if necessary for retry.
+
     //result_callback rcb = qcb;
     result_callback rcb = [qcb, query_seq_num, this](int status, const std::string &result, const std::string &result_hash, bool success) { //possibly add read-set
-      //If !success --> restart query: Needs to happen across all involved shards? //TODO: How should this work: 
-                                                            // 1) Re-send query, but this time don't use optimistic id's, 2) start fall-back for responsible ids. 
-                                                            //TODO: Replica that observes duplicate: Send Report message with payload: list<pairs: txn>> (pairs of txn with same optimistic id)
-                                                            //   Note: For replica to observe duplicate: Gossip is necessary to receive both.
-                                                            // If replica instead sends full read set to client, then client can look at read sets to figure out divergence: 
-                                                                          // Find mismatched keys, or keys with different versions. Send to replicas request for tx for (key, version) --> replica replies with txn-digest.
-    
-      //TODO: Store query_id and result_hash as part of transaction -- or even read set (what format? --> includes dependencies?) if we want to be flexible.
-       qcb(status, result); //callback to application 
+  
+      if(success){
+        //TODO: Store query_id and result_hash as part of transaction -- or even read set (what format? --> includes dependencies?) if we want to be flexible.
+        qcb(status, result); //callback to application 
+        queryBuffer.erase(query_seq_num);
+      }
+      else{
+        RetryQuery(query_seq_num);
+      }
+                                
     };
     result_timeout_callback rtcb = qtcb;
 
@@ -294,14 +306,29 @@ void Client::Query(const std::string &query, query_callback qcb,
     // Shard Client upcalls only if it is the leader for the query, and if it gets matching result hashes  ..........const std::string &resultHash
        //store QueryID + result hash in transaction.
 
+    queryBuffer[query_seq_num] = std::move(queryMsg);  //Buffering only after sending, so we can move contents for free.
+
 //FIXME: 
        //TODO: Next:
-       // a) Client.h interface at all clients --> might not be necessary since it is not a pure virtual function. But it does mean that they should not call it; --> Turned it into panic.
-       // b) Shardclient sends out query
-       // c) Server receives query
-       // d) Server parses, executes, and replies directly
-       // e) Sync protocol with a single/f+1 parties.
+       // a) Client retry query.
+       // b) Server receives query
+       // c) Server parses, scans, and replies with sync state
+       // d) Server receives snapshot, materializes, executes and replies.
   });
+}
+
+void Client::RetryQuery(uint64_t query_seq_num){
+  proto::Query &query_msg = queryBuffer[query_seq_num];
+  //find buffered query_seq_num Query.
+  // pass query_id to all involved shards.
+  // shards find their RequestInstance and reset it.
+
+
+   // 1) Re-send query, but this time don't use optimistic id's, 2) start fall-back for responsible ids. 
+                                                            //TODO: Replica that observes duplicate: Send Report message with payload: list<pairs: txn>> (pairs of txn with same optimistic id)
+                                                            //   Note: For replica to observe duplicate: Gossip is necessary to receive both.
+                                                            // If replica instead sends full read set to client, then client can look at read sets to figure out divergence: 
+                                                                          // Find mismatched keys, or keys with different versions. Send to replicas request for tx for (key, version) --> replica replies with txn-digest.
 }
 
 

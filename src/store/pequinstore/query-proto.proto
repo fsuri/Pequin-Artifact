@@ -93,12 +93,13 @@ message MergedSnapshot {
 
 //client sends proposed merged snapshot. Replicas use it to ExecQuery and send back QueryReply
 message SyncClientProposal {
- required uint64t req_id = 1;
+ required uint64 req_id = 1;
  oneof snapshot_oneof {
    MergedSnapshot merged_ss = 2;
    SignedMessage signed_merged_ss = 3;
  }
  required bool reply = 4; //designate whether this replica should execute and reply, or just sync, execute, and cache read set.
+ optional bool tx_managager = 5; // designate this shard as tx manager to coordinate execution and to reply.
 }
 
 message RequestMissingTxns {

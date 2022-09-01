@@ -282,7 +282,8 @@ class Client : public ::Client {
   /* Query Execution State */
   // Ongoing query ID.
   uint64_t query_seq_num;
-  //proto::Query query;
+  proto::Query queryMsg;
+  std::map<uint64_t, proto::Query> queryBuffer;
 
   /* Transaction Execution State */
   // Ongoing transaction ID.
