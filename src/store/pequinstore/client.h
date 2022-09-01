@@ -279,6 +279,11 @@ class Client : public ::Client {
   bool first;
   bool startedPings;
 
+  /* Query Execution State */
+  // Ongoing query ID.
+  uint64_t query_seq_num;
+  //proto::Query query;
+
   /* Transaction Execution State */
   // Ongoing transaction ID.
   uint64_t client_seq_num;

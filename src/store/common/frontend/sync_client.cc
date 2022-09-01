@@ -157,11 +157,11 @@ void SyncClient::AbortTimeoutCallback(Promise *promise) {
   promise->Reply(REPLY_TIMEOUT);
 }
 
-void SyncClient::QueryCallback(Promise *promise, int status, const std::string &query, const std::string &result){
+void SyncClient::QueryCallback(Promise *promise, int status, const std::string &result){
   promise->Reply(status, result); //Result = string for now. Can be list of values, rows, anthing. Format and interface TBD. For now just return serialized protobuf. That protobuf can be whatever representation.
 }
 
-void SyncClient::QueryTimeoutCallback(Promise *promise, int status, const std::string &query){
+void SyncClient::QueryTimeoutCallback(Promise *promise, int status){
   promise->Reply(status);
 }
 

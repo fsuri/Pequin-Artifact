@@ -91,8 +91,8 @@ class SyncClient {
   void AbortCallback(Promise *promise);
   void AbortTimeoutCallback(Promise *promise);
 
-  void QueryCallback(Promise *promise, int status, const std::string &query, const std::string &result); 
-  void QueryTimeoutCallback(Promise *promise, int status, const std::string &query);
+  void QueryCallback(Promise *promise, int status, const std::string &result); //const std::string &query,
+  void QueryTimeoutCallback(Promise *promise, int status); //, const std::string &query);
 
 
   std::vector<Promise *> getPromises;

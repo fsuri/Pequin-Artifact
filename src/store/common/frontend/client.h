@@ -44,8 +44,8 @@ typedef std::function<void()> commit_timeout_callback;
 typedef std::function<void()> abort_callback;
 typedef std::function<void()> abort_timeout_callback;
 
-typedef std::function<void(int, const std::string &, const std::string &)> query_callback;
-typedef std::function<void(int, const std::string &)> query_timeout_callback;
+typedef std::function<void(int, const std::string &)> query_callback;
+typedef std::function<void(int)> query_timeout_callback;
 
 
 class Stats;

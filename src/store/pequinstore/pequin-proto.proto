@@ -92,6 +92,13 @@ message ReadReply {
   }
 }
 
+message QueryReply {
+  required uint64 query_id = 1;
+  required bytes result_hash = 2;
+  repeated ReadMessage read_set = 3; //key versions of all reads
+  repeated Dependency deps = 4; //only if reading prepared.
+}
+
 // Phase 1
 message Transaction {
   required uint64 client_id = 1;
@@ -101,7 +108,10 @@ message Transaction {
   repeated WriteMessage write_set = 5;
   repeated Dependency deps = 6;
   required TimestampMessage timestamp = 7;
-  optional bytes txndigest = 8; //NOT PART OF TX. HACK HERE TO STORE txn digest in the local txn version without changing data structures that hold TXN.
+
+  repeated QueryReply query_set = 8;
+
+  optional bytes txndigest = 9; //NOT PART OF TX. HACK HERE TO STORE txn digest in the local txn version without changing data structures that hold TXN.
 }
 
 message Phase1 {

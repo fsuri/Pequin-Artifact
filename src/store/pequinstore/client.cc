@@ -53,7 +53,7 @@ Client::Client(transport::Configuration *config, uint64_t id, int nShards,
     params(params),
     keyManager(keyManager),
     timeServer(timeServer), first(true), startedPings(false),
-    client_seq_num(0UL), lastReqId(0UL), getIdx(0UL),
+    query_seq_num(0UL), client_seq_num(0UL), lastReqId(0UL), getIdx(0UL),
     failureEnabled(false), failureActive(false), faulty_counter(0UL),
     consecutiveMax(consecutiveMax) {
 
@@ -251,10 +251,13 @@ void Client::Query(const std::string &query, query_callback qcb,
 
     Debug("Query[%lu:%lu] %s", client_id, client_seq_num, query);
 
+ 
     // Contact the appropriate shard to execute the query on.
+    //TODO: Determine involved groups
     //Requires parsing the Query statement to extract tables touched? Might touch multiple shards...
     //Assume for now only touching one group. (single sharded system)
-    int i = 0;
+    std::vector<int> involved_groups = {0};
+
 
     // If needed, add this shard to set of participants and send BEGIN.
     if (!IsParticipant(i)) {
@@ -262,23 +265,32 @@ void Client::Query(const std::string &query, query_callback qcb,
       bclient[i]->Begin(client_seq_num);
     }
 
-    std::pair<uint64_t, uint64_t> queryId(client_id, client_seq_num);
+    query_seq_num++;
 
     //result_callback rcb = qcb;
-    result_callback rcb = [qcb, queryId, this](int status, const std::string &query, const std::string &result, const std::string &result_hash, bool success) { //possibly add read-set
+    result_callback rcb = [qcb, query_seq_num, this](int status, const std::string &result, const std::string &result_hash, bool success) { //possibly add read-set
       //If !success --> restart query: Needs to happen across all involved shards? //TODO: How should this work: 
                                                             // 1) Re-send query, but this time don't use optimistic id's, 2) start fall-back for responsible ids. 
                                                             //TODO: Replica that observes duplicate: Send Report message with payload: list<pairs: txn>> (pairs of txn with same optimistic id)
                                                             //   Note: For replica to observe duplicate: Gossip is necessary to receive both.
                                                             // If replica instead sends full read set to client, then client can look at read sets to figure out divergence: 
                                                                           // Find mismatched keys, or keys with different versions. Send to replicas request for tx for (key, version) --> replica replies with txn-digest.
-      //TODO: Store result_hash as part of transaction -- or even read set (what format? --> includes dependencies?) if we want to be flexible.
-       qcb(status, query, result); //callback to application //FIXME: Don't see a reason why query should be passed to upcall; identifier should be enough (maybe not even encessary)
+    
+      //TODO: Store query_id and result_hash as part of transaction -- or even read set (what format? --> includes dependencies?) if we want to be flexible.
+       qcb(status, result); //callback to application 
     };
     result_timeout_callback rtcb = qtcb;
 
-    // Send the Query operation to appropriate shard & manage execution
-     bclient[i]->Query(client_seq_num, query, txn.timestamp(), rcb, rtcb, timeout);
+    // Send the Query operation to involved shards & select transaction manager (shard responsible for result reply) 
+     bool tx_manager = true;
+     for(auto &g: involved_groups){
+        bclient[g]->Query(client_seq_num, query_seq_num, query, txn.timestamp(), rcb, rtcb, timeout, tx_manager);
+
+        if(tx_manager){ //only first shard is tx manager
+          Debug("[group %i] designated as Transaction Manager for query [%lu:%lu]", g, client_seq_num, query_seq_num);
+          tx_manager = false;
+        }
+     }
     // Shard Client upcalls only if it is the leader for the query, and if it gets matching result hashes  ..........const std::string &resultHash
        //store QueryID + result hash in transaction.
 
@@ -291,6 +303,7 @@ void Client::Query(const std::string &query, query_callback qcb,
        // e) Sync protocol with a single/f+1 parties.
   });
 }
+
 
 void Client::Commit(commit_callback ccb, commit_timeout_callback ctcb,
     uint32_t timeout) {

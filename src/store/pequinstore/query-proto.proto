@@ -7,8 +7,8 @@ package pequinstore.proto;
 
 /////////////////////////// Query Exec ///////////////////////////
 message Query {
-   required uint64 client_seq_num = 1;
-   required uint64 client_id = 2; //query id = (client_seq_num, client_id) uniquely defines a corret clients query. A byz one can have duplicates, but thats only hurting its own progress                               
+   required uint64 query_seq_num = 1;
+   required uint64 client_id = 2; //query unique identifier = (query_seq_num, client_id) uniquely defines a corret clients query. A byz one can have duplicates, but thats only hurting its own progress                               
    // Unless: Dependency on another TX which has a query that is invalid... (will abort by default) --> but then TX should not have prepared --> TxID still uniquely defines which query is used.
    // For now: Treat Query just as a read, and assume read set will be included in tx (instead of cached) -- all worries about attack are complications due to caching.
    required bytes query = 3;      //SQL statement as string --> parse at Replica
@@ -26,10 +26,11 @@ message QueryRequest {
     //private channels from client to replicas should suffice?
   }
   optional bool optimistic_txid = 4;
+  optional bool tx_manager = 5;
 }
 
 message Result {
-  required uint64 client_seq_num = 1;
+  required uint64 query_seq_num = 1;
   required uint64 client_id = 2;
   //include result: this may be anything: e.g. an integer, a table (list of values). TBD how to encode
   required bytes query_result = 3;
@@ -53,7 +54,8 @@ message QueryResult {
 //replica receives Query and replies with local snapshot of relevant state for ExecQuery
 message LocalSnapshot {
   //identify query
-  required uint64 client_seq_num = 1;
+  required uint64 query_seq_num
+ = 1;
   required uint64 client_id = 2;
   //list of txn that materialize local exec snapshot
   repeated bytes local_txns_committed = 3;
@@ -81,7 +83,7 @@ message TxnData {
 
 message MergedSnapshot {
    //identify query
-   required uint64 client_seq_num = 1;
+   required uint64 query_seq_num= 1;
    required uint64 client_id = 2;
    //include snapshot proposal. 
    map<string, ReplicaList> merged_txns_committed = 3; //map from txn digest to replicas that have txn.
