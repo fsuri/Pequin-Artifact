@@ -186,7 +186,7 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
 
   //Query handler functions
   void ManageDispatchQuery(const TransportAddress &remote, const std::string &data);
-  void HandleQuery(const TransportAddress &remote, proto::Query &msg);
+  void HandleQuery(const TransportAddress &remote, proto::QueryRequest &msg);
 
   void ManageDispatchSync(const TransportAddress &remote, const std::string &data);
   void HandleSync(const TransportAddress &remote, proto::SyncClientProposal &msg);
@@ -561,7 +561,7 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
   proto::MoveView moveView;
 
   //Query messages
-  proto::Query queryMsg;
+  proto::QueryRequest queryReq;
   proto::SyncClientProposal syncMsg;
   proto::RequestMissingTxns requestTx;
   proto::SupplyMissingTxns supplyTx;

@@ -497,7 +497,7 @@ void Server::HandleRead(const TransportAddress &remote,
 
     } else {
 
-      if(params.multiThreading){
+      if(params.multiThreading){ //TODO: If read is already on a worker thread, then it does not make sense to defer signing again...
 
         std::vector<::google::protobuf::Message *> msgs;
         proto::Write* write = new proto::Write(readReply->write()); //TODO might want to add re-use buffer

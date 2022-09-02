@@ -331,6 +331,9 @@ std::string TransactionDigest(const proto::Transaction &txn, bool hashDigest);
 
 std::string QueryDigest(const proto::Query &query, bool queryHashDigest);
 
+void CompressTxnIds(std::vector<uint64_t>&txn_ts);
+std::vector<uint64_t> DecompressTxnIds();
+
 std::string BytesToHex(const std::string &bytes, size_t maxLength);
 
 bool TransactionsConflict(const proto::Transaction &a,

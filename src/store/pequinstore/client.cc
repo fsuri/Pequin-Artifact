@@ -275,7 +275,7 @@ void Client::Query(const std::string &query, query_callback qcb,
     //TODO: just create a new object.. allocate is easier..
     queryMsg.Clear();
     queryMsg.set_query_seq_num(query_seq_num);
-    *queryMsg.mutable_query() = std::move(query);
+    *queryMsg.mutable_query_cmd() = std::move(query);
     *queryMsg.mutable_timestamp() = txn.timestamp();
     queryMsg.set_query_manager(query_manager);
     
@@ -308,12 +308,6 @@ void Client::Query(const std::string &query, query_callback qcb,
 
     queryBuffer[query_seq_num] = std::move(queryMsg);  //Buffering only after sending, so we can move contents for free.
 
-//FIXME: 
-       //TODO: Next:
-       // a) Client retry query.
-       // b) Server receives query
-       // c) Server parses, scans, and replies with sync state
-       // d) Server receives snapshot, materializes, executes and replies.
   });
 }
 

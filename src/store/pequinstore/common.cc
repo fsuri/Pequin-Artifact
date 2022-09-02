@@ -1860,8 +1860,9 @@ std::string QueryDigest(const proto::Query &query, bool queryHashDigest){
     blake3_hasher_update(&hasher, (unsigned char *) &timestampTs,
         sizeof(timestampTs));
 
-    // blake3_hasher_update(&hasher, (unsigned char *) &query.optimistic_txid(),
-    //     sizeof(query.optimistic_txid));
+     uint64_t query_manager query.query_manager();
+     blake3_hasher_update(&hasher, (unsigned char *) &query_manager,
+         sizeof(query_manager));
 
     blake3_hasher_finalize(&hasher, (unsigned char *) &digest[0], BLAKE3_OUT_LEN);
 
@@ -1873,6 +1874,22 @@ std::string QueryDigest(const proto::Query &query, bool queryHashDigest){
     return std::string(digestChar, 16);
   }
 }
+
+
+void CompressTxnIds(std::vector<uint64_t>&txn_ts){
+    // Test if I can allocate less space for timestamps:  if(timestamp << log(num_clients) < -1)
+    // 1) change timestampedMessage/Timestamp = (timestamp, client) to be stored as one 64 bit Timestamp
+    // 2) Create delta encoding:
+    //     a) sort, b) subtract 2nd from 1st (and so on); store first value (offset)
+    // 3) Throw integer compression at it. (Ideally 64 bit; but delta compression may have already made it 32 bit)
+
+    //return reference to compressed data structure
+}
+
+std::vector<uint64_t> DecompressTxnIds(){
+  //decompress datastructure
+}
+
 
 std::string BytesToHex(const std::string &bytes, size_t maxLength) {
   static const char digits[] = "0123456789abcdef";

@@ -306,8 +306,8 @@ void Server::ManageDispatchMoveView(const TransportAddress &remote, const std::s
 
 
 void Server::ManageDispatchQuery(const TransportAddress &remote, const std::string &data){
-  queryMsg.ParseFromString(data);
-  HandleQuery(remote, queryMsg);
+  queryReq.ParseFromString(data);
+  HandleQuery(remote, queryReq);
 }
 void Server::ManageDispatchSync(const TransportAddress &remote, const std::string &data){
   syncMsg.ParseFromString(data);

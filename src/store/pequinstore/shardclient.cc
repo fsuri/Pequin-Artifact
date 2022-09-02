@@ -122,9 +122,9 @@ void ShardClient::ReceiveMessage(const TransportAddress &remote,
     HandleSendViewMessage(sendView);
   }
   // Query Protocol Messages
-  else if(type == syncReplicaState.GetTypeName()){
-    syncReplicaState.ParseFromString(data);
-    HandleQuerySyncReply(syncReplicaState);
+  else if(type == SyncReply.GetTypeName()){
+    SyncReply.ParseFromString(data);
+    HandleQuerySyncReply(SyncReply);
   }
   else if(type == queryResult.GetTypeName()){
     queryResult.ParseFromString(data);

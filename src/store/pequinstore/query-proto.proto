@@ -11,7 +11,7 @@ message Query {
    required uint64 client_id = 2; //query unique identifier = (query_seq_num, client_id) uniquely defines a corret clients query. A byz one can have duplicates, but thats only hurting its own progress                               
    // Unless: Dependency on another TX which has a query that is invalid... (will abort by default) --> but then TX should not have prepared --> TxID still uniquely defines which query is used.
    // For now: Treat Query just as a read, and assume read set will be included in tx (instead of cached) -- all worries about attack are complications due to caching.
-   required bytes query = 3;      //SQL statement as string --> parse at Replica
+   required bytes query_cmd = 3;      //SQL statement as string --> parse at Replica
                                   //Alternatively: Already parsed into AST at client --> send AST (What format?)
    required TimestampMessage timestamp = 4; //Timestamp at which to read query.
    optional uint64 query_manager = 5;
@@ -56,15 +56,14 @@ message QueryResult {
 //replica receives Query and replies with local snapshot of relevant state for ExecQuery
 message LocalSnapshot {
   //identify query
-  required uint64 query_seq_num
- = 1;
+  required uint64 query_seq_num = 1;
   required uint64 client_id = 2;
   //list of txn that materialize local exec snapshot
   repeated bytes local_txns_committed = 3;
   repeated bytes local_txns_prepared = 4;
   required uint64 replica_id = 5; 
 }
-message SyncReplicaState {
+message SyncReply {
   required uint64 req_id = 1;
   oneof snapshot_oneof {
     LocalSnapshot local_ss = 2;

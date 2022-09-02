@@ -477,7 +477,7 @@ virtual void Phase2Equivocate_Simulate(uint64_t id, const proto::Transaction &tx
   //private query functions
   void RequestQuery(PendingQuery *pendingQuery, proto::Query &queryMsg, bool retry = false);
   //void RetryQuery(PendingQuery *pendingQuery);
-  void HandleQuerySyncReply(proto::SyncReplicaState &syncReplicaState);
+  void HandleQuerySyncReply(proto::SyncReply &SyncReply);
   void SyncReplicas(PendingQuery *pendingQuery);
   void HandleQueryResult(proto::QueryResult queryResult);
 
@@ -557,7 +557,7 @@ virtual void Phase2Equivocate_Simulate(uint64_t id, const proto::Transaction &tx
   //Query protocol
   proto::Query queryMsg;
   proto::QueryRequest queryReq;
-  proto::SyncReplicaState syncReplicaState;
+  proto::SyncReply SyncReply;
   proto::LocalSnapshot validated_local_ss;
   proto::QueryResult queryResult;
   proto::Result validated_result;
