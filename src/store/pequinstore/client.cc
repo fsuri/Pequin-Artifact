@@ -249,59 +249,59 @@ void Client::Query(const std::string &query, query_callback qcb,
   transport->Timer(0, [this, query, qcb, qtcb, timeout]() {
     // Latency_Start(&getLatency);
 
-    Debug("Query[%lu:%lu] %s", client_id, client_seq_num, query);
+    query_seq_num++;
+    Debug("Query[%lu:%lu:%lu]", client_id, client_seq_num, query_seq_num);
 
  
     // Contact the appropriate shard to execute the query on.
     //TODO: Determine involved groups
     //Requires parsing the Query statement to extract tables touched? Might touch multiple shards...
     //Assume for now only touching one group. (single sharded system)
-    std::vector<int> involved_groups = {0};
+    std::vector<uint64_t> involved_groups = {0UL};
+    uint64_t query_manager = involved_groups[0];
+    Debug("[group %i] designated as Query Execution Manager for query [%lu:%lu]", query_manager, client_seq_num, query_seq_num);
+      
 
 
     // If needed, add this shard to set of participants and send BEGIN.
-    if (!IsParticipant(i)) {
-      txn.add_involved_groups(i);
-      bclient[i]->Begin(client_seq_num);
+    for(auto &i: involved_groups){
+       if (!IsParticipant(i)) {
+        txn.add_involved_groups(i);
+        bclient[i]->Begin(client_seq_num);
+      }
     }
+   
 
-    query_seq_num++;
-
-    //TODO: Ideally construct and pass proto::Query object here already.
     //TODO: just create a new object.. allocate is easier..
     queryMsg.Clear();
     queryMsg.set_query_seq_num(query_seq_num);
-    *queryMsg.mutable_query = std::move(query);
+    *queryMsg.mutable_query() = std::move(query);
     *queryMsg.mutable_timestamp() = txn.timestamp();
+    queryMsg.set_query_manager(query_manager);
     
 
 
     //TODO: store --> so we can access it with query_seq_num if necessary for retry.
 
     //result_callback rcb = qcb;
-    result_callback rcb = [qcb, query_seq_num, this](int status, const std::string &result, const std::string &result_hash, bool success) { //possibly add read-set
+    result_callback rcb = [qcb, qsm = query_seq_num, involved_groups, this](int status, const std::string &result, const std::string &result_hash, bool success) mutable { //possibly add read-set
   
       if(success){
         //TODO: Store query_id and result_hash as part of transaction -- or even read set (what format? --> includes dependencies?) if we want to be flexible.
         qcb(status, result); //callback to application 
-        queryBuffer.erase(query_seq_num);
+        //clean pendingQuery and query_seq_num_mapping in all shards.
+        ClearQuery(qsm, involved_groups);
       }
       else{
-        RetryQuery(query_seq_num);
+        RetryQuery(qsm, involved_groups);
       }
                                 
     };
     result_timeout_callback rtcb = qtcb;
 
     // Send the Query operation to involved shards & select transaction manager (shard responsible for result reply) 
-     bool tx_manager = true;
-     for(auto &g: involved_groups){
-        bclient[g]->Query(client_seq_num, query_seq_num, query, txn.timestamp(), rcb, rtcb, timeout, tx_manager);
-
-        if(tx_manager){ //only first shard is tx manager
-          Debug("[group %i] designated as Transaction Manager for query [%lu:%lu]", g, client_seq_num, query_seq_num);
-          tx_manager = false;
-        }
+     for(auto &i: involved_groups){
+        bclient[i]->Query(client_seq_num, query_seq_num, queryMsg, rcb, rtcb, timeout, (i == query_manager));
      }
     // Shard Client upcalls only if it is the leader for the query, and if it gets matching result hashes  ..........const std::string &resultHash
        //store QueryID + result hash in transaction.
@@ -317,11 +317,23 @@ void Client::Query(const std::string &query, query_callback qcb,
   });
 }
 
-void Client::RetryQuery(uint64_t query_seq_num){
-  proto::Query &query_msg = queryBuffer[query_seq_num];
+void Client::ClearQuery(uint64_t query_seq_num, std::vector<uint64_t> &involved_groups){
+
+   queryBuffer.erase(query_seq_num);
+
+   for(auto &g: involved_groups){
+    bclient[g]->ClearQuery(query_seq_num); //-->Remove mapping + pendingRequest.
+   }
+}
+
+void Client::RetryQuery(uint64_t query_seq_num, std::vector<uint64_t> &involved_groups){
   //find buffered query_seq_num Query.
   // pass query_id to all involved shards.
   // shards find their RequestInstance and reset it.
+  proto::Query &query_msg = queryBuffer[query_seq_num]; //TODO: Assert this exists. -- it must, or else we wouldnt' have called Retry.
+  for(auto &g: involved_groups){
+    bclient[g]->RetryQuery(query_seq_num, query_msg); //--> Retry Query, shard clients already have the rcb.
+  }
 
 
    // 1) Re-send query, but this time don't use optimistic id's, 2) start fall-back for responsible ids. 

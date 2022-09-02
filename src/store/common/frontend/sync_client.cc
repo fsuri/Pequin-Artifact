@@ -114,9 +114,9 @@ void SyncClient::Query(const std::string &query, std::string &result, uint32_t t
   Promise promise(timeout);
   
   client->Query(query, std::bind(&SyncClient::QueryCallback, this, &promise,
-        std::placeholders::_1, std::placeholders::_2, std::placeholders::_3), 
-        std::bind(&SyncClient::GetTimeoutCallback, this,
-        &promise, std::placeholders::_1, std::placeholders::_2), timeout);
+        std::placeholders::_1, std::placeholders::_2), 
+        std::bind(&SyncClient::QueryTimeoutCallback, this,
+        &promise, std::placeholders::_1), timeout);
  result = promise.GetValue();
 }
 

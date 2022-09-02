@@ -14,6 +14,8 @@ message Query {
    required bytes query = 3;      //SQL statement as string --> parse at Replica
                                   //Alternatively: Already parsed into AST at client --> send AST (What format?)
    required TimestampMessage timestamp = 4; //Timestamp at which to read query.
+   optional uint64 query_manager = 5;
+   //TODO: Needs to include involved groups?
    
 
 }
@@ -26,7 +28,7 @@ message QueryRequest {
     //private channels from client to replicas should suffice?
   }
   optional bool optimistic_txid = 4;
-  optional bool tx_manager = 5;
+  optional bool retry = 5;
 }
 
 message Result {
@@ -99,7 +101,7 @@ message SyncClientProposal {
    SignedMessage signed_merged_ss = 3;
  }
  required bool reply = 4; //designate whether this replica should execute and reply, or just sync, execute, and cache read set.
- optional bool tx_managager = 5; // designate this shard as tx manager to coordinate execution and to reply.
+ optional bool query_managager = 5; // designate this shard as tx manager to coordinate execution and to reply.
 }
 
 message RequestMissingTxns {

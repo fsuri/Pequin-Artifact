@@ -1847,9 +1847,9 @@ std::string QueryDigest(const proto::Query &query, bool queryHashDigest){
     std::string digest(BLAKE3_OUT_LEN, 0);
 
     uint64_t client_id = query.client_id();
-    uint64_t client_seq_num = query.client_seq_num();
+    uint64_t query_seq_num = query.query_seq_num();
     blake3_hasher_update(&hasher, (unsigned char *) &client_id, sizeof(client_id));
-    blake3_hasher_update(&hasher, (unsigned char *) &client_seq_num, sizeof(client_seq_num));
+    blake3_hasher_update(&hasher, (unsigned char *) &query_seq_num, sizeof(query_seq_num));
   
     blake3_hasher_update(&hasher, (unsigned char *) query.query()[0], query.query().length());
 
@@ -1869,7 +1869,7 @@ std::string QueryDigest(const proto::Query &query, bool queryHashDigest){
   } else {
     char digestChar[16];
     *reinterpret_cast<uint64_t *>(digestChar) = query.client_id();
-    *reinterpret_cast<uint64_t *>(digestChar + 8) = query.client_seq_num();;
+    *reinterpret_cast<uint64_t *>(digestChar + 8) = query.query_seq_num();;
     return std::string(digestChar, 16);
   }
 }

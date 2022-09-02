@@ -244,6 +244,12 @@ class Client : public ::Client {
   //TODO: would this simplify having a deeper depth?
   // --> would allow normal OCC handling on Wait results at the server?
 
+  //Query logic
+  void ClearQuery(uint64_t query_seq_num, std::vector<uint64_t> &involved_groups);
+  void RetryQuery(uint64_t query_seq_num, std::vector<uint64_t> &involved_groups);
+
+
+
 
   bool IsParticipant(int g) const;
 

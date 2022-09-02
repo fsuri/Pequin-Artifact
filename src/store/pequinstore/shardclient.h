@@ -133,8 +133,9 @@ class ShardClient : public TransportReceiver, public PingInitiator, public PingT
       uint32_t timeout);
 
   // Perform a query computation
-  virtual void Query(uint64_t client_seq_num, uint64_t query_seq_num, const std::string &query, const TimestampMessage &ts,
+  virtual void Query(uint64_t client_seq_num, uint64_t query_seq_num, proto::Query &queryMsg, //const std::string &query, const TimestampMessage &ts,
       result_callback rcb, result_timeout_callback rtcb, uint32_t timeout, bool tx_manager);
+
 
 ///////////// End Execution Protocol
 
@@ -185,6 +186,10 @@ virtual void Phase2Equivocate_Simulate(uint64_t id, const proto::Transaction &tx
   virtual void InvokeFB(uint64_t conflict_id, std::string &txnDigest, proto::Transaction &txn, proto::CommitDecision decision,
     proto::P2Replies &p2Replies);
 
+  //public query functions:
+   virtual void ClearQuery(uint64_t query_seq_num);
+   virtual void RetryQuery(uint64_t query_seq_num, proto::Query &queryMsg);
+
 
  private:
    uint64_t start_time;
@@ -221,7 +226,7 @@ virtual void Phase2Equivocate_Simulate(uint64_t id, const proto::Transaction &tx
 //TODO: Define management object fully
   struct PendingQuery {
     PendingQuery(uint64_t reqId) : reqId(reqId),
-        numSyncReplies(0UL), numResults(0UL), tx_manager(false), success(false) { }
+        numSyncReplies(0UL), numResults(0UL), query_manager(false), success(false), retry(false) { }
     ~PendingQuery() { }
     uint64_t reqId; 
     uint64_t client_seq_num;
@@ -238,13 +243,14 @@ virtual void Phase2Equivocate_Simulate(uint64_t id, const proto::Transaction &tx
 
 
     bool retry;
+    uint64_t reply_req;
     uint64_t numResults;
     std::unordered_set<uint64_t> resultsVerified;
     std::string result;
     std::string result_hash;
     std::unordered_map<std::string, std::unordered_map<std::string, uint64_t>> result_freq; //map from result to map of associated result hash + their frequency (could be that two same results have different result hash; and vice versa)
     
-    bool tx_manager;
+    bool query_manager;
     result_callback rcb;
     result_timeout_callback rtcb;
     bool success;
@@ -469,8 +475,8 @@ virtual void Phase2Equivocate_Simulate(uint64_t id, const proto::Transaction &tx
   void HandleForwardWB(proto::ForwardWriteback &forwardWB);
 
   //private query functions
-  void RequestQuery(PendingQuery *pendingQuery, bool retry = false);
-  void RetryQuery(PendingQuery *pendingQuery);
+  void RequestQuery(PendingQuery *pendingQuery, proto::Query &queryMsg, bool retry = false);
+  //void RetryQuery(PendingQuery *pendingQuery);
   void HandleQuerySyncReply(proto::SyncReplicaState &syncReplicaState);
   void SyncReplicas(PendingQuery *pendingQuery);
   void HandleQueryResult(proto::QueryResult queryResult);
@@ -518,6 +524,8 @@ virtual void Phase2Equivocate_Simulate(uint64_t id, const proto::Transaction &tx
   std::unordered_set<std::string> pendingRelays;
   std::unordered_map<uint64_t, uint64_t> test_mapping;
   //keep additional maps for this from txnDigest ->Pending For Fallback instances?
+
+  std::unordered_map<uint64_t, uint64_t> query_seq_num_mapping;
 
 //Main protocol
   proto::Read read;
