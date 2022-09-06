@@ -87,9 +87,10 @@ message MergedSnapshot {
    required uint64 query_seq_num= 1;
    required uint64 client_id = 2;
    //include snapshot proposal. 
+      //repeated TxnData cp_txns = 3;
    map<string, ReplicaList> merged_txns_committed = 3; //map from txn digest to replicas that have txn.
    map<string, ReplicaList> merged_txns_prepared = 4; //dont think one needs to distinguish at this point.
-   //repeated TxnData cp_txns = 3;
+   optional bytes query_digest = 5;
 }
 
 //client sends proposed merged snapshot. Replicas use it to ExecQuery and send back QueryReply
@@ -101,6 +102,7 @@ message SyncClientProposal {
  }
  required bool reply = 4; //designate whether this replica should execute and reply, or just sync, execute, and cache read set.
  optional bool query_managager = 5; // designate this shard as tx manager to coordinate execution and to reply.
+ optional bool retry = 6;
 }
 
 message RequestMissingTxns {
@@ -109,6 +111,7 @@ message RequestMissingTxns {
 
 message SupplyMissingTxns {
    map<string, Transaction> txns = 1; //map from txn digest to Transaction object
+   //TODO: also send a proof if it is committed...
 }
 
 ////////////////////////// Modified Concurrency Control ///////////////////////////

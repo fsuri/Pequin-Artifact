@@ -1615,10 +1615,10 @@ void Server::Clean(const std::string &txnDigest, bool abort) {
   i.release();
 
 
-  ElectQuorumMap::accessor q;
-  auto ktr = ElectQuorums.find(q, txnDigest);
+  ElectQuorumMap::accessor e;
+  auto ktr = ElectQuorums.find(e, txnDigest);
   if (ktr) {
-    // ElectFBorganizer &electFBorganizer = q->second;
+    // ElectFBorganizer &electFBorganizer = e->second;
     //   //delete all sigs allocated in here
     //   auto it=electFBorganizer.view_quorums.begin();
     //   while(it != electFBorganizer.view_quorums.end()){
@@ -1630,9 +1630,9 @@ void Server::Clean(const std::string &txnDigest, bool abort) {
     //       it = electFBorganizer.view_quorums.erase(it);
     //   }
 
-    ElectQuorums.erase(q);
+    ElectQuorums.erase(e);
   }
-  q.release();
+  e.release();
 
   //TODO: try to merge more/if not all tx local state into ongoing and hold ongoing locks for simpler atomicity.
 
@@ -3096,14 +3096,14 @@ bool Server::PreProcessElectFB(const std::string &txnDigest, uint64_t elect_view
   //create management object (if necessary) and insert appropriate replica id to avoid duplicates
 
   //std::cerr << "PreProcessElectFB for txn: " << BytesToHex(txnDigest, 16) << std::endl;
-  ElectQuorumMap::accessor q;
-  ElectQuorums.insert(q, txnDigest);
-  ElectFBorganizer &electFBorganizer = q->second;
+  ElectQuorumMap::accessor e;
+  ElectQuorums.insert(e, txnDigest);
+  ElectFBorganizer &electFBorganizer = e->second;
   replica_sig_sets_pair &view_decision_quorum = electFBorganizer.view_quorums[elect_view][decision];
   if(!view_decision_quorum.first.insert(process_id).second){
     return false;
   }
-  q.release();
+  e.release();
   return true;
   //std::cerr << "Not failing during PreProcessElectFB for txn: " << BytesToHex(txnDigest, 16) << std::endl;
 }
@@ -3207,9 +3207,9 @@ void Server::ProcessElectFB(const std::string &txnDigest, uint64_t elect_view, p
   //std::cerr << "ProcessElectFB for txn: " << BytesToHex(txnDigest, 16) << std::endl;
   Debug("Processing Elect FB [decision: %s][elect_view: %lu] for txn %s", decision ? "ABORT" : "COMMIT", elect_view, BytesToHex(txnDigest, 64).c_str());
   //Add signature
-  ElectQuorumMap::accessor q;
-  if(!ElectQuorums.find(q, txnDigest)) return;
-  ElectFBorganizer &electFBorganizer = q->second;
+  ElectQuorumMap::accessor e;
+  if(!ElectQuorums.find(e, txnDigest)) return;
+  ElectFBorganizer &electFBorganizer = e->second;
 
   bool &complete = electFBorganizer.view_complete[elect_view]; //false by default
   //Only make 1 decision per view. A Byz Fallback leader may do two.
@@ -3257,7 +3257,7 @@ void Server::ProcessElectFB(const std::string &txnDigest, uint64_t elect_view, p
   //     it = electFBorganizer.view_quorums.erase(it);
   //   }
   // }
-    q.release();
+    e.release();
 
     //Send decision to all replicas (besides itself) and handle Decision FB directly onself.
     //transport->SendMessageToReplica(this, groupIdx, idx, decisionFB);
@@ -3453,9 +3453,9 @@ void Server::HandleMoveView(proto::MoveView &msg){
 }
 
 void Server::ProcessMoveView(const std::string &txnDigest, uint64_t proposed_view, bool self){
-  ElectQuorumMap::accessor q;
-  ElectQuorums.insert(q, txnDigest);
-  ElectFBorganizer &electFBorganizer = q->second;
+  ElectQuorumMap::accessor e;
+  ElectQuorums.insert(e, txnDigest);
+  ElectFBorganizer &electFBorganizer = e->second;
   if(electFBorganizer.move_view_counts.find(proposed_view) == electFBorganizer.move_view_counts.end()){
     electFBorganizer.move_view_counts[proposed_view] = std::make_pair(0, true);
   }
@@ -3491,7 +3491,7 @@ void Server::ProcessMoveView(const std::string &txnDigest, uint64_t proposed_vie
     }
   }
   p.release();
-  q.release();
+  e.release();
 }
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 

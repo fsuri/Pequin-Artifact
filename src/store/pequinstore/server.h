@@ -273,24 +273,6 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
       bool c_view_sig_outstanding;
     };
 
-    struct P1MetaData {
-      P1MetaData(): conflict(nullptr), hasP1(false), sub_original(false), hasSignedP1(false){}
-      P1MetaData(proto::ConcurrencyControl::Result result): result(result), conflict(nullptr), hasP1(true), sub_original(false), hasSignedP1(false){}
-      ~P1MetaData(){
-        if(signed_txn != nullptr) delete signed_txn;
-      }
-      proto::ConcurrencyControl::Result result;
-      const proto::CommittedProof *conflict;
-      bool hasP1;
-      std::mutex P1meta_mutex;
-      bool hasSignedP1;
-      proto::SignedMessage *signed_txn;
-      // Not used currently: In case we want to subscribe original client to P1 also to avoid ongoing bug.
-      bool sub_original; 
-      const TransportAddress *original;
-    };
-    typedef tbb::concurrent_hash_map<std::string, P1MetaData> p1MetaDataMap;
-
     void RelayP1(const std::string &dependency_txnDig, bool fallback_flow, uint64_t reqId, const TransportAddress &remote, const std::string &txnDigest);
     void SendRelayP1(const TransportAddress &remote, const std::string &dependency_txnDig, uint64_t dependent_id, const std::string &dependent_txnDig);
 
@@ -461,6 +443,18 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
   inline bool IsKeyOwned(const std::string &key) const {
     return static_cast<int>((*part)(key, numShards, groupIdx, dummyTxnGroups) % numGroups) == groupIdx;
   }
+
+  // Global objects.
+
+  Stats stats;
+  std::unordered_set<std::string> active;
+  Latency_t committedReadInsertLat;
+  Latency_t verifyLat;
+  Latency_t signLat;
+
+  Latency_t waitingOnLocks;
+  //Latency_t waitOnProtoLock;
+
 
   const transport::Configuration &config;
   const int groupIdx;
@@ -660,7 +654,23 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
   //keep list of the views in which the p2Decision is from
   //std::unordered_map<std::string, uint64_t> decision_views;
 
-
+    struct P1MetaData {
+      P1MetaData(): conflict(nullptr), hasP1(false), sub_original(false), hasSignedP1(false){}
+      P1MetaData(proto::ConcurrencyControl::Result result): result(result), conflict(nullptr), hasP1(true), sub_original(false), hasSignedP1(false){}
+      ~P1MetaData(){
+        if(signed_txn != nullptr) delete signed_txn;
+      }
+      proto::ConcurrencyControl::Result result;
+      const proto::CommittedProof *conflict;
+      bool hasP1;
+      std::mutex P1meta_mutex;
+      bool hasSignedP1;
+      proto::SignedMessage *signed_txn;
+      // Not used currently: In case we want to subscribe original client to P1 also to avoid ongoing bug.
+      bool sub_original; 
+      const TransportAddress *original;
+    };
+    typedef tbb::concurrent_hash_map<std::string, P1MetaData> p1MetaDataMap;
   p1MetaDataMap p1MetaData;
 
   struct P2MetaData {
@@ -723,15 +733,28 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
   waitingDependenciesMap waitingDependencies_new;
 
 
-  Stats stats;
-  std::unordered_set<std::string> active;
-  Latency_t committedReadInsertLat;
-  Latency_t verifyLat;
-  Latency_t signLat;
+  //Query objects
 
-  Latency_t waitingOnLocks;
+  struct QueryMetaData {
+    QueryMetaData() retry(false), has_result(false) {}
+    ~QueryMetaData(){}
+    bool retry;            //query retry version (0 or 1)
+    std::string query_cmd; //query to execute
+                          
+    std::unordered_set<std::string> local_ss;  //local snapshot
+    std::unordered_set<std::string> merged_ss; //merged snapshot
+    std::unordered_map<std::string, uint64_t> missing_txn; //map from txn-id --> number of responses max waiting for; if client is byz, no specified replica may have it --> if so, return immediately and blacklist/report tx (requires sync to be signed)
 
-  //Latency_t waitOnProtoLock;
+    bool has_result;
+                          //read set
+    std::string result;      //result
+    std::string result_hash; //result_hash
+
+  };
+  typedef tbb::concurrent_hash_map<std::string, *QueryMetaData> queryMetaDataMap; //map from query_id -> QueryMetaData
+  queryMetaDataMap queryMetaData;
+
+
 };
 
 } // namespace pequinstore
