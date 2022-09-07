@@ -3398,18 +3398,19 @@ void Server::AdoptDecision(const std::string &txnDigest, uint64_t view, proto::C
 void Server::BroadcastMoveView(const std::string &txnDigest, uint64_t proposed_view){
   // make sure we dont broadcast twice for a view.. (set flag in ElectQuorum organizer)
 
+  moveView.Clear(); //Is safe to use the global object?
   proto::MoveViewMessage move_msg;
   move_msg.set_req_id(0);
   move_msg.set_txn_digest(txnDigest);
   move_msg.set_view(proposed_view);
 
   if(params.signedMessages){
-    proto::SignedMessage signed_move_msg;
-    CreateHMACedMessage(move_msg, signed_move_msg);
-    transport->SendMessageToGroup(this, groupIdx, signed_move_msg);
+    CreateHMACedMessage(move_msg, moveView.mutable_signed_move_msg());
+    transport->SendMessageToGroup(this, groupIdx, moveView);
   }
   else{
-    transport->SendMessageToGroup(this, groupIdx, move_msg);
+    *moveView.mutable_move_msg() = std::move(move_msg);
+    transport->SendMessageToGroup(this, groupIdx, moveView);
   }
 }
 
@@ -3420,17 +3421,17 @@ void Server::HandleMoveView(proto::MoveView &msg){
   uint64_t proposed_view;
 
   if(params.signedMessages){
-    if(!ValidateHMACedMessage(msg.signed_msg())){
+    if(!ValidateHMACedMessage(msg.signed_move_msg())){
       if(params.mainThreadDispatching && !params.dispatchMessageReceive) FreeMoveView(&msg);
       return;
     }
     proto::MoveViewMessage move_msg;
-    move_msg.ParseFromString(msg.signed_msg().data());
+    move_msg.ParseFromString(msg.signed_move_msg().data());
     txnDigest = move_msg.txn_digest();
     proposed_view = move_msg.view();
   }
   else{
-    const proto::MoveViewMessage &move_msg = msg.msg();
+    const proto::MoveViewMessage &move_msg = msg.move_msg();
     txnDigest = move_msg.txn_digest();
     proposed_view = move_msg.view();
   }

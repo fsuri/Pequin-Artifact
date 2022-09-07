@@ -106,12 +106,25 @@ message SyncClientProposal {
 }
 
 message RequestMissingTxns {
-   repeated bytes list_txn = 1; //list of txn digests;
+   repeated bytes missing_txn = 1; //list of txn digests;
+   required uint64 replica_id = 2;
+}
+
+message TxnProof {
+  required Transaction txn = 1;
+  optional CommittedProof commit_proof = 2;
+}
+
+message SupplyMissingTxnsMessage {
+   map<string, TxnProof> txns = 1; //map from txn digest to Transaction object (+ proof)
+   optional uint64 replica_id = 2;
 }
 
 message SupplyMissingTxns {
-   map<string, Transaction> txns = 1; //map from txn digest to Transaction object
-   //TODO: also send a proof if it is committed...
+  oneof supply_missing_txn {
+    SupplyMissingTxnsMessage supply_txn = 1;
+    SignedMessage signed_supply_txn = 2;
+  }
 }
 
 ////////////////////////// Modified Concurrency Control ///////////////////////////

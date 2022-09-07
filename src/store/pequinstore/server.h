@@ -754,6 +754,9 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
   typedef tbb::concurrent_hash_map<std::string, *QueryMetaData> queryMetaDataMap; //map from query_id -> QueryMetaData
   queryMetaDataMap queryMetaData;
 
+  typedef tbb::concurrent_hash_map<std::string, std::unordered_set<std::string>> waitingQueryMap;  //map from tx-id to query-ids (that are waiting to sync on the tx-id)
+  waitingQueryMap waitingQueries;
+
 
 };
 

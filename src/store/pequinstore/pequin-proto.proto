@@ -352,8 +352,8 @@ message MoveViewMessage {
 
 message MoveView {
   oneof move_view_oneof{
-    MoveViewMessage msg = 1;
-    SignedMessage signed_msg =2;
+    MoveViewMessage move_msg = 1;
+    SignedMessage signed_move_msg =2;
   }
 }
 

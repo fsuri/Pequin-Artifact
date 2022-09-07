@@ -1064,7 +1064,7 @@ void Server::MessageToSign(::google::protobuf::Message* msg,
 std::unordered_map<uint64_t, std::string> sessionKeys;
 void CreateSessionKeys();
 bool ValidateHMACedMessage(const proto::SignedMessage &signedMessage);
-void CreateHMACedMessage(const ::google::protobuf::Message &msg, proto::SignedMessage& signedMessage);
+void CreateHMACedMessage(const ::google::protobuf::Message &msg, proto::SignedMessage* signedMessage);
 // assume these are somehow secretly shared before hand
 
 //TODO: If one wants to use Macs for Clients, need to add it to keymanager (in advance or dynamically based off id)
@@ -1082,22 +1082,22 @@ void Server::CreateSessionKeys(){
 // create MAC messages and verify them: Used for all to all leader election.
 bool Server::ValidateHMACedMessage(const proto::SignedMessage &signedMessage) {
 
-proto::HMACs hmacs;
-hmacs.ParseFromString(signedMessage.signature());
-return crypto::verifyHMAC(signedMessage.data(), (*hmacs.mutable_hmacs())[idx], sessionKeys[signedMessage.process_id() % config.n]);
+  proto::HMACs hmacs;
+  hmacs.ParseFromString(signedMessage.signature());
+  return crypto::verifyHMAC(signedMessage.data(), (*hmacs.mutable_hmacs())[idx], sessionKeys[signedMessage.process_id() % config.n]);
 }
 
-void Server::CreateHMACedMessage(const ::google::protobuf::Message &msg, proto::SignedMessage& signedMessage) {
+void Server::CreateHMACedMessage(const ::google::protobuf::Message &msg, proto::SignedMessage* signedMessage) {
 
-const std::string &msgData = msg.SerializeAsString();
-signedMessage.set_data(msgData);
-signedMessage.set_process_id(id);
+  const std::string &msgData = msg.SerializeAsString();
+  signedMessage->set_data(msgData);
+  signedMessage->set_process_id(id);
 
-proto::HMACs hmacs;
-for (uint64_t i = 0; i < config.n; i++) {
-  (*hmacs.mutable_hmacs())[i] = crypto::HMAC(msgData, sessionKeys[i]);
-}
-signedMessage.set_signature(hmacs.SerializeAsString());
+  proto::HMACs hmacs;
+  for (uint64_t i = 0; i < config.n; i++) {
+    (*hmacs.mutable_hmacs())[i] = crypto::HMAC(msgData, sessionKeys[i]);
+  }
+  signedMessage->set_signature(hmacs.SerializeAsString());
 }
 
 //////////////////////////////////////////////////////////////////////////// PROTOBUF HELPER FUNCTIONS

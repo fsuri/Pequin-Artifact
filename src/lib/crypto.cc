@@ -46,7 +46,7 @@ static_block {
   secpCTX = secp256k1_context_create(SECP256K1_CONTEXT_SIGN | SECP256K1_CONTEXT_VERIFY);
 }
 
-std::string HMAC(std::string message, std::string keystr) {
+std::string HMAC(std::string &message, std::string &keystr) {
   SecByteBlock key((const CryptoPP::byte*)keystr.data(), keystr.size());
   try{
     CryptoPP::HMAC< CryptoPP::SHA256 > hmac(key, key.size());
@@ -65,7 +65,7 @@ std::string HMAC(std::string message, std::string keystr) {
   }
 }
 
-bool verifyHMAC(std::string message, std::string mac, std::string keystr) {
+bool verifyHMAC(std::string &message, std::string &mac, std::string &keystr) {
   SecByteBlock key((const CryptoPP::byte*)keystr.data(), keystr.size());
   try{
       CryptoPP::HMAC< CryptoPP::SHA256 > hmac(key, key.size());
