@@ -736,8 +736,13 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
   //Query objects
 
   struct QueryMetaData {
-    QueryMetaData() retry(false), has_result(false) {}
-    ~QueryMetaData(){}
+    QueryMetaData() retry(false), has_result(false), original_client(BOOST_SMART_PTR_DETAIL_SP_NULLPTR_T_HPP_INCLUDED) {}
+    ~QueryMetaData(){ 
+      if(original_client != nullptr) delete original_client;
+    }
+
+    TransportAddress *original_client;
+
     bool retry;            //query retry version (0 or 1)
     std::string query_cmd; //query to execute
                           

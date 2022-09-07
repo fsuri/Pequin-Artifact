@@ -111,7 +111,7 @@ message RequestMissingTxns {
 }
 
 message TxnProof {
-  required Transaction txn = 1;
+  optional Transaction txn = 1;
   optional CommittedProof commit_proof = 2;
 }
 
