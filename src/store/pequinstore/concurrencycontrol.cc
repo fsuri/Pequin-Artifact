@@ -397,15 +397,15 @@ bool Server::ManageDependencies(const std::string &txnDigest, const proto::Trans
          //XXX start RelayP1 to initiate Fallback handling
 
          if(!params.no_fallback && true && !isGossip){ //do not send relay if it is a gossiped message. Unless we are doinig replica leader gargabe Collection (unimplemented)
-           // ongoingMap::const_accessor b;
-           // bool inOngoing = ongoing.find(b, dep.write().prepared_txn_digest()); //TODO can remove this redundant lookup since it will be checked again...
+           // ongoingMap::const_accessor o;
+           // bool inOngoing = ongoing.find(o, dep.write().prepared_txn_digest()); //TODO can remove this redundant lookup since it will be checked again...
            // if (inOngoing) {
            //   std::string dependency_txnDig = dep.write().prepared_txn_digest();
            //   RelayP1(dep.write().prepared_txn_digest(), fallback_flow, reqId, remote, txnDigest);
              uint64_t conflict_id = !fallback_flow ? reqId : -1;
              SendRelayP1(remote, dep.write().prepared_txn_digest(), conflict_id, txnDigest);
            // }
-           // b.release();
+           // o.release();
          }
 
          allFinished = false;
@@ -586,8 +586,8 @@ proto::ConcurrencyControl::Result Server::CheckDependencies(
       //Latency_Start(&waitingOnLocks);
    //if(params.mainThreadDispatching) ongoingMutex.lock_shared();
    //Latency_End(&waitingOnLocks);
-  ongoingMap::const_accessor b;
-  bool isOngoing = ongoing.find(b, txnDigest);
+  ongoingMap::const_accessor o;
+  bool isOngoing = ongoing.find(o, txnDigest);
   if(!isOngoing){
 
   //if(txnItr == ongoing.end()){
@@ -612,7 +612,7 @@ proto::ConcurrencyControl::Result Server::CheckDependencies(
   //UW_ASSERT(txnItr != ongoing.end());
    //if(params.mainThreadDispatching) ongoingMutex.unlock_shared();
   //return CheckDependencies(*txnItr->second);
-  return CheckDependencies(*b->second.txn);
+  return CheckDependencies(*o->second.txn);
 }
 
 proto::ConcurrencyControl::Result Server::CheckDependencies(
@@ -692,14 +692,14 @@ uint64_t Server::DependencyDepth(const proto::Transaction *txn) const {
     q.pop();
     maxDepth = std::max(maxDepth, curr.second);
     for (const auto &dep : curr.first->deps()) {
-      ongoingMap::const_accessor b;
-      bool oitr = ongoing.find(b, dep.write().prepared_txn_digest());
+      ongoingMap::const_accessor o;
+      bool oitr = ongoing.find(o, dep.write().prepared_txn_digest());
       if(oitr){
       //if (oitr != ongoing.end()) {
         //q.push(std::make_pair(oitr->second, curr.second + 1));
-        q.push(std::make_pair(b->second.txn, curr.second + 1));
+        q.push(std::make_pair(o->second.txn, curr.second + 1));
       }
-      b.release();
+      o.release();
     }
   }
   return maxDepth;

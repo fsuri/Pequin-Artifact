@@ -548,12 +548,12 @@ void Server::HandlePhase1_atomic(const TransportAddress &remote,
 
   //NOTE: Ongoing *must* be added before p2/wb since the latter dont include it themselves as an optimization
   //TCP guarantees that this happens, but I cannot dispatch parallel P1 before logging ongoing or else it could be ordered after p2/wb.
-  ongoingMap::accessor b;
+  ongoingMap::accessor o;
   //ongoing.insert(b, std::make_pair(txnDigest, txn));
-  ongoing.insert(b, txnDigest);
-  b->second.txn = txn;
-  b->second.num_concurrent_clients++;
-  b.release();
+  ongoing.insert(o, txnDigest);
+  o->second.txn = txn;
+  o->second.num_concurrent_clients++;
+  o.release();
 
   //NOTE: "Problem": If client comes after writeback, it will try to do a p2/wb itself but fail
   //due to ongoing being removed already.
@@ -1027,15 +1027,15 @@ void Server::HandlePhase2(const TransportAddress &remote,
 
        // i.e. if (params.validateProofs && params.signedMessages) {
         if(msg.has_txn_digest()) {
-          ongoingMap::const_accessor b;
-          auto txnItr = ongoing.find(b, msg.txn_digest());
+          ongoingMap::const_accessor o;
+          auto txnItr = ongoing.find(o, msg.txn_digest());
           if(txnItr){
             txn = b->second.txn;
-            b.release();
+            o.release();
           }
           else{
          
-            b.release();
+            o.release();
             if(msg.has_txn()){
               txn = &msg.txn();
               // check that digest and txn match..
@@ -1203,14 +1203,14 @@ void Server::HandleWriteback(const TransportAddress &remote,
       return;  //TODO: Forward to all interested clients and empty it?
     }
    
-    ongoingMap::const_accessor b;
-    bool hasTxn = ongoing.find(b, msg.txn_digest());
+    ongoingMap::const_accessor o;
+    bool hasTxn = ongoing.find(o, msg.txn_digest());
     if(hasTxn){
-      txn = b->second.txn;
-      b.release();
+      txn = o->second.txn;
+      o.release();
     }
     else{
-      b.release();
+      o.release();
       if(msg.has_txn()){
         txn = msg.release_txn();
         // check that digest and txn match..
@@ -1384,14 +1384,14 @@ void Server::Prepare(const std::string &txnDigest,
       BytesToHex(txnDigest, 16).c_str(), txn.timestamp().timestamp(), txn.timestamp().id());
 
 
-  ongoingMap::const_accessor b;
-  auto ongoingItr = ongoing.find(b, txnDigest);
+  ongoingMap::const_accessor o;
+  auto ongoingItr = ongoing.find(o, txnDigest);
   if(!ongoingItr){
   //if(ongoingItr == ongoing.end()){
     Debug("Already concurrently Committed/Aborted txn[%s]", BytesToHex(txnDigest, 16).c_str());
     return;
   }
-  const proto::Transaction *ongoingTxn = b->second.txn;
+  const proto::Transaction *ongoingTxn = o->second.txn;
   //const proto::Transaction *ongoingTxn = ongoing.at(txnDigest);
 
   preparedMap::accessor a;
@@ -1430,7 +1430,7 @@ void Server::Prepare(const std::string &txnDigest,
       // preparedWrites[write.key()].second.insert(pWrite);
     }
   }
-  b.release(); //Relase only at the end, so that Prepare and Clean in parallel for the same TX are atomic.
+  o.release(); //Relase only at the end, so that Prepare and Clean in parallel for the same TX are atomic.
 }
 
 
@@ -1468,12 +1468,20 @@ void Server::Commit(const std::string &txnDigest, proto::Transaction *txn,
     }
   }
 
-  for (const auto &read : txn->read_set()) {
+  CommitToStore(txn, ts, val);
+
+  Debug("Calling CLEAN for committing txn[%s]", BytesToHex(txnDigest, 16).c_str());
+  Clean(txnDigest);
+  CheckDependents(txnDigest);
+  CleanDependencies(txnDigest);
+}
+
+void Server::CommitToStore(proto::Transaction *txn, Timestamp &ts, Value &val){
+
+    for (const auto &read : txn->read_set()) {
     if (!IsKeyOwned(read.key())) {
       continue;
     }
-
-
     //store.commitGet(read.key(), read.readtime(), ts);   //SEEMINGLY NEVER USED XXX
     //commitGet_count++;
 
@@ -1489,7 +1497,6 @@ void Server::Commit(const std::string &txnDigest, proto::Transaction *txn,
     //uint64_t ns = Latency_End(&committedReadInsertLat);
     //stats.Add("committed_read_insert_lat_" + BytesToHex(read.key(), 18), ns);
   }
-
 
   for (const auto &write : txn->write_set()) {
     if (!IsKeyOwned(write.key())) {
@@ -1525,11 +1532,6 @@ void Server::Commit(const std::string &txnDigest, proto::Transaction *txn,
       //No RTS
     }
   }
-
-  Debug("Calling CLEAN for committing txn[%s]", BytesToHex(txnDigest, 16).c_str());
-  Clean(txnDigest);
-  CheckDependents(txnDigest);
-  CleanDependencies(txnDigest);
 }
 
 void Server::Abort(const std::string &txnDigest) {
@@ -1560,9 +1562,9 @@ void Server::Clean(const std::string &txnDigest, bool abort) {
   //auto ElectQuorumMutexScope = params.mainThreadDispatching ? std::unique_lock<std::mutex>(ElectQuorumMutex) : std::unique_lock<std::mutex>();
   //Latency_End(&waitingOnLocks);
 
-  ongoingMap::accessor b;
-  bool is_ongoing = ongoing.find(b, txnDigest);
-  if(is_ongoing) ongoing.erase(b);
+  ongoingMap::accessor o;
+  bool is_ongoing = ongoing.find(o, txnDigest);
+  if(is_ongoing) ongoing.erase(o);
 
   preparedMap::accessor a;
   bool is_prepared = prepared.find(a, txnDigest);
@@ -1597,7 +1599,7 @@ void Server::Clean(const std::string &txnDigest, bool abort) {
   //     //if(abort) delete b->second.txn; //delete allocated txn.
   //     //ongoing.erase(b);
   // }
-  b.release(); //Release only at the end, so that Prepare and Clean in parallel for the same TX are atomic.
+  o.release(); //Release only at the end, so that Prepare and Clean in parallel for the same TX are atomic.
   //TODO: might want to move release all the way to the end.
 
   //XXX: Fallback related cleans
@@ -1690,13 +1692,13 @@ void Server::SendRelayP1(const TransportAddress &remote, const std::string &depe
   proto::Transaction *tx;
   proto::SignedMessage *signed_tx;
 
-  //ongoingMap::const_accessor b;
-  ongoingMap::accessor b;
-  bool ongoingItr = ongoing.find(b, dependency_txnDig);
+  //ongoingMap::const_accessor o;
+  ongoingMap::accessor o;
+  bool ongoingItr = ongoing.find(o, dependency_txnDig);
   if(!ongoingItr) return;  //If txnDigest no longer ongoing, then no FB necessary as it has completed already
-  tx = b->second.txn;
+  tx = o->second.txn;
   p1MetaDataMap::accessor c;
-  //b.release();
+  //o.release();
 
   //proto::RelayP1 relayP1; //use global object.
   relayP1.Clear();
@@ -1731,10 +1733,10 @@ void Server::SendRelayP1(const TransportAddress &remote, const std::string &depe
     c.release();
   }
   else{
-    b->second.txn = relayP1.mutable_p1()->release_txn();
+    o->second.txn = relayP1.mutable_p1()->release_txn();
     //b.release();
   }
-  b.release(); //keep ongoing locked the full duration: this guarantees that if ongoing exists, p1Meta.signed_tx exists too, since it is deleted after ongoing in Clean()
+  o.release(); //keep ongoing locked the full duration: this guarantees that if ongoing exists, p1Meta.signed_tx exists too, since it is deleted after ongoing in Clean()
 
   Debug("Sent RelayP1[%s].", BytesToHex(dependent_txnDig, 256).c_str());
 }
@@ -2033,13 +2035,13 @@ void Server::AddOngoing(proto::Phase1FB &msg, std::string &txnDigest, proto::Tra
       if(!params.signClientProposals) txn = msg.release_txn();
       if(params.signClientProposals) *txn->mutable_txndigest() = txnDigest; //HACK to include txnDigest to lookup signed_tx.
 
-      ongoingMap::accessor b;
+      ongoingMap::accessor o;
       //std::cerr << "ONGOING INSERT (Fallback): " << BytesToHex(txnDigest, 16).c_str() << " On CPU: " << sched_getcpu()<< std::endl;
-      //ongoing.insert(b, std::make_pair(txnDigest, txn));
-      ongoing.insert(b, txnDigest);
-      b->second.txn = txn;
-      b->second.num_concurrent_clients++;
-      b.release();
+      //ongoing.insert(o, std::make_pair(txnDigest, txn));
+      ongoing.insert(o, txnDigest);
+      o->second.txn = txn;
+      o->second.num_concurrent_clients++;
+      o.release();
 
     return;
 }
@@ -2052,15 +2054,15 @@ void Server::ProcessProposalFB(proto::Phase1FB &msg, const TransportAddress &rem
   //Todo: Improve efficiency if Valid: insert into P1Meta and check conditions again: If now already in P1Meta then use this existing result.
   if(!params.multiThreading || !params.signClientProposals){
     if(!CheckProposalValidity(msg, txn, txnDigest, true)){
-       ongoingMap::accessor b;
+       ongoingMap::accessor o;
        //std::cerr << "ONGOING ERASE (Fallback-INVALID): " << BytesToHex(txnDigest, 16).c_str() << " On CPU: " << sched_getcpu()<< std::endl;
-       ongoing.find(b, txnDigest);
-       b->second.num_concurrent_clients--;
-       if(b->second.num_concurrent_clients==0){
-          delete b->second.txn;
-          ongoing.erase(b);
+       ongoing.find(o, txnDigest);
+       o->second.num_concurrent_clients--;
+       if(o->second.num_concurrent_clients==0){
+          delete o->second.txn;
+          ongoing.erase(o);
        }
-       b.release();
+       o.release();
        return;
     } 
     TryExec(msg, remote, txnDigest, txn);
@@ -2070,15 +2072,15 @@ void Server::ProcessProposalFB(proto::Phase1FB &msg, const TransportAddress &rem
         auto f = [this, msg_ptr = &msg, txn, txnDigest, try_exec]() mutable {
             void* valid = CheckProposalValidity(*msg_ptr, txn, txnDigest, true);
             if(!valid){
-              ongoingMap::accessor b;
+              ongoingMap::accessor o;
               //std::cerr << "ONGOING ERASE (Fallback-INVALID): " << BytesToHex(txnDigest, 16).c_str() << " On CPU: " << sched_getcpu()<< std::endl;
-              ongoing.find(b, txnDigest);
-              b->second.num_concurrent_clients--;
-              if(b->second.num_concurrent_clients==0){
-                  delete b->second.txn;
+              ongoing.find(o, txnDigest);
+              o->second.num_concurrent_clients--;
+              if(o->second.num_concurrent_clients==0){
+                  delete o->second.txn;
                   ongoing.erase(b);
               }
-              b.release();
+              o.release();
               return (void*) false;
             } 
             
@@ -2128,13 +2130,13 @@ bool Server::ExecP1(proto::Phase1FB &msg, const TransportAddress &remote,
   // if(!params.signClientProposals) txn = msg.release_txn();
   // *txn->mutable_txndigest() = txnDigest; //HACK to include txnDigest to lookup signed_tx.
   
-  // ongoingMap::accessor b;
+  // ongoingMap::accessor o;
   // std::cerr << "ONGOING INSERT (Fallback): " << BytesToHex(txnDigest, 16).c_str() << " On CPU: " << sched_getcpu()<< std::endl;
-  // //ongoing.insert(b, std::make_pair(txnDigest, txn));
-  // ongoing.insert(b, txnDigest);
-  // b->second.txn = txn;
-  // b->second.num_concurrent_clients++;
-  // b.release();
+  // //ongoing.insert(o, std::make_pair(txnDigest, txn));
+  // ongoing.insert(o, txnDigest);
+  // o->second.txn = txn;
+  // o->second.num_concurrent_clients++;
+  // o.release();
   //fallback.insert(txnDigest);
   //std::cerr << "[FB] Added tx to ongoing: " << BytesToHex(txnDigest, 16) << std::endl;
 
@@ -2529,14 +2531,14 @@ void Server::ProcessP2FB(const TransportAddress &remote, const std::string &txnD
   uint8_t groupIndex = txnDigest[0];
   const proto::Transaction *txn;
   // find txn. that maps to txnDigest. if not stored locally, and not part of the msg, reject msg.
-  ongoingMap::const_accessor b;
-  bool isOngoing = ongoing.find(b, txnDigest);
+  ongoingMap::const_accessor o;
+  bool isOngoing = ongoing.find(o, txnDigest);
   if(isOngoing){
-    txn = b->second.txn;
-    b.release();
+    txn = o->second.txn;
+    o.release();
   }
   else{
-    b.release();
+    o.release();
     if(p2fb.has_txn()){
         txn = &p2fb.txn();
       }
@@ -2765,10 +2767,10 @@ void Server::HandleInvokeFB(const TransportAddress &remote, proto::InvokeFB &msg
 
     // find txn. that maps to txnDigest. if not stored locally, and not part of the msg, reject msg.
     const proto::Transaction *txn;
-    ongoingMap::const_accessor b;
-    bool isOngoing = ongoing.find(b, txnDigest);
+    ongoingMap::const_accessor o;
+    bool isOngoing = ongoing.find(o, txnDigest);
     if(isOngoing){
-        txn = b->second.txn;
+        txn = o->second.txn;
     }
     else if(msg.has_p2fb()){
         const proto::Phase2FB &p2fb = msg.p2fb();
@@ -2784,7 +2786,7 @@ void Server::HandleInvokeFB(const TransportAddress &remote, proto::InvokeFB &msg
         if( (!params.all_to_all_fb && params.multiThreading) || (params.mainThreadDispatching && !params.dispatchMessageReceive)) FreeInvokeFBmessage(&msg);
         return; //REPLICA HAS NEVER SEEN THIS TXN
     }
-    b.release();
+    o.release();
 
     int64_t logGrp = GetLogGroup(*txn, txnDigest);
     if(groupIdx != logGrp){
@@ -2811,14 +2813,14 @@ void Server::InvokeFBProcessP2FB(const TransportAddress &remote, const std::stri
   Debug("Processing P2FB before processing InvokeFB request for txn: %s", BytesToHex(txnDigest, 64).c_str());
   // find txn. that maps to txnDigest. if not stored locally, and not part of the msg, reject msg.
   const proto::Transaction *txn;
-  ongoingMap::const_accessor b;
-  bool isOngoing = ongoing.find(b, txnDigest);
+  ongoingMap::const_accessor o;
+  bool isOngoing = ongoing.find(o, txnDigest);
   if(isOngoing){
-    txn = b->second.txn;
-    b.release();
+    txn = o->second.txn;
+    o.release();
   }
   else{
-    b.release();
+    o.release();
     if(p2fb.has_txn()){
         txn = &p2fb.txn();
       }
@@ -3306,16 +3308,16 @@ void Server::HandleDecisionFB(proto::DecisionFB &msg){
     //(Knowing that is not required for safety anyways, only for liveness)
 
     const proto::Transaction *txn;
-    ongoingMap::const_accessor b;
-    bool isOngoing = ongoing.find(b, txnDigest);
+    ongoingMap::const_accessor o;
+    bool isOngoing = ongoing.find(o, txnDigest);
     if(isOngoing){
-        txn = b->second.txn;
+        txn = o->second.txn;
     }
     else{
       if(params.multiThreading || (params.mainThreadDispatching && !params.dispatchMessageReceive)) FreeDecisionFBmessage(&msg);
       return; //REPLICA HAS NEVER SEEN THIS TXN OR TXN NO LONGER ONGOING
     }
-    b.release();
+    o.release();
 
     //verify signatures
     int64_t myProcessId;

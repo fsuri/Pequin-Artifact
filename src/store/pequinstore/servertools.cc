@@ -541,13 +541,13 @@ void* Server::TryPrepare(proto::Phase1 &msg, const TransportAddress &remote, pro
 
     // if(!params.signClientProposals) txn = msg.release_txn(); //Only release it here so that we can forward complete P1 message without making any wasteful copies
 
-    //  ongoingMap::accessor b;
+    //  ongoingMap::accessor o;
     //  std::cerr << "ONGOING INSERT (Normal): " << BytesToHex(txnDigest, 16).c_str() << " On CPU: " << sched_getcpu()<< std::endl;
-    //  //ongoing.insert(b, std::make_pair(txnDigest, txn));
-    //  ongoing.insert(b, txnDigest);
-    //  b->second.txn = txn;
-    //  b->second.num_concurrent_clients++;
-    //  b.release();
+    //  //ongoing.insert(o, std::make_pair(txnDigest, txn));
+    //  ongoing.insert(o, txnDigest);
+    //  o->second.txn = txn;
+    //  o->second.num_concurrent_clients++;
+    //  o.release();
      //TODO: DO BOTH OF THESE META DATA INSERTS ONLY IF VALIDATION PASSES, i.e. move them into TryPrepare?
      //OR DELETE THEM AGAIN IF VALIDATION FAILS. (requires a counter of num_ongoing inserts to gaurantee its not removed if a parallel client added it.)
   //NOTE: Ongoing *must* be added before p2/wb since the latter dont include it themselves as an optimization
@@ -568,8 +568,8 @@ void* Server::TryPrepare(proto::Phase1 &msg, const TransportAddress &remote, pro
       auto f = [this, msg_ptr = &msg, remote_ptr = &remote, txnDigest, txn, committedProof, abstain_conflict, isGossip]() mutable {
         Timestamp retryTs;
           //check if concurrently committed/aborted already, and if so return
-          ongoingMap::const_accessor b;
-          if(!ongoing.find(b, txnDigest)){
+          ongoingMap::const_accessor o;
+          if(!ongoing.find(o, txnDigest)){
             Debug("Already concurrently Committed/Aborted txn[%s]", BytesToHex(txnDigest, 16).c_str());
             if(committed.find(txnDigest) != committed.end()){
                 SendPhase1Reply(msg_ptr->req_id(), proto::ConcurrencyControl::COMMIT, nullptr, txnDigest, remote_ptr, nullptr);
@@ -586,7 +586,7 @@ void* Server::TryPrepare(proto::Phase1 &msg, const TransportAddress &remote, pro
             //if(params.signClientProposals) delete txn; //Could've been concurrently moved to committed --> cannot risk deleting that version. Risking possible leak here instead (although will never really be called)
             return (void*) false;
           }
-          b.release();
+          o.release();
 
 
         Debug("starting occ check for txn: %s", BytesToHex(txnDigest, 16).c_str());
@@ -614,28 +614,28 @@ void* Server::TryPrepare(proto::Phase1 &msg, const TransportAddress &remote, pro
 
     //Add txn speculative to ongoing BEFORE validation to ensure it exists in ongoing before any P2 or Writeback could arrive
     //If verification fails, remove it again. Keep track of num_concurrent_clients to make sure we don't delete if it is still necessary.
-    ongoingMap::accessor b;
+    ongoingMap::accessor o;
      //std::cerr << "ONGOING INSERT (Normal): " << BytesToHex(txnDigest, 16).c_str() << " On CPU: " << sched_getcpu()<< std::endl;
      //ongoing.insert(b, std::make_pair(txnDigest, txn));
-     ongoing.insert(b, txnDigest);
-     b->second.txn = txn;
-     b->second.num_concurrent_clients++;
-     b.release();
+     ongoing.insert(o, txnDigest);
+     o->second.txn = txn;
+     o->second.num_concurrent_clients++;
+     o.release();
 
     if(!params.multiThreading || !params.signClientProposals){
     //if(!params.multiThreading){
         Debug("ProcessProposal for txn[%s] on MainThread %d", BytesToHex(txnDigest, 16).c_str(), sched_getcpu());
         void* valid = CheckProposalValidity(msg, txn, txnDigest);
         if(!valid){
-            ongoingMap::accessor b;
+            ongoingMap::accessor o;
             //std::cerr << "ONGOING ERASE (Normal-INVALID): " << BytesToHex(txnDigest, 16).c_str() << " On CPU: " << sched_getcpu()<< std::endl;
-            ongoing.find(b, txnDigest);
-            b->second.num_concurrent_clients--;
-            if(b->second.num_concurrent_clients==0){
-                delete b->second.txn;
-                ongoing.erase(b);
+            ongoing.find(o, txnDigest);
+            o->second.num_concurrent_clients--;
+            if(o->second.num_concurrent_clients==0){
+                delete o->second.txn;
+                ongoing.erase(o);
             }
-            b.release();
+            o.release();
             Panic("Proposal should be valid");
             return; //Check Proposal Validity already cleans up message in this case.
         } 
@@ -647,15 +647,15 @@ void* Server::TryPrepare(proto::Phase1 &msg, const TransportAddress &remote, pro
             Debug("ProcessProposal for txn[%s] on WorkerThread %d", BytesToHex(txnDigest, 16).c_str(), sched_getcpu());
             void* valid = CheckProposalValidity(*msg_ptr, txn, txnDigest);
             if(!valid){
-                ongoingMap::accessor b;
+                ongoingMap::accessor o;
                 //std::cerr << "ONGOING ERASE (Normal-INVALID): " << BytesToHex(txnDigest, 16).c_str() << " On CPU: " << sched_getcpu()<< std::endl;
-                ongoing.find(b, txnDigest);
-                b->second.num_concurrent_clients--;
-                if(b->second.num_concurrent_clients==0){
-                    delete b->second.txn;
-                    ongoing.erase(b);
+                ongoing.find(o, txnDigest);
+                o->second.num_concurrent_clients--;
+                if(o->second.num_concurrent_clients==0){
+                    delete o->second.txn;
+                    ongoing.erase(o);
                 }
-                b.release();
+                o.release();
                 Panic("Proposal should be valid");
                 return (void*) false; 
             } 

@@ -267,6 +267,10 @@ void Server::HandleSync(const TransportAddress &remote, proto::SyncClientProposa
     std::map<uint64_t, RequestMissingTxns> replica_requests;
 
     for(auto txn_replicas_pair : merged_ss.merged_txns_committed()){
+
+         //TODO: 0) transform txn_id to txnDigest if using optimistc ids..
+         // Check local mapping from Timestamp to TxnDigest (TO CREATE)
+
         query_md->merged_ss.insert(txn_replicas_pair.first); //store snapshot locally.  // Is there a nice way to copy the whole key set of a map?
         //for all txn-ids that are in merged_ss but NOT in local_ss  //TODO: Should check current state instead of local snapshot... might have updated since (this would avoid some wasteful requests).
                                                                         //Note: if its not prepared locally, but is ongoing (i.e. prepare vote = abort/abstain) we can immediately add it to state but marked only for query
@@ -281,7 +285,6 @@ void Server::HandleSync(const TransportAddress &remote, proto::SyncClientProposa
             w.release();
 
 
-
             query_md->missing_txn[txn_replicas_pair->first]=config->f + 1;  //FIXME: Useless line: we don't stop waiting currently.
             uint64_t count = 0;
             for(auto &replica_idx: txn_replicas_pair->second){ 
@@ -292,13 +295,18 @@ void Server::HandleSync(const TransportAddress &remote, proto::SyncClientProposa
                 }
                 count++;
             }
-           
-
           
         }
     }
+
+    //If no missing_txn = already fully synced. Exec callback direclty
+    if(replica_requests.empty()){
+        HandleSyncCallback(query_md);
+    }
+
      q->release();
 
+    //if there are missng txn, i.e. replica_requests not empty ==> send out sync requests.
      for(auto replica_req : replica_requests){
         transport->SendMessageToReplica(this, logGrp, replica_req->first, replica_req->second);
      }
@@ -319,6 +327,10 @@ void Server::HandleRequestTx(const TransportAddress &remote, proto::RequestMissi
             //can log requests, so a byz can request at most once (which is legal anyways)
 
     for(std::string &txn_id : req_txn.missing_txn()){
+
+         //TODO: 0) transform txn_id to txnDigest if using optimistc ids..
+         // Check local mapping from Timestamp to TxnDigest (TO CREATE)
+
         //1) If committed attatch certificate
         auto itr = committed.find(txn_id);
         if(itr != committed.end()){
@@ -391,52 +403,92 @@ void Server::HandleSupplyTx(const TransportAddress &remote, proto::SupplyMissing
    
     for(auto &tx : supply_txn->txns){
         std::string &txn_id = tx->first;
-         //TODO: transform txn_id to txnDigest if using optimistc ids..
+        
         proto::TxnProof &txn_proof = tx->second;
 
         //check if locally committed; if not, check cert and apply
-       //TODO: either update waiting data structures anyways; or add their update in Prepare/Commit function as well.
+       //FIXME: either update waiting data structures anyways; or add their update in Prepare/Commit function as well.
         auto itr = committed.find(txn_id);
         if(itr != committed.end()){
             continue;
         }
+        //check if locally aborted; if so, no point in syncing on txn: --> should mark this and reply to client with query fail (include tx that has abort vote + proof 
+        //--> client can confirm that this is part of snapshot).. query is doomed to fai.
         auto itr2 = aborted.find(txn_id);
         if(itr2 != aborted.end()){
-            //TODO: Mark query as doomed.
+            //TODO: Mark all waiting queries as doomed.
         }
 
         if(txn_proof.has_commit_proof()){
-            //TODO: Validate commit proof
-            //TODO: Call Commit()
 
-            UpdateWaitingQueries(txn_id);
+            proto::CommittedProof *proof = txn_proof.release_commit_proof();
+
+            bool valid = ValidateCommittedProof(*proof, &txn_id, keyManager, config, verifier); //TODO: MAke this Async ==> Requires rest of code to go into callback.
+            if(!valid){
+                delete proof;
+                Panic("Commit Proof not valid");
+                return;
+            }
+
+            CommitWithProof(txn_id, proof);
+
+            UpdateWaitingQueries(txn_id); //TODO: want this to be dispatched/async
             continue;
         } 
 
 
         //2) if Prepared //TODO: check for prepared first, to avoid sending unecessary certs?
 
-        preparedMap::const_accessor a;
-        bool hasPrepared = prepared.find(a, txn_id);
-        if(hasPrepared){
-            a.release();
-            continue;
-        }
-        a.release();
-           //check if locally prepared; if not do OCC check. --> If not successful, apply tx anyways with special marker only useable by marked queries.
+        proto::ConcurrencyControl::Result result;
+        const proto::CommittedProof *conflict;
 
+        p1MetaDataMap::const_accessor c;
+        bool hasP1result = p1MetaData.find(c, txn_id) ? c->second.hasP1 : false;
+        if(hasP1result){
+            result = c->second.result; //p1Decisions[txnDigest];
+            conflict = c->second.conflict;
+             c.release();
+             continue;
+
+            //TODO: If commit, skip;
+            if(result == proto::ConcurrencyControl::COMMIT) continue; //TODO: UpdateWaitingQueries 
+            else if(result == proto::ConcurrencyControl::ABORT){
+                //TODO: Mark all waiting queries as failed.
+            }
+            else if(result == proto::ConcurrencyControl::ABSTAIN){
+                //TODO: somehow add tx to store, and mark it as "viewable" only for waitingQueries --> //FIXME: if a new query arrives that also wants to see this tx --> edit the marker to make it visible too.
+                // //TODO: Shouldnt even sync on the tx if it is locally prepared Abstain --> directly make visible. 
+                //FIXME: Easiest solution: During OCC check, Also "prepare" all tx that are locally abstained --> that way we can directly detect them as not necessary for sync. Mark them "invisible" by default.
+                //Garbage collect for good from prepared map once it is aborted.
+            }
+            //If abstain, apply only for query
+            //if abort, vote early to abort query.       //if(result == proto::ConcurrencyControl::ABORT)
+        }
+
+        c.release();
+         //check if locally prepared; if not do OCC check. --> If not successful, apply tx anyways with special marker only useable by marked queries.
         if(txn_proof.has_txn()){
             //TODO: Call P1/OCC check for txn.
             //If fail, apply anyways but mark special
-            
+    
+             //TODO: If I package the txn sent as a P1, then I can just use the Process Proposal Function?
+
+             //FIXME: Adapt handling based on whether tx must be signed by a client... Should forward the P1, not just the txn.
+
+            proto::Transaction *txn = txn_proof.release_txn();
+            ongoingMap::accessor b;
+            ongoing.insert(b, txn_id);
+            b->second.txn = txn;
+            b->second.num_concurrent_clients++;
+            b.release();
+
+            VerifyDependencies 
+            VerifyClientProposal 
+
+            bool isGossip = true; //FIXME: Ensure that there is no client reply.
+            result = DoOCCCheck(msg.req_id(), remote, txnDigest, *txn, retryTs, committedProof, abstain_conflict, false, isGossip); //forwarded messages dont need to be treated as original client.
+             BufferP1Result(result, committedProof, txnDigest);
         }
-
-        //TODO: if locally aborted --> should mark this and reply to client with query fail (include tx that has abort vote + proof --> client can confirm that this is part of snapshot).. query is doomed to fai.
-
-     
-       
-
-
     }
 
     // 3) check if Tx supplied or not
@@ -447,13 +499,54 @@ void Server::HandleSupplyTx(const TransportAddress &remote, proto::SupplyMissing
 
 }
 
+void Server::CommitWithProof(const std::string &txn_id, proto::CommittedProof *proof){
+
+    proto::Transaction *txn = proof->mutable_txn();
+    Timestamp ts(txn->timestamp());
+    Value val;
+    val.proof = proof;
+
+    comitted.insert(std::make_pair(txn_id, txn_id)); //Note: This may override an existing commit proof -- that's fine.
+
+    CommitToStore(txn, ts, val);
+
+    Debug("Calling CLEAN for committing txn[%s]", BytesToHex(txnDigest, 16).c_str());
+    Clean(txnDigest);
+    CheckDependents(txnDigest);
+    CleanDependencies(txnDigest);
+
+    //TODO: Add UpdateWaitingQueries here. (and in normal Commit too? --> Tricky since that commit is only on mainthread --> don't want it to call callback directly --> would want to dispatch)
+}
+            
+
+//FIXME: WARNING: Possible Inverted lock order (accessors w and q) in this function and HandleSync. Should be fine though, since this function will only try to call a q for which a w was added;
+                                                     //while HandleSync only calls each w once. I.e. HandleSync must lock&release w first, in order for this function to even request the same q.
 void Server::UpdateWaitingQueries(std::string &txnDigest){
-     //find queries that were waiting. 
-        // update their missing data structures
 
-        //if missing data structure is empty for any query: Start Callback.
+     //1) find queries that were waiting on this txn-id
+    waitingQueryMap::accessor w;
+    bool hasWaiting = waitingQueries.find(w, txnDigest);
+    if(hasWaiting){
+        for(std::string &waiting_query : w->second){
 
-        //remove key from waiting data structure if no more queries waiting on it
+            //2) update their missing data structures
+            queryMetaDataMap::accessor q;
+            bool queryActive = queryMetaData.find(q, waiting_query);
+            if(queryActive){
+                bool was_present = missing_txn.erase(txnDigest);
+
+                //3) if missing data structure is empty for any query: Start Callback.
+                if(was_present && missing_txn.empty()){ //only call this the first time missing_txn goes empty: present captures the fact that map was non-empty before erase.
+                    HandleSyncCallback(q->second); //TODO: Should this be dispatched again? So that multiple waiting queries don't execute sequentially?
+                }
+            }
+            q.release();
+            //w->second.erase(waiting_query); //FIXME: Delete safely while iterating... ==> Just erase all after
+        }
+        //4) remove key from waiting data structure if no more queries waiting on it
+        waitingQueries.erase(txnDigest);
+    }
+    w.release();
 }
 
 //TODO: when receiving a requested sync msg, use it to update waiting data structures for all potentially ongoing queries.
@@ -465,9 +558,16 @@ void Server::UpdateWaitingQueries(std::string &txnDigest){
 //                             generate merkle tree and root hash
 // simulate dummy result + read set
 
-void Server::HandleSyncCallback(){
-    //Todo: call this once query is empty.
-}
+void Server::HandleSyncCallback(QueryMetaData *query_md){
+    
+    // 1) Exec query
+
+    // 2) Construct Read Set
+    // 3) Generate Merkle Tree
+    // 4) Possibly buffer Read Set
+    //5) Create and Sign message reply
+    //6) Send reply.
+
       
 
     // 3.5) If optimistic ID maps to 2 txn-ids --> report issuing client (do this when you receive the tx already); vice versa, if we notice 2 optimistic ID's map to same tx --> report! 

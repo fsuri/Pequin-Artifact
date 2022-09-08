@@ -112,7 +112,8 @@ message RequestMissingTxns {
 
 message TxnProof {
   optional Transaction txn = 1;
-  optional CommittedProof commit_proof = 2;
+  optional SignedMessage signed_txn = 2;
+  optional CommittedProof commit_proof = 3;
 }
 
 message SupplyMissingTxnsMessage {

@@ -196,10 +196,16 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
 
   void ManageDispatchSupplyTx(const TransportAddress &remote, const std::string &data);
   void HandleSupplyTx(const TransportAddress &remote, proto::SupplyMissingTxns &msg);
-
+  
 
 
 ///////////////////////
+
+    //Query helper functions:
+    void HandleSyncCallback(QueryMetaData *query_md);
+    void UpdateWaitingQueries(std::string &txnDigest);
+    bool VerifyClientQuery(proto::QueryRequest &msg, const proto::Query *query, std::string &queryId);
+    bool VerifyClientSyncProposal(proto::QueryRequest &msg, const proto::Query *query, std::string &queryId);
 
     // Fallback helper functions
     //FALLBACK helper datastructures
@@ -381,6 +387,9 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
       std::vector<std::pair<Timestamp, Value>> &writes);
   void Commit(const std::string &txnDigest, proto::Transaction *txn,
       proto::GroupedSignatures *groupedSigs, bool p1Sigs, uint64_t view);
+  void CommitWithProof(const std::string &txn_id, proto::CommittedProof *proof);
+  void CommitToStore(proto::Transaction *txn, Timestamp &ts, Value &val);
+  
   void Abort(const std::string &txnDigest);
   void CheckDependents(const std::string &txnDigest);
   proto::ConcurrencyControl::Result CheckDependencies(
