@@ -753,6 +753,7 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
     TransportAddress *original_client;
 
     bool retry;            //query retry version (0 or 1)
+    Timestamp ts;
     std::string query_cmd; //query to execute
                           
     std::unordered_set<std::string> local_ss;  //local snapshot
@@ -760,7 +761,9 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
     std::unordered_map<std::string, uint64_t> missing_txn; //map from txn-id --> number of responses max waiting for; if client is byz, no specified replica may have it --> if so, return immediately and blacklist/report tx (requires sync to be signed)
 
     bool has_result;
-                          //read set
+    
+    std::map<std::string, Timestamp> read_set;     //read set = map from key-> Timestamp version   //ordered_map ==> all replicas agree on key order.
+    std::set<std::string> dependencies; 
     std::string result;      //result
     std::string result_hash; //result_hash
 

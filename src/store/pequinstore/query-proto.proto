@@ -110,14 +110,19 @@ message RequestMissingTxns {
    required uint64 replica_id = 2;
 }
 
-message TxnProof {
-  optional Transaction txn = 1;
-  optional SignedMessage signed_txn = 2;
-  optional CommittedProof commit_proof = 3;
+message TxnInfo {
+  oneof supply_content {
+   Phase1 p1 = 1;
+    //optional Transaction txn = 1;
+    //optional SignedMessage signed_txn = 2;
+   CommittedProof commit_proof = 2;
+   bool invalid = 3;
+  }
+ 
 }
 
 message SupplyMissingTxnsMessage {
-   map<string, TxnProof> txns = 1; //map from txn digest to Transaction object (+ proof)
+   map<string, TxnInfo> txns = 1; //map from txn digest to Transaction object (+ proof)
    optional uint64 replica_id = 2;
 }
 

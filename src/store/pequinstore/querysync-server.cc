@@ -93,9 +93,25 @@ void Server::HandleQuery(const TransportAddress &remote, proto::QueryRequest &ms
             return;
         }
     }
+
+    //Buffer Query content and timestamp
+    queryMetaDatapMap::accessor q;
+    if(!queryMetaData.find(q, queryId)){
+        queryMetaData.insert(q, queryId);
+        q->second = new QueryMetaData();
+    }
+    QueryMetaData *query_md = q->second;
+
+    query_md->query_cmd = query->query_cmd();
+    query_md->ts(query->timestamp)
+    q.release();
+
     
     // 3) Parse Query
-    const std::string &query_cmd = query->query_cmd();
+    // const std::string &query_cmd = query->query_cmd();
+    // Timestamp ts(query->timestamp);
+
+
     //TODO: Insert Hyrise parsing or whatever here...
     // SQL glue. How to execute from query plan object.
 
@@ -339,23 +355,44 @@ void Server::HandleRequestTx(const TransportAddress &remote, proto::RequestMissi
             continue;
         }
 
-        //2) if Prepared //TODO: check for prepared first, to avoid sending unecessary certs?
+        //2) if abort --> mark query for abort and reply.
+        //TODO:
+
+        //3) if Prepared //TODO: check for prepared first, to avoid sending unecessary certs?
+
+        //TODO: SHould be checking for ongoing (irrespective of prepared or not) ==> and include signature if necessary. 
+        //==> Note: A correct replica (instructed by a correct client) will only request the transaction from replicas that DO have it prepared. So checking prepared is enough.
         preparedMap::const_accessor a;
         bool hasPrepared = prepared.find(a, txn_id);
         if(hasPrepared){
             //copy txn from prepared list to map of tx replies.
-            *(*supply_txn.mutable_txns()[txn_id].mutable_txn()) = *(a->second.second);
+            proto::Phase1 *p1 = *supply_txn.mutable_txns()[txn_id].mutable_p1();
+            proto::Transaction *txn = (a->second.second);
+            if(params.signClientProposals){
+
+                *p1->mutable_signed_txn() = *signed_txn;
+                 p1MetaDataMap::const_accessor c;
+                bool hasP1Meta = p1MetaData.find(c, txn_id);
+                if(!hasP1Meta) Panic("Tx %s is prepared but has no p1MetaData entry", BytesToHex(txn_id, 16).c_str()); 
+                //Note: signature in p1MetaData is only removed AFTER prepared is removed. Thus signed message must be present when we access p1Meta while holding prepared lock.
+                *p1->mutable_signed_txn() = *(c->second.signed_txn); 
+                c.release();
+            }
+            else{
+                *p1->mutable_txn() = *txn;
+            }
+            p1->set_req_id(0);
+            p1->set_crash_failure(false);
+            p1->set_replica_gossip(true);  //ensures that no RelayP1 is sent, and no original client is registered for reply upon completion.
             a.release();
             continue;
         }
         a.release();
 
-        //3) if abort --> mark query for abort and reply.
-        //TODO:
-
-        //4) if neither --> return, and report byz client
+          //4) if neither --> Mark invalid return, and report byz client
+        *supply_txn.mutable_txns()[txn_id].set_invalid(true);
         Debug("Falsely requesting tx-id %s which replica %lu does not have committed or prepared locally", txn_id, id);
-        return; 
+        break; //return;  //For debug purposes sending invalid reply.
 
     }
 
@@ -404,7 +441,9 @@ void Server::HandleSupplyTx(const TransportAddress &remote, proto::SupplyMissing
     for(auto &tx : supply_txn->txns){
         std::string &txn_id = tx->first;
         
-        proto::TxnProof &txn_proof = tx->second;
+        proto::TxnInfo &txn_info = tx->second;
+
+   
 
         //check if locally committed; if not, check cert and apply
        //FIXME: either update waiting data structures anyways; or add their update in Prepare/Commit function as well.
@@ -419,9 +458,9 @@ void Server::HandleSupplyTx(const TransportAddress &remote, proto::SupplyMissing
             //TODO: Mark all waiting queries as doomed.
         }
 
-        if(txn_proof.has_commit_proof()){
+        if(txn_info.has_commit_proof()){
 
-            proto::CommittedProof *proof = txn_proof.release_commit_proof();
+            proto::CommittedProof *proof = txn_info.release_commit_proof();
 
             bool valid = ValidateCommittedProof(*proof, &txn_id, keyManager, config, verifier); //TODO: MAke this Async ==> Requires rest of code to go into callback.
             if(!valid){
@@ -467,33 +506,28 @@ void Server::HandleSupplyTx(const TransportAddress &remote, proto::SupplyMissing
 
         c.release();
          //check if locally prepared; if not do OCC check. --> If not successful, apply tx anyways with special marker only useable by marked queries.
-        if(txn_proof.has_txn()){
-            //TODO: Call P1/OCC check for txn.
-            //If fail, apply anyways but mark special
-    
-             //TODO: If I package the txn sent as a P1, then I can just use the Process Proposal Function?
+        if(txn_info.has_p1()){
+            //TODO: Handle incoming p1 as a normal P1 and after it is done, Update Waiting Queries. ==> If update waiting queries is done as part of Prepare (whether visible or invisible) nothing else is necessary)
+            proto::Phase1 *p1 = txn_info.release_p1();
 
-             //FIXME: Adapt handling based on whether tx must be signed by a client... Should forward the P1, not just the txn.
+            //Call OCC check for P1. -- 
 
-            proto::Transaction *txn = txn_proof.release_txn();
-            ongoingMap::accessor b;
-            ongoing.insert(b, txn_id);
-            b->second.txn = txn;
-            b->second.num_concurrent_clients++;
-            b.release();
-
-            VerifyDependencies 
-            VerifyClientProposal 
-
-            bool isGossip = true; //FIXME: Ensure that there is no client reply.
-            result = DoOCCCheck(msg.req_id(), remote, txnDigest, *txn, retryTs, committedProof, abstain_conflict, false, isGossip); //forwarded messages dont need to be treated as original client.
-             BufferP1Result(result, committedProof, txnDigest);
+            //FIXME: Can hack CC such that if the request is of type isGossip, it tries to call Update Waiting Queries once result is known; --> then can multithread no problem.
+            //FIXME: Alternatively Modify HandlePhase1 to not use multithreading here -- but that would hurt concurrency since its now on the mainthread.
+            HandlePhase1(remote, *p1);
+            //FIXME: WARNING!!! HandlePhase1 is only allowed to be called on MainThread!!! --> The whole SupplyTxn handler must be called on MainThread. -->QueryExec can then be dispatched again
+            //(this makes sense, since supply txn is effectively a Commit or P1)
         }
+        else if (txn_info.has_invalid()){
+            //TODO: Edit into handler for replica reporting that it doesnt have either. False request.
+            Panic("Invalid Supply Txn: Replica didn't have requested txn");
+            return;
+        }
+        else{
+            Panic("Ill-formed supply TxnProof");
+        }
+            
     }
-
-    // 3) check if Tx supplied or not
-    // 4) If so, for committed tx: check certificate, for prepared tx: do OCC check
-    // 5) Update waiting data structure (Remove keys if waiting set is empty; to avoid key set growing infinitely...). Wake queries that are ready.
 
     if(sign_reply) delete supply_txn;
 
@@ -522,6 +556,8 @@ void Server::CommitWithProof(const std::string &txn_id, proto::CommittedProof *p
 //FIXME: WARNING: Possible Inverted lock order (accessors w and q) in this function and HandleSync. Should be fine though, since this function will only try to call a q for which a w was added;
                                                      //while HandleSync only calls each w once. I.e. HandleSync must lock&release w first, in order for this function to even request the same q.
 void Server::UpdateWaitingQueries(std::string &txnDigest){
+    //when receiving a requested sync msg, use it to update waiting data structures for all potentially ongoing queries.
+    //waiting queries are registered in map from txn-id to query id:
 
      //1) find queries that were waiting on this txn-id
     waitingQueryMap::accessor w;
@@ -543,27 +579,31 @@ void Server::UpdateWaitingQueries(std::string &txnDigest){
             q.release();
             //w->second.erase(waiting_query); //FIXME: Delete safely while iterating... ==> Just erase all after
         }
-        //4) remove key from waiting data structure if no more queries waiting on it
+        //4) remove key from waiting data structure if no more queries waiting on it to avoid key set growing infinitely...
         waitingQueries.erase(txnDigest);
     }
     w.release();
 }
 
-//TODO: when receiving a requested sync msg, use it to update waiting data structures for all potentially ongoing queries.
-//Register waiting txn mapping to query id:
 
 //TODO:
 //NEXT: handle sync callback
-// supply helper functions to: exchange and catch up on missing data
-//                             generate merkle tree and root hash
+// supply helper functions to: exchange and catch up on missing data  ==> "Done" ==> Need to be fixed.
+//                             generate merkle tree and root hash ==> "In Work"
 // simulate dummy result + read set
 
 void Server::HandleSyncCallback(QueryMetaData *query_md){
     
-    // 1) Exec query
-
+    // 1) Exec query //TODO:
     // 2) Construct Read Set
+
+
+    //read set = map from key-> versions, bool dep
+    query_md->read_set["dummy key"] = std::make_pair(query_md->ts, false);
+
+
     // 3) Generate Merkle Tree
+    std::string &result_hash = generateReadSetMerkleRoot(query_md->read_set, 2);
     // 4) Possibly buffer Read Set
     //5) Create and Sign message reply
     //6) Send reply.
@@ -604,6 +644,8 @@ bool Server::VerifyClientSyncProposal(proto::QueryRequest &msg, const proto::Que
       return true;
     
 }
+
+
 
   
 

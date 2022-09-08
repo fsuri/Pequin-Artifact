@@ -1851,7 +1851,7 @@ std::string QueryDigest(const proto::Query &query, bool queryHashDigest){
     blake3_hasher_update(&hasher, (unsigned char *) &client_id, sizeof(client_id));
     blake3_hasher_update(&hasher, (unsigned char *) &query_seq_num, sizeof(query_seq_num));
   
-    blake3_hasher_update(&hasher, (unsigned char *) query.query()[0], query.query().length());
+    blake3_hasher_update(&hasher, (unsigned char *) &query.query()[0], query.query().length());
 
     uint64_t timestampId = query.timestamp().id();
     uint64_t timestampTs = query.timestamp().timestamp();
@@ -1875,6 +1875,64 @@ std::string QueryDigest(const proto::Query &query, bool queryHashDigest){
   }
 }
 
+std::string generateReadSetMerkleRoot(std::map<std::string, Timestamp> &read_set, uint64_t branch_factor) { 
+  blake3_hasher hasher;
+
+  unsigned int n = read_set.size();
+  unsigned int &m = branch_factor;
+  assert(n > 0);
+  size_t hash_size = BLAKE3_OUT_LEN;
+
+  // allocate the merkle tree in heap form (i.left = 2i, i.right = 2i+1)
+  uint64_t num_nodes = (m * (n - 1) + (m - 2)) / (m - 1) + 1; // add (m-2) to ensure ceil
+
+  unsigned char* tree = (unsigned char*) malloc(hash_size*num_nodes);
+  // insert the message hashes into the tree
+
+  unsigned int i = 0;
+  for (auto it : read_set) {
+    // need to initialize on every hash 
+    blake3_hasher_init(&hasher);
+
+    // hash the input leafs. I.e. (key, version) pairs
+    blake3_hasher_update(&hasher, (unsigned char*) &it->first[0], it->first.length());
+    uint64_t timestampId = it->second.id();
+    uint64_t timestampTs = it->second.timestamp();
+    blake3_hasher_update(&hasher, (unsigned char *) &timestampId, sizeof(timestampId));
+    blake3_hasher_update(&hasher, (unsigned char *) &timestampTs, sizeof(timestampTs));
+    
+    // copy the digest into the output array
+    blake3_hasher_finalize(&hasher, &tree[((n - 1 + (m - 2)) / (m - 1) + i) * hash_size], BLAKE3_OUT_LEN);
+    i++;
+  }
+
+  int min_leaf = ((n - 1 + (m - 2)) / (m - 1));
+  int max_leaf = ((n - 1 + (m - 2)) / (m - 1) + n - 1);
+  // compute the hashes going up the tree
+  for (int i = max_leaf; i > 1; ) {
+    int l = (i-1)/m * m + 1;
+    //std::cerr << "node " << i << " hashing " << l << " to " << i
+              //<< " for parent " << (i - 1) / m << std::endl;
+    blake3_hasher_init(&hasher);
+    /*for (int j = l; j <= i; ++j) {
+      ////std::cerr << "update with hash " << j << std::endl;
+      blake3_hasher_update(&hasher, &tree[j * hash_size], BLAKE3_OUT_LEN);
+    }*/
+    blake3_hasher_update(&hasher, &tree[l * hash_size], (i + 1 - l) * BLAKE3_OUT_LEN);
+
+    blake3_hasher_finalize(&hasher, &tree[(i - 1) / m * hash_size], BLAKE3_OUT_LEN);
+
+    i = i - (i - l) - 1;
+  }
+
+  // sign the hash at the root of the tree
+  std::string rootHash(&tree[0], &tree[hash_size]);
+
+  //free tree
+  free(tree);
+
+  return rootHash;
+}
 
 void CompressTxnIds(std::vector<uint64_t>&txn_ts){
     // Test if I can allocate less space for timestamps:  if(timestamp << log(num_clients) < -1)
