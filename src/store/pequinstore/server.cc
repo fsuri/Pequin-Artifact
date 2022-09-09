@@ -283,7 +283,7 @@ void Server::ReceiveMessageInternal(const TransportAddress &remote,
   } 
   
   //Query Protocol Messages
-  else if(type == queryMsg.GetTypeName()){
+  else if(type == queryReq.GetTypeName()){
     ManageDispatchQuery(remote, data);
   }
   else if(type == syncMsg.GetTypeName()){
@@ -1030,7 +1030,7 @@ void Server::HandlePhase2(const TransportAddress &remote,
           ongoingMap::const_accessor o;
           auto txnItr = ongoing.find(o, msg.txn_digest());
           if(txnItr){
-            txn = b->second.txn;
+            txn = o->second.txn;
             o.release();
           }
           else{
@@ -1468,7 +1468,7 @@ void Server::Commit(const std::string &txnDigest, proto::Transaction *txn,
     }
   }
 
-  CommitToStore(txn, ts, val);
+  CommitToStore(proof, txn, ts, val);
 
   Debug("Calling CLEAN for committing txn[%s]", BytesToHex(txnDigest, 16).c_str());
   Clean(txnDigest);
@@ -1476,7 +1476,7 @@ void Server::Commit(const std::string &txnDigest, proto::Transaction *txn,
   CleanDependencies(txnDigest);
 }
 
-void Server::CommitToStore(proto::Transaction *txn, Timestamp &ts, Value &val){
+void Server::CommitToStore(proto::CommittedProof *proof, proto::Transaction *txn, Timestamp &ts, Value &val){
 
     for (const auto &read : txn->read_set()) {
     if (!IsKeyOwned(read.key())) {
@@ -1489,8 +1489,7 @@ void Server::CommitToStore(proto::Transaction *txn, Timestamp &ts, Value &val){
 
      std::pair<std::shared_mutex, std::set<committedRead>> &z = committedReads[read.key()];
      std::unique_lock lock(z.first);
-     z.second.insert(std::make_tuple(ts, read.readtime(),
-           committedItr.first->second));
+     z.second.insert(std::make_tuple(ts, read.readtime(), proof));
     // committedReads[read.key()].insert(std::make_tuple(ts, read.readtime(),
     //       committedItr.first->second));
 
@@ -2078,7 +2077,7 @@ void Server::ProcessProposalFB(proto::Phase1FB &msg, const TransportAddress &rem
               o->second.num_concurrent_clients--;
               if(o->second.num_concurrent_clients==0){
                   delete o->second.txn;
-                  ongoing.erase(b);
+                  ongoing.erase(o);
               }
               o.release();
               return (void*) false;
@@ -3270,7 +3269,7 @@ void Server::ProcessElectFB(const std::string &txnDigest, uint64_t elect_view, p
     AdoptDecision(txnDigest, elect_view, decision);
   }
   else{
-    q.release();
+    e.release();
   }
   //std::cerr << "Not failing during ProcessElectFB for txn: " << BytesToHex(txnDigest, 16) << std::endl;
 }

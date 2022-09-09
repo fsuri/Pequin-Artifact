@@ -1851,7 +1851,7 @@ std::string QueryDigest(const proto::Query &query, bool queryHashDigest){
     blake3_hasher_update(&hasher, (unsigned char *) &client_id, sizeof(client_id));
     blake3_hasher_update(&hasher, (unsigned char *) &query_seq_num, sizeof(query_seq_num));
   
-    blake3_hasher_update(&hasher, (unsigned char *) &query.query()[0], query.query().length());
+    blake3_hasher_update(&hasher, (unsigned char *) &query.query_cmd()[0], query.query_cmd().length());
 
     uint64_t timestampId = query.timestamp().id();
     uint64_t timestampTs = query.timestamp().timestamp();
@@ -1860,7 +1860,7 @@ std::string QueryDigest(const proto::Query &query, bool queryHashDigest){
     blake3_hasher_update(&hasher, (unsigned char *) &timestampTs,
         sizeof(timestampTs));
 
-     uint64_t query_manager query.query_manager();
+     uint64_t query_manager = query.query_manager();
      blake3_hasher_update(&hasher, (unsigned char *) &query_manager,
          sizeof(query_manager));
 
@@ -1875,16 +1875,24 @@ std::string QueryDigest(const proto::Query &query, bool queryHashDigest){
   }
 }
 
-std::string generateReadSetMerkleRoot(std::map<std::string, Timestamp> &read_set, uint64_t branch_factor) { 
+std::string generateReadSetMerkleRoot(std::map<std::string, Timestamp> &read_set, uint64_t m) { 
+  //This function generates and computes a full, static Merkle tree in place -- it directly assigns positions in a well-balanced tree.
+  //Alternative, greedy approach: Could dynamically build a non-perfect tree by using a queue: Pick (up to) first m available elements and hash. Add hash back to end. Cont until queue has 1 element = root.
+  //Alternative, non-static approach: Could build a tree dynamically (support insert/remove operations) and implement a compute function that bubbles up values
   blake3_hasher hasher;
 
   unsigned int n = read_set.size();
-  unsigned int &m = branch_factor;
+  // m is branch_factor
   assert(n > 0);
   size_t hash_size = BLAKE3_OUT_LEN;
 
   // allocate the merkle tree in heap form (i.left = 2i, i.right = 2i+1)
   uint64_t num_nodes = (m * (n - 1) + (m - 2)) / (m - 1) + 1; // add (m-2) to ensure ceil
+                  // Closed form solution of:   (sum_x = 1 to log_m(n){ n / (m^(x-1)) } + 1    (e.g. bottom layer has n nodes, next layer n/m, next n/m^2 ... until 1; there is log_m(n)+1 layers, the last layer is just root )
+                  // ==> == n * 1/(m^log_m(n) * sum_x to log_m(n){ m^x} + 1
+                  // ==> == 1 * sum_x to log_m(n){ m^x} + 1
+                  // ==> == 1 * sum_x to log_2(n)/log_2(m){ m^x} + 1
+                  // ==> == (m * (n-1)) / (m-1) + 1
 
   unsigned char* tree = (unsigned char*) malloc(hash_size*num_nodes);
   // insert the message hashes into the tree
@@ -1894,10 +1902,10 @@ std::string generateReadSetMerkleRoot(std::map<std::string, Timestamp> &read_set
     // need to initialize on every hash 
     blake3_hasher_init(&hasher);
 
-    // hash the input leafs. I.e. (key, version) pairs
-    blake3_hasher_update(&hasher, (unsigned char*) &it->first[0], it->first.length());
-    uint64_t timestampId = it->second.id();
-    uint64_t timestampTs = it->second.timestamp();
+    // hash the input leafs. I.e. (key, version) pairs 
+    blake3_hasher_update(&hasher, (unsigned char*) &it.first[0], it.first.length());
+    uint64_t timestampId = it.second.getID();
+    uint64_t timestampTs = it.second.getTimestamp(); //TODO: change all of this to a proto::TimestampedMessage?
     blake3_hasher_update(&hasher, (unsigned char *) &timestampId, sizeof(timestampId));
     blake3_hasher_update(&hasher, (unsigned char *) &timestampTs, sizeof(timestampTs));
     
@@ -1906,11 +1914,11 @@ std::string generateReadSetMerkleRoot(std::map<std::string, Timestamp> &read_set
     i++;
   }
 
-  int min_leaf = ((n - 1 + (m - 2)) / (m - 1));         //index of left most bottom leaf in tree.
-  int max_leaf = ((n - 1 + (m - 2)) / (m - 1) + n - 1); //index of right most bottom leaf in tree.
+  int min_leaf = ((n - 1 + (m - 2)) / (m - 1));         //index of left most bottom leaf in tree.   -- Note, this is the number of non-leaf nodes in the tree
+  int max_leaf = ((n - 1 + (m - 2)) / (m - 1) + n - 1); //index of right most bottom leaf in tree.  -- Note, this is the same as num_nodes -1 
   // compute the hashes going up the tree ;; (starting from right to left)
   for (int r = max_leaf; r > 1; ) {
-    int l = (r-1)/m * m + 1;  //find left index of the group of size m that will be hashed together.
+    int l = (r-1)/m * m + 1;  //find left index of the group of size m that will be hashed together. //Note that (r-1)/m will round down ==> finds next lower group
 
     blake3_hasher_init(&hasher);
   

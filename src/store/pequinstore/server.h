@@ -202,13 +202,90 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
 ///////////////////////
 
     //Query helper functions:
+
+    //Query helper data structures
+
+    //Query objects
+
+    struct QueryMetaData {
+      QueryMetaData(const std::string &query_cmd, const TimestampMessage &timestamp): retry(false), has_result(false), original_client(nullptr), query_cmd(query_cmd), ts(timestamp) {}
+      ~QueryMetaData(){ 
+        if(original_client != nullptr) delete original_client;
+      }
+
+      TransportAddress *original_client;
+
+      bool retry;            //query retry version (0 or 1)
+      Timestamp ts;
+      std::string query_cmd; //query to execute
+                            
+      std::unordered_set<std::string> local_ss;  //local snapshot
+      std::unordered_set<std::string> merged_ss; //merged snapshot
+      std::unordered_map<std::string, uint64_t> missing_txn; //map from txn-id --> number of responses max waiting for; if client is byz, no specified replica may have it --> if so, return immediately and blacklist/report tx (requires sync to be signed)
+
+      bool has_result;
+      
+      std::map<std::string, Timestamp> read_set;     //read set = map from key-> Timestamp version   //ordered_map ==> all replicas agree on key order.
+      std::set<std::string> dependencies; 
+      std::string result;      //result
+      std::string result_hash; //result_hash
+
+    };
+    typedef tbb::concurrent_hash_map<std::string, QueryMetaData*> queryMetaDataMap; //map from query_id -> QueryMetaData
+    queryMetaDataMap queryMetaData;
+
+    typedef tbb::concurrent_hash_map<std::string, std::unordered_set<std::string>> waitingQueryMap;  //map from tx-id to query-ids (that are waiting to sync on the tx-id)
+    waitingQueryMap waitingQueries;
+
     void HandleSyncCallback(QueryMetaData *query_md);
     void UpdateWaitingQueries(std::string &txnDigest);
     bool VerifyClientQuery(proto::QueryRequest &msg, const proto::Query *query, std::string &queryId);
-    bool VerifyClientSyncProposal(proto::QueryRequest &msg, const proto::Query *query, std::string &queryId);
+    bool VerifyClientSyncProposal(proto::SyncClientProposal &msg, const std::string &queryId);
 
     // Fallback helper functions
     //FALLBACK helper datastructures
+
+    struct P1MetaData {
+        P1MetaData(): conflict(nullptr), hasP1(false), sub_original(false), hasSignedP1(false){}
+        P1MetaData(proto::ConcurrencyControl::Result result): result(result), conflict(nullptr), hasP1(true), sub_original(false), hasSignedP1(false){}
+        ~P1MetaData(){
+          if(signed_txn != nullptr) delete signed_txn;
+        }
+        proto::ConcurrencyControl::Result result;
+        const proto::CommittedProof *conflict;
+        bool hasP1;
+        std::mutex P1meta_mutex;
+        bool hasSignedP1;
+        proto::SignedMessage *signed_txn;
+        // Not used currently: In case we want to subscribe original client to P1 also to avoid ongoing bug.
+        bool sub_original; 
+        const TransportAddress *original;
+      };
+      typedef tbb::concurrent_hash_map<std::string, P1MetaData> p1MetaDataMap;
+    p1MetaDataMap p1MetaData;
+
+    struct P2MetaData {
+      P2MetaData() : current_view(0UL), decision_view(0UL), hasP2(false),
+          has_original(false),  original_address(nullptr){}
+      P2MetaData(proto::CommitDecision decision) : current_view(0UL), decision_view(0UL),
+                      p2Decision(decision), hasP2(true),
+                      has_original(false), original_address(nullptr){}
+      ~P2MetaData(){
+        if(original_address != nullptr) delete original_address;
+      }
+      uint64_t current_view;
+      uint64_t decision_view;
+      bool hasP2;
+      proto::CommitDecision p2Decision;
+
+      bool has_original;
+      uint64_t original_msg_id;
+      TransportAddress *original_address;
+    };
+    //tbb::concurrent_hash_map<std::string, uint64_t> current_views;
+    typedef tbb::concurrent_hash_map<std::string, P2MetaData> p2MetaDataMap;
+    p2MetaDataMap p2MetaDatas;
+
     struct P1FBorganizer {
       P1FBorganizer(uint64_t ReqId, const std::string &txnDigest, const TransportAddress &remote, Server *server) :
         remote(remote.clone()), has_remote(true), server(server),
@@ -388,7 +465,7 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
   void Commit(const std::string &txnDigest, proto::Transaction *txn,
       proto::GroupedSignatures *groupedSigs, bool p1Sigs, uint64_t view);
   void CommitWithProof(const std::string &txn_id, proto::CommittedProof *proof);
-  void CommitToStore(proto::Transaction *txn, Timestamp &ts, Value &val);
+  void CommitToStore(proto::CommittedProof *proof, proto::Transaction *txn, Timestamp &ts, Value &val);
   
   void Abort(const std::string &txnDigest);
   void CheckDependents(const std::string &txnDigest);
@@ -576,7 +653,7 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
   std::unordered_map<uint64_t, std::string> sessionKeys;
   void CreateSessionKeys();
   bool ValidateHMACedMessage(const proto::SignedMessage &signedMessage);
-  void CreateHMACedMessage(const ::google::protobuf::Message &msg, proto::SignedMessage& signedMessage);
+  void CreateHMACedMessage(const ::google::protobuf::Message &msg, proto::SignedMessage *signedMessage);
 
 // DATA STRUCTURES
 
@@ -663,46 +740,6 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
   //keep list of the views in which the p2Decision is from
   //std::unordered_map<std::string, uint64_t> decision_views;
 
-    struct P1MetaData {
-      P1MetaData(): conflict(nullptr), hasP1(false), sub_original(false), hasSignedP1(false){}
-      P1MetaData(proto::ConcurrencyControl::Result result): result(result), conflict(nullptr), hasP1(true), sub_original(false), hasSignedP1(false){}
-      ~P1MetaData(){
-        if(signed_txn != nullptr) delete signed_txn;
-      }
-      proto::ConcurrencyControl::Result result;
-      const proto::CommittedProof *conflict;
-      bool hasP1;
-      std::mutex P1meta_mutex;
-      bool hasSignedP1;
-      proto::SignedMessage *signed_txn;
-      // Not used currently: In case we want to subscribe original client to P1 also to avoid ongoing bug.
-      bool sub_original; 
-      const TransportAddress *original;
-    };
-    typedef tbb::concurrent_hash_map<std::string, P1MetaData> p1MetaDataMap;
-  p1MetaDataMap p1MetaData;
-
-  struct P2MetaData {
-    P2MetaData() : current_view(0UL), decision_view(0UL), hasP2(false),
-        has_original(false),  original_address(nullptr){}
-    P2MetaData(proto::CommitDecision decision) : current_view(0UL), decision_view(0UL),
-                    p2Decision(decision), hasP2(true),
-                    has_original(false), original_address(nullptr){}
-    ~P2MetaData(){
-      if(original_address != nullptr) delete original_address;
-    }
-    uint64_t current_view;
-    uint64_t decision_view;
-    bool hasP2;
-    proto::CommitDecision p2Decision;
-
-    bool has_original;
-    uint64_t original_msg_id;
-    TransportAddress *original_address;
-  };
-  //tbb::concurrent_hash_map<std::string, uint64_t> current_views;
-  typedef tbb::concurrent_hash_map<std::string, P2MetaData> p2MetaDataMap;
-  p2MetaDataMap p2MetaDatas;
 
   //typedef std::pair< std::unordered_set<uint64_t>, std::unordered_set<proto::Signature*>>replica_sig_sets_pair;
   typedef std::pair< std::unordered_set<uint64_t>, std::pair<proto::Signatures, uint64_t>> replica_sig_sets_pair;
@@ -740,39 +777,6 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
   };
   typedef tbb::concurrent_hash_map<std::string, WaitingDependency_new> waitingDependenciesMap;
   waitingDependenciesMap waitingDependencies_new;
-
-
-  //Query objects
-
-  struct QueryMetaData {
-    QueryMetaData() retry(false), has_result(false), original_client(BOOST_SMART_PTR_DETAIL_SP_NULLPTR_T_HPP_INCLUDED) {}
-    ~QueryMetaData(){ 
-      if(original_client != nullptr) delete original_client;
-    }
-
-    TransportAddress *original_client;
-
-    bool retry;            //query retry version (0 or 1)
-    Timestamp ts;
-    std::string query_cmd; //query to execute
-                          
-    std::unordered_set<std::string> local_ss;  //local snapshot
-    std::unordered_set<std::string> merged_ss; //merged snapshot
-    std::unordered_map<std::string, uint64_t> missing_txn; //map from txn-id --> number of responses max waiting for; if client is byz, no specified replica may have it --> if so, return immediately and blacklist/report tx (requires sync to be signed)
-
-    bool has_result;
-    
-    std::map<std::string, Timestamp> read_set;     //read set = map from key-> Timestamp version   //ordered_map ==> all replicas agree on key order.
-    std::set<std::string> dependencies; 
-    std::string result;      //result
-    std::string result_hash; //result_hash
-
-  };
-  typedef tbb::concurrent_hash_map<std::string, *QueryMetaData> queryMetaDataMap; //map from query_id -> QueryMetaData
-  queryMetaDataMap queryMetaData;
-
-  typedef tbb::concurrent_hash_map<std::string, std::unordered_set<std::string>> waitingQueryMap;  //map from tx-id to query-ids (that are waiting to sync on the tx-id)
-  waitingQueryMap waitingQueries;
 
 
 };

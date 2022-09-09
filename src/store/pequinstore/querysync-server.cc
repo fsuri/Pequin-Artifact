@@ -66,9 +66,9 @@ namespace pequinstore {
 void Server::HandleQuery(const TransportAddress &remote, proto::QueryRequest &msg){
 
     // 1) Parse Message
-    const proto::Query *query;
+    proto::Query *query;
   
-    if(params.signClientQueries){
+    if(params.query_params.signClientQueries){
         query = new proto::Query();
         query->ParseFromString(msg.signed_query().data());
     }
@@ -80,14 +80,14 @@ void Server::HandleQuery(const TransportAddress &remote, proto::QueryRequest &ms
     std::string queryId;
     
     if(true){ //TODO: when to use hash id? always?
-        queryId =  = queryId(*query, params.hashDigest); 
+        queryId = QueryDigest(*query, params.hashDigest); 
     }
     else{
-        queryId =  "[" + query->query_seq_num() + ":" + query->client_id() + "]";
+        queryId =  "[" + std::to_string(query->query_seq_num()) + ":" + std::to_string(query->client_id()) + "]";
     }
     //TODO:  //if already issued query reply, reply with cached val; else if new, or retry set, re-compute
 
-    if(params.signClientQueries){  //TODO: Not sure if sigs necessary: authenticated channels (for access control) and hash ids (for uniqueness/non-equivocation) should suffice. NOTE: non-equiv only necessary if caching read set.
+    if(params.query_params.signClientQueries){  //TODO: Not sure if sigs necessary: authenticated channels (for access control) and hash ids (for uniqueness/non-equivocation) should suffice. NOTE: non-equiv only necessary if caching read set.
         if(!VerifyClientQuery(msg, query, queryId)){ // Does not really need to be parallelized, since query handling is probably already on a worker thread.
             delete query;
             return;
@@ -95,15 +95,15 @@ void Server::HandleQuery(const TransportAddress &remote, proto::QueryRequest &ms
     }
 
     //Buffer Query content and timestamp
-    queryMetaDatapMap::accessor q;
+    queryMetaDataMap::accessor q;
     if(!queryMetaData.find(q, queryId)){
         queryMetaData.insert(q, queryId);
-        q->second = new QueryMetaData();
+        q->second = new QueryMetaData(query->query_cmd(), query->timestamp());
     }
     QueryMetaData *query_md = q->second;
 
-    query_md->query_cmd = query->query_cmd();
-    query_md->ts(query->timestamp)
+    // query_md->query_cmd = query->query_cmd();
+    // query_md->ts(query->timestamp());
     q.release();
 
     
@@ -168,7 +168,7 @@ void Server::HandleQuery(const TransportAddress &remote, proto::QueryRequest &ms
             delete remoteCopy;
             delete syncReply;
         };
-         proto::LocalSnapshot *ls = syncReply.release_local_ss();
+         proto::LocalSnapshot *ls = syncReply->release_local_ss();
          MessageToSign(ls, syncReply->mutable_signed_local_ss(), [sendCB, ls]() {
             sendCB();
             delete ls;
@@ -176,7 +176,7 @@ void Server::HandleQuery(const TransportAddress &remote, proto::QueryRequest &ms
 
      }
      else{ //realistically don't ever need to batch query sigs --> batching helps with amortized sig generation, but not with verificiation since client don't forward proofs.
-        proto::LocalSnapshot *ls = syncReply.release_local_ss();
+        proto::LocalSnapshot *ls = syncReply->release_local_ss();
         if(params.signatureBatchSize == 1){
             SignMessage(ls, keyManager->GetPrivateKey(id), id, syncReply->mutable_signed_local_ss());
         }
@@ -209,7 +209,7 @@ bool Server::VerifyClientQuery(proto::QueryRequest &msg, const proto::Query *que
          //1. check Query.TS.id = client_id (only signing client should claim this id in timestamp
          if(query->timestamp().id() != msg.signed_query().process_id()){
             Debug("Client id[%d] does not match Timestamp with id[%d] for txn %s", 
-                   msg.signed_txn().process_id(), txn->timestamp().id(), BytesToHex(txnDigest, 16).c_str());
+                   msg.signed_query().process_id(), query->timestamp().id(), BytesToHex(queryId, 16).c_str());
            // if((params.mainThreadDispatching && (!params.dispatchMessageReceive || params.parallel_CCC)) || (params.multiThreading && params.signClientProposals)) FreePhase1message(&msg);
            
             return false;
@@ -233,27 +233,27 @@ bool Server::VerifyClientQuery(proto::QueryRequest &msg, const proto::Query *que
  
 void Server::HandleSync(const TransportAddress &remote, proto::SyncClientProposal &msg){
     // 1) Parse Message
-     const proto::MergedSnapshot *merged_ss;
+     proto::MergedSnapshot *merged_ss;
      const std::string *queryId;
      std::string query_id;
 
   
-    if(params.signClientQueries && params.query_params.cacheReadSet){
+    if(params.query_params.signClientQueries && params.query_params.cacheReadSet){
         merged_ss = new proto::MergedSnapshot(); //TODO: replace with GetUnused
         merged_ss->ParseFromString(msg.signed_merged_ss().data());
-        queryId = merged_ss.mutable_query_digest();
+        queryId = merged_ss->mutable_query_digest();
     }
     else{
         merged_ss = msg.mutable_merged_ss();
-        query_id =  "[" + merged_ss->query_seq_num() + ":" + merged_ss->client_id() + "]";
+        query_id =  "[" + std::to_string(merged_ss->query_seq_num()) + ":" + std::to_string(merged_ss->client_id()) + "]";
         queryId = &query_id;
     }
 
     //FIXME: Message needs to include query hash id in order to locate the query state cached (e.g. local snapshot, intermediate read sets, etc.)
     //For now, can also index via (client id, query seq_num) pair. Just define an ordering function for query id pair.
      //TODO:  //if already issued query reply, reply with cached val; else if new, or retry set, re-compute
-    queryMetaDatapMap::accessor q;
-    if(!queryMetaData.find(q)){
+    queryMetaDataMap::accessor q;
+    if(!queryMetaData.find(q, queryId)){
         return;
     }
     queryMetaData *query_md = q->second;
@@ -269,9 +269,9 @@ void Server::HandleSync(const TransportAddress &remote, proto::SyncClientProposa
     }
 
     // 2) Authenticate Client      
-    if(params.signClientQueries && params.query_params.cacheReadSet){ //TODO: need it to be signed not only for read set equiv, but so that only original client can send this request. Authenticated channels may suffice.
-        if(!VerifyClientSyncProposal(msg, query, *queryId)){ // Does not really need to be parallelized, since query handling is probably already on a worker thread.
-            delete query;
+    if(params.query_params.signClientQueries && params.query_params.cacheReadSet){ //TODO: need it to be signed not only for read set equiv, but so that only original client can send this request. Authenticated channels may suffice.
+        if(!VerifyClientSyncProposal(msg, *queryId)){ // Does not really need to be parallelized, since query handling is probably already on a worker thread.
+            delete merged_ss;
             return;
         }
     }
@@ -280,9 +280,9 @@ void Server::HandleSync(const TransportAddress &remote, proto::SyncClientProposa
 
     query_md->missing_txn.clear();
 
-    std::map<uint64_t, RequestMissingTxns> replica_requests;
+    std::map<uint64_t, proto::RequestMissingTxns> replica_requests;
 
-    for(auto txn_replicas_pair : merged_ss.merged_txns_committed()){
+    for(auto txn_replicas_pair : merged_ss->merged_txns_committed()){
 
          //TODO: 0) transform txn_id to txnDigest if using optimistc ids..
          // Check local mapping from Timestamp to TxnDigest (TO CREATE)
@@ -297,14 +297,14 @@ void Server::HandleSync(const TransportAddress &remote, proto::SyncClientProposa
             waitingQueryMap::accessor w;
             waitingQueries.insert(w, txn_replicas_pair.first);
             bool already_requested = !w->second.empty(); //TODO: if there is already a waiting query, don't need to request the txn again. Problem: Could have been requested by a byz client that gave wrong replica_ids...
-            w->second.insert(queryId);
+            w->second.insert(*queryId);
             w.release();
 
 
-            query_md->missing_txn[txn_replicas_pair->first]=config->f + 1;  //FIXME: Useless line: we don't stop waiting currently.
+            query_md->missing_txn[txn_replicas_pair->first]= config.f + 1;  //FIXME: Useless line: we don't stop waiting currently.
             uint64_t count = 0;
             for(auto &replica_idx: txn_replicas_pair->second){ 
-                if(count > config->f +1) return; //only send to f+1 --> an honest client will never include more than f+1 replicas to request from. --> can ignore byz request.
+                if(count > config.f +1) return; //only send to f+1 --> an honest client will never include more than f+1 replicas to request from. --> can ignore byz request.
                 if(replica_idx != idx){
                    std::string *next_txn = replica_requests[replica_idx].add_missing_txn();
                    *next_txn = txn_replicas_pair->first;
@@ -329,6 +329,21 @@ void Server::HandleSync(const TransportAddress &remote, proto::SyncClientProposa
      return;
 }
 
+bool Server::VerifyClientSyncProposal(proto::SyncClientProposal &msg, const std::string &queryId)
+    {
+       Debug("Verifying Client Sync Proposal: %s", BytesToHex(queryId, 16).c_str());
+
+         if (!client_verifier->Verify(keyManager->GetPublicKey(keyManager->GetClientKeyId(msg.signed_merged_ss().process_id())), msg.signed_merged_ss().data(), msg.signed_merged_ss().signature())) {
+              Debug("Client signatures invalid for sync proposal %s", BytesToHex(queryId, 16).c_str());
+            //if((params.mainThreadDispatching && (!params.dispatchMessageReceive || params.parallel_CCC)) || (params.multiThreading && params.signClientProposals)) FreePhase1message(&msg);
+            return false;
+          }
+
+          Debug("Client verification successful for query sync proposal %s", BytesToHex(queryId, 16).c_str());
+      return true;
+    
+}
+
 void Server::HandleRequestTx(const TransportAddress &remote, proto::RequestMissingTxns &req_txn){
     //1) Parse Message
     proto::SupplyMissingTxns supplyMissingTxn;
@@ -342,7 +357,7 @@ void Server::HandleRequestTx(const TransportAddress &remote, proto::RequestMissi
             // (if we want to avoid byz replicas falsely requesting, then clients would also need to include signed snapshot vote. and we would have to forward it here to...)
             //can log requests, so a byz can request at most once (which is legal anyways)
 
-    for(std::string &txn_id : req_txn.missing_txn()){
+    for(auto &txn_id : req_txn.missing_txn()){
 
          //TODO: 0) transform txn_id to txnDigest if using optimistc ids..
          // Check local mapping from Timestamp to TxnDigest (TO CREATE)
@@ -440,11 +455,9 @@ void Server::HandleSupplyTx(const TransportAddress &remote, proto::SupplyMissing
    
     for(auto &tx : supply_txn->txns){
         std::string &txn_id = tx->first;
-        
         proto::TxnInfo &txn_info = tx->second;
 
    
-
         //check if locally committed; if not, check cert and apply
        //FIXME: either update waiting data structures anyways; or add their update in Prepare/Commit function as well.
         auto itr = committed.find(txn_id);
@@ -462,7 +475,7 @@ void Server::HandleSupplyTx(const TransportAddress &remote, proto::SupplyMissing
 
             proto::CommittedProof *proof = txn_info.release_commit_proof();
 
-            bool valid = ValidateCommittedProof(*proof, &txn_id, keyManager, config, verifier); //TODO: MAke this Async ==> Requires rest of code to go into callback.
+            bool valid = ValidateCommittedProof(*proof, &txn_id, keyManager, config, verifier); //TODO: MAke this Async ==> Requires rest of code (CommitWithProof/UpdateWaiting) to go into callback.
             if(!valid){
                 delete proof;
                 Panic("Commit Proof not valid");
@@ -475,6 +488,8 @@ void Server::HandleSupplyTx(const TransportAddress &remote, proto::SupplyMissing
             continue;
         } 
 
+        // NOTE: CURRENTLY WILL NOT YET SUPPORT READING PREPARED TRANSACTIONS ==> All code below here should never be called
+        Panic("Not yet supporting prepared reads for queries");
 
         //2) if Prepared //TODO: check for prepared first, to avoid sending unecessary certs?
 
@@ -540,9 +555,9 @@ void Server::CommitWithProof(const std::string &txn_id, proto::CommittedProof *p
     Value val;
     val.proof = proof;
 
-    comitted.insert(std::make_pair(txn_id, txn_id)); //Note: This may override an existing commit proof -- that's fine.
+    comitted.insert(std::make_pair(txn_id, proof)); //Note: This may override an existing commit proof -- that's fine.
 
-    CommitToStore(txn, ts, val);
+    CommitToStore(proof, txn, ts, val);
 
     Debug("Calling CLEAN for committing txn[%s]", BytesToHex(txnDigest, 16).c_str());
     Clean(txnDigest);
@@ -603,7 +618,8 @@ void Server::HandleSyncCallback(QueryMetaData *query_md){
 
 
     // 3) Generate Merkle Tree
-    std::string &result_hash = generateReadSetMerkleRoot(query_md->read_set, 2);
+    std::string &result_hash = generateReadSetMerkleRoot(query_md->read_set, params.merkleBranchFactor); //by default: merkleBranchFactor = 2 ==> might want to use flatter tree to minimize hashes.
+                                                                                                        //TODO: Can avoid hashing leaves by making them unique strings? "[key:version]" should do the trick?
     // 4) Possibly buffer Read Set
     //5) Create and Sign message reply
     //6) Send reply.
@@ -630,39 +646,23 @@ void Server::HandleSyncCallback(QueryMetaData *query_md){
                 //importantly: cannot fail sync on purpose ==> will either be detectable (equiv syncMsg or Query), or 
 }
 
-bool Server::VerifyClientSyncProposal(proto::QueryRequest &msg, const proto::Query *query, std::string &queryId)
-    {
-       Debug("Verifying Client Sync Proposal: %s", BytesToHex(queryId, 16).c_str());
-
-         if (!client_verifier->Verify(keyManager->GetPublicKey(keyManager->GetClientKeyId(msg.signed_merged_ss().process_id())), msg.signed_merged_ss().data(), msg.signed_merged_ss().signature())) {
-              Debug("Client signatures invalid for sync proposal %s", BytesToHex(queryId, 16).c_str());
-            //if((params.mainThreadDispatching && (!params.dispatchMessageReceive || params.parallel_CCC)) || (params.multiThreading && params.signClientProposals)) FreePhase1message(&msg);
-            return false;
-          }
-
-          Debug("Client verification successful for query sync proposal %s", BytesToHex(queryId, 16).c_str());
-      return true;
-    
-}
 
 
 
-  
+// void Server::FindSnapshot(){
 
-void Server::FindSnapshot(){
+// }
 
-}
+// void Server::Materialize(){
 
-void Server::Materialize(){
+// }
 
-}
+// void Server::ExecuteQuery(){
 
-void Server::ExecuteQuery(){
+// }
 
-}
+// void Server::ParseQuery(){
 
-void Server::ParseQuery(){
-
-}
+// }
 
 } // namespace pequinstore
