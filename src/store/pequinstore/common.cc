@@ -1906,23 +1906,19 @@ std::string generateReadSetMerkleRoot(std::map<std::string, Timestamp> &read_set
     i++;
   }
 
-  int min_leaf = ((n - 1 + (m - 2)) / (m - 1));
-  int max_leaf = ((n - 1 + (m - 2)) / (m - 1) + n - 1);
-  // compute the hashes going up the tree
-  for (int i = max_leaf; i > 1; ) {
-    int l = (i-1)/m * m + 1;
-    //std::cerr << "node " << i << " hashing " << l << " to " << i
-              //<< " for parent " << (i - 1) / m << std::endl;
+  int min_leaf = ((n - 1 + (m - 2)) / (m - 1));         //index of left most bottom leaf in tree.
+  int max_leaf = ((n - 1 + (m - 2)) / (m - 1) + n - 1); //index of right most bottom leaf in tree.
+  // compute the hashes going up the tree ;; (starting from right to left)
+  for (int r = max_leaf; r > 1; ) {
+    int l = (r-1)/m * m + 1;  //find left index of the group of size m that will be hashed together.
+
     blake3_hasher_init(&hasher);
-    /*for (int j = l; j <= i; ++j) {
-      ////std::cerr << "update with hash " << j << std::endl;
-      blake3_hasher_update(&hasher, &tree[j * hash_size], BLAKE3_OUT_LEN);
-    }*/
-    blake3_hasher_update(&hasher, &tree[l * hash_size], (i + 1 - l) * BLAKE3_OUT_LEN);
+  
+    blake3_hasher_update(&hasher, &tree[l * hash_size], (r + 1 - l) * BLAKE3_OUT_LEN); //hash together concatentation of (r+1-l) = m sibling hashes in the tree
 
-    blake3_hasher_finalize(&hasher, &tree[(i - 1) / m * hash_size], BLAKE3_OUT_LEN);
+    blake3_hasher_finalize(&hasher, &tree[(r - 1) / m * hash_size], BLAKE3_OUT_LEN); //write the output hash to the parent node in the tree.
 
-    i = i - (i - l) - 1;
+    r = l - 1;
   }
 
   // sign the hash at the root of the tree
