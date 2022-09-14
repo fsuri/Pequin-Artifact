@@ -158,7 +158,7 @@ void ShardClient::RequestQuery(PendingQuery *pendingQuery, proto::Query &queryMs
   UW_ASSERT(params.query_params.queryMessages <= closestReplicas.size());
   for (size_t i = 0; i < params.query_params.queryMessages; ++i) {
     Debug("[group %i] Sending GET to replica %lu", group, GetNthClosestReplica(i));
-    transport->SendMessageToReplica(this, group, GetNthClosestReplica(i), queryMsg);
+    transport->SendMessageToReplica(this, group, GetNthClosestReplica(i), queryReq);
   }
 
   Debug("[group %i] Sent Query [%lu : %lu]", group, pendingQuery->query_seq_num, pendingQuery->reqId);
@@ -249,6 +249,8 @@ void ShardClient::SyncReplicas(PendingQuery *pendingQuery){
  
     //proto::SyncClientProposal syncMsg;
 
+    syncMsg.set_req_id(pendingQuery->reqId);
+
     //2) Sign SyncMessage (this authenticates client, and is proof that client does not equivocate proposed snapshot) --> only necessary if not using Cached Reads: authentication ensures correct client can replicate consistently
             //e.g. don't want any client to submit a different/wrong/empty sync on behalf of client --> without cached read set wouldn't matter: 
                                             //replica replies to a sync msg -> so if client sent a correct one, replica execs that one and replies -- regardless of previous duplicates using same query id.
@@ -263,18 +265,18 @@ void ShardClient::SyncReplicas(PendingQuery *pendingQuery){
 
 
     //3) Send SyncMessage to SyncMessages many replicas; designate which replicas for execution
-    uint64_t reply_req = params.query_params.syncMessages; 
+    uint64_t num_designated_replies = params.query_params.syncMessages; 
     if(params.query_params.optimisticTxID && !pendingQuery->retry){
-        reply_req += config->f;  //If using optimisticTxID for sync send to f additional replicas to guarantee result. (If retry is on, then we always use determinstic ones.)
+        num_designated_replies += config->f;  //If using optimisticTxID for sync send to f additional replicas to guarantee result. (If retry is on, then we always use determinstic ones.)
     }
-    reply_req = std::min((uint64_t) config->n, reply_req); //send at most n messages.
-    pendingQuery->reply_req = reply_req;
+    num_designated_replies = std::min((uint64_t) config->n, num_designated_replies); //send at most n messages.
+    pendingQuery->num_designated_replies = num_designated_replies;
 
-    uint64_t total_msg = params.query_params.cacheReadSet? config->n : reply_req;
+    uint64_t total_msg = params.query_params.cacheReadSet? config->n : num_designated_replies;
     UW_ASSERT(total_msg <= closestReplicas.size());
 
     for (size_t i = 0; i < total_msg; ++i) {
-        syncMsg.set_designated_for_reply(i < reply_req); //only designate reply_req many replicas for exec replies.
+        syncMsg.set_designated_for_reply(i < num_designated_replies); //only designate num_designated_replies many replicas for exec replies.
 
         Debug("[group %i] Sending Query Sync Msg to replica %lu", group, GetNthClosestReplica(i));
         transport->SendMessageToReplica(this, group, GetNthClosestReplica(i), syncMsg);
@@ -354,8 +356,8 @@ void ShardClient::HandleQueryResult(proto::QueryResult queryResult){
     //5) if not enough matching --> retry; 
     // if not optimistic id: wait for up to result Quorum many messages (f+1). With optimistic id, wait for f additional.
     uint64_t expectedResults = (params.query_params.optimisticTxID && !pendingQuery->retry) ? params.query_params.resultQuorum + config->f : params.query_params.resultQuorum;
-    int maxWait = std::max(pendingQuery->reply_req - config->f, expectedResults); //wait for at least maxWait many, but can wait up to #syncMessages sent - f. (if that is larger). 
-    //Note that expectedResults <= reply_req, since params.resultQuorum <= params.syncMessages, and +f optimisticID is applied to both.
+    int maxWait = std::max(pendingQuery->num_designated_replies - config->f, expectedResults); //wait for at least maxWait many, but can wait up to #syncMessages sent - f. (if that is larger). 
+    //Note that expectedResults <= num_designated_replies, since params.resultQuorum <= params.syncMessages, and +f optimisticID is applied to both.
     
     //Waited for max number of result replies that can be expected. //TODO: Can be "smarter" about this. E.g. if waiting for at most f+1 replies, as soon as first non-matching arrives return...
     if(pendingQuery->resultsVerified.size() == maxWait){

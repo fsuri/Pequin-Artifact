@@ -244,7 +244,7 @@ virtual void Phase2Equivocate_Simulate(uint64_t id, const proto::Transaction &tx
 
 
     bool retry;
-    uint64_t reply_req;
+    uint64_t num_designated_replies;
     uint64_t numResults;
     std::unordered_set<uint64_t> resultsVerified;
     std::string result;

@@ -5,13 +5,13 @@ F=0
 NUM_GROUPS=1
 CONFIG="shard-r1.config"
 PROTOCOL="pequin"
-#STORE=${PROTOCOL}store
+STORE=${PROTOCOL}store
 DURATION=10
 ZIPF=0.0
 NUM_OPS_TX=2
 NUM_KEYS_IN_DB=1
 KEY_PATH="keys"
-BENCHMARK="rw"
+BENCHMARK="toy"
 
 while getopts c:f:g:cpath:p:d:z:num_ops:num_keys:b: option; do
 case "${option}" in

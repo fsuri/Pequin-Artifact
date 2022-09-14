@@ -196,6 +196,7 @@ void Server::HandleQuery(const TransportAddress &remote, proto::QueryRequest &ms
          proto::LocalSnapshot *ls = syncReply->release_local_ss();
          MessageToSign(ls, syncReply->mutable_signed_local_ss(), [sendCB, ls]() {
             sendCB();
+             Debug("Sent Signed Query Sync Snapshot for Query[%lu:%lu]", ls->query_seq_num(), ls->client_id());
             delete ls;
         });
 
@@ -214,6 +215,7 @@ void Server::HandleQuery(const TransportAddress &remote, proto::QueryRequest &ms
         }
         
         this->transport->SendMessage(this, remote, *syncReply);
+        Debug("Sent Signed Query Sync Snapshot for Query[%lu:%lu]", ls->query_seq_num(), ls->client_id());
         delete syncReply;
         delete ls;
      }
@@ -270,6 +272,7 @@ void Server::HandleSync(const TransportAddress &remote, proto::SyncClientProposa
         query_id =  "[" + std::to_string(merged_ss->query_seq_num()) + ":" + std::to_string(merged_ss->client_id()) + "]";
         queryId = &query_id;
     }
+    Debug("Received Query Sync Proposal for Query[%lu:%lu]", merged_ss->query_seq_num(), merged_ss->client_id());
 
     //FIXME: Message needs to include query hash id in order to locate the query state cached (e.g. local snapshot, intermediate read sets, etc.)
     //For now, can also index via (client id, query seq_num) pair. Just define an ordering function for query id pair.
@@ -347,6 +350,8 @@ void Server::HandleSync(const TransportAddress &remote, proto::SyncClientProposa
     }
 
      q.release();
+
+     Debug("Sync State incomplete for Query[%lu:%lu]", merged_ss->query_seq_num(), merged_ss->client_id()); 
 
     //if there are missng txn, i.e. replica_requests not empty ==> send out sync requests.
      for(auto const &[replica, replica_req] : replica_requests){
@@ -652,6 +657,8 @@ void Server::UpdateWaitingQueries(const std::string &txnDigest){
 
 //TODO: must be called while holding a lock on query_md. 
 void Server::HandleSyncCallback(QueryMetaData *query_md){
+
+      Debug("Sync complete for Query[%lu:%lu]. Starting Execution", query_md->query_seq_num, query_md->client_id);
     
     // 1) Execute Query
     //Execute Query -- Go through store, and check if latest tx in store is present in syncList. If it is missing one (committed) --> reply EarlyAbort (tx cannot succeed). If prepared is missing, ignore, skip to next
@@ -711,6 +718,7 @@ void Server::HandleSyncCallback(QueryMetaData *query_md){
              //TODO: if this is already done on a worker, no point in dispatching it again. Add a Flag to MessageToSign that specifies "already worker"
             MessageToSign(res, queryResult->mutable_signed_result(), [sendCB, res]() {
                 sendCB();
+                 Debug("Sent Signed Query Resut for Query[%lu:%lu]", res->query_seq_num(), res->client_id());
                 delete res;
             });
 
@@ -728,6 +736,7 @@ void Server::HandleSyncCallback(QueryMetaData *query_md){
             }
             
             this->transport->SendMessage(this, *query_md->original_client, *queryResult);
+             Debug("Sent Signed Query Resut for Query[%lu:%lu]", res->query_seq_num(), res->client_id());
             delete queryResult;
             delete res;
         }

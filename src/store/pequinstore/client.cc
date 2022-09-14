@@ -274,6 +274,7 @@ void Client::Query(const std::string &query, query_callback qcb,
 
     //TODO: just create a new object.. allocate is easier..
     queryMsg.Clear();
+    queryMsg.set_client_id(client_id);
     queryMsg.set_query_seq_num(query_seq_num);
     *queryMsg.mutable_query_cmd() = std::move(query);
     *queryMsg.mutable_timestamp() = txn.timestamp();
