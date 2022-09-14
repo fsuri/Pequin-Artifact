@@ -76,13 +76,15 @@ void ToyClient::ExecuteToy(){
             std::string readValue;
             client.Get("x", readValue, timeout);
             std::cerr << "value read for x: " << readValue << "\n";
+            client.Commit(timeout);
+            std::cerr << "Committed value for x\n";
             
             std::string query = "SELECT *";
             std::string queryResult;
             client.Query(query, queryResult, timeout);  //--> Edit API in frontend sync_client.
                                            //For real benchmarks: Also edit in sync_transaction_bench_client.
-            client.Commit(timeout);
-            std::cerr << "Committed value for x\n";
+            std::cerr << "Query Result: " << queryResult << std::endl;
+            
 }
 
  SyncTransaction *ToyClient::GetNextTransaction() {

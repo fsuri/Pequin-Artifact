@@ -208,13 +208,18 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
     //Query objects
 
     struct QueryMetaData {
-      QueryMetaData(const std::string &query_cmd, const TimestampMessage &timestamp): retry(false), has_result(false), original_client(nullptr), query_cmd(query_cmd), ts(timestamp) {}
+      QueryMetaData(const std::string &query_cmd, const TimestampMessage &timestamp, const TransportAddress &remote, const uint64_t &req_id, const uint64_t &query_seq_num, const uint64_t &client_id): 
+         retry(false), has_result(false), query_cmd(query_cmd), ts(timestamp), original_client(remote.clone()), req_id(req_id), query_seq_num(query_seq_num), client_id(client_id) {}
       ~QueryMetaData(){ 
         if(original_client != nullptr) delete original_client;
       }
 
       TransportAddress *original_client;
+      uint64_t req_id;  //can use this as implicit retry version.
+      uint64_t query_seq_num;
+      uint64_t client_id;
 
+      bool designated_for_reply; //whether to reply to client or not.
       bool retry;            //query retry version (0 or 1)
       Timestamp ts;
       std::string query_cmd; //query to execute
@@ -489,6 +494,8 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
   uint64_t DependencyDepth(const proto::Transaction *txn) const;
   void MessageToSign(::google::protobuf::Message* msg,
       proto::SignedMessage *signedMessage, signedCallback cb);
+
+  //main protocol messages
   proto::ReadReply *GetUnusedReadReply();
   proto::Phase1Reply *GetUnusedPhase1Reply();
   proto::Phase2Reply *GetUnusedPhase2Reply();
@@ -503,6 +510,7 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
   void FreePhase1message(proto::Phase1 *msg);
   void FreePhase2message(proto::Phase2 *msg);
   void FreeWBmessage(proto::Writeback *msg);
+
   //Fallback messages:
   proto::Phase1FB *GetUnusedPhase1FBmessage();
   proto::Phase2FB *GetUnusedPhase2FBmessage();
@@ -524,6 +532,19 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
   void FreeElectFBmessage(proto::ElectFB *msg);
   void FreeDecisionFBmessage(proto::DecisionFB *msg);
   void FreeMoveView(proto::MoveView *msg);
+
+  //Query messages:
+  proto::QueryRequest* GetUnusedQueryRequestMessage();
+  void FreeQueryRequestMessage(proto::QueryRequest *msg);
+  proto::SyncClientProposal* GetUnusedSyncClientProposalMessage();
+  void FreeSyncClientProposalMessage(proto::SyncClientProposal *msg);
+  proto::RequestMissingTxns* GetUnusedRequestTxMessage();
+  void FreeRequestTxMessage(proto::RequestMissingTxns *msg);
+  proto::SupplyMissingTxns* GetUnusedSupplyTxMessage();
+  void FreeSupplyTxMessage(proto::SupplyMissingTxns *msg);
+
+  //generic delete function.
+  void FreeMessage(::google::protobuf::Message *msg);
 
 
   inline bool IsKeyOwned(const std::string &key) const {

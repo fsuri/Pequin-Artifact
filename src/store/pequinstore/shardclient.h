@@ -232,6 +232,7 @@ virtual void Phase2Equivocate_Simulate(uint64_t id, const proto::Transaction &tx
     uint64_t client_seq_num;
     uint64_t query_seq_num;
     const std::string query;
+    std::string queryDigest;
     TimestampMessage qts;
 
     // uint64_t queryMessages;
@@ -561,6 +562,8 @@ virtual void Phase2Equivocate_Simulate(uint64_t id, const proto::Transaction &tx
   proto::LocalSnapshot validated_local_ss;
   proto::QueryResult queryResult;
   proto::Result validated_result;
+
+  proto::SyncClientProposal syncMsg;
 };
 
 } // namespace pequinstore

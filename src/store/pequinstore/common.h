@@ -371,6 +371,8 @@ int64_t GetLogGroup(const proto::Transaction &txn, const std::string &txnDigest)
 // };
 
 typedef struct QueryParameters {
+
+    //protocol parameters
     const uint64_t syncQuorum; //number of replies necessary to form a sync quorum
     const uint64_t queryMessages; //number of query messages sent to replicas to request sync replies
     const uint64_t mergeThreshold; //number of tx instances required to observe to include in sync snapshot
@@ -383,14 +385,20 @@ typedef struct QueryParameters {
 
     const bool signClientQueries;
 
+    //performance parameters
+    const bool parallel_queries;
+
     QueryParameters(uint64_t syncQuorum, uint64_t queryMessages, uint64_t mergeThreshold, uint64_t syncMessages, uint64_t resultQuorum,
-        bool readPrepared, bool optimisticTxID, bool cacheReadSet, bool signClientQueries) : 
+        bool readPrepared, bool optimisticTxID, bool cacheReadSet, bool signClientQueries, bool parallel_queries) : 
         syncQuorum(syncQuorum), queryMessages(queryMessages), mergeThreshold(mergeThreshold), syncMessages(syncMessages), resultQuorum(resultQuorum),
-        readPrepared(readPrepared), optimisticTxID(optimisticTxID), cacheReadSet(cacheReadSet), signClientQueries(signClientQueries) {}
+        readPrepared(readPrepared), optimisticTxID(optimisticTxID), cacheReadSet(cacheReadSet), signClientQueries(signClientQueries),
+        parallel_queries(parallel_queries) {}
 
 } QueryParameters;
 
 typedef struct Parameters {
+
+  //protocol and microbenchmark parameters
   const bool signedMessages;
   const bool validateProofs;
   const bool hashDigest;
@@ -409,12 +417,14 @@ typedef struct Parameters {
   const bool batchVerification;
   const int verificationBatchSize;
 
+  //performance parameters
   const bool mainThreadDispatching;
   const bool dispatchMessageReceive;
   const bool parallel_reads;
   const bool parallel_CCC;
   const bool dispatchCallbacks;
 
+  //fallback parameters
   const bool all_to_all_fb;
   const bool no_fallback;
   const uint64_t relayP1_timeout;

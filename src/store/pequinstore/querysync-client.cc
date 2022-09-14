@@ -36,9 +36,13 @@
 
 namespace pequinstore {
 
+//TODO: Add: Handle Query Fail
+//-> Every shard (not just query_manager shard) should be able to send this if it observes a committed query was missed; or if the materialized snapshot frontier includes a prepare that aborted (or is guaranteed to, e.g. vote Abort)
 
 void ShardClient::Query(uint64_t client_seq_num, uint64_t query_seq_num, proto::Query &queryMsg, // const std::string &query, const TimestampMessage &ts,
       result_callback rcb, result_timeout_callback rtcb, uint32_t timeout, bool query_manager) {
+
+ Debug("Invoked QueryRequest [%lu] on ShardClient for group %d", query_seq_num, group);
   
   //TODO: (Very low priority) how to execute query in such a way that it includes possibly buffered write values. --> Could imagine sending Put Buffer alongside query, such that servers use it to compute result. 
   // No clue how that would affect read set though (such versions should always pass CC check), and whether it can be used by byz to equivocate read set, causing abort.
@@ -49,6 +53,12 @@ void ShardClient::Query(uint64_t client_seq_num, uint64_t query_seq_num, proto::
   pendingQueries[reqId] = pendingQuery;
   pendingQuery->client_seq_num = client_seq_num;
   pendingQuery->query_seq_num = query_seq_num;
+
+   if(params.query_params.signClientQueries && params.query_params.cacheReadSet){
+        pendingQuery->queryDigest = std::move(QueryDigest(queryMsg, params.hashDigest));
+   }
+   
+
   //pendingQuery->query = query; //Is this necessary to store? In case of re-send? --> Cannot move since other shards will use same reference.
   //pendingQuery->qts = ts;
 
@@ -142,7 +152,7 @@ void ShardClient::RequestQuery(PendingQuery *pendingQuery, proto::Query &queryMs
      SignMessage(&queryMsg, keyManager->GetPrivateKey(keyManager->GetClientKeyId(client_id)), client_id, queryReq.mutable_signed_query());
   }
   else{
-    *queryReq.mutable_query() = std::move(queryMsg);
+    *queryReq.mutable_query() = queryMsg; // NOTE: cannot use std::move(queryMsg) because queryMsg objet may be passed to multiple shardclients.
   }
  
   UW_ASSERT(params.query_params.queryMessages <= closestReplicas.size());
@@ -236,18 +246,21 @@ void ShardClient::SyncReplicas(PendingQuery *pendingQuery){
     //1) Compose SyncMessage
     pendingQuery->merged_ss.set_query_seq_num(pendingQuery->query_seq_num);
     pendingQuery->merged_ss.set_client_id(client_id);
-    proto::SyncClientProposal syncMsg;
+ 
+    //proto::SyncClientProposal syncMsg;
 
     //2) Sign SyncMessage (this authenticates client, and is proof that client does not equivocate proposed snapshot) --> only necessary if not using Cached Reads: authentication ensures correct client can replicate consistently
             //e.g. don't want any client to submit a different/wrong/empty sync on behalf of client --> without cached read set wouldn't matter: 
                                             //replica replies to a sync msg -> so if client sent a correct one, replica execs that one and replies -- regardless of previous duplicates using same query id.
 
     if(params.query_params.signClientQueries && params.query_params.cacheReadSet){ //FIXME: For now, only signing if using Cached Read Set. --> only then need to avoid equivocation
-     SignMessage(&pendingQuery->merged_ss, keyManager->GetPrivateKey(keyManager->GetClientKeyId(client_id)), client_id, syncMsg.mutable_signed_merged_ss());
+      pendingQuery->merged_ss.set_query_digest(pendingQuery->queryDigest);
+      SignMessage(&pendingQuery->merged_ss, keyManager->GetPrivateKey(keyManager->GetClientKeyId(client_id)), client_id, syncMsg.mutable_signed_merged_ss());
     }
     else{
         *syncMsg.mutable_merged_ss() = std::move(pendingQuery->merged_ss);
     }
+
 
     //3) Send SyncMessage to SyncMessages many replicas; designate which replicas for execution
     uint64_t reply_req = params.query_params.syncMessages; 
@@ -261,10 +274,10 @@ void ShardClient::SyncReplicas(PendingQuery *pendingQuery){
     UW_ASSERT(total_msg <= closestReplicas.size());
 
     for (size_t i = 0; i < total_msg; ++i) {
-        syncMsg.set_reply(i < reply_req); //only designate reply_req many replicas for exec replies.
+        syncMsg.set_designated_for_reply(i < reply_req); //only designate reply_req many replicas for exec replies.
 
         Debug("[group %i] Sending Query Sync Msg to replica %lu", group, GetNthClosestReplica(i));
-        transport->SendMessageToReplica(this, group, GetNthClosestReplica(i), queryMsg);
+        transport->SendMessageToReplica(this, group, GetNthClosestReplica(i), syncMsg);
     }
 
     Debug("[group %i] Sent Query Sync Messages for query [%lu : %lu]", group, pendingQuery->query_seq_num, pendingQuery->reqId);

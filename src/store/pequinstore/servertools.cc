@@ -152,7 +152,7 @@ void Server::ManageDispatchPhase2(const TransportAddress &remote, const std::str
       else{
         proto::Phase2* p2 = GetUnusedPhase2message();
         p2->ParseFromString(data);
-        if(!params.mainThreadDispatching || params.dispatchMessageReceive){
+        if(!params.mainThreadDispatching || params.dispatchMessageReceive){  //If multithreading verification, must allocate object even if we don't dispatch.
           HandlePhase2(remote, *p2);
         }
         else{
@@ -306,21 +306,99 @@ void Server::ManageDispatchMoveView(const TransportAddress &remote, const std::s
 
 
 void Server::ManageDispatchQuery(const TransportAddress &remote, const std::string &data){
-  queryReq.ParseFromString(data);
-  HandleQuery(remote, queryReq);
-}
-void Server::ManageDispatchSync(const TransportAddress &remote, const std::string &data){
-  syncMsg.ParseFromString(data);
-  HandleSync(remote, syncMsg);
-}
-void Server::ManageDispatchRequestTx(const TransportAddress &remote, const std::string &data){
-  requestTx.ParseFromString(data);
-  HandleRequestTx(remote, requestTx);
+
+   if(!params.mainThreadDispatching || (params.dispatchMessageReceive && !params.query_params.parallel_queries ) ){
+      queryReq.ParseFromString(data);
+      HandleQuery(remote, queryReq);
+    }
+    //if dispatching to second main or other workers
+    else{
+      proto::QueryRequest* queryCopy = GetUnusedQueryRequestMessage();
+      queryCopy->ParseFromString(data);
+      auto f = [this, &remote, queryCopy](){
+        this->HandleQuery(remote, *queryCopy);
+        return (void*) true;
+      };
+      if(params.query_params.parallel_queries){ 
+        transport->DispatchTP_noCB(std::move(f));  //dispatch to worker
+      }
+      else{
+        transport->DispatchTP_main(std::move(f)); //dispatch to mainthread
+      }
+    }
 }
 
+
+void Server::ManageDispatchSync(const TransportAddress &remote, const std::string &data){
+
+   if(!params.mainThreadDispatching || (params.dispatchMessageReceive && !params.query_params.parallel_queries ) ){
+       syncMsg.ParseFromString(data);
+       HandleSync(remote, syncMsg);
+    }
+    //if dispatching to second main or other workers
+    else{
+      proto::SyncClientProposal* syncCopy = GetUnusedSyncClientProposalMessage();
+      syncCopy->ParseFromString(data);
+      auto f = [this, &remote, syncCopy](){
+        this->HandleSync(remote, *syncCopy);
+        return (void*) true;
+      };
+      if(params.query_params.parallel_queries){ 
+        transport->DispatchTP_noCB(std::move(f));  //dispatch to worker
+      }
+      else{
+        transport->DispatchTP_main(std::move(f)); //dispatch to mainthread
+      }
+    }
+}
+
+
+void Server::ManageDispatchRequestTx(const TransportAddress &remote, const std::string &data){
+
+   if(!params.mainThreadDispatching || (params.dispatchMessageReceive && !params.query_params.parallel_queries ) ){
+        requestTx.ParseFromString(data);
+        HandleRequestTx(remote, requestTx);
+    }
+    //if dispatching to second main or other workers
+    else{
+      proto::RequestMissingTxns* reqCopy = GetUnusedRequestTxMessage();
+      reqCopy->ParseFromString(data);
+      auto f = [this, &remote, reqCopy](){
+        this->HandleRequestTx(remote, *reqCopy);
+        return (void*) true;
+      };
+      if(params.query_params.parallel_queries){ 
+        transport->DispatchTP_noCB(std::move(f));  //dispatch to worker
+      }
+      else{
+        transport->DispatchTP_main(std::move(f)); //dispatch to mainthread
+      }
+    }
+  
+}
+
+// dont parallize further, since this is treated as P1 or Writeback
 void Server::ManageDispatchSupplyTx(const TransportAddress &remote, const std::string &data){
   supplyTx.ParseFromString(data);
   HandleSupplyTx(remote, supplyTx);
+
+   if(!params.mainThreadDispatching || params.dispatchMessageReceive ){  // ==  if(params.mainThreadDispatching && !params.dispatchMessageReceive 
+     return;
+        supplyTx.ParseFromString(data);
+        HandleSupplyTx(remote, supplyTx);
+    }
+    //if dispatching to second main or other workers
+    else{
+      proto::SupplyMissingTxns* supplyCopy = GetUnusedSupplyTxMessage();
+      supplyCopy->ParseFromString(data);
+      auto f = [this, &remote, supplyCopy](){
+        this->HandleSupplyTx(remote, *supplyCopy);
+        return (void*) true;
+      };
+     
+      transport->DispatchTP_main(std::move(f)); //dispatch to mainthread //TODO: Need to allocate message also if multiThreading Verification.
+      
+    }
 }
 
 
@@ -1101,6 +1179,8 @@ void Server::CreateHMACedMessage(const ::google::protobuf::Message &msg, proto::
 }
 
 //////////////////////////////////////////////////////////////////////////// PROTOBUF HELPER FUNCTIONS
+//Note: Re-use protobuf messages to minimize allocation costs
+//Note: When multi-threading, it turns out that holding locks adds more overheads than allocation (e.g. acquiring lock for GetUnused on network thread, but acquiring lock to Free on main or worker thread)
 
 //TODO: replace all of these with moodycamel queue (just check that try_dequeue is successful)
 proto::ReadReply *Server::GetUnusedReadReply() {
@@ -1417,6 +1497,44 @@ proto::MoveView *Server::GetUnusedMoveView(){
 }
 
 void Server::FreeMoveView(proto::MoveView *msg){
+  delete msg;
+}
+
+proto::QueryRequest* Server::GetUnusedQueryRequestMessage(){
+  return new proto::QueryRequest();
+}
+
+void Server::FreeQueryRequestMessage(proto::QueryRequest *msg){
+  delete msg;
+}
+
+proto::SyncClientProposal* Server::GetUnusedSyncClientProposalMessage(){
+  return new proto::SyncClientProposal();
+}
+
+void Server::FreeSyncClientProposalMessage(proto::SyncClientProposal *msg){
+  delete msg;
+}
+
+proto::RequestMissingTxns* Server::GetUnusedRequestTxMessage(){
+  return new proto::RequestMissingTxns();
+
+}
+void Server::FreeRequestTxMessage(proto::RequestMissingTxns *msg){
+  delete msg;
+}
+
+proto::SupplyMissingTxns* Server::GetUnusedSupplyTxMessage(){
+  return new proto::SupplyMissingTxns();
+}
+
+void Server::FreeSupplyTxMessage(proto::SupplyMissingTxns *msg){
+  delete msg;
+}
+
+
+//generic delete function.
+void Server::FreeMessage(::google::protobuf::Message *msg){
   delete msg;
 }
 

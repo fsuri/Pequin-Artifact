@@ -100,7 +100,7 @@ message SyncClientProposal {
    MergedSnapshot merged_ss = 2;
    SignedMessage signed_merged_ss = 3;
  }
- required bool reply = 4; //designate whether this replica should execute and reply, or just sync, execute, and cache read set.
+ required bool designated_for_reply = 4; //designate whether this replica should execute and reply, or just sync, execute, and cache read set.
  optional bool query_managager = 5; // designate this shard as tx manager to coordinate execution and to reply.
  optional bool retry = 6;
 }

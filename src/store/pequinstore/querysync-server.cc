@@ -57,9 +57,25 @@
 namespace pequinstore {
 
        //TODO: Next:
-       // a) Server receives query
-       // b) Server parses, scans, and replies with sync state
-       // c) Server receives snapshot, materializes, executes and replies.
+       //Query Exec engine: 
+       //   a) Server parses, scans, and replies with real sync state 
+       //   b) Server receives snapshot, materializes, executes and replies.
+       //Query Concurrency Control ==> part of Tx, part of TxDigest, part of MVTSO check.
+
+       //TODO: Add Handler for QueryRetry:
+       // Re-do sync and exec on same query id. (Update req id)
+            //If receive new sync set for query that already exists, replace it (this is a client issued retry because sync failed.);
+            // problem: byz could abuse this to retry only at some replicas --> resulting in different read sets
+            //TODO: FIXME: Need new Query ID for retries? -- or same digest (supplied by client and known in advance) --> for now just use single one (assuming I won't simulate a byz attack); that way garbage collection is easier when re-trying a tx.
+            // --> Client should be able to specify in its Tx which retry number (version) of its query attempts it wants to use. If replicas have a different one cached than submitted then this is a proof of misbehavior
+                                                                                                                                // With FIFO channels its always guaranteed to arrive before the prepare
+
+                // problem: byz does not have to retry if sync fails --> replicas may have different read sets --> some may prepare and some may abort. (Thats ok, indistinguishable from correct one failing tx.)
+                            //importantly: cannot fail sync on purpose ==> will either be detectable (equiv syncMsg or Query), or 
+
+    //TODO: If using optimistic Ids'
+        // If optimistic ID maps to 2 txn-ids --> report issuing client (do this when you receive the tx already); vice versa, if we notice 2 optimistic ID's map to same tx --> report! 
+        // (Can early abort query to not waste exec since sync might fail- or optimistically execute and hope for best) --> won't happen in simulation (unless testing failures)
 
 
 //Server handling 
@@ -98,13 +114,14 @@ void Server::HandleQuery(const TransportAddress &remote, proto::QueryRequest &ms
     queryMetaDataMap::accessor q;
     if(!queryMetaData.find(q, queryId)){
         queryMetaData.insert(q, queryId);
-        q->second = new QueryMetaData(query->query_cmd(), query->timestamp());
+        q->second = new QueryMetaData(query->query_cmd(), query->timestamp(), remote, msg.req_id(), query->query_seq_num(), query->client_id());
+
     }
     QueryMetaData *query_md = q->second;
 
     // query_md->query_cmd = query->query_cmd();
     // query_md->ts(query->timestamp());
-    q.release();
+    
 
     
     // 3) Parse Query
@@ -127,7 +144,7 @@ void Server::HandleQuery(const TransportAddress &remote, proto::QueryRequest &ms
     //                                                         //
     /////////////////////////////////////////////////////////////
 
-    std::unordered_set<std::string> local_txns;
+    std::unordered_set<std::string> &local_txns = query_md->local_ss;
     // 4) Execute all Scans in query --> find txnSet (for each key, last few tx)
     // FindSnapshot(local_txns, query_cmd);
 
@@ -138,6 +155,12 @@ void Server::HandleQuery(const TransportAddress &remote, proto::QueryRequest &ms
 
     //FIXME: Toy insert -- real tx-ids are cryptographic hashes of length 256bit = 32 byte.
     local_txns.insert("test_id_of_length_32 bytes------");
+    //query_md->local_ss.insert("test_id_of_length_32 bytes------");
+
+      //How to find txnSet efficiently for key WITH RESPECT to Timestamp. Is scanning the only option?
+    //Could already store a whole tx map for each key: map<key, deque<TxnIds>> --? replace tx_ids evertime a newer one comes along (pop front, push_back). 
+    // Problem: May come in any TS order. AND: Query with TS only cares about TxId < TS
+
 
     // 6) Compress list (only applicable if using optimistic IDs)
     if(params.query_params.optimisticTxID){
@@ -156,7 +179,8 @@ void Server::HandleQuery(const TransportAddress &remote, proto::QueryRequest &ms
     local_ss->set_replica_id(id);
     *local_ss->mutable_local_txns_committed() = {local_txns.begin(), local_txns.end()}; //TODO: can we avoid this copy? --> If I move it, then we cannot cache local_txns to edit later.
 
-    
+    q.release();
+
     //sign & send reply.
     if (params.validateProofs && params.signedMessages) {
         Debug("Sign Query Sync Reply for Query[%lu:%lu]", query->query_seq_num(), query->client_id());
@@ -167,6 +191,7 @@ void Server::HandleQuery(const TransportAddress &remote, proto::QueryRequest &ms
             this->transport->SendMessage(this, *remoteCopy, *syncReply); 
             delete remoteCopy;
             delete syncReply;
+          
         };
          proto::LocalSnapshot *ls = syncReply->release_local_ss();
          MessageToSign(ls, syncReply->mutable_signed_local_ss(), [sendCB, ls]() {
@@ -191,14 +216,11 @@ void Server::HandleQuery(const TransportAddress &remote, proto::QueryRequest &ms
         this->transport->SendMessage(this, remote, *syncReply);
         delete syncReply;
         delete ls;
-
      }
         
     }
-    
 
-    //How to store txnSet efficiently for key WITH RESPECT to Timestamp
-    //Could already store a whole tx map for each key: map<key, deque<TxnIds>> --? replace tx_ids evertime a newer one comes along (pop front, push_back). Problem: May come in any TS order. AND: Query with TS only cares about TxId < TS
+    if(params.mainThreadDispatching && (!params.dispatchMessageReceive || params.query_params.parallel_queries)) FreeQueryRequestMessage(&msg);
 }
 
 bool Server::VerifyClientQuery(proto::QueryRequest &msg, const proto::Query *query, std::string &queryId)
@@ -257,14 +279,17 @@ void Server::HandleSync(const TransportAddress &remote, proto::SyncClientProposa
         return;
     }
     QueryMetaData *query_md = q->second;
+    query_md->designated_for_reply = msg.designated_for_reply();
 
     if(query_md->has_result){
         //TODO: Reply directly with result.
+        if(params.query_params.signClientQueries && params.query_params.cacheReadSet) delete merged_ss;
         return;
     }
 
     if(query_md->retry > msg.retry()){ //TODO: add retry to Syncclient Proposal; //TODO: Add this check to first query message too. ==> change to int64, make sure that even same version not done twice.
         //have already processed higher query version; ignore 
+        if(params.query_params.signClientQueries && params.query_params.cacheReadSet) delete merged_ss;
         return;
     }
 
@@ -327,6 +352,9 @@ void Server::HandleSync(const TransportAddress &remote, proto::SyncClientProposa
      for(auto const &[replica, replica_req] : replica_requests){
         transport->SendMessageToReplica(this, groupIdx, replica, replica_req);
      }
+
+     if(params.query_params.signClientQueries && params.query_params.cacheReadSet) delete merged_ss;
+     if(params.mainThreadDispatching && (!params.dispatchMessageReceive || params.query_params.parallel_queries)) FreeSyncClientProposalMessage(&msg);
      return;
 }
 
@@ -430,6 +458,10 @@ void Server::HandleRequestTx(const TransportAddress &remote, proto::RequestMissi
    
     //5) Send reply.
     transport->SendMessageToReplica(this, groupIdx, req_txn.replica_id(), supplyMissingTxn);
+
+    if(params.mainThreadDispatching && (!params.dispatchMessageReceive || params.query_params.parallel_queries)) FreeRequestTxMessage(&req_txn);
+    return;
+ 
 }
 
  //this will be called on a worker thread -- directly call Query handler callback.
@@ -551,6 +583,8 @@ void Server::HandleSupplyTx(const TransportAddress &remote, proto::SupplyMissing
     }
 
     if(sign_reply) delete supply_txn;
+    if(params.mainThreadDispatching && !params.dispatchMessageReceive) FreeSupplyTxMessage(&msg);
+    return;
 
 }
 
@@ -613,46 +647,97 @@ void Server::UpdateWaitingQueries(const std::string &txnDigest){
 //TODO:
 //NEXT: handle sync callback
 // supply helper functions to: exchange and catch up on missing data  ==> "Done" ==> Need to be fixed.
-//                             generate merkle tree and root hash ==> "In Work"
-// simulate dummy result + read set
+//                             generate merkle tree and root hash ==> Done
+// simulate dummy result + read set ==> Done
 
+//TODO: must be called while holding a lock on query_md. 
 void Server::HandleSyncCallback(QueryMetaData *query_md){
     
-    // 1) Exec query //TODO:
+    // 1) Execute Query
+    //Execute Query -- Go through store, and check if latest tx in store is present in syncList. If it is missing one (committed) --> reply EarlyAbort (tx cannot succeed). If prepared is missing, ignore, skip to next
+    // Build Read Set while executing; Add dependencies on demand as we observe uncommitted txn touched.
+    
+    /////////////////////////////////////////////////////////////
+    //                                                         //
+    //                                                         //
+    //                                                         //
+    //
+    //              EXEC BLACKBOX -- TBD
+    //                                                         //
+    //                                                         //
+    //                                                         //
+    //                                                         //
+    /////////////////////////////////////////////////////////////
+     query_md->result = "success";
+
     // 2) Construct Read Set
-
-
     //read set = map from key-> versions
     query_md->read_set["dummy key"] = query_md->ts;
 
-
-    // 3) Generate Merkle Tree
-    std::string result_hash(generateReadSetMerkleRoot(query_md->read_set, params.merkleBranchFactor)); //by default: merkleBranchFactor = 2 ==> might want to use flatter tree to minimize hashes.
+    // 3) Generate Merkle Tree over Read Set, result, query id  (FIXME:: Currently only over read set:  )
+    query_md->result_hash = std::move(generateReadSetMerkleRoot(query_md->read_set, params.merkleBranchFactor)); //by default: merkleBranchFactor = 2 ==> might want to use flatter tree to minimize hashes.
                                                                                                         //TODO: Can avoid hashing leaves by making them unique strings? "[key:version]" should do the trick?
-    // 4) Possibly buffer Read Set
-    //5) Create and Sign message reply
-    //6) Send reply.
 
-      
+    // 4) Possibly buffer Read Set (map: query_digest -> <result_hash, read set>) ==> implicitly done by storing read set + result hash in query_md 
+   
+    //5) Create Result reply --  // only necesary if chosen for reply.
+    if(!query_md->designated_for_reply) return;
+    
+    proto::QueryResult *queryResult = new proto::QueryResult(); //TODO: replace with GetUnused
 
-    // 3.5) If optimistic ID maps to 2 txn-ids --> report issuing client (do this when you receive the tx already); vice versa, if we notice 2 optimistic ID's map to same tx --> report! 
-        // (Can early abort query to not waste exec since sync might fail- or optimistically execute and hope for best) --> won't happen in simulation (unless testing failures)
-    // 4) Execute Query -- Go through store, and check if latest tx in store is present in syncList. If it is missing one (committed) --> reply EarlyAbort (tx cannot succeed). If prepared is missing, ignore, skip to next
-    // 5) Build Read Set while executing; Add dependencies on demand as we observe uncommitted txn touched.
-    // 6) Create Merkle Tree over Read Set, result, query id 
-    // 7) Cache Read Set  (map: query_digest -> <result_hash, read set>)
-    // 8) If chosen for reply, create client reply with Result, Result_hash. 
-    // 9) Sign Message 
-    // 10) Send message
+    proto::Result *query_reply = queryResult->mutable_result();
+    query_reply->set_query_seq_num(query_md->query_seq_num); //TODO: store these in query_md?
+    query_reply->set_client_id(query_md->client_id);
+    query_reply->set_query_result(query_md->result);
+    query_reply->set_query_result_hash(query_md->result_hash);
+    //TODO: Add read set.
+    query_reply->set_replica_id(id);
+    queryResult->set_req_id(query_md->req_id);
 
-    //If receive new sync set for query that already exists, replace it (this is a client issued retry because sync failed.);
-    // problem: byz could abuse this to retry only at some replicas --> resulting in different read sets
-//TODO: FIXME: Need new Query ID for retries? -- or same digest (supplied by client and known in advance) --> for now just use single one (assuming I won't simulate a byz attack); that way garbage collection is easier when re-trying a tx.
-// --> Client should be able to specify in its Tx which retry number (version) of its query attempts it wants to use. If replicas have a different one cached than submitted then this is a proof of misbehavior
-                                                                                                                       // With FIFO channels its always guaranteed to arrive before the prepare
+    //6) (Sign and) send reply 
 
-    // problem: byz does not have to retry if sync fails --> replicas may have different read sets --> some may prepare and some may abort. (Thats ok, indistinguishable from correct one failing tx.)
-                //importantly: cannot fail sync on purpose ==> will either be detectable (equiv syncMsg or Query), or 
+     if (params.validateProofs && params.signedMessages) {
+        Debug("Sign Query Result Reply for Query[%lu:%lu]", query_reply->query_seq_num(), query_reply->client_id());
+
+        proto::Result *res = queryResult->release_result();
+        if(false) { //params.queryReplyBatch){
+            TransportAddress *remoteCopy = query_md->original_client->clone();
+            auto sendCB = [this, remoteCopy, queryResult]() {
+                this->transport->SendMessage(this, *remoteCopy, *queryResult); 
+                delete remoteCopy;
+                delete queryResult;
+            };
+          
+             //TODO: if this is already done on a worker, no point in dispatching it again. Add a Flag to MessageToSign that specifies "already worker"
+            MessageToSign(res, queryResult->mutable_signed_result(), [sendCB, res]() {
+                sendCB();
+                delete res;
+            });
+
+        }
+        else{ //realistically don't ever need to batch query sigs --> batching helps with amortized sig generation, but not with verificiation since client don't forward proofs.
+            if(params.signatureBatchSize == 1){
+                SignMessage(res, keyManager->GetPrivateKey(id), id, queryResult->mutable_signed_result());
+            }
+            else{
+                std::vector<::google::protobuf::Message *> msgs;
+                msgs.push_back(res);
+                std::vector<proto::SignedMessage *> smsgs;
+                smsgs.push_back(queryResult->mutable_signed_result());
+                SignMessages(msgs, keyManager->GetPrivateKey(id), id, smsgs, params.merkleBranchFactor);
+            }
+            
+            this->transport->SendMessage(this, *query_md->original_client, *queryResult);
+            delete queryResult;
+            delete res;
+        }
+    }
+    else{
+        this->transport->SendMessage(this, *query_md->original_client, *queryResult);
+    }
+
+    return;
+
 }
 
 
