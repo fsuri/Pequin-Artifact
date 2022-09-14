@@ -95,12 +95,14 @@ void Server::HandleQuery(const TransportAddress &remote, proto::QueryRequest &ms
      // 2) Authenticate Query Signature if applicable. Compute unique hash ID 
     std::string queryId;
     
-    if(true){ //TODO: when to use hash id? always?
+    if(params.query_params.signClientQueries && params.query_params.cacheReadSet){ //TODO: when to use hash id? always?
         queryId = QueryDigest(*query, params.hashDigest); 
     }
     else{
         queryId =  "[" + std::to_string(query->query_seq_num()) + ":" + std::to_string(query->client_id()) + "]";
     }
+     Debug("Received Query Request[%lu:%lu]", query->query_seq_num(), query->client_id());
+   
     //TODO:  //if already issued query reply, reply with cached val; else if new, or retry set, re-compute
 
     if(params.query_params.signClientQueries){  //TODO: Not sure if sigs necessary: authenticated channels (for access control) and hash ids (for uniqueness/non-equivocation) should suffice. NOTE: non-equiv only necessary if caching read set.
@@ -279,6 +281,7 @@ void Server::HandleSync(const TransportAddress &remote, proto::SyncClientProposa
      //TODO:  //if already issued query reply, reply with cached val; else if new, or retry set, re-compute
     queryMetaDataMap::accessor q;
     if(!queryMetaData.find(q, *queryId)){
+        Panic("No available query md");
         return;
     }
     QueryMetaData *query_md = q->second;
@@ -287,12 +290,14 @@ void Server::HandleSync(const TransportAddress &remote, proto::SyncClientProposa
     if(query_md->has_result){
         //TODO: Reply directly with result.
         if(params.query_params.signClientQueries && params.query_params.cacheReadSet) delete merged_ss;
+        Panic("has result already");
         return;
     }
 
     if(query_md->retry > msg.retry()){ //TODO: add retry to Syncclient Proposal; //TODO: Add this check to first query message too. ==> change to int64, make sure that even same version not done twice.
         //have already processed higher query version; ignore 
         if(params.query_params.signClientQueries && params.query_params.cacheReadSet) delete merged_ss;
+        Panic("old retry version");
         return;
     }
 
@@ -300,6 +305,7 @@ void Server::HandleSync(const TransportAddress &remote, proto::SyncClientProposa
     if(params.query_params.signClientQueries && params.query_params.cacheReadSet){ //TODO: need it to be signed not only for read set equiv, but so that only original client can send this request. Authenticated channels may suffice.
         if(!VerifyClientSyncProposal(msg, *queryId)){ // Does not really need to be parallelized, since query handling is probably already on a worker thread.
             delete merged_ss;
+            Panic("Invalid client signature");
             return;
         }
     }
