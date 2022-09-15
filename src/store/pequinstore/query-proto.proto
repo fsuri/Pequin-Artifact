@@ -106,8 +106,8 @@ message SyncClientProposal {
 }
 
 message RequestMissingTxns {
-   repeated bytes missing_txn = 1; //list of txn digests;
-   required uint64 replica_id = 2;
+   required uint64 replica_id = 1;
+   repeated bytes missing_txn = 2; //list of txn digests;
 }
 
 message TxnInfo {

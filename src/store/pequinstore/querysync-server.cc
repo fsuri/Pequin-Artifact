@@ -156,7 +156,11 @@ void Server::HandleQuery(const TransportAddress &remote, proto::QueryRequest &ms
             // Use optimistic Tx-ids (= timestamp) if param set
 
     //FIXME: Toy insert -- real tx-ids are cryptographic hashes of length 256bit = 32 byte.
-    local_txns.insert("test_id_of_length_32 bytes------");
+    std::string test_txn_id = "[test_id_of_length_32 bytes----]";
+    local_txns.insert(test_txn_id);
+    proto::CommittedProof *test_proof = new proto::CommittedProof();
+    committed[test_txn_id] = test_proof;  //this should allow other replicas to find it during sync.; but validation of commit proof will fail. Note: Will probably fail Panic because fields not set.
+     Debug("Proposing txn_id %s for local Query Sync State[%lu:%lu]", BytesToHex(test_txn_id, 16).c_str(), query->query_seq_num(), query->client_id());
     //query_md->local_ss.insert("test_id_of_length_32 bytes------");
 
       //How to find txnSet efficiently for key WITH RESPECT to Timestamp. Is scanning the only option?
@@ -314,7 +318,7 @@ void Server::HandleSync(const TransportAddress &remote, proto::SyncClientProposa
 
     query_md->missing_txn.clear();
 
-    std::map<uint64_t, proto::RequestMissingTxns> replica_requests;
+    std::map<uint64_t, proto::RequestMissingTxns> replica_requests = {};
 
     //txn_replicas_pair
     for(auto const &[tx_id, replica_list] : merged_ss->merged_txns_committed()){
@@ -325,8 +329,11 @@ void Server::HandleSync(const TransportAddress &remote, proto::SyncClientProposa
         query_md->merged_ss.insert(tx_id); //store snapshot locally.  // Is there a nice way to copy the whole key set of a map?
         //for all txn-ids that are in merged_ss but NOT in local_ss  //TODO: Should check current state instead of local snapshot... might have updated since (this would avoid some wasteful requests).
                                                                         //Note: if its not prepared locally, but is ongoing (i.e. prepare vote = abort/abstain) we can immediately add it to state but marked only for query
-        if(!query_md->local_ss.count(tx_id)){
+        bool testing_sync = true;
+        if(testing_sync || !query_md->local_ss.count(tx_id)){
             //request the tx-id from the replicas that supposedly have it --> put all tx-id to be requested from one replica in one message (and send in one go afterwards)
+
+              Debug("Missing txn_id %s for Query Sync Proposal[%lu:%lu]", BytesToHex(tx_id, 16).c_str(), merged_ss->query_seq_num(), merged_ss->client_id());
 
              //Add to waiting data structure.
             waitingQueryMap::accessor w;
@@ -343,13 +350,14 @@ void Server::HandleSync(const TransportAddress &remote, proto::SyncClientProposa
                 if(replica_idx != idx){
                    std::string *next_txn = replica_requests[replica_idx].add_missing_txn();
                    *next_txn = tx_id;
+                   replica_requests[replica_idx].set_replica_id(id);
                 }
                 count++;
             }
           
         }
     }
-
+  
     //If no missing_txn = already fully synced. Exec callback direclty
     if(replica_requests.empty()){
         HandleSyncCallback(query_md);
@@ -361,7 +369,11 @@ void Server::HandleSync(const TransportAddress &remote, proto::SyncClientProposa
 
     //if there are missng txn, i.e. replica_requests not empty ==> send out sync requests.
      for(auto const &[replica, replica_req] : replica_requests){
+
+        if(replica == id) Panic("Should never request from self?");
+        
         transport->SendMessageToReplica(this, groupIdx, replica, replica_req);
+        Debug("Replica %d Request Data Sync from replica %d", id, replica); 
      }
 
      if(params.query_params.signClientQueries && params.query_params.cacheReadSet) delete merged_ss;
@@ -385,6 +397,9 @@ bool Server::VerifyClientSyncProposal(proto::SyncClientProposal &msg, const std:
 }
 
 void Server::HandleRequestTx(const TransportAddress &remote, proto::RequestMissingTxns &req_txn){
+
+     Debug("Received RequestMissingTxn from replica %d", req_txn.replica_id());
+
     //1) Parse Message
     proto::SupplyMissingTxns supplyMissingTxn;
     proto::SupplyMissingTxnsMessage supply_txn; //TODO: change to unused operation.
@@ -398,7 +413,7 @@ void Server::HandleRequestTx(const TransportAddress &remote, proto::RequestMissi
             //can log requests, so a byz can request at most once (which is legal anyways)
 
     for(auto const &txn_id : req_txn.missing_txn()){
-
+         Debug("Replica %d is requesting txn_id %s", req_txn.replica_id(), BytesToHex(txn_id, 16).c_str());
          //TODO: 0) transform txn_id to txnDigest if using optimistc ids..
          // Check local mapping from Timestamp to TxnDigest (TO CREATE)
 
@@ -411,7 +426,6 @@ void Server::HandleRequestTx(const TransportAddress &remote, proto::RequestMissi
             //*tx_info.mutable_commit_proof() = *commit_proof;
             *(*supply_txn.mutable_txns())[txn_id].mutable_commit_proof() = *commit_proof;
 
-        
             continue;
         }
 
@@ -450,7 +464,8 @@ void Server::HandleRequestTx(const TransportAddress &remote, proto::RequestMissi
 
           //4) if neither --> Mark invalid return, and report byz client
         (*supply_txn.mutable_txns())[txn_id].set_invalid(true);
-        Debug("Falsely requesting tx-id %s which replica %lu does not have committed or prepared locally", txn_id, id);
+        Debug("Falsely requesting tx-id %s which replica %lu does not have committed or prepared locally", BytesToHex(txn_id, 16).c_str(), id);
+        Panic("Testing Sync: Replica does not have tx.");
         break; //return;  //For debug purposes sending invalid reply.
 
     }
@@ -468,6 +483,8 @@ void Server::HandleRequestTx(const TransportAddress &remote, proto::RequestMissi
     }
    
     //5) Send reply.
+
+    Debug("Trying to Send SupplyTx to replica %d", req_txn.replica_id()); 
     transport->SendMessageToReplica(this, groupIdx, req_txn.replica_id(), supplyMissingTxn);
 
     if(params.mainThreadDispatching && (!params.dispatchMessageReceive || params.query_params.parallel_queries)) FreeRequestTxMessage(&req_txn);
@@ -482,6 +499,8 @@ void Server::HandleRequestTx(const TransportAddress &remote, proto::RequestMissi
 void Server::HandleSupplyTx(const TransportAddress &remote, proto::SupplyMissingTxns &msg){
 
     //TODO: Waiting for up to f+1 replies? Currently just waiting indefinitely. --> how to GC?
+
+       Panic("receive supply tx");
 
     // 1) Parse Message
     proto::SupplyMissingTxnsMessage *supply_txn;

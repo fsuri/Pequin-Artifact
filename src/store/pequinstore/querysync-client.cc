@@ -157,7 +157,7 @@ void ShardClient::RequestQuery(PendingQuery *pendingQuery, proto::Query &queryMs
  
   UW_ASSERT(params.query_params.queryMessages <= closestReplicas.size());
   for (size_t i = 0; i < params.query_params.queryMessages; ++i) {
-    Debug("[group %i] Sending GET to replica %lu", group, GetNthClosestReplica(i));
+    Debug("[group %i] Sending QUERY to replica %lu", group, GetNthClosestReplica(i));
     transport->SendMessageToReplica(this, group, GetNthClosestReplica(i), queryReq);
   }
 
@@ -173,7 +173,6 @@ void ShardClient::HandleQuerySyncReply(proto::SyncReply &SyncReply){
         return; // this is a stale request
     }
     PendingQuery *pendingQuery = itr->second;
-    Debug("[group %i] QuerySyncReply for request %lu.", group, SyncReply.req_id());
 
     // 1) authenticate reply -- record duplicates   --> could use MACs instead of signatures? Don't need to forward sigs... --> but this requires establishing a MAC between every client/replica pair. Sigs is easier.
     // 2) If signed -- parse contents
@@ -204,6 +203,7 @@ void ShardClient::HandleQuerySyncReply(proto::SyncReply &SyncReply){
     } else {
         local_ss = &SyncReply.local_ss();
     }
+    Debug("[group %i] QuerySyncReply for request %lu from replica %d.", group, SyncReply.req_id(), local_ss->replica_id());
 
     //3) check for duplicates -- (ideally check before verifying sig)
     if (!pendingQuery->replicasVerified.insert(local_ss->replica_id()).second) {
