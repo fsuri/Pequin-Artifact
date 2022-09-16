@@ -293,7 +293,7 @@ void Server::ReceiveMessageInternal(const TransportAddress &remote,
     ManageDispatchRequestTx(remote, data);
   }
   else if(type == supplyTx.GetTypeName()){
-    ManageDispatchRequestTx(remote, data);
+    ManageDispatchSupplyTx(remote, data);
   }
   //Checkpoint Messages
 

@@ -356,6 +356,7 @@ void Server::ManageDispatchSync(const TransportAddress &remote, const std::strin
 void Server::ManageDispatchRequestTx(const TransportAddress &remote, const std::string &data){
 
    if(!params.mainThreadDispatching || (params.dispatchMessageReceive && !params.query_params.parallel_queries ) ){
+        //requestTx.Clear();
         requestTx.ParseFromString(data);
         HandleRequestTx(remote, requestTx);
     }
@@ -379,11 +380,8 @@ void Server::ManageDispatchRequestTx(const TransportAddress &remote, const std::
 
 // dont parallize further, since this is treated as P1 or Writeback
 void Server::ManageDispatchSupplyTx(const TransportAddress &remote, const std::string &data){
-  supplyTx.ParseFromString(data);
-  HandleSupplyTx(remote, supplyTx);
-
+  
    if(!params.mainThreadDispatching || params.dispatchMessageReceive ){  // ==  if(params.mainThreadDispatching && !params.dispatchMessageReceive 
-     return;
         supplyTx.ParseFromString(data);
         HandleSupplyTx(remote, supplyTx);
     }

@@ -1642,6 +1642,7 @@ void asyncValidateTransactionWrite(const proto::CommittedProof &proof,
     KeyManager *keyManager, Verifier *verifier, mainThreadCallback mcb, Transport* transport,
     bool multithread){
       if (proof.txn().client_id() == 0UL && proof.txn().client_seq_num() == 0UL) {
+        // Genesis objects have no proofs ==> pass validation by default.
         // TODO: this is unsafe, but a hack so that we can bootstrap a benchmark
         //    without needing to write all existing data with transactions
         return mcb((void*) true);
@@ -1873,6 +1874,24 @@ std::string QueryDigest(const proto::Query &query, bool queryHashDigest){
     *reinterpret_cast<uint64_t *>(digestChar + 8) = query.query_seq_num();;
     return std::string(digestChar, 16);
   }
+}
+
+std::string generateReadSetHashChain(std::map<std::string, Timestamp> &read_set) { 
+  blake3_hasher hasher;
+  blake3_hasher_init(&hasher);
+  std::string hash_chain(BLAKE3_OUT_LEN, 0);
+
+   for (auto it : read_set) {
+    // hash the input leafs. I.e. (key, version) pairs 
+    blake3_hasher_update(&hasher, (unsigned char*) &it.first[0], it.first.length());
+    uint64_t timestampId = it.second.getID();
+    uint64_t timestampTs = it.second.getTimestamp(); //TODO: change all of this to a proto::TimestampedMessage?
+    blake3_hasher_update(&hasher, (unsigned char *) &timestampId, sizeof(timestampId));
+    blake3_hasher_update(&hasher, (unsigned char *) &timestampTs, sizeof(timestampTs));
+  }
+   // copy the digest into the output array
+  blake3_hasher_finalize(&hasher, (unsigned char *) &hash_chain[0], BLAKE3_OUT_LEN);
+  return hash_chain;
 }
 
 std::string generateReadSetMerkleRoot(std::map<std::string, Timestamp> &read_set, uint64_t m) { 

@@ -106,7 +106,7 @@ message SyncClientProposal {
 }
 
 message RequestMissingTxns {
-   required uint64 replica_id = 1;
+   required uint64 replica_idx = 1;
    repeated bytes missing_txn = 2; //list of txn digests;
 }
 
@@ -123,7 +123,7 @@ message TxnInfo {
 
 message SupplyMissingTxnsMessage {
    map<string, TxnInfo> txns = 1; //map from txn digest to Transaction object (+ proof)
-   optional uint64 replica_id = 2;
+   required uint64 replica_idx = 2;
 }
 
 message SupplyMissingTxns {

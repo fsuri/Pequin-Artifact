@@ -156,11 +156,16 @@ void Server::HandleQuery(const TransportAddress &remote, proto::QueryRequest &ms
             // Use optimistic Tx-ids (= timestamp) if param set
 
     //FIXME: Toy insert -- real tx-ids are cryptographic hashes of length 256bit = 32 byte.
-    std::string test_txn_id = "[test_id_of_length_32 bytes----]";
-    local_txns.insert(test_txn_id);
-    proto::CommittedProof *test_proof = new proto::CommittedProof();
-    committed[test_txn_id] = test_proof;  //this should allow other replicas to find it during sync.; but validation of commit proof will fail. Note: Will probably fail Panic because fields not set.
-     Debug("Proposing txn_id %s for local Query Sync State[%lu:%lu]", BytesToHex(test_txn_id, 16).c_str(), query->query_seq_num(), query->client_id());
+    // std::string test_txn_id = "[test_id_of_length_32 bytes----]";
+    // local_txns.insert(test_txn_id);
+    // proto::CommittedProof *test_proof = new proto::CommittedProof();
+    // committed[test_txn_id] = test_proof;  //this should allow other replicas to find it during sync.; but validation of commit proof will fail. Note: Will probably fail Panic because fields not set.
+
+    for(auto const&[tx_id, proof] : committed){
+        local_txns.insert(tx_id);
+         Debug("Proposing txn_id %s for local Query Sync State[%lu:%lu]", BytesToHex(tx_id, 16).c_str(), query->query_seq_num(), query->client_id());
+    }
+    
     //query_md->local_ss.insert("test_id_of_length_32 bytes------");
 
       //How to find txnSet efficiently for key WITH RESPECT to Timestamp. Is scanning the only option?
@@ -182,7 +187,7 @@ void Server::HandleQuery(const TransportAddress &remote, proto::QueryRequest &ms
     proto::LocalSnapshot *local_ss = syncReply->mutable_local_ss();
     local_ss->set_query_seq_num(query->query_seq_num());
     local_ss->set_client_id(query->client_id());
-    local_ss->set_replica_id(id);
+    local_ss->set_replica_id(idx);
     *local_ss->mutable_local_txns_committed() = {local_txns.begin(), local_txns.end()}; //TODO: can we avoid this copy? --> If I move it, then we cannot cache local_txns to edit later.
 
     q.release();
@@ -323,17 +328,18 @@ void Server::HandleSync(const TransportAddress &remote, proto::SyncClientProposa
     //txn_replicas_pair
     for(auto const &[tx_id, replica_list] : merged_ss->merged_txns_committed()){
 
+        Debug("Snapshot for Query Sync Proposal[%lu:%lu] contains tx_id [%s]", merged_ss->query_seq_num(), merged_ss->client_id(), BytesToHex(tx_id, 16).c_str());
          //TODO: 0) transform txn_id to txnDigest if using optimistc ids..
          // Check local mapping from Timestamp to TxnDigest (TO CREATE)
 
         query_md->merged_ss.insert(tx_id); //store snapshot locally.  // Is there a nice way to copy the whole key set of a map?
         //for all txn-ids that are in merged_ss but NOT in local_ss  //TODO: Should check current state instead of local snapshot... might have updated since (this would avoid some wasteful requests).
                                                                         //Note: if its not prepared locally, but is ongoing (i.e. prepare vote = abort/abstain) we can immediately add it to state but marked only for query
-        bool testing_sync = true;
+        bool testing_sync = false;
         if(testing_sync || !query_md->local_ss.count(tx_id)){
             //request the tx-id from the replicas that supposedly have it --> put all tx-id to be requested from one replica in one message (and send in one go afterwards)
 
-              Debug("Missing txn_id %s for Query Sync Proposal[%lu:%lu]", BytesToHex(tx_id, 16).c_str(), merged_ss->query_seq_num(), merged_ss->client_id());
+              Debug("Missing txn_id [%s] for Query Sync Proposal[%lu:%lu]", BytesToHex(tx_id, 16).c_str(), merged_ss->query_seq_num(), merged_ss->client_id());
 
              //Add to waiting data structure.
             waitingQueryMap::accessor w;
@@ -350,7 +356,7 @@ void Server::HandleSync(const TransportAddress &remote, proto::SyncClientProposa
                 if(replica_idx != idx){
                    std::string *next_txn = replica_requests[replica_idx].add_missing_txn();
                    *next_txn = tx_id;
-                   replica_requests[replica_idx].set_replica_id(id);
+                   replica_requests[replica_idx].set_replica_idx(idx);
                 }
                 count++;
             }
@@ -368,12 +374,15 @@ void Server::HandleSync(const TransportAddress &remote, proto::SyncClientProposa
      Debug("Sync State incomplete for Query[%lu:%lu]", merged_ss->query_seq_num(), merged_ss->client_id()); 
 
     //if there are missng txn, i.e. replica_requests not empty ==> send out sync requests.
-     for(auto const &[replica, replica_req] : replica_requests){
 
-        if(replica == id) Panic("Should never request from self?");
-        
-        transport->SendMessageToReplica(this, groupIdx, replica, replica_req);
-        Debug("Replica %d Request Data Sync from replica %d", id, replica); 
+     for(auto const &[replica_idx, replica_req] : replica_requests){
+        if(replica_idx == idx) Panic("Should never request from self");
+      
+        transport->SendMessageToReplica(this, groupIdx, replica_idx, replica_req);
+        Debug("Replica %d Request Data Sync from replica %d", replica_req.replica_idx(), replica_idx); 
+        // for(auto const& txn : replica_req.missing_txn()){
+        //     std::cerr << "Requesting txn : " << (BytesToHex(txn, 16)) << std::endl;
+        // }
      }
 
      if(params.query_params.signClientQueries && params.query_params.cacheReadSet) delete merged_ss;
@@ -398,12 +407,17 @@ bool Server::VerifyClientSyncProposal(proto::SyncClientProposal &msg, const std:
 
 void Server::HandleRequestTx(const TransportAddress &remote, proto::RequestMissingTxns &req_txn){
 
-     Debug("Received RequestMissingTxn from replica %d", req_txn.replica_id());
+     Debug("Received RequestMissingTxn from replica %d", req_txn.replica_idx()); 
 
     //1) Parse Message
-    proto::SupplyMissingTxns supplyMissingTxn;
-    proto::SupplyMissingTxnsMessage supply_txn; //TODO: change to unused operation.
-
+    proto::SupplyMissingTxns supplyMissingTxn; // = new proto::SupplyMissingTxns();
+    proto::SupplyMissingTxnsMessage supply_txn; // = supplyMissingTxn->mutable_supply_txn(); //TODO: change to unused operation.
+    supply_txn.set_replica_idx(idx);
+    //*supplyMissingTxn.mutable_supply_txn() = supply_txn;
+    
+     if(idx == req_txn.replica_idx()) Panic("Received HandleMissingTx from self");
+    
+   
     //2) Check if requested tx present local (might not be if a byz sent request; or a byz client falsely told an honest replica which replicas have tx)
             // TODO: If using optimistic TX-id: map from optimistic ID to real txid to find Txn. (if present)  --> with optimistic ones we cant distinguish whether the sync client was byz and falsely suggested replica has tx
     
@@ -413,7 +427,7 @@ void Server::HandleRequestTx(const TransportAddress &remote, proto::RequestMissi
             //can log requests, so a byz can request at most once (which is legal anyways)
 
     for(auto const &txn_id : req_txn.missing_txn()){
-         Debug("Replica %d is requesting txn_id %s", req_txn.replica_id(), BytesToHex(txn_id, 16).c_str());
+         Debug("Replica %d is requesting txn_id [%s]", req_txn.replica_idx(), BytesToHex(txn_id, 16).c_str());
          //TODO: 0) transform txn_id to txnDigest if using optimistc ids..
          // Check local mapping from Timestamp to TxnDigest (TO CREATE)
 
@@ -424,8 +438,9 @@ void Server::HandleRequestTx(const TransportAddress &remote, proto::RequestMissi
             proto::CommittedProof *commit_proof = itr->second;
             //proto::TxnInfo &tx_info = (*supply_txn.mutable_txns())[txn_id];
             //*tx_info.mutable_commit_proof() = *commit_proof;
-            *(*supply_txn.mutable_txns())[txn_id].mutable_commit_proof() = *commit_proof;
 
+           *(*supply_txn.mutable_txns())[txn_id].mutable_commit_proof() = *commit_proof;
+            Debug("Supplying committed txn_id %s", BytesToHex(txn_id, 16).c_str());
             continue;
         }
 
@@ -458,13 +473,15 @@ void Server::HandleRequestTx(const TransportAddress &remote, proto::RequestMissi
             p1->set_crash_failure(false);
             p1->set_replica_gossip(true);  //ensures that no RelayP1 is sent, and no original client is registered for reply upon completion.
             a.release();
+
+             Debug("Supplying prepared txn_id [%s]", BytesToHex(txn_id, 16).c_str());
             continue;
         }
         a.release();
 
           //4) if neither --> Mark invalid return, and report byz client
         (*supply_txn.mutable_txns())[txn_id].set_invalid(true);
-        Debug("Falsely requesting tx-id %s which replica %lu does not have committed or prepared locally", BytesToHex(txn_id, 16).c_str(), id);
+        Debug("Falsely requesting tx-id [%s] which replica %lu does not have committed or prepared locally", BytesToHex(txn_id, 16).c_str(), id);
         Panic("Testing Sync: Replica does not have tx.");
         break; //return;  //For debug purposes sending invalid reply.
 
@@ -476,7 +493,7 @@ void Server::HandleRequestTx(const TransportAddress &remote, proto::RequestMissi
         proto::SignedMessage *signedMessage = supplyMissingTxn.mutable_signed_supply_txn();
         signedMessage->set_data(msgData);
         signedMessage->set_process_id(idx);
-        signedMessage->set_signature(crypto::HMAC(msgData, sessionKeys[req_txn.replica_id()]));
+        signedMessage->set_signature(crypto::HMAC(msgData, sessionKeys[req_txn.replica_idx()]));
     }
     else{
         *supplyMissingTxn.mutable_supply_txn() = std::move(supply_txn);
@@ -484,8 +501,8 @@ void Server::HandleRequestTx(const TransportAddress &remote, proto::RequestMissi
    
     //5) Send reply.
 
-    Debug("Trying to Send SupplyTx to replica %d", req_txn.replica_id()); 
-    transport->SendMessageToReplica(this, groupIdx, req_txn.replica_id(), supplyMissingTxn);
+    Debug("Trying to Send SupplyTx to replica %d", req_txn.replica_idx()); 
+    transport->SendMessageToReplica(this, groupIdx, req_txn.replica_idx(), supplyMissingTxn);
 
     if(params.mainThreadDispatching && (!params.dispatchMessageReceive || params.query_params.parallel_queries)) FreeRequestTxMessage(&req_txn);
     return;
@@ -499,8 +516,6 @@ void Server::HandleRequestTx(const TransportAddress &remote, proto::RequestMissi
 void Server::HandleSupplyTx(const TransportAddress &remote, proto::SupplyMissingTxns &msg){
 
     //TODO: Waiting for up to f+1 replies? Currently just waiting indefinitely. --> how to GC?
-
-       Panic("receive supply tx");
 
     // 1) Parse Message
     proto::SupplyMissingTxnsMessage *supply_txn;
@@ -519,31 +534,51 @@ void Server::HandleSupplyTx(const TransportAddress &remote, proto::SupplyMissing
         supply_txn = msg.mutable_supply_txn();
     }
 
+    Debug("Received Supply Txns from Replica %d with %d transactions", supply_txn->replica_idx(), supply_txn->txns().size());
+
    
     for(auto &[txn_id, txn_info] : *supply_txn->mutable_txns()){
         // std::string &txn_id = tx.first;
         // proto::TxnInfo &txn_info = tx.second;
-
+        Debug("Trying to locally apply tx-id: [%s]", BytesToHex(txn_id, 16).c_str());
    
         //check if locally committed; if not, check cert and apply
        //FIXME: either update waiting data structures anyways; or add their update in Prepare/Commit function as well.
+        bool testing_sync = false;
         auto itr = committed.find(txn_id);
-        if(itr != committed.end()){
+        if(!testing_sync && itr != committed.end()){
+            Debug("Already have committed tx-id: [%s]", BytesToHex(txn_id, 16).c_str());
+            UpdateWaitingQueries(txn_id);   //TODO: Ideally should call UpdateWaiting Query directly in Commit function already/additionally --> Guarantees that queries wake up as soon as Commit happens, not once Supply happens
+                                                         // If the Commit has already happened, then WaitingQueries for this tx is empty and nothing will happen.
             continue;
         }
         //check if locally aborted; if so, no point in syncing on txn: --> should mark this and reply to client with query fail (include tx that has abort vote + proof 
         //--> client can confirm that this is part of snapshot).. query is doomed to fai.
         auto itr2 = aborted.find(txn_id);
         if(itr2 != aborted.end()){
+             Debug("Already have aborted tx-id: %s", BytesToHex(txn_id, 16).c_str());
             //TODO: Mark all waiting queries as doomed.
         }
 
         if(txn_info.has_commit_proof()){
 
+            Debug("Trying to commit tx-id: [%s]", BytesToHex(txn_id, 16).c_str());
             proto::CommittedProof *proof = txn_info.release_commit_proof();
 
             //TODO: it's possible for the txn to be in process of committing while entering this branch; that's fine safety wise, but can cause redundant verification. Might want to hold a lock to avoid (if it happens)
-            bool valid = ValidateCommittedProof(*proof, &txn_id, keyManager, &config, verifier); //TODO: MAke this Async ==> Requires rest of code (CommitWithProof/UpdateWaiting) to go into callback.
+
+            bool valid;
+            if (proof->txn().client_id() == 0UL && proof->txn().client_seq_num() == 0UL) {
+                // Genesis tx are valid by default. TODO: this is unsafe, but a hack so that we can bootstrap a benchmark without needing to write all existing data with transactions
+                // Note: Genesis Tx will NEVER by exchanged by sync since by definition EVERY replica has them (and thus will never request them) -- this branch is only used for testing.
+                valid = true;
+                 Debug("Accepte Genesis tx-id: [%s]", BytesToHex(txn_id, 16).c_str());
+            }
+            else{
+                 valid = ValidateCommittedProof(*proof, &txn_id, keyManager, &config, verifier); //TODO: MAke this Async ==> Requires rest of code (CommitWithProof/UpdateWaiting) to go into callback.
+                 Debug("Validated Commit Proof for tx-id: [%s]", BytesToHex(txn_id, 16).c_str());
+            }
+          
             if(!valid){
                 delete proof;
                 Panic("Commit Proof not valid");
@@ -570,6 +605,8 @@ void Server::HandleSupplyTx(const TransportAddress &remote, proto::SupplyMissing
             result = c->second.result; //p1Decisions[txnDigest];
             conflict = c->second.conflict;
              c.release();
+
+             Debug("Already have prepared tx-id: [%s] with result %d", BytesToHex(txn_id, 16).c_str(), result);
              continue;
 
             //TODO: If commit, skip;
@@ -590,6 +627,8 @@ void Server::HandleSupplyTx(const TransportAddress &remote, proto::SupplyMissing
         c.release();
          //check if locally prepared; if not do OCC check. --> If not successful, apply tx anyways with special marker only useable by marked queries.
         if(txn_info.has_p1()){
+
+            Debug("Trying to prepare tx-id: [%s]", BytesToHex(txn_id, 16).c_str());
             //TODO: Handle incoming p1 as a normal P1 and after it is done, Update Waiting Queries. ==> If update waiting queries is done as part of Prepare (whether visible or invisible) nothing else is necessary)
             proto::Phase1 *p1 = txn_info.release_p1();
 
@@ -646,6 +685,8 @@ void Server::UpdateWaitingQueries(const std::string &txnDigest){
     //when receiving a requested sync msg, use it to update waiting data structures for all potentially ongoing queries.
     //waiting queries are registered in map from txn-id to query id:
 
+     Debug("Checking whether can wake all queries waiting on txn_id %s", BytesToHex(txnDigest, 16).c_str());
+
      //1) find queries that were waiting on this txn-id
     waitingQueryMap::accessor w;
     bool hasWaiting = waitingQueries.find(w, txnDigest);
@@ -659,6 +700,8 @@ void Server::UpdateWaitingQueries(const std::string &txnDigest){
                 QueryMetaData *query_md = q->second;
                 bool was_present = query_md->missing_txn.erase(txnDigest);
 
+                 Debug("Query[%lu:%lu] is still waiting on (%d) transactions", query_md->query_seq_num, query_md->client_id, query_md->missing_txn.size());
+
                 //3) if missing data structure is empty for any query: Start Callback.
                 if(was_present && query_md->missing_txn.empty()){ //only call this the first time missing_txn goes empty: present captures the fact that map was non-empty before erase.
                     HandleSyncCallback(query_md); //TODO: Should this be dispatched again? So that multiple waiting queries don't execute sequentially?
@@ -668,7 +711,7 @@ void Server::UpdateWaitingQueries(const std::string &txnDigest){
             //w->second.erase(waiting_query); //FIXME: Delete safely while iterating... ==> Just erase all after
         }
         //4) remove key from waiting data structure if no more queries waiting on it to avoid key set growing infinitely...
-        waitingQueries.erase(txnDigest);
+        waitingQueries.erase(w);
     }
     w.release();
 }
@@ -707,7 +750,8 @@ void Server::HandleSyncCallback(QueryMetaData *query_md){
     query_md->read_set["dummy key"] = query_md->ts;
 
     // 3) Generate Merkle Tree over Read Set, result, query id  (FIXME:: Currently only over read set:  )
-    query_md->result_hash = std::move(generateReadSetMerkleRoot(query_md->read_set, params.merkleBranchFactor)); //by default: merkleBranchFactor = 2 ==> might want to use flatter tree to minimize hashes.
+    query_md->result_hash = std::move(generateReadSetHashChain(query_md->read_set));
+    //query_md->result_hash = std::move(generateReadSetMerkleRoot(query_md->read_set, params.merkleBranchFactor)); //by default: merkleBranchFactor = 2 ==> might want to use flatter tree to minimize hashes.
                                                                                                         //TODO: Can avoid hashing leaves by making them unique strings? "[key:version]" should do the trick?
 
     // 4) Possibly buffer Read Set (map: query_digest -> <result_hash, read set>) ==> implicitly done by storing read set + result hash in query_md 

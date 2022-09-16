@@ -78,6 +78,8 @@ void ToyClient::ExecuteToy(){
             std::cerr << "value read for x: " << readValue << "\n";
             client.Commit(timeout);
             std::cerr << "Committed value for x\n";
+
+            sleep(1);
             
             std::string query = "SELECT *";
             std::string queryResult;
