@@ -247,6 +247,7 @@ virtual void Phase2Equivocate_Simulate(uint64_t id, const proto::Transaction &tx
     uint64_t num_designated_replies;
     uint64_t numResults;
     std::unordered_set<uint64_t> resultsVerified;
+    std::unordered_set<uint64_t> failsVerified;
     std::string result;
     std::string result_hash;
     std::unordered_map<std::string, std::unordered_map<std::string, uint64_t>> result_freq; //map from result to map of associated result hash + their frequency (could be that two same results have different result hash; and vice versa)
@@ -480,7 +481,8 @@ virtual void Phase2Equivocate_Simulate(uint64_t id, const proto::Transaction &tx
   //void RetryQuery(PendingQuery *pendingQuery);
   void HandleQuerySyncReply(proto::SyncReply &SyncReply);
   void SyncReplicas(PendingQuery *pendingQuery);
-  void HandleQueryResult(proto::QueryResult queryResult);
+  void HandleQueryResult(proto::QueryResult &queryResult);
+  void HandleFailQuery(proto::FailQuery &msg);
 
 
   inline size_t GetNthClosestReplica(size_t idx) const {
@@ -562,6 +564,8 @@ virtual void Phase2Equivocate_Simulate(uint64_t id, const proto::Transaction &tx
   proto::LocalSnapshot validated_local_ss;
   proto::QueryResult queryResult;
   proto::Result validated_result;
+  proto::FailQuery failQuery;
+  proto::FailQueryMsg validated_fail;
 
   proto::SyncClientProposal syncMsg;
 };

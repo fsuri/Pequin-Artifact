@@ -121,6 +121,7 @@ void ShardClient::RetryQuery(uint64_t query_seq_num, proto::Query &queryMsg){
 
     pendingQuery->numResults = 0;
     pendingQuery->resultsVerified.clear();
+    pendingQuery->failsVerified.clear();
     pendingQuery->result_freq.clear();
     pendingQuery->retry = true;
 
@@ -286,13 +287,13 @@ void ShardClient::SyncReplicas(PendingQuery *pendingQuery){
 }
 
 
-void ShardClient::HandleQueryResult(proto::QueryResult queryResult){
+void ShardClient::HandleQueryResult(proto::QueryResult &queryResult){
     //0) find PendingQuery object via request id
      auto itr = this->pendingQueries.find(queryResult.req_id());
     if (itr == this->pendingQueries.end()) return; // this is a stale request
 
     PendingQuery *pendingQuery = itr->second;
-    Debug("[group %i] QuerySyncReply for request %lu.", group, queryResult.req_id());
+    Debug("[group %i] QueryResult Reply for request %lu.", group, queryResult.req_id());
 
     // if(!pendingQuery->query_manager){
     //     Debug("[group %i] is not Transaction Manager for request %lu", group, queryResult.req_id());
@@ -329,17 +330,19 @@ void ShardClient::HandleQueryResult(proto::QueryResult queryResult){
         
     }
 
-    //3) check for duplicates -- (ideally check before verifying sig)
-    if (!pendingQuery->resultsVerified.insert(replica_result->replica_id()).second) {
-      Debug("Already received query result from replica %lu.", replica_result->replica_id());
-      return;
-    }
-    //4) check whether replica in group.
+    //3) check whether replica in group.
     if (!IsReplicaInGroup(replica_result->replica_id(), group, config)) {
       Debug("[group %d] Query Result from replica %lu who is not in group.",
           group, replica_result->replica_id());
       return;
     }
+
+    //4) check for duplicates -- (ideally check before verifying sig)
+    if (!pendingQuery->resultsVerified.insert(replica_result->replica_id()).second) {
+      Debug("Already received query result from replica %lu.", replica_result->replica_id());
+      return;
+    }
+    
     
     int matching_res;
     std::map<std::string, TimestampMessage> read_set;
@@ -379,6 +382,59 @@ void ShardClient::HandleQueryResult(proto::QueryResult queryResult){
     //6) remove pendingQuery object --> happens in upcall to client (calls ClearQuery)
 
     //TODO: edit syncQueryReply such that it can also function as HandleQueryResult...
+}
+
+void ShardClient::HandleFailQuery(proto::FailQuery &queryFail){
+    //0) find PendingQuery object via request id
+     auto itr = this->pendingQueries.find(queryFail.req_id());
+    if (itr == this->pendingQueries.end()) return; // this is a stale request
+
+    PendingQuery *pendingQuery = itr->second;
+    Debug("[group %i] QueryFail Reply for request %lu.", group, queryResult.req_id());
+
+    //1) authenticate reply & parse contents
+    proto::QueryFailMsg *query_fail;
+
+     if (params.validateProofs && params.signedMessages) {
+        if (queryFail.has_signed_fail()) {
+
+            if (!verifier->Verify(keyManager->GetPublicKey(queryFail.signed_fail().process_id()),
+                    queryFail.signed_fail().data(), queryFail.signed_fail().signature())) {
+                Debug("[group %i] Failed to validate signature for query fail reply from replica %lu.", group, queryFail.signed_fail().process_id());
+                return;
+            }
+            if(!validated_fail.ParseFromString(queryFail.signed_fail().data())) {
+                Debug("[group %i] Invalid serialization of Fail.", group);
+                return;
+            }
+          query_fail = &validated_fail;
+
+        } else {
+            Panic("Query Fail Reply without required signature"); //Note: Only panic for debugging purposes
+        }
+    } else {
+       query_fail = queryFail.mutable_fail();
+    }
+
+    //3) check whether replica in group.
+    if (!IsReplicaInGroup(query_fail->replica_id(), group, config)) {
+      Debug("[group %d] Query Fail from replica %lu who is not in group.",
+          group, query_fail->replica_id());
+      return;
+    }
+
+    //4) check for duplicates -- (ideally check before verifying sig)
+    if (!pendingQuery->failsVerified.insert(query_fail->replica_id()).second) {
+      Debug("Already received query fail from replica %lu.", query_fail->replica_id());
+      return;
+    }
+
+    if(pendingQuery->failsVerified == config->f + 1){
+        //FIXME: Use a different callback to differentiate Fail due to optimistic ID, and fail due to abort/missed tx?
+        std::map<std::string, TimestampMessage> read_set;
+        pendingQuery->rcb(REPLY_FAIL, group, read_set, "", "", false);
+    }
+    return;
 }
 
 

@@ -131,6 +131,10 @@ void ShardClient::ReceiveMessage(const TransportAddress &remote,
     HandleQueryResult(queryResult);
     
   }
+  else if(type == failQuery.GetTypeName()){
+    failQuery.ParseFromString(data);
+    HandleFailQuery(failQuery);
+  }
   else {
     Panic("Received unexpected message type: %s", type.c_str());
   }

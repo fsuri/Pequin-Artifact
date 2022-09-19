@@ -557,7 +557,9 @@ void Server::HandleSupplyTx(const TransportAddress &remote, proto::SupplyMissing
         auto itr2 = aborted.find(txn_id);
         if(itr2 != aborted.end()){
              Debug("Already have aborted tx-id: %s", BytesToHex(txn_id, 16).c_str());
-            //TODO: Mark all waiting queries as doomed.
+            //Mark all waiting queries as doomed.
+            //FailWaitingQueries(txn_id);
+            continue;
         }
 
         if(txn_info.has_commit_proof()){
@@ -612,7 +614,9 @@ void Server::HandleSupplyTx(const TransportAddress &remote, proto::SupplyMissing
             //TODO: If commit, skip;
             if(result == proto::ConcurrencyControl::COMMIT) continue; //TODO: UpdateWaitingQueries 
             else if(result == proto::ConcurrencyControl::ABORT){
-                //TODO: Mark all waiting queries as failed.
+                //Mark all waiting queries as failed.
+                //FailWaitingQueries(txn_id);
+                continue;
             }
             else if(result == proto::ConcurrencyControl::ABSTAIN){
                 //TODO: somehow add tx to store, and mark it as "viewable" only for waitingQueries --> //FIXME: if a new query arrives that also wants to see this tx --> edit the marker to make it visible too.
@@ -641,8 +645,9 @@ void Server::HandleSupplyTx(const TransportAddress &remote, proto::SupplyMissing
             //(this makes sense, since supply txn is effectively a Commit or P1)
         }
         else if (txn_info.has_invalid()){
-            //TODO: Edit into handler for replica reporting that it doesnt have either. False request.
-            Panic("Invalid Supply Txn: Replica didn't have requested txn");
+            //TODO: Edit into handler for replica reporting that it doesnt have either. False request. 
+            //FIXME: currently waitingQueries doesn't distinguish individual queries: some may have had honest clients, others not. ==> Just add req_id that invoked Req/Supply
+            Panic("Invalid Supply Txn: Replica didn't have requested txn"); //Panicing for debug purposes only. Just return normally.
             return;
         }
         else{
@@ -678,6 +683,8 @@ void Server::CommitWithProof(const std::string &txn_id, proto::CommittedProof *p
     //TODO: Add UpdateWaitingQueries here. (and in normal Commit too? --> Tricky since that commit is only on mainthread --> don't want it to call callback directly --> would want to dispatch)
 }
             
+//TODO: Alternatively, set query_id field in request missing and supply missing and wake only respective query. That might be easier to debug.
+//TODO: If Tx gets locally committed/prepared/abstained ignore it, and wait for SupplyTxn reply anyways ==> This is slower/less optimal, but definitely simpler to implement at first.
 
 //FIXME: WARNING: Possible Inverted lock order (accessors w and q) in this function and HandleSync. Should be fine though, since this function will only try to call a q for which a w was added;
                                                      //while HandleSync only calls each w once. I.e. HandleSync must lock&release w first, in order for this function to even request the same q.
@@ -756,7 +763,14 @@ void Server::HandleSyncCallback(QueryMetaData *query_md){
     //FIXME: Always callback at shardclient, just only call-up to app if a) result has been received, b) all shards replied with read-set (or read-set hash)
     //-- want to do this so that Exec can be a better blackbox: This way data exchange might just be a small intermediary data, yet client learns full read set. 
         //In this case, read set hash from a shard is not enough to prove integrity to another shard (since less data than full read set might be exchanged)
-    SyncReply(query_md);
+
+    bool exec_success = true;
+    if(exec_success){
+         SyncReply(query_md);
+    }
+    else{
+        FailQuery(query_md);
+    }
 }
 
 void Server::SyncReply(QueryMetaData *query_md){
@@ -842,6 +856,61 @@ void Server::SyncReply(QueryMetaData *query_md){
 
 }
 
+//TODO: DONT USE THIS. It aborts queries whenever a snapshot contains an aborted tx. But maybe this aborted tx is not part of frontier, so it does not matter.
+void Server::FailWaitingQueries(const std::string &txnDigest){
+
+     Debug("All queries waiting on txn_id %s are invalid, because %s is abort.", BytesToHex(txnDigest, 16).c_str());
+
+     //1) find queries that were waiting on this txn-id
+    waitingQueryMap::accessor w;
+    bool hasWaiting = waitingQueries.find(w, txnDigest);
+    if(hasWaiting){
+        for(const std::string &waiting_query : w->second){
+
+            //2) update their missing data structures
+            queryMetaDataMap::accessor q;
+            bool queryActive = queryMetaData.find(q, waiting_query);
+            if(queryActive){
+                QueryMetaData *query_md = q->second;
+                FailQuery(query_md);
+            }
+            q.release();
+            //w->second.erase(waiting_query); //FIXME: Delete safely while iterating... ==> Just erase all after
+        }
+        //4) remove key from waiting data structure since no more queries are waiting on it 
+        waitingQueries.erase(w);
+    }
+    w.release();
+}
+}
+
+void Server::FailQuery(QueryMetaData *query_md){
+
+    query_md->failure = true;
+    proto::FailQuery failQuery;
+    failQuery.set_req_id(query_md->req_id)
+    failQuery.mutable_fail()->set_replica_id(id);
+
+    if (params.validateProofs && params.signedMessages) {
+        Debug("Sign Query Fail Reply for Query[%lu:%lu]", query_reply->query_seq_num(), query_reply->client_id());
+        proto::FailQueryMessage *failQueryMsg = failQuery.release_fail();
+
+        if(params.signatureBatchSize == 1){
+            SignMessage(failQueryMsg, keyManager->GetPrivateKey(id), id, queryResult->mutable_signed_fail());
+        }
+        else{
+            std::vector<::google::protobuf::Message *> msgs;
+            msgs.push_back(failQueryMsg);
+            std::vector<proto::SignedMessage *> smsgs;
+            smsgs.push_back(queryFail->mutable_signed_fail());
+            SignMessages(msgs, keyManager->GetPrivateKey(id), id, smsgs, params.merkleBranchFactor);
+        }
+    }
+
+
+    transport->SendMessage(this, *query_md->original_client, failQuery);
+
+}
 
 
 

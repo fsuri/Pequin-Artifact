@@ -209,10 +209,11 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
 
     struct QueryMetaData {
       QueryMetaData(const std::string &query_cmd, const TimestampMessage &timestamp, const TransportAddress &remote, const uint64_t &req_id, const uint64_t &query_seq_num, const uint64_t &client_id): 
-         retry(false), has_result(false), query_cmd(query_cmd), ts(timestamp), original_client(remote.clone()), req_id(req_id), query_seq_num(query_seq_num), client_id(client_id) {}
+         failure(false), retry(false), has_result(false), query_cmd(query_cmd), ts(timestamp), original_client(remote.clone()), req_id(req_id), query_seq_num(query_seq_num), client_id(client_id) {}
       ~QueryMetaData(){ 
         if(original_client != nullptr) delete original_client;
       }
+      bool failure;
 
       TransportAddress *original_client;
       uint64_t req_id;  //can use this as implicit retry version.
@@ -245,6 +246,8 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
     void HandleSyncCallback(QueryMetaData *query_md);
     void SyncReply(QueryMetaData *query_md);
     void UpdateWaitingQueries(const std::string &txnDigest);
+    void FailWaitingQueries(const std::string &txnDigest);
+    void FailQuery(QueryMetaData *query_md);
     bool VerifyClientQuery(proto::QueryRequest &msg, const proto::Query *query, std::string &queryId);
     bool VerifyClientSyncProposal(proto::SyncClientProposal &msg, const std::string &queryId);
 

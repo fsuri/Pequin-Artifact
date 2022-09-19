@@ -47,7 +47,33 @@ message QueryResult {
     oneof result_oneof {
       Result result = 2;
       SignedMessage signed_result = 3;
+      bool failure = 4;
     }
+}
+
+
+message FailQueryMsg {
+  required uint64 replica_id = 1;
+  optional uint64 req_id = 2; // this alone suffice to identify query version and id.
+  optional bytes query_id = 3;
+  optional uint64 query_version = 4;
+  //oneof conflict_oneof {
+    //missed_txn; // proof of committed txn that snapshot should have seen, but missed
+    //abort_conflict; // proof that a prepared txn in snapshot aborted (or will be): either abort cert; or abort conflict
+    //Problem: Client can only tell whether conflict is valid w.r.t. to proposed snapshot set, but not w.r.t to proposed snapshot cut. 
+    //         E.g. no way to tell that the missed txn is indeed fresher, or that the abort conflict matters (maybe the aborted tx isn't in frontier)
+    //Solution: Best effort. Wait for f+1 conflicts; only tx-id suffices. If
+    //TODO: If replica received f+1 invalid supply txn for same query, or local validtion or exec determines abort early ==> reply to client with FailQuery.
+ // }
+}
+
+message FailQuery {
+  required uint64 req_id = 1;
+  oneof fail_query {
+    FailQueryMsg fail = 2;
+    SignedMessage signed_fail = 3;
+  }
+
 }
 
 
@@ -109,6 +135,7 @@ message SyncClientProposal {
 message RequestMissingTxns {
    required uint64 replica_idx = 1;
    repeated bytes missing_txn = 2; //list of txn digests;
+   optional bytes query_id = 3;
 }
 
 message TxnInfo {
@@ -118,6 +145,7 @@ message TxnInfo {
     //optional SignedMessage signed_txn = 2;
    CommittedProof commit_proof = 2;
    bool invalid = 3;
+   //TODO: Add abort proof.
   }
  
 }
@@ -132,6 +160,7 @@ message SupplyMissingTxns {
     SupplyMissingTxnsMessage supply_txn = 1;
     SignedMessage signed_supply_txn = 2;
   }
+  optional bytes query_id = 3;
 }
 
 ////////////////////////// Modified Concurrency Control ///////////////////////////
