@@ -731,6 +731,13 @@ void Server::HandleSyncCallback(QueryMetaData *query_md){
     // 1) Execute Query
     //Execute Query -- Go through store, and check if latest tx in store is present in syncList. If it is missing one (committed) --> reply EarlyAbort (tx cannot succeed). If prepared is missing, ignore, skip to next
     // Build Read Set while executing; Add dependencies on demand as we observe uncommitted txn touched.
+
+      // 2) Construct Read Set
+    //read set = map from key-> versions  //Note: Convert Timestamp to TimestampMessage
+    TimestampMessage ts;
+    ts.set_id(query_md->ts.getID());
+    ts.set_timestamp(query_md->ts.getTimestamp());
+    query_md->read_set["dummy key"] = ts; //query_md->ts;
     
     /////////////////////////////////////////////////////////////
     //                                                         //
@@ -743,11 +750,18 @@ void Server::HandleSyncCallback(QueryMetaData *query_md){
     //                                                         //
     //                                                         //
     /////////////////////////////////////////////////////////////
-     query_md->result = "success";
 
-    // 2) Construct Read Set
-    //read set = map from key-> versions
-    query_md->read_set["dummy key"] = query_md->ts;
+    //Blackbox might do multi-replica coordination to compute result and full read-set (though read set can actually be reported directly by each shard...)
+    //TODO: Receive SyncReply from all shards ==> with read set, or read set hash. ==> in Tx_manager (marked by query) reply also include the result
+    //FIXME: Always callback at shardclient, just only call-up to app if a) result has been received, b) all shards replied with read-set (or read-set hash)
+    //-- want to do this so that Exec can be a better blackbox: This way data exchange might just be a small intermediary data, yet client learns full read set. 
+        //In this case, read set hash from a shard is not enough to prove integrity to another shard (since less data than full read set might be exchanged)
+    SyncReply(query_md);
+}
+
+void Server::SyncReply(QueryMetaData *query_md){
+    
+    query_md->result = "success";
 
     // 3) Generate Merkle Tree over Read Set, result, query id  (FIXME:: Currently only over read set:  )
     query_md->result_hash = std::move(generateReadSetHashChain(query_md->read_set));
@@ -756,16 +770,26 @@ void Server::HandleSyncCallback(QueryMetaData *query_md){
 
     // 4) Possibly buffer Read Set (map: query_digest -> <result_hash, read set>) ==> implicitly done by storing read set + result hash in query_md 
    
-    //5) Create Result reply --  // only necesary if chosen for reply.
-    if(!query_md->designated_for_reply) return;
-    
+    //5) Create Result reply --  // only include result if chosen for reply.
+  
     proto::QueryResult *queryResult = new proto::QueryResult(); //TODO: replace with GetUnused
 
     proto::Result *query_reply = queryResult->mutable_result();
     query_reply->set_query_seq_num(query_md->query_seq_num); //TODO: store these in query_md?
     query_reply->set_client_id(query_md->client_id);
-    query_reply->set_query_result(query_md->result);
-    query_reply->set_query_result_hash(query_md->result_hash);
+    if(query_md->designated_for_reply){
+        query_reply->set_query_result(query_md->result);
+    }
+    else{
+        query_reply->set_query_result("default"); //set for non-query manager.
+    }
+    if(params.query_params.cacheReadSet){
+        query_reply->set_query_result_hash(query_md->result_hash);
+    }
+    else{
+        *query_reply->mutable_query_read_set() = {query_md->read_set.begin(), query_md->read_set.end()}; //FIXME: Protobuf may serialize map into arbitrary order --> make sure it's ordered when Hashing.
+    }
+    
     //TODO: Add read set.
     query_reply->set_replica_id(id);
     queryResult->set_req_id(query_md->req_id);

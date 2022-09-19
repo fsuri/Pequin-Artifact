@@ -1876,16 +1876,16 @@ std::string QueryDigest(const proto::Query &query, bool queryHashDigest){
   }
 }
 
-std::string generateReadSetHashChain(std::map<std::string, Timestamp> &read_set) { 
+std::string generateReadSetHashChain(std::map<std::string, TimestampMessage> &read_set) { 
   blake3_hasher hasher;
   blake3_hasher_init(&hasher);
   std::string hash_chain(BLAKE3_OUT_LEN, 0);
 
-   for (auto it : read_set) {
+   for (auto const &[key, ts] : read_set) {
     // hash the input leafs. I.e. (key, version) pairs 
-    blake3_hasher_update(&hasher, (unsigned char*) &it.first[0], it.first.length());
-    uint64_t timestampId = it.second.getID();
-    uint64_t timestampTs = it.second.getTimestamp(); //TODO: change all of this to a proto::TimestampedMessage?
+    blake3_hasher_update(&hasher, (unsigned char*) &key[0], key.length());
+    uint64_t timestampId = ts.id(); // getID();
+    uint64_t timestampTs = ts.timestamp(); // getTimestamp(); 
     blake3_hasher_update(&hasher, (unsigned char *) &timestampId, sizeof(timestampId));
     blake3_hasher_update(&hasher, (unsigned char *) &timestampTs, sizeof(timestampTs));
   }
@@ -1894,7 +1894,7 @@ std::string generateReadSetHashChain(std::map<std::string, Timestamp> &read_set)
   return hash_chain;
 }
 
-std::string generateReadSetMerkleRoot(std::map<std::string, Timestamp> &read_set, uint64_t m) { 
+std::string generateReadSetMerkleRoot(std::map<std::string, TimestampMessage> &read_set, uint64_t m) { 
   //This function generates and computes a full, static Merkle tree in place -- it directly assigns positions in a well-balanced tree.
   //Alternative, greedy approach: Could dynamically build a non-perfect tree by using a queue: Pick (up to) first m available elements and hash. Add hash back to end. Cont until queue has 1 element = root.
   //Alternative, non-static approach: Could build a tree dynamically (support insert/remove operations) and implement a compute function that bubbles up values
@@ -1917,14 +1917,14 @@ std::string generateReadSetMerkleRoot(std::map<std::string, Timestamp> &read_set
   // insert the message hashes into the tree
 
   unsigned int i = 0;
-  for (auto it : read_set) {
+  for (auto const &[key, ts] : read_set) {
     // need to initialize on every hash 
     blake3_hasher_init(&hasher);
 
     // hash the input leafs. I.e. (key, version) pairs 
-    blake3_hasher_update(&hasher, (unsigned char*) &it.first[0], it.first.length());
-    uint64_t timestampId = it.second.getID();
-    uint64_t timestampTs = it.second.getTimestamp(); //TODO: change all of this to a proto::TimestampedMessage?
+    blake3_hasher_update(&hasher, (unsigned char*) &key[0], key.length());
+    uint64_t timestampId = ts.id(); // getID();
+    uint64_t timestampTs = ts.timestamp(); // getTimestamp(); 
     blake3_hasher_update(&hasher, (unsigned char *) &timestampId, sizeof(timestampId));
     blake3_hasher_update(&hasher, (unsigned char *) &timestampTs, sizeof(timestampTs));
     

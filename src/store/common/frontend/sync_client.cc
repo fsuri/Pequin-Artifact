@@ -110,7 +110,7 @@ void SyncClient::Abort(uint32_t timeout) {
   promise.GetReply();
 }
 
-void SyncClient::Query(const std::string &query, std::string &result, uint32_t timeout) {
+void SyncClient::Query(std::string &query, std::string &result, uint32_t timeout) {
   Promise promise(timeout);
   
   client->Query(query, std::bind(&SyncClient::QueryCallback, this, &promise,

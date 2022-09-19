@@ -67,7 +67,7 @@ typedef std::function<void(int, const std::string &,
 typedef std::function<void(int, const std::string &)> read_timeout_callback;
 
 ////////// Queries
-typedef std::function<void(int, const std::string &, const std::string &, bool)> result_callback;
+typedef std::function<void(int, int, std::map<std::string, TimestampMessage> &, std::string &, std::string &, bool)> result_callback; //status, group, read_set, result_hash, result, success
 typedef std::function<void(int)> result_timeout_callback;
 
 /////////// Basil protocol
@@ -134,7 +134,7 @@ class ShardClient : public TransportReceiver, public PingInitiator, public PingT
 
   // Perform a query computation
   virtual void Query(uint64_t client_seq_num, uint64_t query_seq_num, proto::Query &queryMsg, //const std::string &query, const TimestampMessage &ts,
-      result_callback rcb, result_timeout_callback rtcb, uint32_t timeout, bool tx_manager);
+      result_callback rcb, result_timeout_callback rtcb, uint32_t timeout);
 
 
 ///////////// End Execution Protocol

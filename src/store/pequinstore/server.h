@@ -230,7 +230,7 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
 
       bool has_result;
       
-      std::map<std::string, Timestamp> read_set;     //read set = map from key-> Timestamp version   //ordered_map ==> all replicas agree on key order.
+      std::map<std::string, TimestampMessage> read_set;     //read set = map from key-> Timestamp version   //ordered_map ==> all replicas agree on key order.
       std::set<std::string> dependencies; 
       std::string result;      //result
       std::string result_hash; //result_hash
@@ -243,6 +243,7 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
     waitingQueryMap waitingQueries;
 
     void HandleSyncCallback(QueryMetaData *query_md);
+    void SyncReply(QueryMetaData *query_md);
     void UpdateWaitingQueries(const std::string &txnDigest);
     bool VerifyClientQuery(proto::QueryRequest &msg, const proto::Query *query, std::string &queryId);
     bool VerifyClientSyncProposal(proto::SyncClientProposal &msg, const std::string &queryId);

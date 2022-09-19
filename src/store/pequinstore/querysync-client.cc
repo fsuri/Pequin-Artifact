@@ -40,7 +40,7 @@ namespace pequinstore {
 //-> Every shard (not just query_manager shard) should be able to send this if it observes a committed query was missed; or if the materialized snapshot frontier includes a prepare that aborted (or is guaranteed to, e.g. vote Abort)
 
 void ShardClient::Query(uint64_t client_seq_num, uint64_t query_seq_num, proto::Query &queryMsg, // const std::string &query, const TimestampMessage &ts,
-      result_callback rcb, result_timeout_callback rtcb, uint32_t timeout, bool query_manager) {
+      result_callback rcb, result_timeout_callback rtcb, uint32_t timeout) {
 
  Debug("Invoked QueryRequest [%lu] on ShardClient for group %d", query_seq_num, group);
   
@@ -63,11 +63,11 @@ void ShardClient::Query(uint64_t client_seq_num, uint64_t query_seq_num, proto::
   //pendingQuery->qts = ts;
 
   //pendingQuery->retry = retry;
-  if(query_manager){
-     pendingQuery->query_manager = true;
-     pendingQuery->rcb = rcb;
-     pendingQuery->rtcb = rtcb;
-  }
+
+  pendingQuery->query_manager = (queryMsg.query_manager() == group);
+  pendingQuery->rcb = rcb;
+  pendingQuery->rtcb = rtcb;
+  
  
   RequestQuery(pendingQuery, queryMsg);
 
@@ -294,13 +294,13 @@ void ShardClient::HandleQueryResult(proto::QueryResult queryResult){
     PendingQuery *pendingQuery = itr->second;
     Debug("[group %i] QuerySyncReply for request %lu.", group, queryResult.req_id());
 
-    if(!pendingQuery->query_manager){
-        Debug("[group %i] is not Transaction Manager for request %lu", group, queryResult.req_id());
-        return;
-    }
+    // if(!pendingQuery->query_manager){
+    //     Debug("[group %i] is not Transaction Manager for request %lu", group, queryResult.req_id());
+    //     return;
+    // }
 
     //1) authenticate reply & parse contents
-    const proto::Result *replica_result;
+    proto::Result *replica_result;
 
      if (params.validateProofs && params.signedMessages) {
         if (queryResult.has_signed_result()) {
@@ -325,7 +325,7 @@ void ShardClient::HandleQueryResult(proto::QueryResult queryResult){
             Panic("Query Sync Reply without required signature"); //Note: Only panic for debugging purposes
         }
     } else {
-        replica_result = &queryResult.result();
+        replica_result = queryResult.mutable_result();
         
     }
 
@@ -341,14 +341,24 @@ void ShardClient::HandleQueryResult(proto::QueryResult queryResult){
       return;
     }
     
-   
-    //3) wait for up to result_threshold many matching replies (result + result_hash/read set)
-    int matching_res = ++pendingQuery->result_freq[replica_result->query_result()][replica_result->query_result_hash()]; //map should be default initialized to 0.
+    int matching_res;
+    std::map<std::string, TimestampMessage> read_set;
 
+    //3) wait for up to result_threshold many matching replies (result + result_hash/read set)
+    if(params.query_params.cacheReadSet){
+         matching_res = ++pendingQuery->result_freq[replica_result->query_result()][replica_result->query_result_hash()]; //map should be default initialized to 0.
+    }
+    else{ //manually compare that read sets match. Easy way to compare: Hash ReadSet.
+         read_set = {replica_result->query_read_set().begin(), replica_result->query_read_set().end()}; //FIXME: Does the map automatically become ordered?
+         std::string validated_result_hash = std::move(generateReadSetHashChain(read_set));
+         matching_res = ++pendingQuery->result_freq[replica_result->query_result()][validated_result_hash]; //map should be default initialized to 0.
+         if(pendingQuery->result_freq[replica_result->query_result()].size() > 1) Panic("When testing all hashes should be the same.");
+    }
+  
     //4) if receive enough --> upcall;  At client: Add query identifier and result to Txn
         // Only need results from "result" shard (assuming simple migration scheme)
     if(matching_res == params.query_params.resultQuorum){
-        pendingQuery->rcb(REPLY_OK, replica_result->query_result(), replica_result->query_result_hash(), true);
+        pendingQuery->rcb(REPLY_OK, group, read_set, *replica_result->mutable_query_result(), *replica_result->mutable_query_result_hash(), true);
         // Remove/Deltete pendingQuery happens in upcall
         return;
     }
@@ -361,7 +371,7 @@ void ShardClient::HandleQueryResult(proto::QueryResult queryResult){
     
     //Waited for max number of result replies that can be expected. //TODO: Can be "smarter" about this. E.g. if waiting for at most f+1 replies, as soon as first non-matching arrives return...
     if(pendingQuery->resultsVerified.size() == maxWait){
-       pendingQuery->rcb(REPLY_FAIL, replica_result->query_result(), replica_result->query_result_hash(), false);
+       pendingQuery->rcb(REPLY_FAIL, group, read_set, *replica_result->mutable_query_result(), *replica_result->mutable_query_result_hash(), false);
         //Remove/Delete pendingQuery happens in upcall
        return;
     }

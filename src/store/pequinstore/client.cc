@@ -243,10 +243,10 @@ void Client::Put(const std::string &key, const std::string &value,
 
 //Simulate Select * for now
 // TODO: --> Return all rows in the store.
-void Client::Query(const std::string &query, query_callback qcb,
+void Client::Query(std::string &query, query_callback qcb,
     query_timeout_callback qtcb, uint32_t timeout) {
 
-  transport->Timer(0, [this, query, qcb, qtcb, timeout]() {
+  transport->Timer(0, [this, query, qcb, qtcb, timeout]() mutable {
     // Latency_Start(&getLatency);
 
     query_seq_num++;
@@ -257,9 +257,26 @@ void Client::Query(const std::string &query, query_callback qcb,
     //TODO: Determine involved groups
     //Requires parsing the Query statement to extract tables touched? Might touch multiple shards...
     //Assume for now only touching one group. (single sharded system)
+    PendingQuery *pendingQuery = new PendingQuery(this, query_seq_num, query);
+
     std::vector<uint64_t> involved_groups = {0UL};
-    uint64_t query_manager = involved_groups[0];
-    Debug("[group %i] designated as Query Execution Manager for query [%lu:%lu]", query_manager, client_seq_num, query_seq_num);
+    pendingQuery->SetInvolvedGroups(this, involved_groups);
+    Debug("[group %i] designated as Query Execution Manager for query [%lu:%lu]", pendingQuery->queryMsg.query_manager(), client_seq_num, query_seq_num);
+
+    // std::vector<uint64_t> involved_groups = {0UL};
+    // uint64_t query_manager = involved_groups[0];
+    // Debug("[group %i] designated as Query Execution Manager for query [%lu:%lu]", query_manager, client_seq_num, query_seq_num);
+
+        //TODO: just create a new object.. allocate is easier..
+    
+    // queryMsg.Clear();
+    // queryMsg.set_client_id(client_id);
+    // queryMsg.set_query_seq_num(query_seq_num);
+    // *queryMsg.mutable_query_cmd() = std::move(query);
+    // *queryMsg.mutable_timestamp() = txn.timestamp();
+    // queryMsg.set_query_manager(query_manager);
+    
+    //TODO: store --> so we can access it with query_seq_num if necessary for retry.
       
 
 
@@ -272,29 +289,27 @@ void Client::Query(const std::string &query, query_callback qcb,
     }
    
 
-    //TODO: just create a new object.. allocate is easier..
-    queryMsg.Clear();
-    queryMsg.set_client_id(client_id);
-    queryMsg.set_query_seq_num(query_seq_num);
-    *queryMsg.mutable_query_cmd() = std::move(query);
-    *queryMsg.mutable_timestamp() = txn.timestamp();
-    queryMsg.set_query_manager(query_manager);
-    
-
-
-    //TODO: store --> so we can access it with query_seq_num if necessary for retry.
-
     //result_callback rcb = qcb;
-    result_callback rcb = [qcb, qsm = query_seq_num, involved_groups, this](int status, const std::string &result, const std::string &result_hash, bool success) mutable { //possibly add read-set
+    result_callback rcb = [qcb, pendingQuery, this](int status, int group, std::map<std::string, TimestampMessage> &read_set, std::string &result_hash, std::string &result, bool success) mutable { //possibly add read-set
   
+  //FIXME: If success: add readset/result hash to datastructure. If group==query manager, record result. If all shards received ==> upcall. 
+  //If failure: re-set datastructure and try again. (any shard can report failure to sync)
+      UW_ASSERT(pendingQuery != nullptr);
       if(success){
-        //TODO: Store query_id and result_hash as part of transaction -- or even read set (what format? --> includes dependencies?) if we want to be flexible.
-        qcb(status, result); //callback to application 
-        //clean pendingQuery and query_seq_num_mapping in all shards.
-        ClearQuery(qsm, involved_groups);
+        pendingQuery->group_read_sets[group] = std::move(read_set);
+        pendingQuery->group_result_hashes[group] = std::move(result_hash);
+        if(group == pendingQuery->involved_groups[0]) pendingQuery->result = std::move(result); //FIXME: cant move const result.
+
+        if(pendingQuery->involved_groups.size() == pendingQuery->group_read_sets.size()){
+            //TODO: Store query_id and result_hash as part of transaction -- or even read set (what format? --> includes dependencies?) if we want to be flexible.
+             //TODO: Make part of current transaction. ==> Add repeated item <QueryMeta>. Query Meta = optional query_id, optional read_sets, optional_result_hashes
+            qcb(REPLY_OK, pendingQuery->result); //callback to application 
+            //clean pendingQuery and query_seq_num_mapping in all shards.
+            ClearQuery(pendingQuery);
+        }
       }
       else{
-        RetryQuery(qsm, involved_groups);
+         RetryQuery(pendingQuery);
       }
                                 
     };
@@ -302,41 +317,57 @@ void Client::Query(const std::string &query, query_callback qcb,
 
     // Send the Query operation to involved shards & select transaction manager (shard responsible for result reply) 
      for(auto &i: involved_groups){
-        bclient[i]->Query(client_seq_num, query_seq_num, queryMsg, rcb, rtcb, timeout, (i == query_manager));
+        bclient[i]->Query(client_seq_num, query_seq_num, pendingQuery->queryMsg, rcb, rtcb, timeout);
      }
     // Shard Client upcalls only if it is the leader for the query, and if it gets matching result hashes  ..........const std::string &resultHash
        //store QueryID + result hash in transaction.
 
-    queryBuffer[query_seq_num] = std::move(queryMsg);  //Buffering only after sending, so we can move contents for free.
+    //queryBuffer[query_seq_num] = std::move(queryMsg);  //Buffering only after sending, so we can move contents for free.
 
   });
 }
 
-void Client::ClearQuery(uint64_t query_seq_num, std::vector<uint64_t> &involved_groups){
 
-   queryBuffer.erase(query_seq_num);
-
-   for(auto &g: involved_groups){
-    bclient[g]->ClearQuery(query_seq_num); //-->Remove mapping + pendingRequest.
+void Client::ClearQuery(PendingQuery *pendingQuery){
+   for(auto &g: pendingQuery->involved_groups){
+    bclient[g]->ClearQuery(pendingQuery->queryMsg.query_seq_num()); //-->Remove mapping + pendingRequest.
    }
-}
 
-void Client::RetryQuery(uint64_t query_seq_num, std::vector<uint64_t> &involved_groups){
-  //find buffered query_seq_num Query.
-  // pass query_id to all involved shards.
-  // shards find their RequestInstance and reset it.
-  proto::Query &query_msg = queryBuffer[query_seq_num]; //TODO: Assert this exists. -- it must, or else we wouldnt' have called Retry.
-  for(auto &g: involved_groups){
-    bclient[g]->RetryQuery(query_seq_num, query_msg); //--> Retry Query, shard clients already have the rcb.
+   delete pendingQuery;
+}
+void Client::RetryQuery(PendingQuery *pendingQuery){
+  pendingQuery->version++;
+  for(auto &g: pendingQuery->involved_groups){
+    bclient[g]->RetryQuery(pendingQuery->queryMsg.query_seq_num(), pendingQuery->queryMsg); //--> Retry Query, shard clients already have the rcb.
   }
-
-
-   // 1) Re-send query, but this time don't use optimistic id's, 2) start fall-back for responsible ids. 
-                                                            //TODO: Replica that observes duplicate: Send Report message with payload: list<pairs: txn>> (pairs of txn with same optimistic id)
-                                                            //   Note: For replica to observe duplicate: Gossip is necessary to receive both.
-                                                            // If replica instead sends full read set to client, then client can look at read sets to figure out divergence: 
-                                                                          // Find mismatched keys, or keys with different versions. Send to replicas request for tx for (key, version) --> replica replies with txn-digest.
 }
+
+// void Client::ClearQuery(uint64_t query_seq_num, std::vector<uint64_t> &involved_groups){
+
+//    queryBuffer.erase(query_seq_num);
+
+//    for(auto &g: involved_groups){
+//     bclient[g]->ClearQuery(query_seq_num); //-->Remove mapping + pendingRequest.
+//    }
+// }
+
+
+// void Client::RetryQuery(uint64_t query_seq_num, std::vector<uint64_t> &involved_groups){
+//   //find buffered query_seq_num Query.
+//   // pass query_id to all involved shards.
+//   // shards find their RequestInstance and reset it.
+//   proto::Query &query_msg = queryBuffer[query_seq_num]; //TODO: Assert this exists. -- it must, or else we wouldnt' have called Retry.
+//   for(auto &g: involved_groups){
+//     bclient[g]->RetryQuery(query_seq_num, query_msg); //--> Retry Query, shard clients already have the rcb.
+//   }
+
+
+//    // 1) Re-send query, but this time don't use optimistic id's, 2) start fall-back for responsible ids. 
+//                                                             //TODO: Replica that observes duplicate: Send Report message with payload: list<pairs: txn>> (pairs of txn with same optimistic id)
+//                                                             //   Note: For replica to observe duplicate: Gossip is necessary to receive both.
+//                                                             // If replica instead sends full read set to client, then client can look at read sets to figure out divergence: 
+//                                                                           // Find mismatched keys, or keys with different versions. Send to replicas request for tx for (key, version) --> replica replies with txn-digest.
+// }
 
 
 void Client::Commit(commit_callback ccb, commit_timeout_callback ctcb,

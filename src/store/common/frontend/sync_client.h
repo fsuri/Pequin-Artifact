@@ -76,7 +76,7 @@ class SyncClient {
   virtual void Abort(uint32_t timeout);
 
   // Send query, wait for computation result. 
-  virtual void Query(const std::string &query, std::string &result, uint32_t timeout);
+  virtual void Query(std::string &query, std::string &result, uint32_t timeout);
 
  private:
   void GetCallback(Promise *promise, int status, const std::string &key, const std::string &value,

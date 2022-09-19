@@ -76,7 +76,7 @@ class Client {
       uint32_t timeout) = 0;
 
   // Get the value corresponding to key.
-  inline virtual void Query(const std::string &query, query_callback qcb,
+  inline virtual void Query(std::string &query, query_callback qcb,
       query_timeout_callback qtcb, uint32_t timeout){Panic("This protocol store does not implement Queries"); };    
 
   inline const Stats &GetStats() const { return stats; }

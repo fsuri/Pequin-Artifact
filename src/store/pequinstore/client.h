@@ -90,7 +90,7 @@ class Client : public ::Client {
       put_callback pcb, put_timeout_callback ptcb,
       uint32_t timeout = PUT_TIMEOUT) override;
 
-  virtual void Query(const std::string &query, query_callback qcb,
+  virtual void Query(std::string &query, query_callback qcb,
     query_timeout_callback qtcb, uint32_t timeout) override; //TODO: ::Client client class needs to expose Query interface too.. --> All other clients need to support the interface.
 
   // Commit all Get(s) and Put(s) since Begin().
@@ -109,6 +109,44 @@ class Client : public ::Client {
    int fast_path_counter;
    int total_counter;
    std::unordered_set<uint64_t> conflict_ids;
+
+  struct PendingQuery {
+    PendingQuery(Client *client, uint64_t query_seq_num, std::string &query_cmd) : version(0UL){
+      queryMsg.Clear();
+      queryMsg.set_client_id(client->client_id);
+      queryMsg.set_query_seq_num(query_seq_num);
+      *queryMsg.mutable_query_cmd() = std::move(query_cmd);
+      *queryMsg.mutable_timestamp() = client->txn.timestamp();
+    }
+    ~PendingQuery(){}
+
+   void SetInvolvedGroups(Client *client, std::vector<uint64_t> &involved_groups){
+      involved_groups = std::move(involved_groups);
+      queryMsg.set_query_manager(involved_groups[0]);
+      SetQueryId(client);
+    }
+
+    void SetQueryId(Client *client){
+      if(client->params.query_params.signClientQueries && client->params.query_params.cacheReadSet){ //TODO: when to use hash id? always?
+          queryId = QueryDigest(queryMsg, client->params.hashDigest); 
+      }
+      else{
+          queryId =  "[" + std::to_string(queryMsg.query_seq_num()) + ":" + std::to_string(queryMsg.client_id()) + "]";
+      }
+    }
+
+
+    uint64_t version;
+    std::string queryId;
+
+    proto::Query queryMsg;
+    
+    std::vector<uint64_t> involved_groups;
+    std::map<uint64_t, std::map<std::string, TimestampMessage>> group_read_sets;
+    std::map<uint64_t, std::string> group_result_hashes;
+    std::string result;
+   
+  };
 
   struct PendingRequest {
     PendingRequest(uint64_t id, Client *client) : id(id), outstandingPhase1s(0),
@@ -245,8 +283,10 @@ class Client : public ::Client {
   // --> would allow normal OCC handling on Wait results at the server?
 
   //Query logic
-  void ClearQuery(uint64_t query_seq_num, std::vector<uint64_t> &involved_groups);
-  void RetryQuery(uint64_t query_seq_num, std::vector<uint64_t> &involved_groups);
+  void ClearQuery(PendingQuery *pendingQuery);
+  void RetryQuery(PendingQuery *pendingQuery);
+  // void ClearQuery(uint64_t query_seq_num, std::vector<uint64_t> &involved_groups);
+  // void RetryQuery(uint64_t query_seq_num, std::vector<uint64_t> &involved_groups);
 
 
 
