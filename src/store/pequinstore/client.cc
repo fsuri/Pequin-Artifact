@@ -301,8 +301,12 @@ void Client::Query(std::string &query, query_callback qcb,
         if(group == pendingQuery->involved_groups[0]) pendingQuery->result = std::move(result); //FIXME: cant move const result.
 
         if(pendingQuery->involved_groups.size() == pendingQuery->group_read_sets.size()){
-            //TODO: Store query_id and result_hash as part of transaction -- or even read set (what format? --> includes dependencies?) if we want to be flexible.
-             //TODO: Make part of current transaction. ==> Add repeated item <QueryMeta>. Query Meta = optional query_id, optional read_sets, optional_result_hashes
+            //TODO: Store query_id and result_hash (+version) as part of transaction -- or even read set (what format? --> includes dependencies?) if we want to be flexible.
+            //Note: Ongoing shard clients PendingQuery implicitly maps to current retry_version
+             //TODO: Make part of current transaction. ==> Add repeated item <QueryMeta>. Query Meta = optional query_id, optional read_sets, optional_result_hashes (+version)
+                                                           //When caching read sets: Check that client reported version matches local one. If not, report Client. (FIFO guarantees that client wouldn't send prepare before retry)
+                                                           //Problem: What if client crashes, and another interested client proposes the prepare for a version whose retry has not yet reached some replicas (no FIFO across channels). Could cause deterministic tx abort.
+                                                           // ==> Should never happen: Client must only use each query id ONCE. Thus, if there are two prepares with the same query-id but different version ==> report client
             qcb(REPLY_OK, pendingQuery->result); //callback to application 
             //clean pendingQuery and query_seq_num_mapping in all shards.
             ClearQuery(pendingQuery);
@@ -337,6 +341,7 @@ void Client::ClearQuery(PendingQuery *pendingQuery){
 }
 void Client::RetryQuery(PendingQuery *pendingQuery){
   pendingQuery->version++;
+  pendingQuery->queryMsg.set_retry_version(pendingQuery->version);
   for(auto &g: pendingQuery->involved_groups){
     bclient[g]->RetryQuery(pendingQuery->queryMsg.query_seq_num(), pendingQuery->queryMsg); //--> Retry Query, shard clients already have the rcb.
   }

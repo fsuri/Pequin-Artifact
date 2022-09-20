@@ -226,7 +226,7 @@ virtual void Phase2Equivocate_Simulate(uint64_t id, const proto::Transaction &tx
 //TODO: Define management object fully
   struct PendingQuery {
     PendingQuery(uint64_t reqId) : reqId(reqId),
-        numSyncReplies(0UL), numResults(0UL), query_manager(false), success(false), retry(false) { }
+        numSyncReplies(0UL), numResults(0UL), query_manager(false), success(false), retry_version(0UL) { }
     ~PendingQuery() { }
     uint64_t reqId; 
     uint64_t client_seq_num;
@@ -243,7 +243,7 @@ virtual void Phase2Equivocate_Simulate(uint64_t id, const proto::Transaction &tx
     proto::MergedSnapshot merged_ss;
 
 
-    bool retry;
+    uint64_t retry_version;
     uint64_t num_designated_replies;
     uint64_t numResults;
     std::unordered_set<uint64_t> resultsVerified;
@@ -477,7 +477,7 @@ virtual void Phase2Equivocate_Simulate(uint64_t id, const proto::Transaction &tx
   void HandleForwardWB(proto::ForwardWriteback &forwardWB);
 
   //private query functions
-  void RequestQuery(PendingQuery *pendingQuery, proto::Query &queryMsg, bool retry = false);
+  void RequestQuery(PendingQuery *pendingQuery, proto::Query &queryMsg);
   //void RetryQuery(PendingQuery *pendingQuery);
   void HandleQuerySyncReply(proto::SyncReply &SyncReply);
   void SyncReplicas(PendingQuery *pendingQuery);

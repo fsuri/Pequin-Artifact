@@ -11,11 +11,13 @@ message Query {
    required uint64 client_id = 2; //query unique identifier = (query_seq_num, client_id) uniquely defines a corret clients query. A byz one can have duplicates, but thats only hurting its own progress                               
    // Unless: Dependency on another TX which has a query that is invalid... (will abort by default) --> but then TX should not have prepared --> TxID still uniquely defines which query is used.
    // For now: Treat Query just as a read, and assume read set will be included in tx (instead of cached) -- all worries about attack are complications due to caching.
-   required bytes query_cmd = 3;      //SQL statement as string --> parse at Replica
-                                  //Alternatively: Already parsed into AST at client --> send AST (What format?)
-   required TimestampMessage timestamp = 4; //Timestamp at which to read query.
+   required TimestampMessage timestamp = 3; //Timestamp at which to read query.
+   optional bytes query_cmd = 4;      //SQL statement as string --> parse at Replica
+   //Alternatively: Already parsed into AST at client --> send AST (What format?)
    optional uint64 query_manager = 5;
    //TODO: Needs to include involved groups?
+   required uint64 retry_version = 6; //Should go into Query, so that it is signed as well. (thus it is only proposable by original client); but not include din ID hash
+  
    
 
 }
@@ -27,8 +29,8 @@ message QueryRequest {
     SignedMessage signed_query = 3; //Need to sign query to a) provide access control (could use Macs instead), b) prove that (query_id, client_id) was proposed only by client with client_id
     //private channels from client to replicas should suffice?
   }
-  optional bool optimistic_txid = 4;
-  optional bool retry = 5;
+ optional bool optimistic_txid = 5;
+  
 }
 
 message Result {
@@ -117,7 +119,9 @@ message MergedSnapshot {
       //repeated TxnData cp_txns = 3;
    map<string, ReplicaList> merged_txns_committed = 3; //map from txn digest to replicas that have txn.
    map<string, ReplicaList> merged_txns_prepared = 4; //dont think one needs to distinguish at this point.
-   optional bytes query_digest = 5;
+   
+   required uint64 retry_version = 5;
+   optional bytes query_digest = 6;
 }
 
 //client sends proposed merged snapshot. Replicas use it to ExecQuery and send back QueryReply
@@ -128,8 +132,8 @@ message SyncClientProposal {
    SignedMessage signed_merged_ss = 3;
  }
  required bool designated_for_reply = 4; //designate whether this replica should execute and reply, or just sync, execute, and cache read set.
+ 
  optional bool query_managager = 5; // designate this shard as tx manager to coordinate execution and to reply.
- optional bool retry = 6;
 }
 
 message RequestMissingTxns {

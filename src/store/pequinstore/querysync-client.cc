@@ -114,6 +114,8 @@ void ShardClient::RetryQuery(uint64_t query_seq_num, proto::Query &queryMsg){
     //--> Could include Retry field in Query, and use it to determine uniuqe id.
     
     //Reset all datastructures -- 
+     // Alternatively, create new object and copy relevant contents. //PendingQuery *newPendingQuery = new PendingQuery(reqId);
+
     pendingQuery->replicasVerified.clear();
     pendingQuery->numSyncReplies = 0;
     pendingQuery->txn_freq.clear();
@@ -123,15 +125,15 @@ void ShardClient::RetryQuery(uint64_t query_seq_num, proto::Query &queryMsg){
     pendingQuery->resultsVerified.clear();
     pendingQuery->failsVerified.clear();
     pendingQuery->result_freq.clear();
-    pendingQuery->retry = true;
 
-   // Alternatively, create new object and copy relevant contents. //PendingQuery *newPendingQuery = new PendingQuery(reqId);
-
-    RequestQuery(pendingQuery, queryMsg, true);
+    pendingQuery->retry_version++;
+    queryMsg.clear_query_cmd(); //NOTE: Don't need to re-send query command for retries. (Assuming we're sending it only to the same replicas)
+  
+    RequestQuery(pendingQuery, queryMsg);
 }
 
 //pass a query object already from client: This way it avoids copying the query string across multiple shards and for retries
-void ShardClient::RequestQuery(PendingQuery *pendingQuery, proto::Query &queryMsg, bool retry){
+void ShardClient::RequestQuery(PendingQuery *pendingQuery, proto::Query &queryMsg){
 
 //   queryMsg.Clear();
 //   queryMsg.query_seq_num(pendingQuery->query_seq_num);
@@ -144,8 +146,8 @@ void ShardClient::RequestQuery(PendingQuery *pendingQuery, proto::Query &queryMs
   //pendingQuery->query_id = QueryDigest(query, params.hashDigest); 
   
   queryReq.set_req_id(pendingQuery->reqId);
-  queryReq.set_optimistic_txid(!retry && params.query_params.optimisticTxID);//On retry use unique/deterministic tx id only.
-  queryReq.set_retry(retry);
+  queryReq.set_optimistic_txid(!pendingQuery->retry_version && params.query_params.optimisticTxID);//On retry use unique/deterministic tx id only.
+  //queryReq.set_retry_version(pendingQuery->retry_version);
 
   // This is proof that client does not equivocate query contents --> Otherwise could intentionally produce different read sets at replicas, which -- if caching read set -- can be used to abort partially.
   //NOTE: Hash should suffice to achieve non-equiv --> 2 different queries have different hash.
@@ -247,6 +249,7 @@ void ShardClient::SyncReplicas(PendingQuery *pendingQuery){
     //1) Compose SyncMessage
     pendingQuery->merged_ss.set_query_seq_num(pendingQuery->query_seq_num);
     pendingQuery->merged_ss.set_client_id(client_id);
+    pendingQuery->merged_ss.set_retry_version(pendingQuery->retry_version);
  
     //proto::SyncClientProposal syncMsg;
 
@@ -267,7 +270,7 @@ void ShardClient::SyncReplicas(PendingQuery *pendingQuery){
 
     //3) Send SyncMessage to SyncMessages many replicas; designate which replicas for execution
     uint64_t num_designated_replies = params.query_params.syncMessages; 
-    if(params.query_params.optimisticTxID && !pendingQuery->retry){
+    if(params.query_params.optimisticTxID && !pendingQuery->retry_version){
         num_designated_replies += config->f;  //If using optimisticTxID for sync send to f additional replicas to guarantee result. (If retry is on, then we always use determinstic ones.)
     }
     num_designated_replies = std::min((uint64_t) config->n, num_designated_replies); //send at most n messages.
@@ -368,7 +371,7 @@ void ShardClient::HandleQueryResult(proto::QueryResult &queryResult){
 
     //5) if not enough matching --> retry; 
     // if not optimistic id: wait for up to result Quorum many messages (f+1). With optimistic id, wait for f additional.
-    uint64_t expectedResults = (params.query_params.optimisticTxID && !pendingQuery->retry) ? params.query_params.resultQuorum + config->f : params.query_params.resultQuorum;
+    uint64_t expectedResults = (params.query_params.optimisticTxID && !pendingQuery->retry_version) ? params.query_params.resultQuorum + config->f : params.query_params.resultQuorum;
     int maxWait = std::max(pendingQuery->num_designated_replies - config->f, expectedResults); //wait for at least maxWait many, but can wait up to #syncMessages sent - f. (if that is larger). 
     //Note that expectedResults <= num_designated_replies, since params.resultQuorum <= params.syncMessages, and +f optimisticID is applied to both.
     
@@ -393,7 +396,7 @@ void ShardClient::HandleFailQuery(proto::FailQuery &queryFail){
     Debug("[group %i] QueryFail Reply for request %lu.", group, queryResult.req_id());
 
     //1) authenticate reply & parse contents
-    proto::QueryFailMsg *query_fail;
+    proto::FailQueryMsg *query_fail;
 
      if (params.validateProofs && params.signedMessages) {
         if (queryFail.has_signed_fail()) {
@@ -429,10 +432,11 @@ void ShardClient::HandleFailQuery(proto::FailQuery &queryFail){
       return;
     }
 
-    if(pendingQuery->failsVerified == config->f + 1){
+    if(pendingQuery->failsVerified.size() == config->f + 1){
         //FIXME: Use a different callback to differentiate Fail due to optimistic ID, and fail due to abort/missed tx?
-        std::map<std::string, TimestampMessage> read_set;
-        pendingQuery->rcb(REPLY_FAIL, group, read_set, "", "", false);
+        std::map<std::string, TimestampMessage> dummy_read_set;
+        std::string dummy("");
+        pendingQuery->rcb(REPLY_FAIL, group, dummy_read_set, dummy, dummy, false);
     }
     return;
 }

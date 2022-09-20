@@ -101,7 +101,7 @@ void Server::HandleQuery(const TransportAddress &remote, proto::QueryRequest &ms
     else{
         queryId =  "[" + std::to_string(query->query_seq_num()) + ":" + std::to_string(query->client_id()) + "]";
     }
-     Debug("Received Query Request[%lu:%lu]", query->query_seq_num(), query->client_id());
+     Debug("Received Query Request[%lu:%lu]; retry-version: %lu", query->query_seq_num(), query->client_id(), query->retry_version());
    
     //TODO:  //if already issued query reply, reply with cached val; else if new, or retry set, re-compute
 
@@ -114,12 +114,23 @@ void Server::HandleQuery(const TransportAddress &remote, proto::QueryRequest &ms
 
     //Buffer Query content and timestamp
     queryMetaDataMap::accessor q;
-    if(!queryMetaData.find(q, queryId)){
+    bool hasQuery = queryMetaData.find(q, queryId);
+    if(!hasQuery){
         queryMetaData.insert(q, queryId);
         q->second = new QueryMetaData(query->query_cmd(), query->timestamp(), remote, msg.req_id(), query->query_seq_num(), query->client_id());
+        //Note: Retry will not contain query_cmd again.
 
     }
     QueryMetaData *query_md = q->second;
+    if(query->retry_version() > query_md->retry_version){
+        query_md->retry_version = query->retry_version();
+    }
+    else{ //if smaller version that current, or version 0;
+        if(hasQuery){ //ignore if already processed query once (i.e. don't exec twice for query version 0)
+            if(params.query_params.signClientQueries) delete query;
+            return;
+        } 
+    }
 
     // query_md->query_cmd = query->query_cmd();
     // query_md->ts(query->timestamp());
@@ -283,13 +294,14 @@ void Server::HandleSync(const TransportAddress &remote, proto::SyncClientProposa
         query_id =  "[" + std::to_string(merged_ss->query_seq_num()) + ":" + std::to_string(merged_ss->client_id()) + "]";
         queryId = &query_id;
     }
-    Debug("Received Query Sync Proposal for Query[%lu:%lu]", merged_ss->query_seq_num(), merged_ss->client_id());
+    Debug("Received Query Sync Proposal for Query[%lu:%lu]; retry-version %d", merged_ss->query_seq_num(), merged_ss->client_id(), merged_ss->retry_version());
 
     //FIXME: Message needs to include query hash id in order to locate the query state cached (e.g. local snapshot, intermediate read sets, etc.)
     //For now, can also index via (client id, query seq_num) pair. Just define an ordering function for query id pair.
      //TODO:  //if already issued query reply, reply with cached val; else if new, or retry set, re-compute
     queryMetaDataMap::accessor q;
-    if(!queryMetaData.find(q, *queryId)){
+    bool hasQuery = queryMetaData.find(q, *queryId);
+    if(!hasQuery){
         Panic("No available query md");
         return;
     }
@@ -303,11 +315,16 @@ void Server::HandleSync(const TransportAddress &remote, proto::SyncClientProposa
         return;
     }
 
-    if(query_md->retry > msg.retry()){ //TODO: add retry to Syncclient Proposal; //TODO: Add this check to first query message too. ==> change to int64, make sure that even same version not done twice.
-        //have already processed higher query version; ignore 
-        if(params.query_params.signClientQueries && params.query_params.cacheReadSet) delete merged_ss;
-        Panic("old retry version");
-        return;
+
+    if(merged_ss->retry_version() > query_md->retry_version){ 
+        query_md->retry_version = merged_ss->retry_version();
+    }
+    else{ //if smaller version that current, or version 0;   //have already processed higher query version; ignore 
+        if(hasQuery){ //ignore if already processed query once (i.e. don't exec twice for query version 0)
+            if(params.query_params.signClientQueries && params.query_params.cacheReadSet) delete merged_ss;
+            Panic("old/duplicate retry version");
+            return;
+        } 
     }
 
     // 2) Authenticate Client      
@@ -578,6 +595,9 @@ void Server::HandleSupplyTx(const TransportAddress &remote, proto::SupplyMissing
             }
             else{
                  valid = ValidateCommittedProof(*proof, &txn_id, keyManager, &config, verifier); //TODO: MAke this Async ==> Requires rest of code (CommitWithProof/UpdateWaiting) to go into callback.
+                                                                                                                    //E.g.  AsyncValidateCommittedProof(mcb = {CommitWithProof, UpdateWaiting})
+                //asyncValidateCommittedProof(*proof, &txn_id, keyManager, &config, verifier, mcb, transport, params.multiThreading, params.batchVerification);  //FIXME: Must pass copy of txn_id.
+    
                  Debug("Validated Commit Proof for tx-id: [%s]", BytesToHex(txn_id, 16).c_str());
             }
           
@@ -589,7 +609,7 @@ void Server::HandleSupplyTx(const TransportAddress &remote, proto::SupplyMissing
 
             CommitWithProof(txn_id, proof);
 
-            UpdateWaitingQueries(txn_id); //TODO: want this to be dispatched/async
+            UpdateWaitingQueries(txn_id); //TODO: want this to be dispatched/async (or rather: Want Callback to be. Note: Take care of accessors)
             continue;
         } 
 
@@ -882,33 +902,35 @@ void Server::FailWaitingQueries(const std::string &txnDigest){
     }
     w.release();
 }
-}
+
 
 void Server::FailQuery(QueryMetaData *query_md){
 
     query_md->failure = true;
     proto::FailQuery failQuery;
-    failQuery.set_req_id(query_md->req_id)
+    failQuery.set_req_id(query_md->req_id);
     failQuery.mutable_fail()->set_replica_id(id);
 
     if (params.validateProofs && params.signedMessages) {
-        Debug("Sign Query Fail Reply for Query[%lu:%lu]", query_reply->query_seq_num(), query_reply->client_id());
-        proto::FailQueryMessage *failQueryMsg = failQuery.release_fail();
+        Debug("Sign Query Fail Reply for Query Req[%lu]", failQuery.req_id());
+        proto::FailQueryMsg *failQueryMsg = failQuery.release_fail();
 
         if(params.signatureBatchSize == 1){
-            SignMessage(failQueryMsg, keyManager->GetPrivateKey(id), id, queryResult->mutable_signed_fail());
+            SignMessage(failQueryMsg, keyManager->GetPrivateKey(id), id, failQuery.mutable_signed_fail());
         }
         else{
             std::vector<::google::protobuf::Message *> msgs;
             msgs.push_back(failQueryMsg);
             std::vector<proto::SignedMessage *> smsgs;
-            smsgs.push_back(queryFail->mutable_signed_fail());
+            smsgs.push_back(failQuery.mutable_signed_fail());
             SignMessages(msgs, keyManager->GetPrivateKey(id), id, smsgs, params.merkleBranchFactor);
         }
     }
 
 
     transport->SendMessage(this, *query_md->original_client, failQuery);
+
+    return;
 
 }
 
