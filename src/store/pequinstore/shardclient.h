@@ -226,7 +226,7 @@ virtual void Phase2Equivocate_Simulate(uint64_t id, const proto::Transaction &tx
 //TODO: Define management object fully
   struct PendingQuery {
     PendingQuery(uint64_t reqId) : reqId(reqId),
-        numSyncReplies(0UL), numResults(0UL), query_manager(false), success(false), retry_version(0UL) { }
+        numSnapshotReplies(0UL), numResults(0UL), numFails(0UL), query_manager(false), success(false), retry_version(0UL) { }
     ~PendingQuery() { }
     uint64_t reqId; 
     uint64_t client_seq_num;
@@ -237,8 +237,8 @@ virtual void Phase2Equivocate_Simulate(uint64_t id, const proto::Transaction &tx
 
     // uint64_t queryMessages;
     // uint64_t queryQuorumSize;
-    std::unordered_set<uint64_t> replicasVerified;
-    uint64_t numSyncReplies;
+    std::unordered_set<uint64_t> snapshotsVerified;
+    uint64_t numSnapshotReplies;
     std::unordered_map<std::string, std::set<uint64_t>> txn_freq; //replicas that have txn committed.
     proto::MergedSnapshot merged_ss;
 
@@ -246,8 +246,9 @@ virtual void Phase2Equivocate_Simulate(uint64_t id, const proto::Transaction &tx
     uint64_t retry_version;
     uint64_t num_designated_replies;
     uint64_t numResults;
+    uint64_t numFails;
     std::unordered_set<uint64_t> resultsVerified;
-    std::unordered_set<uint64_t> failsVerified;
+    //std::unordered_set<uint64_t> failsVerified;
     std::string result;
     std::string result_hash;
     std::unordered_map<std::string, std::unordered_map<std::string, uint64_t>> result_freq; //map from result to map of associated result hash + their frequency (could be that two same results have different result hash; and vice versa)

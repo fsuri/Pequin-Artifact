@@ -116,14 +116,15 @@ void ShardClient::RetryQuery(uint64_t query_seq_num, proto::Query &queryMsg){
     //Reset all datastructures -- 
      // Alternatively, create new object and copy relevant contents. //PendingQuery *newPendingQuery = new PendingQuery(reqId);
 
-    pendingQuery->replicasVerified.clear();
-    pendingQuery->numSyncReplies = 0;
+    pendingQuery->snapshotsVerified.clear();
+    pendingQuery->numSnapshotReplies = 0;
     pendingQuery->txn_freq.clear();
     pendingQuery->merged_ss.Clear();
 
-    pendingQuery->numResults = 0;
     pendingQuery->resultsVerified.clear();
-    pendingQuery->failsVerified.clear();
+    pendingQuery->numResults = 0;
+    pendingQuery->numFails = 0;
+    //pendingQuery->failsVerified.clear();
     pendingQuery->result_freq.clear();
 
     pendingQuery->retry_version++;
@@ -209,7 +210,7 @@ void ShardClient::HandleQuerySyncReply(proto::SyncReply &SyncReply){
     Debug("[group %i] QuerySyncReply for request %lu from replica %d.", group, SyncReply.req_id(), local_ss->replica_id());
 
     //3) check for duplicates -- (ideally check before verifying sig)
-    if (!pendingQuery->replicasVerified.insert(local_ss->replica_id()).second) {
+    if (!pendingQuery->snapshotsVerified.insert(local_ss->replica_id()).second) {
       Debug("Already received query sync reply from replica %lu.", local_ss->replica_id());
       return;
     }
@@ -239,8 +240,8 @@ void ShardClient::HandleQuerySyncReply(proto::SyncReply &SyncReply){
     // }
     
     // 6) Once #QueryQuorum replies received, send SyncMessages
-    pendingQuery->numSyncReplies++;
-    if(pendingQuery->numSyncReplies == params.query_params.syncQuorum){
+    pendingQuery->numSnapshotReplies++;
+    if(pendingQuery->numSnapshotReplies == params.query_params.syncQuorum){
         SyncReplicas(pendingQuery);
     }
 }
@@ -345,6 +346,7 @@ void ShardClient::HandleQueryResult(proto::QueryResult &queryResult){
       Debug("Already received query result from replica %lu.", replica_result->replica_id());
       return;
     }
+    pendingQuery->numResults++;
     
     
     int matching_res;
@@ -358,7 +360,7 @@ void ShardClient::HandleQueryResult(proto::QueryResult &queryResult){
          read_set = {replica_result->query_read_set().begin(), replica_result->query_read_set().end()}; //FIXME: Does the map automatically become ordered?
          std::string validated_result_hash = std::move(generateReadSetHashChain(read_set));
          matching_res = ++pendingQuery->result_freq[replica_result->query_result()][validated_result_hash]; //map should be default initialized to 0.
-         if(pendingQuery->result_freq[replica_result->query_result()].size() > 1) Panic("When testing all hashes should be the same.");
+         if(pendingQuery->result_freq[replica_result->query_result()].size() > 1) Panic("When testing without optimistic id's all hashes should be the same.");
     }
   
     //4) if receive enough --> upcall;  At client: Add query identifier and result to Txn
@@ -427,12 +429,21 @@ void ShardClient::HandleFailQuery(proto::FailQuery &queryFail){
     }
 
     //4) check for duplicates -- (ideally check before verifying sig)
-    if (!pendingQuery->failsVerified.insert(query_fail->replica_id()).second) {
+    if (!pendingQuery->resultsVerified.insert(query_fail->replica_id()).second) {
       Debug("Already received query fail from replica %lu.", query_fail->replica_id());
       return;
     }
+    //Note: Use the same resultVerified set, but keep separate result/fail count -- this guarantees that byz replica canot add itself to both resultVerified and failsVerified, thus artificially increasing the count of replies.
+    pendingQuery->numFails++;
+    
 
-    if(pendingQuery->failsVerified.size() == config->f + 1){
+    //5) if enough failures to imply one correct reported failure OR not enough replies to conclude success ==> retry
+      // if not optimistic id: wait for up to result Quorum many messages (f+1). With optimistic id, wait for f additional.
+        uint64_t expectedResults = (params.query_params.optimisticTxID && !pendingQuery->retry_version) ? params.query_params.resultQuorum + config->f : params.query_params.resultQuorum;
+        int maxWait = std::max(pendingQuery->num_designated_replies - config->f, expectedResults); //wait for at least maxWait many, but can wait up to #syncMessages sent - f. (if that is larger). 
+        //Note that expectedResults <= num_designated_replies, since params.resultQuorum <= params.syncMessages, and +f optimisticID is applied to both.
+
+    if(pendingQuery->numFails == config->f + 1 || pendingQuery->resultsVerified.size() == maxWait){
         //FIXME: Use a different callback to differentiate Fail due to optimistic ID, and fail due to abort/missed tx?
         std::map<std::string, TimestampMessage> dummy_read_set;
         std::string dummy("");
