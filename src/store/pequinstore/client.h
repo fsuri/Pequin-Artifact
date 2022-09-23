@@ -111,17 +111,18 @@ class Client : public ::Client {
    std::unordered_set<uint64_t> conflict_ids;
 
   struct PendingQuery {
-    PendingQuery(Client *client, uint64_t query_seq_num, std::string &query_cmd) : version(0UL){
+    PendingQuery(Client *client, uint64_t query_seq_num, std::string &query_cmd) : version(0UL), group_replies(0UL){
       queryMsg.Clear();
       queryMsg.set_client_id(client->client_id);
       queryMsg.set_query_seq_num(query_seq_num);
       *queryMsg.mutable_query_cmd() = std::move(query_cmd);
       *queryMsg.mutable_timestamp() = client->txn.timestamp();
+      queryMsg.set_retry_version(0);
     }
     ~PendingQuery(){}
 
-   void SetInvolvedGroups(Client *client, std::vector<uint64_t> &involved_groups){
-      involved_groups = std::move(involved_groups);
+   void SetInvolvedGroups(Client *client, std::vector<uint64_t> &involved_groups_){
+      involved_groups = std::move(involved_groups_);
       queryMsg.set_query_manager(involved_groups[0]);
       SetQueryId(client);
     }
@@ -145,6 +146,7 @@ class Client : public ::Client {
     std::map<uint64_t, std::map<std::string, TimestampMessage>> group_read_sets;
     std::map<uint64_t, std::string> group_result_hashes;
     std::string result;
+    uint64_t group_replies;
    
   };
 

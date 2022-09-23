@@ -1,8 +1,8 @@
 #!/bin/bash
 
-F=1
+F=0
 NUM_GROUPS=1
-CONFIG="shard-r6.config"
+CONFIG="shard-r0.config"
 PROTOCOL="pequin"
 STORE=${PROTOCOL}store
 DURATION=10

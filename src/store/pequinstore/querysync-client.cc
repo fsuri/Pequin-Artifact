@@ -346,6 +346,8 @@ void ShardClient::HandleQueryResult(proto::QueryResult &queryResult){
       Debug("Already received query result from replica %lu.", replica_result->replica_id());
       return;
     }
+
+     //Debug("[group %i] QueryResult Reply for req %lu is valid. Processing result %s:", group, queryResult.req_id(), replica_result->query_result());
     pendingQuery->numResults++;
     
     
@@ -354,11 +356,21 @@ void ShardClient::HandleQueryResult(proto::QueryResult &queryResult){
 
     //3) wait for up to result_threshold many matching replies (result + result_hash/read set)
     if(params.query_params.cacheReadSet){
+        Debug("Read-set hash: %s", BytesToHex(replica_result->query_result_hash(), 16).c_str());
          matching_res = ++pendingQuery->result_freq[replica_result->query_result()][replica_result->query_result_hash()]; //map should be default initialized to 0.
     }
     else{ //manually compare that read sets match. Easy way to compare: Hash ReadSet.
+        Debug("[group %i] Processing ReadSet for QueryResult Reply %lu", group, queryResult.req_id());
          read_set = {replica_result->query_read_set().begin(), replica_result->query_read_set().end()}; //FIXME: Does the map automatically become ordered?
          std::string validated_result_hash = std::move(generateReadSetHashChain(read_set));
+            // //TESTING:
+             Debug("Read-set hash: %s", BytesToHex(validated_result_hash, 16).c_str());
+            // for(auto [key, ts] : read_set){
+            //     Debug("Read key %s with version [%lu:%lu]", key, ts.timestamp(), ts.id());
+            // }
+            // //
+
+
          matching_res = ++pendingQuery->result_freq[replica_result->query_result()][validated_result_hash]; //map should be default initialized to 0.
          if(pendingQuery->result_freq[replica_result->query_result()].size() > 1) Panic("When testing without optimistic id's all hashes should be the same.");
     }
@@ -366,7 +378,9 @@ void ShardClient::HandleQueryResult(proto::QueryResult &queryResult){
     //4) if receive enough --> upcall;  At client: Add query identifier and result to Txn
         // Only need results from "result" shard (assuming simple migration scheme)
     if(matching_res == params.query_params.resultQuorum){
-        pendingQuery->rcb(REPLY_OK, group, read_set, *replica_result->mutable_query_result(), *replica_result->mutable_query_result_hash(), true);
+        Debug("[group %i] Reached sufficient matching results for QueryResult Reply %lu", group, queryResult.req_id());
+        
+        pendingQuery->rcb(REPLY_OK, group, read_set, *replica_result->mutable_query_result_hash(), *replica_result->mutable_query_result(), true);
         // Remove/Deltete pendingQuery happens in upcall
         return;
     }
@@ -379,11 +393,14 @@ void ShardClient::HandleQueryResult(proto::QueryResult &queryResult){
     
     //Waited for max number of result replies that can be expected. //TODO: Can be "smarter" about this. E.g. if waiting for at most f+1 replies, as soon as first non-matching arrives return...
     if(pendingQuery->resultsVerified.size() == maxWait){
-       pendingQuery->rcb(REPLY_FAIL, group, read_set, *replica_result->mutable_query_result(), *replica_result->mutable_query_result_hash(), false);
+        Debug("[group %i] Received sufficient inconsistent replies to determine Failure for QueryResult %lu", group, queryResult.req_id());
+       pendingQuery->rcb(REPLY_FAIL, group, read_set, *replica_result->mutable_query_result_hash(), *replica_result->mutable_query_result(), false);
         //Remove/Delete pendingQuery happens in upcall
        return;
     }
    
+    Debug("[group %i] Waiting for additional QueryResult Replies for Req %lu", group, queryResult.req_id());
+
     //6) remove pendingQuery object --> happens in upcall to client (calls ClearQuery)
 
     //TODO: edit syncQueryReply such that it can also function as HandleQueryResult...

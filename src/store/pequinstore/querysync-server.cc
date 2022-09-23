@@ -124,13 +124,24 @@ void Server::HandleQuery(const TransportAddress &remote, proto::QueryRequest &ms
     QueryMetaData *query_md = q->second;
     if(query->retry_version() > query_md->retry_version){
         query_md->retry_version = query->retry_version();
+        query_md->started_sync = false; //start new sync round
     }
-    else{ //if smaller version that current, or version 0;
+    else if(query->retry_version() == query_md->retry_version){
         if(hasQuery){ //ignore if already processed query once (i.e. don't exec twice for query version 0)
             if(params.query_params.signClientQueries) delete query;
+
+            if(query_md->has_result){
+                //TODO: Reply directly with result for current version.
+            }
+            Panic("Duplicate query Request for current retry version");
             return;
         } 
     }
+    else{
+        Panic("Requesting Query with outdating retry version");
+        return;
+    }
+
 
     // query_md->query_cmd = query->query_cmd();
     // query_md->ts(query->timestamp());
@@ -308,24 +319,35 @@ void Server::HandleSync(const TransportAddress &remote, proto::SyncClientProposa
     QueryMetaData *query_md = q->second;
     query_md->designated_for_reply = msg.designated_for_reply();
 
-    if(query_md->has_result){
-        //TODO: Reply directly with result.
-        if(params.query_params.signClientQueries && params.query_params.cacheReadSet) delete merged_ss;
-        Panic("has result already");
-        return;
-    }
-
 
     if(merged_ss->retry_version() > query_md->retry_version){ 
         query_md->retry_version = merged_ss->retry_version();
+        query_md->started_sync = true;
     }
-    else{ //if smaller version that current, or version 0;   //have already processed higher query version; ignore 
-        if(hasQuery){ //ignore if already processed query once (i.e. don't exec twice for query version 0)
+    else if(merged_ss->retry_version() == query_md->retry_version){ //if current version -- only process if have not yet done sync. If we have result, reply with it early.
+
+        if(query_md->has_result){
+            //TODO: Reply directly with result if the submitted version is the current.
             if(params.query_params.signClientQueries && params.query_params.cacheReadSet) delete merged_ss;
-            Panic("old/duplicate retry version");
+            Panic("current retry versionhas result already. TODO: Reply with result.");
+            return;
+        }
+
+         if(query_md->started_sync){ //ignore if already processed query once (i.e. don't exec twice for query version 0)
+            if(params.query_params.signClientQueries && params.query_params.cacheReadSet) delete merged_ss;
+            Panic("duplicate sync request for current retry version");
             return;
         } 
+        query_md->started_sync = true;
     }
+    else{
+        Panic("outdated query sync request.");
+        //FIXME: Note: Any interested client that learns of prepared dependency will learn correct version. Problem: byz client couldve updated version at other replicas in the meantime.
+        //To avoid them defaulting, they must be able to either a) keep older versions read-sets, or b) (better) accept older versions read set on demand IF supported by Prepare msg that picks version. (ONLY accept older version in this case)
+        //Note: If byz client prepares with version (v), but before that updated the version to v'>v ==> proof of misbehavior (report client, and abort by default -- in this case thats ok).
+    }
+    
+    
 
     // 2) Authenticate Client      
     if(params.query_params.signClientQueries && params.query_params.cacheReadSet){ //TODO: need it to be signed not only for read set equiv, but so that only original client can send this request. Authenticated channels may suffice.
@@ -384,6 +406,8 @@ void Server::HandleSync(const TransportAddress &remote, proto::SyncClientProposa
     //If no missing_txn = already fully synced. Exec callback direclty
     if(replica_requests.empty()){
         HandleSyncCallback(query_md);
+        q.release();
+        return;
     }
 
      q.release();

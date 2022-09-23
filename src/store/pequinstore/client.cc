@@ -281,46 +281,55 @@ void Client::Query(std::string &query, query_callback qcb,
 
 
     // If needed, add this shard to set of participants and send BEGIN.
-    for(auto &i: involved_groups){
+    for(auto &i: pendingQuery->involved_groups){
        if (!IsParticipant(i)) {
         txn.add_involved_groups(i);
         bclient[i]->Begin(client_seq_num);
       }
     }
-   
+  
 
     //result_callback rcb = qcb;
     result_callback rcb = [qcb, pendingQuery, this](int status, int group, std::map<std::string, TimestampMessage> &read_set, std::string &result_hash, std::string &result, bool success) mutable { //possibly add read-set
-  
-  //FIXME: If success: add readset/result hash to datastructure. If group==query manager, record result. If all shards received ==> upcall. 
-  //If failure: re-set datastructure and try again. (any shard can report failure to sync)
-      UW_ASSERT(pendingQuery != nullptr);
-      if(success){
-        pendingQuery->group_read_sets[group] = std::move(read_set);
-        pendingQuery->group_result_hashes[group] = std::move(result_hash);
-        if(group == pendingQuery->involved_groups[0]) pendingQuery->result = std::move(result); //FIXME: cant move const result.
+      //FIXME: If success: add readset/result hash to datastructure. If group==query manager, record result. If all shards received ==> upcall. 
+      //If failure: re-set datastructure and try again. (any shard can report failure to sync)
+    
+          UW_ASSERT(pendingQuery != nullptr);
+          if(success){
+            Debug("[group %i] Reported success for QuerySync[%lu], version: %lu", group, pendingQuery->queryMsg.query_seq_num(), pendingQuery->version);
+            pendingQuery->group_replies++;
+    
+            if(params.query_params.cacheReadSet){ 
+               pendingQuery->group_result_hashes[group] = std::move(result_hash);
+            }
+            else{
+               pendingQuery->group_read_sets[group] = std::move(read_set);
+            }
+            if(group == pendingQuery->involved_groups[0]) pendingQuery->result = std::move(result); 
 
-        if(pendingQuery->involved_groups.size() == pendingQuery->group_read_sets.size()){
-            //TODO: Store query_id and result_hash (+version) as part of transaction -- or even read set (what format? --> includes dependencies?) if we want to be flexible.
-            //Note: Ongoing shard clients PendingQuery implicitly maps to current retry_version
-             //TODO: Make part of current transaction. ==> Add repeated item <QueryMeta>. Query Meta = optional query_id, optional read_sets, optional_result_hashes (+version)
-                                                           //When caching read sets: Check that client reported version matches local one. If not, report Client. (FIFO guarantees that client wouldn't send prepare before retry)
-                                                           //Problem: What if client crashes, and another interested client proposes the prepare for a version whose retry has not yet reached some replicas (no FIFO across channels). Could cause deterministic tx abort.
-                                                           // ==> Should never happen: Client must only use each query id ONCE. Thus, if there are two prepares with the same query-id but different version ==> report client
-            qcb(REPLY_OK, pendingQuery->result); //callback to application 
-            //clean pendingQuery and query_seq_num_mapping in all shards.
-            ClearQuery(pendingQuery);
-        }
-      }
-      else{
-         RetryQuery(pendingQuery);
-      }
-                                
+            //wait for all shard read-sets to arrive before reporting result. (Realistically result shard replies last, since it has to coordinate data transfer for computation)
+            if(pendingQuery->involved_groups.size() == pendingQuery->group_replies){
+                  Debug("Received all required group replies for QuerySync[%lu], version: %lu. UPCALLING", group, pendingQuery->queryMsg.query_seq_num(), pendingQuery->version);
+                //TODO: Store query_id and result_hash (+version) as part of transaction -- or even read set (what format? --> includes dependencies?) if we want to be flexible.
+                //Note: Ongoing shard clients PendingQuery implicitly maps to current retry_version
+                //TODO: Make part of current transaction. ==> Add repeated item <QueryMeta>. Query Meta = optional query_id, optional read_sets, optional_result_hashes (+version)
+                                                              //When caching read sets: Check that client reported version matches local one. If not, report Client. (FIFO guarantees that client wouldn't send prepare before retry)
+                                                              //Problem: What if client crashes, and another interested client proposes the prepare for a version whose retry has not yet reached some replicas (no FIFO across channels). Could cause deterministic tx abort.
+                                                              // ==> Should never happen: Client must only use each query id ONCE. Thus, if there are two prepares with the same query-id but different version ==> report client
+                qcb(REPLY_OK, pendingQuery->result); //callback to application 
+                //clean pendingQuery and query_seq_num_mapping in all shards.
+                ClearQuery(pendingQuery);
+            }
+          }
+          else{
+            RetryQuery(pendingQuery);
+          }                     
     };
     result_timeout_callback rtcb = qtcb;
 
     // Send the Query operation to involved shards & select transaction manager (shard responsible for result reply) 
-     for(auto &i: involved_groups){
+     for(auto &i: pendingQuery->involved_groups){
+        Debug("[group %i] starting Query [%lu:%lu]", i, client_seq_num, query_seq_num);
         bclient[i]->Query(client_seq_num, query_seq_num, pendingQuery->queryMsg, rcb, rtcb, timeout);
      }
     // Shard Client upcalls only if it is the leader for the query, and if it gets matching result hashes  ..........const std::string &resultHash
@@ -341,6 +350,7 @@ void Client::ClearQuery(PendingQuery *pendingQuery){
 }
 void Client::RetryQuery(PendingQuery *pendingQuery){
   pendingQuery->version++;
+  pendingQuery->group_replies = 0;
   pendingQuery->queryMsg.set_retry_version(pendingQuery->version);
   for(auto &g: pendingQuery->involved_groups){
     bclient[g]->RetryQuery(pendingQuery->queryMsg.query_seq_num(), pendingQuery->queryMsg); //--> Retry Query, shard clients already have the rcb.
