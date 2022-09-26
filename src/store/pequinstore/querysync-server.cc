@@ -185,7 +185,7 @@ void Server::HandleQuery(const TransportAddress &remote, proto::QueryRequest &ms
 
     for(auto const&[tx_id, proof] : committed){
         local_txns.insert(tx_id);
-         Debug("Proposing txn_id %s for local Query Sync State[%lu:%lu]", BytesToHex(tx_id, 16).c_str(), query->query_seq_num(), query->client_id());
+         Debug("Proposing txn_id [%s] for local Query Sync State[%lu:%lu]", BytesToHex(tx_id, 16).c_str(), query->query_seq_num(), query->client_id());
     }
     
     //query_md->local_ss.insert("test_id_of_length_32 bytes------");
@@ -209,7 +209,7 @@ void Server::HandleQuery(const TransportAddress &remote, proto::QueryRequest &ms
     proto::LocalSnapshot *local_ss = syncReply->mutable_local_ss();
     local_ss->set_query_seq_num(query->query_seq_num());
     local_ss->set_client_id(query->client_id());
-    local_ss->set_replica_id(idx);
+    local_ss->set_replica_id(id);
     *local_ss->mutable_local_txns_committed() = {local_txns.begin(), local_txns.end()}; //TODO: can we avoid this copy? --> If I move it, then we cannot cache local_txns to edit later.
 
     q.release();
@@ -248,7 +248,7 @@ void Server::HandleQuery(const TransportAddress &remote, proto::QueryRequest &ms
         }
         
         this->transport->SendMessage(this, remote, *syncReply);
-        Debug("Sent Signed Query Sync Snapshot for Query[%lu:%lu]", ls->query_seq_num(), ls->client_id());
+        Debug("Sent Signed Query Sync Snapshot for Query[%lu:%lu] \n", ls->query_seq_num(), ls->client_id());
         delete syncReply;
         delete ls;
      }
@@ -374,7 +374,7 @@ void Server::HandleSync(const TransportAddress &remote, proto::SyncClientProposa
         query_md->merged_ss.insert(tx_id); //store snapshot locally.  // Is there a nice way to copy the whole key set of a map?
         //for all txn-ids that are in merged_ss but NOT in local_ss  //TODO: Should check current state instead of local snapshot... might have updated since (this would avoid some wasteful requests).
                                                                         //Note: if its not prepared locally, but is ongoing (i.e. prepare vote = abort/abstain) we can immediately add it to state but marked only for query
-        bool testing_sync = false;
+        bool testing_sync = true;
         if(testing_sync || !query_md->local_ss.count(tx_id)){
             //request the tx-id from the replicas that supposedly have it --> put all tx-id to be requested from one replica in one message (and send in one go afterwards)
 
@@ -390,8 +390,10 @@ void Server::HandleSync(const TransportAddress &remote, proto::SyncClientProposa
 
             query_md->missing_txn[tx_id]= config.f + 1;  //FIXME: Useless line: we don't stop waiting currently.
             uint64_t count = 0;
-            for(auto const &replica_idx: replica_list.replicas()){ 
+            for(auto const &replica_id: replica_list.replicas()){ 
                 if(count > config.f +1) return; //only send to f+1 --> an honest client will never include more than f+1 replicas to request from. --> can ignore byz request.
+               
+                uint64_t replica_idx = replica_id % config.n;  //since  id = local-groupIdx * config.n + idx
                 if(replica_idx != idx){
                    std::string *next_txn = replica_requests[replica_idx].add_missing_txn();
                    *next_txn = tx_id;
@@ -585,7 +587,7 @@ void Server::HandleSupplyTx(const TransportAddress &remote, proto::SupplyMissing
    
         //check if locally committed; if not, check cert and apply
        //FIXME: either update waiting data structures anyways; or add their update in Prepare/Commit function as well.
-        bool testing_sync = false;
+        bool testing_sync = true;
         auto itr = committed.find(txn_id);
         if(!testing_sync && itr != committed.end()){
             Debug("Already have committed tx-id: [%s]", BytesToHex(txn_id, 16).c_str());
@@ -615,23 +617,32 @@ void Server::HandleSupplyTx(const TransportAddress &remote, proto::SupplyMissing
                 // Genesis tx are valid by default. TODO: this is unsafe, but a hack so that we can bootstrap a benchmark without needing to write all existing data with transactions
                 // Note: Genesis Tx will NEVER by exchanged by sync since by definition EVERY replica has them (and thus will never request them) -- this branch is only used for testing.
                 valid = true;
-                 Debug("Accepte Genesis tx-id: [%s]", BytesToHex(txn_id, 16).c_str());
+                 Debug("Accepted Genesis tx-id: [%s]", BytesToHex(txn_id, 16).c_str());
             }
             else{
+                //Confirm that replica supplied correct transaction.     //TODO: Note: Since one should do this anyways, there is no point in storing txn_id as part of supply message.
+                 if(txn_id != TransactionDigest(proof->txn(), params.hashDigest)){
+                    Debug("Tx-id: [%s], TxDigest: [%s]", txn_id, TransactionDigest(proof->txn(), params.hashDigest));
+                    Panic("Supplied Wrong Txn for given tx-id");
+                 }
+                 //Confirm that proof of transaction commit is valid.
                  valid = ValidateCommittedProof(*proof, &txn_id, keyManager, &config, verifier); //TODO: MAke this Async ==> Requires rest of code (CommitWithProof/UpdateWaiting) to go into callback.
                                                                                                                     //E.g.  AsyncValidateCommittedProof(mcb = {CommitWithProof, UpdateWaiting})
                 //asyncValidateCommittedProof(*proof, &txn_id, keyManager, &config, verifier, mcb, transport, params.multiThreading, params.batchVerification);  //FIXME: Must pass copy of txn_id.
     
+
+                if(!valid){
+                    delete proof;
+                    Panic("Commit Proof not valid");
+                    return;
+                }
+
                  Debug("Validated Commit Proof for tx-id: [%s]", BytesToHex(txn_id, 16).c_str());
+
+                CommitWithProof(txn_id, proof);
             }
           
-            if(!valid){
-                delete proof;
-                Panic("Commit Proof not valid");
-                return;
-            }
 
-            CommitWithProof(txn_id, proof);
 
             UpdateWaitingQueries(txn_id); //TODO: want this to be dispatched/async (or rather: Want Callback to be. Note: Take care of accessors)
             continue;
@@ -680,6 +691,11 @@ void Server::HandleSupplyTx(const TransportAddress &remote, proto::SupplyMissing
             //TODO: Handle incoming p1 as a normal P1 and after it is done, Update Waiting Queries. ==> If update waiting queries is done as part of Prepare (whether visible or invisible) nothing else is necessary)
             proto::Phase1 *p1 = txn_info.release_p1();
 
+              if(txn_id != TransactionDigest(p1->txn(), params.hashDigest)){
+                    Debug("Tx-id: [%s], TxDigest: [%s]", txn_id, TransactionDigest(p1->txn(), params.hashDigest));
+                    Panic("Supplied Wrong Txn for given tx-id");
+                 }
+
             //Call OCC check for P1. -- 
 
             //FIXME: Can hack CC such that if the request is of type isGossip, it tries to call Update Waiting Queries once result is known; --> then can multithread no problem.
@@ -706,16 +722,16 @@ void Server::HandleSupplyTx(const TransportAddress &remote, proto::SupplyMissing
 
 }
 
-void Server::CommitWithProof(const std::string &txn_id, proto::CommittedProof *proof){
+void Server::CommitWithProof(const std::string &txnDigest, proto::CommittedProof *proof){
 
     proto::Transaction *txn = proof->mutable_txn();
-    std::string txnDigest(TransactionDigest(*txn, params.hashDigest));
+    //std::string txnDigest(TransactionDigest(*txn, params.hashDigest));
 
     Timestamp ts(txn->timestamp());
     Value val;
     val.proof = proof;
 
-    committed.insert(std::make_pair(txn_id, proof)); //Note: This may override an existing commit proof -- that's fine.
+    committed.insert(std::make_pair(txnDigest, proof)); //Note: This may override an existing commit proof -- that's fine.
 
     CommitToStore(proof, txn, ts, val);
 
@@ -788,7 +804,9 @@ void Server::HandleSyncCallback(QueryMetaData *query_md){
     TimestampMessage ts;
     ts.set_id(query_md->ts.getID());
     ts.set_timestamp(query_md->ts.getTimestamp());
-    query_md->read_set["dummy key"] = ts; //query_md->ts;
+
+    std::string dummy_key = groupIdx == 0 ? "dummy_key1" : "dummy_key2";
+    query_md->read_set[dummy_key] = ts; //query_md->ts;
     
     /////////////////////////////////////////////////////////////
     //                                                         //

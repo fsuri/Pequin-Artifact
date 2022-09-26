@@ -1,9 +1,9 @@
 #!/bin/bash
 
 CLIENTS=1
-F=0
-NUM_GROUPS=1
-CONFIG="shard-r0.config"
+F=1
+NUM_GROUPS=2
+CONFIG="0_local_test_outputs/configs/shard-r6-g2.config"
 PROTOCOL="pequin"
 STORE=${PROTOCOL}store
 DURATION=10
@@ -38,7 +38,7 @@ for i in `seq 1 $((CLIENTS-1))`; do
     --num_shards $NUM_GROUPS \
     --protocol_mode $PROTOCOL --num_keys $NUM_KEYS_IN_DB --benchmark $BENCHMARK --num_ops_txn $NUM_OPS_TX \
     --exp_duration $DURATION --client_id $i --num_client_hosts $CLIENTS --warmup_secs 0 --cooldown_secs 0 \
-    --key_selector zipf --zipf_coefficient $ZIPF --indicus_key_path $KEY_PATH &> client-$i.out &
+    --key_selector zipf --zipf_coefficient $ZIPF --indicus_key_path $KEY_PATH &> ./0_local_test_outputs/client-$i.out &
 done;
 
 #valgrind
@@ -46,7 +46,7 @@ DEBUG=store/$STORE/*client.cc store/benchmark/async/benchmark --config_path $CON
   --num_shards $NUM_GROUPS --protocol_mode $PROTOCOL --num_keys $NUM_KEYS_IN_DB --benchmark $BENCHMARK \
   --num_ops_txn $NUM_OPS_TX --exp_duration $DURATION --client_id 0 --num_client_hosts $CLIENTS --warmup_secs 0 \
   --cooldown_secs 0 --key_selector zipf --zipf_coefficient $ZIPF \
-  --stats_file "stats-0.json" --indicus_key_path $KEY_PATH &> client-0.out &
+  --stats_file "stats-0.json" --indicus_key_path $KEY_PATH &> ./0_local_test_outputs/client-0.out &
 
 
 sleep $((DURATION+2))

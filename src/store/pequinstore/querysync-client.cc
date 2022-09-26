@@ -161,11 +161,11 @@ void ShardClient::RequestQuery(PendingQuery *pendingQuery, proto::Query &queryMs
  
   UW_ASSERT(params.query_params.queryMessages <= closestReplicas.size());
   for (size_t i = 0; i < params.query_params.queryMessages; ++i) {
-    Debug("[group %i] Sending QUERY to replica %lu", group, GetNthClosestReplica(i));
+    Debug("[group %i] Sending QUERY to replica id %lu", group, group * config->n + GetNthClosestReplica(i));
     transport->SendMessageToReplica(this, group, GetNthClosestReplica(i), queryReq);
   }
 
-  Debug("[group %i] Sent Query [%lu : %lu]", group, pendingQuery->query_seq_num, pendingQuery->reqId);
+  Debug("[group %i] Sent Query Request [seq:ver] [%lu : %lu] \n", group, pendingQuery->query_seq_num, pendingQuery->retry_version);
 }
 
 
@@ -283,11 +283,11 @@ void ShardClient::SyncReplicas(PendingQuery *pendingQuery){
     for (size_t i = 0; i < total_msg; ++i) {
         syncMsg.set_designated_for_reply(i < num_designated_replies); //only designate num_designated_replies many replicas for exec replies.
 
-        Debug("[group %i] Sending Query Sync Msg to replica %lu", group, GetNthClosestReplica(i));
+        Debug("[group %i] Sending Query Sync Msg to replica %lu", group, group * config->n + GetNthClosestReplica(i));
         transport->SendMessageToReplica(this, group, GetNthClosestReplica(i), syncMsg);
     }
 
-    Debug("[group %i] Sent Query Sync Messages for query [%lu : %lu]", group, pendingQuery->query_seq_num, pendingQuery->reqId);
+    Debug("[group %i] Sent Query Sync Messages for query [seq:ver] [%lu : %lu] \n", group, pendingQuery->query_seq_num, pendingQuery->retry_version);
 }
 
 
@@ -297,7 +297,7 @@ void ShardClient::HandleQueryResult(proto::QueryResult &queryResult){
     if (itr == this->pendingQueries.end()) return; // this is a stale request
 
     PendingQuery *pendingQuery = itr->second;
-    Debug("[group %i] QueryResult Reply for request %lu.", group, queryResult.req_id());
+    
 
     // if(!pendingQuery->query_manager){
     //     Debug("[group %i] is not Transaction Manager for request %lu", group, queryResult.req_id());
@@ -334,6 +334,8 @@ void ShardClient::HandleQueryResult(proto::QueryResult &queryResult){
         
     }
 
+    Debug("[group %i] Received Valid QueryResult Reply for request [%lu : %lu] from replica %lu.", group, pendingQuery->query_seq_num, pendingQuery->retry_version, replica_result->replica_id());
+
     //3) check whether replica in group.
     if (!IsReplicaInGroup(replica_result->replica_id(), group, config)) {
       Debug("[group %d] Query Result from replica %lu who is not in group.",
@@ -360,7 +362,7 @@ void ShardClient::HandleQueryResult(proto::QueryResult &queryResult){
          matching_res = ++pendingQuery->result_freq[replica_result->query_result()][replica_result->query_result_hash()]; //map should be default initialized to 0.
     }
     else{ //manually compare that read sets match. Easy way to compare: Hash ReadSet.
-        Debug("[group %i] Processing ReadSet for QueryResult Reply %lu", group, queryResult.req_id());
+        Debug("[group %i] Validating ReadSet for QueryResult Reply %lu", group, queryResult.req_id());
          read_set = {replica_result->query_read_set().begin(), replica_result->query_read_set().end()}; //FIXME: Does the map automatically become ordered?
          std::string validated_result_hash = std::move(generateReadSetHashChain(read_set));
             // //TESTING:
@@ -399,7 +401,7 @@ void ShardClient::HandleQueryResult(proto::QueryResult &queryResult){
        return;
     }
    
-    Debug("[group %i] Waiting for additional QueryResult Replies for Req %lu", group, queryResult.req_id());
+    Debug("[group %i] Waiting for additional QueryResult Replies for Req %lu \n", group, queryResult.req_id());
 
     //6) remove pendingQuery object --> happens in upcall to client (calls ClearQuery)
 

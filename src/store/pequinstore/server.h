@@ -476,7 +476,7 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
       std::vector<std::pair<Timestamp, Value>> &writes);
   void Commit(const std::string &txnDigest, proto::Transaction *txn,
       proto::GroupedSignatures *groupedSigs, bool p1Sigs, uint64_t view);
-  void CommitWithProof(const std::string &txn_id,  proto::CommittedProof *proof);
+  void CommitWithProof(const std::string &txnDigest,  proto::CommittedProof *proof);
   void CommitToStore(proto::CommittedProof *proof, proto::Transaction *txn, Timestamp &ts, Value &val);
   
   void Abort(const std::string &txnDigest);

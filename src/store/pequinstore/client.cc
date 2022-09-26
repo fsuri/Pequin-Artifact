@@ -250,7 +250,7 @@ void Client::Query(std::string &query, query_callback qcb,
     // Latency_Start(&getLatency);
 
     query_seq_num++;
-    Debug("Query[%lu:%lu:%lu]", client_id, client_seq_num, query_seq_num);
+    Debug("\n Query[%lu:%lu:%lu]", client_id, client_seq_num, query_seq_num);
 
  
     // Contact the appropriate shard to execute the query on.
@@ -259,7 +259,7 @@ void Client::Query(std::string &query, query_callback qcb,
     //Assume for now only touching one group. (single sharded system)
     PendingQuery *pendingQuery = new PendingQuery(this, query_seq_num, query);
 
-    std::vector<uint64_t> involved_groups = {0UL};
+    std::vector<uint64_t> involved_groups = {0UL, 1UL};
     pendingQuery->SetInvolvedGroups(this, involved_groups);
     Debug("[group %i] designated as Query Execution Manager for query [%lu:%lu]", pendingQuery->queryMsg.query_manager(), client_seq_num, query_seq_num);
 
@@ -296,7 +296,7 @@ void Client::Query(std::string &query, query_callback qcb,
     
           UW_ASSERT(pendingQuery != nullptr);
           if(success){
-            Debug("[group %i] Reported success for QuerySync[%lu], version: %lu", group, pendingQuery->queryMsg.query_seq_num(), pendingQuery->version);
+            Debug("[group %i] Reported success for QuerySync [seq : ver] [%lu : %lu] \n", group, pendingQuery->queryMsg.query_seq_num(), pendingQuery->version);
             pendingQuery->group_replies++;
     
             if(params.query_params.cacheReadSet){ 
@@ -309,7 +309,7 @@ void Client::Query(std::string &query, query_callback qcb,
 
             //wait for all shard read-sets to arrive before reporting result. (Realistically result shard replies last, since it has to coordinate data transfer for computation)
             if(pendingQuery->involved_groups.size() == pendingQuery->group_replies){
-                  Debug("Received all required group replies for QuerySync[%lu], version: %lu. UPCALLING", group, pendingQuery->queryMsg.query_seq_num(), pendingQuery->version);
+                  Debug("Received all required group replies for QuerySync[%lu], version: %lu. UPCALLING \n", group, pendingQuery->queryMsg.query_seq_num(), pendingQuery->version);
                 //TODO: Store query_id and result_hash (+version) as part of transaction -- or even read set (what format? --> includes dependencies?) if we want to be flexible.
                 //Note: Ongoing shard clients PendingQuery implicitly maps to current retry_version
                 //TODO: Make part of current transaction. ==> Add repeated item <QueryMeta>. Query Meta = optional query_id, optional read_sets, optional_result_hashes (+version)
