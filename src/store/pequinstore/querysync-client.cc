@@ -88,16 +88,21 @@ void ShardClient::ClearQuery(uint64_t query_seq_num){
     query_seq_num_mapping.erase(itr_q);
 }
 
+
+//Note: Use new req-id for new query sync version
 void ShardClient::RetryQuery(uint64_t query_seq_num, proto::Query &queryMsg){
+
+     Debug("Invoked Retry QueryRequest [%lu] on ShardClient for group %d", query_seq_num, group);
 
     //find pendingQuery from query_seq_num map.
     auto itr_q = query_seq_num_mapping.find(query_seq_num);
     if(itr_q == query_seq_num_mapping.end()){
-        Panic("No reqId logged for query seq num");
+        Panic("No reqId logged for query seq num"); //would not call retry if it was not still ongoing.
         return;
     }
     auto itr = pendingQueries.find(itr_q->second);
     if (itr == pendingQueries.end()) {
+        Panic("Query Request no longer ongoing."); //would not call retry if it was not still ongoing.
         return; // this is a stale request
     }
     PendingQuery *pendingQuery = itr->second;
@@ -254,7 +259,7 @@ void ShardClient::SyncReplicas(PendingQuery *pendingQuery){
  
     //proto::SyncClientProposal syncMsg;
 
-    syncMsg.set_req_id(pendingQuery->reqId);
+    syncMsg.set_req_id(pendingQuery->reqId); //Use Same Req-Id per Query Sync Version
 
     //2) Sign SyncMessage (this authenticates client, and is proof that client does not equivocate proposed snapshot) --> only necessary if not using Cached Reads: authentication ensures correct client can replicate consistently
             //e.g. don't want any client to submit a different/wrong/empty sync on behalf of client --> without cached read set wouldn't matter: 
@@ -294,11 +299,14 @@ void ShardClient::SyncReplicas(PendingQuery *pendingQuery){
 void ShardClient::HandleQueryResult(proto::QueryResult &queryResult){
     //0) find PendingQuery object via request id
      auto itr = this->pendingQueries.find(queryResult.req_id());
-    if (itr == this->pendingQueries.end()) return; // this is a stale request
+    if (itr == this->pendingQueries.end()){
+        //Panic("Stale Query Result");
+        return; // this is a stale request
+    } 
 
     PendingQuery *pendingQuery = itr->second;
     
-
+    Debug("[group %i] Received QueryResult Reply for req-id [%lu]", group, queryResult.req_id());
     // if(!pendingQuery->query_manager){
     //     Debug("[group %i] is not Transaction Manager for request %lu", group, queryResult.req_id());
     //     return;
@@ -364,7 +372,8 @@ void ShardClient::HandleQueryResult(proto::QueryResult &queryResult){
     else{ //manually compare that read sets match. Easy way to compare: Hash ReadSet.
         Debug("[group %i] Validating ReadSet for QueryResult Reply %lu", group, queryResult.req_id());
          read_set = {replica_result->query_read_set().begin(), replica_result->query_read_set().end()}; //FIXME: Does the map automatically become ordered?
-         std::string validated_result_hash = std::move(generateReadSetHashChain(read_set));
+         std::string validated_result_hash = std::move(generateReadSetSingleHash(read_set));
+         //std::string validated_result_hash = std::move(generateReadSetMerkleRoot(read_set, params.merkleBranchFactor));
             // //TESTING:
              Debug("Read-set hash: %s", BytesToHex(validated_result_hash, 16).c_str());
             // for(auto [key, ts] : read_set){

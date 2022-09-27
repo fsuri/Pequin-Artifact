@@ -101,7 +101,7 @@ void Server::HandleQuery(const TransportAddress &remote, proto::QueryRequest &ms
     else{
         queryId =  "[" + std::to_string(query->query_seq_num()) + ":" + std::to_string(query->client_id()) + "]";
     }
-     Debug("Received Query Request[%lu:%lu]; retry-version: %lu", query->query_seq_num(), query->client_id(), query->retry_version());
+     Debug("\n Received Query Request Query[%lu:%lu:%d] (seq:client:ver)", query->query_seq_num(), query->client_id(), query->retry_version());
    
     //TODO:  //if already issued query reply, reply with cached val; else if new, or retry set, re-compute
 
@@ -123,6 +123,7 @@ void Server::HandleQuery(const TransportAddress &remote, proto::QueryRequest &ms
     }
     QueryMetaData *query_md = q->second;
     if(query->retry_version() > query_md->retry_version){
+        query_md->req_id = msg.req_id();
         query_md->retry_version = query->retry_version();
         query_md->started_sync = false; //start new sync round
     }
@@ -185,7 +186,7 @@ void Server::HandleQuery(const TransportAddress &remote, proto::QueryRequest &ms
 
     for(auto const&[tx_id, proof] : committed){
         local_txns.insert(tx_id);
-         Debug("Proposing txn_id [%s] for local Query Sync State[%lu:%lu]", BytesToHex(tx_id, 16).c_str(), query->query_seq_num(), query->client_id());
+         Debug("Proposing txn_id [%s] for local Query Sync State[%lu:%lu:%d]", BytesToHex(tx_id, 16).c_str(), query->query_seq_num(), query->client_id(), query->retry_version());
     }
     
     //query_md->local_ss.insert("test_id_of_length_32 bytes------");
@@ -216,7 +217,7 @@ void Server::HandleQuery(const TransportAddress &remote, proto::QueryRequest &ms
 
     //sign & send reply.
     if (params.validateProofs && params.signedMessages) {
-        Debug("Sign Query Sync Reply for Query[%lu:%lu]", query->query_seq_num(), query->client_id());
+        Debug("Sign Query Sync Reply for Query[%lu:%lu:%d]", query->query_seq_num(), query->client_id(), query->retry_version());
 
      if(false) { //params.queryReplyBatch){
          TransportAddress *remoteCopy = remote.clone();
@@ -248,7 +249,7 @@ void Server::HandleQuery(const TransportAddress &remote, proto::QueryRequest &ms
         }
         
         this->transport->SendMessage(this, remote, *syncReply);
-        Debug("Sent Signed Query Sync Snapshot for Query[%lu:%lu] \n", ls->query_seq_num(), ls->client_id());
+        Debug("Sent Signed Query Sync Snapshot for Query[%lu:%lu:%d]", ls->query_seq_num(), ls->client_id(), query->retry_version());
         delete syncReply;
         delete ls;
      }
@@ -256,6 +257,7 @@ void Server::HandleQuery(const TransportAddress &remote, proto::QueryRequest &ms
     }
 
     if(params.mainThreadDispatching && (!params.dispatchMessageReceive || params.query_params.parallel_queries)) FreeQueryRequestMessage(&msg);
+    if(params.query_params.signClientQueries) delete query;
 }
 
 bool Server::VerifyClientQuery(proto::QueryRequest &msg, const proto::Query *query, std::string &queryId)
@@ -305,7 +307,7 @@ void Server::HandleSync(const TransportAddress &remote, proto::SyncClientProposa
         query_id =  "[" + std::to_string(merged_ss->query_seq_num()) + ":" + std::to_string(merged_ss->client_id()) + "]";
         queryId = &query_id;
     }
-    Debug("Received Query Sync Proposal for Query[%lu:%lu]; retry-version %d", merged_ss->query_seq_num(), merged_ss->client_id(), merged_ss->retry_version());
+    Debug("\n Received Query Sync Proposal for Query[%lu:%lu:%d] (seq:client:ver)", merged_ss->query_seq_num(), merged_ss->client_id(), merged_ss->retry_version());
 
     //FIXME: Message needs to include query hash id in order to locate the query state cached (e.g. local snapshot, intermediate read sets, etc.)
     //For now, can also index via (client id, query seq_num) pair. Just define an ordering function for query id pair.
@@ -321,6 +323,7 @@ void Server::HandleSync(const TransportAddress &remote, proto::SyncClientProposa
 
 
     if(merged_ss->retry_version() > query_md->retry_version){ 
+        query_md->req_id = msg.req_id();
         query_md->retry_version = merged_ss->retry_version();
         query_md->started_sync = true;
     }
@@ -367,7 +370,7 @@ void Server::HandleSync(const TransportAddress &remote, proto::SyncClientProposa
     //txn_replicas_pair
     for(auto const &[tx_id, replica_list] : merged_ss->merged_txns_committed()){
 
-        Debug("Snapshot for Query Sync Proposal[%lu:%lu] contains tx_id [%s]", merged_ss->query_seq_num(), merged_ss->client_id(), BytesToHex(tx_id, 16).c_str());
+        Debug("Snapshot for Query Sync Proposal[%lu:%lu:%d] contains tx_id [%s]", merged_ss->query_seq_num(), merged_ss->client_id(), merged_ss->retry_version(), BytesToHex(tx_id, 16).c_str());
          //TODO: 0) transform txn_id to txnDigest if using optimistc ids..
          // Check local mapping from Timestamp to TxnDigest (TO CREATE)
 
@@ -378,7 +381,7 @@ void Server::HandleSync(const TransportAddress &remote, proto::SyncClientProposa
         if(testing_sync || !query_md->local_ss.count(tx_id)){
             //request the tx-id from the replicas that supposedly have it --> put all tx-id to be requested from one replica in one message (and send in one go afterwards)
 
-              Debug("Missing txn_id [%s] for Query Sync Proposal[%lu:%lu]", BytesToHex(tx_id, 16).c_str(), merged_ss->query_seq_num(), merged_ss->client_id());
+              Debug("Missing txn_id [%s] for Query Sync Proposal[%lu:%lu:%d]", BytesToHex(tx_id, 16).c_str(), merged_ss->query_seq_num(), merged_ss->client_id(), merged_ss->retry_version());
 
              //Add to waiting data structure.
             waitingQueryMap::accessor w;
@@ -414,7 +417,7 @@ void Server::HandleSync(const TransportAddress &remote, proto::SyncClientProposa
 
      q.release();
 
-     Debug("Sync State incomplete for Query[%lu:%lu]", merged_ss->query_seq_num(), merged_ss->client_id()); 
+     Debug("Sync State incomplete for Query[%lu:%lu:%d]", merged_ss->query_seq_num(), merged_ss->client_id(), merged_ss->retry_version()); 
 
     //if there are missng txn, i.e. replica_requests not empty ==> send out sync requests.
 
@@ -450,7 +453,7 @@ bool Server::VerifyClientSyncProposal(proto::SyncClientProposal &msg, const std:
 
 void Server::HandleRequestTx(const TransportAddress &remote, proto::RequestMissingTxns &req_txn){
 
-     Debug("Received RequestMissingTxn from replica %d", req_txn.replica_idx()); 
+     Debug("\n Received RequestMissingTxn from replica %d", req_txn.replica_idx()); 
 
     //1) Parse Message
     proto::SupplyMissingTxns supplyMissingTxn; // = new proto::SupplyMissingTxns();
@@ -577,7 +580,7 @@ void Server::HandleSupplyTx(const TransportAddress &remote, proto::SupplyMissing
         supply_txn = msg.mutable_supply_txn();
     }
 
-    Debug("Received Supply Txns from Replica %d with %d transactions", supply_txn->replica_idx(), supply_txn->txns().size());
+    Debug("\n Received Supply Txns from Replica %d with %d transactions", supply_txn->replica_idx(), supply_txn->txns().size());
 
    
     for(auto &[txn_id, txn_info] : *supply_txn->mutable_txns()){
@@ -826,12 +829,14 @@ void Server::HandleSyncCallback(QueryMetaData *query_md){
     //-- want to do this so that Exec can be a better blackbox: This way data exchange might just be a small intermediary data, yet client learns full read set. 
         //In this case, read set hash from a shard is not enough to prove integrity to another shard (since less data than full read set might be exchanged)
 
-    bool exec_success = true;
+
+    bool exec_success = !test_fail_query;
     if(exec_success){
          SyncReply(query_md);
     }
     else{
         FailQuery(query_md);
+        test_fail_query = false;
     }
 }
 
@@ -840,9 +845,14 @@ void Server::SyncReply(QueryMetaData *query_md){
     query_md->result = "success";
 
     // 3) Generate Merkle Tree over Read Set, result, query id  (FIXME:: Currently only over read set:  )
-    query_md->result_hash = std::move(generateReadSetHashChain(query_md->read_set));
-    //query_md->result_hash = std::move(generateReadSetMerkleRoot(query_md->read_set, params.merkleBranchFactor)); //by default: merkleBranchFactor = 2 ==> might want to use flatter tree to minimize hashes.
+    bool testing_hash = true;
+    if(testing_hash || params.query_params.cacheReadSet){
+        query_md->result_hash = std::move(generateReadSetSingleHash(query_md->read_set));  
+        //query_md->result_hash = std::move(generateReadSetMerkleRoot(query_md->read_set, params.merkleBranchFactor)); //by default: merkleBranchFactor = 2 ==> might want to use flatter tree to minimize hashes.
                                                                                                         //TODO: Can avoid hashing leaves by making them unique strings? "[key:version]" should do the trick?
+        Debug("Read-set hash: %s", BytesToHex(query_md->result_hash, 16).c_str());
+    }
+    
 
     // 4) Possibly buffer Read Set (map: query_digest -> <result_hash, read set>) ==> implicitly done by storing read set + result hash in query_md 
    
@@ -887,7 +897,7 @@ void Server::SyncReply(QueryMetaData *query_md){
              //TODO: if this is already done on a worker, no point in dispatching it again. Add a Flag to MessageToSign that specifies "already worker"
             MessageToSign(res, queryResult->mutable_signed_result(), [sendCB, res]() {
                 sendCB();
-                 Debug("Sent Signed Query Resut for Query[%lu:%lu]", res->query_seq_num(), res->client_id());
+                 Debug("Sent Signed Query Result for Query[%lu:%lu]", res->query_seq_num(), res->client_id());
                 delete res;
             });
 

@@ -309,7 +309,19 @@ void Client::Query(std::string &query, query_callback qcb,
 
             //wait for all shard read-sets to arrive before reporting result. (Realistically result shard replies last, since it has to coordinate data transfer for computation)
             if(pendingQuery->involved_groups.size() == pendingQuery->group_replies){
-                  Debug("Received all required group replies for QuerySync[%lu], version: %lu. UPCALLING \n", group, pendingQuery->queryMsg.query_seq_num(), pendingQuery->version);
+              Debug("Received all required group replies for QuerySync[%lu:%lu] (seq:ver). UPCALLING \n", group, pendingQuery->queryMsg.query_seq_num(), pendingQuery->version);
+
+              //TESTING Read-set
+              Debug("BEGIN READ SET:");
+              for(auto &[group, read_set] : pendingQuery->group_read_sets){
+                for(auto &[key, ts] : read_set){
+                  //std::cerr << "key: " << key << std::endl;
+                 Debug("[group %d] Read key %s with version [%lu:%lu]", group, key.c_str(), ts.timestamp(), ts.id());
+                }
+              }
+              Debug("END READ SET.");
+
+
                 //TODO: Store query_id and result_hash (+version) as part of transaction -- or even read set (what format? --> includes dependencies?) if we want to be flexible.
                 //Note: Ongoing shard clients PendingQuery implicitly maps to current retry_version
                 //TODO: Make part of current transaction. ==> Add repeated item <QueryMeta>. Query Meta = optional query_id, optional read_sets, optional_result_hashes (+version)
@@ -318,10 +330,11 @@ void Client::Query(std::string &query, query_callback qcb,
                                                               // ==> Should never happen: Client must only use each query id ONCE. Thus, if there are two prepares with the same query-id but different version ==> report client
                 qcb(REPLY_OK, pendingQuery->result); //callback to application 
                 //clean pendingQuery and query_seq_num_mapping in all shards.
-                ClearQuery(pendingQuery);
+                ClearQuery(pendingQuery);      
             }
           }
           else{
+            Debug("[group %i] Reported failure for QuerySync [seq : ver] [%lu : %lu] \n", group, pendingQuery->queryMsg.query_seq_num(), pendingQuery->version);
             RetryQuery(pendingQuery);
           }                     
     };

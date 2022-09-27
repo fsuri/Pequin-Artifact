@@ -1876,7 +1876,7 @@ std::string QueryDigest(const proto::Query &query, bool queryHashDigest){
   }
 }
 
-std::string generateReadSetHashChain(std::map<std::string, TimestampMessage> &read_set) { 
+std::string generateReadSetSingleHash(std::map<std::string, TimestampMessage> &read_set) { 
   blake3_hasher hasher;
   blake3_hasher_init(&hasher);
   std::string hash_chain(BLAKE3_OUT_LEN, 0);
