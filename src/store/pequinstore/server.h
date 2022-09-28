@@ -234,6 +234,7 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
 
       bool has_result;
       
+      //Note: If we always send read-set, and don't want to use caching and hashing, then store this directly in the reply message to avoid copying.
       std::map<std::string, TimestampMessage> read_set;     //read set = map from key-> Timestamp version   //ordered_map ==> all replicas agree on key order.
       std::set<std::string> dependencies; 
       std::string result;      //result

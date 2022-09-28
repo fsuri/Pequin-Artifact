@@ -332,10 +332,14 @@ void Client::Query(std::string &query, query_callback qcb,
 
               //TODO: Add dependencies once prepared reads are implemented. Note: Replicas can also just check for every key in read-set that it is commmitted. However, the client may already know a given tx is committed.
                                                                                                                         // Specifying an explicit dependency set can "reduce" the amount of tx a replica needs to wait for.
+              
+              //TODO: Just try moving the whole group_result_hashes map... //requires two maps instead of Query Meta. (easily doable)
+              //*queryRep->mutable_query_group_meta() = {pendingQuery->}
+               proto::QueryMeta &queryMD = (*queryRep->mutable_group_meta())[group];
+
               if(params.query_params.cacheReadSet){ 
                 for(auto &[group, read_set_hash] : pendingQuery->group_result_hashes){
-                  proto::QueryMeta &queryMD = queryRep->query_group_meta[group];
-                  queryMD->set_read_set_hash(read_set_hash);
+                  queryMD.set_read_set_hash(read_set_hash);
                 }
                   //When caching read sets: Check that client reported version matches local one. If not, report Client. (FIFO guarantees that client wouldn't send prepare before retry)
                       //Problem: What if client crashes, and another interested client proposes the prepare for a version whose retry has not yet reached some replicas (no FIFO across channels). Could cause deterministic tx abort.
@@ -345,8 +349,12 @@ void Client::Query(std::string &query, query_callback qcb,
               }
               else{
                 for(auto &[group, read_set] : pendingQuery->group_read_sets){
-                  proto::QueryMeta &queryMD = queryRep->query_group_meta[group];
-                  *queryMD->mutable_query_read_set() = {read_set.begin(), read_set.end()};  //TODO: There has to be a way to move/release this read set instead of copying it again. NOTE: Currently const(?)
+                  //*queryMD.mutable_read_set() = {read_set.begin(), read_set.end()};  //TODO: There has to be a way to move/release this read set instead of copying it again. NOTE: Currently const(?)
+                  
+                  //Alternatively: Loop through read set and move every object.
+                  for(auto &[key, ts] : read_set){
+                     (*queryMD.mutable_read_set())[key] = std::move(ts);
+                  }
                 }
               }
 
