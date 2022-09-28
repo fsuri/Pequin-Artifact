@@ -290,9 +290,11 @@ void Client::Query(std::string &query, query_callback qcb,
   
 
     //result_callback rcb = qcb;
+    //NOTE: result_hash = read_set hash. ==> currently not hashing queryId, version or result contents into it. Appears unecessary.
     result_callback rcb = [qcb, pendingQuery, this](int status, int group, std::map<std::string, TimestampMessage> &read_set, std::string &result_hash, std::string &result, bool success) mutable { //possibly add read-set
       //FIXME: If success: add readset/result hash to datastructure. If group==query manager, record result. If all shards received ==> upcall. 
       //If failure: re-set datastructure and try again. (any shard can report failure to sync)
+      //Note: Ongoing shard clients PendingQuery implicitly maps to current retry_version
     
           UW_ASSERT(pendingQuery != nullptr);
           if(success){
@@ -321,13 +323,35 @@ void Client::Query(std::string &query, query_callback qcb,
               }
               Debug("END READ SET.");
 
+            
+               //Make query meta data part of current transaction. 
+               //==> Add repeated item <QueryReply> with query_id, final version, and QueryMeta field per involved shard. Query Meta = optional read_sets, optional_result_hashes (+version)
+              proto::QueryReply *queryRep = txn.add_query_set();
+              queryRep->set_query_id(pendingQuery->queryId);
+              queryRep->set_retry_version(pendingQuery->version);
 
-                //TODO: Store query_id and result_hash (+version) as part of transaction -- or even read set (what format? --> includes dependencies?) if we want to be flexible.
-                //Note: Ongoing shard clients PendingQuery implicitly maps to current retry_version
-                //TODO: Make part of current transaction. ==> Add repeated item <QueryMeta>. Query Meta = optional query_id, optional read_sets, optional_result_hashes (+version)
-                                                              //When caching read sets: Check that client reported version matches local one. If not, report Client. (FIFO guarantees that client wouldn't send prepare before retry)
-                                                              //Problem: What if client crashes, and another interested client proposes the prepare for a version whose retry has not yet reached some replicas (no FIFO across channels). Could cause deterministic tx abort.
-                                                              // ==> Should never happen: Client must only use each query id ONCE. Thus, if there are two prepares with the same query-id but different version ==> report client
+              //TODO: Add dependencies once prepared reads are implemented. Note: Replicas can also just check for every key in read-set that it is commmitted. However, the client may already know a given tx is committed.
+                                                                                                                        // Specifying an explicit dependency set can "reduce" the amount of tx a replica needs to wait for.
+              if(params.query_params.cacheReadSet){ 
+                for(auto &[group, read_set_hash] : pendingQuery->group_result_hashes){
+                  proto::QueryMeta &queryMD = queryRep->query_group_meta[group];
+                  queryMD->set_read_set_hash(read_set_hash);
+                }
+                  //When caching read sets: Check that client reported version matches local one. If not, report Client. (FIFO guarantees that client wouldn't send prepare before retry)
+                      //Problem: What if client crashes, and another interested client proposes the prepare for a version whose retry has not yet reached some replicas (no FIFO across channels). Could cause deterministic tx abort.
+                      //==> Replica waits for query-id/version to arrive before processing P1 request. Interested client is guaranteed to be able to supply it.
+                     // ==> What if client used different versions of same query id for different prepares?
+                         // Should never happen: Client must only use each query id ONCE. Thus, if there are two prepares with the same query-id but different version ==> report client
+              }
+              else{
+                for(auto &[group, read_set] : pendingQuery->group_read_sets){
+                  proto::QueryMeta &queryMD = queryRep->query_group_meta[group];
+                  *queryMD->mutable_query_read_set() = {read_set.begin(), read_set.end()};  //TODO: There has to be a way to move/release this read set instead of copying it again. NOTE: Currently const(?)
+                }
+              }
+
+
+
                 qcb(REPLY_OK, pendingQuery->result); //callback to application 
                 //clean pendingQuery and query_seq_num_mapping in all shards.
                 ClearQuery(pendingQuery);      

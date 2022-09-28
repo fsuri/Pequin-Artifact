@@ -92,11 +92,17 @@ message ReadReply {
   }
 }
 
+//Meta data associated with a given query, grouped by group id
 message QueryReply {
-  required uint64 query_id = 1;
-  required bytes result_hash = 2;
-  repeated ReadMessage read_set = 3; //key versions of all reads
-  repeated Dependency deps = 4; //only if reading prepared.
+  message QueryMeta {
+    optional bytes read_set_hash = 1; // should this be result hash? I think read-set-hash suffices.
+    //repeated ReadMessage read_set = 3; //key versions of all reads
+    map<string, TimestampMessage> query_read_set = 2; //Is there a benefit of storing as map vs repeated? Internally probably the same.
+    repeated Dependency query_deps = 3; //only if reading prepared.
+  }
+  required bytes query_id = 1;
+  required uint64 retry_version = 2; //should this be individual per group? Currently re-trying on all groups if one fails.
+  map<uint64, QueryMeta> query_group_meta = 3;
 }
 
 // Phase 1

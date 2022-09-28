@@ -377,7 +377,7 @@ void Server::HandleSync(const TransportAddress &remote, proto::SyncClientProposa
         query_md->merged_ss.insert(tx_id); //store snapshot locally.  // Is there a nice way to copy the whole key set of a map?
         //for all txn-ids that are in merged_ss but NOT in local_ss  //TODO: Should check current state instead of local snapshot... might have updated since (this would avoid some wasteful requests).
                                                                         //Note: if its not prepared locally, but is ongoing (i.e. prepare vote = abort/abstain) we can immediately add it to state but marked only for query
-        bool testing_sync = true;
+        bool testing_sync = false;
         if(testing_sync || !query_md->local_ss.count(tx_id)){
             //request the tx-id from the replicas that supposedly have it --> put all tx-id to be requested from one replica in one message (and send in one go afterwards)
 
@@ -590,7 +590,7 @@ void Server::HandleSupplyTx(const TransportAddress &remote, proto::SupplyMissing
    
         //check if locally committed; if not, check cert and apply
        //FIXME: either update waiting data structures anyways; or add their update in Prepare/Commit function as well.
-        bool testing_sync = true;
+        bool testing_sync = false;
         auto itr = committed.find(txn_id);
         if(!testing_sync && itr != committed.end()){
             Debug("Already have committed tx-id: [%s]", BytesToHex(txn_id, 16).c_str());
@@ -845,7 +845,7 @@ void Server::SyncReply(QueryMetaData *query_md){
     query_md->result = "success";
 
     // 3) Generate Merkle Tree over Read Set, result, query id  (FIXME:: Currently only over read set:  )
-    bool testing_hash = true;
+    bool testing_hash = false;
     if(testing_hash || params.query_params.cacheReadSet){
         query_md->result_hash = std::move(generateReadSetSingleHash(query_md->read_set));  
         //query_md->result_hash = std::move(generateReadSetMerkleRoot(query_md->read_set, params.merkleBranchFactor)); //by default: merkleBranchFactor = 2 ==> might want to use flatter tree to minimize hashes.
