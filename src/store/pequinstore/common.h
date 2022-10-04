@@ -331,8 +331,8 @@ std::string TransactionDigest(const proto::Transaction &txn, bool hashDigest);
 
 std::string QueryDigest(const proto::Query &query, bool queryHashDigest);
 
-std::string generateReadSetSingleHash(std::map<std::string, TimestampMessage> &read_set);
-std::string generateReadSetMerkleRoot(std::map<std::string, TimestampMessage> &read_set, uint64_t branch_factor);
+std::string generateReadSetSingleHash(const std::map<std::string, TimestampMessage> &read_set);
+std::string generateReadSetMerkleRoot(const std::map<std::string, TimestampMessage> &read_set, uint64_t branch_factor);
 
 void CompressTxnIds(std::vector<uint64_t>&txn_ts);
 std::vector<uint64_t> DecompressTxnIds();

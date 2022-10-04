@@ -333,7 +333,8 @@ void Client::Query(std::string &query, query_callback qcb,
               //TODO: Add dependencies once prepared reads are implemented. Note: Replicas can also just check for every key in read-set that it is commmitted. However, the client may already know a given tx is committed.
                                                                                                                         // Specifying an explicit dependency set can "reduce" the amount of tx a replica needs to wait for.
               
-              //TODO: Just try moving the whole group_result_hashes map... //requires two maps instead of Query Meta. (easily doable)
+    
+
               //*queryRep->mutable_query_group_meta() = {pendingQuery->}
                proto::QueryMeta &queryMD = (*queryRep->mutable_group_meta())[group];
 
@@ -349,12 +350,12 @@ void Client::Query(std::string &query, query_callback qcb,
               }
               else{
                 for(auto &[group, read_set] : pendingQuery->group_read_sets){
-                  //*queryMD.mutable_read_set() = {read_set.begin(), read_set.end()};  //TODO: There has to be a way to move/release this read set instead of copying it again. NOTE: Currently const(?)
-                  
-                  //Alternatively: Loop through read set and move every object.
+                  //*queryMD.mutable_read_set() = {read_set.begin(), read_set.end()}; 
                   for(auto &[key, ts] : read_set){
                      (*queryMD.mutable_read_set())[key] = std::move(ts);
                   }
+                  //TODO: If we are sending read-sets (and no map order is necessary for hashing), then just store the data as protobuf map and move the whole group_read_set map around... (instead of copying to STL and back to proto)
+                  //requires explicit <group, read_set> map, instead of <group, Query Meta> (easily doable)
                 }
               }
 

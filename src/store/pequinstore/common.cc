@@ -1824,10 +1824,37 @@ std::string TransactionDigest(const proto::Transaction &txn, bool hashDigest) {
     }
     uint64_t timestampId = txn.timestamp().id();
     uint64_t timestampTs = txn.timestamp().timestamp();
-    blake3_hasher_update(&hasher, (unsigned char *) &timestampId,
-        sizeof(timestampId));
-    blake3_hasher_update(&hasher, (unsigned char *) &timestampTs,
-        sizeof(timestampTs));
+    blake3_hasher_update(&hasher, (unsigned char *) &timestampId, sizeof(timestampId));
+    blake3_hasher_update(&hasher, (unsigned char *) &timestampTs, sizeof(timestampTs));
+
+    //Account for Queries now too:
+    for (const auto &query : txn.query_set()) {
+    
+      blake3_hasher_update(&hasher, (unsigned char *) &query.query_id()[0], query.query_id().length());
+      uint64_t retry_version = query.retry_version();
+      blake3_hasher_update(&hasher, (unsigned char *) &retry_version, sizeof(retry_version));
+
+      for(const auto &[group, group_md] : query.group_meta()){
+        blake3_hasher_update(&hasher, (unsigned char *) &group, sizeof(group));
+        if(group_md.has_read_set_hash()){
+          blake3_hasher_update(&hasher, (unsigned char *) &group_md.read_set_hash()[0], group_md.read_set_hash().length());
+        }
+        else{
+          //hash read set explicitly
+           for (auto const &[key, ts] : group_md.read_set()) {
+              // hash the input leafs. I.e. (key, version) pairs 
+              blake3_hasher_update(&hasher, (unsigned char*) &key[0], key.length());
+              uint64_t timestampId = ts.id(); // getID();
+              uint64_t timestampTs = ts.timestamp(); // getTimestamp(); 
+              blake3_hasher_update(&hasher, (unsigned char *) &timestampId, sizeof(timestampId));
+              blake3_hasher_update(&hasher, (unsigned char *) &timestampTs, sizeof(timestampTs));
+           }
+        }
+
+        //TODO: Include deps too (if using)
+      }
+    }
+    //
 
     blake3_hasher_finalize(&hasher, (unsigned char *) &digest[0], BLAKE3_OUT_LEN);
 
@@ -1876,12 +1903,13 @@ std::string QueryDigest(const proto::Query &query, bool queryHashDigest){
   }
 }
 
-std::string generateReadSetSingleHash(std::map<std::string, TimestampMessage> &read_set) { 
+
+std::string generateReadSetSingleHash(const std::map<std::string, TimestampMessage> &read_set) { 
   blake3_hasher hasher;
   blake3_hasher_init(&hasher);
   std::string hash_chain(BLAKE3_OUT_LEN, 0);
-
-   for (auto const &[key, ts] : read_set) {
+  //hash the read_set
+  for (auto const &[key, ts] : read_set) {
     // hash the input leafs. I.e. (key, version) pairs 
     blake3_hasher_update(&hasher, (unsigned char*) &key[0], key.length());
     uint64_t timestampId = ts.id(); // getID();
@@ -1894,7 +1922,7 @@ std::string generateReadSetSingleHash(std::map<std::string, TimestampMessage> &r
   return hash_chain;
 }
 
-std::string generateReadSetMerkleRoot(std::map<std::string, TimestampMessage> &read_set, uint64_t m) { 
+std::string generateReadSetMerkleRoot(const std::map<std::string, TimestampMessage> &read_set, uint64_t m) { 
   //This function generates and computes a full, static Merkle tree in place -- it directly assigns positions in a well-balanced tree.
   //Alternative, greedy approach: Could dynamically build a non-perfect tree by using a queue: Pick (up to) first m available elements and hash. Add hash back to end. Cont until queue has 1 element = root.
   //Alternative, non-static approach: Could build a tree dynamically (support insert/remove operations) and implement a compute function that bubbles up values
