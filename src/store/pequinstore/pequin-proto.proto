@@ -92,10 +92,15 @@ message ReadReply {
   }
 }
 
+message QueryReadSet {
+  repeated ReadMessage read_set = 1;
+}
+
 message QueryMeta {
   optional bytes read_set_hash = 1; // should this be result hash? I think read-set-hash suffices.
   //repeated ReadMessage read_set = 3; //key versions of all reads
-  map<string, TimestampMessage> read_set = 2; //Is there a benefit of storing as map vs repeated? Internally probably the same.
+  //map<string, TimestampMessage> read_set = 2; //Is there a benefit of storing as map vs repeated? Internally probably the same.
+  optional QueryReadSet read_set = 2;
   repeated Dependency deps = 3; //only if reading prepared.
 }
 

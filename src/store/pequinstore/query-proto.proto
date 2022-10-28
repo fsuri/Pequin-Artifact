@@ -18,7 +18,6 @@ message Query {
    //TODO: Needs to include involved groups?
    required uint64 retry_version = 6; //Should go into Query, so that it is signed as well. (thus it is only proposable by original client); but not include din ID hash
   
-   
 
 }
 
@@ -33,13 +32,17 @@ message QueryRequest {
   
 }
 
+// message QueryReadSet {
+//   repeated ReadMessage read_set = 1;
+// }
 message Result {
   required uint64 query_seq_num = 1;
   required uint64 client_id = 2;
   //include result: this may be anything: e.g. an integer, a table (list of values). TBD how to encode
   required bytes query_result = 3;
   optional bytes query_result_hash = 4; //Hash of (QueryID, Read Set Merkle Root) --> uniquely identifies a queries read set.
-  map<string, TimestampMessage> query_read_set = 5;
+  //map<string, TimestampMessage> query_read_set = 5;
+  optional QueryReadSet query_read_set = 5;
   required uint64 replica_id = 6;
 }
 

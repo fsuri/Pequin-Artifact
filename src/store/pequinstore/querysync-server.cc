@@ -809,7 +809,11 @@ void Server::HandleSyncCallback(QueryMetaData *query_md){
     ts.set_timestamp(query_md->ts.getTimestamp());
 
     std::string dummy_key = groupIdx == 0 ? "dummy_key1" : "dummy_key2";
-    query_md->read_set[dummy_key] = ts; //query_md->ts;
+    //query_md->read_set[dummy_key] = ts; //query_md->ts;
+    //replaced with repeated field -> directly in result object.
+    ReadMessage *read = query_md->result.query_read_set.add_query_read_set();
+    read->set_key(dummy_key);
+    *read->mutable_readtime = ts;
     
     /////////////////////////////////////////////////////////////
     //                                                         //
@@ -822,6 +826,7 @@ void Server::HandleSyncCallback(QueryMetaData *query_md){
     //                                                         //
     //                                                         //
     /////////////////////////////////////////////////////////////
+    std::string dummy_result = "success";
 
     //Blackbox might do multi-replica coordination to compute result and full read-set (though read set can actually be reported directly by each shard...)
     //TODO: Receive SyncReply from all shards ==> with read set, or read set hash. ==> in Tx_manager (marked by query) reply also include the result
@@ -832,6 +837,14 @@ void Server::HandleSyncCallback(QueryMetaData *query_md){
 
     bool exec_success = !test_fail_query;
     if(exec_success){
+        
+         if(query_md->designated_for_reply){
+            query_md->result.set_query_result(dummy_result);
+        }
+        else{
+            query_md->result.set_query_result(dummy_result); //set for non-query manager.
+        }
+
          SyncReply(query_md);
     }
     else{
@@ -842,15 +855,26 @@ void Server::HandleSyncCallback(QueryMetaData *query_md){
 
 void Server::SyncReply(QueryMetaData *query_md){
     
-    query_md->result = "success";
+     //proto::QueryResult *queryResult = new proto::QueryResult(); //TODO: replace with GetUnused
+    proto::QueryResult *queryResult = query_md->queryResult;
+    proto::Result *result = queryResult.mutable_result();
+    proto::QueryReadSet *query_read_set;
+    //query_md->result = "success";
+    result->set_query_result("success");
+
 
     // 3) Generate Merkle Tree over Read Set, result, query id  (FIXME:: Currently only over read set:  )
     bool testing_hash = false;
     if(testing_hash || params.query_params.cacheReadSet){
-        query_md->result_hash = std::move(generateReadSetSingleHash(query_md->read_set));  
+        result->set_result_hash(generateReadSetSingleHash(result.query_read_set()));
+        //Temporarily release read-set: This way we don't send it. Afterwards, re-allocate it. This avoid copying.
+        query_read_set = result->release_query_read_set();
+        Debug("Read-set hash: %s", BytesToHex(result.result_hash(), 16).c_str());
+       
+        //query_md->result_hash = std::move(generateReadSetSingleHash(query_md->read_set));  
         //query_md->result_hash = std::move(generateReadSetMerkleRoot(query_md->read_set, params.merkleBranchFactor)); //by default: merkleBranchFactor = 2 ==> might want to use flatter tree to minimize hashes.
                                                                                                         //TODO: Can avoid hashing leaves by making them unique strings? "[key:version]" should do the trick?
-        Debug("Read-set hash: %s", BytesToHex(query_md->result_hash, 16).c_str());
+        //Debug("Read-set hash: %s", BytesToHex(query_md->result_hash, 16).c_str());
     }
     
 
@@ -858,26 +882,25 @@ void Server::SyncReply(QueryMetaData *query_md){
    
     //5) Create Result reply --  // only include result if chosen for reply.
   
-    proto::QueryResult *queryResult = new proto::QueryResult(); //TODO: replace with GetUnused
+   
 
-    proto::Result *query_reply = queryResult->mutable_result();
-    query_reply->set_query_seq_num(query_md->query_seq_num); //TODO: store these in query_md?
-    query_reply->set_client_id(query_md->client_id);
-    if(query_md->designated_for_reply){
-        query_reply->set_query_result(query_md->result);
-    }
-    else{
-        query_reply->set_query_result("default"); //set for non-query manager.
-    }
-    if(params.query_params.cacheReadSet){
-        query_reply->set_query_result_hash(query_md->result_hash);
-    }
-    else{
-        *query_reply->mutable_query_read_set() = {query_md->read_set.begin(), query_md->read_set.end()}; //FIXME: Protobuf may serialize map into arbitrary order --> make sure it's ordered when Hashing.
-    }
+    //proto::Result *query_reply = queryResult->mutable_result();
+    // query_reply->set_query_seq_num(query_md->query_seq_num); //TODO: store these in query_md?
+    // query_reply->set_client_id(query_md->client_id);
+    //query_reply->set_replica_id(id);
+    result.set_query_seq_num(query_md->query_seq_num); //FIXME: put this directly when instantiating.
+    result.set_client_id(query_md->client_id); //FIXME: set this directly when instantiating.
+    result.set_replica_id(id);
+
+    // if(params.query_params.cacheReadSet){
+    //    query_reply->set_query_result_hash(query_md->result_hash);
+       
+    // }
+    // else{
+    //     *query_reply->mutable_query_read_set() = {query_md->read_set.begin(), query_md->read_set.end()}; //FIXME: Protobuf may serialize map into arbitrary order --> make sure it's ordered when Hashing.
+    // }
     
-    //TODO: Add read set.
-    query_reply->set_replica_id(id);
+    
     queryResult->set_req_id(query_md->req_id);
 
     //6) (Sign and) send reply 
@@ -891,14 +914,18 @@ void Server::SyncReply(QueryMetaData *query_md){
             auto sendCB = [this, remoteCopy, queryResult]() {
                 this->transport->SendMessage(this, *remoteCopy, *queryResult); 
                 delete remoteCopy;
-                delete queryResult;
+                //delete queryResult;
             };
           
              //TODO: if this is already done on a worker, no point in dispatching it again. Add a Flag to MessageToSign that specifies "already worker"
-            MessageToSign(res, queryResult->mutable_signed_result(), [sendCB, res]() {
+            MessageToSign(res, queryResult->mutable_signed_result(), [sendCB, res, queryResult, query_read_set]() {
                 sendCB();
                  Debug("Sent Signed Query Result for Query[%lu:%lu]", res->query_seq_num(), res->client_id());
-                delete res;
+
+                if(params.query_params.cacheReadSet) res->set_allocated_query_read_set(query_read_set);
+                queryResult->set_allocated_result(res);  //NOTE: This returns the unsigned result, including the readset. If we want to cache the signature, would have to change this code.
+               
+                //delete res;
             });
 
         }
@@ -916,12 +943,17 @@ void Server::SyncReply(QueryMetaData *query_md){
             
             this->transport->SendMessage(this, *query_md->original_client, *queryResult);
              Debug("Sent Signed Query Resut for Query[%lu:%lu]", res->query_seq_num(), res->client_id());
-            delete queryResult;
-            delete res;
+            //delete queryResult;
+            if(params.query_params.cacheReadSet) res->set_allocated_query_read_set(query_read_set);
+            queryResult->set_allocated_result(res);  //NOTE: This returns the unsigned result, including the readset. If we want to cache the signature, would have to change this code.
+            //delete res;
         }
     }
     else{
         this->transport->SendMessage(this, *query_md->original_client, *queryResult);
+
+         if(params.query_params.cacheReadSet) result.set_allocated_query_read_set(query_read_set);
+                queryResult->set_allocated_result(res);  //NOTE: This returns the unsigned result, including the readset. If we want to cache the signature, would have to change this code.
     }
 
     return;

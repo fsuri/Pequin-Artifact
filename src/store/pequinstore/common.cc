@@ -1841,14 +1841,21 @@ std::string TransactionDigest(const proto::Transaction &txn, bool hashDigest) {
         }
         else{
           //hash read set explicitly
-           for (auto const &[key, ts] : group_md.read_set()) {
-              // hash the input leafs. I.e. (key, version) pairs 
-              blake3_hasher_update(&hasher, (unsigned char*) &key[0], key.length());
-              uint64_t timestampId = ts.id(); // getID();
-              uint64_t timestampTs = ts.timestamp(); // getTimestamp(); 
-              blake3_hasher_update(&hasher, (unsigned char *) &timestampId, sizeof(timestampId));
-              blake3_hasher_update(&hasher, (unsigned char *) &timestampTs, sizeof(timestampTs));
-           }
+          //  for (auto const &[key, ts] : group_md.read_set()) {
+          //     // hash the input leafs. I.e. (key, version) pairs 
+          //     blake3_hasher_update(&hasher, (unsigned char*) &key[0], key.length());
+          //     uint64_t timestampId = ts.id(); // getID();
+          //     uint64_t timestampTs = ts.timestamp(); // getTimestamp(); 
+          //     blake3_hasher_update(&hasher, (unsigned char *) &timestampId, sizeof(timestampId));
+          //     blake3_hasher_update(&hasher, (unsigned char *) &timestampTs, sizeof(timestampTs));
+          //  }
+           for (auto const &read : group_md.query_read_set().read_set()){
+              uint64_t readtimeId = read.readtime().id();
+              uint64_t readtimeTs = read.readtime().timestamp();
+              blake3_hasher_update(&hasher, (unsigned char *) &read.key()[0], read.key().length());
+              blake3_hasher_update(&hasher, (unsigned char *) &readtimeId, sizeof(read.readtime().id()));
+              blake3_hasher_update(&hasher, (unsigned char *) &readtimeTs, sizeof(read.readtime().timestamp()));
+          }
         }
 
         //TODO: Include deps too (if using)
@@ -1904,7 +1911,26 @@ std::string QueryDigest(const proto::Query &query, bool queryHashDigest){
 }
 
 
+std::string generateReadSetSingleHash(const proto::QueryReadSet &query_read_set) { 
+  blake3_hasher hasher;
+  blake3_hasher_init(&hasher);
+  std::string hash_chain(BLAKE3_OUT_LEN, 0);
+  //hash the read_set
+  for (auto const &read : query_read_set.read_set()){
+      uint64_t readtimeId = read.readtime().id();
+      uint64_t readtimeTs = read.readtime().timestamp();
+      blake3_hasher_update(&hasher, (unsigned char *) &read.key()[0], read.key().length());
+      blake3_hasher_update(&hasher, (unsigned char *) &readtimeId, sizeof(read.readtime().id()));
+      blake3_hasher_update(&hasher, (unsigned char *) &readtimeTs, sizeof(read.readtime().timestamp()));
+  }
+   // copy the digest into the output array
+  blake3_hasher_finalize(&hasher, (unsigned char *) &hash_chain[0], BLAKE3_OUT_LEN);
+  return hash_chain;
+}
+
+
 std::string generateReadSetSingleHash(const std::map<std::string, TimestampMessage> &read_set) { 
+
   blake3_hasher hasher;
   blake3_hasher_init(&hasher);
   std::string hash_chain(BLAKE3_OUT_LEN, 0);
