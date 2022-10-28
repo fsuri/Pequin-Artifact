@@ -291,7 +291,8 @@ void Client::Query(std::string &query, query_callback qcb,
 
     //result_callback rcb = qcb;
     //NOTE: result_hash = read_set hash. ==> currently not hashing queryId, version or result contents into it. Appears unecessary.
-    result_callback rcb = [qcb, pendingQuery, this](int status, int group, std::map<std::string, TimestampMessage> &read_set, std::string &result_hash, std::string &result, bool success) mutable { //possibly add read-set
+    //result_callback rcb = [qcb, pendingQuery, this](int status, int group, std::map<std::string, TimestampMessage> &read_set, std::string &result_hash, std::string &result, bool success) mutable { 
+    result_callback rcb = [qcb, pendingQuery, this](int status, int group, proto::QueryReadSet *query_read_set, std::string &result_hash, std::string &result, bool success) mutable { 
       //FIXME: If success: add readset/result hash to datastructure. If group==query manager, record result. If all shards received ==> upcall. 
       //If failure: re-set datastructure and try again. (any shard can report failure to sync)
       //Note: Ongoing shard clients PendingQuery implicitly maps to current retry_version
@@ -305,7 +306,8 @@ void Client::Query(std::string &query, query_callback qcb,
                pendingQuery->group_result_hashes[group] = std::move(result_hash);
             }
             else{
-               pendingQuery->group_read_sets[group] = std::move(read_set);
+               //pendingQuery->group_read_sets[group] = std::move(read_set);
+               pendingQuery->group_read_sets[group] = query_read_set; //Note: this is an allocated object, must be freed eventually.
             }
             if(group == pendingQuery->involved_groups[0]) pendingQuery->result = std::move(result); 
 
@@ -315,10 +317,12 @@ void Client::Query(std::string &query, query_callback qcb,
 
               //TESTING Read-set
               Debug("BEGIN READ SET:");
-              for(auto &[group, read_set] : pendingQuery->group_read_sets){
-                for(auto &[key, ts] : read_set){
+              for(auto &[group, query_read_set] : pendingQuery->group_read_sets){
+                for(auto &read : query_read_set->read_set()){
+                //for(auto &[key, ts] : read_set){
                   //std::cerr << "key: " << key << std::endl;
-                 Debug("[group %d] Read key %s with version [%lu:%lu]", group, key.c_str(), ts.timestamp(), ts.id());
+                  Debug("[group %d] Read key %s with version [%lu:%lu]", group, read.key().c_str(), read.readtime().timestamp(), read.readtime().id());
+                  //Debug("[group %d] Read key %s with version [%lu:%lu]", group, key.c_str(), ts.timestamp(), ts.id());
                 }
               }
               Debug("END READ SET.");
@@ -326,7 +330,7 @@ void Client::Query(std::string &query, query_callback qcb,
             
                //Make query meta data part of current transaction. 
                //==> Add repeated item <QueryReply> with query_id, final version, and QueryMeta field per involved shard. Query Meta = optional read_sets, optional_result_hashes (+version)
-              proto::QueryReply *queryRep = txn.add_query_set();
+              proto::QueryResultMetaData *queryRep = txn.add_query_set();
               queryRep->set_query_id(pendingQuery->queryId);
               queryRep->set_retry_version(pendingQuery->version);
 
@@ -336,7 +340,7 @@ void Client::Query(std::string &query, query_callback qcb,
     
 
               //*queryRep->mutable_query_group_meta() = {pendingQuery->}
-               proto::QueryMeta &queryMD = (*queryRep->mutable_group_meta())[group];
+               proto::QueryGroupMeta &queryMD = (*queryRep->mutable_group_meta())[group];
 
               if(params.query_params.cacheReadSet){ 
                 for(auto &[group, read_set_hash] : pendingQuery->group_result_hashes){
@@ -349,14 +353,16 @@ void Client::Query(std::string &query, query_callback qcb,
                          // Should never happen: Client must only use each query id ONCE. Thus, if there are two prepares with the same query-id but different version ==> report client
               }
               else{
-                for(auto &[group, read_set] : pendingQuery->group_read_sets){
-                  //*queryMD.mutable_read_set() = {read_set.begin(), read_set.end()}; 
-                  for(auto &[key, ts] : read_set){
-                     (*queryMD.mutable_read_set())[key] = std::move(ts);
-                  }
+                for(auto &[group, query_read_set] : pendingQuery->group_read_sets){
+                  queryMD.set_allocated_query_read_set(query_read_set);
+                  //     //*queryMD.mutable_read_set() = {read_set.begin(), read_set.end()}; 
+                  // for(auto &[key, ts] : read_set){
+                  //    (*queryMD.mutable_read_set())[key] = std::move(ts);
+                  // }
                   //TODO: If we are sending read-sets (and no map order is necessary for hashing), then just store the data as protobuf map and move the whole group_read_set map around... (instead of copying to STL and back to proto)
                   //requires explicit <group, read_set> map, instead of <group, Query Meta> (easily doable)
                 }
+                pendingQuery->group_read_sets.clear(); //Note: Clearing here early to avoid double deletions on read sets whose allocated memory was moved.
               }
 
 
@@ -367,6 +373,7 @@ void Client::Query(std::string &query, query_callback qcb,
             }
           }
           else{
+            delete query_read_set;
             Debug("[group %i] Reported failure for QuerySync [seq : ver] [%lu : %lu] \n", group, pendingQuery->queryMsg.query_seq_num(), pendingQuery->version);
             RetryQuery(pendingQuery);
           }                     
@@ -398,6 +405,7 @@ void Client::RetryQuery(PendingQuery *pendingQuery){
   pendingQuery->version++;
   pendingQuery->group_replies = 0;
   pendingQuery->queryMsg.set_retry_version(pendingQuery->version);
+  pendingQuery->ClearReplySets();
   for(auto &g: pendingQuery->involved_groups){
     bclient[g]->RetryQuery(pendingQuery->queryMsg.query_seq_num(), pendingQuery->queryMsg); //--> Retry Query, shard clients already have the rcb.
   }

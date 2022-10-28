@@ -96,19 +96,19 @@ message QueryReadSet {
   repeated ReadMessage read_set = 1;
 }
 
-message QueryMeta {
+message QueryGroupMeta {
   optional bytes read_set_hash = 1; // should this be result hash? I think read-set-hash suffices.
   //repeated ReadMessage read_set = 3; //key versions of all reads
   //map<string, TimestampMessage> read_set = 2; //Is there a benefit of storing as map vs repeated? Internally probably the same.
-  optional QueryReadSet read_set = 2;
+  optional QueryReadSet query_read_set = 2;
   repeated Dependency deps = 3; //only if reading prepared.
 }
 
 //Meta data associated with a given query, grouped by group id
-message QueryReply {
+message QueryResultMetaData{
   required bytes query_id = 1;
   required uint64 retry_version = 2; //should this be individual per group? Currently re-trying on all groups if one fails.
-  map<uint64, QueryMeta> group_meta = 3;
+  map<uint64, QueryGroupMeta> group_meta = 3;
 }
 
 // Phase 1
@@ -121,7 +121,7 @@ message Transaction {
   repeated Dependency deps = 6;
   required TimestampMessage timestamp = 7;
 
-  repeated QueryReply query_set = 8;
+  repeated QueryResultMetaData query_set = 8;
 
   optional bytes txndigest = 9; //NOT PART OF TX. HACK HERE TO STORE txn digest in the local txn version without changing data structures that hold TXN.
 }

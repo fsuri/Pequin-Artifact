@@ -119,7 +119,17 @@ class Client : public ::Client {
       *queryMsg.mutable_timestamp() = client->txn.timestamp();
       queryMsg.set_retry_version(0);
     }
-    ~PendingQuery(){}
+    ~PendingQuery(){
+       ClearReplySets();
+    }
+
+   void ClearReplySets(){
+    for(auto [group, rs]: group_read_sets){
+        if(rs!=nullptr) delete rs;
+    }
+    group_read_sets.clear();
+    group_result_hashes.clear();
+   }
 
    void SetInvolvedGroups(Client *client, std::vector<uint64_t> &involved_groups_){
       involved_groups = std::move(involved_groups_);
@@ -143,7 +153,8 @@ class Client : public ::Client {
     proto::Query queryMsg;
     
     std::vector<uint64_t> involved_groups;
-    std::map<uint64_t, std::map<std::string, TimestampMessage>> group_read_sets;
+    //std::map<uint64_t, std::map<std::string, TimestampMessage>> group_read_sets;
+    std::map<uint64_t, proto::QueryReadSet*> group_read_sets;
     std::map<uint64_t, std::string> group_result_hashes;
     std::string result;
     uint64_t group_replies;

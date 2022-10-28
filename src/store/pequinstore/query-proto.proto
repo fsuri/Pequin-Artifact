@@ -35,7 +35,7 @@ message QueryRequest {
 // message QueryReadSet {
 //   repeated ReadMessage read_set = 1;
 // }
-message Result {
+message QueryResult {
   required uint64 query_seq_num = 1;
   required uint64 client_id = 2;
   //include result: this may be anything: e.g. an integer, a table (list of values). TBD how to encode
@@ -46,11 +46,11 @@ message Result {
   required uint64 replica_id = 6;
 }
 
-message QueryResult {
+message QueryResultReply {
     //identify query
     required uint64 req_id = 1;
     oneof result_oneof {
-      Result result = 2;
+      QueryResult result = 2;
       SignedMessage signed_result = 3;
       bool failure = 4;
     }

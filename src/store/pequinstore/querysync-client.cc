@@ -296,7 +296,7 @@ void ShardClient::SyncReplicas(PendingQuery *pendingQuery){
 }
 
 
-void ShardClient::HandleQueryResult(proto::QueryResult &queryResult){
+void ShardClient::HandleQueryResult(proto::QueryResultReply &queryResult){
     //0) find PendingQuery object via request id
      auto itr = this->pendingQueries.find(queryResult.req_id());
     if (itr == this->pendingQueries.end()){
@@ -313,7 +313,7 @@ void ShardClient::HandleQueryResult(proto::QueryResult &queryResult){
     // }
 
     //1) authenticate reply & parse contents
-    proto::Result *replica_result;
+    proto::QueryResult *replica_result;
 
      if (params.validateProofs && params.signedMessages) {
         if (queryResult.has_signed_result()) {
@@ -362,7 +362,7 @@ void ShardClient::HandleQueryResult(proto::QueryResult &queryResult){
     
     
     int matching_res;
-    std::map<std::string, TimestampMessage> read_set;
+    //std::map<std::string, TimestampMessage> read_set;
 
     //3) wait for up to result_threshold many matching replies (result + result_hash/read set)
     if(params.query_params.cacheReadSet){
@@ -371,8 +371,9 @@ void ShardClient::HandleQueryResult(proto::QueryResult &queryResult){
     }
     else{ //manually compare that read sets match. Easy way to compare: Hash ReadSet.
         Debug("[group %i] Validating ReadSet for QueryResult Reply %lu", group, queryResult.req_id());
-         read_set = {replica_result->query_read_set().begin(), replica_result->query_read_set().end()}; //FIXME: Does the map automatically become ordered?
-         std::string validated_result_hash = std::move(generateReadSetSingleHash(read_set));
+        //  read_set = {replica_result->query_read_set().begin(), replica_result->query_read_set().end()}; //Copying to map automatically orders it.
+        //  std::string validated_result_hash = std::move(generateReadSetSingleHash(read_set));
+        std::string validated_result_hash = std::move(generateReadSetSingleHash(replica_result->query_read_set()));
          //std::string validated_result_hash = std::move(generateReadSetMerkleRoot(read_set, params.merkleBranchFactor));
             // //TESTING:
              Debug("Read-set hash: %s", BytesToHex(validated_result_hash, 16).c_str());
@@ -391,7 +392,8 @@ void ShardClient::HandleQueryResult(proto::QueryResult &queryResult){
     if(matching_res == params.query_params.resultQuorum){
         Debug("[group %i] Reached sufficient matching results for QueryResult Reply %lu", group, queryResult.req_id());
         
-        pendingQuery->rcb(REPLY_OK, group, read_set, *replica_result->mutable_query_result_hash(), *replica_result->mutable_query_result(), true);
+        //pendingQuery->rcb(REPLY_OK, group, read_set, *replica_result->mutable_query_result_hash(), *replica_result->mutable_query_result(), true);
+        pendingQuery->rcb(REPLY_OK, group, replica_result->release_query_read_set(), *replica_result->mutable_query_result_hash(), *replica_result->mutable_query_result(), true);
         // Remove/Deltete pendingQuery happens in upcall
         return;
     }
@@ -405,7 +407,8 @@ void ShardClient::HandleQueryResult(proto::QueryResult &queryResult){
     //Waited for max number of result replies that can be expected. //TODO: Can be "smarter" about this. E.g. if waiting for at most f+1 replies, as soon as first non-matching arrives return...
     if(pendingQuery->resultsVerified.size() == maxWait){
         Debug("[group %i] Received sufficient inconsistent replies to determine Failure for QueryResult %lu", group, queryResult.req_id());
-       pendingQuery->rcb(REPLY_FAIL, group, read_set, *replica_result->mutable_query_result_hash(), *replica_result->mutable_query_result(), false);
+       //pendingQuery->rcb(REPLY_FAIL, group, read_set, *replica_result->mutable_query_result_hash(), *replica_result->mutable_query_result(), false);
+       pendingQuery->rcb(REPLY_FAIL, group, replica_result->release_query_read_set(), *replica_result->mutable_query_result_hash(), *replica_result->mutable_query_result(), false);
         //Remove/Delete pendingQuery happens in upcall
        return;
     }
@@ -473,7 +476,8 @@ void ShardClient::HandleFailQuery(proto::FailQuery &queryFail){
 
     if(pendingQuery->numFails == config->f + 1 || pendingQuery->resultsVerified.size() == maxWait){
         //FIXME: Use a different callback to differentiate Fail due to optimistic ID, and fail due to abort/missed tx?
-        std::map<std::string, TimestampMessage> dummy_read_set;
+        //std::map<std::string, TimestampMessage> dummy_read_set;
+        proto::QueryReadSet *dummy_read_set = nullptr;
         std::string dummy("");
         pendingQuery->rcb(REPLY_FAIL, group, dummy_read_set, dummy, dummy, false);
     }

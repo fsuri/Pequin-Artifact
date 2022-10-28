@@ -67,7 +67,8 @@ typedef std::function<void(int, const std::string &,
 typedef std::function<void(int, const std::string &)> read_timeout_callback;
 
 ////////// Queries
-typedef std::function<void(int, int, std::map<std::string, TimestampMessage> &, std::string &, std::string &, bool)> result_callback; //status, group, read_set, result_hash, result, success
+//typedef std::function<void(int, int, std::map<std::string, TimestampMessage> &, std::string &, std::string &, bool)> result_callback; //status, group, read_set, result_hash, result, success
+typedef std::function<void(int, int, proto::QueryReadSet*, std::string &, std::string &, bool)> result_callback; //status, group, read_set, result_hash, result, success
 typedef std::function<void(int)> result_timeout_callback;
 
 /////////// Basil protocol
@@ -482,7 +483,7 @@ virtual void Phase2Equivocate_Simulate(uint64_t id, const proto::Transaction &tx
   //void RetryQuery(PendingQuery *pendingQuery);
   void HandleQuerySyncReply(proto::SyncReply &SyncReply);
   void SyncReplicas(PendingQuery *pendingQuery);
-  void HandleQueryResult(proto::QueryResult &queryResult);
+  void HandleQueryResult(proto::QueryResultReply &queryResult);
   void HandleFailQuery(proto::FailQuery &msg);
 
 
@@ -563,8 +564,8 @@ virtual void Phase2Equivocate_Simulate(uint64_t id, const proto::Transaction &tx
   proto::QueryRequest queryReq;
   proto::SyncReply SyncReply;
   proto::LocalSnapshot validated_local_ss;
-  proto::QueryResult queryResult;
-  proto::Result validated_result;
+  proto::QueryResultReply queryResult;
+  proto::QueryResult validated_result;
   proto::FailQuery failQuery;
   proto::FailQueryMsg validated_fail;
 
