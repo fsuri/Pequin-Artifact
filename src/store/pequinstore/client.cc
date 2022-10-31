@@ -315,6 +315,8 @@ void Client::Query(std::string &query, query_callback qcb,
             if(pendingQuery->involved_groups.size() == pendingQuery->group_replies){
               Debug("Received all required group replies for QuerySync[%lu:%lu] (seq:ver). UPCALLING \n", group, pendingQuery->queryMsg.query_seq_num(), pendingQuery->version);
 
+
+//BEGIN FIXME: DELETE THIS. IT IS TEST CODE ONLY
               //TESTING Read-set
               Debug("BEGIN READ SET:");
               for(auto &[group, query_read_set] : pendingQuery->group_read_sets){
@@ -326,6 +328,29 @@ void Client::Query(std::string &query, query_callback qcb,
                 }
               }
               Debug("END READ SET.");
+
+              Debug("Test Read Set merge:");
+              proto::QueryReadSet* read_set_0 = pendingQuery->group_read_sets[0];
+              proto::QueryReadSet* read_set_1 = pendingQuery->group_read_sets[1];
+              // ReadMessage* read = read_set_0->add_read_set();
+              // read = read_set_1->release_read_set();
+               for(auto &read : *(read_set_1->mutable_read_set())){
+                 ReadMessage* add_read = read_set_0->add_read_set();
+                 *add_read = std::move(read);
+               }
+
+
+              //read_set_0->mutable_read_set()->MergeFrom(read_set_1->read_set());
+              for(auto &read : read_set_0->read_set()){
+                  Debug("[group Merged] Read key %s with version [%lu:%lu]", read.key().c_str(), read.readtime().timestamp(), read.readtime().id());
+                }
+              for(auto &read : read_set_1->read_set()){
+                  Debug("[group Removed] Read key %s with version [%lu:%lu]", read.key().c_str(), read.readtime().timestamp(), read.readtime().id());
+                }
+              //TODO: merge all group read sets together before sending tx. Or clear all read-sets that are not relevant to a group (==> Need to use a sub-hash to represent groups read set)
+//END FIXME:
+
+
 
             
                //Make query meta data part of current transaction. 
