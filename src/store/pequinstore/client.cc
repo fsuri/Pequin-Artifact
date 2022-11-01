@@ -472,8 +472,8 @@ void Client::Commit(commit_callback ccb, commit_timeout_callback ctcb,
 
     //XXX flag to sort read/write sets for parallel OCC
     if(params.parallel_CCC){
-      std::sort(txn.mutable_read_set()->begin(), txn.mutable_read_set()->end(), sortReadByKey);
-      std::sort(txn.mutable_write_set()->begin(), txn.mutable_write_set()->end(), sortWriteByKey);
+      std::sort(txn.mutable_read_set()->begin(), txn.mutable_read_set()->end(), sortReadSetByKey);
+      std::sort(txn.mutable_write_set()->begin(), txn.mutable_write_set()->end(), sortWriteSetByKey);
     }
 
     PendingRequest *req = new PendingRequest(client_seq_num, this);

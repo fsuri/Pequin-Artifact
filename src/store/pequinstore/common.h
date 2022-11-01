@@ -353,6 +353,31 @@ bool IsReplicaInGroup(uint64_t id, uint32_t group,
 
 int64_t GetLogGroup(const proto::Transaction &txn, const std::string &txnDigest);
 
+inline static bool sortReadSetByKey(const ReadMessage &lhs, const ReadMessage &rhs) { 
+    //UW_ASSERT(lhs.key() != rhs.key());  //FIXME: Read Set should not contain same key twice (doomed to abort) 
+                                          //==> Currenty this might happen since different queries might read the same read set & read sets are stored as list currently instead of a set
+    if(lhs.key() == rhs.key()){
+        return (lhs.readtime().timestamp() == rhs.readtime().timestamp()) ? lhs.readtime().id() < rhs.readtime().id() : lhs.readtime().timestamp() < rhs.readtime().timestamp(); 
+    }
+    return lhs.key() < rhs.key(); 
+}
+
+inline static bool sortWriteSetByKey(const WriteMessage &lhs, const WriteMessage &rhs) { 
+    UW_ASSERT(lhs.key() != rhs.key()); //FIXME: Shouldn't write the same key twice. ==> Currently might happen since we store Write Set as List instead of Set.
+    return lhs.key() < rhs.key(); 
+}
+
+// inline static bool equalReadMsg(const ReadMessage &lhs, const ReadMessage &rhs){
+//     return (lhs.key() == rhs.key()) && (lhs.readtime().timestamp() == rhs.readtime().timestamp()) && (lhs.readtime().id() == rhs.readtime().id());
+// }
+
+
+// inline static bool compareReadSets (proto::QueryReadSet const &lhs, proto::QueryReadSet const &rhs) {
+//     const google::protobuf::RepeatedPtrField<ReadMessage> rs = lhs.read_set();
+//     //return lhs.size() == rhs.size() && std::equal(lhs.begin(), lhs.end(), rhs.begin(), equalReadMsg); 
+// }
+
+
 // enum InjectFailureType {
 //   CLIENT_EQUIVOCATE = 0,
 //   CLIENT_CRASH = 1,

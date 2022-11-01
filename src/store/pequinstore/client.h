@@ -360,9 +360,6 @@ class Client : public ::Client {
 
   std::unordered_map<uint64_t, uint64_t> pendingReqs_starttime;
 
-  inline static bool sortReadByKey(const ReadMessage &lhs, const ReadMessage &rhs) { return lhs.key() < rhs.key(); }
-  inline static bool sortWriteByKey(const WriteMessage &lhs, const WriteMessage &rhs) { return lhs.key() < rhs.key(); }
-
 
   /* Debug State */
   std::unordered_map<std::string, uint32_t> statInts;
