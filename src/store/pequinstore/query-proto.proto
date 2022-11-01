@@ -32,9 +32,11 @@ message QueryRequest {
   
 }
 
-// message QueryReadSet {
+//==> moved to pequin-proto.proto
+// message QueryReadSet { 
 //   repeated ReadMessage read_set = 1;
 // }
+
 message QueryResult {
   required uint64 query_seq_num = 1;
   required uint64 client_id = 2;

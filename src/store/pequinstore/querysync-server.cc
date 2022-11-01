@@ -809,7 +809,7 @@ void Server::HandleSyncCallback(QueryMetaData *query_md){
     //read set = map from key-> versions  //Note: Convert Timestamp to TimestampMessage
 
     //Creating Dummy keys for testing //FIXME: REPLACE 
-    for(int i=0;i < 5; ++i){
+    for(int i=5;i > 0; --i){
         TimestampMessage ts;
         ts.set_id(query_md->ts.getID());
         ts.set_timestamp(query_md->ts.getTimestamp());

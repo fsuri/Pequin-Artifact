@@ -375,18 +375,21 @@ void ShardClient::HandleQueryResult(proto::QueryResultReply &queryResult){
         //  std::string validated_result_hash = std::move(generateReadSetSingleHash(read_set));
         //std::string validated_result_hash = std::move(generateReadSetMerkleRoot(read_set, params.merkleBranchFactor));
 
+        //   Debug("TESTING: Read-set pre sort");
+        //     for(auto &read: replica_result->query_read_set().read_set()){
+        //         Debug("Read key %s with version [%lu:%lu]", read.key().c_str(), read.readtime().timestamp(), read.readtime().id());
+        //     }
+
         std::sort(replica_result->mutable_query_read_set()->mutable_read_set()->begin(), replica_result->mutable_query_read_set()->mutable_read_set()->end(), sortReadSetByKey); //Note: Only necessary because we use repeated field; Not necessary if we used ordered map
         std::string validated_result_hash = std::move(generateReadSetSingleHash(replica_result->query_read_set()));
         //TODO: Instead of hashing, could also use "compareReadSets" function from common.h to compare two maps/lists
-}
         
             // //TESTING:
             Debug("TESTING: Read-set hash: %s", BytesToHex(validated_result_hash, 16).c_str());
-            // for(auto [key, ts] : read_set){
-            //     Debug("Read key %s with version [%lu:%lu]", key, ts.timestamp(), ts.id());
+            // for(auto &read: replica_result->query_read_set().read_set()){
+            //     Debug("Read key %s with version [%lu:%lu]", read.key().c_str(), read.readtime().timestamp(), read.readtime().id());
             // }
-            // //
-
+           
 
          matching_res = ++pendingQuery->result_freq[replica_result->query_result()][validated_result_hash]; //map should be default initialized to 0.
          if(pendingQuery->result_freq[replica_result->query_result()].size() > 1) Panic("When testing without optimistic id's all hashes should be the same.");

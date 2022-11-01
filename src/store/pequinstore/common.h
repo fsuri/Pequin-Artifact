@@ -356,6 +356,7 @@ int64_t GetLogGroup(const proto::Transaction &txn, const std::string &txnDigest)
 inline static bool sortReadSetByKey(const ReadMessage &lhs, const ReadMessage &rhs) { 
     //UW_ASSERT(lhs.key() != rhs.key());  //FIXME: Read Set should not contain same key twice (doomed to abort) 
                                           //==> Currenty this might happen since different queries might read the same read set & read sets are stored as list currently instead of a set
+                                          //"Hacky way": Simulate set by checking whether list contains entry using std::find, e.g. std::find(read_set.begin(), read_set.end(), ReadMsg) == fields.end()
     if(lhs.key() == rhs.key()){
         return (lhs.readtime().timestamp() == rhs.readtime().timestamp()) ? lhs.readtime().id() < rhs.readtime().id() : lhs.readtime().timestamp() < rhs.readtime().timestamp(); 
     }
@@ -367,15 +368,14 @@ inline static bool sortWriteSetByKey(const WriteMessage &lhs, const WriteMessage
     return lhs.key() < rhs.key(); 
 }
 
-// inline static bool equalReadMsg(const ReadMessage &lhs, const ReadMessage &rhs){
-//     return (lhs.key() == rhs.key()) && (lhs.readtime().timestamp() == rhs.readtime().timestamp()) && (lhs.readtime().id() == rhs.readtime().id());
-// }
+inline static bool equalReadMsg(const ReadMessage &lhs, const ReadMessage &rhs){
+    return (lhs.key() == rhs.key()) && (lhs.readtime().timestamp() == rhs.readtime().timestamp()) && (lhs.readtime().id() == rhs.readtime().id());
+}
 
 
-// inline static bool compareReadSets (proto::QueryReadSet const &lhs, proto::QueryReadSet const &rhs) {
-//     const google::protobuf::RepeatedPtrField<ReadMessage> rs = lhs.read_set();
-//     //return lhs.size() == rhs.size() && std::equal(lhs.begin(), lhs.end(), rhs.begin(), equalReadMsg); 
-// }
+inline static bool compareReadSets (google::protobuf::RepeatedPtrField<ReadMessage> const &lhs, google::protobuf::RepeatedPtrField<ReadMessage> const &rhs){ // (proto::QueryReadSet const &lhs, proto::QueryReadSet const &rhs) {
+    return lhs.size() == rhs.size() && std::equal(lhs.begin(), lhs.end(), rhs.begin(), equalReadMsg); 
+}
 
 
 // enum InjectFailureType {

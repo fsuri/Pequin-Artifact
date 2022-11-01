@@ -1910,7 +1910,7 @@ std::string QueryDigest(const proto::Query &query, bool queryHashDigest){
   }
 }
 
-
+// TODO:  Could change input directly to google::protobuf::RepeatedPtrField<ReadMessage>
 std::string generateReadSetSingleHash(const proto::QueryReadSet &query_read_set) { 
   blake3_hasher hasher;
   blake3_hasher_init(&hasher);
