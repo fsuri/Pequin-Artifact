@@ -228,7 +228,8 @@ proto::ConcurrencyControl::Result Server::DoMVTSOOCCCheck(
 
           bool isReadVersionEarlier = false;
           Timestamp readTs;
-          for (const auto &read : preparedReadTxn->read_set()) { //TODO: It's quite inefficient to loop through the read-set of the txn again, if we already know the relevant key. Instead of storing preparedReads := key -> Tx, we should store key -> {read-version, TS}
+          for (const auto &read : preparedReadTxn->read_set()) { //TODO: It's quite inefficient to loop through the read-set of the txn again, if we already know the relevant key. 
+                                                                 //Instead of storing preparedReads := key -> *Tx, we should store key -> {read-version, TS}
             if (read.key() == write.key()) {
               readTs = Timestamp(read.readtime());
               isReadVersionEarlier = readTs < ts;
