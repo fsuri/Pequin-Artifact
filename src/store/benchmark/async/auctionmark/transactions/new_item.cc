@@ -24,26 +24,29 @@
  * SOFTWARE.
  *
  **********************************************************************/
-#ifndef AUCTION_MARK_NEW_USER_H
-#define AUCTION_MARK_NEW_USER_H
-
-#include "store/common/frontend/sync_transaction.h"
+#include "store/benchmark/async/auctionmark/transactions/new_item.h"
 
 namespace auctionmark {
 
-class NewUser : public SyncTransaction {
- public:
-  NewUser(uint32_t timeout, uint64_t u_id, uint64_t u_r_id,
-      const vector<string_view>& attributes, std::mt19937 &gen);
-  virtual ~NewUser();
-  virtual transaction_status_t Execute(SyncClient &client);
+NewItem::NewItem(uint32_t timeout, uint64_t i_id, uint64_t u_id, uint64_t c_id,
+  string_view name, string_view description, double initial_price,
+  double reserve_price, double buy_now, const vector<string>& attributes, 
+  const vector<uint64_t>& gag_ids, const vector<uint64_t>& gav_ids, 
+  const vector<string_view>& images, uint64_t start_date, uint64_t end_date,
+  std::mt19937 &gen) : SyncTransaction(timeout), i_id(i_id), u_id(u_id), c_id(c_id),
+  name(name), description(description), initial_price(initial_price),
+  reserve_price(reserve_price), buy_now(buy_now), attributes(attributes),
+  gag_ids(gag_ids), gav_ids(gav_ids), images(images), start_date(start_date),
+  end_date(end_date) {
+  }
+NewItem::~NewItem(){
+}
 
- private:
-  uint64_t u_id;
-  uint64_t u_r_id;
-  vector<string_view> attributes;
-};
+transaction_status_t Execute(SyncClient &client) {
+  string description = "";
+  for(auto &gag_id : gag_ids) {
+    
+  }
+}
 
 } // namespace auctionmark
-
-#endif /* AUCTION_MARK_NEW_USER_H */

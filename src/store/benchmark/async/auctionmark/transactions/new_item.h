@@ -35,13 +35,28 @@ class NewItem : public SyncTransaction {
  public:
   NewItem(uint32_t timeout, uint64_t i_id, uint64_t u_id, uint64_t c_id,
       string_view name, string_view description, double initial_price,
-      double reserve_price, double buy_now, const vector<string>& attributes, 
+      double reserve_price, double buy_now, const vector<string_view>& attributes, 
       const vector<uint64_t>& gag_ids, const vector<uint64_t>& gav_ids, 
       const vector<string_view>& images, uint64_t start_date, uint64_t end_date,
       std::mt19937 &gen);
   virtual ~NewItem();
   virtual transaction_status_t Execute(SyncClient &client);
-
+ 
+ private:
+  uint64_t i_id;
+  uint64_t u_id;
+  uint64_t c_id;
+  string_view name;
+  string_view description;
+  double initial_price;
+  double reserve_price;
+  double buy_now;
+  const vector<string_view>& attributes;
+  const vector<uint64_t>& gag_ids;
+  const vector<uint64_t>& gav_ids;
+  const vector<string_view>& images;
+  uint64_t start_date;
+  uint64_t end_date;
 };
 
 } // namespace auctionmark

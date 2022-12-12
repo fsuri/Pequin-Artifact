@@ -34,7 +34,7 @@ namespace postgresqlstore {
 
 class Client : public ::Client {
  public:
-  Client(string connection_str) {};
+  Client(string connection_str, uint64_t id) {};
   virtual ~Client() {};
 
   // Begin a transaction.
@@ -63,6 +63,8 @@ class Client : public ::Client {
 
  private:
   taopq::connection connection;
+  taopq::transaction transaction;
+  uint64_t client_id;
 };
 
 }

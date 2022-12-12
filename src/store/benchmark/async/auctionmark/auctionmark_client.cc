@@ -46,28 +46,28 @@
 
 namespace auctionmark
 {
-    AuctionMarkClient::AuctionMarkClient(
-        SyncClient &client, Transport &transport, uint64_t id,
-        int numRequests, int expDuration, uint64_t delay, int warmupSec,
-        int cooldownSec, int tputInterval, uint32_t abortBackoff, bool retryAborted,
-        uint32_t maxBackoff, uint32_t maxAttempts, const uint32_t timeout, const std::string &latencyFilename)
-        : SyncTransactionBenchClient(client, transport, id, numRequests,
-                                     expDuration, delay, warmupSec, cooldownSec,
-                                     tputInterval, abortBackoff, retryAborted, maxBackoff, maxAttempts, timeout,
-                                     latencyFilename)
-    {
-        lastOp = "";
-    }
+AuctionMarkClient::AuctionMarkClient(
+    SyncClient &client, Transport &transport, uint64_t id,
+    int numRequests, int expDuration, uint64_t delay, int warmupSec,
+    int cooldownSec, int tputInterval, uint32_t abortBackoff, bool retryAborted,
+    uint32_t maxBackoff, uint32_t maxAttempts, const uint32_t timeout, const std::string &latencyFilename)
+    : SyncTransactionBenchClient(client, transport, id, numRequests,
+                                    expDuration, delay, warmupSec, cooldownSec,
+                                    tputInterval, abortBackoff, retryAborted, maxBackoff, maxAttempts, timeout,
+                                    latencyFilename)
+{
+    lastOp = "";
+}
 
-    AuctionMarkClient::~AuctionMarkClient() {}
+AuctionMarkClient::~AuctionMarkClient() {}
 
-    SyncTransaction *AuctionMarkClient::GetNextTransaction()
-    {
-        constexpr vector<string> attributes {};
-        NewUser auction_mark_tx(10000, 0, 0, &attributes, GetRand());
-        lastOp = "NewUser";
-        return auction_mark_tx;
-    }
-    std::string ToyClient::GetLastOp() const { return lastOp; }
+SyncTransaction *AuctionMarkClient::GetNextTransaction()
+{
+    constexpr vector<string> attributes{};
+    NewUser auction_mark_tx(10000, 0, 0, &attributes, GetRand());
+    lastOp = "NewUser";
+    return auction_mark_tx;
+}
+std::string AuctionMarkClient::GetLastOp() const { return lastOp; }
 
 } // namespace auctionmark

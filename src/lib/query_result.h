@@ -24,26 +24,36 @@
  * SOFTWARE.
  *
  **********************************************************************/
-#ifndef AUCTION_MARK_NEW_USER_H
-#define AUCTION_MARK_NEW_USER_H
+#ifndef QUERY_RESULT_H
+#define QUERY_RESULT_H
 
-#include "store/common/frontend/sync_transaction.h"
+#include <string>
+#include <vector>
+#include "row.h"
 
-namespace auctionmark {
+namespace query_result {
 
-class NewUser : public SyncTransaction {
- public:
-  NewUser(uint32_t timeout, uint64_t u_id, uint64_t u_r_id,
-      const vector<string_view>& attributes, std::mt19937 &gen);
-  virtual ~NewUser();
-  virtual transaction_status_t Execute(SyncClient &client);
+// QueryResult contains a collection of rows containing one or more fields of data.
+class QueryResult {
+	public:
+		auto name( const std::size_t column ) const -> std::string;
 
- private:
-  uint64_t u_id;
-  uint64_t u_r_id;
-  vector<string_view> attributes;
+		// size of the result set
+		bool empty() const;
+		auto size() const -> std::size_t;
+
+		// iteration
+    auto begin() const -> std::vector<Row>::const_iterator;
+    auto end() const -> std::vector<Row>::const_iterator;
+
+		auto cbegin() const -> std::vector<Row>::const_iterator;
+    auto cend() const -> std::vector<Row>::const_iterator;
+		
+		// access rows
+    auto operator[]( const std::size_t row ) const -> Row;
+    auto at( const std::size_t row ) const -> Row;
 };
 
-} // namespace auctionmark
+}
 
-#endif /* AUCTION_MARK_NEW_USER_H */
+#endif /* QUERY_RESULT_H */

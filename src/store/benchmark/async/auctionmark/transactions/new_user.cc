@@ -24,26 +24,28 @@
  * SOFTWARE.
  *
  **********************************************************************/
-#ifndef AUCTION_MARK_NEW_USER_H
-#define AUCTION_MARK_NEW_USER_H
 
-#include "store/common/frontend/sync_transaction.h"
+#include "store/benchmark/async/auctionmark/transactions/new_user.h"
 
 namespace auctionmark {
 
-class NewUser : public SyncTransaction {
- public:
-  NewUser(uint32_t timeout, uint64_t u_id, uint64_t u_r_id,
-      const vector<string_view>& attributes, std::mt19937 &gen);
-  virtual ~NewUser();
-  virtual transaction_status_t Execute(SyncClient &client);
+NewUser::NewUser(uint32_t timeout, uint64_t u_id, uint64_t u_r_id,
+      const vector<string_view>& attributes, std::mt19937 &gen) :
+    SyncTransaction(timeout), u_id(u_id), u_r_id(u_r_id), attributes(attributes) {
+}
 
- private:
-  uint64_t u_id;
-  uint64_t u_r_id;
-  vector<string_view> attributes;
-};
+NewUser::~NewUser() {
+}
 
+transaction_status_t NewUser::Execute(SyncClient &client) {
+  client.Begin(timeout);
+  string query_values = std::format("VALUES ({}, 0, 0, {}, {}, {}, {}, {}, {}, {}, {}, {}, {});",
+      u_id, u_r_id, attributes[0], attributes[1], attributes[2], attributes[3], attributes[4], attributes[5], attributes[6], attributes[7]);
+  string query = 
+    "INSERT INTO USER (u_id, u_rating, u_balance, u_created, u_r_id, u_sattr0, u_sattr1, u_sattr2, u_sattr3, u_sattr4, u_sttar5, u_sattr6, u_sattr 7) " +
+    query_values;
+  string result;
+  client.Query(query, &result, timeout);
+  return client.Commit(timeout);
+}
 } // namespace auctionmark
-
-#endif /* AUCTION_MARK_NEW_USER_H */

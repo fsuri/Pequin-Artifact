@@ -37,7 +37,11 @@ class UpdateItem : public SyncTransaction {
   string description, std::mt19937 &gen);
   virtual ~UpdateItem();
   virtual transaction_status_t Execute(SyncClient &client);
-
+ 
+ private:
+  uint64_t i_id;
+  uint64_t i_u_id;
+  string description;
 };
 
 } // namespace auctionmark
