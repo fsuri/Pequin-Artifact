@@ -354,11 +354,16 @@ bool IsReplicaInGroup(uint64_t id, uint32_t group,
 int64_t GetLogGroup(const proto::Transaction &txn, const std::string &txnDigest);
 
 inline static bool sortReadSetByKey(const ReadMessage &lhs, const ReadMessage &rhs) { 
-    //UW_ASSERT(lhs.key() != rhs.key());  //FIXME: Read Set should not contain same key twice (doomed to abort) 
+    //UW_ASSERT(lhs.key() != rhs.key());  //Read Set should not contain same key twice (doomed to abort) 
                                           //==> Currenty this might happen since different queries might read the same read set & read sets are stored as list currently instead of a set
                                           //"Hacky way": Simulate set by checking whether list contains entry using std::find, e.g. std::find(read_set.begin(), read_set.end(), ReadMsg) == fields.end()
     if(lhs.key() == rhs.key()){
-        throw exception();
+        //If a tx reads a key twice with different versions throw exception ==> Since we never add duplicates to the ReadSet, this case will never get triggered client side.
+        if(lhs.readtime().timestamp() != rhs.readtime().timestamp() || lhs.readtime().id() != rhs.readtime().id()){ 
+        //Note: What about an app corner case in which you want to read your own write? Such reads don't have to be added to Read Set -- they are valid by default.
+        //Note: See ShardClient "BufferGet" -- we either read our own write, or read previously read value => thus it is impossible to read 2 different TS. We don't add such reads to ReadSet
+             throw exception();
+        }
         //return (lhs.readtime().timestamp() == rhs.readtime().timestamp()) ? lhs.readtime().id() < rhs.readtime().id() : lhs.readtime().timestamp() < rhs.readtime().timestamp(); 
     }
     return lhs.key() < rhs.key(); 
