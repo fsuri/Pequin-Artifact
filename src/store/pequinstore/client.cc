@@ -472,8 +472,16 @@ void Client::Commit(commit_callback ccb, commit_timeout_callback ctcb,
 
     //XXX flag to sort read/write sets for parallel OCC
     if(params.parallel_CCC){
-      std::sort(txn.mutable_read_set()->begin(), txn.mutable_read_set()->end(), sortReadSetByKey);
-      std::sort(txn.mutable_write_set()->begin(), txn.mutable_write_set()->end(), sortWriteSetByKey);
+      try {
+        std::sort(txn.mutable_read_set()->begin(), txn.mutable_read_set()->end(), sortReadSetByKey);
+        std::sort(txn.mutable_write_set()->begin(), txn.mutable_write_set()->end(), sortWriteSetByKey);
+      }
+      catch(...) {
+        Debug("Preemptive Abort: Trying to commit a transaction with 2 different reads for the same key");
+        ccb(ABORTED_SYSTEM);
+        Panic("Client should never read same key twice -- If so, bug in application");
+        return;
+      }
     }
 
     PendingRequest *req = new PendingRequest(client_seq_num, this);

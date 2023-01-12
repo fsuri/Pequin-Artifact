@@ -57,6 +57,72 @@
 
 namespace pequinstore {
 
+typedef google::protobuf::RepeatedPtrField<ReadMessage> ReadSet;
+
+//returns pointer to query read set (either from cache, or from txn itself)
+*ReadSet fetchQueryReadSet(proto::QueryResultMetaData query_md){
+    //pick respective server group from group meta
+    query_md.qroup_meta[id];
+
+    if has read set --> use it
+
+    else go to cache (via query_id) and check if query_result hash matches. if so, use read set.
+
+    //either copy active read set if present
+    //or fetch it from cache. //TODO: Hold lock until we're done copying? Don't want to risk it getting deleted midway. ==> change this function to "mergeQueryReadSet, and call MergeFrom in here; make func void; pass mergedSet as arg
+   return ReadSet();
+}
+
+
+//TODO:
+// In DoOCCCheck make txn non-constant, only constant in MVTSOCheck
+// then call mergeTxReadSets ==> move read sets + query sets into new field of txn called mergedTxn ==> use that for CC and Prepare
+// afterwards, remove/revert that field
+void Server::restoreTxn(proto:Transaction &txn){ //TODO: add to server.h
+    if(txn.query_set.is_empty()) return;
+
+    txn.read_set = std::move(txn.read_set_copy);
+}
+
+//TODO: Call this function before locking keys (only call if query set non empty.) ==> need to lock in this order; need to perform CC on this. 
+// ==> Add the read set as a field to the txn. //FIXME: Txn can't be const in order to do that...  //Return value should be Result, in order to abort early if merge fails (due to incompatible duplicate)
+bool Server::mergeTxReadSets(proto::Transacition &txn){ //TODO: add to server.h
+  //Note: Don't want to override transaction -> else digest changes / we cannot provide the right tx for sync (because stored txn is different)
+  //TODO: store a backup of read_set; and override it for the timebeing (this way we don't have to change any of the DoMVTSOCheck and Prepare code.)
+  
+  if(txn.query_set.is_empty()) return true;
+
+  txn->read_set_copy = txn.read_set; //store backup
+
+  ReadSet *mergedReadSet = txn.mutable_read_set();
+
+  //fetch query read set
+  for(auto query_md : txn.query_set){
+    mergedReatSet.extend(fetchQueryReadSet(query_md));
+    mergedReadSet->MergeFrom(*fetchQueryReadSet(query_md)); //Merge from copies; If we don't want that, can loop through fetchedRead set and move 1 by 1.
+     //mergedReadSet add readSet
+  }
+
+  
+  //Sort mergedReadSet  //NOTE: mergedReadSet will contain duplicate keys -- but those duplicates are guaranteed to be compatible (i.e. identical version/value) //Note: Lock function already ignores read duplicates.
+      //Alternatively, instead of throwing error inside sort, just let CC handle it --> it's not possible for 2 different reads on the same key to vote commit. (but eager aborting here is more efficient)
+    //Define sort function
+    //In sort function: If we detect duplicate -> abort
+    //Implement by throwing an error inside sort, and wrapping it with a catch block.
+  try {
+    //add mergedreadSet to tx - return success
+    std::sort(mergedReadSet->begin(), mergedReadSet->end(), sortReadSetByKey);
+  }
+  catch(...) {
+    //return abort. (return bool = success, and return abort as part of DoOCCCheck)
+    restoreTxn(txn);
+    return false;
+  }
+
+  return true;
+  //return mergedReadSet = All active Reads--> use this for Occ 
+}
+
 proto::ConcurrencyControl::Result Server::DoOCCCheck(
     uint64_t reqId, const TransportAddress &remote,
     const std::string &txnDigest, const proto::Transaction &txn,
@@ -64,21 +130,30 @@ proto::ConcurrencyControl::Result Server::DoOCCCheck(
     const proto::Transaction* &abstain_conflict,
     bool fallback_flow, bool isGossip) {
 
+  //TODO: Call Merge
+  if(!mergeTxReadSets(txn)){
+    return proto::ConcurrencyControl::ABSTAIN; //NOTE: Could optimize and turn this into full Abort if we used duplicate as proof.
+  }
+
   locks_t locks;
   //lock keys to perform an atomic OCC check when parallelizing OCC checks.
   if(params.parallel_CCC){
     locks = LockTxnKeys_scoped(txn);
   }
 
+  proto::ConcurrencyControl::Result result;
   switch (occType) {
     case MVTSO:
-      return DoMVTSOOCCCheck(reqId, remote, txnDigest, txn, conflict, abstain_conflict, fallback_flow, isGossip);
+      result = DoMVTSOOCCCheck(reqId, remote, txnDigest, txn, conflict, abstain_conflict, fallback_flow, isGossip);
     case TAPIR:
-      return DoTAPIROCCCheck(txnDigest, txn, retryTs);
+      result = DoTAPIROCCCheck(txnDigest, txn, retryTs);
     default:
       Panic("Unknown OCC type: %d.", occType);
       return proto::ConcurrencyControl::ABORT;
   }
+  //TODO: Call Restore
+  restoreTxn(txn);
+  return result;
 }
 
 //TODO: Abort by default if we receive a Timestamp that already exists for a key (duplicate version) -- byz client might do this, but would get immediately reported.

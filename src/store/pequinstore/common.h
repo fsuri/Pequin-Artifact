@@ -358,7 +358,8 @@ inline static bool sortReadSetByKey(const ReadMessage &lhs, const ReadMessage &r
                                           //==> Currenty this might happen since different queries might read the same read set & read sets are stored as list currently instead of a set
                                           //"Hacky way": Simulate set by checking whether list contains entry using std::find, e.g. std::find(read_set.begin(), read_set.end(), ReadMsg) == fields.end()
     if(lhs.key() == rhs.key()){
-        return (lhs.readtime().timestamp() == rhs.readtime().timestamp()) ? lhs.readtime().id() < rhs.readtime().id() : lhs.readtime().timestamp() < rhs.readtime().timestamp(); 
+        throw exception();
+        //return (lhs.readtime().timestamp() == rhs.readtime().timestamp()) ? lhs.readtime().id() < rhs.readtime().id() : lhs.readtime().timestamp() < rhs.readtime().timestamp(); 
     }
     return lhs.key() < rhs.key(); 
 }
