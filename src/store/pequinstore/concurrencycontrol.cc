@@ -60,17 +60,42 @@ namespace pequinstore {
 typedef google::protobuf::RepeatedPtrField<ReadMessage> ReadSet;
 
 //returns pointer to query read set (either from cache, or from txn itself)
-*ReadSet fetchQueryReadSet(proto::QueryResultMetaData query_md){
+bool fetchQueryReadSet(proto::QueryResultMetaData query_md, const ReadSet &*query_rs){
     //pick respective server group from group meta
-    query_md.qroup_meta[id];
+    proto::QueryGroupMeta *query_group_md;
+    auto query_itr = query_md.group_meta.find(groupIdx);
+    //query_md.qroup_meta[id];
+    if(query_itr != query_md.group_meta.end()){
+      query_group_md = &query_itr->second;
+    }
+    else{
+      query_rs = nullptr;
+      return true; //return empty readset; ideally don't return anything... -- could make this a void function, and pass return field as argument pointer.
+    }
+    if(query_group_md->has_query_read_set()){
+      query_rs = &query_group_md->query_read_set();
+    }
+    else{
+      //else go to cache (via query_id) and check if query_result hash matches. if so, use read set.
+      query_itr = queryMetaData.find(query_md.query_id());
+      if(query_itr != queryMetaData.end() && query_itr->second.has_result){
+        proto::QueryResultReply *queryResultReply = itr->second.queryResultReply;
+        //FIXME: As part of reply, only stored signed QueryResult (which contains read_set); TODO: Don't store the signature... Unlikely that we have to reply twice anyways -- but 100% that we will have to read from cache.
+        //TODO: check if one can cache the signature itself, but not the serialized msg (and just re-serialize that on demand) -- probably just an unecessary optimization though.
 
-    if has read set --> use it
-
-    else go to cache (via query_id) and check if query_result hash matches. if so, use read set.
-
+        if hash != cached result {
+          return false;
+        }
+      }
+      else{ // have no read set cached
+        //TODO: Abort: Have no read set... (TODO: Make this return value false --> and just set nullptr if group not relevant to query)
+        return false;
+      }
+    }
+  
+    return true;
     //either copy active read set if present
     //or fetch it from cache. //TODO: Hold lock until we're done copying? Don't want to risk it getting deleted midway. ==> change this function to "mergeQueryReadSet, and call MergeFrom in here; make func void; pass mergedSet as arg
-   return ReadSet();
 }
 
 
@@ -96,11 +121,17 @@ bool Server::mergeTxReadSets(proto::Transacition &txn){ //TODO: add to server.h
 
   ReadSet *mergedReadSet = txn.mutable_read_set();
 
-  //fetch query read set
+  //fetch query read sets
   for(auto query_md : txn.query_set){
-    mergedReatSet.extend(fetchQueryReadSet(query_md));
-    mergedReadSet->MergeFrom(*fetchQueryReadSet(query_md)); //Merge from copies; If we don't want that, can loop through fetchedRead set and move 1 by 1.
-     //mergedReadSet add readSet
+    const ReadSet *query_rs;
+    if(!fetchQueryReadSet(query_md, query_rs)){
+      return false; // Vote Abstain ==> don't have (correct) read set cached
+    }
+    if(query_rs != nullptr){
+       //mergedReatSet.extend(query_rs);
+        mergedReadSet->MergeFrom(*query_rs); //Merge from copies; If we don't want that, can loop through fetchedRead set and move 1 by 1.
+        //mergedReadSet add readSet
+    }
   }
 
   
@@ -120,7 +151,7 @@ bool Server::mergeTxReadSets(proto::Transacition &txn){ //TODO: add to server.h
   }
 
   return true;
-  //return mergedReadSet = All active Reads--> use this for Occ 
+  //Invariant: If return true, then txn.read_set = merged active read sets --> use this for Occ 
 }
 
 proto::ConcurrencyControl::Result Server::DoOCCCheck(
@@ -132,7 +163,7 @@ proto::ConcurrencyControl::Result Server::DoOCCCheck(
 
   //TODO: Call Merge
   if(!mergeTxReadSets(txn)){
-    return proto::ConcurrencyControl::ABSTAIN; //NOTE: Could optimize and turn this into full Abort if we used duplicate as proof.
+    return proto::ConcurrencyControl::ABSTAIN; //NOTE: Could optimize and turn this into full Abort if we used duplicate reads as proof. (would have to distinguish from the abstains caused by cached mismatch)
   }
 
   locks_t locks;

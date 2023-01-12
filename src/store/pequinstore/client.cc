@@ -241,7 +241,8 @@ void Client::Put(const std::string &key, const std::string &value,
 }
 
 
-//NOTE: Unlike Get, Query currently cannot read own write, or previous reads. (Could edit query to include "previoudReads" + writes and use it for materialization)
+//NOTE: Unlike Get, Query currently cannot read own write, or previous reads -> consequently, different queries may read the same key differently
+// (Could edit query to include "previoudReads" + writes and use it for materialization)
 
 //Simulate Select * for now
 // TODO: --> Return all rows in the store.

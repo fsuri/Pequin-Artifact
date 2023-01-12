@@ -243,6 +243,7 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
 
       bool has_result;
       proto::QueryResultReply *queryResultReply; //contains proto::QueryResult, which in turn contains: query_result, read set, read set hash/result hash, dependencies
+      //TODO: Switch back to storing QueryResult -- generate queryResultReply on demand. Possibly buffer sig itself.
       //proto::QueryResult result; 
       //proto::QueryReadSet *query_read_set;
 
