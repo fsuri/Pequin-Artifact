@@ -147,6 +147,7 @@ message ConcurrencyControl {
     ABSTAIN = 2;
     WAIT = 3;
     RETRY = 4;
+    //IGNORE = 5;
   }
   required Result ccr = 2;
   optional CommittedProof committed_conflict = 3;

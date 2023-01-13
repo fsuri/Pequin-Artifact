@@ -210,10 +210,12 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
     struct QueryMetaData {
       QueryMetaData(const std::string &query_cmd, const TimestampMessage &timestamp, const TransportAddress &remote, const uint64_t &req_id, const uint64_t &query_seq_num, const uint64_t &client_id): 
          failure(false), retry_version(0UL), started_sync(false), has_result(false), query_cmd(query_cmd), ts(timestamp), original_client(remote.clone()), req_id(req_id), query_seq_num(query_seq_num), client_id(client_id) {
+          //queryResult = new proto::QueryResult();
           queryResultReply = new proto::QueryResultReply(); //TODO: Replace with GetUnused.
       }
       ~QueryMetaData(){ 
         if(original_client != nullptr) delete original_client;
+        //delete queryResult;
         delete queryResultReply;
       }
       void ClearMetaData(){
@@ -243,7 +245,10 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
 
       bool has_result;
       proto::QueryResultReply *queryResultReply; //contains proto::QueryResult, which in turn contains: query_result, read set, read set hash/result hash, dependencies
-      //TODO: Switch back to storing QueryResult -- generate queryResultReply on demand. Possibly buffer sig itself.
+      //Note: After signing queryResultReply we restore the result (i.e. we do not store the signature), and thus read_set and result remain accessible.
+      //proto::QueryResult *queryResult;   //Use this if we want to switch back to storing QueryResult and generate queryResultReply on demand. 
+      std::string signature; //TODO: Possibly buffer sig itself.
+
       //proto::QueryResult result; 
       //proto::QueryReadSet *query_read_set;
 
@@ -447,9 +452,16 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
 
   //general helper functions & tools -- TODO: Move implementations into servertools.cc
 
+  typedef google::protobuf::RepeatedPtrField<ReadMessage> ReadSet;
+  void restoreTxn(proto::Transaction &txn);
+  proto::ConcurrencyControl::Result fetchQueryReadSet(const proto::QueryResultMetaData &query_md, proto::QueryReadSet const *query_rs);
+  proto::ConcurrencyControl::Result mergeTxReadSets(proto::Transaction &txn);
+  
+  
+
   proto::ConcurrencyControl::Result DoOCCCheck(
       uint64_t reqId, const TransportAddress &remote,
-      const std::string &txnDigest, const proto::Transaction &txn,
+      const std::string &txnDigest, proto::Transaction &txn, //const proto::Transaction &txn,
       Timestamp &retryTs, const proto::CommittedProof* &conflict,
       const proto::Transaction* &abstain_conflict,
       bool fallback_flow = false, bool isGossip = false);
