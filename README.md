@@ -93,10 +93,21 @@ The high-level requirements for compiling Basil and the baselines are:
    <!-- You may try to use Ubuntu 20.04.2 LTS instead of 18.04 LTS. However, we do not guarantee a fully documented install process, nor precise repicability of our results. Note, that using Ubuntu 20.04.2 LTS locally (or as control machine) to generate and upload binaries may *not* be compatible with running Cloudlab machines using our cloud lab images (as they use 18.04 LTS(. In order to use Ubuntu 20.04.2 LTS you may have to manually create new disk images for CloudLab instead of using our supplied images for 18.04 LTS to guarantee library compatibility. -->
    <!-- You may try to run on Mac, which has worked for us in the past, but is not documented in the following ReadMe and may not easily be trouble-shooted by us. -->
   
-- Requires python3 
+- Requires python3 (install included below)
 - Requires C++ 17 
-- Requires Java Version >= 1.8 for BFTSmart. We suggest you run the Open JDK java 11 version (install included below) as our Makefile is currently hard-coded for it.
+- Requires Java Version >= 1.8 for BFTSmart. We suggest you run the Open JDK java 11 version (install included below) as our Makefile is currently hard-coded for it. (install included below)
 
+### AUTOMATIC INSTALLATION
+
+Simply run `./install_dependencies.sh`. If the script is not set to executable by default, use `chmod +x install_dependencies.sh` first. 
+Each installation step will print `COMPLETE` upon completion, and require manual input to proceed -- please verify that the installation step proceeded without errors. In case of errors, please consult the [manual installation](#MANUAL-INSTALLATION) and [troubleshooting](#Troubleshooting) below.
+If successful, skip ahead to [Building binaries](#Building-binaries). 
+
+> :warning: NOTE: The script requires explicit manual interaction when installing IntelTBB and BFT-SMaRt requisites. Please consult the manual installation below.
+
+### MANUAL INSTALLATION
+
+> :warning: For manual dependency installation follow the instructions below.
 
 ### General installation pre-reqs
 
