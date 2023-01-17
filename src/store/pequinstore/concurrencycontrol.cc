@@ -63,6 +63,85 @@ namespace pequinstore {
     //Note: 2 threads may try to call DoOCC for a Tx in parallel (barrier is only at BufferP1) -> they might try to write the same value in parallel. 
     //FIX: Hold ongoing lock while updating merged_set. + Check if merged_set exists, if so, re-use it.
 
+
+
+//If the Transaction is waiting on a Query to be cached, call 
+void subscribeMissingQuery(const std::string &query_id, const uint64 &retry_version, const std::string &txnDigest, uint64_t req_id, const proto::Transaction *txn, const TransportAddress* remote, bool isGossip){ 
+  //Note: This is being called while query_md is held. --> won't be released until we checked for all queries.
+    subscribedQueryMap::accessor sq;
+    subscribedQuery.insert(sq, query_id);
+    sq->second = txnDigest;
+    missingQueriesMap::accessor mq;
+    bool first = missingQueries.insert(mq, txnDigest); 
+    if(first){
+      waitingOnQueriesMeta *waiting_meta = new waitingOnQueriesMeta(req_id, txn, remote, isGossip);
+      mq->second = waiting_meta;
+    }
+    waitingOnQueriesMeta *waiting_meta = mq->second;
+
+
+    waiting_meta->deps.insert(std::make_pair(query_id, retry_version));
+
+    mq.release();
+    sq.release();
+}
+
+bool updateWaitingOnQuery(const std::string &txnDigest, const TransportAddress* remote){
+   missingQueriesMap::accessor mq;
+   bool is_waiting = missingQueries.find(mq, txnDigest); 
+    if(!is_waiting) return false; //either not asleep, or called after wakeup (i.e. would be missing out on reply)
+    
+    waitingOnQueriesMeta *waiting_meta = mq->second;
+    waiting_meta->original_client=true;
+    waiting_meta->isGossip=false;
+    if(waiting_meta->remote != nullptr) delete waiting_meta->remote;
+    waiting_meta->remote = remote;
+
+  mq.release();
+  return true; //called before wakeup 
+}
+//Note: It is possible that the client issues this request only after Tx has woken up, but before it has set 
+//Problem: Gossip P1 -> Waiting on Query -> result = wait. original client sees wait, issues this call. But TryPrepare has already started in parallel (before the call completed). --> will not reply to original client.
+//TODO: Either have a flag called started and allow the original client to re-do P1 (not worth it -- duplicate effort), or delete missingqueries only at the end. (better!)
+
+void wakeSubscribedQuery(const std::string query_id, const uint64 &retry_version){
+  //Note: This is being called while query_md is held. --> will trigger only before adding any queries, or after adding all
+    std::string txnDigest;
+    bool ready = false;
+    //MissingQueryMeta *waking_tx_md = nullptr;
+
+    subscribedQueryMap::accessor sq;
+    bool has_subscriber = subscribedQuery.find(sq, query_id);
+    if(has_subscriber){
+      txnDigest = std::move(sq->second);
+
+      missingQueriesMap::accessor mq;
+      bool isMissing = missingQueries.find(mq, txnDigest);
+      if(!isMissing) return;
+
+      waitingOnQueriesMeta *waiting_meta = mq->second;
+      bool correct_query_id_version = waiting_meta->deps.find(std::make_pair(query_id, retry_version)); //Check if buffered query id + retry version is correct.
+      if(!correct_query_id_version) return; //Don't wake up.
+
+      bool erased = mq->second.erase(query_id); //does nothing if not present
+      if(erased && mq->second.empty()) ready = true; //only set ready the first time.
+      
+      missingQueries.erase(mq);
+      mq.release();
+      subscribedQuery.erase(sq);
+    }
+    sq.release();
+
+    if(ready){ //Wakeup Tx for processing
+      TryPrepare(waiting_meta->req_id, waiting_meta->remote, waiting_meta->txn, txnDigest, waiting_meta->isGossip); //Includes call to HandlePhase1CB(..); 
+      //TODO: Need to send to fallback clients too. (If we add tests for this)
+      delete waiting_meta;
+      
+    }
+
+
+}
+
 //returns pointer to query read set (either from cache, or from txn itself)
 proto::ConcurrencyControl::Result Server::fetchQueryReadSet(const proto::QueryResultMetaData &query_md, proto::QueryReadSet const *query_rs){
     //pick respective server group from group meta
@@ -117,6 +196,8 @@ proto::ConcurrencyControl::Result Server::fetchQueryReadSet(const proto::QueryRe
       
       if(!cached_queryResult.has_query_read_set()) return proto::ConcurrencyControl::ABSTAIN;
 
+      //TODO: Add check: Only client that issued the query may use the cached query in it's transaction ==> it follows that honest clients will not use the same query twice. (Must include txn as argument in order to check)
+
       //4) Use Read set.
       query_rs = &cached_queryResult.query_read_set();
   
@@ -150,19 +231,58 @@ proto::ConcurrencyControl::Result Server::mergeTxReadSets(proto::Transaction &tx
 
   ReadSet *mergedReadSet = txn.mutable_read_set();
 
+  std::vector<const std::string*> missing_queries; //List of query id's for which we have not received the latest version yet, but which the Tx is referencing.
+
   //fetch query read sets
   for(const proto::QueryResultMetaData &query_md : txn.query_set()){
     proto::QueryReadSet const *query_rs;
     proto::ConcurrencyControl::Result res = fetchQueryReadSet(query_md, query_rs); 
-    if(res != proto::ConcurrencyControl::COMMIT){
+
+    if(res == proto::ConcurrencyControl::WAIT){ //Set up waiting.
+      missing_queries.push_back(&query_md.query_id());
+    }
+    else if(res != proto::ConcurrencyControl::COMMIT){ //No need to continue CC check.
       return res; 
     }
-    if(query_rs != nullptr){
+    if(query_rs != nullptr && missing_queries.empty()){ //If we are waiting on queries, don't need to build mergedSet.
        //mergedReatSet.extend(query_rs);
         mergedReadSet->MergeFrom(query_rs->read_set()); //Merge from copies; If we don't want that, can loop through fetchedRead set and move 1 by 1.
         //mergedReadSet add readSet
     }
   }
+
+//TODO: STORE IN MERGED_READ_SET in its own data structure.
+//FIXME: It is not safe to handle a Tx over multiple threads if one of them is writing to it. However, it seems to work fine for txnDigest field? Do we need to fix that?
+
+Case 1: 
+CC check first. locks wt
+Tries to lock mq -> fails
+
+In parallel, Query finished. Tries to lock mq, -> empty, does not lock wt.
+Invariant: Wt is only locked if mq is non-empty. But mq is only non-empty if WT has already been locked.
+
+Not true/problem: Query finishes, but doesn't update mq map tx because it's not set yet.. TX will never wake.
+==> Must lock Query first. For every query, lock tx object. ==> that way either missing is set, or not.
+
+
+  if(!missing_queries.empty()){
+    //TODO: Start waiting datastructures:
+    accessor wt;
+    for(auto missing_query : missing:queries){
+      accessor mq;
+      map[*missing_query] -> tx_digest;
+
+    }
+  }
+
+  On receive:
+  accessor mq;
+  if tx= missingquery.find(mq, query_id){
+    waiting_on_query.find(tx)
+    rmv missing
+    if empty => Start DoOCC check for Tx.
+  }
+  //TODO: Store mergedReadSet somewhere and only increment it on demand? Nah, easier to just re-do whole
 
   //Sort mergedReadSet  //NOTE: mergedReadSet will contain duplicate keys -- but those duplicates are guaranteed to be compatible (i.e. identical version/value) //Note: Lock function already ignores read duplicates.
       //Alternatively, instead of throwing error inside sort, just let CC handle it --> it's not possible for 2 different reads on the same key to vote commit. (but eager aborting here is more efficient)

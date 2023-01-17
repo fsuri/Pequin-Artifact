@@ -263,7 +263,31 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
     typedef tbb::concurrent_hash_map<std::string, QueryMetaData*> queryMetaDataMap; //map from query_id -> QueryMetaData
     queryMetaDataMap queryMetaData;
 
-    typedef tbb::concurrent_hash_map<std::string, std::unordered_set<std::string>> waitingQueryMap;  //map from tx-id to query-ids (that are waiting to sync on the tx-id)
+    typdedef tbb::concurrent_hash_map<std::string, std::string> subscribedQueryMap; //Mapping from Query to the Tx waiting for it. (1-1 mapping since we assume each honest query is unique. Only byz clients may try to re-use queries; Byz clients may not use other clients queries)
+    subscribedQueryMap subscribedQuery;
+    typdedef tbb::concurrent_hash_map<std::string, std::unordered_set<std::string>> missingQueriesMap; // Mapping from Tx to all queries it is waiting for.
+    missingQueriesMap missingQueries;
+
+    typedef std::pair<std::string, uint64_t> query_id_version;
+    struct waitingOnQueriesMeta {
+      waitingOnQueriesMeta(uint64_t reqId, const proto::Transaction *txn, const TransportAddress* remote, bool isGossip) : reqId(reqId), txn(txn), remote(remote.clone()), isGossip(isGossip)  {
+        if(isGossip) original_client = false;
+      }
+      ~waitingOnQueriesMeta(){
+        if(remote != nullptr) delete remote;
+      }
+      
+      bool original_client;
+      bool isGossip;
+      uint64_t reqId;
+  
+      const TransportAddress *remote;
+      const Transaction *txn;
+      
+      //std::mutex deps_mutex;
+      std::unordered_set<std::pair<query_id_version>> deps; //acquire mutex before erasing (or use hashmap)
+    };
+    typedef tbb::concurrent_hash_map<std::string, waitingOnQueriesMeta*> waitingQueryMap;  //map from tx-id to query-ids (that are waiting to sync on the tx-id)
     waitingQueryMap waitingQueries;
 
     void HandleSyncCallback(QueryMetaData *query_md);
@@ -833,6 +857,9 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
   typedef tbb::concurrent_hash_map<std::string, WaitingDependency_new> waitingDependenciesMap;
   waitingDependenciesMap waitingDependencies_new;
 
+  //Note: 
+  //dependents is a map from tx -> all tx that are waiting for it
+  //waitingDependencies: map from waiting tx -> list of tx that are missing
 
 };
 

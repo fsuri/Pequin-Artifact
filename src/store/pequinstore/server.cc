@@ -734,7 +734,8 @@ void Server::HandlePhase1(const TransportAddress &remote,
     // need to check if result is WAIT: if so, need to add to waitingDeps original client..
         //(TODO) Instead: use original client list and store pairs <txnDigest, <reqID, remote>>
     if(result == proto::ConcurrencyControl::WAIT){
-        ManageDependencies(txnDigest, *txn, remote, msg.req_id());
+        updateWaitingOnQuery(txnDigest, remote); //Ensure that original client receives a P1 reply in case Tx is waiting on Queries //FIXME: Problem: Cannot distinguish whether its a WAIT because of queries or Tx. If its Queries, may have to do Occ yourself.
+        ManageDependencies(txnDigest, *txn, remote, msg.req_id()); //Ensure that original client receives a P1 reply in case Tx is waiting on other Tx
     }
 
     if (result == proto::ConcurrencyControl::ABORT) {
