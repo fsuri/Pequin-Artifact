@@ -296,7 +296,7 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
     typedef tbb::concurrent_hash_map<std::string, std::unordered_set<std::string>> waitingQueryMap; 
     waitingQueryMap waitingQueries;
 
-    void HandleSyncCallback(QueryMetaData *query_md);
+    void HandleSyncCallback(QueryMetaData *query_md, const std::string &queryId);
     void SyncReply(QueryMetaData *query_md);
     void UpdateWaitingQueries(const std::string &txnDigest);
     void FailWaitingQueries(const std::string &txnDigest);

@@ -413,7 +413,7 @@ void Server::HandleSync(const TransportAddress &remote, proto::SyncClientProposa
   
     //If no missing_txn = already fully synced. Exec callback direclty
     if(replica_requests.empty()){
-        HandleSyncCallback(query_md);
+        HandleSyncCallback(query_md, queryId);
         q.release();
         return;
     }
@@ -777,7 +777,7 @@ void Server::UpdateWaitingQueries(const std::string &txnDigest){
 
                 //3) if missing data structure is empty for any query: Start Callback.
                 if(was_present && query_md->missing_txn.empty()){ //only call this the first time missing_txn goes empty: present captures the fact that map was non-empty before erase.
-                    HandleSyncCallback(query_md); //TODO: Should this be dispatched again? So that multiple waiting queries don't execute sequentially?
+                    HandleSyncCallback(query_md, waiting_query); //TODO: Should this be dispatched again? So that multiple waiting queries don't execute sequentially?
                 }
             }
             q.release();
@@ -797,7 +797,7 @@ void Server::UpdateWaitingQueries(const std::string &txnDigest){
 // simulate dummy result + read set ==> Done
 
 //TODO: must be called while holding a lock on query_md. 
-void Server::HandleSyncCallback(QueryMetaData *query_md){
+void Server::HandleSyncCallback(QueryMetaData *query_md, const std::string &queryId){
 
       Debug("Sync complete for Query[%lu:%lu]. Starting Execution", query_md->query_seq_num, query_md->client_id);
     
@@ -845,6 +845,9 @@ void Server::HandleSyncCallback(QueryMetaData *query_md){
     //-- want to do this so that Exec can be a better blackbox: This way data exchange might just be a small intermediary data, yet client learns full read set. 
         //In this case, read set hash from a shard is not enough to prove integrity to another shard (since less data than full read set might be exchanged)
 
+    //After executing and caching read set -> Try to wake possibly subscribed queries.
+    wakeSubscribedQuery(queryId, query_md->retry_version); //TODO: Instead of passing it along, just store the queryId...
+
 
     bool exec_success = !test_fail_query;
     if(exec_success){
@@ -867,6 +870,8 @@ void Server::HandleSyncCallback(QueryMetaData *query_md){
 }
 
 void Server::SyncReply(QueryMetaData *query_md){ //TODO: Rename this to QueryReply 
+
+//TODO: CALL WAKE OPERATION
     
     // proto::queryResultReplyReply *queryResultReply = new proto::queryResultReply(); //TODO: replace with GetUnused
     // proto::QueryResult *result = query_md->queryResult;
