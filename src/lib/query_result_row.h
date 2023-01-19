@@ -24,17 +24,18 @@
  * SOFTWARE.
  *
  **********************************************************************/
-#ifndef QUERY_RESULT_H
-#define QUERY_RESULT_H
+#ifndef ROW_H
+#define ROW_H
 
 #include <string>
 #include <vector>
-#include "query_result_row.h"
+#include "query_result_field.h"
+#include <tao/pq/result_traits.hpp>
 
 namespace query_result {
 
-// QueryResult contains a collection of rows containing one or more fields of data.
-class QueryResult {
+// A row in a table, contains an ordered collection of fields
+class Row {
 	public:
 		class const_iterator {
 			public:
@@ -57,28 +58,49 @@ class QueryResult {
         virtual auto operator[]( const std::int32_t n ) const noexcept -> Row = 0;
 		};
 
-		virtual auto name( const std::size_t column ) const -> std::string = 0;
+	  virtual auto operator[]( const std::size_t column ) const -> Field = 0;
+		
+		virtual auto columns() const noexcept -> std::size_t = 0;
 
-		// size of the result set
-		virtual bool empty() const = 0;
-		virtual auto size() const -> std::size_t = 0;
+		virtual auto name( const std::size_t column ) const -> std::string = 0;
 
 		// iteration
     virtual auto begin() const -> const_iterator = 0;
+
     virtual auto end() const -> const_iterator = 0;
 
-		virtual auto cbegin() const -> const_iterator = 0;
-    virtual auto cend() const -> const_iterator = 0;
-		
-		// access rows
-    virtual auto operator[]( const std::size_t row ) const -> Row = 0;
-    virtual auto at( const std::size_t row ) const -> Row = 0;
+    virtual auto cbegin() const -> const_iterator = 0;
 
-		// update/insert result
-		virtual auto has_rows_affected() const noexcept -> bool = 0;
-		virtual auto rows_affected() const -> std::size_t = 0;
+    virtual auto cend() const -> const_iterator = 0;
+
+		virtual auto get( const std::size_t column ) const -> const char*;
+
+		template< typename T >
+    auto get( const std::size_t column ) const -> T {
+			if constexpr( result_traits_size< T > == 0 ) {
+				static_assert( false, "tao::pq::result_traits<T>::size yields zero" );
+				__builtin_unreachable();
+			}
+			else if constexpr( result_traits_size< T > == 1 ) {
+				if constexpr( result_traits_has_null< T > ) {
+						if( is_null( column ) ) {
+							return result_traits< T >::null();
+						}
+				}
+				return result_traits< T >::from( get( column ) );
+			}
+			else {
+				return result_traits< T >::from( slice( column, result_traits_size< T > ) );
+			}
+		}
+
+    template< typename T >
+    auto optional( const std::size_t column ) const
+    {
+       return get< std::optional< T > >( column );
+    }
 };
 
 }
 
-#endif /* QUERY_RESULT_H */
+#endif /* ROW_H */
