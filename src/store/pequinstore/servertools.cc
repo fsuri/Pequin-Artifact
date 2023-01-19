@@ -800,6 +800,11 @@ bool Server::BufferP1Result(proto::ConcurrencyControl::Result &result,
 bool Server::BufferP1Result(p1MetaDataMap::accessor &c, proto::ConcurrencyControl::Result &result,
   const proto::CommittedProof *conflict, const std::string &txnDigest, uint64_t &reqId, int fb, const TransportAddress *remote, bool isGossip){
 
+    if(result == proto::ConcurrencyControl::IGNORE){
+      Clean(txnDigest, true, true); // This is an invalid transaction (will never succeed)  -> can remove any accumulated meta data. Clean with hard = true
+      return false; 
+    } 
+
     p1MetaData.insert(c, txnDigest); //TODO: Refactor to use insert bool return value (instead of .hasP1)
     if(!c->second.hasP1){
       c->second.result = result;

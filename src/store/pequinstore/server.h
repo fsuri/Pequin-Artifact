@@ -488,14 +488,14 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
     bool ForwardWriteback(const TransportAddress &remote, uint64_t ReqId, const std::string &txnDigest);
     bool ForwardWritebackMulti(const std::string &txnDigest, interestedClientsMap::accessor &i);
 
-  //general helper functions & tools -- TODO: Move implementations into servertools.cc
+  //general helper functions & tools -- Implementations are located in concurrencycontrol.cc and servertools.cc
 
   typedef google::protobuf::RepeatedPtrField<ReadMessage> ReadSet;
-  void subscribeMissingQuery(const std::string &query_id, const uint64_t &retry_version, const std::string &txnDigest, uint64_t req_id, proto::Transaction *txn, const TransportAddress &remote, bool isGossip);
+  void subscribeMissingQuery(const std::string &query_id, const std::string &txnDigest);
   void wakeSubscribedQuery(const std::string query_id, const uint64_t &retry_version);
   void restoreTxn(proto::Transaction &txn);
-  proto::ConcurrencyControl::Result fetchQueryReadSet(const proto::QueryResultMetaData &query_md, proto::QueryReadSet const *query_rs);
-  proto::ConcurrencyControl::Result mergeTxReadSets(proto::Transaction &txn);
+  proto::ConcurrencyControl::Result fetchQueryReadSet(const proto::QueryResultMetaData &query_md, proto::QueryReadSet const *query_rs, const std::string &txnDigest, const proto::Transaction &txn);
+  proto::ConcurrencyControl::Result mergeTxReadSets(proto::Transaction &txn, const std::string &txnDigest, uint64_t req_id, const TransportAddress &remote, bool isGossip);
   
   
 
@@ -556,7 +556,7 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
   bool BufferP1Result(p1MetaDataMap::accessor &c, proto::ConcurrencyControl::Result &result,
     const proto::CommittedProof *conflict, const std::string &txnDigest, uint64_t &reqId, int fb = 0, const TransportAddress *remote = nullptr, bool isGossip = false);
   
-  void Clean(const std::string &txnDigest, bool abort = false);
+  void Clean(const std::string &txnDigest, bool abort = false, bool hard = false);
   void CleanDependencies(const std::string &txnDigest);
   void LookupP1Decision(const std::string &txnDigest, int64_t &myProcessId,
       proto::ConcurrencyControl::Result &myResult) const;

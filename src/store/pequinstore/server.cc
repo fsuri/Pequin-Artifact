@@ -784,6 +784,8 @@ void Server::HandlePhase1(const TransportAddress &remote,
 void Server::HandlePhase1CB(uint64_t reqId, proto::ConcurrencyControl::Result result,
   const proto::CommittedProof* &committedProof, std::string &txnDigest, const TransportAddress &remote, const proto::Transaction *abstain_conflict, bool isGossip){
 
+  if(result == proto::ConcurrencyControl::IGNORE) return;
+
   //Note: remote_original might be deleted if P1Meta is erased. In that case, must hold Buffer P1 accessor manually here.  Note: We currently don't delete P1Meta, so it won't happen; but it's still good to have.
   const TransportAddress *remote_original = &remote; 
   uint64_t req_id = reqId;
@@ -1562,7 +1564,7 @@ void Server::Abort(const std::string &txnDigest) {
   CleanDependencies(txnDigest);
 }
 
-void Server::Clean(const std::string &txnDigest, bool abort) {
+void Server::Clean(const std::string &txnDigest, bool abort, bool hard) {
 
   //Latency_Start(&waitingOnLocks);
   //auto ongoingMutexScope = params.mainThreadDispatching ? std::unique_lock<std::shared_mutex>(ongoingMutex) : std::unique_lock<std::shared_mutex>();
@@ -1581,7 +1583,12 @@ void Server::Clean(const std::string &txnDigest, bool abort) {
 
   ongoingMap::accessor o;
   bool is_ongoing = ongoing.find(o, txnDigest);
+  if(is_ongoing && hard){
+    //delete o->second.txn; //Not safe to delete txn because another thread could be using it concurrently...
+    aborted.insert(txnDigest); //No need to call abort -- A hard clean indicates an invalid tx, and no honest replica would have voted for it --> thus there can be no dependents and dependencies.
+  } 
   if(is_ongoing) ongoing.erase(o);
+  
 
   preparedMap::accessor a;
   bool is_prepared = prepared.find(a, txnDigest);
@@ -1664,9 +1671,10 @@ void Server::Clean(const std::string &txnDigest, bool abort) {
     c->second.hasSignedP1 = false;
   } 
   //if(hasP1) p1MetaData.erase(c);
+  if(hard) p1MetaData.erase(c);
   c.release();
 
-  
+  //Note: won't exist if hard clean (invalid tx)
   // p2MetaDataMap::accessor p;
   // if(p2MetaDatas.find(p, txnDigest)){
   //   p2MetaDatas.erase(p);
@@ -2136,6 +2144,7 @@ bool Server::ExecP1(proto::Phase1FB &msg, const TransportAddress &remote,
   result = DoOCCCheck(msg.req_id(),
       remote, txnDigest, *txn, retryTs, committedProof, abstain_conflict, true);
 
+
   //std::cerr << "Exec P1 called, for txn: " << BytesToHex(txnDigest, 64) << std::endl;
   //BufferP1Result(result, committedProof, txnDigest, 1);
   //std::cerr << "FB: Buffered result:" << result << " for txn: " << BytesToHex(txnDigest, 64) << std::endl;
@@ -2149,6 +2158,7 @@ bool Server::ExecP1(proto::Phase1FB &msg, const TransportAddress &remote,
         SendPhase1Reply(req_id, result, committedProof, txnDigest, remote_original, abstain_conflict); //TODO: Confirm that this does not consume committedProof.
   }
 
+  if(result == proto::ConcurrencyControl::IGNORE) return false; //Note: If result is Ignore, then BufferP1 will already Clean tx.
 
   //What happens in the FB case if the result is WAIT?
   //Since we limit to depth 1, we expect this to not be possible.
