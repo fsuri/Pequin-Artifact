@@ -224,9 +224,10 @@ proto::ConcurrencyControl::Result Server::mergeTxReadSets(const ReadSet *readSet
   //TODO: store a backup of read_set; and override it for the timebeing (this way we don't have to change any of the DoMVTSOCheck and Prepare code.)
   
   //Default
-  readSet = txn.mutable_read_set();
+  readSet = &txn.read_set();
 
   if(txn.query_set().empty()){
+    Debug("Txn has no queries. ReadSet = base ReadSet");
     return proto::ConcurrencyControl::COMMIT;
   } 
 
@@ -235,7 +236,7 @@ proto::ConcurrencyControl::Result Server::mergeTxReadSets(const ReadSet *readSet
 
    //If tx already has mergedReadSet -> just return that, no need in re-doing the work.
   if(txn.has_merged_read_set()){
-    readSet = txn.mutable_merged_read_set()->mutable_read_set();
+    readSet = &txn.merged_read_set()->mutable_read_set();
     return proto::ConcurrencyControl::COMMIT;
   }
 
@@ -328,7 +329,7 @@ proto::ConcurrencyControl::Result Server::mergeTxReadSets(const ReadSet *readSet
   mergedReadSet->mutable_read_set()->MergeFrom(txn.read_set());
   //readSet = mergedReadSet;
   txn.set_allocated_merged_read_set(mergedReadSet);
-  readSet = txn.mutable_merged_read_set()->mutable_read_set();
+  readSet = &txn.merged_read_set()->mutable_read_set();
   
 
   return proto::ConcurrencyControl::COMMIT;
@@ -345,23 +346,30 @@ proto::ConcurrencyControl::Result Server::DoOCCCheck(
     const proto::Transaction* &abstain_conflict,
     bool fallback_flow, bool isGossip) {
 
+  proto::ConcurrencyControl::Result result;
 
-  const ReadSet *readSet;
+  const ReadSet *readSet;// = &txn.read_set();
 
   //Merge
-  proto::ConcurrencyControl::Result result;
+  Debug("Trying to merge TxReadsets for txn: %s", BytesToHex(txnDigest, 16).c_str());
+  
   result = mergeTxReadSets(readSet, txn, txnDigest, reqId, remote, isGossip);
   //If we have an early abstain or Wait (due to invalid request) then return early.
   if(result != proto::ConcurrencyControl::COMMIT){  //query either invalid (Ignore), doomed to fail (abstain/abort), or queries not ready (Wait)
+    Debug("Returning. Merge indicated query read sets are not ready or invalid");
     return result;  //NOTE: Could optimize and turn Abstains into full Abort if we used duplicate reads as proof. (would have to distinguish from the abstains caused by cached mismatch)
   }
   //Note: if we wait, we may never garbage collect TX from ongoing (and possibly from other replicas Prepare set); Can garbage collect after some time if desired (since we didn't process, theres no impact on decisions)
   //If another client is interested, then it should start fallback and provide read set as well (forward SyncProposal with correct retry version)
   
+  for(ReadMessage &read : *readSet){
+        Debug("[group Merged] Read key %s with version [%lu:%lu]", read.key().c_str(), read.readtime().timestamp(), read.readtime().id());
+ }
 
   locks_t locks;
   //lock keys to perform an atomic OCC check when parallelizing OCC checks.
   if(params.parallel_CCC){
+    Debug("Parallel OCC: Locking read/write keys for txn: %s", BytesToHex(txnDigest, 16).c_str());
     locks = LockTxnKeys_scoped(txn, *readSet);
   }
 
@@ -369,8 +377,10 @@ proto::ConcurrencyControl::Result Server::DoOCCCheck(
   switch (occType) {
     case MVTSO:
       result = DoMVTSOOCCCheck(reqId, remote, txnDigest, txn, *readSet, conflict, abstain_conflict, fallback_flow, isGossip);
+      break;
     case TAPIR:
       result = DoTAPIROCCCheck(txnDigest, txn, retryTs);
+      break;
     default:
       Panic("Unknown OCC type: %d.", occType);
       return proto::ConcurrencyControl::ABORT;
@@ -387,7 +397,7 @@ proto::ConcurrencyControl::Result Server::DoMVTSOOCCCheck(
     const std::string &txnDigest, const proto::Transaction &txn, const ReadSet &readSet,
     const proto::CommittedProof* &conflict, const proto::Transaction* &abstain_conflict,
     bool fallback_flow, bool isGossip) {
-  Debug("PREPARE[%lu:%lu][%s] with ts %lu.%lu.",
+  Debug("DoMVTSOCheck[%lu:%lu][%s] with ts %lu.%lu.",
       txn.client_id(), txn.client_seq_num(),
       BytesToHex(txnDigest, 16).c_str(),
       txn.timestamp().timestamp(), txn.timestamp().id());
@@ -1183,6 +1193,10 @@ proto::ConcurrencyControl::Result Server::DoTAPIROCCCheck(
 
 
 locks_t Server::LockTxnKeys_scoped(const proto::Transaction &txn, const ReadSet &readSet) {
+
+  for(auto &read : readSet){
+        Debug("[group Merged] Read key %s with version [%lu:%lu]", read.key().c_str(), read.readtime().timestamp(), read.readtime().id());
+ }
     // timeval tv1;
     // gettimeofday(&tv1, 0);
     // int id = std::rand();
