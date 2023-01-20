@@ -33,7 +33,7 @@ message QueryRequest {
 }
 
 //==> moved to pequin-proto.proto
-// message QueryReadSet { 
+// message ReadSet { 
 //   repeated ReadMessage read_set = 1;
 // }
 
@@ -44,7 +44,7 @@ message QueryResult {
   required bytes query_result = 3;
   optional bytes query_result_hash = 4; //Hash of (QueryID, Read Set Merkle Root) --> uniquely identifies a queries read set.
   //map<string, TimestampMessage> query_read_set = 5;
-  optional QueryReadSet query_read_set = 5;
+  optional ReadSet query_read_set = 5;
   required uint64 replica_id = 6;
 }
 

@@ -1399,10 +1399,12 @@ void Server::HandleAbort(const TransportAddress &remote,
 /////////////////////////////////////// PREPARE, COMMIT AND ABORT LOGIC  + Cleanup
 
 void Server::Prepare(const std::string &txnDigest,
-    const proto::Transaction &txn) {
+    const proto::Transaction &txn, const ReadSet &readSet) {
   Debug("PREPARE[%s] agreed to commit with ts %lu.%lu.",
       BytesToHex(txnDigest, 16).c_str(), txn.timestamp().timestamp(), txn.timestamp().id());
 
+  //const ReadSet &readSet = txn.read_set();
+  const WriteSet &writeSet = txn.write_set();
 
   ongoingMap::const_accessor o;
   auto ongoingItr = ongoing.find(o, txnDigest);
@@ -1418,7 +1420,7 @@ void Server::Prepare(const std::string &txnDigest,
   auto p = prepared.insert(a, std::make_pair(txnDigest, std::make_pair(
           Timestamp(txn.timestamp()), ongoingTxn)));
 
-  for (const auto &read : txn.read_set()) {
+  for (const auto &read : readSet) {
     if (IsKeyOwned(read.key())) {
       //preparedReads[read.key()].insert(p.first->second.second);
       //preparedReads[read.key()].insert(a->second.second);
@@ -1441,7 +1443,7 @@ void Server::Prepare(const std::string &txnDigest,
     std::make_pair(a->second.first, a->second.second);
   a.release();
     //std::make_pair(p.first->second.first, p.first->second.second);
-  for (const auto &write : txn.write_set()) {
+  for (const auto &write : writeSet) {
     if (IsKeyOwned(write.key())) {
       std::pair<std::shared_mutex,std::map<Timestamp, const proto::Transaction *>> &x = preparedWrites[write.key()];
       std::unique_lock lock(x.first);
@@ -1488,7 +1490,7 @@ void Server::Commit(const std::string &txnDigest, proto::Transaction *txn,
     }
   }
 
-  CommitToStore(proof, txn, ts, val);
+  CommitToStore(proof, txn, txnDigest, ts, val);
 
   Debug("Calling CLEAN for committing txn[%s]", BytesToHex(txnDigest, 16).c_str());
   Clean(txnDigest);
@@ -1496,9 +1498,16 @@ void Server::Commit(const std::string &txnDigest, proto::Transaction *txn,
   CleanDependencies(txnDigest);
 }
 
-void Server::CommitToStore(proto::CommittedProof *proof, proto::Transaction *txn, Timestamp &ts, Value &val){
+void Server::UpdateCommittedReads(proto::Transaction *txn, const std::string &txnDigest, Timestamp &ts, proto::CommittedProof *proof){
 
-    for (const auto &read : txn->read_set()) {
+    const ReadSet *readSet = &txn->read_set(); //DEFAULT
+    
+    mergeTxReadSets(readSet, *txn, txnDigest, proof);  
+    //Note: use whatever readSet is returned -- if query read sets are not correct/present just use base (it's safe: another replica would've had all)
+    //Once subscription on queries wakes up, it will call UpdatecommittedReads again, at which point mergeReadSet will return the full mergedReadSet 
+    //TODO: For eventually consistent state may want to explicitly sync on the waiting queries -- not necessary for safety though
+              
+    for (const auto &read : *readSet) {
     if (!IsKeyOwned(read.key())) {
       continue;
     }
@@ -1516,6 +1525,11 @@ void Server::CommitToStore(proto::CommittedProof *proof, proto::Transaction *txn
     //uint64_t ns = Latency_End(&committedReadInsertLat);
     //stats.Add("committed_read_insert_lat_" + BytesToHex(read.key(), 18), ns);
   }
+}
+
+void Server::CommitToStore(proto::CommittedProof *proof, proto::Transaction *txn, const std::string &txnDigest, Timestamp &ts, Value &val){
+
+  UpdateCommittedReads(txn, txnDigest, ts, proof);
 
   for (const auto &write : txn->write_set()) {
     if (!IsKeyOwned(write.key())) {

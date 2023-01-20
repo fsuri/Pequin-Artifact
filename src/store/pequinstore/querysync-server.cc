@@ -413,7 +413,7 @@ void Server::HandleSync(const TransportAddress &remote, proto::SyncClientProposa
   
     //If no missing_txn = already fully synced. Exec callback direclty
     if(replica_requests.empty()){
-        HandleSyncCallback(query_md, queryId);
+        HandleSyncCallback(query_md, *queryId);
         q.release();
         return;
     }
@@ -739,7 +739,7 @@ void Server::CommitWithProof(const std::string &txnDigest, proto::CommittedProof
 
     committed.insert(std::make_pair(txnDigest, proof)); //Note: This may override an existing commit proof -- that's fine.
 
-    CommitToStore(proof, txn, ts, val);
+    CommitToStore(proof, txn, txnDigest, ts, val);
 
     Debug("Calling CLEAN for committing txn[%s]", BytesToHex(txnDigest, 16).c_str());
     Clean(txnDigest);
@@ -877,7 +877,7 @@ void Server::SyncReply(QueryMetaData *query_md){ //TODO: Rename this to QueryRep
     // proto::QueryResult *result = query_md->queryResult;
     proto::QueryResultReply *queryResultReply = query_md->queryResultReply;
     proto::QueryResult *result = queryResultReply->mutable_result();
-    proto::QueryReadSet *query_read_set;
+    proto::ReadSet *query_read_set;
     //query_md->result = "success";
     //result->set_query_result("success");
 

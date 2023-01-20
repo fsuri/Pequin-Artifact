@@ -295,7 +295,7 @@ void Client::Query(std::string &query, query_callback qcb,
     //result_callback rcb = qcb;
     //NOTE: result_hash = read_set hash. ==> currently not hashing queryId, version or result contents into it. Appears unecessary.
     //result_callback rcb = [qcb, pendingQuery, this](int status, int group, std::map<std::string, TimestampMessage> &read_set, std::string &result_hash, std::string &result, bool success) mutable { 
-    result_callback rcb = [qcb, pendingQuery, this](int status, int group, proto::QueryReadSet *query_read_set, std::string &result_hash, std::string &result, bool success) mutable { 
+    result_callback rcb = [qcb, pendingQuery, this](int status, int group, proto::ReadSet *query_read_set, std::string &result_hash, std::string &result, bool success) mutable { 
       //FIXME: If success: add readset/result hash to datastructure. If group==query manager, record result. If all shards received ==> upcall. 
       //If failure: re-set datastructure and try again. (any shard can report failure to sync)
       //Note: Ongoing shard clients PendingQuery implicitly maps to current retry_version
@@ -333,8 +333,8 @@ void Client::Query(std::string &query, query_callback qcb,
               Debug("END READ SET.");
 
               Debug("Test Read Set merge:");
-              proto::QueryReadSet* read_set_0 = pendingQuery->group_read_sets[0];
-              proto::QueryReadSet* read_set_1 = pendingQuery->group_read_sets[1];
+              proto::ReadSet* read_set_0 = pendingQuery->group_read_sets[0];
+              proto::ReadSet* read_set_1 = pendingQuery->group_read_sets[1];
               // ReadMessage* read = read_set_0->add_read_set();
               // read = read_set_1->release_read_set();
                for(auto &read : *(read_set_1->mutable_read_set())){

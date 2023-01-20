@@ -485,7 +485,7 @@ void ShardClient::HandleFailQuery(proto::FailQuery &queryFail){
     if(pendingQuery->numFails == config->f + 1 || pendingQuery->resultsVerified.size() == maxWait){
         //FIXME: Use a different callback to differentiate Fail due to optimistic ID, and fail due to abort/missed tx?
         //std::map<std::string, TimestampMessage> dummy_read_set;
-        proto::QueryReadSet *dummy_read_set = nullptr;
+        proto::ReadSet *dummy_read_set = nullptr;
         std::string dummy("");
         pendingQuery->rcb(REPLY_FAIL, group, dummy_read_set, dummy, dummy, false);
     }

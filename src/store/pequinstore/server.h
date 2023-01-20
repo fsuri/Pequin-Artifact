@@ -250,7 +250,7 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
       std::string signature; //TODO: Possibly buffer sig itself.
 
       //proto::QueryResult result; 
-      //proto::QueryReadSet *query_read_set;
+      //proto::ReadSet *query_read_set;
 
       // //Note: If we always send read-set, and don't want to use caching and hashing, then store this directly in the reply message to avoid copying.
       // std::map<std::string, TimestampMessage> read_set;     //read set = map from key-> Timestamp version   //ordered_map ==> all replicas agree on key order.
@@ -267,29 +267,59 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
     typedef std::pair<std::string, uint64_t> query_id_version;
     struct waitingOnQueriesMeta {
       //waitingOnQueriesMeta(uint64_t reqId, const proto::Transaction *txn) : reqId(reqId), txn(txn)  {}
-      waitingOnQueriesMeta(uint64_t reqId, proto::Transaction *txn, const TransportAddress &remote, bool isGossip) : reqId(reqId), txn(txn), remote(remote.clone()), isGossip(isGossip)  {
+      waitingOnQueriesMeta(uint64_t reqId, proto::Transaction *txn, const TransportAddress *remote, bool isGossip, uint8_t prepare_or_commit=0) : reqId(reqId), txn(txn), remote(remote->clone()), isGossip(isGossip), prepare_or_commit(prepare_or_commit)  {
         //if(isGossip) original_client = false;
+      }
+      //deprecated
+      waitingOnQueriesMeta(proto::Transaction *txn, proto::GroupedSignatures *groupedSigs, bool p1Sigs, uint64_t view, uint8_t prepare_or_commit=1) : txn(txn), groupedSigs(groupedSigs), p1Sigs(p1Sigs), view(view), prepare_or_commit(prepare_or_commit)  {
+      }
+      waitingOnQueriesMeta(proto::Transaction *txn, proto::CommittedProof *proof, uint8_t prepare_or_commit=1) : txn(txn), proof(proof), prepare_or_commit(prepare_or_commit) {
       }
       ~waitingOnQueriesMeta(){
         if(remote != nullptr) delete remote;
       }
-      
+      //deprecated
+      void setToCommit(proto::GroupedSignatures *groupedSigs, bool p1Sigs, uint64_t view, uint8_t prepare_or_commit=1){
+        groupedSigs = groupedSigs;
+        p1Sigs = p1Sigs;
+        view = view;
+        prepare_or_commit = prepare_or_commit;  
+      }
+      void setToCommit(proto::CommittedProof *proof){
+        proof = proof;
+        prepare_or_commit = 1;
+      }
+      //std::mutex deps_mutex;
+      //queries we are waiting for
+      std::unordered_map<std::string, uint64_t> missing_query_id_versions;  
+
+      uint8_t prepare_or_commit; //identify whether we are supposed to wake and prepare or wake and commit //TODO: In Commit, if already registered, set this int to 1 (if not registered, create new struct with 1)
+
       // bool original_client;
+      //Arguments needed for wakeup callback 
+
+      //Prepare
       bool isGossip;
       uint64_t reqId;
-  
       const TransportAddress *remote;
+
+      //Prepare or Commit
       proto::Transaction *txn;
 
-      //std::mutex deps_mutex;
-      std::unordered_map<std::string, uint64_t> missing_query_id_versions;  
+      //Commit
+      proto::CommittedProof *proof;
+      //deprecated:
+      proto::GroupedSignatures *groupedSigs;
+      bool p1Sigs;
+      uint64_t view;
+
     };
 
     //Maps for Query Caching -- TX waiting for queries.
     typedef tbb::concurrent_hash_map<std::string, std::string> subscribedQueryMap; //Mapping from Query to the Tx waiting for it. (1-1 mapping since we assume each honest query is unique. Only byz clients may try to re-use queries; Byz clients may not use other clients queries)
     subscribedQueryMap subscribedQuery;
-    typedef tbb::concurrent_hash_map<std::string, waitingOnQueriesMeta*> missingQueriesMap; // Mapping from Tx to all queries it is waiting for. ==> Resume Tx OCC processing when complete
-    missingQueriesMap missingQueries;
+    typedef tbb::concurrent_hash_map<std::string, waitingOnQueriesMeta*> TxnMissingQueriesMap; // Mapping from Tx to all queries it is waiting for. ==> Resume Tx OCC processing when complete
+    TxnMissingQueriesMap TxnMissingQueries;
 
 
      //map from tx-id to query-ids (that are waiting to sync on the tx-id)
@@ -491,11 +521,16 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
   //general helper functions & tools -- Implementations are located in concurrencycontrol.cc and servertools.cc
 
   typedef google::protobuf::RepeatedPtrField<ReadMessage> ReadSet;
+  typedef google::protobuf::RepeatedPtrField<WriteMessage> WriteSet;
   void subscribeMissingQuery(const std::string &query_id, const std::string &txnDigest);
   void wakeSubscribedQuery(const std::string query_id, const uint64_t &retry_version);
   void restoreTxn(proto::Transaction &txn);
-  proto::ConcurrencyControl::Result fetchQueryReadSet(const proto::QueryResultMetaData &query_md, proto::QueryReadSet const *query_rs, const std::string &txnDigest, const proto::Transaction &txn);
-  proto::ConcurrencyControl::Result mergeTxReadSets(proto::Transaction &txn, const std::string &txnDigest, uint64_t req_id, const TransportAddress &remote, bool isGossip);
+  proto::ConcurrencyControl::Result fetchReadSet(const proto::QueryResultMetaData &query_md, proto::ReadSet const *query_rs, const std::string &txnDigest, const proto::Transaction &txn);
+  proto::ConcurrencyControl::Result mergeTxReadSets(const ReadSet *readSet, proto::Transaction &txn, const std::string &txnDigest, uint64_t req_id, const TransportAddress &remote, bool isGossip);
+  proto::ConcurrencyControl::Result mergeTxReadSets(const ReadSet *readSet, proto::Transaction &txn, const std::string &txnDigest, proto::CommittedProof *proof); // proto::GroupedSignatures *groupedSigs, bool p1Sigs, uint64_t view);
+  proto::ConcurrencyControl::Result mergeTxReadSets(const ReadSet *readSet, proto::Transaction &txn, const std::string &txnDigest, uint8_t prepare_or_commit,
+     uint64_t req_id, const TransportAddress *remote, bool isGossip,      //Args for Prepare
+     proto::CommittedProof *proof); //Args for commit  //proto::GroupedSignatures *groupedSigs, bool p1Sigs, uint64_t view);
   
   
 
@@ -510,7 +545,7 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
       Timestamp &retryTs);
   proto::ConcurrencyControl::Result DoMVTSOOCCCheck(
       uint64_t reqId, const TransportAddress &remote,
-      const std::string &txnDigest, const proto::Transaction &txn,
+      const std::string &txnDigest, const proto::Transaction &txn, const ReadSet &readSet,
       const proto::CommittedProof* &conflict, const proto::Transaction* &abstain_conflict,
       bool fallback_flow = false, bool isGossip = false);
 
@@ -536,13 +571,14 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
       std::unordered_map<std::string, std::set<Timestamp>> &reads);
   void GetPreparedReads(
       std::unordered_map<std::string, std::vector<const proto::Transaction *>> &reads);
-  void Prepare(const std::string &txnDigest, const proto::Transaction &txn);
+  void Prepare(const std::string &txnDigest, const proto::Transaction &txn, const ReadSet &readSet);
   void GetCommittedWrites(const std::string &key, const Timestamp &ts,
       std::vector<std::pair<Timestamp, Value>> &writes);
   void Commit(const std::string &txnDigest, proto::Transaction *txn,
       proto::GroupedSignatures *groupedSigs, bool p1Sigs, uint64_t view);
   void CommitWithProof(const std::string &txnDigest,  proto::CommittedProof *proof);
-  void CommitToStore(proto::CommittedProof *proof, proto::Transaction *txn, Timestamp &ts, Value &val);
+  void UpdateCommittedReads(proto::Transaction *txn, const std::string &txnDigest, Timestamp &ts, proto::CommittedProof *proof);
+  void CommitToStore(proto::CommittedProof *proof, proto::Transaction *txn, const std::string &txnDigest, Timestamp &ts, Value &val);
   
   void Abort(const std::string &txnDigest);
   void CheckDependents(const std::string &txnDigest);
@@ -795,7 +831,7 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
 ///XXX Sagars lock implementation.
   tbb::concurrent_unordered_map<std::string, std::mutex> mutex_map;
   //typedef std::vector<std::unique_lock<std::mutex>> locks_t;
-  locks_t LockTxnKeys_scoped(const proto::Transaction &txn);
+  locks_t LockTxnKeys_scoped(const proto::Transaction &txn, const ReadSet &readSet);
   inline static bool sortReadByKey(const ReadMessage &lhs, const ReadMessage &rhs) { return lhs.key() < rhs.key(); }
   inline static bool sortWriteByKey(const WriteMessage &lhs, const WriteMessage &rhs) { return lhs.key() < rhs.key(); }
 
