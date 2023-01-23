@@ -838,7 +838,7 @@ void Server::HandleSyncCallback(QueryMetaData *query_md, const std::string &quer
         //TODO: Add more keys; else I cant test order.
     }
     std::string dummy_result = "success";
-    query_md->has_result = true; 
+    //query_md->has_result = true; 
 
     //Blackbox might do multi-replica coordination to compute result and full read-set (though read set can actually be reported directly by each shard...)
     //TODO: Receive SyncReply from all shards ==> with read set, or read set hash. ==> in Tx_manager (marked by query) reply also include the result
@@ -847,7 +847,7 @@ void Server::HandleSyncCallback(QueryMetaData *query_md, const std::string &quer
         //In this case, read set hash from a shard is not enough to prove integrity to another shard (since less data than full read set might be exchanged)
 
     //After executing and caching read set -> Try to wake possibly subscribed queries.
-    wakeSubscribedQuery(queryId, query_md->retry_version); //TODO: Instead of passing it along, just store the queryId...
+    wakeSubscribedTx(queryId, query_md->retry_version); //TODO: Instead of passing it along, just store the queryId...
 
 
     bool exec_success = !test_fail_query; //FIXME: REMOVE: This tests one retry.

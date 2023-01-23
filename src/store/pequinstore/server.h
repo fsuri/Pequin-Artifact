@@ -526,8 +526,8 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
 
   typedef google::protobuf::RepeatedPtrField<ReadMessage> ReadSet;
   typedef google::protobuf::RepeatedPtrField<WriteMessage> WriteSet;
-  void subscribeMissingQuery(const std::string &query_id, const std::string &txnDigest);
-  void wakeSubscribedQuery(const std::string query_id, const uint64_t &retry_version);
+  void subscribeTxOnMissingQuery(const std::string &query_id, const std::string &txnDigest);
+  void wakeSubscribedTx(const std::string query_id, const uint64_t &retry_version);
   void restoreTxn(proto::Transaction &txn);
   proto::ConcurrencyControl::Result fetchReadSet(const proto::QueryResultMetaData &query_md, const proto::ReadSet *&query_rs, const std::string &txnDigest, const proto::Transaction &txn);
   proto::ConcurrencyControl::Result mergeTxReadSets(const ReadSet *&readSet, proto::Transaction &txn, const std::string &txnDigest, uint64_t req_id, const TransportAddress &remote, bool isGossip);

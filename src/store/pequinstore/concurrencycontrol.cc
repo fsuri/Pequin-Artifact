@@ -71,7 +71,7 @@ namespace pequinstore {
 //If there isn't, then query_md can't have been held yet. Query exec will take query_md lock after and see query.
 
 //If the Transaction is waiting on a Query to be cached, call 
-void Server::subscribeMissingQuery(const std::string &query_id, const std::string &txnDigest){ 
+void Server::subscribeTxOnMissingQuery(const std::string &query_id, const std::string &txnDigest){ 
   //Note: This is being called while lock on TxnMissingQueries object and query_md is held. --> either query is in cache already, in which case subscribe is never called; or it is cached after subscribe, in which case it tries to wake the tx up
     subscribedQueryMap::accessor sq;
     subscribedQuery.insert(sq, query_id);
@@ -80,8 +80,11 @@ void Server::subscribeMissingQuery(const std::string &query_id, const std::strin
 }
 
 
-void Server::wakeSubscribedQuery(const std::string query_id, const uint64_t &retry_version){
+void Server::wakeSubscribedTx(const std::string query_id, const uint64_t &retry_version){
   //Note: This is being called while query_md is held. --> will trigger only before adding any queries, or after adding all
+
+  Debug("Trying to wake the transaction subscribed on query [%s;%d]", query_id, retry_version);
+
     std::string txnDigest;
     bool ready = false;
     waitingOnQueriesMeta *waiting_meta;
@@ -92,17 +95,24 @@ void Server::wakeSubscribedQuery(const std::string query_id, const uint64_t &ret
     //Note: has_subscriber is only true IF function mergeReadsets already holds accessors mq (for txnDigest) AND q (for query_id). Thus there can be no lock-order inversion with mq.
     if(has_subscriber){
       txnDigest = std::move(sq->second);
+      Debug("Found subscribed Txn: %s", BytesToHex(txnDigest, 16).c_str());
       subscribedQuery.erase(sq);
 
       TxnMissingQueriesMap::accessor mq;
       bool isMissing = TxnMissingQueries.find(mq, txnDigest);
       if(!isMissing) return; //No Txn waiting ==> nothing to do: return
+      Debug("Txn: %s is missing Query %s", BytesToHex(txnDigest, 16).c_str(), query_id);
 
       //if Txn still waiting
       waiting_meta = mq->second;
-      auto query_id_version = std::make_pair(query_id, retry_version);
+      //auto query_id_version = std::make_pair(query_id, retry_version);
       auto itr = waiting_meta->missing_query_id_versions.find(query_id); //Check if buffered query id + retry version is correct.
-      if(itr != waiting_meta->missing_query_id_versions.end() || itr->second != retry_version) return; //Don't wake up.
+      //TODO: Is missing query_id.
+      if(itr != waiting_meta->missing_query_id_versions.end()) return;
+      Debug("Has query_id, but has wrong version: Missing version %d", itr->second);
+      if(itr->second != retry_version) return; //Don't wake up.
+
+      Debug("Retry version of subscribed Query matches supplied Query.");
 
       bool erased = waiting_meta->missing_query_id_versions.erase(query_id); //does nothing if not present
       if(erased && waiting_meta->missing_query_id_versions.empty()) ready = true; //only set ready the first time.
@@ -113,6 +123,7 @@ void Server::wakeSubscribedQuery(const std::string query_id, const uint64_t &ret
     sq.release();
 
     if(ready){ //Wakeup Tx for processing
+     Debug("Ready to wakeup and resume P1 processing for Txn: %s", BytesToHex(txnDigest, 16).c_str());
       if(waiting_meta->prepare_or_commit==0) TryPrepare(waiting_meta->reqId, *waiting_meta->remote, waiting_meta->txn, txnDigest, waiting_meta->isGossip); //Includes call to HandlePhase1CB(..); 
       else if(waiting_meta->prepare_or_commit==1){
         Timestamp ts(waiting_meta->txn->timestamp());
@@ -152,8 +163,9 @@ proto::ConcurrencyControl::Result Server::fetchReadSet(const proto::QueryResultM
     
       //1) Check whether the replica a) has seen the query, and b) has computed a result/read-set. If not ==> Stop processing
       if(!has_query || !q->second->has_result){
-        Panic("query has no result cached yet. has_query: %d", has_query);
-        subscribeMissingQuery(query_md.query_id(), txnDigest);
+        //Panic("query has no result cached yet. has_query: %d", has_query);
+        Debug("query has either not been received or no result was cached yet. has_query: %d. SUBSCRIBING", has_query, q->second->has_result);
+        subscribeTxOnMissingQuery(query_md.query_id(), txnDigest);
         return proto::ConcurrencyControl::WAIT; //NOTE: Replying WAIT is a hack to not respond -- it will never wake up.
       } 
 
@@ -169,7 +181,7 @@ proto::ConcurrencyControl::Result Server::fetchReadSet(const proto::QueryResultM
       //3) Check for matching retry version. If not ==> Stop processing
       if(query_md.retry_version() != cached_query_md->retry_version){
           Panic("query has wrong retry version");
-          subscribeMissingQuery(query_md.query_id(), txnDigest);
+          subscribeTxOnMissingQuery(query_md.query_id(), txnDigest);
           return proto::ConcurrencyControl::WAIT; ///NOTE: Replying WAIT is a hack to not respond -- it will never wake up.
            //Note: Byz client can send retry version to relicas that have not gotten it yet. If we vote abstain, we may produce partial abort.
            //However, due to TCP FIFO we expect honest clients to send the retry version sync first -- thus it's ok to not vote/wait     //TODO: Ensure that multithreading does not violate this guarantee
@@ -180,8 +192,8 @@ proto::ConcurrencyControl::Result Server::fetchReadSet(const proto::QueryResultM
 
       //4) Check that replica has cached a read set, and that proposed read set hash matches cached read set hash. If not => return Abstain
       if(!cached_queryResultReply->has_result()){
-        Panic("Result should be set");
-        subscribeMissingQuery(query_md.query_id(), txnDigest);
+        Panic("Protobuf Result should be set");
+        subscribeTxOnMissingQuery(query_md.query_id(), txnDigest);
         return proto::ConcurrencyControl::WAIT; //Checks whether result or signed result is set. Must contain un-signed result
       }
       const proto::QueryResult &cached_queryResult = cached_queryResultReply->result();
@@ -268,7 +280,7 @@ proto::ConcurrencyControl::Result Server::mergeTxReadSets(const ReadSet *&readSe
   bool already_subscribed = TxnMissingQueries.find(mq, txnDigest); //Note: Reading should still take a write lock. (If not, can insert here, and erase at the end if empty.)
 
   //Hold write lock for the entirety of the loop ==> guarantee all of nothing.
-  std::vector<std::pair<const std::string*, const uint64_t&>> missing_queries; //List of query id's for which we have not received the latest version yet, but which the Tx is referencing.
+  std::vector<std::pair<const std::string*, const uint64_t>> missing_queries; //List of query id's for which we have not received the latest version yet, but which the Tx is referencing.
   //bool has_missing = false;
 
   //fetch query read sets
@@ -279,7 +291,7 @@ proto::ConcurrencyControl::Result Server::mergeTxReadSets(const ReadSet *&readSe
     if(res == proto::ConcurrencyControl::WAIT){ //Set up waiting.
       //TODO: Subscribe query.
       // Add to waitingOnQuery object.
-      Debug("Waiting on Query. Stopping Merge");
+      Debug("Waiting on Query. Add to missing");
       missing_queries.push_back(std::make_pair(query_md.mutable_query_id(), query_md.retry_version()));
       //has_missing = true;
     }
@@ -303,6 +315,7 @@ proto::ConcurrencyControl::Result Server::mergeTxReadSets(const ReadSet *&readSe
       TxnMissingQueries.insert(mq, txnDigest); 
       waitingOnQueriesMeta *waiting_meta = prepare_or_commit==0 ? new waitingOnQueriesMeta(req_id, &txn, remote, isGossip, prepare_or_commit) : new waitingOnQueriesMeta(&txn, proof, prepare_or_commit); //, groupedSigs, p1Sigs, view, prepare_or_commit);
       mq->second = waiting_meta;
+    
       for(auto [query_id, retry_version] : missing_queries){
         waiting_meta->missing_query_id_versions[*query_id] = retry_version;
       }

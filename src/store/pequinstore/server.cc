@@ -796,6 +796,13 @@ void Server::HandlePhase1CB(uint64_t reqId, proto::ConcurrencyControl::Result re
      SendPhase1Reply(reqId, result, committedProof, txnDigest, remote_original, abstain_conflict);
   }
   c.release();
+
+  //TESTING:
+  std::cerr << "TRYING TO WAKE ############################" << std::endl;
+  std::string queryId =  "[" + std::to_string(1) + ":" + std::to_string(0) + "]";
+  uint64_t retry_version = 1;
+  wakeSubscribedTx(queryId, retry_version);
+  //TODO: If this works, need to try with actual query -- to guarantee mutex locking works properly? Hard to test though...
      
 
   // if (result != proto::ConcurrencyControl::WAIT && !isGossip) { //forwarded P1 needs no reply.
