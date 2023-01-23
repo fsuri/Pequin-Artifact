@@ -82,7 +82,7 @@ void ToyClient::ExecuteToy(){
             client.Put("x", "5", timeout);
             std::string readValue;
             client.Get("x", readValue, timeout);
-            std::cerr << "value read for x: " << readValue << "\n";
+            std::cerr << "value read for x: " << readValue << "\n"; //Dummy read --> will read from buffered put; will not add to read set
               client.Get("y", readValue, timeout);
             std::cerr << "value read for x: " << readValue << "\n";
             client.Commit(timeout);

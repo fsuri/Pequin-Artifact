@@ -789,16 +789,16 @@ void* Server::TryPrepare(uint64_t reqId, const TransportAddress &remote, proto::
 //It is possible for multiple different (fallback) clients to execute OCC check -- but only one result should ever be used.
 //XXX if you *DONT* want to buffer Wait results then call BufferP1Result only inside SendPhase1Reply
 bool Server::BufferP1Result(proto::ConcurrencyControl::Result &result,
-  const proto::CommittedProof *conflict, const std::string &txnDigest, uint64_t &reqId, int fb, const TransportAddress *remote, bool isGossip){
+  const proto::CommittedProof *conflict, const std::string &txnDigest, uint64_t &reqId, const TransportAddress *&remote, int fb, bool isGossip){  // fb = 0 => normal, fb = 1 => fallback, fb = 2 => dependency woke up
 
     p1MetaDataMap::accessor c;
-    bool original_sub = BufferP1Result(c, result, conflict, txnDigest, reqId, fb, remote, isGossip);
+    bool original_sub = BufferP1Result(c, result, conflict, txnDigest, reqId, remote, fb, isGossip);
     c.release();
     return original_sub;
 }
 
 bool Server::BufferP1Result(p1MetaDataMap::accessor &c, proto::ConcurrencyControl::Result &result,
-  const proto::CommittedProof *conflict, const std::string &txnDigest, uint64_t &reqId, int fb, const TransportAddress *remote, bool isGossip){
+  const proto::CommittedProof *conflict, const std::string &txnDigest, uint64_t &reqId, const TransportAddress *&remote, int fb, bool isGossip){
 
     if(result == proto::ConcurrencyControl::IGNORE){
       Clean(txnDigest, true, true); // This is an invalid transaction (will never succeed)  -> can remove any accumulated meta data. Clean with hard = true

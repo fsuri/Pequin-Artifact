@@ -525,10 +525,10 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
   void subscribeMissingQuery(const std::string &query_id, const std::string &txnDigest);
   void wakeSubscribedQuery(const std::string query_id, const uint64_t &retry_version);
   void restoreTxn(proto::Transaction &txn);
-  proto::ConcurrencyControl::Result fetchReadSet(const proto::QueryResultMetaData &query_md, proto::ReadSet const *query_rs, const std::string &txnDigest, const proto::Transaction &txn);
-  proto::ConcurrencyControl::Result mergeTxReadSets(const ReadSet *readSet, proto::Transaction &txn, const std::string &txnDigest, uint64_t req_id, const TransportAddress &remote, bool isGossip);
-  proto::ConcurrencyControl::Result mergeTxReadSets(const ReadSet *readSet, proto::Transaction &txn, const std::string &txnDigest, proto::CommittedProof *proof); // proto::GroupedSignatures *groupedSigs, bool p1Sigs, uint64_t view);
-  proto::ConcurrencyControl::Result mergeTxReadSets(const ReadSet *readSet, proto::Transaction &txn, const std::string &txnDigest, uint8_t prepare_or_commit,
+  proto::ConcurrencyControl::Result fetchReadSet(const proto::QueryResultMetaData &query_md, const proto::ReadSet *&query_rs, const std::string &txnDigest, const proto::Transaction &txn);
+  proto::ConcurrencyControl::Result mergeTxReadSets(const ReadSet *&readSet, proto::Transaction &txn, const std::string &txnDigest, uint64_t req_id, const TransportAddress &remote, bool isGossip);
+  proto::ConcurrencyControl::Result mergeTxReadSets(const ReadSet *&readSet, proto::Transaction &txn, const std::string &txnDigest, proto::CommittedProof *proof); // proto::GroupedSignatures *groupedSigs, bool p1Sigs, uint64_t view);
+  proto::ConcurrencyControl::Result mergeTxReadSets(const ReadSet *&readSet, proto::Transaction &txn, const std::string &txnDigest, uint8_t prepare_or_commit,
      uint64_t req_id, const TransportAddress *remote, bool isGossip,      //Args for Prepare
      proto::CommittedProof *proof); //Args for commit  //proto::GroupedSignatures *groupedSigs, bool p1Sigs, uint64_t view);
   
@@ -588,9 +588,9 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
       const proto::Transaction &txn);
   bool CheckHighWatermark(const Timestamp &ts);
   bool BufferP1Result(proto::ConcurrencyControl::Result &result,
-    const proto::CommittedProof *conflict, const std::string &txnDigest, uint64_t &reqId, int fb = 0, const TransportAddress *remote = nullptr, bool isGossip = false);
+    const proto::CommittedProof *conflict, const std::string &txnDigest, uint64_t &reqId, const TransportAddress *&remote, int fb = 0, bool isGossip = false);
   bool BufferP1Result(p1MetaDataMap::accessor &c, proto::ConcurrencyControl::Result &result,
-    const proto::CommittedProof *conflict, const std::string &txnDigest, uint64_t &reqId, int fb = 0, const TransportAddress *remote = nullptr, bool isGossip = false);
+    const proto::CommittedProof *conflict, const std::string &txnDigest, uint64_t &reqId, const TransportAddress *&remote, int fb = 0, bool isGossip = false);
   
   void Clean(const std::string &txnDigest, bool abort = false, bool hard = false);
   void CleanDependencies(const std::string &txnDigest);

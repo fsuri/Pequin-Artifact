@@ -262,7 +262,7 @@ void Client::Query(std::string &query, query_callback qcb,
     //Assume for now only touching one group. (single sharded system)
     PendingQuery *pendingQuery = new PendingQuery(this, query_seq_num, query);
 
-    std::vector<uint64_t> involved_groups = {0UL, 1UL};
+    std::vector<uint64_t> involved_groups = {0};//{0UL, 1UL};
     pendingQuery->SetInvolvedGroups(this, involved_groups);
     Debug("[group %i] designated as Query Execution Manager for query [%lu:%lu]", pendingQuery->queryMsg.query_manager(), client_seq_num, query_seq_num);
 
@@ -332,24 +332,25 @@ void Client::Query(std::string &query, query_callback qcb,
               }
               Debug("END READ SET.");
 
-              Debug("Test Read Set merge:");
-              proto::ReadSet* read_set_0 = pendingQuery->group_read_sets[0];
-              proto::ReadSet* read_set_1 = pendingQuery->group_read_sets[1];
-              // ReadMessage* read = read_set_0->add_read_set();
-              // read = read_set_1->release_read_set();
-               for(auto &read : *(read_set_1->mutable_read_set())){
-                 ReadMessage* add_read = read_set_0->add_read_set();
-                 *add_read = std::move(read);
-               }
+              // Debug("Test Read Set merge:");
+              // proto::ReadSet* read_set_0 = pendingQuery->group_read_sets[0];
+              // proto::ReadSet* read_set_1 = pendingQuery->group_read_sets[1];
+              // // ReadMessage* read = read_set_0->add_read_set();
+              // // read = read_set_1->release_read_set();
+              //  for(auto &read : *(read_set_1->mutable_read_set())){
+              //    ReadMessage* add_read = read_set_0->add_read_set();
+              //    *add_read = std::move(read);
+              //  }
+              //  //This code moves read sets instead of coyping. However, if we are caching then we want to copy during merge in order to preserve the cached value.
 
 
-              //read_set_0->mutable_read_set()->MergeFrom(read_set_1->read_set());
-              for(auto &read : read_set_0->read_set()){
-                  Debug("[group Merged] Read key %s with version [%lu:%lu]", read.key().c_str(), read.readtime().timestamp(), read.readtime().id());
-                }
-              for(auto &read : read_set_1->read_set()){
-                  Debug("[group Removed] Read key %s with version [%lu:%lu]", read.key().c_str(), read.readtime().timestamp(), read.readtime().id());
-                }
+              // //read_set_0->mutable_read_set()->MergeFrom(read_set_1->read_set());
+              // for(auto &read : read_set_0->read_set()){
+              //     Debug("[group Merged] Read key %s with version [%lu:%lu]", read.key().c_str(), read.readtime().timestamp(), read.readtime().id());
+              //   }
+              // for(auto &read : read_set_1->read_set()){
+              //     Debug("[group Removed] Read key %s with version [%lu:%lu]", read.key().c_str(), read.readtime().timestamp(), read.readtime().id());
+              //   }
               //TODO: merge all group read sets together before sending tx. Or clear all read-sets that are not relevant to a group (==> Need to use a sub-hash to represent groups read set)
 //END FIXME:
 

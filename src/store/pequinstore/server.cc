@@ -790,7 +790,7 @@ void Server::HandlePhase1CB(uint64_t reqId, proto::ConcurrencyControl::Result re
   const TransportAddress *remote_original = &remote; 
   uint64_t req_id = reqId;
   p1MetaDataMap::accessor c;
-  bool sub_original = BufferP1Result(c, result, committedProof, txnDigest, req_id, 0, remote_original, isGossip);
+  bool sub_original = BufferP1Result(c, result, committedProof, txnDigest, req_id, remote_original, 0, isGossip);
   bool send_reply = (result != proto::ConcurrencyControl::WAIT && !isGossip) || sub_original; //Note: sub_original = true only if originall subbed AND result != wait.
   if(send_reply){ //Send reply to subscribed original client instead.
      SendPhase1Reply(reqId, result, committedProof, txnDigest, remote_original, abstain_conflict);
@@ -2163,9 +2163,9 @@ bool Server::ExecP1(proto::Phase1FB &msg, const TransportAddress &remote,
   //BufferP1Result(result, committedProof, txnDigest, 1);
   //std::cerr << "FB: Buffered result:" << result << " for txn: " << BytesToHex(txnDigest, 64) << std::endl;
 
-  TransportAddress *remote_original = nullptr;
+  const TransportAddress *remote_original = nullptr;
   uint64_t req_id;
-  bool sub_original = BufferP1Result(result, committedProof, txnDigest, req_id, 1, remote_original);
+  bool sub_original = BufferP1Result(result, committedProof, txnDigest, req_id, remote_original, 1);
         //std::cerr << "[Normal] release lock for txn: " << BytesToHex(txnDigest, 64) << std::endl;
   if(sub_original){ //Send to original client too if it is subscribed (This may happen if the original client was waiting on a query, and then a fallback client re-does Occ check in parallel)
         Debug("Sending Phase1 Reply for txn: %s, id: %d", BytesToHex(txnDigest, 64).c_str(), req_id);
