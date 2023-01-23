@@ -209,7 +209,7 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
 
     struct QueryMetaData {
       QueryMetaData(const std::string &query_cmd, const TimestampMessage &timestamp, const TransportAddress &remote, const uint64_t &req_id, const uint64_t &query_seq_num, const uint64_t &client_id): 
-         failure(false), retry_version(0UL), started_sync(false), has_result(false), query_cmd(query_cmd), ts(timestamp), original_client(remote.clone()), req_id(req_id), query_seq_num(query_seq_num), client_id(client_id) {
+         failure(false), retry_version(0UL), started_sync(false), has_result(false), query_cmd(query_cmd), ts(timestamp), original_client(remote.clone()), req_id(req_id), query_seq_num(query_seq_num), client_id(client_id), is_waiting(false) {
           //queryResult = new proto::QueryResult();
           queryResultReply = new proto::QueryResultReply(); //TODO: Replace with GetUnused.
       }
@@ -223,6 +223,8 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
          merged_ss.clear();
          //local_ss.clear(); //for now don't clear, will get overridden anyways.
          missing_txn.clear();
+         has_result = false;
+         is_waiting = false;
       }
       bool failure;
 
@@ -241,6 +243,8 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
                             
       std::unordered_set<std::string> local_ss;  //local snapshot
       std::unordered_set<std::string> merged_ss; //merged snapshot
+
+      bool is_waiting;
       std::unordered_map<std::string, uint64_t> missing_txn; //map from txn-id --> number of responses max waiting for; if client is byz, no specified replica may have it --> if so, return immediately and blacklist/report tx (requires sync to be signed)
 
       bool has_result;
@@ -327,7 +331,7 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
     waitingQueryMap waitingQueries;
 
     void HandleSyncCallback(QueryMetaData *query_md, const std::string &queryId);
-    void SyncReply(QueryMetaData *query_md);
+    void SendQueryReply(QueryMetaData *query_md);
     void UpdateWaitingQueries(const std::string &txnDigest);
     void FailWaitingQueries(const std::string &txnDigest);
     void FailQuery(QueryMetaData *query_md);

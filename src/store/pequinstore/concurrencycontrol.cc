@@ -139,10 +139,11 @@ proto::ConcurrencyControl::Result Server::fetchReadSet(const proto::QueryResultM
       return proto::ConcurrencyControl::COMMIT; //return empty readset; ideally don't return anything... -- could make this a void function, and pass return field as argument pointer.
     }
     if(query_group_md->has_query_read_set()){
+      Debug("Merging Query Read Set from Transaction"); //Note: In this case, could avoid copies by letting client put all active read sets into the main read set. TODO: Client should apply sort function -> will find invalid duplicates and abort early!
       query_rs = &query_group_md->query_read_set();
     }
     else{ //else go to cache (via query_id) and check if query_result hash matches. if so, use read set.
-
+      Debug("Merging Query Read Set from Cache");
       // If tx includes no read_set_hash => abort; invalid transaction //TODO: Could strengthen Abstain into Abort by incuding proof...
       if(!query_group_md->has_read_set_hash()) return proto::ConcurrencyControl::IGNORE; //ABSTAIN;
 
@@ -151,7 +152,7 @@ proto::ConcurrencyControl::Result Server::fetchReadSet(const proto::QueryResultM
     
       //1) Check whether the replica a) has seen the query, and b) has computed a result/read-set. If not ==> Stop processing
       if(!has_query || !q->second->has_result){
-        Panic("query has no result cached yet");
+        Panic("query has no result cached yet. has_query: %d", has_query);
         subscribeMissingQuery(query_md.query_id(), txnDigest);
         return proto::ConcurrencyControl::WAIT; //NOTE: Replying WAIT is a hack to not respond -- it will never wake up.
       } 
@@ -159,7 +160,10 @@ proto::ConcurrencyControl::Result Server::fetchReadSet(const proto::QueryResultM
       QueryMetaData *cached_query_md = q->second;
 
       //2) Only client that issued the query may use the cached query in it's transaction ==> it follows that honest clients will not use the same query twice. (Must include txn as argument in order to check)
-      if(!cached_query_md->client_id != txn.client_id()) return proto::ConcurrencyControl::IGNORE;
+      if(cached_query_md->client_id != txn.client_id()){
+        Panic("Query client %d does not match transaction client %d", cached_query_md->client_id, txn.client_id());
+        return proto::ConcurrencyControl::IGNORE;
+      } 
 
 
       //3) Check for matching retry version. If not ==> Stop processing
@@ -181,10 +185,22 @@ proto::ConcurrencyControl::Result Server::fetchReadSet(const proto::QueryResultM
         return proto::ConcurrencyControl::WAIT; //Checks whether result or signed result is set. Must contain un-signed result
       }
       const proto::QueryResult &cached_queryResult = cached_queryResultReply->result();
+
+      if(!cached_queryResult.has_query_read_set()){
+        Debug("Cached QueryFailure for current query version");
+        return proto::ConcurrencyControl::ABSTAIN;
+      } 
+
+      if(cached_query_md->failure){
+        Debug("Cached QueryFailure for current query version");
+        return proto::ConcurrencyControl::ABSTAIN; //Replica has already previously voted to abstain by reporting an exec failure (conflicting tx already committed, or sync request aborted) -- choice won't change
+      } 
   
-      if(!cached_queryResult.has_query_result_hash() || query_group_md->read_set_hash() != cached_queryResult.query_result_hash()) return proto::ConcurrencyControl::ABSTAIN;
+      if(!cached_queryResult.has_query_result_hash() || query_group_md->read_set_hash() != cached_queryResult.query_result_hash()){
+        Debug("Cached wrong read-set");
+        return proto::ConcurrencyControl::ABSTAIN;
+      } 
       
-      if(!cached_queryResult.has_query_read_set()) return proto::ConcurrencyControl::ABSTAIN;
 
      
       //5) Use Read set.
@@ -235,6 +251,7 @@ proto::ConcurrencyControl::Result Server::mergeTxReadSets(const ReadSet *&readSe
 
    //If tx already has mergedReadSet -> just return that, no need in re-doing the work.
   if(txn.has_merged_read_set()){
+    Debug("Already cached a merged read set. Re-using.");
     readSet = &txn.merged_read_set().read_set();
     return proto::ConcurrencyControl::COMMIT;
   }
@@ -262,10 +279,12 @@ proto::ConcurrencyControl::Result Server::mergeTxReadSets(const ReadSet *&readSe
     if(res == proto::ConcurrencyControl::WAIT){ //Set up waiting.
       //TODO: Subscribe query.
       // Add to waitingOnQuery object.
+      Debug("Waiting on Query. Stopping Merge");
       missing_queries.push_back(std::make_pair(query_md.mutable_query_id(), query_md.retry_version()));
       //has_missing = true;
     }
     else if(res != proto::ConcurrencyControl::COMMIT){ //No need to continue CC check.
+      Debug("Query invalid or doomed to abort. Stopping Merge");
       return res;  //Note: Might have already subscribed some queries on a tx. If they wake up and there is no waiting tx object thats fine -- nothing happens
     }
     if(query_rs != nullptr && missing_queries.empty()){ //If we are waiting on queries, don't need to build mergedSet.
@@ -293,13 +312,17 @@ proto::ConcurrencyControl::Result Server::mergeTxReadSets(const ReadSet *&readSe
     }
     
     //mq.release(); Implicit
+    Debug("Subscribed Txn on missing queries. Stopping Merge");
     return proto::ConcurrencyControl::WAIT;
   }
 
   mq.release();
 
   //If queries had no active read sets ==> return default
-  if(mergedReadSet->read_set().empty()) return proto::ConcurrencyControl::COMMIT;
+  if(mergedReadSet->read_set().empty()){
+    Debug("Tx has no queries with active read sets.");
+    return proto::ConcurrencyControl::COMMIT;
+  } 
 
 //TODO: STORE IN MERGED_READ_SET in its own data structure.
 //FIXME: It is not safe to handle a Tx over multiple threads if one of them is writing to it. However, it seems to work fine for txnDigest field? Do we need to fix that?
@@ -317,8 +340,8 @@ proto::ConcurrencyControl::Result Server::mergeTxReadSets(const ReadSet *&readSe
     std::sort(mergedReadSet->mutable_read_set()->begin(), mergedReadSet->mutable_read_set()->end(), sortReadSetByKey);
     }
     catch(...) {
-      //return abort. (return bool = success, and return abort as part of DoOCCCheck)
-      restoreTxn(txn); //TODO: Maybe don't delete merged set -- we do want to use it for Commit again. //TODO: Maybe we cannot store mergedSet inside read after all? What if another thread tries to use Tx in parallel mid modification..
+      //restoreTxn(txn); //TODO: Maybe don't delete merged set -- we do want to use it for Commit again. //TODO: Maybe we cannot store mergedSet inside read after all? What if another thread tries to use Tx in parallel mid modification..
+      Debug("Merge indicates duplicate key with different version. Vote Abstain");
       return proto::ConcurrencyControl::ABSTAIN;
     }
   }
@@ -330,7 +353,7 @@ proto::ConcurrencyControl::Result Server::mergeTxReadSets(const ReadSet *&readSe
   txn.set_allocated_merged_read_set(mergedReadSet);
   readSet = &txn.merged_read_set().read_set();
   
-
+  Debug("Merge successful");
   return proto::ConcurrencyControl::COMMIT;
   //Invariant: If return true, then txn.read_set = merged active read sets --> use this for Occ 
 }
@@ -349,6 +372,11 @@ proto::ConcurrencyControl::Result Server::DoOCCCheck(
 
   const ReadSet *readSet = &txn.read_set(); //Default -- merge does nothing if there are no queries
 
+  Debug("BASE READ SET");
+  for(auto &read : *readSet){
+      Debug("[group Merged] Read key %s with version [%lu:%lu]", read.key().c_str(), read.readtime().timestamp(), read.readtime().id());
+  }
+
   //Merge query read sets -- returs immediately if there are no queries 
   result = mergeTxReadSets(readSet, txn, txnDigest, reqId, remote, isGossip);
   //If we have an early abstain or Wait (due to invalid request) then return early.
@@ -358,7 +386,12 @@ proto::ConcurrencyControl::Result Server::DoOCCCheck(
   }
   //Note: if we wait, we may never garbage collect TX from ongoing (and possibly from other replicas Prepare set); Can garbage collect after some time if desired (since we didn't process, theres no impact on decisions)
   //If another client is interested, then it should start fallback and provide read set as well (forward SyncProposal with correct retry version)
-  
+    
+  Debug("TESTING MERGED READ");
+  for(auto &read : *readSet){
+      Debug("[group Merged] Read key %s with version [%lu:%lu]", read.key().c_str(), read.readtime().timestamp(), read.readtime().id());
+  }
+
 
   locks_t locks;
   //lock keys to perform an atomic OCC check when parallelizing OCC checks.

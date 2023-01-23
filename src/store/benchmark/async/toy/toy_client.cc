@@ -85,16 +85,23 @@ void ToyClient::ExecuteToy(){
             std::cerr << "value read for x: " << readValue << "\n"; //Dummy read --> will read from buffered put; will not add to read set
               client.Get("y", readValue, timeout);
             std::cerr << "value read for x: " << readValue << "\n";
-            client.Commit(timeout);
-            std::cerr << "Committed value for x\n";
 
-            sleep(1);
-            
             std::string query = "SELECT *";
             std::string queryResult;
             client.Query(query, queryResult, timeout);  //--> Edit API in frontend sync_client.
                                            //For real benchmarks: Also edit in sync_transaction_bench_client.
             std::cerr << "Query Result: " << queryResult << std::endl << std::endl;
+
+            client.Commit(timeout);
+            std::cerr << "Committed value for x\n";
+
+            // sleep(1);
+            
+            // std::string query = "SELECT *";
+            // std::string queryResult;
+            // client.Query(query, queryResult, timeout);  //--> Edit API in frontend sync_client.
+            //                                //For real benchmarks: Also edit in sync_transaction_bench_client.
+            // std::cerr << "Query Result: " << queryResult << std::endl << std::endl;
             
 }
 
