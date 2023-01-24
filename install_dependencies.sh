@@ -125,11 +125,11 @@ read -p "Press enter to continue -- Manual interaction required: See install gui
 #IntelTBB
 echo "Installing Intel TBB"
 echo ""
-apt -y install ncurses-term
+sudo apt -y install ncurses-term
 wget https://registrationcenter-download.intel.com/akdlm/irc_nas/17977/l_BaseKit_p_2021.3.0.3219.sh
 sudo bash l_BaseKit_p_2021.3.0.3219.sh
 cd ~
-source /opt/intel/oneapi/setvars.sh
+sudo source /opt/intel/oneapi/setvars.sh
 echo source /opt/intel/oneapi/setvars.sh --force >> ~/.bashrc
 source ~/.bashrc
 echo "$(tput setaf 2) COMPLETE: IntelTBB $(tput sgr0)"
