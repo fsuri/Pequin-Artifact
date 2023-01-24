@@ -1,6 +1,8 @@
+#include <fstream>
 #include <iostream>
 
 #include "store/cockroachdb/client.h"
+
 using namespace std;
 
 #define TIMEOUT 1
@@ -15,7 +17,7 @@ using namespace std;
 #define REPLY_MAX 6
 #define UNKNOWN 69
 
-int main() {
+int main(int argc, char** argv) {
   // define callbacks & related value
   string obs_str = "";
   int obs_sts = UNKNOWN;
@@ -39,9 +41,10 @@ int main() {
   get_timeout_callback gtcb = [](int _, string k) {};
 
   // Query
-  query_callback qcb = [&obs_sts, &obs_str](int qstatus, string result) {
+  query_callback qcb = [&obs_sts, &obs_str](int qstatus,
+                                            tao::pq::result result) {
     obs_sts = qstatus;
-    obs_str = result;
+    obs_str = result.as<string>();
   };
   query_timeout_callback qtcb = [](int _) {};
 
@@ -56,8 +59,12 @@ int main() {
 
   // Initialize a client
   cockroachdb::Client* client;
-  client = new cockroachdb::Client();
-
+  try {
+    client = new cockroachdb::Client(argv[1]);
+  } catch (const std::exception& e) {
+    std::cerr << "Unable to read test.config: " << '\n';
+    std::cerr << e.what() << '\n';
+  }
   // Begin a Tx
   client->Begin(bcb, btcb, TIMEOUT, false);
 

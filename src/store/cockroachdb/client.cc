@@ -24,13 +24,13 @@
 namespace cockroachdb {
 using namespace std;
 
-Client::Client() {
+// TODO add constructor that takes transport::Configuration
+// Client::Client(transport::Configuration *config) {}
+
+Client::Client(string config) {
   try {
-    // TODO read url from cockroach db
     // TODO replicas
-    string url =
-        "postgresql://root@dhcp-vl2042-3565.redrover.cornell.edu:26257/"
-        "defaultdb?sslmode=disable";
+    string url = config;
 
     // Establish connection
     conn = tao::pq::connection::create(url);
@@ -125,11 +125,16 @@ void Client::Put(const std::string &key, const std::string &value,
 void Client::Query(std::string &query, query_callback qcb,
                    query_timeout_callback qtcb, uint32_t timeout) {
   try {
-    const auto result = tr->execute(query);
+    auto const result = [this, &query]() {
+      // If part of a Tx, use Tx->exec, else use connection->exec
+      if (tr != nullptr)
+        return tr->execute(query);
+      else
+        return conn->execute(query);
+    }();
     // pcb(REPLY_OK, key, value);
-    qcb(REPLY_OK, query);
+    qcb(REPLY_OK, result);
   } catch (const std::exception &e) {
-    qcb(REPLY_FAIL, query);
     std::cerr << "Tx query failed" << '\n';
     std::cerr << e.what() << '\n';
   }

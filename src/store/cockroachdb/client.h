@@ -23,8 +23,7 @@
 typedef std::function<void()> abort_callback;
 typedef std::function<void()> abort_timeout_callback;
 
-// TODO 
-typedef std::function<void(int, const std::string &)> query_callback;
+typedef std::function<void(int, const tao::pq::result &)> query_callback;
 typedef std::function<void(int)> query_timeout_callback;
 
 // TODO Stats feature reserved
@@ -36,6 +35,7 @@ namespace cockroachdb {
 class Client : public ::Client {
  public:
   Client();
+  Client(string config);
   ~Client();
 
   // Begin a transaction.
