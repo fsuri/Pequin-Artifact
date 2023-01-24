@@ -44,7 +44,7 @@ void ThreadPool::start(int process_id, int total_processes, bool hyperthreading,
         fprintf(stderr, "process_id: %d, total_processes: %d \n", process_id, total_processes);
     //TODO: add config param for hyperthreading
     //bool hyperthreading = true;
-    int num_cpus = 8;//std::thread::hardware_concurrency(); ///(2-hyperthreading);
+    int num_cpus = std::thread::hardware_concurrency(); ///(2-hyperthreading);
         fprintf(stderr, "Total Num_cpus on server: %d \n", num_cpus);
     num_cpus /= total_processes;
         fprintf(stderr, "Num_cpus used for replica #%d: %d \n", process_id, num_cpus);
@@ -138,7 +138,7 @@ void ThreadPool::start(int process_id, int total_processes, bool hyperthreading,
       int num_cpus = std::thread::hardware_concurrency(); ///(2-hyperthreading);
       fprintf(stderr, "Num_cpus: %d \n", num_cpus);
       num_cpus /= total_processes;
-      num_cpus = 8; //XXX change back to dynamic
+      //num_cpus = 8; //XXX change back to dynamic
       //int offset = process_id * num_cpus;
       Debug("num cpus %d", num_cpus);
       uint32_t num_threads = (uint32_t) std::max(1, num_cpus);
