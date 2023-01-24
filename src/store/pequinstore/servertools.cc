@@ -789,16 +789,18 @@ void* Server::TryPrepare(uint64_t reqId, const TransportAddress &remote, proto::
 //It is possible for multiple different (fallback) clients to execute OCC check -- but only one result should ever be used.
 //XXX if you *DONT* want to buffer Wait results then call BufferP1Result only inside SendPhase1Reply
 bool Server::BufferP1Result(proto::ConcurrencyControl::Result &result,
-  const proto::CommittedProof *conflict, const std::string &txnDigest, uint64_t &reqId, const TransportAddress *&remote, int fb, bool isGossip){  // fb = 0 => normal, fb = 1 => fallback, fb = 2 => dependency woke up
+  const proto::CommittedProof *conflict, const std::string &txnDigest, uint64_t &reqId, const TransportAddress *&remote, bool &wake_fallbacks, bool isGossip, int fb){  // fb = 0 => normal, fb = 1 => fallback, fb = 2 => dependency woke up
 
     p1MetaDataMap::accessor c;
-    bool original_sub = BufferP1Result(c, result, conflict, txnDigest, reqId, remote, fb, isGossip);
+    bool original_sub = BufferP1Result(c, result, conflict, txnDigest, reqId, remote, wake_fallbacks, isGossip, fb);
     c.release();
     return original_sub;
 }
 
 bool Server::BufferP1Result(p1MetaDataMap::accessor &c, proto::ConcurrencyControl::Result &result,
-  const proto::CommittedProof *conflict, const std::string &txnDigest, uint64_t &reqId, const TransportAddress *&remote, int fb, bool isGossip){
+  const proto::CommittedProof *conflict, const std::string &txnDigest, uint64_t &reqId, const TransportAddress *&remote, bool &wake_fallbacks, bool isGossip, int fb){
+
+    //TODO: ideally buffer abstain_conflict too.
 
     if(result == proto::ConcurrencyControl::IGNORE){
       Clean(txnDigest, true, true); // This is an invalid transaction (will never succeed)  -> can remove any accumulated meta data. Clean with hard = true
@@ -836,22 +838,62 @@ bool Server::BufferP1Result(p1MetaDataMap::accessor &c, proto::ConcurrencyContro
 
     bool original_sub = false;
      //if BufferP1 request was issued by original client (fb==0 && gossip==false) and result == Wait -- subscribe original client.
-    if(fb == 0 && !isGossip && result == proto::ConcurrencyControl::WAIT){
-      Debug("Subscribing original client for transaction %s.", BytesToHex(txnDigest, 16).c_str());
-      c->second.SubscribeOriginal(*remote, reqId);
+    if(!isGossip && result == proto::ConcurrencyControl::WAIT){
+      if(fb == 0){
+        Debug("Subscribing original client for transaction %s.", BytesToHex(txnDigest, 16).c_str());
+        c->second.SubscribeOriginal(*remote, reqId);
+      }
+      if(fb == 1){
+        Debug("Subscribing all interested fallback clients for transaction %s.", BytesToHex(txnDigest, 16).c_str());
+        c->second.SubscribeAllInterestedFallbacks(); 
+      }
     }
+    
 
     //Check for subscribed client. Only need to reply to client once -- the first time result != Wait.
-    if(c->second.sub_original && result != proto::ConcurrencyControl::WAIT){
-      original_sub = true;
-      remote = c->second.original;
-      reqId = c->second.reqId;
-      c->second.sub_original = false;
-      Debug("Found subscribed original client for transaction %s with reqId %d.", BytesToHex(txnDigest, 16).c_str(), reqId);
+    if(result != proto::ConcurrencyControl::WAIT){
+      if(c->second.sub_original){
+        original_sub = true;
+        remote = c->second.original;
+        reqId = c->second.reqId;
+        c->second.sub_original = false;
+        Debug("Found subscribed original client for transaction %s with reqId %d.", BytesToHex(txnDigest, 16).c_str(), reqId);
+      }
+      if(c->second.fallbacks_interested){
+        wake_fallbacks = true;
+        c->second.fallbacks_interested = false;
+      }
     }
 
     return original_sub;
 
+}
+
+void Server::WakeAllInterestedFallbacks(const std::string &txnDigest, const proto::ConcurrencyControl::Result &result, const proto::CommittedProof *conflict){  
+  interestedClientsMap::accessor i;
+  bool hasInterested = interestedClients.find(i, txnDigest);
+  if(hasInterested){
+    if(!ForwardWritebackMulti(txnDigest, i)){
+      
+      P1FBorganizer *p1fb_organizer = new P1FBorganizer(0, txnDigest, this);
+      SetP1(0, p1fb_organizer->p1fbr->mutable_p1r(), txnDigest, result, conflict);
+      Debug("Sending Phase1FBReply MULTICAST for txn: %s with result %d", BytesToHex(txnDigest, 64).c_str(), result);
+
+      p2MetaDataMap::const_accessor p;
+      p2MetaDatas.insert(p, txnDigest);
+      if(p->second.hasP2){
+        proto::CommitDecision decision = p->second.p2Decision;
+        uint64_t decision_view = p->second.decision_view;
+        SetP2(0, p1fb_organizer->p1fbr->mutable_p2r(), txnDigest, decision, decision_view);
+        Debug("Including P2 Decision %d in Phase1FBReply MULTICAST for txn: %s", decision, BytesToHex(txnDigest, 64).c_str());
+      }
+      p.release();
+      //TODO: If need reqId, can store it as pairs with the interested client.
+      
+      SendPhase1FBReply(p1fb_organizer, txnDigest, true);
+    }
+  }
+  i.release();  
 }
 
 void Server::LookupP1Decision(const std::string &txnDigest, int64_t &myProcessId,

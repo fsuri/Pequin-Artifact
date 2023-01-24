@@ -790,13 +790,17 @@ void Server::HandlePhase1CB(uint64_t reqId, proto::ConcurrencyControl::Result re
   //Note: remote_original might be deleted if P1Meta is erased. In that case, must hold Buffer P1 accessor manually here.  Note: We currently don't delete P1Meta, so it won't happen; but it's still good to have.
   const TransportAddress *remote_original = &remote; 
   uint64_t req_id = reqId;
+  bool wake_fallbacks = false;
   p1MetaDataMap::accessor c;
-  bool sub_original = BufferP1Result(c, result, committedProof, txnDigest, req_id, remote_original, 0, isGossip);
+  bool sub_original = BufferP1Result(c, result, committedProof, txnDigest, req_id, remote_original, wake_fallbacks, isGossip, 0);
   bool send_reply = (result != proto::ConcurrencyControl::WAIT && !isGossip) || sub_original; //Note: sub_original = true only if originall subbed AND result != wait.
   if(send_reply){ //Send reply to subscribed original client instead.
      Debug("Sending P1Reply for txn [%s] to original client. sub_original=%d, isGossip=%d", BytesToHex(txnDigest, 16).c_str(), sub_original, isGossip);
      SendPhase1Reply(reqId, result, committedProof, txnDigest, remote_original, abstain_conflict);
   }
+  //Note: wake_fallbacks only true if result != wait
+  if(wake_fallbacks) WakeAllInterestedFallbacks(txnDigest, result, committedProof); //Note: Possibly need to wakeup interested fallbacks here since waking tx from missing query triggers TryPrepare (which returns here). 
+
   c.release();
 
   //TESTING CODE: 
@@ -1982,7 +1986,7 @@ void Server::HandlePhase1FB(const TransportAddress &remote, proto::Phase1FB &msg
   //Alternatively, keep around the decision proof and send it. For now/simplicity, p2 suffices
   //TODO: could store p2 and p1 signatures (until writeback) in order to avoid re-computation
   //XXX CHANGED IT TO ACCESSOR FOR LOCK TEST
-  p1MetaDataMap::const_accessor c;
+  p1MetaDataMap::accessor c; //Note: In order to subscribe clients must be accessor. p1MetaDataMap::const_accessor c;
   //p1MetaData.find(c, txnDigest);
   // p1MetaData.insert(c, txnDigest);
   bool hasP1result = p1MetaData.find(c, txnDigest) ? c->second.hasP1 : false;
@@ -2010,6 +2014,7 @@ void Server::HandlePhase1FB(const TransportAddress &remote, proto::Phase1FB &msg
          SetP1(msg.req_id(), p1fb_organizer->p1fbr->mutable_p1r(), txnDigest, result, conflict);
        }
        else{
+        c->second.SubscribeAllInterestedFallbacks();
          //Relay deeper depths.
         ManageDependencies(txnDigest, *txn, remote, 0, true); //fallback flow = true, gossip = false
         Debug("P1 decision for txn: %s is WAIT. Not including in reply.", BytesToHex(txnDigest, 16).c_str());
@@ -2044,7 +2049,8 @@ void Server::HandlePhase1FB(const TransportAddress &remote, proto::Phase1FB &msg
 
         }
         else{
-          ManageDependencies(txnDigest, *txn, remote, 0, true);
+          c->second.SubscribeAllInterestedFallbacks();
+          ManageDependencies(txnDigest, *txn, remote, 0, true); //relay deeper deps
           Debug("WAITING on dep in order to send Phase1FBReply on path hasP1 for txn: %s, sent by client: %d", BytesToHex(txnDigest, 16).c_str(), msg.client_id());
         }
         if(params.signClientProposals) delete txn;
@@ -2200,7 +2206,8 @@ bool Server::ExecP1(proto::Phase1FB &msg, const TransportAddress &remote,
 
   const TransportAddress *remote_original = nullptr;
   uint64_t req_id;
-  bool sub_original = BufferP1Result(result, committedProof, txnDigest, req_id, remote_original, 1);
+  bool wake_fallbacks = false;
+  bool sub_original = BufferP1Result(result, committedProof, txnDigest, req_id, remote_original, wake_fallbacks, false, 1);
         //std::cerr << "[Normal] release lock for txn: " << BytesToHex(txnDigest, 64) << std::endl;
   if(sub_original){ //Send to original client too if it is subscribed (This may happen if the original client was waiting on a query, and then a fallback client re-does Occ check in parallel)
         Debug("Sending Phase1 Reply for txn: %s, id: %d", BytesToHex(txnDigest, 64).c_str(), req_id);
@@ -2225,7 +2232,7 @@ bool Server::ExecP1(proto::Phase1FB &msg, const TransportAddress &remote,
 }
 
 
-void Server::SetP1(uint64_t reqId, proto::Phase1Reply *p1Reply, const std::string &txnDigest, proto::ConcurrencyControl::Result &result,
+void Server::SetP1(uint64_t reqId, proto::Phase1Reply *p1Reply, const std::string &txnDigest, const proto::ConcurrencyControl::Result &result,
   const proto::CommittedProof *conflict, const proto::Transaction *abstain_conflict){
   //proto::Phase1Reply *p1Reply = p1fb_organizer->p1fbr->mutable_p1r();
 

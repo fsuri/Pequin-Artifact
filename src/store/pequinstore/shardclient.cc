@@ -917,14 +917,14 @@ void ShardClient::HandleReadReply(const proto::ReadReply &reply) {
       write = &validatedPrepared;
        //if(!write->has_committed_value() && write->has_prepared_value()) std::cerr << "Prepared write was signed on its own.\n";
     } else {
-      if (reply.has_write() && reply.write().has_committed_value()) {
+      if (reply.has_write() && reply.write().has_committed_value()) {       //TODO: For committed writes could use just authenticated channels (since committed writes come with a proof)
         Debug("[group %i] Reply contains unsigned committed value.", group);
         return;
       }
 
            //TODO: remove params.verifyDeps if one wants to always sign prepared (this edge case realistically never happens)
       if (params.verifyDeps && reply.has_write() && reply.write().has_prepared_value()) {
-        //Panic("getting lost here");
+        Panic("getting lost here");
         Debug("[group %i] Reply contains unsigned prepared value.", group);
         return;
       }

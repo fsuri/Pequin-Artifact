@@ -342,8 +342,8 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
     //FALLBACK helper datastructures
 
     struct P1MetaData {
-        P1MetaData(): conflict(nullptr), hasP1(false), sub_original(false), hasSignedP1(false), reqId(0) {}
-        P1MetaData(proto::ConcurrencyControl::Result result): result(result), conflict(nullptr), hasP1(true), sub_original(false), hasSignedP1(false), reqId(0){}
+        P1MetaData(): conflict(nullptr), hasP1(false), sub_original(false), hasSignedP1(false), reqId(0), fallbacks_interested(false) {}
+        P1MetaData(proto::ConcurrencyControl::Result result): result(result), conflict(nullptr), hasP1(true), sub_original(false), hasSignedP1(false), reqId(0), fallbacks_interested(false) {}
         ~P1MetaData(){
           if(signed_txn != nullptr) delete signed_txn;
           if(original != nullptr) delete original;
@@ -355,6 +355,11 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
           this->reqId = reqId;
           Debug("Subscribing original client with reqId: %d", reqId);
         }
+        void SubscribeAllInterestedFallbacks(){  //TODO: Instead, may want to only subscribe individual ones.
+          fallbacks_interested = true;
+        }
+
+
         uint64_t reqId;
 
         proto::ConcurrencyControl::Result result;
@@ -366,6 +371,9 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
         // Not used currently: In case we want to subscribe original client to P1 also to avoid ongoing bug.
         bool sub_original; 
         const TransportAddress *original;
+
+        bool fallbacks_interested;
+        //could have a list of interested clients.
       };
       typedef tbb::concurrent_hash_map<std::string, P1MetaData> p1MetaDataMap;
     p1MetaDataMap p1MetaData;
@@ -474,7 +482,7 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
       const proto::CommittedProof* &committedProof, const proto::Transaction *abstain_conflict = nullptr);
 
     void SetP1(uint64_t reqId, proto::Phase1Reply *p1Reply, const std::string &txnDigest,
-      proto::ConcurrencyControl::Result &result, const proto::CommittedProof *conflict,
+      const proto::ConcurrencyControl::Result &result, const proto::CommittedProof *conflict,
       const proto::Transaction *abstain_conflict = nullptr);
     void SetP2(uint64_t reqId, proto::Phase2Reply *p2Reply, const std::string &txnDigest,
       proto::CommitDecision &decision, uint64_t decision_view);
@@ -521,6 +529,7 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
 
     tbb::concurrent_hash_map<std::string, std::pair<uint64_t, const TransportAddress*>> originalClient;
 
+    void WakeAllInterestedFallbacks(const std::string &txnDigest, const proto::ConcurrencyControl::Result &result, const proto::CommittedProof *conflict);
     bool ForwardWriteback(const TransportAddress &remote, uint64_t ReqId, const std::string &txnDigest);
     bool ForwardWritebackMulti(const std::string &txnDigest, interestedClientsMap::accessor &i);
 
@@ -594,9 +603,9 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
       const proto::Transaction &txn);
   bool CheckHighWatermark(const Timestamp &ts);
   bool BufferP1Result(proto::ConcurrencyControl::Result &result,
-    const proto::CommittedProof *conflict, const std::string &txnDigest, uint64_t &reqId, const TransportAddress *&remote, int fb = 0, bool isGossip = false);
+    const proto::CommittedProof *conflict, const std::string &txnDigest, uint64_t &reqId, const TransportAddress *&remote, bool &wake_fallbacks, bool isGossip = false, int fb =0);
   bool BufferP1Result(p1MetaDataMap::accessor &c, proto::ConcurrencyControl::Result &result,
-    const proto::CommittedProof *conflict, const std::string &txnDigest, uint64_t &reqId, const TransportAddress *&remote, int fb = 0, bool isGossip = false);
+    const proto::CommittedProof *conflict, const std::string &txnDigest, uint64_t &reqId, const TransportAddress *&remote, bool &wake_fallbacks, bool isGossip = false, int fb = 0);
   
   void Clean(const std::string &txnDigest, bool abort = false, bool hard = false);
   void CleanDependencies(const std::string &txnDigest);

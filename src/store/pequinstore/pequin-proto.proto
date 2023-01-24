@@ -69,7 +69,7 @@ message CommittedWrite {
 }
 
 message Dependency {
-  required Write write = 1;
+  required Write write = 1; //Note: Re-using Write is mainly a formality; in practice dep just includes "prepared_txn_digest"
   optional Signatures write_sigs = 2;
   required int64 involved_group = 3;
 }

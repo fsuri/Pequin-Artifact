@@ -897,17 +897,20 @@ void Server::CheckDependents(const std::string &txnDigest) {
         UW_ASSERT(result != proto::ConcurrencyControl::ABORT);
         //Debug("print remote: %p", f->second.remote);
         //waitingDependencies.erase(dependent);
+       //Note: When waking up from dependency commit/abort -> cannot have any conflict or abstain_conflict for dependent
         const proto::CommittedProof *conflict = nullptr;
+        const proto::Transaction *abstain_conflict = nullptr;
 
        // BufferP1Result(result, conflict, dependent, 2);
 
         const TransportAddress *remote_original = nullptr;
         uint64_t req_id;
-        bool sub_original = BufferP1Result(result, conflict, dependent, req_id, remote_original, 2);
+        bool wake_fallbacks = false;
+        bool sub_original = BufferP1Result(result, conflict, dependent, req_id, remote_original, wake_fallbacks, false, 2);
         //std::cerr << "[Normal] release lock for txn: " << BytesToHex(txnDigest, 64) << std::endl;
         if(sub_original){
           Debug("Sending Phase1 Reply for txn: %s, id: %d", BytesToHex(dependent, 64).c_str(), req_id);
-          SendPhase1Reply(req_id, result, conflict, dependent, remote_original);
+          SendPhase1Reply(req_id, result, conflict, dependent, remote_original, abstain_conflict); 
         }
 
         // if(f->second.original_client){
@@ -917,30 +920,7 @@ void Server::CheckDependents(const std::string &txnDigest) {
         // }
 
         //Send it to all interested FB clients too:
-          interestedClientsMap::accessor i;
-          bool hasInterested = interestedClients.find(i, dependent);
-          if(hasInterested){
-            if(!ForwardWritebackMulti(dependent, i)){
-              
-              P1FBorganizer *p1fb_organizer = new P1FBorganizer(0, dependent, this);
-              SetP1(0, p1fb_organizer->p1fbr->mutable_p1r(), dependent, result, conflict);
-              Debug("Sending Phase1FBReply MULTICAST for txn: %s with result %d", BytesToHex(dependent, 64).c_str(), result);
-
-              p2MetaDataMap::const_accessor p;
-              p2MetaDatas.insert(p, dependent);
-              if(p->second.hasP2){
-                proto::CommitDecision decision = p->second.p2Decision;
-                uint64_t decision_view = p->second.decision_view;
-                SetP2(0, p1fb_organizer->p1fbr->mutable_p2r(), dependent, decision, decision_view);
-                Debug("Including P2 Decision %d in Phase1FBReply MULTICAST for txn: %s", decision, BytesToHex(dependent, 64).c_str());
-              }
-              p.release();
-              //TODO: If need reqId, can store it as pairs with the interested client.
-              
-              SendPhase1FBReply(p1fb_organizer, dependent, true);
-            }
-          }
-          i.release();
+        WakeAllInterestedFallbacks(dependent, result, conflict);
         /////
 
         waitingDependencies_new.erase(f);
