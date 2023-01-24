@@ -75,6 +75,7 @@
         "scoped_allocator": "cpp",
         "cfenv": "cpp",
         "cinttypes": "cpp",
-        "valarray": "cpp"
+        "valarray": "cpp",
+        "*.ipp": "cpp"
     }
 }

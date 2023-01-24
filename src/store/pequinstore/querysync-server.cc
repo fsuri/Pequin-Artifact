@@ -838,7 +838,7 @@ void Server::HandleSyncCallback(QueryMetaData *query_md, const std::string &quer
         //TODO: Add more keys; else I cant test order.
     }
     std::string dummy_result = "success";
-    //query_md->has_result = true; 
+    query_md->has_result = true; 
 
     //Blackbox might do multi-replica coordination to compute result and full read-set (though read set can actually be reported directly by each shard...)
     //TODO: Receive SyncReply from all shards ==> with read set, or read set hash. ==> in Tx_manager (marked by query) reply also include the result

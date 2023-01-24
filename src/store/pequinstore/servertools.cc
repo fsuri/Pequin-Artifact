@@ -837,7 +837,8 @@ bool Server::BufferP1Result(p1MetaDataMap::accessor &c, proto::ConcurrencyContro
     bool original_sub = false;
      //if BufferP1 request was issued by original client (fb==0 && gossip==false) and result == Wait -- subscribe original client.
     if(fb == 0 && !isGossip && result == proto::ConcurrencyControl::WAIT){
-      c->second.SubscribeOriginal(remote->clone(), reqId);
+      Debug("Subscribing original client for transaction %s.", BytesToHex(txnDigest, 16).c_str());
+      c->second.SubscribeOriginal(*remote, reqId);
     }
 
     //Check for subscribed client. Only need to reply to client once -- the first time result != Wait.
@@ -846,6 +847,7 @@ bool Server::BufferP1Result(p1MetaDataMap::accessor &c, proto::ConcurrencyContro
       remote = c->second.original;
       reqId = c->second.reqId;
       c->second.sub_original = false;
+      Debug("Found subscribed original client for transaction %s with reqId %d.", BytesToHex(txnDigest, 16).c_str(), reqId);
     }
 
     return original_sub;

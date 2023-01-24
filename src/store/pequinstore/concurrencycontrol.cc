@@ -83,7 +83,7 @@ void Server::subscribeTxOnMissingQuery(const std::string &query_id, const std::s
 void Server::wakeSubscribedTx(const std::string query_id, const uint64_t &retry_version){
   //Note: This is being called while query_md is held. --> will trigger only before adding any queries, or after adding all
 
-  Debug("Trying to wake the transaction subscribed on query [%s;%d]", query_id, retry_version);
+  Debug("Trying to wake potential transaction subscribed on query [%s;%d]", BytesToHex(query_id, 16).c_str(), retry_version);
 
     std::string txnDigest;
     bool ready = false;
@@ -100,17 +100,24 @@ void Server::wakeSubscribedTx(const std::string query_id, const uint64_t &retry_
 
       TxnMissingQueriesMap::accessor mq;
       bool isMissing = TxnMissingQueries.find(mq, txnDigest);
-      if(!isMissing) return; //No Txn waiting ==> nothing to do: return
-      Debug("Txn: %s is missing Query %s", BytesToHex(txnDigest, 16).c_str(), query_id);
-
+      if(!isMissing){
+        Debug("Txn: %s is not missing any queries", BytesToHex(txnDigest, 16).c_str());
+         return; //No Txn waiting ==> nothing to do: return
+      }
+    
       //if Txn still waiting
       waiting_meta = mq->second;
       //auto query_id_version = std::make_pair(query_id, retry_version);
       auto itr = waiting_meta->missing_query_id_versions.find(query_id); //Check if buffered query id + retry version is correct.
       //TODO: Is missing query_id.
-      if(itr != waiting_meta->missing_query_id_versions.end()) return;
-      Debug("Has query_id, but has wrong version: Missing version %d", itr->second);
-      if(itr->second != retry_version) return; //Don't wake up.
+      if(itr == waiting_meta->missing_query_id_versions.end()){
+        Debug("query id not missing: %s", BytesToHex(query_id, 16).c_str());
+        return;
+      } 
+      if(itr->second != retry_version){
+        Debug("Has query_id, but has wrong version: Missing version %d. Executed Query version %d", itr->second, retry_version);
+        return; //Don' wake up.
+      }
 
       Debug("Retry version of subscribed Query matches supplied Query.");
 
@@ -317,6 +324,7 @@ proto::ConcurrencyControl::Result Server::mergeTxReadSets(const ReadSet *&readSe
       mq->second = waiting_meta;
     
       for(auto [query_id, retry_version] : missing_queries){
+         Debug("Added missing query id: %s. version: %d", BytesToHex(*query_id, 16).c_str(), retry_version);
         waiting_meta->missing_query_id_versions[*query_id] = retry_version;
       }
     }
@@ -413,6 +421,13 @@ proto::ConcurrencyControl::Result Server::DoOCCCheck(
     locks = LockTxnKeys_scoped(txn, *readSet);
   }
 
+  //TESTCODE for dependency wake-up
+  // std::string dummyTx("dummyTx");
+  // proto::Dependency dep;
+  // dep.set_involved_group(0);
+  // *dep.mutable_write()->mutable_prepared_txn_digest() = dummyTx;
+  // proto::Dependency *new_dep = txn.add_deps();
+  // *new_dep = dep;
   
   switch (occType) {
     case MVTSO:
@@ -747,7 +762,7 @@ bool Server::ManageDependencies(const std::string &txnDigest, const proto::Trans
 
          //XXX start RelayP1 to initiate Fallback handling
 
-         if(!params.no_fallback && true && !isGossip){ //do not send relay if it is a gossiped message. Unless we are doinig replica leader gargabe Collection (unimplemented)
+         if(true && !params.no_fallback && !isGossip){ //do not send relay if it is a gossiped message. Unless we are doinig replica leader gargabe Collection (unimplemented)
            // ongoingMap::const_accessor o;
            // bool inOngoing = ongoing.find(o, dep.write().prepared_txn_digest()); //TODO can remove this redundant lookup since it will be checked again...
            // if (inOngoing) {
@@ -880,7 +895,7 @@ void Server::CheckDependents(const std::string &txnDigest) {
         proto::ConcurrencyControl::Result result = CheckDependencies(
             dependent);
         UW_ASSERT(result != proto::ConcurrencyControl::ABORT);
-        Debug("print remote: %p", f->second.remote);
+        //Debug("print remote: %p", f->second.remote);
         //waitingDependencies.erase(dependent);
         const proto::CommittedProof *conflict = nullptr;
 

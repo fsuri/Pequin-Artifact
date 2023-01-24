@@ -200,8 +200,8 @@ void ShardClient::Put(uint64_t id, const std::string &key,
 
 void ShardClient::Phase1(uint64_t id, const proto::Transaction &transaction, const std::string &txnDigest,
   phase1_callback pcb, phase1_timeout_callback ptcb, relayP1_callback rcb, finishConflictCB fcb, uint32_t timeout) {
-  Debug("[group %i] Sending PHASE1 [%lu]", group, id);
   uint64_t reqId = lastReqId++;
+  Debug("[group %i] Sending PHASE1 for id[%lu], reqId[%lu]", group, id, reqId);
   client_seq_num_mapping[id].pendingP1_id = reqId;
   PendingPhase1 *pendingPhase1 = new PendingPhase1(reqId, group, transaction,
       txnDigest, config, keyManager, params, verifier, id);
@@ -1045,6 +1045,7 @@ void ShardClient::ProcessP1R(proto::Phase1Reply &reply, bool FB_path, PendingFB 
   if(!FB_path){
     itr = this->pendingPhase1s.find(reply.req_id());
     if (itr == this->pendingPhase1s.end()) {
+      Debug("Ignoring ProcessP1R for stale reqId %d", reply.req_id());
       return; // this is a stale request
     }
 

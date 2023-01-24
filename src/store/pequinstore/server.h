@@ -342,16 +342,18 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
     //FALLBACK helper datastructures
 
     struct P1MetaData {
-        P1MetaData(): conflict(nullptr), hasP1(false), sub_original(false), hasSignedP1(false){}
-        P1MetaData(proto::ConcurrencyControl::Result result): result(result), conflict(nullptr), hasP1(true), sub_original(false), hasSignedP1(false){}
+        P1MetaData(): conflict(nullptr), hasP1(false), sub_original(false), hasSignedP1(false), reqId(0) {}
+        P1MetaData(proto::ConcurrencyControl::Result result): result(result), conflict(nullptr), hasP1(true), sub_original(false), hasSignedP1(false), reqId(0){}
         ~P1MetaData(){
           if(signed_txn != nullptr) delete signed_txn;
           if(original != nullptr) delete original;
         }
-        void SubscribeOriginal(const TransportAddress *remote, uint64_t reqId){
+        void SubscribeOriginal(const TransportAddress &remote, uint64_t reqId){
+          //Debug("Subscribing original client with req_id: %d", req_id);
           sub_original = true; 
-          original = remote;
-          reqId = reqId;
+          original = remote.clone();
+          this->reqId = reqId;
+          Debug("Subscribing original client with reqId: %d", reqId);
         }
         uint64_t reqId;
 

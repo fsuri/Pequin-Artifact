@@ -735,7 +735,7 @@ void Server::HandlePhase1(const TransportAddress &remote,
     // need to check if result is WAIT: if so, need to add to waitingDeps original client..
         //(TODO) Instead: use original client list and store pairs <txnDigest, <reqID, remote>>
     if(result == proto::ConcurrencyControl::WAIT){
-        c->second.SubscribeOriginal(remote.clone(), msg.req_id()); //Subscribe Client in case result is wait (either due to waiting for query, or due to waiting for tx dep) -- subsumes/replaces ManageDependencies subscription
+        c->second.SubscribeOriginal(remote, msg.req_id()); //Subscribe Client in case result is wait (either due to waiting for query, or due to waiting for tx dep) -- subsumes/replaces ManageDependencies subscription
         ManageDependencies(txnDigest, *txn, remote, msg.req_id()); //Request RelayP1 tx in case we are blocking on dependencies
     }
     if (result == proto::ConcurrencyControl::ABORT) {
@@ -784,6 +784,7 @@ void Server::HandlePhase1(const TransportAddress &remote,
 void Server::HandlePhase1CB(uint64_t reqId, proto::ConcurrencyControl::Result result,
   const proto::CommittedProof* &committedProof, std::string &txnDigest, const TransportAddress &remote, const proto::Transaction *abstain_conflict, bool isGossip){
 
+  Debug("Call HandleP1CB for txn %s with result %d", BytesToHex(txnDigest, 16).c_str(), result);
   if(result == proto::ConcurrencyControl::IGNORE) return;
 
   //Note: remote_original might be deleted if P1Meta is erased. In that case, must hold Buffer P1 accessor manually here.  Note: We currently don't delete P1Meta, so it won't happen; but it's still good to have.
@@ -793,17 +794,33 @@ void Server::HandlePhase1CB(uint64_t reqId, proto::ConcurrencyControl::Result re
   bool sub_original = BufferP1Result(c, result, committedProof, txnDigest, req_id, remote_original, 0, isGossip);
   bool send_reply = (result != proto::ConcurrencyControl::WAIT && !isGossip) || sub_original; //Note: sub_original = true only if originall subbed AND result != wait.
   if(send_reply){ //Send reply to subscribed original client instead.
+     Debug("Sending P1Reply for txn [%s] to original client. sub_original=%d, isGossip=%d", BytesToHex(txnDigest, 16).c_str(), sub_original, isGossip);
      SendPhase1Reply(reqId, result, committedProof, txnDigest, remote_original, abstain_conflict);
   }
   c.release();
 
-  //TESTING:
-  std::cerr << "TRYING TO WAKE ############################" << std::endl;
-  std::string queryId =  "[" + std::to_string(1) + ":" + std::to_string(0) + "]";
-  uint64_t retry_version = 1;
-  wakeSubscribedTx(queryId, retry_version);
-  //TODO: If this works, need to try with actual query -- to guarantee mutex locking works properly? Hard to test though...
-     
+  //TESTING CODE: 
+  // if(result == proto::ConcurrencyControl::WAIT){
+  //   //  std::cerr << "TRYING TO WAKE ############################" << std::endl;
+  //   //   std::string queryId =  "[" + std::to_string(1) + ":" + std::to_string(0) + "]";
+  //   //   uint64_t retry_version = 1;
+  //   //   //set result
+  //   //   queryMetaDataMap::const_accessor q;
+  //   //   bool has_query = queryMetaData.find(q, queryId);
+  //   //   q->second->has_result = true;  
+  //   //   q.release();
+  //   //   //Test with gossip --> just set isGossip in wakeSubscribedTx to true
+  //   //   wakeSubscribedTx(queryId, retry_version);
+  //   //   //TODO: If this works, need to try with actual query -- to guarantee mutex locking works properly? Hard to test though...
+
+  //     //Check waking from normal dep:
+  //     //1. force a dep wait on a dummy tx  -- disable Dep validation; add dep to tx. send no relay
+  //     //2. call CheckDependents on the dummy; set result = commit
+  //     // std::cerr << "REsult is wait -- not sending" << std::endl;
+  //     // std::string dummyTx("dummyTx");
+  //     // CheckDependents("dummyTx");
+  //     // --> that should wake up and send to original client. Since original client should have gotten subscribed during BufferP1.
+  // }    
 
   // if (result != proto::ConcurrencyControl::WAIT && !isGossip) { //forwarded P1 needs no reply.
   //   //XXX setting client time outs for Fallback
