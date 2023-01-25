@@ -416,15 +416,17 @@ typedef struct QueryParameters {
     const bool optimisticTxID; //use unique hash tx ids (normal ids), or optimistically use timestamp as identifier?
     const bool cacheReadSet; //return query read set to client, or cache it locally at servers?
 
+    const bool mergeActiveAtClient; //When not caching read sets, merge query read sets at client
+
     const bool signClientQueries;
 
     //performance parameters
     const bool parallel_queries;
 
     QueryParameters(uint64_t syncQuorum, uint64_t queryMessages, uint64_t mergeThreshold, uint64_t syncMessages, uint64_t resultQuorum,
-        bool readPrepared, bool optimisticTxID, bool cacheReadSet, bool signClientQueries, bool parallel_queries) : 
+        bool readPrepared, bool optimisticTxID, bool cacheReadSet, bool mergeActiveAtClient, bool signClientQueries, bool parallel_queries) : 
         syncQuorum(syncQuorum), queryMessages(queryMessages), mergeThreshold(mergeThreshold), syncMessages(syncMessages), resultQuorum(resultQuorum),
-        readPrepared(readPrepared), optimisticTxID(optimisticTxID), cacheReadSet(cacheReadSet), signClientQueries(signClientQueries),
+        readPrepared(readPrepared), optimisticTxID(optimisticTxID), cacheReadSet(cacheReadSet), mergeActiveAtClient(mergeActiveAtClient), signClientQueries(signClientQueries),
         parallel_queries(parallel_queries) {}
 
 } QueryParameters;

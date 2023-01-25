@@ -162,7 +162,8 @@ proto::ConcurrencyControl::Result Server::fetchReadSet(const proto::QueryResultM
       return proto::ConcurrencyControl::COMMIT; //return empty readset; ideally don't return anything... -- could make this a void function, and pass return field as argument pointer.
     }
     if(query_group_md->has_query_read_set()){
-      Debug("Merging Query Read Set from Transaction"); //Note: In this case, could avoid copies by letting client put all active read sets into the main read set. TODO: Client should apply sort function -> will find invalid duplicates and abort early!
+      Debug("Merging Query Read Set from Transaction"); //TODO:: In this case, could avoid copies by letting client put all active read sets into the main read set. 
+                                                        // --> Client should apply sort function -> will find invalid duplicates and abort early!
       query_rs = &query_group_md->query_read_set();
     }
     else{ //else go to cache (via query_id) and check if query_result hash matches. if so, use read set.
@@ -263,6 +264,11 @@ proto::ConcurrencyControl::Result Server::mergeTxReadSets(const ReadSet *&readSe
   //Note: Don't want to override transaction -> else digest changes / we cannot provide the right tx for sync (because stored txn is different)
   //TODO: store a backup of read_set; and override it for the timebeing (this way we don't have to change any of the DoMVTSOCheck and Prepare code.)
   
+  if(!params.query_params.cacheReadSet && params.query_params.mergeActiveAtClient){
+    Debug("Query Read Sets are already merged into main read Set by client."); 
+    return proto::ConcurrencyControl::COMMIT;
+  }
+
    Debug("Trying to merge TxReadsets for txn: %s", BytesToHex(txnDigest, 16).c_str());
   
   if(txn.query_set().empty()){

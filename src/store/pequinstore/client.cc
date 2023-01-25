@@ -361,12 +361,10 @@ void Client::Query(std::string &query, query_callback qcb,
                //==> Add repeated item <QueryReply> with query_id, final version, and QueryMeta field per involved shard. Query Meta = optional read_sets, optional_result_hashes (+version)
               proto::QueryResultMetaData *queryRep = txn.add_query_set();
               queryRep->set_query_id(pendingQuery->queryId);
-              queryRep->set_retry_version(pendingQuery->version);
+              queryRep->set_retry_version(pendingQuery->version); //technically only needed for caching
 
               //TODO: Add dependencies once prepared reads are implemented. Note: Replicas can also just check for every key in read-set that it is commmitted. However, the client may already know a given tx is committed.
                                                                                                                         // Specifying an explicit dependency set can "reduce" the amount of tx a replica needs to wait for.
-              
-    
 
               //*queryRep->mutable_query_group_meta() = {pendingQuery->}
                proto::QueryGroupMeta &queryMD = (*queryRep->mutable_group_meta())[group];
@@ -383,18 +381,21 @@ void Client::Query(std::string &query, query_callback qcb,
               }
               else{
                 for(auto &[group, query_read_set] : pendingQuery->group_read_sets){
-                  queryMD.set_allocated_query_read_set(query_read_set);
-                  //     //*queryMD.mutable_read_set() = {read_set.begin(), read_set.end()}; 
-                  // for(auto &[key, ts] : read_set){
-                  //    (*queryMD.mutable_read_set())[key] = std::move(ts);
-                  // }
-                  //TODO: If we are sending read-sets (and no map order is necessary for hashing), then just store the data as protobuf map and move the whole group_read_set map around... (instead of copying to STL and back to proto)
-                  //requires explicit <group, read_set> map, instead of <group, Query Meta> (easily doable)
+                  if(params.query_params.mergeActiveAtClient){
+                     //Option 1): Merge all active read sets into main_read set. When sorting, catch errors and abort early.
+                    for(auto &read : *query_read_set->mutable_read_set()){
+                      ReadMessage* add_read = txn.add_read_set();
+                      *add_read = std::move(read);
+                    }
+                    delete query_read_set;
+                  }
+                  else{
+                    //Option 2): send all active read sets individually per query
+                    queryMD.set_allocated_query_read_set(query_read_set);
+                  }
                 }
                 pendingQuery->group_read_sets.clear(); //Note: Clearing here early to avoid double deletions on read sets whose allocated memory was moved.
               }
-
-
 
                 qcb(REPLY_OK, pendingQuery->result); //callback to application 
                 //clean pendingQuery and query_seq_num_mapping in all shards.
@@ -482,8 +483,16 @@ void Client::Commit(commit_callback ccb, commit_timeout_callback ctcb,
       }
       catch(...) {
         Debug("Preemptive Abort: Trying to commit a transaction with 2 different reads for the same key");
+        uint64_t ns = Latency_End(&executeLatency);
+
+        Debug("ABORT[%lu:%lu]", client_id, client_seq_num);
+        if(!params.query_params.mergeActiveAtClient) Panic("Without Client-side query merge Client should never read same key twice");
+
+        for (auto group : txn.involved_groups()) {
+          bclient[group]->Abort(client_seq_num, txn.timestamp());
+        }
         ccb(ABORTED_SYSTEM);
-        Panic("Client should never read same key twice -- If so, bug in application");
+        //Panic("Client should never read same key twice");
         return;
       }
     }
