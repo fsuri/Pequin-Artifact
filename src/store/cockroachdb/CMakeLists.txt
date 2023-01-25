@@ -21,5 +21,8 @@ add_library(CRDB client.cc client.h)
 target_link_libraries(CRDB taocpp::taopq)
 add_executable(main_test main_test.cc)
 target_link_libraries(main_test PRIVATE CRDB)
-
 set_property(TARGET main_test PROPERTY CXX_STANDARD 17)
+
+add_executable(benchClient benchClient.cc)
+target_link_libraries(benchClient PRIVATE CRDB)
+set_property(TARGET benchClient PROPERTY CXX_STANDARD 17)

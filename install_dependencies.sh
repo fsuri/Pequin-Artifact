@@ -11,9 +11,9 @@ echo ""
 sudo apt-get update
 sudo apt-get upgrade
 
-sudo apt install python3-pip
-sudo -H pip3 install numpy
-sudo apt-get install autoconf automake libtool curl make g++ unzip valgrind cmake gnuplot pkg-config ant
+sudo apt -y install python3-pip
+sudo apt -y -H pip3 install numpy
+sudo apt-get -y install autoconf automake libtool curl make g++ unzip valgrind cmake gnuplot pkg-config ant
 
 echo "$(tput setaf 2) COMPLETE: GENERAL PRE-REQ $(tput sgr0)"
 read -p "Press enter to continue"
@@ -22,7 +22,7 @@ echo ""
 #Development library dependencies
 echo "Installing Development library dependencies"
 echo ""
-sudo apt install libsodium-dev libgflags-dev libssl-dev libevent-dev libevent-openssl-2.1-7 libevent-pthreads-2.1-7 libboost-all-dev libuv1-dev
+sudo apt -y install libsodium-dev libgflags-dev libssl-dev libevent-dev libevent-openssl-2.1-7 libevent-pthreads-2.1-7 libboost-all-dev libuv1-dev
 echo "$(tput setaf 2) COMPLETE: GENERAL DEVELOPMENT LIB DEPS $(tput sgr0)"
 echo ""
 read -p "Press enter to continue"
@@ -139,7 +139,7 @@ read -p "Press enter to continue -- Manual interaction required: See install gui
 #BFTSmart
 echo "Installing BFT-SMART req (Java)"
 echo ""
-sudo apt-get install openjdk-11-jdk
+sudo apt-get -y install openjdk-11-jdk
 export LD_LIBRARY_PATH=/usr/lib/jvm/java-1.11.0-openjdk-amd64/lib/server:$LD_LIBRARY_PATH
 sudo ldconfig
 echo "$(tput setaf 2) TODO: SEE MANUAL INSTALLATION REQ BFT-SMART $(tput sgr0)"
