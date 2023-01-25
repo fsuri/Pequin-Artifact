@@ -154,7 +154,7 @@ class Client : public ::Client {
     
     std::vector<uint64_t> involved_groups;
     //std::map<uint64_t, std::map<std::string, TimestampMessage>> group_read_sets;
-    std::map<uint64_t, proto::QueryReadSet*> group_read_sets;
+    std::map<uint64_t, proto::ReadSet*> group_read_sets;
     std::map<uint64_t, std::string> group_result_hashes;
     std::string result;
     uint64_t group_replies;

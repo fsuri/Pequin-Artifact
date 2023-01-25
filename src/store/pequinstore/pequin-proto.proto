@@ -69,7 +69,7 @@ message CommittedWrite {
 }
 
 message Dependency {
-  required Write write = 1;
+  required Write write = 1; //Note: Re-using Write is mainly a formality; in practice dep just includes "prepared_txn_digest"
   optional Signatures write_sigs = 2;
   required int64 involved_group = 3;
 }
@@ -92,7 +92,7 @@ message ReadReply {
   }
 }
 
-message QueryReadSet {
+message ReadSet {
   repeated ReadMessage read_set = 1;
 }
 
@@ -100,7 +100,7 @@ message QueryGroupMeta {
   optional bytes read_set_hash = 1; // should this be result hash? I think read-set-hash suffices.
   //repeated ReadMessage read_set = 3; //key versions of all reads
   //map<string, TimestampMessage> read_set = 2; //Is there a benefit of storing as map vs repeated? Internally probably the same.
-  optional QueryReadSet query_read_set = 2;
+  optional ReadSet query_read_set = 2;
   repeated Dependency deps = 3; //only if reading prepared.
 }
 
@@ -124,7 +124,7 @@ message Transaction {
   repeated QueryResultMetaData query_set = 8;
 
   optional bytes txndigest = 9; //NOT PART OF TX. HACK HERE TO STORE txn digest in the local txn version without changing data structures that hold TXN.
-  repeated ReadMessage read_set_copy = 10; //NOT PART OF TX. HACK HERE TO STORE oltp read set while merging query read sets during CC
+  optional ReadSet merged_read_set = 10; //NOT PART OF TX. HACK HERE TO STORE oltp read set while merging query read sets during CC
 }
 
 message Phase1 {
@@ -147,7 +147,7 @@ message ConcurrencyControl {
     ABSTAIN = 2;
     WAIT = 3;
     RETRY = 4;
-    //IGNORE = 5;
+    IGNORE = 5;  //invalid tx
   }
   required Result ccr = 2;
   optional CommittedProof committed_conflict = 3;

@@ -68,7 +68,7 @@ typedef std::function<void(int, const std::string &)> read_timeout_callback;
 
 ////////// Queries
 //typedef std::function<void(int, int, std::map<std::string, TimestampMessage> &, std::string &, std::string &, bool)> result_callback; //status, group, read_set, result_hash, result, success
-typedef std::function<void(int, int, proto::QueryReadSet*, std::string &, std::string &, bool)> result_callback; //status, group, read_set, result_hash, result, success
+typedef std::function<void(int, int, proto::ReadSet*, std::string &, std::string &, bool)> result_callback; //status, group, read_set, result_hash, result, success
 typedef std::function<void(int)> result_timeout_callback;
 
 /////////// Basil protocol

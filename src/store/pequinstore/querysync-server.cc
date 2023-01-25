@@ -385,6 +385,7 @@ void Server::HandleSync(const TransportAddress &remote, proto::SyncClientProposa
             //request the tx-id from the replicas that supposedly have it --> put all tx-id to be requested from one replica in one message (and send in one go afterwards)
 
               Debug("Missing txn_id [%s] for Query Sync Proposal[%lu:%lu:%d]", BytesToHex(tx_id, 16).c_str(), merged_ss->query_seq_num(), merged_ss->client_id(), merged_ss->retry_version());
+            query_md->is_waiting = true;
 
              //Add to waiting data structure.
             waitingQueryMap::accessor w;
@@ -392,7 +393,6 @@ void Server::HandleSync(const TransportAddress &remote, proto::SyncClientProposa
             bool already_requested = !w->second.empty(); //TODO: if there is already a waiting query, don't need to request the txn again. Problem: Could have been requested by a byz client that gave wrong replica_ids...
             w->second.insert(*queryId);
             w.release();
-
 
             query_md->missing_txn[tx_id]= config.f + 1;  //FIXME: Useless line: we don't stop waiting currently.
             uint64_t count = 0;
@@ -413,7 +413,7 @@ void Server::HandleSync(const TransportAddress &remote, proto::SyncClientProposa
   
     //If no missing_txn = already fully synced. Exec callback direclty
     if(replica_requests.empty()){
-        HandleSyncCallback(query_md);
+        HandleSyncCallback(query_md, *queryId);
         q.release();
         return;
     }
@@ -739,7 +739,7 @@ void Server::CommitWithProof(const std::string &txnDigest, proto::CommittedProof
 
     committed.insert(std::make_pair(txnDigest, proof)); //Note: This may override an existing commit proof -- that's fine.
 
-    CommitToStore(proof, txn, ts, val);
+    CommitToStore(proof, txn, txnDigest, ts, val);
 
     Debug("Calling CLEAN for committing txn[%s]", BytesToHex(txnDigest, 16).c_str());
     Clean(txnDigest);
@@ -776,8 +776,10 @@ void Server::UpdateWaitingQueries(const std::string &txnDigest){
                  Debug("Query[%lu:%lu] is still waiting on (%d) transactions", query_md->query_seq_num, query_md->client_id, query_md->missing_txn.size());
 
                 //3) if missing data structure is empty for any query: Start Callback.
-                if(was_present && query_md->missing_txn.empty()){ //only call this the first time missing_txn goes empty: present captures the fact that map was non-empty before erase.
-                    HandleSyncCallback(query_md); //TODO: Should this be dispatched again? So that multiple waiting queries don't execute sequentially?
+                if(was_present && query_md->is_waiting && query_md->missing_txn.empty()){ 
+                    //Note: was_present -> only call this the first time missing_txn goes empty: present captures the fact that map was non-empty before erase.
+                    //Note: is_waiting -> make sure query is waiting. E.g. missing_txn could be empty because we re-tried the query and now are not missing any. In this case is_waiting will be set to false. -> no need to call callback
+                    HandleSyncCallback(query_md, waiting_query); //TODO: Should this be dispatched again? So that multiple waiting queries don't execute sequentially?
                 }
             }
             q.release();
@@ -797,9 +799,10 @@ void Server::UpdateWaitingQueries(const std::string &txnDigest){
 // simulate dummy result + read set ==> Done
 
 //TODO: must be called while holding a lock on query_md. 
-void Server::HandleSyncCallback(QueryMetaData *query_md){
+void Server::HandleSyncCallback(QueryMetaData *query_md, const std::string &queryId){
 
-      Debug("Sync complete for Query[%lu:%lu]. Starting Execution", query_md->query_seq_num, query_md->client_id);
+    Debug("Sync complete for Query[%lu:%lu]. Starting Execution", query_md->query_seq_num, query_md->client_id);
+    query_md->is_waiting = false;
     
     // 1) Execute Query
     //Execute Query -- Go through store, and check if latest tx in store is present in syncList. If it is missing one (committed) --> reply EarlyAbort (tx cannot succeed). If prepared is missing, ignore, skip to next
@@ -807,8 +810,19 @@ void Server::HandleSyncCallback(QueryMetaData *query_md){
 
       // 2) Construct Read Set
     //read set = map from key-> versions  //Note: Convert Timestamp to TimestampMessage
-
-    //Creating Dummy keys for testing //FIXME: REPLACE 
+ 
+    /////////////////////////////////////////////////////////////
+    //                                                         //
+    //                                                         //
+    //                                                         //
+    //
+    //              EXEC BLACKBOX -- TBD
+    //                                                         //
+    //                                                         //
+    //                                                         //
+    //                                                         //
+    /////////////////////////////////////////////////////////////
+     //Creating Dummy keys for testing //FIXME: REPLACE 
     for(int i=5;i > 0; --i){
         TimestampMessage ts;
         ts.set_id(query_md->ts.getID());
@@ -823,21 +837,8 @@ void Server::HandleSyncCallback(QueryMetaData *query_md){
         *read->mutable_readtime() = ts;
         //TODO: Add more keys; else I cant test order.
     }
-
-   
-    
-    /////////////////////////////////////////////////////////////
-    //                                                         //
-    //                                                         //
-    //                                                         //
-    //
-    //              EXEC BLACKBOX -- TBD
-    //                                                         //
-    //                                                         //
-    //                                                         //
-    //                                                         //
-    /////////////////////////////////////////////////////////////
     std::string dummy_result = "success";
+    query_md->has_result = true; 
 
     //Blackbox might do multi-replica coordination to compute result and full read-set (though read set can actually be reported directly by each shard...)
     //TODO: Receive SyncReply from all shards ==> with read set, or read set hash. ==> in Tx_manager (marked by query) reply also include the result
@@ -845,9 +846,13 @@ void Server::HandleSyncCallback(QueryMetaData *query_md){
     //-- want to do this so that Exec can be a better blackbox: This way data exchange might just be a small intermediary data, yet client learns full read set. 
         //In this case, read set hash from a shard is not enough to prove integrity to another shard (since less data than full read set might be exchanged)
 
+    //After executing and caching read set -> Try to wake possibly subscribed queries.
+    wakeSubscribedTx(queryId, query_md->retry_version); //TODO: Instead of passing it along, just store the queryId...
 
-    bool exec_success = !test_fail_query;
+
+    bool exec_success = !test_fail_query; //FIXME: REMOVE: This tests one retry.
     if(exec_success){
+         query_md->failure = false;
         
          if(query_md->designated_for_reply){
             query_md->queryResultReply->mutable_result()->set_query_result(dummy_result);
@@ -858,7 +863,7 @@ void Server::HandleSyncCallback(QueryMetaData *query_md){
             //query_md->queryResult->set_query_result(dummy_result);
         }
 
-         SyncReply(query_md);
+         SendQueryReply(query_md);
     }
     else{
         FailQuery(query_md);
@@ -866,13 +871,15 @@ void Server::HandleSyncCallback(QueryMetaData *query_md){
     }
 }
 
-void Server::SyncReply(QueryMetaData *query_md){ //TODO: Rename this to QueryReply 
+void Server::SendQueryReply(QueryMetaData *query_md){ 
+
+//TODO: CALL WAKE OPERATION
     
     // proto::queryResultReplyReply *queryResultReply = new proto::queryResultReply(); //TODO: replace with GetUnused
     // proto::QueryResult *result = query_md->queryResult;
     proto::QueryResultReply *queryResultReply = query_md->queryResultReply;
     proto::QueryResult *result = queryResultReply->mutable_result();
-    proto::QueryReadSet *query_read_set;
+    proto::ReadSet *query_read_set;
     //query_md->result = "success";
     //result->set_query_result("success");
 
@@ -1017,6 +1024,8 @@ void Server::FailWaitingQueries(const std::string &txnDigest){
 void Server::FailQuery(QueryMetaData *query_md){
 
     query_md->failure = true;
+    query_md->has_result = false;
+    
     proto::FailQuery failQuery;
     failQuery.set_req_id(query_md->req_id);
     failQuery.mutable_fail()->set_replica_id(id);

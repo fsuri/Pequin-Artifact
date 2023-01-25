@@ -70,22 +70,38 @@ void ToyClient::ExecuteToy(){
     std::cerr << "Started client thread\n";
     //Calling directly into syncClient here. Usually SyncTransactionBenchClient calls SendNext, which generates a new transaction. This transaction then calls the operations on the SyncClient.
             uint32_t timeout = UINT_MAX;
+            // client.Begin(timeout);
+            // std::cerr << "Invoked Begin\n";
+            // client.Put("y", "6", timeout);
+            // client.Commit(timeout);
+            // std::cerr << "Committed value for y\n";
+
+           
             client.Begin(timeout);
             std::cerr << "Invoked Begin\n";
             client.Put("x", "5", timeout);
             std::string readValue;
             client.Get("x", readValue, timeout);
+            std::cerr << "value read for x: " << readValue << "\n"; //Dummy read --> will read from buffered put; will not add to read set
+              client.Get("y", readValue, timeout);
             std::cerr << "value read for x: " << readValue << "\n";
-            client.Commit(timeout);
-            std::cerr << "Committed value for x\n";
 
-            sleep(1);
-            
             std::string query = "SELECT *";
             std::string queryResult;
             client.Query(query, queryResult, timeout);  //--> Edit API in frontend sync_client.
                                            //For real benchmarks: Also edit in sync_transaction_bench_client.
             std::cerr << "Query Result: " << queryResult << std::endl << std::endl;
+
+            client.Commit(timeout);
+            std::cerr << "Committed value for x\n";
+
+            // sleep(1);
+            
+            // std::string query = "SELECT *";
+            // std::string queryResult;
+            // client.Query(query, queryResult, timeout);  //--> Edit API in frontend sync_client.
+            //                                //For real benchmarks: Also edit in sync_transaction_bench_client.
+            // std::cerr << "Query Result: " << queryResult << std::endl << std::endl;
             
 }
 

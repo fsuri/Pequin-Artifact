@@ -61,6 +61,21 @@
         "typeindex": "cpp",
         "typeinfo": "cpp",
         "utility": "cpp",
-        "variant": "cpp"
+        "variant": "cpp",
+        "csetjmp": "cpp",
+        "any": "cpp",
+        "strstream": "cpp",
+        "codecvt": "cpp",
+        "forward_list": "cpp",
+        "algorithm": "cpp",
+        "iterator": "cpp",
+        "random": "cpp",
+        "future": "cpp",
+        "iomanip": "cpp",
+        "scoped_allocator": "cpp",
+        "cfenv": "cpp",
+        "cinttypes": "cpp",
+        "valarray": "cpp",
+        "*.ipp": "cpp"
     }
 }

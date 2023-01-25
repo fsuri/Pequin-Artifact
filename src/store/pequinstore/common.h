@@ -331,7 +331,7 @@ std::string TransactionDigest(const proto::Transaction &txn, bool hashDigest);
 
 std::string QueryDigest(const proto::Query &query, bool queryHashDigest);
 
-std::string generateReadSetSingleHash(const proto::QueryReadSet &query_read_set); 
+std::string generateReadSetSingleHash(const proto::ReadSet &query_read_set); 
 std::string generateReadSetSingleHash(const std::map<std::string, TimestampMessage> &read_set);
 std::string generateReadSetMerkleRoot(const std::map<std::string, TimestampMessage> &read_set, uint64_t branch_factor);
 
@@ -379,7 +379,7 @@ inline static bool equalReadMsg(const ReadMessage &lhs, const ReadMessage &rhs){
 }
 
 
-inline static bool compareReadSets (google::protobuf::RepeatedPtrField<ReadMessage> const &lhs, google::protobuf::RepeatedPtrField<ReadMessage> const &rhs){ // (proto::QueryReadSet const &lhs, proto::QueryReadSet const &rhs) {
+inline static bool compareReadSets (google::protobuf::RepeatedPtrField<ReadMessage> const &lhs, google::protobuf::RepeatedPtrField<ReadMessage> const &rhs){ // (proto::ReadSet const &lhs, proto::ReadSet const &rhs) {
     return lhs.size() == rhs.size() && std::equal(lhs.begin(), lhs.end(), rhs.begin(), equalReadMsg); 
 }
 
