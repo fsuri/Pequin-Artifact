@@ -57,11 +57,17 @@
 
 namespace pequinstore {
 
-//TODO: Problem: FIXME: Probably not safe to modify transaction. -- must hold ongoing lock? --> not possible..
+//TODO: Problem: FIXME: Probably not safe to modify transaction. -- must hold ongoing lock for entire duration of any tx uses? --> not possible..
 //Solution: Store elsewhere (don't override read-set) -- Refactor CC and Prepare to take read set pointer as argument -- in non-query case, let that read set point to normal readset.
-//Can we still edit read_set_merge field? If so, that is a good place to store it to re-use for Commit -- Test if that causes problems with sending out tx in parallel.
+//Can we still edit read_set_merge field? If so, that is a good place to store it to re-use for Commit -- Test if that causes problems with sending out tx in parallel. (might result in corrupted protobuf messages)
     //Note: 2 threads may try to call DoOCC for a Tx in parallel (barrier is only at BufferP1) -> they might try to write the same value in parallel. 
     //FIX: Hold ongoing lock while updating merged_set. + Check if merged_set exists, if so, re-use it.
+
+    //Best solution: Store the merged set as part of ongoingMap -- I.e. keep TX const. In CC check pass pointer to read set instead of Txn. Same for prepare.
+    //In this case, can remove restoreTxn. 
+
+//TODO: Must also ensure WAIT invariant: Should never cause WAIT to be decided as a result of honest clients sync and prepare being processed in parallel
+
 
 //returns pointer to query read set (either from cache, or from txn itself)
 proto::ConcurrencyControl::Result Server::fetchQueryReadSet(const proto::QueryResultMetaData &query_md, proto::QueryReadSet const *query_rs){
