@@ -8,4 +8,4 @@ $(d)common-test: $(o)common-test.o $(LIB-indicus-store) \
 $(d)server-test: $(o)server-test.o $(LIB-indicus-store) \
 		$(GTEST_MAIN) $(o)common.o $(GMOCK)
 
-TEST_BINS += $(d)common-test $(d)server-test 
+TEST_BINS += $(d)common-test $(d)server-test

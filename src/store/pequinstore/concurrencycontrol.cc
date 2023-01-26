@@ -225,8 +225,6 @@ proto::ConcurrencyControl::Result Server::fetchReadSet(const proto::QueryResultM
         Debug("Cached wrong read-set");
         return proto::ConcurrencyControl::ABSTAIN;
       } 
-      
-
      
       //5) Use Read set.
       query_rs = &cached_queryResult.query_read_set();
@@ -295,7 +293,12 @@ proto::ConcurrencyControl::Result Server::mergeTxReadSets(const ReadSet *&readSe
   
   //Hold mq allocator to ensure that we subscribe *all* missing queries at once.
   TxnMissingQueriesMap::accessor mq;
-  bool already_subscribed = TxnMissingQueries.find(mq, txnDigest); //Note: Reading should still take a write lock. (If not, can insert here, and erase at the end if empty.)
+  bool already_subscribed = !TxnMissingQueries.insert(mq, txnDigest); //Note: Reading should still take a write lock. (If not, can insert here, and erase at the end if empty.)
+
+  if(already_subscribed){
+    if(prepare_or_commit==1) mq->second->setToCommit(proof); //groupedSigs, p1Sigs, view, 1); //Upgrade subscription to commit.
+    return proto::ConcurrencyControl::WAIT; //The txn is missing queries and is already subscribed.
+  } 
 
   //Hold write lock for the entirety of the loop ==> guarantee all of nothing.
   std::vector<std::pair<const std::string*, const uint64_t>> missing_queries; //List of query id's for which we have not received the latest version yet, but which the Tx is referencing.
@@ -326,11 +329,8 @@ proto::ConcurrencyControl::Result Server::mergeTxReadSets(const ReadSet *&readSe
 
   //Subscribe if we are missing queries (and we have not yet subscribed previously -- could happen in parallel on another thread)
   if(!missing_queries.empty()){
-    
-    if(!already_subscribed){
       //Subscribe to each missing query inside fetchReadSet.
       //create waitingObject
-      TxnMissingQueries.insert(mq, txnDigest); 
       waitingOnQueriesMeta *waiting_meta = prepare_or_commit==0 ? new waitingOnQueriesMeta(req_id, &txn, remote, isGossip, prepare_or_commit) : new waitingOnQueriesMeta(&txn, proof, prepare_or_commit); //, groupedSigs, p1Sigs, view, prepare_or_commit);
       mq->second = waiting_meta;
     
@@ -338,14 +338,12 @@ proto::ConcurrencyControl::Result Server::mergeTxReadSets(const ReadSet *&readSe
          Debug("Added missing query id: %s. version: %d", BytesToHex(*query_id, 16).c_str(), retry_version);
         waiting_meta->missing_query_id_versions[*query_id] = retry_version;
       }
-    }
-    else if(already_subscribed && prepare_or_commit==1){
-      mq->second->setToCommit(proof); //groupedSigs, p1Sigs, view, 1);
-    }
-    
     //mq.release(); Implicit
     Debug("Subscribed Txn on missing queries. Stopping Merge");
     return proto::ConcurrencyControl::WAIT;
+  }
+  else{
+    TxnMissingQueries.erase(mq); //Erase if we added the data structure for no reason.
   }
 
   mq.release();
@@ -743,7 +741,7 @@ proto::ConcurrencyControl::Result Server::DoMVTSOOCCCheck(
 //TODO: relay Deeper depth when result is already wait. (If I always re-did the P1 it would be handled)
 // PRoblem: Dont want to re-do P1, otherwise a past Abort can turn into a commit. Hence we
 // ForwardWriteback
-bool Server::ManageDependencies(const std::string &txnDigest, const proto::Transaction &txn, const TransportAddress &remote, uint64_t reqId, bool fallback_flow, bool isGossip){
+bool Server::ManageDependencies_WithMutex(const std::string &txnDigest, const proto::Transaction &txn, const TransportAddress &remote, uint64_t reqId, bool fallback_flow, bool isGossip){
   
   bool allFinished = true;
 
@@ -807,17 +805,18 @@ bool Server::ManageDependencies(const std::string &txnDigest, const proto::Trans
 
          Debug("Tx:[%s] Added %s to waitingDependencies.", BytesToHex(txnDigest, 16).c_str(), BytesToHex(dep.write().prepared_txn_digest(), 16).c_str());
          waitingDependenciesMap::accessor f;
-         bool dependenciesItr = waitingDependencies_new.find(f, txnDigest);
-         if (!dependenciesItr) {
-           waitingDependencies_new.insert(f, txnDigest);
-           //f->second = WaitingDependency();
-         }
-         f->second.reqId = reqId;
-        //  if(!fallback_flow && !isGossip){ //NOTE: Original Client subscription moved to P1Meta
-        //    f->second.original_client = true;
-        //    f->second.reqId = reqId;
-        //    f->second.remote = remote.clone();  //&remote;
+         waitingDependencies_new.insert(f, txnDigest);
+        //  bool dependenciesItr = waitingDependencies_new.find(f, txnDigest);
+        //  if (!dependenciesItr) {
+        //    waitingDependencies_new.insert(f, txnDigest);
+        //    //f->second = WaitingDependency();
         //  }
+         
+        if(!fallback_flow && !isGossip){ //NOTE: Original Client subscription moved to P1Meta
+        //    f->second.original_client = true;
+            f->second.reqId = reqId;
+        //    f->second.remote = remote.clone();  //&remote;
+        }
          f->second.deps.insert(dep.write().prepared_txn_digest());
          f.release();
        }
@@ -832,6 +831,81 @@ bool Server::ManageDependencies(const std::string &txnDigest, const proto::Trans
   return allFinished;
 }
 
+//MUTEX FREE DEPENDENCY WAIT VERSIONS
+
+//TODO: relay Deeper depth when result is already wait. (If I always re-did the P1 it would be handled)
+// PRoblem: Dont want to re-do P1, otherwise a past Abort can turn into a commit. Hence we ForwardWriteback
+bool Server::ManageDependencies(const std::string &txnDigest, const proto::Transaction &txn, const TransportAddress &remote, uint64_t reqId, bool fallback_flow, bool isGossip){
+  
+  bool allFinished = true;
+
+  if(params.maxDepDepth > -2){ //Only check if deps enabled
+
+    //Why Concurrency is safe:
+    //Inuition: If ManageDependencies does not hold f and e, then CheckDependents dependents.find(e) will return false -> and thus it will never try to lock f --> and thus a lock order inversion is impossible
+    //Cornercase: What ManageDependencies is called twice (e.g. by 2 threads): 
+    //    E.g. ManageDependencies.1 finishes fully (writes to f and e) --> Then CheckDependents "dependents.find(e)" will return false (and thus it will try to lock f). Concurrently ManageDeps.2 locks f and tries to lock e ==> deadlock
+        //Solution: ManageDependencies must only acquire a lock on e if waitingDeps does not exist (i.e. only the first time) ==> new_waiting_dep ensures this. 
+                    // Any consecutive ManageDependency calls only loop through dependencies to check for RelayP1 (but don't set e)
+
+    waitingDependenciesMap::accessor f;
+    bool new_waiting_dep = waitingDependencies_new.insert(f, txnDigest);
+
+    std::vector<const std::string*> missing_deps;
+
+    Debug("Called ManageDependencies for txn: %s", BytesToHex(txnDigest, 16).c_str());
+    Debug("Manage Dependencies runs on Thread: %d", sched_getcpu());
+    for (const auto &dep : txn.deps()) {
+       if (dep.involved_group() != groupIdx) { //only check deps at the responsible shard.
+         continue;
+       }
+
+      dependentsMap::accessor e;
+      bool first_dependent = false;
+      
+      //If waiting_dep is already logged then don't take any accessor on e to modify dependents 
+      if(new_waiting_dep) first_dependent = dependents.insert(e, dep.write().prepared_txn_digest());
+      
+      if (committed.find(dep.write().prepared_txn_digest()) == committed.end() && aborted.find(dep.write().prepared_txn_digest()) == aborted.end()) {
+         Debug("[%lu:%lu][%s] WAIT for dependency %s to finish.", txn.client_id(), txn.client_seq_num(), BytesToHex(txnDigest, 16).c_str(), BytesToHex(dep.write().prepared_txn_digest(), 16).c_str());
+        
+        allFinished = false;
+        missing_deps.push_back(&dep.write().prepared_txn_digest());
+        if(new_waiting_dep){
+          e->second.insert(txnDigest);
+          Debug("Tx:[%s] Added tx %s to %s dependents.", BytesToHex(txnDigest, 16).c_str(), BytesToHex(txnDigest, 16).c_str(), BytesToHex(dep.write().prepared_txn_digest(), 16).c_str());
+        } 
+
+        //XXX start RelayP1 to initiate Fallback handling
+         if(true && !params.no_fallback && !isGossip){ //do not send relay if it is a gossiped message. Unless we are doinig replica leader gargabe Collection (unimplemented)
+             uint64_t conflict_id = !fallback_flow ? reqId : -1;
+             SendRelayP1(remote, dep.write().prepared_txn_digest(), conflict_id, txnDigest);
+         }
+      }
+      else{ //Don't add to dependents for no reason.
+        if(new_waiting_dep && first_dependent) dependents.erase(e);
+      }
+      e.release();
+    }
+
+    if(!allFinished){
+      if(!fallback_flow && !isGossip) f->second.reqId = reqId;
+
+      if(new_waiting_dep){ //don't copy missing_deps into waitingDeps if it already exists.
+        for(auto missing_dep : missing_deps){
+            f->second.deps.insert(*missing_dep);
+        }
+      }
+    }
+    else{ //If there was no reason to add to waitingDeps erase again.
+      if(new_waiting_dep) waitingDependencies_new.erase(f);
+    }
+
+    f.release();
+  }
+
+  return allFinished;
+}
 
 ////////////////////////////////////////////////////////// Concurrency Control Helper Functions
 
@@ -934,10 +1008,11 @@ void Server::CheckDependents(const std::string &txnDigest) {
         WakeAllInterestedFallbacks(dependent, result, conflict);
         /////
 
-        waitingDependencies_new.erase(f);
+        waitingDependencies_new.erase(f);   //TODO: Can remove CleanDependencies since it's already deleted here?
       }
       f.release();
     }
+    dependents.erase(e);
   }
   e.release();
    //if(params.mainThreadDispatching) dependentsMutex.unlock();
@@ -1005,7 +1080,7 @@ proto::ConcurrencyControl::Result Server::CheckDependencies(
   return proto::ConcurrencyControl::COMMIT;
 }
 
-void Server::CleanDependencies(const std::string &txnDigest) {
+void Server::CleanDependencies_WithMutex(const std::string &txnDigest) {
    //if(params.mainThreadDispatching) dependentsMutex.lock();
    Debug("Called CleanDependencies for txn %s", BytesToHex(txnDigest, 16).c_str());
    if(params.mainThreadDispatching) waitingDependenciesMutex.lock();
@@ -1041,6 +1116,18 @@ void Server::CleanDependencies(const std::string &txnDigest) {
   //dependents.erase(txnDigest);
    //if(params.mainThreadDispatching) dependentsMutex.unlock();
    if(params.mainThreadDispatching) waitingDependenciesMutex.unlock();
+}
+
+void Server::CleanDependencies(const std::string &txnDigest) {
+  Debug("Called CleanDependencies for txn %s", BytesToHex(txnDigest, 16).c_str());
+
+  waitingDependenciesMap::accessor f;
+  bool dependenciesItr = waitingDependencies_new.find(f, txnDigest);
+  if (dependenciesItr ) {
+    waitingDependencies_new.erase(f);
+  }
+  f.release();
+
 }
 
 uint64_t Server::DependencyDepth(const proto::Transaction *txn) const {

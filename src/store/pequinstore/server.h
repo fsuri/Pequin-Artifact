@@ -577,7 +577,8 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
                         std::string &txnDigest, bool isGossip); //,const proto::CommittedProof *committedProof,const proto::Transaction *abstain_conflict,proto::ConcurrencyControl::Result &result);
 
   bool ManageDependencies(const std::string &txnDigest, const proto::Transaction &txn, const TransportAddress &remote, uint64_t reqId, bool fallback_flow = false, bool isGossip = false);
-
+      bool ManageDependencies_WithMutex(const std::string &txnDigest, const proto::Transaction &txn, const TransportAddress &remote, uint64_t reqId, bool fallback_flow = false, bool isGossip = false);
+  
   void GetWriteTimestamps(
       std::unordered_map<std::string, std::set<Timestamp>> &writes);
   void GetWrites(
@@ -609,6 +610,7 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
   
   void Clean(const std::string &txnDigest, bool abort = false, bool hard = false);
   void CleanDependencies(const std::string &txnDigest);
+        void CleanDependencies_WithMutex(const std::string &txnDigest);
   void LookupP1Decision(const std::string &txnDigest, int64_t &myProcessId,
       proto::ConcurrencyControl::Result &myResult) const;
   void LookupP2Decision(const std::string &txnDigest,

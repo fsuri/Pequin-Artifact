@@ -114,9 +114,8 @@ void Server::HandleQuery(const TransportAddress &remote, proto::QueryRequest &ms
 
     //Buffer Query content and timestamp
     queryMetaDataMap::accessor q;
-    bool hasQuery = queryMetaData.find(q, queryId);
-    if(!hasQuery){
-        queryMetaData.insert(q, queryId);
+    bool newQuery = queryMetaData.insert(q, queryId);
+    if(newQuery){
         q->second = new QueryMetaData(query->query_cmd(), query->timestamp(), remote, msg.req_id(), query->query_seq_num(), query->client_id());
         //Note: Retry will not contain query_cmd again.
 
@@ -130,7 +129,7 @@ void Server::HandleQuery(const TransportAddress &remote, proto::QueryRequest &ms
 
     }
     else if(query->retry_version() == query_md->retry_version){
-        if(hasQuery){ //ignore if already processed query once (i.e. don't exec twice for query version 0)
+        if(!newQuery){ //ignore if already processed query once (i.e. don't exec twice for query version 0)
             if(params.query_params.signClientQueries) delete query;
 
             if(query_md->has_result){
@@ -317,7 +316,7 @@ void Server::HandleSync(const TransportAddress &remote, proto::SyncClientProposa
     queryMetaDataMap::accessor q;
     bool hasQuery = queryMetaData.find(q, *queryId);
     if(!hasQuery){
-        Panic("No available query md");
+        Panic("No available query md"); //TODO: FIXME: start a waiter... (unless HandleQuery and HandleSync are on mainthread)
         return;
     }
     QueryMetaData *query_md = q->second;
@@ -500,6 +499,7 @@ void Server::HandleRequestTx(const TransportAddress &remote, proto::RequestMissi
 
         //TODO: SHould be checking for ongoing (irrespective of prepared or not) ==> and include signature if necessary. 
         //==> Note: A correct replica (instructed by a correct client) will only request the transaction from replicas that DO have it prepared. So checking prepared is enough -- don't need to check ongoing
+
         preparedMap::const_accessor a;
         bool hasPrepared = prepared.find(a, txn_id);
         if(hasPrepared){
@@ -510,7 +510,7 @@ void Server::HandleRequestTx(const TransportAddress &remote, proto::RequestMissi
             if(params.signClientProposals){
                  p1MetaDataMap::const_accessor c;
                 bool hasP1Meta = p1MetaData.find(c, txn_id);
-                if(!hasP1Meta) Panic("Tx %s is prepared but has no p1MetaData entry", BytesToHex(txn_id, 16).c_str()); 
+                if(!hasP1Meta) Panic("Tx %s is prepared but has no p1MetaData entry (should be created during ProcessProposal-VerifyClientProposal)", BytesToHex(txn_id, 16).c_str());  //NOTE: P1 hasP1 (result) might not be set yet, but signed_txn has been buffered.
                 //Note: signature in p1MetaData is only removed AFTER prepared is removed. Thus signed message must be present when we access p1Meta while holding prepared lock.
                 *p1->mutable_signed_txn() = *(c->second.signed_txn); 
                 c.release();

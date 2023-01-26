@@ -698,7 +698,7 @@ void* Server::TryPrepare(uint64_t reqId, const TransportAddress &remote, proto::
   void Server::RemoveOngoing(std::string &txnDigest){
         ongoingMap::accessor o;
         //std::cerr << "ONGOING ERASE (Normal-INVALID): " << BytesToHex(txnDigest, 16).c_str() << " On CPU: " << sched_getcpu()<< std::endl;
-        ongoing.find(o, txnDigest);
+        if(!ongoing.find(o, txnDigest)) return;
         o->second.num_concurrent_clients--;
         if(o->second.num_concurrent_clients==0){
             delete o->second.txn;
@@ -903,7 +903,7 @@ void Server::LookupP1Decision(const std::string &txnDigest, int64_t &myProcessId
    //if(params.mainThreadDispatching) p1DecisionsMutex.lock();
   p1MetaDataMap::const_accessor c;
 
-  p1MetaData.find(c, txnDigest);
+  //p1MetaData.find(c, txnDigest);
   bool hasP1result = p1MetaData.find(c, txnDigest)? c->second.hasP1 : false;
   if(hasP1result){
   //if (p1DecisionItr != p1Decisions.end()) {

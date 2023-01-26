@@ -3,7 +3,7 @@ d := $(dir $(lastword $(MAKEFILE_LIST)))
 SRCS += $(addprefix $(d), client.cc shardclient.cc server.cc servertools.cc concurrencycontrol.cc store.cc common.cc \
 		phase1validator.cc localbatchsigner.cc sharedbatchsigner.cc \
 		basicverifier.cc localbatchverifier.cc sharedbatchverifier.cc proto_bench.cc \
-		querysync-server.cc querysync-client.cc queryexec.cc checkpointing.cc)
+		querysync-server.cc querysync-client.cc queryexec.cc checkpointing.cc tbb_test.cc)
 
 PROTOS += $(addprefix $(d), pequin-proto.proto)
 PROTOS += $(addprefix $(d), query-proto.proto)
@@ -25,6 +25,8 @@ LIB-proto := $(o)pequin-proto.o $(o)query-proto.o
 #-I/home/floriansuri/Research/Projects/Pequin/Pequin-Artifact/src/store/common
 $(d)proto_bench: $(LIB-latency) $(LIB-crypto) $(LIB-batched-sigs) $(LIB-store-common) $(LIB-proto) $(o)proto_bench.o
 
-BINS += $(d)proto_bench
+$(d)tbb_test: $(o)tbb_test.o
+
+BINS += $(d)proto_bench $(d)tbb_test
 
 include $(d)tests/Rules.mk

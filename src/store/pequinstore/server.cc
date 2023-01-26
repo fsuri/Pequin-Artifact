@@ -746,7 +746,7 @@ void Server::HandlePhase1(const TransportAddress &remote,
   } 
   else if(committed.find(txnDigest) != committed.end()){ //has already committed Txn
       Debug("Already committed txn[%s]. Replying with result %d", BytesToHex(txnDigest, 16).c_str(), 0);
-      result = proto::ConcurrencyControl::COMMIT; //TODO: Eventually update to send direct WritebackAck
+      result = proto::ConcurrencyControl::COMMIT; //TODO: Eventually update to send direct WritebackAck --> Can move this up before p1Meta check --> can delete P1 Meta (currently need to keep it because original expects p1 reply)
   } 
   else if(aborted.find(txnDigest) != aborted.end()){ //has already aborted Txn
       Debug("Already committed txn[%s]. Replying with result %d", BytesToHex(txnDigest, 16).c_str(), 1);
@@ -798,10 +798,10 @@ void Server::HandlePhase1CB(uint64_t reqId, proto::ConcurrencyControl::Result re
      Debug("Sending P1Reply for txn [%s] to original client. sub_original=%d, isGossip=%d", BytesToHex(txnDigest, 16).c_str(), sub_original, isGossip);
      SendPhase1Reply(reqId, result, committedProof, txnDigest, remote_original, abstain_conflict);
   }
+  c.release();
   //Note: wake_fallbacks only true if result != wait
   if(wake_fallbacks) WakeAllInterestedFallbacks(txnDigest, result, committedProof); //Note: Possibly need to wakeup interested fallbacks here since waking tx from missing query triggers TryPrepare (which returns here). 
 
-  c.release();
 
   //TESTING CODE: 
   // if(result == proto::ConcurrencyControl::WAIT){
@@ -1258,7 +1258,7 @@ void Server::HandleWriteback(const TransportAddress &remote,
       o.release();
     }
     else{
-      o.release();
+      o.release(); //Note, can remove this: o.empty() = true
       if(msg.has_txn()){
         txn = msg.release_txn();
         // check that digest and txn match..
@@ -1640,7 +1640,7 @@ void Server::Clean(const std::string &txnDigest, bool abort, bool hard) {
     //delete o->second.txn; //Not safe to delete txn because another thread could be using it concurrently...
     aborted.insert(txnDigest); //No need to call abort -- A hard clean indicates an invalid tx, and no honest replica would have voted for it --> thus there can be no dependents and dependencies.
   } 
-  if(is_ongoing) ongoing.erase(o);
+  if(is_ongoing) ongoing.erase(o); //Note: Erasing here implicitly releases accessor o. => Note: Don't think holding o matters here, all that matters is that ongoing is erased before (or atomically) with prepared
   
 
   preparedMap::accessor a;
@@ -1676,7 +1676,8 @@ void Server::Clean(const std::string &txnDigest, bool abort, bool hard) {
   //     //if(abort) delete b->second.txn; //delete allocated txn.
   //     //ongoing.erase(b);
   // }
-  o.release(); //Release only at the end, so that Prepare and Clean in parallel for the same TX are atomic.
+  //if(is_ongoing) ongoing.erase(o);
+  o.release(); //Release only at the end, so that Prepare and Clean in parallel for the same TX are atomic.  => See note above -> Don't actually need this atomicity.
   //TODO: might want to move release all the way to the end.
 
   //XXX: Fallback related cleans
@@ -1814,7 +1815,7 @@ void Server::SendRelayP1(const TransportAddress &remote, const std::string &depe
     o->second.txn = relayP1.mutable_p1()->release_txn();
     //b.release();
   }
-  o.release(); //keep ongoing locked the full duration: this guarantees that if ongoing exists, p1Meta.signed_tx exists too, since it is deleted after ongoing in Clean()
+  o.release(); //keep ongoing locked the full duration: this guarantees that if ongoing exists, p1Meta.signed_tx exists too, since it is deleted after ongoing is locked in Clean() 
 
   Debug("Sent RelayP1[%s].", BytesToHex(dependent_txnDig, 256).c_str());
 }
