@@ -598,6 +598,7 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
   
   void Abort(const std::string &txnDigest);
   void CheckDependents(const std::string &txnDigest);
+      void CheckDependents_WithMutex(const std::string &txnDigest);
   proto::ConcurrencyControl::Result CheckDependencies(
       const std::string &txnDigest);
   proto::ConcurrencyControl::Result CheckDependencies(

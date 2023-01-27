@@ -426,21 +426,21 @@ def copy_binaries_to_nfs(config, executor):
     futures = []
     for i in range(n):
         server_host = get_server_host(config, i)
-        run_remote_command_sync('mkdir %s' % config['base_remote_bin_directory_nfs'], config['emulab_user'], server_host)
+        run_remote_command_sync('mkdir %s' % os.path.join(config['base_remote_bin_directory_nfs'], config['bin_directory_name']), config['emulab_user'], server_host)
         if server_host not in SERVERS_SETUP:
             futures.append(executor.submit(copy_path_to_remote_host,
                 os.path.join(config['src_directory'],
                     config['bin_directory_name'], config['server_bin_name']), config['emulab_user'],
-                server_host, os.path.join(config['base_remote_bin_directory_nfs'], config['server_bin_name'])))
+                server_host, os.path.join(config['base_remote_bin_directory_nfs'], config['bin_directory_name'], config['server_bin_name'])))
         if not nfs_enabled:
             for j in range(config['client_nodes_per_server']):
                 client_host = get_client_host(config, i, j)
-                run_remote_command_sync('mkdir %s' % config['base_remote_bin_directory_nfs'], config['emulab_user'], client_host)
+                run_remote_command_sync('mkdir %s' % os.path.join(config['base_remote_bin_directory_nfs'], config['bin_directory_name']), config['emulab_user'], client_host)
                 if client_host not in SERVERS_SETUP:
                     futures.append(executor.submit(copy_path_to_remote_host,
                         os.path.join(config['src_directory'],
                             config['bin_directory_name'], config['client_bin_name']), config['emulab_user'],
-                        client_host, os.path.join(config['base_remote_bin_directory_nfs'], config['client_bin_name'])))
+                        client_host, os.path.join(config['base_remote_bin_directory_nfs'], config['bin_directory_name'], config['client_bin_name'])))
     concurrent.futures.wait(futures)
 
 

@@ -948,7 +948,7 @@ void Server::GetCommittedWrites(const std::string &key, const Timestamp &ts,
   }
 }
 
-void Server::CheckDependents(const std::string &txnDigest) {
+void Server::CheckDependents_WithMutex(const std::string &txnDigest) {
   //Latency_Start(&waitingOnLocks);
    //if(params.mainThreadDispatching) dependentsMutex.lock(); //read lock
    if(params.mainThreadDispatching) waitingDependenciesMutex.lock();
@@ -1012,11 +1012,64 @@ void Server::CheckDependents(const std::string &txnDigest) {
       }
       f.release();
     }
-    dependents.erase(e);
+    //dependents.erase(e);
   }
   e.release();
    //if(params.mainThreadDispatching) dependentsMutex.unlock();
    if(params.mainThreadDispatching) waitingDependenciesMutex.unlock();
+}
+
+void Server::CheckDependents(const std::string &txnDigest) {
+
+  Debug("Called CheckDependents for txn: %s", BytesToHex(txnDigest, 16).c_str());
+  
+  dependentsMap::const_accessor e;
+  bool dependentsItr = dependents.find(e, txnDigest);
+  
+  //auto dependentsItr = dependents.find(txnDigest);
+  if(dependentsItr){
+  //if (dependentsItr != dependents.end()) {
+    for (const auto &dependent : e->second) {
+    //for (const auto &dependent : dependentsItr->second) {
+      waitingDependenciesMap::accessor f;
+      bool dependenciesItr = waitingDependencies_new.find(f, dependent);
+      if(!dependenciesItr) continue;
+
+      f->second.deps.erase(txnDigest);
+      Debug("Removed %s from waitingDependencies of %s.", BytesToHex(txnDigest, 16).c_str(), BytesToHex(dependent, 16).c_str());
+      if (f->second.deps.size() == 0) {
+        Debug("Dependencies of %s have all committed or aborted.",
+            BytesToHex(dependent, 16).c_str());
+
+        proto::ConcurrencyControl::Result result = CheckDependencies(
+            dependent);
+        UW_ASSERT(result != proto::ConcurrencyControl::ABORT);
+      
+       //Note: When waking up from dependency commit/abort -> cannot have any conflict or abstain_conflict for dependent
+        const proto::CommittedProof *conflict = nullptr;
+        const proto::Transaction *abstain_conflict = nullptr;
+
+       // BufferP1Result(result, conflict, dependent, 2);
+
+        const TransportAddress *remote_original = nullptr;
+        uint64_t req_id;
+        bool wake_fallbacks = false;
+        bool sub_original = BufferP1Result(result, conflict, dependent, req_id, remote_original, wake_fallbacks, false, 2);
+        //std::cerr << "[Normal] release lock for txn: " << BytesToHex(txnDigest, 64) << std::endl;
+        if(sub_original){
+          Debug("Sending Phase1 Reply for txn: %s, id: %d", BytesToHex(dependent, 64).c_str(), req_id);
+          SendPhase1Reply(req_id, result, conflict, dependent, remote_original, abstain_conflict); 
+        }
+        //Send it to all interested FB clients too:
+        WakeAllInterestedFallbacks(dependent, result, conflict);
+       
+        waitingDependencies_new.erase(f);   //TODO: Can remove CleanDependencies since it's already deleted here?
+      }
+      f.release();
+    }
+    dependents.erase(e);
+  }
+  e.release();
 }
 
 proto::ConcurrencyControl::Result Server::CheckDependencies(
