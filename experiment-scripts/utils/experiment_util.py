@@ -201,6 +201,7 @@ def start_clients(config, local_exp_directory, remote_exp_directory, run):
                         #run_remote_command_async(perm, config['emulab_user'], client_host)
 
                     cmd4 = 'export LD_LIBRARY_PATH=/usr/lib/jvm/java-11-openjdk-amd64/lib/server/:$LD_LIBRARY_PATH;'
+                    #cmd5 = 'export LD_PRELOAD=/usr/local/lib/libhoard.so;'
                     appended_client_commands = cmd4 + appended_client_commands
 
                     client_processes.append(run_remote_command_async(
@@ -261,6 +262,7 @@ def start_servers(config, local_exp_directory, remote_exp_directory, run):
             #run_remote_command_async(cmd3, config['emulab_user'], server_host, detach=False)
             cmd =  cmd3 + cmd
             cmd4 = 'export LD_LIBRARY_PATH=/usr/lib/jvm/java-11-openjdk-amd64/lib/server/:$LD_LIBRARY_PATH;'
+            #cmd5 = 'export LD_PRELOAD=/usr/local/lib/libhoard.so;'
             cmd = cmd4 + cmd
             server_threads.append(run_remote_command_async(cmd,
                 config['emulab_user'], server_host, detach=False))

@@ -802,30 +802,6 @@ void Server::HandlePhase1CB(uint64_t reqId, proto::ConcurrencyControl::Result re
   //Note: wake_fallbacks only true if result != wait
   if(wake_fallbacks) WakeAllInterestedFallbacks(txnDigest, result, committedProof); //Note: Possibly need to wakeup interested fallbacks here since waking tx from missing query triggers TryPrepare (which returns here). 
 
-
-  //TESTING CODE: 
-  // if(result == proto::ConcurrencyControl::WAIT){
-  //   //  std::cerr << "TRYING TO WAKE ############################" << std::endl;
-  //   //   std::string queryId =  "[" + std::to_string(1) + ":" + std::to_string(0) + "]";
-  //   //   uint64_t retry_version = 1;
-  //   //   //set result
-  //   //   queryMetaDataMap::const_accessor q;
-  //   //   bool has_query = queryMetaData.find(q, queryId);
-  //   //   q->second->has_result = true;  
-  //   //   q.release();
-  //   //   //Test with gossip --> just set isGossip in wakeSubscribedTx to true
-  //   //   wakeSubscribedTx(queryId, retry_version);
-  //   //   //TODO: If this works, need to try with actual query -- to guarantee mutex locking works properly? Hard to test though...
-
-  //     //Check waking from normal dep:
-  //     //1. force a dep wait on a dummy tx  -- disable Dep validation; add dep to tx. send no relay
-  //     //2. call CheckDependents on the dummy; set result = commit
-  //     // std::cerr << "REsult is wait -- not sending" << std::endl;
-  //     // std::string dummyTx("dummyTx");
-  //     // CheckDependents("dummyTx");
-  //     // --> that should wake up and send to original client. Since original client should have gotten subscribed during BufferP1.
-  // }    
-
   // if (result != proto::ConcurrencyControl::WAIT && !isGossip) { //forwarded P1 needs no reply.
   //   //XXX setting client time outs for Fallback
   //   // if(client_starttime.find(txnDigest) == client_starttime.end()){
