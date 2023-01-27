@@ -200,9 +200,10 @@ def start_clients(config, local_exp_directory, remote_exp_directory, run):
                         #perm = 'sudo chmod +x ~/indicus/bin/benchmark'
                         #run_remote_command_async(perm, config['emulab_user'], client_host)
 
-                    cmd4 = 'export LD_LIBRARY_PATH=/usr/lib/jvm/java-11-openjdk-amd64/lib/server/:$LD_LIBRARY_PATH;'
+                    #cmd4 = 'export LD_LIBRARY_PATH=/usr/lib/jvm/java-11-openjdk-amd64/lib/server/:$LD_LIBRARY_PATH;'
                     #cmd5 = 'export LD_PRELOAD=/usr/local/lib/libhoard.so;'
-                    appended_client_commands = cmd4 + appended_client_commands
+                    cmd6 = 'sudo source /usr/local/etc/set_env.sh; echo $LD_PRELOAD; source .bashrc' #TODO: remove cmd4+5
+                    appended_client_commands = cmd6 + appended_client_commands
 
                     client_processes.append(run_remote_command_async(
                         appended_client_commands + ' & wait', config['emulab_user'],
@@ -261,9 +262,10 @@ def start_servers(config, local_exp_directory, remote_exp_directory, run):
             cmd3 = 'source /opt/intel/oneapi/setvars.sh --force; '
             #run_remote_command_async(cmd3, config['emulab_user'], server_host, detach=False)
             cmd =  cmd3 + cmd
-            cmd4 = 'export LD_LIBRARY_PATH=/usr/lib/jvm/java-11-openjdk-amd64/lib/server/:$LD_LIBRARY_PATH;'
+            #cmd4 = 'export LD_LIBRARY_PATH=/usr/lib/jvm/java-11-openjdk-amd64/lib/server/:$LD_LIBRARY_PATH;'
             #cmd5 = 'export LD_PRELOAD=/usr/local/lib/libhoard.so;'
-            cmd = cmd4 + cmd
+            cmd6 = 'sudo source /usr/local/etc/set_env.sh; echo $LD_PRELOAD; source .bashrc' #TODO: Or try sourcing .bashrc //Replace cmd4+cmd5..
+            cmd = cmd6 + cmd
             server_threads.append(run_remote_command_async(cmd,
                 config['emulab_user'], server_host, detach=False))
         else:
@@ -428,7 +430,8 @@ def copy_binaries_to_nfs(config, executor):
     futures = []
     for i in range(n):
         server_host = get_server_host(config, i)
-        run_remote_command_sync('mkdir %s' % os.path.join(config['base_remote_bin_directory_nfs'], config['bin_directory_name']), config['emulab_user'], server_host)
+        #run_remote_command_sync('mkdir %s' % config['base_remote_bin_directory_nfs'], config['emulab_user'], server_host)
+        run_remote_command_sync('mkdir -p %s' % os.path.join(config['base_remote_bin_directory_nfs'], config['bin_directory_name']), config['emulab_user'], server_host)
         if server_host not in SERVERS_SETUP:
             futures.append(executor.submit(copy_path_to_remote_host,
                 os.path.join(config['src_directory'],
@@ -437,7 +440,8 @@ def copy_binaries_to_nfs(config, executor):
         if not nfs_enabled:
             for j in range(config['client_nodes_per_server']):
                 client_host = get_client_host(config, i, j)
-                run_remote_command_sync('mkdir %s' % os.path.join(config['base_remote_bin_directory_nfs'], config['bin_directory_name']), config['emulab_user'], client_host)
+                #run_remote_command_sync('mkdir %s' % config['base_remote_bin_directory_nfs'], config['emulab_user'], client_host)
+                run_remote_command_sync('mkdir -p %s' % os.path.join(config['base_remote_bin_directory_nfs'], config['bin_directory_name']), config['emulab_user'], client_host)
                 if client_host not in SERVERS_SETUP:
                     futures.append(executor.submit(copy_path_to_remote_host,
                         os.path.join(config['src_directory'],

@@ -155,6 +155,14 @@ We recommend organizing all installs in a dedicated folder:
 1. `mkdir dependencies`
 2. `cd dependencies`
 
+#### Installing Hoard Allocator (optional) 
+`git clone https://github.com/emeryberger/Hoard`
+`cd src`
+`make`
+`sudo cp libhoard.so /usr/local/lib`
+`sudo echo 'export LD_PRELOAD=/usr/local/lib/libhoard.so' >> ~/.bashrc; source ~/.bashrc;` (once) or `export LD_PRELOAD=/usr/local/lib/libhoard.so` (everytime)
+`cd ..`
+
 #### Installing google test
 
 Download the library:
@@ -299,7 +307,7 @@ This completes all required dependencies for Basil, Tapir and TxHotstuff. To suc
 First, install Java open jdk 1.11.0 in /usr/lib/jvm and export your LD_LIBRARY_Path:
 
 1. `sudo apt-get install openjdk-11-jdk` Confirm that `java-11-openjdk-amd64` it is installed in /usr/lib/jvm  
-2. `export LD_LIBRARY_PATH=/usr/lib/jvm/java-1.11.0-openjdk-amd64/lib/server:$LD_LIBRARY_PATH`
+2. `sudo echo 'export LD_LIBRARY_PATH=/usr/lib/jvm/java-1.11.0-openjdk-amd64/lib/server:$LD_LIBRARY_PATH' >> ~/.bashrc; source ~/.bashrc` (once) or `export LD_LIBRARY_PATH=/usr/lib/jvm/java-1.11.0-openjdk-amd64/lib/server:$LD_LIBRARY_PATH` (everytime)
 3. `sudo ldconfig`
 
 If it is not installed in `/usr/lib/jvm` then source the `LD_LIBRARY_PATH` according to your install location and adjust the following lines in the Makefile with your path:
@@ -310,7 +318,6 @@ If it is not installed in `/usr/lib/jvm` then source the `LD_LIBRARY_PATH` accor
 - `LDFLAGS += -L/usr/lib/jvm/java-1.11.0-openjdk-amd64/lib/server -ljvm`  (adjust this)
 
 Afterwards, navigate to `/usr/lib/jvm/java-11-openjdk-amd64/conf/security/java.security`and comment out (or remove) the following line: `jdk.tls.disabledAlgorithms=SSLv3, TLSv1, RC4, DES, MD5withRSA, DH keySize < 1024 EC keySize < 224, 3DES_EDE_CBC, anon, NULL`
-
 
 ### Building binaries:
    
@@ -478,7 +485,7 @@ Additionally, you will have to install the following requisites:
 
 4. **Helper scripts**: 
 
-    Navigate to Pequin-Artifact/helper-scripts. Copy both these scripts (with the exact name) and place them in `/usr/local/etc` on the Cloudlab machine. Add execution permissions: `chmod +x disable_HT.sh; chmod +x turn_off_turbo.sh` The scripts are used at runtime by the experiments to disable hyperthreading and turbo respectively.
+    Navigate to Pequin-Artifact/helper-scripts. Copy all three scripts (with the exact name) and place them in `/usr/local/etc` on the Cloudlab machine. Add execution permissions: `chmod +x disable_HT.sh; chmod +x turn_off_turbo.sh; chmod +x set_env.sh` The scripts are used at runtime by the experiments to disable hyperthreading and turbo respectively, as well as to set environment variables for Hoard and Java (for BFTSmart).
     
 5. **Pre-Troubleshooting**:
 

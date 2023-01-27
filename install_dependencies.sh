@@ -30,6 +30,16 @@ read -p "Press enter to continue"
 mkdir dependencies
 cd dependencies
 
+#Optional: Hoard
+echo "Installing Hoard Allocator"
+echo ""
+git clone https://github.com/emeryberger/Hoard
+cd src
+make
+sudo cp libhoard.so /usr/local/lib
+sudo echo 'export LD_PRELOAD=/usr/local/lib/libhoard.so' >> ~/.bashrc
+export LD_PRELOAD=/usr/local/lib/libhoard.so
+
 #googletest
 echo "Installing googletest"
 echo ""
@@ -142,10 +152,14 @@ echo ""
 sudo apt-get install openjdk-11-jdk
 export LD_LIBRARY_PATH=/usr/lib/jvm/java-1.11.0-openjdk-amd64/lib/server:$LD_LIBRARY_PATH
 sudo ldconfig
+sudo echo 'export LD_LIBRARY_PATH=/usr/lib/jvm/java-1.11.0-openjdk-amd64/lib/server:$LD_LIBRARY_PATH' >> ~/.bashrc
 echo "$(tput setaf 2) TODO: SEE MANUAL INSTALLATION REQ BFT-SMART $(tput sgr0)"
 
 
+export LD_PRELOAD=/usr/local/lib/libhoard.so
+
 echo ""
+source ~/.bashrc
 echo "$(tput setaf 2) FINISHED INSTALLATION: SUCCESS $(tput sgr0)"
 
 
