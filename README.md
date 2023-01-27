@@ -155,7 +155,8 @@ We recommend organizing all installs in a dedicated folder:
 1. `mkdir dependencies`
 2. `cd dependencies`
 
-#### Installing Hoard Allocator (optional) 
+#### Installing Hoard Allocator
+`sudo apt-get install clang`
 `git clone https://github.com/emeryberger/Hoard`
 `cd src`
 `make`

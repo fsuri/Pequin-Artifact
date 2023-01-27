@@ -33,6 +33,7 @@ cd dependencies
 #Optional: Hoard
 echo "Installing Hoard Allocator"
 echo ""
+sudo apt-get install clang
 git clone https://github.com/emeryberger/Hoard
 cd src
 make
