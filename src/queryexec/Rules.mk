@@ -1,13 +1,11 @@
 d := $(dir $(lastword $(MAKEFILE_LIST)))
 
-SRCS += $(addprefix $(d), block_handle.cc block_info.cc buffer_manager.cc catalog_manager.cc file_handle.cc file_info.cc \
-		index_manager.cc interpreter.cc minidb_api.cc \
-		record_manager.cc sql_statement.cc)
+SRCS += $(addprefix $(d), SQLParser.cc SQLParserResult.cc sql/Expr.cc sql/CreateStatement.cc sql/PrepareStatement.cc sql/SQLStatement.cc sql/statements.cc util/sqlhelper.cc parser/bison_parser.cc parser/flex_lexer.cc)
 
 #PROTOS += $(addprefix $(d), queryprocess.proto)
 
-LIB-queryprocess := $(o)catalog_manager.o \
-	$(o)interpreter.o $(o)minidb_api.o $(o)sql_statement.o 
+LIB-queryprocess := $(o)SQLParserResult.o $(o)sql/Expr.o $(o)sql/SQLStatement.o $(o)sql/statements.o $(o)sql/CreateStatement.o $(o)sql/PrepareStatement.o $(o)util/sqlhelper.o
+LIB-queryprocess-flex := $(o)parser/flex_lexer.o
 
 
 #LIB-proto := $(o)pequin-proto.o $(o)query-proto.o
@@ -16,5 +14,7 @@ LIB-queryprocess := $(o)catalog_manager.o \
 
 #BINS += $(d)proto_bench
 
-#include $(d)tests/Rules.mk
+#include $(d)parser/Rules.mk
+#include $(d)sql/Rules.mk
+#include $(d)util/Rules.mk
 

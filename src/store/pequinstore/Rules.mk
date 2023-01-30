@@ -8,7 +8,7 @@ SRCS += $(addprefix $(d), client.cc shardclient.cc server.cc servertools.cc conc
 PROTOS += $(addprefix $(d), pequin-proto.proto)
 PROTOS += $(addprefix $(d), query-proto.proto)
 
-LIB-pequin-store := $(o)server.o $(o)servertools.o $(o)querysync-server.o $(o)concurrencycontrol.o $(LIB-queryprocess) $(LIB-latency) \
+LIB-pequin-store := $(o)server.o $(o)servertools.o $(o)querysync-server.o $(o)concurrencycontrol.o $(LIB-queryprocess) $(LIB-queryprocess-flex) $(LIB-latency) \
 	$(o)pequin-proto.o $(o)query-proto.o $(o)common.o $(LIB-crypto) $(LIB-batched-sigs) $(LIB-bft-tapir-config) \
 	$(LIB-configuration) $(LIB-store-common) $(LIB-transport) $(o)phase1validator.o \
 	$(o)localbatchsigner.o $(o)sharedbatchsigner.o $(o)basicverifier.o \

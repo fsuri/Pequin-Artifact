@@ -54,7 +54,8 @@
 #include "lib/batched_sigs.h"
 #include <valgrind/memcheck.h>
 
-#include "queryexec/interpreter.h"
+#include "queryexec/SQLParser.h"
+#include "queryexec/SQLParserResult.h"
 
 namespace pequinstore {
 
@@ -156,8 +157,8 @@ void Server::HandleQuery(const TransportAddress &remote, proto::QueryRequest &ms
     // 3) Parse Query
     // const std::string &query_cmd = query->query_cmd();
     // Timestamp ts(query->timestamp);
-    Interpreter itp;
-    itp.ExecSQL(query->query_cmd());
+    hsql::SQLParserResult result;
+    //hsql::SQLParser::parse(query->query_cmd(), &result);
 
     //TODO: Insert Hyrise parsing or whatever here...
     // SQL glue. How to execute from query plan object.

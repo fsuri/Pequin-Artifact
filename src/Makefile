@@ -50,10 +50,6 @@ LDFLAGS += $(LIBSECP256K1_LDFLAGS)
 #-lcrypto #need this? try out, somehow neither are necessary? what about mbits?
 LDFLAGS +=  -lssl -lcrypto -led25519_donna
 LDFLAGS += -ltbb #-lpthread
-# boost
-LDFLAGS += -lboost_filesystem -lboost_system -lboost_iostreams -lboost_serialization -lboost_thread -lboost_regex
-# readline
-LDFLAGS += -lreadline
 
 # Google test framework. This doesn't use pkgconfig
 GTEST_DIR := /usr/src/gtest-1.10.0/googletest
@@ -130,6 +126,8 @@ GTEST_SRCS :=
 # C_SRCS are the .c and .s files
 C_SRCS :=
 
+B_SRCS :=
+
 # PROTOS is the list of protobuf *.proto files
 PROTOS :=
 
@@ -162,6 +160,9 @@ include replication/common/Rules.mk
 include replication/vr/Rules.mk
 include replication/ir/Rules.mk
 include queryexec/Rules.mk
+#include queryexec/parser/Rules.mk
+#include queryexec/sql/Rules.mk
+#include queryexec/util/Rules.mk
 include store/common/Rules.mk
 include store/tapirstore/Rules.mk
 include store/strongstore/Rules.mk
@@ -216,7 +217,7 @@ $(PROTOSRCS) : .obj/gen/%.pb.cc: %.proto
 DEPFLAGS = -M -MF ${@:.o=.d} -MP -MT $@ -MG
 
 # $(call add-CFLAGS,$(TEST_SRCS),$(CHECK_CFLAGS))
-OBJS := $(S_SRCS:%.S=.obj/%.o) $(C_SRCS:%.c=.obj/%.o) $(SRCS:%.cc=.obj/%.o) $(TEST_SRCS:%.cc=.obj/%.o) $(GTEST_SRCS:%.cc=.obj/%.o)
+OBJS := $(S_SRCS:%.S=.obj/%.o) $(C_SRCS:%.c=.obj/%.o) $(SRCS:%.cc=.obj/%.o) $(B_SRCS:%.y=.obj/%.o) $(TEST_SRCS:%.cc=.obj/%.o) $(GTEST_SRCS:%.cc=.obj/%.o)
 
 define compile
 	@mkdir -p $(dir $@)
