@@ -156,13 +156,13 @@ We recommend organizing all installs in a dedicated folder:
 2. `cd dependencies`
 
 #### Installing Hoard Allocator
-`sudo apt-get install clang`
-`git clone https://github.com/emeryberger/Hoard`
-`cd src`
-`make`
-`sudo cp libhoard.so /usr/local/lib`
-`sudo echo 'export LD_PRELOAD=/usr/local/lib/libhoard.so' >> ~/.bashrc; source ~/.bashrc;` (once) or `export LD_PRELOAD=/usr/local/lib/libhoard.so` (everytime)
-`cd ..`
+1. `sudo apt-get install clang`
+2. `git clone https://github.com/emeryberger/Hoard`
+3. `cd src`
+4. `make`
+5. `sudo cp libhoard.so /usr/local/lib`
+6. `sudo echo 'export LD_PRELOAD=/usr/local/lib/libhoard.so' >> ~/.bashrc; source ~/.bashrc;` (once) or `export LD_PRELOAD=/usr/local/lib/libhoard.so` (everytime)
+7. `cd ..`
 
 #### Installing google test
 
