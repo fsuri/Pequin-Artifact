@@ -50,6 +50,10 @@ LDFLAGS += $(LIBSECP256K1_LDFLAGS)
 #-lcrypto #need this? try out, somehow neither are necessary? what about mbits?
 LDFLAGS +=  -lssl -lcrypto -led25519_donna
 LDFLAGS += -ltbb #-lpthread
+# boost
+LDFLAGS += -lboost_filesystem -lboost_system -lboost_iostreams -lboost_serialization -lboost_thread -lboost_regex -lboost_container
+# readline
+LDFLAGS += -lreadline
 
 # Google test framework. This doesn't use pkgconfig
 GTEST_DIR := /usr/src/gtest-1.10.0/googletest

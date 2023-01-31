@@ -56,6 +56,7 @@
 
 #include "queryexec/SQLParser.h"
 #include "queryexec/SQLParserResult.h"
+#include "queryexec/sql_translator.hpp"
 
 namespace pequinstore {
 
@@ -158,6 +159,8 @@ void Server::HandleQuery(const TransportAddress &remote, proto::QueryRequest &ms
     // const std::string &query_cmd = query->query_cmd();
     // Timestamp ts(query->timestamp);
     hsql::SQLParserResult result;
+    //auto result_node = hyrise::SQLTranslator{UseMvcc::No}.translate_parser_result(result).lqp_nodes.at(0);
+
     //hsql::SQLParser::parse(query->query_cmd(), &result);
 
     //TODO: Insert Hyrise parsing or whatever here...
