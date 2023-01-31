@@ -325,7 +325,7 @@ DEFINE_bool(indicus_replica_gossip, false, "use gossip between replicas to excha
 */
 DEFINE_bool(pequin_query_read_prepared, false, "allow query to read prepared values");
 DEFINE_bool(pequin_query_optimistic_txid, false, "use optimistic tx-id for sync protocol");
-DEFINE_bool(pequin_query_cache_read_set, true, "cache query read set at replicas");
+DEFINE_bool(pequin_query_cache_read_set, false, "cache query read set at replicas");
 
 DEFINE_bool(pequin_query_merge_active_at_client, true, "merge active query read sets client-side");
 
@@ -695,7 +695,7 @@ int main(int argc, char **argv) {
       server = new pequinstore::Server(config, FLAGS_group_idx,
                                         FLAGS_replica_idx, FLAGS_num_shards, FLAGS_num_groups, tport,
                                         &keyManager, params, timeDelta, pequinOCCType, part,
-                                        FLAGS_indicus_sig_batch_timeout);
+                                        FLAGS_indicus_sig_batch_timeout); //TODO: Move to params.
       break;
   }
   case PROTO_INDICUS: {

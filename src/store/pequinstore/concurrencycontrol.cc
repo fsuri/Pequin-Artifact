@@ -368,6 +368,7 @@ proto::ConcurrencyControl::Result Server::mergeTxReadSets(const ReadSet *&readSe
     try {
     //add mergedreadSet to tx - return success
     std::sort(mergedReadSet->mutable_read_set()->begin(), mergedReadSet->mutable_read_set()->end(), sortReadSetByKey);
+    mergedReadSet->mutable_read_set()->erase(std::unique(mergedReadSet->mutable_read_set()->begin(), mergedReadSet->mutable_read_set()->end(), equalReadMsg), mergedReadSet->mutable_read_set()->end()); //Erase duplicates...
     }
     catch(...) {
       //restoreTxn(txn); //TODO: Maybe don't delete merged set -- we do want to use it for Commit again. //TODO: Maybe we cannot store mergedSet inside read after all? What if another thread tries to use Tx in parallel mid modification..

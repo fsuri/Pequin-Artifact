@@ -44,6 +44,12 @@ KeyManager::KeyManager(const std::string &keyPath, crypto::KeyType t, bool preco
 }
 
 KeyManager::~KeyManager() {
+  for(auto [id, pubKey]: publicKeys){
+    free(pubKey);
+  }
+  for(auto [id, privKey]: privateKeys){
+    free(privKey);
+  }
 }
 
 crypto::PubKey* KeyManager::GetPublicKey(uint64_t id) {

@@ -401,7 +401,7 @@ DEFINE_validator(pequin_sync_messages, &ValidateQueryMessages);
 
 DEFINE_bool(pequin_query_read_prepared, false, "allow query to read prepared values");
 DEFINE_bool(pequin_query_optimistic_txid, false, "use optimistic tx-id for sync protocol");
-DEFINE_bool(pequin_query_cache_read_set, true, "cache query read set at replicas"); // Send syncMessages to all if read set caching is enabled -- but still only sync_messages many replicas are tasked to execute and reply.
+DEFINE_bool(pequin_query_cache_read_set, false, "cache query read set at replicas"); // Send syncMessages to all if read set caching is enabled -- but still only sync_messages many replicas are tasked to execute and reply.
 
 DEFINE_bool(pequin_query_merge_active_at_client, true, "merge active query read sets client-side");
 
@@ -694,6 +694,7 @@ Transport *tport;
 transport::Configuration *config;
 KeyManager *keyManager;
 Partitioner *part;
+KeySelector *keySelector;
 
 void Cleanup(int signal);
 void FlushStats();
@@ -891,6 +892,7 @@ int main(int argc, char **argv) {
   int replica;
   iss >> replica;
   while (!iss.fail()) {
+    std::cerr << "Next closest replica: " << replica << std::endl;
     closestReplicas.push_back(replica);
     iss >> replica;
   }
@@ -938,8 +940,6 @@ int main(int argc, char **argv) {
 
   Debug("transport protocol used: %d",trans);
 
-
-  KeySelector *keySelector;
   switch (keySelectionMode) {
     case KEYS_UNIFORM:
       keySelector = new UniformKeySelector(keys);
@@ -1582,6 +1582,7 @@ void Cleanup(int signal) {
   FlushStats();
   delete config;
   delete keyManager;
+  delete keySelector;
   for (auto i : threads) {
     i->join();
     delete i;

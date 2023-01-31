@@ -51,7 +51,7 @@ ShardClient::ShardClient(transport::Configuration *config, Transport *transport,
 
   if (closestReplicas_.size() == 0) {
     for  (int i = 0; i < config->n; ++i) {
-      closestReplicas.push_back((i + client_id) % config->n);
+      closestReplicas.push_back((i + client_id) % config->n); //Create a load balanced mapping (Note: works best if client id's are consecutive; worse if fixed multiplicatives or exponents)
       // Debug("i: %d; client_id: %d", i, client_id);
       // Debug("Calculations: %d", (i + client_id) % config->n);
     }

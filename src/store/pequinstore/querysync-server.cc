@@ -115,11 +115,19 @@ void Server::HandleQuery(const TransportAddress &remote, proto::QueryRequest &ms
     //Buffer Query content and timestamp
     queryMetaDataMap::accessor q;
     bool newQuery = queryMetaData.insert(q, queryId);
-    if(newQuery){
+    if(newQuery){ 
         q->second = new QueryMetaData(query->query_cmd(), query->timestamp(), remote, msg.req_id(), query->query_seq_num(), query->client_id());
         //Note: Retry will not contain query_cmd again.
 
     }
+
+    //If not designated for reply, return right after creating query_md object. //TODO: In this case shouldn't send Query separately at all -> Send it together with Sync and add to q_md then.
+    if(!msg.designated_for_reply()){
+        if(params.mainThreadDispatching && (!params.dispatchMessageReceive || params.query_params.parallel_queries)) FreeQueryRequestMessage(&msg);
+        if(params.query_params.signClientQueries) delete query;
+        return;
+    }
+
     QueryMetaData *query_md = q->second;
     if(query->retry_version() > query_md->retry_version){
         query_md->req_id = msg.req_id();
@@ -181,14 +189,17 @@ void Server::HandleQuery(const TransportAddress &remote, proto::QueryRequest &ms
 
     //FIXME: Toy insert -- real tx-ids are cryptographic hashes of length 256bit = 32 byte.
     // std::string test_txn_id = "[test_id_of_length_32 bytes----]";
-    // local_txns.insert(test_txn_id);
     // proto::CommittedProof *test_proof = new proto::CommittedProof();
-    // committed[test_txn_id] = test_proof;  //this should allow other replicas to find it during sync.; but validation of commit proof will fail. Note: Will probably fail Panic because fields not set.
-
+    // local_txns.insert(test_txn_id);
+    //committed[test_txn_id] = test_proof;  //this should allow other replicas to find it during sync.; but validation of commit proof will fail. Note: Will probably fail Panic because fields not set.
+    
+    //TESTING.
     for(auto const&[tx_id, proof] : committed){
         local_txns.insert(tx_id);
          Debug("Proposing txn_id [%s] for local Query Sync State[%lu:%lu:%d]", BytesToHex(tx_id, 16).c_str(), query->query_seq_num(), query->client_id(), query->retry_version());
     }
+    //committed[test_txn_id] = test_proof;  //this should allow other replicas to find it during sync.; but validation of commit proof will fail. Note: Will probably fail Panic because fields not set.
+
     
     //query_md->local_ss.insert("test_id_of_length_32 bytes------");
 
@@ -314,14 +325,27 @@ void Server::HandleSync(const TransportAddress &remote, proto::SyncClientProposa
     //For now, can also index via (client id, query seq_num) pair. Just define an ordering function for query id pair.
      //TODO:  //if already issued query reply, reply with cached val; else if new, or retry set, re-compute
     queryMetaDataMap::accessor q;
-    bool hasQuery = queryMetaData.find(q, *queryId);
-    if(!hasQuery){
-        Panic("No available query md"); //TODO: FIXME: start a waiter... (unless HandleQuery and HandleSync are on mainthread)
+    if(queryMetaData.insert(q, *queryId)){
+        q->second = new QueryMetaData(merged_ss->query_seq_num, merged_ss->client_id);
+    }
+    QueryMetaData *query_md = q->second;    
+
+    if(!query_md->has_query){
+        //set waiting. //TODO: FIXME: Store merged_ss and free msg. (release from msg) // Split HandleSync into two parts- Handle and Process.
+        query_md->waiting_sync = 
         return;
     }
-    QueryMetaData *query_md = q->second;
+    // bool hasQuery = queryMetaData.find(q, *queryId);
+    // if(!hasQuery){
+    //     Panic("No available query md"); //TODO: FIXME: start a waiter... (unless HandleQuery and HandleSync are on mainthread) --> Replace this call with Insert: Check for flag "has_query"; 
+    //                                                                                                                          ///if not, set waiting bool and return. In HandleQuery, if set_waiting true return and call HandleSync
+    //     return;
+    // }
+  
     query_md->designated_for_reply = msg.designated_for_reply();
 
+}
+void Server::ProcessSync(//TODO: pass remote, merged_ss; release msg already...)
 
     if(merged_ss->retry_version() > query_md->retry_version){ 
         query_md->req_id = msg.req_id();
@@ -425,7 +449,13 @@ void Server::HandleSync(const TransportAddress &remote, proto::SyncClientProposa
 
      for(auto const &[replica_idx, replica_req] : replica_requests){
         if(replica_idx == idx) Panic("Should never request from self");
-      
+
+        // if(rcv_count == 0){ //TESTING: Ensure we only send sync request once 2 queries are waiting.
+        //      std::cerr << "WAITING FOR SECOND QUERY" << std::endl;
+        //     rcv_count++;
+        //     return;
+        // }
+        //  std::cerr << "REQUESTING FOR BOTH QUERIES" << std::endl;
         transport->SendMessageToReplica(this, groupIdx, replica_idx, replica_req);
         Debug("Replica %d Request Data Sync from replica %d", replica_req.replica_idx(), replica_idx); 
         // for(auto const& txn : replica_req.missing_txn()){
@@ -759,6 +789,12 @@ void Server::UpdateWaitingQueries(const std::string &txnDigest){
     //waiting queries are registered in map from txn-id to query id:
 
      Debug("Checking whether can wake all queries waiting on txn_id %s", BytesToHex(txnDigest, 16).c_str());
+     //Notes on Concurrency liveness:
+        //HandleSync will first lock q (queryMetaData) and then try to lock w (waitingQueries) in an effort to register a waitingQuery
+        //UpdateWaitingQueries will first lock w (waitingQueries) and then try to lock q (queryMetaData) to wake waitingQueries
+        //This does not cause a lock order inversion, because UpdateWaitingQueries only attempts to lock q if waitingQueries contains a registered transaction; which is only possible if HandleSync released both q and w
+        //Note that it is guaranteed for a waitingQuery to wake up, because whenever HandleSync registers a waitingQuery, it also sends out a new RequestTx message. Upon receiving a reply, UpdateWaitingQueries will be called.
+            //This is because a waiting query is registered and RequestTX is sent out even if the tx is locally committed after checking for missing, but before registering.
 
      //1) find queries that were waiting on this txn-id
     waitingQueryMap::accessor w;
@@ -837,7 +873,7 @@ void Server::HandleSyncCallback(QueryMetaData *query_md, const std::string &quer
         *read->mutable_readtime() = ts;
         //TODO: Add more keys; else I cant test order.
     }
-    std::string dummy_result = "success";
+    std::string dummy_result = "success" + std::to_string(query_md->query_seq_num);
     query_md->has_result = true; 
 
     //Blackbox might do multi-replica coordination to compute result and full read-set (though read set can actually be reported directly by each shard...)

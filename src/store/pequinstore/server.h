@@ -209,7 +209,11 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
 
     struct QueryMetaData {
       QueryMetaData(const std::string &query_cmd, const TimestampMessage &timestamp, const TransportAddress &remote, const uint64_t &req_id, const uint64_t &query_seq_num, const uint64_t &client_id): 
-         failure(false), retry_version(0UL), started_sync(false), has_result(false), query_cmd(query_cmd), ts(timestamp), original_client(remote.clone()), req_id(req_id), query_seq_num(query_seq_num), client_id(client_id), is_waiting(false) {
+         failure(false), retry_version(0UL), has_query(false), started_sync(false), has_result(false), query_cmd(query_cmd), ts(timestamp), original_client(remote.clone()), req_id(req_id), query_seq_num(query_seq_num), client_id(client_id), is_waiting(false) {
+          //queryResult = new proto::QueryResult();
+          queryResultReply = new proto::QueryResultReply(); //TODO: Replace with GetUnused.
+      }
+       QueryMetaData(const uint64_t &query_seq_num, const uint64_t &client_id): failure(false), retry_version(0UL), has_query(false), started_sync(false), has_result(false), query_seq_num(query_seq_num), client_id(client_id), is_waiting(false) {
           //queryResult = new proto::QueryResult();
           queryResultReply = new proto::QueryResultReply(); //TODO: Replace with GetUnused.
       }
@@ -234,10 +238,12 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
       uint64_t client_id;
 
        Timestamp ts;
+      bool has_query;
       std::string query_cmd; //query to execute
 
       bool designated_for_reply; //whether to reply to client or not.
       uint64_t retry_version;            //query retry version (0 for original)
+      proto::SyncClientProposal *waiting_sync; //a waiting sync msg.
       bool started_sync;  //whether already received/processed snapshot for given retry version.
      
                             

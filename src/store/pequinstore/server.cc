@@ -1424,10 +1424,10 @@ void Server::Prepare(const std::string &txnDigest,
   auto p = prepared.insert(a, std::make_pair(txnDigest, std::make_pair(
           Timestamp(txn.timestamp()), ongoingTxn)));
 
-  Debug("PREPARE: TESTING MERGED READ");
-  for(auto &read : readSet){
-      Debug("[group Merged] Read key %s with version [%lu:%lu]", read.key().c_str(), read.readtime().timestamp(), read.readtime().id());
-  }
+  // Debug("PREPARE: TESTING MERGED READ");
+  // for(auto &read : readSet){
+  //     Debug("[group Merged] Read key %s with version [%lu:%lu]", read.key().c_str(), read.readtime().timestamp(), read.readtime().id());
+  // }
 
 
   for (const auto &read : readSet) {
@@ -1517,10 +1517,10 @@ void Server::UpdateCommittedReads(proto::Transaction *txn, const std::string &tx
     //Once subscription on queries wakes up, it will call UpdatecommittedReads again, at which point mergeReadSet will return the full mergedReadSet 
     //TODO: For eventually consistent state may want to explicitly sync on the waiting queries -- not necessary for safety though
               
-    Debug("COMMIT: TESTING MERGED READ");
-    for(auto &read : *readSet){
-        Debug("[group Merged] Read key %s with version [%lu:%lu]", read.key().c_str(), read.readtime().timestamp(), read.readtime().id());
-    }
+    // Debug("COMMIT: TESTING MERGED READ");
+    // for(auto &read : *readSet){
+    //     Debug("[group Merged] Read key %s with version [%lu:%lu]", read.key().c_str(), read.readtime().timestamp(), read.readtime().id());
+    // }
 
     for (const auto &read : *readSet) {
     if (!IsKeyOwned(read.key())) {

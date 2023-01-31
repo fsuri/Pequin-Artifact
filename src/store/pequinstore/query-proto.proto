@@ -17,7 +17,7 @@ message Query {
    optional uint64 query_manager = 5;
    //TODO: Needs to include involved groups?
    required uint64 retry_version = 6; //Should go into Query, so that it is signed as well. (thus it is only proposable by original client); but not include din ID hash
-  
+   required bool designated_for_reply = 7;
 
 }
 
@@ -139,6 +139,7 @@ message SyncClientProposal {
  required bool designated_for_reply = 4; //designate whether this replica should execute and reply, or just sync, execute, and cache read set.
  
  optional bool query_managager = 5; // designate this shard as tx manager to coordinate execution and to reply.
+ optional Query query = 6; //In case we didn't send it before.
 }
 
 message RequestMissingTxns {

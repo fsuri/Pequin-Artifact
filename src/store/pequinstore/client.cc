@@ -57,6 +57,7 @@ Client::Client(transport::Configuration *config, uint64_t id, int nShards,
     failureEnabled(false), failureActive(false), faulty_counter(0UL),
     consecutiveMax(consecutiveMax) {
 
+
   Debug("Initializing Indicus client with id [%lu] %lu", client_id, nshards);
   std::cerr<< "P1 Decision Timeout: " <<phase1DecisionTimeout<< std::endl;
   if(params.injectFailure.enabled) stats.Increment("total_byz_clients", 1);
