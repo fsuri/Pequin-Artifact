@@ -55,7 +55,7 @@
 #include <valgrind/memcheck.h>
 
 #include "queryexec/types.hpp"
-//#include "queryexec/SQLParser.h"
+#include "queryexec/SQLParser.h"
 #include "queryexec/SQLParserResult.h"
 #include "queryexec/sql_translator.hpp"
 //#include "queryexec/types.hpp"
@@ -162,7 +162,7 @@ void Server::HandleQuery(const TransportAddress &remote, proto::QueryRequest &ms
     // Timestamp ts(query->timestamp);
     hsql::SQLParserResult result;
 
-    //hsql::SQLParser::parse(query->query_cmd(), &result);
+    hsql::SQLParser::parse(query->query_cmd(), &result);
     hyrise::SQLTranslator translator(hyrise::UseMvcc::No);
     auto result_node = translator.translate_parser_result(result).lqp_nodes.at(0);
 
