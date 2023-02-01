@@ -3,7 +3,7 @@
 #include <sstream>
 
 #include <boost/container_hash/hash.hpp>
-#include "resolve_type.hpp"
+//#include "resolve_type.hpp"
 
 namespace hyrise {
 

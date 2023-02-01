@@ -4,7 +4,7 @@
 
 #include <boost/container_hash/hash.hpp>
 
-//#include "expression/evaluation/expression_evaluator.hpp"
+#include "evaluation/expression_evaluator.hpp"
 
 namespace hyrise {
 

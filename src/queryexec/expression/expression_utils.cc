@@ -4,18 +4,18 @@
 #include <queue>
 #include <sstream>
 
-#include "expression_functional.hpp"
+//#include "expression_functional.hpp"
 #include "logical_expression.hpp"
-#include "lossy_cast.hpp"
+//#include "lossy_cast.hpp"
 #include "lqp_column_expression.hpp"
-#include "lqp_subquery_expression.hpp"
-#include "operators/abstract_operator.hpp"
-#include "pqp_subquery_expression.hpp"
+//#include "lqp_subquery_expression.hpp"
+#include "../operators/abstract_operator.hpp"
+//#include "pqp_subquery_expression.hpp"
 #include "value_expression.hpp"
 
 namespace hyrise {
 
-using namespace expression_functional;  // NOLINT(build/namespaces)
+//using namespace expression_functional;  // NOLINT(build/namespaces)
 
 bool expressions_equal(const std::vector<std::shared_ptr<AbstractExpression>>& expressions_a,
                        const std::vector<std::shared_ptr<AbstractExpression>>& expressions_b) {
@@ -191,7 +191,7 @@ bool expression_evaluable_on_lqp(const std::shared_ptr<AbstractExpression>& expr
       return ExpressionVisitation::DoNotVisitArguments;
     }
 
-    if (AggregateExpression::is_count_star(*sub_expression)) {
+    /*if (AggregateExpression::is_count_star(*sub_expression)) {
       // COUNT(*) needs special treatment. Because its argument is the invalid column id, it is not part of any node's
       // output_expressions. Check if sub_expression is COUNT(*) - if yes, ignore the INVALID_COLUMN_ID and verify that
       // its original_node is part of lqp.
@@ -210,7 +210,7 @@ bool expression_evaluable_on_lqp(const std::shared_ptr<AbstractExpression>& expr
       });
 
       return ExpressionVisitation::DoNotVisitArguments;
-    }
+    }*/
 
     if (sub_expression->type == ExpressionType::LQPColumn) {
       evaluable = false;
@@ -268,11 +268,11 @@ void expression_set_parameters(const std::shared_ptr<AbstractExpression>& expres
       return ExpressionVisitation::DoNotVisitArguments;
     }
 
-    if (const auto pqp_subquery_expression = std::dynamic_pointer_cast<PQPSubqueryExpression>(sub_expression);
+    /*if (const auto pqp_subquery_expression = std::dynamic_pointer_cast<PQPSubqueryExpression>(sub_expression);
         pqp_subquery_expression) {
       pqp_subquery_expression->pqp->set_parameters(parameters);
       return ExpressionVisitation::DoNotVisitArguments;
-    }
+    }*/
 
     return ExpressionVisitation::VisitArguments;
   });
@@ -285,7 +285,7 @@ void expressions_set_parameters(const std::vector<std::shared_ptr<AbstractExpres
   }
 }
 
-void expression_set_transaction_context(const std::shared_ptr<AbstractExpression>& expression,
+/*void expression_set_transaction_context(const std::shared_ptr<AbstractExpression>& expression,
                                         const std::weak_ptr<TransactionContext>& transaction_context) {
   visit_expression(expression, [&](auto& sub_expression) {
     if (sub_expression->type != ExpressionType::PQPSubquery) {
@@ -298,22 +298,22 @@ void expression_set_transaction_context(const std::shared_ptr<AbstractExpression
 
     return ExpressionVisitation::DoNotVisitArguments;
   });
-}
+}*/
 
-void expressions_set_transaction_context(const std::vector<std::shared_ptr<AbstractExpression>>& expressions,
+/*void expressions_set_transaction_context(const std::vector<std::shared_ptr<AbstractExpression>>& expressions,
                                          const std::weak_ptr<TransactionContext>& transaction_context) {
   for (const auto& expression : expressions) {
     expression_set_transaction_context(expression, transaction_context);
   }
-}
+}*/
 
 bool expression_contains_placeholder(const std::shared_ptr<AbstractExpression>& expression) {
   auto placeholder_found = false;
 
-  visit_expression(expression, [&](const auto& sub_expression) {
+  /*visit_expression(expression, [&](const auto& sub_expression) {
     placeholder_found |= std::dynamic_pointer_cast<PlaceholderExpression>(sub_expression) != nullptr;
     return !placeholder_found ? ExpressionVisitation::VisitArguments : ExpressionVisitation::DoNotVisitArguments;
-  });
+  });*/
 
   return placeholder_found;
 }
@@ -340,7 +340,7 @@ std::optional<AllTypeVariant> expression_get_value_or_parameter(const AbstractEx
     return static_cast<const ValueExpression&>(expression).value;
   }
 
-  if (expression.type == ExpressionType::Cast) {
+  /*if (expression.type == ExpressionType::Cast) {
     const auto& cast_expression = static_cast<const CastExpression&>(expression);
     Assert(expression.data_type() != DataType::Null, "Cast as NULL is undefined");
     // More complicated casts  should be resolved by ExpressionEvaluator.
@@ -366,7 +366,7 @@ std::optional<AllTypeVariant> expression_get_value_or_parameter(const AbstractEx
       }
     });
     return result;
-  }
+  }*/
 
   return std::nullopt;
 }

@@ -1,7 +1,7 @@
 #include "lqp_utils.hpp"
 
 #include "../expression/abstract_expression.hpp"
-#include "../expression/expression_functional.hpp"
+//#include "../expression/expression_functional.hpp"
 #include "../expression/expression_utils.hpp"
 #//include "expression/lqp_subquery_expression.hpp"
 //#include "logical_query_plan/change_meta_table_node.hpp"
@@ -17,7 +17,7 @@
 namespace {
 
 using namespace hyrise;                         // NOLINT(build/namespaces)
-using namespace hyrise::expression_functional;  // NOLINT(build/namespaces)
+//using namespace hyrise::expression_functional;  // NOLINT(build/namespaces)
 
 void lqp_create_node_mapping_impl(LQPNodeMapping& mapping, const std::shared_ptr<AbstractLQPNode>& lhs,
                                   const std::shared_ptr<AbstractLQPNode>& rhs) {

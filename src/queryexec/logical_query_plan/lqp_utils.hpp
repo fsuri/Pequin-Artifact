@@ -245,8 +245,8 @@ ExpressionUnorderedSet find_column_expressions(const AbstractLQPNode& lqp_node, 
  * @return True, if there is unique constraint in the given set of @param unique_constraints matching the given
  *         set of expressions. A unique constraint matches if it covers a subset of @param expressions.
  */
-bool contains_matching_unique_constraint(const std::shared_ptr<LQPUniqueConstraints>& unique_constraints,
-                                         const ExpressionUnorderedSet& expressions);
+/*bool contains_matching_unique_constraint(const std::shared_ptr<LQPUniqueConstraints>& unique_constraints,
+                                         const ExpressionUnorderedSet& expressions);*/
 
 /**
  * @return A set of FDs, derived from the given @param unique_constraints and based on the output expressions of the

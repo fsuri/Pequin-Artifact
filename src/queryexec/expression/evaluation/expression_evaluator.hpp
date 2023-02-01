@@ -5,12 +5,12 @@
 
 #include <boost/variant.hpp>
 
-#include "all_type_variant.hpp"
-#include "expression/logical_expression.hpp"
-#include "expression/pqp_subquery_expression.hpp"
+#include "../../all_type_variant.hpp"
+#include "../logical_expression.hpp"
+//#include "expression/pqp_subquery_expression.hpp"
 #include "expression_result.hpp"
-#include "null_value.hpp"
-#include "types.hpp"
+#include "../../null_value.hpp"
+#include "../../types.hpp"
 
 namespace hyrise {
 
@@ -52,8 +52,8 @@ class ExpressionEvaluator final {
   // Performance Hack:
   //   For PQPSubqueryExpressions that are not correlated (i.e., that have no parameters), we pass previously
   //   calculated results into the per-chunk evaluator so that they are only evaluated once, not per-chunk.
-  using UncorrelatedSubqueryResults =
-      std::unordered_map<std::shared_ptr<AbstractOperator>, std::shared_ptr<const Table>>;
+  /*using UncorrelatedSubqueryResults =
+      std::unordered_map<std::shared_ptr<AbstractOperator>, std::shared_ptr<const Table>>;*/
 
   // For Expressions that do not reference any columns (e.g. in the LIMIT clause)
   ExpressionEvaluator() = default;
@@ -63,11 +63,11 @@ class ExpressionEvaluator final {
    * @param uncorrelated_subquery_results  Results from pre-computed uncorrelated selects, so they do not need to be
    *                                     evaluated for every chunk. Solely for performance.
    */
-  ExpressionEvaluator(const std::shared_ptr<const Table>& table, const ChunkID chunk_id,
-                      const std::shared_ptr<const UncorrelatedSubqueryResults>& uncorrelated_subquery_results = {});
+  /*ExpressionEvaluator(const std::shared_ptr<const Table>& table, const ChunkID chunk_id,
+                      const std::shared_ptr<const UncorrelatedSubqueryResults>& uncorrelated_subquery_results = {});*/
 
-  std::shared_ptr<BaseValueSegment> evaluate_expression_to_segment(const AbstractExpression& expression);
-  RowIDPosList evaluate_expression_to_pos_list(const AbstractExpression& expression);
+  //std::shared_ptr<BaseValueSegment> evaluate_expression_to_segment(const AbstractExpression& expression);
+  //RowIDPosList evaluate_expression_to_pos_list(const AbstractExpression& expression);
 
   template <typename Result>
   std::shared_ptr<ExpressionResult<Result>> evaluate_expression_to_result(const AbstractExpression& expression);
@@ -79,12 +79,12 @@ class ExpressionEvaluator final {
    *  - This utility function only executes the given PQPs and gathers their results.
    *  - The caller has to register and deregister for consumption at the PQPs. For reference, see abstract_operator.hpp
    */
-  static std::shared_ptr<UncorrelatedSubqueryResults> populate_uncorrelated_subquery_results_cache(
-      const std::vector<std::shared_ptr<PQPSubqueryExpression>>& expressions);
+  /*static std::shared_ptr<UncorrelatedSubqueryResults> populate_uncorrelated_subquery_results_cache(
+      const std::vector<std::shared_ptr<PQPSubqueryExpression>>& expressions);*/
 
  private:
-  template <typename Result>
-  std::shared_ptr<ExpressionResult<Result>> _evaluate_arithmetic_expression(const ArithmeticExpression& expression);
+  /*template <typename Result>
+  std::shared_ptr<ExpressionResult<Result>> _evaluate_arithmetic_expression(const ArithmeticExpression& expression);*/
 
   template <typename Result>
   std::shared_ptr<ExpressionResult<Result>> _evaluate_logical_expression(const LogicalExpression& expression);
@@ -97,7 +97,7 @@ class ExpressionEvaluator final {
   std::shared_ptr<ExpressionResult<Result>> _evaluate_binary_predicate_expression(
       const BinaryPredicateExpression& expression);
 
-  template <typename Result>
+  /*template <typename Result>
   std::shared_ptr<ExpressionResult<Result>> _evaluate_like_expression(const BinaryPredicateExpression& expression);
 
   template <typename Result>
@@ -133,15 +133,15 @@ class ExpressionEvaluator final {
   std::shared_ptr<ExpressionResult<Result>> _evaluate_function_expression(const FunctionExpression& expression);
 
   template <typename Result>
-  std::shared_ptr<ExpressionResult<Result>> _evaluate_extract_expression(const ExtractExpression& extract_expression);
+  std::shared_ptr<ExpressionResult<Result>> _evaluate_extract_expression(const ExtractExpression& extract_expression);*/
 
   template <typename Result>
   std::shared_ptr<ExpressionResult<Result>> _evaluate_unary_minus_expression(
       const UnaryMinusExpression& unary_minus_expression);
 
-  template <typename Result, typename Functor>
+  /*template <typename Result, typename Functor>
   std::shared_ptr<ExpressionResult<Result>> _evaluate_extract_component(const ExpressionResult<pmr_string>& from_result,
-                                                                        const Functor extract_component);
+                                                                        const Functor extract_component);*/
 
   template <typename Result>
   std::shared_ptr<ExpressionResult<Result>> _evaluate_exists_expression(const ExistsExpression& exists_expression);
@@ -156,7 +156,7 @@ class ExpressionEvaluator final {
   std::shared_ptr<ExpressionResult<Result>> _evaluate_binary_with_functor_based_null_logic(
       const AbstractExpression& left_expression, const AbstractExpression& right_expression);
 
-  template <typename Functor>
+  /*template <typename Functor>
   void _resolve_to_expression_result_view(const AbstractExpression& expression, const Functor& functor);
 
   template <typename Functor>
@@ -168,13 +168,13 @@ class ExpressionEvaluator final {
                                       const AbstractExpression& right_expression, const Functor& functor);
 
   template <typename Functor>
-  void _resolve_to_expression_result(const AbstractExpression& expression, const Functor& functor);
+  void _resolve_to_expression_result(const AbstractExpression& expression, const Functor& functor);*/
 
   /**
    * Compute the number of rows that any kind expression produces, given the number of rows in its parameters
    */
-  template <typename... RowCounts>
-  static ChunkOffset _result_size(const RowCounts... row_counts);
+  /*template <typename... RowCounts>
+  static ChunkOffset _result_size(const RowCounts... row_counts);*/
 
   /**
    * "Default null logic" means: if one of the arguments of an operation is NULL, the result is NULL
@@ -184,28 +184,28 @@ class ExpressionEvaluator final {
    */
   static pmr_vector<bool> _evaluate_default_null_logic(const pmr_vector<bool>& left, const pmr_vector<bool>& right);
 
-  void _materialize_segment_if_not_yet_materialized(const ColumnID column_id);
+  //void _materialize_segment_if_not_yet_materialized(const ColumnID column_id);
 
   std::shared_ptr<ExpressionResult<pmr_string>> _evaluate_substring(
       const std::vector<std::shared_ptr<AbstractExpression>>& arguments);
   std::shared_ptr<ExpressionResult<pmr_string>> _evaluate_concatenate(
       const std::vector<std::shared_ptr<AbstractExpression>>& arguments);
 
-  template <typename Result>
+  /*template <typename Result>
   static std::vector<std::shared_ptr<ExpressionResult<Result>>> _prune_tables_to_expression_results(
-      const std::vector<std::shared_ptr<const Table>>& tables);
+      const std::vector<std::shared_ptr<const Table>>& tables);*/
 
-  std::shared_ptr<const Table> _table;
-  std::shared_ptr<const Chunk> _chunk;
-  const ChunkID _chunk_id;
-  size_t _output_row_count{1};
+  //std::shared_ptr<const Table> _table;
+  //std::shared_ptr<const Chunk> _chunk;
+  //const ChunkID _chunk_id;
+  //size_t _output_row_count{1};
 
   // One entry for each segment in the _chunk, may be nullptr if the segment hasn't been materialized
-  std::vector<std::shared_ptr<BaseExpressionResult>> _segment_materializations;
+  //std::vector<std::shared_ptr<BaseExpressionResult>> _segment_materializations;
 
   // Optionally, uncorrelated selects can be evaluated by the caller and passed in to the evaluator. This way, they
   // do not have to be executed multiple times by different evaluators
-  const std::shared_ptr<const UncorrelatedSubqueryResults> _uncorrelated_subquery_results;
+  //const std::shared_ptr<const UncorrelatedSubqueryResults> _uncorrelated_subquery_results;
 
   // Some expressions can be reused, either in the same result column (SELECT (a+3)*(a+3)), or across columns
   // (TPC-H Q1)

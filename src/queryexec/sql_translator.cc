@@ -70,13 +70,13 @@ namespace {
 
 using namespace std::string_literals;           // NOLINT(build/namespaces)
 using namespace hyrise;                         // NOLINT(build/namespaces)
-using namespace hyrise::expression_functional;  // NOLINT(build/namespaces)
+//using namespace hyrise::expression_functional;  // NOLINT(build/namespaces)
 
-const std::unordered_map<hsql::OperatorType, ArithmeticOperator> hsql_arithmetic_operators = {
+/*const std::unordered_map<hsql::OperatorType, ArithmeticOperator> hsql_arithmetic_operators = {
     {hsql::kOpPlus, ArithmeticOperator::Addition},           {hsql::kOpMinus, ArithmeticOperator::Subtraction},
     {hsql::kOpAsterisk, ArithmeticOperator::Multiplication}, {hsql::kOpSlash, ArithmeticOperator::Division},
     {hsql::kOpPercentage, ArithmeticOperator::Modulo},
-};
+};*/
 
 const std::unordered_map<hsql::OperatorType, LogicalOperator> hsql_logical_operators = {
     {hsql::kOpAnd, LogicalOperator::And}, {hsql::kOpOr, LogicalOperator::Or}};
@@ -153,8 +153,8 @@ const std::unordered_map<hsql::DataType, DataType> supported_hsql_data_types = {
   const auto [left_in_left, right_in_left] = find_predicate_in_input(left_input);
   const auto [left_in_right, right_in_right] = find_predicate_in_input(right_input);
   return (left_in_left && right_in_right) || (right_in_left && left_in_right);
-}
-}  // namespace*/
+}*/
+}  // namespace
 
 namespace hyrise {
 
@@ -266,10 +266,10 @@ std::shared_ptr<AbstractLQPNode> SQLTranslator::_translate_select_statement(cons
     _from_clause_result = _translate_table_ref(*select.fromTable);
     _current_lqp = _from_clause_result->lqp;
     _sql_identifier_resolver = _from_clause_result->sql_identifier_resolver;
-  } else {
+  } /*else {
     _current_lqp = std::make_shared<DummyTableNode>();
     _sql_identifier_resolver = std::make_shared<SQLIdentifierResolver>();
-  }
+  }*/
 
   // Translate SELECT list (to retrieve aliases)
   //const auto select_list_elements = _translate_select_list(*select.selectList);
@@ -295,10 +295,10 @@ std::shared_ptr<AbstractLQPNode> SQLTranslator::_translate_select_statement(cons
    * Name, select and arrange the Columns as specified in the SELECT clause
    */
   // Only add a ProjectionNode if necessary
-  const auto& inflated_select_list_expressions = _unwrap_elements(_inflated_select_list_elements);
+  /*const auto& inflated_select_list_expressions = _unwrap_elements(_inflated_select_list_elements);
   if (!expressions_equal(_current_lqp->output_expressions(), inflated_select_list_expressions)) {
     _current_lqp = ProjectionNode::make(inflated_select_list_expressions, _current_lqp);
-  }
+  }*/
 
   // Check whether we need to create an AliasNode - this is the case whenever an Expression was assigned a column_name
   // that is not its generated name.
@@ -1655,7 +1655,7 @@ std::shared_ptr<AbstractExpression> SQLTranslator::_translate_hsql_expr(
       return expression;
     }
 
-    case hsql::kExprLiteralFloat:
+    /*case hsql::kExprLiteralFloat:
       return value_(expr.fval);
 
     case hsql::kExprLiteralString:
@@ -1667,10 +1667,10 @@ std::shared_ptr<AbstractExpression> SQLTranslator::_translate_hsql_expr(
         return value_(static_cast<int32_t>(expr.ival));
       } else {
         return value_(expr.ival);
-      }
+      }*/
 
-    case hsql::kExprLiteralNull:
-      return null_();
+    /*case hsql::kExprLiteralNull:
+      return null_();*/
 
     /*case hsql::kExprLiteralDate: {
       if (name.size() == 10) {
@@ -1680,14 +1680,14 @@ std::shared_ptr<AbstractExpression> SQLTranslator::_translate_hsql_expr(
         }
       }
       FailInput("'" + name + "' is not a valid ISO 8601 extended date");
-    }*/
+    }
 
     case hsql::kExprParameter: {
       Assert(expr.ival >= 0 && expr.ival <= std::numeric_limits<ValuePlaceholderID::base_type>::max(),
              "ValuePlaceholderID out of range");
       auto value_placeholder_id = ValuePlaceholderID{static_cast<uint16_t>(expr.ival)};
       return placeholder_(_parameter_id_allocator->allocate_for_value_placeholder(value_placeholder_id));
-    }
+    }*/
 
     /*case hsql::kExprExtract: {
       Assert(expr.datetimeField != hsql::kDatetimeNone, "No DatetimeField specified in EXTRACT. Bug in sqlparser?");
@@ -1845,23 +1845,23 @@ std::shared_ptr<AbstractExpression> SQLTranslator::_translate_hsql_expr(
           return std::make_shared<BinaryPredicateExpression>(predicate_condition, left, right);
         }
 
-        if (predicate_condition == PredicateCondition::BetweenInclusive) {
+        /*if (predicate_condition == PredicateCondition::BetweenInclusive) {
           Assert(expr.exprList && expr.exprList->size() == 2, "Expected two arguments for BETWEEN");
           return between_inclusive_(left, _translate_hsql_expr(*(*expr.exprList)[0], sql_identifier_resolver),
                                     _translate_hsql_expr(*(*expr.exprList)[1], sql_identifier_resolver));
-        }
+        }*/
       }
 
       // Translate other expression types that can be expected at this point
       switch (expr.opType) {
-        case hsql::kOpUnaryMinus:
-          return unary_minus_(left);
+        /*case hsql::kOpUnaryMinus:
+          return unary_minus_(left);*/
         /*case hsql::kOpCase:
           return _translate_hsql_case(expr, sql_identifier_resolver);*/
-        case hsql::kOpOr:
-          return or_(left, right);
-        case hsql::kOpAnd:
-          return and_(left, right);
+        /*case hsql::kOpOr:
+          return or_(left, right);*/
+        /*case hsql::kOpAnd:
+          return and_(left, right);*/
         /*case hsql::kOpIn: {
           if (expr.select) {
             // `a IN (SELECT ...)`
@@ -1883,11 +1883,11 @@ std::shared_ptr<AbstractExpression> SQLTranslator::_translate_hsql_expr(
           return in_(left, array);
         }*/
 
-        case hsql::kOpIsNull:
+        /*case hsql::kOpIsNull:
           return is_null_(left);
 
         case hsql::kOpNot:
-          return _inverse_predicate(*left);
+          return _inverse_predicate(*left);*/
 
         /*case hsql::kOpExists:
           AssertInput(expr.select, "Expected SELECT argument for EXISTS");
@@ -1963,7 +1963,7 @@ std::shared_ptr<AbstractExpression> SQLTranslator::_translate_hsql_expr(
       return interval_(expr.ival, unit);
     }*/
   }
-  Fail("Invalid enum value");
+  //Fail("Invalid enum value");
 }
 
 /*std::shared_ptr<LQPSubqueryExpression> SQLTranslator::_translate_hsql_subquery(
@@ -2145,4 +2145,4 @@ void SQLTranslator::TableSourceState::append(TableSourceState&& rhs) {
   sql_identifier_resolver->append(std::move(*rhs.sql_identifier_resolver));
 }*/
 
-}  // namespace hyrise
+//}  // namespace hyrise

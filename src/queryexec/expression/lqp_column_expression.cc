@@ -2,12 +2,12 @@
 
 #include <boost/container_hash/hash.hpp>
 
-#include "hyrise.hpp"
+//#include "hyrise.hpp"
 //#include "logical_query_plan/mock_node.hpp"
 //#include "logical_query_plan/static_table_node.hpp"
 //#include "logical_query_plan/stored_table_node.hpp"
 //#include "storage/table.hpp"
-#include "utils/assert.hpp"
+#include "../utils/assert.hpp"
 
 namespace hyrise {
 
@@ -40,7 +40,7 @@ std::string LQPColumnExpression::description(const DescriptionMode mode) const {
   }
 
   switch (original_node_locked->type) {
-    case LQPNodeType::StoredTable: {
+    /*case LQPNodeType::StoredTable: {
       const auto stored_table_node = std::static_pointer_cast<const StoredTableNode>(original_node_locked);
       const auto table = Hyrise::get().storage_manager.get_table(stored_table_node->table_name);
       output << table->column_name(original_column_id);
@@ -58,7 +58,7 @@ std::string LQPColumnExpression::description(const DescriptionMode mode) const {
       const auto static_table_node = std::static_pointer_cast<const StaticTableNode>(original_node_locked);
       output << static_table_node->table->column_name(original_column_id);
       return output.str();
-    }
+    }*/
 
     default: {
       Fail("Node type can not be referenced in LQPColumnExpressions");

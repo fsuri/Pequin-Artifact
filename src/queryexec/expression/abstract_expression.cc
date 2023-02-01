@@ -6,7 +6,7 @@
 #include <boost/container_hash/hash.hpp>
 
 #include "expression_utils.hpp"
-#include "utils/assert.hpp"
+#include "../utils/assert.hpp"
 
 using namespace std::string_literals;  // NOLINT
 

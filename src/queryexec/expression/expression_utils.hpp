@@ -7,8 +7,8 @@
 #include <vector>
 
 #include "abstract_expression.hpp"
-#include "logical_query_plan/lqp_utils.hpp"
-#include "operators/abstract_operator.hpp"
+#include "../logical_query_plan/lqp_utils.hpp"
+#include "../operators/abstract_operator.hpp"
 
 namespace hyrise {
 

@@ -2,8 +2,8 @@
 
 #include <sstream>
 
-#include "types.hpp"
-#include "utils/assert.hpp"
+#include "../types.hpp"
+#include "../utils/assert.hpp"
 
 namespace hyrise {
 
@@ -11,7 +11,7 @@ BinaryPredicateExpression::BinaryPredicateExpression(const PredicateCondition in
                                                      const std::shared_ptr<AbstractExpression>& left_operand,
                                                      const std::shared_ptr<AbstractExpression>& right_operand)
     : AbstractPredicateExpression(init_predicate_condition, {left_operand, right_operand}) {
-  if constexpr (HYRISE_DEBUG) {
+  /*if constexpr (HYRISE_DEBUG) {
     const auto valid_predicate_conditions = {PredicateCondition::Equals,      PredicateCondition::NotEquals,
                                              PredicateCondition::GreaterThan, PredicateCondition::GreaterThanEquals,
                                              PredicateCondition::LessThan,    PredicateCondition::LessThanEquals,
@@ -20,7 +20,7 @@ BinaryPredicateExpression::BinaryPredicateExpression(const PredicateCondition in
         std::find(valid_predicate_conditions.begin(), valid_predicate_conditions.end(), predicate_condition);
     Assert(it != valid_predicate_conditions.end(),
            "Specified PredicateCondition is not valid for a BinaryPredicateExpression");
-  }
+  }*/
 }
 
 const std::shared_ptr<AbstractExpression>& BinaryPredicateExpression::left_operand() const {

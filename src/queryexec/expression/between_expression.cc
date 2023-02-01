@@ -2,7 +2,7 @@
 
 #include <sstream>
 
-#include "utils/assert.hpp"
+#include "../utils/assert.hpp"
 
 namespace hyrise {
 

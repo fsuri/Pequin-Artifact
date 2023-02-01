@@ -31,10 +31,10 @@ class UnionNode : public EnableMakeForLQPNode<UnionNode>, public AbstractLQPNode
    * (2) Discards all input unique constraints for SetOperationMode::All and
    * (3) Fails for SetOperationMode::Unique, which is not yet implemented.
    */
-  std::shared_ptr<LQPUniqueConstraints> unique_constraints() const override;
+  //std::shared_ptr<LQPUniqueConstraints> unique_constraints() const override;
 
   // Implementation is limited to SetOperationMode::Positions only. Passes FDs from the left input node.
-  std::vector<FunctionalDependency> non_trivial_functional_dependencies() const override;
+  //std::vector<FunctionalDependency> non_trivial_functional_dependencies() const override;
 
   const SetOperationMode set_operation_mode;
 

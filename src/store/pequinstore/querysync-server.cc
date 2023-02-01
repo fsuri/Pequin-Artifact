@@ -54,9 +54,11 @@
 #include "lib/batched_sigs.h"
 #include <valgrind/memcheck.h>
 
-#include "queryexec/SQLParser.h"
+#include "queryexec/types.hpp"
+//#include "queryexec/SQLParser.h"
 #include "queryexec/SQLParserResult.h"
 #include "queryexec/sql_translator.hpp"
+//#include "queryexec/types.hpp"
 
 namespace pequinstore {
 
@@ -159,9 +161,10 @@ void Server::HandleQuery(const TransportAddress &remote, proto::QueryRequest &ms
     // const std::string &query_cmd = query->query_cmd();
     // Timestamp ts(query->timestamp);
     hsql::SQLParserResult result;
-    //auto result_node = hyrise::SQLTranslator{UseMvcc::No}.translate_parser_result(result).lqp_nodes.at(0);
 
     //hsql::SQLParser::parse(query->query_cmd(), &result);
+    hyrise::SQLTranslator translator(hyrise::UseMvcc::No);
+    auto result_node = translator.translate_parser_result(result).lqp_nodes.at(0);
 
     //TODO: Insert Hyrise parsing or whatever here...
     // SQL glue. How to execute from query plan object.
