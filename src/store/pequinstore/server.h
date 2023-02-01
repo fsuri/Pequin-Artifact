@@ -209,11 +209,11 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
 
     struct QueryMetaData {
       QueryMetaData(const std::string &query_cmd, const TimestampMessage &timestamp, const TransportAddress &remote, const uint64_t &req_id, const uint64_t &query_seq_num, const uint64_t &client_id): 
-         failure(false), retry_version(0UL), has_query(false), started_sync(false), has_result(false), query_cmd(query_cmd), ts(timestamp), original_client(remote.clone()), req_id(req_id), query_seq_num(query_seq_num), client_id(client_id), is_waiting(false) {
+         failure(false), retry_version(0UL), has_query(true), waiting_sync(false), started_sync(false), has_result(false), query_cmd(query_cmd), ts(timestamp), original_client(remote.clone()), req_id(req_id), query_seq_num(query_seq_num), client_id(client_id), is_waiting(false) {
           //queryResult = new proto::QueryResult();
           queryResultReply = new proto::QueryResultReply(); //TODO: Replace with GetUnused.
       }
-       QueryMetaData(const uint64_t &query_seq_num, const uint64_t &client_id): failure(false), retry_version(0UL), has_query(false), started_sync(false), has_result(false), query_seq_num(query_seq_num), client_id(client_id), is_waiting(false) {
+       QueryMetaData(const uint64_t &query_seq_num, const uint64_t &client_id): failure(false), retry_version(0UL), has_query(false), waiting_sync(false), started_sync(false), has_result(false), query_seq_num(query_seq_num), client_id(client_id), is_waiting(false) {
           //queryResult = new proto::QueryResult();
           queryResultReply = new proto::QueryResultReply(); //TODO: Replace with GetUnused.
       }
@@ -225,11 +225,27 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
       void ClearMetaData(){
          queryResultReply->Clear(); //FIXME: Confirm that all data that is cleared is re-set
          merged_ss.clear();
+         //merged_ss.Clear();
          //local_ss.clear(); //for now don't clear, will get overridden anyways.
          missing_txn.clear();
          has_result = false;
          is_waiting = false;
+         waiting_sync = false;
+         if(merged_ss_msg != nullptr) delete merged_ss_msg; //Delete obsolete sync snapshot
       }
+      void SetQuery(const std::string &_query_cmd, const TimestampMessage &timestamp, const TransportAddress &remote, const uint64_t &_req_id){
+        has_query = true;
+        query_cmd = _query_cmd;
+        ts = timestamp;
+        if(original_client == nullptr) original_client = remote.clone();
+        req_id = _req_id;
+      }
+      void SetSync(proto::MergedSnapshot *_merged_ss_msg, const TransportAddress &remote){
+        waiting_sync = true;
+        merged_ss_msg = _merged_ss_msg;
+        if(original_client == nullptr) original_client = remote.clone(); 
+      }
+
       bool failure;
 
       TransportAddress *original_client;
@@ -241,14 +257,18 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
       bool has_query;
       std::string query_cmd; //query to execute
 
-      bool designated_for_reply; //whether to reply to client or not.
       uint64_t retry_version;            //query retry version (0 for original)
-      proto::SyncClientProposal *waiting_sync; //a waiting sync msg.
+      bool designated_for_reply; //whether to reply with result to client or not.
+
+      bool waiting_sync; //a waiting sync msg.
+      proto::MergedSnapshot *merged_ss_msg; //TODO: check that ClearMetaData resets appropriate fields.
       bool started_sync;  //whether already received/processed snapshot for given retry version.
      
                             
       std::unordered_set<std::string> local_ss;  //local snapshot
       std::unordered_set<std::string> merged_ss; //merged snapshot
+     
+      //google::protobuf::RepeatedPtrField<std::string> merged_ss;
 
       bool is_waiting;
       std::unordered_map<std::string, uint64_t> missing_txn; //map from txn-id --> number of responses max waiting for; if client is byz, no specified replica may have it --> if so, return immediately and blacklist/report tx (requires sync to be signed)
@@ -336,6 +356,8 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
     typedef tbb::concurrent_hash_map<std::string, std::unordered_set<std::string>> waitingQueryMap; 
     waitingQueryMap waitingQueries;
 
+    void ProcessQuery(queryMetaDataMap::accessor &q, const TransportAddress &remote, proto::Query *query, QueryMetaData *query_md);
+    void ProcessSync(queryMetaDataMap::accessor &q, const TransportAddress &remote, proto::MergedSnapshot *merged_ss, const std::string *queryId, QueryMetaData *query_md);
     void HandleSyncCallback(QueryMetaData *query_md, const std::string &queryId);
     void SendQueryReply(QueryMetaData *query_md);
     void UpdateWaitingQueries(const std::string &txnDigest);

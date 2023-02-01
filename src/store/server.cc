@@ -325,7 +325,7 @@ DEFINE_bool(indicus_replica_gossip, false, "use gossip between replicas to excha
 */
 DEFINE_bool(pequin_query_read_prepared, false, "allow query to read prepared values");
 DEFINE_bool(pequin_query_optimistic_txid, false, "use optimistic tx-id for sync protocol");
-DEFINE_bool(pequin_query_cache_read_set, false, "cache query read set at replicas");
+DEFINE_bool(pequin_query_cache_read_set, true, "cache query read set at replicas");
 
 DEFINE_bool(pequin_query_merge_active_at_client, true, "merge active query read sets client-side");
 

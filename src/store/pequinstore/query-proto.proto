@@ -17,8 +17,6 @@ message Query {
    optional uint64 query_manager = 5;
    //TODO: Needs to include involved groups?
    required uint64 retry_version = 6; //Should go into Query, so that it is signed as well. (thus it is only proposable by original client); but not include din ID hash
-   required bool designated_for_reply = 7;
-
 }
 
 message QueryRequest {
@@ -29,7 +27,7 @@ message QueryRequest {
     //private channels from client to replicas should suffice?
   }
  optional bool optimistic_txid = 5;
-  
+ required bool designated_for_reply = 6;
 }
 
 //==> moved to pequin-proto.proto

@@ -164,10 +164,10 @@ void ShardClient::RequestQuery(PendingQuery *pendingQuery, proto::Query &queryMs
     *queryReq.mutable_query() = queryMsg; // NOTE: cannot use std::move(queryMsg) because queryMsg objet may be passed to multiple shardclients.
   }
  
-  uint64_t total_msg = uint64_t total_msg = params.query_params.cacheReadSet? config->n : params.query_params.queryMessages;
+  uint64_t total_msg = params.query_params.cacheReadSet? config->n : params.query_params.queryMessages;
   UW_ASSERT(total_msg <= closestReplicas.size());
   for (size_t i = 0; i < total_msg; ++i) {
-    queryReq->set_designated_for_reply(i < params.query_params.queryMessages);
+    queryReq.set_designated_for_reply(i < params.query_params.queryMessages);
     Debug("[group %i] Sending QUERY to replica id %lu", group, group * config->n + GetNthClosestReplica(i));
     transport->SendMessageToReplica(this, group, GetNthClosestReplica(i), queryReq);
   }
