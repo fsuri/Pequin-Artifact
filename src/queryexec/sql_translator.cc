@@ -263,7 +263,7 @@ std::shared_ptr<AbstractLQPNode> SQLTranslator::_translate_select_statement(cons
 
   // Translate FROM
   if (select.fromTable) {
-    _from_clause_result = _translate_table_ref(*select.fromTable);
+    //_from_clause_result = _translate_table_ref(*select.fromTable);
     _current_lqp = _from_clause_result->lqp;
     _sql_identifier_resolver = _from_clause_result->sql_identifier_resolver;
   } /*else {
@@ -578,11 +578,11 @@ std::shared_ptr<AbstractLQPNode> SQLTranslator::_translate_update(const hsql::Up
   return UpdateNode::make(table_name, selection_lqp, updated_values_lqp);
 }*/
 
-SQLTranslator::TableSourceState SQLTranslator::_translate_table_ref(const hsql::TableRef& hsql_table_ref) {
+/*SQLTranslator::TableSourceState SQLTranslator::_translate_table_ref(const hsql::TableRef& hsql_table_ref) {
   switch (hsql_table_ref.type) {
     case hsql::kTableName:
     case hsql::kTableSelect:
-      return _translate_table_origin(hsql_table_ref);
+      return _translate_table_origin(hsql_table_ref);*/
 
     /*case hsql::kTableJoin:
       if (hsql_table_ref.join->type == hsql::kJoinNatural) {
@@ -593,11 +593,11 @@ SQLTranslator::TableSourceState SQLTranslator::_translate_table_ref(const hsql::
 
     case hsql::kTableCrossProduct:
       return _translate_cross_product(*hsql_table_ref.list);*/
-  }
+  /*}
   Fail("Invalid enum value");
-}
+}*/
 
-SQLTranslator::TableSourceState SQLTranslator::_translate_table_origin(const hsql::TableRef& hsql_table_ref) {
+/*SQLTranslator::TableSourceState SQLTranslator::_translate_table_origin(const hsql::TableRef& hsql_table_ref) {
   auto lqp = std::shared_ptr<AbstractLQPNode>{};
 
   // Each element in the FROM list needs to have a unique table name (i.e. Subqueries are required to have an ALIAS)
@@ -605,7 +605,7 @@ SQLTranslator::TableSourceState SQLTranslator::_translate_table_origin(const hsq
   auto sql_identifier_resolver = std::make_shared<SQLIdentifierResolver>();
   std::vector<SelectListElement> select_list_elements;
 
-  switch (hsql_table_ref.type) {
+  switch (hsql_table_ref.type) {*/
     /*case hsql::kTableName: {
       // WITH descriptions or subqueries are treated as though they were inline views or tables
       // They mask existing tables or views with the same name.
@@ -708,7 +708,7 @@ SQLTranslator::TableSourceState SQLTranslator::_translate_table_origin(const hsq
     case hsql::kTableCrossProduct:
       // These should not make it this far.
       Fail("Unexpected table reference type");*/
-  }
+  //}
 
   // Rename columns as in "SELECT * FROM t AS x (y,z)"
   /*if (hsql_table_ref.alias && hsql_table_ref.alias->columns) {
@@ -737,7 +737,7 @@ SQLTranslator::TableSourceState SQLTranslator::_translate_table_origin(const hsq
     }
   }*/
 
-  for (const auto& expression : lqp->output_expressions()) {
+  /*for (const auto& expression : lqp->output_expressions()) {
     sql_identifier_resolver->set_table_name(expression, table_name);
   }
 
@@ -747,7 +747,7 @@ SQLTranslator::TableSourceState SQLTranslator::_translate_table_origin(const hsq
           }},
           {select_list_elements},
           sql_identifier_resolver};
-}
+}*/
 
 /*std::shared_ptr<AbstractLQPNode> SQLTranslator::_translate_stored_table(
     const std::string& name, const std::shared_ptr<SQLIdentifierResolver>& sql_identifier_resolver) {

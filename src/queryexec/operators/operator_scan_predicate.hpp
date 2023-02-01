@@ -4,7 +4,7 @@
 
 #include "../all_parameter_variant.hpp"
 #include "../all_type_variant.hpp"
-#include "../storage/table.hpp"
+//#include "../storage/table.hpp"
 #include "../types.hpp"
 
 namespace hyrise {
@@ -31,7 +31,7 @@ struct OperatorScanPredicate {
 
   // Returns a string representation of the predicate, using an optionally given table that is used to resolve column
   // ids to names.
-  std::ostream& output_to_stream(std::ostream& stream, const std::shared_ptr<const Table>& table = nullptr) const;
+  //std::ostream& output_to_stream(std::ostream& stream, const std::shared_ptr<const Table>& table = nullptr) const;
 
   ColumnID column_id{INVALID_COLUMN_ID};
   PredicateCondition predicate_condition{PredicateCondition::Equals};

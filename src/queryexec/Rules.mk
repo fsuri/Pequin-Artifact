@@ -12,7 +12,7 @@ all_type_variant.cc parameter_id_allocator.cc operators/abstract_operator.cc)
 
 #PROTOS += $(addprefix $(d), queryprocess.proto)
 
-LIB-queryprocess := $(o)SQLParser.o $(o)SQLParserResult.o $(o)sql_translator.o $(o)types.o $(o)sql_identifier_resolver_proxy.o $(o)sql_identifier_resolver.o \
+LIB-queryprocess := $(o)SQLParserResult.o $(o)sql_translator.o $(o)types.o $(o)sql_identifier_resolver_proxy.o $(o)sql_identifier_resolver.o \
 	$(o)sql_identifier.o $(o)sql/Expr.o $(o)sql/SQLStatement.o $(o)sql/statements.o $(o)sql/CreateStatement.o $(o)sql/PrepareStatement.o $(o)util/sqlhelper.o \
 	$(o)expression/abstract_expression.o $(o)expression/abstract_predicate_expression.o $(o)expression/between_expression.o $(o)expression/binary_predicate_expression.o \
 	$(o)expression/correlated_parameter_expression.o $(o)expression/expression_utils.o $(o)expression/is_null_expression.o $(o)expression/logical_expression.o \

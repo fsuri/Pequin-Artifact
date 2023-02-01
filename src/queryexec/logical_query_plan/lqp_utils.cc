@@ -89,9 +89,9 @@ void lqp_find_subplan_roots_impl(std::vector<std::shared_ptr<AbstractLQPNode>>& 
 
     for (const auto& expression : sub_node->node_expressions) {
       visit_expression(expression, [&](const auto sub_expression) {
-        if (const auto subquery_expression = std::dynamic_pointer_cast<LQPSubqueryExpression>(sub_expression)) {
+        /*if (const auto subquery_expression = std::dynamic_pointer_cast<LQPSubqueryExpression>(sub_expression)) {
           lqp_find_subplan_roots_impl(root_nodes, visited_nodes, subquery_expression->lqp);
-        }
+        }*/
 
         return ExpressionVisitation::VisitArguments;
       });
@@ -345,7 +345,7 @@ std::shared_ptr<AbstractExpression> lqp_subplan_to_boolean_expression_impl(
   }
 
   switch (begin->type) {
-    case LQPNodeType::Predicate: {
+    /*case LQPNodeType::Predicate: {
       const auto predicate_node = std::dynamic_pointer_cast<PredicateNode>(begin);
       const auto predicate = predicate_node->predicate();
       auto expression = subsequent_expression ? and_(predicate, *subsequent_expression) : predicate;
@@ -368,7 +368,7 @@ std::shared_ptr<AbstractExpression> lqp_subplan_to_boolean_expression_impl(
       }
 
       return nullptr;
-    }
+    }*/
 
     case LQPNodeType::Projection:
     case LQPNodeType::Sort:
@@ -433,14 +433,14 @@ ExpressionUnorderedSet find_column_expressions(const AbstractLQPNode& lqp_node, 
   auto column_expressions = ExpressionUnorderedSet{};
   column_expressions.reserve(column_ids.size());
 
-  for (const auto& output_expression : output_expressions) {
-    const auto column_expression = dynamic_pointer_cast<LQPColumnExpression>(output_expression);
+  /*for (const auto& output_expression : output_expressions) {
+    const auto column_expression = std::dynamic_pointer_cast<LQPColumnExpression>(output_expression);
     if (column_expression && column_ids.contains(column_expression->original_column_id) &&
         *column_expression->original_node.lock() == lqp_node) {
       [[maybe_unused]] const auto [_, success] = column_expressions.emplace(column_expression);
       DebugAssert(success, "Did not expect multiple column expressions for the same column id.");
     }
-  }
+  }*/
 
   return column_expressions;
 }

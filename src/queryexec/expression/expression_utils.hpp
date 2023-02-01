@@ -179,8 +179,8 @@ std::optional<AllTypeVariant> expression_get_value_or_parameter(const AbstractEx
  *          If @param expression is not of type PQPSubqueryExpression, this function will search its arguments for
  *          PQPSubqueryExpressions. Note, however, that it will not search for nested PQPSubqueryExpressions.
  */
-std::vector<std::shared_ptr<PQPSubqueryExpression>> find_pqp_subquery_expressions(
-    const std::shared_ptr<AbstractExpression>& expression);
+/*std::vector<std::shared_ptr<PQPSubqueryExpression>> find_pqp_subquery_expressions(
+    const std::shared_ptr<AbstractExpression>& expression);*/
 
 std::optional<ColumnID> find_expression_idx(const AbstractExpression& search_expression,
                                             const std::vector<std::shared_ptr<AbstractExpression>>& expression_vector);

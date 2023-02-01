@@ -24,9 +24,9 @@ std::optional<AllParameterVariant> resolve_all_parameter_variant(const AbstractE
   if (const auto* const parameter_expression = dynamic_cast<const CorrelatedParameterExpression*>(&expression)) {
     return parameter_expression->parameter_id;
   }
-  if (const auto* const placeholder_expression = dynamic_cast<const PlaceholderExpression*>(&expression)) {
+  /*if (const auto* const placeholder_expression = dynamic_cast<const PlaceholderExpression*>(&expression)) {
     return placeholder_expression->parameter_id;
-  }
+  }*/
 
   return std::nullopt;
 }
@@ -35,7 +35,7 @@ std::optional<AllParameterVariant> resolve_all_parameter_variant(const AbstractE
 
 namespace hyrise {
 
-std::ostream& OperatorScanPredicate::output_to_stream(std::ostream& stream,
+/*std::ostream& OperatorScanPredicate::output_to_stream(std::ostream& stream,
                                                       const std::shared_ptr<const Table>& table) const {
   std::string column_name_left = std::string("Column #") + std::to_string(column_id);
   if (table) {
@@ -55,7 +55,7 @@ std::ostream& OperatorScanPredicate::output_to_stream(std::ostream& stream,
   }
 
   return stream;
-}
+}*/
 
 std::optional<std::vector<OperatorScanPredicate>> OperatorScanPredicate::from_expression(
     const AbstractExpression& expression, const AbstractLQPNode& node) {
@@ -116,7 +116,7 @@ std::optional<std::vector<OperatorScanPredicate>> OperatorScanPredicate::from_ex
     auto lower_bound_predicates = std::optional<std::vector<OperatorScanPredicate>>{};
     auto upper_bound_predicates = std::optional<std::vector<OperatorScanPredicate>>{};
 
-    if (is_lower_inclusive_between(predicate_condition)) {
+    /*if (is_lower_inclusive_between(predicate_condition)) {
       lower_bound_predicates =
           from_expression(*greater_than_equals_(predicate->arguments[0], predicate->arguments[1]), node);
     } else {
@@ -128,7 +128,7 @@ std::optional<std::vector<OperatorScanPredicate>> OperatorScanPredicate::from_ex
           from_expression(*less_than_equals_(predicate->arguments[0], predicate->arguments[2]), node);
     } else {
       upper_bound_predicates = from_expression(*less_than_(predicate->arguments[0], predicate->arguments[2]), node);
-    }
+    }*/
 
     if (!lower_bound_predicates || !upper_bound_predicates) {
       return std::nullopt;
@@ -169,7 +169,7 @@ bool operator==(const OperatorScanPredicate& lhs, const OperatorScanPredicate& r
 }
 
 std::ostream& operator<<(std::ostream& stream, const OperatorScanPredicate& predicate) {
-  predicate.output_to_stream(stream);
+  /*predicate.output_to_stream(stream);*/
   return stream;
 }
 

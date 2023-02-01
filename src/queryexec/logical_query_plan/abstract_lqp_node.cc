@@ -7,15 +7,15 @@
 
 #include <boost/container_hash/hash.hpp>
 
-#include "expression/abstract_expression.hpp"
-#include "expression/expression_utils.hpp"
-#include "expression/lqp_column_expression.hpp"
+#include "../expression/abstract_expression.hpp"
+#include "../expression/expression_utils.hpp"
+#include "../expression/lqp_column_expression.hpp"
 //#include "expression/lqp_subquery_expression.hpp"
 //#include "join_node.hpp"
 #include "lqp_utils.hpp"
 #include "predicate_node.hpp"
 //#include "update_node.hpp"
-#include "utils/assert.hpp"
+#include "../utils/assert.hpp"
 //#include "utils/print_utils.hpp"
 
 using namespace std::string_literals;  // NOLINT
@@ -32,7 +32,7 @@ void collect_lqps_in_plan(const AbstractLQPNode& lqp, std::unordered_set<std::sh
  */
 void collect_lqps_from_expression(const std::shared_ptr<AbstractExpression>& expression,
                                   std::unordered_set<std::shared_ptr<AbstractLQPNode>>& lqps) {
-  visit_expression(expression, [&](const auto& sub_expression) {
+  /*visit_expression(expression, [&](const auto& sub_expression) {
     const auto subquery_expression = std::dynamic_pointer_cast<const LQPSubqueryExpression>(sub_expression);
     if (!subquery_expression) {
       return ExpressionVisitation::VisitArguments;
@@ -41,7 +41,7 @@ void collect_lqps_from_expression(const std::shared_ptr<AbstractExpression>& exp
     lqps.emplace(subquery_expression->lqp);
     collect_lqps_in_plan(*subquery_expression->lqp, lqps);
     return ExpressionVisitation::VisitArguments;
-  });
+  });*/
 }
 
 /**
@@ -478,7 +478,7 @@ std::ostream& operator<<(std::ostream& stream, const AbstractLQPNode& node) {
       stream2 << " @ " << node2;
     };
 
-    print_directed_acyclic_graph<const AbstractLQPNode>(root.shared_from_this(), get_inputs_fn, node_print_fn, stream);
+    //print_directed_acyclic_graph<const AbstractLQPNode>(root.shared_from_this(), get_inputs_fn, node_print_fn, stream);
   };
 
   output_lqp_to_stream(node);

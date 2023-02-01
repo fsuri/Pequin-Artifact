@@ -21,8 +21,8 @@
 namespace hyrise {
 
 AbstractOperator::AbstractOperator(const OperatorType type, const std::shared_ptr<const AbstractOperator>& left,
-                                   const std::shared_ptr<const AbstractOperator>& right,
-                                   std::unique_ptr<AbstractOperatorPerformanceData> init_performance_data)
+                                   const std::shared_ptr<const AbstractOperator>& right/*,
+                                   std::unique_ptr<AbstractOperatorPerformanceData> init_performance_data*/)
     : /*performance_data(std::move(init_performance_data)),*/ _type(type), _left_input(left), _right_input(right) {
   // Tell input operators that we want to consume their output
   if (_left_input) {
@@ -215,22 +215,22 @@ std::shared_ptr<AbstractOperator> AbstractOperator::deep_copy(
    * Set the transaction context so that we can execute the copied plan in the current transaction
    * (see, e.g., ExpressionEvaluator::_evaluate_subquery_expression_for_row)
    */
-  if (_transaction_context) {
+  /*if (_transaction_context) {
     copied_op->set_transaction_context(*_transaction_context);
-  }
+  }*/
 
   copied_ops.emplace(this, copied_op);
 
   return copied_op;
 }
 
-std::shared_ptr<const Table> AbstractOperator::left_input_table() const {
+/*std::shared_ptr<const Table> AbstractOperator::left_input_table() const {
   return _left_input->get_output();
 }
 
 std::shared_ptr<const Table> AbstractOperator::right_input_table() const {
   return _right_input->get_output();
-}
+}*/
 
 size_t AbstractOperator::consumer_count() const {
   return _consumer_count.load();
@@ -328,21 +328,21 @@ OperatorState AbstractOperator::state() const {
   return _state;
 }
 
-std::shared_ptr<OperatorTask> AbstractOperator::get_or_create_operator_task() {
+/*std::shared_ptr<OperatorTask> AbstractOperator::get_or_create_operator_task() {
   std::lock_guard<std::mutex> lock(_operator_task_mutex);
   // Return the OperatorTask that owns this operator if it already exists.
   if (!_operator_task.expired()) {
     return _operator_task.lock();
   }
 
-  /*if constexpr (HYRISE_DEBUG) {
+  if constexpr (HYRISE_DEBUG) {
     // Check whether _operator_task points to NULL, which means it was never initialized before.
     // Taken from: https://stackoverflow.com/a/45507610/5558040
     using weak_null_pointer = std::weak_ptr<OperatorTask>;
     auto is_uninitialized =
         !_operator_task.owner_before(weak_null_pointer{}) && !weak_null_pointer{}.owner_before(_operator_task);
     Assert(is_uninitialized || executed(), "This operator was owned by an OperatorTask that did not execute.");
-  }*/
+  }
 
   auto operator_task = std::make_shared<OperatorTask>(shared_from_this());
   _operator_task = std::weak_ptr<OperatorTask>(operator_task);
@@ -353,7 +353,7 @@ std::shared_ptr<OperatorTask> AbstractOperator::get_or_create_operator_task() {
   }
 
   return operator_task;
-}
+}*/
 
 //void AbstractOperator::_on_set_transaction_context(const std::weak_ptr<TransactionContext>& transaction_context) {}
 
@@ -382,12 +382,12 @@ std::ostream& operator<<(std::ostream& stream, const AbstractOperator& abstract_
                 << output->column_count() << " column(s)/";
 
       fn_stream << format_bytes(output->memory_usage(MemoryUsageCalculationMode::Sampled));
-      fn_stream << "/" << *abstract_operator.performance_data << ")";
+      //fn_stream << "/" << *abstract_operator.performance_data << ")";
     }
   };
 
-  print_directed_acyclic_graph<const AbstractOperator>(abstract_operator.shared_from_this(), get_children_fn,
-                                                       node_print_fn, stream);
+  /*print_directed_acyclic_graph<const AbstractOperator>(abstract_operator.shared_from_this(), get_children_fn,
+                                                       node_print_fn, stream);*/
 
   return stream;
 }

@@ -14,7 +14,7 @@ namespace hyrise {
 
 class AbstractExpression;
 class AbstractLQPNode;
-class LQPSubqueryExpression;
+//class LQPSubqueryExpression;
 
 enum class LQPInputSide;
 
