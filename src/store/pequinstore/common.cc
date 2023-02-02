@@ -2011,21 +2011,6 @@ std::string generateReadSetMerkleRoot(const std::map<std::string, TimestampMessa
   return rootHash;
 }
 
-void CompressTxnIds(std::vector<uint64_t>&txn_ts){
-    // Test if I can allocate less space for timestamps:  if(timestamp << log(num_clients) < -1)
-    // 1) change timestampedMessage/Timestamp = (timestamp, client) to be stored as one 64 bit Timestamp
-    // 2) Create delta encoding:
-    //     a) sort, b) subtract 2nd from 1st (and so on); store first value (offset)
-    // 3) Throw integer compression at it. (Ideally 64 bit; but delta compression may have already made it 32 bit)
-
-    //return reference to compressed data structure
-}
-
-std::vector<uint64_t> DecompressTxnIds(){
-  //decompress datastructure
-}
-
-
 std::string BytesToHex(const std::string &bytes, size_t maxLength) {
   static const char digits[] = "0123456789abcdef";
   std::string hex;
@@ -2102,3 +2087,4 @@ int64_t GetLogGroup(const proto::Transaction &txn, const std::string &txnDigest)
 }
 
 } // namespace pequinstore
+

@@ -101,6 +101,7 @@ message SyncReply {
     LocalSnapshot local_ss = 2;
     SignedMessage signed_local_ss = 3;
   }
+  optional bool optimistic_tx_id = 4; //not part of protocol (hence not signed), just a system flag.
 }
 
 message ReplicaList {

@@ -69,6 +69,7 @@ enum OCCType {
   TAPIR = 1
 };
 
+//TEST/DEBUG variables
 static bool test_fail_query = true;
 static int fail_writeback = 0;
 typedef std::vector<std::unique_lock<std::mutex>> locks_t;

@@ -403,6 +403,42 @@ inline static bool compareReadSets (google::protobuf::RepeatedPtrField<ReadMessa
 //   uint32_t frequency;
 // };
 
+class TimestampCompressor {
+ public:
+    TimestampCompressor();
+    virtual ~TimestampCompressor();
+    void AddToBucket(const TimestampMessage &ts);
+    void CompressAll();
+    void DecompressAll();
+ private:
+   //store to an ordered_set if Valid compressable TS. valid if 64bit time and 64bit cid can be merged into 1 64 bit number.
+   // upon CompressAll -> split set into buckets (thus each bucket is sorted) --> then on each bucket, run integer compression. Add to bucket only if delta < 32bit
+    //Buckets. Each bucket is a vecotr + delta off-set. Store buckets in order (linked-list?). Find correct bucket to insert by iterating through list(acces first, last for ordering)
+    // better -> store buckets in a map<front, bucket>. Find correct bucket by upper/lower-bound ops. Insert new bucket where appropriate  (you learn left bucket min/max and right bucket min - if inbetween, make new bucket)
+};
+
+//could add directly to end of bucket, but not to right position. iirc buckets need to be sorted?
+
+class SnapshotManager {
+//TODO: Store this as part of QueryMetaData.
+public:
+  SnapshotManager(proto::Query *query, uint64_t replica_id, proto::SyncReply *syncReply, bool optimisticTxId = false); //Create a local snapshot.
+  virtual ~SnapshotManager();
+  void AddToSnapshot(std::string &txnDigest, proto::Transaction *txn, bool committed_or_prepared = true); //For local snapshot; //TODO: Define something similar for merged? Should merged be a separate class?
+  void CloseSnapshot();
+  proto::LocalSnapshot* OpenSnapshot();
+
+private:
+    bool optimisticTxId;
+
+    TimestampCompressor ts_comp;
+
+    proto::LocalSnapshot *local_ss; //For replica to client   //TODO: Needs to have a field for compressed values.
+
+    proto::MergedSnapshot *merged_ss; //For client to replica
+};
+
+
 typedef struct QueryParameters {
 
     //protocol parameters

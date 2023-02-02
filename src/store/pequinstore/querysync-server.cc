@@ -184,7 +184,9 @@ void Server::ProcessQuery(queryMetaDataMap::accessor &q, const TransportAddress 
     //                                                         //
     /////////////////////////////////////////////////////////////
 
-    std::unordered_set<std::string> &local_txns = query_md->local_ss;
+    std::unordered_set<std::string> &local_txns = query_md->local_ss; //Store this as protobuf directly? that avoids copy.   Or: copy as part of "close" function that can be parametarized to compress ids. 
+    //TODO: move to separate file. inputs to add: "tx_id, txn". close returns: compressed vector. open returns uncompressed vector. iterate should return tx-id if vector contains ts.
+
     // 4) Execute all Scans in query --> find txnSet (for each key, last few tx)
     // FindSnapshot(local_txns, query_cmd);
 
