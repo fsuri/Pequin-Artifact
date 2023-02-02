@@ -36,8 +36,15 @@ namespace query_result {
 // QueryResult contains a collection of rows containing one or more fields of data.
 class QueryResult {
 	public:
-		class const_iterator {
+		class const_iterator : protected Row {
+			protected:
+				explicit const_iterator( const Row& r ) noexcept
+				: Row( r )
+				{}
+
 			public:
+				const_iterator() = default;
+
 				virtual auto operator++() noexcept -> const_iterator& = 0;
 
         virtual auto operator++( int ) noexcept -> const_iterator = 0;

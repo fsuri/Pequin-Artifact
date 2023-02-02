@@ -11,10 +11,10 @@
 
 #include "lib/assert.h"
 #include "lib/message.h"
-#include "lib/query_result.h"
 #include "store/common/stats.h"
 #include "store/common/timestamp.h"
 #include "store/common/partitioner.h"
+#include "store/common/query_result.h"
 
 #include <functional>
 #include <string>

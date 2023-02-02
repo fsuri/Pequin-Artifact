@@ -37,7 +37,7 @@ namespace query_result {
 // A row in a table, contains an ordered collection of fields
 class Row {
 	public:
-		class const_iterator {
+		class const_iterator : protected Field {
 			public:
 				virtual auto operator++() noexcept -> const_iterator& = 0;
 
@@ -51,12 +51,14 @@ class Row {
 
         virtual auto operator-=( const std::int32_t n ) noexcept -> const_iterator& = 0;
 
-        virtual auto operator*() const noexcept -> const Row& = 0;
+        virtual auto operator*() const noexcept -> const Field& = 0;
 
-        virtual auto operator->() const noexcept -> const Row* = 0;
+        virtual auto operator->() const noexcept -> const Field* = 0;
 
-        virtual auto operator[]( const std::int32_t n ) const noexcept -> Row = 0;
+        virtual auto operator[]( const std::int32_t n ) const noexcept -> Field = 0;
 		};
+
+		virtual auto slice( const std::size_t offset, const std::size_t in_columns ) const -> Row = 0;
 
 	  virtual auto operator[]( const std::size_t column ) const -> Field = 0;
 		
@@ -73,7 +75,9 @@ class Row {
 
     virtual auto cend() const -> const_iterator = 0;
 
-		virtual auto get( const std::size_t column ) const -> const char*;
+		virtual auto get( const std::size_t column ) const -> const char* = 0;
+
+		virtual auto is_null( const std::size_t column ) const -> bool = 0;
 
 		template< typename T >
     auto get( const std::size_t column ) const -> T {

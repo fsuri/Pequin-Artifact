@@ -24,25 +24,32 @@
  * SOFTWARE.
  *
  **********************************************************************/
-#ifndef FIELD_H
-#define FIELD_H
 
 #include <string>
 #include <vector>
-#include <tao/pq/result_traits.hpp>
+#include "store/common/sql_result_field.h"
+#include "store/common/sql_result_row.h"
 
-namespace query_result {
-
-// A field in a row, contains an interpretable collection of bytes
-class Field {
- public:
-  virtual auto name() const -> std::string = 0;
-  virtual auto index() const -> std::size_t = 0;
-
-  virtual bool is_null() const = 0;
-  virtual auto get() const -> const char* = 0;
-};
-
+namespace sql {
+  
+auto Field::name() const -> std::string
+{
+  return m_row->name( m_column );
 }
 
-#endif /* FIELD_H */
+auto Field::index() const -> std::size_t
+{
+  return m_column - m_row->m_offset;
+}
+
+auto Field::is_null() const -> bool
+{
+  return m_row->is_null( m_column );
+}
+
+auto Field::get() const -> const char*
+{
+  return m_row->get( m_column );
+}
+
+}
