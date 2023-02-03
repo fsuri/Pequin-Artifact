@@ -50,6 +50,10 @@
 
 #include "store/common/failures.h"
 
+#include "lib/compression/TurboPFor-Integer-Compression/vp4.h"
+#include "lib/compression/FrameOfReference/include/compression.h"
+#include "lib/compression/FrameOfReference/include/turbocompression.h"
+
 namespace pequinstore {
 
 
@@ -405,12 +409,21 @@ inline static bool compareReadSets (google::protobuf::RepeatedPtrField<ReadMessa
 
 class TimestampCompressor {
  public:
-    TimestampCompressor();
+    TimestampCompressor(bool compressOptimisticTxIds = false);
     virtual ~TimestampCompressor();
+    void Initialize(proto::LocalSnapshot *local_ss, bool compressOptimisticTxIds = false);
     void AddToBucket(const TimestampMessage &ts);
     void CompressAll();
     void DecompressAll();
  private:
+   proto::LocalSnapshot *local_ss;
+   //google::protobuf::RepeatedPtrField<google::protobuf::bytes> *ts_ids;
+   bool compressOptimisticTxIds;
+   uint64_t num_timestamps;
+   std::vector<uint64_t> timestamps; //TODO: replace with the repeated field from local_ss
+   std::vector<uint64_t> ids;
+   std::vector<uint8_t> _compressed_timestamps;
+   std::vector<unsigned char> compressed_timestamps;
    //store to an ordered_set if Valid compressable TS. valid if 64bit time and 64bit cid can be merged into 1 64 bit number.
    // upon CompressAll -> split set into buckets (thus each bucket is sorted) --> then on each bucket, run integer compression. Add to bucket only if delta < 32bit
     //Buckets. Each bucket is a vecotr + delta off-set. Store buckets in order (linked-list?). Find correct bucket to insert by iterating through list(acces first, last for ordering)
@@ -422,7 +435,7 @@ class TimestampCompressor {
 class SnapshotManager {
 //TODO: Store this as part of QueryMetaData.
 public:
-  SnapshotManager(proto::Query *query, uint64_t replica_id, proto::SyncReply *syncReply, bool optimisticTxId = false); //Create a local snapshot.
+  SnapshotManager(proto::Query *query, uint64_t replica_id, proto::SyncReply *syncReply, bool optimisticTxId = false, bool compressOptimisticTxIds = false); //Create a local snapshot.
   virtual ~SnapshotManager();
   void AddToSnapshot(std::string &txnDigest, proto::Transaction *txn, bool committed_or_prepared = true); //For local snapshot; //TODO: Define something similar for merged? Should merged be a separate class?
   void CloseSnapshot();

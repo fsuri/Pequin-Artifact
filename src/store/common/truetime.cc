@@ -47,6 +47,9 @@ TrueTime::GetTime()
     }
 
     timestamp = ((uint64_t)now.tv_sec << 32) | (uint64_t) (now.tv_usec);
+    //32 bit for seconds suffices until 2038
+    //timestamp = ((uint64_t)now.tv_sec << 20) | ((uint64_t) now.tv_usec); // shifting 20 suffices, since u_sec < 2^20
+    //timestamp = ((uint64_t)now.tv_sec << 32) | ((uint64_t) now.tv_usec << 12);
 
     Debug("Time: %lx %lx %lx", now.tv_sec,now.tv_usec,timestamp);
 

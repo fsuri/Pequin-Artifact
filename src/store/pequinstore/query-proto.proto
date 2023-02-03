@@ -90,10 +90,13 @@ message LocalSnapshot {
   //identify query
   required uint64 query_seq_num = 1;
   required uint64 client_id = 2;
+  required uint64 replica_id = 3; 
   //list of txn that materialize local exec snapshot
-  repeated bytes local_txns_committed = 3;
-  repeated bytes local_txns_prepared = 4;
-  required uint64 replica_id = 5; 
+  repeated bytes local_txns_committed = 4;  //note, if ts are compressed, they might be stored in here.
+  repeated uint64 local_txns_committed_ts = 5; 
+  repeated bytes local_txns_prepared = 6;
+  repeated uint64 local_txns_prepared_ts = 7;
+  
 }
 message SyncReply {
   required uint64 req_id = 1;

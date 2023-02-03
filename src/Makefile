@@ -140,6 +140,9 @@ BINS :=
 # to run for the `test' target.
 TEST_BINS :=
 
+#External object files for linking
+EXT_OBJS :=
+
 # add-CFLAGS is a utility macro that takes a space-separated list of
 # sources and a set of CFLAGS.  It sets the CFLAGS for each provided
 # source.  This should be used like
@@ -238,7 +241,7 @@ endef
 # Slightly different rules for protobuf object files
 # because their source files have different locations.
 
-$(OBJS): .obj/%.o: %.cc $(PROTOSRCS)
+$(OBJS): .obj/%.o: %.cc $(PROTOSRCS) 
 	$(call compilecxx,CC,)
 
 $(OBJS:%.o=%-pic.o): .obj/%-pic.o: %.cc $(PROTOSRCS)
@@ -263,7 +266,7 @@ $(BINS) $(TEST_BINS): %:
 # Automatic dependencies
 #
 
-DEPS := $(OBJS:.o=.d) $(OBJS:.o=-pic.d)
+DEPS := $(OBJS:.o=.d) $(OBJS:.o=-pic.d) $(EXT_OBJS)
 
 -include $(DEPS)
 
@@ -312,6 +315,13 @@ print-%:
 
 ##################################################################
 # Targets
+
+.PHONY: compression
+compression: 
+	@echo '====== Installing Compression Libs ======'
+	cd ./lib/compression/TurboPFor-Integer-Compression/; make
+	cd ./lib/compression/FrameOfReference/; make
+	@echo '====== Finish Installing Compression Libs ======'
 #
 #.PHONY: bftsmart
 #bftsmart: 
@@ -357,7 +367,7 @@ indicus: $(BINS) #$(TEST_BINS)
 
 .PHONY: all
 #all: bftsmart bftsmart2 hotstuff augustus_smart stable
-all: hotstuff bftsmart
+all: hotstuff bftsmart compression
 	@echo '====== Start Building Indicus ======'
 	$(MAKE) indicus 
 	@echo '====== Finish Building Indicus ======'
