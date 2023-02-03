@@ -58,7 +58,6 @@
 #include "queryexec/SQLParser.h"
 #include "queryexec/SQLParserResult.h"
 #include "queryexec/sql_translator.hpp"
-//#include "queryexec/types.hpp"
 
 namespace pequinstore {
 

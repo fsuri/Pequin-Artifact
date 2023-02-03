@@ -86,9 +86,10 @@ void SQLIdentifierResolver::append(SQLIdentifierResolver&& rhs) {
 
 SQLIdentifierContextEntry& SQLIdentifierResolver::_find_or_create_expression_entry(
     const std::shared_ptr<AbstractExpression>& expression) {
+  std::cout << "Made it to find or create expression entry" << std::endl;
   auto entry_iter = std::find_if(_entries.begin(), _entries.end(),
                                  [&](const auto& entry) { return *entry.expression == *expression; });
-
+  std::cout << "after entry iter" << std::endl;
   // If there is no entry for this Expression, just add one
   if (entry_iter == _entries.end()) {
     SQLIdentifierContextEntry entry{expression, std::nullopt, {}};

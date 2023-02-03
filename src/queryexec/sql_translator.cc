@@ -8,6 +8,7 @@
 #include <unordered_set>
 #include <utility>
 #include <vector>
+#include <iostream>
 
 //#include "constant_mappings.hpp"
 //#include "create_sql_parser_error_message.hpp"
@@ -260,12 +261,16 @@ std::shared_ptr<AbstractLQPNode> SQLTranslator::_translate_select_statement(cons
       _translate_hsql_with_description(*with_description);
     }
   }*/
+  std::cout << "Made it to from clause" << std::endl;
 
   // Translate FROM
   if (select.fromTable) {
-    //_from_clause_result = _translate_table_ref(*select.fromTable);
+    _from_clause_result = _translate_table_ref(*select.fromTable);
+    std::cout << "translated table ref" << std::endl;
     _current_lqp = _from_clause_result->lqp;
+    std::cout << "get current logical query plan" << std::endl;
     _sql_identifier_resolver = _from_clause_result->sql_identifier_resolver;
+    std::cout << "get sql identifier resolver" << std::endl;
   } /*else {
     _current_lqp = std::make_shared<DummyTableNode>();
     _sql_identifier_resolver = std::make_shared<SQLIdentifierResolver>();
@@ -578,11 +583,13 @@ std::shared_ptr<AbstractLQPNode> SQLTranslator::_translate_update(const hsql::Up
   return UpdateNode::make(table_name, selection_lqp, updated_values_lqp);
 }*/
 
-/*SQLTranslator::TableSourceState SQLTranslator::_translate_table_ref(const hsql::TableRef& hsql_table_ref) {
+SQLTranslator::TableSourceState SQLTranslator::_translate_table_ref(const hsql::TableRef& hsql_table_ref) {
   switch (hsql_table_ref.type) {
     case hsql::kTableName:
-    case hsql::kTableSelect:
-      return _translate_table_origin(hsql_table_ref);*/
+    case hsql::kTableSelect: {
+      std::cout << "Made it to table select" << std::endl;
+      return _translate_table_origin(hsql_table_ref);
+    }
 
     /*case hsql::kTableJoin:
       if (hsql_table_ref.join->type == hsql::kJoinNatural) {
@@ -593,20 +600,24 @@ std::shared_ptr<AbstractLQPNode> SQLTranslator::_translate_update(const hsql::Up
 
     case hsql::kTableCrossProduct:
       return _translate_cross_product(*hsql_table_ref.list);*/
-  /*}
+  }
   Fail("Invalid enum value");
-}*/
+}
 
-/*SQLTranslator::TableSourceState SQLTranslator::_translate_table_origin(const hsql::TableRef& hsql_table_ref) {
+SQLTranslator::TableSourceState SQLTranslator::_translate_table_origin(const hsql::TableRef& hsql_table_ref) {
+  std::cout << "Made it to translate table origin" << std::endl;
   auto lqp = std::shared_ptr<AbstractLQPNode>{};
+  std::cout << "Past lqp" << std::endl;
 
   // Each element in the FROM list needs to have a unique table name (i.e. Subqueries are required to have an ALIAS)
   auto table_name = std::string{};
   auto sql_identifier_resolver = std::make_shared<SQLIdentifierResolver>();
+  std::cout << "Made it to sql identifier resolver" << std::endl;
   std::vector<SelectListElement> select_list_elements;
+  std::cout << "select elements" << std::endl;
 
-  switch (hsql_table_ref.type) {*/
-    /*case hsql::kTableName: {
+  /*switch (hsql_table_ref.type) {
+    case hsql::kTableName: {
       // WITH descriptions or subqueries are treated as though they were inline views or tables
       // They mask existing tables or views with the same name.
       const auto with_descriptions_iter = _with_descriptions.find(hsql_table_ref.name);
@@ -738,16 +749,18 @@ std::shared_ptr<AbstractLQPNode> SQLTranslator::_translate_update(const hsql::Up
   }*/
 
   /*for (const auto& expression : lqp->output_expressions()) {
+    std::cout << "before set table name" << std::endl;
     sql_identifier_resolver->set_table_name(expression, table_name);
-  }
+    std::cout << "after set table name" << std::endl;
+  }*/
 
-  return {lqp,
+  return SQLTranslator::TableSourceState{lqp,
           {{
               {table_name, select_list_elements},
           }},
           {select_list_elements},
           sql_identifier_resolver};
-}*/
+}
 
 /*std::shared_ptr<AbstractLQPNode> SQLTranslator::_translate_stored_table(
     const std::string& name, const std::shared_ptr<SQLIdentifierResolver>& sql_identifier_resolver) {
@@ -2124,7 +2137,7 @@ SQLTranslator::SelectListElement::SelectListElement(const std::shared_ptr<Abstra
                                                     const std::vector<SQLIdentifier>& init_identifiers)
     : expression(init_expression), identifiers(init_identifiers) {}
 
-/*SQLTranslator::TableSourceState::TableSourceState(
+SQLTranslator::TableSourceState::TableSourceState(
     const std::shared_ptr<AbstractLQPNode>& init_lqp,
     const std::unordered_map<std::string, std::vector<SelectListElement>>& init_elements_by_table_name,
     const std::vector<SelectListElement>& init_elements_in_order,
@@ -2136,13 +2149,13 @@ SQLTranslator::SelectListElement::SelectListElement(const std::shared_ptr<Abstra
 
 void SQLTranslator::TableSourceState::append(TableSourceState&& rhs) {
   for (auto& table_name_and_elements : rhs.elements_by_table_name) {
-    const auto unique = !elements_by_table_name.contains(table_name_and_elements.first);
+    const auto unique = !(elements_by_table_name.find(table_name_and_elements.first) != elements_by_table_name.end());
     AssertInput(unique, "Table Name '"s + table_name_and_elements.first + "' in FROM clause is not unique");
   }
 
   elements_by_table_name.merge(std::move(rhs.elements_by_table_name));
   elements_in_order.insert(elements_in_order.end(), rhs.elements_in_order.begin(), rhs.elements_in_order.end());
   sql_identifier_resolver->append(std::move(*rhs.sql_identifier_resolver));
-}*/
+}
 
 //}  // namespace hyrise
