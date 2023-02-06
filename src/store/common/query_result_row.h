@@ -37,7 +37,7 @@ namespace query_result {
 // A row in a table, contains an ordered collection of fields
 class Row {
 	public:
-		class const_iterator : protected Field {
+		class const_iterator {
 			public:
 				virtual auto operator++() noexcept -> const_iterator& = 0;
 

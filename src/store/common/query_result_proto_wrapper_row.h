@@ -29,23 +29,23 @@
 #include <vector>
 #include "store/common/query_result_row.h"
 #include "store/common/query_result_field.h"
-#include "store/common/sql_result_field.h"
+#include "store/common/query_result_proto_wrapper_field.h"
 
 namespace sql {
 
-class SQLResult;
+class QueryResultProtoWrapper;
 
 class Row : query_result::Row {
  private:
-  friend class SQLResult;
-  const SQLResult* m_result = nullptr;
+  friend class QueryResultProtoWrapper;
+  const QueryResultProtoWrapper* m_result = nullptr;
   std::size_t m_row = 0;
   std::size_t m_offset = 0;
   std::size_t m_columns = 0;
 
   Row() = default;
 
-  Row( const SQLResult& in_result, const std::size_t in_row, const std::size_t in_offset, const std::size_t in_columns ) noexcept
+  Row( const QueryResultProtoWrapper& in_result, const std::size_t in_row, const std::size_t in_offset, const std::size_t in_columns ) noexcept
       : m_result( &in_result ),
         m_row( in_row ),
         m_offset( in_offset ),
@@ -147,6 +147,8 @@ class Row : query_result::Row {
   auto get( const std::size_t column ) const -> const char*;
 
   auto is_null( const std::size_t column ) const -> bool;
+
+  auto slice( const std::size_t offset, const std::size_t in_columns ) const -> query_result::Row;
 };
 
 }

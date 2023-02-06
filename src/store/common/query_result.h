@@ -36,15 +36,8 @@ namespace query_result {
 // QueryResult contains a collection of rows containing one or more fields of data.
 class QueryResult {
 	public:
-		class const_iterator : protected Row {
-			protected:
-				explicit const_iterator( const Row& r ) noexcept
-				: Row( r )
-				{}
-
+		class const_iterator {
 			public:
-				const_iterator() = default;
-
 				virtual auto operator++() noexcept -> const_iterator& = 0;
 
         virtual auto operator++( int ) noexcept -> const_iterator = 0;
@@ -71,11 +64,11 @@ class QueryResult {
 		virtual auto size() const -> std::size_t = 0;
 
 		// iteration
-    virtual auto begin() const -> const_iterator = 0;
-    virtual auto end() const -> const_iterator = 0;
+    virtual auto begin() const -> const_iterator* = 0;
+    virtual auto end() const -> const_iterator* = 0;
 
-		virtual auto cbegin() const -> const_iterator = 0;
-    virtual auto cend() const -> const_iterator = 0;
+		virtual auto cbegin() const -> const_iterator* = 0;
+    virtual auto cend() const -> const_iterator* = 0;
 		
 		// access rows
     virtual auto operator[]( const std::size_t row ) const -> Row = 0;

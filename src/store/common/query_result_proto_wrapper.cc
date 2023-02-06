@@ -30,40 +30,58 @@
 #include "store/common/query_result.h"
 #include "store/common/query_result_row.h"
 #include "store/common/query-result-proto.pb.h"
-#include "store/common/sql_result.h"
+#include "store/common/query_result_proto_wrapper.h"
+
+typedef SQLResult SQLResultProto;
 
 namespace sql {
 
-void SQLResult::check_has_result_set() const 
+auto QueryResultProtoWrapper::create_from_proto(const SQLResultProto* proto_result) -> void
 {
-  if(m_columns == 0) {
+  n_rows_affected = proto_result->rows_affected();
+  column_names = std::vector<std::string>(proto_result->column_names().begin(), proto_result->column_names().end());
+  result = std::vector<std::vector<std::string>>();
+  for(int i = 0; i < proto_result->rows_size(); i++) {
+    RowProto row = proto_result->rows(i);
+    auto fields_vector = std::vector<FieldProto>(row.fields().begin(), row.fields().end());
+    auto data_vector = std::vector<std::string>();
+    for (auto field : fields_vector) {
+      data_vector.push_back(field.data());
+    }
+    result.push_back(data_vector);
+  }
+}
+
+auto QueryResultProtoWrapper::check_has_result_set() const -> void
+{
+  if(column_names.size() == 0) {
     throw std::runtime_error("No result set");
   }
 }
 
-auto SQLResult::name( const std::size_t column ) const -> std::string
+auto QueryResultProtoWrapper::name( const std::size_t column ) const -> std::string
 {
-  throw std::runtime_error( "Not implemented" );
+  return column_names[column];
 }
 
-bool SQLResult::empty() const
+bool QueryResultProtoWrapper::empty() const
 {
-  throw std::runtime_error( "Not implemented" );
+  return result.empty();
 }
 
-auto SQLResult::size() const -> std::size_t
+auto QueryResultProtoWrapper::size() const -> std::size_t
 {
-  throw std::runtime_error( "Not implemented" );
+  return result.size();
 }
 
-auto SQLResult::begin() const -> const_iterator
+auto QueryResultProtoWrapper::begin() const -> query_result::QueryResult::const_iterator*
 {
   check_has_result_set();
-  return const_iterator( sql::Row( *this, 0, 0, m_columns ) );
+  return new const_iterator( sql::Row( *this, 0, 0, column_names.size() ) );
 }
 
-auto SQLResult::end() const -> const_iterator
+auto QueryResultProtoWrapper::end() const -> query_result::QueryResult::const_iterator*
 {
-  return const_iterator( sql::Row( *this, size(), 0, m_columns ) );
+  return new const_iterator( sql::Row( *this, size(), 0, column_names.size() ) );
 }
 }

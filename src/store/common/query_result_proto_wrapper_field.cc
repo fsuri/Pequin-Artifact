@@ -27,33 +27,29 @@
 
 #include <string>
 #include <vector>
-#include "store/common/sql_result_row.h"
+#include "store/common/query_result_proto_wrapper_field.h"
+#include "store/common/query_result_proto_wrapper_row.h"
 
 namespace sql {
-
-auto Row::name( std::size_t column ) const -> std::string
+  
+auto Field::name() const -> std::string
 {
-  return m_result->name( m_offset + column );
+  return m_row->name( m_column );
 }
 
-auto Row::begin() const -> query_result::Row::const_iterator
+auto Field::index() const -> std::size_t
 {
-  return const_iterator( Field( *this, m_offset ) );
+  return m_column - m_row->m_offset;
 }
 
-auto Row::end() const -> query_result::Row::const_iterator
+auto Field::is_null() const -> bool
 {
-  return const_iterator( Field( *this, m_offset + m_columns ) );
+  return m_row->is_null( m_column );
 }
 
-auto Row::get( const std::size_t column ) const -> const char*
+auto Field::get() const -> const char*
 {
-  return m_result->get( m_row, m_offset + column );
-}
-
-auto Row::is_null( const std::size_t column ) const -> bool 
-{
-  return m_result->is_null( m_row, m_offset + column );
+  return m_row->get( m_column );
 }
 
 }

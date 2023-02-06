@@ -30,7 +30,7 @@
 #include "store/common/query_result.h"
 #include "store/common/query_result_row.h"
 #include "store/common/query-result-proto.pb.h"
-#include "store/common/sql_result_row.h"
+#include "store/common/query_result_proto_wrapper_row.h"
 
 typedef SQLResult SQLResultProto;
 typedef Row RowProto;
@@ -38,41 +38,34 @@ typedef Field FieldProto;
 
 namespace sql {
 
-class SQLResult : query_result::QueryResult {
+class QueryResultProtoWrapper : query_result::QueryResult {
   private:
-    int rows_affected;
+    int32_t n_rows_affected;
     std::vector<std::string> column_names;
     std::vector<std::vector<std::string>> result;
+    auto create_from_proto(const SQLResultProto* proto_result) -> void;
+    auto check_has_result_set() const -> void;
 
 	public:
-    SQLResult(SQLResultProto* proto_result) {
-      rows_affected = proto_result->rows_affected();
-      column_names = std::vector<std::string>(proto_result->column_names().begin(), proto_result->column_names().end());
-      result = std::vector<std::vector<std::string>>();
-      for(int i = 0; i < proto_result->rows_size(); i++) {
-        RowProto row = proto_result->rows(i);
-        auto fields_vector = std::vector<FieldProto>(row.fields().begin(), row.fields().end());
-        auto data_vector = std::vector<std::string>();
-        for (auto field : fields_vector) {
-          data_vector.push_back(field.data());
-        }
-        result.push_back(data_vector);
-      }
+    QueryResultProtoWrapper(const SQLResultProto* proto_result) {
+      create_from_proto(proto_result);
     }
 
-    SQLResult(const std::string& data) {
+    QueryResultProtoWrapper(const std::string& data) {
       SQLResultProto result;
       if(!result.ParseFromString(data)) {
-        throw std::invalid_argument("Failed to parse SQLResult from data");
+        create_from_proto(&result);
+      } else {
+        throw std::invalid_argument("Failed to parse QueryResultProtoWrapper from data");
       }
     }
 
-    ~SQLResult() {
+    ~QueryResultProtoWrapper() {
     }
 
-		class const_iterator : query_result::QueryResult::const_iterator {
+		class const_iterator : query_result::QueryResult::const_iterator, sql::Row {
       private:
-        friend class SQLResult;
+        friend class QueryResultProtoWrapper;
 
         explicit const_iterator( const sql::Row& r ) noexcept
             : sql::Row( r )
@@ -88,7 +81,7 @@ class SQLResult : query_result::QueryResult {
 
         auto operator++( int ) noexcept -> query_result::QueryResult::const_iterator
         {
-          const_iterator nrv( *this );
+          sql::QueryResultProtoWrapper::const_iterator nrv( *this );
           ++*this;
           return nrv;
         }
@@ -132,6 +125,13 @@ class SQLResult : query_result::QueryResult {
         {
           return *( *this + n );
         }
+
+        friend auto operator+( const const_iterator& lhs, const std::int32_t rhs ) noexcept -> const_iterator
+        {
+          const_iterator nrv( lhs );
+          nrv += rhs;
+          return nrv;
+        }
 		};
 
 		auto name( const std::size_t column ) const -> std::string;
@@ -141,11 +141,16 @@ class SQLResult : query_result::QueryResult {
 		auto size() const -> std::size_t;
 
 		// iteration
-    auto begin() const -> query_result::QueryResult::const_iterator;
-    auto end() const -> query_result::QueryResult::const_iterator;
+    auto begin() const -> query_result::QueryResult::const_iterator*;
+    auto end() const -> query_result::QueryResult::const_iterator*;
 
-		auto cbegin() const -> query_result::QueryResult::const_iterator;
-    auto cend() const -> query_result::QueryResult::const_iterator;
+		auto cbegin() const -> query_result::QueryResult::const_iterator* {
+      return begin();
+    }
+
+    auto cend() const -> query_result::QueryResult::const_iterator* {
+      return end();
+    }
 		
 		// access rows
     auto operator[]( const std::size_t row ) const -> query_result::Row;
