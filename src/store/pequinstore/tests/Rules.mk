@@ -15,6 +15,6 @@ SRCS += $(addprefix $(d), proto_bench.cc tbb_test.cc compression_test.cc)
 
 $(d)proto_bench: $(LIB-latency) $(LIB-crypto) $(LIB-batched-sigs) $(LIB-store-common) $(LIB-proto) $(o)proto_bench.o
 $(d)tbb_test: $(o)tbb_test.o
-$(d)compression_test: $(o)compression_test.o
+$(d)compression_test: $(LIB-transport) $(LIB-latency) $(LIB-crypto) $(LIB-batched-sigs) $(LIB-store-common) $(LIB-proto) $(LIB-pequin-common) $(o)compression_test.o
 
 BINS += $(d)proto_bench $(d)tbb_test $(d)compression_test

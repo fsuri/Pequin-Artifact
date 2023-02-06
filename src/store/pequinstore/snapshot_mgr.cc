@@ -148,13 +148,30 @@ void TimestampCompressor::AddToBucket(const TimestampMessage &ts){
   //TODO: FIXME: Client id's are 2^6 offsets.. we're running with up to 500 clients = 2^9 ==> 2^15 total.
 
   //2) Check whether TS already is shifted by 12, else do it manually here.
-  
-  if((timestamp & time_mask) != timestamp){
+        //merge id into bottom bits of timestamp
+
+  //        if((timestamp & time_mask) != timestamp){
+  Debug("Timestamp: %lx", timestamp);
+  Debug("Timemask: %lx", time_mask);
+  Debug("Timestamp post mask: %lx", (timestamp & time_mask));
+
+  if( (timestamp & time_mask) == 0UL){ // no bottom 12 bit from mask should survive
+    local_ss->add_local_txns_committed_ts((timestamp | id));
+    
+  }
+  else{ //manually shift.
     Panic("Cannot merge id into timestamp; bottom bits not free.");
+    //top 32 bits (wipe bottom)
+    uint64_t top = timestamp & ((uint64_t) (1 << 32 - 1) << 32);
+    //bottom 20 bits
+    uint64_t bot = timestamp & ((uint64_t) (1 << 20 - 1));
+    //shift bottom bits and add to top
+    uint64_t new_ts = top + (bot << 12);
+    local_ss->add_local_txns_committed_ts((new_ts | id));
   }
    //merge id into bottom bits of timestamp
   //timestamps.push_back((timestamp | id));
-  local_ss->add_local_txns_committed_ts((timestamp | id));
+  //local_ss->add_local_txns_committed_ts((timestamp | id));
 }
 
 
@@ -163,6 +180,10 @@ void TimestampCompressor::AddToBucket(const TimestampMessage &ts){
                                                                                                                                                                   // or use 64bit compression alg.
     //put client id into vector in order to match the ts.   --> run unsorted compression here.
 
+void TimestampCompressor::ClearLocal(){
+  local_ss->clear_local_txns_committed_ts();
+  return;
+}
 
 void TimestampCompressor::CompressAll(){
     // Test if I can allocate less space for timestamps:  if(timestamp << log(num_clients) < -1)
@@ -197,7 +218,6 @@ void TimestampCompressor::CompressAll(){
     //compressed_timestamps.resize(compressed_size);
     //local_ss->mutable_local_txns_committed()->Resize((int) compressed_size);
     Debug("Compression factor: %d, Bits/Timestamp: %d", (timestamps.size() * sizeof(uint64_t)/(compressed_size*8)), ((compressed_size * 8) / num_timestamps));
-
   }
   else{
     //return unsorted (but merged Timestamps)
@@ -212,13 +232,17 @@ return;  //==> snapshot set is in committed_ts() if uncompressed, and in committ
 }
 
 void TimestampCompressor::DecompressAll(){
-  //decompress datastructure
-   Debug("Decompressing Timestamps");
-  //timestamps.reserve(num_timestamps + 1024);
-  local_ss->mutable_local_txns_committed()->Reserve(num_timestamps + 1024);
-  //size_t compressed_size = p4nddec64(compressed_timestamps.data(), num_timestamps, timestamps.data());
-  size_t compressed_size = p4nddec64((unsigned char*) local_ss->mutable_local_txns_committed_ts_compressed(), num_timestamps, local_ss->mutable_local_txns_committed_ts()->mutable_data());
-  //FIXME: Cannot work on repeated field --> Try storing compressed as a single bytes field. If not possible, must resort to copying/moving.
+
+  if(compressOptimisticTxIds){
+      //decompress datastructure
+    Debug("Decompressing Timestamps");
+    //timestamps.reserve(num_timestamps + 1024);
+    local_ss->mutable_local_txns_committed()->Reserve(num_timestamps + 1024);
+    //size_t compressed_size = p4nddec64(compressed_timestamps.data(), num_timestamps, timestamps.data());
+    size_t compressed_size = p4nddec64((unsigned char*) local_ss->mutable_local_txns_committed_ts_compressed(), num_timestamps, local_ss->mutable_local_txns_committed_ts()->mutable_data());
+    //FIXME: Cannot work on repeated field --> Try storing compressed as a single bytes field. If not possible, must resort to copying/moving.
+  }
+  return; //result is in committed_ts
 }
 
 

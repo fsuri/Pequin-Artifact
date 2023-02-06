@@ -413,6 +413,7 @@ class TimestampCompressor {
     virtual ~TimestampCompressor();
     void InitializeLocal(proto::LocalSnapshot *local_ss, bool compressOptimisticTxIds = false);
     void AddToBucket(const TimestampMessage &ts);
+    void ClearLocal();
     void CompressAll();
     void DecompressAll();
     //TODO: Add Merged

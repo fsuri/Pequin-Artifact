@@ -45,9 +45,11 @@
 #include "lib/compression/TurboPFor-Integer-Compression/vp4.h"
 //#include "TurboPFor-Integer-Compression/bitpack.h"
 
-
+#include "store/pequinstore/common.h"
+//#include "store/common/timestamp.h"
 
 using namespace std;
+using namespace pequinstore;
 
 // for tests: Use current time, and then randomly add/subtract values
 
@@ -248,6 +250,57 @@ void bit32_tests(){
 	compressed_size = p4nddec32(vp_compress32.data(), input.size(), recovery.data());
 	std::cerr << "TESTING. First recovered ts:" << recovery[0] << " Last ts: " << timestamps.back() << std::endl;
 }
+
+void TimestampCompressorTest(){
+	TimestampCompressor t_comp = TimestampCompressor();
+	proto::LocalSnapshot *local_ss = new proto::LocalSnapshot();
+	t_comp.InitializeLocal(local_ss, true);
+
+	struct timeval now;
+	TimestampMessage ts = TimestampMessage();
+
+	uint64_t bonus_sec = std::rand() % 3;
+	
+	for(int i=0; i<5; ++i){
+		uint64_t timestamp;
+		gettimeofday(&now, NULL);
+  		uint64_t randomness = std::rand() % 1000000;  
+
+		now.tv_usec += randomness;
+		if (now.tv_usec > 999999) {
+		    now.tv_usec -= 1000000;
+		    now.tv_sec++;
+		} else if (now.tv_usec < 0) {
+		    now.tv_usec += 1000000;
+		    now.tv_sec--;
+		}
+		
+		bonus_sec = std::rand() % 2;  //90 --> exp maximum 90 sec..) //1200; // all 10k tx are 20 min apart
+		//input unsorted, and in total 3 sec apart.
+		timestamp = (((uint64_t)now.tv_sec + bonus_sec) << 32) | ((uint64_t) now.tv_usec << 12);
+
+		uint64_t client_id = std::rand() % (1 << 12);
+		ts.set_timestamp(timestamp);
+		ts.set_id(client_id);
+		Debug("Generated Timestamp: %lx, Id: %lx", timestamp, client_id);
+
+		t_comp.AddToBucket(ts);
+	}
+
+	for(const uint64_t ts: local_ss->local_txns_committed_ts()){
+		Debug("Bucket Timestamp: %lx", ts);
+	}
+
+	t_comp.CompressAll();
+	t_comp.ClearLocal();
+	t_comp.DecompressAll();
+
+	for(const uint64_t ts: local_ss->local_txns_committed_ts()){
+		Debug("Decompressed Timestamp: %lx", ts);
+	}
+
+
+}
   
 
 int main(){
@@ -261,7 +314,7 @@ int main(){
   bit32_tests();
 	
 	////TODO:
-  //Add TimestampCompressor Test
+  TimestampCompressorTest();
 	
 	return 0;
 
