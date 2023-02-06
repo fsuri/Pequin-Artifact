@@ -1,6 +1,6 @@
 /***********************************************************************
  *
- * Copyright 2021 Florian Suri-Payer <fsp@cs.cornell.edu>
+ * Copyright 2023 Florian Suri-Payer <fsp@cs.cornell.edu>
  *                Liam Arzola <lma77@cornell.edu>
  *
  * Permission is hereby granted, free of charge, to any person
@@ -24,36 +24,36 @@
  * SOFTWARE.
  *
  **********************************************************************/
-#ifndef QUERY_RESULT_H
-#define QUERY_RESULT_H
 
 #include <string>
 #include <vector>
-#include "row.h"
+#include "store/common/query_result_proto_wrapper_row.h"
 
-namespace query_result {
+namespace sql {
 
-// QueryResult contains a collection of rows containing one or more fields of data.
-class QueryResult {
-	public:
-		auto name( const std::size_t column ) const -> std::string;
-
-		// size of the result set
-		bool empty() const;
-		auto size() const -> std::size_t;
-
-		// iteration
-    auto begin() const -> std::vector<Row>::const_iterator;
-    auto end() const -> std::vector<Row>::const_iterator;
-
-		auto cbegin() const -> std::vector<Row>::const_iterator;
-    auto cend() const -> std::vector<Row>::const_iterator;
-		
-		// access rows
-    auto operator[]( const std::size_t row ) const -> Row;
-    auto at( const std::size_t row ) const -> Row;
-};
-
+auto Row::name( std::size_t column ) const -> std::string
+{
+  return m_result->name( m_offset + column );
 }
 
-#endif /* QUERY_RESULT_H */
+auto Row::begin() const -> query_result::Row::const_iterator
+{
+  return const_iterator( Field( *this, m_offset ) );
+}
+
+auto Row::end() const -> query_result::Row::const_iterator
+{
+  return const_iterator( Field( *this, m_offset + m_columns ) );
+}
+
+auto Row::get( const std::size_t column ) const -> const char*
+{
+  return m_result->get( m_row, m_offset + column );
+}
+
+auto Row::is_null( const std::size_t column ) const -> bool 
+{
+  return m_result->is_null( m_row, m_offset + column );
+}
+
+}

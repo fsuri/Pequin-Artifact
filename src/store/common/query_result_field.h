@@ -1,6 +1,6 @@
 /***********************************************************************
  *
- * Copyright 2021 Florian Suri-Payer <fsp@cs.cornell.edu>
+ * Copyright 2023 Florian Suri-Payer <fsp@cs.cornell.edu>
  *                Liam Arzola <lma77@cornell.edu>
  *
  * Permission is hereby granted, free of charge, to any person
@@ -24,36 +24,24 @@
  * SOFTWARE.
  *
  **********************************************************************/
-#ifndef ROW_H
-#define ROW_H
+#ifndef FIELD_H
+#define FIELD_H
 
 #include <string>
 #include <vector>
-#include "row.h"
 
 namespace query_result {
 
-// QueryResult contains a collection of rows containing one or more fields of data.
-class QueryResult {
-	public:
-		auto name( const std::size_t column ) const -> std::string;
+// A field in a row, contains an interpretable collection of bytes
+class Field {
+ public:
+  virtual auto name() const -> std::string = 0;
+  virtual auto index() const -> std::size_t = 0;
 
-		// size of the result set
-		bool empty() const;
-		auto size() const -> std::size_t;
-
-		// iteration
-    auto begin() const -> std::vector<Row>::const_iterator;
-    auto end() const -> std::vector<Row>::const_iterator;
-
-		auto cbegin() const -> std::vector<Row>::const_iterator;
-    auto cend() const -> std::vector<Row>::const_iterator;
-		
-		// access rows
-    auto operator[]( const std::size_t row ) const -> Row;
-    auto at( const std::size_t row ) const -> Row;
+  virtual bool is_null() const = 0;
+  virtual auto get() const -> const char* = 0;
 };
 
 }
 
-#endif /* ROW_H */
+#endif /* FIELD_H */

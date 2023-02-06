@@ -41,6 +41,7 @@
 #include "store/common/partitioner.h"
 #include "store/common/frontend/client.h"
 #include "store/common/promise.h"
+#include "store/common/query_result.h"
 
 #include <functional>
 #include <string>
@@ -76,7 +77,7 @@ class SyncClient {
   virtual void Abort(uint32_t timeout);
 
   // Send query, wait for computation result. 
-  virtual void Query(std::string &query, std::string &result, uint32_t timeout);
+  virtual void Query(std::string &query, query_result::QueryResult &result, uint32_t timeout);
 
  private:
   void GetCallback(Promise *promise, int status, const std::string &key, const std::string &value,
@@ -91,7 +92,7 @@ class SyncClient {
   void AbortCallback(Promise *promise);
   void AbortTimeoutCallback(Promise *promise);
 
-  void QueryCallback(Promise *promise, int status, const std::string &result); //const std::string &query,
+  void QueryCallback(Promise *promise, int status, const query_result::QueryResult &result); //const std::string &query,
   void QueryTimeoutCallback(Promise *promise, int status); //, const std::string &query);
 
 
