@@ -7,11 +7,12 @@ CXX = g++
 LD = g++
 EXPAND = lib/tmpl/expand
 
+include Sanitizer.mk
 #CFLAGS := -g -Wall -pthread -iquote.obj/gen -Wno-uninitialized -O2 -DNUW_ASSERT
-CFLAGS :=  -g -no-pie -Wall -pthread -iquote.obj/gen -Wno-uninitialized -O2#-O3#-O1#-O2
-CXXFLAGS := -g -no-pie -std=c++17 -fsanitize=address -fno-omit-frame-pointer -fno-optimize-sibling-calls #-fsanitize=thread
+CFLAGS :=  -g -no-pie -Wall -pthread -iquote.obj/gen -Wno-uninitialized -O2 #-O3#-O1#-O2 
+CXXFLAGS := -g -no-pie -std=c++17 $(SANITIZE_FLAG) #-fsanitize=address -fno-omit-frame-pointer -fno-optimize-sibling-calls #-fsanitize=thread
 # -luv for HotStuff
-LDFLAGS := -levent_pthreads -lrt -luv -fsanitize=address -fno-omit-frame-pointer -fno-optimize-sibling-calls #-fsanitize=thread #
+LDFLAGS := -levent_pthreads -lrt -luv $(SANITIZE_FLAG) #-fsanitize=address -fno-omit-frame-pointer -fno-optimize-sibling-calls #-fsanitize=thread #
 
 ## Debian package: check
 #CHECK_CFLAGS := $(shell pkg-config --cflags check)
@@ -187,7 +188,7 @@ include store/benchmark/async/toy/Rules.mk
 include store/benchmark/async/Rules.mk
 include lockserver/Rules.mk
 include timeserver/Rules.mk
-include libtapir/Rules.mk
+#include libtapir/Rules.mk # removed because .so file is incompatible with static linking for compression libs. 
 include create_keys/Rules.mk
 #include simple_app/Rules.mk 
 ##################################################################
@@ -256,17 +257,20 @@ $(PROTOOBJS:%.o=%-pic.o): .obj/%-pic.o: .obj/gen/%.pb.cc $(PROTOSRCS)
 #
 # Linking
 #
+LDFLAGS += $(EXT_OBJS)
+#CFLAGS += -fPIC
+#CXXFLAGS += -fPIC
 
 $(call add-LDFLAGS,$(TEST_BINS),$(CHECK_LDFLAGS))
 
 $(BINS) $(TEST_BINS): %:
-	$(call trace,LD,$@,$(LD) -o $@ $^ $(LDFLAGS) $(LDFLAGS-$@))
+	$(call trace,LD,$@,$(LD) -o $@ $^ $(LDFLAGS) $(LDFLAGS-$@)) 
 
 #
 # Automatic dependencies
 #
 
-DEPS := $(OBJS:.o=.d) $(OBJS:.o=-pic.d) $(EXT_OBJS)
+DEPS := $(OBJS:.o=.d) $(OBJS:.o=-pic.d) 
 
 -include $(DEPS)
 
@@ -306,6 +310,8 @@ $(GMOCK_MAIN) : .obj/gmock/gmock-all.o .obj/gmock/gmock_main.o
 clean:
 	$(call trace,RM,binaries,rm -f $(BINS) $(TEST_BINS))
 	$(call trace,RM,objects,rm -rf .obj)
+#	@cd ./lib/compression/TurboPFor-Integer-Compression/; $(MAKE) clean
+#	@cd ./lib/compression/FrameOfReference/; $(MAKE) clean
 
 #
 # Debugging
@@ -319,8 +325,8 @@ print-%:
 .PHONY: compression
 compression: 
 	@echo '====== Installing Compression Libs ======'
-	cd ./lib/compression/TurboPFor-Integer-Compression/; make
-	cd ./lib/compression/FrameOfReference/; make
+	@cd ./lib/compression/TurboPFor-Integer-Compression/; $(MAKE)
+	@cd ./lib/compression/FrameOfReference/; $(MAKE)
 	@echo '====== Finish Installing Compression Libs ======'
 #
 #.PHONY: bftsmart

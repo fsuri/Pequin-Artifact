@@ -2,8 +2,8 @@ d := $(dir $(lastword $(MAKEFILE_LIST)))
 
 SRCS += $(addprefix $(d), client.cc shardclient.cc server.cc servertools.cc concurrencycontrol.cc store.cc common.cc \
 		phase1validator.cc localbatchsigner.cc sharedbatchsigner.cc \
-		basicverifier.cc localbatchverifier.cc sharedbatchverifier.cc proto_bench.cc \
-		querysync-server.cc querysync-client.cc queryexec.cc checkpointing.cc tbb_test.cc compression_test.cc snapshot_mgr.cc)
+		basicverifier.cc localbatchverifier.cc sharedbatchverifier.cc \
+		querysync-server.cc querysync-client.cc queryexec.cc checkpointing.cc snapshot_mgr.cc)
 
 PROTOS += $(addprefix $(d), pequin-proto.proto)
 PROTOS += $(addprefix $(d), query-proto.proto)
@@ -24,11 +24,11 @@ LIB-pequin-client := $(LIB-udptransport) \
 
 LIB-proto := $(o)pequin-proto.o $(o)query-proto.o
 #-I/home/floriansuri/Research/Projects/Pequin/Pequin-Artifact/src/store/common
-$(d)proto_bench: $(LIB-latency) $(LIB-crypto) $(LIB-batched-sigs) $(LIB-store-common) $(LIB-proto) $(o)proto_bench.o
 
-$(d)tbb_test: $(o)tbb_test.o
-$(d)compression_test: $(o)compression_test.o
+#$(d)proto_bench: $(LIB-latency) $(LIB-crypto) $(LIB-batched-sigs) $(LIB-store-common) $(LIB-proto) $(o)proto_bench.o
+#$(d)tbb_test: $(o)tbb_test.o
+#$(d)compression_test: $(o)compression_test.o
 
-BINS += $(d)proto_bench $(d)tbb_test $(d)compression_test
+#BINS += $(d)proto_bench $(d)tbb_test $(d)compression_test
 
 include $(d)tests/Rules.mk

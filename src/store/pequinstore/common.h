@@ -409,12 +409,13 @@ inline static bool compareReadSets (google::protobuf::RepeatedPtrField<ReadMessa
 
 class TimestampCompressor {
  public:
-    TimestampCompressor(bool compressOptimisticTxIds = false);
+    TimestampCompressor();
     virtual ~TimestampCompressor();
-    void Initialize(proto::LocalSnapshot *local_ss, bool compressOptimisticTxIds = false);
+    void InitializeLocal(proto::LocalSnapshot *local_ss, bool compressOptimisticTxIds = false);
     void AddToBucket(const TimestampMessage &ts);
     void CompressAll();
     void DecompressAll();
+    //TODO: Add Merged
  private:
    proto::LocalSnapshot *local_ss;
    //google::protobuf::RepeatedPtrField<google::protobuf::bytes> *ts_ids;
