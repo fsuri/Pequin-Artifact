@@ -19,20 +19,20 @@ Hyrise::Hyrise() {
   meta_table_manager = MetaTableManager{};
   settings_manager = SettingsManager{};
   log_manager = LogManager{};
-  topology = Topology{};
-  _scheduler = std::make_shared<ImmediateExecutionScheduler>();*/
+  topology = Topology{};*/
+  _scheduler = std::make_shared<ImmediateExecutionScheduler>();
 }
 
 void Hyrise::reset() {
-  /*Hyrise::get().scheduler()->finish();*/
+  Hyrise::get().scheduler()->finish();
   get() = Hyrise{};
 }
 
-/*const std::shared_ptr<AbstractScheduler>& Hyrise::scheduler() const {
+const std::shared_ptr<AbstractScheduler>& Hyrise::scheduler() const {
   return _scheduler;
 }
 
-bool Hyrise::is_multi_threaded() const {
+/*bool Hyrise::is_multi_threaded() const {
   return std::dynamic_pointer_cast<ImmediateExecutionScheduler>(_scheduler) == nullptr;
 }
 

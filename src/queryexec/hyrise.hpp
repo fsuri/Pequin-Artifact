@@ -3,7 +3,7 @@
 #include <boost/container/pmr/memory_resource.hpp>
 
 //#include "concurrency/transaction_manager.hpp"
-//#include "scheduler/immediate_execution_scheduler.hpp"
+#include "scheduler/immediate_execution_scheduler.hpp"
 //#include "scheduler/topology.hpp"
 //#include "sql/sql_plan_cache.hpp"
 #include "storage/storage_manager.hpp"
@@ -31,8 +31,8 @@ class Hyrise : public Singleton<Hyrise> {
 
   // The scheduler is always set. However, the ImmediateExecutionScheduler does not involve any multi-threading. This
   // can be tested with is_multi_threaded.
-  /*const std::shared_ptr<AbstractScheduler>& scheduler() const;
-  bool is_multi_threaded() const;
+  const std::shared_ptr<AbstractScheduler>& scheduler() const;
+  /*bool is_multi_threaded() const;
 
   void set_scheduler(const std::shared_ptr<AbstractScheduler>& new_scheduler);*/
 
@@ -63,7 +63,7 @@ class Hyrise : public Singleton<Hyrise> {
 
   // (Re-)setting the scheduler requires more than just replacing the pointer. To make sure that set_scheduler is used,
   // the scheduler is private.
-  //std::shared_ptr<AbstractScheduler> _scheduler;
+  std::shared_ptr<AbstractScheduler> _scheduler;
 };
 
 }  // namespace hyrise

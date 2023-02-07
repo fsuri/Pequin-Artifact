@@ -209,7 +209,7 @@ class AbstractOperator : public std::enable_shared_from_this<AbstractOperator>, 
    * Creates an OperatorTask that owns this operator, if not already existing.
    * @returns a shared pointer to the OperatorTask.
    */
-  //std::shared_ptr<OperatorTask> get_or_create_operator_task();
+  std::shared_ptr<OperatorTask> get_or_create_operator_task();
 
   // LQP node with which this operator has been created. Might be uninitialized.
   std::shared_ptr<const AbstractLQPNode> lqp_node;

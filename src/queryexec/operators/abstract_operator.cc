@@ -8,8 +8,8 @@
 //#include "concurrency/transaction_context.hpp"
 //#include "logical_query_plan/abstract_non_query_node.hpp"
 //#include "logical_query_plan/dummy_table_node.hpp"
-//#include "resolve_type.hpp"
-//#include "scheduler/operator_task.hpp"
+#include "../resolve_type.hpp"
+#include "../scheduler/operator_task.hpp"
 //#include "storage/table.hpp"
 //#include "storage/value_segment.hpp"
 #include "../utils/assert.hpp"
@@ -328,32 +328,32 @@ OperatorState AbstractOperator::state() const {
   return _state;
 }
 
-/*std::shared_ptr<OperatorTask> AbstractOperator::get_or_create_operator_task() {
+std::shared_ptr<OperatorTask> AbstractOperator::get_or_create_operator_task() {
   std::lock_guard<std::mutex> lock(_operator_task_mutex);
   // Return the OperatorTask that owns this operator if it already exists.
   if (!_operator_task.expired()) {
     return _operator_task.lock();
   }
 
-  if constexpr (HYRISE_DEBUG) {
+  /*if constexpr (HYRISE_DEBUG) {
     // Check whether _operator_task points to NULL, which means it was never initialized before.
     // Taken from: https://stackoverflow.com/a/45507610/5558040
     using weak_null_pointer = std::weak_ptr<OperatorTask>;
     auto is_uninitialized =
         !_operator_task.owner_before(weak_null_pointer{}) && !weak_null_pointer{}.owner_before(_operator_task);
     Assert(is_uninitialized || executed(), "This operator was owned by an OperatorTask that did not execute.");
-  }
+  }*/
 
   auto operator_task = std::make_shared<OperatorTask>(shared_from_this());
   _operator_task = std::weak_ptr<OperatorTask>(operator_task);
   if (executed()) {
     // Skip task to reduce scheduling overhead.
-    operator_task->skip_operator_task();
-    DebugAssert(operator_task->is_done(), "Expected OperatorTask to be marked as done.");
+    /*operator_task->skip_operator_task();
+    DebugAssert(operator_task->is_done(), "Expected OperatorTask to be marked as done.");*/
   }
 
   return operator_task;
-}*/
+}
 
 //void AbstractOperator::_on_set_transaction_context(const std::weak_ptr<TransactionContext>& transaction_context) {}
 
