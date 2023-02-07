@@ -38,7 +38,7 @@
 //#include "logical_query_plan/alias_node.hpp"
 //#include "logical_query_plan/change_meta_table_node.hpp"
 //#include "logical_query_plan/create_prepared_plan_node.hpp"
-//#include "logical_query_plan/create_table_node.hpp"
+#include "logical_query_plan/create_table_node.hpp"
 //#include "logical_query_plan/create_view_node.hpp"
 //#include "logical_query_plan/delete_node.hpp"
 //#include "logical_query_plan/drop_table_node.hpp"
@@ -55,7 +55,7 @@
 #include "logical_query_plan/predicate_node.hpp"
 #include "logical_query_plan/projection_node.hpp"
 //#include "logical_query_plan/sort_node.hpp"
-//#include "logical_query_plan/static_table_node.hpp"
+#include "logical_query_plan/static_table_node.hpp"
 //#include "logical_query_plan/stored_table_node.hpp"
 #include "logical_query_plan/union_node.hpp"
 //#include "logical_query_plan/update_node.hpp"
@@ -212,10 +212,10 @@ std::shared_ptr<AbstractLQPNode> SQLTranslator::_translate_statement(const hsql:
     case hsql::kStmtUpdate:
       return _translate_update(static_cast<const hsql::UpdateStatement&>(statement));
     case hsql::kStmtShow:
-      return _translate_show(static_cast<const hsql::ShowStatement&>(statement));
+      return _translate_show(static_cast<const hsql::ShowStatement&>(statement));*/
     case hsql::kStmtCreate:
       return _translate_create(static_cast<const hsql::CreateStatement&>(statement));
-    case hsql::kStmtDrop:
+    /*case hsql::kStmtDrop:
       return _translate_drop(static_cast<const hsql::DropStatement&>(statement));
     case hsql::kStmtPrepare:
       return _translate_prepare(static_cast<const hsql::PrepareStatement&>(statement));
@@ -1307,21 +1307,21 @@ std::shared_ptr<AbstractLQPNode> SQLTranslator::_translate_show(const hsql::Show
   Fail("Invalid enum value");
 }*/
 
-/*std::shared_ptr<AbstractLQPNode> SQLTranslator::_translate_create(const hsql::CreateStatement& create_statement) {
+std::shared_ptr<AbstractLQPNode> SQLTranslator::_translate_create(const hsql::CreateStatement& create_statement) {
   switch (create_statement.type) {
-    case hsql::CreateType::kCreateView:
-      return _translate_create_view(create_statement);
+    /*case hsql::CreateType::kCreateView:
+      return _translate_create_view(create_statement);*/
     case hsql::CreateType::kCreateTable:
       return _translate_create_table(create_statement);
-    case hsql::CreateType::kCreateTableFromTbl:
+    /*case hsql::CreateType::kCreateTableFromTbl:
       FailInput("CREATE TABLE FROM is not yet supported");
     case hsql::CreateType::kCreateIndex:
-      FailInput("CREATE INDEX is not yet supported");
+      FailInput("CREATE INDEX is not yet supported");*/
   }
   Fail("Invalid enum value");
 }
 
-std::shared_ptr<AbstractLQPNode> SQLTranslator::_translate_create_view(const hsql::CreateStatement& create_statement) {
+/*std::shared_ptr<AbstractLQPNode> SQLTranslator::_translate_create_view(const hsql::CreateStatement& create_statement) {
   auto lqp = _translate_select_statement(static_cast<const hsql::SelectStatement&>(*create_statement.select));
   const auto output_expressions = lqp->output_expressions();
 
@@ -1349,7 +1349,7 @@ std::shared_ptr<AbstractLQPNode> SQLTranslator::_translate_create_view(const hsq
                               create_statement.ifNotExists);
 }*/
 
-/*std::shared_ptr<AbstractLQPNode> SQLTranslator::_translate_create_table(const hsql::CreateStatement& create_statement) {
+std::shared_ptr<AbstractLQPNode> SQLTranslator::_translate_create_table(const hsql::CreateStatement& create_statement) {
   Assert(create_statement.columns || create_statement.select, "CREATE TABLE: No columns specified. Parser bug?");
 
   std::shared_ptr<AbstractLQPNode> input_node;
@@ -1358,7 +1358,7 @@ std::shared_ptr<AbstractLQPNode> SQLTranslator::_translate_create_view(const hsq
     input_node = _translate_select_statement(*create_statement.select);
   } else {
     auto column_definitions = TableColumnDefinitions{create_statement.columns->size()};
-    auto table_key_constraints = TableKeyConstraints{};
+    //auto table_key_constraints = TableKeyConstraints{};
 
     for (auto column_id = ColumnID{0}; column_id < create_statement.columns->size(); ++column_id) {
       const auto* parser_column_definition = create_statement.columns->at(column_id);
@@ -1425,7 +1425,7 @@ std::shared_ptr<AbstractLQPNode> SQLTranslator::_translate_create_view(const hsq
       column_definition.nullable = parser_column_definition->nullable;
 
       // Translate column constraints. We only address UNIQUE/PRIMARY KEY constraints for now.
-      DebugAssert(parser_column_definition->column_constraints,
+      /*DebugAssert(parser_column_definition->column_constraints,
                   "Column " + column_definition.name + " is missing constraint information");
       for (const auto& column_constraint : *parser_column_definition->column_constraints) {
         if (column_constraint != hsql::ConstraintType::Unique &&
@@ -1439,13 +1439,13 @@ std::shared_ptr<AbstractLQPNode> SQLTranslator::_translate_create_view(const hsq
         std::cout << "WARNING: " << magic_enum::enum_name(constraint_type) << " constraint for column "
                   << column_definition.name << " will not be enforced\n";
       }
-    }
+    }*/
 
     // Translate table constraints. Note that a table constraint is either a unique constraint, a referential con-
     // straint, or a table check constraint per SQL standard. Some constraints can be set (i) when describing a single
     // column, see above, or (ii) as a property of the table, containing multiple columns. We only address UNIQUE/
     // PRIMARY KEY constraints for now.
-    const auto column_count = column_definitions.size();
+    /*const auto column_count = column_definitions.size();
     for (const auto& table_constraint : *create_statement.tableConstraints) {
       Assert(table_constraint->type == hsql::ConstraintType::PrimaryKey ||
                  table_constraint->type == hsql::ConstraintType::Unique,
@@ -1472,24 +1472,24 @@ std::shared_ptr<AbstractLQPNode> SQLTranslator::_translate_create_view(const hsq
             break;
           }
         }
-      }
-      AssertInput(
+      }*/
+      /*AssertInput(
           column_ids.size() == table_constraint->columnNames->size(),
           "Could not resolve columns of " + std::string{magic_enum::enum_name(constraint_type)} + " table constraint");
       table_key_constraints.emplace(column_ids, constraint_type);
-      std::cout << "WARNING: " << magic_enum::enum_name(constraint_type) << " table constraint will not be enforced\n";
+      std::cout << "WARNING: " << magic_enum::enum_name(constraint_type) << " table constraint will not be enforced\n";*/
     }
 
     // Set table key constraints
     const auto table = Table::create_dummy_table(column_definitions);
-    for (const auto& table_key_constraint : table_key_constraints) {
+    /*for (const auto& table_key_constraint : table_key_constraints) {
       table->add_soft_key_constraint(table_key_constraint);
-    }
+    }*/
     input_node = StaticTableNode::make(table);
   }
 
   return CreateTableNode::make(create_statement.tableName, create_statement.ifNotExists, input_node);
-}*/
+}
 
 // NOLINTNEXTLINE - while this particular method could be made static, others cannot.
 /*std::shared_ptr<AbstractLQPNode> SQLTranslator::_translate_drop(const hsql::DropStatement& drop_statement) {
