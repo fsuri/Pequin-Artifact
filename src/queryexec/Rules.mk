@@ -11,7 +11,9 @@ operators/operator_scan_predicate.cc storage/lqp_view.cc utils/string_utils.cc a
 all_type_variant.cc parameter_id_allocator.cc operators/abstract_operator.cc sql_translator.cc)
 SRCS += $(addprefix $(d), storage/abstract_pos_list.cc storage/abstract_segment.cc storage/chunk.cc storage/reference_segment.cc storage/storage_manager.cc \
 storage/table_column_definition.cc storage/table.cc storage/value_segment.cc)
-SRCS += $(addprefix $(d), logical_query_plan/abstract_non_query_node.cc logical_query_plan/create_table_node.cc logical_query_plan/static_table_node.cc)
+SRCS += $(addprefix $(d), logical_query_plan/abstract_non_query_node.cc logical_query_plan/create_table_node.cc logical_query_plan/static_table_node.cc logical_query_plan/lqp_translator.cc)
+SRCS += $(addprefix $(d), operators/maintenance/create_table.cc operators/abstract_read_write_operator.cc operators/insert.cc)
+SRCS += $(addprefix $(d), hyrise.cc)
 SRCS += $(addprefix $(d), queryexec-test.cc)
 
 #SRCS += $(addprefix $(d), SQLParserResult.cc SQLParser.cc parser/bison_parser.cc parser/flex_lexer.cc sql/Expr.cc sql/CreateStatement.cc sql/PrepareStatement.cc sql/SQLStatement.cc)
@@ -26,7 +28,8 @@ LIB-queryprocess := $(o)SQLParser.o $(o)SQLParserResult.o $(o)sql/Expr.o $(o)sql
 	$(o)logical_query_plan/lqp_utils.o $(o)logical_query_plan/predicate_node.o $(o)logical_query_plan/projection_node.o $(o)logical_query_plan/union_node.o $(o)operators/abstract_operator.o \
 	$(o)operators/operator_scan_predicate.o $(o)storage/lqp_view.o $(o)utils/string_utils.o $(o)all_parameter_variant.o $(o)all_type_variant.o $(o)parameter_id_allocator.o $(o)sql_translator.o \
 	$(o)storage/abstract_pos_list.o $(o)storage/abstract_segment.o $(o)storage/chunk.o $(o)storage/reference_segment.o $(o)storage/storage_manager.o $(o)storage/table_column_definition.o \
-	$(o)storage/table.o $(o)storage/value_segment.o $(o)logical_query_plan/abstract_non_query_node.o $(o)logical_query_plan/create_table_node.o $(o)logical_query_plan/static_table_node.o
+	$(o)storage/table.o $(o)storage/value_segment.o $(o)logical_query_plan/abstract_non_query_node.o $(o)logical_query_plan/create_table_node.o $(o)logical_query_plan/static_table_node.o \
+	$(o)logical_query_plan/lqp_translator.o $(o)operators/maintenance/create_table.o $(o)operators/abstract_read_write_operator.o $(o)operators/insert.o $(o)hyrise.o
 
 #LIB-queryprocess := #$(o)SQLParserResult.o $(o)SQLParser.o
 LIB-queryprocess-flex := $(o)parser/flex_lexer.o $(o)parser/bison_parser.o

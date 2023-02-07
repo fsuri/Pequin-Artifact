@@ -224,13 +224,13 @@ std::shared_ptr<AbstractOperator> AbstractOperator::deep_copy(
   return copied_op;
 }
 
-/*std::shared_ptr<const Table> AbstractOperator::left_input_table() const {
+std::shared_ptr<const Table> AbstractOperator::left_input_table() const {
   return _left_input->get_output();
 }
 
 std::shared_ptr<const Table> AbstractOperator::right_input_table() const {
   return _right_input->get_output();
-}*/
+}
 
 size_t AbstractOperator::consumer_count() const {
   return _consumer_count.load();

@@ -16,7 +16,7 @@ namespace hyrise {
 
 class OperatorTask;
 class Table;
-class TransactionContext;
+//class TransactionContext;
 
 enum class OperatorType {
   Aggregate,
@@ -183,8 +183,8 @@ class AbstractOperator : public std::enable_shared_from_this<AbstractOperator>, 
   std::shared_ptr<AbstractOperator> mutable_right_input() const;
 
   // Return the output tables of the inputs
-  //std::shared_ptr<const Table> left_input_table() const;
-  //std::shared_ptr<const Table> right_input_table() const;
+  std::shared_ptr<const Table> left_input_table() const;
+  std::shared_ptr<const Table> right_input_table() const;
 
   // Returns the current count of operators that registered themselves for output consumption
   size_t consumer_count() const;
@@ -249,7 +249,7 @@ class AbstractOperator : public std::enable_shared_from_this<AbstractOperator>, 
   std::shared_ptr<const Table> _output;
 
   // Weak pointer breaks cyclical dependency between operators and context
-  std::optional<std::weak_ptr<TransactionContext>> _transaction_context;
+  //std::optional<std::weak_ptr<TransactionContext>> _transaction_context;
 
  private:
   // We track the number of consuming operators to automate the clearing of operator results.
