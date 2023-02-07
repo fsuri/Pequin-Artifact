@@ -28,6 +28,7 @@
 
 #include <sstream>
 #include <list>
+#include <iomanip>
 
 #include "store/common/timestamp.h"
 #include "store/common/transaction.h"
@@ -139,10 +140,13 @@ void TimestampCompressor::AddToBucket(const TimestampMessage &ts){
 
   //option2): merge ts and id
  
-  uint64_t time_mask = 1 << 12 - 1; //all bottom 12 bits = 1
+  uint64_t time_mask = 0xFFF; //(1 << 12) - 1; //all bottom 12 bits = 1
   //1) Check whether Id < 2^12
   //uint64_t id_mask = ~0UL - (time_mask);
-  if(id >= 2^12){
+
+  Debug("Add to Bucket: Timestamp: %lx, Id: %lx, Timemask: %lx, TS & Mask: %lx ", timestamp, id, time_mask, (timestamp & time_mask));
+  
+  if(id > time_mask){
     Panic("Cannot merge id's this large.");
   }
   //TODO: FIXME: Client id's are 2^6 offsets.. we're running with up to 500 clients = 2^9 ==> 2^15 total.
@@ -151,12 +155,10 @@ void TimestampCompressor::AddToBucket(const TimestampMessage &ts){
         //merge id into bottom bits of timestamp
 
   //        if((timestamp & time_mask) != timestamp){
-  Debug("Timestamp: %lx", timestamp);
-  Debug("Timemask: %lx", time_mask);
-  Debug("Timestamp post mask: %lx", (timestamp & time_mask));
-
+  
   if( (timestamp & time_mask) == 0UL){ // no bottom 12 bit from mask should survive
     local_ss->add_local_txns_committed_ts((timestamp | id));
+    timestamps.push_back((timestamp | id));
     
   }
   else{ //manually shift.
@@ -168,6 +170,7 @@ void TimestampCompressor::AddToBucket(const TimestampMessage &ts){
     //shift bottom bits and add to top
     uint64_t new_ts = top + (bot << 12);
     local_ss->add_local_txns_committed_ts((new_ts | id));
+    timestamps.push_back((new_ts| id));
   }
    //merge id into bottom bits of timestamp
   //timestamps.push_back((timestamp | id));
@@ -182,6 +185,8 @@ void TimestampCompressor::AddToBucket(const TimestampMessage &ts){
 
 void TimestampCompressor::ClearLocal(){
   local_ss->clear_local_txns_committed_ts();
+  timestamps.clear();
+  //local_ss->mutable_local_txns_committed_ts()->Clear();
   return;
 }
 
@@ -200,24 +205,29 @@ void TimestampCompressor::CompressAll(){
   if(compressOptimisticTxIds){
   
     //1) sort (only if compressing)
-    //std::sort(timestamps.begin(), timestamps.end()); //TODO: replace this with the repeated field directly.
+    std::sort(timestamps.begin(), timestamps.end()); //TODO: replace this with the repeated field directly.
     std::sort(local_ss->mutable_local_txns_committed()->begin(), local_ss->mutable_local_txns_committed()->end());
 
     //2) compress
-     Debug("Compressing Timestamps");
     //std::vector<unsigned char> vp_compress(8*timestamps.size() + 1024);
-    //num_timestamps = timestamps.size();
+    num_timestamps = timestamps.size();
     num_timestamps = local_ss->mutable_local_txns_committed_ts()->size();
+    Debug("Compressing %d Timestamps", num_timestamps);
 
-    //compressed_timestamps.reserve(8*num_timestamps + 1024);
+    compressed_timestamps.reserve(8*num_timestamps + 1024);
     //TODO: use local data structure and then move it to bytes.
     //local_ss->mutable_local_txns_committed_ts_compressed()->Reserve(8*num_timestamps + 1024);
 
-    //size_t compressed_size = p4ndenc64(timestamps.data(), num_timestamps, compressed_timestamps.data()); //use p4ndenc for sorted
-    size_t compressed_size = p4ndenc64(local_ss->mutable_local_txns_committed_ts()->mutable_data(), num_timestamps, (unsigned char*) local_ss->mutable_local_txns_committed_ts_compressed()); //use p4ndenc for sorted
+     UW_ASSERT((num_timestamps*64) < (1<<32) + 1024); //Ensure it can fit within a single protobuf byte field (max size 2^32); 1024 as safety buffer ==> Implies we can only have 2^26 = 67 million tx-ids in a snapshot for the current code
+
+
+    std::cerr << "TESTING. First ts:" << timestamps[0] << " Last ts: " << timestamps.back() << std::endl;
+    size_t compressed_size = p4ndenc64(timestamps.data(), num_timestamps, compressed_timestamps.data()); //use p4ndenc for sorted
+    compressed_size = p4ndenc64(local_ss->mutable_local_txns_committed_ts()->mutable_data(), num_timestamps, compressed_timestamps.data()); //(unsigned char*) local_ss->mutable_local_txns_committed_ts_compressed()); //use p4ndenc for sorted  (output = num bytes)
     //compressed_timestamps.resize(compressed_size);
     //local_ss->mutable_local_txns_committed()->Resize((int) compressed_size);
-    Debug("Compression factor: %d, Bits/Timestamp: %d", (timestamps.size() * sizeof(uint64_t)/(compressed_size*8)), ((compressed_size * 8) / num_timestamps));
+    Debug("Compressed size: %d. Compression factor: %f, Bits/Timestamp: %d", compressed_size, (float)(num_timestamps * sizeof(uint64_t) /  (float) compressed_size), ((compressed_size * 8) / num_timestamps));
+
   }
   else{
     //return unsorted (but merged Timestamps)
@@ -235,12 +245,20 @@ void TimestampCompressor::DecompressAll(){
 
   if(compressOptimisticTxIds){
       //decompress datastructure
-    Debug("Decompressing Timestamps");
-    //timestamps.reserve(num_timestamps + 1024);
-    local_ss->mutable_local_txns_committed()->Reserve(num_timestamps + 1024);
-    //size_t compressed_size = p4nddec64(compressed_timestamps.data(), num_timestamps, timestamps.data());
-    size_t compressed_size = p4nddec64((unsigned char*) local_ss->mutable_local_txns_committed_ts_compressed(), num_timestamps, local_ss->mutable_local_txns_committed_ts()->mutable_data());
+    Debug("Decompressing %d Timestamps", num_timestamps);
+    out_timestamps.clear();
+    out_timestamps.reserve(num_timestamps);// + 1024);
+    out_timestamps.resize(num_timestamps);
+    size_t compressed_size = p4nddec64(compressed_timestamps.data(), num_timestamps, out_timestamps.data());
+    
+    local_ss->mutable_local_txns_committed_ts()->Reserve(num_timestamps + 1024);
+    local_ss->mutable_local_txns_committed_ts()->Resize(num_timestamps, 0UL); //default value
+    compressed_size = p4nddec64(compressed_timestamps.data(), num_timestamps, local_ss->mutable_local_txns_committed_ts()->mutable_data());
     //FIXME: Cannot work on repeated field --> Try storing compressed as a single bytes field. If not possible, must resort to copying/moving.
+
+
+    Debug("Finished decompressing %d bytes into %d timestamps", compressed_size, out_timestamps.size());
+
   }
   return; //result is in committed_ts
 }

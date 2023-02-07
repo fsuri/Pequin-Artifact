@@ -417,6 +417,7 @@ class TimestampCompressor {
     void CompressAll();
     void DecompressAll();
     //TODO: Add Merged
+    std::vector<uint64_t> out_timestamps; //TODO: replace with the repeated field from local_ss
  private:
    proto::LocalSnapshot *local_ss;
    //google::protobuf::RepeatedPtrField<google::protobuf::bytes> *ts_ids;

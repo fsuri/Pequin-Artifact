@@ -163,7 +163,7 @@ void bit64_tests(){
 	std::cerr << "TESTING SIZE (bytes): "<< compressed_size << std::endl;  //232 * 8; 1000*64
 	std::cerr << "TESTING SIZE (bit/int): " << std::setprecision(4) << (compressed_size * 8) / timestamps.size() << std::endl;  //232 * 8; 1000*64
 	compressed_size = p4nddec64(vp_compress.data(), timestamps.size(), recover.data());
-	std::cerr << "TESTING. First recovered ts:" << recover[0] << " Last ts: " << timestamps.back() << std::endl;
+	std::cerr << "TESTING. First recovered ts:" << recover[0] << " Last ts: " << recover.back() << std::endl;
 }
 
 ////////////////	//////////////// 32 bit Test
@@ -176,7 +176,7 @@ void bit32_tests(){
   uint64_t sum = 0;
 	uint64_t bonus_sec = std::rand() % 3;
 	
-	for(int i=0; i<100; ++i){
+	for(int i=0; i<10; ++i){
 		uint64_t timestamp;
 		gettimeofday(&now, NULL);
   		uint64_t randomness = std::rand() % 1000000;  
@@ -244,11 +244,11 @@ void bit32_tests(){
 	std::vector<unsigned char> vp_compress32(4*input.size() + 1024);
     
     std::cerr << "TESTING. First ts:" << input[0] << " Last ts: " << input.back() << std::endl;
-	size_t compressed_size = p4ndenc32(input.data(), input.size(), vp_compress32.data()); //use p4ndenc for sorted
+	size_t compressed_size = p4nenc32(input.data(), input.size(), vp_compress32.data()); //use p4ndenc for sorted
 	std::cerr << "TESTING SIZE (bytes): "<< compressed_size << std::endl;  //232 * 8; 1000*64
-	std::cerr << "TESTING SIZE (bit/int): " << std::setprecision(4) << (compressed_size * 8) / timestamps.size() << std::endl;  //232 * 8; 1000*64
-	compressed_size = p4nddec32(vp_compress32.data(), input.size(), recovery.data());
-	std::cerr << "TESTING. First recovered ts:" << recovery[0] << " Last ts: " << timestamps.back() << std::endl;
+	std::cerr << "TESTING SIZE (bit/int): " << std::setprecision(4) << (compressed_size * 8) / input.size() << std::endl;  //232 * 8; 1000*64
+	compressed_size = p4ndec32(vp_compress32.data(), input.size(), recovery.data());
+	std::cerr << "TESTING. First recovered ts:" << recovery[0] << " Last ts: " << recovery.back() << std::endl;
 }
 
 void TimestampCompressorTest(){
@@ -282,23 +282,33 @@ void TimestampCompressorTest(){
 		uint64_t client_id = std::rand() % (1 << 12);
 		ts.set_timestamp(timestamp);
 		ts.set_id(client_id);
-		Debug("Generated Timestamp: %lx, Id: %lx", timestamp, client_id);
+		fprintf(stderr, "Generated Timestamp: %lx, Id: %lx \n", timestamp, client_id);
 
 		t_comp.AddToBucket(ts);
 	}
 
 	for(const uint64_t ts: local_ss->local_txns_committed_ts()){
-		Debug("Bucket Timestamp: %lx", ts);
+		fprintf(stderr, "Bucket Timestamp: %lx \n", ts);
 	}
 
 	t_comp.CompressAll();
 	t_comp.ClearLocal();
 	t_comp.DecompressAll();
 
-	for(const uint64_t ts: local_ss->local_txns_committed_ts()){
-		Debug("Decompressed Timestamp: %lx", ts);
-	}
+	fprintf(stderr, "Decompressed %d \n", t_comp.out_timestamps.size());
+	fprintf(stderr, "Decompressed %d \n", local_ss->local_txns_committed_ts().size());
 
+	for(const uint64_t ts: t_comp.out_timestamps){
+		fprintf(stderr, "Decompressed Timestamp: %lx \n", ts);
+	}
+	
+
+	for(const uint64_t ts: local_ss->local_txns_committed_ts()){
+		fprintf(stderr, "Decompressed Timestamp Proto: %lx \n", ts);
+	}
+	
+
+	if(local_ss) delete local_ss;
 
 }
   

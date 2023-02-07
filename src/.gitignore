@@ -50,7 +50,10 @@ store/common/backend/tests/versionstore-test
 store/indicusstore/tests/common-test
 store/indicusstore/tests/server-test
 store/indicusstore/proto_bench
-store/pequinstore/proto_bench
+store/pequinstore/tests/proto_bench
+store/pequinstore/tests/compression_test
+store/pequinstore/tests/tbb_test
+
 store/janusstore/tests/janus-client-test
 store/janusstore/tests/janus-server-test
 store/mortystore/tests/branch-generator-test

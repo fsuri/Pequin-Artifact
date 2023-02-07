@@ -99,6 +99,7 @@ message LocalSnapshot {
   repeated uint64 local_txns_prepared_ts = 7;
 
   optional bytes local_txns_committed_ts_compressed = 8; //Note: max length 2^32 
+  optional uint32 num_txn_ids = 9;
   
 }
 message SyncReply {
