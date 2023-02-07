@@ -150,7 +150,7 @@ enum read_messages_t {
 /**
  * System settings.
  */
-DEFINE_uint64(client_id, 0, "unique identifier for client");
+DEFINE_uint64(client_id, 0, "unique identifier for client process");
 DEFINE_string(config_path, "", "path to shard configuration file");
 DEFINE_uint64(num_shards, 1, "number of shards in the system");
 DEFINE_uint64(num_groups, 1, "number of replica groups in the system");
@@ -400,8 +400,11 @@ DEFINE_string(pequin_sync_messages, query_messages_args[0], "number of replicas 
 DEFINE_validator(pequin_sync_messages, &ValidateQueryMessages);
 
 DEFINE_bool(pequin_query_read_prepared, false, "allow query to read prepared values");
-DEFINE_bool(pequin_query_optimistic_txid, false, "use optimistic tx-id for sync protocol");
 DEFINE_bool(pequin_query_cache_read_set, true, "cache query read set at replicas"); // Send syncMessages to all if read set caching is enabled -- but still only sync_messages many replicas are tasked to execute and reply.
+
+DEFINE_bool(pequin_query_optimistic_txid, false, "use optimistic tx-id for sync protocol");
+DEFINE_bool(pequin_query_compress_optimistic_txid, false, "compress optimistic tx-id for sync protocol");
+
 
 DEFINE_bool(pequin_query_merge_active_at_client, true, "merge active query read sets client-side");
 
@@ -548,7 +551,7 @@ DEFINE_uint64(cooldown_secs, 5, "time (in seconds) to cool down system after"
     " recording stats");
 DEFINE_uint64(tput_interval, 0, "time (in seconds) between throughput"
     " measurements");
-DEFINE_uint64(num_client_threads, 1, "number of client threads to run in this process");
+DEFINE_uint64(num_client_threads, 1, "number of client threads to run on each process");
 DEFINE_uint64(num_client_hosts, 1, "number of client processes across all nodes and servers");
 DEFINE_uint64(num_requests, -1, "number of requests (transactions) per"
     " client");
@@ -1265,8 +1268,9 @@ int main(int argc, char **argv) {
                                                  syncMessages,
                                                  resultQuorum,
                                                  FLAGS_pequin_query_read_prepared,
-                                                 FLAGS_pequin_query_optimistic_txid,
                                                  FLAGS_pequin_query_cache_read_set,
+                                                 FLAGS_pequin_query_optimistic_txid,
+                                                 FLAGS_pequin_query_compress_optimistic_txid, 
                                                  FLAGS_pequin_query_merge_active_at_client,
                                                  FLAGS_pequin_sign_client_queries,
                                                  FLAGS_pequin_parallel_queries);

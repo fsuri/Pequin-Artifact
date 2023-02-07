@@ -46,6 +46,16 @@ SnapshotManager::SnapshotManager(proto::Query *query, uint64_t replica_id, proto
     syncReply->set_optimistic_tx_id(optimisticTxId);
     
     if(optimisticTxId) ts_comp.InitializeLocal(local_ss, compressOptimisticTxIds);
+
+    //TODO:
+    //local_ss  -- pass via syncReply ==> change to pass directly. Set optimistic_tx_id flag as desired outside. ==> TODO: FIXME: change flag optimisticTX id to not use params. Its an init param depending on the retry version!!
+    //merged_ss -- pass directly
+    //query_params
+    //config
+
+    //remove syncReply
+
+    //TODO: Re-factor TimestampCompressor to just be a functional interface (hold no data)
 }
 SnapshotManager::~SnapshotManager(){}
 
@@ -95,6 +105,117 @@ proto::LocalSnapshot* SnapshotManager::OpenSnapshot(){
   }
   return local_ss;
 }
+
+//Functions to Generate MergedSnapshot at client:
+bool SnapshotManager::ProcessReplicaLocalSnapshot(proto::LocalSnapshot* local_ss){
+    //client calls ProcessReplicaLocalSnapshot (feeds in new local_snapshot)
+    
+    //1) Open Snapshot  //TODO: Change functions into OpenLocal and OpenMerged
+    OpenSnapshot_Local(local_ss); // decompresses if applicable.
+
+    //2) Compute Merged Snapshot -- path for both tx-id and ts-id
+    if(!query_params->optimisticTxID){
+            //what if some replicas have it as committed, and some as prepared. If >=f+1 committed ==> count as committed, include only those replicas in list.. If mixed, count as prepared
+        //DOES client need to consider at all whether a txn is committed/prepared? --> don't think so; replicas can determine dependency set at exec time (and either inform client, or cache locally)
+        //TODO: probably don't need separate lists! --> FIXME: Change back to single list in protobuf.
+
+        for(const std::string &txn_dig : local_ss->local_txns_committed()){
+            proto::ReplicaList &replica_list = *(*merged_ss.mutable_merged_txns())[txn_dig];
+            replica_list.add_replicas(local_ss->replica_id());
+            replica_list.set_commit_count(replica_list.commit_count()+1);
+        }
+        for(const std::string &txn_dig : local_ss->local_txns_prepared()){
+            proto::ReplicaList &replica_list = *(*merged_ss.mutable_merged_txns())[txn_dig];
+            replica_list.add_replicas(local_ss->replica_id());
+        }
+    }
+    else{
+        for(const uint64_t &ts : local_ss->local_txns_committed_ts()){
+            proto::ReplicaList &replica_list = *(*merged_ss.mutable_merged_ts())[ts];
+            replica_list.add_replicas(local_ss->replica_id());
+            replica_list.set_commit_count(replica_list.commit_count()+1);
+        }
+        for(const uint64_t &ts : local_ss->local_txns_prepared_ts()){
+            proto::ReplicaList &replica_list = *(*merged_ss.mutable_merged_ts())[ts];
+            replica_list.add_replicas(local_ss->replica_id());
+            replica_list.set_commit_count(replica_list.commit_count()+1);
+        }
+
+        //NOTE: TODO: If we are trying to compress the Timestamps --> cannot store this as map from ts -> replica_lists.
+    }
+    //TODO: Is there a better way to store f+1 responsible replicas? Right now we might include the same replica ids #tx_ids many times.
+    //Could of course simply not send this, and let the replica sync best effort, and then sync to all.
+   
+
+    //3) If last remaining Snapshot: Call SealMergedSnapshot --> outuput
+    numSnapshotReplies++;
+    if(numSnapshotReplies == query_params->syncQuorum){
+         SealSnapshot_Merged();
+         return true;
+    }
+    return false;
+
+}
+
+//OLD code for merging: Count in separate STL map; copy only if mergeThreshold.
+    //  for(const std::string &txn_dig : local_ss->local_txns_committed()){
+    //       std::set<uint64_t> &replica_set = txn_freq[txn_dig];
+    //       replica_set.insert(local_ss->replica_id());
+    //       if(replica_set.size() == query_params->mergeThreshold){
+    //           *(*merged_ss.mutable_merged_txns())[txn_dig].mutable_replicas() = {replica_set.begin(), replica_set.end()}; //creates a temp copy, and moves it into replica list.
+    //       }
+    //       //TODO: Operate on merged_txn directly, and erase keys that don't have enough (requires an extra loop, but saves all the copies.)
+
+    //     }
+    //     // for(std::string &txn_dig : local_ss.local_txns_prepared()){ 
+    //     //    pendingQueries->txn_freq[txn_dig].insert(local_ss->replica_id());
+    //     // }
+// map<string, ReplicaList> merged_txns = 3; //map from txn digest to replicas that have txn.
+// map<string, ReplicaList> merged_txns_prepared = 4; //dont think one needs to distinguish at this point.
+
+void SnapshotManager::SealSnapshot_Merged(){
+  if(!query_params->optimisticTxID){
+     //remove all keys with insufficient replicas.
+    for (auto it = merged_ss->mutable_merged_txns()->begin(), next_it = it; it != merged_ss->mutable_merged_txns()->end();  it = next_it){ /* not hoisted */; /* no increment */
+        ++next_it;
+        ReplicaList &replica_list = it->second;
+        if (replicas_list.replicas().size() < query_params->mergeThreshold){
+          merged_ss->mutable_merged_txns()->erase(it);   
+          continue; 
+        }
+        replica_list.mutable_replicas()->Truncate(config->f +1);   //prune replica lists to be f+1 max.
+        if(replica_list.commit_count < config->f+1) replica_list.set_prepared(true);
+    }
+  }
+  else{
+     //remove all keys with insufficient replicas.
+    for (auto it = merged_ss->mutable_merged_ts()->begin(), next_it = it; it != merged_ss->mutable_merged_ts()->end();  it = next_it){ /* not hoisted */; /* no increment */
+        ++next_it;
+        ReplicaList &replica_list = it->second;
+        if (replicas_list.replicas().size() < query_params->mergeThreshold){
+          merged_ss->mutable_merged_txns()->erase(it);    
+          continue;
+        }
+        replica_list.mutable_replicas()->Truncate(config->f +1);   //prune replica lists to be f+1 max.
+        if(replica_list.commit_count < config->f+1) replica_list.set_prepared(true);
+    }
+    //TODO: If want to compress --> cannot store in a map -> must store ids and replicas in 2 lists. 
+
+    //TODO: compress merged snapshot if applicable.
+    //t_comp.CompressMerged();
+  }
+  
+
+  
+
+}
+
+//TODO: Refactor Timestamp Compressor such that in takes clean input objects and returns output.
+//
+
+
+
+///////////////////////////
 
 // std::string AccessTxnId(  ){
 //   //given input: Ts, ref to map that stores mapping.

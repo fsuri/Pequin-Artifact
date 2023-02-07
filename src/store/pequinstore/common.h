@@ -438,13 +438,15 @@ class TimestampCompressor {
 class SnapshotManager {
 //TODO: Store this as part of QueryMetaData.
 public:
-  SnapshotManager(proto::Query *query, uint64_t replica_id, proto::SyncReply *syncReply, bool optimisticTxId = false, bool compressOptimisticTxIds = false); //Create a local snapshot.
+  SnapshotManager(proto::Query *query, uint64_t replica_id, proto::SyncReply *syncReply, const QueryParameters *query_params, const transport::Configuration *config); //Create a local snapshot.
   virtual ~SnapshotManager();
   void AddToSnapshot(std::string &txnDigest, proto::Transaction *txn, bool committed_or_prepared = true); //For local snapshot; //TODO: Define something similar for merged? Should merged be a separate class?
   void CloseSnapshot();
   proto::LocalSnapshot* OpenSnapshot();
 
 private:
+    const QueryParameters *query_params;
+    const transport::Configuration *config;
     bool optimisticTxId;
 
     TimestampCompressor ts_comp;
@@ -452,6 +454,10 @@ private:
     proto::LocalSnapshot *local_ss; //For replica to client   //TODO: Needs to have a field for compressed values.
 
     proto::MergedSnapshot *merged_ss; //For client to replica
+    
+    uint64_t numSnapshotReplies;
+    std::unordered_map<std::string, std::set<uint64_t>> txn_freq; //replicas that have txn committed.
+    std::unordered_map<uint64_t, std::set<uint64_t>> ts_freq; //replicas that have txn committed.
 };
 
 
@@ -465,8 +471,10 @@ typedef struct QueryParameters {
     const uint64_t resultQuorum ;   //number of matching query replies necessary to return
     
     const bool readPrepared; //read only committed or also prepared values in query?
-    const bool optimisticTxID; //use unique hash tx ids (normal ids), or optimistically use timestamp as identifier?
     const bool cacheReadSet; //return query read set to client, or cache it locally at servers?
+    const bool optimisticTxID; //use unique hash tx ids (normal ids), or optimistically use timestamp as identifier?
+    const bool compressOptimisticTxIDs; //compress the ts Ids using integer compression.
+   
 
     const bool mergeActiveAtClient; //When not caching read sets, merge query read sets at client
 
@@ -476,9 +484,9 @@ typedef struct QueryParameters {
     const bool parallel_queries;
 
     QueryParameters(uint64_t syncQuorum, uint64_t queryMessages, uint64_t mergeThreshold, uint64_t syncMessages, uint64_t resultQuorum,
-        bool readPrepared, bool optimisticTxID, bool cacheReadSet, bool mergeActiveAtClient, bool signClientQueries, bool parallel_queries) : 
+        bool readPrepared, bool cacheReadSet, bool optimisticTxID, bool compressOptimisticTxIDs, bool mergeActiveAtClient, bool signClientQueries, bool parallel_queries) : 
         syncQuorum(syncQuorum), queryMessages(queryMessages), mergeThreshold(mergeThreshold), syncMessages(syncMessages), resultQuorum(resultQuorum),
-        readPrepared(readPrepared), optimisticTxID(optimisticTxID), cacheReadSet(cacheReadSet), mergeActiveAtClient(mergeActiveAtClient), signClientQueries(signClientQueries),
+        readPrepared(readPrepared), cacheReadSet(cacheReadSet), optimisticTxID(optimisticTxID), compressOptimisticTxIDs(compressOptimisticTxIDs), mergeActiveAtClient(mergeActiveAtClient), signClientQueries(signClientQueries),
         parallel_queries(parallel_queries) {}
 
 } QueryParameters;

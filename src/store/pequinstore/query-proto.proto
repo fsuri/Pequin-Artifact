@@ -113,6 +113,8 @@ message SyncReply {
 
 message ReplicaList {
   repeated uint64 replicas = 1; //list of replicas
+  optional bool prepared = 2; //true if not f+1 had it committed
+  optional uint64 commit_count = 3;
 }
 
 //can use this instead of map <string, ReplicaList>
@@ -126,13 +128,16 @@ message MergedSnapshot {
    //identify query
    required uint64 query_seq_num= 1;
    required uint64 client_id = 2;
+
+   required uint64 retry_version = 3;
+   optional bytes query_digest = 4;
    //include snapshot proposal. 
       //repeated TxnData cp_txns = 3;
-   map<string, ReplicaList> merged_txns_committed = 3; //map from txn digest to replicas that have txn.
-   map<string, ReplicaList> merged_txns_prepared = 4; //dont think one needs to distinguish at this point.
-   
-   required uint64 retry_version = 5;
-   optional bytes query_digest = 6;
+   map<string, ReplicaList> merged_txns = 5; //map from txn digest to replicas that have txn.
+   map<uint64, ReplicaList> merged_ts = 6; //map from txn digest to replicas that have txn.
+
+   //map<string, ReplicaList> merged_txns_prepared = 7; //dont think one needs to distinguish at this point. ==> might want to store it separately so that client can remember what are deps? ==> store a flag
+  
 }
 
 //client sends proposed merged snapshot. Replicas use it to ExecQuery and send back QueryReply

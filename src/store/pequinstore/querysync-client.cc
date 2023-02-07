@@ -231,6 +231,9 @@ void ShardClient::HandleQuerySyncReply(proto::SyncReply &SyncReply){
     // 5) Add all tx in list to filtered Datastructure --> everytime a tx reaches the MergeThreshold directly add it to the ProtoReply
       //If necessary, decode tx list.
 
+    //bool mergeComplete = pendingQuery->snapshot_manager.ProcessReplicaLocalSnapshot(local_ss);
+    //if(mergeComplete) SyncReplicas(pendingQuery);
+
     //what if some replicas have it as committed, and some as prepared. If >=f+1 committed ==> count as committed, include only those replicas in list.. If mixed, count as prepared
     //DOES client need to consider at all whether a txn is committed/prepared? --> don't think so; replicas can determine dependency set at exec time (and either inform client, or cache locally)
     //TODO: probably don't need separate lists! --> FIXME: Change back to single list in protobuf.
@@ -238,7 +241,7 @@ void ShardClient::HandleQuerySyncReply(proto::SyncReply &SyncReply){
        std::set<uint64_t> &replica_set = pendingQuery->txn_freq[txn_dig];
        replica_set.insert(local_ss->replica_id());
        if(replica_set.size() == params.query_params.mergeThreshold){
-          *(*pendingQuery->merged_ss.mutable_merged_txns_committed())[txn_dig].mutable_replicas() = {replica_set.begin(), replica_set.end()}; //creates a temp copy, and moves it into replica list.
+          *(*pendingQuery->merged_ss.mutable_merged_txns())[txn_dig].mutable_replicas() = {replica_set.begin(), replica_set.end()}; //creates a temp copy, and moves it into replica list.
        }
 
     }

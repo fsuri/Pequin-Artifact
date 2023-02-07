@@ -401,7 +401,7 @@ void Server::ProcessSync(queryMetaDataMap::accessor &q, const TransportAddress &
     std::map<uint64_t, proto::RequestMissingTxns> replica_requests = {};
 
     //txn_replicas_pair
-    for(auto const &[tx_id, replica_list] : merged_ss->merged_txns_committed()){
+    for(auto const &[tx_id, replica_list] : merged_ss->merged_txns()){
 
         Debug("Snapshot for Query Sync Proposal[%lu:%lu:%d] contains tx_id [%s]", merged_ss->query_seq_num(), merged_ss->client_id(), merged_ss->retry_version(), BytesToHex(tx_id, 16).c_str());
          //TODO: 0) transform txn_id to txnDigest if using optimistc ids..

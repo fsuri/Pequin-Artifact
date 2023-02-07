@@ -242,7 +242,7 @@ virtual void Phase2Equivocate_Simulate(uint64_t id, const proto::Transaction &tx
     uint64_t numSnapshotReplies;
     std::unordered_map<std::string, std::set<uint64_t>> txn_freq; //replicas that have txn committed.
     proto::MergedSnapshot merged_ss;
-
+    //TODO: Replace all these with SnapshotManager
 
     uint64_t retry_version;
     uint64_t num_designated_replies;
