@@ -600,8 +600,8 @@ int main(int argc, char **argv) {
           default:
               NOT_REACHABLE();
           }
-        timeDelta = (FLAGS_indicus_time_delta / 1000) << 32;
-        timeDelta = timeDelta | (FLAGS_indicus_time_delta % 1000) * 1000;
+        timeDelta = (FLAGS_indicus_time_delta / 1000) << 32;                             //Seconds (Shift 32 --> see truetime.cc)
+        timeDelta = timeDelta | (((FLAGS_indicus_time_delta % 1000) * 1000) << 12 );     //Milliseconds. (Shift 12 --> see truetime.cc)
         break;
       case PROTO_PBFT:
         break;
