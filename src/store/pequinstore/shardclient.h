@@ -226,8 +226,12 @@ virtual void Phase2Equivocate_Simulate(uint64_t id, const proto::Transaction &tx
 
 //TODO: Define management object fully
   struct PendingQuery {
-    PendingQuery(uint64_t reqId) : reqId(reqId),
-        numSnapshotReplies(0UL), numResults(0UL), numFails(0UL), query_manager(false), success(false), retry_version(0UL) { }
+    PendingQuery(uint64_t reqId, const QueryParameters *query_params) : reqId(reqId),
+        numSnapshotReplies(0UL), numResults(0UL), numFails(0UL), query_manager(false), success(false), retry_version(0UL), snapshot_mgr(query_params)
+        { 
+          //TODO: Call InitMergedSnapshot;
+          //In Retry -> new PendingQuery is created.
+        }
     ~PendingQuery() { }
     uint64_t reqId; 
     uint64_t client_seq_num;
@@ -252,6 +256,8 @@ virtual void Phase2Equivocate_Simulate(uint64_t id, const proto::Transaction &tx
     //std::unordered_set<uint64_t> failsVerified;
     std::string result;
     std::string result_hash;
+
+    SnapshotManager snapshot_mgr;
     std::unordered_map<std::string, std::unordered_map<std::string, uint64_t>> result_freq; //map from result to map of associated result hash + their frequency (could be that two same results have different result hash; and vice versa)
     
     bool query_manager;

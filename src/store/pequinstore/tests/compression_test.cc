@@ -292,7 +292,12 @@ void TimestampCompressorTest(){
 	}
 
 	t_comp.CompressAll();
+
 	t_comp.ClearLocal();
+	// delete local_ss;
+
+	// local_ss = new proto::LocalSnapshot();
+	t_comp.InitializeLocal(local_ss, true);
 	t_comp.DecompressAll();
 
 	fprintf(stderr, "Decompressed %d \n", t_comp.out_timestamps.size());
@@ -308,7 +313,7 @@ void TimestampCompressorTest(){
 	}
 	
 
-	if(local_ss) delete local_ss;
+	delete local_ss;
 
 }
   

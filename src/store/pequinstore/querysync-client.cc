@@ -48,7 +48,7 @@ void ShardClient::Query(uint64_t client_seq_num, uint64_t query_seq_num, proto::
   // No clue how that would affect read set though (such versions should always pass CC check), and whether it can be used by byz to equivocate read set, causing abort.
 
   uint64_t reqId = lastReqId++;
-  PendingQuery *pendingQuery = new PendingQuery(reqId);
+  PendingQuery *pendingQuery = new PendingQuery(reqId, &params.query_params);
   query_seq_num_mapping[query_seq_num] = reqId;
   pendingQueries[reqId] = pendingQuery;
   pendingQuery->client_seq_num = client_seq_num;
@@ -141,6 +141,10 @@ void ShardClient::RetryQuery(uint64_t query_seq_num, proto::Query &queryMsg){
 //pass a query object already from client: This way it avoids copying the query string across multiple shards and for retries
 void ShardClient::RequestQuery(PendingQuery *pendingQuery, proto::Query &queryMsg){
 
+  //Init new Merged Snapshot
+  pendingQuery->snapshot_mgr.InitMergedSnapshot(&pendingQuery->merged_ss, pendingQuery->query_seq_num, client_id, pendingQuery->retry_version, config->f);
+
+  //Set up queryMsg
 //   queryMsg.Clear();
 //   queryMsg.query_seq_num(pendingQuery->query_seq_num);
 //   queryMsg.set_client_id(client_id);
@@ -187,7 +191,7 @@ void ShardClient::HandleQuerySyncReply(proto::SyncReply &SyncReply){
 
     // 1) authenticate reply -- record duplicates   --> could use MACs instead of signatures? Don't need to forward sigs... --> but this requires establishing a MAC between every client/replica pair. Sigs is easier.
     // 2) If signed -- parse contents
-    const proto::LocalSnapshot *local_ss;
+    proto::LocalSnapshot *local_ss;
 
      if (params.validateProofs && params.signedMessages) {
         if (SyncReply.has_signed_local_ss()) {
@@ -212,7 +216,7 @@ void ShardClient::HandleQuerySyncReply(proto::SyncReply &SyncReply){
             Panic("Query Sync Reply without required signature");
         }
     } else {
-        local_ss = &SyncReply.local_ss();
+        local_ss = SyncReply.mutable_local_ss();
     }
     Debug("[group %i] QuerySyncReply for request %lu from replica %d.", group, SyncReply.req_id(), local_ss->replica_id());
 
@@ -228,32 +232,35 @@ void ShardClient::HandleQuerySyncReply(proto::SyncReply &SyncReply){
       return;
     }
 
-    // 5) Add all tx in list to filtered Datastructure --> everytime a tx reaches the MergeThreshold directly add it to the ProtoReply
-      //If necessary, decode tx list.
+    // 5) Create Merged Snapshot
+        //Add all tx in list to filtered Datastructure --> everytime a tx reaches the MergeThreshold directly add it to the ProtoReply
+        //If necessary, decode tx list
+      
+    bool mergeComplete = pendingQuery->snapshot_mgr.ProcessReplicaLocalSnapshot(local_ss); //TODO: Need to make local_ss non-const.
 
-    //bool mergeComplete = pendingQuery->snapshot_manager.ProcessReplicaLocalSnapshot(local_ss);
-    //if(mergeComplete) SyncReplicas(pendingQuery);
-
-    //what if some replicas have it as committed, and some as prepared. If >=f+1 committed ==> count as committed, include only those replicas in list.. If mixed, count as prepared
-    //DOES client need to consider at all whether a txn is committed/prepared? --> don't think so; replicas can determine dependency set at exec time (and either inform client, or cache locally)
-    //TODO: probably don't need separate lists! --> FIXME: Change back to single list in protobuf.
-    for(const std::string &txn_dig : local_ss->local_txns_committed()){
-       std::set<uint64_t> &replica_set = pendingQuery->txn_freq[txn_dig];
-       replica_set.insert(local_ss->replica_id());
-       if(replica_set.size() == params.query_params.mergeThreshold){
-          *(*pendingQuery->merged_ss.mutable_merged_txns())[txn_dig].mutable_replicas() = {replica_set.begin(), replica_set.end()}; //creates a temp copy, and moves it into replica list.
-       }
-
-    }
-    // for(std::string &txn_dig : local_ss.local_txns_prepared()){ 
-    //    pendingQueries->txn_freq[txn_dig].insert(local_ss->replica_id());
-    // }
-    
     // 6) Once #QueryQuorum replies received, send SyncMessages
-    pendingQuery->numSnapshotReplies++;
-    if(pendingQuery->numSnapshotReplies == params.query_params.syncQuorum){
-        SyncReplicas(pendingQuery);
-    }
+    if(mergeComplete) SyncReplicas(pendingQuery);
+
+    // //what if some replicas have it as committed, and some as prepared. If >=f+1 committed ==> count as committed, include only those replicas in list.. If mixed, count as prepared
+    // //DOES client need to consider at all whether a txn is committed/prepared? --> don't think so; replicas can determine dependency set at exec time (and either inform client, or cache locally)
+    // //TODO: probably don't need separate lists! --> FIXME: Change back to single list in protobuf.
+    // for(const std::string &txn_dig : local_ss->local_txns_committed()){
+    //    std::set<uint64_t> &replica_set = pendingQuery->txn_freq[txn_dig];
+    //    replica_set.insert(local_ss->replica_id());
+    //    if(replica_set.size() == params.query_params.mergeThreshold){
+    //       *(*pendingQuery->merged_ss.mutable_merged_txns())[txn_dig].mutable_replicas() = {replica_set.begin(), replica_set.end()}; //creates a temp copy, and moves it into replica list.
+    //    }
+
+    // }
+    // // for(std::string &txn_dig : local_ss.local_txns_prepared()){ 
+    // //    pendingQueries->txn_freq[txn_dig].insert(local_ss->replica_id());
+    // // }
+    
+    // // 6) Once #QueryQuorum replies received, send SyncMessages
+    // pendingQuery->numSnapshotReplies++;
+    // if(pendingQuery->numSnapshotReplies == params.query_params.syncQuorum){
+    //     SyncReplicas(pendingQuery);
+    // }
 }
 
 void ShardClient::SyncReplicas(PendingQuery *pendingQuery){

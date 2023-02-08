@@ -407,62 +407,9 @@ inline static bool compareReadSets (google::protobuf::RepeatedPtrField<ReadMessa
 //   uint32_t frequency;
 // };
 
-class TimestampCompressor {
- public:
-    TimestampCompressor();
-    virtual ~TimestampCompressor();
-    void InitializeLocal(proto::LocalSnapshot *local_ss, bool compressOptimisticTxIds = false);
-    void AddToBucket(const TimestampMessage &ts);
-    void ClearLocal();
-    void CompressAll();
-    void DecompressAll();
-    //TODO: Add Merged
-    std::vector<uint64_t> out_timestamps; //TODO: replace with the repeated field from local_ss
- private:
-   proto::LocalSnapshot *local_ss;
-   //google::protobuf::RepeatedPtrField<google::protobuf::bytes> *ts_ids;
-   bool compressOptimisticTxIds;
-   uint64_t num_timestamps;
-   std::vector<uint64_t> timestamps; //TODO: replace with the repeated field from local_ss
-   std::vector<uint64_t> ids;
-   std::vector<uint8_t> _compressed_timestamps;
-   std::vector<unsigned char> compressed_timestamps;
-   //store to an ordered_set if Valid compressable TS. valid if 64bit time and 64bit cid can be merged into 1 64 bit number.
-   // upon CompressAll -> split set into buckets (thus each bucket is sorted) --> then on each bucket, run integer compression. Add to bucket only if delta < 32bit
-    //Buckets. Each bucket is a vecotr + delta off-set. Store buckets in order (linked-list?). Find correct bucket to insert by iterating through list(acces first, last for ordering)
-    // better -> store buckets in a map<front, bucket>. Find correct bucket by upper/lower-bound ops. Insert new bucket where appropriate  (you learn left bucket min/max and right bucket min - if inbetween, make new bucket)
-};
-
-//could add directly to end of bucket, but not to right position. iirc buckets need to be sorted?
-
-class SnapshotManager {
-//TODO: Store this as part of QueryMetaData.
-public:
-  SnapshotManager(proto::Query *query, uint64_t replica_id, proto::SyncReply *syncReply, const QueryParameters *query_params, const transport::Configuration *config); //Create a local snapshot.
-  virtual ~SnapshotManager();
-  void AddToSnapshot(std::string &txnDigest, proto::Transaction *txn, bool committed_or_prepared = true); //For local snapshot; //TODO: Define something similar for merged? Should merged be a separate class?
-  void CloseSnapshot();
-  proto::LocalSnapshot* OpenSnapshot();
-
-private:
-    const QueryParameters *query_params;
-    const transport::Configuration *config;
-    bool optimisticTxId;
-
-    TimestampCompressor ts_comp;
-
-    proto::LocalSnapshot *local_ss; //For replica to client   //TODO: Needs to have a field for compressed values.
-
-    proto::MergedSnapshot *merged_ss; //For client to replica
-    
-    uint64_t numSnapshotReplies;
-    std::unordered_map<std::string, std::set<uint64_t>> txn_freq; //replicas that have txn committed.
-    std::unordered_map<uint64_t, std::set<uint64_t>> ts_freq; //replicas that have txn committed.
-};
 
 
 typedef struct QueryParameters {
-
     //protocol parameters
     const uint64_t syncQuorum; //number of replies necessary to form a sync quorum
     const uint64_t queryMessages; //number of query messages sent to replicas to request sync replies
@@ -490,6 +437,81 @@ typedef struct QueryParameters {
         parallel_queries(parallel_queries) {}
 
 } QueryParameters;
+
+uint64_t MergeTimestampId(const uint64_t &timestamp, const uint64_t &id);
+
+class TimestampCompressor {   //TODO: Re-factor TimestampCompressor to just be a functional interface (hold no data) --> 4 functions: CompressLocal, DecompressLocal, CompressMerged, DecompressMerged
+                              //If we want to use 32 bit id's -> need buckets = need data. But currently only using 64 bit ids
+ public:
+    TimestampCompressor();
+    virtual ~TimestampCompressor();
+    void InitializeLocal(proto::LocalSnapshot *local_ss, bool compressOptimisticTxIds = false);
+    void AddToBucket(const TimestampMessage &ts);
+    void ClearLocal();
+    void CompressLocal(proto::LocalSnapshot *local_ss);
+    void DecompressLocal(proto::LocalSnapshot *local_ss);
+    void CompressAll();
+    void DecompressAll();
+    //TODO: Add Merged
+    std::vector<uint64_t> out_timestamps; //TODO: replace with the repeated field from local_ss
+ private:
+   proto::LocalSnapshot *local_ss;
+   //google::protobuf::RepeatedPtrField<google::protobuf::bytes> *ts_ids;
+   bool compressOptimisticTxIds;
+   uint64_t num_timestamps;
+   std::vector<uint64_t> timestamps; //TODO: replace with the repeated field from local_ss
+   std::vector<uint64_t> ids;
+   std::vector<uint8_t> _compressed_timestamps;
+   std::vector<unsigned char> compressed_timestamps;
+   //store to an ordered_set if Valid compressable TS. valid if 64bit time and 64bit cid can be merged into 1 64 bit number.
+   // upon CompressAll -> split set into buckets (thus each bucket is sorted) --> then on each bucket, run integer compression. Add to bucket only if delta < 32bit
+    //Buckets. Each bucket is a vecotr + delta off-set. Store buckets in order (linked-list?). Find correct bucket to insert by iterating through list(acces first, last for ordering)
+    // better -> store buckets in a map<front, bucket>. Find correct bucket by upper/lower-bound ops. Insert new bucket where appropriate  (you learn left bucket min/max and right bucket min - if inbetween, make new bucket)
+};
+
+//could add directly to end of bucket, but not to right position. iirc buckets need to be sorted?
+
+
+class SnapshotManager {
+//TODO: Store this as part of QueryMetaData.
+public:
+  SnapshotManager(const QueryParameters *query_params); //
+  virtual ~SnapshotManager();
+  //Local Snapshot operations:
+  void InitLocalSnapshot(proto::LocalSnapshot *local_ss, const uint64_t &query_seq_num, const uint64_t &client_id, const uint64_t &replica_id, bool useOptimisticTxId = false);
+  void ResetLocalSnapshot(bool useOptimisticTxId = false);
+  void AddToLocalSnapshot(const std::string &txnDigest, const proto::Transaction *txn, bool committed_or_prepared = true); //For local snapshot; //TODO: Define something similar for merged? Should merged be a separate class?
+  void SealLocalSnapshot();
+  void OpenLocalSnapshot(proto::LocalSnapshot *local_ss);
+  
+  //Merged Snapshot operations:
+  void InitMergedSnapshot(proto::MergedSnapshot *merged_ss, const uint64_t &query_seq_num, const uint64_t &client_id, const uint64_t &retry_version, const uint64_t &config_f); //->if retry version > 0, useOptimisticTxId = false
+  bool ProcessReplicaLocalSnapshot(proto::LocalSnapshot* local_ss);
+  void SealMergedSnapshot();
+  void OpenMergedSnapshot(proto::MergedSnapshot *merged_ss);
+
+private:
+    const QueryParameters *query_params;
+    //TODO: Alternatively deifine and pass only the params we want (then QueryParam definition can move below SnapshotManager)
+    // const bool param_optimisticTxId;
+    //const bool param_compressOptimisticTxId;
+    // const uint64_t *param_syncQuorum;
+    // const uint64_t *param_mergeThreshold;
+
+    //const transport::Configuration *config;
+    uint64_t config_f; 
+    bool useOptimisticTxId;
+
+    TimestampCompressor ts_comp;
+
+    proto::LocalSnapshot *local_ss; //For replica to client   //TODO: Needs to have a field for compressed values.
+
+    proto::MergedSnapshot *merged_ss; //For client to replica
+    
+    uint64_t numSnapshotReplies;
+    std::unordered_map<std::string, std::set<uint64_t>> txn_freq; //replicas that have txn committed.
+    std::unordered_map<uint64_t, std::set<uint64_t>> ts_freq; //replicas that have txn committed.
+};
 
 typedef struct Parameters {
 

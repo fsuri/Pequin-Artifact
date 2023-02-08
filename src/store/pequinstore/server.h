@@ -209,12 +209,21 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
     //Query objects
 
     struct QueryMetaData {
-      QueryMetaData(const std::string &query_cmd, const TimestampMessage &timestamp, const TransportAddress &remote, const uint64_t &req_id, const uint64_t &query_seq_num, const uint64_t &client_id): 
-         failure(false), retry_version(0UL), has_query(true), waiting_sync(false), started_sync(false), has_result(false), query_cmd(query_cmd), ts(timestamp), original_client(remote.clone()), req_id(req_id), query_seq_num(query_seq_num), client_id(client_id), is_waiting(false) {
+      QueryMetaData(const std::string &query_cmd, const TimestampMessage &timestamp, const TransportAddress &remote, const uint64_t &req_id, 
+                    const uint64_t &query_seq_num, const uint64_t &client_id, const QueryParameters *query_params): 
+         failure(false), retry_version(0UL), has_query(true), waiting_sync(false), started_sync(false), has_result(false), 
+         query_cmd(query_cmd), ts(timestamp), original_client(remote.clone()), req_id(req_id), query_seq_num(query_seq_num), client_id(client_id), is_waiting(false),
+         snapshot_mgr(query_params) 
+      {
           //queryResult = new proto::QueryResult();
           queryResultReply = new proto::QueryResultReply(); //TODO: Replace with GetUnused.
+
       }
-       QueryMetaData(const uint64_t &query_seq_num, const uint64_t &client_id): failure(false), retry_version(0UL), has_query(false), waiting_sync(false), started_sync(false), has_result(false), query_seq_num(query_seq_num), client_id(client_id), is_waiting(false) {
+       QueryMetaData(const uint64_t &query_seq_num, const uint64_t &client_id, const QueryParameters *query_params): 
+          failure(false), retry_version(0UL), has_query(false), waiting_sync(false), started_sync(false), 
+          has_result(false), query_seq_num(query_seq_num), client_id(client_id), is_waiting(false) ,
+          snapshot_mgr(query_params)
+      {
           //queryResult = new proto::QueryResult();
           queryResultReply = new proto::QueryResultReply(); //TODO: Replace with GetUnused.
       }
@@ -265,7 +274,8 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
       proto::MergedSnapshot *merged_ss_msg; //TODO: check that ClearMetaData resets appropriate fields.
       bool started_sync;  //whether already received/processed snapshot for given retry version.
      
-                            
+      SnapshotManager snapshot_mgr;
+
       std::unordered_set<std::string> local_ss;  //local snapshot
       std::unordered_set<std::string> merged_ss; //merged snapshot
      

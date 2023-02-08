@@ -116,11 +116,11 @@ void Server::HandleQuery(const TransportAddress &remote, proto::QueryRequest &ms
     queryMetaDataMap::accessor q;
     bool newQuery = queryMetaData.insert(q, queryId);
     if(newQuery){ 
-        q->second = new QueryMetaData(query->query_cmd(), query->timestamp(), remote, msg.req_id(), query->query_seq_num(), query->client_id());
+        q->second = new QueryMetaData(query->query_cmd(), query->timestamp(), remote, msg.req_id(), query->query_seq_num(), query->client_id(), &params.query_params);
         //Note: Retry will not contain query_cmd again.
     }
     QueryMetaData *query_md = q->second;
-    if(!query_md->has_query){ //If query was not newQuery (e.g. Sync set md first), set query.
+    if(!query_md->has_query){ //If metaData.insert did not return newQuery=true, but query has not been processed yet (e.g. Sync set md first), set query.
         query_md->SetQuery(query->query_cmd(), query->timestamp(), remote, msg.req_id());
     }
 
@@ -163,6 +163,10 @@ void Server::HandleQuery(const TransportAddress &remote, proto::QueryRequest &ms
    
 }
 void Server::ProcessQuery(queryMetaDataMap::accessor &q, const TransportAddress &remote, proto::Query *query, QueryMetaData *query_md){
+
+    //Reply object.
+     proto::SyncReply *syncReply = new proto::SyncReply(); //TODO: change to GetUnused
+    syncReply->set_req_id(query_md->req_id);
     
     // 3) Parse Query
     // const std::string &query_cmd = query->query_cmd();
@@ -191,49 +195,48 @@ void Server::ProcessQuery(queryMetaDataMap::accessor &q, const TransportAddress 
     // FindSnapshot(local_txns, query_cmd);
 
 
-    // 5) Create list of all txn-ids necessary for state
+    // 5) Generate Snapshot:Create list of all txn-ids necessary for state
             // if txn exists locally as committed and prepared, only include as committed
             // Use optimistic Tx-ids (= timestamp) if param set
-
-    //FIXME: Toy insert -- real tx-ids are cryptographic hashes of length 256bit = 32 byte.
-    // std::string test_txn_id = "[test_id_of_length_32 bytes----]";
-    // proto::CommittedProof *test_proof = new proto::CommittedProof();
-    // local_txns.insert(test_txn_id);
-    //committed[test_txn_id] = test_proof;  //this should allow other replicas to find it during sync.; but validation of commit proof will fail. Note: Will probably fail Panic because fields not set.
-    
-    //TESTING.
-    for(auto const&[tx_id, proof] : committed){
-        local_txns.insert(tx_id);
-         Debug("Proposing txn_id [%s] for local Query Sync State[%lu:%lu:%d]", BytesToHex(tx_id, 16).c_str(), query->query_seq_num(), query->client_id(), query->retry_version());
-    }
-    //committed[test_txn_id] = test_proof;  //this should allow other replicas to find it during sync.; but validation of commit proof will fail. Note: Will probably fail Panic because fields not set.
-
-    
-    //query_md->local_ss.insert("test_id_of_length_32 bytes------");
 
       //How to find txnSet efficiently for key WITH RESPECT to Timestamp. Is scanning the only option?
     //Could already store a whole tx map for each key: map<key, deque<TxnIds>> --? replace tx_ids evertime a newer one comes along (pop front, push_back). 
     // Problem: May come in any TS order. AND: Query with TS only cares about TxId < TS
 
-
-    // 6) Compress list (only applicable if using optimistic IDs)
-    if(params.query_params.optimisticTxID){
-        //CompressTxnIds(list)
-        //Note: Format of optimistic tx ids is uint64_t, not string. (can cast)
-        //Output: uint32_t or smaller.
-    }
-
-    // 7) Send list in SyncReply
-    proto::SyncReply *syncReply = new proto::SyncReply(); //TODO: change to GetUnused
-    syncReply->set_req_id(query_md->req_id);
-
     proto::LocalSnapshot *local_ss = syncReply->mutable_local_ss();
-    local_ss->set_query_seq_num(query->query_seq_num());
-    local_ss->set_client_id(query->client_id());
-    local_ss->set_replica_id(id);
-    *local_ss->mutable_local_txns_committed() = {local_txns.begin(), local_txns.end()}; //TODO: can we avoid this copy? --> If I move it, then we cannot cache local_txns to edit later.
+   
+    //Set LocalSnapshot
+    bool useOptimisticTxId = params.query_params.optimisticTxID & !query->retry_version();
+    syncReply->set_optimistic_tx_id(useOptimisticTxId);
+    query_md->snapshot_mgr.InitLocalSnapshot(local_ss, query->query_seq_num(), query->client_id(), id, useOptimisticTxId);
+
+    //TESTING.
+        //FIXME: Toy insert -- real tx-ids are cryptographic hashes of length 256bit = 32 byte.
+        //query_md->local_ss.insert("test_id_of_length_32 bytes------");
+        // std::string test_txn_id = "[test_id_of_length_32 bytes----]";
+        // proto::CommittedProof *test_proof = new proto::CommittedProof();
+        // local_txns.insert(test_txn_id);
+        //committed[test_txn_id] = test_proof;  //this should allow other replicas to find it during sync.; but validation of commit proof will fail. Note: Will probably fail Panic because fields not set.
+    for(auto const&[tx_id, proof] : committed){
+        const proto::Transaction *txn = &proof->txn();
+        query_md->snapshot_mgr.AddToLocalSnapshot(tx_id, txn, true);
+         Debug("Proposing txn_id [%s] for local Query Sync State[%lu:%lu:%d]", BytesToHex(tx_id, 16).c_str(), query->query_seq_num(), query->client_id(), query->retry_version());
+    }
+        //committed[test_txn_id] = test_proof;  //this should allow other replicas to find it during sync.; but validation of commit proof will fail. Note: Will probably fail Panic because fields not set.
+    query_md->snapshot_mgr.SealLocalSnapshot(); //Remove duplicate ids and compress if applicable.
+
+     //Old code for setting snapshot:
+    // local_ss->set_query_seq_num(query->query_seq_num());
+    // local_ss->set_client_id(query->client_id());
+    // local_ss->set_replica_id(id);
+    // *local_ss->mutable_local_txns_committed() = {local_txns.begin(), local_txns.end()}; //TODO: can we avoid this copy? --> If I move it, then we cannot cache local_txns to edit later.
+
+
 
     q.release();
+  
+
+    // 6) Send list in SyncReply
 
     //sign & send reply.
     if (params.validateProofs && params.signedMessages) {
@@ -331,7 +334,7 @@ void Server::HandleSync(const TransportAddress &remote, proto::SyncClientProposa
      //TODO:  //if already issued query reply, reply with cached val; else if new, or retry set, re-compute
     queryMetaDataMap::accessor q;
     if(queryMetaData.insert(q, *queryId)){
-        q->second = new QueryMetaData(merged_ss->query_seq_num(), merged_ss->client_id());
+        q->second = new QueryMetaData(merged_ss->query_seq_num(), merged_ss->client_id(), &params.query_params);
     }
     QueryMetaData *query_md = q->second;    
 
