@@ -683,6 +683,14 @@ void* Server::TryPrepare(uint64_t reqId, const TransportAddress &remote, proto::
   }
 
   void Server::AddOngoing( std::string &txnDigest, proto::Transaction* txn){
+
+      if(params.query_params.optimisticTxID){ //If using optimisticTxID: Store ts to Tx mapping
+        ts_to_txMap::accessor t; 
+        bool first = ts_to_tx.insert(t, MergeTimestampId(txn->timestamp().timestamp(), txn->timestamp().id()));
+        if(!first) Panic("Two Transactions have the same Timestamp. Equivocation"); // Report issuing client (txn->client_id() = txn->timestamp.id())
+        t->second = txnDigest;
+        t.release();
+      }
   
       ongoingMap::accessor o;
       //std::cerr << "ONGOING INSERT (Fallback): " << BytesToHex(txnDigest, 16).c_str() << " On CPU: " << sched_getcpu()<< std::endl;

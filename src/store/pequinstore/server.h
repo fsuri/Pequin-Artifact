@@ -213,7 +213,7 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
                     const uint64_t &query_seq_num, const uint64_t &client_id, const QueryParameters *query_params): 
          failure(false), retry_version(0UL), has_query(true), waiting_sync(false), started_sync(false), has_result(false), 
          query_cmd(query_cmd), ts(timestamp), original_client(remote.clone()), req_id(req_id), query_seq_num(query_seq_num), client_id(client_id), is_waiting(false),
-         snapshot_mgr(query_params) 
+         snapshot_mgr(query_params), useOptimisticTxId(false)
       {
           //queryResult = new proto::QueryResult();
           queryResultReply = new proto::QueryResultReply(); //TODO: Replace with GetUnused.
@@ -222,7 +222,7 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
        QueryMetaData(const uint64_t &query_seq_num, const uint64_t &client_id, const QueryParameters *query_params): 
           failure(false), retry_version(0UL), has_query(false), waiting_sync(false), started_sync(false), 
           has_result(false), query_seq_num(query_seq_num), client_id(client_id), is_waiting(false) ,
-          snapshot_mgr(query_params)
+          snapshot_mgr(query_params), useOptimisticTxId(false)
       {
           //queryResult = new proto::QueryResult();
           queryResultReply = new proto::QueryResultReply(); //TODO: Replace with GetUnused.
@@ -278,6 +278,7 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
 
       std::unordered_set<std::string> local_ss;  //local snapshot
       std::unordered_set<std::string> merged_ss; //merged snapshot
+      bool useOptimisticTxId;  
      
       //google::protobuf::RepeatedPtrField<std::string> merged_ss;
 
@@ -369,6 +370,7 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
 
     void ProcessQuery(queryMetaDataMap::accessor &q, const TransportAddress &remote, proto::Query *query, QueryMetaData *query_md);
     void ProcessSync(queryMetaDataMap::accessor &q, const TransportAddress &remote, proto::MergedSnapshot *merged_ss, const std::string *queryId, QueryMetaData *query_md);
+    void SetWaiting(const std::string &tx_id, const std::string *queryId, const proto::ReplicaList &replica_list, std::map<uint64_t, proto::RequestMissingTxns> &replica_requests);
     void HandleSyncCallback(QueryMetaData *query_md, const std::string &queryId);
     void SendQueryReply(QueryMetaData *query_md);
     void UpdateWaitingQueries(const std::string &txnDigest);
@@ -866,6 +868,10 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
   };
   typedef tbb::concurrent_hash_map<std::string, ongoingData> ongoingMap;
   ongoingMap ongoing;
+
+  typedef tbb::concurrent_hash_map<uint64_t, std::string> ts_to_txMap;
+  ts_to_txMap ts_to_tx;
+
   // std::unordered_set<std::string> normal;
   // std::unordered_set<std::string> fallback;
   // std::unordered_set<std::string> waiting;

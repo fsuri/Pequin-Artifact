@@ -147,6 +147,8 @@ void Server::HandleQuery(const TransportAddress &remote, proto::QueryRequest &ms
         return;
     }
 
+    if(msg.has_optimistic_txid()) query_md->useOptimisticTxId = msg.optimistic_txid(); //Record whether current retry version uses optimistic tx-ids or not
+
 
     if(msg.designated_for_reply() && !query_md->waiting_sync){
         ProcessQuery(q, remote, query, query_md);
@@ -206,9 +208,9 @@ void Server::ProcessQuery(queryMetaDataMap::accessor &q, const TransportAddress 
     proto::LocalSnapshot *local_ss = syncReply->mutable_local_ss();
    
     //Set LocalSnapshot
-    bool useOptimisticTxId = params.query_params.optimisticTxID & !query->retry_version();
-    syncReply->set_optimistic_tx_id(useOptimisticTxId);
-    query_md->snapshot_mgr.InitLocalSnapshot(local_ss, query->query_seq_num(), query->client_id(), id, useOptimisticTxId);
+    //bool useOptimisticTxId = params.query_params.optimisticTxID & !query->retry_version();
+    syncReply->set_optimistic_tx_id(query_md->useOptimisticTxId);
+    query_md->snapshot_mgr.InitLocalSnapshot(local_ss, query->query_seq_num(), query->client_id(), id, query_md->useOptimisticTxId);
 
     //TESTING.
         //FIXME: Toy insert -- real tx-ids are cryptographic hashes of length 256bit = 32 byte.
@@ -395,6 +397,31 @@ void Server::HandleSync(const TransportAddress &remote, proto::SyncClientProposa
     if(params.mainThreadDispatching && (!params.dispatchMessageReceive || params.query_params.parallel_queries)) FreeSyncClientProposalMessage(&msg);
 
 }
+
+
+void Server::SetWaiting(const std::string &tx_id, const std::string *queryId, const proto::ReplicaList &replica_list, std::map<uint64_t, proto::RequestMissingTxns> &replica_requests){
+        //Add to waiting data structure.
+        waitingQueryMap::accessor w;
+        waitingQueries.insert(w, tx_id);
+        bool already_requested = !w->second.empty(); //TODO: if there is already a waiting query, don't need to request the txn again. Problem: Could have been requested by a byz client that gave wrong replica_ids...
+        w->second.insert(*queryId);
+        w.release();
+
+        //query_md->missing_txn[tx_id]= config.f + 1;  //FIXME: Useless line: we don't stop waiting currently.
+        uint64_t count = 0;
+        for(auto const &replica_id: replica_list.replicas()){ 
+            if(count > config.f +1) return; //only send to f+1 --> an honest client will never include more than f+1 replicas to request from. --> can ignore byz request.
+            
+            uint64_t replica_idx = replica_id % config.n;  //since  id = local-groupIdx * config.n + idx
+            if(replica_idx != idx){
+                std::string *next_txn = replica_requests[replica_idx].add_missing_txn();
+                *next_txn = tx_id;
+                replica_requests[replica_idx].set_replica_idx(idx);
+            }
+            count++;
+        }
+}
+
 void Server::ProcessSync(queryMetaDataMap::accessor &q, const TransportAddress &remote, proto::MergedSnapshot *merged_ss, const std::string *queryId, QueryMetaData *query_md) { 
     // 3) Request any missing transactions (via txid) & add to state
             // Wait for up f+1 replies for each missing. (if none successful, then client must have been byz. Vote Early abort (if anything) and report client.)
@@ -403,68 +430,61 @@ void Server::ProcessSync(queryMetaDataMap::accessor &q, const TransportAddress &
 
     std::map<uint64_t, proto::RequestMissingTxns> replica_requests = {};
 
-    //txn_replicas_pair
-    for(auto const &[tx_id, replica_list] : merged_ss->merged_txns()){
-
-        Debug("Snapshot for Query Sync Proposal[%lu:%lu:%d] contains tx_id [%s]", merged_ss->query_seq_num(), merged_ss->client_id(), merged_ss->retry_version(), BytesToHex(tx_id, 16).c_str());
-         //TODO: 0) transform txn_id to txnDigest if using optimistc ids..
-         // Check local mapping from Timestamp to TxnDigest (TO CREATE)
-
-        query_md->merged_ss.insert(tx_id); //store snapshot locally.  // Is there a nice way to copy the whole key set of a map? //TODO: Replace with protobuf RepeatedField and release from merged_ss.
-      
-        bool has_txn_locally;
-        //has_txn_locally = !query_md->local_ss.count(tx_id);
-          //for all txn-ids that are in merged_ss but NOT in local_ss  //Should check current state instead of local snapshot... might have updated since (this would avoid some wasteful requests).
-                                                                
-        ongoingMap::const_accessor o;
-        //Check whether replica has the txn.: If not ongoing, and not commit/abort --> then we have not received it yet. (Follows from commit/aborted being updated before erasing from ongoing)
-        has_txn_locally = ongoing.find(o, tx_id)? true : (committed.find(tx_id) != committed.end() || aborted.find(tx_id) != aborted.end());
-        o.release();
-        // //FIXME: CURRENTLY NOT USING FAILQuery here: Failed tx might not be on frontier... -> Fail only during exec. Just proceed here (mark tx as "has_locally")
-        // has_txn_locally = ongoing.find(o, tx_id);
-        // o.release();
-        // if(!has_txn_locally){
-        //     if (committed.find(tx_id) != committed.end()) has_txn_locally = true;
-        //     else if (aborted.find(tx_id) != aborted.end()){  //If Query not ongoing/committed --> Fail Query early if aborted. 
-        //         FailQuery(query_md); 
-        //         delete merged_ss;
-        //         return;
-        //     }
-        // }
-       
-        //TODO: during exec: Check commit/prepare; If not present -> materialize from ongoing. After all, this check + request missing guarantees that tx must be at least ongoing.
-        //Note: if its not prepared locally, but is ongoing (i.e. prepare vote = none/abort/abstain) we can immediately add it to state but marked only for query
-        
-        bool testing_sync = false;
-        if(testing_sync || has_txn_locally){ //FIXME: Check ongoing and commit/abort --> if not prepared, need to materialize it anyways.
-            //request the tx-id from the replicas that supposedly have it --> put all tx-id to be requested from one replica in one message (and send in one go afterwards)
-
-              Debug("Missing txn_id [%s] for Query Sync Proposal[%lu:%lu:%d]", BytesToHex(tx_id, 16).c_str(), merged_ss->query_seq_num(), merged_ss->client_id(), merged_ss->retry_version());
-            query_md->is_waiting = true;
-
-             //Add to waiting data structure.
-            waitingQueryMap::accessor w;
-            waitingQueries.insert(w, tx_id);
-            bool already_requested = !w->second.empty(); //TODO: if there is already a waiting query, don't need to request the txn again. Problem: Could have been requested by a byz client that gave wrong replica_ids...
-            w->second.insert(*queryId);
-            w.release();
-
-            query_md->missing_txn[tx_id]= config.f + 1;  //FIXME: Useless line: we don't stop waiting currently.
-            uint64_t count = 0;
-            for(auto const &replica_id: replica_list.replicas()){ 
-                if(count > config.f +1) return; //only send to f+1 --> an honest client will never include more than f+1 replicas to request from. --> can ignore byz request.
-               
-                uint64_t replica_idx = replica_id % config.n;  //since  id = local-groupIdx * config.n + idx
-                if(replica_idx != idx){
-                   std::string *next_txn = replica_requests[replica_idx].add_missing_txn();
-                   *next_txn = tx_id;
-                   replica_requests[replica_idx].set_replica_idx(idx);
-                }
-                count++;
+//TODO: Call OpenMergedSS. Distinguish between handling merged_txns and merged_ts.    //Call Process Merged_ss on snapshto mgr.? 
+//TODO: Create map that stores merged TS to TXDigest mapping. Instantiate that map when we create ongoing (Inside AddOngoing? -> do for both P1 and FBP1). Only delete it when garbage collecting < Low Watermark
+   
+    if(query_md->useOptimisticTxId){
+        query_md->snapshot_mgr.OpenMergedSnapshot(merged_ss); //Decompresses if applicable 
+        for(auto const &[ts_id, replica_list] : merged_ss->merged_ts()){
+            Debug("Snapshot for Query Sync Proposal[%lu:%lu:%d] contains ts_id [%lu]", merged_ss->query_seq_num(), merged_ss->client_id(), merged_ss->retry_version(), ts_id);
+            
+            //transform ts_id to txnDigest if using optimistc ids.. // Check local mapping from Timestamp to TxnDigest 
+            ts_to_txMap::const_accessor t;
+            bool hasTx = ts_to_tx.find(t, ts_id);//.. find in map. If yes, add tx_id to merged_txns. If no, try to sync on TS.
+            if(hasTx){
+                 query_md->merged_ss.insert(t->second); //store snapshot locally.  // Is there a nice way to copy the whole key set of a map? //TODO: Replace with protobuf RepeatedField and release from merged_ss.
+                t.release();
             }
-          
+            else{
+                t.release();
+                 //SetWaitingTS(ts_id, queryId, replica_requests); //Problem: tx_id not known. Need to support waiting structure on Ts.
+            }
         }
     }
+    else{
+         //txn_replicas_pair
+        for(auto const &[tx_id, replica_list] : merged_ss->merged_txns()){
+            Debug("Snapshot for Query Sync Proposal[%lu:%lu:%d] contains tx_id [%s]", merged_ss->query_seq_num(), merged_ss->client_id(), merged_ss->retry_version(), BytesToHex(tx_id, 16).c_str());
+            query_md->merged_ss.insert(tx_id); //store snapshot locally.  // Is there a nice way to copy the whole key set of a map? //TODO: Replace with protobuf RepeatedField and release from merged_ss.
+            //CheckPresence(tx_id, merged_ss, queryId);
+
+            ongoingMap::const_accessor o;
+            //Check whether replica has the txn.: If not ongoing, and not commit/abort --> then we have not received it yet. (Follows from commit/aborted being updated before erasing from ongoing)
+            bool has_txn_locally = ongoing.find(o, tx_id)? true : (committed.find(tx_id) != committed.end() || aborted.find(tx_id) != aborted.end());
+            //TODO: Materialize it from ongoing (doesnt matter if prepared yet)
+            o.release();
+            // //FIXME: CURRENTLY NOT USING FAILQuery here: Failed tx might not be on frontier... -> Fail only during exec. Just proceed here (mark tx as "has_locally")
+            // has_txn_locally = ongoing.find(o, tx_id);
+            // o.release();
+            // if(!has_txn_locally){
+            //     if (committed.find(tx_id) != committed.end()) has_txn_locally = true;
+            //     else if (aborted.find(tx_id) != aborted.end()){  //If Query not ongoing/committed --> Fail Query early if aborted. 
+            //         FailQuery(query_md); 
+            //         delete merged_ss;
+            //         return;
+            //     }
+            // }
+            
+            //TODO: during exec: Check commit/prepare; If not present -> materialize from ongoing. After all, this check + request missing guarantees that tx must be at least ongoing.
+            //Note: if its not prepared locally, but is ongoing (i.e. prepare vote = none/abort/abstain) we can immediately add it to state but marked only for query
+            
+            bool testing_sync = false;
+            if(testing_sync || has_txn_locally){
+                SetWaiting(tx_id, queryId, replica_list, replica_requests);
+            }
+        }
+    }
+
   
     //If no missing_txn = already fully synced. Exec callback direclty
     if(replica_requests.empty()){

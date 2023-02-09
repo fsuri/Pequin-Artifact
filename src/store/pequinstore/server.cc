@@ -548,13 +548,8 @@ void Server::HandlePhase1_atomic(const TransportAddress &remote,
 
   //NOTE: Ongoing *must* be added before p2/wb since the latter dont include it themselves as an optimization
   //TCP guarantees that this happens, but I cannot dispatch parallel P1 before logging ongoing or else it could be ordered after p2/wb.
-  ongoingMap::accessor o;
-  //ongoing.insert(b, std::make_pair(txnDigest, txn));
-  ongoing.insert(o, txnDigest);
-  o->second.txn = txn;
-  o->second.num_concurrent_clients++;
-  o.release();
-
+  AddOngoing(txnDigest, txn);
+ 
   //NOTE: "Problem": If client comes after writeback, it will try to do a p2/wb itself but fail
   //due to ongoing being removed already.
   //XXX solution: add to ongoing always, and call Clean() for redundant Writebacks as well.
