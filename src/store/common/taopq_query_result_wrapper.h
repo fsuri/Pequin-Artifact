@@ -27,73 +27,59 @@
 
 #include <string>
 #include <vector>
+#include <tao/pq.hpp>
 #include "store/common/query_result.h"
 #include "store/common/query_result_row.h"
-#include "store/common/query-result-proto.pb.h"
-#include "store/common/query_result_proto_wrapper_row.h"
+#include "store/common/taopq_query_result_wrapper_row.h"
 
-typedef SQLResult SQLResultProto;
-typedef Row RowProto;
+namespace taopq_wrapper {
 
-namespace sql {
-
-class QueryResultProtoWrapper : query_result::QueryResult {
+class TaoPQQueryResultWrapper : query_result::QueryResult {
   private:
-    int32_t n_rows_affected;
-    std::vector<std::string> column_names;
-    std::vector<std::vector<std::string>> result;
-    auto create_from_proto(const SQLResultProto* proto_result) -> void;
-    auto check_has_result_set() const -> void;
+    tao::pq::result* result;
 
 	public:
-    QueryResultProtoWrapper(const SQLResultProto* proto_result) {
-      create_from_proto(proto_result);
+    TaoPQQueryResultWrapper(tao::pq:result* taopq_result) {
+      result = taopq_result
     }
 
-    QueryResultProtoWrapper(const std::string& data) {
-      SQLResultProto result;
-      if(!result.ParseFromString(data)) {
-        create_from_proto(&result);
-      } else {
-        throw std::invalid_argument("Failed to parse QueryResultProtoWrapper from data");
-      }
+    ~TaoPQQueryResultWrapper() {
     }
 
-    ~QueryResultProtoWrapper() {
-    }
-
-		class const_iterator : query_result::QueryResult::const_iterator, sql::Row {
+		class const_iterator : query_result::QueryResult::const_iterator {
       private:
-        friend class QueryResultProtoWrapper;
+        tao::pq::result::const_iterator taopq_const_iterator;
+        taopq_wrapper::Row row;
 
-        explicit const_iterator( const sql::Row& r ) noexcept
-            : sql::Row( r )
-         {}
+        explicit const_iterator( const tao::pq::result::const_iterator iterator) noexcept
+        {
+          taopq_const_iterator = iterator;
+        }
 			public:
         const_iterator() = default;
 
 				auto operator++() noexcept -> query_result::QueryResult::const_iterator& 
         {
-            ++m_row;
-            return *this;
+          taopq_const_iterator++;
+          return *this;
         }
 
         auto operator++( int ) noexcept -> query_result::QueryResult::const_iterator
         {
-          sql::QueryResultProtoWrapper::const_iterator nrv( *this );
+          const_iterator nrv( *this );
           ++*this;
           return nrv;
         }
 
         auto operator+=( const std::int32_t n ) noexcept -> query_result::QueryResult::const_iterator&
         {
-          m_row += n;
+          taopq_const_iterator += n;
           return *this;
         }
 
         auto operator--() noexcept -> query_result::QueryResult::const_iterator&
         {
-          --m_row;
+          --taopq_const_iterator;
           return *this;
         }
 
@@ -106,30 +92,29 @@ class QueryResultProtoWrapper : query_result::QueryResult {
 
         auto operator-=( const std::int32_t n ) noexcept -> query_result::QueryResult::const_iterator&
         {
-          m_row -= n;
+          taopq_const_iterator -= n;
           return *this;
         }
 
         auto operator*() const noexcept -> const query_result::Row& 
         {
-          return *this;
+          if(row == null) {
+            row = taopq_wrapper::Row(*taopq_const_iterator);
+          }
+          return *row;
         }
 
         auto operator->() const noexcept -> const query_result::Row*
         {
-          return this;
+          if(row == null) {
+            row = taopq_wrapper::Row(*taopq_const_iterator);
+          }
+          return row;
         }
 
         auto operator[]( const std::int32_t n ) const noexcept -> query_result::Row
         {
-          return *( *this + n );
-        }
-
-        friend auto operator+( const const_iterator& lhs, const std::int32_t rhs ) noexcept -> const_iterator
-        {
-          const_iterator nrv( lhs );
-          nrv += rhs;
-          return nrv;
+          return taopq_wrapper::Row(taopq_const_iterator + n);
         }
 		};
 
