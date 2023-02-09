@@ -41,7 +41,7 @@
 
 namespace pequinstore {
 
-SnapshotManager::SnapshotManager(const QueryParameters *query_params): query_params(query_params) {}
+SnapshotManager::SnapshotManager(const QueryParameters *query_params): query_params(query_params), numSnapshotReplies(0UL), useOptimisticTxId(false), config_f(0UL), local_ss(nullptr), merged_ss(nullptr) {}
 SnapshotManager::~SnapshotManager(){}
 
 ////////////////// Manage Local Snapshot:
@@ -124,6 +124,9 @@ void SnapshotManager::SealLocalSnapshot(){
     local_ss->mutable_local_txns_prepared_ts()->erase(std::unique(local_ss->mutable_local_txns_prepared_ts()->begin(), local_ss->mutable_local_txns_prepared_ts()->end()), local_ss->mutable_local_txns_prepared_ts()->end()); 
       //ts_comp.CompressAll();
     //For optimistic Ids (TS) additionally optionally compress. 
+    for(auto &ts_id: local_ss->local_txns_committed_ts()){
+      printf("Local Snapshot contains TS: %lu \n", ts_id);
+    }
     if(query_params->compressOptimisticTxIDs) ts_comp.CompressLocal(local_ss); //will write snapshot to local_ss.compressed and clear txns_committed/prepared_ts
   }
   return;
@@ -195,6 +198,7 @@ bool SnapshotManager::ProcessReplicaLocalSnapshot(proto::LocalSnapshot* local_ss
          SealMergedSnapshot();
          return true;
     }
+     std::cerr << "numSnapshotReplies: " << numSnapshotReplies << " syncquorum: " << query_params->syncQuorum<< std::endl;
     return false;
 
 }
@@ -284,7 +288,8 @@ void TimestampCompressor::CompressLocal(proto::LocalSnapshot *local_ss){
   //Use integer compression to further compress the snapshots. Note: Currenty code expects 64 bit TS  -- For 32 bit need to perform explicit delta compression (requires bucketing) 
 
   //1) sort
-  std::sort(local_ss->mutable_local_txns_committed()->begin(), local_ss->mutable_local_txns_committed()->end());
+  std::sort(local_ss->mutable_local_txns_committed_ts()->begin(), local_ss->mutable_local_txns_committed_ts()->end());
+  std::sort(local_ss->mutable_local_txns_prepared_ts()->begin(), local_ss->mutable_local_txns_prepared_ts()->end());
 
   //2) compress
   //committed:
@@ -292,7 +297,7 @@ void TimestampCompressor::CompressLocal(proto::LocalSnapshot *local_ss){
   UW_ASSERT((num_timestamps*64) < (1<<32) + 1024); //Ensure it can fit within a single protobuf byte field (max size 2^32); 1024 as safety buffer ==> Implies we can only have 2^26 = 67 million tx-ids in a snapshot for the current code
  
   Debug("Committed: Compressing %d Timestamps", num_timestamps);
-  //local_ss->mutable_local_txns_committed_ts_compressed()->reserve(8*num_timestamps + 1024);
+  local_ss->mutable_local_txns_committed_ts_compressed()->reserve(8*num_timestamps + 1024);
   size_t compressed_size = p4ndenc64(local_ss->mutable_local_txns_committed_ts()->mutable_data(), num_timestamps, (unsigned char*) local_ss->mutable_local_txns_committed_ts_compressed()->data());
   local_ss->clear_local_txns_committed_ts();
   local_ss->set_num_committed_txn_ids(num_timestamps);
@@ -303,7 +308,7 @@ void TimestampCompressor::CompressLocal(proto::LocalSnapshot *local_ss){
   UW_ASSERT((num_timestamps*64) < (1<<32) + 1024); //Ensure it can fit within a single protobuf byte field (max size 2^32); 1024 as safety buffer ==> Implies we can only have 2^26 = 67 million tx-ids in a snapshot for the current code
  
   Debug("Prepared: Compressing %d Timestamps", num_timestamps);
-  //local_ss->mutable_local_txns_committed_ts_compressed()->reserve(8*num_timestamps + 1024);
+  local_ss->mutable_local_txns_prepared_ts_compressed()->reserve(8*num_timestamps + 1024);
   compressed_size = p4ndenc64(local_ss->mutable_local_txns_prepared_ts()->mutable_data(), num_timestamps, (unsigned char*) local_ss->mutable_local_txns_prepared_ts_compressed()->data());
   local_ss->clear_local_txns_prepared_ts();
   local_ss->set_num_prepared_txn_ids(num_timestamps);
