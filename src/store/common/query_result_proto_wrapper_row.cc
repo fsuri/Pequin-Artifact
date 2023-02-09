@@ -56,4 +56,16 @@ auto Row::is_null( const std::size_t column ) const -> bool
   return m_result->is_null( m_row, m_offset + column );
 }
 
+auto Row::slice( const std::size_t offset, const std::size_t in_columns ) const -> query_result::Row 
+{
+  assert( m_result );
+  if( in_columns == 0 ) {
+      throw std::invalid_argument( "slice requires at least one column" );
+  }
+  if( offset + in_columns > m_columns ) {
+      throw std::out_of_range( internal::printf( "slice (%zu-%zu) out of range (0-%zu)", offset, offset + in_columns - 1, m_columns - 1 ) );
+  }
+  return Row{ *m_result, m_row, m_offset + offset, in_columns };
+}
+
 }

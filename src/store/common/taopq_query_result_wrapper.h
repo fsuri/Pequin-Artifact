@@ -135,6 +135,9 @@ class TaoPQQueryResultWrapper : query_result::QueryResult {
     auto cend() const -> query_result::QueryResult::const_iterator* {
       return end();
     }
+
+    auto is_null( const std::size_t row, const std::size_t column ) const -> bool;
+		auto get( const std::size_t row, const std::size_t column ) const -> const char*;
 		
 		// access rows
     auto operator[]( const std::size_t row ) const -> query_result::Row;

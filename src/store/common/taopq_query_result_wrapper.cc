@@ -55,6 +55,15 @@ auto TaoPQQueryResultWrapper::end() const -> query_result::QueryResult::const_it
   return new const_iterator( result.end() );
 }
 
+auto TaoPQQueryResultWrapper::is_null( const std::size_t row, const std::size_t column ) const -> bool
+{
+  return result.is_null(row, column);
+}
+auto TaoPQQueryResultWrapper::get( const std::size_t row, const std::size_t column ) const -> const char*
+{
+  return result.get(row, column);
+}
+
 auto TaoPQQueryResultWrapper::operator[]( const std::size_t row ) const -> query_result::Row {
   return taopq_wrapper::Row(result[row]);
 }

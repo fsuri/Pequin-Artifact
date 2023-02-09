@@ -138,6 +138,7 @@ class QueryResultProtoWrapper : query_result::QueryResult {
 		// size of the result set
 		bool empty() const;
 		auto size() const -> std::size_t;
+    auto columns() const -> std::size_t;
 
 		// iteration
     auto begin() const -> query_result::QueryResult::const_iterator*;
@@ -151,6 +152,9 @@ class QueryResultProtoWrapper : query_result::QueryResult {
       return end();
     }
 		
+    auto is_null( const std::size_t row, const std::size_t column ) const -> bool;
+		auto get( const std::size_t row, const std::size_t column ) const -> const char*;
+
 		// access rows
     auto operator[]( const std::size_t row ) const -> query_result::Row;
     auto at( const std::size_t row ) const -> query_result::Row;

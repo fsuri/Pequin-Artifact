@@ -69,6 +69,9 @@ class QueryResult {
 
 		virtual auto cbegin() const -> const_iterator* = 0;
     virtual auto cend() const -> const_iterator* = 0;
+
+		virtual auto is_null( const std::size_t row, const std::size_t column ) const -> bool = 0;
+		virtual auto get( const std::size_t row, const std::size_t column ) const -> const char* = 0;
 		
 		// access rows
     virtual auto operator[]( const std::size_t row ) const -> Row = 0;

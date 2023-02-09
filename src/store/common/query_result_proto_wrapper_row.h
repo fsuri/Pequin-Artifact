@@ -45,15 +45,15 @@ class Row : query_result::Row {
 
   Row() = default;
 
-  Row( const QueryResultProtoWrapper& in_result, const std::size_t in_row, const std::size_t in_offset, const std::size_t in_columns ) noexcept
-      : m_result( &in_result ),
+  Row( const QueryResultProtoWrapper* in_result, const std::size_t in_row, const std::size_t in_offset, const std::size_t in_columns ) noexcept
+      : m_result( in_result ),
         m_row( in_row ),
         m_offset( in_offset ),
         m_columns( in_columns )
   {}
 
  public:
-  class const_iterator : query_result::Row::const_iterator {
+  class const_iterator : query_result::Row::const_iterator, sql::Field {
     private:
       friend class Row;
 
@@ -101,17 +101,17 @@ class Row : query_result::Row {
         return *this;
       }
 
-      auto operator*() const noexcept -> const Field&
+      auto operator*() const noexcept -> const query_result::Field&
       {
         return *this;
       }
 
-      auto operator->() const noexcept -> const Field*
+      auto operator->() const noexcept -> const query_result::Field*
       {
         return this;
       }
 
-      auto operator[]( const std::int32_t n ) const noexcept -> Field
+      auto operator[]( const std::int32_t n ) const noexcept -> query_result::Field
       {
         return *( *this + n );
       }
@@ -124,7 +124,7 @@ class Row : query_result::Row {
   
   auto columns() const noexcept -> std::size_t
   {
-    return m_columns;
+    return m_result.columns();
   }
 
   auto name( const std::size_t column ) const -> std::string;

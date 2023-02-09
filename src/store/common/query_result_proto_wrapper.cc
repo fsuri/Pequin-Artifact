@@ -31,6 +31,7 @@
 #include "store/common/query_result_row.h"
 #include "store/common/query-result-proto.pb.h"
 #include "store/common/query_result_proto_wrapper.h"
+#include "store/common/query_result_proto_wrapper_row.h"
 
 typedef SQLResult SQLResultProto;
 
@@ -74,6 +75,11 @@ auto QueryResultProtoWrapper::size() const -> std::size_t
   return result.size();
 }
 
+auto QueryResultProtoWrapper::columns() const -> std::size_t
+{
+  return column_names.size();
+}
+
 auto QueryResultProtoWrapper::begin() const -> query_result::QueryResult::const_iterator*
 {
   check_has_result_set();
@@ -84,4 +90,35 @@ auto QueryResultProtoWrapper::end() const -> query_result::QueryResult::const_it
 {
   return new const_iterator( sql::Row( *this, size(), 0, column_names.size() ) );
 }
+
+auto QueryResultProtoWrapper::is_null( const std::size_t row, const std::size_t column ) const -> bool {
+  return result.get(row).get(column) == NULL;
+}
+
+auto QueryResultProtoWrapper::get( const std::size_t row, const std::size_t column ) const -> const char* 
+{
+  if(!is_null(row, column)) {
+    return result.get(row).get(column).c_str();
+  } else {
+    return nullptr;
+  }
+}
+
+auto QueryResultProtoWrapper::operator[]( const std::size_t row ) const -> query_result::Row {
+  return sql::Row(*this, row, 0, this.columns());
+}
+
+auto QueryResultProtoWrapper::at( const std::size_t row ) const -> query_result::Row {
+  check_has_result_set();
+  return (*this)[row];
+}
+
+auto QueryResultProtoWrapper::has_rows_affected() const noexcept -> bool {
+  return n_rows_affected > 0;
+}
+
+auto QueryResultProtoWrapper::rows_affected() const -> std::size_t {
+  return n_rows_affected;
+}
+
 }
