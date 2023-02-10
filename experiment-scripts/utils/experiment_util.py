@@ -54,7 +54,7 @@ def collect_exp_data(config, remote_exp_directory, local_directory_base, executo
 
 def kill_servers(config, executor, kill_args=' -9'):
     futures = []
-    if config['replication_protocol'] == 'indicus':
+    if config['replication_protocol'] == 'indicus' or config['replication_protocol'] == 'pequin':
         n = 5 * config['fault_tolerance'] + 1
     elif config['replication_protocol'] == 'pbft' or config['replication_protocol'] == 'hotstuff' or config['replication_protocol'] == 'bftsmart' or config['replication_protocol'] == 'augustus':
         n = 3 * config['fault_tolerance'] + 1
@@ -220,7 +220,7 @@ def start_clients(config, local_exp_directory, remote_exp_directory, run):
 
 def start_servers(config, local_exp_directory, remote_exp_directory, run):
     server_threads = []
-    if config['replication_protocol'] == 'indicus' :
+    if config['replication_protocol'] == 'indicus' or config['replication_protocol'] == 'pequin':
         n = 5 * config['fault_tolerance'] + 1
     elif config['replication_protocol'] == 'pbft' or config['replication_protocol'] == 'hotstuff' or config['replication_protocol'] == 'bftsmart' or config['replication_protocol'] == 'augustus':
         n = 3 * config['fault_tolerance'] + 1

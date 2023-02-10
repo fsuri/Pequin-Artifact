@@ -607,9 +607,8 @@ void ShardClient::Abort(uint64_t id, const TimestampMessage &ts) {
     *abort.mutable_internal()->add_read_set() = read.key();
   }
 
-  if (params.validateProofs && params.signedMessages) {
+  if (params.validateProofs && params.signedMessages && params.signClientProposals) {
     proto::AbortInternal internal(abort.internal());
-
     //Not using batchsigner -- Server is now configured to use client_verifier. Uses new client_id mapping.
     SignMessage(&internal, keyManager->GetPrivateKey(keyManager->GetClientKeyId(client_id)), client_id, abort.mutable_signed_internal());
     //SignMessage(&internal, keyManager->GetPrivateKey(client_id & 1024), client_id % 1024, abort.mutable_signed_internal());

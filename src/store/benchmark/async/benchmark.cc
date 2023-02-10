@@ -1057,7 +1057,9 @@ int main(int argc, char **argv) {
     SyncClient *syncClient = nullptr;
     OneShotClient *oneShotClient = nullptr;
 
-    uint64_t clientId = (FLAGS_client_id << 6) | i;
+    //uint64_t clientId = (FLAGS_client_id << 6) | i;
+    //uint64_t clientId = (FLAGS_client_id << 2) | i;
+    uint64_t clientId = FLAGS_client_id | i;
     //uint64_t clientId = FLAGS_client_id + FLAGS_num_client_hosts * i;
     std::cerr <<  "num hosts=" << FLAGS_num_client_hosts << "; num_threads=" << FLAGS_num_client_threads << std::endl;
     //keyManager->PreLoadPrivKey(clientId, true);

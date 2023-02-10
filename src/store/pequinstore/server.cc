@@ -1343,7 +1343,7 @@ void Server::WritebackCallback(proto::Writeback *msg, const std::string* txnDige
 void Server::HandleAbort(const TransportAddress &remote,
     const proto::Abort &msg) {
   const proto::AbortInternal *abort;
-  if (params.validateProofs && params.signedMessages) {
+  if (params.validateProofs && params.signedMessages && params.signClientProposals) {
     if (!msg.has_signed_internal()) {
       return;
     }

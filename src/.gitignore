@@ -11,6 +11,9 @@ lib/crypto_bench
 lib/batched_sigs_test
 lib/blake3_test
 lib/threadpool_test
+lib/compression/TurboPFor-Integer-Compression/icapp
+lib/compression/FrameOfReference/test
+
 lockserver/client-main
 lockserver/server-main
 lockserver/lockserver-repl
