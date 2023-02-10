@@ -138,9 +138,9 @@ void ThreadPool::start(int process_id, int total_processes, bool hyperthreading,
       int num_cpus = std::thread::hardware_concurrency(); ///(2-hyperthreading);
       fprintf(stderr, "Num_cpus: %d \n", num_cpus);
       num_cpus /= total_processes;
-      //num_cpus = 8; //XXX change back to dynamic
+      num_cpus = 8; //XXX change back to dynamic  //Note: Each client uses all 8 cores for additional workers. (By default we run with multithreading off though, so they are unused.)
       //int offset = process_id * num_cpus;
-      Debug("num cpus %d", num_cpus);
+      Debug("num cpus per process: %d", num_cpus);
       uint32_t num_threads = (uint32_t) std::max(1, num_cpus);
       running = true;
       for (uint32_t i = 0; i < num_threads; i++) {
