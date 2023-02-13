@@ -38,6 +38,11 @@ ThreadPool::ThreadPool() {
 
 void ThreadPool::start(int process_id, int total_processes, bool hyperthreading, bool server, int mode){
   //printf("starting threadpool \n");
+             //if hardware_concurrency is wrong try this:
+              cpu_set_t cpuset;
+              sched_getaffinity(0, sizeof(cpuset), &cpuset);
+              fprintf(stderr, "cpu_count  %d \n", CPU_COUNT(&cpuset));
+
   //could pre-allocate some Events and EventInfos for a Hotstart
   if(server){
         fprintf(stderr, "starting server threadpool\n");
@@ -45,6 +50,7 @@ void ThreadPool::start(int process_id, int total_processes, bool hyperthreading,
     //TODO: add config param for hyperthreading
     //bool hyperthreading = true;
     int num_cpus = std::thread::hardware_concurrency(); ///(2-hyperthreading);
+   
         fprintf(stderr, "Total Num_cpus on server: %d \n", num_cpus);
     
     bool put_all_threads_on_same_core = false;
@@ -54,7 +60,7 @@ void ThreadPool::start(int process_id, int total_processes, bool hyperthreading,
     }
    
     num_cpus /= total_processes;
-        fprintf(stderr, "Num_cpus used for replica #%d: %d \n", process_id, num_cpus);
+    fprintf(stderr, "Num_cpus used for replica #%d: %d \n", process_id, num_cpus);
     int offset = process_id * num_cpus;   //Offset that determines where first core of the server begins.
     uint32_t num_threads = (uint32_t) std::max(1, num_cpus);
     // Currently: First CPU = MainThread.
@@ -64,6 +70,7 @@ void ThreadPool::start(int process_id, int total_processes, bool hyperthreading,
   
     uint32_t start = 1 - put_all_threads_on_same_core; //First core
     uint32_t end = num_threads; //Last core
+     fprintf(stderr, "Threadpool threads: start %d, end %d \n", start, end);
     if(mode == 0){ //Indicus
        //Use defaults. First core is messagine (inactive in threadpool), second is Main Logic Thread, remainder are workers (crypto/reads/asynchronous handling)
     } 
@@ -85,6 +92,14 @@ void ThreadPool::start(int process_id, int total_processes, bool hyperthreading,
     running = true;
     for (uint32_t i = start; i < end; i++) {    
         std::thread *t;
+
+        // Create a cpu_set_t object representing a set of CPUs. Clear it and mark
+        // only CPU i as set.
+        cpu_set_t cpuset;
+        CPU_ZERO(&cpuset);
+        CPU_SET(i+offset, &cpuset);
+        if(i+offset > 7) return; //XXX This is a hack to support the non-crypto experiment that does not actually use multiple cores 
+
         //Mainthread
         if(i==start){ //if run with >=3 cores then start == 1; If cores < 3, start == 0 -->run main_thread on first core.
             t = new std::thread([this, i] {
@@ -99,7 +114,15 @@ void ThreadPool::start(int process_id, int total_processes, bool hyperthreading,
                         }
                         job();
                     }
-                });
+            });
+            std::cerr << "THREADPOOL SETUP: Trying to pin thread to core: " << i << " + " << offset << std::endl;
+            int rc = pthread_setaffinity_np(t->native_handle(),
+                                            sizeof(cpu_set_t), &cpuset);
+            if (rc != 0) {
+                Panic("Error calling pthread_setaffinity_np: %d", rc);
+            }
+            threads.push_back(t);
+            t->detach();
         }
         //Cryptothread
         if((i + put_all_threads_on_same_core) > start){ //if run with >=3 cores: start==1 & put_all_threads_on_same_core == 0 --> workers start on cores 2+; if < 3 cores: start == 0, put_all = 1
@@ -125,23 +148,25 @@ void ThreadPool::start(int process_id, int total_processes, bool hyperthreading,
                         }
 
                     }
-                });
+            });
+            std::cerr << "THREADPOOL SETUP: Trying to pin thread to core: " << i << " + " << offset << std::endl;
+            int rc = pthread_setaffinity_np(t->native_handle(),
+                                            sizeof(cpu_set_t), &cpuset);
+            if (rc != 0) {
+                Panic("Error calling pthread_setaffinity_np: %d", rc);
+            }
+            threads.push_back(t);
+            t->detach();
         }
         
-        // Create a cpu_set_t object representing a set of CPUs. Clear it and mark
-        // only CPU i as set.
-        cpu_set_t cpuset;
-        CPU_ZERO(&cpuset);
-        CPU_SET(i+offset, &cpuset);
-        if(i+offset > 7) return; //XXX This is a hack to support the non-crypto experiment that does not actually use multiple cores 
-        std::cerr << "THREADPOOL SETUP: Trying to pin thread to core: " << i << " + " << offset << std::endl;
-        int rc = pthread_setaffinity_np(t->native_handle(),
-                                        sizeof(cpu_set_t), &cpuset);
-        if (rc != 0) {
-            Panic("Error calling pthread_setaffinity_np: %d", rc);
-        }
-        threads.push_back(t);
-        t->detach();
+        // std::cerr << "THREADPOOL SETUP: Trying to pin thread to core: " << i << " + " << offset << std::endl;
+        // int rc = pthread_setaffinity_np(t->native_handle(),
+        //                                 sizeof(cpu_set_t), &cpuset);
+        // if (rc != 0) {
+        //     Panic("Error calling pthread_setaffinity_np: %d", rc);
+        // }
+        // threads.push_back(t);
+        // t->detach();
     }
   //}
   } else{

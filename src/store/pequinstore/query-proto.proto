@@ -12,7 +12,7 @@ message Query {
    // Unless: Dependency on another TX which has a query that is invalid... (will abort by default) --> but then TX should not have prepared --> TxID still uniquely defines which query is used.
    // For now: Treat Query just as a read, and assume read set will be included in tx (instead of cached) -- all worries about attack are complications due to caching.
    required TimestampMessage timestamp = 3; //Timestamp at which to read query.
-   optional bytes query_cmd = 4;      //SQL statement as string --> parse at Replica
+   optional bytes query_cmd = 4;      //SQL statement as string --> parse at Replica  //FIXME: WARNING: bytes at most length 2^32
    //Alternatively: Already parsed into AST at client --> send AST (What format?)
    optional uint64 query_manager = 5;
    //TODO: Needs to include involved groups?

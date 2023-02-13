@@ -1,9 +1,9 @@
 #!/bin/bash
 
-CLIENTS=2
-F=1
+CLIENTS=1
+F=0
 NUM_GROUPS=1
-CONFIG="0_local_test_outputs/configs/shard-r6.config"
+CONFIG="0_local_test_outputs/configs/shard-r1.config"
 PROTOCOL="pequin"
 STORE=${PROTOCOL}store
 DURATION=10

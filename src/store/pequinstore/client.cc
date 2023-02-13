@@ -250,6 +250,8 @@ void Client::Put(const std::string &key, const std::string &value,
 void Client::Query(std::string &query, query_callback qcb,
     query_timeout_callback qtcb, uint32_t timeout) {
 
+  UW_ASSERT(query.length() < ((uint64_t)1<<32)); //Protobuf cannot handle strings longer than 2^32 bytes --> cannot handle "arbitrarily" complex queries: If this is the case, we need to break down the query command.
+
   transport->Timer(0, [this, query, qcb, qtcb, timeout]() mutable {
     // Latency_Start(&getLatency);
 
