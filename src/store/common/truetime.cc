@@ -46,10 +46,10 @@ TrueTime::GetTime()
         now.tv_sec--;
     }
 
-    //timestamp = ((uint64_t)now.tv_sec << 32) | (uint64_t) (now.tv_usec);
+    timestamp = ((uint64_t)now.tv_sec << 32) | (uint64_t) (now.tv_usec);
     //32 bit for seconds suffices until 2038
     //timestamp = ((uint64_t)now.tv_sec << 20) | ((uint64_t) now.tv_usec); // shifting 20 suffices, since u_sec < 2^20
-    timestamp = ((uint64_t)now.tv_sec << 32) | ((uint64_t) now.tv_usec << 12); //leave space for client ids
+    //timestamp = ((uint64_t)now.tv_sec << 32) | ((uint64_t) now.tv_usec << 12); //leave space for client ids
 
     // //FIXME: REMOVE TEST: Isolate ids again and compare:
     // //top 32 bits

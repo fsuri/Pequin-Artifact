@@ -294,7 +294,7 @@ DEFINE_uint64(indicus_use_coordinator, false, "use coordinator"
 DEFINE_uint64(indicus_request_tx, false, "request tx"
     " request tx (for Indicus)");
 
-DEFINE_int32(indicus_rts_mode, 1, "Mode for managing RTS: 0 == no RTS, 1 == single RTS, 2 == set of RTS"); //set of RTS can be refined further to include interval from "read value" to TS
+DEFINE_int32(indicus_rts_mode, 0, "Mode for managing RTS: 0 == no RTS, 1 == single RTS, 2 == set of RTS"); //set of RTS can be refined further to include interval from "read value" to TS
 
 DEFINE_bool(indicus_sign_client_proposals, false, "add signatures to client proposals "
     " -- used for optimistic tx-ids. Can be used for access control (unimplemented)");

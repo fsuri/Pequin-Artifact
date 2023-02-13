@@ -418,7 +418,7 @@ proto::ConcurrencyControl::Result Server::DoOCCCheck(
   //Note: if we wait, we may never garbage collect TX from ongoing (and possibly from other replicas Prepare set); Can garbage collect after some time if desired (since we didn't process, theres no impact on decisions)
   //If another client is interested, then it should start fallback and provide read set as well (forward SyncProposal with correct retry version)
     
-  Debug("TESTING MERGED READ");
+  Debug("TESTING MERGED READ"); //FIXME: Remove.
   for(auto &read : *readSet){
       Debug("[group Merged] Read key %s with version [%lu:%lu]", read.key().c_str(), read.readtime().timestamp(), read.readtime().id());
   }
@@ -647,6 +647,7 @@ proto::ConcurrencyControl::Result Server::DoMVTSOOCCCheck(
             //RTS check is just an additional heuristic; The prepare/commit checks guarantee serializability on their own
             stats.Increment("cc_abstains", 1);
             stats.Increment("cc_abstains_rts", 1);
+            //fprintf(stderr, "rts TS: %lx bigger than ts %lx from client %d", rtsItr->second.load(), ts.getTimestamp(), ts.getID());
             return proto::ConcurrencyControl::ABSTAIN;
           }
         }
@@ -1214,6 +1215,7 @@ bool Server::CheckHighWatermark(const Timestamp &ts) {
   // add delta to current local time
   highWatermark.setTimestamp(highWatermark.getTimestamp() + timeDelta);
   Debug("High watermark: %lu.", highWatermark.getTimestamp());
+  //if(ts>highWatermark) Panic("ts: %lx, highWatermark: %lx", ts.getTimestamp(), highWatermark.getTimestamp());
   return ts > highWatermark;
 }
 

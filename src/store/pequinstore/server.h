@@ -851,7 +851,7 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
   typedef std::tuple<Timestamp, Timestamp, const proto::CommittedProof *> committedRead;
   tbb::concurrent_unordered_map<std::string, std::pair<std::shared_mutex, std::set<committedRead>>> committedReads;
   //std::unordered_map<std::string, std::set<Timestamp>> rts;
-  tbb::concurrent_unordered_map<std::string, std::atomic_int> rts;
+  tbb::concurrent_unordered_map<std::string, std::atomic_uint64_t> rts;
   //tbb::concurrent_hash_map<std::string, std::set<Timestamp>> rts; //TODO: if want to use this again: need per key locks like below.
   tbb::concurrent_unordered_map<std::string, std::pair<std::shared_mutex, std::set<Timestamp>>> rts_list;
 
