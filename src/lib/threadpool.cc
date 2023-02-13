@@ -86,7 +86,7 @@ void ThreadPool::start(int process_id, int total_processes, bool hyperthreading,
     for (uint32_t i = start; i < end; i++) {    
         std::thread *t;
         //Mainthread
-        if(i==start){ //if run with >=3 cores start := 1; If cores < 3 -> run main_thread on first core.
+        if(i==start){ //if run with >=3 cores then start == 1; If cores < 3, start == 0 -->run main_thread on first core.
             t = new std::thread([this, i] {
                     while (true) {
                         std::function<void*()> job;
@@ -102,7 +102,7 @@ void ThreadPool::start(int process_id, int total_processes, bool hyperthreading,
                 });
         }
         //Cryptothread
-        if((i + put_all_threads_on_same_core) > start){ //if run with >=3 cores: start==1 & put_all_threads_on_same_core == 0 --> workers start on cores 2+
+        if((i + put_all_threads_on_same_core) > start){ //if run with >=3 cores: start==1 & put_all_threads_on_same_core == 0 --> workers start on cores 2+; if < 3 cores: start == 0, put_all = 1
         //else{
             t = new std::thread([this, i] {
                     while (true) {
