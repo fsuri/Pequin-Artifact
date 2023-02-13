@@ -88,8 +88,11 @@ uint64_t MergeTimestampId(const uint64_t &timestamp, const uint64_t &id){
     }
     else{ //manually shift.
       Panic("Cannot merge id into timestamp; bottom bits not free.");
-      uint64_t top = timestamp & ((uint64_t) (1 << 32 - 1) << 32);  //top 32 bits (wipe bottom)
-      uint64_t bot = timestamp & ((uint64_t) (1 << 20 - 1));  //bottom 20 bits
+      uint64_t top_mask = 0xFFFFFFFF00000000;
+      uint64_t bot_mask = 0x00000000FFFFFFFF;
+      uint64_t top = timestamp & top_mask;  //(((uint64_t) 1 << 32 - 1) << 32);  //top 32 bits (wipe bottom)  
+      uint64_t bot = timestamp & bot_mask;  //(((uint64_t) 1 << 20 - 1));  //bottom 20 bits        
+    
       uint64_t new_ts = top + (bot << 12); //shift bottom bits and add to top
       return (new_ts | id);
     }
@@ -378,29 +381,9 @@ void TimestampCompressor::CompressAll(){
 
     UW_ASSERT((num_timestamps*64 + 1024) < (0xFFFFFFFF)); //Ensure it can fit within a single protobuf byte field (max size 2^32); 1024 as safety buffer ==> Implies we can only have 2^26 = 67 million tx-ids in a snapshot for the current code
 
-    std::string *test = new std::string(); 
-    test->reserve(8*num_timestamps + 1024);
-    test->resize(8*num_timestamps+1024);
-    unsigned char *test_data = (unsigned char*) test->data();
     std::cerr << "TESTING. First ts:" << timestamps[0] << " Last ts: " << timestamps.back() << std::endl;
     size_t compressed_size = p4ndenc64(timestamps.data(), num_timestamps, compressed_timestamps.data()); //use p4ndenc for sorted
     compressed_size = p4ndenc64(local_ss->mutable_local_txns_committed_ts()->mutable_data(), num_timestamps, (unsigned char*) local_ss->mutable_local_txns_committed_ts_compressed()->data()); //use p4ndenc for sorted  (output = num bytes)
-    
-
-    std::string copy = std::string(compressed_timestamps.begin(), compressed_timestamps.end());
-  
-    
-    for(int i=0; i<< 100; ++i){
-       std::cerr << "Compressed data: " << compressed_timestamps.data()[i];
-    }
-    std::cerr << std::endl;
-   
-
-    //local_ss->set_local_txns_committed_ts_compressed(copy);
-    delete test;
-	
-    
-    //local_ss->set_allocated_local_txns_committed_ts_compressed(test);
     
     //compressed_timestamps.resize(compressed_size);
     //local_ss->mutable_local_txns_committed()->Resize((int) compressed_size);
