@@ -185,7 +185,7 @@ void ShardClient::Get(uint64_t id, const std::string &key,
 void ShardClient::Put(uint64_t id, const std::string &key,
       const std::string &value, put_callback pcb, put_timeout_callback ptcb,
       uint32_t timeout) {
-  WriteMessage *writeMsg = txn.add_write_set();
+  WriteMessage *writeMsg = txn.add_write_set(); //TODO: If we have already tried to write they key, remove that write from the read set.
   writeMsg->set_key(key);
   writeMsg->set_value(value);
   pcb(REPLY_OK, key, value);

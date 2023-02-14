@@ -725,7 +725,7 @@ void* Server::TryPrepare(uint64_t reqId, const TransportAddress &remote, proto::
     if(!params.signClientProposals) txn = msg.release_txn(); //Only release it here so that we can forward complete P1 message without making any wasteful copies
     
 
-    //Add txn speculative to ongoing BEFORE validation to ensure it exists in ongoing before any P2 or Writeback could arrive
+    //Add txn speculative to ongoing BEFORE validation to ensure it exists in ongoing before any P2 or Writeback could arrive; (Follows from the fact that HandleP1, P2, Writeback are called on same thread)
     //If verification fails, remove it again. Keep track of num_concurrent_clients to make sure we don't delete if it is still necessary.
     AddOngoing(txnDigest, txn);
 

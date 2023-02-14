@@ -1750,7 +1750,15 @@ void Server::SendRelayP1(const TransportAddress &remote, const std::string &depe
   p1MetaDataMap::accessor c;
   //o.release();
 
-  //proto::RelayP1 relayP1; //use global object.
+  proto::RelayP1 relayP1; // Use local object instead of global.
+
+  // proto::RelayP1 *relayP1;
+  // if(params.parallel_CCC){
+  //   relayP1 = GetUnusedRelayP1(); //if invokations of SendRelayP1 come from different threads --> use separate objects.
+  // } 
+  // else{
+  //   relayP1 = &relayP1Msg; // if all invokations of SendRelayP1 come from the same thread --> use global object.
+  // } 
   relayP1.Clear();
   relayP1.set_dependent_id(dependent_id);
   relayP1.mutable_p1()->set_req_id(0); //doesnt matter, its not used for fallback requests really.
@@ -1758,14 +1766,16 @@ void Server::SendRelayP1(const TransportAddress &remote, const std::string &depe
 
   if(params.signClientProposals){
     //b.release();
-    bool p1MetaExists = p1MetaData.find(c, dependency_txnDig); //If txn is in ongoing, then it must have been added to P1Meta --> since we add to ongoing in HandleP1 or HandleP1FB. 
-                                                                                          // (TODO FIX: Current verification --adds signed_txn-- happens only after inster ongoing. Should be swapped to guarantee the above.)
+    //Note: RelayP1 is only triggered if dependency_txnDig is prepared but not committed -> implies it passed verification -> implies ongoing was added and is still true (since not yet committed)
+    //If txn is in ongoing, then it must have been added to P1Meta --> since we add to ongoing in HandleP1 or HandleP1FB. 
+    bool p1MetaExists = p1MetaData.find(c, dependency_txnDig); // Ignore (does not matter): Current verification --adds signed_txn-- happens only after inster ongoing. Should be swapped to guarantee the above.)
      if(!p1MetaExists || c->second.hasSignedP1 == false) Panic("Should exist since ongoing is still true");
     signed_tx = c->second.signed_txn;
     relayP1.mutable_p1()->set_allocated_signed_txn(signed_tx);
   }
   else{ //no Client sigs --> just send txn.
     relayP1.mutable_p1()->set_allocated_txn(tx);  
+    //*relayP1.mutable_p1()->mutable_txn() = *tx;
   }
   
 
@@ -1790,6 +1800,64 @@ void Server::SendRelayP1(const TransportAddress &remote, const std::string &depe
 
   Debug("Sent RelayP1[%s].", BytesToHex(dependent_txnDig, 256).c_str());
 }
+
+// //RELAY DEPENDENCY IN ORDER FOR CLIENT TO START FALLBACK
+// //params: dependent_it = client tx identifier for blocked tx; dependency_txnDigest = tx that is stalling
+// void Server::_SendRelayP1(const TransportAddress &remote, const std::string &dependency_txnDig, uint64_t dependent_id, const std::string &dependent_txnDig){
+
+//   Debug("RelayP1[%s] timed out. Sending now!", BytesToHex(dependent_txnDig, 256).c_str());
+
+//    //proto::RelayP1 relayP1; //use global object.
+//   relayP1.Clear();
+//   relayP1.set_dependent_id(dependent_id);
+//   relayP1.mutable_p1()->set_req_id(0); //doesnt matter, its not used for fallback requests really.
+
+//   if(params.signClientProposals){
+//      proto::SignedMessage *signed_tx;
+
+//     p1MetaDataMap::accessor c;
+//     //Note: RelayP1 is only triggered if dependency_txnDig is prepared but not committed -> implies it passed verification -> implies ongoing was added and is still true (since not yet committed)
+//     bool p1MetaExists = p1MetaData.find(c, dependency_txnDig); //If txn is in ongoing, then it must have been added to P1Meta --> since we add to ongoing in HandleP1 or HandleP1FB. 
+//                                                               // (TODO: FIXME: Current verification --adds signed_txn-- happens only after inster ongoing. Should be swapped to guarantee the above.)
+//      if(!p1MetaExists || c->second.hasSignedP1 == false) Panic("Should exist since ongoing is still true");
+//     signed_tx = c->second.signed_txn;
+//     relayP1.mutable_p1()->set_allocated_signed_txn(signed_tx);
+
+//     if(dependent_id == -1) relayP1.set_dependent_txn(dependent_txnDig);
+//     if(dependent_id == -1){
+//       Debug("Sending relayP1 for dependent txn: %s stuck waiting for dependency: %s", BytesToHex(dependent_txnDig, 64).c_str(), BytesToHex(dependency_txnDig,64).c_str());
+//     }
+
+//     stats.Increment("Relays_Sent", 1);
+//     transport->SendMessage(this, remote, relayP1);
+
+//     c->second.signed_txn = relayP1.mutable_p1()->release_signed_txn();
+//     c.release();
+//   }
+//   else{
+//     proto::Transaction *tx;
+    
+//     ongoingMap::accessor o;
+//     bool ongoingItr = ongoing.find(o, dependency_txnDig);
+//     if(!ongoingItr) return;  //If txnDigest no longer ongoing, then no FB necessary as it has completed already
+//     tx = o->second.txn;
+
+//       //relayP1.mutable_p1()->set_allocated_txn(tx);  
+//     *relayP1.mutable_p1()->mutable_txn() = *tx;
+
+//     if(dependent_id == -1) relayP1.set_dependent_txn(dependent_txnDig);
+//     if(dependent_id == -1){
+//       Debug("Sending relayP1 for dependent txn: %s stuck waiting for dependency: %s", BytesToHex(dependent_txnDig, 64).c_str(), BytesToHex(dependency_txnDig,64).c_str());
+//     }
+
+//     stats.Increment("Relays_Sent", 1);
+//     transport->SendMessage(this, remote, relayP1);
+
+//     //o->second.txn = relayP1.mutable_p1()->release_txn();
+//     o.release(); //keep ongoing locked the full duration: this guarantees that if ongoing exists, p1Meta.signed_tx exists too, since it is deleted after ongoing is locked in Clean() 
+//   }
+//   Debug("Sent RelayP1[%s].", BytesToHex(dependent_txnDig, 256).c_str());
+// }
 
 bool Server::ForwardWriteback(const TransportAddress &remote, uint64_t ReqId, const std::string &txnDigest){
   
@@ -1974,7 +2042,7 @@ void Server::HandlePhase1FB(const TransportAddress &remote, proto::Phase1FB &msg
        const proto::CommittedProof *conflict = c->second.conflict;
        //c->second.P1meta_mutex.unlock();
        //std::cerr << "[FB:1] release lock for txn: " << BytesToHex(txnDigest, 64) << std::endl;
-       c.release();
+       //c.release();
 
        proto::CommitDecision decision = p->second.p2Decision;
        uint64_t decision_view = p->second.decision_view;
@@ -1983,10 +2051,12 @@ void Server::HandlePhase1FB(const TransportAddress &remote, proto::Phase1FB &msg
        P1FBorganizer *p1fb_organizer = new P1FBorganizer(msg.req_id(), txnDigest, remote, this);
        //recover stored commit proof.
        if (result != proto::ConcurrencyControl::WAIT) { //if the result is WAIT, then the p1 is not necessary..
+         c.release();
          SetP1(msg.req_id(), p1fb_organizer->p1fbr->mutable_p1r(), txnDigest, result, conflict);
        }
        else{
         c->second.SubscribeAllInterestedFallbacks();
+        c.release();
          //Relay deeper depths.
         ManageDependencies(txnDigest, *txn, remote, 0, true); //fallback flow = true, gossip = false
         Debug("P1 decision for txn: %s is WAIT. Not including in reply.", BytesToHex(txnDigest, 16).c_str());
@@ -2010,10 +2080,11 @@ void Server::HandlePhase1FB(const TransportAddress &remote, proto::Phase1FB &msg
         const proto::CommittedProof *conflict = c->second.conflict;
         //c->second.P1meta_mutex.unlock();
         //std::cerr << "[FB:2] release lock for txn: " << BytesToHex(txnDigest, 64) << std::endl;
-        c.release();
+        //c.release();
         p.release();
 
         if (result != proto::ConcurrencyControl::WAIT) {
+          c.release();
           P1FBorganizer *p1fb_organizer = new P1FBorganizer(msg.req_id(), txnDigest, remote, this);
           SetP1(msg.req_id(), p1fb_organizer->p1fbr->mutable_p1r(), txnDigest, result, conflict);
           SendPhase1FBReply(p1fb_organizer, txnDigest);
@@ -2022,6 +2093,7 @@ void Server::HandlePhase1FB(const TransportAddress &remote, proto::Phase1FB &msg
         }
         else{
           c->second.SubscribeAllInterestedFallbacks();
+          c.release();
           ManageDependencies(txnDigest, *txn, remote, 0, true); //relay deeper deps
           Debug("WAITING on dep in order to send Phase1FBReply on path hasP1 for txn: %s, sent by client: %d", BytesToHex(txnDigest, 16).c_str(), msg.client_id());
         }

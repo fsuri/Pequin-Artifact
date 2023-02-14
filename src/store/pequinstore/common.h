@@ -374,7 +374,7 @@ inline static bool sortReadSetByKey(const ReadMessage &lhs, const ReadMessage &r
 }
 
 inline static bool sortWriteSetByKey(const WriteMessage &lhs, const WriteMessage &rhs) { 
-    UW_ASSERT(lhs.key() != rhs.key()); //FIXME: Shouldn't write the same key twice. ==> Currently might happen since we store Write Set as List instead of Set.
+    //UW_ASSERT(lhs.key() != rhs.key()); //FIXME: Shouldn't write the same key twice. ==> Currently might happen since we store Write Set as List instead of Set.
     return lhs.key() < rhs.key(); 
 }
 

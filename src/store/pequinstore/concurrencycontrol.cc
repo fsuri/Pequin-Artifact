@@ -273,6 +273,7 @@ proto::ConcurrencyControl::Result Server::mergeTxReadSets(const ReadSet *&readSe
     Debug("Txn has no queries. ReadSet = base ReadSet");
     return proto::ConcurrencyControl::COMMIT;
   } 
+  Panic("Testing without queries currently");
 
   //*txn.mutable_merged_read_set() = txn.read_set(); //store backup
   //ReadSet *mergedReadSet = txn.mutable_read_set();
@@ -403,10 +404,10 @@ proto::ConcurrencyControl::Result Server::DoOCCCheck(
 
   const ReadSet *readSet = &txn.read_set(); //Default -- merge does nothing if there are no queries
 
-  Debug("BASE READ SET");
-  for(auto &read : *readSet){
-      Debug("[group Merged] Read key %s with version [%lu:%lu]", read.key().c_str(), read.readtime().timestamp(), read.readtime().id());
-  }
+  // Debug("BASE READ SET");
+  // for(auto &read : *readSet){
+  //     Debug("[group Merged] Read key %s with version [%lu:%lu]", read.key().c_str(), read.readtime().timestamp(), read.readtime().id());
+  // }
 
   //Merge query read sets -- returs immediately if there are no queries 
   result = mergeTxReadSets(readSet, txn, txnDigest, reqId, remote, isGossip);
@@ -418,10 +419,10 @@ proto::ConcurrencyControl::Result Server::DoOCCCheck(
   //Note: if we wait, we may never garbage collect TX from ongoing (and possibly from other replicas Prepare set); Can garbage collect after some time if desired (since we didn't process, theres no impact on decisions)
   //If another client is interested, then it should start fallback and provide read set as well (forward SyncProposal with correct retry version)
     
-  Debug("TESTING MERGED READ"); //FIXME: Remove.
-  for(auto &read : *readSet){
-      Debug("[group Merged] Read key %s with version [%lu:%lu]", read.key().c_str(), read.readtime().timestamp(), read.readtime().id());
-  }
+  // Debug("TESTING MERGED READ"); //FIXME: Remove.
+  // for(auto &read : *readSet){
+  //     Debug("[group Merged] Read key %s with version [%lu:%lu]", read.key().c_str(), read.readtime().timestamp(), read.readtime().id());
+  // }
 
 
   locks_t locks;
@@ -1412,19 +1413,19 @@ locks_t Server::LockTxnKeys_scoped(const proto::Transaction &txn, const ReadSet 
       }
       //lock and advance read/write respectively if the other set is done
       if(itr_r == readSet.end()){
-        //std::cerr<< "Locking Write [" << txn.client_id() << "," << txn.client_seq_num()  << " : " << BytesToHex(itr_w->key(), 16).c_str() << "]" << std::endl;
+        // std::cerr<< "Locking Write [" << txn.client_id() << "," << txn.client_seq_num()  << " : " << BytesToHex(itr_w->key(), 16).c_str() << "]" << std::endl;
         locks.emplace_back(mutex_map[itr_w->key()]);
         itr_w++;
       }
       else if(itr_w == writeSet.end()){
-        //std::cerr<< "Locking Read [" << txn.client_id() << "," << txn.client_seq_num()  << " : " << BytesToHex(itr_r->key(), 16).c_str() << "]" << std::endl;
+        // std::cerr<< "Locking Read [" << txn.client_id() << "," << txn.client_seq_num()  << " : " << BytesToHex(itr_r->key(), 16).c_str() << "]" << std::endl;
         locks.emplace_back(mutex_map[itr_r->key()]);
         itr_r++;
       }
       //lock and advance read/write iterators in order
       else{
         if(itr_r->key() <= itr_w->key()){
-          //std::cerr<< "Locking Read/Write [" << txn.client_id() << "," << txn.client_seq_num()  << " : " << BytesToHex(itr_r->key(), 16).c_str() << "]" << std::endl;
+          // std::cerr<< "Locking Read/Write [" << txn.client_id() << "," << txn.client_seq_num()  << " : " << BytesToHex(itr_r->key(), 16).c_str() << "]" << std::endl;
           locks.emplace_back(mutex_map[itr_r->key()]);
           //If read set and write set share keys, must not acquire lock twice.
           if(itr_r->key() == itr_w->key()) {
@@ -1433,7 +1434,7 @@ locks_t Server::LockTxnKeys_scoped(const proto::Transaction &txn, const ReadSet 
           itr_r++;
         }
         else{
-          //std::cerr<< "Locking Write [" << txn.client_id() << "," << txn.client_seq_num()  << " : " << BytesToHex(itr_w->key(), 16).c_str() << "]" << std::endl;
+          // std::cerr<< "Locking Write [" << txn.client_id() << "," << txn.client_seq_num()  << " : " << BytesToHex(itr_w->key(), 16).c_str() << "]" << std::endl;
           locks.emplace_back(mutex_map[itr_w->key()]);
           itr_w++;
         }

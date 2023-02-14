@@ -30,6 +30,7 @@
 #include <sched.h>
 #include <utility>
 #include <iostream>
+#include <sys/sysinfo.h>
 
 //TODO: make is so that all but the first core are used.
 ThreadPool::ThreadPool() {
@@ -42,6 +43,8 @@ void ThreadPool::start(int process_id, int total_processes, bool hyperthreading,
               cpu_set_t cpuset;
               sched_getaffinity(0, sizeof(cpuset), &cpuset);
               fprintf(stderr, "cpu_count  %d \n", CPU_COUNT(&cpuset));
+               fprintf(stderr, "get_nprocs  %d \n", get_nprocs());
+
 
   //could pre-allocate some Events and EventInfos for a Hotstart
   if(server){

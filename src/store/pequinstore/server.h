@@ -818,7 +818,7 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
   std::vector<proto::Writeback *> WBmessages; //
   proto::Phase1Reply phase1Reply;
   proto::Phase2Reply phase2Reply;
-  proto::RelayP1 relayP1;
+  proto::RelayP1 relayP1Msg;
   proto::Phase1FB phase1FB;
   //proto::Phase1FBReply phase1FBReply;
   proto::Phase2FB phase2FB;
