@@ -91,7 +91,7 @@ transaction_status_t SyncOrderStatus::Execute(SyncClient &client) {
   if(str.empty()){
     // Panic("empty string for Order Row");
     client.Abort(timeout);
-    return ABORTED_SYSTEM; //USER;
+    return ABORTED_USER; //SYSTEM;  //Either choice is fine here; Seems to be an exceedingly rare cornercase.
   } 
   UW_ASSERT(o_row.ParseFromString(str));
   Debug("  Order Lines: %u", o_row.ol_cnt());

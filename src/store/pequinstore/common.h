@@ -382,6 +382,11 @@ inline static bool equalReadMsg(const ReadMessage &lhs, const ReadMessage &rhs){
     return (lhs.key() == rhs.key()) && (lhs.readtime().timestamp() == rhs.readtime().timestamp()) && (lhs.readtime().id() == rhs.readtime().id());
 }
 
+inline static bool equalWriteMsg(const WriteMessage &lhs, const WriteMessage &rhs) {
+    return lhs.key() == rhs.key(); 
+}
+
+
 
 inline static bool compareReadSets (google::protobuf::RepeatedPtrField<ReadMessage> const &lhs, google::protobuf::RepeatedPtrField<ReadMessage> const &rhs){ // (proto::ReadSet const &lhs, proto::ReadSet const &rhs) {
     return lhs.size() == rhs.size() && std::equal(lhs.begin(), lhs.end(), rhs.begin(), equalReadMsg); 

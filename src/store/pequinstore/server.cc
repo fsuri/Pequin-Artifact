@@ -413,6 +413,7 @@ void Server::HandleRead(const TransportAddress &remote,
 
       //std::pair<std::shared_mutex,std::map<Timestamp, const proto::Transaction *>> &x = preparedWrites[write.key()];
       auto itr = preparedWrites.find(msg.key());
+      //tbb::concurrent_unordered_map<std::string, std::pair<std::shared_mutex,std::map<Timestamp, const proto::Transaction *>>>::const_iterator itr = preparedWrites.find(msg.key());
       if (itr != preparedWrites.end()){
 
         //std::pair &x = preparedWrites[write.key()];

@@ -35,6 +35,7 @@
 #include "store/pequinstore/basicverifier.h"
 #include "store/pequinstore/common.h"
 #include <sys/time.h>
+#include <algorithm>
 
 namespace pequinstore {
 
@@ -483,6 +484,13 @@ void Client::Commit(commit_callback ccb, commit_timeout_callback ctcb,
       try {
         std::sort(txn.mutable_read_set()->begin(), txn.mutable_read_set()->end(), sortReadSetByKey);
         std::sort(txn.mutable_write_set()->begin(), txn.mutable_write_set()->end(), sortWriteSetByKey);
+        //Note: Use stable_sort to guarantee order respects duplicates; Altnernatively: Can try to delete from write sets to save redundant size.
+
+        //If write set can contain duplicates use the following: Reverse + sort --> "latest" put is first. Erase all but first entry. 
+        //(Note: probably cheaper to erase all duplicates manually during insert? Or use map?)
+        // std::reverse(txn.mutable_write_set()->begin(), txn.mutable_write_set()->end());
+        // std::stable_sort(txn.mutable_write_set()->begin(), txn.mutable_write_set()->end(), sortWriteSetByKey);  //sorts while maintaining relative order
+        // txn.mutable_write_set()->erase(std::unique(txn.mutable_write_set()->begin(), txn.mutable_write_set()->end(), equalWriteMsg), txn.mutable_write_set()->end());  //erases all but last appearance
       }
       catch(...) {
         Debug("Preemptive Abort: Trying to commit a transaction with 2 different reads for the same key");
