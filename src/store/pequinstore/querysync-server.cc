@@ -479,7 +479,7 @@ void Server::ProcessSync(queryMetaDataMap::accessor &q, const TransportAddress &
             //Note: if its not prepared locally, but is ongoing (i.e. prepare vote = none/abort/abstain) we can immediately add it to state but marked only for query
             
             bool testing_sync = false;
-            if(testing_sync || has_txn_locally){
+            if(testing_sync || !has_txn_locally){
                 SetWaiting(tx_id, queryId, replica_list, replica_requests);
             }
         }

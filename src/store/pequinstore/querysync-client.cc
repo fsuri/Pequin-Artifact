@@ -239,7 +239,10 @@ void ShardClient::HandleQuerySyncReply(proto::SyncReply &SyncReply){
     bool mergeComplete = pendingQuery->snapshot_mgr.ProcessReplicaLocalSnapshot(local_ss); //TODO: Need to make local_ss non-const.
 
     // 6) Once #QueryQuorum replies received, send SyncMessages
-    if(mergeComplete) SyncReplicas(pendingQuery);
+    if(mergeComplete){
+        Debug("Merge complete, Syncing for query [%lu : %lu]:", pendingQuery->query_seq_num, pendingQuery->retry_version);
+        SyncReplicas(pendingQuery);
+    } 
 
     // //what if some replicas have it as committed, and some as prepared. If >=f+1 committed ==> count as committed, include only those replicas in list.. If mixed, count as prepared
     // //DOES client need to consider at all whether a txn is committed/prepared? --> don't think so; replicas can determine dependency set at exec time (and either inform client, or cache locally)

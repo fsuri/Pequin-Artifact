@@ -127,9 +127,9 @@ void SnapshotManager::SealLocalSnapshot(){
     local_ss->mutable_local_txns_prepared_ts()->erase(std::unique(local_ss->mutable_local_txns_prepared_ts()->begin(), local_ss->mutable_local_txns_prepared_ts()->end()), local_ss->mutable_local_txns_prepared_ts()->end()); 
       //ts_comp.CompressAll();
     //For optimistic Ids (TS) additionally optionally compress. 
-    for(auto &ts_id: local_ss->local_txns_committed_ts()){
-      printf("Local Snapshot contains TS: %lu \n", ts_id);
-    }
+    // for(auto &ts_id: local_ss->local_txns_committed_ts()){
+    //   printf("Local Snapshot contains TS: %lu \n", ts_id);
+    // }
     if(query_params->compressOptimisticTxIDs) ts_comp.CompressLocal(local_ss); //will write snapshot to local_ss.compressed and clear txns_committed/prepared_ts
   }
   return;
@@ -149,6 +149,10 @@ void SnapshotManager::InitMergedSnapshot(proto::MergedSnapshot *_merged_ss, cons
   merged_ss->set_client_id(client_id);
   merged_ss->set_retry_version(retry_version);
   //TODO: Ensure queryDigest is set too
+
+  numSnapshotReplies = 0;
+  txn_freq.clear();
+  ts_freq.clear();
 
   useOptimisticTxId = query_params->optimisticTxID && !retry_version; // Only true for first retry (to avoid fail resync due to equivocated timestamps)
   return;
@@ -197,11 +201,12 @@ bool SnapshotManager::ProcessReplicaLocalSnapshot(proto::LocalSnapshot* local_ss
 
     //3) If last remaining Snapshot: Call SealMergedSnapshot --> outuput
     numSnapshotReplies++;
+    Debug("numSnapshotReplies: %lu, syncquorum: %lu", numSnapshotReplies, query_params->syncQuorum);
     if(numSnapshotReplies == query_params->syncQuorum){
          SealMergedSnapshot();
          return true;
     }
-     std::cerr << "numSnapshotReplies: " << numSnapshotReplies << " syncquorum: " << query_params->syncQuorum<< std::endl;
+    
     return false;
 
 }
