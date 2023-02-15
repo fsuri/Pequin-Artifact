@@ -92,8 +92,16 @@ message ReadReply {
   }
 }
 
+message DepTs {
+  required bytes dep_id = 1;
+  required uint64 dep_ts = 2;
+}
+
 message ReadSet {
   repeated ReadMessage read_set = 1;
+  repeated bytes dep_ids = 2;
+
+  repeated DepTs dep_ts_ids = 3;
 }
 
 message QueryGroupMeta {
@@ -124,7 +132,7 @@ message Transaction {
   repeated QueryResultMetaData query_set = 8;
 
   optional bytes txndigest = 9; //NOT PART OF TX. HACK HERE TO STORE txn digest in the local txn version without changing data structures that hold TXN.
-  optional ReadSet merged_read_set = 10; //NOT PART OF TX. HACK HERE TO STORE oltp read set while merging query read sets during CC
+  optional ReadSet merged_read_set = 10; //NOT PART OF TX. HACK HERE TO STORE oltp read set while merging query read sets during CC (serverside)
 }
 
 message Phase1 {

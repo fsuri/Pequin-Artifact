@@ -224,13 +224,20 @@ virtual void Phase2Equivocate_Simulate(uint64_t id, const proto::Transaction &tx
     bool firstCommittedReply;
   };
 
+  struct Result_mgr {
+      Result_mgr(): freq(0){
+        merged_deps.clear();
+      }
+      ~Result_mgr(){}
+      uint64_t freq; //Number of times the given result and result-hash (read set) were received
+      std::set<std::string> merged_deps; // Store this as a set or map to avoid duplicates. --> Once result complete, move these into ReadSet deps.
+  }; 
 //TODO: Define management object fully
   struct PendingQuery {
     PendingQuery(uint64_t reqId, const QueryParameters *query_params) : reqId(reqId),
-        numSnapshotReplies(0UL), numResults(0UL), numFails(0UL), query_manager(false), success(false), retry_version(0UL), snapshot_mgr(query_params)
+        numResults(0UL), numFails(0UL), query_manager(false), success(false), retry_version(0UL), snapshot_mgr(query_params) //,  numSnapshotReplies(0UL),
         { 
-          //TODO: Call InitMergedSnapshot;
-          //In Retry -> new PendingQuery is created.
+          result_freq.clear();
         }
     ~PendingQuery() { }
     uint64_t reqId; 
@@ -243,10 +250,10 @@ virtual void Phase2Equivocate_Simulate(uint64_t id, const proto::Transaction &tx
     // uint64_t queryMessages;
     // uint64_t queryQuorumSize;
     std::unordered_set<uint64_t> snapshotsVerified;
-    uint64_t numSnapshotReplies;
-    std::unordered_map<std::string, std::set<uint64_t>> txn_freq; //replicas that have txn committed.
     proto::MergedSnapshot merged_ss;
-    //TODO: Replace all these with SnapshotManager
+    SnapshotManager snapshot_mgr;
+    // uint64_t numSnapshotReplies;
+    // std::unordered_map<std::string, std::set<uint64_t>> txn_freq; //replicas that have txn committed.
 
     uint64_t retry_version;
     uint64_t num_designated_replies;
@@ -257,8 +264,11 @@ virtual void Phase2Equivocate_Simulate(uint64_t id, const proto::Transaction &tx
     std::string result;
     std::string result_hash;
 
-    SnapshotManager snapshot_mgr;
-    std::unordered_map<std::string, std::unordered_map<std::string, uint64_t>> result_freq; //map from result to map of associated result hash + their frequency (could be that two same results have different result hash; and vice versa)
+    
+    //map from result to map of associated result hash + their frequency (could be that two same results have different result hash; and vice versa)
+    std::unordered_map<std::string, std::unordered_map<std::string, Result_mgr>> result_freq; 
+    //TODO: For each read_set -> maintain a list of deps that is updated.
+    
     
     bool query_manager;
     result_callback rcb;

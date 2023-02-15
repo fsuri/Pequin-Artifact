@@ -222,7 +222,14 @@ void Server::ProcessQuery(queryMetaDataMap::accessor &q, const TransportAddress 
     for(auto const&[tx_id, proof] : committed){
         const proto::Transaction *txn = &proof->txn();
         query_md->snapshot_mgr.AddToLocalSnapshot(tx_id, txn, true);
-         Debug("Proposing txn_id [%s] for local Query Sync State[%lu:%lu:%d]", BytesToHex(tx_id, 16).c_str(), query->query_seq_num(), query->client_id(), query->retry_version());
+         Debug("Proposing committed txn_id [%s] for local Query Sync State[%lu:%lu:%d]", BytesToHex(tx_id, 16).c_str(), query->query_seq_num(), query->client_id(), query->retry_version());
+    }
+    //Not threadsafe, but just for testing purposes.
+    for(preparedMap::const_iterator i=prepared.begin(); i!=prepared.end(); ++i ) {
+        const std::string &tx_id = i->first;
+        const proto::Transaction *txn = i->second.second;
+        query_md->snapshot_mgr.AddToLocalSnapshot(tx_id, txn, false);
+        Debug("Proposing prepared txn_id [%s] for local Query Sync State[%lu:%lu:%d]", BytesToHex(tx_id, 16).c_str(), query->query_seq_num(), query->client_id(), query->retry_version());
     }
         //committed[test_txn_id] = test_proof;  //this should allow other replicas to find it during sync.; but validation of commit proof will fail. Note: Will probably fail Panic because fields not set.
     query_md->snapshot_mgr.SealLocalSnapshot(); //Remove duplicate ids and compress if applicable.
@@ -918,9 +925,32 @@ void Server::HandleSyncCallback(QueryMetaData *query_md, const std::string &quer
         read->set_key(dummy_key);
         *read->mutable_readtime() = ts;
         //TODO: Add more keys; else I cant test order.
+
     }
+    //Creating Dummy deps for testing //FIXME: Replace
+   
+        //Write to Query Result; Release/Re-allocate temporarily if not sending;
+        //For caching:
+            // Cache the deps --> During CC: look through the data structure.
+        //For non-caching:
+            // Add the deps to SyncReply --> Let client choose whether to include them (only if proposed them in merge; marked as prep) --> During CC: Look through the included deps.
+     for(auto const&[tx_id, proof] : committed){
+        const proto::Transaction *txn = &proof->txn();
+        if(query_md->useOptimisticTxId){
+            proto::DepTs *dep_ts = query_md->queryResultReply->mutable_result()->mutable_query_read_set()->add_dep_ts_ids();
+            dep_ts->set_dep_id(tx_id);
+            dep_ts->set_dep_ts(MergeTimestampId(txn->timestamp().timestamp(), txn->timestamp().id()));
+        }
+        else{
+            query_md->queryResultReply->mutable_result()->mutable_query_read_set()->add_dep_ids(tx_id); //Note: Only add txn_dig here. Let the client form the Dep (only if its really a dep)
+        //query_md->queryResultReply->mutable_result()->mutable_query_local_deps()->add_dep_ids(tx_id); //Note: Only add txn_dig here. Let the client form the Dep (only if its really a dep)
+        }
+    }
+    //Creating Dummy result for testing //FIXME: Replace
     std::string dummy_result = "success" + std::to_string(query_md->query_seq_num);
     query_md->has_result = true; 
+   
+
 
     //Blackbox might do multi-replica coordination to compute result and full read-set (though read set can actually be reported directly by each shard...)
     //TODO: Receive SyncReply from all shards ==> with read set, or read set hash. ==> in Tx_manager (marked by query) reply also include the result
@@ -964,6 +994,7 @@ void Server::SendQueryReply(QueryMetaData *query_md){
     proto::ReadSet *query_read_set;
     //query_md->result = "success";
     //result->set_query_result("success");
+    //proto::LocalDeps *query_local_deps;
 
 
     // 3) Generate Merkle Tree over Read Set, result, query id  (FIXME:: Currently only over read set:  )
@@ -971,8 +1002,9 @@ void Server::SendQueryReply(QueryMetaData *query_md){
     if(testing_hash || params.query_params.cacheReadSet){
         std::sort(result->mutable_query_read_set()->mutable_read_set()->begin(), result->mutable_query_read_set()->mutable_read_set()->end(), sortReadSetByKey); //Note: Sorts by key to ensure all replicas create the same hash. (Note: Not necessary if using ordered map)
         result->set_query_result_hash(generateReadSetSingleHash(result->query_read_set()));
-        //Temporarily release read-set: This way we don't send it. Afterwards, re-allocate it. This avoid copying.
+        //Temporarily release read-set and deps: This way we don't send it. Afterwards, re-allocate it. This avoid copying.
         query_read_set = result->release_query_read_set();
+        //query_local_deps = result->release_query_local_deps();
         Debug("Read-set hash: %s", BytesToHex(result->query_result_hash(), 16).c_str());
        
         //query_md->result_hash = std::move(generateReadSetSingleHash(query_md->read_set));  
@@ -1013,7 +1045,7 @@ void Server::SendQueryReply(QueryMetaData *query_md){
         //Debug("Sign Query Result Reply for Query[%lu:%lu]", query_reply->query_seq_num(), query_reply->client_id());
         Debug("Sign Query Result Reply for Query[%lu:%lu]", result->query_seq_num(), result->client_id());
 
-        proto::QueryResult *res = queryResultReply->release_result();   
+        result = queryResultReply->release_result();   //Temporarily release result in order to sign.
         if(false) { //params.queryReplyBatch){
             TransportAddress *remoteCopy = query_md->original_client->clone();
             auto sendCB = [this, remoteCopy, queryResultReply]() {
@@ -1023,12 +1055,15 @@ void Server::SendQueryReply(QueryMetaData *query_md){
             };
           
              //TODO: if this is already called from a worker, no point in dispatching it again. Add a Flag to MessageToSign that specifies "already worker"
-            MessageToSign(res, queryResultReply->mutable_signed_result(), [this, sendCB, res, queryResultReply, query_read_set]() mutable {
+            MessageToSign(result, queryResultReply->mutable_signed_result(), [this, sendCB, result, queryResultReply, query_read_set]() mutable { //query_local_deps
                 sendCB();
-                 Debug("Sent Signed Query Result for Query[%lu:%lu]", res->query_seq_num(), res->client_id());
+                 Debug("Sent Signed Query Result for Query[%lu:%lu]", result->query_seq_num(), result->client_id());
 
-                if(params.query_params.cacheReadSet) res->set_allocated_query_read_set(query_read_set);
-                queryResultReply->set_allocated_result(res);  //NOTE: This returns the unsigned result, including the readset. If we want to cache the signature, would have to change this code.
+                if(params.query_params.cacheReadSet){ //Restore read set and deps to be cached
+                    result->set_allocated_query_read_set(query_read_set);
+                    //result->set_allocated_query_local_deps(query_local_deps);
+                } 
+                queryResultReply->set_allocated_result(result);  //NOTE: This returns the unsigned result, including the readset. If we want to cache the signature, would have to change this code.
                
                 //delete res;
             });
@@ -1036,31 +1071,39 @@ void Server::SendQueryReply(QueryMetaData *query_md){
         }
         else{ //realistically don't ever need to batch query sigs --> batching helps with amortized sig generation, but not with verificiation since client don't forward proofs.
             if(params.signatureBatchSize == 1){
-                SignMessage(res, keyManager->GetPrivateKey(id), id, queryResultReply->mutable_signed_result());
+                SignMessage(result, keyManager->GetPrivateKey(id), id, queryResultReply->mutable_signed_result());
             }
             else{
                 std::vector<::google::protobuf::Message *> msgs;
-                msgs.push_back(res);
+                msgs.push_back(result);
                 std::vector<proto::SignedMessage *> smsgs;
                 smsgs.push_back(queryResultReply->mutable_signed_result());
                 SignMessages(msgs, keyManager->GetPrivateKey(id), id, smsgs, params.merkleBranchFactor);
             }
             
             this->transport->SendMessage(this, *query_md->original_client, *queryResultReply);
-             Debug("Sent Signed Query Resut for Query[%lu:%lu]", res->query_seq_num(), res->client_id());
+             Debug("Sent Signed Query Resut for Query[%lu:%lu]", result->query_seq_num(), result->client_id());
             //delete queryResultReply;
-            if(params.query_params.cacheReadSet) res->set_allocated_query_read_set(query_read_set);
-            queryResultReply->set_allocated_result(res);  //NOTE: This returns the unsigned result, including the readset. If we want to cache the signature, would have to change this code.
+            
+            if(params.query_params.cacheReadSet){ //Restore read set and deps to be cached
+                result->set_allocated_query_read_set(query_read_set);
+                //result->set_allocated_query_local_deps(query_local_deps);
+            } 
+            queryResultReply->set_allocated_result(result);  //NOTE: This returns the unsigned result, including the readset. If we want to cache the signature, would have to change this code.
             //delete res;
         }
     }
     else{
         this->transport->SendMessage(this, *query_md->original_client, *queryResultReply);
 
-         if(params.query_params.cacheReadSet) result->set_allocated_query_read_set(query_read_set); //Note: In this branch result is still part of queryResultReply; thus it suffices to only allocate back to result.
+        //Note: In this branch result is still part of queryResultReply; thus it suffices to only allocate back to result.
+        if(params.query_params.cacheReadSet){ //Restore read set and deps to be cached
+            result->set_allocated_query_read_set(query_read_set);
+            //result->set_allocated_query_local_deps(query_local_deps);
+        } 
     }
 
-      Debug("BEGIN READ SET:"); //TODO: Remove -- just for testing
+      Debug("BEGIN READ SET:"); //FIXME: Remove -- just for testing
               
                 for(auto &read : result->query_read_set().read_set()){
                 //for(auto &[key, ts] : read_set){

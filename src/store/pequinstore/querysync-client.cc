@@ -122,9 +122,10 @@ void ShardClient::RetryQuery(uint64_t query_seq_num, proto::Query &queryMsg){
      // Alternatively, create new object and copy relevant contents. //PendingQuery *newPendingQuery = new PendingQuery(reqId);
 
     pendingQuery->snapshotsVerified.clear();
-    pendingQuery->numSnapshotReplies = 0;
-    pendingQuery->txn_freq.clear();
-    pendingQuery->merged_ss.Clear();
+    // These 3 are handled by InitMergedSnapshot.
+    // pendingQuery->numSnapshotReplies = 0;
+    // pendingQuery->txn_freq.clear();
+    // pendingQuery->merged_ss.Clear();
 
     pendingQuery->resultsVerified.clear();
     pendingQuery->numResults = 0;
@@ -382,7 +383,8 @@ void ShardClient::HandleQueryResult(proto::QueryResultReply &queryResult){
     //3) wait for up to result_threshold many matching replies (result + result_hash/read set)
     if(params.query_params.cacheReadSet){
         Debug("Read-set hash: %s", BytesToHex(replica_result->query_result_hash(), 16).c_str());
-         matching_res = ++pendingQuery->result_freq[replica_result->query_result()][replica_result->query_result_hash()]; //map should be default initialized to 0.
+         matching_res = ++pendingQuery->result_freq[replica_result->query_result()][replica_result->query_result_hash()].freq; //map should be default initialized to 0.
+
     }
     else{ //manually compare that read sets match. Easy way to compare: Hash ReadSet.
         Debug("[group %i] Validating ReadSet for QueryResult Reply %lu", group, queryResult.req_id());
@@ -405,8 +407,29 @@ void ShardClient::HandleQueryResult(proto::QueryResultReply &queryResult){
             //     Debug("Read key %s with version [%lu:%lu]", read.key().c_str(), read.readtime().timestamp(), read.readtime().id());
             // }
            
+        //matching_res = ++pendingQuery->result_freq[replica_result->query_result()][validated_result_hash].freq; //map should be default initialized to 0.
+        Result_mgr &result_mgr = pendingQuery->result_freq[replica_result->query_result()][validated_result_hash];
+        matching_res = ++result_mgr.freq; //map should be default initialized to 0.
+        //Record the dependencies.
+        //for(auto tx_id: *replica_result->mutable_query_local_deps()->mutable_dep_ids()){
+        for(auto tx_id: *replica_result->mutable_query_read_set()->mutable_dep_ids()){
+            //Add to dependencies only if it was a tx that was seen during sync, and that was marked as prepare.
+            //TODO: Can't map this for optimistic sync? Would have to send a map <tx_id, ts> to identify the Tx.. --> Look in merged_ts
+            //FIXME: CURRENTLY JUST GIVING DEPS WITH OPTIMISTIC IDS A PASS.
+            if(params.query_params.optimisticTxID || pendingQuery->merged_ss.merged_txns().count(tx_id)){
+                result_mgr.merged_deps.insert(std::move(tx_id));
+            }
+        }
+        //Set deps to merged deps == recorded dependencies from f+1 replicas -> one correct replica reported upper bound on deps
+        if(matching_res == params.query_params.resultQuorum){
+            proto::ReadSet *query_read_set =  replica_result->mutable_query_read_set();
+            query_read_set->clear_dep_ids(); //Reset and override with merged deps
+            for(auto tx_id: result_mgr.merged_deps){
+                query_read_set->add_dep_ids(std::move(tx_id));
+            }
+        }
+        
 
-         matching_res = ++pendingQuery->result_freq[replica_result->query_result()][validated_result_hash]; //map should be default initialized to 0.
          if(pendingQuery->result_freq[replica_result->query_result()].size() > 1) Panic("When testing without optimistic id's all hashes should be the same.");
     }
   
