@@ -617,6 +617,8 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
   void ProcessProposal(proto::Phase1 &msg, const TransportAddress &remote, proto::Transaction *txn,
                         std::string &txnDigest, bool isGossip); //,const proto::CommittedProof *committedProof,const proto::Transaction *abstain_conflict,proto::ConcurrencyControl::Result &result);
 
+  void CheckTxLocalPresence(const std::string &txn_id, proto::ConcurrencyControl::Result &res)
+  void CheckDepLocalPresence(const proto::Transaction &txn, const ReadSet &readSet, proto::ConcurrencyControl::Result &res);
   bool ManageDependencies(const std::string &txnDigest, const proto::Transaction &txn, const TransportAddress &remote, uint64_t reqId, bool fallback_flow = false, bool isGossip = false);
       bool ManageDependencies_WithMutex(const std::string &txnDigest, const proto::Transaction &txn, const TransportAddress &remote, uint64_t reqId, bool fallback_flow = false, bool isGossip = false);
   

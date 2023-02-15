@@ -324,6 +324,11 @@ proto::ConcurrencyControl::Result Server::mergeTxReadSets(const ReadSet *&readSe
        //mergedReatSet.extend(query_rs);
         mergedReadSet->mutable_read_set()->MergeFrom(query_rs->read_set()); //Merge from copies; If we don't want that, can loop through fetchedRead set and move 1 by 1.
         //mergedReadSet add readSet
+        //Merge Query Dependency sets. (If empty, this merge does nothing.)
+        mergedReadSet->mutable_dep_ids()->MergeFrom(query_rs->dep_ids());
+        mergedReadSet->mutable_dep_ts_ids()->MergeFrom(query_rs->dep_ts_ids());
+
+        //TODO: Also need to account for dep_ts
     }
   }
 
@@ -592,7 +597,10 @@ proto::ConcurrencyControl::Result Server::DoMVTSOOCCCheck(
 
         std::shared_lock lock(preparedReadsItr->second.first);
 
-        for (const auto preparedReadTxn : preparedReadsItr->second.second) {
+        for (const auto preparedReadTxn : preparedReadsItr->second.second) {  //Check if we conflict with any prepared Read ==> TODO: Technically only need to check for all reads with ts greater than this tx... 
+          
+          if(! (ts <Timestamp(preparedReadTxn->timestamp())) ) continue; // Txn writes do not conflict with prepared Txn of smaller TS
+
           bool isDep = false;
           for (const auto &dep : preparedReadTxn->deps()) {
             if (txnDigest == dep.write().prepared_txn_digest()) {  
@@ -600,6 +608,8 @@ proto::ConcurrencyControl::Result Server::DoMVTSOOCCCheck(
               break;
             }
           }
+
+          if(isDep) continue; //Txn writes do not conflict with prepared Txn that read (depend on) the write
 
           bool isReadVersionEarlier = false;
           Timestamp readTs;
@@ -611,8 +621,9 @@ proto::ConcurrencyControl::Result Server::DoMVTSOOCCCheck(
               break;
             }
           }
-          if (!isDep && isReadVersionEarlier &&
-              ts < Timestamp(preparedReadTxn->timestamp())) {
+          // if (!isDep && isReadVersionEarlier &&
+          //     ts < Timestamp(preparedReadTxn->timestamp())) {
+          if (isReadVersionEarlier) { //If prepared Txn with greater TS read a write with Ts smaller than the current tx -> abstain from preparing curr tx
             Debug("[%lu:%lu][%s] ABSTAIN rw conflict prepared read for key %s: prepared"
                 " read ts %lu.%lu < this txn's ts %lu.%lu < committed ts %lu.%lu.",
                 txn.client_id(),
@@ -686,37 +697,13 @@ proto::ConcurrencyControl::Result Server::DoMVTSOOCCCheck(
       }
     }
 
-    //5) Validate Deps: Check whether server has prepared dep itself
+    //5) Validate Deps: If we don't check for dep signature proofs --> check whether server has prepared dep itself
     if (params.validateProofs && params.signedMessages && !params.verifyDeps) {
-
-      Debug("Exec MessageToSign by CPU: %d", sched_getcpu());
-      for (const auto &dep : txn.deps()) {
-        if (dep.involved_group() != groupIdx) {
-          continue;
-        }
-         //Checks only for those deps that have not committed/aborted already.
-
-        //If a dep has already aborted, abort as well.
-        if(aborted.find(dep.write().prepared_txn_digest()) != aborted.end()){
-          stats.Increment("cc_aborts", 1);
-          stats.Increment("cc_aborts_dep_aborted_early", 1);
-          return proto::ConcurrencyControl::ABSTAIN; //Technically could fully Abort here: But then need to attach also proof of dependency abort --> which currently is not implemented/supported
-        }
-       
-        if (committed.find(dep.write().prepared_txn_digest()) == committed.end() && aborted.find(dep.write().prepared_txn_digest()) == aborted.end() ) {
-        //If it has not yet aborted, nor committed, check whether the replica has prepared the tx itself: This alleviates having to verify dep proofs, although slightly more pessimistically
-
-          preparedMap::const_accessor a2;
-          auto isPrepared = prepared.find(a2, dep.write().prepared_txn_digest());
-          if(!isPrepared){
-            stats.Increment("cc_aborts", 1);
-            stats.Increment("cc_aborts_dep_not_prepared", 1);
-            return proto::ConcurrencyControl::ABSTAIN;
-          }
-          a2.release();
-        }
-        
-      }
+      proto::ConcurrencyControl::Result res = proto::ConcurrencyControl_Result_COMMIT;
+      //Check Read deps
+      CheckDepLocalPresence(txn, readSet, res);
+      if(res != proto::ConcurrencyControl::COMMIT) return res;
+    
     }
     //6) Prepare Transaction: No conflicts, No dependencies aborted --> Make writes visible.
     Prepare(txnDigest, txn, readSet);
@@ -738,6 +725,77 @@ proto::ConcurrencyControl::Result Server::DoMVTSOOCCCheck(
     //TODO: Current Implementation iterates through dependencies 3 times -- re-factor code to do this once.
     //Move check 5) up and outside the if/else case for whether prepared exists: if !params.verifyDeps, then CheckDependencies is mostly obsolete.
   }
+}
+
+//TODO: CheckDepPresence, ManageDeps, CheckDependencies txn --> implement versions for queries:  Input: const ReadSet &readSet,
+//Then: re-factor existing deps to also just be strings? Or re-factor new ones to be deps..  (Move those deps into readSet)
+//Then: Upon waking, retrieve mergedreadset from buffer to call checkDependencies on query deps.
+//TODO: Client side dep merging
+
+void Server::CheckTxLocalPresence(const std::string &txn_id, proto::ConcurrencyControl::Result &res){
+  //Checks only for those deps that have not committed/aborted already.
+
+  //If a dep has already aborted, abort as well.
+  if(aborted.find(txn_id) != aborted.end()){
+      stats.Increment("cc_aborts", 1);
+      stats.Increment("cc_aborts_dep_aborted_early", 1);
+      res = proto::ConcurrencyControl::ABSTAIN;
+      return; //Technically could fully Abort here: But then need to attach also proof of dependency abort --> which currently is not implemented/supported
+    }
+    
+    if (committed.find(dep_id) == committed.end() && aborted.find(txn_id) == aborted.end() ) {
+    //If it has not yet aborted, nor committed, check whether the replica has prepared the tx itself: This alleviates having to verify dep proofs, although it is slightly more pessimistic
+
+      preparedMap::const_accessor a2;
+      auto isPrepared = prepared.find(a2, txn_id);
+      if(!isPrepared){
+        stats.Increment("cc_aborts", 1);
+        stats.Increment("cc_aborts_dep_not_prepared", 1);
+        res = proto::ConcurrencyControl::ABSTAIN;
+        return; 
+      }
+      a2.release();
+    }
+}
+
+// void Server::CheckQueryDepLocalPresence(const ReadSet &readSet, proto::ConcurrencyControl::Result &res){
+//   Debug("Exec Dep Local Verification by CPU: %d", sched_getcpu());
+//   for (const auto &dep_id : readSet.dep_ids()) {
+//       CheckTxLocalPresence(dep_id, res);
+//       if(res != proto::ConcurrencyControl::COMMIT) return;
+//   }
+
+//   //Same for timestamp id's
+//    for (const auto &dep_ts_id : readSet.dep_ts_ids()) {
+//       CheckTxLocalPresence(dep_ts_id.dep_it(), res);
+//       if(res != proto::ConcurrencyControl::COMMIT) return;
+//   }
+//   return;
+// }
+
+
+void Server::CheckDepLocalPresence(const proto::Transaction &txn, const ReadSet &readSet, proto::ConcurrencyControl::Result &res){
+  Debug("Exec Dep Local Verification by CPU: %d", sched_getcpu());
+  for (const auto &dep : txn.deps()) {
+    if (dep.involved_group() != groupIdx) {
+      continue;
+    }
+    CheckTxLocalPresence(dep.write().prepared_txn_digest(), res);
+    if(res != proto::ConcurrencyControl::COMMIT) return;
+  }
+
+  //Check queries;
+  for (const auto &dep_id : readSet.dep_ids()) {
+      CheckTxLocalPresence(dep_id, res);
+      if(res != proto::ConcurrencyControl::COMMIT) return;
+  }
+
+  //Same for timestamp id's
+   for (const auto &dep_ts_id : readSet.dep_ts_ids()) {
+      CheckTxLocalPresence(dep_ts_id.dep_it(), res);
+      if(res != proto::ConcurrencyControl::COMMIT) return;
+  }
+  return;
 }
 
 //TODO: relay Deeper depth when result is already wait. (If I always re-did the P1 it would be handled)
@@ -834,6 +892,11 @@ bool Server::ManageDependencies_WithMutex(const std::string &txnDigest, const pr
 }
 
 //MUTEX FREE DEPENDENCY WAIT VERSIONS
+
+void Server::ManageTxnWaiting(){
+  //TODO: move loop code from manage deps here.
+  //TODO: When Calling ManageDeps directly (In handleP1 or HandleP1FB) must fetch merged ReadSet from buffer.
+}
 
 //TODO: relay Deeper depth when result is already wait. (If I always re-did the P1 it would be handled)
 // PRoblem: Dont want to re-do P1, otherwise a past Abort can turn into a commit. Hence we ForwardWriteback

@@ -934,16 +934,22 @@ void Server::HandleSyncCallback(QueryMetaData *query_md, const std::string &quer
             // Cache the deps --> During CC: look through the data structure.
         //For non-caching:
             // Add the deps to SyncReply --> Let client choose whether to include them (only if proposed them in merge; marked as prep) --> During CC: Look through the included deps.
-     for(auto const&[tx_id, proof] : committed){
-        const proto::Transaction *txn = &proof->txn();
-        if(query_md->useOptimisticTxId){
-            proto::DepTs *dep_ts = query_md->queryResultReply->mutable_result()->mutable_query_read_set()->add_dep_ts_ids();
-            dep_ts->set_dep_id(tx_id);
-            dep_ts->set_dep_ts(MergeTimestampId(txn->timestamp().timestamp(), txn->timestamp().id()));
-        }
-        else{
-            query_md->queryResultReply->mutable_result()->mutable_query_read_set()->add_dep_ids(tx_id); //Note: Only add txn_dig here. Let the client form the Dep (only if its really a dep)
-        //query_md->queryResultReply->mutable_result()->mutable_query_local_deps()->add_dep_ids(tx_id); //Note: Only add txn_dig here. Let the client form the Dep (only if its really a dep)
+
+    //TODO: During execution only read prepared if depth allowed.
+    //  i.e. if (params.maxDepDepth == -1 || DependencyDepth(txn) <= params.maxDepDepth)  (maxdepth = -1 means no limit)
+
+    if (params.query_params.readPrepared && params.maxDepDepth > -2) {
+        for(auto const&[tx_id, proof] : committed){
+            const proto::Transaction *txn = &proof->txn();
+            if(query_md->useOptimisticTxId){
+                proto::DepTs *dep_ts = query_md->queryResultReply->mutable_result()->mutable_query_read_set()->add_dep_ts_ids();
+                dep_ts->set_dep_id(tx_id);
+                dep_ts->set_dep_ts(MergeTimestampId(txn->timestamp().timestamp(), txn->timestamp().id()));
+            }
+            else{
+                query_md->queryResultReply->mutable_result()->mutable_query_read_set()->add_dep_ids(tx_id); //Note: Only add txn_dig here. Let the client form the Dep (only if its really a dep)
+            //query_md->queryResultReply->mutable_result()->mutable_query_local_deps()->add_dep_ids(tx_id); //Note: Only add txn_dig here. Let the client form the Dep (only if its really a dep)
+            }
         }
     }
     //Creating Dummy result for testing //FIXME: Replace
