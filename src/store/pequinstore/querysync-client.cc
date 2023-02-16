@@ -410,24 +410,50 @@ void ShardClient::HandleQueryResult(proto::QueryResultReply &queryResult){
         //matching_res = ++pendingQuery->result_freq[replica_result->query_result()][validated_result_hash].freq; //map should be default initialized to 0.
         Result_mgr &result_mgr = pendingQuery->result_freq[replica_result->query_result()][validated_result_hash];
         matching_res = ++result_mgr.freq; //map should be default initialized to 0.
+
         //Record the dependencies.
-        //for(auto tx_id: *replica_result->mutable_query_local_deps()->mutable_dep_ids()){
-        for(auto tx_id: *replica_result->mutable_query_read_set()->mutable_dep_ids()){
-            //Add to dependencies only if it was a tx that was seen during sync, and that was marked as prepare.
-            //TODO: Can't map this for optimistic sync? Would have to send a map <tx_id, ts> to identify the Tx.. --> Look in merged_ts
-            //FIXME: CURRENTLY JUST GIVING DEPS WITH OPTIMISTIC IDS A PASS.
-            if(params.query_params.optimisticTxID || pendingQuery->merged_ss.merged_txns().count(tx_id)){
-                result_mgr.merged_deps.insert(std::move(tx_id));
+       
+        for(auto dep: *replica_result->mutable_query_read_set()->mutable_deps()){ //For normal Tx-id
+            if(dep.write().has_prepared_timestamp()){ //I.e. using optimisticTxID
+                uint64_t &merged_ts = MergeTimestampId(dep.write().prepared_timestamp.timestamp(), dep.write().prepared_timestamp.timestamp().id());
+                if(pendingQuery->merged_ss.merged_ts().count(merged_ts)) result_mgr.merged_deps.insert(dep.write().release_prepared_txn_digest());
             }
+            else{
+                if(pendingQuery->merged_ss.merged_txns().count(dep.write().prepared_txn_digest())) result_mgr.merged_deps.insert(dep.write().release_prepared_txn_digest());
+            }            
         }
-        //Set deps to merged deps == recorded dependencies from f+1 replicas -> one correct replica reported upper bound on deps
+         //Set deps to merged deps == recorded dependencies from f+1 replicas -> one correct replica reported upper bound on deps
         if(matching_res == params.query_params.resultQuorum){
             proto::ReadSet *query_read_set =  replica_result->mutable_query_read_set();
-            query_read_set->clear_dep_ids(); //Reset and override with merged deps
+            query_read_set->clear_deps(); //Reset and override with merged deps
             for(auto tx_id: result_mgr.merged_deps){
-                query_read_set->add_dep_ids(std::move(tx_id));
+                proto::Dependency *add_dep = query_read_set->add_deps();
+                add_dep->set_involved_group(group);
+                add_dep->mutable_write()->set_allocated_prepared_txn_digest(tx_id);
             }
         }
+        // for(auto tx_id: *replica_result->mutable_query_read_set()->mutable_dep_ids()){ //For normal Tx-id
+        //     //Add to dependencies only if it was a tx that was seen during sync, and that was marked as prepare.
+        //     if(pendingQuery->merged_ss.merged_txns().count(tx_id)){
+        //         result_mgr.merged_deps.insert(std::move(tx_id));
+        //     }
+        // }
+        // for(auto dep_ts: *replica_result->mutable_query_read_set()->mutable_dep_ts_ids()){  //For optimistic Tx-id (TS)
+        //     //Add to dependencies only if it was a tx that was seen during sync, and that was marked as prepare.
+        //     if(pendingQuery->merged_ss.merged_ts().count(dep_ts.dep_ts())){
+        //         result_mgr.merged_deps.insert(std::move(*dep_ts.mutable_dep_id()));
+        //     }
+        // }
+        
+        // //Set deps to merged deps == recorded dependencies from f+1 replicas -> one correct replica reported upper bound on deps
+        // if(matching_res == params.query_params.resultQuorum){
+        //     proto::ReadSet *query_read_set =  replica_result->mutable_query_read_set();
+        //     query_read_set->clear_dep_ids(); //Reset and override with merged deps
+        //     query_read_set->clear_dep_ts_ids(); //Reset and override with merged deps
+        //     for(auto tx_id: result_mgr.merged_deps){
+        //         query_read_set->add_dep_ids(std::move(tx_id));
+        //     }
+        // }
         
 
          if(pendingQuery->result_freq[replica_result->query_result()].size() > 1) Panic("When testing without optimistic id's all hashes should be the same.");

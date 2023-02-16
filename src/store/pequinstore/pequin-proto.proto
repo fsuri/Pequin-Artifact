@@ -99,9 +99,10 @@ message DepTs {
 
 message ReadSet {
   repeated ReadMessage read_set = 1;
-  repeated bytes dep_ids = 2;
-
-  repeated DepTs dep_ts_ids = 3;
+  repeated Dependency deps = 2;
+  
+  repeated bytes dep_ids = 3;
+  repeated DepTs dep_ts_ids = 4;
 }
 
 message QueryGroupMeta {

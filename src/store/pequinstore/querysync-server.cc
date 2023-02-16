@@ -941,15 +941,24 @@ void Server::HandleSyncCallback(QueryMetaData *query_md, const std::string &quer
     if (params.query_params.readPrepared && params.maxDepDepth > -2) {
         for(auto const&[tx_id, proof] : committed){
             const proto::Transaction *txn = &proof->txn();
+            proto::Dependency *add_dep = query_md->queryResultReply->mutable_result()->mutable_query_read_set()->add_deps();
+            add_dep->set_involved_group(groupIdx);
+            add_dep->mutable_write()->set_prepared_txn_digest(tx_id);
+            //Note: Send merged TS.
             if(query_md->useOptimisticTxId){
-                proto::DepTs *dep_ts = query_md->queryResultReply->mutable_result()->mutable_query_read_set()->add_dep_ts_ids();
-                dep_ts->set_dep_id(tx_id);
-                dep_ts->set_dep_ts(MergeTimestampId(txn->timestamp().timestamp(), txn->timestamp().id()));
+                //MergeTimestampId(txn->timestamp().timestamp(), txn->timestamp().id()
+                add_dep->mutable_write()->mutable_prepared_timestamp()->set_timestamp(txn->timestamp().timestamp());
+                add_dep->mutable_write()->mutable_prepared_timestamp()->set_id(txn->timestamp().id());
             }
-            else{
-                query_md->queryResultReply->mutable_result()->mutable_query_read_set()->add_dep_ids(tx_id); //Note: Only add txn_dig here. Let the client form the Dep (only if its really a dep)
-            //query_md->queryResultReply->mutable_result()->mutable_query_local_deps()->add_dep_ids(tx_id); //Note: Only add txn_dig here. Let the client form the Dep (only if its really a dep)
-            }
+            // if(query_md->useOptimisticTxId){
+            //     proto::DepTs *dep_ts = query_md->queryResultReply->mutable_result()->mutable_query_read_set()->add_dep_ts_ids();
+            //     dep_ts->set_dep_id(tx_id);
+            //     dep_ts->set_dep_ts(MergeTimestampId(txn->timestamp().timestamp(), txn->timestamp().id()));
+            // }
+            // else{
+            //     query_md->queryResultReply->mutable_result()->mutable_query_read_set()->add_dep_ids(tx_id); //Note: Only add txn_dig here. Let the client form the Dep (only if its really a dep)
+            // //query_md->queryResultReply->mutable_result()->mutable_query_local_deps()->add_dep_ids(tx_id); //Note: Only add txn_dig here. Let the client form the Dep (only if its really a dep)
+            // }
         }
     }
     //Creating Dummy result for testing //FIXME: Replace

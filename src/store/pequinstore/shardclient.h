@@ -230,7 +230,8 @@ virtual void Phase2Equivocate_Simulate(uint64_t id, const proto::Transaction &tx
       }
       ~Result_mgr(){}
       uint64_t freq; //Number of times the given result and result-hash (read set) were received
-      std::set<std::string> merged_deps; // Store this as a set or map to avoid duplicates. --> Once result complete, move these into ReadSet deps.
+      std::set<std::string*, equalDepPtr> merged_deps;
+      //std::set<std::string> merged_deps; // Store this as a set or map to avoid duplicates. --> Once result complete, move these into ReadSet deps.
   }; 
 //TODO: Define management object fully
   struct PendingQuery {

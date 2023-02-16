@@ -378,12 +378,24 @@ inline static bool sortWriteSetByKey(const WriteMessage &lhs, const WriteMessage
     return lhs.key() < rhs.key(); 
 }
 
+inline static bool sortDepSet(const Dependency &lhs, const Dependency &rhs) { 
+    return (lhs.write().prepared_txn_digest() == rhs.write().prepared_txn_digest() ? lhs.involved_group() < rhs.involved_group() : lhs.write().prepared_txn_digest() < rhs.write().prepared_txn_digest()) ; 
+}
+
+
 inline static bool equalReadMsg(const ReadMessage &lhs, const ReadMessage &rhs){
     return (lhs.key() == rhs.key()) && (lhs.readtime().timestamp() == rhs.readtime().timestamp()) && (lhs.readtime().id() == rhs.readtime().id());
 }
 
 inline static bool equalWriteMsg(const WriteMessage &lhs, const WriteMessage &rhs) {
     return lhs.key() == rhs.key(); 
+}
+
+inline static bool equalDep(const Dependency &lhs, const Dependency &rhs) { 
+    return (lhs.write().prepared_txn_digest() == rhs.write().prepared_txn_digest() && lhs.involved_group() == rhs.involved_group()); 
+}
+inline static bool equalDepPtr(const Dependency *&lhs, const Dependency *&rhs) { 
+    return (lhs->write().prepared_txn_digest() == rhs->write().prepared_txn_digest() && lhs->involved_group() == rhs->involved_group()); 
 }
 
 
