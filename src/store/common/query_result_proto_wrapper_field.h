@@ -25,6 +25,9 @@
  *
  **********************************************************************/
 
+#ifndef PROTO_WRAPPER_FIELD_H
+#define PROTO_WRAPPER_FIELD_H
+
 #include <string>
 #include <vector>
 #include "store/common/query_result_field.h"
@@ -59,3 +62,5 @@ class Field : query_result::Field {
 };
 
 }
+
+#endif /* PROTO_WRAPPER_FIELD_H */

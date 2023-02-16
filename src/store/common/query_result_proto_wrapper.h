@@ -25,8 +25,12 @@
  *
  **********************************************************************/
 
+#ifndef PROTO_WRAPPER_RESULT_H
+#define PROTO_WRAPPER_RESULT_H
+
 #include <string>
 #include <vector>
+#include <memory>
 #include "store/common/query_result.h"
 #include "store/common/query_result_row.h"
 #include "store/common/query-result-proto.pb.h"
@@ -78,11 +82,11 @@ class QueryResultProtoWrapper : query_result::QueryResult {
             return *this;
         }
 
-        auto operator++( int ) noexcept -> query_result::QueryResult::const_iterator
+        auto operator++( int ) noexcept -> std::unique_ptr<query_result::QueryResult::const_iterator>
         {
-          sql::QueryResultProtoWrapper::const_iterator nrv( *this );
+          auto nrv = new sql::QueryResultProtoWrapper::const_iterator( *this );
           ++*this;
-          return nrv;
+          return std::unique_ptr<query_result::QueryResult::const_iterator>(nrv);
         }
 
         auto operator+=( const std::int32_t n ) noexcept -> query_result::QueryResult::const_iterator&
@@ -97,11 +101,11 @@ class QueryResultProtoWrapper : query_result::QueryResult {
           return *this;
         }
 
-        auto operator--( int ) noexcept -> query_result::QueryResult::const_iterator
+        auto operator--( int ) noexcept -> std::unique_ptr<query_result::QueryResult::const_iterator>
         {
-          const_iterator nrv( *this );
+          auto nrv = new sql::QueryResultProtoWrapper::const_iterator( *this );
           --*this;
-          return nrv;
+          return std::unique_ptr<query_result::QueryResult::const_iterator>(nrv);
         }
 
         auto operator-=( const std::int32_t n ) noexcept -> query_result::QueryResult::const_iterator&
@@ -120,16 +124,11 @@ class QueryResultProtoWrapper : query_result::QueryResult {
           return this;
         }
 
-        auto operator[]( const std::int32_t n ) const noexcept -> query_result::Row
+        auto operator[]( const std::int32_t n ) const noexcept -> std::unique_ptr<query_result::Row>
         {
-          return *( *this + n );
-        }
-
-        friend auto operator+( const const_iterator& lhs, const std::int32_t rhs ) noexcept -> const_iterator
-        {
-          const_iterator nrv( lhs );
-          nrv += rhs;
-          return nrv;
+          auto nrv = new sql::QueryResultProtoWrapper::const_iterator( *this );
+          nrv += n;
+          return std::unique_ptr<query_result::Row>(nrv);
         }
 		};
 
@@ -141,14 +140,14 @@ class QueryResultProtoWrapper : query_result::QueryResult {
     auto columns() const -> std::size_t;
 
 		// iteration
-    auto begin() const -> query_result::QueryResult::const_iterator*;
-    auto end() const -> query_result::QueryResult::const_iterator*;
+    auto begin() const -> std::unique_ptr<query_result::QueryResult::const_iterator>;
+    auto end() const -> std::unique_ptr<query_result::QueryResult::const_iterator>;
 
-		auto cbegin() const -> query_result::QueryResult::const_iterator* {
+		auto cbegin() const -> std::unique_ptr<query_result::QueryResult::const_iterator> {
       return begin();
     }
 
-    auto cend() const -> query_result::QueryResult::const_iterator* {
+    auto cend() const -> std::unique_ptr<query_result::QueryResult::const_iterator> {
       return end();
     }
 		
@@ -156,8 +155,8 @@ class QueryResultProtoWrapper : query_result::QueryResult {
 		auto get( const std::size_t row, const std::size_t column ) const -> const char*;
 
 		// access rows
-    auto operator[]( const std::size_t row ) const -> query_result::Row;
-    auto at( const std::size_t row ) const -> query_result::Row;
+    auto operator[]( const std::size_t row ) const -> std::unique_ptr<query_result::Row>;
+    auto at( const std::size_t row ) const -> std::unique_ptr<query_result::Row>;
 
 		// update/insert result
 		auto has_rows_affected() const noexcept -> bool;
@@ -165,3 +164,5 @@ class QueryResultProtoWrapper : query_result::QueryResult {
 };
 
 }
+
+#endif /* PROTO_WRAPPER_RESULT_H */

@@ -34,6 +34,7 @@
 #include "store/common/query_result_proto_wrapper_row.h"
 
 typedef SQLResult SQLResultProto;
+typedef Field FieldProto;
 
 namespace sql {
 
@@ -80,35 +81,35 @@ auto QueryResultProtoWrapper::columns() const -> std::size_t
   return column_names.size();
 }
 
-auto QueryResultProtoWrapper::begin() const -> query_result::QueryResult::const_iterator*
+auto QueryResultProtoWrapper::begin() const -> std::unique_ptr<query_result::QueryResult::const_iterator>
 {
   check_has_result_set();
-  return new const_iterator( sql::Row( *this, 0, 0, column_names.size() ) );
+  return std::unique_ptr<query_result::QueryResult::const_iterator>(new const_iterator( Row(this, 0, 0, column_names.size())));
 }
 
-auto QueryResultProtoWrapper::end() const -> query_result::QueryResult::const_iterator*
+auto QueryResultProtoWrapper::end() const -> std::unique_ptr<query_result::QueryResult::const_iterator>
 {
-  return new const_iterator( sql::Row( *this, size(), 0, column_names.size() ) );
+  return std::unique_ptr<query_result::QueryResult::const_iterator>(new const_iterator( Row(this, size(), 0, column_names.size() ) ));
 }
 
 auto QueryResultProtoWrapper::is_null( const std::size_t row, const std::size_t column ) const -> bool {
-  return result.get(row).get(column) == NULL;
+  return result.at(row).at(column) == "";
 }
 
 auto QueryResultProtoWrapper::get( const std::size_t row, const std::size_t column ) const -> const char* 
 {
   if(!is_null(row, column)) {
-    return result.get(row).get(column).c_str();
+    return result.at(row).at(column).c_str();
   } else {
     return nullptr;
   }
 }
 
-auto QueryResultProtoWrapper::operator[]( const std::size_t row ) const -> query_result::Row {
-  return sql::Row(*this, row, 0, this.columns());
+auto QueryResultProtoWrapper::operator[]( const std::size_t row ) const -> std::unique_ptr<query_result::Row> {
+  return std::unique_ptr<query_result::Row>(new sql::Row(this, row, 0, this->columns()));
 }
 
-auto QueryResultProtoWrapper::at( const std::size_t row ) const -> query_result::Row {
+auto QueryResultProtoWrapper::at( const std::size_t row ) const -> std::unique_ptr<query_result::Row> {
   check_has_result_set();
   return (*this)[row];
 }

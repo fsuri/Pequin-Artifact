@@ -29,6 +29,8 @@
 
 #include <string>
 #include <vector>
+#include <optional>
+#include <memory>
 #include "query_result_field.h"
 #include <tao/pq/result_traits.hpp>
 
@@ -41,13 +43,13 @@ class Row {
 			public:
 				virtual auto operator++() noexcept -> const_iterator& = 0;
 
-        virtual auto operator++( int ) noexcept -> const_iterator = 0;
+        virtual auto operator++( int ) -> std::unique_ptr<const_iterator> = 0;
 
         virtual auto operator+=( const std::int32_t n ) noexcept -> const_iterator& = 0;
 
         virtual auto operator--() noexcept -> const_iterator& = 0;
 
-        virtual auto operator--( int ) noexcept -> const_iterator = 0;
+        virtual auto operator--( int ) noexcept -> std::unique_ptr<const_iterator> = 0;
 
         virtual auto operator-=( const std::int32_t n ) noexcept -> const_iterator& = 0;
 
@@ -55,25 +57,25 @@ class Row {
 
         virtual auto operator->() const noexcept -> const Field* = 0;
 
-        virtual auto operator[]( const std::int32_t n ) const noexcept -> Field = 0;
+        virtual auto operator[]( const std::int32_t n ) const noexcept -> std::unique_ptr<Field> = 0;
 		};
 
-		virtual auto slice( const std::size_t offset, const std::size_t in_columns ) const -> Row = 0;
+		virtual auto slice( const std::size_t offset, const std::size_t in_columns ) const -> std::unique_ptr<Row> = 0;
 
-	  virtual auto operator[]( const std::size_t column ) const -> Field = 0;
+	  virtual auto operator[]( const std::size_t column ) const -> std::unique_ptr<Field> = 0;
 		
 		virtual auto columns() const noexcept -> std::size_t = 0;
 
 		virtual auto name( const std::size_t column ) const -> std::string = 0;
 
 		// iteration
-    virtual auto begin() const -> const_iterator = 0;
+    virtual auto begin() const -> std::unique_ptr<const_iterator> = 0;
 
-    virtual auto end() const -> const_iterator = 0;
+    virtual auto end() const -> std::unique_ptr<const_iterator> = 0;
 
-    virtual auto cbegin() const -> const_iterator = 0;
+    virtual auto cbegin() const -> std::unique_ptr<const_iterator> = 0;
 
-    virtual auto cend() const -> const_iterator = 0;
+    virtual auto cend() const -> std::unique_ptr<const_iterator> = 0;
 
 		virtual auto get( const std::size_t column ) const -> const char* = 0;
 
@@ -81,20 +83,16 @@ class Row {
 
 		template< typename T >
     auto get( const std::size_t column ) const -> T {
-			if constexpr( result_traits_size< T > == 0 ) {
-				static_assert( false, "tao::pq::result_traits<T>::size yields zero" );
-				__builtin_unreachable();
-			}
-			else if constexpr( result_traits_size< T > == 1 ) {
-				if constexpr( result_traits_has_null< T > ) {
+			if constexpr( tao::pq::result_traits_size< T > == 1 ) {
+				if constexpr( tao::pq::result_traits_has_null< T > ) {
 						if( is_null( column ) ) {
-							return result_traits< T >::null();
+							return tao::pq::result_traits< T >::null();
 						}
 				}
-				return result_traits< T >::from( get( column ) );
+				return tao::pq::result_traits< T >::from( get( column ) );
 			}
 			else {
-				return result_traits< T >::from( slice( column, result_traits_size< T > ) );
+				return tao::pq::result_traits< T >::from( slice( column, tao::pq::result_traits_size< T > ) );
 			}
 		}
 

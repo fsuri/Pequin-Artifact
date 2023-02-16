@@ -25,8 +25,12 @@
  *
  **********************************************************************/
 
+#ifndef PROTO_WRAPPER_ROW_H
+#define PROTO_WRAPPER_ROW_H
+
 #include <string>
 #include <vector>
+#include <memory>
 #include "store/common/query_result_row.h"
 #include "store/common/query_result_field.h"
 #include "store/common/query_result_proto_wrapper_field.h"
@@ -36,7 +40,8 @@ namespace sql {
 class QueryResultProtoWrapper;
 
 class Row : query_result::Row {
- private:
+ protected:
+  friend class sql::Field;
   friend class QueryResultProtoWrapper;
   const QueryResultProtoWrapper* m_result = nullptr;
   std::size_t m_row = 0;
@@ -69,11 +74,11 @@ class Row : query_result::Row {
         return *this;
       }
 
-      auto operator++( int ) noexcept -> query_result::Row::const_iterator
+      auto operator++( int ) noexcept -> std::unique_ptr<query_result::Row::const_iterator>
       {
-        const_iterator nrv( *this );
+        sql::Row::const_iterator *nrv = new sql::Row::const_iterator( *this );
         ++*this;
-        return nrv;
+        return std::unique_ptr<query_result::Row::const_iterator>(nrv);
       }
 
       auto operator+=( const std::int32_t n ) noexcept -> query_result::Row::const_iterator&
@@ -88,11 +93,11 @@ class Row : query_result::Row {
         return *this;
       }
 
-      auto operator--( int ) noexcept -> query_result::Row::const_iterator
+      auto operator--( int ) noexcept -> std::unique_ptr<query_result::Row::const_iterator>
       {
-        const_iterator nrv( *this );
+        sql::Row::const_iterator *nrv = new sql::Row::const_iterator( *this );
         --*this;
-        return nrv;
+        return std::unique_ptr<query_result::Row::const_iterator>(nrv);
       }
 
       auto operator-=( const std::int32_t n ) noexcept -> query_result::Row::const_iterator&
@@ -111,35 +116,42 @@ class Row : query_result::Row {
         return this;
       }
 
-      auto operator[]( const std::int32_t n ) const noexcept -> query_result::Field
+      auto operator[]( const std::int32_t n ) const noexcept -> std::unique_ptr<query_result::Field>
       {
-        return *( *this + n );
+        sql::Row::const_iterator *nrv = new sql::Row::const_iterator( *this );
+        nrv += n;
+        return std::unique_ptr<query_result::Field>(nrv);
+      }
+
+      friend auto operator+( const const_iterator& lhs, const std::int32_t rhs ) noexcept -> std::unique_ptr<query_result::Row::const_iterator>
+      {
+        sql::Row::const_iterator *nrv = new sql::Row::const_iterator( lhs );
+        nrv += rhs;
+        return std::unique_ptr<query_result::Row::const_iterator>(nrv);
       }
   };
 
-  auto operator[]( const std::size_t column ) const -> query_result::Field
+  auto operator[]( const std::size_t column ) const -> std::unique_ptr<query_result::Field>
   {
-    return { *this, m_offset + column };
+    sql::Field *p = new sql::Field(*this, m_offset + column);
+    return std::unique_ptr<query_result::Field>(p);
   }
   
-  auto columns() const noexcept -> std::size_t
-  {
-    return m_result.columns();
-  }
+  auto columns() const noexcept -> std::size_t;
 
   auto name( const std::size_t column ) const -> std::string;
 
   // iteration
-  auto begin() const -> query_result::Row::const_iterator;
+  auto begin() const -> std::unique_ptr<query_result::Row::const_iterator>;
 
-  auto end() const -> query_result::Row::const_iterator;
+  auto end() const -> std::unique_ptr<query_result::Row::const_iterator>;
 
-  auto cbegin() const -> query_result::Row::const_iterator
+  auto cbegin() const -> std::unique_ptr<query_result::Row::const_iterator>
   {
     return begin();
   }
 
-  auto cend() const -> query_result::Row::const_iterator
+  auto cend() const -> std::unique_ptr<query_result::Row::const_iterator>
   {
     return end();
   }
@@ -148,7 +160,9 @@ class Row : query_result::Row {
 
   auto is_null( const std::size_t column ) const -> bool;
 
-  auto slice( const std::size_t offset, const std::size_t in_columns ) const -> query_result::Row;
+  auto slice( const std::size_t offset, const std::size_t in_columns ) const -> std::unique_ptr<query_result::Row>;
 };
 
 }
+
+#endif /* PROTO_WRAPPER_ROW_H */

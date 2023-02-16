@@ -27,23 +27,29 @@
 
 #include <string>
 #include <vector>
+#include "store/common/query_result_proto_wrapper.h"
 #include "store/common/query_result_proto_wrapper_row.h"
 
 namespace sql {
+
+auto Row::columns() const noexcept -> std::size_t
+{
+  return m_result->columns();
+}
 
 auto Row::name( std::size_t column ) const -> std::string
 {
   return m_result->name( m_offset + column );
 }
 
-auto Row::begin() const -> query_result::Row::const_iterator
+auto Row::begin() const -> std::unique_ptr<query_result::Row::const_iterator>
 {
-  return const_iterator( Field( *this, m_offset ) );
+  return std::unique_ptr<query_result::Row::const_iterator>(new const_iterator( Field( *this, m_offset ) ));
 }
 
-auto Row::end() const -> query_result::Row::const_iterator
+auto Row::end() const -> std::unique_ptr<query_result::Row::const_iterator>
 {
-  return const_iterator( Field( *this, m_offset + m_columns ) );
+  return std::unique_ptr<query_result::Row::const_iterator>(new const_iterator( Field( *this, m_offset + m_columns ) ));
 }
 
 auto Row::get( const std::size_t column ) const -> const char*
@@ -56,16 +62,16 @@ auto Row::is_null( const std::size_t column ) const -> bool
   return m_result->is_null( m_row, m_offset + column );
 }
 
-auto Row::slice( const std::size_t offset, const std::size_t in_columns ) const -> query_result::Row 
+auto Row::slice( const std::size_t offset, const std::size_t in_columns ) const -> std::unique_ptr<query_result::Row>
 {
   assert( m_result );
   if( in_columns == 0 ) {
       throw std::invalid_argument( "slice requires at least one column" );
   }
   if( offset + in_columns > m_columns ) {
-      throw std::out_of_range( internal::printf( "slice (%zu-%zu) out of range (0-%zu)", offset, offset + in_columns - 1, m_columns - 1 ) );
+      throw std::out_of_range("slice out of range");
   }
-  return Row{ *m_result, m_row, m_offset + offset, in_columns };
+  return std::unique_ptr<query_result::Row>(new Row(m_result, this->m_row, m_offset + offset, in_columns ));
 }
 
 }

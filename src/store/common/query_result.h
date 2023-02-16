@@ -29,6 +29,7 @@
 
 #include <string>
 #include <vector>
+#include <memory>
 #include "query_result_row.h"
 
 namespace query_result {
@@ -40,13 +41,13 @@ class QueryResult {
 			public:
 				virtual auto operator++() noexcept -> const_iterator& = 0;
 
-        virtual auto operator++( int ) noexcept -> const_iterator = 0;
+        virtual auto operator++( int ) noexcept -> std::unique_ptr<const_iterator> = 0;
 
         virtual auto operator+=( const std::int32_t n ) noexcept -> const_iterator& = 0;
 
         virtual auto operator--() noexcept -> const_iterator& = 0;
 
-        virtual auto operator--( int ) noexcept -> const_iterator = 0;
+        virtual auto operator--( int ) noexcept -> std::unique_ptr<const_iterator> = 0;
 
         virtual auto operator-=( const std::int32_t n ) noexcept -> const_iterator& = 0;
 
@@ -54,7 +55,7 @@ class QueryResult {
 
         virtual auto operator->() const noexcept -> const Row* = 0;
 
-        virtual auto operator[]( const std::int32_t n ) const noexcept -> Row = 0;
+        virtual auto operator[]( const std::int32_t n ) const noexcept -> std::unique_ptr<Row> = 0;
 		};
 
 		virtual auto name( const std::size_t column ) const -> std::string = 0;
@@ -64,18 +65,18 @@ class QueryResult {
 		virtual auto size() const -> std::size_t = 0;
 
 		// iteration
-    virtual auto begin() const -> const_iterator* = 0;
-    virtual auto end() const -> const_iterator* = 0;
+    virtual auto begin() const ->  std::unique_ptr<const_iterator> = 0;
+    virtual auto end() const ->  std::unique_ptr<const_iterator> = 0;
 
-		virtual auto cbegin() const -> const_iterator* = 0;
-    virtual auto cend() const -> const_iterator* = 0;
+		virtual auto cbegin() const ->  std::unique_ptr<const_iterator> = 0;
+    virtual auto cend() const ->  std::unique_ptr<const_iterator> = 0;
 
 		virtual auto is_null( const std::size_t row, const std::size_t column ) const -> bool = 0;
 		virtual auto get( const std::size_t row, const std::size_t column ) const -> const char* = 0;
 		
 		// access rows
-    virtual auto operator[]( const std::size_t row ) const -> Row = 0;
-    virtual auto at( const std::size_t row ) const -> Row = 0;
+    virtual auto operator[]( const std::size_t row ) const -> std::unique_ptr<Row> = 0;
+    virtual auto at( const std::size_t row ) const -> std::unique_ptr<Row> = 0;
 
 		// update/insert result
 		virtual auto has_rows_affected() const noexcept -> bool = 0;
