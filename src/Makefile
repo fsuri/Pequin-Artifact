@@ -54,6 +54,16 @@ LDFLAGS += -ltbb #-lpthread
 LDFLAGS += -lboost_filesystem -lboost_system -lboost_iostreams -lboost_serialization -lboost_thread -lboost_regex -lboost_container
 # readline
 LDFLAGS += -lreadline
+# libpg_query
+LDFLAGS += -l:libpg_query.a
+# libcount
+LDFLAGS += -lcount
+# llvm
+LDFLAGS += -lLLVM-6.0
+# libffi
+LDFLAGS += -lffi
+# atomic
+LDFLAGS += -latomic
 
 # Google test framework. This doesn't use pkgconfig
 GTEST_DIR := /usr/src/gtest-1.10.0/googletest
@@ -163,37 +173,35 @@ include lib/Rules.mk
 include replication/common/Rules.mk
 include replication/vr/Rules.mk
 include replication/ir/Rules.mk
-include queryexec/Rules.mk
-#include queryexec/parser/Rules.mk
-#include queryexec/sql/Rules.mk
-#include queryexec/util/Rules.mk
-include store/common/Rules.mk
-include store/tapirstore/Rules.mk
-include store/strongstore/Rules.mk
-include store/weakstore/Rules.mk
+include query-engine/Rules.mk
+
+#include store/common/Rules.mk
+#include store/tapirstore/Rules.mk
+#include store/strongstore/Rules.mk
+#include store/weakstore/Rules.mk
 
 include store/pequinstore/Rules.mk
 include store/indicusstore/Rules.mk
-include store/pbftstore/Rules.mk
-include store/hotstuffstore/Rules.mk
-include store/augustusstore/Rules.mk
-include store/bftsmartstore/Rules.mk
-include store/bftsmartstore_augustus/Rules.mk
-include store/bftsmartstore_stable/Rules.mk
+#include store/pbftstore/Rules.mk
+#include store/hotstuffstore/Rules.mk
+#include store/augustusstore/Rules.mk
+#include store/bftsmartstore/Rules.mk
+#include store/bftsmartstore_augustus/Rules.mk
+#include store/bftsmartstore_stable/Rules.mk
 
-include store/benchmark/async/tpcc/Rules.mk
-include store/Rules.mk
-include store/benchmark/Rules.mk
-include store/benchmark/async/common/Rules.mk
-include store/benchmark/async/rw/Rules.mk
-include store/benchmark/async/retwis/Rules.mk
-include store/benchmark/async/smallbank/Rules.mk
-include store/benchmark/async/toy/Rules.mk
-include store/benchmark/async/Rules.mk
-include lockserver/Rules.mk
-include timeserver/Rules.mk
-include libtapir/Rules.mk
-include create_keys/Rules.mk
+#include store/benchmark/async/tpcc/Rules.mk
+#include store/Rules.mk
+#include store/benchmark/Rules.mk
+#include store/benchmark/async/common/Rules.mk
+#include store/benchmark/async/rw/Rules.mk
+#include store/benchmark/async/retwis/Rules.mk
+#include store/benchmark/async/smallbank/Rules.mk
+#include store/benchmark/async/toy/Rules.mk
+#include store/benchmark/async/Rules.mk
+#include lockserver/Rules.mk
+#include timeserver/Rules.mk
+#include libtapir/Rules.mk
+#include create_keys/Rules.mk
 #include simple_app/Rules.mk 
 ##################################################################
 # General rules
