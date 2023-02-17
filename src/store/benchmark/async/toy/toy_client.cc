@@ -40,6 +40,7 @@
 
 #include "store/common/frontend/sync_client.h"
 #include "store/common/truetime.h"
+#include "store/common/query_result.h"
 #include "store/tapirstore/client.h"
 
 namespace toy {
@@ -82,10 +83,11 @@ void ToyClient::ExecuteToy(){
             sleep(1);
             
             std::string query = "SELECT *";
-            std::string queryResult;
+            query_result::QueryResult *queryResult = nullptr;
             client.Query(query, queryResult, timeout);  //--> Edit API in frontend sync_client.
                                            //For real benchmarks: Also edit in sync_transaction_bench_client.
-            std::cerr << "Query Result: " << queryResult << std::endl << std::endl;
+            // TODO: Figure out what to print based on Query Result
+            //std::cerr << "Query Result: " << queryResult << std::endl << std::endl;
             
 }
 

@@ -111,14 +111,14 @@ void SyncClient::Abort(uint32_t timeout) {
   promise.GetReply();
 }
 
-void SyncClient::Query(std::string &query, query_result::QueryResult &result, uint32_t timeout) {
+void SyncClient::Query(std::string &query, query_result::QueryResult *result, uint32_t timeout) {
   Promise promise(timeout);
   
   client->Query(query, std::bind(&SyncClient::QueryCallback, this, &promise,
         std::placeholders::_1, std::placeholders::_2), 
         std::bind(&SyncClient::QueryTimeoutCallback, this,
         &promise, std::placeholders::_1), timeout);
- result = sql::QueryResultProtoWrapper(promise.GetValue());
+ *result = sql::QueryResultProtoWrapper(promise.GetValue());
 }
 
 ///////// Callbacks
@@ -158,10 +158,10 @@ void SyncClient::AbortTimeoutCallback(Promise *promise) {
   promise->Reply(REPLY_TIMEOUT);
 }
 
-void SyncClient::QueryCallback(Promise *promise, int status, const query_result::QueryResult &result){
+void SyncClient::QueryCallback(Promise *promise, int status, const query_result::QueryResult *result){
   std::string serialized;
-  auto result_proto_wrapper = dynamic_cast<const sql::QueryResultProtoWrapper&>(result);
-  result_proto_wrapper.serialize(&serialized);
+  auto result_proto_wrapper = dynamic_cast<const sql::QueryResultProtoWrapper*>(result);
+  result_proto_wrapper->serialize(&serialized);
   promise->Reply(status, serialized); //Result = string for now. Can be list of values, rows, anthing. Format and interface TBD. For now just return serialized protobuf. That protobuf can be whatever representation.
 }
 

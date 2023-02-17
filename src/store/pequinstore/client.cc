@@ -34,6 +34,7 @@
 #include "store/pequinstore/localbatchverifier.h"
 #include "store/pequinstore/basicverifier.h"
 #include "store/pequinstore/common.h"
+#include "store/common/query_result_proto_wrapper.h"
 #include <sys/time.h>
 
 namespace pequinstore {
@@ -360,8 +361,8 @@ void Client::Query(std::string &query, query_callback qcb,
               }
 
 
-
-                qcb(REPLY_OK, pendingQuery->result); //callback to application 
+                // TODO: Use correct serialization for query result
+                qcb(REPLY_OK, new sql::QueryResultProtoWrapper(pendingQuery->result)); //call back to application 
                 //clean pendingQuery and query_seq_num_mapping in all shards.
                 ClearQuery(pendingQuery);      
             }
