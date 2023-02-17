@@ -415,21 +415,25 @@ void ShardClient::HandleQueryResult(proto::QueryResultReply &queryResult){
        
         for(auto dep: *replica_result->mutable_query_read_set()->mutable_deps()){ //For normal Tx-id
             if(dep.write().has_prepared_timestamp()){ //I.e. using optimisticTxID
-                uint64_t &merged_ts = MergeTimestampId(dep.write().prepared_timestamp.timestamp(), dep.write().prepared_timestamp.timestamp().id());
-                if(pendingQuery->merged_ss.merged_ts().count(merged_ts)) result_mgr.merged_deps.insert(dep.write().release_prepared_txn_digest());
+                if(pendingQuery->merged_ss.merged_ts().count(MergeTimestampId(dep.write().prepared_timestamp().timestamp(), dep.write().prepared_timestamp().id()))){
+                    dep.mutable_write()->clear_prepared_timestamp();
+                    result_mgr.merged_deps.insert(dep.release_write());
+                } 
             }
             else{
-                if(pendingQuery->merged_ss.merged_txns().count(dep.write().prepared_txn_digest())) result_mgr.merged_deps.insert(dep.write().release_prepared_txn_digest());
+                if(pendingQuery->merged_ss.merged_txns().count(dep.write().prepared_txn_digest())){
+                     result_mgr.merged_deps.insert(dep.release_write());
+                } 
             }            
         }
          //Set deps to merged deps == recorded dependencies from f+1 replicas -> one correct replica reported upper bound on deps
         if(matching_res == params.query_params.resultQuorum){
             proto::ReadSet *query_read_set =  replica_result->mutable_query_read_set();
             query_read_set->clear_deps(); //Reset and override with merged deps
-            for(auto tx_id: result_mgr.merged_deps){
+            for(auto write: result_mgr.merged_deps){
                 proto::Dependency *add_dep = query_read_set->add_deps();
                 add_dep->set_involved_group(group);
-                add_dep->mutable_write()->set_allocated_prepared_txn_digest(tx_id);
+                add_dep->set_allocated_write(write);
             }
         }
         // for(auto tx_id: *replica_result->mutable_query_read_set()->mutable_dep_ids()){ //For normal Tx-id

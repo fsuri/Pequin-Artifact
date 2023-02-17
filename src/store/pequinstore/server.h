@@ -618,10 +618,12 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
   void ProcessProposal(proto::Phase1 &msg, const TransportAddress &remote, proto::Transaction *txn,
                         std::string &txnDigest, bool isGossip); //,const proto::CommittedProof *committedProof,const proto::Transaction *abstain_conflict,proto::ConcurrencyControl::Result &result);
 
-  void CheckTxLocalPresence(const std::string &txn_id, proto::ConcurrencyControl::Result &res)
-  void CheckDepLocalPresence(const proto::Transaction &txn, const ReadSet &readSet, proto::ConcurrencyControl::Result &res);
-  void RegisterWaitingTxn(const std::string &dep_id, const std::string &txnDigest, const proto::Transaction &txn, const TransportAddress &remote, uint64_t &reqId, bool fallback_flow, bool isGossip, const bool new_waiting_dep);
-  bool ManageDependencies(const std::string &txnDigest, const proto::Transaction &txn, const TransportAddress &remote, uint64_t &reqId, bool fallback_flow = false, bool isGossip = false);
+  void CheckTxLocalPresence(const std::string &txn_id, proto::ConcurrencyControl::Result &res);
+  void CheckDepLocalPresence(const proto::Transaction &txn, const DepSet &depSet, proto::ConcurrencyControl::Result &res);
+  bool RegisterWaitingTxn(const std::string &dep_id, const std::string &txnDigest, const proto::Transaction &txn, const TransportAddress &remote, 
+        const uint64_t &reqId, bool fallback_flow, bool isGossip, std::vector<const std::string*> &missing_deps, const bool new_waiting_dep);
+  bool ManageDependencies(const std::string &txnDigest, const proto::Transaction &txn, const TransportAddress &remote, const uint64_t reqId, bool fallback_flow = false, bool isGossip = false);
+  bool ManageDependencies(const DepSet &depSet, const std::string &txnDigest, const proto::Transaction &txn, const TransportAddress &remote, const uint64_t &reqId, bool fallback_flow = false, bool isGossip = false);
       bool ManageDependencies_WithMutex(const std::string &txnDigest, const proto::Transaction &txn, const TransportAddress &remote, uint64_t reqId, bool fallback_flow = false, bool isGossip = false);
   
   void GetWriteTimestamps(
@@ -648,6 +650,8 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
       const std::string &txnDigest);
   proto::ConcurrencyControl::Result CheckDependencies(
       const proto::Transaction &txn);
+  proto::ConcurrencyControl::Result CheckDependencies(
+    const proto::Transaction &txn, const DepSet &depSet);
   bool CheckHighWatermark(const Timestamp &ts);
   bool BufferP1Result(proto::ConcurrencyControl::Result &result,
     const proto::CommittedProof *conflict, const std::string &txnDigest, uint64_t &reqId, const TransportAddress *&remote, bool &wake_fallbacks, bool isGossip = false, int fb =0);

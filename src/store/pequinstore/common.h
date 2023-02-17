@@ -378,7 +378,7 @@ inline static bool sortWriteSetByKey(const WriteMessage &lhs, const WriteMessage
     return lhs.key() < rhs.key(); 
 }
 
-inline static bool sortDepSet(const Dependency &lhs, const Dependency &rhs) { 
+inline static bool sortDepSet(const proto::Dependency &lhs, const proto::Dependency &rhs) { 
     return (lhs.write().prepared_txn_digest() == rhs.write().prepared_txn_digest() ? lhs.involved_group() < rhs.involved_group() : lhs.write().prepared_txn_digest() < rhs.write().prepared_txn_digest()) ; 
 }
 
@@ -391,11 +391,16 @@ inline static bool equalWriteMsg(const WriteMessage &lhs, const WriteMessage &rh
     return lhs.key() == rhs.key(); 
 }
 
-inline static bool equalDep(const Dependency &lhs, const Dependency &rhs) { 
+inline static bool equalDep(const proto::Dependency &lhs, const proto::Dependency &rhs) { 
     return (lhs.write().prepared_txn_digest() == rhs.write().prepared_txn_digest() && lhs.involved_group() == rhs.involved_group()); 
 }
-inline static bool equalDepPtr(const Dependency *&lhs, const Dependency *&rhs) { 
-    return (lhs->write().prepared_txn_digest() == rhs->write().prepared_txn_digest() && lhs->involved_group() == rhs->involved_group()); 
+inline static bool equalDepPtr(const proto::Dependency *&lhs, const proto::Dependency *&rhs) { 
+    return equalDep(*lhs, *rhs);
+    //return (lhs->write().prepared_txn_digest() == rhs->write().prepared_txn_digest() && lhs->involved_group() == rhs->involved_group()); 
+}
+inline static bool compDepWritePtr(const proto::Write *lhs, const proto::Write *rhs) { 
+    return lhs->prepared_txn_digest() < rhs->prepared_txn_digest();
+    //return (lhs->write().prepared_txn_digest() == rhs->write().prepared_txn_digest() && lhs->involved_group() == rhs->involved_group()); 
 }
 
 

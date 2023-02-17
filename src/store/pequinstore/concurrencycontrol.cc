@@ -246,11 +246,14 @@ void Server::restoreTxn(proto::Transaction &txn){
    
 }
 
+
+//NOTE: If storing mergedReadSet inside tx is threadsafe, then technically don't need to pass readSet/depSet as function args, but can just pull from txn.
+
 proto::ConcurrencyControl::Result Server::mergeTxReadSets(const ReadSet *&readSet, const DepSet *&depSet, proto::Transaction &txn, const std::string &txnDigest, uint64_t req_id, const TransportAddress &remote, bool isGossip){
-  return mergeTxReadSets(readSet, txn, txnDigest, 0, req_id, &remote, isGossip, nullptr);
+  return mergeTxReadSets(readSet, depSet, txn, txnDigest, 0, req_id, &remote, isGossip, nullptr);
 }
 proto::ConcurrencyControl::Result Server::mergeTxReadSets(const ReadSet *&readSet, const DepSet *&depSet, proto::Transaction &txn, const std::string &txnDigest, proto::CommittedProof *proof){ //, proto::GroupedSignatures *groupedSigs, bool p1Sigs, uint64_t view){
-  return mergeTxReadSets(readSet, txn, txnDigest, 1, 0, nullptr, false, proof); //, groupedSigs, p1Sigs, view);
+  return mergeTxReadSets(readSet, depSet, txn, txnDigest, 1, 0, nullptr, false, proof); //, groupedSigs, p1Sigs, view);
 } //TODO: In Commit: Call mergeTxReadSets -- if result != Commit, return (implies it's buffered -- commit itself implies that decision cannot be ignore/abort/abstain )
 
 // Call this function before locking keys (only call if query set non empty.) ==> need to lock in this order; need to perform CC on this. 
@@ -281,6 +284,7 @@ proto::ConcurrencyControl::Result Server::mergeTxReadSets(const ReadSet *&readSe
   if(txn.has_merged_read_set()){
     Debug("Already cached a merged read set. Re-using.");
     readSet = &txn.merged_read_set().read_set();
+    depSet = &txn.merged_read_set().deps();
     return proto::ConcurrencyControl::COMMIT;
   }
 
@@ -325,7 +329,7 @@ proto::ConcurrencyControl::Result Server::mergeTxReadSets(const ReadSet *&readSe
         mergedReadSet->mutable_read_set()->MergeFrom(query_rs->read_set()); //Merge from copies; If we don't want that, can loop through fetchedRead set and move 1 by 1.
         //mergedReadSet add readSet
         //Merge Query Dependency sets. (If empty, this merge does nothing.)
-        mergedReadSet->mutable_dep_ids()->MergeFrom(query_rs->deps());
+        mergedReadSet->mutable_deps()->MergeFrom(query_rs->deps());
         //mergedReadSet->mutable_dep_ids()->MergeFrom(query_rs->dep_ids());
         //mergedReadSet->mutable_dep_ts_ids()->MergeFrom(query_rs->dep_ts_ids());
 
@@ -362,6 +366,8 @@ proto::ConcurrencyControl::Result Server::mergeTxReadSets(const ReadSet *&readSe
 
    //attach base read-set 
   mergedReadSet->mutable_read_set()->MergeFrom(txn.read_set());
+  //attach base dep-set
+  mergedReadSet->mutable_deps()->MergeFrom(txn.deps());
 
 //TODO: STORE IN MERGED_READ_SET in its own data structure.
 //FIXME: It is not safe to handle a Tx over multiple threads if one of them is writing to it. However, it seems to work fine for txnDigest field? Do we need to fix that?
@@ -778,7 +784,7 @@ void Server::CheckTxLocalPresence(const std::string &txn_id, proto::ConcurrencyC
       return; //Technically could fully Abort here: But then need to attach also proof of dependency abort --> which currently is not implemented/supported
     }
     
-    if (committed.find(dep_id) == committed.end() && aborted.find(txn_id) == aborted.end() ) {
+    if (committed.find(txn_id) == committed.end() && aborted.find(txn_id) == aborted.end() ) {
     //If it has not yet aborted, nor committed, check whether the replica has prepared the tx itself: This alleviates having to verify dep proofs, although it is slightly more pessimistic
 
       preparedMap::const_accessor a2;
@@ -928,27 +934,30 @@ bool Server::ManageDependencies_WithMutex(const std::string &txnDigest, const pr
 
 //MUTEX FREE DEPENDENCY WAIT VERSIONS
 
-void Server::RegisterWaitingTxn(const std::string &dep_id, const std::string &txnDigest, const proto::Transaction &txn, const TransportAddress &remote, uint64_t &reqId, bool fallback_flow, bool isGossip, const bool new_waiting_dep){
+bool Server::RegisterWaitingTxn(const std::string &dep_id, const std::string &txnDigest, const proto::Transaction &txn, const TransportAddress &remote, 
+const uint64_t &reqId, bool fallback_flow, bool isGossip, std::vector<const std::string*> &missing_deps, const bool new_waiting_dep){
+  bool isFinished = true;
+  
   dependentsMap::accessor e;
   bool first_dependent = false;
   
   //If waiting_dep is already logged then don't take any accessor on e to modify dependents 
-  if(new_waiting_dep) first_dependent = dependents.insert(e, dep.write().prepared_txn_digest());
+  if(new_waiting_dep) first_dependent = dependents.insert(e, dep_id);
   
-  if (committed.find(dep.write().prepared_txn_digest()) == committed.end() && aborted.find(dep.write().prepared_txn_digest()) == aborted.end()) {
-      Debug("[%lu:%lu][%s] WAIT for dependency %s to finish.", txn.client_id(), txn.client_seq_num(), BytesToHex(txnDigest, 16).c_str(), BytesToHex(dep.write().prepared_txn_digest(), 16).c_str());
+  if (committed.find(dep_id) == committed.end() && aborted.find(dep_id) == aborted.end()) {
+      Debug("[%lu:%lu][%s] WAIT for dependency %s to finish.", txn.client_id(), txn.client_seq_num(), BytesToHex(txnDigest, 16).c_str(), BytesToHex(dep_id, 16).c_str());
     
-    allFinished = false;
-    missing_deps.push_back(&dep.write().prepared_txn_digest());
+    isFinished = false;
+    missing_deps.push_back(&dep_id);
     if(new_waiting_dep){
       e->second.insert(txnDigest);
-      Debug("Tx:[%s] Added tx %s to %s dependents.", BytesToHex(txnDigest, 16).c_str(), BytesToHex(txnDigest, 16).c_str(), BytesToHex(dep.write().prepared_txn_digest(), 16).c_str());
+      Debug("Tx:[%s] Added tx %s to %s dependents.", BytesToHex(txnDigest, 16).c_str(), BytesToHex(txnDigest, 16).c_str(), BytesToHex(dep_id, 16).c_str());
     } 
 
     //XXX start RelayP1 to initiate Fallback handling
       if(true && !params.no_fallback && !isGossip){ //do not send relay if it is a gossiped message. Unless we are doinig replica leader gargabe Collection (unimplemented)
           uint64_t conflict_id = !fallback_flow ? reqId : -1;
-          SendRelayP1(remote, dep.write().prepared_txn_digest(), conflict_id, txnDigest);
+          SendRelayP1(remote, dep_id, conflict_id, txnDigest);
       }
   }
   else{ //Don't add to dependents for no reason.
@@ -956,6 +965,7 @@ void Server::RegisterWaitingTxn(const std::string &dep_id, const std::string &tx
   }
   e.release();
   
+  return isFinished;
 }
 //FIXME: Problem: IF several Queries (or query and main read set) have the same deps then Concurrency DeadLock free invariant does not hold?
 //--> Must merge and erase all duplicates :: TODO: In Merge: Filter out only the involved groups. ==> Easiest: Merge all queries into a dep set (with no duplicates). And then erase from it everything in main Deps.
@@ -965,12 +975,12 @@ void Server::RegisterWaitingTxn(const std::string &dep_id, const std::string &tx
 //TODO: When Calling ManageDeps directly (In handleP1 or HandleP1FB) must fetch merged ReadSet from buffer.
 //TODO: Change ManageDependencies and Check dependencies to take in pointer to DepSet. (can either be direct read set, or merged ReadSet)
 
-bool Server::ManageDependencies(const std::string &txnDigest, const proto::Transaction &txn, const TransportAddress &remote, &uint64_t reqId, bool fallback_flow, bool isGossip){
+bool Server::ManageDependencies(const std::string &txnDigest, const proto::Transaction &txn, const TransportAddress &remote, const uint64_t reqId, bool fallback_flow, bool isGossip){
     
     
     const DepSet *depSet = &txn.deps();
 
-    if(txn.has_merged_read_set){  //Note: Could check whether it has queries and those have deps, and if so Assert that txn must have merged_read_set!   UW_ASSERT(txn.has_merged_read_set());
+    if(txn.has_merged_read_set()){  //Note: Could check whether it has queries and those have deps, and if so Assert that txn must have merged_read_set!   UW_ASSERT(txn.has_merged_read_set());
       Debug("txn %s has merged_read_set; using instead.", BytesToHex(txnDigest, 16).c_str());
       depSet = &txn.merged_read_set().deps();
     } 
@@ -979,7 +989,7 @@ bool Server::ManageDependencies(const std::string &txnDigest, const proto::Trans
 
 //TODO: relay Deeper depth when result is already wait. (If I always re-did the P1 it would be handled)
 // PRoblem: Dont want to re-do P1, otherwise a past Abort can turn into a commit. Hence we ForwardWriteback
-bool Server::ManageDependencies(const DepSet &depSet, const std::string &txnDigest, const proto::Transaction &txn, const TransportAddress &remote, &uint64_t reqId, bool fallback_flow, bool isGossip){
+bool Server::ManageDependencies(const DepSet &depSet, const std::string &txnDigest, const proto::Transaction &txn, const TransportAddress &remote, const uint64_t &reqId, bool fallback_flow, bool isGossip){
   
   bool allFinished = true;
 
@@ -1005,8 +1015,8 @@ bool Server::ManageDependencies(const DepSet &depSet, const std::string &txnDige
        if (dep.involved_group() != groupIdx) { //only check deps at the responsible shard.
          continue;
        }
-
-      RegisterWaitingTxn(dep.write().prepared_txn_digest(), txnDigest, txn, remote, reqId, fallback_flow, isGossip, new_waiting_dep);
+      //Check if dep is committed/aborted -- if not, register waiting txn in dependents and startRelayP1.
+      allFinished = RegisterWaitingTxn(dep.write().prepared_txn_digest(), txnDigest, txn, remote, reqId, fallback_flow, isGossip, missing_deps, new_waiting_dep);
     }
 
     if(!allFinished){
@@ -1227,17 +1237,23 @@ proto::ConcurrencyControl::Result Server::CheckDependencies(
   return CheckDependencies(*o->second.txn);
 }
 
+
 proto::ConcurrencyControl::Result Server::CheckDependencies(
     const proto::Transaction &txn) {
 
   const DepSet *depSet = &txn.deps();
-  if(txn.has_merged_read_set){  //Note: Could check whether it has queries and those have deps, and if so Assert that txn must have merged_read_set!   UW_ASSERT(txn.has_merged_read_set());
-      Debug("txn %s has merged_read_set; using instead.", BytesToHex(txnDigest, 16).c_str());
+  if(txn.has_merged_read_set()){  //Note: Could check whether it has queries and those have deps, and if so Assert that txn must have merged_read_set!   UW_ASSERT(txn.has_merged_read_set());
+      Debug("txn [%lu:%lu] has merged_read_set; using instead.", txn.client_id(), txn.client_seq_num());
       depSet = &txn.merged_read_set().deps();
   } 
+  return CheckDependencies(txn, *depSet);
+}
+
+proto::ConcurrencyControl::Result Server::CheckDependencies(
+    const proto::Transaction &txn, const DepSet &depSet) {
   
    //if(params.mainThreadDispatching) committedMutex.lock_shared();
-  for (const auto &dep : *depSet) { // txn.deps()) {
+  for (const auto &dep : depSet) { // txn.deps()) {
     if (dep.involved_group() != groupIdx) {
       continue;
     }

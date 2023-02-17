@@ -395,7 +395,7 @@ void Client::Query(std::string &query, query_callback qcb,
                     }
                     //Merge all deps as well. Note: Optimistic Id's were already reverted back to real tx-ids at this point. (Must ensure that all dep is on correct txn - cannot be optimistic anymore)
                     for(auto &dep : *query_read_set->mutable_deps()){
-                      Dependency *add_dep = txn.add_deps();
+                      proto::Dependency *add_dep = txn.add_deps();
                       *add_dep = std::move(dep);
                     }
                     // for(auto &dep_id : *query_read_set->mutable_dep_ids()){
@@ -493,7 +493,7 @@ void Client::Commit(commit_callback ccb, commit_timeout_callback ctcb,
     uint64_t ns = Latency_End(&executeLatency);
     Latency_Start(&commitLatency);
 
-    if(!txn.query_set.empty() && !params.query_params.cacheReadSet && params.query_params.mergeActiveAtClient){
+    if(!txn.query_set().empty() && !params.query_params.cacheReadSet && params.query_params.mergeActiveAtClient){
       //If has queries, and query deps are meant to be reported by client:
       // Sort and erase all duplicate dependencies. (equality = same txn_id and same involved group.)
       std::sort(txn.mutable_deps()->begin(), txn.mutable_deps()->end(), sortDepSet);

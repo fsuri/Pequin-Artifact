@@ -1507,8 +1507,9 @@ void Server::Commit(const std::string &txnDigest, proto::Transaction *txn,
 void Server::UpdateCommittedReads(proto::Transaction *txn, const std::string &txnDigest, Timestamp &ts, proto::CommittedProof *proof){
 
     const ReadSet *readSet = &txn->read_set(); //DEFAULT
+    const DepSet *depSet = &txn->deps(); //DEFAULT
     
-    mergeTxReadSets(readSet, *txn, txnDigest, proof);  
+    mergeTxReadSets(readSet, depSet, *txn, txnDigest, proof);  
     //Note: use whatever readSet is returned -- if query read sets are not correct/present just use base (it's safe: another replica would've had all)
     //Once subscription on queries wakes up, it will call UpdatecommittedReads again, at which point mergeReadSet will return the full mergedReadSet 
     //TODO: For eventually consistent state may want to explicitly sync on the waiting queries -- not necessary for safety though
