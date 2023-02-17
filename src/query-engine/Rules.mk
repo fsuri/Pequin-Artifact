@@ -14,26 +14,26 @@ catalog/query_metrics_catalog.cc catalog/schema_catalog.cc catalog/schema.cc cat
 catalog/table_metrics_catalog.cc catalog/trigger_catalog.cc catalog/zone_map_catalog.cc)
 
 # Codegen expression
-SRCS += $(addprefix $(d), codegen/expression/arithmetic_translator.cc codegen/expression/case_translator.cc codegen/expression/comparison_translator.cc \
+#SRCS += $(addprefix $(d), codegen/expression/arithmetic_translator.cc codegen/expression/case_translator.cc codegen/expression/comparison_translator.cc \
 codegen/expression/conjunction_translator.cc codegen/expression/constant_translator.cc codegen/expression/expression_translator.cc \
 codegen/expression/function_translator.cc codegen/expression/negation_translator.cc codegen/expression/null_check_translator.cc \
 codegen/expression/parameter_translator.cc codegen/expression/tuple_value_translator.cc)
 
 # Codegen interpreter
-SRCS += $(addprefix $(d), codegen/interpreter/bytecode_builder.cc codegen/interpreter/bytecode_function.cc codegen/interpreter/bytecode_interpreter.cc)
+#SRCS += $(addprefix $(d), codegen/interpreter/bytecode_builder.cc codegen/interpreter/bytecode_function.cc codegen/interpreter/bytecode_interpreter.cc)
 
 # Codegen lang
-SRCS += $(addprefix $(d), codegen/lang/if.cc codegen/lang/loop.cc codegen/lang/vectorized_loop.cc)
+#SRCS += $(addprefix $(d), codegen/lang/if.cc codegen/lang/loop.cc codegen/lang/vectorized_loop.cc)
 
 # Codegen operator
-SRCS += $(addprefix $(d), codegen/operator/block_nested_loop_join_translator.cc codegen/operator/csv_scan_translator.cc codegen/operator/delete_translator.cc \
+#SRCS += $(addprefix $(d), codegen/operator/block_nested_loop_join_translator.cc codegen/operator/csv_scan_translator.cc codegen/operator/delete_translator.cc \
 codegen/operator/global_group_by_translator.cc codegen/operator/hash_group_by_translator.cc codegen/operator/hash_join_translator.cc \
 codegen/operator/hash_translator.cc codegen/operator/insert_translator.cc codegen/operator/limit_translator.cc codegen/operator/operator_translator.cc \
 codegen/operator/order_by_translator.cc codegen/operator/projection_translator.cc codegen/operator/table_scan_translator.cc \
 codegen/operator/update_translator.cc)
 
 # Codegen proxy
-SRCS += $(addprefix $(d), codegen/proxy/bloom_filter_proxy.cc codegen/proxy/buffer_proxy.cc codegen/proxy/csv_scanner_proxy.cc \
+#SRCS += $(addprefix $(d), codegen/proxy/bloom_filter_proxy.cc codegen/proxy/buffer_proxy.cc codegen/proxy/csv_scanner_proxy.cc \
 codegen/proxy/data_table_proxy.cc codegen/proxy/date_functions_proxy.cc codegen/proxy/deleter_proxy.cc codegen/proxy/executor_context_proxy.cc \
 codegen/proxy/hash_table_proxy.cc codegen/proxy/inserter_proxy.cc codegen/proxy/numeric_functions_proxy.cc codegen/proxy/oa_hash_table_proxy.cc \
 codegen/proxy/pool_proxy.cc codegen/proxy/query_parameters_proxy.cc codegen/proxy/runtime_functions_proxy.cc codegen/proxy/sorter_proxy.cc \
@@ -43,16 +43,16 @@ codegen/proxy/tuple_proxy.cc codegen/proxy/updater_proxy.cc codegen/proxy/value_
 codegen/proxy/varlen_proxy.cc codegen/proxy/zone_map_proxy.cc)
 
 # Codegen type
-SRCS += $(addprefix $(d), codegen/type/array_type.cc codegen/type/bigint_type.cc codegen/type/boolean_type.cc codegen/type/date_type.cc \
+#SRCS += $(addprefix $(d), codegen/type/array_type.cc codegen/type/bigint_type.cc codegen/type/boolean_type.cc codegen/type/date_type.cc \
 codegen/type/decimal_type.cc codegen/type/integer_type.cc codegen/type/smallint_type.cc codegen/type/sql_type.cc codegen/type/timestamp_type.cc \
 codegen/type/tinyint_type.cc codegen/type/type_system.cc codegen/type/type.cc codegen/type/varbinary_type.cc codegen/type/varchar_type.cc)
 
 # Codegen util
-SRCS += $(addprefix $(d), codegen/util/bloom_filter.cc codegen/util/buffer.cc codegen/util/csv_scanner.cc codegen/util/hash_table.cc \
+#SRCS += $(addprefix $(d), codegen/util/bloom_filter.cc codegen/util/buffer.cc codegen/util/csv_scanner.cc codegen/util/hash_table.cc \
 codegen/util/oa_hash_table.cc codegen/util/sorter.cc)
 
 # Codegen
-SRCS += $(addprefix $(d), codegen/aggregation.cc codegen/bloom_filter_accessor.cc codegen/buffer_accessor.cc codegen/buffering_consumer.cc \
+#SRCS += $(addprefix $(d), codegen/aggregation.cc codegen/bloom_filter_accessor.cc codegen/buffer_accessor.cc codegen/buffering_consumer.cc \
 codegen/code_context.cc codegen/codegen.cc codegen/compact_storage.cc codegen/compilation_context.cc codegen/consumer_context.cc \
 codegen/counting_consumer.cc codegen/deleter.cc codegen/execution_consumer.cc codegen/function_builder.cc codegen/hash_table.cc \
 codegen/hash.cc codegen/inserter.cc codegen/oa_hash_table.cc codegen/parameter_cache.cc codegen/pipeline.cc codegen/query_cache.cc \
@@ -149,7 +149,7 @@ SRCS += $(addprefix $(d), type/array_type.cc type/bigint_type.cc type/boolean_ty
 type/integer_type.cc type/numeric_type.cc type/smallint_type.cc type/timestamp_type.cc type/tinyint_type.cc type/type.cc type/value.cc type/value.cc type/varlen_type.cc)
 
 # UDF
-SRCS += $(addprefix $(d), udf/ast_nodes.cc udf/udf_handler.cc udf/udf_parser.cc)
+#SRCS += $(addprefix $(d), udf/ast_nodes.cc udf/udf_handler.cc udf/udf_parser.cc)
 
 # Util
 SRCS += $(addprefix $(d), util/file.cc util/string_util.cc util/stringbox_util.cc)
@@ -173,26 +173,26 @@ $(o)catalog/query_metrics_catalog.o $(o)catalog/schema_catalog.o $(o)catalog/sch
 $(o)catalog/table_metrics_catalog.o $(o)catalog/trigger_catalog.o $(o)catalog/zone_map_catalog.o
 
 # Codegen expression
-LIB-codegen-expression := $(o)codegen/expression/arithmetic_translator.o $(o)codegen/expression/case_translator.o $(o)codegen/expression/comparison_translator.o \
+#LIB-codegen-expression := $(o)codegen/expression/arithmetic_translator.o $(o)codegen/expression/case_translator.o $(o)codegen/expression/comparison_translator.o \
 $(o)codegen/expression/conjunction_translator.o $(o)codegen/expression/constant_translator.o $(o)codegen/expression/expression_translator.o \
 $(o)codegen/expression/function_translator.o $(o)codegen/expression/negation_translator.o $(o)codegen/expression/null_check_translator.o \
 $(o)codegen/expression/parameter_translator.o $(o)codegen/expression/tuple_value_translator.o
 
 # Codegen interpreter
-LIB-codegen-interpreter := $(o)codegen/interpreter/bytecode_builder.o $(o)codegen/interpreter/bytecode_function.o $(o)codegen/interpreter/bytecode_interpreter.o
+#LIB-codegen-interpreter := $(o)codegen/interpreter/bytecode_builder.o $(o)codegen/interpreter/bytecode_function.o $(o)codegen/interpreter/bytecode_interpreter.o
 
 # Codegen lang
-LIB-codegen-lang := $(o)codegen/lang/if.o $(o)codegen/lang/loop.o $(o)codegen/lang/vectorized_loop.o
+#LIB-codegen-lang := $(o)codegen/lang/if.o $(o)codegen/lang/loop.o $(o)codegen/lang/vectorized_loop.o
 
 # Codegen operator
-LIB-codegen-operator := $(o)codegen/operator/block_nested_loop_join_translator.o $(o)codegen/operator/csv_scan_translator.o $(o)codegen/operator/delete_translator.o \
+#LIB-codegen-operator := $(o)codegen/operator/block_nested_loop_join_translator.o $(o)codegen/operator/csv_scan_translator.o $(o)codegen/operator/delete_translator.o \
 $(o)codegen/operator/global_group_by_translator.o $(o)codegen/operator/hash_group_by_translator.o $(o)codegen/operator/hash_join_translator.o \
 $(o)codegen/operator/hash_translator.o $(o)codegen/operator/insert_translator.o $(o)codegen/operator/limit_translator.o $(o)codegen/operator/operator_translator.o \
 $(o)codegen/operator/order_by_translator.o $(o)codegen/operator/projection_translator.o $(o)codegen/operator/table_scan_translator.o \
 $(o)codegen/operator/update_translator.o
 
 # Codegen proxy
-LIB-codegen-proxy := $(o)codegen/proxy/bloom_filter_proxy.o $(o)codegen/proxy/buffer_proxy.o $(o)codegen/proxy/csv_scanner_proxy.o \
+#LIB-codegen-proxy := $(o)codegen/proxy/bloom_filter_proxy.o $(o)codegen/proxy/buffer_proxy.o $(o)codegen/proxy/csv_scanner_proxy.o \
 $(o)codegen/proxy/data_table_proxy.o $(o)codegen/proxy/date_functions_proxy.o $(o)codegen/proxy/deleter_proxy.o $(o)codegen/proxy/executor_context_proxy.o \
 $(o)codegen/proxy/hash_table_proxy.o $(o)codegen/proxy/inserter_proxy.o $(o)codegen/proxy/numeric_functions_proxy.o $(o)codegen/proxy/oa_hash_table_proxy.o \
 $(o)codegen/proxy/pool_proxy.o $(o)codegen/proxy/query_parameters_proxy.o $(o)codegen/proxy/runtime_functions_proxy.o $(o)codegen/proxy/sorter_proxy.o \
@@ -202,16 +202,16 @@ $(o)codegen/proxy/tuple_proxy.o $(o)codegen/proxy/updater_proxy.o $(o)codegen/pr
 $(o)codegen/proxy/varlen_proxy.o $(o)codegen/proxy/zone_map_proxy.o
 
 # Codegen type
-LIB-codegen-type := $(o)codegen/type/array_type.o $(o)codegen/type/bigint_type.o $(o)codegen/type/boolean_type.o $(o)codegen/type/date_type.o \
+#LIB-codegen-type := $(o)codegen/type/array_type.o $(o)codegen/type/bigint_type.o $(o)codegen/type/boolean_type.o $(o)codegen/type/date_type.o \
 $(o)codegen/type/decimal_type.o $(o)codegen/type/integer_type.o $(o)codegen/type/smallint_type.o $(o)codegen/type/sql_type.o $(o)codegen/type/timestamp_type.o \
 $(o)codegen/type/tinyint_type.o $(o)codegen/type/type_system.o $(o)codegen/type/type.o $(o)codegen/type/varbinary_type.o $(o)codegen/type/varchar_type.o
 
 # Codegen util
-LIB-codegen-util := $(o)codegen/util/bloom_filter.o $(o)codegen/util/buffer.o $(o)codegen/util/csv_scanner.o $(o)codegen/util/hash_table.o \
+#LIB-codegen-util := $(o)codegen/util/bloom_filter.o $(o)codegen/util/buffer.o $(o)codegen/util/csv_scanner.o $(o)codegen/util/hash_table.o \
 $(o)codegen/util/oa_hash_table.o $(o)codegen/util/sorter.o
 
 # Codegen
-LIB-codegen := $(o)codegen/aggregation.o $(o)codegen/bloom_filter_accessor.o $(o)codegen/buffer_accessor.o $(o)codegen/buffering_consumer.o \
+#LIB-codegen := $(o)codegen/aggregation.o $(o)codegen/bloom_filter_accessor.o $(o)codegen/buffer_accessor.o $(o)codegen/buffering_consumer.o \
 $(o)codegen/code_context.o $(o)codegen/codegen.o $(o)codegen/compact_storage.o $(o)codegen/compilation_context.o $(o)codegen/consumer_context.o \
 $(o)codegen/counting_consumer.o $(o)codegen/deleter.o $(o)codegen/execution_consumer.o $(o)codegen/function_builder.o $(o)codegen/hash_table.o \
 $(o)codegen/hash.o $(o)codegen/inserter.o $(o)codegen/oa_hash_table.o $(o)codegen/parameter_cache.o $(o)codegen/pipeline.o $(o)codegen/query_cache.o \
@@ -307,13 +307,15 @@ LIB-type := $(o)type/array_type.o $(o)type/bigint_type.o $(o)type/boolean_type.o
 $(o)type/integer_type.o $(o)type/numeric_type.o $(o)type/smallint_type.o $(o)type/timestamp_type.o $(o)type/tinyint_type.o $(o)type/type.o $(o)type/value.o $(o)type/value.o $(o)type/varlen_type.o
 
 # Udf
-LIB-udf := $(o)udf/ast_nodes.o $(o)udf/udf_handler.o $(o)udf/udf_parser.o
+#LIB-udf := $(o)udf/ast_nodes.o $(o)udf/udf_handler.o $(o)udf/udf_parser.o
 
 # Util
 LIB-util := $(o)util/file.o $(o)util/string_util.o $(o)util/stringbox_util.o
 
-$(d)queryexec-test: $(LIB-adr) $(LIB-binder) $(LIB-catalog) $(LIB-codegen-expression) $(LIB-codegen-interpreter) $(LIB-codegen-lang) $(LIB-codegen-operator) $(LIB-codegen-proxy) \
-$(LIB-codegen-type) $(LIB-codegen-util) $(LIB-codegen) $(LIB-common) $(LIB-concurrency) $(LIB-executor) $(LIB-expression) $(LIB-function) \
+#$(LIB-codegen-expression) $(LIB-codegen-interpreter) $(LIB-codegen-lang) $(LIB-codegen-operator) $(LIB-codegen-proxy) \
+$(LIB-codegen-type) $(LIB-codegen-util) $(LIB-codegen) $(LIB-udf)
+
+$(d)queryexec-test: $(LIB-adr) $(LIB-binder) $(LIB-catalog) $(LIB-common) $(LIB-concurrency) $(LIB-executor) $(LIB-expression) $(LIB-function) \
 $(LIB-gc) $(LIB-index) $(LIB-murmur) $(LIB-optimizer) $(LIB-parser) $(LIB-planner) $(LIB-settings) $(LIB-statistics) $(LIB-storage) $(LIB-threadpool) $(LIB-traffic-cop) \
-$(LIB-tuning) $(LIB-trigger) $(LIB-type) $(LIB-udf) $(LIB-util) $(o)queryexec-test.o
+$(LIB-tuning) $(LIB-trigger) $(LIB-type) $(LIB-util) $(o)queryexec-test.o
 BINS += $(d)queryexec-test

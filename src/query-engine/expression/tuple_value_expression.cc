@@ -57,7 +57,7 @@ hash_t TupleValueExpression::HashForExactMatch() const {
   return hash;
 }
 
-bool TupleValueExpression::IsNullable() const { return ai_->type.nullable; }
+bool TupleValueExpression::IsNullable() const { return false; /*ai_->type.nullable;*/ }
 
 const std::string TupleValueExpression::GetInfo(int num_indent) const {
   std::ostringstream os;

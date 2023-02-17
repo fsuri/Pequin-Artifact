@@ -81,14 +81,14 @@ bool ProjectionPlan::operator==(const AbstractPlan &rhs) const {
   return AbstractPlan::operator==(rhs);
 }
 
-void ProjectionPlan::VisitParameters(
+/*void ProjectionPlan::VisitParameters(
     codegen::QueryParametersMap &map, std::vector<peloton::type::Value> &values,
     const std::vector<peloton::type::Value> &values_from_user) {
   AbstractPlan::VisitParameters(map, values, values_from_user);
 
   auto *proj_info = const_cast<planner::ProjectInfo *>(GetProjectInfo());
   proj_info->VisitParameters(map, values, values_from_user);
-}
+}*/
 
 }  // namespace planner
 }  // namespace peloton

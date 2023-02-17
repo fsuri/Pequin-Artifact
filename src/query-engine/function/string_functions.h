@@ -13,6 +13,7 @@
 #pragma once
 
 #include <cstdint>
+#include "../type/type.h"
 
 namespace peloton {
 
@@ -118,7 +119,7 @@ class StringFunctions {
    * @param len
    * @return
    */
-  static StrWithLen InputString(const codegen::type::Type &type,
+  static StrWithLen InputString(const peloton::type::Type &type,
                                 const char *data, uint32_t len);
 };
 

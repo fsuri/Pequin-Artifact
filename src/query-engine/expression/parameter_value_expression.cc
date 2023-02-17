@@ -55,7 +55,7 @@ hash_t ParameterValueExpression::Hash() const {
   return HashUtil::CombineHashes(hash, HashUtil::Hash(&is_nullable_));
 }
 
-void ParameterValueExpression::VisitParameters(
+/*void ParameterValueExpression::VisitParameters(
     codegen::QueryParametersMap &map, std::vector<peloton::type::Value> &values,
     const std::vector<peloton::type::Value> &values_from_user) {
   // Add a new parameter object for a parameter
@@ -67,7 +67,7 @@ void ParameterValueExpression::VisitParameters(
              this);
   values.push_back(value);
   return_value_type_ = value.GetTypeId();
-};
+};*/
 
 const std::string ParameterValueExpression::GetInfo(int num_indent) const {
   std::ostringstream os;

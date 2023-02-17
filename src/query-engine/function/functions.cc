@@ -12,8 +12,8 @@
 
 #include "../function/functions.h"
 
-#include "../codegen/code_context.h"
-#include "../codegen/value.h"
+/*#include "../codegen/code_context.h"
+#include "../codegen/value.h"*/
 
 namespace peloton {
 namespace function {
@@ -35,7 +35,7 @@ BuiltInFuncType BuiltInFunctions::GetFuncByName(const std::string &func_name) {
 }
 
 // PL/pgSQL UDF map
-std::unordered_map<oid_t, std::shared_ptr<peloton::codegen::CodeContext>>
+/*std::unordered_map<oid_t, std::shared_ptr<peloton::codegen::CodeContext>>
     PlpgsqlFunctions::kFuncMap;
 
 void PlpgsqlFunctions::AddFunction(
@@ -51,7 +51,7 @@ PlpgsqlFunctions::GetFuncContextByOid(const oid_t oid) {
     return nullptr;
   }
   return func->second;
-}
+}*/
 
 }  // namespace function
 }  // namespace peloton

@@ -12,10 +12,10 @@
 
 #include "../executor/plan_executor.h"
 
-#include "../codegen/buffering_consumer.h"
+/*#include "../codegen/buffering_consumer.h"
 #include "../codegen/query.h"
 #include "../codegen/query_cache.h"
-#include "../codegen/query_compiler.h"
+#include "../codegen/query_compiler.h"*/
 #include "../common/logger.h"
 #include "../concurrency/transaction_manager_factory.h"
 #include "../executor/executor_context.h"
@@ -47,14 +47,14 @@ static void CompileAndExecutePlan(
   // Prepare output buffer
   std::vector<oid_t> columns;
   plan->GetOutputColumns(columns);
-  codegen::BufferingConsumer consumer{columns, context};
+  //codegen::BufferingConsumer consumer{columns, context};
 
   // The executor context for this execution
   executor::ExecutorContext executor_context{
-      txn, codegen::QueryParameters(*plan, params)};
+      txn/*, codegen::QueryParameters(*plan, params)*/};
 
   // Check if we have a cached compiled plan already
-  codegen::Query *query = codegen::QueryCache::Instance().Find(plan);
+  /*codegen::Query *query = codegen::QueryCache::Instance().Find(plan);
   if (query == nullptr) {
     codegen::QueryCompiler compiler;
     auto compiled_query = compiler.Compile(
@@ -89,7 +89,7 @@ static void CompileAndExecutePlan(
 
   // Done, invoke callback
   plan->ClearParameterValues();
-  on_complete(result, std::move(values));
+  on_complete(result, std::move(values));*/
 }
 
 static void InterpretPlan(
@@ -158,11 +158,11 @@ void PlanExecutor::ExecutePlan(
   PELOTON_ASSERT(plan != nullptr && txn != nullptr);
   LOG_TRACE("PlanExecutor Start (Txn ID=%" PRId64 ")", txn->GetTransactionId());
 
-  bool codegen_enabled =
-      settings::SettingsManager::GetBool(settings::SettingId::codegen);
+  bool codegen_enabled = false;
+      //settings::SettingsManager::GetBool(settings::SettingId::codegen);
 
   try {
-    if (codegen_enabled && codegen::QueryCompiler::IsSupported(*plan)) {
+    if (codegen_enabled /*&& codegen::QueryCompiler::IsSupported(*plan)*/) {
       CompileAndExecutePlan(plan, txn, params, on_complete);
     } else {
       InterpretPlan(plan, txn, params, result_format, on_complete);

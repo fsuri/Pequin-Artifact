@@ -17,7 +17,7 @@
 #include <vector>
 
 #include "../catalog/schema.h"
-#include "../codegen/query_parameters_map.h"
+//#include "../codegen/query_parameters_map.h"
 #include "../common/printable.h"
 #include "../planner/binding_context.h"
 #include "../type/serializeio.h"
@@ -135,13 +135,13 @@ class AbstractPlan : public Printable {
     return !(*this == rhs);
   }
 
-  virtual void VisitParameters(codegen::QueryParametersMap &map,
+  /*virtual void VisitParameters(codegen::QueryParametersMap &map,
       std::vector<peloton::type::Value> &values,
       const std::vector<peloton::type::Value> &values_from_user) {
     for (auto &child : GetChildren()) {
       child->VisitParameters(map, values, values_from_user);
     }
-  }
+  }*/
 
  protected:
   // only used by its derived classes (when deserialization)

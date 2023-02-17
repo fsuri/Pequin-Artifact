@@ -35,7 +35,9 @@ class Type {
     }
   };
 
+  Type() {}
   Type(TypeId type_id) : type_id_(type_id) {}
+  Type(TypeId type_id, bool nullable) : type_id_(type_id) {}
 
   virtual ~Type() {}
   // Get the size of this data type in bytes

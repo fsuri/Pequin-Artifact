@@ -46,10 +46,10 @@ class ConstantValueExpression : public AbstractExpression {
     return !(*this == rhs);
   }
 
-  void VisitParameters(
+  /*void VisitParameters(
       codegen::QueryParametersMap &map,
       std::vector<peloton::type::Value> &values,
-      const std::vector<peloton::type::Value> &values_from_user) override;
+      const std::vector<peloton::type::Value> &values_from_user) override;*/
 
   // Copy this constant expression
   AbstractExpression *Copy() const override;
@@ -140,7 +140,7 @@ inline bool ConstantValueExpression::operator==(
   return true;
 }
 
-inline void ConstantValueExpression::VisitParameters(
+/*inline void ConstantValueExpression::VisitParameters(
     codegen::QueryParametersMap &map, std::vector<peloton::type::Value> &values,
     UNUSED_ATTRIBUTE const std::vector<peloton::type::Value> &
         values_from_user) {
@@ -148,7 +148,7 @@ inline void ConstantValueExpression::VisitParameters(
   map.Insert(Parameter::CreateConstParameter(value_.GetTypeId(), is_nullable),
              this);
   values.push_back(value_);
-}
+}*/
 
 inline AbstractExpression *ConstantValueExpression::Copy() const {
   return new ConstantValueExpression(GetValue());

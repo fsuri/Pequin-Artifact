@@ -17,7 +17,7 @@
 #include "../common/printable.h"
 #include "../planner/attribute_info.h"
 #include "../expression/parameter.h"
-#include "../codegen/query_parameters_map.h"
+//#include "../codegen/query_parameters_map.h"
 #include "../common/internal_types.h"
 #include "../storage/zone_map_manager.h"
 
@@ -137,7 +137,8 @@ class AbstractExpression : public Printable {
 
   type::TypeId GetValueType() const { return return_value_type_; }
 
-  codegen::type::Type ResultType() const;
+  //codegen::type::Type ResultType() const;
+  type::Type ResultType() const;
 
   // Attribute binding
   virtual void PerformBinding(
@@ -177,14 +178,14 @@ class AbstractExpression : public Printable {
   virtual bool ExactlyEquals(const AbstractExpression &other) const;
   virtual hash_t HashForExactMatch() const;
 
-  virtual void VisitParameters(
+  /*virtual void VisitParameters(
       codegen::QueryParametersMap &map,
       std::vector<peloton::type::Value> &values,
       const std::vector<peloton::type::Value> &values_from_user) {
     for (auto &child : children_) {
       child->VisitParameters(map, values, values_from_user);
     }
-  };
+  };*/
 
   virtual AbstractExpression *Copy() const = 0;
 

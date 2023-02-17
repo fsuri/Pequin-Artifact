@@ -313,11 +313,11 @@ void BindNodeVisitor::Visit(expression::FunctionExpression *expr) {
       StringToDatePartType(
           date_part->Evaluate(nullptr, nullptr, nullptr).ToString());
     }
-  } else {
+  } /*else {
     expr->SetUDFFunctionExpressionParameters(func_data.func_context_,
                                              func_data.return_type_,
                                              func_data.argument_types_);
-  }
+  }*/
 }
 
 }  // namespace binder

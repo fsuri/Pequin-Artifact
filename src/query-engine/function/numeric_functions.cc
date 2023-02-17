@@ -12,8 +12,8 @@
 
 #include "../function/numeric_functions.h"
 
-#include "../codegen/type/type.h"
-#include "../codegen/runtime_functions.h"
+/*#include "../codegen/type/type.h"
+#include "../codegen/runtime_functions.h"*/
 #include "../type/value.h"
 #include "../type/value_factory.h"
 
@@ -264,23 +264,23 @@ T ParseInteger(const char *ptr, uint32_t len) {
   return static_cast<T>(num);
 
 overflow:
-  codegen::RuntimeFunctions::ThrowOverflowException();
+  //codegen::RuntimeFunctions::ThrowOverflowException();
   __builtin_unreachable();
 
 invalid:
-  codegen::RuntimeFunctions::ThrowInvalidInputStringException();
+  //codegen::RuntimeFunctions::ThrowInvalidInputStringException();
   __builtin_unreachable();
 }
 
 }  // namespace
 
 bool NumericFunctions::InputBoolean(
-    UNUSED_ATTRIBUTE const codegen::type::Type &type, const char *ptr,
+    UNUSED_ATTRIBUTE const peloton::type::Type &type, const char *ptr,
     uint32_t len) {
   PELOTON_ASSERT(ptr != nullptr && "Input is assumed to be non-NULL");
 
   if (len == 0) {
-    codegen::RuntimeFunctions::ThrowInvalidInputStringException();
+    //codegen::RuntimeFunctions::ThrowInvalidInputStringException();
     __builtin_unreachable();
   }
 
@@ -360,44 +360,44 @@ bool NumericFunctions::InputBoolean(
   }
 
   // Error
-  codegen::RuntimeFunctions::ThrowInvalidInputStringException();
+  //codegen::RuntimeFunctions::ThrowInvalidInputStringException();
   __builtin_unreachable();
 }
 
 int8_t NumericFunctions::InputTinyInt(
-    UNUSED_ATTRIBUTE const codegen::type::Type &type, const char *ptr,
+    UNUSED_ATTRIBUTE const peloton::type::Type &type, const char *ptr,
     uint32_t len) {
   PELOTON_ASSERT(ptr != nullptr && "Input is assumed to be non-NULL");
   return ParseInteger<int8_t>(ptr, len);
 }
 
 int16_t NumericFunctions::InputSmallInt(
-    UNUSED_ATTRIBUTE const codegen::type::Type &type, const char *ptr,
+    UNUSED_ATTRIBUTE const peloton::type::Type &type, const char *ptr,
     uint32_t len) {
   PELOTON_ASSERT(ptr != nullptr && "Input is assumed to be non-NULL");
   return ParseInteger<int16_t>(ptr, len);
 }
 
 int32_t NumericFunctions::InputInteger(
-    UNUSED_ATTRIBUTE const codegen::type::Type &type, const char *ptr,
+    UNUSED_ATTRIBUTE const peloton::type::Type &type, const char *ptr,
     uint32_t len) {
   PELOTON_ASSERT(ptr != nullptr && "Input is assumed to be non-NULL");
   return ParseInteger<int32_t>(ptr, len);
 }
 
 int64_t NumericFunctions::InputBigInt(
-    UNUSED_ATTRIBUTE const codegen::type::Type &type, const char *ptr,
+    UNUSED_ATTRIBUTE const peloton::type::Type &type, const char *ptr,
     uint32_t len) {
   PELOTON_ASSERT(ptr != nullptr && "Input is assumed to be non-NULL");
   return ParseInteger<int64_t>(ptr, len);
 }
 
 double NumericFunctions::InputDecimal(
-    UNUSED_ATTRIBUTE const codegen::type::Type &type, const char *ptr,
+    UNUSED_ATTRIBUTE const peloton::type::Type &type, const char *ptr,
     uint32_t len) {
   PELOTON_ASSERT(ptr != nullptr && "Input is assumed to be non-NULL");
   if (len == 0) {
-    codegen::RuntimeFunctions::ThrowInvalidInputStringException();
+    //codegen::RuntimeFunctions::ThrowInvalidInputStringException();
     __builtin_unreachable();
   }
 
@@ -412,10 +412,10 @@ double NumericFunctions::InputDecimal(
 
   if (unlikely_branch(consumed_ptr == start)) {
     if (errno == ERANGE) {
-      codegen::RuntimeFunctions::ThrowOverflowException();
+      //codegen::RuntimeFunctions::ThrowOverflowException();
       __builtin_unreachable();
     } else {
-      codegen::RuntimeFunctions::ThrowInvalidInputStringException();
+      //codegen::RuntimeFunctions::ThrowInvalidInputStringException();
       __builtin_unreachable();
     }
   }
@@ -427,7 +427,7 @@ double NumericFunctions::InputDecimal(
 
   // If we haven't consumed everything at this point, it was an invalid input
   if (consumed_ptr < end) {
-    codegen::RuntimeFunctions::ThrowInvalidInputStringException();
+    //codegen::RuntimeFunctions::ThrowInvalidInputStringException();
     __builtin_unreachable();
   }
 

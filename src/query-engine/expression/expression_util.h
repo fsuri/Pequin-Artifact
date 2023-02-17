@@ -596,11 +596,11 @@ class ExpressionUtil {
       if (!func_data.is_udf_) {
         func_expr->SetBuiltinFunctionExpressionParameters(
             func_data.func_, func_data.return_type_, func_data.argument_types_);
-      } else {
+      } /*else {
         func_expr->SetUDFFunctionExpressionParameters(
             func_data.func_context_, func_data.return_type_,
             func_data.argument_types_);
-      }
+      }*/
     } else if (expr->GetExpressionType() ==
                ExpressionType::OPERATOR_CASE_EXPR) {
       auto case_expr = reinterpret_cast<expression::CaseExpression *>(expr);
@@ -939,11 +939,11 @@ class ExpressionUtil {
       if (!func_data.is_udf_) {
         func_expr->SetBuiltinFunctionExpressionParameters(
             func_data.func_, func_data.return_type_, func_data.argument_types_);
-      } else {
+      } /*else {
         func_expr->SetUDFFunctionExpressionParameters(
             func_data.func_context_, func_data.return_type_,
             func_data.argument_types_);
-      }
+      }*/
     }
 
     // Handle case expressions

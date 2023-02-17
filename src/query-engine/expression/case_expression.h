@@ -139,7 +139,7 @@ class CaseExpression : public AbstractExpression {
     return hash;
   }
 
-  void VisitParameters(
+  /*void VisitParameters(
       codegen::QueryParametersMap &map,
       std::vector<peloton::type::Value> &values,
       const std::vector<peloton::type::Value> &values_from_user) override {
@@ -151,7 +151,7 @@ class CaseExpression : public AbstractExpression {
     if (GetDefault() != nullptr) {
       default_expr_->VisitParameters(map, values, values_from_user);
     }
-  };
+  };*/
 
   const std::string GetInfo(int num_indent) const override;
 

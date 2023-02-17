@@ -61,7 +61,7 @@ void AbstractJoinPlan::PerformBinding(BindingContext &context) {
   }
 }
 
-void AbstractJoinPlan::VisitParameters(
+/*void AbstractJoinPlan::VisitParameters(
     codegen::QueryParametersMap &map, std::vector<peloton::type::Value> &values,
     const std::vector<peloton::type::Value> &values_from_user) {
   AbstractPlan::VisitParameters(map, values, values_from_user);
@@ -80,7 +80,7 @@ void AbstractJoinPlan::VisitParameters(
       derived_attr_expr->VisitParameters(map, values, values_from_user);
     }
   }
-}
+}*/
 
 bool AbstractJoinPlan::operator==(const AbstractPlan &rhs) const {
   if (GetPlanNodeType() != rhs.GetPlanNodeType()) {

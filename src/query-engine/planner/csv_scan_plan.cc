@@ -14,7 +14,7 @@
 
 #include <numeric>
 
-#include "../codegen/type/type.h"
+//#include "../codegen/type/type.h"
 
 namespace peloton {
 namespace planner {
@@ -31,7 +31,7 @@ CSVScanPlan::CSVScanPlan(std::string file_name,
   attributes_.resize(cols.size());
   for (uint32_t i = 0; i < cols.size(); i++) {
     const auto &col_info = cols[i];
-    attributes_[i].type = codegen::type::Type{col_info.type, true};
+    attributes_[i].type = type::Type{col_info.type, true};
     attributes_[i].attribute_id = i;
     attributes_[i].name = col_info.name;
   }
@@ -45,7 +45,7 @@ std::unique_ptr<AbstractPlan> CSVScanPlan::Copy() const {
   std::vector<CSVScanPlan::ColumnInfo> new_cols;
   for (const auto &attribute : attributes_) {
     new_cols.push_back(CSVScanPlan::ColumnInfo{.name = attribute.name,
-                                               .type = attribute.type.type_id});
+                                               .type = attribute.type.GetTypeId()});
   }
   return std::unique_ptr<AbstractPlan>(
       new CSVScanPlan(file_name_, std::move(new_cols)));

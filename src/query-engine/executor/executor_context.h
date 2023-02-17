@@ -12,7 +12,7 @@
 
 #pragma once
 
-#include "../codegen/query_parameters.h"
+//#include "../codegen/query_parameters.h"
 #include "../type/ephemeral_pool.h"
 #include "../type/value.h"
 
@@ -34,8 +34,8 @@ namespace executor {
 class ExecutorContext {
  public:
   /// Constructor
-  ExecutorContext(concurrency::TransactionContext *transaction,
-                  codegen::QueryParameters parameters = {});
+  ExecutorContext(concurrency::TransactionContext *transaction, std::vector<type::Value> parameters = {}
+                  /*codegen::QueryParameters parameters = {}*/);
 
   /// This class cannot be copy or move-constructed
   DISALLOW_COPY_AND_MOVE(ExecutorContext);
@@ -56,7 +56,7 @@ class ExecutorContext {
   storage::StorageManager &GetStorageManager() const;
 
   /// Return the query parameters
-  codegen::QueryParameters &GetParams();
+  //codegen::QueryParameters &GetParams();
 
   /// Return the memory pool for this particular query execution
   type::EphemeralPool *GetPool();
@@ -98,7 +98,8 @@ class ExecutorContext {
   // The transaction context
   concurrency::TransactionContext *transaction_;
   // All query parameters
-  codegen::QueryParameters parameters_;
+  //codegen::QueryParameters parameters_;
+  std::vector<type::Value> parameters_;
   // The storage manager instance
   storage::StorageManager *storage_manager_;
   // Temporary memory pool for allocations done during execution

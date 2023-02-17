@@ -14,12 +14,12 @@
 
 #include "../catalog/catalog.h"
 #include "../catalog/language_catalog.h"
-#include "../codegen/code_context.h"
+//#include "../codegen/code_context.h"
 #include "../common/logger.h"
 #include "../concurrency/transaction_context.h"
 #include "../executor/executor_context.h"
 #include "../planner/create_function_plan.h"
-#include "../udf/udf_handler.h"
+//#include "../udf/udf_handler.h"
 
 namespace peloton {
 namespace executor {
@@ -51,16 +51,16 @@ bool CreateFunctionExecutor::DExecute() {
 
   // Pass it off to the UDF handler. Once the UDF is compiled, put that along
   // with the other UDF details into the catalog
-  udf::UDFHandler udf_handler;
+  /*udf::UDFHandler udf_handler;
 
   auto code_context = udf_handler.Execute(current_txn, proname, prosrc,
-                                          proargnames, proargtypes, prorettype);
+                                          proargnames, proargtypes, prorettype);*/
 
   // The result
   ResultType result;
 
   // Get LLVM Function Pointer for the compiled UDF
-  auto func_ptr = code_context->GetUDF();
+  /*auto func_ptr = code_context->GetUDF();
   if (func_ptr != nullptr) {
     // Insert into catalog
     catalog::Catalog::GetInstance()->AddProcedure(current_txn,
@@ -73,7 +73,7 @@ bool CreateFunctionExecutor::DExecute() {
     result = ResultType::SUCCESS;
   } else {
     result = ResultType::FAILURE;
-  }
+  }*/
 
   current_txn->SetResult(result);
 

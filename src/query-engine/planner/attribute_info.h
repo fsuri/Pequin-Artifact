@@ -14,7 +14,8 @@
 
 #include <string>
 
-#include "../codegen/type/type.h"
+//#include "../codegen/type/type.h"
+#include "../type/type.h"
 #include "../common/internal_types.h"
 
 namespace peloton {
@@ -23,7 +24,8 @@ namespace planner {
 // Describes an attribute that is passed around in the query plan
 struct AttributeInfo {
   // The actual type of this attribute (smallint, integer, varchar etc.)
-  codegen::type::Type type;
+  peloton::type::Type type;
+  //codegen::type::Type type;
   // The ID of the attribute
   oid_t attribute_id;
   // The name of this attribute. This isn't always available, so no one should

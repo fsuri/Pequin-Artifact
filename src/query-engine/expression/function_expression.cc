@@ -71,7 +71,7 @@ void FunctionExpression::SetBuiltinFunctionExpressionParameters(
   CheckChildrenTypes();
 }
 
-void FunctionExpression::SetUDFFunctionExpressionParameters(
+/*void FunctionExpression::SetUDFFunctionExpressionParameters(
     std::shared_ptr<peloton::codegen::CodeContext> func_context,
     type::TypeId val_type, const std::vector<type::TypeId> &arg_types) {
   is_udf_ = true;
@@ -79,7 +79,7 @@ void FunctionExpression::SetUDFFunctionExpressionParameters(
   return_value_type_ = val_type;
   func_arg_types_ = arg_types;
   CheckChildrenTypes();
-}
+}*/
 
 const std::string FunctionExpression::GetInfo(int num_indent) const {
   std::ostringstream os;

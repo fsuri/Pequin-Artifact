@@ -28,7 +28,7 @@
 #include "../catalog/table_catalog.h"
 #include "../catalog/table_metrics_catalog.h"
 #include "../catalog/trigger_catalog.h"
-#include "../codegen/code_context.h"
+//#include "../codegen/code_context.h"
 #include "../concurrency/transaction_manager_factory.h"
 #include "../function/date_functions.h"
 #include "../function/numeric_functions.h"
@@ -1837,7 +1837,7 @@ void Catalog::AddProcedure(concurrency::TransactionContext *txn,
                            std::shared_ptr<peloton::codegen::CodeContext> code_context,
                            const std::string &func_src) {
   // Check if UDF already exists
-  auto proc_catalog_obj =
+  /*auto proc_catalog_obj =
       ProcCatalog::GetInstance().GetProcByName(txn, name, argument_types);
 
   if (proc_catalog_obj == nullptr) {
@@ -1855,7 +1855,7 @@ void Catalog::AddProcedure(concurrency::TransactionContext *txn,
     // Insert UDF into Catalog
     function::PlpgsqlFunctions::AddFunction(proc_catalog_obj->GetOid(),
                                             code_context);
-  }
+  }*/
 }
 
 const FunctionData Catalog::GetFunction(
@@ -1898,7 +1898,7 @@ const FunctionData Catalog::GetFunction(
           "Function " + name +
               " is internal, but doesn't have a function address");
     }
-  } else if (lang_catalog_obj->GetName() == "plpgsql") {
+  } /*else if (lang_catalog_obj->GetName() == "plpgsql") {
     // If the function is a "plpgsql" udf, perform the lookup in the plpgsql
     // functions map (i.e., function::PlpgsqlFunctions) to get the function
     // code_context
@@ -1912,7 +1912,7 @@ const FunctionData Catalog::GetFunction(
           "Function " + name +
               " is plpgsql, but doesn't have a function address");
     }
-  }
+  }*/
 
   txn_manager.CommitTransaction(txn);
   return result;

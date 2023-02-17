@@ -310,7 +310,7 @@ bool SeqScanPlan::operator==(const AbstractPlan &rhs) const {
 }
 
 
-void SeqScanPlan::VisitParameters(
+/*void SeqScanPlan::VisitParameters(
     codegen::QueryParametersMap &map, std::vector<peloton::type::Value> &values,
     const std::vector<peloton::type::Value> &values_from_user) {
   AbstractPlan::VisitParameters(map, values, values_from_user);
@@ -320,7 +320,7 @@ void SeqScanPlan::VisitParameters(
   if (predicate != nullptr) {
     predicate->VisitParameters(map, values, values_from_user);
   }
-}
+}*/
 
 }  // namespace planner
 }  // namespace peloton

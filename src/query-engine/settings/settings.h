@@ -197,7 +197,7 @@ SETTING_int(brain_worker_pool_size,
 
 SETTING_bool(codegen,
             "Enable code-generation for query execution (default: true)",
-            true,
+            false,
             true, true)
 
 SETTING_bool(codegen_interpreter,

@@ -12,8 +12,10 @@
 
 #include "../planner/aggregate_plan.h"
 
-#include "../codegen/type/bigint_type.h"
-#include "../codegen/type/decimal_type.h"
+/*#include "../codegen/type/bigint_type.h"
+#include "../codegen/type/decimal_type.h"*/
+#include "../type/bigint_type.h"
+#include "../type/decimal_type.h"
 #include "../common/logger.h"
 
 namespace peloton {
@@ -37,7 +39,7 @@ void AggregatePlan::AggTerm::PerformBinding(bool is_global,
     case ExpressionType::AGGREGATE_COUNT:
     case ExpressionType::AGGREGATE_COUNT_STAR: {
       // The SQL type of COUNT() or COUNT(*) is always a non-nullable BIGINT
-      agg_ai.type = codegen::type::Type{codegen::type::BigInt::Instance()};
+      agg_ai.type = type::Type{type::TypeId::BIGINT/*type::BigIntType()*/};
       break;
     }
     case ExpressionType::AGGREGATE_AVG: {
@@ -47,8 +49,8 @@ void AggregatePlan::AggTerm::PerformBinding(bool is_global,
       PELOTON_ASSERT(expression != nullptr);
       // TODO: Move this logic into the SQL type
       const auto &input_type = expression->ResultType();
-      agg_ai.type = codegen::type::Type{codegen::type::Decimal::Instance(),
-                                        input_type.nullable || is_global};
+      agg_ai.type = type::Type{type::TypeId::DECIMAL/*type::DecimalType(),
+                                        input_type.nullable || is_global*/};
       break;
     }
     case ExpressionType::AGGREGATE_MAX:
@@ -58,9 +60,9 @@ void AggregatePlan::AggTerm::PerformBinding(bool is_global,
       // return type as its input expression.
       PELOTON_ASSERT(expression != nullptr);
       agg_ai.type = expression->ResultType();
-      if (is_global) {
+      /*if (is_global) {
         agg_ai.type = agg_ai.type.AsNullable();
-      }
+      }*/
       break;
     }
     default: {
@@ -220,7 +222,7 @@ bool AggregatePlan::operator==(const AbstractPlan &rhs) const {
   return (AbstractPlan::operator==(rhs));
 }
 
-void AggregatePlan::VisitParameters(
+/*void AggregatePlan::VisitParameters(
     codegen::QueryParametersMap &map, std::vector<peloton::type::Value> &values,
     const std::vector<peloton::type::Value> &values_from_user) {
   AbstractPlan::VisitParameters(map, values, values_from_user);
@@ -245,7 +247,7 @@ void AggregatePlan::VisitParameters(
       proj_info->VisitParameters(map, values, values_from_user);
     }
   }
-}
+}*/
 
 }  // namespace planner
 }  // namespace peloton

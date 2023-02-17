@@ -12,7 +12,7 @@
 
 #include <sstream>
 
-#include "../codegen/query_cache.h"
+//#include "../codegen/query_cache.h"
 #include "../common/exception.h"
 #include "../common/logger.h"
 #include "../gc/gc_manager_factory.h"
@@ -76,7 +76,7 @@ void Database::DropTableWithOid(const oid_t table_oid) {
     gc_manager->DeregisterTable(table_oid);
 
     // Deregister table from Query Cache manager
-    codegen::QueryCache::Instance().Remove(table_oid);
+    //codegen::QueryCache::Instance().Remove(table_oid);
 
     oid_t table_offset = 0;
     for (auto table : tables) {

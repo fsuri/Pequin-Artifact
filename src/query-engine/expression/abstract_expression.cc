@@ -14,7 +14,8 @@
 
 #include <string>
 
-#include "../codegen/type/type.h"
+//#include "../codegen/type/type.h"
+#include "../type/type.h"
 #include "../util/hash_util.h"
 #include "../util/string_util.h"
 #include "../expression/expression_util.h"
@@ -56,8 +57,12 @@ void AbstractExpression::GetUsedAttributes(
   }
 }
 
-codegen::type::Type AbstractExpression::ResultType() const {
+/*codegen::type::Type AbstractExpression::ResultType() const {
   return codegen::type::Type{GetValueType(), IsNullable()};
+}*/
+
+type::Type AbstractExpression::ResultType() const {
+  return type::Type{GetValueType()};//, IsNullable()};
 }
 
 void AbstractExpression::DeduceExpressionName() {

@@ -180,7 +180,7 @@ std::string ProjectInfo::Debug() const {
 }
 
 hash_t ProjectInfo::Hash(const planner::DerivedAttribute &attribute) const {
-  hash_t hash = HashUtil::Hash(&attribute.attribute_info.type.type_id);
+  hash_t hash = HashUtil::Hash(&attribute.attribute_info.type);
 
   hash = HashUtil::CombineHashes(hash,
       HashUtil::Hash(&attribute.attribute_info.attribute_id));
@@ -211,7 +211,7 @@ hash_t ProjectInfo::Hash() const {
 
 bool ProjectInfo::AreEqual(const planner::DerivedAttribute &A,
                            const planner::DerivedAttribute &B) const {
-  if (A.attribute_info.type != B.attribute_info.type)
+  if (A.attribute_info.type.GetTypeId() != B.attribute_info.type.GetTypeId())
     return false;
 
   if (A.attribute_info.attribute_id != B.attribute_info.attribute_id)
@@ -254,7 +254,7 @@ bool ProjectInfo::operator==(const ProjectInfo &rhs) const {
   return true;
 }
 
-void ProjectInfo::VisitParameters(
+/*void ProjectInfo::VisitParameters(
     codegen::QueryParametersMap &map, std::vector<peloton::type::Value> &values,
     const std::vector<peloton::type::Value> &values_from_user) {
   if (IsNonTrivial()) {
@@ -268,7 +268,7 @@ void ProjectInfo::VisitParameters(
       expr->VisitParameters(map, values, values_from_user);
     }
   }
-}
+}*/
 
 }  // namespace planner
 }  // namespace peloton

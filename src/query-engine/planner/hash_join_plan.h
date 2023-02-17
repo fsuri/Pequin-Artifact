@@ -75,10 +75,10 @@ class HashJoinPlan : public AbstractJoinPlan {
 
   bool operator==(const AbstractPlan &rhs) const override;
 
-  void VisitParameters(
+  /*void VisitParameters(
       codegen::QueryParametersMap &map,
       std::vector<peloton::type::Value> &values,
-      const std::vector<peloton::type::Value> &values_from_user) override;
+      const std::vector<peloton::type::Value> &values_from_user) override;*/
 
  private:
   // The left and right expressions that constitute the join keys

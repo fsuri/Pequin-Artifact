@@ -278,7 +278,7 @@ bool InsertPlan::operator==(const AbstractPlan &rhs) const {
   return AbstractPlan::operator==(rhs);
 }
 
-void InsertPlan::VisitParameters(
+/*void InsertPlan::VisitParameters(
     codegen::QueryParametersMap &map, std::vector<peloton::type::Value> &values,
     const std::vector<peloton::type::Value> &values_from_user) {
   if (GetChildren().size() == 0) {
@@ -298,7 +298,7 @@ void InsertPlan::VisitParameters(
     auto *plan = const_cast<planner::AbstractPlan *>(GetChild(0));
     plan->VisitParameters(map, values, values_from_user);
   }
-}
+}*/
 
 }  // namespace planner
 }  // namespace peloton

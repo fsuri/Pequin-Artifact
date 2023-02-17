@@ -15,7 +15,7 @@
 #include "../catalog/column_catalog.h"
 #include "../catalog/index_catalog.h"
 #include "../catalog/table_catalog.h"
-#include "../codegen/type/type.h"
+//#include "../codegen/type/type.h"
 #include "../concurrency/transaction_context.h"
 #include "../expression/expression_util.h"
 #include "../optimizer/operator_expression.h"

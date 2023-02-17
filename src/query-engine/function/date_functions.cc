@@ -16,7 +16,7 @@
 #include <date/iso_week.h>
 #include <sys/time.h>
 
-#include "../codegen/runtime_functions.h"
+//#include "../codegen/runtime_functions.h"
 #include "../common/internal_types.h"
 #include "../type/value.h"
 #include "../type/value_factory.h"
@@ -210,7 +210,7 @@ int32_t DateFunctions::InputDate(
   return DateToJulian(year, month, day);
 
 unsupported:
-  codegen::RuntimeFunctions::ThrowInvalidInputStringException();
+  //codegen::RuntimeFunctions::ThrowInvalidInputStringException();
   __builtin_unreachable();
 }
 

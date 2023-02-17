@@ -58,7 +58,7 @@ bool HashPlan::operator==(const AbstractPlan &rhs) const {
   return AbstractPlan::operator==(rhs);
 }
 
-void HashPlan::VisitParameters(
+/*void HashPlan::VisitParameters(
     codegen::QueryParametersMap &map, std::vector<peloton::type::Value> &values,
     const std::vector<peloton::type::Value> &values_from_user) {
   AbstractPlan::VisitParameters(map, values, values_from_user);
@@ -67,7 +67,7 @@ void HashPlan::VisitParameters(
     auto *expr = const_cast<expression::AbstractExpression *>(hash_key.get());
     expr->VisitParameters(map, values, values_from_user);
   }
-}
+}*/
 
 }  // namespace planner
 }  // namespace peloton

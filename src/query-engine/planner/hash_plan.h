@@ -59,9 +59,9 @@ class HashPlan : public AbstractPlan {
     return !(*this == rhs);
   }
 
-  virtual void VisitParameters(codegen::QueryParametersMap &map,
+  /*virtual void VisitParameters(codegen::QueryParametersMap &map,
       std::vector<peloton::type::Value> &values,
-      const std::vector<peloton::type::Value> &values_from_user) override;
+      const std::vector<peloton::type::Value> &values_from_user) override;*/
 
  private:
   std::vector<HashKeyPtrType> hash_keys_;

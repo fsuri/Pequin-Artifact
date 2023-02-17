@@ -128,10 +128,10 @@ class InsertPlan : public AbstractPlan {
     return !(*this == rhs);
   }
 
-  virtual void VisitParameters(
+  /*virtual void VisitParameters(
       codegen::QueryParametersMap &map,
       std::vector<peloton::type::Value> &values,
-      const std::vector<peloton::type::Value> &values_from_user) override;
+      const std::vector<peloton::type::Value> &values_from_user) override;*/
 
  private:
   /**

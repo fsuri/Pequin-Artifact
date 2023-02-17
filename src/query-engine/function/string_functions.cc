@@ -248,7 +248,7 @@ void StringFunctions::WriteString(const char *data, uint32_t len, char *buf,
 // TODO(pmenon): UTF8 checking, string checking, lots of error handling here
 // TODO(pmenon): Why do we need this +1 on the length ?
 StringFunctions::StrWithLen StringFunctions::InputString(
-    UNUSED_ATTRIBUTE const codegen::type::Type &type, const char *data,
+    UNUSED_ATTRIBUTE const peloton::type::Type &type, const char *data,
     uint32_t len) {
   return StringFunctions::StrWithLen{data, len + 1};
 }
