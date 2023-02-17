@@ -36,8 +36,8 @@
 #include "../storage/tile_group_factory.h"
 #include "../storage/tile_group_header.h"
 #include "../storage/tuple.h"
-#include "../tuning/clusterer.h"
-#include "../tuning/sample.h"
+//#include "../tuning/clusterer.h"
+//#include "../tuning/sample.h"
 
 //===--------------------------------------------------------------------===//
 // Configuration Variables
@@ -1242,51 +1242,51 @@ storage::TileGroup *DataTable::TransformTileGroup(
   return new_tile_group.get();
 }
 
-void DataTable::RecordLayoutSample(const tuning::Sample &sample) {
+/*void DataTable::RecordLayoutSample(const tuning::Sample &sample) {
   // Add layout sample
   {
     std::lock_guard<std::mutex> lock(layout_samples_mutex_);
     layout_samples_.push_back(sample);
   }
-}
+}*/
 
-std::vector<tuning::Sample> DataTable::GetLayoutSamples() {
+/*std::vector<tuning::Sample> DataTable::GetLayoutSamples() {
   {
     std::lock_guard<std::mutex> lock(layout_samples_mutex_);
     return layout_samples_;
   }
-}
+}*/
 
-void DataTable::ClearLayoutSamples() {
+/*void DataTable::ClearLayoutSamples() {
   // Clear layout samples list
   {
     std::lock_guard<std::mutex> lock(layout_samples_mutex_);
     layout_samples_.clear();
   }
-}
+}*/
 
-void DataTable::RecordIndexSample(const tuning::Sample &sample) {
+/*void DataTable::RecordIndexSample(const tuning::Sample &sample) {
   // Add index sample
   {
     std::lock_guard<std::mutex> lock(index_samples_mutex_);
     index_samples_.push_back(sample);
   }
-}
+}*/
 
-std::vector<tuning::Sample> DataTable::GetIndexSamples() {
+/*std::vector<tuning::Sample> DataTable::GetIndexSamples() {
   {
     std::lock_guard<std::mutex> lock(index_samples_mutex_);
     return index_samples_;
   }
-}
+}*/
 
-void DataTable::ClearIndexSamples() {
+/*void DataTable::ClearIndexSamples() {
   // Clear index samples list
   {
     std::lock_guard<std::mutex> lock(index_samples_mutex_);
     index_samples_.clear();
   }
-}
+}*/
 
 void DataTable::AddTrigger(trigger::Trigger new_trigger) {
   trigger_list_->AddTrigger(new_trigger);

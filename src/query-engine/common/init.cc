@@ -23,8 +23,8 @@
 #include "../index/index.h"
 #include "../settings/settings_manager.h"
 #include "../threadpool/mono_queue_pool.h"
-#include "../tuning/index_tuner.h"
-#include "../tuning/layout_tuner.h"
+//#include "../tuning/index_tuner.h"
+//#include "../tuning/layout_tuner.h"
 
 namespace peloton {
 
@@ -44,9 +44,9 @@ void PelotonInit::Initialize() {
   threadpool::MonoQueuePool::GetInstance().Startup();
 
   // start indextuner thread pool
-  if (settings::SettingsManager::GetBool(settings::SettingId::brain)) {
+  /*if (settings::SettingsManager::GetBool(settings::SettingId::brain)) {
     threadpool::MonoQueuePool::GetBrainInstance().Startup();
-  }
+  }*/
 
   // start parallel execution pool
   threadpool::MonoQueuePool::GetExecutionInstance().Startup();
@@ -63,18 +63,18 @@ void PelotonInit::Initialize() {
   gc::GCManagerFactory::GetInstance().StartGC();
 
   // start index tuner
-  if (settings::SettingsManager::GetBool(settings::SettingId::index_tuner)) {
+  /*if (settings::SettingsManager::GetBool(settings::SettingId::index_tuner)) {
     // Set the default visibility flag for all indexes to false
     index::IndexMetadata::SetDefaultVisibleFlag(false);
     auto &index_tuner = tuning::IndexTuner::GetInstance();
     index_tuner.Start();
-  }
+  }*/
 
   // start layout tuner
-  if (settings::SettingsManager::GetBool(settings::SettingId::layout_tuner)) {
+  /*if (settings::SettingsManager::GetBool(settings::SettingId::layout_tuner)) {
     auto &layout_tuner = tuning::LayoutTuner::GetInstance();
     layout_tuner.Start();
-  }
+  }*/
 
   // Initialize catalog
   auto pg_catalog = catalog::Catalog::GetInstance();
@@ -97,16 +97,16 @@ void PelotonInit::Initialize() {
 
 void PelotonInit::Shutdown() {
   // shut down index tuner
-  if (settings::SettingsManager::GetBool(settings::SettingId::index_tuner)) {
+  /*if (settings::SettingsManager::GetBool(settings::SettingId::index_tuner)) {
     auto &index_tuner = tuning::IndexTuner::GetInstance();
     index_tuner.Stop();
-  }
+  }*/
 
   // shut down layout tuner
-  if (settings::SettingsManager::GetBool(settings::SettingId::layout_tuner)) {
+  /*if (settings::SettingsManager::GetBool(settings::SettingId::layout_tuner)) {
     auto &layout_tuner = tuning::LayoutTuner::GetInstance();
     layout_tuner.Stop();
-  }
+  }*/
 
   // shut down GC.
   gc::GCManagerFactory::GetInstance().StopGC();
@@ -121,9 +121,9 @@ void PelotonInit::Shutdown() {
   threadpool::MonoQueuePool::GetInstance().Shutdown();
 
   // stop indextuner thread pool
-  if (settings::SettingsManager::GetBool(settings::SettingId::brain)) {
+  /*if (settings::SettingsManager::GetBool(settings::SettingId::brain)) {
     threadpool::MonoQueuePool::GetBrainInstance().Shutdown();
-  }
+  }*/
 
   thread_pool.Shutdown();
 

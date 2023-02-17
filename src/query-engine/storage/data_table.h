@@ -234,11 +234,11 @@ class DataTable : public AbstractTable {
   // LAYOUT TUNER
   //===--------------------------------------------------------------------===//
 
-  void RecordLayoutSample(const tuning::Sample &sample);
+  //void RecordLayoutSample(const tuning::Sample &sample);
 
-  std::vector<tuning::Sample> GetLayoutSamples();
+  //std::vector<tuning::Sample> GetLayoutSamples();
 
-  void ClearLayoutSamples();
+  //void ClearLayoutSamples();
 
   void SetDefaultLayout(std::shared_ptr<const Layout> new_layout) {
     PELOTON_ASSERT(new_layout->GetColumnCount() == schema->GetColumnCount());
@@ -259,11 +259,11 @@ class DataTable : public AbstractTable {
   // INDEX TUNER
   //===--------------------------------------------------------------------===//
 
-  void RecordIndexSample(const tuning::Sample &sample);
+  //void RecordIndexSample(const tuning::Sample &sample);
 
-  std::vector<tuning::Sample> GetIndexSamples();
+  //std::vector<tuning::Sample> GetIndexSamples();
 
-  void ClearIndexSamples();
+  //void ClearIndexSamples();
 
   //===--------------------------------------------------------------------===//
   // UTILITIES
@@ -423,13 +423,13 @@ class DataTable : public AbstractTable {
   bool adapt_table_ = true;
 
   // samples for layout tuning
-  std::vector<tuning::Sample> layout_samples_;
+  //std::vector<tuning::Sample> layout_samples_;
 
   // layout samples mutex
   std::mutex layout_samples_mutex_;
 
   // samples for layout tuning
-  std::vector<tuning::Sample> index_samples_;
+  //std::vector<tuning::Sample> index_samples_;
 
   // index samples mutex
   std::mutex index_samples_mutex_;

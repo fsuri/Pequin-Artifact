@@ -142,7 +142,7 @@ SRCS += $(addprefix $(d), traffic_cop/traffic_cop.cc)
 SRCS += $(addprefix $(d), trigger/trigger.cc)
 
 # Tuning
-SRCS += $(addprefix $(d), tuning/clusterer.cc tuning/index_tuner.cc tuning/layout_tuner.cc tuning/sample.cc)
+#SRCS += $(addprefix $(d), tuning/clusterer.cc tuning/index_tuner.cc tuning/layout_tuner.cc tuning/sample.cc)
 
 # Type
 SRCS += $(addprefix $(d), type/array_type.cc type/bigint_type.cc type/boolean_type.cc type/date_type.cc type/decimal_type.cc type/integer_parent_type.cc \
@@ -300,7 +300,7 @@ LIB-traffic-cop := $(o)traffic_cop/traffic_cop.o
 LIB-trigger := $(o)trigger/trigger.o
 
 # Tuning
-LIB-tuning := $(o)tuning/clusterer.o $(o)tuning/index_tuner.o $(o)tuning/layout_tuner.o $(o)tuning/sample.o
+#LIB-tuning := $(o)tuning/clusterer.o $(o)tuning/index_tuner.o $(o)tuning/layout_tuner.o $(o)tuning/sample.o
 
 # Type
 LIB-type := $(o)type/array_type.o $(o)type/bigint_type.o $(o)type/boolean_type.o $(o)type/date_type.o $(o)type/decimal_type.o $(o)type/integer_parent_type.o \
@@ -313,9 +313,9 @@ $(o)type/integer_type.o $(o)type/numeric_type.o $(o)type/smallint_type.o $(o)typ
 LIB-util := $(o)util/file.o $(o)util/string_util.o $(o)util/stringbox_util.o
 
 #$(LIB-codegen-expression) $(LIB-codegen-interpreter) $(LIB-codegen-lang) $(LIB-codegen-operator) $(LIB-codegen-proxy) \
-$(LIB-codegen-type) $(LIB-codegen-util) $(LIB-codegen) $(LIB-udf)
+$(LIB-codegen-type) $(LIB-codegen-util) $(LIB-codegen) $(LIB-udf) $(LIB-tuning)
 
 $(d)queryexec-test: $(LIB-adr) $(LIB-binder) $(LIB-catalog) $(LIB-common) $(LIB-concurrency) $(LIB-executor) $(LIB-expression) $(LIB-function) \
 $(LIB-gc) $(LIB-index) $(LIB-murmur) $(LIB-optimizer) $(LIB-parser) $(LIB-planner) $(LIB-settings) $(LIB-statistics) $(LIB-storage) $(LIB-threadpool) $(LIB-traffic-cop) \
-$(LIB-tuning) $(LIB-trigger) $(LIB-type) $(LIB-util) $(o)queryexec-test.o
+$(LIB-trigger) $(LIB-type) $(LIB-util) $(o)queryexec-test.o
 BINS += $(d)queryexec-test
