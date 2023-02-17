@@ -37,15 +37,15 @@ class QueryResultProtoWrapperBuilder {
  private:
   std::unique_ptr<SQLResult> result;
 
-  auto serialize(int i) -> std::string;
-  auto serialize(const std::string& s) -> std::string;
-
  public:
   QueryResultProtoWrapperBuilder() {
     result = std::make_unique<SQLResult>();
   }
 
-  auto set_column_names(std::vector<std::string> columns) -> void;
+  auto serialize(int i) -> std::string;
+  auto serialize(const std::string& s) -> std::string;
+
+  auto set_column_names(const std::vector<std::string>& columns) -> void;
   auto add_column(const std::string& name) -> void;
 
   template<class Iterable>

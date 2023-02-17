@@ -42,7 +42,7 @@ auto QueryResultProtoWrapperBuilder::serialize(const std::string& s) -> std::str
   return result;
 }
 
-auto QueryResultProtoWrapperBuilder::set_column_names(std::vector<std::string> columns) -> void {
+auto QueryResultProtoWrapperBuilder::set_column_names(const std::vector<std::string>& columns) -> void {
   for (auto name : columns) {
     result->add_column_names(name);
   }
