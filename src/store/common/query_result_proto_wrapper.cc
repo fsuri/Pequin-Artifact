@@ -40,6 +40,7 @@ namespace sql {
 
 auto QueryResultProtoWrapper::create_from_proto(const SQLResultProto* proto_result) -> void
 {
+  this->proto_result = proto_result;
   n_rows_affected = proto_result->rows_affected();
   column_names = std::vector<std::string>(proto_result->column_names().begin(), proto_result->column_names().end());
   result = std::vector<std::vector<std::string>>();
@@ -120,6 +121,10 @@ auto QueryResultProtoWrapper::has_rows_affected() const noexcept -> bool {
 
 auto QueryResultProtoWrapper::rows_affected() const -> std::size_t {
   return n_rows_affected;
+}
+
+auto QueryResultProtoWrapper::serialize(std::string *output) const -> bool {
+  return proto_result->SerializeToString(output);
 }
 
 }

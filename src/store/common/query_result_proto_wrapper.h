@@ -41,8 +41,9 @@ typedef Row RowProto;
 
 namespace sql {
 
-class QueryResultProtoWrapper : query_result::QueryResult {
+class QueryResultProtoWrapper : public query_result::QueryResult {
   private:
+    const SQLResultProto* proto_result;
     int32_t n_rows_affected;
     std::vector<std::string> column_names;
     std::vector<std::vector<std::string>> result;
@@ -161,6 +162,8 @@ class QueryResultProtoWrapper : query_result::QueryResult {
 		// update/insert result
 		auto has_rows_affected() const noexcept -> bool;
 		auto rows_affected() const -> std::size_t;
+
+    auto serialize(std::string *output) const -> bool;
 };
 
 }

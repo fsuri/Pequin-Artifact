@@ -39,7 +39,7 @@ namespace sql {
 
 class QueryResultProtoWrapper;
 
-class Row : query_result::Row {
+class Row : public query_result::Row {
  protected:
   friend class sql::Field;
   friend class QueryResultProtoWrapper;

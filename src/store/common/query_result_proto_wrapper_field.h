@@ -37,7 +37,7 @@ namespace sql {
 class Row;
 
 // A field in a row, contains an interpretable collection of bytes
-class Field : query_result::Field {
+class Field : public query_result::Field {
  private:
   friend class Row;
 

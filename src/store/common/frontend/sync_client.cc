@@ -25,6 +25,7 @@
  *
  **********************************************************************/
 #include "store/common/frontend/sync_client.h"
+#include "store/common/query_result_proto_wrapper.h"
 
 
 SyncClient::SyncClient(Client *client) : client(client) {
@@ -117,7 +118,7 @@ void SyncClient::Query(std::string &query, query_result::QueryResult &result, ui
         std::placeholders::_1, std::placeholders::_2), 
         std::bind(&SyncClient::QueryTimeoutCallback, this,
         &promise, std::placeholders::_1), timeout);
- result = promise.GetValue();
+ result = sql::QueryResultProtoWrapper(promise.GetValue());
 }
 
 ///////// Callbacks
@@ -158,7 +159,10 @@ void SyncClient::AbortTimeoutCallback(Promise *promise) {
 }
 
 void SyncClient::QueryCallback(Promise *promise, int status, const query_result::QueryResult &result){
-  promise->Reply(status, result); //Result = string for now. Can be list of values, rows, anthing. Format and interface TBD. For now just return serialized protobuf. That protobuf can be whatever representation.
+  std::string serialized;
+  auto result_proto_wrapper = dynamic_cast<const sql::QueryResultProtoWrapper&>(result);
+  result_proto_wrapper.serialize(&serialized);
+  promise->Reply(status, serialized); //Result = string for now. Can be list of values, rows, anthing. Format and interface TBD. For now just return serialized protobuf. That protobuf can be whatever representation.
 }
 
 void SyncClient::QueryTimeoutCallback(Promise *promise, int status){
