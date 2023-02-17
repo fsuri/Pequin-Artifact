@@ -6,12 +6,12 @@ d := $(dir $(lastword $(MAKEFILE_LIST)))
 # Binder
 SRCS += $(addprefix $(d), binder/bind_node_visitor.cc binder/binder_context.cc)
 
-# Catalog
+# Catalog catalog/database_metrics_catalog.cc catalog/index_metrics_catalog.cc catalog/query_metrics_catalog.cc catalog/table_metrics_catalog.cc
 SRCS += $(addprefix $(d), catalog/abstract_catalog.cc catalog/catalog_cache.cc catalog/catalog.cc catalog/column_catalog.cc catalog/column_stats_catalog.cc \
-catalog/column.cc catalog/constraint_catalog.cc catalog/constraint.cc catalog/database_catalog.cc catalog/database_metrics_catalog.cc catalog/index_catalog.cc \
-catalog/index_metrics_catalog.cc catalog/language_catalog.cc catalog/layout_catalog.cc catalog/manager.cc catalog/proc_catalog.cc catalog/query_history_catalog.cc \
-catalog/query_metrics_catalog.cc catalog/schema_catalog.cc catalog/schema.cc catalog/settings_catalog.cc catalog/system_catalogs.cc catalog/table_catalog.cc \
-catalog/table_metrics_catalog.cc catalog/trigger_catalog.cc catalog/zone_map_catalog.cc)
+catalog/column.cc catalog/constraint_catalog.cc catalog/constraint.cc catalog/database_catalog.cc catalog/index_catalog.cc \
+catalog/language_catalog.cc catalog/layout_catalog.cc catalog/manager.cc catalog/proc_catalog.cc catalog/query_history_catalog.cc \
+catalog/schema_catalog.cc catalog/schema.cc catalog/settings_catalog.cc catalog/system_catalogs.cc catalog/table_catalog.cc \
+catalog/trigger_catalog.cc catalog/zone_map_catalog.cc)
 
 # Codegen expression
 #SRCS += $(addprefix $(d), codegen/expression/arithmetic_translator.cc codegen/expression/case_translator.cc codegen/expression/comparison_translator.cc \
@@ -123,7 +123,7 @@ planner/update_plan.cc)
 SRCS += $(addprefix $(d), settings/settings_manager.cc)
 
 # Statistics
-SRCS += $(addprefix $(d), statistics/abstract_metric.cc statistics/access_metric.cc statistics/backend_stats_context.cc statistics/counter_metric.cc \
+#SRCS += $(addprefix $(d), statistics/abstract_metric.cc statistics/access_metric.cc statistics/backend_stats_context.cc statistics/counter_metric.cc \
 statistics/database_metric.cc statistics/index_metric.cc statistics/latency_metric.cc statistics/processor_metric.cc statistics/query_metric.cc \
 statistics/stats_aggregator.cc statistics/table_metric.cc)
 
@@ -165,12 +165,12 @@ SRCS += $(addprefix $(d), queryexec-test.cc)
 # Binder
 LIB-binder := $(o)binder/bind_node_visitor.o $(o)binder/binder_context.o
 
-# Catalog
+# Catalog $(o)catalog/database_metrics_catalog.o $(o)catalog/index_metrics_catalog.o $(o)catalog/query_metrics_catalog.o $(o)catalog/table_metrics_catalog.o
 LIB-catalog := $(o)catalog/abstract_catalog.o $(o)catalog/catalog_cache.o $(o)catalog/catalog.o $(o)catalog/column_catalog.o $(o)catalog/column_stats_catalog.o \
-$(o)catalog/column.o $(o)catalog/constraint_catalog.o $(o)catalog/constraint.o $(o)catalog/database_catalog.o $(o)catalog/database_metrics_catalog.o $(o)catalog/index_catalog.o \
-$(o)catalog/index_metrics_catalog.o $(o)catalog/language_catalog.o $(o)catalog/layout_catalog.o $(o)catalog/manager.o $(o)catalog/proc_catalog.o $(o)catalog/query_history_catalog.o \
-$(o)catalog/query_metrics_catalog.o $(o)catalog/schema_catalog.o $(o)catalog/schema.o $(o)catalog/settings_catalog.o $(o)catalog/system_catalogs.o $(o)catalog/table_catalog.o \
-$(o)catalog/table_metrics_catalog.o $(o)catalog/trigger_catalog.o $(o)catalog/zone_map_catalog.o
+$(o)catalog/column.o $(o)catalog/constraint_catalog.o $(o)catalog/constraint.o $(o)catalog/database_catalog.o $(o)catalog/index_catalog.o \
+$(o)catalog/language_catalog.o $(o)catalog/layout_catalog.o $(o)catalog/manager.o $(o)catalog/proc_catalog.o $(o)catalog/query_history_catalog.o \
+$(o)catalog/schema_catalog.o $(o)catalog/schema.o $(o)catalog/settings_catalog.o $(o)catalog/system_catalogs.o $(o)catalog/table_catalog.o \
+$(o)catalog/trigger_catalog.o $(o)catalog/zone_map_catalog.o
 
 # Codegen expression
 #LIB-codegen-expression := $(o)codegen/expression/arithmetic_translator.o $(o)codegen/expression/case_translator.o $(o)codegen/expression/comparison_translator.o \
@@ -281,7 +281,7 @@ $(o)planner/update_plan.o
 LIB-settings := $(o)settings/settings_manager.o
 
 # Statistics
-LIB-statistics := $(o)statistics/abstract_metric.o $(o)statistics/access_metric.o $(o)statistics/backend_stats_context.o $(o)statistics/counter_metric.o \
+#LIB-statistics := $(o)statistics/abstract_metric.o $(o)statistics/access_metric.o $(o)statistics/backend_stats_context.o $(o)statistics/counter_metric.o \
 $(o)statistics/database_metric.o $(o)statistics/index_metric.o $(o)statistics/latency_metric.o $(o)statistics/processor_metric.o $(o)statistics/query_metric.o \
 $(o)statistics/stats_aggregator.o $(o)statistics/table_metric.o
 
@@ -313,9 +313,9 @@ $(o)type/integer_type.o $(o)type/numeric_type.o $(o)type/smallint_type.o $(o)typ
 LIB-util := $(o)util/file.o $(o)util/string_util.o $(o)util/stringbox_util.o
 
 #$(LIB-codegen-expression) $(LIB-codegen-interpreter) $(LIB-codegen-lang) $(LIB-codegen-operator) $(LIB-codegen-proxy) \
-$(LIB-codegen-type) $(LIB-codegen-util) $(LIB-codegen) $(LIB-udf) $(LIB-tuning) $(LIB-adr)
+$(LIB-codegen-type) $(LIB-codegen-util) $(LIB-codegen) $(LIB-udf) $(LIB-tuning) $(LIB-adr) $(LIB-statistics)
 
 $(d)queryexec-test: $(LIB-binder) $(LIB-catalog) $(LIB-common) $(LIB-concurrency) $(LIB-executor) $(LIB-expression) $(LIB-function) \
-$(LIB-gc) $(LIB-index) $(LIB-murmur) $(LIB-optimizer) $(LIB-parser) $(LIB-planner) $(LIB-settings) $(LIB-statistics) $(LIB-storage) $(LIB-threadpool) $(LIB-traffic-cop) \
-$(LIB-trigger) $(LIB-type) $(LIB-util) $(o)queryexec-test.o
+$(LIB-gc) $(LIB-index) $(LIB-murmur) $(LIB-optimizer) $(LIB-parser) $(LIB-planner) $(LIB-settings) $(LIB-storage) $(LIB-threadpool) $(LIB-traffic-cop) \
+$(LIB-type) $(LIB-trigger) $(LIB-util) $(o)queryexec-test.o
 BINS += $(d)queryexec-test

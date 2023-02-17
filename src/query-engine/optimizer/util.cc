@@ -12,7 +12,7 @@
 
 #include "../optimizer/util.h"
 
-#include "../catalog/query_metrics_catalog.h"
+//#include "../catalog/query_metrics_catalog.h"
 #include "../concurrency/transaction_manager_factory.h"
 #include "../expression/expression_util.h"
 

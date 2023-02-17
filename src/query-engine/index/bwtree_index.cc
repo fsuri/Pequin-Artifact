@@ -14,7 +14,7 @@
 
 #include "../index/index_key.h"
 #include "../index/scan_optimizer.h"
-#include "../statistics/stats_aggregator.h"
+//#include "../statistics/stats_aggregator.h"
 #include "../settings/settings_manager.h"
  
 namespace peloton {
@@ -60,9 +60,9 @@ bool BWTREE_INDEX_TYPE::InsertEntry(const storage::Tuple *key,
     ret = container.Insert(index_key, value, false);
   }
 
-  if (static_cast<StatsType>(settings::SettingsManager::GetInt(settings::SettingId::stats_mode)) != StatsType::INVALID) {
+  /*if (static_cast<StatsType>(settings::SettingsManager::GetInt(settings::SettingId::stats_mode)) != StatsType::INVALID) {
     stats::BackendStatsContext::GetInstance()->IncrementIndexInserts(metadata);
-  }
+  }*/
 
   // NOTE: If I use index_key.GetInfo() here, I always get an empty key?
   LOG_TRACE("InsertEntry(key=%s, val=%s) [%s]",
@@ -90,10 +90,10 @@ bool BWTREE_INDEX_TYPE::DeleteEntry(const storage::Tuple *key,
   // it is unnecessary for us to allocate memory
   bool ret = container.Delete(index_key, value);
 
-  if (static_cast<StatsType>(settings::SettingsManager::GetInt(settings::SettingId::stats_mode)) != StatsType::INVALID) {
+  /*if (static_cast<StatsType>(settings::SettingsManager::GetInt(settings::SettingId::stats_mode)) != StatsType::INVALID) {
     stats::BackendStatsContext::GetInstance()->IncrementIndexDeletes(
         delete_count, metadata);
-  }
+  }*/
 
   LOG_TRACE("DeleteEntry(key=%s, val=%s) [%s]",
             key->GetInfo().c_str(),
@@ -126,9 +126,9 @@ bool BWTREE_INDEX_TYPE::CondInsertEntry(
     assert(ret == false);
   }
 
-  if (static_cast<StatsType>(settings::SettingsManager::GetInt(settings::SettingId::stats_mode)) != StatsType::INVALID) {
+  /*if (static_cast<StatsType>(settings::SettingsManager::GetInt(settings::SettingId::stats_mode)) != StatsType::INVALID) {
     stats::BackendStatsContext::GetInstance()->IncrementIndexInserts(metadata);
-  }
+  }*/
 
   return ret;
 }
@@ -200,10 +200,10 @@ void BWTREE_INDEX_TYPE::Scan(
     }
   }  // if is full scan
 
-  if (static_cast<StatsType>(settings::SettingsManager::GetInt(settings::SettingId::stats_mode)) != StatsType::INVALID) {
+  /*if (static_cast<StatsType>(settings::SettingsManager::GetInt(settings::SettingId::stats_mode)) != StatsType::INVALID) {
     stats::BackendStatsContext::GetInstance()->IncrementIndexReads(
         result.size(), metadata);
-  }
+  }*/
 
   return;
 }
@@ -267,10 +267,10 @@ void BWTREE_INDEX_TYPE::ScanAllKeys(std::vector<ValueType> &result) {
     it++;
   }
 
-  if (static_cast<StatsType>(settings::SettingsManager::GetInt(settings::SettingId::stats_mode)) != StatsType::INVALID) {
+  /*if (static_cast<StatsType>(settings::SettingsManager::GetInt(settings::SettingId::stats_mode)) != StatsType::INVALID) {
     stats::BackendStatsContext::GetInstance()->IncrementIndexReads(
         result.size(), metadata);
-  }
+  }*/
   return;
 }
 
@@ -283,10 +283,10 @@ void BWTREE_INDEX_TYPE::ScanKey(const storage::Tuple *key,
   // This function in BwTree fills a given vector
   container.GetValue(index_key, result);
 
-  if (static_cast<StatsType>(settings::SettingsManager::GetInt(settings::SettingId::stats_mode)) != StatsType::INVALID) {
+  /*if (static_cast<StatsType>(settings::SettingsManager::GetInt(settings::SettingId::stats_mode)) != StatsType::INVALID) {
     stats::BackendStatsContext::GetInstance()->IncrementIndexReads(
         result.size(), metadata);
-  }
+  }*/
 
   return;
 }

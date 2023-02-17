@@ -16,11 +16,11 @@
 
 #include "../catalog/constraint_catalog.h"
 #include "../catalog/database_catalog.h"
-#include "../catalog/index_metrics_catalog.h"
-#include "../catalog/query_metrics_catalog.h"
+//#include "../catalog/index_metrics_catalog.h"
+//#include "../catalog/query_metrics_catalog.h"
 #include "../catalog/schema_catalog.h"
 #include "../catalog/table_catalog.h"
-#include "../catalog/table_metrics_catalog.h"
+//#include "../catalog/table_metrics_catalog.h"
 #include "../catalog/trigger_catalog.h"
 
 namespace peloton {
@@ -104,7 +104,7 @@ class SystemCatalogs {
     return pg_trigger_;
   }
 
-  TableMetricsCatalog *GetTableMetricsCatalog() {
+  /*TableMetricsCatalog *GetTableMetricsCatalog() {
     if (!pg_table_metrics_) {
       throw CatalogException("Table metrics catalog has not been initialized");
     }
@@ -123,7 +123,7 @@ class SystemCatalogs {
       throw CatalogException("Query metrics catalog has not been initialized");
     }
     return pg_query_metrics_;
-  }
+  }*/
 
  private:
   ColumnCatalog *pg_attribute_;
@@ -135,9 +135,9 @@ class SystemCatalogs {
 
   TriggerCatalog *pg_trigger_;
   // ProcCatalog *pg_proc;
-  TableMetricsCatalog *pg_table_metrics_;
+  /*TableMetricsCatalog *pg_table_metrics_;
   IndexMetricsCatalog *pg_index_metrics_;
-  QueryMetricsCatalog *pg_query_metrics_;
+  QueryMetricsCatalog *pg_query_metrics_;*/
 };
 
 }  // namespace catalog

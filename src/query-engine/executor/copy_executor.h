@@ -13,7 +13,7 @@
 #pragma once
 
 #include "../executor/abstract_executor.h"
-#include "../catalog/query_metrics_catalog.h"
+//#include "../catalog/query_metrics_catalog.h"
 
 #define COPY_BUFFER_SIZE 65536
 #define INVALID_COL_ID -1
@@ -79,14 +79,14 @@ class CopyExecutor : public AbstractExecutor {
   size_t total_bytes_written = 0;
 
   // The special column ids in query_metric table
-  unsigned int num_param_col_id =
+  /*unsigned int num_param_col_id =
       catalog::QueryMetricsCatalog::ColumnId::NUM_PARAMS;
   unsigned int param_type_col_id =
       catalog::QueryMetricsCatalog::ColumnId::PARAM_TYPES;
   unsigned int param_format_col_id =
       catalog::QueryMetricsCatalog::ColumnId::PARAM_FORMATS;
   unsigned int param_val_col_id =
-      catalog::QueryMetricsCatalog::ColumnId::PARAM_VALUES;
+      catalog::QueryMetricsCatalog::ColumnId::PARAM_VALUES;*/
 };
 
 }  // namespace executor

@@ -30,10 +30,10 @@ namespace catalog {
 SystemCatalogs::SystemCatalogs(concurrency::TransactionContext *txn,
                                storage::Database *database,
                                type::AbstractPool *pool)
-    : pg_trigger_(nullptr),
+    : pg_trigger_(nullptr)/*,
       pg_table_metrics_(nullptr),
       pg_index_metrics_(nullptr),
-      pg_query_metrics_(nullptr) {
+      pg_query_metrics_(nullptr)*/ {
   oid_t database_oid = database->GetOid();
 
   pg_attribute_ = new ColumnCatalog(txn, database, pool);
@@ -89,9 +89,9 @@ SystemCatalogs::~SystemCatalogs() {
   delete pg_constraint_;
   if (pg_trigger_) delete pg_trigger_;
   // if (pg_proc) delete pg_proc;
-  if (pg_table_metrics_) delete pg_table_metrics_;
+  /*if (pg_table_metrics_) delete pg_table_metrics_;
   if (pg_index_metrics_) delete pg_index_metrics_;
-  if (pg_query_metrics_) delete pg_query_metrics_;
+  if (pg_query_metrics_) delete pg_query_metrics_;*/
 }
 
 /*@brief    using sql create statement to create secondary catalog tables
@@ -110,7 +110,7 @@ void SystemCatalogs::Bootstrap(concurrency::TransactionContext *txn,
   //     pg_proc = new ProcCatalog(database_name, txn);
   // }
 
-  if (!pg_table_metrics_) {
+  /*if (!pg_table_metrics_) {
     pg_table_metrics_ = new TableMetricsCatalog(txn, database_name);
   }
 
@@ -120,7 +120,7 @@ void SystemCatalogs::Bootstrap(concurrency::TransactionContext *txn,
 
   if (!pg_query_metrics_) {
     pg_query_metrics_ = new QueryMetricsCatalog(txn, database_name);
-  }
+  }*/
 
   // Reset oid of each catalog to avoid collisions between catalog
   // values added by system and users when checkpoint recovery.

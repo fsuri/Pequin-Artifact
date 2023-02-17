@@ -68,7 +68,7 @@ class TrafficCop {
   ResultType ExecuteStatement(
       const std::shared_ptr<Statement> &statement,
       const std::vector<type::Value> &params, const bool unnamed,
-      std::shared_ptr<stats::QueryMetric::QueryParams> param_stats,
+      /*std::shared_ptr<stats::QueryMetric::QueryParams> param_stats,*/
       const std::vector<int> &result_format, std::vector<ResultValue> &result,
       size_t thread_id = 0);
 

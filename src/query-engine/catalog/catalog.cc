@@ -15,18 +15,18 @@
 #include "../catalog/column_catalog.h"
 #include "../catalog/constraint_catalog.h"
 #include "../catalog/database_catalog.h"
-#include "../catalog/database_metrics_catalog.h"
+//#include "../catalog/database_metrics_catalog.h"
 #include "../catalog/index_catalog.h"
-#include "../catalog/index_metrics_catalog.h"
+//#include "../catalog/index_metrics_catalog.h"
 #include "../catalog/language_catalog.h"
 #include "../catalog/layout_catalog.h"
 #include "../catalog/proc_catalog.h"
 #include "../catalog/query_history_catalog.h"
-#include "../catalog/query_metrics_catalog.h"
+//#include "../catalog/query_metrics_catalog.h"
 #include "../catalog/settings_catalog.h"
 #include "../catalog/system_catalogs.h"
 #include "../catalog/table_catalog.h"
-#include "../catalog/table_metrics_catalog.h"
+//#include "../catalog/table_metrics_catalog.h"
 #include "../catalog/trigger_catalog.h"
 //#include "../codegen/code_context.h"
 #include "../concurrency/transaction_manager_factory.h"
@@ -36,6 +36,7 @@
 #include "../function/timestamp_functions.h"
 #include "../index/index_factory.h"
 #include "../settings/settings_manager.h"
+#include "../storage/database.h"
 #include "../storage/storage_manager.h"
 #include "../storage/table_factory.h"
 #include "../type/ephemeral_pool.h"
@@ -345,7 +346,7 @@ void Catalog::Bootstrap() {
   // bootstrap pg_catalog database
   catalog_map_[CATALOG_DATABASE_OID]->Bootstrap(txn, CATALOG_DATABASE_NAME);
   // bootstrap other global catalog tables
-  DatabaseMetricsCatalog::GetInstance(txn);
+  //DatabaseMetricsCatalog::GetInstance(txn);
   SettingsCatalog::GetInstance(txn);
   LanguageCatalog::GetInstance(txn);
 

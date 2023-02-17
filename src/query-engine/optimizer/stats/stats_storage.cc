@@ -18,6 +18,7 @@
 #include "../../optimizer/stats/column_stats.h"
 #include "../../optimizer/stats/table_stats.h"
 #include "../../storage/storage_manager.h"
+#include "../../storage/database.h"
 #include "../../type/ephemeral_pool.h"
 
 namespace peloton {

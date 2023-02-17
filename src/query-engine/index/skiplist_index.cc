@@ -14,7 +14,7 @@
 #include "../common/logger.h"
 #include "../index/index_key.h"
 #include "../index/scan_optimizer.h"
-#include "../statistics/stats_aggregator.h"
+//#include "../statistics/stats_aggregator.h"
 #include "../storage/tuple.h"
 
 namespace peloton {

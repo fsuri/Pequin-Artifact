@@ -26,10 +26,10 @@
 
 namespace peloton {
 
-namespace trigger {
+/*namespace trigger {
 class TriggerSet;
 class TriggerData;
-}  // namespace trigger
+}  // namespace trigger*/
 
 namespace concurrency {
 
@@ -180,9 +180,9 @@ class TransactionContext : public Printable {
    *
    * @param      trigger_data  The trigger data
    */
-  void AddOnCommitTrigger(trigger::TriggerData &trigger_data);
+  //void AddOnCommitTrigger(trigger::TriggerData &trigger_data);
 
-  void ExecOnCommitTriggers();
+  //void ExecOnCommitTriggers();
 
   /**
    * @brief      Determines if in rw set.
@@ -338,7 +338,7 @@ class TransactionContext : public Printable {
 
   bool is_written_;
 
-  std::unique_ptr<trigger::TriggerSet> on_commit_triggers_;
+  //std::unique_ptr<trigger::TriggerSet> on_commit_triggers_;
 
   /** one default transaction is NOT 'read only' unless it is marked 'read only' explicitly*/
   bool read_only_ = false;

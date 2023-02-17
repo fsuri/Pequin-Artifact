@@ -18,7 +18,7 @@
 #include "../gc/gc_manager_factory.h"
 //#include "../logging/log_manager.h"
 #include "../settings/settings_manager.h"
-#include "../statistics/stats_aggregator.h"
+//#include "../statistics/stats_aggregator.h"
 #include "../storage/tile_group.h"
 #include "../storage/storage_manager.h"
 
@@ -72,18 +72,18 @@ TransactionContext *TransactionManager::BeginTransaction(
 
 void TransactionManager::EndTransaction(TransactionContext *current_txn) {
   // fire all on commit triggers
-  if (current_txn->GetResult() == ResultType::SUCCESS) {
+  /*if (current_txn->GetResult() == ResultType::SUCCESS) {
     current_txn->ExecOnCommitTriggers();
-  }
+  }*/
 
   // log RWSet and result stats
-  const auto &stats_type = static_cast<StatsType>(
+  /*const auto &stats_type = static_cast<StatsType>(
       settings::SettingsManager::GetInt(settings::SettingId::stats_mode));
 
   // update stats
   if (stats_type != StatsType::INVALID) {
     RecordTransactionStats(current_txn);
-  }
+  }*/
 
   // pass transaction context to garbage collector
   if (gc::GCManagerFactory::GetGCType() == GarbageCollectionType::ON) {
@@ -249,7 +249,7 @@ VisibilityType TransactionManager::IsVisible(
   }
 }
 
-void TransactionManager::RecordTransactionStats(
+/*void TransactionManager::RecordTransactionStats(
     const TransactionContext *const current_txn) const {
   PELOTON_ASSERT(static_cast<StatsType>(settings::SettingsManager::GetInt(
                      settings::SettingId::stats_mode)) != StatsType::INVALID);
@@ -316,7 +316,7 @@ void TransactionManager::RecordTransactionStats(
                                          current_txn->GetTimestamp()) /
                      1000;
   stats_context->GetTxnLatencyMetric().RecordLatency(txn_latency);
-}
+}*/
 
 }  // namespace concurrency
 }  // namespace peloton

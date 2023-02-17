@@ -203,7 +203,7 @@ bool TriggerList::ExecTriggers(TriggerType exec_type,
 
     if (IsOnCommit(exec_type)) {
       PELOTON_ASSERT(txn != nullptr);
-      txn->AddOnCommitTrigger(trigger_data);
+      //txn->AddOnCommitTrigger(trigger_data);
     } else {
       // apply all triggers on the tuple
       storage::Tuple *ret = obj.ExecCallTriggerFunc(trigger_data);

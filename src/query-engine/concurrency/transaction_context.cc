@@ -17,7 +17,7 @@
 #include "../common/logger.h"
 #include "../common/macros.h"
 #include "../common/platform.h"
-#include "../trigger/trigger.h"
+//#include "../trigger/trigger.h"
 
 #include <chrono>
 #include <iomanip>
@@ -83,7 +83,7 @@ void TransactionContext::Init(const size_t thread_id,
   gc_set_ = std::make_shared<GCSet>();
   gc_object_set_ = std::make_shared<GCObjectSet>();
 
-  on_commit_triggers_.reset();
+  //on_commit_triggers_.reset();
 }
 
 RWType TransactionContext::GetRWType(const ItemPointer &location) {
@@ -143,7 +143,7 @@ const std::string TransactionContext::GetInfo() const {
   return os.str();
 }
 
-void TransactionContext::AddOnCommitTrigger(
+/*void TransactionContext::AddOnCommitTrigger(
     trigger::TriggerData &trigger_data) {
   if (on_commit_triggers_ == nullptr) {
     on_commit_triggers_.reset(new trigger::TriggerSet());
@@ -155,7 +155,7 @@ void TransactionContext::ExecOnCommitTriggers() {
   if (on_commit_triggers_ != nullptr) {
     on_commit_triggers_->ExecTriggers();
   }
-}
+}*/
 
 }  // namespace concurrency
 }  // namespace peloton
