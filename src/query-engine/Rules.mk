@@ -1,7 +1,7 @@
 d := $(dir $(lastword $(MAKEFILE_LIST)))
 
 # ADR
-SRCS += $(addprefix $(d), adaptive_radix_tree/Tree.cc)
+#SRCS += $(addprefix $(d), adaptive_radix_tree/Tree.cc)
 
 # Binder
 SRCS += $(addprefix $(d), binder/bind_node_visitor.cc binder/binder_context.cc)
@@ -92,7 +92,7 @@ function/string_functions.cc function/timestamp_functions.cc)
 SRCS += $(addprefix $(d), gc/gc_manager_factory.cc gc/gc_manager.cc gc/transaction_level_gc_manager.cc)
 
 # Index
-SRCS += $(addprefix $(d), index/art_index.cc index/bwtree_index.cc index/bwtree.cc index/index_factory.cc index/index_util.cc index/index.cc index/skiplist_index.cc \
+SRCS += $(addprefix $(d), index/bwtree_index.cc index/bwtree.cc index/index_factory.cc index/index_util.cc index/index.cc index/skiplist_index.cc \
 index/skiplist.cc)
 
 # Murmur3
@@ -160,7 +160,7 @@ SRCS += $(addprefix $(d), queryexec-test.cc)
 # Object files
 
 # ADR
-LIB-adr := $(o)adaptive_radix_tree/Tree.o
+#LIB-adr := $(o)adaptive_radix_tree/Tree.o
 
 # Binder
 LIB-binder := $(o)binder/bind_node_visitor.o $(o)binder/binder_context.o
@@ -249,8 +249,8 @@ $(o)function/string_functions.o $(o)function/timestamp_functions.o
 # GC
 LIB-gc := $(o)gc/gc_manager_factory.o $(o)gc/gc_manager.o $(o)gc/transaction_level_gc_manager.o
 
-# Index
-LIB-index := $(o)index/art_index.o $(o)index/bwtree_index.o $(o)index/bwtree.o $(o)index/index_factory.o $(o)index/index_util.o $(o)index/index.o $(o)index/skiplist_index.o \
+# Index $(o)index/art_index.o
+LIB-index := $(o)index/bwtree_index.o $(o)index/bwtree.o $(o)index/index_factory.o $(o)index/index_util.o $(o)index/index.o $(o)index/skiplist_index.o \
 $(o)index/skiplist.o
 
 # Murmur
@@ -313,9 +313,9 @@ $(o)type/integer_type.o $(o)type/numeric_type.o $(o)type/smallint_type.o $(o)typ
 LIB-util := $(o)util/file.o $(o)util/string_util.o $(o)util/stringbox_util.o
 
 #$(LIB-codegen-expression) $(LIB-codegen-interpreter) $(LIB-codegen-lang) $(LIB-codegen-operator) $(LIB-codegen-proxy) \
-$(LIB-codegen-type) $(LIB-codegen-util) $(LIB-codegen) $(LIB-udf) $(LIB-tuning)
+$(LIB-codegen-type) $(LIB-codegen-util) $(LIB-codegen) $(LIB-udf) $(LIB-tuning) $(LIB-adr)
 
-$(d)queryexec-test: $(LIB-adr) $(LIB-binder) $(LIB-catalog) $(LIB-common) $(LIB-concurrency) $(LIB-executor) $(LIB-expression) $(LIB-function) \
+$(d)queryexec-test: $(LIB-binder) $(LIB-catalog) $(LIB-common) $(LIB-concurrency) $(LIB-executor) $(LIB-expression) $(LIB-function) \
 $(LIB-gc) $(LIB-index) $(LIB-murmur) $(LIB-optimizer) $(LIB-parser) $(LIB-planner) $(LIB-settings) $(LIB-statistics) $(LIB-storage) $(LIB-threadpool) $(LIB-traffic-cop) \
 $(LIB-trigger) $(LIB-type) $(LIB-util) $(o)queryexec-test.o
 BINS += $(d)queryexec-test

@@ -16,7 +16,7 @@
 
 #include "../common/logger.h"
 #include "../common/macros.h"
-#include "../index/art_index.h"
+//#include "../index/art_index.h"
 #include "../index/bwtree_index.h"
 #include "../index/index_key.h"
 #include "../index/skiplist_index.h"
@@ -80,13 +80,13 @@ Index *IndexFactory::GetIndex(IndexMetadata *metadata) {
     // -----------------------
     // Art
     // -----------------------
-  } else if (index_type == IndexType::ART) {
+  } /*else if (index_type == IndexType::ART) {
     index = new ArtIndex(metadata);
 
     // -----------------------
     // ERROR
     // -----------------------
-  } else {
+  }*/ else {
     throw IndexException("Unsupported index scheme.");
   }
   PELOTON_ASSERT(index != nullptr);
