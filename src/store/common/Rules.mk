@@ -13,6 +13,6 @@ LIB-store-common := $(LIB-message) $(o)common-proto.o $(o)promise.o \
 		$(o)timestamp.o $(o)tracer.o $(o)transaction.o $(o)truetime.o \
 		$(LIB-store-common-stats) $(o)partitioner.o $(o)pinginitiator.o \
 		$(o)query-result-proto.o $(o)query_result_proto_wrapper.o $(o)query_result_proto_wrapper_row.o \
-		$(o)query_result_proto_wrapper_field.o
+		$(o)query_result_proto_wrapper_field.o $(o)query_result_proto_builder.o
 
 include $(d)backend/Rules.mk $(d)frontend/Rules.mk

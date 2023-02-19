@@ -30,28 +30,21 @@
 
 namespace sql {
 
-auto QueryResultProtoWrapperBuilder::serialize(int i) -> std::string 
-{
-  std::string s(static_cast<char*>(static_cast<void*>(&i)));
-  return s;
-}
-
-auto QueryResultProtoWrapperBuilder::serialize(const std::string& s) -> std::string 
-{
-  std::string result = s;
-  return result;
-}
-
-auto QueryResultProtoWrapperBuilder::set_column_names(const std::vector<std::string>& columns) -> void {
+auto QueryResultProtoBuilder::add_columns(const std::vector<std::string>& columns) -> void {
   for (auto name : columns) {
     result->add_column_names(name);
   }
 }
 
-auto QueryResultProtoWrapperBuilder::add_column(const std::string& name) -> void {
+auto QueryResultProtoBuilder::add_column(const std::string& name) -> void {
   result->add_column_names(name);
 }
 
+auto QueryResultProtoBuilder::get_result() -> std::unique_ptr<SQLResult> {
+  auto old_result = std::move(result);
+  result = std::make_unique<SQLResult>();
+  return old_result;
+}
 
 }
 

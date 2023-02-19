@@ -72,7 +72,7 @@ class QueryResult {
     virtual auto cend() const ->  std::unique_ptr<const_iterator> = 0;
 
 		virtual auto is_null( const std::size_t row, const std::size_t column ) const -> bool = 0;
-		virtual auto get( const std::size_t row, const std::size_t column ) const -> const char* = 0;
+		virtual auto get( const std::size_t row, const std::size_t column, std::size_t* size ) const -> const char* = 0;
 		
 		// access rows
     virtual auto operator[]( const std::size_t row ) const -> std::unique_ptr<Row> = 0;

@@ -30,35 +30,63 @@
 
 #include <memory>
 #include "store/common/query-result-proto.pb.h"
+#include "lib/cereal/types/map.hpp"
+#include "lib/cereal/types/vector.hpp"
+#include "lib/cereal/types/string.hpp"
+#include "lib/cereal/types/complex.hpp"
+#include "lib/cereal/archives/binary.hpp"
+
+typedef SQLResult SQLResultProto;
+typedef Row RowProto;
+typedef Field FieldProto;
 
 namespace sql {
 
-class QueryResultProtoWrapperBuilder {
+class QueryResultProtoBuilder {
  private:
-  std::unique_ptr<SQLResult> result;
+  std::unique_ptr<SQLResultProto> result;
 
  public:
-  QueryResultProtoWrapperBuilder() {
-    result = std::make_unique<SQLResult>();
+  QueryResultProtoBuilder() {
+    result = std::make_unique<SQLResultProto>();
   }
 
-  auto serialize(int i) -> std::string;
-  auto serialize(const std::string& s) -> std::string;
+  // auto serialize(std::int32_t i) -> std::string;
+  // auto serialize(const std::string& s) -> std::string;
+  // auto serialize(std::uint64_t i) -> std::string;
+  // auto serialize(bool i) -> std::string;
 
-  auto set_column_names(const std::vector<std::string>& columns) -> void;
+  auto add_columns(const std::vector<std::string>& columns) -> void;
   auto add_column(const std::string& name) -> void;
+
+  auto get_result() -> std::unique_ptr<SQLResultProto>;
 
   template<class Iterable>
   void add_row(Iterable it, Iterable end)
   {
-    Row *row = result->add_rows();
+    RowProto *row = result->add_rows();
     while (it != end) {
-      Field *field = row->add_fields();
-      field.set_data(serialize(*it));
+      FieldProto *field = row->add_fields();
+      std::string serialized_field = serialize(*it);
+      field->set_data(serialized_field);
       it++;
     }
   }
-}
+
+  template<typename T>
+  auto serialize(T t) -> std::string {
+    // std::string s(static_cast<char*>(static_cast<void*>(&t)));
+    // return s;
+
+    std::stringstream ss(std::ios::out | std::ios::in | std::ios::binary);
+    {
+      cereal::BinaryOutputArchive oarchive(ss); // Create an output archive
+      oarchive(t); // Write the data to the archive
+
+    } // archive goes out of scope, ensuring all contents are flushed
+    return ss.str();
+  }
+};
 
 }
 

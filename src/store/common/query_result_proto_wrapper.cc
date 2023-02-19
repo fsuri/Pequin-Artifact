@@ -97,10 +97,13 @@ auto QueryResultProtoWrapper::is_null( const std::size_t row, const std::size_t 
   return result.at(row).at(column) == "";
 }
 
-auto QueryResultProtoWrapper::get( const std::size_t row, const std::size_t column ) const -> const char* 
+auto QueryResultProtoWrapper::get( const std::size_t row, const std::size_t column, std::size_t* size ) const -> const char* 
 {
   if(!is_null(row, column)) {
-    return result.at(row).at(column).c_str();
+    const std::string& r_bytes = result.at(row).at(column);
+    *size = r_bytes.size();
+    const char* r = r_bytes.data();
+    return r;
   } else {
     return nullptr;
   }

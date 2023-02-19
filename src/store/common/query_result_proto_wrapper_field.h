@@ -58,7 +58,7 @@ class Field : public query_result::Field {
 
   auto is_null() const -> bool;
 
-  auto get() const -> const char*;
+  auto get(std::size_t* size) const -> const char*;
 };
 
 }

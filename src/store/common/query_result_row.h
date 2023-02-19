@@ -77,30 +77,9 @@ class Row {
 
     virtual auto cend() const -> std::unique_ptr<const_iterator> = 0;
 
-		virtual auto get( const std::size_t column ) const -> const char* = 0;
+		virtual auto get( const std::size_t column, std::size_t* size ) const -> const char* = 0;
 
 		virtual auto is_null( const std::size_t column ) const -> bool = 0;
-
-		template< typename T >
-    auto get( const std::size_t column ) const -> T {
-			if constexpr( tao::pq::result_traits_size< T > == 1 ) {
-				if constexpr( tao::pq::result_traits_has_null< T > ) {
-						if( is_null( column ) ) {
-							return tao::pq::result_traits< T >::null();
-						}
-				}
-				return tao::pq::result_traits< T >::from( get( column ) );
-			}
-			else {
-				return tao::pq::result_traits< T >::from( slice( column, tao::pq::result_traits_size< T > ) );
-			}
-		}
-
-    template< typename T >
-    auto optional( const std::size_t column ) const
-    {
-       return get< std::optional< T > >( column );
-    }
 };
 
 }

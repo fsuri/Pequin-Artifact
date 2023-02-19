@@ -156,7 +156,7 @@ class Row : public query_result::Row {
     return end();
   }
 
-  auto get( const std::size_t column ) const -> const char*;
+  auto get( const std::size_t column, std::size_t* size ) const -> const char*;
 
   auto is_null( const std::size_t column ) const -> bool;
 

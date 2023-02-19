@@ -39,7 +39,7 @@ class Field {
   virtual auto index() const -> std::size_t = 0;
 
   virtual bool is_null() const = 0;
-  virtual auto get() const -> const char* = 0;
+  virtual auto get(std::size_t* size) const -> const char* = 0;
 };
 
 }

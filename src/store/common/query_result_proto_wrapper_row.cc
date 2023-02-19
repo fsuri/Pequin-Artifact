@@ -52,9 +52,9 @@ auto Row::end() const -> std::unique_ptr<query_result::Row::const_iterator>
   return std::unique_ptr<query_result::Row::const_iterator>(new const_iterator( Field( *this, m_offset + m_columns ) ));
 }
 
-auto Row::get( const std::size_t column ) const -> const char*
+auto Row::get( const std::size_t column, std::size_t* size ) const -> const char*
 {
-  return m_result->get( m_row, m_offset + column );
+  return m_result->get( m_row, m_offset + column, size );
 }
 
 auto Row::is_null( const std::size_t column ) const -> bool 

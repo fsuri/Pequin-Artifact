@@ -47,9 +47,9 @@ auto Field::is_null() const -> bool
   return m_row->is_null( m_column );
 }
 
-auto Field::get() const -> const char*
+auto Field::get(std::size_t* size) const -> const char*
 {
-  return m_row->get( m_column );
+  return m_row->get( m_column, size );
 }
 
 }
