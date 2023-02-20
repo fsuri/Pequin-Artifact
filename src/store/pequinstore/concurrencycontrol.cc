@@ -426,7 +426,11 @@ proto::ConcurrencyControl::Result Server::DoOCCCheck(
 
   Debug("BASE READ SET");
   for(auto &read : *readSet){
-      Debug("[group Merged] Read key %s with version [%lu:%lu]", read.key().c_str(), read.readtime().timestamp(), read.readtime().id());
+      Debug("[group base] Read key %s with version [%lu:%lu]", read.key().c_str(), read.readtime().timestamp(), read.readtime().id());
+  }
+   Debug("Base Deps"); //FIXME: Remove.
+  for(auto &dep : *depSet){
+      Debug("[group base] Dep %s", BytesToHex(dep.write().prepared_txn_digest(), 16).c_str());
   }
 
   //Merge query read sets -- returs immediately if there are no queries 
@@ -442,6 +446,11 @@ proto::ConcurrencyControl::Result Server::DoOCCCheck(
   Debug("TESTING MERGED READ"); //FIXME: Remove.
   for(auto &read : *readSet){
       Debug("[group Merged] Read key %s with version [%lu:%lu]", read.key().c_str(), read.readtime().timestamp(), read.readtime().id());
+  }
+
+  Debug("TESTING MERGED Deps"); //FIXME: Remove.
+  for(auto &dep : *depSet){
+      Debug("[group Merged] Dep %s", BytesToHex(dep.write().prepared_txn_digest(), 16).c_str());
   }
 
 

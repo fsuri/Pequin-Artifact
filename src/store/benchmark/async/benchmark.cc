@@ -399,7 +399,7 @@ DEFINE_string(pequin_sync_messages, query_messages_args[0], "number of replicas 
 
 DEFINE_validator(pequin_sync_messages, &ValidateQueryMessages);
 
-DEFINE_bool(pequin_query_read_prepared, false, "allow query to read prepared values");
+DEFINE_bool(pequin_query_read_prepared, true, "allow query to read prepared values");
 DEFINE_bool(pequin_query_cache_read_set, true, "cache query read set at replicas"); // Send syncMessages to all if read set caching is enabled -- but still only sync_messages many replicas are tasked to execute and reply.
 
 DEFINE_bool(pequin_query_optimistic_txid, false, "use optimistic tx-id for sync protocol");

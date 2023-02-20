@@ -62,23 +62,9 @@ namespace pequinstore {
        //   b) Server receives snapshot, materializes, executes and replies.
        //Query Concurrency Control ==> part of Tx, part of TxDigest, part of MVTSO check.
 
-       //TODO: Add Handler for QueryRetry:
-       // Re-do sync and exec on same query id. (Update req id)
-            //If receive new sync set for query that already exists, replace it (this is a client issued retry because sync failed.);
-            // problem: byz could abuse this to retry only at some replicas --> resulting in different read sets
-            //TODO: FIXME: Need new Query ID for retries? -- or same digest (supplied by client and known in advance) --> for now just use single one (assuming I won't simulate a byz attack); that way garbage collection is easier when re-trying a tx.
-            // --> Client should be able to specify in its Tx which retry number (version) of its query attempts it wants to use. If replicas have a different one cached than submitted then this is a proof of misbehavior
-                                                                                                                                // With FIFO channels its always guaranteed to arrive before the prepare
+    
 
-                // problem: byz does not have to retry if sync fails --> replicas may have different read sets --> some may prepare and some may abort. (Thats ok, indistinguishable from correct one failing tx.)
-                            //importantly: cannot fail sync on purpose ==> will either be detectable (equiv syncMsg or Query), or 
-
-    //TODO: If using optimistic Ids'
-        // If optimistic ID maps to 2 txn-ids --> report issuing client (do this when you receive the tx already); vice versa, if we notice 2 optimistic ID's map to same tx --> report! 
-        // (Can early abort query to not waste exec since sync might fail- or optimistically execute and hope for best) --> won't happen in simulation (unless testing failures)
-
-
-//Server handling 
+//Receive Query Request: Parse and Validate Signatures & Retry Version. Execute query if applicable -> generate and store local snapshot
 void Server::HandleQuery(const TransportAddress &remote, proto::QueryRequest &msg){
 
     // 1) Parse Message
@@ -92,7 +78,7 @@ void Server::HandleQuery(const TransportAddress &remote, proto::QueryRequest &ms
         query = msg.release_query(); //mutable_query()
     }
 
-     // 2) Authenticate Query Signature if applicable. Compute unique hash ID 
+     // 2) Compute unique hash ID 
     std::string queryId;
     
     if(params.query_params.signClientQueries && params.query_params.cacheReadSet){ //TODO: when to use hash id? always?
@@ -103,57 +89,115 @@ void Server::HandleQuery(const TransportAddress &remote, proto::QueryRequest &ms
     }
      Debug("\n Received Query Request Query[%lu:%lu:%d] (seq:client:ver)", query->query_seq_num(), query->client_id(), query->retry_version());
    
-    //TODO:  //if already issued query reply, reply with cached val; else if new, or retry set, re-compute
+    //TODO: Ideally check whether already have result or retry version is outdated Before VerifyClientQuery.
 
+    //3) Check whether retry version still relevant.
+    queryMetaDataMap::accessor q;
+    bool hasQuery = queryMetaData.find(q, queryId);
+    if(hasQuery){
+        QueryMetaData *query_md = q->second;
+        if(query->retry_version() < query_md->retry_version){
+            Debug("Retry version for Query Request Query[%lu:%lu:%d] (seq:client:ver) is outdated. Currently %d", query->query_seq_num(), query->client_id(), query->retry_version(), query_md->retry_version);
+            delete query;
+            if(params.mainThreadDispatching && (!params.dispatchMessageReceive || params.query_params.parallel_queries)) FreeQueryRequestMessage(&msg);
+            return;
+        }
+        if(query->retry_version() == query_md->retry_version){
+              //Two cases for which retry version could be ==:
+            //a) have already received query for this retry version 
+            //b) have already received a sync for this retry version (and the sync is not waiting for query)
+           
+            //TODO: if have result, return result
+
+            ////Return if already received query or sync for the retry version, and sync is not waiting for query. (I.e. no need to process Query) (implies result will be sent.)
+            if(query_md->executed_query || query_md->started_sync && !query_md->waiting_sync){ 
+                Debug("Already received Sync or Query for Query[%lu:%lu:%d] (seq:client:ver). Skipping Query", query->query_seq_num(), query->client_id(), query->retry_version(), query_md->retry_version);
+                delete query;
+                if(params.mainThreadDispatching && (!params.dispatchMessageReceive || params.query_params.parallel_queries)) FreeQueryRequestMessage(&msg);
+                return;
+            }
+        }
+    }
+
+    //4) Authenticate Query Signature if applicable. If invalid, return.
     if(params.query_params.signClientQueries){  //TODO: Not sure if sigs necessary: authenticated channels (for access control) and hash ids (for uniqueness/non-equivocation) should suffice. NOTE: non-equiv only necessary if caching read set.
         if(!VerifyClientQuery(msg, query, queryId)){ // Does not really need to be parallelized, since query handling is probably already on a worker thread.
             delete query;
+            if(params.mainThreadDispatching && (!params.dispatchMessageReceive || params.query_params.parallel_queries)) FreeQueryRequestMessage(&msg);
             return;
         }
     }
 
-    //Buffer Query content and timestamp
-    queryMetaDataMap::accessor q;
-    bool newQuery = queryMetaData.insert(q, queryId);
-    if(newQuery){ 
+    //5) Buffer Query conent and timestamp (only buffer the first time)
+    if(!hasQuery){
+        queryMetaData.insert(q, queryId);
         q->second = new QueryMetaData(query->query_cmd(), query->timestamp(), remote, msg.req_id(), query->query_seq_num(), query->client_id(), &params.query_params);
-        //Note: Retry will not contain query_cmd again.
     }
     QueryMetaData *query_md = q->second;
-    if(!query_md->has_query){ //If metaData.insert did not return newQuery=true, but query has not been processed yet (e.g. Sync set md first), set query.
-        query_md->SetQuery(query->query_cmd(), query->timestamp(), remote, msg.req_id());
+    if(!query_md->has_query){ //If queryMetaData was inserted by Sync first (i.e. query has not been processed yet), set query.
+        UW_ASSERT(query->has_query_cmd());  //TODO: Could avoid re-sending query_cmd in retry messages (but then might have to wait for first query attempt in case multithreading violates FIFO)
+        query_md->SetQuery(query->query_cmd(), query->timestamp(), remote, msg.req_id());  
+       
     }
 
+
+    // //3 Buffer Query content and timestamp (only buffer the first time)
+    // queryMetaDataMap::accessor q;
+    // bool newQuery = queryMetaData.insert(q, queryId);
+    // if(newQuery){ 
+    //     q->second = new QueryMetaData(query->query_cmd(), query->timestamp(), remote, msg.req_id(), query->query_seq_num(), query->client_id(), &params.query_params);
+    //     //Note: Retry will not contain query_cmd again.
+    // }
+    // QueryMetaData *query_md = q->second;
+    // if(!query_md->has_query){ //If metaData.insert did not return newQuery=true, but query has not been processed yet (e.g. Sync set md first), set query.
+    //     newQuery = true;
+    //     query_md->SetQuery(query->query_cmd(), query->timestamp(), remote, msg.req_id());  //TODO: Could avoid re-sending query_cmd if implemented FIFO (then only first version == 0 needs to have it.)
+    // }
+
+    //6) Update retry version and reset MetaData if new; skip if old/existing retry version.
     if(query->retry_version() > query_md->retry_version){
         query_md->req_id = msg.req_id();
         query_md->retry_version = query->retry_version();
-        query_md->started_sync = false; //start new sync round
-        query_md->ClearMetaData();
+        // query_md->started_sync = false; //start new sync round
+        query_md->ClearMetaData(); //start new sync round
     }
-    else if(query->retry_version() == query_md->retry_version){
-        if(!newQuery){ //ignore if already processed query once (i.e. don't exec twice for query version 0)
-            if(params.query_params.signClientQueries) delete query;
+    // else if(query->retry_version() == query_md->retry_version){
+    //     // //Return if already received sync for the retry version, and sync is not waiting for query. (I.e. no need to process Query)
+    //     // if(query_md->started_sync && !query_md->waiting_sync){
+    //     //     delete query;
+    //     //     if(params.mainThreadDispatching && (!params.dispatchMessageReceive || params.query_params.parallel_queries)) FreeQueryRequestMessage(&msg);
+    //     //     return;
+    //     // }
+    //     //ignore if already processed query once (i.e. don't exec twice per version) 
+    //     if(!newQuery){ 
+    //         if(query_md->has_result){
+                
+    //             Panic("Duplicate query Request for current retry version"); //TODO: FIXME: Reply directly with result for current version. (or do nothing)
+    //             delete query;
+    //             if(params.mainThreadDispatching && (!params.dispatchMessageReceive || params.query_params.parallel_queries)) FreeQueryRequestMessage(&msg);
+    //             return;
+    //         }
+    //         else{
+    //             Panic("Duplicate query Request for current retry version, but no result"); //FIXME: Do Nothing.
+    //             delete query;
+    //             if(params.mainThreadDispatching && (!params.dispatchMessageReceive || params.query_params.parallel_queries)) FreeQueryRequestMessage(&msg);
+    //             return;
+    //         }
+    //     } 
+    // }
+    // else{
+    //     Panic("Requesting Query with outdating retry version");
+    //     return;
+    // }
 
-            if(query_md->has_result){
-                //TODO: Reply directly with result for current version.
-            }
-            Panic("Duplicate query Request for current retry version");
-            delete query;
-            return;
-        } 
-    }
-    else{
-        Panic("Requesting Query with outdating retry version");
-        return;
-    }
+    //7) Record whether current retry version uses optimistic tx-ids or not
+    if(msg.has_optimistic_txid()) query_md->useOptimisticTxId = msg.optimistic_txid(); 
 
-    if(msg.has_optimistic_txid()) query_md->useOptimisticTxId = msg.optimistic_txid(); //Record whether current retry version uses optimistic tx-ids or not
-
-
+    //8) Process Query only if designated for reply; and if there is no Sync already waiting for this retry version
     if(msg.designated_for_reply() && !query_md->waiting_sync){
         ProcessQuery(q, remote, query, query_md);
     }
-    else{  //If not designated for reply, or sync is already waiting -> no need to process query. //TODO: In this case shouldn't send Query separately at all -> Send it together with Sync and add to q_md then.
+    else{  //If not designated for reply, or sync is already waiting -> no need to process query. //TODO: In this case ideally shouldn't send Query separately at all -> Send it together with Sync and add to q_md then.
         delete query;
         if(query_md->waiting_sync){ //Wake waiting Sync
             UW_ASSERT(query_md->merged_ss_msg != nullptr);
@@ -165,6 +209,8 @@ void Server::HandleQuery(const TransportAddress &remote, proto::QueryRequest &ms
    
 }
 void Server::ProcessQuery(queryMetaDataMap::accessor &q, const TransportAddress &remote, proto::Query *query, QueryMetaData *query_md){
+
+    query_md->executed_query = true;
 
     //Reply object.
      proto::SyncReply *syncReply = new proto::SyncReply(); //TODO: change to GetUnused
@@ -223,6 +269,13 @@ void Server::ProcessQuery(queryMetaDataMap::accessor &q, const TransportAddress 
         const proto::Transaction *txn = &proof->txn();
         query_md->snapshot_mgr.AddToLocalSnapshot(tx_id, txn, true);
          Debug("Proposing committed txn_id [%s] for local Query Sync State[%lu:%lu:%d]", BytesToHex(tx_id, 16).c_str(), query->query_seq_num(), query->client_id(), query->retry_version());
+        
+        //Adding some dummy tx to prepared.
+        preparedMap::accessor p;
+        prepared.insert(p, tx_id);
+        Timestamp ts(txn->timestamp());
+        p->second = std::make_pair(ts, txn);
+        p.release();
     }
     //Not threadsafe, but just for testing purposes.
     for(preparedMap::const_iterator i=prepared.begin(); i!=prepared.end(); ++i ) {
@@ -352,8 +405,9 @@ void Server::HandleSync(const TransportAddress &remote, proto::SyncClientProposa
     if(merged_ss->retry_version() > query_md->retry_version){ 
         query_md->req_id = msg.req_id();
         query_md->retry_version = merged_ss->retry_version();
-        query_md->started_sync = true;
         query_md->ClearMetaData();
+        query_md->started_sync = true;
+       
     }
     else if(merged_ss->retry_version() == query_md->retry_version){ //if current version -- only process if have not yet done sync. If we have result, reply with it early.
 
@@ -397,7 +451,7 @@ void Server::HandleSync(const TransportAddress &remote, proto::SyncClientProposa
     if(query_md->has_query){
         ProcessSync(q, remote, merged_ss, queryId, query_md);
     }
-    else{ //Wait for Query to arrive first.
+    else{ //Wait for Query to arrive first. (With FIFO channels Query should arrive first; but with multithreading, sync might be processed first.)
         query_md->SetSync(merged_ss, remote);
     }
    
@@ -738,9 +792,15 @@ void Server::HandleSupplyTx(const TransportAddress &remote, proto::SupplyMissing
         } 
 
         // NOTE: CURRENTLY WILL NOT YET SUPPORT READING PREPARED TRANSACTIONS ==> All code below here should never be called
-        Panic("Not yet supporting prepared reads for queries");
+        Panic("Not yet supporting prepared reads for queries");  //TODO: Need to support sync on TS id too. (Request sends TS, Supply replies with map from TS to TX)
+                                                                //TODO: Turn supply map into repeated TxnInfo; move tx-id into txninfo; add map from Ts to txinfo
+                                                                // OR: Easier: Add optional tx-id field to tx-info. add map.
 
         //2) if Prepared //TODO: check for prepared first, to avoid sending unecessary certs?
+
+         //TODO: If using optimistic Ids'
+        // If optimistic ID maps to 2 txn-ids --> report issuing client (do this when you receive the tx already); vice versa, if we notice 2 optimistic ID's map to same tx --> report! 
+        // (Can early abort query to not waste exec since sync might fail- or optimistically execute and hope for best) --> won't happen in simulation (unless testing failures)
 
         proto::ConcurrencyControl::Result result;
         const proto::CommittedProof *conflict;
@@ -938,12 +998,20 @@ void Server::HandleSyncCallback(QueryMetaData *query_md, const std::string &quer
     //TODO: During execution only read prepared if depth allowed.
     //  i.e. if (params.maxDepDepth == -1 || DependencyDepth(txn) <= params.maxDepDepth)  (maxdepth = -1 means no limit)
 
+//TODO: Generate some dummy prepared. // Add it to committed after.
+// Check that dependency is merged in. //print deps
+
     if (params.query_params.readPrepared && params.maxDepDepth > -2) {
-        for(auto const&[tx_id, proof] : committed){
-            const proto::Transaction *txn = &proof->txn();
+
+        //FIXME: JUST FOR TESTING.
+        for(preparedMap::const_iterator i=prepared.begin(); i!=prepared.end(); ++i ) {
+            const std::string &tx_id = i->first;
+            const proto::Transaction *txn = i->second.second;
+
             proto::Dependency *add_dep = query_md->queryResultReply->mutable_result()->mutable_query_read_set()->add_deps();
             add_dep->set_involved_group(groupIdx);
             add_dep->mutable_write()->set_prepared_txn_digest(tx_id);
+            Debug("Adding Dep: %s", BytesToHex(add_dep->write().prepared_txn_digest(), 16).c_str());
             //Note: Send merged TS.
             if(query_md->useOptimisticTxId){
                 //MergeTimestampId(txn->timestamp().timestamp(), txn->timestamp().id()

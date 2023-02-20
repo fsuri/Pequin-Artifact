@@ -213,7 +213,7 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
                     const uint64_t &query_seq_num, const uint64_t &client_id, const QueryParameters *query_params): 
          failure(false), retry_version(0UL), has_query(true), waiting_sync(false), started_sync(false), has_result(false), 
          query_cmd(query_cmd), ts(timestamp), original_client(remote.clone()), req_id(req_id), query_seq_num(query_seq_num), client_id(client_id), is_waiting(false),
-         snapshot_mgr(query_params), useOptimisticTxId(false)
+         snapshot_mgr(query_params), useOptimisticTxId(false), executed_query(false)
       {
           //queryResult = new proto::QueryResult();
           queryResultReply = new proto::QueryResultReply(); //TODO: Replace with GetUnused.
@@ -222,7 +222,7 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
        QueryMetaData(const uint64_t &query_seq_num, const uint64_t &client_id, const QueryParameters *query_params): 
           failure(false), retry_version(0UL), has_query(false), waiting_sync(false), started_sync(false), 
           has_result(false), query_seq_num(query_seq_num), client_id(client_id), is_waiting(false) ,
-          snapshot_mgr(query_params), useOptimisticTxId(false)
+          snapshot_mgr(query_params), useOptimisticTxId(false), executed_query(false)
       {
           //queryResult = new proto::QueryResult();
           queryResultReply = new proto::QueryResultReply(); //TODO: Replace with GetUnused.
@@ -238,8 +238,10 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
          //merged_ss.Clear();
          //local_ss.clear(); //for now don't clear, will get overridden anyways.
          missing_txn.clear();
+         executed_query = false;
          has_result = false;
          is_waiting = false;
+         started_sync = false;
          waiting_sync = false;
          if(merged_ss_msg != nullptr) delete merged_ss_msg; //Delete obsolete sync snapshot
       }
@@ -270,10 +272,13 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
       uint64_t retry_version;            //query retry version (0 for original)
       bool designated_for_reply; //whether to reply with result to client or not.
 
-      bool waiting_sync; //a waiting sync msg.
+      bool executed_query; //whether already executed query for retry version.
+
+      
       proto::MergedSnapshot *merged_ss_msg; //TODO: check that ClearMetaData resets appropriate fields.
       bool started_sync;  //whether already received/processed snapshot for given retry version.
-     
+      bool waiting_sync; //a waiting sync msg.
+
       SnapshotManager snapshot_mgr;
 
       std::unordered_set<std::string> local_ss;  //local snapshot
@@ -282,7 +287,7 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
      
       //google::protobuf::RepeatedPtrField<std::string> merged_ss;
 
-      bool is_waiting;
+      bool is_waiting; //waiting on txn for sync.
       std::unordered_map<std::string, uint64_t> missing_txn; //map from txn-id --> number of responses max waiting for; if client is byz, no specified replica may have it --> if so, return immediately and blacklist/report tx (requires sync to be signed)
 
       bool has_result;

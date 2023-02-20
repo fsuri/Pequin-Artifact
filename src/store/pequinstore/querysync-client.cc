@@ -92,6 +92,22 @@ void ShardClient::ClearQuery(uint64_t query_seq_num){
 //Note: Use new req-id for new query sync version
 void ShardClient::RetryQuery(uint64_t query_seq_num, proto::Query &queryMsg){
 
+     //Support for QueryRetry:
+       // Re-do sync and exec on same query id. (Update req id)
+            //If receive new sync set for query that already exists, replace it (this is a client issued retry because sync failed.);
+            // problem: byz could abuse this to retry only at some replicas --> resulting in different read sets   //Solution: Include retry-id in prepare: Replicas Wait to receive read set for it. 
+
+            //Question: Need new Query ID for retries? -- or same digest (supplied by client and known in advance) 
+            //--> for now just use single one (assuming I won't simulate a byz attack); that way garbage collection is easier when re-trying a tx.
+            // --> Clients can specify in its Tx which retry number (version) of its query attempts it wants to use. 
+            //If replicas have a larger version cached than submitted then this is a proof of misbehavior. If replicas have a smaller version cached, then they must wait.
+                  // With FIFO channels its always guaranteed to be sent before the prepare --> thus can wait
+            // (Note, that due to multithreading processing order at receiver may not be FIFO --> Solution: Implemented a QuerySet Waiter struct and simply WAIT)
+
+            //problem?: byz does not have to retry if sync fails  (due to optimistic TxId, or aborts, or missed commits)
+            //--> replicas may have different read sets --> some may prepare and some may abort. (Thats ok, indistinguishable from correct one failing tx.)
+                //importantly however: byz client cannot fail sync on purpose ==> will either be detectable (equiv syncMsg or Query), or it could've happened naturally (for a correct client too)
+
      Debug("Invoked Retry QueryRequest [%lu] on ShardClient for group %d", query_seq_num, group);
 
     //find pendingQuery from query_seq_num map.
@@ -414,6 +430,7 @@ void ShardClient::HandleQueryResult(proto::QueryResultReply &queryResult){
         //Record the dependencies.
        
         for(auto dep: *replica_result->mutable_query_read_set()->mutable_deps()){ //For normal Tx-id
+            Debug("TESTING: Received Dep: %s", BytesToHex(dep.write().prepared_txn_digest(), 16).c_str());
             if(dep.write().has_prepared_timestamp()){ //I.e. using optimisticTxID
                 if(pendingQuery->merged_ss.merged_ts().count(MergeTimestampId(dep.write().prepared_timestamp().timestamp(), dep.write().prepared_timestamp().id()))){
                     dep.mutable_write()->clear_prepared_timestamp();
@@ -431,6 +448,7 @@ void ShardClient::HandleQueryResult(proto::QueryResultReply &queryResult){
             proto::ReadSet *query_read_set =  replica_result->mutable_query_read_set();
             query_read_set->clear_deps(); //Reset and override with merged deps
             for(auto write: result_mgr.merged_deps){
+                Debug("TEST: Adding dep %s", BytesToHex(write->prepared_txn_digest(), 16).c_str());
                 proto::Dependency *add_dep = query_read_set->add_deps();
                 add_dep->set_involved_group(group);
                 add_dep->set_allocated_write(write);
