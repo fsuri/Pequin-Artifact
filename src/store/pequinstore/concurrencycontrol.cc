@@ -150,6 +150,7 @@ void Server::wakeSubscribedTx(const std::string query_id, const uint64_t &retry_
 
 //returns pointer to query read set (either from cache, or from txn itself)
 proto::ConcurrencyControl::Result Server::fetchReadSet(const proto::QueryResultMetaData &query_md, const proto::ReadSet *&query_rs, const std::string &txnDigest, const proto::Transaction &txn){
+
     //pick respective server group from group meta
     const proto::QueryGroupMeta *query_group_md;
     auto query_itr = query_md.group_meta().find(groupIdx);
@@ -191,9 +192,22 @@ proto::ConcurrencyControl::Result Server::fetchReadSet(const proto::QueryResultM
       } 
 
 
-      //3) Check for matching retry version. If not ==> Stop processing
+      //3) Check for matching retry version. If local version smaller ==> Stop processing (Wait), if local version larger ==> PoM
       if(query_md.retry_version() != cached_query_md->retry_version){
-          Panic("query has wrong retry version");
+          Panic("query has wrong cached retry version; shouldn't happen in testing");
+
+  
+          if(query_md.retry_version() < cached_query_md->retry_version){
+            Panic("Report PoM");
+            return proto::ConcurrencyControl::ABSTAIN;
+             // Note: Any interested client that learns of prepared dependency will learn correct version. Problem: byz client couldve updated version at other replicas in the meantime.
+              //To avoid them defaulting (and cascade aborting correct dependencies), they must either
+                      //a) keep older versions read-sets, or (better) accept older versions read set on demand IF supported by Prepare msg that picks version. //(ONLY accept older version in this case)
+                      //b) Treat old versions as PoM 
+                      //Note: If byz client prepares with version (v), but before that updated the version to v'>v ==> proof of misbehavior (report client, and abort by default -- in this case thats ok).
+          } 
+
+          //else: query_md.retry_version() > cached_query_md->retry_version ==> Wait
           subscribeTxOnMissingQuery(query_md.query_id(), txnDigest);
           return proto::ConcurrencyControl::WAIT; ///NOTE: Replying WAIT is a hack to not respond -- it will never wake up.
            //Note: Byz client can send retry version to relicas that have not gotten it yet. If we vote abstain, we may produce partial abort.

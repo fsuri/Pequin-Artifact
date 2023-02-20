@@ -231,6 +231,7 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
         if(original_client != nullptr) delete original_client;
         //delete queryResult;
         delete queryResultReply;
+        if(merged_ss_msg != nullptr) delete merged_ss_msg; //Delete obsolete sync snapshot
       }
       void ClearMetaData(){
          queryResultReply->Clear(); //FIXME: Confirm that all data that is cleared is re-set
@@ -252,7 +253,7 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
         if(original_client == nullptr) original_client = remote.clone();
         req_id = _req_id;
       }
-      void SetSync(proto::MergedSnapshot *_merged_ss_msg, const TransportAddress &remote){
+      void RegisterWaitingSync(proto::MergedSnapshot *_merged_ss_msg, const TransportAddress &remote){
         waiting_sync = true;
         merged_ss_msg = _merged_ss_msg;
         if(original_client == nullptr) original_client = remote.clone(); 
@@ -281,8 +282,9 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
 
       SnapshotManager snapshot_mgr;
 
-      std::unordered_set<std::string> local_ss;  //local snapshot
-      std::unordered_set<std::string> merged_ss; //merged snapshot
+      std::unordered_set<std::string> local_ss;  //local snapshot   //DEPRECATED
+      std::unordered_set<std::string> merged_ss; //merged snapshot  //DEPRECATED
+
       bool useOptimisticTxId;  
      
       //google::protobuf::RepeatedPtrField<std::string> merged_ss;
@@ -375,7 +377,8 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
 
     void ProcessQuery(queryMetaDataMap::accessor &q, const TransportAddress &remote, proto::Query *query, QueryMetaData *query_md);
     void ProcessSync(queryMetaDataMap::accessor &q, const TransportAddress &remote, proto::MergedSnapshot *merged_ss, const std::string *queryId, QueryMetaData *query_md);
-    void SetWaiting(const std::string &tx_id, const std::string *queryId, const proto::ReplicaList &replica_list, std::map<uint64_t, proto::RequestMissingTxns> &replica_requests);
+    void SetWaiting(QueryMetaData *query_md, const std::string &tx_id, const std::string *queryId, const proto::ReplicaList &replica_list, std::map<uint64_t, proto::RequestMissingTxns> &replica_requests);
+    void SetWaitingTS(QueryMetaData *query_md, const uint64_t &ts_id, const std::string *queryId, const proto::ReplicaList &replica_list, std::map<uint64_t, proto::RequestMissingTxns> &replica_requests);
     void HandleSyncCallback(QueryMetaData *query_md, const std::string &queryId);
     void SendQueryReply(QueryMetaData *query_md);
     void UpdateWaitingQueries(const std::string &txnDigest);

@@ -72,6 +72,7 @@ void test_snapshot_tx_id(){
                                   false,    //  FLAGS_pequin_query_compress_optimistic_txid, 
                                   false,    //  FLAGS_pequin_query_merge_active_at_client,
                                   false,    //  FLAGS_pequin_sign_client_queries,
+                                  false,
                                   false    //  FLAGS_pequin_parallel_queries
                                   );
 
@@ -128,6 +129,7 @@ void test_snapshot_optimistic_tx_id(bool compress){
                                   compress,    //  FLAGS_pequin_query_compress_optimistic_txid, 
                                   false,    //  FLAGS_pequin_query_merge_active_at_client,
                                   false,    //  FLAGS_pequin_sign_client_queries,
+                                  false, // FLAGS_pequin_sign_replica_to_replica
                                   false    //  FLAGS_pequin_parallel_queries
                                   );
     

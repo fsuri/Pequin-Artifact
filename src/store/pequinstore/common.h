@@ -448,15 +448,16 @@ typedef struct QueryParameters {
     const bool mergeActiveAtClient; //When not caching read sets, merge query read sets at client
 
     const bool signClientQueries;
+    const bool signReplicaToReplicaSync;
 
     //performance parameters
     const bool parallel_queries;
 
     QueryParameters(uint64_t syncQuorum, uint64_t queryMessages, uint64_t mergeThreshold, uint64_t syncMessages, uint64_t resultQuorum,
-        bool readPrepared, bool cacheReadSet, bool optimisticTxID, bool compressOptimisticTxIDs, bool mergeActiveAtClient, bool signClientQueries, bool parallel_queries) : 
+        bool readPrepared, bool cacheReadSet, bool optimisticTxID, bool compressOptimisticTxIDs, bool mergeActiveAtClient, bool signClientQueries, bool signReplicaToReplicaSync, bool parallel_queries) : 
         syncQuorum(syncQuorum), queryMessages(queryMessages), mergeThreshold(mergeThreshold), syncMessages(syncMessages), resultQuorum(resultQuorum),
-        readPrepared(readPrepared), cacheReadSet(cacheReadSet), optimisticTxID(optimisticTxID), compressOptimisticTxIDs(compressOptimisticTxIDs), mergeActiveAtClient(mergeActiveAtClient), signClientQueries(signClientQueries),
-        parallel_queries(parallel_queries) {}
+        readPrepared(readPrepared), cacheReadSet(cacheReadSet), optimisticTxID(optimisticTxID), compressOptimisticTxIDs(compressOptimisticTxIDs), mergeActiveAtClient(mergeActiveAtClient), 
+        signClientQueries(signClientQueries), signReplicaToReplicaSync(signReplicaToReplicaSync), parallel_queries(parallel_queries) {}
 
 } QueryParameters;
 

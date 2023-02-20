@@ -690,6 +690,7 @@ void* Server::TryPrepare(uint64_t reqId, const TransportAddress &remote, proto::
         if(!first) Panic("Two Transactions have the same Timestamp. Equivocation"); // Report issuing client (txn->client_id() = txn->timestamp.id())
         t->second = txnDigest;
         t.release();
+        //Note: Timestamp mappings are not garbage collected during clean. They may only be deleted when garbage collecting < Low Watermark ==> because then we no longer need to access the Tx
       }
   
       ongoingMap::accessor o;

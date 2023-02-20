@@ -409,6 +409,7 @@ DEFINE_bool(pequin_query_compress_optimistic_txid, false, "compress optimistic t
 DEFINE_bool(pequin_query_merge_active_at_client, true, "merge active query read sets client-side");
 
 DEFINE_bool(pequin_sign_client_queries, false, "sign query and sync messages"); //proves non-equivocation of query contents, and query snapshot respectively. 
+//DEFINE_bool(pequin_sign_replica_to_replica_sync, false, "sign inter replica sync messages with HMACs"); //proves authenticity of channels.
 //Note: Should not be necessary. Unique hash of query should suffice for non-equivocation; autheniticated channels would suffice for authentication. 
 DEFINE_bool(pequin_parallel_queries, false, "dispatch queries to parallel worker threads");
 
@@ -1275,6 +1276,7 @@ int main(int argc, char **argv) {
                                                  FLAGS_pequin_query_compress_optimistic_txid, 
                                                  FLAGS_pequin_query_merge_active_at_client,
                                                  FLAGS_pequin_sign_client_queries,
+                                                 false,    // FLAGS_pequin_sign_replica_to_replica_sync,
                                                  FLAGS_pequin_parallel_queries);
 
         pequinstore::Parameters params(FLAGS_indicus_sign_messages,
