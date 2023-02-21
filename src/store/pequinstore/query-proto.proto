@@ -178,9 +178,10 @@ message TxnInfo {
     //optional Transaction txn = 1;
     //optional SignedMessage signed_txn = 2;
    CommittedProof commit_proof = 2;
-   bool invalid = 3;
-   //TODO: Add abort proof.
+   bool abort = 3;  
+   bool invalid = 4;
   }
+  optional Writeback abort_proof = 5;
  
 }
 

@@ -1465,9 +1465,7 @@ void Server::Prepare(const std::string &txnDigest,
 void Server::Commit(const std::string &txnDigest, proto::Transaction *txn,
       proto::GroupedSignatures *groupedSigs, bool p1Sigs, uint64_t view) {
 
-  Timestamp ts(txn->timestamp());
-
-  Value val;
+  
   proto::CommittedProof *proof = nullptr;
   if (params.validateProofs) {
     Debug("Access only by CPU: %d", sched_getcpu());
@@ -1475,12 +1473,6 @@ void Server::Commit(const std::string &txnDigest, proto::Transaction *txn,
     //proof = testing_committed_proof.back();
     //testing_committed_proof.pop_back();
   }
-  val.proof = proof;
-
-  auto committedItr = committed.insert(std::make_pair(txnDigest, proof));
-  Debug("Inserted txn %s into Committed on CPU %d",BytesToHex(txnDigest, 16).c_str(), sched_getcpu());
-  //auto committedItr =committed.emplace(txnDigest, proof);
-
   if (params.validateProofs) {
     // CAUTION: we no longer own txn pointer (which we allocated during Phase1
     //    and stored in ongoing)
@@ -1496,13 +1488,59 @@ void Server::Commit(const std::string &txnDigest, proto::Transaction *txn,
     }
   }
 
+  Timestamp ts(txn->timestamp());
+
+  Value val;
+  val.proof = proof;
+
+  auto committedItr = committed.insert(std::make_pair(txnDigest, proof));
+  Debug("Inserted txn %s into Committed on CPU %d",BytesToHex(txnDigest, 16).c_str(), sched_getcpu());
+  //auto committedItr =committed.emplace(txnDigest, proof);
+
   CommitToStore(proof, txn, txnDigest, ts, val);
 
   Debug("Calling CLEAN for committing txn[%s]", BytesToHex(txnDigest, 16).c_str());
   Clean(txnDigest);
   CheckDependents(txnDigest);
   CleanDependencies(txnDigest);
+
+  if(params.query_params.parallel_queries){
+    //Dispatch job to worker thread (since it may wake and excute sync)
+      auto f = [this, txnDigest]() mutable {
+        Debug("Dispatch UpdateWaitingQueries(%s) to a worker thread.", BytesToHex(txnDigest, 16).c_str());
+        UpdateWaitingQueries(txnDigest);
+        return (void*) true;
+      };
+      transport->DispatchTP_noCB(std::move(f));
+  }
+  else{
+    UpdateWaitingQueries(txnDigest);
+  }
 }
+ 
+
+void Server::CommitWithProof(const std::string &txnDigest, proto::CommittedProof *proof){ //Called for Replica To Replica Sync
+
+    proto::Transaction *txn = proof->mutable_txn();
+    //std::string txnDigest(TransactionDigest(*txn, params.hashDigest));
+
+    Timestamp ts(txn->timestamp());
+
+    Value val;
+    val.proof = proof;
+
+    committed.insert(std::make_pair(txnDigest, proof)); //Note: This may override an existing commit proof -- that's fine.
+
+    CommitToStore(proof, txn, txnDigest, ts, val);
+
+    Debug("Calling CLEAN for committing txn[%s]", BytesToHex(txnDigest, 16).c_str());
+    Clean(txnDigest);
+    CheckDependents(txnDigest);
+    CleanDependencies(txnDigest);
+
+    UpdateWaitingQueries(txnDigest);
+}
+
 
 void Server::UpdateCommittedReads(proto::Transaction *txn, const std::string &txnDigest, Timestamp &ts, proto::CommittedProof *proof){
 
@@ -1588,6 +1626,19 @@ void Server::Abort(const std::string &txnDigest) {
   Clean(txnDigest, true);
   CheckDependents(txnDigest);
   CleanDependencies(txnDigest);
+
+  if(params.query_params.parallel_queries){
+    //Dispatch job to worker thread (since it may wake and excute sync)
+      auto f = [this, txnDigest]() mutable {
+        Debug("Dispatch UpdateWaitingQueries(%s) to a worker thread.", BytesToHex(txnDigest, 16).c_str());
+        UpdateWaitingQueries(txnDigest);
+        return (void*) true;
+      };
+      transport->DispatchTP_noCB(std::move(f));
+  }
+  else{
+    UpdateWaitingQueries(txnDigest);
+  }
 }
 
 void Server::Clean(const std::string &txnDigest, bool abort, bool hard) {

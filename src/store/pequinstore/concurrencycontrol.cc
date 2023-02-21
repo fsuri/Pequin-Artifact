@@ -659,13 +659,14 @@ proto::ConcurrencyControl::Result Server::DoMVTSOOCCCheck(
           // bool isDep = false;
           // for (const auto &dep : depSet){ //preparedReadTxn->deps()) {
           //   if (txnDigest == dep.write().prepared_txn_digest()) {  
+          //     stats.Increment("isDep", 1);
           //     isDep = true;
           //     break;
           //   }
           // }
           //  if(isDep) continue; //Txn writes do not conflict with prepared Txn that read (depend on) the write
 
-          //FIXME: Remove faulty isDep check: not safe for multithreading reads and prepare; safe but obsolete for single threading: a correct isDep should be equivalent to isReadVersionEarlier returning false ==> since dep on the key implies readTS == ts.
+          //FIXME: Remove faulty isDep check (does not seem to be triggered anyways): not safe for multithreading reads and prepare; safe but obsolete for single threading: a correct isDep should be equivalent to isReadVersionEarlier returning false ==> since dep on the key implies readTS == ts.
           //Note: Faulty isDep check could result in some false Prepares (when it should have aborted); however, the odds of this are exceedingly rare for experiments with correct replicas, so removing the test should not affect performance
                                                                                                         //Scenario: Tx1 prepares at R1, and both w_a1 and w_b1 are written to prepared Writes (non-atomically)
                                                                                                         //          Tx2 reads r_a1 and forms a dependency, but reads r_b0

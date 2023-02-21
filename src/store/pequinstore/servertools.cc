@@ -381,9 +381,9 @@ void Server::ManageDispatchRequestTx(const TransportAddress &remote, const std::
 // dont parallize further, since this is treated as P1 or Writeback
 void Server::ManageDispatchSupplyTx(const TransportAddress &remote, const std::string &data){
   
-   if(!params.mainThreadDispatching || params.dispatchMessageReceive ){  // ==  if(params.mainThreadDispatching && !params.dispatchMessageReceive 
+   if(!params.mainThreadDispatching || (params.dispatchMessageReceive && !params.query_params.parallel_queries )){  // ==  if(params.mainThreadDispatching && !params.dispatchMessageReceive 
         supplyTx.ParseFromString(data);
-        HandleSupplyTx(remote, supplyTx);
+        HandleSupplyTx(remote, supplyTx); 
     }
     //if dispatching to second main or other workers
     else{
@@ -394,7 +394,12 @@ void Server::ManageDispatchSupplyTx(const TransportAddress &remote, const std::s
         return (void*) true;
       };
      
-      transport->DispatchTP_main(std::move(f)); //dispatch to mainthread //TODO: Need to allocate message also if multiThreading Verification.
+      if(params.query_params.parallel_queries){ 
+        transport->DispatchTP_noCB(std::move(f));  //dispatch to worker
+      }
+      else{
+        transport->DispatchTP_main(std::move(f)); //dispatch to mainthread
+      }
       
     }
 }
