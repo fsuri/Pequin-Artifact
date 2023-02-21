@@ -196,6 +196,7 @@ void Client::Get(const std::string &key, get_callback gcb,
         }
       }
       if (addReadSet) {
+        Debug("Adding read to read set");
         ReadMessage *read = txn.add_read_set();
         read->set_key(key);
         ts.serialize(read->mutable_readtime());

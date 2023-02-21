@@ -56,8 +56,10 @@ crypto::PubKey* KeyManager::GetPublicKey(uint64_t id) {
   std::unique_lock<std::mutex> lock(keyMutex);
   auto itr = publicKeys.find(id);
   if (itr == publicKeys.end()) {
+    Debug("Loading pub key for id %lu", id);
     crypto::PubKey* publicKey =  crypto::LoadPublicKey(keyPath + "/" +
         std::to_string(id) + ".pub", keyType, precompute);
+     Debug("Finished loading pub key for id %lu", id);
     auto pairItr = publicKeys.insert(std::make_pair(id, publicKey));
     return pairItr.first->second;
   } else {
@@ -69,8 +71,10 @@ crypto::PrivKey* KeyManager::GetPrivateKey(uint64_t id) {
   std::unique_lock<std::mutex> lock(keyMutex);
   auto itr = privateKeys.find(id);
   if (itr == privateKeys.end()) {
+    Debug("Loading priv key for id %lu", id);
     crypto::PrivKey* privateKey =  crypto::LoadPrivateKey(keyPath + "/" +
         std::to_string(id) + ".priv", keyType, precompute);
+     Debug("Finished loading priv key for id %lu", id);
     auto pairItr = privateKeys.insert(std::make_pair(id, privateKey));
     return pairItr.first->second;
   } else {

@@ -68,6 +68,7 @@ void ShardClient::ReceiveMessage(const TransportAddress &remote,
       const std::string &type, const std::string &data, void *meta_data) {
   if (type == readReply.GetTypeName()) {
     if(params.multiThreading){
+      Panic("Client ReadReply Multithreading is Deprecated. Concurrent accesses to readValues and txn are unsafe.");
       proto::ReadReply *curr_read = GetUnusedReadReply();
       curr_read->ParseFromString(data);
       HandleReadReplyMulti(curr_read);
@@ -648,7 +649,7 @@ bool ShardClient::BufferGet(const std::string &key, read_callback rcb) {
     }
   }
 
-  for (const auto &read : txn.read_set()) {
+  for (const auto &read : txn.read_set()) { //readValues.
     if (read.key() == key) {
       Debug("[group %i] Key %s was already read with ts %lu.%lu.", group,
           BytesToHex(key, 16).c_str(), read.readtime().timestamp(),
@@ -1021,13 +1022,29 @@ void ShardClient::HandleReadReply(const proto::ReadReply &reply) {
       }
     }
     pendingGets.erase(itr);
-    ReadMessage *read = txn.add_read_set();
-    *read->mutable_key() = req->key;
-    req->maxTs.serialize(read->mutable_readtime());
-    readValues[req->key] = req->maxValue;
+    // ReadMessage *read = txn.add_read_set();
+    // *read->mutable_key() = req->key;
+    // req->maxTs.serialize(read->mutable_readtime());
+     //readValues[req->key] = req->maxValue; //This was bugged: Overwrote previous read value.
     //if(!write->has_committed_value() && write->has_prepared_value()) std::cerr << "Calling gcb for prepared write.\n";
-    req->gcb(REPLY_OK, req->key, req->maxValue, req->maxTs, req->dep,
-        req->hasDep, true);
+    // req->gcb(REPLY_OK, req->key, req->maxValue, req->maxTs, req->dep,
+    //     req->hasDep, true);
+
+    //Only read once.
+    auto has_read = readValues.emplace(req->key, req->maxValue);
+    
+    if(has_read.second){
+       ReadMessage *read = txn.add_read_set();
+      *read->mutable_key() = req->key;
+      req->maxTs.serialize(read->mutable_readtime());
+      
+      req->gcb(REPLY_OK, req->key, req->maxValue, req->maxTs, req->dep,req->hasDep, true);
+    }
+    else{ //TODO: Could optimize to do this right at the start of Handle Read to avoid any validation costs... -> Does mean all reads have to lookup twice though.
+      std::string &prev_read = has_read.first->second;
+      req->maxTs = Timestamp();
+      req->gcb(REPLY_OK, req->key, prev_read, req->maxTs, req->dep, false, false); //Don't add to read set.
+    } 
     delete req;
   }
 }
