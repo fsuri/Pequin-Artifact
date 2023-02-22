@@ -1150,7 +1150,7 @@ void Server::HandlePhase2CB(TransportAddress *remote, proto::Phase2 *msg, const 
     return (void*) true;
  };
 
- if(params.multiThreading && params.mainThreadDispatching && params.dispatchCallbacks){
+ if(params.mainThreadDispatching && params.dispatchCallbacks){
    transport->DispatchTP_main(std::move(f));
  }
  else{
@@ -1331,7 +1331,7 @@ void Server::WritebackCallback(proto::Writeback *msg, const std::string* txnDige
       return (void*) true;
   };
 
- if(params.multiThreading && params.mainThreadDispatching && params.dispatchCallbacks){
+ if(params.mainThreadDispatching && params.dispatchCallbacks){ 
    transport->DispatchTP_main(std::move(f));
  }
  else{
@@ -1504,7 +1504,7 @@ void Server::Commit(const std::string &txnDigest, proto::Transaction *txn,
   CheckDependents(txnDigest);
   CleanDependencies(txnDigest);
 
-  if(params.query_params.parallel_queries){
+  if(params.mainThreadDispatching && params.query_params.parallel_queries){
     //Dispatch job to worker thread (since it may wake and excute sync)
       auto f = [this, txnDigest]() mutable {
         Debug("Dispatch UpdateWaitingQueries(%s) to a worker thread.", BytesToHex(txnDigest, 16).c_str());
@@ -1627,7 +1627,7 @@ void Server::Abort(const std::string &txnDigest) {
   CheckDependents(txnDigest);
   CleanDependencies(txnDigest);
 
-  if(params.query_params.parallel_queries){
+  if(params.mainThreadDispatching && params.query_params.parallel_queries){
     //Dispatch job to worker thread (since it may wake and excute sync)
       auto f = [this, txnDigest]() mutable {
         Debug("Dispatch UpdateWaitingQueries(%s) to a worker thread.", BytesToHex(txnDigest, 16).c_str());

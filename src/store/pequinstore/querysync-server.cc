@@ -741,49 +741,27 @@ void Server::HandleSupplyTx(const TransportAddress &remote, proto::SupplyMissing
         if(txn_info.abort()){ //Ignore tx for this supply msg.
             Debug("Replica indicates that previously prepared Tx is now aborted. tx-id: %s", BytesToHex(txn_id, 16).c_str());
             UW_ASSERT(txn_info.has_abort_proof());
-            //TODO: : Only trust the abort vote if there is a proof attached, or if there is f+1 supply messages that say the same...
+            // Only trust the abort vote if there is a proof attached, or if there is f+1 supply messages that say the same...
 
-            //Depending on concurrency flags: Release abort proof, or make copy?
-        
             auto f = [this, msg= txn_info.release_abort_proof()](){
-                // const TCPTransportAddress dummy_remote(sockaddr_in());
-                // HandleWriteback(dummy_remote, *msg);
-                //if it gets freed anyways, do nothing; else, delete after.
-                if(!(params.multiThreading || (params.mainThreadDispatching && !params.dispatchMessageReceive))) FreeWBmessage(msg);
+                const TCPTransportAddress dummy_remote = TCPTransportAddress(sockaddr_in());
+                HandleWriteback(dummy_remote, *msg);
+                if(!params.multiThreading && (!params.mainThreadDispatching || params.dispatchMessageReceive)) FreeWBmessage(msg); //I.e. if not allocating (See ManageWritebackDispatch)
+                return (void*) true;
             };
-            //TODO: Call Servertools receive message. (manageDispatch function...) ==> That will create a copy if applicable anyways (and thus we can delete our release always.. -- or we don't even need to release)
-            //TODO:: Manage where this is called/dispatched depending on whether parallel_queries is on or not? (Review Commit/Abort UpdateWaiting dispatch too!!!!)
 
-            //If parallel_queries (+ generic multithread params) ==> we are on random worker ==> need to be on main thread
-            //If !parallel_queries (+generic multithread parmas) ==> we are on mainthread ==> can just stay and invoke directly
-            //if on local thread ==> check writeback params.
-
-            //FIXME: Different thread options for writeback
-            //  if(!params.multiThreading && (!params.mainThreadDispatching || params.dispatchMessageReceive)){
-            //         writeback.ParseFromString(data);
-            //         HandleWriteback(remote, writeback);
-            //     }
-            //     else{
-            //         proto::Writeback *wb = GetUnusedWBmessage();
-            //         wb->ParseFromString(data);
-            //         if(!params.mainThreadDispatching || params.dispatchMessageReceive){
-            //         HandleWriteback(remote, *wb);
-            //         }
-            //         else{
-            //         auto f = [this, &remote, wb](){
-            //             this->HandleWriteback(remote, *wb);
-            //             return (void*) true;
-            //         };
-            //         transport->DispatchTP_main(std::move(f));
-            //         }
-            //     }
-
-
-
+            if(!params.query_params.parallel_queries || !params.mainThreadDispatching){  //TODO: Realistically: Always running with multiThreading now. Just configure parallel_queries?
+                //If !parallel_queries.  ==> both Query and Writeback follow the same dispatch rules (either both on network or both on main)
+                //if parallel_queries && !mainThreadDispatching  => parallel_queries has no effect. Thus both Query and Writeback follow same dispatch rules (depends on dispatchMessageReceive)
+               f();
+            }
+            else{ //params.mainThreadDispatching = true && parallel_queries == true ==> Query is on worker; writeback is on main
+                 transport->DispatchTP_main(std::move(f));
+            }
             //Dispatch HandleWriteback  //(RESOLVED -- made atomic) Cornercase: Tx was already written back (but only after checking for presence); but didn't wake Waiting (because it wasn't set yet).
             // Calling Writeback again here will short-circuit and not wait. ==> Can fix this by switching order of aborted check...
             
-            UpdateWaitingQueries(txn_id); //Don't need to wait on this txn. 
+            //UpdateWaitingQueries(txn_id); //Don't need to wait on this txn. 
             continue;
         }
 

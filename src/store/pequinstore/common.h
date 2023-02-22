@@ -610,7 +610,9 @@ typedef struct Parameters {
     replicaGossip(replicaGossip),
     signClientProposals(signClientProposals),
     rtsMode(rtsMode),
-    query_params(query_params) { }
+    query_params(query_params) { 
+        UW_ASSERT(!(mainThreadDispatching && dispatchMessageReceive)); //They should not be true at the same time.
+    }
 } Parameters;
 
 } // namespace pequinstore

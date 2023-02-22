@@ -60,21 +60,26 @@ namespace pequinstore {
 ///////////////////// Receive Message Dispatch Handlers: Determine on which thread to run message handlers -- and how objects need to be allocated accordingly
 // Parameters:
 // 1. mainThreadDispatching: Deserialize messages on thread receiving messages, but dispatch message handling to main worker thread
-// 2. dispatchMessageReceive: Dispatch both message deserialization and message handling to main worker thread.
+// 2. dispatchMessageReceive: Dispatch both message deserialization and message handling to main worker thread. (Note == 1 + 2 should never both be true.)
 // 3. parallel_reads: Dispatch all read requests to workers threads
 // 4. parallel_CCC: Dispatch Concurrency Control Check to worker threads
 // 5. multiThreading: Dispatch all crypto verification to worker threads (TODO: rename flag for clarity --> crypto_multiThreading)
 // 6. all_to_all_fb: Use all to all election for fallback -- uses Macs: Indicates that no crypto verification dispatch will be needed.
+// 7. parallel_queries: Dispatch all query related requests to worker threads
 //TODO: Full CPU utilization parallelism: Assign all handler functions to different threads.
 
+//TODO: Simplify all if clauses. Note that mainThreadDispatching and dispatchMessageReceive are mutually exclusive.
+
+//Note: parallel_reads is only enabled for mainThreadDispatching //TODO: Re-factor (also for queries) such that parallel works for dispatch too. Not urgent: dispatchReceive not currently used.
 void Server::ManageDispatchRead(const TransportAddress &remote, const std::string &data){
     //if no dispatching OR if dispatching both deser and Handling to 2nd main thread (no workers)
     if(!params.mainThreadDispatching || (params.dispatchMessageReceive && !params.parallel_reads) ){
+      //I.e If ManageDispatchRead is not supposed to be dispatched; OR it was already dispatched ==> don't need to allocate & can exec. If parallel_reads true, then do need to allocate
       read.ParseFromString(data);
       HandleRead(remote, read);
     }
     //if dispatching to second main or other workers
-    else{
+    else{ //I.e. ManageDispatch is called from Network Thread (mainThreadDispatching -> !dispatchMessageReceive)
       proto::Read* readCopy = GetUnusedReadmessage();
       readCopy->ParseFromString(data);
       auto f = [this, &remote, readCopy](){
@@ -176,7 +181,7 @@ void Server::ManageDispatchWriteback(const TransportAddress &remote, const std::
         if(!params.mainThreadDispatching || params.dispatchMessageReceive){
           HandleWriteback(remote, *wb);
         }
-        else{
+        else{ //mainthreadDispatching = true && dispatchMsgReceive= false.
           auto f = [this, &remote, wb](){
             this->HandleWriteback(remote, *wb);
             return (void*) true;
@@ -304,6 +309,8 @@ void Server::ManageDispatchMoveView(const TransportAddress &remote, const std::s
     }
 }
 
+//Queries
+////Note: parallel_queries only enabled for MainThreadDispatching -- Disabled for dispatchMessageReceive. //TODO: Enable also for dispatchMsgReceive
 
 void Server::ManageDispatchQuery(const TransportAddress &remote, const std::string &data){
 
@@ -336,7 +343,7 @@ void Server::ManageDispatchSync(const TransportAddress &remote, const std::strin
        HandleSync(remote, syncMsg);
     }
     //if dispatching to second main or other workers
-    else{
+    else{ //mainThreadDispatching
       proto::SyncClientProposal* syncCopy = GetUnusedSyncClientProposalMessage();
       syncCopy->ParseFromString(data);
       auto f = [this, &remote, syncCopy](){
@@ -384,9 +391,9 @@ void Server::ManageDispatchSupplyTx(const TransportAddress &remote, const std::s
    if(!params.mainThreadDispatching || (params.dispatchMessageReceive && !params.query_params.parallel_queries )){  // ==  if(params.mainThreadDispatching && !params.dispatchMessageReceive 
         supplyTx.ParseFromString(data);
         HandleSupplyTx(remote, supplyTx); 
-    }
+    } 
     //if dispatching to second main or other workers
-    else{
+    else{ //params.mainThreadDispatching && (!params.dispatchMessageReceive ||params.query_params.parallel_queries)
       proto::SupplyMissingTxns* supplyCopy = GetUnusedSupplyTxMessage();
       supplyCopy->ParseFromString(data);
       auto f = [this, &remote, supplyCopy](){
@@ -404,6 +411,41 @@ void Server::ManageDispatchSupplyTx(const TransportAddress &remote, const std::s
     }
 }
 
+//Backup Code for Managing thread location for querysync-server.cc SupplyTxn HandleWriteback
+ // if(!params.mainThreadDispatching ){
+            //      //if !mainThreadDispatching: -> parallel_queries cannot be used. 
+            //    //==> Implies that query is either on network thread or on main thread (if dispatchMessageReceive is true).
+            //    //==> Implies also that Writeback is either on network or on main thread (if dispatchMessageReceive is true).
+            //     if(params.dispatchMessageReceive && !params.query_params.parallel_queries){
+            //         //Query must be on main Thread already. dispatchImplies Writeback should be there too.
+            //         f();
+            //     }
+            //     else if(!params.dispatchMessageReceive && !params.query_params_parallel_queries){
+            //         //Query must be on network thread. // Writeback should be on network.
+            //         f();
+            //     } 
+            //     else if(params.dispatchMessageReceive && params.query_params_parallel_queries){  
+            //         //Query must be on worker thread. //Writeback should be on main // 
+            //         transport->DispatchTP_main(std::move(f));
+            //     }
+            //     else if(!params.dispatchMessageReceive && params.query_params_parallel_queries){
+            //         //Query must be on worker thread. //Writeback should be on network.
+            //             transport->IssueCB(std::move(f));
+            //     } 
+                
+            // }
+
+            // else if(params.query_params.parallel_queries){ //params.mainThreadDispatching == true. ==> dispatchMessageReceive must be false.
+            //     //Query is on worker
+            //     //Writeback must be on mainThread: dispatchMainCB
+            //     transport->DispatchTP_main(std::move(f));
+            // }
+            // else{ //params.mainThreadDispatching == true ==> dispatchMessageReceive must be false. params.query_params.parallel_queries = false
+            //     //Query is on mainThread
+            //     //Writeback can  stay
+            //     f();
+            // }
+          
 
 //////////////////////////////////////////////////////// Protocol Helper Functions
 
