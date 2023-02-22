@@ -381,7 +381,9 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
     void SetWaitingTS(QueryMetaData *query_md, const uint64_t &ts_id, const std::string *queryId, const proto::ReplicaList &replica_list, std::map<uint64_t, proto::RequestMissingTxns> &replica_requests);
     void HandleSyncCallback(QueryMetaData *query_md, const std::string &queryId);
     void SendQueryReply(QueryMetaData *query_md);
-    void UpdateWaitingQueries(const std::string &txnDigest);
+    void ProcessSuppliedTxn(const std::string &txn_id, proto::TxnInfo &txn_info, bool &stop);
+    void CheckWaitingQueries(const std::string &txnDigest, bool non_blocking = false);
+    void UpdateWaitingQueries(const std::string &txnDigest, bool is_abort = false);
     void FailWaitingQueries(const std::string &txnDigest);
     void FailQuery(QueryMetaData *query_md);
     bool VerifyClientQuery(proto::QueryRequest &msg, const proto::Query *query, std::string &queryId);

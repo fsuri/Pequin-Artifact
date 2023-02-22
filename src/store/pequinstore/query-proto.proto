@@ -182,12 +182,14 @@ message TxnInfo {
    bool invalid = 4;
   }
   optional Writeback abort_proof = 5;
- 
+  optional string txn_digest = 6; //Only set if using ts map.
 }
 
 message SupplyMissingTxnsMessage {
-   map<string, TxnInfo> txns = 1; //map from txn digest to Transaction object (+ proof)
-   required uint64 replica_idx = 2;
+  required uint64 replica_idx = 1;   
+  map<string, TxnInfo> txns = 2; //map from txn digest to Transaction object (+ proof)
+  map<uint64, TxnInfo> ts_txns = 3; //map from Ts to to Transaction object (+ proof) + txn_digest
+   
 }
 
 message SupplyMissingTxns {

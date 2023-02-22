@@ -648,12 +648,16 @@ bool Server::VerifyClientProposal(proto::Phase1FB &msg, const proto::Transaction
     
     }
 
+
 //Tries to Prepare a transaction by calling the OCC-Check and the Reply Handler afterwards
 //Dispatches the job to a worker thread if parallel_CCC = true
 void* Server::TryPrepare(uint64_t reqId, const TransportAddress &remote, proto::Transaction *txn,
                         std::string &txnDigest, bool isGossip) //, const proto::CommittedProof *committedProof, const proto::Transaction *abstain_conflict, proto::ConcurrencyControl::Result &result)
   {
     Debug("Calling TryPrepare for txn[%s] on MainThread %d", BytesToHex(txnDigest, 16).c_str(), sched_getcpu());
+
+    CheckWaitingQueries(txnDigest, true); //Check for waiting queries in non-blocking fashion.
+
     //current_views[txnDigest] = 0;
     p2MetaDataMap::accessor p;
     p2MetaDatas.insert(p, txnDigest);
@@ -682,10 +686,10 @@ void* Server::TryPrepare(uint64_t reqId, const TransportAddress &remote, proto::
 
     if(!params.parallel_CCC || !params.mainThreadDispatching){
 
-    result = DoOCCCheck(reqId, remote, txnDigest, *txn, retryTs,
-          committedProof, abstain_conflict, false, isGossip); //forwarded messages dont need to be treated as original client.
-     
-     HandlePhase1CB(reqId, result, committedProof, txnDigest, remote, abstain_conflict, isGossip);
+      result = DoOCCCheck(reqId, remote, txnDigest, *txn, retryTs,
+            committedProof, abstain_conflict, false, isGossip); //forwarded messages dont need to be treated as original client.
+      
+      HandlePhase1CB(reqId, result, committedProof, txnDigest, remote, abstain_conflict, isGossip);
 
       return (void*) true;
     }

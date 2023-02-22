@@ -766,7 +766,9 @@ void Server::HandlePhase1(const TransportAddress &remote,
     ProcessProposal(msg, remote, txn, txnDigest, isGossip); //committedProof, abstain_conflict, result);
   }
   else{ //If we already have result: Send it and free msg/delete txn --- only send result if it is of type != Wait/Ignore (i.e. only send Commit, Abstain, Abort)
-      if(result != proto::ConcurrencyControl::WAIT && result != proto::ConcurrencyControl::IGNORE) SendPhase1Reply(msg.req_id(), result, committedProof, txnDigest, &remote, abstain_conflict); //TODO: Eventually update to send direct WritebackAck
+      if(result != proto::ConcurrencyControl::WAIT && result != proto::ConcurrencyControl::IGNORE){
+        SendPhase1Reply(msg.req_id(), result, committedProof, txnDigest, &remote, abstain_conflict); //TODO: Eventually update to send direct WritebackAck
+      } 
       if((params.mainThreadDispatching && (!params.dispatchMessageReceive || params.parallel_CCC)) || (params.multiThreading && params.signClientProposals)) FreePhase1message(&msg);
       if(params.signClientProposals) delete txn;
   }
@@ -797,7 +799,7 @@ void Server::HandlePhase1CB(uint64_t reqId, proto::ConcurrencyControl::Result re
   c.release();
   //Note: wake_fallbacks only true if result != wait
   if(wake_fallbacks) WakeAllInterestedFallbacks(txnDigest, result, committedProof); //Note: Possibly need to wakeup interested fallbacks here since waking tx from missing query triggers TryPrepare (which returns here). 
-
+ 
   // if (result != proto::ConcurrencyControl::WAIT && !isGossip) { //forwarded P1 needs no reply.
   //   //XXX setting client time outs for Fallback
   //   // if(client_starttime.find(txnDigest) == client_starttime.end()){
@@ -1504,18 +1506,7 @@ void Server::Commit(const std::string &txnDigest, proto::Transaction *txn,
   CheckDependents(txnDigest);
   CleanDependencies(txnDigest);
 
-  if(params.mainThreadDispatching && params.query_params.parallel_queries){
-    //Dispatch job to worker thread (since it may wake and excute sync)
-      auto f = [this, txnDigest]() mutable {
-        Debug("Dispatch UpdateWaitingQueries(%s) to a worker thread.", BytesToHex(txnDigest, 16).c_str());
-        UpdateWaitingQueries(txnDigest);
-        return (void*) true;
-      };
-      transport->DispatchTP_noCB(std::move(f));
-  }
-  else{
-    UpdateWaitingQueries(txnDigest);
-  }
+  CheckWaitingQueries(txnDigest);
 }
  
 
@@ -1627,18 +1618,7 @@ void Server::Abort(const std::string &txnDigest) {
   CheckDependents(txnDigest);
   CleanDependencies(txnDigest);
 
-  if(params.mainThreadDispatching && params.query_params.parallel_queries){
-    //Dispatch job to worker thread (since it may wake and excute sync)
-      auto f = [this, txnDigest]() mutable {
-        Debug("Dispatch UpdateWaitingQueries(%s) to a worker thread.", BytesToHex(txnDigest, 16).c_str());
-        UpdateWaitingQueries(txnDigest);
-        return (void*) true;
-      };
-      transport->DispatchTP_noCB(std::move(f));
-  }
-  else{
-    UpdateWaitingQueries(txnDigest);
-  }
+  CheckWaitingQueries(txnDigest);
 }
 
 void Server::Clean(const std::string &txnDigest, bool abort, bool hard) {
@@ -2270,6 +2250,8 @@ bool Server::ExecP1(proto::Phase1FB &msg, const TransportAddress &remote,
   Debug("FB exec PHASE1[%lu:%lu][%s] with ts %lu.", txn->client_id(),
      txn->client_seq_num(), BytesToHex(txnDigest, 16).c_str(),
      txn->timestamp().timestamp());
+
+  CheckWaitingQueries(txnDigest, true); //Check for waiting queries in non-blocking fashion.
 
   //start new current view
   // current_views[txnDigest] = 0;

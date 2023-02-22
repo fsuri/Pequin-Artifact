@@ -685,6 +685,7 @@ void Server::HandleRequestTx(const TransportAddress &remote, proto::RequestMissi
     return;
 }
 
+
 void Server::HandleSupplyTx(const TransportAddress &remote, proto::SupplyMissingTxns &msg){
 
     //Note: this will be called on a worker thread -- directly call Query handler callback.
@@ -709,230 +710,17 @@ void Server::HandleSupplyTx(const TransportAddress &remote, proto::SupplyMissing
 
     Debug("\n Received Supply Txns from Replica %d with %d transactions", supply_txn->replica_idx(), supply_txn->txns().size());
 
-   
+    //TODO: To support TS sync: Loop over ts, tx map. Re-factor loop contents into separate function. -- for sync on Tx-id, also add timestamp (happens in ongoing -- ideally report client that equived)
+     //TODO: (Request sends TS, Supply replies with map from TS to TX)
+                    //TODO: Turn supply map into repeated TxnInfo; move tx-id into txninfo; add map from Ts to txinfo
+                    // OR: Easier: Add optional tx-id field to tx-info. add map.
+    bool stop = false;
     for(auto &[txn_id, txn_info] : *supply_txn->mutable_txns()){
         // std::string &txn_id = tx.first;
         // proto::TxnInfo &txn_info = tx.second;
         Debug("Trying to locally apply tx-id: [%s]", BytesToHex(txn_id, 16).c_str());
-   
-        //check if locally committed; if not, check cert and apply
-        bool testing_sync = false;
-        auto itr = committed.find(txn_id);
-        if(!testing_sync && itr != committed.end()){
-            Debug("Already have committed tx-id: [%s]", BytesToHex(txn_id, 16).c_str());
-            //UpdateWaitingQueries(txn_id);   //Note: Already called in Commit function --> Guarantees that queries wake up as soon as Commit happens, not once Supply happens
-            //(RESOLVED) Cornercase: But: Couldve been added to commit only after checking for presence but before being added to WaitingTxn --> thus must wake again. 
-            continue;
-        }
-        //check if locally aborted; if so, no point in syncing on txn: --> could mark this and reply to client with query fail (include tx that has abort vote + proof 
-        //--> client can confirm that this is part of snapshot).. query is doomed to fail.
-        //BETTER: Just ignore the txn for materialization. After all, not reading from an aborted tx is the serializable decision. 
-            //Note: As a result of ignoring, some replicas may read it, and some won't ==> this might fail sync, but that's ok: Just retry.
-        
-        auto itr2 = aborted.find(txn_id);
-        if(itr2 != aborted.end()){
-             Debug("Already have aborted tx-id: %s", BytesToHex(txn_id, 16).c_str());
-            //Don't need to wait on this txn (Abort call UpdatedWaitingQueries)
-            //UpdateWaitingQueries(txn_id); 
-                    // Alternatively: Could Mark all waiting queries as doomed. FailWaitingQueries(txn_id);
-            continue;
-        }
-
-        if(txn_info.abort()){ //Ignore tx for this supply msg.
-            Debug("Replica indicates that previously prepared Tx is now aborted. tx-id: %s", BytesToHex(txn_id, 16).c_str());
-            UW_ASSERT(txn_info.has_abort_proof());
-            // Only trust the abort vote if there is a proof attached, or if there is f+1 supply messages that say the same...
-
-            auto f = [this, msg= txn_info.release_abort_proof()](){
-                const TCPTransportAddress dummy_remote = TCPTransportAddress(sockaddr_in());
-                HandleWriteback(dummy_remote, *msg);
-                if(!params.multiThreading && (!params.mainThreadDispatching || params.dispatchMessageReceive)) FreeWBmessage(msg); //I.e. if not allocating (See ManageWritebackDispatch)
-                return (void*) true;
-            };
-
-            if(!params.query_params.parallel_queries || !params.mainThreadDispatching){  //TODO: Realistically: Always running with multiThreading now. Just configure parallel_queries?
-                //If !parallel_queries.  ==> both Query and Writeback follow the same dispatch rules (either both on network or both on main)
-                //if parallel_queries && !mainThreadDispatching  => parallel_queries has no effect. Thus both Query and Writeback follow same dispatch rules (depends on dispatchMessageReceive)
-               f();
-            }
-            else{ //params.mainThreadDispatching = true && parallel_queries == true ==> Query is on worker; writeback is on main
-                 transport->DispatchTP_main(std::move(f));
-            }
-            //Dispatch HandleWriteback  //(RESOLVED -- made atomic) Cornercase: Tx was already written back (but only after checking for presence); but didn't wake Waiting (because it wasn't set yet).
-            // Calling Writeback again here will short-circuit and not wait. ==> Can fix this by switching order of aborted check...
-            
-            //UpdateWaitingQueries(txn_id); //Don't need to wait on this txn. 
-            continue;
-        }
-
-        //TODO: Check prepared first.
-
-        if(txn_info.has_commit_proof()){
-
-            Debug("Trying to commit tx-id: [%s]", BytesToHex(txn_id, 16).c_str());
-            proto::CommittedProof *proof = txn_info.release_commit_proof();
-
-            //TODO: it's possible for the txn to be in process of committing while entering this branch; that's fine safety wise, but can cause redundant verification. Might want to hold a lock to avoid (if it happens)
-
-            bool valid;
-            if (proof->txn().client_id() == 0UL && proof->txn().client_seq_num() == 0UL) {
-                // Genesis tx are valid by default. TODO: this is unsafe, but a hack so that we can bootstrap a benchmark without needing to write all existing data with transactions
-                // Note: Genesis Tx will NEVER by exchanged by sync since by definition EVERY replica has them (and thus will never request them) -- this branch is only used for testing.
-                valid = true;
-                Debug("Accepted Genesis tx-id: [%s]", BytesToHex(txn_id, 16).c_str());
-                UpdateWaitingQueries(txn_id);
-            }
-            else{
-                //Confirm that replica supplied correct transaction.     //TODO: Note: Since one should do this anyways, there is no point in storing txn_id as part of supply message.
-                 if(txn_id != TransactionDigest(proof->txn(), params.hashDigest)){
-                    Debug("Tx-id: [%s], TxDigest: [%s]", txn_id, TransactionDigest(proof->txn(), params.hashDigest));
-                    Panic("Supplied Wrong Txn for given tx-id");
-                    delete proof;
-                    break; //Can ignore supply msg from this replica (must be byz)
-                 }
-
-                 //Confirm that proof of transaction commit is valid.
-
-                 //Synchronous code: 
-                    // valid = ValidateCommittedProof(*proof, &txn_id, keyManager, &config, verifier); 
-                    // if(!valid){
-                    //     delete proof;
-                    //     Panic("Commit Proof not valid");
-                    //     return;
-                    // }
-                    // Debug("Validated Commit Proof for tx-id: [%s]", BytesToHex(txn_id, 16).c_str());
-                    // CommitWithProof(txn_id, proof);
-                 
-                //Asynchronous code: 
-                auto mcb = [this, txn_id, proof](void* valid) mutable { 
-                    if(!valid){
-                        delete proof;
-                        Panic("Commit Proof not valid");
-                        return (void*) false;
-                    }
-                    //Note: Mcb will be called on network thread --> dispatch to worker again.
-                    auto f = [this, txn_id, proof]() mutable{
-                        CommitWithProof(txn_id, proof);
-                        return (void*) true;
-                    };
-                    transport->DispatchTP_noCB(std::move(f));
-                    return (void*) true;
-                };
-                asyncValidateCommittedProof(*proof, &txn_id, keyManager, &config, verifier, std::move(mcb), transport, params.multiThreading, params.batchVerification);
-            }
-            continue;
-        } 
-
-        // NOTE: CURRENTLY WILL NOT YET SUPPORT READING PREPARED TRANSACTIONS ==> All code below here should never be called
-        Panic("Not yet supporting prepared reads for queries");  
-        
-        //TODO: Need to support sync on TS id too. (Request sends TS, Supply replies with map from TS to TX)
-                        //TODO: Turn supply map into repeated TxnInfo; move tx-id into txninfo; add map from Ts to txinfo
-                        // OR: Easier: Add optional tx-id field to tx-info. add map.
-
-        //2) if Prepared 
-
-        //Just check if ongoing. (Ongoing is added before prepare is finished) -- Since onging might be a temporary ongoing that gets removed again due to invalidity -> check P1MetaData
-        p1MetaDataMap::const_accessor c;
-        if(p1MetaData.find(c, txn_id)) continue; //Tx already in process of preparing: Will call UpdateWaitingQueries.
-        c.release();
-
-        //FIXME: Replica that had prepare might now be aborted...
-
-        //Otherwise: Validate ourselves.
-        if(txn_info.has_p1()){
-             //Call ProcessProposal. :: NOTE: if parallelCCC is false, but parallel queries is true, then we need to dispatch ProcessProposal call to MainThread.
-
-        //TODO: Add UpdateWaiting inside TryPrepare? (Note: Needs to be called for FB too) --> so maybe inside DoOCCCheck?
-        }
-        else if (txn_info.has_invalid()){
-            Panic("Invalid Supply Txn: Replica didn't have requested txn"); //Panicing for debug purposes only. Just return normally.
-            return;
-                //TODO: Let correct replica report the fact that it did not have tx committed/prepared/aborted --> implies that Client formed an invalid sync proposal  
-                //Note: currently waitingQueries doesn't distinguish individual queries: some may have had honest clients, others not. ==> Could add req_id that invoked Req/Supply
-            //Note: We currently receive SupplyTxn for each query separately (even though UpdateWaiting wakes multiple)
-           
-            return;
-        }
-        else{
-            Panic("Ill-formed supply TxnProof");
-        }
-       
-
-
-
-
-         //TODO: If using optimistic Ids'
-        // If optimistic ID maps to 2 txn-ids --> report issuing client (do this when you receive the tx already); vice versa, if we notice 2 optimistic ID's map to same tx --> report! 
-        // (Can early abort query to not waste exec since sync might fail- or optimistically execute and hope for best) --> won't happen in simulation (unless testing failures)
-
-        proto::ConcurrencyControl::Result result;
-        const proto::CommittedProof *conflict;
-
-        //p1MetaDataMap::const_accessor c;
-        bool hasP1result = p1MetaData.find(c, txn_id) ? c->second.hasP1 : false;
-        if(hasP1result){
-            result = c->second.result; //p1Decisions[txnDigest];
-            conflict = c->second.conflict;
-             c.release();
-
-             Debug("Already have prepared tx-id: [%s] with result %d", BytesToHex(txn_id, 16).c_str(), result);
-             continue;
-
-            //TODO: If commit, skip;
-            if(result == proto::ConcurrencyControl::COMMIT) continue; //TODO: UpdateWaitingQueries 
-            else if(result == proto::ConcurrencyControl::ABORT){
-                //Mark all waiting queries as failed.
-                //FailWaitingQueries(txn_id);
-                continue;
-            }
-            else if(result == proto::ConcurrencyControl::ABSTAIN){
-                //TODO: somehow add tx to store, and mark it as "viewable" only for waitingQueries --> //FIXME: if a new query arrives that also wants to see this tx --> edit the marker to make it visible too.
-                // //TODO: Shouldnt even sync on the tx if it is locally prepared Abstain --> directly make visible. 
-                //FIXME: Easiest solution: During OCC check, Also "prepare" all tx that are locally abstained --> that way we can directly detect them as not necessary for sync. Mark them "invisible" by default.
-                //Garbage collect for good from prepared map once it is aborted.
-            }
-            //If abstain, apply only for query
-            //if abort, vote early to abort query.       //if(result == proto::ConcurrencyControl::ABORT)
-            //if wait/ignore?
-        }
-
-        c.release();
-         //check if locally prepared; if not do OCC check. --> If not successful, apply tx anyways with special marker only useable by marked queries.
-        if(txn_info.has_p1()){
-
-            Debug("Trying to prepare tx-id: [%s]", BytesToHex(txn_id, 16).c_str());
-            //TODO: Handle incoming p1 as a normal P1 and after it is done, Update Waiting Queries. ==> If update waiting queries is done as part of Prepare (whether visible or invisible) nothing else is necessary)
-            proto::Phase1 *p1 = txn_info.release_p1();
-
-              if(txn_id != TransactionDigest(p1->txn(), params.hashDigest)){
-                    Debug("Tx-id: [%s], TxDigest: [%s]", txn_id, TransactionDigest(p1->txn(), params.hashDigest));
-                    Panic("Supplied Wrong Txn for given tx-id");
-                 }
-
-            //Call OCC check for P1. -- //TODO: Created Mcb that calls TryPrepare + UpdateWaitingQueries. ==> Or, simplest: Add UpdateWaitingQueries to Prepare call
-                    
-                    
-                    //SIMPLEST: To be honest, can just add it to ongoing for all TX and let prepare (and commit from above) be async dispatched to main thread?
-                    //That way it is present to be materialized
-                    //Problem: Don't want to add to ongoing if not Valid? Or maybe it's fine in this case, because the client requested it. (Unsure how to GC collect it though? (before LWM))
-
-            //FIXME: Can hack CC such that if the request is of type isGossip, it tries to call Update Waiting Queries once result is known; --> then can multithread no problem.
-            //FIXME: Alternatively Modify HandlePhase1 to not use multithreading here -- but that would hurt concurrency since its now on the mainthread.
-            HandlePhase1(remote, *p1);
-            //FIXME: WARNING!!! HandlePhase1 is only allowed to be called on MainThread!!! --> The whole SupplyTxn handler must be called on MainThread. -->QueryExec can then be dispatched again
-            //(this makes sense, since supply txn is effectively a Commit or P1)
-        }
-        else if (txn_info.has_invalid()){
-            //TODO: Edit into handler for replica reporting that it doesnt have either. False request. 
-            //FIXME: currently waitingQueries doesn't distinguish individual queries: some may have had honest clients, others not. ==> Just add req_id that invoked Req/Supply
-            Panic("Invalid Supply Txn: Replica didn't have requested txn"); //Panicing for debug purposes only. Just return normally.
-            return;
-        }
-        else{
-            Panic("Ill-formed supply TxnProof");
-        }
-            
+        ProcessSuppliedTxn(txn_id, txn_info, stop);   
+        if(stop) break;
     }
 
     if(params.query_params.signReplicaToReplicaSync) delete supply_txn;
@@ -941,14 +729,245 @@ void Server::HandleSupplyTx(const TransportAddress &remote, proto::SupplyMissing
 
 }
 
+//Consider moving this to servertools?
+void Server::ProcessSuppliedTxn(const std::string &txn_id, proto::TxnInfo &txn_info, bool &stop){
+     //check if locally committed; if not, check cert and apply
+        
+    bool testing_sync = false;
+    auto itr = committed.find(txn_id);
+    if(!testing_sync && itr != committed.end()){
+        Debug("Already have committed tx-id: [%s]", BytesToHex(txn_id, 16).c_str());
+        //UpdateWaitingQueries(txn_id);   //Note: Already called in Commit function --> Guarantees that queries wake up as soon as Commit happens, not once Supply happens
+        //(RESOLVED) Cornercase: But: Couldve been added to commit only after checking for presence but before being added to WaitingTxn --> thus must wake again. 
+        return;
+    }
+    //check if locally aborted; if so, no point in syncing on txn: --> could mark this and reply to client with query fail (include tx that has abort vote + proof 
+    //--> client can confirm that this is part of snapshot).. query is doomed to fail.
+    //BETTER: Just ignore the txn for materialization. After all, not reading from an aborted tx is the serializable decision. 
+        //Note: As a result of ignoring, some replicas may read it, and some won't ==> this might fail sync, but that's ok: Just retry.
 
-            
+    auto itr2 = aborted.find(txn_id);
+    if(itr2 != aborted.end()){
+            Debug("Already have aborted tx-id: %s", BytesToHex(txn_id, 16).c_str());
+        //Don't need to wait on this txn (Abort call UpdatedWaitingQueries)
+        //UpdateWaitingQueries(txn_id); 
+                // Alternatively: Could Mark all waiting queries as doomed. FailWaitingQueries(txn_id);
+        return;
+    }
+
+     ///Note (FIXME:?): A Replica that has a prepare but receives an abort proof might want to remove the tx from the snapshot. TODO: For this reason, may want to move prepare check after abort proof check.
+
+    //If not committed/aborted ==> Check if locally present.
+    //Just check if ongoing. (Ongoing is added before prepare is finished) -- Since onging might be a temporary ongoing that gets removed again due to invalidity -> check P1MetaData
+    p1MetaDataMap::const_accessor c;
+    if(p1MetaData.find(c, txn_id)){
+        if(c->second.hasP1){
+            if(c->second.result == proto::ConcurrencyControl::ABORT){
+                 //Mark all waiting queries as failed.  ==> Better: Just remove from snapshot.
+            //FailWaitingQueries(txn_id);
+            }
+        }
+        return; //Tx already in process of preparing: Will call UpdateWaitingQueries.
+    } 
+    c.release();
+    
+    //Check if other replica had aborted (If so, exclude this tx from snapshot; Alternatively could fail sync eagerly, but that seems unecessary)
+    if(txn_info.abort()){ 
+        Debug("Replica indicates that previously prepared Tx is now aborted. tx-id: %s", BytesToHex(txn_id, 16).c_str());
+        UW_ASSERT(txn_info.has_abort_proof());
+        // Only trust the abort vote if there is a proof attached, or if there is f+1 supply messages that say the same...
+
+        auto f = [this, msg= txn_info.release_abort_proof()](){
+            const TCPTransportAddress dummy_remote = TCPTransportAddress(sockaddr_in());
+            HandleWriteback(dummy_remote, *msg);
+            if(!params.multiThreading && (!params.mainThreadDispatching || params.dispatchMessageReceive)) FreeWBmessage(msg); //I.e. if ReceiveMsg would not be allocating (See ManageDispatchWriteback)
+            return (void*) true;
+        };
+
+        if(!params.query_params.parallel_queries || !params.mainThreadDispatching){  //TODO: Realistically: Always running with multiThreading now. Just configure parallel_queries?
+            //If !parallel_queries.  ==> both Query and Writeback follow the same dispatch rules (either both on network or both on main)
+            //if parallel_queries && !mainThreadDispatching  => parallel_queries has no effect. Thus both Query and Writeback follow same dispatch rules (depends on dispatchMessageReceive)
+            f();
+        }
+        else{ //params.mainThreadDispatching = true && parallel_queries == true ==> Query is on worker; writeback is on main
+                transport->DispatchTP_main(std::move(f));
+        }
+        //Dispatch HandleWriteback  //(RESOLVED -- made atomic) Cornercase: Tx was already written back (but only after checking for presence); but didn't wake Waiting (because it wasn't set yet).
+        // Calling Writeback again here will short-circuit and not wait. ==> Can fix this by switching order of aborted check...
+        
+        //UpdateWaitingQueries(txn_id); //Don't need to wait on this txn. 
+        return;
+    }
+
+    //Check if other replica supplied commit
+    if(txn_info.has_commit_proof()){   
+         //TODO: it's possible for the txn to be in process of committing while entering this branch; that's fine safety wise, but can cause redundant verification. Might want to hold a lock to avoid (if it happens)
+        Debug("Trying to commit tx-id: [%s]", BytesToHex(txn_id, 16).c_str());
+        proto::CommittedProof *proof = txn_info.release_commit_proof();
+
+        bool valid;
+        if (proof->txn().client_id() == 0UL && proof->txn().client_seq_num() == 0UL) {
+            // Genesis tx are valid by default. TODO: this is unsafe, but a hack so that we can bootstrap a benchmark without needing to write all existing data with transactions
+            // Note: Genesis Tx will NEVER by exchanged by sync since by definition EVERY replica has them (and thus will never request them) -- this branch is only used for testing.
+            valid = true;
+            Debug("Accepted Genesis tx-id: [%s]", BytesToHex(txn_id, 16).c_str());
+            UpdateWaitingQueries(txn_id); //Does not seem necessary for Genesis, but shouldn't hurt
+        }
+        else{
+            //Confirm that replica supplied correct transaction.     //TODO: Note: Since one should do this anyways, there is no point in storing txn_id as part of supply message.
+                if(txn_id != TransactionDigest(proof->txn(), params.hashDigest)){
+                    Debug("Tx-id: [%s], TxDigest: [%s]", txn_id, TransactionDigest(proof->txn(), params.hashDigest));
+                    Panic("Supplied Wrong Txn for given tx-id");
+                    delete proof;
+                    stop = true;
+                    return; //break; //Can ignore supply msg from this replica (must be byz)
+                }
+                //Confirm that proof of transaction commit is valid.
+
+                //Synchronous code: 
+                    // valid = ValidateCommittedProof(*proof, &txn_id, keyManager, &config, verifier); 
+                    // if(!valid){
+                    //     delete proof;
+                    //     Panic("Commit Proof not valid");
+                    //     return;
+                    // }
+                    // Debug("Validated Commit Proof for tx-id: [%s]", BytesToHex(txn_id, 16).c_str());
+                    // CommitWithProof(txn_id, proof);
+                
+            //Asynchronous code: 
+            auto mcb = [this, txn_id, proof](void* valid) mutable { 
+                if(!valid){
+                    delete proof;
+                    Panic("Commit Proof not valid");
+                    return (void*) false;
+                }
+                //Note: Mcb will be called on network thread --> dispatch to worker again.
+                auto f = [this, txn_id, proof]() mutable{
+                    CommitWithProof(txn_id, proof);
+                    return (void*) true;
+                };
+                transport->DispatchTP_noCB(std::move(f));
+                return (void*) true;
+            };
+            asyncValidateCommittedProof(*proof, &txn_id, keyManager, &config, verifier, std::move(mcb), transport, params.multiThreading, params.batchVerification);
+        }
+        return;
+    } 
+
+    //2) Check whether other replica supplies P1 -- If so, try to validate and prepare ourselves     
+    //Otherwise: Validate ourselves.
+    else if(txn_info.has_p1()){
+        // Handle incoming p1 as a normal P1 and Update Waiting Queries. ==> If update waiting queries is done as part of Prepare (whether visible or invisible) nothing else is necessary)
+           
+         Debug("Received Phase1 message");
+         Debug("Trying to prepare tx-id: [%s]", BytesToHex(txn_id, 16).c_str());
+    
+        proto::Phase1 *p1 = txn_info.release_p1();
+
+        proto::Transaction *txn;
+        if(params.signClientProposals){
+            txn = new proto::Transaction(); //Note: txn deletion is covered by ProcessProposal. 
+            txn->ParseFromString(p1->signed_txn().data());
+        }
+        else{
+            txn = p1->mutable_txn();
+        }
+
+        //Check whether txn matches requested tx-id
+        if(txn_id != TransactionDigest(*txn, params.hashDigest)){
+            Debug("Tx-id: [%s], TxDigest: [%s]", txn_id, TransactionDigest(*txn, params.hashDigest));
+            Panic("Supplied Wrong Txn for given tx-id");
+        }
+
+         //==> Call ProcessProposal. 
+
+            //TODO: If using optimistic Ids'
+            // If optimistic ID maps to 2 txn-ids --> report issuing client (do this when you receive the tx already); vice versa, if we notice 2 optimistic ID's map to same tx --> report! 
+            // (Can early abort query to not waste exec since sync might fail- or optimistically execute and hope for best) --> won't happen in simulation (unless testing failures)
+        auto f = [this, p1, txn, txn_dig = txn_id]() mutable {
+            if(params.signClientProposals) *txn->mutable_txndigest() = txn_dig; //Hack to have access to txnDigest inside TXN later (used for abstain conflict)
+
+            const TCPTransportAddress dummy_remote = TCPTransportAddress(sockaddr_in());
+            ProcessProposal(*p1, dummy_remote, txn, txn_dig, true); //Set gossip to true ==> No reply                       
+            if((!params.mainThreadDispatching || (params.dispatchMessageReceive && !params.parallel_CCC)) && (!params.multiThreading || !params.signClientProposals)){
+                delete p1; //I.e. if receiveMessage would not be allocating (See ManageDispatchP1)
+                //Note: txn deletion is covered by ProcessProposal.
+            } 
+            return (void*) true;
+        };
+
+        if(!params.query_params.parallel_queries || !params.mainThreadDispatching){  //TODO: Realistically: Always running with multiThreading now. Just configure parallel_queries?
+            //If !parallel_queries.  ==> both Query and P1 follow the same dispatch rules (either both on network or both on main)
+            //if parallel_queries && !mainThreadDispatching  => parallel_queries has no effect. Thus both Query and P1 follow same dispatch rules (depends on dispatchMessageReceive)
+            f();
+        }
+        else{ //params.mainThreadDispatching = true && parallel_queries == true ==> Query is on worker; but P1 should be on main
+                transport->DispatchTP_main(std::move(f));
+        }
+        return;    
+    }
+
+    //Check whether supplier reports tx as invalid (wrong Request)
+    else if (txn_info.has_invalid()){
+        Panic("Invalid Supply Txn: Replica didn't have requested txn"); //Panicing for debug purposes only. Just return normally.
+        return;
+            //TODO: Let correct replica report the fact that it did not have tx committed/prepared/aborted --> implies that Client formed an invalid sync proposal  
+            //Note: currently waitingQueries doesn't distinguish individual queries: some may have had honest clients, others not. ==> Could add req_id that invoked Req/Supply
+        //Note: We currently receive SupplyTxn for each query separately (even though UpdateWaiting wakes multiple)
+    }
+
+    else{
+        Panic("Ill-formed supply TxnProof");
+    }
+}
+   
+
+//Note: Call this only from Network or from MainThread (can do so before calling DoOCC)
+void Server::CheckWaitingQueries(const std::string &txnDigest, bool non_blocking){ //Non_blocking makes it so that the request is schedules asynchronously, i.e. does not block calling function
+  //Wake waiting queries.
+  if(params.mainThreadDispatching && (params.query_params.parallel_queries || non_blocking)){   //if mainThreadDispatching = true then dispatchMessageReceive = false
+    //Dispatch job to worker thread (since it may wake and excute sync)
+      auto f = [this, txnDigest]() mutable {
+        Debug("Dispatch UpdateWaitingQueries(%s) to a worker thread.", BytesToHex(txnDigest, 16).c_str());
+        UpdateWaitingQueries(txnDigest);
+        return (void*) true;
+      };
+      if(params.query_params.parallel_queries) transport->DispatchTP_noCB(std::move(f));
+      else if(non_blocking) transport->DispatchTP_main(std::move(f));
+  }
+  else{
+    UpdateWaitingQueries(txnDigest);
+  }
+
+    //TODO: Alternatively: Could call this in DoOCCCheck -- but then need to account for the fact that it might be called from a worker thread (only on normal case, not fallback)
+
+  // if(!params.mainThreadDispatching || (params.parallel_CCC && params.query_params.parallel_queries)){  //IF already on worker, stay
+  //     UpdateWaitingQueries(txnDigest);
+  // }
+  // else if(!params.parallel_CCC && params.query_params.parallel_queries){
+  //   //Dispatch job to worker thread (since it may wake and excute sync)
+  //     auto f = [this, txnDigest]() mutable {
+  //       Debug("Dispatch UpdateWaitingQueries(%s) to a worker thread.", BytesToHex(txnDigest, 16).c_str());
+  //       UpdateWaitingQueries(txnDigest);
+  //       return (void*) true;
+  //     };
+  //     transport->DispatchTP_noCB(std::move(f));
+  // }
+  // else if(params.parallel_CCC && !params.query_params.parallel_queries){
+  //     auto f = [this, txnDigest]() mutable {
+  //       Debug("Dispatch UpdateWaitingQueries(%s) to a worker thread.", BytesToHex(txnDigest, 16).c_str());
+  //       UpdateWaitingQueries(txnDigest);
+  //       return (void*) true;
+  //     };
+  //     transport->DispatchTP_main(std::move(f));
+  // }
+}
+            //TODO: Add ABORT/Delete option.
+
 //TODO: Alternatively, set query_id field in request missing and supply missing and wake only respective query. That might be easier to debug.
 //TODO: If Tx gets locally committed/prepared/abstained ignore it, and wait for SupplyTxn reply anyways ==> This is slower/less optimal, but definitely simpler to implement at first.
 
-//FIXME: WARNING: Possible Inverted lock order (accessors w and q) in this function and HandleSync. Should be fine though, since this function will only try to call a q for which a w was added;
-                                                     //while HandleSync only calls each w once. I.e. HandleSync must lock&release w first, in order for this function to even request the same q.
-void Server::UpdateWaitingQueries(const std::string &txnDigest){
+void Server::UpdateWaitingQueries(const std::string &txnDigest, bool is_abort){
     //when receiving a requested sync msg, use it to update waiting data structures for all potentially ongoing queries.
     //waiting queries are registered in map from txn-id to query id:
 
@@ -959,6 +978,20 @@ void Server::UpdateWaitingQueries(const std::string &txnDigest){
         //This does not cause a lock order inversion, because UpdateWaitingQueries only attempts to lock q if waitingQueries contains a registered transaction; which is only possible if HandleSync released both q and w
         //Note that it is guaranteed for a waitingQuery to wake up, because whenever HandleSync registers a waitingQuery, it also sends out a new RequestTx message. Upon receiving a reply, UpdateWaitingQueries will be called.
             //This is because a waiting query is registered and RequestTX is sent out even if the tx is locally committed after checking for missing, but before registering.
+       //Cornercase: If HandleSync is called twice, and tries to lock w for a tx that already waits on q, then it can deadlock. 
+            //However, this should never happen, as consecutive Sync's Clear the meta data inside missing_txns
+
+        //Example: Same Query syncs twice. First SS contains tx A, second snapshot also contains A.
+        // Handle Sync locks q, then w to add A->query
+        // UpdateWaiting locks w, then tries to lock query.
+        // Concurrently, second Sync locks q, then tries to re-set w ==> deadlock.
+        //Solutions: a) Separate syncs need to have different q...  => want meta data to still be in the same q. Store <query_verion, missing_txn> in separate map. Hold q while adding to this map (and remove)
+                                                                                                                                                                    //This ensures only one entry per query exists.
+                                                                                                                                                                // key = hash(query_id, retry_version)
+                                                                                                                                                                //Then take lock qw which is unique.
+        //           b) If sync fails, remove from waiting -> same deadlock problem. Must remove while not holding q, 
+        //           c) for second sync, remember the previously waiting; don't add again. Requires storing all previous versions
+   
 
      //1) find queries that were waiting on this txn-id
     waitingQueryMap::accessor w;
@@ -972,6 +1005,7 @@ void Server::UpdateWaitingQueries(const std::string &txnDigest){
             if(queryActive){
                 QueryMetaData *query_md = q->second;
                 bool was_present = query_md->missing_txn.erase(txnDigest);
+                 //Cornercase: What if we clear missing queries (ro Retry Sync) and then UpdateWaiting triggers. ==> was_present should be false => won't call Update
 
                  Debug("Query[%lu:%lu] is still waiting on (%d) transactions", query_md->query_seq_num, query_md->client_id, query_md->missing_txn.size());
 
@@ -1020,6 +1054,9 @@ void Server::HandleSyncCallback(QueryMetaData *query_md, const std::string &quer
       // 2) Construct Read Set
     //read set = map from key-> versions  //Note: Convert Timestamp to TimestampMessage
  
+   //Materialization: Possible solution: During OCC check, Also "prepare" all tx that are locally abstained --> that way we can directly detect them as not necessary for sync. Mark them "invisible" by default.
+            //Garbage collect for good from prepared map once it is aborted.
+            //Alternative: During exec, materialize all remaining items in snapshot. 
     /////////////////////////////////////////////////////////////
     //                                                         //
     //                                                         //
