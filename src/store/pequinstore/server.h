@@ -233,18 +233,23 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
         delete queryResultReply;
         if(merged_ss_msg != nullptr) delete merged_ss_msg; //Delete obsolete sync snapshot
       }
-      void ClearMetaData(){
-         queryResultReply->Clear(); //FIXME: Confirm that all data that is cleared is re-set
-         merged_ss.clear();
-         //merged_ss.Clear();
-         //local_ss.clear(); //for now don't clear, will get overridden anyways.
-         missing_txn.clear();
-         executed_query = false;
-         has_result = false;
-         is_waiting = false;
-         started_sync = false;
-         waiting_sync = false;
-         if(merged_ss_msg != nullptr) delete merged_ss_msg; //Delete obsolete sync snapshot
+      void ClearMetaData(const std::string &queryId){
+        queryResultReply->Clear(); //FIXME: Confirm that all data that is cleared is re-set
+        merged_ss.clear();
+        //merged_ss.Clear();
+        //local_ss.clear(); //for now don't clear, will get overridden anyways.
+        missing_txn.clear();
+        executed_query = false;
+        has_result = false;
+        is_waiting = false;
+        started_sync = false;
+        waiting_sync = false;
+        if(merged_ss_msg != nullptr) delete merged_ss_msg; //Delete obsolete sync snapshot
+
+        //Delete missingTxns.   
+        queryMissingTxnsMap::accessor qm;
+        bool first_qm = queryMissingTxns.erase(qm, QueryRetryId(queryId, query_md->retry_version, (params.query_params.signClientQueries && params.query_params.cacheReadSet && params.hashDigest)));
+        qm.release();
       }
       void SetQuery(const std::string &_query_cmd, const TimestampMessage &timestamp, const TransportAddress &remote, const uint64_t &_req_id){
         has_query = true;
@@ -375,10 +380,21 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
     typedef tbb::concurrent_hash_map<std::string, std::unordered_set<std::string>> waitingQueryMap; 
     waitingQueryMap waitingQueries;
 
+    //map from <query_id, retry_version> to list of missing txn (+ num supply replies received ).
+    struct MissingTxns {
+        std::unordered_map<std::string, uint64_t> missing_txns;
+        std::string query_id;
+        uint64_t retry_version;
+    };
+    typedef tbb::concurrent_hash_map<std::string, MissingTxns> queryMissingTxnsMap;  //std::unordered_set<std::string>
+    queryMissingTxnsMap queryMissingTxns;
+
     void ProcessQuery(queryMetaDataMap::accessor &q, const TransportAddress &remote, proto::Query *query, QueryMetaData *query_md);
     void ProcessSync(queryMetaDataMap::accessor &q, const TransportAddress &remote, proto::MergedSnapshot *merged_ss, const std::string *queryId, QueryMetaData *query_md);
-    void SetWaiting(QueryMetaData *query_md, const std::string &tx_id, const std::string *queryId, const proto::ReplicaList &replica_list, std::map<uint64_t, proto::RequestMissingTxns> &replica_requests);
-    void SetWaitingTS(QueryMetaData *query_md, const uint64_t &ts_id, const std::string *queryId, const proto::ReplicaList &replica_list, std::map<uint64_t, proto::RequestMissingTxns> &replica_requests);
+    void SetWaiting(std::unordered_map<std::string, uint64_t> &missing_txn, const std::string &tx_id, const std::string *queryId, const std::string &query_retry_id,
+        const proto::ReplicaList &replica_list, std::map<uint64_t, proto::RequestMissingTxns> &replica_requests);
+    void SetWaitingTS(std::unordered_map<std::string, uint64_t> &missing_txn, const uint64_t &ts_id, const std::string *queryId, const std::string &query_retry_id,
+        const proto::ReplicaList &replica_list, std::map<uint64_t, proto::RequestMissingTxns> &replica_requests);
     void HandleSyncCallback(QueryMetaData *query_md, const std::string &queryId);
     void SendQueryReply(QueryMetaData *query_md);
     void ProcessSuppliedTxn(const std::string &txn_id, proto::TxnInfo &txn_info, bool &stop);

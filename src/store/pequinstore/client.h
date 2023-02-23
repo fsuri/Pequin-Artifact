@@ -138,12 +138,14 @@ class Client : public ::Client {
     }
 
     void SetQueryId(Client *client){
-      if(client->params.query_params.signClientQueries && client->params.query_params.cacheReadSet){ //TODO: when to use hash id? always?
-          queryId = QueryDigest(queryMsg, client->params.hashDigest); 
-      }
-      else{
-          queryId =  "[" + std::to_string(queryMsg.query_seq_num()) + ":" + std::to_string(queryMsg.client_id()) + "]";
-      }
+      queryId = QueryDigest(*query, (params.query_params.signClientQueries && params.query_params.cacheReadSet && params.hashDigest)); 
+
+      // if(client->params.query_params.signClientQueries && client->params.query_params.cacheReadSet){ //TODO: when to use hash id? always?
+      //     queryId = QueryDigest(queryMsg, client->params.hashDigest); 
+      // }
+      // else{
+      //     queryId =  "[" + std::to_string(queryMsg.query_seq_num()) + ":" + std::to_string(queryMsg.client_id()) + "]";
+      // }
     }
 
 

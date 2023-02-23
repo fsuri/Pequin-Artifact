@@ -97,15 +97,16 @@ void Server::HandleQuery(const TransportAddress &remote, proto::QueryRequest &ms
     }
 
      // 2) Compute unique hash ID 
-    std::string queryId;
+    std::string queryId = QueryDigest(*query, (params.query_params.signClientQueries && params.query_params.cacheReadSet && params.hashDigest)); 
     
-    if(params.query_params.signClientQueries && params.query_params.cacheReadSet){ //TODO: when to use hash id? always?
-        queryId = QueryDigest(*query, params.hashDigest); 
-    }
-    else{
-        queryId =  "[" + std::to_string(query->query_seq_num()) + ":" + std::to_string(query->client_id()) + "]";
-    }
-     Debug("\n Received Query Request Query[%lu:%lu:%d] (seq:client:ver)", query->query_seq_num(), query->client_id(), query->retry_version());
+    // std::string queryId;
+    // if(params.query_params.signClientQueries && params.query_params.cacheReadSet){ //TODO: when to use hash id? always?
+    //     queryId = QueryDigest(*query, params.hashDigest); 
+    // }
+    // else{
+    //     queryId =  "[" + std::to_string(query->query_seq_num()) + ":" + std::to_string(query->client_id()) + "]";
+    // }
+     Debug("\n Received Query Request Query[%lu:%lu:%d] (seq:client:ver), queryId: ", query->query_seq_num(), query->client_id(), query->retry_version(), BytesToHex(queryId, 16).c_str());
    
     //TODO: Ideally check whether already have result or retry version is outdated Before VerifyClientQuery.
 
@@ -174,10 +175,10 @@ void Server::HandleQuery(const TransportAddress &remote, proto::QueryRequest &ms
 
     //6) Update retry version and reset MetaData if new; skip if old/existing retry version.
     if(query->retry_version() > query_md->retry_version){
+        // query_md->started_sync = false; //start new sync round
+        query_md->ClearMetaData(queryId); //start new sync round
         query_md->req_id = msg.req_id();
         query_md->retry_version = query->retry_version();
-        // query_md->started_sync = false; //start new sync round
-        query_md->ClearMetaData(); //start new sync round
     }
     // else if(query->retry_version() == query_md->retry_version){
     //     // //Return if already received sync for the retry version, and sync is not waiting for query. (I.e. no need to process Query)
@@ -370,8 +371,9 @@ void Server::HandleSync(const TransportAddress &remote, proto::SyncClientProposa
     else{
          //For now, can also index via (client id, query seq_num) pair. Just define an ordering function for query id pair. (In this case, unique string combination)
         merged_ss = msg.release_merged_ss();
-        query_id =  "[" + std::to_string(merged_ss->query_seq_num()) + ":" + std::to_string(merged_ss->client_id()) + "]";
-        queryId = &query_id;
+        //query_id =  "[" + std::to_string(merged_ss->query_seq_num()) + ":" + std::to_string(merged_ss->client_id()) + "]";
+        //queryId = &query_id;
+        queryId = merged_ss->mutable_query_digest();
     }
     Debug("\n Received Query Sync Proposal for Query[%lu:%lu:%d] (seq:client:ver)", merged_ss->query_seq_num(), merged_ss->client_id(), merged_ss->retry_version());
 
@@ -423,9 +425,9 @@ void Server::HandleSync(const TransportAddress &remote, proto::SyncClientProposa
     query_md->designated_for_reply = msg.designated_for_reply();
 
     if(merged_ss->retry_version() > query_md->retry_version){ 
+        query_md->ClearMetaData(*queryId);
         query_md->req_id = msg.req_id();
         query_md->retry_version = merged_ss->retry_version();
-        query_md->ClearMetaData();
     }
     query_md->started_sync = true;
 
@@ -448,6 +450,17 @@ void Server::ProcessSync(queryMetaDataMap::accessor &q, const TransportAddress &
     //1) Determine all missing transactions 
     query_md->missing_txn.clear();
     std::map<uint64_t, proto::RequestMissingTxns> replica_requests = {};
+
+    std::string query_retry_id = QueryRetryId(*queryId, query_md->retry_version, (params.query_params.signClientQueries && params.query_params.cacheReadSet && params.hashDigest)); 
+    queryMissingTxnsMap::accessor qm;
+    bool first_qm = queryMissingTxns.insert(qm, query_retry_id); //Note: ClearMetaData: Deletes previous retry_version.
+    UW_ASSERT(first_qm); //ProcessSync should never be called twice for one retry version.
+    // In SetWaiting -> add missing to qm->second. (pass qm->second as arg.)
+    std::unordered_map<std::string, uint64_t> &missing_txns = qm->second.missing_txns; //query_md->missing_txn;
+    // If missing empty after checking snapshot -> erase again
+    
+     //TODO: SetWaiting needs to pass query_retry_id, not queryId.
+     //TODO: UpdateWaiting needs to lock qm. Add query to list. Lookup query and check retry version before waking.!
 
     //Using normal tx-id
     if(!query_md->useOptimisticTxId){
@@ -479,7 +492,7 @@ void Server::ProcessSync(queryMetaDataMap::accessor &q, const TransportAddress &
             //ii) Register tx that this query is waiting on.
             bool testing_sync = false;
             if(testing_sync || !has_txn_locally){
-                SetWaiting(query_md, tx_id, queryId, replica_list, replica_requests);
+                SetWaiting(missing_txns, tx_id, queryId, query_retry_id, replica_list, replica_requests);
             }
             o.release(); //Make sure SetWaiting is set while holding ongoing ==> Then it is guaranteed that either the Txn has Written back (is present) or SetWaiting is set before calling UpdateWaiting (in Commit/abort)
                         // Case: if ongoing.find = true ==> Then Commit/Abort must wait at Clean; --> Call UpdateWaiting only after SetWaiting is done.
@@ -503,11 +516,21 @@ void Server::ProcessSync(queryMetaDataMap::accessor &q, const TransportAddress &
             }
             else{
                 t.release();
-                SetWaitingTS(query_md, ts_id, queryId, replica_list, replica_requests); 
+                SetWaitingTS(missing_txns, ts_id, queryId, query_retry_id, replica_list, replica_requests); 
             }
         }
     }
-   
+    
+    //Update queryMissingTxns meta data.
+    if(missing_txns.empty()){
+        queryMissingTxns.erase(qm); //No missing transactions -> no need to wait.
+    } 
+    else{
+        qm->second.query_id = *queryId;  //Needed to lookup QueryMetaData upon waking.
+        qm->second.retry_version = query_md->retry_version;
+    }
+    qm.release();
+
     //2)  //Request any missing transactions (via txid) & add to state
 
     //TODO: Check waitingQueries map: If it already has an entry for a tx-id, then we DONT need to request it again.. Already in flight. ==> Just update the waitingList
@@ -536,16 +559,19 @@ void Server::ProcessSync(queryMetaDataMap::accessor &q, const TransportAddress &
     return;
 }
 
-void Server::SetWaiting(QueryMetaData *query_md, const std::string &tx_id, const std::string *queryId, const proto::ReplicaList &replica_list, std::map<uint64_t, proto::RequestMissingTxns> &replica_requests){
+void Server::SetWaiting(std::unordered_map<std::string, uint64_t> &missing_txn, const std::string &tx_id, const std::string *queryId, const std::string &query_retry_id,
+    const proto::ReplicaList &replica_list, std::map<uint64_t, proto::RequestMissingTxns> &replica_requests)
+{
         //Add to waiting data structure.
         waitingQueryMap::accessor w;
         waitingQueries.insert(w, tx_id);
         bool already_requested = !w->second.empty(); //TODO: if there is already a waiting query, don't need to request the txn again. Problem: Could have been requested by a byz client that gave wrong replica_ids...
-        w->second.insert(*queryId);
+        //w->second.insert(*queryId);
+        w->second.insert(query_retry_id);
         w.release();
 
          // Wait for up f+1 replies for each missing. (if none successful, then client must have been byz. Vote Early abort (if anything) and report client.)
-        query_md->missing_txn[tx_id]; //= config.f + 1;  we don't stop waiting for f+1 currently. 
+        missing_txn[tx_id]; //= config.f + 1;  we don't stop waiting for f+1 currently. 
 
         uint64_t count = 0;
         for(auto const &replica_id: replica_list.replicas()){ 
@@ -562,7 +588,9 @@ void Server::SetWaiting(QueryMetaData *query_md, const std::string &tx_id, const
         }
 }
 
-void Server::SetWaitingTS(QueryMetaData *query_md, const uint64_t &ts_id, const std::string *queryId, const proto::ReplicaList &replica_list, std::map<uint64_t, proto::RequestMissingTxns> &replica_requests){
+void Server::SetWaitingTS(std::unordered_map<std::string, uint64_t> &missing_txn, const uint64_t &ts_id, const std::string *queryId, const std::string &query_retry_id,
+    const proto::ReplicaList &replica_list, std::map<uint64_t, proto::RequestMissingTxns> &replica_requests)
+{
     Panic("Sync on TS-Ids not yet supported");
 
     //1) Need waitingQuery data structure on Ids
@@ -967,31 +995,88 @@ void Server::CheckWaitingQueries(const std::string &txnDigest, bool non_blocking
 //TODO: Alternatively, set query_id field in request missing and supply missing and wake only respective query. That might be easier to debug.
 //TODO: If Tx gets locally committed/prepared/abstained ignore it, and wait for SupplyTxn reply anyways ==> This is slower/less optimal, but definitely simpler to implement at first.
 
+// void Server::UpdateWaitingQueries(const std::string &txnDigest, bool is_abort){
+//     //when receiving a requested sync msg, use it to update waiting data structures for all potentially ongoing queries.
+//     //waiting queries are registered in map from txn-id to query id:
+
+//      Debug("Checking whether can wake all queries waiting on txn_id %s", BytesToHex(txnDigest, 16).c_str());
+//      //Notes on Concurrency liveness:
+//         //HandleSync will first lock q (queryMetaData) and then try to lock w (waitingQueries) in an effort to register a waitingQuery
+//         //UpdateWaitingQueries will first lock w (waitingQueries) and then try to lock q (queryMetaData) to wake waitingQueries
+//         //This does not cause a lock order inversion, because UpdateWaitingQueries only attempts to lock q if waitingQueries contains a registered transaction; which is only possible if HandleSync released both q and w
+//         //Note that it is guaranteed for a waitingQuery to wake up, because whenever HandleSync registers a waitingQuery, it also sends out a new RequestTx message. Upon receiving a reply, UpdateWaitingQueries will be called.
+//             //This is because a waiting query is registered and RequestTX is sent out even if the tx is locally committed after checking for missing, but before registering.
+//        //Cornercase: If HandleSync is called twice, and tries to lock w for a tx that already waits on q, then it can deadlock. 
+//             //However, this should never happen, as consecutive Sync's Clear the meta data inside missing_txns
+
+//         //Example: Same Query syncs twice. First SS contains tx A, second snapshot also contains A.
+//         // Handle Sync locks q, then w to add A->query
+//         // UpdateWaiting locks w, then tries to lock query.
+//         // Concurrently, second Sync locks q, then tries to re-set w ==> deadlock.
+//         //Solutions: a) Separate syncs need to have different q...  => want meta data to still be in the same q. Store <query_verion, missing_txn> in separate map. Hold q while adding to this map (and remove)
+//                                                                                                                                                                     //This ensures only one entry per query exists.
+//                                                                                                                                                                 // key = hash(query_id, retry_version)
+//                                                                                                                                                                 //Then take lock qw which is unique.
+//         //           b) If sync fails, remove from waiting -> same deadlock problem. Must remove while not holding q, 
+//         //           c) for second sync, remember the previously waiting; don't add again. Requires storing all previous versions
+   
+
+//      //1) find queries that were waiting on this txn-id
+//     waitingQueryMap::accessor w;
+//     bool hasWaiting = waitingQueries.find(w, txnDigest);
+//     if(hasWaiting){
+//         for(const std::string &waiting_query : w->second){
+
+//             //2) update their missing data structures
+//             queryMetaDataMap::accessor q;
+//             bool queryActive = queryMetaData.find(q, waiting_query);
+//             if(queryActive){
+//                 QueryMetaData *query_md = q->second;
+//                 bool was_present = query_md->missing_txn.erase(txnDigest);
+//                  //Cornercase: What if we clear missing queries (ro Retry Sync) and then UpdateWaiting triggers. ==> was_present should be false => won't call Update
+
+//                  Debug("Query[%lu:%lu] is still waiting on (%d) transactions", query_md->query_seq_num, query_md->client_id, query_md->missing_txn.size());
+
+//                 //3) if missing data structure is empty for any query: Start Callback.
+//                 if(was_present && query_md->is_waiting && query_md->missing_txn.empty()){ 
+//                     //Note: was_present -> only call this the first time missing_txn goes empty: present captures the fact that map was non-empty before erase.
+//                     //Note: is_waiting -> make sure query is waiting. E.g. missing_txn could be empty because we re-tried the query and now are not missing any. In this case is_waiting will be set to false. -> no need to call callback
+//                     HandleSyncCallback(query_md, waiting_query); //TODO: Should this be dispatched again? So that multiple waiting queries don't execute sequentially?
+//                 }
+//             }
+//             q.release();
+//             //w->second.erase(waiting_query); //FIXME: Delete safely while iterating... ==> Just erase all after
+//         }
+//         //4) remove key from waiting data structure if no more queries waiting on it to avoid key set growing infinitely...
+//         waitingQueries.erase(w);
+//     }
+//     w.release();
+// }
+
 void Server::UpdateWaitingQueries(const std::string &txnDigest, bool is_abort){
     //when receiving a requested sync msg, use it to update waiting data structures for all potentially ongoing queries.
     //waiting queries are registered in map from txn-id to query id:
 
      Debug("Checking whether can wake all queries waiting on txn_id %s", BytesToHex(txnDigest, 16).c_str());
-     //Notes on Concurrency liveness:
-        //HandleSync will first lock q (queryMetaData) and then try to lock w (waitingQueries) in an effort to register a waitingQuery
-        //UpdateWaitingQueries will first lock w (waitingQueries) and then try to lock q (queryMetaData) to wake waitingQueries
-        //This does not cause a lock order inversion, because UpdateWaitingQueries only attempts to lock q if waitingQueries contains a registered transaction; which is only possible if HandleSync released both q and w
-        //Note that it is guaranteed for a waitingQuery to wake up, because whenever HandleSync registers a waitingQuery, it also sends out a new RequestTx message. Upon receiving a reply, UpdateWaitingQueries will be called.
-            //This is because a waiting query is registered and RequestTX is sent out even if the tx is locally committed after checking for missing, but before registering.
-       //Cornercase: If HandleSync is called twice, and tries to lock w for a tx that already waits on q, then it can deadlock. 
-            //However, this should never happen, as consecutive Sync's Clear the meta data inside missing_txns
+  //Notes on Concurrency liveness:
+    //ProcessSync will first lock q (queryMetaData), then qm (queryMissingTxns) and then try to lock w (waitingQueries) in an effort to register a waitingQuery
+    //UpdateWaitingQueries will first lock w (waitingQueries) and then try to lock qm (queryMissingTxns) to wake waitingQueries. It wakes queries by locking q (queryMetaData) only after releasing both.
+    //This does not cause a lock order inversion, because UpdateWaitingQueries only attempts to lock qm if waitingQueries contains a registered transaction; 
+                                                                                                //which is only possible if ProcessSync released both qm and w
+    //Note that it is guaranteed for a waitingQuery to wake up, because whenever ProcessSync registers a waitingQuery, it also sends out a new RequestTx message. Upon receiving a reply, UpdateWaitingQueries will be called.
+        //This is because a waiting query is registered and RequestTX is sent out even if the tx is locally committed after checking for missing, but before registering.
+    //Cornercase: If HandleSync is called twice, and tries to lock w for a tx that already waits on qm, then it can deadlock. 
+        //However, this should never happen, as Process Sync should only be called exactly once per retry_version.
 
-        //Example: Same Query syncs twice. First SS contains tx A, second snapshot also contains A.
-        // Handle Sync locks q, then w to add A->query
-        // UpdateWaiting locks w, then tries to lock query.
-        // Concurrently, second Sync locks q, then tries to re-set w ==> deadlock.
-        //Solutions: a) Separate syncs need to have different q...  => want meta data to still be in the same q. Store <query_verion, missing_txn> in separate map. Hold q while adding to this map (and remove)
-                                                                                                                                                                    //This ensures only one entry per query exists.
-                                                                                                                                                                // key = hash(query_id, retry_version)
-                                                                                                                                                                //Then take lock qw which is unique.
-        //           b) If sync fails, remove from waiting -> same deadlock problem. Must remove while not holding q, 
-        //           c) for second sync, remember the previously waiting; don't add again. Requires storing all previous versions
+     //Note also, that consecutive Sync's Clear the meta data of previous retry_versions, thus deleting queryMissingTxns ==> this avoids waking queries on old retry versions. 
+     //TODO: Not strictly necessary -> Could remove ClearMetaData ==> the version to wake will not be valid, and thus no wake happens.
+
+     //TODO: With this version: Don't have access to q while looping. How to remove aborted txn from snapshot?
+            //Either don't: And during materialization need to check for aborted again...
+            //Or: extract query list and loop separately.
+
    
+    std::map<std::string, uint64_t> queries_to_wake;
 
      //1) find queries that were waiting on this txn-id
     waitingQueryMap::accessor w;
@@ -999,30 +1084,43 @@ void Server::UpdateWaitingQueries(const std::string &txnDigest, bool is_abort){
     if(hasWaiting){
         for(const std::string &waiting_query : w->second){
 
-            //2) update their missing data structures
-            queryMetaDataMap::accessor q;
-            bool queryActive = queryMetaData.find(q, waiting_query);
-            if(queryActive){
-                QueryMetaData *query_md = q->second;
-                bool was_present = query_md->missing_txn.erase(txnDigest);
-                 //Cornercase: What if we clear missing queries (ro Retry Sync) and then UpdateWaiting triggers. ==> was_present should be false => won't call Update
+             //2) update their missing data structures
+            // Lookup queryMissingTxns ... => mark map of "waking query + retry_version" ==> after releasing w try to lock them all.
+            queryMissingTxnsMap::accessor qm;
+            if(!queryMissingTxns.find(qm, waiting_query)) continue; //releases qm implicitly (or rather: qm is not actually held)
 
-                 Debug("Query[%lu:%lu] is still waiting on (%d) transactions", query_md->query_seq_num, query_md->client_id, query_md->missing_txn.size());
+            MissingTxns &missingTxns = qm->second;
 
-                //3) if missing data structure is empty for any query: Start Callback.
-                if(was_present && query_md->is_waiting && query_md->missing_txn.empty()){ 
-                    //Note: was_present -> only call this the first time missing_txn goes empty: present captures the fact that map was non-empty before erase.
-                    //Note: is_waiting -> make sure query is waiting. E.g. missing_txn could be empty because we re-tried the query and now are not missing any. In this case is_waiting will be set to false. -> no need to call callback
-                    HandleSyncCallback(query_md, waiting_query); //TODO: Should this be dispatched again? So that multiple waiting queries don't execute sequentially?
-                }
+            bool was_present = missingTxns.missing_txn.erase(txnDigest); 
+            //Cornercase: What if we clear missing queries (ro Retry Sync) and then UpdateWaiting triggers. ==> was_present should be false => won't call Update
+           
+            Debug("QueryId[%s] is still waiting on (%d) transactions", BytesToHex(missingTxns.query_id, 16).c_str(), query_md->missing_txn.size());
+            if(was_present && missingTxns.missing_txn.empty()){ 
+                   //Note: was_present -> only call this the first time missing_txn goes empty: present captures the fact that map was non-empty before erase.
+                queries_to_wake[missingTxns.query_id] = missingTxns.retry_version;
             }
-            q.release();
-            //w->second.erase(waiting_query); //FIXME: Delete safely while iterating... ==> Just erase all after
+            qm.release();
         }
-        //4) remove key from waiting data structure if no more queries waiting on it to avoid key set growing infinitely...
+        //3) remove key from waiting data structure if no more queries waiting on it to avoid key set growing infinitely...
         waitingQueries.erase(w);
     }
     w.release();
+
+    //4) Try to wake all ready queries.
+    for(auto &[queryId, retry_version]: queries_to_wake){
+        queryMetaDataMap::accessor q;
+        bool queryActive = queryMetaData.find(q, queryId);
+        if(queryActive){
+                QueryMetaData *query_md = q->second;
+               
+                //5) if query is waiting and retry_version is still current: Start Callback.
+                if(query_md->is_waiting && query_md->retry_version == retry_version){ 
+                     Debug("Waking Query[%lu:%lu:%lu]", query_md->query_seq_num, query_md->client_id, query_md->retry_version);
+                    //Note: is_waiting -> make sure query is waiting. E.g. missing_txn could be empty because we re-tried the query and now are not missing any. In this case is_waiting will be set to false. -> no need to call callback
+                    HandleSyncCallback(query_md, queryId); //TODO: Should this be dispatched again? So that multiple waiting queries don't execute sequentially?
+                }
+        }
+        q.release();
 }
 
 

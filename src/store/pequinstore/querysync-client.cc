@@ -54,9 +54,11 @@ void ShardClient::Query(uint64_t client_seq_num, uint64_t query_seq_num, proto::
   pendingQuery->client_seq_num = client_seq_num;
   pendingQuery->query_seq_num = query_seq_num;
 
-   if(params.query_params.signClientQueries && params.query_params.cacheReadSet){
-        pendingQuery->queryDigest = std::move(QueryDigest(queryMsg, params.hashDigest));
-   }
+  pendingQuery->queryDigest = std::move(QueryDigest(*query, (params.query_params.signClientQueries && params.query_params.cacheReadSet && params.hashDigest)));
+   
+//   if(params.query_params.signClientQueries && params.query_params.cacheReadSet){
+//         pendingQuery->queryDigest = std::move(QueryDigest(queryMsg, params.hashDigest));
+//   }
    
 
   //pendingQuery->query = query; //Is this necessary to store? In case of re-send? --> Cannot move since other shards will use same reference.

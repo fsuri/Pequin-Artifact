@@ -1876,7 +1876,7 @@ std::string TransactionDigest(const proto::Transaction &txn, bool hashDigest) {
 
 std::string QueryDigest(const proto::Query &query, bool queryHashDigest){
     //TODO: Change Txn to also include Query + query digest.
-    if (queryHashDigest) {
+  if (queryHashDigest) {
     blake3_hasher hasher;
     blake3_hasher_init(&hasher);
     std::string digest(BLAKE3_OUT_LEN, 0);
@@ -1905,8 +1905,26 @@ std::string QueryDigest(const proto::Query &query, bool queryHashDigest){
   } else {
     char digestChar[16];
     *reinterpret_cast<uint64_t *>(digestChar) = query.client_id();
-    *reinterpret_cast<uint64_t *>(digestChar + 8) = query.query_seq_num();;
+    *reinterpret_cast<uint64_t *>(digestChar + 8) = query.query_seq_num();
     return std::string(digestChar, 16);
+  }
+}
+
+std::string QueryRetryId(const std::string &queryId, const uint64_t &retry_version, bool queryHashDigest){
+  if (queryHashDigest) {
+    blake3_hasher hasher;
+    blake3_hasher_init(&hasher);
+    std::string digest(BLAKE3_OUT_LEN, 0);
+
+    blake3_hasher_update(&hasher, (unsigned char *) &queryId[0], queryId.length());
+    blake3_hasher_update(&hasher, (unsigned char *) &retry_version, sizeof(retry_version));
+  
+    blake3_hasher_finalize(&hasher, (unsigned char *) &digest[0], BLAKE3_OUT_LEN);
+    return digest;
+  } else {
+    char digestChar[8];
+    *reinterpret_cast<uint64_t *>(digestChar) = retry_version;
+    return queryId + std::string(digestChar, 8);
   }
 }
 
