@@ -121,6 +121,23 @@ void SyncClient::Query(std::string &query, const query_result::QueryResult** res
  *result = promise.GetQueryResult();
 }
 
+void SyncClient::Query(const std::string &key, uint32_t timeout) {
+  Promise *promise = new Promise(timeout);
+  queryPromises.push_back(promise);
+  client->Get(key, std::bind(&SyncClient::GetCallback, this, promise,
+      std::placeholders::_1, std::placeholders::_2, std::placeholders::_3,
+      std::placeholders::_4), std::bind(&SyncClient::GetTimeoutCallback, this,
+      promise, std::placeholders::_1, std::placeholders::_2), timeout);
+}
+
+void SyncClient::Wait(std::vector<query_result::QueryResult*> &values) {
+  for (auto promise : queryPromises) {
+    values.push_back(promise->GetQueryResult());
+    delete promise;
+  }
+  queryPromises.clear();
+}
+
 ///////// Callbacks
 
 void SyncClient::GetCallback(Promise *promise, int status,

@@ -78,6 +78,9 @@ class SyncClient {
 
   // Send query, wait for computation result. 
   virtual void Query(std::string &query, const query_result::QueryResult** result, uint32_t timeout);
+  void Query(std::string &query, uint32_t timeout);
+  // Wait for outstanding Queries to finish in FIFO order.
+  void Wait(std::vector<query_result::QueryResult*> &values);
 
  private:
   void GetCallback(Promise *promise, int status, const std::string &key, const std::string &value,
@@ -97,6 +100,7 @@ class SyncClient {
 
 
   std::vector<Promise *> getPromises;
+  std::vector<Promise *> queryPromises;
 
   Client *client;
 };
