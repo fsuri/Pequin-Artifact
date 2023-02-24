@@ -1192,17 +1192,16 @@ void Server::HandleSyncCallback(QueryMetaData *query_md, const std::string &quer
         TimestampMessage ts;
         ts.set_id(query_md->ts.getID());
         ts.set_timestamp(query_md->ts.getTimestamp());
-
         std::string dummy_key = groupIdx == 0 ? "dummy_key_g1_" + std::to_string(i) : "dummy_key_g2_" + std::to_string(i);
+
+         queryReadSetMgr.AddToReadSet(dummy_key, ts);
         //query_md->read_set[dummy_key] = ts; //query_md->ts;
         //replaced with repeated field -> directly in result object.
-        queryReadSetMgr.AddToReadSet(dummy_key, ts);
+    
         // ReadMessage *read = query_md->queryResultReply->mutable_result()->mutable_query_read_set()->add_read_set();
         // //ReadMessage *read = query_md->queryResult->mutable_query_read_set()->add_read_set();
         // read->set_key(dummy_key);
         // *read->mutable_readtime() = ts;
-        //TODO: Add more keys; else I cant test order.
-
     }
     //Creating Dummy deps for testing //FIXME: Replace
    
@@ -1212,12 +1211,8 @@ void Server::HandleSyncCallback(QueryMetaData *query_md, const std::string &quer
         //For non-caching:
             // Add the deps to SyncReply --> Let client choose whether to include them (only if proposed them in merge; marked as prep) --> During CC: Look through the included deps.
 
-    //TODO: During execution only read prepared if depth allowed.
+    //During execution only read prepared if depth allowed.
     //  i.e. if (params.maxDepDepth == -1 || DependencyDepth(txn) <= params.maxDepDepth)  (maxdepth = -1 means no limit)
-
-//TODO: Generate some dummy prepared. // Add it to committed after.
-// Check that dependency is merged in. //print deps
-
     if (params.query_params.readPrepared && params.maxDepDepth > -2) {
 
         //FIXME: JUST FOR TESTING.
@@ -1237,31 +1232,21 @@ void Server::HandleSyncCallback(QueryMetaData *query_md, const std::string &quer
             //     add_dep->mutable_write()->mutable_prepared_timestamp()->set_timestamp(txn->timestamp().timestamp());
             //     add_dep->mutable_write()->mutable_prepared_timestamp()->set_id(txn->timestamp().id());
             // }
-            // if(query_md->useOptimisticTxId){
-            //     proto::DepTs *dep_ts = query_md->queryResultReply->mutable_result()->mutable_query_read_set()->add_dep_ts_ids();
-            //     dep_ts->set_dep_id(tx_id);
-            //     dep_ts->set_dep_ts(MergeTimestampId(txn->timestamp().timestamp(), txn->timestamp().id()));
-            // }
-            // else{
-            //     query_md->queryResultReply->mutable_result()->mutable_query_read_set()->add_dep_ids(tx_id); //Note: Only add txn_dig here. Let the client form the Dep (only if its really a dep)
-            // //query_md->queryResultReply->mutable_result()->mutable_query_local_deps()->add_dep_ids(tx_id); //Note: Only add txn_dig here. Let the client form the Dep (only if its really a dep)
-            // }
         }
     }
-    //Creating Dummy result for testing //FIXME: Replace
+    //FIXME: Just for testing: Creating Dummy result 
     std::string dummy_result = "success" + std::to_string(query_md->query_seq_num);
     query_md->has_result = true; 
    
 
+    //Note: Blackbox might do multi-replica coordination to compute result and full read-set (though read set can actually be reported directly by each shard...)
+    //Client waits to receive SyncReply from all shards ==> with read set, or read set hash. ==> in Tx_manager (marked by query) reply also include the result
+        //Always callback from shardclient to client, but only call-up from client to app if a) result has been received, b) all shards replied with read-set (or read-set hash)
+        //-- want to do this so that Exec can be a better blackbox: This way data exchange might just be a small intermediary data, yet client learns full read set. 
+            //In this case, read set hash from a shard is not enough to prove integrity to another shard (since less data than full read set might be exchanged)
 
-    //Blackbox might do multi-replica coordination to compute result and full read-set (though read set can actually be reported directly by each shard...)
-    //TODO: Receive SyncReply from all shards ==> with read set, or read set hash. ==> in Tx_manager (marked by query) reply also include the result
-    //FIXME: Always callback at shardclient, just only call-up to app if a) result has been received, b) all shards replied with read-set (or read-set hash)
-    //-- want to do this so that Exec can be a better blackbox: This way data exchange might just be a small intermediary data, yet client learns full read set. 
-        //In this case, read set hash from a shard is not enough to prove integrity to another shard (since less data than full read set might be exchanged)
-
-    //After executing and caching read set -> Try to wake possibly subscribed queries.
-    wakeSubscribedTx(queryId, query_md->retry_version); //TODO: Instead of passing it along, just store the queryId...
+    //After executing and caching read set -> Try to wake possibly subscribed query that has started to prepare, but was blocked waiting on it's cached read set.
+    if(params.query_params.cacheReadSet) wakeSubscribedTx(queryId, query_md->retry_version); //TODO: Instead of passing it along, just store the queryId...
 
 
     bool exec_success = !test_fail_query; //FIXME: REMOVE: This tests one retry.
@@ -1287,19 +1272,14 @@ void Server::HandleSyncCallback(QueryMetaData *query_md, const std::string &quer
 
 void Server::SendQueryReply(QueryMetaData *query_md){ 
 
-//TODO: CALL WAKE OPERATION
-    
-    // proto::queryResultReplyReply *queryResultReply = new proto::queryResultReply(); //TODO: replace with GetUnused
-    // proto::QueryResult *result = query_md->queryResult;
     proto::QueryResultReply *queryResultReply = query_md->queryResultReply;
     proto::QueryResult *result = queryResultReply->mutable_result();
     proto::ReadSet *query_read_set;
-    //query_md->result = "success";
-    //result->set_query_result("success");
-    //proto::LocalDeps *query_local_deps;
+    //proto::LocalDeps *query_local_deps; //Deprecated --> made deps part of read set
 
 
-    // 3) Generate Merkle Tree over Read Set, result, query id  (FIXME:: Currently only over read set:  )
+    // 3) Generate Merkle Tree over Read Set, (optionally can also make it be over result, query id)
+
     bool testing_hash = false; //note, if this is on, the client will crash since it expects a read set but does not get one.
     if(testing_hash || params.query_params.cacheReadSet){
         std::sort(result->mutable_query_read_set()->mutable_read_set()->begin(), result->mutable_query_read_set()->mutable_read_set()->end(), sortReadSetByKey); //Note: Sorts by key to ensure all replicas create the same hash. (Note: Not necessary if using ordered map)
@@ -1316,28 +1296,13 @@ void Server::SendQueryReply(QueryMetaData *query_md){
     }
     
 
-    // 4) Possibly buffer Read Set (map: query_digest -> <result_hash, read set>) ==> implicitly done by storing read set + result hash in query_md 
+    //4) If Caching Read Set: Buffer Read Set (map: query_digest -> <result_hash, read set>) ==> implicitly done by storing read set + result hash in query_md 
    
     //5) Create Result reply --  // only include result if chosen for reply.
-  
-   
 
-    //proto::queryResultReply *query_reply = queryResultReply->mutable_result();
-    // query_reply->set_query_seq_num(query_md->query_seq_num); //TODO: store these in query_md?
-    // query_reply->set_client_id(query_md->client_id);
-    //query_reply->set_replica_id(id);
     result->set_query_seq_num(query_md->query_seq_num); //FIXME: put this directly when instantiating.
     result->set_client_id(query_md->client_id); //FIXME: set this directly when instantiating.
     result->set_replica_id(id);
-
-    // if(params.query_params.cacheReadSet){
-    //    query_reply->set_query_result_hash(query_md->result_hash);
-       
-    // }
-    // else{
-    //     *query_reply->mutable_query_read_set() = {query_md->read_set.begin(), query_md->read_set.end()}; //FIXME: Protobuf may serialize map into arbitrary order --> make sure it's ordered when Hashing.
-    // }
-    
     
     queryResultReply->set_req_id(query_md->req_id);
 
