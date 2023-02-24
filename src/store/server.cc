@@ -617,7 +617,7 @@ int main(int argc, char **argv) {
         if (FLAGS_num_shards == 6) {
             protocol_cpu = FLAGS_indicus_process_id * num_cpus + num_cpus - 1;
         } else if(FLAGS_num_shards == 3) { //hotstuff_cpu = 1;
-          protocol_cpu = FLAGS_indicus_process_id * num_cpus + num_cpus - 1;
+          protocol_cpu = FLAGS_indicus_process_id * num_cpus + num_cpus - 1; //E.g. with 3 shards => 1 process per machine, each machine 8 cores ==> protocol runs on core 8 (=index 7)
         }
         else{ // FLAGS_num_shards should be 12 or 24
           protocol_cpu = FLAGS_indicus_process_id * num_cpus;

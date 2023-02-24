@@ -54,7 +54,7 @@ void ShardClient::Query(uint64_t client_seq_num, uint64_t query_seq_num, proto::
   pendingQuery->client_seq_num = client_seq_num;
   pendingQuery->query_seq_num = query_seq_num;
 
-  pendingQuery->queryDigest = std::move(QueryDigest(*query, (params.query_params.signClientQueries && params.query_params.cacheReadSet && params.hashDigest)));
+  pendingQuery->queryDigest = std::move(QueryDigest(queryMsg, (params.query_params.signClientQueries && params.query_params.cacheReadSet && params.hashDigest)));
    
 //   if(params.query_params.signClientQueries && params.query_params.cacheReadSet){
 //         pendingQuery->queryDigest = std::move(QueryDigest(queryMsg, params.hashDigest));

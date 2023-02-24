@@ -138,7 +138,7 @@ class Client : public ::Client {
     }
 
     void SetQueryId(Client *client){
-      queryId = QueryDigest(*query, (params.query_params.signClientQueries && params.query_params.cacheReadSet && params.hashDigest)); 
+      queryId = QueryDigest(queryMsg, (client->params.query_params.signClientQueries && client->params.query_params.cacheReadSet && client->params.hashDigest)); 
 
       // if(client->params.query_params.signClientQueries && client->params.query_params.cacheReadSet){ //TODO: when to use hash id? always?
       //     queryId = QueryDigest(queryMsg, client->params.hashDigest); 

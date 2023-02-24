@@ -207,6 +207,34 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
     //Query helper data structures
 
     //Query objects
+    struct QueryReadSetMgr {
+        QueryReadSetMgr(proto::ReadSet *read_set, const uint64_t &groupIdx): read_set(read_set), groupIdx(groupIdx) {}
+        ~QueryReadSetMgr(){}
+
+        void AddToReadSet(const std::string &key, const TimestampMessage &readtime){
+           ReadMessage *read = read_set->add_read_set();
+          //ReadMessage *read = query_md->queryResult->mutable_query_read_set()->add_read_set();
+          read->set_key(key);
+          *read->mutable_readtime() = readtime;
+        }
+
+        void AddToDepSet(const std::string &tx_id, bool optimisticId, const TimestampMessage &tx_ts){
+            proto::Dependency *add_dep = read_set->add_deps();
+            add_dep->set_involved_group(groupIdx);
+            add_dep->mutable_write()->set_prepared_txn_digest(tx_id);
+            Debug("Adding Dep: %s", BytesToHex(tx_id, 16).c_str());
+            //Note: Send merged TS.
+            if(optimisticId){
+                //MergeTimestampId(txn->timestamp().timestamp(), txn->timestamp().id()
+                *add_dep->mutable_write()->mutable_prepared_timestamp() = tx_ts;
+                // add_dep->mutable_write()->mutable_prepared_timestamp()->set_timestamp(txn->timestamp().timestamp());
+                // add_dep->mutable_write()->mutable_prepared_timestamp()->set_id(txn->timestamp().id());
+            }
+        }
+
+      proto::ReadSet *read_set;
+      uint64_t groupIdx;
+    };
 
     struct QueryMetaData {
       QueryMetaData(const std::string &query_cmd, const TimestampMessage &timestamp, const TransportAddress &remote, const uint64_t &req_id, 
@@ -238,7 +266,7 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
         merged_ss.clear();
         //merged_ss.Clear();
         //local_ss.clear(); //for now don't clear, will get overridden anyways.
-        missing_txn.clear();
+        missing_txns.clear();
         executed_query = false;
         has_result = false;
         is_waiting = false;
@@ -246,10 +274,10 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
         waiting_sync = false;
         if(merged_ss_msg != nullptr) delete merged_ss_msg; //Delete obsolete sync snapshot
 
-        //Delete missingTxns.   
-        queryMissingTxnsMap::accessor qm;
-        bool first_qm = queryMissingTxns.erase(qm, QueryRetryId(queryId, query_md->retry_version, (params.query_params.signClientQueries && params.query_params.cacheReadSet && params.hashDigest)));
-        qm.release();
+        //Delete missingTxns.   -- NOTE: Currently NOT necessary, because UpdateWaitingQueries checks whether retry version is still current.
+        // queryMissingTxnsMap::accessor qm;
+        // bool first_qm = queryMissingTxns.erase(qm, QueryRetryId(queryId, query_md->retry_version, (params.query_params.signClientQueries && params.query_params.cacheReadSet && params.hashDigest)));
+        // qm.release();
       }
       void SetQuery(const std::string &_query_cmd, const TimestampMessage &timestamp, const TransportAddress &remote, const uint64_t &_req_id){
         has_query = true;
@@ -295,7 +323,7 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
       //google::protobuf::RepeatedPtrField<std::string> merged_ss;
 
       bool is_waiting; //waiting on txn for sync.
-      std::unordered_map<std::string, uint64_t> missing_txn; //map from txn-id --> number of responses max waiting for; if client is byz, no specified replica may have it --> if so, return immediately and blacklist/report tx (requires sync to be signed)
+      std::unordered_map<std::string, uint64_t> missing_txns; //map from txn-id --> number of responses max waiting for; if client is byz, no specified replica may have it --> if so, return immediately and blacklist/report tx (requires sync to be signed)
 
       bool has_result;
       proto::QueryResultReply *queryResultReply; //contains proto::QueryResult, which in turn contains: query_result, read set, read set hash/result hash, dependencies
@@ -391,14 +419,14 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
 
     void ProcessQuery(queryMetaDataMap::accessor &q, const TransportAddress &remote, proto::Query *query, QueryMetaData *query_md);
     void ProcessSync(queryMetaDataMap::accessor &q, const TransportAddress &remote, proto::MergedSnapshot *merged_ss, const std::string *queryId, QueryMetaData *query_md);
-    void SetWaiting(std::unordered_map<std::string, uint64_t> &missing_txn, const std::string &tx_id, const std::string *queryId, const std::string &query_retry_id,
+    void SetWaiting(std::unordered_map<std::string, uint64_t> &missing_txns, const std::string &tx_id, const std::string *queryId, const std::string &query_retry_id,
         const proto::ReplicaList &replica_list, std::map<uint64_t, proto::RequestMissingTxns> &replica_requests);
-    void SetWaitingTS(std::unordered_map<std::string, uint64_t> &missing_txn, const uint64_t &ts_id, const std::string *queryId, const std::string &query_retry_id,
+    void SetWaitingTS(std::unordered_map<std::string, uint64_t> &missing_txns, const uint64_t &ts_id, const std::string *queryId, const std::string &query_retry_id,
         const proto::ReplicaList &replica_list, std::map<uint64_t, proto::RequestMissingTxns> &replica_requests);
     void HandleSyncCallback(QueryMetaData *query_md, const std::string &queryId);
     void SendQueryReply(QueryMetaData *query_md);
     void ProcessSuppliedTxn(const std::string &txn_id, proto::TxnInfo &txn_info, bool &stop);
-    void CheckWaitingQueries(const std::string &txnDigest, bool non_blocking = false);
+    void CheckWaitingQueries(const std::string &txnDigest, bool is_abort = false, bool non_blocking = false);
     void UpdateWaitingQueries(const std::string &txnDigest, bool is_abort = false);
     void FailWaitingQueries(const std::string &txnDigest);
     void FailQuery(QueryMetaData *query_md);

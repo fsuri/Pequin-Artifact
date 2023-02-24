@@ -1618,7 +1618,7 @@ void Server::Abort(const std::string &txnDigest) {
   CheckDependents(txnDigest);
   CleanDependencies(txnDigest);
 
-  CheckWaitingQueries(txnDigest);
+  CheckWaitingQueries(txnDigest, true); //is_abort
 }
 
 void Server::Clean(const std::string &txnDigest, bool abort, bool hard) {
@@ -2251,7 +2251,7 @@ bool Server::ExecP1(proto::Phase1FB &msg, const TransportAddress &remote,
      txn->client_seq_num(), BytesToHex(txnDigest, 16).c_str(),
      txn->timestamp().timestamp());
 
-  CheckWaitingQueries(txnDigest, true); //Check for waiting queries in non-blocking fashion.
+  CheckWaitingQueries(txnDigest, false, true); //is_abort = false //Check for waiting queries in non-blocking fashion.
 
   //start new current view
   // current_views[txnDigest] = 0;

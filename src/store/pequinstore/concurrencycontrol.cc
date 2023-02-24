@@ -494,8 +494,18 @@ proto::ConcurrencyControl::Result Server::DoOCCCheck(
       Panic("Unknown OCC type: %d.", occType);
       return proto::ConcurrencyControl::ABORT;
   }
-  //TODO: Call Restore
-  //restoreTxn(txn);
+  
+  //Can eagerly Abort if result final -- Note Still sending Phase1Replies though, because client hard-coded to receive it currently
+  if(result == proto::ConcurrencyControl::ABORT){
+    proto::Writeback abort_wb;
+    abort_wb.set_decision(proto::CommitDecision::ABORT);
+    abort_wb.set_txn_digest(txnDigest);
+    *abort_wb.mutable_conflict() = *conflict;
+    writebackMessages[txnDigest] = std::move(abort_wb);
+    Abort(txnDigest); 
+  }
+    
+
   return result;
 }
 

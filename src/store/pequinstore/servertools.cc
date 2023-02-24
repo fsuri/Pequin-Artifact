@@ -656,7 +656,7 @@ void* Server::TryPrepare(uint64_t reqId, const TransportAddress &remote, proto::
   {
     Debug("Calling TryPrepare for txn[%s] on MainThread %d", BytesToHex(txnDigest, 16).c_str(), sched_getcpu());
 
-    CheckWaitingQueries(txnDigest, true); //Check for waiting queries in non-blocking fashion.
+    CheckWaitingQueries(txnDigest, false, true); //is_abort = false //Check for waiting queries in non-blocking fashion.
 
     //current_views[txnDigest] = 0;
     p2MetaDataMap::accessor p;

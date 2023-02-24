@@ -448,7 +448,7 @@ void Server::ProcessSync(queryMetaDataMap::accessor &q, const TransportAddress &
     query_md->merged_ss_msg = merged_ss; //FIXME: Don't delete at the end. 
 
     //1) Determine all missing transactions 
-    query_md->missing_txn.clear();
+    query_md->missing_txns.clear();
     std::map<uint64_t, proto::RequestMissingTxns> replica_requests = {};
 
     std::string query_retry_id = QueryRetryId(*queryId, query_md->retry_version, (params.query_params.signClientQueries && params.query_params.cacheReadSet && params.hashDigest)); 
@@ -456,7 +456,7 @@ void Server::ProcessSync(queryMetaDataMap::accessor &q, const TransportAddress &
     bool first_qm = queryMissingTxns.insert(qm, query_retry_id); //Note: ClearMetaData: Deletes previous retry_version.
     UW_ASSERT(first_qm); //ProcessSync should never be called twice for one retry version.
     // In SetWaiting -> add missing to qm->second. (pass qm->second as arg.)
-    std::unordered_map<std::string, uint64_t> &missing_txns = qm->second.missing_txns; //query_md->missing_txn;
+    std::unordered_map<std::string, uint64_t> &missing_txns = qm->second.missing_txns; //query_md->missing_txns;
     // If missing empty after checking snapshot -> erase again
     
      //TODO: SetWaiting needs to pass query_retry_id, not queryId.
@@ -472,21 +472,23 @@ void Server::ProcessSync(queryMetaDataMap::accessor &q, const TransportAddress &
             //i) Check whether replica has the txn.: If not ongoing, and not commit/abort --> then we have not received it yet. (Follows from commit/aborted being updated before erasing from ongoing)
             //CheckPresence(tx_id, merged_ss, queryId);
             ongoingMap::const_accessor o;
-            bool has_txn_locally = ongoing.find(o, tx_id)? true : (committed.find(tx_id) != committed.end() || aborted.find(tx_id) != aborted.end());
-            //o.release();
+            //bool has_txn_locally = ongoing.find(o, tx_id)? true : (committed.find(tx_id) != committed.end() || aborted.find(tx_id) != aborted.end());
         
-                // Note: CURRENTLY NOT USING FAILQuery here: An aborted tx in the snapshot might not be on the execution frontier... -> Fail only during exec. Just proceed here (mark tx as "has_locally")
-                // PLUS: May actually WANT to not read from the aborted tx.
-                // has_txn_locally = ongoing.find(o, tx_id);
-                // o.release();
-                // if(!has_txn_locally){
-                //     if (committed.find(tx_id) != committed.end()) has_txn_locally = true;
-                //     else if (aborted.find(tx_id) != aborted.end()){  //If Query not ongoing/committed --> Fail Query early if aborted. 
-                //         FailQuery(query_md); 
-                //         delete merged_ss;
-                //         return;
-                //     }
-                // }
+            bool has_txn_locally = ongoing.find(o, tx_id);
+            ///o.release();
+            if(!has_txn_locally){
+                if (committed.find(tx_id) != committed.end()) has_txn_locally = true;
+                else if (aborted.find(tx_id) != aborted.end()){  //If Query not ongoing/committed --> Fail Query early if aborted. 
+                    has_txn_locally = true;
+                    //Remove from snapshot.
+                    merged_ss->mutable_merged_txns()->erase(tx_id);
+
+                   // Note: CURRENTLY NOT USING FAILQuery here: An aborted tx in the snapshot might not be on the execution frontier... -> Fail only during exec. Just proceed here (mark tx as "has_locally")
+                    // FailQuery(query_md);   // PLUS: May actually WANT to not read from the aborted tx.
+                    // delete merged_ss;
+                    // return;
+                }
+            }
             
             
             //ii) Register tx that this query is waiting on.
@@ -559,7 +561,7 @@ void Server::ProcessSync(queryMetaDataMap::accessor &q, const TransportAddress &
     return;
 }
 
-void Server::SetWaiting(std::unordered_map<std::string, uint64_t> &missing_txn, const std::string &tx_id, const std::string *queryId, const std::string &query_retry_id,
+void Server::SetWaiting(std::unordered_map<std::string, uint64_t> &missing_txns, const std::string &tx_id, const std::string *queryId, const std::string &query_retry_id,
     const proto::ReplicaList &replica_list, std::map<uint64_t, proto::RequestMissingTxns> &replica_requests)
 {
         //Add to waiting data structure.
@@ -571,7 +573,7 @@ void Server::SetWaiting(std::unordered_map<std::string, uint64_t> &missing_txn, 
         w.release();
 
          // Wait for up f+1 replies for each missing. (if none successful, then client must have been byz. Vote Early abort (if anything) and report client.)
-        missing_txn[tx_id]; //= config.f + 1;  we don't stop waiting for f+1 currently. 
+        missing_txns[tx_id]; //= config.f + 1;  we don't stop waiting for f+1 currently. 
 
         uint64_t count = 0;
         for(auto const &replica_id: replica_list.replicas()){ 
@@ -588,7 +590,7 @@ void Server::SetWaiting(std::unordered_map<std::string, uint64_t> &missing_txn, 
         }
 }
 
-void Server::SetWaitingTS(std::unordered_map<std::string, uint64_t> &missing_txn, const uint64_t &ts_id, const std::string *queryId, const std::string &query_retry_id,
+void Server::SetWaitingTS(std::unordered_map<std::string, uint64_t> &missing_txns, const uint64_t &ts_id, const std::string *queryId, const std::string &query_retry_id,
     const proto::ReplicaList &replica_list, std::map<uint64_t, proto::RequestMissingTxns> &replica_requests)
 {
     Panic("Sync on TS-Ids not yet supported");
@@ -951,20 +953,20 @@ void Server::ProcessSuppliedTxn(const std::string &txn_id, proto::TxnInfo &txn_i
    
 
 //Note: Call this only from Network or from MainThread (can do so before calling DoOCC)
-void Server::CheckWaitingQueries(const std::string &txnDigest, bool non_blocking){ //Non_blocking makes it so that the request is schedules asynchronously, i.e. does not block calling function
+void Server::CheckWaitingQueries(const std::string &txnDigest, bool is_abort, bool non_blocking){ //Non_blocking makes it so that the request is schedules asynchronously, i.e. does not block calling function
   //Wake waiting queries.
   if(params.mainThreadDispatching && (params.query_params.parallel_queries || non_blocking)){   //if mainThreadDispatching = true then dispatchMessageReceive = false
     //Dispatch job to worker thread (since it may wake and excute sync)
-      auto f = [this, txnDigest]() mutable {
+      auto f = [this, txnDigest, is_abort]() mutable {
         Debug("Dispatch UpdateWaitingQueries(%s) to a worker thread.", BytesToHex(txnDigest, 16).c_str());
-        UpdateWaitingQueries(txnDigest);
+        UpdateWaitingQueries(txnDigest, is_abort);
         return (void*) true;
       };
       if(params.query_params.parallel_queries) transport->DispatchTP_noCB(std::move(f));
       else if(non_blocking) transport->DispatchTP_main(std::move(f));
   }
   else{
-    UpdateWaitingQueries(txnDigest);
+    UpdateWaitingQueries(txnDigest, is_abort);
   }
 
     //TODO: Alternatively: Could call this in DoOCCCheck -- but then need to account for the fact that it might be called from a worker thread (only on normal case, not fallback)
@@ -1069,14 +1071,11 @@ void Server::UpdateWaitingQueries(const std::string &txnDigest, bool is_abort){
         //However, this should never happen, as Process Sync should only be called exactly once per retry_version.
 
      //Note also, that consecutive Sync's Clear the meta data of previous retry_versions, thus deleting queryMissingTxns ==> this avoids waking queries on old retry versions. 
-     //TODO: Not strictly necessary -> Could remove ClearMetaData ==> the version to wake will not be valid, and thus no wake happens.
+     //Note: Not strictly necessary -> Could remove ClearMetaData ==> the version to wake will not be valid, and thus no wake happens.
 
-     //TODO: With this version: Don't have access to q while looping. How to remove aborted txn from snapshot?
-            //Either don't: And during materialization need to check for aborted again...
-            //Or: extract query list and loop separately.
-
-   
+     
     std::map<std::string, uint64_t> queries_to_wake;
+    std::set<std::string> queries_to_rm_txn; //All queries (besides the ones we wake anyways) from whose snapshot we want to remove the txn. Note: This is just an optimization to not loop twice
 
      //1) find queries that were waiting on this txn-id
     waitingQueryMap::accessor w;
@@ -1091,14 +1090,15 @@ void Server::UpdateWaitingQueries(const std::string &txnDigest, bool is_abort){
 
             MissingTxns &missingTxns = qm->second;
 
-            bool was_present = missingTxns.missing_txn.erase(txnDigest); 
+            bool was_present = missingTxns.missing_txns.erase(txnDigest); 
             //Cornercase: What if we clear missing queries (ro Retry Sync) and then UpdateWaiting triggers. ==> was_present should be false => won't call Update
            
-            Debug("QueryId[%s] is still waiting on (%d) transactions", BytesToHex(missingTxns.query_id, 16).c_str(), query_md->missing_txn.size());
-            if(was_present && missingTxns.missing_txn.empty()){ 
+            Debug("QueryId[%s] is still waiting on (%d) transactions", BytesToHex(missingTxns.query_id, 16).c_str(), missingTxns.missing_txns.size());
+            if(was_present && missingTxns.missing_txns.empty()){ 
                    //Note: was_present -> only call this the first time missing_txn goes empty: present captures the fact that map was non-empty before erase.
                 queries_to_wake[missingTxns.query_id] = missingTxns.retry_version;
             }
+            else if(is_abort) queries_to_rm_txn.insert(missingTxns.query_id);
             qm.release();
         }
         //3) remove key from waiting data structure if no more queries waiting on it to avoid key set growing infinitely...
@@ -1112,6 +1112,9 @@ void Server::UpdateWaitingQueries(const std::string &txnDigest, bool is_abort){
         bool queryActive = queryMetaData.find(q, queryId);
         if(queryActive){
                 QueryMetaData *query_md = q->second;
+
+                //6) Erase txn from snapshot if abort.
+                query_md->merged_ss_msg->mutable_merged_txns()->erase(txnDigest); 
                
                 //5) if query is waiting and retry_version is still current: Start Callback.
                 if(query_md->is_waiting && query_md->retry_version == retry_version){ 
@@ -1121,6 +1124,20 @@ void Server::UpdateWaitingQueries(const std::string &txnDigest, bool is_abort){
                 }
         }
         q.release();
+    }
+
+    //6 For all other queries that are still waiting, but not ready to wake: Erase txn from snapshot if abort
+    for(auto &queryId: queries_to_rm_txn){
+        queryMetaDataMap::accessor q;
+        bool queryActive = queryMetaData.find(q, queryId);
+        if(queryActive){
+            QueryMetaData *query_md = q->second;
+
+            //6) Erase txn from snapshot if abort.
+            query_md->merged_ss_msg->mutable_merged_txns()->erase(txnDigest); 
+        }
+        q.release();
+    }
 }
 
 
@@ -1153,7 +1170,8 @@ void Server::HandleSyncCallback(QueryMetaData *query_md, const std::string &quer
     //read set = map from key-> versions  //Note: Convert Timestamp to TimestampMessage
  
    //Materialization: Possible solution: During OCC check, Also "prepare" all tx that are locally abstained --> that way we can directly detect them as not necessary for sync. Mark them "invisible" by default.
-            //Garbage collect for good from prepared map once it is aborted.
+            //Garbage collect for good from prepared map once it is aborted. -- Ignore Aborted Tx during materialization (We already remove them from snapshot during ProcessSync and UpdateWaiting)
+                                                                    //Note: There might still be prepared Abstained/Aborted tx - but we currently do read those, since we call UpdateWaiting before the prepare result
             //Alternative: During exec, materialize all remaining items in snapshot. 
     /////////////////////////////////////////////////////////////
     //                                                         //
@@ -1166,6 +1184,9 @@ void Server::HandleSyncCallback(QueryMetaData *query_md, const std::string &quer
     //                                                         //
     //                                                         //
     /////////////////////////////////////////////////////////////
+
+    QueryReadSetMgr queryReadSetMgr(query_md->queryResultReply->mutable_result()->mutable_query_read_set(), groupIdx); 
+
      //Creating Dummy keys for testing //FIXME: REPLACE 
     for(int i=5;i > 0; --i){
         TimestampMessage ts;
@@ -1175,10 +1196,11 @@ void Server::HandleSyncCallback(QueryMetaData *query_md, const std::string &quer
         std::string dummy_key = groupIdx == 0 ? "dummy_key_g1_" + std::to_string(i) : "dummy_key_g2_" + std::to_string(i);
         //query_md->read_set[dummy_key] = ts; //query_md->ts;
         //replaced with repeated field -> directly in result object.
-        ReadMessage *read = query_md->queryResultReply->mutable_result()->mutable_query_read_set()->add_read_set();
-        //ReadMessage *read = query_md->queryResult->mutable_query_read_set()->add_read_set();
-        read->set_key(dummy_key);
-        *read->mutable_readtime() = ts;
+        queryReadSetMgr.AddToReadSet(dummy_key, ts);
+        // ReadMessage *read = query_md->queryResultReply->mutable_result()->mutable_query_read_set()->add_read_set();
+        // //ReadMessage *read = query_md->queryResult->mutable_query_read_set()->add_read_set();
+        // read->set_key(dummy_key);
+        // *read->mutable_readtime() = ts;
         //TODO: Add more keys; else I cant test order.
 
     }
@@ -1203,16 +1225,18 @@ void Server::HandleSyncCallback(QueryMetaData *query_md, const std::string &quer
             const std::string &tx_id = i->first;
             const proto::Transaction *txn = i->second.second;
 
-            proto::Dependency *add_dep = query_md->queryResultReply->mutable_result()->mutable_query_read_set()->add_deps();
-            add_dep->set_involved_group(groupIdx);
-            add_dep->mutable_write()->set_prepared_txn_digest(tx_id);
-            Debug("Adding Dep: %s", BytesToHex(add_dep->write().prepared_txn_digest(), 16).c_str());
-            //Note: Send merged TS.
-            if(query_md->useOptimisticTxId){
-                //MergeTimestampId(txn->timestamp().timestamp(), txn->timestamp().id()
-                add_dep->mutable_write()->mutable_prepared_timestamp()->set_timestamp(txn->timestamp().timestamp());
-                add_dep->mutable_write()->mutable_prepared_timestamp()->set_id(txn->timestamp().id());
-            }
+            queryReadSetMgr.AddToDepSet(tx_id, query_md->useOptimisticTxId, txn->timestamp());
+
+            // proto::Dependency *add_dep = query_md->queryResultReply->mutable_result()->mutable_query_read_set()->add_deps();
+            // add_dep->set_involved_group(groupIdx);
+            // add_dep->mutable_write()->set_prepared_txn_digest(tx_id);
+            // Debug("Adding Dep: %s", BytesToHex(add_dep->write().prepared_txn_digest(), 16).c_str());
+            // //Note: Send merged TS.
+            // if(query_md->useOptimisticTxId){
+            //     //MergeTimestampId(txn->timestamp().timestamp(), txn->timestamp().id()
+            //     add_dep->mutable_write()->mutable_prepared_timestamp()->set_timestamp(txn->timestamp().timestamp());
+            //     add_dep->mutable_write()->mutable_prepared_timestamp()->set_id(txn->timestamp().id());
+            // }
             // if(query_md->useOptimisticTxId){
             //     proto::DepTs *dep_ts = query_md->queryResultReply->mutable_result()->mutable_query_read_set()->add_dep_ts_ids();
             //     dep_ts->set_dep_id(tx_id);
