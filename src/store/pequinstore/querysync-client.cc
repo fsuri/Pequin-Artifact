@@ -299,8 +299,10 @@ void ShardClient::SyncReplicas(PendingQuery *pendingQuery){
             //e.g. don't want any client to submit a different/wrong/empty sync on behalf of client --> without cached read set wouldn't matter: 
                                             //replica replies to a sync msg -> so if client sent a correct one, replica execs that one and replies -- regardless of previous duplicates using same query id.
 
+    pendingQuery->merged_ss.set_query_digest(pendingQuery->queryDigest);
+
     if(params.query_params.signClientQueries && params.query_params.cacheReadSet){ //FIXME: For now, only signing if using Cached Read Set. --> only then need to avoid equivocation
-      pendingQuery->merged_ss.set_query_digest(pendingQuery->queryDigest);
+      //pendingQuery->merged_ss.set_query_digest(pendingQuery->queryDigest);
       SignMessage(&pendingQuery->merged_ss, keyManager->GetPrivateKey(keyManager->GetClientKeyId(client_id)), client_id, syncMsg.mutable_signed_merged_ss());
     }
     else{
@@ -326,7 +328,7 @@ void ShardClient::SyncReplicas(PendingQuery *pendingQuery){
         transport->SendMessageToReplica(this, group, GetNthClosestReplica(i), syncMsg);
     }
 
-    Debug("[group %i] Sent Query Sync Messages for query [seq:ver] [%lu : %lu] \n", group, pendingQuery->query_seq_num, pendingQuery->retry_version);
+    Debug("[group %i] Sent Query Sync Messages for query [seq:ver] [%lu : %lu], id: %s \n", group, pendingQuery->query_seq_num, pendingQuery->retry_version, BytesToHex(pendingQuery->queryDigest, 16).c_str());
 }
 
 

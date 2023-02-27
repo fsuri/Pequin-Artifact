@@ -502,7 +502,7 @@ proto::ConcurrencyControl::Result Server::DoOCCCheck(
     abort_wb.set_txn_digest(txnDigest);
     *abort_wb.mutable_conflict() = *conflict;
     writebackMessages[txnDigest] = std::move(abort_wb);
-    Abort(txnDigest); 
+    Abort(txnDigest, &txn); 
   }
     
 

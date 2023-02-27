@@ -656,7 +656,7 @@ void* Server::TryPrepare(uint64_t reqId, const TransportAddress &remote, proto::
   {
     Debug("Calling TryPrepare for txn[%s] on MainThread %d", BytesToHex(txnDigest, 16).c_str(), sched_getcpu());
 
-    CheckWaitingQueries(txnDigest, false, true); //is_abort = false //Check for waiting queries in non-blocking fashion.
+    CheckWaitingQueries(txnDigest, txn->timestamp(), false, true); //is_abort = false //Check for waiting queries in non-blocking fashion.
     //NOTE: If want to incorporate the result from prepare (in case it is abort), then need to move this after Occ Check.
 
     //current_views[txnDigest] = 0;

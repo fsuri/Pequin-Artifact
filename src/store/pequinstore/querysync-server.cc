@@ -106,7 +106,7 @@ void Server::HandleQuery(const TransportAddress &remote, proto::QueryRequest &ms
     // else{
     //     queryId =  "[" + std::to_string(query->query_seq_num()) + ":" + std::to_string(query->client_id()) + "]";
     // }
-     Debug("\n Received Query Request Query[%lu:%lu:%d] (seq:client:ver), queryId: ", query->query_seq_num(), query->client_id(), query->retry_version(), BytesToHex(queryId, 16).c_str());
+     Debug("\n Received Query Request Query[%lu:%lu:%d] (seq:client:ver), queryId: %s", query->query_seq_num(), query->client_id(), query->retry_version(), BytesToHex(queryId, 16).c_str());
    
     //TODO: Ideally check whether already have result or retry version is outdated Before VerifyClientQuery.
 
@@ -394,12 +394,15 @@ void Server::HandleSync(const TransportAddress &remote, proto::SyncClientProposa
 
             ////Return if already received sync for the retry version (implies result will be sent.)
             if(query_md->started_sync){ 
-                Debug("Already received Sync or Query for Query[%lu:%lu:%d] (seq:client:ver). Skipping Query", merged_ss->query_seq_num(), merged_ss->client_id(), merged_ss->retry_version(), query_md->retry_version);
+                Debug("Already received Sync or Query for Query[%lu:%lu:%d] (seq:client:ver). Skipping Query", merged_ss->query_seq_num(), merged_ss->client_id(), merged_ss->retry_version());
                 delete merged_ss; 
                 if(params.mainThreadDispatching && (!params.dispatchMessageReceive || params.query_params.parallel_queries)) FreeSyncClientProposalMessage(&msg);
                 return;
             }
         }
+    }
+    else{
+        Debug("Have not received Query[%lu:%lu:%d] with Id: %s", merged_ss->query_seq_num(), merged_ss->client_id(), merged_ss->retry_version(), BytesToHex(*queryId, 16).c_str());
     }
 
      //4) Authenticate Client Proposal if applicable     
@@ -457,6 +460,7 @@ void Server::ProcessSync(queryMetaDataMap::accessor &q, const TransportAddress &
     UW_ASSERT(first_qm); //ProcessSync should never be called twice for one retry version.
     // In SetWaiting -> add missing to qm->second. (pass qm->second as arg.)
     std::unordered_map<std::string, uint64_t> &missing_txns = qm->second.missing_txns; //query_md->missing_txns;
+    std::unordered_map<uint64_t, uint64_t> &missing_ts = qm->second.missing_ts; //query_md->missing_ts;
     // If missing empty after checking snapshot -> erase again
     
      //TODO: SetWaiting needs to pass query_retry_id, not queryId.
@@ -490,7 +494,6 @@ void Server::ProcessSync(queryMetaDataMap::accessor &q, const TransportAddress &
                 }
             }
             
-            
             //ii) Register tx that this query is waiting on.
             bool testing_sync = false;
             if(testing_sync || !has_txn_locally){
@@ -512,13 +515,15 @@ void Server::ProcessSync(queryMetaDataMap::accessor &q, const TransportAddress &
             ts_to_txMap::const_accessor t;
             bool hasTx = ts_to_tx.find(t, ts_id);//.. find in map. If yes, add tx_id to merged_txns. If no, try to sync on TS.
             if(hasTx){
-                (*query_md->merged_ss_msg->mutable_merged_txns())[t->second]; //(Just add with default constructor --> empty ReplicaList)
+                //Add Txn to snapshot if present (and not aborted)
+                const std::string &tx_id = t->second;
+                if(aborted.find(tx_id) == aborted.end()) (*query_md->merged_ss_msg->mutable_merged_txns())[tx_id]; //(Just add with default constructor --> empty ReplicaList)
                 //query_md->merged_ss.insert(t->second); //store snapshot locally.  
                 t.release();
             }
             else{
                 t.release();
-                SetWaitingTS(missing_txns, ts_id, queryId, query_retry_id, replica_list, replica_requests); 
+                SetWaitingTS(missing_ts, ts_id, queryId, query_retry_id, replica_list, replica_requests); 
             }
         }
     }
@@ -564,33 +569,36 @@ void Server::ProcessSync(queryMetaDataMap::accessor &q, const TransportAddress &
 void Server::SetWaiting(std::unordered_map<std::string, uint64_t> &missing_txns, const std::string &tx_id, const std::string *queryId, const std::string &query_retry_id,
     const proto::ReplicaList &replica_list, std::map<uint64_t, proto::RequestMissingTxns> &replica_requests)
 {
-        //Add to waiting data structure.
-        waitingQueryMap::accessor w;
-        waitingQueries.insert(w, tx_id);
-        bool already_requested = !w->second.empty(); //TODO: if there is already a waiting query, don't need to request the txn again. Problem: Could have been requested by a byz client that gave wrong replica_ids...
-        //w->second.insert(*queryId);
-        w->second.insert(query_retry_id);
-        w.release();
+    //Add to waiting data structure.
+    waitingQueryMap::accessor w;
+    waitingQueries.insert(w, tx_id);
+    bool already_requested = !w->second.empty(); //TODO: if there is already a waiting query, don't need to request the txn again. Problem: Could have been requested by a byz client that gave wrong replica_ids...
+    //w->second.insert(*queryId);
+    w->second.insert(query_retry_id);
+    w.release();
 
-         // Wait for up f+1 replies for each missing. (if none successful, then client must have been byz. Vote Early abort (if anything) and report client.)
-        missing_txns[tx_id]; //= config.f + 1;  we don't stop waiting for f+1 currently. 
+        // Wait for up f+1 replies for each missing. (if none successful, then client must have been byz. Vote Early abort (if anything) and report client.)
+    missing_txns[tx_id]; //= config.f + 1;  we don't stop waiting for f+1 currently. 
 
-        uint64_t count = 0;
-        for(auto const &replica_id: replica_list.replicas()){ 
-            if(count > config.f +1) return; //only send to f+1 --> an honest client will never include more than f+1 replicas to request from. --> can ignore byz request.
-            
-            
-            uint64_t replica_idx = replica_id % config.n;  //since  id = local-groupIdx * config.n + idx
-            if(replica_idx != idx){
-                std::string *next_txn = replica_requests[replica_idx].add_missing_txn();
-                *next_txn = tx_id;
-                replica_requests[replica_idx].set_replica_idx(idx);
-            }
-            count++;
+    uint64_t count = 0;
+    for(auto const &replica_id: replica_list.replicas()){ 
+        if(count > config.f +1) return; //only send to f+1 --> an honest client will never include more than f+1 replicas to request from. --> can ignore byz request.
+        
+        
+        uint64_t replica_idx = replica_id % config.n;  //since  id = local-groupIdx * config.n + idx
+        if(replica_idx != idx){
+            proto::RequestMissingTxns &req_txn = replica_requests[replica_idx];
+            req_txn.add_missing_txn(tx_id);
+            req_txn.set_replica_idx(idx);
+            // std::string *next_txn = replica_requests[replica_idx].add_missing_txn();
+            // *next_txn = tx_id;
+            // replica_requests[replica_idx].set_replica_idx(idx);
         }
+        count++;
+    }
 }
 
-void Server::SetWaitingTS(std::unordered_map<std::string, uint64_t> &missing_txns, const uint64_t &ts_id, const std::string *queryId, const std::string &query_retry_id,
+void Server::SetWaitingTS(std::unordered_map<uint64_t, uint64_t> &missing_ts, const uint64_t &ts_id, const std::string *queryId, const std::string &query_retry_id,
     const proto::ReplicaList &replica_list, std::map<uint64_t, proto::RequestMissingTxns> &replica_requests)
 {
     Panic("Sync on TS-Ids not yet supported");
@@ -602,6 +610,30 @@ void Server::SetWaitingTS(std::unordered_map<std::string, uint64_t> &missing_txn
     //4) Need to modify SupplyMissingTx
 
     // Upon receiving Tx from sync -> need to update merged_ss with txn.
+      //Add to waiting data structure.
+    waitingQueryTSMap::accessor w;
+    waitingQueriesTS.insert(w, ts_id);
+    bool already_requested = !w->second.empty(); //TODO: if there is already a waiting query, don't need to request the txn again. Problem: Could have been requested by a byz client that gave wrong replica_ids...
+    //w->second.insert(*queryId);
+    w->second.insert(query_retry_id);
+    w.release();
+
+        // Wait for up f+1 replies for each missing. (if none successful, then client must have been byz. Vote Early abort (if anything) and report client.)
+    missing_ts[ts_id]; //= config.f + 1;  we don't stop waiting for f+1 currently. 
+
+    uint64_t count = 0;
+    for(auto const &replica_id: replica_list.replicas()){ 
+        if(count > config.f +1) return; //only send to f+1 --> an honest client will never include more than f+1 replicas to request from. --> can ignore byz request.
+        
+        
+        uint64_t replica_idx = replica_id % config.n;  //since  id = local-groupIdx * config.n + idx
+        if(replica_idx != idx){
+            proto::RequestMissingTxns &req_txn = replica_requests[replica_idx];
+            req_txn.add_missing_txn_ts(ts_id);
+            req_txn.set_replica_idx(idx);
+        }
+        count++;
+        }
 }
 
 
@@ -628,70 +660,32 @@ void Server::HandleRequestTx(const TransportAddress &remote, proto::RequestMissi
             // (if we want to avoid byz replicas falsely requesting, then clients would also need to include signed snapshot vote. and we would have to forward it here to...)
             //can log requests, so a byz can request at most once (which is legal anyways)
 
+    //Check requested Tx-ids
     for(auto const &txn_id : req_txn.missing_txn()){
-         Debug("Replica %d is requesting txn_id [%s]", req_txn.replica_idx(), BytesToHex(txn_id, 16).c_str());
+        Debug("Replica %d is requesting txn_id [%s]", req_txn.replica_idx(), BytesToHex(txn_id, 16).c_str());
+        proto::TxnInfo &txn_info = (*supply_txn.mutable_txns())[txn_id];
+        CheckLocalAvailability(txn_id, txn_info);
+        //CheckLocalAvailability(txn_id, supply_txn);
+    }
+
+    //Check requested optimistic Tx-ids (TS)
+    for(auto const &ts_id : req_txn.missing_txn_ts()){
+        Debug("Replica %d is requesting ts_id [%lu]", req_txn.replica_idx(), ts_id);
+        //Translate to tx-id if available -- else, reply stop and reply invalid
+         ts_to_txMap::const_accessor t;
+        bool hasTx = ts_to_tx.find(t, ts_id);//.. find in map. If yes, add tx_id to merged_txns. If no, try to sync on TS.
+        if(!hasTx){
+            Panic("Replica does not have txn-id for requested timestamp %lu. Shouldn't happen in testing", ts_id);
+            if(params.mainThreadDispatching && (!params.dispatchMessageReceive || params.query_params.parallel_queries)) FreeRequestTxMessage(&req_txn);
+            return;
+        }
+        const std::string &txn_id = t->second;
+
+        proto::TxnInfo &txn_info = (*supply_txn.mutable_txns_ts())[ts_id];
+        txn_info.set_txn_id(txn_id);
+        CheckLocalAvailability(txn_id, txn_info);
+        //CheckLocalAvailability(txn_id, supply_txn, true);
        
-        //1) If committed attatch certificate
-        auto itr = committed.find(txn_id);
-        if(itr != committed.end()){
-            //copy committed Proof from committed list to map of tx replies -- note: committed proof contains txn.
-            proto::CommittedProof *commit_proof = itr->second;
-            //proto::TxnInfo &tx_info = (*supply_txn.mutable_txns())[txn_id];
-            //*tx_info.mutable_commit_proof() = *commit_proof;
-
-           *(*supply_txn.mutable_txns())[txn_id].mutable_commit_proof() = *commit_proof;
-            Debug("Supplying committed txn_id %s", BytesToHex(txn_id, 16).c_str());
-            continue;
-        }
-
-        //2) if Prepared //TODO: check for prepared first, to avoid sending unecessary certs?
-
-        //Note: Should we be checking for ongoing (irrespective of prepared or not)? ==> and include signature if necessary. 
-        //==> No: A correct replica (instructed by a correct client) will only request the transaction from replicas that DO have it prepared. So checking prepared is enough -- don't need to check ongoing
-
-        preparedMap::const_accessor a;
-        bool hasPrepared = prepared.find(a, txn_id);
-        if(hasPrepared){
-            //copy txn from prepared list to map of tx replies.
-            proto::Phase1 *p1 = (*supply_txn.mutable_txns())[txn_id].mutable_p1();
-            const proto::Transaction *txn = (a->second.second);
-
-            if(params.signClientProposals){
-                 p1MetaDataMap::const_accessor c;
-                bool hasP1Meta = p1MetaData.find(c, txn_id);
-                if(!hasP1Meta) Panic("Tx %s is prepared but has no p1MetaData entry (should be created during ProcessProposal-VerifyClientProposal)", BytesToHex(txn_id, 16).c_str());  
-                //NOTE: P1 hasP1 (result) might not be set yet, but signed_txn has been buffered.
-                //Note: signature in p1MetaData is only removed AFTER prepared is removed. Thus signed message must be present when we access p1Meta while holding prepared lock.
-                *p1->mutable_signed_txn() = *(c->second.signed_txn); 
-                c.release();
-            }
-            else{
-                *p1->mutable_txn() = *txn;
-            }
-            p1->set_req_id(0);
-            p1->set_crash_failure(false);
-            p1->set_replica_gossip(true);  //ensures that no RelayP1 is sent, and no original client is registered for reply upon completion.
-            a.release();
-
-             Debug("Supplying prepared txn_id [%s]", BytesToHex(txn_id, 16).c_str());
-            continue;
-        }
-        a.release();
-
-         //3) if abort --> mark query for abort and reply. 
-        auto itr2 = aborted.find(txn_id);
-        if(itr2 != aborted.end()){
-            proto::TxnInfo &txn_info = (*supply_txn.mutable_txns())[txn_id];
-            txn_info.set_abort(true);
-            *txn_info.mutable_abort_proof() = writebackMessages[txn_id];
-        }
-        //Corner case: If replica voted prepare, but is now abort, what should happen? Should query ReportFail? Or should query just go through without this tx ==> The latter. After all, it is correct to ignore.
-
-        //4) if neither --> Mark invalid return, and report byz client
-        (*supply_txn.mutable_txns())[txn_id].set_invalid(true);
-        Debug("Falsely requesting tx-id [%s] which replica %lu does not have committed or prepared locally", BytesToHex(txn_id, 16).c_str(), id);
-        Panic("Testing Sync: Replica does not have tx.");
-        break; //return;  //For debug purposes sending invalid reply.
     }
 
     //4) Use MAC to authenticate own reply
@@ -713,6 +707,77 @@ void Server::HandleRequestTx(const TransportAddress &remote, proto::RequestMissi
 
     if(params.mainThreadDispatching && (!params.dispatchMessageReceive || params.query_params.parallel_queries)) FreeRequestTxMessage(&req_txn);
     return;
+}
+
+void Server::CheckLocalAvailability(const std::string &txn_id, proto::TxnInfo &txn_info){
+//void Server::CheckLocalAvailability(const std::string &txn_id, proto::SupplyMissingTxnsMessage &supply_txn, bool sync_on_ts){
+
+        //proto::TxnInfo &tx_info = (*supply_txn.mutable_txns())[txn_id];
+
+        //1) If committed attatch certificate
+        auto itr = committed.find(txn_id);
+        if(itr != committed.end()){
+            //copy committed Proof from committed list to map of tx replies -- note: committed proof contains txn.
+            proto::CommittedProof *commit_proof = itr->second;
+            //proto::TxnInfo &tx_info = (*supply_txn.mutable_txns())[txn_id];
+            //*tx_info.mutable_commit_proof() = *commit_proof;
+
+           *txn_info.mutable_commit_proof() = *commit_proof;
+            //*(*supply_txn.mutable_txns())[txn_id].mutable_commit_proof() = *commit_proof;
+            Debug("Supplying committed txn_id %s", BytesToHex(txn_id, 16).c_str());
+            return; //continue;
+        }
+
+        //2) if Prepared //TODO: check for prepared first, to avoid sending unecessary certs?
+
+        //Note: Should we be checking for ongoing (irrespective of prepared or not)? ==> and include signature if necessary. 
+        //==> No: A correct replica (instructed by a correct client) will only request the transaction from replicas that DO have it prepared. So checking prepared is enough -- don't need to check ongoing
+
+        preparedMap::const_accessor a;
+        bool hasPrepared = prepared.find(a, txn_id);
+        if(hasPrepared){
+            //copy txn from prepared list to map of tx replies.
+            proto::Phase1 *p1 = txn_info.mutable_p1();
+            //proto::Phase1 *p1 = (*supply_txn.mutable_txns())[txn_id].mutable_p1();
+            const proto::Transaction *txn = (a->second.second);
+
+            if(params.signClientProposals){
+                 p1MetaDataMap::const_accessor c;
+                bool hasP1Meta = p1MetaData.find(c, txn_id);
+                if(!hasP1Meta) Panic("Tx %s is prepared but has no p1MetaData entry (should be created during ProcessProposal-VerifyClientProposal)", BytesToHex(txn_id, 16).c_str());  
+                //NOTE: P1 hasP1 (result) might not be set yet, but signed_txn has been buffered.
+                //Note: signature in p1MetaData is only removed AFTER prepared is removed. Thus signed message must be present when we access p1Meta while holding prepared lock.
+                *p1->mutable_signed_txn() = *(c->second.signed_txn); 
+                c.release();
+            }
+            else{
+                *p1->mutable_txn() = *txn;
+            }
+            p1->set_req_id(0);
+            p1->set_crash_failure(false);
+            p1->set_replica_gossip(true);  //ensures that no RelayP1 is sent, and no original client is registered for reply upon completion.
+            a.release();
+
+             Debug("Supplying prepared txn_id [%s]", BytesToHex(txn_id, 16).c_str());
+            return; //continue;
+        }
+        a.release();
+
+         //3) if abort --> mark query for abort and reply. 
+        auto itr2 = aborted.find(txn_id);
+        if(itr2 != aborted.end()){
+            //proto::TxnInfo &txn_info = (*supply_txn.mutable_txns())[txn_id];
+            txn_info.set_abort(true);
+            *txn_info.mutable_abort_proof() = writebackMessages[txn_id];
+        }
+        //Corner case: If replica voted prepare, but is now abort, what should happen? Should query ReportFail? Or should query just go through without this tx ==> The latter. After all, it is correct to ignore.
+
+        //4) if neither --> Mark invalid return, and report byz client
+        txn_info.set_invalid(true);
+        //(*supply_txn.mutable_txns())[txn_id].set_invalid(true);
+        Debug("Falsely requesting tx-id [%s] which replica %lu does not have committed or prepared locally", BytesToHex(txn_id, 16).c_str(), id);
+        Panic("Testing Sync: Replica does not have tx.");
+        return; //break; //return;  //For debug purposes sending invalid reply.
 }
 
 
@@ -746,12 +811,19 @@ void Server::HandleSupplyTx(const TransportAddress &remote, proto::SupplyMissing
                     // OR: Easier: Add optional tx-id field to tx-info. add map.
     bool stop = false;
     for(auto &[txn_id, txn_info] : *supply_txn->mutable_txns()){
-        // std::string &txn_id = tx.first;
-        // proto::TxnInfo &txn_info = tx.second;
         Debug("Trying to locally apply tx-id: [%s]", BytesToHex(txn_id, 16).c_str());
         ProcessSuppliedTxn(txn_id, txn_info, stop);   
         if(stop) break;
     }
+
+    for(auto &[txn_ts, txn_info] : *supply_txn->mutable_txns_ts()){
+        UW_ASSERT(txn_info.has_txn_id());
+        const std::string &txn_id = txn_info.txn_id();
+        Debug("Trying to locally apply tx-id: [%s] from ts-id [%lu]", BytesToHex(txn_id, 16).c_str(), txn_ts);
+        ProcessSuppliedTxn(txn_id, txn_info, stop);   
+        if(stop) break;
+    }
+    
 
     if(params.query_params.signReplicaToReplicaSync) delete supply_txn;
     if(params.mainThreadDispatching && !params.dispatchMessageReceive) FreeSupplyTxMessage(&msg);
@@ -760,6 +832,7 @@ void Server::HandleSupplyTx(const TransportAddress &remote, proto::SupplyMissing
 }
 
 //Consider moving this to servertools?
+//NOTE: All calls to UpdateWaiting must wake waitingQueriesTS too!
 void Server::ProcessSuppliedTxn(const std::string &txn_id, proto::TxnInfo &txn_info, bool &stop){
      //check if locally committed; if not, check cert and apply
         
@@ -842,6 +915,7 @@ void Server::ProcessSuppliedTxn(const std::string &txn_id, proto::TxnInfo &txn_i
             valid = true;
             Debug("Accepted Genesis tx-id: [%s]", BytesToHex(txn_id, 16).c_str());
             UpdateWaitingQueries(txn_id); //Does not seem necessary for Genesis, but shouldn't hurt
+            UpdateWaitingQueriesTS(0UL, txn_id);
         }
         else{
             //Confirm that replica supplied correct transaction.     //TODO: Note: Since one should do this anyways, there is no point in storing txn_id as part of supply message.
@@ -953,21 +1027,44 @@ void Server::ProcessSuppliedTxn(const std::string &txn_id, proto::TxnInfo &txn_i
    
 
 //Note: Call this only from Network or from MainThread (can do so before calling DoOCC)
-void Server::CheckWaitingQueries(const std::string &txnDigest, bool is_abort, bool non_blocking){ //Non_blocking makes it so that the request is schedules asynchronously, i.e. does not block calling function
-  //Wake waiting queries.
-  if(params.mainThreadDispatching && (params.query_params.parallel_queries || non_blocking)){   //if mainThreadDispatching = true then dispatchMessageReceive = false
-    //Dispatch job to worker thread (since it may wake and excute sync)
-      auto f = [this, txnDigest, is_abort]() mutable {
-        Debug("Dispatch UpdateWaitingQueries(%s) to a worker thread.", BytesToHex(txnDigest, 16).c_str());
+void Server::CheckWaitingQueries(const std::string &txnDigest, const TimestampMessage &ts, bool is_abort, bool non_blocking){ //Non_blocking makes it so that the request is schedules asynchronously, i.e. does not block calling function
+  
+  if(params.query_params.optimisticTxID){ //Wake both Queries that use normal tx-ids (e.g. retries) and queries that use optimistic Id's
+    uint64_t txnTS(MergeTimestampId(ts.timestamp(), ts.id()));
+    //Wake waiting queries.
+    if(params.mainThreadDispatching && (params.query_params.parallel_queries || non_blocking)){   //if mainThreadDispatching = true then dispatchMessageReceive = false
+        //Dispatch job to worker thread (since it may wake and excute sync)
+        auto f = [this, txnTS, txnDigest, is_abort]() mutable {
+            Debug("Dispatch UpdateWaitingQueries(%s) to a worker thread.", BytesToHex(txnDigest, 16).c_str());
+            UpdateWaitingQueries(txnDigest, is_abort);
+            UpdateWaitingQueriesTS(txnTS, txnDigest, is_abort);
+            return (void*) true;
+        };
+        if(params.query_params.parallel_queries) transport->DispatchTP_noCB(std::move(f));
+        else if(non_blocking) transport->DispatchTP_main(std::move(f));
+    }
+    else{
         UpdateWaitingQueries(txnDigest, is_abort);
-        return (void*) true;
-      };
-      if(params.query_params.parallel_queries) transport->DispatchTP_noCB(std::move(f));
-      else if(non_blocking) transport->DispatchTP_main(std::move(f));
+        UpdateWaitingQueriesTS(txnTS, txnDigest, is_abort);
+    }
   }
   else{
-    UpdateWaitingQueries(txnDigest, is_abort);
+    //Wake waiting queries.
+    if(params.mainThreadDispatching && (params.query_params.parallel_queries || non_blocking)){   //if mainThreadDispatching = true then dispatchMessageReceive = false
+        //Dispatch job to worker thread (since it may wake and excute sync)
+        auto f = [this, txnDigest, is_abort]() mutable {
+            Debug("Dispatch UpdateWaitingQueries(%s) to a worker thread.", BytesToHex(txnDigest, 16).c_str());
+            UpdateWaitingQueries(txnDigest, is_abort);
+            return (void*) true;
+        };
+        if(params.query_params.parallel_queries) transport->DispatchTP_noCB(std::move(f));
+        else if(non_blocking) transport->DispatchTP_main(std::move(f));
+    }
+    else{
+        UpdateWaitingQueries(txnDigest, is_abort);
+    }
   }
+  
 
     //TODO: Alternatively: Could call this in DoOCCCheck -- but then need to account for the fact that it might be called from a worker thread (only on normal case, not fallback)
 
@@ -1055,6 +1152,7 @@ void Server::CheckWaitingQueries(const std::string &txnDigest, bool is_abort, bo
 //     w.release();
 // }
 
+
 void Server::UpdateWaitingQueries(const std::string &txnDigest, bool is_abort){
     //when receiving a requested sync msg, use it to update waiting data structures for all potentially ongoing queries.
     //waiting queries are registered in map from txn-id to query id:
@@ -1075,7 +1173,7 @@ void Server::UpdateWaitingQueries(const std::string &txnDigest, bool is_abort){
 
      
     std::map<std::string, uint64_t> queries_to_wake;
-    std::set<std::string> queries_to_rm_txn; //All queries (besides the ones we wake anyways) from whose snapshot we want to remove the txn. Note: This is just an optimization to not loop twice
+    std::map<std::string, uint64_t> queries_to_rm_txn; //All queries (besides the ones we wake anyways) from whose snapshot we want to remove the txn. Note: This is just an optimization to not loop twice
 
      //1) find queries that were waiting on this txn-id
     waitingQueryMap::accessor w;
@@ -1098,7 +1196,7 @@ void Server::UpdateWaitingQueries(const std::string &txnDigest, bool is_abort){
                    //Note: was_present -> only call this the first time missing_txn goes empty: present captures the fact that map was non-empty before erase.
                 queries_to_wake[missingTxns.query_id] = missingTxns.retry_version;
             }
-            else if(is_abort) queries_to_rm_txn.insert(missingTxns.query_id);
+            else if(is_abort) queries_to_rm_txn[missingTxns.query_id] = missingTxns.retry_version;
             qm.release();
         }
         //3) remove key from waiting data structure if no more queries waiting on it to avoid key set growing infinitely...
@@ -1127,27 +1225,110 @@ void Server::UpdateWaitingQueries(const std::string &txnDigest, bool is_abort){
     }
 
     //6 For all other queries that are still waiting, but not ready to wake: Erase txn from snapshot if abort
-    for(auto &queryId: queries_to_rm_txn){
+    for(auto &[queryId, retry_version]: queries_to_rm_txn){
         queryMetaDataMap::accessor q;
         bool queryActive = queryMetaData.find(q, queryId);
         if(queryActive){
             QueryMetaData *query_md = q->second;
 
-            //6) Erase txn from snapshot if abort.
-            query_md->merged_ss_msg->mutable_merged_txns()->erase(txnDigest); 
+            if(query_md->is_waiting && query_md->retry_version == retry_version){ 
+                //6) Erase txn from snapshot if abort.
+                query_md->merged_ss_msg->mutable_merged_txns()->erase(txnDigest); 
+            }
         }
         q.release();
     }
 }
 
+//Note: For waitingTS: call updateWaitingQueries with Ts:  --> Then: Set snapshot for all Ts --> When snapshot ready: All txn_ids are available. 
+//(Alternatively: Could transform later to save lookups to query_md inside UpdateWaitingQueries. But it's less clean if later layers need to be aware of TS sync still.)
+    //In this case: During sync callback: For every Ts in merged_ts ==> lookup tx and add to mergedTS.
+void Server::UpdateWaitingQueriesTS(const uint64_t &txnTS, const std::string &txnDigest, bool is_abort){
+    std::map<std::string, uint64_t> queries_to_wake;
+    std::map<std::string, uint64_t> queries_to_update_txn; //All queries (besides the ones we wake anyways) from whose snapshot we want to add/remove the txn. Note: This is just an optimization to not loop twice
 
-//TODO:
-//NEXT: handle sync callback
-// supply helper functions to: exchange and catch up on missing data  ==> "Done" ==> Need to be fixed.
-//                             generate merkle tree and root hash ==> Done
-// simulate dummy result + read set ==> Done
+     //1) find queries that were waiting on this txn-id
+    waitingQueryTSMap::accessor w;
+    bool hasWaiting = waitingQueriesTS.find(w, txnTS);
+    if(hasWaiting){
+        for(const std::string &waiting_query : w->second){
 
-//TODO: must be called while holding a lock on query_md. 
+             //2) update their missing data structures
+            // Lookup queryMissingTxns ... => mark map of "waking query + retry_version" ==> after releasing w try to lock them all.
+            queryMissingTxnsMap::accessor qm;
+            if(!queryMissingTxns.find(qm, waiting_query)) continue; //releases qm implicitly (or rather: qm is not actually held)
+
+            MissingTxns &missingTxns = qm->second;
+
+            bool was_present = missingTxns.missing_ts.erase(txnTS); 
+            //Cornercase: What if we clear missing queries (ro Retry Sync) and then UpdateWaiting triggers. ==> was_present should be false => won't call Update
+           
+            Debug("QueryId[%s] is still waiting on (%d) transactions (TS)", BytesToHex(missingTxns.query_id, 16).c_str(), missingTxns.missing_ts.size());
+            if(was_present && missingTxns.missing_ts.empty()){ 
+                   //Note: was_present -> only call this the first time missing_txn goes empty: present captures the fact that map was non-empty before erase.
+                queries_to_wake[missingTxns.query_id] = missingTxns.retry_version;
+            }
+            else{
+                queries_to_update_txn[missingTxns.query_id] = missingTxns.retry_version;
+            }
+            qm.release();
+        }
+        //3) remove key from waiting data structure if no more queries waiting on it to avoid key set growing infinitely...
+        waitingQueriesTS.erase(w);
+    }
+    w.release();
+
+    //4) Try to wake all ready queries.
+    for(auto &[queryId, retry_version]: queries_to_wake){
+        queryMetaDataMap::accessor q;
+        bool queryActive = queryMetaData.find(q, queryId);
+        if(queryActive){
+                QueryMetaData *query_md = q->second;
+
+                //6) Add txn to snapshot, or erase txn from snapshot if abort
+                if(is_abort) query_md->merged_ss_msg->mutable_merged_txns()->erase(txnDigest);  //Note: Might have been added to snapshot because TS/Tx was ongoing/prepared. But now remove since it is aborted.
+                                                                                            //However: We would never have added the txn to waiting.
+                else{
+                 (*query_md->merged_ss_msg->mutable_merged_txns())[txnDigest]; //(Just add with default constructor --> empty ReplicaList)
+                }
+            
+               
+                //5) if query is waiting and retry_version is still current: Start Callback.
+                if(query_md->is_waiting && query_md->retry_version == retry_version){ 
+                     Debug("Waking Query[%lu:%lu:%lu]", query_md->query_seq_num, query_md->client_id, query_md->retry_version);
+                     query_md->merged_ss_msg->clear_merged_ts(); //These are no longer needed.
+                    //Note: is_waiting -> make sure query is waiting. E.g. missing_txn could be empty because we re-tried the query and now are not missing any. In this case is_waiting will be set to false. -> no need to call callback
+                    HandleSyncCallback(query_md, queryId); //TODO: Should this be dispatched again? So that multiple waiting queries don't execute sequentially?
+                }
+        }
+        q.release();
+    }
+
+    //6 For all other queries that are still waiting, but not ready to wake: Erase txn from snapshot if abort
+    for(auto &[queryId, retry_version]: queries_to_update_txn){
+        queryMetaDataMap::accessor q;
+        bool queryActive = queryMetaData.find(q, queryId);
+        if(queryActive){
+            QueryMetaData *query_md = q->second;
+
+            if(query_md->is_waiting && query_md->retry_version == retry_version){ 
+                //6) Erase txn from snapshot if abort.
+                if(is_abort) query_md->merged_ss_msg->mutable_merged_txns()->erase(txnDigest);  //Note: Might have been added to snapshot because TS/Tx was ongoing/prepared. But now remove since it is aborted.
+                                                                                            //However: We would never have added the txn to waiting.
+                else{
+                 (*query_md->merged_ss_msg->mutable_merged_txns())[txnDigest]; //(Just add with default constructor --> empty ReplicaList)
+                }
+            }
+        }
+        q.release();
+    }
+
+}
+
+
+
+
+//Note: WARNING: must be called while holding a lock on query_md. 
 void Server::HandleSyncCallback(QueryMetaData *query_md, const std::string &queryId){
 
     Debug("Sync complete for Query[%lu:%lu]. Starting Execution", query_md->query_seq_num, query_md->client_id);

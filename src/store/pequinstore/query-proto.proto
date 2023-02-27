@@ -168,8 +168,10 @@ message SyncClientProposal {
 
 message RequestMissingTxns {
    required uint64 replica_idx = 1;
-   repeated bytes missing_txn = 2; //list of txn digests;
-   optional bytes query_id = 3;
+   optional bytes query_id = 2;
+   repeated bytes missing_txn = 3; //list of txn-ids (digests);
+   repeated uint64 missing_txn_ts = 4; //list of optimistic txn-ids (TS);
+   
 }
 
 message TxnInfo {
@@ -182,13 +184,13 @@ message TxnInfo {
    bool invalid = 4;
   }
   optional Writeback abort_proof = 5;
-  optional string txn_digest = 6; //Only set if using ts map.
+  optional string txn_id = 6; //Only set if using ts map.
 }
 
 message SupplyMissingTxnsMessage {
   required uint64 replica_idx = 1;   
   map<string, TxnInfo> txns = 2; //map from txn digest to Transaction object (+ proof)
-  map<uint64, TxnInfo> ts_txns = 3; //map from Ts to to Transaction object (+ proof) + txn_digest
+  map<uint64, TxnInfo> txns_ts = 3; //map from Ts to to Transaction object (+ proof) + txn_digest
    
 }
 

@@ -1323,7 +1323,8 @@ void Server::WritebackCallback(proto::Writeback *msg, const std::string* txnDige
         writebackMessages[*txnDigest] = *msg;  //Only necessary for fallback... (could avoid storing these, if one just replied with a p2 vote instead - but that is not as responsive)
         ///CAUTION: msg might no longer hold txn; could have been released in HanldeWriteback
 
-        Abort(*txnDigest);
+        Abort(*txnDigest, txn);
+        //delete txn; //See Clean(), currently unsafe to delete txn due to multithreading.
       }
 
       if(params.multiThreading || params.mainThreadDispatching){
@@ -1342,7 +1343,7 @@ void Server::WritebackCallback(proto::Writeback *msg, const std::string* txnDige
 
 }
 
-
+//Clients may abort their own Tx before Preparing: This removes the RTS and may be used in case we decide to store any in-execution meta data: E.g. Queries.
 void Server::HandleAbort(const TransportAddress &remote,
     const proto::Abort &msg) {
   const proto::AbortInternal *abort;
@@ -1506,7 +1507,7 @@ void Server::Commit(const std::string &txnDigest, proto::Transaction *txn,
   CheckDependents(txnDigest);
   CleanDependencies(txnDigest);
 
-  CheckWaitingQueries(txnDigest);
+  CheckWaitingQueries(txnDigest, proof->txn().timestamp());
 }
  
 
@@ -1530,6 +1531,7 @@ void Server::CommitWithProof(const std::string &txnDigest, proto::CommittedProof
     CleanDependencies(txnDigest);
 
     UpdateWaitingQueries(txnDigest);
+    if(params.query_params.optimisticTxID) UpdateWaitingQueriesTS(MergeTimestampId(proof->txn().timestamp().timestamp(), proof->txn().timestamp().id()), txnDigest);
 }
 
 
@@ -1608,7 +1610,7 @@ void Server::CommitToStore(proto::CommittedProof *proof, proto::Transaction *txn
   }
 }
 
-void Server::Abort(const std::string &txnDigest) {
+void Server::Abort(const std::string &txnDigest, proto::Transaction *txn) {
    //if(params.mainThreadDispatching) abortedMutex.lock();
   aborted.insert(txnDigest);
   Debug("Inserted txn %s into ABORTED on CPU: %d", BytesToHex(txnDigest, 16).c_str(), sched_getcpu());
@@ -1618,7 +1620,7 @@ void Server::Abort(const std::string &txnDigest) {
   CheckDependents(txnDigest);
   CleanDependencies(txnDigest);
 
-  CheckWaitingQueries(txnDigest, true); //is_abort
+  CheckWaitingQueries(txnDigest, txn->timestamp(), true); //is_abort  //NOTE: WARNING: If Clean(abort) deletes txn then must callCheckWaitingQueries before Clean.
 }
 
 void Server::Clean(const std::string &txnDigest, bool abort, bool hard) {
@@ -1641,7 +1643,7 @@ void Server::Clean(const std::string &txnDigest, bool abort, bool hard) {
   ongoingMap::accessor o;
   bool is_ongoing = ongoing.find(o, txnDigest);
   if(is_ongoing && hard){
-    //delete o->second.txn; //Not safe to delete txn because another thread could be using it concurrently...
+    //delete o->second.txn; //Not safe to delete txn because another thread could be using it concurrently... //FIXME: Fix this leak at some point --> Threads must either hold ongoing while operating on tx, or manage own object.
     aborted.insert(txnDigest); //No need to call abort -- A hard clean indicates an invalid tx, and no honest replica would have voted for it --> thus there can be no dependents and dependencies.
   } 
   if(is_ongoing) ongoing.erase(o); //Note: Erasing here implicitly releases accessor o. => Note: Don't think holding o matters here, all that matters is that ongoing is erased before (or atomically) with prepared
@@ -1719,6 +1721,8 @@ void Server::Clean(const std::string &txnDigest, bool abort, bool hard) {
   e.release();
 
   //TODO: try to merge more/if not all tx local state into ongoing and hold ongoing locks for simpler atomicity.
+
+//FIXME: Fix these leaks at some point.
 
 //Currently commented out so that original client does not re-do work if p1/p2 has already happened
 //--> TODO: Make original client dynamic, i.e. it can directly receive a writeback if it exists, instead of HAVING to finish normal case.
@@ -2251,7 +2255,7 @@ bool Server::ExecP1(proto::Phase1FB &msg, const TransportAddress &remote,
      txn->client_seq_num(), BytesToHex(txnDigest, 16).c_str(),
      txn->timestamp().timestamp());
 
-  CheckWaitingQueries(txnDigest, false, true); //is_abort = false //Check for waiting queries in non-blocking fashion.
+  CheckWaitingQueries(txnDigest, txn->timestamp(), false, true); //is_abort = false //Check for waiting queries in non-blocking fashion.
 
   //start new current view
   // current_views[txnDigest] = 0;

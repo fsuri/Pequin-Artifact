@@ -407,10 +407,14 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
      //map from tx-id to query-ids (that are waiting to sync on the tx-id)
     typedef tbb::concurrent_hash_map<std::string, std::unordered_set<std::string>> waitingQueryMap; 
     waitingQueryMap waitingQueries;
+    //Same for optimistic ids: Map from ts-id to query-ids
+    typedef tbb::concurrent_hash_map<uint64_t, std::unordered_set<std::string>> waitingQueryTSMap; 
+    waitingQueryTSMap waitingQueriesTS;
 
     //map from <query_id, retry_version> to list of missing txn (+ num supply replies received ).
     struct MissingTxns {
         std::unordered_map<std::string, uint64_t> missing_txns;
+        std::unordered_map<uint64_t, uint64_t> missing_ts; // for optimistic id's use this
         std::string query_id;
         uint64_t retry_version;
     };
@@ -421,13 +425,16 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
     void ProcessSync(queryMetaDataMap::accessor &q, const TransportAddress &remote, proto::MergedSnapshot *merged_ss, const std::string *queryId, QueryMetaData *query_md);
     void SetWaiting(std::unordered_map<std::string, uint64_t> &missing_txns, const std::string &tx_id, const std::string *queryId, const std::string &query_retry_id,
         const proto::ReplicaList &replica_list, std::map<uint64_t, proto::RequestMissingTxns> &replica_requests);
-    void SetWaitingTS(std::unordered_map<std::string, uint64_t> &missing_txns, const uint64_t &ts_id, const std::string *queryId, const std::string &query_retry_id,
+    void SetWaitingTS(std::unordered_map<uint64_t, uint64_t> &missing_ts, const uint64_t &ts_id, const std::string *queryId, const std::string &query_retry_id,
         const proto::ReplicaList &replica_list, std::map<uint64_t, proto::RequestMissingTxns> &replica_requests);
+    void CheckLocalAvailability(const std::string &txn_id, proto::TxnInfo &txn_info);
+      //void CheckLocalAvailability(const std::string &txn_id, proto::SupplyMissingTxnsMessage &supply_txn, bool sync_on_ts = false);
     void HandleSyncCallback(QueryMetaData *query_md, const std::string &queryId);
     void SendQueryReply(QueryMetaData *query_md);
     void ProcessSuppliedTxn(const std::string &txn_id, proto::TxnInfo &txn_info, bool &stop);
-    void CheckWaitingQueries(const std::string &txnDigest, bool is_abort = false, bool non_blocking = false);
+    void CheckWaitingQueries(const std::string &txnDigest, const TimestampMessage &ts, bool is_abort = false, bool non_blocking = false);
     void UpdateWaitingQueries(const std::string &txnDigest, bool is_abort = false);
+    void UpdateWaitingQueriesTS(const uint64_t &txnTS, const std::string &txnDigest, bool is_abort = false);
     void FailWaitingQueries(const std::string &txnDigest);
     void FailQuery(QueryMetaData *query_md);
     bool VerifyClientQuery(proto::QueryRequest &msg, const proto::Query *query, std::string &queryId);
@@ -697,7 +704,7 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
   void UpdateCommittedReads(proto::Transaction *txn, const std::string &txnDigest, Timestamp &ts, proto::CommittedProof *proof);
   void CommitToStore(proto::CommittedProof *proof, proto::Transaction *txn, const std::string &txnDigest, Timestamp &ts, Value &val);
   
-  void Abort(const std::string &txnDigest);
+  void Abort(const std::string &txnDigest, proto::Transaction *txn);
   void CheckDependents(const std::string &txnDigest);
       void CheckDependents_WithMutex(const std::string &txnDigest);
   proto::ConcurrencyControl::Result CheckDependencies(
