@@ -397,9 +397,6 @@ proto::ConcurrencyControl::Result Server::mergeTxReadSets(const ReadSet *&readSe
     try {
       std::sort(mergedReadSet->mutable_read_set()->begin(), mergedReadSet->mutable_read_set()->end(), sortReadSetByKey);
       mergedReadSet->mutable_read_set()->erase(std::unique(mergedReadSet->mutable_read_set()->begin(), mergedReadSet->mutable_read_set()->end(), equalReadMsg), mergedReadSet->mutable_read_set()->end()); //Erase duplicates...
-
-      std::sort(mergedReadSet->mutable_deps()->begin(), mergedReadSet->mutable_deps()->end(), sortDepSet);
-      mergedReadSet->mutable_deps()->erase(std::unique(mergedReadSet->mutable_deps()->begin(), mergedReadSet->mutable_deps()->end(), equalDep), mergedReadSet->mutable_deps()->end()); //Erase duplicates...
    }
     catch(...) {
       //restoreTxn(txn); //TODO: Maybe don't delete merged set -- we do want to use it for Commit again. //TODO: Maybe we cannot store mergedSet inside read after all? What if another thread tries to use Tx in parallel mid modification..
@@ -407,6 +404,9 @@ proto::ConcurrencyControl::Result Server::mergeTxReadSets(const ReadSet *&readSe
       return proto::ConcurrencyControl::ABSTAIN;
     }
   }
+  //Sort mergedDepSet in order to erase duplicates. //Note: If not unique, then ManageDeps might try to lock the same dep twice -- potentially causing a lock-order inversion deadlock with CheckDependents.
+  std::sort(mergedReadSet->mutable_deps()->begin(), mergedReadSet->mutable_deps()->end(), sortDepSet);
+  mergedReadSet->mutable_deps()->erase(std::unique(mergedReadSet->mutable_deps()->begin(), mergedReadSet->mutable_deps()->end(), equalDep), mergedReadSet->mutable_deps()->end()); //Erase duplicates...
   
    //add mergedreadSet to tx - return success
   txn.set_allocated_merged_read_set(mergedReadSet);

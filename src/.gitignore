@@ -7,6 +7,9 @@ stats-0.json
 
 null
 
+.vscode
+.vscode/*
+
 lib/crypto_bench
 lib/batched_sigs_test
 lib/blake3_test

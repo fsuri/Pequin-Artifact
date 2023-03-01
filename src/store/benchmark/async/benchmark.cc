@@ -266,7 +266,7 @@ DEFINE_uint64(indicus_inject_failure_proportion, 0, "proportion of clients that"
 DEFINE_uint64(indicus_inject_failure_freq, 100, "number of transactions per ONE failure"
 		    " in a Byz client (for Indicus)"); //default 100
 
-DEFINE_uint64(indicus_phase1DecisionTimeout, 1000UL, "p1 timeout before going slowpath");
+DEFINE_uint64(indicus_phase1_decision_timeout, 1000UL, "p1 timeout before going slowpath");
 //Verification computation configurations
 DEFINE_bool(indicus_multi_threading, false, "dispatch crypto to parallel threads");
 DEFINE_bool(indicus_batch_verification, false, "using ed25519 donna batch verification");
@@ -358,9 +358,9 @@ enum query_messages_t {
   QUERY_MESSAGES_ALL //send to all replicas
 };
 const std::string query_messages_args[] = {
-	"quorum",
-  "pessimistic-bonus",
-  "all"
+	"query-quorum",
+  "query-pessimistic-bonus",
+  "query-all"
 };
 const query_messages_t query_messagess[] {
   QUERY_MESSAGES_QUERY_QUORUM,
@@ -1305,7 +1305,7 @@ int main(int argc, char **argv) {
                                           FLAGS_num_shards,
                                           FLAGS_num_groups, closestReplicas, FLAGS_ping_replicas, tport, part,
                                           FLAGS_tapir_sync_commit, readMessages, readQuorumSize,
-                                          params, keyManager, FLAGS_indicus_phase1DecisionTimeout,
+                                          params, keyManager, FLAGS_indicus_phase1_decision_timeout,
 																					FLAGS_indicus_max_consecutive_abstains,
 																					TrueTime(FLAGS_clock_skew, FLAGS_clock_error));
         break;
@@ -1336,7 +1336,7 @@ int main(int argc, char **argv) {
                                           FLAGS_num_shards,
                                           FLAGS_num_groups, closestReplicas, FLAGS_ping_replicas, tport, part,
                                           FLAGS_tapir_sync_commit, readMessages, readQuorumSize,
-                                          params, keyManager, FLAGS_indicus_phase1DecisionTimeout,
+                                          params, keyManager, FLAGS_indicus_phase1_decision_timeout,
 																					FLAGS_indicus_max_consecutive_abstains,
 																					TrueTime(FLAGS_clock_skew, FLAGS_clock_error));
         break;

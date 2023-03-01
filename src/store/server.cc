@@ -259,8 +259,8 @@ DEFINE_uint64(prepare_batch_period, 0, "length of batches for deterministic prep
 /**
  * Indicus settings.
  */
-DEFINE_uint64(indicus_time_delta, 2000, "max clock skew allowed for concurrency"
-    " control (for Indicus)");
+DEFINE_uint64(indicus_watermark_time_delta, 2000, "max clock skew allowed for concurrency"
+    " control (for Indicus); Ignore timestamps above current time + delta");
 DEFINE_bool(indicus_shared_mem_batch, false, "use shared memory batches for"
     " signing messages (for Indicus)");
 DEFINE_bool(indicus_shared_mem_verify, false, "use shared memory for"
@@ -277,8 +277,10 @@ DEFINE_bool(indicus_read_reply_batch, false, "wait to reply to reads until batch
     " is ready (for Indicus)");
 DEFINE_bool(indicus_adjust_batch_size, false, "dynamically adjust batch size"
     " every sig_batch_timeout (for Indicus)");
+    
 DEFINE_uint64(indicus_merkle_branch_factor, 2, "branch factor of merkle tree"
     " of batch (for Indicus)");
+
 DEFINE_uint64(indicus_sig_batch, 2, "signature batch size"
     " sig batch size (for Indicus)");
 DEFINE_uint64(indicus_sig_batch_timeout, 10, "signature batch timeout ms"
@@ -604,8 +606,8 @@ int main(int argc, char **argv) {
           default:
               NOT_REACHABLE();
           }
-        timeDelta = (FLAGS_indicus_time_delta / 1000) << 32;                             //Seconds (Shift 32 --> see truetime.cc)
-        timeDelta = timeDelta | (((FLAGS_indicus_time_delta % 1000) * 1000) << 12 );     //Milliseconds. (Shift 12 --> see truetime.cc)
+        timeDelta = (FLAGS_indicus_watermark_time_delta / 1000) << 32;                             //Seconds (Shift 32 --> see truetime.cc)
+        timeDelta = timeDelta | (((FLAGS_indicus_watermark_time_delta % 1000) * 1000) << 12 );     //Milliseconds. (Shift 12 --> see truetime.cc)
         break;
       case PROTO_PBFT:
         break;
@@ -746,7 +748,7 @@ int main(int argc, char **argv) {
       server = new pbftstore::Server(config, &keyManager,
                                      FLAGS_group_idx, FLAGS_replica_idx, FLAGS_num_shards, FLAGS_num_groups,
                                      FLAGS_indicus_sign_messages, FLAGS_indicus_validate_proofs,
-                                     FLAGS_indicus_time_delta, part,
+                                     FLAGS_indicus_watermark_time_delta, part,
 																	   FLAGS_pbft_order_commit, FLAGS_pbft_validate_abort);
       replica = new pbftstore::Replica(config, &keyManager,
                                        dynamic_cast<pbftstore::App *>(server),
@@ -764,7 +766,7 @@ int main(int argc, char **argv) {
       server = new hotstuffstore::Server(config, &keyManager,
                                      FLAGS_group_idx, FLAGS_replica_idx, FLAGS_num_shards, FLAGS_num_groups,
                                      FLAGS_indicus_sign_messages, FLAGS_indicus_validate_proofs,
-                                     FLAGS_indicus_time_delta, part, tport,
+                                     FLAGS_indicus_watermark_time_delta, part, tport,
 																	   FLAGS_pbft_order_commit, FLAGS_pbft_validate_abort);
 
       replica = new hotstuffstore::Replica(config, &keyManager,
@@ -783,7 +785,7 @@ int main(int argc, char **argv) {
       server = new augustusstore::Server(config, &keyManager,
                                      FLAGS_group_idx, FLAGS_replica_idx, FLAGS_num_shards, FLAGS_num_groups,
                                      FLAGS_indicus_sign_messages, FLAGS_indicus_validate_proofs,
-                                     FLAGS_indicus_time_delta, part, tport,
+                                     FLAGS_indicus_watermark_time_delta, part, tport,
 																	   FLAGS_pbft_order_commit, FLAGS_pbft_validate_abort);
 
       replica = new augustusstore::Replica(config, &keyManager,
@@ -801,7 +803,7 @@ int main(int argc, char **argv) {
 			server = new bftsmartstore::Server(config, &keyManager,
 																		 FLAGS_group_idx, FLAGS_replica_idx, FLAGS_num_shards, FLAGS_num_groups,
 																		 FLAGS_indicus_sign_messages, FLAGS_indicus_validate_proofs,
-																		 FLAGS_indicus_time_delta, part, tport,
+																		 FLAGS_indicus_watermark_time_delta, part, tport,
 																		 FLAGS_pbft_order_commit, FLAGS_pbft_validate_abort);
       std::cerr << "FLAGS: bftsmart config path: " << FLAGS_bftsmart_codebase_dir << std::endl;
 			replica = new bftsmartstore::Replica(config, &keyManager,
@@ -819,7 +821,7 @@ int main(int argc, char **argv) {
 		server = new bftsmartstore_stable::Server(config, &keyManager,
 																	 FLAGS_group_idx, FLAGS_replica_idx, FLAGS_num_shards, FLAGS_num_groups,
 																	 FLAGS_indicus_sign_messages, FLAGS_indicus_validate_proofs,
-																	 FLAGS_indicus_time_delta, part, tport,
+																	 FLAGS_indicus_watermark_time_delta, part, tport,
 																	 FLAGS_pbft_order_commit, FLAGS_pbft_validate_abort);
 
 		replica = new bftsmartstore_stable::Replica(config, &keyManager,
