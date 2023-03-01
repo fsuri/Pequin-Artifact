@@ -510,6 +510,24 @@ void ShardClient::Phase2Equivocate(uint64_t id,
   }
 }
 
+
+void ShardClient::Writeback(uint64_t id, const proto::Writeback &wb) {
+
+  transport->SendMessageToGroup(this, group, wb);
+  if(id > 0) {
+    Debug("[group %i] Sent WRITEBACK[%lu]", group, id);
+    auto itr = client_seq_num_mapping.find(id);
+    if(itr != client_seq_num_mapping.end()){
+        client_seq_num_mapping.erase(itr);
+     }
+  }
+  else{
+    Panic("Fallback should be using different branch");
+    //Debug("[group %i] Sent Fallback WRITEBACK[%s]", group, BytesToHex(txnDigest, 16).c_str());
+    //pendingFallbacks.erase(txnDigest);
+  }
+}
+
 //TODO: make more efficient by swapping sigs instead of copying.
 void ShardClient::Writeback(uint64_t id, const proto::Transaction &transaction, const std::string &txnDigest,
   proto::CommitDecision decision, bool fast, bool conflict_flag, const proto::CommittedProof &conflict,
@@ -574,6 +592,16 @@ void ShardClient::Writeback(uint64_t id, const proto::Transaction &transaction, 
 }
 
 //Overloaded Wb function to not include ID, this is purely for debug purpose to distinguish whether a message came from FB instance.
+
+void ShardClient::WritebackFB(const std::string &txnDigest, const proto::Writeback &wb) {
+
+  transport->SendMessageToGroup(this, group, wb);
+
+  Debug("[group %i] Sent Fallback WRITEBACK[%s]", group, BytesToHex(txnDigest, 16).c_str());
+    //pendingFallbacks.erase(txnDigest);
+  
+}
+
 void ShardClient::WritebackFB(const proto::Transaction &transaction,
     const std::string &txnDigest,
     proto::CommitDecision decision, bool fast, const proto::CommittedProof &conflict,
@@ -1823,7 +1851,7 @@ void ShardClient::HandlePhase1FBReply(proto::Phase1FBReply &p1fbr){
   if(p1fbr.has_wb()){
     proto::Writeback wb = p1fbr.wb();
     //std::cerr << "group[" << group << "] triggered FastWriteback for txn: " << BytesToHex(txnDigest, 16) << std::endl;
-    pendingFB->wbFBcb(wb);
+    pendingFB->wbFBcb(wb);  //Note: If not valid -> can ignore rest of processing since replica must be byz.
     //CleanFB(txnDigest);
     return;
   }

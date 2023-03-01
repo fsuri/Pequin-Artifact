@@ -209,6 +209,7 @@ class Client : public ::Client {
     proto::Transaction txn;
     proto::SignedMessage signed_txn;
     proto::P2Replies p2Replies;
+    proto::Writeback writeback;
 
     int64_t logGrp;
     bool startFB;
@@ -278,6 +279,7 @@ class Client : public ::Client {
   void Phase2FBcallback(uint64_t conflict_id, std::string txnDigest, int64_t group, proto::CommitDecision decision,
     const proto::Signatures &p2ReplySig, uint64_t view);
   void WritebackFBcallback(uint64_t conflict_id, std::string txnDigest, proto::Writeback &wb);
+  bool ValidateWB(proto::Writeback &msg, std::string *txnDigest, proto::Transaction *txn);
   bool InvokeFBcallback(uint64_t conflict_id, std::string txnDigest, int64_t group);
   //keep track of pending Fallback instances. Maps from txnDigest, req Id is oblivious to us.
   std::unordered_map<std::string, PendingRequest*> FB_instances;

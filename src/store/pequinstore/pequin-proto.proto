@@ -229,7 +229,7 @@ message Writeback {
   required CommitDecision decision = 1;
   optional bytes txn_digest = 2;
   optional Transaction txn = 3;
-  oneof reply_oneof {
+  oneof reply_oneof {  //TODO: Re-factor this to either have CommittedProof or AbortedProof
     GroupedSignatures p1_sigs = 4; // fast path commit
     GroupedSignatures p2_sigs = 5; // slow path commit or abort
     CommittedProof conflict = 6;   // fast path abort

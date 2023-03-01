@@ -155,10 +155,12 @@ virtual void Phase2Equivocate_Simulate(uint64_t id, const proto::Transaction &tx
   virtual void Phase2Equivocate(uint64_t id, const proto::Transaction &txn, const std::string &txnDigest,
       const proto::GroupedSignatures &groupedCommitSigs, const proto::GroupedSignatures &groupedAbortSigs,
       phase2_callback pcb, phase2_timeout_callback ptcb, uint32_t timeout);
+  virtual void Writeback(uint64_t id, const proto::Writeback &wb);
   virtual void Writeback(uint64_t id, const proto::Transaction &transaction, const std::string &txnDigest,
     proto::CommitDecision decision, bool fast, bool conflict_flag, const proto::CommittedProof &conflict,
     const proto::GroupedSignatures &p1Sigs, const proto::GroupedSignatures &p2Sigs, uint64_t decision_view = 0UL);
   //overloaded function for fallback
+  virtual void WritebackFB(const std::string &txnDigest, const proto::Writeback &wb);
   virtual void WritebackFB(const proto::Transaction &transaction, const std::string &txnDigest,
       proto::CommitDecision decision, bool fast, const proto::CommittedProof &conflict,
       const proto::GroupedSignatures &p1Sigs, const proto::GroupedSignatures &p2Sigs);

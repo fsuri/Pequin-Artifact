@@ -946,6 +946,34 @@ void Client::WritebackProcessing(PendingRequest *req){
       }
      }
   }
+
+  req->writeback.Clear();
+  // create commit request
+  req->writeback.set_decision(req->decision);
+  if (params.validateProofs && params.signedMessages) {
+    if (req->fast && req->decision == proto::COMMIT) {
+      *req->writeback.mutable_p1_sigs() = std::move(req->p1ReplySigsGrouped);
+    }
+    else if (req->fast && !req->conflict_flag && req->decision == proto::ABORT) {
+      *req->writeback.mutable_p1_sigs() = std::move(req->p1ReplySigsGrouped);
+    }
+    else if (req->fast && req->conflict_flag && req->decision == proto::ABORT) {
+      if(req->conflict.has_p2_view()){
+        req->writeback.set_p2_view(req->conflict.p2_view()); //XXX not really necessary, we never check it
+      }
+      else{
+        req->writeback.set_p2_view(0); //implies that this was a p1 proof for the conflict, attaching a view anyway..
+      }
+      *req->writeback.mutable_conflict() = std::move(req->conflict);
+
+    } else {
+      *req->writeback.mutable_p2_sigs() = std::move(req->p2ReplySigsGrouped);
+      req->writeback.set_p2_view(req->decision_view); //TODO: extend this to process other views too? Bookkeeping should only be needed
+      // for fallback though. Either combine the logic, or change it so that the orignial client issues FB function too
+
+    }
+  }
+  req->writeback.set_txn_digest(req->txnDigest);
 }
 
 void Client::Writeback(PendingRequest *req) {
@@ -986,12 +1014,18 @@ void Client::Writeback(PendingRequest *req) {
   //this function truncates sigs for the Abort p1 fast case
   WritebackProcessing(req);
 
+  // if(!ValidateWB(req->writeback, &req->txnDigest, &req->txn)){ //FIXME: Remove: Just for testing.
+  //   Panic("Should never be false while testing without byz replica");
+  //   return;
+  // }
+
   //if(req->decision ==0 && client_id == 1) Panic("Testing client 1 fail stop after preparing."); //Manual testing.
 
   for (auto group : txn.involved_groups()) {
-    bclient[group]->Writeback(client_seq_num, txn, req->txnDigest,
-        req->decision, req->fast, req->conflict_flag, req->conflict, req->p1ReplySigsGrouped,
-        req->p2ReplySigsGrouped, req->decision_view);
+    bclient[group]->Writeback(client_seq_num, req->writeback);
+    // bclient[group]->Writeback(client_seq_num, txn, req->txnDigest,
+    //     req->decision, req->fast, req->conflict_flag, req->conflict, req->p1ReplySigsGrouped,
+    //     req->p2ReplySigsGrouped, req->decision_view);
   }
 
   if (!req->callbackInvoked) {
@@ -1088,9 +1122,9 @@ void Client::FailureCleanUp(PendingRequest *req) {
   delete req;
 }
 
-
+//DEPRECATED/UNUSED
 //INSTEAD: just use the existing ForwardWriteback function from the FB, and then add ongoing txn to it..
-void Client::ForwardWBcallback(uint64_t txnId, int group, proto::ForwardWriteback &forwardWB){
+void Client::ForwardWBcallback(uint64_t txnId, int group, proto::ForwardWriteback &forwardWB){ 
   auto itr = this->pendingReqs.find(txnId);
   if (itr == this->pendingReqs.end()) {
     Debug("ForwardWBcallback for terminated request id %lu (txn already committed or aborted).", txnId);
@@ -1142,6 +1176,7 @@ void Client::ForwardWBcallback(uint64_t txnId, int group, proto::ForwardWritebac
   }
 
   for (auto group : txn.involved_groups()) {
+    //bclient[group]->Writeback(client_seq_num, writeback);
     bclient[group]->Writeback(client_seq_num, txn, req->txnDigest,
         req->decision, req->fast, req->conflict_flag, req->conflict, req->p1ReplySigsGrouped,
         req->p2ReplySigsGrouped);
@@ -1421,13 +1456,14 @@ void Client::WritebackFBcallback(uint64_t conflict_id, std::string txnDigest, pr
   pendingFB->startedWriteback = true;
 
   Debug("Forwarding WritebackFB fast for txn: %s",BytesToHex(txnDigest, 16).c_str());
-  //TODO: Need to validate WB message:
-  // 1) check that txnDigest matches txn content
-  // 2) check that sigs match decision and txnDigest
-  //TODO:: CHECK THAT fbtxn matches digest? Not necessary if we just set the contents ourselves.
-  // set txn field here.
+  //Note: May want to validate WB message: Technically do not need to, since replicas will verify it, and client can just continue with Fallback processing. However, currently we stop all processing.
+  if(!ValidateWB(wb, &txnDigest, &pendingFB->txn)){
+    Panic("Should never be false while testing without byz replica");
+    return;
+  }
+  
+  //CHECK THAT fbtxn matches digest? Not necessary if we just set the contents ourselves.
   //Also: server side message might not include txn, hence include it ourselves just in case.
-
   *wb.mutable_txn() = std::move(pendingFB->txn);
 
  for (auto group : wb.txn().involved_groups()) {
@@ -1436,6 +1472,60 @@ void Client::WritebackFBcallback(uint64_t conflict_id, std::string txnDigest, pr
  //delete FB instance. (doing so early will make sure other ShardClients dont waste work.)
  Completed_transactions.insert(txnDigest);
  CleanFB(pendingFB, txnDigest, false); //NOTE: In this case, shard clients clean themselves (in order to support the move operator)
+}
+
+bool Client::ValidateWB(proto::Writeback &msg, std::string *txnDigest, proto::Transaction *txn){
+  Debug("Validating Writeback msg for txn %s", BytesToHex(*txnDigest, 16).c_str());
+  //Note: Does not support multithreading or batchVerification currently.
+
+  // 1) check that txnDigest matches txn content
+  if (msg.has_txn_digest()){
+    if(*txnDigest != msg.txn_digest()) return false;
+  }
+  else if(msg.has_txn()){
+    if(*txnDigest != TransactionDigest(msg.txn(), params.hashDigest)) return false;
+  }
+  else {
+    Panic("Should have txn or txn_digest");
+    return false;
+  }
+  
+   // 2) check that sigs match decision and txnDigest
+  if (params.validateProofs) {
+    if (params.signedMessages && msg.has_p1_sigs()) {
+        int64_t myProcessId;
+        proto::ConcurrencyControl::Result myResult;
+
+        if (!ValidateP1Replies(msg.decision(), true, txn, txnDigest, msg.p1_sigs(), keyManager, config, myProcessId, myResult, verifier)) {
+              Debug("WRITEBACK[%s] Failed to validate P1 replies for fast decision %s.", BytesToHex(*txnDigest, 16).c_str(), (msg.decision() == proto::CommitDecision::COMMIT) ? "commit" : "abort");
+              return false;
+        }   
+    }
+    else if (params.signedMessages && msg.has_p2_sigs()) {
+        if(!msg.has_p2_view()) return false;
+        int64_t myProcessId;
+        proto::CommitDecision myDecision;
+  
+        if (!ValidateP2Replies(msg.decision(), msg.p2_view(), txn, txnDigest, msg.p2_sigs(), keyManager, config, myProcessId, myDecision, verifier)) {
+                Debug("WRITEBACK[%s] Failed to validate P2 replies for decision %s.", BytesToHex(*txnDigest, 16).c_str(), (msg.decision() == proto::CommitDecision::COMMIT) ? "commit" : "abort");
+                return false;
+        }
+    } 
+    else if (msg.decision() == proto::ABORT && msg.has_conflict()) {
+      std::string committedTxnDigest = TransactionDigest(msg.conflict().txn(), params.hashDigest);
+
+      if (!ValidateCommittedConflict(msg.conflict(), &committedTxnDigest, txn, txnDigest, params.signedMessages, keyManager, config, verifier)) {
+            Debug("WRITEBACK[%s] Failed to validate committed conflict for fast abort.", BytesToHex(*txnDigest, 16).c_str());
+            return false;
+      }
+    } 
+    else if (params.signedMessages) {
+      Debug("WRITEBACK[%s] decision %d, has_p1_sigs %d, has_p2_sigs %d, and has_conflict %d.", BytesToHex(*txnDigest, 16).c_str(), msg.decision(), msg.has_p1_sigs(), msg.has_p2_sigs(), msg.has_conflict());
+      Panic("Wb without proof.");
+      return false;
+    }
+  }  
+  return true;
 }
 
 
@@ -1574,9 +1664,10 @@ void Client::WritebackFB(PendingRequest *req){
   WritebackProcessing(req);
 
   for (auto group : req->txn.involved_groups()) {
-    bclient[group]->Writeback(0, req->txn, req->txnDigest,
-        req->decision, req->fast, req->conflict_flag, req->conflict, req->p1ReplySigsGrouped,
-        req->p2ReplySigsGrouped, req->decision_view);
+    bclient[group]->WritebackFB(req->txnDigest, req->writeback);
+    // bclient[group]->Writeback(0, req->txn, req->txnDigest,
+    //     req->decision, req->fast, req->conflict_flag, req->conflict, req->p1ReplySigsGrouped,
+    //     req->p2ReplySigsGrouped, req->decision_view);
   }
   //delete FB instance. (doing so early will make sure other ShardClients dont waste work.)
   Completed_transactions.insert(req->txnDigest);
