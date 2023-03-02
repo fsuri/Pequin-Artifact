@@ -50,6 +50,9 @@
 // HotStuff
 #include "store/hotstuffstore/replica.h"
 #include "store/hotstuffstore/server.h"
+// HotStuffVolt
+#include "store/hotstuffvoltstore/replica.h"
+#include "store/hotstuffvoltstore/server.h"
 // Augustus
 #include "store/augustusstore/replica.h"
 #include "store/augustusstore/server.h"
@@ -82,7 +85,9 @@ enum protocol_t {
     // BftSmart
     PROTO_BFTSMART,
     // Augustus-BFTSmart
-		PROTO_AUGUSTUS_SMART
+		PROTO_AUGUSTUS_SMART,
+	//HotStuffVolt
+	PROTO_HOTSTUFF_VOLT
 };
 
 enum transmode_t {
@@ -125,7 +130,8 @@ const std::string protocol_args[] = {
     "hotstuff",
     "augustus-hs", //not used currently by experiment scripts (deprecated)
   "bftsmart",
-	"augustus" //currently used as augustus version -- maps to BFTSmart Augustus implementation
+	"augustus", //currently used as augustus version -- maps to BFTSmart Augustus implementation
+	"hotstuffvolt"
 };
 const protocol_t protos[] {
   PROTO_TAPIR,
@@ -136,7 +142,8 @@ const protocol_t protos[] {
       PROTO_HOTSTUFF,
       PROTO_AUGUSTUS,
       PROTO_BFTSMART,
-			PROTO_AUGUSTUS_SMART
+			PROTO_AUGUSTUS_SMART,
+	PROTO_HOTSTUFF_VOLT
 };
 static bool ValidateProtocol(const char* flagname,
     const std::string &value) {
@@ -452,7 +459,7 @@ int main(int argc, char **argv) {
   }
 
   int threadpool_mode = 0; //default for Basil.
-  if(proto == PROTO_HOTSTUFF || proto == PROTO_AUGUSTUS) threadpool_mode = 1;
+  if(proto == PROTO_HOTSTUFF || proto == PROTO_AUGUSTUS || proto == PROTO_HOTSTUFF_VOLT) threadpool_mode = 1;
   if(proto == PROTO_BFTSMART || proto == PROTO_AUGUSTUS_SMART) threadpool_mode = 2;
 
   switch (trans) {
@@ -775,6 +782,41 @@ int main(int argc, char **argv) {
 		break;
 	}
 
+      // HotStuffVolt
+  case PROTO_HOTSTUFF_VOLT: {
+      int num_cpus = std::thread::hardware_concurrency();
+      num_cpus /= FLAGS_indicus_total_processes;
+
+      int hotstuff_cpu;
+      if (FLAGS_num_shards == 6) {
+          hotstuff_cpu = FLAGS_indicus_process_id * num_cpus + num_cpus - 1;
+      } else if(FLAGS_num_shards == 3) {
+                                //hotstuff_cpu = 1;
+                                hotstuff_cpu = FLAGS_indicus_process_id * num_cpus + num_cpus - 1;
+                        }
+                        else{
+          // FLAGS_num_shards should be 12 or 24
+          hotstuff_cpu = FLAGS_indicus_process_id * num_cpus;
+      }
+
+      server = new hotstuffvoltstore::Server(config, &keyManager,
+                                     FLAGS_group_idx, FLAGS_replica_idx, FLAGS_num_shards, FLAGS_num_groups,
+                                     FLAGS_indicus_sign_messages, FLAGS_indicus_validate_proofs,
+                                     FLAGS_indicus_time_delta, part, tport,
+
+  FLAGS_pbft_order_commit, FLAGS_pbft_validate_abort);
+
+      replica = new hotstuffvoltstore::Replica(config, &keyManager,
+                                       dynamic_cast<hotstuffvoltstore::App *>(server),
+                                       FLAGS_group_idx, FLAGS_replica_idx, FLAGS_indicus_sign_messages,
+                                       FLAGS_indicus_sig_batch, FLAGS_indicus_sig_batch_timeout,
+                                       FLAGS_pbft_esig_batch, FLAGS_pbft_esig_batch_timeout,
+                                       FLAGS_indicus_use_coordinator, FLAGS_indicus_request_tx,
+                                                                                                                                                         hotstuff_cpu, FLAGS_num_shards, tport);
+
+      break;
+  }
+
   default: {
       NOT_REACHABLE();
   }
@@ -872,7 +914,7 @@ int main(int argc, char **argv) {
   CALLGRIND_START_INSTRUMENTATION;
 	//SET THREAD AFFINITY if running multi_threading:
 	//if(FLAGS_indicus_multi_threading){
-	if((proto == PROTO_INDICUS || proto == PROTO_PBFT || proto == PROTO_HOTSTUFF || proto == PROTO_AUGUSTUS || proto == PROTO_BFTSMART || proto == PROTO_AUGUSTUS_SMART) && FLAGS_indicus_multi_threading){
+	if((proto == PROTO_INDICUS || proto == PROTO_PBFT || proto == PROTO_HOTSTUFF || proto == PROTO_AUGUSTUS || proto == PROTO_BFTSMART || proto == PROTO_AUGUSTUS_SMART || proto == PROTO_HOTSTUFF_VOLT) && FLAGS_indicus_multi_threading){
 		cpu_set_t cpuset;
 		CPU_ZERO(&cpuset);
 		//bool hyperthreading = true;

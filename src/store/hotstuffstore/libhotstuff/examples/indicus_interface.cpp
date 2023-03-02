@@ -16,7 +16,7 @@ namespace hotstuffstore {
         shardId(shardId), replicaId(replicaId), cpuId(cpuId)
     {
 
-        hotstuff::hotstuff_core_offset = (cpuId + 4) % 8;
+	 hotstuff::hotstuff_core_offset = (cpuId + 4) % 8;
 
         string config_dir = config_dir_base + "shard" + std::to_string(shardId) + "/";
 
