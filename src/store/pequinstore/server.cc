@@ -1239,11 +1239,16 @@ void Server::HandleWriteback(const TransportAddress &remote,
          if(*txnDigest !=TransactionDigest(*txn, params.hashDigest)) return;
       }
       else{
+        //No longer ongoing => was committed/aborted on a concurrent thread
         Debug("Writeback[%s] message does not contain txn, but have not seen"
             " txn_digest previously.", BytesToHex(msg.txn_digest(), 16).c_str());
         Warning("Cannot process Writeback because ongoing does not contain tx for this request. Should not happen with TCP.... CPU %d", sched_getcpu());
-        Panic("When using TCP the tx should always be ongoing before doing WB");
-        return WritebackCallback(&msg, txnDigest, txn, (void*) false);
+        //Panic("When using TCP the tx should always be ongoing before doing WB");
+        if(params.multiThreading || (params.mainThreadDispatching && !params.dispatchMessageReceive)){
+          FreeWBmessage(&msg);
+        }
+        return;
+        //return WritebackCallback(&msg, txnDigest, txn, (void*) false);
       }
     }
   } else {
@@ -1277,11 +1282,11 @@ void Server::WritebackCallback(proto::Writeback *msg, const std::string* txnDige
 
 
   if(!valid){
+    Panic("Writeback Validation should not fail for TX %s ", BytesToHex(*txnDigest, 16).c_str());
     Debug("VALIDATE Writeback for TX %s failed.", BytesToHex(*txnDigest, 16).c_str());
     if(params.multiThreading || (params.mainThreadDispatching && !params.dispatchMessageReceive)){
       FreeWBmessage(msg);
     }
-     Panic("Writeback Validation should not fail for TX %s ", BytesToHex(*txnDigest, 16).c_str());
     return;
   }
 
@@ -1320,7 +1325,8 @@ void Server::WritebackCallback(proto::Writeback *msg, const std::string* txnDige
         stats.Increment("total_transactions_abort", 1);
         Debug("WRITEBACK[%s] successfully aborting.", BytesToHex(*txnDigest, 16).c_str());
         //msg->set_allocated_txn(txn); //dont need to set since client will?
-        writebackMessages[*txnDigest] = *msg;  //Only necessary for fallback... (could avoid storing these, if one just replied with a p2 vote instead - but that is not as responsive)
+        writebackMessages.insert(std::make_pair(*txnDigest, *msg)); //Note: Could move data item and create a copy of txnDigest and Timestamp to call Abort instead. (writebackMessages insert has to happen before Abort insert)
+        //writebackMessages[*txnDigest] = *msg;  //Only necessary for fallback... (could avoid storing these, if one just replied with a p2 vote instead - but that is not as responsive)
         ///CAUTION: msg might no longer hold txn; could have been released in HanldeWriteback
 
         Abort(*txnDigest, txn);
@@ -1479,7 +1485,7 @@ void Server::Commit(const std::string &txnDigest, proto::Transaction *txn,
   if (params.validateProofs) {
     // CAUTION: we no longer own txn pointer (which we allocated during Phase1
     //    and stored in ongoing)
-    proof->set_allocated_txn(txn);
+    proof->set_allocated_txn(txn); //Note: This appears to only be safe because any request that may want to use txn from ongoing (Phase1, Phase2, FB, Writeback) are all on mainThread => will all short-circuit if already committed
     if (params.signedMessages) {
       if (p1Sigs) {
         proof->set_allocated_p1_sigs(groupedSigs);
@@ -1510,7 +1516,7 @@ void Server::Commit(const std::string &txnDigest, proto::Transaction *txn,
   CheckWaitingQueries(txnDigest, proof->txn().timestamp());
 }
  
-
+//Note: This might be called on a different thread than mainthread. Thus insertion into committed + Clean are concurrent. Safe because proof comes with its own owned tx, which is not used by any other thread.
 void Server::CommitWithProof(const std::string &txnDigest, proto::CommittedProof *proof){ //Called for Replica To Replica Sync
 
     proto::Transaction *txn = proof->mutable_txn();
@@ -1622,6 +1628,23 @@ void Server::Abort(const std::string &txnDigest, proto::Transaction *txn) {
 
   CheckWaitingQueries(txnDigest, txn->timestamp(), true); //is_abort  //NOTE: WARNING: If Clean(abort) deletes txn then must callCheckWaitingQueries before Clean.
 }
+
+// void Server::CleanQueries(const proto::Transaction *txn){
+//   //For every query in txn: 
+//      //Delete QueryMd object
+//      //But keep Map entry ==> during lookup, skip if entry exists but md object nullptr; //Alt: Keep object but clear everything and mark final.
+//   //If using caching: 
+//     //Either keep Md object and mark it as final (delete everything in it besides read-set) -- ClearAllButReadSet
+//     //Or: Move read sets into txn
+//     // Ideally: Use mergedReadSet.. However, can't prove the validity of it to other replicas.
+          //Note: Don't want to send mergedReadSet //Note: If you send Txn that includes queries while Cache query params is on => will ignore the sent ones.
+          //Notably: queries are not part of txnDigest. //If one receives a forwarded Txn ==> check that supplied read sets match hashes. Then either cache read-sets ourselves. Or process directly (more efficient)
+
+//     //Alt: Move read sets into txn + Remove QueryMd completely. Store a map: <client-id, timestamp> disallowing clients to issue requests to the past (this way queries won't be accepted anymore.)
+//     //I.e. first add entry to the map
+//     //Then loop through all queries and try to erase Md.
+
+// }
 
 void Server::Clean(const std::string &txnDigest, bool abort, bool hard) {
 

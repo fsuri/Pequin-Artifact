@@ -495,15 +495,17 @@ proto::ConcurrencyControl::Result Server::DoOCCCheck(
       return proto::ConcurrencyControl::ABORT;
   }
   
-  //Can eagerly Abort if result final -- Note Still sending Phase1Replies though, because client hard-coded to receive it currently
-  if(result == proto::ConcurrencyControl::ABORT){
-    proto::Writeback abort_wb;
-    abort_wb.set_decision(proto::CommitDecision::ABORT);
-    abort_wb.set_txn_digest(txnDigest);
-    *abort_wb.mutable_conflict() = *conflict;
-    writebackMessages[txnDigest] = std::move(abort_wb);
-    Abort(txnDigest, &txn); 
-  }
+  //Note: Can eagerly Abort if result final -- Note Still sending Phase1Replies though, because client hard-coded to receive it currently
+      //Is there any point to this though? Tx won't be prepared anyways (thus has no impact on CCC). Only pro: Can forwardWriteback
+  // if(result == proto::ConcurrencyControl::ABORT){
+  //   proto::Writeback abort_wb;
+  //   abort_wb.set_decision(proto::CommitDecision::ABORT);
+  //   abort_wb.set_txn_digest(txnDigest);
+  //   *abort_wb.mutable_conflict() = *conflict;
+  //   writebackMessages.insert(std::make_pair(txnDigest, std::move(abort_wb)));
+  //   //writebackMessages[txnDigest] = std::move(abort_wb); // Use insert instead: returns false. if exists..
+  //   Abort(txnDigest, &txn); //Note: This might call Clean from a different Thread than Mainthread: might remove ongoing. However, we never delete Tx currently, so parallel access to Txn should be safe.
+  // }
     
 
   return result;

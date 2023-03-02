@@ -115,26 +115,25 @@ void Server::HandleQuery(const TransportAddress &remote, proto::QueryRequest &ms
     bool hasQuery = queryMetaData.find(q, queryId);
     if(hasQuery){
         QueryMetaData *query_md = q->second;
+        bool valid = true;
         if(query->retry_version() < query_md->retry_version){
             Debug("Retry version for Query Request Query[%lu:%lu:%d] (seq:client:ver) is outdated. Currently %d", query->query_seq_num(), query->client_id(), query->retry_version(), query_md->retry_version);
-            delete query;
-            if(params.mainThreadDispatching && (!params.dispatchMessageReceive || params.query_params.parallel_queries)) FreeQueryRequestMessage(&msg);
-            return;
+            valid = false;
         }
-        if(query->retry_version() == query_md->retry_version){
-              //Two cases for which retry version could be ==:
-            //a) have already received query for this retry version 
-            //b) have already received a sync for this retry version (and the sync is not waiting for query)
-           
-            //TODO: if have result, return result
-
+        if(query->retry_version() == query_md->retry_version){ //TODO: if have result, return result
+            //Two cases for which proposed retry version could be == stored retry_version:
+                //a) have already received query for this retry version 
+                //b) have already received a sync for this retry version (and the sync is not waiting for query)
             ////Return if already received query or sync for the retry version, and sync is not waiting for query. (I.e. no need to process Query) (implies result will be sent.)
             if(query_md->executed_query || query_md->started_sync && !query_md->waiting_sync){ 
                 Debug("Already received Sync or Query for Query[%lu:%lu:%d] (seq:client:ver). Skipping Query", query->query_seq_num(), query->client_id(), query->retry_version(), query_md->retry_version);
-                delete query;
-                if(params.mainThreadDispatching && (!params.dispatchMessageReceive || params.query_params.parallel_queries)) FreeQueryRequestMessage(&msg);
-                return;
+                valid = false;
             }
+        }
+        if(!valid){
+            delete query;
+            if(params.mainThreadDispatching && (!params.dispatchMessageReceive || params.query_params.parallel_queries)) FreeQueryRequestMessage(&msg);
+            return;
         }
     }
 
@@ -148,11 +147,19 @@ void Server::HandleQuery(const TransportAddress &remote, proto::QueryRequest &ms
     }
 
     //5) Buffer Query conent and timestamp (only buffer the first time)
+
+    bool re_check = false;
+            //Note: tbb find and insert are not atomic: Find does not take a lock if noQuery; before insert can claim lock another thread might add query. 
+            //==> Must check whether query is the first -- and if not, must re-check (technically it's the first check since hasQuery must have been false) retry version and sync status
     if(!hasQuery){
-        queryMetaData.insert(q, queryId);
-        q->second = new QueryMetaData(query->query_cmd(), query->timestamp(), remote, msg.req_id(), query->query_seq_num(), query->client_id(), &params.query_params);
+        re_check = queryMetaData.insert(q, queryId);
+        if(!re_check){
+            q->second = new QueryMetaData(query->query_cmd(), query->timestamp(), remote, msg.req_id(), query->query_seq_num(), query->client_id(), &params.query_params);
+        }
     }
+    
     QueryMetaData *query_md = q->second;
+
     if(!query_md->has_query){ //If queryMetaData was inserted by Sync first (i.e. query has not been processed yet), set query.
         UW_ASSERT(query->has_query_cmd());  //TODO: Could avoid re-sending query_cmd in retry messages (but then might have to wait for first query attempt in case multithreading violates FIFO)
         query_md->SetQuery(query->query_cmd(), query->timestamp(), remote, msg.req_id());  
@@ -172,6 +179,27 @@ void Server::HandleQuery(const TransportAddress &remote, proto::QueryRequest &ms
     //     newQuery = true;
     //     query_md->SetQuery(query->query_cmd(), query->timestamp(), remote, msg.req_id());  //TODO: Could avoid re-sending query_cmd if implemented FIFO (then only first version == 0 needs to have it.)
     // }
+
+    if(re_check){ //must re-check retry-version because tbb lookup and insert are not atomic...
+        //Ignore if retry version old, or we already started sync for this retry version.
+        bool valid = true;
+        if(query->retry_version() < query_md->retry_version){
+            Debug("Retry version for Query Request Query[%lu:%lu:%d] (seq:client:ver) is outdated. Currently %d", query->query_seq_num(), query->client_id(), query->retry_version(), query_md->retry_version);
+            valid = false;
+        }
+        if(query->retry_version() == query_md->retry_version){  //TODO: if have result, return result
+            ////Return if already received query or sync for the retry version, and sync is not waiting for query. (I.e. no need to process Query) (implies result will be sent.)
+            if(query_md->executed_query || query_md->started_sync && !query_md->waiting_sync){ 
+                Debug("Already received Sync or Query for Query[%lu:%lu:%d] (seq:client:ver). Skipping Query", query->query_seq_num(), query->client_id(), query->retry_version(), query_md->retry_version);
+                valid = false;
+            }
+        }
+        if(!valid){
+            delete query;
+            if(params.mainThreadDispatching && (!params.dispatchMessageReceive || params.query_params.parallel_queries)) FreeQueryRequestMessage(&msg);
+            return;
+        }
+    }
 
     //6) Update retry version and reset MetaData if new; skip if old/existing retry version.
     if(query->retry_version() > query_md->retry_version){
@@ -382,23 +410,13 @@ void Server::HandleSync(const TransportAddress &remote, proto::SyncClientProposa
     bool hasQuery = queryMetaData.find(q, *queryId);
     if(hasQuery){
         QueryMetaData *query_md = q->second;
-        if(merged_ss->retry_version() < query_md->retry_version){
-            Debug("Retry version for Sync Request Query[%lu:%lu:%d] (seq:client:ver) is outdated. Currently %d", merged_ss->query_seq_num(), merged_ss->client_id(), merged_ss->retry_version(), query_md->retry_version);
+        if(merged_ss->retry_version() < query_md->retry_version || (merged_ss->retry_version() == query_md->retry_version && query_md->started_sync)){
+            Debug("Retry version for Sync Request Query[%lu:%lu:%d] (seq:client:ver) is outdated (currently %d) OR started sync.", merged_ss->query_seq_num(), merged_ss->client_id(), merged_ss->retry_version(), query_md->retry_version);
+             //TODO: if have result, return result
+            //if(query_md->has_result){}    // Note: if already received sync for the retry version then result will be sent...
             delete merged_ss; 
             if(params.mainThreadDispatching && (!params.dispatchMessageReceive || params.query_params.parallel_queries)) FreeSyncClientProposalMessage(&msg);
             return;
-        }
-        if(merged_ss->retry_version() == query_md->retry_version){
-            //TODO: if have result, return result
-            //if(query_md->has_result){}
-
-            ////Return if already received sync for the retry version (implies result will be sent.)
-            if(query_md->started_sync){ 
-                Debug("Already received Sync or Query for Query[%lu:%lu:%d] (seq:client:ver). Skipping Query", merged_ss->query_seq_num(), merged_ss->client_id(), merged_ss->retry_version());
-                delete merged_ss; 
-                if(params.mainThreadDispatching && (!params.dispatchMessageReceive || params.query_params.parallel_queries)) FreeSyncClientProposalMessage(&msg);
-                return;
-            }
         }
     }
     else{
@@ -411,7 +429,7 @@ void Server::HandleSync(const TransportAddress &remote, proto::SyncClientProposa
         if(!VerifyClientSyncProposal(msg, *queryId)){ // Does not really need to be parallelized, since query handling is probably already on a worker thread.
             delete merged_ss;
             if(params.mainThreadDispatching && (!params.dispatchMessageReceive || params.query_params.parallel_queries)) FreeSyncClientProposalMessage(&msg);
-            Panic("Invalid client signature");
+            Panic("Invalid client signature"); //Report/blacklist client.
             return;
         }
     }
@@ -419,21 +437,36 @@ void Server::HandleSync(const TransportAddress &remote, proto::SyncClientProposa
     //5) Update meta data if new retry version
     //queryMetaDataMap::accessor q;
     //if(queryMetaData.insert(q, *queryId)){
+
+    bool re_check = false;
+            //Note: tbb find and insert are not atomic: Find does not take a lock if noQuery; before insert can claim lock another thread might add query. 
+            //==> Must check whether query is the first -- and if not, must re-check (technically it's the first check since hasQuery must have been false) retry version and sync status
     if(!hasQuery){
-        queryMetaData.insert(q, *queryId);
-        q->second = new QueryMetaData(merged_ss->query_seq_num(), merged_ss->client_id(), &params.query_params);
+        re_check = !queryMetaData.insert(q, *queryId);  
+        if(!re_check){
+            q->second = new QueryMetaData(merged_ss->query_seq_num(), merged_ss->client_id(), &params.query_params);
+        }
     }
     QueryMetaData *query_md = q->second;    
 
-    query_md->designated_for_reply = msg.designated_for_reply();
+    if(re_check){ //must re-check retry-version because tbb lookup and insert are not atomic...
+        //Ignore if retry version old, or we already started sync for this retry version.
+        if(merged_ss->retry_version() < query_md->retry_version || (merged_ss->retry_version() == query_md->retry_version && query_md->started_sync)){
+            Debug("Retry version for Sync Request Query[%lu:%lu:%d] (seq:client:ver) is outdated (currently %d) OR started sync.", merged_ss->query_seq_num(), merged_ss->client_id(), merged_ss->retry_version(), query_md->retry_version);
+            delete merged_ss; 
+            if(params.mainThreadDispatching && (!params.dispatchMessageReceive || params.query_params.parallel_queries)) FreeSyncClientProposalMessage(&msg);
+            return;
+        }
+    }
 
     if(merged_ss->retry_version() > query_md->retry_version){ 
         query_md->ClearMetaData(*queryId);
         query_md->req_id = msg.req_id();
         query_md->retry_version = merged_ss->retry_version();
     }
-    query_md->started_sync = true;
 
+    query_md->started_sync = true;
+    query_md->designated_for_reply = msg.designated_for_reply();
 
     if(query_md->has_query){
         ProcessSync(q, remote, merged_ss, queryId, query_md);

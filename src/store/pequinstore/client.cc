@@ -1015,7 +1015,7 @@ void Client::Writeback(PendingRequest *req) {
   WritebackProcessing(req);
 
   // if(!ValidateWB(req->writeback, &req->txnDigest, &req->txn)){ //FIXME: Remove: Just for testing.
-  //   Panic("Should never be false while testing without byz replica");
+  //   Panic("Writeback Validation should never be false for own proposal");
   //   return;
   // }
 
@@ -1456,11 +1456,12 @@ void Client::WritebackFBcallback(uint64_t conflict_id, std::string txnDigest, pr
   pendingFB->startedWriteback = true;
 
   Debug("Forwarding WritebackFB fast for txn: %s",BytesToHex(txnDigest, 16).c_str());
-  //Note: May want to validate WB message: Technically do not need to, since replicas will verify it, and client can just continue with Fallback processing. However, currently we stop all processing.
-  if(!ValidateWB(wb, &txnDigest, &pendingFB->txn)){
-    Panic("Should never be false while testing without byz replica");
-    return;
-  }
+  //Note: TODO: May want to validate WB message: Technically do not need to, since replicas will verify it, and client can just continue with Fallback processing. However, currently we stop all processing.
+  //TODO: Would want it to be asynchronous though, such that it doesn't block the client from receiving and processing its ongoing tx.
+  // if(!ValidateWB(wb, &txnDigest, &pendingFB->txn)){
+  //   Panic("Wb validation should never be false while testing without byz replica sending corrupt message");
+  //   return;
+  // }
   
   //CHECK THAT fbtxn matches digest? Not necessary if we just set the contents ourselves.
   //Also: server side message might not include txn, hence include it ourselves just in case.
@@ -1480,10 +1481,16 @@ bool Client::ValidateWB(proto::Writeback &msg, std::string *txnDigest, proto::Tr
 
   // 1) check that txnDigest matches txn content
   if (msg.has_txn_digest()){
-    if(*txnDigest != msg.txn_digest()) return false;
+    if(*txnDigest != msg.txn_digest()){
+      std::cerr << "txnDigs don't match" << std::endl;
+      return false;
+    } 
   }
   else if(msg.has_txn()){
-    if(*txnDigest != TransactionDigest(msg.txn(), params.hashDigest)) return false;
+    if(*txnDigest != TransactionDigest(msg.txn(), params.hashDigest)){
+      std::cerr << "txnDig doesnt match Transaction" << std::endl;
+      return false;
+    } 
   }
   else {
     Panic("Should have txn or txn_digest");
@@ -1493,21 +1500,21 @@ bool Client::ValidateWB(proto::Writeback &msg, std::string *txnDigest, proto::Tr
    // 2) check that sigs match decision and txnDigest
   if (params.validateProofs) {
     if (params.signedMessages && msg.has_p1_sigs()) {
-        int64_t myProcessId;
         proto::ConcurrencyControl::Result myResult;
 
-        if (!ValidateP1Replies(msg.decision(), true, txn, txnDigest, msg.p1_sigs(), keyManager, config, myProcessId, myResult, verifier)) {
+        if (!ValidateP1Replies(msg.decision(), true, txn, txnDigest, msg.p1_sigs(), keyManager, config, -1, myResult, verifier)) {
               Debug("WRITEBACK[%s] Failed to validate P1 replies for fast decision %s.", BytesToHex(*txnDigest, 16).c_str(), (msg.decision() == proto::CommitDecision::COMMIT) ? "commit" : "abort");
+              std::cerr << "Wb failed P1 fast validation" << std::endl;
               return false;
         }   
     }
     else if (params.signedMessages && msg.has_p2_sigs()) {
         if(!msg.has_p2_view()) return false;
-        int64_t myProcessId;
         proto::CommitDecision myDecision;
   
-        if (!ValidateP2Replies(msg.decision(), msg.p2_view(), txn, txnDigest, msg.p2_sigs(), keyManager, config, myProcessId, myDecision, verifier)) {
+        if (!ValidateP2Replies(msg.decision(), msg.p2_view(), txn, txnDigest, msg.p2_sigs(), keyManager, config, -1, myDecision, verifier)) {
                 Debug("WRITEBACK[%s] Failed to validate P2 replies for decision %s.", BytesToHex(*txnDigest, 16).c_str(), (msg.decision() == proto::CommitDecision::COMMIT) ? "commit" : "abort");
+                std::cerr << "Wb failed P2 slow validation" << std::endl;
                 return false;
         }
     } 
@@ -1516,6 +1523,7 @@ bool Client::ValidateWB(proto::Writeback &msg, std::string *txnDigest, proto::Tr
 
       if (!ValidateCommittedConflict(msg.conflict(), &committedTxnDigest, txn, txnDigest, params.signedMessages, keyManager, config, verifier)) {
             Debug("WRITEBACK[%s] Failed to validate committed conflict for fast abort.", BytesToHex(*txnDigest, 16).c_str());
+            std::cerr << "Wb failed conflict validation" << endl;
             return false;
       }
     } 
