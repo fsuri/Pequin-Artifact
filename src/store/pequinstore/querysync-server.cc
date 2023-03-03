@@ -162,7 +162,7 @@ void Server::HandleQuery(const TransportAddress &remote, proto::QueryRequest &ms
             //Note: tbb find and insert are not atomic: Find does not take a lock if noQuery; before insert can claim lock another thread might add query. 
             //==> Must check whether query is the first -- and if not, must re-check (technically it's the first check since hasQuery must have been false) retry version and sync status
     if(!hasQuery){
-        re_check = queryMetaData.insert(q, queryId);
+        re_check = !queryMetaData.insert(q, queryId); //If not first insert -> must re-check.
         if(!re_check){
             q->second = new QueryMetaData(query->query_cmd(), query->timestamp(), remote, msg.req_id(), query->query_seq_num(), query->client_id(), &params.query_params);
         }
@@ -1487,7 +1487,7 @@ void Server::HandleSyncCallback(QueryMetaData *query_md, const std::string &quer
     if(params.query_params.cacheReadSet) wakeSubscribedTx(queryId, query_md->retry_version); //TODO: Instead of passing it along, just store the queryId...
 
 
-    bool exec_success = !test_fail_query; //FIXME: REMOVE: This tests one retry.
+    bool exec_success = !test_fail_query; //Global Test var to simulate a retry once. //FIXME: Remove
     if(exec_success){
          query_md->failure = false;
         
