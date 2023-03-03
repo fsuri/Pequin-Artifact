@@ -1784,7 +1784,7 @@ void Server::Clean(const std::string &txnDigest, bool abort, bool hard) {
 
    TxnMissingQueriesMap::accessor mq;
    if(TxnMissingQueries.find(mq, txnDigest)){
-    delete mq->second;
+    if(mq->second != nullptr) delete mq->second;
     TxnMissingQueries.erase(mq);
    }
    mq.release();
