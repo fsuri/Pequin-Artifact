@@ -166,7 +166,7 @@ virtual void Phase2Equivocate_Simulate(uint64_t id, const proto::Transaction &tx
       const proto::GroupedSignatures &p1Sigs, const proto::GroupedSignatures &p2Sigs);
 ////////////// End Commit Protocol
 
-  virtual void Abort(uint64_t id, const TimestampMessage &ts);
+  virtual void Abort(uint64_t id, const TimestampMessage &ts, const proto::Transaction &_tx);
   virtual bool SendPing(size_t replica, const PingMessage &ping);
 
   void SetFailureFlag(bool f) {

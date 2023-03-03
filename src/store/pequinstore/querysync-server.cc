@@ -96,6 +96,16 @@ void Server::HandleQuery(const TransportAddress &remote, proto::QueryRequest &ms
         query = msg.release_query(); //mutable_query()
     }
 
+    //Only process if below watermark.
+    clientQueryWatermarkMap::const_accessor qw;
+    if(clientQueryWatermark.find(qw, query->client_id()) && qw->second >= query->query_seq_num()){
+    //if(clientQueryWatermark[query->client_id()] >= query->query_seq_num()){
+        delete query;
+        if(params.mainThreadDispatching && (!params.dispatchMessageReceive || params.query_params.parallel_queries)) FreeQueryRequestMessage(&msg);
+        return;
+    }
+    qw.release();
+
      // 2) Compute unique hash ID 
     std::string queryId = QueryDigest(*query, (params.query_params.signClientQueries && params.query_params.cacheReadSet && params.hashDigest)); 
     
@@ -202,10 +212,11 @@ void Server::HandleQuery(const TransportAddress &remote, proto::QueryRequest &ms
     }
 
     //6) Update retry version and reset MetaData if new; skip if old/existing retry version.
-    if(query->retry_version() > query_md->retry_version){
-        // query_md->started_sync = false; //start new sync round
+    if(query->retry_version() > query_md->retry_version){     
         query_md->ClearMetaData(queryId); //start new sync round
         query_md->req_id = msg.req_id();
+         //Delete current missingTxns.   -- NOTE: Currently NOT necessary for correctness, because UpdateWaitingQueries checks whether retry version is still current. But good for garbage collection.
+        queryMissingTxns.erase(QueryRetryId(queryId, query_md->retry_version, (params.query_params.signClientQueries && params.query_params.cacheReadSet && params.hashDigest)));
         query_md->retry_version = query->retry_version();
     }
     // else if(query->retry_version() == query_md->retry_version){
@@ -405,6 +416,17 @@ void Server::HandleSync(const TransportAddress &remote, proto::SyncClientProposa
     }
     Debug("\n Received Query Sync Proposal for Query[%lu:%lu:%d] (seq:client:ver)", merged_ss->query_seq_num(), merged_ss->client_id(), merged_ss->retry_version());
 
+     //Only process if below watermark.
+    clientQueryWatermarkMap::const_accessor qw;
+    if(clientQueryWatermark.find(qw, merged_ss->client_id()) && qw->second >= merged_ss->query_seq_num()){
+    //if(clientQueryWatermark[merged_ss->client_id()] >= merged_ss->query_seq_num()){
+        delete merged_ss; 
+        if(params.mainThreadDispatching && (!params.dispatchMessageReceive || params.query_params.parallel_queries)) FreeSyncClientProposalMessage(&msg);
+        return;
+    }
+    qw.release();
+
+
     // 3) Check whether retry version is still relevant
     queryMetaDataMap::accessor q;
     bool hasQuery = queryMetaData.find(q, *queryId);
@@ -462,6 +484,8 @@ void Server::HandleSync(const TransportAddress &remote, proto::SyncClientProposa
     if(merged_ss->retry_version() > query_md->retry_version){ 
         query_md->ClearMetaData(*queryId);
         query_md->req_id = msg.req_id();
+          //Delete current missingTxns.   -- NOTE: Currently NOT necessary for correctness, because UpdateWaitingQueries checks whether retry version is still current. But good for garbage collection.
+        queryMissingTxns.erase(QueryRetryId(*queryId, query_md->retry_version, (params.query_params.signClientQueries && params.query_params.cacheReadSet && params.hashDigest)));
         query_md->retry_version = merged_ss->retry_version();
     }
 
@@ -1657,6 +1681,59 @@ void Server::FailQuery(QueryMetaData *query_md){
 
     return;
 
+}
+
+//TODO: Compile CleanQueries. 
+
+//TODO: Clean Query as part of HandleAbort
+// -> handle abort should specify list of query_ids to just be deleted. (erase fully)
+
+void Server::CleanQueries(proto::Transaction *txn, bool is_commit){
+  //Move read sets into txn + Remove QueryMd completely. Store a map: <client-id, timestamp> disallowing clients to issue requests to the past (this way old/late queries won't be accepted anymore.)
+    
+  if(!txn->has_last_query_seq()) return;
+
+  clientQueryWatermarkMap::accessor qw;
+  clientQueryWatermark.insert(qw, txn->client_id());
+  if(txn->last_query_seq() > qw->second) qw->second = txn->last_query_seq();
+  qw.release();
+  //clientQueryWatermark[txn->client_id()] = txn->last_query_seq(); //only update timestamp for commit if greater than last one... //To do this atomically need hashmap lock.
+
+  //For every query in txn: 
+  for(proto::QueryResultMetaData &query_md : *txn->mutable_query_set()){
+     queryMetaDataMap::accessor q;
+     bool hasQuery = queryMetaData.find(q, query_md.query_id());
+     if(hasQuery){
+        //Move read set if caching. Note: Don't need to move read_set_hash -> tx already stores it. 
+         if(is_commit && params.query_params.cacheReadSet){
+          proto::QueryGroupMeta &query_group_meta = (*query_md.mutable_group_meta())[groupIdx];
+           //Note: only move if read_set hash matches. It might not. But at least 2f+1 correct replicas do have it matching.
+          if(query_group_meta.read_set_hash() == q->second->queryResultReply->result().query_result_hash()){
+            proto::ReadSet *read_set = q->second->queryResultReply->mutable_result()->release_query_read_set();
+            query_group_meta.set_allocated_query_read_set(read_set);
+          }
+       }
+    
+       //erase current retry version from missing (Note: all previous ones must have been deleted via ClearMetaData)
+       queryMissingTxns.erase(QueryRetryId(query_md.query_id(), q->second->retry_version, (params.query_params.signClientQueries && params.query_params.cacheReadSet && params.hashDigest)));
+      
+       if(q->second != nullptr) delete q->second;
+       //q->second = nullptr;
+       queryMetaData.erase(q); 
+     }
+     //Don't erase Md entry --> Keeping it disallows future queries. ==> Improve by adding the client TS map forcing monotonic queries. (Map size O(clients) instead of O(queries))
+     //queryMetaData.erase(query_md.query_id())
+     q.release();
+
+    //Delete any possibly subscribed queries.
+    subscribedQuery.erase(query_md.query_id());
+  }
+       
+  //TODO: Fallback;:
+   // Ideally: Use mergedReadSet.. However, can't prove the validity of it to other replicas.
+    //      Note: Don't want to send mergedReadSet //Note: If you send Txn that includes queries while Cache query params is on => will ignore the sent ones.
+    //      Notably: queries are not part of txnDigest. //If one receives a forwarded Txn ==> check that supplied read sets match hashes. Then either cache read-sets ourselves. Or process directly (more efficient)
+    //  I.e. even if caching is enabled and thus replicas don't expect tx to contain read set ==> if it is forwarded, DO look for it's read set.
 }
 
 

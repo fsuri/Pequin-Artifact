@@ -110,7 +110,7 @@ message QueryGroupMeta {
   //repeated ReadMessage read_set = 3; //key versions of all reads
   //map<string, TimestampMessage> read_set = 2; //Is there a benefit of storing as map vs repeated? Internally probably the same.
   optional ReadSet query_read_set = 2;
-  repeated Dependency deps = 3; //only if reading prepared.
+  //repeated Dependency deps = 3; //only if reading prepared.
 }
 
 //Meta data associated with a given query, grouped by group id
@@ -131,9 +131,10 @@ message Transaction {
   required TimestampMessage timestamp = 7;
 
   repeated QueryResultMetaData query_set = 8;
+  optional uint64 last_query_seq = 9; //Used to update queryWatermark.
 
-  optional bytes txndigest = 9; //NOT PART OF TX. HACK HERE TO STORE txn digest in the local txn version without changing data structures that hold TXN.
-  optional ReadSet merged_read_set = 10; //NOT PART OF TX. HACK HERE TO STORE oltp read set while merging query read sets during CC (serverside)
+  optional bytes txndigest = 10; //NOT PART OF TX. HACK HERE TO STORE txn digest in the local txn version without changing data structures that hold TXN.
+  optional ReadSet merged_read_set = 11; //NOT PART OF TX. HACK HERE TO STORE oltp read set while merging query read sets during CC (serverside)
 }
 
 message Phase1 {
@@ -253,6 +254,8 @@ message ForwardWriteback {
 message AbortInternal {
   required TimestampMessage ts = 1;
   repeated bytes read_set = 2;
+  repeated bytes query_ids = 3;
+  //repeated QueryResultMetaData queries = 3;
 }
 
 message Abort {

@@ -1381,6 +1381,8 @@ void Server::HandleAbort(const TransportAddress &remote,
     abort = &msg.internal();
   }
 
+  ////Garbage collect Read Timestamps
+
   //RECOMMENT XXX currently displaced by RTS implementation that has no set, but only a single RTS version that keeps getting replaced.
   //  if(params.mainThreadDispatching) rtsMutex.lock();
   // for (const auto &read : abort->read_set()) {
@@ -1402,6 +1404,24 @@ void Server::HandleAbort(const TransportAddress &remote,
   else{
     //No RTS
   }
+
+  //Garbage collect Queries.
+  for (const auto &query_id: abort->query_ids()){
+    queryMetaDataMap::accessor q;
+    if(queryMetaData.find(q, query_id)){
+      //erase current retry version from missing (Note: all previous ones must have been deleted via ClearMetaData)
+      queryMissingTxns.erase(QueryRetryId(query_id, q->second->retry_version, (params.query_params.signClientQueries && params.query_params.cacheReadSet && params.hashDigest)));
+      
+      if(q->second != nullptr) delete q->second;
+      //erase query_md
+      queryMetaData.erase(q); 
+    }
+    q.release();
+
+    //Delete any possibly subscribed queries.
+    subscribedQuery.erase(query_id);
+  }
+
 }
 
 
@@ -1513,6 +1533,7 @@ void Server::Commit(const std::string &txnDigest, proto::Transaction *txn,
   CheckDependents(txnDigest);
   CleanDependencies(txnDigest);
 
+  CleanQueries(proof->mutable_txn()); //Note: Changing txn is not threadsafe per se, but should not cause any issues..
   CheckWaitingQueries(txnDigest, proof->txn().timestamp());
 }
  
@@ -1536,6 +1557,7 @@ void Server::CommitWithProof(const std::string &txnDigest, proto::CommittedProof
     CheckDependents(txnDigest);
     CleanDependencies(txnDigest);
 
+    CleanQueries(proof->mutable_txn()); //Note: Changing txn is not threadsafe per se, but should not cause any issues..
     UpdateWaitingQueries(txnDigest);
     if(params.query_params.optimisticTxID) UpdateWaitingQueriesTS(MergeTimestampId(proof->txn().timestamp().timestamp(), proof->txn().timestamp().id()), txnDigest);
 }
@@ -1626,25 +1648,10 @@ void Server::Abort(const std::string &txnDigest, proto::Transaction *txn) {
   CheckDependents(txnDigest);
   CleanDependencies(txnDigest);
 
+  CleanQueries(txn, false);
   CheckWaitingQueries(txnDigest, txn->timestamp(), true); //is_abort  //NOTE: WARNING: If Clean(abort) deletes txn then must callCheckWaitingQueries before Clean.
 }
 
-// void Server::CleanQueries(const proto::Transaction *txn){
-//   //For every query in txn: 
-//      //Delete QueryMd object
-//      //But keep Map entry ==> during lookup, skip if entry exists but md object nullptr; //Alt: Keep object but clear everything and mark final.
-//   //If using caching: 
-//     //Either keep Md object and mark it as final (delete everything in it besides read-set) -- ClearAllButReadSet
-//     //Or: Move read sets into txn
-//     // Ideally: Use mergedReadSet.. However, can't prove the validity of it to other replicas.
-          //Note: Don't want to send mergedReadSet //Note: If you send Txn that includes queries while Cache query params is on => will ignore the sent ones.
-          //Notably: queries are not part of txnDigest. //If one receives a forwarded Txn ==> check that supplied read sets match hashes. Then either cache read-sets ourselves. Or process directly (more efficient)
-
-//     //Alt: Move read sets into txn + Remove QueryMd completely. Store a map: <client-id, timestamp> disallowing clients to issue requests to the past (this way queries won't be accepted anymore.)
-//     //I.e. first add entry to the map
-//     //Then loop through all queries and try to erase Md.
-
-// }
 
 void Server::Clean(const std::string &txnDigest, bool abort, bool hard) {
 
@@ -1774,6 +1781,13 @@ void Server::Clean(const std::string &txnDigest, bool abort, bool hard) {
   //   completing.erase(z);
   // }
   // z.release();
+
+   TxnMissingQueriesMap::accessor mq;
+   if(TxnMissingQueries.find(mq, txnDigest)){
+    delete mq->second;
+    TxnMissingQueries.erase(mq);
+   }
+   mq.release();
 }
 
 

@@ -629,12 +629,23 @@ void ShardClient::WritebackFB(const proto::Transaction &transaction,
 }
 
 
-void ShardClient::Abort(uint64_t id, const TimestampMessage &ts) {
+void ShardClient::Abort(uint64_t id, const TimestampMessage &ts, const proto::Transaction &_tx) {
   Debug("Aborting transaction %d", id);
   abort.Clear();
   *abort.mutable_internal()->mutable_ts() = ts;
+  //Add Reads to garbage collect
   for (const auto &read : txn.read_set()) {
     *abort.mutable_internal()->add_read_set() = read.key();
+  }
+  //Add Query ids to garbage collect
+  for(const auto &query: _tx.query_set()){
+    abort.mutable_internal()->add_query_ids(query.query_id());
+    // proto::QueryResultMetaData *query_md = *abort.mutable_internal()->add_query_md();
+    // query_md.set_query_id() = query.query_id();
+    // query_md.set_query_retry_version() = query.retry_version();
+  
+     //TODO: Ideally, don't just GC the queries that finished. But any query issued (on this shard)
+     //Note: In normal case, should only call Abort if query is finished.
   }
 
   if (params.validateProofs && params.signedMessages && params.signClientProposals) {

@@ -258,6 +258,7 @@ void Client::Query(std::string &query, query_callback qcb,
     // Latency_Start(&getLatency);
 
     query_seq_num++;
+    txn.set_last_query_seq(query_seq_num);
     Debug("\n Query[%lu:%lu:%lu]", client_id, client_seq_num, query_seq_num);
 
  
@@ -268,8 +269,9 @@ void Client::Query(std::string &query, query_callback qcb,
     PendingQuery *pendingQuery = new PendingQuery(this, query_seq_num, query);
 
     std::vector<uint64_t> involved_groups = {0};//{0UL, 1UL};
-    pendingQuery->SetInvolvedGroups(this, involved_groups);
+    pendingQuery->SetInvolvedGroups(involved_groups);
     Debug("[group %i] designated as Query Execution Manager for query [%lu:%lu]", pendingQuery->queryMsg.query_manager(), client_seq_num, query_seq_num);
+    pendingQuery->SetQueryId(this);
 
     // std::vector<uint64_t> involved_groups = {0UL};
     // uint64_t query_manager = involved_groups[0];
@@ -523,7 +525,7 @@ void Client::Commit(commit_callback ccb, commit_timeout_callback ctcb,
         if(!params.query_params.mergeActiveAtClient) Panic("Without Client-side query merge Client should never read same key twice");
 
         for (auto group : txn.involved_groups()) {
-          bclient[group]->Abort(client_seq_num, txn.timestamp());
+          bclient[group]->Abort(client_seq_num, txn.timestamp(), txn);
         }
         ccb(ABORTED_SYSTEM);
         //Panic("Client should never read same key twice");
@@ -1081,7 +1083,7 @@ void Client::Abort(abort_callback acb, abort_timeout_callback atcb,
     Debug("ABORT[%lu:%lu]", client_id, client_seq_num);
 
     for (auto group : txn.involved_groups()) {
-      bclient[group]->Abort(client_seq_num, txn.timestamp());
+      bclient[group]->Abort(client_seq_num, txn.timestamp(), txn); 
     }
 
     // TODO: can we just call callback immediately?
@@ -1456,7 +1458,8 @@ void Client::WritebackFBcallback(uint64_t conflict_id, std::string txnDigest, pr
   pendingFB->startedWriteback = true;
 
   Debug("Forwarding WritebackFB fast for txn: %s",BytesToHex(txnDigest, 16).c_str());
-  //Note: TODO: May want to validate WB message: Technically do not need to, since replicas will verify it, and client can just continue with Fallback processing. However, currently we stop all processing.
+  //Note: Currently optimistically just accepting forwarded Writeback and stopping Fallback.
+  //Note: TODO: May want to pessimistically validate WB message: Don't need to validate it for safety! (replicas will verify it). Only for liveness, since currently we stop fallback processing. Either verify or continue FB processing.
   //TODO: Would want it to be asynchronous though, such that it doesn't block the client from receiving and processing its ongoing tx.
   // if(!ValidateWB(wb, &txnDigest, &pendingFB->txn)){
   //   Panic("Wb validation should never be false while testing without byz replica sending corrupt message");

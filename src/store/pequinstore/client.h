@@ -131,10 +131,9 @@ class Client : public ::Client {
     group_result_hashes.clear();
    }
 
-   void SetInvolvedGroups(Client *client, std::vector<uint64_t> &involved_groups_){
+   void SetInvolvedGroups(std::vector<uint64_t> &involved_groups_){
       involved_groups = std::move(involved_groups_);
       queryMsg.set_query_manager(involved_groups[0]);
-      SetQueryId(client);
     }
 
     void SetQueryId(Client *client){

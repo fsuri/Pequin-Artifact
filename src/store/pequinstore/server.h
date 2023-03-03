@@ -273,11 +273,6 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
         started_sync = false;
         waiting_sync = false;
         if(merged_ss_msg != nullptr) delete merged_ss_msg; //Delete obsolete sync snapshot
-
-        //Delete missingTxns.   -- NOTE: Currently NOT necessary, because UpdateWaitingQueries checks whether retry version is still current.
-        // queryMissingTxnsMap::accessor qm;
-        // bool first_qm = queryMissingTxns.erase(qm, QueryRetryId(queryId, query_md->retry_version, (params.query_params.signClientQueries && params.query_params.cacheReadSet && params.hashDigest)));
-        // qm.release();
       }
       void SetQuery(const std::string &_query_cmd, const TimestampMessage &timestamp, const TransportAddress &remote, const uint64_t &_req_id){
         has_query = true;
@@ -345,6 +340,9 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
     typedef tbb::concurrent_hash_map<std::string, QueryMetaData*> queryMetaDataMap; //map from query_id -> QueryMetaData
     queryMetaDataMap queryMetaData;
 
+    //tbb::concurrent_unordered_map<uint64_t, uint64_t> clientQueryWatermark; //map from client_id to timestamp of last committed Tx. Ignore all queries below.
+    typedef tbb::concurrent_hash_map<uint64_t, uint64_t> clientQueryWatermarkMap; //map from client_id to highest committed query_seq. Ignore all queries below.
+    clientQueryWatermarkMap clientQueryWatermark;
 
     typedef std::pair<std::string, uint64_t> query_id_version;
     struct waitingOnQueriesMeta {
@@ -404,7 +402,7 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
     TxnMissingQueriesMap TxnMissingQueries;
 
 
-     //map from tx-id to query-ids (that are waiting to sync on the tx-id)
+     //map from tx-id to query-ids (that are waiting to sync on the tx-id)  (GC inside UpdateWaitingQueries.)
     typedef tbb::concurrent_hash_map<std::string, std::unordered_set<std::string>> waitingQueryMap; 
     waitingQueryMap waitingQueries;
     //Same for optimistic ids: Map from ts-id to query-ids
@@ -419,7 +417,7 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
         uint64_t retry_version;
     };
     typedef tbb::concurrent_hash_map<std::string, MissingTxns> queryMissingTxnsMap;  //std::unordered_set<std::string>
-    queryMissingTxnsMap queryMissingTxns;
+    queryMissingTxnsMap queryMissingTxns; 
 
     void ProcessQuery(queryMetaDataMap::accessor &q, const TransportAddress &remote, proto::Query *query, QueryMetaData *query_md);
     void ProcessSync(queryMetaDataMap::accessor &q, const TransportAddress &remote, proto::MergedSnapshot *merged_ss, const std::string *queryId, QueryMetaData *query_md);
@@ -439,6 +437,7 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
     void FailQuery(QueryMetaData *query_md);
     bool VerifyClientQuery(proto::QueryRequest &msg, const proto::Query *query, std::string &queryId);
     bool VerifyClientSyncProposal(proto::SyncClientProposal &msg, const std::string &queryId);
+    void CleanQueries(proto::Transaction *txn, bool is_commit = true);
 
     // Fallback helper functions
     //FALLBACK helper datastructures
