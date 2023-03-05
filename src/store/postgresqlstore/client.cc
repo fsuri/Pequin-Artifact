@@ -78,7 +78,7 @@ void Client::Abort(abort_callback acb, abort_timeout_callback atcb,
 }
 
 // Get the value corresponding to key.
-void Query(std::string &query, query_callback qcb,
+void Query(const std::string &query, query_callback qcb,
     query_timeout_callback qtcb, uint32_t timeout) {
   auto result = transaction->execute(query);
   qcb(0, result[0][0].as<string>());

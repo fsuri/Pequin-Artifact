@@ -90,7 +90,7 @@ class Client : public ::Client {
       put_callback pcb, put_timeout_callback ptcb,
       uint32_t timeout = PUT_TIMEOUT) override;
 
-  virtual void Query(std::string &query, query_callback qcb,
+  virtual void Query(const std::string &query, query_callback qcb,
     query_timeout_callback qtcb, uint32_t timeout) override; //TODO: ::Client client class needs to expose Query interface too.. --> All other clients need to support the interface.
 
   // Commit all Get(s) and Put(s) since Begin().

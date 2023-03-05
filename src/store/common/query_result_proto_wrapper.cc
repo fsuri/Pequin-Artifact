@@ -82,15 +82,15 @@ auto QueryResultProtoWrapper::columns() const -> std::size_t
   return column_names.size();
 }
 
-auto QueryResultProtoWrapper::begin() const -> std::unique_ptr<query_result::QueryResult::const_iterator>
+auto QueryResultProtoWrapper::begin() const -> std::unique_ptr<const_iterator>
 {
   check_has_result_set();
-  return std::unique_ptr<query_result::QueryResult::const_iterator>(new const_iterator( Row(this, 0, 0, column_names.size())));
+  return std::unique_ptr<const_iterator>(new const_iterator( Row(this, 0, 0, column_names.size())));
 }
 
-auto QueryResultProtoWrapper::end() const -> std::unique_ptr<query_result::QueryResult::const_iterator>
+auto QueryResultProtoWrapper::end() const -> std::unique_ptr<const_iterator>
 {
-  return std::unique_ptr<query_result::QueryResult::const_iterator>(new const_iterator( Row(this, size(), 0, column_names.size() ) ));
+  return std::unique_ptr<const_iterator>(new const_iterator( Row(this, size(), 0, column_names.size() ) ));
 }
 
 auto QueryResultProtoWrapper::is_null( const std::size_t row, const std::size_t column ) const -> bool {

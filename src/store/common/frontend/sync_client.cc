@@ -111,7 +111,7 @@ void SyncClient::Abort(uint32_t timeout) {
   promise.GetReply();
 }
 
-void SyncClient::Query(std::string &query, const query_result::QueryResult* &result, uint32_t timeout) {
+void SyncClient::Query(const std::string &query, query_result::QueryResult* &result, uint32_t timeout) {
   Promise promise(timeout);
   
   client->Query(query, std::bind(&SyncClient::QueryCallback, this, &promise,
@@ -124,10 +124,10 @@ void SyncClient::Query(std::string &query, const query_result::QueryResult* &res
 void SyncClient::Query(const std::string &query, uint32_t timeout) {
   Promise *promise = new Promise(timeout);
   queryPromises.push_back(promise);
-  client->Query(query, std::bind(&SyncClient::QueryCallback, this, &promise,
+  client->Query(query, std::bind(&SyncClient::QueryCallback, this, promise,
         std::placeholders::_1, std::placeholders::_2), 
         std::bind(&SyncClient::QueryTimeoutCallback, this,
-        &promise, std::placeholders::_1), timeout);
+        promise, std::placeholders::_1), timeout);
 }
 
 void SyncClient::Wait(std::vector<query_result::QueryResult*> &values) {
@@ -175,7 +175,7 @@ void SyncClient::AbortTimeoutCallback(Promise *promise) {
   promise->Reply(REPLY_TIMEOUT);
 }
 
-void SyncClient::QueryCallback(Promise *promise, int status, const query_result::QueryResult* result){
+void SyncClient::QueryCallback(Promise *promise, int status, query_result::QueryResult* result){
   promise->Reply(status, result); 
 }
 

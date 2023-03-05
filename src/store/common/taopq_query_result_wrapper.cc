@@ -25,57 +25,46 @@
  *
  **********************************************************************/
 
-#include "store/common/query_result.h"
-#include "store/common/query_result_row.h"
+#include "store/common/taopq_query_result_wrapper.h"
 
 namespace taopq_wrapper {
 
 auto TaoPQQueryResultWrapper::name( const std::size_t column ) const -> std::string
 {
-  return result.name();
+  return result->name(column);
 }
 
 bool TaoPQQueryResultWrapper::empty() const
 {
-  return result.empty();
+  return result->empty();
 }
 
 auto TaoPQQueryResultWrapper::size() const -> std::size_t
 {
-  return result.size();
-}
-
-auto TaoPQQueryResultWrapper::begin() const -> query_result::QueryResult::const_iterator*
-{
-  return new const_iterator( result.begin() );
-}
-
-auto TaoPQQueryResultWrapper::end() const -> query_result::QueryResult::const_iterator*
-{
-  return new const_iterator( result.end() );
+  return result->size();
 }
 
 auto TaoPQQueryResultWrapper::is_null( const std::size_t row, const std::size_t column ) const -> bool
 {
-  return result.is_null(row, column);
+  return result->is_null(row, column);
 }
 auto TaoPQQueryResultWrapper::get( const std::size_t row, const std::size_t column ) const -> const char*
 {
-  return result.get(row, column);
+  return result->get(row, column);
 }
 
-auto TaoPQQueryResultWrapper::operator[]( const std::size_t row ) const -> query_result::Row {
-  return taopq_wrapper::Row(result[row]);
+auto TaoPQQueryResultWrapper::operator[]( const std::size_t row ) const -> std::unique_ptr<query_result::Row> {
+  return std::unique_ptr<query_result::Row>(new taopq_wrapper::Row((*result)[row]));
 }
-auto TaoPQQueryResultWrapper::at( const std::size_t row ) const -> query_result::Row {
-  return taopq_wrapper::Row(result[row]);
+auto TaoPQQueryResultWrapper::at( const std::size_t row ) const -> std::unique_ptr<query_result::Row> {
+  return std::unique_ptr<query_result::Row>(new taopq_wrapper::Row((*result)[row]));
 }
 
 auto TaoPQQueryResultWrapper::has_rows_affected() const noexcept -> bool {
-  return result.has_rows_affected();
+  return result->has_rows_affected();
 }
 
 auto TaoPQQueryResultWrapper::rows_affected() const -> std::size_t {
-  return result.rows_affected();
+  return result->rows_affected();
 }
 }

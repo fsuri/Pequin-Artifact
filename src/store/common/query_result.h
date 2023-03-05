@@ -34,42 +34,15 @@
 
 namespace query_result {
 
-// QueryResult contains a collection of rows containing one or more fields of data.
+// QueryResult contains a collection of rows containing fields of data.
+// SQL semantics for field ordering, primary key sorting, etc are not enforced by this interface.
 class QueryResult {
 	public:
-		class const_iterator {
-			public:
-				virtual auto operator++() noexcept -> const_iterator& = 0;
-
-        virtual auto operator++( int ) noexcept -> std::unique_ptr<const_iterator> = 0;
-
-        virtual auto operator+=( const std::int32_t n ) noexcept -> const_iterator& = 0;
-
-        virtual auto operator--() noexcept -> const_iterator& = 0;
-
-        virtual auto operator--( int ) noexcept -> std::unique_ptr<const_iterator> = 0;
-
-        virtual auto operator-=( const std::int32_t n ) noexcept -> const_iterator& = 0;
-
-        virtual auto operator*() const noexcept -> const Row& = 0;
-
-        virtual auto operator->() const noexcept -> const Row* = 0;
-
-        virtual auto operator[]( const std::int32_t n ) const noexcept -> std::unique_ptr<Row> = 0;
-		};
-
 		virtual auto name( const std::size_t column ) const -> std::string = 0;
 
 		// size of the result set
 		virtual bool empty() const = 0;
 		virtual auto size() const -> std::size_t = 0;
-
-		// iteration
-    virtual auto begin() const ->  std::unique_ptr<const_iterator> = 0;
-    virtual auto end() const ->  std::unique_ptr<const_iterator> = 0;
-
-		virtual auto cbegin() const ->  std::unique_ptr<const_iterator> = 0;
-    virtual auto cend() const ->  std::unique_ptr<const_iterator> = 0;
 
 		virtual auto is_null( const std::size_t row, const std::size_t column ) const -> bool = 0;
 		virtual auto get( const std::size_t row, const std::size_t column, std::size_t* size ) const -> const char* = 0;

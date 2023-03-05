@@ -58,7 +58,7 @@ class Row : public query_result::Row {
   {}
 
  public:
-  class const_iterator : query_result::Row::const_iterator, sql::Field {
+  class const_iterator : sql::Field {
     private:
       friend class Row;
 
@@ -68,66 +68,64 @@ class Row : public query_result::Row {
     public:
       const_iterator() = default;
 
-      auto operator++() noexcept -> query_result::Row::const_iterator&
+      auto operator++() noexcept -> const_iterator&
       {
         ++m_column;
         return *this;
       }
 
-      auto operator++( int ) noexcept -> std::unique_ptr<query_result::Row::const_iterator>
+      auto operator++( int ) noexcept -> const_iterator
       {
-        sql::Row::const_iterator *nrv = new sql::Row::const_iterator( *this );
+        const_iterator nrv( *this );
         ++*this;
-        return std::unique_ptr<query_result::Row::const_iterator>(nrv);
+        return nrv;
       }
 
-      auto operator+=( const std::int32_t n ) noexcept -> query_result::Row::const_iterator&
+      auto operator+=( const std::int32_t n ) noexcept -> const_iterator&
       {
         m_column += n;
         return *this;
       }
 
-      auto operator--() noexcept -> query_result::Row::const_iterator&
+      auto operator--() noexcept -> const_iterator&
       {
         --m_column;
         return *this;
       }
 
-      auto operator--( int ) noexcept -> std::unique_ptr<query_result::Row::const_iterator>
+      auto operator--( int ) noexcept -> const_iterator
       {
-        sql::Row::const_iterator *nrv = new sql::Row::const_iterator( *this );
+        const_iterator nrv( *this );
         --*this;
-        return std::unique_ptr<query_result::Row::const_iterator>(nrv);
+        return nrv;
       }
 
-      auto operator-=( const std::int32_t n ) noexcept -> query_result::Row::const_iterator&
+      auto operator-=( const std::int32_t n ) noexcept -> const_iterator&
       {
         m_column -= n;
         return *this;
       }
 
-      auto operator*() const noexcept -> const query_result::Field&
+      auto operator*() const noexcept -> const Field&
       {
         return *this;
       }
 
-      auto operator->() const noexcept -> const query_result::Field*
+      auto operator->() const noexcept -> const Field*
       {
         return this;
       }
 
-      auto operator[]( const std::int32_t n ) const noexcept -> std::unique_ptr<query_result::Field>
+      auto operator[]( const std::int32_t n ) const noexcept -> Field
       {
-        sql::Row::const_iterator *nrv = new sql::Row::const_iterator( *this );
-        nrv += n;
-        return std::unique_ptr<query_result::Field>(nrv);
+        return *( *this + n );
       }
 
-      friend auto operator+( const const_iterator& lhs, const std::int32_t rhs ) noexcept -> std::unique_ptr<query_result::Row::const_iterator>
+      friend auto operator+( const const_iterator& lhs, const std::int32_t rhs ) noexcept -> const_iterator
       {
-        sql::Row::const_iterator *nrv = new sql::Row::const_iterator( lhs );
+        const_iterator nrv( lhs );
         nrv += rhs;
-        return std::unique_ptr<query_result::Row::const_iterator>(nrv);
+        return nrv;
       }
   };
 
@@ -142,16 +140,16 @@ class Row : public query_result::Row {
   auto name( const std::size_t column ) const -> std::string;
 
   // iteration
-  auto begin() const -> std::unique_ptr<query_result::Row::const_iterator>;
+  auto begin() const -> std::unique_ptr<const_iterator>;
 
-  auto end() const -> std::unique_ptr<query_result::Row::const_iterator>;
+  auto end() const -> std::unique_ptr<const_iterator>;
 
-  auto cbegin() const -> std::unique_ptr<query_result::Row::const_iterator>
+  auto cbegin() const -> std::unique_ptr<const_iterator>
   {
     return begin();
   }
 
-  auto cend() const -> std::unique_ptr<query_result::Row::const_iterator>
+  auto cend() const -> std::unique_ptr<const_iterator>
   {
     return end();
   }

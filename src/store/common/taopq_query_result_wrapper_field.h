@@ -25,18 +25,20 @@
  *
  **********************************************************************/
 
+#include <tao/pq.hpp>
+#include <tao/pq/field.hpp>
 #include "store/common/query_result_field.h"
 
 namespace taopq_wrapper {
 
-class Field :: query_result::Field {
+class Field : public query_result::Field {
  private:
   tao::pq::field field;
 
  public:
   Field() = default;
 
-  Field( tao::pq::field* in_field ) noexcept
+  Field( tao::pq::field in_field ) noexcept
       : field(in_field)
   {}
 
@@ -44,7 +46,7 @@ class Field :: query_result::Field {
   auto index() const -> std::size_t;
 
   bool is_null() const;
-  auto get() const -> const char*;
+  auto get(std::size_t* size) const -> const char*;
 };
 
 }

@@ -58,7 +58,7 @@ class Client : public ::Client {
       uint32_t timeout) override;
 
   // Get the value corresponding to key.
-  void Query(std::string &query, query_callback qcb,
+  void Query(const std::string &query, query_callback qcb,
       query_timeout_callback qtcb, uint32_t timeout) override;    
 
  private:

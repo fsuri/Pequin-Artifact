@@ -25,119 +25,36 @@
  *
  **********************************************************************/
 
+#include <memory>
+#include <tao/pq.hpp>
+#include <tao/pq/row.hpp>
 #include "store/common/query_result_row.h"
 #include "store/common/query_result_field.h"
 
 namespace taopq_wrapper {
 
-class Row : query_result::Row {
+class Row : public query_result::Row {
  private:
   tao::pq::row row;
 
  public:
   Row() = default;
 
-  Row( tao::pq::row* in_row ) noexcept
+  Row( tao::pq::row in_row ) noexcept
       : row(in_row)
   {}
 
-  class const_iterator : query_result::Row::const_iterator {
-    private:
-      tao::pq::row::const_iterator taopq_const_iterator;
-      taopq_wrapper::Field field;
-
-      explicit const_iterator( const tao::pq::row::const_iterator iterator) noexcept
-      {
-        taopq_const_iterator = iterator;
-      }
-    public:
-      const_iterator() = default;
-
-      auto operator++() noexcept -> query_result::Row::const_iterator&
-      {
-        taopq_const_iterator++;
-        return *this;
-      }
-
-      auto operator++( int ) noexcept -> query_result::Row::const_iterator
-      {
-        const_iterator nrv( *this );
-        ++*this;
-        return nrv;
-      }
-
-      auto operator+=( const std::int32_t n ) noexcept -> query_result::Row::const_iterator&
-      {
-        taopq_const_iterator += n;
-        return *this;
-      }
-
-      auto operator--() noexcept -> query_result::Row::const_iterator&
-      {
-        --taopq_const_iterator;
-        return *this;
-      }
-
-      auto operator--( int ) noexcept -> query_result::Row::const_iterator
-      {
-        const_iterator nrv( *this );
-        --*this;
-        return nrv;
-      }
-
-      auto operator-=( const std::int32_t n ) noexcept -> query_result::Row::const_iterator&
-      {
-        taopq_const_iterator -= n;
-        return *this;
-      }
-
-      auto operator*() const noexcept -> const query_result::Field&
-      {
-        if(field == null) {
-          field = taopq_wrapper::Field(*taopq_const_iterator);
-        }
-        return *field;
-      }
-
-      auto operator->() const noexcept -> const query_result::Field*
-      {
-        if(field == null) {
-          field = taopq_wrapper::Field(*taopq_const_iterator);
-        }
-        return field;
-      }
-
-      auto operator[]( const std::int32_t n ) const noexcept -> query_result::Field
-      {
-        return taopq_wrapper::Field(taopq_const_iterator + n);
-      }
-  };
-
-  auto operator[]( const std::size_t column ) const -> query_result::Field;
+  auto operator[]( const std::size_t column ) const -> std::unique_ptr<query_result::Field>;
   
   auto columns() const noexcept -> std::size_t;
 
   auto name( const std::size_t column ) const -> std::string;
 
-  auto begin() const -> query_result::Row::const_iterator;
-
-  auto end() const -> query_result::Row::const_iterator;
-
-  auto cbegin() const -> query_result::Row::const_iterator
-  {
-    return begin();
-  }
-
-  auto cend() const -> query_result::Row::const_iterator
-  {
-    return end();
-  }
-
-  auto get( const std::size_t column ) const -> const char*;
+  auto get( const std::size_t column, std::size_t* size ) const -> const char*;
 
   auto is_null( const std::size_t column ) const -> bool;
 
-  auto slice( const std::size_t offset, const std::size_t in_columns ) const -> query_result::Row;
+  auto slice( const std::size_t offset, const std::size_t in_columns ) const -> std::unique_ptr<query_result::Row>;
 };
 
 }

@@ -25,49 +25,40 @@
  *
  **********************************************************************/
 
-#include "store/common/query_result.h"
-#include "store/common/query_result_row.h"
+#include <memory>
+#include "store/common/taopq_query_result_wrapper_row.h"
+#include "store/common/taopq_query_result_wrapper_field.h"
 
 namespace taopq_wrapper {
 
-auto Row::columns() const noexcept -> std::size_t {
+auto Row::columns() const noexcept -> std::size_t 
+{
     return row.columns();
 }
 
 auto Row::name( const std::size_t column ) const -> std::string
 {
-  return row.name();
+  return row.name(column);
 }
 
-bool Row::empty() const
+auto Row::get( const std::size_t column, std::size_t* size ) const -> const char*
 {
-  return row.empty();
-}
-
-auto Row::begin() const -> query_result::QueryResult::const_iterator*
-{
-  return new const_iterator( row.begin() );
-}
-
-auto Row::end() const -> query_result::QueryResult::const_iterator*
-{
-  return new const_iterator( row.end() );
-}
-
-auto Row::get( const std::size_t column ) const -> const char* {
   return row.get(column);
 }
 
-auto Row::is_null( const std::size_t column ) const -> bool {
+auto Row::is_null( const std::size_t column ) const -> bool 
+{
   return row.is_null(column);
 }
 
-auto Row::slice( const std::size_t offset, const std::size_t in_columns ) const -> query_result::Row {
-  return Row(row.slice(offset, in_columns));
+auto Row::slice( const std::size_t offset, const std::size_t in_columns ) const -> std::unique_ptr<query_result::Row> 
+{
+  return std::unique_ptr<query_result::Row>(new taopq_wrapper::Row(row.slice(offset, in_columns)));
 }
 
-auto Row::operator[]( const std::size_t column ) const -> query_result::Field {
-  return taopq_wrapper::Field(row[column]);
+auto Row::operator[]( const std::size_t column ) const -> std::unique_ptr<query_result::Field> 
+{
+  return std::unique_ptr<query_result::Field>(new taopq_wrapper::Field(row[column]));
 }
 
 }

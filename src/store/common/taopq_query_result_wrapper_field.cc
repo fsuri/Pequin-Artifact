@@ -25,7 +25,7 @@
  *
  **********************************************************************/
 
-#include "store/common/query_result_field.h"
+#include "store/common/taopq_query_result_wrapper_field.h"
 
 namespace taopq_wrapper {
 
@@ -41,7 +41,7 @@ bool Field::is_null() const {
     return field.is_null();
 }
 
-auto Field::get() const -> const char* {
+auto Field::get(std::size_t* size) const -> const char* {
     return field.get();
 }
 

@@ -242,7 +242,7 @@ void Client::Put(const std::string &key, const std::string &value,
   });
 }
 
-void Client::Query(std::string &query, query_callback qcb,
+void Client::Query(const std::string &query, query_callback qcb,
     query_timeout_callback qtcb, uint32_t timeout) {
   auto builder = sql::QueryResultProtoBuilder();
   std::vector<std::string> column_names = {"c1", "c2"};

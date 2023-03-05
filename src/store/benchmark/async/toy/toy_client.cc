@@ -84,9 +84,9 @@ void ToyClient::ExecuteToy(){
 
   sleep(1);
   
-  std::string query = "SELECT *";
-  const query_result::QueryResult *queryResult;
-  client.Query(query, &queryResult, timeout);  //--> Edit API in frontend sync_client.
+  const std::string query = "SELECT *";
+  query_result::QueryResult *queryResult;
+  client.Query(query, queryResult, timeout);  //--> Edit API in frontend sync_client.
                                   //For real benchmarks: Also edit in sync_transaction_bench_client.
   // TODO: Figure out what to print based on Query Result
   std::cerr << "Query Result: " << queryResult->name(0) << " | " << queryResult->name(1) << " | " << queryResult->name(2) << std::endl;

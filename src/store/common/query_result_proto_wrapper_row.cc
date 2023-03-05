@@ -42,14 +42,14 @@ auto Row::name( std::size_t column ) const -> std::string
   return m_result->name( m_offset + column );
 }
 
-auto Row::begin() const -> std::unique_ptr<query_result::Row::const_iterator>
+auto Row::begin() const -> std::unique_ptr<const_iterator>
 {
-  return std::unique_ptr<query_result::Row::const_iterator>(new const_iterator( Field( *this, m_offset ) ));
+  return std::unique_ptr<const_iterator>(new const_iterator( Field( *this, m_offset ) ));
 }
 
-auto Row::end() const -> std::unique_ptr<query_result::Row::const_iterator>
+auto Row::end() const -> std::unique_ptr<const_iterator>
 {
-  return std::unique_ptr<query_result::Row::const_iterator>(new const_iterator( Field( *this, m_offset + m_columns ) ));
+  return std::unique_ptr<const_iterator>(new const_iterator( Field( *this, m_offset + m_columns ) ));
 }
 
 auto Row::get( const std::size_t column, std::size_t* size ) const -> const char*

@@ -40,6 +40,10 @@ LDFLAGS += -l:libcryptopp.a #why does lcryptopp not work? why the .a file here?
 LDFLAGS += -lsodium
 # blake3
 LDFLAGS += -lblake3
+# taopq
+CFLAGS += -I/usr/include/postgresql
+LDFLAGS += -ltaopq
+LDFLAGS += -lpq
 # bitcoin-core/secp256k1
 LIBSECP256K1_CFLAGS := $(shell pkg-config --cflags libsecp256k1)
 LIBSECP256K1_LDFLAGS := $(shell pkg-config --libs libsecp256k1)
