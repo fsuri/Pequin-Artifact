@@ -310,6 +310,20 @@ void Server::ProcessQuery(queryMetaDataMap::accessor &q, const TransportAddress 
 
     //FindSnapshot(local_ss, query_cmd); //TODO: Function that calls blackbox exec and sets snapshot.
 
+    //FIXME: TOY TX PROOF IN COMMITTED
+    std::string test_txn_id = "[test_id_of_length_32 bytes----]";
+    proto::CommittedProof *proof = new proto::CommittedProof();
+    //Genesis proof: client id + client seq = 0.
+        proof->mutable_txn()->set_client_id(0);
+    proof->mutable_txn()->set_client_seq_num(0);
+     uint64_t ts = 5UL << 32; //timeServer.GetTime(); 
+    proof->mutable_txn()->mutable_timestamp()->set_timestamp(ts);
+    proof->mutable_txn()->mutable_timestamp()->set_id(0UL);
+    committed[test_txn_id] = proof;
+    
+     ts_to_tx.insert(std::make_pair(MergeTimestampId(ts, 0UL), test_txn_id));
+
+
     //FIXME: TOY INSERT TESTING.
         //-- real tx-ids are cryptographic hashes of length 256bit = 32 byte.
             for(auto const&[tx_id, proof] : committed){
@@ -368,12 +382,14 @@ void Server::ProcessQuery(queryMetaDataMap::accessor &q, const TransportAddress 
             smsgs.push_back(syncReply->mutable_signed_local_ss());
             SignMessages(msgs, keyManager->GetPrivateKey(id), id, smsgs, params.merkleBranchFactor);
         }
-        
         this->transport->SendMessage(this, remote, *syncReply);
         Debug("Sent Signed Query Sync Snapshot for Query[%lu:%lu:%d]", ls->query_seq_num(), ls->client_id(), query->retry_version());
         delete syncReply;
         delete ls;
      }
+    }
+    else{
+        this->transport->SendMessage(this, remote, *syncReply);
     }
    
     delete query;
@@ -508,10 +524,12 @@ void Server::ProcessSync(queryMetaDataMap::accessor &q, const TransportAddress &
     query_md->merged_ss_msg = merged_ss; //FIXME: Don't delete at the end. 
 
     //1) Determine all missing transactions 
-    query_md->missing_txns.clear();
+    //query_md->missing_txns.clear();
+    //query_md->missing_ts.clear();
     std::map<uint64_t, proto::RequestMissingTxns> replica_requests = {};
 
     std::string query_retry_id = QueryRetryId(*queryId, query_md->retry_version, (params.query_params.signClientQueries && params.query_params.cacheReadSet && params.hashDigest)); 
+    Debug("Query id: %s. Query retry id: %s", BytesToHex(*queryId, 16).c_str(), BytesToHex(query_retry_id, 24).c_str());
     queryMissingTxnsMap::accessor qm;
     bool first_qm = queryMissingTxns.insert(qm, query_retry_id); //Note: ClearMetaData: Deletes previous retry_version.
     UW_ASSERT(first_qm); //ProcessSync should never be called twice for one retry version.
@@ -520,8 +538,7 @@ void Server::ProcessSync(queryMetaDataMap::accessor &q, const TransportAddress &
     std::unordered_map<uint64_t, uint64_t> &missing_ts = qm->second.missing_ts; //query_md->missing_ts;
     // If missing empty after checking snapshot -> erase again
     
-     //TODO: SetWaiting needs to pass query_retry_id, not queryId.
-     //TODO: UpdateWaiting needs to lock qm. Add query to list. Lookup query and check retry version before waking.!
+     //Note: SetWaiting needs to pass query_retry_id, not queryId.
 
     //Using normal tx-id
     if(!query_md->useOptimisticTxId){
@@ -586,12 +603,13 @@ void Server::ProcessSync(queryMetaDataMap::accessor &q, const TransportAddress &
     }
     
     //Update queryMissingTxns meta data.
-    if(missing_txns.empty()){
-        queryMissingTxns.erase(qm); //No missing transactions -> no need to wait.
-    } 
-    else{
+    if(!missing_txns.empty() || !missing_ts.empty()){
         qm->second.query_id = *queryId;  //Needed to lookup QueryMetaData upon waking.
         qm->second.retry_version = query_md->retry_version;
+    } 
+    else{
+        Debug("No missing txns for Query Retry id %s", BytesToHex(query_retry_id, 16).c_str());
+        queryMissingTxns.erase(qm); //No missing transactions -> no need to wait.
     }
     qm.release();
 
@@ -606,9 +624,9 @@ void Server::ProcessSync(queryMetaDataMap::accessor &q, const TransportAddress &
     if(replica_requests.empty()){
         HandleSyncCallback(query_md, *queryId);
         q.release();
-       
     }
     else{  //if there are missng txn, i.e. replica_requests not empty ==> send out sync requests.
+        query_md->is_waiting = true; //Note: If query is waiting, but (byz) client supplied wrong/insufficient replicas to sync from ==> query loses liveness.
         q.release();
         Debug("Sync State incomplete for Query[%lu:%lu:%d]", merged_ss->query_seq_num(), merged_ss->client_id(), merged_ss->retry_version()); 
         for(auto const &[replica_idx, replica_req] : replica_requests){
@@ -658,13 +676,7 @@ void Server::SetWaiting(std::unordered_map<std::string, uint64_t> &missing_txns,
 void Server::SetWaitingTS(std::unordered_map<uint64_t, uint64_t> &missing_ts, const uint64_t &ts_id, const std::string *queryId, const std::string &query_retry_id,
     const proto::ReplicaList &replica_list, std::map<uint64_t, proto::RequestMissingTxns> &replica_requests)
 {
-    Panic("Sync on TS-Ids not yet supported");
-
-    //1) Need waitingQuery data structure on Ids
-    //2) Need to add TS to missing
-    
-    //3) Need to modify RequestMissingTx
-    //4) Need to modify SupplyMissingTx
+    //Panic("Sync on TS-Ids not yet supported");
 
     // Upon receiving Tx from sync -> need to update merged_ss with txn.
       //Add to waiting data structure.
@@ -972,7 +984,7 @@ void Server::ProcessSuppliedTxn(const std::string &txn_id, proto::TxnInfo &txn_i
             valid = true;
             Debug("Accepted Genesis tx-id: [%s]", BytesToHex(txn_id, 16).c_str());
             UpdateWaitingQueries(txn_id); //Does not seem necessary for Genesis, but shouldn't hurt
-            UpdateWaitingQueriesTS(0UL, txn_id);
+            UpdateWaitingQueriesTS(MergeTimestampId(proof->txn().timestamp().timestamp(), proof->txn().timestamp().id()), txn_id);
         }
         else{
             //Confirm that replica supplied correct transaction.     //TODO: Note: Since one should do this anyways, there is no point in storing txn_id as part of supply message.
@@ -1236,6 +1248,7 @@ void Server::UpdateWaitingQueries(const std::string &txnDigest, bool is_abort){
     waitingQueryMap::accessor w;
     bool hasWaiting = waitingQueries.find(w, txnDigest);
     if(hasWaiting){
+         Debug("Some Queries are waiting on txn_id %s", BytesToHex(txnDigest, 16).c_str());
         for(const std::string &waiting_query : w->second){
 
              //2) update their missing data structures
@@ -1272,6 +1285,7 @@ void Server::UpdateWaitingQueries(const std::string &txnDigest, bool is_abort){
                 query_md->merged_ss_msg->mutable_merged_txns()->erase(txnDigest); 
                
                 //5) if query is waiting and retry_version is still current: Start Callback.
+                Debug("Stored Query: %s has retry version %lu, and is %s waiting", BytesToHex(queryId, 16).c_str(), query_md->retry_version, query_md->is_waiting ? "" : "not");
                 if(query_md->is_waiting && query_md->retry_version == retry_version){ 
                      Debug("Waking Query[%lu:%lu:%lu]", query_md->query_seq_num, query_md->client_id, query_md->retry_version);
                     //Note: is_waiting -> make sure query is waiting. E.g. missing_txn could be empty because we re-tried the query and now are not missing any. In this case is_waiting will be set to false. -> no need to call callback
@@ -1301,6 +1315,9 @@ void Server::UpdateWaitingQueries(const std::string &txnDigest, bool is_abort){
 //(Alternatively: Could transform later to save lookups to query_md inside UpdateWaitingQueries. But it's less clean if later layers need to be aware of TS sync still.)
     //In this case: During sync callback: For every Ts in merged_ts ==> lookup tx and add to mergedTS.
 void Server::UpdateWaitingQueriesTS(const uint64_t &txnTS, const std::string &txnDigest, bool is_abort){
+
+     Debug("Checking whether can wake all queries waiting on txn_id %s with ts_id %lu", BytesToHex(txnDigest, 16).c_str(), txnTS);
+
     std::map<std::string, uint64_t> queries_to_wake;
     std::map<std::string, uint64_t> queries_to_update_txn; //All queries (besides the ones we wake anyways) from whose snapshot we want to add/remove the txn. Note: This is just an optimization to not loop twice
 
@@ -1308,8 +1325,9 @@ void Server::UpdateWaitingQueriesTS(const uint64_t &txnTS, const std::string &tx
     waitingQueryTSMap::accessor w;
     bool hasWaiting = waitingQueriesTS.find(w, txnTS);
     if(hasWaiting){
+        Debug("Some Queries are waiting on txn_id %s with ts_id %lu", BytesToHex(txnDigest, 16).c_str(), txnTS);
         for(const std::string &waiting_query : w->second){
-
+            Debug("Query_retry_version %s waiting on txn_id %s with ts_id %lu", BytesToHex(waiting_query, 16).c_str(), BytesToHex(txnDigest, 16).c_str(), txnTS);
              //2) update their missing data structures
             // Lookup queryMissingTxns ... => mark map of "waking query + retry_version" ==> after releasing w try to lock them all.
             queryMissingTxnsMap::accessor qm;
@@ -1337,6 +1355,7 @@ void Server::UpdateWaitingQueriesTS(const uint64_t &txnTS, const std::string &tx
 
     //4) Try to wake all ready queries.
     for(auto &[queryId, retry_version]: queries_to_wake){
+        Debug("Trying to wake Query: %s with retry version %lu", BytesToHex(queryId, 16).c_str(), retry_version);
         queryMetaDataMap::accessor q;
         bool queryActive = queryMetaData.find(q, queryId);
         if(queryActive){
@@ -1349,7 +1368,7 @@ void Server::UpdateWaitingQueriesTS(const uint64_t &txnTS, const std::string &tx
                  (*query_md->merged_ss_msg->mutable_merged_txns())[txnDigest]; //(Just add with default constructor --> empty ReplicaList)
                 }
             
-               
+                Debug("Stored Query: %s has retry version %lu, and is %s waiting", BytesToHex(queryId, 16).c_str(), query_md->retry_version, query_md->is_waiting ? "" : "not");
                 //5) if query is waiting and retry_version is still current: Start Callback.
                 if(query_md->is_waiting && query_md->retry_version == retry_version){ 
                      Debug("Waking Query[%lu:%lu:%lu]", query_md->query_seq_num, query_md->client_id, query_md->retry_version);

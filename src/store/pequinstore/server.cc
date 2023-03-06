@@ -137,6 +137,7 @@ Server::Server(const transport::Configuration &config, int groupIdx, int idx,
   proof->mutable_txn()->mutable_timestamp()->set_id(0);
 
   committed.insert(std::make_pair("", proof));
+  ts_to_tx.insert(std::make_pair(MergeTimestampId(0, 0), ""));
 }
 
 Server::~Server() {
@@ -671,7 +672,6 @@ void Server::HandlePhase1(const TransportAddress &remote,
     proto::Phase1 &msg) {
   //dummyTx = msg.txn(); //PURELY TESTING PURPOSES!!: NOTE WARNING
  
- Debug("Received Phase1 message");
   proto::Transaction *txn;
   if(params.signClientProposals){
     txn = new proto::Transaction();
@@ -685,6 +685,7 @@ void Server::HandlePhase1(const TransportAddress &remote,
   }
   
   std::string txnDigest = TransactionDigest(*txn, params.hashDigest); //could parallelize it too hypothetically
+  Debug("Received Phase1 message for txn id: %s", BytesToHex(txnDigest, 16).c_str());
   if(params.signClientProposals) *txn->mutable_txndigest() = txnDigest; //Hack to have access to txnDigest inside TXN later (used for abstain conflict)
   
 

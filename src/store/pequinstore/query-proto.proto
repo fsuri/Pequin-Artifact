@@ -150,7 +150,7 @@ message MergedSnapshot {
    map<uint64, ReplicaList> merged_ts = 6; //map from txn digest to replicas that have txn.
 
    //map<string, ReplicaList> merged_txns_prepared = 7; //dont think one needs to distinguish at this point. ==> might want to store it separately so that client can remember what are deps? ==> store a flag
-   required TimestampMessage timestamp = 7; //
+   //required TimestampMessage timestamp = 7; //
 }
 
 //client sends proposed merged snapshot. Replicas use it to ExecQuery and send back QueryReply

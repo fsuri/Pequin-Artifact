@@ -85,6 +85,11 @@ void ToyClient::ExecuteToy(){
             std::cerr << "value read for x: " << readValue << "\n"; //Dummy read --> will read from buffered put; will not add to read set
               client.Get("y", readValue, timeout);
             std::cerr << "value read for x: " << readValue << "\n";
+            client.Commit(timeout);
+            std::cerr << "Committed value for x\n";
+
+            
+            client.Begin(timeout);
 
             std::string query = "SELECT *";
             std::string queryResult;
@@ -99,7 +104,7 @@ void ToyClient::ExecuteToy(){
 
 
             client.Commit(timeout);
-            std::cerr << "Committed value for x\n";
+            std::cerr << "Committed Query\n";
 
             // sleep(1);
             
