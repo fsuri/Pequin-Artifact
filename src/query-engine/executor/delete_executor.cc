@@ -28,7 +28,7 @@
 #include "../storage/tuple.h"
 #include "../concurrency/transaction_manager_factory.h"
 #include "../catalog/trigger_catalog.h"
-#include "../trigger/trigger.h"
+//#include "../trigger/trigger.h"
 #include "../catalog/table_catalog.h"
 #include "../parser/pg_trigger.h"
 
@@ -98,7 +98,7 @@ bool DeleteExecutor::DExecute() {
   auto target_table_schema = target_table_->GetSchema();
   auto column_count = target_table_schema->GetColumnCount();
 
-  trigger::TriggerList *trigger_list = target_table_->GetTriggerList();
+  /*trigger::TriggerList *trigger_list = target_table_->GetTriggerList();
   if (trigger_list != nullptr) {
     LOG_TRACE("size of trigger list in target table: %d",
               trigger_list->GetTriggerListSize());
@@ -107,7 +107,7 @@ bool DeleteExecutor::DExecute() {
       trigger_list->ExecTriggers(TriggerType::BEFORE_DELETE_STATEMENT,
                                  current_txn);
     }
-  }
+  }*/
 
   // Delete each tuple
   for (oid_t visible_tuple_id : *source_tile) {
@@ -170,7 +170,7 @@ bool DeleteExecutor::DExecute() {
 
     // check whether there are per-row-before-delete triggers on this table
     // using trigger catalog
-    if (trigger_list != nullptr) {
+    /*if (trigger_list != nullptr) {
       LOG_TRACE("size of trigger list in target table: %d",
                 trigger_list->GetTriggerListSize());
       if (trigger_list->HasTriggerType(TriggerType::BEFORE_DELETE_ROW)) {
@@ -186,7 +186,7 @@ bool DeleteExecutor::DExecute() {
         trigger_list->ExecTriggers(TriggerType::BEFORE_DELETE_ROW, current_txn,
                                    real_tuple.get(), executor_context_);
       }
-    }
+    }*/
 
     if (is_owner == true && is_written == true) {
       // if the transaction is the owner of the tuple, then directly update in
@@ -249,7 +249,7 @@ bool DeleteExecutor::DExecute() {
     }
     // execute after-delete-row triggers and
     // record on-commit-delete-row triggers into current transaction
-    if (trigger_list != nullptr) {
+    /*if (trigger_list != nullptr) {
       LOG_TRACE("size of trigger list in target table: %d",
                 trigger_list->GetTriggerListSize());
       if (trigger_list->HasTriggerType(TriggerType::AFTER_DELETE_ROW) ||
@@ -275,11 +275,11 @@ bool DeleteExecutor::DExecute() {
                                      executor_context_);
         }
       }
-    }
+    }*/
   }
   // execute after-delete-statement triggers and
   // record on-commit-delete-statement triggers into current transaction
-  if (trigger_list != nullptr) {
+  /*if (trigger_list != nullptr) {
     LOG_TRACE("size of trigger list in target table: %d",
               trigger_list->GetTriggerListSize());
     if (trigger_list->HasTriggerType(TriggerType::AFTER_DELETE_STATEMENT)) {
@@ -292,7 +292,7 @@ bool DeleteExecutor::DExecute() {
       trigger_list->ExecTriggers(TriggerType::ON_COMMIT_DELETE_STATEMENT,
                                  current_txn);
     }
-  }
+  }*/
   return true;
 }
 

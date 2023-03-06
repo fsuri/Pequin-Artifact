@@ -129,7 +129,7 @@ void SystemCatalogs::Bootstrap(concurrency::TransactionContext *txn,
   pg_table_->UpdateOid(OID_FOR_USER_OFFSET);
   pg_index_->UpdateOid(OID_FOR_USER_OFFSET);
   pg_constraint_->UpdateOid(OID_FOR_USER_OFFSET);
-  pg_trigger_->UpdateOid(OID_FOR_USER_OFFSET);
+  //pg_trigger_->UpdateOid(OID_FOR_USER_OFFSET);
   // pg_proc->UpdateOid(OID_FOR_USER_OFFSET);
 }
 

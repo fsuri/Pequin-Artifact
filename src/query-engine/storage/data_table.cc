@@ -67,8 +67,8 @@ DataTable::DataTable(catalog::Schema *schema, const std::string &table_name,
       table_name(table_name),
       tuples_per_tilegroup_(tuples_per_tilegroup),
       current_layout_oid_(ATOMIC_VAR_INIT(COLUMN_STORE_LAYOUT_OID)),
-      adapt_table_(adapt_table),
-      trigger_list_(new trigger::TriggerList()) {
+      adapt_table_(adapt_table)/*,
+      trigger_list_(new trigger::TriggerList())*/ {
   if (is_catalog == true) {
     active_tilegroup_count_ = 1;
     active_indirection_array_count_ = 1;
@@ -1288,7 +1288,7 @@ storage::TileGroup *DataTable::TransformTileGroup(
   }
 }*/
 
-void DataTable::AddTrigger(trigger::Trigger new_trigger) {
+/*void DataTable::AddTrigger(trigger::Trigger new_trigger) {
   trigger_list_->AddTrigger(new_trigger);
 }
 
@@ -1312,7 +1312,7 @@ void DataTable::UpdateTriggerListFromCatalog(
       ->GetSystemCatalogs(database_oid)
       ->GetTriggerCatalog()
       ->GetTriggers(txn, table_oid);
-}
+}*/
 
 hash_t DataTable::Hash() const {
   auto oid = GetOid();

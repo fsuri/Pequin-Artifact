@@ -51,14 +51,14 @@ class TriggerCatalog : public AbstractCatalog {
                  const std::string &database_name);
   ~TriggerCatalog();
 
-  oid_t GetNextOid() { return oid_++ | TRIGGER_OID_MASK; }
+  /*oid_t GetNextOid() { return oid_++ | TRIGGER_OID_MASK; }
 
-  void UpdateOid(oid_t add_value) { oid_ += add_value; }
+  void UpdateOid(oid_t add_value) { oid_ += add_value; }*/
 
   //===--------------------------------------------------------------------===//
   // write Related API
   //===--------------------------------------------------------------------===//
-  bool InsertTrigger(concurrency::TransactionContext *txn,
+  /*bool InsertTrigger(concurrency::TransactionContext *txn,
                      oid_t table_oid,
                      std::string trigger_name,
                      int16_t trigger_type,
@@ -93,7 +93,7 @@ class TriggerCatalog : public AbstractCatalog {
 
   oid_t GetTriggerOid(concurrency::TransactionContext *txn,
                       oid_t table_oid,
-                      std::string trigger_name);
+                      std::string trigger_name);*/
 
   enum ColumnId {
     TRIGGER_OID = 0,

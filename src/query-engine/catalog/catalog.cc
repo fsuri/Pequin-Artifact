@@ -1309,7 +1309,7 @@ ResultType Catalog::DropTable(concurrency::TransactionContext *txn,
   auto index_objects = table_object->GetIndexCatalogEntries();
   LOG_TRACE("dropping #%d indexes", (int) index_objects.size());
   // delete trigger and records in pg_trigger
-  auto pg_trigger =
+  /*auto pg_trigger =
       catalog_map_[database_object->GetDatabaseOid()]->GetTriggerCatalog();
   std::unique_ptr<trigger::TriggerList> trigger_lists =
       pg_trigger->GetTriggers(txn, table_oid);
@@ -1317,7 +1317,7 @@ ResultType Catalog::DropTable(concurrency::TransactionContext *txn,
     pg_trigger->DropTrigger(txn,
                             database_oid,
                             table_oid,
-                            trigger_lists->Get(i)->GetTriggerName());
+                            trigger_lists->Get(i)->GetTriggerName());*/
 
   // delete record in pg_constraint
   auto pg_constraint =

@@ -171,7 +171,7 @@ bool UpdateExecutor::DExecute() {
   auto target_table_schema = target_table_->GetSchema();
   auto column_count = target_table_schema->GetColumnCount();
 
-  trigger::TriggerList *trigger_list = target_table_->GetTriggerList();
+  /*trigger::TriggerList *trigger_list = target_table_->GetTriggerList();
   if (trigger_list != nullptr) {
     LOG_TRACE("size of trigger list in target table: %d",
               trigger_list->GetTriggerListSize());
@@ -180,7 +180,7 @@ bool UpdateExecutor::DExecute() {
       trigger_list->ExecTriggers(TriggerType::BEFORE_UPDATE_STATEMENT,
                                  current_txn);
     }
-  }
+  }*/
 
   // Update tuples in a given table
   for (oid_t visible_tuple_id : *source_tile) {
@@ -223,14 +223,14 @@ bool UpdateExecutor::DExecute() {
       continue;
     }
 
-    if (trigger_list != nullptr) {
+    /*if (trigger_list != nullptr) {
       LOG_TRACE("size of trigger list in target table: %d",
                 trigger_list->GetTriggerListSize());
       if (trigger_list->HasTriggerType(TriggerType::BEFORE_UPDATE_ROW)) {
         LOG_TRACE("target table has per-row-before-update triggers!");
         trigger_list->ExecTriggers(TriggerType::BEFORE_INSERT_ROW, current_txn);
       }
-    }
+    }*/
 
     bool is_owner = transaction_manager.IsOwner(current_txn, tile_group_header,
                                                 physical_tuple_id);
@@ -376,7 +376,7 @@ bool UpdateExecutor::DExecute() {
 
           // execute after-update-row triggers and
           // record on-commit-update-row triggers into current transaction
-          if (trigger_list != nullptr) {
+          /*if (trigger_list != nullptr) {
             LOG_TRACE("size of trigger list in target table: %d",
                       trigger_list->GetTriggerListSize());
             if (trigger_list->HasTriggerType(TriggerType::AFTER_UPDATE_ROW) ||
@@ -414,7 +414,7 @@ bool UpdateExecutor::DExecute() {
                                            real_old_tuple.get());
               }
             }
-          }
+          }*/
         }
       } else {
         // transaction should be aborted as we cannot update the latest version.
@@ -428,7 +428,7 @@ bool UpdateExecutor::DExecute() {
 
   // execute after-update-statement triggers and
   // record on-commit-update-statement triggers into current transaction
-  if (trigger_list != nullptr) {
+  /*if (trigger_list != nullptr) {
     LOG_TRACE("size of trigger list in target table: %d",
               trigger_list->GetTriggerListSize());
     if (trigger_list->HasTriggerType(TriggerType::AFTER_UPDATE_STATEMENT)) {
@@ -441,7 +441,7 @@ bool UpdateExecutor::DExecute() {
       trigger_list->ExecTriggers(TriggerType::ON_COMMIT_UPDATE_STATEMENT,
                                  current_txn);
     }
-  }
+  }*/
   return true;
 }
 

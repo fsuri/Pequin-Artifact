@@ -68,7 +68,7 @@ TriggerCatalog::TriggerCatalog(concurrency::TransactionContext *txn,
 
 TriggerCatalog::~TriggerCatalog() {}
 
-bool TriggerCatalog::InsertTrigger(concurrency::TransactionContext *txn,
+/*bool TriggerCatalog::InsertTrigger(concurrency::TransactionContext *txn,
                                    oid_t table_oid,
                                    std::string trigger_name,
                                    int16_t trigger_type,
@@ -253,7 +253,7 @@ std::unique_ptr<trigger::TriggerList> TriggerCatalog::GetTriggers(concurrency::T
   }
 
   return new_trigger_list;
-}
+}*/
 
 }  // namespace catalog
 }  // namespace peloton

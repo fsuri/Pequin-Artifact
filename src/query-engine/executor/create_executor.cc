@@ -69,7 +69,7 @@ bool CreateExecutor::DExecute() {
 
     // if query was for creating trigger
     case CreateType::TRIGGER: {
-      result = CreateTrigger(node);
+      //result = CreateTrigger(node);
       break;
     }
 
@@ -295,7 +295,7 @@ bool CreateExecutor::CreateIndex(const planner::CreatePlan &node) {
   return (true);
 }
 
-bool CreateExecutor::CreateTrigger(const planner::CreatePlan &node) {
+/*bool CreateExecutor::CreateTrigger(const planner::CreatePlan &node) {
   auto txn = context_->GetTransaction();
   std::string database_name = node.GetDatabaseName();
   std::string schema_name = node.GetSchemaName();
@@ -348,7 +348,7 @@ bool CreateExecutor::CreateTrigger(const planner::CreatePlan &node) {
   // in installing the trigger.
 
   return (true);
-}
+}*/
 
 }  // namespace executor
 }  // namespace peloton

@@ -52,7 +52,7 @@ class CreateExecutor : public AbstractExecutor {
 
   bool CreateIndex(const planner::CreatePlan &node);
 
-  bool CreateTrigger(const planner::CreatePlan &node);
+  //bool CreateTrigger(const planner::CreatePlan &node);
 
  private:
   ExecutorContext *context_;

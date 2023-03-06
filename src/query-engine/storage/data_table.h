@@ -26,7 +26,8 @@
 #include "../storage/abstract_table.h"
 #include "../storage/indirection_array.h"
 #include "../storage/layout.h"
-#include "../trigger/trigger.h"
+#include "../catalog/schema.h"
+//#include "../trigger/trigger.h"
 
 //===--------------------------------------------------------------------===//
 // Configuration Variables
@@ -163,7 +164,7 @@ class DataTable : public AbstractTable {
   // TRIGGER
   //===--------------------------------------------------------------------===//
 
-  void AddTrigger(trigger::Trigger new_trigger);
+  /*void AddTrigger(trigger::Trigger new_trigger);
 
   int GetTriggerNumber();
 
@@ -171,7 +172,7 @@ class DataTable : public AbstractTable {
 
   trigger::TriggerList *GetTriggerList();
 
-  void UpdateTriggerListFromCatalog(concurrency::TransactionContext *txn);
+  void UpdateTriggerListFromCatalog(concurrency::TransactionContext *txn);*/
 
   //===--------------------------------------------------------------------===//
   // INDEX
@@ -437,7 +438,7 @@ class DataTable : public AbstractTable {
   static oid_t invalid_tile_group_id;
 
   // trigger list
-  std::unique_ptr<trigger::TriggerList> trigger_list_;
+  //std::unique_ptr<trigger::TriggerList> trigger_list_;
 };
 
 }  // namespace storage

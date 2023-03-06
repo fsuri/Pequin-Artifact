@@ -54,8 +54,8 @@ class DropExecutor : public AbstractExecutor {
   bool DropTable(const planner::DropPlan &node,
                  concurrency::TransactionContext *txn);
 
-  bool DropTrigger(const planner::DropPlan &node,
-                   concurrency::TransactionContext *txn);
+  /*bool DropTrigger(const planner::DropPlan &node,
+                   concurrency::TransactionContext *txn);*/
 
   bool DropIndex(const planner::DropPlan &node,
                  concurrency::TransactionContext *txn);

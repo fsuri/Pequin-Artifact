@@ -58,7 +58,7 @@ bool DropExecutor::DExecute() {
       break;
     }
     case DropType::TRIGGER: {
-      result = DropTrigger(node, current_txn);
+      //result = DropTrigger(node, current_txn);
       break;
     }
     case DropType::INDEX: {
@@ -191,7 +191,7 @@ bool DropExecutor::DropTable(const planner::DropPlan &node,
   return false;
 }
 
-bool DropExecutor::DropTrigger(const planner::DropPlan &node,
+/*bool DropExecutor::DropTrigger(const planner::DropPlan &node,
                                concurrency::TransactionContext *txn) {
   std::string database_name = node.GetDatabaseName();
   std::string schema_name = node.GetSchemaName();
@@ -229,7 +229,7 @@ bool DropExecutor::DropTrigger(const planner::DropPlan &node,
     LOG_TRACE("Result is: %s", ResultTypeToString(txn->GetResult()).c_str());
   }
   return false;
-}
+}*/
 
 bool DropExecutor::DropIndex(const planner::DropPlan &node,
                              concurrency::TransactionContext *txn) {

@@ -139,7 +139,7 @@ SRCS += $(addprefix $(d), threadpool/worker_pool.cc)
 SRCS += $(addprefix $(d), traffic_cop/traffic_cop.cc)
 
 # Trigger
-SRCS += $(addprefix $(d), trigger/trigger.cc)
+#SRCS += $(addprefix $(d), trigger/trigger.cc)
 
 # Tuning
 #SRCS += $(addprefix $(d), tuning/clusterer.cc tuning/index_tuner.cc tuning/layout_tuner.cc tuning/sample.cc)
@@ -297,7 +297,7 @@ LIB-threadpool := $(o)threadpool/worker_pool.o
 LIB-traffic-cop := $(o)traffic_cop/traffic_cop.o
 
 # Trigger
-LIB-trigger := $(o)trigger/trigger.o
+#LIB-trigger := $(o)trigger/trigger.o
 
 # Tuning
 #LIB-tuning := $(o)tuning/clusterer.o $(o)tuning/index_tuner.o $(o)tuning/layout_tuner.o $(o)tuning/sample.o

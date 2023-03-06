@@ -21,7 +21,7 @@
 #include "../planner/insert_plan.h"
 #include "../storage/data_table.h"
 #include "../storage/tuple_iterator.h"
-#include "../trigger/trigger.h"
+//#include "../trigger/trigger.h"
 #include "../storage/tuple.h"
 #include "../catalog/catalog.h"
 #include "../catalog/trigger_catalog.h"
@@ -78,7 +78,7 @@ bool InsertExecutor::DExecute() {
             target_table->GetTupleCount());
   auto executor_pool = executor_context_->GetPool();
 
-  trigger::TriggerList *trigger_list = target_table->GetTriggerList();
+  /*trigger::TriggerList *trigger_list = target_table->GetTriggerList();
   if (trigger_list != nullptr) {
     LOG_TRACE("size of trigger list in target table: %d",
               trigger_list->GetTriggerListSize());
@@ -87,7 +87,7 @@ bool InsertExecutor::DExecute() {
       trigger_list->ExecTriggers(TriggerType::BEFORE_INSERT_STATEMENT,
                                  current_txn);
     }
-  }
+  }*/
 
   // Inserting a logical tile.
   if (children_.size() == 1) {
@@ -137,7 +137,7 @@ bool InsertExecutor::DExecute() {
 
     // execute after-insert-statement triggers and
     // record on-commit-insert-statement triggers into current transaction
-    if (trigger_list != nullptr) {
+    /*if (trigger_list != nullptr) {
       LOG_TRACE("size of trigger list in target table: %d",
                 trigger_list->GetTriggerListSize());
       if (trigger_list->HasTriggerType(TriggerType::AFTER_INSERT_STATEMENT)) {
@@ -151,7 +151,7 @@ bool InsertExecutor::DExecute() {
         trigger_list->ExecTriggers(TriggerType::ON_COMMIT_INSERT_STATEMENT,
                                    current_txn);
       }
-    }
+    }*/
     return true;
   }
   // Inserting a collection of tuples from plan node
@@ -204,10 +204,10 @@ bool InsertExecutor::DExecute() {
         }
       }
 
-      trigger::TriggerList *trigger_list = target_table->GetTriggerList();
+      //trigger::TriggerList *trigger_list = target_table->GetTriggerList();
 
       auto new_tuple = tuple;
-      if (trigger_list != nullptr) {
+      /*if (trigger_list != nullptr) {
         LOG_TRACE("size of trigger list in target table: %d",
                   trigger_list->GetTriggerListSize());
         if (trigger_list->HasTriggerType(TriggerType::BEFORE_INSERT_ROW)) {
@@ -221,7 +221,7 @@ bool InsertExecutor::DExecute() {
           LOG_TRACE("address of the new tuple after firing triggers: 0x%lx",
                     long(new_tuple));
         }
-      }
+      }*/
 
       if (new_tuple == nullptr) {
         // trigger doesn't allow this tuple to be inserted
@@ -255,7 +255,7 @@ bool InsertExecutor::DExecute() {
       // execute after-insert-row triggers and
       // record on-commit-insert-row triggers into current transaction
       new_tuple = tuple;
-      if (trigger_list != nullptr) {
+      /*if (trigger_list != nullptr) {
         LOG_TRACE("size of trigger list in target table: %d",
                   trigger_list->GetTriggerListSize());
         if (trigger_list->HasTriggerType(TriggerType::AFTER_INSERT_ROW)) {
@@ -279,11 +279,11 @@ bool InsertExecutor::DExecute() {
           LOG_TRACE("address of the new tuple after firing triggers: 0x%lx",
                     long(new_tuple));
         }
-      }
+      }*/
     }
     // execute after-insert-statement triggers and
     // record on-commit-insert-statement triggers into current transaction
-    trigger_list = target_table->GetTriggerList();
+    /*trigger_list = target_table->GetTriggerList();
     if (trigger_list != nullptr) {
       LOG_TRACE("size of trigger list in target table: %d",
                 trigger_list->GetTriggerListSize());
@@ -298,7 +298,7 @@ bool InsertExecutor::DExecute() {
         trigger_list->ExecTriggers(TriggerType::ON_COMMIT_INSERT_STATEMENT,
                                    current_txn);
       }
-    }
+    }*/
     done_ = true;
     return true;
   }
