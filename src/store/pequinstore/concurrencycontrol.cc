@@ -136,14 +136,31 @@ void Server::wakeSubscribedTx(const std::string query_id, const uint64_t &retry_
 
     if(ready){ //Wakeup Tx for processing
      Debug("Ready to wakeup and resume P1 processing for Txn: %s", BytesToHex(txnDigest, 16).c_str());
-      if(waiting_meta->prepare_or_commit==0) TryPrepare(waiting_meta->reqId, *waiting_meta->remote, waiting_meta->txn, txnDigest, waiting_meta->isGossip); //Includes call to HandlePhase1CB(..); 
+      if(waiting_meta->prepare_or_commit==0){
+        //Thread management...
+        if(!params.query_params.parallel_queries || !params.mainThreadDispatching){
+          //If !parallel_queries.  ==> both Query and P1 follow the same dispatch rules (either both on network or both on main)
+          //if parallel_queries && !mainThreadDispatching  => parallel_queries has no effect. Thus both Query and P1 follow same dispatch rules (depends on dispatchMessageReceive)
+          TryPrepare(waiting_meta->reqId, *waiting_meta->remote, waiting_meta->txn, txnDigest, waiting_meta->isGossip); //Includes call to HandlePhase1CB(..); 
+          delete waiting_meta;
+        }
+        else{ //params.mainThreadDispatching = true && parallel_queries == true ==> Query is on worker; but P1 should be on main (//TODO: Does it really need to be?)
+           auto f = [this, waiting_meta, txnDigest]() mutable {
+              TryPrepare(waiting_meta->reqId, *waiting_meta->remote, waiting_meta->txn, txnDigest, waiting_meta->isGossip); //Includes call to HandlePhase1CB(..); 
+              delete waiting_meta;
+              return (void*) true;
+           };
+           transport->DispatchTP_main(std::move(f));
+        }
+      } 
       else if(waiting_meta->prepare_or_commit==1){
         Timestamp ts(waiting_meta->txn->timestamp());
         UpdateCommittedReads(waiting_meta->txn, txnDigest, ts, waiting_meta->proof);//Commit(txnDigest, waiting_meta->txn, waiting_meta->groupedSigs, waiting_meta->p1Sigs, waiting_meta->view); //Note: Confirm that it's ok to issue Commit from any thread (I believe it is); If not, must IssueCB_maingit 
+        delete waiting_meta;
       }
       else Panic("Must bei either prepare or commit");
       //TODO: Need to send to fallback clients too. (If we add tests for this)
-      delete waiting_meta; //Note: delete waiting_meta will also delete stored remote ==> TryPrepare creates a copy of remote to avoid a segfault
+      //delete waiting_meta; //Note: delete waiting_meta will also delete stored remote ==> TryPrepare creates a copy of remote to avoid a segfault
       
     }
 }

@@ -137,6 +137,7 @@ Server::Server(const transport::Configuration &config, int groupIdx, int idx,
   proof->mutable_txn()->mutable_timestamp()->set_id(0);
 
   committed.insert(std::make_pair("", proof));
+  
   ts_to_tx.insert(std::make_pair(MergeTimestampId(0, 0), ""));
 }
 
@@ -1573,6 +1574,8 @@ void Server::UpdateCommittedReads(proto::Transaction *txn, const std::string &tx
     //Note: use whatever readSet is returned -- if query read sets are not correct/present just use base (it's safe: another replica would've had all)
     //Once subscription on queries wakes up, it will call UpdatecommittedReads again, at which point mergeReadSet will return the full mergedReadSet 
     //TODO: For eventually consistent state may want to explicitly sync on the waiting queries -- not necessary for safety though
+    //TODO: FIXME: Currently, we ignore processing queries whose Tx have already committed. Consequently, UpdateCommitted won't be called. This is safe, but might result in
+                   //this replica unecessarily preparing conflicting tx that are doomed to abort (because committedreads is not set)
               
     // Debug("COMMIT: TESTING MERGED READ");
     // for(auto &read : *readSet){
@@ -1610,7 +1613,7 @@ void Server::CommitToStore(proto::CommittedProof *proof, proto::Transaction *txn
 
     Debug("COMMIT[%lu,%lu] Committing write for key %s.",
         txn->client_id(), txn->client_seq_num(),
-        BytesToHex(write.key(), 16).c_str());
+       write.key().c_str());
     val.val = write.value();
 
     store.put(write.key(), val, ts);
@@ -1759,7 +1762,7 @@ void Server::Clean(const std::string &txnDigest, bool abort, bool hard) {
 //--> TODO: Make original client dynamic, i.e. it can directly receive a writeback if it exists, instead of HAVING to finish normal case.
   p1MetaDataMap::accessor c;
   bool p1MetaExists = p1MetaData.find(c, txnDigest);
-  if(p1MetaExists){
+  if(p1MetaExists && !TEST_PREPARE_SYNC){
     if(c->second.hasSignedP1) delete c->second.signed_txn; //Delete signed txn if not needed anymore.
     c->second.hasSignedP1 = false;
   } 

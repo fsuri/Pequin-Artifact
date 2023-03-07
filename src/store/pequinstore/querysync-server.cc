@@ -311,22 +311,40 @@ void Server::ProcessQuery(queryMetaDataMap::accessor &q, const TransportAddress 
     //FindSnapshot(local_ss, query_cmd); //TODO: Function that calls blackbox exec and sets snapshot.
 
     //FIXME: TOY TX PROOF IN COMMITTED
-    std::string test_txn_id = "[test_id_of_length_32 bytes----]";
-    proto::CommittedProof *proof = new proto::CommittedProof();
-    //Genesis proof: client id + client seq = 0.
-        proof->mutable_txn()->set_client_id(0);
-    proof->mutable_txn()->set_client_seq_num(0);
-     uint64_t ts = 5UL << 32; //timeServer.GetTime(); 
-    proof->mutable_txn()->mutable_timestamp()->set_timestamp(ts);
-    proof->mutable_txn()->mutable_timestamp()->set_id(0UL);
-    committed[test_txn_id] = proof;
+    if(TEST_SNAPSHOT){
+
+        std::string test_txn_id = "[test_id_of_length_32 bytes----]";
+        proto::CommittedProof *proof = new proto::CommittedProof();
+        //Genesis proof: client id + client seq = 0.
+            proof->mutable_txn()->set_client_id(0);
+        proof->mutable_txn()->set_client_seq_num(0);
+        uint64_t ts = 5UL << 32; //timeServer.GetTime(); 
+        proof->mutable_txn()->mutable_timestamp()->set_timestamp(ts);
+        proof->mutable_txn()->mutable_timestamp()->set_id(0UL);
+        committed[test_txn_id] = proof;
+        
+        ts_to_tx.insert(std::make_pair(MergeTimestampId(ts, 0UL), test_txn_id));
+        
+        proto::Phase1 p1 = proto::Phase1();
+        p1.set_req_id(1);
     
-     ts_to_tx.insert(std::make_pair(MergeTimestampId(ts, 0UL), test_txn_id));
+        std::vector<::google::protobuf::Message *> p1s;
+        p1s.push_back(proof->mutable_txn());
+        std::vector<proto::SignedMessage *> sp1s;
+        sp1s.push_back(p1.mutable_signed_txn());
+        SignMessages(p1s, keyManager->GetPrivateKey(keyManager->GetClientKeyId(0)), 0, sp1s, params.merkleBranchFactor);
+
+        p1MetaDataMap::accessor c;
+        p1MetaData.insert(c, test_txn_id);
+        c->second.hasSignedP1 = true;
+        c->second.signed_txn = p1.release_signed_txn();
+        c.release();
 
 
     //FIXME: TOY INSERT TESTING.
         //-- real tx-ids are cryptographic hashes of length 256bit = 32 byte.
             for(auto const&[tx_id, proof] : committed){
+                if(tx_id == "") continue;
                 const proto::Transaction *txn = &proof->txn();
                 query_md->snapshot_mgr.AddToLocalSnapshot(tx_id, txn, true);
                 Debug("Proposing committed txn_id [%s] for local Query Sync State[%lu:%lu:%d]", BytesToHex(tx_id, 16).c_str(), query->query_seq_num(), query->client_id(), query->retry_version());
@@ -345,7 +363,9 @@ void Server::ProcessQuery(queryMetaDataMap::accessor &q, const TransportAddress 
                 query_md->snapshot_mgr.AddToLocalSnapshot(tx_id, txn, false);
                 Debug("Proposing prepared txn_id [%s] for local Query Sync State[%lu:%lu:%d]", BytesToHex(tx_id, 16).c_str(), query->query_seq_num(), query->client_id(), query->retry_version());
             }
-     
+    
+    }
+
     query_md->snapshot_mgr.SealLocalSnapshot(); //Remove duplicate ids and compress if applicable.
     q.release();
   
@@ -535,7 +555,7 @@ void Server::ProcessSync(queryMetaDataMap::accessor &q, const TransportAddress &
     UW_ASSERT(first_qm); //ProcessSync should never be called twice for one retry version.
     // In SetWaiting -> add missing to qm->second. (pass qm->second as arg.)
     std::unordered_map<std::string, uint64_t> &missing_txns = qm->second.missing_txns; //query_md->missing_txns;
-    std::unordered_map<uint64_t, uint64_t> &missing_ts = qm->second.missing_ts; //query_md->missing_ts;
+    std::unordered_map<uint64_t, uint64_t> &missing_ts = qm->second.missing_ts; //querHandleReqy_md->missing_ts;
     // If missing empty after checking snapshot -> erase again
     
      //Note: SetWaiting needs to pass query_retry_id, not queryId.
@@ -569,8 +589,7 @@ void Server::ProcessSync(queryMetaDataMap::accessor &q, const TransportAddress &
             }
             
             //ii) Register tx that this query is waiting on.
-            bool testing_sync = false;
-            if(testing_sync || !has_txn_locally){
+            if(TEST_SYNC || !has_txn_locally){
                 SetWaiting(missing_txns, tx_id, queryId, query_retry_id, replica_list, replica_requests);
             }
             o.release(); //Make sure SetWaiting is set while holding ongoing ==> Then it is guaranteed that either the Txn has Written back (is present) or SetWaiting is set before calling UpdateWaiting (in Commit/abort)
@@ -785,7 +804,7 @@ void Server::CheckLocalAvailability(const std::string &txn_id, proto::TxnInfo &t
 
         //1) If committed attatch certificate
         auto itr = committed.find(txn_id);
-        if(itr != committed.end()){
+        if(!TEST_PREPARE_SYNC && itr != committed.end()){
             //copy committed Proof from committed list to map of tx replies -- note: committed proof contains txn.
             proto::CommittedProof *commit_proof = itr->second;
             //proto::TxnInfo &tx_info = (*supply_txn.mutable_txns())[txn_id];
@@ -814,9 +833,14 @@ void Server::CheckLocalAvailability(const std::string &txn_id, proto::TxnInfo &t
                  p1MetaDataMap::const_accessor c;
                 bool hasP1Meta = p1MetaData.find(c, txn_id);
                 if(!hasP1Meta) Panic("Tx %s is prepared but has no p1MetaData entry (should be created during ProcessProposal-VerifyClientProposal)", BytesToHex(txn_id, 16).c_str());  
+                if(!c->second.hasSignedP1) Panic("No Signed Txn cached for txn %s", BytesToHex(txn_id, 16).c_str());
                 //NOTE: P1 hasP1 (result) might not be set yet, but signed_txn has been buffered.
                 //Note: signature in p1MetaData is only removed AFTER prepared is removed. Thus signed message must be present when we access p1Meta while holding prepared lock.
+               //if(c->second.signed_txn == nullptr) Panic("Signed txn is nullptr");
                 *p1->mutable_signed_txn() = *(c->second.signed_txn); 
+                // *p1->mutable_signed_txn()->mutable_data() = c->second.signed_txn->data();
+                // *p1->mutable_signed_txn()->mutable_signature() = c->second.signed_txn->signature();
+                // p1->mutable_signed_txn()->set_process_id(c->second.signed_txn->process_id());
                 c.release();
             }
             else{
@@ -905,9 +929,8 @@ void Server::HandleSupplyTx(const TransportAddress &remote, proto::SupplyMissing
 void Server::ProcessSuppliedTxn(const std::string &txn_id, proto::TxnInfo &txn_info, bool &stop){
      //check if locally committed; if not, check cert and apply
         
-    bool testing_sync = false;
     auto itr = committed.find(txn_id);
-    if(!testing_sync && itr != committed.end()){
+    if(!TEST_SYNC && itr != committed.end()){
         Debug("Already have committed tx-id: [%s]", BytesToHex(txn_id, 16).c_str());
         //UpdateWaitingQueries(txn_id);   //Note: Already called in Commit function --> Guarantees that queries wake up as soon as Commit happens, not once Supply happens
         //(RESOLVED) Cornercase: But: Couldve been added to commit only after checking for presence but before being added to WaitingTxn --> thus must wake again. 
@@ -932,7 +955,8 @@ void Server::ProcessSuppliedTxn(const std::string &txn_id, proto::TxnInfo &txn_i
     //If not committed/aborted ==> Check if locally present.
     //Just check if ongoing. (Ongoing is added before prepare is finished) -- Since onging might be a temporary ongoing that gets removed again due to invalidity -> check P1MetaData
     p1MetaDataMap::const_accessor c;
-    if(p1MetaData.find(c, txn_id)){
+    if(!TEST_SYNC && p1MetaData.find(c, txn_id)){
+         Debug("Already started P1 handling for tx-id: [%s]", BytesToHex(txn_id, 16).c_str());
         if(c->second.hasP1){
             if(c->second.result == proto::ConcurrencyControl::ABORT){
                  //Mark all waiting queries as failed.  ==> Better: Just remove from snapshot.
@@ -1006,7 +1030,7 @@ void Server::ProcessSuppliedTxn(const std::string &txn_id, proto::TxnInfo &txn_i
                     // }
                     // Debug("Validated Commit Proof for tx-id: [%s]", BytesToHex(txn_id, 16).c_str());
                     // CommitWithProof(txn_id, proof);
-                
+            Debug("Verifying commit proof for tx-id: [%s]", BytesToHex(txn_id, 16).c_str());
             //Asynchronous code: 
             auto mcb = [this, txn_id, proof](void* valid) mutable { 
                 if(!valid){
@@ -1016,6 +1040,7 @@ void Server::ProcessSuppliedTxn(const std::string &txn_id, proto::TxnInfo &txn_i
                 }
                 //Note: Mcb will be called on network thread --> dispatch to worker again.
                 auto f = [this, txn_id, proof]() mutable{
+                     Debug("Committing proof for tx-id: [%s]", BytesToHex(txn_id, 16).c_str());
                     CommitWithProof(txn_id, proof);
                     return (void*) true;
                 };
@@ -1046,10 +1071,25 @@ void Server::ProcessSuppliedTxn(const std::string &txn_id, proto::TxnInfo &txn_i
             txn = p1->mutable_txn();
         }
 
+        if (TEST_PREPARE_SYNC && txn->client_id() == 0UL && txn->client_seq_num() == 0UL) {
+            // Genesis tx are valid by default. TODO: this is unsafe, but a hack so that we can bootstrap a benchmark without needing to write all existing data with transactions
+            // Note: Genesis Tx will NEVER by exchanged by sync since by definition EVERY replica has them (and thus will never request them) -- this branch is only used for testing.
+            Debug("Accepted Genesis Prepared tx-id: [%s]", BytesToHex(txn_id, 16).c_str());
+            UpdateWaitingQueries(txn_id); //Does not seem necessary for Genesis, but shouldn't hurt
+            UpdateWaitingQueriesTS(MergeTimestampId(txn->timestamp().timestamp(),txn->timestamp().id()), txn_id);
+            if(params.signClientProposals) delete txn;
+            delete p1;
+            return;
+        }
+
         //Check whether txn matches requested tx-id
         if(txn_id != TransactionDigest(*txn, params.hashDigest)){
-            Debug("Tx-id: [%s], TxDigest: [%s]", txn_id, TransactionDigest(*txn, params.hashDigest));
+            Debug("Tx-id: [%s], TxDigest: [%s]", BytesToHex(txn_id, 16).c_str(), BytesToHex(TransactionDigest(*txn, params.hashDigest), 16).c_str());
             Panic("Supplied Wrong Txn for given tx-id");
+            if(params.signClientProposals) delete txn;
+            delete p1;
+            stop = true;
+            return;
         }
 
          //==> Call ProcessProposal. 
@@ -1057,13 +1097,15 @@ void Server::ProcessSuppliedTxn(const std::string &txn_id, proto::TxnInfo &txn_i
             //TODO: If using optimistic Ids'
             // If optimistic ID maps to 2 txn-ids --> report issuing client (do this when you receive the tx already); vice versa, if we notice 2 optimistic ID's map to same tx --> report! 
             // (Can early abort query to not waste exec since sync might fail- or optimistically execute and hope for best) --> won't happen in simulation (unless testing failures)
+    
         auto f = [this, p1, txn, txn_dig = txn_id]() mutable {
             if(params.signClientProposals) *txn->mutable_txndigest() = txn_dig; //Hack to have access to txnDigest inside TXN later (used for abstain conflict)
 
-            const TCPTransportAddress dummy_remote = TCPTransportAddress(sockaddr_in());
-            ProcessProposal(*p1, dummy_remote, txn, txn_dig, true); //Set gossip to true ==> No reply                       
+            const TCPTransportAddress *dummy_remote = new TCPTransportAddress(sockaddr_in()); //must allocate because ProcessProposal binds ref...
+            ProcessProposal(*p1, *dummy_remote, txn, txn_dig, true); //Set gossip to true ==> No reply                       
             if((!params.mainThreadDispatching || (params.dispatchMessageReceive && !params.parallel_CCC)) && (!params.multiThreading || !params.signClientProposals)){
                 delete p1; //I.e. if receiveMessage would not be allocating (See ManageDispatchP1)
+                delete dummy_remote;
                 //Note: txn deletion is covered by ProcessProposal.
             } 
             return (void*) true;
@@ -1097,7 +1139,7 @@ void Server::ProcessSuppliedTxn(const std::string &txn_id, proto::TxnInfo &txn_i
 
 //Note: Call this only from Network or from MainThread (can do so before calling DoOCC)
 void Server::CheckWaitingQueries(const std::string &txnDigest, const TimestampMessage &ts, bool is_abort, bool non_blocking){ //Non_blocking makes it so that the request is schedules asynchronously, i.e. does not block calling function
-  
+  Debug("Check whether any queries are waiting on txn %s", BytesToHex(txnDigest, 16).c_str());
   if(params.query_params.optimisticTxID){ //Wake both Queries that use normal tx-ids (e.g. retries) and queries that use optimistic Id's
     uint64_t txnTS(MergeTimestampId(ts.timestamp(), ts.id()));
     //Wake waiting queries.
@@ -1113,6 +1155,7 @@ void Server::CheckWaitingQueries(const std::string &txnDigest, const TimestampMe
         else if(non_blocking) transport->DispatchTP_main(std::move(f));
     }
     else{
+        Debug("Calling UpdateWaitingQueries(%s) on same thread.", BytesToHex(txnDigest, 16).c_str());
         UpdateWaitingQueries(txnDigest, is_abort);
         UpdateWaitingQueriesTS(txnTS, txnDigest, is_abort);
     }
@@ -1287,6 +1330,8 @@ void Server::UpdateWaitingQueries(const std::string &txnDigest, bool is_abort){
                 //5) if query is waiting and retry_version is still current: Start Callback.
                 Debug("Stored Query: %s has retry version %lu, and is %s waiting", BytesToHex(queryId, 16).c_str(), query_md->retry_version, query_md->is_waiting ? "" : "not");
                 if(query_md->is_waiting && query_md->retry_version == retry_version){ 
+                     //Note: is_waiting -> make sure query is waiting. E.g. missing_txn could be empty because we re-tried the query and now are not missing any. In this case is_waiting will be set to false. -> no need to call callback
+                     // (Note: This is handled by retry_version check now. Can remove is_waiting.)
                      Debug("Waking Query[%lu:%lu:%lu]", query_md->query_seq_num, query_md->client_id, query_md->retry_version);
                     //Note: is_waiting -> make sure query is waiting. E.g. missing_txn could be empty because we re-tried the query and now are not missing any. In this case is_waiting will be set to false. -> no need to call callback
                     HandleSyncCallback(query_md, queryId); //TODO: Should this be dispatched again? So that multiple waiting queries don't execute sequentially?
@@ -1444,51 +1489,63 @@ void Server::HandleSyncCallback(QueryMetaData *query_md, const std::string &quer
 
     QueryReadSetMgr queryReadSetMgr(query_md->queryResultReply->mutable_result()->mutable_query_read_set(), groupIdx); 
 
-     //Creating Dummy keys for testing //FIXME: REPLACE 
-    for(int i=5;i > 0; --i){
-        TimestampMessage ts;
-        ts.set_id(query_md->ts.getID());
-        ts.set_timestamp(query_md->ts.getTimestamp());
-        std::string dummy_key = groupIdx == 0 ? "dummy_key_g1_" + std::to_string(i) : "dummy_key_g2_" + std::to_string(i);
+    if(TEST_READ_SET){
 
-         queryReadSetMgr.AddToReadSet(dummy_key, ts);
-        //query_md->read_set[dummy_key] = ts; //query_md->ts;
-        //replaced with repeated field -> directly in result object.
+        for(auto const&[tx_id, proof] : committed){
+            const proto::Transaction *txn = &proof->txn();
+            for(auto &write: txn->write_set()){
+                queryReadSetMgr.AddToReadSet(write.key(), txn->timestamp());
+                Debug("Added read key %s and ts to read set", write.key().c_str());
+            }
+            //queryReadSetMgr.AddToDepSet(tx_id, query_md->useOptimisticTxId, txn->timestamp());
+        }
+        
+        //Creating Dummy keys for testing //FIXME: REPLACE 
+        for(int i=5;i > 0; --i){
+            TimestampMessage ts;
+            ts.set_id(query_md->ts.getID());
+            ts.set_timestamp(query_md->ts.getTimestamp());
+            std::string dummy_key = groupIdx == 0 ? "dummy_key_g1_" + std::to_string(i) : "dummy_key_g2_" + std::to_string(i);
+
+            queryReadSetMgr.AddToReadSet(dummy_key, ts);
+            //query_md->read_set[dummy_key] = ts; //query_md->ts;
+            //replaced with repeated field -> directly in result object.
+        
+            // ReadMessage *read = query_md->queryResultReply->mutable_result()->mutable_query_read_set()->add_read_set();
+            // //ReadMessage *read = query_md->queryResult->mutable_query_read_set()->add_read_set();
+            // read->set_key(dummy_key);
+            // *read->mutable_readtime() = ts;
+        }
+        //Creating Dummy deps for testing //FIXME: Replace
     
-        // ReadMessage *read = query_md->queryResultReply->mutable_result()->mutable_query_read_set()->add_read_set();
-        // //ReadMessage *read = query_md->queryResult->mutable_query_read_set()->add_read_set();
-        // read->set_key(dummy_key);
-        // *read->mutable_readtime() = ts;
-    }
-    //Creating Dummy deps for testing //FIXME: Replace
-   
-        //Write to Query Result; Release/Re-allocate temporarily if not sending;
-        //For caching:
-            // Cache the deps --> During CC: look through the data structure.
-        //For non-caching:
-            // Add the deps to SyncReply --> Let client choose whether to include them (only if proposed them in merge; marked as prep) --> During CC: Look through the included deps.
+            //Write to Query Result; Release/Re-allocate temporarily if not sending;
+            //For caching:
+                // Cache the deps --> During CC: look through the data structure.
+            //For non-caching:
+                // Add the deps to SyncReply --> Let client choose whether to include them (only if proposed them in merge; marked as prep) --> During CC: Look through the included deps.
 
-    //During execution only read prepared if depth allowed.
-    //  i.e. if (params.maxDepDepth == -1 || DependencyDepth(txn) <= params.maxDepDepth)  (maxdepth = -1 means no limit)
-    if (params.query_params.readPrepared && params.maxDepDepth > -2) {
+        //During execution only read prepared if depth allowed.
+        //  i.e. if (params.maxDepDepth == -1 || DependencyDepth(txn) <= params.maxDepDepth)  (maxdepth = -1 means no limit)
+        if (params.query_params.readPrepared && params.maxDepDepth > -2) {
 
-        //FIXME: JUST FOR TESTING.
-        for(preparedMap::const_iterator i=prepared.begin(); i!=prepared.end(); ++i ) {
-            const std::string &tx_id = i->first;
-            const proto::Transaction *txn = i->second.second;
+            //FIXME: JUST FOR TESTING.
+            for(preparedMap::const_iterator i=prepared.begin(); i!=prepared.end(); ++i ) {
+                const std::string &tx_id = i->first;
+                const proto::Transaction *txn = i->second.second;
 
-            queryReadSetMgr.AddToDepSet(tx_id, query_md->useOptimisticTxId, txn->timestamp());
+                queryReadSetMgr.AddToDepSet(tx_id, query_md->useOptimisticTxId, txn->timestamp());
 
-            // proto::Dependency *add_dep = query_md->queryResultReply->mutable_result()->mutable_query_read_set()->add_deps();
-            // add_dep->set_involved_group(groupIdx);
-            // add_dep->mutable_write()->set_prepared_txn_digest(tx_id);
-            // Debug("Adding Dep: %s", BytesToHex(add_dep->write().prepared_txn_digest(), 16).c_str());
-            // //Note: Send merged TS.
-            // if(query_md->useOptimisticTxId){
-            //     //MergeTimestampId(txn->timestamp().timestamp(), txn->timestamp().id()
-            //     add_dep->mutable_write()->mutable_prepared_timestamp()->set_timestamp(txn->timestamp().timestamp());
-            //     add_dep->mutable_write()->mutable_prepared_timestamp()->set_id(txn->timestamp().id());
-            // }
+                // proto::Dependency *add_dep = query_md->queryResultReply->mutable_result()->mutable_query_read_set()->add_deps();
+                // add_dep->set_involved_group(groupIdx);
+                // add_dep->mutable_write()->set_prepared_txn_digest(tx_id);
+                // Debug("Adding Dep: %s", BytesToHex(add_dep->write().prepared_txn_digest(), 16).c_str());
+                // //Note: Send merged TS.
+                // if(query_md->useOptimisticTxId){
+                //     //MergeTimestampId(txn->timestamp().timestamp(), txn->timestamp().id()
+                //     add_dep->mutable_write()->mutable_prepared_timestamp()->set_timestamp(txn->timestamp().timestamp());
+                //     add_dep->mutable_write()->mutable_prepared_timestamp()->set_id(txn->timestamp().id());
+                // }
+            }
         }
     }
     //FIXME: Just for testing: Creating Dummy result 
@@ -1506,7 +1563,7 @@ void Server::HandleSyncCallback(QueryMetaData *query_md, const std::string &quer
     if(params.query_params.cacheReadSet) wakeSubscribedTx(queryId, query_md->retry_version); //TODO: Instead of passing it along, just store the queryId...
 
 
-    bool exec_success = !test_fail_query; //Global Test var to simulate a retry once. //FIXME: Remove
+    bool exec_success = !(TEST_FAIL_QUERY && query_md->retry_version == 0); //Global Test var to simulate a retry once. //FIXME: Remove
     if(exec_success){
          query_md->failure = false;
         
@@ -1523,7 +1580,7 @@ void Server::HandleSyncCallback(QueryMetaData *query_md, const std::string &quer
     }
     else{
         FailQuery(query_md);
-        test_fail_query = false;
+        TEST_FAIL_QUERY = false;
     }
 }
 
@@ -1680,7 +1737,7 @@ void Server::FailQuery(QueryMetaData *query_md){
     failQuery.mutable_fail()->set_replica_id(id);
 
     if (params.validateProofs && params.signedMessages) {
-        Debug("Sign Query Fail Reply for Query Req[%lu]", failQuery.req_id());
+        Debug("Sign Query Fail Reply for Query[%lu:%lu:%lu]", query_md->query_seq_num, query_md->client_id, query_md->retry_version);
         proto::FailQueryMsg *failQueryMsg = failQuery.release_fail();
 
         if(params.signatureBatchSize == 1){

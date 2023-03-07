@@ -70,7 +70,12 @@ enum OCCType {
 };
 
 //TEST/DEBUG variables
-static bool test_fail_query = false;
+static bool TEST_SNAPSHOT = true;
+static bool TEST_READ_SET = true;
+static bool TEST_FAIL_QUERY = false;
+static bool TEST_PREPARE_SYNC = false;
+static bool TEST_SYNC = false;
+
 static int fail_writeback = 0;
 typedef std::vector<std::unique_lock<std::mutex>> locks_t;
 static int rcv_count = 0;

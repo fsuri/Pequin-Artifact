@@ -599,10 +599,12 @@ bool Server::VerifyClientProposal(proto::Phase1 &msg, const proto::Transaction *
           }
         
           //3. Store signed p1 for future relays.
+          Debug("Storing signed_txn %s for future relays", BytesToHex(txnDigest, 16).c_str());
           p1MetaDataMap::accessor c;
           p1MetaData.insert(c, txnDigest);
           c->second.hasSignedP1 = true;
           c->second.signed_txn = msg.release_signed_txn();
+          UW_ASSERT(c->second.signed_txn);
           c.release();
 
           Debug("Client verification successful for txn %s", BytesToHex(txnDigest, 16).c_str());
@@ -636,6 +638,7 @@ bool Server::VerifyClientProposal(proto::Phase1FB &msg, const proto::Transaction
             return false;
           }
           //3. Store signed p1 for future relays.
+          Debug("Storing signed_txn %s for future relays", BytesToHex(txnDigest, 16).c_str());
           p1MetaDataMap::accessor c;
           p1MetaData.insert(c, txnDigest);
           c->second.hasSignedP1 = true;
@@ -739,7 +742,7 @@ void* Server::TryPrepare(uint64_t reqId, const TransportAddress &remote, proto::
       if(params.query_params.optimisticTxID){ //If using optimisticTxID: Store ts to Tx mapping
         ts_to_txMap::accessor t; 
         bool first = ts_to_tx.insert(t, MergeTimestampId(txn->timestamp().timestamp(), txn->timestamp().id()));
-        if(!first) Panic("Two Transactions have the same Timestamp. Equivocation"); // Report issuing client (txn->client_id() = txn->timestamp.id())
+        if(!first && !TEST_PREPARE_SYNC) Panic("Two Transactions have the same Timestamp. Equivocation"); // Report issuing client (txn->client_id() = txn->timestamp.id())
         t->second = txnDigest;
         t.release();
         //Note: Timestamp mappings are not garbage collected during clean. They may only be deleted when garbage collecting < Low Watermark ==> because then we no longer need to access the Tx
