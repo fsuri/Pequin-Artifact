@@ -74,6 +74,7 @@ bool InsertExecutor::DExecute() {
     return false;
   }
 
+  std::cout << "Inside insert executor" << std::endl;
   LOG_TRACE("Number of tuples in table before insert: %lu",
             target_table->GetTupleCount());
   auto executor_pool = executor_context_->GetPool();

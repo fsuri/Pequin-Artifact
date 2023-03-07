@@ -24,9 +24,118 @@
 #include "parser/insert_statement.h"
 #include "planner/insert_plan.h"
 #include "type/value_factory.h"
+#include "traffic_cop/traffic_cop.h"
+#include "type/type.h"
+
+static std::string GetResultValueAsString(
+      const std::vector<peloton::ResultValue> &result, size_t index) {
+    std::string value(result[index].begin(), result[index].end());
+    return value;
+}
+
+void UtilTestTaskCallback(void *arg) {
+  std::atomic_int *count = static_cast<std::atomic_int *>(arg);
+  count->store(0);
+}
+
+void ContinueAfterComplete(std::atomic_int &counter_) {
+  while (counter_.load() == 1) {
+    usleep(10);
+  }
+}
+
+peloton::ResultType ExecuteSQLQuery(const std::string query, peloton::tcop::TrafficCop &traffic_cop, std::atomic_int &counter_, std::vector<peloton::ResultValue> &result) {
+  //std::vector<peloton::ResultValue> result;
+  std::vector<peloton::FieldInfo> tuple_descriptor;
+
+  // execute the query using tcop
+  // prepareStatement
+  //LOG_TRACE("Query: %s", query.c_str());
+  std::string unnamed_statement = "unnamed";
+  auto &peloton_parser = peloton::parser::PostgresParser::GetInstance();
+  auto sql_stmt_list = peloton_parser.BuildParseTree(query);
+  //PELOTON_ASSERT(sql_stmt_list);
+  if (!sql_stmt_list->is_valid) {
+    return peloton::ResultType::FAILURE;
+  }
+  auto statement = traffic_cop.PrepareStatement(unnamed_statement, query,
+                                                 std::move(sql_stmt_list));
+  std::cout << "After prepare statement" << std::endl;
+  if (statement.get() == nullptr) {
+    traffic_cop.setRowsAffected(0);
+    return peloton::ResultType::FAILURE;
+  }
+  // ExecuteStatment
+  std::vector<peloton::type::Value> param_values;
+  bool unnamed = false;
+  std::vector<int> result_format(statement->GetTupleDescriptor().size(), 0);
+  // SetTrafficCopCounter();
+  counter_.store(1);
+  auto status = traffic_cop.ExecuteStatement(statement, param_values, unnamed,
+                                              result_format, result);
+  std::cout << "After execute statement" << std::endl;
+  if (traffic_cop.GetQueuing()) {
+    ContinueAfterComplete(counter_);
+    traffic_cop.ExecuteStatementPlanGetResult();
+    std::cout << "After execute statement plan get result" << std::endl;
+    status = traffic_cop.ExecuteStatementGetResult();
+    std::cout << "After execute statement get result" << std::endl;
+    traffic_cop.SetQueuing(false);
+  }
+  /*if (status == peloton::ResultType::SUCCESS) {
+    tuple_descriptor = statement->GetTupleDescriptor();
+  }*/
+
+  //std::cout << "Result 1st value is " << GetResultValueAsString(result, 0) << std::endl;
+  /*LOG_TRACE("Statement executed. Result: %s",
+           ResultTypeToString(status).c_str());*/
+  return status;
+}
 
 int main(int argc, char *argv[]) {
-  peloton::catalog::Catalog::GetInstance();
+  auto &txn_manager = peloton::concurrency::TransactionManagerFactory::GetInstance();
+  auto txn = txn_manager.BeginTransaction();
+  peloton::catalog::Catalog::GetInstance()->CreateDatabase(txn, DEFAULT_DB_NAME);
+  txn_manager.CommitTransaction(txn);
+
+  std::atomic_int counter_;
+  std::vector<peloton::ResultValue> result;
+  peloton::tcop::TrafficCop traffic_cop(UtilTestTaskCallback, &counter_);
+  //auto &traffic_cop = peloton::tcop::TrafficCop::GetInstance();
+
+  /*std::string unnamed_statement = "unnamed";
+  std::string query = "CREATE TABLE test(salary INT); INSERT INTO test VALUES (100); SELECT * FROM test;";  
+  auto &peloton_parser = peloton::parser::PostgresParser::GetInstance();
+  auto sql_stmt_list = peloton_parser.BuildParseTree(query);
+
+  auto statement = traffic_cop.PrepareStatement(unnamed_statement, query,
+                                                 std::move(sql_stmt_list));
+  
+  std::vector<peloton::type::Value> param_values;
+  bool unnamed = false;
+  std::vector<int> result_format(statement->GetTupleDescriptor().size(), 0);
+  std::vector<peloton::ResultValue> result;
+  auto status = traffic_cop.ExecuteStatement(statement, param_values, unnamed,
+                                              result_format, result);
+
+  if (traffic_cop.GetQueuing()) {
+    //ContinueAfterComplete();
+    usleep(10);
+    traffic_cop.ExecuteStatementPlanGetResult();
+    status = traffic_cop.ExecuteStatementGetResult();
+    traffic_cop.SetQueuing(false);
+  }*/
+
+  ExecuteSQLQuery("CREATE TABLE test(a INT);", traffic_cop, counter_, result);
+  ExecuteSQLQuery("INSERT INTO test VALUES (99);", traffic_cop, counter_, result);
+  ExecuteSQLQuery("INSERT INTO test VALUES (1001);", traffic_cop, counter_, result);
+  ExecuteSQLQuery("SELECT * FROM test;", traffic_cop, counter_, result);
+  
+  //std::cout << "Statement executed!! Result: " << peloton::ResultTypeToString(status).c_str() << std::endl;
+  std::cout << "Result size: " << result.size() << " First row " << GetResultValueAsString(result, 0) << " Second row " << GetResultValueAsString(result, 1) << std::endl;
+
+  
+  /*peloton::catalog::Catalog::GetInstance();
 
   auto &txn_manager = peloton::concurrency::TransactionManagerFactory::GetInstance();
   auto txn = txn_manager.BeginTransaction();
@@ -100,7 +209,7 @@ int main(int argc, char *argv[]) {
   executor.Init();
   executor.Execute();
 
-  std::cout << "number of tuples is " << table->GetTupleCount() << std::endl;
+  std::cout << "number of tuples is " << table->GetTupleCount() << std::endl;*/
 
     /*auto &txn_manager = peloton::concurrency::TransactionManagerFactory::GetInstance();
     std::cout << "1" << std::endl;

@@ -46,6 +46,7 @@ SeqScanExecutor::SeqScanExecutor(const planner::AbstractPlan *node,
  * @return true on success, false otherwise.
  */
 bool SeqScanExecutor::DInit() {
+  std::cout << "Inside seq scan executor" << std::endl;
   auto status = AbstractScanExecutor::DInit();
 
   if (!status) return false;

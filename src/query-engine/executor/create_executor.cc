@@ -119,7 +119,7 @@ bool CreateExecutor::CreateTable(const planner::CreatePlan &node) {
   std::string database_name = node.GetDatabaseName();
   std::unique_ptr<catalog::Schema> schema(node.GetSchema());
 
-  std::cout << "Before result" << std::endl;
+  std::cout << "Before result " << std::endl;
   ResultType result = catalog::Catalog::GetInstance()->CreateTable(current_txn,
                                                                    database_name,
                                                                    schema_name,
@@ -129,6 +129,7 @@ bool CreateExecutor::CreateTable(const planner::CreatePlan &node) {
   current_txn->SetResult(result);
 
   if (current_txn->GetResult() == ResultType::SUCCESS) {
+    std::cout << "Create table succeeded" << std::endl;
     LOG_TRACE("Creating table succeeded!");
     auto catalog = catalog::Catalog::GetInstance();
     auto source_table = catalog->GetTableWithName(current_txn,
@@ -136,6 +137,7 @@ bool CreateExecutor::CreateTable(const planner::CreatePlan &node) {
                                                   schema_name,
                                                   table_name);
     // Add the primary key constraint
+    std::cout << "Primary key checks" << std::endl;
     if (node.HasPrimaryKey()) {
       auto pk = node.GetPrimaryKey();
       std::vector<oid_t> col_ids;
@@ -159,6 +161,7 @@ bool CreateExecutor::CreateTable(const planner::CreatePlan &node) {
                                        pk.constraint_name);
     }
 
+    std::cout << "unique constraints checks" << std::endl;
     // Add the unique constraint
     for (auto unique : node.GetUniques()) {
       std::vector<oid_t> col_ids;
@@ -184,6 +187,7 @@ bool CreateExecutor::CreateTable(const planner::CreatePlan &node) {
     }
 
     // Add the foreign key constraint
+    std::cout << "foreign key constraints check" << std::endl;
     for (auto fk : node.GetForeignKeys()) {
       auto sink_table = catalog->GetTableWithName(current_txn,
                                                   database_name,
@@ -231,6 +235,7 @@ bool CreateExecutor::CreateTable(const planner::CreatePlan &node) {
     }
 
     // Add the check constraint
+    std::cout << "check constraints" << std::endl;
     for (auto check : node.GetChecks()) {
       std::vector<oid_t> col_ids;
       for (auto col_name : check.check_cols) {
@@ -253,6 +258,8 @@ bool CreateExecutor::CreateTable(const planner::CreatePlan &node) {
                                   col_ids, check.exp,
                                   check.constraint_name);
     }
+
+    std::cout << "Made it to end of create table" << std::endl;
 
   } else if (current_txn->GetResult() == ResultType::FAILURE) {
     LOG_TRACE("Creating table failed!");

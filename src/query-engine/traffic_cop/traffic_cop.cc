@@ -197,6 +197,7 @@ executor::ExecutionResult TrafficCop::ExecuteHelper(
   });
 
   is_queuing_ = true;
+  std::cout << "Submitted task and is queuing!" << std::endl;
 
   LOG_TRACE("Check Tcop_txn_state Size After ExecuteHelper %lu",
             tcop_txn_state_.size());
@@ -577,17 +578,21 @@ ResultType TrafficCop::ExecuteStatement(
   try {
     switch (statement->GetQueryType()) {
       case QueryType::QUERY_BEGIN: {
+        std::cout << "Begin case" << std::endl;
         return BeginQueryHelper(thread_id);
       }
       case QueryType::QUERY_COMMIT: {
+        std::cout << "Commit case" << std::endl;
         return CommitQueryHelper();
       }
       case QueryType::QUERY_ROLLBACK: {
+        std::cout << "Rollback case" << std::endl;
         return AbortQueryHelper();
       }
       default:
         // The statement may be out of date
         // It needs to be replan
+        std::cout << "Default case" << std::endl;
         if (statement->GetNeedsReplan()) {
           // TODO(Tianyi) Move Statement Replan into Statement's method
           // to increase coherence

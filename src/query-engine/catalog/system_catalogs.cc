@@ -102,9 +102,9 @@ void SystemCatalogs::Bootstrap(concurrency::TransactionContext *txn,
                                const std::string &database_name) {
   LOG_DEBUG("Bootstrapping database: %s", database_name.c_str());
 
-  if (!pg_trigger_) {
+  /*if (!pg_trigger_) {
     pg_trigger_ = new TriggerCatalog(txn, database_name);
-  }
+  }*/
 
   // if (!pg_proc) {
   //     pg_proc = new ProcCatalog(database_name, txn);
