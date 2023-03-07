@@ -325,6 +325,8 @@ DEFINE_bool(indicus_replica_gossip, false, "use gossip between replicas to excha
 /*
  Pequin settings
 */
+DEFINE_bool(pequin_query_eager_exec, false, "skip query sync protocol and execute optimistically on local state");
+
 DEFINE_bool(pequin_query_read_prepared, true, "allow query to read prepared values");
 DEFINE_bool(pequin_query_cache_read_set, true, "cache query read set at replicas");
 
@@ -669,6 +671,7 @@ int main(int argc, char **argv) {
                                                  0,
                                                  0,
                                                  0,
+                                                 FLAGS_pequin_query_eager_exec,
                                                  FLAGS_pequin_query_read_prepared,
                                                  FLAGS_pequin_query_cache_read_set,
                                                  FLAGS_pequin_query_optimistic_txid,

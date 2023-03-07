@@ -162,10 +162,11 @@ void Server::HandleQuery(const TransportAddress &remote, proto::QueryRequest &ms
             //Note: tbb find and insert are not atomic: Find does not take a lock if noQuery; before insert can claim lock another thread might add query. 
             //==> Must check whether query is the first -- and if not, must re-check (technically it's the first check since hasQuery must have been false) retry version and sync status
     if(!hasQuery){
-        re_check = !queryMetaData.insert(q, queryId); //If not first insert -> must re-check.
-        if(!re_check){
+        bool new_insert = queryMetaData.insert(q, queryId); //If not first insert -> must re-check.
+        if(new_insert){
             q->second = new QueryMetaData(query->query_cmd(), query->timestamp(), remote, msg.req_id(), query->query_seq_num(), query->client_id(), &params.query_params);
         }
+        re_check = !new_insert;
     }
     
     QueryMetaData *query_md = q->second;
@@ -247,6 +248,14 @@ void Server::HandleQuery(const TransportAddress &remote, proto::QueryRequest &ms
     //     Panic("Requesting Query with outdating retry version");
     //     return;
     // }
+
+
+    //If Eager Exec --> Skip sync and just execute on local state --> Call EagerExec function: Calls same exec as HandleSyncCallback (but without materializing snapshot) + SendQueryResult.
+    if((msg.designated_for_reply() || params.query_params.cacheReadSet) && msg.has_eager_exec() && msg.eager_exec()){ //Note: If eager exec on && caching read set --> all must execute.
+        ExecQueryEagerly(q, query_md, queryId);
+        if(params.mainThreadDispatching && (!params.dispatchMessageReceive || params.query_params.parallel_queries)) FreeQueryRequestMessage(&msg);
+        return;
+    }
 
     //7) Record whether current retry version uses optimistic tx-ids or not
     if(msg.has_optimistic_txid()) query_md->useOptimisticTxId = msg.optimistic_txid(); 
@@ -641,8 +650,7 @@ void Server::ProcessSync(queryMetaDataMap::accessor &q, const TransportAddress &
   
     //If no missing_txn ==> already fully synced. Exec callback direclty
     if(replica_requests.empty()){
-        HandleSyncCallback(query_md, *queryId);
-        q.release();
+        return HandleSyncCallback(q, query_md, *queryId);
     }
     else{  //if there are missng txn, i.e. replica_requests not empty ==> send out sync requests.
         query_md->is_waiting = true; //Note: If query is waiting, but (byz) client supplied wrong/insufficient replicas to sync from ==> query loses liveness.
@@ -1334,7 +1342,7 @@ void Server::UpdateWaitingQueries(const std::string &txnDigest, bool is_abort){
                      // (Note: This is handled by retry_version check now. Can remove is_waiting.)
                      Debug("Waking Query[%lu:%lu:%lu]", query_md->query_seq_num, query_md->client_id, query_md->retry_version);
                     //Note: is_waiting -> make sure query is waiting. E.g. missing_txn could be empty because we re-tried the query and now are not missing any. In this case is_waiting will be set to false. -> no need to call callback
-                    HandleSyncCallback(query_md, queryId); //TODO: Should this be dispatched again? So that multiple waiting queries don't execute sequentially?
+                    HandleSyncCallback(q, query_md, queryId); //TODO: Should this be dispatched again? So that multiple waiting queries don't execute sequentially?
                 }
         }
         q.release();
@@ -1419,7 +1427,7 @@ void Server::UpdateWaitingQueriesTS(const uint64_t &txnTS, const std::string &tx
                      Debug("Waking Query[%lu:%lu:%lu]", query_md->query_seq_num, query_md->client_id, query_md->retry_version);
                      query_md->merged_ss_msg->clear_merged_ts(); //These are no longer needed.
                     //Note: is_waiting -> make sure query is waiting. E.g. missing_txn could be empty because we re-tried the query and now are not missing any. In this case is_waiting will be set to false. -> no need to call callback
-                    HandleSyncCallback(query_md, queryId); //TODO: Should this be dispatched again? So that multiple waiting queries don't execute sequentially?
+                    HandleSyncCallback(q, query_md, queryId); //TODO: Should this be dispatched again? So that multiple waiting queries don't execute sequentially?
                 }
         }
         q.release();
@@ -1447,35 +1455,11 @@ void Server::UpdateWaitingQueriesTS(const uint64_t &txnTS, const std::string &tx
 }
 
 
+std::string Server::ExecQuery(QueryReadSetMgr &queryReadSetMgr, QueryMetaData *query_md, bool materialize){
+    //TODO: Must take as input some Materialization info... (whether to use a materialized snapshot (details are in query_md), or whether to just use current state)
+    //TODO: Must be able to report exec failure (e.g. materialized snapshot inconsistent) -- note that if eagerly executiong (no materialization) there is no concept of failure.
 
-
-//Note: WARNING: must be called while holding a lock on query_md. 
-void Server::HandleSyncCallback(QueryMetaData *query_md, const std::string &queryId){
-
-    Debug("Sync complete for Query[%lu:%lu]. Starting Execution", query_md->query_seq_num, query_md->client_id);
-    query_md->is_waiting = false;
-    
-    // 0) Materialize Snapshot
-    // Materialize all tx in snapshot: Loop through snapshot: If tx in prepared/committed -> do nothing (already implicitly materialized); If not, materialize it from ongoing. During exec --> if trying to use aborted tx ==> FailQuery.
-        //Alternatively: Materialize full phyiscal table (instead of virtual as above) from everything in snapshot. ==> exec on that. (Con: Cannot determine whether exec missed newer commit; or read aborted)
-
-             //TODO: Materialize tx from ongoing (doesnt matter if prepared yet) ==> Create another readable map (from key -> {(Timestamp, [value, eligible-list])). After exec, delete from eligible-list -- if empty, remove ts/val pair
-                    // Can materialize during sync, or during exec only. Pro of doing it later: More tx might be prepared/committed/aborted; Con: Another loop.
-                // during exec: Check commit/prepare; If not present -> materialize from ongoing. After all, this check + request missing guarantees that tx must be at least ongoing.
-                //Note: if its not prepared locally, but is ongoing (i.e. prepare vote = none/abort/abstain) we can immediately add it to state but marked only for query
-
-    // 1) Execute Query
-    //Execute Query -- Go through store, and check if latest tx in store is present in syncList. If it is missing one (committed) --> reply EarlyAbort (tx cannot succeed). If prepared is missing, ignore, skip to next
-    // Build Read Set while executing; Add dependencies on demand as we observe uncommitted txn touched.
-
-      // 2) Construct Read Set
-    //read set = map from key-> versions  //Note: Convert Timestamp to TimestampMessage
- 
-   //Materialization: Possible solution: During OCC check, Also "prepare" all tx that are locally abstained --> that way we can directly detect them as not necessary for sync. Mark them "invisible" by default.
-            //Garbage collect for good from prepared map once it is aborted. -- Ignore Aborted Tx during materialization (We already remove them from snapshot during ProcessSync and UpdateWaiting)
-                                                                    //Note: There might still be prepared Abstained/Aborted tx - but we currently do read those, since we call UpdateWaiting before the prepare result
-            //Alternative: During exec, materialize all remaining items in snapshot. 
-    /////////////////////////////////////////////////////////////
+        /////////////////////////////////////////////////////////////
     //                                                         //
     //                                                         //
     //                                                         //
@@ -1486,8 +1470,7 @@ void Server::HandleSyncCallback(QueryMetaData *query_md, const std::string &quer
     //                                                         //
     //                                                         //
     /////////////////////////////////////////////////////////////
-
-    QueryReadSetMgr queryReadSetMgr(query_md->queryResultReply->mutable_result()->mutable_query_read_set(), groupIdx); 
+    //TODO: Result should be of protobuf result type: --> can either return serialized value, or result object (probably easiest) -- but need serialized value anyways to check for equality.
 
     if(TEST_READ_SET){
 
@@ -1550,6 +1533,66 @@ void Server::HandleSyncCallback(QueryMetaData *query_md, const std::string &quer
     }
     //FIXME: Just for testing: Creating Dummy result 
     std::string dummy_result = "success" + std::to_string(query_md->query_seq_num);
+    return dummy_result;
+}
+
+void Server::ExecQueryEagerly(queryMetaDataMap::accessor &q, QueryMetaData *query_md, const std::string &queryId){
+
+    query_md->executed_query = true;
+
+    Debug("Eagerly Execute Query[%lu:%lu:%lu].", query_md->query_seq_num, query_md->client_id, query_md->retry_version);
+    QueryReadSetMgr queryReadSetMgr(query_md->queryResultReply->mutable_result()->mutable_query_read_set(), groupIdx); 
+
+    std::string result(ExecQuery(queryReadSetMgr, query_md, false));
+    query_md->has_result = true; 
+
+    if(query_md->designated_for_reply){
+            query_md->queryResultReply->mutable_result()->set_query_result(result);
+            //query_md->queryResult->set_query_result(dummy_result); //TODO: replace with real result
+    }
+    else{
+            query_md->queryResultReply->mutable_result()->set_query_result(result); //set for non-query manager.
+            //query_md->queryResult->set_query_result(dummy_result);
+    }
+
+    SendQueryReply(query_md);
+    uint64_t retry_version = query_md->retry_version;
+    q.release();
+
+      //After executing and caching read set -> Try to wake possibly subscribed transaction that has started to prepare, but was blocked waiting on it's cached read set.
+    if(params.query_params.cacheReadSet) wakeSubscribedTx(queryId, retry_version); //TODO: Instead of passing it along, just store the queryId...
+}
+
+
+
+//Note: WARNING: must be called while holding a lock on query_md. 
+void Server::HandleSyncCallback(queryMetaDataMap::accessor &q, QueryMetaData *query_md, const std::string &queryId){
+
+    Debug("Sync complete for Query[%lu:%lu]. Starting Execution", query_md->query_seq_num, query_md->client_id);
+    query_md->is_waiting = false;
+    
+    // 1) Materialize Snapshot
+    // Materialize all tx in snapshot: Loop through snapshot: If tx in prepared/committed -> do nothing (already implicitly materialized); If not, materialize it from ongoing. During exec --> if trying to use aborted tx ==> FailQuery.
+        //Alternatively: Materialize full phyiscal table (instead of virtual as above) from everything in snapshot. ==> exec on that. (Con: Cannot determine whether exec missed newer commit; or read aborted)
+
+             //TODO: Materialize tx from ongoing (doesnt matter if prepared yet) ==> Create another readable map (from key -> {(Timestamp, [value, eligible-list])). After exec, delete from eligible-list -- if empty, remove ts/val pair
+                    // Can materialize during sync, or during exec only. Pro of doing it later: More tx might be prepared/committed/aborted; Con: Another loop.
+                // during exec: Check commit/prepare; If not present -> materialize from ongoing. After all, this check + request missing guarantees that tx must be at least ongoing.
+                //Note: if its not prepared locally, but is ongoing (i.e. prepare vote = none/abort/abstain) we can immediately add it to state but marked only for query
+    
+         //Materialization: Possible solution: During OCC check, Also "prepare" all tx that are locally abstained --> that way we can directly detect them as not necessary for sync. Mark them "invisible" by default.
+            //Garbage collect for good from prepared map once it is aborted. -- Ignore Aborted Tx during materialization (We already remove them from snapshot during ProcessSync and UpdateWaiting)
+                                                                    //Note: There might still be prepared Abstained/Aborted tx - but we currently do read those, since we call UpdateWaiting before the prepare result
+            //Alternative: During exec, materialize all remaining items in snapshot. 
+
+    // 2) Execute Query & Construct Read Set
+    //Execute Query -- Go through store, and check if latest tx in store is present in syncList. If it is missing one (committed) --> reply EarlyAbort (tx cannot succeed). If prepared is missing, ignore, skip to next
+    // Build Read Set while executing; Add dependencies on demand as we observe uncommitted txn touched.
+    //read set = map from key-> versions  //Note: Convert Timestamp to TimestampMessage
+ 
+    QueryReadSetMgr queryReadSetMgr(query_md->queryResultReply->mutable_result()->mutable_query_read_set(), groupIdx); 
+
+    std::string result(ExecQuery(queryReadSetMgr, query_md, true));
     query_md->has_result = true; 
    
 
@@ -1559,20 +1602,17 @@ void Server::HandleSyncCallback(QueryMetaData *query_md, const std::string &quer
         //-- want to do this so that Exec can be a better blackbox: This way data exchange might just be a small intermediary data, yet client learns full read set. 
             //In this case, read set hash from a shard is not enough to prove integrity to another shard (since less data than full read set might be exchanged)
 
-    //After executing and caching read set -> Try to wake possibly subscribed query that has started to prepare, but was blocked waiting on it's cached read set.
-    if(params.query_params.cacheReadSet) wakeSubscribedTx(queryId, query_md->retry_version); //TODO: Instead of passing it along, just store the queryId...
-
 
     bool exec_success = !(TEST_FAIL_QUERY && query_md->retry_version == 0); //Global Test var to simulate a retry once. //FIXME: Remove
     if(exec_success){
          query_md->failure = false;
         
          if(query_md->designated_for_reply){
-            query_md->queryResultReply->mutable_result()->set_query_result(dummy_result);
+            query_md->queryResultReply->mutable_result()->set_query_result(result);
             //query_md->queryResult->set_query_result(dummy_result); //TODO: replace with real result
         }
         else{
-            query_md->queryResultReply->mutable_result()->set_query_result(dummy_result); //set for non-query manager.
+            query_md->queryResultReply->mutable_result()->set_query_result(result); //set for non-query manager.
             //query_md->queryResult->set_query_result(dummy_result);
         }
 
@@ -1582,6 +1622,12 @@ void Server::HandleSyncCallback(QueryMetaData *query_md, const std::string &quer
         FailQuery(query_md);
         TEST_FAIL_QUERY = false;
     }
+
+    uint64_t retry_version = query_md->retry_version;
+    q.release();
+
+     //After executing and caching read set -> Try to wake possibly subscribed transaction that has started to prepare, but was blocked waiting on it's cached read set.
+    if(params.query_params.cacheReadSet) wakeSubscribedTx(queryId, retry_version); //TODO: Instead of passing it along, just store the queryId...
 }
 
 void Server::SendQueryReply(QueryMetaData *query_md){ 
@@ -1768,6 +1814,7 @@ void Server::CleanQueries(proto::Transaction *txn, bool is_commit){
   //Move read sets into txn + Remove QueryMd completely. Store a map: <client-id, timestamp> disallowing clients to issue requests to the past (this way old/late queries won't be accepted anymore.)
     
   if(!txn->has_last_query_seq()) return;
+  Debug("Clean all Query Md associated with txn");
 
   clientQueryWatermarkMap::accessor qw;
   clientQueryWatermark.insert(qw, txn->client_id());
@@ -1792,7 +1839,7 @@ void Server::CleanQueries(proto::Transaction *txn, bool is_commit){
     
        //erase current retry version from missing (Note: all previous ones must have been deleted via ClearMetaData)
        queryMissingTxns.erase(QueryRetryId(query_md.query_id(), q->second->retry_version, (params.query_params.signClientQueries && params.query_params.cacheReadSet && params.hashDigest)));
-      
+    
        if(q->second != nullptr) delete q->second;
        //q->second = nullptr;
        queryMetaData.erase(q); 

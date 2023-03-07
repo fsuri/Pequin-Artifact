@@ -175,8 +175,9 @@ void ShardClient::RequestQuery(PendingQuery *pendingQuery, proto::Query &queryMs
   //pendingQuery->query_id = QueryDigest(query, params.hashDigest); 
   
   queryReq.set_req_id(pendingQuery->reqId);
-  queryReq.set_optimistic_txid(!pendingQuery->retry_version && params.query_params.optimisticTxID);//On retry use unique/deterministic tx id only.
+  queryReq.set_optimistic_txid(params.query_params.optimisticTxID && !pendingQuery->retry_version);//On retry use unique/deterministic tx id only.
   //queryReq.set_retry_version(pendingQuery->retry_version);
+  queryReq.set_eager_exec(params.query_params.eagerExec && !pendingQuery->retry_version); //On retry use sync.
 
   // This is proof that client does not equivocate query contents --> Otherwise could intentionally produce different read sets at replicas, which -- if caching read set -- can be used to abort partially.
   //NOTE: Hash should suffice to achieve non-equiv --> 2 different queries have different hash.
@@ -187,10 +188,20 @@ void ShardClient::RequestQuery(PendingQuery *pendingQuery, proto::Query &queryMs
     *queryReq.mutable_query() = queryMsg; // NOTE: cannot use std::move(queryMsg) because queryMsg objet may be passed to multiple shardclients.
   }
  
-  uint64_t total_msg = params.query_params.cacheReadSet? config->n : params.query_params.queryMessages;
+  uint64_t total_msg;
+  uint64_t num_designated_replies;
+  if(queryReq.eager_exec()){
+    total_msg = params.query_params.cacheReadSet? config->n : params.query_params.syncMessages;
+    num_designated_replies = params.query_params.syncMessages; 
+  }
+  else{
+    total_msg = params.query_params.cacheReadSet? config->n : params.query_params.queryMessages;
+    num_designated_replies = params.query_params.queryMessages;
+  }
+   
   UW_ASSERT(total_msg <= closestReplicas.size());
   for (size_t i = 0; i < total_msg; ++i) {
-    queryReq.set_designated_for_reply(i < params.query_params.queryMessages);
+    queryReq.set_designated_for_reply(i < num_designated_replies);
     Debug("[group %i] Sending QUERY to replica id %lu", group, group * config->n + GetNthClosestReplica(i));
     transport->SendMessageToReplica(this, group, GetNthClosestReplica(i), queryReq);
   }

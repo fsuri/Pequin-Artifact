@@ -377,6 +377,10 @@ static bool ValidateQueryMessages(const char* flagname,
   return false;
 }
 
+/*
+ Pequin settings
+*/
+
 DEFINE_string(pequin_query_sync_quorum, query_sync_quorum_args[2], "number of replica replies required for sync quorum"); //by default: SyncClient should wait for 2f+1 replies
 DEFINE_validator(pequin_query_sync_quorum, &ValidateQuerySyncQuorum);
 
@@ -398,6 +402,8 @@ DEFINE_string(pequin_sync_messages, query_messages_args[0], "number of replicas 
                                                   //Send to 5f+1 if we want to cache read set.
 
 DEFINE_validator(pequin_sync_messages, &ValidateQueryMessages);
+
+DEFINE_bool(pequin_query_eager_exec, false, "skip query sync protocol and execute optimistically on local state");
 
 DEFINE_bool(pequin_query_read_prepared, true, "allow query to read prepared values");
 DEFINE_bool(pequin_query_cache_read_set, true, "cache query read set at replicas"); // Send syncMessages to all if read set caching is enabled -- but still only sync_messages many replicas are tasked to execute and reply.
@@ -1270,6 +1276,7 @@ int main(int argc, char **argv) {
                                                  mergeThreshold,
                                                  syncMessages,
                                                  resultQuorum,
+                                                 FLAGS_pequin_query_eager_exec,
                                                  FLAGS_pequin_query_read_prepared,
                                                  FLAGS_pequin_query_cache_read_set,
                                                  FLAGS_pequin_query_optimistic_txid,

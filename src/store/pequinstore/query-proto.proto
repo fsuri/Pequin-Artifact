@@ -28,6 +28,7 @@ message QueryRequest {
   }
  optional bool optimistic_txid = 5;
  required bool designated_for_reply = 6;
+ optional bool eager_exec = 7;
 }
 
 //==> moved to pequin-proto.proto

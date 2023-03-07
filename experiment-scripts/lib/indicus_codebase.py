@@ -151,6 +151,8 @@ class IndicusCodebase(ExperimentCodebase):
             if 'sync_messages' in config['replication_protocol_settings']:
                 client_command += " --pequin_sync_messages=%s" % str(config['replication_protocol_settings']['sync_messages']).lower()
 
+            if 'query_eager_exec' in config['replication_protocol_settings']:
+                client_command += " --pequin_query_eager_exec=%s" % str(config['replication_protocol_settings']['query_eager_exec']).lower()
             if 'query_read_prepared' in config['replication_protocol_settings']:
                 client_command += " --pequin_query_read_prepared=%s" % str(config['replication_protocol_settings']['query_read_prepared']).lower()
             if 'query_cache_read_set' in config['replication_protocol_settings']:
@@ -443,6 +445,8 @@ class IndicusCodebase(ExperimentCodebase):
         #    replica_command += ' --rw_or_retwis=%s' % str(config['rw_or_retwis']).lower()
 
         if config['replication_protocol'] == 'pequin':
+            if 'query_eager_exec' in config['replication_protocol_settings']:
+                replica_command += " --pequin_query_eager_exec=%s" % str(config['replication_protocol_settings']['query_eager_exec']).lower()
             if 'query_read_prepared' in config['replication_protocol_settings']:
                 replica_command += " --pequin_query_read_prepared=%s" % str(config['replication_protocol_settings']['query_read_prepared']).lower()
             if 'query_cache_read_set' in config['replication_protocol_settings']:
