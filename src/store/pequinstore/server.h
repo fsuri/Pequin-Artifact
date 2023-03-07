@@ -425,6 +425,7 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
     queryMissingTxnsMap queryMissingTxns; 
 
     void ProcessQuery(queryMetaDataMap::accessor &q, const TransportAddress &remote, proto::Query *query, QueryMetaData *query_md);
+    void FindSnapshot(QueryMetaData *query_md, proto::Query *query);
     void ProcessSync(queryMetaDataMap::accessor &q, const TransportAddress &remote, proto::MergedSnapshot *merged_ss, const std::string *queryId, QueryMetaData *query_md);
     void SetWaiting(std::unordered_map<std::string, uint64_t> &missing_txns, const std::string &tx_id, const std::string *queryId, const std::string &query_retry_id,
         const proto::ReplicaList &replica_list, std::map<uint64_t, proto::RequestMissingTxns> &replica_requests);

@@ -285,10 +285,68 @@ void Server::ProcessQuery(queryMetaDataMap::accessor &q, const TransportAddress 
      proto::SyncReply *syncReply = new proto::SyncReply(); //TODO: change to GetUnused
     syncReply->set_req_id(query_md->req_id);
     
+    // 1) Find Snapshot
+    proto::LocalSnapshot *local_ss = syncReply->mutable_local_ss();
+   
+    //Set LocalSnapshot
+    syncReply->set_optimistic_tx_id(query_md->useOptimisticTxId);
+    query_md->snapshot_mgr.InitLocalSnapshot(local_ss, query->query_seq_num(), query->client_id(), id, query_md->useOptimisticTxId);
+
+    FindSnapshot(query_md, query);
+
+    query_md->snapshot_mgr.SealLocalSnapshot(); //Remove duplicate ids and compress if applicable.
+    q.release();
+  
+
+    // 3) Send Snapshot in SyncReply
+
+    //sign & send reply.
+    if (params.validateProofs && params.signedMessages) {
+        Debug("Sign Query Sync Reply for Query[%lu:%lu:%d]", query->query_seq_num(), query->client_id(), query->retry_version());
+
+     if(false) { //params.queryReplyBatch){
+         TransportAddress *remoteCopy = remote.clone();
+         auto sendCB = [this, remoteCopy, syncReply]() {
+            this->transport->SendMessage(this, *remoteCopy, *syncReply); 
+            delete remoteCopy;
+            delete syncReply;
+        };
+         proto::LocalSnapshot *ls = syncReply->release_local_ss();
+         MessageToSign(ls, syncReply->mutable_signed_local_ss(), [sendCB, ls]() {
+            sendCB();
+             Debug("Sent Signed Query Sync Snapshot for Query[%lu:%lu]", ls->query_seq_num(), ls->client_id());
+            delete ls;
+        });
+     }
+     else{ //realistically don't ever need to batch query sigs --> batching helps with amortized sig generation, but not with verificiation since client don't forward proofs.
+        proto::LocalSnapshot *ls = syncReply->release_local_ss();
+        if(params.signatureBatchSize == 1){
+            SignMessage(ls, keyManager->GetPrivateKey(id), id, syncReply->mutable_signed_local_ss());
+        }
+        else{
+            std::vector<::google::protobuf::Message *> msgs;
+            msgs.push_back(ls);
+            std::vector<proto::SignedMessage *> smsgs;
+            smsgs.push_back(syncReply->mutable_signed_local_ss());
+            SignMessages(msgs, keyManager->GetPrivateKey(id), id, smsgs, params.merkleBranchFactor);
+        }
+        this->transport->SendMessage(this, remote, *syncReply);
+        Debug("Sent Signed Query Sync Snapshot for Query[%lu:%lu:%d]", ls->query_seq_num(), ls->client_id(), query->retry_version());
+        delete syncReply;
+        delete ls;
+     }
+    }
+    else{
+        this->transport->SendMessage(this, remote, *syncReply);
+    }
+   
+    delete query;
+}
+
+void Server::FindSnapshot(QueryMetaData *query_md, proto::Query *query){
+
     // 1) Parse & Execute Query
     // SQL glue. How to execute from query plan object.
-
-    
     /////////////////////////////////////////////////////////////
     //                                                         //
     //                                                         //
@@ -311,11 +369,6 @@ void Server::ProcessQuery(queryMetaDataMap::accessor &q, const TransportAddress 
     //Could already store a whole tx map for each key: map<key, deque<TxnIds>> --? replace tx_ids evertime a newer one comes along (pop front, push_back). 
     // Problem: May come in any TS order. AND: Query with TS only cares about TxId < TS
 
-    proto::LocalSnapshot *local_ss = syncReply->mutable_local_ss();
-   
-    //Set LocalSnapshot
-    syncReply->set_optimistic_tx_id(query_md->useOptimisticTxId);
-    query_md->snapshot_mgr.InitLocalSnapshot(local_ss, query->query_seq_num(), query->client_id(), id, query_md->useOptimisticTxId);
 
     //FindSnapshot(local_ss, query_cmd); //TODO: Function that calls blackbox exec and sets snapshot.
 
@@ -374,56 +427,7 @@ void Server::ProcessQuery(queryMetaDataMap::accessor &q, const TransportAddress 
             }
     
     }
-
-    query_md->snapshot_mgr.SealLocalSnapshot(); //Remove duplicate ids and compress if applicable.
-    q.release();
-  
-
-    // 3) Send Snapshot in SyncReply
-
-    //sign & send reply.
-    if (params.validateProofs && params.signedMessages) {
-        Debug("Sign Query Sync Reply for Query[%lu:%lu:%d]", query->query_seq_num(), query->client_id(), query->retry_version());
-
-     if(false) { //params.queryReplyBatch){
-         TransportAddress *remoteCopy = remote.clone();
-         auto sendCB = [this, remoteCopy, syncReply]() {
-            this->transport->SendMessage(this, *remoteCopy, *syncReply); 
-            delete remoteCopy;
-            delete syncReply;
-        };
-         proto::LocalSnapshot *ls = syncReply->release_local_ss();
-         MessageToSign(ls, syncReply->mutable_signed_local_ss(), [sendCB, ls]() {
-            sendCB();
-             Debug("Sent Signed Query Sync Snapshot for Query[%lu:%lu]", ls->query_seq_num(), ls->client_id());
-            delete ls;
-        });
-     }
-     else{ //realistically don't ever need to batch query sigs --> batching helps with amortized sig generation, but not with verificiation since client don't forward proofs.
-        proto::LocalSnapshot *ls = syncReply->release_local_ss();
-        if(params.signatureBatchSize == 1){
-            SignMessage(ls, keyManager->GetPrivateKey(id), id, syncReply->mutable_signed_local_ss());
-        }
-        else{
-            std::vector<::google::protobuf::Message *> msgs;
-            msgs.push_back(ls);
-            std::vector<proto::SignedMessage *> smsgs;
-            smsgs.push_back(syncReply->mutable_signed_local_ss());
-            SignMessages(msgs, keyManager->GetPrivateKey(id), id, smsgs, params.merkleBranchFactor);
-        }
-        this->transport->SendMessage(this, remote, *syncReply);
-        Debug("Sent Signed Query Sync Snapshot for Query[%lu:%lu:%d]", ls->query_seq_num(), ls->client_id(), query->retry_version());
-        delete syncReply;
-        delete ls;
-     }
-    }
-    else{
-        this->transport->SendMessage(this, remote, *syncReply);
-    }
-   
-    delete query;
 }
-
 
 ////////////////////Handle Sync
 bool Server::VerifyClientSyncProposal(proto::SyncClientProposal &msg, const std::string &queryId)
