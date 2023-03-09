@@ -42,17 +42,20 @@ Server::Server(const transport::Configuration& config, KeyManager* keyManager,
           join_flag + server_address.host + ":" + server_address.port + ",";
     }
   }
+
   // Remove last comma
   join_flag.pop_back();
   std::string other_flags = "--cache=.25 --max -sql -memory=.25 --background ";
-
   start_script = start_script + join_flag + other_flags;
+  // start server
+  system(join_flag);
 
-  // If happens to be the last one, start
+  // If happens to be the last one, init server
   if (id == numGroups * config.n - 1) {
     std::string init_script =
         "cockroach init --insecure --host=" + server_address.host + ":" +
         server_address.port;
+    system(init_script);
   }
 }
 
