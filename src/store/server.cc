@@ -809,7 +809,7 @@ int main(int argc, char **argv) {
     // Cockroach
     case PROTO_CRDB: {
       server =
-          new ::Server(config, &keyManager, FLAGS_group_idx, FLAGS_replica_idx,
+          new cockroach::Server(config, &keyManager, FLAGS_group_idx, FLAGS_replica_idx,
                        FLAGS_num_shards, FLAGS_num_groups);
     }
 
