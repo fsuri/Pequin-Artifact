@@ -808,9 +808,9 @@ int main(int argc, char **argv) {
 
     // Cockroach
     case PROTO_CRDB: {
-      server =
-          new cockroach::Server(config, &keyManager, FLAGS_group_idx, FLAGS_replica_idx,
-                       FLAGS_num_shards, FLAGS_num_groups);
+      server = new cockroachdb::Server(config, &keyManager, FLAGS_group_idx,
+                                       FLAGS_replica_idx, FLAGS_num_shards,
+                                       FLAGS_num_groups);
     }
 
     default: {
