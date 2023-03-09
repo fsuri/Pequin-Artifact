@@ -160,8 +160,7 @@ Alternatively, you may download and unzip from source:
 Next, build taopq:
 
 4. `sudo cmake .`
-5. `sudo cmake --build .`
-6. `sudo make -j $(nproc)`
+5. `sudo cmake --build . -j $(nproc)`
 7. `sudo make install`
 8. `sudo ldconfig`
 9. `cd ..`
