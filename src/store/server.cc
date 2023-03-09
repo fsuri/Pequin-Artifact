@@ -94,9 +94,9 @@ enum protocol_t {
   // BftSmart
   PROTO_BFTSMART,
   // Augustus-BFTSmart
-  PROTO_AUGUSTUS_SMART
-      // Cockroach DB
-      PROTO_CRDB
+  PROTO_AUGUSTUS_SMART,
+  // Cockroach DB
+  PROTO_CRDB
 };
 
 enum transmode_t {
