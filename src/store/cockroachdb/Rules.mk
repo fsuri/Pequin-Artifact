@@ -2,8 +2,6 @@ d := $(dir $(lastword $(MAKEFILE_LIST)))
 
 SRCS += $(addprefix $(d), server.cc )
 
-PROTOS += $(addprefix $(d), pbft-proto.proto server-proto.proto)
-
 # TaoPQ static libraries
 LIB-taopq :=
 
