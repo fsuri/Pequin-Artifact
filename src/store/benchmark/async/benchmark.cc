@@ -39,12 +39,14 @@
 #include "store/common/truetime.h"
 #include "store/common/stats.h"
 #include "store/common/partitioner.h"
+#include "store/common/failures.h"
 #include "store/common/frontend/sync_client.h"
 #include "store/common/frontend/async_client.h"
 #include "store/common/frontend/async_adapter_client.h"
 #include "store/strongstore/client.h"
 #include "store/weakstore/client.h"
 #include "store/tapirstore/client.h"
+//benchmark clients
 #include "store/benchmark/async/bench_client.h"
 #include "store/benchmark/async/common/key_selector.h"
 #include "store/benchmark/async/common/uniform_key_selector.h"
@@ -53,6 +55,11 @@
 #include "store/benchmark/async/tpcc/sync/tpcc_client.h"
 #include "store/benchmark/async/tpcc/async/tpcc_client.h"
 #include "store/benchmark/async/smallbank/smallbank_client.h"
+#include "store/benchmark/async/toy/toy_client.h"
+//protocol clients
+//Pesto
+#include "store/pequinstore/client.h"
+// Basil
 #include "store/indicusstore/client.h"
 #include "store/pbftstore/client.h"
 // HotStuff
@@ -83,6 +90,7 @@ enum protomode_t {
 	PROTO_TAPIR,
 	PROTO_WEAK,
 	PROTO_STRONG,
+  PROTO_PEQUIN,
   PROTO_INDICUS,
 	PROTO_PBFT,
     // HotStuff
@@ -101,7 +109,8 @@ enum benchmode_t {
   BENCH_TPCC,
   BENCH_SMALLBANK_SYNC,
   BENCH_RW,
-  BENCH_TPCC_SYNC
+  BENCH_TPCC_SYNC,
+  BENCH_TOY
 };
 
 enum keysmode_t {
@@ -253,9 +262,9 @@ DEFINE_bool(indicus_sign_client_proposals, false, "add signatures to client prop
 DEFINE_uint64(indicus_inject_failure_ms, 0, "number of milliseconds to wait"
     " before injecting a failure (for Indicus)");
 DEFINE_uint64(indicus_inject_failure_proportion, 0, "proportion of clients that"
-    " will inject a failure (for Indicus)");
+    " will inject a failure (for Indicus)"); //default 0
 DEFINE_uint64(indicus_inject_failure_freq, 100, "number of transactions per ONE failure"
-		    " in a Byz client (for Indicus)");
+		    " in a Byz client (for Indicus)"); //default 100
 
 DEFINE_uint64(indicus_phase1DecisionTimeout, 1000UL, "p1 timeout before going slowpath");
 //Verification computation configurations
@@ -274,11 +283,12 @@ DEFINE_bool(indicus_parallel_CCC, true, "sort read/write set for parallel CCC lo
 
 DEFINE_bool(indicus_hyper_threading, true, "use hyperthreading");
 
+//Indicus failure handling and injection
 DEFINE_bool(indicus_no_fallback, false, "turn off fallback protocol");
 DEFINE_uint64(indicus_max_consecutive_abstains, 1, "number of consecutive conflicts before fallback is triggered");
 DEFINE_bool(indicus_all_to_all_fb, false, "use the all to all view change method");
 DEFINE_uint64(indicus_relayP1_timeout, 1, "time (ms) after which to send RelayP1");
-
+//
 const std::string if_args[] = {
   "client-crash",
 	"client-equivocate",
@@ -286,12 +296,12 @@ const std::string if_args[] = {
 	"client-stall-after-p1",
 	"client-send-partial-p1"
 };
-const indicusstore::InjectFailureType iff[] {
-  indicusstore::InjectFailureType::CLIENT_CRASH,
-  indicusstore::InjectFailureType::CLIENT_EQUIVOCATE,
-	indicusstore::InjectFailureType::CLIENT_EQUIVOCATE_SIMULATE,
-	indicusstore::InjectFailureType::CLIENT_STALL_AFTER_P1,
-	indicusstore::InjectFailureType::CLIENT_SEND_PARTIAL_P1
+const InjectFailureType iff[] {
+  InjectFailureType::CLIENT_CRASH, //client sends p1, but does not wait reply
+  InjectFailureType::CLIENT_EQUIVOCATE, //client receives p1 replies, and tried to equiv only if both commit and abort p2 quorums available
+	InjectFailureType::CLIENT_EQUIVOCATE_SIMULATE, //client receives p1 replies, and always equivs p2 (even though it is not allowed to -- we simualate as if)
+	InjectFailureType::CLIENT_STALL_AFTER_P1, //client sends p1, and waits for p1 replies --> finishes fallback of other transactions to unblock itself
+	InjectFailureType::CLIENT_SEND_PARTIAL_P1 //client sends p1 to only some replicas, does not wait.
 };
 static bool ValidateInjectFailureType(const char* flagname,
     const std::string &value) {
@@ -307,6 +317,98 @@ static bool ValidateInjectFailureType(const char* flagname,
 DEFINE_string(indicus_inject_failure_type, if_args[0], "type of failure to"
     " inject (for Indicus)");
 DEFINE_validator(indicus_inject_failure_type, &ValidateInjectFailureType);
+
+//Pequin Sync protocol
+enum query_sync_quorum_t {
+  QUERY_SYNC_QUORUM_UNKNOWN,
+  QUERY_SYNC_QUROUM_ONE,
+  QUERY_SYNC_QUORUM_ONE_HONEST,  //at least f+1 --> 1 honest
+  QUERY_SYNC_QUORUM_MAJORITY_HONEST, //at least 2f+1 --> f+1 honest
+  QUERY_SYNC_QUORUM_MAJORITY, // at least 3f+1 --> 2f+1 honest (supermajority)
+  QUERY_SYNC_QUORUM_ALL_POSSIBLE // at least 4f+1 (all that one can expect to receive)
+};
+const std::string query_sync_quorum_args[] = {
+	"query-one",
+  "query-one-honest",
+  "query-majority-honest",
+  "query-super-majority-honest",
+  "query-all-possible"
+};
+const query_sync_quorum_t query_sync_quorums[] {
+  QUERY_SYNC_QUROUM_ONE,
+  QUERY_SYNC_QUORUM_ONE_HONEST,  //at least f+1 --> 1 honest
+  QUERY_SYNC_QUORUM_MAJORITY_HONEST, //at least 2f+1 --> f+1 honest
+  QUERY_SYNC_QUORUM_MAJORITY, // at least 3f+1 --> 2f+1 honest (supermajority)
+  QUERY_SYNC_QUORUM_ALL_POSSIBLE // at least 4f+1 (all that one can expect to receive)
+};
+static bool ValidateQuerySyncQuorum(const char* flagname,
+    const std::string &value) {
+  int n = sizeof(query_sync_quorum_args);
+  for (int i = 0; i < n; ++i) {
+    if (value == query_sync_quorum_args[i]) return true;
+  }
+  std::cerr << "Invalid value for --" << flagname << ": " << value << std::endl;
+  return false;
+}
+
+enum query_messages_t {
+  QUERY_MESSAGES_UNKNOWN,
+  QUERY_MESSAGES_QUERY_QUORUM, //send to no only #Query_sync_quorum many replicas
+  QUERY_MESSAGES_PESSIMISTIC_BONUS, //send to f additional replicas
+  QUERY_MESSAGES_ALL //send to all replicas
+};
+const std::string query_messages_args[] = {
+	"quorum",
+  "pessimistic-bonus",
+  "all"
+};
+const query_messages_t query_messagess[] {
+  QUERY_MESSAGES_QUERY_QUORUM,
+  QUERY_MESSAGES_PESSIMISTIC_BONUS,
+  QUERY_MESSAGES_ALL
+};
+static bool ValidateQueryMessages(const char* flagname,
+    const std::string &value) {
+  int n = sizeof(query_messages_args);
+  for (int i = 0; i < n; ++i) {
+    if (value == query_messages_args[i]) return true;
+  }
+  std::cerr << "Invalid value for --" << flagname << ": " << value << std::endl;
+  return false;
+}
+
+DEFINE_string(pequin_query_sync_quorum, query_sync_quorum_args[2], "number of replica replies required for sync quorum"); //by default: SyncClient should wait for 2f+1 replies
+DEFINE_validator(pequin_query_sync_quorum, &ValidateQuerySyncQuorum);
+
+DEFINE_string(pequin_query_messages, query_messages_args[0], "number of replicas to send query to"); //by default: To receive 2f+1 replies, need to send to 2f+1 
+DEFINE_validator(pequin_query_messages, &ValidateQueryMessages);
+
+DEFINE_string(pequin_query_merge_threshold, query_sync_quorum_args[1], "number of replica votes necessary to include tx in sync snapshot");  //by default: f+1
+//Can be optimistic and set it to 1 == include all tx ==> utmost freshness, but no guarantee of validity; can be pessimistic and set it higher ==> less fresh tx, but more widely prepared.
+            // Note: This only affects the client progress. Servers will only adopt committed values if they are certified, and prepared values only if they locally vote Prepare.
+DEFINE_validator(pequin_query_merge_threshold, &ValidateQuerySyncQuorum);
+
+DEFINE_bool(pequin_query_result_honest, true, "require at least 1 honest replica reply"); //by default: true
+//-->if false, use first reply; if true, wait for f+1 matching. Keep waiting (or retry) depending on sync_message size.
+
+DEFINE_string(pequin_sync_messages, query_messages_args[0], "number of replicas to send sync snapshot to for execution"); 
+//send to at least as many as results are required; f additional if optimistic ids enabled; 
+ //By default: Sync Client then sends sync CP to f+1, and waits for f+1 matching replies  (For liveness --pessimistic bonus -- must send to 2+1)
+                                                  //Send to f additional when using optimistic tx-ids.
+                                                  //Send to 5f+1 if we want to cache read set.
+
+DEFINE_validator(pequin_sync_messages, &ValidateQueryMessages);
+
+DEFINE_bool(pequin_query_read_prepared, false, "allow query to read prepared values");
+DEFINE_bool(pequin_query_optimistic_txid, false, "use optimistic tx-id for sync protocol");
+DEFINE_bool(pequin_query_cache_read_set, false, "cache query read set at replicas"); // Send syncMessages to all if read set caching is enabled -- but still only sync_messages many replicas are tasked to execute and reply.
+
+DEFINE_bool(pequin_sign_client_queries, false, "sign query and sync messages"); //proves non-equivocation of query contents, and query snapshot respectively. 
+//Note: Should not be necessary. Unique hash of query should suffice for non-equivocation; autheniticated channels would suffice for authentication. 
+DEFINE_bool(pequin_parallel_queries, false, "dispatch queries to parallel worker threads");
+
+
+///////////////////////////////////////////////////////////
 
 DEFINE_bool(debug_stats, false, "record stats related to debugging");
 
@@ -342,6 +444,7 @@ const std::string protocol_args[] = {
   "lock",
   "span-occ",
   "span-lock",
+  "pequin",
   "indicus",
 	"pbft",
 // HotStuff
@@ -361,6 +464,8 @@ const protomode_t protomodes[] {
   PROTO_STRONG,
   PROTO_STRONG,
   PROTO_STRONG,
+  //
+  PROTO_PEQUIN,
   PROTO_INDICUS,
       PROTO_PBFT,
   // HotStuff
@@ -406,14 +511,16 @@ const std::string benchmark_args[] = {
   "tpcc",
   "smallbank",
   "rw",
-  "tpcc-sync"
+  "tpcc-sync",
+  "toy"
 };
 const benchmode_t benchmodes[] {
   BENCH_RETWIS,
   BENCH_TPCC,
   BENCH_SMALLBANK_SYNC,
   BENCH_RW,
-  BENCH_TPCC_SYNC
+  BENCH_TPCC_SYNC,
+  BENCH_TOY
 };
 static bool ValidateBenchmark(const char* flagname, const std::string &value) {
   int n = sizeof(benchmark_args);
@@ -674,7 +781,7 @@ int main(int argc, char **argv) {
       break;
     }
   }
-  if (mode == PROTO_INDICUS && read_quorum == READ_QUORUM_UNKNOWN) {
+  if (mode != PROTO_TAPIR && read_quorum == READ_QUORUM_UNKNOWN) { //All other ProtoModes require a ReadQuorum Size as input.
     std::cerr << "Unknown read quorum." << std::endl;
     return 1;
   }
@@ -688,13 +795,13 @@ int main(int argc, char **argv) {
       break;
     }
   }
-  if (mode == PROTO_INDICUS && read_messages == READ_MESSAGES_UNKNOWN) {
+  if ((mode != PROTO_TAPIR && mode != PROTO_PBFT) && read_messages == READ_MESSAGES_UNKNOWN) { //All other protocols require a ReadMessage Size as input
     std::cerr << "Unknown read messages." << std::endl;
     return 1;
   }
 
   // parse inject failure
-  indicusstore::InjectFailureType injectFailureType = indicusstore::InjectFailureType::CLIENT_EQUIVOCATE;
+  InjectFailureType injectFailureType = InjectFailureType::CLIENT_EQUIVOCATE;
   int numInjectFailure = sizeof(if_args);
   for (int i = 0; i < numInjectFailure; ++i) {
     if (FLAGS_indicus_inject_failure_type == if_args[i]) {
@@ -712,10 +819,69 @@ int main(int argc, char **argv) {
       break;
     }
   }
-  if (mode == PROTO_INDICUS && read_dep == READ_DEP_UNKNOWN) {
+  if ((mode == PROTO_INDICUS || mode == PROTO_PEQUIN) && read_dep == READ_DEP_UNKNOWN) {
     std::cerr << "Unknown read dep." << std::endl;
     return 1;
   }
+
+  // parse query sync quorum
+  query_sync_quorum_t query_sync_quorum = QUERY_SYNC_QUORUM_UNKNOWN;
+  int numQuerySyncQuorums = sizeof(query_sync_quorum_args);
+  for (int i = 0; i < numQuerySyncQuorums; ++i) {
+    if (FLAGS_pequin_query_sync_quorum == query_sync_quorum_args[i]) {
+      query_sync_quorum = query_sync_quorums[i];
+      break;
+    }
+  }
+  if (mode == PROTO_PEQUIN && query_sync_quorum == QUERY_SYNC_QUORUM_UNKNOWN) { 
+    std::cerr << "Unknown query sync quorum." << std::endl;
+    return 1;
+  }
+  
+  // parse query messages
+  query_messages_t query_messages = QUERY_MESSAGES_UNKNOWN;
+  int numQueryMessages = sizeof(query_messages_args);
+  for (int i = 0; i < numQueryMessages; ++i) {
+    if (FLAGS_pequin_query_messages == query_messages_args[i]) {
+      query_messages = query_messagess[i];
+      break;
+    }
+  }
+  if (mode == PROTO_PEQUIN && query_messages == QUERY_MESSAGES_UNKNOWN) { 
+    std::cerr << "Unknown query messages." << std::endl;
+    return 1;
+  }
+
+    // parse query sync quorum merge threshold
+  query_sync_quorum_t query_merge_threshold = QUERY_SYNC_QUORUM_UNKNOWN;
+  int numQueryMergeThresholds = sizeof(query_sync_quorum_args);
+  for (int i = 0; i < numQueryMergeThresholds; ++i) {
+    if (FLAGS_pequin_query_merge_threshold == query_sync_quorum_args[i]) {
+      query_merge_threshold = query_sync_quorums[i];
+      break;
+    }
+  }
+  if (mode == PROTO_PEQUIN && query_merge_threshold == QUERY_SYNC_QUORUM_UNKNOWN) { 
+    std::cerr << "Unknown query merge threshold." << std::endl;
+    return 1;
+  }
+
+  // parse sync messages
+  query_messages_t sync_messages = QUERY_MESSAGES_UNKNOWN;
+  int numSyncMessages = sizeof(query_messages_args);
+  for (int i = 0; i < numSyncMessages; ++i) {
+    if (FLAGS_pequin_sync_messages == query_messages_args[i]) {
+      sync_messages = query_messagess[i];
+      break;
+    }
+  }
+  if (mode == PROTO_PEQUIN && sync_messages == QUERY_MESSAGES_UNKNOWN) { 
+    std::cerr << "Unknown sync messages." << std::endl;
+    return 1;
+  }
+
+
+//////////////////////////
 
   // parse closest replicas
   std::vector<int> closestReplicas;
@@ -892,6 +1058,195 @@ int main(int argc, char **argv) {
     //keyManager->PreLoadPrivKey(clientId, true);
     // Alternatively: uint64_t clientId = FLAGS_client_id * FLAGS_num_client_threads + i;
     
+    ////////////////// PROTOCOL CLIENTS
+
+    ///////////////// Additional parameter configurations
+    uint64_t readQuorumSize = 0; //number of replies necessary to form a read quorum
+    uint64_t readMessages = 0; //number of read messages sent to replicas to request replies
+    uint64_t pessimistic_quorum_bonus = FLAGS_indicus_optimistic_read_quorum? 0 : config->f; //by default only sends read to the same amount of replicas that we need replies from; if there are faults, we may need to send to more.
+    uint64_t readDepSize = 0; //number of replica replies needed to form dependency  
+    InjectFailure failure; //Type of Failure to be injected
+
+    uint64_t syncQuorumSize = 0; //number of replies necessary to form a sync quorum
+    uint64_t queryMessages = 0; //number of query messages sent to replicas to request sync replies
+    uint64_t mergeThreshold = 1; //number of tx instances required to observe to include in sync snapshot
+    uint64_t syncMessages = 0;    //number of sync messages sent to replicas to request result replies
+    uint64_t resultQuorum = FLAGS_pequin_query_result_honest? config->f + 1 : 1;
+
+
+    switch (mode) {
+      case PROTO_TAPIR:
+           break;
+      case PROTO_PEQUIN:
+         switch (query_sync_quorum) {
+          case QUERY_SYNC_QUROUM_ONE:
+            syncQuorumSize = 1;
+            break;
+          case QUERY_SYNC_QUORUM_ONE_HONEST:
+            syncQuorumSize = config->f + 1;
+            break;
+          case QUERY_SYNC_QUORUM_MAJORITY_HONEST:
+            syncQuorumSize = config->f * 2 + 1;  //majority of quorum will be honest
+            break;
+          case QUERY_SYNC_QUORUM_MAJORITY:
+            syncQuorumSize = config->f * 3 + 1; //== majority of all honest will be included in quorum
+            break;
+          case QUERY_SYNC_QUORUM_ALL_POSSIBLE:
+            syncQuorumSize = config->f * 4 + 1;
+            break;
+          default: 
+            NOT_REACHABLE();
+         }
+         switch (query_merge_threshold) { 
+          case QUERY_SYNC_QUROUM_ONE:
+            mergeThreshold = 1;
+            break;
+          case QUERY_SYNC_QUORUM_ONE_HONEST:
+            mergeThreshold = config->f + 1;
+            break;
+          //NOTE: These cases realistically will never be used -- but supported here anyways
+          case QUERY_SYNC_QUORUM_MAJORITY_HONEST:
+            mergeThreshold = config->f * 2 + 1;  //majority of quorum will be honest
+            break;
+          case QUERY_SYNC_QUORUM_MAJORITY:
+            mergeThreshold = config->f * 3 + 1; //== majority of all honest will be included in quorum
+            break;
+          case QUERY_SYNC_QUORUM_ALL_POSSIBLE:
+            mergeThreshold = config->f * 4 + 1;
+            break;
+          default: 
+            NOT_REACHABLE();
+         }
+         if(mergeThreshold > syncQuorumSize) Panic("Merge Threshold for Query Sync cannot be larger than Quorum itself");
+         if(mergeThreshold + config->f > syncQuorumSize) std::cerr << "WARNING: Query Sync Merge is not live in presence of byzantine replies in Query Sync Quorum" << std::endl;
+        
+         switch (query_messages) {
+          case QUERY_MESSAGES_QUERY_QUORUM:
+              queryMessages = syncQuorumSize;
+              break;
+          case QUERY_MESSAGES_PESSIMISTIC_BONUS:
+              queryMessages = syncQuorumSize + config->f;
+              break;
+          case QUERY_MESSAGES_ALL:
+              queryMessages = config->n;
+              break;
+          default:
+              NOT_REACHABLE();
+          }
+          if(syncQuorumSize > queryMessages) Panic("Query Quorum size cannot be larger than number of Query requests sent");
+          if(syncQuorumSize + config->f > queryMessages) std::cerr << "WARNING: Query Sync is not live in presence of byzantine replies witholding query sync replies (omission faults)" << std::endl;
+         
+         switch (sync_messages) {
+          case QUERY_MESSAGES_QUERY_QUORUM:
+              syncMessages = resultQuorum;
+              break;
+          case QUERY_MESSAGES_PESSIMISTIC_BONUS:
+              syncMessages = resultQuorum + config->f;
+              break;
+          case QUERY_MESSAGES_ALL:
+              syncMessages = config->n;
+              break;
+          default:
+              NOT_REACHABLE();
+          }
+         
+         // ==> Moved to client logic in order to account for retries.
+         //if(FLAGS_pequin_query_optimistic_txid) syncMessages = std::max((uint64_t) config->n, syncMessages + config->n); //If optimisticTxID enabled send to f additional replicas to guarantee result. 
+         // if read_cache is True:--> send sync to all, but still only ask syncMessages many to execute.
+
+        Debug("Configuring Pequin to send query messages to %lu replicas and wait for %lu replies. Merge Threshold is %lu. %lu Sync messages are being sent", queryMessages, syncQuorumSize, mergeThreshold, syncMessages);
+
+      case PROTO_INDICUS:
+         switch (read_quorum) {
+            case READ_QUORUM_ONE:
+                readQuorumSize = 1;
+                break;
+            case READ_QUORUM_ONE_HONEST:
+                readQuorumSize = config->f + 1;
+                break;
+            case READ_QUORUM_MAJORITY_HONEST:
+                readQuorumSize = config->f * 2 + 1;
+                break;
+            case READ_QUORUM_MAJORITY:
+                readQuorumSize = (config->n + 1) / 2;
+                break;
+            case READ_QUORUM_ALL:
+                readQuorumSize = config->f * 4 + 1;
+                break;
+            default:
+                NOT_REACHABLE();
+        }
+
+        switch (read_messages) {
+          case READ_MESSAGES_READ_QUORUM:
+              readMessages = readQuorumSize + pessimistic_quorum_bonus;
+              break;
+          case READ_MESSAGES_MAJORITY:
+              readMessages = (config->n + 1) / 2;
+              break;
+          case READ_MESSAGES_ALL:
+              readMessages = config->n;
+              break;
+          default:
+              NOT_REACHABLE();
+          }
+          Debug("Configuring Indicus to send read messages to %lu replicas and wait for %lu replies.", readMessages, readQuorumSize);
+          UW_ASSERT(readMessages >= readQuorumSize);
+
+          switch (read_dep) {
+          case READ_DEP_ONE:
+              readDepSize = 1;
+              break;
+          case READ_DEP_ONE_HONEST:
+              readDepSize = config->f + 1;
+              break;
+          default:
+              NOT_REACHABLE();
+          }
+
+          failure.type = injectFailureType;
+          failure.timeMs = FLAGS_indicus_inject_failure_ms + rand() % 100; //offset client failures a bit.
+          //	std::cerr << "client_id = " << FLAGS_client_id << " < ?" << (72* FLAGS_indicus_inject_failure_proportion/100) << ". Failure enabled: "<< failure.enabled <<  std::endl;
+          failure.enabled = FLAGS_num_client_hosts * i + FLAGS_client_id < floor(FLAGS_num_client_hosts * FLAGS_num_client_threads * FLAGS_indicus_inject_failure_proportion / 100);
+            std::cerr << "client_id = " << clientId << ", client_process = " << FLAGS_client_id << ", thread_id = " << i << ". Failure enabled: "<< failure.enabled <<  std::endl;
+          failure.frequency = FLAGS_indicus_inject_failure_freq;
+        break;
+      case PROTO_PBFT:
+      case PROTO_HOTSTUFF:
+      case PROTO_BFTSMART:
+      case PROTO_AUGUSTUS_SMART:
+      case PROTO_AUGUSTUS:
+        switch (read_quorum) {
+          case READ_QUORUM_ONE:
+              readQuorumSize = 1;
+              break;
+          case READ_QUORUM_ONE_HONEST:
+              readQuorumSize = config->f + 1;
+              break;
+          case READ_QUORUM_MAJORITY_HONEST:
+              readQuorumSize = config->f * 2 + 1;
+              break;
+          default:
+              NOT_REACHABLE();
+        }
+				
+        switch (read_messages) {
+          case READ_MESSAGES_READ_QUORUM:
+              readMessages = readQuorumSize + pessimistic_quorum_bonus; 
+              break;
+          case READ_MESSAGES_MAJORITY:
+              readMessages = (config->n + 1) / 2;
+              break;
+          case READ_MESSAGES_ALL:
+              readMessages = config->n;
+              break;
+          default:
+              NOT_REACHABLE();
+        }
+    }
+
+//Declare Protocol Clients
+
     switch (mode) {
     case PROTO_TAPIR: {
         client = new tapirstore::Client(config, clientId,
@@ -901,69 +1256,50 @@ int main(int argc, char **argv) {
                                                  FLAGS_clock_error));
         break;
     }
+    case PROTO_PEQUIN: {
+      pequinstore::QueryParameters query_params(syncQuorumSize,
+                                                 queryMessages,
+                                                 mergeThreshold,
+                                                 syncMessages,
+                                                 resultQuorum,
+                                                 FLAGS_pequin_query_read_prepared,
+                                                 FLAGS_pequin_query_optimistic_txid,
+                                                 FLAGS_pequin_query_cache_read_set,
+                                                 FLAGS_pequin_sign_client_queries,
+                                                 FLAGS_pequin_parallel_queries);
+
+        pequinstore::Parameters params(FLAGS_indicus_sign_messages,
+                                        FLAGS_indicus_validate_proofs, FLAGS_indicus_hash_digest,
+                                        FLAGS_indicus_verify_deps, FLAGS_indicus_sig_batch,
+                                        FLAGS_indicus_max_dep_depth, readDepSize,
+																				false, false,
+																				false, false,
+                                        FLAGS_indicus_merkle_branch_factor, failure,
+                                        FLAGS_indicus_multi_threading, FLAGS_indicus_batch_verification,
+																				FLAGS_indicus_batch_verification_size,
+																				false,
+																				false,
+																				false,
+																				FLAGS_indicus_parallel_CCC,
+																				false,
+																				FLAGS_indicus_all_to_all_fb,
+																			  FLAGS_indicus_no_fallback,
+																				FLAGS_indicus_relayP1_timeout,
+																			  false,
+                                        FLAGS_indicus_sign_client_proposals,
+                                        0,
+                                        query_params);
+
+        client = new pequinstore::Client(config, clientId,
+                                          FLAGS_num_shards,
+                                          FLAGS_num_groups, closestReplicas, FLAGS_ping_replicas, tport, part,
+                                          FLAGS_tapir_sync_commit, readMessages, readQuorumSize,
+                                          params, keyManager, FLAGS_indicus_phase1DecisionTimeout,
+																					FLAGS_indicus_max_consecutive_abstains,
+																					TrueTime(FLAGS_clock_skew, FLAGS_clock_error));
+        break;
+    }
     case PROTO_INDICUS: {
-        uint64_t readQuorumSize = 0; //number of replies necessary to form a quorum
-        switch (read_quorum) {
-        case READ_QUORUM_ONE:
-            readQuorumSize = 1;
-            break;
-        case READ_QUORUM_ONE_HONEST:
-            readQuorumSize = config->f + 1;
-            break;
-        case READ_QUORUM_MAJORITY_HONEST:
-            readQuorumSize = config->f * 2 + 1;
-            break;
-        case READ_QUORUM_MAJORITY:
-            readQuorumSize = (config->n + 1) / 2;
-            break;
-        case READ_QUORUM_ALL:
-            readQuorumSize = config->f * 4 + 1;
-            break;
-        default:
-            NOT_REACHABLE();
-        }
-
-        uint64_t readMessages = 0; //number of messages sent to replicas to request replies
-        uint64_t pessimistic_quorum_bonus = FLAGS_indicus_optimistic_read_quorum? 0 : config->f; //by default only sends read to the same amount of replicas that we need replies from; if there are faults, we may need to send to more.
-        switch (read_messages) {
-        case READ_MESSAGES_READ_QUORUM:
-            readMessages = readQuorumSize + pessimistic_quorum_bonus;
-            break;
-        case READ_MESSAGES_MAJORITY:
-            readMessages = (config->n + 1) / 2;
-            break;
-        case READ_MESSAGES_ALL:
-            readMessages = config->n;
-            break;
-        default:
-            NOT_REACHABLE();
-        }
-        Debug("Configuring Indicus to send read messages to %lu replicas and wait for %lu replies.", readMessages, readQuorumSize);
-        UW_ASSERT(readMessages >= readQuorumSize);
-
-        uint64_t readDepSize = 0;
-        switch (read_dep) {
-        case READ_DEP_ONE:
-            readDepSize = 1;
-            break;
-        case READ_DEP_ONE_HONEST:
-            readDepSize = config->f + 1;
-            break;
-        default:
-            NOT_REACHABLE();
-        }
-
-        indicusstore::InjectFailure failure;
-        failure.type = injectFailureType;
-        failure.timeMs = FLAGS_indicus_inject_failure_ms + rand() % 100; //offset client failures a bit.
-        //failure.enabled = rand() % 100 < FLAGS_indicus_inject_failure_proportion;
-				//TODO: WARNING: This is a hack based on 72 total clients --> pass total_clients down as flag.
-				//failure.enabled = FLAGS_client_id < floor(72 * FLAGS_indicus_inject_failure_proportion / 100);
-				//	std::cerr << "client_id = " << FLAGS_client_id << " < ?" << (72* FLAGS_indicus_inject_failure_proportion/100) << ". Failure enabled: "<< failure.enabled <<  std::endl;
-				failure.enabled = FLAGS_num_client_hosts * i + FLAGS_client_id < floor(FLAGS_num_client_hosts * FLAGS_num_client_threads * FLAGS_indicus_inject_failure_proportion / 100);
-					std::cerr << "client_id = " << clientId << ", client_process = " << FLAGS_client_id << ", thread_id = " << i << ". Failure enabled: "<< failure.enabled <<  std::endl;
-				failure.frequency = FLAGS_indicus_inject_failure_freq;
-
         indicusstore::Parameters params(FLAGS_indicus_sign_messages,
                                         FLAGS_indicus_validate_proofs, FLAGS_indicus_hash_digest,
                                         FLAGS_indicus_verify_deps, FLAGS_indicus_sig_batch,
@@ -995,21 +1331,8 @@ int main(int argc, char **argv) {
         break;
     }
     case PROTO_PBFT: {
-        uint64_t readQuorumSize = 0;
-        switch (read_quorum) {
-        case READ_QUORUM_ONE:
-            readQuorumSize = 1;
-            break;
-        case READ_QUORUM_ONE_HONEST:
-            readQuorumSize = config->f + 1;
-            break;
-        case READ_QUORUM_MAJORITY_HONEST:
-            readQuorumSize = config->f * 2 + 1;
-            break;
-        default:
-            NOT_REACHABLE();
-        }
-
+      //Currently deprecated
+      //Note: does not use readMessage size as input parameter. Should have this option. 
         client = new pbftstore::Client(*config, FLAGS_num_shards,
                                        FLAGS_num_groups, tport, part,
                                        readQuorumSize,
@@ -1022,36 +1345,6 @@ int main(int argc, char **argv) {
 
 // HotStuff
     case PROTO_HOTSTUFF: {
-        uint64_t readQuorumSize = 0;
-        switch (read_quorum) {
-        case READ_QUORUM_ONE:
-            readQuorumSize = 1;
-            break;
-        case READ_QUORUM_ONE_HONEST:
-            readQuorumSize = config->f + 1;
-            break;
-        case READ_QUORUM_MAJORITY_HONEST:
-            readQuorumSize = config->f * 2 + 1;
-            break;
-        default:
-            NOT_REACHABLE();
-        }
-				uint64_t readMessages = 0;
-        uint64_t pessimistic_quorum_bonus = FLAGS_indicus_optimistic_read_quorum? 0 : config->f;
-        switch (read_messages) {
-        case READ_MESSAGES_READ_QUORUM:
-            readMessages = readQuorumSize + pessimistic_quorum_bonus; //config->n;
-            break;
-        case READ_MESSAGES_MAJORITY:
-            readMessages = (config->n + 1) / 2;
-            break;
-        case READ_MESSAGES_ALL:
-            readMessages = config->n;
-            break;
-        default:
-            NOT_REACHABLE();
-        }
-
         client = new hotstuffstore::Client(*config, clientId, FLAGS_num_shards,
                                        FLAGS_num_groups, closestReplicas,
 																			  tport, part,
@@ -1065,36 +1358,6 @@ int main(int argc, char **argv) {
 
 		// BFTSmart
 		    case PROTO_BFTSMART: {
-		      uint64_t readQuorumSize = 0;
-		        switch (read_quorum) {
-		        case READ_QUORUM_ONE:
-		            readQuorumSize = 1;
-		            break;
-		        case READ_QUORUM_ONE_HONEST:
-		            readQuorumSize = config->f + 1;
-		            break;
-		        case READ_QUORUM_MAJORITY_HONEST:
-		            readQuorumSize = config->f * 2 + 1;
-		            break;
-		        default:
-		            NOT_REACHABLE();
-		        }
-						uint64_t readMessages = 0;
-            uint64_t pessimistic_quorum_bonus = FLAGS_indicus_optimistic_read_quorum? 0 : config->f;
-		        switch (read_messages) {
-		        case READ_MESSAGES_READ_QUORUM:
-		            readMessages = readQuorumSize + pessimistic_quorum_bonus; //config->n;
-		            break;
-		        case READ_MESSAGES_MAJORITY:
-		            readMessages = (config->n + 1) / 2;
-		            break;
-		        case READ_MESSAGES_ALL:
-		            readMessages = config->n;
-		            break;
-		        default:
-		            NOT_REACHABLE();
-		        }
-
 		        client = new bftsmartstore::Client(*config, clientId, FLAGS_num_shards,
 		                                       FLAGS_num_groups, closestReplicas,
 																					  tport, part,
@@ -1106,37 +1369,8 @@ int main(int argc, char **argv) {
 		        break;
 		    }
 
+    //Augustus on top of BFTSmart
 		case PROTO_AUGUSTUS_SMART: {
-			uint64_t readQuorumSize = 0;
-				switch (read_quorum) {
-				case READ_QUORUM_ONE:
-						readQuorumSize = 1;
-						break;
-				case READ_QUORUM_ONE_HONEST:
-						readQuorumSize = config->f + 1;
-						break;
-				case READ_QUORUM_MAJORITY_HONEST:
-						readQuorumSize = config->f * 2 + 1;
-						break;
-				default:
-						NOT_REACHABLE();
-				}
-				uint64_t readMessages = 0;
-        uint64_t pessimistic_quorum_bonus = FLAGS_indicus_optimistic_read_quorum? 0 : config->f;
-				switch (read_messages) {
-				case READ_MESSAGES_READ_QUORUM:
-						readMessages = readQuorumSize + pessimistic_quorum_bonus; //config->n;
-						break;
-				case READ_MESSAGES_MAJORITY:
-						readMessages = (config->n + 1) / 2;
-						break;
-				case READ_MESSAGES_ALL:
-						readMessages = config->n;
-						break;
-				default:
-						NOT_REACHABLE();
-				}
-
 				client = new bftsmartstore_stable::Client(*config, clientId, FLAGS_num_shards,
 																			 FLAGS_num_groups, closestReplicas,
 																				tport, part,
@@ -1148,38 +1382,8 @@ int main(int argc, char **argv) {
 				break;
 		}
 
-// Augustus
+// Augustus on top of Hotstuff
     case PROTO_AUGUSTUS: {
-        uint64_t readQuorumSize = 0;
-        switch (read_quorum) {
-        case READ_QUORUM_ONE:
-            readQuorumSize = 1;
-            break;
-        case READ_QUORUM_ONE_HONEST:
-            readQuorumSize = config->f + 1;
-            break;
-        case READ_QUORUM_MAJORITY_HONEST:
-            readQuorumSize = config->f * 2 + 1;
-            break;
-        default:
-            NOT_REACHABLE();
-        }
-				uint64_t readMessages = 0;
-        uint64_t pessimistic_quorum_bonus = FLAGS_indicus_optimistic_read_quorum? 0 : config->f;
-        switch (read_messages) {
-        case READ_MESSAGES_READ_QUORUM:
-            readMessages = readQuorumSize; + pessimistic_quorum_bonus; //config->n;
-            break;
-        case READ_MESSAGES_MAJORITY:
-            readMessages = (config->n + 1) / 2;
-            break;
-        case READ_MESSAGES_ALL:
-            readMessages = config->n;
-            break;
-        default:
-            NOT_REACHABLE();
-        }
-
         client = new augustusstore::Client(*config, clientId, FLAGS_num_shards,
                                        FLAGS_num_groups, closestReplicas,
 																			  tport, part,
@@ -1195,6 +1399,20 @@ int main(int argc, char **argv) {
         NOT_REACHABLE();
     }
 
+//////////////////////////////////// Benchmark Clients
+////////////////////////////
+///////// Structure:  
+////////              Protocol Proxy: syncClient/asyncClient (depending on whether benchmark uses synchronous or asynchronous design --> common/frontend/async_adapter_client.cc or sync_client.cc)
+/////////             Workload Driver: bench = BenchmarkTypeClient (benchmark/async/workload/workload_client.cc, e.g. smallbank_client) --> inherits Sync/AsyncTransactionBenchClient (benchmark/async/async_transaction_bench_client.cc) 
+//                                             --> inherits BenchmarkClient (benchmark/async/bench_client.cc).   BenchmarkClient manages warump/cooldown, measures latencies
+///                                                
+//////// Workflow: 
+///////               Sync:  bench->Start() calls BenchmarkClient->Start() --> calls SyncTransactionBenchClient-->SendNext() --> calls BenchmarkTypeClient --> GetNextTransaction which returns a txn to execute (type_transaction.cc); 
+///////                      SendNext() also calls txn->Execute(syncClient) which in turn calls syncClient->Begin/Get/Put/Commit(operation) -- returns a Commit/Abort result for the txn. Retries Txn if aborted by system
+//////                       Execution loop keeps calling SendNext() until workload->isFullyDone() ()
+//////                Async: works mostly the same, but calls are wrapped in callbacks for asynchronous workflow: AsyncTransactionBenchClient->SendNext() calls GetNextTransaction and asyncClient.Execute(txn, callback) which in turn 
+/////                         calls asyncAdapterClient->Begin/Put/Get/Commit (in an async fashion). Callback calls BenchmarkClient-->OnReply(result), which then calls AsyncTransactionBenchClient->SendNext() again
+
     switch (benchMode) {
       case BENCH_RETWIS:
       case BENCH_TPCC:
@@ -1204,6 +1422,7 @@ int main(int argc, char **argv) {
           asyncClient = new AsyncAdapterClient(client, FLAGS_message_timeout);
         }
         break;
+      case BENCH_TOY: 
       case BENCH_SMALLBANK_SYNC:
       case BENCH_TPCC_SYNC:
         if (syncClient == nullptr) {
@@ -1273,7 +1492,15 @@ int main(int argc, char **argv) {
             FLAGS_abort_backoff, FLAGS_retry_aborted, FLAGS_max_backoff,
             FLAGS_max_attempts);
         break;
-
+      case BENCH_TOY:
+        UW_ASSERT(syncClient != nullptr);
+        bench = new toy::ToyClient(*syncClient, *tport,
+            seed,
+            FLAGS_num_requests, FLAGS_exp_duration, FLAGS_delay,
+            FLAGS_warmup_secs, FLAGS_cooldown_secs, FLAGS_tput_interval,
+            FLAGS_abort_backoff, FLAGS_retry_aborted, FLAGS_max_backoff, FLAGS_max_attempts,
+            FLAGS_timeout);
+        break;
       default:
         NOT_REACHABLE();
     }
@@ -1297,6 +1524,17 @@ int main(int argc, char **argv) {
               syncBench->SendNext(&result);
               syncBench->IncrementSent(result);
             }
+            bdcb();
+        }));
+        break;
+      }
+      case BENCH_TOY: {
+       SyncTransactionBenchClient *syncBench = dynamic_cast<SyncTransactionBenchClient *>(bench);
+        toy::ToyClient *toyClient =  dynamic_cast<toy::ToyClient *>(syncBench);
+        threads.push_back(new std::thread([toyClient, bdcb](){
+          //Simply calls whatever toy code is declared in ExecuteToy.
+          //Could extend toyClient interface to declare toy code as explicit transaction, and run transaction multiple times.
+            toyClient->ExecuteToy();
             bdcb();
         }));
         break;

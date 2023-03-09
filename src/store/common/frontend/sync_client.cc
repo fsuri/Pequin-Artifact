@@ -25,6 +25,7 @@
  *
  **********************************************************************/
 #include "store/common/frontend/sync_client.h"
+#include "store/common/query_result_proto_wrapper.h"
 
 
 SyncClient::SyncClient(Client *client) : client(client) {
@@ -110,6 +111,35 @@ void SyncClient::Abort(uint32_t timeout) {
   promise.GetReply();
 }
 
+void SyncClient::Query(const std::string &query, query_result::QueryResult* &result, uint32_t timeout) {
+  Promise promise(timeout);
+  
+  client->Query(query, std::bind(&SyncClient::QueryCallback, this, &promise,
+        std::placeholders::_1, std::placeholders::_2), 
+        std::bind(&SyncClient::QueryTimeoutCallback, this,
+        &promise, std::placeholders::_1), timeout);
+  result = promise.GetQueryResult();
+}
+
+void SyncClient::Query(const std::string &query, uint32_t timeout) {
+  Promise *promise = new Promise(timeout);
+  queryPromises.push_back(promise);
+  client->Query(query, std::bind(&SyncClient::QueryCallback, this, promise,
+        std::placeholders::_1, std::placeholders::_2), 
+        std::bind(&SyncClient::QueryTimeoutCallback, this,
+        promise, std::placeholders::_1), timeout);
+}
+
+void SyncClient::Wait(std::vector<query_result::QueryResult*> &values) {
+  for (auto promise : queryPromises) {
+    values.push_back(promise->GetQueryResult());
+    delete promise;
+  }
+  queryPromises.clear();
+}
+
+///////// Callbacks
+
 void SyncClient::GetCallback(Promise *promise, int status,
     const std::string &key, const std::string &value, Timestamp ts){
   promise->Reply(status, ts, value);
@@ -143,5 +173,13 @@ void SyncClient::AbortCallback(Promise *promise) {
 
 void SyncClient::AbortTimeoutCallback(Promise *promise) {
   promise->Reply(REPLY_TIMEOUT);
+}
+
+void SyncClient::QueryCallback(Promise *promise, int status, query_result::QueryResult* result){
+  promise->Reply(status, result); 
+}
+
+void SyncClient::QueryTimeoutCallback(Promise *promise, int status){
+  promise->Reply(status);
 }
 

@@ -40,6 +40,10 @@ LDFLAGS += -l:libcryptopp.a #why does lcryptopp not work? why the .a file here?
 LDFLAGS += -lsodium
 # blake3
 LDFLAGS += -lblake3
+# taopq
+CFLAGS += -I/usr/include/postgresql
+LDFLAGS += -ltaopq
+LDFLAGS += -lpq
 # bitcoin-core/secp256k1
 LIBSECP256K1_CFLAGS := $(shell pkg-config --cflags libsecp256k1)
 LIBSECP256K1_LDFLAGS := $(shell pkg-config --libs libsecp256k1)
@@ -161,6 +165,8 @@ include store/common/Rules.mk
 include store/tapirstore/Rules.mk
 include store/strongstore/Rules.mk
 include store/weakstore/Rules.mk
+
+include store/pequinstore/Rules.mk
 include store/indicusstore/Rules.mk
 include store/pbftstore/Rules.mk
 include store/hotstuffstore/Rules.mk
@@ -169,6 +175,7 @@ include store/augustusstore/Rules.mk
 include store/bftsmartstore/Rules.mk
 include store/bftsmartstore_augustus/Rules.mk
 include store/bftsmartstore_stable/Rules.mk
+
 include store/benchmark/async/tpcc/Rules.mk
 include store/Rules.mk
 include store/benchmark/Rules.mk
@@ -176,11 +183,13 @@ include store/benchmark/async/common/Rules.mk
 include store/benchmark/async/rw/Rules.mk
 include store/benchmark/async/retwis/Rules.mk
 include store/benchmark/async/smallbank/Rules.mk
+include store/benchmark/async/toy/Rules.mk
 include store/benchmark/async/Rules.mk
 include lockserver/Rules.mk
 include timeserver/Rules.mk
 include libtapir/Rules.mk
 include create_keys/Rules.mk
+#include simple_app/Rules.mk 
 ##################################################################
 # General rules
 #

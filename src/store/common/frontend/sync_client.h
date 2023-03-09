@@ -41,6 +41,7 @@
 #include "store/common/partitioner.h"
 #include "store/common/frontend/client.h"
 #include "store/common/promise.h"
+#include "store/common/query_result.h"
 
 #include <functional>
 #include <string>
@@ -58,7 +59,8 @@ class SyncClient {
   virtual void Get(const std::string &key, std::string &value,
       uint32_t timeout);
 
-  // Get value without waiting.
+  // Get value without in-built waiting.
+  // Use for example if trying to query multiple rows. Use Wait to wait for all queried values.
   void Get(const std::string &key, uint32_t timeout);
 
   // Wait for outstanding Gets to finish in FIFO order.
@@ -74,6 +76,12 @@ class SyncClient {
   // Abort all Get(s) and Put(s) since Begin().
   virtual void Abort(uint32_t timeout);
 
+  // Send query, wait for computation result. 
+  virtual void Query(const std::string &query, query_result::QueryResult* &result, uint32_t timeout);
+  void Query(const std::string &query, uint32_t timeout);
+  // Wait for outstanding Queries to finish in FIFO order.
+  void Wait(std::vector<query_result::QueryResult*> &values);
+
  private:
   void GetCallback(Promise *promise, int status, const std::string &key, const std::string &value,
       Timestamp ts);
@@ -87,7 +95,12 @@ class SyncClient {
   void AbortCallback(Promise *promise);
   void AbortTimeoutCallback(Promise *promise);
 
+  void QueryCallback(Promise *promise, int status, query_result::QueryResult* result); //const std::string &query,
+  void QueryTimeoutCallback(Promise *promise, int status); //, const std::string &query);
+
+
   std::vector<Promise *> getPromises;
+  std::vector<Promise *> queryPromises;
 
   Client *client;
 };
