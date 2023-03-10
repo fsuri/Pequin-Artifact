@@ -16,14 +16,17 @@
 
 namespace cockroachdb {
 
-class Server ::Server {
+class Server : public ::Server{
  public:
   Server(const transport::Configuration& config, KeyManager* keyManager,
          int groupIdx, int idx, int numShards, int numGroups);
   ~Server();
+  void Load(const string &key, const string &value,
+    const Timestamp timestamp);
+  Stats &GetStats();
 
  private:
-  //   Stats stats;
+  Stats stats;
   transport::Configuration config;
   KeyManager* keyManager;
   int groupIdx;

@@ -16,8 +16,7 @@ namespace cockroachdb {
 
 using namespace std;
 
-Server::Server(const transport::Configuration& config, KeyManager* keyManager,
-               int groupIdx, int idx, int numShards, int numGroups)
+Server::Server(const transport::Configuration& config, KeyManager* keyManager, int groupIdx, int idx, int numShards, int numGroups)
     : config(config),
       keyManager(keyManager),
       groupIdx(groupIdx),
@@ -48,15 +47,27 @@ Server::Server(const transport::Configuration& config, KeyManager* keyManager,
   std::string other_flags = "--cache=.25 --max -sql -memory=.25 --background ";
   start_script = start_script + join_flag + other_flags;
   // start server
-  system(join_flag);
+  system(start_script.c_str());
 
   // If happens to be the last one, init server
   if (id == numGroups * config.n - 1) {
     std::string init_script =
         "cockroach init --insecure --host=" + server_address.host + ":" +
         server_address.port;
-    system(init_script);
+    system(init_script.c_str());
   }
+}
+
+void Server::Load(const string &key, const string &value,
+    const Timestamp timestamp) {
+  // ValueAndProof val;
+  // val.value = value;
+  // val.commitProof = dummyProof;
+  // commitStore.put(key, val, timestamp);
+}
+
+Stats &Server::GetStats() {
+  return stats;
 }
 
 Server::~Server() {}
