@@ -54,6 +54,7 @@
 #include "store/benchmark/async/rw/rw_client.h"
 #include "store/benchmark/async/tpcc/sync/tpcc_client.h"
 #include "store/benchmark/async/tpcc/async/tpcc_client.h"
+#include "store/benchmark/async/sql/tpcc/tpcc_client.h"
 #include "store/benchmark/async/smallbank/smallbank_client.h"
 #include "store/benchmark/async/toy/toy_client.h"
 //protocol clients
@@ -110,7 +111,8 @@ enum benchmode_t {
   BENCH_SMALLBANK_SYNC,
   BENCH_RW,
   BENCH_TPCC_SYNC,
-  BENCH_TOY
+  BENCH_TOY,
+  BENCH_TPCC_SQL
 };
 
 enum keysmode_t {
@@ -520,7 +522,8 @@ const benchmode_t benchmodes[] {
   BENCH_SMALLBANK_SYNC,
   BENCH_RW,
   BENCH_TPCC_SYNC,
-  BENCH_TOY
+  BENCH_TOY,
+  BENCH_TPCC_SQL
 };
 static bool ValidateBenchmark(const char* flagname, const std::string &value) {
   int n = sizeof(benchmark_args);
@@ -1425,6 +1428,7 @@ int main(int argc, char **argv) {
       case BENCH_TOY: 
       case BENCH_SMALLBANK_SYNC:
       case BENCH_TPCC_SYNC:
+      case BENCH_TPCC_SQL:
         if (syncClient == nullptr) {
           UW_ASSERT(client != nullptr);
           syncClient = new SyncClient(client);
@@ -1461,6 +1465,19 @@ int main(int argc, char **argv) {
       case BENCH_TPCC_SYNC:
         UW_ASSERT(syncClient != nullptr);
         bench = new tpcc::SyncTPCCClient(*syncClient, *tport,
+            seed,
+            FLAGS_num_requests, FLAGS_exp_duration, FLAGS_delay,
+            FLAGS_warmup_secs, FLAGS_cooldown_secs, FLAGS_tput_interval,
+            FLAGS_tpcc_num_warehouses, FLAGS_tpcc_w_id, FLAGS_tpcc_C_c_id,
+            FLAGS_tpcc_C_c_last, FLAGS_tpcc_new_order_ratio,
+            FLAGS_tpcc_delivery_ratio, FLAGS_tpcc_payment_ratio,
+            FLAGS_tpcc_order_status_ratio, FLAGS_tpcc_stock_level_ratio,
+            FLAGS_static_w_id, FLAGS_abort_backoff,
+            FLAGS_retry_aborted, FLAGS_max_backoff, FLAGS_max_attempts, FLAGS_message_timeout);
+        break;
+      case BENCH_TPCC_SQL:
+        UW_ASSERT(syncClient != nullptr);
+        bench = new tpcc_sql::TPCCSQLClient(*syncClient, *tport,
             seed,
             FLAGS_num_requests, FLAGS_exp_duration, FLAGS_delay,
             FLAGS_warmup_secs, FLAGS_cooldown_secs, FLAGS_tput_interval,

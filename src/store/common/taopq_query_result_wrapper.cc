@@ -44,6 +44,11 @@ auto TaoPQQueryResultWrapper::size() const -> std::size_t
   return result->size();
 }
 
+auto TaoPQQueryResultWrapper::columns() const -> std::size_t
+{
+  return result->columns();
+}
+
 auto TaoPQQueryResultWrapper::is_null( const std::size_t row, const std::size_t column ) const -> bool
 {
   return result->is_null(row, column);

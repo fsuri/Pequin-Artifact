@@ -1,6 +1,7 @@
 /***********************************************************************
  *
  * Copyright 2021 Florian Suri-Payer <fsp@cs.cornell.edu>
+ *                Matthew Burke <matthelb@cs.cornell.edu>
  *                Liam Arzola <lma77@cornell.edu>
  *
  * Permission is hereby granted, free of charge, to any person
@@ -24,45 +25,21 @@
  * SOFTWARE.
  *
  **********************************************************************/
+#ifndef TPCC_SQL_TRANSACTION_H
+#define TPCC_SQL_TRANSACTION_H
 
-#include <string>
-#include <memory>
-#include <tao/pq.hpp>
-#include "store/common/query_result.h"
-#include "store/common/query_result_row.h"
-#include "store/common/taopq_query_result_wrapper_row.h"
+#include "store/benchmark/async/tpcc/tpcc-proto.pb.h"
+#include "store/common/frontend/sync_client.h"
+#include "store/common/frontend/sync_transaction.h"
 
-namespace taopq_wrapper {
+namespace tpcc_sql {
 
-class TaoPQQueryResultWrapper : public query_result::QueryResult {
-  private:
-    tao::pq::result* result;
-
-	public:
-    TaoPQQueryResultWrapper(tao::pq::result* taopq_result) {
-      result = taopq_result;
-    }
-
-    ~TaoPQQueryResultWrapper() {
-    }
-
-		auto name( const std::size_t column ) const -> std::string;
-
-		// size of the result set
-		bool empty() const;
-		auto size() const -> std::size_t;
-    auto columns() const -> std::size_t;
-
-    auto is_null( const std::size_t row, const std::size_t column ) const -> bool;
-		auto get( const std::size_t row, const std::size_t column ) const -> const char*;
-		
-		// access rows
-    auto operator[]( const std::size_t row ) const -> std::unique_ptr<query_result::Row>;
-    auto at( const std::size_t row ) const -> std::unique_ptr<query_result::Row>;
-
-		// update/insert result
-		auto has_rows_affected() const noexcept -> bool;
-		auto rows_affected() const -> std::size_t;
+class TPCCSQLTransaction : public SyncTransaction {
+ public:
+  TPCCSQLTransaction(uint32_t timeout);
+  virtual ~TPCCSQLTransaction();
 };
 
 }
+
+#endif /* TPCC_SQL_TRANSACTION_H */

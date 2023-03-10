@@ -1,6 +1,7 @@
 /***********************************************************************
  *
  * Copyright 2021 Florian Suri-Payer <fsp@cs.cornell.edu>
+ *                Matthew Burke <matthelb@cs.cornell.edu>
  *                Liam Arzola <lma77@cornell.edu>
  *
  * Permission is hereby granted, free of charge, to any person
@@ -24,45 +25,26 @@
  * SOFTWARE.
  *
  **********************************************************************/
+#ifndef SQL_STOCK_LEVEL_H
+#define SQL_STOCK_LEVEL_H
 
-#include <string>
-#include <memory>
-#include <tao/pq.hpp>
-#include "store/common/query_result.h"
-#include "store/common/query_result_row.h"
-#include "store/common/taopq_query_result_wrapper_row.h"
+#include "store/benchmark/async/sql/tpcc/tpcc_transaction.h"
 
-namespace taopq_wrapper {
+namespace tpcc_sql {
 
-class TaoPQQueryResultWrapper : public query_result::QueryResult {
-  private:
-    tao::pq::result* result;
+class SQLStockLevel : public TPCCSQLTransaction {
+ public:
+  SQLStockLevel(uint32_t timeout, uint32_t w_id, uint32_t d_id,
+      std::mt19937 &gen);
+  virtual ~SQLStockLevel();
+  virtual transaction_status_t Execute(SyncClient &client);
 
-	public:
-    TaoPQQueryResultWrapper(tao::pq::result* taopq_result) {
-      result = taopq_result;
-    }
-
-    ~TaoPQQueryResultWrapper() {
-    }
-
-		auto name( const std::size_t column ) const -> std::string;
-
-		// size of the result set
-		bool empty() const;
-		auto size() const -> std::size_t;
-    auto columns() const -> std::size_t;
-
-    auto is_null( const std::size_t row, const std::size_t column ) const -> bool;
-		auto get( const std::size_t row, const std::size_t column ) const -> const char*;
-		
-		// access rows
-    auto operator[]( const std::size_t row ) const -> std::unique_ptr<query_result::Row>;
-    auto at( const std::size_t row ) const -> std::unique_ptr<query_result::Row>;
-
-		// update/insert result
-		auto has_rows_affected() const noexcept -> bool;
-		auto rows_affected() const -> std::size_t;
+ private:
+  uint32_t w_id;
+  uint32_t d_id;
+  uint8_t min_quantity;
 };
 
-}
+} // namespace tpcc_sql
+
+#endif /* SQL_STOCK_LEVEL_H */

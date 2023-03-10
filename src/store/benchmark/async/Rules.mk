@@ -11,7 +11,7 @@ OBJS-all-store-clients := $(OBJS-strong-client) $(OBJS-weak-client) \
 LIB-bench-client := $(o)benchmark.o $(o)bench_client.o \
 		$(o)async_transaction_bench_client.o $(o)sync_transaction_bench_client.o
 
-OBJS-all-bench-clients := $(LIB-retwis) $(LIB-tpcc) $(LIB-sync-tpcc) $(LIB-async-tpcc) \
+OBJS-all-bench-clients := $(LIB-retwis) $(LIB-tpcc) $(LIB-sync-tpcc) $(LIB-async-tpcc) $(LIB-sql-tpcc) \
 	$(LIB-smallbank) $(LIB-rw) $(LIB-toy)
 
 $(d)benchmark: $(LIB-key-selector) $(LIB-bench-client) $(LIB-latency) $(LIB-tcptransport) $(LIB-udptransport) $(OBJS-all-store-clients) $(OBJS-all-bench-clients) $(LIB-bench-client) $(LIB-store-common)
