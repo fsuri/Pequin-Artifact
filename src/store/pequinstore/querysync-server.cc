@@ -359,7 +359,7 @@ void Server::FindSnapshot(QueryMetaData *query_md, proto::Query *query){
     //                                                         //
     /////////////////////////////////////////////////////////////
 
-    // 2) Execute all Scans in query --> find txnSet (for each key, last few tx)  --  
+    // 2) Execute all Scans in query --> find txnSet (for each key, last few tx)  --   //TODO: Make sure you don't just report the latest tx for a given key, but a couple latest versions (sync merge might lose the latest)
     
     // Generate Snapshot:Create list of all txn-ids necessary for state
             // if txn exists locally as committed and prepared, only include as committed
@@ -647,6 +647,7 @@ void Server::ProcessSync(queryMetaDataMap::accessor &q, const TransportAddress &
 
     //2)  //Request any missing transactions (via txid) & add to state
 
+    //NOTE: May want to avoid redundant sync of same Tx-id.
     //TODO: Check waitingQueries map: If it already has an entry for a tx-id, then we DONT need to request it again.. Already in flight. ==> Just update the waitingList
     //Currently processing/verifying duplicate supply messages.
     //HOWEVER: Correlating sync request messages can cause byz independence issues. Different clients could include different f+1 replicas to fetch from (cannot tell which are honest/byz)
@@ -828,7 +829,16 @@ void Server::CheckLocalAvailability(const std::string &txn_id, proto::TxnInfo &t
             return; //continue;
         }
 
-        //2) if Prepared //TODO: check for prepared first, to avoid sending unecessary certs?
+        //2) if abort --> mark query for abort and reply. 
+        auto itr2 = aborted.find(txn_id);
+        if(itr2 != aborted.end()){
+            //proto::TxnInfo &txn_info = (*supply_txn.mutable_txns())[txn_id];
+            txn_info.set_abort(true);
+            *txn_info.mutable_abort_proof() = writebackMessages[txn_id];
+        }
+        //Corner case: If replica voted prepare, but is now abort, what should happen? Should query ReportFail? Or should query just go through without this tx ==> The latter. After all, it is correct to ignore.
+
+        //3) if Prepared //TODO: check for prepared first, to avoid sending unecessary certs?
 
         //Note: Should we be checking for ongoing (irrespective of prepared or not)? ==> and include signature if necessary. 
         //==> No: A correct replica (instructed by a correct client) will only request the transaction from replicas that DO have it prepared. So checking prepared is enough -- don't need to check ongoing
@@ -867,15 +877,6 @@ void Server::CheckLocalAvailability(const std::string &txn_id, proto::TxnInfo &t
             return; //continue;
         }
         a.release();
-
-         //3) if abort --> mark query for abort and reply. 
-        auto itr2 = aborted.find(txn_id);
-        if(itr2 != aborted.end()){
-            //proto::TxnInfo &txn_info = (*supply_txn.mutable_txns())[txn_id];
-            txn_info.set_abort(true);
-            *txn_info.mutable_abort_proof() = writebackMessages[txn_id];
-        }
-        //Corner case: If replica voted prepare, but is now abort, what should happen? Should query ReportFail? Or should query just go through without this tx ==> The latter. After all, it is correct to ignore.
 
         //4) if neither --> Mark invalid return, and report byz client
         txn_info.set_invalid(true);

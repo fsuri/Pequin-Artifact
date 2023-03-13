@@ -77,7 +77,9 @@ class Client {
 
   // Get the value corresponding to key.
   inline virtual void Query(std::string &query, query_callback qcb,
-      query_timeout_callback qtcb, uint32_t timeout){Panic("This protocol store does not implement Queries"); };    
+      query_timeout_callback qtcb, uint32_t timeout){Panic("This protocol store does not implement Queries"); };   
+
+  //inline virtual void Wait(vector of results) { just do nothing unless overriden} ;; Wait will call getResult, which in turn will trigger the Query callbacks
 
   inline const Stats &GetStats() const { return stats; }
 

@@ -447,13 +447,17 @@ void ShardClient::HandleQueryResult(proto::QueryResultReply &queryResult){
         for(auto dep: *replica_result->mutable_query_read_set()->mutable_deps()){ //For normal Tx-id
             Debug("TESTING: Received Dep: %s", BytesToHex(dep.write().prepared_txn_digest(), 16).c_str());
             if(dep.write().has_prepared_timestamp()){ //I.e. using optimisticTxID
-                if(pendingQuery->merged_ss.merged_ts().count(MergeTimestampId(dep.write().prepared_timestamp().timestamp(), dep.write().prepared_timestamp().id()))){
+                auto itr = pendingQuery->merged_ss.merged_ts().find(MergeTimestampId(dep.write().prepared_timestamp().timestamp(), dep.write().prepared_timestamp().id()));
+                if(itr != pendingQuery->merged_ss.merged_ts().end() && itr->second.prepared()){ //Check whether tx was recorded in snapshot (as prepared)
+                //if(pendingQuery->merged_ss.merged_ts().count(MergeTimestampId(dep.write().prepared_timestamp().timestamp(), dep.write().prepared_timestamp().id()))){
                     dep.mutable_write()->clear_prepared_timestamp();
                     result_mgr.merged_deps.insert(dep.release_write());
                 } 
             }
             else{
-                if(pendingQuery->merged_ss.merged_txns().count(dep.write().prepared_txn_digest())){
+                auto itr = pendingQuery->merged_ss.merged_txns().find(dep.write().prepared_txn_digest());
+                if(itr != pendingQuery->merged_ss.merged_txns().end() && itr->second.prepared()){ //Check whether tx was recorded in snapshot (as prepared)
+                //if(pendingQuery->merged_ss.merged_txns().count(dep.write().prepared_txn_digest())){
                      result_mgr.merged_deps.insert(dep.release_write());
                 } 
             }            
