@@ -105,6 +105,7 @@ message ReadSet {
   repeated DepTs dep_ts_ids = 4;
 }
 
+
 message QueryGroupMeta {
   optional bytes read_set_hash = 1; // should this be result hash? I think read-set-hash suffices.
   //repeated ReadMessage read_set = 3; //key versions of all reads
@@ -125,16 +126,19 @@ message Transaction {
   required uint64 client_id = 1;
   required uint64 client_seq_num = 2;
   repeated int64 involved_groups = 3;
-  repeated ReadMessage read_set = 4;
-  repeated WriteMessage write_set = 5;
+  repeated ReadMessage read_set = 4;     //TODO: Ideally re-factor this to be a map from key to value --> that way checks on preparedReads (during CC) don't need to loop through Tx. (Alternatively could store ReadTime in preparedReads, but that's also wasteful)
+  repeated WriteMessage write_set = 5;   //TODO: Ideally re-factor this to be a map from key to value --> that way reads on preparedWrites don't need to loop through Tx. (Alternatively could store value in preparedWrites, but that's also wasteful)
   repeated Dependency deps = 6;
   required TimestampMessage timestamp = 7;
 
-  repeated QueryResultMetaData query_set = 8;
-  optional uint64 last_query_seq = 9; //Used to update queryWatermark.
+  //query md:
+  repeated QueryResultMetaData query_set = 8; //contains QueryReadSets
+  optional TableWrites table_writes = 9; //contains all Writes for Queries: --> can be turned into an adhoc write set via encoding function
+  optional uint64 last_query_seq = 10; //Used to update queryWatermark.
 
-  optional bytes txndigest = 10; //NOT PART OF TX. HACK HERE TO STORE txn digest in the local txn version without changing data structures that hold TXN.
-  optional ReadSet merged_read_set = 11; //NOT PART OF TX. HACK HERE TO STORE oltp read set while merging query read sets during CC (serverside)
+  optional bytes txndigest = 11; //NOT PART OF TX. HACK HERE TO STORE txn digest in the local txn version without changing data structures that hold TXN.
+  optional ReadSet merged_read_set = 12; //NOT PART OF TX. HACK HERE TO STORE oltp read set while merging query read sets during CC (serverside)
+  //repeated WriteMessage enc_write_set = 13; //NOT PART OF TX. HACK HERE TO STORE encoded write set before performing CC on TableWrites (serverside)
 }
 
 message Phase1 {

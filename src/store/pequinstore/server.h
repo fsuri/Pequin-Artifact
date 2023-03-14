@@ -925,7 +925,7 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
   VersionedKVStore<Timestamp, Value> store;
   // Key -> V
   //std::unordered_map<std::string, std::set<std::tuple<Timestamp, Timestamp, const proto::CommittedProof *>>> committedReads;
-  typedef std::tuple<Timestamp, Timestamp, const proto::CommittedProof *> committedRead;
+  typedef std::tuple<Timestamp, Timestamp, const proto::CommittedProof *> committedRead; //1) timestamp of reading tx, 2) timestamp of read value, 3) proof that Tx that wrote the read value (2) committed
   tbb::concurrent_unordered_map<std::string, std::pair<std::shared_mutex, std::set<committedRead>>> committedReads;
   //std::unordered_map<std::string, std::set<Timestamp>> rts;
   tbb::concurrent_unordered_map<std::string, std::atomic_uint64_t> rts;
@@ -954,7 +954,7 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
   // std::unordered_set<std::string> waiting;
   // Digest -> V
   //std::unordered_map<std::string, std::pair<Timestamp, const proto::Transaction *>> prepared;
-  typedef tbb::concurrent_hash_map<std::string, std::pair<Timestamp, const proto::Transaction *>> preparedMap;
+  typedef tbb::concurrent_hash_map<std::string, std::pair<Timestamp, const proto::Transaction *>> preparedMap; //TODO: does this need to store Tx? (TS not necessary... it's part of TX)
   preparedMap prepared;
 
   // Key -> Tx

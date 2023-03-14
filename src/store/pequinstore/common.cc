@@ -2029,6 +2029,25 @@ std::string generateReadSetMerkleRoot(const std::map<std::string, TimestampMessa
   return rootHash;
 }
 
+static std::string unique_delimiter = "###";
+//TODO: input: convert row_name type into byte array. E.g. Int: static_cast<char*>(static_cast<void*>(&x)); String: str.c_str();
+std::string EncodeTableRow(const std::string &table_name, const char *row_name){  //std::string &row_name
+  //Note: Assuming unique delimiter that is neither part of table_nor string.
+  return table_name + unique_delimiter + row_name;
+}
+
+//NOTE: Returns row primary keys as strings here... TODO: At application to table, convert as appropriate. E.g. Int: stoi(), String: string()
+void DecodeTableRow(const std::string &enc_key, std::string &table_name, std::string &row_name){
+  size_t pos = enc_key.find(unique_delimiter);
+
+  UW_ASSERT(pos != std::string::npos);
+  table_name = enc_key.substr(0, pos);
+  row_name = enc_key.substr(pos + unique_delimiter.length()); //, enc_key.length());
+  //enc_key.erase(0, pos + delimiter.length());
+
+}
+
+
 std::string BytesToHex(const std::string &bytes, size_t maxLength) {
   static const char digits[] = "0123456789abcdef";
   std::string hex;

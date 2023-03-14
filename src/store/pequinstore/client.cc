@@ -244,6 +244,57 @@ void Client::Put(const std::string &key, const std::string &value,
 }
 
 
+void Client::Write(std::string &write_statement, write_callback wcb,
+      write_timeout_callback wtcb, uint32_t timeout){
+
+    //statement like: INSERT INTO test VALUES (1001);
+    //REPLACE INTO table(column_list) VALUES(value_list);  is a shorter form of  INSERT OR REPLACE INTO table(column_list) VALUES(value_list);
+
+    //Maybe simpler: Let Write take table, column list, and values as attributes. And then turn it into a REPLACE INTO statement.
+    //I.e. our frontend currently implements a manual insert (just so we can ignore automizing "Update Where" statements)
+
+    //TODO: parse into table, column list, values_list
+    //for all rows:
+
+    WriteMessage *write = txn.add_write_set();
+    write->set_key(key); //TODO: key = EncodeTableRow(table_name, row_name)
+    *write->mutable_rowupdates(); //TODO: Set these.
+
+    //TODO: How can we only update certain attributes while creating a new version?
+    // a) In table: Mark version per attribute...
+    // b) When updating in table: Copy the version we read -- to identify that, the write needs to pass the version...
+            //Or is it fine to just copy the last version known to the server? No... this might produce non-serializable state...
+
+    //Note: if we had all attributes here, then we could just insert a whole new row.
+    // --> However, a query read does not necessarily return the whole rows.  ==> But maybe our Select dialect (turning Update into Select + multiple inserts) does retrive the whole row:
+
+    //I..e for updates: Whole row is available: Write new:
+    //For independent inserts: Write new row with empty attributes? No.. only write if no previous row existed.   I.e. also split into Select + Write. ==> If Select == empty, then write. Add to readSet: 0 Timestamp.
+
+    //It seems easiest for the frontend to not worry about the details at all: In order to support that, must turn the request into read/writes at THIS level.
+    //That way it would be easy to keep track of readmodify write ops to track read timestamps too
+    //Write type Statement function:
+    //  -- turn into a Query statement:
+    // On reply, don't use query callback though, and instead issue the updates to ReadSet + WriteSet (table writes), and then callback.
+
+    //Insert: Conditional Read Mod Write
+    //Replace: Unconditional (Blind) Write  -- REPLACE INTO == INSERT OR REPLACE --> weaker cond holds: Blind Write.
+    //Update: Conditional Read Mod Write
+    //Delete: Conditional Read Mod Write
+
+    //Conditional Read lets us now read version for serializability checks
+    //Insert and Delete don't need to know row values
+    //But don't necessarily know full row for Update -- if we only want to update certain rows then that is a problem.  Same for Replace certain rows?
+       // --> Because we are multi-versioned, we want to create a separate row. What we can do is include the "read version" as part of the Write req, so that we can fetch+copythe row on demand and only update the few missing
+      //Note: If the read row was deleted in the meantime -- then there would be a new row that is empty with a higher TS. The write would conflict with this delete row and thus abort.
+
+    //TODO: Need a way to infer encoded key (essentially primary key) from the column list?
+     // for conditional read mod writes one can just use the read key!
+     // but for unconditional (blind) writes one needs to figure out the column list. Maybe one can add it to the Write command?
+
+    //Primary key that is auto-increment? Insert has to also read last primary key? And then propose new one?
+}
+
 //NOTE: Unlike Get, Query currently cannot read own write, or previous reads -> consequently, different queries may read the same key differently
 // (Could edit query to include "previoudReads" + writes and use it for materialization)
 

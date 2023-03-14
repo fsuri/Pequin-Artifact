@@ -327,6 +327,8 @@ void Server::Load(const std::string &key, const std::string &value,
   }
 }
 
+//TODO: Define Load function for Tables.
+
 //Handle Read Message
 //Dispatches to reader thread if params.parallel_reads = true, and multithreading enabled
 //Returns a signed message including i) the latest committed write (+ cert), and ii) the latest prepared write (both w.r.t to Timestamp of reader)
@@ -1448,8 +1450,8 @@ void Server::Prepare(const std::string &txnDigest,
   //const proto::Transaction *ongoingTxn = ongoing.at(txnDigest);
 
   preparedMap::accessor a;
-  auto p = prepared.insert(a, std::make_pair(txnDigest, std::make_pair(
-          Timestamp(txn.timestamp()), ongoingTxn)));
+  bool first_prepare = prepared.insert(a, std::make_pair(txnDigest, std::make_pair(Timestamp(txn.timestamp()), ongoingTxn)));
+  if(!first_prepare) return; //Already inserted all Read/Write Sets.
 
   // Debug("PREPARE: TESTING MERGED READ");
   // for(auto &read : readSet){
@@ -1476,8 +1478,7 @@ void Server::Prepare(const std::string &txnDigest,
     }
   }
 
-  std::pair<Timestamp, const proto::Transaction *> pWrite =
-    std::make_pair(a->second.first, a->second.second);
+  std::pair<Timestamp, const proto::Transaction *> pWrite = std::make_pair(a->second.first, a->second.second);
   a.release();
     //std::make_pair(p.first->second.first, p.first->second.second);
   for (const auto &write : writeSet) {
@@ -1487,6 +1488,8 @@ void Server::Prepare(const std::string &txnDigest,
       x.second.insert(pWrite);
       // std::unique_lock lock(preparedWrites[write.key()].first);
       // preparedWrites[write.key()].second.insert(pWrite);
+
+      //TODO: Insert into table as well.
     }
   }
   o.release(); //Relase only at the end, so that Prepare and Clean in parallel for the same TX are atomic.
@@ -1614,10 +1617,17 @@ void Server::CommitToStore(proto::CommittedProof *proof, proto::Transaction *txn
     Debug("COMMIT[%lu,%lu] Committing write for key %s.",
         txn->client_id(), txn->client_seq_num(),
        write.key().c_str());
-    val.val = write.value();
-
+    
+    if(write.has_value()) val.val = write.value();
+    
     store.put(write.key(), val, ts);
 
+    if(!write.has_value()){
+      Panic("When running in KV-store mode write should always have a value");
+      //TODO: It is a table write:
+      //DecodeTableRow(write.key(), ...)
+      //Apply to Table.  (Note: Should only be applied after store.put)
+    }
 
     if(params.rtsMode == 1){
       //Do nothing
