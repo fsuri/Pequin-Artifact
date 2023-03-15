@@ -37,6 +37,8 @@
 #include <sys/time.h>
 #include <algorithm>
 
+#include "store/common/query_result/query_result_proto_wrapper.h"
+
 namespace pequinstore {
 
 using namespace std;
@@ -244,8 +246,59 @@ void Client::Put(const std::string &key, const std::string &value,
 }
 
 
-void Client::Write(std::string &write_statement, write_callback wcb,
+//primary_key_encoding_support is an encoding_helper function: Specify which columns of a write statement correspond to the primary key; each vector belongs to one insert. 
+//In case of nesting or concat --> order = order of reading
+void Client::Write(std::string &write_statement, std::vector<std::vector<uint32_t>> primary_key_encoding_support, write_callback wcb,
       write_timeout_callback wtcb, uint32_t timeout){
+
+    //////////////////
+    // Write Statement parser/interpreter:   //For now design to supports only individual Insert/Update/Delete statements. No nesting, no concatenation
+    //TODO: parse write statement into table, column list, values_list, and read condition
+    
+
+    std::string read_statement;
+    auto write_continuation = [this](const std::string &result){
+      return result;
+    }; // = //Some function that takes ResultObject as input and issue the write statements.
+        //  for result-row in result{
+        //     EncodeTableRow (use primary_key_encoding to derive it from the table and column_list)
+        //     Find Ts in ReadSet 
+        //     CreateTable Write entry with Timestamp and the rows to be updated. -- Note: Timestamp identifies the row from which no copy from -> i.e. the one thats updated.
+                      //ReadSet is already cached as part of txn. -- Right version can be found by just looking up the latest query seq in the txn.. TODO: if we want parallel writes (async) then we might need to identify
+                      //Result ReadSet key can be inferred from Result Primary key.
+                       //Version can be looked up by checking read set for this key (currently would have to loop -- but may want to turn into a map)
+                              //If these two methods are not possible after all, then must modify sync to parameterize the fact that it is part of a "read-modify-write" 
+                                                          //--> should explicitly label all entries in Read Set that belong to result rows... or must include full row here.
+            // WriteMessage *write = txn.add_write_set();
+            // write->set_key(key); //TODO: key = EncodeTableRow(table_name, primary_key)
+            // *write->mutable_rowupdates(); //TODO: Set these.
+            // *write->mutable_readtime()...//TODO Set this.
+        //   }
+    /////////////////
+    
+
+    if(read_statement.empty()){
+      //Add to writes directly.
+      sql::QueryResultProtoWrapper write_result(""); //TODO: replace with real result.
+      wcb(REPLY_OK, write_result);
+    }
+    else{
+       auto qcb = [this, write_continuation, wcb](int status, const std::string &result) mutable { 
+
+        //result ==> replace with protoResult type
+        std::string REPLACE_RES = write_continuation(result);
+        sql::QueryResultProtoWrapper write_result(REPLACE_RES); //TODO: replace with real result.
+        wcb(REPLY_OK, write_result);
+        return;
+      };
+      // auto qtcb = [this, wtcb](int status) {
+      //   wtcb(status);
+      //   return;
+      // };
+      Query(read_statement, qcb, wtcb, timeout);
+    }
+    return;
+  }
 
     //statement like: INSERT INTO test VALUES (1001);
     //REPLACE INTO table(column_list) VALUES(value_list);  is a shorter form of  INSERT OR REPLACE INTO table(column_list) VALUES(value_list);
@@ -253,12 +306,7 @@ void Client::Write(std::string &write_statement, write_callback wcb,
     //Maybe simpler: Let Write take table, column list, and values as attributes. And then turn it into a REPLACE INTO statement.
     //I.e. our frontend currently implements a manual insert (just so we can ignore automizing "Update Where" statements)
 
-    //TODO: parse into table, column list, values_list
-    //for all rows:
-
-    WriteMessage *write = txn.add_write_set();
-    write->set_key(key); //TODO: key = EncodeTableRow(table_name, row_name)
-    *write->mutable_rowupdates(); //TODO: Set these.
+    
 
     //TODO: How can we only update certain attributes while creating a new version?
     // a) In table: Mark version per attribute...
@@ -290,17 +338,17 @@ void Client::Write(std::string &write_statement, write_callback wcb,
 
     //TODO: Need a way to infer encoded key (essentially primary key) from the column list?
      // for conditional read mod writes one can just use the read key!
-     // but for unconditional (blind) writes one needs to figure out the column list. Maybe one can add it to the Write command?
+     // but for unconditional (blind) writes one needs to figure out the column list. Maybe one can add it to the Write function as argument? (Difficult for nested queries, but should be easy for single blind writes)
 
     //Primary key that is auto-increment? Insert has to also read last primary key? And then propose new one?
-}
+
 
 //NOTE: Unlike Get, Query currently cannot read own write, or previous reads -> consequently, different queries may read the same key differently
 // (Could edit query to include "previoudReads" + writes and use it for materialization)
 
 //Simulate Select * for now
 // TODO: --> Return all rows in the store.
-void Client::Query(std::string &query, query_callback qcb,
+void Client::Query(const std::string &query, query_callback qcb,
     query_timeout_callback qtcb, uint32_t timeout) {
 
   UW_ASSERT(query.length() < ((uint64_t)1<<32)); //Protobuf cannot handle strings longer than 2^32 bytes --> cannot handle "arbitrarily" complex queries: If this is the case, we need to break down the query command.
@@ -468,8 +516,8 @@ void Client::Query(std::string &query, query_callback qcb,
                 }
                 pendingQuery->group_read_sets.clear(); //Note: Clearing here early to avoid double deletions on read sets whose allocated memory was moved.
               }
-
-                qcb(REPLY_OK, pendingQuery->result); //callback to application 
+                sql::QueryResultProtoWrapper q_result(pendingQuery->result); //TODO: Replace with proper result handling.
+                qcb(REPLY_OK, q_result); //callback to application 
                 //clean pendingQuery and query_seq_num_mapping in all shards.
                 ClearQuery(pendingQuery);      
             }

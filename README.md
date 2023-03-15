@@ -135,7 +135,7 @@ The prototype implementations depend the following development libraries:
 - libuv1-dev
 
 You may install them directly using:
-- `sudo apt install libsodium-dev libgflags-dev libssl-dev libevent-dev libevent-openssl-2.1-7 libevent-pthreads-2.1-7 libboost-all-dev libuv1-dev`
+- `sudo apt install libsodium-dev libgflags-dev libssl-dev libevent-dev libevent-openssl-2.1-7 libevent-pthreads-2.1-7 libboost-all-dev libuv1-dev libpq-dev postgresql-server-dev-all`
 - If using Ubuntu 18.04, use `sudo apt install libevent-openssl-2.1-6 libevent-pthreads-2.1-6` instead for openssl and pthreads.
 
 In addition, you will need to install the following libraries from source (detailed instructions below):
@@ -164,6 +164,27 @@ We recommend organizing all installs in a dedicated folder:
 5. `sudo cp libhoard.so /usr/local/lib`
 6. `sudo echo 'export LD_PRELOAD=/usr/local/lib/libhoard.so' >> ~/.bashrc; source ~/.bashrc;` (once) or `export LD_PRELOAD=/usr/local/lib/libhoard.so` (everytime)
 7. `cd ..`
+
+#### Installing taopq 
+
+Download the library:
+
+1. `git clone git@github.com:taocpp/taopq.git`
+2. `cd taopq`
+3. `git checkout 943d827`
+
+Alternatively, you may download and unzip from source: 
+
+1. `wget https://github.com/taocpp/taopq/archive/943d827.zip`
+2. `unzip 943d827.zip`  
+
+Next, build taopq:
+
+4. `sudo cmake .`
+5. `sudo cmake --build . -j $(nproc)`
+6. `sudo make install`
+7. `sudo ldconfig`
+8. `cd ..`
 
 #### Installing google test
 

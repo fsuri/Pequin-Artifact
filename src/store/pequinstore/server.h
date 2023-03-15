@@ -212,34 +212,9 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
     //Query helper data structures
 
     //Query objects
-    struct QueryReadSetMgr {
-        QueryReadSetMgr(proto::ReadSet *read_set, const uint64_t &groupIdx): read_set(read_set), groupIdx(groupIdx) {}
-        ~QueryReadSetMgr(){}
-
-        void AddToReadSet(const std::string &key, const TimestampMessage &readtime){
-           ReadMessage *read = read_set->add_read_set();
-          //ReadMessage *read = query_md->queryResult->mutable_query_read_set()->add_read_set();
-          read->set_key(key);
-          *read->mutable_readtime() = readtime;
-        }
-
-        void AddToDepSet(const std::string &tx_id, bool optimisticId, const TimestampMessage &tx_ts){
-            proto::Dependency *add_dep = read_set->add_deps();
-            add_dep->set_involved_group(groupIdx);
-            add_dep->mutable_write()->set_prepared_txn_digest(tx_id);
-            Debug("Adding Dep: %s", BytesToHex(tx_id, 16).c_str());
-            //Note: Send merged TS.
-            if(optimisticId){
-                //MergeTimestampId(txn->timestamp().timestamp(), txn->timestamp().id()
-                *add_dep->mutable_write()->mutable_prepared_timestamp() = tx_ts;
-                // add_dep->mutable_write()->mutable_prepared_timestamp()->set_timestamp(txn->timestamp().timestamp());
-                // add_dep->mutable_write()->mutable_prepared_timestamp()->set_id(txn->timestamp().id());
-            }
-        }
-
-      proto::ReadSet *read_set;
-      uint64_t groupIdx;
-    };
+    
+    //QueryReadSetMgr lives in common.h
+    //SnapshotMgr lives in Snapshot_mgr.cc
 
     struct QueryMetaData {
       QueryMetaData(const std::string &query_cmd, const TimestampMessage &timestamp, const TransportAddress &remote, const uint64_t &req_id, 

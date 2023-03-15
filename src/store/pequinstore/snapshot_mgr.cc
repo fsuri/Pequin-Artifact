@@ -41,6 +41,7 @@
 
 namespace pequinstore {
 
+
 SnapshotManager::SnapshotManager(const QueryParameters *query_params): query_params(query_params), numSnapshotReplies(0UL), useOptimisticTxId(false), config_f(0UL), local_ss(nullptr), merged_ss(nullptr) {}
 SnapshotManager::~SnapshotManager(){}
 

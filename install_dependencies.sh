@@ -22,7 +22,7 @@ echo ""
 #Development library dependencies
 echo "Installing Development library dependencies"
 echo ""
-sudo apt install libsodium-dev libgflags-dev libssl-dev libevent-dev libevent-openssl-2.1-7 libevent-pthreads-2.1-7 libboost-all-dev libuv1-dev
+sudo apt install libsodium-dev libgflags-dev libssl-dev libevent-dev libevent-openssl-2.1-7 libevent-pthreads-2.1-7 libboost-all-dev libuv1-dev libpq-dev postgresql-server-dev-all
 echo "$(tput setaf 2) COMPLETE: GENERAL DEVELOPMENT LIB DEPS $(tput sgr0)"
 echo ""
 read -p "Press enter to continue"
@@ -35,11 +35,25 @@ echo "Installing Hoard Allocator"
 echo ""
 sudo apt-get install clang
 git clone https://github.com/emeryberger/Hoard
+cd Hoard
 cd src
 make
 sudo cp libhoard.so /usr/local/lib
 sudo echo 'export LD_PRELOAD=/usr/local/lib/libhoard.so' >> ~/.bashrc
 export LD_PRELOAD=/usr/local/lib/libhoard.so
+cd ../..
+
+#Installing taopq 
+echo "Installing TaoPq"
+echo ""
+git clone git@github.com:taocpp/taopq.git
+cd taopq
+git checkout 943d827
+sudo cmake .
+sudo cmake --build . -j $(nproc)
+sudo make install
+sudo ldconfig
+cd ..
 
 #googletest
 echo "Installing googletest"

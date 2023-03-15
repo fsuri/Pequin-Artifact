@@ -110,14 +110,42 @@ void SyncClient::Abort(uint32_t timeout) {
   promise.GetReply();
 }
 
-void SyncClient::Query(std::string &query, std::string &result, uint32_t timeout) {
+
+void SyncClient::Write(std::string &statement, std::vector<std::vector<uint32_t>> primary_key_encoding_support, const query_result::QueryResult* result, uint32_t timeout) {
+  Promise promise(timeout);
+  
+  client->Write(statement, primary_key_encoding_support, std::bind(&SyncClient::WriteCallback, this, &promise,
+        std::placeholders::_1, std::placeholders::_2), 
+        std::bind(&SyncClient::WriteTimeoutCallback, this,
+        &promise, std::placeholders::_1), timeout);
+ result = promise.GetQueryResult(); //TODO: Possibly want Write parallelism too.
+}
+
+void SyncClient::Query(const std::string &query, const query_result::QueryResult* result, uint32_t timeout) {
   Promise promise(timeout);
   
   client->Query(query, std::bind(&SyncClient::QueryCallback, this, &promise,
         std::placeholders::_1, std::placeholders::_2), 
         std::bind(&SyncClient::QueryTimeoutCallback, this,
         &promise, std::placeholders::_1), timeout);
- result = promise.GetValue();
+ result = promise.GetQueryResult();
+}
+
+void SyncClient::Query(const std::string &query, uint32_t timeout) {
+  Promise *promise = new Promise(timeout);
+  queryPromises.push_back(promise);
+  client->Query(query, std::bind(&SyncClient::QueryCallback, this, promise,
+        std::placeholders::_1, std::placeholders::_2), 
+        std::bind(&SyncClient::QueryTimeoutCallback, this,
+        promise, std::placeholders::_1), timeout);
+}
+
+void SyncClient::Wait(std::vector<const query_result::QueryResult*> &values) {
+  for (auto promise : queryPromises) {
+    values.push_back(promise->GetQueryResult());
+    delete promise;
+  }
+  queryPromises.clear();
 }
 
 ///////// Callbacks
@@ -157,7 +185,16 @@ void SyncClient::AbortTimeoutCallback(Promise *promise) {
   promise->Reply(REPLY_TIMEOUT);
 }
 
-void SyncClient::QueryCallback(Promise *promise, int status, const std::string &result){
+void SyncClient::WriteCallback(Promise *promise, int status, const query_result::QueryResult* result){
+  promise->Reply(status, result); 
+}
+
+void SyncClient::WriteTimeoutCallback(Promise *promise, int status){
+  promise->Reply(status);
+}
+
+
+void SyncClient::QueryCallback(Promise *promise, int status, const query_result::QueryResult* result){
   promise->Reply(status, result); //Result = string for now. Can be list of values, rows, anthing. Format and interface TBD. For now just return serialized protobuf. That protobuf can be whatever representation.
 }
 

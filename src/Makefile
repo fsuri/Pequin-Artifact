@@ -54,6 +54,11 @@ LDFLAGS += -ltbb #-lpthread
 #Hoard
 #LDFLAGS += -L/Software/Hoard/src/libhoard.so
 
+# taopq
+CFLAGS += -I/usr/include/postgresql
+LDFLAGS += -ltaopq
+LDFLAGS += -lpq
+
 # Google test framework. This doesn't use pkgconfig
 GTEST_DIR := /usr/src/gtest-1.10.0/googletest
 GMOCK_DIR := /usr/src/gtest-1.10.0/googlemock

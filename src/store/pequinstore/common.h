@@ -340,6 +340,7 @@ std::string generateReadSetSingleHash(const proto::ReadSet &query_read_set);
 std::string generateReadSetSingleHash(const std::map<std::string, TimestampMessage> &read_set);
 std::string generateReadSetMerkleRoot(const std::map<std::string, TimestampMessage> &read_set, uint64_t branch_factor);
 
+
 void CompressTxnIds(std::vector<uint64_t>&txn_ts);
 std::vector<uint64_t> DecompressTxnIds();
 
@@ -410,6 +411,39 @@ inline static bool compareReadSets (google::protobuf::RepeatedPtrField<ReadMessa
     return lhs.size() == rhs.size() && std::equal(lhs.begin(), lhs.end(), rhs.begin(), equalReadMsg); 
 }
 
+
+struct QueryReadSetMgr {
+        QueryReadSetMgr(proto::ReadSet *read_set, const uint64_t &groupIdx): read_set(read_set), groupIdx(groupIdx) {}
+        ~QueryReadSetMgr(){}
+
+        void AddToReadSet(const std::string &key, const TimestampMessage &readtime){
+           ReadMessage *read = read_set->add_read_set();
+          //ReadMessage *read = query_md->queryResult->mutable_query_read_set()->add_read_set();
+          read->set_key(key);
+          *read->mutable_readtime() = readtime;
+        }
+
+        void AddToDepSet(const std::string &tx_id, bool optimisticId, const TimestampMessage &tx_ts){
+            proto::Dependency *add_dep = read_set->add_deps();
+            add_dep->set_involved_group(groupIdx);
+            add_dep->mutable_write()->set_prepared_txn_digest(tx_id);
+            Debug("Adding Dep: %s", BytesToHex(tx_id, 16).c_str());
+            //Note: Send merged TS.
+            if(optimisticId){
+                //MergeTimestampId(txn->timestamp().timestamp(), txn->timestamp().id()
+                *add_dep->mutable_write()->mutable_prepared_timestamp() = tx_ts;
+                // add_dep->mutable_write()->mutable_prepared_timestamp()->set_timestamp(txn->timestamp().timestamp());
+                // add_dep->mutable_write()->mutable_prepared_timestamp()->set_id(txn->timestamp().id());
+            }
+        }
+
+      proto::ReadSet *read_set;
+      uint64_t groupIdx;
+};
+
+//For managing WriteSet
+std::string EncodeTableRow(const std::string &table_name, const std::vector<char*> primary_key_columns);
+void DecodeTableRow(const std::string &enc_key, std::string &table_name, std::vector<std::string> primary_key_columns);
 
 // enum InjectFailureType {
 //   CLIENT_EQUIVOCATE = 0,
