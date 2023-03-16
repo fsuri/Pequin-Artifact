@@ -57,7 +57,7 @@ class QueryResultProtoWrapper : public query_result::QueryResult {
 
     QueryResultProtoWrapper(const std::string& data) {
       SQLResultProto result;
-      if(!result.ParseFromString(data)) {
+      if(result.ParseFromString(data)) {
         create_from_proto(&result);
       } else {
         throw std::invalid_argument("Failed to parse QueryResultProtoWrapper from data");

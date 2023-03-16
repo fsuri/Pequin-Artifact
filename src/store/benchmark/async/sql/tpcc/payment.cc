@@ -70,8 +70,9 @@ SQLPayment::~SQLPayment() {
 }
 
 transaction_status_t SQLPayment::Execute(SyncClient &client) {
-  std::string str;
-  std::vector<std::string> strs;
+  query_result::QueryResult *queryResult;
+  std::string query;
+  std::vector<query_result::QueryResult*> results;
 
   Debug("PAYMENT");
   Debug("Amount: %u", h_amount);
@@ -80,24 +81,30 @@ transaction_status_t SQLPayment::Execute(SyncClient &client) {
 
   client.Begin(timeout);
 
+  query = "SELECT FROM Warehouse WHERE pk = ";
   std::string w_key = tpcc::WarehouseRowKey(w_id);
-  client.Get(w_key, timeout);
+  query.append(w_key);
+  client.Query(query, timeout);
   Debug("District: %u", d_id);
+  query = "SELECT FROM District WHERE pk = ";
   std::string d_key = tpcc::DistrictRowKey(d_w_id, d_id);
-  client.Get(d_key, timeout);
+  query.append(d_key);
+  client.Query(query, timeout);
 
   std::string c_key;
   if (c_by_last_name) { // access customer by last name
     Debug("Customer: %s", c_last.c_str());
     Debug("  Get(c_w_id=%u, c_d_id=%u, c_last=%s)", c_w_id, c_d_id,
       c_last.c_str());
+    query = "SELECT FROM CustomerByName WHERE pk = ";
     std::string cbn_key = tpcc::CustomerByNameRowKey(c_w_id, c_d_id, c_last);
-    client.Get(cbn_key, timeout);
+    query.append(cbn_key);
+    client.Query(query, timeout);
 
     client.Wait(strs);
 
     tpcc::CustomerByNameRow cbn_row;
-    UW_ASSERT(cbn_row.ParseFromString(strs[2]));
+    deserialize(cbn_row, strs[2]);
     int idx = (cbn_row.ids_size() + 1) / 2;
     if (idx == cbn_row.ids_size()) {
       idx = cbn_row.ids_size() - 1;
@@ -105,23 +112,30 @@ transaction_status_t SQLPayment::Execute(SyncClient &client) {
     c_id = cbn_row.ids(idx);
     Debug("  ID: %u", c_id);
 
+    query = "SELECT FROM Customer WHERE pk = ";
     c_key = tpcc::CustomerRowKey(c_w_id, c_d_id, c_id);
-    client.Get(tpcc::CustomerRowKey(c_w_id, c_d_id, c_id), strs[2], timeout);
+    query.append(c_key);
+    client.Query(query, timeout);
   } else {
     Debug("Customer: %u", c_id);
 
+    query = "SELECT FROM Customer WHERE pk = ";
     c_key = tpcc::CustomerRowKey(c_w_id, c_d_id, c_id);
-    client.Get(tpcc::CustomerRowKey(c_w_id, c_d_id, c_id), timeout);
+    query.append(c_key);
+    client.Query(query, timeout);
     client.Wait(strs);
   }
 
   tpcc::WarehouseRow w_row;
-  UW_ASSERT(w_row.ParseFromString(strs[0]));
+  deserialize(w_row, strs[0]);
   w_row.set_ytd(w_row.ytd() + h_amount);
   Debug("  YTD: %u", w_row.ytd());
-  w_row.SerializeToString(&str);
-  client.Put(w_key, str, timeout);
+  query = std::format("INSERT INTO Warehouse\n VALUES ({}, {}, {}, {}, {}, {}, {}, {}, {});", 
+            w_row.id(), w_row.name(), w_row.street_1(), w_row.street_2(), 
+            w_row.city(), w_row.state(), w_row.zip(), w_row.tax(), w_row.ytd());
+  client.Query(query, timeout);
 
+// Checkpoint
   tpcc::DistrictRow d_row;
   UW_ASSERT(d_row.ParseFromString(strs[1]));
   d_row.set_ytd(d_row.ytd() + h_amount);
