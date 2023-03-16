@@ -14,7 +14,7 @@ jobs:
 #     - name: configure
 #       run: ./configure
     - name: make
-      run: cd home/src && make -j $(nproc)
+      run: cd /home/src && make -j $(nproc)
     - name: Cache
       uses: actions/cache@v2.1.8
       with:
