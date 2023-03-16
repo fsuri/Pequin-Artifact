@@ -24,13 +24,21 @@
 namespace cockroachdb {
 using namespace std;
 
-// TODO add constructor that takes transport::Configuration
-// Client::Client(transport::Configuration *config) {}
-
-Client::Client(string config) {
+// TODO replace TrueTime with others
+Client::Client(transport::Configuration *config, uint64_t id, int nShards, int nGroups,
+       Transport *transport, KeyManager *keyManager, uint64_t default_timeout,
+       TrueTime timeServer)
+    : config(config),
+      client_id(id),
+      nshards(nShards),
+      ngroups(nGroups),
+      transport(transport),
+      keyManager(keyManager),
+      timeServer(timeServer) {
   try {
-    // TODO replicas
-    string url = config;
+    // TODO add encryption layer
+    string addr = config.host + ":" + config.port;
+    string url = "postgresql://root@" + addr + "/defaultdb?sslmode=disable";
 
     // Establish connection
     conn = tao::pq::connection::create(url);

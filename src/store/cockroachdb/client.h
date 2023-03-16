@@ -11,20 +11,28 @@
 #ifndef _CRDB_CLIENT_H_
 #define _CRDB_CLIENT_H_
 
+#include <sys/time.h>
+#include <unistd.h>
+
 #include <functional>
 #include <string>
 #include <tao/pq.hpp>
 #include <vector>
 
 #include "lib/assert.h"
+#include "lib/configuration.h"
 #include "lib/message.h"
+#include "lib/udptransport.h"
 #include "store/common/frontend/client.h"
+#include "store/common/timestamp.h"
+#include "store/common/truetime.h"
+#include <google/protobuf/message.h>
 
 typedef std::function<void()> abort_callback;
 typedef std::function<void()> abort_timeout_callback;
 
-typedef std::function<void(int, const tao::pq::result &)> query_callback;
-typedef std::function<void(int)> query_timeout_callback;
+// typedef std::function<void(int, const tao::pq::result &)> query_callback;
+// typedef std::function<void(int)> query_timeout_callback;
 
 // TODO Stats feature reserved
 // class Stats;
@@ -34,8 +42,9 @@ namespace cockroachdb {
 
 class Client : public ::Client {
  public:
-  Client();
-  Client(string config);
+  Client(transport::Configuration *config, uint64_t id, int nShards,
+         int nGroups, Transport *transport, KeyManager *keyManager,
+         uint64_t default_timeout, TrueTime timeserver = TrueTime(0, 0));
   ~Client();
 
   // Begin a transaction.
@@ -68,6 +77,23 @@ class Client : public ::Client {
 
   std::shared_ptr<tao::pq::connection> conn;
   std::shared_ptr<tao::pq::transaction> tr;
+
+ private:
+  Client *client;
+  uint64_t id;
+  uint32_t timeout;
+  /* Configuration State */
+  transport::Configuration *config;
+  // Unique ID for this client.
+  uint64_t client_id;
+  // Number of shards.
+  uint64_t nshards;
+  // Number of replica groups.
+  uint64_t ngroups;
+  // Transport used by shard clients.
+  Transport *transport;
+  // TrueTime server.
+  TrueTime timeServer;
 };
 }  // namespace cockroachdb
 
