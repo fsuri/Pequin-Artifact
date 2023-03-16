@@ -13,8 +13,12 @@ jobs:
     - uses: actions/checkout@v3
 #     - name: configure
 #       run: ./configure
+    - name: bash
+      run: bash
+    - name: check tbb
+      run: if [ -d /opt/intel/oneapi/tbb ]; then echo "tbb found"; fi
     - name: make
-      run: bash && cd src && make -j $(nproc)
+      run: cd src && make -j $(nproc)
     - name: Cache
       uses: actions/cache@v2.1.8
       with:
