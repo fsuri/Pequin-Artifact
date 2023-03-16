@@ -1,0 +1,37 @@
+name: C/C++ CI
+
+on: push
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container: 
+      image: bcyl/roach-nest
+      volumes:
+        - ${{ github.workspace }}:/home bcyl/roach-nest 
+    steps:
+    - uses: actions/checkout@v3
+#     - name: configure
+#       run: ./configure
+    - name: Restore cached Primes
+      id: cache-primes-restore
+      uses: actions/cache/restore@v3
+      with:
+        path: |
+          ${{ github.workspace }}/src
+        key: ${{ runner.os }}-primes
+
+    - name: make
+      run: |
+        source /opt/intel/oneapi/setvars.sh --force
+        cd src && make -j $(nproc)
+      shell: bash
+      
+    - name: Save Primes
+      id: cache-primes-save
+      uses: actions/cache/save@v3
+      with:
+        path: |
+          ${{ github.workspace }}/src
+        key: ${{ steps.cache-primes-restore.outputs.cache-primary-key }}
+        
