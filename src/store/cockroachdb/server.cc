@@ -24,16 +24,20 @@ Server::Server(const transport::Configuration& config, KeyManager* keyManager, i
       id(groupIdx * config.n + idx),
       numShards(numShards),
       numGroups(numGroups) {
+  int status = 0;
   transport::ReplicaAddress server_address = config.replica(groupIdx, idx);
 
-  // TODO : Add encryption
+  /**
+  * --advertise-addr determines which address to tell other nodes to use.
+  * --listen-addr determines which address(es) to listen on for connections 
+  *   from other nodes and clients.
+  */
   std::string start_script =
-      "cockroach start --insecure --advertise-addr=" + server_address.host +
+      "cockroach start --insecure --listen-addr=" + server_address.host +
       ":" + server_address.port;
 
-  // TODO: set zones
-  // TODO: Add load balancer
-  std::string join_flag = "--join=";
+
+  std::string join_flag = " --join=";
   // Naive implementation: join all node
   for (int i = 0; i < numGroups; i++) {
     for (int j = 0; j < config.n; j++) {
@@ -41,20 +45,27 @@ Server::Server(const transport::Configuration& config, KeyManager* keyManager, i
           join_flag + server_address.host + ":" + server_address.port + ",";
     }
   }
-
   // Remove last comma
   join_flag.pop_back();
-  std::string other_flags = "--cache=.25 --max -sql -memory=.25 --background ";
-  start_script = start_script + join_flag + other_flags;
+
+  // TODO: better port number
+  std::string listen_addr_flag = " --http-addr="+server_address.host+":" + std::to_string(8069 + id);
+  std::string store_flag = " --store=node" + std::to_string(id);
+
+  // TODO : Add encryption
+  // TODO: set zones
+  // TODO: Add load balancer
+  std::string other_flags = " --background ";
+  start_script = start_script + join_flag + store_flag + listen_addr_flag + other_flags;
   // start server
-  system(start_script.c_str());
+  status = system(start_script.c_str());
 
   // If happens to be the last one, init server
   if (id == numGroups * config.n - 1) {
     std::string init_script =
         "cockroach init --insecure --host=" + server_address.host + ":" +
         server_address.port;
-    system(init_script.c_str());
+    status = system(init_script.c_str());
   }
 }
 
