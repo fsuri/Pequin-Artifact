@@ -127,9 +127,9 @@ const std::string protocol_args[] = {
     "tapir", "weak", "strong", "pequin", "indicus", "pbft", "hotstuff",
     "augustus-hs",  // not used currently by experiment scripts (deprecated)
     "bftsmart",
-    "crdb",
-    "augustus"  // currently used as augustus version -- maps to BFTSmart
+    "augustus", // currently used as augustus version -- maps to BFTSmart
                 // Augustus implementation
+    "crdb"
 };
 const protocol_t protos[]{PROTO_TAPIR,         PROTO_WEAK,     PROTO_STRONG,
                           PROTO_PEQUIN,        PROTO_INDICUS,  PROTO_PBFT,
@@ -434,6 +434,7 @@ int main(int argc, char **argv) {
   for (int i = 0; i < numProtos; ++i) {
     if (FLAGS_protocol == protocol_args[i]) {
       proto = protos[i];
+      Notice("Running %s", protocol_args[i]);
       break;
     }
   }
@@ -584,17 +585,20 @@ int main(int argc, char **argv) {
   uint64_t client_total = FLAGS_num_client_hosts * FLAGS_num_client_threads;
   // std::cerr << "config n: " << config.n << " num_shards: " <<
   // FLAGS_num_shards << " replica_total: " << replica_total << std::endl;
+
+  Notice("Initialize a keyManager");
   KeyManager keyManager(FLAGS_indicus_key_path, keyType, true, replica_total,
                         client_total, FLAGS_num_client_hosts);
   keyManager.PreLoadPubKeys(true);
+  
 
+  Notice("Additional protocol configurations");
   // Additional protocol configurations
   uint64_t readDepSize = 0;
   uint64_t timeDelta = 0;
   int num_cpus = std::thread::hardware_concurrency();
   num_cpus /= FLAGS_indicus_total_processes;
   int protocol_cpu;
-
   switch (proto) {
     case PROTO_TAPIR:
     case PROTO_WEAK:
@@ -616,6 +620,7 @@ int main(int argc, char **argv) {
       timeDelta = timeDelta | (FLAGS_indicus_time_delta % 1000) * 1000;
       break;
     case PROTO_PBFT:
+    case PROTO_CRDB:
       break;
     case PROTO_HOTSTUFF:
     case PROTO_BFTSMART:
@@ -630,12 +635,13 @@ int main(int argc, char **argv) {
         protocol_cpu = FLAGS_indicus_process_id * num_cpus;
       }
       break;
+
     default:
       NOT_REACHABLE();
   }
 
+  Notice("Declare Protocol Servers");
   // Declare Protocol Servers
-
   switch (proto) {
     case PROTO_TAPIR: {
       server = new tapirstore::Server(FLAGS_tapir_linearizable);
@@ -749,8 +755,7 @@ int main(int argc, char **argv) {
       // FLAGS_pbft_esig_batch, FLAGS_pbft_esig_batch_timeout,
       break;
     }
-
-      // HotStuff
+    // HotStuff
     case PROTO_HOTSTUFF: {
       server = new hotstuffstore::Server(
           config, &keyManager, FLAGS_group_idx, FLAGS_replica_idx,
@@ -768,8 +773,7 @@ int main(int argc, char **argv) {
 
       break;
     }
-
-      // Augustus running on top of Hotstuff
+    // Augustus running on top of Hotstuff
     case PROTO_AUGUSTUS: {
       server = new augustusstore::Server(
           config, &keyManager, FLAGS_group_idx, FLAGS_replica_idx,
@@ -806,7 +810,7 @@ int main(int argc, char **argv) {
 
       break;
     }
-      // Augustus running on top of BFT smart.
+    // Augustus running on top of BFT smart.
     case PROTO_AUGUSTUS_SMART: {
       server = new bftsmartstore_stable::Server(
           config, &keyManager, FLAGS_group_idx, FLAGS_replica_idx,
@@ -828,7 +832,7 @@ int main(int argc, char **argv) {
       break;
     }
 
-      break;
+    break;
     }
 
     default: {
