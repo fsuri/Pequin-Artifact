@@ -18,7 +18,9 @@ jobs:
     - name: check tbb
       run: if [ -d /opt/intel/oneapi/tbb ]; then echo "tbb found"; fi
     - name: make
-      run: cd src && make -j $(nproc)
+      run: |
+        source /opt/intel/oneapi/setvars.sh --force
+        cd src && make -j $(nproc)
     - name: Cache
       uses: actions/cache@v2.1.8
       with:
