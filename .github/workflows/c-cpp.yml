@@ -13,22 +13,25 @@ jobs:
     - uses: actions/checkout@v3
 #     - name: configure
 #       run: ./configure
-    - name: bash
-      run: bash
-    - name: check tbb
-      run: if [ -d /opt/intel/oneapi/tbb ]; then echo "tbb found"; fi
+    - name: Restore cached Primes
+      id: cache-primes-restore
+      uses: actions/cache/restore@v3
+      with:
+        path: |
+          ${{ github.workspace }}/src
+        key: ${{ runner.os }}-primes
+
     - name: make
       run: |
         source /opt/intel/oneapi/setvars.sh --force
         cd src && make -j $(nproc)
       shell: bash
-    - name: Cache
-      uses: actions/cache@v2.1.8
+      
+    - name: Save Primes
+      id: cache-primes-save
+      uses: actions/cache/save@v3
       with:
         path: |
-          ${{ github.workspace }}/src/store
-      
-#     - name: make check
-#       run: make check
-#     - name: make distcheck
-#       run: make distcheck
+          ${{ github.workspace }}/src
+        key: ${{ steps.cache-primes-restore.outputs.cache-primary-key }}
+        
