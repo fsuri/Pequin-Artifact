@@ -40,25 +40,25 @@
 #include "lib/tcptransport.h"
 #include "lib/transport.h"
 #include "lib/udptransport.h"
-#include "store/common/partitioner.h"
 #include "store/common/failures.h"
-#include "store/server.h"
+#include "store/common/partitioner.h"
 #include "store/strongstore/server.h"
 #include "store/tapirstore/server.h"
 #include "store/weakstore/server.h"
-//Pesto
+// Pesto
 #include "store/pequinstore/server.h"
-//Basil
+// Basil
 #include "store/indicusstore/server.h"
-//PBFT (deprecated)
+// PBFT (deprecated)
 #include "store/pbftstore/replica.h"
 #include "store/pbftstore/server.h"
-#include "store/strongstore/server.h"
-#include "store/tapirstore/server.h"
-#include "store/weakstore/server.h"
 // HotStuff
 #include "store/hotstuffstore/replica.h"
 #include "store/hotstuffstore/server.h"
+
+// CRDB
+#include "store/cockroachdb/server.h"
+
 // Augustus
 #include "store/augustusstore/replica.h"
 #include "store/augustusstore/server.h"
@@ -66,26 +66,25 @@
 #include "store/bftsmartstore/replica.h"
 #include "store/bftsmartstore/server.h"
 // Augustus-BftSmart
-#include "store/bftsmartstore_augustus/replica.h"
-#include "store/bftsmartstore_augustus/server.h"
-#include "store/bftsmartstore_stable/replica.h"
-#include "store/bftsmartstore_stable/server.h"
-
-// Cockroach DB
 #include <gflags/gflags.h>
 
 #include <thread>
 
 #include "store/benchmark/async/tpcc/tpcc-proto.pb.h"
-#include "store/cockroachdb/server.h"
+#include "store/bftsmartstore_augustus/replica.h"
+#include "store/bftsmartstore_augustus/server.h"
+#include "store/bftsmartstore_stable/replica.h"
+#include "store/bftsmartstore_stable/server.h"
 #include "store/indicusstore/common.h"
 
+
 enum protocol_t {
-	PROTO_UNKNOWN,
-	PROTO_TAPIR,
-	PROTO_WEAK,
-	PROTO_STRONG,
+  PROTO_UNKNOWN,
+  PROTO_TAPIR,
+  PROTO_WEAK,
+  PROTO_STRONG,
   PROTO_PEQUIN,
+  PROTO_INDICUS,
   PROTO_PBFT,
   // HotStuff
   PROTO_HOTSTUFF,
@@ -96,6 +95,7 @@ enum protocol_t {
   // Augustus-BFTSmart
   PROTO_AUGUSTUS_SMART,
   // Cockroach DB
+  // Cockroach Databse
   PROTO_CRDB
 };
 
@@ -124,31 +124,18 @@ DEFINE_uint64(num_client_threads, 1,
 
 DEFINE_bool(rw_or_retwis, true, "true for rw, false for retwis");
 const std::string protocol_args[] = {
-	"tapir",
-  "weak",
-  "strong",
-  "pequin",
-  "indicus",
-	"pbft",
-    "hotstuff",
-    "augustus-hs", //not used currently by experiment scripts (deprecated)
-  "bftsmart",
-	"augustus" //currently used as augustus version -- maps to BFTSmart Augustus implementation
+    "tapir", "weak", "strong", "pequin", "indicus", "pbft", "hotstuff",
+    "augustus-hs",  // not used currently by experiment scripts (deprecated)
+    "bftsmart",
+    "crdb",
+    "augustus"  // currently used as augustus version -- maps to BFTSmart
+                // Augustus implementation
 };
-const protocol_t protos[] {
-  PROTO_TAPIR,
-  PROTO_WEAK,
-  PROTO_STRONG,
-  PROTO_PEQUIN,
-  PROTO_INDICUS,
-      PROTO_PBFT,
-      PROTO_HOTSTUFF,
-      PROTO_AUGUSTUS,
-      PROTO_BFTSMART,
-			PROTO_AUGUSTUS_SMART
-};
-static bool ValidateProtocol(const char* flagname,
-    const std::string &value) {
+const protocol_t protos[]{PROTO_TAPIR,         PROTO_WEAK,     PROTO_STRONG,
+                          PROTO_PEQUIN,        PROTO_INDICUS,  PROTO_PBFT,
+                          PROTO_HOTSTUFF,      PROTO_AUGUSTUS, PROTO_BFTSMART,
+                          PROTO_AUGUSTUS_SMART, PROTO_CRDB};
+static bool ValidateProtocol(const char *flagname, const std::string &value) {
   int n = sizeof(protocol_args);
   for (int i = 0; i < n; ++i) {
     if (value == protocol_args[i]) {
@@ -301,14 +288,20 @@ DEFINE_int32(indicus_rts_mode, 1,
              "RTS");  // set of RTS can be refined further to include interval
                       // from "read value" to TS
 
-DEFINE_bool(indicus_sign_client_proposals, false, "add signatures to client proposals "
-    " -- used for optimistic tx-ids. Can be used for access control (unimplemented)");
-		//
-//DEFINE_bool(indicus_clientAuthenticated, false, "Client messages signed");
-DEFINE_bool(indicus_multi_threading, true, "dispatch crypto to parallel threads");
-DEFINE_bool(indicus_batch_verification, false, "using ed25519 donna batch verification");
-DEFINE_uint64(indicus_batch_verification_size, 64, "batch size for ed25519 donna batch verification");
-DEFINE_uint64(indicus_batch_verification_timeout, 5, "batch verification timeout, ms");
+DEFINE_bool(indicus_sign_client_proposals, false,
+            "add signatures to client proposals "
+            " -- used for optimistic tx-ids. Can be used for access control "
+            "(unimplemented)");
+//
+// DEFINE_bool(indicus_clientAuthenticated, false, "Client messages signed");
+DEFINE_bool(indicus_multi_threading, true,
+            "dispatch crypto to parallel threads");
+DEFINE_bool(indicus_batch_verification, false,
+            "using ed25519 donna batch verification");
+DEFINE_uint64(indicus_batch_verification_size, 64,
+              "batch size for ed25519 donna batch verification");
+DEFINE_uint64(indicus_batch_verification_timeout, 5,
+              "batch verification timeout, ms");
 
 DEFINE_bool(indicus_mainThreadDispatching, true,
             "dispatching main thread work to an additional thread");
@@ -337,20 +330,30 @@ DEFINE_bool(indicus_replica_gossip, false,
 /*
  Pequin settings
 */
-DEFINE_bool(pequin_query_read_prepared, false, "allow query to read prepared values");
-DEFINE_bool(pequin_query_optimistic_txid, false, "use optimistic tx-id for sync protocol");
-DEFINE_bool(pequin_query_cache_read_set, false, "cache query read set at replicas");
-DEFINE_bool(pequin_sign_client_queries, false, "sign query and sync messages"); //proves non-equivocation of query contents, and query snapshot respectively.
+DEFINE_bool(pequin_query_read_prepared, false,
+            "allow query to read prepared values");
+DEFINE_bool(pequin_query_optimistic_txid, false,
+            "use optimistic tx-id for sync protocol");
+DEFINE_bool(pequin_query_cache_read_set, false,
+            "cache query read set at replicas");
+DEFINE_bool(pequin_sign_client_queries, false,
+            "sign query and sync messages");  // proves non-equivocation of
+                                              // query contents, and query
+                                              // snapshot respectively.
 
-DEFINE_bool(pequin_parallel_queries, false, "dispatch queries to parallel worker threads");
+DEFINE_bool(pequin_parallel_queries, false,
+            "dispatch queries to parallel worker threads");
 
-//Baseline settings
-DEFINE_string(bftsmart_codebase_dir, "", "path to directory containing bftsmart configurations");
+// Baseline settings
+DEFINE_string(bftsmart_codebase_dir, "",
+              "path to directory containing bftsmart configurations");
 
-DEFINE_uint64(pbft_esig_batch, 1, "signature batch size"
-		" sig batch size (for PBFT decision phase)");
-DEFINE_uint64(pbft_esig_batch_timeout, 10, "signature batch timeout ms"
-		" sig batch timeout (for PBFT decision phase)");
+DEFINE_uint64(pbft_esig_batch, 1,
+              "signature batch size"
+              " sig batch size (for PBFT decision phase)");
+DEFINE_uint64(pbft_esig_batch_timeout, 10,
+              "signature batch timeout ms"
+              " sig batch timeout (for PBFT decision phase)");
 
 DEFINE_bool(pbft_order_commit, true, "order commit writebacks as well");
 DEFINE_bool(pbft_validate_abort, true, "validate abort writebacks as well");
@@ -534,7 +537,8 @@ int main(int argc, char **argv) {
       break;
     }
   }
-  if ((proto == PROTO_INDICUS || proto == PROTO_PEQUIN) && occ_type == OCC_TYPE_UNKNOWN) {
+  if ((proto == PROTO_INDICUS || proto == PROTO_PEQUIN) &&
+      occ_type == OCC_TYPE_UNKNOWN) {
     std::cerr << "Unknown occ type." << std::endl;
     return 1;
   }
@@ -548,7 +552,8 @@ int main(int argc, char **argv) {
       break;
     }
   }
-  if ((proto == PROTO_INDICUS || proto == PROTO_PEQUIN) && read_dep == READ_DEP_UNKNOWN) {
+  if ((proto == PROTO_INDICUS || proto == PROTO_PEQUIN) &&
+      read_dep == READ_DEP_UNKNOWN) {
     std::cerr << "Unknown read dep." << std::endl;
     return 1;
   }
@@ -583,55 +588,53 @@ int main(int argc, char **argv) {
                         client_total, FLAGS_num_client_hosts);
   keyManager.PreLoadPubKeys(true);
 
-//Additional protocol configurations
+  // Additional protocol configurations
   uint64_t readDepSize = 0;
   uint64_t timeDelta = 0;
   int num_cpus = std::thread::hardware_concurrency();
   num_cpus /= FLAGS_indicus_total_processes;
   int protocol_cpu;
 
-  switch(proto){
-      case PROTO_TAPIR:
-      case PROTO_WEAK:
-      case PROTO_STRONG:
-        break;
-      case PROTO_PEQUIN:
-      case PROTO_INDICUS:
-        switch (read_dep) {
-          case READ_DEP_ONE:
-              readDepSize = 1;
-              break;
-          case READ_DEP_ONE_HONEST:
-              readDepSize = config.f + 1;
-              break;
-          default:
-              NOT_REACHABLE();
-          }
-        timeDelta = (FLAGS_indicus_time_delta / 1000) << 32;
-        timeDelta = timeDelta | (FLAGS_indicus_time_delta % 1000) * 1000;
-        break;
-      case PROTO_PBFT:
-        break;
-      case PROTO_HOTSTUFF:
-      case PROTO_BFTSMART:
-      case PROTO_AUGUSTUS_SMART:
-      case PROTO_AUGUSTUS:
-      //hard coded number of shards
-        if (FLAGS_num_shards == 6) {
-            protocol_cpu = FLAGS_indicus_process_id * num_cpus + num_cpus - 1;
-        } else if(FLAGS_num_shards == 3) { //hotstuff_cpu = 1;
-          protocol_cpu = FLAGS_indicus_process_id * num_cpus + num_cpus - 1;
-        }
-        else{ // FLAGS_num_shards should be 12 or 24
-          protocol_cpu = FLAGS_indicus_process_id * num_cpus;
-        }
-        break;
-      default:
-        NOT_REACHABLE();
-
+  switch (proto) {
+    case PROTO_TAPIR:
+    case PROTO_WEAK:
+    case PROTO_STRONG:
+      break;
+    case PROTO_PEQUIN:
+    case PROTO_INDICUS:
+      switch (read_dep) {
+        case READ_DEP_ONE:
+          readDepSize = 1;
+          break;
+        case READ_DEP_ONE_HONEST:
+          readDepSize = config.f + 1;
+          break;
+        default:
+          NOT_REACHABLE();
+      }
+      timeDelta = (FLAGS_indicus_time_delta / 1000) << 32;
+      timeDelta = timeDelta | (FLAGS_indicus_time_delta % 1000) * 1000;
+      break;
+    case PROTO_PBFT:
+      break;
+    case PROTO_HOTSTUFF:
+    case PROTO_BFTSMART:
+    case PROTO_AUGUSTUS_SMART:
+    case PROTO_AUGUSTUS:
+      // hard coded number of shards
+      if (FLAGS_num_shards == 6) {
+        protocol_cpu = FLAGS_indicus_process_id * num_cpus + num_cpus - 1;
+      } else if (FLAGS_num_shards == 3) {  // hotstuff_cpu = 1;
+        protocol_cpu = FLAGS_indicus_process_id * num_cpus + num_cpus - 1;
+      } else {  // FLAGS_num_shards should be 12 or 24
+        protocol_cpu = FLAGS_indicus_process_id * num_cpus;
+      }
+      break;
+    default:
+      NOT_REACHABLE();
   }
 
-// Declare Protocol Servers
+  // Declare Protocol Servers
 
   switch (proto) {
     case PROTO_TAPIR: {
@@ -653,61 +656,51 @@ int main(int argc, char **argv) {
           config, FLAGS_group_idx, FLAGS_replica_idx, tport, 1,
           dynamic_cast<replication::AppReplica *>(server));
       break;
-  }
-  case PROTO_PEQUIN: {
-      
-      pequinstore::OCCType pequinOCCType;  //TODO: Extend this later with Semantic OCC check options.
+    }
+    case PROTO_PEQUIN: {
+      pequinstore::OCCType pequinOCCType;  // TODO: Extend this later with
+                                           // Semantic OCC check options.
       switch (occ_type) {
-      case OCC_TYPE_TAPIR:
+        case OCC_TYPE_TAPIR:
           pequinOCCType = pequinstore::TAPIR;
           break;
-      case OCC_TYPE_MVTSO:
+        case OCC_TYPE_MVTSO:
           pequinOCCType = pequinstore::MVTSO;
           break;
         default:
           NOT_REACHABLE();
       }
-    
-      pequinstore::QueryParameters query_params(0,
-                                                 0,
-                                                 0,
-                                                 0,
-                                                 0,
-                                                 FLAGS_pequin_query_read_prepared,
-                                                 FLAGS_pequin_query_optimistic_txid,
-                                                 FLAGS_pequin_query_cache_read_set,
-                                                 FLAGS_pequin_sign_client_queries,
-                                                 FLAGS_pequin_parallel_queries);
 
-      pequinstore::Parameters params(FLAGS_indicus_sign_messages,
-                                      FLAGS_indicus_validate_proofs, FLAGS_indicus_hash_digest,
-                                      FLAGS_indicus_verify_deps, FLAGS_indicus_sig_batch,
-                                      FLAGS_indicus_max_dep_depth, readDepSize,
-                                      FLAGS_indicus_read_reply_batch, FLAGS_indicus_adjust_batch_size,
-                                      FLAGS_indicus_shared_mem_batch, FLAGS_indicus_shared_mem_verify,
-                                      FLAGS_indicus_merkle_branch_factor, InjectFailure(),
-                                      FLAGS_indicus_multi_threading, FLAGS_indicus_batch_verification,
-																			FLAGS_indicus_batch_verification_size,
-																			FLAGS_indicus_mainThreadDispatching,
-																			FLAGS_indicus_dispatchMessageReceive,
-																			FLAGS_indicus_parallel_reads,
-																			FLAGS_indicus_parallel_CCC,
-																			FLAGS_indicus_dispatchCallbacks,
-																			FLAGS_indicus_all_to_all_fb,
-																		  FLAGS_indicus_no_fallback, FLAGS_indicus_relayP1_timeout,
-																		  FLAGS_indicus_replica_gossip,
-                                      FLAGS_indicus_sign_client_proposals,
-                                      FLAGS_indicus_rts_mode,
-                                      query_params);
+      pequinstore::QueryParameters query_params(
+          0, 0, 0, 0, 0, FLAGS_pequin_query_read_prepared,
+          FLAGS_pequin_query_optimistic_txid, FLAGS_pequin_query_cache_read_set,
+          FLAGS_pequin_sign_client_queries, FLAGS_pequin_parallel_queries);
+
+      pequinstore::Parameters params(
+          FLAGS_indicus_sign_messages, FLAGS_indicus_validate_proofs,
+          FLAGS_indicus_hash_digest, FLAGS_indicus_verify_deps,
+          FLAGS_indicus_sig_batch, FLAGS_indicus_max_dep_depth, readDepSize,
+          FLAGS_indicus_read_reply_batch, FLAGS_indicus_adjust_batch_size,
+          FLAGS_indicus_shared_mem_batch, FLAGS_indicus_shared_mem_verify,
+          FLAGS_indicus_merkle_branch_factor, InjectFailure(),
+          FLAGS_indicus_multi_threading, FLAGS_indicus_batch_verification,
+          FLAGS_indicus_batch_verification_size,
+          FLAGS_indicus_mainThreadDispatching,
+          FLAGS_indicus_dispatchMessageReceive, FLAGS_indicus_parallel_reads,
+          FLAGS_indicus_parallel_CCC, FLAGS_indicus_dispatchCallbacks,
+          FLAGS_indicus_all_to_all_fb, FLAGS_indicus_no_fallback,
+          FLAGS_indicus_relayP1_timeout, FLAGS_indicus_replica_gossip,
+          FLAGS_indicus_sign_client_proposals, FLAGS_indicus_rts_mode,
+          query_params);
 
       Debug("Starting new server object");
-      server = new pequinstore::Server(config, FLAGS_group_idx,
-                                        FLAGS_replica_idx, FLAGS_num_shards, FLAGS_num_groups, tport,
-                                        &keyManager, params, timeDelta, pequinOCCType, part,
-                                        FLAGS_indicus_sig_batch_timeout);
+      server = new pequinstore::Server(
+          config, FLAGS_group_idx, FLAGS_replica_idx, FLAGS_num_shards,
+          FLAGS_num_groups, tport, &keyManager, params, timeDelta,
+          pequinOCCType, part, FLAGS_indicus_sig_batch_timeout);
       break;
-  }
-  case PROTO_INDICUS: {
+    }
+    case PROTO_INDICUS: {
       indicusstore::OCCType indicusOCCType;
       switch (occ_type) {
         case OCC_TYPE_TAPIR:
@@ -719,25 +712,21 @@ int main(int argc, char **argv) {
         default:
           NOT_REACHABLE();
       }
-      indicusstore::Parameters params(FLAGS_indicus_sign_messages,
-                                      FLAGS_indicus_validate_proofs, FLAGS_indicus_hash_digest,
-                                      FLAGS_indicus_verify_deps, FLAGS_indicus_sig_batch,
-                                      FLAGS_indicus_max_dep_depth, readDepSize,
-                                      FLAGS_indicus_read_reply_batch, FLAGS_indicus_adjust_batch_size,
-                                      FLAGS_indicus_shared_mem_batch, FLAGS_indicus_shared_mem_verify,
-                                      FLAGS_indicus_merkle_branch_factor, InjectFailure(),
-                                      FLAGS_indicus_multi_threading, FLAGS_indicus_batch_verification,
-																			FLAGS_indicus_batch_verification_size,
-																			FLAGS_indicus_mainThreadDispatching,
-																			FLAGS_indicus_dispatchMessageReceive,
-																			FLAGS_indicus_parallel_reads,
-																			FLAGS_indicus_parallel_CCC,
-																			FLAGS_indicus_dispatchCallbacks,
-																			FLAGS_indicus_all_to_all_fb,
-																		  FLAGS_indicus_no_fallback, FLAGS_indicus_relayP1_timeout,
-																		  FLAGS_indicus_replica_gossip,
-                                      FLAGS_indicus_sign_client_proposals,
-                                      FLAGS_indicus_rts_mode);
+      indicusstore::Parameters params(
+          FLAGS_indicus_sign_messages, FLAGS_indicus_validate_proofs,
+          FLAGS_indicus_hash_digest, FLAGS_indicus_verify_deps,
+          FLAGS_indicus_sig_batch, FLAGS_indicus_max_dep_depth, readDepSize,
+          FLAGS_indicus_read_reply_batch, FLAGS_indicus_adjust_batch_size,
+          FLAGS_indicus_shared_mem_batch, FLAGS_indicus_shared_mem_verify,
+          FLAGS_indicus_merkle_branch_factor, InjectFailure(),
+          FLAGS_indicus_multi_threading, FLAGS_indicus_batch_verification,
+          FLAGS_indicus_batch_verification_size,
+          FLAGS_indicus_mainThreadDispatching,
+          FLAGS_indicus_dispatchMessageReceive, FLAGS_indicus_parallel_reads,
+          FLAGS_indicus_parallel_CCC, FLAGS_indicus_dispatchCallbacks,
+          FLAGS_indicus_all_to_all_fb, FLAGS_indicus_no_fallback,
+          FLAGS_indicus_relayP1_timeout, FLAGS_indicus_replica_gossip,
+          FLAGS_indicus_sign_client_proposals, FLAGS_indicus_rts_mode);
       Debug("Starting new server object");
       server = new indicusstore::Server(
           config, FLAGS_group_idx, FLAGS_replica_idx, FLAGS_num_shards,
@@ -762,53 +751,83 @@ int main(int argc, char **argv) {
     }
 
       // HotStuff
-  case PROTO_HOTSTUFF: {
-      
-      server = new hotstuffstore::Server(config, &keyManager,
-                                     FLAGS_group_idx, FLAGS_replica_idx, FLAGS_num_shards, FLAGS_num_groups,
-                                     FLAGS_indicus_sign_messages, FLAGS_indicus_validate_proofs,
-                                     FLAGS_indicus_time_delta, part, tport,
-																	   FLAGS_pbft_order_commit, FLAGS_pbft_validate_abort);
+    case PROTO_HOTSTUFF: {
+      server = new hotstuffstore::Server(
+          config, &keyManager, FLAGS_group_idx, FLAGS_replica_idx,
+          FLAGS_num_shards, FLAGS_num_groups, FLAGS_indicus_sign_messages,
+          FLAGS_indicus_validate_proofs, FLAGS_indicus_time_delta, part, tport,
+          FLAGS_pbft_order_commit, FLAGS_pbft_validate_abort);
 
-      replica = new hotstuffstore::Replica(config, &keyManager,
-                                       dynamic_cast<hotstuffstore::App *>(server),
-                                       FLAGS_group_idx, FLAGS_replica_idx, FLAGS_indicus_sign_messages,
-                                       FLAGS_indicus_sig_batch, FLAGS_indicus_sig_batch_timeout,
-                                       FLAGS_pbft_esig_batch, FLAGS_pbft_esig_batch_timeout,
-                                       FLAGS_indicus_use_coordinator, FLAGS_indicus_request_tx,
-																			 protocol_cpu, FLAGS_num_shards, tport);
+      replica = new hotstuffstore::Replica(
+          config, &keyManager, dynamic_cast<hotstuffstore::App *>(server),
+          FLAGS_group_idx, FLAGS_replica_idx, FLAGS_indicus_sign_messages,
+          FLAGS_indicus_sig_batch, FLAGS_indicus_sig_batch_timeout,
+          FLAGS_pbft_esig_batch, FLAGS_pbft_esig_batch_timeout,
+          FLAGS_indicus_use_coordinator, FLAGS_indicus_request_tx, protocol_cpu,
+          FLAGS_num_shards, tport);
 
       break;
     }
 
       // Augustus running on top of Hotstuff
-  case PROTO_AUGUSTUS: {
-      server = new augustusstore::Server(config, &keyManager,
-                                     FLAGS_group_idx, FLAGS_replica_idx, FLAGS_num_shards, FLAGS_num_groups,
-                                     FLAGS_indicus_sign_messages, FLAGS_indicus_validate_proofs,
-                                     FLAGS_indicus_time_delta, part, tport,
-																	   FLAGS_pbft_order_commit, FLAGS_pbft_validate_abort);
+    case PROTO_AUGUSTUS: {
+      server = new augustusstore::Server(
+          config, &keyManager, FLAGS_group_idx, FLAGS_replica_idx,
+          FLAGS_num_shards, FLAGS_num_groups, FLAGS_indicus_sign_messages,
+          FLAGS_indicus_validate_proofs, FLAGS_indicus_time_delta, part, tport,
+          FLAGS_pbft_order_commit, FLAGS_pbft_validate_abort);
 
-      replica = new augustusstore::Replica(config, &keyManager,
-                                       dynamic_cast<augustusstore::App *>(server),
-                                       FLAGS_group_idx, FLAGS_replica_idx, FLAGS_indicus_sign_messages,
-                                       FLAGS_indicus_sig_batch, FLAGS_indicus_sig_batch_timeout,
-                                       FLAGS_pbft_esig_batch, FLAGS_pbft_esig_batch_timeout,
-                                       FLAGS_indicus_use_coordinator, FLAGS_indicus_request_tx,
-																			 protocol_cpu, FLAGS_num_shards, tport);
-
-																		 FLAGS_group_idx, FLAGS_replica_idx, FLAGS_indicus_sign_messages,
-																		 FLAGS_indicus_sig_batch, FLAGS_indicus_sig_batch_timeout,
-																		 FLAGS_pbft_esig_batch, FLAGS_pbft_esig_batch_timeout,
-																		 FLAGS_indicus_use_coordinator, FLAGS_indicus_request_tx,
-																		 protocol_cpu, FLAGS_num_shards, tport);
+      replica = new augustusstore::Replica(
+          config, &keyManager, dynamic_cast<augustusstore::App *>(server),
+          FLAGS_group_idx, FLAGS_replica_idx, FLAGS_indicus_sign_messages,
+          FLAGS_indicus_sig_batch, FLAGS_indicus_sig_batch_timeout,
+          FLAGS_pbft_esig_batch, FLAGS_pbft_esig_batch_timeout,
+          FLAGS_indicus_use_coordinator, FLAGS_indicus_request_tx, protocol_cpu,
+          FLAGS_num_shards, tport);
 
       break;
     }
 
+    case PROTO_BFTSMART: {
+      server = new bftsmartstore::Server(
+          config, &keyManager, FLAGS_group_idx, FLAGS_replica_idx,
+          FLAGS_num_shards, FLAGS_num_groups, FLAGS_indicus_sign_messages,
+          FLAGS_indicus_validate_proofs, FLAGS_indicus_time_delta, part, tport,
+          FLAGS_pbft_order_commit, FLAGS_pbft_validate_abort);
+      std::cerr << "FLAGS: bftsmart config path: "
+                << FLAGS_bftsmart_codebase_dir << std::endl;
+      replica = new bftsmartstore::Replica(
+          config, &keyManager, dynamic_cast<bftsmartstore::App *>(server),
+          FLAGS_group_idx, FLAGS_replica_idx, FLAGS_indicus_sign_messages,
+          FLAGS_indicus_sig_batch, FLAGS_indicus_sig_batch_timeout,
+          FLAGS_pbft_esig_batch, FLAGS_pbft_esig_batch_timeout,
+          FLAGS_indicus_use_coordinator, FLAGS_indicus_request_tx, protocol_cpu,
+          FLAGS_num_shards, tport, FLAGS_bftsmart_codebase_dir);
+
+      break;
+    }
+      // Augustus running on top of BFT smart.
+    case PROTO_AUGUSTUS_SMART: {
+      server = new bftsmartstore_stable::Server(
+          config, &keyManager, FLAGS_group_idx, FLAGS_replica_idx,
+          FLAGS_num_shards, FLAGS_num_groups, FLAGS_indicus_sign_messages,
+          FLAGS_indicus_validate_proofs, FLAGS_indicus_time_delta, part, tport,
+          FLAGS_pbft_order_commit, FLAGS_pbft_validate_abort);
+
+      replica = new bftsmartstore_stable::Replica(
+          config, &keyManager,
+          dynamic_cast<bftsmartstore_stable::App *>(server), FLAGS_group_idx,
+          FLAGS_replica_idx, FLAGS_indicus_sign_messages,
+          FLAGS_indicus_sig_batch, FLAGS_indicus_sig_batch_timeout,
+          FLAGS_pbft_esig_batch, FLAGS_pbft_esig_batch_timeout,
+          FLAGS_indicus_use_coordinator, FLAGS_indicus_request_tx, protocol_cpu,
+          FLAGS_num_shards, tport);
     // Cockroach
     case PROTO_CRDB: {
       server = new cockroachdb::Server(config, &keyManager, FLAGS_group_idx,FLAGS_replica_idx, FLAGS_num_shards, FLAGS_num_groups);
+      break;
+    }
+
       break;
     }
 
