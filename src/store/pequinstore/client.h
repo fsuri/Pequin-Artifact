@@ -114,7 +114,7 @@ class Client : public ::Client {
    std::unordered_set<uint64_t> conflict_ids;
 
   struct PendingQuery {
-    PendingQuery(Client *client, uint64_t query_seq_num, std::string &query_cmd) : version(0UL), group_replies(0UL){
+    PendingQuery(Client *client, uint64_t query_seq_num, const std::string &query_cmd) : version(0UL), group_replies(0UL){
       queryMsg.Clear();
       queryMsg.set_client_id(client->client_id);
       queryMsg.set_query_seq_num(query_seq_num);

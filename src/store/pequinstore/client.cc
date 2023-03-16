@@ -38,6 +38,7 @@
 #include <algorithm>
 
 #include "store/common/query_result/query_result_proto_wrapper.h"
+#include "store/common/query_result/query_result_proto_builder.h"
 
 namespace pequinstore {
 
@@ -257,8 +258,12 @@ void Client::Write(std::string &write_statement, std::vector<std::vector<uint32_
     
 
     std::string read_statement;
-    auto write_continuation = [this](const std::string &result){
-      return result;
+    auto write_continuation = [this](const query_result::QueryResult *result){
+
+      sql::QueryResultProtoWrapper *write_result = new sql::QueryResultProtoWrapper(""); //TODO: replace with real result. Create proto builder and set rows affected somehow..
+      uint32_t n_rows_affected = 0;
+      write_result->set_rows_affected(n_rows_affected);
+      return write_result;
     }; // = //Some function that takes ResultObject as input and issue the write statements.
         //  for result-row in result{
         //     EncodeTableRow (use primary_key_encoding to derive it from the table and column_list)
@@ -279,15 +284,14 @@ void Client::Write(std::string &write_statement, std::vector<std::vector<uint32_
 
     if(read_statement.empty()){
       //Add to writes directly.
-      sql::QueryResultProtoWrapper write_result(""); //TODO: replace with real result.
+      sql::QueryResultProtoWrapper *write_result = new sql::QueryResultProtoWrapper(""); //TODO: replace with real result.
       wcb(REPLY_OK, write_result);
     }
     else{
-       auto qcb = [this, write_continuation, wcb](int status, const std::string &result) mutable { 
+       auto qcb = [this, write_continuation, wcb](int status, const query_result::QueryResult *result) mutable { 
 
         //result ==> replace with protoResult type
-        std::string REPLACE_RES = write_continuation(result);
-        sql::QueryResultProtoWrapper write_result(REPLACE_RES); //TODO: replace with real result.
+        const query_result::QueryResult *write_result = write_continuation(result);
         wcb(REPLY_OK, write_result);
         return;
       };
@@ -516,10 +520,12 @@ void Client::Query(const std::string &query, query_callback qcb,
                 }
                 pendingQuery->group_read_sets.clear(); //Note: Clearing here early to avoid double deletions on read sets whose allocated memory was moved.
               }
-                sql::QueryResultProtoWrapper q_result(pendingQuery->result); //TODO: Replace with proper result handling.
-                qcb(REPLY_OK, q_result); //callback to application 
-                //clean pendingQuery and query_seq_num_mapping in all shards.
-                ClearQuery(pendingQuery);      
+        
+              Debug("Upcall with result");
+              sql::QueryResultProtoWrapper *q_result = new sql::QueryResultProtoWrapper(pendingQuery->result);
+              qcb(REPLY_OK, q_result); //callback to application 
+              //clean pendingQuery and query_seq_num_mapping in all shards.
+              ClearQuery(pendingQuery);      
             }
           }
           else{

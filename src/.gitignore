@@ -9,6 +9,7 @@ null
 
 .vscode
 .vscode/*
+.vscode/settings.json
 
 lib/crypto_bench
 lib/batched_sigs_test

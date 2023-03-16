@@ -111,7 +111,7 @@ void SyncClient::Abort(uint32_t timeout) {
 }
 
 
-void SyncClient::Write(std::string &statement, std::vector<std::vector<uint32_t>> primary_key_encoding_support, const query_result::QueryResult* result, uint32_t timeout) {
+void SyncClient::Write(std::string &statement, std::vector<std::vector<uint32_t>> primary_key_encoding_support, const query_result::QueryResult* &result, uint32_t timeout) {
   Promise promise(timeout);
   
   client->Write(statement, primary_key_encoding_support, std::bind(&SyncClient::WriteCallback, this, &promise,
@@ -121,14 +121,15 @@ void SyncClient::Write(std::string &statement, std::vector<std::vector<uint32_t>
  result = promise.GetQueryResult(); //TODO: Possibly want Write parallelism too.
 }
 
-void SyncClient::Query(const std::string &query, const query_result::QueryResult* result, uint32_t timeout) {
+
+void SyncClient::Query(const std::string &query, const query_result::QueryResult* &result, uint32_t timeout) {
   Promise promise(timeout);
   
   client->Query(query, std::bind(&SyncClient::QueryCallback, this, &promise,
         std::placeholders::_1, std::placeholders::_2), 
         std::bind(&SyncClient::QueryTimeoutCallback, this,
         &promise, std::placeholders::_1), timeout);
- result = promise.GetQueryResult();
+  result = promise.GetQueryResult();
 }
 
 void SyncClient::Query(const std::string &query, uint32_t timeout) {

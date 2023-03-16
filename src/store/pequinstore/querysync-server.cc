@@ -54,6 +54,8 @@
 #include "lib/batched_sigs.h"
 #include <valgrind/memcheck.h>
 
+#include "store/common/query_result/query_result_proto_builder.h"
+
 namespace pequinstore {
 
        //TODO: Next:
@@ -1537,7 +1539,16 @@ std::string Server::ExecQuery(QueryReadSetMgr &queryReadSetMgr, QueryMetaData *q
         }
     }
     //FIXME: Just for testing: Creating Dummy result 
-    std::string dummy_result = "success" + std::to_string(query_md->query_seq_num);
+   
+  
+    std::string test_result_string = "success" + std::to_string(query_md->query_seq_num);
+    std::vector<std::string> result_row;
+    result_row.push_back(test_result_string);
+    sql::QueryResultProtoBuilder queryResultBuilder;
+    queryResultBuilder.add_column("result");
+    queryResultBuilder.add_row(result_row.begin(), result_row.end());
+
+    std::string dummy_result = queryResultBuilder.get_result()->SerializeAsString();
     return dummy_result;
 }
 

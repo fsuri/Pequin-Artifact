@@ -42,6 +42,12 @@
 #include "store/common/truetime.h"
 #include "store/tapirstore/client.h"
 
+#include "store/common/query_result/query_result_proto_wrapper.h"
+#include "store/common/query_result/query_result_proto_builder.h"
+#include "store/common/query_result/query_result.h"
+#include "lib/cereal/archives/binary.hpp"
+#include "lib/cereal/types/string.hpp"
+
 namespace toy {
 
 ToyTransaction::ToyTransaction(): SyncTransaction(10000) {
@@ -92,11 +98,30 @@ void ToyClient::ExecuteToy(){
             client.Begin(timeout);
 
             std::string query = "SELECT *";
-            std::string queryResult;
+            const query_result::QueryResult* queryResult;
             client.Query(query, queryResult, timeout);  //--> Edit API in frontend sync_client.
                                            //For real benchmarks: Also edit in sync_transaction_bench_client.
-            std::cerr << "Query 1 Result: " << queryResult << std::endl << std::endl;
+                              
+            // (*queryResult->at(0))[0] //TODO: parse the output...  data.length
 
+            std::cerr << "Got res" << std::endl;
+            UW_ASSERT(!queryResult->empty());
+            std::cerr << "num cols:" <<  queryResult->columns() << std::endl;
+            std::cerr << "num rows:" <<  queryResult->rows_affected() << std::endl;
+
+             std::stringstream ss(std::ios::in | std::ios::out | std::ios::binary);
+            size_t nbytes;
+            const char* out = queryResult->get(0, 0, &nbytes);
+            std::string output(out, nbytes);
+            ss << output;
+            std::string output_row;
+            {
+              cereal::BinaryInputArchive iarchive(ss); // Create an input archive
+              iarchive(output_row); // Read the data from the archive
+            }
+             std::cerr << "Query 1 Result: " << output_row << std::endl << std::endl;
+
+  
 
             // client.Query(query, queryResult, timeout);  //--> Edit API in frontend sync_client.
             //                                //For real benchmarks: Also edit in sync_transaction_bench_client.
