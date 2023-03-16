@@ -1,0 +1,27 @@
+name: C/C++ CI
+
+on: push
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container: 
+      image: bcyl/roach-nest
+      volumes:
+        - ${{ github.workspace }}:/home bcyl/roach-nest 
+    steps:
+    - uses: actions/checkout@v3
+#     - name: configure
+#       run: ./configure
+    - name: make
+      run: cd home/src && make -j $(nproc)
+    - name: Cache
+      uses: actions/cache@v2.1.8
+      with:
+        path: |
+          ${{ github.workspace }}/src/store
+      
+#     - name: make check
+#       run: make check
+#     - name: make distcheck
+#       run: make distcheck
