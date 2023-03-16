@@ -80,7 +80,7 @@ class IndicusCodebase(ExperimentCodebase):
         if 'message_transport_type' in config['replication_protocol_settings']:
             client_command += ' --trans_protocol %s' % config['replication_protocol_settings']['message_transport_type']
 
-        if config['replication_protocol'] == 'indicus' or config['replication_protocol'] == 'pbft' or config['replication_protocol'] == 'hotstuff' or config['replication_protocol'] == 'bftsmart' or config['replication_protocol'] == 'augustus':
+        if config['replication_protocol'] == 'indicus' or config['replication_protocol'] == 'pequin' or config['replication_protocol'] == 'pbft' or config['replication_protocol'] == 'hotstuff' or config['replication_protocol'] == 'bftsmart' or config['replication_protocol'] == 'augustus':
             if 'read_quorum' in config['replication_protocol_settings']:
                 client_command += ' --indicus_read_quorum %s' % config['replication_protocol_settings']['read_quorum']
             if 'optimistic_read_quorum' in config['replication_protocol_settings']:
@@ -287,7 +287,7 @@ class IndicusCodebase(ExperimentCodebase):
                     config['out_directory_name'],
                     'server-%d-%d-stats-%d.json' % (i, k, run))
 
-        if config['replication_protocol'] == 'indicus':
+        if config['replication_protocol'] == 'indicus' or config['replication_protocol'] == 'pequin':
             n = 5 * config['fault_tolerance'] + 1
         elif config['replication_protocol'] == 'pbft' or config['replication_protocol'] == 'hotstuff' or config['replication_protocol'] == 'bftsmart' or config['replication_protocol'] == 'augustus':
             n = 3 * config['fault_tolerance'] + 1
@@ -332,7 +332,7 @@ class IndicusCodebase(ExperimentCodebase):
 
 
 
-        if config['replication_protocol'] == 'indicus' or config['replication_protocol'] == 'pbft' or config['replication_protocol'] == 'hotstuff' or config['replication_protocol'] == 'bftsmart' or config['replication_protocol'] == 'augustus':
+        if config['replication_protocol'] == 'indicus' or config['replication_protocol'] == 'pequin' or config['replication_protocol'] == 'pbft' or config['replication_protocol'] == 'hotstuff' or config['replication_protocol'] == 'bftsmart' or config['replication_protocol'] == 'augustus':
             if 'read_dep' in config['replication_protocol_settings']:
                 replica_command += ' --indicus_read_dep %s' % config['replication_protocol_settings']['read_dep']
             if 'watermark_time_delta' in config['replication_protocol_settings']:
@@ -499,7 +499,7 @@ class IndicusCodebase(ExperimentCodebase):
         local_exp_directory = super().prepare_local_exp_directory(config, config_file)
         config_file = os.path.join(local_exp_directory, config['network_config_file_name'])
         with open(config_file, 'w') as f:
-            if config['replication_protocol'] == 'indicus':
+            if config['replication_protocol'] == 'indicus' or config['replication_protocol'] == 'pequin':
                 n = 5 * config['fault_tolerance'] + 1
             elif config['replication_protocol'] == 'pbft' or config['replication_protocol'] == 'hotstuff' or config['replication_protocol'] == 'bftsmart' or config['replication_protocol'] == 'augustus':
                 n = 3 * config['fault_tolerance'] + 1
@@ -523,7 +523,7 @@ class IndicusCodebase(ExperimentCodebase):
         return local_exp_directory
 
     def prepare_remote_server_codebase(self, config, host, local_exp_directory, remote_out_directory):
-        if config['replication_protocol'] == 'indicus' or config['replication_protocol'] == 'pbft' or config['replication_protocol'] == 'hotstuff' or config['replication_protocol'] == 'bftsmart' or config['replication_protocol'] == 'augustus':
+        if config['replication_protocol'] == 'indicus' or config['replication_protocol'] == 'pequin' or config['replication_protocol'] == 'pbft' or config['replication_protocol'] == 'hotstuff' or config['replication_protocol'] == 'bftsmart' or config['replication_protocol'] == 'augustus':
             run_remote_command_sync('sudo rm -rf /dev/shm/*', config['emulab_user'], host)
 
     def setup_nodes(self, config):

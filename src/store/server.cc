@@ -29,24 +29,33 @@
  *
  **********************************************************************/
 
-#include <csignal>
+#include "store/server.h"
 
 #include <valgrind/callgrind.h>
 
-#include "lib/keymanager.h"
-#include "lib/transport.h"
-#include "lib/tcptransport.h"
-#include "lib/udptransport.h"
-#include "lib/io_utils.h"
+#include <csignal>
 
+#include "lib/io_utils.h"
+#include "lib/keymanager.h"
+#include "lib/tcptransport.h"
+#include "lib/transport.h"
+#include "lib/udptransport.h"
 #include "store/common/partitioner.h"
+#include "store/common/failures.h"
 #include "store/server.h"
 #include "store/strongstore/server.h"
 #include "store/tapirstore/server.h"
 #include "store/weakstore/server.h"
+//Pesto
+#include "store/pequinstore/server.h"
+//Basil
 #include "store/indicusstore/server.h"
+//PBFT (deprecated)
 #include "store/pbftstore/replica.h"
 #include "store/pbftstore/server.h"
+#include "store/strongstore/server.h"
+#include "store/tapirstore/server.h"
+#include "store/weakstore/server.h"
 // HotStuff
 #include "store/hotstuffstore/replica.h"
 #include "store/hotstuffstore/server.h"
@@ -62,46 +71,43 @@
 #include "store/bftsmartstore_stable/replica.h"
 #include "store/bftsmartstore_stable/server.h"
 
-#include "store/benchmark/async/tpcc/tpcc-proto.pb.h"
-#include "store/indicusstore/common.h"
-
+// Cockroach DB
 #include <gflags/gflags.h>
+
 #include <thread>
+
+#include "store/benchmark/async/tpcc/tpcc-proto.pb.h"
+#include "store/cockroachdb/server.h"
+#include "store/indicusstore/common.h"
 
 enum protocol_t {
 	PROTO_UNKNOWN,
 	PROTO_TAPIR,
 	PROTO_WEAK,
 	PROTO_STRONG,
-  PROTO_INDICUS,
-	PROTO_PBFT,
-    // HotStuff
-    PROTO_HOTSTUFF,
-    // Augustus-Hotstuff
-    PROTO_AUGUSTUS,
-    // BftSmart
-    PROTO_BFTSMART,
-    // Augustus-BFTSmart
-		PROTO_AUGUSTUS_SMART
+  PROTO_PEQUIN,
+  PROTO_PBFT,
+  // HotStuff
+  PROTO_HOTSTUFF,
+  // Augustus-Hotstuff
+  PROTO_AUGUSTUS,
+  // BftSmart
+  PROTO_BFTSMART,
+  // Augustus-BFTSmart
+  PROTO_AUGUSTUS_SMART,
+  // Cockroach DB
+  PROTO_CRDB
 };
 
 enum transmode_t {
-	TRANS_UNKNOWN,
+  TRANS_UNKNOWN,
   TRANS_UDP,
   TRANS_TCP,
 };
 
-enum occ_type_t {
-  OCC_TYPE_UNKNOWN,
-  OCC_TYPE_MVTSO,
-  OCC_TYPE_TAPIR
-};
+enum occ_type_t { OCC_TYPE_UNKNOWN, OCC_TYPE_MVTSO, OCC_TYPE_TAPIR };
 
-enum read_dep_t {
-  READ_DEP_UNKNOWN,
-  READ_DEP_ONE,
-  READ_DEP_ONE_HONEST
-};
+enum read_dep_t { READ_DEP_UNKNOWN, READ_DEP_ONE, READ_DEP_ONE_HONEST };
 
 /**
  * System settings.
@@ -113,13 +119,15 @@ DEFINE_uint64(num_groups, 1, "number of replica groups in the system");
 DEFINE_uint64(num_shards, 1, "number of shards in the system");
 DEFINE_bool(debug_stats, false, "record stats related to debugging");
 DEFINE_uint64(num_client_hosts, 0, "total number of client processes");
-DEFINE_uint64(num_client_threads, 1, "total number of threads per client process");
+DEFINE_uint64(num_client_threads, 1,
+              "total number of threads per client process");
 
 DEFINE_bool(rw_or_retwis, true, "true for rw, false for retwis");
 const std::string protocol_args[] = {
 	"tapir",
   "weak",
   "strong",
+  "pequin",
   "indicus",
 	"pbft",
     "hotstuff",
@@ -131,6 +139,7 @@ const protocol_t protos[] {
   PROTO_TAPIR,
   PROTO_WEAK,
   PROTO_STRONG,
+  PROTO_PEQUIN,
   PROTO_INDICUS,
       PROTO_PBFT,
       PROTO_HOTSTUFF,
@@ -149,21 +158,15 @@ static bool ValidateProtocol(const char* flagname,
   std::cerr << "Invalid value for --" << flagname << ": " << value << std::endl;
   return false;
 }
-DEFINE_string(protocol, protocol_args[0],	"the protocol to use during this"
-    " experiment");
+DEFINE_string(protocol, protocol_args[0],
+              "the protocol to use during this"
+              " experiment");
 DEFINE_validator(protocol, &ValidateProtocol);
 
-const std::string trans_args[] = {
-  "udp",
-	"tcp"
-};
+const std::string trans_args[] = {"udp", "tcp"};
 
-const transmode_t transmodes[] {
-  TRANS_UDP,
-	TRANS_TCP
-};
-static bool ValidateTransMode(const char* flagname,
-    const std::string &value) {
+const transmode_t transmodes[]{TRANS_UDP, TRANS_TCP};
+static bool ValidateTransMode(const char *flagname, const std::string &value) {
   int n = sizeof(trans_args);
   for (int i = 0; i < n; ++i) {
     if (value == trans_args[i]) {
@@ -173,22 +176,16 @@ static bool ValidateTransMode(const char* flagname,
   std::cerr << "Invalid value for --" << flagname << ": " << value << std::endl;
   return false;
 }
-DEFINE_string(trans_protocol, trans_args[1], "transport protocol to use for"
-		" passing messages");
+DEFINE_string(trans_protocol, trans_args[1],
+              "transport protocol to use for"
+              " passing messages");
 DEFINE_validator(trans_protocol, &ValidateTransMode);
 
-const std::string partitioner_args[] = {
-	"default",
-  "warehouse_dist_items",
-  "warehouse"
-};
-const partitioner_t parts[] {
-  DEFAULT,
-  WAREHOUSE_DIST_ITEMS,
-  WAREHOUSE
-};
-static bool ValidatePartitioner(const char* flagname,
-    const std::string &value) {
+const std::string partitioner_args[] = {"default", "warehouse_dist_items",
+                                        "warehouse"};
+const partitioner_t parts[]{DEFAULT, WAREHOUSE_DIST_ITEMS, WAREHOUSE};
+static bool ValidatePartitioner(const char *flagname,
+                                const std::string &value) {
   int n = sizeof(partitioner_args);
   for (int i = 0; i < n; ++i) {
     if (value == partitioner_args[i]) {
@@ -198,8 +195,9 @@ static bool ValidatePartitioner(const char* flagname,
   std::cerr << "Invalid value for --" << flagname << ": " << value << std::endl;
   return false;
 }
-DEFINE_string(partitioner, partitioner_args[0],	"the partitioner to use during this"
-    " experiment");
+DEFINE_string(partitioner, partitioner_args[0],
+              "the partitioner to use during this"
+              " experiment");
 DEFINE_validator(partitioner, &ValidatePartitioner);
 
 /**
@@ -215,20 +213,11 @@ DEFINE_bool(tapir_linearizable, true, "run TAPIR in linearizable mode");
 /**
  * StrongStore settings.
  */
-const std::string strongmode_args[] = {
-	"lock",
-  "occ",
-  "span-lock",
-  "span-occ"
-};
-const strongstore::Mode strongmodes[] {
-  strongstore::MODE_LOCK,
-  strongstore::MODE_OCC,
-  strongstore::MODE_SPAN_LOCK,
-  strongstore::MODE_SPAN_OCC
-};
-static bool ValidateStrongMode(const char* flagname,
-    const std::string &value) {
+const std::string strongmode_args[] = {"lock", "occ", "span-lock", "span-occ"};
+const strongstore::Mode strongmodes[]{
+    strongstore::MODE_LOCK, strongstore::MODE_OCC, strongstore::MODE_SPAN_LOCK,
+    strongstore::MODE_SPAN_OCC};
+static bool ValidateStrongMode(const char *flagname, const std::string &value) {
   int n = sizeof(strongmode_args);
   for (int i = 0; i < n; ++i) {
     if (value == strongmode_args[i]) {
@@ -238,60 +227,82 @@ static bool ValidateStrongMode(const char* flagname,
   std::cerr << "Invalid value for --" << flagname << ": " << value << std::endl;
   return false;
 }
-DEFINE_string(strongmode, strongmode_args[0],	"the protocol to use during this"
-    " experiment");
+DEFINE_string(strongmode, strongmode_args[0],
+              "the protocol to use during this"
+              " experiment");
 DEFINE_validator(strongmode, &ValidateStrongMode);
 
 /**
  * Morty settings.
  */
-DEFINE_uint64(prepare_batch_period, 0, "length of batches for deterministic prepare message"
-    " processing.");
+DEFINE_uint64(prepare_batch_period, 0,
+              "length of batches for deterministic prepare message"
+              " processing.");
 
 /**
  * Indicus settings.
  */
-DEFINE_uint64(indicus_time_delta, 2000, "max clock skew allowed for concurrency"
-    " control (for Indicus)");
-DEFINE_bool(indicus_shared_mem_batch, false, "use shared memory batches for"
-    " signing messages (for Indicus)");
-DEFINE_bool(indicus_shared_mem_verify, false, "use shared memory for"
-    " verifying messages (for Indicus)");
-DEFINE_bool(indicus_sign_messages, true, "add signatures to messages as"
-    " necessary to prevent impersonation (for Indicus)");
-DEFINE_bool(indicus_validate_proofs, true, "send and validate proofs as"
-    " necessary to check Byzantine behavior (for Indicus)");
-DEFINE_bool(indicus_hash_digest, false, "use hash function compute transaction"
-    " digest (for Indicus)");
-DEFINE_bool(indicus_verify_deps, true, "check signatures of transaction"
-    " depdendencies (for Indicus)");
-DEFINE_bool(indicus_read_reply_batch, false, "wait to reply to reads until batch"
-    " is ready (for Indicus)");
-DEFINE_bool(indicus_adjust_batch_size, false, "dynamically adjust batch size"
-    " every sig_batch_timeout (for Indicus)");
-DEFINE_uint64(indicus_merkle_branch_factor, 2, "branch factor of merkle tree"
-    " of batch (for Indicus)");
-DEFINE_uint64(indicus_sig_batch, 2, "signature batch size"
-    " sig batch size (for Indicus)");
-DEFINE_uint64(indicus_sig_batch_timeout, 10, "signature batch timeout ms"
-    " sig batch timeout (for Indicus)");
-DEFINE_string(indicus_key_path, "", "path to directory containing public and"
-    " private keys (for Indicus)");
-DEFINE_int64(indicus_max_dep_depth, -1, "maximum length of dependency chain"
-    " allowed by honest replicas [-1 is no maximum, -2 is no deps] (for Indicus)");
-DEFINE_uint64(indicus_key_type, 4, "key type (see create keys for mappings)"
-    " key type (for Indicus)");
-DEFINE_uint64(indicus_use_coordinator, false, "use coordinator"
+DEFINE_uint64(indicus_time_delta, 2000,
+              "max clock skew allowed for concurrency"
+              " control (for Indicus)");
+DEFINE_bool(indicus_shared_mem_batch, false,
+            "use shared memory batches for"
+            " signing messages (for Indicus)");
+DEFINE_bool(indicus_shared_mem_verify, false,
+            "use shared memory for"
+            " verifying messages (for Indicus)");
+DEFINE_bool(indicus_sign_messages, true,
+            "add signatures to messages as"
+            " necessary to prevent impersonation (for Indicus)");
+DEFINE_bool(indicus_validate_proofs, true,
+            "send and validate proofs as"
+            " necessary to check Byzantine behavior (for Indicus)");
+DEFINE_bool(indicus_hash_digest, false,
+            "use hash function compute transaction"
+            " digest (for Indicus)");
+DEFINE_bool(indicus_verify_deps, true,
+            "check signatures of transaction"
+            " depdendencies (for Indicus)");
+DEFINE_bool(indicus_read_reply_batch, false,
+            "wait to reply to reads until batch"
+            " is ready (for Indicus)");
+DEFINE_bool(indicus_adjust_batch_size, false,
+            "dynamically adjust batch size"
+            " every sig_batch_timeout (for Indicus)");
+DEFINE_uint64(indicus_merkle_branch_factor, 2,
+              "branch factor of merkle tree"
+              " of batch (for Indicus)");
+DEFINE_uint64(indicus_sig_batch, 2,
+              "signature batch size"
+              " sig batch size (for Indicus)");
+DEFINE_uint64(indicus_sig_batch_timeout, 10,
+              "signature batch timeout ms"
+              " sig batch timeout (for Indicus)");
+DEFINE_string(indicus_key_path, "",
+              "path to directory containing public and"
+              " private keys (for Indicus)");
+DEFINE_int64(indicus_max_dep_depth, -1,
+             "maximum length of dependency chain"
+             " allowed by honest replicas [-1 is no maximum, -2 is no deps] "
+             "(for Indicus)");
+DEFINE_uint64(indicus_key_type, 4,
+              "key type (see create keys for mappings)"
+              " key type (for Indicus)");
+DEFINE_uint64(
+    indicus_use_coordinator, false,
+    "use coordinator"
     " make primary the coordinator for atomic broadcast (for Indicus)");
-DEFINE_uint64(indicus_request_tx, false, "request tx"
-    " request tx (for Indicus)");
+DEFINE_uint64(indicus_request_tx, false,
+              "request tx"
+              " request tx (for Indicus)");
 
-DEFINE_int32(indicus_rts_mode, 1, "Mode for managing RTS: 0 == no RTS, 1 == single RTS, 2 == set of RTS"); //set of RTS can be refined further to include interval from "read value" to TS
+DEFINE_int32(indicus_rts_mode, 1,
+             "Mode for managing RTS: 0 == no RTS, 1 == single RTS, 2 == set of "
+             "RTS");  // set of RTS can be refined further to include interval
+                      // from "read value" to TS
 
 DEFINE_bool(indicus_sign_client_proposals, false, "add signatures to client proposals "
     " -- used for optimistic tx-ids. Can be used for access control (unimplemented)");
-
-DEFINE_string(bftsmart_codebase_dir, "", "path to directory containing bftsmart configurations");
 		//
 //DEFINE_bool(indicus_clientAuthenticated, false, "Client messages signed");
 DEFINE_bool(indicus_multi_threading, true, "dispatch crypto to parallel threads");
@@ -299,20 +310,42 @@ DEFINE_bool(indicus_batch_verification, false, "using ed25519 donna batch verifi
 DEFINE_uint64(indicus_batch_verification_size, 64, "batch size for ed25519 donna batch verification");
 DEFINE_uint64(indicus_batch_verification_timeout, 5, "batch verification timeout, ms");
 
-DEFINE_bool(indicus_mainThreadDispatching, true, "dispatching main thread work to an additional thread");
-DEFINE_bool(indicus_dispatchMessageReceive, false, "delegating serialization to worker main thread");
-DEFINE_bool(indicus_parallel_reads, true, "dispatching reads to worker threads");
-DEFINE_bool(indicus_parallel_CCC, true, "dispatch concurrency control check to worker threads");
-DEFINE_bool(indicus_dispatchCallbacks, true, "dispatching P2 and WB callbacks to main worker thread");
+DEFINE_bool(indicus_mainThreadDispatching, true,
+            "dispatching main thread work to an additional thread");
+DEFINE_bool(indicus_dispatchMessageReceive, false,
+            "delegating serialization to worker main thread");
+DEFINE_bool(indicus_parallel_reads, true,
+            "dispatching reads to worker threads");
+DEFINE_bool(indicus_parallel_CCC, true,
+            "dispatch concurrency control check to worker threads");
+DEFINE_bool(indicus_dispatchCallbacks, true,
+            "dispatching P2 and WB callbacks to main worker thread");
 
 DEFINE_uint64(indicus_process_id, 0, "id used for Threadpool core affinity");
-DEFINE_uint64(indicus_total_processes, 1, "number of server processes per machine");
+DEFINE_uint64(indicus_total_processes, 1,
+              "number of server processes per machine");
 DEFINE_bool(indicus_hyper_threading, true, "use hyperthreading");
 
-DEFINE_bool(indicus_all_to_all_fb, false, "use the all to all view change method");
+DEFINE_bool(indicus_all_to_all_fb, false,
+            "use the all to all view change method");
 DEFINE_bool(indicus_no_fallback, false, "turn off fallback protocol");
-DEFINE_uint64(indicus_relayP1_timeout, 100, "time (ms) after which to send RelayP1");
-DEFINE_bool(indicus_replica_gossip, false, "use gossip between replicas to exchange p1");
+DEFINE_uint64(indicus_relayP1_timeout, 100,
+              "time (ms) after which to send RelayP1");
+DEFINE_bool(indicus_replica_gossip, false,
+            "use gossip between replicas to exchange p1");
+
+/*
+ Pequin settings
+*/
+DEFINE_bool(pequin_query_read_prepared, false, "allow query to read prepared values");
+DEFINE_bool(pequin_query_optimistic_txid, false, "use optimistic tx-id for sync protocol");
+DEFINE_bool(pequin_query_cache_read_set, false, "cache query read set at replicas");
+DEFINE_bool(pequin_sign_client_queries, false, "sign query and sync messages"); //proves non-equivocation of query contents, and query snapshot respectively.
+
+DEFINE_bool(pequin_parallel_queries, false, "dispatch queries to parallel worker threads");
+
+//Baseline settings
+DEFINE_string(bftsmart_codebase_dir, "", "path to directory containing bftsmart configurations");
 
 DEFINE_uint64(pbft_esig_batch, 1, "signature batch size"
 		" sig batch size (for PBFT decision phase)");
@@ -322,16 +355,9 @@ DEFINE_uint64(pbft_esig_batch_timeout, 10, "signature batch timeout ms"
 DEFINE_bool(pbft_order_commit, true, "order commit writebacks as well");
 DEFINE_bool(pbft_validate_abort, true, "validate abort writebacks as well");
 
-const std::string occ_type_args[] = {
-	"tapir",
-  "mvtso"
-};
-const occ_type_t occ_types[] {
-  OCC_TYPE_MVTSO,
-	OCC_TYPE_TAPIR
-};
-static bool ValidateOCCType(const char* flagname,
-    const std::string &value) {
+const std::string occ_type_args[] = {"tapir", "mvtso"};
+const occ_type_t occ_types[]{OCC_TYPE_MVTSO, OCC_TYPE_TAPIR};
+static bool ValidateOCCType(const char *flagname, const std::string &value) {
   int n = sizeof(occ_type_args);
   for (int i = 0; i < n; ++i) {
     if (value == occ_type_args[i]) {
@@ -341,19 +367,13 @@ static bool ValidateOCCType(const char* flagname,
   std::cerr << "Invalid value for --" << flagname << ": " << value << std::endl;
   return false;
 }
-DEFINE_string(indicus_occ_type, occ_type_args[0], "Type of OCC for validating"
-    " transactions (for Indicus)");
+DEFINE_string(indicus_occ_type, occ_type_args[0],
+              "Type of OCC for validating"
+              " transactions (for Indicus)");
 DEFINE_validator(indicus_occ_type, &ValidateOCCType);
-const std::string read_dep_args[] = {
-  "one-honest",
-	"one"
-};
-const read_dep_t read_deps[] {
-  READ_DEP_ONE_HONEST,
-  READ_DEP_ONE
-};
-static bool ValidateReadDep(const char* flagname,
-    const std::string &value) {
+const std::string read_dep_args[] = {"one-honest", "one"};
+const read_dep_t read_deps[]{READ_DEP_ONE_HONEST, READ_DEP_ONE};
+static bool ValidateReadDep(const char *flagname, const std::string &value) {
   int n = sizeof(read_dep_args);
   for (int i = 0; i < n; ++i) {
     if (value == read_dep_args[i]) {
@@ -363,8 +383,9 @@ static bool ValidateReadDep(const char* flagname,
   std::cerr << "Invalid value for --" << flagname << ": " << value << std::endl;
   return false;
 }
-DEFINE_string(indicus_read_dep, read_dep_args[0], "number of identical prepared"
-    " to claim dependency (for Indicus)");
+DEFINE_string(indicus_read_dep, read_dep_args[0],
+              "number of identical prepared"
+              " to claim dependency (for Indicus)");
 DEFINE_validator(indicus_read_dep, &ValidateReadDep);
 
 /**
@@ -379,7 +400,8 @@ DEFINE_string(stats_file, "", "path to file for server stats");
  */
 DEFINE_string(keys_path, "", "path to file containing keys in the system");
 DEFINE_uint64(num_keys, 0, "number of keys to generate");
-DEFINE_string(data_file_path, "", "path to file containing key-value pairs to be loaded");
+DEFINE_string(data_file_path, "",
+              "path to file containing key-value pairs to be loaded");
 
 Server *server = nullptr;
 TransportReceiver *replica = nullptr;
@@ -389,11 +411,10 @@ Partitioner *part = nullptr;
 void Cleanup(int signal);
 
 int main(int argc, char **argv) {
-
   gflags::SetUsageMessage(
-           "runs a replica for a distributed replicated transaction\n"
-"           processing system.");
-	gflags::ParseCommandLineFlags(&argc, &argv, true);
+      "runs a replica for a distributed replicated transaction\n"
+      "           processing system.");
+  gflags::ParseCommandLineFlags(&argc, &argv, true);
 
   Notice("Starting server.");
 
@@ -431,8 +452,10 @@ int main(int argc, char **argv) {
   transport::Configuration config(configStream);
 
   if (FLAGS_replica_idx >= static_cast<uint64_t>(config.n)) {
-    std::cerr << "Replica index " << FLAGS_replica_idx << " is out of bounds"
-                 "; only " << config.n << " replicas defined" << std::endl;
+    std::cerr << "Replica index " << FLAGS_replica_idx
+              << " is out of bounds"
+                 "; only "
+              << config.n << " replicas defined" << std::endl;
   }
 
   if (proto == PROTO_UNKNOWN) {
@@ -451,20 +474,24 @@ int main(int argc, char **argv) {
     }
   }
 
-  int threadpool_mode = 0; //default for Basil.
-  if(proto == PROTO_HOTSTUFF || proto == PROTO_AUGUSTUS) threadpool_mode = 1;
-  if(proto == PROTO_BFTSMART || proto == PROTO_AUGUSTUS_SMART) threadpool_mode = 2;
+  int threadpool_mode = 0;  // default for Basil.
+  if (proto == PROTO_HOTSTUFF || proto == PROTO_AUGUSTUS) threadpool_mode = 1;
+  if (proto == PROTO_BFTSMART || proto == PROTO_AUGUSTUS_SMART)
+    threadpool_mode = 2;
 
   switch (trans) {
     case TRANS_TCP:
-			Notice("process_id flag = %d", FLAGS_indicus_process_id);
-			Notice("total_processes flag = %d", FLAGS_indicus_total_processes);
-			// if(FLAGS_indicus_process_id != 0 || FLAGS_indicus_total_processes != 1){
-			// 	tport = new TCPTransport(0.0, 0.0, 0, false, 0, 1);
-			// 	break;
-			// }
-      tport = new TCPTransport(0.0, 0.0, 0, false, FLAGS_indicus_process_id, FLAGS_indicus_total_processes, FLAGS_indicus_hyper_threading, true, threadpool_mode);
-			 //TODO: add: process_id + total processes (max_grpid/ machines (= servers/n))
+      Notice("process_id flag = %d", FLAGS_indicus_process_id);
+      Notice("total_processes flag = %d", FLAGS_indicus_total_processes);
+      // if(FLAGS_indicus_process_id != 0 || FLAGS_indicus_total_processes !=
+      // 1){ 	tport = new TCPTransport(0.0, 0.0, 0, false, 0, 1); 	break;
+      // }
+      tport = new TCPTransport(0.0, 0.0, 0, false, FLAGS_indicus_process_id,
+                               FLAGS_indicus_total_processes,
+                               FLAGS_indicus_hyper_threading, true,
+                               threadpool_mode);
+      // TODO: add: process_id + total processes (max_grpid/ machines (=
+      // servers/n))
       break;
     case TRANS_UDP:
       tport = new UDPTransport(0.0, 0.0, 0, nullptr);
@@ -507,7 +534,7 @@ int main(int argc, char **argv) {
       break;
     }
   }
-  if (proto == PROTO_INDICUS && occ_type == OCC_TYPE_UNKNOWN) {
+  if ((proto == PROTO_INDICUS || proto == PROTO_PEQUIN) && occ_type == OCC_TYPE_UNKNOWN) {
     std::cerr << "Unknown occ type." << std::endl;
     return 1;
   }
@@ -521,91 +548,184 @@ int main(int argc, char **argv) {
       break;
     }
   }
-  if (proto == PROTO_INDICUS && read_dep == READ_DEP_UNKNOWN) {
+  if ((proto == PROTO_INDICUS || proto == PROTO_PEQUIN) && read_dep == READ_DEP_UNKNOWN) {
     std::cerr << "Unknown read dep." << std::endl;
     return 1;
   }
 
-	crypto::KeyType keyType;
+  crypto::KeyType keyType;
   switch (FLAGS_indicus_key_type) {
-  case 0:
-    keyType = crypto::RSA;
-    break;
-  case 1:
-    keyType = crypto::ECDSA;
-    break;
-  case 2:
-    keyType = crypto::ED25;
-    break;
-  case 3:
-    keyType = crypto::SECP;
-    break;
-	case 4:
-	  keyType = crypto::DONNA;
-	  break;
+    case 0:
+      keyType = crypto::RSA;
+      break;
+    case 1:
+      keyType = crypto::ECDSA;
+      break;
+    case 2:
+      keyType = crypto::ED25;
+      break;
+    case 3:
+      keyType = crypto::SECP;
+      break;
+    case 4:
+      keyType = crypto::DONNA;
+      break;
 
-  default:
-    throw "unimplemented";
+    default:
+      throw "unimplemented";
   }
 
   uint64_t replica_total = FLAGS_num_shards * config.n;
   uint64_t client_total = FLAGS_num_client_hosts * FLAGS_num_client_threads;
-  // std::cerr << "config n: " << config.n << " num_shards: " << FLAGS_num_shards << " replica_total: " << replica_total << std::endl;
-  KeyManager keyManager(FLAGS_indicus_key_path, keyType, true, replica_total, client_total, FLAGS_num_client_hosts);
+  // std::cerr << "config n: " << config.n << " num_shards: " <<
+  // FLAGS_num_shards << " replica_total: " << replica_total << std::endl;
+  KeyManager keyManager(FLAGS_indicus_key_path, keyType, true, replica_total,
+                        client_total, FLAGS_num_client_hosts);
   keyManager.PreLoadPubKeys(true);
 
+//Additional protocol configurations
+  uint64_t readDepSize = 0;
+  uint64_t timeDelta = 0;
+  int num_cpus = std::thread::hardware_concurrency();
+  num_cpus /= FLAGS_indicus_total_processes;
+  int protocol_cpu;
+
+  switch(proto){
+      case PROTO_TAPIR:
+      case PROTO_WEAK:
+      case PROTO_STRONG:
+        break;
+      case PROTO_PEQUIN:
+      case PROTO_INDICUS:
+        switch (read_dep) {
+          case READ_DEP_ONE:
+              readDepSize = 1;
+              break;
+          case READ_DEP_ONE_HONEST:
+              readDepSize = config.f + 1;
+              break;
+          default:
+              NOT_REACHABLE();
+          }
+        timeDelta = (FLAGS_indicus_time_delta / 1000) << 32;
+        timeDelta = timeDelta | (FLAGS_indicus_time_delta % 1000) * 1000;
+        break;
+      case PROTO_PBFT:
+        break;
+      case PROTO_HOTSTUFF:
+      case PROTO_BFTSMART:
+      case PROTO_AUGUSTUS_SMART:
+      case PROTO_AUGUSTUS:
+      //hard coded number of shards
+        if (FLAGS_num_shards == 6) {
+            protocol_cpu = FLAGS_indicus_process_id * num_cpus + num_cpus - 1;
+        } else if(FLAGS_num_shards == 3) { //hotstuff_cpu = 1;
+          protocol_cpu = FLAGS_indicus_process_id * num_cpus + num_cpus - 1;
+        }
+        else{ // FLAGS_num_shards should be 12 or 24
+          protocol_cpu = FLAGS_indicus_process_id * num_cpus;
+        }
+        break;
+      default:
+        NOT_REACHABLE();
+
+  }
+
+// Declare Protocol Servers
+
   switch (proto) {
-  case PROTO_TAPIR: {
+    case PROTO_TAPIR: {
       server = new tapirstore::Server(FLAGS_tapir_linearizable);
-      replica = new replication::ir::IRReplica(config, FLAGS_group_idx, FLAGS_replica_idx,
-                                               tport, dynamic_cast<replication::ir::IRAppReplica *>(server));
+      replica = new replication::ir::IRReplica(
+          config, FLAGS_group_idx, FLAGS_replica_idx, tport,
+          dynamic_cast<replication::ir::IRAppReplica *>(server));
       break;
-  }
-  case PROTO_WEAK: {
-      server = new weakstore::Server(config, FLAGS_group_idx, FLAGS_replica_idx, tport);
+    }
+    case PROTO_WEAK: {
+      server = new weakstore::Server(config, FLAGS_group_idx, FLAGS_replica_idx,
+                                     tport);
       break;
-  }
-  case PROTO_STRONG: {
+    }
+    case PROTO_STRONG: {
       server = new strongstore::Server(strongMode, FLAGS_clock_skew,
                                        FLAGS_clock_error);
-      replica = new replication::vr::VRReplica(config, FLAGS_group_idx, FLAGS_replica_idx,
-                                               tport, 1, dynamic_cast<replication::AppReplica *>(server));
+      replica = new replication::vr::VRReplica(
+          config, FLAGS_group_idx, FLAGS_replica_idx, tport, 1,
+          dynamic_cast<replication::AppReplica *>(server));
+      break;
+  }
+  case PROTO_PEQUIN: {
+      
+      pequinstore::OCCType pequinOCCType;  //TODO: Extend this later with Semantic OCC check options.
+      switch (occ_type) {
+      case OCC_TYPE_TAPIR:
+          pequinOCCType = pequinstore::TAPIR;
+          break;
+      case OCC_TYPE_MVTSO:
+          pequinOCCType = pequinstore::MVTSO;
+          break;
+        default:
+          NOT_REACHABLE();
+      }
+    
+      pequinstore::QueryParameters query_params(0,
+                                                 0,
+                                                 0,
+                                                 0,
+                                                 0,
+                                                 FLAGS_pequin_query_read_prepared,
+                                                 FLAGS_pequin_query_optimistic_txid,
+                                                 FLAGS_pequin_query_cache_read_set,
+                                                 FLAGS_pequin_sign_client_queries,
+                                                 FLAGS_pequin_parallel_queries);
+
+      pequinstore::Parameters params(FLAGS_indicus_sign_messages,
+                                      FLAGS_indicus_validate_proofs, FLAGS_indicus_hash_digest,
+                                      FLAGS_indicus_verify_deps, FLAGS_indicus_sig_batch,
+                                      FLAGS_indicus_max_dep_depth, readDepSize,
+                                      FLAGS_indicus_read_reply_batch, FLAGS_indicus_adjust_batch_size,
+                                      FLAGS_indicus_shared_mem_batch, FLAGS_indicus_shared_mem_verify,
+                                      FLAGS_indicus_merkle_branch_factor, InjectFailure(),
+                                      FLAGS_indicus_multi_threading, FLAGS_indicus_batch_verification,
+																			FLAGS_indicus_batch_verification_size,
+																			FLAGS_indicus_mainThreadDispatching,
+																			FLAGS_indicus_dispatchMessageReceive,
+																			FLAGS_indicus_parallel_reads,
+																			FLAGS_indicus_parallel_CCC,
+																			FLAGS_indicus_dispatchCallbacks,
+																			FLAGS_indicus_all_to_all_fb,
+																		  FLAGS_indicus_no_fallback, FLAGS_indicus_relayP1_timeout,
+																		  FLAGS_indicus_replica_gossip,
+                                      FLAGS_indicus_sign_client_proposals,
+                                      FLAGS_indicus_rts_mode,
+                                      query_params);
+
+      Debug("Starting new server object");
+      server = new pequinstore::Server(config, FLAGS_group_idx,
+                                        FLAGS_replica_idx, FLAGS_num_shards, FLAGS_num_groups, tport,
+                                        &keyManager, params, timeDelta, pequinOCCType, part,
+                                        FLAGS_indicus_sig_batch_timeout);
       break;
   }
   case PROTO_INDICUS: {
-      uint64_t readDepSize = 0;
-      switch (read_dep) {
-      case READ_DEP_ONE:
-          readDepSize = 1;
-          break;
-      case READ_DEP_ONE_HONEST:
-          readDepSize = config.f + 1;
-          break;
-      default:
-          NOT_REACHABLE();
-      }
       indicusstore::OCCType indicusOCCType;
       switch (occ_type) {
-      case OCC_TYPE_TAPIR:
+        case OCC_TYPE_TAPIR:
           indicusOCCType = indicusstore::TAPIR;
           break;
-      case OCC_TYPE_MVTSO:
+        case OCC_TYPE_MVTSO:
           indicusOCCType = indicusstore::MVTSO;
           break;
-      default:
+        default:
           NOT_REACHABLE();
       }
-      uint64_t timeDelta = (FLAGS_indicus_time_delta / 1000) << 32;
-      timeDelta = timeDelta | (FLAGS_indicus_time_delta % 1000) * 1000;
-
-
       indicusstore::Parameters params(FLAGS_indicus_sign_messages,
                                       FLAGS_indicus_validate_proofs, FLAGS_indicus_hash_digest,
                                       FLAGS_indicus_verify_deps, FLAGS_indicus_sig_batch,
                                       FLAGS_indicus_max_dep_depth, readDepSize,
                                       FLAGS_indicus_read_reply_batch, FLAGS_indicus_adjust_batch_size,
                                       FLAGS_indicus_shared_mem_batch, FLAGS_indicus_shared_mem_verify,
-                                      FLAGS_indicus_merkle_branch_factor, indicusstore::InjectFailure(),
+                                      FLAGS_indicus_merkle_branch_factor, InjectFailure(),
                                       FLAGS_indicus_multi_threading, FLAGS_indicus_batch_verification,
 																			FLAGS_indicus_batch_verification_size,
 																			FLAGS_indicus_mainThreadDispatching,
@@ -619,45 +739,31 @@ int main(int argc, char **argv) {
                                       FLAGS_indicus_sign_client_proposals,
                                       FLAGS_indicus_rts_mode);
       Debug("Starting new server object");
-      server = new indicusstore::Server(config, FLAGS_group_idx,
-                                        FLAGS_replica_idx, FLAGS_num_shards, FLAGS_num_groups, tport,
-                                        &keyManager, params, timeDelta, indicusOCCType, part,
-                                        FLAGS_indicus_sig_batch_timeout);
+      server = new indicusstore::Server(
+          config, FLAGS_group_idx, FLAGS_replica_idx, FLAGS_num_shards,
+          FLAGS_num_groups, tport, &keyManager, params, timeDelta,
+          indicusOCCType, part, FLAGS_indicus_sig_batch_timeout);
       break;
-  }
-  case PROTO_PBFT: {
-      server = new pbftstore::Server(config, &keyManager,
-                                     FLAGS_group_idx, FLAGS_replica_idx, FLAGS_num_shards, FLAGS_num_groups,
-                                     FLAGS_indicus_sign_messages, FLAGS_indicus_validate_proofs,
-                                     FLAGS_indicus_time_delta, part,
-																	   FLAGS_pbft_order_commit, FLAGS_pbft_validate_abort);
-      replica = new pbftstore::Replica(config, &keyManager,
-                                       dynamic_cast<pbftstore::App *>(server),
-                                       FLAGS_group_idx, FLAGS_replica_idx, FLAGS_indicus_sign_messages,
-                                       FLAGS_indicus_sig_batch, FLAGS_indicus_sig_batch_timeout,
-                                       FLAGS_pbft_esig_batch, FLAGS_pbft_esig_batch_timeout,
-                                       FLAGS_indicus_use_coordinator, FLAGS_indicus_request_tx, tport);
-      //FLAGS_pbft_esig_batch, FLAGS_pbft_esig_batch_timeout,
+    }
+    case PROTO_PBFT: {
+      server = new pbftstore::Server(
+          config, &keyManager, FLAGS_group_idx, FLAGS_replica_idx,
+          FLAGS_num_shards, FLAGS_num_groups, FLAGS_indicus_sign_messages,
+          FLAGS_indicus_validate_proofs, FLAGS_indicus_time_delta, part,
+          FLAGS_pbft_order_commit, FLAGS_pbft_validate_abort);
+      replica = new pbftstore::Replica(
+          config, &keyManager, dynamic_cast<pbftstore::App *>(server),
+          FLAGS_group_idx, FLAGS_replica_idx, FLAGS_indicus_sign_messages,
+          FLAGS_indicus_sig_batch, FLAGS_indicus_sig_batch_timeout,
+          FLAGS_pbft_esig_batch, FLAGS_pbft_esig_batch_timeout,
+          FLAGS_indicus_use_coordinator, FLAGS_indicus_request_tx, tport);
+      // FLAGS_pbft_esig_batch, FLAGS_pbft_esig_batch_timeout,
       break;
-  }
+    }
 
       // HotStuff
   case PROTO_HOTSTUFF: {
-      int num_cpus = std::thread::hardware_concurrency();
-      num_cpus /= FLAGS_indicus_total_processes;
-
-      int hotstuff_cpu;
-      if (FLAGS_num_shards == 6) {
-          hotstuff_cpu = FLAGS_indicus_process_id * num_cpus + num_cpus - 1;
-      } else if(FLAGS_num_shards == 3) {
-				//hotstuff_cpu = 1;
-				hotstuff_cpu = FLAGS_indicus_process_id * num_cpus + num_cpus - 1;
-			}
-			else{
-          // FLAGS_num_shards should be 12 or 24
-          hotstuff_cpu = FLAGS_indicus_process_id * num_cpus;
-      }
-
+      
       server = new hotstuffstore::Server(config, &keyManager,
                                      FLAGS_group_idx, FLAGS_replica_idx, FLAGS_num_shards, FLAGS_num_groups,
                                      FLAGS_indicus_sign_messages, FLAGS_indicus_validate_proofs,
@@ -670,28 +776,13 @@ int main(int argc, char **argv) {
                                        FLAGS_indicus_sig_batch, FLAGS_indicus_sig_batch_timeout,
                                        FLAGS_pbft_esig_batch, FLAGS_pbft_esig_batch_timeout,
                                        FLAGS_indicus_use_coordinator, FLAGS_indicus_request_tx,
-																			 hotstuff_cpu, FLAGS_num_shards, tport);
+																			 protocol_cpu, FLAGS_num_shards, tport);
 
       break;
-  }
+    }
 
       // Augustus running on top of Hotstuff
   case PROTO_AUGUSTUS: {
-      int num_cpus = std::thread::hardware_concurrency();
-      num_cpus /= FLAGS_indicus_total_processes;
-
-      int augustus_cpu;
-      if (FLAGS_num_shards == 6) {
-          augustus_cpu = FLAGS_indicus_process_id * num_cpus + num_cpus - 1;
-      } else if(FLAGS_num_shards == 3) {
-				//augustus_cpu = 1;
-				augustus_cpu = FLAGS_indicus_process_id * num_cpus + num_cpus - 1;
-			}
-			else{
-          // FLAGS_num_shards should be 12 or 24
-          augustus_cpu = FLAGS_indicus_process_id * num_cpus;
-      }
-
       server = new augustusstore::Server(config, &keyManager,
                                      FLAGS_group_idx, FLAGS_replica_idx, FLAGS_num_shards, FLAGS_num_groups,
                                      FLAGS_indicus_sign_messages, FLAGS_indicus_validate_proofs,
@@ -704,80 +795,26 @@ int main(int argc, char **argv) {
                                        FLAGS_indicus_sig_batch, FLAGS_indicus_sig_batch_timeout,
                                        FLAGS_pbft_esig_batch, FLAGS_pbft_esig_batch_timeout,
                                        FLAGS_indicus_use_coordinator, FLAGS_indicus_request_tx,
-																			 augustus_cpu, FLAGS_num_shards, tport);
+																			 protocol_cpu, FLAGS_num_shards, tport);
 
-      break;
-  }
-
-	case PROTO_BFTSMART: {
-		int num_cpus = std::thread::hardware_concurrency();
-			num_cpus /= FLAGS_indicus_total_processes;
-
-			int hotstuff_cpu;
-			if (FLAGS_num_shards == 6) {
-					hotstuff_cpu = FLAGS_indicus_process_id * num_cpus + num_cpus - 1;
-			} else if(FLAGS_num_shards == 3) {
-				//hotstuff_cpu = 1;
-				hotstuff_cpu = FLAGS_indicus_process_id * num_cpus + num_cpus - 1;
-			}
-			else{
-					// FLAGS_num_shards should be 12 or 24
-					hotstuff_cpu = FLAGS_indicus_process_id * num_cpus;
-			}
-
-			server = new bftsmartstore::Server(config, &keyManager,
-																		 FLAGS_group_idx, FLAGS_replica_idx, FLAGS_num_shards, FLAGS_num_groups,
-																		 FLAGS_indicus_sign_messages, FLAGS_indicus_validate_proofs,
-																		 FLAGS_indicus_time_delta, part, tport,
-																		 FLAGS_pbft_order_commit, FLAGS_pbft_validate_abort);
-      std::cerr << "FLAGS: bftsmart config path: " << FLAGS_bftsmart_codebase_dir << std::endl;
-			replica = new bftsmartstore::Replica(config, &keyManager,
-																			 dynamic_cast<bftsmartstore::App *>(server),
-																			 FLAGS_group_idx, FLAGS_replica_idx, FLAGS_indicus_sign_messages,
-																			 FLAGS_indicus_sig_batch, FLAGS_indicus_sig_batch_timeout,
-																			 FLAGS_pbft_esig_batch, FLAGS_pbft_esig_batch_timeout,
-																			 FLAGS_indicus_use_coordinator, FLAGS_indicus_request_tx,
-																			 hotstuff_cpu, FLAGS_num_shards, tport, FLAGS_bftsmart_codebase_dir);
-
-			break;
-	}
-		// Augustus running on top of BFT smart.
-	case PROTO_AUGUSTUS_SMART: {
-		int num_cpus = std::thread::hardware_concurrency();
-		num_cpus /= FLAGS_indicus_total_processes;
-
-		int augustus_cpu;
-		if (FLAGS_num_shards == 6) {
-				augustus_cpu = FLAGS_indicus_process_id * num_cpus + num_cpus - 1;
-		} else if(FLAGS_num_shards == 3) {
-			//hotstuff_cpu = 1;
-		    augustus_cpu = FLAGS_indicus_process_id * num_cpus + num_cpus - 1;
-		}
-		else{
-				// FLAGS_num_shards should be 12 or 24
-				augustus_cpu = FLAGS_indicus_process_id * num_cpus;
-		}
-
-		server = new bftsmartstore_stable::Server(config, &keyManager,
-																	 FLAGS_group_idx, FLAGS_replica_idx, FLAGS_num_shards, FLAGS_num_groups,
-																	 FLAGS_indicus_sign_messages, FLAGS_indicus_validate_proofs,
-																	 FLAGS_indicus_time_delta, part, tport,
-																	 FLAGS_pbft_order_commit, FLAGS_pbft_validate_abort);
-
-		replica = new bftsmartstore_stable::Replica(config, &keyManager,
-																		 dynamic_cast<bftsmartstore_stable::App *>(server),
 																		 FLAGS_group_idx, FLAGS_replica_idx, FLAGS_indicus_sign_messages,
 																		 FLAGS_indicus_sig_batch, FLAGS_indicus_sig_batch_timeout,
 																		 FLAGS_pbft_esig_batch, FLAGS_pbft_esig_batch_timeout,
 																		 FLAGS_indicus_use_coordinator, FLAGS_indicus_request_tx,
-																		 augustus_cpu, FLAGS_num_shards, tport);
+																		 protocol_cpu, FLAGS_num_shards, tport);
 
-		break;
-	}
+      break;
+    }
 
-  default: {
+    // Cockroach
+    case PROTO_CRDB: {
+      server = new cockroachdb::Server(config, &keyManager, FLAGS_group_idx,FLAGS_replica_idx, FLAGS_num_shards, FLAGS_num_groups);
+      break;
+    }
+
+    default: {
       NOT_REACHABLE();
-  }
+    }
   }
 
   // parse keys
@@ -792,32 +829,34 @@ int main(int argc, char **argv) {
                 << std::endl;
       return 1;
     }*/
-		//TODO: only do if it is RW workload
-		if (FLAGS_num_keys > 0) {
-			size_t loaded = 0;
-	    size_t stored = 0;
-			std::vector<int> txnGroups;
-			for (size_t i = 0; i < FLAGS_num_keys; ++i) {
-				//TODO add partition. Figure out how client key partitioning is done..
-				std::string key;
-				key = std::to_string(i);
-				std::string value;
-				if(FLAGS_rw_or_retwis){
-				  value = std::move(std::string(100, '\0')); //turn the size into a flag
-			  }
-				else{
-					value = std::to_string(i);
-				}
+    // TODO: only do if it is RW workload
+    if (FLAGS_num_keys > 0) {
+      size_t loaded = 0;
+      size_t stored = 0;
+      std::vector<int> txnGroups;
+      for (size_t i = 0; i < FLAGS_num_keys; ++i) {
+        // TODO add partition. Figure out how client key partitioning is done..
+        std::string key;
+        key = std::to_string(i);
+        std::string value;
+        if (FLAGS_rw_or_retwis) {
+          value =
+              std::move(std::string(100, '\0'));  // turn the size into a flag
+        } else {
+          value = std::to_string(i);
+        }
 
-				if ((*part)(key, FLAGS_num_shards, FLAGS_group_idx, txnGroups) % FLAGS_num_groups == FLAGS_group_idx) {
-					server->Load(key, value, Timestamp());
-					++stored;
-				}
-				++loaded;
-			}
-			Notice("Created and Stored %lu out of %lu key-value pairs", stored,
-	        loaded);
-		}
+        if ((*part)(key, FLAGS_num_shards, FLAGS_group_idx, txnGroups) %
+                FLAGS_num_groups ==
+            FLAGS_group_idx) {
+          server->Load(key, value, Timestamp());
+          ++stored;
+        }
+        ++loaded;
+      }
+      Notice("Created and Stored %lu out of %lu key-value pairs", stored,
+             loaded);
+    }
   } else if (FLAGS_data_file_path.length() > 0 && FLAGS_keys_path.empty()) {
     std::ifstream in;
     in.open(FLAGS_data_file_path);
@@ -836,29 +875,32 @@ int main(int argc, char **argv) {
       int i = ReadBytesFromStream(&in, key);
       if (i == 0) {
         ReadBytesFromStream(&in, value);
-        if ((*part)(key, FLAGS_num_shards, FLAGS_group_idx, txnGroups) % FLAGS_num_groups == FLAGS_group_idx) {
+        if ((*part)(key, FLAGS_num_shards, FLAGS_group_idx, txnGroups) %
+                FLAGS_num_groups ==
+            FLAGS_group_idx) {
           server->Load(key, value, Timestamp());
           ++stored;
         }
         ++loaded;
       }
     }
-		Notice("Stored %lu out of %lu key-value pairs from file %s.", stored,
-        loaded, FLAGS_data_file_path.c_str());
+    Notice("Stored %lu out of %lu key-value pairs from file %s.", stored,
+           loaded, FLAGS_data_file_path.c_str());
     // Debug("Stored %lu out of %lu key-value pairs from file %s.", stored,
     //     loaded, FLAGS_data_file_path.c_str());
   } else {
     std::ifstream in;
     in.open(FLAGS_keys_path);
     if (!in) {
-      std::cerr << "Could not read keys from: " << FLAGS_keys_path
-                << std::endl;
+      std::cerr << "Could not read keys from: " << FLAGS_keys_path << std::endl;
       return 1;
     }
     std::string key;
     std::vector<int> txnGroups;
     while (std::getline(in, key)) {
-      if ((*part)(key, FLAGS_num_shards, FLAGS_group_idx, txnGroups) % FLAGS_num_groups == FLAGS_group_idx) {
+      if ((*part)(key, FLAGS_num_shards, FLAGS_group_idx, txnGroups) %
+              FLAGS_num_groups ==
+          FLAGS_group_idx) {
         server->Load(key, "null", Timestamp());
       }
     }
@@ -870,23 +912,27 @@ int main(int argc, char **argv) {
   std::signal(SIGINT, Cleanup);
 
   CALLGRIND_START_INSTRUMENTATION;
-	//SET THREAD AFFINITY if running multi_threading:
-	//if(FLAGS_indicus_multi_threading){
-	if((proto == PROTO_INDICUS || proto == PROTO_PBFT || proto == PROTO_HOTSTUFF || proto == PROTO_AUGUSTUS || proto == PROTO_BFTSMART || proto == PROTO_AUGUSTUS_SMART) && FLAGS_indicus_multi_threading){
-		cpu_set_t cpuset;
-		CPU_ZERO(&cpuset);
-		//bool hyperthreading = true;
-        int num_cpus = std::thread::hardware_concurrency();///(2-FLAGS_indicus_hyper_threading);
-		//CPU_SET(num_cpus-1, &cpuset); //last core is for main
-		num_cpus /= FLAGS_indicus_total_processes;
-        int offset = FLAGS_indicus_process_id * num_cpus;
-		//int offset = FLAGS_indicus_process_id;
-		CPU_SET(0 + offset, &cpuset); //first assigned core is for main
-		//pthread_setaffinity_np(pthread_self(),	sizeof(cpu_set_t), &cpuset);
-		Debug("MainThread running on CPU %d.", sched_getcpu());
-	}
+  // SET THREAD AFFINITY if running multi_threading:
+  // if(FLAGS_indicus_multi_threading){
+  if ((proto == PROTO_INDICUS || proto == PROTO_PBFT ||
+       proto == PROTO_HOTSTUFF || proto == PROTO_AUGUSTUS ||
+       proto == PROTO_BFTSMART || proto == PROTO_AUGUSTUS_SMART) &&
+      FLAGS_indicus_multi_threading) {
+    cpu_set_t cpuset;
+    CPU_ZERO(&cpuset);
+    // bool hyperthreading = true;
+    int num_cpus = std::thread::
+        hardware_concurrency();  ///(2-FLAGS_indicus_hyper_threading);
+    // CPU_SET(num_cpus-1, &cpuset); //last core is for main
+    num_cpus /= FLAGS_indicus_total_processes;
+    int offset = FLAGS_indicus_process_id * num_cpus;
+    // int offset = FLAGS_indicus_process_id;
+    CPU_SET(0 + offset, &cpuset);  // first assigned core is for main
+    // pthread_setaffinity_np(pthread_self(),	sizeof(cpu_set_t), &cpuset);
+    Debug("MainThread running on CPU %d.", sched_getcpu());
+  }
 
-	//event_enable_debug_logging(EVENT_DBG_ALL);
+  // event_enable_debug_logging(EVENT_DBG_ALL);
 
   tport->Run();
   CALLGRIND_STOP_INSTRUMENTATION;

@@ -11,9 +11,10 @@ echo ""
 sudo apt-get update
 sudo apt-get upgrade
 
-sudo apt install python3-pip
-sudo -H pip3 install numpy
-sudo apt-get install autoconf automake libtool curl make g++ unzip valgrind cmake gnuplot pkg-config ant
+
+sudo apt -y install python3-pip
+sudo apt -y -H pip3 install numpy
+sudo apt-get -y install autoconf automake libtool curl make g++ unzip valgrind cmake gnuplot pkg-config ant
 
 echo "$(tput setaf 2) COMPLETE: GENERAL PRE-REQ $(tput sgr0)"
 read -p "Press enter to continue"
@@ -22,7 +23,8 @@ echo ""
 #Development library dependencies
 echo "Installing Development library dependencies"
 echo ""
-sudo apt install libsodium-dev libgflags-dev libssl-dev libevent-dev libevent-openssl-2.1-7 libevent-pthreads-2.1-7 libboost-all-dev libuv1-dev
+
+sudo apt -y install libsodium-dev libgflags-dev libssl-dev libevent-dev libevent-openssl-2.1-7 libevent-pthreads-2.1-7 libboost-all-dev libuv1-dev
 echo "$(tput setaf 2) COMPLETE: GENERAL DEVELOPMENT LIB DEPS $(tput sgr0)"
 echo ""
 read -p "Press enter to continue"
@@ -125,11 +127,12 @@ read -p "Press enter to continue -- Manual interaction required: See install gui
 #IntelTBB
 echo "Installing Intel TBB"
 echo ""
-apt -y install ncurses-term
+
+sudo apt -y install ncurses-term
 wget https://registrationcenter-download.intel.com/akdlm/irc_nas/17977/l_BaseKit_p_2021.3.0.3219.sh
 sudo bash l_BaseKit_p_2021.3.0.3219.sh
 cd ~
-source /opt/intel/oneapi/setvars.sh
+sudo source /opt/intel/oneapi/setvars.sh
 echo source /opt/intel/oneapi/setvars.sh --force >> ~/.bashrc
 source ~/.bashrc
 echo "$(tput setaf 2) COMPLETE: IntelTBB $(tput sgr0)"
@@ -139,7 +142,8 @@ read -p "Press enter to continue -- Manual interaction required: See install gui
 #BFTSmart
 echo "Installing BFT-SMART req (Java)"
 echo ""
-sudo apt-get install openjdk-11-jdk
+
+sudo apt-get -y install openjdk-11-jdk
 export LD_LIBRARY_PATH=/usr/lib/jvm/java-1.11.0-openjdk-amd64/lib/server:$LD_LIBRARY_PATH
 sudo ldconfig
 echo "$(tput setaf 2) TODO: SEE MANUAL INSTALLATION REQ BFT-SMART $(tput sgr0)"
@@ -149,4 +153,14 @@ echo ""
 echo "$(tput setaf 2) FINISHED INSTALLATION: SUCCESS $(tput sgr0)"
 
 
+# Cockroach DB
+sudo mkdir -p /usr/local/lib/cockroach
+cd ~/dependencies
+wget https://binaries.cockroachdb.com/cockroach-v22.2.2.linux-amd64.tgz
+tar -xf cockroach-v22.2.2.linux-amd64.tgz
+sudo cp -i cockroach-v22.2.2.linux-amd64/lib/libgeos.so /usr/local/lib/cockroach/
+sudo cp -i cockroach-v22.2.2.linux-amd64/lib/libgeos_c.so /usr/local/lib/cockroach/
+sudo cp -i cockroach-v22.2.2.linux-amd64/cockroach /usr/local/bin
 
+# PG
+sudo apt -y install libpq-dev postgresql-server-dev-all
