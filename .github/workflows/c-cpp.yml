@@ -21,6 +21,7 @@ jobs:
       run: |
         source /opt/intel/oneapi/setvars.sh --force
         cd src && make -j $(nproc)
+      shell: bash
     - name: Cache
       uses: actions/cache@v2.1.8
       with:
