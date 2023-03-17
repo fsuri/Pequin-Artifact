@@ -259,8 +259,8 @@ DEFINE_uint64(prepare_batch_period, 0, "length of batches for deterministic prep
 /**
  * Indicus settings.
  */
-DEFINE_uint64(indicus_time_delta, 2000, "max clock skew allowed for concurrency"
-    " control (for Indicus)");
+DEFINE_uint64(indicus_watermark_time_delta, 2000, "max clock skew allowed for concurrency"
+    " control (for Indicus); Ignore timestamps above current time + delta");
 DEFINE_bool(indicus_shared_mem_batch, false, "use shared memory batches for"
     " signing messages (for Indicus)");
 DEFINE_bool(indicus_shared_mem_verify, false, "use shared memory for"
@@ -277,8 +277,10 @@ DEFINE_bool(indicus_read_reply_batch, false, "wait to reply to reads until batch
     " is ready (for Indicus)");
 DEFINE_bool(indicus_adjust_batch_size, false, "dynamically adjust batch size"
     " every sig_batch_timeout (for Indicus)");
+    
 DEFINE_uint64(indicus_merkle_branch_factor, 2, "branch factor of merkle tree"
     " of batch (for Indicus)");
+
 DEFINE_uint64(indicus_sig_batch, 2, "signature batch size"
     " sig batch size (for Indicus)");
 DEFINE_uint64(indicus_sig_batch_timeout, 10, "signature batch timeout ms"
@@ -294,7 +296,7 @@ DEFINE_uint64(indicus_use_coordinator, false, "use coordinator"
 DEFINE_uint64(indicus_request_tx, false, "request tx"
     " request tx (for Indicus)");
 
-DEFINE_int32(indicus_rts_mode, 1, "Mode for managing RTS: 0 == no RTS, 1 == single RTS, 2 == set of RTS"); //set of RTS can be refined further to include interval from "read value" to TS
+DEFINE_int32(indicus_rts_mode, 0, "Mode for managing RTS: 0 == no RTS, 1 == single RTS, 2 == set of RTS"); //set of RTS can be refined further to include interval from "read value" to TS
 
 DEFINE_bool(indicus_sign_client_proposals, false, "add signatures to client proposals "
     " -- used for optimistic tx-ids. Can be used for access control (unimplemented)");
@@ -323,10 +325,19 @@ DEFINE_bool(indicus_replica_gossip, false, "use gossip between replicas to excha
 /*
  Pequin settings
 */
-DEFINE_bool(pequin_query_read_prepared, false, "allow query to read prepared values");
-DEFINE_bool(pequin_query_optimistic_txid, false, "use optimistic tx-id for sync protocol");
-DEFINE_bool(pequin_query_cache_read_set, false, "cache query read set at replicas");
+DEFINE_bool(pequin_query_eager_exec, false, "skip query sync protocol and execute optimistically on local state");
+
+DEFINE_bool(pequin_query_read_prepared, true, "allow query to read prepared values");
+DEFINE_bool(pequin_query_cache_read_set, true, "cache query read set at replicas");
+
+DEFINE_bool(pequin_query_optimistic_txid, true, "use optimistic tx-id for sync protocol");
+DEFINE_bool(pequin_query_compress_optimistic_txid, false, "compress optimistic tx-id for sync protocol");
+
+
+DEFINE_bool(pequin_query_merge_active_at_client, true, "merge active query read sets client-side");
+
 DEFINE_bool(pequin_sign_client_queries, false, "sign query and sync messages"); //proves non-equivocation of query contents, and query snapshot respectively.
+DEFINE_bool(pequin_sign_replica_to_replica_sync, false, "sign inter replica sync messages with HMACs"); //proves authenticity of channels.
 
 DEFINE_bool(pequin_parallel_queries, false, "dispatch queries to parallel worker threads");
 
@@ -597,8 +608,8 @@ int main(int argc, char **argv) {
           default:
               NOT_REACHABLE();
           }
-        timeDelta = (FLAGS_indicus_time_delta / 1000) << 32;
-        timeDelta = timeDelta | (FLAGS_indicus_time_delta % 1000) * 1000;
+        timeDelta = (FLAGS_indicus_watermark_time_delta / 1000) << 32;                             //Seconds (Shift 32 --> see truetime.cc)
+        timeDelta = timeDelta | (((FLAGS_indicus_watermark_time_delta % 1000) * 1000) << 12 );     //Milliseconds. (Shift 12 --> see truetime.cc)
         break;
       case PROTO_PBFT:
         break;
@@ -610,7 +621,7 @@ int main(int argc, char **argv) {
         if (FLAGS_num_shards == 6) {
             protocol_cpu = FLAGS_indicus_process_id * num_cpus + num_cpus - 1;
         } else if(FLAGS_num_shards == 3) { //hotstuff_cpu = 1;
-          protocol_cpu = FLAGS_indicus_process_id * num_cpus + num_cpus - 1;
+          protocol_cpu = FLAGS_indicus_process_id * num_cpus + num_cpus - 1; //E.g. with 3 shards => 1 process per machine, each machine 8 cores ==> protocol runs on core 8 (=index 7)
         }
         else{ // FLAGS_num_shards should be 12 or 24
           protocol_cpu = FLAGS_indicus_process_id * num_cpus;
@@ -660,10 +671,14 @@ int main(int argc, char **argv) {
                                                  0,
                                                  0,
                                                  0,
+                                                 FLAGS_pequin_query_eager_exec,
                                                  FLAGS_pequin_query_read_prepared,
-                                                 FLAGS_pequin_query_optimistic_txid,
                                                  FLAGS_pequin_query_cache_read_set,
+                                                 FLAGS_pequin_query_optimistic_txid,
+                                                 FLAGS_pequin_query_compress_optimistic_txid, 
+                                                 FLAGS_pequin_query_merge_active_at_client,
                                                  FLAGS_pequin_sign_client_queries,
+                                                 FLAGS_pequin_sign_replica_to_replica_sync,
                                                  FLAGS_pequin_parallel_queries);
 
       pequinstore::Parameters params(FLAGS_indicus_sign_messages,
@@ -691,7 +706,7 @@ int main(int argc, char **argv) {
       server = new pequinstore::Server(config, FLAGS_group_idx,
                                         FLAGS_replica_idx, FLAGS_num_shards, FLAGS_num_groups, tport,
                                         &keyManager, params, timeDelta, pequinOCCType, part,
-                                        FLAGS_indicus_sig_batch_timeout);
+                                        FLAGS_indicus_sig_batch_timeout); //TODO: Move to params.
       break;
   }
   case PROTO_INDICUS: {
@@ -736,7 +751,7 @@ int main(int argc, char **argv) {
       server = new pbftstore::Server(config, &keyManager,
                                      FLAGS_group_idx, FLAGS_replica_idx, FLAGS_num_shards, FLAGS_num_groups,
                                      FLAGS_indicus_sign_messages, FLAGS_indicus_validate_proofs,
-                                     FLAGS_indicus_time_delta, part,
+                                     FLAGS_indicus_watermark_time_delta, part,
 																	   FLAGS_pbft_order_commit, FLAGS_pbft_validate_abort);
       replica = new pbftstore::Replica(config, &keyManager,
                                        dynamic_cast<pbftstore::App *>(server),
@@ -754,7 +769,7 @@ int main(int argc, char **argv) {
       server = new hotstuffstore::Server(config, &keyManager,
                                      FLAGS_group_idx, FLAGS_replica_idx, FLAGS_num_shards, FLAGS_num_groups,
                                      FLAGS_indicus_sign_messages, FLAGS_indicus_validate_proofs,
-                                     FLAGS_indicus_time_delta, part, tport,
+                                     FLAGS_indicus_watermark_time_delta, part, tport,
 																	   FLAGS_pbft_order_commit, FLAGS_pbft_validate_abort);
 
       replica = new hotstuffstore::Replica(config, &keyManager,
@@ -773,7 +788,7 @@ int main(int argc, char **argv) {
       server = new augustusstore::Server(config, &keyManager,
                                      FLAGS_group_idx, FLAGS_replica_idx, FLAGS_num_shards, FLAGS_num_groups,
                                      FLAGS_indicus_sign_messages, FLAGS_indicus_validate_proofs,
-                                     FLAGS_indicus_time_delta, part, tport,
+                                     FLAGS_indicus_watermark_time_delta, part, tport,
 																	   FLAGS_pbft_order_commit, FLAGS_pbft_validate_abort);
 
       replica = new augustusstore::Replica(config, &keyManager,
@@ -791,7 +806,7 @@ int main(int argc, char **argv) {
 			server = new bftsmartstore::Server(config, &keyManager,
 																		 FLAGS_group_idx, FLAGS_replica_idx, FLAGS_num_shards, FLAGS_num_groups,
 																		 FLAGS_indicus_sign_messages, FLAGS_indicus_validate_proofs,
-																		 FLAGS_indicus_time_delta, part, tport,
+																		 FLAGS_indicus_watermark_time_delta, part, tport,
 																		 FLAGS_pbft_order_commit, FLAGS_pbft_validate_abort);
       std::cerr << "FLAGS: bftsmart config path: " << FLAGS_bftsmart_codebase_dir << std::endl;
 			replica = new bftsmartstore::Replica(config, &keyManager,
@@ -809,7 +824,7 @@ int main(int argc, char **argv) {
 		server = new bftsmartstore_stable::Server(config, &keyManager,
 																	 FLAGS_group_idx, FLAGS_replica_idx, FLAGS_num_shards, FLAGS_num_groups,
 																	 FLAGS_indicus_sign_messages, FLAGS_indicus_validate_proofs,
-																	 FLAGS_indicus_time_delta, part, tport,
+																	 FLAGS_indicus_watermark_time_delta, part, tport,
 																	 FLAGS_pbft_order_commit, FLAGS_pbft_validate_abort);
 
 		replica = new bftsmartstore_stable::Replica(config, &keyManager,

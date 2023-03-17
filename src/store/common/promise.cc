@@ -97,7 +97,7 @@ Promise::Reply(int r, Timestamp t, string v)
 }
 
 void
-Promise::Reply(int r, query_result::QueryResult* res)
+Promise::Reply(int r, const query_result::QueryResult* res)
 {
     lock_guard<mutex> l(lock);
     result = res;
@@ -135,7 +135,7 @@ Promise::GetValue()
     return value;
 }
 
-query_result::QueryResult*
+const query_result::QueryResult*
 Promise::GetQueryResult()
 {
     unique_lock<mutex> l(lock);

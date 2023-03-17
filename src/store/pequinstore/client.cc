@@ -37,6 +37,10 @@
 #include "store/common/query_result_proto_wrapper.h"
 #include "store/common/query_result_proto_builder.h"
 #include <sys/time.h>
+#include <algorithm>
+
+#include "store/common/query_result/query_result_proto_wrapper.h"
+#include "store/common/query_result/query_result_proto_builder.h"
 
 namespace pequinstore {
 
@@ -58,6 +62,7 @@ Client::Client(transport::Configuration *config, uint64_t id, int nShards,
     query_seq_num(0UL), client_seq_num(0UL), lastReqId(0UL), getIdx(0UL),
     failureEnabled(false), failureActive(false), faulty_counter(0UL),
     consecutiveMax(consecutiveMax) {
+
 
   Debug("Initializing Indicus client with id [%lu] %lu", client_id, nshards);
   std::cerr<< "P1 Decision Timeout: " <<phase1DecisionTimeout<< std::endl;
@@ -196,6 +201,7 @@ void Client::Get(const std::string &key, get_callback gcb,
         }
       }
       if (addReadSet) {
+        Debug("Adding read to read set");
         ReadMessage *read = txn.add_read_set();
         read->set_key(key);
         ts.serialize(read->mutable_readtime());
@@ -242,6 +248,112 @@ void Client::Put(const std::string &key, const std::string &value,
   });
 }
 
+
+//primary_key_encoding_support is an encoding_helper function: Specify which columns of a write statement correspond to the primary key; each vector belongs to one insert. 
+//In case of nesting or concat --> order = order of reading
+void Client::Write(std::string &write_statement, std::vector<std::vector<uint32_t>> primary_key_encoding_support, write_callback wcb,
+      write_timeout_callback wtcb, uint32_t timeout){
+
+    //////////////////
+    // Write Statement parser/interpreter:   //For now design to supports only individual Insert/Update/Delete statements. No nesting, no concatenation
+    //TODO: parse write statement into table, column list, values_list, and read condition
+    
+
+    std::string read_statement;
+    auto write_continuation = [this](const query_result::QueryResult *result){
+
+      sql::QueryResultProtoWrapper *write_result = new sql::QueryResultProtoWrapper(""); //TODO: replace with real result. Create proto builder and set rows affected somehow..
+      uint32_t n_rows_affected = 0;
+      write_result->set_rows_affected(n_rows_affected);
+      return write_result;
+    }; // = //Some function that takes ResultObject as input and issue the write statements.
+        //  for result-row in result{
+        //     EncodeTableRow (use primary_key_encoding to derive it from the table and column_list)
+        //     Find Ts in ReadSet 
+        //     CreateTable Write entry with Timestamp and the rows to be updated. -- Note: Timestamp identifies the row from which no copy from -> i.e. the one thats updated.
+                      //ReadSet is already cached as part of txn. -- Right version can be found by just looking up the latest query seq in the txn.. TODO: if we want parallel writes (async) then we might need to identify
+                      //Result ReadSet key can be inferred from Result Primary key.
+                       //Version can be looked up by checking read set for this key (currently would have to loop -- but may want to turn into a map)
+                              //If these two methods are not possible after all, then must modify sync to parameterize the fact that it is part of a "read-modify-write" 
+                                                          //--> should explicitly label all entries in Read Set that belong to result rows... or must include full row here.
+            // WriteMessage *write = txn.add_write_set();
+            // write->set_key(key); //TODO: key = EncodeTableRow(table_name, primary_key)
+            // *write->mutable_rowupdates(); //TODO: Set these.
+            // *write->mutable_readtime()...//TODO Set this.
+        //   }
+    /////////////////
+    
+
+    if(read_statement.empty()){
+      //Add to writes directly.
+      sql::QueryResultProtoWrapper *write_result = new sql::QueryResultProtoWrapper(""); //TODO: replace with real result.
+      wcb(REPLY_OK, write_result);
+    }
+    else{
+       auto qcb = [this, write_continuation, wcb](int status, const query_result::QueryResult *result) mutable { 
+
+        //result ==> replace with protoResult type
+        const query_result::QueryResult *write_result = write_continuation(result);
+        wcb(REPLY_OK, write_result);
+        return;
+      };
+      // auto qtcb = [this, wtcb](int status) {
+      //   wtcb(status);
+      //   return;
+      // };
+      Query(read_statement, qcb, wtcb, timeout);
+    }
+    return;
+  }
+
+    //statement like: INSERT INTO test VALUES (1001);
+    //REPLACE INTO table(column_list) VALUES(value_list);  is a shorter form of  INSERT OR REPLACE INTO table(column_list) VALUES(value_list);
+
+    //Maybe simpler: Let Write take table, column list, and values as attributes. And then turn it into a REPLACE INTO statement.
+    //I.e. our frontend currently implements a manual insert (just so we can ignore automizing "Update Where" statements)
+
+    
+
+    //TODO: How can we only update certain attributes while creating a new version?
+    // a) In table: Mark version per attribute...
+    // b) When updating in table: Copy the version we read -- to identify that, the write needs to pass the version...
+            //Or is it fine to just copy the last version known to the server? No... this might produce non-serializable state...
+
+    //Note: if we had all attributes here, then we could just insert a whole new row.
+    // --> However, a query read does not necessarily return the whole rows.  ==> But maybe our Select dialect (turning Update into Select + multiple inserts) does retrive the whole row:
+
+    //I..e for updates: Whole row is available: Write new:
+    //For independent inserts: Write new row with empty attributes? No.. only write if no previous row existed.   I.e. also split into Select + Write. ==> If Select == empty, then write. Add to readSet: 0 Timestamp.
+
+    //It seems easiest for the frontend to not worry about the details at all: In order to support that, must turn the request into read/writes at THIS level.
+    //That way it would be easy to keep track of readmodify write ops to track read timestamps too
+    //Write type Statement function:
+    //  -- turn into a Query statement:
+    // On reply, don't use query callback though, and instead issue the updates to ReadSet + WriteSet (table writes), and then callback.
+
+    //Insert: Conditional Read Mod Write
+    //Replace: Unconditional (Blind) Write  -- REPLACE INTO == INSERT OR REPLACE --> weaker cond holds: Blind Write.
+    //Update: Conditional Read Mod Write
+    //Delete: Conditional Read Mod Write
+
+    //Conditional Read lets us now read version for serializability checks
+    //Insert and Delete don't need to know row values
+    //But don't necessarily know full row for Update -- if we only want to update certain rows then that is a problem.  Same for Replace certain rows?
+       // --> Because we are multi-versioned, we want to create a separate row. What we can do is include the "read version" as part of the Write req, so that we can fetch+copythe row on demand and only update the few missing
+      //Note: If the read row was deleted in the meantime -- then there would be a new row that is empty with a higher TS. The write would conflict with this delete row and thus abort.
+
+    //TODO: Need a way to infer encoded key (essentially primary key) from the column list?
+     // for conditional read mod writes one can just use the read key!
+     // but for unconditional (blind) writes one needs to figure out the column list. Maybe one can add it to the Write function as argument? (Difficult for nested queries, but should be easy for single blind writes)
+
+    //Primary key that is auto-increment? Insert has to also read last primary key? And then propose new one?
+
+
+//NOTE: Unlike Get, Query currently cannot read own write, or previous reads -> consequently, different queries may read the same key differently
+// (Could edit query to include "previoudReads" + writes and use it for materialization)
+
+//Simulate Select * for now
+// TODO: --> Return all rows in the store.
 void Client::Query(const std::string &query, query_callback qcb,
     query_timeout_callback qtcb, uint32_t timeout) {
   auto builder = sql::QueryResultProtoBuilder();
@@ -256,16 +368,14 @@ void Client::Query(const std::string &query, query_callback qcb,
   qcb(REPLY_OK, result);
 }
 
-// //Simulate Select * for now
-// // TODO: --> Return all rows in the store.
-// void Client::Query(std::string &query, query_callback qcb,
-//     query_timeout_callback qtcb, uint32_t timeout) {
+  UW_ASSERT(query.length() < ((uint64_t)1<<32)); //Protobuf cannot handle strings longer than 2^32 bytes --> cannot handle "arbitrarily" complex queries: If this is the case, we need to break down the query command.
 
-//   transport->Timer(0, [this, query, qcb, qtcb, timeout]() mutable {
-//     // Latency_Start(&getLatency);
+  transport->Timer(0, [this, query, qcb, qtcb, timeout]() mutable {
+    // Latency_Start(&getLatency);
 
-//     query_seq_num++;
-//     Debug("\n Query[%lu:%lu:%lu]", client_id, client_seq_num, query_seq_num);
+    query_seq_num++;
+    txn.set_last_query_seq(query_seq_num);
+    Debug("\n Query[%lu:%lu:%lu]", client_id, client_seq_num, query_seq_num);
 
  
 //     // Contact the appropriate shard to execute the query on.
@@ -274,9 +384,10 @@ void Client::Query(const std::string &query, query_callback qcb,
 //     //Assume for now only touching one group. (single sharded system)
 //     PendingQuery *pendingQuery = new PendingQuery(this, query_seq_num, query);
 
-//     std::vector<uint64_t> involved_groups = {0UL, 1UL};
-//     pendingQuery->SetInvolvedGroups(this, involved_groups);
-//     Debug("[group %i] designated as Query Execution Manager for query [%lu:%lu]", pendingQuery->queryMsg.query_manager(), client_seq_num, query_seq_num);
+    std::vector<uint64_t> involved_groups = {0};//{0UL, 1UL};
+    pendingQuery->SetInvolvedGroups(involved_groups);
+    Debug("[group %i] designated as Query Execution Manager for query [%lu:%lu]", pendingQuery->queryMsg.query_manager(), client_seq_num, query_seq_num);
+    pendingQuery->SetQueryId(this);
 
 //     // std::vector<uint64_t> involved_groups = {0UL};
 //     // uint64_t query_manager = involved_groups[0];
@@ -304,97 +415,139 @@ void Client::Query(const std::string &query, query_callback qcb,
 //     }
   
 
-//     //result_callback rcb = qcb;
-//     //NOTE: result_hash = read_set hash. ==> currently not hashing queryId, version or result contents into it. Appears unecessary.
-//     result_callback rcb = [qcb, pendingQuery, this](int status, int group, std::map<std::string, TimestampMessage> &read_set, std::string &result_hash, std::string &result, bool success) mutable { //possibly add read-set
-//       //FIXME: If success: add readset/result hash to datastructure. If group==query manager, record result. If all shards received ==> upcall. 
-//       //If failure: re-set datastructure and try again. (any shard can report failure to sync)
-//       //Note: Ongoing shard clients PendingQuery implicitly maps to current retry_version
+    //result_callback rcb = qcb;
+    //NOTE: result_hash = read_set hash. ==> currently not hashing queryId, version or result contents into it. Appears unecessary.
+    //result_callback rcb = [qcb, pendingQuery, this](int status, int group, std::map<std::string, TimestampMessage> &read_set, std::string &result_hash, std::string &result, bool success) mutable { 
+    result_callback rcb = [qcb, pendingQuery, this](int status, int group, proto::ReadSet *query_read_set, std::string &result_hash, std::string &result, bool success) mutable { 
+      //FIXME: If success: add readset/result hash to datastructure. If group==query manager, record result. If all shards received ==> upcall. 
+      //If failure: re-set datastructure and try again. (any shard can report failure to sync)
+      //Note: Ongoing shard clients PendingQuery implicitly maps to current retry_version
     
 //           UW_ASSERT(pendingQuery != nullptr);
 //           if(success){
 //             Debug("[group %i] Reported success for QuerySync [seq : ver] [%lu : %lu] \n", group, pendingQuery->queryMsg.query_seq_num(), pendingQuery->version);
 //             pendingQuery->group_replies++;
     
-//             if(params.query_params.cacheReadSet){ 
-//                pendingQuery->group_result_hashes[group] = std::move(result_hash);
-//             }
-//             else{
-//                pendingQuery->group_read_sets[group] = std::move(read_set);
-//             }
-//             if(group == pendingQuery->involved_groups[0]) pendingQuery->result = std::move(result); 
+            if(params.query_params.cacheReadSet){ 
+               pendingQuery->group_result_hashes[group] = std::move(result_hash);
+            }
+            else{
+               //pendingQuery->group_read_sets[group] = std::move(read_set);
+               pendingQuery->group_read_sets[group] = query_read_set; //Note: this is an allocated object, must be freed eventually.
+            }
+            if(group == pendingQuery->involved_groups[0]) pendingQuery->result = std::move(result); 
 
 //             //wait for all shard read-sets to arrive before reporting result. (Realistically result shard replies last, since it has to coordinate data transfer for computation)
 //             if(pendingQuery->involved_groups.size() == pendingQuery->group_replies){
 //               Debug("Received all required group replies for QuerySync[%lu:%lu] (seq:ver). UPCALLING \n", group, pendingQuery->queryMsg.query_seq_num(), pendingQuery->version);
 
-//               //TESTING Read-set
-//               Debug("BEGIN READ SET:");
-//               for(auto &[group, read_set] : pendingQuery->group_read_sets){
-//                 for(auto &[key, ts] : read_set){
-//                   //std::cerr << "key: " << key << std::endl;
-//                  Debug("[group %d] Read key %s with version [%lu:%lu]", group, key.c_str(), ts.timestamp(), ts.id());
-//                 }
-//               }
-//               Debug("END READ SET.");
+
+//BEGIN FIXME: DELETE THIS. IT IS TEST CODE ONLY
+              //TESTING Read-set
+              Debug("BEGIN READ SET:");
+              for(auto &[group, query_read_set] : pendingQuery->group_read_sets){
+                for(auto &read : query_read_set->read_set()){
+                //for(auto &[key, ts] : read_set){
+                  //std::cerr << "key: " << key << std::endl;
+                  Debug("[group %d] Read key %s with version [%lu:%lu]", group, read.key().c_str(), read.readtime().timestamp(), read.readtime().id());
+                  //Debug("[group %d] Read key %s with version [%lu:%lu]", group, key.c_str(), ts.timestamp(), ts.id());
+                }
+              }
+              Debug("END READ SET.");
+
+              // Debug("Test Read Set merge:");
+              // proto::ReadSet* read_set_0 = pendingQuery->group_read_sets[0];
+              // proto::ReadSet* read_set_1 = pendingQuery->group_read_sets[1];
+              // // ReadMessage* read = read_set_0->add_read_set();
+              // // read = read_set_1->release_read_set();
+              //  for(auto &read : *(read_set_1->mutable_read_set())){
+              //    ReadMessage* add_read = read_set_0->add_read_set();
+              //    *add_read = std::move(read);
+              //  }
+              //  //This code moves read sets instead of coyping. However, if we are caching then we want to copy during merge in order to preserve the cached value.
+
+
+              // //read_set_0->mutable_read_set()->MergeFrom(read_set_1->read_set());
+              // for(auto &read : read_set_0->read_set()){
+              //     Debug("[group Merged] Read key %s with version [%lu:%lu]", read.key().c_str(), read.readtime().timestamp(), read.readtime().id());
+              //   }
+              // for(auto &read : read_set_1->read_set()){
+              //     Debug("[group Removed] Read key %s with version [%lu:%lu]", read.key().c_str(), read.readtime().timestamp(), read.readtime().id());
+              //   }
+              //TODO: merge all group read sets together before sending tx. Or clear all read-sets that are not relevant to a group (==> Need to use a sub-hash to represent groups read set)
+//END FIXME:
+
+
 
             
-//                //Make query meta data part of current transaction. 
-//                //==> Add repeated item <QueryReply> with query_id, final version, and QueryMeta field per involved shard. Query Meta = optional read_sets, optional_result_hashes (+version)
-//               proto::QueryReply *queryRep = txn.add_query_set();
-//               queryRep->set_query_id(pendingQuery->queryId);
-//               queryRep->set_retry_version(pendingQuery->version);
+               //Make query meta data part of current transaction. 
+               //==> Add repeated item <QueryReply> with query_id, final version, and QueryMeta field per involved shard. Query Meta = optional read_sets, optional_result_hashes (+version)
+              proto::QueryResultMetaData *queryRep = txn.add_query_set();
+              queryRep->set_query_id(pendingQuery->queryId);
+              queryRep->set_retry_version(pendingQuery->version); //technically only needed for caching
 
-//               //TODO: Add dependencies once prepared reads are implemented. Note: Replicas can also just check for every key in read-set that it is commmitted. However, the client may already know a given tx is committed.
-//                                                                                                                         // Specifying an explicit dependency set can "reduce" the amount of tx a replica needs to wait for.
-              
-    
+              //TODO: Add dependencies once prepared reads are implemented. Note: Replicas can also just check for every key in read-set that it is commmitted. However, the client may already know a given tx is committed.
+                                                                                                                        // Specifying an explicit dependency set can "reduce" the amount of tx a replica needs to wait for.
 
-//               //*queryRep->mutable_query_group_meta() = {pendingQuery->}
-//                proto::QueryMeta &queryMD = (*queryRep->mutable_group_meta())[group];
+              //*queryRep->mutable_query_group_meta() = {pendingQuery->}
+            
 
-//               if(params.query_params.cacheReadSet){ 
-//                 for(auto &[group, read_set_hash] : pendingQuery->group_result_hashes){
-//                   queryMD.set_read_set_hash(read_set_hash);
-//                 }
-//                   //When caching read sets: Check that client reported version matches local one. If not, report Client. (FIFO guarantees that client wouldn't send prepare before retry)
-//                       //Problem: What if client crashes, and another interested client proposes the prepare for a version whose retry has not yet reached some replicas (no FIFO across channels). Could cause deterministic tx abort.
-//                       //==> Replica waits for query-id/version to arrive before processing P1 request. Interested client is guaranteed to be able to supply it.
-//                      // ==> What if client used different versions of same query id for different prepares?
-//                          // Should never happen: Client must only use each query id ONCE. Thus, if there are two prepares with the same query-id but different version ==> report client
-//               }
-//               else{
-//                 for(auto &[group, read_set] : pendingQuery->group_read_sets){
-//                   //*queryMD.mutable_read_set() = {read_set.begin(), read_set.end()}; 
-//                   for(auto &[key, ts] : read_set){
-//                      (*queryMD.mutable_read_set())[key] = std::move(ts);
-//                   }
-//                   //TODO: If we are sending read-sets (and no map order is necessary for hashing), then just store the data as protobuf map and move the whole group_read_set map around... (instead of copying to STL and back to proto)
-//                   //requires explicit <group, read_set> map, instead of <group, Query Meta> (easily doable)
-//                 }
-//               }
+              if(params.query_params.cacheReadSet){ 
+                for(auto &[group, read_set_hash] : pendingQuery->group_result_hashes){
+                  proto::QueryGroupMeta &queryMD = (*queryRep->mutable_group_meta())[group]; 
+                  queryMD.set_read_set_hash(read_set_hash);
+                }
+                  //When caching read sets: Check that client reported version matches local one. If not, report Client. (FIFO guarantees that client wouldn't send prepare before retry)
+                      //Problem: What if client crashes, and another interested client proposes the prepare for a version whose retry has not yet reached some replicas (no FIFO across channels). Could cause deterministic tx abort.
+                      //==> Replica waits for query-id/version to arrive before processing P1 request. Interested client is guaranteed to be able to supply it.
+                     // ==> What if client used different versions of same query id for different prepares?
+                         // Should never happen: Client must only use each query id ONCE. Thus, if there are two prepares with the same query-id but different version ==> report client
+              }
+              else{
+                for(auto &[group, query_read_set] : pendingQuery->group_read_sets){
+                  
+                  if(params.query_params.mergeActiveAtClient){
+                     //Option 1): Merge all active read sets into main_read set. When sorting, catch errors and abort early.
+                    for(auto &read : *query_read_set->mutable_read_set()){
+                      ReadMessage* add_read = txn.add_read_set();
+                      *add_read = std::move(read);
+                    }
+                    //Merge all deps as well. Note: Optimistic Id's were already reverted back to real tx-ids at this point. (Must ensure that all dep is on correct txn - cannot be optimistic anymore)
+                    for(auto &dep : *query_read_set->mutable_deps()){
+                      proto::Dependency *add_dep = txn.add_deps();
+                      *add_dep = std::move(dep);
+                    }
+                    // for(auto &dep_id : *query_read_set->mutable_dep_ids()){
+                    //   Dependency *add_dep = txn.add_deps();
+                    //   add_dep->set_involved_group(group);
+                    //   *add_dep->mutable_write()->prepared_txn_digest() = std::move(dep_id);
+                    // }
 
-
-//                 // TODO: Use correct serialization for query result
-//                 qcb(REPLY_OK, std::make_unique<sql::QueryResultProtoWrapper>(pendingQuery->result)); //call back to application 
-//                 //clean pendingQuery and query_seq_num_mapping in all shards.
-//                 ClearQuery(pendingQuery);      
-//             }
-//           }
-//           else{
-//             Debug("[group %i] Reported failure for QuerySync [seq : ver] [%lu : %lu] \n", group, pendingQuery->queryMsg.query_seq_num(), pendingQuery->version);
-//             RetryQuery(pendingQuery);
-//           }                     
-//     };
-//     result_timeout_callback rtcb = qtcb;
-
-//     // Send the Query operation to involved shards & select transaction manager (shard responsible for result reply) 
-//      for(auto &i: pendingQuery->involved_groups){
-//         Debug("[group %i] starting Query [%lu:%lu]", i, client_seq_num, query_seq_num);
-//         bclient[i]->Query(client_seq_num, query_seq_num, pendingQuery->queryMsg, rcb, rtcb, timeout);
-//      }
-//     // Shard Client upcalls only if it is the leader for the query, and if it gets matching result hashes  ..........const std::string &resultHash
-//        //store QueryID + result hash in transaction.
+                    delete query_read_set;
+                  }
+                  else{
+                    //Option 2): send all active read sets individually per query
+                    proto::QueryGroupMeta &queryMD = (*queryRep->mutable_group_meta())[group]; 
+                    queryMD.set_allocated_query_read_set(query_read_set);
+                  }
+                }
+                pendingQuery->group_read_sets.clear(); //Note: Clearing here early to avoid double deletions on read sets whose allocated memory was moved.
+              }
+        
+              Debug("Upcall with result");
+              sql::QueryResultProtoWrapper *q_result = new sql::QueryResultProtoWrapper(pendingQuery->result);
+              qcb(REPLY_OK, q_result); //callback to application 
+              //clean pendingQuery and query_seq_num_mapping in all shards.
+              ClearQuery(pendingQuery);      
+            }
+          }
+          else{
+            delete query_read_set;
+            Debug("[group %i] Reported failure for QuerySync [seq : ver] [%lu : %lu] \n", group, pendingQuery->queryMsg.query_seq_num(), pendingQuery->version);
+            RetryQuery(pendingQuery);
+          }                     
+    };
+    result_timeout_callback rtcb = qtcb;
 
 //     //queryBuffer[query_seq_num] = std::move(queryMsg);  //Buffering only after sending, so we can move contents for free.
 
@@ -413,6 +566,7 @@ void Client::RetryQuery(PendingQuery *pendingQuery){
   pendingQuery->version++;
   pendingQuery->group_replies = 0;
   pendingQuery->queryMsg.set_retry_version(pendingQuery->version);
+  pendingQuery->ClearReplySets();
   for(auto &g: pendingQuery->involved_groups){
     bclient[g]->RetryQuery(pendingQuery->queryMsg.query_seq_num(), pendingQuery->queryMsg); //--> Retry Query, shard clients already have the rcb.
   }
@@ -452,10 +606,41 @@ void Client::Commit(commit_callback ccb, commit_timeout_callback ctcb,
     uint64_t ns = Latency_End(&executeLatency);
     Latency_Start(&commitLatency);
 
+    if(!txn.query_set().empty() && !params.query_params.cacheReadSet && params.query_params.mergeActiveAtClient){
+      //If has queries, and query deps are meant to be reported by client:
+      // Sort and erase all duplicate dependencies. (equality = same txn_id and same involved group.)
+      std::sort(txn.mutable_deps()->begin(), txn.mutable_deps()->end(), sortDepSet);
+      txn.mutable_deps()->erase(std::unique(txn.mutable_deps()->begin(), txn.mutable_deps()->end(), equalDep), txn.mutable_deps()->end());  //erases all but last appearance
+      
+    }
+
     //XXX flag to sort read/write sets for parallel OCC
     if(params.parallel_CCC){
-      std::sort(txn.mutable_read_set()->begin(), txn.mutable_read_set()->end(), sortReadByKey);
-      std::sort(txn.mutable_write_set()->begin(), txn.mutable_write_set()->end(), sortWriteByKey);
+      try {
+        std::sort(txn.mutable_read_set()->begin(), txn.mutable_read_set()->end(), sortReadSetByKey);
+        std::sort(txn.mutable_write_set()->begin(), txn.mutable_write_set()->end(), sortWriteSetByKey);
+        //Note: Use stable_sort to guarantee order respects duplicates; Altnernatively: Can try to delete from write sets to save redundant size.
+
+        //If write set can contain duplicates use the following: Reverse + sort --> "latest" put is first. Erase all but first entry. 
+        //(Note: probably cheaper to erase all duplicates manually during insert? Or use map?)
+        // std::reverse(txn.mutable_write_set()->begin(), txn.mutable_write_set()->end());
+        // std::stable_sort(txn.mutable_write_set()->begin(), txn.mutable_write_set()->end(), sortWriteSetByKey);  //sorts while maintaining relative order
+        // txn.mutable_write_set()->erase(std::unique(txn.mutable_write_set()->begin(), txn.mutable_write_set()->end(), equalWriteMsg), txn.mutable_write_set()->end());  //erases all but last appearance
+      }
+      catch(...) {
+        Debug("Preemptive Abort: Trying to commit a transaction with 2 different reads for the same key");
+        uint64_t ns = Latency_End(&executeLatency);
+
+        Debug("ABORT[%lu:%lu]", client_id, client_seq_num);
+        if(!params.query_params.mergeActiveAtClient) Panic("Without Client-side query merge Client should never read same key twice");
+
+        for (auto group : txn.involved_groups()) {
+          bclient[group]->Abort(client_seq_num, txn.timestamp(), txn);
+        }
+        ccb(ABORTED_SYSTEM);
+        //Panic("Client should never read same key twice");
+        return;
+      }
     }
 
     PendingRequest *req = new PendingRequest(client_seq_num, this);
@@ -873,6 +1058,34 @@ void Client::WritebackProcessing(PendingRequest *req){
       }
      }
   }
+
+  req->writeback.Clear();
+  // create commit request
+  req->writeback.set_decision(req->decision);
+  if (params.validateProofs && params.signedMessages) {
+    if (req->fast && req->decision == proto::COMMIT) {
+      *req->writeback.mutable_p1_sigs() = std::move(req->p1ReplySigsGrouped);
+    }
+    else if (req->fast && !req->conflict_flag && req->decision == proto::ABORT) {
+      *req->writeback.mutable_p1_sigs() = std::move(req->p1ReplySigsGrouped);
+    }
+    else if (req->fast && req->conflict_flag && req->decision == proto::ABORT) {
+      if(req->conflict.has_p2_view()){
+        req->writeback.set_p2_view(req->conflict.p2_view()); //XXX not really necessary, we never check it
+      }
+      else{
+        req->writeback.set_p2_view(0); //implies that this was a p1 proof for the conflict, attaching a view anyway..
+      }
+      *req->writeback.mutable_conflict() = std::move(req->conflict);
+
+    } else {
+      *req->writeback.mutable_p2_sigs() = std::move(req->p2ReplySigsGrouped);
+      req->writeback.set_p2_view(req->decision_view); //TODO: extend this to process other views too? Bookkeeping should only be needed
+      // for fallback though. Either combine the logic, or change it so that the orignial client issues FB function too
+
+    }
+  }
+  req->writeback.set_txn_digest(req->txnDigest);
 }
 
 void Client::Writeback(PendingRequest *req) {
@@ -913,12 +1126,18 @@ void Client::Writeback(PendingRequest *req) {
   //this function truncates sigs for the Abort p1 fast case
   WritebackProcessing(req);
 
+  // if(!ValidateWB(req->writeback, &req->txnDigest, &req->txn)){ //FIXME: Remove: Just for testing.
+  //   Panic("Writeback Validation should never be false for own proposal");
+  //   return;
+  // }
+
   //if(req->decision ==0 && client_id == 1) Panic("Testing client 1 fail stop after preparing."); //Manual testing.
 
   for (auto group : txn.involved_groups()) {
-    bclient[group]->Writeback(client_seq_num, txn, req->txnDigest,
-        req->decision, req->fast, req->conflict_flag, req->conflict, req->p1ReplySigsGrouped,
-        req->p2ReplySigsGrouped, req->decision_view);
+    bclient[group]->Writeback(client_seq_num, req->writeback);
+    // bclient[group]->Writeback(client_seq_num, txn, req->txnDigest,
+    //     req->decision, req->fast, req->conflict_flag, req->conflict, req->p1ReplySigsGrouped,
+    //     req->p2ReplySigsGrouped, req->decision_view);
   }
 
   if (!req->callbackInvoked) {
@@ -974,7 +1193,7 @@ void Client::Abort(abort_callback acb, abort_timeout_callback atcb,
     Debug("ABORT[%lu:%lu]", client_id, client_seq_num);
 
     for (auto group : txn.involved_groups()) {
-      bclient[group]->Abort(client_seq_num, txn.timestamp());
+      bclient[group]->Abort(client_seq_num, txn.timestamp(), txn); 
     }
 
     // TODO: can we just call callback immediately?
@@ -1015,9 +1234,9 @@ void Client::FailureCleanUp(PendingRequest *req) {
   delete req;
 }
 
-
+//DEPRECATED/UNUSED
 //INSTEAD: just use the existing ForwardWriteback function from the FB, and then add ongoing txn to it..
-void Client::ForwardWBcallback(uint64_t txnId, int group, proto::ForwardWriteback &forwardWB){
+void Client::ForwardWBcallback(uint64_t txnId, int group, proto::ForwardWriteback &forwardWB){ 
   auto itr = this->pendingReqs.find(txnId);
   if (itr == this->pendingReqs.end()) {
     Debug("ForwardWBcallback for terminated request id %lu (txn already committed or aborted).", txnId);
@@ -1069,6 +1288,7 @@ void Client::ForwardWBcallback(uint64_t txnId, int group, proto::ForwardWritebac
   }
 
   for (auto group : txn.involved_groups()) {
+    //bclient[group]->Writeback(client_seq_num, writeback);
     bclient[group]->Writeback(client_seq_num, txn, req->txnDigest,
         req->decision, req->fast, req->conflict_flag, req->conflict, req->p1ReplySigsGrouped,
         req->p2ReplySigsGrouped);
@@ -1348,13 +1568,16 @@ void Client::WritebackFBcallback(uint64_t conflict_id, std::string txnDigest, pr
   pendingFB->startedWriteback = true;
 
   Debug("Forwarding WritebackFB fast for txn: %s",BytesToHex(txnDigest, 16).c_str());
-  //TODO: Need to validate WB message:
-  // 1) check that txnDigest matches txn content
-  // 2) check that sigs match decision and txnDigest
-  //TODO:: CHECK THAT fbtxn matches digest? Not necessary if we just set the contents ourselves.
-  // set txn field here.
+  //Note: Currently optimistically just accepting forwarded Writeback and stopping Fallback.
+  //Note: TODO: May want to pessimistically validate WB message: Don't need to validate it for safety! (replicas will verify it). Only for liveness, since currently we stop fallback processing. Either verify or continue FB processing.
+  //TODO: Would want it to be asynchronous though, such that it doesn't block the client from receiving and processing its ongoing tx.
+  // if(!ValidateWB(wb, &txnDigest, &pendingFB->txn)){
+  //   Panic("Wb validation should never be false while testing without byz replica sending corrupt message");
+  //   return;
+  // }
+  
+  //CHECK THAT fbtxn matches digest? Not necessary if we just set the contents ourselves.
   //Also: server side message might not include txn, hence include it ourselves just in case.
-
   *wb.mutable_txn() = std::move(pendingFB->txn);
 
  for (auto group : wb.txn().involved_groups()) {
@@ -1363,6 +1586,67 @@ void Client::WritebackFBcallback(uint64_t conflict_id, std::string txnDigest, pr
  //delete FB instance. (doing so early will make sure other ShardClients dont waste work.)
  Completed_transactions.insert(txnDigest);
  CleanFB(pendingFB, txnDigest, false); //NOTE: In this case, shard clients clean themselves (in order to support the move operator)
+}
+
+bool Client::ValidateWB(proto::Writeback &msg, std::string *txnDigest, proto::Transaction *txn){
+  Debug("Validating Writeback msg for txn %s", BytesToHex(*txnDigest, 16).c_str());
+  //Note: Does not support multithreading or batchVerification currently.
+
+  // 1) check that txnDigest matches txn content
+  if (msg.has_txn_digest()){
+    if(*txnDigest != msg.txn_digest()){
+      std::cerr << "txnDigs don't match" << std::endl;
+      return false;
+    } 
+  }
+  else if(msg.has_txn()){
+    if(*txnDigest != TransactionDigest(msg.txn(), params.hashDigest)){
+      std::cerr << "txnDig doesnt match Transaction" << std::endl;
+      return false;
+    } 
+  }
+  else {
+    Panic("Should have txn or txn_digest");
+    return false;
+  }
+  
+   // 2) check that sigs match decision and txnDigest
+  if (params.validateProofs) {
+    if (params.signedMessages && msg.has_p1_sigs()) {
+        proto::ConcurrencyControl::Result myResult;
+
+        if (!ValidateP1Replies(msg.decision(), true, txn, txnDigest, msg.p1_sigs(), keyManager, config, -1, myResult, verifier)) {
+              Debug("WRITEBACK[%s] Failed to validate P1 replies for fast decision %s.", BytesToHex(*txnDigest, 16).c_str(), (msg.decision() == proto::CommitDecision::COMMIT) ? "commit" : "abort");
+              std::cerr << "Wb failed P1 fast validation" << std::endl;
+              return false;
+        }   
+    }
+    else if (params.signedMessages && msg.has_p2_sigs()) {
+        if(!msg.has_p2_view()) return false;
+        proto::CommitDecision myDecision;
+  
+        if (!ValidateP2Replies(msg.decision(), msg.p2_view(), txn, txnDigest, msg.p2_sigs(), keyManager, config, -1, myDecision, verifier)) {
+                Debug("WRITEBACK[%s] Failed to validate P2 replies for decision %s.", BytesToHex(*txnDigest, 16).c_str(), (msg.decision() == proto::CommitDecision::COMMIT) ? "commit" : "abort");
+                std::cerr << "Wb failed P2 slow validation" << std::endl;
+                return false;
+        }
+    } 
+    else if (msg.decision() == proto::ABORT && msg.has_conflict()) {
+      std::string committedTxnDigest = TransactionDigest(msg.conflict().txn(), params.hashDigest);
+
+      if (!ValidateCommittedConflict(msg.conflict(), &committedTxnDigest, txn, txnDigest, params.signedMessages, keyManager, config, verifier)) {
+            Debug("WRITEBACK[%s] Failed to validate committed conflict for fast abort.", BytesToHex(*txnDigest, 16).c_str());
+            std::cerr << "Wb failed conflict validation" << endl;
+            return false;
+      }
+    } 
+    else if (params.signedMessages) {
+      Debug("WRITEBACK[%s] decision %d, has_p1_sigs %d, has_p2_sigs %d, and has_conflict %d.", BytesToHex(*txnDigest, 16).c_str(), msg.decision(), msg.has_p1_sigs(), msg.has_p2_sigs(), msg.has_conflict());
+      Panic("Wb without proof.");
+      return false;
+    }
+  }  
+  return true;
 }
 
 
@@ -1501,9 +1785,10 @@ void Client::WritebackFB(PendingRequest *req){
   WritebackProcessing(req);
 
   for (auto group : req->txn.involved_groups()) {
-    bclient[group]->Writeback(0, req->txn, req->txnDigest,
-        req->decision, req->fast, req->conflict_flag, req->conflict, req->p1ReplySigsGrouped,
-        req->p2ReplySigsGrouped, req->decision_view);
+    bclient[group]->WritebackFB(req->txnDigest, req->writeback);
+    // bclient[group]->Writeback(0, req->txn, req->txnDigest,
+    //     req->decision, req->fast, req->conflict_flag, req->conflict, req->p1ReplySigsGrouped,
+    //     req->p2ReplySigsGrouped, req->decision_view);
   }
   //delete FB instance. (doing so early will make sure other ShardClients dont waste work.)
   Completed_transactions.insert(req->txnDigest);

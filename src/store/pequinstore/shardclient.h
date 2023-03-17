@@ -67,7 +67,8 @@ typedef std::function<void(int, const std::string &,
 typedef std::function<void(int, const std::string &)> read_timeout_callback;
 
 ////////// Queries
-typedef std::function<void(int, int, std::map<std::string, TimestampMessage> &, std::string &, std::string &, bool)> result_callback; //status, group, read_set, result_hash, result, success
+//typedef std::function<void(int, int, std::map<std::string, TimestampMessage> &, std::string &, std::string &, bool)> result_callback; //status, group, read_set, result_hash, result, success
+typedef std::function<void(int, int, proto::ReadSet*, std::string &, std::string &, bool)> result_callback; //status, group, read_set, result_hash, result, success
 typedef std::function<void(int)> result_timeout_callback;
 
 /////////// Basil protocol
@@ -154,16 +155,18 @@ virtual void Phase2Equivocate_Simulate(uint64_t id, const proto::Transaction &tx
   virtual void Phase2Equivocate(uint64_t id, const proto::Transaction &txn, const std::string &txnDigest,
       const proto::GroupedSignatures &groupedCommitSigs, const proto::GroupedSignatures &groupedAbortSigs,
       phase2_callback pcb, phase2_timeout_callback ptcb, uint32_t timeout);
+  virtual void Writeback(uint64_t id, const proto::Writeback &wb);
   virtual void Writeback(uint64_t id, const proto::Transaction &transaction, const std::string &txnDigest,
     proto::CommitDecision decision, bool fast, bool conflict_flag, const proto::CommittedProof &conflict,
     const proto::GroupedSignatures &p1Sigs, const proto::GroupedSignatures &p2Sigs, uint64_t decision_view = 0UL);
   //overloaded function for fallback
+  virtual void WritebackFB(const std::string &txnDigest, const proto::Writeback &wb);
   virtual void WritebackFB(const proto::Transaction &transaction, const std::string &txnDigest,
       proto::CommitDecision decision, bool fast, const proto::CommittedProof &conflict,
       const proto::GroupedSignatures &p1Sigs, const proto::GroupedSignatures &p2Sigs);
 ////////////// End Commit Protocol
 
-  virtual void Abort(uint64_t id, const TimestampMessage &ts);
+  virtual void Abort(uint64_t id, const TimestampMessage &ts, const proto::Transaction &_tx);
   virtual bool SendPing(size_t replica, const PingMessage &ping);
 
   void SetFailureFlag(bool f) {
@@ -223,10 +226,23 @@ virtual void Phase2Equivocate_Simulate(uint64_t id, const proto::Transaction &tx
     bool firstCommittedReply;
   };
 
+  struct Result_mgr {
+      Result_mgr(): freq(0){
+        merged_deps.clear();
+        //merged_deps() = std::set<proto::Write*, decltype(&compDepWritePtr)>();
+      }
+      ~Result_mgr(){}
+      uint64_t freq; //Number of times the given result and result-hash (read set) were received
+      std::set<proto::Write*, decltype(&compDepWritePtr)> merged_deps;
+      
+  }; 
 //TODO: Define management object fully
   struct PendingQuery {
-    PendingQuery(uint64_t reqId) : reqId(reqId),
-        numSnapshotReplies(0UL), numResults(0UL), numFails(0UL), query_manager(false), success(false), retry_version(0UL) { }
+    PendingQuery(uint64_t reqId, const QueryParameters *query_params) : reqId(reqId),
+        numResults(0UL), numFails(0UL), query_manager(false), success(false), retry_version(0UL), snapshot_mgr(query_params) //,  numSnapshotReplies(0UL),
+        { 
+          result_freq.clear();
+        }
     ~PendingQuery() { }
     uint64_t reqId; 
     uint64_t client_seq_num;
@@ -238,10 +254,10 @@ virtual void Phase2Equivocate_Simulate(uint64_t id, const proto::Transaction &tx
     // uint64_t queryMessages;
     // uint64_t queryQuorumSize;
     std::unordered_set<uint64_t> snapshotsVerified;
-    uint64_t numSnapshotReplies;
-    std::unordered_map<std::string, std::set<uint64_t>> txn_freq; //replicas that have txn committed.
     proto::MergedSnapshot merged_ss;
-
+    SnapshotManager snapshot_mgr;
+    // uint64_t numSnapshotReplies;
+    // std::unordered_map<std::string, std::set<uint64_t>> txn_freq; //replicas that have txn committed.
 
     uint64_t retry_version;
     uint64_t num_designated_replies;
@@ -251,7 +267,12 @@ virtual void Phase2Equivocate_Simulate(uint64_t id, const proto::Transaction &tx
     //std::unordered_set<uint64_t> failsVerified;
     std::string result;
     std::string result_hash;
-    std::unordered_map<std::string, std::unordered_map<std::string, uint64_t>> result_freq; //map from result to map of associated result hash + their frequency (could be that two same results have different result hash; and vice versa)
+
+    
+    //map from result to map of associated result hash + their frequency (could be that two same results have different result hash; and vice versa)
+    std::unordered_map<std::string, std::unordered_map<std::string, Result_mgr>> result_freq; 
+    //TODO: For each read_set -> maintain a list of deps that is updated.
+    
     
     bool query_manager;
     result_callback rcb;
@@ -482,7 +503,7 @@ virtual void Phase2Equivocate_Simulate(uint64_t id, const proto::Transaction &tx
   //void RetryQuery(PendingQuery *pendingQuery);
   void HandleQuerySyncReply(proto::SyncReply &SyncReply);
   void SyncReplicas(PendingQuery *pendingQuery);
-  void HandleQueryResult(proto::QueryResult &queryResult);
+  void HandleQueryResult(proto::QueryResultReply &queryResult);
   void HandleFailQuery(proto::FailQuery &msg);
 
 
@@ -563,8 +584,8 @@ virtual void Phase2Equivocate_Simulate(uint64_t id, const proto::Transaction &tx
   proto::QueryRequest queryReq;
   proto::SyncReply SyncReply;
   proto::LocalSnapshot validated_local_ss;
-  proto::QueryResult queryResult;
-  proto::Result validated_result;
+  proto::QueryResultReply queryResult;
+  proto::QueryResult validated_result;
   proto::FailQuery failQuery;
   proto::FailQueryMsg validated_fail;
 

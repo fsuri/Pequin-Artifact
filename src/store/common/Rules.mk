@@ -19,4 +19,4 @@ LIB-store-common := $(LIB-message) $(o)common-proto.o $(o)promise.o \
 		$(o)taopq_query_result_wrapper.o $(o)taopq_query_result_wrapper_row.o \
 		$(o)taopq_query_result_wrapper_field.o
 
-include $(d)backend/Rules.mk $(d)frontend/Rules.mk
+include $(d)backend/Rules.mk $(d)frontend/Rules.mk $(d)query_result/Rules.mk

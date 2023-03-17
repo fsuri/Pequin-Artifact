@@ -93,10 +93,21 @@ The high-level requirements for compiling Basil and the baselines are:
    <!-- You may try to use Ubuntu 20.04.2 LTS instead of 18.04 LTS. However, we do not guarantee a fully documented install process, nor precise repicability of our results. Note, that using Ubuntu 20.04.2 LTS locally (or as control machine) to generate and upload binaries may *not* be compatible with running Cloudlab machines using our cloud lab images (as they use 18.04 LTS(. In order to use Ubuntu 20.04.2 LTS you may have to manually create new disk images for CloudLab instead of using our supplied images for 18.04 LTS to guarantee library compatibility. -->
    <!-- You may try to run on Mac, which has worked for us in the past, but is not documented in the following ReadMe and may not easily be trouble-shooted by us. -->
   
-- Requires python3 
+- Requires python3 (install included below)
 - Requires C++ 17 
-- Requires Java Version >= 1.8 for BFTSmart. We suggest you run the Open JDK java 11 version (install included below) as our Makefile is currently hard-coded for it.
+- Requires Java Version >= 1.8 for BFTSmart. We suggest you run the Open JDK java 11 version (install included below) as our Makefile is currently hard-coded for it. (install included below)
 
+### AUTOMATIC INSTALLATION
+
+Simply run `./install_dependencies.sh`. If the script is not set to executable by default, use `chmod +x install_dependencies.sh` first. 
+Each installation step will print `COMPLETE` upon completion, and require manual input to proceed -- please verify that the installation step proceeded without errors. In case of errors, please consult the [manual installation](#MANUAL-INSTALLATION) and [troubleshooting](#Troubleshooting) below.
+If successful, skip ahead to [Building binaries](#Building-binaries). 
+
+> :warning: NOTE: The script requires explicit manual interaction when installing IntelTBB and BFT-SMaRt requisites. Please consult the manual installation below.
+
+### MANUAL INSTALLATION
+
+> :warning: For manual dependency installation follow the instructions below.
 
 ### General installation pre-reqs
 
@@ -128,6 +139,7 @@ You may install them directly using:
 - If using Ubuntu 18.04, use `sudo apt install libevent-openssl-2.1-6 libevent-pthreads-2.1-6` instead for openssl and pthreads.
 
 In addition, you will need to install the following libraries from source (detailed instructions below):
+- [Hoard Allocator](https://github.com/emeryberger/Hoard)
 - [googletest-1.10](https://github.com/google/googletest/releases/tag/release-1.10.0)
 - [protobuf-3.5.1](https://github.com/protocolbuffers/protobuf/releases/tag/v3.5.1)
 - [cryptopp-8.2](https://github.com/weidai11/cryptopp/releases/tag/CRYPTOPP_8_2_0) <!-- (htps://cryptopp.com/cryptopp820.zip)-->
@@ -144,7 +156,16 @@ We recommend organizing all installs in a dedicated folder:
 1. `mkdir dependencies`
 2. `cd dependencies`
 
-#### Installing taopq (TODO: Add to install_dependencies.sh - also see libpq installed through apt above)
+#### Installing Hoard Allocator
+1. `sudo apt-get install clang`
+2. `git clone https://github.com/emeryberger/Hoard`
+3. `cd src`
+4. `make`
+5. `sudo cp libhoard.so /usr/local/lib`
+6. `sudo echo 'export LD_PRELOAD=/usr/local/lib/libhoard.so' >> ~/.bashrc; source ~/.bashrc;` (once) or `export LD_PRELOAD=/usr/local/lib/libhoard.so` (everytime)
+7. `cd ..`
+
+#### Installing taopq 
 
 Download the library:
 
@@ -161,9 +182,9 @@ Next, build taopq:
 
 4. `sudo cmake .`
 5. `sudo cmake --build . -j $(nproc)`
-7. `sudo make install`
-8. `sudo ldconfig`
-9. `cd ..`
+6. `sudo make install`
+7. `sudo ldconfig`
+8. `cd ..`
 
 #### Installing google test
 
@@ -309,7 +330,7 @@ This completes all required dependencies for Basil, Tapir and TxHotstuff. To suc
 First, install Java open jdk 1.11.0 in /usr/lib/jvm and export your LD_LIBRARY_Path:
 
 1. `sudo apt-get install openjdk-11-jdk` Confirm that `java-11-openjdk-amd64` it is installed in /usr/lib/jvm  
-2. `export LD_LIBRARY_PATH=/usr/lib/jvm/java-1.11.0-openjdk-amd64/lib/server:$LD_LIBRARY_PATH`
+2. `sudo echo 'export LD_LIBRARY_PATH=/usr/lib/jvm/java-1.11.0-openjdk-amd64/lib/server:$LD_LIBRARY_PATH' >> ~/.bashrc; source ~/.bashrc` (once) or `export LD_LIBRARY_PATH=/usr/lib/jvm/java-1.11.0-openjdk-amd64/lib/server:$LD_LIBRARY_PATH` (everytime)
 3. `sudo ldconfig`
 
 If it is not installed in `/usr/lib/jvm` then source the `LD_LIBRARY_PATH` according to your install location and adjust the following lines in the Makefile with your path:
@@ -320,7 +341,6 @@ If it is not installed in `/usr/lib/jvm` then source the `LD_LIBRARY_PATH` accor
 - `LDFLAGS += -L/usr/lib/jvm/java-1.11.0-openjdk-amd64/lib/server -ljvm`  (adjust this)
 
 Afterwards, navigate to `/usr/lib/jvm/java-11-openjdk-amd64/conf/security/java.security`and comment out (or remove) the following line: `jdk.tls.disabledAlgorithms=SSLv3, TLSv1, RC4, DES, MD5withRSA, DH keySize < 1024 EC keySize < 224, 3DES_EDE_CBC, anon, NULL`
-
 
 ### Building binaries:
    
@@ -488,7 +508,7 @@ Additionally, you will have to install the following requisites:
 
 4. **Helper scripts**: 
 
-    Navigate to Pequin-Artifact/helper-scripts. Copy both these scripts (with the exact name) and place them in `/usr/local/etc` on the Cloudlab machine. Add execution permissions: `chmod +x disable_HT.sh; chmod +x turn_off_turbo.sh` The scripts are used at runtime by the experiments to disable hyperthreading and turbo respectively.
+    Navigate to Pequin-Artifact/helper-scripts. Copy all three scripts (with the exact name) and place them in `/usr/local/etc` on the Cloudlab machine. Add execution permissions: `chmod +x disable_HT.sh; chmod +x turn_off_turbo.sh; chmod +x set_env.sh` The scripts are used at runtime by the experiments to disable hyperthreading and turbo respectively, as well as to set environment variables for Hoard and Java (for BFTSmart).
     
 5. **Pre-Troubleshooting**:
 

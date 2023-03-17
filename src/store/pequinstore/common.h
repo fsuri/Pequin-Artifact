@@ -50,6 +50,10 @@
 
 #include "store/common/failures.h"
 
+#include "lib/compression/TurboPFor-Integer-Compression/vp4.h"
+#include "lib/compression/FrameOfReference/include/compression.h"
+#include "lib/compression/FrameOfReference/include/turbocompression.h"
+
 namespace pequinstore {
 
 
@@ -330,9 +334,12 @@ bool operator!=(const proto::Write &pw1, const proto::Write &pw2);
 std::string TransactionDigest(const proto::Transaction &txn, bool hashDigest);
 
 std::string QueryDigest(const proto::Query &query, bool queryHashDigest);
+std::string QueryRetryId(const std::string &queryId, const uint64_t &retry_version, bool queryHashDigest);
 
+std::string generateReadSetSingleHash(const proto::ReadSet &query_read_set); 
 std::string generateReadSetSingleHash(const std::map<std::string, TimestampMessage> &read_set);
 std::string generateReadSetMerkleRoot(const std::map<std::string, TimestampMessage> &read_set, uint64_t branch_factor);
+
 
 void CompressTxnIds(std::vector<uint64_t>&txn_ts);
 std::vector<uint64_t> DecompressTxnIds();
@@ -351,6 +358,92 @@ bool IsReplicaInGroup(uint64_t id, uint32_t group,
     const transport::Configuration *config);
 
 int64_t GetLogGroup(const proto::Transaction &txn, const std::string &txnDigest);
+
+inline static bool sortReadSetByKey(const ReadMessage &lhs, const ReadMessage &rhs) { 
+    //UW_ASSERT(lhs.key() != rhs.key());  //Read Set should not contain same key twice (doomed to abort) 
+                                          //==> Currenty this might happen since different queries might read the same read set & read sets are stored as list currently instead of a set
+                                          //"Hacky way": Simulate set by checking whether list contains entry using std::find, e.g. std::find(read_set.begin(), read_set.end(), ReadMsg) == fields.end()
+    if(lhs.key() == rhs.key()){
+        //If a tx reads a key twice with different versions throw exception ==> Since we never add duplicates to the ReadSet, this case will never get triggered client side.
+        if(lhs.readtime().timestamp() != rhs.readtime().timestamp() || lhs.readtime().id() != rhs.readtime().id()){ 
+        //Note: What about an app corner case in which you want to read your own write? Such reads don't have to be added to Read Set -- they are valid by default.
+        //Note: See ShardClient "BufferGet" -- we either read our own write, or read previously read value => thus it is impossible to read 2 different TS. We don't add such reads to ReadSet
+             throw std::exception();
+        }
+        //return (lhs.readtime().timestamp() == rhs.readtime().timestamp()) ? lhs.readtime().id() < rhs.readtime().id() : lhs.readtime().timestamp() < rhs.readtime().timestamp(); 
+    }
+    return lhs.key() < rhs.key(); 
+}
+
+inline static bool sortWriteSetByKey(const WriteMessage &lhs, const WriteMessage &rhs) { 
+    //UW_ASSERT(lhs.key() != rhs.key()); //FIXME: Shouldn't write the same key twice. ==> Currently might happen since we store Write Set as List instead of Set.
+    return lhs.key() < rhs.key(); 
+}
+
+inline static bool sortDepSet(const proto::Dependency &lhs, const proto::Dependency &rhs) { 
+    return (lhs.write().prepared_txn_digest() == rhs.write().prepared_txn_digest() ? lhs.involved_group() < rhs.involved_group() : lhs.write().prepared_txn_digest() < rhs.write().prepared_txn_digest()) ; 
+}
+
+
+inline static bool equalReadMsg(const ReadMessage &lhs, const ReadMessage &rhs){
+    return (lhs.key() == rhs.key()) && (lhs.readtime().timestamp() == rhs.readtime().timestamp()) && (lhs.readtime().id() == rhs.readtime().id());
+}
+
+inline static bool equalWriteMsg(const WriteMessage &lhs, const WriteMessage &rhs) {
+    return lhs.key() == rhs.key(); 
+}
+
+inline static bool equalDep(const proto::Dependency &lhs, const proto::Dependency &rhs) { 
+    return (lhs.write().prepared_txn_digest() == rhs.write().prepared_txn_digest() && lhs.involved_group() == rhs.involved_group()); 
+}
+inline static bool equalDepPtr(const proto::Dependency *&lhs, const proto::Dependency *&rhs) { 
+    return equalDep(*lhs, *rhs);
+    //return (lhs->write().prepared_txn_digest() == rhs->write().prepared_txn_digest() && lhs->involved_group() == rhs->involved_group()); 
+}
+inline static bool compDepWritePtr(const proto::Write *lhs, const proto::Write *rhs) { 
+    return lhs->prepared_txn_digest() < rhs->prepared_txn_digest();
+    //return (lhs->write().prepared_txn_digest() == rhs->write().prepared_txn_digest() && lhs->involved_group() == rhs->involved_group()); 
+}
+
+
+
+inline static bool compareReadSets (google::protobuf::RepeatedPtrField<ReadMessage> const &lhs, google::protobuf::RepeatedPtrField<ReadMessage> const &rhs){ // (proto::ReadSet const &lhs, proto::ReadSet const &rhs) {
+    return lhs.size() == rhs.size() && std::equal(lhs.begin(), lhs.end(), rhs.begin(), equalReadMsg); 
+}
+
+
+struct QueryReadSetMgr {
+        QueryReadSetMgr(proto::ReadSet *read_set, const uint64_t &groupIdx): read_set(read_set), groupIdx(groupIdx) {}
+        ~QueryReadSetMgr(){}
+
+        void AddToReadSet(const std::string &key, const TimestampMessage &readtime){
+           ReadMessage *read = read_set->add_read_set();
+          //ReadMessage *read = query_md->queryResult->mutable_query_read_set()->add_read_set();
+          read->set_key(key);
+          *read->mutable_readtime() = readtime;
+        }
+
+        void AddToDepSet(const std::string &tx_id, bool optimisticId, const TimestampMessage &tx_ts){
+            proto::Dependency *add_dep = read_set->add_deps();
+            add_dep->set_involved_group(groupIdx);
+            add_dep->mutable_write()->set_prepared_txn_digest(tx_id);
+            Debug("Adding Dep: %s", BytesToHex(tx_id, 16).c_str());
+            //Note: Send merged TS.
+            if(optimisticId){
+                //MergeTimestampId(txn->timestamp().timestamp(), txn->timestamp().id()
+                *add_dep->mutable_write()->mutable_prepared_timestamp() = tx_ts;
+                // add_dep->mutable_write()->mutable_prepared_timestamp()->set_timestamp(txn->timestamp().timestamp());
+                // add_dep->mutable_write()->mutable_prepared_timestamp()->set_id(txn->timestamp().id());
+            }
+        }
+
+      proto::ReadSet *read_set;
+      uint64_t groupIdx;
+};
+
+//For managing WriteSet
+std::string EncodeTableRow(const std::string &table_name, const std::vector<char*> primary_key_columns);
+void DecodeTableRow(const std::string &enc_key, std::string &table_name, std::vector<std::string> primary_key_columns);
 
 // enum InjectFailureType {
 //   CLIENT_EQUIVOCATE = 0,
@@ -371,8 +464,9 @@ int64_t GetLogGroup(const proto::Transaction &txn, const std::string &txnDigest)
 //   uint32_t frequency;
 // };
 
-typedef struct QueryParameters {
 
+
+typedef struct QueryParameters {
     //protocol parameters
     const uint64_t syncQuorum; //number of replies necessary to form a sync quorum
     const uint64_t queryMessages; //number of query messages sent to replicas to request sync replies
@@ -380,22 +474,104 @@ typedef struct QueryParameters {
     const uint64_t syncMessages;    //number of sync messages sent to replicas to request result replies
     const uint64_t resultQuorum ;   //number of matching query replies necessary to return
     
+    const bool eagerExec;
     const bool readPrepared; //read only committed or also prepared values in query?
-    const bool optimisticTxID; //use unique hash tx ids (normal ids), or optimistically use timestamp as identifier?
     const bool cacheReadSet; //return query read set to client, or cache it locally at servers?
+    const bool optimisticTxID; //use unique hash tx ids (normal ids), or optimistically use timestamp as identifier?
+    const bool compressOptimisticTxIDs; //compress the ts Ids using integer compression.
+   
+
+    const bool mergeActiveAtClient; //When not caching read sets, merge query read sets at client
 
     const bool signClientQueries;
+    const bool signReplicaToReplicaSync;
 
     //performance parameters
     const bool parallel_queries;
 
-    QueryParameters(uint64_t syncQuorum, uint64_t queryMessages, uint64_t mergeThreshold, uint64_t syncMessages, uint64_t resultQuorum,
-        bool readPrepared, bool optimisticTxID, bool cacheReadSet, bool signClientQueries, bool parallel_queries) : 
+    QueryParameters(uint64_t syncQuorum, uint64_t queryMessages, uint64_t mergeThreshold, uint64_t syncMessages, uint64_t resultQuorum, 
+        bool eagerExec, bool readPrepared, bool cacheReadSet, bool optimisticTxID, bool compressOptimisticTxIDs, bool mergeActiveAtClient, 
+        bool signClientQueries, bool signReplicaToReplicaSync, bool parallel_queries) : 
         syncQuorum(syncQuorum), queryMessages(queryMessages), mergeThreshold(mergeThreshold), syncMessages(syncMessages), resultQuorum(resultQuorum),
-        readPrepared(readPrepared), optimisticTxID(optimisticTxID), cacheReadSet(cacheReadSet), signClientQueries(signClientQueries),
-        parallel_queries(parallel_queries) {}
+        eagerExec(eagerExec), readPrepared(readPrepared), cacheReadSet(cacheReadSet), optimisticTxID(optimisticTxID), compressOptimisticTxIDs(compressOptimisticTxIDs), mergeActiveAtClient(mergeActiveAtClient), 
+        signClientQueries(signClientQueries), signReplicaToReplicaSync(signReplicaToReplicaSync), parallel_queries(parallel_queries) {}
 
 } QueryParameters;
+
+uint64_t MergeTimestampId(const uint64_t &timestamp, const uint64_t &id);
+
+class TimestampCompressor {   //TODO: Re-factor TimestampCompressor to just be a functional interface (hold no data) --> 4 functions: CompressLocal, DecompressLocal, CompressMerged, DecompressMerged
+                              //If we want to use 32 bit id's -> need buckets = need data. But currently only using 64 bit ids
+ public:
+    TimestampCompressor();
+    virtual ~TimestampCompressor();
+    void InitializeLocal(proto::LocalSnapshot *local_ss, bool compressOptimisticTxIds = false);
+    void AddToBucket(const TimestampMessage &ts);
+    void ClearLocal();
+    void CompressLocal(proto::LocalSnapshot *local_ss);
+    void DecompressLocal(proto::LocalSnapshot *local_ss);
+    void CompressAll();
+    void DecompressAll();
+    //TODO: Add Merged
+    std::vector<uint64_t> out_timestamps; //TODO: replace with the repeated field from local_ss
+ private:
+   proto::LocalSnapshot *local_ss;
+   //google::protobuf::RepeatedPtrField<google::protobuf::bytes> *ts_ids;
+   bool compressOptimisticTxIds;
+   uint64_t num_timestamps;
+   std::vector<uint64_t> timestamps; //TODO: replace with the repeated field from local_ss
+   std::vector<uint64_t> ids;
+   std::vector<uint8_t> _compressed_timestamps;
+   std::vector<unsigned char> compressed_timestamps;
+   //store to an ordered_set if Valid compressable TS. valid if 64bit time and 64bit cid can be merged into 1 64 bit number.
+   // upon CompressAll -> split set into buckets (thus each bucket is sorted) --> then on each bucket, run integer compression. Add to bucket only if delta < 32bit
+    //Buckets. Each bucket is a vecotr + delta off-set. Store buckets in order (linked-list?). Find correct bucket to insert by iterating through list(acces first, last for ordering)
+    // better -> store buckets in a map<front, bucket>. Find correct bucket by upper/lower-bound ops. Insert new bucket where appropriate  (you learn left bucket min/max and right bucket min - if inbetween, make new bucket)
+};
+
+//could add directly to end of bucket, but not to right position. iirc buckets need to be sorted?
+
+
+class SnapshotManager {
+//TODO: Store this as part of QueryMetaData.
+public:
+  SnapshotManager(const QueryParameters *query_params); //
+  virtual ~SnapshotManager();
+  //Local Snapshot operations:
+  void InitLocalSnapshot(proto::LocalSnapshot *local_ss, const uint64_t &query_seq_num, const uint64_t &client_id, const uint64_t &replica_id, bool useOptimisticTxId = false);
+  void ResetLocalSnapshot(bool useOptimisticTxId = false);
+  void AddToLocalSnapshot(const std::string &txnDigest, const proto::Transaction *txn, bool committed_or_prepared = true); //For local snapshot; //TODO: Define something similar for merged? Should merged be a separate class?
+  void SealLocalSnapshot();
+  void OpenLocalSnapshot(proto::LocalSnapshot *local_ss);
+  
+  //Merged Snapshot operations:
+  void InitMergedSnapshot(proto::MergedSnapshot *merged_ss, const uint64_t &query_seq_num, const uint64_t &client_id, const uint64_t &retry_version, const uint64_t &config_f); //->if retry version > 0, useOptimisticTxId = false
+  bool ProcessReplicaLocalSnapshot(proto::LocalSnapshot* local_ss);
+  void SealMergedSnapshot();
+  void OpenMergedSnapshot(proto::MergedSnapshot *merged_ss);
+
+private:
+    const QueryParameters *query_params;
+    //TODO: Alternatively deifine and pass only the params we want (then QueryParam definition can move below SnapshotManager)
+    // const bool param_optimisticTxId;
+    //const bool param_compressOptimisticTxId;
+    // const uint64_t *param_syncQuorum;
+    // const uint64_t *param_mergeThreshold;
+
+    //const transport::Configuration *config;
+    uint64_t config_f; 
+    bool useOptimisticTxId;
+
+    TimestampCompressor ts_comp;
+
+    proto::LocalSnapshot *local_ss; //For replica to client   //TODO: Needs to have a field for compressed values.
+
+    proto::MergedSnapshot *merged_ss; //For client to replica
+    
+    uint64_t numSnapshotReplies;
+    std::unordered_map<std::string, std::set<uint64_t>> txn_freq; //replicas that have txn committed.
+    std::unordered_map<uint64_t, std::set<uint64_t>> ts_freq; //replicas that have txn committed.
+};
 
 typedef struct Parameters {
 
@@ -471,7 +647,9 @@ typedef struct Parameters {
     replicaGossip(replicaGossip),
     signClientProposals(signClientProposals),
     rtsMode(rtsMode),
-    query_params(query_params) { }
+    query_params(query_params) { 
+        UW_ASSERT(!(mainThreadDispatching && dispatchMessageReceive)); //They should not be true at the same time.
+    }
 } Parameters;
 
 } // namespace pequinstore
