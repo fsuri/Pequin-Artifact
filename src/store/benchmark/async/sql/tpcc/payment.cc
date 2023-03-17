@@ -27,6 +27,7 @@
 #include "store/benchmark/async/sql/tpcc/payment.h"
 
 #include <sstream>
+#include <format>
 
 #include "store/benchmark/async/tpcc/tpcc_utils.h"
 
@@ -101,10 +102,10 @@ transaction_status_t SQLPayment::Execute(SyncClient &client) {
     query.append(cbn_key);
     client.Query(query, timeout);
 
-    client.Wait(strs);
+    client.Wait(results);
 
     tpcc::CustomerByNameRow cbn_row;
-    deserialize(cbn_row, strs[2]);
+    deserialize(cbn_row, results[2]);
     int idx = (cbn_row.ids_size() + 1) / 2;
     if (idx == cbn_row.ids_size()) {
       idx = cbn_row.ids_size() - 1;
@@ -123,11 +124,11 @@ transaction_status_t SQLPayment::Execute(SyncClient &client) {
     c_key = tpcc::CustomerRowKey(c_w_id, c_d_id, c_id);
     query.append(c_key);
     client.Query(query, timeout);
-    client.Wait(strs);
+    client.Wait(results);
   }
 
   tpcc::WarehouseRow w_row;
-  deserialize(w_row, strs[0]);
+  deserialize(w_row, results[0]);
   w_row.set_ytd(w_row.ytd() + h_amount);
   Debug("  YTD: %u", w_row.ytd());
   query = std::format("INSERT INTO Warehouse\n VALUES ({}, {}, {}, {}, {}, {}, {}, {}, {});", 
