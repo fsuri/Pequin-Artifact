@@ -327,7 +327,61 @@ void Server::Load(const std::string &key, const std::string &value,
   }
 }
 
-//TODO: Define Load function for Tables.
+//TODO: Add these functions as virtual inline to the general server.h -- make it panic if called for stores that don't implement load.
+//For hotstuffPG store --> let proxy call into PG
+//For Crdb --> let server establish a client connection to backend too.
+void Server::CreateTable(const std::string &table_name, const std::vector<(std::string, std::string)> &column_data_types, const std::vector<uint32_t> primary_key_col_idx ){
+
+  std::string sql_statement "CREATE TABLE";
+  sql_statement += " " + table_name ;
+  if(!column_data_types.empty()){
+    sql_statement += " (";
+    for(auto &[col, type]: column_data_types){
+      sql_statement += col + " " + type + ",";
+    }
+    sql_statement +=")"
+  }
+
+  sql_statement +=";";
+
+  //TODO: Call into TableStore with this statement.
+}
+
+void Server::LoadTable(const std::string &table_name, const std::vector<(std::string, std::string)> &column_data_types, const std::vector<std::string> &values, const std::vector<uint32_t> primary_key_col_idx ){
+  std::string sql_statement "INSERT INTO";
+  sql_statement += " " + table_name ;
+
+  if(!columns.empty()){
+    sql_statement += " (";
+    for(auto &[col, _]: column_data_types){
+      sql_statement += col + ", ";
+    }
+    sql_statement.pop_back()
+    sql_statement.pop_back();
+    sql_statement +=")"
+  }
+
+  sql_statement += " VALUES (";
+  UW_ASSERT(!values_empty()); //Need to insert some values...
+  
+  for(auto &[val]: values){
+    sql_statement += val + ", ";
+  }
+  sql_statement.pop_back();
+  sql_statement.pop_back();
+
+  sql_statement += ");" ;
+  
+   //TODO: Call into TableStore with this statement.
+
+  std::vector<char*> primary_cols;
+  for(auto i: primary_key_col_idx){
+    primary_cols.push_back(columns[i].c_str());
+  }
+  std::string enc_key = EncodeTableRow(table_name, primary_cols);
+  Load(enc_key, "", Timestamp());
+}
+
 
 //Handle Read Message
 //Dispatches to reader thread if params.parallel_reads = true, and multithreading enabled

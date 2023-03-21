@@ -881,7 +881,23 @@ int main(int argc, char **argv) {
 			Notice("Created and Stored %lu out of %lu key-value pairs", stored,
 	        loaded);
 		}
-  } else if (FLAGS_data_file_path.length() > 0 && FLAGS_keys_path.empty()) {
+  } 
+  else if(FLAGS_sql_bench && FLAGS_data_file_path.length() > 0 && FLAGS_keys_path.empty()) {
+       std::ifstream generated_tables(FLAGS_data_file_path);
+       json tables_to_load == json::parse(generated_tables);
+       
+       //Load all tables. //TODO: compile
+       for(auto &table: tables_to_load["tables"]){
+          std::string &table_name = table["table_name"]; 
+          const std::vector<(std::string, std::string)> &column_data_types = table["column_names_and_types"];
+          const std::vector<uint32_t> primary_key_col_idx = table["primary_key_col_idx"];
+          CreateTable(table_name, column_names_and_types, primary_key_col_idx); 
+          for(auto &row: table["rows"]){
+            LoadTableRow(table_name, column_data_types, row["values"], primary_key_col_idx);
+          }
+       }
+  }
+  else if (FLAGS_data_file_path.length() > 0 && FLAGS_keys_path.empty()) {
     std::ifstream in;
     in.open(FLAGS_data_file_path);
     if (!in) {
@@ -892,6 +908,7 @@ int main(int argc, char **argv) {
     size_t loaded = 0;
     size_t stored = 0;
     Debug("Populating with data from %s.", FLAGS_data_file_path.c_str());
+
     std::vector<int> txnGroups;
     while (!in.eof()) {
       std::string key;
