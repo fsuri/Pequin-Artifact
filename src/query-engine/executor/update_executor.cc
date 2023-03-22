@@ -198,7 +198,8 @@ bool UpdateExecutor::DExecute() {
     ///////////////////////////////////////////////////////////
     // if running at snapshot isolation,
     // then we need to retrieve the latest version of this tuple.
-    if (current_txn->GetIsolationLevel() == IsolationLevelType::SNAPSHOT) {
+    // Not running in snapshot isolation so commented out
+    /*if (current_txn->GetIsolationLevel() == IsolationLevelType::SNAPSHOT) {
       old_location = *(tile_group_header->GetIndirection(physical_tuple_id));
 
       auto storage_manager = storage::StorageManager::GetInstance();
@@ -215,7 +216,7 @@ bool UpdateExecutor::DExecute() {
                                                  ResultType::FAILURE);
         return false;
       }
-    }
+    }*/
     ///////////////////////////////////////////////////////////
 
     

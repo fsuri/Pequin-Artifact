@@ -165,8 +165,12 @@ bool SeqScanExecutor::DExecute() {
       for (oid_t tuple_id = 0; tuple_id < active_tuple_count; tuple_id++) {
         ItemPointer location(tile_group->GetTileGroupId(), tuple_id);
 
-        auto visibility = transaction_manager.IsVisible(
-            current_txn, tile_group_header, tuple_id);
+        // Commented out since CC is done at Basil level
+        //auto visibility = transaction_manager.IsVisible(
+        //    current_txn, tile_group_header, tuple_id);
+
+        // Always set visibility to be ok
+        auto visibility = VisibilityType::OK;
 
         // check transaction visibility
         if (visibility == VisibilityType::OK) {
@@ -177,6 +181,8 @@ bool SeqScanExecutor::DExecute() {
                                                        location,
                                                        tile_group_header,
                                                        acquire_owner);
+            // Since CC is done at Basil level res should always be true
+            res = true;
             if (!res) {
               transaction_manager.SetTransactionResult(current_txn,
                                                        ResultType::FAILURE);
@@ -195,6 +201,8 @@ bool SeqScanExecutor::DExecute() {
                                                          location,
                                                          tile_group_header,
                                                          acquire_owner);
+              // Since CC is done at Basil level res shoud always be true
+              res = true;
               if (!res) {
                 transaction_manager.SetTransactionResult(current_txn,
                                                          ResultType::FAILURE);

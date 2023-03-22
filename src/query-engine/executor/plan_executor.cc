@@ -121,6 +121,7 @@ static void InterpretPlan(
 
   // Execute the tree until we get values tiles from root node
   while (status == true) {
+    // Pass flag for snapshot, then executor only needs to execute the leaves
     status = executor_tree->Execute();
     std::unique_ptr<executor::LogicalTile> tile(executor_tree->GetOutput());
 

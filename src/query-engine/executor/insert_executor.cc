@@ -125,11 +125,12 @@ bool InsertExecutor::DExecute() {
       // it is possible that some concurrent transactions have inserted the same
       // tuple.
       // in this case, abort the transaction.
-      if (location.block == INVALID_OID) {
-        transaction_manager.SetTransactionResult(current_txn,
-                                                 peloton::ResultType::FAILURE);
-        return false;
-      }
+      // Commented out this check since concurrency control happens at Basil layer
+      //if (location.block == INVALID_OID) {
+      //  transaction_manager.SetTransactionResult(current_txn,
+      //                                           peloton::ResultType::FAILURE);
+      //  return false;
+      //}
 
       transaction_manager.PerformInsert(current_txn, location, index_entry_ptr);
 
@@ -224,11 +225,11 @@ bool InsertExecutor::DExecute() {
         }
       }*/
 
-      if (new_tuple == nullptr) {
+      /*if (new_tuple == nullptr) {
         // trigger doesn't allow this tuple to be inserted
         LOG_TRACE("this tuple is rejected by trigger");
         continue;
-      }
+      }*/
 
       // Carry out insertion
       ItemPointer *index_entry_ptr = nullptr;
@@ -239,12 +240,13 @@ bool InsertExecutor::DExecute() {
         LOG_TRACE("value: %s", val.GetInfo().c_str());
       }
 
-      if (location.block == INVALID_OID) {
-        LOG_TRACE("Failed to Insert. Set txn failure.");
-        transaction_manager.SetTransactionResult(current_txn,
-                                                 ResultType::FAILURE);
-        return false;
-      }
+      // Txn should never fail since CC is done at Basil level
+      //if (location.block == INVALID_OID) {
+      //  LOG_TRACE("Failed to Insert. Set txn failure.");
+      //  transaction_manager.SetTransactionResult(current_txn,
+      //                                           ResultType::FAILURE);
+      //  return false;
+      //}
 
       transaction_manager.PerformInsert(current_txn, location, index_entry_ptr);
 

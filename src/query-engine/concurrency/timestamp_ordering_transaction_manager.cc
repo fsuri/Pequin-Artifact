@@ -167,7 +167,8 @@ bool TimestampOrderingTransactionManager::PerformRead(TransactionContext *const 
   //////////////////////////////////////////////////////////
 
   // TODO: what if we want to read a version that we write?
-  else if (current_txn->GetIsolationLevel() == IsolationLevelType::SNAPSHOT) {
+  // Commented out since we only care about serializability
+  /*else if (current_txn->GetIsolationLevel() == IsolationLevelType::SNAPSHOT) {
     oid_t tuple_id = location.offset;
 
     LOG_TRACE("PerformRead (%u, %u)\n", location.block, location.offset);
@@ -205,12 +206,12 @@ bool TimestampOrderingTransactionManager::PerformRead(TransactionContext *const 
       return true;
     }
 
-  }  // end SNAPSHOT
+  }*/  // end SNAPSHOT
 
   //////////////////////////////////////////////////////////
   //// handle READ_COMMITTED
   //////////////////////////////////////////////////////////
-  else if (current_txn->GetIsolationLevel() ==
+  /*else if (current_txn->GetIsolationLevel() ==
            IsolationLevelType::READ_COMMITTED) {
     oid_t tuple_id = location.offset;
 
@@ -258,7 +259,7 @@ bool TimestampOrderingTransactionManager::PerformRead(TransactionContext *const 
       }
     }
 
-  }  // end READ_COMMITTED
+  }*/  // end READ_COMMITTED
 
   //////////////////////////////////////////////////////////
   //// handle SERIALIZABLE and REPEATABLE_READS

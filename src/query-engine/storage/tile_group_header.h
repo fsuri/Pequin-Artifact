@@ -31,7 +31,8 @@ class TileGroup;
 //===--------------------------------------------------------------------===//
 // Tuple Header
 //===--------------------------------------------------------------------===//
-
+// remove read_ts, begin_ts, end_ts, add tx_id (pointer so not redundant), store whether it's prepared or committed (boolean flag)
+// need timestamp (should be version), tx_id, and encoded key (string version of table_name + primary_key)
 struct TupleHeader {
   common::synchronization::SpinLatch latch;
   std::atomic<txn_id_t> txn_id;

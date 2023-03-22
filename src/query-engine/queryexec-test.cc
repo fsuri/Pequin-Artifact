@@ -129,11 +129,21 @@ int main(int argc, char *argv[]) {
   ExecuteSQLQuery("CREATE TABLE test(a INT);", traffic_cop, counter_, result);
   ExecuteSQLQuery("INSERT INTO test VALUES (99);", traffic_cop, counter_, result);
   ExecuteSQLQuery("INSERT INTO test VALUES (1001);", traffic_cop, counter_, result);
-  ExecuteSQLQuery("SELECT * FROM test;", traffic_cop, counter_, result);
+  // function args: timestamp, snapshot manager, read set manager, boolean flag finding snapshot/executing (read set manager)
+  ExecuteSQLQuery("CREATE TABLE test1(c INT, b INT);", traffic_cop, counter_, result);
+  ExecuteSQLQuery("CREATE TABLE test2(b INT, d INT, e INT)", traffic_cop, counter_, result);
+  ExecuteSQLQuery("INSERT INTO test1 VALUES (99, 200);", traffic_cop, counter_, result);
+  ExecuteSQLQuery("INSERT INTO test1 VALUES (1001, 2202);", traffic_cop, counter_, result);
+  ExecuteSQLQuery("INSERT INTO test2 VALUES (2202, 3303, 4404);", traffic_cop, counter_, result);
+  //ExecuteSQLQuery("INSERT INTO test2 VALUES (3303);", traffic_cop, counter_, result);
+  //ExecuteSQLQuery("INSERT INTO test2 VALUES (4404);", traffic_cop, counter_, result);
+  ExecuteSQLQuery("SELECT * FROM (SELECT test1.b FROM test1 JOIN test ON test1.c = test.a WHERE test1.b > 100) AS X JOIN test2 ON test2.b=X.b;", traffic_cop, counter_, result);
   
   //std::cout << "Statement executed!! Result: " << peloton::ResultTypeToString(status).c_str() << std::endl;
-  std::cout << "Result size: " << result.size() << " First row " << GetResultValueAsString(result, 0) << " Second row " << GetResultValueAsString(result, 1) << std::endl;
-
+  std::cout << "Result size: " << result.size() /*<< " First row " << GetResultValueAsString(result, 0) << " Second row " << GetResultValueAsString(result, 1)*/ << std::endl;
+  for (int i = 0; i < result.size(); i++) {
+    std::cout << "Row " << i << ": Value: " << GetResultValueAsString(result, i) << std::endl;
+  }
   
   /*peloton::catalog::Catalog::GetInstance();
 
