@@ -69,8 +69,9 @@ class Client : public ::Client {
                      uint32_t timeout) override;
 
   // inline const Stats &GetStats() const { return stats; }
-  virtual void Query(std::string &query, query_callback qcb,
-                     query_timeout_callback qtcb, uint32_t timeout);
+
+  virtual void Query(const std::string &query, query_callback qcb,
+                     query_timeout_callback qtcb, uint32_t timeout) override;
 
   //  protected:
   //   Stats stats;
