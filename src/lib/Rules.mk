@@ -55,4 +55,6 @@ $(d)blake3_test: $(LIB-latency) $(LIB-crypto) $(LIB-batched-sigs) $(o)blake3_tes
 
 BINS +=  $(d)crypto_bench $(d)threadpool_test $(d)batched_sigs_test $(d)blake3_test 
 
-include $(d)tests/Rules.mk
+include $(d)compression/Rules.mk
+#include $(d)tests/Rules.mk
+

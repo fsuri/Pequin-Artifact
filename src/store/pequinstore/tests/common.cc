@@ -72,11 +72,17 @@ void PopulateCommitProof(proto::CommittedProof &proof, int n) {
   read->mutable_readtime()->set_id(2);
   proof.mutable_txn()->mutable_timestamp()->set_timestamp(100);
   proof.mutable_txn()->mutable_timestamp()->set_id(1);
+  proto::GroupedSignatures *grouped_sigs = proof.mutable_p2_sigs();
   for (int i = 0; i < n; ++i) {
-    proto::Phase2Reply *p2Reply = proof.mutable_p2_replies()->add_replies();
-    p2Reply->set_req_id(3);
-    p2Reply->set_decision(proto::COMMIT);
-    *p2Reply->mutable_txn_digest() = TransactionDigest(proof.txn());
+    
+    //TODO: instantiate with real sigs. grouped_sigs[] = ...
+    
+
+    // (*req->p2ReplySigsGrouped.mutable_grouped_sigs())[group] = p2ReplySigs;
+    // proto::Phase2Reply *p2Reply = proof.mutable_p2_replies()->add_p2_sigs();
+    // p2Reply->set_req_id(3);
+    // p2Reply->mutable_p2_decision()->set_decision(proto::COMMIT);
+    // *p2Reply->mutable_p2_decision()->mutable_txn_digest() = TransactionDigest(proof.txn());
   }
 }
 

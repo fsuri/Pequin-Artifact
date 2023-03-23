@@ -12,13 +12,11 @@ message Query {
    // Unless: Dependency on another TX which has a query that is invalid... (will abort by default) --> but then TX should not have prepared --> TxID still uniquely defines which query is used.
    // For now: Treat Query just as a read, and assume read set will be included in tx (instead of cached) -- all worries about attack are complications due to caching.
    required TimestampMessage timestamp = 3; //Timestamp at which to read query.
-   optional bytes query_cmd = 4;      //SQL statement as string --> parse at Replica
+   optional bytes query_cmd = 4;      //SQL statement as string --> parse at Replica  //FIXME: WARNING: bytes at most length 2^32
    //Alternatively: Already parsed into AST at client --> send AST (What format?)
    optional uint64 query_manager = 5;
    //TODO: Needs to include involved groups?
    required uint64 retry_version = 6; //Should go into Query, so that it is signed as well. (thus it is only proposable by original client); but not include din ID hash
-  
-
 }
 
 message QueryRequest {
@@ -29,23 +27,35 @@ message QueryRequest {
     //private channels from client to replicas should suffice?
   }
  optional bool optimistic_txid = 5;
-  
+ required bool designated_for_reply = 6;
+ optional bool eager_exec = 7;
 }
 
 //==> moved to pequin-proto.proto
-// message QueryReadSet { 
+// message ReadSet { 
 //   repeated ReadMessage read_set = 1;
 // }
+
+// message TotalDeps {
+//   //All reported local deps: Client wants to wait on these: Reported by at least 1 correct client.bool
+//   map<string, bool> dep_ids = 1;
+// }
+
+message LocalDeps { //Deprecated: Has been made part of ReadSet
+  repeated bytes dep_ids = 1;
+}
 
 message QueryResult {
   required uint64 query_seq_num = 1;
   required uint64 client_id = 2;
+  required uint64 replica_id = 3;
   //include result: this may be anything: e.g. an integer, a table (list of values). TBD how to encode
-  required bytes query_result = 3;
-  optional bytes query_result_hash = 4; //Hash of (QueryID, Read Set Merkle Root) --> uniquely identifies a queries read set.
+  required bytes query_result = 4;
+  optional bytes query_result_hash = 5; //Hash of (QueryID, Read Set Merkle Root) --> uniquely identifies a queries read set.
   //map<string, TimestampMessage> query_read_set = 5;
-  optional QueryReadSet query_read_set = 5;
-  required uint64 replica_id = 6;
+  optional ReadSet query_read_set = 6;
+  //optional LocalDeps query_local_deps = 7; //only if reading prepared.   Note: Client turns deps into Dependency; only includes a Write- which in turn just holds prepared_txn_dig
+  
 }
 
 message QueryResultReply {
@@ -92,10 +102,19 @@ message LocalSnapshot {
   //identify query
   required uint64 query_seq_num = 1;
   required uint64 client_id = 2;
+  required uint64 replica_id = 3; 
   //list of txn that materialize local exec snapshot
-  repeated bytes local_txns_committed = 3;
-  repeated bytes local_txns_prepared = 4;
-  required uint64 replica_id = 5; 
+  repeated bytes local_txns_committed = 4;  //note, if ts are compressed, they might be stored in here.
+  repeated uint64 local_txns_committed_ts = 5; 
+  
+  repeated bytes local_txns_prepared = 6;
+  repeated uint64 local_txns_prepared_ts = 7;
+
+  optional bytes local_txns_committed_ts_compressed = 8; //Note: max length 2^32 
+  optional uint32 num_committed_txn_ids = 9;
+  optional bytes local_txns_prepared_ts_compressed = 10; //Note: max length 2^32 
+  optional uint32 num_prepared_txn_ids = 11;
+  
 }
 message SyncReply {
   required uint64 req_id = 1;
@@ -103,10 +122,13 @@ message SyncReply {
     LocalSnapshot local_ss = 2;
     SignedMessage signed_local_ss = 3;
   }
+  optional bool optimistic_tx_id = 4; //not part of protocol (hence not signed), just a system flag.
 }
 
 message ReplicaList {
   repeated uint64 replicas = 1; //list of replicas
+  optional bool prepared = 2; //true if not f+1 had it committed
+  optional uint64 commit_count = 3;
 }
 
 //can use this instead of map <string, ReplicaList>
@@ -120,13 +142,16 @@ message MergedSnapshot {
    //identify query
    required uint64 query_seq_num= 1;
    required uint64 client_id = 2;
+
+   required uint64 retry_version = 3;
+   optional bytes query_digest = 4;
    //include snapshot proposal. 
       //repeated TxnData cp_txns = 3;
-   map<string, ReplicaList> merged_txns_committed = 3; //map from txn digest to replicas that have txn.
-   map<string, ReplicaList> merged_txns_prepared = 4; //dont think one needs to distinguish at this point.
-   
-   required uint64 retry_version = 5;
-   optional bytes query_digest = 6;
+   map<string, ReplicaList> merged_txns = 5; //map from txn digest to replicas that have txn.
+   map<uint64, ReplicaList> merged_ts = 6; //map from txn digest to replicas that have txn.
+
+   //map<string, ReplicaList> merged_txns_prepared = 7; //dont think one needs to distinguish at this point. ==> might want to store it separately so that client can remember what are deps? ==> store a flag
+   //required TimestampMessage timestamp = 7; //
 }
 
 //client sends proposed merged snapshot. Replicas use it to ExecQuery and send back QueryReply
@@ -139,12 +164,15 @@ message SyncClientProposal {
  required bool designated_for_reply = 4; //designate whether this replica should execute and reply, or just sync, execute, and cache read set.
  
  optional bool query_managager = 5; // designate this shard as tx manager to coordinate execution and to reply.
+ optional Query query = 6; //In case we didn't send it before.
 }
 
 message RequestMissingTxns {
    required uint64 replica_idx = 1;
-   repeated bytes missing_txn = 2; //list of txn digests;
-   optional bytes query_id = 3;
+   optional bytes query_id = 2;
+   repeated bytes missing_txn = 3; //list of txn-ids (digests);
+   repeated uint64 missing_txn_ts = 4; //list of optimistic txn-ids (TS);
+   
 }
 
 message TxnInfo {
@@ -153,15 +181,18 @@ message TxnInfo {
     //optional Transaction txn = 1;
     //optional SignedMessage signed_txn = 2;
    CommittedProof commit_proof = 2;
-   bool invalid = 3;
-   //TODO: Add abort proof.
+   bool abort = 3;  
+   bool invalid = 4;
   }
- 
+  optional Writeback abort_proof = 5;
+  optional string txn_id = 6; //Only set if using ts map.
 }
 
 message SupplyMissingTxnsMessage {
-   map<string, TxnInfo> txns = 1; //map from txn digest to Transaction object (+ proof)
-   required uint64 replica_idx = 2;
+  required uint64 replica_idx = 1;   
+  map<string, TxnInfo> txns = 2; //map from txn digest to Transaction object (+ proof)
+  map<uint64, TxnInfo> txns_ts = 3; //map from Ts to to Transaction object (+ proof) + txn_digest
+   
 }
 
 message SupplyMissingTxns {

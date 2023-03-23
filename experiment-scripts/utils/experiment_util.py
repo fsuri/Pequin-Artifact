@@ -54,7 +54,7 @@ def collect_exp_data(config, remote_exp_directory, local_directory_base, executo
 
 def kill_servers(config, executor, kill_args=' -9'):
     futures = []
-    if config['replication_protocol'] == 'indicus':
+    if config['replication_protocol'] == 'indicus' or config['replication_protocol'] == 'pequin':
         n = 5 * config['fault_tolerance'] + 1
     elif config['replication_protocol'] == 'pbft' or config['replication_protocol'] == 'hotstuff' or config['replication_protocol'] == 'bftsmart' or config['replication_protocol'] == 'augustus':
         n = 3 * config['fault_tolerance'] + 1
@@ -165,6 +165,17 @@ def start_clients(config, local_exp_directory, remote_exp_directory, run):
                     config['out_directory_name'],
                     'client-%d-%d' % (i, j)))
             client_host = get_client_host(config, i, j)
+
+            if is_exp_remote(config): #Do these commands only once per client host.
+                if(True or config['replication_protocol_settings']['hyper_threading'] == 'false') :
+                        print("Disabling HT and Turbo; sourcing TBB")
+                        cmd1 = 'sudo /usr/local/etc/disable_HT.sh'
+                        run_remote_command_async(cmd1, config['emulab_user'], client_host)
+                        cmd2 = 'sudo /usr/local/etc/turn_off_turbo.sh'
+                        run_remote_command_async(cmd2, config['emulab_user'], client_host)
+                        #perm = 'sudo chmod +x ~/indicus/bin/benchmark'
+                        #run_remote_command_async(perm, config['emulab_user'], client_host)
+
             appended_client_commands = ''
             cmd3 = 'source /opt/intel/oneapi/setvars.sh --force; '
             #run_remote_command_async(cmd3, config['emulab_user'], server_host, detach=False)
@@ -191,17 +202,10 @@ def start_clients(config, local_exp_directory, remote_exp_directory, run):
                 if appended_client_commands[-2:] == '& ':
                         appended_client_commands = appended_client_commands[:-2]
                 if is_exp_remote(config):
-                    if(True or config['replication_protocol_settings']['hyper_threading'] == 'false') :
-                        print("Disabling HT and Turbo; sourcing TBB")
-                        cmd1 = 'sudo /usr/local/etc/disable_HT.sh'
-                        run_remote_command_async(cmd1, config['emulab_user'], client_host)
-                        cmd2 = 'sudo /usr/local/etc/turn_off_turbo.sh'
-                        run_remote_command_async(cmd2, config['emulab_user'], client_host)
-                        #perm = 'sudo chmod +x ~/indicus/bin/benchmark'
-                        #run_remote_command_async(perm, config['emulab_user'], client_host)
-
-                    cmd4 = 'export LD_LIBRARY_PATH=/usr/lib/jvm/java-11-openjdk-amd64/lib/server/:$LD_LIBRARY_PATH;'
-                    appended_client_commands = cmd4 + appended_client_commands
+                    #cmd4 = 'export LD_LIBRARY_PATH=/usr/lib/jvm/java-11-openjdk-amd64/lib/server/:$LD_LIBRARY_PATH;'
+                    #cmd5 = 'export LD_PRELOAD=/usr/local/lib/libhoard.so;'
+                    cmd6 = 'source /usr/local/etc/set_env.sh;' # echo $LD_PRELOAD;' # source .bashrc' (disk image doesnt store bashrc. Could write to it dynamically though.) #TODO: remove cmd4+5
+                    appended_client_commands = cmd6 + appended_client_commands
 
                     client_processes.append(run_remote_command_async(
                         appended_client_commands + ' & wait', config['emulab_user'],
@@ -218,7 +222,7 @@ def start_clients(config, local_exp_directory, remote_exp_directory, run):
 
 def start_servers(config, local_exp_directory, remote_exp_directory, run):
     server_threads = []
-    if config['replication_protocol'] == 'indicus' :
+    if config['replication_protocol'] == 'indicus' or config['replication_protocol'] == 'pequin':
         n = 5 * config['fault_tolerance'] + 1
     elif config['replication_protocol'] == 'pbft' or config['replication_protocol'] == 'hotstuff' or config['replication_protocol'] == 'bftsmart' or config['replication_protocol'] == 'augustus':
         n = 3 * config['fault_tolerance'] + 1
@@ -245,6 +249,7 @@ def start_servers(config, local_exp_directory, remote_exp_directory, run):
     for idx, cmd in start_commands.items():
         if is_exp_remote(config):
             server_host = get_server_host(config, idx)
+           
             ## add ssh for hyperthreading off and turbo off
             #config['replication_protocol_settings']['hyper_threading']
             if(True or config['replication_protocol_settings']['hyper_threading'] == 'false') :
@@ -260,8 +265,10 @@ def start_servers(config, local_exp_directory, remote_exp_directory, run):
             cmd3 = 'source /opt/intel/oneapi/setvars.sh --force; '
             #run_remote_command_async(cmd3, config['emulab_user'], server_host, detach=False)
             cmd =  cmd3 + cmd
-            cmd4 = 'export LD_LIBRARY_PATH=/usr/lib/jvm/java-11-openjdk-amd64/lib/server/:$LD_LIBRARY_PATH;'
-            cmd = cmd4 + cmd
+            #cmd4 = 'export LD_LIBRARY_PATH=/usr/lib/jvm/java-11-openjdk-amd64/lib/server/:$LD_LIBRARY_PATH;'
+            #cmd5 = 'export LD_PRELOAD=/usr/local/lib/libhoard.so;'
+            cmd6 = 'source /usr/local/etc/set_env.sh;' # echo $LD_PRELOAD;' #; source .bashrc' #TODO: Or try sourcing .bashrc //Replace cmd4+cmd5..
+            cmd = cmd6 + cmd
             server_threads.append(run_remote_command_async(cmd,
                 config['emulab_user'], server_host, detach=False))
         else:
@@ -323,6 +330,9 @@ def prepare_remote_server(config, server_host, local_exp_directory, remote_out_d
 
 def prepare_remote_client(config, i, j, local_exp_directory, remote_out_directory):
     client_host = get_client_host(config, i, j)
+    clean = 'sudo rm -rf /mnt/extra/experiments/*;' #Clean experiments folder.
+    run_remote_command_async(clean, config['emulab_user'], client_host)
+
     if client_host not in SERVERS_SETUP:
         set_file_descriptor_limit(config['max_file_descriptors'], config['emulab_user'], client_host)
         change_mounted_fs_permissions(config['project_name'], config['emulab_user'], client_host, config['base_mounted_fs_path'])
@@ -349,6 +359,9 @@ def prepare_remote_exp_directories(config, local_exp_directory, executor):
     futures = []
     for i in range(len(config['server_names'])):
         server_host = get_server_host(config, i)
+        clean = 'sudo rm -rf /mnt/extra/experiments/*;' #Clean experiments folder.
+        run_remote_command_async(clean, config['emulab_user'], server_host)
+
         futures.append(executor.submit(prepare_remote_server, config, server_host,
             local_exp_directory, remote_out_directory))
         prepare_remote_server(config, server_host, local_exp_directory, remote_out_directory)
@@ -426,21 +439,23 @@ def copy_binaries_to_nfs(config, executor):
     futures = []
     for i in range(n):
         server_host = get_server_host(config, i)
-        run_remote_command_sync('mkdir %s' % config['base_remote_bin_directory_nfs'], config['emulab_user'], server_host)
+        #run_remote_command_sync('mkdir %s' % config['base_remote_bin_directory_nfs'], config['emulab_user'], server_host)
+        run_remote_command_sync('mkdir -p %s' % os.path.join(config['base_remote_bin_directory_nfs'], config['bin_directory_name']), config['emulab_user'], server_host)
         if server_host not in SERVERS_SETUP:
             futures.append(executor.submit(copy_path_to_remote_host,
                 os.path.join(config['src_directory'],
                     config['bin_directory_name'], config['server_bin_name']), config['emulab_user'],
-                server_host, os.path.join(config['base_remote_bin_directory_nfs'], config['server_bin_name'])))
+                server_host, os.path.join(config['base_remote_bin_directory_nfs'], config['bin_directory_name'], config['server_bin_name'])))
         if not nfs_enabled:
             for j in range(config['client_nodes_per_server']):
                 client_host = get_client_host(config, i, j)
-                run_remote_command_sync('mkdir %s' % config['base_remote_bin_directory_nfs'], config['emulab_user'], client_host)
+                #run_remote_command_sync('mkdir %s' % config['base_remote_bin_directory_nfs'], config['emulab_user'], client_host)
+                run_remote_command_sync('mkdir -p %s' % os.path.join(config['base_remote_bin_directory_nfs'], config['bin_directory_name']), config['emulab_user'], client_host)
                 if client_host not in SERVERS_SETUP:
                     futures.append(executor.submit(copy_path_to_remote_host,
                         os.path.join(config['src_directory'],
                             config['bin_directory_name'], config['client_bin_name']), config['emulab_user'],
-                        client_host, os.path.join(config['base_remote_bin_directory_nfs'], config['client_bin_name'])))
+                        client_host, os.path.join(config['base_remote_bin_directory_nfs'], config['bin_directory_name'], config['client_bin_name'])))
     concurrent.futures.wait(futures)
 
 

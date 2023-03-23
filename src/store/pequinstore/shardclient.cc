@@ -51,7 +51,8 @@ ShardClient::ShardClient(transport::Configuration *config, Transport *transport,
 
   if (closestReplicas_.size() == 0) {
     for  (int i = 0; i < config->n; ++i) {
-      closestReplicas.push_back((i + client_id) % config->n);
+      closestReplicas.push_back((i + (client_id * 2)) % config->n);  //Create a load balanced mapping //client_id * 2 splits all client ids into n/2 buckets for preferred nearest
+      //closestReplicas.push_back((i + client_id) % config->n); //Create a load balanced mapping
       // Debug("i: %d; client_id: %d", i, client_id);
       // Debug("Calculations: %d", (i + client_id) % config->n);
     }
@@ -67,6 +68,7 @@ void ShardClient::ReceiveMessage(const TransportAddress &remote,
       const std::string &type, const std::string &data, void *meta_data) {
   if (type == readReply.GetTypeName()) {
     if(params.multiThreading){
+      Panic("Client ReadReply Multithreading is Deprecated. Concurrent accesses to readValues and txn are unsafe.");
       proto::ReadReply *curr_read = GetUnusedReadReply();
       curr_read->ParseFromString(data);
       HandleReadReplyMulti(curr_read);
@@ -184,7 +186,7 @@ void ShardClient::Get(uint64_t id, const std::string &key,
 void ShardClient::Put(uint64_t id, const std::string &key,
       const std::string &value, put_callback pcb, put_timeout_callback ptcb,
       uint32_t timeout) {
-  WriteMessage *writeMsg = txn.add_write_set();
+  WriteMessage *writeMsg = txn.add_write_set(); //TODO: May want to handle duplicate puts (2 puts to same key --> If we have already tried to write they key, remove that write from the read set.)
   writeMsg->set_key(key);
   writeMsg->set_value(value);
   pcb(REPLY_OK, key, value);
@@ -200,8 +202,8 @@ void ShardClient::Put(uint64_t id, const std::string &key,
 
 void ShardClient::Phase1(uint64_t id, const proto::Transaction &transaction, const std::string &txnDigest,
   phase1_callback pcb, phase1_timeout_callback ptcb, relayP1_callback rcb, finishConflictCB fcb, uint32_t timeout) {
-  Debug("[group %i] Sending PHASE1 [%lu]", group, id);
   uint64_t reqId = lastReqId++;
+  Debug("[group %i] Sending PHASE1 for id[%lu], reqId[%lu]", group, id, reqId);
   client_seq_num_mapping[id].pendingP1_id = reqId;
   PendingPhase1 *pendingPhase1 = new PendingPhase1(reqId, group, transaction,
       txnDigest, config, keyManager, params, verifier, id);
@@ -508,6 +510,24 @@ void ShardClient::Phase2Equivocate(uint64_t id,
   }
 }
 
+
+void ShardClient::Writeback(uint64_t id, const proto::Writeback &wb) {
+
+  transport->SendMessageToGroup(this, group, wb);
+  if(id > 0) {
+    Debug("[group %i] Sent WRITEBACK[%lu]", group, id);
+    auto itr = client_seq_num_mapping.find(id);
+    if(itr != client_seq_num_mapping.end()){
+        client_seq_num_mapping.erase(itr);
+     }
+  }
+  else{
+    Panic("Fallback should be using different branch");
+    //Debug("[group %i] Sent Fallback WRITEBACK[%s]", group, BytesToHex(txnDigest, 16).c_str());
+    //pendingFallbacks.erase(txnDigest);
+  }
+}
+
 //TODO: make more efficient by swapping sigs instead of copying.
 void ShardClient::Writeback(uint64_t id, const proto::Transaction &transaction, const std::string &txnDigest,
   proto::CommitDecision decision, bool fast, bool conflict_flag, const proto::CommittedProof &conflict,
@@ -572,6 +592,16 @@ void ShardClient::Writeback(uint64_t id, const proto::Transaction &transaction, 
 }
 
 //Overloaded Wb function to not include ID, this is purely for debug purpose to distinguish whether a message came from FB instance.
+
+void ShardClient::WritebackFB(const std::string &txnDigest, const proto::Writeback &wb) {
+
+  transport->SendMessageToGroup(this, group, wb);
+
+  Debug("[group %i] Sent Fallback WRITEBACK[%s]", group, BytesToHex(txnDigest, 16).c_str());
+    //pendingFallbacks.erase(txnDigest);
+  
+}
+
 void ShardClient::WritebackFB(const proto::Transaction &transaction,
     const std::string &txnDigest,
     proto::CommitDecision decision, bool fast, const proto::CommittedProof &conflict,
@@ -599,17 +629,27 @@ void ShardClient::WritebackFB(const proto::Transaction &transaction,
 }
 
 
-void ShardClient::Abort(uint64_t id, const TimestampMessage &ts) {
+void ShardClient::Abort(uint64_t id, const TimestampMessage &ts, const proto::Transaction &_tx) {
   Debug("Aborting transaction %d", id);
   abort.Clear();
   *abort.mutable_internal()->mutable_ts() = ts;
+  //Add Reads to garbage collect
   for (const auto &read : txn.read_set()) {
     *abort.mutable_internal()->add_read_set() = read.key();
   }
+  //Add Query ids to garbage collect
+  for(const auto &query: _tx.query_set()){
+    abort.mutable_internal()->add_query_ids(query.query_id());
+    // proto::QueryResultMetaData *query_md = *abort.mutable_internal()->add_query_md();
+    // query_md.set_query_id() = query.query_id();
+    // query_md.set_query_retry_version() = query.retry_version();
+  
+     //TODO: Ideally, don't just GC the queries that finished. But any query issued (on this shard)
+     //Note: In normal case, should only call Abort if query is finished.
+  }
 
-  if (params.validateProofs && params.signedMessages) {
+  if (params.validateProofs && params.signedMessages && params.signClientProposals) {
     proto::AbortInternal internal(abort.internal());
-
     //Not using batchsigner -- Server is now configured to use client_verifier. Uses new client_id mapping.
     SignMessage(&internal, keyManager->GetPrivateKey(keyManager->GetClientKeyId(client_id)), client_id, abort.mutable_signed_internal());
     //SignMessage(&internal, keyManager->GetPrivateKey(client_id & 1024), client_id % 1024, abort.mutable_signed_internal());
@@ -648,7 +688,7 @@ bool ShardClient::BufferGet(const std::string &key, read_callback rcb) {
     }
   }
 
-  for (const auto &read : txn.read_set()) {
+  for (const auto &read : txn.read_set()) { //readValues.
     if (read.key() == key) {
       Debug("[group %i] Key %s was already read with ts %lu.%lu.", group,
           BytesToHex(key, 16).c_str(), read.readtime().timestamp(),
@@ -917,14 +957,14 @@ void ShardClient::HandleReadReply(const proto::ReadReply &reply) {
       write = &validatedPrepared;
        //if(!write->has_committed_value() && write->has_prepared_value()) std::cerr << "Prepared write was signed on its own.\n";
     } else {
-      if (reply.has_write() && reply.write().has_committed_value()) {
+      if (reply.has_write() && reply.write().has_committed_value()) {       //TODO: For committed writes could use just authenticated channels (since committed writes come with a proof)
         Debug("[group %i] Reply contains unsigned committed value.", group);
         return;
       }
 
            //TODO: remove params.verifyDeps if one wants to always sign prepared (this edge case realistically never happens)
       if (params.verifyDeps && reply.has_write() && reply.write().has_prepared_value()) {
-        //Panic("getting lost here");
+        Panic("getting lost here");
         Debug("[group %i] Reply contains unsigned prepared value.", group);
         return;
       }
@@ -1021,13 +1061,29 @@ void ShardClient::HandleReadReply(const proto::ReadReply &reply) {
       }
     }
     pendingGets.erase(itr);
-    ReadMessage *read = txn.add_read_set();
-    *read->mutable_key() = req->key;
-    req->maxTs.serialize(read->mutable_readtime());
-    readValues[req->key] = req->maxValue;
+    // ReadMessage *read = txn.add_read_set();
+    // *read->mutable_key() = req->key;
+    // req->maxTs.serialize(read->mutable_readtime());
+     //readValues[req->key] = req->maxValue; //This was bugged: Overwrote previous read value.
     //if(!write->has_committed_value() && write->has_prepared_value()) std::cerr << "Calling gcb for prepared write.\n";
-    req->gcb(REPLY_OK, req->key, req->maxValue, req->maxTs, req->dep,
-        req->hasDep, true);
+    // req->gcb(REPLY_OK, req->key, req->maxValue, req->maxTs, req->dep,
+    //     req->hasDep, true);
+
+    //Only read once.
+    auto has_read = readValues.emplace(req->key, req->maxValue);
+    
+    if(has_read.second){
+       ReadMessage *read = txn.add_read_set();
+      *read->mutable_key() = req->key;
+      req->maxTs.serialize(read->mutable_readtime());
+      
+      req->gcb(REPLY_OK, req->key, req->maxValue, req->maxTs, req->dep,req->hasDep, true);
+    }
+    else{ //TODO: Could optimize to do this right at the start of Handle Read to avoid any validation costs... -> Does mean all reads have to lookup twice though.
+      std::string &prev_read = has_read.first->second;
+      req->maxTs = Timestamp();
+      req->gcb(REPLY_OK, req->key, prev_read, req->maxTs, req->dep, false, false); //Don't add to read set.
+    } 
     delete req;
   }
 }
@@ -1045,6 +1101,7 @@ void ShardClient::ProcessP1R(proto::Phase1Reply &reply, bool FB_path, PendingFB 
   if(!FB_path){
     itr = this->pendingPhase1s.find(reply.req_id());
     if (itr == this->pendingPhase1s.end()) {
+      Debug("Ignoring ProcessP1R for stale reqId %d", reply.req_id());
       return; // this is a stale request
     }
 
@@ -1805,7 +1862,7 @@ void ShardClient::HandlePhase1FBReply(proto::Phase1FBReply &p1fbr){
   if(p1fbr.has_wb()){
     proto::Writeback wb = p1fbr.wb();
     //std::cerr << "group[" << group << "] triggered FastWriteback for txn: " << BytesToHex(txnDigest, 16) << std::endl;
-    pendingFB->wbFBcb(wb);
+    pendingFB->wbFBcb(wb);  //Note: If not valid -> can ignore rest of processing since replica must be byz.
     //CleanFB(txnDigest);
     return;
   }

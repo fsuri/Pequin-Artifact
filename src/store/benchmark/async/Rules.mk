@@ -1,6 +1,6 @@
 d := $(dir $(lastword $(MAKEFILE_LIST)))
 
-SRCS += $(addprefix $(d), benchmark.cc benchmark_oneshot.cc bench_client.cc async_transaction_bench_client.cc	sync_transaction_bench_client.cc)
+SRCS += $(addprefix $(d), benchmark.cc benchmark_oneshot.cc bench_client.cc async_transaction_bench_client.cc sync_transaction_bench_client.cc)
 
 OBJS-all-store-clients := $(OBJS-strong-client) $(OBJS-weak-client) \
 		$(LIB-tapir-client) $(LIB-morty-client) $(LIB-janus-client) \

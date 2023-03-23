@@ -42,6 +42,14 @@
 #include "store/common/truetime.h"
 #include "store/tapirstore/client.h"
 
+#include "store/common/query_result/query_result_proto_wrapper.h"
+#include "store/common/query_result/query_result_proto_builder.h"
+#include "store/common/query_result/query_result.h"
+#include "lib/cereal/archives/binary.hpp"
+#include "lib/cereal/types/string.hpp"
+
+//#include "store/benchmark/async/json_table_writer.h"
+
 namespace toy {
 
 ToyTransaction::ToyTransaction(): SyncTransaction(10000) {
@@ -70,22 +78,68 @@ void ToyClient::ExecuteToy(){
     std::cerr << "Started client thread\n";
     //Calling directly into syncClient here. Usually SyncTransactionBenchClient calls SendNext, which generates a new transaction. This transaction then calls the operations on the SyncClient.
             uint32_t timeout = UINT_MAX;
+            // client.Begin(timeout);
+            // std::cerr << "Invoked Begin\n";
+            // client.Put("y", "6", timeout);
+            // client.Commit(timeout);
+            // std::cerr << "Committed value for y\n";
+
+           
             client.Begin(timeout);
             std::cerr << "Invoked Begin\n";
             client.Put("x", "5", timeout);
             std::string readValue;
             client.Get("x", readValue, timeout);
+            std::cerr << "value read for x: " << readValue << "\n"; //Dummy read --> will read from buffered put; will not add to read set
+              client.Get("y", readValue, timeout);
             std::cerr << "value read for x: " << readValue << "\n";
             client.Commit(timeout);
             std::cerr << "Committed value for x\n";
 
-            sleep(1);
             
+            client.Begin(timeout);
+
             std::string query = "SELECT *";
-            std::string queryResult;
+            const query_result::QueryResult* queryResult;
             client.Query(query, queryResult, timeout);  //--> Edit API in frontend sync_client.
                                            //For real benchmarks: Also edit in sync_transaction_bench_client.
-            std::cerr << "Query Result: " << queryResult << std::endl << std::endl;
+                              
+            // (*queryResult->at(0))[0] //TODO: parse the output...  data.length
+
+            std::cerr << "Got res" << std::endl;
+            UW_ASSERT(!queryResult->empty());
+            std::cerr << "num cols:" <<  queryResult->columns() << std::endl;
+            std::cerr << "num rows:" <<  queryResult->rows_affected() << std::endl;
+
+             std::stringstream ss(std::ios::in | std::ios::out | std::ios::binary);
+            size_t nbytes;
+            const char* out = queryResult->get(0, 0, &nbytes);
+            std::string output(out, nbytes);
+            ss << output;
+            std::string output_row;
+            {
+              cereal::BinaryInputArchive iarchive(ss); // Create an input archive
+              iarchive(output_row); // Read the data from the archive
+            }
+             std::cerr << "Query 1 Result: " << output_row << std::endl << std::endl;
+
+  
+
+            // client.Query(query, queryResult, timeout);  //--> Edit API in frontend sync_client.
+            //                                //For real benchmarks: Also edit in sync_transaction_bench_client.
+            // std::cerr << "Query 2 Result: " << queryResult << std::endl << std::endl;
+
+
+            client.Commit(timeout);
+            std::cerr << "Committed Query\n";
+
+            // sleep(1);
+            
+            // std::string query = "SELECT *";
+            // std::string queryResult;
+            // client.Query(query, queryResult, timeout);  //--> Edit API in frontend sync_client.
+            //                                //For real benchmarks: Also edit in sync_transaction_bench_client.
+            // std::cerr << "Query Result: " << queryResult << std::endl << std::endl;
             
 }
 

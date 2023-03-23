@@ -71,7 +71,7 @@ Server::Server(const transport::Configuration &config, int groupIdx, int idx,
   prepared = preparedMap(100000);
   preparedReads = tbb::concurrent_unordered_map<std::string, std::pair<std::shared_mutex, std::set<const proto::Transaction *>>>(100000);
   preparedWrites = tbb::concurrent_unordered_map<std::string, std::pair<std::shared_mutex,std::map<Timestamp, const proto::Transaction *>>>(100000);
-  rts = tbb::concurrent_unordered_map<std::string, std::atomic_int>(100000);
+  rts = tbb::concurrent_unordered_map<std::string, std::atomic_uint64_t>(100000);
   committed = tbb::concurrent_unordered_map<std::string, proto::CommittedProof *>(100000);
   writebackMessages = tbb::concurrent_unordered_map<std::string, proto::Writeback>(100000);
   dependents = dependentsMap(100000);
@@ -137,6 +137,8 @@ Server::Server(const transport::Configuration &config, int groupIdx, int idx,
   proof->mutable_txn()->mutable_timestamp()->set_id(0);
 
   committed.insert(std::make_pair("", proof));
+  
+  ts_to_tx.insert(std::make_pair(MergeTimestampId(0, 0), ""));
 }
 
 Server::~Server() {
@@ -325,6 +327,84 @@ void Server::Load(const std::string &key, const std::string &value,
   }
 }
 
+//TODO: Add these functions as virtual inline to the general server.h -- make it panic if called for stores that don't implement load.
+//For hotstuffPG store --> let proxy call into PG
+//For Crdb --> let server establish a client connection to backend too.
+void Server::CreateTable(const std::string &table_name, const std::vector<std::pair<std::string, std::string>> &column_data_types, const std::vector<uint32_t> primary_key_col_idx ){
+
+  //NOTE: Assuming here we do not need special descriptors like foreign keys, column condidtions... (If so, it maybe easier to store the SQL statement in JSON directly)
+
+  std::string sql_statement("CREATE TABLE");
+  sql_statement += " " + table_name;
+
+  UW_ASSERT(!column_data_types.empty());
+  UW_ASSERT(!primary_key_col_idx.empty());
+  
+  sql_statement += " (";
+  for(auto &[col, type]: column_data_types){
+    sql_statement += col + " " + type + ", ";
+  }
+
+
+  sql_statement += "PRIMARY_KEY ";
+  if(primary_key_col_idx.size() > 1) sql_statement += "(";
+
+  for(auto &p_idx: primary_key_col_idx){
+    sql_statement += column_data_types[p_idx].first + ", ";
+  }
+  sql_statement.pop_back();
+  sql_statement.pop_back();
+  if(primary_key_col_idx.size() > 1) sql_statement += ")";
+  
+  sql_statement +=");";
+
+  //TODO: Call into TableStore with this statement.
+
+  //Create TABLE version  -- just use table_name as key.  This version tracks updates to "table state" (as opposed to row state): I.e. new row insertions; row deletions;
+  //Note: It does currently not track table creation/deletion itself -- this is unsupported. If we do want to support it, either we need to make a separate version; 
+                                                                 //or we require inserts/updates to include the version in the ReadSet. 
+                                                                 //However, we don't want an insert to abort just because another row was inserted.
+  Load(table_name, "", Timestamp());
+}
+
+void Server::LoadTableRow(const std::string &table_name, const std::vector<std::pair<std::string, std::string>> &column_data_types, const std::vector<std::string> &values, const std::vector<uint32_t> primary_key_col_idx ){
+  
+  //TODO: Instead of using the INSERT SQL statement, use the TableWrite API we will establish.
+  std::string sql_statement("INSERT INTO");
+  sql_statement += " " + table_name ;
+
+  UW_ASSERT(!values.empty()); //Need to insert some values...
+  UW_ASSERT(column_data_types.size() == values.size()); //Need to specify all columns to insert into
+
+  sql_statement += " (";
+  for(auto &[col, _]: column_data_types){
+    sql_statement += col + ", ";
+  }
+  sql_statement.pop_back();
+  sql_statement.pop_back();
+  sql_statement +=")";
+  
+  sql_statement += " VALUES (";
+  
+  for(auto &val: values){
+    sql_statement += val + ", ";
+  }
+  sql_statement.pop_back();
+  sql_statement.pop_back();
+
+  sql_statement += ");" ;
+  
+   //TODO: Call into TableStore with this statement.
+
+  std::vector<const char*> primary_cols;
+  for(auto i: primary_key_col_idx){
+    primary_cols.push_back(column_data_types[i].first.c_str());
+  }
+  std::string enc_key = EncodeTableRow(table_name, primary_cols);
+  Load(enc_key, "", Timestamp());
+}
+
+
 //Handle Read Message
 //Dispatches to reader thread if params.parallel_reads = true, and multithreading enabled
 //Returns a signed message including i) the latest committed write (+ cert), and ii) the latest prepared write (both w.r.t to Timestamp of reader)
@@ -413,6 +493,7 @@ void Server::HandleRead(const TransportAddress &remote,
 
       //std::pair<std::shared_mutex,std::map<Timestamp, const proto::Transaction *>> &x = preparedWrites[write.key()];
       auto itr = preparedWrites.find(msg.key());
+      //tbb::concurrent_unordered_map<std::string, std::pair<std::shared_mutex,std::map<Timestamp, const proto::Transaction *>>>::const_iterator itr = preparedWrites.find(msg.key());
       if (itr != preparedWrites.end()){
 
         //std::pair &x = preparedWrites[write.key()];
@@ -548,13 +629,8 @@ void Server::HandlePhase1_atomic(const TransportAddress &remote,
 
   //NOTE: Ongoing *must* be added before p2/wb since the latter dont include it themselves as an optimization
   //TCP guarantees that this happens, but I cannot dispatch parallel P1 before logging ongoing or else it could be ordered after p2/wb.
-  ongoingMap::accessor o;
-  //ongoing.insert(b, std::make_pair(txnDigest, txn));
-  ongoing.insert(o, txnDigest);
-  o->second.txn = txn;
-  o->second.num_concurrent_clients++;
-  o.release();
-
+  AddOngoing(txnDigest, txn);
+ 
   //NOTE: "Problem": If client comes after writeback, it will try to do a p2/wb itself but fail
   //due to ongoing being removed already.
   //XXX solution: add to ongoing always, and call Clean() for redundant Writebacks as well.
@@ -675,7 +751,6 @@ void Server::HandlePhase1(const TransportAddress &remote,
     proto::Phase1 &msg) {
   //dummyTx = msg.txn(); //PURELY TESTING PURPOSES!!: NOTE WARNING
  
- Debug("Received Phase1 message");
   proto::Transaction *txn;
   if(params.signClientProposals){
     txn = new proto::Transaction();
@@ -689,6 +764,7 @@ void Server::HandlePhase1(const TransportAddress &remote,
   }
   
   std::string txnDigest = TransactionDigest(*txn, params.hashDigest); //could parallelize it too hypothetically
+  Debug("Received Phase1 message for txn id: %s", BytesToHex(txnDigest, 16).c_str());
   if(params.signClientProposals) *txn->mutable_txndigest() = txnDigest; //Hack to have access to txnDigest inside TXN later (used for abstain conflict)
   
 
@@ -735,7 +811,7 @@ void Server::HandlePhase1(const TransportAddress &remote,
     // need to check if result is WAIT: if so, need to add to waitingDeps original client..
         //(TODO) Instead: use original client list and store pairs <txnDigest, <reqID, remote>>
     if(result == proto::ConcurrencyControl::WAIT){
-        c->second.SubscribeOriginal(remote.clone(), msg.req_id()); //Subscribe Client in case result is wait (either due to waiting for query, or due to waiting for tx dep) -- subsumes/replaces ManageDependencies subscription
+        c->second.SubscribeOriginal(remote, msg.req_id()); //Subscribe Client in case result is wait (either due to waiting for query, or due to waiting for tx dep) -- subsumes/replaces ManageDependencies subscription
         ManageDependencies(txnDigest, *txn, remote, msg.req_id()); //Request RelayP1 tx in case we are blocking on dependencies
     }
     if (result == proto::ConcurrencyControl::ABORT) {
@@ -746,7 +822,7 @@ void Server::HandlePhase1(const TransportAddress &remote,
   } 
   else if(committed.find(txnDigest) != committed.end()){ //has already committed Txn
       Debug("Already committed txn[%s]. Replying with result %d", BytesToHex(txnDigest, 16).c_str(), 0);
-      result = proto::ConcurrencyControl::COMMIT; //TODO: Eventually update to send direct WritebackAck
+      result = proto::ConcurrencyControl::COMMIT; //TODO: Eventually update to send direct WritebackAck --> Can move this up before p1Meta check --> can delete P1 Meta (currently need to keep it because original expects p1 reply)
   } 
   else if(aborted.find(txnDigest) != aborted.end()){ //has already aborted Txn
       Debug("Already committed txn[%s]. Replying with result %d", BytesToHex(txnDigest, 16).c_str(), 1);
@@ -770,7 +846,9 @@ void Server::HandlePhase1(const TransportAddress &remote,
     ProcessProposal(msg, remote, txn, txnDigest, isGossip); //committedProof, abstain_conflict, result);
   }
   else{ //If we already have result: Send it and free msg/delete txn --- only send result if it is of type != Wait/Ignore (i.e. only send Commit, Abstain, Abort)
-      if(result != proto::ConcurrencyControl::WAIT && result != proto::ConcurrencyControl::IGNORE) SendPhase1Reply(msg.req_id(), result, committedProof, txnDigest, &remote, abstain_conflict); //TODO: Eventually update to send direct WritebackAck
+      if(result != proto::ConcurrencyControl::WAIT && result != proto::ConcurrencyControl::IGNORE){
+        SendPhase1Reply(msg.req_id(), result, committedProof, txnDigest, &remote, abstain_conflict); //TODO: Eventually update to send direct WritebackAck
+      } 
       if((params.mainThreadDispatching && (!params.dispatchMessageReceive || params.parallel_CCC)) || (params.multiThreading && params.signClientProposals)) FreePhase1message(&msg);
       if(params.signClientProposals) delete txn;
   }
@@ -784,18 +862,24 @@ void Server::HandlePhase1(const TransportAddress &remote,
 void Server::HandlePhase1CB(uint64_t reqId, proto::ConcurrencyControl::Result result,
   const proto::CommittedProof* &committedProof, std::string &txnDigest, const TransportAddress &remote, const proto::Transaction *abstain_conflict, bool isGossip){
 
+  Debug("Call HandleP1CB for txn %s with result %d", BytesToHex(txnDigest, 16).c_str(), result);
+  if(result == proto::ConcurrencyControl::IGNORE) return;
+
   //Note: remote_original might be deleted if P1Meta is erased. In that case, must hold Buffer P1 accessor manually here.  Note: We currently don't delete P1Meta, so it won't happen; but it's still good to have.
   const TransportAddress *remote_original = &remote; 
   uint64_t req_id = reqId;
+  bool wake_fallbacks = false;
   p1MetaDataMap::accessor c;
-  bool sub_original = BufferP1Result(c, result, committedProof, txnDigest, req_id, 0, remote_original, isGossip);
+  bool sub_original = BufferP1Result(c, result, committedProof, txnDigest, req_id, remote_original, wake_fallbacks, isGossip, 0);
   bool send_reply = (result != proto::ConcurrencyControl::WAIT && !isGossip) || sub_original; //Note: sub_original = true only if originall subbed AND result != wait.
   if(send_reply){ //Send reply to subscribed original client instead.
+     Debug("Sending P1Reply for txn [%s] to original client. sub_original=%d, isGossip=%d", BytesToHex(txnDigest, 16).c_str(), sub_original, isGossip);
      SendPhase1Reply(reqId, result, committedProof, txnDigest, remote_original, abstain_conflict);
   }
   c.release();
-     
-
+  //Note: wake_fallbacks only true if result != wait
+  if(wake_fallbacks) WakeAllInterestedFallbacks(txnDigest, result, committedProof); //Note: Possibly need to wakeup interested fallbacks here since waking tx from missing query triggers TryPrepare (which returns here). 
+ 
   // if (result != proto::ConcurrencyControl::WAIT && !isGossip) { //forwarded P1 needs no reply.
   //   //XXX setting client time outs for Fallback
   //   // if(client_starttime.find(txnDigest) == client_starttime.end()){
@@ -1148,7 +1232,7 @@ void Server::HandlePhase2CB(TransportAddress *remote, proto::Phase2 *msg, const 
     return (void*) true;
  };
 
- if(params.multiThreading && params.mainThreadDispatching && params.dispatchCallbacks){
+ if(params.mainThreadDispatching && params.dispatchCallbacks){
    transport->DispatchTP_main(std::move(f));
  }
  else{
@@ -1228,18 +1312,23 @@ void Server::HandleWriteback(const TransportAddress &remote,
       o.release();
     }
     else{
-      o.release();
+      o.release(); //Note, can remove this: o.empty() = true
       if(msg.has_txn()){
         txn = msg.release_txn();
         // check that digest and txn match..
          if(*txnDigest !=TransactionDigest(*txn, params.hashDigest)) return;
       }
       else{
+        //No longer ongoing => was committed/aborted on a concurrent thread
         Debug("Writeback[%s] message does not contain txn, but have not seen"
             " txn_digest previously.", BytesToHex(msg.txn_digest(), 16).c_str());
         Warning("Cannot process Writeback because ongoing does not contain tx for this request. Should not happen with TCP.... CPU %d", sched_getcpu());
-        Panic("When using TCP the tx should always be ongoing before doing WB");
-        return WritebackCallback(&msg, txnDigest, txn, (void*) false);
+        //Panic("When using TCP the tx should always be ongoing before doing WB");
+        if(params.multiThreading || (params.mainThreadDispatching && !params.dispatchMessageReceive)){
+          FreeWBmessage(&msg);
+        }
+        return;
+        //return WritebackCallback(&msg, txnDigest, txn, (void*) false);
       }
     }
   } else {
@@ -1273,11 +1362,11 @@ void Server::WritebackCallback(proto::Writeback *msg, const std::string* txnDige
 
 
   if(!valid){
+    Panic("Writeback Validation should not fail for TX %s ", BytesToHex(*txnDigest, 16).c_str());
     Debug("VALIDATE Writeback for TX %s failed.", BytesToHex(*txnDigest, 16).c_str());
     if(params.multiThreading || (params.mainThreadDispatching && !params.dispatchMessageReceive)){
       FreeWBmessage(msg);
     }
-     Panic("Writeback Validation should not fail for TX %s ", BytesToHex(*txnDigest, 16).c_str());
     return;
   }
 
@@ -1316,10 +1405,12 @@ void Server::WritebackCallback(proto::Writeback *msg, const std::string* txnDige
         stats.Increment("total_transactions_abort", 1);
         Debug("WRITEBACK[%s] successfully aborting.", BytesToHex(*txnDigest, 16).c_str());
         //msg->set_allocated_txn(txn); //dont need to set since client will?
-        writebackMessages[*txnDigest] = *msg;  //Only necessary for fallback... (could avoid storing these, if one just replied with a p2 vote instead - but that is not as responsive)
+        writebackMessages.insert(std::make_pair(*txnDigest, *msg)); //Note: Could move data item and create a copy of txnDigest and Timestamp to call Abort instead. (writebackMessages insert has to happen before Abort insert)
+        //writebackMessages[*txnDigest] = *msg;  //Only necessary for fallback... (could avoid storing these, if one just replied with a p2 vote instead - but that is not as responsive)
         ///CAUTION: msg might no longer hold txn; could have been released in HanldeWriteback
 
-        Abort(*txnDigest);
+        Abort(*txnDigest, txn);
+        //delete txn; //See Clean(), currently unsafe to delete txn due to multithreading.
       }
 
       if(params.multiThreading || params.mainThreadDispatching){
@@ -1329,7 +1420,7 @@ void Server::WritebackCallback(proto::Writeback *msg, const std::string* txnDige
       return (void*) true;
   };
 
- if(params.multiThreading && params.mainThreadDispatching && params.dispatchCallbacks){
+ if(params.mainThreadDispatching && params.dispatchCallbacks){ 
    transport->DispatchTP_main(std::move(f));
  }
  else{
@@ -1338,11 +1429,11 @@ void Server::WritebackCallback(proto::Writeback *msg, const std::string* txnDige
 
 }
 
-
+//Clients may abort their own Tx before Preparing: This removes the RTS and may be used in case we decide to store any in-execution meta data: E.g. Queries.
 void Server::HandleAbort(const TransportAddress &remote,
     const proto::Abort &msg) {
   const proto::AbortInternal *abort;
-  if (params.validateProofs && params.signedMessages) {
+  if (params.validateProofs && params.signedMessages && params.signClientProposals) {
     if (!msg.has_signed_internal()) {
       return;
     }
@@ -1370,6 +1461,8 @@ void Server::HandleAbort(const TransportAddress &remote,
     abort = &msg.internal();
   }
 
+  ////Garbage collect Read Timestamps
+
   //RECOMMENT XXX currently displaced by RTS implementation that has no set, but only a single RTS version that keeps getting replaced.
   //  if(params.mainThreadDispatching) rtsMutex.lock();
   // for (const auto &read : abort->read_set()) {
@@ -1391,16 +1484,36 @@ void Server::HandleAbort(const TransportAddress &remote,
   else{
     //No RTS
   }
+
+  //Garbage collect Queries.
+  for (const auto &query_id: abort->query_ids()){
+    queryMetaDataMap::accessor q;
+    if(queryMetaData.find(q, query_id)){
+      //erase current retry version from missing (Note: all previous ones must have been deleted via ClearMetaData)
+      queryMissingTxns.erase(QueryRetryId(query_id, q->second->retry_version, (params.query_params.signClientQueries && params.query_params.cacheReadSet && params.hashDigest)));
+      
+      if(q->second != nullptr) delete q->second;
+      //erase query_md
+      queryMetaData.erase(q); 
+    }
+    q.release();
+
+    //Delete any possibly subscribed queries.
+    subscribedQuery.erase(query_id);
+  }
+
 }
 
 
 /////////////////////////////////////// PREPARE, COMMIT AND ABORT LOGIC  + Cleanup
 
 void Server::Prepare(const std::string &txnDigest,
-    const proto::Transaction &txn) {
+    const proto::Transaction &txn, const ReadSet &readSet) {
   Debug("PREPARE[%s] agreed to commit with ts %lu.%lu.",
       BytesToHex(txnDigest, 16).c_str(), txn.timestamp().timestamp(), txn.timestamp().id());
 
+  //const ReadSet &readSet = txn.read_set();
+  const WriteSet &writeSet = txn.write_set();
 
   ongoingMap::const_accessor o;
   auto ongoingItr = ongoing.find(o, txnDigest);
@@ -1413,10 +1526,16 @@ void Server::Prepare(const std::string &txnDigest,
   //const proto::Transaction *ongoingTxn = ongoing.at(txnDigest);
 
   preparedMap::accessor a;
-  auto p = prepared.insert(a, std::make_pair(txnDigest, std::make_pair(
-          Timestamp(txn.timestamp()), ongoingTxn)));
+  bool first_prepare = prepared.insert(a, std::make_pair(txnDigest, std::make_pair(Timestamp(txn.timestamp()), ongoingTxn)));
+  if(!first_prepare) return; //Already inserted all Read/Write Sets.
 
-  for (const auto &read : txn.read_set()) {
+  // Debug("PREPARE: TESTING MERGED READ");
+  // for(auto &read : readSet){
+  //     Debug("[group Merged] Read key %s with version [%lu:%lu]", read.key().c_str(), read.readtime().timestamp(), read.readtime().id());
+  // }
+
+
+  for (const auto &read : readSet) {
     if (IsKeyOwned(read.key())) {
       //preparedReads[read.key()].insert(p.first->second.second);
       //preparedReads[read.key()].insert(a->second.second);
@@ -1435,17 +1554,18 @@ void Server::Prepare(const std::string &txnDigest,
     }
   }
 
-  std::pair<Timestamp, const proto::Transaction *> pWrite =
-    std::make_pair(a->second.first, a->second.second);
+  std::pair<Timestamp, const proto::Transaction *> pWrite = std::make_pair(a->second.first, a->second.second);
   a.release();
     //std::make_pair(p.first->second.first, p.first->second.second);
-  for (const auto &write : txn.write_set()) {
+  for (const auto &write : writeSet) {
     if (IsKeyOwned(write.key())) {
       std::pair<std::shared_mutex,std::map<Timestamp, const proto::Transaction *>> &x = preparedWrites[write.key()];
       std::unique_lock lock(x.first);
       x.second.insert(pWrite);
       // std::unique_lock lock(preparedWrites[write.key()].first);
       // preparedWrites[write.key()].second.insert(pWrite);
+
+      //TODO: Insert into table as well.
     }
   }
   o.release(); //Relase only at the end, so that Prepare and Clean in parallel for the same TX are atomic.
@@ -1455,9 +1575,7 @@ void Server::Prepare(const std::string &txnDigest,
 void Server::Commit(const std::string &txnDigest, proto::Transaction *txn,
       proto::GroupedSignatures *groupedSigs, bool p1Sigs, uint64_t view) {
 
-  Timestamp ts(txn->timestamp());
-
-  Value val;
+  
   proto::CommittedProof *proof = nullptr;
   if (params.validateProofs) {
     Debug("Access only by CPU: %d", sched_getcpu());
@@ -1465,16 +1583,10 @@ void Server::Commit(const std::string &txnDigest, proto::Transaction *txn,
     //proof = testing_committed_proof.back();
     //testing_committed_proof.pop_back();
   }
-  val.proof = proof;
-
-  auto committedItr = committed.insert(std::make_pair(txnDigest, proof));
-  Debug("Inserted txn %s into Committed on CPU %d",BytesToHex(txnDigest, 16).c_str(), sched_getcpu());
-  //auto committedItr =committed.emplace(txnDigest, proof);
-
   if (params.validateProofs) {
     // CAUTION: we no longer own txn pointer (which we allocated during Phase1
     //    and stored in ongoing)
-    proof->set_allocated_txn(txn);
+    proof->set_allocated_txn(txn); //Note: This appears to only be safe because any request that may want to use txn from ongoing (Phase1, Phase2, FB, Writeback) are all on mainThread => will all short-circuit if already committed
     if (params.signedMessages) {
       if (p1Sigs) {
         proof->set_allocated_p1_sigs(groupedSigs);
@@ -1486,17 +1598,70 @@ void Server::Commit(const std::string &txnDigest, proto::Transaction *txn,
     }
   }
 
-  CommitToStore(proof, txn, ts, val);
+  Timestamp ts(txn->timestamp());
+
+  Value val;
+  val.proof = proof;
+
+  auto committedItr = committed.insert(std::make_pair(txnDigest, proof));
+  Debug("Inserted txn %s into Committed on CPU %d",BytesToHex(txnDigest, 16).c_str(), sched_getcpu());
+  //auto committedItr =committed.emplace(txnDigest, proof);
+
+  CommitToStore(proof, txn, txnDigest, ts, val);
 
   Debug("Calling CLEAN for committing txn[%s]", BytesToHex(txnDigest, 16).c_str());
   Clean(txnDigest);
   CheckDependents(txnDigest);
   CleanDependencies(txnDigest);
+
+  CleanQueries(proof->mutable_txn()); //Note: Changing txn is not threadsafe per se, but should not cause any issues..
+  CheckWaitingQueries(txnDigest, proof->txn().timestamp());
+}
+ 
+//Note: This might be called on a different thread than mainthread. Thus insertion into committed + Clean are concurrent. Safe because proof comes with its own owned tx, which is not used by any other thread.
+void Server::CommitWithProof(const std::string &txnDigest, proto::CommittedProof *proof){ //Called for Replica To Replica Sync
+
+    proto::Transaction *txn = proof->mutable_txn();
+    //std::string txnDigest(TransactionDigest(*txn, params.hashDigest));
+
+    Timestamp ts(txn->timestamp());
+
+    Value val;
+    val.proof = proof;
+
+    committed.insert(std::make_pair(txnDigest, proof)); //Note: This may override an existing commit proof -- that's fine.
+
+    CommitToStore(proof, txn, txnDigest, ts, val);
+
+    Debug("Calling CLEAN for committing txn[%s]", BytesToHex(txnDigest, 16).c_str());
+    Clean(txnDigest);
+    CheckDependents(txnDigest);
+    CleanDependencies(txnDigest);
+
+    CleanQueries(proof->mutable_txn()); //Note: Changing txn is not threadsafe per se, but should not cause any issues..
+    UpdateWaitingQueries(txnDigest);
+    if(params.query_params.optimisticTxID) UpdateWaitingQueriesTS(MergeTimestampId(proof->txn().timestamp().timestamp(), proof->txn().timestamp().id()), txnDigest);
 }
 
-void Server::CommitToStore(proto::CommittedProof *proof, proto::Transaction *txn, Timestamp &ts, Value &val){
 
-    for (const auto &read : txn->read_set()) {
+void Server::UpdateCommittedReads(proto::Transaction *txn, const std::string &txnDigest, Timestamp &ts, proto::CommittedProof *proof){
+
+    const ReadSet *readSet = &txn->read_set(); //DEFAULT
+    const DepSet *depSet = &txn->deps(); //DEFAULT
+    
+    mergeTxReadSets(readSet, depSet, *txn, txnDigest, proof);  
+    //Note: use whatever readSet is returned -- if query read sets are not correct/present just use base (it's safe: another replica would've had all)
+    //Once subscription on queries wakes up, it will call UpdatecommittedReads again, at which point mergeReadSet will return the full mergedReadSet 
+    //TODO: For eventually consistent state may want to explicitly sync on the waiting queries -- not necessary for safety though
+    //TODO: FIXME: Currently, we ignore processing queries whose Tx have already committed. Consequently, UpdateCommitted won't be called. This is safe, but might result in
+                   //this replica unecessarily preparing conflicting tx that are doomed to abort (because committedreads is not set)
+              
+    // Debug("COMMIT: TESTING MERGED READ");
+    // for(auto &read : *readSet){
+    //     Debug("[group Merged] Read key %s with version [%lu:%lu]", read.key().c_str(), read.readtime().timestamp(), read.readtime().id());
+    // }
+
+    for (const auto &read : *readSet) {
     if (!IsKeyOwned(read.key())) {
       continue;
     }
@@ -1514,6 +1679,11 @@ void Server::CommitToStore(proto::CommittedProof *proof, proto::Transaction *txn
     //uint64_t ns = Latency_End(&committedReadInsertLat);
     //stats.Add("committed_read_insert_lat_" + BytesToHex(read.key(), 18), ns);
   }
+}
+
+void Server::CommitToStore(proto::CommittedProof *proof, proto::Transaction *txn, const std::string &txnDigest, Timestamp &ts, Value &val){
+
+  UpdateCommittedReads(txn, txnDigest, ts, proof);
 
   for (const auto &write : txn->write_set()) {
     if (!IsKeyOwned(write.key())) {
@@ -1522,11 +1692,18 @@ void Server::CommitToStore(proto::CommittedProof *proof, proto::Transaction *txn
 
     Debug("COMMIT[%lu,%lu] Committing write for key %s.",
         txn->client_id(), txn->client_seq_num(),
-        BytesToHex(write.key(), 16).c_str());
-    val.val = write.value();
-
+       write.key().c_str());
+    
+    if(write.has_value()) val.val = write.value();
+    
     store.put(write.key(), val, ts);
 
+    if(!write.has_value()){
+      Panic("When running in KV-store mode write should always have a value");
+      //TODO: It is a table write:
+      //DecodeTableRow(write.key(), ...)
+      //Apply to Table.  (Note: Should only be applied after store.put)
+    }
 
     if(params.rtsMode == 1){
       //Do nothing
@@ -1551,7 +1728,7 @@ void Server::CommitToStore(proto::CommittedProof *proof, proto::Transaction *txn
   }
 }
 
-void Server::Abort(const std::string &txnDigest) {
+void Server::Abort(const std::string &txnDigest, proto::Transaction *txn) {
    //if(params.mainThreadDispatching) abortedMutex.lock();
   aborted.insert(txnDigest);
   Debug("Inserted txn %s into ABORTED on CPU: %d", BytesToHex(txnDigest, 16).c_str(), sched_getcpu());
@@ -1560,9 +1737,13 @@ void Server::Abort(const std::string &txnDigest) {
   Clean(txnDigest, true);
   CheckDependents(txnDigest);
   CleanDependencies(txnDigest);
+
+  CleanQueries(txn, false);
+  CheckWaitingQueries(txnDigest, txn->timestamp(), true); //is_abort  //NOTE: WARNING: If Clean(abort) deletes txn then must callCheckWaitingQueries before Clean.
 }
 
-void Server::Clean(const std::string &txnDigest, bool abort) {
+
+void Server::Clean(const std::string &txnDigest, bool abort, bool hard) {
 
   //Latency_Start(&waitingOnLocks);
   //auto ongoingMutexScope = params.mainThreadDispatching ? std::unique_lock<std::shared_mutex>(ongoingMutex) : std::unique_lock<std::shared_mutex>();
@@ -1581,7 +1762,12 @@ void Server::Clean(const std::string &txnDigest, bool abort) {
 
   ongoingMap::accessor o;
   bool is_ongoing = ongoing.find(o, txnDigest);
-  if(is_ongoing) ongoing.erase(o);
+  if(is_ongoing && hard){
+    //delete o->second.txn; //Not safe to delete txn because another thread could be using it concurrently... //FIXME: Fix this leak at some point --> Threads must either hold ongoing while operating on tx, or manage own object.
+    aborted.insert(txnDigest); //No need to call abort -- A hard clean indicates an invalid tx, and no honest replica would have voted for it --> thus there can be no dependents and dependencies.
+  } 
+  if(is_ongoing) ongoing.erase(o); //Note: Erasing here implicitly releases accessor o. => Note: Don't think holding o matters here, all that matters is that ongoing is erased before (or atomically) with prepared
+  
 
   preparedMap::accessor a;
   bool is_prepared = prepared.find(a, txnDigest);
@@ -1616,7 +1802,8 @@ void Server::Clean(const std::string &txnDigest, bool abort) {
   //     //if(abort) delete b->second.txn; //delete allocated txn.
   //     //ongoing.erase(b);
   // }
-  o.release(); //Release only at the end, so that Prepare and Clean in parallel for the same TX are atomic.
+  //if(is_ongoing) ongoing.erase(o);
+  o.release(); //Release only at the end, so that Prepare and Clean in parallel for the same TX are atomic.  => See note above -> Don't actually need this atomicity.
   //TODO: might want to move release all the way to the end.
 
   //XXX: Fallback related cleans
@@ -1655,18 +1842,21 @@ void Server::Clean(const std::string &txnDigest, bool abort) {
 
   //TODO: try to merge more/if not all tx local state into ongoing and hold ongoing locks for simpler atomicity.
 
+//FIXME: Fix these leaks at some point.
+
 //Currently commented out so that original client does not re-do work if p1/p2 has already happened
 //--> TODO: Make original client dynamic, i.e. it can directly receive a writeback if it exists, instead of HAVING to finish normal case.
   p1MetaDataMap::accessor c;
   bool p1MetaExists = p1MetaData.find(c, txnDigest);
-  if(p1MetaExists){
+  if(p1MetaExists && !TEST_PREPARE_SYNC){
     if(c->second.hasSignedP1) delete c->second.signed_txn; //Delete signed txn if not needed anymore.
     c->second.hasSignedP1 = false;
   } 
   //if(hasP1) p1MetaData.erase(c);
+  if(hard) p1MetaData.erase(c);
   c.release();
 
-  
+  //Note: won't exist if hard clean (invalid tx)
   // p2MetaDataMap::accessor p;
   // if(p2MetaDatas.find(p, txnDigest)){
   //   p2MetaDatas.erase(p);
@@ -1681,6 +1871,13 @@ void Server::Clean(const std::string &txnDigest, bool abort) {
   //   completing.erase(z);
   // }
   // z.release();
+
+   TxnMissingQueriesMap::accessor mq;
+   if(TxnMissingQueries.find(mq, txnDigest)){
+    if(mq->second != nullptr) delete mq->second;
+    TxnMissingQueries.erase(mq);
+   }
+   mq.release();
 }
 
 
@@ -1717,7 +1914,15 @@ void Server::SendRelayP1(const TransportAddress &remote, const std::string &depe
   p1MetaDataMap::accessor c;
   //o.release();
 
-  //proto::RelayP1 relayP1; //use global object.
+  proto::RelayP1 relayP1; // Use local object instead of global.
+
+  // proto::RelayP1 *relayP1;
+  // if(params.parallel_CCC){
+  //   relayP1 = GetUnusedRelayP1(); //if invokations of SendRelayP1 come from different threads --> use separate objects.
+  // } 
+  // else{
+  //   relayP1 = &relayP1Msg; // if all invokations of SendRelayP1 come from the same thread --> use global object.
+  // } 
   relayP1.Clear();
   relayP1.set_dependent_id(dependent_id);
   relayP1.mutable_p1()->set_req_id(0); //doesnt matter, its not used for fallback requests really.
@@ -1725,14 +1930,16 @@ void Server::SendRelayP1(const TransportAddress &remote, const std::string &depe
 
   if(params.signClientProposals){
     //b.release();
-    bool p1MetaExists = p1MetaData.find(c, dependency_txnDig); //If txn is in ongoing, then it must have been added to P1Meta --> since we add to ongoing in HandleP1 or HandleP1FB. 
-                                                                                          // (TODO FIX: Current verification --adds signed_txn-- happens only after inster ongoing. Should be swapped to guarantee the above.)
+    //Note: RelayP1 is only triggered if dependency_txnDig is prepared but not committed -> implies it passed verification -> implies ongoing was added and is still true (since not yet committed)
+    //If txn is in ongoing, then it must have been added to P1Meta --> since we add to ongoing in HandleP1 or HandleP1FB. 
+    bool p1MetaExists = p1MetaData.find(c, dependency_txnDig); // Ignore (does not matter): Current verification --adds signed_txn-- happens only after inster ongoing. Should be swapped to guarantee the above.)
      if(!p1MetaExists || c->second.hasSignedP1 == false) Panic("Should exist since ongoing is still true");
     signed_tx = c->second.signed_txn;
     relayP1.mutable_p1()->set_allocated_signed_txn(signed_tx);
   }
   else{ //no Client sigs --> just send txn.
     relayP1.mutable_p1()->set_allocated_txn(tx);  
+    //*relayP1.mutable_p1()->mutable_txn() = *tx;
   }
   
 
@@ -1753,10 +1960,68 @@ void Server::SendRelayP1(const TransportAddress &remote, const std::string &depe
     o->second.txn = relayP1.mutable_p1()->release_txn();
     //b.release();
   }
-  o.release(); //keep ongoing locked the full duration: this guarantees that if ongoing exists, p1Meta.signed_tx exists too, since it is deleted after ongoing in Clean()
+  o.release(); //keep ongoing locked the full duration: this guarantees that if ongoing exists, p1Meta.signed_tx exists too, since it is deleted after ongoing is locked in Clean() 
 
   Debug("Sent RelayP1[%s].", BytesToHex(dependent_txnDig, 256).c_str());
 }
+
+// //RELAY DEPENDENCY IN ORDER FOR CLIENT TO START FALLBACK
+// //params: dependent_it = client tx identifier for blocked tx; dependency_txnDigest = tx that is stalling
+// void Server::_SendRelayP1(const TransportAddress &remote, const std::string &dependency_txnDig, uint64_t dependent_id, const std::string &dependent_txnDig){
+
+//   Debug("RelayP1[%s] timed out. Sending now!", BytesToHex(dependent_txnDig, 256).c_str());
+
+//    //proto::RelayP1 relayP1; //use global object.
+//   relayP1.Clear();
+//   relayP1.set_dependent_id(dependent_id);
+//   relayP1.mutable_p1()->set_req_id(0); //doesnt matter, its not used for fallback requests really.
+
+//   if(params.signClientProposals){
+//      proto::SignedMessage *signed_tx;
+
+//     p1MetaDataMap::accessor c;
+//     //Note: RelayP1 is only triggered if dependency_txnDig is prepared but not committed -> implies it passed verification -> implies ongoing was added and is still true (since not yet committed)
+//     bool p1MetaExists = p1MetaData.find(c, dependency_txnDig); //If txn is in ongoing, then it must have been added to P1Meta --> since we add to ongoing in HandleP1 or HandleP1FB. 
+//                                                               // (TODO: FIXME: Current verification --adds signed_txn-- happens only after inster ongoing. Should be swapped to guarantee the above.)
+//      if(!p1MetaExists || c->second.hasSignedP1 == false) Panic("Should exist since ongoing is still true");
+//     signed_tx = c->second.signed_txn;
+//     relayP1.mutable_p1()->set_allocated_signed_txn(signed_tx);
+
+//     if(dependent_id == -1) relayP1.set_dependent_txn(dependent_txnDig);
+//     if(dependent_id == -1){
+//       Debug("Sending relayP1 for dependent txn: %s stuck waiting for dependency: %s", BytesToHex(dependent_txnDig, 64).c_str(), BytesToHex(dependency_txnDig,64).c_str());
+//     }
+
+//     stats.Increment("Relays_Sent", 1);
+//     transport->SendMessage(this, remote, relayP1);
+
+//     c->second.signed_txn = relayP1.mutable_p1()->release_signed_txn();
+//     c.release();
+//   }
+//   else{
+//     proto::Transaction *tx;
+    
+//     ongoingMap::accessor o;
+//     bool ongoingItr = ongoing.find(o, dependency_txnDig);
+//     if(!ongoingItr) return;  //If txnDigest no longer ongoing, then no FB necessary as it has completed already
+//     tx = o->second.txn;
+
+//       //relayP1.mutable_p1()->set_allocated_txn(tx);  
+//     *relayP1.mutable_p1()->mutable_txn() = *tx;
+
+//     if(dependent_id == -1) relayP1.set_dependent_txn(dependent_txnDig);
+//     if(dependent_id == -1){
+//       Debug("Sending relayP1 for dependent txn: %s stuck waiting for dependency: %s", BytesToHex(dependent_txnDig, 64).c_str(), BytesToHex(dependency_txnDig,64).c_str());
+//     }
+
+//     stats.Increment("Relays_Sent", 1);
+//     transport->SendMessage(this, remote, relayP1);
+
+//     //o->second.txn = relayP1.mutable_p1()->release_txn();
+//     o.release(); //keep ongoing locked the full duration: this guarantees that if ongoing exists, p1Meta.signed_tx exists too, since it is deleted after ongoing is locked in Clean() 
+//   }
+//   Debug("Sent RelayP1[%s].", BytesToHex(dependent_txnDig, 256).c_str());
+// }
 
 bool Server::ForwardWriteback(const TransportAddress &remote, uint64_t ReqId, const std::string &txnDigest){
   
@@ -1925,7 +2190,7 @@ void Server::HandlePhase1FB(const TransportAddress &remote, proto::Phase1FB &msg
   //Alternatively, keep around the decision proof and send it. For now/simplicity, p2 suffices
   //TODO: could store p2 and p1 signatures (until writeback) in order to avoid re-computation
   //XXX CHANGED IT TO ACCESSOR FOR LOCK TEST
-  p1MetaDataMap::const_accessor c;
+  p1MetaDataMap::accessor c; //Note: In order to subscribe clients must be accessor. p1MetaDataMap::const_accessor c;
   //p1MetaData.find(c, txnDigest);
   // p1MetaData.insert(c, txnDigest);
   bool hasP1result = p1MetaData.find(c, txnDigest) ? c->second.hasP1 : false;
@@ -1941,7 +2206,7 @@ void Server::HandlePhase1FB(const TransportAddress &remote, proto::Phase1FB &msg
        const proto::CommittedProof *conflict = c->second.conflict;
        //c->second.P1meta_mutex.unlock();
        //std::cerr << "[FB:1] release lock for txn: " << BytesToHex(txnDigest, 64) << std::endl;
-       c.release();
+       //c.release();
 
        proto::CommitDecision decision = p->second.p2Decision;
        uint64_t decision_view = p->second.decision_view;
@@ -1950,9 +2215,12 @@ void Server::HandlePhase1FB(const TransportAddress &remote, proto::Phase1FB &msg
        P1FBorganizer *p1fb_organizer = new P1FBorganizer(msg.req_id(), txnDigest, remote, this);
        //recover stored commit proof.
        if (result != proto::ConcurrencyControl::WAIT) { //if the result is WAIT, then the p1 is not necessary..
+         c.release();
          SetP1(msg.req_id(), p1fb_organizer->p1fbr->mutable_p1r(), txnDigest, result, conflict);
        }
        else{
+        c->second.SubscribeAllInterestedFallbacks();
+        c.release();
          //Relay deeper depths.
         ManageDependencies(txnDigest, *txn, remote, 0, true); //fallback flow = true, gossip = false
         Debug("P1 decision for txn: %s is WAIT. Not including in reply.", BytesToHex(txnDigest, 16).c_str());
@@ -1976,10 +2244,11 @@ void Server::HandlePhase1FB(const TransportAddress &remote, proto::Phase1FB &msg
         const proto::CommittedProof *conflict = c->second.conflict;
         //c->second.P1meta_mutex.unlock();
         //std::cerr << "[FB:2] release lock for txn: " << BytesToHex(txnDigest, 64) << std::endl;
-        c.release();
+        //c.release();
         p.release();
 
         if (result != proto::ConcurrencyControl::WAIT) {
+          c.release();
           P1FBorganizer *p1fb_organizer = new P1FBorganizer(msg.req_id(), txnDigest, remote, this);
           SetP1(msg.req_id(), p1fb_organizer->p1fbr->mutable_p1r(), txnDigest, result, conflict);
           SendPhase1FBReply(p1fb_organizer, txnDigest);
@@ -1987,7 +2256,9 @@ void Server::HandlePhase1FB(const TransportAddress &remote, proto::Phase1FB &msg
 
         }
         else{
-          ManageDependencies(txnDigest, *txn, remote, 0, true);
+          c->second.SubscribeAllInterestedFallbacks();
+          c.release();
+          ManageDependencies(txnDigest, *txn, remote, 0, true); //relay deeper deps
           Debug("WAITING on dep in order to send Phase1FBReply on path hasP1 for txn: %s, sent by client: %d", BytesToHex(txnDigest, 16).c_str(), msg.client_id());
         }
         if(params.signClientProposals) delete txn;
@@ -2111,6 +2382,8 @@ bool Server::ExecP1(proto::Phase1FB &msg, const TransportAddress &remote,
      txn->client_seq_num(), BytesToHex(txnDigest, 16).c_str(),
      txn->timestamp().timestamp());
 
+  CheckWaitingQueries(txnDigest, txn->timestamp(), false, true); //is_abort = false //Check for waiting queries in non-blocking fashion.
+
   //start new current view
   // current_views[txnDigest] = 0;
   // p2MetaDataMap::accessor p;
@@ -2136,19 +2409,22 @@ bool Server::ExecP1(proto::Phase1FB &msg, const TransportAddress &remote,
   result = DoOCCCheck(msg.req_id(),
       remote, txnDigest, *txn, retryTs, committedProof, abstain_conflict, true);
 
+
   //std::cerr << "Exec P1 called, for txn: " << BytesToHex(txnDigest, 64) << std::endl;
   //BufferP1Result(result, committedProof, txnDigest, 1);
   //std::cerr << "FB: Buffered result:" << result << " for txn: " << BytesToHex(txnDigest, 64) << std::endl;
 
-  TransportAddress *remote_original = nullptr;
+  const TransportAddress *remote_original = nullptr;
   uint64_t req_id;
-  bool sub_original = BufferP1Result(result, committedProof, txnDigest, req_id, 1, remote_original);
+  bool wake_fallbacks = false;
+  bool sub_original = BufferP1Result(result, committedProof, txnDigest, req_id, remote_original, wake_fallbacks, false, 1);
         //std::cerr << "[Normal] release lock for txn: " << BytesToHex(txnDigest, 64) << std::endl;
   if(sub_original){ //Send to original client too if it is subscribed (This may happen if the original client was waiting on a query, and then a fallback client re-does Occ check in parallel)
         Debug("Sending Phase1 Reply for txn: %s, id: %d", BytesToHex(txnDigest, 64).c_str(), req_id);
         SendPhase1Reply(req_id, result, committedProof, txnDigest, remote_original, abstain_conflict); //TODO: Confirm that this does not consume committedProof.
   }
 
+  if(result == proto::ConcurrencyControl::IGNORE) return false; //Note: If result is Ignore, then BufferP1 will already Clean tx.
 
   //What happens in the FB case if the result is WAIT?
   //Since we limit to depth 1, we expect this to not be possible.
@@ -2166,7 +2442,7 @@ bool Server::ExecP1(proto::Phase1FB &msg, const TransportAddress &remote,
 }
 
 
-void Server::SetP1(uint64_t reqId, proto::Phase1Reply *p1Reply, const std::string &txnDigest, proto::ConcurrencyControl::Result &result,
+void Server::SetP1(uint64_t reqId, proto::Phase1Reply *p1Reply, const std::string &txnDigest, const proto::ConcurrencyControl::Result &result,
   const proto::CommittedProof *conflict, const proto::Transaction *abstain_conflict){
   //proto::Phase1Reply *p1Reply = p1fb_organizer->p1fbr->mutable_p1r();
 

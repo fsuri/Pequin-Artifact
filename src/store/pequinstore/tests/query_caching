@@ -1,0 +1,45 @@
+
+
+
+//In HandleP1CB
+
+//TESTING CODE: 
+
+//Test query cache Dep:
+//1. force a tx to wait for a query
+    //create dummy query
+    //create dummy tx with ref to dummy query
+    //Call DoMvtso -- expect result == wait
+//2. submit query to wake
+    //Manually set queryMd 
+    //Call wakeSubscribedTx
+    //Create sink for SendPhase1Reply -- expect result
+
+ // if(result == proto::ConcurrencyControl::WAIT)
+    //  std::cerr << "TRYING TO WAKE ############################" << std::endl;
+    //   std::string queryId =  "[" + std::to_string(1) + ":" + std::to_string(0) + "]";
+    //   uint64_t retry_version = 1;
+    //   //set result
+    //   queryMetaDataMap::const_accessor q;
+    //   bool has_query = queryMetaData.find(q, queryId);
+    //   q->second->has_result = true;  
+    //   q.release();
+    //   //Test with gossip --> just set isGossip in wakeSubscribedTx to true
+    //   wakeSubscribedTx(queryId, retry_version);
+    //   //TODO: If this works, need to try with actual query -- to guarantee mutex locking works properly? Hard to test though...
+
+
+//Test normal Dep:
+      //Check waking from normal dep:
+      //1. force a dep wait on a dummy tx  -- disable Dep validation; add dep to tx. send no relay
+            //Create test tx with a dummy tx
+            //Add dummy tx to prepared store
+            //Call TryPrepare on dummy tx -- Expect result == wait.
+
+      //2. call CheckDependents on the dummy; set result = commit
+      // std::cerr << "REsult is wait -- not sending" << std::endl;
+      // std::string dummyTx("dummyTx");
+      // CheckDependents("dummyTx");
+           //Set up a sink for SendPhase1Reply 
+      // --> that should wake up and send to original client. Since original client should have gotten subscribed during BufferP1.
+  // }    

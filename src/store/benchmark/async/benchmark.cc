@@ -150,7 +150,7 @@ enum read_messages_t {
 /**
  * System settings.
  */
-DEFINE_uint64(client_id, 0, "unique identifier for client");
+DEFINE_uint64(client_id, 0, "unique identifier for client process");
 DEFINE_string(config_path, "", "path to shard configuration file");
 DEFINE_uint64(num_shards, 1, "number of shards in the system");
 DEFINE_uint64(num_groups, 1, "number of replica groups in the system");
@@ -266,7 +266,7 @@ DEFINE_uint64(indicus_inject_failure_proportion, 0, "proportion of clients that"
 DEFINE_uint64(indicus_inject_failure_freq, 100, "number of transactions per ONE failure"
 		    " in a Byz client (for Indicus)"); //default 100
 
-DEFINE_uint64(indicus_phase1DecisionTimeout, 1000UL, "p1 timeout before going slowpath");
+DEFINE_uint64(indicus_phase1_decision_timeout, 1000UL, "p1 timeout before going slowpath");
 //Verification computation configurations
 DEFINE_bool(indicus_multi_threading, false, "dispatch crypto to parallel threads");
 DEFINE_bool(indicus_batch_verification, false, "using ed25519 donna batch verification");
@@ -358,9 +358,9 @@ enum query_messages_t {
   QUERY_MESSAGES_ALL //send to all replicas
 };
 const std::string query_messages_args[] = {
-	"quorum",
-  "pessimistic-bonus",
-  "all"
+	"query-quorum",
+  "query-pessimistic-bonus",
+  "query-all"
 };
 const query_messages_t query_messagess[] {
   QUERY_MESSAGES_QUERY_QUORUM,
@@ -376,6 +376,10 @@ static bool ValidateQueryMessages(const char* flagname,
   std::cerr << "Invalid value for --" << flagname << ": " << value << std::endl;
   return false;
 }
+
+/*
+ Pequin settings
+*/
 
 DEFINE_string(pequin_query_sync_quorum, query_sync_quorum_args[2], "number of replica replies required for sync quorum"); //by default: SyncClient should wait for 2f+1 replies
 DEFINE_validator(pequin_query_sync_quorum, &ValidateQuerySyncQuorum);
@@ -399,11 +403,19 @@ DEFINE_string(pequin_sync_messages, query_messages_args[0], "number of replicas 
 
 DEFINE_validator(pequin_sync_messages, &ValidateQueryMessages);
 
-DEFINE_bool(pequin_query_read_prepared, false, "allow query to read prepared values");
-DEFINE_bool(pequin_query_optimistic_txid, false, "use optimistic tx-id for sync protocol");
-DEFINE_bool(pequin_query_cache_read_set, false, "cache query read set at replicas"); // Send syncMessages to all if read set caching is enabled -- but still only sync_messages many replicas are tasked to execute and reply.
+DEFINE_bool(pequin_query_eager_exec, false, "skip query sync protocol and execute optimistically on local state");
+
+DEFINE_bool(pequin_query_read_prepared, true, "allow query to read prepared values");
+DEFINE_bool(pequin_query_cache_read_set, true, "cache query read set at replicas"); // Send syncMessages to all if read set caching is enabled -- but still only sync_messages many replicas are tasked to execute and reply.
+
+DEFINE_bool(pequin_query_optimistic_txid, true, "use optimistic tx-id for sync protocol");
+DEFINE_bool(pequin_query_compress_optimistic_txid, false, "compress optimistic tx-id for sync protocol");
+
+
+DEFINE_bool(pequin_query_merge_active_at_client, true, "merge active query read sets client-side");
 
 DEFINE_bool(pequin_sign_client_queries, false, "sign query and sync messages"); //proves non-equivocation of query contents, and query snapshot respectively. 
+//DEFINE_bool(pequin_sign_replica_to_replica_sync, false, "sign inter replica sync messages with HMACs"); //proves authenticity of channels.
 //Note: Should not be necessary. Unique hash of query should suffice for non-equivocation; autheniticated channels would suffice for authentication. 
 DEFINE_bool(pequin_parallel_queries, false, "dispatch queries to parallel worker threads");
 
@@ -546,7 +558,7 @@ DEFINE_uint64(cooldown_secs, 5, "time (in seconds) to cool down system after"
     " recording stats");
 DEFINE_uint64(tput_interval, 0, "time (in seconds) between throughput"
     " measurements");
-DEFINE_uint64(num_client_threads, 1, "number of client threads to run in this process");
+DEFINE_uint64(num_client_threads, 1, "number of client threads to run on each process");
 DEFINE_uint64(num_client_hosts, 1, "number of client processes across all nodes and servers");
 DEFINE_uint64(num_requests, -1, "number of requests (transactions) per"
     " client");
@@ -692,6 +704,7 @@ Transport *tport;
 transport::Configuration *config;
 KeyManager *keyManager;
 Partitioner *part;
+KeySelector *keySelector;
 
 void Cleanup(int signal);
 void FlushStats();
@@ -889,6 +902,7 @@ int main(int argc, char **argv) {
   int replica;
   iss >> replica;
   while (!iss.fail()) {
+    std::cerr << "Next closest replica: " << replica << std::endl;
     closestReplicas.push_back(replica);
     iss >> replica;
   }
@@ -936,8 +950,6 @@ int main(int argc, char **argv) {
 
   Debug("transport protocol used: %d",trans);
 
-
-  KeySelector *keySelector;
   switch (keySelectionMode) {
     case KEYS_UNIFORM:
       keySelector = new UniformKeySelector(keys);
@@ -1052,8 +1064,10 @@ int main(int argc, char **argv) {
     SyncClient *syncClient = nullptr;
     OneShotClient *oneShotClient = nullptr;
 
-    uint64_t clientId = (FLAGS_client_id << 6) | i;
-    //uint64_t clientId = FLAGS_client_id + FLAGS_num_client_hosts * i;
+    //uint64_t clientId = (FLAGS_client_id << 6) | i;
+    //uint64_t clientId = (FLAGS_client_id << 2) | i;
+    //uint64_t clientId = FLAGS_client_id | i;
+    uint64_t clientId = FLAGS_client_id + FLAGS_num_client_hosts * i;
     std::cerr <<  "num hosts=" << FLAGS_num_client_hosts << "; num_threads=" << FLAGS_num_client_threads << std::endl;
     //keyManager->PreLoadPrivKey(clientId, true);
     // Alternatively: uint64_t clientId = FLAGS_client_id * FLAGS_num_client_threads + i;
@@ -1262,10 +1276,14 @@ int main(int argc, char **argv) {
                                                  mergeThreshold,
                                                  syncMessages,
                                                  resultQuorum,
+                                                 FLAGS_pequin_query_eager_exec,
                                                  FLAGS_pequin_query_read_prepared,
-                                                 FLAGS_pequin_query_optimistic_txid,
                                                  FLAGS_pequin_query_cache_read_set,
+                                                 FLAGS_pequin_query_optimistic_txid,
+                                                 FLAGS_pequin_query_compress_optimistic_txid, 
+                                                 FLAGS_pequin_query_merge_active_at_client,
                                                  FLAGS_pequin_sign_client_queries,
+                                                 false,    // FLAGS_pequin_sign_replica_to_replica_sync,
                                                  FLAGS_pequin_parallel_queries);
 
         pequinstore::Parameters params(FLAGS_indicus_sign_messages,
@@ -1294,7 +1312,7 @@ int main(int argc, char **argv) {
                                           FLAGS_num_shards,
                                           FLAGS_num_groups, closestReplicas, FLAGS_ping_replicas, tport, part,
                                           FLAGS_tapir_sync_commit, readMessages, readQuorumSize,
-                                          params, keyManager, FLAGS_indicus_phase1DecisionTimeout,
+                                          params, keyManager, FLAGS_indicus_phase1_decision_timeout,
 																					FLAGS_indicus_max_consecutive_abstains,
 																					TrueTime(FLAGS_clock_skew, FLAGS_clock_error));
         break;
@@ -1325,7 +1343,7 @@ int main(int argc, char **argv) {
                                           FLAGS_num_shards,
                                           FLAGS_num_groups, closestReplicas, FLAGS_ping_replicas, tport, part,
                                           FLAGS_tapir_sync_commit, readMessages, readQuorumSize,
-                                          params, keyManager, FLAGS_indicus_phase1DecisionTimeout,
+                                          params, keyManager, FLAGS_indicus_phase1_decision_timeout,
 																					FLAGS_indicus_max_consecutive_abstains,
 																					TrueTime(FLAGS_clock_skew, FLAGS_clock_error));
         break;
@@ -1579,6 +1597,7 @@ void Cleanup(int signal) {
   FlushStats();
   delete config;
   delete keyManager;
+  delete keySelector;
   for (auto i : threads) {
     i->join();
     delete i;
