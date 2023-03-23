@@ -327,7 +327,83 @@ void Server::Load(const std::string &key, const std::string &value,
   }
 }
 
-//TODO: Define Load function for Tables.
+//TODO: Add these functions as virtual inline to the general server.h -- make it panic if called for stores that don't implement load.
+//For hotstuffPG store --> let proxy call into PG
+//For Crdb --> let server establish a client connection to backend too.
+void Server::CreateTable(const std::string &table_name, const std::vector<std::pair<std::string, std::string>> &column_data_types, const std::vector<uint32_t> primary_key_col_idx ){
+
+  //NOTE: Assuming here we do not need special descriptors like foreign keys, column condidtions... (If so, it maybe easier to store the SQL statement in JSON directly)
+
+  std::string sql_statement("CREATE TABLE");
+  sql_statement += " " + table_name;
+
+  UW_ASSERT(!column_data_types.empty());
+  UW_ASSERT(!primary_key_col_idx.empty());
+  
+  sql_statement += " (";
+  for(auto &[col, type]: column_data_types){
+    sql_statement += col + " " + type + ", ";
+  }
+
+
+  sql_statement += "PRIMARY_KEY ";
+  if(primary_key_col_idx.size() > 1) sql_statement += "(";
+
+  for(auto &p_idx: primary_key_col_idx){
+    sql_statement += column_data_types[p_idx].first + ", ";
+  }
+  sql_statement.pop_back();
+  sql_statement.pop_back();
+  if(primary_key_col_idx.size() > 1) sql_statement += ")";
+  
+  sql_statement +=");";
+
+  //TODO: Call into TableStore with this statement.
+
+  //Create TABLE version  -- just use table_name as key.  This version tracks updates to "table state" (as opposed to row state): I.e. new row insertions; row deletions;
+  //Note: It does currently not track table creation/deletion itself -- this is unsupported. If we do want to support it, either we need to make a separate version; 
+                                                                 //or we require inserts/updates to include the version in the ReadSet. 
+                                                                 //However, we don't want an insert to abort just because another row was inserted.
+  Load(table_name, "", Timestamp());
+}
+
+void Server::LoadTableRow(const std::string &table_name, const std::vector<std::pair<std::string, std::string>> &column_data_types, const std::vector<std::string> &values, const std::vector<uint32_t> primary_key_col_idx ){
+  
+  //TODO: Instead of using the INSERT SQL statement, use the TableWrite API we will establish.
+  std::string sql_statement("INSERT INTO");
+  sql_statement += " " + table_name ;
+
+  UW_ASSERT(!values.empty()); //Need to insert some values...
+  UW_ASSERT(column_data_types.size() == values.size()); //Need to specify all columns to insert into
+
+  sql_statement += " (";
+  for(auto &[col, _]: column_data_types){
+    sql_statement += col + ", ";
+  }
+  sql_statement.pop_back();
+  sql_statement.pop_back();
+  sql_statement +=")";
+  
+  sql_statement += " VALUES (";
+  
+  for(auto &val: values){
+    sql_statement += val + ", ";
+  }
+  sql_statement.pop_back();
+  sql_statement.pop_back();
+
+  sql_statement += ");" ;
+  
+   //TODO: Call into TableStore with this statement.
+
+  std::vector<const char*> primary_cols;
+  for(auto i: primary_key_col_idx){
+    primary_cols.push_back(column_data_types[i].first.c_str());
+  }
+  std::string enc_key = EncodeTableRow(table_name, primary_cols);
+  Load(enc_key, "", Timestamp());
+}
+
 
 //Handle Read Message
 //Dispatches to reader thread if params.parallel_reads = true, and multithreading enabled

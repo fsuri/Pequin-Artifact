@@ -51,6 +51,8 @@
 #include "lib/cereal/archives/binary.hpp"
 #include "lib/cereal/types/string.hpp"
 
+//#include "store/benchmark/async/json_table_writer.h"
+
 namespace toy {
 
 ToyTransaction::ToyTransaction(): SyncTransaction(10000) {

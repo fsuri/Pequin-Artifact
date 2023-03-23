@@ -103,6 +103,12 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
 
   virtual void Load(const std::string &key, const std::string &value,
       const Timestamp timestamp) override;
+  
+  virtual void CreateTable(const std::string &table_name, const std::vector<std::pair<std::string, std::string>> &column_data_types, 
+      const std::vector<uint32_t> primary_key_col_idx) override;
+
+  virtual void LoadTableRow(const std::string &table_name, const std::vector<std::pair<std::string, std::string>> &column_data_types, 
+      const std::vector<std::string> &values, const std::vector<uint32_t> primary_key_col_idx) override;
 
   virtual inline Stats &GetStats() override { return stats; }
 
@@ -927,12 +933,17 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
   // std::unordered_set<std::string> normal;
   // std::unordered_set<std::string> fallback;
   // std::unordered_set<std::string> waiting;
-  // Digest -> V
+
+  // Prepared: Txn Digest -> V (Tiemstamp, Tx)  
+      // Avoids duplicate CC
+      // Used to check dependency presence
+      // Used for sync availability
   //std::unordered_map<std::string, std::pair<Timestamp, const proto::Transaction *>> prepared;
   typedef tbb::concurrent_hash_map<std::string, std::pair<Timestamp, const proto::Transaction *>> preparedMap; //TODO: does this need to store Tx? (TS not necessary... it's part of TX)
   preparedMap prepared;
 
-  // Key -> Tx
+  // Prpepared Reads/Writes: Key -> Tx
+      // Helper data structures to read prepared Values (preparedWrites); or to check for write-read conflicts during CC 
   //std::unordered_map<std::string, std::set<const proto::Transaction *>> preparedReads;
   tbb::concurrent_unordered_map<std::string, std::pair<std::shared_mutex, std::set<const proto::Transaction *>>> preparedReads;
   //std::unordered_map<std::string, std::map<Timestamp, const proto::Transaction *>> preparedWrites;

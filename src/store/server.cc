@@ -73,6 +73,9 @@
 #include <gflags/gflags.h>
 #include <thread>
 
+#include <nlohmann/json.hpp>
+using json = nlohmann::json;
+
 enum protocol_t {
 	PROTO_UNKNOWN,
 	PROTO_TAPIR,
@@ -410,6 +413,7 @@ DEFINE_string(stats_file, "", "path to file for server stats");
 DEFINE_string(keys_path, "", "path to file containing keys in the system");
 DEFINE_uint64(num_keys, 0, "number of keys to generate");
 DEFINE_string(data_file_path, "", "path to file containing key-value pairs to be loaded");
+DEFINE_bool(sql_bench, false, "Load not just key-value pairs, but also Tables. Input file is JSON Tabe args");
 
 Server *server = nullptr;
 TransportReceiver *replica = nullptr;
@@ -881,7 +885,23 @@ int main(int argc, char **argv) {
 			Notice("Created and Stored %lu out of %lu key-value pairs", stored,
 	        loaded);
 		}
-  } else if (FLAGS_data_file_path.length() > 0 && FLAGS_keys_path.empty()) {
+  } 
+  else if(FLAGS_sql_bench && FLAGS_data_file_path.length() > 0 && FLAGS_keys_path.empty()) {
+       std::ifstream generated_tables(FLAGS_data_file_path);
+       json tables_to_load = json::parse(generated_tables);
+       
+       //Load all tables. 
+       for(auto &[table_name, table_args]: tables_to_load.items()){ 
+          const std::vector<std::pair<std::string, std::string>> &column_names_and_types = table_args["column_names_and_types"];
+          const std::vector<uint32_t> &primary_key_col_idx = table_args["primary_key_col_idx"];
+          server->CreateTable(table_name, column_names_and_types, primary_key_col_idx); 
+          for(auto &row: table_args["rows"]){
+            const std::vector<std::string> &values = row;
+            server->LoadTableRow(table_name, column_names_and_types, row, primary_key_col_idx);
+          }
+       }
+  }
+  else if (FLAGS_data_file_path.length() > 0 && FLAGS_keys_path.empty()) {
     std::ifstream in;
     in.open(FLAGS_data_file_path);
     if (!in) {
@@ -892,6 +912,7 @@ int main(int argc, char **argv) {
     size_t loaded = 0;
     size_t stored = 0;
     Debug("Populating with data from %s.", FLAGS_data_file_path.c_str());
+
     std::vector<int> txnGroups;
     while (!in.eof()) {
       std::string key;

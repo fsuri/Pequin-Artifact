@@ -2031,10 +2031,10 @@ std::string generateReadSetMerkleRoot(const std::map<std::string, TimestampMessa
 
 static std::string unique_delimiter = "###";
 //TODO: input: convert row_name type into byte array. E.g. Int: static_cast<char*>(static_cast<void*>(&x)); String: str.c_str();
-std::string EncodeTableRow(const std::string &table_name, const std::vector<char*> primary_key_columns){  //std::string &row_name
+std::string EncodeTableRow(const std::string &table_name, const std::vector<const char*> primary_key_columns){  //std::string &row_name
   //Note: Assuming unique delimiter that is neither part of table_nor string.
   std::string encoding = table_name;
-  for(char *primary_column: primary_key_columns){
+  for(const char *primary_column: primary_key_columns){
     encoding += unique_delimiter + primary_column;
   }
   return encoding;
