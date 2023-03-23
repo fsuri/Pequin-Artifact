@@ -164,3 +164,14 @@ sudo cp -i cockroach-v22.2.2.linux-amd64/cockroach /usr/local/bin
 
 # PG
 sudo apt -y install libpq-dev postgresql-server-dev-all
+
+# taopq 
+cd ~/dependencies
+git clone git@github.com:taocpp/taopq.git
+cd taopq
+git checkout 943d827
+sudo cmake .
+sudo cmake --build . -j $(nproc)
+sudo make install
+sudo ldconfig
+cd ..
