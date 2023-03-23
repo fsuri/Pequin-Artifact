@@ -28,6 +28,7 @@
 #include "store/benchmark/async/sql/tpcc/stock_level.h"
 
 #include <map>
+#include <format>
 
 #include "store/benchmark/async/tpcc/tpcc_utils.h"
 
@@ -53,9 +54,7 @@ transaction_status_t SQLStockLevel::Execute(SyncClient &client) {
 
   client.Begin(timeout);
 
-  query = "SELECT FROM District WHERE pk = ";
-  std::string d_key = tpcc::DistrictRowKey(w_id, d_id);
-  query.append(d_key);
+  query = std::format("SELECT FROM District WHERE id = {} AND w_id = {}", d_id, w_id);
   client.Query(query, queryResult, timeout);
   tpcc::DistrictRow d_row;
   deserialize(d_row, queryResult);
@@ -65,8 +64,7 @@ transaction_status_t SQLStockLevel::Execute(SyncClient &client) {
 
   for (size_t ol_o_id = next_o_id - 20; ol_o_id < next_o_id; ++ol_o_id) {
     Debug("Order %lu", ol_o_id);
-    query = "SELECT FROM Order WHERE pk = ";
-    query.append(tpcc::OrderRowKey(w_id, d_id, ol_o_id));
+    query = std::format("SELECT FROM Order WHERE id = {} AND d_id = {} AND w_id = {}", ol_o_id, d_id, w_id);
     client.Query(query, timeout);
   }
 
@@ -87,9 +85,7 @@ transaction_status_t SQLStockLevel::Execute(SyncClient &client) {
     ol_cnts[ol_o_id] = o_row.ol_cnt();
     for (size_t ol_number = 0; ol_number < o_row.ol_cnt(); ++ol_number) {
       Debug("    OL %lu", ol_number);
-      query = "SELECT FROM OrderLine WHERE pk = ";
-      std::string ol_key = tpcc::OrderLineRowKey(w_id, d_id, ol_o_id, ol_number);
-      query.append(ol_key);
+      query = std::format("SELECT FROM OrderLine WHERE o_id = {} AND d_id = {} AND w_id = {} AND number = {}", ol_o_id, d_id, w_id, ol_number);
       client.Query(query, timeout);
     }
   }
@@ -114,8 +110,7 @@ transaction_status_t SQLStockLevel::Execute(SyncClient &client) {
       Debug("      Item %d", ol_row.i_id());
 
       if (stockRows.find(ol_row.i_id()) == stockRows.end()) {
-        query = "SELECT FROM Stock WHERE pk = ";
-        query.append(tpcc::StockRowKey(w_id, ol_row.i_id()));
+        query = std::format("SELECT FROM Stock WHERE i_id = {} AND w_id = {}", ol_row.i_id(), w_id);
         client.Query(query, timeout);
       }
     }

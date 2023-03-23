@@ -82,14 +82,10 @@ transaction_status_t SQLPayment::Execute(SyncClient &client) {
 
   client.Begin(timeout);
 
-  query = "SELECT FROM Warehouse WHERE pk = ";
-  std::string w_key = tpcc::WarehouseRowKey(w_id);
-  query.append(w_key);
+  query = std::format("SELECT FROM Warehouse WHERE id = {}", w_id);
   client.Query(query, timeout);
   Debug("District: %u", d_id);
-  query = "SELECT FROM District WHERE pk = ";
-  std::string d_key = tpcc::DistrictRowKey(d_w_id, d_id);
-  query.append(d_key);
+  query = std::format("SELECT FROM District WHERE id = {} AND w_id = {}", d_id, d_w_id);
   client.Query(query, timeout);
 
   std::string c_key;
@@ -97,9 +93,7 @@ transaction_status_t SQLPayment::Execute(SyncClient &client) {
     Debug("Customer: %s", c_last.c_str());
     Debug("  Get(c_w_id=%u, c_d_id=%u, c_last=%s)", c_w_id, c_d_id,
       c_last.c_str());
-    query = "SELECT FROM CustomerByName WHERE pk = ";
-    std::string cbn_key = tpcc::CustomerByNameRowKey(c_w_id, c_d_id, c_last);
-    query.append(cbn_key);
+    query = std::format("SELECT FROM CustomerByName WHERE w_id = {} AND d_id = {} AND last = {}", c_w_id, c_d_id, c_last);
     client.Query(query, timeout);
 
     client.Wait(results);
@@ -113,16 +107,12 @@ transaction_status_t SQLPayment::Execute(SyncClient &client) {
     c_id = cbn_row.ids(idx);
     Debug("  ID: %u", c_id);
 
-    query = "SELECT FROM Customer WHERE pk = ";
-    c_key = tpcc::CustomerRowKey(c_w_id, c_d_id, c_id);
-    query.append(c_key);
+    query = std::format("SELECT FROM Customer WHERE id = {} AND d_id = {} AND w_id = {}", c_id, c_d_id, c_w_id);
     client.Query(query, timeout);
   } else {
     Debug("Customer: %u", c_id);
 
-    query = "SELECT FROM Customer WHERE pk = ";
-    c_key = tpcc::CustomerRowKey(c_w_id, c_d_id, c_id);
-    query.append(c_key);
+    query = std::format("SELECT FROM Customer WHERE id = {} AND d_id = {} AND w_id = {}", c_id, c_d_id, c_w_id);
     client.Query(query, timeout);
     client.Wait(results);
   }
@@ -131,21 +121,25 @@ transaction_status_t SQLPayment::Execute(SyncClient &client) {
   deserialize(w_row, results[0]);
   w_row.set_ytd(w_row.ytd() + h_amount);
   Debug("  YTD: %u", w_row.ytd());
-  query = std::format("INSERT INTO Warehouse\n VALUES ({}, {}, {}, {}, {}, {}, {}, {}, {});", 
+  std::string statement = std::format("INSERT INTO Warehouse\n VALUES ({}, {}, {}, {}, {}, {}, {}, {}, {});", 
             w_row.id(), w_row.name(), w_row.street_1(), w_row.street_2(), 
             w_row.city(), w_row.state(), w_row.zip(), w_row.tax(), w_row.ytd());
-  client.Query(query, timeout);
+  std::vector<std::vector<std::string>> compound_key{{0}};
+  client.Write(statement, compound_key, result, timeout);
 
 // Checkpoint
   tpcc::DistrictRow d_row;
-  UW_ASSERT(d_row.ParseFromString(strs[1]));
+  deserialize(d_row, results[1]);
   d_row.set_ytd(d_row.ytd() + h_amount);
   Debug("  YTD: %u", d_row.ytd());
-  d_row.SerializeToString(&str);
-  client.Put(d_key, str, timeout);
+  statement = std::format("INSERT INTO District\n VALUES ({}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {});", 
+            d_row.id(), d_row.w_id(), d_row.name(), d_row.street_1(), d_row.street_2(), 
+            d_row.city(), d_row.state(), d_row.zip(), d_row.tax(), d_row.ytd(), d_row.next_o_id());
+  std::vector<std::vector<std::string>> compound_key{{0, 1}};
+  client.Write(statement, compound_key, result, timeout);
 
   tpcc::CustomerRow c_row;
-  UW_ASSERT(c_row.ParseFromString(strs[2]));
+  deserialize(c_row, results[2]);
   c_row.set_balance(c_row.balance() - h_amount);
   c_row.set_ytd_payment(c_row.ytd_payment() + h_amount);
   c_row.set_payment_cnt(c_row.payment_cnt() + 1);
@@ -160,8 +154,14 @@ transaction_status_t SQLPayment::Execute(SyncClient &client) {
     new_data = new_data.substr(std::min(new_data.size(), 500UL));
     c_row.set_data(new_data);
   }
-  c_row.SerializeToString(&str);
-  client.Put(c_key, str, timeout);
+  statement = std::format("INSERT INTO Customer\n VALUES ({}, {}, {}, {}, {}, {}, {}, {}, {}, "
+                                "{}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {});", 
+            c_row.id(), c_row.d_id(), c_row.w_id(), c_row.first(), c_row.middle(), c_row.last(),
+            c_row.street_1(), c_row.street_2(), c_row.city(), c_row.state(), c_row.zip(), c_row.phone(),
+            c_row.since(), c_row.credit(), c_row.credit_lim(), c_row.discount(), c_row.balance(),
+            c_row.ytd_payment(), c_row.payment_cnt(), c_row.delivery_cnt(), c_row.data());
+  std::vector<std::vector<std::string>> compound_key{{0, 1, 2}};
+  client.Write(statement, compound_key, result, timeout);
 
   tpcc::HistoryRow h_row;
   h_row.set_c_id(c_id);
@@ -171,7 +171,11 @@ transaction_status_t SQLPayment::Execute(SyncClient &client) {
   h_row.set_w_id(w_id);
   h_row.set_data(w_row.name() + "    " + d_row.name());
   h_row.SerializeToString(&str);
-  client.Put(tpcc::HistoryRowKey(w_id, d_id, c_id), str, timeout); //TODO: should write to a unique key
+  statement = std::format("INSERT INTO History\n VALUES ({}, {}, {}, {}, {}, {}, {}, {});", 
+            h_row.c_id(), h_row.c_d_id(), h_row.c_w_id(), h_row.d_id(), h_row.w_id(),
+            h_row.h_date(), h_row.amount(), h_row.data());
+  std::vector<std::vector<std::string>> compound_key{{0, 3, 4}};
+  client.Write(statement, compound_key, result, timeout);
 
   Debug("COMMIT");
   return client.Commit(timeout);
