@@ -1,12 +1,9 @@
 d := $(dir $(lastword $(MAKEFILE_LIST)))
 
-SRCS += $(addprefix $(d), server.cc )
+SRCS += $(addprefix $(d), server.cc client.cc )
 
-# TaoPQ static libraries
-LIB-taopq :=
-
-LIB-cockroachdb-store := $(o)server.o \
+LIB-cockroachdb-store := $(o)server.o $(o)client.o \
 	$(LIB-crypto) $(LIB-configuration) $(LIB-store-common) \
 	$(LIB-transport) \
-	# $(o)client.o 
+	
 
