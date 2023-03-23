@@ -42,6 +42,7 @@ Client::Client(const transport::Configuration &config, uint64_t id, int nShards,
     string addr = gateway.host + ":" + gateway.port;
     string url = "postgresql://root@" + addr + "/defaultdb?sslmode=disable";
 
+    Notice("Connecting to gateway %s", url.c_str());
     // Establish connection
     conn = tao::pq::connection::create(url);
 
