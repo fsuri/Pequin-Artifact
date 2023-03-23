@@ -288,8 +288,50 @@ void Client::Write(std::string &write_statement, std::vector<std::vector<uint32_
     //Case 4) SELECT INTO : Not supported, write statement as Select followed by Insert Into (new table)? Or parse into INSERT INTO statement with nested SELECT (same logic)
     
 
+    //TODO:
+    bool x = read_statement.rfind("hello", 0) == 0;
+    // if string starts with XYZ... else
+    // split string on ... 
+    // either find and split on delimiter. Or keep taking substrings and end..
+
+    if(write_statement.rfind("INSERT", 0) == 0){
+        //TODO: 
+        //1) Remove substring INSERT INTO --> Split on INSERT INTO
+        //2) extract table_name (split on next " ")
+        //3) If it has columns, extract those too
+        //4) split on VALUES 
+        //5) Extract value list.
+
+        size_t pos = enc_key.find(unique_delimiter);
+        UW_ASSERT(pos != std::string::npos);
+        size_t last = pos + unique_delimiter.length(); 
+        size_t next; 
+
+        while ((next = enc_key.find(unique_delimiter, last)) != string::npos) {   
+          primary_key_columns.push_back(enc_key.substr(last, next-last));   
+          last = next + unique_delimiter.length(); 
+        } 
+        primary_key_columns.push_back(enc_key.substr(last));
+    }
+    else if(write_statement.rfind("DELETE", 0) == 0){
+
+    }
+    else if(write_statement.rfind("UPDATE", 0) == 0){
+
+    }
+    else {
+      Panic("Currently only support the following Write statement operations: INSERT, DELETE, UPDATE");
+    }
 
     
+
+
+
+    //TODO: Table Write byte encoding
+    // Need to encode the column values as generic bytes. Try to use cereal library
+    // At server need to decode the column value. Can one decode this without extra information? Or does one have to pass the type too
+    // Maybe the server "knows" what type the bytes need to be?
+    //Maybe just storing as string is actually fine? Since its part of a SQL statement usually... But now we want to use our own manual table write.
     
     
     write_continuation = [this](const query_result::QueryResult *result){

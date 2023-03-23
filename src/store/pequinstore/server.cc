@@ -327,10 +327,10 @@ void Server::Load(const std::string &key, const std::string &value,
   }
 }
 
-//TODO: Add these functions as virtual inline to the general server.h -- make it panic if called for stores that don't implement load.
-//For hotstuffPG store --> let proxy call into PG
-//For Crdb --> let server establish a client connection to backend too.
+//TODO: For hotstuffPG store --> let proxy call into PG
+//TODO: For Crdb --> let server establish a client connection to backend too.
 void Server::CreateTable(const std::string &table_name, const std::vector<std::pair<std::string, std::string>> &column_data_types, const std::vector<uint32_t> primary_key_col_idx ){
+  //Followed rough SQL dialect from: https://www.postgresqltutorial.com/postgresql-tutorial/postgresql-create-table/
 
   //NOTE: Assuming here we do not need special descriptors like foreign keys, column condidtions... (If so, it maybe easier to store the SQL statement in JSON directly)
 
@@ -342,7 +342,8 @@ void Server::CreateTable(const std::string &table_name, const std::vector<std::p
   
   sql_statement += " (";
   for(auto &[col, type]: column_data_types){
-    sql_statement += col + " " + type + ", ";
+    std::string p_key = (primary_key_col_idx.size() == 1 && col == column_data_types[primary_key_col_idx[0]].first) ? " PRIMARY KEY": "";
+    sql_statement += col + " " + type + p_key + ", ";
   }
 
 
@@ -352,8 +353,8 @@ void Server::CreateTable(const std::string &table_name, const std::vector<std::p
   for(auto &p_idx: primary_key_col_idx){
     sql_statement += column_data_types[p_idx].first + ", ";
   }
-  sql_statement.pop_back();
-  sql_statement.pop_back();
+  sql_statement.resize(sql_statement.size() - 2); //remove trailing ", "
+
   if(primary_key_col_idx.size() > 1) sql_statement += ")";
   
   sql_statement +=");";
@@ -380,8 +381,7 @@ void Server::LoadTableRow(const std::string &table_name, const std::vector<std::
   for(auto &[col, _]: column_data_types){
     sql_statement += col + ", ";
   }
-  sql_statement.pop_back();
-  sql_statement.pop_back();
+  sql_statement.resize(sql_statement.size() - 2); //remove trailing ", "
   sql_statement +=")";
   
   sql_statement += " VALUES (";
@@ -389,8 +389,7 @@ void Server::LoadTableRow(const std::string &table_name, const std::vector<std::
   for(auto &val: values){
     sql_statement += val + ", ";
   }
-  sql_statement.pop_back();
-  sql_statement.pop_back();
+  sql_statement.resize(sql_statement.size() - 2); //remove trailing ", "
 
   sql_statement += ");" ;
   

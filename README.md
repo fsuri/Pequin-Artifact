@@ -186,6 +186,18 @@ Next, build taopq:
 7. `sudo ldconfig`
 8. `cd ..`
 
+#### Installing nlohman/json 
+
+Download the library:
+
+1. `git clone git@github.com:nlohmann/json.git`
+2. `cd json`
+4. `cmake .`
+6. `sudo make install`
+7. `sudo ldconfig`
+8. `cd ..`
+
+
 #### Installing google test
 
 Download the library:
