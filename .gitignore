@@ -132,6 +132,6 @@ _deps
 
 src/store/cockroachdb/main_test
 dependencies/*
-src/crdb_node*
+src/store/cockroachdb/crdb_node*/
 *.pb.h
 *.pb.cc
