@@ -817,6 +817,7 @@ void Server::HandleSyncCallback(QueryMetaData *query_md){
         //query_md->read_set[dummy_key] = ts; //query_md->ts;
         //replaced with repeated field -> directly in result object.
         ReadMessage *read = query_md->queryResultReply->mutable_result()->mutable_query_read_set()->add_read_set();
+        //ReadMessage *read = query_md->queryResult->mutable_query_read_set()->add_read_set();
         read->set_key(dummy_key);
         *read->mutable_readtime() = ts;
         //TODO: Add more keys; else I cant test order.
@@ -849,9 +850,11 @@ void Server::HandleSyncCallback(QueryMetaData *query_md){
         
          if(query_md->designated_for_reply){
             query_md->queryResultReply->mutable_result()->set_query_result(dummy_result);
+            //query_md->queryResult->set_query_result(dummy_result); //TODO: replace with real result
         }
         else{
             query_md->queryResultReply->mutable_result()->set_query_result(dummy_result); //set for non-query manager.
+            //query_md->queryResult->set_query_result(dummy_result);
         }
 
          SyncReply(query_md);
@@ -862,9 +865,10 @@ void Server::HandleSyncCallback(QueryMetaData *query_md){
     }
 }
 
-void Server::SyncReply(QueryMetaData *query_md){
+void Server::SyncReply(QueryMetaData *query_md){ //TODO: Rename this to QueryReply 
     
-     //proto::queryResultReplyReply *queryResultReply = new proto::queryResultReplyReply(); //TODO: replace with GetUnused
+    // proto::queryResultReplyReply *queryResultReply = new proto::queryResultReply(); //TODO: replace with GetUnused
+    // proto::QueryResult *result = query_md->queryResult;
     proto::QueryResultReply *queryResultReply = query_md->queryResultReply;
     proto::QueryResult *result = queryResultReply->mutable_result();
     proto::QueryReadSet *query_read_set;
@@ -919,7 +923,7 @@ void Server::SyncReply(QueryMetaData *query_md){
         //Debug("Sign Query Result Reply for Query[%lu:%lu]", query_reply->query_seq_num(), query_reply->client_id());
         Debug("Sign Query Result Reply for Query[%lu:%lu]", result->query_seq_num(), result->client_id());
 
-        proto::QueryResult *res = queryResultReply->release_result();
+        proto::QueryResult *res = queryResultReply->release_result();   
         if(false) { //params.queryReplyBatch){
             TransportAddress *remoteCopy = query_md->original_client->clone();
             auto sendCB = [this, remoteCopy, queryResultReply]() {
@@ -928,7 +932,7 @@ void Server::SyncReply(QueryMetaData *query_md){
                 //delete queryResultReply;
             };
           
-             //TODO: if this is already done on a worker, no point in dispatching it again. Add a Flag to MessageToSign that specifies "already worker"
+             //TODO: if this is already called from a worker, no point in dispatching it again. Add a Flag to MessageToSign that specifies "already worker"
             MessageToSign(res, queryResultReply->mutable_signed_result(), [this, sendCB, res, queryResultReply, query_read_set]() mutable {
                 sendCB();
                  Debug("Sent Signed Query Result for Query[%lu:%lu]", res->query_seq_num(), res->client_id());
@@ -966,7 +970,7 @@ void Server::SyncReply(QueryMetaData *query_md){
          if(params.query_params.cacheReadSet) result->set_allocated_query_read_set(query_read_set); //Note: In this branch result is still part of queryResultReply; thus it suffices to only allocate back to result.
     }
 
-      Debug("BEGIN READ SET:");
+      Debug("BEGIN READ SET:"); //TODO: Remove -- just for testing
               
                 for(auto &read : result->query_read_set().read_set()){
                 //for(auto &[key, ts] : read_set){

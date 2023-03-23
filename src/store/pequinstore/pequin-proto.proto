@@ -124,6 +124,7 @@ message Transaction {
   repeated QueryResultMetaData query_set = 8;
 
   optional bytes txndigest = 9; //NOT PART OF TX. HACK HERE TO STORE txn digest in the local txn version without changing data structures that hold TXN.
+  repeated ReadMessage read_set_copy = 10; //NOT PART OF TX. HACK HERE TO STORE oltp read set while merging query read sets during CC
 }
 
 message Phase1 {
@@ -146,6 +147,7 @@ message ConcurrencyControl {
     ABSTAIN = 2;
     WAIT = 3;
     RETRY = 4;
+    IGNORE = 5;
   }
   required Result ccr = 2;
   optional CommittedProof committed_conflict = 3;
