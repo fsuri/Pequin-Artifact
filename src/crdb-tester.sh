@@ -1,4 +1,6 @@
-store/server --config_path ./store/testing/toy.config \
+./store/cockroachdb/asian_slipper.sh
+
+DEBUG=store/$STORE/* store/server --config_path ./store/testing/toy.config \
 --group_idx 0 \
 --num_groups 1 \
 --num_shards 1 \
@@ -9,7 +11,7 @@ store/server --config_path ./store/testing/toy.config \
 --rw_or_retwis false \
 --indicus_key_path ./keys
 
-store/server --config_path ./store/testing/toy.config \
+DEBUG=store/$STORE/* store/server --config_path ./store/testing/toy.config \
 --group_idx 0 \
 --num_groups 1 \
 --num_shards 1 \
