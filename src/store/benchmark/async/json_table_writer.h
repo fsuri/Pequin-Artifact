@@ -35,7 +35,7 @@ TableWriter::~TableWriter(){
 //TODO: Can remove table_name? Can remove "values"?
 void TableWriter::add_table(std::string &table_name, std::vector<std::pair<std::string, std::string>>& column_names_and_types, const std::vector<uint32_t> primary_key_col_idx ){
     json &table = tables[table_name];
-    table["table_name"] = table_name;
+    //table["table_name"] = table_name;
     table["column_names_and_types"] = json(column_names_and_types);
     table["primary_key_col_idx"] = json(primary_key_col_idx);
     table["rows"] = {};
@@ -59,11 +59,11 @@ void TableWriter::flush(std::string &file_name){
         out_tables[name] = table;
     }
 
-    std::cerr << out_tables << std::endl;
+    //std::cerr << out_tables.dump(2) << std::endl;
 
     std::ofstream generated_tables;
     generated_tables.open(file_name, std::ios::trunc);
-    generated_tables << out_tables; // << endl;
+    generated_tables << out_tables.dump(2); // << endl;
     generated_tables.close();
 }
 
