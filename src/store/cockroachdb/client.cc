@@ -25,19 +25,21 @@ namespace cockroachdb {
 using namespace std;
 
 // TODO replace TrueTime with others
-Client::Client(transport::Configuration *config, uint64_t id, int nShards, int nGroups,
-       Transport *transport, KeyManager *keyManager, uint64_t default_timeout,
-       TrueTime timeServer)
+Client::Client(const transport::Configuration &config, uint64_t id, int nShards,
+               int nGroups, Transport *transport, uint64_t default_timeout,
+               TrueTime timeServer)
     : config(config),
       client_id(id),
       nshards(nShards),
       ngroups(nGroups),
       transport(transport),
-      keyManager(keyManager),
       timeServer(timeServer) {
   try {
     // TODO add encryption layer
-    string addr = config.host + ":" + config.port;
+    // Takes the last server as gateway
+    transport::ReplicaAddress gateway =
+        config.replica(nGroups - 1, nShards - 1);
+    string addr = gateway.host + ":" + gateway.port;
     string url = "postgresql://root@" + addr + "/defaultdb?sslmode=disable";
 
     // Establish connection
@@ -140,8 +142,8 @@ void Client::Query(std::string &query, query_callback qcb,
       else
         return conn->execute(query);
     }();
-    // pcb(REPLY_OK, key, value);
-    qcb(REPLY_OK, result);
+    // TODO handle qcb
+    // qcb(REPLY_OK, result);
   } catch (const std::exception &e) {
     std::cerr << "Tx query failed" << '\n';
     std::cerr << e.what() << '\n';

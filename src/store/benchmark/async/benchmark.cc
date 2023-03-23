@@ -750,7 +750,6 @@ int main(int argc, char **argv) {
     std::cerr << "Unknown protocol or unknown strongmode." << std::endl;
     return 1;
   }
-
   // parse benchmark
   benchmode_t benchMode = BENCH_UNKNOWN;
   int numBenchs = sizeof(benchmark_args);
@@ -1070,7 +1069,7 @@ int main(int argc, char **argv) {
     Panic("Unsupported number of client threads.");
     return 1;
   }
-
+  Notice("Start setting threads");
   for (size_t i = 0; i < FLAGS_num_client_threads; i++) {
     Client *client = nullptr;
     AsyncClient *asyncClient = nullptr;
@@ -1323,6 +1322,8 @@ int main(int argc, char **argv) {
           default:
             NOT_REACHABLE();
         }
+      default:
+        break;
     }
 
     // Declare Protocol Clients
@@ -1448,7 +1449,7 @@ int main(int argc, char **argv) {
       case PROTO_CRDB: {
         client = new cockroachdb::Client(
             *config, clientId, FLAGS_num_shards, FLAGS_num_groups, tport,
-            keyManager, FLAGS_indicus_phase1DecisionTimeout,
+            FLAGS_indicus_phase1DecisionTimeout,
             TrueTime(FLAGS_clock_skew, FLAGS_clock_error));
         break;
       }

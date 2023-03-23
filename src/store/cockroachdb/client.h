@@ -11,6 +11,7 @@
 #ifndef _CRDB_CLIENT_H_
 #define _CRDB_CLIENT_H_
 
+#include <google/protobuf/message.h>
 #include <sys/time.h>
 #include <unistd.h>
 
@@ -26,7 +27,6 @@
 #include "store/common/frontend/client.h"
 #include "store/common/timestamp.h"
 #include "store/common/truetime.h"
-#include <google/protobuf/message.h>
 
 typedef std::function<void()> abort_callback;
 typedef std::function<void()> abort_timeout_callback;
@@ -42,9 +42,9 @@ namespace cockroachdb {
 
 class Client : public ::Client {
  public:
-  Client(transport::Configuration *config, uint64_t id, int nShards,
-         int nGroups, Transport *transport, KeyManager *keyManager,
-         uint64_t default_timeout, TrueTime timeserver = TrueTime(0, 0));
+  Client(const transport::Configuration &config, uint64_t id, int nShards,
+         int nGroups, Transport *transport, uint64_t default_timeout,
+         TrueTime timeserver = TrueTime(0, 0));
   ~Client();
 
   // Begin a transaction.
@@ -83,7 +83,7 @@ class Client : public ::Client {
   uint64_t id;
   uint32_t timeout;
   /* Configuration State */
-  transport::Configuration *config;
+  transport::Configuration config;
   // Unique ID for this client.
   uint64_t client_id;
   // Number of shards.
