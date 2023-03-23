@@ -130,5 +130,8 @@ compile_commands.json
 CTestTestfile.cmake
 _deps
 
-
 src/store/cockroachdb/main_test
+dependencies/*
+src/crdb_node*
+*.pb.h
+*.pb.cc
