@@ -16,7 +16,8 @@ namespace cockroachdb {
 
 using namespace std;
 
-Server::Server(const transport::Configuration& config, KeyManager* keyManager, int groupIdx, int idx, int numShards, int numGroups)
+Server::Server(const transport::Configuration &config, KeyManager *keyManager,
+               int groupIdx, int idx, int numShards, int numGroups)
     : config(config),
       keyManager(keyManager),
       groupIdx(groupIdx),
@@ -28,14 +29,13 @@ Server::Server(const transport::Configuration& config, KeyManager* keyManager, i
   transport::ReplicaAddress server_address = config.replica(groupIdx, idx);
 
   /**
-  * --advertise-addr determines which address to tell other nodes to use.
-  * --listen-addr determines which address(es) to listen on for connections 
-  *   from other nodes and clients.
-  */
+   * --advertise-addr determines which address to tell other nodes to use.
+   * --listen-addr determines which address(es) to listen on for connections
+   *   from other nodes and clients.
+   */
   std::string start_script =
-      "cockroach start --insecure --listen-addr=" + server_address.host +
-      ":" + server_address.port;
-
+      "cockroach start --insecure --listen-addr=" + server_address.host + ":" +
+      server_address.port;
 
   std::string join_flag = " --join=";
   // Naive implementation: join all node
@@ -49,14 +49,16 @@ Server::Server(const transport::Configuration& config, KeyManager* keyManager, i
   join_flag.pop_back();
 
   // TODO: better port number
-  std::string listen_addr_flag = " --http-addr="+server_address.host+":" + std::to_string(8069 + id);
-  std::string store_flag = " --store=node" + std::to_string(id);
+  std::string listen_addr_flag =
+      " --http-addr=" + server_address.host + ":" + std::to_string(8069 + id);
+  std::string store_flag = " --store=store/cockroachdb/crdb_node" + std::to_string(id);
 
   // TODO : Add encryption
   // TODO: set zones
   // TODO: Add load balancer
   std::string other_flags = " --background ";
-  start_script = start_script + join_flag + store_flag + listen_addr_flag + other_flags;
+  start_script =
+      start_script + join_flag + store_flag + listen_addr_flag + other_flags;
   // start server
   status = system(start_script.c_str());
 
@@ -70,16 +72,14 @@ Server::Server(const transport::Configuration& config, KeyManager* keyManager, i
 }
 
 void Server::Load(const string &key, const string &value,
-    const Timestamp timestamp) {
+                  const Timestamp timestamp) {
   // ValueAndProof val;
   // val.value = value;
   // val.commitProof = dummyProof;
   // commitStore.put(key, val, timestamp);
 }
 
-Stats &Server::GetStats() {
-  return stats;
-}
+Stats &Server::GetStats() { return stats; }
 
 Server::~Server() {}
 
