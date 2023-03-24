@@ -156,6 +156,14 @@ We recommend organizing all installs in a dedicated folder:
 1. `mkdir dependencies`
 2. `cd dependencies`
 
+#### Installing fmt
+1. `git clone git@github.com:fmtlib/fmt.git`
+2. `cd src`
+3. `cmake .`
+4. `sudo make install`
+5. `sudo ldconfig`
+6. `cd ..`
+
 #### Installing Hoard Allocator
 1. `sudo apt-get install clang`
 2. `git clone https://github.com/emeryberger/Hoard`
