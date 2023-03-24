@@ -53,10 +53,7 @@ void ThreadPool::start(int process_id, int total_processes, bool hyperthreading,
     //TODO: add config param for hyperthreading
     //bool hyperthreading = true;
     int num_cpus = std::thread::hardware_concurrency(); ///(2-hyperthreading);
-<<<<<<< HEAD
-=======
    
->>>>>>> pequinstore
         fprintf(stderr, "Total Num_cpus on server: %d \n", num_cpus);
     
     bool put_all_threads_on_same_core = false;
@@ -179,17 +176,8 @@ void ThreadPool::start(int process_id, int total_processes, bool hyperthreading,
       fprintf(stderr, "starting client threadpool\n");
       int num_cpus = std::thread::hardware_concurrency(); ///(2-hyperthreading);
       fprintf(stderr, "Num_cpus: %d \n", num_cpus);
-<<<<<<< HEAD
       num_cpus /= total_processes;
       //num_cpus = 8; //XXX change back to dynamic
-=======
-       if(num_cpus > 8){
-        num_cpus = 8; 
-        fprintf(stderr, "Total Num_cpus on client downregulated to: %d \n", num_cpus);
-      }
-      //Note: Each client uses all 8 cores for additional workers. (However, by default we run with client_multithreading off though, so they are unused.)
-      //num_cpus /= total_processes;   //Note: Use this if one wants to dedicate a certain number of threads per client.
->>>>>>> pequinstore
       //int offset = process_id * num_cpus;
 
       Debug("num cpus per process: %d", num_cpus);

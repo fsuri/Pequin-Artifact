@@ -102,7 +102,10 @@ class LockFreeArray {
 
  private:
   // lock free array
-  tbb::concurrent_vector<ValueType, tbb::zero_allocator<ValueType>>
+  // Original Peloton
+  /*tbb::concurrent_vector<ValueType, tbb::zero_allocator<ValueType>>
+      lock_free_array;*/
+  tbb::concurrent_vector<ValueType, tbb::cache_aligned_allocator<ValueType>>
       lock_free_array;
 };
 
