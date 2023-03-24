@@ -25,7 +25,7 @@
  *
  **********************************************************************/
 #include "store/common/frontend/sync_client.h"
-#include "store/common/query_result_proto_wrapper.h"
+#include "store/common/query_result/query_result_proto_wrapper.h"
 
 
 SyncClient::SyncClient(Client *client) : client(client) {

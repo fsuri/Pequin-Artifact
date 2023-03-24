@@ -36,7 +36,7 @@
 #include "lib/message.h"
 #include "lib/transport.h"
 #include "store/common/transaction.h"
-#include "store/common/query_result.h"
+#include "store/common/query_result/query_result.h"
 
 #include "store/common/query_result/query_result.h"
 

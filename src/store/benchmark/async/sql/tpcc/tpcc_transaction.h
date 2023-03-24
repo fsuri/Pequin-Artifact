@@ -38,6 +38,39 @@ namespace tpcc {
 
 template<class Archive>
 void save(Archive & archive, 
+          tpcc::WarehouseRow const & w)
+{ 
+  archive( w.id(), w.name(), w.street_1(), w.street_2(), w.city(), w.state(), w.zip(), w.tax(), w.ytd());
+}
+
+template<class Archive>
+void load(Archive & archive,
+          tpcc::WarehouseRow & w)
+{
+  uint32_t id;
+  std::string name;
+  std::string street_1;
+  std::string street_2;
+  std::string city;
+  std::string state;
+  std::string zip;
+  int32_t tax;
+  int32_t ytd;
+  archive( id, name, street_1, street_2, city, state, zip, tax, ytd );
+  w.set_id(id);
+  w.set_name(name);
+  w.set_street_1(street_1);
+  w.set_street_2(street_2);
+  w.set_city(city);
+  w.set_state(state);
+  w.set_zip(zip);
+  w.set_tax(tax);
+  w.set_ytd(ytd);
+}
+
+
+template<class Archive>
+void save(Archive & archive, 
           tpcc::DistrictRow const & d)
 { 
   uint32_t id = d.id();
@@ -146,12 +179,102 @@ void load(Archive & archive,
   o.set_amount(amount);
   o.set_dist_info(dist_info);
 }
+
+template<class Archive>
+void save(Archive & archive, 
+          tpcc::CustomerByNameRow const & cbn)
+{ 
+  archive(cbn.w_id(), cbn.d_id(), cbn.last(), cbn.ids_size());
+  for(auto const & id : cbn.ids()) {
+    archive(id);
+  }
+}
+
+template<class Archive>
+void load(Archive & archive,
+          tpcc::CustomerByNameRow & cbn)
+{
+  uint32_t w_id;
+  uint32_t d_id;
+  std::string last;
+  int ids_size;
+  uint32_t id;
+  archive( w_id, d_id, last, ids_size );
+  cbn.set_w_id(w_id);
+  cbn.set_d_id(d_id);
+  cbn.set_last(last);
+  for(int i = 0; i < ids_size; i++) {
+    archive(id);
+    cbn.add_ids(id);
+  }
+}
+
+template<class Archive>
+void save(Archive & archive, 
+          tpcc::CustomerRow const & c)
+{ 
+  archive(c.id(), c.d_id(), c.w_id(), c.first(), c.middle(), c.last(), 
+          c.street_1(), c.street_2(), c.city(), c.state(), c.zip(), c.phone(), 
+          c.since(), c.credit(), c.credit_lim(), c.discount(), c.balance(), 
+          c.ytd_payment(), c.payment_cnt(), c.delivery_cnt(), c.data());
+}
+
+template<class Archive>
+void load(Archive & archive,
+          tpcc::CustomerRow & c)
+{
+  uint32_t id;
+  uint32_t d_id;
+  uint32_t w_id;
+  std::string first;
+  std::string middle;
+  std::string last;
+  std::string street_1;
+  std::string street_2;
+  std::string city;
+  std::string state;
+  std::string zip;
+  std::string phone;
+  uint32_t since;
+  std::string credit;
+  int32_t credit_lim;
+  float discount;
+  float balance;
+  float ytd_payment;
+  uint32_t payment_cnt;
+  uint32_t delivery_cnt;
+  std::string data;
+  archive( id, d_id, w_id, first, middle, last, street_1, street_2, city, state,
+           zip, phone, since, credit, credit_lim, discount, balance, ytd_payment, 
+           payment_cnt, delivery_cnt, data );
+  c.set_id(id);
+  c.set_d_id(d_id);
+  c.set_w_id(w_id);
+  c.set_first(first);
+  c.set_middle(middle);
+  c.set_last(last);
+  c.set_street_1(street_1);
+  c.set_street_2(street_2);
+  c.set_city(city);
+  c.set_state(state);
+  c.set_zip(zip);
+  c.set_phone(phone);
+  c.set_since(since);
+  c.set_credit(credit);
+  c.set_credit_lim(credit_lim);
+  c.set_discount(discount);
+  c.set_balance(balance);
+  c.set_ytd_payment(ytd_payment);
+  c.set_payment_cnt(payment_cnt);
+  c.set_delivery_cnt(delivery_cnt);
+  c.set_data(data);
+}
 }
 
 namespace tpcc_sql {
 
 template<class T>
-void deserialize(T& t, query_result::QueryResult* queryResult) {
+void deserialize(T& t, const query_result::QueryResult* queryResult) {
   std::stringstream ss(std::ios::in | std::ios::out | std::ios::binary);
   for(int i = 0; i < queryResult->columns(); i++) {
     std::size_t n_bytes;

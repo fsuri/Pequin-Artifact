@@ -28,7 +28,7 @@
 #include "store/benchmark/async/sql/tpcc/stock_level.h"
 
 #include <map>
-#include <format>
+#include <fmt/core.h>
 
 #include "store/benchmark/async/tpcc/tpcc_utils.h"
 
@@ -43,9 +43,9 @@ SQLStockLevel::~SQLStockLevel() {
 }
 
 transaction_status_t SQLStockLevel::Execute(SyncClient &client) {
-  query_result::QueryResult *queryResult;
+  const query_result::QueryResult *queryResult;
   std::string query;
-  std::vector<query_result::QueryResult*> results;
+  std::vector<const query_result::QueryResult*> results;
 
   Debug("STOCK_LEVEL");
   Debug("Warehouse: %u", w_id);
@@ -54,7 +54,7 @@ transaction_status_t SQLStockLevel::Execute(SyncClient &client) {
 
   client.Begin(timeout);
 
-  query = std::format("SELECT FROM District WHERE id = {} AND w_id = {}", d_id, w_id);
+  query = fmt::format("SELECT FROM District WHERE id = {} AND w_id = {}", d_id, w_id);
   client.Query(query, queryResult, timeout);
   tpcc::DistrictRow d_row;
   deserialize(d_row, queryResult);
@@ -64,7 +64,7 @@ transaction_status_t SQLStockLevel::Execute(SyncClient &client) {
 
   for (size_t ol_o_id = next_o_id - 20; ol_o_id < next_o_id; ++ol_o_id) {
     Debug("Order %lu", ol_o_id);
-    query = std::format("SELECT FROM Order WHERE id = {} AND d_id = {} AND w_id = {}", ol_o_id, d_id, w_id);
+    query = fmt::format("SELECT FROM Order WHERE id = {} AND d_id = {} AND w_id = {}", ol_o_id, d_id, w_id);
     client.Query(query, timeout);
   }
 
@@ -85,7 +85,7 @@ transaction_status_t SQLStockLevel::Execute(SyncClient &client) {
     ol_cnts[ol_o_id] = o_row.ol_cnt();
     for (size_t ol_number = 0; ol_number < o_row.ol_cnt(); ++ol_number) {
       Debug("    OL %lu", ol_number);
-      query = std::format("SELECT FROM OrderLine WHERE o_id = {} AND d_id = {} AND w_id = {} AND number = {}", ol_o_id, d_id, w_id, ol_number);
+      query = fmt::format("SELECT FROM OrderLine WHERE o_id = {} AND d_id = {} AND w_id = {} AND number = {}", ol_o_id, d_id, w_id, ol_number);
       client.Query(query, timeout);
     }
   }
@@ -110,7 +110,7 @@ transaction_status_t SQLStockLevel::Execute(SyncClient &client) {
       Debug("      Item %d", ol_row.i_id());
 
       if (stockRows.find(ol_row.i_id()) == stockRows.end()) {
-        query = std::format("SELECT FROM Stock WHERE i_id = {} AND w_id = {}", ol_row.i_id(), w_id);
+        query = fmt::format("SELECT FROM Stock WHERE i_id = {} AND w_id = {}", ol_row.i_id(), w_id);
         client.Query(query, timeout);
       }
     }

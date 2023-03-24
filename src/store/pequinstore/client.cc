@@ -34,8 +34,6 @@
 #include "store/pequinstore/localbatchverifier.h"
 #include "store/pequinstore/basicverifier.h"
 #include "store/pequinstore/common.h"
-#include "store/common/query_result_proto_wrapper.h"
-#include "store/common/query_result_proto_builder.h"
 #include <sys/time.h>
 #include <algorithm>
 
@@ -390,17 +388,6 @@ void Client::Write(std::string &write_statement, std::vector<std::vector<uint32_
 // TODO: --> Return all rows in the store.
 void Client::Query(const std::string &query, query_callback qcb,
     query_timeout_callback qtcb, uint32_t timeout) {
-  auto builder = sql::QueryResultProtoBuilder();
-  std::vector<std::string> column_names = {"c1", "c2"};
-  builder.add_columns(column_names);
-  builder.add_column("c3");
-  std::vector<std::string> row1 = {"r1c1", "r1c2", "r1c3"};
-  std::vector<int> row2 = {0, 1, 2};
-  builder.add_row(row1.begin(), row1.end());
-  builder.add_row(row2.begin(), row2.end());
-  auto result = new sql::QueryResultProtoWrapper(builder.get_result().release());
-  qcb(REPLY_OK, result);
-}
 
   UW_ASSERT(query.length() < ((uint64_t)1<<32)); //Protobuf cannot handle strings longer than 2^32 bytes --> cannot handle "arbitrarily" complex queries: If this is the case, we need to break down the query command.
 
@@ -412,41 +399,41 @@ void Client::Query(const std::string &query, query_callback qcb,
     Debug("\n Query[%lu:%lu:%lu]", client_id, client_seq_num, query_seq_num);
 
  
-//     // Contact the appropriate shard to execute the query on.
-//     //TODO: Determine involved groups
-//     //Requires parsing the Query statement to extract tables touched? Might touch multiple shards...
-//     //Assume for now only touching one group. (single sharded system)
-//     PendingQuery *pendingQuery = new PendingQuery(this, query_seq_num, query);
+    // Contact the appropriate shard to execute the query on.
+    //TODO: Determine involved groups
+    //Requires parsing the Query statement to extract tables touched? Might touch multiple shards...
+    //Assume for now only touching one group. (single sharded system)
+    PendingQuery *pendingQuery = new PendingQuery(this, query_seq_num, query);
 
     std::vector<uint64_t> involved_groups = {0};//{0UL, 1UL};
     pendingQuery->SetInvolvedGroups(involved_groups);
     Debug("[group %i] designated as Query Execution Manager for query [%lu:%lu]", pendingQuery->queryMsg.query_manager(), client_seq_num, query_seq_num);
     pendingQuery->SetQueryId(this);
 
-//     // std::vector<uint64_t> involved_groups = {0UL};
-//     // uint64_t query_manager = involved_groups[0];
-//     // Debug("[group %i] designated as Query Execution Manager for query [%lu:%lu]", query_manager, client_seq_num, query_seq_num);
+    // std::vector<uint64_t> involved_groups = {0UL};
+    // uint64_t query_manager = involved_groups[0];
+    // Debug("[group %i] designated as Query Execution Manager for query [%lu:%lu]", query_manager, client_seq_num, query_seq_num);
 
-//         //TODO: just create a new object.. allocate is easier..
+        //TODO: just create a new object.. allocate is easier..
     
-//     // queryMsg.Clear();
-//     // queryMsg.set_client_id(client_id);
-//     // queryMsg.set_query_seq_num(query_seq_num);
-//     // *queryMsg.mutable_query_cmd() = std::move(query);
-//     // *queryMsg.mutable_timestamp() = txn.timestamp();
-//     // queryMsg.set_query_manager(query_manager);
+    // queryMsg.Clear();
+    // queryMsg.set_client_id(client_id);
+    // queryMsg.set_query_seq_num(query_seq_num);
+    // *queryMsg.mutable_query_cmd() = std::move(query);
+    // *queryMsg.mutable_timestamp() = txn.timestamp();
+    // queryMsg.set_query_manager(query_manager);
     
-//     //TODO: store --> so we can access it with query_seq_num if necessary for retry.
+    //TODO: store --> so we can access it with query_seq_num if necessary for retry.
       
 
 
-//     // If needed, add this shard to set of participants and send BEGIN.
-//     for(auto &i: pendingQuery->involved_groups){
-//        if (!IsParticipant(i)) {
-//         txn.add_involved_groups(i);
-//         bclient[i]->Begin(client_seq_num);
-//       }
-//     }
+    // If needed, add this shard to set of participants and send BEGIN.
+    for(auto &i: pendingQuery->involved_groups){
+       if (!IsParticipant(i)) {
+        txn.add_involved_groups(i);
+        bclient[i]->Begin(client_seq_num);
+      }
+    }
   
 
     //result_callback rcb = qcb;
@@ -457,10 +444,10 @@ void Client::Query(const std::string &query, query_callback qcb,
       //If failure: re-set datastructure and try again. (any shard can report failure to sync)
       //Note: Ongoing shard clients PendingQuery implicitly maps to current retry_version
     
-//           UW_ASSERT(pendingQuery != nullptr);
-//           if(success){
-//             Debug("[group %i] Reported success for QuerySync [seq : ver] [%lu : %lu] \n", group, pendingQuery->queryMsg.query_seq_num(), pendingQuery->version);
-//             pendingQuery->group_replies++;
+          UW_ASSERT(pendingQuery != nullptr);
+          if(success){
+            Debug("[group %i] Reported success for QuerySync [seq : ver] [%lu : %lu] \n", group, pendingQuery->queryMsg.query_seq_num(), pendingQuery->version);
+            pendingQuery->group_replies++;
     
             if(params.query_params.cacheReadSet){ 
                pendingQuery->group_result_hashes[group] = std::move(result_hash);
@@ -471,9 +458,9 @@ void Client::Query(const std::string &query, query_callback qcb,
             }
             if(group == pendingQuery->involved_groups[0]) pendingQuery->result = std::move(result); 
 
-//             //wait for all shard read-sets to arrive before reporting result. (Realistically result shard replies last, since it has to coordinate data transfer for computation)
-//             if(pendingQuery->involved_groups.size() == pendingQuery->group_replies){
-//               Debug("Received all required group replies for QuerySync[%lu:%lu] (seq:ver). UPCALLING \n", group, pendingQuery->queryMsg.query_seq_num(), pendingQuery->version);
+            //wait for all shard read-sets to arrive before reporting result. (Realistically result shard replies last, since it has to coordinate data transfer for computation)
+            if(pendingQuery->involved_groups.size() == pendingQuery->group_replies){
+              Debug("Received all required group replies for QuerySync[%lu:%lu] (seq:ver). UPCALLING \n", group, pendingQuery->queryMsg.query_seq_num(), pendingQuery->version);
 
 
 //BEGIN FIXME: DELETE THIS. IT IS TEST CODE ONLY
@@ -583,10 +570,18 @@ void Client::Query(const std::string &query, query_callback qcb,
     };
     result_timeout_callback rtcb = qtcb;
 
-//     //queryBuffer[query_seq_num] = std::move(queryMsg);  //Buffering only after sending, so we can move contents for free.
+    // Send the Query operation to involved shards & select transaction manager (shard responsible for result reply) 
+     for(auto &i: pendingQuery->involved_groups){
+        Debug("[group %i] starting Query [%lu:%lu]", i, client_seq_num, query_seq_num);
+        bclient[i]->Query(client_seq_num, query_seq_num, pendingQuery->queryMsg, rcb, rtcb, timeout);
+     }
+    // Shard Client upcalls only if it is the leader for the query, and if it gets matching result hashes  ..........const std::string &resultHash
+       //store QueryID + result hash in transaction.
 
-//   });
-// }
+    //queryBuffer[query_seq_num] = std::move(queryMsg);  //Buffering only after sending, so we can move contents for free.
+
+  });
+}
 
 
 void Client::ClearQuery(PendingQuery *pendingQuery){
