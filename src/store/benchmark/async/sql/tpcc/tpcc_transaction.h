@@ -269,6 +269,28 @@ void load(Archive & archive,
   c.set_delivery_cnt(delivery_cnt);
   c.set_data(data);
 }
+
+template<class Archive>
+void save(Archive & archive, 
+          tpcc::OrderByCustomerRow const & obc)
+{ 
+  archive(obc.w_id(), obc.d_id(), obc.c_id(), obc.o_id());
+}
+
+template<class Archive>
+void load(Archive & archive,
+          tpcc::OrderByCustomerRow & obc)
+{
+  uint32_t w_id;
+  uint32_t d_id;
+  uint32_t c_id;
+  uint32_t o_id;
+  archive( w_id, d_id, c_id, o_id );
+  obc.set_w_id(w_id);
+  obc.set_d_id(d_id);
+  obc.set_c_id(c_id);
+  obc.set_o_id(o_id);
+}
 }
 
 namespace tpcc_sql {

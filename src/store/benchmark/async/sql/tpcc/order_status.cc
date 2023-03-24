@@ -26,6 +26,8 @@
  **********************************************************************/
 #include "store/benchmark/async/sql/tpcc/order_status.h"
 
+#include <fmt/core.h>
+
 #include "store/benchmark/async/tpcc/tpcc_utils.h"
 
 namespace tpcc_sql {
@@ -51,8 +53,9 @@ SQLOrderStatus::~SQLOrderStatus() {
 }
 
 transaction_status_t SQLOrderStatus::Execute(SyncClient &client) {
-  std::string str;
-  std::vector<std::string> strs;
+  const query_result::QueryResult *queryResult;
+  std::string query;
+  std::vector<const query_result::QueryResult*> results;
 
   Debug("ORDER_STATUS");
   Debug("Warehouse: %u", c_w_id);
@@ -63,10 +66,10 @@ transaction_status_t SQLOrderStatus::Execute(SyncClient &client) {
 
   if (c_by_last_name) { // access customer by last name
     Debug("Customer: %s", c_last.c_str());
-    std::string cbn_key = tpcc::CustomerByNameRowKey(c_w_id, c_d_id, c_last);
-    client.Get(cbn_key, str, timeout);
+    query = fmt::format("SELECT FROM CustomerByName WHERE w_id = {} AND d_id = {} AND last = {}", c_w_id, c_d_id, c_last);
+    client.Query(query, queryResult, timeout);
     tpcc::CustomerByNameRow cbn_row;
-    UW_ASSERT(cbn_row.ParseFromString(str));
+    deserialize(cbn_row, queryResult);
     int idx = (cbn_row.ids_size() + 1) / 2;
     if (idx == cbn_row.ids_size()) {
       idx = cbn_row.ids_size() - 1;
@@ -77,39 +80,43 @@ transaction_status_t SQLOrderStatus::Execute(SyncClient &client) {
     Debug("Customer: %u", c_id);
   }
 
-  std::string c_key = tpcc::CustomerRowKey(c_w_id, c_d_id, c_id);
-  client.Get(c_key, timeout);
-  std::string obc_key = tpcc::OrderByCustomerRowKey(c_w_id, c_d_id, c_id);
-  client.Get(obc_key, timeout);
+  query = fmt::format("SELECT FROM Customer WHERE id = {} AND d_id = {} AND w_id = {}",
+                      c_id, c_d_id, c_w_id);
+  client.Query(query, timeout);
+  query = fmt::format("SELECT FROM OrderByCustomer WHERE w_id = {} AND d_id = {} AND c_id = {}",
+                      c_w_id, c_d_id, c_id);
+  client.Query(query, timeout);
 
-  client.Wait(strs);
+  client.Wait(results);
 
   tpcc::CustomerRow c_row;
-  UW_ASSERT(c_row.ParseFromString(strs[0]));
+  deserialize(c_row, results[0]);
   Debug("  First: %s", c_row.first().c_str());
   Debug("  Last: %s", c_row.last().c_str());
 
   tpcc::OrderByCustomerRow obc_row;
-  UW_ASSERT(obc_row.ParseFromString(strs[1]));
+  deserialize(obc_row, results[1]);
 
-  strs.clear();
+  results.clear();
 
   o_id = obc_row.o_id();
   Debug("Order: %u", o_id);
-  std::string o_key = tpcc::OrderRowKey(c_w_id, c_d_id, o_id);
-  client.Get(o_key, str, timeout);
+  query = fmt::format("SELECT FROM Order WHERE id = {} AND d_id = {} AND w_id = {}", o_id, c_d_id, c_w_id);
+  queryResult = nullptr;
+  client.Query(query, queryResult, timeout);
   tpcc::OrderRow o_row;
-  if(str.empty()) Panic("empty string for Order Row");
-  UW_ASSERT(o_row.ParseFromString(str));
+  if(queryResult == nullptr) Panic("empty string for Order Row");
+  deserialize(o_row, queryResult);
   Debug("  Order Lines: %u", o_row.ol_cnt());
   Debug("  Entry Date: %u", o_row.entry_d());
   Debug("  Carrier ID: %u", o_row.carrier_id());
 
   for (size_t ol_number = 0; ol_number < o_row.ol_cnt(); ++ol_number) {
-    client.Get(tpcc::OrderLineRowKey(c_w_id, c_d_id, o_id, ol_number), timeout);
+    query = fmt::format("SELECT FROM OrderLine WHERE o_id = {} AND d_id = {} AND w_id = {} AND number = {}", o_id, c_d_id, c_w_id, ol_number);
+    client.Get(query, timeout);
   }
 
-  client.Wait(strs);
+  client.Wait(results);
 
   Debug("COMMIT");
   return client.Commit(timeout);
