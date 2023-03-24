@@ -395,9 +395,9 @@ void Server::LoadTableRow(const std::string &table_name, const std::vector<std::
   
    //TODO: Call into TableStore with this statement.
 
-  std::vector<const char*> primary_cols;
+  std::vector<const std::string*> primary_cols;
   for(auto i: primary_key_col_idx){
-    primary_cols.push_back(column_data_types[i].first.c_str());
+    primary_cols.push_back(&(column_data_types[i].first));
   }
   std::string enc_key = EncodeTableRow(table_name, primary_cols);
   Load(enc_key, "", Timestamp());

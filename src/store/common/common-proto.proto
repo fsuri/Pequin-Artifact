@@ -15,7 +15,8 @@ message WriteMessage {
     //required bytes value = 2;
     oneof write_value {  //TODO: In prepare and commit: must add has_value() checks.
         bytes value = 2;
-        RowUpdates rowupdates = 3;
+        //TableWrite table_writes = 3;
+        RowUpdates rowupdates = 3;  //Table name and primary key cols are included in key encoding.
     }
 }
 

@@ -101,7 +101,7 @@ class SyncClient {
 
   void WriteCallback(Promise *promise, int status, const query_result::QueryResult* result);
   void WriteTimeoutCallback(Promise *promise, int status);
-  void QueryCallback(Promise *promise, int status, const query_result::QueryResult* result); //const std::string &query,
+  void QueryCallback(Promise *promise, int status, query_result::QueryResult* result); //const std::string &query,
   void QueryTimeoutCallback(Promise *promise, int status); //, const std::string &query);
 
 

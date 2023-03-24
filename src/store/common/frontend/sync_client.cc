@@ -195,7 +195,7 @@ void SyncClient::WriteTimeoutCallback(Promise *promise, int status){
 }
 
 
-void SyncClient::QueryCallback(Promise *promise, int status, const query_result::QueryResult* result){
+void SyncClient::QueryCallback(Promise *promise, int status, query_result::QueryResult* result){
   promise->Reply(status, result); //Result = string for now. Can be list of values, rows, anthing. Format and interface TBD. For now just return serialized protobuf. That protobuf can be whatever representation.
 }
 

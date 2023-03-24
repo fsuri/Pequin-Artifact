@@ -302,6 +302,8 @@ class Client : public ::Client {
   // --> would allow normal OCC handling on Wait results at the server?
 
   //Query logic
+  void TransformWriteStatement(std::string &write_statement, std::vector<std::vector<uint32_t>> primary_key_encoding_support,
+        std::string &read_statement, std::function<void(int, query_result::QueryResult*)>  &write_continuation, write_callback &wcb);
   void ClearQuery(PendingQuery *pendingQuery);
   void RetryQuery(PendingQuery *pendingQuery);
   // void ClearQuery(uint64_t query_seq_num, std::vector<uint64_t> &involved_groups);

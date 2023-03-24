@@ -442,7 +442,7 @@ struct QueryReadSetMgr {
 };
 
 //For managing WriteSet
-std::string EncodeTableRow(const std::string &table_name, const std::vector<const char*> primary_key_columns);
+std::string EncodeTableRow(const std::string &table_name, const std::vector<const std::string*> &primary_key_columns);
 void DecodeTableRow(const std::string &enc_key, std::string &table_name, std::vector<std::string> primary_key_columns);
 
 // enum InjectFailureType {

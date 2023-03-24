@@ -165,7 +165,7 @@ class QueryResultProtoWrapper : public query_result::QueryResult {
     auto at( const std::size_t row ) const -> std::unique_ptr<query_result::Row>;
 
 		// update/insert result
-    inline void set_rows_affected(const uint32_t _n_rows_affected) { n_rows_affected = _n_rows_affected; } //Use to set n_rows for writes manually
+    inline void set_rows_affected(const uint32_t _n_rows_affected) override { n_rows_affected = _n_rows_affected; } //Use to set n_rows for writes manually
 
 		auto has_rows_affected() const noexcept -> bool;
 		auto rows_affected() const -> std::size_t;
