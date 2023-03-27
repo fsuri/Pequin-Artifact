@@ -61,6 +61,9 @@ store/pequinstore/tests/proto_bench
 store/pequinstore/tests/compression_test
 store/pequinstore/tests/tbb_test
 store/pequinstore/tests/snapshot_test
+store/pequinstore/tests/table_loader_test
+store/pequinstore/tests/write_parser_test
+store/pequinstore/proto_bench
 
 store/janusstore/tests/janus-client-test
 store/janusstore/tests/janus-server-test
