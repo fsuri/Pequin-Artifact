@@ -26,6 +26,8 @@
  **********************************************************************/
 #include "store/benchmark/async/sql/tpcc/new_order.h"
 
+#include <fmt/core.h>
+
 #include "store/benchmark/async/tpcc/tpcc_utils.h"
 
 namespace tpcc_sql {
@@ -64,7 +66,9 @@ SQLNewOrder::~SQLNewOrder() {
 }
 
 transaction_status_t SQLNewOrder::Execute(SyncClient &client) {
-  std::string str;
+  const query_result::QueryResult *queryResult;
+  std::string query;
+  std::vector<const query_result::QueryResult*> results;
 
   Debug("NEW_ORDER");
   Debug("Warehouse: %u", w_id);
@@ -72,94 +76,88 @@ transaction_status_t SQLNewOrder::Execute(SyncClient &client) {
 
   client.Begin(timeout);
 
-  client.Get(tpcc::WarehouseRowKey(w_id), timeout);
+  query = fmt::format("SELECT FROM Warehouse WHERE id = {}", w_id);
+  client.Query(query, timeout);
   Debug("District: %u", d_id);
-  std::string d_key = tpcc::DistrictRowKey(w_id, d_id);
-  client.Get(d_key, timeout);
+  query = fmt::format("SELECT FROM District WHERE id = {} AND w_id = {}", d_id, w_id);
+  client.Query(query, timeout);
   Debug("Customer: %u", c_id);
-  client.Get(tpcc::CustomerRowKey(w_id, d_id, c_id), timeout);
+  query = fmt::format("SELECT FROM Customer WHERE id = {} AND d_id = {} AND w_id = {}",
+                      c_id, d_id, w_id);
+  client.Query(query, timeout);
 
-  std::vector<std::string> strs;
-  client.Wait(strs);
+  client.Wait(results);
 
   tpcc::WarehouseRow w_row;
-  UW_ASSERT(w_row.ParseFromString(strs[0]));
+  deserialize(w_row, results[0]);
   Debug("  Tax Rate: %u", w_row.tax());
 
   tpcc::DistrictRow d_row;
-  UW_ASSERT(d_row.ParseFromString(strs[1]));
+  deserialize(d_row, results[1]);
   Debug("  Tax Rate: %u", d_row.tax());
   uint32_t o_id = d_row.next_o_id();
   Debug("  Order Number: %u", o_id);
 
   d_row.set_next_o_id(d_row.next_o_id() + 1);
-  d_row.SerializeToString(&str);
-  client.Put(d_key, str, timeout);
+  query = fmt::format("UPDATE District\n SET next_o_id = {}\n WHERE id = {} AND w_id = {}",
+                      d_row.next_o_id(), d_id, w_id);
+  std::vector<std::vector<unsigned int>> compound_key{{0, 1}};
+  client.Write(query, compound_key, queryResult, timeout);
 
   tpcc::CustomerRow c_row;
-  UW_ASSERT(c_row.ParseFromString(strs[2]));
+  deserialize(c_row, results[2]);
   Debug("  Discount: %i", c_row.discount());
   Debug("  Last Name: %s", c_row.last().c_str());
   Debug("  Credit: %s", c_row.credit().c_str());
 
-  strs.clear();
+  results.clear();
 
-  tpcc::NewOrderRow no_row;
-  no_row.set_o_id(o_id);
-  no_row.set_d_id(d_id);
-  no_row.set_w_id(w_id);
-  no_row.SerializeToString(&str);
-  client.Put(tpcc::NewOrderRowKey(w_id, d_id, o_id), str, timeout);
+  query = fmt::format("INSERT INTO NewOrder (o_id, d_id, w_id)\n"
+            "VALUES ({}, {}, {});", 
+            o_id, d_id, w_id);
+  compound_key = {{0, 1, 2}};
+  client.Write(query, compound_key, queryResult, timeout);
 
-  tpcc::OrderRow o_row;
-  o_row.set_id(o_id);
-  o_row.set_d_id(d_id);
-  o_row.set_w_id(w_id);
-  o_row.set_c_id(c_id);
-  o_row.set_entry_d(o_entry_d);
-  o_row.set_carrier_id(0);
-  o_row.set_ol_cnt(ol_cnt);
-  o_row.set_all_local(all_local);
-  o_row.SerializeToString(&str);
-  client.Put(tpcc::OrderRowKey(w_id, d_id, o_id), str, timeout);
+  query = fmt::format("INSERT INTO Order (id, d_id, w_id, c_id, entry_d, carrier_id, ol_cnt, all_local)\n"
+          "VALUES ({}, {}, {}, {}, {}, {}, {}, {});", 
+          o_id, d_id, w_id, c_id, o_entry_d, 0, ol_cnt, all_local);
+  compound_key = {{0, 1, 2}};
+  client.Write(query, compound_key, queryResult, timeout);
 
-  tpcc::OrderByCustomerRow obc_row;
-  obc_row.set_w_id(w_id);
-  obc_row.set_d_id(d_id);
-  obc_row.set_c_id(c_id);
-  obc_row.set_o_id(o_id);
-  obc_row.SerializeToString(&str);
-  client.Put(tpcc::OrderByCustomerRowKey(w_id, d_id, c_id), str, timeout);
+  query = fmt::format("INSERT INTO OrderByCustomer (w_id, d_id, c_id, o_id)\n"
+        "VALUES ({}, {}, {}, {});", 
+        w_id, d_id, c_id, o_id);
+  compound_key = {{0, 1, 2}};
+  client.Write(query, compound_key, queryResult, timeout);
 
   for (size_t ol_number = 0; ol_number < ol_cnt; ++ol_number) {
     Debug("  Order Line %lu", ol_number);
     Debug("    Item: %u", o_ol_i_ids[ol_number]);
-    std::string i_key = tpcc::ItemRowKey(o_ol_i_ids[ol_number]);
-    client.Get(i_key, timeout);
+    query = fmt::format("SELECT FROM Item WHERE id = {}", o_ol_i_ids[ol_number]);
+    client.Query(query, timeout);
   }
 
   for (size_t ol_number = 0; ol_number < ol_cnt; ++ol_number) {
     Debug("  Order Line %lu", ol_number);
     Debug("    Supply Warehouse: %u", o_ol_supply_w_ids[ol_number]);
-    client.Get(tpcc::StockRowKey(o_ol_supply_w_ids[ol_number], o_ol_i_ids[ol_number]),
-        timeout);
+    query = fmt::format("SELECT FROM Stock WHERE i_id = {} AND w_id = {}",
+          o_ol_i_ids[ol_number], o_ol_supply_w_ids[ol_number]);
+    client.Query(query, timeout);
   }
 
-  client.Wait(strs);
+  client.Wait(results);
 
   for (size_t ol_number = 0; ol_number < ol_cnt; ++ol_number) {
-    if (strs[ol_number].empty()) {
+    if (results[ol_number]->empty()) {
       client.Abort(timeout);
       return ABORTED_USER;
     } else {
       tpcc::ItemRow i_row;
-      UW_ASSERT(i_row.ParseFromString(strs[ol_number]));
+      deserialize(i_row, results[ol_number]);
       Debug("    Item Name: %s", i_row.name().c_str());
 
       tpcc::StockRow s_row;
-      std::string s_key = tpcc::StockRowKey(o_ol_supply_w_ids[ol_number],
-          o_ol_i_ids[ol_number]);
-      UW_ASSERT(s_row.ParseFromString(strs[ol_number + ol_cnt]));
+      deserialize(s_row, results[ol_number + ol_cnt]);
 
       if (s_row.quantity() - o_ol_quantities[ol_number] >= 10) {
         s_row.set_quantity(s_row.quantity() - o_ol_quantities[ol_number]);
@@ -175,55 +173,56 @@ transaction_status_t SQLNewOrder::Execute(SyncClient &client) {
       if (w_id != o_ol_supply_w_ids[ol_number]) {
         s_row.set_remote_cnt(s_row.remote_cnt() + 1);
       }
-      s_row.SerializeToString(&str);
-      client.Put(s_key, str, timeout);
+      query = fmt::format("UPDATE Stock\n" 
+              "SET quantity = {}, ytd = {}, order_cnt = {}, remote_cnt = {}\n"
+              "WHERE i_id = {} AND w_id = {}",
+          s_row.quantity(), s_row.ytd(), s_row.order_cnt(), s_row.remote_cnt(),
+          o_ol_i_ids[ol_number], o_ol_supply_w_ids[ol_number]);
+      compound_key = {{0, 1}};
+      client.Write(query, compound_key, queryResult, timeout);
 
-      tpcc::OrderLineRow ol_row;
-      ol_row.set_o_id(o_id);
-      ol_row.set_d_id(d_id);
-      ol_row.set_w_id(w_id);
-      ol_row.set_number(ol_number);
-      ol_row.set_i_id(o_ol_i_ids[ol_number]);
-      ol_row.set_supply_w_id(o_ol_supply_w_ids[ol_number]);
-      ol_row.set_delivery_d(0);
-      ol_row.set_quantity(o_ol_quantities[ol_number]);
-      ol_row.set_amount(o_ol_quantities[ol_number] * i_row.price());
+      std::string dist_info;
       switch (d_id) {
         case 1:
-          ol_row.set_dist_info(s_row.dist_01());
+          dist_info = s_row.dist_01();
           break;
         case 2:
-          ol_row.set_dist_info(s_row.dist_02());
+          dist_info = s_row.dist_02();
           break;
         case 3:
-          ol_row.set_dist_info(s_row.dist_03());
+          dist_info = s_row.dist_03();
           break;
         case 4:
-          ol_row.set_dist_info(s_row.dist_04());
+          dist_info = s_row.dist_04();
           break;
         case 5:
-          ol_row.set_dist_info(s_row.dist_05());
+          dist_info = s_row.dist_05();
           break;
         case 6:
-          ol_row.set_dist_info(s_row.dist_06());
+          dist_info = s_row.dist_06();
           break;
         case 7:
-          ol_row.set_dist_info(s_row.dist_07());
+          dist_info = s_row.dist_07();
           break;
         case 8:
-          ol_row.set_dist_info(s_row.dist_08());
+          dist_info = s_row.dist_08();
           break;
         case 9:
-          ol_row.set_dist_info(s_row.dist_09());
+          dist_info = s_row.dist_09();
           break;
         case 10:
-          ol_row.set_dist_info(s_row.dist_10());
+          dist_info = s_row.dist_10();
           break;
         default:
           NOT_REACHABLE();
       }
-      ol_row.SerializeToString(&str);
-      client.Put(tpcc::OrderLineRowKey(w_id, d_id, o_id, ol_number), str, timeout);
+      query = fmt::format("INSERT INTO OrderLine "
+            "(o_id, d_id, w_id, number, i_id, supply_w_id, delivery_d, quantity, amount, dist_info)\n"
+            "VALUES ({}, {}, {}, {}, {}, {}, {}, {}, {}, {});", 
+            o_id, d_id, w_id, ol_number, o_ol_i_ids[ol_number], o_ol_supply_w_ids[ol_number], 0,
+            o_ol_quantities[ol_number], o_ol_quantities[ol_number] * i_row.price(), dist_info);
+      compound_key = {{0, 1, 2, 3}};
+      client.Write(query, compound_key, queryResult, timeout);
     }
   }
 

@@ -123,10 +123,8 @@ transaction_status_t SQLPayment::Execute(SyncClient &client) {
   w_row.set_ytd(w_row.ytd() + h_amount);
   Debug("  YTD: %u", w_row.ytd());
   std::string statement = 
-    fmt::format("INSERT INTO Warehouse (id, name, street_1, street_2, city, state, zip, tax, ytd)\n" 
-                "VALUES ({}, {}, {}, {}, {}, {}, {}, {}, {});",
-                w_row.id(), w_row.name(), w_row.street_1(), w_row.street_2(),
-                w_row.city(), w_row.state(), w_row.zip(), w_row.tax(), w_row.ytd());
+    fmt::format("UPDATE Warehouse\n SET ytd = {}\n WHERE id = {};",
+                w_row.ytd(), w_row.id());
   std::vector<std::vector<unsigned int>> compound_key{{0}};
   client.Write(statement, compound_key, queryResult, timeout);
 
@@ -135,11 +133,8 @@ transaction_status_t SQLPayment::Execute(SyncClient &client) {
   deserialize(d_row, results[1]);
   d_row.set_ytd(d_row.ytd() + h_amount);
   Debug("  YTD: %u", d_row.ytd());
-  statement = fmt::format("INSERT INTO District (id, w_id, name, street_1, "
-            "street_2, city, state, zip, tax, ytd, next_o_id)\n"
-            "VALUES ({}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {});", 
-            d_row.id(), d_row.w_id(), d_row.name(), d_row.street_1(), d_row.street_2(), 
-            d_row.city(), d_row.state(), d_row.zip(), d_row.tax(), d_row.ytd(), d_row.next_o_id());
+  statement = fmt::format("UPDATE District\n SET ytd = {}\n WHERE id = {} AND w_id = {};",
+                          d_row.ytd(), d_row.id(), d_row.w_id());
   compound_key = {{0, 1}};
   client.Write(statement, compound_key, queryResult, timeout);
 
@@ -159,15 +154,11 @@ transaction_status_t SQLPayment::Execute(SyncClient &client) {
     new_data = new_data.substr(std::min(new_data.size(), 500UL));
     c_row.set_data(new_data);
   }
-  statement = fmt::format("INSERT INTO Customer (id, d_id, w_id, first, middle, last, "
-            "street_1, street_2, city, state, zip, phone, since, credit, credit_lim, "
-            "discount, balance, ytd_payment, payment_cnt, delivery_cnt, data)\n"
-            "VALUES ({}, {}, {}, {}, {}, {}, {}, {}, {}, "
-            "{}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {});", 
-            c_row.id(), c_row.d_id(), c_row.w_id(), c_row.first(), c_row.middle(), c_row.last(),
-            c_row.street_1(), c_row.street_2(), c_row.city(), c_row.state(), c_row.zip(), c_row.phone(),
-            c_row.since(), c_row.credit(), c_row.credit_lim(), c_row.discount(), c_row.balance(),
-            c_row.ytd_payment(), c_row.payment_cnt(), c_row.delivery_cnt(), c_row.data());
+  statement = fmt::format("UPDATE Customer SET balance = {}, ytd_payment = {}, "
+            "payment_cnt = {}, data = {}\n"
+            "WHERE id = {} AND d_id = {} AND w_id = {};", 
+            c_row.balance(), c_row.ytd_payment(), c_row.payment_cnt(), 
+            c_row.data(), c_row.id(), c_row.d_id(), c_row.w_id());
   compound_key = {{0, 1, 2}};
   client.Write(statement, compound_key, queryResult, timeout);
 

@@ -291,6 +291,83 @@ void load(Archive & archive,
   obc.set_c_id(c_id);
   obc.set_o_id(o_id);
 }
+
+template<class Archive>
+void save(Archive & archive, 
+          tpcc::ItemRow const & i)
+{ 
+  archive(i.id(), i.im_id(), i.name(), i.price(), i.data());
+}
+
+template<class Archive>
+void load(Archive & archive,
+          tpcc::ItemRow & i)
+{
+  uint32_t id;
+  uint32_t im_id;
+  std::string name;
+  float price;
+  std::string data;
+  archive( id, im_id, name, price, data );
+  i.set_id(id);
+  i.set_im_id(im_id);
+  i.set_name(name);
+  i.set_price(price);
+  i.set_data(data);
+}
+
+template<class Archive>
+void save(Archive & archive, 
+          tpcc::StockRow const & s)
+{ 
+  archive(s.i_id(), s.w_id(), s.quantity(), s.dist_01(), s.dist_02(),
+          s.dist_03(), s.dist_04(), s.dist_05(), s.dist_06(), s.dist_07(),
+          s.dist_08(), s.dist_09(), s.dist_10(), s.ytd(), s.order_cnt(),
+          s.remote_cnt(), s.data());
+}
+
+template<class Archive>
+void load(Archive & archive,
+          tpcc::StockRow & s)
+{
+  uint32_t i_id;
+  uint32_t w_id;
+  int32_t quantity;
+  std::string dist_01;
+  std::string dist_02;
+  std::string dist_03;
+  std::string dist_04;
+  std::string dist_05;
+  std::string dist_06;
+  std::string dist_07;
+  std::string dist_08;
+  std::string dist_09;
+  std::string dist_10;
+  int32_t ytd;
+  int32_t order_cnt;
+  int32_t remote_cnt;
+  std::string data;
+  archive( i_id, w_id, quantity, dist_01, dist_02, dist_03, dist_04, dist_05,
+           dist_06, dist_07, dist_08, dist_09, dist_10, ytd, order_cnt, remote_cnt,
+           data );
+  s.set_i_id(i_id);
+  s.set_w_id(w_id);
+  s.set_quantity(quantity);
+  s.set_dist_01(dist_01);
+  s.set_dist_02(dist_02);
+  s.set_dist_03(dist_03);
+  s.set_dist_04(dist_04);
+  s.set_dist_05(dist_05);
+  s.set_dist_06(dist_06);
+  s.set_dist_07(dist_07);
+  s.set_dist_08(dist_08);
+  s.set_dist_09(dist_09);
+  s.set_dist_10(dist_10);
+  s.set_ytd(ytd);
+  s.set_order_cnt(order_cnt);
+  s.set_remote_cnt(remote_cnt);
+  s.set_data(data);
+}
 }
 
 namespace tpcc_sql {
