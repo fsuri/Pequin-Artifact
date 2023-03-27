@@ -55,6 +55,17 @@ sudo make install
 sudo ldconfig
 cd ..
 
+#Installing nlohman/json
+echo "Installing Nlohman/Json"
+echo ""
+git clone git@github.com:nlohmann/json.git
+cd json
+cmake .
+sudo make install
+sudo ldconfig
+cd ..
+
+
 #googletest
 echo "Installing googletest"
 echo ""

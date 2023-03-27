@@ -140,6 +140,8 @@ You may install them directly using:
 
 In addition, you will need to install the following libraries from source (detailed instructions below):
 - [Hoard Allocator](https://github.com/emeryberger/Hoard)
+- [taopq](https://github.com/taocpp/taopq)
+- [nlohman/json](https://github.com/nlohmann/json)
 - [googletest-1.10](https://github.com/google/googletest/releases/tag/release-1.10.0)
 - [protobuf-3.5.1](https://github.com/protocolbuffers/protobuf/releases/tag/v3.5.1)
 - [cryptopp-8.2](https://github.com/weidai11/cryptopp/releases/tag/CRYPTOPP_8_2_0) <!-- (htps://cryptopp.com/cryptopp820.zip)-->
@@ -192,6 +194,8 @@ Download the library:
 
 1. `git clone git@github.com:nlohmann/json.git`
 2. `cd json`
+
+Next, build nlohman/json
 4. `cmake .`
 6. `sudo make install`
 7. `sudo ldconfig`
@@ -307,10 +311,14 @@ Move the shared libary:
 6. `cd ..`
 
 #### Installing Intel TBB
+> :warning: If you run into issues with the installation you may refer to https://www.intel.com/content/www/us/en/docs/oneapi/installation-guide-linux/2023-0/overview.html for detailed install resources.
 
-Download and execute the installation script:
+First, download the installation script:
 
 1. `wget https://registrationcenter-download.intel.com/akdlm/irc_nas/17977/l_BaseKit_p_2021.3.0.3219.sh`
+ Alternatively, you may download the latest Intel BaseKit version from https://www.intel.com/content/www/us/en/developer/tools/oneapi/base-toolkit-download.html?operatingsystem=linux&distributions=online (Note that you need to ensure the version is compatible with our code). 
+ 
+ Next, execute the installation script
 2. `sudo bash l_BaseKit_p_2021.3.0.3219.sh`
 (To run the installation script you may have to manually install `apt -y install ncurses-term` if you do not have it already).
 
