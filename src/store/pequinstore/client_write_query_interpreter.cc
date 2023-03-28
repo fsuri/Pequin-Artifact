@@ -139,38 +139,46 @@ void Client::TransformWriteStatement(std::string &write_statement, std::vector<s
         //TODO: What about nested statements.
         std::vector<const std::string*> primary_key_column_values;
 
-        read_statement = "SELECT ";  
-        //insert primary columns --> Can already concat them with delimiter:   col1  || '###' || col2 ==> but then how do we look up column?  
-        for(auto p_idx: primary_key_encoding_support[0]){
-            read_statement += column_list[p_idx] + ", ";
+        if(false){  //TODO: NOTE: FIXME: DO NOT NEED TO CREATE ANY READ STATEMENT FOR SINGLE ROW INSERTS. ==> Just set read version = 0 (TODO: Confirm OCC check will check vs latest version = delete)
+                     //THIS WAY WILL SAVE QUERY ROUNDTRIP + WONT HAVE TO REMOVE TABLE VERSION POSSIBLY ADDED BY SCAN
+             read_statement = "SELECT ";  
+            //insert primary columns --> Can already concat them with delimiter:   col1  || '###' || col2 ==> but then how do we look up column?  
+            for(auto p_idx: primary_key_encoding_support[0]){
+                read_statement += column_list[p_idx] + ", ";
+            }
+            read_statement.resize(read_statement.size() - 2); //remove trailing ", "
+
+
+            read_statement += " FROM " + table_name;
+
+            read_statement += " WHERE ";
+            for(auto p_idx: primary_key_encoding_support[0]){
+                std::string &val = value_list[p_idx];
+                read_statement += column_list[p_idx] + " = " + val + ", ";
+                primary_key_column_values.push_back(&val);
+            }
+            //insert primary col conditions.
+            read_statement.resize(read_statement.size() - 2); //remove trailing ", "
+
+            read_statement += ";";
         }
-        read_statement.resize(read_statement.size() - 2); //remove trailing ", "
-
-
-        read_statement += " FROM " + table_name;
-
-        read_statement += " WHERE ";
-        for(auto p_idx: primary_key_encoding_support[0]){
-            std::string &val = value_list[p_idx];
-            read_statement += column_list[p_idx] + " = " + val + ", ";
-            primary_key_column_values.push_back(&val);
+        else{
+            for(auto p_idx: primary_key_encoding_support[0]){
+                std::string &val = value_list[p_idx];
+                primary_key_column_values.push_back(&val);
+            }
         }
-        //insert primary col conditions.
-        read_statement.resize(read_statement.size() - 2); //remove trailing ", "
-
-        read_statement += ";";
+    
         
         std::string enc_key = EncodeTableRow(table_name, primary_key_column_values);
 
         //////// Create Write continuation:  
-        write_continuation = [this, wcb, enc_key, column_list, value_list](int status, query_result::QueryResult* result){
+        write_continuation = [this, wcb, enc_key, table_name, column_list, value_list](int status, query_result::QueryResult* result){
             //TODO: Does one need to use status? --> Query should not fail?
             if(result->empty()){
                 
-                //TODO: REMOVE TABLE VERSION POSSIBLY ADDED BY SCAN
 
-                
-                //Read genesis timestamp (0)
+                //Read genesis timestamp (0) ==> FIXME: THIS CURRENTLY DOES NOT WORK WITH EXISTING OCC CHECK.
                 ReadMessage *read = txn.add_read_set();
                 read->set_key(enc_key);
                 read->mutable_readtime()->set_id(0);
@@ -182,6 +190,13 @@ void Client::TransformWriteStatement(std::string &write_statement, std::vector<s
                 for(int i=0; i<column_list.size(); ++i){
                     (*write->mutable_rowupdates()->mutable_attribute_writes())[column_list[i]] = value_list[i];
                 }
+
+                //Write Table Version itself. //Only for kv-store.
+                WriteMessage *table_ver = txn.add_write_set();
+                table_ver->set_key(table_name);
+                table_ver->set_value("");
+
+
 
                 //Create result object with rows affected = 1.
                 result->set_rows_affected(1);
@@ -272,5 +287,18 @@ void Client::TransformWriteStatement(std::string &write_statement, std::vector<s
     /////////////////
 
 }
+
+// TransformInsert(){
+//     //
+
+// }
+
+// TransformUpdate(){
+
+// }
+
+// TransformDelete(){
+
+// }
 
 };

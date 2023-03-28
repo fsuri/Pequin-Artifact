@@ -687,6 +687,11 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
   void Prepare(const std::string &txnDigest, const proto::Transaction &txn, const ReadSet &readSet);
   void GetCommittedWrites(const std::string &key, const Timestamp &ts,
       std::vector<std::pair<Timestamp, Value>> &writes);
+  bool GetPreceedingCommittedWrite(const std::string &key, const Timestamp &ts,
+    std::pair<Timestamp, Server::Value> &write);
+  void GetPreceedingPreparedWrite(const std::map<Timestamp, const proto::Transaction *> &preparedKeyWrites, const Timestamp &ts,
+    std::vector<std::pair<Timestamp, const proto::Transaction *>> &writes);
+
   void Commit(const std::string &txnDigest, proto::Transaction *txn,
       proto::GroupedSignatures *groupedSigs, bool p1Sigs, uint64_t view);
   void CommitWithProof(const std::string &txnDigest,  proto::CommittedProof *proof);

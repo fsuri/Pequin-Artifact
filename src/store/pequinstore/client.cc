@@ -199,6 +199,12 @@ void Client::Get(const std::string &key, get_callback gcb,
         }
       }
       if (addReadSet) {
+        //FIXME: TESTING
+        // for(auto read : txn.read_set()){
+        //   if(read.key() == key) Panic("inserting duplicate read set key");
+        // }
+
+
         Debug("Adding read to read set");
         ReadMessage *read = txn.add_read_set();
         read->set_key(key);
@@ -211,6 +217,7 @@ void Client::Get(const std::string &key, get_callback gcb,
     };
     read_timeout_callback rtcb = gtcb;
 
+    std::cerr << "Issuing get request for key" << BytesToHex(key, 16) << "with seq no: " << client_seq_num  << " on shard " << i << std::endl;
     // Send the GET operation to appropriate shard.
     bclient[i]->Get(client_seq_num, key, txn.timestamp(), readMessages,
         readQuorumSize, params.readDepSize, rcb, rtcb, timeout);
@@ -592,7 +599,7 @@ void Client::Commit(commit_callback ccb, commit_timeout_callback ctcb,
     }
 
     //XXX flag to sort read/write sets for parallel OCC
-    if(params.parallel_CCC){
+    if(true || params.parallel_CCC){
       try {
         std::sort(txn.mutable_read_set()->begin(), txn.mutable_read_set()->end(), sortReadSetByKey);
         std::sort(txn.mutable_write_set()->begin(), txn.mutable_write_set()->end(), sortWriteSetByKey);

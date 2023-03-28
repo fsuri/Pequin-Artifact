@@ -36,6 +36,7 @@ message TransactionMessage {
 message RowUpdates {
     map<string, bytes> attribute_writes = 1; //map from attribute name to new value (in bytes for general encoding)
     optional TimestampMessage readtime = 2; //version of the row that was read (optional: for ReadModWrites) in order to fetch remaining row values (in case an update only updates some columns)
+    optional bool deletion = 3;
 }
 message TableWrite {
     map<string, RowUpdates> row_updates = 1; //map from row-name to all attribute writes
