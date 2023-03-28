@@ -133,6 +133,8 @@ The prototype implementations depend the following development libraries:
 - libsodium-dev
 - libbost-all-dev
 - libuv1-dev
+- libpq-dev 
+- postgresql-server-dev-all
 
 You may install them directly using:
 - `sudo apt install libsodium-dev libgflags-dev libssl-dev libevent-dev libevent-openssl-2.1-7 libevent-pthreads-2.1-7 libboost-all-dev libuv1-dev libpq-dev postgresql-server-dev-all`
@@ -171,7 +173,7 @@ We recommend organizing all installs in a dedicated folder:
 
 Download the library:
 
-1. `git clone git@github.com:taocpp/taopq.git`
+1. `git clone https://github.com/taocpp/taopq.git`
 2. `cd taopq`
 3. `git checkout 943d827`
 
@@ -192,10 +194,11 @@ Next, build taopq:
 
 Download the library:
 
-1. `git clone git@github.com:nlohmann/json.git`
+1. `git clone https://github.com/nlohmann/json.git`
 2. `cd json`
 
 Next, build nlohman/json
+
 4. `cmake .`
 6. `sudo make install`
 7. `sudo ldconfig`
@@ -377,6 +380,9 @@ Navigate to `Pequin-Artifact/src` and build:
 1. You may need to export your `LD_LIBRARY_PATH` if your installations are in non-standard locations:
    The default install locations are:
 
+   - Hoard: usr/local/lib
+   - TaoPq:  /usr/local/lib
+   - Nlohman/JSON:  /usr/local/include
    - Secp256k1:  /usr/local/lib
    - CryptoPP: /usr/local/include  /usr/local/bin   /usr/local/share
    - Blake3: /usr/local/lib
@@ -701,7 +707,7 @@ We report evaluation results for 3 workloads (TPCC, Smallbank, Retwis) and 4 sys
          
    3. **TxHotstuff:** 
    
-   Use the configurations under `/experiment-configs/1-Workloads/3.TxHotstuff`. Before running these configs, you must configure Hotstuff using the instructions from section "1) Pre-configurations for Hotstuff and BFTSmart" (see above). Use a batch size of 4 when running TPCC, and 16 for Smallbank and Retwis for optimal results. Note, that you must re-run `src/scripts/remote_config.sh` **after** updating the batch size and **before** starting an experiment. 
+   Use the configurations under `/experiment-configs/1-Workloads/3.TxHotstuff`. Before running these configs, you must configure Hotstuff using the instructions from section "1) Pre-configurations for Hotstuff and BFTSmart" (see above). Use a batch size of 4 when running TPCC, and 16 for Smallbank and Retwis for optimal results. Note, that you must re-run `src/scripts/remote_remote.sh` **after** updating the batch size and **before** starting an experiment. 
    
      Reported peak results were roughly:
       - TPCC: Throughput: ~920 tx/s, Latency: ~73 ms
