@@ -34,8 +34,6 @@ typedef std::function<void()> abort_timeout_callback;
 // typedef std::function<void(int, const tao::pq::result &)> query_callback;
 // typedef std::function<void(int)> query_timeout_callback;
 
-// TODO Stats feature reserved
-// class Stats;
 using namespace std;
 
 namespace cockroachdb {
@@ -73,8 +71,8 @@ class Client : public ::Client {
   virtual void Query(const std::string &query, query_callback qcb,
                      query_timeout_callback qtcb, uint32_t timeout) override;
 
-  //  protected:
-  //   Stats stats;
+ protected:
+  Stats stats;
 
   std::shared_ptr<tao::pq::connection> conn;
   std::shared_ptr<tao::pq::transaction> tr;
