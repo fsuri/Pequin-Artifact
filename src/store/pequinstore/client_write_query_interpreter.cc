@@ -36,6 +36,10 @@
 #include "store/pequinstore/common.h"
 #include <sys/time.h>
 #include <algorithm>
+#include <variant>
+#include <iostream>
+#include <sstream>
+#include <cstdint>
 
 #include "store/common/query_result/query_result_proto_wrapper.h"
 #include "store/common/query_result/query_result_proto_builder.h"
@@ -68,15 +72,15 @@ void Client::TransformWriteStatement(std::string &write_statement, std::vector<s
 
     //Case 1) INSERT INTO <table_name> (<column_list>) VALUES (<value_list>)
     if( (pos = write_statement.find(insert_hook) != string::npos)){   //  if(write_statement.rfind("INSERT", 0) == 0){
-        TransformInsert(pos, write_statement, primary_key_encoding_support, read_statement, wcb);
+        TransformInsert(pos, write_statement, primary_key_encoding_support, read_statement, write_continuation, wcb);
     }
     //Case 2) UPDATE <table_name> SET {(column = value)} WHERE <condition>
     else if( (pos = write_statement.find(update_hook) != string::npos)){  //  else if(write_statement.rfind("UPDATE", 0) == 0){
-        TransformUpdate(pos, write_statement, primary_key_encoding_support, read_statement, wcb);
+        TransformUpdate(pos, write_statement, primary_key_encoding_support, read_statement, write_continuation, wcb);
     }
     //Case 3) DELETE FROM <table_name> WHERE <condition>
     else if( (pos = write_statement.find(delete_hook) != string::npos)){  //   else if(write_statement.rfind("DELETE", 0) == 0){
-        TransformDelete(pos, write_statement, primary_key_encoding_support, read_statement, wcb);
+        TransformDelete(pos, write_statement, primary_key_encoding_support, read_statement, write_continuation, wcb);
     }
     else{
         Panic("Currently only support the following Write statement operations: INSERT, DELETE, UPDATE");
@@ -112,7 +116,7 @@ void Client::TransformWriteStatement(std::string &write_statement, std::vector<s
 
 }
 
-Client::TransformInsert(size_t pos, std::string &write_statement, std::vector<std::vector<uint32_t>> primary_key_encoding_support, 
+void Client::TransformInsert(size_t pos, std::string &write_statement, std::vector<std::vector<uint32_t>> primary_key_encoding_support, 
     std::string &read_statement, std::function<void(int, query_result::QueryResult*)>  &write_continuation, write_callback &wcb){
 
      //Case 1) INSERT INTO <table_name> (<column_list>) VALUES (<value_list>)
@@ -155,17 +159,16 @@ Client::TransformInsert(size_t pos, std::string &write_statement, std::vector<st
     // add item inbetween to cols vector   -- only search until 
     size_t next_col;
     while((next_col = write_statement.find(", ", col_pos)) != string::npos && next_col < val_pos){
-    column_list.push_back(write_statement.substr(col_pos, next_col-col_pos));
-    pos = next_col;
-    col_pos = pos + 2;
-
+        column_list.push_back(write_statement.substr(col_pos, next_col-col_pos));
+        pos = next_col;
+        col_pos = pos + 2;
     }
 
     // if no more ", " --> look for ")" and skip. Then insert last col value
     pos = write_statement.find(")", col_pos); //val_pos - values_hook.length() - col_pos
     UW_ASSERT(pos != std::string::npos && pos < val_pos);
     if(pos < val_pos){
-    column_list.push_back(write_statement.substr(col_pos, pos-col_pos));
+     column_list.push_back(write_statement.substr(col_pos, pos-col_pos));
     }
     // Done.
 
@@ -180,8 +183,8 @@ Client::TransformInsert(size_t pos, std::string &write_statement, std::vector<st
     // split on ", "
     // add item inbetween to cols vector
     while((pos = write_statement.find(", ", val_pos)) != string::npos){
-    value_list.push_back(write_statement.substr(val_pos, pos-val_pos));
-    val_pos = pos + 2;
+        value_list.push_back(write_statement.substr(val_pos, pos-val_pos));
+        val_pos = pos + 2;
     }
     // if no more ", " --> look for ")" and skip. Then insert last value
     pos = write_statement.find(")", val_pos);
@@ -272,17 +275,48 @@ Client::TransformInsert(size_t pos, std::string &write_statement, std::vector<st
 
 }
 
-Client::TransformUpdate(size_t pos, std::string &write_statement, std::vector<std::vector<uint32_t>> primary_key_encoding_support, 
+
+
+static std::string eq_hook = " = ";
+void Client::ParseColUpdate(std::string col_update, std::map<std::string, Col_Update> &col_updates){
+
+    //split on "=" into col and update
+        size_t pos = col_update.find(eq_hook);
+        UW_ASSERT(pos != std::string::npos);
+
+        //Then parse Value based on operands.
+        Col_Update &val = col_updates[col_update.substr(0, pos)];
+        col_update.erase(0, pos + eq_hook.length()-1);
+
+        // find val.  //TODO: Add support for nesting if necessary.
+        pos = col_update.find(" ");
+        if(pos == std::string::npos){  //is string statement
+            val.l_value = col_update;
+            val.has_operand = false;
+        }
+        else{
+            val.has_operand = true;
+            //Parse operand; //Assuming here it is of simple form:  x <operand> y  and operand = {+, -, *, /}   Note: Assuming all values are Integers. For "/" will cast to float.
+            val.l_value = col_update.substr(0, pos);
+            val.operand = col_update.substr(pos+1, 1);
+            val.r_value = col_update.substr(pos+3);
+        }
+}
+
+void Client::TransformUpdate(size_t pos, std::string &write_statement, std::vector<std::vector<uint32_t>> primary_key_encoding_support, 
     std::string &read_statement, std::function<void(int, query_result::QueryResult*)>  &write_continuation, write_callback &wcb){
 
     //Case 2) UPDATE <table_name> SET {(column = value)} WHERE <col_name = condition>
-    //-> Turn into read_statement: Result(column, column_value = rows(attributes)) SELECT FROM <table_name> (value_columns) WHERE <condition>
+    //-> Turn into read_statement: Result(column, column_value = rows(attributes))
+    //             SELECT * FROM <table_name> (value_columns) WHERE <condition>         //Note "*" returns all columns for the rows. Use the primary key encoding to find primary columns
+                                                                                    //Alternatively, would select only the columns required by the Values; and pass the primary columns in separately.
     //             write_cont: for (column = value) statement, create TableWrite with primary column encoded key, column_list, and column_values (or direct inputs)
 
     std::string table_name;
-    std::vector<std::string> column_list;
-    std::vector<std::string> value_list;
-    std::vector<std::string> condition_list;
+    std::map<std::string, Col_Update> col_updates;
+        std::vector<std::string> column_list;
+        std::vector<std::string> value_list;  //Note: This may either be a direct update, e.g. "= 5" or with an operator, e.g. "= col_val + 5"; // TODO: Parse this in the continuation.
+    std::string where_cond;
 
     //1 Remove insert hook
     write_statement.erase(0, pos + update_hook.length()-1);  //TODO: Maybe do it without deletion for efficiency?
@@ -297,135 +331,156 @@ Client::TransformUpdate(size_t pos, std::string &write_statement, std::vector<st
     //Skip ahead past "SET" hook
     //Everything from 0 - pos is "<table_name>". Everything from set_pos - where_pos is the content between Set and Where --> "SET <CONTENT> WHERE"
     size_t set_pos = pos + set_hook.length();
-    size_t where_pos = write_statement.find(where_hook);
+    size_t where_pos = write_statement.find(where_hook);  
+    UW_ASSERT(where_pos != std::string::npos); //TODO: Assuming here it has a Where hook. If not (i.e. update all rows), then ignore parsing it. (i.e. set where_pos to length of string, and skip where clause)
 
-    // split on ", "
+    // split on ", " to identify the updates.
     // for each string split again on "=" and insert into column and value lists
-    size_t next_col;
-    while((next_col = write_statement.find(", ", col_pos)) != string::npos && next_col < val_pos){
-    column_list.push_back(write_statement.substr(col_pos, next_col-col_pos));
-    pos = next_col;
-    col_pos = pos + 2;
+    size_t next_up;
+    while((next_up = write_statement.find(", ", set_pos)) != string::npos && next_up < where_pos){ //Find next ", ", look only up to where hook.
+        ParseColUpdate(write_statement.substr(set_pos, next_up-set_pos), col_updates);
 
+        set_pos = next_up;
+        next_up = set_pos + 2;
     }
-
+    //Insert last item (between next_up and where_pos)
+    ParseColUpdate(write_statement.substr(next_up, where_pos-next_up), col_updates);
+   
+    // isolate the Whole where condition and just re-use in the SELECT statement? -- can keep the Where hook.
     //Skip past "WHERE" hook
-    where_pos += where_hook.length();
+    //where_pos += where_hook.length();
+    where_cond = write_statement.substr(where_pos);
+        //If we want to isolate the where conditions:
+        //split conditions on "AND" or "OR"
+        //Within cond, split string on "=" --> extract cond column and cond value
+   
+    
 
-    //TODO: Can probably isolate this whole string and just re-use in the SELECT statement?
-
-    //split conditions on "AND" or "OR"
-    //Within cond, split string on "=" --> extract cond column and cond value
-    pos = write_statement.find(")", col_pos); //val_pos - values_hook.length() - col_pos
-    UW_ASSERT(pos != std::string::npos && pos < val_pos);
-    if(pos < val_pos){
-    column_list.push_back(write_statement.substr(col_pos, pos-col_pos));
-    }
-    // Done.
-
-    //4) Extract values
-    // Look for "(" (before end)
-    pos = write_statement.find("(", val_pos); //Look only from after values_hook   // Might be easier if we just create substring.
-    // UW_ASSERT(pos != std::string::npos);
-
-    //Skip ahead past "("
-    val_pos = pos+1;  //FIXME: is "(".length() = 1
-
-    // split on ", "
-    // add item inbetween to cols vector
-    while((pos = write_statement.find(", ", val_pos)) != string::npos){
-    value_list.push_back(write_statement.substr(val_pos, pos-val_pos));
-    val_pos = pos + 2;
-    }
-    // if no more ", " --> look for ")" and skip. Then insert last value
-    pos = write_statement.find(")", val_pos);
-    // UW_ASSERT(pos != std::string::npos);
-    value_list.push_back(write_statement.substr(val_pos, pos-val_pos));
-    // Done.
             
     UW_ASSERT(value_list.size() == column_list.size()); //Require to pass all columns currently.
-    UW_ASSERT(column_list.size() >= 1); // At least one column specified (e.g. single column primary key)
+    UW_ASSERT(col_updates.size() >= 1); // At least one column specified to be updated
         
 
-    ///////// //Create Read statement:  ==> Ideally for Inserts we'd just use a point get on the primary keys. (instead of a sql select statement that's a bit overkill)
-    //TODO: What about nested statements.
-    std::vector<const std::string*> primary_key_column_values;
+    ///////// //Create Read statement:  Just Select * with Where condition
+            //==> Ideally for Updates we'd just select on the primary key columns. (instead of a sql select * statement that's a bit overkill)
+            //std::vector<const std::string*> primary_key_column_values;
 
-    if(false){  //TODO: NOTE: FIXME: DO NOT NEED TO CREATE ANY READ STATEMENT FOR SINGLE ROW INSERTS. ==> Just set read version = 0 (TODO: Confirm OCC check will check vs latest version = delete)
-                    //THIS WAY WILL SAVE QUERY ROUNDTRIP + WONT HAVE TO REMOVE TABLE VERSION POSSIBLY ADDED BY SCAN
-            read_statement = "SELECT ";  
-        //insert primary columns --> Can already concat them with delimiter:   col1  || '###' || col2 ==> but then how do we look up column?  
-        for(auto p_idx: primary_key_encoding_support[0]){
-            read_statement += column_list[p_idx] + ", ";
-        }
-        read_statement.resize(read_statement.size() - 2); //remove trailing ", "
-
-
-        read_statement += " FROM " + table_name;
-
-        read_statement += " WHERE ";
-        for(auto p_idx: primary_key_encoding_support[0]){
-            std::string &val = value_list[p_idx];
-            read_statement += column_list[p_idx] + " = " + val + ", ";
-            primary_key_column_values.push_back(&val);
-        }
-        //insert primary col conditions.
-        read_statement.resize(read_statement.size() - 2); //remove trailing ", "
-
-        read_statement += ";";
-    }
-    else{
-        for(auto p_idx: primary_key_encoding_support[0]){
-            std::string &val = value_list[p_idx];
-            primary_key_column_values.push_back(&val);
-        }
-    }
-
-    
-    std::string enc_key = EncodeTableRow(table_name, primary_key_column_values);
-
+    read_statement = "SELECT * FROM ";
+    read_statement += table_name;
+    read_statement += " " + where_cond;  
+       
     //////// Create Write continuation:  
-    write_continuation = [this, wcb, enc_key, table_name, column_list, value_list](int status, query_result::QueryResult* result){
-        //TODO: Does one need to use status? --> Query should not fail?
-        if(result->empty()){
+    write_continuation = [this, wcb, table_name, col_updates, primary_key_encoding_support](int status, query_result::QueryResult* result){
+
+         //Write Table Version itself. //Only for kv-store.
+        WriteMessage *table_ver = txn.add_write_set();
+        table_ver->set_key(table_name);
+        table_ver->set_value("");
+
+
+        //For each row in query result
+        for(int i = 0; i < result->size(); ++i){
+            query_result::Row *row = result[i];
             
+            std::vector<const std::string*> primary_key_column_values;
+            for(auto idx: primary_key_encoding_support){
+                primary_key_column_values.push_back(&row->name(idx));
+            }
+            std::string enc_key = EncodeTableRow(table_name, primary_key_column_values);
 
-            //Read genesis timestamp (0) ==> FIXME: THIS CURRENTLY DOES NOT WORK WITH EXISTING OCC CHECK.
-            ReadMessage *read = txn.add_read_set();
-            read->set_key(enc_key);
-            read->mutable_readtime()->set_id(0);
-            read->mutable_readtime()->set_timestamp(0);
-
-            //Create Table Write. Note: Enc_key encodes table_name + primary key column values.
             WriteMessage *write = txn.add_write_set();
             write->set_key(enc_key);
-            for(int i=0; i<column_list.size(); ++i){
-                (*write->mutable_rowupdates()->mutable_attribute_writes())[column_list[i]] = value_list[i];
-            }
+            // For col in col_updates update the columns specified by update_cols. Set value to update_values
+            for(int j=0; j<row->columns(); ++j){
+                std::string &col = row->name(j);
+                query_result::Field *field = (*row)[j];
+                size_t nbytes;
+                std::string val(field.get&nbytes);
 
-            //Write Table Version itself. //Only for kv-store.
-            WriteMessage *table_ver = txn.add_write_set();
-            table_ver->set_key(table_name);
-            table_ver->set_value("");
+                //Replace value with col value if applicable. Then operate arithmetic by casting ops to uint64_t and then turning back to string.
+                auto itr = col_updates.find(col);
+                if(itr != col_updates.end()){
+                    //Update value.
+                    Col_Update &col_update = itr->second;
+                    if(col_update.has_operand){
+                    
+                        uint64_t l_value;
+                        uint64_t r_value;
+                        //TODO: Check if l_value needs to be replaced
+                        //Search Col by name... 
+                        //FIXME: For now just use current col -- I assume that's always the case tbh..
+                        if(col_update.l_value == field.name()){
+                            std::istringstream iss(val);
+                            iss >> l_value;  
+                        }
+                        else{ //Otherwise l_value is already the number...
+                            std::istringstream iss(col_update.l_value);
+                            iss >> l_value;  
+                        }
 
+                         if(col_update.r_value == field.name()){
+                            std::istringstream iss(val);
+                            iss >> r_value;  
+                        }
+                        else{ //Otherwise l_value is already the number...
+                            std::istringstream iss(col_update.r_value);
+                            iss >> r_value;  
+                        }
 
+                        uint64_t output;
+                        switch (col_update.operand){
+                            case "+":
+                                output = l_value + r_value;
+                                break;
+                            case "-":
+                                output = l_value - r_value;
+                                break;
+                            case "*":
+                                output = l_value * r_value;
+                                break;
+                            case "/":
+                                output = l_value / r_value;  //Note: this will round instead of producing a float.
+                                break;
+                        }
 
-            //Create result object with rows affected = 1.
-            result->set_rows_affected(1);
-            wcb(REPLY_OK, result);
+                        (*write->mutable_rowupdates()->mutable_attribute_writes())[col] = "" + output;
+                    }
+                    else{
+                        (*write->mutable_rowupdates()->mutable_attribute_writes())[col] = std::move(col_update.l_value);
+                    }
+                }
+                else{
+                      (*write->mutable_rowupdates()->mutable_attribute_writes())[col] = std::move(val);
+                }
+            }    
+
         }
-        else{
-            //Create result object with rows affected = 0.
-            result->set_rows_affected(0);
-            wcb(REPLY_OK, result);
-        }
+
+            // //Isolate primary keys ==> create encoding and table write
+          
+            // //Copy all column values (unless in col_updates)
+            // //For col in col_updates update the columns specified by update_cols. Set value to update_values
+            //         //Replace value with col value if applicable. Then operate arithmetic by casting ops to uint64_t and then turning back to string.
+
+    
+            // //Create Table Write. Note: Enc_key encodes table_name + primary key column values.
+            // WriteMessage *write = txn.add_write_set();
+            // write->set_key(enc_key);
+            // for(int i=0; i<column_list.size(); ++i){
+            //     (*write->mutable_rowupdates()->mutable_attribute_writes())[column_list[i]] = value_list[i];
+            // }
+        
+     
+        result->set_rows_affected(0); //TODO: Fill in with number of rows.
+        wcb(REPLY_OK, result);
+        
     };
 
 
 
 }
 
-Client::TransformDelete(size_t pos, std::string &write_statement, std::vector<std::vector<uint32_t>> primary_key_encoding_support, 
+void Client::TransformDelete(size_t pos, std::string &write_statement, std::vector<std::vector<uint32_t>> primary_key_encoding_support, 
     std::string &read_statement, std::function<void(int, query_result::QueryResult*)>  &write_continuation, write_callback &wcb){
     
      //Case 3) DELETE FROM <table_name> WHERE <condition>

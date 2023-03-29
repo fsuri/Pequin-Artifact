@@ -302,6 +302,17 @@ class Client : public ::Client {
   // --> would allow normal OCC handling on Wait results at the server?
 
   //Query logic
+
+  typedef struct Col_Update {
+    std::string l_value;
+    bool has_operand;
+    std::string operand;
+    std::string r_value;
+  
+    //TODO: cast all values to uint64 to perform operand
+  } Col_Update;
+  void ParseColUpdate(std::string col_update, std::map<std::string, Col_Update> &col_updates);
+
   void TransformWriteStatement(std::string &write_statement, std::vector<std::vector<uint32_t>> primary_key_encoding_support,
         std::string &read_statement, std::function<void(int, query_result::QueryResult*)>  &write_continuation, write_callback &wcb);
     void TransformInsert(size_t pos, std::string &write_statement, std::vector<std::vector<uint32_t>> primary_key_encoding_support, 
