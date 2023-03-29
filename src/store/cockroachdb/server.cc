@@ -98,6 +98,20 @@ void Server::Load(const string &key, const string &value,
   // commitStore.put(key, val, timestamp);
 }
 
+void Server::CreateTable(
+    const std::string &table_name,
+    const std::vector<std::pair<std::string, std::string>> &column_data_types,
+    const std::vector<uint32_t> primary_key_col_idx) {
+  Panic("This store does not support SQL Table operations");
+}
+
+void Server::LoadTableRow(
+    const std::string &table_name,
+    const std::vector<std::pair<std::string, std::string>> &column_data_types,
+    const std::vector<std::string> &values,
+    const std::vector<uint32_t> primary_key_col_idx) {
+  Panic("This store does not support SQL Table operations");
+}
 Stats &Server::GetStats() { return stats; }
 
 Server::~Server() {}
