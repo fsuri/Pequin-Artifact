@@ -60,7 +60,7 @@ Client::Client(const transport::Configuration &config, uint64_t id, int nShards,
 
     // Prepare get function. Use point query
     conn->prepare("get", "SELECT val_ FROM datastore WHERE key_ = \'$1\'");
-    cout << "Initialization confirmed" << endl;
+    // cout << "Initialization confirmed" << endl;
 
   } catch (const std::exception &e) {
     std::cerr << e.what() << '\n';
@@ -77,7 +77,7 @@ void Client::Begin(begin_callback bcb, begin_timeout_callback btcb,
     tr = conn->transaction(tao::pq::isolation_level::serializable,
                            tao::pq::access_mode::read_write);
     // TODO replace with some Tx ID
-    std::cout << "begin " << '\n';
+    // std::cout << "begin " << '\n';
     bcb(420);
   } catch (const std::exception &e) {
     std::cerr << "Tx begin Failed" << '\n';
@@ -108,7 +108,7 @@ void Client::Get(const std::string &key, get_callback gcb,
     for (const auto &row : result) {
       value = row["val_"].as<std::string>();
     }
-    std::cout << "get " << key << '\n';
+    // std::cout << "get " << key << '\n';
 
     // TODO replace Timestamp that makes sense
     gcb(REPLY_OK, key, value, Timestamp(0));
@@ -126,7 +126,7 @@ void Client::Put(const std::string &key, const std::string &value,
   try {
     tr->execute("put", key, value);
     // pcb(REPLY_OK, key, value);
-    std::cout << "put (" << key << ", " << value << ")" << '\n';
+    // std::cout << "put (" << key << ", " << value << ")" << '\n';
     pcb(REPLY_OK, key, value);
   } catch (const std::exception &e) {
     pcb(REPLY_FAIL, key, value);
@@ -160,7 +160,7 @@ void Client::Commit(commit_callback ccb, commit_timeout_callback ctcb,
   try {
     tr->commit();
     tr = nullptr;
-    std::cout << "commit " << '\n';
+    // std::cout << "commit " << '\n';
 
     ccb(transaction_status_t::COMMITTED);
   } catch (const std::exception &e) {
@@ -175,6 +175,5 @@ void Client::Abort(abort_callback acb, abort_timeout_callback atcb,
   tr = nullptr;
   acb();
 }
-
 
 }  // namespace cockroachdb
