@@ -824,7 +824,7 @@ To reproduce the reported evaluation of the impact of different Read Quorum size
 
 The provided configs only run an experiment for the rough peak points reported in the paper which is sufficient to compare the overheads of larger Quorums. If you want to reproduce the full figure reported, you may run `combined.json`, however we advise against it, since it takes a *considerable* amount of time. You may instead run each configuration for a few neighboring client configurations (already included as comments in the configs). 
 
-1. **Single read*
+1. **Single read**
    - Run configuration `1.json`.
    - The reported peak throughput is ~17k tx/s.
 2. **f+1 reads**

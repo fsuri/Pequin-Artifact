@@ -159,6 +159,8 @@ void Client::Begin(begin_callback bcb, begin_timeout_callback btcb,
     txn.mutable_timestamp()->set_timestamp(timeServer.GetTime());
     txn.mutable_timestamp()->set_id(client_id);
 
+    write_interpreter.NewTx(&txn);
+
     bcb(client_seq_num);
   });
 }
@@ -262,7 +264,7 @@ void Client::Write(std::string &write_statement, std::vector<std::vector<uint32_
     std::string read_statement;
     std::function<void(int, query_result::QueryResult*)>  write_continuation;
 
-    TransformWriteStatement(write_statement, primary_key_encoding_support, read_statement, write_continuation, wcb);
+    write_interpreter.TransformWriteStatement(write_statement, primary_key_encoding_support, read_statement, write_continuation, wcb);
     
   
     if(read_statement.empty()){

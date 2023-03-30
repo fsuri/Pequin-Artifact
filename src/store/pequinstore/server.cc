@@ -393,7 +393,7 @@ void Server::LoadTableRow(const std::string &table_name, const std::vector<std::
 
   sql_statement += ");" ;
   
-   //TODO: Call into TableStore with this statement.
+   //TODO: Call into TableStore with this statement.   //TODO: Alternativey 
 
   std::vector<const std::string*> primary_cols;
   for(auto i: primary_key_col_idx){
