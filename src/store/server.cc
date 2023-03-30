@@ -77,7 +77,6 @@
 #include "store/bftsmartstore_stable/server.h"
 #include "store/indicusstore/common.h"
 
-
 enum protocol_t {
   PROTO_UNKNOWN,
   PROTO_TAPIR,
@@ -127,13 +126,12 @@ const std::string protocol_args[] = {
     "tapir", "weak", "strong", "pequin", "indicus", "pbft", "hotstuff",
     "augustus-hs",  // not used currently by experiment scripts (deprecated)
     "bftsmart",
-    "augustus", // currently used as augustus version -- maps to BFTSmart
-                // Augustus implementation
-    "crdb"
-};
-const protocol_t protos[]{PROTO_TAPIR,         PROTO_WEAK,     PROTO_STRONG,
-                          PROTO_PEQUIN,        PROTO_INDICUS,  PROTO_PBFT,
-                          PROTO_HOTSTUFF,      PROTO_AUGUSTUS, PROTO_BFTSMART,
+    "augustus",  // currently used as augustus version -- maps to BFTSmart
+                 // Augustus implementation
+    "crdb"};
+const protocol_t protos[]{PROTO_TAPIR,          PROTO_WEAK,     PROTO_STRONG,
+                          PROTO_PEQUIN,         PROTO_INDICUS,  PROTO_PBFT,
+                          PROTO_HOTSTUFF,       PROTO_AUGUSTUS, PROTO_BFTSMART,
                           PROTO_AUGUSTUS_SMART, PROTO_CRDB};
 static bool ValidateProtocol(const char *flagname, const std::string &value) {
   int n = sizeof(protocol_args);
@@ -590,7 +588,6 @@ int main(int argc, char **argv) {
   KeyManager keyManager(FLAGS_indicus_key_path, keyType, true, replica_total,
                         client_total, FLAGS_num_client_hosts);
   keyManager.PreLoadPubKeys(true);
-  
 
   Notice("Additional protocol configurations");
   // Additional protocol configurations
@@ -826,13 +823,15 @@ int main(int argc, char **argv) {
           FLAGS_pbft_esig_batch, FLAGS_pbft_esig_batch_timeout,
           FLAGS_indicus_use_coordinator, FLAGS_indicus_request_tx, protocol_cpu,
           FLAGS_num_shards, tport);
-    // Cockroach
-    case PROTO_CRDB: {
-      server = new cockroachdb::Server(config, &keyManager, FLAGS_group_idx,FLAGS_replica_idx, FLAGS_num_shards, FLAGS_num_groups);
-      break;
-    }
+      // Cockroach
+      case PROTO_CRDB: {
+        server = new cockroachdb::Server(config, &keyManager, FLAGS_group_idx,
+                                         FLAGS_replica_idx, FLAGS_num_shards,
+                                         FLAGS_num_groups);
 
-    break;
+      }
+
+      break;
     }
 
     default: {
