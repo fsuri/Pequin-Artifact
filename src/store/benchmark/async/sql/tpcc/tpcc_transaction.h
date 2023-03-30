@@ -368,6 +368,46 @@ void load(Archive & archive,
   s.set_remote_cnt(remote_cnt);
   s.set_data(data);
 }
+
+template<class Archive>
+void save(Archive & archive, 
+          tpcc::NewOrderRow const & new_o)
+{ 
+  archive(new_o.o_id(), new_o.d_id(), new_o.w_id());
+}
+
+template<class Archive>
+void load(Archive & archive,
+          tpcc::NewOrderRow & new_o)
+{
+  uint32_t id;
+  uint32_t d_id;
+  uint32_t w_id;
+  archive( id, d_id, w_id );
+  new_o.set_o_id(id);
+  new_o.set_d_id(d_id);
+  new_o.set_w_id(w_id);
+}
+
+template<class Archive>
+void save(Archive & archive, 
+          tpcc::EarliestNewOrderRow const & eno)
+{ 
+  archive(eno.o_id(), eno.d_id(), eno.w_id());
+}
+
+template<class Archive>
+void load(Archive & archive,
+          tpcc::EarliestNewOrderRow & eno)
+{
+  uint32_t id;
+  uint32_t d_id;
+  uint32_t w_id;
+  archive( id, d_id, w_id );
+  eno.set_o_id(id);
+  eno.set_d_id(d_id);
+  eno.set_w_id(w_id);
+}
 }
 
 namespace tpcc_sql {
