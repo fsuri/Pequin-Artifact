@@ -33,6 +33,7 @@
 #include <mutex>
 #include <shared_mutex>
 
+#include "lib/message.h"
 #include "store/hotstuffstore/app.h"
 #include "store/hotstuffstore/server-proto.pb.h"
 #include "store/server.h"

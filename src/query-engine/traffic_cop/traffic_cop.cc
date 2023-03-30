@@ -23,6 +23,7 @@
 #include "../planner/plan_util.h"
 #include "../settings/settings_manager.h"
 #include "../threadpool/mono_queue_pool.h"
+#include "../../store/common/timestamp.h"
 
 namespace peloton {
 namespace tcop {
@@ -152,7 +153,7 @@ ResultType TrafficCop::ExecuteStatementGetResult() {
 executor::ExecutionResult TrafficCop::ExecuteHelper(
     std::shared_ptr<planner::AbstractPlan> plan,
     const std::vector<type::Value> &params, std::vector<ResultValue> &result,
-    const std::vector<int> &result_format, size_t thread_id) {
+    const std::vector<int> &result_format, Timestamp basil_timestamp, size_t thread_id) {
   auto &curr_state = GetCurrentTxnState();
 
   concurrency::TransactionContext *txn;
@@ -167,6 +168,10 @@ executor::ExecutionResult TrafficCop::ExecuteHelper(
     txn = txn_manager.BeginTransaction(thread_id);
     tcop_txn_state_.emplace(txn, ResultType::SUCCESS);
   }
+
+  // Set the Basil timestamp
+  txn->SetBasilTimestamp(basil_timestamp);
+  std::cout << "Execute helper timestamp " << txn->GetBasilTimestamp().getTimestamp() << ", " << txn->GetBasilTimestamp().getID() << std::endl;
 
   // skip if already aborted
   if (curr_state.second == ResultType::ABORTED) {
@@ -556,7 +561,7 @@ ResultType TrafficCop::ExecuteStatement(
     const std::vector<type::Value> &params, UNUSED_ATTRIBUTE bool unnamed,
     /*std::shared_ptr<stats::QueryMetric::QueryParams> param_stats,*/
     const std::vector<int> &result_format, std::vector<ResultValue> &result,
-    size_t thread_id) {
+    Timestamp basil_timestamp, size_t thread_id) {
   // TODO(Tianyi) Further simplify this API
   /*if (static_cast<StatsType>(settings::SettingsManager::GetInt(
           settings::SettingId::stats_mode)) != StatsType::INVALID) {
@@ -607,7 +612,7 @@ ResultType TrafficCop::ExecuteStatement(
         }
 
         ExecuteHelper(statement->GetPlanTree(), params, result, result_format,
-                      thread_id);
+                      basil_timestamp, thread_id);
         if (GetQueuing()) {
           return ResultType::QUEUING;
         } else {

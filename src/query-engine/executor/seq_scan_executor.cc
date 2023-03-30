@@ -29,6 +29,7 @@
 #include "../storage/tile.h"
 #include "../concurrency/transaction_manager_factory.h"
 #include "../common/logger.h"
+#include "../storage/storage_manager.h"
 
 namespace peloton {
 namespace executor {
@@ -162,6 +163,8 @@ bool SeqScanExecutor::DExecute() {
       // Construct position list by looping through tile group
       // and applying the predicate.
       std::vector<oid_t> position_list;
+      std::set<oid_t> position_set;
+      std::cout << "Active tuple count is " << active_tuple_count << std::endl;
       for (oid_t tuple_id = 0; tuple_id < active_tuple_count; tuple_id++) {
         ItemPointer location(tile_group->GetTileGroupId(), tuple_id);
 
@@ -171,12 +174,67 @@ bool SeqScanExecutor::DExecute() {
 
         // Always set visibility to be ok
         auto visibility = VisibilityType::OK;
+        
+        // NEW: Logic for finding the right version to read
+        auto storage_manager = storage::StorageManager::GetInstance();
+        auto timestamp = current_txn->GetBasilTimestamp();
+        auto tuple_timestamp = tile_group_header->GetBasilTimestamp(tuple_id);
+        auto curr_tuple_id = tuple_id;
+
+        std::cout << "Made it to seq scan timestamp version checking" << std::endl;
+        std::cout << "Timestamp of current txn is " << timestamp.getTimestamp() << ", " << timestamp.getID() << std::endl;
+        std::cout << "Timestamp of tuple is " << tuple_timestamp.getTimestamp() << ", " << tuple_timestamp.getID() << std::endl;
+
+        std::cout << "Seq scan current tuple id is " << curr_tuple_id << std::endl;
+        // Get the head of the version chain (latest version)
+        ItemPointer* head = tile_group_header->GetIndirection(curr_tuple_id);
+        if (head->IsNull()) {
+          std::cout << "Head is null" << std::endl;
+        }
+        auto head_tile_group_header = storage_manager->GetTileGroup(head->block)->GetHeader();
+        tuple_timestamp = head_tile_group_header->GetBasilTimestamp(head->offset);
+        location = *head;
+        tile_group_header = head_tile_group_header;
+        curr_tuple_id = location.offset;
+
+        std::cout << "Head timestamp is " << tuple_timestamp.getTimestamp() << ", " << tuple_timestamp.getID() << std::endl;
+
+        // Now we find the appropriate version to read that's less than the timestamp by traversing the next pointers
+        while (tuple_timestamp > timestamp) {
+          // Get the previous version in the linked list
+          ItemPointer new_location = tile_group_header->GetNextItemPointer(curr_tuple_id);
+          std::cout << "Past new location" << std::endl;
+          // Get the associated tile group header so we can find the timestamp
+          if (new_location.IsNull()) {
+            std::cout << "New location is null" << std::endl;
+            visibility = VisibilityType::INVISIBLE;
+            break;
+          }
+
+          auto new_tile_group_header =
+            storage_manager->GetTileGroup(new_location.block)->GetHeader();
+          std::cout << "Past new tile group header" << std::endl;
+          // Update the timestamp
+          tuple_timestamp = new_tile_group_header->GetBasilTimestamp(new_location.offset);
+          std::cout << "New timestamp is " << tuple_timestamp.getTimestamp() << ", " << tuple_timestamp.getID() << std::endl;
+          location = new_location;
+          tile_group_header = new_tile_group_header;
+          curr_tuple_id = new_location.offset;
+          std::cout << "Past setting location" << std::endl;
+        }
+
+        std::cout << "Location timestamp is " << tile_group_header->GetBasilTimestamp(location.offset).getTimestamp() << std::endl;
+        std::cout << "Current tuple id is " << curr_tuple_id << std::endl;
 
         // check transaction visibility
         if (visibility == VisibilityType::OK) {
           // if the tuple is visible, then perform predicate evaluation.
           if (predicate_ == nullptr) {
-            position_list.push_back(tuple_id);
+            if (position_set.find(curr_tuple_id) == position_set.end()) {
+              position_list.push_back(curr_tuple_id);
+              position_set.insert(curr_tuple_id);
+            }
+            //position_list.push_back(curr_tuple_id);
             auto res = transaction_manager.PerformRead(current_txn,
                                                        location,
                                                        tile_group_header,
@@ -190,13 +248,17 @@ bool SeqScanExecutor::DExecute() {
             }
           } else {
             ContainerTuple<storage::TileGroup> tuple(tile_group.get(),
-                                                     tuple_id);
+                                                     curr_tuple_id);
             LOG_TRACE("Evaluate predicate for a tuple");
             auto eval =
                 predicate_->Evaluate(&tuple, nullptr, executor_context_);
             LOG_TRACE("Evaluation result: %s", eval.GetInfo().c_str());
             if (eval.IsTrue()) {
-              position_list.push_back(tuple_id);
+              if (position_set.find(curr_tuple_id) == position_set.end()) {
+                position_list.push_back(curr_tuple_id);
+                position_set.insert(curr_tuple_id);
+              }
+              position_list.push_back(curr_tuple_id);
               auto res = transaction_manager.PerformRead(current_txn,
                                                          location,
                                                          tile_group_header,

@@ -10,6 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#undef hashsize
 #include "../catalog/catalog.h"
 
 #include "../catalog/column_catalog.h"

@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
+#undef Debug
 
 #include <atomic>
 #include <cstring>
@@ -22,6 +23,7 @@
 #include "../storage/tuple.h"
 #include "../common/internal_types.h"
 #include "../type/value.h"
+#include "../../store/common/timestamp.h"
 
 namespace peloton {
 namespace storage {
@@ -42,6 +44,9 @@ struct TupleHeader {
   ItemPointer next;
   ItemPointer prev;
   ItemPointer *indirection;
+  std::string tx_id;
+  bool is_prepared;
+  Timestamp basil_timestamp;
 } __attribute__((aligned(64)));
 
 /**
@@ -198,6 +203,11 @@ class TileGroupHeader : public Printable {
     return tuple_headers_[tuple_slot_id].indirection;
   }
 
+  // NEW: Get basil timestamp
+  inline Timestamp GetBasilTimestamp(const oid_t &tuple_slot_id) const {
+    return tuple_headers_[tuple_slot_id].basil_timestamp;
+  }
+
   // Setters
 
   inline void SetTileGroup(TileGroup *tile_group) {
@@ -244,6 +254,11 @@ class TileGroupHeader : public Printable {
     auto old_val = INITIAL_TXN_ID;
     return tuple_headers_[tuple_slot_id].txn_id.compare_exchange_strong(
         old_val, transaction_id);
+  }
+
+  // NEW: set basil timestamp
+  inline void SetBasilTimestamp(const oid_t &tuple_slot_id, Timestamp basil_timestamp) {
+    tuple_headers_[tuple_slot_id].basil_timestamp = basil_timestamp;
   }
 
   /*

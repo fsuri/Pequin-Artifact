@@ -23,6 +23,7 @@
 #include "../common/item_pointer.h"
 #include "../common/printable.h"
 #include "../common/internal_types.h"
+#include "../../store/common/timestamp.h"
 
 namespace peloton {
 
@@ -271,6 +272,14 @@ class TransactionContext : public Printable {
     read_only_ = true;
   }
 
+  Timestamp GetBasilTimestamp() {
+    return basil_timestamp_;
+  }
+
+  void SetBasilTimestamp(Timestamp basil_timestamp) {
+    basil_timestamp_ = basil_timestamp;
+  }
+
   /**
    * @brief      Gets the isolation level.
    *
@@ -321,6 +330,9 @@ class TransactionContext : public Printable {
 
   /** timestamp when the transaction began */
   uint64_t timestamp_;
+
+  /** Basil timestamp */
+  Timestamp basil_timestamp_;
 
   ReadWriteSet rw_set_;
   CreateDropSet rw_object_set_;

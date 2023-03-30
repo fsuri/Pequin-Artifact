@@ -110,7 +110,7 @@ void StatsStorage::InsertOrUpdateColumnStats(
   LOG_TRACE("InsertOrUpdateColumnStats, %d, %lf, %lf, %s, %s, %s", num_rows,
             cardinality, frac_null, most_common_vals.c_str(),
             most_common_freqs.c_str(), histogram_bounds.c_str());
-  auto column_stats_catalog = catalog::ColumnStatsCatalog::GetInstance(nullptr);
+  /*auto column_stats_catalog = catalog::ColumnStatsCatalog::GetInstance(nullptr);
   auto &txn_manager = concurrency::TransactionManagerFactory::GetInstance();
 
   bool single_statement_txn = false;
@@ -135,7 +135,7 @@ void StatsStorage::InsertOrUpdateColumnStats(
 
   if (single_statement_txn) {
     txn_manager.CommitTransaction(txn);
-  }
+  }*/
 }
 
 /**

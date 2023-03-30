@@ -109,6 +109,9 @@ static void InterpretPlan(
   std::unique_ptr<executor::AbstractExecutor> executor_tree(
       BuildExecutorTree(nullptr, plan.get(), executor_context.get()));
 
+  // NEW: Set the timestamp for the query plan
+  executor_tree->SetBasilTimestamp(txn->GetBasilTimestamp());
+
   status = executor_tree->Init();
   if (status != true) {
     result.m_result = ResultType::FAILURE;
@@ -119,6 +122,7 @@ static void InterpretPlan(
     return;
   }
 
+  std::cout << "The timestamp is " << txn->GetBasilTimestamp().getTimestamp() << ", " << txn->GetBasilTimestamp().getID() << std::endl;
   // Execute the tree until we get values tiles from root node
   while (status == true) {
     // Pass flag for snapshot, then executor only needs to execute the leaves
@@ -266,6 +270,7 @@ executor::AbstractExecutor *BuildExecutorTree(
       break;
 
     case PlanNodeType::SEQSCAN:
+      std::cout << "Parsed as a sequential scan" << std::endl;
       child_executor = new executor::SeqScanExecutor(plan, executor_context);
       break;
 
@@ -282,6 +287,7 @@ executor::AbstractExecutor *BuildExecutorTree(
       break;
 
     case PlanNodeType::UPDATE:
+      std::cout << "Parsed as an update statement" << std::endl;
       child_executor = new executor::UpdateExecutor(plan, executor_context);
       break;
 

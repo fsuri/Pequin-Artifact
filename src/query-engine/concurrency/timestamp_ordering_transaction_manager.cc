@@ -364,11 +364,16 @@ void TimestampOrderingTransactionManager::PerformInsert(
 
   // no need to set next item pointer.
 
+  // NEW: add timestamp
+  //std::cout << "Set the timestamp of the tuple to " << current_txn->GetBasilTimestamp().getID() << ", " << current_txn->GetBasilTimestamp().getTimestamp() << std::endl;
+  tile_group_header->SetBasilTimestamp(tuple_id, current_txn->GetBasilTimestamp());
+  std::cout << "Timestamp of inserted tuple is " << tile_group_header->GetBasilTimestamp(tuple_id).getTimestamp() << ", " << current_txn->GetBasilTimestamp().getID() << std::endl;
+
   // Add the new tuple into the insert set
   current_txn->RecordInsert(location);
-
-  // Write down the head pointer's address in tile group header
   tile_group_header->SetIndirection(tuple_id, index_entry_ptr);
+
+  //std::cout << "Testing whether this seg faults " << index_entry_ptr->offset << std::endl;
 }
 
 void TimestampOrderingTransactionManager::PerformUpdate(
@@ -417,6 +422,13 @@ void TimestampOrderingTransactionManager::PerformUpdate(
   new_tile_group_header->SetTransactionId(new_location.offset, transaction_id);
   new_tile_group_header->SetLastReaderCommitId(new_location.offset,
                                                current_txn->GetCommitId());
+  // NEW: update the timestamp
+  new_tile_group_header->SetBasilTimestamp(new_location.offset, current_txn->GetBasilTimestamp());
+  std::cout << "Updated the timestamp to be " << current_txn->GetBasilTimestamp().getTimestamp() << ", " << current_txn->GetBasilTimestamp().getID() << std::endl;
+
+  if (!new_tile_group_header->GetNextItemPointer(new_location.offset).IsNull()) {
+    std::cout << "Updated version is not null" << std::endl;
+  }
 
   // we should guarantee that the newer version is all set before linking the
   // newer version to older version.

@@ -74,7 +74,6 @@ bool InsertExecutor::DExecute() {
     return false;
   }
 
-  std::cout << "Inside insert executor" << std::endl;
   LOG_TRACE("Number of tuples in table before insert: %lu",
             target_table->GetTupleCount());
   auto executor_pool = executor_context_->GetPool();
@@ -97,6 +96,11 @@ bool InsertExecutor::DExecute() {
     }
 
     std::unique_ptr<LogicalTile> logical_tile(children_[0]->GetOutput());
+    // NEW: Get the tile group header so we can add the timestamp to the tuple
+    storage::TileGroup *tile_group =
+        logical_tile->GetBaseTile(0)->GetTileGroup();
+    storage::TileGroupHeader *tile_group_header = tile_group->GetHeader();
+
 
     // FIXME: Wrong? What if the result of select is nothing? Michael
     PELOTON_ASSERT(logical_tile.get() != nullptr);
@@ -160,6 +164,7 @@ bool InsertExecutor::DExecute() {
   else if (children_.size() == 0) {
     // Extract expressions from plan node and construct the tuple.
     // For now we just handle a single tuple
+    std::cout << "In the else if branch of the insert statement" << std::endl;
     auto schema = target_table->GetSchema();
     auto project_info = node.GetProjectInfo();
     auto tuple = node.GetTuple(0);

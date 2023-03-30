@@ -15,6 +15,7 @@
 #include "../common/item_pointer.h"
 #include "../executor/logical_tile.h"
 #include "../common/internal_types.h"
+#include "../../store/common/timestamp.h"
 
 namespace peloton {
 
@@ -72,6 +73,14 @@ class AbstractExecutor {
   // Used to reset the state. For now it's overloaded by index scan executor
   virtual void ResetState() {}
 
+  Timestamp GetBasilTimestamp() {
+    return basil_timestamp_;
+  }
+
+  void SetBasilTimestamp(Timestamp basil_timestamp) {
+    basil_timestamp_ = basil_timestamp;
+  }
+
  protected:
   // NOTE: The reason why we keep the plan node separate from the executor
   // context is because we might want to reuse the plan multiple times
@@ -110,6 +119,9 @@ class AbstractExecutor {
 
   /** @brief Plan node corresponding to this executor. */
   const planner::AbstractPlan *node_ = nullptr;
+
+  // NEW: Timestamp needed for scans, updates, deletes
+  Timestamp basil_timestamp_;
 
  protected:
   // Executor context

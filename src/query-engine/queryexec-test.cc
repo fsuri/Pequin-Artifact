@@ -27,6 +27,8 @@
 #include "traffic_cop/traffic_cop.h"
 #include "type/type.h"
 
+#include "store/common/timestamp.h"
+
 static std::string GetResultValueAsString(
       const std::vector<peloton::ResultValue> &result, size_t index) {
     std::string value(result[index].begin(), result[index].end());
@@ -44,7 +46,8 @@ void ContinueAfterComplete(std::atomic_int &counter_) {
   }
 }
 
-peloton::ResultType ExecuteSQLQuery(const std::string query, peloton::tcop::TrafficCop &traffic_cop, std::atomic_int &counter_, std::vector<peloton::ResultValue> &result) {
+// Should additionally take a timestamp and a txn id
+peloton::ResultType ExecuteSQLQuery(const std::string query, peloton::tcop::TrafficCop &traffic_cop, std::atomic_int &counter_, std::vector<peloton::ResultValue> &result, Timestamp basil_timestamp) {
   //std::vector<peloton::ResultValue> result;
   std::vector<peloton::FieldInfo> tuple_descriptor;
 
@@ -72,7 +75,7 @@ peloton::ResultType ExecuteSQLQuery(const std::string query, peloton::tcop::Traf
   // SetTrafficCopCounter();
   counter_.store(1);
   auto status = traffic_cop.ExecuteStatement(statement, param_values, unnamed,
-                                              result_format, result);
+                                              result_format, result, basil_timestamp);
   std::cout << "After execute statement" << std::endl;
   if (traffic_cop.GetQueuing()) {
     ContinueAfterComplete(counter_);
@@ -101,6 +104,10 @@ int main(int argc, char *argv[]) {
   std::atomic_int counter_;
   std::vector<peloton::ResultValue> result;
   peloton::tcop::TrafficCop traffic_cop(UtilTestTaskCallback, &counter_);
+  Timestamp pesto_timestamp(4, 6);
+  Timestamp basil_timestamp(3, 5);
+  Timestamp read_timestamp(2, 4);
+
   //auto &traffic_cop = peloton::tcop::TrafficCop::GetInstance();
 
   /*std::string unnamed_statement = "unnamed";
@@ -126,18 +133,21 @@ int main(int argc, char *argv[]) {
     traffic_cop.SetQueuing(false);
   }*/
 
-  ExecuteSQLQuery("CREATE TABLE test(a INT);", traffic_cop, counter_, result);
-  ExecuteSQLQuery("INSERT INTO test VALUES (99);", traffic_cop, counter_, result);
-  ExecuteSQLQuery("INSERT INTO test VALUES (1001);", traffic_cop, counter_, result);
+  ExecuteSQLQuery("CREATE TABLE test(a INT, b INT, PRIMARY KEY(a));", traffic_cop, counter_, result, pesto_timestamp);
+  ExecuteSQLQuery("INSERT INTO test VALUES (99, 999);", traffic_cop, counter_, result, read_timestamp);
+  ExecuteSQLQuery("INSERT INTO test VALUES (1001, 10001);", traffic_cop, counter_, result, pesto_timestamp);
+  ExecuteSQLQuery("UPDATE test SET b=72 WHERE a=99;", traffic_cop, counter_, result, basil_timestamp);
+  ExecuteSQLQuery("UPDATE test SET b=855 WHERE a=99;", traffic_cop, counter_, result, pesto_timestamp);
+  ExecuteSQLQuery("SELECT * FROM test;", traffic_cop, counter_, result, pesto_timestamp);
   // function args: timestamp, snapshot manager, read set manager, boolean flag finding snapshot/executing (read set manager)
-  ExecuteSQLQuery("CREATE TABLE test1(c INT, b INT);", traffic_cop, counter_, result);
-  ExecuteSQLQuery("CREATE TABLE test2(b INT, d INT, e INT)", traffic_cop, counter_, result);
-  ExecuteSQLQuery("INSERT INTO test1 VALUES (99, 200);", traffic_cop, counter_, result);
-  ExecuteSQLQuery("INSERT INTO test1 VALUES (1001, 2202);", traffic_cop, counter_, result);
-  ExecuteSQLQuery("INSERT INTO test2 VALUES (2202, 3303, 4404);", traffic_cop, counter_, result);
+  //ExecuteSQLQuery("CREATE TABLE test1(c INT, b INT);", traffic_cop, counter_, result, basil_timestamp);
+  //ExecuteSQLQuery("CREATE TABLE test2(b INT, d INT, e INT)", traffic_cop, counter_, result, basil_timestamp);
+  //ExecuteSQLQuery("INSERT INTO test1 VALUES (99, 200);", traffic_cop, counter_, result, basil_timestamp);
+  //ExecuteSQLQuery("INSERT INTO test1 VALUES (1001, 2202);", traffic_cop, counter_, result, basil_timestamp);
+  //ExecuteSQLQuery("INSERT INTO test2 VALUES (2202, 3303, 4404);", traffic_cop, counter_, result, basil_timestamp);
   //ExecuteSQLQuery("INSERT INTO test2 VALUES (3303);", traffic_cop, counter_, result);
   //ExecuteSQLQuery("INSERT INTO test2 VALUES (4404);", traffic_cop, counter_, result);
-  ExecuteSQLQuery("SELECT * FROM (SELECT test1.b FROM test1 JOIN test ON test1.c = test.a WHERE test1.b > 100) AS X JOIN test2 ON test2.b=X.b;", traffic_cop, counter_, result);
+  //ExecuteSQLQuery("SELECT * FROM (SELECT test1.b FROM test1 JOIN test ON test1.c = test.a WHERE test1.b > 100) AS X JOIN test2 ON test2.b=X.b;", traffic_cop, counter_, result, basil_timestamp);
   
   //std::cout << "Statement executed!! Result: " << peloton::ResultTypeToString(status).c_str() << std::endl;
   std::cout << "Result size: " << result.size() /*<< " First row " << GetResultValueAsString(result, 0) << " Second row " << GetResultValueAsString(result, 1)*/ << std::endl;
