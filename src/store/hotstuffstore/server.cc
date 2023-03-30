@@ -278,6 +278,12 @@ std::vector<::google::protobuf::Message*> Server::HandleTransaction(const proto:
   //std::cerr << "allocating reply" << std::endl;
 
   string digest = TransactionDigest(transaction);
+
+  // TEST HOW MANY DUPLICATE TX: 
+  auto [_, first] = executed_tx.insert(digest);
+  if(!first) stats.Increment("duplicate_tx", 1);
+
+
   Debug("Handling transaction");
   DebugHash(digest);
   stats.Increment("handle_tx",1);

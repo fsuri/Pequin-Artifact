@@ -133,10 +133,14 @@ namespace hotstuffstore {
 
         auto parent_limit = opt_parent_limit->get();
         hotstuff::pacemaker_bt pmaker;
-        if (opt_pace_maker->get() == "dummy")
+        if (opt_pace_maker->get() == "dummy"){
+            std::cerr << "USING DUMMY PACEMAKER" << std::endl;
             pmaker = new hotstuff::PaceMakerDummyFixed(opt_fixed_proposer->get(), parent_limit);
-        else
+        }
+        else{
+            std::cerr << "USING ROUND-ROBIN PACEMAKER" << std::endl;
             pmaker = new hotstuff::PaceMakerRR(ec, parent_limit, opt_base_timeout->get(), opt_prop_delay->get());
+        }
 
         HotStuffApp::Net::Config repnet_config;
         ClientNetwork<opcode_t>::Config clinet_config;
