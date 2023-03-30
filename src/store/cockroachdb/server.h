@@ -45,6 +45,8 @@ class Server : public ::Server {
   int id;
   int numShards;
   int numGroups;
+  std::string host;
+  std::string port;
 };
 
 }  // namespace cockroachdb

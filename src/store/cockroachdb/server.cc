@@ -27,8 +27,8 @@ Server::Server(const transport::Configuration &config, KeyManager *keyManager,
       numGroups(numGroups) {
   int status = 0;
   transport::ReplicaAddress server_address = config.replica(groupIdx, idx);
-  std::string host = server_address.host;
-  std::string port = server_address.port;
+  host = server_address.host;
+  port = server_address.port;
 
   /**
    * --advertise-addr determines which address to tell other nodes to use.
@@ -113,7 +113,7 @@ void Server::CreateTable(
   std::string create_command = "CREATE TABLE IF NOT EXISTS " + table_name;
   create_command += "(";
 
-  // (col1 type1, col2 type2
+  // (col1 type1, col2 type2...)
   for (auto &type : column_data_types_with_primary) {
     create_command += (type.first + " " + type.second + ",");
   }
@@ -121,8 +121,8 @@ void Server::CreateTable(
   create_command.pop_back();
   create_command += ");";
   cout << create_command << endl;
-  std::string crdb_command =
-      "cockroach sql --insecure --execute=\"" + create_command + "\"";
+  std::string crdb_command = "cockroach sql --insecure --host=" + host + ":" +
+                             port + " --execute=\"" + create_command + "\"";
   cout << crdb_command << endl;
   int status = system(crdb_command.c_str());
 }
