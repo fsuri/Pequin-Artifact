@@ -180,8 +180,7 @@ bool SeqScanExecutor::DExecute() {
         auto timestamp = current_txn->GetBasilTimestamp();
         auto tuple_timestamp = tile_group_header->GetBasilTimestamp(tuple_id);
         auto curr_tuple_id = tuple_id;
-
-        std::cout << "Made it to seq scan timestamp version checking" << std::endl;
+        
         std::cout << "Timestamp of current txn is " << timestamp.getTimestamp() << ", " << timestamp.getID() << std::endl;
         std::cout << "Timestamp of tuple is " << tuple_timestamp.getTimestamp() << ", " << tuple_timestamp.getID() << std::endl;
 
@@ -203,7 +202,6 @@ bool SeqScanExecutor::DExecute() {
         while (tuple_timestamp > timestamp) {
           // Get the previous version in the linked list
           ItemPointer new_location = tile_group_header->GetNextItemPointer(curr_tuple_id);
-          std::cout << "Past new location" << std::endl;
           // Get the associated tile group header so we can find the timestamp
           if (new_location.IsNull()) {
             std::cout << "New location is null" << std::endl;
@@ -213,14 +211,12 @@ bool SeqScanExecutor::DExecute() {
 
           auto new_tile_group_header =
             storage_manager->GetTileGroup(new_location.block)->GetHeader();
-          std::cout << "Past new tile group header" << std::endl;
           // Update the timestamp
           tuple_timestamp = new_tile_group_header->GetBasilTimestamp(new_location.offset);
           std::cout << "New timestamp is " << tuple_timestamp.getTimestamp() << ", " << tuple_timestamp.getID() << std::endl;
           location = new_location;
           tile_group_header = new_tile_group_header;
           curr_tuple_id = new_location.offset;
-          std::cout << "Past setting location" << std::endl;
         }
 
         std::cout << "Location timestamp is " << tile_group_header->GetBasilTimestamp(location.offset).getTimestamp() << std::endl;

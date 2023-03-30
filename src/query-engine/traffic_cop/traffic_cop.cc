@@ -153,7 +153,7 @@ ResultType TrafficCop::ExecuteStatementGetResult() {
 executor::ExecutionResult TrafficCop::ExecuteHelper(
     std::shared_ptr<planner::AbstractPlan> plan,
     const std::vector<type::Value> &params, std::vector<ResultValue> &result,
-    const std::vector<int> &result_format, Timestamp basil_timestamp, size_t thread_id) {
+    const std::vector<int> &result_format, Timestamp &basil_timestamp, size_t thread_id) {
   auto &curr_state = GetCurrentTxnState();
 
   concurrency::TransactionContext *txn;
@@ -171,7 +171,6 @@ executor::ExecutionResult TrafficCop::ExecuteHelper(
 
   // Set the Basil timestamp
   txn->SetBasilTimestamp(basil_timestamp);
-  std::cout << "Execute helper timestamp " << txn->GetBasilTimestamp().getTimestamp() << ", " << txn->GetBasilTimestamp().getID() << std::endl;
 
   // skip if already aborted
   if (curr_state.second == ResultType::ABORTED) {
@@ -202,7 +201,6 @@ executor::ExecutionResult TrafficCop::ExecuteHelper(
   });
 
   is_queuing_ = true;
-  std::cout << "Submitted task and is queuing!" << std::endl;
 
   LOG_TRACE("Check Tcop_txn_state Size After ExecuteHelper %lu",
             tcop_txn_state_.size());
@@ -561,7 +559,7 @@ ResultType TrafficCop::ExecuteStatement(
     const std::vector<type::Value> &params, UNUSED_ATTRIBUTE bool unnamed,
     /*std::shared_ptr<stats::QueryMetric::QueryParams> param_stats,*/
     const std::vector<int> &result_format, std::vector<ResultValue> &result,
-    Timestamp basil_timestamp, size_t thread_id) {
+    Timestamp &basil_timestamp, size_t thread_id) {
   // TODO(Tianyi) Further simplify this API
   /*if (static_cast<StatsType>(settings::SettingsManager::GetInt(
           settings::SettingId::stats_mode)) != StatsType::INVALID) {
@@ -583,21 +581,17 @@ ResultType TrafficCop::ExecuteStatement(
   try {
     switch (statement->GetQueryType()) {
       case QueryType::QUERY_BEGIN: {
-        std::cout << "Begin case" << std::endl;
         return BeginQueryHelper(thread_id);
       }
       case QueryType::QUERY_COMMIT: {
-        std::cout << "Commit case" << std::endl;
         return CommitQueryHelper();
       }
       case QueryType::QUERY_ROLLBACK: {
-        std::cout << "Rollback case" << std::endl;
         return AbortQueryHelper();
       }
       default:
         // The statement may be out of date
         // It needs to be replan
-        std::cout << "Default case" << std::endl;
         if (statement->GetNeedsReplan()) {
           // TODO(Tianyi) Move Statement Replan into Statement's method
           // to increase coherence

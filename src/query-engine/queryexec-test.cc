@@ -47,9 +47,9 @@ void ContinueAfterComplete(std::atomic_int &counter_) {
 }
 
 // Should additionally take a timestamp and a txn id
-peloton::ResultType ExecuteSQLQuery(const std::string query, peloton::tcop::TrafficCop &traffic_cop, std::atomic_int &counter_, std::vector<peloton::ResultValue> &result, Timestamp basil_timestamp) {
+peloton::ResultType ExecuteSQLQuery(const std::string query, peloton::tcop::TrafficCop &traffic_cop, std::atomic_int &counter_, std::vector<peloton::ResultValue> &result, std::vector<peloton::FieldInfo> &tuple_descriptor, Timestamp &basil_timestamp) {
   //std::vector<peloton::ResultValue> result;
-  std::vector<peloton::FieldInfo> tuple_descriptor;
+  //std::vector<peloton::FieldInfo> tuple_descriptor;
 
   // execute the query using tcop
   // prepareStatement
@@ -63,7 +63,6 @@ peloton::ResultType ExecuteSQLQuery(const std::string query, peloton::tcop::Traf
   }
   auto statement = traffic_cop.PrepareStatement(unnamed_statement, query,
                                                  std::move(sql_stmt_list));
-  std::cout << "After prepare statement" << std::endl;
   if (statement.get() == nullptr) {
     traffic_cop.setRowsAffected(0);
     return peloton::ResultType::FAILURE;
@@ -76,18 +75,15 @@ peloton::ResultType ExecuteSQLQuery(const std::string query, peloton::tcop::Traf
   counter_.store(1);
   auto status = traffic_cop.ExecuteStatement(statement, param_values, unnamed,
                                               result_format, result, basil_timestamp);
-  std::cout << "After execute statement" << std::endl;
   if (traffic_cop.GetQueuing()) {
     ContinueAfterComplete(counter_);
     traffic_cop.ExecuteStatementPlanGetResult();
-    std::cout << "After execute statement plan get result" << std::endl;
     status = traffic_cop.ExecuteStatementGetResult();
-    std::cout << "After execute statement get result" << std::endl;
     traffic_cop.SetQueuing(false);
   }
-  /*if (status == peloton::ResultType::SUCCESS) {
+  if (status == peloton::ResultType::SUCCESS) {
     tuple_descriptor = statement->GetTupleDescriptor();
-  }*/
+  }
 
   //std::cout << "Result 1st value is " << GetResultValueAsString(result, 0) << std::endl;
   /*LOG_TRACE("Statement executed. Result: %s",
@@ -103,6 +99,7 @@ int main(int argc, char *argv[]) {
 
   std::atomic_int counter_;
   std::vector<peloton::ResultValue> result;
+  std::vector<peloton::FieldInfo> tuple_descriptor;
   peloton::tcop::TrafficCop traffic_cop(UtilTestTaskCallback, &counter_);
   Timestamp pesto_timestamp(4, 6);
   Timestamp basil_timestamp(3, 5);
@@ -133,12 +130,12 @@ int main(int argc, char *argv[]) {
     traffic_cop.SetQueuing(false);
   }*/
 
-  ExecuteSQLQuery("CREATE TABLE test(a INT, b INT, PRIMARY KEY(a));", traffic_cop, counter_, result, pesto_timestamp);
-  ExecuteSQLQuery("INSERT INTO test VALUES (99, 999);", traffic_cop, counter_, result, read_timestamp);
-  ExecuteSQLQuery("INSERT INTO test VALUES (1001, 10001);", traffic_cop, counter_, result, pesto_timestamp);
-  ExecuteSQLQuery("UPDATE test SET b=72 WHERE a=99;", traffic_cop, counter_, result, basil_timestamp);
-  ExecuteSQLQuery("UPDATE test SET b=855 WHERE a=99;", traffic_cop, counter_, result, pesto_timestamp);
-  ExecuteSQLQuery("SELECT * FROM test;", traffic_cop, counter_, result, pesto_timestamp);
+  ExecuteSQLQuery("CREATE TABLE test(a INT, b INT, PRIMARY KEY(a));", traffic_cop, counter_, result, tuple_descriptor, pesto_timestamp);
+  ExecuteSQLQuery("INSERT INTO test VALUES (99, 999);", traffic_cop, counter_, result, tuple_descriptor, read_timestamp);
+  ExecuteSQLQuery("INSERT INTO test VALUES (1001, 10001);", traffic_cop, counter_, result, tuple_descriptor, pesto_timestamp);
+  ExecuteSQLQuery("UPDATE test SET b=72 WHERE a=99;", traffic_cop, counter_, result, tuple_descriptor, basil_timestamp);
+  ExecuteSQLQuery("UPDATE test SET b=855 WHERE a=99;", traffic_cop, counter_, result, tuple_descriptor, pesto_timestamp);
+  ExecuteSQLQuery("SELECT * FROM test;", traffic_cop, counter_, result, tuple_descriptor, pesto_timestamp);
   // function args: timestamp, snapshot manager, read set manager, boolean flag finding snapshot/executing (read set manager)
   //ExecuteSQLQuery("CREATE TABLE test1(c INT, b INT);", traffic_cop, counter_, result, basil_timestamp);
   //ExecuteSQLQuery("CREATE TABLE test2(b INT, d INT, e INT)", traffic_cop, counter_, result, basil_timestamp);
@@ -150,10 +147,25 @@ int main(int argc, char *argv[]) {
   //ExecuteSQLQuery("SELECT * FROM (SELECT test1.b FROM test1 JOIN test ON test1.c = test.a WHERE test1.b > 100) AS X JOIN test2 ON test2.b=X.b;", traffic_cop, counter_, result, basil_timestamp);
   
   //std::cout << "Statement executed!! Result: " << peloton::ResultTypeToString(status).c_str() << std::endl;
-  std::cout << "Result size: " << result.size() /*<< " First row " << GetResultValueAsString(result, 0) << " Second row " << GetResultValueAsString(result, 1)*/ << std::endl;
-  for (int i = 0; i < result.size(); i++) {
-    std::cout << "Row " << i << ": Value: " << GetResultValueAsString(result, i) << std::endl;
+  //std::cout << "Result size: " << result.size() /*<< " First row " << GetResultValueAsString(result, 0) << " Second row " << GetResultValueAsString(result, 1)*/ << std::endl;
+
+  std::cout << "Result is" << std::endl;
+  std::cout << "---------------------------------------------------------" << std::endl;
+
+  unsigned int rows = result.size() / tuple_descriptor.size();
+  for (unsigned int i = 0; i < rows; i++) {
+    std::string row_string;
+    for (unsigned int j = 0; j < tuple_descriptor.size(); j++) {
+      row_string += GetResultValueAsString(result, i * tuple_descriptor.size() + j);
+      if (j < tuple_descriptor.size() - 1) {
+        row_string += "|";
+      }
+    }
+
+    std::cout << row_string << std::endl;
   }
+
+  std::cout << "---------------------------------------------------------" << std::endl;
   
   /*peloton::catalog::Catalog::GetInstance();
 

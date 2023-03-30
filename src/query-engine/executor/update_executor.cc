@@ -148,7 +148,6 @@ bool UpdateExecutor::PerformUpdatePrimaryKey(
  * @return true on success, false otherwise.
  */
 bool UpdateExecutor::DExecute() {
-  std::cout << "Made it to update executor" << std::endl;
   PELOTON_ASSERT(children_.size() == 1);
   PELOTON_ASSERT(executor_context_);
 

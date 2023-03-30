@@ -383,44 +383,38 @@ ResultType Catalog::CreateDatabase(concurrency::TransactionContext *txn,
         database_name);
 
   auto pg_database = DatabaseCatalog::GetInstance(nullptr, nullptr, nullptr);
-  std::cout << "a" << std::endl;
   auto storage_manager = storage::StorageManager::GetInstance();
-  std::cout << "b" << std::endl;
+
   // Check if a database with the same name exists
   auto database_object =
       pg_database->GetDatabaseCatalogEntry(txn, database_name);
-  std::cout << "c" << std::endl;
+
   if (database_object != nullptr)
     throw CatalogException("Database " + database_name + " already exists");
 
-  std::cout << "d" << std::endl;
   // Create actual database
   oid_t database_oid = pg_database->GetNextOid();
 
-  std::cout << "e" << std::endl; 
   storage::Database *database = new storage::Database(database_oid);
-  std::cout << "f" << std::endl;
 
   // TODO: This should be deprecated, dbname should only exists in pg_db
   database->setDBName(database_name);
   {
-    std::cout << "g" << std::endl;
     std::lock_guard<std::mutex> lock(catalog_mutex);
-    std::cout << "h" << std::endl;
     storage_manager->AddDatabaseToStorageManager(database);
   }
-  std::cout << "i" << std::endl;
+
   // put database object into rw_object_set
   txn->RecordCreate(database_oid, INVALID_OID, INVALID_OID);
-  std::cout << "j" << std::endl;
+
   // Insert database record into pg_db
   pg_database->InsertDatabase(txn, database_oid, database_name, pool_.get());
-  std::cout << "k" << std::endl;
+
   // add core & non-core system catalog tables into database
   BootstrapSystemCatalogs(txn, database);
-  std::cout << "l" << std::endl;
+
   catalog_map_[database_oid]->Bootstrap(txn, database_name);
-  std::cout << "m" << std::endl;
+
   LOG_TRACE("Database %s created. Returning RESULT_SUCCESS.",
             database_name.c_str());
   return ResultType::SUCCESS;

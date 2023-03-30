@@ -365,15 +365,11 @@ void TimestampOrderingTransactionManager::PerformInsert(
   // no need to set next item pointer.
 
   // NEW: add timestamp
-  //std::cout << "Set the timestamp of the tuple to " << current_txn->GetBasilTimestamp().getID() << ", " << current_txn->GetBasilTimestamp().getTimestamp() << std::endl;
   tile_group_header->SetBasilTimestamp(tuple_id, current_txn->GetBasilTimestamp());
-  std::cout << "Timestamp of inserted tuple is " << tile_group_header->GetBasilTimestamp(tuple_id).getTimestamp() << ", " << current_txn->GetBasilTimestamp().getID() << std::endl;
 
   // Add the new tuple into the insert set
   current_txn->RecordInsert(location);
   tile_group_header->SetIndirection(tuple_id, index_entry_ptr);
-
-  //std::cout << "Testing whether this seg faults " << index_entry_ptr->offset << std::endl;
 }
 
 void TimestampOrderingTransactionManager::PerformUpdate(

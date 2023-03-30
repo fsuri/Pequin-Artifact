@@ -164,7 +164,6 @@ bool InsertExecutor::DExecute() {
   else if (children_.size() == 0) {
     // Extract expressions from plan node and construct the tuple.
     // For now we just handle a single tuple
-    std::cout << "In the else if branch of the insert statement" << std::endl;
     auto schema = target_table->GetSchema();
     auto project_info = node.GetProjectInfo();
     auto tuple = node.GetTuple(0);

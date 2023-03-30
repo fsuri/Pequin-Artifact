@@ -1861,7 +1861,6 @@ parser::SQLStatement *PostgresParser::NodeTransform(Node *stmt) {
       result = InsertTransform((InsertStmt *)stmt);
       break;
     case T_DropStmt:
-      std::cout << "drop statement switch" << std::endl;
       result = DropTransform((DropStmt *)stmt);
       break;
     case T_DropdbStmt:
@@ -1904,15 +1903,13 @@ parser::SQLStatement *PostgresParser::NodeTransform(Node *stmt) {
 // and call the helper for singles nodes.
 parser::SQLStatementList *PostgresParser::ListTransform(List *root) {
   if (root == nullptr) {
-    std::cout << "nullptr" << std::endl;
     return nullptr;
   }
   auto result = new parser::SQLStatementList();
   LOG_TRACE("%d statements in total\n", (root->length));
-  std::cout << (root->length) << " statements in total" << std::endl;
+
   try {
     for (auto cell = root->head; cell != nullptr; cell = cell->next) {
-      std::cout << "in loop" << std::endl;
       result->AddStatement(NodeTransform((Node *)cell->data.ptr_value));
     }
   } catch (ParserException &e) {
@@ -1977,11 +1974,9 @@ parser::UpdateStatement *PostgresParser::UpdateTransform(
 // Call postgres's parser and start transforming it into Peloton's parse tree
 parser::SQLStatementList *PostgresParser::ParseSQLString(const char *text) {
   auto ctx = pg_query_parse_init();
-  std::cout << "query is " << text << std::endl;
   auto result = pg_query_parse(text);
-  std::cout << "After parse" << std::endl;
+
   if (result.error) {
-    std::cout << "Parse error" << std::endl;
     // Parse Error
     std::string exception_msg = StringUtil::Format(
         "%s at %d", result.error->message, result.error->cursorpos);
@@ -1994,17 +1989,13 @@ parser::SQLStatementList *PostgresParser::ParseSQLString(const char *text) {
   // print_pg_parse_tree(result.tree);
   parser::SQLStatementList *transform_result;
   try {
-    std::cout << "try transform" << std::endl;
     transform_result = ListTransform(result.tree);
-    std::cout << "after transform" << std::endl;
   } catch (Exception &e) {
-    std::cout << "Transform error" << std::endl;
     pg_query_parse_finish(ctx);
     pg_query_free_parse_result(result);
     throw e;
   }
 
-  std::cout << "Made it to end" << std::endl;
   pg_query_parse_finish(ctx);
   pg_query_free_parse_result(result);
   return transform_result;
@@ -2025,7 +2016,6 @@ std::unique_ptr<parser::SQLStatementList> PostgresParser::BuildParseTree(
   auto stmt = PostgresParser::ParseSQLString(query_string);
 
   if (stmt) {
-    std::cout << "Number of statements " << stmt->GetStatements().size() << std::endl;
     LOG_TRACE("Number of statements: %lu", stmt->GetStatements().size());
   }
 
