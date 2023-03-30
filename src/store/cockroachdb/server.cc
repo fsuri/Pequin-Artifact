@@ -102,7 +102,29 @@ void Server::CreateTable(
     const std::string &table_name,
     const std::vector<std::pair<std::string, std::string>> &column_data_types,
     const std::vector<uint32_t> primary_key_col_idx) {
-  Panic("This store does not support SQL Table operations");
+  const std::vector<std::pair<std::string, std::string>>
+      column_data_types_with_primary = column_data_types;
+  for (auto &i : primary_key_col_idx) {
+    std::string type_name = column_data_types_with_primary.at(i).second;
+    type_name = type_name + "PRIMARY KEY";
+  }
+  // TODO check if it exists
+  // "CREATE TABLE IF NOT EXISTS...
+  std::string create_command = "CREATE TABLE IF NOT EXISTS " + table_name;
+  create_command += "(";
+
+  // (col1 type1, col2 type2
+  for (auto &type : column_data_types_with_primary) {
+    create_command += (type.first + " " + type.second + ",");
+  }
+  // get ride of the last comma
+  create_command.pop_back();
+  create_command += ");";
+  cout << create_command << endl;
+  std::string crdb_command =
+      "cockroach sql --insecure --execute=\"" + create_command + "\"";
+  cout << crdb_command << endl;
+  int status = system(crdb_command.c_str());
 }
 
 void Server::LoadTableRow(
@@ -110,7 +132,8 @@ void Server::LoadTableRow(
     const std::vector<std::pair<std::string, std::string>> &column_data_types,
     const std::vector<std::string> &values,
     const std::vector<uint32_t> primary_key_col_idx) {
-  Panic("This store does not support SQL Table operations");
+  "INSERT INTO datastore(key_, val_) VALUES($1, $2) ON CONFLICT (key_) "
+  "DO UPDATE SET val_ = $2;";
 }
 Stats &Server::GetStats() { return stats; }
 
