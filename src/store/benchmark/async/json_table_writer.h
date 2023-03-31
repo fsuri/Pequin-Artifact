@@ -17,6 +17,7 @@ class TableWriter {
     public:
         TableWriter();
         virtual ~TableWriter();
+        // Types are SQL type names
         void add_table(std::string &table_name, std::vector<std::pair<std::string, std::string>>& column_names_and_types, const std::vector<uint32_t> primary_key_col_idx);
         void add_row(std::string &table_name, const std::vector<std::string> &values);
         void flush(std::string &file_name);
