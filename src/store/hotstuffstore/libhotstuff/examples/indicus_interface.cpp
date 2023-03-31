@@ -138,7 +138,7 @@ namespace hotstuffstore {
             pmaker = new hotstuff::PaceMakerDummyFixed(opt_fixed_proposer->get(), parent_limit);
         }
         else{
-            std::cerr << "USING ROUND-ROBIN PACEMAKER" << std::endl;
+            std::cerr << "USING ROUND-ROBIN PACEMAKER" << std::endl;  //Note: It appears that the RR pacemaker performs better. 
             pmaker = new hotstuff::PaceMakerRR(ec, parent_limit, opt_base_timeout->get(), opt_prop_delay->get());
         }
 

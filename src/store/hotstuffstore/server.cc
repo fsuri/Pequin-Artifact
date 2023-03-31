@@ -281,7 +281,8 @@ std::vector<::google::protobuf::Message*> Server::HandleTransaction(const proto:
 
   // TEST HOW MANY DUPLICATE TX: 
   auto [_, first] = executed_tx.insert(digest);
-  if(!first) stats.Increment("duplicate_tx", 1);
+  if(first) stats.Increment("tx_unique", 1);
+  if(!first) stats.Increment("tx_duplicate", 1);
 
 
   Debug("Handling transaction");
