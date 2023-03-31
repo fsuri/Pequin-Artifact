@@ -21,6 +21,7 @@ class TableWriter {
         TableWriter();
         virtual ~TableWriter();
         void add_table(std::string &table_name, std::vector<std::pair<std::string, std::string>>& column_names_and_types, const std::vector<uint32_t> primary_key_col_idx);
+        void add_index(std::string &table_name, std::string &index_name, const std::vector<uint32_t> &index_col_idx);
         void add_row(std::string &table_name, const std::vector<std::string> &values);
         void flush(std::string &file_name);
     private:
@@ -47,6 +48,12 @@ void TableWriter::add_table(std::string &table_name, std::vector<std::pair<std::
     table["column_names_and_types"] = json(column_names_and_types);  //Note: data type length should be part of type. 
     table["primary_key_col_idx"] = json(primary_key_col_idx);
     table["rows"] = {};
+}
+
+void TableWriter::add_index(std::string &table_name, std::string &index_name, const std::vector<uint32_t> &index_col_idx){
+    json &table = tables[table_name];
+    json &indexes = table["indexes"];
+    indexes[index_name] = json(index_col_idx);
 }
 
 void TableWriter::add_row(std::string &table_name, const std::vector<std::string> &values) { //const std::vector<(std::string) &columns, const std::vector<uint32_t> primary_key_col_idx){

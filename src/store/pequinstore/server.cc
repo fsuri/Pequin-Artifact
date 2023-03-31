@@ -333,12 +333,11 @@ void Server::CreateTable(const std::string &table_name, const std::vector<std::p
   //Followed rough SQL dialect from: https://www.postgresqltutorial.com/postgresql-tutorial/postgresql-create-table/
 
   //NOTE: Assuming here we do not need special descriptors like foreign keys, column condidtions... (If so, it maybe easier to store the SQL statement in JSON directly)
+  UW_ASSERT(!column_data_types.empty());
+  UW_ASSERT(!primary_key_col_idx.empty());
 
   std::string sql_statement("CREATE TABLE");
   sql_statement += " " + table_name;
-
-  UW_ASSERT(!column_data_types.empty());
-  UW_ASSERT(!primary_key_col_idx.empty());
   
   sql_statement += " (";
   for(auto &[col, type]: column_data_types){
@@ -366,6 +365,28 @@ void Server::CreateTable(const std::string &table_name, const std::vector<std::p
                                                                  //or we require inserts/updates to include the version in the ReadSet. 
                                                                  //However, we don't want an insert to abort just because another row was inserted.
   Load(table_name, "", Timestamp());
+}
+
+void Server::CreateIndex(const std::string &table_name, const std::vector<std::pair<std::string, std::string>> &column_data_types, const std::string &index_name, const std::vector<uint32_t> index_col_idx){
+  //Followed rough SQL dialect from: https://www.postgresqltutorial.com/postgresql-indexes/postgresql-multicolumn-indexes/
+  //CREATE INDEX index_name ON table_name(a,b,c,...);
+
+  UW_ASSERT(!column_data_types.empty());
+  UW_ASSERT(!index_col_idx.empty());
+  UW_ASSERT(column_data_types.size() >= index_col_idx.size());
+
+  std::string sql_statement("CREATE INDEX");
+  sql_statement += " " + index_name;
+  sql_statement += " ON " + table_name;
+
+  sql_statement += "(";
+  for(auto &i_idx: index_col_idx){
+    sql_statement += column_data_types[i_idx].first + ", ";
+  }
+   sql_statement.resize(sql_statement.size() - 2); //remove trailing ", "
+
+   sql_statement +=");";
+
 }
 
 void Server::LoadTableRow(const std::string &table_name, const std::vector<std::pair<std::string, std::string>> &column_data_types, const std::vector<std::string> &values, const std::vector<uint32_t> primary_key_col_idx ){
