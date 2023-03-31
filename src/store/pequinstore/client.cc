@@ -159,6 +159,8 @@ void Client::Begin(begin_callback bcb, begin_timeout_callback btcb,
     txn.mutable_timestamp()->set_timestamp(timeServer.GetTime());
     txn.mutable_timestamp()->set_id(client_id);
 
+    write_interpreter.NewTx(&txn);
+
     bcb(client_seq_num);
   });
 }
@@ -211,6 +213,7 @@ void Client::Get(const std::string &key, get_callback gcb,
     };
     read_timeout_callback rtcb = gtcb;
 
+  
     // Send the GET operation to appropriate shard.
     bclient[i]->Get(client_seq_num, key, txn.timestamp(), readMessages,
         readQuorumSize, params.readDepSize, rcb, rtcb, timeout);
@@ -256,84 +259,32 @@ void Client::Write(std::string &write_statement, std::vector<std::vector<uint32_
     //////////////////
     // Write Statement parser/interpreter:   //For now design to supports only individual Insert/Update/Delete statements. No nesting, no concatenation
     //TODO: parse write statement into table, column list, values_list, and read condition
-    std::string table_name;
-    std::vector<std::string> column_list;
-    std::vector<std::string> value_list;
+    
 
     std::string read_statement;
-    std::function<sql::QueryResultProtoWrapper*(const query_result::QueryResult*)>  write_continuation;
+    std::function<void(int, query_result::QueryResult*)>  write_continuation;
 
-    //match on:
-
-    //Case 1) INSERT INTO <table_name> (<column_list>) VALUES (<value_list>)
-              //Note: Value list may be the output of a nested SELECT statement. In that case, embed the nested select statement as part of the read_statement
-        //-> Turn into read_statement: Result(column, column_value) SELECT FROM <table_name>(primary_columns) WHERE <col = value>  // Nested Select Statement.
-        //             write_cont: if(Result.empty()) create TableWrite with primary column encoded key, column_list, value_list
-        //     TODO: Need to add to read set the time stamp of read "empty" version: I.e. for no existing version (result = empty) -> 0 (genesis TS); for deleted version --> version that deleted row.
-                                                                                        // I think it's always fine to just set version to 0 here.
-                                                                                        // During CC, should ignore conflicts of genesis against delete versions (i.e. they are equivalent)
-        // TODO: Also need to write new "Table version" (in write set) -- to indicate set of rows changes 
-
-    //Case 2) UPDATE <table_name> SET {(column = value)} WHERE <condition>
-        //-> Turn into read_statement: Result(column, column_value = rows(attributes)) SELECT FROM <table_name> (value_columns) WHERE <condition>
-        //             write_cont: for (column = value) statement, create TableWrite with primary column encoded key, column_list, and column_values (or direct inputs)
-
-    //Case 3) DELETE FROM <table_name> WHERE <condition>
-         //-> Turn into read_statement: Result(column, column_value) SELECT FROM <table_name>(primary_columns) 
-         //             write_cont: for(row in result) create TableWrite with primary column encoded key, bool = delete (create new version with empty values/some meta data indicating delete)
-         // TODO: Handle deleted versions: Create new version with special delete marker. NOTE: Read Sets of queries should include the empty version; but result computation should ignore it.
-         // But how can one distinguish deleted versions from rows not yet created? Maybe one MUST have semantic CC to support new row inserts/row deletions.
-
-    //Case 4) REPLACE INTO:  Probably don't want to support either -- could turn into a Delete + Insert. Or just make it a blind write for efficiency
-    //Case 4) SELECT INTO : Not supported, write statement as Select followed by Insert Into (new table)? Or parse into INSERT INTO statement with nested SELECT (same logic)
+    write_interpreter.TransformWriteStatement(write_statement, primary_key_encoding_support, read_statement, write_continuation, wcb);
     
-
-
-    
-    
-    
-    write_continuation = [this](const query_result::QueryResult *result){
-
-      sql::QueryResultProtoWrapper *write_result = new sql::QueryResultProtoWrapper(""); //TODO: replace with real result. Create proto builder and set rows affected somehow..
-      uint32_t n_rows_affected = 0;
-      write_result->set_rows_affected(n_rows_affected);
-      return write_result;
-    }; // = //Some function that takes ResultObject as input and issue the write statements.
-        //  for result-row in result{
-        //     EncodeTableRow (use primary_key_encoding to derive it from the table and column_list)
-        //     Find Ts in ReadSet 
-        //     CreateTable Write entry with Timestamp and the rows to be updated. -- Note: Timestamp identifies the row from which no copy from -> i.e. the one thats updated.
-                      //ReadSet is already cached as part of txn. -- Right version can be found by just looking up the latest query seq in the txn.. TODO: if we want parallel writes (async) then we might need to identify
-                      //Result ReadSet key can be inferred from Result Primary key.
-                       //Version can be looked up by checking read set for this key (currently would have to loop -- but may want to turn into a map)
-                              //If these two methods are not possible after all, then must modify sync to parameterize the fact that it is part of a "read-modify-write" 
-                                                          //--> should explicitly label all entries in Read Set that belong to result rows... or must include full row here.
-            // WriteMessage *write = txn.add_write_set();
-            // write->set_key(key); //TODO: key = EncodeTableRow(table_name, primary_key)
-            // *write->mutable_rowupdates(); //TODO: Set these.
-            // *write->mutable_readtime()...//TODO Set this.
-        //   }
-    /////////////////
-    
-
+  
     if(read_statement.empty()){
-      //Add to writes directly.
+      //TODO: Add to writes directly.
       sql::QueryResultProtoWrapper *write_result = new sql::QueryResultProtoWrapper(""); //TODO: replace with real result.
       wcb(REPLY_OK, write_result);
     }
     else{
-       auto qcb = [this, write_continuation, wcb](int status, const query_result::QueryResult *result) mutable { 
+      //  auto qcb = [this, write_continuation, wcb](int status, const query_result::QueryResult *result) mutable { 
 
-        //result ==> replace with protoResult type
-        const query_result::QueryResult *write_result = write_continuation(result);
-        wcb(REPLY_OK, write_result);
-        return;
-      };
+      //   //result ==> replace with protoResult type
+      //   const query_result::QueryResult *write_result = write_continuation(result);
+      //   wcb(REPLY_OK, write_result);
+      //   return;
+      // };
       // auto qtcb = [this, wtcb](int status) {
       //   wtcb(status);
       //   return;
       // };
-      Query(read_statement, qcb, wtcb, timeout);
+      Query(read_statement, write_continuation, wtcb, timeout);
     }
     return;
   }

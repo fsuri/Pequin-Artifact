@@ -364,10 +364,12 @@ inline static bool sortReadSetByKey(const ReadMessage &lhs, const ReadMessage &r
                                           //==> Currenty this might happen since different queries might read the same read set & read sets are stored as list currently instead of a set
                                           //"Hacky way": Simulate set by checking whether list contains entry using std::find, e.g. std::find(read_set.begin(), read_set.end(), ReadMsg) == fields.end()
     if(lhs.key() == rhs.key()){
+        //Panic("duplicate read set key"); //FIXME: Just for testing.
         //If a tx reads a key twice with different versions throw exception ==> Since we never add duplicates to the ReadSet, this case will never get triggered client side.
         if(lhs.readtime().timestamp() != rhs.readtime().timestamp() || lhs.readtime().id() != rhs.readtime().id()){ 
         //Note: What about an app corner case in which you want to read your own write? Such reads don't have to be added to Read Set -- they are valid by default.
         //Note: See ShardClient "BufferGet" -- we either read our own write, or read previously read value => thus it is impossible to read 2 different TS. We don't add such reads to ReadSet
+             Panic("duplicate read set key with different TS");
              throw std::exception();
         }
         //return (lhs.readtime().timestamp() == rhs.readtime().timestamp()) ? lhs.readtime().id() < rhs.readtime().id() : lhs.readtime().timestamp() < rhs.readtime().timestamp(); 
@@ -442,7 +444,7 @@ struct QueryReadSetMgr {
 };
 
 //For managing WriteSet
-std::string EncodeTableRow(const std::string &table_name, const std::vector<const char*> primary_key_columns);
+std::string EncodeTableRow(const std::string &table_name, const std::vector<const std::string*> &primary_key_columns);
 void DecodeTableRow(const std::string &enc_key, std::string &table_name, std::vector<std::string> primary_key_columns);
 
 // enum InjectFailureType {

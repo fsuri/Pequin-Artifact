@@ -327,22 +327,22 @@ void Server::Load(const std::string &key, const std::string &value,
   }
 }
 
-//TODO: Add these functions as virtual inline to the general server.h -- make it panic if called for stores that don't implement load.
-//For hotstuffPG store --> let proxy call into PG
-//For Crdb --> let server establish a client connection to backend too.
+//TODO: For hotstuffPG store --> let proxy call into PG
+//TODO: For Crdb --> let server establish a client connection to backend too.
 void Server::CreateTable(const std::string &table_name, const std::vector<std::pair<std::string, std::string>> &column_data_types, const std::vector<uint32_t> primary_key_col_idx ){
+  //Followed rough SQL dialect from: https://www.postgresqltutorial.com/postgresql-tutorial/postgresql-create-table/
 
   //NOTE: Assuming here we do not need special descriptors like foreign keys, column condidtions... (If so, it maybe easier to store the SQL statement in JSON directly)
+  UW_ASSERT(!column_data_types.empty());
+  UW_ASSERT(!primary_key_col_idx.empty());
 
   std::string sql_statement("CREATE TABLE");
   sql_statement += " " + table_name;
-
-  UW_ASSERT(!column_data_types.empty());
-  UW_ASSERT(!primary_key_col_idx.empty());
   
   sql_statement += " (";
   for(auto &[col, type]: column_data_types){
-    sql_statement += col + " " + type + ", ";
+    std::string p_key = (primary_key_col_idx.size() == 1 && col == column_data_types[primary_key_col_idx[0]].first) ? " PRIMARY KEY": "";
+    sql_statement += col + " " + type + p_key + ", ";
   }
 
 
@@ -352,8 +352,8 @@ void Server::CreateTable(const std::string &table_name, const std::vector<std::p
   for(auto &p_idx: primary_key_col_idx){
     sql_statement += column_data_types[p_idx].first + ", ";
   }
-  sql_statement.pop_back();
-  sql_statement.pop_back();
+  sql_statement.resize(sql_statement.size() - 2); //remove trailing ", "
+
   if(primary_key_col_idx.size() > 1) sql_statement += ")";
   
   sql_statement +=");";
@@ -365,6 +365,28 @@ void Server::CreateTable(const std::string &table_name, const std::vector<std::p
                                                                  //or we require inserts/updates to include the version in the ReadSet. 
                                                                  //However, we don't want an insert to abort just because another row was inserted.
   Load(table_name, "", Timestamp());
+}
+
+void Server::CreateIndex(const std::string &table_name, const std::vector<std::pair<std::string, std::string>> &column_data_types, const std::string &index_name, const std::vector<uint32_t> index_col_idx){
+  //Followed rough SQL dialect from: https://www.postgresqltutorial.com/postgresql-indexes/postgresql-multicolumn-indexes/
+  //CREATE INDEX index_name ON table_name(a,b,c,...);
+
+  UW_ASSERT(!column_data_types.empty());
+  UW_ASSERT(!index_col_idx.empty());
+  UW_ASSERT(column_data_types.size() >= index_col_idx.size());
+
+  std::string sql_statement("CREATE INDEX");
+  sql_statement += " " + index_name;
+  sql_statement += " ON " + table_name;
+
+  sql_statement += "(";
+  for(auto &i_idx: index_col_idx){
+    sql_statement += column_data_types[i_idx].first + ", ";
+  }
+   sql_statement.resize(sql_statement.size() - 2); //remove trailing ", "
+
+   sql_statement +=");";
+
 }
 
 void Server::LoadTableRow(const std::string &table_name, const std::vector<std::pair<std::string, std::string>> &column_data_types, const std::vector<std::string> &values, const std::vector<uint32_t> primary_key_col_idx ){
@@ -380,8 +402,7 @@ void Server::LoadTableRow(const std::string &table_name, const std::vector<std::
   for(auto &[col, _]: column_data_types){
     sql_statement += col + ", ";
   }
-  sql_statement.pop_back();
-  sql_statement.pop_back();
+  sql_statement.resize(sql_statement.size() - 2); //remove trailing ", "
   sql_statement +=")";
   
   sql_statement += " VALUES (";
@@ -389,16 +410,15 @@ void Server::LoadTableRow(const std::string &table_name, const std::vector<std::
   for(auto &val: values){
     sql_statement += val + ", ";
   }
-  sql_statement.pop_back();
-  sql_statement.pop_back();
+  sql_statement.resize(sql_statement.size() - 2); //remove trailing ", "
 
   sql_statement += ");" ;
   
-   //TODO: Call into TableStore with this statement.
+   //TODO: Call into TableStore with this statement.   //TODO: Alternativey 
 
-  std::vector<const char*> primary_cols;
+  std::vector<const std::string*> primary_cols;
   for(auto i: primary_key_col_idx){
-    primary_cols.push_back(column_data_types[i].first.c_str());
+    primary_cols.push_back(&(column_data_types[i].first));
   }
   std::string enc_key = EncodeTableRow(table_name, primary_cols);
   Load(enc_key, "", Timestamp());

@@ -146,7 +146,7 @@ void ShardClient::Begin(uint64_t id) {
   Debug("[group %i] BEGIN: %lu", group, id);
 
   txn.Clear();
-  readValues.clear();
+  readValues.clear(); 
 }
 
 //////////// Execution Protocol 
@@ -693,6 +693,7 @@ bool ShardClient::BufferGet(const std::string &key, read_callback rcb) {
       Debug("[group %i] Key %s was already read with ts %lu.%lu.", group,
           BytesToHex(key, 16).c_str(), read.readtime().timestamp(),
           read.readtime().id());
+      std::cerr << "already added (buffer) key " << BytesToHex(key, 16) << "to read set" << std::endl;
       rcb(REPLY_OK, key, readValues[key], read.readtime(), proto::Dependency(),
           false, false);
       return true;
@@ -1070,9 +1071,9 @@ void ShardClient::HandleReadReply(const proto::ReadReply &reply) {
     //     req->hasDep, true);
 
     //Only read once.
-    auto has_read = readValues.emplace(req->key, req->maxValue);
+    const auto [it, first_read] = readValues.emplace(req->key, req->maxValue); // readValues.insert(std::make_pair(req->key, req->maxValue));
     
-    if(has_read.second){
+    if(first_read){ //for first read
        ReadMessage *read = txn.add_read_set();
       *read->mutable_key() = req->key;
       req->maxTs.serialize(read->mutable_readtime());
@@ -1080,7 +1081,7 @@ void ShardClient::HandleReadReply(const proto::ReadReply &reply) {
       req->gcb(REPLY_OK, req->key, req->maxValue, req->maxTs, req->dep,req->hasDep, true);
     }
     else{ //TODO: Could optimize to do this right at the start of Handle Read to avoid any validation costs... -> Does mean all reads have to lookup twice though.
-      std::string &prev_read = has_read.first->second;
+      std::string &prev_read = it->second;
       req->maxTs = Timestamp();
       req->gcb(REPLY_OK, req->key, prev_read, req->maxTs, req->dep, false, false); //Don't add to read set.
     } 

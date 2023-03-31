@@ -52,6 +52,8 @@
 #include <thread>
 #include <set>
 
+#include "store/pequinstore/sql_interpreter.h"
+
 #define RESULT_COMMITTED 0
 #define RESULT_USER_ABORTED 1
 #define RESULT_SYSTEM_ABORTED 2
@@ -302,6 +304,9 @@ class Client : public ::Client {
   // --> would allow normal OCC handling on Wait results at the server?
 
   //Query logic
+
+  WriteSQLTransformer write_interpreter;
+
   void ClearQuery(PendingQuery *pendingQuery);
   void RetryQuery(PendingQuery *pendingQuery);
   // void ClearQuery(uint64_t query_seq_num, std::vector<uint64_t> &involved_groups);

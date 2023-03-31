@@ -44,6 +44,7 @@ int main() {
   std::vector<std::pair<std::string, std::string>> column_names_and_types;
   std::vector<uint32_t> primary_key_col_idx;
   std::vector<std::string> values;
+  std::vector<std::uint32_t> index_cols_idx;
 
   TableWriter table_writer;
 
@@ -64,6 +65,7 @@ int main() {
   primary_key_col_idx.clear();
 
   table_name = "table2";
+  std::string index_name = "indexA";
   column_names_and_types.push_back(std::make_pair("col1", "INT"));
   column_names_and_types.push_back(std::make_pair("col2", "INT"));
   column_names_and_types.push_back(std::make_pair("col3", "VARCHAR"));
@@ -72,8 +74,11 @@ int main() {
   values.push_back("val2");
   primary_key_col_idx.push_back(0);
   primary_key_col_idx.push_back(2);
+  index_cols_idx.push_back(1);
+  index_cols_idx.push_back(2);
 
   table_writer.add_table(table_name, column_names_and_types, primary_key_col_idx);
+  table_writer.add_index(table_name, index_name, index_cols_idx);
   table_writer.add_row(table_name, values);
 
   //Write Tables to JSON
@@ -104,6 +109,14 @@ int main() {
       std::cerr << (column_names_and_types[pidx].first) << ", ";
     }
     std::cerr << ")" << std::endl;
+
+    for(auto &[index_name, index_col_idx]: table["indexes"].items()){
+        std::cerr << "Index name: " << index_name << ":(";
+        for(auto &i_idx: index_col_idx){
+          std::cerr << (column_names_and_types[i_idx].first) << ", ";
+        }
+        std::cerr << ")" << std::endl;
+    }
 
     for(auto &row: table["rows"]){
      // server->LoadTableRow(table_name, column_names_and_types, row["values"], primary_key_col_idx);

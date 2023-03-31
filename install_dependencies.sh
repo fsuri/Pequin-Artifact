@@ -46,7 +46,7 @@ cd ../..
 #Installing taopq 
 echo "Installing TaoPq"
 echo ""
-git clone git@github.com:taocpp/taopq.git
+git clone https://github.com/taocpp/taopq.git
 cd taopq
 git checkout 943d827
 sudo cmake .
@@ -54,6 +54,17 @@ sudo cmake --build . -j $(nproc)
 sudo make install
 sudo ldconfig
 cd ..
+
+#Installing nlohman/json
+echo "Installing Nlohman/Json"
+echo ""
+git clone https://github.com/nlohmann/json.git
+cd json
+cmake .
+sudo make install
+sudo ldconfig
+cd ..
+
 
 #googletest
 echo "Installing googletest"

@@ -106,6 +106,9 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
   
   virtual void CreateTable(const std::string &table_name, const std::vector<std::pair<std::string, std::string>> &column_data_types, 
       const std::vector<uint32_t> primary_key_col_idx) override;
+  
+  virtual void CreateIndex(const std::string &table_name, const std::vector<std::pair<std::string, std::string>> &column_data_types, 
+      const std::string &index_name, const std::vector<uint32_t> index_col_idx) override;
 
   virtual void LoadTableRow(const std::string &table_name, const std::vector<std::pair<std::string, std::string>> &column_data_types, 
       const std::vector<std::string> &values, const std::vector<uint32_t> primary_key_col_idx) override;
@@ -687,6 +690,11 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
   void Prepare(const std::string &txnDigest, const proto::Transaction &txn, const ReadSet &readSet);
   void GetCommittedWrites(const std::string &key, const Timestamp &ts,
       std::vector<std::pair<Timestamp, Value>> &writes);
+  bool GetPreceedingCommittedWrite(const std::string &key, const Timestamp &ts,
+    std::pair<Timestamp, Server::Value> &write);
+  void GetPreceedingPreparedWrite(const std::map<Timestamp, const proto::Transaction *> &preparedKeyWrites, const Timestamp &ts,
+    std::vector<std::pair<Timestamp, const proto::Transaction *>> &writes);
+
   void Commit(const std::string &txnDigest, proto::Transaction *txn,
       proto::GroupedSignatures *groupedSigs, bool p1Sigs, uint64_t view);
   void CommitWithProof(const std::string &txnDigest,  proto::CommittedProof *proof);
