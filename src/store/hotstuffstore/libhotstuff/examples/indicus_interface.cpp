@@ -196,11 +196,11 @@ namespace hotstuffstore {
 
         // spawning a new thread to run hotstuff logic asynchronously
         std::thread t([this](){
-                cpu_set_t cpuset;
-                CPU_ZERO(&cpuset);
-                CPU_SET(cpuId, &cpuset);
-                pthread_setaffinity_np(pthread_self(),	sizeof(cpu_set_t), &cpuset);
-                std::cout << "HotStuff runs on CPU" << cpuId << std::endl;
+                // cpu_set_t cpuset;
+                // CPU_ZERO(&cpuset);
+                // CPU_SET(cpuId, &cpuset);
+                // pthread_setaffinity_np(pthread_self(),	sizeof(cpu_set_t), &cpuset);
+                // std::cerr << "HotStuff runs on CPU" << cpuId << std::endl;
                 hotstuff_papp->interface_entry();
                 //elapsed.stop(true);
             });
