@@ -589,7 +589,7 @@ void ShardClient::SignedPrepare(const proto::Transaction& txn, signed_prepare_ca
     request.mutable_packed_msg()->set_type(txn.GetTypeName());
     stats->Increment("shard_prepare_s",1);
 
-    // Debug("Sending txn to all replicas in shard");
+    Debug("Sending txn to all replicas in shard");
     transport->SendMessageToGroup(this, group_idx, request);
 
     // for (size_t i = 0; i < config.f+1; ++i) {
