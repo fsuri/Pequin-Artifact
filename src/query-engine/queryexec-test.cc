@@ -104,6 +104,7 @@ int main(int argc, char *argv[]) {
   Timestamp pesto_timestamp(4, 6);
   Timestamp basil_timestamp(3, 5);
   Timestamp read_timestamp(2, 4);
+  Timestamp five(5,7);
 
   //auto &traffic_cop = peloton::tcop::TrafficCop::GetInstance();
 
@@ -135,7 +136,8 @@ int main(int argc, char *argv[]) {
   ExecuteSQLQuery("INSERT INTO test VALUES (1001, 10001);", traffic_cop, counter_, result, tuple_descriptor, pesto_timestamp);
   ExecuteSQLQuery("UPDATE test SET b=72 WHERE a=99;", traffic_cop, counter_, result, tuple_descriptor, basil_timestamp);
   ExecuteSQLQuery("UPDATE test SET b=855 WHERE a=99;", traffic_cop, counter_, result, tuple_descriptor, pesto_timestamp);
-  ExecuteSQLQuery("SELECT * FROM test;", traffic_cop, counter_, result, tuple_descriptor, pesto_timestamp);
+  ExecuteSQLQuery("UPDATE test SET b=16 WHERE a=99;", traffic_cop, counter_, result, tuple_descriptor, five);
+  ExecuteSQLQuery("SELECT * FROM test;", traffic_cop, counter_, result, tuple_descriptor, five);
   // function args: timestamp, snapshot manager, read set manager, boolean flag finding snapshot/executing (read set manager)
   //ExecuteSQLQuery("CREATE TABLE test1(c INT, b INT);", traffic_cop, counter_, result, basil_timestamp);
   //ExecuteSQLQuery("CREATE TABLE test2(b INT, d INT, e INT)", traffic_cop, counter_, result, basil_timestamp);
@@ -154,7 +156,7 @@ int main(int argc, char *argv[]) {
 
   unsigned int rows = result.size() / tuple_descriptor.size();
   for (unsigned int i = 0; i < rows; i++) {
-    std::string row_string;
+    std::string row_string = "Row " + std::to_string(i) + ": ";
     for (unsigned int j = 0; j < tuple_descriptor.size(); j++) {
       row_string += GetResultValueAsString(result, i * tuple_descriptor.size() + j);
       if (j < tuple_descriptor.size() - 1) {

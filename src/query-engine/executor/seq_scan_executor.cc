@@ -78,7 +78,6 @@ bool SeqScanExecutor::DInit() {
  * @return true on success, false otherwise.
  */
 bool SeqScanExecutor::DExecute() {
-
   // Scanning over a logical tile.
   if (children_.size() == 1 &&
       // There will be a child node on the create index scenario,
@@ -180,7 +179,7 @@ bool SeqScanExecutor::DExecute() {
         auto timestamp = current_txn->GetBasilTimestamp();
         auto tuple_timestamp = tile_group_header->GetBasilTimestamp(tuple_id);
         auto curr_tuple_id = tuple_id;
-        
+
         std::cout << "Timestamp of current txn is " << timestamp.getTimestamp() << ", " << timestamp.getID() << std::endl;
         std::cout << "Timestamp of tuple is " << tuple_timestamp.getTimestamp() << ", " << tuple_timestamp.getID() << std::endl;
 
