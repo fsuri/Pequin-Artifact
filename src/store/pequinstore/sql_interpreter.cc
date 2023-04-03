@@ -55,11 +55,11 @@ using namespace std;
     //Maybe just storing as string is actually fine? Since its part of a SQL statement usually... But now we want to use our own manual table write.
 
 
- void WriteSQLTransformer::NewTx(proto::Transaction *_txn){
+ void SQLTransformer::NewTx(proto::Transaction *_txn){
     txn = _txn;
  }
 
-void WriteSQLTransformer::TransformWriteStatement(std::string &write_statement, std::vector<std::vector<uint32_t>> primary_key_encoding_support, 
+void SQLTransformer::TransformWriteStatement(std::string &write_statement, std::vector<std::vector<uint32_t>> primary_key_encoding_support, 
     std::string &read_statement, std::function<void(int, query_result::QueryResult*)>  &write_continuation, write_callback &wcb){
 
     //match on write type:
@@ -111,7 +111,7 @@ void WriteSQLTransformer::TransformWriteStatement(std::string &write_statement, 
 
 }
 
-void WriteSQLTransformer::TransformInsert(size_t pos, std::string &write_statement, std::vector<std::vector<uint32_t>> primary_key_encoding_support, 
+void SQLTransformer::TransformInsert(size_t pos, std::string &write_statement, std::vector<std::vector<uint32_t>> primary_key_encoding_support, 
     std::string &read_statement, std::function<void(int, query_result::QueryResult*)>  &write_continuation, write_callback &wcb){
 
      //Case 1) INSERT INTO <table_name> (<column_list>) VALUES (<value_list>)
@@ -277,7 +277,7 @@ void WriteSQLTransformer::TransformInsert(size_t pos, std::string &write_stateme
 
 
 static std::string eq_hook = " = ";
-void WriteSQLTransformer::ParseColUpdate(std::string col_update, std::map<std::string, Col_Update> &col_updates){
+void SQLTransformer::ParseColUpdate(std::string col_update, std::map<std::string, Col_Update> &col_updates){
 
     //split on "=" into col and update
         size_t pos = col_update.find(eq_hook);
@@ -302,7 +302,7 @@ void WriteSQLTransformer::ParseColUpdate(std::string col_update, std::map<std::s
         }
 }
 
-void WriteSQLTransformer::TransformUpdate(size_t pos, std::string &write_statement, std::vector<std::vector<uint32_t>> primary_key_encoding_support, 
+void SQLTransformer::TransformUpdate(size_t pos, std::string &write_statement, std::vector<std::vector<uint32_t>> primary_key_encoding_support, 
     std::string &read_statement, std::function<void(int, query_result::QueryResult*)>  &write_continuation, write_callback &wcb){
 
     //Case 2) UPDATE <table_name> SET {(column = value)} WHERE <col_name = condition>
@@ -508,7 +508,7 @@ void WriteSQLTransformer::TransformUpdate(size_t pos, std::string &write_stateme
 
 }
 
-void WriteSQLTransformer::TransformDelete(size_t pos, std::string &write_statement, std::vector<std::vector<uint32_t>> primary_key_encoding_support, 
+void SQLTransformer::TransformDelete(size_t pos, std::string &write_statement, std::vector<std::vector<uint32_t>> primary_key_encoding_support, 
     std::string &read_statement, std::function<void(int, query_result::QueryResult*)>  &write_continuation, write_callback &wcb){
     
      //Case 3) DELETE FROM <table_name> WHERE <condition>

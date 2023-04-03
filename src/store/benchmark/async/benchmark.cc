@@ -602,6 +602,11 @@ DEFINE_string(partitioner, partitioner_args[0],	"the partitioner to use during t
 DEFINE_validator(partitioner, &ValidatePartitioner);
 
 
+/**
+ * SQL Benchmark settings
+*/
+DEFINE_string(data_file_path, "", "path to file containing Table information to be loaded");
+DEFINE_bool(sql_bench, false, "Register Tables for SQL benchmarks. Input file is JSON Table args");
 
 /**
  * Retwis settings.
@@ -1311,10 +1316,15 @@ int main(int argc, char **argv) {
         client = new pequinstore::Client(config, clientId,
                                           FLAGS_num_shards,
                                           FLAGS_num_groups, closestReplicas, FLAGS_ping_replicas, tport, part,
-                                          FLAGS_tapir_sync_commit, readMessages, readQuorumSize,
-                                          params, keyManager, FLAGS_indicus_phase1_decision_timeout,
+                                          FLAGS_tapir_sync_commit, 
+                                          readMessages, readQuorumSize,
+                                          params, 
+                                          FLAGS_data_file_path,
+                                          keyManager, 
+                                          FLAGS_indicus_phase1_decision_timeout,
 																					FLAGS_indicus_max_consecutive_abstains,
-																					TrueTime(FLAGS_clock_skew, FLAGS_clock_error));
+																					TrueTime(FLAGS_clock_skew, FLAGS_clock_error),
+                                          FLAGS_sql_bench);
         break;
     }
     case PROTO_INDICUS: {

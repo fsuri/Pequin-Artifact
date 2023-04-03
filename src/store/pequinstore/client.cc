@@ -49,8 +49,8 @@ Client::Client(transport::Configuration *config, uint64_t id, int nShards,
     int nGroups,
     const std::vector<int> &closestReplicas, bool pingReplicas, Transport *transport,
     Partitioner *part, bool syncCommit, uint64_t readMessages,
-    uint64_t readQuorumSize, Parameters params,
-    KeyManager *keyManager, uint64_t phase1DecisionTimeout, uint64_t consecutiveMax, TrueTime timeServer)
+    uint64_t readQuorumSize, Parameters params, std::string &table_registry,
+    KeyManager *keyManager, uint64_t phase1DecisionTimeout, uint64_t consecutiveMax, TrueTime timeServer, bool sql_bench)
     : config(config), client_id(id), nshards(nShards), ngroups(nGroups),
     transport(transport), part(part), syncCommit(syncCommit), pingReplicas(pingReplicas),
     readMessages(readMessages), readQuorumSize(readQuorumSize),
@@ -99,6 +99,9 @@ Client::Client(transport::Configuration *config, uint64_t id, int nShards,
   // transport->Timer(9500, [this](){
   //   std::cerr<< "experiment about to elapse 10 seconds";
   // });
+  if(sql_bench){
+     sql_interpreter.RegisterTables(table_registry);
+  }
 }
 
 Client::~Client()
@@ -159,7 +162,7 @@ void Client::Begin(begin_callback bcb, begin_timeout_callback btcb,
     txn.mutable_timestamp()->set_timestamp(timeServer.GetTime());
     txn.mutable_timestamp()->set_id(client_id);
 
-    write_interpreter.NewTx(&txn);
+    sql_interpreter.NewTx(&txn);
 
     bcb(client_seq_num);
   });
@@ -264,7 +267,7 @@ void Client::Write(std::string &write_statement, std::vector<std::vector<uint32_
     std::string read_statement;
     std::function<void(int, query_result::QueryResult*)>  write_continuation;
 
-    write_interpreter.TransformWriteStatement(write_statement, primary_key_encoding_support, read_statement, write_continuation, wcb);
+    sql_interpreter.TransformWriteStatement(write_statement, primary_key_encoding_support, read_statement, write_continuation, wcb);
     
   
     if(read_statement.empty()){

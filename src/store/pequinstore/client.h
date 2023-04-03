@@ -73,10 +73,11 @@ class Client : public ::Client {
       int nGroups, const std::vector<int> &closestReplicas, bool pingReplicas,
       Transport *transport, Partitioner *part, bool syncCommit,
       uint64_t readMessages, uint64_t readQuorumSize,
-      Parameters params, 
+      Parameters params, std::string &table_registry,
       KeyManager *keyManager, uint64_t phase1DecisionTimeout,
       uint64_t consecutiveMax = 1UL,
-      TrueTime timeserver = TrueTime(0,0));
+      TrueTime timeserver = TrueTime(0,0),
+      bool sql_bench = false);
   virtual ~Client();
 
   // Begin a transaction.
@@ -305,7 +306,7 @@ class Client : public ::Client {
 
   //Query logic
 
-  WriteSQLTransformer write_interpreter;
+  SQLTransformer write_interpreter;
 
   void ClearQuery(PendingQuery *pendingQuery);
   void RetryQuery(PendingQuery *pendingQuery);
