@@ -111,10 +111,10 @@ void SyncClient::Abort(uint32_t timeout) {
 }
 
 
-void SyncClient::Write(std::string &statement, std::vector<std::vector<uint32_t>> primary_key_encoding_support, const query_result::QueryResult* &result, uint32_t timeout) {
+void SyncClient::Write(std::string &statement, const query_result::QueryResult* &result, uint32_t timeout) {
   Promise promise(timeout);
   
-  client->Write(statement, primary_key_encoding_support, std::bind(&SyncClient::WriteCallback, this, &promise,
+  client->Write(statement, std::bind(&SyncClient::WriteCallback, this, &promise,
         std::placeholders::_1, std::placeholders::_2), 
         std::bind(&SyncClient::WriteTimeoutCallback, this,
         &promise, std::placeholders::_1), timeout);

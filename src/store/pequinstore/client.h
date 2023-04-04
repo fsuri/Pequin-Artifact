@@ -93,7 +93,7 @@ class Client : public ::Client {
       put_callback pcb, put_timeout_callback ptcb,
       uint32_t timeout = PUT_TIMEOUT) override;
 
-  virtual void Write(std::string &write_statement, std::vector<std::vector<uint32_t>> primary_key_encoding_support, write_callback wcb,
+  virtual void Write(std::string &write_statement, write_callback wcb,
       write_timeout_callback wtcb, uint32_t timeout) override;
 
   virtual void Query(const std::string &query, query_callback qcb,

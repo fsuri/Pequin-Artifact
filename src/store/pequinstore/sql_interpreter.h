@@ -57,20 +57,21 @@ static std::string values_hook(" VALUES ");
 static std::string update_hook("UPDATE ");
 static std::string set_hook(" SET ");
 static std::string where_hook(" WHERE ");
-static std::string delete_hook("DELETE ");
+static std::string delete_hook("DELETE FROM ");
 //static std::string lbracket("(");
-
+static std::string and_hook(" AND ");
+static std::string or_hook(" OR ");
 
 class SQLTransformer {
     public:
         SQLTransformer(){}
         ~SQLTransformer(){}
         void RegisterTables(std::string &table_registry);
-        
+
         inline void NewTx(proto::Transaction *_txn){
             txn = _txn;
         }
-        void TransformWriteStatement(std::string &write_statement, std::vector<std::vector<uint32_t>> primary_key_encoding_support,
+        void TransformWriteStatement(std::string &write_statement, //std::vector<std::vector<uint32_t>> primary_key_encoding_support,
              std::string &read_statement, std::function<void(int, query_result::QueryResult*)>  &write_continuation, write_callback &wcb);
 
     private:
@@ -85,22 +86,22 @@ class SQLTransformer {
         } Col_Update;
         void ParseColUpdate(std::string col_update, std::map<std::string, Col_Update> &col_updates);
 
-        void TransformInsert(size_t pos, std::string &write_statement, std::vector<std::vector<uint32_t>> primary_key_encoding_support, 
+        void TransformInsert(size_t pos, std::string &write_statement, 
         std::string &read_statement, std::function<void(int, query_result::QueryResult*)>  &write_continuation, write_callback &wcb);
-        void TransformUpdate(size_t pos, std::string &write_statement, std::vector<std::vector<uint32_t>> primary_key_encoding_support, 
+        void TransformUpdate(size_t pos, std::string &write_statement, 
         std::string &read_statement, std::function<void(int, query_result::QueryResult*)>  &write_continuation, write_callback &wcb);
-        void TransformDelete(size_t pos, std::string &write_statement, std::vector<std::vector<uint32_t>> primary_key_encoding_support, 
+        void TransformDelete(size_t pos, std::string &write_statement, 
         std::string &read_statement, std::function<void(int, query_result::QueryResult*)>  &write_continuation, write_callback &wcb);
 
         typedef struct ColRegistry {
             std::map<std::string, std::string> col_name_type; //map from column name to SQL data type (e.g. INT, VARCHAR, TIMESTAMP) --> Needs to be matched to real types for deser
-            std::vector<std::string> primary_key_cols;
+            std::map<std::string, uint32_t> primary_key_cols; //ordered set.  //map from col name to index
             std::map<std::string, std::vector<std::string>> secondary_key_cols;
         } ColRegistry;
         std::map<std::string, ColRegistry> TableRegistry;
-        //TODO: Can remove primary_key_encoding_support.
-        //TODO: Load Table Registry from File Name:
-
+    
+        bool CheckColConditions(std::string &cond_statement, std::string &table_name, std::map<std::string, std::string> &p_col_value);
+        bool CheckColConditions(std::string &cond_statement, ColRegistry &col_registry, std::map<std::string, std::string> &p_col_value);
 };
 
 
@@ -110,5 +111,15 @@ class SQLTransformer {
 //        ~QuerySQLTransformer(){}
 // };
 
+
+//define real types as variables in interpreter --> set respective one..  -->> return a void* that points to that value. Deref and do operations on it?
+//Can use Any type?
+
+//1) decode, 2) turn into a string, 3) if arithmetic, turn uint64_, 4 -> turn back to string, 5) let Neil figure out 
+
+
+std::string DecodeType(std::unique_ptr<query_result::Field> &field, std::string &col_type);
+
+std::string DecodeType(std::string &enc_value, std::string &col_type);
 
 };

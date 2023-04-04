@@ -255,7 +255,7 @@ void Client::Put(const std::string &key, const std::string &value,
 
 //primary_key_encoding_support is an encoding_helper function: Specify which columns of a write statement correspond to the primary key; each vector belongs to one insert. 
 //In case of nesting or concat --> order = order of reading
-void Client::Write(std::string &write_statement, std::vector<std::vector<uint32_t>> primary_key_encoding_support, write_callback wcb,
+void Client::Write(std::string &write_statement, write_callback wcb,
       write_timeout_callback wtcb, uint32_t timeout){
 
     
@@ -267,7 +267,7 @@ void Client::Write(std::string &write_statement, std::vector<std::vector<uint32_
     std::string read_statement;
     std::function<void(int, query_result::QueryResult*)>  write_continuation;
 
-    sql_interpreter.TransformWriteStatement(write_statement, primary_key_encoding_support, read_statement, write_continuation, wcb);
+    sql_interpreter.TransformWriteStatement(write_statement, read_statement, write_continuation, wcb);
     
   
     if(read_statement.empty()){

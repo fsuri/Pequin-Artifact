@@ -2031,18 +2031,31 @@ std::string generateReadSetMerkleRoot(const std::map<std::string, TimestampMessa
 
 static std::string unique_delimiter = "###";
 //TODO: input: convert row_name type into byte array. E.g. Int: static_cast<char*>(static_cast<void*>(&x)); String: str.c_str();
-std::string EncodeTableRow(const std::string &table_name, const std::vector<const std::string*> &primary_key_columns){  //std::string &row_name
+std::string EncodeTableRow(const std::string &table_name, const std::vector<std::string> &primary_key_column_values){  //std::string &row_name
+  
   //Note: Assuming unique delimiter that is neither part of table_nor string.
   std::string encoding = table_name;
-  for(auto primary_column: primary_key_columns){
-    encoding += unique_delimiter + *primary_column;
+  for(auto primary_column_value: primary_key_column_values){
+    encoding += unique_delimiter + primary_column_value;
   }
   return encoding;
   //return table_name + unique_delimiter + row_name;
 }
 
+std::string EncodeTableRow(const std::string &table_name, const std::vector<const std::string*> &primary_key_column_values){  //std::string &row_name
+  
+  //Note: Assuming unique delimiter that is neither part of table_nor string.
+  std::string encoding = table_name;
+  for(auto primary_column_value: primary_key_column_values){
+    encoding += unique_delimiter + (*primary_column_value);
+  }
+  return encoding;
+  //return table_name + unique_delimiter + row_name;
+}
+
+
 //NOTE: Returns row primary keys as strings here... TODO: At application to table, convert as appropriate. E.g. Int: stoi(), String: string()
-void DecodeTableRow(const std::string &enc_key, std::string &table_name, std::vector<std::string> &primary_key_columns ) {  //std::string &row_name){
+void DecodeTableRow(const std::string &enc_key, std::string &table_name, std::vector<std::string> &primary_key_column_values) {  //std::string &row_name){
   size_t pos = enc_key.find(unique_delimiter);
 
   UW_ASSERT(pos != std::string::npos);
@@ -2064,10 +2077,10 @@ void DecodeTableRow(const std::string &enc_key, std::string &table_name, std::ve
    size_t next; 
 
    while ((next = enc_key.find(unique_delimiter, last)) != string::npos) {   
-    primary_key_columns.push_back(enc_key.substr(last, next-last));   
+    primary_key_column_values.push_back(enc_key.substr(last, next-last));   
     last = next + unique_delimiter.length(); 
    } 
-  primary_key_columns.push_back(enc_key.substr(last));
+  primary_key_column_values.push_back(enc_key.substr(last));
 
 }
 

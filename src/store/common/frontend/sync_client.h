@@ -77,7 +77,7 @@ class SyncClient {
   virtual void Abort(uint32_t timeout);
 
   //Issue write Sql statement.
-  virtual void Write(std::string &statement, std::vector<std::vector<uint32_t>> primary_key_encoding_support, const query_result::QueryResult* &result, uint32_t timeout);
+  virtual void Write(std::string &statement, const query_result::QueryResult* &result, uint32_t timeout);
 
   //Issue query Sql statement, wait for computation result. 
   virtual void Query(const std::string &query, const query_result::QueryResult* &result, uint32_t timeout);
