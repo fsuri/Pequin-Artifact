@@ -132,11 +132,11 @@ int main(int argc, char *argv[]) {
   }*/
 
   ExecuteSQLQuery("CREATE TABLE test(a INT, b INT, PRIMARY KEY(a));", traffic_cop, counter_, result, tuple_descriptor, pesto_timestamp);
-  ExecuteSQLQuery("INSERT INTO test VALUES (99, 999);", traffic_cop, counter_, result, tuple_descriptor, read_timestamp);
+  ExecuteSQLQuery("INSERT INTO test VALUES (99, 999);", traffic_cop, counter_, result, tuple_descriptor, pesto_timestamp);
   ExecuteSQLQuery("INSERT INTO test VALUES (1001, 10001);", traffic_cop, counter_, result, tuple_descriptor, pesto_timestamp);
   ExecuteSQLQuery("UPDATE test SET b=72 WHERE a=99;", traffic_cop, counter_, result, tuple_descriptor, basil_timestamp);
-  ExecuteSQLQuery("UPDATE test SET b=855 WHERE a=99;", traffic_cop, counter_, result, tuple_descriptor, pesto_timestamp);
-  ExecuteSQLQuery("UPDATE test SET b=16 WHERE a=99;", traffic_cop, counter_, result, tuple_descriptor, five);
+  ExecuteSQLQuery("UPDATE test SET b=855 WHERE a=99;", traffic_cop, counter_, result, tuple_descriptor, five);
+  ExecuteSQLQuery("UPDATE test SET b=16 WHERE a=99;", traffic_cop, counter_, result, tuple_descriptor, read_timestamp);
   ExecuteSQLQuery("SELECT * FROM test;", traffic_cop, counter_, result, tuple_descriptor, five);
   // function args: timestamp, snapshot manager, read set manager, boolean flag finding snapshot/executing (read set manager)
   //ExecuteSQLQuery("CREATE TABLE test1(c INT, b INT);", traffic_cop, counter_, result, basil_timestamp);

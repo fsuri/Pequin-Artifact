@@ -410,9 +410,106 @@ void TimestampOrderingTransactionManager::PerformUpdate(
 
   // if the executor doesn't call PerformUpdate after AcquireOwnership,
   // no one will possibly release the write lock acquired by this txn.
+  new_tile_group_header->SetBasilTimestamp(new_location.offset, current_txn->GetBasilTimestamp());
+
+  ItemPointer *index_entry_ptr = tile_group_header->GetIndirection(old_location.offset);
+  if (index_entry_ptr != nullptr) {
+    auto index_tile_group_header = storage_manager->GetTileGroup(index_entry_ptr->block)->GetHeader();
+    std::cout << "index entry not null" << std::endl;
+    ItemPointer curr_pointer = *index_entry_ptr;
+    auto curr_tile_group_header = storage_manager->GetTileGroup(curr_pointer.block)->GetHeader();
+
+    while (new_tile_group_header->GetBasilTimestamp(new_location.offset) < curr_tile_group_header->GetBasilTimestamp(curr_pointer.offset)) {
+      // Update current pointer and the associated header
+      std::cout << "Iterate through while loop" << std::endl;
+      if (curr_tile_group_header->GetNextItemPointer(curr_pointer.offset).IsNull()) {
+        break;
+      }
+      curr_pointer = curr_tile_group_header->GetNextItemPointer(curr_pointer.offset);
+      curr_tile_group_header = storage_manager->GetTileGroup(curr_pointer.block)->GetHeader();
+    }
+
+    if (new_tile_group_header->GetBasilTimestamp(new_location.offset) > curr_tile_group_header->GetBasilTimestamp(curr_pointer.offset)) {
+      std::cout << "If case" << std::endl;
+      curr_tile_group_header->SetPrevItemPointer(curr_pointer.offset, new_location);
+      new_tile_group_header->SetNextItemPointer(new_location.offset, curr_pointer);
+
+      new_tile_group_header->SetTransactionId(new_location.offset, transaction_id);
+      new_tile_group_header->SetLastReaderCommitId(new_location.offset,
+                                                  current_txn->GetCommitId());
+    } else {
+      std::cout << "Else case" << std::endl;
+      curr_tile_group_header->SetNextItemPointer(curr_pointer.offset, new_location);
+      new_tile_group_header->SetPrevItemPointer(new_location.offset, curr_pointer);
+
+      new_tile_group_header->SetTransactionId(new_location.offset, transaction_id);
+      new_tile_group_header->SetLastReaderCommitId(new_location.offset,
+                                                  current_txn->GetCommitId());
+    }
+
+    COMPILER_MEMORY_FENCE;
+    new_tile_group_header->SetIndirection(new_location.offset, index_entry_ptr);
+    //UNUSED_ATTRIBUTE auto res =
+          //AtomicUpdateItemPointer(index_entry_ptr, old_location);
+
+    // Update the index entry pointer if necessary
+    if (new_tile_group_header->GetBasilTimestamp(new_location.offset) > index_tile_group_header->GetBasilTimestamp(index_entry_ptr->offset)) {
+      COMPILER_MEMORY_FENCE;
+
+      // Set the index header in an atomic way.
+      // We do it atomically because we don't want any one to see a half-done
+      // pointer.
+      // In case of contention, no one can update this pointer when we are
+      // updating it
+      // because we are holding the write lock. This update should success in
+      // its first trial.
+      UNUSED_ATTRIBUTE auto res =
+          AtomicUpdateItemPointer(index_entry_ptr, new_location);
+      PELOTON_ASSERT(res == true);
+      current_txn->RecordUpdate(old_location);
+    } else {
+      std::cout << "Record update else case" << std::endl;
+      current_txn->RecordUpdate(new_location);
+    }
+  }
+
+
+
+
+  // Second attempt
+  /*if (new_tile_group_header->GetBasilTimestamp(new_location.offset) > tile_group_header->GetBasilTimestamp(old_location.offset)) {
+    tile_group_header->SetPrevItemPointer(old_location.offset, new_location);
+    new_tile_group_header->SetNextItemPointer(new_location.offset, old_location);
+
+    new_tile_group_header->SetTransactionId(new_location.offset, transaction_id);
+    new_tile_group_header->SetLastReaderCommitId(new_location.offset,
+                                                current_txn->GetCommitId());
+    
+    COMPILER_MEMORY_FENCE;
+
+    // we must be updating the latest version.
+    // Set the header information for the new version
+    ItemPointer *index_entry_ptr =
+      tile_group_header->GetIndirection(old_location.offset);
+
+    if (index_entry_ptr != nullptr) {
+      new_tile_group_header->SetIndirection(new_location.offset, index_entry_ptr);
+
+      // Set the index header in an atomic way.
+      // We do it atomically because we don't want any one to see a half-done
+      // pointer.
+      // In case of contention, no one can update this pointer when we are
+      // updating it
+      // because we are holding the write lock. This update should success in
+      // its first trial.
+      UNUSED_ATTRIBUTE auto res =
+          AtomicUpdateItemPointer(index_entry_ptr, new_location);
+      PELOTON_ASSERT(res == true);
+    }
+  }*/
 
   // NEW: Support out of order (by timestamp) updates
-  new_tile_group_header->SetBasilTimestamp(new_location.offset, current_txn->GetBasilTimestamp());
+  /*new_tile_group_header->SetBasilTimestamp(new_location.offset, current_txn->GetBasilTimestamp());
   ItemPointer starting_location = old_location;
   std::cout << "1" << std::endl;
   ItemPointer prev_location = tile_group_header->GetPrevItemPointer(starting_location.offset);
@@ -425,13 +522,24 @@ void TimestampOrderingTransactionManager::PerformUpdate(
   std::cout << "First part of while condition " << current_txn->GetBasilTimestamp().getTimestamp() << std::endl;
   std::cout << "Second part of while condition " << starting_tile_group_header->GetBasilTimestamp(starting_location.offset).getTimestamp() << std::endl;
 
+  bool is_next_location_null = false;
+
   while (current_txn->GetBasilTimestamp() < starting_tile_group_header->GetBasilTimestamp(starting_location.offset)) {
       // The old location has a higher timestamp so we need to traverse the linked list to find the correct place to insert
       std::cout << "Bisection here" << std::endl;
       ItemPointer next_location = starting_tile_group_header->GetNextItemPointer(starting_location.offset);
-      std::cout << "4" << std::endl;
+      std::cout << "4" << std::endl;*/
 
-      auto next_tile_group_header =
+      /*if (next_location.IsNull()) {
+        starting_tile_group_header->SetNextItemPointer(starting_location.offset, new_location);
+        new_tile_group_header->SetPrevItemPointer(new_location.offset, starting_location);
+        is_next_location_null = true;
+        //prev_location = starting_location;
+        //prev_tile_group_header = starting_tile_group_header;
+        break;
+      }*/
+
+      /*auto next_tile_group_header =
           storage_manager->GetTileGroup(next_location.block)->GetHeader();
       std::cout << "5" << std::endl;
 
@@ -448,7 +556,7 @@ void TimestampOrderingTransactionManager::PerformUpdate(
   if (!prev_location.IsNull()) {
     std::cout << "Prev timestamp is " << prev_tile_group_header->GetBasilTimestamp(prev_location.offset).getTimestamp() << ". New location timestamp is " << new_tile_group_header->GetBasilTimestamp(new_location.offset).getTimestamp() <<  ". Next pointer timestamp is " << starting_tile_group_header->GetBasilTimestamp(starting_location.offset).getTimestamp() << std::endl;
   }
-  std::cout << "New location timestamp is " << new_tile_group_header->GetBasilTimestamp(new_location.offset).getTimestamp() <<  ". Next pointer timestamp is " << starting_tile_group_header->GetBasilTimestamp(starting_location.offset).getTimestamp() << std::endl;
+  std::cout << "New location timestamp is " << new_tile_group_header->GetBasilTimestamp(new_location.offset).getTimestamp() <<  ". Next pointer timestamp is " << starting_tile_group_header->GetBasilTimestamp(starting_location.offset).getTimestamp() << std::endl;*/
 
 
   // Set double linked list
@@ -461,8 +569,10 @@ void TimestampOrderingTransactionManager::PerformUpdate(
                                                current_txn->GetCommitId());*/
 
   // NEW: Adjust the doubly linked list pointers
-  starting_tile_group_header->SetPrevItemPointer(starting_location.offset, new_location);
 
+  //if (!is_next_location_null) {
+
+  /*starting_tile_group_header->SetPrevItemPointer(starting_location.offset, new_location);
   new_tile_group_header->SetNextItemPointer(new_location.offset, starting_location);
 
   if (!prev_location.IsNull()) {
@@ -479,6 +589,7 @@ void TimestampOrderingTransactionManager::PerformUpdate(
   if (!new_tile_group_header->GetNextItemPointer(new_location.offset).IsNull()) {
     std::cout << "Updated version is not null" << std::endl;
   }
+  //}
 
   // we should guarantee that the newer version is all set before linking the
   // newer version to older version.
@@ -501,13 +612,13 @@ void TimestampOrderingTransactionManager::PerformUpdate(
   auto head_tile_group_header = storage_manager->GetTileGroup(head_location.block)->GetHeader();
 
   // if there's no primary index on a table, then index_entry_ptr == nullptr.
-  if (index_entry_ptr != nullptr) {
+  if (index_entry_ptr != nullptr) {*/
     /*new_tile_group_header->SetIndirection(new_location.offset, index_entry_ptr);*/
     // NEW: Update the index entry pointer
-    std::cout << "New head timestamp is " << head_tile_group_header->GetBasilTimestamp(head_location.offset).getTimestamp() << std::endl;
+    /*std::cout << "New head timestamp is " << head_tile_group_header->GetBasilTimestamp(head_location.offset).getTimestamp() << std::endl;
     new_tile_group_header->SetIndirection(new_location.offset, index_entry_ptr);
     head_tile_group_header->SetIndirection(head_offset, index_entry_ptr);
-    tile_group_header->SetIndirection(old_location.offset, index_entry_ptr);
+    tile_group_header->SetIndirection(old_location.offset, index_entry_ptr);*/
 
 
     // Set the index header in an atomic way.
@@ -522,13 +633,13 @@ void TimestampOrderingTransactionManager::PerformUpdate(
     PELOTON_ASSERT(res == true);*/
 
     // Update the head of the linked list to be the version with the highest timestamp
-    UNUSED_ATTRIBUTE auto res =
+    /*UNUSED_ATTRIBUTE auto res =
         AtomicUpdateItemPointer(index_entry_ptr, head_location);
     PELOTON_ASSERT(res == true);
-  }
+  }*/
 
   // Add the old tuple into the update set
-  current_txn->RecordUpdate(old_location);
+  //current_txn->RecordUpdate(old_location);
 }
 
 void TimestampOrderingTransactionManager::PerformUpdate(
@@ -732,13 +843,15 @@ ResultType TimestampOrderingTransactionManager::CommitTransaction(
     } else if (tuple_entry.second == RWType::UPDATE) {
       // we must guarantee that, at any time point, only one version is
       // visible.
-      ItemPointer new_version =
-          tile_group_header->GetPrevItemPointer(tuple_slot);
-
+      /*ItemPointer new_version =
+          tile_group_header->GetPrevItemPointer(tuple_slot);*/
+      
+      ItemPointer new_version = *tile_group_header->GetIndirection(tuple_slot);
+      std::cout << "Made it to here " << std::endl;
       // NEW: Added to prevent assert from failing
-      if (new_version.IsNull()) {
+      /*if (new_version.IsNull()) {
         new_version = tile_group_header->GetNextItemPointer(tuple_slot);
-      }
+      }*/
 
       // Assert that previously failed
       PELOTON_ASSERT(new_version.IsNull() == false);
@@ -750,6 +863,7 @@ ResultType TimestampOrderingTransactionManager::CommitTransaction(
       new_tile_group_header->SetBeginCommitId(new_version.offset,
                                               end_commit_id);
       new_tile_group_header->SetEndCommitId(new_version.offset, cid);
+      std::cout << "Made it to here 1" << std::endl;
 
       COMPILER_MEMORY_FENCE;
 
@@ -762,12 +876,15 @@ ResultType TimestampOrderingTransactionManager::CommitTransaction(
                                               INITIAL_TXN_ID);
       tile_group_header->SetTransactionId(tuple_slot, INITIAL_TXN_ID);
 
+      std::cout << "Made it to here 2" << std::endl;
+
       // add old version into gc set.
       // may need to delete versions from secondary indexes.
       gc_set->operator[](tile_group_id)[tuple_slot] =
           GCVersionType::COMMIT_UPDATE;
 
       //log_manager.LogUpdate(new_version);
+      std::cout << "Made it to here 3" << std::endl;
 
     } else if (tuple_entry.second == RWType::DELETE) {
       ItemPointer new_version =
