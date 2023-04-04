@@ -215,7 +215,7 @@ class IndicusCodebase(ExperimentCodebase):
         if config['benchmark_type'] == 'sql_bench':
             client_command += ' --sql_bench %s' % config['benchmark_type']
             #if ... benchmark_name = XYZ
-            #client_command += ' --data_file_path % config['XYZ_table_registry_file_path]'
+            #client_command += ' --data_file_path % config['XYZ_table_registry_file_path]' #Note: Use the client.json file.
         #TODO: Add SQL benchmarks.
 
         if config['benchmark_name'] == 'retwis':

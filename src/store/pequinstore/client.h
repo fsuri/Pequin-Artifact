@@ -306,7 +306,7 @@ class Client : public ::Client {
 
   //Query logic
 
-  SQLTransformer write_interpreter;
+  SQLTransformer sql_interpreter;
 
   void ClearQuery(PendingQuery *pendingQuery);
   void RetryQuery(PendingQuery *pendingQuery);

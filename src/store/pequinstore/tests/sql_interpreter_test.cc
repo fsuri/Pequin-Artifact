@@ -36,13 +36,19 @@
 
 using namespace pequinstore;
 
+void test_registry(){
+  std::cerr << std::endl << "Test Registry" << std::endl;
+  SQLTransformer sql_interpreter;
+  std::string table_registry = "table_load_test-client.json";
+  sql_interpreter.RegisterTables(table_registry);
+}
 
 void test_insert(){
 
   std::cerr << std::endl << "Test Insert" << std::endl;
   proto::Transaction txn;
-  WriteSQLTransformer write_interpreter;
-  write_interpreter.NewTx(&txn);
+  SQLTransformer sql_interpreter;
+  sql_interpreter.NewTx(&txn);
 
 
 
@@ -59,7 +65,7 @@ void test_insert(){
 
   std::cerr << write_statement << std::endl;
 
-  write_interpreter.TransformWriteStatement(write_statement, primary_key_encoding_support, read_statement, write_continuation, wcb);
+  sql_interpreter.TransformWriteStatement(write_statement, primary_key_encoding_support, read_statement, write_continuation, wcb);
 
 
   query_result::QueryResult *res = new sql::QueryResultProtoWrapper("");
@@ -82,8 +88,8 @@ void test_insert(){
 void test_update(){
   std::cerr << std::endl << "Test Update" << std::endl;
   proto::Transaction txn;
-  WriteSQLTransformer write_interpreter;
-  write_interpreter.NewTx(&txn);
+  SQLTransformer sql_interpreter;
+  sql_interpreter.NewTx(&txn);
 
 
 
@@ -100,7 +106,7 @@ void test_update(){
 
   std::cerr << write_statement << std::endl;
 
-  write_interpreter.TransformWriteStatement(write_statement, primary_key_encoding_support, read_statement, write_continuation, wcb);
+  sql_interpreter.TransformWriteStatement(write_statement, primary_key_encoding_support, read_statement, write_continuation, wcb);
 
 
   std::vector<std::string> result_row;
@@ -135,6 +141,8 @@ void test_update(){
 int main() {
   
   std::cerr<< "Testing Write Parser" << std::endl;
+
+  test_registry();
 
   test_insert();
 
