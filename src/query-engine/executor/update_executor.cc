@@ -188,6 +188,7 @@ bool UpdateExecutor::DExecute() {
   }*/
 
   // Update tuples in a given table
+  std::cout << "number of visible tuples is " << source_tile->GetTupleCount() << std::endl;
   for (oid_t visible_tuple_id : *source_tile) {
     storage::TileGroup *tile_group =
         source_tile->GetBaseTile(0)->GetTileGroup();

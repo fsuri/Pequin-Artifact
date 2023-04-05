@@ -128,10 +128,23 @@ static void InterpretPlan(
     status = executor_tree->Execute();
     std::unique_ptr<executor::LogicalTile> tile(executor_tree->GetOutput());
 
+    // Hard code to know that this is a read operation
+    /*if (txn->GetBasilTimestamp().getTimestamp() == 5) {
+      std::string res_key;
+      Timestamp time;
+
+      std::tie(res_key, time) = tile->GetReadSet()[1];
+      std::cout << "Read set values " << res_key << ". Timestamp is " << time.getTimestamp() << std::endl;
+    }*/
+    
+
     // Some executors don't return logical tiles (e.g., Update).
     if (tile.get() != nullptr) {
       LOG_TRACE("Final Answer: %s", tile->GetInfo().c_str());
+      auto read_set = tile->GetReadSet();
+      result.read_set = read_set;
       std::vector<std::vector<std::string>> tuples;
+      std::cout << "Segfault made it here 1" << std::endl;
       tuples = tile->GetAllValuesAsStrings(result_format, false);
 
       // Construct the returned results
@@ -144,7 +157,7 @@ static void InterpretPlan(
       }
     }
   }
-
+  
   result.m_processed = executor_context->num_processed;
   result.m_result = ResultType::SUCCESS;
   CleanExecutorTree(executor_tree.get());

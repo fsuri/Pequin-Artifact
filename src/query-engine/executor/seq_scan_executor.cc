@@ -79,6 +79,7 @@ bool SeqScanExecutor::DInit() {
  */
 bool SeqScanExecutor::DExecute() {
   // Scanning over a logical tile.
+  std::unique_ptr<LogicalTile> logical_tile(LogicalTileFactory::GetTile());
   if (children_.size() == 1 &&
       // There will be a child node on the create index scenario,
       // but we don't want to use this execution flow
@@ -150,6 +151,10 @@ bool SeqScanExecutor::DExecute() {
 
     bool acquire_owner = GetPlanNode<planner::AbstractScan>().IsForUpdate();
     auto current_txn = executor_context_->GetTransaction();
+
+    // NEW: calculate encoded key for the read set
+    auto primary_index_columns_ = target_table_->GetIndex(0)->GetMetadata()->GetKeyAttrs();
+
 
     // Retrieve next tile group.
     while (current_tile_group_offset_ < table_tile_group_count_) {
@@ -228,6 +233,15 @@ bool SeqScanExecutor::DExecute() {
             if (position_set.find(curr_tuple_id) == position_set.end()) {
               position_list.push_back(curr_tuple_id);
               position_set.insert(curr_tuple_id);
+
+              ContainerTuple<storage::TileGroup> row(tile_group.get(), curr_tuple_id);
+              std::string encoded_key = target_table_->GetName();
+              for (auto col : primary_index_columns_) {
+                auto val = row.GetValue(col);
+                encoded_key = encoded_key + "///" + val.ToString();
+              }
+              Timestamp time = tile_group_header->GetBasilTimestamp(location.offset);
+              logical_tile->AddToReadSet(std::tie(encoded_key, time));
             }
             //position_list.push_back(curr_tuple_id);
             auto res = transaction_manager.PerformRead(current_txn,
@@ -278,7 +292,7 @@ bool SeqScanExecutor::DExecute() {
       }
 
       // Construct logical tile.
-      std::unique_ptr<LogicalTile> logical_tile(LogicalTileFactory::GetTile());
+      //std::unique_ptr<LogicalTile> logical_tile(LogicalTileFactory::GetTile());
       logical_tile->AddColumns(tile_group, column_ids_);
       logical_tile->AddPositionList(std::move(position_list));
 

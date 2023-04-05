@@ -138,6 +138,7 @@ int main(int argc, char *argv[]) {
   ExecuteSQLQuery("UPDATE test SET b=855 WHERE a=99;", traffic_cop, counter_, result, tuple_descriptor, five);
   ExecuteSQLQuery("UPDATE test SET b=16 WHERE a=99;", traffic_cop, counter_, result, tuple_descriptor, read_timestamp);
   ExecuteSQLQuery("SELECT * FROM test;", traffic_cop, counter_, result, tuple_descriptor, five);
+  
   // function args: timestamp, snapshot manager, read set manager, boolean flag finding snapshot/executing (read set manager)
   //ExecuteSQLQuery("CREATE TABLE test1(c INT, b INT);", traffic_cop, counter_, result, basil_timestamp);
   //ExecuteSQLQuery("CREATE TABLE test2(b INT, d INT, e INT)", traffic_cop, counter_, result, basil_timestamp);
@@ -168,6 +169,14 @@ int main(int argc, char *argv[]) {
   }
 
   std::cout << "---------------------------------------------------------" << std::endl;
+  std::cout << "Read Set is" << std::endl;
+  for (unsigned int i = 0; i < traffic_cop.p_status_.read_set.size(); i++) {
+    std::string encoded_key;
+    Timestamp key_ts;
+
+    std::tie(encoded_key, key_ts) = traffic_cop.p_status_.read_set[i];
+    std::cout << "Encoded key: " << encoded_key << ". Timestamp: (" << key_ts.getTimestamp() << ", " << key_ts.getID() << ")" << std::endl;
+  }
   
   /*peloton::catalog::Catalog::GetInstance();
 

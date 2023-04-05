@@ -15,6 +15,7 @@
 #include "../common/internal_types.h"
 #include "../common/statement.h"
 #include "../executor/logical_tile.h"
+#include "../../store/common/timestamp.h"
 
 namespace peloton {
 
@@ -39,6 +40,9 @@ struct ExecutionResult {
 
   // string of error message
   std::string m_error_message;
+
+  // read set (for scans)
+  std::vector<std::tuple<std::string, Timestamp>> read_set;
 
   ExecutionResult() {
     m_processed = 0;
