@@ -51,7 +51,8 @@ namespace pequinstore {
 using namespace std;
 
 
-
+static std::string select_hook("SELECT ");
+static std::string from_hook(" FROM ");
 static std::string insert_hook("INSERT INTO ");
 static std::string values_hook(" VALUES ");
 static std::string update_hook("UPDATE ");
@@ -72,7 +73,9 @@ class SQLTransformer {
             txn = _txn;
         }
         void TransformWriteStatement(std::string &_write_statement, //std::vector<std::vector<uint32_t>> primary_key_encoding_support,
-             std::string &read_statement, std::function<void(int, query_result::QueryResult*)>  &write_continuation, write_callback &wcb);
+             std::string &read_statement, std::function<void(int, query_result::QueryResult*)>  &write_continuation, write_callback &wcb, bool skip_query_interpretation = false);
+
+        bool InterpretQueryRange(std::string &_query, std::string &table_name, std::map<std::string, std::string> &p_col_value);
 
     private:
         proto::Transaction *txn;
@@ -92,12 +95,13 @@ class SQLTransformer {
         void TransformUpdate(size_t pos, std::string_view &write_statement, 
              std::string &read_statement, std::function<void(int, query_result::QueryResult*)>  &write_continuation, write_callback &wcb);
         void TransformDelete(size_t pos, std::string_view &write_statement, 
-            std::string &read_statement, std::function<void(int, query_result::QueryResult*)>  &write_continuation, write_callback &wcb);
+            std::string &read_statement, std::function<void(int, query_result::QueryResult*)>  &write_continuation, write_callback &wcb, bool skip_query_interpretation = false);
 
         typedef struct ColRegistry {
             std::map<std::string, std::string> col_name_type; //map from column name to SQL data type (e.g. INT, VARCHAR, TIMESTAMP) --> Needs to be matched to real types for deser
             std::map<std::string, uint32_t> col_name_index; //map from column name to index (order of cols/values in statements)
-            std::map<std::string, uint32_t> primary_key_cols; //ordered set.  //map from primary col name to index
+            std::vector<std::pair<std::string, uint32_t>> primary_key_cols_idx; //ordered (by index) from primary col name to index   //Could alternatively store a map from index to col name.
+            std::set<std::string> primary_key_cols; 
             std::map<std::string, std::vector<std::string>> secondary_key_cols;
         } ColRegistry;
         std::map<std::string, ColRegistry> TableRegistry;

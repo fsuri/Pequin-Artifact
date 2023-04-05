@@ -266,14 +266,16 @@ void Client::Write(std::string &write_statement, write_callback wcb,
 
     std::string read_statement;
     std::function<void(int, query_result::QueryResult*)>  write_continuation;
+    bool skip_query_interpretation = false;
 
-    sql_interpreter.TransformWriteStatement(write_statement, read_statement, write_continuation, wcb);
+    sql_interpreter.TransformWriteStatement(write_statement, read_statement, write_continuation, wcb, skip_query_interpretation);
     
   
     if(read_statement.empty()){
-      //TODO: Add to writes directly.
+      //TODO: Add to writes directly.  //TODO: Call write_continuation for Insert ; for Point Delete -- > OR: Call them inside Transform.
+      //NOTE: must return a QueryResult... 
       sql::QueryResultProtoWrapper *write_result = new sql::QueryResultProtoWrapper(""); //TODO: replace with real result.
-      wcb(REPLY_OK, write_result);
+      write_continuation(REPLY_OK, write_result);
     }
     else{
       //  auto qcb = [this, write_continuation, wcb](int status, const query_result::QueryResult *result) mutable { 
@@ -287,7 +289,7 @@ void Client::Write(std::string &write_statement, write_callback wcb,
       //   wtcb(status);
       //   return;
       // };
-      Query(read_statement, write_continuation, wtcb, timeout);
+      Query(read_statement, write_continuation, wtcb, timeout, skip_query_interpretation);
     }
     return;
   }
@@ -341,7 +343,7 @@ void Client::Write(std::string &write_statement, write_callback wcb,
 //Simulate Select * for now
 // TODO: --> Return all rows in the store.
 void Client::Query(const std::string &query, query_callback qcb,
-    query_timeout_callback qtcb, uint32_t timeout) {
+    query_timeout_callback qtcb, uint32_t timeout, bool skip_query_interpretation) {
 
   UW_ASSERT(query.length() < ((uint64_t)1<<32)); //Protobuf cannot handle strings longer than 2^32 bytes --> cannot handle "arbitrarily" complex queries: If this is the case, we need to break down the query command.
 

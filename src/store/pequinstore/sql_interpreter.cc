@@ -79,7 +79,9 @@ void SQLTransformer::RegisterTables(std::string &table_registry){ //TODO: This t
           }
           //register primary key
           for(auto &p_idx: primary_key_col_idx){
-            col_registry.primary_key_cols[column_names_and_types[p_idx].first] = p_idx;
+            //col_registry.primary_key_cols_idx[column_names_and_types[p_idx].first] = p_idx;
+            col_registry.primary_key_cols_idx.emplace_back(column_names_and_types[p_idx].first, p_idx);
+            col_registry.primary_key_cols.insert(column_names_and_types[p_idx].first);
             //std::cerr << "Primary key col " << column_names_and_types[p_idx].first << std::endl;
           }
           //register secondary indexes
@@ -95,8 +97,28 @@ void SQLTransformer::RegisterTables(std::string &table_registry){ //TODO: This t
 }
 
 
+bool SQLTransformer::InterpretQueryRange(std::string &_query, std::string &table_name, std::map<std::string, std::string> &p_col_value){
+    std::string_view query_statement(_query);
+    //Parse Table name.
+    size_t from_pos = query_statement.find(from_hook);
+    UW_ASSERT(from_pos != std::string::npos);
+    query_statement.remove_prefix(from_pos + from_hook.length());
+    
+    size_t where_pos = query_statement.find(where_hook);
+
+    //Parse where cond (if none, then it's automatically a range)
+    if(where_pos == std::string::npos) return false;
+    
+    table_name = std::move(static_cast<std::string>(query_statement.substr(0, where_pos)));
+   
+    std::string_view cond_statement = query_statement.substr(where_pos + where_hook.length());
+
+    return CheckColConditions(cond_statement, table_name, p_col_value);
+    //true == point, false == range read --> use table_name + p_col_value to do a point read.
+}
+
 void SQLTransformer::TransformWriteStatement(std::string &_write_statement, 
-    std::string &read_statement, std::function<void(int, query_result::QueryResult*)>  &write_continuation, write_callback &wcb){
+    std::string &read_statement, std::function<void(int, query_result::QueryResult*)>  &write_continuation, write_callback &wcb, bool skip_query_interpretation){
 
     //match on write type:
     size_t pos = 0;
@@ -114,7 +136,7 @@ void SQLTransformer::TransformWriteStatement(std::string &_write_statement,
     }
     //Case 3) DELETE FROM <table_name> WHERE <condition>
     else if( (pos = write_statement.find(delete_hook) != string::npos)){  //   else if(write_statement.rfind("DELETE", 0) == 0){
-        TransformDelete(pos, write_statement, read_statement, write_continuation, wcb);
+        TransformDelete(pos, write_statement, read_statement, write_continuation, wcb, skip_query_interpretation);
     }
     else{
         Panic("Currently only support the following Write statement operations: INSERT, DELETE, UPDATE");
@@ -249,7 +271,7 @@ void SQLTransformer::TransformInsert(size_t pos, std::string_view &write_stateme
                     //THIS WAY WILL SAVE QUERY ROUNDTRIP + WONT HAVE TO REMOVE TABLE VERSION POSSIBLY ADDED BY SCAN
             read_statement = "SELECT ";  
         //insert primary columns --> Can already concat them with delimiter:   col1  || '###' || col2 ==> but then how do we look up column?  
-        for(auto [col_name, p_idx]: col_registry.primary_key_cols){
+        for(auto [col_name, p_idx]: col_registry.primary_key_cols_idx){
             read_statement += col_name +  ", ";   //TODO: Can just do Select *...
             //read_statement += column_list[p_idx] +  ", ";   //TODO: Can just do Select *...
         }
@@ -259,7 +281,7 @@ void SQLTransformer::TransformInsert(size_t pos, std::string_view &write_stateme
         read_statement += " FROM " + table_name;
 
         read_statement += " WHERE ";
-        for(auto [col_name, p_idx]: col_registry.primary_key_cols){
+        for(auto [col_name, p_idx]: col_registry.primary_key_cols_idx){
             const std::string &val = value_list[p_idx];
             //read_statement += column_list[p_idx] + " = " + val + ", ";
             read_statement += col_name + " = " + val + ", ";
@@ -271,7 +293,7 @@ void SQLTransformer::TransformInsert(size_t pos, std::string_view &write_stateme
         read_statement += ";";
     }
     else{
-        for(auto [col_name, p_idx]: col_registry.primary_key_cols){
+        for(auto [col_name, p_idx]: col_registry.primary_key_cols_idx){
             const std::string &val = value_list[p_idx];
             primary_key_column_values.push_back(&val);
         }
@@ -415,7 +437,7 @@ void SQLTransformer::TransformUpdate(size_t pos, std::string_view &write_stateme
 
     read_statement = "SELECT * FROM ";
     read_statement += table_name;
-    read_statement += where_cond;  //Note: Where cond starts with a " "
+    read_statement += where_cond;  //Note: Where cond starts with a " " and ends with ";"
        
        
     //////// Create Write continuation:  
@@ -428,7 +450,7 @@ void SQLTransformer::TransformUpdate(size_t pos, std::string_view &write_stateme
         // for(auto &[col_name, type]: col_registry.col_name_type){
         //     std::cerr << "col_name[" << col_name << "] type[" << type << "]" << std::endl;
         // }
-        //  for(auto &[col_name, idx]: col_registry.primary_key_cols){
+        //  for(auto &[col_name, idx]: col_registry.primary_key_cols_idx){
         //     std::cerr << "col_name[" << col_name << "] type[" << idx << "]" << std::endl;
         // }
 
@@ -619,7 +641,7 @@ bool SQLTransformer::CheckColConditions(std::string_view &cond_statement, ColReg
 
 
 void SQLTransformer::TransformDelete(size_t pos, std::string_view &write_statement, 
-    std::string &read_statement, std::function<void(int, query_result::QueryResult*)>  &write_continuation, write_callback &wcb){
+    std::string &read_statement, std::function<void(int, query_result::QueryResult*)>  &write_continuation, write_callback &wcb, bool skip_query_interpretation){
     
      //Case 3) DELETE FROM <table_name> WHERE <condition>
          //-> Turn into read_statement: Result(column, column_value) SELECT FROM <table_name>(primary_columns) 
@@ -643,8 +665,8 @@ void SQLTransformer::TransformDelete(size_t pos, std::string_view &write_stateme
     
     // isolate the Whole where condition and just re-use in the SELECT statement? -- can keep the Where hook.
     //Skip past "WHERE" hook
-    //where_pos += where_hook.length();
-    where_cond = write_statement.substr(pos);
+    size_t where_pos = pos + where_hook.length();
+    where_cond = write_statement.substr(where_pos);
 
 
     //TODO: For now do naive split; but then improve to do delete analysis (if single row --> don't need to Select)
@@ -652,11 +674,48 @@ void SQLTransformer::TransformDelete(size_t pos, std::string_view &write_stateme
        //Split all conditions on AND/OR; check if primary col and if find operand =
     ColRegistry &col_registry = TableRegistry[table_name]; //TODO: Pass & to continuation.
     std::map<std::string, std::string> p_col_values;
+    //TODO: drop where cond semi colon.. Add it back later
+  
+    pos = where_cond.find(";");
+    if(pos != std::string::npos){
+        where_cond.remove_suffix(where_cond.length()-pos);
+    }
     bool is_point_delete = CheckColConditions(where_cond, col_registry, p_col_values);
+    skip_query_interpretation = true;
+
+    if(is_point_delete){
+        //Add to write set.
+
+        //Create a QueryResult -- set rows affected to 1.
+        write_continuation = [this, wcb, table_name, p_col_values](int status, query_result::QueryResult* result){
+             //Write Table Version itself. //Only for kv-store.
+            WriteMessage *table_ver = txn->add_write_set();
+            table_ver->set_key(table_name);
+            table_ver->set_value("");
+
+            std::vector<const std::string*> primary_key_column_values;
+            for(auto &[col, val]: p_col_values){
+                 primary_key_column_values.push_back(&val);
+            }
+            //FIXME: The encoding order is based off map... --> don't store col->prim key index map. Just store vector of index: do dual lookup.
+            std::string enc_key = EncodeTableRow(table_name, primary_key_column_values);
+        
+            WriteMessage *write = txn->add_write_set();
+            write->set_key(enc_key);
+            write->mutable_rowupdates()->set_deletion(true);
+
+            result->set_rows_affected(result->size()); 
+            wcb(REPLY_OK, result);
+        };
+        return;
+        //Return
+    }
 
     read_statement = "SELECT * FROM ";
     read_statement += table_name;
-    read_statement += where_cond;  //Note: Where cond starts with a " "
+    read_statement += " WHERE ";
+    read_statement += where_cond; 
+    read_statement += ";";
 
      //////// Create Write continuation:  
     write_continuation = [this, wcb, table_name, col_registry_ptr = &col_registry](int status, query_result::QueryResult* result){
@@ -672,19 +731,16 @@ void SQLTransformer::TransformDelete(size_t pos, std::string_view &write_stateme
 
            
             std::vector<std::string> primary_key_column_values;
-            for(auto [col_name, idx]: col_registry_ptr->primary_key_cols){
+            for(auto [col_name, idx]: col_registry_ptr->primary_key_cols_idx){
                 
                 std::unique_ptr<query_result::Field> field = (*row)[idx];
                
                 //Deserialize encoding to be a stringified type (e.g. whether it's int/bool/string store all as normal readable string)
                 std::string field_val(DecodeType(field, col_registry_ptr->col_name_type[col_name]));
-                 std::cerr << "Checking column " << col_name << " with field " << field_val << std::endl;
-
                 primary_key_column_values.push_back(field_val);
             }
 
             std::string enc_key = EncodeTableRow(table_name, primary_key_column_values);
-            std::cerr << "enc key " << enc_key << std::endl; 
 
             WriteMessage *write = txn->add_write_set();
             write->set_key(enc_key);

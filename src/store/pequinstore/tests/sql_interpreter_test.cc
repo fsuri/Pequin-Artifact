@@ -211,6 +211,59 @@ void test_delete(){
   std::cerr << std::endl;
 }
 
+void test_cond(){
+  std::cerr << std::endl << "Test Cond" << std::endl;
+  SQLTransformer sql_interpreter;
+  std::string table_registry = "sql_interpreter_test_registry-client.json";
+  sql_interpreter.RegisterTables(table_registry);
+  proto::Transaction txn;
+  sql_interpreter.NewTx(&txn);
+
+
+  //DELETE FROM <table_name> WHERE <condition>
+  std::string query_statement = "SELECT * FROM user WHERE col2 = apple AND col3 = giraffe;";
+  
+  std::cerr << query_statement << std::endl;
+
+  std::string table_name;
+  std::map<std::string, std::string> p_col_value;
+  bool skip_interpretation = false; //In Query pass this arg; if true, don't interpret and just treat as range.
+  bool is_point = sql_interpreter.InterpretQueryRange(query_statement, table_name, p_col_value);
+
+  std::cerr << is_point << std::endl;
+  
+  ///
+  query_statement = "SELECT * FROM user WHERE col1 = 5 AND col3 = giraffe;";
+  
+  std::cerr << query_statement << std::endl;
+  p_col_value.clear();
+  is_point = sql_interpreter.InterpretQueryRange(query_statement, table_name, p_col_value);
+
+  std::cerr << is_point << std::endl;
+ 
+  query_statement = "SELECT * FROM user WHERE col1 = 5;";
+  
+  std::cerr << query_statement << std::endl;
+  p_col_value.clear();
+  is_point = sql_interpreter.InterpretQueryRange(query_statement, table_name, p_col_value);
+
+  std::cerr << is_point << std::endl;
+  for(auto &[col, val]: p_col_value){
+    std::cerr << "primary col: " << col << " -- with value: " << val << std::endl;
+  }
+
+  query_statement = "SELECT * FROM user WHERE col2 = apple OR col1 = 5 AND col3 = giraffe;";
+  
+  std::cerr << query_statement << std::endl;
+  p_col_value.clear();
+  is_point = sql_interpreter.InterpretQueryRange(query_statement, table_name, p_col_value);
+
+  std::cerr << is_point << std::endl;
+  
+
+  std::cerr << std::endl;
+}
+
 int main() {
   
   std::cerr<< "Testing Write Parser" << std::endl;
@@ -222,6 +275,8 @@ int main() {
   test_update();
 
   test_delete();
+
+  test_cond();
 
   std::cerr << "test string view scope" << std::endl;
   std::function<void()> f;
