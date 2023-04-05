@@ -100,7 +100,7 @@ void test_insert(){
   for(auto write: txn.write_set()){
       std::cerr << "Key: " << write.key() << std::endl;
       for(auto [col, val]: write.rowupdates().attribute_writes()){
-           std::cerr << "Col: " << col << ". Val: " << val << std::endl;
+           std::cerr << "Col: " << col << " -- Val: " << val << std::endl;
       }
   }
 
@@ -152,7 +152,7 @@ void test_update(){
   for(auto write: txn.write_set()){
       std::cerr << "Key: " << write.key() << " Value: " << write.value() << std::endl;
       for(auto [col, val]: write.rowupdates().attribute_writes()){
-           std::cerr << "Col: " << col << ". Val: " << val << std::endl;
+           std::cerr << "Col: " << col << " -- Val: " << val << std::endl;
       }
   }
 
@@ -222,6 +222,20 @@ int main() {
   test_update();
 
   test_delete();
+
+  std::cerr << "test string view scope" << std::endl;
+  std::function<void()> f;
+
+  { 
+     std::string_view test {"hello"};
+    std::cerr << test << std::endl;
+
+    f = [test](){
+      std::cerr << test << std::endl;
+    };
+  }  
+
+  f();
  
   return 0;
 }

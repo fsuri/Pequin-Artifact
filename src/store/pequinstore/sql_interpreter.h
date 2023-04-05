@@ -71,7 +71,7 @@ class SQLTransformer {
         inline void NewTx(proto::Transaction *_txn){
             txn = _txn;
         }
-        void TransformWriteStatement(std::string &write_statement, //std::vector<std::vector<uint32_t>> primary_key_encoding_support,
+        void TransformWriteStatement(std::string &_write_statement, //std::vector<std::vector<uint32_t>> primary_key_encoding_support,
              std::string &read_statement, std::function<void(int, query_result::QueryResult*)>  &write_continuation, write_callback &wcb);
 
     private:
@@ -84,24 +84,26 @@ class SQLTransformer {
         
             //TODO: cast all values to uint64 to perform operand
         } Col_Update;
-        void ParseColUpdate(std::string col_update, std::map<std::string, Col_Update> &col_updates);
+        void ParseColUpdate(std::string_view col_update, std::map<std::string, Col_Update> &col_updates);
+        std::string GetUpdateValue(const std::string &col, std::string &field_val, std::unique_ptr<query_result::Field> &field, const std::map<std::string, Col_Update> &col_updates);
 
-        void TransformInsert(size_t pos, std::string &write_statement, 
-        std::string &read_statement, std::function<void(int, query_result::QueryResult*)>  &write_continuation, write_callback &wcb);
-        void TransformUpdate(size_t pos, std::string &write_statement, 
-        std::string &read_statement, std::function<void(int, query_result::QueryResult*)>  &write_continuation, write_callback &wcb);
-        void TransformDelete(size_t pos, std::string &write_statement, 
-        std::string &read_statement, std::function<void(int, query_result::QueryResult*)>  &write_continuation, write_callback &wcb);
+        void TransformInsert(size_t pos, std::string_view &write_statement, 
+            std::string &read_statement, std::function<void(int, query_result::QueryResult*)>  &write_continuation, write_callback &wcb);
+        void TransformUpdate(size_t pos, std::string_view &write_statement, 
+             std::string &read_statement, std::function<void(int, query_result::QueryResult*)>  &write_continuation, write_callback &wcb);
+        void TransformDelete(size_t pos, std::string_view &write_statement, 
+            std::string &read_statement, std::function<void(int, query_result::QueryResult*)>  &write_continuation, write_callback &wcb);
 
         typedef struct ColRegistry {
             std::map<std::string, std::string> col_name_type; //map from column name to SQL data type (e.g. INT, VARCHAR, TIMESTAMP) --> Needs to be matched to real types for deser
-            std::map<std::string, uint32_t> primary_key_cols; //ordered set.  //map from col name to index
+            std::map<std::string, uint32_t> col_name_index; //map from column name to index (order of cols/values in statements)
+            std::map<std::string, uint32_t> primary_key_cols; //ordered set.  //map from primary col name to index
             std::map<std::string, std::vector<std::string>> secondary_key_cols;
         } ColRegistry;
         std::map<std::string, ColRegistry> TableRegistry;
     
-        bool CheckColConditions(std::string &cond_statement, std::string &table_name, std::map<std::string, std::string> &p_col_value);
-        bool CheckColConditions(std::string &cond_statement, ColRegistry &col_registry, std::map<std::string, std::string> &p_col_value);
+        bool CheckColConditions(std::string_view &cond_statement, std::string &table_name, std::map<std::string, std::string> &p_col_value);
+        bool CheckColConditions(std::string_view &cond_statement, ColRegistry &col_registry, std::map<std::string, std::string> &p_col_value);
 };
 
 
