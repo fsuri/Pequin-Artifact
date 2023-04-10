@@ -156,7 +156,7 @@ echo "$(tput setaf 2) FINISHED INSTALLATION: SUCCESS $(tput sgr0)"
 # Cockroach DB
 sudo mkdir -p /usr/local/lib/cockroach
 cd ~/dependencies
-wget https://binaries.cockroachdb.com/cockroach-v22.2.2.linux-amd64.tgz
+wget https://binaries.cockroachdb.com/cockroach-v22.2.2.linux-amd64.tgz --no-check-certificate
 tar -xf cockroach-v22.2.2.linux-amd64.tgz
 sudo cp -i cockroach-v22.2.2.linux-amd64/lib/libgeos.so /usr/local/lib/cockroach/
 sudo cp -i cockroach-v22.2.2.linux-amd64/lib/libgeos_c.so /usr/local/lib/cockroach/

@@ -8,6 +8,9 @@
  **********************************************************************/
 
 #include "store/cockroachdb/client.h"
+#include "store/common/query_result.h"
+#include "store/common/taopq_query_result_wrapper.h"
+
 
 #include <iostream>
 #include <typeinfo>
@@ -134,7 +137,7 @@ void Client::Put(const std::string &key, const std::string &value,
 void Client::Query(const std::string &query, query_callback qcb,
                    query_timeout_callback qtcb, uint32_t timeout) {
   try {
-    auto const result = [this, &query]() {
+    tao::pq::result result = [this, &query]() {
       // If part of a Tx, use Tx->exec, else use connection->exec
       if (tr != nullptr)
         return tr->execute(query);
@@ -142,7 +145,8 @@ void Client::Query(const std::string &query, query_callback qcb,
         return conn->execute(query);
     }();
     // TODO handle qcb
-    // qcb(REPLY_OK, result);
+    taopq_wrapper::TaoPQQueryResultWrapper *tao_res = new taopq_wrapper::TaoPQQueryResultWrapper(&result);
+    qcb(REPLY_OK, tao_res);
   } catch (const std::exception &e) {
     std::cerr << "Tx query failed" << '\n';
     std::cerr << e.what() << '\n';
