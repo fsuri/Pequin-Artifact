@@ -1,10 +1,10 @@
-CREATE TABLE table1 (a INT PRIMARY KEY, b INT NOT NULL DEFAULT 3 CHECK (b > 0), INDEX(b));
+CREATE TABLE students 
+(rollNumber INT, 
+name VARCHAR(30), 
+class VARCHAR(30), 
+section VARCHAR(1), 
+mobile VARCHAR(10),
+PRIMARY KEY (rollNumber, mobile));
 
-CREATE TABLE users (
-        id UUID PRIMARY KEY,
-        city STRING,
-        name STRING,
-        address STRING,
-        credit_card STRING,
-        dl STRING
-);
+INSERT INTO students (rollNumber, name, class, section, mobile) 
+VALUES (1, 'BEN','FOURTH"', 'B', '4204206969');
