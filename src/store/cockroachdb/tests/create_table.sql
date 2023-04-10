@@ -1,4 +1,4 @@
-CREATE TABLE students 
+CREATE TABLE IF NOT EXISTS students 
 (rollNumber INT, 
 name VARCHAR(30), 
 class VARCHAR(30), 
