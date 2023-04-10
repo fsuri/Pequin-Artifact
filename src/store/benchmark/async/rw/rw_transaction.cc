@@ -61,7 +61,7 @@ Operation RWTransaction::GetNextOperation(size_t outstandingOpCount, size_t fini
       std::string strValue = strValueItr->second;
       std::string writeValue;
       if (strValue.length() == 0) {
-        writeValue = std::string(100, '\0'); //make a longer string
+        writeValue = std::string(100, 'x'); //make a longer string
       } else {
         uint64_t intValue = 0;
         for (int i = 0; i < 100; ++i) {

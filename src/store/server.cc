@@ -587,7 +587,7 @@ int main(int argc, char **argv) {
   Notice("Initialize a keyManager");
   KeyManager keyManager(FLAGS_indicus_key_path, keyType, true, replica_total,
                         client_total, FLAGS_num_client_hosts);
-  keyManager.PreLoadPubKeys(true);
+  //keyManager.PreLoadPubKeys(true);
 
   Notice("Additional protocol configurations");
   // Additional protocol configurations
@@ -863,7 +863,7 @@ int main(int argc, char **argv) {
         std::string value;
         if (FLAGS_rw_or_retwis) {
           value =
-              std::move(std::string(100, '\0'));  // turn the size into a flag
+              std::move(std::string(100, 'x'));  // turn the size into a flag
         } else {
           value = std::to_string(i);
         }

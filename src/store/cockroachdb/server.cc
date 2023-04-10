@@ -64,7 +64,7 @@ Server::Server(const transport::Configuration &config, KeyManager *keyManager,
   std::string http_addr_flag =
       " --http-addr=" + host + ":" + std::to_string(8069 + id);
   std::string store_flag =
-      " --store=store/cockroachdb/crdb_node" + std::to_string(id);
+      " --store= ~/mnt/extra/experiments/store/cockroachdb/crdb_node" + std::to_string(id);
 
   // TODO : Add encryption
   // TODO: set zones

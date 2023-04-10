@@ -1053,7 +1053,7 @@ int main(int argc, char **argv) {
   KeyManager *keyManager =
       new KeyManager(FLAGS_indicus_key_path, keyType, true, replica_total,
                      client_total, FLAGS_num_client_hosts);
-  keyManager->PreLoadPubKeys(false);
+  //keyManager->PreLoadPubKeys(false);
 
   if (closestReplicas.size() > 0 &&
       closestReplicas.size() != static_cast<size_t>(config->n)) {

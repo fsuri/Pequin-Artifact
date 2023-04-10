@@ -53,8 +53,8 @@ Client::Client(const transport::Configuration &config, uint64_t id, int nShards,
     // update else insert)
     conn->prepare(
         "put",
-        "INSERT INTO datastore(key_, val_) VALUES($1, $2) ON CONFLICT (key_) "
-        "DO UPDATE SET val_ = $2;");
+        "INSERT INTO datastore(key_, val_) VALUES(\'$1\', \'$2\') ON CONFLICT (key_) "
+        "DO UPDATE SET val_ = \'$2\';");
 
     // Prepare get function. Use point query
     conn->prepare("get", "SELECT val_ FROM datastore WHERE key_ = \'$1\'");
@@ -106,7 +106,7 @@ void Client::Get(const std::string &key, get_callback gcb,
     for (const auto &row : result) {
       value = row["val_"].as<std::string>();
     }
-    // std::cout << "get " << key << '\n';
+    std::cerr << "get " << key << '\n';
 
     // TODO replace Timestamp that makes sense
     gcb(REPLY_OK, key, value, Timestamp(0));
@@ -124,7 +124,7 @@ void Client::Put(const std::string &key, const std::string &value,
   try {
     tr->execute("put", key, value);
     // pcb(REPLY_OK, key, value);
-    // std::cout << "put (" << key << ", " << value << ")" << '\n';
+    std::cerr << "put (" << key << ", " << value << ")" << '\n';
     pcb(REPLY_OK, key, value);
   } catch (const std::exception &e) {
     pcb(REPLY_FAIL, key, value);
@@ -159,11 +159,12 @@ void Client::Commit(commit_callback ccb, commit_timeout_callback ctcb,
   try {
     tr->commit();
     tr = nullptr;
-    // std::cout << "commit " << '\n';
+    std::cout << "commit " << '\n';
 
-    ccb(transaction_status_t::COMMITTED);
+    ccb(COMMITTED);
   } catch (const std::exception &e) {
     std::cerr << e.what() << '\n';
+    ccb(ABORTED_SYSTEM);
   }
 }
 
