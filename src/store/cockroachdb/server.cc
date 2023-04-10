@@ -16,6 +16,14 @@ namespace cockroachdb {
 
 using namespace std;
 
+void exec_sql(std::string sql, transport::ReplicaAddress server_address) {
+  std::string crdb_command =
+      "cockroach sql --insecure --host=" + server_address.host + ":" +
+      server_address.port + " --execute=\"" + sql + "\"";
+  Notice(crdb_command.c_str());
+  int status = system(crdb_command.c_str());
+}
+
 Server::Server(const transport::Configuration &config, KeyManager *keyManager,
                int groupIdx, int idx, int numShards, int numGroups)
     : config(config),
@@ -87,23 +95,22 @@ Server::Server(const transport::Configuration &config, KeyManager *keyManager,
 
     Notice("Cluster initliazed by node %d. Listening %s:%s", id, host.c_str(),
            port.c_str());
-  }
-}
 
-void exec_sql(std::string sql, transport::ReplicaAddress server_address) {
-  std::string crdb_command =
-      "cockroach sql --insecure --host=" + server_address.host + ":" +
-      server_address.port + " --execute=\"" + sql + "\"";
-  Notice(crdb_command.c_str());
-  int status = system(crdb_command.c_str());
+    exec_sql(
+        "CREATE TABLE IF NOT EXISTS datastore ( key_ TEXT PRIMARY KEY, val_ "
+        "TEXT NOT NULL)",
+        serverAddress);
+  }
 }
 
 void Server::Load(const string &key, const string &value,
                   const Timestamp timestamp) {
-  // ValueAndProof val;
-  // val.value = value;
-  // val.commitProof = dummyProof;
-  // commitStore.put(key, val, timestamp);
+  std::string sql_statement("INSERT INTO datastore(key_, val_) VALUES(");
+  sql_statement += ("\'" + key + "\', \'" + value +
+                    "\') ON CONFLICT (key_) "
+                    "DO UPDATE SET val_ = " +
+                    "\'" + value + "\'");
+  exec_sql(sql_statement, serverAddress);
 }
 
 void Server::CreateTable(

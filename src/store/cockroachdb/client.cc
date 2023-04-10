@@ -46,11 +46,6 @@ Client::Client(const transport::Configuration &config, uint64_t id, int nShards,
     // Establish connection
     conn = tao::pq::connection::create(url);
 
-    // Create a table for get and put Key on key_; value on val_
-    conn->execute(
-        "CREATE TABLE IF NOT EXISTS datastore ( key_ TEXT PRIMARY KEY, val_ "
-        "TEXT NOT NULL)");
-
     // Prepare put function. Use PostgreSQL's upsert feature (i.e. if exists
     // update else insert)
     conn->prepare(
