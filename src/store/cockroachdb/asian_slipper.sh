@@ -1,2 +1,2 @@
 pkill -9 -f cockroach
-rm -fr crdb_node*
+rm -fr store/cockroachdb/crdb_node*
