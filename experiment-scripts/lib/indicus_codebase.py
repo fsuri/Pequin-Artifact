@@ -212,7 +212,7 @@ class IndicusCodebase(ExperimentCodebase):
         if 'partitioner' in config:
             client_command += ' --partitioner %s' % config['partitioner']
 
-        if config['benchmark_type'] == 'sql_bench':
+        if 'benchmark_type' in config and config['benchmark_type'] == 'sql_bench':
             client_command += ' --sql_bench %s' % config['benchmark_type']
             #if ... benchmark_name = XYZ
             #client_command += ' --data_file_path % config['XYZ_table_registry_file_path]' #Note: Use the client.json file.
@@ -483,7 +483,7 @@ class IndicusCodebase(ExperimentCodebase):
         if 'server_debug_stats' in config and config['server_debug_stats']:
             replica_command += ' --debug_stats'
 
-        if config['benchmark_type'] == 'sql_bench':
+        if 'benchmark_type' in config and config['benchmark_type'] == 'sql_bench':
             replica_command += ' --sql_bench %s' % config['benchmark_type']
         #TODO: Add SQL benchmarks.
 

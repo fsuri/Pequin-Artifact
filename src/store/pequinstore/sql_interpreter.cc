@@ -584,11 +584,19 @@ bool SQLTransformer::CheckColConditions(std::string_view &cond_statement, std::s
 
     //TODO: //find ; if exists and remove.  (Either always, or remove before calling CheckConditions recursion)
      size_t pos;
-    pos = cond_statement.find(";");
+
+    //Remove Order By condition for parsing
+    pos = cond_statement.find(order_hook);
     if(pos != std::string::npos){
         cond_statement.remove_suffix(cond_statement.length()-pos);
     }
-   
+    else {  //Remove last ";" (if not already removed)
+        pos = cond_statement.find(";");
+        if(pos != std::string::npos){
+            cond_statement.remove_suffix(cond_statement.length()-pos);
+        }
+    }
+
     return CheckColConditions(cond_statement, col_registry, p_col_value);
 }
 
@@ -600,6 +608,12 @@ bool SQLTransformer::CheckColConditions(std::string_view &cond_statement, std::s
 //     std::string_view sub = cond_view.substr(0, 2);
 
 bool SQLTransformer::CheckColConditions(std::string_view &cond_statement, ColRegistry &col_registry, std::map<std::string, std::string> &p_col_value){
+    //NOTE: Where condition must entirely be specified as AND or OR
+    // No Between: WHERE column_name BETWEEN value 1 AND value 2;
+    //TODO: Support WHERE name IN ("Lucy","Stella","Max","Tiger"); ==> Between or IN automatically count as  Ranges
+
+    //TODO: If string has extra statement (more restrictive than primary col) --> Simple point get won't be able to handle (need to add condidtions) --> simpler: Send through Sync...
+            //Or maybe we send the Get without sync but as a Select statement itself.
 
     //split WHERE statement on AND/OR
     size_t pos;
@@ -638,6 +652,288 @@ bool SQLTransformer::CheckColConditions(std::string_view &cond_statement, ColReg
     // if not, use query ;; pass an arg that tells query interpreter to skip interpretation we already know it must use query protocol.
 }
 
+
+//TODO: Scan for parentheses and put their pos on a stack
+// When detecting a closing parentheses, pop stack and create string view for the cond between the 2 positions  (conds are popped in order from strongest binding to weakest)
+// buffer result on top (don't pop stack quite yet)
+// When evaluating AND/OR -> bubble up subsets. For AND take union of left and right subset, for OR take intersection.
+//Return final set. IsPoint == true if set == primary cols.
+//Implement Set as vector of (col, value) pairs. Values need to match too. ==> Else we're possibly trying to read 2 different rows. (Maybe both are point reads, but we'll just defer those cases to query.)
+
+
+// bool SQLTransformer::CheckColConditions(size_t &start, size_t &end, std::string_view &cond_statement, ColRegistry &col_registry, std::map<std::string, std::string> &l_p_col_value, std::map<std::string, std::string> &r_p_col_value){
+//TODO: Try recursing on operators? //not really possible....
+//     //Find first operator
+//     //Compute left value;
+//     //Recurse on right value (only until first closing partehn --> return end value)
+   
+//     size_t op_pos;
+//     uint8_t op_type;
+//     find_next_operator(cond_statement, op_pos, op_type);
+//     if(op_type == 2) return false;
+
+//     std::map<std::string, std::string> left_p_col_value;
+//     std::map<std::string, std::string> right_p_col_value;
+//     //1) Compute result on the left side:
+//             //a) Check for parentheses
+//             size_t pos = 0;
+//             pos = cond_statement.find_last_of("(", start, op_pos);
+//             //b) 
+
+//     //2) Compute result on the right side:
+
+// }
+
+void SQLTransformer::ExtractColCondition(std::string_view cond_statement, ColRegistry &col_registry, std::map<std::string, std::string> &p_col_value){
+    pos = cond_statement.find(" = ");
+    if(pos == std::string::npos) return;
+
+    //check left val;
+    std::string_view left = cond_statement.substr(0, pos);
+    const std::string &left_str = static_cast<std::string>(left);
+    if(col_registry.primary_key_cols.count(left_str)){ //if primary key and equality --> add value to map so we can compute enc_key for point read/write
+        p_col_value[std::move(left_str)] = cond_statement.substr(pos + 3);
+    }
+    return;
+}
+
+void SQLTransformer::GetNextOperator(std::string_view &cond_statement, size_t &op_pos, size_t &op_pos_post, op_t &op_type){
+    
+    if((op_pos = cond_statement.find(and_hook)) != std::string::npos){ //if AND exists.
+        op_type = SQL_AND;
+        op_pos_post = op_pos + and_hook.length();
+    }
+    else if((op_pos = cond_statement.find(or_hook)) != std::string::npos){ //if OR exists.
+         op_type = SQL_OR;
+         op_pos_post = op_pos + or_hook.length();
+    }
+    else if((op_pos = cond_statement.find(in_hook)) != std::string::npos){ //if IN exists.
+         op_type = SQL_SPECIAL;
+         op_pos_post = op_pos + in_hook.length();
+    }
+    else if((op_pos = cond_statement.find(between_hook)) != std::string::npos){ //if BETWEEN exists.
+         op_type = SQL_SPECIAL;
+         op_pos_post = op_pos + between_hook.length();
+    }
+    else{
+        op_type = SQL_NONE;
+        op_pos = 0;
+    }
+    return;
+        
+}
+
+void SQLTransformer::MergeColConditions(op_t &op_type, ColRegistry &col_registry, std::map<std::string, std::string> &l_p_col_value, std::map<std::string, std::string> &r_p_col_value)
+{
+    switch (op_type) {
+        case SQL_NONE:
+        case SQL_AND:
+            for(auto &col_val: r_p_col_value){
+                bool new_col = l_p_col_value.insert(col_val);
+                if(!new_col){
+                    //exists already, check that both values were the same...
+                    if(col_val.second != l_p_col_value[col_val.first]) return false; //TODO: FIXME: in this case we want to return false and terminate early.
+                    //TODO: Is stack maybe just easier after all...
+                }
+            }
+            break;
+        case SQL_OR:
+            break;
+        default:   
+            NOT_REACHABLE();
+
+    }
+  
+}
+ 
+
+
+//TODO: fix terminate early.
+bool SQLTransformer::CheckColConditions(size_t &end, std::string_view cond_statement, ColRegistry &col_registry, std::map<std::string, std::string> &p_col_value, bool terminate_early){
+    //Assuming all where clauses are within ()
+
+    //TODO: handle case where: x AND (y Or z)
+
+    std::map<std::string, std::string> &left_p_col_value = p_col_value;
+    std::map<std::string, std::string> right_p_col_value;
+
+    size_t pos = 0;
+    pos = cond_statement.find_first_of("()");
+
+    //Base case:
+    if(pos == std::string_view::npos || pos > 0){
+        //split on operators if existent. --> apply col merge left to right.
+        op_t op_type(SQL_START);
+        op_t next_op_type;
+        size_t op_pos; 
+        size_t op_pos_post; 
+
+        while(op_type != SQL_NONE){
+            GetNextOperator(cond_statement, op_pos, op_pos_post, next_op_type); //returns SQL_NONE && op_pos = length if no more operators.
+
+            ExtractColCondition(cond_statement.substr(0, op_pos), col_registry, right_p_col_value);
+        
+            MergeColCondition(op_type, p_col_value, right_p_col_value);
+
+            op_type = next_op_type;
+            if(op_type == SQL_NONE) break;
+            if(type == SQL_SPECIAL) return false;
+
+            cond_statement = cond_statement.substr(op_pos_post);
+
+        }
+
+        return op_type == SQL_AND && p_col_value.size() == col_registry.primary_key_cols.size();
+    }
+
+    //Base case 2: 
+    if(pos > 0){ //--> left side of statement has no parentheses.
+        compute_operator_type(cond_statement, op_pos, op_type);
+
+        //recurse on right side
+
+        //Merge.
+        CheckColConditions(end, cond_statement.substr(op_pos+1), col_registry, right_p_col_value);
+        merge_p_col_values(left_p_col_value, right_p_col_value, op_type);
+        return;
+    }
+
+    if(cond_statement.substr(pos, 1) == "("){ //Start recursion
+       
+        //TODO: Recurse --> Returns result inside ")"  
+        CheckColConditions(end, cond_statement.substr(pos+1), col_registry, left_p_col_value);   //End = pos of ) that matches opening (  (or base case no bracket.)
+
+        if(end++ == std::string::npos || cond_statement.substr(end, 1) == ")"){ //this is the right side of a statement -> return.
+            return;
+        }
+        //Note: end = past )
+
+        //else: this is the left side of a statement. ==> there must be an operator to the right.
+
+        //FIND AND/OR. (search after end)
+        cond_statement = cond_statement.substr(end); //Note, this does not modify the callers view.
+        size_t op_pos;
+        uint8_t op_type;
+        compute_operator_type(cond_statement, op_pos, op_type);
+        if(op_type == 2 ||){
+            terminate_early = true;
+            return false;
+        } 
+
+        //After that recurse on right cond.
+        CheckColConditions(end, cond_statement.substr(op_pos+1), col_registry, right_p_col_value);
+        merge_p_col_values(left_p_col_value, right_p_col_value, op_type);
+        return p_col_value.size() == col_registry.primary_key_cols.size();
+    }
+
+    //Recursive cases:
+    if(cond_statement.substr(pos, 1) == ")"){ //End recursion.
+        end = pos;
+        std::string_view sub_cond = cond_statement.substr(0, end);
+        size_t dummy;
+        //Note: Anything between 0 and ) must be normal statement.
+       
+       
+
+        // Recurse to use base case and return result.
+        //CheckColConditions(dummy, sub_cond, col_registry, p_col_value);
+    
+        return p_col_value.size() == col_registry.primary_key_cols.size(); //Next level receives p_col_values, and end 
+
+    }
+
+   
+
+    else 
+    
+
+    //1) Look for next ( or )  (use regex). If ( put on stack
+
+    // std::vector.push_back(sub_result = null)
+
+    //If ) take top and create substring. 
+    //Store result of substring
+
+
+    //Could do recursion? 
+    // Recurse on opening (
+    // Return on closing )  ==> This is left value
+    // find operator, then find opening ( (if any) ==> Recurse on it, return closing ). ==> This is right value
+    // Apply merge. Return
+    p_col_value = 
+    return p_col_value.size() == col_registry.primary_key_cols.size();
+
+    //Assume each operand is covered by parentheses). E.g. x=1 AND y=2 AND z = 3 ==> (x = 1 AND y=2) AND z = 3
+    // Refine afterwards to weaken this assumption: Don't look for L and right value, just keep applying operators left to right as long as we find some? (Harder to do if it can be AND/OR)
+}
+
+
+
+
+
+bool SQLTransformer::CheckColConditions(std::string_view &cond_statement, ColRegistry &col_registry, std::map<std::string, std::string> &p_col_value){
+    //Returns false if should use Query Protocol (Sync or Eager)
+    //Returns true if should use Point Read Protocol
+
+    //Input: boolean conditions, concatenated by AND/OR. E.g. <cond1> AND <cond2> OR <cond3>
+    //QUESTION: How is () precedence given? left to right? (onion style)
+
+    //TODO: if bool conds have Between or In statements --> automatically treat as range.
+
+    //Return true if can definitely do a point key lookup
+    //E.g. if pkey = col1
+    //  Where col1 = 5 OR col2 = 6 ==> False
+    // Where col1 = 5 AND col2 = 6 ==> True   // but even more restrictive -- value of point read might want to be empty ;; but read set must hold the key
+    // Where col1 = 5 ==> True
+
+    //Harder cases:
+    // e.g. pkey = (col1, col2)
+    // Where (col1 = 5 AND col2 = 5) OR col3 = 5 ==> False
+    // Where (col1 = 5 AND col2 = 5) OR (col1 = 8 AND col2 = 9) ==> True   //Could do point read for both sides... // but can also treat as query.
+
+    //Condition most basic: All bools need to be pcol and be bound by AND
+        // any more --> false
+        // anything more fancy --> false
+
+    //split WHERE statement on AND/OR
+    size_t pos;
+  
+    if((pos = cond_statement.find(or_hook)) != std::string::npos){ //if OR exists.
+        return false;
+    }
+    else if((pos = cond_statement.find(in_hook)) != std::string::npos){ //if OR exists.
+        return false;
+    }
+    else if((pos = cond_statement.find(between_hook)) != std::string::npos){ //if OR exists.
+        return false;
+    }
+    if( (pos = cond_statement.find(and_hook)) != std::string::npos){ //if AND exists.
+        //split on and, return both sides.
+        std::string_view left_cond = cond_statement.substr(0, pos);
+        std::string_view right_cond = cond_statement.substr(pos + and_hook.length());
+
+         //split on = 
+        pos = left_cond.find(" = ");
+        if(pos == std::string::npos) return false;
+
+        //check left val;
+        std::string_view left = left_cond.substr(0, pos);
+        const std::string &left_str = static_cast<std::string>(left);
+        if(!col_registry.primary_key_cols.count(left_str)){ //if primary key and equality --> add value to map so we can compute enc_key for point read/write
+            p_col_value[std::move(left_str)] = left_cond.substr(pos + 3);
+            return false;
+        }
+        return CheckColConditions(right_cond, col_registry, p_col_value); //TODO: don't recurse (this re-checks all above statements) --> just while loop  
+                                                                            //FIXME: Recurision is wrong anyways, it misses else case (no more bindings)
+    }
+
+    return false;
+
+    //Condition smart:
+    //Split on weakest binding recursively.
+    // Try to join in order of strongest binding: for AND --> merge both subsets; for OR, propagate up both subsets
+    // Return true at highest layer if both subsets bubbled up have all primary key cols (i.e are of size primary key cols)
+}
 
 
 void SQLTransformer::TransformDelete(size_t pos, std::string_view &write_statement, 
@@ -711,7 +1007,7 @@ void SQLTransformer::TransformDelete(size_t pos, std::string_view &write_stateme
         //Return
     }
 
-    read_statement = "SELECT * FROM ";
+    read_statement = "SELECT * FROM ";  //TODO: Ideally select only primary column rows. To support this, need rows to allow access to columns by name (and not just index)
     read_statement += table_name;
     read_statement += " WHERE ";
     read_statement += where_cond; 
