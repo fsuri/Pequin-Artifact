@@ -24,11 +24,11 @@ Server::Server(const transport::Configuration &config, KeyManager *keyManager,
       idx(idx),
       id(groupIdx * config.n + idx),
       numShards(numShards),
-      numGroups(numGroups) {
+      numGroups(numGroups),
+      serverAddress(config.replica(groupIdx, idx)) {
   int status = 0;
-  transport::ReplicaAddress server_address = config.replica(groupIdx, idx);
-  host = server_address.host;
-  port = server_address.port;
+  std::string host = serverAddress.host;
+  std::string port = serverAddress.port;
 
   /**
    * --advertise-addr determines which address to tell other nodes to use.
@@ -38,7 +38,7 @@ Server::Server(const transport::Configuration &config, KeyManager *keyManager,
   std::string start_script = "cockroach start";
   std::string security_flag = " --insecure";
   std::string listen_addr_flag = " --listen-addr=" + host + ":" + port;
-  std::string sql_addr_flag = " --sql-addr=" + host + ":" + port;
+  std::string sql_addr_flag = " --advertise-sql-addr=" + host + ":" + port;
   std::string advertise_flag = " --advertise-addr=" + host + ":" + port;
   std::string join_flag = " --join=";
 
@@ -66,7 +66,7 @@ Server::Server(const transport::Configuration &config, KeyManager *keyManager,
   std::string script_parts[] = {join_flag, security_flag,
                                 listen_addr_flag,  // for nodes and clients
                                 // advertise_flag,    // for nodes
-                                // sql_addr_flag,     // for client's sql
+                                sql_addr_flag,   // for client's sql
                                 http_addr_flag,  // for  DB Console
                                 store_flag, other_flags};
 
@@ -90,6 +90,14 @@ Server::Server(const transport::Configuration &config, KeyManager *keyManager,
   }
 }
 
+void exec_sql(std::string sql, transport::ReplicaAddress server_address) {
+  std::string crdb_command =
+      "cockroach sql --insecure --host=" + server_address.host + ":" +
+      server_address.port + " --execute=\"" + sql + "\"";
+  Notice(crdb_command.c_str());
+  int status = system(crdb_command.c_str());
+}
+
 void Server::Load(const string &key, const string &value,
                   const Timestamp timestamp) {
   // ValueAndProof val;
@@ -102,29 +110,27 @@ void Server::CreateTable(
     const std::string &table_name,
     const std::vector<std::pair<std::string, std::string>> &column_data_types,
     const std::vector<uint32_t> primary_key_col_idx) {
-  const std::vector<std::pair<std::string, std::string>>
-      column_data_types_with_primary = column_data_types;
-  for (auto &i : primary_key_col_idx) {
-    std::string type_name = column_data_types_with_primary.at(i).second;
-    type_name = type_name + "PRIMARY KEY";
+  std::string sql_statement("CREATE TABLE IF NOT EXISTS");
+  sql_statement += " " + table_name;
+  UW_ASSERT(!column_data_types.empty());
+  UW_ASSERT(!primary_key_col_idx.empty());
+  sql_statement += " (";
+  for (auto &[col, type] : column_data_types) {
+    std::string p_key = (primary_key_col_idx.size() == 1 &&
+                         col == column_data_types[primary_key_col_idx[0]].first)
+                            ? " PRIMARY KEY"
+                            : "";
+    sql_statement += col + " " + type + p_key + ", ";
   }
-  // TODO check if it exists
-  // "CREATE TABLE IF NOT EXISTS...
-  std::string create_command = "CREATE TABLE IF NOT EXISTS " + table_name;
-  create_command += "(";
-
-  // (col1 type1, col2 type2...)
-  for (auto &type : column_data_types_with_primary) {
-    create_command += (type.first + " " + type.second + ",");
+  sql_statement += "PRIMARY KEY ";
+  if (primary_key_col_idx.size() > 1) sql_statement += "(";
+  for (auto &p_idx : primary_key_col_idx) {
+    sql_statement += (column_data_types[p_idx].first + ", ");
   }
-  // get ride of the last comma
-  create_command.pop_back();
-  create_command += ");";
-  cout << create_command << endl;
-  std::string crdb_command = "cockroach sql --insecure --host=" + host + ":" +
-                             port + " --execute=\"" + create_command + "\"";
-  cout << crdb_command << endl;
-  int status = system(crdb_command.c_str());
+  sql_statement.resize(sql_statement.size() - 2);  // remove trailing ", "
+  if (primary_key_col_idx.size() > 1) sql_statement += ")";
+  sql_statement += ");";
+  exec_sql(sql_statement, serverAddress);
 }
 
 void Server::LoadTableRow(
@@ -132,8 +138,24 @@ void Server::LoadTableRow(
     const std::vector<std::pair<std::string, std::string>> &column_data_types,
     const std::vector<std::string> &values,
     const std::vector<uint32_t> primary_key_col_idx) {
-  "INSERT INTO datastore(key_, val_) VALUES($1, $2) ON CONFLICT (key_) "
-  "DO UPDATE SET val_ = $2;";
+  std::string sql_statement("INSERT INTO");
+  sql_statement += " " + table_name;
+  UW_ASSERT(!values.empty());  // Need to insert some values...
+  UW_ASSERT(column_data_types.size() ==
+            values.size());  // Need to specify all columns to insert into
+  sql_statement += " (";
+  for (auto &[col, _] : column_data_types) {
+    sql_statement += col + ", ";
+  }
+  sql_statement.resize(sql_statement.size() - 2);  // remove trailing ", "
+  sql_statement += ")";
+  sql_statement += " VALUES (";
+  for (auto &val : values) {
+    sql_statement += "\'" + val + "\', ";
+  }
+  sql_statement.resize(sql_statement.size() - 2);  // remove trailing ", "
+  sql_statement += ");";
+  exec_sql(sql_statement, serverAddress);
 }
 Stats &Server::GetStats() { return stats; }
 

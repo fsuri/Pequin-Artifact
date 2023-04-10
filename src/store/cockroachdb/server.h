@@ -36,17 +36,17 @@ class Server : public ::Server {
 
   Stats &GetStats();
 
+
  private:
   Stats stats;
   transport::Configuration config;
   KeyManager *keyManager;
+  transport::ReplicaAddress serverAddress;
   int groupIdx;
   int idx;
   int id;
   int numShards;
   int numGroups;
-  std::string host;
-  std::string port;
 };
 
 }  // namespace cockroachdb
