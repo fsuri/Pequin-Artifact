@@ -7,4 +7,4 @@ mobile VARCHAR(10),
 PRIMARY KEY (rollNumber, mobile));
 
 INSERT INTO students (rollNumber, name, class, section, mobile) 
-VALUES (1, 'BEN','FOURTH"', 'B', '4204206969');
+VALUES (1, 'BEN','FOURTH', 'B', '4204206969');
