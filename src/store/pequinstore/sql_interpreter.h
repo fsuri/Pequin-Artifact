@@ -111,8 +111,6 @@ class SQLTransformer {
     
         bool CheckColConditions(std::string_view &cond_statement, std::string &table_name, std::map<std::string, std::string> &p_col_value);
         bool CheckColConditions(std::string_view &cond_statement, ColRegistry &col_registry, std::map<std::string, std::string> &p_col_value);
-            void GetNextOperator(std::string_view &cond_statement, size_t &op_pos, size_t &op_pos_post, op_t &op_type);
-            void MergeColConditions(op_t &op_type, ColRegistry &col_registry, std::map<std::string, std::string> &l_p_col_value, std::map<std::string, std::string> &r_p_col_value);
 
         enum op_t {
             SQL_START,
@@ -121,6 +119,14 @@ class SQLTransformer {
             SQL_OR,
             SQL_SPECIAL //e.g. IN or BETWEEN
         };
+
+        bool CheckColConditionsDumb(std::string_view &cond_statement, ColRegistry &col_registry, std::map<std::string, std::string> &p_col_value);
+        bool CheckColConditions(size_t &end, std::string_view cond_statement, ColRegistry &col_registry, std::map<std::string, std::string> &p_col_value, bool &terminate_early);
+            void ExtractColCondition(std::string_view cond_statement, ColRegistry &col_registry, std::map<std::string, std::string> &p_col_value);
+            void GetNextOperator(std::string_view &cond_statement, size_t &op_pos, size_t &op_pos_post, op_t &op_type);
+            bool MergeColConditions(op_t &op_type, std::map<std::string, std::string> &l_p_col_value, std::map<std::string, std::string> &r_p_col_value);
+
+        
 };
 
 
