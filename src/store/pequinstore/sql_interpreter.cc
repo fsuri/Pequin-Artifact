@@ -4,8 +4,7 @@
  * store/pequinstore/client.cc:
  *   Client to INDICUS transactional storage system.
  *
- * Copyright 2021 Florian Suri-Payer <fsp@cs.cornell.edu>
- *                Matthew Burke <matthelb@cs.cornell.edu>
+ * Copyright 2023 Florian Suri-Payer <fsp@cs.cornell.edu>
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -48,7 +47,6 @@
 namespace pequinstore {
 
 using namespace std;
-
 
 
 //TODO: Table Write byte encoding  --- Should be doable server side
@@ -146,33 +144,6 @@ void SQLTransformer::TransformWriteStatement(std::string &_write_statement,
     }
     //Case 4) REPLACE INTO:  Probably don't want to support either -- could turn into a Delete + Insert. Or just make it a blind write for efficiency
     //Case 4) SELECT INTO : Not supported, write statement as Select followed by Insert Into (new table)? Or parse into INSERT INTO statement with nested SELECT (same logic)
-
-    
-    
-    
-    // write_continuation = [this](query_result::QueryResult *result){
-
-    //   sql::QueryResultProtoWrapper *write_result = new sql::QueryResultProtoWrapper(""); //TODO: replace with real result. Create proto builder and set rows affected somehow..
-    //   uint32_t n_rows_affected = 0;
-    //   write_result->set_rows_affected(n_rows_affected);
-    //   return write_result;
-    // }; // = //Some function that takes ResultObject as input and issue the write statements.
-        //  for result-row in result{
-        //     EncodeTableRow (use primary_key_encoding to derive it from the table and column_list)
-        //     Find Ts in ReadSet 
-        //     CreateTable Write entry with Timestamp and the rows to be updated. -- Note: Timestamp identifies the row from which no copy from -> i.e. the one thats updated.
-                      //ReadSet is already cached as part of txn-> -- Right version can be found by just looking up the latest query seq in the txn->. TODO: if we want parallel writes (async) then we might need to identify
-                      //Result ReadSet key can be inferred from Result Primary key.
-                       //Version can be looked up by checking read set for this key (currently would have to loop -- but may want to turn into a map)
-                              //If these two methods are not possible after all, then must modify sync to parameterize the fact that it is part of a "read-modify-write" 
-                                                          //--> should explicitly label all entries in Read Set that belong to result rows... or must include full row here.
-            // WriteMessage *write = txn->add_write_set();
-            // write->set_key(key); //TODO: key = EncodeTableRow(table_name, primary_key)
-            // *write->mutable_rowupdates(); //TODO: Set these.
-            // *write->mutable_readtime()...//TODO Set this.
-        //   }
-    /////////////////
-
 }
 
 void SQLTransformer::TransformInsert(size_t pos, std::string_view &write_statement,
@@ -189,7 +160,7 @@ void SQLTransformer::TransformInsert(size_t pos, std::string_view &write_stateme
 
     std::string table_name;
     std::vector<std::string> column_list;
-    std::vector<std::string> value_list;
+    std::vector<std::string_view> value_list;
 
     //1 Remove insert hook
     write_statement = write_statement.substr(pos + insert_hook.length()-1);
@@ -205,72 +176,84 @@ void SQLTransformer::TransformInsert(size_t pos, std::string_view &write_stateme
     //3) Extract table
     //std::string table_col = write_statement.substr(0, pos);
     // Look for "(" (before end)
-    pos = table_col_statement.find("(", 0); //Look only until start of values_hook   // Might be easier if we just create substring.
+    pos = table_col_statement.find("("); //Look only until start of values_hook   // Might be easier if we just create substring.
     //NOTE: With TableRegistry extractic columsn is obsolete.
-    if(false || pos == std::string::npos){ //if > val_pos then we found the "(" for Values
+    if(pos == std::string::npos){ //if > val_pos then we found the "(" for Values
         // If "(" doesn't exist --> whole string is table_name.. Throw error -> can't compute Select Statement
         table_name = std::move(static_cast<std::string>(table_col_statement));
-        //TODO: automatically infer column names from table registry.
-        Panic("Codebase requires INSERT statement to contain (at least primary) column names for translation into SELECT statement");
+        //Panic("Codebase requires INSERT statement to contain (at least primary) column names for translation into SELECT statement");
     }
     else{
         //Extract table name
         table_name = std::move(static_cast<std::string>(table_col_statement.substr(0, pos)));
 
         //Remove "()"
-        std::string_view col_statement = table_col_statement.substr(pos);
-        col_statement.remove_prefix(1); //remove "("
-        pos = col_statement.find(")"); 
-        UW_ASSERT(pos != std::string::npos);
-        col_statement.remove_suffix(1); //remove ")"
+        //NOTE: with col registry there is no longer a need to parse cols.
+        if(false){
+             std::string_view col_statement = table_col_statement.substr(pos);
+            col_statement.remove_prefix(1); //remove "("
+            pos = col_statement.find(")"); 
+            UW_ASSERT(pos != std::string::npos);
+            col_statement.remove_suffix(1); //remove ")"
 
-        // split on ", "
-        // add item inbetween to cols vector   -- only search until 
-        size_t next_col;
-        while((next_col = col_statement.find(", ")) != string::npos){
-            column_list.push_back(std::move(static_cast<std::string>(col_statement.substr(0, next_col))));
-            col_statement = col_statement.substr(next_col + 2);
+            // split on ", "
+            // add item inbetween to cols vector   -- only search until 
+            if(false){
+                size_t next_col;
+                while((next_col = col_statement.find(", ")) != string::npos){
+                    column_list.push_back(std::move(static_cast<std::string>(col_statement.substr(0, next_col))));
+                    col_statement = col_statement.substr(next_col + 2);
+                }
+                column_list.push_back(std::move(static_cast<std::string>(col_statement))); //push back last col (only remaining).
+                }
         }
-        column_list.push_back(std::move(static_cast<std::string>(col_statement))); //push back last col (only remaining).
-        
         // Done.
     }
     
-    
-
     //4) Extract values
     // Remove "()"
     pos = values_statement.find("("); //Look only from after values_hook  
     UW_ASSERT(pos != std::string::npos);
     values_statement.remove_prefix(1); //remove "("
-    pos = values_statement.find(")"); //Look only from after values_hook  
+    pos = values_statement.find_last_of(")"); //Look only from after values_hook  
     UW_ASSERT(pos != std::string::npos);
     values_statement.remove_suffix(values_statement.length()-pos); //remove ")"
 
+    //Check that there are no nested Selects
+    pos = values_statement.find("SELECT");
+    if(pos != std::string::npos) Panic("Pequinstore does not support Write Parsing for Inserts with nested Select statements. Please write the statements sequentially");
+    //Note: If we wanted to support nested Inserts: We'd have to parse all present Selects, execute them in parallel ideally, and pass the write_cont as callback that is exec once all select results ready...
+         //E.g. Value might be a nested Select + arithmetic. Extract Select statement and create a callback that adds result to a map<col_name, select>. 
+                                                         // Then execute all the select statements to find all relevant values. 
+                                                         // Once callback is notified that alls selects are done --> call write_cont with the result map
+                                                         // Alternatively: Extract all selects and store any arithmetic (cont statements) in a map
+                                                                            //Then Union all the selects and perform as one query --> produces one query result
+                                                                            //Callback Write_cont ==> Loop through results and apply update with arithmetic.
+
     // split on ", "
-    // add item inbetween to values vector                                     //TODO: Value might be a nested Select + arithmetic. Extract Select statement and add to a map<col_name, select>. 
-                                                                               // Then execute all the select statements to find all relevant values.
-                                                                               // Then Union all the selects and perform as one query --> produces one query result
-                                                                               // Loop through results and apply update with arithmetic.
+    // add item inbetween to values vector                                    
     size_t next_val;                                                                
     while((next_val = values_statement.find(", ")) != string::npos){
-        value_list.push_back(std::move(static_cast<std::string>(values_statement.substr(0, next_val))));
+        value_list.push_back(values_statement.substr(0, next_val)); //value_list.push_back(std::move(static_cast<std::string>(values_statement.substr(0, next_val))));
         values_statement = values_statement.substr(next_val+2);
     }
-    value_list.push_back(std::move(static_cast<std::string>(values_statement))); //push back last value (only remaining).
+    value_list.push_back(std::move(values_statement)); //value_list.push_back(std::move(static_cast<std::string>(values_statement))); //push back last value (only remaining).
+
     // Done.
             
-    UW_ASSERT(value_list.size() == column_list.size()); //Require to pass all columns currently.
-    UW_ASSERT(column_list.size() >= 1); // At least one column specified (e.g. single column primary key)
+    //UW_ASSERT(value_list.size() == column_list.size()); //Require to pass all columns currently.
+    //UW_ASSERT(column_list.size() >= 1); // At least one column specified (e.g. single column primary key)
+     //UW_ASSERT(column_list.size() >= 1); // At least one column specified (e.g. single column primary key)
         
 
     ///////// //Create Read statement:  ==> Ideally for Inserts we'd just use a point get on the primary keys. (instead of a sql select statement that's a bit overkill)
-    //TODO: What about nested statements.
-    std::vector<const std::string*> primary_key_column_values;
+    
+    std::vector<const std::string_view*> primary_key_column_values;
 
     const ColRegistry &col_registry = TableRegistry[table_name];
+    UW_ASSERT(value_list.size() == col_registry.col_name_type.size());
 
-    if(false){  //TODO: NOTE: FIXME: DO NOT NEED TO CREATE ANY READ STATEMENT FOR SINGLE ROW INSERTS. ==> Just set read version = 0 (TODO: Confirm OCC check will check vs latest version = delete)
+    if(false){  //NOTE: DO NOT NEED TO CREATE ANY READ STATEMENT FOR SINGLE ROW INSERTS. ==> Just set read version = 0 (TODO: Confirm OCC check will check vs latest version = delete)
                     //THIS WAY WILL SAVE QUERY ROUNDTRIP + WONT HAVE TO REMOVE TABLE VERSION POSSIBLY ADDED BY SCAN
             read_statement = "SELECT ";  
         //insert primary columns --> Can already concat them with delimiter:   col1  || '###' || col2 ==> but then how do we look up column?  
@@ -285,9 +268,11 @@ void SQLTransformer::TransformInsert(size_t pos, std::string_view &write_stateme
 
         read_statement += " WHERE ";
         for(auto [col_name, p_idx]: col_registry.primary_key_cols_idx){
-            const std::string &val = value_list[p_idx];
+            const std::string_view &val = value_list[p_idx];
             //read_statement += column_list[p_idx] + " = " + val + ", ";
-            read_statement += col_name + " = " + val + ", ";
+            read_statement += col_name + " = ";
+            read_statement += val;
+            read_statement += ", ";
             primary_key_column_values.push_back(&val);
         }
         //insert primary col conditions.
@@ -297,7 +282,7 @@ void SQLTransformer::TransformInsert(size_t pos, std::string_view &write_stateme
     }
     else{
         for(auto [col_name, p_idx]: col_registry.primary_key_cols_idx){
-            const std::string &val = value_list[p_idx];
+            const std::string_view &val = value_list[p_idx];
             primary_key_column_values.push_back(&val);
         }
     }
@@ -310,7 +295,6 @@ void SQLTransformer::TransformInsert(size_t pos, std::string_view &write_stateme
         //TODO: Does one need to use status? --> Query should not fail?
         if(result->empty()){
             
-
             //Read genesis timestamp (0) ==> FIXME: THIS CURRENTLY DOES NOT WORK WITH EXISTING OCC CHECK.
             ReadMessage *read = txn->add_read_set();
             read->set_key(enc_key);
@@ -352,30 +336,29 @@ void SQLTransformer::TransformInsert(size_t pos, std::string_view &write_stateme
 
 
 static std::string eq_hook = " = ";
-void SQLTransformer::ParseColUpdate(std::string_view col_update, std::map<std::string, Col_Update> &col_updates){
+void SQLTransformer::ParseColUpdate(std::string_view col_update, std::map<std::string_view, Col_Update> &col_updates){
 
     //split on "=" into col and update
         size_t pos = col_update.find(eq_hook);
         UW_ASSERT(pos != std::string::npos);
 
         //Then parse Value based on operands.
-        Col_Update &val = col_updates[std::move(static_cast<std::string>(col_update.substr(0, pos)))];
-         // std::cerr << "ColUp for col: " << static_cast<std::string>(col_update.substr(0, pos)) << std::endl;
+        Col_Update &val = col_updates[col_update.substr(0, pos)]; // col_updates[std::move(static_cast<std::string>(col_update.substr(0, pos)))];
         col_update.remove_prefix(pos + eq_hook.length());
 
         // find val.  //TODO: Add support for nesting if necessary.
         pos = col_update.find_first_of("+-*/");
         //pos = col_update.find(" ");
         if(pos == std::string::npos){  //is string statement
-            val.l_value = std::move(static_cast<std::string>(col_update));
+            val.l_value = col_update; //std::move(static_cast<std::string>(col_update));
             val.has_operand = false;
         }
         else{
             val.has_operand = true;
             //Parse operand; //Assuming here it is of simple form:  x <operand> y  and operand = {+, -, *, /}   Note: Assuming all values are Integers. For "/" will cast to float.
-            val.l_value = std::move(static_cast<std::string>(col_update.substr(0, pos-1)));
-            val.operand = std::move(static_cast<std::string>(col_update.substr(pos, 1)));
-            val.r_value = std::move(static_cast<std::string>(col_update.substr(pos+2)));
+            val.l_value = col_update.substr(0, pos-1);//std::move(static_cast<std::string>(col_update.substr(0, pos-1)));
+            val.operand = col_update.substr(pos, 1);//std::move(static_cast<std::string>(col_update.substr(pos, 1)));
+            val.r_value = col_update.substr(pos+2);//std::move(static_cast<std::string>(col_update.substr(pos+2)));
         }
 }
 
@@ -389,7 +372,7 @@ void SQLTransformer::TransformUpdate(size_t pos, std::string_view &write_stateme
     //             write_cont: for (column = value) statement, create TableWrite with primary column encoded key, column_list, and column_values (or direct inputs)
 
     std::string table_name;
-    std::map<std::string, Col_Update> col_updates;
+    std::map<std::string_view, Col_Update> col_updates;
     std::string_view where_cond;
 
     //1 Remove insert hook
@@ -435,27 +418,25 @@ void SQLTransformer::TransformUpdate(size_t pos, std::string_view &write_stateme
     UW_ASSERT(col_updates.size() >= 1); // At least one column specified to be updated
         
     ///////// //Create Read statement:  Just Select * with Where condition
-            //==> Ideally for Updates we'd just select on the primary key columns. (instead of a sql select * statement that's a bit overkill)
+            //==> TODO: Ideally for Updates we'd just select on the primary key columns. (instead of a sql select * statement which is a bit overkill)
             //std::vector<const std::string*> primary_key_column_values;
-
     read_statement = "SELECT * FROM ";
     read_statement += table_name;
     read_statement += where_cond;  //Note: Where cond starts with a " " and ends with ";"
        
        
     //////// Create Write continuation:  
+    //Note: Reading and copying all column values ("Select *"")
+        //Could optimize to only read select columns, and supply read time TS to copy on demand at write time. (Note: This is tricky if the replica does not own the read version)
+        // --> Procedure:
+               // CreateTable Write entry with Timestamp and the column values to be updated. Note: Timestamp identifies the row from which no copy from -> i.e. the one thats updated.
+               // Include additionally the read version of the row that was read. This is already part of the read set of the txn --> can be found by looking up latest query seq in the txn.
+               // For each row in result, map primary key to the primary key in the query read set to identify the read version.
+               // Note: if we want to support parallel writes (async) then we might need to identify the query explicitly (rather than just checking the latest query seq)
+                                        
     write_continuation = [this, wcb, table_name, col_updates](int status, query_result::QueryResult* result){
 
         ColRegistry &col_registry = TableRegistry[table_name];
-
-        // std::cerr << "PRINT REGISTRY" << std::endl;
-        // //TESTING
-        // for(auto &[col_name, type]: col_registry.col_name_type){
-        //     std::cerr << "col_name[" << col_name << "] type[" << type << "]" << std::endl;
-        // }
-        //  for(auto &[col_name, idx]: col_registry.primary_key_cols_idx){
-        //     std::cerr << "col_name[" << col_name << "] type[" << idx << "]" << std::endl;
-        // }
 
          //Write Table Version itself. //Only for kv-store.
         WriteMessage *table_ver = txn->add_write_set();
@@ -477,13 +458,14 @@ void SQLTransformer::TransformUpdate(size_t pos, std::string_view &write_stateme
                 std::unique_ptr<query_result::Field> field = (*row)[j];
               
                 //Deserialize encoding to be a stringified type (e.g. whether it's int/bool/string store all as normal readable string)
-                std::string field_val(DecodeType(field, col_registry.col_name_type[col]));
+                auto field_val(DecodeType(field, col_registry.col_name_type[col]));
+                //std::string field_val(DecodeType(field, col_registry.col_name_type[col]));
 
                 if(col_registry.primary_key_cols.count(col)){
                       // //Isolate primary keys ==> create encoding and table write
-                    primary_key_column_values.push_back(field_val);
+                    primary_key_column_values.emplace_back(std::visit(StringVisitor(), field_val));
                 }
-                std::cerr << "Checking column " << col << " with field " << field_val << std::endl;
+                //std::cerr << "Checking column " << col << " with field " << std::visit(StringVisitor(), field_val) << std::endl;
                 
                 (*write->mutable_rowupdates()->mutable_attribute_writes())[col] = std::move(GetUpdateValue(col, field_val, field, col_updates));
                 //Replace value with col value if applicable. Then operate arithmetic by casting ops to uint64_t and then turning back to string.
@@ -494,60 +476,71 @@ void SQLTransformer::TransformUpdate(size_t pos, std::string_view &write_stateme
             write->set_key(enc_key);
         }
 
-          
-          
-        
-     
         result->set_rows_affected(result->size()); 
         wcb(REPLY_OK, result);
         
     };
 }
 
-std::string SQLTransformer::GetUpdateValue(const std::string &col, std::string &field_val, std::unique_ptr<query_result::Field> &field, const std::map<std::string, Col_Update> &col_updates){
+std::string_view SQLTransformer::GetUpdateValue(const std::string &col, std::variant<bool, int32_t, std::string> &field_val, std::unique_ptr<query_result::Field> &field, const std::map<std::string_view, Col_Update> &col_updates){
 
      //Copy all column values (unless in col_updates)
             //Replace update value with read col value if applicable. 
             //Then operate arithmetic by casting ops to uint64_t and then turning back to string.
 
-
     auto itr = col_updates.find(col);
-    if(itr != col_updates.end()){
-        std::cerr << "replacing col: " << col << std::endl;
+    if(itr == col_updates.end()){ //No update for the column --> just copy
+        return std::move(std::visit(StringVisitor(), field_val)); 
+    }
+    else{ //There is update for the column -> assign new value: possibly replace col:
+        //std::cerr << "replacing col: " << col << std::endl;
         //Update value.
         const Col_Update &col_update = itr->second;
         if(col_update.has_operand){
-            std::cerr << "update has operand: " << col_update.operand << std::endl;
-                std::cerr << "lvalue = " << col_update.l_value << std::endl;
-            uint64_t l_value;
-            uint64_t r_value;
+            //std::cerr << "update has operand: " << col_update.operand << std::endl;
+                //std::cerr << "lvalue = " << col_update.l_value << std::endl;
+            int32_t l_value;
+            int32_t r_value;
             //TODO: Check if l_value needs to be replaced
             //Search Col by name... 
             //FIXME: For now just use current col -- I assume that's always the case tbh..
             if(col_update.l_value == field->name()){
-                std::istringstream iss(field_val);
-                iss.exceptions(std::ios::failbit | std::ios::badbit);
-                iss >> l_value;  
-                    std::cerr << "lvalue = " << l_value << std::endl;
+                try {
+                    l_value = std::get<int32_t>(field_val);
+                }
+                catch (std::bad_variant_access&) {
+                    Panic("Could not extract numeric type (int32_t) from field_val variant");
+                }
+
+                // std::istringstream iss(field_val);
+                // iss.exceptions(std::ios::failbit | std::ios::badbit);
+                // iss >> l_value;  
+                //std::cerr << "lvalue = " << l_value << std::endl;
             }
             else{ //Otherwise l_value is already the number...
-                std::istringstream iss(col_update.l_value);
+                std::istringstream iss(static_cast<std::string>(col_update.l_value));
                 iss >> l_value;  
             }
 
-                if(col_update.r_value == field->name()){
-                std::istringstream iss(field_val);
-                iss >> r_value;  
+            if(col_update.r_value == field->name()){
+                try {
+                    r_value = std::get<int32_t>(field_val);
+                }
+                catch (std::bad_variant_access&) {
+                    Panic("Could not extract numeric type (int32_t) from field_val variant");
+                }
+                // std::istringstream iss(field_val);
+                // iss.exceptions(std::ios::failbit | std::ios::badbit);
+                // iss >> r_value;  
             }
             else{ //Otherwise l_value is already the number...
-                std::istringstream iss(col_update.r_value);
+                std::istringstream iss(static_cast<std::string>(col_update.r_value));
                 iss >> r_value;  
             }
 
-            uint64_t output;
+            int32_t output;
             if(col_update.operand == "+"){
                 output = l_value + r_value;
-                std::cerr << "output = " << output << std::endl;
             }
             else if(col_update.operand == "-"){
                 output = l_value - r_value;
@@ -562,23 +555,21 @@ std::string SQLTransformer::GetUpdateValue(const std::string &col, std::string &
                 Panic("Unsupported operand %s", col_update.operand);
             }
             
-            
+            //std::cerr << "output = " << output << std::endl;
            return std::to_string(output);
         }
         else{
             //Replace col value if it's a placeholder:  ///FIXME: Currently this just takes the same col name, i.e. it keeps the value the same... NOTE: Should never be triggered
             if(col_update.l_value == field->name()){
                 Panic("Placeholder should not be existing column value");
-                return std::move(field_val);
+                return std::move(std::visit(StringVisitor(), field_val));
             }
             else{
                 return std::move(col_update.l_value);
             }
         }
     }
-    else{
-        return std::move(field_val); 
-    }
+    
 }
 
 
@@ -615,15 +606,9 @@ void SQLTransformer::TransformDelete(size_t pos, std::string_view &write_stateme
     //TODO: For now do naive split; but then improve to do delete analysis (if single row --> don't need to Select)
     //Smart interpreter: 
        //Split all conditions on AND/OR; check if primary col and if find operand =
-    ColRegistry &col_registry = TableRegistry[table_name]; //TODO: Pass & to continuation.
+   
     std::map<std::string, std::string> p_col_values;
-    //TODO: drop where cond semi colon.. Add it back later
-  
-    pos = where_cond.find(";");
-    if(pos != std::string::npos){
-        where_cond.remove_suffix(where_cond.length()-pos);
-    }
-    bool is_point_delete = CheckColConditionsDumb(where_cond, col_registry, p_col_values);
+    bool is_point_delete = CheckColConditions(where_cond, table_name, p_col_values);
     skip_query_interpretation = true;
 
     if(is_point_delete){
@@ -654,14 +639,17 @@ void SQLTransformer::TransformDelete(size_t pos, std::string_view &write_stateme
         //Return
     }
 
+    //Else: Is Query Delete
+
     read_statement = "SELECT * FROM ";  //TODO: Ideally select only primary column rows. To support this, need rows to allow access to columns by name (and not just index)
     read_statement += table_name;
     read_statement += " WHERE ";
     read_statement += where_cond; 
-    read_statement += ";";
-
+    
      //////// Create Write continuation:  
-    write_continuation = [this, wcb, table_name, col_registry_ptr = &col_registry](int status, query_result::QueryResult* result){
+    write_continuation = [this, wcb, table_name](int status, query_result::QueryResult* result){
+
+         ColRegistry &col_registry = TableRegistry[table_name]; 
 
          //Write Table Version itself. //Only for kv-store.
         WriteMessage *table_ver = txn->add_write_set();
@@ -674,13 +662,13 @@ void SQLTransformer::TransformDelete(size_t pos, std::string_view &write_stateme
 
            
             std::vector<std::string> primary_key_column_values;
-            for(auto [col_name, idx]: col_registry_ptr->primary_key_cols_idx){
+            for(auto [col_name, idx]: col_registry.primary_key_cols_idx){
                 
                 std::unique_ptr<query_result::Field> field = (*row)[idx];
                
                 //Deserialize encoding to be a stringified type (e.g. whether it's int/bool/string store all as normal readable string)
-                std::string field_val(DecodeType(field, col_registry_ptr->col_name_type[col_name]));
-                primary_key_column_values.push_back(field_val);
+                auto field_val(DecodeType(field, col_registry.col_name_type[col_name]));
+                primary_key_column_values.emplace_back(std::visit(StringVisitor(), field_val));
             }
 
             std::string enc_key = EncodeTableRow(table_name, primary_key_column_values);
@@ -699,111 +687,76 @@ void SQLTransformer::TransformDelete(size_t pos, std::string_view &write_stateme
 
 
 
-std::string DecodeType(std::unique_ptr<query_result::Field> &field, std::string &col_type){
+std::variant<bool, int32_t, std::string> DecodeType(std::unique_ptr<query_result::Field> &field, std::string &col_type){
     size_t nbytes;
     const char* field_val_char = field->get(&nbytes);
     std::string field_val(field_val_char, nbytes);
     return DecodeType(field_val, col_type);
 }
 
-
-// struct SampleVisitor  //TODO: define these functions such that this calls the logic depending on the type...
-// {
-//     void operator()(int i) const { 
-//         std::cout << "int: " << i << "\n"; 
-//     }
-//     void operator()(float f) const { 
-//         std::cout << "float: " << f << "\n"; 
-//     }
-//     void operator()(const std::string& s) const { 
-//         std::cout << "string: " << s << "\n"; 
-//     }
-// };
-
-//std::variant<int32_t, std::string, bool>
-std::string DecodeType(std::string &enc_value, std::string &col_type){
-    std::string dec_value = "";
-
-    //TODO: Note: currently the generated types are PostGresSQL types. We could however also input "normal types" and transform them into SQL types only for Peloton.
-
-        //match on col_type
-        // types:
-        // BOOL 
-        // CHAR, VARCHAR, TEXT  --> string
-        // SMALLINT (2byteS) INT (4), BIGINT (8), DOUBLE () 
-        // TIMESTAMP (time and date)
-        // ARRAY []  // Parser for update must support this too.... --> turn into vector.  //TODO: add support: add vector.
-
-        std::variant<int32_t, bool, std::string, std::vector<int32_t>> test_variant;
-        test_variant = 10;
-        std::cerr << test_variant.index() << std::endl; //Index tells us the type..
-         if (const auto intPtr (std::get_if<int32_t>(&test_variant)); intPtr) 
-                std::cout << "int!" << *intPtr << "\n";
-        if (std::holds_alternative<int>(test_variant))
-        std::cout << "the variant holds an int!\n";
-
-        // try/catch and bad_variant_access
-        try 
-        {
-            auto f = std::get<bool>(test_variant); 
-            std::cout << "float! " << f << "\n";
-        }
-        catch (std::bad_variant_access&) 
-        {
-            std::cout << "our variant doesn't hold float at this moment...\n";
-        }
-
-        // visit:
-        //std::visit(SampleVisitor{}, test_variant);
-        
-
-        if(col_type == "VARCHAR"){
-
-            std::stringstream ss(std::ios::in | std::ios::out | std::ios::binary);
-            ss << enc_value;
-            {
-                cereal::BinaryInputArchive iarchive(ss); // Create an input archive
-                iarchive(dec_value); // Read the data from the archive
-            }
-
-        }
-        else if(col_type == "INT" || col_type == "BIGINT" || col_type == "SMALLINT"){
-            int64_t field_val;
-            std::stringstream ss(std::ios::in | std::ios::out | std::ios::binary);
-            ss << enc_value;
-            {
-                cereal::BinaryInputArchive iarchive(ss); // Create an input archive
-                iarchive(field_val); // Read the data from the archive
-            }
-            dec_value += field_val;
-        }
-        else if(col_type == "BOOL"){
-            bool field_val;
-            std::stringstream ss(std::ios::in | std::ios::out | std::ios::binary);
-            ss << enc_value;
-            {
-                cereal::BinaryInputArchive iarchive(ss); // Create an input archive
-                iarchive(field_val); // Read the data from the archive
-            }
-            dec_value += field_val;
-        }
-        else{
-            Panic("Types other than {VARCHAR, INT, BIGINT, SMALLINT, BOOL} Currently not supported");
-        }
-
-    return dec_value;  //Use decoding..
+template<typename T>
+void DeCerealize(std::string &enc_value, T &dec_value){
+    std::stringstream ss(std::ios::in | std::ios::out | std::ios::binary); 
+    ss << enc_value;
+    {
+        cereal::BinaryInputArchive iarchive(ss); // Create an input archive
+        iarchive(dec_value); // Read the data from the archive
+    }
 }
 
+std::variant<bool, int32_t, std::string> DecodeType(std::string &enc_value, std::string &col_type){
+    //Resource for std::variant: https://www.cppstories.com/2018/06/variant/ 
+   
+    //Note: currently the generated types are PostGresSQL types. We could however also input "normal types" and transform them into SQL types only for Peloton.
 
+    std::variant<bool, int32_t, std::string> type_variant;   //TODO: can pass variant to cereal? Then don't need all the redundant code
 
+    //match on col_type
+    if(col_type == "VARCHAR" || col_type == "TEXT"){
+        std::string dec_value;
+        DeCerealize(enc_value, dec_value);
+        type_variant = std::move(dec_value);
+    }
+    // else if(col_type == "TEXT []"){
+    //     std::vector<std::string> dec_value;
+    //     DeCerealize(enc_value, dec_value);
+    //     type_variant = std::move(dec_value);
+    // }
+    else if(col_type == "INT" || col_type == "BIGINT" || col_type == "SMALLINT"){ // SMALLINT (2byteS) INT (4), BIGINT (8), DOUBLE () 
+       
+        int32_t dec_value;
+        DeCerealize(enc_value, dec_value);
+        type_variant = std::move(dec_value);
+    }
+    // else if(col_type == "INT []" || col_type == "BIGINT []" || col_type == "SMALLINT []"){
+    //     std::vector<int32_t> dec_value;
+    //     DeCerealize(enc_value, dec_value);
+    //     type_variant = std::move(dec_value);
+    // }
+    else if(col_type == "BOOL"){
+        bool dec_value;
+        DeCerealize(enc_value, dec_value);
+        type_variant = std::move(dec_value);
+    }
+    else{
+        Panic("Types other than {VARCHAR, INT, BIGINT, SMALLINT, BOOL} Currently not supported");
+        //e.g. // TIMESTAMP (time and date) or Array []
+
+        //Note: Array will never be primary key, so realistically any update to array won't need to be translated to string, but could be encoded as cereal.
+        //Note: we don't seem to need Array type... --> Auctionmark only uses it for arguments.
+    }
+
+    return type_variant;  //Use decoding..
+}
+
+  
 // Read parser:
 
 //Note: input (cond_statement) contains everything following "WHERE" keyword
 bool SQLTransformer::CheckColConditions(std::string_view &cond_statement, std::string &table_name, std::map<std::string, std::string> &p_col_value){
     ColRegistry &col_registry = TableRegistry[table_name];
 
-    //TODO: //find ; if exists and remove.  (Either always, or remove before calling CheckConditions recursion)
-     size_t pos;
+    size_t pos;
 
     //Check for Nested queries --> Cannot be point read
     if((pos = cond_statement.find(select_hook)) != std::string::npos) return false; 
@@ -821,171 +774,6 @@ bool SQLTransformer::CheckColConditions(std::string_view &cond_statement, std::s
     }
 
     return CheckColConditions(cond_statement, col_registry, p_col_value);
-}
-
-bool SQLTransformer::CheckColConditionsDumb(std::string_view &cond_statement, ColRegistry &col_registry, std::map<std::string, std::string> &p_col_value){
-    //Returns false if should use Query Protocol (Sync or Eager)
-    //Returns true if should use Point Read Protocol
-
-    //Input: boolean conditions, concatenated by AND/OR. E.g. <cond1> AND <cond2> OR <cond3>
-   
-    //Condition most basic: All bools need to be pcol and be bound by AND
-        // any more --> false
-        // anything more fancy --> false
-
-    //split WHERE statement on AND/OR
-    size_t pos;
-  
-    if((pos = cond_statement.find(or_hook)) != std::string::npos){ //if OR exists.
-        return false;
-    }
-    else if((pos = cond_statement.find(in_hook)) != std::string::npos){ //if OR exists.
-        return false;
-    }
-    else if((pos = cond_statement.find(between_hook)) != std::string::npos){ //if OR exists.
-        return false;
-    }
-
-    if( (pos = cond_statement.find(and_hook)) != std::string::npos){ //if AND exists.
-        //split on and, return both sides.
-        std::string_view left_cond = cond_statement.substr(0, pos);
-        std::string_view right_cond = cond_statement.substr(pos + and_hook.length());
-
-         //split on = 
-        pos = left_cond.find(" = ");
-        if(pos == std::string::npos) return false;
-
-        //check left val;
-        std::string_view left = left_cond.substr(0, pos);
-        const std::string &left_str = static_cast<std::string>(left);
-        if(!col_registry.primary_key_cols.count(left_str)){ //if primary key and equality --> add value to map so we can compute enc_key for point read/write
-            return false;
-        }
-        p_col_value[std::move(left_str)] = left_cond.substr(pos + 3);
-        return CheckColConditions(right_cond, col_registry, p_col_value); //TODO: don't recurse (this re-checks all above statements) --> just while loop  
-                                                                            
-    }
-    else { //No more bindings.
-          //split on = 
-        pos = cond_statement.find(" = ");
-        if(pos == std::string::npos) return false;
-
-        //check left val;
-        std::string_view left = cond_statement.substr(0, pos);
-        const std::string &left_str = static_cast<std::string>(left);
-        if(!col_registry.primary_key_cols.count(left_str)){ //if primary key and equality --> add value to map so we can compute enc_key for point read/write
-            return false;
-        }
-        p_col_value[std::move(left_str)] = cond_statement.substr(pos + 3);
-        return p_col_value.size() == col_registry.primary_key_cols.size();
-    }
-
-    return false;
-}
-
-
-void SQLTransformer::ExtractColCondition(std::string_view cond_statement, ColRegistry &col_registry, std::map<std::string, std::string> &p_col_value){
-  
-    size_t pos = cond_statement.find(" = ");
-    if(pos == std::string::npos) return;
-
-    //check left val;
-    std::string_view left = cond_statement.substr(0, pos);
-    const std::string &left_str = static_cast<std::string>(left);
-    //if(col_registry.primary_key_cols.count(left_str)){ //if primary key and equality --> add value to map so we can compute enc_key for point read/write
-        p_col_value[std::move(left_str)] = cond_statement.substr(pos + 3);
-    //}
-    return;
-}
-
-void SQLTransformer::GetNextOperator(std::string_view &cond_statement, size_t &op_pos, size_t &op_pos_post, op_t &op_type){
-    
-    if((op_pos = cond_statement.find(and_hook)) != std::string::npos){ //if AND exists.
-        op_type = SQL_AND;
-        op_pos_post = op_pos + and_hook.length();
-    }
-    else if((op_pos = cond_statement.find(or_hook)) != std::string::npos){ //if OR exists.
-         op_type = SQL_OR;
-         op_pos_post = op_pos + or_hook.length();
-    }
-    else if((op_pos = cond_statement.find(in_hook)) != std::string::npos){ //if IN exists.
-         op_type = SQL_SPECIAL;
-         op_pos_post = op_pos + in_hook.length();
-    }
-    else if((op_pos = cond_statement.find(between_hook)) != std::string::npos){ //if BETWEEN exists.
-         op_type = SQL_SPECIAL;
-         op_pos_post = op_pos + between_hook.length();
-    }
-    else{
-        op_type = SQL_NONE;
-        op_pos = cond_statement.length();
-    }
-    return;
-        
-}
-
-bool SQLTransformer::MergeColConditions(op_t &op_type, std::map<std::string, std::string> &l_p_col_value, std::map<std::string, std::string> &r_p_col_value)
-{
-    switch (op_type) {
-        case SQL_NONE:
-            Panic("Should never be Merging Conditions on None");
-            break;
-        case SQL_START:
-        {
-            for(auto &[col, val]: r_p_col_value){
-                l_p_col_value[std::move(col)] = std::move(val);
-            }
-        }   
-            break;
-        case SQL_AND:  //Union of both subsets. Note: Values must be unique.
-        {
-            for(auto &col_val: r_p_col_value){
-                
-                auto itr = l_p_col_value.find(col_val.first);
-                if(itr == l_p_col_value.end()){
-                    l_p_col_value.insert(std::move(col_val));
-                }
-                else{
-                    if(col_val.second != l_p_col_value[col_val.first]) return false;
-                }
-
-
-                // auto [itr, new_col] = l_p_col_value.insert(std::move(col_val));
-                // if(!new_col){
-                //     std::cerr << "inserting: " << itr->first << ":" << itr->second << std::endl;
-                //     //exists already, check that both values were the same...
-                //     if(col_val.second != l_p_col_value[col_val.first]) return false; //TODO: FIXME: in this case we want to return false and terminate early.
-                //     //TODO: Is stack maybe just easier after all...
-                // }
-            }
-        }
-            break;
-        case SQL_OR: //Intersection of both subsets. Note: Values must be unique.
-        { 
-            std::map<std::string, std::string> i_p_col_value; //intersection
-            auto it_l = l_p_col_value.begin();
-            auto it_r = r_p_col_value.begin();
-            while(it_l != l_p_col_value.end() && it_r != r_p_col_value.end()){
-                if(it_l->first < it_r->first) ++it_l;
-                else if(it_l->first > it_r->first) ++it_r;
-                else{
-                    if(it_l->second == it_r->second) i_p_col_value[std::move(it_l->first)] = std::move(it_l->second);
-                    ++it_l;
-                    ++it_r;
-                }
-            }
-            l_p_col_value = std::move(i_p_col_value);
-        }    
-            break;
-        
-        default:   
-            NOT_REACHABLE();
-
-    }
-
-    r_p_col_value.clear(); //Clear right col keys
-    return true;
-  
 }
 
 
@@ -1016,15 +804,6 @@ bool SQLTransformer::CheckColConditions(std::string_view &cond_statement, ColReg
     // Return true at highest layer if both subsets bubbled up have all primary key cols (i.e are of size primary key cols)
 }
 
-//Returns true if computed active col set matches primary cols. (I.e. not more cols, and no less) 
-bool primary_key_compare(std::map<std::string, std::string> const &lhs, std::set<std::string> const &rhs) {
-
-    auto pred = [] (auto a, auto b)
-                   { return a.first == b; };
-
-    return lhs.size() == rhs.size()
-        && std::equal(lhs.begin(), lhs.end(), rhs.begin(), pred);
-} 
 
 //TODO: check that column type is primitive: If its array or Timestamp --> defer it to query engine.
 
@@ -1138,35 +917,171 @@ bool SQLTransformer::CheckColConditions(size_t &end, std::string_view cond_state
     }
 }
 
+void SQLTransformer::ExtractColCondition(std::string_view cond_statement, ColRegistry &col_registry, std::map<std::string, std::string> &p_col_value){
+  
+    size_t pos = cond_statement.find(" = ");
+    if(pos == std::string::npos) return;
+
+    //check left val;
+    std::string_view left = cond_statement.substr(0, pos);
+    const std::string &left_str = static_cast<std::string>(left);
+    //if(col_registry.primary_key_cols.count(left_str)){ //if primary key and equality --> add value to map so we can compute enc_key for point read/write
+        p_col_value[std::move(left_str)] = cond_statement.substr(pos + 3);
+    //}
+    return;
+}
+
+void SQLTransformer::GetNextOperator(std::string_view &cond_statement, size_t &op_pos, size_t &op_pos_post, op_t &op_type){
+    
+    if((op_pos = cond_statement.find(and_hook)) != std::string::npos){ //if AND exists.
+        op_type = SQL_AND;
+        op_pos_post = op_pos + and_hook.length();
+    }
+    else if((op_pos = cond_statement.find(or_hook)) != std::string::npos){ //if OR exists.
+         op_type = SQL_OR;
+         op_pos_post = op_pos + or_hook.length();
+    }
+    else if((op_pos = cond_statement.find(in_hook)) != std::string::npos){ //if IN exists.
+         op_type = SQL_SPECIAL;
+         op_pos_post = op_pos + in_hook.length();
+    }
+    else if((op_pos = cond_statement.find(between_hook)) != std::string::npos){ //if BETWEEN exists.
+         op_type = SQL_SPECIAL;
+         op_pos_post = op_pos + between_hook.length();
+    }
+    else{
+        op_type = SQL_NONE;
+        op_pos = cond_statement.length();
+    }
+    return;
+        
+}
+
+bool SQLTransformer::MergeColConditions(op_t &op_type, std::map<std::string, std::string> &l_p_col_value, std::map<std::string, std::string> &r_p_col_value)
+{
+    switch (op_type) {
+        case SQL_NONE:
+            Panic("Should never be Merging Conditions on None");
+            break;
+        case SQL_START:
+        {
+            for(auto &[col, val]: r_p_col_value){
+                l_p_col_value[std::move(col)] = std::move(val);
+            }
+        }   
+            break;
+        case SQL_AND:  //Union of both subsets. Note: Values must be unique.
+        {
+            for(auto &col_val: r_p_col_value){
+                
+                auto itr = l_p_col_value.find(col_val.first);
+                if(itr == l_p_col_value.end()){
+                    l_p_col_value.insert(std::move(col_val));
+                }
+                else{
+                    if(col_val.second != l_p_col_value[col_val.first]) return false;
+                }
 
 
+                // auto [itr, new_col] = l_p_col_value.insert(std::move(col_val));
+                // if(!new_col){
+                //     std::cerr << "inserting: " << itr->first << ":" << itr->second << std::endl;
+                //     //exists already, check that both values were the same...
+                //     if(col_val.second != l_p_col_value[col_val.first]) return false; //TODO: FIXME: in this case we want to return false and terminate early.
+                //     //TODO: Is stack maybe just easier after all...
+                // }
+            }
+        }
+            break;
+        case SQL_OR: //Intersection of both subsets. Note: Values must be unique.
+        { 
+            std::map<std::string, std::string> i_p_col_value; //intersection
+            auto it_l = l_p_col_value.begin();
+            auto it_r = r_p_col_value.begin();
+            while(it_l != l_p_col_value.end() && it_r != r_p_col_value.end()){
+                if(it_l->first < it_r->first) ++it_l;
+                else if(it_l->first > it_r->first) ++it_r;
+                else{
+                    if(it_l->second == it_r->second) i_p_col_value[std::move(it_l->first)] = std::move(it_l->second);
+                    ++it_l;
+                    ++it_r;
+                }
+            }
+            l_p_col_value = std::move(i_p_col_value);
+        }    
+            break;
+        
+        default:   
+            NOT_REACHABLE();
 
-// //Stack implementation:
-//TODO: Scan for parentheses and put their pos on a stack
-// When detecting a closing parentheses, pop stack and create string view for the cond between the 2 positions  (conds are popped in order from strongest binding to weakest)
-// buffer result on top (don't pop stack quite yet)
-// When evaluating AND/OR -> bubble up subsets. For AND take union of left and right subset, for OR take intersection.
-//Return final set. IsPoint == true if set == primary cols.
-//Implement Set as vector of (col, value) pairs. Values need to match too. ==> Else we're possibly trying to read 2 different rows. (Maybe both are point reads, but we'll just defer those cases to query.)
+    }
 
-    //1) Look for next ( or )  (use regex). If ( put on stack
+    r_p_col_value.clear(); //Clear right col keys
+    return true;
+  
+}
 
-    // std::vector.push_back(sub_result = null)
+///////////////// Old read parser
 
-    //If ) take top and create substring. 
-    //Store result of substring
+bool SQLTransformer::CheckColConditionsDumb(std::string_view &cond_statement, ColRegistry &col_registry, std::map<std::string, std::string> &p_col_value){
+    //Returns false if should use Query Protocol (Sync or Eager)
+    //Returns true if should use Point Read Protocol
 
+    //Input: boolean conditions, concatenated by AND/OR. E.g. <cond1> AND <cond2> OR <cond3>
+   
+    //Condition most basic: All bools need to be pcol and be bound by AND
+        // any more --> false
+        // anything more fancy --> false
 
-// bool SQLTransformer::CheckColConditions(size_t &end, std::string_view cond_statement, ColRegistry &col_registry, std::map<std::string, std::string> &p_col_value, bool terminate_early){
+    //split WHERE statement on AND/OR
+    size_t pos;
+  
+    if((pos = cond_statement.find(or_hook)) != std::string::npos){ //if OR exists.
+        return false;
+    }
+    else if((pos = cond_statement.find(in_hook)) != std::string::npos){ //if OR exists.
+        return false;
+    }
+    else if((pos = cond_statement.find(between_hook)) != std::string::npos){ //if OR exists.
+        return false;
+    }
 
-//     //Assumption: all () are left strong. I.e. statements are written with stronger bindings on left...
-//     typedef std::map<std::string, std::string> curr_p_col_value;
-//     std::vector<std::pair<std::string_view, curr_p_col_value>> stack;  //Store
+    if( (pos = cond_statement.find(and_hook)) != std::string::npos){ //if AND exists.
+        //split on and, return both sides.
+        std::string_view left_cond = cond_statement.substr(0, pos);
+        std::string_view right_cond = cond_statement.substr(pos + and_hook.length());
 
-//     //on open. --> add to stack
+         //split on = 
+        pos = left_cond.find(" = ");
+        if(pos == std::string::npos) return false;
 
-//     size_t pos = 0;
-// }
+        //check left val;
+        std::string_view left = left_cond.substr(0, pos);
+        const std::string &left_str = static_cast<std::string>(left);
+        if(!col_registry.primary_key_cols.count(left_str)){ //if primary key and equality --> add value to map so we can compute enc_key for point read/write
+            return false;
+        }
+        p_col_value[std::move(left_str)] = left_cond.substr(pos + 3);
+        return CheckColConditions(right_cond, col_registry, p_col_value); //TODO: don't recurse (this re-checks all above statements) --> just while loop  
+                                                                            
+    }
+    else { //No more bindings.
+          //split on = 
+        pos = cond_statement.find(" = ");
+        if(pos == std::string::npos) return false;
+
+        //check left val;
+        std::string_view left = cond_statement.substr(0, pos);
+        const std::string &left_str = static_cast<std::string>(left);
+        if(!col_registry.primary_key_cols.count(left_str)){ //if primary key and equality --> add value to map so we can compute enc_key for point read/write
+            return false;
+        }
+        p_col_value[std::move(left_str)] = cond_statement.substr(pos + 3);
+        return p_col_value.size() == col_registry.primary_key_cols.size();
+    }
+
+    return false;
+}
 
 
 //FIXME: Wrong: This Read parser assumed no parentheses & simply checked whether all statements were primary col -- disregarding semantics of AND and OR
@@ -1214,33 +1129,6 @@ bool SQLTransformer::CheckColConditions(size_t &end, std::string_view cond_state
 
 //     // if not, use query ;; pass an arg that tells query interpreter to skip interpretation we already know it must use query protocol.
 // }
-
-
-
-//FIXME: This parser tried to split on operator. However that is not really possible.
-// bool SQLTransformer::CheckColConditions(size_t &start, size_t &end, std::string_view &cond_statement, ColRegistry &col_registry, std::map<std::string, std::string> &l_p_col_value, std::map<std::string, std::string> &r_p_col_value){
-//TODO: Try recursing on operators? //not really possible....
-//     //Find first operator
-//     //Compute left value;
-//     //Recurse on right value (only until first closing partehn --> return end value)
-   
-//     size_t op_pos;
-//     uint8_t op_type;
-//     find_next_operator(cond_statement, op_pos, op_type);
-//     if(op_type == 2) return false;
-
-//     std::map<std::string, std::string> left_p_col_value;
-//     std::map<std::string, std::string> right_p_col_value;
-//     //1) Compute result on the left side:
-//             //a) Check for parentheses
-//             size_t pos = 0;
-//             pos = cond_statement.find_last_of("(", start, op_pos);
-//             //b) 
-
-//     //2) Compute result on the right side:
-
-// }
-
 
 
 

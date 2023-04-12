@@ -75,6 +75,31 @@ static std::string in_hook("IN");
 static std::string between_hook("BETWEEN");
 
 
+struct StringVisitor {
+    std::string operator()(int32_t &i) const { 
+        return std::to_string(i);
+    }
+    std::string operator()(bool &b) const { 
+        return std::to_string(b);
+    }
+    std::string operator()(std::string& s) const { 
+        return s;
+    }
+};
+
+// auto pred = [] (auto a, auto b)
+//                    { return a.first == b; };
+
+
+inline bool map_set_key_equality(const std::pair<std::string, std::string> &a, const std::string &b){
+    return a.first == b; 
+}
+
+//Returns true if computed active col set matches primary cols. (I.e. not more cols, and no less) 
+inline bool primary_key_compare(std::map<std::string, std::string> const &lhs, std::set<std::string> const &rhs) {
+    return lhs.size() == rhs.size() && std::equal(lhs.begin(), lhs.end(), rhs.begin(), map_set_key_equality);
+} 
+
 class SQLTransformer {
     public:
         SQLTransformer(){}
@@ -92,15 +117,15 @@ class SQLTransformer {
     private:
         proto::Transaction *txn;
         typedef struct Col_Update {
-            std::string l_value;
+            std::string_view l_value;
             bool has_operand;
-            std::string operand;
-            std::string r_value;
+            std::string_view operand;
+            std::string_view r_value;
         
             //TODO: cast all values to uint64 to perform operand
         } Col_Update;
-        void ParseColUpdate(std::string_view col_update, std::map<std::string, Col_Update> &col_updates);
-        std::string GetUpdateValue(const std::string &col, std::string &field_val, std::unique_ptr<query_result::Field> &field, const std::map<std::string, Col_Update> &col_updates);
+        void ParseColUpdate(std::string_view col_update, std::map<std::string_view, Col_Update> &col_updates);
+        std::string_view GetUpdateValue(const std::string &col, std::variant<bool, int32_t, std::string> &field_val, std::unique_ptr<query_result::Field> &field, const std::map<std::string_view, Col_Update> &col_updates);
 
         void TransformInsert(size_t pos, std::string_view &write_statement, 
             std::string &read_statement, std::function<void(int, query_result::QueryResult*)>  &write_continuation, write_callback &wcb);
@@ -152,8 +177,8 @@ class SQLTransformer {
 //1) decode, 2) turn into a string, 3) if arithmetic, turn uint64_, 4 -> turn back to string, 5) let Neil figure out 
 
 
-std::string DecodeType(std::unique_ptr<query_result::Field> &field, std::string &col_type);
+std::variant<bool, int32_t, std::string> DecodeType(std::unique_ptr<query_result::Field> &field, std::string &col_type);
 
-std::string DecodeType(std::string &enc_value, std::string &col_type);
+std::variant<bool, int32_t, std::string> DecodeType(std::string &enc_value, std::string &col_type);
 
 };

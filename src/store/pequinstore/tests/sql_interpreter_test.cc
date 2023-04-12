@@ -51,7 +51,7 @@ void test_registry(){
 
   //Table1:
   table_name = "user";
-  column_names_and_types.push_back(std::make_pair("col1", "VARCHAR"));
+  column_names_and_types.push_back(std::make_pair("col1", "INT"));
   column_names_and_types.push_back(std::make_pair("col2", "VARCHAR"));
   column_names_and_types.push_back(std::make_pair("col3", "VARCHAR"));
   primary_key_col_idx.push_back(0);
@@ -131,15 +131,30 @@ void test_update(){
   sql_interpreter.TransformWriteStatement(write_statement, read_statement, write_continuation, wcb);
 
 
-  std::vector<std::string> result_row;
-  result_row.push_back("5");
-  result_row.push_back("giraffe");
-  result_row.push_back("apple");
+  // std::vector<std::string> result_row;
+  // result_row.push_back("5");
+  // result_row.push_back("giraffe");
+  // result_row.push_back("apple");
   sql::QueryResultProtoBuilder queryResultBuilder;
   queryResultBuilder.add_column("col1");
   queryResultBuilder.add_column("col2");
   queryResultBuilder.add_column("col3");
-  queryResultBuilder.add_row(result_row.begin(), result_row.end());
+  //queryResultBuilder.add_row(result_row.begin(), result_row.end());  //FIXME: This encodes only 
+
+  RowProto *row = queryResultBuilder.new_row();
+  int32_t v1 = 5;
+  std::string v2("giraffe");
+  std::string v3("apple");
+  queryResultBuilder.AddToRow(row, v1);
+  queryResultBuilder.AddToRow(row, v2);
+  queryResultBuilder.AddToRow(row, v3);
+
+  // std::vector<void*> res_row;
+  // res_row.push_back(&v1);
+  // res_row.push_back(&v2);
+  // res_row.push_back(&v3);
+  // queryResultBuilder.add_row(res_row.begin(), res_row.end());
+
 
   std::string result = queryResultBuilder.get_result()->SerializeAsString();
   
@@ -185,15 +200,23 @@ void test_delete(){
   sql_interpreter.TransformWriteStatement(write_statement, read_statement, write_continuation, wcb);
 
 
-  std::vector<std::string> result_row;
-  result_row.push_back("5");
-  result_row.push_back("giraffe");
-  result_row.push_back("apple");
+  // std::vector<std::string> result_row;
+  // result_row.push_back("5");
+  // result_row.push_back("giraffe");
+  // result_row.push_back("apple");
   sql::QueryResultProtoBuilder queryResultBuilder;
   queryResultBuilder.add_column("col1");
   queryResultBuilder.add_column("col2");
   queryResultBuilder.add_column("col3");
-  queryResultBuilder.add_row(result_row.begin(), result_row.end());
+  //queryResultBuilder.add_row(result_row.begin(), result_row.end());
+
+  RowProto *row = queryResultBuilder.new_row();
+  int32_t v1 = 5;
+  std::string v2("giraffe");
+  std::string v3("apple");
+  queryResultBuilder.AddToRow(row, v1);
+  queryResultBuilder.AddToRow(row, v2);
+  queryResultBuilder.AddToRow(row, v3);
 
   std::string result = queryResultBuilder.get_result()->SerializeAsString();
   
@@ -326,19 +349,40 @@ int main() {
   test_cond();
 
   std::cerr << "test string view scope" << std::endl;
-  std::function<void()> f;
 
-  { 
+  std::vector<std::string_view> vec;
+ 
+
+  std::string t("test");
+  {
+    std::string_view s(t);
+    s.remove_prefix(2);
+    vec.push_back(s); //this creates a copy
+  }
+  std::cerr << (vec[0]) << std::endl;
+
+   std::function<void()> f;
+  
      std::string_view test {"hello"};
     std::cerr << test << std::endl;
 
-    f = [test](){
+    f = [test]() mutable {
+      test.remove_prefix(1);
       std::cerr << test << std::endl;
     };
-  }  
+   
 
   f();
- 
+  std::cerr << test << std::endl;
+
+  std::map<std::string_view, int> q;
+  q[t] = 1;
+
+  // std::map<std::string, int> r;
+  // std::string_view s(t);
+  // r[s] = 1;
+  //Can look up string_view with string, but not in reverse --> string is superset of string view
+
   return 0;
 }
 

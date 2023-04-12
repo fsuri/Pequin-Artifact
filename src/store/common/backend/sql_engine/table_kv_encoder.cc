@@ -28,6 +28,18 @@ std::string EncodeTableRow(const std::string &table_name, const std::vector<cons
   //return table_name + unique_delimiter + row_name;
 }
 
+std::string EncodeTableRow(const std::string &table_name, const std::vector<const std::string_view*> &primary_key_column_values){  //std::string &row_name
+  
+  //Note: Assuming unique delimiter that is neither part of table_nor string.
+  std::string encoding = table_name;
+  for(auto primary_column_value: primary_key_column_values){
+    encoding += unique_delimiter;
+    encoding += *primary_column_value;
+  }
+  return encoding;
+  //return table_name + unique_delimiter + row_name;
+}
+
 
 //NOTE: Returns row primary keys as strings here... TODO: At application to table, convert as appropriate. E.g. Int: stoi(), String: string()
 void DecodeTableRow(const std::string &enc_key, std::string &table_name, std::vector<std::string> &primary_key_column_values) {  //std::string &row_name){
