@@ -103,6 +103,9 @@ bool SQLTransformer::InterpretQueryRange(std::string &_query, std::string &table
     size_t from_pos = query_statement.find(from_hook);
     UW_ASSERT(from_pos != std::string::npos);
     query_statement.remove_prefix(from_pos + from_hook.length());
+
+    //If query contains a JOIN statement --> Cannot be point read.
+    if(size_t join_pos = query_statement.find(join_hook); join_pos != std::string::npos) return false; 
     
     size_t where_pos = query_statement.find(where_hook);
 
@@ -703,6 +706,20 @@ std::string DecodeType(std::unique_ptr<query_result::Field> &field, std::string 
     return DecodeType(field_val, col_type);
 }
 
+
+// struct SampleVisitor  //TODO: define these functions such that this calls the logic depending on the type...
+// {
+//     void operator()(int i) const { 
+//         std::cout << "int: " << i << "\n"; 
+//     }
+//     void operator()(float f) const { 
+//         std::cout << "float: " << f << "\n"; 
+//     }
+//     void operator()(const std::string& s) const { 
+//         std::cout << "string: " << s << "\n"; 
+//     }
+// };
+
 //std::variant<int32_t, std::string, bool>
 std::string DecodeType(std::string &enc_value, std::string &col_type){
     std::string dec_value = "";
@@ -715,7 +732,30 @@ std::string DecodeType(std::string &enc_value, std::string &col_type){
         // CHAR, VARCHAR, TEXT  --> string
         // SMALLINT (2byteS) INT (4), BIGINT (8), DOUBLE () 
         // TIMESTAMP (time and date)
-        // ARRAY []  // Parser for update must support this too.... --> turn into vector.
+        // ARRAY []  // Parser for update must support this too.... --> turn into vector.  //TODO: add support: add vector.
+
+        std::variant<int32_t, bool, std::string, std::vector<int32_t>> test_variant;
+        test_variant = 10;
+        std::cerr << test_variant.index() << std::endl; //Index tells us the type..
+         if (const auto intPtr (std::get_if<int32_t>(&test_variant)); intPtr) 
+                std::cout << "int!" << *intPtr << "\n";
+        if (std::holds_alternative<int>(test_variant))
+        std::cout << "the variant holds an int!\n";
+
+        // try/catch and bad_variant_access
+        try 
+        {
+            auto f = std::get<bool>(test_variant); 
+            std::cout << "float! " << f << "\n";
+        }
+        catch (std::bad_variant_access&) 
+        {
+            std::cout << "our variant doesn't hold float at this moment...\n";
+        }
+
+        // visit:
+        //std::visit(SampleVisitor{}, test_variant);
+        
 
         if(col_type == "VARCHAR"){
 
@@ -755,11 +795,18 @@ std::string DecodeType(std::string &enc_value, std::string &col_type){
 }
 
 
+
+// Read parser:
+
+//Note: input (cond_statement) contains everything following "WHERE" keyword
 bool SQLTransformer::CheckColConditions(std::string_view &cond_statement, std::string &table_name, std::map<std::string, std::string> &p_col_value){
     ColRegistry &col_registry = TableRegistry[table_name];
 
     //TODO: //find ; if exists and remove.  (Either always, or remove before calling CheckConditions recursion)
      size_t pos;
+
+    //Check for Nested queries --> Cannot be point read
+    if((pos = cond_statement.find(select_hook)) != std::string::npos) return false; 
 
     //Remove Order By condition for parsing
     pos = cond_statement.find(order_hook);
@@ -980,13 +1027,10 @@ bool primary_key_compare(std::map<std::string, std::string> const &lhs, std::set
 } 
 
 //TODO: check that column type is primitive: If its array or Timestamp --> defer it to query engine.
-//TODO: fix terminate early.
+
 //Note: Don't pass cond_statement by reference inside recursion.
 bool SQLTransformer::CheckColConditions(size_t &end, std::string_view cond_statement, ColRegistry &col_registry, std::map<std::string, std::string> &p_col_value, bool &terminate_early){
-    //Assuming all where clauses are within ()  //TODO: update.
-    //Assume each operand is covered by parentheses). E.g. x=1 AND y=2 AND z = 3 ==> (x = 1 AND y=2) AND z = 3
-
- 
+   
     std::map<std::string, std::string> &left_p_col_value = p_col_value;
     std::map<std::string, std::string> right_p_col_value;
 

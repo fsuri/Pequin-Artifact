@@ -50,21 +50,30 @@ namespace pequinstore {
 
 using namespace std;
 
-
+//Query
 static std::string select_hook("SELECT ");
 static std::string from_hook(" FROM ");
+static std::string where_hook(" WHERE ");
 static std::string order_hook(" ORDER BY");
+static std::string join_hook("JOIN");
+
+//Insert
 static std::string insert_hook("INSERT INTO ");
 static std::string values_hook(" VALUES ");
+
+//Update
 static std::string update_hook("UPDATE ");
 static std::string set_hook(" SET ");
-static std::string where_hook(" WHERE ");
+
+//Delete
 static std::string delete_hook("DELETE FROM ");
-//static std::string lbracket("(");
+
+//Condition operators
 static std::string and_hook(" AND ");
 static std::string or_hook(" OR ");
 static std::string in_hook("IN");
 static std::string between_hook("BETWEEN");
+
 
 class SQLTransformer {
     public:
