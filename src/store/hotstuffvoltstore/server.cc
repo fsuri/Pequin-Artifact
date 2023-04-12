@@ -53,6 +53,9 @@ Server::Server(const transport::Configuration& config, KeyManager *keyManager,
 
   dummyProof->mutable_txn()->mutable_timestamp()->set_timestamp(0);
   dummyProof->mutable_txn()->mutable_timestamp()->set_id(0);
+  auto connection_str = "user=postgres dbname=postgres port=" << (5433 + idx); // Hard coded for testing purposes
+  connection_pool = tao::pq::connection_pool::create(connection_str);
+  Debug("PostgreSQL client created!", idx);
 }
 
 Server::~Server() {}
@@ -239,34 +242,55 @@ bool Server::CCC(const proto::Transaction& txn) {
   }
 }
 
-std::vector<::google::protobuf::Message*> Server::Execute(const string& type, const string& msg) {
+std::vector<::google::protobuf::Message*> Server::Execute(const string& type, const string& msg, const uint64 client_id, const uint64 tx_seq_num) {
   Debug("Execute: %s", type.c_str());
   //std::unique_lock lock(atomicMutex);
 
+//  proto::Transaction transaction;
+//  proto::GroupedDecision gdecision;
+//  if (type == transaction.GetTypeName()) {
+//    transaction.ParseFromString(msg);
+//
+//    return HandleTransaction(transaction);
+//  } else if (type == gdecision.GetTypeName()) {
+//    gdecision.ParseFromString(msg);
+//
+//    if (gdecision.status() == REPLY_FAIL) {
+//      std::vector<::google::protobuf::Message*> results;
+//      results.push_back(HandleGroupedAbortDecision(gdecision));
+//      return results;
+//    } else if(order_commit && gdecision.status() == REPLY_OK) {
+//      std::vector<::google::protobuf::Message*> results;
+//      results.push_back(HandleGroupedCommitDecision(gdecision));
+//      return results;
+//    }
+//    else{
+//      Panic("Only failed grouped decisions should be atomically broadcast");
+//    }
+//  }
+  
   proto::Transaction transaction;
-  proto::GroupedDecision gdecision;
-  if (type == transaction.GetTypeName()) {
-    transaction.ParseFromString(msg);
+  if(type == transaction.GetTypeName()) {
+	transaction.ParseFromString(msg);
+	return HandleTransaction(transaction);
+  } 
+  
+  proto::SQLMessage sqlMessage;
+  sqlMessage.parseFromString(msg);
 
-    return HandleTransaction(transaction);
-  } else if (type == gdecision.GetTypeName()) {
-    gdecision.ParseFromString(msg);
-
-    if (gdecision.status() == REPLY_FAIL) {
-      std::vector<::google::protobuf::Message*> results;
-      results.push_back(HandleGroupedAbortDecision(gdecision));
-      return results;
-    } else if(order_commit && gdecision.status() == REPLY_OK) {
-      std::vector<::google::protobuf::Message*> results;
-      results.push_back(HandleGroupedCommitDecision(gdecision));
-      return results;
-    }
-    else{
-      Panic("Only failed grouped decisions should be atomically broadcast");
-    }
+  auto connection;
+  tuple<uint64, uint64> client_tuple(client_id, tx_seq_num);
+  if(!map.contains(client_tuple)) {
+  	connection = connection_pool::connection();
+  	map[client_tuple] = connection;
+  } else {
+	connection = map[client_tuple];
   }
+  auto sqlRes = connection->execute(sqlMessage.msg());
+ 
   std::vector<::google::protobuf::Message*> results;
-  results.push_back(nullptr);
+//  results.push_back(nullptr);
+  results.push_back(sqlRes);
   return results;
 }
 
@@ -285,19 +309,20 @@ std::vector<::google::protobuf::Message*> Server::HandleTransaction(const proto:
   decision->set_shard_id(groupIdx);
 
   pendingTransactions[digest] = transaction;
-  if (bufferedGDecs.find(digest) != bufferedGDecs.end()) {
-    stats.Increment("used_buffered_gdec",1);
-    Debug("found buffered gdecision");
-    if(bufferedGDecs[digest].status() == REPLY_OK){
-      results.push_back(HandleGroupedCommitDecision(bufferedGDecs[digest]));
-    }
-    else{
-      results.push_back(HandleGroupedAbortDecision(bufferedGDecs[digest]));
-    }
-    bufferedGDecs.erase(digest);
-    return results;
-  }
+//  if (bufferedGDecs.find(digest) != bufferedGDecs.end()) {
+//    stats.Increment("used_buffered_gdec",1);
+//    Debug("found buffered gdecision");
+//    if(bufferedGDecs[digest].status() == REPLY_OK){
+//      results.push_back(HandleGroupedCommitDecision(bufferedGDecs[digest]));
+//    }
+//    else{
+//      results.push_back(HandleGroupedAbortDecision(bufferedGDecs[digest]));
+//    }
+//    bufferedGDecs.erase(digest);
+//    return results;
+//  }
 
+  /*
   // OCC check
   if (CCC2(transaction)) {
     stats.Increment("ccc_succeed",1);
@@ -308,10 +333,12 @@ std::vector<::google::protobuf::Message*> Server::HandleTransaction(const proto:
     // update prepared reads and writes
     Timestamp txTs(transaction.timestamp());
     for (const auto& write : transaction.writeset()) {
-      if(!IsKeyOwned(write.key())) {
-        continue;
-      }
-      preparedWrites[write.key()].insert(txTs);
+//      if(!IsKeyOwned(write.key())) {
+//        continue;
+//      }
+//      preparedWrites[write.key()].insert(txTs);
+	//Connection write the .key and value
+//	auto result = transaction->execute(write);
     }
     for (const auto& read : transaction.readset()) {
       if(!IsKeyOwned(read.key())) {
@@ -352,7 +379,7 @@ std::vector<::google::protobuf::Message*> Server::HandleTransaction(const proto:
     //   bufferedGDecs.erase(digest);
     // }
   }
-
+*/
 
   results.push_back(decision);
 

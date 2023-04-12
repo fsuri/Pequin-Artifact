@@ -79,3 +79,5 @@ message GroupedDecisionAck {
   required int32 status = 1;
   required bytes txn_digest = 2;
 }
+
+

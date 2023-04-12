@@ -82,6 +82,7 @@ public:
 #ifdef USE_HOTSTUFF_STORE
   hotstuffstore::IndicusInterface hotstuffvolt_interface;
   std::unordered_map<std::string, proto::PackedMessage> requests_dup;
+  std::unordered_map<std::string, proto::SQLMessage> queries_dup;
 #endif
 
   const transport::Configuration &config;
@@ -112,6 +113,7 @@ public:
   proto::GroupedSignedMessage recvgrouped;
   proto::RequestRequest recvrr;
   proto::ABRequest recvab;
+  proto::SQLMessage sqlMessage;
 
   std::unordered_map<uint64_t, std::string> sessionKeys;
   bool ValidateHMACedMessage(const proto::SignedMessage &signedMessage, std::string &data, std::string &type);
@@ -161,6 +163,7 @@ public:
   // map from tx digest to reply address
   //std::unordered_map<std::string, TransportAddress*> replyAddrs;
   tbb::concurrent_unordered_map<std::string, TransportAddress*> replyAddrs;
+  tbb::concurrent_unordered_map<std::string, TransportAddress*> replyAddrsQueries;
   //std::mutex replyAddrsMutex;
 
   // tests to see if we are ready to send commit or executute the slot

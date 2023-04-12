@@ -42,6 +42,8 @@
 #include "store/common/partitioner.h"
 #include "store/common/truetime.h"
 #include "lib/transport.h"
+#include <tao/pq.hpp>
+
 
 namespace hotstuffvoltstore {
 
@@ -64,6 +66,10 @@ public:
   Stats* mutableStats();
 
 private:
+  std::shared_ptr< tao::pq::connection_pool > connection_pool;
+  std::map< tuple<uint64, uint64>, std::shared_ptr< tao::pq::connection >> map;
+  taopq::transaction transaction;
+  uint64_t client_id;
   Transport* tp;
   Stats stats;
   transport::Configuration config;

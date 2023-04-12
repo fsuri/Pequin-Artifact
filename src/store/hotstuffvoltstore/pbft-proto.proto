@@ -29,6 +29,8 @@ message Request {
   // digest should correspond to an application specific digest of
   // the message in the packed message
   required bytes digest = 2;
+  required uint64 client_id = 3;
+  required uint64 tx_seq_num = 4;
 }
 
 message RequestRequest {
@@ -69,3 +71,13 @@ message Commit {
   required uint64 viewnum = 2;
   required bytes digest = 3;
 }
+
+// Generic sql message to be passed to the replica instead of specific message types
+message SQLMessage {
+  required uint64 client_id = 1;
+  required uint64 txn_seq_num = 2;
+  // required uint64 seqnum = 3;
+  required bytes msg = 3;
+  // required PackedMessage packed_msg = 3;
+}
+

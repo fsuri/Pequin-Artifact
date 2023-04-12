@@ -1,1 +1,1 @@
-#define REMOTE_CONFIG_DIR "/users/fs435/config/"
+#define REMOTE_CONFIG_DIR "~/Pequin-Artifact/src/store/hotstuffvoltstore/config"

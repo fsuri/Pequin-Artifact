@@ -38,6 +38,7 @@
 #include "store/common/frontend/client.h"
 #include "store/hotstuffvoltstore/pbft-proto.pb.h"
 #include "store/hotstuffvoltstore/shardclient.h"
+#include <tao/pq.hpp>
 
 #include <unordered_map>
 
@@ -74,6 +75,10 @@ class Client : public ::Client {
   // Abort all Get(s) and Put(s) since Begin().
   virtual void Abort(abort_callback acb, abort_timeout_callback atcb,
       uint32_t timeout) override;
+
+  // Perform the given query.
+  void Query(const std::string &query, query_callback qcb,
+      query_timeout_callback qtcb, uint32_t timeout) override;
 
  private:
   uint64_t client_id;

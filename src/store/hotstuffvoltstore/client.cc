@@ -60,7 +60,7 @@ Client::Client(const transport::Configuration& config, uint64_t id, int nShards,
 
   bclient.reserve(ngroups);
 
-  Debug("Initializing HotStuff client with id [%lu] %lu", client_id, ngroups);
+  Debug("Initializing HotStuff Postgres client with id [%lu] %lu", client_id, ngroups);
 
   /* Start a client for each shard. */
   for (uint64_t i = 0; i < ngroups; i++) {
@@ -68,7 +68,7 @@ Client::Client(const transport::Configuration& config, uint64_t id, int nShards,
         signMessages, validateProofs, keyManager, &stats, order_commit, validate_abort);
   }
 
-  Debug("HotStuff client [%lu] created! %lu %lu", client_id, ngroups,
+  Debug("HotStuff Postgres client [%lu] created! %lu %lu", client_id, ngroups,
       bclient.size());
 }
 
@@ -187,6 +187,44 @@ void Client::Commit(commit_callback ccb, commit_timeout_callback ctcb,
     }
   });
 }
+
+
+void Client::Query(const std::string &query, query_callback qcb,
+      query_timeout_callback qtcb, uint32_t timeout) {
+  transport->Timer(0, [this, query, qcb, qtcb, timeout]() {
+    Debug("QUERY [%s]", query);
+
+    for (const auto& shard_id : currentTxn.participating_shards()) {
+      bclient[i]->Query(query, currentTxn.timestamp(), client_id, client_seq_num, qcb,
+        qtcb, timeout);
+
+
+    }
+    // Contact the appropriate shard to get the value.
+    // std::vector<int> txnGroups;
+    // int i = (*part)(key, nshards, -1, txnGroups) % ngroups;
+
+    // // If needed, add this shard to set of participants and send BEGIN.
+    // if (!IsParticipant(i)) {
+    //   currentTxn.add_participating_shards(i);
+    // }
+
+    // read_callback rcb = [gcb, this](int status, const std::string &key,
+    //     const std::string &val, const Timestamp &ts) {
+    //   if (status == REPLY_OK) {
+    //     ReadMessage *read = currentTxn.add_readset();
+    //     read->set_key(key);
+    //     ts.serialize(read->mutable_readtime());
+    //   }
+    //   gcb(status, key, val, ts);
+    // };
+    // read_timeout_callback rtcb = gtcb;
+
+    // Send the GET operation to appropriate shard.
+  });
+
+}
+
 
 void Client::HandleSignedPrepareReply(std::string digest, uint64_t shard_id, int status,
   const proto::GroupedSignedMessage& gsm) {

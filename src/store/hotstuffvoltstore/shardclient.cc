@@ -53,6 +53,7 @@ ShardClient::ShardClient(const transport::Configuration& config, Transport *tran
 
 }
 
+
 ShardClient::~ShardClient() {}
 
 bool ShardClient::validateReadProof(const proto::CommitProof& commitProof, const std::string& key,
@@ -458,12 +459,33 @@ void ShardClient::HandleWritebackReply(const proto::GroupedDecisionAck& groupedD
 // ==== SHARD CLIENT INTERFACE ====
 // ================================
 
+void ShardClient::Query(const std::string &query, const Timestamp &ts,
+    uint64_t client_id, uint64_t txn_seq_num, read_callback gcb, read_timeout_callback gtcb,
+    uint32_t timeout) {
+
+	proto::SQLMessage msg;
+  // DebugHash(digest);
+  // msg.set_digest(digest);
+  msg.set_client_id(client_id);
+  msg.set_txn_seq_num(txn_seq_num);
+  // msg.mutable_packed_msg()->set_msg(query);
+  // msg.mutable_packed_msg()->set_type(msg.GetTypeName());
+  msg.set_msg(query);
+
+
+  transport->SendMessageToGroup(this, group_idx, msg);
+
+}
+
 // Get the value corresponding to key.
 void ShardClient::Get(const std::string &key, const Timestamp &ts,
     uint64_t readMessages, uint64_t numResults, read_callback gcb, read_timeout_callback gtcb,
     uint32_t timeout) {
   Debug("Client get for %s", key.c_str());
 
+
+  // Transform to SQL here
+  // Maybe SELECT * FROM db WHERE key=?
   proto::Read read;
   uint64_t reqId = readReq++;
   Debug("Get id: %lu", reqId);
@@ -471,14 +493,15 @@ void ShardClient::Get(const std::string &key, const Timestamp &ts,
   read.set_key(key);
   ts.serialize(read.mutable_timestamp());
 
-
+  
   UW_ASSERT(readMessages <= closestReplicas.size());
   for (size_t i = 0; i < readMessages; ++i) {
     Debug("[group %i] Sending GET to replica %lu", group_idx, GetNthClosestReplica(i));
     transport->SendMessageToReplica(this, group_idx, GetNthClosestReplica(i), read);
   }
-  //transport->SendMessageToGroup(this, group_idx, read);
+  // transport->SendMessageToGroup(this, group_idx, read);
 
+  
   PendingRead pr;
   pr.rcb = gcb;
   pr.numResultsRequired = numResults;
