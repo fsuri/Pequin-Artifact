@@ -34,12 +34,18 @@ message TransactionMessage {
 
 //Table Writes.  -- Alternatively -- add optional RowUpdates field
 message RowUpdates {
-    map<string, bytes> attribute_writes = 1; //map from attribute name to new value (in bytes for general encoding)
+    map<string, bytes> attribute_writes = 1; //map from attribute name to new value (in bytes for general encoding) //TODO: Maybe re-factor this to hold column id instead of name -- or to be in order
     optional TimestampMessage readtime = 2; //version of the row that was read (optional: for ReadModWrites) in order to fetch remaining row values (in case an update only updates some columns)
     optional bool deletion = 3;
+
+    repeated string column_values = 4;
+   
 }
 message TableWrite {
     map<string, RowUpdates> row_updates = 1; //map from row-name to all attribute writes
+
+    repeated string column_names = 2;  //store column names in order
+    repeated RowUpdates rows = 3;            // each RowUpdate stores the column values in order.
 }
 message TableWrites {
     map<string, TableWrite> tablewrites= 1; //map from table name to all writes for this table.

@@ -9,7 +9,7 @@ PROTOS += $(addprefix $(d), pequin-proto.proto)
 PROTOS += $(addprefix $(d), query-proto.proto)
 
 #LIB-sql_interpreter := $(o)sql_interpreter.o
-LIB-pequin-common := $(o)common.o $(o)snapshot_mgr.o $(o)sql_interpreter.o
+LIB-pequin-common := $(LIB-store-backend-sql-encoding) $(o)common.o $(o)snapshot_mgr.o $(o)sql_interpreter.o
 
 LIB-pequin-store := $(o)server.o $(o)servertools.o $(o)querysync-server.o $(o)concurrencycontrol.o $(LIB-latency) \
 	$(o)pequin-proto.o $(o)query-proto.o $(LIB-pequin-common) $(LIB-crypto) $(LIB-batched-sigs) $(LIB-bft-tapir-config) \

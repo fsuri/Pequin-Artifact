@@ -38,7 +38,7 @@ using json = nlohmann::json;
 int main() {
   
   std::cerr<< "Testing Table Writer and Loader" << std::endl;
-  std::string file_name = "table_load_test.json";
+  std::string file_name = "table_load_test";
  
   std::string table_name = "table";
   std::vector<std::pair<std::string, std::string>> column_names_and_types;
@@ -88,7 +88,7 @@ int main() {
 
   //Load Tables:
 
-  std::ifstream generated_tables(file_name);
+  std::ifstream generated_tables(file_name + ".json");
   json tables_to_load = json::parse(generated_tables);
        
   //std::cerr << (tables_to_load["tables"].size()) << std::endl;

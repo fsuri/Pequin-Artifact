@@ -81,12 +81,12 @@ class Client {
 
   // Get the result for a given query SQL statement
   inline virtual void Query(const std::string &query_statement, query_callback qcb,
-      query_timeout_callback qtcb, uint32_t timeout){Panic("This protocol store does not implement support for Query Statements"); };   
+      query_timeout_callback qtcb, uint32_t timeout, bool skip_query_interpretation = false){Panic("This protocol store does not implement support for Query Statements"); };   
 
   //inline virtual void Wait(vector of results) { just do nothing unless overriden} ;; Wait will call getResult, which in turn will trigger the Query callbacks
 
   // Get the result (rows affected) for a given write SQL statement
-  inline virtual void Write(std::string &write_statement, std::vector<std::vector<uint32_t>> primary_key_encoding_support, write_callback wcb,
+  inline virtual void Write(std::string &write_statement, write_callback wcb,
       write_timeout_callback wtcb, uint32_t timeout){Panic("This protocol store does not implement support for Write Statements"); };   //TODO: Can probably avoid using Callbacks at all. Just void write-through.
 
   inline const Stats &GetStats() const { return stats; }

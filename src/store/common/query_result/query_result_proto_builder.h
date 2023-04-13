@@ -86,6 +86,19 @@ class QueryResultProtoBuilder {
     } // archive goes out of scope, ensuring all contents are flushed
     return ss.str();
   }
+
+  
+  inline RowProto * new_row()
+  {
+    return result->add_rows();
+  }
+
+  template<typename T>
+  inline void AddToRow(RowProto *row, T &t){
+    FieldProto *field = row->add_fields();
+    field->set_data(serialize(t));
+  }
+
 };
 
 }

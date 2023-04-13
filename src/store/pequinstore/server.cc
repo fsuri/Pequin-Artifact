@@ -329,7 +329,7 @@ void Server::Load(const std::string &key, const std::string &value,
 
 //TODO: For hotstuffPG store --> let proxy call into PG
 //TODO: For Crdb --> let server establish a client connection to backend too.
-void Server::CreateTable(const std::string &table_name, const std::vector<std::pair<std::string, std::string>> &column_data_types, const std::vector<uint32_t> primary_key_col_idx ){
+void Server::CreateTable(const std::string &table_name, const std::vector<std::pair<std::string, std::string>> &column_data_types, const std::vector<uint32_t> &primary_key_col_idx){
   //Followed rough SQL dialect from: https://www.postgresqltutorial.com/postgresql-tutorial/postgresql-create-table/
 
   //NOTE: Assuming here we do not need special descriptors like foreign keys, column condidtions... (If so, it maybe easier to store the SQL statement in JSON directly)
@@ -367,7 +367,7 @@ void Server::CreateTable(const std::string &table_name, const std::vector<std::p
   Load(table_name, "", Timestamp());
 }
 
-void Server::CreateIndex(const std::string &table_name, const std::vector<std::pair<std::string, std::string>> &column_data_types, const std::string &index_name, const std::vector<uint32_t> index_col_idx){
+void Server::CreateIndex(const std::string &table_name, const std::vector<std::pair<std::string, std::string>> &column_data_types, const std::string &index_name, const std::vector<uint32_t> &index_col_idx){
   //Followed rough SQL dialect from: https://www.postgresqltutorial.com/postgresql-indexes/postgresql-multicolumn-indexes/
   //CREATE INDEX index_name ON table_name(a,b,c,...);
 
@@ -389,7 +389,7 @@ void Server::CreateIndex(const std::string &table_name, const std::vector<std::p
 
 }
 
-void Server::LoadTableRow(const std::string &table_name, const std::vector<std::pair<std::string, std::string>> &column_data_types, const std::vector<std::string> &values, const std::vector<uint32_t> primary_key_col_idx ){
+void Server::LoadTableRow(const std::string &table_name, const std::vector<std::pair<std::string, std::string>> &column_data_types, const std::vector<std::string> &values, const std::vector<uint32_t> &primary_key_col_idx ){
   
   //TODO: Instead of using the INSERT SQL statement, use the TableWrite API we will establish.
   std::string sql_statement("INSERT INTO");

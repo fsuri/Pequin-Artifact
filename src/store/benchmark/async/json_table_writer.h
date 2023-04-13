@@ -68,6 +68,7 @@ void TableWriter::add_row(std::string &table_name, const std::vector<std::string
     rows.push_back(json(values));
 }
 
+//NOTE: pass as file_name without the ".json" suffix
 void TableWriter::flush(std::string &file_name){
     for(auto &[name, table]: tables){
         //out_tables["tables"].push_back(table);
@@ -77,7 +78,18 @@ void TableWriter::flush(std::string &file_name){
     //std::cerr << out_tables.dump(2) << std::endl; //TESTING
 
     std::ofstream generated_tables;
-    generated_tables.open(file_name, std::ios::trunc);
+    generated_tables.open(file_name + ".json", std::ios::trunc);
+    generated_tables << out_tables.dump(2); //Formatting with dump: https://cppsecrets.com/users/4467115117112114971069711297105100105112971089764103109971051084699111109/C00-Jsondump.php
+    generated_tables.close();
+
+
+    //Write another file without row data (for client consumption).     //Alternatively, write one file with table meta, and one file for table rows. Let client read meta, let server read both.
+    for(auto &[name, table]: tables){
+        //out_tables["tables"].push_back(table);
+        out_tables[name]["rows"].clear();
+    }
+    generated_tables;
+    generated_tables.open(file_name + "-client.json", std::ios::trunc);
     generated_tables << out_tables.dump(2); //Formatting with dump: https://cppsecrets.com/users/4467115117112114971069711297105100105112971089764103109971051084699111109/C00-Jsondump.php
     generated_tables.close();
 }

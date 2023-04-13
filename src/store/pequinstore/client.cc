@@ -49,8 +49,8 @@ Client::Client(transport::Configuration *config, uint64_t id, int nShards,
     int nGroups,
     const std::vector<int> &closestReplicas, bool pingReplicas, Transport *transport,
     Partitioner *part, bool syncCommit, uint64_t readMessages,
-    uint64_t readQuorumSize, Parameters params,
-    KeyManager *keyManager, uint64_t phase1DecisionTimeout, uint64_t consecutiveMax, TrueTime timeServer)
+    uint64_t readQuorumSize, Parameters params, std::string &table_registry,
+    KeyManager *keyManager, uint64_t phase1DecisionTimeout, uint64_t consecutiveMax, TrueTime timeServer, bool sql_bench)
     : config(config), client_id(id), nshards(nShards), ngroups(nGroups),
     transport(transport), part(part), syncCommit(syncCommit), pingReplicas(pingReplicas),
     readMessages(readMessages), readQuorumSize(readQuorumSize),
@@ -99,6 +99,9 @@ Client::Client(transport::Configuration *config, uint64_t id, int nShards,
   // transport->Timer(9500, [this](){
   //   std::cerr<< "experiment about to elapse 10 seconds";
   // });
+  if(sql_bench){
+     sql_interpreter.RegisterTables(table_registry);
+  }
 }
 
 Client::~Client()
@@ -159,7 +162,7 @@ void Client::Begin(begin_callback bcb, begin_timeout_callback btcb,
     txn.mutable_timestamp()->set_timestamp(timeServer.GetTime());
     txn.mutable_timestamp()->set_id(client_id);
 
-    write_interpreter.NewTx(&txn);
+    sql_interpreter.NewTx(&txn);
 
     bcb(client_seq_num);
   });
@@ -252,7 +255,7 @@ void Client::Put(const std::string &key, const std::string &value,
 
 //primary_key_encoding_support is an encoding_helper function: Specify which columns of a write statement correspond to the primary key; each vector belongs to one insert. 
 //In case of nesting or concat --> order = order of reading
-void Client::Write(std::string &write_statement, std::vector<std::vector<uint32_t>> primary_key_encoding_support, write_callback wcb,
+void Client::Write(std::string &write_statement, write_callback wcb,
       write_timeout_callback wtcb, uint32_t timeout){
 
     
@@ -263,14 +266,16 @@ void Client::Write(std::string &write_statement, std::vector<std::vector<uint32_
 
     std::string read_statement;
     std::function<void(int, query_result::QueryResult*)>  write_continuation;
+    bool skip_query_interpretation = false;
 
-    write_interpreter.TransformWriteStatement(write_statement, primary_key_encoding_support, read_statement, write_continuation, wcb);
+    sql_interpreter.TransformWriteStatement(write_statement, read_statement, write_continuation, wcb, skip_query_interpretation);
     
   
     if(read_statement.empty()){
-      //TODO: Add to writes directly.
+      //TODO: Add to writes directly.  //TODO: Call write_continuation for Insert ; for Point Delete -- > OR: Call them inside Transform.
+      //NOTE: must return a QueryResult... 
       sql::QueryResultProtoWrapper *write_result = new sql::QueryResultProtoWrapper(""); //TODO: replace with real result.
-      wcb(REPLY_OK, write_result);
+      write_continuation(REPLY_OK, write_result);
     }
     else{
       //  auto qcb = [this, write_continuation, wcb](int status, const query_result::QueryResult *result) mutable { 
@@ -284,7 +289,7 @@ void Client::Write(std::string &write_statement, std::vector<std::vector<uint32_
       //   wtcb(status);
       //   return;
       // };
-      Query(read_statement, write_continuation, wtcb, timeout);
+      Query(read_statement, write_continuation, wtcb, timeout, skip_query_interpretation);
     }
     return;
   }
@@ -338,7 +343,7 @@ void Client::Write(std::string &write_statement, std::vector<std::vector<uint32_
 //Simulate Select * for now
 // TODO: --> Return all rows in the store.
 void Client::Query(const std::string &query, query_callback qcb,
-    query_timeout_callback qtcb, uint32_t timeout) {
+    query_timeout_callback qtcb, uint32_t timeout, bool skip_query_interpretation) {
 
   UW_ASSERT(query.length() < ((uint64_t)1<<32)); //Protobuf cannot handle strings longer than 2^32 bytes --> cannot handle "arbitrarily" complex queries: If this is the case, we need to break down the query command.
 

@@ -50,6 +50,8 @@
 
 #include "store/common/failures.h"
 
+#include "store/common/backend/sql_engine/table_kv_encoder.h"
+
 #include "lib/compression/TurboPFor-Integer-Compression/vp4.h"
 #include "lib/compression/FrameOfReference/include/compression.h"
 #include "lib/compression/FrameOfReference/include/turbocompression.h"
@@ -443,9 +445,6 @@ struct QueryReadSetMgr {
       uint64_t groupIdx;
 };
 
-//For managing WriteSet
-std::string EncodeTableRow(const std::string &table_name, const std::vector<const std::string*> &primary_key_columns);
-void DecodeTableRow(const std::string &enc_key, std::string &table_name, std::vector<std::string> primary_key_columns);
 
 // enum InjectFailureType {
 //   CLIENT_EQUIVOCATE = 0,
