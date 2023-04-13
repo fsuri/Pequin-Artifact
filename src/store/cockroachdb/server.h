@@ -33,15 +33,19 @@ class Server : public ::Server {
       const std::vector<std::pair<std::string, std::string>> &column_data_types,
       const std::vector<std::string> &values,
       const std::vector<uint32_t> primary_key_col_idx) override;
+  void exec_sql(std::string sql);
 
   Stats &GetStats();
-
 
  private:
   Stats stats;
   transport::Configuration config;
   KeyManager *keyManager;
-  transport::ReplicaAddress serverAddress;
+  std::string domain;
+  std::string host;
+  std::string port;
+  std::string site;
+
   int groupIdx;
   int idx;
   int id;
