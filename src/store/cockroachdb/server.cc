@@ -35,6 +35,7 @@ Server::Server(const transport::Configuration &config, KeyManager *keyManager,
       id(groupIdx * config.n + idx),
       numShards(numShards),
       numGroups(numGroups) {
+  zone = config.replica(groupIdx, idx).host;
   port = config.replica(groupIdx, idx).port;
   int status = 0;
   char host_name[HOST_NAME_MAX];
@@ -47,7 +48,7 @@ Server::Server(const transport::Configuration &config, KeyManager *keyManager,
   // remove site
   std::string site(host_name);
 
-  site.replace(site.find(host), host.length(), "");
+  site.replace(site.find(zone), zone.length(), "");
   host = std::string(host_name);
 
   /**
@@ -66,8 +67,8 @@ Server::Server(const transport::Configuration &config, KeyManager *keyManager,
   for (int i = 0; i < numGroups; i++) {
     for (int j = 0; j < config.n; j++) {
       transport::ReplicaAddress join_address = config.replica(i, j);
-      join_flag = join_flag + join_address.host + "." + site + ":" +
-                  join_address.port + ",";
+      join_flag =
+          join_flag + join_address.host + site + ":" + join_address.port + ",";
     }
   }
   // Remove last comma
@@ -94,7 +95,7 @@ Server::Server(const transport::Configuration &config, KeyManager *keyManager,
   // region = shard group number
   // zone = host name
   std::string locality_flag =
-      " --locality=region=" + std::to_string(groupIdx) + ",zone=" + host;
+      " --locality=region=" + std::to_string(groupIdx) + ",zone=" + zone;
 
   // TODO: Add load balancer
   std::string other_flags = " --background ";

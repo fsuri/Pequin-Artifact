@@ -43,6 +43,7 @@ class Server : public ::Server {
   KeyManager *keyManager;
   std::string domain;
   std::string host;
+  std::string zone;
   std::string port;
   std::string site;
 
