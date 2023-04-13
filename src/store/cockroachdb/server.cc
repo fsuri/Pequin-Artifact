@@ -117,15 +117,20 @@ Server::Server(const transport::Configuration &config, KeyManager *keyManager,
   status = system((start_script + "&").c_str());
   Notice("Cockroach node %d started. Listening %s:%s", id, host.c_str(),
          port.c_str());
+
+  if (idx == numShards - 1) {
+    // If node is the last one in the group, serve as load balancer
+    std::string proxy_script =
+        "cockroach gen haproxy --insecure --host=" + host + ":" + port +
+        " --locality=region=" + std::to_string(groupIdx);
+    status = system(proxy_script.c_str());
+  }
   // If happens to be the last one, init server
   if (id == numGroups * config.n - 1) {
     std::string init_script =
         "cockroach init --insecure --host=" + host + ":" + port;
-    std::string proxy_script =
-        "cockroach gen haproxy --insecure --host=" + host + ":" + port +
-        " --locality=region=" + std::to_string(groupIdx);
+
     status = system(init_script.c_str());
-    status = system(proxy_script.c_str());
     Notice("Cluster initliazed by node %d. Listening %s:%s", id, host.c_str(),
            port.c_str());
 
