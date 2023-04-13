@@ -247,6 +247,167 @@ void ShardClient::HandleReadReply(const proto::ReadReply& readReply, const proto
 }
 
 
+// Not a finished method currently
+void ShardClient::HandleSQLDecision(const proto::SQLDecision& sqlDecision, const proto::SignedMessage& signedMsg) {//Need to write this function out I guess
+  Debug("Handling transaction decision");
+
+  std::string digest = sqlDecision.txn_digest();
+  DebugHash(digest);
+  // only handle decisions for my shard
+  // NOTE: makes the assumption that numshards == numgroups
+  if (sqlDecision.shard_id() == (uint64_t) group_idx) {
+    if (signMessages) {
+      stats->Increment("handle_tx_dec_s",1);
+      // Debug("signed packed msg: %s", string_to_hex(signedMsg.packed_msg()).c_str());
+      // get the pending signed preprepare
+      if (pendingSignedPrepares.find(digest) != pendingSignedPrepares.end()) {
+        Debug("Adding signed id to a set: %lu", signedMsg.replica_id());
+
+        PendingSignedPrepare* psp = &pendingSignedPrepares[digest];
+        uint64_t add_id = signedMsg.replica_id();
+        // make sure this id is actually in the group
+        if (add_id / config.n == (uint64_t) group_idx) {
+          if (transactionDecision.status() == REPLY_OK) {
+            // add the decision to the list as proof
+            psp->receivedValidSigs[add_id] = signedMsg.signature();
+            // Debug("signature for %lu: %s", add_id, string_to_hex(signedMsg.signature()).c_str());
+          } else {
+            if(validate_abort){
+              psp->receivedFailedSigs[add_id] = signedMsg.signature();
+            }
+            else{
+              psp->receivedFailedIds.insert(add_id);
+            }
+
+          }
+        }
+
+        proto::GroupedSignedMessage groupSignedMsg;
+
+        // once we have enough valid requests, construct the grouped decision
+        // and return success
+        if (psp->receivedValidSigs.size() >= (uint64_t) config.f + 1) {
+          Debug("Got enough *valid* transaction decisions, executing callback");
+          // set the packed decision
+
+          //groupSignedMsg.set_packed_msg(psp->validDecisionPacked);
+          groupSignedMsg.set_packed_msg(CreateValidPackedDecision(digest));
+          // Debug("packed decision: %s", string_to_hex(psp->validDecisionPacked).c_str());
+
+          // add the signatures
+          for (const auto& pair : psp->receivedValidSigs) {
+            (*groupSignedMsg.mutable_signatures())[pair.first] = pair.second;
+          }
+
+          // invoke the callback with the signed grouped decision
+          signed_prepare_callback pcb = psp->pcb;
+          if (psp->timeout != nullptr) {
+            psp->timeout->Stop();
+          }
+          pendingSignedPrepares.erase(digest);
+          ////
+          // struct timeval tv;
+          // gettimeofday(&tv, NULL);
+          // uint64_t current_time = (tv.tv_sec*1000000+tv.tv_usec);  //in microseconds
+          // total_elapsed += (current_time - start_time);
+          // //std::cerr << "time measured: " << (current_time - start_time) << std::endl;;
+          // total_prepare++;
+          // if(total_prepare == 50) std::cerr << "Average time to prepare: " << (total_elapsed / total_prepare) << " us" << std::endl;
+          //std::cerr << "Elapsed time for Prepare Phase: " << (current_time - start_time) << std::endl;
+          ////
+          pcb(REPLY_OK, groupSignedMsg);
+          return;
+        }
+        else if(validate_abort && psp->receivedFailedSigs.size() >= (uint64_t) config.f + 1 ){
+          Debug("Got enough *failed* transaction decisions, executing callback");
+          // set the packed decision
+
+          //groupSignedMsg.set_packed_msg(psp->validDecisionPacked);
+          groupSignedMsg.set_packed_msg(CreateFailedPackedDecision(digest));
+
+          // add the signatures
+          for (const auto& pair : psp->receivedFailedSigs) {
+            (*groupSignedMsg.mutable_signatures())[pair.first] = pair.second;
+          }
+
+          // invoke the callback with the signed grouped decision
+          signed_prepare_callback pcb = psp->pcb;
+          if (psp->timeout != nullptr) {
+            psp->timeout->Stop();
+          }
+          pendingSignedPrepares.erase(digest);
+          ////
+          // struct timeval tv;
+          // gettimeofday(&tv, NULL);
+          // uint64_t current_time = (tv.tv_sec*1000000+tv.tv_usec);  //in microseconds
+          // total_elapsed += (current_time - start_time);
+          // //std::cerr << "time measured: " << (current_time - start_time) << std::endl;
+          // total_prepare++;
+          // if(total_prepare == 50) std::cerr << "Average time to prepare: " << (total_elapsed / total_prepare) << " us" << std::endl;
+          // //std::cerr << "Elapsed time for Prepare Phase: " << (current_time - start_time) << std::endl;
+          ////
+          pcb(REPLY_FAIL, groupSignedMsg);
+          return;
+        }
+        // if we get f+1 failures, we can return early
+        else if (!validate_abort && psp->receivedFailedIds.size() >= (uint64_t) config.f + 1) {
+          Debug("Not enough valid txn decisions, failing");
+          signed_prepare_callback pcb = psp->pcb;
+          if (psp->timeout != nullptr) {
+            psp->timeout->Stop();
+          }
+          pendingSignedPrepares.erase(digest);
+          // adding sigs to the grouped signed msg would be worthless
+          pcb(REPLY_FAIL, groupSignedMsg);
+          return;
+        }
+      }
+    } else { //Not sure what to do here, I don't understand the pending prepare type stuff
+      stats->Increment("handle_tx_dec",1);
+      if (pendingPrepares.find(digest) != pendingPrepares.end()) {
+        PendingPrepare* pp = &pendingPrepares[digest];
+        if (transactionDecision.status() == REPLY_OK) {
+          uint64_t add_id = pp->receivedOkIds.size();
+          // add the decision to the list as proof
+          pp->receivedOkIds.insert(add_id);
+        } else {
+          // Kinda jank but just don't use these ids
+          uint64_t add_id = pp->receivedFailedIds.size();
+          pp->receivedFailedIds.insert(add_id);
+        }
+
+        // once we have enough valid requests, construct the grouped decision
+        // and return success
+        if (pp->receivedOkIds.size() >= (uint64_t) config.f + 1) {
+          proto::TransactionDecision validDecision = pp->validDecision;
+          // invoke the callback if we have enough of the same decision
+          prepare_callback pcb = pp->pcb;
+          if (pp->timeout != nullptr) {
+            pp->timeout->Stop();
+          }
+          pendingPrepares.erase(digest);
+          pcb(REPLY_OK, validDecision);
+          return;
+        }
+        // f+1 failures mean that we will always return fail
+        if (pp->receivedFailedIds.size() >= (uint64_t) config.f + 1) {
+          proto::TransactionDecision failedDecision;
+          failedDecision.set_status(REPLY_FAIL);
+          prepare_callback pcb = pendingPrepares[digest].pcb;
+          if (pp->timeout != nullptr) {
+            pp->timeout->Stop();
+          }
+          pendingPrepares.erase(digest);
+          pcb(REPLY_FAIL, failedDecision);
+          return;
+        }
+      }
+    }
+  } else {
+    stats->Increment("wrong_dec_shard",1);
+  }
+}
+
 void ShardClient::HandleTransactionDecision(const proto::TransactionDecision& transactionDecision, const proto::SignedMessage& signedMsg) {
   Debug("Handling transaction decision");
 

@@ -349,35 +349,33 @@ Debug("Handling request message");
                   stats->Increment("exec_query",1);
                   Debug("executing seq num: %lu %lu", execSeqNum, execBatchNum);
 
-                  std::vector<::google::protobuf::Message*> replies = app->Execute(packedMsg.type(), packedMsg.msg());
+                  google::protobuf::Message* reply = app->Execute(msg.msg(), msg.client_id(), msg.txn_seq_num());
 
-                  for (const auto& reply : replies) {
-                    if (reply != nullptr) {
-                      Debug("Sending reply");
-                      stats->Increment("execs_sent",1);
-                      EpendingBatchedMessages.push_back(reply);
-                      EpendingBatchedDigs.push_back(digest);
-                      if (EpendingBatchedMessages.size() >= EbatchSize) {
-                        Debug("EBatch is full, sending");
+                  if (reply != nullptr) {
+                    Debug("Sending reply");
+                    stats->Increment("execs_sent",1);
+                    EpendingBatchedMessages.push_back(reply);
+                    EpendingBatchedDigs.push_back(digest);
+                    if (EpendingBatchedMessages.size() >= EbatchSize) {
+                      Debug("EBatch is full, sending");
 
-                        // HotStuff: disable timer for HotStuff due to concurrency bugs
-                        // if (EbatchTimerRunning) {
-                        //   transport->CancelTimer(EbatchTimerId);
-                        //   EbatchTimerRunning = false;
-                        // }
-                        sendEbatch();
-                      } else if (!EbatchTimerRunning) {
-                        EbatchTimerRunning = true;
-                        Debug("Starting ebatch timer");
-                        // EbatchTimerId = transport->Timer(EbatchTimeoutMS, [this]() {
-                        //   Debug("EBatch timer expired, sending");
-                        //   this->EbatchTimerRunning = false;
-                        //   this->sendEbatch();
-                        // });
-                      }
-                    } else {
-                      Debug("Invalid execution");
+                      // HotStuff: disable timer for HotStuff due to concurrency bugs
+                      // if (EbatchTimerRunning) {
+                      //   transport->CancelTimer(EbatchTimerId);
+                      //   EbatchTimerRunning = false;
+                      // }
+                      sendEbatch();
+                    } else if (!EbatchTimerRunning) {
+                      EbatchTimerRunning = true;
+                      Debug("Starting ebatch timer");
+                      // EbatchTimerId = transport->Timer(EbatchTimeoutMS, [this]() {
+                      //   Debug("EBatch timer expired, sending");
+                      //   this->EbatchTimerRunning = false;
+                      //   this->sendEbatch();
+                      // });
                     }
+                  } else {
+                    Debug("Invalid execution");
                   }
 
                   execBatchNum++;

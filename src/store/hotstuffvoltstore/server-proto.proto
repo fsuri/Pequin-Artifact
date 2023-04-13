@@ -81,3 +81,13 @@ message GroupedDecisionAck {
 }
 
 
+message SQLDecision {
+  // the status of the CCC (Commit/Abort)
+  required int32 status = 1;
+  // the digest of the transaction that was checked
+  required bytes sql_res = 2;
+  // the id of the shard that sent the request
+  required uint64 group_id = 3;
+}
+
+

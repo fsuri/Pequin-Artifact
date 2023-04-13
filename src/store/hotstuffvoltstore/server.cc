@@ -242,7 +242,7 @@ bool Server::CCC(const proto::Transaction& txn) {
   }
 }
 
-std::vector<::google::protobuf::Message*> Server::Execute(const string& type, const string& msg, const uint64 client_id, const uint64 tx_seq_num) {
+std::vector<::google::protobuf::Message*> Server::Execute(const string& msg, const uint64 client_id, const uint64 tx_seq_num) {
   Debug("Execute: %s", type.c_str());
   //std::unique_lock lock(atomicMutex);
 
@@ -269,11 +269,6 @@ std::vector<::google::protobuf::Message*> Server::Execute(const string& type, co
 //    }
 //  }
   
-  proto::Transaction transaction;
-  if(type == transaction.GetTypeName()) {
-	transaction.ParseFromString(msg);
-	return HandleTransaction(transaction);
-  } 
   
   proto::SQLMessage sqlMessage;
   sqlMessage.parseFromString(msg);
@@ -284,14 +279,20 @@ std::vector<::google::protobuf::Message*> Server::Execute(const string& type, co
   	connection = connection_pool::connection();
   	map[client_tuple] = connection;
   } else {
-	connection = map[client_tuple];
+	  connection = map[client_tuple];
   }
+
+  proto::SQLDecision* decision = new proto::SQLDecision();// need to put result type in here somehow?
   auto sqlRes = connection->execute(sqlMessage.msg());
- 
-  std::vector<::google::protobuf::Message*> results;
-//  results.push_back(nullptr);
-  results.push_back(sqlRes);
-  return results;
+  decision->set_status(1);
+  decision->set_sql_res(sqlRes);
+  decision->set_status(groupIdx);
+
+
+//   std::vector<::google::protobuf::Message*> results;
+// //  results.push_back(nullptr);
+//   results.push_back(sqlRes);
+  return decision;
 }
 
 std::vector<::google::protobuf::Message*> Server::HandleTransaction(const proto::Transaction& transaction) {
