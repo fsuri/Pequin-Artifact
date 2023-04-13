@@ -83,6 +83,8 @@ Server::Server(const transport::Configuration &config, KeyManager *keyManager,
   // In memory cluster.
   std::string store_flag_mem = " --store=type=mem,size=90%";
 
+  std::string log_flag = " --log=\"sinks: {filter : NONE}\"";
+
   // TODO : Add encryption
   // TODO: set zones
   // TODO: Add load balancer
@@ -93,7 +95,7 @@ Server::Server(const transport::Configuration &config, KeyManager *keyManager,
                                 // advertise_flag,    // for nodes
                                 sql_addr_flag,   // for client's sql
                                 http_addr_flag,  // for  DB Console
-                                store_flag_mem, other_flags};
+                                store_flag_mem, log_flag, other_flags};
 
   for (std::string part : script_parts) {
     start_script = start_script + part;
@@ -182,6 +184,6 @@ void Server::LoadTableRow(
 }
 Stats &Server::GetStats() { return stats; }
 
-Server::~Server() {}
+Server::~Server() { system("pkill -9 -f cockroach"); }
 
 }  // namespace cockroachdb
