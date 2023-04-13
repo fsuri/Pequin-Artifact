@@ -19,9 +19,9 @@ namespace cockroachdb {
 using namespace std;
 
 void Server::exec_sql(std::string sql) {
-  std::string crdb_command = "cockroach sql --insecure --host=" + host + site +
-                             site + std::string() + ":" + port +
-                             " --execute=\"" + sql + "\"";
+  std::string crdb_command = "cockroach sql --insecure --host=" + host +
+                             std::string() + ":" + port + " --execute=\"" +
+                             sql + "\"";
   Notice(crdb_command.c_str());
   int status = system(crdb_command.c_str());
 }
@@ -35,7 +35,6 @@ Server::Server(const transport::Configuration &config, KeyManager *keyManager,
       id(groupIdx * config.n + idx),
       numShards(numShards),
       numGroups(numGroups) {
-  host = config.replica(groupIdx, idx).host;
   port = config.replica(groupIdx, idx).port;
   int status = 0;
   char host_name[HOST_NAME_MAX];
@@ -44,10 +43,12 @@ Server::Server(const transport::Configuration &config, KeyManager *keyManager,
   if (result) {
     Panic("Unable to get host name for CRDB");
   }
-
+  cout << result << endl;
   // remove site
   std::string site(host_name);
+
   site.replace(site.find(host), host.length(), "");
+  host = std::string(host_name);
 
   /**
    * --advertise-addr determines which address to tell other nodes to use.
@@ -56,18 +57,17 @@ Server::Server(const transport::Configuration &config, KeyManager *keyManager,
    */
   std::string start_script = "cockroach start";
   std::string security_flag = " --insecure";
-  std::string listen_addr_flag = " --listen-addr=" + host + site + ":" + port;
-  std::string sql_addr_flag =
-      " --advertise-sql-addr=" + host + site + ":" + port;
-  std::string advertise_flag = " --advertise-addr=" + host + site + ":" + port;
+  std::string listen_addr_flag = " --listen-addr=" + host + ":" + port;
+  std::string sql_addr_flag = " --advertise-sql-addr=" + host + ":" + port;
+  std::string advertise_flag = " --advertise-addr=" + host + ":" + port;
   std::string join_flag = " --join=";
 
   // Naive implementation: join all node
   for (int i = 0; i < numGroups; i++) {
     for (int j = 0; j < config.n; j++) {
       transport::ReplicaAddress join_address = config.replica(i, j);
-      join_flag =
-          join_flag + join_address.host + site + ":" + join_address.port + ",";
+      join_flag = join_flag + join_address.host + "." + site + ":" +
+                  join_address.port + ",";
     }
   }
   // Remove last comma
@@ -75,7 +75,7 @@ Server::Server(const transport::Configuration &config, KeyManager *keyManager,
 
   // TODO: better port number
   std::string http_addr_flag =
-      " --http-addr=" + host + site + ":" + std::to_string(8069 + id);
+      " --http-addr=" + host + ":" + std::to_string(8069 + id);
   std::string store_flag_disk =
       " --store=~/mnt/extra/experiments/store/cockroachdb/crdb_node" +
       std::to_string(id);
@@ -83,10 +83,19 @@ Server::Server(const transport::Configuration &config, KeyManager *keyManager,
   // In memory cluster.
   std::string store_flag_mem = " --store=type=mem,size=90%";
 
-  std::string log_flag = " --log=\"sinks: {filter : NONE}\"";
+  // std::string log_flag =
+  //     " --log=\"sinks: {file-groups: {ops: {channels: [OPS, HEALTH, "
+  //     "SQL_SCHEMA], filter: ERROR}}}\"";
+
+  std::string log_flag = " --log-config-file=./store/cockroachdb/logs.yaml";
 
   // TODO : Add encryption
-  // TODO: set zones
+
+  // region = shard group number
+  // zone = host name
+  std::string locality_flag =
+      " --locality=region=" + std::to_string(groupIdx) + ",zone=" + host;
+
   // TODO: Add load balancer
   std::string other_flags = " --background ";
 
@@ -95,7 +104,8 @@ Server::Server(const transport::Configuration &config, KeyManager *keyManager,
                                 // advertise_flag,    // for nodes
                                 sql_addr_flag,   // for client's sql
                                 http_addr_flag,  // for  DB Console
-                                store_flag_mem, log_flag, other_flags};
+                                store_flag_mem, log_flag, locality_flag,
+                                other_flags};
 
   for (std::string part : script_parts) {
     start_script = start_script + part;
@@ -109,9 +119,12 @@ Server::Server(const transport::Configuration &config, KeyManager *keyManager,
   // If happens to be the last one, init server
   if (id == numGroups * config.n - 1) {
     std::string init_script =
-        "cockroach init --insecure --host=" + host + site + ":" + port;
+        "cockroach init --insecure --host=" + host + ":" + port;
+    std::string proxy_script =
+        "cockroach gen haproxy --insecure --host=" + host + ":" + port +
+        " --locality=region=" + std::to_string(groupIdx);
     status = system(init_script.c_str());
-
+    status = system(proxy_script.c_str());
     Notice("Cluster initliazed by node %d. Listening %s:%s", id, host.c_str(),
            port.c_str());
 
