@@ -9,6 +9,7 @@
 
 #include "store/cockroachdb/client.h"
 
+#include <algorithm>
 #include <iostream>
 #include <typeinfo>
 
@@ -115,8 +116,7 @@ void Client::Get(const std::string &key, get_callback gcb,
                  get_timeout_callback gtcb, uint32_t timeout) {
   try {
     // TODO: transport->Timer?
-    std::replace_all(key, "\\", "\\\\");
-    std::replace_all(value, "\\", "\\\\");
+    ReplaceAll(key, "\\0", "\\\\0");
     // Hardwire a SQL command
     string point_query =
         "SELECT val_ FROM datastore WHERE key_ = \'" + key + "\'";
@@ -134,7 +134,7 @@ void Client::Get(const std::string &key, get_callback gcb,
     for (const auto &row : result) {
       value = row["val_"].as<std::string>();
     }
-    std::cerr << "get " << key << '\n';
+    std::cerr << key << ": " << value << '\n';
 
     // TODO replace Timestamp that makes sense
     gcb(REPLY_OK, key, value, Timestamp(0));
@@ -150,14 +150,16 @@ void Client::Put(const std::string &key, const std::string &value,
                  put_callback pcb, put_timeout_callback ptcb,
                  uint32_t timeout) {
   try {
-    std::replace_all(key, "\\", "\\\\");
-    std::replace_all(value, "\\", "\\\\");
+    ReplaceAll(key, "\\0", "\\\\0");
+    ReplaceAll(value, "\\0", "\\\\0");
+    std::cerr << "val: " << value << endl;
     std::string put_command("INSERT INTO datastore(key_, val_) VALUES(\'" +
                             key + "\', \'" + value +
                             "\') ON "
                             "CONFLICT (key_) "
                             "DO UPDATE SET val_ = \'" +
                             value + "\';");
+    std::cerr << put_command << endl;
     auto const result = [this, &put_command]() {
       // If part of a Tx, use Tx->exec, else use connection->exec
       if (tr != nullptr)
@@ -165,8 +167,6 @@ void Client::Put(const std::string &key, const std::string &value,
       else
         return conn->execute(put_command);
     }();
-    // pcb(REPLY_OK, key, value);
-    std::cerr << "put (" << key << ", " << value << ")" << '\n';
     pcb(REPLY_OK, key, value);
   } catch (const std::exception &e) {
     pcb(REPLY_FAIL, key, value);
