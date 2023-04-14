@@ -49,7 +49,7 @@ auto QueryResultProtoWrapper::create_from_proto(const SQLResultProto* proto_resu
     auto fields_vector = std::vector<FieldProto>(row.fields().begin(), row.fields().end());
     auto data_vector = std::vector<std::string>();
     for (auto field : fields_vector) {
-      data_vector.push_back(field.data());
+      data_vector.push_back(std::move(field.data()));
     }
     result.push_back(data_vector);
   }

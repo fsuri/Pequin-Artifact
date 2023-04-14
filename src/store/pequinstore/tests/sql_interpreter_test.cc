@@ -206,7 +206,7 @@ void test_delete(){
   // result_row.push_back("apple");
   sql::QueryResultProtoBuilder queryResultBuilder;
   queryResultBuilder.add_column("col1");
-  queryResultBuilder.add_column("col2");
+  //queryResultBuilder.add_column("col2"); //Only add primary columns.
   queryResultBuilder.add_column("col3");
   //queryResultBuilder.add_row(result_row.begin(), result_row.end());
 
@@ -215,7 +215,7 @@ void test_delete(){
   std::string v2("giraffe");
   std::string v3("apple");
   queryResultBuilder.AddToRow(row, v1);
-  queryResultBuilder.AddToRow(row, v2);
+  //queryResultBuilder.AddToRow(row, v2);
   queryResultBuilder.AddToRow(row, v3);
 
   std::string result = queryResultBuilder.get_result()->SerializeAsString();

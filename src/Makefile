@@ -59,6 +59,9 @@ CFLAGS += -I/usr/include/postgresql
 LDFLAGS += -ltaopq
 LDFLAGS += -lpq
 
+# fmt
+LDFLAGS += -lfmt #-l:libfmt.a
+
 # Google test framework. This doesn't use pkgconfig
 GTEST_DIR := /usr/src/gtest-1.10.0/googletest
 GMOCK_DIR := /usr/src/gtest-1.10.0/googlemock

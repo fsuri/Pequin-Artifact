@@ -37,6 +37,7 @@
 #include <cstdint>  
 #include <regex>
 #include <string_view>
+ #include <fmt/core.h>
 
 
 #include "store/common/query_result/query_result_proto_wrapper.h"
@@ -49,11 +50,23 @@ namespace pequinstore {
 using namespace std;
 
 
-//TODO: Table Write byte encoding  --- Should be doable server side
-    // Need to encode the column values as generic bytes. Try to use cereal library
-    // At server need to decode the column value. Can one decode this without extra information? Or does one have to pass the type too
-    // Maybe the server "knows" what type the bytes need to be?
-    //Maybe just storing as string is actually fine? Since its part of a SQL statement usually... But now we want to use our own manual table write.
+//Table Write byte encoding:
+    //"Stringify" all values
+    // Peloton Engine is able to convert to appropriate Table type using Schema information.
+
+    //Alternatively:
+        // Could encode the column values as generic bytes using the cereal library
+        // At server would then need to decode the column value. This requires knowing the type and passing it to the decoder function
+
+    //Alternatively:
+        //Could use Protobuf as Variant of types (oneof) for TableWrite
+        //Peloton would have to pick the desired type to retrieve.
+
+//Current full ser/deser lifcycle:
+    // 1. SQL statement (string) --> Peloton: Outputs serialized Peloton result
+    // 2. Serialized Peloton Result --> Proto Wrapper: Deserialize Peloton + Cerialize into Proto
+    // 3. Proto Wrapper -> WriteCont: deCerialize Proto (perform arithmetic) + Stringify TableWrite     //Note: Can only stringify basic types; if we want to support Array, then we need to serialize somehow
+    // 4. TableWrite -> Peloton: De-stringify into correct type.
 
 void SQLTransformer::RegisterTables(std::string &table_registry){ //TODO: This table registry file does not need to include the rows.
 
@@ -96,6 +109,8 @@ void SQLTransformer::RegisterTables(std::string &table_registry){ //TODO: This t
 
 
 bool SQLTransformer::InterpretQueryRange(std::string &_query, std::string &table_name, std::map<std::string, std::string> &p_col_value){
+    //Using Syntax from: https://www.postgresqltutorial.com/postgresql-tutorial/postgresql-select/
+
     std::string_view query_statement(_query);
     //Parse Table name.
     size_t from_pos = query_statement.find(from_hook);
@@ -148,6 +163,8 @@ void SQLTransformer::TransformWriteStatement(std::string &_write_statement,
 
 void SQLTransformer::TransformInsert(size_t pos, std::string_view &write_statement,
     std::string &read_statement, std::function<void(int, query_result::QueryResult*)>  &write_continuation, write_callback &wcb){
+    //Based on Syntax from: https://www.postgresqltutorial.com/postgresql-tutorial/postgresql-insert/ 
+    // https://www.postgresqltutorial.com/postgresql-tutorial/postgresql-insert-multiple-rows/ https://www.digitalocean.com/community/tutorials/sql-insert-multiple-rows (TODO: Not yet implemented)
 
      //Case 1) INSERT INTO <table_name> (<column_list>) VALUES (<value_list>)
               //Note: Value list may be the output of a nested SELECT statement. In that case, embed the nested select statement as part of the read_statement
@@ -250,35 +267,44 @@ void SQLTransformer::TransformInsert(size_t pos, std::string_view &write_stateme
     
     std::vector<const std::string_view*> primary_key_column_values;
 
-    const ColRegistry &col_registry = TableRegistry[table_name];
+    auto itr = TableRegistry.find(table_name);
+    UW_ASSERT(itr != TableRegistry.end()); //Panic if ColRegistry does not exist.
+    const ColRegistry &col_registry = itr->second;//TableRegistry[table_name];
+
     UW_ASSERT(value_list.size() == col_registry.col_name_type.size());
 
     if(false){  //NOTE: DO NOT NEED TO CREATE ANY READ STATEMENT FOR SINGLE ROW INSERTS. ==> Just set read version = 0 (TODO: Confirm OCC check will check vs latest version = delete)
                     //THIS WAY WILL SAVE QUERY ROUNDTRIP + WONT HAVE TO REMOVE TABLE VERSION POSSIBLY ADDED BY SCAN
-            read_statement = "SELECT ";  
+           
+        //read_statement = "SELECT ";  
+        std::string col_statement;
         //insert primary columns --> Can already concat them with delimiter:   col1  || '###' || col2 ==> but then how do we look up column?  
         for(auto [col_name, p_idx]: col_registry.primary_key_cols_idx){
-            read_statement += col_name +  ", ";   //TODO: Can just do Select *...
+            col_statement += col_name +  ", ";   //TODO: Can just do Select *...
             //read_statement += column_list[p_idx] +  ", ";   //TODO: Can just do Select *...
         }
-        read_statement.resize(read_statement.size() - 2); //remove trailing ", "
+        col_statement.resize(read_statement.size() - 2); //remove trailing ", "
 
 
-        read_statement += " FROM " + table_name;
+        // read_statement += " FROM " + table_name;
 
-        read_statement += " WHERE ";
+        // read_statement += " WHERE ";
+        std::string cond_statement;
         for(auto [col_name, p_idx]: col_registry.primary_key_cols_idx){
             const std::string_view &val = value_list[p_idx];
             //read_statement += column_list[p_idx] + " = " + val + ", ";
-            read_statement += col_name + " = ";
-            read_statement += val;
-            read_statement += ", ";
+            cond_statement += col_name + " = ";
+            cond_statement += val;
+            cond_statement += ", ";
             primary_key_column_values.push_back(&val);
         }
         //insert primary col conditions.
-        read_statement.resize(read_statement.size() - 2); //remove trailing ", "
+        cond_statement.resize(read_statement.size() - 2); //remove trailing ", "
 
-        read_statement += ";";
+        //read_statement += ";";
+
+        //use fmt::format to create more readable read_statement generation.
+        //read_statement = fmt::format("SELECT {0} FROM {1} WHERE {2};", std::move(col_statement), table_name, std::move(cond_statement));
     }
     else{
         for(auto [col_name, p_idx]: col_registry.primary_key_cols_idx){
@@ -364,6 +390,7 @@ void SQLTransformer::ParseColUpdate(std::string_view col_update, std::map<std::s
 
 void SQLTransformer::TransformUpdate(size_t pos, std::string_view &write_statement,
     std::string &read_statement, std::function<void(int, query_result::QueryResult*)>  &write_continuation, write_callback &wcb){
+    //Based on Syntax from: https://www.postgresqltutorial.com/postgresql-tutorial/postgresql-update/ 
 
     //Case 2) UPDATE <table_name> SET {(column = value)} WHERE <col_name = condition>
     //-> Turn into read_statement: Result(column, column_value = rows(attributes))
@@ -418,11 +445,14 @@ void SQLTransformer::TransformUpdate(size_t pos, std::string_view &write_stateme
     UW_ASSERT(col_updates.size() >= 1); // At least one column specified to be updated
         
     ///////// //Create Read statement:  Just Select * with Where condition
-            //==> TODO: Ideally for Updates we'd just select on the primary key columns. (instead of a sql select * statement which is a bit overkill)
+            //==> TODO: Ideally for Updates we'd just select on the primary key columns. (instead of a sql select * statement which is a bit overkill): But then we can't copy col values
             //std::vector<const std::string*> primary_key_column_values;
-    read_statement = "SELECT * FROM ";
-    read_statement += table_name;
-    read_statement += where_cond;  //Note: Where cond starts with a " " and ends with ";"
+    // read_statement = "SELECT * FROM ";
+    // read_statement += table_name;
+    // read_statement += where_cond;  //Note: Where cond starts with a " " and ends with ";"
+
+    where_cond = where_cond.substr(where_hook.length());
+    read_statement = fmt::format("SELECT * FROM {0} WHERE {1}", table_name, std::move(where_cond));  //Note: Where cond ends with ";"
        
        
     //////// Create Write continuation:  
@@ -436,7 +466,9 @@ void SQLTransformer::TransformUpdate(size_t pos, std::string_view &write_stateme
                                         
     write_continuation = [this, wcb, table_name, col_updates](int status, query_result::QueryResult* result){
 
-        ColRegistry &col_registry = TableRegistry[table_name];
+        auto itr = TableRegistry.find(table_name);
+        UW_ASSERT(itr != TableRegistry.end());
+        ColRegistry &col_registry = itr->second; //TableRegistry[table_name];
 
          //Write Table Version itself. //Only for kv-store.
         WriteMessage *table_ver = txn->add_write_set();
@@ -576,6 +608,7 @@ std::string_view SQLTransformer::GetUpdateValue(const std::string &col, std::var
 
 void SQLTransformer::TransformDelete(size_t pos, std::string_view &write_statement, 
     std::string &read_statement, std::function<void(int, query_result::QueryResult*)>  &write_continuation, write_callback &wcb, bool skip_query_interpretation){
+    //Based on Syntax from: https://www.postgresqltutorial.com/postgresql-tutorial/postgresql-delete/ 
     
      //Case 3) DELETE FROM <table_name> WHERE <condition>
          //-> Turn into read_statement: Result(column, column_value) SELECT FROM <table_name>(primary_columns) 
@@ -641,15 +674,32 @@ void SQLTransformer::TransformDelete(size_t pos, std::string_view &write_stateme
 
     //Else: Is Query Delete
 
-    read_statement = "SELECT * FROM ";  //TODO: Ideally select only primary column rows. To support this, need rows to allow access to columns by name (and not just index)
-    read_statement += table_name;
-    read_statement += " WHERE ";
-    read_statement += where_cond; 
+    // read_statement = "SELECT * FROM ";  //Ideally select only primary column rows. To support this, need rows to allow access to columns by name (and not just index)
+
+    auto itr = TableRegistry.find(table_name);
+    UW_ASSERT(itr != TableRegistry.end());
+    ColRegistry &col_registry = itr->second; //TableRegistry[table_name]; 
+
+    //read_statement = "SELECT ";
+    std::string col_statement;
+    for(auto [col_name, idx]: col_registry.primary_key_cols_idx){
+        //read_statement += col_name + ", "; 
+        col_statement += col_name + ", ";
+    }
+    col_statement.resize(col_statement.length() - 2); // drop last ", "
+
+    // read_statement.resize(read_statement.length() - 2); // drop last ", "
+    // read_statement += " FROM ";  
+    // read_statement += table_name;
+    // read_statement += " WHERE ";
+    // read_statement += where_cond; 
+    // read_statement += ";"; // Add back ; --> was truncated by CheckColCond
+
+    //use fmt::format to create more readable read_statement generation.
+    read_statement = fmt::format("SELECT {0} FROM {1} WHERE {2};", std::move(col_statement), table_name, std::move(where_cond));
     
      //////// Create Write continuation:  
-    write_continuation = [this, wcb, table_name](int status, query_result::QueryResult* result){
-
-         ColRegistry &col_registry = TableRegistry[table_name]; 
+    write_continuation = [this, wcb, table_name, col_registry_ptr = &col_registry](int status, query_result::QueryResult* result){
 
          //Write Table Version itself. //Only for kv-store.
         WriteMessage *table_ver = txn->add_write_set();
@@ -660,14 +710,19 @@ void SQLTransformer::TransformDelete(size_t pos, std::string_view &write_stateme
         for(int i = 0; i < result->size(); ++i){
             std::unique_ptr<query_result::Row> row = (*result)[i];
 
-           
             std::vector<std::string> primary_key_column_values;
-            for(auto [col_name, idx]: col_registry.primary_key_cols_idx){
+            for(int idx = 0; idx < row->columns(); ++idx){ //Note: Assume here that cols are in correct order of primary key cols.
+            //for(auto [col_name, idx]: col_registry_ptr->primary_key_cols_idx){
                 
                 std::unique_ptr<query_result::Field> field = (*row)[idx];
-               
                 //Deserialize encoding to be a stringified type (e.g. whether it's int/bool/string store all as normal readable string)
-                auto field_val(DecodeType(field, col_registry.col_name_type[col_name]));
+                const std::string &col_name = field->name();
+              
+                if(col_registry_ptr->primary_key_cols_idx[idx].first != col_name){ Panic("Primary Columns out of order");}
+                if(col_registry_ptr->primary_key_cols.find(col_name) == col_registry_ptr->primary_key_cols.end()){ Panic("Delete Read Result includes column that is not part of primary key");}
+
+                auto field_val(DecodeType(field, col_registry_ptr->col_name_type[col_name]));
+                //auto field_val(DecodeType(field, col_registry_ptr->col_name_type[col_name]));
                 primary_key_column_values.emplace_back(std::visit(StringVisitor(), field_val));
             }
 
@@ -682,12 +737,10 @@ void SQLTransformer::TransformDelete(size_t pos, std::string_view &write_stateme
         wcb(REPLY_OK, result);
         
     };
-
 }
 
 
-
-std::variant<bool, int32_t, std::string> DecodeType(std::unique_ptr<query_result::Field> &field, std::string &col_type){
+std::variant<bool, int32_t, std::string> DecodeType(std::unique_ptr<query_result::Field> &field, const std::string &col_type){
     size_t nbytes;
     const char* field_val_char = field->get(&nbytes);
     std::string field_val(field_val_char, nbytes);
@@ -704,7 +757,8 @@ void DeCerealize(std::string &enc_value, T &dec_value){
     }
 }
 
-std::variant<bool, int32_t, std::string> DecodeType(std::string &enc_value, std::string &col_type){
+std::variant<bool, int32_t, std::string> DecodeType(std::string &enc_value, const std::string &col_type){
+    //Based on Syntax from: https://www.postgresqltutorial.com/postgresql-tutorial/postgresql-data-types/ && https://www.postgresql.org/docs/current/datatype-numeric.html 
     //Resource for std::variant: https://www.cppstories.com/2018/06/variant/ 
    
     //Note: currently the generated types are PostGresSQL types. We could however also input "normal types" and transform them into SQL types only for Peloton.
@@ -712,7 +766,7 @@ std::variant<bool, int32_t, std::string> DecodeType(std::string &enc_value, std:
     std::variant<bool, int32_t, std::string> type_variant;   //TODO: can pass variant to cereal? Then don't need all the redundant code
 
     //match on col_type
-    if(col_type == "VARCHAR" || col_type == "TEXT"){
+    if(col_type == "VARCHAR" || col_type == "TEXT"){ //FIXME: VARCHAR might actually look like "VARCHAR (n)"
         std::string dec_value;
         DeCerealize(enc_value, dec_value);
         type_variant = std::move(dec_value);
@@ -754,7 +808,11 @@ std::variant<bool, int32_t, std::string> DecodeType(std::string &enc_value, std:
 
 //Note: input (cond_statement) contains everything following "WHERE" keyword
 bool SQLTransformer::CheckColConditions(std::string_view &cond_statement, std::string &table_name, std::map<std::string, std::string> &p_col_value){
-    ColRegistry &col_registry = TableRegistry[table_name];
+    //Using Syntax from: https://www.postgresqltutorial.com/postgresql-tutorial/postgresql-where/ ; https://www.postgresqltutorial.com/postgresql-tutorial/postgresql-order-by/ 
+    
+    auto itr = TableRegistry.find(table_name);
+    UW_ASSERT(itr != TableRegistry.end());
+    const ColRegistry &col_registry = itr->second; //TableRegistry[table_name]; 
 
     size_t pos;
 
@@ -778,7 +836,7 @@ bool SQLTransformer::CheckColConditions(std::string_view &cond_statement, std::s
 
 
 
-bool SQLTransformer::CheckColConditions(std::string_view &cond_statement, ColRegistry &col_registry, std::map<std::string, std::string> &p_col_value){
+bool SQLTransformer::CheckColConditions(std::string_view &cond_statement, const ColRegistry &col_registry, std::map<std::string, std::string> &p_col_value){
     bool terminate_early = false;
     size_t end = 0;
     return CheckColConditions(end, cond_statement, col_registry, p_col_value, terminate_early);
@@ -808,7 +866,7 @@ bool SQLTransformer::CheckColConditions(std::string_view &cond_statement, ColReg
 //TODO: check that column type is primitive: If its array or Timestamp --> defer it to query engine.
 
 //Note: Don't pass cond_statement by reference inside recursion.
-bool SQLTransformer::CheckColConditions(size_t &end, std::string_view cond_statement, ColRegistry &col_registry, std::map<std::string, std::string> &p_col_value, bool &terminate_early){
+bool SQLTransformer::CheckColConditions(size_t &end, std::string_view cond_statement, const ColRegistry &col_registry, std::map<std::string, std::string> &p_col_value, bool &terminate_early){
    
     std::map<std::string, std::string> &left_p_col_value = p_col_value;
     std::map<std::string, std::string> right_p_col_value;
@@ -917,7 +975,7 @@ bool SQLTransformer::CheckColConditions(size_t &end, std::string_view cond_state
     }
 }
 
-void SQLTransformer::ExtractColCondition(std::string_view cond_statement, ColRegistry &col_registry, std::map<std::string, std::string> &p_col_value){
+void SQLTransformer::ExtractColCondition(std::string_view cond_statement, const ColRegistry &col_registry, std::map<std::string, std::string> &p_col_value){
   
     size_t pos = cond_statement.find(" = ");
     if(pos == std::string::npos) return;
@@ -972,24 +1030,13 @@ bool SQLTransformer::MergeColConditions(op_t &op_type, std::map<std::string, std
             break;
         case SQL_AND:  //Union of both subsets. Note: Values must be unique.
         {
-            for(auto &col_val: r_p_col_value){
-                
-                auto itr = l_p_col_value.find(col_val.first);
-                if(itr == l_p_col_value.end()){
-                    l_p_col_value.insert(std::move(col_val));
+            for(auto &[col, val]: r_p_col_value){
+                auto [itr, new_col] = l_p_col_value.try_emplace(std::move(col), std::move(val));
+                if(!new_col){
+                    //exists already, check that both values were the same...
+                    if(val != itr->second) return false; //in this case we want to return false and terminate early.
+                    // https://stackoverflow.com/questions/4286670/what-is-the-preferred-idiomatic-way-to-insert-into-a-map --> try_emplace does not move val if it fails.
                 }
-                else{
-                    if(col_val.second != l_p_col_value[col_val.first]) return false;
-                }
-
-
-                // auto [itr, new_col] = l_p_col_value.insert(std::move(col_val));
-                // if(!new_col){
-                //     std::cerr << "inserting: " << itr->first << ":" << itr->second << std::endl;
-                //     //exists already, check that both values were the same...
-                //     if(col_val.second != l_p_col_value[col_val.first]) return false; //TODO: FIXME: in this case we want to return false and terminate early.
-                //     //TODO: Is stack maybe just easier after all...
-                // }
             }
         }
             break;
@@ -1023,7 +1070,7 @@ bool SQLTransformer::MergeColConditions(op_t &op_type, std::map<std::string, std
 
 ///////////////// Old read parser
 
-bool SQLTransformer::CheckColConditionsDumb(std::string_view &cond_statement, ColRegistry &col_registry, std::map<std::string, std::string> &p_col_value){
+bool SQLTransformer::CheckColConditionsDumb(std::string_view &cond_statement, const ColRegistry &col_registry, std::map<std::string, std::string> &p_col_value){
     //Returns false if should use Query Protocol (Sync or Eager)
     //Returns true if should use Point Read Protocol
 

@@ -135,9 +135,10 @@ The prototype implementations depend the following development libraries:
 - libuv1-dev
 - libpq-dev 
 - postgresql-server-dev-all
+- libfmt-dev
 
 You may install them directly using:
-- `sudo apt install libsodium-dev libgflags-dev libssl-dev libevent-dev libevent-openssl-2.1-7 libevent-pthreads-2.1-7 libboost-all-dev libuv1-dev libpq-dev postgresql-server-dev-all`
+- `sudo apt install libsodium-dev libgflags-dev libssl-dev libevent-dev libevent-openssl-2.1-7 libevent-pthreads-2.1-7 libboost-all-dev libuv1-dev libpq-dev postgresql-server-dev-all libfmt-dev`
 - If using Ubuntu 18.04, use `sudo apt install libevent-openssl-2.1-6 libevent-pthreads-2.1-6` instead for openssl and pthreads.
 
 In addition, you will need to install the following libraries from source (detailed instructions below):
@@ -152,6 +153,7 @@ In addition, you will need to install the following libraries from source (detai
 - [ed25519-donna](https://github.com/floodyberry/ed25519-donna)
 - [Intel TBB](https://software.intel.com/content/www/us/en/develop/tools/oneapi/base-toolkit/get-the-toolkit.html). 
    - You will additionally need to [configure your CPU](https://software.intel.com/content/www/us/en/develop/documentation/get-started-with-intel-oneapi-base-linux/top/before-you-begin.html) before being able to compile the prototypes.
+- [CockroachDB](https://www.cockroachlabs.com/docs/stable/install-cockroachdb-linux.html)
 
 Detailed install instructions:
 
@@ -365,6 +367,20 @@ If it is not installed in `/usr/lib/jvm` then source the `LD_LIBRARY_PATH` accor
 
 Afterwards, navigate to `/usr/lib/jvm/java-11-openjdk-amd64/conf/security/java.security`and comment out (or remove) the following line: `jdk.tls.disabledAlgorithms=SSLv3, TLSv1, RC4, DES, MD5withRSA, DH keySize < 1024 EC keySize < 224, 3DES_EDE_CBC, anon, NULL`
 
+#### Additional prereq for CockroachDB 
+
+First, download and extract cockroach.
+- `wget https://binaries.cockroachdb.com/cockroach-v22.2.2.linux-amd64.tgz --no-check-certificate`
+- `tar -xf cockroach-v22.2.2.linux-amd64.tgz`
+
+Then, create a directory to store the external libraries. Copy the libararies to the directory:
+- `sudo mkdir -p /usr/local/lib/cockroach`
+- `sudo cp -i cockroach-v22.2.2.linux-amd64/lib/libgeos.so /usr/local/lib/cockroach/`
+- `sudo cp -i cockroach-v22.2.2.linux-amd64/lib/libgeos_c.so /usr/local/lib/cockroach/`
+- `sudo cp -i cockroach-v22.2.2.linux-amd64/cockroach /usr/local/bin`
+
+For any Troubleshooting consult: https://www.cockroachlabs.com/docs/stable/install-cockroachdb-linux.html
+
 ### Building binaries:
    
 Finally, you can build the binaries:
@@ -390,6 +406,7 @@ Navigate to `Pequin-Artifact/src` and build:
    - Googletest: /usr/local/lib /usr/local/include
    - Protobufs: /usr/local/lib
    - Intel TBB: /opt/intel/oneapi
+   - CockroachDB: /usr/local/lib/cockroach  /usr/local/bin/cockroach
 
  Run `export LD_LIBRARY_PATH=/usr/local/lib:/usr/local/share:/usr/local/include:$LD_LIBRARY_PATH` (adjusted depending on where `make install` puts the libraries) followed by `sudo ldconfig`.
    

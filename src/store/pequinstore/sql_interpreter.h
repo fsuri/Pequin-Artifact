@@ -74,6 +74,13 @@ static std::string or_hook(" OR ");
 static std::string in_hook("IN");
 static std::string between_hook("BETWEEN");
 
+enum op_t {
+            SQL_START,
+            SQL_NONE,
+            SQL_AND,
+            SQL_OR,
+            SQL_SPECIAL //e.g. IN or BETWEEN
+        };
 
 struct StringVisitor {
     std::string operator()(int32_t &i) const { 
@@ -143,22 +150,16 @@ class SQLTransformer {
         } ColRegistry;
         std::map<std::string, ColRegistry> TableRegistry;
     
+       
+
         bool CheckColConditions(std::string_view &cond_statement, std::string &table_name, std::map<std::string, std::string> &p_col_value);
-        bool CheckColConditions(std::string_view &cond_statement, ColRegistry &col_registry, std::map<std::string, std::string> &p_col_value);
+        bool CheckColConditions(std::string_view &cond_statement, const ColRegistry &col_registry, std::map<std::string, std::string> &p_col_value);
 
-        enum op_t {
-            SQL_START,
-            SQL_NONE,
-            SQL_AND,
-            SQL_OR,
-            SQL_SPECIAL //e.g. IN or BETWEEN
-        };
-
-        bool CheckColConditionsDumb(std::string_view &cond_statement, ColRegistry &col_registry, std::map<std::string, std::string> &p_col_value);
-        bool CheckColConditions(size_t &end, std::string_view cond_statement, ColRegistry &col_registry, std::map<std::string, std::string> &p_col_value, bool &terminate_early);
-            void ExtractColCondition(std::string_view cond_statement, ColRegistry &col_registry, std::map<std::string, std::string> &p_col_value);
+        bool CheckColConditions(size_t &end, std::string_view cond_statement, const ColRegistry &col_registry, std::map<std::string, std::string> &p_col_value, bool &terminate_early);
+            void ExtractColCondition(std::string_view cond_statement, const ColRegistry &col_registry, std::map<std::string, std::string> &p_col_value);
             void GetNextOperator(std::string_view &cond_statement, size_t &op_pos, size_t &op_pos_post, op_t &op_type);
             bool MergeColConditions(op_t &op_type, std::map<std::string, std::string> &l_p_col_value, std::map<std::string, std::string> &r_p_col_value);
+        bool CheckColConditionsDumb(std::string_view &cond_statement, const ColRegistry &col_registry, std::map<std::string, std::string> &p_col_value);
 
         
 };
@@ -177,8 +178,8 @@ class SQLTransformer {
 //1) decode, 2) turn into a string, 3) if arithmetic, turn uint64_, 4 -> turn back to string, 5) let Neil figure out 
 
 
-std::variant<bool, int32_t, std::string> DecodeType(std::unique_ptr<query_result::Field> &field, std::string &col_type);
+std::variant<bool, int32_t, std::string> DecodeType(std::unique_ptr<query_result::Field> &field, const std::string &col_type);
 
-std::variant<bool, int32_t, std::string> DecodeType(std::string &enc_value, std::string &col_type);
+std::variant<bool, int32_t, std::string> DecodeType(std::string &enc_value, const std::string &col_type);
 
 };
