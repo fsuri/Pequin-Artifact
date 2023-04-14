@@ -573,7 +573,8 @@ proto::ConcurrencyControl::Result Server::DoMVTSOOCCCheck(
       bool has_write = GetPreceedingCommittedWrite(read.key(), ts, committedWrite);
       if(has_write){  //If replica does not have preceeding write locally it must have been read from a different replica
         // readVersion < committedTs < ts   (if readVersion == committedTS no conflict)
-        if (Timestamp(read.readtime()) < committedWrite.first) { // && committedWrite.first < ts) {
+        //Conflict if: readTS < preceeding Write. Exception: readTS = genesis and preceeding Write := deletion
+        if (Timestamp(read.readtime()) < committedWrite.first && !(read.readtime().timestamp() == 0 && read.readtime().id() == 0 && committedWrite.second.val == "d")) { // && committedWrite.first < ts) {
       //   }
       // }
       // std::vector<std::pair<Timestamp, Server::Value>> committedWrites;
@@ -608,9 +609,19 @@ proto::ConcurrencyControl::Result Server::DoMVTSOOCCCheck(
 
         std::vector<std::pair<Timestamp, const proto::Transaction *>> preparedPreceedingWrites;
         GetPreceedingPreparedWrite(preparedWritesItr->second.second, ts, preparedPreceedingWrites); 
-        for (const auto &preparedTs : preparedPreceedingWrites) {
+        for (const auto &[preparedTs, preparedTx] : preparedPreceedingWrites) {
         //for (const auto &preparedTs : preparedWritesItr->second.second) {
-          if (Timestamp(read.readtime()) < preparedTs.first && preparedTs.first < ts) {
+          if (Timestamp(read.readtime()) < preparedTs && preparedTs < ts) {
+
+            //Check for exception:
+            if(read.readtime().timestamp() == 0 && read.readtime().id() == 0){
+                for(auto &write: preparedTx->write_set()){
+                  if(read.key() == write.key()){
+                      if(write.value() == "d") continue; //If read genesis TS (0,0) and conflict is deletion --> treat as conflict exception
+                  }
+                }
+            } 
+
             Debug("[%lu:%lu][%s] ABSTAIN wr conflict prepared write for key %s:"
               " this txn's read ts %lu.%lu < prepared ts %lu.%lu < this txn's ts %lu.%lu.",
                 txn.client_id(),
@@ -618,8 +629,8 @@ proto::ConcurrencyControl::Result Server::DoMVTSOOCCCheck(
                 BytesToHex(txnDigest, 16).c_str(),
                 BytesToHex(read.key(), 16).c_str(),
                 read.readtime().timestamp(),
-                read.readtime().id(), preparedTs.first.getTimestamp(),
-                preparedTs.first.getID(), ts.getTimestamp(), ts.getID());
+                read.readtime().id(), preparedTs.getTimestamp(),
+                preparedTs.getID(), ts.getTimestamp(), ts.getID());
             stats.Increment("cc_abstains", 1);
             stats.Increment("cc_abstains_wr_conflict", 1);
 
@@ -628,7 +639,7 @@ proto::ConcurrencyControl::Result Server::DoMVTSOOCCCheck(
             // }
             //std::cerr << "Abstain caused by txn: " << BytesToHex(TransactionDigest(*abstain_conflict, params.hashDigest), 16) << std::endl;
      
-            abstain_conflict = preparedTs.second;
+            abstain_conflict = preparedTx;
         
             //TODO: add handling for returning full signed p1.
             return proto::ConcurrencyControl::ABSTAIN;
@@ -655,6 +666,12 @@ proto::ConcurrencyControl::Result Server::DoMVTSOOCCCheck(
               //    if ts is larger than current itr, it is also larger than all subsequent itrs
               break;
             } else if (std::get<1>(*ritr) < ts) {
+
+               //Check for exception: No conflict if write is a deletion & "conflicting" read read empty/delete
+              if(std::get<1>(*ritr).getTimestamp() == 0 && std::get<1>(*ritr).getID() == 0 && write.value() == "d"){
+                 continue; 
+              } 
+
               if (params.validateProofs) {
                 conflict = std::get<2>(*ritr);
               }
@@ -734,6 +751,12 @@ proto::ConcurrencyControl::Result Server::DoMVTSOOCCCheck(
           // if (!isDep && isReadVersionEarlier &&
           //     ts < Timestamp(preparedReadTxn->timestamp())) {
           if (isReadVersionEarlier) { //If prepared Txn with greater TS read a write with Ts smaller than the current tx -> abstain from preparing curr tx
+
+            //Check for exception: No conflict if write is a deletion & "conflicting" read read empty/delete
+            if(readTs.getTimestamp() == 0 && readTs.getID() == 0 && write.value() == "d"){
+                continue; 
+            } 
+
             Debug("[%lu:%lu][%s] ABSTAIN rw conflict prepared read for key %s: prepared"
                 " read ts %lu.%lu < this txn's ts %lu.%lu < committed ts %lu.%lu.",
                 txn.client_id(),
