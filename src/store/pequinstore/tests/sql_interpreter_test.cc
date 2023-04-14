@@ -47,7 +47,7 @@ void test_registry(){
   std::vector<std::pair<std::string, std::string>> column_names_and_types;
   std::vector<uint32_t> primary_key_col_idx;
 
-  TableWriter table_writer;
+  TableWriter table_writer(file_name);
 
   //Table1:
   table_name = "user";
@@ -58,7 +58,7 @@ void test_registry(){
   primary_key_col_idx.push_back(2);
   table_writer.add_table(table_name, column_names_and_types, primary_key_col_idx);
   //Write Tables to JSON
-  table_writer.flush(file_name);
+  table_writer.flush();
 
   SQLTransformer sql_interpreter;
   std::string table_registry = "sql_interpreter_test_registry-client.json";

@@ -37,7 +37,8 @@
 #include <cstdint>  
 #include <regex>
 #include <string_view>
- #include <fmt/core.h>
+#include <fmt/core.h>
+#include <fmt/ranges.h>
 
 
 #include "store/common/query_result/query_result_proto_wrapper.h"
@@ -696,6 +697,10 @@ void SQLTransformer::TransformDelete(size_t pos, std::string_view &write_stateme
     // read_statement += ";"; // Add back ; --> was truncated by CheckColCond
 
     //use fmt::format to create more readable read_statement generation.
+
+    //read_statement = fmt::format("SELECT {0} FROM {1} WHERE {2};", fmt::join(col_registry.primary_key_cols, ", "), table_name, std::move(where_cond));
+    //Could use this --> but then result might be out of order --> would need to look up pcols by name
+
     read_statement = fmt::format("SELECT {0} FROM {1} WHERE {2};", std::move(col_statement), table_name, std::move(where_cond));
     
      //////// Create Write continuation:  

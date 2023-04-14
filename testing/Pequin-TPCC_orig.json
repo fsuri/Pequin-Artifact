@@ -15,6 +15,10 @@
 
   "client_num_keys": 10000000,
   
+  "_benchmark_type": "sql_bench",
+  "_benchmark_data_file_path": "<bench_name>-tables-schema.json"
+  
+  
   "benchmark_name": "tpcc-sync",
   "partitioner": "warehouse",
   "tpcc_num_warehouses": 20,

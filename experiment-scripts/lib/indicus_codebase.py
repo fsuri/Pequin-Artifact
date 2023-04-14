@@ -214,9 +214,7 @@ class IndicusCodebase(ExperimentCodebase):
 
         if 'benchmark_type' in config and config['benchmark_type'] == 'sql_bench':
             client_command += ' --sql_bench %s' % config['benchmark_type']
-            #if ... benchmark_name = XYZ
-            #client_command += ' --data_file_path % config['XYZ_table_registry_file_path]' #Note: Use the client.json file.
-        #TODO: Add SQL benchmarks.
+            client_command += ' --data_file_path' % config['benchmark_data_file_path'] #file path to schema
 
         if config['benchmark_name'] == 'retwis':
             client_command += ' --num_keys %d' % config['client_num_keys']
@@ -485,7 +483,7 @@ class IndicusCodebase(ExperimentCodebase):
 
         if 'benchmark_type' in config and config['benchmark_type'] == 'sql_bench':
             replica_command += ' --sql_bench %s' % config['benchmark_type']
-        #TODO: Add SQL benchmarks.
+            replica_command += ' --data_file_path' % config['benchmark_data_file_path'] #file path to schema
 
         if config['benchmark_name'] == 'retwis':
             replica_command += ' --num_keys %d' % config['client_num_keys']

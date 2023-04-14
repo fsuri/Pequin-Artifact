@@ -49,6 +49,7 @@
 #include "store/pequinstore/sharedbatchverifier.h"
 #include "lib/batched_sigs.h"
 #include <valgrind/memcheck.h>
+#include <fmt/core.h>
 
 namespace pequinstore {
 
@@ -387,6 +388,50 @@ void Server::CreateIndex(const std::string &table_name, const std::vector<std::p
 
    sql_statement +=");";
 
+}
+
+void Server::LoadTableData(const std::string &table_name, const std::string &table_data_path, const std::vector<uint32_t> &primary_key_col_idx){
+  //Syntax based of: https://www.postgresqltutorial.com/postgresql-tutorial/import-csv-file-into-posgresql-table/ 
+    std::string copy_table_statement = fmt::format("COPY {0} FROM {1} DELIMITER ',' CSV HEADER", table_name, table_data_path);
+
+    //TODO: For CRDB: https://www.cockroachlabs.com/docs/stable/import-into.html
+    std::string copy_table_statement_crdb = fmt::format("IMPORT INTO {0} CSV DATA {1} WITH skip = '1'", table_name, table_data_path); //FIXME: does one need to specify column names? Target columns don't appear to be enforced
+
+    //TODO: Call Exec on Peloton DB backend.
+
+  
+
+    std::ifstream row_data(table_data_path);
+
+    //Skip header
+    std::string columns;
+    getline(row_data, columns); 
+
+
+    std::string row_line;
+    std::string value;
+
+    while(getline(row_data, row_line)){
+     
+      std::vector<std::string> primary_col_vals;
+      uint32_t col_idx = 0;
+      uint32_t p_col_idx = 0;
+      // used for breaking words
+      std::stringstream row(row_line);
+
+      // read every column data of a row and store it in a string variable, 'value'. Extract only the primary_col_values
+      while (getline(row, value, ',')) {
+        if(col_idx == primary_key_col_idx[p_col_idx]){
+          p_col_idx++;
+    
+          
+          primary_col_vals.push_back(std::move(value));
+        }
+        col_idx++;
+      }
+      std::string enc_key = EncodeTableRow(table_name, primary_col_vals);
+      Load(enc_key, "", Timestamp());
+    }
 }
 
 void Server::LoadTableRow(const std::string &table_name, const std::vector<std::pair<std::string, std::string>> &column_data_types, const std::vector<std::string> &values, const std::vector<uint32_t> &primary_key_col_idx ){
