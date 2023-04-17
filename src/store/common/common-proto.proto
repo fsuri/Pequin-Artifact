@@ -13,11 +13,11 @@ message ReadMessage {
 message WriteMessage {
     required bytes key = 1;   //Key-value store key -- Can be decoded into table key.
     //required bytes value = 2;
-    oneof write_value {  //TODO: In prepare and commit: must add has_value() checks.
-        bytes value = 2;
+    //oneof write_value {  //TODO: In prepare and commit: must add has_value() checks.
+    optional bytes value = 2;
         //TableWrite table_writes = 3;
-        RowUpdates rowupdates = 3;  //Table name and primary key cols are included in key encoding.
-    }
+    optional RowUpdates rowupdates = 3;  //Table name and primary key cols are included in key encoding.
+    //}
 }
 
 message PingMessage {
@@ -34,19 +34,24 @@ message TransactionMessage {
 
 //Table Writes.  -- Alternatively -- add optional RowUpdates field
 message RowUpdates {
+    //Version 1
     map<string, bytes> attribute_writes = 1; //map from attribute name to new value (in bytes for general encoding) //TODO: Maybe re-factor this to hold column id instead of name -- or to be in order
     optional TimestampMessage readtime = 2; //version of the row that was read (optional: for ReadModWrites) in order to fetch remaining row values (in case an update only updates some columns)
     optional bool deletion = 3;
 
-    repeated string column_values = 4;
-   
+    //Version 2: Use only this. --> use column names from TableWrite
+    repeated bytes column_values = 4;
 }
 message TableWrite {
+    //Version 1
     map<string, RowUpdates> row_updates = 1; //map from row-name to all attribute writes
 
+    //Version 2: Use only this:
     repeated string column_names = 2;  //store column names in order
     repeated RowUpdates rows = 3;            // each RowUpdate stores the column values in order.
 }
+
+//Deprecated -- unused.
 message TableWrites {
     map<string, TableWrite> tablewrites= 1; //map from table name to all writes for this table.
 }

@@ -74,6 +74,13 @@ static std::string or_hook(" OR ");
 static std::string in_hook("IN");
 static std::string between_hook("BETWEEN");
 
+enum op_t {
+            SQL_START,
+            SQL_NONE,
+            SQL_AND,
+            SQL_OR,
+            SQL_SPECIAL //e.g. IN or BETWEEN
+        };
 
 struct StringVisitor {
     std::string operator()(int32_t &i) const { 
@@ -116,17 +123,18 @@ class SQLTransformer {
 
     private:
         proto::Transaction *txn;
-        typedef struct Col_Update {
-            std::string_view l_value;
-            bool has_operand;
-            std::string_view operand;
-            std::string_view r_value;
-        
-            //TODO: cast all values to uint64 to perform operand
-        } Col_Update;
-        void ParseColUpdate(std::string_view col_update, std::map<std::string_view, Col_Update> &col_updates);
-        std::string_view GetUpdateValue(const std::string &col, std::variant<bool, int32_t, std::string> &field_val, std::unique_ptr<query_result::Field> &field, const std::map<std::string_view, Col_Update> &col_updates);
 
+        //Table Schema
+        typedef struct ColRegistry {
+            std::map<std::string, std::string> col_name_type; //map from column name to SQL data type (e.g. INT, VARCHAR, TIMESTAMP) --> Needs to be matched to real types for deser
+            std::map<std::string, uint32_t> col_name_index; //map from column name to index (order of cols/values in statements) 
+            std::vector<std::string> col_names; //col_names in order
+            std::vector<std::pair<std::string, uint32_t>> primary_key_cols_idx; //ordered (by index) from primary col name to index   //Could alternatively store a map from index to col name.
+            std::set<std::string> primary_key_cols; 
+            std::map<std::string, std::vector<std::string>> secondary_key_cols;
+        } ColRegistry;
+        std::map<std::string, ColRegistry> TableRegistry;
+       
         void TransformInsert(size_t pos, std::string_view &write_statement, 
             std::string &read_statement, std::function<void(int, query_result::QueryResult*)>  &write_continuation, write_callback &wcb);
         void TransformUpdate(size_t pos, std::string_view &write_statement, 
@@ -134,31 +142,28 @@ class SQLTransformer {
         void TransformDelete(size_t pos, std::string_view &write_statement, 
             std::string &read_statement, std::function<void(int, query_result::QueryResult*)>  &write_continuation, write_callback &wcb, bool skip_query_interpretation = false);
 
-        typedef struct ColRegistry {
-            std::map<std::string, std::string> col_name_type; //map from column name to SQL data type (e.g. INT, VARCHAR, TIMESTAMP) --> Needs to be matched to real types for deser
-            std::map<std::string, uint32_t> col_name_index; //map from column name to index (order of cols/values in statements)
-            std::vector<std::pair<std::string, uint32_t>> primary_key_cols_idx; //ordered (by index) from primary col name to index   //Could alternatively store a map from index to col name.
-            std::set<std::string> primary_key_cols; 
-            std::map<std::string, std::vector<std::string>> secondary_key_cols;
-        } ColRegistry;
-        std::map<std::string, ColRegistry> TableRegistry;
-    
+        //Helper Functions
+        typedef struct Col_Update {
+            std::string_view l_value;
+            bool has_operand;
+            std::string_view operand;
+            std::string_view r_value;
+        } Col_Update;
+
+        void ParseColUpdate(std::string_view col_update, std::map<std::string_view, Col_Update> &col_updates);
+        std::string_view GetUpdateValue(const std::string &col, std::variant<bool, int32_t, std::string> &field_val, std::unique_ptr<query_result::Field> &field, const std::map<std::string_view, Col_Update> &col_updates);
+        RowUpdates* AddTableWriteRow(const std::string &table_name, const ColRegistry &col_registry);
+
+
+        //Read Parser
         bool CheckColConditions(std::string_view &cond_statement, std::string &table_name, std::map<std::string, std::string> &p_col_value);
-        bool CheckColConditions(std::string_view &cond_statement, ColRegistry &col_registry, std::map<std::string, std::string> &p_col_value);
+        bool CheckColConditions(std::string_view &cond_statement, const ColRegistry &col_registry, std::map<std::string, std::string> &p_col_value);
 
-        enum op_t {
-            SQL_START,
-            SQL_NONE,
-            SQL_AND,
-            SQL_OR,
-            SQL_SPECIAL //e.g. IN or BETWEEN
-        };
-
-        bool CheckColConditionsDumb(std::string_view &cond_statement, ColRegistry &col_registry, std::map<std::string, std::string> &p_col_value);
-        bool CheckColConditions(size_t &end, std::string_view cond_statement, ColRegistry &col_registry, std::map<std::string, std::string> &p_col_value, bool &terminate_early);
-            void ExtractColCondition(std::string_view cond_statement, ColRegistry &col_registry, std::map<std::string, std::string> &p_col_value);
+        bool CheckColConditions(size_t &end, std::string_view cond_statement, const ColRegistry &col_registry, std::map<std::string, std::string> &p_col_value, bool &terminate_early);
+            void ExtractColCondition(std::string_view cond_statement, const ColRegistry &col_registry, std::map<std::string, std::string> &p_col_value);
             void GetNextOperator(std::string_view &cond_statement, size_t &op_pos, size_t &op_pos_post, op_t &op_type);
             bool MergeColConditions(op_t &op_type, std::map<std::string, std::string> &l_p_col_value, std::map<std::string, std::string> &r_p_col_value);
+        bool CheckColConditionsDumb(std::string_view &cond_statement, const ColRegistry &col_registry, std::map<std::string, std::string> &p_col_value);
 
         
 };
@@ -177,8 +182,8 @@ class SQLTransformer {
 //1) decode, 2) turn into a string, 3) if arithmetic, turn uint64_, 4 -> turn back to string, 5) let Neil figure out 
 
 
-std::variant<bool, int32_t, std::string> DecodeType(std::unique_ptr<query_result::Field> &field, std::string &col_type);
+std::variant<bool, int32_t, std::string> DecodeType(std::unique_ptr<query_result::Field> &field, const std::string &col_type);
 
-std::variant<bool, int32_t, std::string> DecodeType(std::string &enc_value, std::string &col_type);
+std::variant<bool, int32_t, std::string> DecodeType(std::string &enc_value, const std::string &col_type);
 
 };

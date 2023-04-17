@@ -600,7 +600,7 @@ void Client::Commit(commit_callback ccb, commit_timeout_callback ctcb,
     }
 
     //XXX flag to sort read/write sets for parallel OCC
-    if(params.parallel_CCC){
+    if(params.parallel_CCC || true){ //NOTE: FIXME: Currently always sorting: This way we can detect duplicate table versions early.
       try {
         std::sort(txn.mutable_read_set()->begin(), txn.mutable_read_set()->end(), sortReadSetByKey);
         std::sort(txn.mutable_write_set()->begin(), txn.mutable_write_set()->end(), sortWriteSetByKey);

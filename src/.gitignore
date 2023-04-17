@@ -63,6 +63,10 @@ store/pequinstore/tests/tbb_test
 store/pequinstore/tests/snapshot_test
 store/pequinstore/tests/table_loader_test
 store/pequinstore/tests/write_parser_test
+store/pequinstore/tests/sql_interpreter_test
+store/pequinstore/tests/*/
+store/pequinstore/tests/*.json
+store/pequinstore/*.json
 store/pequinstore/proto_bench
 
 store/janusstore/tests/janus-client-test

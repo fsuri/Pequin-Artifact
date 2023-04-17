@@ -133,7 +133,7 @@ message Transaction {
 
   //query md:
   repeated QueryResultMetaData query_set = 8; //contains QueryReadSets
-  optional TableWrites table_writes = 9; //contains all Writes for Queries: --> can be turned into an adhoc write set via encoding function
+  map<string, TableWrite> table_writes = 9; //contains all Writes for Queries: --> can be turned into an adhoc write set via encoding function
   optional uint64 last_query_seq = 10; //Used to update queryWatermark.
 
   optional bytes txndigest = 11; //NOT PART OF TX. HACK HERE TO STORE txn digest in the local txn version without changing data structures that hold TXN.

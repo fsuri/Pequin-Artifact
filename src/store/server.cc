@@ -900,11 +900,13 @@ int main(int argc, char **argv) {
           for(auto &[index_name, index_col_idx]: table_args["indexes"].items()){
             server->CreateIndex(table_name, column_names_and_types, index_name, index_col_idx);
           }
-          //Load Rows
-          for(auto &row: table_args["rows"]){
-            const std::vector<std::string> &values = row;
-            server->LoadTableRow(table_name, column_names_and_types, row, primary_key_col_idx);
-          }
+          //Load full table data
+          server->LoadTableData(table_name, table_args["row_data_path"], primary_key_col_idx);
+          // //Load Rows individually 
+          // for(auto &row: table_args["rows"]){
+          //   const std::vector<std::string> &values = row;
+          //   server->LoadTableRow(table_name, column_names_and_types, row, primary_key_col_idx);
+          // }
        }
   }
   else if (FLAGS_data_file_path.length() > 0 && FLAGS_keys_path.empty()) {

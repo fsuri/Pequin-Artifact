@@ -47,7 +47,7 @@ void test_registry(){
   std::vector<std::pair<std::string, std::string>> column_names_and_types;
   std::vector<uint32_t> primary_key_col_idx;
 
-  TableWriter table_writer;
+  TableWriter table_writer(file_name);
 
   //Table1:
   table_name = "user";
@@ -58,7 +58,7 @@ void test_registry(){
   primary_key_col_idx.push_back(2);
   table_writer.add_table(table_name, column_names_and_types, primary_key_col_idx);
   //Write Tables to JSON
-  table_writer.flush(file_name);
+  table_writer.flush();
 
   SQLTransformer sql_interpreter;
   std::string table_registry = "sql_interpreter_test_registry-client.json";
@@ -103,6 +103,17 @@ void test_insert(){
       for(auto [col, val]: write.rowupdates().attribute_writes()){
            std::cerr << "Col: " << col << " -- Val: " << val << std::endl;
       }
+  }
+
+  for(auto &[table, table_write]: txn.table_writes()){
+    std:cerr << "Write to Table: " << table << std::endl;
+    for(auto &row: table_write.rows()){
+      std::cerr << " Write row: " << std::endl;
+      for(int i=0; i<row.column_values().size(); ++i){
+           std::cerr << "  Col: " << (table_write.column_names()[i]) << " -- Val: " << (row.column_values()[i]) << "; ";
+      }
+       std::cerr << "is deletion: " << row.deletion() << std::endl;
+    }
   }
 
   std::cerr << std::endl;
@@ -172,6 +183,18 @@ void test_update(){
       }
   }
 
+  for(auto &[table, table_write]: txn.table_writes()){
+    std:cerr << "Write to Table: " << table << std::endl;
+    for(auto &row: table_write.rows()){
+      std::cerr << " Write row: " << std::endl;
+      for(int i=0; i<row.column_values().size(); ++i){
+           std::cerr << "  Col: " << (table_write.column_names()[i]) << " -- Val: " << (row.column_values()[i]) << "; ";
+      }
+      std::cerr << "is deletion: " << row.deletion() << std::endl;
+    }
+  }
+
+
   std::cerr << std::endl;
 }
 
@@ -206,7 +229,7 @@ void test_delete(){
   // result_row.push_back("apple");
   sql::QueryResultProtoBuilder queryResultBuilder;
   queryResultBuilder.add_column("col1");
-  queryResultBuilder.add_column("col2");
+  //queryResultBuilder.add_column("col2"); //Only add primary columns.
   queryResultBuilder.add_column("col3");
   //queryResultBuilder.add_row(result_row.begin(), result_row.end());
 
@@ -215,7 +238,7 @@ void test_delete(){
   std::string v2("giraffe");
   std::string v3("apple");
   queryResultBuilder.AddToRow(row, v1);
-  queryResultBuilder.AddToRow(row, v2);
+  //queryResultBuilder.AddToRow(row, v2);
   queryResultBuilder.AddToRow(row, v3);
 
   std::string result = queryResultBuilder.get_result()->SerializeAsString();
@@ -225,11 +248,23 @@ void test_delete(){
   std::cerr << "Read Statement: " << read_statement << std::endl;
 
   write_continuation(0, res);
-  ///TODO: check 
+ 
   std::cerr << "Write Set: "  << std::endl;
   for(auto write: txn.write_set()){
       std::cerr << "Key: " << write.key() << " Value: " << write.value() << std::endl;
       std::cerr << "Is Deletion: " << write.rowupdates().deletion() << std::endl;
+  }
+
+  for(auto &[table, table_write]: txn.table_writes()){
+    std:cerr << "Write to Table: " << table << std::endl;
+    for(auto &row: table_write.rows()){
+      std::cerr << " Write row: " << std::endl;
+      for(int i=0; i<row.column_values().size(); ++i){
+           std::cerr << "  Col: " << (table_write.column_names()[i]) << " -- Val: " << (row.column_values()[i]) << "; ";
+           
+      }
+      std::cerr << "is deletion: " << row.deletion() << std::endl;
+    }
   }
 
   std::cerr << std::endl;
