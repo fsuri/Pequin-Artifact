@@ -55,7 +55,6 @@ SQLOrderStatus::~SQLOrderStatus() {
 transaction_status_t SQLOrderStatus::Execute(SyncClient &client) {
   const query_result::QueryResult *queryResult;
   std::string query;
-  std::vector<const query_result::QueryResult*> results;
 
   Debug("ORDER_STATUS");
   Debug("Warehouse: %u", c_w_id);
@@ -64,60 +63,42 @@ transaction_status_t SQLOrderStatus::Execute(SyncClient &client) {
 
   client.Begin(timeout);
 
+  tpcc::CustomerRow c_row;
   if (c_by_last_name) { // access customer by last name
     Debug("Customer: %s", c_last.c_str());
-    query = fmt::format("SELECT FROM CustomerByName WHERE w_id = {} AND d_id = {} AND last = {}", c_w_id, c_d_id, c_last);
+
+    query = fmt::format("SELECT FROM Customer WHERE d_id = {} AND w_id = {} AND last = {} ORDER BY first", c_d_id, c_w_id, c_last);
     client.Query(query, queryResult, timeout);
-    tpcc::CustomerByNameRow cbn_row;
-    deserialize(cbn_row, queryResult);
-    int idx = (cbn_row.ids_size() + 1) / 2;
-    if (idx == cbn_row.ids_size()) {
-      idx = cbn_row.ids_size() - 1;
-    }
-    c_id = cbn_row.ids(idx);
+    int namecnt = queryResult->size();
+    deserialize(c_row, queryResult, namecnt / 2);
+    c_id = crow.id();
     Debug("  ID: %u", c_id);
   } else {
+    query = fmt::format("SELECT FROM Customer WHERE id = {} AND d_id = {} AND w_id = {}", c_id, c_d_id, c_w_id);
+    client.Query(query, queryResult, timeout);
+    deserialize(c_row, queryResult);
     Debug("Customer: %u", c_id);
   }
 
-  query = fmt::format("SELECT FROM Customer WHERE id = {} AND d_id = {} AND w_id = {}",
-                      c_id, c_d_id, c_w_id);
-  client.Query(query, timeout);
-  query = fmt::format("SELECT FROM OrderByCustomer WHERE w_id = {} AND d_id = {} AND c_id = {}",
-                      c_w_id, c_d_id, c_id);
-  client.Query(query, timeout);
-
-  client.Wait(results);
-
-  tpcc::CustomerRow c_row;
-  deserialize(c_row, results[0]);
   Debug("  First: %s", c_row.first().c_str());
   Debug("  Last: %s", c_row.last().c_str());
 
-  tpcc::OrderByCustomerRow obc_row;
-  deserialize(obc_row, results[1]);
-
-  results.clear();
-
-  o_id = obc_row.o_id();
+  query = fmt::format("SELECT MAX(o_id) FROM Order WHERE d_id = {} AND w_id = {} AND c_id = {}", c_d_id, c_w_id, c_id);
+  client.Query(query, queryResult, timeout);
+  int o_id;
+  deserialize(o_id, queryResult);
   Debug("Order: %u", o_id);
   query = fmt::format("SELECT FROM Order WHERE id = {} AND d_id = {} AND w_id = {}", o_id, c_d_id, c_w_id);
-  queryResult = nullptr;
   client.Query(query, queryResult, timeout);
   tpcc::OrderRow o_row;
-  if(queryResult == nullptr) Panic("empty string for Order Row");
+  if(queryResult->empty()) Panic("empty result for Order Row");
   deserialize(o_row, queryResult);
   Debug("  Order Lines: %u", o_row.ol_cnt());
   Debug("  Entry Date: %u", o_row.entry_d());
   Debug("  Carrier ID: %u", o_row.carrier_id());
 
-  for (size_t ol_number = 0; ol_number < o_row.ol_cnt(); ++ol_number) {
-    query = fmt::format("SELECT FROM OrderLine WHERE o_id = {} AND d_id = {} AND w_id = {} AND number = {}", o_id, c_d_id, c_w_id, ol_number);
-    client.Get(query, timeout);
-  }
-
-  client.Wait(results);
-
+  query = fmt::format("SELECT FROM OrderLine WHERE o_id = {} AND d_id = {} AND w_id = {} AND number < {}", o_id, c_d_id, c_w_id, o_row.ol_cnt());
+  client.Get(query, queryResult, timeout);
   Debug("COMMIT");
   return client.Commit(timeout);
 }
