@@ -101,8 +101,7 @@ transaction_status_t SQLNewOrder::Execute(SyncClient &client) {
   d_row.set_next_o_id(d_row.next_o_id() + 1);
   query = fmt::format("UPDATE District\n SET next_o_id = {}\n WHERE id = {} AND w_id = {}",
                       d_row.next_o_id(), d_id, w_id);
-  std::vector<std::vector<unsigned int>> compound_key{{0, 1}};
-  client.Write(query, compound_key, queryResult, timeout);
+  client.Write(query, queryResult, timeout);
 
   tpcc::CustomerRow c_row;
   deserialize(c_row, results[2]);
@@ -115,20 +114,17 @@ transaction_status_t SQLNewOrder::Execute(SyncClient &client) {
   query = fmt::format("INSERT INTO NewOrder (o_id, d_id, w_id)\n"
             "VALUES ({}, {}, {});", 
             o_id, d_id, w_id);
-  compound_key = {{0, 1, 2}};
-  client.Write(query, compound_key, queryResult, timeout);
+  client.Write(query, queryResult, timeout);
 
   query = fmt::format("INSERT INTO Order (id, d_id, w_id, c_id, entry_d, carrier_id, ol_cnt, all_local)\n"
           "VALUES ({}, {}, {}, {}, {}, {}, {}, {});", 
           o_id, d_id, w_id, c_id, o_entry_d, 0, ol_cnt, all_local);
-  compound_key = {{0, 1, 2}};
-  client.Write(query, compound_key, queryResult, timeout);
+  client.Write(query, queryResult, timeout);
 
   query = fmt::format("INSERT INTO OrderByCustomer (w_id, d_id, c_id, o_id)\n"
         "VALUES ({}, {}, {}, {});", 
         w_id, d_id, c_id, o_id);
-  compound_key = {{0, 1, 2}};
-  client.Write(query, compound_key, queryResult, timeout);
+  client.Write(query, queryResult, timeout);
 
   for (size_t ol_number = 0; ol_number < ol_cnt; ++ol_number) {
     Debug("  Order Line %lu", ol_number);
@@ -178,8 +174,7 @@ transaction_status_t SQLNewOrder::Execute(SyncClient &client) {
               "WHERE i_id = {} AND w_id = {}",
           s_row.quantity(), s_row.ytd(), s_row.order_cnt(), s_row.remote_cnt(),
           o_ol_i_ids[ol_number], o_ol_supply_w_ids[ol_number]);
-      compound_key = {{0, 1}};
-      client.Write(query, compound_key, queryResult, timeout);
+      client.Write(query, queryResult, timeout);
 
       std::string dist_info;
       switch (d_id) {
@@ -221,8 +216,7 @@ transaction_status_t SQLNewOrder::Execute(SyncClient &client) {
             "VALUES ({}, {}, {}, {}, {}, {}, {}, {}, {}, {});", 
             o_id, d_id, w_id, ol_number, o_ol_i_ids[ol_number], o_ol_supply_w_ids[ol_number], 0,
             o_ol_quantities[ol_number], o_ol_quantities[ol_number] * i_row.price(), dist_info);
-      compound_key = {{0, 1, 2, 3}};
-      client.Write(query, compound_key, queryResult, timeout);
+      client.Write(query, queryResult, timeout);
     }
   }
 

@@ -134,10 +134,22 @@ class Row : public query_result::Row {
     sql::Field *p = new sql::Field(*this, m_offset + column);
     return std::unique_ptr<query_result::Field>(p);
   }
+
+  auto operator[]( const std::string &column_name ) const -> std::unique_ptr<query_result::Field>
+  {
+    if(m_result) {
+      std::size_t column = column_index_by_name(column_name);
+      sql::Field *p = new sql::Field(*this, m_offset + column);
+      return std::unique_ptr<query_result::Field>(p);
+    } else {
+      throw std::runtime_error("Cannot get column index from null result");
+    }
+  }
   
   auto columns() const noexcept -> std::size_t;
 
   auto name( const std::size_t column ) const -> std::string;
+  auto column_index_by_name(const std::string &name) const -> std::size_t;
 
   // iteration
   auto begin() const -> std::unique_ptr<const_iterator>;

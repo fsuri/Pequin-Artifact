@@ -43,16 +43,16 @@ auto QueryResultProtoWrapper::create_from_proto(const SQLResultProto* proto_resu
   this->proto_result = proto_result;
   n_rows_affected = proto_result->rows_affected();
   column_names = std::vector<std::string>(proto_result->column_names().begin(), proto_result->column_names().end());
-  result = std::vector<std::vector<std::string>>();
-  for(int i = 0; i < proto_result->rows_size(); i++) {
-    RowProto row = proto_result->rows(i);
-    auto fields_vector = std::vector<FieldProto>(row.fields().begin(), row.fields().end());
-    auto data_vector = std::vector<std::string>();
-    for (auto field : fields_vector) {
-      data_vector.push_back(field.data());
-    }
-    result.push_back(data_vector);
-  }
+  // result = std::vector<std::vector<std::string>>();
+  // for(int i = 0; i < proto_result->rows_size(); i++) {
+  //   RowProto row = proto_result->rows(i);
+  //   auto fields_vector = std::vector<FieldProto>(row.fields().begin(), row.fields().end());
+  //   auto data_vector = std::vector<std::string>();
+  //   for (auto field : fields_vector) {
+  //     data_vector.push_back(field.data());
+  //   }
+  //   result.push_back(data_vector);
+  // }
 }
 
 auto QueryResultProtoWrapper::check_has_result_set() const -> void
@@ -67,19 +67,31 @@ auto QueryResultProtoWrapper::name( const std::size_t column ) const -> std::str
   return column_names[column];
 }
 
+auto QueryResultProtoWrapper::column_index_by_name(const std::string &name) const -> std::size_t {
+  for (std::size_t i = 0; i < column_names.size(); i++) {
+    if (column_names[i] == name) {
+      return i;
+    }
+  }
+  throw std::runtime_error("Column name not found");
+}
+
 bool QueryResultProtoWrapper::empty() const
 {
-  return result.empty();
+  // return result.empty();
+  return proto_result->rows_size() == 0;
 }
 
 auto QueryResultProtoWrapper::size() const -> std::size_t
 {
-  return result.size();
+  // return result.size();
+  return proto_result->rows_size();
 }
 
 auto QueryResultProtoWrapper::columns() const -> std::size_t
 {
-  return column_names.size();
+  // return column_names.size();
+  return proto_result->column_names_size();
 }
 
 auto QueryResultProtoWrapper::begin() const -> std::unique_ptr<const_iterator>
@@ -94,13 +106,14 @@ auto QueryResultProtoWrapper::end() const -> std::unique_ptr<const_iterator>
 }
 
 auto QueryResultProtoWrapper::is_null( const std::size_t row, const std::size_t column ) const -> bool {
-  return result.at(row).at(column) == "";
+  // return result.at(row).at(column) == "";
+  return !proto_result->rows(row).fields(column).has_data();
 }
 
 auto QueryResultProtoWrapper::get( const std::size_t row, const std::size_t column, std::size_t* size ) const -> const char* 
 {
   if(!is_null(row, column)) {
-    const std::string& r_bytes = result.at(row).at(column);
+    const std::string& r_bytes = proto_result->rows(row).fields(column).data(); // result.at(row).at(column);
     *size = r_bytes.size();
     const char* r = r_bytes.data();
     return r;

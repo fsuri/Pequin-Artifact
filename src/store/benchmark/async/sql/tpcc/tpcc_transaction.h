@@ -412,12 +412,13 @@ void load(Archive & archive,
 
 namespace tpcc_sql {
 
+
 template<class T>
-void deserialize(T& t, const query_result::QueryResult* queryResult) {
+void deserialize(T& t, const query_result::QueryResult* queryResult, const std::size_t row) {
   std::stringstream ss(std::ios::in | std::ios::out | std::ios::binary);
-  for(int i = 0; i < queryResult->columns(); i++) {
+  for(std::size_t i = 0; i < queryResult->columns(); i++) {
     std::size_t n_bytes;
-    const char* r_chars = queryResult->get(0, i, &n_bytes);
+    const char* r_chars = queryResult->get(row, i, &n_bytes);
     std::string r = std::string(r_chars, n_bytes);
     ss << r;
   }
@@ -425,6 +426,11 @@ void deserialize(T& t, const query_result::QueryResult* queryResult) {
     cereal::BinaryInputArchive iarchive(ss); // Create an input archive
     iarchive(t); // Read the data from the archive
   }
+}
+
+template<class T>
+void deserialize(T& t, const query_result::QueryResult* queryResult) {
+  deserialize(t, queryResult, 0);
 }
 
 class TPCCSQLTransaction : public SyncTransaction {

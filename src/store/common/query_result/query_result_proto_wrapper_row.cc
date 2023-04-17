@@ -42,6 +42,10 @@ auto Row::name( std::size_t column ) const -> std::string
   return m_result->name( m_offset + column );
 }
 
+auto Row::column_index_by_name(const std::string &name) const -> std::size_t {
+  return m_result->column_index_by_name(name);
+}
+
 auto Row::begin() const -> std::unique_ptr<const_iterator>
 {
   return std::unique_ptr<const_iterator>(new const_iterator( Field( *this, m_offset ) ));

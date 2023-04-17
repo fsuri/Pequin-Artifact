@@ -36,7 +36,7 @@ LIBSSL_LDFLAGS := $(shell pkg-config --libs openssl)
 CFLAGS += $(LIBSSL_CFLAGS)
 LDFLAGS += $(LIBSSL_LDFLAGS)
 # fmt
-LDFLAGS += -l:libfmt.a
+LDFLAGS += -lfmt
 # cryptopp
 LDFLAGS += -l:libcryptopp.a #why does lcryptopp not work? why the .a file here?
 # libsodium

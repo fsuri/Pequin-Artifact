@@ -125,8 +125,7 @@ transaction_status_t SQLPayment::Execute(SyncClient &client) {
   std::string statement = 
     fmt::format("UPDATE Warehouse\n SET ytd = {}\n WHERE id = {};",
                 w_row.ytd(), w_row.id());
-  std::vector<std::vector<unsigned int>> compound_key{{0}};
-  client.Write(statement, compound_key, queryResult, timeout);
+  client.Write(statement, queryResult, timeout);
 
 // Checkpoint
   tpcc::DistrictRow d_row;
@@ -135,8 +134,7 @@ transaction_status_t SQLPayment::Execute(SyncClient &client) {
   Debug("  YTD: %u", d_row.ytd());
   statement = fmt::format("UPDATE District\n SET ytd = {}\n WHERE id = {} AND w_id = {};",
                           d_row.ytd(), d_row.id(), d_row.w_id());
-  compound_key = {{0, 1}};
-  client.Write(statement, compound_key, queryResult, timeout);
+  client.Write(statement, queryResult, timeout);
 
   tpcc::CustomerRow c_row;
   deserialize(c_row, results[2]);
@@ -159,8 +157,7 @@ transaction_status_t SQLPayment::Execute(SyncClient &client) {
             "WHERE id = {} AND d_id = {} AND w_id = {};", 
             c_row.balance(), c_row.ytd_payment(), c_row.payment_cnt(), 
             c_row.data(), c_row.id(), c_row.d_id(), c_row.w_id());
-  compound_key = {{0, 1, 2}};
-  client.Write(statement, compound_key, queryResult, timeout);
+  client.Write(statement, queryResult, timeout);
 
   tpcc::HistoryRow h_row;
   h_row.set_c_id(c_id);
@@ -174,8 +171,7 @@ transaction_status_t SQLPayment::Execute(SyncClient &client) {
             "VALUES ({}, {}, {}, {}, {}, {}, {}, {});", 
             h_row.c_id(), h_row.c_d_id(), h_row.c_w_id(), h_row.d_id(), h_row.w_id(),
             h_row.date(), h_row.amount(), h_row.data());
-  compound_key = {{0, 3, 4}};
-  client.Write(statement, compound_key, queryResult, timeout);
+  client.Write(statement, queryResult, timeout);
 
   Debug("COMMIT");
   return client.Commit(timeout);
