@@ -46,7 +46,6 @@ class QueryResultProtoWrapper : public query_result::QueryResult {
     const SQLResultProto* proto_result;
     uint32_t n_rows_affected;
     std::vector<std::string> column_names;
-    //std::vector<std::vector<std::string>> result;
     auto create_from_proto(const SQLResultProto* proto_result) -> void;
     auto check_has_result_set() const -> void;
 
