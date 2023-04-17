@@ -105,6 +105,17 @@ void test_insert(){
       }
   }
 
+  for(auto &[table, table_write]: txn.table_writes()){
+    std:cerr << "Write to Table: " << table << std::endl;
+    for(auto &row: table_write.rows()){
+      std::cerr << " Write row: " << std::endl;
+      for(int i=0; i<row.column_values().size(); ++i){
+           std::cerr << "  Col: " << (table_write.column_names()[i]) << " -- Val: " << (row.column_values()[i]) << "; ";
+      }
+       std::cerr << "is deletion: " << row.deletion() << std::endl;
+    }
+  }
+
   std::cerr << std::endl;
 } 
 
@@ -172,6 +183,18 @@ void test_update(){
       }
   }
 
+  for(auto &[table, table_write]: txn.table_writes()){
+    std:cerr << "Write to Table: " << table << std::endl;
+    for(auto &row: table_write.rows()){
+      std::cerr << " Write row: " << std::endl;
+      for(int i=0; i<row.column_values().size(); ++i){
+           std::cerr << "  Col: " << (table_write.column_names()[i]) << " -- Val: " << (row.column_values()[i]) << "; ";
+      }
+      std::cerr << "is deletion: " << row.deletion() << std::endl;
+    }
+  }
+
+
   std::cerr << std::endl;
 }
 
@@ -225,11 +248,23 @@ void test_delete(){
   std::cerr << "Read Statement: " << read_statement << std::endl;
 
   write_continuation(0, res);
-  ///TODO: check 
+ 
   std::cerr << "Write Set: "  << std::endl;
   for(auto write: txn.write_set()){
       std::cerr << "Key: " << write.key() << " Value: " << write.value() << std::endl;
       std::cerr << "Is Deletion: " << write.rowupdates().deletion() << std::endl;
+  }
+
+  for(auto &[table, table_write]: txn.table_writes()){
+    std:cerr << "Write to Table: " << table << std::endl;
+    for(auto &row: table_write.rows()){
+      std::cerr << " Write row: " << std::endl;
+      for(int i=0; i<row.column_values().size(); ++i){
+           std::cerr << "  Col: " << (table_write.column_names()[i]) << " -- Val: " << (row.column_values()[i]) << "; ";
+           
+      }
+      std::cerr << "is deletion: " << row.deletion() << std::endl;
+    }
   }
 
   std::cerr << std::endl;

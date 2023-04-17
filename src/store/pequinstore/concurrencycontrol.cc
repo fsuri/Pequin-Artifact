@@ -668,6 +668,7 @@ proto::ConcurrencyControl::Result Server::DoMVTSOOCCCheck(
             } else if (std::get<1>(*ritr) < ts) {
 
                //Check for exception: No conflict if write is a deletion & "conflicting" read read empty/delete
+               //Note: This exception currently only protects deletions; it does not protect writes that are written before the deletion -- we could strengthen the check to except those too: //TODO: this would require updating the RTS of the reader
               if(std::get<1>(*ritr).getTimestamp() == 0 && std::get<1>(*ritr).getID() == 0 && write.value() == "d"){
                  continue; 
               } 
@@ -753,6 +754,7 @@ proto::ConcurrencyControl::Result Server::DoMVTSOOCCCheck(
           if (isReadVersionEarlier) { //If prepared Txn with greater TS read a write with Ts smaller than the current tx -> abstain from preparing curr tx
 
             //Check for exception: No conflict if write is a deletion & "conflicting" read read empty/delete
+             //Note: This exception currently only protects deletions; it does not protect writes that are written before the deletion -- we could strengthen the check to except those too: //TODO: this would require updating the RTS of the reader
             if(readTs.getTimestamp() == 0 && readTs.getID() == 0 && write.value() == "d"){
                 continue; 
             } 

@@ -123,17 +123,18 @@ class SQLTransformer {
 
     private:
         proto::Transaction *txn;
-        typedef struct Col_Update {
-            std::string_view l_value;
-            bool has_operand;
-            std::string_view operand;
-            std::string_view r_value;
-        
-            //TODO: cast all values to uint64 to perform operand
-        } Col_Update;
-        void ParseColUpdate(std::string_view col_update, std::map<std::string_view, Col_Update> &col_updates);
-        std::string_view GetUpdateValue(const std::string &col, std::variant<bool, int32_t, std::string> &field_val, std::unique_ptr<query_result::Field> &field, const std::map<std::string_view, Col_Update> &col_updates);
 
+        //Table Schema
+        typedef struct ColRegistry {
+            std::map<std::string, std::string> col_name_type; //map from column name to SQL data type (e.g. INT, VARCHAR, TIMESTAMP) --> Needs to be matched to real types for deser
+            std::map<std::string, uint32_t> col_name_index; //map from column name to index (order of cols/values in statements) 
+            std::vector<std::string> col_names; //col_names in order
+            std::vector<std::pair<std::string, uint32_t>> primary_key_cols_idx; //ordered (by index) from primary col name to index   //Could alternatively store a map from index to col name.
+            std::set<std::string> primary_key_cols; 
+            std::map<std::string, std::vector<std::string>> secondary_key_cols;
+        } ColRegistry;
+        std::map<std::string, ColRegistry> TableRegistry;
+       
         void TransformInsert(size_t pos, std::string_view &write_statement, 
             std::string &read_statement, std::function<void(int, query_result::QueryResult*)>  &write_continuation, write_callback &wcb);
         void TransformUpdate(size_t pos, std::string_view &write_statement, 
@@ -141,17 +142,20 @@ class SQLTransformer {
         void TransformDelete(size_t pos, std::string_view &write_statement, 
             std::string &read_statement, std::function<void(int, query_result::QueryResult*)>  &write_continuation, write_callback &wcb, bool skip_query_interpretation = false);
 
-        typedef struct ColRegistry {
-            std::map<std::string, std::string> col_name_type; //map from column name to SQL data type (e.g. INT, VARCHAR, TIMESTAMP) --> Needs to be matched to real types for deser
-            std::map<std::string, uint32_t> col_name_index; //map from column name to index (order of cols/values in statements)
-            std::vector<std::pair<std::string, uint32_t>> primary_key_cols_idx; //ordered (by index) from primary col name to index   //Could alternatively store a map from index to col name.
-            std::set<std::string> primary_key_cols; 
-            std::map<std::string, std::vector<std::string>> secondary_key_cols;
-        } ColRegistry;
-        std::map<std::string, ColRegistry> TableRegistry;
-    
-       
+        //Helper Functions
+        typedef struct Col_Update {
+            std::string_view l_value;
+            bool has_operand;
+            std::string_view operand;
+            std::string_view r_value;
+        } Col_Update;
 
+        void ParseColUpdate(std::string_view col_update, std::map<std::string_view, Col_Update> &col_updates);
+        std::string_view GetUpdateValue(const std::string &col, std::variant<bool, int32_t, std::string> &field_val, std::unique_ptr<query_result::Field> &field, const std::map<std::string_view, Col_Update> &col_updates);
+        RowUpdates* AddTableWriteRow(const std::string &table_name, const ColRegistry &col_registry);
+
+
+        //Read Parser
         bool CheckColConditions(std::string_view &cond_statement, std::string &table_name, std::map<std::string, std::string> &p_col_value);
         bool CheckColConditions(std::string_view &cond_statement, const ColRegistry &col_registry, std::map<std::string, std::string> &p_col_value);
 
