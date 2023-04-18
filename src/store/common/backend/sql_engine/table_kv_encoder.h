@@ -33,7 +33,7 @@
 std::string EncodeTableRow(const std::string &table_name, const std::vector<std::string> &primary_key_column_values);
 std::string EncodeTableRow(const std::string &table_name, const std::vector<const std::string*> &primary_key_column_values);
 std::string EncodeTableRow(const std::string &table_name, const std::vector<const std::string_view*> &primary_key_column_values);
-void DecodeTableRow(const std::string &enc_key, std::string &table_name, std::vector<std::string> primary_key_column_values);
+void DecodeTableRow(const std::string &enc_key, std::string &table_name, std::vector<std::string> &primary_key_column_values);
 
 
 #endif /* _FAILURES_H_ */

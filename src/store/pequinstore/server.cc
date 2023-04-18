@@ -359,7 +359,8 @@ void Server::CreateTable(const std::string &table_name, const std::vector<std::p
   
   sql_statement +=");";
 
-  //TODO: Call into TableStore with this statement.
+  //Call into TableStore with this statement.
+  table_store.ExecRaw(sql_statement);
 
   //Create TABLE version  -- just use table_name as key.  This version tracks updates to "table state" (as opposed to row state): I.e. new row insertions; row deletions;
   //Note: It does currently not track table creation/deletion itself -- this is unsupported. If we do want to support it, either we need to make a separate version; 
@@ -388,6 +389,9 @@ void Server::CreateIndex(const std::string &table_name, const std::vector<std::p
 
    sql_statement +=");";
 
+  //Call into TableStore with this statement.
+  table_store.ExecRaw(sql_statement);
+
 }
 
 void Server::LoadTableData(const std::string &table_name, const std::string &table_data_path, const std::vector<uint32_t> &primary_key_col_idx){
@@ -395,11 +399,10 @@ void Server::LoadTableData(const std::string &table_name, const std::string &tab
     std::string copy_table_statement = fmt::format("COPY {0} FROM {1} DELIMITER ',' CSV HEADER", table_name, table_data_path);
 
     //TODO: For CRDB: https://www.cockroachlabs.com/docs/stable/import-into.html
-    std::string copy_table_statement_crdb = fmt::format("IMPORT INTO {0} CSV DATA {1} WITH skip = '1'", table_name, table_data_path); //FIXME: does one need to specify column names? Target columns don't appear to be enforced
+    //std::string copy_table_statement_crdb = fmt::format("IMPORT INTO {0} CSV DATA {1} WITH skip = '1'", table_name, table_data_path); //FIXME: does one need to specify column names? Target columns don't appear to be enforced
 
-    //TODO: Call Exec on Peloton DB backend.
-
-  
+    //Call into TableStore with this statement.
+    table_store.ExecRaw(copy_table_statement);
 
     std::ifstream row_data(table_data_path);
 
@@ -436,7 +439,7 @@ void Server::LoadTableData(const std::string &table_name, const std::string &tab
 
 void Server::LoadTableRow(const std::string &table_name, const std::vector<std::pair<std::string, std::string>> &column_data_types, const std::vector<std::string> &values, const std::vector<uint32_t> &primary_key_col_idx ){
   
-  //TODO: Instead of using the INSERT SQL statement, use the TableWrite API we will establish.
+  //TODO: Instead of using the INSERT SQL statement, could generate a TableWrite and use the TableWrite API.
   std::string sql_statement("INSERT INTO");
   sql_statement += " " + table_name ;
 
@@ -459,7 +462,8 @@ void Server::LoadTableRow(const std::string &table_name, const std::vector<std::
 
   sql_statement += ");" ;
   
-   //TODO: Call into TableStore with this statement.   //TODO: Alternativey 
+  //Call into TableStore with this statement.
+  table_store.ExecRaw(sql_statement);
 
   std::vector<const std::string*> primary_cols;
   for(auto i: primary_key_col_idx){
@@ -1790,6 +1794,13 @@ void Server::CommitToStore(proto::CommittedProof *proof, proto::Transaction *txn
     else{
       //No RTS
     }
+  }
+
+  //Apply TableWrites: //TODO: Apply also for Prepare: Mark TableWrites as prepared. TODO: add interface func to set prepared, and clean also.. commit should upgrade them. //FIXME: How does SQL update handle exising row
+                            // alternatively: don't mark prepare/commit inside the table store, only in CC store. But that requires extra lookup for all keys in read set.
+                            // + how do we remove prepared rows? Do we treat it as SQL delete (at ts)? row becomes invisible -- fully removed from CC store.
+  for (const auto &[table_name, table_write] : txn->table_writes()){
+    table_store.ApplyTableWrite(table_name, table_write, ts, txnDigest);
   }
 }
 

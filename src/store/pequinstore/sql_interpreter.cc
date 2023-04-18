@@ -99,6 +99,8 @@ void SQLTransformer::RegisterTables(std::string &table_registry){ //TODO: This t
             col_registry.primary_key_cols.insert(column_names_and_types[p_idx].first);
             //std::cerr << "Primary key col " << column_names_and_types[p_idx].first << std::endl;
           }
+          col_registry.primary_col_idx = primary_key_col_idx;
+
           //register secondary indexes
           for(auto &[index_name, index_col_idx]: table_args["indexes"].items()){
              std::vector<std::string> &index_cols = col_registry.secondary_key_cols[index_name];
@@ -349,7 +351,10 @@ void SQLTransformer::TransformInsert(size_t pos, std::string_view &write_stateme
 
             //New version: 
             TableWrite &table_write = (*txn->mutable_table_writes())[table_name];
-            if(table_write.column_names().empty()) *table_write.mutable_column_names() = {col_registry_ptr->col_names.begin(), col_registry_ptr->col_names.end()}; //set columns if first TableWrite
+            if(table_write.column_names().empty()){
+                *table_write.mutable_column_names() = {col_registry_ptr->col_names.begin(), col_registry_ptr->col_names.end()}; //set columns if first TableWrite
+                *table_write.mutable_col_primary_idx() = {col_registry_ptr->primary_col_idx.begin(), col_registry_ptr->primary_col_idx.end()}; //set columns if first TableWrite
+            } 
             RowUpdates *row_update = table_write.add_rows();
             *row_update->mutable_column_values() = {value_list.begin(), value_list.end()};
             // for(auto &[col_name, col_idx]: col_registry_ptr->col_name_index){
@@ -666,6 +671,45 @@ void SQLTransformer::TransformDelete(size_t pos, std::string_view &write_stateme
     };
 }
 
+
+//////////////////// Table Write Generator
+
+void GenerateTableWriteStatement(std::string &write_statement, const std::string &table_name, const TableWrite &table_write){
+
+    //If we turn table writes into a sql statement, then don't actually need to decode type into anything else than a string... also don't need to perform update artihmetic client side but could
+    // just send statement.
+
+    write_statement = fmt::format("INSERT INTO {0} VALUES ", table_name);
+    for(auto &row: table_write.rows()){
+        //Alternatively: Move row contents to a vector and use: fmt::join(vec, ",")
+        write_statement += "(";
+        for(auto &col_val: row.column_values()){
+            write_statement += col_val + ", ";
+        }
+          write_statement.resize(write_statement.length()-2); //remove trailing ", "
+           write_statement += "), ";
+
+        //write_statement += fmt::format("{}, ", fmt::join(row.column_values(), ','));
+    }
+    write_statement.resize(write_statement.length()-2); //remove trailing ", "
+
+    write_statement += " ON CONFLICT (";
+    for(auto &p_idx: table_write.col_primary_idx()){
+        write_statement += table_write.column_names()[p_idx] + ", ";
+    }
+    write_statement.resize(write_statement.length()-2); //remove trailing ", "
+
+    write_statement += ") VALUES DO UPDATE SET "; //TODO: loop, replace with index
+    for(auto &col: table_write.column_names()){
+        write_statement += fmt::format("{0} = EXCLUDED.{0}, ", col);
+    }
+     write_statement.resize(write_statement.length()-2); //remove trailing ", "
+     write_statement += ";";
+}
+
+
+
+
 //////////////////// Helper functions:
 
 
@@ -789,7 +833,10 @@ std::string_view SQLTransformer::GetUpdateValue(const std::string &col, std::var
 
 RowUpdates* SQLTransformer::AddTableWriteRow(const std::string &table_name, const ColRegistry &col_registry){
     TableWrite &table_write = (*txn->mutable_table_writes())[table_name];
-    if(table_write.column_names().empty()) *table_write.mutable_column_names() = {col_registry.col_names.begin(), col_registry.col_names.end()}; //set columns if first TableWrite
+    if(table_write.column_names().empty()){
+        *table_write.mutable_column_names() = {col_registry.col_names.begin(), col_registry.col_names.end()}; //set columns if first TableWrite
+        *table_write.mutable_col_primary_idx() = {col_registry.primary_col_idx.begin(), col_registry.primary_col_idx.end()}; //set columns if first TableWrite
+    } 
     RowUpdates *row_update = table_write.add_rows();
    
     //std::vector<std::string *> col_vals;

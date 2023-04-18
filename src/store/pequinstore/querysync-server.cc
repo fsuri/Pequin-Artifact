@@ -355,6 +355,7 @@ void Server::FindSnapshot(QueryMetaData *query_md, proto::Query *query){
     //                                                         //
     //
     //              EXEC BLACKBOX -- TBD
+    table_store.FindSnapshot(query_md->query_cmd, query_md->ts, query_md->snapshot_mgr);
     //                                                         //
     //                                                         //
     //                                                         //
@@ -1472,6 +1473,9 @@ std::string Server::ExecQuery(QueryReadSetMgr &queryReadSetMgr, QueryMetaData *q
     //                                                         //
     //
     //              EXEC BLACKBOX -- TBD
+    std::string serialized_result;
+    if(!materialize) serialized_result = table_store.ExecReadQuery(query_md->query_cmd, query_md->ts, queryReadSetMgr);
+    if(materialize) Panic("Do not yet support Snapshot materialization");
     //                                                         //
     //                                                         //
     //                                                         //

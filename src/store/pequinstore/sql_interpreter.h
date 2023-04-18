@@ -131,6 +131,7 @@ class SQLTransformer {
             std::vector<std::string> col_names; //col_names in order
             std::vector<std::pair<std::string, uint32_t>> primary_key_cols_idx; //ordered (by index) from primary col name to index   //Could alternatively store a map from index to col name.
             std::set<std::string> primary_key_cols; 
+            std::vector<uint32_t> primary_col_idx; 
             std::map<std::string, std::vector<std::string>> secondary_key_cols;
         } ColRegistry;
         std::map<std::string, ColRegistry> TableRegistry;
@@ -168,6 +169,7 @@ class SQLTransformer {
         
 };
 
+void GenerateTableWriteStatement(std::string &write_statement, const std::string &table_name, const TableWrite &table_write);
 
 // class ReadSQLTransformer {
 //     public:

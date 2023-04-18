@@ -49,6 +49,8 @@ message TableWrite {
     //Version 2: Use only this:
     repeated string column_names = 2;  //store column names in order
     repeated RowUpdates rows = 3;            // each RowUpdate stores the column values in order.
+    repeated uint32 col_primary_idx = 4; //TODO: might not even need column names at all, just store primary col names then. Must make sure col_values are in schema order.
+    //repeated string primary_cols = 5;
 }
 
 //Deprecated -- unused.

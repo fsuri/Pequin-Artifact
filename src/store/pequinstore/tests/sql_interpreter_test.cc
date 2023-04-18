@@ -369,6 +369,32 @@ void test_cond(){
   std::cerr << std::endl;
 }
 
+void test_write(){
+
+   std::cerr << "Test Write Generation:" << std::endl;
+  std::string table_name = "user";
+  std::string write_statement;
+  TableWrite table_write;
+
+  std::vector<std::string> col_names = {"name", "age", "color"};
+  std::vector<uint32_t> p_col_idx = {0, 2};
+  *table_write.mutable_column_names() = {col_names.begin(), col_names.end()};
+  *table_write.mutable_col_primary_idx() = {p_col_idx.begin(), p_col_idx.end()};
+
+  std::vector<std::string> val1 = {"flo", "26", "brown"};
+  std::vector<std::string> val2 = {"neil", "24", "black"};
+  RowUpdates *row1 = table_write.add_rows();
+  *row1->mutable_column_values() = {val1.begin(), val1.end()};
+   RowUpdates *row2 = table_write.add_rows();
+  *row2->mutable_column_values() = {val2.begin(), val2.end()};
+ 
+
+
+  GenerateTableWriteStatement(write_statement, table_name, table_write);
+  std::cerr << "write: " << write_statement << std::endl;
+
+}
+
 int main() {
   
   std::cerr<< "Testing Write Parser" << std::endl;
@@ -382,6 +408,8 @@ int main() {
   test_delete();
 
   test_cond();
+
+  test_write();
 
   std::cerr << "test string view scope" << std::endl;
 

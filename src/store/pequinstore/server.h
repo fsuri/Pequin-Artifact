@@ -44,6 +44,7 @@
 #include "store/pequinstore/pequin-proto.pb.h"
 #include "store/pequinstore/batchsigner.h"
 #include "store/pequinstore/verifier.h"
+#include "store/pequinstore/table_store_interface.h"
 #include <sys/time.h>
 
 #include <set>
@@ -912,6 +913,8 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
   void CreateHMACedMessage(const ::google::protobuf::Message &msg, proto::SignedMessage *signedMessage);
 
 // DATA STRUCTURES
+
+  TableStore table_store;
 
   VersionedKVStore<Timestamp, Value> store;
   // Key -> V
