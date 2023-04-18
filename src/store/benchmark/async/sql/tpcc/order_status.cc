@@ -71,7 +71,7 @@ transaction_status_t SQLOrderStatus::Execute(SyncClient &client) {
     client.Query(query, queryResult, timeout);
     int namecnt = queryResult->size();
     deserialize(c_row, queryResult, namecnt / 2);
-    c_id = crow.id();
+    c_id = c_row.id();
     Debug("  ID: %u", c_id);
   } else {
     query = fmt::format("SELECT FROM Customer WHERE id = {} AND d_id = {} AND w_id = {}", c_id, c_d_id, c_w_id);
@@ -98,7 +98,7 @@ transaction_status_t SQLOrderStatus::Execute(SyncClient &client) {
   Debug("  Carrier ID: %u", o_row.carrier_id());
 
   query = fmt::format("SELECT FROM OrderLine WHERE o_id = {} AND d_id = {} AND w_id = {} AND number < {}", o_id, c_d_id, c_w_id, o_row.ol_cnt());
-  client.Get(query, queryResult, timeout);
+  client.Query(query, queryResult, timeout);
   Debug("COMMIT");
   return client.Commit(timeout);
 }

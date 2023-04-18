@@ -54,23 +54,15 @@ transaction_status_t SQLStockLevel::Execute(SyncClient &client) {
 
   client.Begin(timeout);
 
-  query = fmt::format("SELECT FROM District WHERE id = {} AND w_id = {}", d_id, w_id);
+  query = fmt::format("SELECT next_o_id FROM District WHERE id = {} AND w_id = {}", d_id, w_id);
   client.Query(query, queryResult, timeout);
-  tpcc::DistrictRow d_row;
-  deserialize(d_row, queryResult);
-
-  uint32_t next_o_id = d_row.next_o_id();
+  uint32_t next_o_id;
+  deserialize(next_o_id, queryResult);
   Debug("Orders: %u-%u", next_o_id - 20, next_o_id - 1);
 
-  for (size_t ol_o_id = next_o_id - 20; ol_o_id < next_o_id; ++ol_o_id) {
-    Debug("Order %lu", ol_o_id);
-    query = fmt::format("SELECT FROM Order WHERE id = {} AND d_id = {} AND w_id = {}", ol_o_id, d_id, w_id);
-    client.Query(query, timeout);
-  }
-
+  query = fmt::format("SELECT FROM Order WHERE id BETWEEN {} AND {} AND d_id = {} AND w_id = {}", next_o_id - 20, next_o_id - 1, d_id, w_id);
+  client.Query(query, timeout);
   client.Wait(results);
-
-  // Checkpoint
 
   std::map<uint32_t, uint32_t> ol_cnts;
   for (uint32_t ol_o_id = next_o_id - 20; ol_o_id < next_o_id; ++ol_o_id) {
@@ -79,20 +71,17 @@ transaction_status_t SQLStockLevel::Execute(SyncClient &client) {
       continue;
     }
     tpcc::OrderRow o_row;
-    deserialize(o_row, results[ol_o_id + 20 - next_o_id]);
+    deserialize(o_row, queryResult, ol_o_id + 20 - next_o_id);
     Debug("  Order Lines: %u", o_row.ol_cnt());
 
     ol_cnts[ol_o_id] = o_row.ol_cnt();
-    for (size_t ol_number = 0; ol_number < o_row.ol_cnt(); ++ol_number) {
-      Debug("    OL %lu", ol_number);
-      query = fmt::format("SELECT FROM OrderLine WHERE o_id = {} AND d_id = {} AND w_id = {} AND number = {}", ol_o_id, d_id, w_id, ol_number);
-      client.Query(query, timeout);
-    }
+    query = fmt::format("SELECT FROM OrderLine WHERE o_id = {} AND d_id = {} AND w_id = {} AND number < {}", ol_o_id, d_id, w_id, o_row.ol_cnt());
+    client.Query(query, timeout);
   }
 
   results.clear();
   client.Wait(results);
-  // CHECKPOINT
+  
   std::map<uint32_t, tpcc::StockRow> stockRows;
   size_t resultsIdx = 0;
   for (const auto order_cnt : ol_cnts) {
@@ -101,12 +90,11 @@ transaction_status_t SQLStockLevel::Execute(SyncClient &client) {
       tpcc::OrderLineRow ol_row;
       Debug("  OL %lu", ol_number);
       Debug("  Total OL index: %lu.", resultsIdx);
-      if (results[resultsIdx]->empty()) {
+      if (!results[resultsIdx]->at(ol_number)) {
         Debug("  Non-existent Order Line %lu", ol_number);
         continue;
       }
-      deserialize(ol_row, results[resultsIdx]);
-      resultsIdx++;
+      deserialize(ol_row, results[resultsIdx], ol_number);
       Debug("      Item %d", ol_row.i_id());
 
       if (stockRows.find(ol_row.i_id()) == stockRows.end()) {
@@ -114,6 +102,7 @@ transaction_status_t SQLStockLevel::Execute(SyncClient &client) {
         client.Query(query, timeout);
       }
     }
+    resultsIdx++;
   }
 
   results.clear();
