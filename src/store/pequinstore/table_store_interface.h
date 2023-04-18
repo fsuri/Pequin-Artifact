@@ -27,8 +27,11 @@ class TableStore {
                 // ExecPointRead should translate enc_primary_key into a query_statement to be exec by ExecReadQuery. (Alternatively: Could already send a Sql command from the client)
 
         //Apply a set of Table Writes (versioned row creations) to the Table backend
-        void ApplyTableWrite(const std::string &table_name, const TableWrite &table_write, const Timestamp &ts, const std::string &txn_digest); 
+        void ApplyTableWrite(const std::string &table_name, const TableWrite &table_write, const Timestamp &ts, const std::string &txn_digest, bool commit_or_prepare = true); 
          ///https://www.postgresqltutorial.com/postgresql-tutorial/postgresql-upsert/ 
+        void PurgeTableWrite(const std::string &table_name, const TableWrite &table_write, const Timestamp &ts, const std::string &txn_digest); 
+
+        
 
         //Partially execute a read query statement (reconnaissance execution) and return the snapshot state (managed by ssMgr)
         void FindSnapshot(std::string &query_statement, const Timestamp &ts, SnapshotManager &ssMgr);

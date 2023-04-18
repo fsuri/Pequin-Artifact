@@ -1581,6 +1581,8 @@ void Server::Prepare(const std::string &txnDigest,
   Debug("PREPARE[%s] agreed to commit with ts %lu.%lu.",
       BytesToHex(txnDigest, 16).c_str(), txn.timestamp().timestamp(), txn.timestamp().id());
 
+  Timestamp ts = Timestamp(txn.timestamp());
+
   //const ReadSet &readSet = txn.read_set();
   const WriteSet &writeSet = txn.write_set();
 
@@ -1595,7 +1597,7 @@ void Server::Prepare(const std::string &txnDigest,
   //const proto::Transaction *ongoingTxn = ongoing.at(txnDigest);
 
   preparedMap::accessor a;
-  bool first_prepare = prepared.insert(a, std::make_pair(txnDigest, std::make_pair(Timestamp(txn.timestamp()), ongoingTxn)));
+  bool first_prepare = prepared.insert(a, std::make_pair(txnDigest, std::make_pair(ts, ongoingTxn)));
   if(!first_prepare) return; //Already inserted all Read/Write Sets.
 
   // Debug("PREPARE: TESTING MERGED READ");
@@ -1638,6 +1640,10 @@ void Server::Prepare(const std::string &txnDigest,
     }
   }
   o.release(); //Relase only at the end, so that Prepare and Clean in parallel for the same TX are atomic.
+
+  for (const auto &[table_name, table_write] : txn.table_writes()){
+    table_store.ApplyTableWrite(table_name, table_write, ts, txnDigest, false);
+  }
 }
 
 
@@ -1816,6 +1822,8 @@ void Server::Abort(const std::string &txnDigest, proto::Transaction *txn) {
 
   CleanQueries(txn, false);
   CheckWaitingQueries(txnDigest, txn->timestamp(), true); //is_abort  //NOTE: WARNING: If Clean(abort) deletes txn then must callCheckWaitingQueries before Clean.
+
+
 }
 
 
@@ -1848,28 +1856,34 @@ void Server::Clean(const std::string &txnDigest, bool abort, bool hard) {
   preparedMap::accessor a;
   bool is_prepared = prepared.find(a, txnDigest);
   if(is_prepared){
+      const proto::Transaction *txn = a->second.second;
+      Timestamp &ts = a->second.first;
   //if (itr != prepared.end()) {
-    for (const auto &read : a->second.second->read_set()) {
+    for (const auto &read : txn->read_set()) {
     //for (const auto &read : itr->second.second->read_set()) {
       if (IsKeyOwned(read.key())) {
         //preparedReads[read.key()].erase(a->second.second);
         //preparedReads[read.key()].erase(itr->second.second);
         std::pair<std::shared_mutex, std::set<const proto::Transaction *>> &y = preparedReads[read.key()];
         std::unique_lock lock(y.first);
-        y.second.erase(a->second.second);
+        y.second.erase(txn);
       }
     }
-    for (const auto &write : a->second.second->write_set()) {
+    for (const auto &write : txn->write_set()) {
     //for (const auto &write : itr->second.second->write_set()) {
       if (IsKeyOwned(write.key())) {
         //preparedWrites[write.key()].erase(itr->second.first);
         std::pair<std::shared_mutex,std::map<Timestamp, const proto::Transaction *>> &x = preparedWrites[write.key()];
         std::unique_lock lock(x.first);
-        x.second.erase(a->second.first);
+        x.second.erase(ts);
         //x.second.erase(itr->second.first);
       }
     }
     prepared.erase(a);
+
+    for (const auto &[table_name, table_write] : txn->table_writes()){
+      table_store.PurgeTableWrite(table_name, table_write, ts, txnDigest);
+    }
   }
   a.release();
 

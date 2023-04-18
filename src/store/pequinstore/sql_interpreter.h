@@ -169,7 +169,8 @@ class SQLTransformer {
         
 };
 
-void GenerateTableWriteStatement(std::string &write_statement, const std::string &table_name, const TableWrite &table_write);
+bool GenerateTableWriteStatement(std::string &write_statement, std::string &delete_statement, const std::string &table_name, const TableWrite &table_write);
+bool GenerateTablePurgeStatement(std::string &purge_statement, const std::string &table_name, const TableWrite &table_write);
 
 // class ReadSQLTransformer {
 //     public:

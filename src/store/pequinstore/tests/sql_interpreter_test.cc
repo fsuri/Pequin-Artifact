@@ -374,6 +374,7 @@ void test_write(){
    std::cerr << "Test Write Generation:" << std::endl;
   std::string table_name = "user";
   std::string write_statement;
+  std::string delete_statement;
   TableWrite table_write;
 
   std::vector<std::string> col_names = {"name", "age", "color"};
@@ -387,11 +388,22 @@ void test_write(){
   *row1->mutable_column_values() = {val1.begin(), val1.end()};
    RowUpdates *row2 = table_write.add_rows();
   *row2->mutable_column_values() = {val2.begin(), val2.end()};
+
+  //deletions:
+  std::vector<std::string> val3 = {"lor", "", "brown"};
+  std::vector<std::string> val4 = {"nat", "", "blonde"};
+   RowUpdates *row3 = table_write.add_rows();
+  *row3->mutable_column_values() = {val3.begin(), val3.end()};
+  row3->set_deletion(true);
+   RowUpdates *row4 = table_write.add_rows();
+  *row4->mutable_column_values() = {val4.begin(), val4.end()};
+  row4->set_deletion(true);
  
 
-
-  GenerateTableWriteStatement(write_statement, table_name, table_write);
+  //
+  GenerateTableWriteStatement(write_statement, delete_statement, table_name, table_write);
   std::cerr << "write: " << write_statement << std::endl;
+   std::cerr << "delete: " << delete_statement << std::endl;
 
 }
 

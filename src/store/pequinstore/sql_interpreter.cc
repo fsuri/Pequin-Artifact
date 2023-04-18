@@ -132,6 +132,8 @@ bool SQLTransformer::InterpretQueryRange(std::string &_query, std::string &table
     if(where_pos == std::string::npos) return false;
     
     table_name = std::move(static_cast<std::string>(query_statement.substr(0, where_pos)));
+    //If query tries to read from multiple tables --> Cannot be point read. E.g. "Select * FROM table1, table2 WHERE"
+    if(size_t pos = table_name.find(","); pos != std::string::npos) return false;
    
     std::string_view cond_statement = query_statement.substr(where_pos + where_hook.length());
 
@@ -674,20 +676,42 @@ void SQLTransformer::TransformDelete(size_t pos, std::string_view &write_stateme
 
 //////////////////// Table Write Generator
 
-void GenerateTableWriteStatement(std::string &write_statement, const std::string &table_name, const TableWrite &table_write){
+//Note: If we turn table writes into a sql statement, then don't actually need to decode type into anything else than a string... 
+            //could just send statement (with replaced columnvalue) and skip performing arithmetic ourselves. 
+            //(Note: this makes it harder to perform proofs for point reads, because the reader would need to perform the arithmetic ad hoc)
+bool GenerateTableWriteStatement(std::string &write_statement, std::string &delete_statement, const std::string &table_name, const TableWrite &table_write){
 
-    //If we turn table writes into a sql statement, then don't actually need to decode type into anything else than a string... also don't need to perform update artihmetic client side but could
-    // just send statement.
+
+//Turn Table Writes into Upsert and Delete statement:  ///https://www.postgresqltutorial.com/postgresql-tutorial/postgresql-upsert/ 
+    //Multi row Upsert:  https://stackoverflow.com/questions/40647600/postgresql-multi-value-upserts 
+    // INSERT INTO table1 VALUES (1, 'foo'), (2,'bar'), (3,'baz')
+    // ON CONFLICT (col1)
+    // DO UPDATE SET col2 = EXCLUDED.col2;
+
+    //Multi row Delete: https://www.commandprompt.com/education/how-to-delete-multiple-rows-from-a-table-in-postgresql/ 
+    // DELETE FROM article_details
+    // WHERE article_id IN (2, 4, 7);
 
     write_statement = fmt::format("INSERT INTO {0} VALUES ", table_name);
+
+    std::vector<std::vector<std::string>> delete_conds(table_write.col_primary_idx_size());
+
     for(auto &row: table_write.rows()){
         //Alternatively: Move row contents to a vector and use: fmt::join(vec, ",")
-        write_statement += "(";
-        for(auto &col_val: row.column_values()){
-            write_statement += col_val + ", ";
+        if(row.deletion()){
+            for(int i = 0; i<table_write.col_primary_idx_size(); ++i){
+                delete_conds[i].push_back(row.column_values()[table_write.col_primary_idx()[i]]);
+            }
         }
-          write_statement.resize(write_statement.length()-2); //remove trailing ", "
-           write_statement += "), ";
+        else{
+            write_statement += "(";
+            for(auto &col_val: row.column_values()){
+                write_statement += col_val + ", ";
+            }
+            write_statement.resize(write_statement.length()-2); //remove trailing ", "
+            write_statement += "), ";
+        }
+      
 
         //write_statement += fmt::format("{}, ", fmt::join(row.column_values(), ','));
     }
@@ -705,6 +729,51 @@ void GenerateTableWriteStatement(std::string &write_statement, const std::string
     }
      write_statement.resize(write_statement.length()-2); //remove trailing ", "
      write_statement += ";";
+
+    //std::cerr << "delete_conds size: " << delete_conds[0].size() << std::endl;
+    if(delete_conds[0].empty()) return false;
+
+    //Else: Construct also a delete statement
+
+    delete_statement = fmt::format("DELETE FROM {0} WHERE ", table_name);
+    for(int i = 0; i<table_write.col_primary_idx_size(); ++i){
+        delete_statement += fmt::format("{0} in ({1}) AND ", table_write.column_names()[table_write.col_primary_idx()[i]], fmt::join(delete_conds[i], ", "));
+    }
+    delete_statement.resize(delete_statement.length()-5); //Remove trailing " AND "
+    delete_statement += ";";
+
+    //FIXME: If no delete clauses --> should not delete anything
+    return true;  //I.e. there is delete conds.
+
+}
+
+//TODO: In Write statement: for rows that are marked as delete: don't insert. --> split into write_statement and delete_statement.
+
+bool GenerateTablePurgeStatement(std::string &purge_statement, const std::string &table_name, const TableWrite &table_write){
+   
+    std::vector<std::vector<std::string>> delete_conds(table_write.col_primary_idx_size());
+
+    for(auto &row: table_write.rows()){
+            //Alternatively: Move row contents to a vector and use: fmt::join(vec, ",")
+            if(!row.deletion()){
+                for(int i = 0; i<table_write.col_primary_idx_size(); ++i){
+                    delete_conds[i].push_back(row.column_values()[table_write.col_primary_idx()[i]]);
+                }
+            }
+    }
+    
+    
+    purge_statement = fmt::format("DELETE FROM {0} WHERE ", table_name);
+    for(int i = 0; i<table_write.col_primary_idx_size(); ++i){
+        purge_statement += fmt::format("{0} in ({1}) AND ", table_write.column_names()[table_write.col_primary_idx()[i]], fmt::join(delete_conds[i], ", "));
+    }
+    purge_statement.resize(purge_statement.length()-5); //Remove trailing " AND "
+    purge_statement += ";";
+
+    //FIXME: If no delete clauses --> should not delete anything
+    return delete_conds.size() > table_write.col_primary_idx_size(); //I.e. there is delete conds.
+   
+   //extract all positive values
 }
 
 

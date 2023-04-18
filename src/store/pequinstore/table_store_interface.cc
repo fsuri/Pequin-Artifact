@@ -57,31 +57,26 @@ std::string TableStore::ExecPointRead(std::string &query_statement, std::string 
         //(Alternatively: Could already send a Sql command from the client) ==> Should do it at the client, so that we can keep whatever Select specification, e.g. * or specific cols...
 
 //Apply a set of Table Writes (versioned row creations) to the Table backend
-void TableStore::ApplyTableWrite(const std::string &table_name, const TableWrite &table_write, const Timestamp &ts, const std::string &txn_digest){
+void TableStore::ApplyTableWrite(const std::string &table_name, const TableWrite &table_write, const Timestamp &ts, const std::string &txn_digest, bool commit_or_prepare){
     //Turn txn_digest into a shared_ptr, write everywhere it is needed.
     std::shared_ptr<std::string> txn_dig(std::make_shared<std::string>(txn_digest));
 
-
-    //TODO: Turn into Upsert statement:  ///https://www.postgresqltutorial.com/postgresql-tutorial/postgresql-upsert/ 
-            //TODO: Check whether there is a more efficient way than creating SQL commands for each.
-
-    // INSERT INTO customers (name, email)
-    // VALUES('Microsoft','hotline@microsoft.com') 
-    // ON CONFLICT (name)   //TODO: Must extract primary key... (requires knowledge of schema...) --> this is easier if TableWrite was stored alongside the encoded key (which indicated primary)
-    // DO UPDATE SET email = EXCLUDED.email;
-
-    //Multi row:  https://stackoverflow.com/questions/40647600/postgresql-multi-value-upserts 
-    // INSERT INTO table1 VALUES (1, 'foo'), (2,'bar'), (3,'baz')
-    // ON CONFLICT (col1)
-    // DO UPDATE SET col2 = EXCLUDED.col2;
-
-   
    std::string write_statement;
-    GenerateTableWriteStatement(write_statement, table_name, table_write);
+   std::string delete_statement;
+   bool has_delete = GenerateTableWriteStatement(write_statement, delete_statement, table_name, table_write);
+    //TODO: Check whether there is a more efficient way than creating SQL commands for each.
 
+    //TODO: Execute on Peloton
+    //Exec write
+    //if(has_delete) Exec delete
+}
 
+void TableStore::PurgeTableWrite(const std::string &table_name, const TableWrite &table_write, const Timestamp &ts, const std::string &txn_digest){
 
+    std::shared_ptr<std::string> txn_dig(std::make_shared<std::string>(txn_digest));
 
+    std::string purge_statement;
+    GenerateTablePurgeStatement(purge_statement, table_name, table_write);   
 
     //TODO: Execute on Peloton
 }
