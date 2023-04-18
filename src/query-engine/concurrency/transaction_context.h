@@ -24,6 +24,7 @@
 #include "../common/printable.h"
 #include "../common/internal_types.h"
 #include "../../store/common/timestamp.h"
+#include "../../store/pequinstore/common.h"
 
 namespace peloton {
 
@@ -50,6 +51,9 @@ class TransactionContext : public Printable {
 
   TransactionContext(const size_t thread_id, const IsolationLevelType isolation,
               const cid_t &read_id, const cid_t &commit_id);
+
+  TransactionContext(const size_t thread_id, const IsolationLevelType isolation,
+              const cid_t &read_id, const cid_t &commit_id, const pequinstore::QueryReadSetMgr &query_read_set_mgr);
 
   /**
    * @brief      Destroys the object.
@@ -280,6 +284,14 @@ class TransactionContext : public Printable {
     basil_timestamp_ = basil_timestamp;
   }
 
+  pequinstore::QueryReadSetMgr GetQueryReadSetMgr() {
+    return query_read_set_mgr_;
+  }
+
+  void SetQueryReadSetMgr(pequinstore::QueryReadSetMgr &query_read_set_mgr) {
+    query_read_set_mgr_ = query_read_set_mgr;
+  }
+
   /**
    * @brief      Gets the isolation level.
    *
@@ -333,6 +345,9 @@ class TransactionContext : public Printable {
 
   /** Basil timestamp */
   Timestamp basil_timestamp_;
+
+  /** Query read set manager */
+  pequinstore::QueryReadSetMgr query_read_set_mgr_;
 
   ReadWriteSet rw_set_;
   CreateDropSet rw_object_set_;

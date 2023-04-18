@@ -161,7 +161,7 @@ void ProjectInfo::PartitionInputs(
   }
 }
 
-std::string ProjectInfo::Debug() const {
+/*std::string ProjectInfo::Debug() const {
   std::ostringstream buffer;
   buffer << "Target List: < DEST_column_id , expression >\n";
   for (auto &target : target_list_) {
@@ -177,7 +177,7 @@ std::string ProjectInfo::Debug() const {
   std::string info = buffer.str();
   StringUtil::RTrim(info);
   return info;
-}
+}*/
 
 hash_t ProjectInfo::Hash(const planner::DerivedAttribute &attribute) const {
   hash_t hash = HashUtil::Hash(&attribute.attribute_info.type);

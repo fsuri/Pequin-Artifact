@@ -21,6 +21,7 @@
 #include "../common/internal_types.h"
 #include "../type/value.h"
 #include "../../store/common/timestamp.h"
+#include "../../store/pequinstore/common.h"
 
 namespace peloton {
 
@@ -115,13 +116,28 @@ class LogicalTile : public Printable {
   // Materialize and return a physical tile.
   std::unique_ptr<storage::Tile> Materialize();
 
-  void AddToReadSet(std::tuple<std::string, Timestamp> tuple) {
+  /*void AddToReadSet(std::tuple<std::string, Timestamp> tuple) {
     read_set.push_back(tuple);
   }
 
   std::vector<std::tuple<std::string, Timestamp>> GetReadSet() {
     return read_set;
   }
+
+  void AddEntryReadSet(std::string &key, Timestamp &version) {
+    std::cout << "Before constructing ts_message" << std::endl;
+    TimestampMessage ts_message  = TimestampMessage();
+    std::cout << "After constructing ts_message" << std::endl;
+    ts_message.set_id(version.getID());
+    ts_message.set_timestamp(version.getTimestamp());
+    //query_read_set_mgr.AddToReadSet(key, ts_message);
+    query_read_set_mgr->AddToReadSet(key, ts_message);
+    std::cout << "After adding to read set" << std::endl;
+  }
+
+  pequinstore::QueryReadSetMgr* GetReadSetMgr() {
+    return query_read_set_mgr;
+  }*/
 
   //===--------------------------------------------------------------------===//
   // Logical Tile Iterator
@@ -372,8 +388,6 @@ class LogicalTile : public Printable {
   /** @brief Keeps track of the number of tuples that are still visible. */
   oid_t visible_tuples_ = 0;
 
-  /** NEW: readset for scans */
-  std::vector<std::tuple<std::string, Timestamp>> read_set;
 };
 
 }  // namespace executor

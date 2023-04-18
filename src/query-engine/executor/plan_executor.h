@@ -16,6 +16,7 @@
 #include "../common/statement.h"
 #include "../executor/logical_tile.h"
 #include "../../store/common/timestamp.h"
+#include "../../store/pequinstore/common.h"
 
 namespace peloton {
 
@@ -43,6 +44,9 @@ struct ExecutionResult {
 
   // read set (for scans)
   std::vector<std::tuple<std::string, Timestamp>> read_set;
+
+  // read set manager
+  pequinstore::QueryReadSetMgr* query_read_set_mgr;
 
   ExecutionResult() {
     m_processed = 0;

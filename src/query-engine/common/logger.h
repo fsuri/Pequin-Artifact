@@ -27,7 +27,8 @@
 // Fix for PRId64 (See https://stackoverflow.com/a/18719205)
 #if defined(__cplusplus) && !defined(__STDC_FORMAT_MACROS)
 #define __STDC_FORMAT_MACROS 1 // Not sure where to put this
-#endif 
+#endif
+#undef __STDC_FORMAT_MACROS 
 #include <inttypes.h>
 
 namespace peloton {
@@ -125,6 +126,8 @@ void outputLogHeader_(const char *file, int line, const char *func, int level);
 #endif
 #if LOG_LEVEL <= LOG_LEVEL_DEBUG
 #define LOG_DEBUG_ENABLED
+#undef DEBUG
+#undef LOG_DEBUG
 //#pragma message("LOG_DEBUG was enabled.")
 #define LOG_DEBUG(...)                                                        \
   outputLogHeader_(__PELOTONFILE__, __LINE__, __FUNCTION__, LOG_LEVEL_DEBUG); \
@@ -134,6 +137,7 @@ void outputLogHeader_(const char *file, int line, const char *func, int level);
 #else
 #define LOG_DEBUG(...) ((void)0)
 #endif
+#undef DEBUG
 
 #ifdef LOG_TRACE_ENABLED
 #undef LOG_TRACE_ENABLED

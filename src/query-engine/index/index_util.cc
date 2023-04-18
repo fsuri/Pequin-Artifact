@@ -345,7 +345,7 @@ void IndexUtil::FindMaxMinInColumns(oid_t leading_column_id,
   }
 }
 
-std::string IndexUtil::Debug(Index *index) {
+/*std::string IndexUtil::Debug(Index *index) {
   std::vector<ItemPointer *> location_ptrs;
   index->ScanAllKeys(location_ptrs);
 
@@ -358,7 +358,7 @@ std::string IndexUtil::Debug(Index *index) {
     i += 1;
   }
   return (os.str());
-}
+}*/
 
 const std::string IndexUtil::GetInfo(const ItemPointer *ptr) {
   return StringUtil::Format("{%d, %d}", ptr->block, ptr->offset);

@@ -153,7 +153,7 @@ ResultType TrafficCop::ExecuteStatementGetResult() {
 executor::ExecutionResult TrafficCop::ExecuteHelper(
     std::shared_ptr<planner::AbstractPlan> plan,
     const std::vector<type::Value> &params, std::vector<ResultValue> &result,
-    const std::vector<int> &result_format, Timestamp &basil_timestamp, size_t thread_id) {
+    const std::vector<int> &result_format, Timestamp &basil_timestamp, pequinstore::QueryReadSetMgr &query_read_set_mgr, size_t thread_id) {
   auto &curr_state = GetCurrentTxnState();
 
   concurrency::TransactionContext *txn;
@@ -171,6 +171,8 @@ executor::ExecutionResult TrafficCop::ExecuteHelper(
 
   // Set the Basil timestamp
   txn->SetBasilTimestamp(basil_timestamp);
+  // Set the readset manager
+  txn->SetQueryReadSetMgr(query_read_set_mgr);
 
   // skip if already aborted
   if (curr_state.second == ResultType::ABORTED) {
@@ -185,8 +187,10 @@ executor::ExecutionResult TrafficCop::ExecuteHelper(
   }
 
   auto on_complete = [&result, this](executor::ExecutionResult p_status,
-                                     std::vector<ResultValue> &&values) {
+                                     std::vector<ResultValue> &&values) {  
+    std::cout << "Made it to on complete" << std::endl;
     this->p_status_ = p_status;
+    std::cout << "The status is " << p_status.m_error_message << std::endl;
     // TODO (Tianyi) I would make a decision on keeping one of p_status or
     // error_message in my next PR
     this->error_message_ = std::move(p_status.m_error_message);
@@ -559,7 +563,7 @@ ResultType TrafficCop::ExecuteStatement(
     const std::vector<type::Value> &params, UNUSED_ATTRIBUTE bool unnamed,
     /*std::shared_ptr<stats::QueryMetric::QueryParams> param_stats,*/
     const std::vector<int> &result_format, std::vector<ResultValue> &result,
-    Timestamp &basil_timestamp, size_t thread_id) {
+    Timestamp &basil_timestamp, pequinstore::QueryReadSetMgr &query_read_set_mgr, size_t thread_id) {
   // TODO(Tianyi) Further simplify this API
   /*if (static_cast<StatsType>(settings::SettingsManager::GetInt(
           settings::SettingId::stats_mode)) != StatsType::INVALID) {
@@ -606,7 +610,7 @@ ResultType TrafficCop::ExecuteStatement(
         }
 
         ExecuteHelper(statement->GetPlanTree(), params, result, result_format,
-                      basil_timestamp, thread_id);
+                      basil_timestamp, query_read_set_mgr, thread_id);
         if (GetQueuing()) {
           return ResultType::QUEUING;
         } else {

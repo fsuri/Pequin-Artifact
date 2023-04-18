@@ -315,7 +315,9 @@ LIB-util := $(o)util/file.o $(o)util/string_util.o $(o)util/stringbox_util.o
 #$(LIB-codegen-expression) $(LIB-codegen-interpreter) $(LIB-codegen-lang) $(LIB-codegen-operator) $(LIB-codegen-proxy) \
 $(LIB-codegen-type) $(LIB-codegen-util) $(LIB-codegen) $(LIB-udf) $(LIB-tuning) $(LIB-adr) $(LIB-statistics)
 
-$(d)queryexec-test: $(o)../store/common/timestamp.o $(LIB-binder) $(LIB-catalog) $(LIB-common) $(LIB-concurrency) $(LIB-executor) $(LIB-expression) $(LIB-function) \
+$(d)queryexec-test: $(o)../store/common/timestamp.o $(o)../store/common/common-proto.o $(o)../store/pequinstore/pequin-proto.o $(o)../lib/message.o $(o)../lib/crypto.o $(o)../lib/batched_sigs.o $(o)../lib/configuration.o $(o)../lib/keymanager.o $(o)../lib/transport.o $(o)../store/pequinstore/common.o $(LIB-binder) $(LIB-catalog) $(LIB-common) $(LIB-concurrency) $(LIB-executor) $(LIB-expression) $(LIB-function) \
 $(LIB-gc) $(LIB-index) $(LIB-murmur) $(LIB-optimizer) $(LIB-parser) $(LIB-planner) $(LIB-settings) $(LIB-storage) $(LIB-threadpool) $(LIB-traffic-cop) \
 $(LIB-type) $(LIB-trigger) $(LIB-util) $(LIB-store-common) $(o)queryexec-test.o
 BINS += $(d)queryexec-test
+
+#$(o)../store/common/timestamp.o $(o)../store/common/common-proto.o $(o)../store/pequinstore/pequin-proto.o $(o)../lib/message.o $(o)../lib/crypto.o $(o)../lib/batched_sigs.o $(o)../lib/configuration.o $(o)../lib/keymanager.o $(o)../lib/transport.o $(o)../store/pequinstore/common.o

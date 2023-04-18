@@ -154,7 +154,7 @@ bool SeqScanExecutor::DExecute() {
 
     // NEW: calculate encoded key for the read set
     auto primary_index_columns_ = target_table_->GetIndex(0)->GetMetadata()->GetKeyAttrs();
-
+    auto query_read_set_mgr = current_txn->GetQueryReadSetMgr();
 
     // Retrieve next tile group.
     while (current_tile_group_offset_ < table_tile_group_count_) {
@@ -236,12 +236,24 @@ bool SeqScanExecutor::DExecute() {
 
               ContainerTuple<storage::TileGroup> row(tile_group.get(), curr_tuple_id);
               std::string encoded_key = target_table_->GetName();
+              std::vector<const char *> primary_key_cols;
               for (auto col : primary_index_columns_) {
                 auto val = row.GetValue(col);
                 encoded_key = encoded_key + "///" + val.ToString();
+                primary_key_cols.push_back(val.ToString().c_str());
               }
               Timestamp time = tile_group_header->GetBasilTimestamp(location.offset);
-              logical_tile->AddToReadSet(std::tie(encoded_key, time));
+              //logical_tile->AddToReadSet(std::tie(encoded_key, time));
+              
+              std::string encoded = pequinstore::EncodeTableRow(target_table_->GetName(), primary_key_cols);
+              TimestampMessage ts_message  = TimestampMessage();
+              
+              ts_message.set_id(time.getID());
+              ts_message.set_timestamp(time.getTimestamp());
+              
+              query_read_set_mgr.AddToReadSet(encoded, ts_message);
+    
+              //logical_tile->AddEntryReadSet(encoded, time);
             }
             //position_list.push_back(curr_tuple_id);
             auto res = transaction_manager.PerformRead(current_txn,
@@ -266,8 +278,27 @@ bool SeqScanExecutor::DExecute() {
               if (position_set.find(curr_tuple_id) == position_set.end()) {
                 position_list.push_back(curr_tuple_id);
                 position_set.insert(curr_tuple_id);
+                ContainerTuple<storage::TileGroup> row(tile_group.get(), curr_tuple_id);
+                std::vector<const char *> primary_key_cols;
+                std::string encoded_key = target_table_->GetName();
+                for (auto col : primary_index_columns_) {
+                  auto val = row.GetValue(col);
+                  encoded_key = encoded_key + "///" + val.ToString();
+                  primary_key_cols.push_back(val.ToString().c_str());
+                }
+                Timestamp time = tile_group_header->GetBasilTimestamp(location.offset);
+                //logical_tile->AddToReadSet(std::tie(encoded_key, time));
+
+                std::string encoded = pequinstore::EncodeTableRow(target_table_->GetName(), primary_key_cols);
+                TimestampMessage ts_message  = TimestampMessage();
+              
+                ts_message.set_id(time.getID());
+                ts_message.set_timestamp(time.getTimestamp());
+                query_read_set_mgr.AddToReadSet(encoded, ts_message);
+              
+                //logical_tile->AddEntryReadSet(encoded_key, time);
               }
-              position_list.push_back(curr_tuple_id);
+              //position_list.push_back(curr_tuple_id);
               auto res = transaction_manager.PerformRead(current_txn,
                                                          location,
                                                          tile_group_header,
