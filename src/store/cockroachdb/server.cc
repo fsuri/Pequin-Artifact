@@ -62,6 +62,7 @@ Server::Server(const transport::Configuration &config, KeyManager *keyManager,
   std::string sql_addr_flag = " --advertise-sql-addr=" + host + ":" + port;
   std::string advertise_flag = " --advertise-addr=" + host + ":" + port;
   std::string join_flag = " --join=";
+  std::string load_flag = " --join=";
 
   // Naive implementation: join all node
   for (int i = 0; i < numGroups; i++) {
@@ -201,6 +202,30 @@ void Server::LoadTableRow(
   sql_statement += ");";
   Server::exec_sql(sql_statement);
 }
+
+void Server::LoadTable(
+    const std::string &table_name,
+    const std::vector<std::pair<std::string, std::string>> &column_data_types,
+    const std::vector<std::string> &values,
+    const std::vector<uint32_t> primary_key_col_idx,
+    const std::string &csv_file_name) {
+  // IMPORT INTO employees (c1, c2, c3, ..., cn)
+  //  CSV DATA (
+  //    'xxx.csv'
+  //  );
+  std::string sql_statement("IMPORT INTO ");
+  sql_statement += table_name;
+  sql_statement += " (";
+  for (auto &[col, _] : column_data_types) {
+    sql_statement += col + ", ";
+  }
+  sql_statement.resize(sql_statement.size() - 2);  // remove trailing ", "
+  sql_statement += ") CSV DATA (\'";
+  sql_statement += csv_file_name;
+  sql_statement += "'\');";
+  Server::exec_sql(sql_statement);
+}
+
 Stats &Server::GetStats() { return stats; }
 
 Server::~Server() { system("pkill -9 -f cockroach"); }

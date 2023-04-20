@@ -33,6 +33,13 @@ class Server : public ::Server {
       const std::vector<std::pair<std::string, std::string>> &column_data_types,
       const std::vector<std::string> &values,
       const std::vector<uint32_t> primary_key_col_idx) override;
+
+  void LoadTable(
+      const std::string &table_name,
+      const std::vector<std::pair<std::string, std::string>> &column_data_types,
+      const std::vector<std::string> &values,
+      const std::vector<uint32_t> primary_key_col_idx,
+      const std::string &csv_file_name);
   void exec_sql(std::string sql);
 
   Stats &GetStats();
