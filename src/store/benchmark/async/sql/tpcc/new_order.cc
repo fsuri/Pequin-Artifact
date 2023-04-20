@@ -67,24 +67,23 @@ SQLNewOrder::~SQLNewOrder() {
 
 transaction_status_t SQLNewOrder::Execute(SyncClient &client) {
   const query_result::QueryResult *queryResult;
-  std::string query;
+  std::string statement;
   std::vector<const query_result::QueryResult*> results;
 
   Debug("NEW_ORDER");
   Debug("Warehouse: %u", w_id);
-  //std::cerr << "warehouse: " << w_id << std::endl;
 
   client.Begin(timeout);
 
-  query = fmt::format("SELECT FROM Warehouse WHERE id = {}", w_id);
-  client.Query(query, timeout);
+  statement = fmt::format("SELECT FROM Warehouse WHERE id = {}", w_id);
+  client.Query(statement, timeout);
   Debug("District: %u", d_id);
-  query = fmt::format("SELECT FROM District WHERE id = {} AND w_id = {}", d_id, w_id);
-  client.Query(query, timeout);
+  statement = fmt::format("SELECT FROM District WHERE id = {} AND w_id = {}", d_id, w_id);
+  client.Query(statement, timeout);
   Debug("Customer: %u", c_id);
-  query = fmt::format("SELECT FROM Customer WHERE id = {} AND d_id = {} AND w_id = {}",
+  statement = fmt::format("SELECT FROM Customer WHERE id = {} AND d_id = {} AND w_id = {}",
                       c_id, d_id, w_id);
-  client.Query(query, timeout);
+  client.Query(statement, timeout);
 
   client.Wait(results);
 
@@ -99,9 +98,9 @@ transaction_status_t SQLNewOrder::Execute(SyncClient &client) {
   Debug("  Order Number: %u", o_id);
 
   d_row.set_next_o_id(d_row.next_o_id() + 1);
-  query = fmt::format("UPDATE District\n SET next_o_id = {}\n WHERE id = {} AND w_id = {}",
+  statement = fmt::format("UPDATE District SET next_o_id = {} WHERE id = {} AND w_id = {}",
                       d_row.next_o_id(), d_id, w_id);
-  client.Write(query, queryResult, timeout);
+  client.Write(statement, queryResult, timeout);
 
   tpcc::CustomerRow c_row;
   deserialize(c_row, results[2]);
@@ -111,34 +110,34 @@ transaction_status_t SQLNewOrder::Execute(SyncClient &client) {
 
   results.clear();
 
-  query = fmt::format("INSERT INTO NewOrder (o_id, d_id, w_id)\n"
+  statement = fmt::format("INSERT INTO NewOrder (o_id, d_id, w_id)\n"
             "VALUES ({}, {}, {});", 
             o_id, d_id, w_id);
-  client.Write(query, queryResult, timeout);
+  client.Write(statement, queryResult, timeout);
 
-  query = fmt::format("INSERT INTO Order (id, d_id, w_id, c_id, entry_d, carrier_id, ol_cnt, all_local)\n"
+  statement = fmt::format("INSERT INTO Order (id, d_id, w_id, c_id, entry_d, carrier_id, ol_cnt, all_local)\n"
           "VALUES ({}, {}, {}, {}, {}, {}, {}, {});", 
           o_id, d_id, w_id, c_id, o_entry_d, 0, ol_cnt, all_local);
-  client.Write(query, queryResult, timeout);
+  client.Write(statement, queryResult, timeout);
 
-  query = fmt::format("INSERT INTO OrderByCustomer (w_id, d_id, c_id, o_id)\n"
+  statement = fmt::format("INSERT INTO OrderByCustomer (w_id, d_id, c_id, o_id)\n"
         "VALUES ({}, {}, {}, {});", 
         w_id, d_id, c_id, o_id);
-  client.Write(query, queryResult, timeout);
+  client.Write(statement, queryResult, timeout);
 
   for (size_t ol_number = 0; ol_number < ol_cnt; ++ol_number) {
     Debug("  Order Line %lu", ol_number);
     Debug("    Item: %u", o_ol_i_ids[ol_number]);
-    query = fmt::format("SELECT FROM Item WHERE id = {}", o_ol_i_ids[ol_number]);
-    client.Query(query, timeout);
+    statement = fmt::format("SELECT FROM Item WHERE id = {}", o_ol_i_ids[ol_number]);
+    client.Query(statement, timeout);
   }
 
   for (size_t ol_number = 0; ol_number < ol_cnt; ++ol_number) {
     Debug("  Order Line %lu", ol_number);
     Debug("    Supply Warehouse: %u", o_ol_supply_w_ids[ol_number]);
-    query = fmt::format("SELECT FROM Stock WHERE i_id = {} AND w_id = {}",
+    statement = fmt::format("SELECT FROM Stock WHERE i_id = {} AND w_id = {}",
           o_ol_i_ids[ol_number], o_ol_supply_w_ids[ol_number]);
-    client.Query(query, timeout);
+    client.Query(statement, timeout);
   }
 
   client.Wait(results);
@@ -169,12 +168,12 @@ transaction_status_t SQLNewOrder::Execute(SyncClient &client) {
       if (w_id != o_ol_supply_w_ids[ol_number]) {
         s_row.set_remote_cnt(s_row.remote_cnt() + 1);
       }
-      query = fmt::format("UPDATE Stock\n" 
+      statement = fmt::format("UPDATE Stock\n" 
               "SET quantity = {}, ytd = {}, order_cnt = {}, remote_cnt = {}\n"
               "WHERE i_id = {} AND w_id = {}",
           s_row.quantity(), s_row.ytd(), s_row.order_cnt(), s_row.remote_cnt(),
           o_ol_i_ids[ol_number], o_ol_supply_w_ids[ol_number]);
-      client.Write(query, queryResult, timeout);
+      client.Write(statement, queryResult, timeout);
 
       std::string dist_info;
       switch (d_id) {
@@ -211,12 +210,12 @@ transaction_status_t SQLNewOrder::Execute(SyncClient &client) {
         default:
           NOT_REACHABLE();
       }
-      query = fmt::format("INSERT INTO OrderLine "
+      statement = fmt::format("INSERT INTO OrderLine "
             "(o_id, d_id, w_id, number, i_id, supply_w_id, delivery_d, quantity, amount, dist_info)\n"
             "VALUES ({}, {}, {}, {}, {}, {}, {}, {}, {}, {});", 
             o_id, d_id, w_id, ol_number, o_ol_i_ids[ol_number], o_ol_supply_w_ids[ol_number], 0,
             o_ol_quantities[ol_number], o_ol_quantities[ol_number] * i_row.price(), dist_info);
-      client.Write(query, queryResult, timeout);
+      client.Write(statement, queryResult, timeout);
     }
   }
 
