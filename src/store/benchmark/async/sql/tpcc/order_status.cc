@@ -34,11 +34,10 @@ namespace tpcc_sql {
 
 SQLOrderStatus::SQLOrderStatus(uint32_t timeout, uint32_t w_id,
     uint32_t c_c_last, uint32_t c_c_id, std::mt19937 &gen) :
-    TPCCSQLTransaction(timeout), w_id(w_id) {
-  d_id = std::uniform_int_distribution<uint32_t>(1, 10)(gen); 
+    TPCCSQLTransaction(timeout), c_w_id(w_id) {
   int y = std::uniform_int_distribution<int>(1, 100)(gen);
   c_w_id = w_id;
-  c_d_id = d_id;
+  c_d_id = std::uniform_int_distribution<uint32_t>(1, 10)(gen); 
   if (y <= 60) {
     int last = tpcc::NURand(255, 0, 999, static_cast<int>(c_c_last), gen);
     c_last = tpcc::GenerateCustomerLastName(last);

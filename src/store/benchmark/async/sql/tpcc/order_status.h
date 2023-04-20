@@ -40,8 +40,6 @@ class SQLOrderStatus : public TPCCSQLTransaction {
   virtual transaction_status_t Execute(SyncClient &client);
 
  private:
-  uint32_t w_id;
-  uint32_t d_id;
   uint32_t c_w_id;
   uint32_t c_d_id;
   uint32_t c_id;
