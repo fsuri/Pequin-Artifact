@@ -55,6 +55,9 @@ LDFLAGS += $(LIBSECP256K1_LDFLAGS)
 LDFLAGS +=  -lssl -lcrypto -led25519_donna
 LDFLAGS += -ltbb #-lpthread
 
+# fmt
+LDFLAGS += -lfmt #-l:libfmt.a
+
 # Google test framework. This doesn't use pkgconfig
 GTEST_DIR := /usr/src/gtest-1.10.0/googletest
 GMOCK_DIR := /usr/src/gtest-1.10.0/googlemock

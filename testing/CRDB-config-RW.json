@@ -16,6 +16,9 @@
   "_client_num_keys": 10,
   "client_num_keys": 10000000,
   "server_load_time": 30,
+  
+  "benchmark_type": "sql_bench",
+  "benchmark_data_file_path": "test-tables-schema.json"
 
   "benchmark_name": "rw",
   "client_zipf_coefficient": 0.75,   
@@ -49,7 +52,7 @@
 		  "key_path": "/usr/local/etc/indicus-keys/donna"
     }
   ],
-  "experiment_name": "roachy9",
+  "experiment_name": "pequin",
   "codebase_name": "indicus",
 
  "client_total": [
@@ -74,7 +77,7 @@
   "default_remote_shell": "bash",
   "server_host_format_str": "%s.%s.%s.utah.cloudlab.us",
   "client_host_format_str": "client-%d-%d.%s.%s.utah.cloudlab.us",
-  "project_name": "crdbdriver-pg0",
+  "project_name": "pequin-pg0",
   "fault_tolerance": 1,
   "server_names": [
    

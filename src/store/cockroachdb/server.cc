@@ -11,6 +11,7 @@
 
 #include <iostream>
 #include <string>
+#include <fmt/core.h>
 
 namespace cockroachdb {
 
@@ -138,6 +139,14 @@ void Server::CreateTable(
   if (primary_key_col_idx.size() > 1) sql_statement += ")";
   sql_statement += ");";
   exec_sql(sql_statement, serverAddress);
+}
+
+void Server::LoadTableData(const std::string &table_name, const std::string &table_data_path, const std::vector<uint32_t> &primary_key_col_idx){
+    //Syntax based on: https://www.cockroachlabs.com/docs/stable/import-into.html
+    std::string copy_table_statement_crdb = fmt::format("IMPORT INTO {0} CSV DATA {1} WITH skip = '1'", table_name, table_data_path); //FIXME: does one need to specify column names? Target columns don't appear to be enforced
+
+  exec_sql(copy_table_statement_crdb, serverAddress);
+  
 }
 
 void Server::LoadTableRow(

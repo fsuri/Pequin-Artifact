@@ -63,14 +63,15 @@ Operation RWTransaction::GetNextOperation(size_t outstandingOpCount, size_t fini
       if (strValue.length() == 0) {
         writeValue = std::string(100, 'x'); //make a longer string
       } else {
-        uint64_t intValue = 0;
-        for (int i = 0; i < 100; ++i) {
-          intValue = intValue | (static_cast<uint64_t>(strValue[i]) << ((99 - i) * 8));
-        }
-        intValue++;
-        for (int i = 0; i < 100; ++i) {
-          writeValue += static_cast<char>((intValue >> (99 - i) * 8) & 0xFF);
-        }
+
+        // uint64_t intValue = 0;
+        // for (int i = 0; i < 100; ++i) {
+        //   intValue = intValue | (static_cast<uint64_t>(strValue[i]) << ((99 - i) * 8));
+        // }
+        // intValue++;
+        // for (int i = 0; i < 100; ++i) {
+        //   writeValue += static_cast<char>((intValue >> (99 - i) * 8) & 0xFF);
+        // }
       }
       return Put(GetKey(finishedOpCount), writeValue);
     }
