@@ -44,7 +44,7 @@ SQLDelivery::~SQLDelivery() {
 
 transaction_status_t SQLDelivery::Execute(SyncClient &client) {
   const query_result::QueryResult *queryResult;
-  std::string query;
+  std::string statement;
   std::vector<const query_result::QueryResult*> results;
 
   Debug("DELIVERY");
@@ -54,9 +54,9 @@ transaction_status_t SQLDelivery::Execute(SyncClient &client) {
 
   client.Begin(timeout);
 
-  query = fmt::format("SELECT id FROM NewOrder WHERE d_id = {} AND w_id = {}"
+  statement = fmt::format("SELECT id FROM NewOrder WHERE d_id = {} AND w_id = {}"
                   "ORDER BY o_id ASC;", d_id, w_id);
-  client.Query(query, queryResult, timeout);
+  client.Query(statement, queryResult, timeout);
 
   if (queryResult->empty()) {
     // TODO: technically we're supposed to check each district in this warehouse
@@ -65,13 +65,13 @@ transaction_status_t SQLDelivery::Execute(SyncClient &client) {
 
   int no_o_id;
   deserialize(no_o_id, queryResult);
-  query = fmt::format("DELETE FROM NewOrder WHERE o_id = {} AND d_id = {} AND w_id = {};",
+  statement = fmt::format("DELETE FROM NewOrder WHERE o_id = {} AND d_id = {} AND w_id = {};",
       no_o_id, d_id, w_id);
-  client.Write(query, queryResult, timeout);
+  client.Write(statement, queryResult, timeout);
 
-  query = fmt::format("SELECT c_id FROM Order WHERE id = {} AND d_id = {} AND w_id = {};",
+  statement = fmt::format("SELECT c_id FROM Order WHERE id = {} AND d_id = {} AND w_id = {};",
         no_o_id, d_id, w_id);
-  client.Query(query, queryResult, timeout);
+  client.Query(statement, queryResult, timeout);
   if (queryResult->empty()) {
     // already delivered all orders for this warehouse
     return client.Commit(timeout);
@@ -79,27 +79,27 @@ transaction_status_t SQLDelivery::Execute(SyncClient &client) {
   int c_id;
   deserialize(c_id, queryResult);
 
-  query = fmt::format("UPDATE Order SET carrier_id = {} WHERE id = {} AND d_id = {} AND w_id = {};",
+  statement = fmt::format("UPDATE Order SET carrier_id = {} WHERE id = {} AND d_id = {} AND w_id = {};",
         o_carrier_id, no_o_id, d_id, w_id);
-  client.Write(query, queryResult, timeout);
+  client.Write(statement, queryResult, timeout);
   Debug("  Carrier ID: %u", o_carrier_id);
 
-  query = fmt::format("UPDATE OrderLine SET delivery_d = {} WHERE o_id = {} AND d_id = {} AND w_id = {};",
+  statement = fmt::format("UPDATE OrderLine SET delivery_d = {} WHERE o_id = {} AND d_id = {} AND w_id = {};",
         ol_delivery_d, no_o_id, d_id, w_id);
-  client.Write(query, queryResult, timeout);
+  client.Write(statement, queryResult, timeout);
 
-  query = fmt::format("SELECT SUM(amount) FROM OrderLine WHERE o_id = {} AND d_id = {} AND w_id = {};",
+  statement = fmt::format("SELECT SUM(amount) FROM OrderLine WHERE o_id = {} AND d_id = {} AND w_id = {};",
         no_o_id, d_id, w_id);
-  client.Query(query, queryResult, timeout);
+  client.Query(statement, queryResult, timeout);
   int total_amount;
   deserialize(total_amount, queryResult);
 
   Debug("Total Amount: %i", total_amount);
   Debug("Customer: %u", c_id);
 
-  query = fmt::format("UPDATE Customer SET balance = balance + {}, delivery_cnt = delivery_cnt + 1 WHERE id = {} AND d_id = {} AND w_id = {};",
+  statement = fmt::format("UPDATE Customer SET balance = balance + {}, delivery_cnt = delivery_cnt + 1 WHERE id = {} AND d_id = {} AND w_id = {};",
         total_amount, c_id, d_id, w_id);
-  client.Write(query, queryResult, timeout);
+  client.Write(statement, queryResult, timeout);
 
   Debug("COMMIT");
   return client.Commit(timeout);
