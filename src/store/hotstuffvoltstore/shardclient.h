@@ -39,6 +39,7 @@
 #include "store/common/common-proto.pb.h"
 #include "store/hotstuffvoltstore/pbft-proto.pb.h"
 #include "store/hotstuffvoltstore/server-proto.pb.h"
+import "store/common/query-result-proto.proto";
 #include <sys/time.h>
 
 #include <map>
@@ -49,6 +50,18 @@ namespace hotstuffvoltstore {
 // status, key, value
 typedef std::function<void(int, const std::string&, const std::string &, const Timestamp&)> read_callback;
 typedef std::function<void(int, const std::string&)> read_timeout_callback;
+
+typedef std::function<void(int, query_result::QueryResult*)> query_callback;
+typedef std::function<void(int, const proto::GroupedSignedMessage&)> signed_query_callback;
+typedef std::function<void(int)> query_timeout_callback;
+
+typedef std::function<void(int, query_result::DecisionReply*)> commit_callback;
+typedef std::function<void(int, const proto::GroupedSignedMessage&)> signed_commit_callback;
+typedef std::function<void(int)> commit_timeout_callback;
+
+typedef std::function<void(int, query_result::DecisionReply*)> abort_callback;
+typedef std::function<void(int, const proto::GroupedSignedMessage&)> signed_abort_callback;
+typedef std::function<void(int)> abort_timeout_callback;
 
 typedef std::function<void(int, const proto::TransactionDecision&)> prepare_callback;
 typedef std::function<void(int, const proto::GroupedSignedMessage&)> signed_prepare_callback;
@@ -81,8 +94,11 @@ class ShardClient : public TransportReceiver {
   void SignedPrepare(const proto::Transaction& txn, signed_prepare_callback pcb,
       prepare_timeout_callback ptcb, uint32_t timeout);
 
-  void Commit(const std::string& txn_digest, const proto::ShardDecisions& dec,
-      writeback_callback wcb, writeback_timeout_callback wtcp, uint32_t timeout);
+  // void Commit(const std::string& txn_digest, const proto::ShardDecisions& dec,
+  //     writeback_callback wcb, writeback_timeout_callback wtcp, uint32_t timeout);
+  void Commit(
+    uint64_t client_id, uint64_t txn_seq_num, commit_callback ccb, commit_timeout_callback ctcb,
+    uint32_t timeout);
   void CommitSigned(const std::string& txn_digest, const proto::ShardSignedDecisions& dec,
       writeback_callback wcb, writeback_timeout_callback wtcp, uint32_t timeout);
 
@@ -129,13 +145,74 @@ class ShardClient : public TransportReceiver {
     Timeout* timeout;
   };
 
+
+
+  std::string CreateValidQueryDecision(proto::QueryResult digest);
+  std::string CreateFailedQueryDecision(proto::QueryResult digest);
+
+  struct PendingQuery { //Will need to add a pendingSignedQuery that can manage signed messages
+    // the set of ids that we have received a query reply for
+    proto::QueryResult validQueryRes;
+
+    std::unordered_set<uint64_t> receivedOkIds;
+    std::unordered_set<uint64_t> receivedFailedIds;
+    // the max query timestamp for a valid reply
+    // Timestamp maxTs;
+    // std::string maxValue;
+    // proto::CommitProof maxCommitProof;
+
+    // the current status of the reply (default to fail)
+    // uint64_t status;
+
+    query_callback qcb;
+    // uint64_t numResultsRequired;
+
+    Timeout* timeout;
+  };
+
+  struct PendingSignedQuery {
+    // the serialized packed message containing the valid transaction decision
+    std::string validQueryResPacked;
+    std::string failedQueryResPacked;
+    // map from id to valid signature
+    std::unordered_map<uint64_t, std::string> receivedValidSigs;
+    std::unordered_map<uint64_t, std::string> receivedFailedSigs;
+    std::unordered_set<uint64_t> receivedFailedIds;
+    signed_query_callback qcb;
+
+    Timeout* timeout;
+  };
+
+  struct PendingCommit {
+    std::string validDecision;
+    // if we get f+1 valid decs -> return ok
+    std::unordered_set<uint64_t> receivedOkIds;
+    // else, once we get f+1 failures -> return failed
+    std::unordered_set<uint64_t> receivedFailedIds;
+    commit_callback pcb;
+
+    Timeout* timeout;
+  };
+
+  struct PendingAbort {
+    std::string validDecision;
+    // if we get f+1 valid decs -> return ok
+    std::unordered_set<uint64_t> receivedOkIds;
+    // else, once we get f+1 failures -> return failed
+    std::unordered_set<uint64_t> receivedFailedIds;
+    abort_callback acb;
+
+    Timeout* timeout;
+  };
+  
+
   void HandleReadReply(const proto::ReadReply& reply, const proto::SignedMessage& signedMsg);
 
   std::string CreateValidPackedDecision(std::string digest);
   std::string CreateFailedPackedDecision(std::string digest);
 
   struct PendingPrepare {
-    proto::TransactionDecision validDecision;
+    std::string validDecision;
     // if we get f+1 valid decs -> return ok
     std::unordered_set<uint64_t> receivedOkIds;
     // else, once we get f+1 failures -> return failed
@@ -176,6 +253,12 @@ class ShardClient : public TransportReceiver {
   std::unordered_map<std::string, PendingPrepare> pendingPrepares;
   std::unordered_map<std::string, PendingSignedPrepare> pendingSignedPrepares;
   std::unordered_map<std::string, PendingWritebackReply> pendingWritebacks;
+  std::unordered_map<std::string, PendingQuery> pendingQueries;
+  std::unordered_map<std::string, PendingSignedQuery> pendingSignedQueries;
+  std::unordered_map<std::pair<uint64_t, uint64_t>, PendingCommit> pendingCommits;
+  std::unordered_map<std::string, PendingCommit> pendingSignedCommits;
+  std::unordered_map<std::pair<uint64_t, uint64_t>, PendingCommit> pendingAborts;
+  std::unordered_map<std::string, PendingCommit> pendingSignedAborts;
 
 
   // verify that the proof asserts that the the value was written to the key

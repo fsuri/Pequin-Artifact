@@ -24,6 +24,7 @@
  * SOFTWARE.
  *
  **********************************************************************/
+
 #include "store/hotstuffvoltstore/replica.h"
 #include "store/hotstuffvoltstore/pbft_batched_sigs.h"
 #include "store/hotstuffvoltstore/common.h"
@@ -165,8 +166,10 @@ void Replica::ReceiveMessage(const TransportAddress &remote, const string &t,
     HandleRequest(remote, recvrequest);
   } else if (type == sqlMessage.GetTypeName()) {
     sqlMessage.ParseFromString(data);
-  
-  
+    HandleSql(remote, sqlMessage);
+  } else if (type == commitMessage.GetTypeName()) {
+    commitMessage.ParseFromString(data);
+    HandleCommitMessage(remote, commitMessage);
   } else if (type == recvbatchedRequest.GetTypeName()) {
     recvbatchedRequest.ParseFromString(data);
     HandleBatchedRequest(remote, recvbatchedRequest);
@@ -316,6 +319,227 @@ bool Replica::sendMessageToAll(const ::google::protobuf::Message& msg) {
   }
 }
 
+void Replica::HandleCommitMessage(const TransportAddress &remote,
+                               const proto::CommitMessage &commitMessage) {
+Debug("Handling request message");
+
+#ifdef USE_HOTSTUFF_STORE
+
+  std::pair<uint64_t, uint64_t> clientPair = make_pair(commitMessage.client_id(), commitMessage.txn_seq_num());
+
+  if (commits_dup.find(clientPair) == commits_dup.end()) { // Should ask about this, doesn't allow for same operation twice in a row?
+      Debug("new commit: %d, %d", commitMessage.client_id(), commitMessage.txn_seq_num());
+      stats->Increment("handle_new_count",1);
+
+      // This unordered map is only used here so read doesn't require locks.
+      commits_dup[clientPair] = commitMessage;
+
+      TransportAddress* clientAddr = remote.clone();
+      // proto::PackedMessage packedMsg = request.packed_msg();
+      std::function<void(const std::string&, uint32_t seqnum)> execb = [this, clientAddr](uint32_t seqnum) {
+          if(numShards <= 6 || numShards == 12){
+              auto f = [this clientAddr, seqnum](){
+                  // Debug("Callback: %d, %ld", idx, seqnum);
+                  stats->Increment("hotstuffvolt_exec_callback",1);
+
+                  // prepare data structures for executeSlots()
+                  commits[clientPair] = commitMessage;
+                  replyAddrsCommits[clientPair] = clientAddr;
+
+                  stats->Increment("exec_query",1);
+                  Debug("executing seq num: %lu %lu", execSeqNum, execBatchNum);
+
+                  google::protobuf::Message* reply = app->ExecuteCommit(msg.client_id(), msg.txn_seq_num());
+
+                  if (reply != nullptr) {
+                    Debug("Sending reply");
+                    stats->Increment("execs_sent",1);
+                    EpendingBatchedMessages.push_back(reply);
+                    EpendingBatchedDigs.push_back(digest);
+                    if (EpendingBatchedMessages.size() >= EbatchSize) {
+                      Debug("EBatch is full, sending");
+
+                      // HotStuff: disable timer for HotStuff due to concurrency bugs
+                      // if (EbatchTimerRunning) {
+                      //   transport->CancelTimer(EbatchTimerId);
+                      //   EbatchTimerRunning = false;
+                      // }
+                      sendEbatch();
+                    } else if (!EbatchTimerRunning) {
+                      EbatchTimerRunning = true;
+                      Debug("Starting ebatch timer");
+                      // EbatchTimerId = transport->Timer(EbatchTimeoutMS, [this]() {
+                      //   Debug("EBatch timer expired, sending");
+                      //   this->EbatchTimerRunning = false;
+                      //   this->sendEbatch();
+                      // });
+                    }
+                  } else {
+                    Debug("Invalid execution");
+                  }
+
+                  execBatchNum++;
+                  return (void*) true;
+              };
+              transport->DispatchTP_main(f);
+              //transport->DispatchTP_noCB(f);
+          }
+          //  else {
+          //     // numShards should be 24
+          //     if (numShards != 24)
+          //         Panic("Currently only support numShards == 6, 12 or 24");
+
+          //     // Debug("Callback: %d, %ld", idx, seqnum);
+          //     stats->Increment("hotstuffvolt_exec_callback",1);
+
+          //     // prepare data structures for executeSlots()
+          //     commits[clientPair] = msg;
+          //     replyAddrsCommits[digest] = clientAddr;
+
+          //     proto::BatchedRequest batchedRequest;
+          //     (*batchedRequest.mutable_digests())[0] = digest_param;
+          //     string batchedDigest = BatchedDigest(batchedRequest);
+          //     batchedRequests[batchedDigest] = batchedRequest;
+          //     pendingExecutions[seqnum] = batchedDigest;
+
+          //     executeSlots();
+          // }
+
+      };
+      hotstuffvolt_interface.propose(digest, execb);
+
+      // digest[0] = 'b';
+      // digest[1] = 'u';
+      // digest[2] = 'b';
+      // digest[3] = 'b';
+      // digest[4] = 'l';
+      // digest[5] = 'e';
+
+      // std::string digest_b("bubble");
+      //
+      // std::function<void(const std::string&, uint32_t seqnum)> execb_bubble =
+      //   [this, digest_b](const std::string&, uint32_t seqnum){
+      //     stats->Increment("hotstuffvolt_exec_bubble", 1);
+      //     std::cerr<<"Calling bubble dummt execute slots" << std::endl;
+      //     pendingExecutions[seqnum] = digest_b;
+      //     executeSlots();
+      //   };
+      //   hotstuffvolt_interface.propose(digest_b, execb_bubble);
+  }
+#endif
+}
+
+void Replica::HandleAbortMessage(const TransportAddress &remote,
+                               const proto::AbortMessage &abortMessage) {
+Debug("Handling request message");
+
+#ifdef USE_HOTSTUFF_STORE
+
+  std::pair<uint64_t, uint64_t> clientPair = make_pair(aborttMessage.client_id(), abortMessage.txn_seq_num());
+
+  if (aborts_dup.find(clientPair) == aborts_dup.end()) { // Should ask about this, doesn't allow for same operation twice in a row?
+      Debug("new abort: %d, %d", abortMessage.client_id(), abortMessage.txn_seq_num());
+      stats->Increment("handle_new_count",1);
+
+      // This unordered map is only used here so read doesn't require locks.
+      aborts_dup[clientPair] = abortMessage;
+
+      TransportAddress* clientAddr = remote.clone();
+      // proto::PackedMessage packedMsg = request.packed_msg();
+      std::function<void(const std::string&, uint32_t seqnum)> execb = [this, clientAddr](uint32_t seqnum) {
+          if(numShards <= 6 || numShards == 12){
+              auto f = [this clientAddr, seqnum](){
+                  // Debug("Callback: %d, %ld", idx, seqnum);
+                  stats->Increment("hotstuffvolt_exec_callback",1);
+
+                  // prepare data structures for executeSlots()
+                  aborts[clientPair] = abortMessage;
+                  replyAddrsAborts[clientPair] = clientAddr;
+
+                  stats->Increment("exec_query",1);
+                  Debug("executing seq num: %lu %lu", execSeqNum, execBatchNum);
+
+                  google::protobuf::Message* reply = app->ExecuteAbort(msg.client_id(), msg.txn_seq_num());
+
+                  if (reply != nullptr) {
+                    Debug("Sending reply");
+                    stats->Increment("execs_sent",1);
+                    EpendingBatchedMessages.push_back(reply);
+                    EpendingBatchedDigs.push_back(digest);
+                    if (EpendingBatchedMessages.size() >= EbatchSize) {
+                      Debug("EBatch is full, sending");
+
+                      // HotStuff: disable timer for HotStuff due to concurrency bugs
+                      // if (EbatchTimerRunning) {
+                      //   transport->CancelTimer(EbatchTimerId);
+                      //   EbatchTimerRunning = false;
+                      // }
+                      sendEbatch();
+                    } else if (!EbatchTimerRunning) {
+                      EbatchTimerRunning = true;
+                      Debug("Starting ebatch timer");
+                      // EbatchTimerId = transport->Timer(EbatchTimeoutMS, [this]() {
+                      //   Debug("EBatch timer expired, sending");
+                      //   this->EbatchTimerRunning = false;
+                      //   this->sendEbatch();
+                      // });
+                    }
+                  } else {
+                    Debug("Invalid execution");
+                  }
+
+                  execBatchNum++;
+                  return (void*) true;
+              };
+              transport->DispatchTP_main(f);
+              //transport->DispatchTP_noCB(f);
+          }
+          //  else {
+          //     // numShards should be 24
+          //     if (numShards != 24)
+          //         Panic("Currently only support numShards == 6, 12 or 24");
+
+          //     // Debug("Callback: %d, %ld", idx, seqnum);
+          //     stats->Increment("hotstuffvolt_exec_callback",1);
+
+          //     // prepare data structures for executeSlots()
+          //     commits[clientPair] = msg;
+          //     replyAddrsCommits[digest] = clientAddr;
+
+          //     proto::BatchedRequest batchedRequest;
+          //     (*batchedRequest.mutable_digests())[0] = digest_param;
+          //     string batchedDigest = BatchedDigest(batchedRequest);
+          //     batchedRequests[batchedDigest] = batchedRequest;
+          //     pendingExecutions[seqnum] = batchedDigest;
+
+          //     executeSlots();
+          // }
+
+      };
+      hotstuffvolt_interface.propose(digest, execb);
+
+      // digest[0] = 'b';
+      // digest[1] = 'u';
+      // digest[2] = 'b';
+      // digest[3] = 'b';
+      // digest[4] = 'l';
+      // digest[5] = 'e';
+
+      // std::string digest_b("bubble");
+      //
+      // std::function<void(const std::string&, uint32_t seqnum)> execb_bubble =
+      //   [this, digest_b](const std::string&, uint32_t seqnum){
+      //     stats->Increment("hotstuffvolt_exec_bubble", 1);
+      //     std::cerr<<"Calling bubble dummt execute slots" << std::endl;
+      //     pendingExecutions[seqnum] = digest_b;
+      //     executeSlots();
+      //   };
+      //   hotstuffvolt_interface.propose(digest_b, execb_bubble);
+  }
+#endif
+}
+
+
 void Replica::HandleSql(const TransportAddress &remote,
                                const proto::SQLMessage &sqlMessage) {
 Debug("Handling request message");
@@ -326,7 +550,7 @@ Debug("Handling request message");
 
 #ifdef USE_HOTSTUFF_STORE
 
-  if (queries_dup.find(digest) == queries_dup.end()) { // Should ask about this, doesn't allow for same operation twice in a row
+  if (queries_dup.find(digest) == queries_dup.end()) { // Should ask about this, doesn't allow for same operation twice in a row?
       Debug("new query: %s", query.msg().c_str());
       stats->Increment("handle_new_count",1);
 
@@ -383,27 +607,28 @@ Debug("Handling request message");
               };
               transport->DispatchTP_main(f);
               //transport->DispatchTP_noCB(f);
-          } else {
-              // numShards should be 24
-              if (numShards != 24)
-                  Panic("Currently only support numShards == 6, 12 or 24");
+          } 
+          // else {
+          //     // numShards should be 24
+          //     if (numShards != 24)
+          //         Panic("Currently only support numShards == 6, 12 or 24");
 
-              // Debug("Callback: %d, %ld", idx, seqnum);
-              stats->Increment("hotstuffvolt_exec_callback",1);
+          //     // Debug("Callback: %d, %ld", idx, seqnum);
+          //     stats->Increment("hotstuffvolt_exec_callback",1);
 
-              // prepare data structures for executeSlots()
-              assert(digest == digest_param);
-              requests[digest] = msg;
-              replyAddrs[digest] = clientAddr;
+          //     // prepare data structures for executeSlots()
+          //     assert(digest == digest_param);
+          //     queries[digest] = msg;
+          //     replyAddrsQueries[digest] = clientAddr;
 
-              proto::BatchedRequest batchedRequest;
-              (*batchedRequest.mutable_digests())[0] = digest_param;
-              string batchedDigest = BatchedDigest(batchedRequest);
-              batchedRequests[batchedDigest] = batchedRequest;
-              pendingExecutions[seqnum] = batchedDigest;
+          //     proto::BatchedRequest batchedRequest;
+          //     (*batchedRequest.mutable_digests())[0] = digest_param;
+          //     string batchedDigest = BatchedDigest(batchedRequest);
+          //     batchedRequests[batchedDigest] = batchedRequest;
+          //     pendingExecutions[seqnum] = batchedDigest;
 
-              executeSlots();
-          }
+          //     executeSlots();
+          // }
 
       };
       hotstuffvolt_interface.propose(digest, execb);

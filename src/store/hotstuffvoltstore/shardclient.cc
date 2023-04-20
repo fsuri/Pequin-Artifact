@@ -24,6 +24,7 @@
  * SOFTWARE.
  *
  **********************************************************************/
+
 #include "store/hotstuffvoltstore/shardclient.h"
 #include "store/hotstuffvoltstore/pbft_batched_sigs.h"
 #include "store/hotstuffvoltstore/common.h"
@@ -156,6 +157,8 @@ void ShardClient::ReceiveMessage(const TransportAddress &remote,
 
   proto::ReadReply readReply;
   proto::GroupedDecisionAck groupedDecisionAck;
+  proto::QueryReply queryReply;
+  proto::DecisionReply decisionReply;
   if (type == readReply.GetTypeName()) {
     readReply.ParseFromString(data);
 
@@ -180,6 +183,14 @@ void ShardClient::ReceiveMessage(const TransportAddress &remote,
     }
 
     HandleWritebackReply(groupedDecisionAck, signedMessage);
+  } else if(type == queryReply.GetTypeName()) {
+    queryReply.ParseFromString(data);
+
+    HandleQueryReply(queryReply);
+  } else if(type == decisionReply.GetTypeName()) {
+    decisionReply.ParseFromString(data);
+
+    HandleDecisionReply(decisionReply);
   }
 }
 
@@ -248,35 +259,35 @@ void ShardClient::HandleReadReply(const proto::ReadReply& readReply, const proto
 
 
 // Not a finished method currently
-void ShardClient::HandleSQLDecision(const proto::SQLDecision& sqlDecision, const proto::SignedMessage& signedMsg) {//Need to write this function out I guess
+void ShardClient::HandleQueryReply(const proto::QueryReply& queryReply, const proto::SignedMessage& signedMsg) {//Need to write this function out I guess, maybe not
   Debug("Handling transaction decision");
 
-  std::string digest = sqlDecision.txn_digest();
+  proto::QueryResult digest = queryReply.sql_res();
   DebugHash(digest);
   // only handle decisions for my shard
   // NOTE: makes the assumption that numshards == numgroups
-  if (sqlDecision.shard_id() == (uint64_t) group_idx) {
-    if (signMessages) {
-      stats->Increment("handle_tx_dec_s",1);
+  if (queryReply.shard_id() == (uint64_t) group_idx) {
+    if (signMessages) { //Will handle this later once I understand signed messages better
+      stats->Increment("handle_query_res_s",1);
       // Debug("signed packed msg: %s", string_to_hex(signedMsg.packed_msg()).c_str());
       // get the pending signed preprepare
-      if (pendingSignedPrepares.find(digest) != pendingSignedPrepares.end()) {
+      if (pendingSignedQueries.find(digest) != pendingSignedQueries.end()) {
         Debug("Adding signed id to a set: %lu", signedMsg.replica_id());
 
-        PendingSignedPrepare* psp = &pendingSignedPrepares[digest];
+        PendingSignedQuery* psq = &pendingSignedQueries[digest];
         uint64_t add_id = signedMsg.replica_id();
         // make sure this id is actually in the group
         if (add_id / config.n == (uint64_t) group_idx) {
-          if (transactionDecision.status() == REPLY_OK) {
+          if (queryReply.status() == REPLY_OK) {
             // add the decision to the list as proof
-            psp->receivedValidSigs[add_id] = signedMsg.signature();
+            psq->receivedValidSigs[add_id] = signedMsg.signature();
             // Debug("signature for %lu: %s", add_id, string_to_hex(signedMsg.signature()).c_str());
           } else {
             if(validate_abort){
-              psp->receivedFailedSigs[add_id] = signedMsg.signature();
+              psq->receivedFailedSigs[add_id] = signedMsg.signature();
             }
             else{
-              psp->receivedFailedIds.insert(add_id);
+              psq->receivedFailedIds.insert(add_id);
             }
 
           }
@@ -286,25 +297,25 @@ void ShardClient::HandleSQLDecision(const proto::SQLDecision& sqlDecision, const
 
         // once we have enough valid requests, construct the grouped decision
         // and return success
-        if (psp->receivedValidSigs.size() >= (uint64_t) config.f + 1) {
+        if (psq->receivedValidSigs.size() >= (uint64_t) config.f + 1) {
           Debug("Got enough *valid* transaction decisions, executing callback");
           // set the packed decision
 
           //groupSignedMsg.set_packed_msg(psp->validDecisionPacked);
-          groupSignedMsg.set_packed_msg(CreateValidPackedDecision(digest));
+          groupSignedMsg.set_packed_msg(CreateValidQueryDecision(digest));
           // Debug("packed decision: %s", string_to_hex(psp->validDecisionPacked).c_str());
 
           // add the signatures
-          for (const auto& pair : psp->receivedValidSigs) {
+          for (const auto& pair : psq->receivedValidSigs) {
             (*groupSignedMsg.mutable_signatures())[pair.first] = pair.second;
           }
 
           // invoke the callback with the signed grouped decision
-          signed_prepare_callback pcb = psp->pcb;
-          if (psp->timeout != nullptr) {
-            psp->timeout->Stop();
+          signed_query_callback qcb = psq->qcb;
+          if (psq->timeout != nullptr) {
+            psq->timeout->Stop();
           }
-          pendingSignedPrepares.erase(digest);
+          pendingSignedQueries.erase(digest);
           ////
           // struct timeval tv;
           // gettimeofday(&tv, NULL);
@@ -315,27 +326,27 @@ void ShardClient::HandleSQLDecision(const proto::SQLDecision& sqlDecision, const
           // if(total_prepare == 50) std::cerr << "Average time to prepare: " << (total_elapsed / total_prepare) << " us" << std::endl;
           //std::cerr << "Elapsed time for Prepare Phase: " << (current_time - start_time) << std::endl;
           ////
-          pcb(REPLY_OK, groupSignedMsg);
+          pcq(REPLY_OK, groupSignedMsg);
           return;
         }
-        else if(validate_abort && psp->receivedFailedSigs.size() >= (uint64_t) config.f + 1 ){
+        else if(validate_abort && psq->receivedFailedSigs.size() >= (uint64_t) config.f + 1 ){
           Debug("Got enough *failed* transaction decisions, executing callback");
           // set the packed decision
 
           //groupSignedMsg.set_packed_msg(psp->validDecisionPacked);
-          groupSignedMsg.set_packed_msg(CreateFailedPackedDecision(digest));
+          groupSignedMsg.set_packed_msg(CreateFailedQueryDecision(digest));
 
           // add the signatures
-          for (const auto& pair : psp->receivedFailedSigs) {
+          for (const auto& pair : psq->receivedFailedSigs) {
             (*groupSignedMsg.mutable_signatures())[pair.first] = pair.second;
           }
 
           // invoke the callback with the signed grouped decision
-          signed_prepare_callback pcb = psp->pcb;
-          if (psp->timeout != nullptr) {
-            psp->timeout->Stop();
+          signed_query_callback qcb = psq->qcb;
+          if (psq->timeout != nullptr) {
+            psq->timeout->Stop();
           }
-          pendingSignedPrepares.erase(digest);
+          pendingSignedQueries.erase(digest);
           ////
           // struct timeval tv;
           // gettimeofday(&tv, NULL);
@@ -346,65 +357,65 @@ void ShardClient::HandleSQLDecision(const proto::SQLDecision& sqlDecision, const
           // if(total_prepare == 50) std::cerr << "Average time to prepare: " << (total_elapsed / total_prepare) << " us" << std::endl;
           // //std::cerr << "Elapsed time for Prepare Phase: " << (current_time - start_time) << std::endl;
           ////
-          pcb(REPLY_FAIL, groupSignedMsg);
+          qcb(REPLY_FAIL, groupSignedMsg);
           return;
         }
         // if we get f+1 failures, we can return early
-        else if (!validate_abort && psp->receivedFailedIds.size() >= (uint64_t) config.f + 1) {
-          Debug("Not enough valid txn decisions, failing");
-          signed_prepare_callback pcb = psp->pcb;
-          if (psp->timeout != nullptr) {
-            psp->timeout->Stop();
+        else if (!validate_abort && psq->receivedFailedIds.size() >= (uint64_t) config.f + 1) {
+          Debug("Not enough valid query decisions, failing");
+          signed_prepare_callback qcb = psp->pcb;
+          if (psq->timeout != nullptr) {
+            psq->timeout->Stop();
           }
-          pendingSignedPrepares.erase(digest);
+          pendingSignedQueries.erase(digest);
           // adding sigs to the grouped signed msg would be worthless
-          pcb(REPLY_FAIL, groupSignedMsg);
+          qcb(REPLY_FAIL, groupSignedMsg);
           return;
         }
       }
-    } else { //Not sure what to do here, I don't understand the pending prepare type stuff
-      stats->Increment("handle_tx_dec",1);
-      if (pendingPrepares.find(digest) != pendingPrepares.end()) {
-        PendingPrepare* pp = &pendingPrepares[digest];
-        if (transactionDecision.status() == REPLY_OK) {
-          uint64_t add_id = pp->receivedOkIds.size();
+    } else { 
+      stats->Increment("handle_query_reply",1);
+      if (pendingQueries.find(digest) != pendingQueries.end()) {
+        PendingQuery* pq = &pendingQueries[digest];
+        if (queryReply.status() == REPLY_OK) {
+          uint64_t add_id = pq->receivedOkIds.size();
           // add the decision to the list as proof
-          pp->receivedOkIds.insert(add_id);
+          pq->receivedOkIds.insert(add_id);
         } else {
           // Kinda jank but just don't use these ids
-          uint64_t add_id = pp->receivedFailedIds.size();
-          pp->receivedFailedIds.insert(add_id);
+          uint64_t add_id = pq->receivedFailedIds.size();
+          pq->receivedFailedIds.insert(add_id);
         }
 
         // once we have enough valid requests, construct the grouped decision
         // and return success
-        if (pp->receivedOkIds.size() >= (uint64_t) config.f + 1) {
-          proto::TransactionDecision validDecision = pp->validDecision;
+        if (pq->receivedOkIds.size() >= (uint64_t) config.f + 1) {
+          proto::QueryReply validQueryRes = pq->validQueryRes;
           // invoke the callback if we have enough of the same decision
-          prepare_callback pcb = pp->pcb;
-          if (pp->timeout != nullptr) {
-            pp->timeout->Stop();
+          prepare_callback qcb = pp->qcb;
+          if (pq->timeout != nullptr) {
+            pq->timeout->Stop();
           }
-          pendingPrepares.erase(digest);
-          pcb(REPLY_OK, validDecision);
+          pendingQueries.erase(digest);
+          qcb(REPLY_OK, validQueryReply);
           return;
         }
         // f+1 failures mean that we will always return fail
-        if (pp->receivedFailedIds.size() >= (uint64_t) config.f + 1) {
-          proto::TransactionDecision failedDecision;
+        if (pq->receivedFailedIds.size() >= (uint64_t) config.f + 1) {
+          proto::QueryReply failedQueryReply;
           failedDecision.set_status(REPLY_FAIL);
-          prepare_callback pcb = pendingPrepares[digest].pcb;
-          if (pp->timeout != nullptr) {
-            pp->timeout->Stop();
+          prepare_callback pcb = pendingQueries[digest].qcb;
+          if (pq->timeout != nullptr) {
+            pq->timeout->Stop();
           }
-          pendingPrepares.erase(digest);
+          pendingQueries.erase(digest);
           pcb(REPLY_FAIL, failedDecision);
           return;
         }
       }
     }
   } else {
-    stats->Increment("wrong_dec_shard",1);
+    stats->Increment("wrong_query_shard",1);
   }
 }
 
@@ -621,7 +632,7 @@ void ShardClient::HandleWritebackReply(const proto::GroupedDecisionAck& groupedD
 // ================================
 
 void ShardClient::Query(const std::string &query, const Timestamp &ts,
-    uint64_t client_id, uint64_t txn_seq_num, read_callback gcb, read_timeout_callback gtcb,
+    uint64_t client_id, uint64_t txn_seq_num, query_callback qcb, query_timeout_callback qtcb,
     uint32_t timeout) {
 
 	proto::SQLMessage msg;
@@ -635,6 +646,28 @@ void ShardClient::Query(const std::string &query, const Timestamp &ts,
 
 
   transport->SendMessageToGroup(this, group_idx, msg);
+
+  PendingQuery pq;
+  pq.qcb = qcb;
+  pq.numResultsRequired = numResults;
+  pq.status = REPLY_FAIL;
+  // every ts should be bigger than this one
+  pq.maxTs = Timestamp();
+  pq.timeout = new Timeout(transport, timeout, [this, reqId, qtcb]() {
+    Debug("Get timeout called (but nothing was done)");
+      stats->Increment("g_tout", 1);
+      fprintf(stderr,"g_tout recv %lu\n",  this->pendingQueries[query].numResultsRequired);
+      for (const auto& recq : this->pendingQueries[query].receivedReplies) {
+        fprintf(stderr,"%lu\n", recq);
+      }
+    // this->pendingReads.erase(reqId);
+    // gtcb(reqId, key);
+  });
+  pq.timeout->Start();
+  // pr.timeout = nullptr;
+
+  pendingQueries[query] = pq;
+
 
 }
 
@@ -703,6 +736,32 @@ std::string ShardClient::CreateFailedPackedDecision(std::string digest) {
   proto::TransactionDecision validDecision;
   validDecision.set_status(REPLY_FAIL);
   validDecision.set_txn_digest(digest);
+  validDecision.set_shard_id(group_idx);
+
+  proto::PackedMessage packedDecision;
+  packedDecision.set_type(validDecision.GetTypeName());
+  packedDecision.set_msg(validDecision.SerializeAsString());
+
+  return packedDecision.SerializeAsString();
+}
+
+std::string ShardClient::CreateValidQueryDecision(proto::QueryResult digest) {
+  proto::QueryReply validDecision;
+  validDecision.set_status(REPLY_OK);
+  validDecision.set_sql_res(digest);
+  validDecision.set_shard_id(group_idx);
+
+  proto::PackedMessage packedDecision;
+  packedDecision.set_type(validDecision.GetTypeName());
+  packedDecision.set_msg(validDecision.SerializeAsString());
+
+  return packedDecision.SerializeAsString();
+}
+
+std::string ShardClient::CreateFailedQueryDecision(proto::QueryResult digest) {
+  proto::QueryReply validDecision;
+  validDecision.set_status(REPLY_FAIL);
+  validDecision.set_sql_res(digest);
   validDecision.set_shard_id(group_idx);
 
   proto::PackedMessage packedDecision;
@@ -810,46 +869,121 @@ void ShardClient::SignedPrepare(const proto::Transaction& txn, signed_prepare_ca
   }
 }
 
-void ShardClient::Commit(const std::string& txn_digest, const proto::ShardDecisions& dec,
-    writeback_callback wcb, writeback_timeout_callback wtcp, uint32_t timeout) {
+// void ShardClient::Commit(const std::string& txn_digest, const proto::ShardDecisions& dec,
+//     writeback_callback wcb, writeback_timeout_callback wtcp, uint32_t timeout) {
+//   Debug("Handling client commit");
+//   if (pendingWritebacks.find(txn_digest) == pendingWritebacks.end()) {
+//     proto::GroupedDecision groupedDecision;
+//     groupedDecision.set_status(REPLY_OK);
+//     groupedDecision.set_txn_digest(txn_digest);
+//     *groupedDecision.mutable_decisions() = dec;
+//     stats->Increment("shard_commit", 1);
+
+//     Debug("Sending commit to all replicas in shard");
+//     transport->SendMessageToGroup(this, group_idx, groupedDecision);
+
+//     PendingWritebackReply pwr;
+//     pwr.wcb = wcb;
+//     pwr.timeout = new Timeout(transport, timeout, [this, txn_digest, wtcp]() {
+//       Debug("Writeback timeout called (but nothing was done)");
+//       stats->Increment("c_tout", 1);
+//       fprintf(stderr,"c_tout recv %d\n", group_idx);
+//       fprintf(stderr, "txn: %s\n", txn_digest.c_str());
+//       fprintf(stderr,"ack\n");
+//       for (const auto& recv : this->pendingWritebacks[txn_digest].receivedAcks) {
+//         fprintf(stderr,"%lu\n", recv);
+//       }
+//       fprintf(stderr,"nak:\n");
+//       for (const auto& recv : this->pendingWritebacks[txn_digest].receivedFails) {
+//         fprintf(stderr,"%lu\n", recv);
+//       }
+
+//       // this->pendingWritebacks.erase(digest);
+//       // wtcp(REPLY_FAIL);
+//     });
+//     // pwr.timeout->Start();
+//     // pwr.timeout = nullptr;
+
+//     pendingWritebacks[txn_digest] = pwr;
+
+//   } else {
+//     Debug("commit called on already committed tx");
+//   }
+// }
+
+void ShardClient::Abort(
+    uint64_t client_id, uint64_t txn_seq_num, abort_callback acb, abort_timeout_callback atcb,
+    uint32_t timeout) {
+  Debug("Handling client abort");
+	proto::AbortMessage msg;
+  // DebugHash(digest);
+  // msg.set_digest(digest);
+  msg.set_client_id(client_id);
+  msg.set_txn_seq_num(txn_seq_num);
+  // msg.mutable_packed_msg()->set_msg(query);
+  // msg.mutable_packed_msg()->set_type(msg.GetTypeName());
+
+
+  transport->SendMessageToGroup(this, group_idx, msg);
+
+  PendingAbort pa;
+  pa.acb = acb;
+  pa.numResultsRequired = numResults;
+  pa.status = REPLY_FAIL;
+  // every ts should be bigger than this one
+  pa.maxTs = Timestamp();
+  pa.timeout = new Timeout(transport, timeout, [this, reqId, atcb]() {
+    Debug("Get timeout called (but nothing was done)");
+    //   stats->Increment("g_tout", 1);
+    //   fprintf(stderr,"g_tout recv %lu\n",  this->pendingCommits[query].numResultsRequired);
+    //   for (const auto& recq : this->pendingQueries[query].receivedReplies) {
+    //     fprintf(stderr,"%lu\n", recq);
+    //   }
+    // this->pendingReads.erase(reqId);
+    // qtcb(reqId, key);
+  });
+  pa.timeout->Start();
+  // pr.timeout = nullptr;
+
+  pendingAborts[make_pair(client_id, txn_seq_num)] = pa;
+}
+
+
+void ShardClient::Commit(
+    uint64_t client_id, uint64_t txn_seq_num, commit_callback ccb, commit_timeout_callback ctcb,
+    uint32_t timeout) {
   Debug("Handling client commit");
-  if (pendingWritebacks.find(txn_digest) == pendingWritebacks.end()) {
-    proto::GroupedDecision groupedDecision;
-    groupedDecision.set_status(REPLY_OK);
-    groupedDecision.set_txn_digest(txn_digest);
-    *groupedDecision.mutable_decisions() = dec;
-    stats->Increment("shard_commit", 1);
+	proto::CommitMessage msg;
+  // DebugHash(digest);
+  // msg.set_digest(digest);
+  msg.set_client_id(client_id);
+  msg.set_txn_seq_num(txn_seq_num);
+  // msg.mutable_packed_msg()->set_msg(query);
+  // msg.mutable_packed_msg()->set_type(msg.GetTypeName());
 
-    Debug("Sending commit to all replicas in shard");
-    transport->SendMessageToGroup(this, group_idx, groupedDecision);
 
-    PendingWritebackReply pwr;
-    pwr.wcb = wcb;
-    pwr.timeout = new Timeout(transport, timeout, [this, txn_digest, wtcp]() {
-      Debug("Writeback timeout called (but nothing was done)");
-      stats->Increment("c_tout", 1);
-      fprintf(stderr,"c_tout recv %d\n", group_idx);
-      fprintf(stderr, "txn: %s\n", txn_digest.c_str());
-      fprintf(stderr,"ack\n");
-      for (const auto& recv : this->pendingWritebacks[txn_digest].receivedAcks) {
-        fprintf(stderr,"%lu\n", recv);
-      }
-      fprintf(stderr,"nak:\n");
-      for (const auto& recv : this->pendingWritebacks[txn_digest].receivedFails) {
-        fprintf(stderr,"%lu\n", recv);
-      }
+  transport->SendMessageToGroup(this, group_idx, msg);
 
-      // this->pendingWritebacks.erase(digest);
-      // wtcp(REPLY_FAIL);
-    });
-    // pwr.timeout->Start();
-    // pwr.timeout = nullptr;
+  PendingCommit pc;
+  pc.ccb = ccb;
+  pc.numResultsRequired = numResults;
+  pc.status = REPLY_FAIL;
+  // every ts should be bigger than this one
+  pc.maxTs = Timestamp();
+  pc.timeout = new Timeout(transport, timeout, [this, reqId, ctcb]() {
+    Debug("Get timeout called (but nothing was done)");
+    //   stats->Increment("g_tout", 1);
+    //   fprintf(stderr,"g_tout recv %lu\n",  this->pendingCommits[query].numResultsRequired);
+    //   for (const auto& recq : this->pendingQueries[query].receivedReplies) {
+    //     fprintf(stderr,"%lu\n", recq);
+    //   }
+    // this->pendingReads.erase(reqId);
+    // qtcb(reqId, key);
+  });
+  pc.timeout->Start();
+  // pr.timeout = nullptr;
 
-    pendingWritebacks[txn_digest] = pwr;
-
-  } else {
-    Debug("commit called on already committed tx");
-  }
+  pendingCommits[make_pair(client_id, txn_seq_num)] = pc;
 }
 
 //TODO: add flag, and wrap Commit in a Request in that case. In doing so, it will automatically be ordered.

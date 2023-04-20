@@ -55,7 +55,9 @@ public:
     TrueTime timeServer = TrueTime(0, 0));
   ~Server();
 
-  std::vector<::google::protobuf::Message*> Execute(const std::string& type, const std::string& msg);
+  std::vector<::google::protobuf::Message*> Execute(const string& msg, const uint64 client_id, const uint64 tx_seq_num);
+  std::vector<::google::protobuf::Message*> ExecuteCommit(const uint64 client_id, const uint64 tx_seq_num);
+  std::vector<::google::protobuf::Message*> ExecuteAbort(const uint64 client_id, const uint64 tx_seq_num);
   ::google::protobuf::Message* HandleMessage(const std::string& type, const std::string& msg);
 
   void Load(const std::string &key, const std::string &value,
@@ -67,7 +69,7 @@ public:
 
 private:
   std::shared_ptr< tao::pq::connection_pool > connection_pool;
-  std::map< tuple<uint64, uint64>, std::shared_ptr< tao::pq::connection >> map;
+  std::map< tuple<uint64, uint64>, std::shared_ptr< tao::pq::connection::transaction >> map;
   taopq::transaction transaction;
   uint64_t client_id;
   Transport* tp;

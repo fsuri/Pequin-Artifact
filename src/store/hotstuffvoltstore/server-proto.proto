@@ -1,6 +1,7 @@
 syntax = "proto2";
 
 import "store/common/common-proto.proto";
+import "store/common/query-result-proto.proto";
 import "store/hotstuffvoltstore/pbft-proto.proto";
 
 package hotstuffvoltstore.proto;
@@ -36,8 +37,9 @@ message ReadReply {
 message Transaction {
   repeated ReadMessage readset = 1;
   repeated WriteMessage writeset = 2;
-  required TimestampMessage timestamp = 3;
-  repeated uint64 participating_shards = 4;
+  repeated SQLMessage queryset = 3;
+  required TimestampMessage timestamp = 4;
+  repeated uint64 participating_shards = 5;
 }
 
 // This is the reply that a shard sends to the client after it finished its
@@ -90,4 +92,20 @@ message SQLDecision {
   required uint64 group_id = 3;
 }
 
+
+message QueryReply {
+  // Contains proto reply
+  required QueryResult sql_res = 1;
+
+  required int32 status = 2;
+
+  required uint64 group_id = 3;
+}
+
+message DecisionReply {
+  // Contains boolean for if Commit/Abort was successful
+  required int32 status = 1;
+
+  required uint64 group_id = 2;
+}
 

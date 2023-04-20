@@ -24,11 +24,14 @@
  * SOFTWARE.
  *
  **********************************************************************/
+
 #include "store/hotstuffvoltstore/server.h"
 #include "store/hotstuffvoltstore/common.h"
 #include "store/common/transaction.h"
+#include "store/common/query_result_proto_builder.h"
 #include <iostream>
 #include <sys/time.h>
+#include "store/common/taopq_query_result_wrapper.h"
 
 namespace hotstuffvoltstore {
 
@@ -242,7 +245,7 @@ bool Server::CCC(const proto::Transaction& txn) {
   }
 }
 
-std::vector<::google::protobuf::Message*> Server::Execute(const string& msg, const uint64 client_id, const uint64 tx_seq_num) {
+google::protobuf::Message* Server::Execute(const string& msg, const uint64 client_id, const uint64 tx_seq_num) {
   Debug("Execute: %s", type.c_str());
   //std::unique_lock lock(atomicMutex);
 
@@ -273,19 +276,21 @@ std::vector<::google::protobuf::Message*> Server::Execute(const string& msg, con
   proto::SQLMessage sqlMessage;
   sqlMessage.parseFromString(msg);
 
-  auto connection;
+  auto tr;
   tuple<uint64, uint64> client_tuple(client_id, tx_seq_num);
   if(!map.contains(client_tuple)) {
-  	connection = connection_pool::connection();
-  	map[client_tuple] = connection;
+  	auto connection = connection_pool::connection();
+    const auto tr = connection->transaction();
+  	map[client_tuple] = tr;
   } else {
-	  connection = map[client_tuple];
+	  tr = map[client_tuple];
   }
 
-  proto::SQLDecision* decision = new proto::SQLDecision();// need to put result type in here somehow?
-  auto sqlRes = connection->execute(sqlMessage.msg());
-  decision->set_status(1);
-  decision->set_sql_res(sqlRes);
+  proto::QueryReply* decision = new proto::QueryReply();// need to put result type in here somehow?
+  const auto sqlRes = tr->execute(sqlMessage.msg());
+  query_result::QueryResult qRes = TaoPQQueryResultWrapper(sqlRes);
+  decision->set_status(REPLY_OK);
+  decision->set_sql_res(qRes); // Change proto type to bytes here
   decision->set_status(groupIdx);
 
 
@@ -294,6 +299,45 @@ std::vector<::google::protobuf::Message*> Server::Execute(const string& msg, con
 //   results.push_back(sqlRes);
   return decision;
 }
+
+google::protobuf::Message* Server::ExecuteCommit(const uint64 client_id, const uint64 tx_seq_num) {
+  Debug("Commit: %s", type.c_str());
+  // proto::SQLMessage sqlMessage; // DO this with new commit type
+  // sqlMessage.parseFromString(msg);
+
+  auto tr;
+  tuple<uint64, uint64> client_tuple(client_id, tx_seq_num);
+  if(map.contains(client_tuple)) {
+	  tr = map[client_tuple];
+    tr->commit();
+  }
+
+  proto::DecisionReply* decision = new proto::DecisionReply();// need to put result type in here somehow?
+  decision->set_status(REPLY_OK);
+  decision->set_status(groupIdx);
+
+  return decision;
+}
+
+google::protobuf::Message* Server::ExecuteAbort(const uint64 client_id, const uint64 tx_seq_num) {
+  Debug("Abort: %s", type.c_str());
+  // proto::SQLMessage sqlMessage; // DO this with new commit type
+  // sqlMessage.parseFromString(msg);
+
+  auto tr;
+  tuple<uint64, uint64> client_tuple(client_id, tx_seq_num);
+  if(map.contains(client_tuple)) {
+	  tr = map[client_tuple];
+    tr->rollback();
+  }
+
+  proto::DecisionReply* decision = new proto::DecisionReply();// need to put result type in here somehow?
+  decision->set_status(REPLY_OK);
+  decision->set_status(groupIdx);
+
+  return decision;
+}
+
 
 std::vector<::google::protobuf::Message*> Server::HandleTransaction(const proto::Transaction& transaction) {
   std::unique_lock lock(atomicMutex); //TODO: might be able to make it finer.
