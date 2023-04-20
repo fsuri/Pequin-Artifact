@@ -107,7 +107,7 @@ Server::Server(const transport::Configuration &config, KeyManager *keyManager,
                                 // advertise_flag,    // for nodes
                                 sql_addr_flag,   // for client's sql
                                 http_addr_flag,  // for  DB Console
-                                store_flag_mem, log_flag, locality_flag,
+                                store_flag_mem, locality_flag,
                                 other_flags};
 
   for (std::string part : script_parts) {
@@ -181,9 +181,9 @@ void Server::CreateTable(
 
 void Server::LoadTableData(const std::string &table_name, const std::string &table_data_path, const std::vector<uint32_t> &primary_key_col_idx){
     //Syntax based on: https://www.cockroachlabs.com/docs/stable/import-into.html
-    std::string copy_table_statement_crdb = fmt::format("IMPORT INTO {0} CSV DATA {1} WITH skip = '1'", table_name, table_data_path); //FIXME: does one need to specify column names? Target columns don't appear to be enforced
+    std::string copy_table_statement_crdb = fmt::format("IMPORT INTO {0} CSV DATA ('{1}') WITH skip = '1'", table_name, table_data_path); //FIXME: does one need to specify column names? Target columns don't appear to be enforced
 
-  exec_sql(copy_table_statement_crdb, serverAddress);
+  exec_sql(copy_table_statement_crdb);
   
 }
 

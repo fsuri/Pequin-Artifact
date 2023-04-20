@@ -15,10 +15,10 @@
 
   "_client_num_keys": 10,
   "client_num_keys": 10000000,
-  "server_load_time": 30,
+  "server_load_time": 5,
   
   "benchmark_type": "sql_bench",
-  "benchmark_data_file_path": "test-tables-schema.json"
+  "benchmark_data_file_path": "test-tables-schema.json",
 
   "benchmark_name": "rw",
   "client_zipf_coefficient": 0.75,   
@@ -71,7 +71,7 @@
   "server_debug_output": false,
   "server_debug_stats": false,
   "client_debug_stats": false,
-  "client_experiment_length": 30,
+  "client_experiment_length": 15,
   "client_ramp_down": 5,
   "client_ramp_up": 5,
   "default_remote_shell": "bash",

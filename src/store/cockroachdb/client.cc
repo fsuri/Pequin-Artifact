@@ -66,10 +66,12 @@ Client::Client(const transport::Configuration &config, uint64_t id, int nShards,
     if (result) {
       Panic("Unable to get host name for CRDB");
     }
-    cout << result << endl;
+    //cout << result << endl;
+   
     // remove site
     std::string site(host_name);
-    site.replace(site.find(gateway0.host), gateway0.host.length(), "");
+    site = site.substr(site.find("."));
+    Notice("Site %s \n", site.c_str());
     string addr = gateway0.host + site + ":" + gateway0.port;
     string url = "postgresql://root@" + addr + "/defaultdb?sslmode=disable";
 
@@ -89,7 +91,7 @@ Client::Client(const transport::Configuration &config, uint64_t id, int nShards,
     // cout << "Initialization confirmed" << endl;
 
   } catch (const std::exception &e) {
-    std::cerr << e.what() << '\n';
+    ////std::cerr << e.what() << '\n';
   }
 }
 
@@ -106,8 +108,8 @@ void Client::Begin(begin_callback bcb, begin_timeout_callback btcb,
     // std::cout << "begin " << '\n';
     bcb(420);
   } catch (const std::exception &e) {
-    std::cerr << "Tx begin Failed" << '\n';
-    std::cerr << e.what() << '\n';
+    //std::cerr << "Tx begin Failed" << '\n';
+    //std::cerr << e.what() << '\n';
   }
 }
 
@@ -116,7 +118,7 @@ void Client::Get(const std::string &key, get_callback gcb,
                  get_timeout_callback gtcb, uint32_t timeout) {
   try {
     // TODO: transport->Timer?
-    ReplaceAll(key, "\\0", "\\\\0");
+    //ReplaceAll(key, "\\0", "\\\\0");
     // Hardwire a SQL command
     string point_query =
         "SELECT val_ FROM datastore WHERE key_ = \'" + key + "\'";
@@ -134,14 +136,14 @@ void Client::Get(const std::string &key, get_callback gcb,
     for (const auto &row : result) {
       value = row["val_"].as<std::string>();
     }
-    std::cerr << key << ": " << value << '\n';
+    //std::cerr << key << ": " << value << '\n';
 
     // TODO replace Timestamp that makes sense
     gcb(REPLY_OK, key, value, Timestamp(0));
   } catch (const std::exception &e) {
     gcb(REPLY_FAIL, key, "NOTHING BRO", Timestamp(0));
-    std::cerr << "Get Failed" << '\n';
-    std::cerr << e.what() << '\n';
+    //std::cerr << "Get Failed" << '\n';
+    //std::cerr << e.what() << '\n';
   }
 }
 
@@ -150,16 +152,16 @@ void Client::Put(const std::string &key, const std::string &value,
                  put_callback pcb, put_timeout_callback ptcb,
                  uint32_t timeout) {
   try {
-    ReplaceAll(key, "\\0", "\\\\0");
-    ReplaceAll(value, "\\0", "\\\\0");
-    std::cerr << "val: " << value << endl;
+    //ReplaceAll(key, "\\0", "\\\\0");
+    //ReplaceAll(value, "\\0", "\\\\0");
+    //std::cerr << "val: " << value << endl;
     std::string put_command("INSERT INTO datastore(key_, val_) VALUES(\'" +
                             key + "\', \'" + value +
                             "\') ON "
                             "CONFLICT (key_) "
                             "DO UPDATE SET val_ = \'" +
                             value + "\';");
-    std::cerr << put_command << endl;
+    //std::cerr << put_command << endl;
     auto const result = [this, &put_command]() {
       // If part of a Tx, use Tx->exec, else use connection->exec
       if (tr != nullptr)
@@ -170,8 +172,8 @@ void Client::Put(const std::string &key, const std::string &value,
     pcb(REPLY_OK, key, value);
   } catch (const std::exception &e) {
     pcb(REPLY_FAIL, key, value);
-    std::cerr << "Tx put failed" << '\n';
-    std::cerr << e.what() << '\n';
+    //std::cerr << "Tx put failed" << '\n';
+    //std::cerr << e.what() << '\n';
   }
 }
 
@@ -191,8 +193,8 @@ void Client::Query(const std::string &query, query_callback qcb,
         new taopq_wrapper::TaoPQQueryResultWrapper(&result);
     qcb(REPLY_OK, tao_res);
   } catch (const std::exception &e) {
-    std::cerr << "Tx query failed" << '\n';
-    std::cerr << e.what() << '\n';
+    //std::cerr << "Tx query failed" << '\n';
+    //std::cerr << e.what() << '\n';
   }
 }
 
@@ -202,11 +204,11 @@ void Client::Commit(commit_callback ccb, commit_timeout_callback ctcb,
   try {
     tr->commit();
     tr = nullptr;
-    std::cout << "commit " << '\n';
+    //std::cout << "commit " << '\n';
 
     ccb(COMMITTED);
   } catch (const std::exception &e) {
-    std::cerr << e.what() << '\n';
+    ////std::cerr << e.what() << '\n';
     ccb(ABORTED_SYSTEM);
   }
 }

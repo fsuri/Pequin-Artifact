@@ -362,6 +362,9 @@ def prepare_remote_exp_directories(config, local_exp_directory, executor):
         clean = 'sudo rm -rf /mnt/extra/experiments/*;' #Clean experiments folder.
         run_remote_command_async(clean, config['emulab_user'], server_host)
 
+        delete_cmd = 'sudo pkill -9 -f cockroach;'
+        run_remote_command_async(delete_cmd, config['emulab_user'], server_host)
+
         futures.append(executor.submit(prepare_remote_server, config, server_host,
             local_exp_directory, remote_out_directory))
         prepare_remote_server(config, server_host, local_exp_directory, remote_out_directory)

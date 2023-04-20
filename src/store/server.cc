@@ -845,7 +845,7 @@ int main(int argc, char **argv) {
 
   // parse keys
   std::vector<std::string> keys;
-  if (FLAGS_data_file_path.empty() && FLAGS_keys_path.empty()) {
+  if (true || FLAGS_data_file_path.empty() && FLAGS_keys_path.empty()) {
     /*if (FLAGS_num_keys > 0) {
       for (size_t i = 0; i < FLAGS_num_keys; ++i) {
         keys.push_back(std::to_string(i));
@@ -885,10 +885,11 @@ int main(int argc, char **argv) {
     }
   }
    else if(FLAGS_sql_bench && FLAGS_data_file_path.length() > 0 && FLAGS_keys_path.empty()) {
+    std::cerr << "READING IN JSON FILE" << std::endl;
        std::ifstream generated_tables(FLAGS_data_file_path);
-       json tables_to_load = json::parse(generated_tables);
-       
-       //Load all tables. 
+       try {
+         json tables_to_load = json::parse(generated_tables);
+          //Load all tables. 
        for(auto &[table_name, table_args]: tables_to_load.items()){ 
           const std::vector<std::pair<std::string, std::string>> &column_names_and_types = table_args["column_names_and_types"];
           const std::vector<uint32_t> &primary_key_col_idx = table_args["primary_key_col_idx"];
@@ -900,6 +901,8 @@ int main(int argc, char **argv) {
           //   server->CreateIndex(table_name, column_names_and_types, index_name, index_col_idx);
           // }
           //Load full table data
+          // std::string table_name = "datastore";
+          // std::string path = "test";
           server->LoadTableData(table_name, table_args["row_data_path"], primary_key_col_idx);
           // //Load Rows individually 
           // for(auto &row: table_args["rows"]){
@@ -907,6 +910,12 @@ int main(int argc, char **argv) {
           //   server->LoadTableRow(table_name, column_names_and_types, row, primary_key_col_idx);
           // }
        }
+       }
+      catch (const std::exception &e) {
+        Panic("json loading broken");
+       }
+      
+      
   
   } else if (FLAGS_data_file_path.length() > 0 && FLAGS_keys_path.empty()) {
     std::ifstream in;
