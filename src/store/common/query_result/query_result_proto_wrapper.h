@@ -43,27 +43,28 @@ namespace sql {
 
 class QueryResultProtoWrapper : public query_result::QueryResult {
   private:
-    const SQLResultProto* proto_result;
-    uint32_t n_rows_affected;
-    std::vector<std::string> column_names;
-    auto create_from_proto(const SQLResultProto* proto_result) -> void;
+    SQLResultProto* proto_result;
     auto check_has_result_set() const -> void;
 
 	public:
-    QueryResultProtoWrapper(const SQLResultProto* proto_result) {
-      create_from_proto(proto_result);
-    }
+    QueryResultProtoWrapper(SQLResultProto* proto_result) 
+      : proto_result(proto_result) {}
 
     QueryResultProtoWrapper(const std::string& data) {
-      SQLResultProto result;
-      if(result.ParseFromString(data)) {
-        create_from_proto(&result);
+      proto_result = new SQLResultProto();
+      if(proto_result->ParseFromString(data)) {
+        return;
       } else {
         throw std::invalid_argument("Failed to parse QueryResultProtoWrapper from data");
       }
     }
+    
+    // Delete copy constructor and assignment operator to enforce ownership of proto
+    QueryResultProtoWrapper(const QueryResultProtoWrapper&) = delete;
+    QueryResultProtoWrapper& operator=(const QueryResultProtoWrapper&) = delete;
 
     ~QueryResultProtoWrapper() {
+      delete proto_result;
     }
 
 		class const_iterator : sql::Row {
@@ -165,7 +166,7 @@ class QueryResultProtoWrapper : public query_result::QueryResult {
     auto at( const std::size_t row ) const -> std::unique_ptr<query_result::Row>;
 
 		// update/insert result
-    inline void set_rows_affected(const uint32_t _n_rows_affected) override { n_rows_affected = _n_rows_affected; } //Use to set n_rows for writes manually
+    inline void set_rows_affected(const uint32_t n_rows_affected) override { proto_result->set_rows_affected(n_rows_affected); } //Use to set n_rows for writes manually
 
 		auto has_rows_affected() const noexcept -> bool;
 		auto rows_affected() const -> std::size_t;

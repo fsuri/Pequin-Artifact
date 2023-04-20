@@ -38,28 +38,21 @@ typedef Field FieldProto;
 
 namespace sql {
 
-auto QueryResultProtoWrapper::create_from_proto(const SQLResultProto* proto_result) -> void
-{
-  this->proto_result = proto_result;
-  n_rows_affected = proto_result->rows_affected();
-  column_names = std::vector<std::string>(proto_result->column_names().begin(), proto_result->column_names().end());
-}
-
 auto QueryResultProtoWrapper::check_has_result_set() const -> void
 {
-  if(column_names.size() == 0) {
+  if(proto_result->column_names_size() == 0) {
     throw std::runtime_error("No result set");
   }
 }
 
 auto QueryResultProtoWrapper::name( const std::size_t column ) const -> std::string
 {
-  return column_names[column];
+  return proto_result->column_names(column);
 }
 
 auto QueryResultProtoWrapper::column_index_by_name(const std::string &name) const -> std::size_t {
-  for (std::size_t i = 0; i < column_names.size(); i++) {
-    if (column_names[i] == name) {
+  for (int i = 0; i < proto_result->column_names_size(); i++) {
+    if (proto_result->column_names(i) == name) {
       return i;
     }
   }
@@ -84,12 +77,12 @@ auto QueryResultProtoWrapper::columns() const -> std::size_t
 auto QueryResultProtoWrapper::begin() const -> std::unique_ptr<const_iterator>
 {
   check_has_result_set();
-  return std::unique_ptr<const_iterator>(new const_iterator( Row(this, 0, 0, column_names.size())));
+  return std::unique_ptr<const_iterator>(new const_iterator( Row(this, 0, 0, columns())));
 }
 
 auto QueryResultProtoWrapper::end() const -> std::unique_ptr<const_iterator>
 {
-  return std::unique_ptr<const_iterator>(new const_iterator( Row(this, size(), 0, column_names.size() ) ));
+  return std::unique_ptr<const_iterator>(new const_iterator( Row(this, size(), 0, columns() ) ));
 }
 
 auto QueryResultProtoWrapper::is_null( const std::size_t row, const std::size_t column ) const -> bool {
@@ -118,11 +111,11 @@ auto QueryResultProtoWrapper::at( const std::size_t row ) const -> std::unique_p
 }
 
 auto QueryResultProtoWrapper::has_rows_affected() const noexcept -> bool {
-  return n_rows_affected > 0;
+  return proto_result->rows_affected() > 0;
 }
 
 auto QueryResultProtoWrapper::rows_affected() const -> std::size_t {
-  return n_rows_affected;
+  return proto_result->rows_affected();
 }
 
 auto QueryResultProtoWrapper::serialize(std::string *output) const -> bool {
