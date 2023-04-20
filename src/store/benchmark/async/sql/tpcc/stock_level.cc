@@ -60,54 +60,15 @@ transaction_status_t SQLStockLevel::Execute(SyncClient &client) {
   deserialize(next_o_id, queryResult);
   Debug("Orders: %u-%u", next_o_id - 20, next_o_id - 1);
 
-  query = fmt::format("SELECT FROM Order WHERE id BETWEEN {} AND {} AND d_id = {} AND w_id = {}", next_o_id - 20, next_o_id - 1, d_id, w_id);
-  client.Query(query, timeout);
-  client.Wait(results);
+  query = fmt::format("SELECT COUNT(DISTINCT(i_id)) FROM OrderLine, Stock WHERE OrderLine.w_id = {} AND OrderLine.d_id = {} "
+                      "AND OrderLine.o_id < {} AND OrderLine.o_id >= {} AND Stock.w_id = {} AND Stock.i_id = OrderLine.i_id "
+                      "AND Stock.quantity < {}", w_id, d_id, next_o_id, 
+                      next_o_id - 20, w_id, min_quantity);
+  client.Query(query, queryResult, timeout);
+  uint32_t stock_count;
+  deserialize(stock_count, queryResult);
 
-  std::map<uint32_t, uint32_t> ol_cnts;
-  for (uint32_t ol_o_id = next_o_id - 20; ol_o_id < next_o_id; ++ol_o_id) {
-    if (results[ol_o_id + 20 - next_o_id]->empty()) {
-      Debug("  Non-existent Order %u", ol_o_id);
-      continue;
-    }
-    tpcc::OrderRow o_row;
-    deserialize(o_row, queryResult, ol_o_id + 20 - next_o_id);
-    Debug("  Order Lines: %u", o_row.ol_cnt());
-
-    ol_cnts[ol_o_id] = o_row.ol_cnt();
-    query = fmt::format("SELECT FROM OrderLine WHERE o_id = {} AND d_id = {} AND w_id = {} AND number < {}", ol_o_id, d_id, w_id, o_row.ol_cnt());
-    client.Query(query, timeout);
-  }
-
-  results.clear();
-  client.Wait(results);
-  
-  std::map<uint32_t, tpcc::StockRow> stockRows;
-  size_t resultsIdx = 0;
-  for (const auto order_cnt : ol_cnts) {
-    Debug("Order %u", order_cnt.first);
-    for (size_t ol_number = 0; ol_number < order_cnt.second; ++ol_number) {
-      tpcc::OrderLineRow ol_row;
-      Debug("  OL %lu", ol_number);
-      Debug("  Total OL index: %lu.", resultsIdx);
-      if (!results[resultsIdx]->at(ol_number)) {
-        Debug("  Non-existent Order Line %lu", ol_number);
-        continue;
-      }
-      deserialize(ol_row, results[resultsIdx], ol_number);
-      Debug("      Item %d", ol_row.i_id());
-
-      if (stockRows.find(ol_row.i_id()) == stockRows.end()) {
-        query = fmt::format("SELECT FROM Stock WHERE i_id = {} AND w_id = {}", ol_row.i_id(), w_id);
-        client.Query(query, timeout);
-      }
-    }
-    resultsIdx++;
-  }
-
-  results.clear();
-  client.Wait(results);
-
+  Debug("Stock Count: %u", stock_count);
   Debug("COMMIT");
   return client.Commit(timeout);
 }
