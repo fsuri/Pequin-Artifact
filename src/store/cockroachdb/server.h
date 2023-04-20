@@ -36,14 +36,26 @@ virtual void LoadTableData(const std::string &table_name, const std::string &tab
       const std::vector<std::string> &values,
       const std::vector<uint32_t> primary_key_col_idx) override;
 
-  Stats &GetStats();
+  void LoadTable(
+      const std::string &table_name,
+      const std::vector<std::pair<std::string, std::string>> &column_data_types,
+      const std::vector<std::string> &values,
+      const std::vector<uint32_t> primary_key_col_idx,
+      const std::string &csv_file_name);
+  void exec_sql(std::string sql);
 
+  Stats &GetStats();
 
  private:
   Stats stats;
   transport::Configuration config;
   KeyManager *keyManager;
-  transport::ReplicaAddress serverAddress;
+  std::string domain;
+  std::string host;
+  std::string zone;
+  std::string port;
+  std::string site;
+
   int groupIdx;
   int idx;
   int id;

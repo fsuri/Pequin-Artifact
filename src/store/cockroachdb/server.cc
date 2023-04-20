@@ -9,6 +9,8 @@
 
 #include "store/cockroachdb/server.h"
 
+#include <unistd.h>
+
 #include <iostream>
 #include <string>
 #include <fmt/core.h>
@@ -17,10 +19,10 @@ namespace cockroachdb {
 
 using namespace std;
 
-void exec_sql(std::string sql, transport::ReplicaAddress server_address) {
-  std::string crdb_command =
-      "cockroach sql --insecure --host=" + server_address.host + ":" +
-      server_address.port + " --execute=\"" + sql + "\"";
+void Server::exec_sql(std::string sql) {
+  std::string crdb_command = "cockroach sql --insecure --host=" + host +
+                             std::string() + ":" + port + " --execute=\"" +
+                             sql + "\"";
   Notice(crdb_command.c_str());
   int status = system(crdb_command.c_str());
 }
@@ -33,11 +35,22 @@ Server::Server(const transport::Configuration &config, KeyManager *keyManager,
       idx(idx),
       id(groupIdx * config.n + idx),
       numShards(numShards),
-      numGroups(numGroups),
-      serverAddress(config.replica(groupIdx, idx)) {
+      numGroups(numGroups) {
+  zone = config.replica(groupIdx, idx).host;
+  port = config.replica(groupIdx, idx).port;
   int status = 0;
-  std::string host = serverAddress.host;
-  std::string port = serverAddress.port;
+  char host_name[HOST_NAME_MAX];
+  int result;
+  result = gethostname(host_name, HOST_NAME_MAX);
+  if (result) {
+    Panic("Unable to get host name for CRDB");
+  }
+  cout << result << endl;
+  // remove site
+  std::string site(host_name);
+
+  site.replace(site.find(zone), zone.length(), "");
+  host = std::string(host_name);
 
   /**
    * --advertise-addr determines which address to tell other nodes to use.
@@ -50,12 +63,14 @@ Server::Server(const transport::Configuration &config, KeyManager *keyManager,
   std::string sql_addr_flag = " --advertise-sql-addr=" + host + ":" + port;
   std::string advertise_flag = " --advertise-addr=" + host + ":" + port;
   std::string join_flag = " --join=";
+  std::string load_flag = " --join=";
 
   // Naive implementation: join all node
   for (int i = 0; i < numGroups; i++) {
     for (int j = 0; j < config.n; j++) {
       transport::ReplicaAddress join_address = config.replica(i, j);
-      join_flag = join_flag + join_address.host + ":" + join_address.port + ",";
+      join_flag =
+          join_flag + join_address.host + site + ":" + join_address.port + ",";
     }
   }
   // Remove last comma
@@ -64,11 +79,26 @@ Server::Server(const transport::Configuration &config, KeyManager *keyManager,
   // TODO: better port number
   std::string http_addr_flag =
       " --http-addr=" + host + ":" + std::to_string(8069 + id);
-  std::string store_flag =
-      " --store= ~/mnt/extra/experiments/store/cockroachdb/crdb_node" + std::to_string(id);
+  std::string store_flag_disk =
+      " --store=~/mnt/extra/experiments/store/cockroachdb/crdb_node" +
+      std::to_string(id);
+
+  // In memory cluster.
+  std::string store_flag_mem = " --store=type=mem,size=90%";
+
+  // std::string log_flag =
+  //     " --log=\"sinks: {file-groups: {ops: {channels: [OPS, HEALTH, "
+  //     "SQL_SCHEMA], filter: ERROR}}}\"";
+
+  std::string log_flag = " --log-config-file=./store/cockroachdb/logs.yaml";
 
   // TODO : Add encryption
-  // TODO: set zones
+
+  // region = shard group number
+  // zone = host name
+  std::string locality_flag =
+      " --locality=region=" + std::to_string(groupIdx) + ",zone=" + zone;
+
   // TODO: Add load balancer
   std::string other_flags = " --background ";
 
@@ -77,7 +107,8 @@ Server::Server(const transport::Configuration &config, KeyManager *keyManager,
                                 // advertise_flag,    // for nodes
                                 sql_addr_flag,   // for client's sql
                                 http_addr_flag,  // for  DB Console
-                                store_flag, other_flags};
+                                store_flag_mem, log_flag, locality_flag,
+                                other_flags};
 
   for (std::string part : script_parts) {
     start_script = start_script + part;
@@ -86,21 +117,28 @@ Server::Server(const transport::Configuration &config, KeyManager *keyManager,
   // start server
   Notice("Debug start initalizing");
   status = system((start_script + "&").c_str());
-  Notice("Cockroch node %d started. Listening %s:%s", id, host.c_str(),
+  Notice("Cockroach node %d started. Listening %s:%s", id, host.c_str(),
          port.c_str());
+
+  if (idx == numShards - 1) {
+    // If node is the last one in the group, serve as load balancer
+    std::string proxy_script =
+        "cockroach gen haproxy --insecure --host=" + host + ":" + port +
+        " --locality=region=" + std::to_string(groupIdx);
+    status = system(proxy_script.c_str());
+  }
   // If happens to be the last one, init server
   if (id == numGroups * config.n - 1) {
     std::string init_script =
         "cockroach init --insecure --host=" + host + ":" + port;
-    status = system(init_script.c_str());
 
+    status = system(init_script.c_str());
     Notice("Cluster initliazed by node %d. Listening %s:%s", id, host.c_str(),
            port.c_str());
 
-    exec_sql(
+    Server::exec_sql(
         "CREATE TABLE IF NOT EXISTS datastore ( key_ TEXT PRIMARY KEY, val_ "
-        "TEXT NOT NULL)",
-        serverAddress);
+        "TEXT NOT NULL)");
   }
 }
 
@@ -111,7 +149,7 @@ void Server::Load(const string &key, const string &value,
                     "\') ON CONFLICT (key_) "
                     "DO UPDATE SET val_ = " +
                     "\'" + value + "\'");
-  exec_sql(sql_statement, serverAddress);
+  Server::exec_sql(sql_statement);
 }
 
 void Server::CreateTable(
@@ -138,7 +176,7 @@ void Server::CreateTable(
   sql_statement.resize(sql_statement.size() - 2);  // remove trailing ", "
   if (primary_key_col_idx.size() > 1) sql_statement += ")";
   sql_statement += ");";
-  exec_sql(sql_statement, serverAddress);
+  Server::exec_sql(sql_statement);
 }
 
 void Server::LoadTableData(const std::string &table_name, const std::string &table_data_path, const std::vector<uint32_t> &primary_key_col_idx){
@@ -171,10 +209,34 @@ void Server::LoadTableRow(
   }
   sql_statement.resize(sql_statement.size() - 2);  // remove trailing ", "
   sql_statement += ");";
-  exec_sql(sql_statement, serverAddress);
+  Server::exec_sql(sql_statement);
 }
+
+void Server::LoadTable(
+    const std::string &table_name,
+    const std::vector<std::pair<std::string, std::string>> &column_data_types,
+    const std::vector<std::string> &values,
+    const std::vector<uint32_t> primary_key_col_idx,
+    const std::string &csv_file_name) {
+  // IMPORT INTO employees (c1, c2, c3, ..., cn)
+  //  CSV DATA (
+  //    'xxx.csv'
+  //  );
+  std::string sql_statement("IMPORT INTO ");
+  sql_statement += table_name;
+  sql_statement += " (";
+  for (auto &[col, _] : column_data_types) {
+    sql_statement += col + ", ";
+  }
+  sql_statement.resize(sql_statement.size() - 2);  // remove trailing ", "
+  sql_statement += ") CSV DATA (\'";
+  sql_statement += csv_file_name;
+  sql_statement += "'\');";
+  Server::exec_sql(sql_statement);
+}
+
 Stats &Server::GetStats() { return stats; }
 
-Server::~Server() {}
+Server::~Server() { system("pkill -9 -f cockroach"); }
 
 }  // namespace cockroachdb
