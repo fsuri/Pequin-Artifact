@@ -45,7 +45,7 @@ Server::Server(const transport::Configuration &config, KeyManager *keyManager,
   if (result) {
     Panic("Unable to get host name for CRDB");
   }
-  cout << result << endl;
+  //cout << result << endl;
   // remove site
   std::string site(host_name);
 
