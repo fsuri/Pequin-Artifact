@@ -52,7 +52,7 @@ SQLOrderStatus::~SQLOrderStatus() {
 }
 
 transaction_status_t SQLOrderStatus::Execute(SyncClient &client) {
-  const query_result::QueryResult *queryResult;
+  std::unique_ptr<const query_result::QueryResult> queryResult;
   std::string query;
 
   Debug("ORDER_STATUS");

@@ -414,7 +414,7 @@ namespace tpcc_sql {
 
 
 template<class T>
-void deserialize(T& t, const query_result::QueryResult* queryResult, const std::size_t row) {
+void deserialize(T& t, std::unique_ptr<const query_result::QueryResult>& queryResult, const std::size_t row) {
   std::stringstream ss(std::ios::in | std::ios::out | std::ios::binary);
   for(std::size_t i = 0; i < queryResult->columns(); i++) {
     std::size_t n_bytes;
@@ -429,7 +429,7 @@ void deserialize(T& t, const query_result::QueryResult* queryResult, const std::
 }
 
 template<class T>
-void deserialize(T& t, const query_result::QueryResult* queryResult) {
+void deserialize(T& t, std::unique_ptr<const query_result::QueryResult>& queryResult) {
   deserialize(t, queryResult, 0);
 }
 

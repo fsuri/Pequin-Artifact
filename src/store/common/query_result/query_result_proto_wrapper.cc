@@ -101,6 +101,12 @@ auto QueryResultProtoWrapper::get( const std::size_t row, const std::size_t colu
   }
 }
 
+auto QueryResultProtoWrapper::get( const std::size_t row, const std::string& column, std::size_t* size ) const -> const char* 
+{
+  const std::size_t column_idx = column_index_by_name(column);
+  return get(row, column_idx, size);
+}
+
 auto QueryResultProtoWrapper::operator[]( const std::size_t row ) const -> std::unique_ptr<query_result::Row> {
   return std::unique_ptr<query_result::Row>(new sql::Row(this, row, 0, this->columns()));
 }

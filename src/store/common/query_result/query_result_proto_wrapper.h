@@ -43,15 +43,15 @@ namespace sql {
 
 class QueryResultProtoWrapper : public query_result::QueryResult {
   private:
-    SQLResultProto* proto_result;
+    std::unique_ptr<SQLResultProto> proto_result;
     auto check_has_result_set() const -> void;
 
 	public:
-    QueryResultProtoWrapper(SQLResultProto* proto_result) 
-      : proto_result(proto_result) {}
+    QueryResultProtoWrapper(std::unique_ptr<SQLResultProto> proto_result) 
+      : proto_result(std::move(proto_result)) {}
 
     QueryResultProtoWrapper(const std::string& data) {
-      proto_result = new SQLResultProto();
+      proto_result = std::make_unique<SQLResultProto>();
       if(proto_result->ParseFromString(data)) {
         return;
       } else {
@@ -63,9 +63,7 @@ class QueryResultProtoWrapper : public query_result::QueryResult {
     QueryResultProtoWrapper(const QueryResultProtoWrapper&) = delete;
     QueryResultProtoWrapper& operator=(const QueryResultProtoWrapper&) = delete;
 
-    ~QueryResultProtoWrapper() {
-      delete proto_result;
-    }
+    ~QueryResultProtoWrapper() {}
 
 		class const_iterator : sql::Row {
       private:
@@ -160,6 +158,7 @@ class QueryResultProtoWrapper : public query_result::QueryResult {
 		
     auto is_null( const std::size_t row, const std::size_t column ) const -> bool;
 		auto get( const std::size_t row, const std::size_t column, std::size_t* size ) const -> const char*;
+		auto get( const std::size_t row, const std::string& column, std::size_t* size ) const -> const char*;
 
 		// access rows
     auto operator[]( const std::size_t row ) const -> std::unique_ptr<query_result::Row>;

@@ -66,9 +66,9 @@ SQLNewOrder::~SQLNewOrder() {
 }
 
 transaction_status_t SQLNewOrder::Execute(SyncClient &client) {
-  const query_result::QueryResult *queryResult;
+  std::unique_ptr<const query_result::QueryResult> queryResult;
   std::string statement;
-  std::vector<const query_result::QueryResult*> results;
+  std::vector<std::unique_ptr<const query_result::QueryResult>> results;
 
   Debug("NEW_ORDER");
   Debug("Warehouse: %u", w_id);

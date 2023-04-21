@@ -43,9 +43,9 @@ SQLStockLevel::~SQLStockLevel() {
 }
 
 transaction_status_t SQLStockLevel::Execute(SyncClient &client) {
-  const query_result::QueryResult *queryResult;
+  std::unique_ptr<const query_result::QueryResult> queryResult;
   std::string query;
-  std::vector<const query_result::QueryResult*> results;
+  std::vector<std::unique_ptr<const query_result::QueryResult>> results;
 
   Debug("STOCK_LEVEL");
   Debug("Warehouse: %u", w_id);

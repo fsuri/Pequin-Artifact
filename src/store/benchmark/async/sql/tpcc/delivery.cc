@@ -43,9 +43,9 @@ SQLDelivery::~SQLDelivery() {
 }
 
 transaction_status_t SQLDelivery::Execute(SyncClient &client) {
-  const query_result::QueryResult *queryResult;
+  std::unique_ptr<const query_result::QueryResult> queryResult;
   std::string statement;
-  std::vector<const query_result::QueryResult*> results;
+  std::vector<std::unique_ptr<const query_result::QueryResult>> results;
 
   Debug("DELIVERY");
   Debug("Warehouse: %u", w_id);
@@ -97,7 +97,7 @@ transaction_status_t SQLDelivery::Execute(SyncClient &client) {
   Debug("Total Amount: %i", total_amount);
   Debug("Customer: %u", c_id);
 
-  statement = fmt::format("UPDATE Customer SET balance = balance + '{}', delivery_cnt = delivery_cnt + 1 WHERE id = '{}' AND d_id = '{}' AND w_id = '{}';",
+  statement = fmt::format("UPDATE Customer SET balance = balance + {}, delivery_cnt = delivery_cnt + 1 WHERE id = '{}' AND d_id = '{}' AND w_id = '{}';",
         total_amount, c_id, d_id, w_id);
   client.Write(statement, queryResult, timeout);
 

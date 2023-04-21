@@ -70,9 +70,9 @@ SQLPayment::~SQLPayment() {
 }
 
 transaction_status_t SQLPayment::Execute(SyncClient &client) {
-  const query_result::QueryResult *queryResult;
+  std::unique_ptr<const query_result::QueryResult> queryResult;
   std::string statement;
-  std::vector<const query_result::QueryResult*> results;
+  std::vector<std::unique_ptr<const query_result::QueryResult>> results;
 
   Debug("PAYMENT");
   Debug("Amount: %u", h_amount);
