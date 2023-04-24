@@ -100,17 +100,22 @@ void test_insert(){
   std::cerr << "Write Set: "  << std::endl;
   for(auto write: txn.write_set()){
       std::cerr << "Key: " << write.key() << std::endl;
-      for(auto [col, val]: write.rowupdates().attribute_writes()){
-           std::cerr << "Col: " << col << " -- Val: " << val << std::endl;
-      }
+      // for(auto [col, val]: write.rowupdates().attribute_writes()){
+      //      std::cerr << "Col: " << col << " -- Val: " << val << std::endl;
+      // }
   }
 
+
   for(auto &[table, table_write]: txn.table_writes()){
+    ColRegistry *col_registry = sql_interpreter.GetColRegistry(table);
     std::cerr << "Write to Table: " << table << std::endl;
     for(auto &row: table_write.rows()){
       std::cerr << " Write row: " << std::endl;
+      // for(auto &[col_name, idx]: col_registry->col_name_index){
+      //      std::cerr << "  Col: " << col_name << " -- Val: " << (row.column_values()[idx]) << "; ";
+      // }
       for(int i=0; i<row.column_values().size(); ++i){
-           std::cerr << "  Col: " << (table_write.column_names()[i]) << " -- Val: " << (row.column_values()[i]) << "; ";
+           std::cerr << "  Col: " << (col_registry->col_names[i]) << " -- Val: " << (row.column_values()[i]) << "; ";
       }
        std::cerr << "is deletion: " << row.deletion() << std::endl;
     }
@@ -183,14 +188,18 @@ void test_update(){
       }
   }
 
-  for(auto &[table, table_write]: txn.table_writes()){
+   for(auto &[table, table_write]: txn.table_writes()){
+    ColRegistry *col_registry = sql_interpreter.GetColRegistry(table);
     std::cerr << "Write to Table: " << table << std::endl;
     for(auto &row: table_write.rows()){
       std::cerr << " Write row: " << std::endl;
+      // for(auto &[col_name, idx]: col_registry->col_name_index){
+      //      std::cerr << "  Col: " << col_name << " -- Val: " << (row.column_values()[idx]) << "; ";
+      // }
       for(int i=0; i<row.column_values().size(); ++i){
-           std::cerr << "  Col: " << (table_write.column_names()[i]) << " -- Val: " << (row.column_values()[i]) << "; ";
+           std::cerr << "  Col: " << (col_registry->col_names[i]) << " -- Val: " << (row.column_values()[i]) << "; ";
       }
-      std::cerr << "is deletion: " << row.deletion() << std::endl;
+       std::cerr << "is deletion: " << row.deletion() << std::endl;
     }
   }
 
@@ -254,15 +263,18 @@ void test_delete(){
       std::cerr << "Is Deletion: " << write.rowupdates().deletion() << std::endl;
   }
 
-  for(auto &[table, table_write]: txn.table_writes()){
+   for(auto &[table, table_write]: txn.table_writes()){
+    ColRegistry *col_registry = sql_interpreter.GetColRegistry(table);
     std::cerr << "Write to Table: " << table << std::endl;
     for(auto &row: table_write.rows()){
       std::cerr << " Write row: " << std::endl;
+      // for(auto &[col_name, idx]: col_registry->col_name_index){
+      //      std::cerr << "  Col: " << col_name << " -- Val: " << (row.column_values()[idx]) << "; ";
+      // }
       for(int i=0; i<row.column_values().size(); ++i){
-           std::cerr << "  Col: " << (table_write.column_names()[i]) << " -- Val: " << (row.column_values()[i]) << "; ";
-           
+           std::cerr << "  Col: " << (col_registry->col_names[i]) << " -- Val: " << (row.column_values()[i]) << "; ";
       }
-      std::cerr << "is deletion: " << row.deletion() << std::endl;
+       std::cerr << "is deletion: " << row.deletion() << std::endl;
     }
   }
 
@@ -289,18 +301,20 @@ void test_delete(){
       std::cerr << "Is Deletion: " << write.rowupdates().deletion() << std::endl;
   }
 
-  for(auto &[table, table_write]: txn.table_writes()){
+   for(auto &[table, table_write]: txn.table_writes()){
+    ColRegistry *col_registry = sql_interpreter.GetColRegistry(table);
     std::cerr << "Write to Table: " << table << std::endl;
     for(auto &row: table_write.rows()){
       std::cerr << " Write row: " << std::endl;
+      // for(auto &[col_name, idx]: col_registry->col_name_index){
+      //      std::cerr << "  Col: " << col_name << " -- Val: " << (row.column_values()[idx]) << "; ";
+      // }
       for(int i=0; i<row.column_values().size(); ++i){
-           std::cerr << "  Col: " << (table_write.column_names()[i]) << " -- Val: " << (row.column_values()[i]) << "; ";
-           
+           std::cerr << "  Col: " << (col_registry->col_names[i]) << " -- Val: " << (row.column_values()[i]) << "; ";
       }
-      std::cerr << "is deletion: " << row.deletion() << std::endl;
+       std::cerr << "is deletion: " << row.deletion() << std::endl;
     }
   }
-
 
   std::cerr << std::endl;
 }

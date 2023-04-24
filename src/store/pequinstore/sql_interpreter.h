@@ -121,11 +121,31 @@ inline bool primary_key_compare(std::map<std::string, std::string> const &lhs, s
     return lhs.size() == rhs.size() && std::equal(lhs.begin(), lhs.end(), rhs.begin(), map_set_key_equality);
 } 
 
+
+typedef struct ColRegistry {
+            std::map<std::string, std::string> col_name_type; //map from column name to SQL data type (e.g. INT, VARCHAR, TIMESTAMP) --> Needs to be matched to real types for deser
+            std::map<std::string, uint32_t> col_name_index; //map from column name to index (order of cols/values in statements) 
+            std::vector<std::string> col_names; //col_names in order
+            std::vector<bool> col_quotes; //col_quotes in order
+
+            std::vector<std::pair<std::string, uint32_t>> primary_key_cols_idx; //ordered (by index) from primary col name to index   //Could alternatively store a map from index to col name.
+            std::set<std::string> primary_key_cols; 
+            std::vector<uint32_t> primary_col_idx; 
+            std::vector<bool> p_col_quotes; //col_quotes in order
+
+
+            std::map<std::string, std::vector<std::string>> secondary_key_cols;
+} ColRegistry;
+
+
 class SQLTransformer {
     public:
         SQLTransformer(){}
         ~SQLTransformer(){}
         void RegisterTables(std::string &table_registry);
+        inline ColRegistry* GetColRegistry(const std::string &table_name){
+            return &TableRegistry.at(table_name);
+        }
 
         inline void NewTx(proto::Transaction *_txn){
             txn = _txn;
@@ -142,20 +162,6 @@ class SQLTransformer {
         proto::Transaction *txn;
 
         //Table Schema
-        typedef struct ColRegistry {
-            std::map<std::string, std::string> col_name_type; //map from column name to SQL data type (e.g. INT, VARCHAR, TIMESTAMP) --> Needs to be matched to real types for deser
-            std::map<std::string, uint32_t> col_name_index; //map from column name to index (order of cols/values in statements) 
-            std::vector<std::string> col_names; //col_names in order
-            std::vector<bool> col_quotes; //col_quotes in order
-
-            std::vector<std::pair<std::string, uint32_t>> primary_key_cols_idx; //ordered (by index) from primary col name to index   //Could alternatively store a map from index to col name.
-            std::set<std::string> primary_key_cols; 
-            std::vector<uint32_t> primary_col_idx; 
-            std::vector<bool> p_col_quotes; //col_quotes in order
-
-
-            std::map<std::string, std::vector<std::string>> secondary_key_cols;
-        } ColRegistry;
         std::map<std::string, ColRegistry> TableRegistry;
        
         void TransformInsert(size_t pos, std::string_view &write_statement, 

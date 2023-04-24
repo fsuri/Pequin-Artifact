@@ -712,7 +712,8 @@ void SQLTransformer::TransformDelete(size_t pos, std::string_view &write_stateme
 
 //////////////////// Table Write Generator
 
-
+static bool fine_grained_quotes = false;
+    //Using TableRegistry now. But still adding quotes to everything indiscriminately. That seems to work fine for Peloton
 bool SQLTransformer::GenerateTableWriteStatement(std::string &write_statement, std::string &delete_statement, const std::string &table_name, const TableWrite &table_write){
    
 //Turn Table Writes into Upsert and Delete statement:  ///https://www.postgresqltutorial.com/postgresql-tutorial/postgresql-upsert/ 
@@ -725,7 +726,6 @@ bool SQLTransformer::GenerateTableWriteStatement(std::string &write_statement, s
     // DELETE FROM article_details
     // WHERE article_id IN (2, 4, 7);
 
-    //Using TableRegistry now. But still adding quotes to everything indiscriminately. That seems to work fine for Peloton
     const ColRegistry &col_registry = TableRegistry.at(table_name);
 
     write_statement = fmt::format("INSERT INTO {0} VALUES ", table_name);
@@ -738,16 +738,29 @@ bool SQLTransformer::GenerateTableWriteStatement(std::string &write_statement, s
         if(row.deletion()){
 
             for(auto &[col_name, p_idx]: col_registry.primary_key_cols_idx){
-                delete_conds[col_name].push_back("\'" + row.column_values()[p_idx] + "\'");
-                // if(col_registry.col_quotes[p_idx]) delete_conds[col_name].push_back("\'" + row.column_values()[p_idx] + "\'");
-                // else delete_conds[col_name].push_back(row.column_values()[p_idx] );
+                if(fine_grained_quotes){
+                    if(col_registry.col_quotes[p_idx]) delete_conds[col_name].push_back("\'" + row.column_values()[p_idx] + "\'");
+                    else delete_conds[col_name].push_back(row.column_values()[p_idx] );
+                }
+                else{
+                    delete_conds[col_name].push_back("\'" + row.column_values()[p_idx] + "\'");
+                }
             }
         }
         else{
             write_statement += "(";
-            for(auto &col_val: row.column_values()){
-                write_statement += "\'" + col_val  + "\'" + ", ";
+            if(fine_grained_quotes){ // Use this to add fine grained quotes:
+                for(int i = 0; i < row.column_values_size(); ++i){
+                    if(col_registry.col_quotes[i])  write_statement += "\'" + row.column_values()[i]  + "\'" + ", ";
+                    else write_statement += row.column_values()[i] + ", ";
+                }
             }
+            else{
+                for(auto &col_val: row.column_values()){
+                    write_statement += "\'" + col_val  + "\'" + ", ";
+                }
+            }
+        
             write_statement.resize(write_statement.length()-2); //remove trailing ", "
             write_statement += "), ";
         }
@@ -801,9 +814,13 @@ bool SQLTransformer::GenerateTablePurgeStatement(std::string &purge_statement, c
             //Alternatively: Move row contents to a vector and use: fmt::join(vec, ",")
             if(!row.deletion()){
                 for(auto &[col_name, p_idx]: col_registry.primary_key_cols_idx){
-                    delete_conds[col_name].push_back("\'" + row.column_values()[p_idx] + "\'");
-                    // if(col_registry.col_quotes[p_idx]) delete_conds[col_name].push_back("\'" + row.column_values()[p_idx] + "\'");
-                    // else delete_conds[col_name].push_back(row.column_values()[p_idx] );
+                    if(fine_grained_quotes){
+                        if(col_registry.col_quotes[p_idx]) delete_conds[col_name].push_back("\'" + row.column_values()[p_idx] + "\'");
+                        else delete_conds[col_name].push_back(row.column_values()[p_idx] );
+                    }
+                    else{
+                        delete_conds[col_name].push_back("\'" + row.column_values()[p_idx] + "\'");
+                    }
                 }
             }
     }
