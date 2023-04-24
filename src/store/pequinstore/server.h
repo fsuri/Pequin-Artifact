@@ -95,9 +95,9 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
  public:
   Server(const transport::Configuration &config, int groupIdx, int idx,
       int numShards, int numGroups,
-      Transport *transport, KeyManager *keyManager, Parameters params, std::string &table_registry,
-      uint64_t timeDelta, OCCType occType, Partitioner *part, unsigned int batchTimeoutMS,
-      TrueTime timeServer = TrueTime(0, 0), bool sql_bench = false);
+      Transport *transport, KeyManager *keyManager, Parameters params, std::string &table_registry_path,
+      uint64_t timeDelta, OCCType occType, Partitioner *part, unsigned int batchTimeoutMS, bool sql_bench = false,
+      TrueTime timeServer = TrueTime(0, 0));
   virtual ~Server();
 
   virtual void ReceiveMessage(const TransportAddress &remote,
@@ -917,7 +917,7 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
 // DATA STRUCTURES
 
   TableStore table_store;
-  SQLTransformer sql_interpreter;
+  //SQLTransformer sql_interpreter;
 
   VersionedKVStore<Timestamp, Value> store;
   // Key -> V

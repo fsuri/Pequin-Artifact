@@ -50,7 +50,6 @@ using json = nlohmann::json;
 
 namespace pequinstore {
 
-using namespace std;
 
 //Query
 static std::string select_hook("SELECT ");

@@ -1,5 +1,4 @@
 #include "store/pequinstore/table_store_interface.h"
-#include "store/pequinstore/sql_interpreter.h"
 
 //TODO: Include whatever Peloton Deps
 
@@ -12,6 +11,11 @@ TableStore::TableStore(){
 
 TableStore::~TableStore(){
 
+}
+
+
+void TableStore::RegisterTableSchema(std::string &table_registry_path){
+    sql_interpreter.RegisterTables(table_registry_path);
 }
 
 //Execute a statement directly on the Table backend, no questions asked, no output
@@ -63,7 +67,7 @@ void TableStore::ApplyTableWrite(const std::string &table_name, const TableWrite
 
    std::string write_statement;
    std::string delete_statement;
-   bool has_delete = GenerateTableWriteStatement(write_statement, delete_statement, table_name, table_write);
+   bool has_delete = sql_interpreter.GenerateTableWriteStatement(write_statement, delete_statement, table_name, table_write);
     //TODO: Check whether there is a more efficient way than creating SQL commands for each.
 
     //TODO: Execute on Peloton
@@ -76,7 +80,7 @@ void TableStore::PurgeTableWrite(const std::string &table_name, const TableWrite
     std::shared_ptr<std::string> txn_dig(std::make_shared<std::string>(txn_digest));
 
     std::string purge_statement;
-    GenerateTablePurgeStatement(purge_statement, table_name, table_write);   
+    bool has_purge = sql_interpreter.GenerateTablePurgeStatement(purge_statement, table_name, table_write);   
 
     //TODO: Execute on Peloton
 }

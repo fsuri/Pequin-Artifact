@@ -6,6 +6,8 @@
 #include "store/common/query_result/query_result.h"
 #include "store/common/query_result/query_result_proto_wrapper.h"
 
+#include "store/pequinstore/sql_interpreter.h"
+
 //TODO: Include whatever Peloton Deps
 
 namespace pequinstore {
@@ -14,6 +16,8 @@ class TableStore {
     public:
         TableStore();
         virtual ~TableStore();
+
+        void RegisterTableSchema(std::string &table_registry_path);
 
         //Execute a statement directly on the Table backend, no questions asked, no output
         void ExecRaw(std::string &sql_statement);
@@ -42,7 +46,7 @@ class TableStore {
 
 
     private:
-
+        SQLTransformer sql_interpreter;
         //TODO: Peloton DB singleton "table_backend"
 };
 

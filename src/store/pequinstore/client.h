@@ -76,8 +76,8 @@ class Client : public ::Client {
       Parameters params, std::string &table_registry,
       KeyManager *keyManager, uint64_t phase1DecisionTimeout,
       uint64_t consecutiveMax = 1UL,
-      TrueTime timeserver = TrueTime(0,0),
-      bool sql_bench = false);
+      bool sql_bench = false,
+      TrueTime timeserver = TrueTime(0,0));
   virtual ~Client();
 
   // Begin a transaction.

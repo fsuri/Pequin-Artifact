@@ -27,9 +27,6 @@
  * SOFTWARE.
  *
  **********************************************************************/
-
-#include "store/pequinstore/common.h"
-#include <sys/time.h>
 #include <algorithm>
 #include <variant>
 #include <iostream>
@@ -39,10 +36,6 @@
 #include <string_view>
 #include <fmt/core.h>
 #include <fmt/ranges.h>
-
-
-#include "store/common/query_result/query_result_proto_wrapper.h"
-#include "store/common/query_result/query_result_proto_builder.h"
 
 #include "store/pequinstore/sql_interpreter.h"
 
@@ -358,8 +351,8 @@ void SQLTransformer::TransformInsert(size_t pos, std::string_view &write_stateme
             // }
 
             //New version: 
-            TableWrite *table_write = AddTableWrite(table_name, *col_registry_ptr){
-            RowUpdates *row_update = table_write.add_rows();
+            TableWrite *table_write = AddTableWrite(table_name, *col_registry_ptr);
+            RowUpdates *row_update = table_write->add_rows();
             *row_update->mutable_column_values() = {value_list.begin(), value_list.end()};
             // for(auto &[col_name, col_idx]: col_registry_ptr->col_name_index){
             //     std::string *col_val = row_update->add_column_values();

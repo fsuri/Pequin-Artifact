@@ -106,7 +106,7 @@ void test_insert(){
   }
 
   for(auto &[table, table_write]: txn.table_writes()){
-    std:cerr << "Write to Table: " << table << std::endl;
+    std::cerr << "Write to Table: " << table << std::endl;
     for(auto &row: table_write.rows()){
       std::cerr << " Write row: " << std::endl;
       for(int i=0; i<row.column_values().size(); ++i){

@@ -1323,8 +1323,8 @@ int main(int argc, char **argv) {
                                           keyManager, 
                                           FLAGS_indicus_phase1_decision_timeout,
 																					FLAGS_indicus_max_consecutive_abstains,
-																					TrueTime(FLAGS_clock_skew, FLAGS_clock_error),
-                                          FLAGS_sql_bench);
+                                          FLAGS_sql_bench,
+																					TrueTime(FLAGS_clock_skew, FLAGS_clock_error));
         break;
     }
     case PROTO_INDICUS: {

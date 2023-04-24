@@ -50,7 +50,7 @@ Client::Client(transport::Configuration *config, uint64_t id, int nShards,
     const std::vector<int> &closestReplicas, bool pingReplicas, Transport *transport,
     Partitioner *part, bool syncCommit, uint64_t readMessages,
     uint64_t readQuorumSize, Parameters params, std::string &table_registry,
-    KeyManager *keyManager, uint64_t phase1DecisionTimeout, uint64_t consecutiveMax, TrueTime timeServer, bool sql_bench)
+    KeyManager *keyManager, uint64_t phase1DecisionTimeout, uint64_t consecutiveMax, bool sql_bench, TrueTime timeServer)
     : config(config), client_id(id), nshards(nShards), ngroups(nGroups),
     transport(transport), part(part), syncCommit(syncCommit), pingReplicas(pingReplicas),
     readMessages(readMessages), readQuorumSize(readQuorumSize),
