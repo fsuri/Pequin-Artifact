@@ -709,8 +709,8 @@ int main(int argc, char **argv) {
       Debug("Starting new server object");
       server = new pequinstore::Server(config, FLAGS_group_idx,
                                         FLAGS_replica_idx, FLAGS_num_shards, FLAGS_num_groups, tport,
-                                        &keyManager, params, timeDelta, pequinOCCType, part,
-                                        FLAGS_indicus_sig_batch_timeout); //TODO: Move to params.
+                                        &keyManager, params, FLAGS_data_file_path, timeDelta, pequinOCCType, part,
+                                        FLAGS_indicus_sig_batch_timeout, FLAGS_sql_bench); //TODO: Move to params.
       break;
   }
   case PROTO_INDICUS: {

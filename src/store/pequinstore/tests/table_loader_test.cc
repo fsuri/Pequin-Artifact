@@ -26,6 +26,7 @@
  **********************************************************************/
 
 #include <iostream>
+#include <memory>
 #include <fstream>
 #include <vector>
 #include <nlohmann/json.hpp>
@@ -176,6 +177,60 @@ int main() {
 
     std::cerr << std::endl;
   }
+
+   //
+   column_names_and_types.clear();
+ 
+  primary_key_col_idx.clear();
+  file_name = "test-table";
+  TableWriter test_writer(file_name);
+  std::string test_name = "datastore";
+  
+  column_names_and_types.push_back(std::make_pair("key_", "TEXT"));
+  column_names_and_types.push_back(std::make_pair("val_", "TEXT"));
+
+  primary_key_col_idx.push_back(0);
+  test_writer.add_table(test_name, column_names_and_types, primary_key_col_idx);
+
+  //Write Tables to JSON
+  test_writer.flush();
+
+   std::ifstream test_tables("test-table-tables-schema.json");
+   json test_tables_to_load = json::parse(test_tables);
+
+
+  // std::string writeValue;
+  // std::string strValue = std::string(10, '\0'); //make a longer string
+  // std::cerr << "writeValue (Pre): " << strValue << std::endl;
+  // for (int i = 0; i < 10; ++i) {
+  //   std::cerr<< (static_cast<uint64_t>(strValue[i]) << ((99 - i) * 8)) << std::endl;
+  // }
+      
+  // uint64_t intValue = 0;
+  // for (int i = 0; i < 10; ++i) {
+  //   intValue = intValue | (static_cast<uint64_t>(strValue[i]) << ((99 - i) * 8));
+  // }
+  // intValue++;
+  // std::cerr << "int: " << intValue << std::endl;
+  // for (int i = 0; i < 10; ++i) {
+  //   writeValue += static_cast<char>((intValue >> (99 - i) * 8) & 0xFF);
+  // }
+  //  std::cerr << "writeValue (Post): " << writeValue << std::endl;
+  //  for (uint64_t i = 0; i < 10; ++i) {
+  //   std::cerr<<  "intVAl" << intValue << std::endl;
+  //   std::cerr<<  "shift val" << (99 - i) << std::endl;
+  //   std::cerr << "int: " << (intValue >> (99 -i) * 8)<< std::endl;
+  //   std::cerr << "int: " << (intValue >> (96) * 8)<< std::endl;
+  
+
+  //   std::cerr<< "i:" << i <<" --> " << ((intValue >> (99 - i) * 8) & 0xFF) << std::endl;
+  // }
+  // std::string *s = new std::string("hello");
+  // { 
+  //   std::unique_ptr<std::string> su(s);
+  //   std::cerr << "su: " << *su << std::endl;
+  // }
+  // std::cerr << "s: " << *s << std::endl;
 
   return 0;
 }

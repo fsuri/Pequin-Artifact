@@ -45,6 +45,7 @@
 #include "store/pequinstore/batchsigner.h"
 #include "store/pequinstore/verifier.h"
 #include "store/pequinstore/table_store_interface.h"
+//#include "store/pequinstore/sql_interpreter.h"
 #include <sys/time.h>
 
 #include <set>
@@ -58,6 +59,7 @@
 #include "tbb/concurrent_unordered_map.h"
 #include "tbb/concurrent_hash_map.h"
 #include "tbb/concurrent_unordered_set.h"
+
 
 //#include "lib/threadpool.cc"
 
@@ -93,9 +95,9 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
  public:
   Server(const transport::Configuration &config, int groupIdx, int idx,
       int numShards, int numGroups,
-      Transport *transport, KeyManager *keyManager, Parameters params, uint64_t timeDelta,
-      OCCType occType, Partitioner *part, unsigned int batchTimeoutMS,
-      TrueTime timeServer = TrueTime(0, 0));
+      Transport *transport, KeyManager *keyManager, Parameters params, std::string &table_registry,
+      uint64_t timeDelta, OCCType occType, Partitioner *part, unsigned int batchTimeoutMS,
+      TrueTime timeServer = TrueTime(0, 0), bool sql_bench = false);
   virtual ~Server();
 
   virtual void ReceiveMessage(const TransportAddress &remote,
@@ -915,6 +917,7 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
 // DATA STRUCTURES
 
   TableStore table_store;
+  SQLTransformer sql_interpreter;
 
   VersionedKVStore<Timestamp, Value> store;
   // Key -> V

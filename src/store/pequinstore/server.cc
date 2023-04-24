@@ -55,8 +55,8 @@ namespace pequinstore {
 
 Server::Server(const transport::Configuration &config, int groupIdx, int idx,
     int numShards, int numGroups, Transport *transport, KeyManager *keyManager,
-    Parameters params, uint64_t timeDelta, OCCType occType, Partitioner *part,
-    unsigned int batchTimeoutMicro, TrueTime timeServer) :
+    Parameters params, std::string &table_registry, uint64_t timeDelta, OCCType occType, Partitioner *part,
+    unsigned int batchTimeoutMicro, TrueTime timeServer, bool sql_bench) :
     PingServer(transport),
     config(config), groupIdx(groupIdx), idx(idx), numShards(numShards),
     numGroups(numGroups), id(groupIdx * config.n + idx),
@@ -140,6 +140,10 @@ Server::Server(const transport::Configuration &config, int groupIdx, int idx,
   committed.insert(std::make_pair("", proof));
   
   ts_to_tx.insert(std::make_pair(MergeTimestampId(0, 0), ""));
+
+  if(sql_bench){
+    sql_interpreter.RegisterTables(table_registry);
+  }
 }
 
 Server::~Server() {

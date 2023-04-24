@@ -28,6 +28,8 @@
  * SOFTWARE.
  *
  **********************************************************************/
+#ifndef SQL_INTERPRETER_H
+#define SQL_INTERPRETER_H
 
 #include "store/common/frontend/client.h"
 #include "store/common/transaction.h"
@@ -74,13 +76,26 @@ static std::string or_hook(" OR ");
 static std::string in_hook("IN");
 static std::string between_hook("BETWEEN");
 
+enum col_t { //Could store col_t instead of String data type.
+    BOOL,
+    VARCHAR,
+    TEXT,
+    INT,
+    BIGINT,
+    SMALLINT
+};
+
+// const std::string col_type_args[] = {
+// };
+
+
 enum op_t {
-            SQL_START,
-            SQL_NONE,
-            SQL_AND,
-            SQL_OR,
-            SQL_SPECIAL //e.g. IN or BETWEEN
-        };
+    SQL_START,
+    SQL_NONE,
+    SQL_AND,
+    SQL_OR,
+    SQL_SPECIAL //e.g. IN or BETWEEN
+};
 
 struct StringVisitor {
     std::string operator()(int32_t &i) const { 
@@ -121,6 +136,9 @@ class SQLTransformer {
 
         bool InterpretQueryRange(std::string &_query, std::string &table_name, std::map<std::string, std::string> &p_col_value);
 
+        bool GenerateTableWriteStatement(std::string &write_statement, std::string &delete_statement, const std::string &table_name, const TableWrite &table_write);
+        bool GenerateTablePurgeStatement(std::string &purge_statement, const std::string &table_name, const TableWrite &table_write);
+
     private:
         proto::Transaction *txn;
 
@@ -129,9 +147,14 @@ class SQLTransformer {
             std::map<std::string, std::string> col_name_type; //map from column name to SQL data type (e.g. INT, VARCHAR, TIMESTAMP) --> Needs to be matched to real types for deser
             std::map<std::string, uint32_t> col_name_index; //map from column name to index (order of cols/values in statements) 
             std::vector<std::string> col_names; //col_names in order
+            std::vector<bool> col_quotes; //col_quotes in order
+
             std::vector<std::pair<std::string, uint32_t>> primary_key_cols_idx; //ordered (by index) from primary col name to index   //Could alternatively store a map from index to col name.
             std::set<std::string> primary_key_cols; 
             std::vector<uint32_t> primary_col_idx; 
+            std::vector<bool> p_col_quotes; //col_quotes in order
+
+
             std::map<std::string, std::vector<std::string>> secondary_key_cols;
         } ColRegistry;
         std::map<std::string, ColRegistry> TableRegistry;
@@ -152,8 +175,10 @@ class SQLTransformer {
         } Col_Update;
 
         void ParseColUpdate(std::string_view col_update, std::map<std::string_view, Col_Update> &col_updates);
-        std::string_view GetUpdateValue(const std::string &col, std::variant<bool, int32_t, std::string> &field_val, std::unique_ptr<query_result::Field> &field, const std::map<std::string_view, Col_Update> &col_updates);
-        RowUpdates* AddTableWriteRow(const std::string &table_name, const ColRegistry &col_registry);
+        std::string GetUpdateValue(const std::string &col, std::variant<bool, int32_t, std::string> &field_val, std::unique_ptr<query_result::Field> &field, 
+            std::map<std::string_view, Col_Update> &col_updates, const std::string &col_type, bool &change_val);
+        TableWrite* AddTableWrite(const std::string &table_name, const ColRegistry &col_registry);
+        RowUpdates* AddTableWriteRow(TableWrite *table_write, const ColRegistry &col_registry);
 
 
         //Read Parser
@@ -165,12 +190,22 @@ class SQLTransformer {
             void GetNextOperator(std::string_view &cond_statement, size_t &op_pos, size_t &op_pos_post, op_t &op_type);
             bool MergeColConditions(op_t &op_type, std::map<std::string, std::string> &l_p_col_value, std::map<std::string, std::string> &r_p_col_value);
         bool CheckColConditionsDumb(std::string_view &cond_statement, const ColRegistry &col_registry, std::map<std::string, std::string> &p_col_value);
-
         
 };
 
-bool GenerateTableWriteStatement(std::string &write_statement, std::string &delete_statement, const std::string &table_name, const TableWrite &table_write);
-bool GenerateTablePurgeStatement(std::string &purge_statement, const std::string &table_name, const TableWrite &table_write);
+inline std::string_view TrimValue(std::string_view &val, bool trim = false){
+    if(trim){
+        val.remove_prefix(1);
+        val.remove_suffix(1);
+    }
+    return val;
+}
+inline std::string_view TrimValueByType(std::string_view &val, const std::string &type){
+    return TrimValue(val, (type == "TEXT" || type == "VARCHAR"));
+}
+
+
+
 
 // class ReadSQLTransformer {
 //     public:
@@ -184,9 +219,21 @@ bool GenerateTablePurgeStatement(std::string &purge_statement, const std::string
 
 //1) decode, 2) turn into a string, 3) if arithmetic, turn uint64_, 4 -> turn back to string, 5) let Neil figure out 
 
+template<typename T>
+void DeCerealize(std::string &enc_value, T &dec_value){
+    std::stringstream ss(std::ios::in | std::ios::out | std::ios::binary); 
+    ss << enc_value;
+    {
+        cereal::BinaryInputArchive iarchive(ss); // Create an input archive
+        iarchive(dec_value); // Read the data from the archive
+    }
+}
 
 std::variant<bool, int32_t, std::string> DecodeType(std::unique_ptr<query_result::Field> &field, const std::string &col_type);
 
 std::variant<bool, int32_t, std::string> DecodeType(std::string &enc_value, const std::string &col_type);
 
 };
+
+
+#endif /* SQL_INTERPRETER_H */
