@@ -452,7 +452,7 @@ int main(int argc, char *argv[]) {
   gflags::SetUsageMessage(
            "generates a json file containing sql tables for TPC-C data\n");
 	gflags::ParseCommandLineFlags(&argc, &argv, true);
-  std::string file_name = "tpcc-data";
+  std::string file_name = "sql-tpcc";
   TableWriter writer = TableWriter(file_name);
   uint32_t time = std::time(0);
   std::cerr << "Generating " << FLAGS_num_warehouses << " warehouses." << std::endl;
