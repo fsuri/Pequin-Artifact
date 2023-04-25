@@ -69,13 +69,13 @@ std::string RandomZip(std::mt19937 &gen) {
 
 const char ORIGINAL_CHARS[] = "ORIGINAL";
 
-void GenerateItemTable(TableWriter writer) {
+void GenerateItemTable(TableWriter &writer) {
   std::vector<std::pair<std::string, std::string>> column_names_and_types;
-  column_names_and_types.push_back(std::make_pair("id", "integer"));
-  column_names_and_types.push_back(std::make_pair("im_id", "integer"));
-  column_names_and_types.push_back(std::make_pair("name", "varchar(24)"));
-  column_names_and_types.push_back(std::make_pair("price", "integer"));
-  column_names_and_types.push_back(std::make_pair("data", "varchar(50)"));
+  column_names_and_types.push_back(std::make_pair("id", "INT"));
+  column_names_and_types.push_back(std::make_pair("im_id", "INT"));
+  column_names_and_types.push_back(std::make_pair("name", "TEXT"));
+  column_names_and_types.push_back(std::make_pair("price", "INT"));
+  column_names_and_types.push_back(std::make_pair("data", "TEXT"));
   const std::vector<uint32_t> primary_key_col_idx {0};
 
   std::string table_name = "Item";
@@ -101,15 +101,15 @@ void GenerateItemTable(TableWriter writer) {
 void GenerateWarehouseTable(uint32_t num_warehouses, TableWriter &writer) {
   std::mt19937 gen;
   std::vector<std::pair<std::string, std::string>> column_names_and_types;
-  column_names_and_types.push_back(std::make_pair("id", "integer"));
-  column_names_and_types.push_back(std::make_pair("name", "varchar(10)"));
-  column_names_and_types.push_back(std::make_pair("street_1", "varchar(20)"));
-  column_names_and_types.push_back(std::make_pair("street_2", "varchar(20)"));
-  column_names_and_types.push_back(std::make_pair("city", "varchar(20)"));
-  column_names_and_types.push_back(std::make_pair("state", "varchar(2)"));
-  column_names_and_types.push_back(std::make_pair("zip", "varchar(9)"));
-  column_names_and_types.push_back(std::make_pair("tax", "integer"));
-  column_names_and_types.push_back(std::make_pair("ytd", "integer"));
+  column_names_and_types.push_back(std::make_pair("id", "INT"));
+  column_names_and_types.push_back(std::make_pair("name", "TEXT"));
+  column_names_and_types.push_back(std::make_pair("street_1", "TEXT"));
+  column_names_and_types.push_back(std::make_pair("street_2", "TEXT"));
+  column_names_and_types.push_back(std::make_pair("city", "TEXT"));
+  column_names_and_types.push_back(std::make_pair("state", "TEXT"));
+  column_names_and_types.push_back(std::make_pair("zip", "TEXT"));
+  column_names_and_types.push_back(std::make_pair("tax", "INT"));
+  column_names_and_types.push_back(std::make_pair("ytd", "INT"));
   const std::vector<uint32_t> primary_key_col_idx {0};
 
   std::string table_name = "Warehouse";
@@ -158,26 +158,27 @@ void GenerateStockTableForWarehouse(uint32_t w_id, TableWriter &writer) {
 }
 
 void GenerateStockTable(uint32_t num_warehouses, TableWriter &writer) {
+  std::string table_name = "Stock";
   std::vector<std::pair<std::string, std::string>> column_names_and_types;
-  column_names_and_types.push_back(std::make_pair("i_id", "integer"));
-  column_names_and_types.push_back(std::make_pair("w_id", "integer"));
-  column_names_and_types.push_back(std::make_pair("quantity", "integer"));
-  column_names_and_types.push_back(std::make_pair("dist_01", "varchar(24)"));
-  column_names_and_types.push_back(std::make_pair("dist_02", "varchar(24)"));
-  column_names_and_types.push_back(std::make_pair("dist_03", "varchar(24)"));
-  column_names_and_types.push_back(std::make_pair("dist_04", "varchar(24)"));
-  column_names_and_types.push_back(std::make_pair("dist_05", "varchar(24)"));
-  column_names_and_types.push_back(std::make_pair("dist_06", "varchar(24)"));
-  column_names_and_types.push_back(std::make_pair("dist_07", "varchar(24)"));
-  column_names_and_types.push_back(std::make_pair("dist_08", "varchar(24)"));
-  column_names_and_types.push_back(std::make_pair("dist_09", "varchar(24)"));
-  column_names_and_types.push_back(std::make_pair("dist_10", "varchar(24)"));
-  column_names_and_types.push_back(std::make_pair("ytd", "integer"));
-  column_names_and_types.push_back(std::make_pair("order_cnt", "integer"));
-  column_names_and_types.push_back(std::make_pair("remote_cnt", "integer"));
-  column_names_and_types.push_back(std::make_pair("data", "varchar(50)"));
+  column_names_and_types.push_back(std::make_pair("i_id", "INT"));
+  column_names_and_types.push_back(std::make_pair("w_id", "INT"));
+  column_names_and_types.push_back(std::make_pair("quantity", "INT"));
+  column_names_and_types.push_back(std::make_pair("dist_01", "TEXT"));
+  column_names_and_types.push_back(std::make_pair("dist_02", "TEXT"));
+  column_names_and_types.push_back(std::make_pair("dist_03", "TEXT"));
+  column_names_and_types.push_back(std::make_pair("dist_04", "TEXT"));
+  column_names_and_types.push_back(std::make_pair("dist_05", "TEXT"));
+  column_names_and_types.push_back(std::make_pair("dist_06", "TEXT"));
+  column_names_and_types.push_back(std::make_pair("dist_07", "TEXT"));
+  column_names_and_types.push_back(std::make_pair("dist_08", "TEXT"));
+  column_names_and_types.push_back(std::make_pair("dist_09", "TEXT"));
+  column_names_and_types.push_back(std::make_pair("dist_10", "TEXT"));
+  column_names_and_types.push_back(std::make_pair("ytd", "INT"));
+  column_names_and_types.push_back(std::make_pair("order_cnt", "INT"));
+  column_names_and_types.push_back(std::make_pair("remote_cnt", "INT"));
+  column_names_and_types.push_back(std::make_pair("data", "TEXT"));
   const std::vector<uint32_t> primary_key_col_idx {0, 1};
-  writer.add_table("Stock", column_names_and_types, primary_key_col_idx);
+  writer.add_table(table_name, column_names_and_types, primary_key_col_idx);
 
   for (uint32_t w_id = 1; w_id <= num_warehouses; ++w_id) {
     GenerateStockTableForWarehouse(w_id, writer);
@@ -206,20 +207,21 @@ void GenerateDistrictTableForWarehouse(uint32_t w_id, TableWriter writer) {
 }
 
 void GenerateDistrictTable(uint32_t num_warehouses, TableWriter writer) {
+  std::string table_name = "District";
   std::vector<std::pair<std::string, std::string>> column_names_and_types;
-  column_names_and_types.push_back(std::make_pair("id", "integer"));
-  column_names_and_types.push_back(std::make_pair("w_id", "integer"));
-  column_names_and_types.push_back(std::make_pair("name", "varchar(10)"));
-  column_names_and_types.push_back(std::make_pair("street_1", "varchar(20)"));
-  column_names_and_types.push_back(std::make_pair("street_2", "varchar(20)"));
-  column_names_and_types.push_back(std::make_pair("city", "varchar(20)"));
-  column_names_and_types.push_back(std::make_pair("state", "varchar(2)"));
-  column_names_and_types.push_back(std::make_pair("zip", "varchar(9)"));
-  column_names_and_types.push_back(std::make_pair("tax", "integer"));
-  column_names_and_types.push_back(std::make_pair("ytd", "integer"));
-  column_names_and_types.push_back(std::make_pair("next_o_id", "integer"));
+  column_names_and_types.push_back(std::make_pair("id", "INT"));
+  column_names_and_types.push_back(std::make_pair("w_id", "INT"));
+  column_names_and_types.push_back(std::make_pair("name", "TEXT"));
+  column_names_and_types.push_back(std::make_pair("street_1", "TEXT"));
+  column_names_and_types.push_back(std::make_pair("street_2", "TEXT"));
+  column_names_and_types.push_back(std::make_pair("city", "TEXT"));
+  column_names_and_types.push_back(std::make_pair("state", "TEXT"));
+  column_names_and_types.push_back(std::make_pair("zip", "TEXT"));
+  column_names_and_types.push_back(std::make_pair("tax", "INT"));
+  column_names_and_types.push_back(std::make_pair("ytd", "INT"));
+  column_names_and_types.push_back(std::make_pair("next_o_id", "INT"));
   const std::vector<uint32_t> primary_key_col_idx {0, 1};
-  writer.add_table("District", column_names_and_types, primary_key_col_idx);
+  writer.add_table(table_name, column_names_and_types, primary_key_col_idx);
 
   for (uint32_t w_id = 1; w_id <= num_warehouses; ++w_id) {
     GenerateDistrictTableForWarehouse(w_id, writer);
@@ -270,7 +272,7 @@ void GenerateCustomerTableForWarehouseDistrict(uint32_t w_id, uint32_t d_id,
     values.push_back(std::to_string(1000));
     values.push_back(std::to_string(1));
     values.push_back(std::to_string(0));
-    values.push_back(std::to_string(RandomAString(300, 500, gen)));
+    values.push_back(RandomAString(300, 500, gen));
     writer.add_row(table_name, values);
   }
 

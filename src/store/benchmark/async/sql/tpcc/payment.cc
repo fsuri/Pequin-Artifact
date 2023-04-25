@@ -81,17 +81,17 @@ transaction_status_t SQLPayment::Execute(SyncClient &client) {
 
   client.Begin(timeout);
 
-  statement = fmt::format("UPDATE Warehouse SET ytd = ytd + '{}' WHERE id = '{}'", h_amount, w_id);
+  statement = fmt::format("UPDATE Warehouse SET ytd = ytd + {} WHERE id = {}", h_amount, w_id);
   client.Write(statement, queryResult, timeout);
 
-  statement = fmt::format("SELECT FROM Warehouse WHERE id = '{}'", w_id);
+  statement = fmt::format("SELECT FROM Warehouse WHERE id = {}", w_id);
   client.Query(statement, timeout);
 
-  statement = fmt::format("UPDATE District SET ytd = ytd + '{}' WHERE id = '{}' AND w_id = '{}'", h_amount, d_id, d_w_id);
+  statement = fmt::format("UPDATE District SET ytd = ytd + {} WHERE id = {} AND w_id = {}", h_amount, d_id, d_w_id);
   client.Write(statement, queryResult, timeout);
   
   Debug("District: %u", d_id);
-  statement = fmt::format("SELECT FROM District WHERE id = '{}' AND w_id = '{}'", d_id, d_w_id);
+  statement = fmt::format("SELECT FROM District WHERE id = {} AND w_id = {}", d_id, d_w_id);
   client.Query(statement, timeout);
 
   tpcc::CustomerRow c_row;
@@ -100,7 +100,7 @@ transaction_status_t SQLPayment::Execute(SyncClient &client) {
     Debug("  Get(c_w_id=%u, c_d_id=%u, c_last=%s)", c_w_id, c_d_id,
       c_last.c_str());
 
-    statement = fmt::format("SELECT FROM Customer WHERE d_id = '{}' AND w_id = '{}' AND last = '{}' ORDER BY first", c_d_id, c_w_id, c_last);
+    statement = fmt::format("SELECT FROM Customer WHERE d_id = {} AND w_id = {} AND last = '{}' ORDER BY first", c_d_id, c_w_id, c_last);
     client.Query(statement, timeout);
     client.Wait(results);
     int namecnt = results[2]->size();
@@ -108,7 +108,7 @@ transaction_status_t SQLPayment::Execute(SyncClient &client) {
     c_id = c_row.id();
     Debug("  ID: %u", c_id);
   } else {
-    statement = fmt::format("SELECT FROM Customer WHERE id = '{}' AND d_id = '{}' AND w_id = '{}'", c_id, c_d_id, c_w_id);
+    statement = fmt::format("SELECT FROM Customer WHERE id = {} AND d_id = {} AND w_id = {}", c_id, c_d_id, c_w_id);
     client.Query(statement, timeout);
     client.Wait(results);
     deserialize(c_row, results[2]);
@@ -129,9 +129,9 @@ transaction_status_t SQLPayment::Execute(SyncClient &client) {
     new_data = new_data.substr(std::min(new_data.size(), 500UL));
     c_row.set_data(new_data);
   }
-  statement = fmt::format("UPDATE Customer SET balance = '{}', ytd_payment = '{}', "
-            "payment_cnt = '{}', data = '{}' "
-            "WHERE id = '{}' AND d_id = '{}' AND w_id = '{}';", 
+  statement = fmt::format("UPDATE Customer SET balance = {}, ytd_payment = {}, "
+            "payment_cnt = {}, data = '{}' "
+            "WHERE id = {} AND d_id = {} AND w_id = {};", 
             c_row.balance(), c_row.ytd_payment(), c_row.payment_cnt(), 
             c_row.data(), c_row.id(), c_row.d_id(), c_row.w_id());
   client.Write(statement, queryResult, timeout);
@@ -146,7 +146,7 @@ transaction_status_t SQLPayment::Execute(SyncClient &client) {
 
   statement = fmt::format("INSERT INTO History (c_id, c_d_id, c_w_id, d_id, "
             "w_id, date, amount, data)\n"
-            "VALUES ('{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}');", 
+            "VALUES ({}, {}, {}, {}, {}, {}, {}, '{}');", 
             c_id, c_d_id, c_w_id, d_id, w_id,
             h_date, h_amount, w_row.name() + "    " + d_row.name());
   client.Write(statement, queryResult, timeout);

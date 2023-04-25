@@ -54,15 +54,15 @@ transaction_status_t SQLStockLevel::Execute(SyncClient &client) {
 
   client.Begin(timeout);
 
-  query = fmt::format("SELECT next_o_id FROM District WHERE id = '{}' AND w_id = '{}'", d_id, w_id);
+  query = fmt::format("SELECT next_o_id FROM District WHERE id = {} AND w_id = {}", d_id, w_id);
   client.Query(query, queryResult, timeout);
   uint32_t next_o_id;
   deserialize(next_o_id, queryResult);
   Debug("Orders: %u-%u", next_o_id - 20, next_o_id - 1);
 
-  query = fmt::format("SELECT COUNT(DISTINCT(i_id)) FROM OrderLine, Stock WHERE OrderLine.w_id = '{}' AND OrderLine.d_id = '{}' "
-                      "AND OrderLine.o_id < '{}' AND OrderLine.o_id >= '{}' AND Stock.w_id = '{}' AND Stock.i_id = OrderLine.i_id "
-                      "AND Stock.quantity < '{}'", w_id, d_id, next_o_id, 
+  query = fmt::format("SELECT COUNT(DISTINCT(i_id)) FROM OrderLine, Stock WHERE OrderLine.w_id = {} AND OrderLine.d_id = {} "
+                      "AND OrderLine.o_id < {} AND OrderLine.o_id >= {} AND Stock.w_id = {} AND Stock.i_id = OrderLine.i_id "
+                      "AND Stock.quantity < {}", w_id, d_id, next_o_id, 
                       next_o_id - 20, w_id, min_quantity);
   client.Query(query, queryResult, timeout);
   uint32_t stock_count;
