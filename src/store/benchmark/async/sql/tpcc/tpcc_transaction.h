@@ -182,35 +182,6 @@ void load(Archive & archive,
 
 template<class Archive>
 void save(Archive & archive, 
-          tpcc::CustomerByNameRow const & cbn)
-{ 
-  archive(cbn.w_id(), cbn.d_id(), cbn.last(), cbn.ids_size());
-  for(auto const & id : cbn.ids()) {
-    archive(id);
-  }
-}
-
-template<class Archive>
-void load(Archive & archive,
-          tpcc::CustomerByNameRow & cbn)
-{
-  uint32_t w_id;
-  uint32_t d_id;
-  std::string last;
-  int ids_size;
-  uint32_t id;
-  archive( w_id, d_id, last, ids_size );
-  cbn.set_w_id(w_id);
-  cbn.set_d_id(d_id);
-  cbn.set_last(last);
-  for(int i = 0; i < ids_size; i++) {
-    archive(id);
-    cbn.add_ids(id);
-  }
-}
-
-template<class Archive>
-void save(Archive & archive, 
           tpcc::CustomerRow const & c)
 { 
   archive(c.id(), c.d_id(), c.w_id(), c.first(), c.middle(), c.last(), 
@@ -268,28 +239,6 @@ void load(Archive & archive,
   c.set_payment_cnt(payment_cnt);
   c.set_delivery_cnt(delivery_cnt);
   c.set_data(data);
-}
-
-template<class Archive>
-void save(Archive & archive, 
-          tpcc::OrderByCustomerRow const & obc)
-{ 
-  archive(obc.w_id(), obc.d_id(), obc.c_id(), obc.o_id());
-}
-
-template<class Archive>
-void load(Archive & archive,
-          tpcc::OrderByCustomerRow & obc)
-{
-  uint32_t w_id;
-  uint32_t d_id;
-  uint32_t c_id;
-  uint32_t o_id;
-  archive( w_id, d_id, c_id, o_id );
-  obc.set_w_id(w_id);
-  obc.set_d_id(d_id);
-  obc.set_c_id(c_id);
-  obc.set_o_id(o_id);
 }
 
 template<class Archive>
@@ -387,26 +336,6 @@ void load(Archive & archive,
   new_o.set_o_id(id);
   new_o.set_d_id(d_id);
   new_o.set_w_id(w_id);
-}
-
-template<class Archive>
-void save(Archive & archive, 
-          tpcc::EarliestNewOrderRow const & eno)
-{ 
-  archive(eno.o_id(), eno.d_id(), eno.w_id());
-}
-
-template<class Archive>
-void load(Archive & archive,
-          tpcc::EarliestNewOrderRow & eno)
-{
-  uint32_t id;
-  uint32_t d_id;
-  uint32_t w_id;
-  archive( id, d_id, w_id );
-  eno.set_o_id(id);
-  eno.set_d_id(d_id);
-  eno.set_w_id(w_id);
 }
 }
 

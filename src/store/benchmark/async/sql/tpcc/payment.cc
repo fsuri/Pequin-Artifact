@@ -28,7 +28,7 @@
 
 #include <fmt/core.h>
 
-#include "store/benchmark/async/tpcc/tpcc_utils.h"
+#include "store/benchmark/async/sql/tpcc/tpcc_utils.h"
 
 namespace tpcc_sql {
 
@@ -55,11 +55,11 @@ SQLPayment::SQLPayment(uint32_t timeout, uint32_t w_id, uint32_t c_c_last,
     c_d_id = std::uniform_int_distribution<uint32_t>(1, 10)(gen);
   }
   if (y <= 60) {
-    int last = tpcc::NURand(255, 0, 999, static_cast<int>(c_c_last), gen);
-    c_last = tpcc::GenerateCustomerLastName(last);
+    int last = tpcc_sql::NURand(255, 0, 999, static_cast<int>(c_c_last), gen);
+    c_last = tpcc_sql::GenerateCustomerLastName(last);
     c_by_last_name = true;
   } else {
-    c_id = tpcc::NURand(1023, 1, 3000, static_cast<int>(c_c_id), gen);
+    c_id = tpcc_sql::NURand(1023, 1, 3000, static_cast<int>(c_c_id), gen);
     c_by_last_name = false;
   }
   h_amount = std::uniform_int_distribution<uint32_t>(100, 500000)(gen);

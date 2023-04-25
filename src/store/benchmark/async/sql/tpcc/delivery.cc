@@ -28,7 +28,7 @@
 
 #include <fmt/core.h>
 
-#include "store/benchmark/async/tpcc/tpcc_utils.h"
+#include "store/benchmark/async/sql/tpcc/tpcc_utils.h"
 
 namespace tpcc_sql {
 

@@ -28,7 +28,7 @@
 
 #include <fmt/core.h>
 
-#include "store/benchmark/async/tpcc/tpcc_utils.h"
+#include "store/benchmark/async/sql/tpcc/tpcc_utils.h"
 
 namespace tpcc_sql {
 
@@ -36,7 +36,7 @@ SQLNewOrder::SQLNewOrder(uint32_t timeout, uint32_t w_id, uint32_t C,
     uint32_t num_warehouses, std::mt19937 &gen) :
     TPCCSQLTransaction(timeout), w_id(w_id) {
   d_id = std::uniform_int_distribution<uint32_t>(1, 10)(gen); 
-  c_id = tpcc::NURand(static_cast<uint32_t>(1023), static_cast<uint32_t>(1), static_cast<uint32_t>(3000), C, gen);
+  c_id = tpcc_sql::NURand(static_cast<uint32_t>(1023), static_cast<uint32_t>(1), static_cast<uint32_t>(3000), C, gen);
   ol_cnt = std::uniform_int_distribution<uint8_t>(5, 15)(gen);
   rbk = std::uniform_int_distribution<uint8_t>(1, 100)(gen);
   all_local = true;
@@ -44,7 +44,7 @@ SQLNewOrder::SQLNewOrder(uint32_t timeout, uint32_t w_id, uint32_t C,
     if (rbk == 1 && i == ol_cnt - 1) {
       o_ol_i_ids.push_back(0);
     } else {
-      o_ol_i_ids.push_back(tpcc::NURand(static_cast<uint32_t>(8191), static_cast<uint32_t>(1), static_cast<uint32_t>(100000), C, gen));
+      o_ol_i_ids.push_back(tpcc_sql::NURand(static_cast<uint32_t>(8191), static_cast<uint32_t>(1), static_cast<uint32_t>(100000), C, gen));
     }
     uint8_t x = std::uniform_int_distribution<uint8_t>(1, 100)(gen);
     if (x == 1 && num_warehouses > 1) {
@@ -118,11 +118,6 @@ transaction_status_t SQLNewOrder::Execute(SyncClient &client) {
   statement = fmt::format("INSERT INTO Order (id, d_id, w_id, c_id, entry_d, carrier_id, ol_cnt, all_local)\n"
           "VALUES ({}, {}, {}, {}, {}, {}, {}, {});", 
           o_id, d_id, w_id, c_id, o_entry_d, 0, ol_cnt, all_local);
-  client.Write(statement, queryResult, timeout);
-
-  statement = fmt::format("INSERT INTO OrderByCustomer (w_id, d_id, c_id, o_id)\n"
-        "VALUES ({}, {}, {}, {});", 
-        w_id, d_id, c_id, o_id);
   client.Write(statement, queryResult, timeout);
 
   for (size_t ol_number = 0; ol_number < ol_cnt; ++ol_number) {
