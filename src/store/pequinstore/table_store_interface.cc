@@ -18,14 +18,22 @@ void TableStore::RegisterTableSchema(std::string &table_registry_path){
     sql_interpreter.RegisterTables(table_registry_path);
 }
 
+std::vector<bool>* TableStore::GetRegistryColQuotes(const std::string &table_name){
+    return &(sql_interpreter.GetColRegistry(table_name)->col_quotes);
+}
+std::vector<bool>* TableStore::GetRegistryPColQuotes(const std::string &table_name){
+    return &(sql_interpreter.GetColRegistry(table_name)->p_col_quotes);
+}
+
+
 //Execute a statement directly on the Table backend, no questions asked, no output
-void TableStore::ExecRaw(std::string &sql_statement){
+void TableStore::ExecRaw(const std::string &sql_statement){
 
     //TODO: Execute on Peloton  //Note -- this should be a synchronous call. I.e. ExecRaw should not return before the call is done.
 }
 
 //Execute a read query statement on the Table backend and return a query_result/proto (in serialized form) as well as a read set (managed by readSetMgr)
-std::string TableStore::ExecReadQuery(std::string &query_statement, const Timestamp &ts, QueryReadSetMgr &readSetMgr){
+std::string TableStore::ExecReadQuery(const std::string &query_statement, const Timestamp &ts, QueryReadSetMgr &readSetMgr){
 
     //TODO: Execute on Peloton --> returns peloton result
 
@@ -38,22 +46,35 @@ std::string TableStore::ExecReadQuery(std::string &query_statement, const Timest
 }
 
 //Execute a point read on the Table backend and return a query_result/proto (in serialized form) as well as a commitProof (note, the read set is implicit)
-std::string TableStore::ExecPointRead(std::string &query_statement, std::string &enc_primary_key, const Timestamp &ts, Timestamp &read_version, proto::CommittedProof *committedProof){
+void TableStore::ExecPointRead(const std::string &query_statement, std::string &enc_primary_key, const Timestamp &ts, proto::Write *write, const proto::CommittedProof *committedProof, bool read_prepared){
 
     // std::string table_name;
     // std::vector<std::string> primary_key_column_values;
     // DecodeTableRow(enc_primary_key, table_name, primary_key_column_values);
 
-    //TODO: Execute QueryStatement on Peloton. -> returns peloton result
+    //TODO: If read_prepared = true read both committed/prepared read
+    // if true --> After execution check txn_digest of prepared_value (if exist). Check dependency depth. for txn_digest. If too deep, remove it. 
+        //FIXME: to have access to this: need server (pass as this in constructor?) ==> No, do this stuff inside the ProcessPointQuery level.
 
-    //TODO: Change Peloton result into query proto.
+        //Alternatively: 
+            //Since we also need to avoid reading prepared for the normal queries:
+            //Pass down a Lambda function that takes in txn_digest and checks whether is readable (Like passing an electrical probe down the ocean)
+    //Don't read TableVersion (quetion: how do we read table version for normal query? --> let it return table name and then look up?)
+    
+
+
+    //TODO: Execute QueryStatement on Peloton. -> returns peloton result
+            //TODO: Read latest committed (return committedProof) + Read latest prepared (if > committed)
+
+    //TODO: Change Peloton result into query proto. //TODO: For both the prepared/committed value 
     sql::QueryResultProtoBuilder queryResultBuilder;
     // queryResultBuilder.add_column("result");
     // queryResultBuilder.add_row(result_row.begin(), result_row.end());
+    queryResultBuilder.get_result()->SerializeAsString(); //TODO: store into prepared/committed value
 
     //TODO: Extract proof/version from CC-store. --> return ReadReply + value = serialized proto result.
 
-    return queryResultBuilder.get_result()->SerializeAsString();
+    return;
 
 }
         //Note: Could execute PointRead via ExecReadQuery (Eagerly) as well.
@@ -61,7 +82,9 @@ std::string TableStore::ExecPointRead(std::string &query_statement, std::string 
         //(Alternatively: Could already send a Sql command from the client) ==> Should do it at the client, so that we can keep whatever Select specification, e.g. * or specific cols...
 
 //Apply a set of Table Writes (versioned row creations) to the Table backend
-void TableStore::ApplyTableWrite(const std::string &table_name, const TableWrite &table_write, const Timestamp &ts, const std::string &txn_digest, bool commit_or_prepare){
+void TableStore::ApplyTableWrite(const std::string &table_name, const TableWrite &table_write, const Timestamp &ts, const std::string &txn_digest, 
+    const proto::CommittedProof *commit_proof, bool commit_or_prepare)
+{
     //Turn txn_digest into a shared_ptr, write everywhere it is needed.
     std::shared_ptr<std::string> txn_dig(std::make_shared<std::string>(txn_digest));
 

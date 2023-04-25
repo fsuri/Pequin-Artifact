@@ -1016,7 +1016,97 @@ void Server::LookupCurrentView(const std::string &txnDigest,
 
 }
 
-//////////////////////////////////////////////////////////////// MESSAGE VERIFICATION HELPER FUNCTIONS
+void Server::SetRTS(Timestamp &ts, const std::string &key){ 
+    //Sets RTS timestamp. Favors readers commit chances.
+    //Disable if worried about Byzantine Readers DDos, or if one wants to favor writers.
+    if(params.rtsMode == 1){
+   
+    auto itr = rts.find(key);
+    if(itr != rts.end()){
+    if(ts.getTimestamp() > itr->second ) {
+        rts[key] = ts.getTimestamp();              
+    }
+    }
+    else{
+    rts[key] = ts.getTimestamp();
+    }
+    /* update rts */
+    // TODO: For "proper Aborts": how to track RTS by transaction without knowing transaction digest?
+    }
+    else if(params.rtsMode == 2){
+    //XXX multiple RTS as set:
+    
+    std::pair<std::shared_mutex, std::set<Timestamp>> &rts_set = rts_list[key];
+    {
+        std::unique_lock lock(rts_set.first);
+        rts_set.second.insert(ts);
+    }
+    }
+    else{
+    //No RTS
+    }
+}
+
+//////////////////////////////////////////////////////////////// MESSAGE SIGNING/VERIFICATION HELPER FUNCTIONS
+
+void Server::SignSendReadReply(proto::Write *write, proto::SignedMessage *signed_write, const std::function<void()> &sendCB){
+      
+    //If readReplyBatch is false then respond immediately, otherwise respect batching policy
+    if (params.readReplyBatch) {
+        // move: sendCB = std::move(sendCB) or {std::move(sendCB)}
+        MessageToSign(write, signed_write, [sendCB, write]() {
+            sendCB();
+            delete write;
+        });
+
+    } else if (params.signatureBatchSize == 1) {
+
+        if(params.multiThreading){
+            auto f = [this, signed_write, sendCB = std::move(sendCB), write]()
+            {
+              SignMessage(write, keyManager->GetPrivateKey(id), id, signed_write);
+              sendCB();
+              delete write;
+              return (void*) true;
+            };
+            transport->DispatchTP_noCB(std::move(f));
+        }
+        else{
+            SignMessage(write, keyManager->GetPrivateKey(id), id, signed_write);
+            sendCB();
+            delete write;
+        }
+
+    } else {
+
+        if(params.multiThreading){ //TODO: If read is already on a worker thread, then it does not make sense to defer signing again...
+
+            std::vector<::google::protobuf::Message *> msgs;
+            msgs.push_back(write);
+            std::vector<proto::SignedMessage *> smsgs;
+            smsgs.push_back(signed_write);
+
+            auto f = [this, msgs, smsgs, sendCB = std::move(sendCB), write]()
+            {
+            SignMessages(msgs, keyManager->GetPrivateKey(id), id, smsgs, params.merkleBranchFactor);
+            sendCB();
+            delete write;
+            return (void*) true;
+            };
+            transport->DispatchTP_noCB(std::move(f));
+        }
+        else{
+           
+            std::vector<::google::protobuf::Message *> msgs;
+            msgs.push_back(write);
+            std::vector<proto::SignedMessage *> smsgs;
+            smsgs.push_back(signed_write);
+            SignMessages(msgs, keyManager->GetPrivateKey(id), id, smsgs, params.merkleBranchFactor);
+            sendCB();
+            delete write;
+        }
+    }
+}
 
 void Server::ManagePhase2Validation(const TransportAddress &remote, proto::Phase2 &msg, const std::string *txnDigest, const proto::Transaction *txn, const std::function<void()> &sendCB, proto::Phase2Reply* phase2Reply, 
      const std::function<void()> &cleanCB, const int64_t &myProcessId, const proto::ConcurrencyControl::Result &myResult)
@@ -1666,6 +1756,14 @@ proto::SupplyMissingTxns* Server::GetUnusedSupplyTxMessage(){
 }
 
 void Server::FreeSupplyTxMessage(proto::SupplyMissingTxns *msg){
+  delete msg;
+}
+
+proto::PointQueryResultReply* Server::GetUnusedPointQueryResultReply(){
+  return new proto::PointQueryResultReply();
+}
+
+void Server::FreePointQueryResultReply(proto::PointQueryResultReply *msg){
   delete msg;
 }
 

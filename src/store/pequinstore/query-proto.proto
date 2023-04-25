@@ -17,6 +17,8 @@ message Query {
    optional uint64 query_manager = 5;
    //TODO: Needs to include involved groups?
    required uint64 retry_version = 6; //Should go into Query, so that it is signed as well. (thus it is only proposable by original client); but not include din ID hash
+
+   optional string primary_enc_key = 7; //For point reads
 }
 
 message QueryRequest {
@@ -29,8 +31,34 @@ message QueryRequest {
  optional bool optimistic_txid = 5;
  required bool designated_for_reply = 6;
  optional bool eager_exec = 7;
+
+ optional bool is_point = 8;
 }
 
+// message Write { //For reference:  let committed_value = serialized committed proto result
+//   optional bytes committed_value = 1;
+//   optional TimestampMessage committed_timestamp = 2;
+//   optional bytes prepared_value = 3;
+//   optional TimestampMessage prepared_timestamp = 4;
+//   optional bytes prepared_txn_digest = 5;
+// }
+
+message PointQueryResultReply {
+  required uint64 query_seq_num = 1;
+  required uint64 client_id = 2;
+  required uint64 replica_id = 3;
+ 
+  oneof prepared_oneof {
+    Write write = 4;
+    SignedMessage signed_write = 5;
+  }
+  optional CommittedProof proof = 6;
+  optional bytes key = 7; //Don't really need to send, the client can buffer it after all.bool
+  //Proof: (Only for committed write) Client checks key in proof WriteSet --> finds idx --> finds RowUpdate --> compares it with write.committed_value)
+  // For prepared writes: waiting for f+1 so no proof needed.
+
+  //TODO: To support EagerExec --> Just use existing Query Code stack.
+}
 //==> moved to pequin-proto.proto
 // message ReadSet { 
 //   repeated ReadMessage read_set = 1;
@@ -66,7 +94,10 @@ message QueryResultReply {
       SignedMessage signed_result = 3;
       bool failure = 4;
     }
+
+    optional CommittedProof point_proof = 5; //For point read
 }
+
 
 
 message FailQueryMsg {

@@ -158,6 +158,14 @@ void Server::HandleQuery(const TransportAddress &remote, proto::QueryRequest &ms
         }
     }
 
+    //If PointQuery: 
+    if(msg.is_point() && !msg.eager_exec()){ 
+        q.release(); //Release if hold
+        //Note: If Point uses Eager Exec --> Just use normal protocol path in order to possibly cache read set etc. //FIXME: Make sure is_designated_For_reply
+        if(params.mainThreadDispatching && (!params.dispatchMessageReceive || params.query_params.parallel_queries)) FreeQueryRequestMessage(&msg);
+        ProcessPointQuery(query, remote);
+    }
+
     //5) Buffer Query conent and timestamp (only buffer the first time)
 
     bool re_check = false;
@@ -278,6 +286,65 @@ void Server::HandleQuery(const TransportAddress &remote, proto::QueryRequest &ms
    
 }
 
+
+void Server::ProcessPointQuery(proto::Query *query, const TransportAddress &remote){
+
+    Timestamp ts(query->timestamp()); 
+
+    Debug("PointQuery[%lu:%lu] %s.", query->query_seq_num(), query->client_id(), query->query_cmd());
+
+    if (CheckHighWatermark(ts)) {
+        // ignore request if beyond high watermark
+        Debug("Point Read timestamp beyond high watermark.");
+        delete query;
+        return;
+    }
+
+    proto::PointQueryResultReply *pointQueryReply = GetUnusedPointQueryResultReply(); 
+
+    //1) Execute
+    proto::Write *write = pointQueryReply->mutable_write();
+    const proto::CommittedProof *committedProof;
+    std::string enc_primary_key;
+
+    bool read_prepared = false;
+   
+    //If MVTSO: Read prepared, Set RTS
+    if (occType == MVTSO) {
+
+        if (params.maxDepDepth > -2) read_prepared = true;
+        
+        //TODO: Turn into a function.
+        //Sets RTS timestamp. Favors readers commit chances.
+        Debug("Set up RTS for PointQuery[%lu:%lu]", query->query_seq_num(), query->client_id());
+        SetRTS(ts, query->primary_enc_key());
+    }
+
+    table_store.ExecPointRead(query->query_cmd(), enc_primary_key, ts, write, committedProof, read_prepared);
+    delete query;
+
+    //2) Sign & Send Reply
+    TransportAddress *remoteCopy = remote.clone();
+
+    //auto sendCB = [this, remoteCopy, readReply, c_id = msg.timestamp().id(), req_id=msg.req_id()]() {
+    //Debug("Sent ReadReply[%lu:%lu]", c_id, req_id);  
+    auto sendCB = [this, remoteCopy, pointQueryReply]() {
+        this->transport->SendMessage(this, *remoteCopy, *pointQueryReply);
+        delete remoteCopy;
+        FreePointQueryResultReply(pointQueryReply);
+    };
+
+    //FIXME: Check whether calling mutable_signed_write sets the optional field.
+    if (params.validateProofs && params.signedMessages && (write->has_committed_value() || (params.verifyDeps && write->has_prepared_value()))) { 
+        write = pointQueryReply->release_write();
+        SignSendReadReply(write, pointQueryReply->mutable_signed_write(), sendCB);
+    }
+    else{
+        sendCB();
+    }
+
+    //TODO: Replace in Get too.
+}
 
 void Server::ProcessQuery(queryMetaDataMap::accessor &q, const TransportAddress &remote, proto::Query *query, QueryMetaData *query_md){
 

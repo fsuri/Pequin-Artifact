@@ -16,7 +16,7 @@ message WriteMessage {
     //oneof write_value {  //TODO: In prepare and commit: must add has_value() checks.
     optional bytes value = 2;
         //TableWrite table_writes = 3;
-    optional RowUpdates rowupdates = 3;  //Table name and primary key cols are included in key encoding.
+    optional RowUpdates rowupdates = 3;  //Table name and primary key cols are included in key encoding. //NOTE: WriteMessage is just using row_idx field currently
     //}
 }
 
@@ -37,10 +37,13 @@ message RowUpdates {
     //Version 1
     map<string, bytes> attribute_writes = 1; //map from attribute name to new value (in bytes for general encoding) //TODO: Maybe re-factor this to hold column id instead of name -- or to be in order
     optional TimestampMessage readtime = 2; //version of the row that was read (optional: for ReadModWrites) in order to fetch remaining row values (in case an update only updates some columns)
-    optional bool deletion = 3;
-
+    
     //Version 2: Use only this. --> use column names from TableWrite
+    optional bool deletion = 3;
     repeated bytes column_values = 4;
+
+    optional int32 row_idx = 5; //Idx of the RowUpdate (used to find correct row update from WriteMessage for proof)
+
 }
 message TableWrite {
     //Version 1

@@ -74,7 +74,7 @@ int main() {
   std::string index_name = "indexA";
   column_names_and_types.push_back(std::make_pair("col1", "INT"));
   column_names_and_types.push_back(std::make_pair("col2", "INT"));
-  column_names_and_types.push_back(std::make_pair("col3", "VARCHAR"));
+  column_names_and_types.push_back(std::make_pair("col3", "TEXT"));
   values.push_back("20");
   values.push_back("12");
   values.push_back("val2");

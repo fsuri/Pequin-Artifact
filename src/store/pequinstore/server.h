@@ -413,6 +413,7 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
     typedef tbb::concurrent_hash_map<std::string, MissingTxns> queryMissingTxnsMap;  //std::unordered_set<std::string>
     queryMissingTxnsMap queryMissingTxns; 
 
+    void ProcessPointQuery(proto::Query *query, const TransportAddress &remote);
     void ProcessQuery(queryMetaDataMap::accessor &q, const TransportAddress &remote, proto::Query *query, QueryMetaData *query_md);
     void FindSnapshot(QueryMetaData *query_md, proto::Query *query);
     void ProcessSync(queryMetaDataMap::accessor &q, const TransportAddress &remote, proto::MergedSnapshot *merged_ss, const std::string *queryId, QueryMetaData *query_md);
@@ -732,6 +733,7 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
   uint64_t DependencyDepth(const proto::Transaction *txn) const;
   void MessageToSign(::google::protobuf::Message* msg,
       proto::SignedMessage *signedMessage, signedCallback cb);
+  void SignSendReadReply(proto::Write *write, proto::SignedMessage *signed_write, const std::function<void()> &sendCB);
 
   //main protocol messages
   proto::ReadReply *GetUnusedReadReply();
@@ -780,6 +782,8 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
   void FreeRequestTxMessage(proto::RequestMissingTxns *msg);
   proto::SupplyMissingTxns* GetUnusedSupplyTxMessage();
   void FreeSupplyTxMessage(proto::SupplyMissingTxns *msg);
+  proto::PointQueryResultReply* GetUnusedPointQueryResultReply();
+  void FreePointQueryResultReply(proto::PointQueryResultReply *msg);
 
   //generic delete function.
   void FreeMessage(::google::protobuf::Message *msg);
@@ -928,6 +932,8 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
   tbb::concurrent_unordered_map<std::string, std::atomic_uint64_t> rts;
   //tbb::concurrent_hash_map<std::string, std::set<Timestamp>> rts; //TODO: if want to use this again: need per key locks like below.
   tbb::concurrent_unordered_map<std::string, std::pair<std::shared_mutex, std::set<Timestamp>>> rts_list;
+
+  void SetRTS(Timestamp &ts, const std::string &key);
 
   // Digest -> V
   //std::unordered_map<std::string, proto::Transaction *> ongoing;

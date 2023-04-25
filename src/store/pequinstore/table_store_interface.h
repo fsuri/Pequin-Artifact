@@ -18,20 +18,23 @@ class TableStore {
         virtual ~TableStore();
 
         void RegisterTableSchema(std::string &table_registry_path);
+            std::vector<bool>* GetRegistryColQuotes(const std::string &table_name);
+            std::vector<bool>* GetRegistryPColQuotes(const std::string &table_name);
 
         //Execute a statement directly on the Table backend, no questions asked, no output
-        void ExecRaw(std::string &sql_statement);
+        void ExecRaw(const std::string &sql_statement);
 
         //Execute a read query statement on the Table backend and return a query_result/proto (in serialized form) as well as a read set (managed by readSetMgr)
-        std::string ExecReadQuery(std::string &query_statement, const Timestamp &ts, QueryReadSetMgr &readSetMgr);
+        std::string ExecReadQuery(const std::string &query_statement, const Timestamp &ts, QueryReadSetMgr &readSetMgr);
 
         //Execute a point read on the Table backend and return a query_result/proto (in serialized form) as well as a commitProof (note, the read set is implicit)
-        std::string ExecPointRead(std::string &query_statement, std::string &enc_primary_key, const Timestamp &ts, Timestamp &read_version, proto::CommittedProof *committedProof);  
+        void ExecPointRead(const std::string &query_statement, std::string &enc_primary_key, const Timestamp &ts, proto::Write *write, const proto::CommittedProof *committedProof, bool read_prepared = false);  
                 //Note: Could execute PointRead via ExecReadQuery (Eagerly) as well.
                 // ExecPointRead should translate enc_primary_key into a query_statement to be exec by ExecReadQuery. (Alternatively: Could already send a Sql command from the client)
 
         //Apply a set of Table Writes (versioned row creations) to the Table backend
-        void ApplyTableWrite(const std::string &table_name, const TableWrite &table_write, const Timestamp &ts, const std::string &txn_digest, bool commit_or_prepare = true); 
+        void ApplyTableWrite(const std::string &table_name, const TableWrite &table_write, const Timestamp &ts, const std::string &txn_digest, 
+            const proto::CommittedProof *commit_proof = nullptr, bool commit_or_prepare = true); 
          ///https://www.postgresqltutorial.com/postgresql-tutorial/postgresql-upsert/ 
         void PurgeTableWrite(const std::string &table_name, const TableWrite &table_write, const Timestamp &ts, const std::string &txn_digest); 
 

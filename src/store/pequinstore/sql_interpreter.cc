@@ -527,9 +527,11 @@ void SQLTransformer::TransformUpdate(size_t pos, std::string_view &write_stateme
             write->set_key(enc_key);
 
             if(update_primary_key){ //Also set Primary key we replace.
-                  write = txn->add_write_set();
-                  enc_key = EncodeTableRow(table_name, backup_primary_key_column_values);
-                  write->set_key(enc_key);
+                write = txn->add_write_set();
+                enc_key = EncodeTableRow(table_name, backup_primary_key_column_values);
+                write->set_key(enc_key);
+                write->set_value("d");
+                write->mutable_rowupdates()->set_deletion(true);
 
                  row_update = AddTableWriteRow(table_write, col_registry);
 
@@ -538,6 +540,8 @@ void SQLTransformer::TransformUpdate(size_t pos, std::string_view &write_stateme
                     (*row_update->mutable_column_values())[p_idx] = std::move(backup_primary_key_column_values[i++]);
                 }
                 row_update->set_deletion(true);
+
+                
                 Warning("Trying to update primary key value");
             }
         }

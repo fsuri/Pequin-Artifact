@@ -418,6 +418,9 @@ void Server::LoadTableData(const std::string &table_name, const std::string &tab
     std::string row_line;
     std::string value;
 
+    //NOTE: CSV Data is UNQUOTED always
+    //std::vector<bool> *col_quotes = table_store.GetRegistryColQuotes(table_name);
+
     while(getline(row_data, row_line)){
      
       std::vector<std::string> primary_col_vals;
@@ -431,8 +434,12 @@ void Server::LoadTableData(const std::string &table_name, const std::string &tab
         if(col_idx == primary_key_col_idx[p_col_idx]){
           p_col_idx++;
     
-          
-          primary_col_vals.push_back(std::move(value));
+          // if((*col_quotes)[col_idx]){ //If value has quotes '' strip them off
+          //     primary_col_vals.push_back(value.substr(1, value.length()-2));
+          // }
+          // else{
+              primary_col_vals.push_back(std::move(value));
+         //}
         }
         col_idx++;
       }
@@ -441,8 +448,10 @@ void Server::LoadTableData(const std::string &table_name, const std::string &tab
     }
 }
 
+//!!"Deprecated" (Unused)
 void Server::LoadTableRow(const std::string &table_name, const std::vector<std::pair<std::string, std::string>> &column_data_types, const std::vector<std::string> &values, const std::vector<uint32_t> &primary_key_col_idx ){
   
+
   //TODO: Instead of using the INSERT SQL statement, could generate a TableWrite and use the TableWrite API.
   std::string sql_statement("INSERT INTO");
   sql_statement += " " + table_name ;
@@ -459,8 +468,10 @@ void Server::LoadTableRow(const std::string &table_name, const std::vector<std::
   
   sql_statement += " VALUES (";
   
+  std::vector<bool> *col_quotes = table_store.GetRegistryColQuotes(table_name); //TODO: Add Quotes if applicable
   for(auto &val: values){
-    sql_statement += val + ", ";
+    //Note: Adding quotes indiscriminately for now.
+    sql_statement += "\'" + val + "\'" + ", ";
   }
   sql_statement.resize(sql_statement.size() - 2); //remove trailing ", "
 
@@ -468,6 +479,7 @@ void Server::LoadTableRow(const std::string &table_name, const std::vector<std::
   
   //Call into TableStore with this statement.
   table_store.ExecRaw(sql_statement);
+
 
   std::vector<const std::string*> primary_cols;
   for(auto i: primary_key_col_idx){
@@ -530,34 +542,10 @@ void Server::HandleRead(const TransportAddress &remote,
   
     //Sets RTS timestamp. Favors readers commit chances.
     //Disable if worried about Byzantine Readers DDos, or if one wants to favor writers.
-    if(params.rtsMode == 1){
-      Debug("Set up RTS for READ[%lu:%lu]", msg.timestamp().id(), msg.req_id());
-     auto itr = rts.find(msg.key());
-     if(itr != rts.end()){
-       if(ts.getTimestamp() > itr->second ) {
-         rts[msg.key()] = ts.getTimestamp();
-       }
-     }
-     else{
-       rts[msg.key()] = ts.getTimestamp();
-     }
-     /* update rts */
-    // TODO: For "proper Aborts": how to track RTS by transaction without knowing transaction digest?
-    }
-    else if(params.rtsMode == 2){
-      //XXX multiple RTS as set:
-      Debug("Set up RTS for READ[%lu:%lu]", msg.timestamp().id(), msg.req_id());
-      std::pair<std::shared_mutex, std::set<Timestamp>> &rts_set = rts_list[msg.key()];
-      {
-        std::unique_lock lock(rts_set.first);
-        rts_set.second.insert(ts);
-      }
-    }
-    else{
-      //No RTS
-    }
-      
+    Debug("Set up RTS for READ[%lu:%lu]", msg.timestamp().id(), msg.req_id());
+    SetRTS(ts, msg.key());
 
+  
     //find prepared write to read from
     /* add prepared deps */
     if (params.maxDepDepth > -2) {
@@ -1646,7 +1634,7 @@ void Server::Prepare(const std::string &txnDigest,
   o.release(); //Relase only at the end, so that Prepare and Clean in parallel for the same TX are atomic.
 
   for (const auto &[table_name, table_write] : txn.table_writes()){
-    table_store.ApplyTableWrite(table_name, table_write, ts, txnDigest, false);
+    table_store.ApplyTableWrite(table_name, table_write, ts, txnDigest, nullptr, false);
   }
 }
 
@@ -1810,7 +1798,7 @@ void Server::CommitToStore(proto::CommittedProof *proof, proto::Transaction *txn
                             // alternatively: don't mark prepare/commit inside the table store, only in CC store. But that requires extra lookup for all keys in read set.
                             // + how do we remove prepared rows? Do we treat it as SQL delete (at ts)? row becomes invisible -- fully removed from CC store.
   for (const auto &[table_name, table_write] : txn->table_writes()){
-    table_store.ApplyTableWrite(table_name, table_write, ts, txnDigest);
+    table_store.ApplyTableWrite(table_name, table_write, ts, txnDigest, proof);
   }
 }
 

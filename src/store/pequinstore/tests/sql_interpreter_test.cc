@@ -37,12 +37,12 @@
 
 using namespace pequinstore;
 
+static std::string file_name = "sql_interpreter_test_registry";
 void test_registry(){
   std::cerr << std::endl << "Test Registry" << std::endl;
 
   //Create desired registry via table writer.
-  std::string file_name = "sql_interpreter_test_registry";
- 
+
   std::string table_name = "table";
   std::vector<std::pair<std::string, std::string>> column_names_and_types;
   std::vector<uint32_t> primary_key_col_idx;
@@ -61,7 +61,7 @@ void test_registry(){
   table_writer.flush();
 
   SQLTransformer sql_interpreter;
-  std::string table_registry = "sql_interpreter_test_registry-client.json";
+  std::string table_registry = file_name + "-tables-schema.json";
   sql_interpreter.RegisterTables(table_registry);
 }
 
@@ -70,7 +70,7 @@ void test_insert(){
   std::cerr << std::endl << "Test Insert" << std::endl;
   
   SQLTransformer sql_interpreter;
-  std::string table_registry = "sql_interpreter_test_registry-client.json";
+  std::string table_registry = file_name + "-tables-schema.json";
   sql_interpreter.RegisterTables(table_registry);
   proto::Transaction txn;
   sql_interpreter.NewTx(&txn);
@@ -128,7 +128,7 @@ void test_update(){
   std::cerr << std::endl << "Test Update" << std::endl;
 
   SQLTransformer sql_interpreter;
-  std::string table_registry = "sql_interpreter_test_registry-client.json";
+  std::string table_registry = file_name + "-tables-schema.json";
   sql_interpreter.RegisterTables(table_registry);
   proto::Transaction txn;
   sql_interpreter.NewTx(&txn);
@@ -209,7 +209,7 @@ void test_update(){
 void test_delete(){
   std::cerr << std::endl << "Test Delete" << std::endl;
   SQLTransformer sql_interpreter;
-  std::string table_registry = "sql_interpreter_test_registry-client.json";
+  std::string table_registry = file_name + "-tables-schema.json";
   sql_interpreter.RegisterTables(table_registry);
   proto::Transaction txn;
   sql_interpreter.NewTx(&txn);
@@ -322,7 +322,7 @@ void test_delete(){
 void test_cond(){
   std::cerr << std::endl << "Test Cond" << std::endl;
   SQLTransformer sql_interpreter;
-  std::string table_registry = "sql_interpreter_test_registry-client.json";
+  std::string table_registry = file_name + "-tables-schema.json";
   sql_interpreter.RegisterTables(table_registry);
   proto::Transaction txn;
   sql_interpreter.NewTx(&txn);
@@ -423,7 +423,7 @@ void test_write(){
    std::cerr << "Test Write Generation:" << std::endl;
 
    SQLTransformer sql_interpreter;
-  std::string table_registry = "sql_interpreter_test_registry-client.json";
+  std::string table_registry = file_name + "-tables-schema.json";
   sql_interpreter.RegisterTables(table_registry);
   proto::Transaction txn;
   sql_interpreter.NewTx(&txn);
@@ -513,6 +513,14 @@ int main() {
   // std::string_view s(t);
   // r[s] = 1;
   //Can look up string_view with string, but not in reverse --> string is superset of string view
+
+  // proto::PointQueryResultReply test_proto;
+  // test_proto.mutable_write()->set_prepared_txn_digest("hello");
+  // proto::SignedMessage *sm = test_proto.mutable_signed_write();
+
+  // std::cerr << "has write? " << (test_proto.has_write()) << std::endl;
+  // std::cerr << "has signed write? " << (test_proto.has_signed_write()) << std::endl;
+  // std::cerr << "write " << (test_proto.write().prepared_txn_digest()) << std::endl;
 
   return 0;
 }
