@@ -153,7 +153,7 @@ void ShardClient::Begin(uint64_t id) {
 
 void ShardClient::Get(uint64_t id, const std::string &key,
     const TimestampMessage &ts, uint64_t readMessages, uint64_t rqs,
-    uint64_t rds, read_callback gcb, read_timeout_callback gtcb,
+    uint64_t rds, read_callback &gcb, read_timeout_callback &gtcb,
     uint32_t timeout) {
   if (BufferGet(key, gcb)) {
     Debug("[group %i] read from buffer.", group);
@@ -184,7 +184,7 @@ void ShardClient::Get(uint64_t id, const std::string &key,
 }
 
 void ShardClient::Put(uint64_t id, const std::string &key,
-      const std::string &value, put_callback pcb, put_timeout_callback ptcb,
+      const std::string &value, const put_callback &pcb, const put_timeout_callback &ptcb,
       uint32_t timeout) {
   WriteMessage *writeMsg = txn.add_write_set(); //TODO: May want to handle duplicate puts (2 puts to same key --> If we have already tried to write they key, remove that write from the read set.)
   writeMsg->set_key(key);
@@ -460,8 +460,8 @@ void ShardClient::Phase2Equivocate(uint64_t id,
   reqId = lastReqId++;
   PendingPhase2 *pendingP2Abort = new PendingPhase2(reqId, proto::ABORT);
   pendingPhase2s[reqId] = pendingP2Abort;
-  pendingP2Abort->pcb = pcb;
-  pendingP2Abort->ptcb = ptcb;
+  pendingP2Abort->pcb = std::move(pcb);
+  pendingP2Abort->ptcb = std::move(ptcb);
   pendingP2Abort->requestTimeout = new Timeout(transport, timeout, [this, pendingP2Abort]() {
       phase2_timeout_callback ptcb = pendingP2Abort->ptcb;
       auto itr = this->pendingPhase2s.find(pendingP2Abort->reqId);
@@ -677,7 +677,7 @@ bool ShardClient::SendPing(size_t replica, const PingMessage &ping) {
 }
 
 
-bool ShardClient::BufferGet(const std::string &key, read_callback rcb) {
+bool ShardClient::BufferGet(const std::string &key, read_callback &rcb) {
   for (const auto &write : txn.write_set()) {
     if (write.key() == key) {
       Debug("[group %i] Key %s was written with val %s.", group,
@@ -707,8 +707,8 @@ void ShardClient::GetTimeout(uint64_t reqId) {
   auto itr = this->pendingGets.find(reqId);
   if (itr != this->pendingGets.end()) {
     PendingQuorumGet *pendingGet = itr->second;
-    get_timeout_callback gtcb = pendingGet->gtcb;
-    std::string key = pendingGet->key;
+    get_timeout_callback gtcb = std::move(pendingGet->gtcb);
+    std::string key = std::move(pendingGet->key);
     this->pendingGets.erase(itr);
     delete pendingGet;
     gtcb(REPLY_TIMEOUT, key);
@@ -1803,8 +1803,8 @@ void ShardClient::HandlePhase1Relay(proto::RelayP1 &relayP1){
 
 //TODO: Move all callbacks (also in client.)
 void ShardClient::Phase1FB(uint64_t reqId, proto::Transaction &txn, proto::SignedMessage &signed_txn, const std::string &txnDigest,
- relayP1FB_callback rP1FB, phase1FB_callbackA p1FBcbA, phase1FB_callbackB p1FBcbB,
- phase2FB_callback p2FBcb, writebackFB_callback wbFBcb, invokeFB_callback invFBcb, int64_t logGrp) {
+ const relayP1FB_callback &rP1FB, const phase1FB_callbackA &p1FBcbA, const phase1FB_callbackB &p1FBcbB,
+ const phase2FB_callback &p2FBcb, const writebackFB_callback &wbFBcb, const invokeFB_callback &invFBcb, int64_t logGrp) {
 
   Debug("[group %i] Sending PHASE1FB [%lu]", group, client_id);
   //uint64_t reqId = lastReqId++;

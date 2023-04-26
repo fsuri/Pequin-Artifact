@@ -40,7 +40,7 @@ namespace pequinstore {
 //-> Every shard (not just query_manager shard) should be able to send this if it observes a committed query was missed; or if the materialized snapshot frontier includes a prepare that aborted (or is guaranteed to, e.g. vote Abort)
 
 void ShardClient::Query(uint64_t client_seq_num, uint64_t query_seq_num, proto::Query &queryMsg, // const std::string &query, const TimestampMessage &ts,
-      result_callback rcb, result_timeout_callback rtcb, uint32_t timeout) {
+      result_callback &rcb, result_timeout_callback &rtcb, uint32_t timeout) {
 
  Debug("Invoked QueryRequest [%lu] on ShardClient for group %d", query_seq_num, group);
   
@@ -597,5 +597,23 @@ void ShardClient::HandleFailQuery(proto::FailQuery &queryFail){
     return;
 }
 
+//TODO: Register Receive Handler 
+//TODO: Register in .h
+void ShardClient::HandlePointQueryResult(proto::PointQueryResultReply &queryResult){
+
+    //TODO: In Client.cc: When calling Query --> attach bool = point + Create new callback. In querysync-client.cc: In Query send ==> Set Point bool
+    //Re-factor callback code to be a function that is bound. Cleaner code...
+
+    //TODO: Fetch PendingQuery
+
+    //TODO: Copy code from HandleGetReply
+        //1)  Check signature
+        //2) Check correctness of committed proof
+        //3) Check for matching prepare
+
+    //Add winner read to ReadSet
+    //Upcall Query callback (use a different one for point read) ==> simply stores to read set and upcalls to app with result.
+        //Note: No retries needed; No multi shard replies needed; No storing
+}
 
 } //namespace pequinstore

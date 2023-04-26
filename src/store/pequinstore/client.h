@@ -116,6 +116,8 @@ class Client : public ::Client {
    int total_counter;
    std::unordered_set<uint64_t> conflict_ids;
 
+  //Query protocol structures and functions
+
   struct PendingQuery {
     PendingQuery(Client *client, uint64_t query_seq_num, const std::string &query_cmd) : version(0UL), group_replies(0UL){
       queryMsg.Clear();
@@ -167,6 +169,19 @@ class Client : public ::Client {
     uint64_t group_replies;
    
   };
+
+  SQLTransformer sql_interpreter;
+
+  void TestReadSet(PendingQuery *pendingQuery);
+  void QueryResultCallback(query_callback &qcb, PendingQuery *pendingQuery, bool is_point,      //bound parameters
+                            int status, int group, proto::ReadSet *query_read_set, std::string &result_hash, std::string &result, bool success);  //free parameters
+  void ClearQuery(PendingQuery *pendingQuery);
+  void RetryQuery(PendingQuery *pendingQuery);
+  // void ClearQuery(uint64_t query_seq_num, std::vector<uint64_t> &involved_groups);
+  // void RetryQuery(uint64_t query_seq_num, std::vector<uint64_t> &involved_groups);
+
+
+  //Commit protocol structures and functions
 
   struct PendingRequest {
     PendingRequest(uint64_t id, Client *client) : id(id), outstandingPhase1s(0),
@@ -303,16 +318,6 @@ class Client : public ::Client {
   //Question: How can client have multiple pendingReqs?
   //TODO: would this simplify having a deeper depth?
   // --> would allow normal OCC handling on Wait results at the server?
-
-  //Query logic
-
-  SQLTransformer sql_interpreter;
-
-  void ClearQuery(PendingQuery *pendingQuery);
-  void RetryQuery(PendingQuery *pendingQuery);
-  // void ClearQuery(uint64_t query_seq_num, std::vector<uint64_t> &involved_groups);
-  // void RetryQuery(uint64_t query_seq_num, std::vector<uint64_t> &involved_groups);
-
 
 
 

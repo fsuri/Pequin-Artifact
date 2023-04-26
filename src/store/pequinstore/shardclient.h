@@ -125,17 +125,17 @@ class ShardClient : public TransportReceiver, public PingInitiator, public PingT
 
   // Get the value corresponding to key.
   virtual void Get(uint64_t id, const std::string &key, const TimestampMessage &ts,
-      uint64_t readMessages, uint64_t rqs, uint64_t rds, read_callback gcb,
-      read_timeout_callback gtcb, uint32_t timeout);
+      uint64_t readMessages, uint64_t rqs, uint64_t rds, read_callback &gcb,
+      read_timeout_callback &gtcb, uint32_t timeout);
 
   // Set the value for the given key.
   virtual void Put(uint64_t id, const std::string &key,
-      const std::string &value, put_callback pcb, put_timeout_callback ptcb,
+      const std::string &value, const put_callback &pcb, const put_timeout_callback &ptcb,
       uint32_t timeout);
 
   // Perform a query computation
   virtual void Query(uint64_t client_seq_num, uint64_t query_seq_num, proto::Query &queryMsg, //const std::string &query, const TimestampMessage &ts,
-      result_callback rcb, result_timeout_callback rtcb, uint32_t timeout);
+      result_callback &rcb, result_timeout_callback &rtcb, uint32_t timeout);
 
 
 ///////////// End Execution Protocol
@@ -178,8 +178,8 @@ virtual void Phase2Equivocate_Simulate(uint64_t id, const proto::Transaction &tx
   virtual void EraseRelay(const std::string &txnDigest);
   virtual void StopP1FB(std::string &txnDigest);
   virtual void Phase1FB(uint64_t reqId, proto::Transaction &txn, proto::SignedMessage &signed_txn, const std::string &txnDigest,
-   relayP1FB_callback rP1FB, phase1FB_callbackA p1FBcbA, phase1FB_callbackB p1FBcbB,
-   phase2FB_callback p2FBcb, writebackFB_callback wbFBcb, invokeFB_callback invFBcb, int64_t logGrp);
+   const relayP1FB_callback &rP1FB, const phase1FB_callbackA &p1FBcbA, const phase1FB_callbackB &p1FBcbB,
+   const phase2FB_callback &p2FBcb, const writebackFB_callback &wbFBcb, const invokeFB_callback &invFBcb, int64_t logGrp);
   virtual void Phase2FB(uint64_t id,const proto::Transaction &txn, const std::string &txnDigest,proto::CommitDecision decision,
     const proto::GroupedSignatures &groupedSigs);
   //overloaded for different p2 alternative
@@ -439,7 +439,7 @@ virtual void Phase2Equivocate_Simulate(uint64_t id, const proto::Transaction &tx
     abort_timeout_callback atcb;
   };
 
-  bool BufferGet(const std::string &key, read_callback rcb);
+  bool BufferGet(const std::string &key, read_callback &rcb);
 
   /* Timeout for Get requests, which only go to one replica. */
   void GetTimeout(uint64_t reqId);
@@ -505,6 +505,7 @@ virtual void Phase2Equivocate_Simulate(uint64_t id, const proto::Transaction &tx
   void SyncReplicas(PendingQuery *pendingQuery);
   void HandleQueryResult(proto::QueryResultReply &queryResult);
   void HandleFailQuery(proto::FailQuery &msg);
+  void HandlePointQueryResult(proto::PointQueryResultReply &queryResult);
 
 
   inline size_t GetNthClosestReplica(size_t idx) const {
