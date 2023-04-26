@@ -9,11 +9,11 @@
 
 #include "store/cockroachdb/server.h"
 
+#include <fmt/core.h>
 #include <unistd.h>
 
 #include <iostream>
 #include <string>
-#include <fmt/core.h>
 
 namespace cockroachdb {
 
@@ -23,7 +23,7 @@ void Server::exec_sql(std::string sql) {
   std::string crdb_command = "cockroach sql --insecure --host=" + host +
                              std::string() + ":" + port + " --execute=\"" +
                              sql + "\"";
-  Notice(crdb_command.c_str());
+  cout << crdb_command << endl;
   int status = system(crdb_command.c_str());
 }
 
@@ -45,8 +45,8 @@ Server::Server(const transport::Configuration &config, KeyManager *keyManager,
   if (result) {
     Panic("Unable to get host name for CRDB");
   }
-  //cout << result << endl;
-  // remove site
+  // cout << result << endl;
+  //  remove site
   std::string site(host_name);
 
   site.replace(site.find(zone), zone.length(), "");
@@ -86,11 +86,11 @@ Server::Server(const transport::Configuration &config, KeyManager *keyManager,
   // In memory cluster.
   std::string store_flag_mem = " --store=type=mem,size=90%";
 
-  // std::string log_flag =
-  //     " --log=\"sinks: {file-groups: {ops: {channels: [OPS, HEALTH, "
-  //     "SQL_SCHEMA], filter: ERROR}}}\"";
+  std::string log_flag =
+      " --log=\"sinks: {file-groups: {ops: {channels: [OPS, HEALTH, "
+      "SQL_SCHEMA], filter: ERROR}}, stderr: {filter: NONE}}\"";
 
-  std::string log_flag = " --log-config-file=./store/cockroachdb/logs.yaml";
+  // std::string log_flag = " --log-config-file=./store/cockroachdb/logs.yaml";
 
   // TODO : Add encryption
 
@@ -107,7 +107,7 @@ Server::Server(const transport::Configuration &config, KeyManager *keyManager,
                                 // advertise_flag,    // for nodes
                                 sql_addr_flag,   // for client's sql
                                 http_addr_flag,  // for  DB Console
-                                store_flag_mem, locality_flag,
+                                log_flag, store_flag_mem, locality_flag,
                                 other_flags};
 
   for (std::string part : script_parts) {
@@ -116,6 +116,7 @@ Server::Server(const transport::Configuration &config, KeyManager *keyManager,
 
   // start server
   Notice("Debug start initalizing");
+  cout << start_script << endl;
   status = system((start_script + "&").c_str());
   Notice("Cockroach node %d started. Listening %s:%s", id, host.c_str(),
          port.c_str());
@@ -179,12 +180,16 @@ void Server::CreateTable(
   Server::exec_sql(sql_statement);
 }
 
-void Server::LoadTableData(const std::string &table_name, const std::string &table_data_path, const std::vector<uint32_t> &primary_key_col_idx){
-    //Syntax based on: https://www.cockroachlabs.com/docs/stable/import-into.html
-    std::string copy_table_statement_crdb = fmt::format("IMPORT INTO {0} CSV DATA ('{1}') WITH skip = '1'", table_name, table_data_path); //FIXME: does one need to specify column names? Target columns don't appear to be enforced
+void Server::LoadTableData(const std::string &table_name,
+                           const std::string &table_data_path,
+                           const std::vector<uint32_t> &primary_key_col_idx) {
+  // Syntax based on: https://www.cockroachlabs.com/docs/stable/import-into.html
+  std::string copy_table_statement_crdb = fmt::format(
+      "IMPORT INTO {0} CSV DATA ('{1}') WITH skip = '1'", table_name,
+      table_data_path);  // FIXME: does one need to specify column names? Target
+                         // columns don't appear to be enforced
 
   exec_sql(copy_table_statement_crdb);
-  
 }
 
 void Server::LoadTableRow(
