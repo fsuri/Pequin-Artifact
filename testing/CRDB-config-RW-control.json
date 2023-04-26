@@ -10,8 +10,8 @@
   ],
   "replication_protocol": ["crdb"],
   "client_protocol_mode": ["crdb"],
-  "num_shards": [1],
-  "num_groups": [1],
+  "num_shards": [3],
+  "num_groups": [3],
 
   "_client_num_keys": 10,
   "client_num_keys": 10000000,
