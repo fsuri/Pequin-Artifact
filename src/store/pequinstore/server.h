@@ -934,6 +934,8 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
   tbb::concurrent_unordered_map<std::string, std::pair<std::shared_mutex, std::set<Timestamp>>> rts_list;
 
   void SetRTS(Timestamp &ts, const std::string &key);
+  void ClearRTS(const google::protobuf::RepeatedPtrField<std::string> &read_set, const TimestampMessage &ts);
+  void ClearRTS(const google::protobuf::RepeatedPtrField<ReadMessage> &read_set, const Timestamp&ts);
 
   // Digest -> V
   //std::unordered_map<std::string, proto::Transaction *> ongoing;

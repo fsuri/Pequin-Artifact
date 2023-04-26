@@ -305,7 +305,7 @@ void Server::ProcessPointQuery(proto::Query *query, const TransportAddress &remo
     //1) Execute
     proto::Write *write = pointQueryReply->mutable_write();
     const proto::CommittedProof *committedProof;
-    std::string enc_primary_key;
+    std::string enc_primary_key;  //TODO: Replace with query->primary_enc_key()
 
     bool read_prepared = false;
    
@@ -313,8 +313,7 @@ void Server::ProcessPointQuery(proto::Query *query, const TransportAddress &remo
     if (occType == MVTSO) {
 
         if (params.maxDepDepth > -2) read_prepared = true;
-        
-        //TODO: Turn into a function.
+    
         //Sets RTS timestamp. Favors readers commit chances.
         Debug("Set up RTS for PointQuery[%lu:%lu]", query->query_seq_num(), query->client_id());
         SetRTS(ts, query->primary_enc_key());
@@ -334,7 +333,7 @@ void Server::ProcessPointQuery(proto::Query *query, const TransportAddress &remo
         FreePointQueryResultReply(pointQueryReply);
     };
 
-    //FIXME: Check whether calling mutable_signed_write sets the optional field.
+
     if (params.validateProofs && params.signedMessages && (write->has_committed_value() || (params.verifyDeps && write->has_prepared_value()))) { 
         write = pointQueryReply->release_write();
         SignSendReadReply(write, pointQueryReply->mutable_signed_write(), sendCB);
@@ -342,8 +341,6 @@ void Server::ProcessPointQuery(proto::Query *query, const TransportAddress &remo
     else{
         sendCB();
     }
-
-    //TODO: Replace in Get too.
 }
 
 void Server::ProcessQuery(queryMetaDataMap::accessor &q, const TransportAddress &remote, proto::Query *query, QueryMetaData *query_md){
@@ -1540,9 +1537,23 @@ std::string Server::ExecQuery(QueryReadSetMgr &queryReadSetMgr, QueryMetaData *q
     //                                                         //
     //
     //              EXEC BLACKBOX -- TBD
+
+
+       //If MVTSO: Read prepared, Set RTS
+    bool read_prepared = (occType == MVTSO) && (params.maxDepDepth > -2);
+
     std::string serialized_result;
-    if(!materialize) serialized_result = table_store.ExecReadQuery(query_md->query_cmd, query_md->ts, queryReadSetMgr);
+    if(!materialize) serialized_result = table_store.ExecReadQuery(query_md->query_cmd, query_md->ts, queryReadSetMgr, read_prepared);
     if(materialize) Panic("Do not yet support Snapshot materialization");
+
+    if(occType == MVTSO && params.rtsMode > 0){
+        Debug("Set up all RTS for Query[%lu:%lu]", query_md->query_seq_num, query_md->client_id);
+        for(auto &read: queryReadSetMgr.read_set->read_set()){
+            SetRTS(query_md->ts, read.key());
+        }
+        //TODO: On Abort, Clear RTS.
+    }
+
     //                                                         //
     //                                                         //
     //                                                         //
@@ -1910,33 +1921,46 @@ void Server::CleanQueries(proto::Transaction *txn, bool is_commit){
   //clientQueryWatermark[txn->client_id()] = txn->last_query_seq(); //only update timestamp for commit if greater than last one... //To do this atomically need hashmap lock.
 
   //For every query in txn: 
-  for(proto::QueryResultMetaData &query_md : *txn->mutable_query_set()){
-     queryMetaDataMap::accessor q;
-     bool hasQuery = queryMetaData.find(q, query_md.query_id());
-     if(hasQuery){
-        //Move read set if caching. Note: Don't need to move read_set_hash -> tx already stores it. 
-         if(is_commit && params.query_params.cacheReadSet){
-          proto::QueryGroupMeta &query_group_meta = (*query_md.mutable_group_meta())[groupIdx];
-           //Note: only move if read_set hash matches. It might not. But at least 2f+1 correct replicas do have it matching.
-          if(query_group_meta.read_set_hash() == q->second->queryResultReply->result().query_result_hash()){
-            proto::ReadSet *read_set = q->second->queryResultReply->mutable_result()->release_query_read_set();
+  for(proto::QueryResultMetaData &tx_query_md : *txn->mutable_query_set()){
+    queryMetaDataMap::accessor q;
+    bool hasQuery = queryMetaData.find(q, tx_query_md.query_id());
+    if(hasQuery){
+    QueryMetaData *local_query_md = q->second; //Local query_md
+
+    //Move read set if caching. Note: Don't need to move read_set_hash -> tx already stores it. 
+    if(is_commit && params.query_params.cacheReadSet){
+        proto::QueryGroupMeta &query_group_meta = (*tx_query_md.mutable_group_meta())[groupIdx];
+        //Note: only move if read_set hash matches. It might not. But at least 2f+1 correct replicas do have it matching.
+        if(query_group_meta.read_set_hash() == local_query_md->queryResultReply->result().query_result_hash()){
+            proto::ReadSet *read_set = local_query_md->queryResultReply->mutable_result()->release_query_read_set();
             query_group_meta.set_allocated_query_read_set(read_set);
-          }
-       }
-    
-       //erase current retry version from missing (Note: all previous ones must have been deleted via ClearMetaData)
-       queryMissingTxns.erase(QueryRetryId(query_md.query_id(), q->second->retry_version, (params.query_params.signClientQueries && params.query_params.cacheReadSet && params.hashDigest)));
-    
-       if(q->second != nullptr) delete q->second;
-       //q->second = nullptr;
-       queryMetaData.erase(q); 
-     }
-     //Don't erase Md entry --> Keeping it disallows future queries. ==> Improve by adding the client TS map forcing monotonic queries. (Map size O(clients) instead of O(queries))
-     //queryMetaData.erase(query_md.query_id())
-     q.release();
+        }
+         //Try to clear RTS in case it was moved:  //TODO: For commit: Could optimize RTS GC to remove all RTS >= committed TS (see CommitToStore) 
+        ClearRTS(query_group_meta.query_read_set().read_set(), local_query_md->ts);
+    }
+    else if(params.query_params.cacheReadSet){ //Try to clear RTS in case it was cached 
+        ClearRTS(local_query_md->queryResultReply->result().query_read_set().read_set(), local_query_md->ts);
+    }   
+    else{  //Try to clear RTS in case tx had it all along: 
+        proto::QueryGroupMeta &query_group_meta = (*tx_query_md.mutable_group_meta())[groupIdx];
+        ClearRTS(query_group_meta.query_read_set().read_set(), local_query_md->ts);
+    }
+
+    //erase current retry version from missing (Note: all previous ones must have been deleted via ClearMetaData)
+    queryMissingTxns.erase(QueryRetryId(tx_query_md.query_id(), q->second->retry_version, (params.query_params.signClientQueries && params.query_params.cacheReadSet && params.hashDigest)));
+
+   
+
+    if(local_query_md != nullptr) delete local_query_md;
+    //local_query_md = nullptr;
+    queryMetaData.erase(q); 
+    }
+    //Don't erase Md entry --> Keeping it disallows future queries. ==> Improve by adding the client TS map forcing monotonic queries. (Map size O(clients) instead of O(queries))
+    //queryMetaData.erase(tx_query_md.query_id())
+    q.release();
 
     //Delete any possibly subscribed queries.
-    subscribedQuery.erase(query_md.query_id());
+    subscribedQuery.erase(tx_query_md.query_id());
   }
        
   //TODO: Fallback;:

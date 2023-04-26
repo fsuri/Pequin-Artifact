@@ -1047,6 +1047,49 @@ void Server::SetRTS(Timestamp &ts, const std::string &key){
     }
 }
 
+void Server::ClearRTS(const google::protobuf::RepeatedPtrField<std::string> &read_set, const TimestampMessage &ts){
+
+  if(params.rtsMode == 1){
+    //Do nothing -- If we removed latest RTS then smaller ones that should be subsumed become inactive too.
+  }
+  else if(params.rtsMode == 2){
+    for (const auto &read : read_set) {
+      std::pair<std::shared_mutex, std::set<Timestamp>> &rts_set = rts_list[read];
+      {
+        std::unique_lock lock(rts_set.first);
+        rts_set.second.erase(ts);
+      }
+    }
+  }
+  else{
+    //No RTS
+  }
+}
+
+void Server::ClearRTS(const google::protobuf::RepeatedPtrField<ReadMessage> &read_set, const Timestamp &ts){
+
+  if(params.rtsMode == 1){
+    //Do nothing -- If we removed latest RTS then smaller ones that should be subsumed become inactive too.
+  }
+  else if(params.rtsMode == 2){
+    for (const auto &read : read_set) {
+      std::pair<std::shared_mutex, std::set<Timestamp>> &rts_set = rts_list[read.key()];
+      {
+        std::unique_lock lock(rts_set.first);
+        rts_set.second.erase(ts);
+      }
+    }
+  }
+  else{
+    //No RTS
+  }
+}
+
+//TODO: Clear ReadSet as part of Abort() and Commit()
+// void Server::ClearQueryRTS(proto::Transaction *txn){
+
+// }
+
 //////////////////////////////////////////////////////////////// MESSAGE SIGNING/VERIFICATION HELPER FUNCTIONS
 
 void Server::SignSendReadReply(proto::Write *write, proto::SignedMessage *signed_write, const std::function<void()> &sendCB){

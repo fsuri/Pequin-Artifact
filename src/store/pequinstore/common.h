@@ -417,7 +417,7 @@ inline static bool compareReadSets (google::protobuf::RepeatedPtrField<ReadMessa
 
 
 struct QueryReadSetMgr {
-        QueryReadSetMgr(proto::ReadSet *read_set, const uint64_t &groupIdx): read_set(read_set), groupIdx(groupIdx) {}
+        QueryReadSetMgr(proto::ReadSet *read_set, const uint64_t &groupIdx): read_set(read_set), groupIdx(groupIdx){}
         ~QueryReadSetMgr(){}
 
         void AddToReadSet(const std::string &key, const TimestampMessage &readtime){

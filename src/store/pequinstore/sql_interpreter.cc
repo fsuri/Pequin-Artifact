@@ -44,9 +44,19 @@ namespace pequinstore {
 using namespace std;
 
 
+//Note on Value quoting:
+    //We expect the following input syntax:
+        // Insert: Only strings are single quoted (i.e. TEXT or VARCHAR)
+        // Update SET: Only strings are single quoted ''  -- put differently, you can write "col1 = col1 + 5", or "col1 = 5" without quotes around 5.
+        // WHERE: Only strings single quoted. E.g write WHERE col1 = 5 or col = true or col = 'monkey'.
+    //The client side Transformer functions remove all quotes and produce a) a quote free primary key encoding, and b) a quote free TableWrite set
+    //The serverside Generator function adds quotes to all values indiscriminately
+    //Note: The Peloton result set (and consequently the QueryResult set) contains no quotes.
+
 //Table Write byte encoding:
     //"Stringify" all values
     // Peloton Engine is able to convert to appropriate Table type using Schema information.
+    // Currently we just turn Values into a joint Insert statement
 
     //Alternatively:
         // Could encode the column values as generic bytes using the cereal library

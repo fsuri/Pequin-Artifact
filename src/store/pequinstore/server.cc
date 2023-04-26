@@ -604,71 +604,16 @@ void Server::HandleRead(const TransportAddress &remote,
     }
   }
 
-
-  if (params.validateProofs && params.signedMessages &&
-      (readReply->write().has_committed_value() || (params.verifyDeps && readReply->write().has_prepared_value()))) { //remove params.verifyDeps requirement to sign prepared. Not sure if it causes a bug so I kept it for now -- realistically never triggered
-    Debug("Sign Read Reply for READ[%lu:%lu]", msg.timestamp().id(), msg.req_id());
-//If readReplyBatch is false then respond immediately, otherwise respect batching policy
-    if (params.readReplyBatch) {
-      proto::Write* write = new proto::Write(readReply->write());
-      // move: sendCB = std::move(sendCB) or {std::move(sendCB)}
-      MessageToSign(write, readReply->mutable_signed_write(), [sendCB, write]() {
-        sendCB();
-        delete write;
-      });
-
-    } else if (params.signatureBatchSize == 1) {
-
-      if(params.multiThreading){
-        proto::Write* write = new proto::Write(readReply->write());
-        auto f = [this, readReply, sendCB = std::move(sendCB), write]()
-        {
-          SignMessage(write, keyManager->GetPrivateKey(id), id, readReply->mutable_signed_write());
-          sendCB();
-          delete write;
-          return (void*) true;
-        };
-        transport->DispatchTP_noCB(std::move(f));
-      }
-      else{
-        proto::Write write(readReply->write());
-        SignMessage(&write, keyManager->GetPrivateKey(id), id,
-            readReply->mutable_signed_write());
-        sendCB();
-      }
-
-    } else {
-
-      if(params.multiThreading){ //TODO: If read is already on a worker thread, then it does not make sense to defer signing again...
-
-        std::vector<::google::protobuf::Message *> msgs;
-        proto::Write* write = new proto::Write(readReply->write()); //TODO might want to add re-use buffer
-        msgs.push_back(write);
-        std::vector<proto::SignedMessage *> smsgs;
-        smsgs.push_back(readReply->mutable_signed_write());
-
-        auto f = [this, msgs, smsgs, sendCB = std::move(sendCB), write]()
-        {
-          SignMessages(msgs, keyManager->GetPrivateKey(id), id, smsgs, params.merkleBranchFactor);
-          sendCB();
-          delete write;
-          return (void*) true;
-        };
-        transport->DispatchTP_noCB(std::move(f));
-      }
-      else{
-        proto::Write write(readReply->write());
-        std::vector<::google::protobuf::Message *> msgs;
-        msgs.push_back(&write);
-        std::vector<proto::SignedMessage *> smsgs;
-        smsgs.push_back(readReply->mutable_signed_write());
-        SignMessages(msgs, keyManager->GetPrivateKey(id), id, smsgs, params.merkleBranchFactor);
-        sendCB();
-      }
-    }
-  } else {
-    sendCB();
+  //Sign and Send Reply
+  if (params.validateProofs && params.signedMessages && (readReply->write().has_committed_value() || (params.verifyDeps && readReply->write().has_prepared_value()))) {
+    //remove params.verifyDeps requirement to sign prepared. Not sure if it causes a bug so I kept it for now -- realistically never triggered
+        proto::Write *write = readReply->release_write();
+        SignSendReadReply(write, readReply->mutable_signed_write(), sendCB);
   }
+  else{
+      sendCB();
+  }
+
   if(params.mainThreadDispatching && (!params.dispatchMessageReceive || params.parallel_reads)) FreeReadmessage(&msg);
 }
 
@@ -1530,21 +1475,8 @@ void Server::HandleAbort(const TransportAddress &remote,
   //   rts[read].erase(abort->ts());
   // }
   //  if(params.mainThreadDispatching) rtsMutex.unlock();
-  if(params.rtsMode == 1){
-    //Do nothing -- If we removed latest RTS then smaller ones that should be subsumed become inactive too.
-  }
-  else if(params.rtsMode == 2){
-    for (const auto &read : abort->read_set()) {
-    std::pair<std::shared_mutex, std::set<Timestamp>> &rts_set = rts_list[read];
-      {
-        std::unique_lock lock(rts_set.first);
-        rts_set.second.erase(abort->ts());
-      }
-  }
-  }
-  else{
-    //No RTS
-  }
+  ClearRTS(abort->read_set(), abort->ts());
+  
 
   //Garbage collect Queries.
   for (const auto &query_id: abort->query_ids()){
@@ -1553,7 +1485,10 @@ void Server::HandleAbort(const TransportAddress &remote,
       //erase current retry version from missing (Note: all previous ones must have been deleted via ClearMetaData)
       queryMissingTxns.erase(QueryRetryId(query_id, q->second->retry_version, (params.query_params.signClientQueries && params.query_params.cacheReadSet && params.hashDigest)));
       
-      if(q->second != nullptr) delete q->second;
+      QueryMetaData *query_md = q->second;
+      ClearRTS(query_md->queryResultReply->result().query_read_set().read_set(), query_md->ts);
+
+      if(query_md != nullptr) delete query_md;
       //erase query_md
       queryMetaData.erase(q); 
     }
@@ -1811,6 +1746,8 @@ void Server::Abort(const std::string &txnDigest, proto::Transaction *txn) {
   Clean(txnDigest, true);
   CheckDependents(txnDigest);
   CleanDependencies(txnDigest);
+
+  ClearRTS(txn->read_set(), txn->timestamp());
 
   CleanQueries(txn, false);
   CheckWaitingQueries(txnDigest, txn->timestamp(), true); //is_abort  //NOTE: WARNING: If Clean(abort) deletes txn then must callCheckWaitingQueries before Clean.

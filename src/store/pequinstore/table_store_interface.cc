@@ -33,7 +33,7 @@ void TableStore::ExecRaw(const std::string &sql_statement){
 }
 
 //Execute a read query statement on the Table backend and return a query_result/proto (in serialized form) as well as a read set (managed by readSetMgr)
-std::string TableStore::ExecReadQuery(const std::string &query_statement, const Timestamp &ts, QueryReadSetMgr &readSetMgr){
+std::string TableStore::ExecReadQuery(const std::string &query_statement, const Timestamp &ts, QueryReadSetMgr &readSetMgr, bool read_prepared){
 
     //TODO: Execute on Peloton --> returns peloton result
 
