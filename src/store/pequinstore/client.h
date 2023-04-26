@@ -119,7 +119,7 @@ class Client : public ::Client {
   //Query protocol structures and functions
 
   struct PendingQuery {
-    PendingQuery(Client *client, uint64_t query_seq_num, const std::string &query_cmd) : version(0UL), group_replies(0UL){
+    PendingQuery(Client *client, uint64_t query_seq_num, const std::string &query_cmd, const query_callback &qcb) : version(0UL), group_replies(0UL), qcb(qcb){
       queryMsg.Clear();
       queryMsg.set_client_id(client->client_id);
       queryMsg.set_query_seq_num(query_seq_num);
@@ -155,6 +155,7 @@ class Client : public ::Client {
       // }
     }
 
+    query_callback qcb;
 
     uint64_t version;
     std::string queryId;
@@ -168,12 +169,17 @@ class Client : public ::Client {
     std::string result;
     uint64_t group_replies;
    
+    bool is_point;
+    std::string table_name;
+    std::map<std::string, std::string> p_col_value; //if point read: this contains primary_key_col_vaues ==> Together with table_name can be used to compute encoding.
   };
 
   SQLTransformer sql_interpreter;
 
   void TestReadSet(PendingQuery *pendingQuery);
-  void QueryResultCallback(query_callback &qcb, PendingQuery *pendingQuery, bool is_point,      //bound parameters
+  void PointQueryResultCallback(PendingQuery *pendingQuery,  
+                            int status, const std::string &key, const std::string &result, const Timestamp &read_time, const proto::Dependency &dep, bool hasDep, bool addReadSet); 
+  void QueryResultCallback(PendingQuery *pendingQuery,      //bound parameters
                             int status, int group, proto::ReadSet *query_read_set, std::string &result_hash, std::string &result, bool success);  //free parameters
   void ClearQuery(PendingQuery *pendingQuery);
   void RetryQuery(PendingQuery *pendingQuery);

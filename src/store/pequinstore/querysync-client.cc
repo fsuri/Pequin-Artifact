@@ -40,7 +40,7 @@ namespace pequinstore {
 //-> Every shard (not just query_manager shard) should be able to send this if it observes a committed query was missed; or if the materialized snapshot frontier includes a prepare that aborted (or is guaranteed to, e.g. vote Abort)
 
 void ShardClient::Query(uint64_t client_seq_num, uint64_t query_seq_num, proto::Query &queryMsg, // const std::string &query, const TimestampMessage &ts,
-      result_callback &rcb, result_timeout_callback &rtcb, uint32_t timeout) {
+      uint32_t timeout, result_timeout_callback &rtcb, result_callback &rcb, point_result_callback &prcb, bool is_point) {
 
  Debug("Invoked QueryRequest [%lu] on ShardClient for group %d", query_seq_num, group);
   
@@ -67,9 +67,10 @@ void ShardClient::Query(uint64_t client_seq_num, uint64_t query_seq_num, proto::
   //pendingQuery->retry = retry;
 
   pendingQuery->query_manager = (queryMsg.query_manager() == group);
-  pendingQuery->rcb = rcb;
   pendingQuery->rtcb = rtcb;
-  
+  pendingQuery->rcb = rcb;
+  pendingQuery->prcb = prcb;
+  pendingQuery->is_point = is_point;
  
   RequestQuery(pendingQuery, queryMsg);
 
@@ -92,7 +93,7 @@ void ShardClient::ClearQuery(uint64_t query_seq_num){
 
 
 //Note: Use new req-id for new query sync version
-void ShardClient::RetryQuery(uint64_t query_seq_num, proto::Query &queryMsg){
+void ShardClient::RetryQuery(uint64_t query_seq_num, proto::Query &queryMsg, bool is_point, point_result_callback prcb){
 
      //Support for QueryRetry:
        // Re-do sync and exec on same query id. (Update req id)
@@ -138,6 +139,9 @@ void ShardClient::RetryQuery(uint64_t query_seq_num, proto::Query &queryMsg){
     
     //Reset all datastructures -- 
      // Alternatively, create new object and copy relevant contents. //PendingQuery *newPendingQuery = new PendingQuery(reqId);
+    
+    pendingQuery->is_point = is_point; //For point queries set the correct callback
+    pendingQuery->prcb = std::move(prcb);
 
     pendingQuery->snapshotsVerified.clear();
     // These 3 are handled by InitMergedSnapshot.
@@ -177,7 +181,11 @@ void ShardClient::RequestQuery(PendingQuery *pendingQuery, proto::Query &queryMs
   queryReq.set_req_id(pendingQuery->reqId);
   queryReq.set_optimistic_txid(params.query_params.optimisticTxID && !pendingQuery->retry_version);//On retry use unique/deterministic tx id only.
   //queryReq.set_retry_version(pendingQuery->retry_version);
-  queryReq.set_eager_exec(params.query_params.eagerExec && !pendingQuery->retry_version); //On retry use sync.
+  
+  queryReq.set_is_point(pendingQuery->is_point);
+  queryReq.set_eager_exec(!pendingQuery->retry_version && (pendingQuery->is_point? params.query_params.eagerPointExec : params.query_params.eagerExec));
+  //queryReq.set_eager_exec(params.query_params.eagerExec && !pendingQuery->retry_version); //On retry use sync.
+
 
   // This is proof that client does not equivocate query contents --> Otherwise could intentionally produce different read sets at replicas, which -- if caching read set -- can be used to abort partially.
   //NOTE: Hash should suffice to achieve non-equiv --> 2 different queries have different hash.
@@ -610,6 +618,10 @@ void ShardClient::HandlePointQueryResult(proto::PointQueryResultReply &queryResu
         //1)  Check signature
         //2) Check correctness of committed proof
         //3) Check for matching prepare
+
+    // ==> Call exact same code as in Get function (just re-cycle it?) but with different proof.
+    //TODO: For proof: store in write set the index --> use it to look up.
+    // Store table_name in pending or get it from key.
 
     //Add winner read to ReadSet
     //Upcall Query callback (use a different one for point read) ==> simply stores to read set and upcalls to app with result.

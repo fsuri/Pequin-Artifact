@@ -137,6 +137,10 @@ void ShardClient::ReceiveMessage(const TransportAddress &remote,
     failQuery.ParseFromString(data);
     HandleFailQuery(failQuery);
   }
+  else if(type == pointResult.GetTypeName()){
+    pointResult.ParseFromString(data);
+    HandlePointQueryResult(pointResult);
+  }
   else {
     Panic("Received unexpected message type: %s", type.c_str());
   }

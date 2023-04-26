@@ -1544,7 +1544,7 @@ std::string Server::ExecQuery(QueryReadSetMgr &queryReadSetMgr, QueryMetaData *q
 
     std::string serialized_result;
     if(!materialize) serialized_result = table_store.ExecReadQuery(query_md->query_cmd, query_md->ts, queryReadSetMgr, read_prepared);
-    if(materialize) Panic("Do not yet support Snapshot materialization");
+    if(materialize) Warning("Do not yet support Snapshot materialization");
 
     if(occType == MVTSO && params.rtsMode > 0){
         Debug("Set up all RTS for Query[%lu:%lu]", query_md->query_seq_num, query_md->client_id);

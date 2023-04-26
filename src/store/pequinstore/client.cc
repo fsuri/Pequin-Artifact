@@ -359,7 +359,7 @@ void Client::Query(const std::string &query, query_callback qcb,
     //TODO: Determine involved groups
     //Requires parsing the Query statement to extract tables touched? Might touch multiple shards...
     //Assume for now only touching one group. (single sharded system)
-    PendingQuery *pendingQuery = new PendingQuery(this, query_seq_num, query);
+    PendingQuery *pendingQuery = new PendingQuery(this, query_seq_num, query, qcb);
 
     std::vector<uint64_t> involved_groups = {0};//{0UL, 1UL};
     pendingQuery->SetInvolvedGroups(involved_groups);
@@ -392,12 +392,27 @@ void Client::Query(const std::string &query, query_callback qcb,
     }
   
     //TODO: Check col conditions. --> Switch between QueryResultCallback and PointQueryResultCallback
-    bool is_point = false; //TODO: In callback: If point and query fails (it was using eager exec) -> Retry should issue Point without eager exec.
-    //TODO: Add eager exec as param here. (Move it from shardclient)
+    pendingQuery->is_point = sql_interpreter.InterpretQueryRange(query, pendingQuery->table_name, pendingQuery->p_col_value); //TODO: In callback: If point and query fails (it was using eager exec) -> Retry should issue Point without eager exec.
+
+    //Could send table_name always? Then we know how to lookup table_version (NOTE: Won't work for joins etc though..)
+
        
-    result_callback rcb = std::bind(&Client::QueryResultCallback, this, qcb, pendingQuery, is_point,
+    result_callback rcb = nullptr;
+    point_result_callback prcb = nullptr;
+    
+    //For Retry: Override callback to be this one.
+    if(pendingQuery->is_point && !params.query_params.eagerPointExec){ //TODO: Create separate param for point eagerExec
+      prcb = std::bind(&Client::PointQueryResultCallback, this, pendingQuery,
+                     std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, 
+                     std::placeholders::_4, std::placeholders::_5, std::placeholders::_6, std::placeholders::_7);
+    }
+    else{
+      rcb = std::bind(&Client::QueryResultCallback, this, pendingQuery,
                      std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, 
                      std::placeholders::_4, std::placeholders::_5, std::placeholders::_6);
+    }
+
+
     //result_callback rcb = qcb;
     //NOTE: result_hash = read_set hash. ==> currently not hashing queryId, version or result contents into it. Appears unecessary.
     //result_callback rcb = [qcb, pendingQuery, this](int status, int group, std::map<std::string, TimestampMessage> &read_set, std::string &result_hash, std::string &result, bool success) mutable { 
@@ -405,10 +420,10 @@ void Client::Query(const std::string &query, query_callback qcb,
     result_timeout_callback rtcb = qtcb;
 
     // Send the Query operation to involved shards & select transaction manager (shard responsible for result reply) 
-     for(auto &i: pendingQuery->involved_groups){
-        Debug("[group %i] starting Query [%lu:%lu]", i, client_seq_num, query_seq_num);
-        bclient[i]->Query(client_seq_num, query_seq_num, pendingQuery->queryMsg, rcb, rtcb, timeout);
-     }
+    for(auto &i: pendingQuery->involved_groups){
+      Debug("[group %i] starting Query [%lu:%lu]", i, client_seq_num, query_seq_num);
+      bclient[i]->Query(client_seq_num, query_seq_num, pendingQuery->queryMsg, timeout, rtcb, rcb, prcb, pendingQuery->is_point);
+    }
     // Shard Client upcalls only if it is the leader for the query, and if it gets matching result hashes  ..........const std::string &resultHash
        //store QueryID + result hash in transaction.
 
@@ -417,7 +432,33 @@ void Client::Query(const std::string &query, query_callback qcb,
   });
 }
 
-void Client::QueryResultCallback(query_callback &qcb, PendingQuery *pendingQuery, bool is_point,  
+
+void Client::PointQueryResultCallback(PendingQuery *pendingQuery,  
+                                  int status, const std::string &key, const std::string &result, const Timestamp &read_time, const proto::Dependency &dep, bool hasDep, bool addReadSet) 
+{ 
+  //TODO: Could already bind key...
+  
+  if (addReadSet) {
+    Debug("Adding read to read set");
+    ReadMessage *read = txn.add_read_set();
+    read->set_key(key);
+    read_time.serialize(read->mutable_readtime());
+  }
+  if (hasDep) {
+    *txn.add_deps() = dep;
+  }
+      
+  Debug("Upcall with Point Query result");
+  sql::QueryResultProtoWrapper *q_result = new sql::QueryResultProtoWrapper(result);
+  pendingQuery->qcb(REPLY_OK, q_result); //callback to application 
+  //clean pendingQuery and query_seq_num_mapping in all shards.
+  ClearQuery(pendingQuery);      
+
+  return;               
+
+}
+
+void Client::QueryResultCallback(PendingQuery *pendingQuery,  
                                   int status, int group, proto::ReadSet *query_read_set, std::string &result_hash, std::string &result, bool success) 
 { 
       //FIXME: If success: add readset/result hash to datastructure. If group==query manager, record result. If all shards received ==> upcall. 
@@ -507,9 +548,9 @@ void Client::QueryResultCallback(query_callback &qcb, PendingQuery *pendingQuery
     pendingQuery->group_read_sets.clear(); //Note: Clearing here early to avoid double deletions on read sets whose allocated memory was moved.
   }
 
-  Debug("Upcall with result");
+  Debug("Upcall with Query result");
   sql::QueryResultProtoWrapper *q_result = new sql::QueryResultProtoWrapper(pendingQuery->result);
-  qcb(REPLY_OK, q_result); //callback to application 
+  pendingQuery->qcb(REPLY_OK, q_result); //callback to application 
   //clean pendingQuery and query_seq_num_mapping in all shards.
   ClearQuery(pendingQuery);      
 
@@ -556,19 +597,31 @@ void Client::TestReadSet(PendingQuery *pendingQuery){
 
 void Client::ClearQuery(PendingQuery *pendingQuery){
   for(auto &g: pendingQuery->involved_groups){
-  bclient[g]->ClearQuery(pendingQuery->queryMsg.query_seq_num()); //-->Remove mapping + pendingRequest.
+    bclient[g]->ClearQuery(pendingQuery->queryMsg.query_seq_num()); //-->Remove mapping + pendingRequest.
   }
 
   delete pendingQuery;
 }
+
 void Client::RetryQuery(PendingQuery *pendingQuery){
   pendingQuery->version++;
   pendingQuery->group_replies = 0;
   pendingQuery->queryMsg.set_retry_version(pendingQuery->version);
   pendingQuery->ClearReplySets();
+
   for(auto &g: pendingQuery->involved_groups){
-    bclient[g]->RetryQuery(pendingQuery->queryMsg.query_seq_num(), pendingQuery->queryMsg); //--> Retry Query, shard clients already have the rcb.
+    if(pendingQuery->is_point){
+      stats.Increment("eager_point_fail", 1);
+      bclient[g]->RetryQuery(pendingQuery->queryMsg.query_seq_num(), pendingQuery->queryMsg, true, std::bind(&Client::PointQueryResultCallback, this, pendingQuery,
+                     std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, 
+                     std::placeholders::_4, std::placeholders::_5, std::placeholders::_6, std::placeholders::_7));
+    } 
+    else{
+      bclient[g]->RetryQuery(pendingQuery->queryMsg.query_seq_num(), pendingQuery->queryMsg); //--> Retry Query, shard clients already have the rcb.
+    }
   }
+
+  //If point query && retry --> Issue PointQueryCallback (pass as extra argument/alternate function)
 }
 
 // void Client::ClearQuery(uint64_t query_seq_num, std::vector<uint64_t> &involved_groups){

@@ -119,7 +119,7 @@ void SQLTransformer::RegisterTables(std::string &table_registry){ //TODO: This t
 }
 
 
-bool SQLTransformer::InterpretQueryRange(std::string &_query, std::string &table_name, std::map<std::string, std::string> &p_col_value){
+bool SQLTransformer::InterpretQueryRange(const std::string &_query, std::string &table_name, std::map<std::string, std::string> &p_col_value){
     //Using Syntax from: https://www.postgresqltutorial.com/postgresql-tutorial/postgresql-select/
 
     std::string_view query_statement(_query);

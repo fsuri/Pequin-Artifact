@@ -153,7 +153,7 @@ class SQLTransformer {
         void TransformWriteStatement(std::string &_write_statement, //std::vector<std::vector<uint32_t>> primary_key_encoding_support,
              std::string &read_statement, std::function<void(int, query_result::QueryResult*)>  &write_continuation, write_callback &wcb, bool skip_query_interpretation = false);
 
-        bool InterpretQueryRange(std::string &_query, std::string &table_name, std::map<std::string, std::string> &p_col_value);
+        bool InterpretQueryRange(const std::string &_query, std::string &table_name, std::map<std::string, std::string> &p_col_value);
 
         bool GenerateTableWriteStatement(std::string &write_statement, std::string &delete_statement, const std::string &table_name, const TableWrite &table_write);
         bool GenerateTablePurgeStatement(std::string &purge_statement, const std::string &table_name, const TableWrite &table_write);
