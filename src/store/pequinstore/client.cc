@@ -76,7 +76,8 @@ Client::Client(transport::Configuration *config, uint64_t id, int nShards,
   for (uint64_t i = 0; i < ngroups; i++) {
     bclient.push_back(new ShardClient(config, transport, client_id, i,
         closestReplicas, pingReplicas, params,
-        keyManager, verifier, timeServer, phase1DecisionTimeout, consecutiveMax));
+        keyManager, verifier, &sql_interpreter,
+        timeServer, phase1DecisionTimeout, consecutiveMax));
   }
 
   Debug("Indicus client [%lu] created! %lu %lu", client_id, nshards,

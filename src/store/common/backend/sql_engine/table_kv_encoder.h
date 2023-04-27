@@ -29,6 +29,8 @@
 #include <vector>
 #include <string>
 
+static std::string unique_delimiter = "#";
+
 //For managing CC-store WriteSet
 std::string EncodeTableRow(const std::string &table_name, const std::vector<std::string> &primary_key_column_values);
 std::string EncodeTableRow(const std::string &table_name, const std::vector<const std::string*> &primary_key_column_values);

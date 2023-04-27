@@ -4,7 +4,6 @@
 #include "lib/assert.h"
 
 
-static std::string unique_delimiter = "###";
 //TODO: input: convert row_name type into byte array. E.g. Int: static_cast<char*>(static_cast<void*>(&x)); String: str.c_str();
 std::string EncodeTableRow(const std::string &table_name, const std::vector<std::string> &primary_key_column_values){  //std::string &row_name
   

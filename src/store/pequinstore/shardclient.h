@@ -50,6 +50,10 @@
 #include "store/common/pinginitiator.h"
 #include "store/pequinstore/common.h"
 
+#include "store/pequinstore/sql_interpreter.h"
+#include "store/common/query_result/query_result_proto_wrapper.h"
+#include "store/common/query_result/query_result_proto_builder.h"
+
 #include <map>
 #include <string>
 #include <vector>
@@ -69,7 +73,7 @@ typedef std::function<void(int, const std::string &)> read_timeout_callback;
 ////////// Queries
 //typedef std::function<void(int, int, std::map<std::string, TimestampMessage> &, std::string &, std::string &, bool)> result_callback; //status, group, read_set, result_hash, result, success
 typedef std::function<void(int, int, proto::ReadSet*, std::string &, std::string &, bool)> result_callback; //status, group, read_set, result_hash, result, success
-typedef std::function<void(int, const std::string &, const std::string &, const Timestamp &, const proto::Dependency &, bool, bool)> point_result_callback;
+typedef std::function<void(int, const std::string &, const std::string &, const Timestamp &, const proto::Dependency &, bool, bool)> point_result_callback;  //TODO: This == Get callback.
 
 typedef std::function<void(int)> result_timeout_callback;
 
@@ -111,7 +115,7 @@ class ShardClient : public TransportReceiver, public PingInitiator, public PingT
   ShardClient(transport::Configuration *config, Transport *transport,
       uint64_t client_id, int group, const std::vector<int> &closestReplicas,
       bool pingReplicas,
-      Parameters params, KeyManager *keyManager, Verifier *verifier,
+      Parameters params, KeyManager *keyManager, Verifier *verifier, SQLTransformer *sql_interpreter,
       TrueTime &timeServer, uint64_t phase1DecisionTimeout,
       uint64_t consecutiveMax = 1UL);
   virtual ~ShardClient();
@@ -241,7 +245,7 @@ virtual void Phase2Equivocate_Simulate(uint64_t id, const proto::Transaction &tx
 //TODO: Define management object fully
   struct PendingQuery {
     PendingQuery(uint64_t reqId, const QueryParameters *query_params) : reqId(reqId),
-        numResults(0UL), numFails(0UL), query_manager(false), success(false), retry_version(0UL), snapshot_mgr(query_params) //,  numSnapshotReplies(0UL),
+        numResults(0UL), numFails(0UL), query_manager(false), success(false), retry_version(0UL), snapshot_mgr(query_params), pendingPointQuery(reqId) //,  numSnapshotReplies(0UL),
         { 
           result_freq.clear();
         }
@@ -284,6 +288,7 @@ virtual void Phase2Equivocate_Simulate(uint64_t id, const proto::Transaction &tx
     //point query meta 
     bool is_point;
     point_result_callback prcb;
+    PendingQuorumGet pendingPointQuery;
   };
 
 
@@ -512,7 +517,16 @@ virtual void Phase2Equivocate_Simulate(uint64_t id, const proto::Transaction &tx
   void HandleQueryResult(proto::QueryResultReply &queryResult);
   void HandleFailQuery(proto::FailQuery &msg);
   void HandlePointQueryResult(proto::PointQueryResultReply &queryResult);
+  enum read_t {
+    GET,
+    POINT
+};
+bool ProcessRead(const uint64_t &reqId, PendingQuorumGet *req, read_t read_type, const proto::Write *write, bool has_proof, const proto::CommittedProof *proof, proto::PointQueryResultReply &reply);
+bool ValidateTransactionTableWrite(const proto::CommittedProof &proof, std::string &txnDigest, TimestampMessage &timestamp, std::string &key, std::string &value, query_result::QueryResult *query_result);
+SQLTransformer *sql_interpreter;
 
+
+///////////////
 
   inline size_t GetNthClosestReplica(size_t idx) const {
     if (pingReplicas && GetOrderedReplicas().size() > 0) {
@@ -595,7 +609,7 @@ virtual void Phase2Equivocate_Simulate(uint64_t id, const proto::Transaction &tx
   proto::QueryResult validated_result;
   proto::FailQuery failQuery;
   proto::FailQueryMsg validated_fail;
-  
+
   proto::PointQueryResultReply pointResult;
 
   proto::SyncClientProposal syncMsg;

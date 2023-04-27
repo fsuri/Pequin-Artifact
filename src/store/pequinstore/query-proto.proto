@@ -44,16 +44,16 @@ message QueryRequest {
 // }
 
 message PointQueryResultReply {
-  required uint64 query_seq_num = 1;
-  required uint64 client_id = 2;
-  required uint64 replica_id = 3;
- 
+  required uint64 req_id = 1;
+  required uint64 replica_id = 2;
+
+  optional bytes key = 3; //Don't really need to send, the client can buffer it after all. (Note: but only if CheckColCond is strict)
   oneof prepared_oneof {
     Write write = 4;
     SignedMessage signed_write = 5;
   }
   optional CommittedProof proof = 6;
-  optional bytes key = 7; //Don't really need to send, the client can buffer it after all.bool
+ 
   //Proof: (Only for committed write) Client checks key in proof WriteSet --> finds idx --> finds RowUpdate --> compares it with write.committed_value)
   // For prepared writes: waiting for f+1 so no proof needed.
 

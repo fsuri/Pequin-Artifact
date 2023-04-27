@@ -514,7 +514,8 @@ int main() {
   // r[s] = 1;
   //Can look up string_view with string, but not in reverse --> string is superset of string view
 
-  // proto::PointQueryResultReply test_proto;
+  // ::google::protobuf::Message test_proto_m = proto::PointQueryResultReply;
+  // proto::PointQueryResultReply test_proto = dynamic_cast<proto::PointQueryResultReply&>(test_proto_m);
   // test_proto.mutable_write()->set_prepared_txn_digest("hello");
   // proto::SignedMessage *sm = test_proto.mutable_signed_write();
 
