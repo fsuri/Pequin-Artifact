@@ -36,19 +36,17 @@ namespace taopq_wrapper {
 
 class TaoPQQueryResultWrapper : public query_result::QueryResult {
   private:
-    tao::pq::result* result;
+    std::unique_ptr<tao::pq::result> result;
 
 	public:
-    TaoPQQueryResultWrapper(tao::pq::result* taopq_result) 
-      : result(taopq_result) {}
+    TaoPQQueryResultWrapper(std::unique_ptr<tao::pq::result> taopq_result) 
+      : result(std::move(taopq_result)) {}
 
     // Delete copy constructor and assignment operator to enforce ownership of taopq_result
     TaoPQQueryResultWrapper(const TaoPQQueryResultWrapper&) = delete;
     TaoPQQueryResultWrapper& operator=(const TaoPQQueryResultWrapper&) = delete;
 
-    ~TaoPQQueryResultWrapper() {
-      delete result;
-    }
+    ~TaoPQQueryResultWrapper() {}
 
 		auto name( const std::size_t column ) const -> std::string;
 
