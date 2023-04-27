@@ -307,19 +307,15 @@ void Server::ProcessPointQuery(proto::Query *query, const TransportAddress &remo
     const proto::CommittedProof *committedProof;
     std::string enc_primary_key;  //TODO: Replace with query->primary_enc_key()
 
-    bool read_prepared = false;
    
     //If MVTSO: Read prepared, Set RTS
     if (occType == MVTSO) {
-
-        if (params.maxDepDepth > -2) read_prepared = true;
-    
         //Sets RTS timestamp. Favors readers commit chances.
         Debug("Set up RTS for PointQuery[%lu:%lu]", query->query_seq_num(), query->client_id());
         SetRTS(ts, query->primary_enc_key());
     }
 
-    table_store.ExecPointRead(query->query_cmd(), enc_primary_key, ts, write, committedProof, read_prepared);
+    table_store.ExecPointRead(query->query_cmd(), enc_primary_key, ts, write, committedProof);
     delete query;
 
     //2) Sign & Send Reply
@@ -1540,10 +1536,8 @@ std::string Server::ExecQuery(QueryReadSetMgr &queryReadSetMgr, QueryMetaData *q
 
 
        //If MVTSO: Read prepared, Set RTS
-    bool read_prepared = (occType == MVTSO) && (params.maxDepDepth > -2);
-
     std::string serialized_result;
-    if(!materialize) serialized_result = table_store.ExecReadQuery(query_md->query_cmd, query_md->ts, queryReadSetMgr, read_prepared);
+    if(!materialize) serialized_result = table_store.ExecReadQuery(query_md->query_cmd, query_md->ts, queryReadSetMgr);
     if(materialize) Warning("Do not yet support Snapshot materialization");
 
     if(occType == MVTSO && params.rtsMode > 0){

@@ -143,6 +143,13 @@ Server::Server(const transport::Configuration &config, int groupIdx, int idx,
 
   if(sql_bench){
       table_store.RegisterTableSchema(table_registry_path);
+
+      auto read_prepared_pred = [this](const std::string &txn_digest){  
+        if(this->occType != MVTSO || this->params.maxDepDepth > -2) return false; //Only read prepared if parameters allow
+        //Check for Depth. Only read prepared if dep depth < maxDepth
+        return (this->params.maxDepDepth == -1 || DependencyDepth(txn_digest) <= this->params.maxDepDepth); 
+      };
+      table_store.SetPreparePredicate(read_prepared_pred);
   }
 }
 

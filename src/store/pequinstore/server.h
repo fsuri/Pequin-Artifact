@@ -730,6 +730,7 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
   void LookupP2Decision(const std::string &txnDigest,
       int64_t &myProcessId, proto::CommitDecision &myDecision) const;
   void LookupCurrentView(const std::string &txnDigest, uint64_t &myCurrentView) const;
+  uint64_t DependencyDepth(const std::string &txn_digest) const;
   uint64_t DependencyDepth(const proto::Transaction *txn) const;
   void MessageToSign(::google::protobuf::Message* msg,
       proto::SignedMessage *signedMessage, signedCallback cb);

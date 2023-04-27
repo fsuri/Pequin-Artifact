@@ -1447,6 +1447,16 @@ void Server::CleanDependencies(const std::string &txnDigest) {
 
 }
 
+uint64_t Server::DependencyDepth(const std::string &txn_digest) const {
+    const proto::Transaction *txn;
+    ongoingMap::const_accessor o;
+    if(ongoing.find(o, txn_digest)){
+      txn = o->second.txn;
+    }
+    o.release();
+    return DependencyDepth(txn);
+}
+
 uint64_t Server::DependencyDepth(const proto::Transaction *txn) const {
   uint64_t maxDepth = 0;
   std::queue<std::pair<const proto::Transaction *, uint64_t>> q;

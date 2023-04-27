@@ -12,10 +12,14 @@
 
 namespace pequinstore {
 
+typedef std::function<bool(const std::string &)> read_prepared_pred; //This is a function that, given a txnDigest of a prepared tx, evals to true if it is readable, and false if not.
+
 class TableStore {
     public:
         TableStore();
         virtual ~TableStore();
+
+        void SetPreparePredicate(const read_prepared_pred &read_prepared_pred);
 
         void RegisterTableSchema(std::string &table_registry_path);
             std::vector<bool>* GetRegistryColQuotes(const std::string &table_name);
@@ -25,10 +29,10 @@ class TableStore {
         void ExecRaw(const std::string &sql_statement);
 
         //Execute a read query statement on the Table backend and return a query_result/proto (in serialized form) as well as a read set (managed by readSetMgr)
-        std::string ExecReadQuery(const std::string &query_statement, const Timestamp &ts, QueryReadSetMgr &readSetMgr, bool read_prepared = false);
+        std::string ExecReadQuery(const std::string &query_statement, const Timestamp &ts, QueryReadSetMgr &readSetMgr);
 
         //Execute a point read on the Table backend and return a query_result/proto (in serialized form) as well as a commitProof (note, the read set is implicit)
-        void ExecPointRead(const std::string &query_statement, std::string &enc_primary_key, const Timestamp &ts, proto::Write *write, const proto::CommittedProof *committedProof, bool read_prepared = false);  
+        void ExecPointRead(const std::string &query_statement, std::string &enc_primary_key, const Timestamp &ts, proto::Write *write, const proto::CommittedProof *committedProof);  
                 //Note: Could execute PointRead via ExecReadQuery (Eagerly) as well.
                 // ExecPointRead should translate enc_primary_key into a query_statement to be exec by ExecReadQuery. (Alternatively: Could already send a Sql command from the client)
 
@@ -49,6 +53,7 @@ class TableStore {
 
 
     private:
+        read_prepared_pred can_read_prepared;
         SQLTransformer sql_interpreter;
         //TODO: Peloton DB singleton "table_backend"
 };

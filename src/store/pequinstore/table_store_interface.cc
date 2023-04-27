@@ -6,6 +6,7 @@ namespace pequinstore {
 
 
 TableStore::TableStore(){
+    
     //init Peloton
 }
 
@@ -13,6 +14,9 @@ TableStore::~TableStore(){
 
 }
 
+void TableStore::SetPreparePredicate(const read_prepared_pred &read_prepared_pred){
+    can_read_prepared = std::move(read_prepared_pred);
+} 
 
 void TableStore::RegisterTableSchema(std::string &table_registry_path){
     sql_interpreter.RegisterTables(table_registry_path);
@@ -33,8 +37,9 @@ void TableStore::ExecRaw(const std::string &sql_statement){
 }
 
 //Execute a read query statement on the Table backend and return a query_result/proto (in serialized form) as well as a read set (managed by readSetMgr)
-std::string TableStore::ExecReadQuery(const std::string &query_statement, const Timestamp &ts, QueryReadSetMgr &readSetMgr, bool read_prepared){
+std::string TableStore::ExecReadQuery(const std::string &query_statement, const Timestamp &ts, QueryReadSetMgr &readSetMgr){
 
+            //args: query, Ts, readSetMgr, this->can_read_prepared 
     //TODO: Execute on Peloton --> returns peloton result
 
     //TODO: Change Peloton result into query proto.
@@ -46,7 +51,7 @@ std::string TableStore::ExecReadQuery(const std::string &query_statement, const 
 }
 
 //Execute a point read on the Table backend and return a query_result/proto (in serialized form) as well as a commitProof (note, the read set is implicit)
-void TableStore::ExecPointRead(const std::string &query_statement, std::string &enc_primary_key, const Timestamp &ts, proto::Write *write, const proto::CommittedProof *committedProof, bool read_prepared){
+void TableStore::ExecPointRead(const std::string &query_statement, std::string &enc_primary_key, const Timestamp &ts, proto::Write *write, const proto::CommittedProof *committedProof){
 
     // std::string table_name;
     // std::vector<std::string> primary_key_column_values;
@@ -62,7 +67,7 @@ void TableStore::ExecPointRead(const std::string &query_statement, std::string &
     //Don't read TableVersion (quetion: how do we read table version for normal query? --> let it return table name and then look up?)
     
 
-
+         //args: query, Ts, this->can_read_prepared ; commit: (result, timestamp, proof), prepared: (result, timestamp), key
     //TODO: Execute QueryStatement on Peloton. -> returns peloton result
             //TODO: Read latest committed (return committedProof) + Read latest prepared (if > committed)
 
