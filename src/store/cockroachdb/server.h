@@ -44,7 +44,7 @@ virtual void LoadTableData(const std::string &table_name, const std::string &tab
       const std::string &csv_file_name);
   void exec_sql(std::string sql);
 
-  Stats &GetStats();
+  virtual inline Stats &GetStats() override { return stats; }
 
  private:
   Stats stats;

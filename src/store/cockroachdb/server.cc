@@ -25,6 +25,7 @@ void Server::exec_sql(std::string sql) {
                              sql + "\"";
   cout << crdb_command << endl;
   int status = system(crdb_command.c_str());
+  stats.Increment("sql_commands_executed", 1);
 }
 
 Server::Server(const transport::Configuration &config, KeyManager *keyManager,
@@ -151,6 +152,7 @@ void Server::Load(const string &key, const string &value,
                     "DO UPDATE SET val_ = " +
                     "\'" + value + "\'");
   Server::exec_sql(sql_statement);
+  stats.Increment("num_keys_loaded", 1);
 }
 
 void Server::CreateTable(
@@ -190,6 +192,8 @@ void Server::LoadTableData(const std::string &table_name,
                          // columns don't appear to be enforced
 
   exec_sql(copy_table_statement_crdb);
+  std::cerr << "CALLED LOAD TABLE DATA" << std::endl;
+  stats.Increment("TablesLoaded", 1);
 }
 
 void Server::LoadTableRow(
@@ -240,7 +244,7 @@ void Server::LoadTable(
   Server::exec_sql(sql_statement);
 }
 
-Stats &Server::GetStats() { return stats; }
+//Stats &Server::GetStats() { return stats; }
 
 Server::~Server() { system("pkill -9 -f cockroach"); }
 

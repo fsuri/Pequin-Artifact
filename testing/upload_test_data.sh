@@ -19,15 +19,16 @@ done
 
 ## declare an array variable
 declare -a arr_servers=("us-east-1-0" "us-east-1-1" "us-east-1-2"
-						#"eu-west-1-0" "eu-west-1-1" "eu-west-1-2"
-						#"ap-northeast-1-0" "ap-northeast-1-1" "ap-northeast-1-2"
+						"eu-west-1-0" "eu-west-1-1" "eu-west-1-2"
+						"ap-northeast-1-0" "ap-northeast-1-1" "ap-northeast-1-2"
 			  		   )
 
 ## now loop through the above array
 for host in "${arr_servers[@]}"
 do
    echo "uploading binaries to $host"
-   #ssh fs435@$host.indicus.morty-pg0.utah.cloudlab.us "sudo rm -rf /mnt/extra/experiments/*"
+   ssh $CLOUDLAB_USER@$host.$EXPERIMENT_NAME.$PROJECT_NAME-pg0.utah.cloudlab.us "mkdir -p ~/indicus/bin"
+   
    rsync -v -r -e ssh test-tables-schema.json $CLOUDLAB_USER@$host.$EXPERIMENT_NAME.$PROJECT_NAME-pg0.utah.cloudlab.us:/users/fs435/indicus/bin/
    rsync -v -r -e ssh test-1k.csv $CLOUDLAB_USER@$host.$EXPERIMENT_NAME.$PROJECT_NAME-pg0.utah.cloudlab.us:/users/fs435/indicus/bin/
 done

@@ -269,6 +269,10 @@ def start_servers(config, local_exp_directory, remote_exp_directory, run):
             #cmd5 = 'export LD_PRELOAD=/usr/local/lib/libhoard.so;'
             cmd6 = 'source /usr/local/etc/set_env.sh;' # echo $LD_PRELOAD;' #; source .bashrc' #TODO: Or try sourcing .bashrc //Replace cmd4+cmd5..
             cmd = cmd6 + cmd
+
+            # delete_cmd = 'sudo pkill -9 -f cockroach;'
+            # cmd = delete_cmd + cmd
+
             server_threads.append(run_remote_command_async(cmd,
                 config['emulab_user'], server_host, detach=False))
         else:
@@ -362,7 +366,7 @@ def prepare_remote_exp_directories(config, local_exp_directory, executor):
         clean = 'sudo rm -rf /mnt/extra/experiments/*;' #Clean experiments folder.
         run_remote_command_async(clean, config['emulab_user'], server_host)
 
-        delete_cmd = 'sudo pkill -9 -f cockroach;'
+        delete_cmd = 'sudo pkill cockroach;'
         run_remote_command_async(delete_cmd, config['emulab_user'], server_host)
 
         futures.append(executor.submit(prepare_remote_server, config, server_host,

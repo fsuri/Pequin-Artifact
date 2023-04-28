@@ -903,6 +903,7 @@ int main(int argc, char **argv) {
           //Load full table data
           // std::string table_name = "datastore";
           // std::string path = "test";
+           std::cerr << "CALLING LOAD TABLE DATA" << std::endl;
           server->LoadTableData(table_name, table_args["row_data_path"], primary_key_col_idx);
           // //Load Rows individually 
           // for(auto &row: table_args["rows"]){

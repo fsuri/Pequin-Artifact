@@ -188,6 +188,7 @@ void Client::Query(const std::string &query, query_callback qcb,
       else
         return conn->execute(query);
     }();
+     stats.Increment("queries_issued", 1);
     // TODO handle qcb
     taopq_wrapper::TaoPQQueryResultWrapper *tao_res =
         new taopq_wrapper::TaoPQQueryResultWrapper(&result);
@@ -205,10 +206,11 @@ void Client::Commit(commit_callback ccb, commit_timeout_callback ctcb,
     tr->commit();
     tr = nullptr;
     //std::cout << "commit " << '\n';
-
+     stats.Increment("num_commit", 1);
     ccb(COMMITTED);
   } catch (const std::exception &e) {
     ////std::cerr << e.what() << '\n';
+     stats.Increment("num_aborts", 1);
     ccb(ABORTED_SYSTEM);
   }
 }
