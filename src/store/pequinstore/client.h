@@ -170,8 +170,9 @@ class Client : public ::Client {
     uint64_t group_replies;
    
     bool is_point;
+    std::string key;
     std::string table_name;
-    std::map<std::string, std::string> p_col_value; //if point read: this contains primary_key_col_vaues ==> Together with table_name can be used to compute encoding.
+    std::vector<std::string> p_col_values; //if point read: this contains primary_key_col_vaues (in order) ==> Together with table_name can be used to compute encoding.
   };
 
   SQLTransformer sql_interpreter;

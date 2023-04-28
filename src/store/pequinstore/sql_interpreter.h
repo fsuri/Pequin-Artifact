@@ -117,8 +117,16 @@ inline bool map_set_key_equality(const std::pair<std::string, std::string> &a, c
 }
 
 //Returns true if computed active col set matches primary cols. (I.e. not more cols, and no less) 
-inline bool primary_key_compare(std::map<std::string, std::string> const &lhs, std::set<std::string> const &rhs) {
-    return lhs.size() == rhs.size() && std::equal(lhs.begin(), lhs.end(), rhs.begin(), map_set_key_equality);
+inline bool primary_key_compare(std::map<std::string, std::string> const &lhs, std::set<std::string> const &rhs, bool relax = false) {
+    if(relax = true) Panic("Relax not yet enabled");
+    if(false && relax){
+        
+        return false;
+        //return lhs.size() >= rhs.size() && std::includes(lhs.begin(), lhs.end(), rhs.begin(), rhs.end(), map_set_key_equality);
+    }
+    else{
+        return lhs.size() == rhs.size() && std::equal(lhs.begin(), lhs.end(), rhs.begin(), map_set_key_equality);
+    }
 } 
 
 
@@ -153,7 +161,7 @@ class SQLTransformer {
         void TransformWriteStatement(std::string &_write_statement, //std::vector<std::vector<uint32_t>> primary_key_encoding_support,
              std::string &read_statement, std::function<void(int, query_result::QueryResult*)>  &write_continuation, write_callback &wcb, bool skip_query_interpretation = false);
 
-        bool InterpretQueryRange(const std::string &_query, std::string &table_name, std::map<std::string, std::string> &p_col_value);
+        bool InterpretQueryRange(const std::string &_query, std::string &table_name, std::vector<std::string> &p_col_values);
 
         bool GenerateTableWriteStatement(std::string &write_statement, std::string &delete_statement, const std::string &table_name, const TableWrite &table_write);
         bool GenerateTablePurgeStatement(std::string &purge_statement, const std::string &table_name, const TableWrite &table_write);
@@ -187,10 +195,10 @@ class SQLTransformer {
 
 
         //Read Parser
-        bool CheckColConditions(std::string_view &cond_statement, std::string &table_name, std::map<std::string, std::string> &p_col_value);
-        bool CheckColConditions(std::string_view &cond_statement, const ColRegistry &col_registry, std::map<std::string, std::string> &p_col_value);
+        bool CheckColConditions(std::string_view &cond_statement, std::string &table_name, std::vector<std::string> &p_col_values, bool relax = false);
+        bool CheckColConditions(std::string_view &cond_statement, const ColRegistry &col_registry, std::vector<std::string> &p_col_values, bool relax = false);
 
-        bool CheckColConditions(size_t &end, std::string_view cond_statement, const ColRegistry &col_registry, std::map<std::string, std::string> &p_col_value, bool &terminate_early);
+        bool CheckColConditions(size_t &end, std::string_view cond_statement, const ColRegistry &col_registry, std::map<std::string, std::string> &p_col_value, bool &terminate_early, bool relax = false);
             void ExtractColCondition(std::string_view cond_statement, const ColRegistry &col_registry, std::map<std::string, std::string> &p_col_value);
             void GetNextOperator(std::string_view &cond_statement, size_t &op_pos, size_t &op_pos_post, op_t &op_type);
             bool MergeColConditions(op_t &op_type, std::map<std::string, std::string> &l_p_col_value, std::map<std::string, std::string> &r_p_col_value);

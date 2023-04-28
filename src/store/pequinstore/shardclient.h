@@ -230,6 +230,10 @@ virtual void Phase2Equivocate_Simulate(uint64_t id, const proto::Transaction &tx
     read_callback gcb;
     read_timeout_callback gtcb;
     bool firstCommittedReply;
+
+
+    point_result_callback prcb; //A hack to access from PendingQuorumGet
+    std::string table_name;
   };
 
   struct Result_mgr {
@@ -289,6 +293,9 @@ virtual void Phase2Equivocate_Simulate(uint64_t id, const proto::Transaction &tx
     bool is_point;
     point_result_callback prcb;
     PendingQuorumGet pendingPointQuery;
+
+    std::string key;
+    std::string table_name;
   };
 
 
@@ -522,7 +529,8 @@ virtual void Phase2Equivocate_Simulate(uint64_t id, const proto::Transaction &tx
     POINT
 };
 bool ProcessRead(const uint64_t &reqId, PendingQuorumGet *req, read_t read_type, const proto::Write *write, bool has_proof, const proto::CommittedProof *proof, proto::PointQueryResultReply &reply);
-bool ValidateTransactionTableWrite(const proto::CommittedProof &proof, std::string &txnDigest, TimestampMessage &timestamp, std::string &key, std::string &value, query_result::QueryResult *query_result);
+bool ValidateTransactionTableWrite(const proto::CommittedProof &proof, const std::string *txnDigest, const Timestamp &timestamp, 
+      const std::string &key, const std::string &value, query_result::QueryResult *query_result);
 SQLTransformer *sql_interpreter;
 
 

@@ -119,7 +119,7 @@ void SQLTransformer::RegisterTables(std::string &table_registry){ //TODO: This t
 }
 
 
-bool SQLTransformer::InterpretQueryRange(const std::string &_query, std::string &table_name, std::map<std::string, std::string> &p_col_value){
+bool SQLTransformer::InterpretQueryRange(const std::string &_query, std::string &table_name, std::vector<std::string> &p_col_values){
     //Using Syntax from: https://www.postgresqltutorial.com/postgresql-tutorial/postgresql-select/
 
     std::string_view query_statement(_query);
@@ -142,7 +142,7 @@ bool SQLTransformer::InterpretQueryRange(const std::string &_query, std::string 
    
     std::string_view cond_statement = query_statement.substr(where_pos + where_hook.length());
 
-    return CheckColConditions(cond_statement, table_name, p_col_value);
+    return CheckColConditions(cond_statement, table_name, p_col_values, false); //TODO: Enable Relax
     //true == point, false == range read --> use table_name + p_col_value to do a point read.
 }
 
@@ -334,52 +334,93 @@ void SQLTransformer::TransformInsert(size_t pos, std::string_view &write_stateme
     std::string enc_key = EncodeTableRow(table_name, primary_key_column_values);
 
     //////// Create Write continuation:  
-    write_continuation = [this, wcb, enc_key, table_name, col_registry_ptr = &col_registry, value_list](int status, query_result::QueryResult* result){
+
+     write_continuation = [this, wcb](int status, query_result::QueryResult* result){
         //TODO: Does one need to use status? --> Query should not fail?
-        if(result->empty()){
-
-            //Write Table Version itself. //Only for kv-store.
-            WriteMessage *table_ver = txn->add_write_set();
-            table_ver->set_key(table_name);
-            table_ver->set_value("");
-
-            
-            //Read genesis timestamp (0) for key ==> FIXME: THIS CURRENTLY DOES NOT WORK WITH EXISTING OCC CHECK.
-            ReadMessage *read = txn->add_read_set();
-            read->set_key(enc_key);
-            read->mutable_readtime()->set_id(0);
-            read->mutable_readtime()->set_timestamp(0);
-
-            //Create Table Write for key. Note: Enc_key encodes table_name + primary key column values.
-            WriteMessage *write = txn->add_write_set();
-            write->set_key(enc_key);
-            // // for(int i=0; i<column_list.size(); ++i){
-            // //     (*write->mutable_rowupdates()->mutable_attribute_writes())[column_list[i]] = value_list[i];
-            // // }
-            // for(auto &[col_name, col_idx]: col_registry_ptr->col_name_index){
-            //     (*write->mutable_rowupdates()->mutable_attribute_writes())[col_name] = value_list[col_idx];
-            // }
-
-            //New version: 
-            TableWrite *table_write = AddTableWrite(table_name, *col_registry_ptr);
-            RowUpdates *row_update = table_write->add_rows();
-            *row_update->mutable_column_values() = {value_list.begin(), value_list.end()};
-            // for(auto &[col_name, col_idx]: col_registry_ptr->col_name_index){
-            //     std::string *col_val = row_update->add_column_values();
-            //     *col_val = std::move(value_list[col_idx]);
-            // }
-
-            
-            //Create result object with rows affected = 1.
-            result->set_rows_affected(1);
-            wcb(REPLY_OK, result);
-        }
-        else{
-            //Create result object with rows affected = 0.
-            result->set_rows_affected(0);
-            wcb(REPLY_OK, result);
-        }
+        
+        //Create result object with rows affected = 1.
+        result->set_rows_affected(1);
+        wcb(REPLY_OK, result); 
     };
+
+    //Write Table Version itself. //Only for kv-store.
+        WriteMessage *table_ver = txn->add_write_set();
+        table_ver->set_key(table_name);
+        table_ver->set_value("");
+
+        
+        //Read genesis timestamp (0) for key ==> FIXME: THIS CURRENTLY DOES NOT WORK WITH EXISTING OCC CHECK.
+        ReadMessage *read = txn->add_read_set();
+        read->set_key(enc_key);
+        read->mutable_readtime()->set_id(0);
+        read->mutable_readtime()->set_timestamp(0);
+
+        //Create Table Write for key. Note: Enc_key encodes table_name + primary key column values.
+        WriteMessage *write = txn->add_write_set();
+        write->set_key(enc_key);
+        // // for(int i=0; i<column_list.size(); ++i){
+        // //     (*write->mutable_rowupdates()->mutable_attribute_writes())[column_list[i]] = value_list[i];
+        // // }
+        // for(auto &[col_name, col_idx]: col_registry_ptr->col_name_index){
+        //     (*write->mutable_rowupdates()->mutable_attribute_writes())[col_name] = value_list[col_idx];
+        // }
+
+        //New version: 
+        TableWrite *table_write = AddTableWrite(table_name, col_registry);
+        RowUpdates *row_update = table_write->add_rows();
+        *row_update->mutable_column_values() = {value_list.begin(), value_list.end()};
+        // for(auto &[col_name, col_idx]: col_registry_ptr->col_name_index){
+        //     std::string *col_val = row_update->add_column_values();
+        //     *col_val = std::move(value_list[col_idx]);
+        // }
+
+    //Write cont that takes in a result (from read)
+    // write_continuation = [this, wcb, enc_key, table_name, col_registry_ptr = &col_registry, value_list](int status, query_result::QueryResult* result){
+    //     //TODO: Does one need to use status? --> Query should not fail?
+    //     if(result->empty()){
+
+    //         //Write Table Version itself. //Only for kv-store.
+    //         WriteMessage *table_ver = txn->add_write_set();
+    //         table_ver->set_key(table_name);
+    //         table_ver->set_value("");
+
+            
+    //         //Read genesis timestamp (0) for key ==> FIXME: THIS CURRENTLY DOES NOT WORK WITH EXISTING OCC CHECK.
+    //         ReadMessage *read = txn->add_read_set();
+    //         read->set_key(enc_key);
+    //         read->mutable_readtime()->set_id(0);
+    //         read->mutable_readtime()->set_timestamp(0);
+
+    //         //Create Table Write for key. Note: Enc_key encodes table_name + primary key column values.
+    //         WriteMessage *write = txn->add_write_set();
+    //         write->set_key(enc_key);
+    //         // // for(int i=0; i<column_list.size(); ++i){
+    //         // //     (*write->mutable_rowupdates()->mutable_attribute_writes())[column_list[i]] = value_list[i];
+    //         // // }
+    //         // for(auto &[col_name, col_idx]: col_registry_ptr->col_name_index){
+    //         //     (*write->mutable_rowupdates()->mutable_attribute_writes())[col_name] = value_list[col_idx];
+    //         // }
+
+    //         //New version: 
+    //         TableWrite *table_write = AddTableWrite(table_name, *col_registry_ptr);
+    //         RowUpdates *row_update = table_write->add_rows();
+    //         *row_update->mutable_column_values() = {value_list.begin(), value_list.end()};
+    //         // for(auto &[col_name, col_idx]: col_registry_ptr->col_name_index){
+    //         //     std::string *col_val = row_update->add_column_values();
+    //         //     *col_val = std::move(value_list[col_idx]);
+    //         // }
+
+            
+    //         //Create result object with rows affected = 1.
+    //         result->set_rows_affected(1);
+    //         wcb(REPLY_OK, result);
+    //     }
+    //     else{
+    //         //Create result object with rows affected = 0.
+    //         result->set_rows_affected(0);
+    //         wcb(REPLY_OK, result);
+    //     }
+    // };
 
     return;
 
@@ -599,7 +640,8 @@ void SQLTransformer::TransformDelete(size_t pos, std::string_view &write_stateme
 
     //Check whether delete is for single key (point) or flexible amount of rows
    
-    std::map<std::string, std::string> p_col_values;  //TODO: p_col_values are all quoted: --> Change them to be unquoted. Perhaps even on case by case.
+    //std::map<std::string, std::string> p_col_values;  
+    std::vector<std::string> p_col_values;  
     bool is_point_delete = CheckColConditions(where_cond, col_registry, p_col_values); 
     skip_query_interpretation = true;
 
@@ -607,35 +649,31 @@ void SQLTransformer::TransformDelete(size_t pos, std::string_view &write_stateme
         //Add to write set.
         std::cerr << "IS POINT DELETE" << std::endl;
 
+        //Write Table Version itself. //Only for kv-store.
+        WriteMessage *table_ver = txn->add_write_set();
+        table_ver->set_key(table_name);
+        table_ver->set_value("");
+
+        //Add Delete also to Table Write : 
+        TableWrite *table_write = AddTableWrite(table_name, col_registry);
+        RowUpdates *row_update = AddTableWriteRow(table_write, col_registry);
+        row_update->set_deletion(true);
+
+        std::string enc_key = EncodeTableRow(table_name, p_col_values);
+        WriteMessage *write = txn->add_write_set();
+        write->set_key(enc_key);
+        write->set_value("d");
+        write->mutable_rowupdates()->set_deletion(true);
+    
+        std::vector<const std::string*> primary_key_column_values;
+        int col_idx = 0;
+        for(auto &[col_name, _]: col_registry.primary_key_cols_idx){
+            std::string &col_value = (*row_update->mutable_column_values())[col_registry.col_name_index[col_name]];
+            col_value = std::move(p_col_values.at(col_idx++));
+        }
+        
         //Create a QueryResult -- set rows affected to 1.
-        write_continuation = [this, wcb, table_name, p_col_values, col_registry_ptr = &col_registry](int status, query_result::QueryResult* result){
-             //Write Table Version itself. //Only for kv-store.
-            WriteMessage *table_ver = txn->add_write_set();
-            table_ver->set_key(table_name);
-            table_ver->set_value("");
-
-            //Add Delete also to Table Write : 
-            TableWrite *table_write = AddTableWrite(table_name, *col_registry_ptr);
-            RowUpdates *row_update = AddTableWriteRow(table_write, *col_registry_ptr);
-            row_update->set_deletion(true);
-        
-            std::vector<const std::string*> primary_key_column_values;
-            for(auto &[col_name, idx]: col_registry_ptr->primary_key_cols_idx){
-          
-                std::string &col_value = (*row_update->mutable_column_values())[col_registry_ptr->col_name_index[col_name]];
-                col_value = std::move(p_col_values.at(col_name));
-
-                primary_key_column_values.push_back(&col_value);
-                
-            }
-          
-            std::string enc_key = EncodeTableRow(table_name, primary_key_column_values);
-        
-            WriteMessage *write = txn->add_write_set();
-            write->set_key(enc_key);
-            write->set_value("d");
-            write->mutable_rowupdates()->set_deletion(true);
-
+        write_continuation = [this, wcb](int status, query_result::QueryResult* result){
             result->set_rows_affected(result->size()); 
             wcb(REPLY_OK, result);
         };
@@ -1174,18 +1212,18 @@ std::variant<bool, int32_t, std::string> DecodeType(std::string &enc_value, cons
 
 //Note: input (cond_statement) contains everything following "WHERE" keyword
 //Returns true if cond_statement can be issued as Point Operation. P_col_value contains all extracted primary key col values (without quotes)
-bool SQLTransformer::CheckColConditions(std::string_view &cond_statement, std::string &table_name, std::map<std::string, std::string> &p_col_value){
+bool SQLTransformer::CheckColConditions(std::string_view &cond_statement, std::string &table_name, std::vector<std::string> &p_col_values, bool relax){
     //Using Syntax from: https://www.postgresqltutorial.com/postgresql-tutorial/postgresql-where/ ; https://www.postgresqltutorial.com/postgresql-tutorial/postgresql-order-by/ 
     
     auto itr = TableRegistry.find(table_name);
     UW_ASSERT(itr != TableRegistry.end());
     const ColRegistry &col_registry = itr->second; //TableRegistry[table_name]; 
 
-    return CheckColConditions(cond_statement, col_registry, p_col_value);
+    return CheckColConditions(cond_statement, col_registry, p_col_values, relax);
 }
 
 
-bool SQLTransformer::CheckColConditions(std::string_view &cond_statement, const ColRegistry &col_registry, std::map<std::string, std::string> &p_col_value){
+bool SQLTransformer::CheckColConditions(std::string_view &cond_statement, const ColRegistry &col_registry, std::vector<std::string> &p_col_values, bool relax){
 
     size_t pos;
 
@@ -1206,7 +1244,18 @@ bool SQLTransformer::CheckColConditions(std::string_view &cond_statement, const 
 
     bool terminate_early = false;
     size_t end = 0;
-    return CheckColConditions(end, cond_statement, col_registry, p_col_value, terminate_early);
+
+    std::map<std::string, std::string> p_col_value;
+    if(!CheckColConditions(end, cond_statement, col_registry, p_col_value, terminate_early, relax)) return false;
+
+    std::cerr << "started transform" << std::endl;
+    //Else: Transform map into p_col_values only (in correct order); extract just the primary key cols.
+    for(auto &[col_name, idx]: col_registry.primary_key_cols_idx){
+        p_col_values.push_back(std::move(p_col_value.at(col_name)));
+    }
+    std::cerr << "finished transform" << std::endl;
+
+    return true; // is_point
 
      //Return true if can definitely do a point key lookup
     //E.g. if pkey = col1
@@ -1233,8 +1282,9 @@ bool SQLTransformer::CheckColConditions(std::string_view &cond_statement, const 
 //TODO: check that column type is primitive: If its array or Timestamp --> defer it to query engine.
 
 //Note: Don't pass cond_statement by reference inside recursion.
-bool SQLTransformer::CheckColConditions(size_t &end, std::string_view cond_statement, const ColRegistry &col_registry, std::map<std::string, std::string> &p_col_value, bool &terminate_early){
-   
+bool SQLTransformer::CheckColConditions(size_t &end, std::string_view cond_statement, const ColRegistry &col_registry, std::map<std::string, std::string> &p_col_value, bool &terminate_early, bool relax){
+    //Note: If relax = true ==> primary_key_compare checks for subset, if false ==> checks for equality.
+
     std::map<std::string, std::string> &left_p_col_value = p_col_value;
     std::map<std::string, std::string> right_p_col_value;
 
@@ -1282,7 +1332,7 @@ bool SQLTransformer::CheckColConditions(size_t &end, std::string_view cond_state
         //     std::cerr << "col vals: " << col << ":" << val << std::endl;
         // }
         
-        return !terminate_early && primary_key_compare(p_col_value, col_registry.primary_key_cols);      //p_col_value.size() == col_registry.primary_key_cols.size();
+        return !terminate_early && primary_key_compare(p_col_value, col_registry.primary_key_cols, relax);      //p_col_value.size() == col_registry.primary_key_cols.size();
     }
 
 
@@ -1297,7 +1347,7 @@ bool SQLTransformer::CheckColConditions(size_t &end, std::string_view cond_state
         CheckColConditions(end, cond_statement, col_registry, left_p_col_value, terminate_early);   //End = pos after ) that matches opening (  (or base case no bracket.)
       
         if(end == std::string::npos || cond_statement.substr(end, 1) == ")"){ //this is the right side of a statement -> return.
-            return !terminate_early && primary_key_compare(left_p_col_value, col_registry.primary_key_cols);      //p_col_value.size() == col_registry.primary_key_cols.size();
+            return !terminate_early && primary_key_compare(left_p_col_value, col_registry.primary_key_cols, relax);      //p_col_value.size() == col_registry.primary_key_cols.size();
         }
        
         //else: this is the left side of a statement. ==> there must be at least one operator to the right.
@@ -1315,7 +1365,7 @@ bool SQLTransformer::CheckColConditions(size_t &end, std::string_view cond_state
             return false;
         } 
         if(next_op_type == SQL_NONE){
-            return primary_key_compare(p_col_value, col_registry.primary_key_cols);      //p_col_value.size() == col_registry.primary_key_cols.size();
+            return primary_key_compare(p_col_value, col_registry.primary_key_cols, relax);      //p_col_value.size() == col_registry.primary_key_cols.size();
         }
 
         //After that recurse on right cond.
@@ -1324,7 +1374,7 @@ bool SQLTransformer::CheckColConditions(size_t &end, std::string_view cond_state
         //Merge left and right side of operator
         terminate_early = !MergeColConditions(next_op_type, left_p_col_value, right_p_col_value);
 
-        return !terminate_early && primary_key_compare(p_col_value, col_registry.primary_key_cols);      //p_col_value.size() == col_registry.primary_key_cols.size();
+        return !terminate_early && primary_key_compare(p_col_value, col_registry.primary_key_cols, relax);      //p_col_value.size() == col_registry.primary_key_cols.size();
     }
 
     //Recursive cases:
@@ -1338,7 +1388,7 @@ bool SQLTransformer::CheckColConditions(size_t &end, std::string_view cond_state
         CheckColConditions(dummy, sub_cond, col_registry, p_col_value, terminate_early);
 
         end = pos+1; //Next level receives p_col_values, and end 
-        return !terminate_early && primary_key_compare(p_col_value, col_registry.primary_key_cols);      //p_col_value.size() == col_registry.primary_key_cols.size(); 
+        return !terminate_early && primary_key_compare(p_col_value, col_registry.primary_key_cols, relax);      //p_col_value.size() == col_registry.primary_key_cols.size(); 
     }
 }
 
@@ -1480,7 +1530,7 @@ bool SQLTransformer::CheckColConditionsDumb(std::string_view &cond_statement, co
             return false;
         }
         p_col_value[std::move(left_str)] = left_cond.substr(pos + 3);
-        return CheckColConditions(right_cond, col_registry, p_col_value); //TODO: don't recurse (this re-checks all above statements) --> just while loop  
+        return CheckColConditionsDumb(right_cond, col_registry, p_col_value); //TODO: don't recurse (this re-checks all above statements) --> just while loop  
                                                                             
     }
     else { //No more bindings.

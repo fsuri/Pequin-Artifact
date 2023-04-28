@@ -185,7 +185,9 @@ void ShardClient::RequestQuery(PendingQuery *pendingQuery, proto::Query &queryMs
   queryReq.set_is_point(pendingQuery->is_point);
   queryReq.set_eager_exec(!pendingQuery->retry_version && (pendingQuery->is_point? params.query_params.eagerPointExec : params.query_params.eagerExec));
   if(pendingQuery->is_point && !queryReq.eager_exec()){
-    pendingQuery->pendingPointQuery.gcb = std::move(pendingQuery->prcb); //Move callback
+    pendingQuery->pendingPointQuery.prcb = std::move(pendingQuery->prcb); //Move callback
+    pendingQuery->pendingPointQuery.key = std::move(pendingQuery->key);
+    pendingQuery->pendingPointQuery.table_name = std::move(pendingQuery->table_name);
   }
   //queryReq.set_eager_exec(params.query_params.eagerExec && !pendingQuery->retry_version); //On retry use sync.
 
@@ -716,104 +718,111 @@ void ShardClient::HandlePointQueryResult(proto::PointQueryResultReply &queryResu
 
 //All of this code is borrowed from HandleReadReply
 bool ShardClient::ProcessRead(const uint64_t &reqId, PendingQuorumGet *req, read_t read_type, const proto::Write *write, bool has_proof, const proto::CommittedProof *proof, proto::PointQueryResultReply &reply){
-    // value and timestamp are valid
-  req->numReplies++;
-  if (write->has_committed_value() && write->has_committed_timestamp()) {
-    if (params.validateProofs) {
-      if (!has_proof) {
-        Debug("[group %i] Missing proof for committed write.", group);
-        return false;
-      }
 
-      std::string committedTxnDigest = TransactionDigest(proof->txn(), params.hashDigest);
+     query_result::QueryResult *query_result; //TODO: Augment callback to return this instead of serialized value to avoid redundant deserialization.
+                                                    //Note: However, winning Value could be prepared too. Would have to deser prepared values too, if winners
+                                                    // ==> Would need to store QueryResult as maxValue instead of value string.
 
-      bool valid; 
-      if(read_type == read_t::GET) ValidateTransactionWrite(*proof, &committedTxnDigest, req->key, write->committed_value(), write->committed_timestamp(), config, params.signedMessages, keyManager, verifier);
-      else { //if read type POINT 
-            query_result::QueryResult *query_result; //TODO: Augment callback to return this instead of serialized value.
-            ValidateTransactionTableWrite(*proof, &committedTxnDigest, req->key, write->committed_value(), query_result);
-      }
-
-      if (!valid) {
-        Debug("[group %i] Failed to validate committed value for pointQuery %lu.", group, reqId);
-        // invalid replies can be treated as if we never received a reply from   a crashed replica
-        return false;
-      }
-    }
-
-    Timestamp replyTs(write->committed_timestamp());
-    Debug("[group %i] PointQueryReply for %lu with committed %lu byte value and ts %lu.%lu.", group, reqId, write->committed_value().length(),replyTs.getTimestamp(), replyTs.getID());
-
-    if (req->firstCommittedReply || req->maxTs < replyTs) {
-      req->maxTs = replyTs;
-      req->maxValue = write->committed_value();
-    }
-    req->firstCommittedReply = false;
-  }
-
-  //TODO: change so client does not accept reads with depth > some t... (fine for now since servers use the same param setting, and we wait for f+1 matching servers)
-  if (params.maxDepDepth > -2 && write->has_prepared_value() && write->has_prepared_timestamp() && write->has_prepared_txn_digest()) {
-    Timestamp preparedTs(write->prepared_timestamp());
-    Debug("[group %i] ReadReply for %lu with prepared %lu byte value and ts %lu.%lu.", group, reqId, write->prepared_value().length(), preparedTs.getTimestamp(), preparedTs.getID());
-    auto preparedItr = req->prepared.find(preparedTs);
-    if (preparedItr == req->prepared.end()) {
-      req->prepared.insert(std::make_pair(preparedTs, std::make_pair(*write, 1)));
-    } else if (preparedItr->second.first == *write) {
-      preparedItr->second.second += 1;
-    }
-    //if(!write->has_committed_value() && write->has_prepared_value()) std::cerr << "Prepared write was processed.\n";
-    if (params.validateProofs && params.signedMessages && params.verifyDeps) {
-      proto::Signature *sig = req->preparedSigs[preparedTs].add_sigs();
-      sig->set_process_id(reply.signed_write().process_id());
-      *sig->mutable_signature() = reply.signed_write().signature();
-    }
-  }
-
-
-  if (req->numReplies >= req->rqs) {
-    if (params.maxDepDepth > -2) {
-      for (auto preparedItr = req->prepared.rbegin();
-          preparedItr != req->prepared.rend(); ++preparedItr) {
-        if (preparedItr->first < req->maxTs) {
-          break;
+    //check whether value and timestamp are valid
+    req->numReplies++;
+    if (write->has_committed_value() && write->has_committed_timestamp()) {
+        if (params.validateProofs) {
+        if (!has_proof) {
+            Debug("[group %i] Missing proof for committed write.", group);
+            return false;
         }
 
-        if (preparedItr->second.second >= req->rds) {
-          req->maxTs = preparedItr->first;
-          req->maxValue = preparedItr->second.first.prepared_value();
-          *req->dep.mutable_write() = preparedItr->second.first;
-          if (params.validateProofs && params.signedMessages && params.verifyDeps) {
-            *req->dep.mutable_write_sigs() = req->preparedSigs[preparedItr->first];
-          }
-          req->dep.set_involved_group(group);
-          req->hasDep = true;
-          break;
+        std::string committedTxnDigest = TransactionDigest(proof->txn(), params.hashDigest);
+
+        bool valid; 
+        if(read_type == read_t::GET) ValidateTransactionWrite(*proof, &committedTxnDigest, req->key, write->committed_value(), write->committed_timestamp(), config, params.signedMessages, keyManager, verifier);
+        else { //if read type POINT 
+                
+                ValidateTransactionTableWrite(*proof, &committedTxnDigest, write->committed_timestamp(), req->key, write->committed_value(), query_result);
         }
-      }
-    }
-    //Only read once.
-    const auto [it, first_read] = readValues.emplace(req->key, req->maxValue); // readValues.insert(std::make_pair(req->key, req->maxValue));
 
-    if(first_read){ //for first read
-        ReadMessage *read = txn.add_read_set();
-        *read->mutable_key() = req->key;
-        req->maxTs.serialize(read->mutable_readtime());
-        
-        req->gcb(REPLY_OK, req->key, req->maxValue, req->maxTs, req->dep,req->hasDep, true);
-    }
-    else{ //TODO: Could optimize to do this right at the start of Handle Read to avoid any validation costs... -> Does mean all reads have to lookup twice though.
-        std::string &prev_read = it->second;
-        req->maxTs = Timestamp();
-        req->gcb(REPLY_OK, req->key, prev_read, req->maxTs, req->dep, false, false); //Don't add to read set.
+        if (!valid) {
+            Debug("[group %i] Failed to validate committed value for pointQuery %lu.", group, reqId);
+            // invalid replies can be treated as if we never received a reply from   a crashed replica
+            return false;
+        }
+        }
 
-    } 
-    return true;
+        Timestamp replyTs(write->committed_timestamp());
+        Debug("[group %i] PointQueryReply for %lu with committed %lu byte value and ts %lu.%lu.", group, reqId, write->committed_value().length(),replyTs.getTimestamp(), replyTs.getID());
+
+        if (req->firstCommittedReply || req->maxTs < replyTs) {
+            req->maxTs = replyTs;
+            req->maxValue = write->committed_value();
+        }
+        req->firstCommittedReply = false;
+    }
+
+    //TODO: change so client does not accept reads with depth > some t... (fine for now since servers use the same param setting, and we wait for f+1 matching servers)
+    if (params.maxDepDepth > -2 && write->has_prepared_value() && write->has_prepared_timestamp() && write->has_prepared_txn_digest()) {
+        Timestamp preparedTs(write->prepared_timestamp());
+        Debug("[group %i] ReadReply for %lu with prepared %lu byte value and ts %lu.%lu.", group, reqId, write->prepared_value().length(), preparedTs.getTimestamp(), preparedTs.getID());
+        auto preparedItr = req->prepared.find(preparedTs);
+        if (preparedItr == req->prepared.end()) {
+        req->prepared.insert(std::make_pair(preparedTs, std::make_pair(*write, 1)));
+        } else if (preparedItr->second.first == *write) {
+        preparedItr->second.second += 1;
+        }
+        //if(!write->has_committed_value() && write->has_prepared_value()) std::cerr << "Prepared write was processed.\n";
+        if (params.validateProofs && params.signedMessages && params.verifyDeps) {
+        proto::Signature *sig = req->preparedSigs[preparedTs].add_sigs();
+        sig->set_process_id(reply.signed_write().process_id());
+        *sig->mutable_signature() = reply.signed_write().signature();
+        }
+    }
+
+
+    if (req->numReplies >= req->rqs) {
+        if (params.maxDepDepth > -2) {
+        for (auto preparedItr = req->prepared.rbegin();
+            preparedItr != req->prepared.rend(); ++preparedItr) {
+            if (preparedItr->first < req->maxTs) {
+            break;
+            }
+
+            if (preparedItr->second.second >= req->rds) {
+            req->maxTs = preparedItr->first;
+            req->maxValue = preparedItr->second.first.prepared_value();
+            *req->dep.mutable_write() = preparedItr->second.first;
+            if (params.validateProofs && params.signedMessages && params.verifyDeps) {
+                *req->dep.mutable_write_sigs() = req->preparedSigs[preparedItr->first];
+            }
+            req->dep.set_involved_group(group);
+            req->hasDep = true;
+            break;
+            }
+        }
+        }
+        //Only read once.
+        const auto [it, first_read] = readValues.emplace(req->key, req->maxValue); // readValues.insert(std::make_pair(req->key, req->maxValue));
+
+        if(first_read){ //for first read
+            ReadMessage *read = txn.add_read_set();
+            *read->mutable_key() = req->key;
+            req->maxTs.serialize(read->mutable_readtime());
+            
+            req->prcb(REPLY_OK, req->key, req->maxValue, req->maxTs, req->dep,req->hasDep, true);
+        }
+        else{ //TODO: Could optimize to do this right at the start of Handle Read to avoid any validation costs... -> Does mean all reads have to lookup twice though.
+            std::string &prev_read = it->second;
+            req->maxTs = Timestamp();
+            req->prcb(REPLY_OK, req->key, prev_read, req->maxTs, req->dep, false, false); //Don't add to read set.
+
+        } 
+        return true;
   }
     
   return false;
 }
 
-bool ShardClient::ValidateTransactionTableWrite(const proto::CommittedProof &proof, std::string &txnDigest, TimestampMessage &timestamp, std::string &key, std::string &value, query_result::QueryResult *query_result){
+bool ShardClient::ValidateTransactionTableWrite(const proto::CommittedProof &proof, const std::string *txnDigest, const Timestamp &timestamp, 
+    const std::string &key, const std::string &value, query_result::QueryResult *query_result)
+{
 
    
     query_result = new sql::QueryResultProtoWrapper(value);
@@ -870,8 +879,8 @@ bool ShardClient::ValidateTransactionTableWrite(const proto::CommittedProof &pro
     size_t pos = key.find(unique_delimiter); 
     UW_ASSERT(pos != std::string::npos);
     std::string table_name = key.substr(0, pos); //Extract from Key
-    const TableWrite &table_write = proof.txn().at(table_name); //FIXME: Throw exception if not existent. /-->change to find
-    const RowUpdates &row_update = table_write.rows().at(row_idx);
+    const TableWrite &table_write = proof.txn().table_writes().at(table_name); //FIXME: Throw exception if not existent. /-->change to find
+    const RowUpdates &row_update = table_write.rows()[row_idx];
 
     ColRegistry *col_registry = sql_interpreter->GetColRegistry(table_name); 
     int col_idx = 0;
@@ -889,9 +898,9 @@ bool ShardClient::ValidateTransactionTableWrite(const proto::CommittedProof &pro
        DeCerealize(col_val, col_val);
 
        //Check that values match
-       if(col_val != row_update.rows().at(col_idx)){
+       if(col_val != row_update.column_values()[col_idx]){
             Debug("VALIDATE value failed for txn %lu.%lu key %s: txn value %s != returned value %s.", proof.txn().client_id(), proof.txn().client_seq_num(), 
-                 BytesToHex(key, 16).c_str(), col_val, row_update.rows().at(col_idx));
+                 BytesToHex(key, 16).c_str(), col_val, row_update.column_values()[col_idx]);
             return false;
        } 
     }

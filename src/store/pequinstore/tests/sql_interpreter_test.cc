@@ -335,7 +335,7 @@ void test_cond(){
   std::cerr << "Test1: " << query_statement << std::endl;
 
   std::string table_name;
-  std::map<std::string, std::string> p_col_value;
+  std::vector<std::string> p_col_value;
   bool skip_interpretation = false; //In Query pass this arg; if true, don't interpret and just treat as range.
   bool is_point = sql_interpreter.InterpretQueryRange(query_statement, table_name, p_col_value);
 
@@ -359,8 +359,8 @@ void test_cond(){
   is_point = sql_interpreter.InterpretQueryRange(query_statement, table_name, p_col_value);
 
   std::cerr << is_point << std::endl;
-  for(auto &[col, val]: p_col_value){
-    std::cerr << "primary col: " << col << " -- with value: " << val << std::endl;
+  for(auto &val: p_col_value){
+    std::cerr << "primary col with value: " << val << std::endl;
   }
   std::cerr << is_point << std::endl;
   UW_ASSERT(is_point == false);

@@ -393,8 +393,8 @@ void Client::Query(const std::string &query, query_callback qcb,
     }
   
     //TODO: Check col conditions. --> Switch between QueryResultCallback and PointQueryResultCallback
-    pendingQuery->is_point = sql_interpreter.InterpretQueryRange(query, pendingQuery->table_name, pendingQuery->p_col_value); //TODO: In callback: If point and query fails (it was using eager exec) -> Retry should issue Point without eager exec.
-
+    pendingQuery->is_point = sql_interpreter.InterpretQueryRange(query, pendingQuery->table_name, pendingQuery->p_col_values); //TODO: In callback: If point and query fails (it was using eager exec) -> Retry should issue Point without eager exec.
+  
     //Could send table_name always? Then we know how to lookup table_version (NOTE: Won't work for joins etc though..)
 
        
@@ -403,6 +403,9 @@ void Client::Query(const std::string &query, query_callback qcb,
     
     //For Retry: Override callback to be this one.
     if(pendingQuery->is_point && !params.query_params.eagerPointExec){ //TODO: Create separate param for point eagerExec
+      //TODO: Compute primary key encoding
+
+      pendingQuery->key = EncodeTableRow(pendingQuery->table_name, pendingQuery->p_col_values); //TODO: Pass it down!!!
       prcb = std::bind(&Client::PointQueryResultCallback, this, pendingQuery,
                      std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, 
                      std::placeholders::_4, std::placeholders::_5, std::placeholders::_6, std::placeholders::_7);
