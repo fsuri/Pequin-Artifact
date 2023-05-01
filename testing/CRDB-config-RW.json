@@ -18,7 +18,7 @@
   "server_load_time": 5,
   
   "benchmark_type": "sql_bench",
-  "benchmark_data_file_path": "test-tables-schema.json",
+  "benchmark_data_file_path": "/users/fs435/indicus/bin/test-tables-schema.json",
 
   "benchmark_name": "rw",
   "client_zipf_coefficient": 0.75,   
