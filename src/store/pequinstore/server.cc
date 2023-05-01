@@ -520,7 +520,7 @@ void Server::HandleRead(const TransportAddress &remote,
 
   proto::ReadReply* readReply = GetUnusedReadReply();
   readReply->set_req_id(msg.req_id());
-  readReply->set_key(msg.key());
+  readReply->set_key(msg.key()); //technically don't need to send back.
   if (committed_exists) {
     //if(tsVal.first > ts) Panic("Should not read committed value with larger TS than read");
     Debug("READ[%lu:%lu] Committed value of length %lu bytes with ts %lu.%lu.",

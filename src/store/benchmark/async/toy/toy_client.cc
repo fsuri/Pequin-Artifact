@@ -99,7 +99,7 @@ void ToyClient::ExecuteToy(){
             
             client.Begin(timeout);
 
-            std::string query = "SELECT *";
+            std::string query = "SELECT * FROM user";
             const query_result::QueryResult* queryResult;
             client.Query(query, queryResult, timeout);  //--> Edit API in frontend sync_client.
                                            //For real benchmarks: Also edit in sync_transaction_bench_client.
@@ -109,7 +109,8 @@ void ToyClient::ExecuteToy(){
             std::cerr << "Got res" << std::endl;
             UW_ASSERT(!queryResult->empty());
             std::cerr << "num cols:" <<  queryResult->columns() << std::endl;
-            std::cerr << "num rows:" <<  queryResult->rows_affected() << std::endl;
+            std::cerr << "num rows written:" <<  queryResult->rows_affected() << std::endl;
+            std::cerr << "num rows read:" << queryResult->size() << std::endl;
 
              std::stringstream ss(std::ios::in | std::ios::out | std::ios::binary);
             size_t nbytes;

@@ -40,7 +40,7 @@ namespace pequinstore {
 //-> Every shard (not just query_manager shard) should be able to send this if it observes a committed query was missed; or if the materialized snapshot frontier includes a prepare that aborted (or is guaranteed to, e.g. vote Abort)
 
 void ShardClient::Query(uint64_t client_seq_num, uint64_t query_seq_num, proto::Query &queryMsg, // const std::string &query, const TimestampMessage &ts,
-      uint32_t timeout, result_timeout_callback &rtcb, result_callback &rcb, point_result_callback &prcb, bool is_point) {
+      uint32_t timeout, result_timeout_callback &rtcb, result_callback &rcb, point_result_callback &prcb, bool is_point, std::string *table_name, std::string *key) {
 
  Debug("Invoked QueryRequest [%lu] on ShardClient for group %d", query_seq_num, group);
   
@@ -69,8 +69,11 @@ void ShardClient::Query(uint64_t client_seq_num, uint64_t query_seq_num, proto::
   pendingQuery->query_manager = (queryMsg.query_manager() == group);
   pendingQuery->rtcb = rtcb;
   pendingQuery->rcb = rcb;
-  pendingQuery->prcb = prcb;
+
   pendingQuery->is_point = is_point;
+  pendingQuery->prcb = prcb;
+  pendingQuery->key = key;
+  pendingQuery->table_name = table_name;
  
   RequestQuery(pendingQuery, queryMsg);
 
@@ -186,8 +189,9 @@ void ShardClient::RequestQuery(PendingQuery *pendingQuery, proto::Query &queryMs
   queryReq.set_eager_exec(!pendingQuery->retry_version && (pendingQuery->is_point? params.query_params.eagerPointExec : params.query_params.eagerExec));
   if(pendingQuery->is_point && !queryReq.eager_exec()){
     pendingQuery->pendingPointQuery.prcb = std::move(pendingQuery->prcb); //Move callback
-    pendingQuery->pendingPointQuery.key = std::move(pendingQuery->key);
-    pendingQuery->pendingPointQuery.table_name = std::move(pendingQuery->table_name);
+    UW_ASSERT(pendingQuery->key != nullptr && pendingQuery->table_name != nullptr); //Both of these should be set for point queries.
+    pendingQuery->pendingPointQuery.key = std::move(*pendingQuery->key);  //NOTE: key no longer owned by client.cc after this.
+    pendingQuery->pendingPointQuery.table_name = std::move(*pendingQuery->table_name);
   }
   //queryReq.set_eager_exec(params.query_params.eagerExec && !pendingQuery->retry_version); //On retry use sync.
 
@@ -719,7 +723,8 @@ void ShardClient::HandlePointQueryResult(proto::PointQueryResultReply &queryResu
 //All of this code is borrowed from HandleReadReply
 bool ShardClient::ProcessRead(const uint64_t &reqId, PendingQuorumGet *req, read_t read_type, const proto::Write *write, bool has_proof, const proto::CommittedProof *proof, proto::PointQueryResultReply &reply){
 
-     query_result::QueryResult *query_result; //TODO: Augment callback to return this instead of serialized value to avoid redundant deserialization.
+    sql::QueryResultProtoWrapper query_result;
+     //query_result::QueryResult *query_result; //TODO: Augment callback to return this instead of serialized value to avoid redundant deserialization.
                                                     //Note: However, winning Value could be prepared too. Would have to deser prepared values too, if winners
                                                     // ==> Would need to store QueryResult as maxValue instead of value string.
 
@@ -738,7 +743,7 @@ bool ShardClient::ProcessRead(const uint64_t &reqId, PendingQuorumGet *req, read
         if(read_type == read_t::GET) ValidateTransactionWrite(*proof, &committedTxnDigest, req->key, write->committed_value(), write->committed_timestamp(), config, params.signedMessages, keyManager, verifier);
         else { //if read type POINT 
                 
-                ValidateTransactionTableWrite(*proof, &committedTxnDigest, write->committed_timestamp(), req->key, write->committed_value(), query_result);
+                ValidateTransactionTableWrite(*proof, &committedTxnDigest, write->committed_timestamp(), req->key, write->committed_value(), req->table_name, &query_result);
         }
 
         if (!valid) {
@@ -821,18 +826,21 @@ bool ShardClient::ProcessRead(const uint64_t &reqId, PendingQuorumGet *req, read
 }
 
 bool ShardClient::ValidateTransactionTableWrite(const proto::CommittedProof &proof, const std::string *txnDigest, const Timestamp &timestamp, 
-    const std::string &key, const std::string &value, query_result::QueryResult *query_result)
+    const std::string &key, const std::string &value, const std::string &table_name, query_result::QueryResult *query_result)
 {
 
    
-    query_result = new sql::QueryResultProtoWrapper(value);
+    *query_result = sql::QueryResultProtoWrapper(value); //new
     //turn value into Object //TODO: Can we avoid the redundant de-serialization in client.cc? ==> Modify prcb callback to take QueryResult as arg. 
                                 //Then need to change that gcb = prcb (no longer true)
+
+    //if query_result empty => return true. No proof needed, since replica is reporting that no value for the requested read exists (at the TS)
+    if(query_result->empty()) return true;
 
     if (proof.txn().client_id() == 0UL && proof.txn().client_seq_num() == 0UL) {
         // TODO: this is unsafe, but a hack so that we can bootstrap a benchmark
         //    without needing to write all existing data with transactions
-        return query_result->empty(); //Confirm that result is empty.
+        return true; //query_result->empty(); //Confirm that result is empty. (Result must be empty..)
     }
 
     UW_ASSERT(query_result->size() == 1); //Point read should have just one row.
@@ -876,9 +884,9 @@ bool ShardClient::ValidateTransactionTableWrite(const proto::CommittedProof &pro
 
     //TODO: For real system need to replay Query statement on the TableWrite row. For our prototype we just approximate it.
 
-    size_t pos = key.find(unique_delimiter); 
-    UW_ASSERT(pos != std::string::npos);
-    std::string table_name = key.substr(0, pos); //Extract from Key
+    // size_t pos = key.find(unique_delimiter); 
+    // UW_ASSERT(pos != std::string::npos);
+    // std::string table_name = key.substr(0, pos); //Extract from Key
     const TableWrite &table_write = proof.txn().table_writes().at(table_name); //FIXME: Throw exception if not existent. /-->change to find
     const RowUpdates &row_update = table_write.rows()[row_idx];
 

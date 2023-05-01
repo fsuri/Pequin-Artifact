@@ -125,7 +125,8 @@ bool SQLTransformer::InterpretQueryRange(const std::string &_query, std::string 
     std::string_view query_statement(_query);
     //Parse Table name.
     size_t from_pos = query_statement.find(from_hook);
-    UW_ASSERT(from_pos != std::string::npos);
+    if(from_pos != std::string::npos) return false; //Reading full DB.
+    
     query_statement.remove_prefix(from_pos + from_hook.length());
 
     //If query contains a JOIN statement --> Cannot be point read.

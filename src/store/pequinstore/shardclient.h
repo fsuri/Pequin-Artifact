@@ -141,7 +141,7 @@ class ShardClient : public TransportReceiver, public PingInitiator, public PingT
 
   // Perform a query computation
   virtual void Query(uint64_t client_seq_num, uint64_t query_seq_num, proto::Query &queryMsg, //const std::string &query, const TimestampMessage &ts,
-      uint32_t timeout, result_timeout_callback &rtcb, result_callback &rcb, point_result_callback &prcb, bool is_point = false);
+      uint32_t timeout, result_timeout_callback &rtcb, result_callback &rcb, point_result_callback &prcb, bool is_point = false, std::string *table_name = nullptr, std::string *key = nullptr);
 
 
 ///////////// End Execution Protocol
@@ -294,8 +294,8 @@ virtual void Phase2Equivocate_Simulate(uint64_t id, const proto::Transaction &tx
     point_result_callback prcb;
     PendingQuorumGet pendingPointQuery;
 
-    std::string key;
-    std::string table_name;
+    std::string *key;
+    std::string *table_name;
   };
 
 
@@ -530,7 +530,7 @@ virtual void Phase2Equivocate_Simulate(uint64_t id, const proto::Transaction &tx
 };
 bool ProcessRead(const uint64_t &reqId, PendingQuorumGet *req, read_t read_type, const proto::Write *write, bool has_proof, const proto::CommittedProof *proof, proto::PointQueryResultReply &reply);
 bool ValidateTransactionTableWrite(const proto::CommittedProof &proof, const std::string *txnDigest, const Timestamp &timestamp, 
-      const std::string &key, const std::string &value, query_result::QueryResult *query_result);
+      const std::string &key, const std::string &value, const std::string &table_name, query_result::QueryResult *query_result);
 SQLTransformer *sql_interpreter;
 
 

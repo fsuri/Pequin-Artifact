@@ -395,6 +395,8 @@ void Client::Query(const std::string &query, query_callback qcb,
     //TODO: Check col conditions. --> Switch between QueryResultCallback and PointQueryResultCallback
     
     pendingQuery->is_point = sql_interpreter.InterpretQueryRange(query, pendingQuery->table_name, pendingQuery->p_col_values, relax_point_cond); 
+    
+    if(pendingQuery->is_point) std::cerr << "Encoded key: " << (EncodeTableRow(pendingQuery->table_name, pendingQuery->p_col_values)) << std::endl; 
     //TODO: In callback: If point and query fails (it was using eager exec) -> Retry should issue Point without eager exec.
   
     //Could send table_name always? Then we know how to lookup table_version (NOTE: Won't work for joins etc though..)
@@ -407,7 +409,7 @@ void Client::Query(const std::string &query, query_callback qcb,
     if(pendingQuery->is_point && !params.query_params.eagerPointExec){ //TODO: Create separate param for point eagerExec
       //TODO: Compute primary key encoding
 
-      pendingQuery->key = EncodeTableRow(pendingQuery->table_name, pendingQuery->p_col_values); //TODO: Pass it down!!!
+      pendingQuery->key = EncodeTableRow(pendingQuery->table_name, pendingQuery->p_col_values); //TODO: Pass it down!!! Ptr to table_name and key.
       prcb = std::bind(&Client::PointQueryResultCallback, this, pendingQuery,
                      std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, 
                      std::placeholders::_4, std::placeholders::_5, std::placeholders::_6, std::placeholders::_7);
@@ -428,7 +430,7 @@ void Client::Query(const std::string &query, query_callback qcb,
     // Send the Query operation to involved shards & select transaction manager (shard responsible for result reply) 
     for(auto &i: pendingQuery->involved_groups){
       Debug("[group %i] starting Query [%lu:%lu]", i, client_seq_num, query_seq_num);
-      bclient[i]->Query(client_seq_num, query_seq_num, pendingQuery->queryMsg, timeout, rtcb, rcb, prcb, pendingQuery->is_point);
+      bclient[i]->Query(client_seq_num, query_seq_num, pendingQuery->queryMsg, timeout, rtcb, rcb, prcb, pendingQuery->is_point, &pendingQuery->table_name, &pendingQuery->key);
     }
     // Shard Client upcalls only if it is the leader for the query, and if it gets matching result hashes  ..........const std::string &resultHash
        //store QueryID + result hash in transaction.
@@ -442,9 +444,9 @@ void Client::Query(const std::string &query, query_callback qcb,
 void Client::PointQueryResultCallback(PendingQuery *pendingQuery,  
                                   int status, const std::string &key, const std::string &result, const Timestamp &read_time, const proto::Dependency &dep, bool hasDep, bool addReadSet) 
 { 
-  //TODO: Could already bind key...
   
-  if (addReadSet) {
+  if (addReadSet) { 
+    //Note: We add to read set even if result = empty (i.e. there was no write). In that case, mutable_read time will be empty.
     Debug("Adding read to read set");
     ReadMessage *read = txn.add_read_set();
     read->set_key(key);
@@ -455,6 +457,10 @@ void Client::PointQueryResultCallback(PendingQuery *pendingQuery,
   }
       
   Debug("Upcall with Point Query result");
+
+  //Note: result = empty ==>default case: no replica reported valid result (== all honest replicas send empty)
+  // ==> QueryResultWrapper constructor will create empty result.
+
   sql::QueryResultProtoWrapper *q_result = new sql::QueryResultProtoWrapper(result);
   pendingQuery->qcb(REPLY_OK, q_result); //callback to application 
   //clean pendingQuery and query_seq_num_mapping in all shards.
@@ -618,6 +624,7 @@ void Client::RetryQuery(PendingQuery *pendingQuery){
   for(auto &g: pendingQuery->involved_groups){
     if(pendingQuery->is_point){
       stats.Increment("eager_point_fail", 1);
+      pendingQuery->key = EncodeTableRow(pendingQuery->table_name, pendingQuery->p_col_values);
       bclient[g]->RetryQuery(pendingQuery->queryMsg.query_seq_num(), pendingQuery->queryMsg, true, std::bind(&Client::PointQueryResultCallback, this, pendingQuery,
                      std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, 
                      std::placeholders::_4, std::placeholders::_5, std::placeholders::_6, std::placeholders::_7));

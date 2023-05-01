@@ -34,6 +34,8 @@ std::vector<bool>* TableStore::GetRegistryPColQuotes(const std::string &table_na
 void TableStore::ExecRaw(const std::string &sql_statement){
 
     //TODO: Execute on Peloton  //Note -- this should be a synchronous call. I.e. ExecRaw should not return before the call is done.
+
+    //TODO: When calling the LoadStatement: We'll want to initialize all rows to be committed and have genesis proof (see server)
 }
 
 //Execute a read query statement on the Table backend and return a query_result/proto (in serialized form) as well as a read set (managed by readSetMgr)
@@ -60,6 +62,15 @@ void TableStore::ExecPointRead(const std::string &query_statement, std::string &
     //TODO: If read_prepared = true read both committed/prepared read
     // if true --> After execution check txn_digest of prepared_value (if exist). Check dependency depth. for txn_digest. If too deep, remove it. 
         //FIXME: to have access to this: need server (pass as this in constructor?) ==> No, do this stuff inside the ProcessPointQuery level.
+        //TODO: If no write/read exists (result == empty) -> send empty result (i.e. no fields in write are set), read_time = 0 by default
+                 // WARNING: Don't set prepared or committed -- let client side default handling take care of it.
+                                
+                // (optional TODO:) For optimal CC we'd ideally send the time of last delete (to minimize conflict window) 
+                        //- but then we have to send it as committed (with proof) or as prepared (with value = empty result)
+                        //Client will have to check proof txn ==> lookup that key exists in Writeset was marked as delete.
+                              //Note: For Query reads that would technically be the best too --> the coarse lock of the Table Version helps simulate it.
+           
+                              
 
         //Alternatively: 
             //Since we also need to avoid reading prepared for the normal queries:

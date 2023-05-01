@@ -51,18 +51,23 @@ class QueryResultProtoWrapper : public query_result::QueryResult {
     auto check_has_result_set() const -> void;
 
 	public:
-    QueryResultProtoWrapper(const SQLResultProto* proto_result) {
+    QueryResultProtoWrapper(): proto_result(nullptr) {} 
+    QueryResultProtoWrapper(const SQLResultProto* proto_result): proto_result(nullptr) {
       create_from_proto(proto_result);
     }
 
-    QueryResultProtoWrapper(const std::string& data) {
+    QueryResultProtoWrapper(const std::string& data): proto_result(nullptr) {
       SQLResultProto result;
-      if(result.ParseFromString(data)) {
+      if(data.empty()){ //default case
+        //create_from_proto(&result);
+      }
+      else if(result.ParseFromString(data)) {
         create_from_proto(&result);
       } else {
         throw std::invalid_argument("Failed to parse QueryResultProtoWrapper from data");
       }
     }
+
 
     ~QueryResultProtoWrapper() {
     }
