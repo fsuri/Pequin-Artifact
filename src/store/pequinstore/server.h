@@ -413,7 +413,7 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
     typedef tbb::concurrent_hash_map<std::string, MissingTxns> queryMissingTxnsMap;  //std::unordered_set<std::string>
     queryMissingTxnsMap queryMissingTxns; 
 
-    void ProcessPointQuery(proto::Query *query, const TransportAddress &remote);
+    void ProcessPointQuery(const uint64_t &reqId, proto::Query *query, const TransportAddress &remote);
     void ProcessQuery(queryMetaDataMap::accessor &q, const TransportAddress &remote, proto::Query *query, QueryMetaData *query_md);
     void FindSnapshot(QueryMetaData *query_md, proto::Query *query);
     void ProcessSync(queryMetaDataMap::accessor &q, const TransportAddress &remote, proto::MergedSnapshot *merged_ss, const std::string *queryId, QueryMetaData *query_md);

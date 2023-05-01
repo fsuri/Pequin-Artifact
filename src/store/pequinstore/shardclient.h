@@ -114,9 +114,9 @@ class ShardClient : public TransportReceiver, public PingInitiator, public PingT
  public:
   ShardClient(transport::Configuration *config, Transport *transport,
       uint64_t client_id, int group, const std::vector<int> &closestReplicas,
-      bool pingReplicas,
+      bool pingReplicas, uint64_t readMessages, uint64_t readQuorumSize,
       Parameters params, KeyManager *keyManager, Verifier *verifier, SQLTransformer *sql_interpreter,
-      TrueTime &timeServer, uint64_t phase1DecisionTimeout,
+      TrueTime &timeServer, uint64_t phase1DecisionTimeout, 
       uint64_t consecutiveMax = 1UL);
   virtual ~ShardClient();
 
@@ -550,6 +550,8 @@ SQLTransformer *sql_interpreter;
   const int group; // which shard this client accesses
   TrueTime &timeServer;
   const bool pingReplicas;
+  const uint64_t readMessages;
+  const uint64_t readQuorumSize;
   const Parameters params;
   KeyManager *keyManager;
   Verifier *verifier;

@@ -39,12 +39,12 @@ namespace pequinstore {
 
 ShardClient::ShardClient(transport::Configuration *config, Transport *transport,
     uint64_t client_id, int group, const std::vector<int> &closestReplicas_,
-    bool pingReplicas,
+    bool pingReplicas, uint64_t readMessages, uint64_t readQuorumSize,
     Parameters params, KeyManager *keyManager, Verifier *verifier, SQLTransformer *sql_interpreter,
     TrueTime &timeServer, uint64_t phase1DecisionTimeout, uint64_t consecutiveMax) :
     PingInitiator(this, transport, config->n),
     client_id(client_id), transport(transport), config(config), group(group),
-    timeServer(timeServer), pingReplicas(pingReplicas), params(params),
+    timeServer(timeServer), pingReplicas(pingReplicas), readMessages(readMessages), readQuorumSize(readQuorumSize), params(params),
     keyManager(keyManager), verifier(verifier), phase1DecisionTimeout(phase1DecisionTimeout),
     lastReqId(0UL), failureActive(false), consecutiveMax(consecutiveMax), sql_interpreter(sql_interpreter) {
   transport->Register(this, *config, -1, -1); //phase1DecisionTimeout(1000UL)

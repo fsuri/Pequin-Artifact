@@ -75,7 +75,7 @@ Client::Client(transport::Configuration *config, uint64_t id, int nShards,
   /* Start a client for each shard. */
   for (uint64_t i = 0; i < ngroups; i++) {
     bclient.push_back(new ShardClient(config, transport, client_id, i,
-        closestReplicas, pingReplicas, params,
+        closestReplicas, pingReplicas, readMessages, readQuorumSize, params,
         keyManager, verifier, &sql_interpreter,
         timeServer, phase1DecisionTimeout, consecutiveMax));
   }
@@ -395,9 +395,15 @@ void Client::Query(const std::string &query, query_callback qcb,
     //TODO: Check col conditions. --> Switch between QueryResultCallback and PointQueryResultCallback
     
     pendingQuery->is_point = sql_interpreter.InterpretQueryRange(query, pendingQuery->table_name, pendingQuery->p_col_values, relax_point_cond); 
+
+    std::cerr << "is point?: " << pendingQuery->is_point << std::endl;
     
-    if(pendingQuery->is_point) std::cerr << "Encoded key: " << (EncodeTableRow(pendingQuery->table_name, pendingQuery->p_col_values)) << std::endl; 
-    //TODO: In callback: If point and query fails (it was using eager exec) -> Retry should issue Point without eager exec.
+    if(pendingQuery->is_point){
+      std::cerr << "Encoded key: " << (EncodeTableRow(pendingQuery->table_name, pendingQuery->p_col_values)) << std::endl; 
+    } 
+    //Alternatively: Instead of storing the key, we could also let servers provide the keys and wait for f+1 matching keys. But then we'd have to wait for 2f+1 reads in total... ==> Client stores key
+
+
   
     //Could send table_name always? Then we know how to lookup table_version (NOTE: Won't work for joins etc though..)
 
@@ -407,7 +413,7 @@ void Client::Query(const std::string &query, query_callback qcb,
     
     //For Retry: Override callback to be this one.
     if(pendingQuery->is_point && !params.query_params.eagerPointExec){ //TODO: Create separate param for point eagerExec
-      //TODO: Compute primary key encoding
+      //In callback: If point and query fails (it was using eager exec) -> Retry should issue Point without eager exec.
 
       pendingQuery->key = EncodeTableRow(pendingQuery->table_name, pendingQuery->p_col_values); //TODO: Pass it down!!! Ptr to table_name and key.
       prcb = std::bind(&Client::PointQueryResultCallback, this, pendingQuery,

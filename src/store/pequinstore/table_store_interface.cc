@@ -55,9 +55,12 @@ std::string TableStore::ExecReadQuery(const std::string &query_statement, const 
 //Execute a point read on the Table backend and return a query_result/proto (in serialized form) as well as a commitProof (note, the read set is implicit)
 void TableStore::ExecPointRead(const std::string &query_statement, std::string &enc_primary_key, const Timestamp &ts, proto::Write *write, const proto::CommittedProof *committedProof){
 
-    // std::string table_name;
-    // std::vector<std::string> primary_key_column_values;
-    // DecodeTableRow(enc_primary_key, table_name, primary_key_column_values);
+    //Client sends query statement, and expects a Query Result for the given key, a timestamp, and a proof (if it was a committed value it read)
+        //Sending a query statement (even though it is a point request) allows us to handle complex Select operators (like Count, Max, or just some subset of rows, etc) without additional parsing
+        //Since the CC-store holds no data, we have to generate a statement otherwise anyways --> so it's easiest to just send it from the client as is (rather than assembling it from the encoded key )
+                                                                                                                                    // std::string table_name;
+                                                                                                                                    // std::vector<std::string> primary_key_column_values;
+                                                                                                                                    // DecodeTableRow(enc_primary_key, table_name, primary_key_column_values);
 
     //TODO: If read_prepared = true read both committed/prepared read
     // if true --> After execution check txn_digest of prepared_value (if exist). Check dependency depth. for txn_digest. If too deep, remove it. 

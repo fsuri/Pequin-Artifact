@@ -40,7 +40,8 @@ namespace pequinstore {
 //-> Every shard (not just query_manager shard) should be able to send this if it observes a committed query was missed; or if the materialized snapshot frontier includes a prepare that aborted (or is guaranteed to, e.g. vote Abort)
 
 void ShardClient::Query(uint64_t client_seq_num, uint64_t query_seq_num, proto::Query &queryMsg, // const std::string &query, const TimestampMessage &ts,
-      uint32_t timeout, result_timeout_callback &rtcb, result_callback &rcb, point_result_callback &prcb, bool is_point, std::string *table_name, std::string *key) {
+      uint32_t timeout, result_timeout_callback &rtcb, result_callback &rcb,                        //range query args
+      point_result_callback &prcb, bool is_point, std::string *table_name, std::string *key) {      //point query args
 
  Debug("Invoked QueryRequest [%lu] on ShardClient for group %d", query_seq_num, group);
   
@@ -74,6 +75,7 @@ void ShardClient::Query(uint64_t client_seq_num, uint64_t query_seq_num, proto::
   pendingQuery->prcb = prcb;
   pendingQuery->key = key;
   pendingQuery->table_name = table_name;
+  
  
   RequestQuery(pendingQuery, queryMsg);
 
@@ -192,6 +194,7 @@ void ShardClient::RequestQuery(PendingQuery *pendingQuery, proto::Query &queryMs
     UW_ASSERT(pendingQuery->key != nullptr && pendingQuery->table_name != nullptr); //Both of these should be set for point queries.
     pendingQuery->pendingPointQuery.key = std::move(*pendingQuery->key);  //NOTE: key no longer owned by client.cc after this.
     pendingQuery->pendingPointQuery.table_name = std::move(*pendingQuery->table_name);
+    queryReq.mutable_query()->set_primary_enc_key(pendingQuery->pendingPointQuery.key); //Alternatively, can let server compute it.
   }
   //queryReq.set_eager_exec(params.query_params.eagerExec && !pendingQuery->retry_version); //On retry use sync.
 
@@ -205,6 +208,15 @@ void ShardClient::RequestQuery(PendingQuery *pendingQuery, proto::Query &queryMs
     *queryReq.mutable_query() = queryMsg; // NOTE: cannot use std::move(queryMsg) because queryMsg objet may be passed to multiple shardclients.
   }
  
+
+  if(pendingQuery->is_point && !queryReq.eager_exec()){
+    UW_ASSERT(readMessages <= closestReplicas.size());
+    for (size_t i = 0; i < readMessages; ++i) {
+        Debug("[group %i] Sending GET to replica %lu", group, GetNthClosestReplica(i));
+        transport->SendMessageToReplica(this, group, GetNthClosestReplica(i), queryReq);
+    }
+  }
+
   uint64_t total_msg;
   uint64_t num_designated_replies;
   if(queryReq.eager_exec()){
@@ -782,7 +794,7 @@ bool ShardClient::ProcessRead(const uint64_t &reqId, PendingQuorumGet *req, read
     }
 
 
-    if (req->numReplies >= req->rqs) {
+    if (req->numReplies >= readQuorumSize) {
         if (params.maxDepDepth > -2) {
         for (auto preparedItr = req->prepared.rbegin();
             preparedItr != req->prepared.rend(); ++preparedItr) {

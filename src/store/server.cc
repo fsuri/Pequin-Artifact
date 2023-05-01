@@ -890,7 +890,13 @@ int main(int argc, char **argv) {
   } 
   else if(FLAGS_sql_bench && FLAGS_data_file_path.length() > 0 && FLAGS_keys_path.empty()) {
        std::ifstream generated_tables(FLAGS_data_file_path);
-       json tables_to_load = json::parse(generated_tables);
+       json tables_to_load;
+       try {
+          tables_to_load = json::parse(generated_tables);
+       }
+       catch (const std::exception &e) {
+         Panic("Failed to load Table JSON Schema");
+       }
        
        //Load all tables. 
        for(auto &[table_name, table_args]: tables_to_load.items()){ 

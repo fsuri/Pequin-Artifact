@@ -125,7 +125,7 @@ bool SQLTransformer::InterpretQueryRange(const std::string &_query, std::string 
     std::string_view query_statement(_query);
     //Parse Table name.
     size_t from_pos = query_statement.find(from_hook);
-    if(from_pos != std::string::npos) return false; //Reading full DB.
+    if(from_pos == std::string::npos) return false; //Reading full DB.
     
     query_statement.remove_prefix(from_pos + from_hook.length());
 
@@ -143,6 +143,7 @@ bool SQLTransformer::InterpretQueryRange(const std::string &_query, std::string 
    
     std::string_view cond_statement = query_statement.substr(where_pos + where_hook.length());
 
+    std::cerr << "checking col conds: " << cond_statement << std::endl;
     return CheckColConditions(cond_statement, table_name, p_col_values, relax); //TODO: Enable Relax
     //true == point, false == range read --> use table_name + p_col_value to do a point read.
 }

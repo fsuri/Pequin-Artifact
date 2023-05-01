@@ -162,8 +162,8 @@ void Server::HandleQuery(const TransportAddress &remote, proto::QueryRequest &ms
     if(msg.is_point() && !msg.eager_exec()){ 
         q.release(); //Release if hold
         //Note: If Point uses Eager Exec --> Just use normal protocol path in order to possibly cache read set etc. //FIXME: Make sure is_designated_For_reply
+        ProcessPointQuery(msg.req_id(), query, remote);
         if(params.mainThreadDispatching && (!params.dispatchMessageReceive || params.query_params.parallel_queries)) FreeQueryRequestMessage(&msg);
-        ProcessPointQuery(query, remote);
     }
 
     //5) Buffer Query conent and timestamp (only buffer the first time)
@@ -287,7 +287,7 @@ void Server::HandleQuery(const TransportAddress &remote, proto::QueryRequest &ms
 }
 
 
-void Server::ProcessPointQuery(proto::Query *query, const TransportAddress &remote){
+void Server::ProcessPointQuery(const uint64_t &reqId, proto::Query *query, const TransportAddress &remote){
 
     Timestamp ts(query->timestamp()); 
 
@@ -301,6 +301,8 @@ void Server::ProcessPointQuery(proto::Query *query, const TransportAddress &remo
     }
 
     proto::PointQueryResultReply *pointQueryReply = GetUnusedPointQueryResultReply(); 
+    pointQueryReply->set_req_id(reqId);
+    pointQueryReply->set_replica_id(id);
 
     //1) Execute
     proto::Write *write = pointQueryReply->mutable_write();
@@ -318,6 +320,8 @@ void Server::ProcessPointQuery(proto::Query *query, const TransportAddress &remo
     table_store.ExecPointRead(query->query_cmd(), enc_primary_key, ts, write, committedProof);
     delete query;
 
+    
+
     //2) Sign & Send Reply
     TransportAddress *remoteCopy = remote.clone();
 
@@ -326,15 +330,18 @@ void Server::ProcessPointQuery(proto::Query *query, const TransportAddress &remo
     auto sendCB = [this, remoteCopy, pointQueryReply]() {
         this->transport->SendMessage(this, *remoteCopy, *pointQueryReply);
         delete remoteCopy;
+        Panic("stop here");
         FreePointQueryResultReply(pointQueryReply);
-    };
+    }; 
 
-
+    //TODO: What if no value. Then sign?
     if (params.validateProofs && params.signedMessages && (write->has_committed_value() || (params.verifyDeps && write->has_prepared_value()))) { 
         write = pointQueryReply->release_write();
+         std::cerr << "SENDING SIGNING" << std::endl;
         SignSendReadReply(write, pointQueryReply->mutable_signed_write(), sendCB);
     }
     else{
+        std::cerr << "SENDING WITHOUT SIGNING" << std::endl;
         sendCB();
     }
 }

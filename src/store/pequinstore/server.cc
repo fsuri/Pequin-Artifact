@@ -357,18 +357,24 @@ void Server::CreateTable(const std::string &table_name, const std::vector<std::p
     sql_statement += col + " " + type + p_key + ", ";
   }
 
-
-  sql_statement += "PRIMARY_KEY ";
-  if(primary_key_col_idx.size() > 1) sql_statement += "(";
-
-  for(auto &p_idx: primary_key_col_idx){
-    sql_statement += column_data_types[p_idx].first + ", ";
-  }
   sql_statement.resize(sql_statement.size() - 2); //remove trailing ", "
 
-  if(primary_key_col_idx.size() > 1) sql_statement += ")";
+  if(primary_key_col_idx.size() > 1){
+    sql_statement += ", PRIMARY_KEY ";
+    if(primary_key_col_idx.size() > 1) sql_statement += "(";
+
+    for(auto &p_idx: primary_key_col_idx){
+      sql_statement += column_data_types[p_idx].first + ", ";
+    }
+    sql_statement.resize(sql_statement.size() - 2); //remove trailing ", "
+
+    if(primary_key_col_idx.size() > 1) sql_statement += ")";
+  }
+  
   
   sql_statement +=");";
+
+  std::cerr << "Create Table: " << sql_statement << std::endl;
 
   //Call into TableStore with this statement.
   table_store.ExecRaw(sql_statement);
@@ -413,14 +419,19 @@ void Server::LoadTableData(const std::string &table_name, const std::string &tab
     //std::string copy_table_statement_crdb = fmt::format("IMPORT INTO {0} CSV DATA {1} WITH skip = '1'", table_name, table_data_path); //FIXME: does one need to specify column names? Target columns don't appear to be enforced
 
     //Call into TableStore with this statement.
+    std::cerr << "Load Table: " << copy_table_statement << std::endl;
     table_store.ExecRaw(copy_table_statement);
 
+    //std::cerr << "Load Table: " << copy_table_statement << std::endl;
+
+    //std::cerr << "read csv data: " << table_data_path << std::endl;
     std::ifstream row_data(table_data_path);
 
     //Skip header
     std::string columns;
     getline(row_data, columns); 
 
+    // std::cerr << "cols : " << columns << std::endl;
 
     std::string row_line;
     std::string value;
@@ -430,6 +441,7 @@ void Server::LoadTableData(const std::string &table_name, const std::string &tab
 
     while(getline(row_data, row_line)){
      
+      //std::cerr << "row_line: " << row_line;
       std::vector<std::string> primary_col_vals;
       uint32_t col_idx = 0;
       uint32_t p_col_idx = 0;
@@ -452,6 +464,8 @@ void Server::LoadTableData(const std::string &table_name, const std::string &tab
       }
       std::string enc_key = EncodeTableRow(table_name, primary_col_vals);
       Load(enc_key, "", Timestamp());
+
+      //std::cerr << "  ==> Enc Key: " << enc_key << std::endl;
     }
 }
 
