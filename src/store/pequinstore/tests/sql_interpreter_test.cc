@@ -395,6 +395,7 @@ void test_cond(){
   std::cerr << is_point << std::endl << std::endl;
   UW_ASSERT(is_point == false);
 
+
   //Test 7
   query_statement = "SELECT * FROM user WHERE col2 = 'apple' AND (col2 = 'apple' OR col1 = 5) AND (col3 = 'giraffe' AND col1 = 5);";
   
@@ -416,6 +417,37 @@ void test_cond(){
   UW_ASSERT(is_point == true);
 
   std::cerr << std::endl;
+
+
+  //Test 9: Relaxed
+
+  query_statement = "SELECT * FROM user WHERE col1 = 5 AND col2 = 'apple' AND col3 = 'giraffe';";
+  
+  std::cerr << "Test9(relaxed): " << query_statement << std::endl;
+  p_col_value.clear();
+  is_point = sql_interpreter.InterpretQueryRange(query_statement, table_name, p_col_value, true);
+
+  std::cerr << is_point << std::endl;
+  UW_ASSERT(is_point == true);
+
+  std::cerr << std::endl;
+  
+  query_statement = "SELECT * FROM user WHERE (col2 = 'apple' OR col1 = 5) AND (col3 = 'giraffe' AND col1 = 5) AND col2 = 'apple';";
+  std::cerr << "Test10(relaxed): " << query_statement << std::endl;
+  p_col_value.clear();
+  is_point = sql_interpreter.InterpretQueryRange(query_statement, table_name, p_col_value, true);
+
+  std::cerr << is_point << std::endl << std::endl;
+  UW_ASSERT(is_point == true);
+
+  query_statement = "SELECT * FROM user WHERE col2 = 'apple' AND (col2 = 'apple' OR col1 = 5) AND (col3 = 'giraffe' AND col1 = 5);";
+  
+  std::cerr << "Test11(relaxed): " << query_statement << std::endl;
+  p_col_value.clear();
+  is_point = sql_interpreter.InterpretQueryRange(query_statement, table_name, p_col_value, true);
+
+  std::cerr << is_point << std::endl << std::endl;
+  UW_ASSERT(is_point == true);
 }
 
 void test_write(){

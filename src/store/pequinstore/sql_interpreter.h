@@ -116,13 +116,15 @@ inline bool map_set_key_equality(const std::pair<std::string, std::string> &a, c
     return a.first == b; 
 }
 
+
+bool set_in_map(std::map<std::string, std::string> const &lhs, std::set<std::string> const &rhs);
+
 //Returns true if computed active col set matches primary cols. (I.e. not more cols, and no less) 
 inline bool primary_key_compare(std::map<std::string, std::string> const &lhs, std::set<std::string> const &rhs, bool relax = false) {
-    if(relax = true) Panic("Relax not yet enabled");
-    if(false && relax){
-        
-        return false;
-        //return lhs.size() >= rhs.size() && std::includes(lhs.begin(), lhs.end(), rhs.begin(), rhs.end(), map_set_key_equality);
+    if(relax){
+        //Panic("Relax not yet enabled");
+        //return true;
+        return lhs.size() >= rhs.size() && set_in_map(lhs, rhs);
     }
     else{
         return lhs.size() == rhs.size() && std::equal(lhs.begin(), lhs.end(), rhs.begin(), map_set_key_equality);
@@ -161,7 +163,7 @@ class SQLTransformer {
         void TransformWriteStatement(std::string &_write_statement, //std::vector<std::vector<uint32_t>> primary_key_encoding_support,
              std::string &read_statement, std::function<void(int, query_result::QueryResult*)>  &write_continuation, write_callback &wcb, bool skip_query_interpretation = false);
 
-        bool InterpretQueryRange(const std::string &_query, std::string &table_name, std::vector<std::string> &p_col_values);
+        bool InterpretQueryRange(const std::string &_query, std::string &table_name, std::vector<std::string> &p_col_values, bool relax = false);
 
         bool GenerateTableWriteStatement(std::string &write_statement, std::string &delete_statement, const std::string &table_name, const TableWrite &table_write);
         bool GenerateTablePurgeStatement(std::string &purge_statement, const std::string &table_name, const TableWrite &table_write);

@@ -61,6 +61,9 @@
 
 namespace pequinstore {
 
+
+static bool relax_point_cond = true;
+
 static uint64_t start_time = 0;
 static uint64_t total_failure_injections=0;
 static uint64_t total_writebacks=0;

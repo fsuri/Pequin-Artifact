@@ -119,7 +119,7 @@ void SQLTransformer::RegisterTables(std::string &table_registry){ //TODO: This t
 }
 
 
-bool SQLTransformer::InterpretQueryRange(const std::string &_query, std::string &table_name, std::vector<std::string> &p_col_values){
+bool SQLTransformer::InterpretQueryRange(const std::string &_query, std::string &table_name, std::vector<std::string> &p_col_values, bool relax){
     //Using Syntax from: https://www.postgresqltutorial.com/postgresql-tutorial/postgresql-select/
 
     std::string_view query_statement(_query);
@@ -142,7 +142,7 @@ bool SQLTransformer::InterpretQueryRange(const std::string &_query, std::string 
    
     std::string_view cond_statement = query_statement.substr(where_pos + where_hook.length());
 
-    return CheckColConditions(cond_statement, table_name, p_col_values, false); //TODO: Enable Relax
+    return CheckColConditions(cond_statement, table_name, p_col_values, relax); //TODO: Enable Relax
     //true == point, false == range read --> use table_name + p_col_value to do a point read.
 }
 
@@ -1116,12 +1116,14 @@ std::string SQLTransformer::GetUpdateValue(const std::string &col, std::variant<
                 return std::visit(StringVisitor(), field_val);
             }
             else{
-                if(field_val.index() == 2){ //For now assuming numerics and bools are not quoted in Update Set Statements, but only strings are. Only trim if string..
-                    return static_cast<std::string>(std::move(TrimValue(col_update.l_value)));
-                }
-                else{
-                    return static_cast<std::string>(std::move(col_update.l_value));
-                }
+                return static_cast<std::string>(std::move(TrimValueByType(col_update.l_value, col_type)));
+                // if(field_val.index() == 2){ //For now assuming numerics and bools are not quoted in Update Set Statements, but only strings are. Only trim if string..
+                //     std::cerr << "Trimming: " << col_update.l_value << std::endl; 
+                //     return static_cast<std::string>(std::move(TrimValue(col_update.l_value, true)));
+                // }
+                // else{
+                //     return static_cast<std::string>(std::move(col_update.l_value));
+                // }
             }
         }
     }
@@ -1210,6 +1212,22 @@ std::variant<bool, int32_t, std::string> DecodeType(std::string &enc_value, cons
   
 /////////////////////////////// Read parser:
 
+bool set_in_map(std::map<std::string, std::string> const &lhs, std::set<std::string> const &rhs){
+    //for(auto)
+    auto first1 = lhs.begin();
+    auto last1 = lhs.end();
+    auto first2 = rhs.begin();
+    auto last2 = rhs.end();
+    for (; first2 != last2; ++first1)
+    {
+        if (first1 == last1 || *first2 < first1->first)
+            return false;
+        if ( !(first1->first < *first2) )
+            ++first2;
+    }
+    return true;
+}
+
 //Note: input (cond_statement) contains everything following "WHERE" keyword
 //Returns true if cond_statement can be issued as Point Operation. P_col_value contains all extracted primary key col values (without quotes)
 bool SQLTransformer::CheckColConditions(std::string_view &cond_statement, std::string &table_name, std::vector<std::string> &p_col_values, bool relax){
@@ -1248,12 +1266,16 @@ bool SQLTransformer::CheckColConditions(std::string_view &cond_statement, const 
     std::map<std::string, std::string> p_col_value;
     if(!CheckColConditions(end, cond_statement, col_registry, p_col_value, terminate_early, relax)) return false;
 
-    std::cerr << "started transform" << std::endl;
+    // for(auto &[key, _]: p_col_value){
+    //     std::cerr << "extracted cols: " << key << std::endl;
+    // }
+
     //Else: Transform map into p_col_values only (in correct order); extract just the primary key cols.
     for(auto &[col_name, idx]: col_registry.primary_key_cols_idx){
         p_col_values.push_back(std::move(p_col_value.at(col_name)));
+        //std::cerr << "extracted p_ cols: " << col_name << std::endl;
     }
-    std::cerr << "finished transform" << std::endl;
+   
 
     return true; // is_point
 
@@ -1314,7 +1336,7 @@ bool SQLTransformer::CheckColConditions(size_t &end, std::string_view cond_state
             if(op_pos > pos){
                 next_op_type = SQL_NONE; // equivalent to break;
                 size_t dummy = 0;
-                CheckColConditions(dummy, cond_statement.substr(pos), col_registry, right_p_col_value, terminate_early);
+                CheckColConditions(dummy, cond_statement.substr(pos), col_registry, right_p_col_value, terminate_early, relax);
             }
             else{
                 ExtractColCondition(cond_statement.substr(0, op_pos), col_registry, right_p_col_value);
@@ -1344,7 +1366,7 @@ bool SQLTransformer::CheckColConditions(size_t &end, std::string_view cond_state
         cond_statement.remove_prefix(pos+1);
 
         //Recurse --> Returns result inside ")"  
-        CheckColConditions(end, cond_statement, col_registry, left_p_col_value, terminate_early);   //End = pos after ) that matches opening (  (or base case no bracket.)
+        CheckColConditions(end, cond_statement, col_registry, left_p_col_value, terminate_early, relax);   //End = pos after ) that matches opening (  (or base case no bracket.)
       
         if(end == std::string::npos || cond_statement.substr(end, 1) == ")"){ //this is the right side of a statement -> return.
             return !terminate_early && primary_key_compare(left_p_col_value, col_registry.primary_key_cols, relax);      //p_col_value.size() == col_registry.primary_key_cols.size();
@@ -1369,7 +1391,7 @@ bool SQLTransformer::CheckColConditions(size_t &end, std::string_view cond_state
         }
 
         //After that recurse on right cond.
-        CheckColConditions(end, cond_statement.substr(op_pos_post), col_registry, right_p_col_value, terminate_early);
+        CheckColConditions(end, cond_statement.substr(op_pos_post), col_registry, right_p_col_value, terminate_early, relax);
 
         //Merge left and right side of operator
         terminate_early = !MergeColConditions(next_op_type, left_p_col_value, right_p_col_value);
@@ -1385,7 +1407,7 @@ bool SQLTransformer::CheckColConditions(size_t &end, std::string_view cond_state
         // Recurse to use base case and return result.
          size_t dummy;
 
-        CheckColConditions(dummy, sub_cond, col_registry, p_col_value, terminate_early);
+        CheckColConditions(dummy, sub_cond, col_registry, p_col_value, terminate_early, relax);
 
         end = pos+1; //Next level receives p_col_values, and end 
         return !terminate_early && primary_key_compare(p_col_value, col_registry.primary_key_cols, relax);      //p_col_value.size() == col_registry.primary_key_cols.size(); 
