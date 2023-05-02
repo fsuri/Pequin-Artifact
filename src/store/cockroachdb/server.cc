@@ -58,7 +58,7 @@ Server::Server(const transport::Configuration &config, KeyManager *keyManager,
    * --listen-addr determines which address(es) to listen on for connections
    *   from other nodes and clients.
    */
-  std::string start_script = "cockroach start";
+  std::string start_script = "pkill -9 -f cockroach & cockroach start";
   std::string security_flag = " --insecure";
   std::string listen_addr_flag = " --listen-addr=" + host + ":" + port;
   std::string sql_addr_flag = " --advertise-sql-addr=" + host + ":" + port;
@@ -196,9 +196,15 @@ void Server::LoadTableData(const std::string &table_name,
   stats.Increment("TablesLoaded", 1);
 }
 
-void Server::CreateIndex(const std::string &table_name, const std::vector<std::pair<std::string, std::string>> &column_data_types, const std::string &index_name, const std::vector<uint32_t> &index_col_idx){
-  //Based on Syntax from: https://www.postgresqltutorial.com/postgresql-indexes/postgresql-create-index/ and  https://www.postgresqltutorial.com/postgresql-indexes/postgresql-multicolumn-indexes/
-  //CREATE INDEX index_name ON table_name(a,b,c,...);
+void Server::CreateIndex(
+    const std::string &table_name,
+    const std::vector<std::pair<std::string, std::string>> &column_data_types,
+    const std::string &index_name, const std::vector<uint32_t> &index_col_idx) {
+  // Based on Syntax from:
+  // https://www.postgresqltutorial.com/postgresql-indexes/postgresql-create-index/
+  // and
+  // https://www.postgresqltutorial.com/postgresql-indexes/postgresql-multicolumn-indexes/
+  // CREATE INDEX index_name ON table_name(a,b,c,...);
 
   UW_ASSERT(!column_data_types.empty());
   UW_ASSERT(!index_col_idx.empty());
@@ -209,16 +215,15 @@ void Server::CreateIndex(const std::string &table_name, const std::vector<std::p
   sql_statement += " ON " + table_name;
 
   sql_statement += "(";
-  for(auto &i_idx: index_col_idx){
+  for (auto &i_idx : index_col_idx) {
     sql_statement += column_data_types[i_idx].first + ", ";
   }
-   sql_statement.resize(sql_statement.size() - 2); //remove trailing ", "
+  sql_statement.resize(sql_statement.size() - 2);  // remove trailing ", "
 
-   sql_statement +=");";
+  sql_statement += ");";
 
-  //Call into TableStore with this statement.
+  // Call into TableStore with this statement.
   exec_sql(sql_statement);
-
 }
 
 void Server::LoadTableRow(
@@ -269,7 +274,7 @@ void Server::LoadTable(
   Server::exec_sql(sql_statement);
 }
 
-//Stats &Server::GetStats() { return stats; }
+// Stats &Server::GetStats() { return stats; }
 
 Server::~Server() { system("pkill -9 -f cockroach"); }
 
