@@ -1774,9 +1774,9 @@ bool ValidateDependency(const proto::Dependency &dep,
 }
 
 bool operator==(const proto::Write &pw1, const proto::Write &pw2) {
-  return pw1.committed_value() == pw2.committed_value() &&
-    pw1.committed_timestamp().timestamp() == pw2.committed_timestamp().timestamp() &&
-    pw1.committed_timestamp().id() == pw2.committed_timestamp().id() &&
+  return //pw1.committed_value() == pw2.committed_value() &&
+    //pw1.committed_timestamp().timestamp() == pw2.committed_timestamp().timestamp() &&
+    //pw1.committed_timestamp().id() == pw2.committed_timestamp().id() &&
     pw1.prepared_value() == pw2.prepared_value() &&
     pw1.prepared_timestamp().timestamp() == pw2.prepared_timestamp().timestamp() &&
     pw1.prepared_timestamp().id() == pw2.prepared_timestamp().id() &&

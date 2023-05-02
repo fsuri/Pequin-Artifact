@@ -45,7 +45,7 @@ using namespace std;
 
 
 //Note on Value quoting:
-    //We expect the following input syntax:
+    //We expect the following input syntax: https://www.prisma.io/dataguide/postgresql/short-guides/quoting-rules 
         // Insert: Only strings are single quoted (i.e. TEXT or VARCHAR)
         // Update SET: Only strings are single quoted ''  -- put differently, you can write "col1 = col1 + 5", or "col1 = 5" without quotes around 5.
         // WHERE: Only strings single quoted. E.g write WHERE col1 = 5 or col = true or col = 'monkey'.

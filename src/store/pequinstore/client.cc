@@ -453,7 +453,7 @@ void Client::PointQueryResultCallback(PendingQuery *pendingQuery,
   
   if (addReadSet) { 
     //Note: We add to read set even if result = empty (i.e. there was no write). In that case, mutable_read time will be empty.
-    Debug("Adding read to read set");
+    Debug("Adding key %s read set with readtime [%lu:%lu]", key.c_str(), read_time.getTimestamp(), read_time.getID());
     ReadMessage *read = txn.add_read_set();
     read->set_key(key);
     read_time.serialize(read->mutable_readtime());
@@ -469,8 +469,11 @@ void Client::PointQueryResultCallback(PendingQuery *pendingQuery,
 
   sql::QueryResultProtoWrapper *q_result = new sql::QueryResultProtoWrapper(result);
   pendingQuery->qcb(REPLY_OK, q_result); //callback to application 
-  //clean pendingQuery and query_seq_num_mapping in all shards.
-  ClearQuery(pendingQuery);      
+  
+  
+  delete pendingQuery;
+  //clean pendingQuery and query_seq_num_mapping in all shards. ==> Not necessary here: Already happens in HandlePointQuery
+  //ClearQuery(pendingQuery);      
 
   return;               
 

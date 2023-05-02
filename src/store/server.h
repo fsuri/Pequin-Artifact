@@ -35,7 +35,7 @@
 class Server {
  public:
   Server() { }
-  virtual ~Server() { }
+  virtual ~Server(){}
   virtual void Load(const std::string &key, const std::string &value,
       const Timestamp timestamp) = 0;
 

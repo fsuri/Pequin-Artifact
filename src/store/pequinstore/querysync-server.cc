@@ -164,6 +164,7 @@ void Server::HandleQuery(const TransportAddress &remote, proto::QueryRequest &ms
         //Note: If Point uses Eager Exec --> Just use normal protocol path in order to possibly cache read set etc. //FIXME: Make sure is_designated_For_reply
         ProcessPointQuery(msg.req_id(), query, remote);
         if(params.mainThreadDispatching && (!params.dispatchMessageReceive || params.query_params.parallel_queries)) FreeQueryRequestMessage(&msg);
+        return;
     }
 
     //5) Buffer Query conent and timestamp (only buffer the first time)
@@ -291,7 +292,7 @@ void Server::ProcessPointQuery(const uint64_t &reqId, proto::Query *query, const
 
     Timestamp ts(query->timestamp()); 
 
-    Debug("PointQuery[%lu:%lu] %s.", query->query_seq_num(), query->client_id(), query->query_cmd());
+    Debug("PointQuery[%lu:%lu] %s.", query->query_seq_num(), query->client_id(), query->query_cmd().c_str());
 
     if (CheckHighWatermark(ts)) {
         // ignore request if beyond high watermark
@@ -320,6 +321,38 @@ void Server::ProcessPointQuery(const uint64_t &reqId, proto::Query *query, const
     table_store.ExecPointRead(query->query_cmd(), enc_primary_key, ts, write, committedProof);
     delete query;
 
+    //FIXME: REmove -- this is jsut for testing:
+    ///////////
+    //Toy Transaction
+    std::string toy_txn("toy_txn");
+    Timestamp toy_ts(0, 0); //set to genesis time.
+    sql::QueryResultProtoBuilder queryResultBuilder;
+    queryResultBuilder.add_columns({"key_", "val_"});
+    std::vector<std::string> result_row = {"alice", "blonde"};
+    queryResultBuilder.add_row(result_row.begin(), result_row.end());
+    std::string toy_result = queryResultBuilder.get_result()->SerializeAsString();
+
+    //Panic("stop here");
+    // //Create Toy prepared Tx
+    write->set_prepared_value(toy_result);
+    // std::cerr << "RESULT: " << write->prepared_value() << std::endl;
+    write->set_prepared_txn_digest(toy_txn);
+    toy_ts.serialize(write->mutable_prepared_timestamp());
+
+    //Create Toy committed Tx with genesis proof
+    // proto::CommittedProof *genesis_proof = new proto::CommittedProof();
+    // genesis_proof->mutable_txn()->set_client_id(0);
+    // genesis_proof->mutable_txn()->set_client_seq_num(0);
+    //toy_ts.serialize(pointQueryReply->mutable_proof()->mutable_txn()->mutable_timestamp());
+
+    // proof->mutable_txn()->mutable_timestamp()->set_timestamp(0);
+    // proof->mutable_txn()->mutable_timestamp()->set_id(0);
+
+
+    //Create Toy committed Tx with real proof tx -- create toy "real" QC
+
+
+    ////////////
     
 
     //2) Sign & Send Reply
@@ -330,7 +363,7 @@ void Server::ProcessPointQuery(const uint64_t &reqId, proto::Query *query, const
     auto sendCB = [this, remoteCopy, pointQueryReply]() {
         this->transport->SendMessage(this, *remoteCopy, *pointQueryReply);
         delete remoteCopy;
-        Panic("stop here");
+        //Panic("stop here");
         FreePointQueryResultReply(pointQueryReply);
     }; 
 

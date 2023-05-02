@@ -51,12 +51,12 @@ class QueryResultProtoWrapper : public query_result::QueryResult {
     auto check_has_result_set() const -> void;
 
 	public:
-    QueryResultProtoWrapper(): proto_result(nullptr) {} 
-    QueryResultProtoWrapper(const SQLResultProto* proto_result): proto_result(nullptr) {
+    QueryResultProtoWrapper(): proto_result(nullptr), n_rows_affected(0U) {} 
+    QueryResultProtoWrapper(const SQLResultProto* proto_result): proto_result(nullptr), n_rows_affected(0U) {
       create_from_proto(proto_result);
     }
 
-    QueryResultProtoWrapper(const std::string& data): proto_result(nullptr) {
+    QueryResultProtoWrapper(const std::string& data): proto_result(nullptr), n_rows_affected(0U) {
       SQLResultProto result;
       if(data.empty()){ //default case
         //create_from_proto(&result);

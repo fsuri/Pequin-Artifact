@@ -128,7 +128,7 @@ void ToyClient::ExecuteToy(){
 
             //Query 2: a point query:
 
-            std::string p_query = fmt::format("SELECT * FROM datastore WHERE key_ = 'key'");
+            std::string p_query = fmt::format("SELECT * FROM datastore WHERE key_ = 'alice'");
             const query_result::QueryResult* p_queryResult;
             client.Query(p_query, p_queryResult, timeout);  //--> Edit API in frontend sync_client.
                                            //For real benchmarks: Also edit in sync_transaction_bench_client.
@@ -136,26 +136,31 @@ void ToyClient::ExecuteToy(){
             // (*p_queryResult->at(0))[0] //TODO: parse the output...  data.length
 
             std::cerr << "Got res" << std::endl;
-            UW_ASSERT(!p_queryResult->empty());
-            std::cerr << "num cols:" <<  p_queryResult->columns() << std::endl;
-            std::cerr << "num rows written:" <<  p_queryResult->rows_affected() << std::endl;
-            std::cerr << "num rows read:" << p_queryResult->size() << std::endl;
+            std::cerr << "IS empty?: " << (p_queryResult->empty()) << std::endl;
+            std::cerr << "num cols:" <<  (p_queryResult->columns()) << std::endl;
+            std::cerr << "num rows written:" <<  (p_queryResult->rows_affected()) << std::endl;
+            std::cerr << "num rows read:" << (p_queryResult->size()) << std::endl;
 
-             std::stringstream p_ss(std::ios::in | std::ios::out | std::ios::binary);
-            nbytes;
-            out = p_queryResult->get(0, 0, &nbytes);
-            std::string p_output(out, nbytes);
-            p_ss << p_output;
-            output_row;
-            {
-              cereal::BinaryInputArchive iarchive(p_ss); // Create an input archive
-              iarchive(output_row); // Read the data from the archive
+            if(!p_queryResult->empty()){ 
+               std::stringstream p_ss(std::ios::in | std::ios::out | std::ios::binary);
+               for(int i = 0; i<p_queryResult->columns(); ++i){
+                   out = p_queryResult->get(0, i, &nbytes);
+                  std::string p_output(out, nbytes);
+                  p_ss << p_output;
+                  output_row;
+                  {
+                    cereal::BinaryInputArchive iarchive(p_ss); // Create an input archive
+                    iarchive(output_row); // Read the data from the archive
+                  }
+                  std::cerr << "Query 2 Result. Col " << i << ": " << output_row << std::endl;
+               }
+               
             }
-             std::cerr << "Query 2 Result: " << output_row << std::endl;
+            
 
 
             client.Commit(timeout);
-            std::cerr << "Committed Query\n";
+            std::cerr << "Committed Queries\n";
 
             // sleep(1);
             

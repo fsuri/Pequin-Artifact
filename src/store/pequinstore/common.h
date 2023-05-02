@@ -652,6 +652,11 @@ typedef struct Parameters {
     rtsMode(rtsMode),
     query_params(query_params) { 
         UW_ASSERT(!(mainThreadDispatching && dispatchMessageReceive)); //They should not be true at the same time.
+
+        if(verifyDeps){
+            Warning("VerifyDeps is deprecated in Pequinstore -- automatically setting to false");
+            verifyDeps = false;
+        }
     }
 } Parameters;
 

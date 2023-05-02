@@ -212,9 +212,10 @@ void ShardClient::RequestQuery(PendingQuery *pendingQuery, proto::Query &queryMs
   if(pendingQuery->is_point && !queryReq.eager_exec()){
     UW_ASSERT(readMessages <= closestReplicas.size());
     for (size_t i = 0; i < readMessages; ++i) {
-        Debug("[group %i] Sending GET to replica %lu", group, GetNthClosestReplica(i));
+        Debug("[group %i] Sending PointQuery to replica %lu", group, GetNthClosestReplica(i));
         transport->SendMessageToReplica(this, group, GetNthClosestReplica(i), queryReq);
     }
+    return;
   }
 
   uint64_t total_msg;
@@ -665,7 +666,7 @@ void ShardClient::HandlePointQueryResult(proto::PointQueryResultReply &queryResu
     Debug("[group %i] Received PointQueryResult Reply for req-id [%lu]", group, queryResult.req_id());
 
     //1) authenticate reply & parse contents
-    const proto::Write *write;
+    proto::Write *write;
 
     if (params.validateProofs && params.signedMessages) {
         if (queryResult.has_signed_write()) {
@@ -687,11 +688,19 @@ void ShardClient::HandlePointQueryResult(proto::PointQueryResultReply &queryResu
             write = &validatedPrepared;
 
         } else {
-            if (queryResult.has_write() && queryResult.write().has_committed_value()) {       //TODO: For committed writes could use just authenticated channels (since committed writes come with a proof)
+            //Note: If queryResult write = empty (no committed/pepared) ==> has_write() will be false
+            // if(queryResult.has_write()){
+            //     Panic("PointQuery result has neither signed write, nor plain write");
+            //     return;
+            // }
+
+             //TODO: For committed writes could use just authenticated channels (since committed writes come with a proof)
+               //Currently we are signing ReadReplies only to prove that message indeed came for a certain replica -- we never need to forward the sig though (so we don't need disamibiguation)
+            if(queryResult.has_write() && queryResult.write().has_committed_value()) {      
                 Debug("[group %i] queryResult contains unsigned committed value.", group);
                 return;
             }
-            UW_ASSERT(!write->has_committed_value());
+    
 
             //If write has only a prepared value --> it only needs to be verified if params.verifyDeps is set (in order to forwarded dep sigs + assert that they are valid)
             if (params.verifyDeps && queryResult.has_write() && queryResult.write().has_prepared_value()) {
@@ -700,13 +709,13 @@ void ShardClient::HandlePointQueryResult(proto::PointQueryResultReply &queryResu
                 return;
             }
 
-            write = &queryResult.write();
+            write = queryResult.mutable_write();
             //if(!write->has_committed_value() && write->has_prepared_value()) Panic("Prepared write was not signed.\n");
-
+            UW_ASSERT(!write->has_committed_value());
             UW_ASSERT(!write->has_prepared_value() || !params.verifyDeps);
         }
     } else {
-        write = &queryResult.write();
+        write = queryResult.mutable_write();
     }
 
 
@@ -717,23 +726,19 @@ void ShardClient::HandlePointQueryResult(proto::PointQueryResultReply &queryResu
     }
 
     PendingQuorumGet *req = &pendingQuery->pendingPointQuery;
-    req->key = std::move(queryResult.key()); //TODO: Don't move it everytime:
-        //FIXME:
-            //Byz replica could report a result for a different key (but valid on that key)
-            //TODO: 
-            //Client needs to store the key as part of query.
-            //Can be computed from p_col_val
-
-
 
     const proto::CommittedProof *proof = queryResult.has_proof() ? &queryResult.proof() : nullptr;
     bool finished = ProcessRead(queryReq.req_id(), req, read_t::POINT, write, queryResult.has_proof(), proof, queryResult);
 
-    if(finished) delete pendingQuery;
+    if(finished){
+        query_seq_num_mapping.erase(pendingQuery->query_seq_num);
+         pendingQueries.erase(itr);
+         delete pendingQuery;
+    } 
 }
 
 //All of this code is borrowed from HandleReadReply
-bool ShardClient::ProcessRead(const uint64_t &reqId, PendingQuorumGet *req, read_t read_type, const proto::Write *write, bool has_proof, const proto::CommittedProof *proof, proto::PointQueryResultReply &reply){
+bool ShardClient::ProcessRead(const uint64_t &reqId, PendingQuorumGet *req, read_t read_type, proto::Write *write, bool has_proof, const proto::CommittedProof *proof, proto::PointQueryResultReply &reply){
 
     sql::QueryResultProtoWrapper query_result;
      //query_result::QueryResult *query_result; //TODO: Augment callback to return this instead of serialized value to avoid redundant deserialization.
@@ -777,46 +782,95 @@ bool ShardClient::ProcessRead(const uint64_t &reqId, PendingQuorumGet *req, read
 
     //TODO: change so client does not accept reads with depth > some t... (fine for now since servers use the same param setting, and we wait for f+1 matching servers)
     if (params.maxDepDepth > -2 && write->has_prepared_value() && write->has_prepared_timestamp() && write->has_prepared_txn_digest()) {
-        Timestamp preparedTs(write->prepared_timestamp());
+        // Timestamp preparedTs(write->prepared_timestamp());
+        // Debug("[group %i] ReadReply for %lu with prepared %lu byte value and ts %lu.%lu.", group, reqId, write->prepared_value().length(), preparedTs.getTimestamp(), preparedTs.getID());
+        // auto preparedItr = req->prepared.find(preparedTs);
+        // if (preparedItr == req->prepared.end()) {
+        //     req->prepared.insert(std::make_pair(preparedTs, std::make_pair(*write, 1)));
+        // } else if (preparedItr->second.first == *write) {
+        //     preparedItr->second.second += 1;
+        // }
+        // else{
+        //     Panic("Illegal branch -- 2 different txns with same ts"); // TODO: FIXME: Want to handle this!!! Byz one could be the first. Want to keep counting. 
+        //                                                                                 //FIX ALSO FOR READS FIXME:
+        // }
+        // //if(!write->has_committed_value() && write->has_prepared_value()) std::cerr << "Prepared write was processed.\n";
+        // if (params.validateProofs && params.signedMessages && params.verifyDeps) {
+        //     proto::Signature *sig = req->preparedSigs[preparedTs].add_sigs();
+        //     sig->set_process_id(reply.signed_write().process_id());
+        //     *sig->mutable_signature() = reply.signed_write().signature();
+        // }
+
+
+        Timestamp preparedTs(std::move(*write->mutable_prepared_timestamp()));
         Debug("[group %i] ReadReply for %lu with prepared %lu byte value and ts %lu.%lu.", group, reqId, write->prepared_value().length(), preparedTs.getTimestamp(), preparedTs.getID());
-        auto preparedItr = req->prepared.find(preparedTs);
-        if (preparedItr == req->prepared.end()) {
-        req->prepared.insert(std::make_pair(preparedTs, std::make_pair(*write, 1)));
-        } else if (preparedItr->second.first == *write) {
-        preparedItr->second.second += 1;
-        }
-        //if(!write->has_committed_value() && write->has_prepared_value()) std::cerr << "Prepared write was processed.\n";
+        std::tuple<Timestamp, std::string, std::string> prepVal; // = std::make_tuple();   //tuple (timestamp, txn_digest, value)
+        std::get<0>(prepVal) = std::move(*write->mutable_prepared_timestamp());
+        std::get<1>(prepVal) = std::move(*write->mutable_prepared_txn_digest());
+        std::get<2>(prepVal) = std::move(*write->mutable_prepared_value());
+       
+        auto &[count, sigs] = req->prepared_new[std::move(prepVal)];
+        count++;
+                                                                  
         if (params.validateProofs && params.signedMessages && params.verifyDeps) {
-        proto::Signature *sig = req->preparedSigs[preparedTs].add_sigs();
-        sig->set_process_id(reply.signed_write().process_id());
-        *sig->mutable_signature() = reply.signed_write().signature();
+            proto::Signature *sig = sigs.add_sigs();
+            sig->set_process_id(reply.signed_write().process_id());
+            *sig->mutable_signature() = reply.signed_write().signature();
         }
+        
     }
-
-
+  
     if (req->numReplies >= readQuorumSize) {
         if (params.maxDepDepth > -2) {
-        for (auto preparedItr = req->prepared.rbegin();
-            preparedItr != req->prepared.rend(); ++preparedItr) {
-            if (preparedItr->first < req->maxTs) {
-            break;
-            }
+            // for (auto preparedItr = req->prepared.rbegin();preparedItr != req->prepared.rend(); ++preparedItr) {
+            //     if (preparedItr->first < req->maxTs) {
+            //      break;
+            //     }   
+            //     if (preparedItr->second.second >= params.readDepSize) {
+            //         req->maxTs = preparedItr->first;
+            //         req->maxValue = preparedItr->second.first.prepared_value();
+            //         *req->dep.mutable_write() = preparedItr->second.first;
+            //         if (params.validateProofs && params.signedMessages && params.verifyDeps) {
+            //             *req->dep.mutable_write_sigs() = req->preparedSigs[preparedItr->first];
+            //         }
+            //         req->dep.set_involved_group(group);
+            //         req->hasDep = true;
+            //         break;
+            //     }
+            // }
 
-            if (preparedItr->second.second >= req->rds) {
-            req->maxTs = preparedItr->first;
-            req->maxValue = preparedItr->second.first.prepared_value();
-            *req->dep.mutable_write() = preparedItr->second.first;
-            if (params.validateProofs && params.signedMessages && params.verifyDeps) {
-                *req->dep.mutable_write_sigs() = req->preparedSigs[preparedItr->first];
+            //TODO:  Check that dependency in both code version matches...
+            // Should contain toy dep. 
+            //TODO: Need to add toy dep to commit, or else we will be stuck waiting on dependent.
+            
+            for (auto preparedItr = req->prepared_new.rbegin();preparedItr != req->prepared_new.rend(); ++preparedItr) {
+                //Reverse order by timestamp
+                const Timestamp &ts = std::get<0>(preparedItr->first);
+                if (ts < req->maxTs) {
+                 break;
+                }   
+                auto &[count, sigs] = preparedItr->second;
+                if (count >= params.readDepSize) {
+                    req->maxTs = ts;
+                    req->maxValue = std::get<2>(preparedItr->first);
+                    *req->dep.mutable_write()->mutable_prepared_txn_digest() = std::get<1>(preparedItr->first);
+                    if (params.validateProofs && params.signedMessages && params.verifyDeps) {
+                        //FIXME: To succeed in verifyDeps verification: Need to set whole Write... ==> However, that makes no sense. Deprecate verifyDeps.
+                        *req->dep.mutable_write()->mutable_prepared_value() = req->maxValue; 
+                        ts.serialize(req->dep.mutable_write()->mutable_prepared_timestamp());
+                        *req->dep.mutable_write_sigs() = std::move(sigs);
+                    }
+                    req->dep.set_involved_group(group);
+                    req->hasDep = true;
+                    break;
+                }
             }
-            req->dep.set_involved_group(group);
-            req->hasDep = true;
-            break;
-            }
-        }
         }
         //Only read once.
         const auto [it, first_read] = readValues.emplace(req->key, req->maxValue); // readValues.insert(std::make_pair(req->key, req->maxValue));
+
+        std::cerr << "Key: " << req->key << std::endl;
+         std::cerr << "MaxValue: " << req->maxValue << std::endl;
 
         if(first_read){ //for first read
             ReadMessage *read = txn.add_read_set();
@@ -846,7 +900,10 @@ bool ShardClient::ValidateTransactionTableWrite(const proto::CommittedProof &pro
     //turn value into Object //TODO: Can we avoid the redundant de-serialization in client.cc? ==> Modify prcb callback to take QueryResult as arg. 
                                 //Then need to change that gcb = prcb (no longer true)
 
-    //if query_result empty => return true. No proof needed, since replica is reporting that no value for the requested read exists (at the TS)
+    
+    //NOTE: Currently useless line of code: If empty ==> no Write ==> We would never even enter Validate Transaction branch  
+            //We don't send empty results, we just send nothing.
+            //if we did send result: if query_result empty => return true. No proof needed, since replica is reporting that no value for the requested read exists (at the TS)
     if(query_result->empty()) return true;
 
     if (proof.txn().client_id() == 0UL && proof.txn().client_seq_num() == 0UL) {

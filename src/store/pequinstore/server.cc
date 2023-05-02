@@ -451,13 +451,14 @@ void Server::LoadTableData(const std::string &table_name, const std::string &tab
       // read every column data of a row and store it in a string variable, 'value'. Extract only the primary_col_values
       while (getline(row, value, ',')) {
         if(col_idx == primary_key_col_idx[p_col_idx]){
-          p_col_idx++;
-    
           // if((*col_quotes)[col_idx]){ //If value has quotes '' strip them off
           //     primary_col_vals.push_back(value.substr(1, value.length()-2));
           // }
           // else{
               primary_col_vals.push_back(std::move(value));
+
+              p_col_idx++;
+              if(p_col_idx >= primary_key_col_idx.size()) break;
          //}
         }
         col_idx++;

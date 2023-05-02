@@ -213,6 +213,9 @@ virtual void Phase2Equivocate_Simulate(uint64_t id, const proto::Transaction &tx
     PendingQuorumGet(uint64_t reqId) : reqId(reqId),
         numReplies(0UL), numOKReplies(0UL), hasDep(false),
         firstCommittedReply(true) { }
+    PendingQuorumGet() : reqId(0UL),
+        numReplies(0UL), numOKReplies(0UL), hasDep(false),
+        firstCommittedReply(true) { }
     ~PendingQuorumGet() { }
     uint64_t reqId;
     std::string key;
@@ -231,6 +234,8 @@ virtual void Phase2Equivocate_Simulate(uint64_t id, const proto::Transaction &tx
     read_timeout_callback gtcb;
     bool firstCommittedReply;
 
+    //std::map<Timestamp, std::map<std::pair<std::string, std::string>, proto::Signatures>> prepared_new;
+    std::map<std::tuple<Timestamp, std::string, std::string>, std::pair<uint64_t, proto::Signatures>> prepared_new; //Tuple (Timestamp, TxnDigest, Value)
 
     point_result_callback prcb; //A hack to access from PendingQuorumGet
     std::string table_name;
@@ -528,7 +533,7 @@ virtual void Phase2Equivocate_Simulate(uint64_t id, const proto::Transaction &tx
     GET,
     POINT
 };
-bool ProcessRead(const uint64_t &reqId, PendingQuorumGet *req, read_t read_type, const proto::Write *write, bool has_proof, const proto::CommittedProof *proof, proto::PointQueryResultReply &reply);
+bool ProcessRead(const uint64_t &reqId, PendingQuorumGet *req, read_t read_type, proto::Write *write, bool has_proof, const proto::CommittedProof *proof, proto::PointQueryResultReply &reply);
 bool ValidateTransactionTableWrite(const proto::CommittedProof &proof, const std::string *txnDigest, const Timestamp &timestamp, 
       const std::string &key, const std::string &value, const std::string &table_name, query_result::QueryResult *query_result);
 SQLTransformer *sql_interpreter;
@@ -581,7 +586,7 @@ SQLTransformer *sql_interpreter;
   std::unordered_map<uint64_t, uint64_t> test_mapping;
   //keep additional maps for this from txnDigest ->Pending For Fallback instances?
 
-  std::unordered_map<uint64_t, uint64_t> query_seq_num_mapping;
+  std::unordered_map<uint64_t, uint64_t> query_seq_num_mapping; //map from query_seq_num to reqId
 
 //Main protocol
   proto::Read read;
