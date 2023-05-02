@@ -63,9 +63,14 @@ class VersionedKVStore {
   bool getLastRead(const std::string &key, const T &t, T &readTime);
   bool getCommittedAfter(const std::string &key, const T &t,
       std::vector<std::pair<T, V>> &values);
+  bool getPreceedingCommit(const std::string &key,
+    const T &t, std::pair<T, V> &value);
   void put(const std::string &key, const V &v, const T &t);
   void commitGet(const std::string &key, const T &readTime, const T &commit);
   bool getUpperBound(const std::string& key, const T& t, T& result);
+
+  void testLatestCommits(const std::string &key,
+    const T &t, std::vector<std::pair<T, V>> &values);
 
  private:
   struct VersionedValue {
@@ -100,7 +105,8 @@ class VersionedKVStore {
 template<class T, class V>
 VersionedKVStore<T, V>::VersionedKVStore() {
   std::cerr << "USING SAFE VERSIONSTORE" << std::endl;
-  lock_time = 0;}
+  lock_time = 0;
+}
 
 template<class T, class V>
 VersionedKVStore<T, V>::~VersionedKVStore() { }
@@ -322,5 +328,49 @@ bool VersionedKVStore<T, V>::getCommittedAfter(const std::string &key,
   return false;
 }
 
+//Note: Could just use get function...
+template<class T, class V>
+bool VersionedKVStore<T, V>::getPreceedingCommit(const std::string &key,
+    const T &t, std::pair<T, V> &value) {  //Get last write before Time T
+
+  VersionedKVStore<T, V>::VersionedValue v(t);
+  typename storeMap::const_accessor a;
+  bool inStore = store.find(a, key);
+  if (inStore) {
+    auto setItr = a->second.lower_bound(v);  //First itr >= T
+    if(setItr == a->second.begin()) {    //there exists no write < T // all values are > timestamp ==> return false
+      return false;  
+    }
+    else{ //there is a write < T, decrement itr once.  
+      setItr--;                              //First itr < T
+      if(setItr != a->second.end()){
+        value = std::make_pair(setItr->write, setItr->value);
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+
+//FIXME: REMOVE TEST   //TODO: MAybe check starting from upper bound?
+template<class T, class V>
+void VersionedKVStore<T, V>::testLatestCommits(const std::string &key,
+    const T &t, std::vector<std::pair<T, V>> &values) {  //Get last writes
+
+  typename storeMap::const_accessor a;
+  bool inStore = store.find(a, key);
+  if (inStore) {
+    int count = 0;
+    for(auto itr = a->second.rbegin(); itr != a->second.rend(); ++itr){
+        count++;
+        values.push_back(std::make_pair(itr->write, itr->value));
+        if(count == 10) return;
+    }
+  }
+}
+
+
+    ///
 
 #endif  /* _VERSIONED_KV_STORE_H_ */

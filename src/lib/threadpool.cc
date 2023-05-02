@@ -30,6 +30,7 @@
 #include <sched.h>
 #include <utility>
 #include <iostream>
+#include <sys/sysinfo.h>
 
 //TODO: make is so that all but the first core are used.
 ThreadPool::ThreadPool() {
@@ -42,6 +43,7 @@ void ThreadPool::start(int process_id, int total_processes, bool hyperthreading,
               cpu_set_t cpuset;
               sched_getaffinity(0, sizeof(cpuset), &cpuset);
               fprintf(stderr, "cpu_count  %d \n", CPU_COUNT(&cpuset));
+              fprintf(stderr, "get_nprocs  %d \n", get_nprocs());
 
   //could pre-allocate some Events and EventInfos for a Hotstart
   if(server){
@@ -75,7 +77,7 @@ void ThreadPool::start(int process_id, int total_processes, bool hyperthreading,
        //Use defaults. First core is messagine (inactive in threadpool), second is Main Logic Thread, remainder are workers (crypto/reads/asynchronous handling)
     } 
     else if (mode == 1){ //TxHotstuff
-      int num_core_for_hotstuff;
+      int num_core_for_hotstuff; // Maybe can just set this to 0
       if (total_processes <= 2) {
           num_core_for_hotstuff = 1;
       } else {

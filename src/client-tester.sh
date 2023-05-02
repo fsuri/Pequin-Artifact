@@ -35,8 +35,7 @@ N=$((5*$F+1))
 echo '[1] Starting new clients'
 for i in `seq 1 $((CLIENTS-1))`; do
   #valgrind
-  #DEBUG=store/indicusstore/*client.cc
-  store/benchmark/async/benchmark --config_path $CONFIG --num_groups $NUM_GROUPS \
+ DEBUG=store/$STORE/*client.cc store/benchmark/async/benchmark --config_path $CONFIG --num_groups $NUM_GROUPS \
     --num_shards $NUM_GROUPS \
     --protocol_mode $PROTOCOL --num_keys $NUM_KEYS_IN_DB --benchmark rw --num_ops_txn $NUM_OPS_TX \
     --exp_duration $DURATION --client_id $i --num_client_hosts $CLIENTS --warmup_secs 0 --cooldown_secs 0 \

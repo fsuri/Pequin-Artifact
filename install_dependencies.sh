@@ -22,13 +22,49 @@ echo ""
 #Development library dependencies
 echo "Installing Development library dependencies"
 echo ""
-sudo apt install libsodium-dev libgflags-dev libssl-dev libevent-dev libevent-openssl-2.1-7 libevent-pthreads-2.1-7 libboost-all-dev libuv1-dev
+sudo apt install libsodium-dev libgflags-dev libssl-dev libevent-dev libevent-openssl-2.1-7 libevent-pthreads-2.1-7 libboost-all-dev libuv1-dev libpq-dev postgresql-server-dev-all libfmt-dev
 echo "$(tput setaf 2) COMPLETE: GENERAL DEVELOPMENT LIB DEPS $(tput sgr0)"
 echo ""
 read -p "Press enter to continue"
 
 mkdir dependencies
 cd dependencies
+
+#Optional: Hoard
+echo "Installing Hoard Allocator"
+echo ""
+sudo apt-get install clang
+git clone https://github.com/emeryberger/Hoard
+cd Hoard
+cd src
+make
+sudo cp libhoard.so /usr/local/lib
+sudo echo 'export LD_PRELOAD=/usr/local/lib/libhoard.so' >> ~/.bashrc
+export LD_PRELOAD=/usr/local/lib/libhoard.so
+cd ../..
+
+#Installing taopq 
+echo "Installing TaoPq"
+echo ""
+git clone https://github.com/taocpp/taopq.git
+cd taopq
+git checkout 943d827
+sudo cmake .
+sudo cmake --build . -j $(nproc)
+sudo make install
+sudo ldconfig
+cd ..
+
+#Installing nlohman/json
+echo "Installing Nlohman/Json"
+echo ""
+git clone https://github.com/nlohmann/json.git
+cd json
+cmake .
+sudo make install
+sudo ldconfig
+cd ..
+
 
 #googletest
 echo "Installing googletest"
@@ -120,8 +156,8 @@ sudo ldconfig
 cd ..
 echo "$(tput setaf 2) COMPLETE: ed25519-donna $(tput sgr0)"
 echo ""
-read -p "Press enter to continue -- Manual interaction required: See install guide IntelTBB"
 
+read -p "Press enter to continue -- Manual interaction required: See install guide IntelTBB"
 #IntelTBB
 echo "Installing Intel TBB"
 echo ""
@@ -142,10 +178,26 @@ echo ""
 sudo apt-get install openjdk-11-jdk
 export LD_LIBRARY_PATH=/usr/lib/jvm/java-1.11.0-openjdk-amd64/lib/server:$LD_LIBRARY_PATH
 sudo ldconfig
+sudo echo 'export LD_LIBRARY_PATH=/usr/lib/jvm/java-1.11.0-openjdk-amd64/lib/server:$LD_LIBRARY_PATH' >> ~/.bashrc
 echo "$(tput setaf 2) TODO: SEE MANUAL INSTALLATION REQ BFT-SMART $(tput sgr0)"
 
+read -p "Press enter to continue"
+#CockroachDB
+echo "Installing CockroachDB"
+echo ""
+sudo mkdir -p /usr/local/lib/cockroach
+wget https://binaries.cockroachdb.com/cockroach-v22.2.2.linux-amd64.tgz --no-check-certificate
+tar -xf cockroach-v22.2.2.linux-amd64.tgz
+sudo cp -i cockroach-v22.2.2.linux-amd64/lib/libgeos.so /usr/local/lib/cockroach/
+sudo cp -i cockroach-v22.2.2.linux-amd64/lib/libgeos_c.so /usr/local/lib/cockroach/
+sudo cp -i cockroach-v22.2.2.linux-amd64/cockroach /usr/local/bin
+
+
+
+export LD_PRELOAD=/usr/local/lib/libhoard.so
 
 echo ""
+source ~/.bashrc
 echo "$(tput setaf 2) FINISHED INSTALLATION: SUCCESS $(tput sgr0)"
 
 

@@ -7,10 +7,17 @@ stats-0.json
 
 null
 
+.vscode
+.vscode/*
+.vscode/settings.json
+
 lib/crypto_bench
 lib/batched_sigs_test
 lib/blake3_test
 lib/threadpool_test
+lib/compression/TurboPFor-Integer-Compression/icapp
+lib/compression/FrameOfReference/test
+
 lockserver/client-main
 lockserver/server-main
 lockserver/lockserver-repl
@@ -50,7 +57,18 @@ store/common/backend/tests/versionstore-test
 store/indicusstore/tests/common-test
 store/indicusstore/tests/server-test
 store/indicusstore/proto_bench
+store/pequinstore/tests/proto_bench
+store/pequinstore/tests/compression_test
+store/pequinstore/tests/tbb_test
+store/pequinstore/tests/snapshot_test
+store/pequinstore/tests/table_loader_test
+store/pequinstore/tests/write_parser_test
+store/pequinstore/tests/sql_interpreter_test
+store/pequinstore/tests/*/
+store/pequinstore/tests/*.json
+store/pequinstore/*.json
 store/pequinstore/proto_bench
+
 store/janusstore/tests/janus-client-test
 store/janusstore/tests/janus-server-test
 store/mortystore/tests/branch-generator-test

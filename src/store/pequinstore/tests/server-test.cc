@@ -45,8 +45,9 @@ class MockTransportAddress : public TransportAddress {
   MOCK_METHOD(TransportAddress *, clone, (), (const, override));
 };
 
-class MockTransport : public Transport {
+class MockTransport : public Transport 
  public:
+  MockTransport() {}
   MOCK_METHOD(void, Register, (TransportReceiver *receiver,
         const transport::Configuration &config, int groupIdx, int replicaIdx),
       (override));
@@ -85,6 +86,41 @@ class ServerTest : public ::testing::Test {
   virtual void SetUp() {
     int groupIdx = 0;
     int idx = 0;
+
+    pequinstore::QueryParameters query_params(0,
+                                                 0,
+                                                 0,
+                                                 0,
+                                                 0,
+                                                 false, //FLAGS_pequin_query_read_prepared,
+                                                 false, //FLAGS_pequin_query_optimistic_txid,
+                                                 true, //FLAGS_pequin_query_cache_read_set,
+                                                 false, //FLAGS_pequin_query_merge_active_at_client,
+                                                 false, //FLAGS_pequin_sign_client_queries,
+                                                 false, //FLAGS_pequin_parallel_queries);
+    );
+
+    pequinstore::Parameters params(false, //FLAGS_indicus_sign_messages,
+                                    false,  // FLAGS_indicus_validate_proofs,
+                                    true,   // FLAGS_indicus_hash_digest,
+                                    false, 2,  // FLAGS_indicus_verify_deps, FLAGS_indicus_sig_batch,
+                                    -1,  1, // FLAGS_indicus_max_dep_depth, readDepSize,
+                                    false, false,  // FLAGS_indicus_read_reply_batch, FLAGS_indicus_adjust_batch_size,
+                                    false, false,  // FLAGS_indicus_shared_mem_batch, FLAGS_indicus_shared_mem_verify,
+                                    2, InjectFailure(), // FLAGS_indicus_merkle_branch_factor, InjectFailure(),
+                                    true, false,  // FLAGS_indicus_multi_threading, FLAGS_indicus_batch_verification,
+																		2,	// FLAGS_indicus_batch_verification_size,
+																		true,	// FLAGS_indicus_mainThreadDispatching,
+																		false,	// FLAGS_indicus_dispatchMessageReceive,
+																		true,	// FLAGS_indicus_parallel_reads,
+																		true,	// FLAGS_indicus_parallel_CCC,
+																		true,	// FLAGS_indicus_dispatchCallbacks,
+																		false,	// FLAGS_indicus_all_to_all_fb,
+																		false, 10,  // FLAGS_indicus_no_fallback, FLAGS_indicus_relayP1_timeout,
+																		false,  // FLAGS_indicus_replica_gossip,
+                                    false,  // FLAGS_indicus_sign_client_proposals,
+                                    1,  // FLAGS_indicus_rts_mode,
+                                      query_params);
     bool signedMessages = false;
     bool validateProofs = false;
     uint64_t timeDelta = 100UL;
@@ -94,9 +130,9 @@ class ServerTest : public ::testing::Test {
     GenerateTestConfig(1, F, configSS);
     config = new transport::Configuration(configSS);
     transport = new MockTransport();
-    keyManager = new KeyManager("./");
+    keyManager = new KeyManager("./", crypto::DONNA, true, 0, 0, 0);
     server = new Server(*config, groupIdx, idx, G, S, transport, keyManager,
-      signedMessages, validateProofs, timeDelta, occType, default_partitioner);
+      params, timeDelta, occType, default_partitioner, 0);
   }
 
   virtual void TearDown() {
