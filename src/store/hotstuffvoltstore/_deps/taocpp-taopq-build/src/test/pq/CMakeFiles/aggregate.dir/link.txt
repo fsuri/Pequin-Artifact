@@ -1,0 +1,1 @@
+/usr/bin/c++     CMakeFiles/aggregate.dir/aggregate.cpp.o  -o aggregate  ../../../libtaopq.a /usr/lib/x86_64-linux-gnu/libpq.so 

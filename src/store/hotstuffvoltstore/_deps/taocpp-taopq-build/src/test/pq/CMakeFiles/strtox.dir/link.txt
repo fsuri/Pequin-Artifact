@@ -1,0 +1,1 @@
+/usr/bin/c++     CMakeFiles/strtox.dir/strtox.cpp.o  -o strtox  ../../../libtaopq.a /usr/lib/x86_64-linux-gnu/libpq.so 

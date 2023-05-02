@@ -1,0 +1,1 @@
+/usr/bin/c++     CMakeFiles/hotstuffvolt.dir/main.cc.o  -o hotstuffvolt  _deps/taocpp-taopq-build/libtaopq.a /usr/lib/x86_64-linux-gnu/libpq.so 

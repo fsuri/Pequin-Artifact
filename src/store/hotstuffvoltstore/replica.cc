@@ -164,13 +164,16 @@ void Replica::ReceiveMessage(const TransportAddress &remote, const string &t,
   if (type == recvrequest.GetTypeName()) {
     recvrequest.ParseFromString(data);
     HandleRequest(remote, recvrequest);
-  } else if (type == sqlMessage.GetTypeName()) {
-    sqlMessage.ParseFromString(data);
-    HandleSql(remote, sqlMessage);
-  } else if (type == commitMessage.GetTypeName()) {
-    commitMessage.ParseFromString(data);
-    HandleCommitMessage(remote, commitMessage);
-  } else if (type == recvbatchedRequest.GetTypeName()) {
+  } 
+  // else if (type == sqlMessage.GetTypeName()) {
+  //   sqlMessage.ParseFromString(data);
+  //   HandleSql(remote, sqlMessage);
+  // } 
+  // else if (type == commitMessage.GetTypeName()) {
+  //   commitMessage.ParseFromString(data);
+  //   HandleCommitMessage(remote, commitMessage);
+  // } 
+  else if (type == recvbatchedRequest.GetTypeName()) {
     recvbatchedRequest.ParseFromString(data);
     HandleBatchedRequest(remote, recvbatchedRequest);
   } else if (type == recvab.GetTypeName()) {
@@ -319,6 +322,7 @@ bool Replica::sendMessageToAll(const ::google::protobuf::Message& msg) {
   }
 }
 
+/*
 void Replica::HandleCommitMessage(const TransportAddress &remote,
                                const proto::CommitMessage &commitMessage) {
 Debug("Handling request message");
@@ -327,12 +331,12 @@ Debug("Handling request message");
 
   std::pair<uint64_t, uint64_t> clientPair = make_pair(commitMessage.client_id(), commitMessage.txn_seq_num());
 
-  if (commits_dup.find(clientPair) == commits_dup.end()) { // Should ask about this, doesn't allow for same operation twice in a row?
+  if (commits_dup[commitMessage.client_id()][commitMessage.txn_seq_num()] == commits_dup.end().end()) { // This seems a bit sketch
       Debug("new commit: %d, %d", commitMessage.client_id(), commitMessage.txn_seq_num());
       stats->Increment("handle_new_count",1);
 
       // This unordered map is only used here so read doesn't require locks.
-      commits_dup[clientPair] = commitMessage;
+      commits_dup[commitMessage.client_id()][commitMessage.txn_seq_num()] = commitMessage;
 
       TransportAddress* clientAddr = remote.clone();
       // proto::PackedMessage packedMsg = request.packed_msg();
@@ -343,8 +347,8 @@ Debug("Handling request message");
                   stats->Increment("hotstuffvolt_exec_callback",1);
 
                   // prepare data structures for executeSlots()
-                  commits[clientPair] = commitMessage;
-                  replyAddrsCommits[clientPair] = clientAddr;
+                  commits[commitMessage.client_id()][commitMessage.txn_seq_num()] = commitMessage;
+                  replyAddrsCommits[commitMessage.client_id()][commitMessage.txn_seq_num()] = clientAddr;
 
                   stats->Increment("exec_query",1);
                   Debug("executing seq num: %lu %lu", execSeqNum, execBatchNum);
@@ -428,21 +432,23 @@ Debug("Handling request message");
   }
 #endif
 }
+*/
 
+/*
 void Replica::HandleAbortMessage(const TransportAddress &remote,
                                const proto::AbortMessage &abortMessage) {
 Debug("Handling request message");
 
 #ifdef USE_HOTSTUFF_STORE
 
-  std::pair<uint64_t, uint64_t> clientPair = make_pair(aborttMessage.client_id(), abortMessage.txn_seq_num());
+  std::pair<uint64_t, uint64_t> clientPair = make_pair(abortMessage.client_id(), abortMessage.txn_seq_num());
 
-  if (aborts_dup.find(clientPair) == aborts_dup.end()) { // Should ask about this, doesn't allow for same operation twice in a row?
+  if (aborts_dup[abortMessage.client_id()][abortMessage.txn_seq_num()] == aborts_dup.end().end()) { // Should ask about this, doesn't allow for same operation twice in a row?
       Debug("new abort: %d, %d", abortMessage.client_id(), abortMessage.txn_seq_num());
       stats->Increment("handle_new_count",1);
 
       // This unordered map is only used here so read doesn't require locks.
-      aborts_dup[clientPair] = abortMessage;
+      aborts_dup[abortMessage.client_id()][abortMessage.txn_seq_num()] = abortMessage;
 
       TransportAddress* clientAddr = remote.clone();
       // proto::PackedMessage packedMsg = request.packed_msg();
@@ -453,8 +459,8 @@ Debug("Handling request message");
                   stats->Increment("hotstuffvolt_exec_callback",1);
 
                   // prepare data structures for executeSlots()
-                  aborts[clientPair] = abortMessage;
-                  replyAddrsAborts[clientPair] = clientAddr;
+                  aborts[abortMessage.client_id()][abortMessage.txn_seq_num()] = abortMessage;
+                  replyAddrsAborts[abortMessage.client_id()][abortMessage.txn_seq_num()] = clientAddr;
 
                   stats->Increment("exec_query",1);
                   Debug("executing seq num: %lu %lu", execSeqNum, execBatchNum);
@@ -538,8 +544,9 @@ Debug("Handling request message");
   }
 #endif
 }
+*/
 
-
+/*
 void Replica::HandleSql(const TransportAddress &remote,
                                const proto::SQLMessage &sqlMessage) {
 Debug("Handling request message");
@@ -653,6 +660,7 @@ Debug("Handling request message");
   }
 #endif
 }
+*/
 
 void Replica::HandleRequest(const TransportAddress &remote,
                                const proto::Request &request) {
@@ -1051,44 +1059,44 @@ void Replica::executeSlots_callback(std::vector<::google::protobuf::Message*> &r
 
 }
 
-void Replica::executeQuery() { // Need to fix thus so it just executes the dsng query
-  stats->Increment("exec_request",1);
-        Debug("executing seq num: %lu %lu", execSeqNum, execBatchNum);
-        proto::PackedMessage packedMsg = requests[digest];
+// void Replica::executeQuery() { // Need to fix thus so it just executes the dsng query
+//   stats->Increment("exec_request",1);
+//         Debug("executing seq num: %lu %lu", execSeqNum, execBatchNum);
+//         proto::PackedMessage packedMsg = requests[digest];
 
-        std::vector<::google::protobuf::Message*> replies = app->Execute(packedMsg.type(), packedMsg.msg());
+//         std::vector<::google::protobuf::Message*> replies = app->Execute(packedMsg.type(), packedMsg.msg());
 
-        for (const auto& reply : replies) {
-          if (reply != nullptr) {
-            Debug("Sending reply");
-            stats->Increment("execs_sent",1);
-            EpendingBatchedMessages.push_back(reply);
-            EpendingBatchedDigs.push_back(digest);
-            if (EpendingBatchedMessages.size() >= EbatchSize) {
-              Debug("EBatch is full, sending");
+//         for (const auto& reply : replies) {
+//           if (reply != nullptr) {
+//             Debug("Sending reply");
+//             stats->Increment("execs_sent",1);
+//             EpendingBatchedMessages.push_back(reply);
+//             EpendingBatchedDigs.push_back(digest);
+//             if (EpendingBatchedMessages.size() >= EbatchSize) {
+//               Debug("EBatch is full, sending");
 
-              // HotStuff: disable timer for HotStuff due to concurrency bugs
-              // if (EbatchTimerRunning) {
-              //   transport->CancelTimer(EbatchTimerId);
-              //   EbatchTimerRunning = false;
-              // }
-              sendEbatch();
-            } else if (!EbatchTimerRunning) {
-              EbatchTimerRunning = true;
-              Debug("Starting ebatch timer");
-              // EbatchTimerId = transport->Timer(EbatchTimeoutMS, [this]() {
-              //   Debug("EBatch timer expired, sending");
-              //   this->EbatchTimerRunning = false;
-              //   this->sendEbatch();
-              // });
-            }
-          } else {
-            Debug("Invalid execution");
-          }
-        }
+//               // HotStuff: disable timer for HotStuff due to concurrency bugs
+//               // if (EbatchTimerRunning) {
+//               //   transport->CancelTimer(EbatchTimerId);
+//               //   EbatchTimerRunning = false;
+//               // }
+//               sendEbatch();
+//             } else if (!EbatchTimerRunning) {
+//               EbatchTimerRunning = true;
+//               Debug("Starting ebatch timer");
+//               // EbatchTimerId = transport->Timer(EbatchTimeoutMS, [this]() {
+//               //   Debug("EBatch timer expired, sending");
+//               //   this->EbatchTimerRunning = false;
+//               //   this->sendEbatch();
+//               // });
+//             }
+//           } else {
+//             Debug("Invalid execution");
+//           }
+//         }
 
-        execBatchNum++;
-}
+//         execBatchNum++;
+// }
 
 
 void Replica::executeSlots_internal() {

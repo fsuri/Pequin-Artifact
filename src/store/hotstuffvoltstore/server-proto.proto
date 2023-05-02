@@ -95,17 +95,34 @@ message SQLDecision {
 
 message QueryReply {
   // Contains proto reply
-  required QueryResult sql_res = 1;
+  required SQLResult sql_res = 1;
 
   required int32 status = 2;
 
   required uint64 group_id = 3;
+  required uint64 req_id = 4;
+  
 }
 
-message DecisionReply {
+message CommitReply {
   // Contains boolean for if Commit/Abort was successful
+  // Needs request id
   required int32 status = 1;
 
   required uint64 group_id = 2;
+  required uint64 client_id = 3;
+  required uint64 txn_seq_num = 4;
+  required uint64 req_id = 5;
+}
+
+message AbortReply {
+  // Contains boolean for if Commit/Abort was successful
+  // Needs request id
+  required int32 status = 1;
+
+  required uint64 group_id = 2;
+  required uint64 client_id = 3;
+  required uint64 txn_seq_num = 4;
+  required uint64 req_id = 5;
 }
 

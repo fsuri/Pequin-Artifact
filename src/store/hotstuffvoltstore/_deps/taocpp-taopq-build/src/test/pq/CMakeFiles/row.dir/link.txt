@@ -1,0 +1,1 @@
+/usr/bin/c++     CMakeFiles/row.dir/row.cpp.o  -o row  ../../../libtaopq.a /usr/lib/x86_64-linux-gnu/libpq.so 

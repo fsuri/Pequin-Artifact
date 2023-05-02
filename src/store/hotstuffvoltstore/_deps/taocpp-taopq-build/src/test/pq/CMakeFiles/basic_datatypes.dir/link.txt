@@ -1,0 +1,1 @@
+/usr/bin/c++     CMakeFiles/basic_datatypes.dir/basic_datatypes.cpp.o  -o basic_datatypes  ../../../libtaopq.a /usr/lib/x86_64-linux-gnu/libpq.so 

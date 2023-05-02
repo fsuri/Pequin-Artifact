@@ -4,6 +4,8 @@
 #include <string>
 #include <functional>
 #include "remote_config_dir.h"
+#include "local_config_dir.h"
+#define local TRUE
 using std::string;
 
 namespace hotstuffstore {
@@ -13,7 +15,12 @@ namespace hotstuffstore {
 
         // on CloudLab
         //const std::string config_dir_base = "/users/fs435/config/";
-        const std::string config_dir_base = REMOTE_CONFIG_DIR;
+        
+	#if(local)
+		const std::string config_dir_base = LOCAL_CONFIG_DIR;	
+	#else
+		const std::string config_dir_base = REMOTE_CONFIG_DIR;
+	#endif
 
         int shardId;
         int replicaId;

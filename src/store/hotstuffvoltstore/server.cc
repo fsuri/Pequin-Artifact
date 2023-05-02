@@ -31,7 +31,8 @@
 #include "store/common/query_result_proto_builder.h"
 #include <iostream>
 #include <sys/time.h>
-#include "store/common/taopq_query_result_wrapper.h"
+// #include "store/common/taopq_query_result_wrapper.h"
+#include <tao/pq.hpp>
 
 namespace hotstuffvoltstore {
 
@@ -56,7 +57,9 @@ Server::Server(const transport::Configuration& config, KeyManager *keyManager,
 
   dummyProof->mutable_txn()->mutable_timestamp()->set_timestamp(0);
   dummyProof->mutable_txn()->mutable_timestamp()->set_id(0);
-  auto connection_str = "user=postgres dbname=postgres port=" << (5433 + idx); // Hard coded for testing purposes
+  int starting_port = 5433; // Hard coded for testing purposes
+  int chosen_port = starting_port + idx; // Hard coded for testing purposes
+  std::string connection_str = "user=postgres dbname=postgres port=" + chosen_port; // Hard coded for testing purposes
   connection_pool = tao::pq::connection_pool::create(connection_str);
   Debug("PostgreSQL client created!", idx);
 }
@@ -245,7 +248,7 @@ bool Server::CCC(const proto::Transaction& txn) {
   }
 }
 
-google::protobuf::Message* Server::Execute(const string& msg, const uint64 client_id, const uint64 tx_seq_num) {
+::google::protobuf::Message* Server::Execute(const string& type, const string& msg) {
   Debug("Execute: %s", type.c_str());
   //std::unique_lock lock(atomicMutex);
 
@@ -274,68 +277,77 @@ google::protobuf::Message* Server::Execute(const string& msg, const uint64 clien
   
   
   proto::SQLMessage sqlMessage;
-  sqlMessage.parseFromString(msg);
+  proto::CommitMessage commitMessage;
+  proto::AbortMessage abortMessage;
+  if(type == sqlMessage.GetTypeName()) {
+    sqlMessage.ParseFromString(msg);
 
-  auto tr;
-  tuple<uint64, uint64> client_tuple(client_id, tx_seq_num);
-  if(!map.contains(client_tuple)) {
-  	auto connection = connection_pool::connection();
-    const auto tr = connection->transaction();
-  	map[client_tuple] = tr;
-  } else {
-	  tr = map[client_tuple];
+    std::shared_ptr<tao::pq::transaction> tr;
+    std::tuple<uint64_t, uint64_t> client_tuple(sqlMessage.client_id(), sqlMessage.txn_seq_num());
+    if(txnMap.find(client_tuple) == txnMap.end()) {
+      auto connection = connection_pool->connection();
+      tr = connection->transaction();
+      txnMap[client_tuple] = tr;
+    } else {
+      tr = txnMap[client_tuple];
+    }
+
+    proto::QueryReply* decision = new proto::QueryReply();// need to put result type in here somehow?
+    decision->set_req_id(sqlMessage.req_id());
+    try {
+      const auto sqlRes = tr->execute(sqlMessage.msg());
+      query_result::QueryResult* qRes = taopq_wrapper::TaoPQQueryResultWrapper(sqlRes);
+      decision->set_status(REPLY_OK); // Is it okay to do this or does this need to be in a try catch?
+      decision->set_sql_res(qRes); // Change proto type to bytes here
+    } catch(tao::pq::sql_error e) {
+      decision->set_status(REPLY_FAIL);
+      // Maybe we don't need a sql result if it failed
+      // decision->set_sql_res();
+    }
+    decision->set_group_id(groupIdx);
+
+
+  //   std::vector<::google::protobuf::Message*> results;
+  // //  results.push_back(nullptr);
+  //   results.push_back(sqlRes);
+    return decision;
+  } else if(type == commitMessage.GetTypeName()) {
+    std::tuple<uint64_t, uint64_t> client_tuple(commitMessage.client_id(), commitMessage.txn_seq_num());
+    assert(txnMap.contains(client_tuple))
+
+    proto::CommitReply* decision = new proto::CommitReply();// need to put result type in here somehow?
+    decision->set_group_id(groupIdx);
+    decision->set_client_id(client_id);
+    decision->set_txn_seq_num(txn_seq_num);
+    decision->set_req_id(commitMessage.req_id());
+    if(txnMap.find(client_tuple) != txnMap.end()) {
+      auto tr = txnMap[client_tuple];
+      //try
+      try {
+        tr->commit();
+        decision->set_status(REPLY_OK);
+      } catch(tao::pq::sql_error e) {
+        decision->set_status(REPLY_FAIL);
+      }
+    }
+
+    return decision;
+  } else if(type == abortMessage.GetTypeName()) {
+    std::tuple<uint64_t, uint64_t> client_tuple(client_id, tx_seq_num);
+    if(txnMap.find(client_tuple) != txnMap.end()) {
+      auto tr = txnMap[client_tuple];
+      tr->rollback();
+    }
+
+    proto::AbortReply* decision = new proto::AbortReply();// need to put result type in here somehow?
+    decision->set_status(REPLY_OK);
+    decision->set_group_id(groupIdx);
+    decision->set_client_id(client_id);
+    decision->set_txn_seq_num(txn_seq_num);
+    decision->set_req_id(abortMessage.req_id());
+
+    return decision;
   }
-
-  proto::QueryReply* decision = new proto::QueryReply();// need to put result type in here somehow?
-  const auto sqlRes = tr->execute(sqlMessage.msg());
-  query_result::QueryResult qRes = TaoPQQueryResultWrapper(sqlRes);
-  decision->set_status(REPLY_OK);
-  decision->set_sql_res(qRes); // Change proto type to bytes here
-  decision->set_status(groupIdx);
-
-
-//   std::vector<::google::protobuf::Message*> results;
-// //  results.push_back(nullptr);
-//   results.push_back(sqlRes);
-  return decision;
-}
-
-google::protobuf::Message* Server::ExecuteCommit(const uint64 client_id, const uint64 tx_seq_num) {
-  Debug("Commit: %s", type.c_str());
-  // proto::SQLMessage sqlMessage; // DO this with new commit type
-  // sqlMessage.parseFromString(msg);
-
-  auto tr;
-  tuple<uint64, uint64> client_tuple(client_id, tx_seq_num);
-  if(map.contains(client_tuple)) {
-	  tr = map[client_tuple];
-    tr->commit();
-  }
-
-  proto::DecisionReply* decision = new proto::DecisionReply();// need to put result type in here somehow?
-  decision->set_status(REPLY_OK);
-  decision->set_status(groupIdx);
-
-  return decision;
-}
-
-google::protobuf::Message* Server::ExecuteAbort(const uint64 client_id, const uint64 tx_seq_num) {
-  Debug("Abort: %s", type.c_str());
-  // proto::SQLMessage sqlMessage; // DO this with new commit type
-  // sqlMessage.parseFromString(msg);
-
-  auto tr;
-  tuple<uint64, uint64> client_tuple(client_id, tx_seq_num);
-  if(map.contains(client_tuple)) {
-	  tr = map[client_tuple];
-    tr->rollback();
-  }
-
-  proto::DecisionReply* decision = new proto::DecisionReply();// need to put result type in here somehow?
-  decision->set_status(REPLY_OK);
-  decision->set_status(groupIdx);
-
-  return decision;
 }
 
 

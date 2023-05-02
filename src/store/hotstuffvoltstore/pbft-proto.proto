@@ -79,12 +79,14 @@ message SQLMessage {
   required uint64 txn_seq_num = 2;
   // required uint64 seqnum = 3;
   required bytes msg = 3;
+  required uint64 req_id = 4;
   // required PackedMessage packed_msg = 3;
 }
 
 message CommitMessage {
   required uint64 client_id = 1;
   required uint64 txn_seq_num = 2;
+  required uint64 req_id = 3;
   // required uint64 seqnum = 3;
   // required bytes msg = 3;
   // required PackedMessage packed_msg = 3;
@@ -93,6 +95,7 @@ message CommitMessage {
 message AbortMessage {
   required uint64 client_id = 1;
   required uint64 txn_seq_num = 2;
+  required uint64 req_id = 3;
   // required uint64 seqnum = 3;
   // required bytes msg = 3;
   // required PackedMessage packed_msg = 3;

@@ -1,0 +1,1 @@
+/usr/bin/c++     CMakeFiles/traits.dir/traits.cpp.o  -o traits  ../../../libtaopq.a /usr/lib/x86_64-linux-gnu/libpq.so 

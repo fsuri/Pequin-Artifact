@@ -1,0 +1,1 @@
+/usr/bin/c++     CMakeFiles/transaction.dir/transaction.cpp.o  -o transaction  ../../../libtaopq.a /usr/lib/x86_64-linux-gnu/libpq.so 

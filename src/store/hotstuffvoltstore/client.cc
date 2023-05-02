@@ -147,47 +147,47 @@ void Client::Put(const std::string &key, const std::string &value,
   });
 }
 
-// void Client::Commit(commit_callback ccb, commit_timeout_callback ctcb,
-//     uint32_t timeout) { // Rewrite
-//   transport->Timer(0, [this, ccb, ctcb, timeout]() {
-//     std::string digest = TransactionDigest(currentTxn);
-//     if (pendingPrepares.find(digest) == pendingPrepares.end()) {
-//       PendingPrepare pendingPrepare;
-//       pendingPrepare.ccb = ccb;
-//       pendingPrepare.ctcb = ctcb;
-//       pendingPrepare.timeout = timeout;
-//       // should do a copy
-//       pendingPrepare.txn = currentTxn;
-//       pendingPrepares[digest] = pendingPrepare;
+void Client::Commit(commit_callback ccb, commit_timeout_callback ctcb,
+    uint32_t timeout) { // Rewrite
+  transport->Timer(0, [this, ccb, ctcb, timeout]() {
+    std::string digest = TransactionDigest(currentTxn);
+    if (pendingPrepares.find(digest) == pendingPrepares.end()) {
+      PendingPrepare pendingPrepare;
+      pendingPrepare.ccb = ccb;
+      pendingPrepare.ctcb = ctcb;
+      pendingPrepare.timeout = timeout;
+      // should do a copy
+      pendingPrepare.txn = currentTxn;
+      pendingPrepares[digest] = pendingPrepare;
 
-//       if (currentTxn.participating_shards_size() == 0) {
-//         fprintf(stderr, "0 participating shards\n");
-//       }
-//       stats.Increment("called_commit",1);
-//       stats.IncrementList("txn_groups", currentTxn.participating_shards_size());
+      if (currentTxn.participating_shards_size() == 0) {
+        fprintf(stderr, "0 participating shards\n");
+      }
+      stats.Increment("called_commit",1);
+      stats.IncrementList("txn_groups", currentTxn.participating_shards_size());
 
-//       for (const auto& shard_id : currentTxn.participating_shards()) {
+      for (const auto& shard_id : currentTxn.participating_shards()) {
 
-//         prepare_timeout_callback pcbt = [](int s) {
-//           Debug("prepare timeout called");
-//         };
-//         if (signMessages) {
-//           signed_prepare_callback pcb = std::bind(&Client::HandleSignedPrepareReply,
-//             this, digest, shard_id, std::placeholders::_1, std::placeholders::_2);
+        prepare_timeout_callback pcbt = [](int s) {
+          Debug("prepare timeout called");
+        };
+        if (signMessages) {
+          signed_prepare_callback pcb = std::bind(&Client::HandleSignedPrepareReply,
+            this, digest, shard_id, std::placeholders::_1, std::placeholders::_2);
 
-//           bclient[shard_id]->SignedPrepare(currentTxn, pcb, pcbt, timeout);
-//         } else {
-//           prepare_callback pcb = std::bind(&Client::HandlePrepareReply,
-//             this, digest, shard_id, std::placeholders::_1, std::placeholders::_2);
+          bclient[shard_id]->SignedPrepare(currentTxn, pcb, pcbt, timeout);
+        } else {
+          prepare_callback pcb = std::bind(&Client::HandlePrepareReply,
+            this, digest, shard_id, std::placeholders::_1, std::placeholders::_2);
 
-//           bclient[shard_id]->Prepare(currentTxn, pcb, pcbt, timeout);
-//         }
-//       }
-//     } else {
-//       fprintf(stderr, "already committed\n");
-//     }
-//   });
-// }
+          bclient[shard_id]->Prepare(currentTxn, pcb, pcbt, timeout);
+        }
+      }
+    } else {
+      fprintf(stderr, "already committed\n");
+    }
+  });
+}
 
 
 void Client::Query(const std::string &query, query_callback qcb,

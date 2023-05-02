@@ -42,6 +42,7 @@
 #include "store/common/partitioner.h"
 #include "store/common/truetime.h"
 #include "lib/transport.h"
+#include "store/common/taopq_query_result_wrapper.h"
 #include <tao/pq.hpp>
 
 
@@ -55,9 +56,8 @@ public:
     TrueTime timeServer = TrueTime(0, 0));
   ~Server();
 
-  std::vector<::google::protobuf::Message*> Execute(const string& msg, const uint64 client_id, const uint64 tx_seq_num);
-  std::vector<::google::protobuf::Message*> ExecuteCommit(const uint64 client_id, const uint64 tx_seq_num);
-  std::vector<::google::protobuf::Message*> ExecuteAbort(const uint64 client_id, const uint64 tx_seq_num);
+  // std::vector<::google::protobuf::Message*> Execute(const string& type, const string& msg);
+  ::google::protobuf::Message* Execute(const string& type, const string& msg);
   ::google::protobuf::Message* HandleMessage(const std::string& type, const std::string& msg);
 
   void Load(const std::string &key, const std::string &value,
@@ -68,9 +68,8 @@ public:
   Stats* mutableStats();
 
 private:
-  std::shared_ptr< tao::pq::connection_pool > connection_pool;
-  std::map< tuple<uint64, uint64>, std::shared_ptr< tao::pq::connection::transaction >> map;
-  taopq::transaction transaction;
+  std::shared_ptr<tao::pq::connection_pool> connection_pool;
+  std::map<std::tuple<uint64_t, uint64_t>, std::shared_ptr< tao::pq::transaction >> txnMap;
   uint64_t client_id;
   Transport* tp;
   Stats stats;

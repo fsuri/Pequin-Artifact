@@ -32,6 +32,7 @@
 #include <optional>
 #include <memory>
 #include "query_result_field.h"
+#include <tao/pq.hpp>
 #include <tao/pq/result_traits.hpp>
 
 namespace query_result {

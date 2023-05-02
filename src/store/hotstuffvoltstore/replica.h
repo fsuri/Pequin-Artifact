@@ -78,14 +78,14 @@ public:
   void HandleGrouped(const TransportAddress &remote,
                           const proto::GroupedSignedMessage &msg);
 
- private:
 #ifdef USE_HOTSTUFF_STORE
   hotstuffstore::IndicusInterface hotstuffvolt_interface;
   std::unordered_map<std::string, proto::PackedMessage> requests_dup;
   std::unordered_map<std::string, proto::SQLMessage> queries_dup;
-  std::unordered_map<std::pair<uint64_t, uint64_t>, proto::CommitMessage> commits_dup;
-  std::unordered_map<std::pair<uint64_t, uint64_t>, proto::AbortMessage> aborts_dup;
+  std::unordered_map<uint64_t, std::unordered_map<uint64_t, proto::CommitMessage>> commits_dup;
+  std::unordered_map<uint64_t, std::unordered_map<uint64_t, proto::AbortMessage>> aborts_dup;
 #endif
+ private:
 
   const transport::Configuration &config;
   KeyManager *keyManager;
@@ -152,8 +152,8 @@ public:
   // map from digest to received requests
   std::unordered_map<std::string, proto::PackedMessage> requests;
   std::unordered_map<std::string, proto::SQLMessage> queries;
-  std::unordered_map<std::pair<uint64_t, uint64_t>, proto::CommitMessage> commits;
-  std::unordered_map<std::pair<uint64_t, uint64_t>, proto::AbortMessage> aborts;
+  std::unordered_map<uint64_t, std::unordered_map<uint64_t, proto::CommitMessage>> commits;
+  std::unordered_map<uint64_t, std::unordered_map<uint64_t, proto::AbortMessage>> aborts;
 
   // the next sequence number to be executed
   uint64_t execSeqNum;
@@ -170,8 +170,8 @@ public:
   //std::unordered_map<std::string, TransportAddress*> replyAddrs;
   tbb::concurrent_unordered_map<std::string, TransportAddress*> replyAddrs;
   tbb::concurrent_unordered_map<std::string, TransportAddress*> replyAddrsQueries;
-  tbb::concurrent_unordered_map<std::pair<uint64_t, uint64_t>, TransportAddress*> replyAddrsCommits;
-  tbb::concurrent_unordered_map<std::pair<uint64_t, uint64_t>, TransportAddress*> replyAddrsAborts;
+  tbb::concurrent_unordered_map<uint64_t, tbb::concurrent_unordered_map<uint64_t, TransportAddress*>> replyAddrsCommits;
+  tbb::concurrent_unordered_map<uint64_t, tbb::concurrent_unordered_map<uint64_t, TransportAddress*>> replyAddrsAborts;
   //std::mutex replyAddrsMutex;
 
   // tests to see if we are ready to send commit or executute the slot
