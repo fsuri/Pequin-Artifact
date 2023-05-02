@@ -65,6 +65,8 @@ class TaoPQQueryResultWrapper : public query_result::QueryResult {
 		// update/insert result
 		auto has_rows_affected() const noexcept -> bool;
 		auto rows_affected() const -> std::size_t;
+
+    inline void set_rows_affected(const uint32_t _n_rows_affected) { panic("taopq does not support setting rows affected") };
 };
 
 }
