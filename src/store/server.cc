@@ -1002,6 +1002,8 @@ int main(int argc, char **argv) {
   tport->Run();
   CALLGRIND_STOP_INSTRUMENTATION;
   CALLGRIND_DUMP_STATS;
+  for (;;) {
+  }
   Notice("Main done");
   return 0;
 }
