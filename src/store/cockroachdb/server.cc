@@ -50,7 +50,7 @@ Server::Server(const transport::Configuration &config, KeyManager *keyManager,
   //  remove site
   std::string site(host_name);
 
-  site.replace(site.find(zone), zone.length(), "");
+  site = site.substr(site.find('.'));
   host = std::string(host_name);
 
   /**
