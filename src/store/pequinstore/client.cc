@@ -76,7 +76,7 @@ Client::Client(transport::Configuration *config, uint64_t id, int nShards,
   for (uint64_t i = 0; i < ngroups; i++) {
     bclient.push_back(new ShardClient(config, transport, client_id, i,
         closestReplicas, pingReplicas, readMessages, readQuorumSize, params,
-        keyManager, verifier, &sql_interpreter,
+        keyManager, verifier, &sql_interpreter, &stats,
         timeServer, phase1DecisionTimeout, consecutiveMax));
   }
 

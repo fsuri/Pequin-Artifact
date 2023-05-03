@@ -40,13 +40,13 @@ namespace pequinstore {
 ShardClient::ShardClient(transport::Configuration *config, Transport *transport,
     uint64_t client_id, int group, const std::vector<int> &closestReplicas_,
     bool pingReplicas, uint64_t readMessages, uint64_t readQuorumSize,
-    Parameters params, KeyManager *keyManager, Verifier *verifier, SQLTransformer *sql_interpreter,
+    Parameters params, KeyManager *keyManager, Verifier *verifier, SQLTransformer *sql_interpreter, Stats *stats,
     TrueTime &timeServer, uint64_t phase1DecisionTimeout, uint64_t consecutiveMax) :
     PingInitiator(this, transport, config->n),
     client_id(client_id), transport(transport), config(config), group(group),
     timeServer(timeServer), pingReplicas(pingReplicas), readMessages(readMessages), readQuorumSize(readQuorumSize), params(params),
     keyManager(keyManager), verifier(verifier), phase1DecisionTimeout(phase1DecisionTimeout),
-    lastReqId(0UL), failureActive(false), consecutiveMax(consecutiveMax), sql_interpreter(sql_interpreter) {
+    lastReqId(0UL), failureActive(false), consecutiveMax(consecutiveMax), sql_interpreter(sql_interpreter), stats(stats) {
   transport->Register(this, *config, -1, -1); //phase1DecisionTimeout(1000UL)
 
   if (closestReplicas_.size() == 0) {
@@ -1033,6 +1033,7 @@ void ShardClient::HandleReadReply(const proto::ReadReply &reply) {
       req->prepared.insert(std::make_pair(preparedTs,
             std::make_pair(*write, 1)));
     } else if (preparedItr->second.first == *write) {
+      //stats->Increment("prepare_equality", 1); 
       preparedItr->second.second += 1;
     }
     //if(!write->has_committed_value() && write->has_prepared_value()) std::cerr << "Prepared write was processed.\n";

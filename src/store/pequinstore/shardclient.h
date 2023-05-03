@@ -115,7 +115,7 @@ class ShardClient : public TransportReceiver, public PingInitiator, public PingT
   ShardClient(transport::Configuration *config, Transport *transport,
       uint64_t client_id, int group, const std::vector<int> &closestReplicas,
       bool pingReplicas, uint64_t readMessages, uint64_t readQuorumSize,
-      Parameters params, KeyManager *keyManager, Verifier *verifier, SQLTransformer *sql_interpreter,
+      Parameters params, KeyManager *keyManager, Verifier *verifier, SQLTransformer *sql_interpreter,  Stats *stats,
       TrueTime &timeServer, uint64_t phase1DecisionTimeout, 
       uint64_t consecutiveMax = 1UL);
   virtual ~ShardClient();
@@ -548,6 +548,8 @@ SQLTransformer *sql_interpreter;
       return closestReplicas[idx];
     }
   }
+
+  Stats *stats;
 
   const uint64_t client_id; // Unique ID for this client.
   Transport *transport; // Transport layer.

@@ -654,8 +654,9 @@ typedef struct Parameters {
         UW_ASSERT(!(mainThreadDispatching && dispatchMessageReceive)); //They should not be true at the same time.
 
         if(verifyDeps){
-            Warning("VerifyDeps is deprecated in Pequinstore -- automatically setting to false");
+            Warning("VerifyDeps Parameter is deprecated in Pequinstore -- automatically setting to false. Always doing serverside local verification");
             verifyDeps = false;
+            //Note: Cannot support non-local verification (proofs for deps) if write equality is only for prepares. (Since signature is for whole write)
         }
     }
 } Parameters;
