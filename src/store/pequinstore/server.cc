@@ -151,6 +151,21 @@ Server::Server(const transport::Configuration &config, int groupIdx, int idx,
       };
       table_store.SetPreparePredicate(read_prepared_pred);
   }
+
+   Timestamp toy_ts_c(0, 1);
+  proto::CommittedProof *real_proof = new proto::CommittedProof();
+    proto::Transaction *txn = real_proof->mutable_txn();
+    real_proof->mutable_txn()->set_client_id(0);
+    real_proof->mutable_txn()->set_client_seq_num(1);
+    toy_ts_c.serialize(real_proof->mutable_txn()->mutable_timestamp());
+    TableWrite &table_write = (*real_proof->mutable_txn()->mutable_table_writes())["datastore"];
+    RowUpdates *row = table_write.add_rows();
+    row->add_column_values("alice");
+    row->add_column_values("black");
+    WriteMessage *write_msg = real_proof->mutable_txn()->add_write_set();
+    write_msg->set_key("datastore#alice");
+    write_msg->mutable_rowupdates()->set_row_idx(0);
+  committed["toy_txn"] = real_proof; 
 }
 
 Server::~Server() {

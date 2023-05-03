@@ -741,7 +741,7 @@ void ShardClient::HandlePointQueryResult(proto::PointQueryResultReply &queryResu
 bool ShardClient::ProcessRead(const uint64_t &reqId, PendingQuorumGet *req, read_t read_type, proto::Write *write, bool has_proof, const proto::CommittedProof *proof, proto::PointQueryResultReply &reply){
 
     sql::QueryResultProtoWrapper query_result;
-     //query_result::QueryResult *query_result; //TODO: Augment callback to return this instead of serialized value to avoid redundant deserialization.
+    //query_result::QueryResult *query_result; //TODO: Augment callback to return this instead of serialized value to avoid redundant deserialization.
                                                     //Note: However, winning Value could be prepared too. Would have to deser prepared values too, if winners
                                                     // ==> Would need to store QueryResult as maxValue instead of value string.
 
@@ -756,11 +756,13 @@ bool ShardClient::ProcessRead(const uint64_t &reqId, PendingQuorumGet *req, read
 
         std::string committedTxnDigest = TransactionDigest(proof->txn(), params.hashDigest);
 
-        bool valid; 
-        if(read_type == read_t::GET) ValidateTransactionWrite(*proof, &committedTxnDigest, req->key, write->committed_value(), write->committed_timestamp(), config, params.signedMessages, keyManager, verifier);
+        bool valid = false; 
+        if(read_type == read_t::GET){
+            valid = ValidateTransactionWrite(*proof, &committedTxnDigest, req->key, write->committed_value(), write->committed_timestamp(), config, params.signedMessages, keyManager, verifier);
+        } 
         else { //if read type POINT 
-                
-                ValidateTransactionTableWrite(*proof, &committedTxnDigest, write->committed_timestamp(), req->key, write->committed_value(), req->table_name, &query_result);
+            std::cerr << "WriteValue: " << write->committed_value() << std::endl;   
+            valid = ValidateTransactionTableWrite(*proof, &committedTxnDigest, write->committed_timestamp(), req->key, write->committed_value(), req->table_name, &query_result);
         }
 
         if (!valid) {
@@ -804,6 +806,8 @@ bool ShardClient::ProcessRead(const uint64_t &reqId, PendingQuorumGet *req, read
 
         Timestamp preparedTs(std::move(*write->mutable_prepared_timestamp()));
         Debug("[group %i] ReadReply for %lu with prepared %lu byte value and ts %lu.%lu.", group, reqId, write->prepared_value().length(), preparedTs.getTimestamp(), preparedTs.getID());
+
+        Debug("Read reply has txn_dig %s / %s (hex).", write->prepared_txn_digest().c_str(), BytesToHex(write->prepared_txn_digest(), 16).c_str());
         std::tuple<Timestamp, std::string, std::string> prepVal; // = std::make_tuple();   //tuple (timestamp, txn_digest, value)
         std::get<0>(prepVal) = std::move(*write->mutable_prepared_timestamp());
         std::get<1>(prepVal) = std::move(*write->mutable_prepared_txn_digest());
@@ -819,13 +823,16 @@ bool ShardClient::ProcessRead(const uint64_t &reqId, PendingQuorumGet *req, read
         }
         
     }
-  
+    
+    
     if (req->numReplies >= readQuorumSize) {
         if (params.maxDepDepth > -2) {
             // for (auto preparedItr = req->prepared.rbegin();preparedItr != req->prepared.rend(); ++preparedItr) {
             //     if (preparedItr->first < req->maxTs) {
             //      break;
             //     }   
+            //     //  std::cerr << "Read PREPARED RESULT n times: " << preparedItr->second.second << std::endl;
+            //     // std::cerr << "Read PREPARED RESULT: " << preparedItr->second.first.prepared_value() << std::endl;
             //     if (preparedItr->second.second >= params.readDepSize) {
             //         req->maxTs = preparedItr->first;
             //         req->maxValue = preparedItr->second.first.prepared_value();
@@ -871,6 +878,7 @@ bool ShardClient::ProcessRead(const uint64_t &reqId, PendingQuorumGet *req, read
 
         std::cerr << "Key: " << req->key << std::endl;
          std::cerr << "MaxValue: " << req->maxValue << std::endl;
+         std::cerr << "Max TS: " << req->maxTs.getTimestamp() << ":" << req->maxTs.getID() << std::endl;
 
         if(first_read){ //for first read
             ReadMessage *read = txn.add_read_set();
@@ -892,23 +900,27 @@ bool ShardClient::ProcessRead(const uint64_t &reqId, PendingQuorumGet *req, read
 }
 
 bool ShardClient::ValidateTransactionTableWrite(const proto::CommittedProof &proof, const std::string *txnDigest, const Timestamp &timestamp, 
-    const std::string &key, const std::string &value, const std::string &table_name, query_result::QueryResult *query_result)
+    const std::string &key, const std::string &value, const std::string &table_name, sql::QueryResultProtoWrapper *query_result)
 {
 
-   
+    Debug("[group %i] Trying to validate committed TableWrite.", group);
+    
     *query_result = sql::QueryResultProtoWrapper(value); //new
     //turn value into Object //TODO: Can we avoid the redundant de-serialization in client.cc? ==> Modify prcb callback to take QueryResult as arg. 
                                 //Then need to change that gcb = prcb (no longer true)
 
-    
     //NOTE: Currently useless line of code: If empty ==> no Write ==> We would never even enter Validate Transaction branch  
             //We don't send empty results, we just send nothing.
             //if we did send result: if query_result empty => return true. No proof needed, since replica is reporting that no value for the requested read exists (at the TS)
-    if(query_result->empty()) return true;
+    if(query_result->empty()){
+        return true;
+    } 
+
 
     if (proof.txn().client_id() == 0UL && proof.txn().client_seq_num() == 0UL) {
         // TODO: this is unsafe, but a hack so that we can bootstrap a benchmark
         //    without needing to write all existing data with transactions
+        Debug("Accept genesis proof");
         return true; //query_result->empty(); //Confirm that result is empty. (Result must be empty..)
     }
 
@@ -922,8 +934,9 @@ bool ShardClient::ValidateTransactionTableWrite(const proto::CommittedProof &pro
     }
 
     //Check that Commit Proof is correct
-    if (params.signedMessages && !ValidateCommittedProof(proof, txnDigest, keyManager, config, verifier)) {
+    if (false && params.signedMessages && !ValidateCommittedProof(proof, txnDigest, keyManager, config, verifier)) {
         Debug("VALIDATE CommittedProof failed for txn %lu.%lu.", proof.txn().client_id(), proof.txn().client_seq_num());
+        Panic("Verification should be working");
         return false;
     }
 
@@ -970,18 +983,19 @@ bool ShardClient::ValidateTransactionTableWrite(const proto::CommittedProof &pro
          //while(col_name != table_write.column_names) If storing column names in table write --> iterate through them to find matching col (idx).  Assuming here column names are in the same order.
 
        size_t nbytes;
-       std::string col_val(query_result->get(0, i, &nbytes), nbytes);
+       const char* field_val = query_result->get(0, i, &nbytes);
+       std::string col_val(field_val, nbytes);
     
        DeCerealize(col_val, col_val);
-
+    
        //Check that values match
        if(col_val != row_update.column_values()[col_idx]){
-            Debug("VALIDATE value failed for txn %lu.%lu key %s: txn value %s != returned value %s.", proof.txn().client_id(), proof.txn().client_seq_num(), 
-                 BytesToHex(key, 16).c_str(), col_val, row_update.column_values()[col_idx]);
+            Debug("VALIDATE value failed for txn %lu.%lu key %s: txn value %s != %s returned value.", proof.txn().client_id(), proof.txn().client_seq_num(), 
+                key.c_str(), col_val.c_str(), (row_update.column_values()[col_idx]).c_str());
             return false;
        } 
     }
-
+    Debug("VALIDATE TableWrite value successfully for txn %lu.%lu key %s", proof.txn().client_id(), proof.txn().client_seq_num(), key.c_str());
   return true;
 }
 

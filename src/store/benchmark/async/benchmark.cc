@@ -184,7 +184,7 @@ static bool ValidateReadQuorum(const char* flagname,
   std::cerr << "Invalid value for --" << flagname << ": " << value << std::endl;
   return false;
 }
-DEFINE_string(indicus_read_quorum, read_quorum_args[0], "size of read quorums"
+DEFINE_string(indicus_read_quorum, read_quorum_args[1], "size of read quorums"
     " (for Indicus)");
 DEFINE_validator(indicus_read_quorum, &ValidateReadQuorum);
 
