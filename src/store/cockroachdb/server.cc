@@ -52,13 +52,14 @@ Server::Server(const transport::Configuration &config, KeyManager *keyManager,
 
   site = site.substr(site.find('.'));
   host = std::string(host_name);
+  system("pkill -9 -f \"cockroach start\"");
 
   /**
    * --advertise-addr determines which address to tell other nodes to use.
    * --listen-addr determines which address(es) to listen on for connections
    *   from other nodes and clients.
    */
-  std::string start_script = "pkill -9 -f cockroach & cockroach start";
+  std::string start_script = "cockroach start";
   std::string security_flag = " --insecure";
   std::string listen_addr_flag = " --listen-addr=" + host + ":" + port;
   std::string sql_addr_flag = " --advertise-sql-addr=" + host + ":" + port;
@@ -127,6 +128,7 @@ Server::Server(const transport::Configuration &config, KeyManager *keyManager,
     std::string proxy_script =
         "cockroach gen haproxy --insecure --host=" + host + ":" + port +
         " --locality=region=" + std::to_string(groupIdx);
+    cout << proxy_script << endl;
     status = system(proxy_script.c_str());
   }
   // If happens to be the last one, init server
@@ -172,24 +174,34 @@ void Server::CreateTable(
     sql_statement += col + " " + type + p_key + ", ";
   }
   sql_statement += "PRIMARY KEY ";
-  if (primary_key_col_idx.size() > 1) sql_statement += "(";
+  sql_statement += "(";
   for (auto &p_idx : primary_key_col_idx) {
     sql_statement += (column_data_types[p_idx].first + ", ");
   }
   sql_statement.resize(sql_statement.size() - 2);  // remove trailing ", "
-  if (primary_key_col_idx.size() > 1) sql_statement += ")";
-  sql_statement += ");";
+  sql_statement += "));";
   Server::exec_sql(sql_statement);
 }
 
-void Server::LoadTableData(const std::string &table_name,
-                           const std::string &table_data_path,
-                           const std::vector<uint32_t> &primary_key_col_idx) {
+void Server::LoadTableData(
+    const std::string &table_name, const std::string &table_data_path,
+    const std::vector<std::pair<std::string, std::string>> &column_data_types) {
   // Syntax based on: https://www.cockroachlabs.com/docs/stable/import-into.html
+  // https://www.cockroachlabs.com/docs/v22.2/use-a-local-file-server
+  // data path should be a url
+  std::string table_column_name;
+  for (auto &[col, type] : column_data_types) {
+    table_column_name += "" + col + ",";
+  }
+  table_column_name.pop_back();
+
   std::string copy_table_statement_crdb = fmt::format(
-      "IMPORT INTO {0} CSV DATA ('{1}') WITH skip = '1'", table_name,
-      table_data_path);  // FIXME: does one need to specify column names? Target
-                         // columns don't appear to be enforced
+      "IMPORT INTO {0} ({1}) CSV DATA "
+      "(\'http://localhost:3000/indicus/bin/{2}\') "
+      "WITH skip = \'1\'",
+      table_name, table_column_name,
+      table_data_path);  // FIXME: does one need to specify column names?
+                         // Target columns don't appear to be enforced
 
   exec_sql(copy_table_statement_crdb);
   std::cerr << "CALLED LOAD TABLE DATA" << std::endl;
