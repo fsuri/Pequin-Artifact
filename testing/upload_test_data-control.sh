@@ -28,8 +28,8 @@ for host in "${arr_servers[@]}"
 do
    echo "uploading binaries to $host"
    #ssh bcyl2@$host.indicus.morty-pg0.utah.cloudlab.us "sudo rm -rf /mnt/extra/experiments/*"
-   rsync -v -r -e ssh test-tables-schema.json $CLOUDLAB_USER@$host.$EXPERIMENT_NAME.$PROJECT_NAME-pg0.utah.cloudlab.us:/users/bcyl2/indicus/bin/
-   rsync -v -r -e ssh test-1k.csv $CLOUDLAB_USER@$host.$EXPERIMENT_NAME.$PROJECT_NAME-pg0.utah.cloudlab.us:/users/bcyl2/indicus/bin/
+   rsync -v -r -e ssh testing/test-tables-schema.json $CLOUDLAB_USER@$host.$EXPERIMENT_NAME.$PROJECT_NAME-pg0.utah.cloudlab.us:/users/bcyl2/indicus/bin/
+   rsync -v -r -e ssh testing/test-1k.csv $CLOUDLAB_USER@$host.$EXPERIMENT_NAME.$PROJECT_NAME-pg0.utah.cloudlab.us:/users/bcyl2/indicus/bin/
 done
 
 

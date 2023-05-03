@@ -13,7 +13,7 @@
     "primary_key_col_idx": [
       0
     ],
-    "row_data_path": "/users/fs435/indicus/bin/test-1k.csv",
+    "row_data_path": "test-1k.csv",
     "table_name": "datastore"
   }
 }
