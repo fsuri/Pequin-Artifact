@@ -468,6 +468,7 @@ struct QueryReadSetMgr {
 
 
 typedef struct QueryParameters {
+    const bool sql_mode; //false ==> KV-store; true ==> SQL-store
     //protocol parameters
     const uint64_t syncQuorum; //number of replies necessary to form a sync quorum
     const uint64_t queryMessages; //number of query messages sent to replicas to request sync replies
@@ -492,10 +493,10 @@ typedef struct QueryParameters {
     //performance parameters
     const bool parallel_queries;
 
-    QueryParameters(uint64_t syncQuorum, uint64_t queryMessages, uint64_t mergeThreshold, uint64_t syncMessages, uint64_t resultQuorum, 
+    QueryParameters(bool sql_mode, uint64_t syncQuorum, uint64_t queryMessages, uint64_t mergeThreshold, uint64_t syncMessages, uint64_t resultQuorum, 
         bool eagerExec, bool eagerPointExec, bool readPrepared, bool cacheReadSet, bool optimisticTxID, bool compressOptimisticTxIDs, bool mergeActiveAtClient, 
         bool signClientQueries, bool signReplicaToReplicaSync, bool parallel_queries) : 
-        syncQuorum(syncQuorum), queryMessages(queryMessages), mergeThreshold(mergeThreshold), syncMessages(syncMessages), resultQuorum(resultQuorum),
+        sql_mode(sql_mode), syncQuorum(syncQuorum), queryMessages(queryMessages), mergeThreshold(mergeThreshold), syncMessages(syncMessages), resultQuorum(resultQuorum),
         eagerExec(eagerExec), eagerPointExec(eagerPointExec), readPrepared(readPrepared), cacheReadSet(cacheReadSet), optimisticTxID(optimisticTxID), compressOptimisticTxIDs(compressOptimisticTxIDs), mergeActiveAtClient(mergeActiveAtClient), 
         signClientQueries(signClientQueries), signReplicaToReplicaSync(signReplicaToReplicaSync), parallel_queries(parallel_queries) {}
 

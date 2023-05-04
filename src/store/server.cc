@@ -408,6 +408,9 @@ DEFINE_int32(clock_skew, 0, "difference between real clock and TrueTime");
 DEFINE_int32(clock_error, 0, "maximum error for clock");
 DEFINE_string(stats_file, "", "path to file for server stats");
 
+
+DEFINE_bool(store_mode, true, "true => Runs Table-store + CC-store (SQL); false => Runs pure KV-store");
+
 /**
  * Benchmark settings.
  */
@@ -671,7 +674,8 @@ int main(int argc, char **argv) {
           NOT_REACHABLE();
       }
     
-      pequinstore::QueryParameters query_params(0,
+      pequinstore::QueryParameters query_params(FLAGS_store_mode,
+                                                 0,
                                                  0,
                                                  0,
                                                  0,

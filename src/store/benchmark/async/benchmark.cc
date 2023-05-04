@@ -603,6 +603,7 @@ DEFINE_string(partitioner, partitioner_args[0],	"the partitioner to use during t
 DEFINE_validator(partitioner, &ValidatePartitioner);
 
 
+DEFINE_bool(store_mode, true, "true => Runs Table-store + CC-store (SQL); false => Runs pure KV-store");
 /**
  * SQL Benchmark settings
 */
@@ -1277,7 +1278,8 @@ int main(int argc, char **argv) {
         break;
     }
     case PROTO_PEQUIN: {
-      pequinstore::QueryParameters query_params(syncQuorumSize,
+      pequinstore::QueryParameters query_params(FLAGS_store_mode,
+                                                 syncQuorumSize,
                                                  queryMessages,
                                                  mergeThreshold,
                                                  syncMessages,

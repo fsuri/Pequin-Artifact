@@ -61,7 +61,8 @@ void test_snapshot_tx_id(){
 
   std::cerr << "TEST SNAPSHOT TX ID" << std::endl;
      uint64_t config_f = 0;
-     QueryParameters query_params(2*config_f + 1, //syncQuorumSize,
+     QueryParameters query_params(true,
+                                  2*config_f + 1, //syncQuorumSize,
                                   2*config_f + 1,    //  queryMessages,
                                   1*config_f + 1,    //  mergeThreshold,
                                   1*config_f + 1,    //  syncMessages,
@@ -120,7 +121,8 @@ void test_snapshot_optimistic_tx_id(bool compress){
 
   std::cerr << "TEST SNAPSHOT OPTIMISTIC TX ID. Compress = " << compress << std::endl;
      uint64_t config_f = 0;
-     QueryParameters query_params(2*config_f + 1, //syncQuorumSize,
+     QueryParameters query_params(true,
+                                  2*config_f + 1, //syncQuorumSize,
                                   2*config_f + 1,    //  queryMessages,
                                   1*config_f + 1,    //  mergeThreshold,
                                   1*config_f + 1,    //  syncMessages,

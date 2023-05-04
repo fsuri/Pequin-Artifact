@@ -1754,7 +1754,7 @@ void Server::CommitToStore(proto::CommittedProof *proof, proto::Transaction *txn
     
     store.put(write.key(), val, ts);
 
-    if(!write.has_value()){
+    if(!write.has_value() && !params.query_params.sql_mode){
       Panic("When running in KV-store mode write should always have a value");
       //TODO: It is a table write:
       //DecodeTableRow(write.key(), ...)
