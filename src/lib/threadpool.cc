@@ -10,10 +10,10 @@
  * modify, merge, publish, distribute, sublicense, and/or sell copies
  * of the Software, and to permit persons to whom the Software is
  * furnished to do so, subject to the following conditions:
- * 
+ *
  * The above copyright notice and this permission notice shall be
  * included in all copies or substantial portions of the Software.
- * 
+ *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
  * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
  * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
@@ -26,16 +26,46 @@
  **********************************************************************/
 #include "lib/threadpool.h"
 
-#include <thread>
 #include <sched.h>
 #include <utility>
 #include <iostream>
 #include <sys/sysinfo.h>
 
-//TODO: make is so that all but the first core are used.
-ThreadPool::ThreadPool() {
+#include <iostream>
+#include <thread>
+#include <utility>
 
+    //TODO: make is so that all but the first core are used.
+    ThreadPool::ThreadPool() {
+  
 }
+void ThreadPool::start(int process_id, int total_processes,
+                           bool hyperthreading, bool server, int mode) {
+  // printf("starting threadpool \n");
+  // if hardware_concurrency is wrong try this:
+  cpu_set_t cpuset;
+  sched_getaffinity(0, sizeof(cpuset), &cpuset);
+  fprintf(stderr, "cpu_count  %d \n", CPU_COUNT(&cpuset));
+  fprintf(stderr, "get_nprocs  %d \n", get_nprocs());
+  
+
+      //could pre-allocate some Events and EventInfos for a Hotstart
+      if (server) {
+    fprintf(stderr, "starting server threadpool\n");
+    fprintf(stderr, "process_id: %d, total_processes: %d \n", process_id,
+            total_processes);
+    // TODO: add config param for hyperthreading
+    // bool hyperthreading = true;
+    int num_cpus = std::thread::hardware_concurrency();  ///(2-hyperthreading);
+
+    fprintf(stderr, "Total Num_cpus on server: %d \n", num_cpus);
+
+    bool put_all_threads_on_same_core = false;
+    if (num_cpus > 8) {
+      num_cpus = 8;
+      fprintf(stderr, "Total Num_cpus on server downregulated to: %d \n",
+              num_cpus);
+    }
 
 void ThreadPool::start(int process_id, int total_processes, bool hyperthreading, bool server, int mode){
   //printf("starting threadpool \n");
@@ -217,113 +247,123 @@ void ThreadPool::start(int process_id, int total_processes, bool hyperthreading,
           if (rc != 0) {
               Panic("Error calling pthread_setaffinity_np: %d", rc);
           }
-          Debug("MainThread running on CPU %d.", sched_getcpu());
-          threads.push_back(t);
-          t->detach();
+
+          if (job.second) {
+            job.second->r = job.first();
+            event_active(job.second->ev, 0, 0);
+          } else {
+            job.first();
+          }
+        }
+      });
+      cpu_set_t cpuset;
+      CPU_ZERO(&cpuset);
+      CPU_SET(i, &cpuset);
+      int rc = pthread_setaffinity_np(t->native_handle(), sizeof(cpu_set_t),
+                                      &cpuset);
+      if (rc != 0) {
+        Panic("Error calling pthread_setaffinity_np: %d", rc);
       }
+      Debug("MainThread running on CPU %d.", sched_getcpu());
+      threads.push_back(t);
+      t->detach();
+    }
   }
 }
-
-ThreadPool::~ThreadPool()
-{
+ThreadPool::~ThreadPool() {
   stop();
-
 }
-
 void ThreadPool::stop() {
   running = false;
-  
- // for(auto t: threads){
- //    t->join();
- //    delete t;
- // }
+
+  // for(auto t: threads){
+  //    t->join();
+  //    delete t;
+  // }
 }
 
-
-void ThreadPool::EventCallback(evutil_socket_t fd, short what, void *arg) {
+void ThreadPool::EventCallback(evutil_socket_t fd, short what, void* arg) {
   // we want to run the callback in the main event loop
-  EventInfo* info = (EventInfo*) arg;
+  EventInfo* info = (EventInfo*)arg;
   info->cb(info->r);
-
   info->tp->FreeEvent(info->ev);
   info->tp->FreeEventInfo(info);
 }
 
-
-void ThreadPool::dispatch(std::function<void*()> f, std::function<void(void*)> cb, event_base* libeventBase) {
-  
+void ThreadPool::dispatch(std::function<void*()> f,
+                               std::function<void(void*)> cb,
+                               event_base* libeventBase) {
   EventInfo* info = GetUnusedEventInfo();
   info->cb = std::move(cb);
   info->ev = GetUnusedEvent(libeventBase, info);
   event_add(info->ev, NULL);
-
   worker_thread_request_list.enqueue(std::make_pair(std::move(f), info));
 }
-
-void* ThreadPool::combiner(std::function<void*()> f, std::function<void(void*)> cb){
+void* ThreadPool::combiner(std::function<void*()> f,
+                               std::function<void(void*)> cb) {
   cb(f());
   return nullptr;
 }
-
-void ThreadPool::dispatch_local(std::function<void*()> f, std::function<void(void*)> cb){
+void ThreadPool::dispatch_local(std::function<void*()> f,
+                                    std::function<void(void*)> cb) {
   EventInfo* info = nullptr;
-  auto combination = [f = std::move(f), cb = std::move(cb)](){cb(f()); return nullptr;};
-  
-  worker_thread_request_list.enqueue(std::make_pair(std::move(combination), info));
+  auto combination = [f = std::move(f), cb = std::move(cb)]() {
+    cb(f());
+    return nullptr;
+  };
+
+  worker_thread_request_list.enqueue(
+      std::make_pair(std::move(combination), info));
 }
-
-void ThreadPool::detatch(std::function<void*()> f){
+void ThreadPool::detatch(std::function<void*()> f) {
   EventInfo* info = nullptr;
-  
+
   worker_thread_request_list.enqueue(std::make_pair(std::move(f), info));
 
 }
-
-void ThreadPool::detatch_ptr(std::function<void*()> *f){
+void ThreadPool::detatch_ptr(std::function<void*()>* f) {
   EventInfo* info = nullptr;
-  
+
   worker_thread_request_list.enqueue(std::make_pair(std::move(*f), info));
 
 }
-
-void ThreadPool::detatch_main(std::function<void*()> f){
+void ThreadPool::detatch_main(std::function<void*()> f) {
   EventInfo* info = nullptr;
-
   main_thread_request_list.enqueue(std::move(f));
 }
 
-////////////////////////////////
-//requires transport object to call this... (add to the verifyObj)
-//could alternatively use:
-// transport->Timer(0, f)   // expects a timer_callback_t though, which is a void(void) typedef
-//could make f purely void, if I refactored a bunch
-//lazy solution:
-// transport->Timer(0, [](){f(new bool(true));})
-void ThreadPool::issueCallback(std::function<void(void*)> cb, void* arg, event_base* libeventBase){
-  EventInfo* info = GetUnusedEventInfo(); //new EventInfo(this);
+    // requires transport object to call this... (add to the verifyObj)
+    // could alternatively use:
+    //  transport->Timer(0, f)   // expects a timer_callback_t though, which is
+    //  a void(void) typedef
+    // could make f purely void, if I refactored a bunch
+    // lazy solution:
+    //  transport->Timer(0, [](){f(new bool(true));})
+    void
+    ThreadPool::issueCallback(std::function<void(void*)> cb, void* arg,
+                              event_base* libeventBase) {
+  EventInfo* info = GetUnusedEventInfo();  // new EventInfo(this);
   info->cb = std::move(cb);
   info->r = arg;
-  //info->ev = event_new(libeventBase, -1, 0, ThreadPool::EventCallback, info);
+  // info->ev = event_new(libeventBase, -1, 0, ThreadPool::EventCallback, info);
   info->ev = GetUnusedEvent(libeventBase, info);
   event_add(info->ev, NULL);
   event_active(info->ev, 0, 0);
 }
-
-void ThreadPool::issueMainThreadCallback(std::function<void(void*)> cb, void* arg){
-
-  auto f = [cb, arg](){
+void ThreadPool::issueMainThreadCallback(std::function<void(void*)> cb,
+                                             void* arg) {
+  auto f = [cb, arg]() {
     cb(arg);
-    return (void*) true;
+    return (void*)true;
   };
   main_thread_request_list.enqueue(std::move(f));
 }
 
-////////////////////////////////////////
 
-
-ThreadPool::EventInfo* ThreadPool::GetUnusedEventInfo() {
+ThreadPool::EventInfo*
+ThreadPool::GetUnusedEventInfo() {
   std::unique_lock<std::mutex> lock(EventInfoMutex);
-  EventInfo *info;
+  EventInfo* info;
   if (eventInfos.size() > 0) {
     info = eventInfos.back();
     eventInfos.pop_back();
@@ -332,13 +372,12 @@ ThreadPool::EventInfo* ThreadPool::GetUnusedEventInfo() {
   }
   return info;
 }
-
-void ThreadPool::FreeEventInfo(EventInfo *info) {
+void ThreadPool::FreeEventInfo(EventInfo* info) {
   std::unique_lock<std::mutex> lock(EventInfoMutex);
   eventInfos.push_back(info);
 }
-
-event* ThreadPool::GetUnusedEvent(event_base* libeventBase, EventInfo* info) {
+event* ThreadPool::GetUnusedEvent(event_base* libeventBase,
+                                      EventInfo* info) {
   std::unique_lock<std::mutex> lock(EventMutex);
   event* event;
   if (events.size() > 0) {

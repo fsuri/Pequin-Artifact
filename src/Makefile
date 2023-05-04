@@ -9,10 +9,10 @@ EXPAND = lib/tmpl/expand
 
 include Sanitizer.mk
 #CFLAGS := -g -Wall -pthread -iquote.obj/gen -Wno-uninitialized -O2 -DNUW_ASSERT
-CFLAGS :=  -g -no-pie -Wall -pthread -iquote.obj/gen -Wno-uninitialized -O2 #-O3#-O1#-O2 
-CXXFLAGS := -g -no-pie -std=c++20 $(SANITIZE_FLAG) #-fsanitize=address -fno-omit-frame-pointer -fno-optimize-sibling-calls #-fsanitize=thread
+CFLAGS :=  -g -no-pie -Wall -pthread -iquote.obj/gen -Wno-uninitialized -O2#-O3#-O1#-O2
+CXXFLAGS := -g -no-pie -std=c++17 #-fsanitize=address -static-libasan -fno-omit-frame-pointer -fno-optimize-sibling-calls #-fsanitize=thread
 # -luv for HotStuff
-LDFLAGS := -levent_pthreads -lrt -luv $(SANITIZE_FLAG) #-fsanitize=address -fno-omit-frame-pointer -fno-optimize-sibling-calls #-fsanitize=thread #
+LDFLAGS := -levent_pthreads -lrt -luv #-fsanitize=address -static-libasan -fno-omit-frame-pointer -fno-optimize-sibling-calls #-fsanitize=thread #
 
 ## Debian package: check
 #CHECK_CFLAGS := $(shell pkg-config --cflags check)
@@ -60,6 +60,9 @@ LDFLAGS += -ltbb #-lpthread
 CFLAGS += -I/usr/include/postgresql
 LDFLAGS += -ltaopq
 LDFLAGS += -lpq
+
+# fmt
+LDFLAGS += -lfmt #-l:libfmt.a
 
 # fmt
 LDFLAGS += -lfmt #-l:libfmt.a
@@ -183,6 +186,7 @@ include store/indicusstore/Rules.mk
 include store/pbftstore/Rules.mk
 include store/hotstuffstore/Rules.mk
 include store/augustusstore/Rules.mk
+include store/cockroachdb/Rules.mk
 include store/bftsmartstore/Rules.mk
 include store/bftsmartstore_augustus/Rules.mk
 include store/bftsmartstore_stable/Rules.mk

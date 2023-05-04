@@ -260,7 +260,9 @@ def start_servers(config, local_exp_directory, remote_exp_directory, run):
                 run_remote_command_async(cmd2, config['emulab_user'], server_host)
                 #perm = 'sudo chmod +x ~/indicus/bin/server'
                 #run_remote_command_async(perm, config['emulab_user'], server_host)
-
+            cmd7 = 'cd /users/$USER/indicus/bin ; python -m http.server 3000 &> /dev/null; '
+            cmd =  cmd7 + cmd
+            
             ##
             cmd3 = 'source /opt/intel/oneapi/setvars.sh --force; '
             #run_remote_command_async(cmd3, config['emulab_user'], server_host, detach=False)

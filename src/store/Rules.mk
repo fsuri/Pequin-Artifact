@@ -7,6 +7,7 @@ $(d)server: $(LIB-tapir-store) $(LIB-strong-store) $(LIB-weak-store) \
 	$(LIB-janus-store) $(LIB-io-utils) $(LIB-store-common-stats) \
 	$(LIB-pequin-store) $(LIB-indicus-store) $(LIB-pbft-store) $(LIB-hotstuff-store) $(LIB-augustus-store) \
 	$(LIB-bftsmart-store) $(LIB-bftsmart-augustus-store) $(LIB-bftsmart-stable-store) \
+	$(LIB-cockroachdb-store)
 	$(LIB-tpcc)
 
 BINS += $(d)server

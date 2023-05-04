@@ -56,7 +56,7 @@ class TaoPQQueryResultWrapper : public query_result::QueryResult {
     auto columns() const -> std::size_t;
 
     auto is_null( const std::size_t row, const std::size_t column ) const -> bool;
-		auto get( const std::size_t row, const std::size_t column ) const -> const char*;
+    auto get( const std::size_t row, const std::size_t column, std::size_t* size ) const -> const char*;
 		
 		// access rows
     auto operator[]( const std::size_t row ) const -> std::unique_ptr<query_result::Row>;

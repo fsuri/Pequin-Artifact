@@ -1,0 +1,19 @@
+{
+  "datastore": {
+    "column_names_and_types": [
+      [
+        "key_",
+        "TEXT"
+      ],
+      [
+        "val_",
+        "TEXT"
+      ]
+    ],
+    "primary_key_col_idx": [
+      0
+    ],
+    "row_data_path": "test-1k.csv",
+    "table_name": "datastore"
+  }
+}

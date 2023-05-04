@@ -1,0 +1,14 @@
+store/benchmark/async/benchmark --config_path ./store/testing/toy.config \
+ --num_groups 1 \
+ --num_shards 1 \
+ --protocol_mode crdb \
+ --num_keys 1 \
+ --benchmark rw \
+ --num_ops_txn 2 \
+ --exp_duration 5 \
+ --client_id 0 \
+ --warmup_secs 0 \
+ --cooldown_secs 0 \
+ --key_selector zipf \
+ --zipf_coefficient 0.0 \
+ --indicus_key_path keys > client-0.out &

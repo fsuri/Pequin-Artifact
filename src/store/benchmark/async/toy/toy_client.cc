@@ -1,7 +1,7 @@
 /***********************************************************************
  *
  * Copyright 2022 Florian Suri-Payer <fsp@cs.cornell.edu>
- *     
+ *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
  * files (the "Software"), to deal in the Software without
@@ -9,10 +9,10 @@
  * modify, merge, publish, distribute, sublicense, and/or sell copies
  * of the Software, and to permit persons to whom the Software is
  * furnished to do so, subject to the following conditions:
- * 
+ *
  * The above copyright notice and this permission notice shall be
  * included in all copies or substantial portions of the Software.
- * 
+ *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
  * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
  * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
@@ -24,7 +24,6 @@
  *
  **********************************************************************/
 
-
 #include "store/benchmark/async/toy/toy_client.h"
 
 #include <gflags/gflags.h>
@@ -33,13 +32,12 @@
 #include <random>
 #include <vector>
 
+#include "lib/cereal/archives/binary.hpp"
+#include "lib/cereal/types/string.hpp"
 #include "lib/latency.h"
 #include "lib/tcptransport.h"
 #include "lib/timeval.h"
-#include "lib/cereal/archives/binary.hpp"
-#include "lib/cereal/types/string.hpp"
 #include "store/benchmark/async/bench_client.h"
-
 #include "store/common/frontend/sync_client.h"
 #include "store/common/truetime.h"
 #include "store/common/query_result/query_result.h"
@@ -55,25 +53,24 @@
 
 namespace toy {
 
-ToyTransaction::ToyTransaction(): SyncTransaction(10000) {
+ToyTransaction::ToyTransaction() : SyncTransaction(10000) {}
+
+ToyTransaction::~ToyTransaction() {}
+
+transaction_status_t ToyTransaction::Execute(SyncClient &client) {
+  return COMMITTED;
 }
 
-ToyTransaction::~ToyTransaction(){}
-
-transaction_status_t ToyTransaction::Execute(SyncClient &client){
-    return COMMITTED;
-}
-
-ToyClient::ToyClient(
-     SyncClient &client, Transport &transport, uint64_t id,
-    int numRequests, int expDuration, uint64_t delay, int warmupSec,
-    int cooldownSec, int tputInterval, uint32_t abortBackoff, bool retryAborted,
-    uint32_t maxBackoff, uint32_t maxAttempts, const uint32_t timeout, const std::string &latencyFilename)
-    : SyncTransactionBenchClient(client, transport, id, numRequests,
-                                 expDuration, delay, warmupSec, cooldownSec,
-                                 tputInterval, abortBackoff, retryAborted, maxBackoff, maxAttempts, timeout,
-                                 latencyFilename){
-}
+ToyClient::ToyClient(SyncClient &client, Transport &transport, uint64_t id,
+                     int numRequests, int expDuration, uint64_t delay,
+                     int warmupSec, int cooldownSec, int tputInterval,
+                     uint32_t abortBackoff, bool retryAborted,
+                     uint32_t maxBackoff, uint32_t maxAttempts,
+                     const uint32_t timeout, const std::string &latencyFilename)
+    : SyncTransactionBenchClient(
+          client, transport, id, numRequests, expDuration, delay, warmupSec,
+          cooldownSec, tputInterval, abortBackoff, retryAborted, maxBackoff,
+          maxAttempts, timeout, latencyFilename) {}
 
 ToyClient::~ToyClient() {}
 
@@ -146,11 +143,10 @@ void ToyClient::ExecuteToy(){
             
 }
 
- SyncTransaction *ToyClient::GetNextTransaction() {
-    ToyTransaction *toyTx = new ToyTransaction();
+SyncTransaction *ToyClient::GetNextTransaction() {
+  ToyTransaction *toyTx = new ToyTransaction();
   return toyTx;
 }
 std::string ToyClient::GetLastOp() const { return ""; }
 
-
-}  // namespace smallbank
+}  // namespace toy
