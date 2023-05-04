@@ -443,16 +443,13 @@ def calculate_statistics_for_run(config, local_out_directory, run):
         stats['abort_rate_honest'] = 1 - stats['commit_rate_honest']
 
     total_injected_failures = 0
-    attempts = 1
-    if 'attempts' in stats:
-        attempts = stats['attempts']
     if 'inject_failure' in stats:
         total_injected_failures = stats['inject_failure']
-    stats['tx_successful_failure_percentage'] = total_injected_failures/attempts  #added this stat to compute total failure % of transactions
+    stats['tx_successful_failure_percentage'] = total_injected_failures/stats['attempts']  #added this stat to compute total failure % of transactions
     total_attempted_failures = 0
     if 'failure_attempts' in stats:
         total_attempted_failures = stats['failure_attempts']
-    stats['tx_attempted_failure_percentage'] = total_attempted_failures/attempts
+    stats['tx_attempted_failure_percentage'] = total_attempted_failures/stats['attempts']
 
     norm_op_latencies, norm_op_times = calculate_all_op_statistics(config, stats, region_op_latencies, region_op_times, region_op_latency_counts, region_op_tputs)
     for k, v in norm_op_latencies.items():

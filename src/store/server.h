@@ -10,10 +10,10 @@
  * modify, merge, publish, distribute, sublicense, and/or sell copies
  * of the Software, and to permit persons to whom the Software is
  * furnished to do so, subject to the following conditions:
- *
+ * 
  * The above copyright notice and this permission notice shall be
  * included in all copies or substantial portions of the Software.
- *
+ * 
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
  * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
  * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
@@ -27,46 +27,17 @@
 #ifndef STORE_SERVER_H
 #define STORE_SERVER_H
 
-#include <string>
-
-#include "store/common/stats.h"
 #include "store/common/timestamp.h"
+#include "store/common/stats.h"
+
+#include <string>
 
 class Server {
  public:
-  Server() {}
-  virtual ~Server() {}
+  Server() { }
+  virtual ~Server() { }
   virtual void Load(const std::string &key, const std::string &value,
-                    const Timestamp timestamp) = 0;
-  inline virtual void CreateTable(
-      const std::string &table_name,
-      const std::vector<std::pair<std::string, std::string>> &column_data_types,
-      const std::vector<uint32_t> primary_key_col_idx) {
-    Panic("This store does not support SQL Table operations");
-  }
-
-  inline virtual void CreateIndex(
-      const std::string &table_name,
-      const std::vector<std::pair<std::string, std::string>> &column_data_types,
-      const std::string &index_name,
-      const std::vector<uint32_t> &index_col_idx) {
-    Panic("This store does not support SQL Table operations");
-  }
-
-  inline virtual void LoadTableData(
-      const std::string &table_name, const std::string &table_data_path,
-      const std::vector<std::pair<std::string, std::string>>
-          &column_data_types) {
-    Panic("This store does not support SQL Table operations");
-  }
-
-  inline virtual void LoadTableRow(
-      const std::string &table_name,
-      const std::vector<std::pair<std::string, std::string>> &column_data_types,
-      const std::vector<std::string> &values,
-      const std::vector<uint32_t> primary_key_col_idx) {
-    Panic("This store does not support SQL Table operations");
-  }
+      const Timestamp timestamp) = 0;
 
   inline virtual void CreateTable(const std::string &table_name, const std::vector<std::pair<std::string, std::string>> &column_data_types, 
       const std::vector<uint32_t> &primary_key_col_idx){Panic("This store does not support SQL Table operations");}

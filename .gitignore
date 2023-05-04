@@ -107,32 +107,3 @@ tags
 
 # VS Code
 .vscode/
-*.cmake
-
-
-# taopq dependencies
-_deps
-
-# Cockroach DB
-cockroach-data
-cockroachdb/CMakeCache.txt
-CMakefiles
-
-# CMakefile
-CMakeLists.txt.user
-CMakeCache.txt
-CMakeFiles
-CMakeScripts
-Testing
-Makefile
-cmake_install.cmake
-install_manifest.txt
-compile_commands.json
-CTestTestfile.cmake
-_deps
-
-src/store/cockroachdb/main_test
-dependencies/*
-src/store/cockroachdb/crdb_node*/
-*.pb.h
-*.pb.cc

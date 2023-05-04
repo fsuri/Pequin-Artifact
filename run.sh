@@ -1,1 +1,0 @@
-docker run -it -v "$(pwd)":/home bcyl/roach-nest 

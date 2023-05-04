@@ -1,4 +1,4 @@
-# BFT Query Processing -- Pequin Artifact ![build status](https://github.com/liam0215/Pequin-Artifact/actions/workflows/c-cpp.yml/badge.svg)
+# BFT Query Processing -- Pequin Artifact 
 This is the repository for the code artifact of "Pequin: Spicing up BFT with Query Processing".
 
 For all questions about the artifact please e-mail (or message over google hangouts) Florian Suri-Payer <fsp@cs.cornell.edu>. For specific questions about 1) building the codebase or 2) running TxBFTSmart, additionally please
