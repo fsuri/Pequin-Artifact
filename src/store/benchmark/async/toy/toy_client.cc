@@ -157,6 +157,16 @@ void ToyClient::ExecuteToy(){
                
             }
             
+            std::string write = fmt::format("UPDATE datastore SET val_ = 'green' WHERE key_ = 'alice'");
+
+            const query_result::QueryResult* w_queryResult;
+            client.Write(write, w_queryResult, timeout);  
+                              
+            std::cerr << "Got res" << std::endl;
+            std::cerr << "IS empty?: " << (w_queryResult->empty()) << std::endl;
+            std::cerr << "num cols:" <<  (w_queryResult->columns()) << std::endl;
+            std::cerr << "num rows written:" <<  (w_queryResult->rows_affected()) << std::endl;
+            std::cerr << "num rows read:" << (w_queryResult->size()) << std::endl;
 
 
             client.Commit(timeout);

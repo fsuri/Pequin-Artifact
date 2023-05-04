@@ -321,75 +321,76 @@ void Server::ProcessPointQuery(const uint64_t &reqId, proto::Query *query, const
     table_store.ExecPointRead(query->query_cmd(), enc_primary_key, ts, write, committedProof);
     delete query;
 
-    //FIXME: REmove -- this is jsut for testing:
-    ///////////
-    //Toy Transaction
-    std::string toy_txn("toy_txn");
-    Timestamp toy_ts(0, 2); //set to genesis time.
-    sql::QueryResultProtoBuilder queryResultBuilder;
-    queryResultBuilder.add_columns({"key_", "val_"});
-    std::vector<std::string> result_row = {"alice", "blonde"};
-    queryResultBuilder.add_row(result_row.begin(), result_row.end());
-    std::string toy_result = queryResultBuilder.get_result()->SerializeAsString();
+    if(TEST_QUERY){
+        ///////////
+        //Toy Transaction
+        std::string toy_txn("toy_txn");
+        Timestamp toy_ts(0, 2); //set to genesis time.
+        sql::QueryResultProtoBuilder queryResultBuilder;
+        queryResultBuilder.add_columns({"key_", "val_"});
+        std::vector<std::string> result_row = {"alice", "blonde"};
+        queryResultBuilder.add_row(result_row.begin(), result_row.end());
+        std::string toy_result = queryResultBuilder.get_result()->SerializeAsString();
 
-    //Panic("stop here");
-    // //Create Toy prepared Tx
-    if(true || id ==0){
-       
-          write->set_prepared_value(toy_result);
-        std::cerr << "SENT PREPARED RESULT: " << write->prepared_value() << std::endl;
-        write->set_prepared_txn_digest(toy_txn);
-        toy_ts.serialize(write->mutable_prepared_timestamp());
-    }
-  
-
-    //Create Toy committed Tx with genesis proof
-    // proto::CommittedProof *genesis_proof = new proto::CommittedProof();
-    // genesis_proof->mutable_txn()->set_client_id(0);
-    // genesis_proof->mutable_txn()->set_client_seq_num(0);
-    // toy_ts.serialize(genesis_proof->mutable_txn()->mutable_timestamp());
-
-    // committed.insert(std::make_pair(toy_txn, genesis_proof));  //TODO: Need to move this elsewhere so all servers have it.
-
-    // write->set_committed_value(toy_result);
-    // toy_ts.serialize(write->mutable_committed_timestamp());
-    // *pointQueryReply->mutable_proof() = *genesis_proof;
-
-
-    //Create Toy committed Tx with real proof tx -- create toy "real" QC
-
-    sql::QueryResultProtoBuilder queryResultBuilder2;
-    queryResultBuilder2.add_columns({"key_", "val_"});
-    result_row = {"alice", "black"};
-    queryResultBuilder2.add_row(result_row.begin(), result_row.end());
-    std::string toy_result2 = queryResultBuilder2.get_result()->SerializeAsString();
-
-    Timestamp toy_ts_c(0, 1);
-
-     proto::CommittedProof *real_proof = new proto::CommittedProof();
-    proto::Transaction *txn = real_proof->mutable_txn();
-    real_proof->mutable_txn()->set_client_id(0);
-    real_proof->mutable_txn()->set_client_seq_num(1);
-    toy_ts_c.serialize(real_proof->mutable_txn()->mutable_timestamp());
-    TableWrite &table_write = (*real_proof->mutable_txn()->mutable_table_writes())["datastore"];
-    RowUpdates *row = table_write.add_rows();
-    row->add_column_values("alice");
-    row->add_column_values("black");
-    WriteMessage *write_msg = real_proof->mutable_txn()->add_write_set();
-    write_msg->set_key("datastore#alice");
-    write_msg->mutable_rowupdates()->set_row_idx(0);
-
-    //Add relal qC:
-    // proto::Signatures &sigs = (*real_proof->mutable_p1_sigs())[id];
-    // sigs.add_sigs();
-    // SignMessage()
-
-    //committed[toy_txn]  = real_proof;  //TODO: Need to move this elsewhere so all servers have it.
-
-    write->set_committed_value(toy_result2);
+        //Panic("stop here");
+        // //Create Toy prepared Tx
+        if(id ==0){
+        
+            write->set_prepared_value(toy_result);
+            std::cerr << "SENT PREPARED RESULT: " << write->prepared_value() << std::endl;
+            write->set_prepared_txn_digest(toy_txn);
+            toy_ts.serialize(write->mutable_prepared_timestamp());
+        }
     
-    toy_ts_c.serialize(write->mutable_committed_timestamp());
-    *pointQueryReply->mutable_proof() = *real_proof;
+
+        //Create Toy committed Tx with genesis proof
+        // proto::CommittedProof *genesis_proof = new proto::CommittedProof();
+        // genesis_proof->mutable_txn()->set_client_id(0);
+        // genesis_proof->mutable_txn()->set_client_seq_num(0);
+        // toy_ts.serialize(genesis_proof->mutable_txn()->mutable_timestamp());
+
+        // committed.insert(std::make_pair(toy_txn, genesis_proof));  //TODO: Need to move this elsewhere so all servers have it.
+
+        // write->set_committed_value(toy_result);
+        // toy_ts.serialize(write->mutable_committed_timestamp());
+        // *pointQueryReply->mutable_proof() = *genesis_proof;
+
+
+        //Create Toy committed Tx with real proof tx -- create toy "real" QC
+
+        sql::QueryResultProtoBuilder queryResultBuilder2;
+        queryResultBuilder2.add_columns({"key_", "val_"});
+        result_row = {"alice", "black"};
+        queryResultBuilder2.add_row(result_row.begin(), result_row.end());
+        std::string toy_result2 = queryResultBuilder2.get_result()->SerializeAsString();
+
+        Timestamp toy_ts_c(0, 1);
+
+        proto::CommittedProof *real_proof = new proto::CommittedProof();
+        proto::Transaction *txn = real_proof->mutable_txn();
+        real_proof->mutable_txn()->set_client_id(0);
+        real_proof->mutable_txn()->set_client_seq_num(1);
+        toy_ts_c.serialize(real_proof->mutable_txn()->mutable_timestamp());
+        TableWrite &table_write = (*real_proof->mutable_txn()->mutable_table_writes())["datastore"];
+        RowUpdates *row = table_write.add_rows();
+        row->add_column_values("alice");
+        row->add_column_values("black");
+        WriteMessage *write_msg = real_proof->mutable_txn()->add_write_set();
+        write_msg->set_key("datastore#alice");
+        write_msg->mutable_rowupdates()->set_row_idx(0);
+
+        //Add relal qC:
+        // proto::Signatures &sigs = (*real_proof->mutable_p1_sigs())[id];
+        // sigs.add_sigs();
+        // SignMessage()
+
+        //committed[toy_txn]  = real_proof;  //TODO: Need to move this elsewhere so all servers have it.
+
+        write->set_committed_value(toy_result2);
+        
+        toy_ts_c.serialize(write->mutable_committed_timestamp());
+        *pointQueryReply->mutable_proof() = *real_proof;
+    }
 
 
 
@@ -408,14 +409,14 @@ void Server::ProcessPointQuery(const uint64_t &reqId, proto::Query *query, const
         FreePointQueryResultReply(pointQueryReply);
     }; 
 
-    //TODO: What if no value. Then sign?
+     //TODO: This code does not sign a message if there is no value at all (or if verifyDeps == false and there is only a prepared, i.e. no committed, value) -- change it so it always signs. 
     if (params.validateProofs && params.signedMessages && (write->has_committed_value() || (params.verifyDeps && write->has_prepared_value()))) { 
         write = pointQueryReply->release_write();
-         std::cerr << "SENDING SIGNING" << std::endl;
+         
         SignSendReadReply(write, pointQueryReply->mutable_signed_write(), sendCB);
     }
     else{
-        std::cerr << "SENDING WITHOUT SIGNING" << std::endl;
+       
         sendCB();
     }
 }
@@ -698,7 +699,7 @@ void Server::HandleSync(const TransportAddress &remote, proto::SyncClientProposa
 
 void Server::ProcessSync(queryMetaDataMap::accessor &q, const TransportAddress &remote, proto::MergedSnapshot *merged_ss, const std::string *queryId, QueryMetaData *query_md) { 
 
-    query_md->merged_ss_msg = merged_ss; //FIXME: Don't delete at the end. 
+    query_md->merged_ss_msg = merged_ss; 
 
     //1) Determine all missing transactions 
     //query_md->missing_txns.clear();
@@ -1648,7 +1649,7 @@ std::string Server::ExecQuery(QueryReadSetMgr &queryReadSetMgr, QueryMetaData *q
             //queryReadSetMgr.AddToDepSet(tx_id, query_md->useOptimisticTxId, txn->timestamp());
         }
         
-        //Creating Dummy keys for testing //FIXME: REPLACE 
+        //Creating Dummy keys for testing 
         for(int i=5;i > 0; --i){
             TimestampMessage ts;
             ts.set_id(query_md->ts.getID());
@@ -1664,7 +1665,7 @@ std::string Server::ExecQuery(QueryReadSetMgr &queryReadSetMgr, QueryMetaData *q
             // read->set_key(dummy_key);
             // *read->mutable_readtime() = ts;
         }
-        //Creating Dummy deps for testing //FIXME: Replace
+        //Creating Dummy deps for testing 
     
             //Write to Query Result; Release/Re-allocate temporarily if not sending;
             //For caching:
@@ -1676,7 +1677,7 @@ std::string Server::ExecQuery(QueryReadSetMgr &queryReadSetMgr, QueryMetaData *q
         //  i.e. if (params.maxDepDepth == -1 || DependencyDepth(txn) <= params.maxDepDepth)  (maxdepth = -1 means no limit)
         if (params.query_params.readPrepared && params.maxDepDepth > -2) {
 
-            //FIXME: JUST FOR TESTING.
+            //JUST FOR TESTING.
             for(preparedMap::const_iterator i=prepared.begin(); i!=prepared.end(); ++i ) {
                 const std::string &tx_id = i->first;
                 const proto::Transaction *txn = i->second.second;
@@ -1696,18 +1697,22 @@ std::string Server::ExecQuery(QueryReadSetMgr &queryReadSetMgr, QueryMetaData *q
             }
         }
     }
-    //FIXME: Just for testing: Creating Dummy result 
-   
-  
-    std::string test_result_string = "success" + std::to_string(query_md->query_seq_num);
-    std::vector<std::string> result_row;
-    result_row.push_back(test_result_string);
-    sql::QueryResultProtoBuilder queryResultBuilder;
-    queryResultBuilder.add_column("result");
-    queryResultBuilder.add_row(result_row.begin(), result_row.end());
 
-    std::string dummy_result = queryResultBuilder.get_result()->SerializeAsString();
-    return dummy_result;
+    //Just for testing: Creating Dummy result 
+    if(TEST_QUERY){
+  
+        std::string test_result_string = "success" + std::to_string(query_md->query_seq_num);
+        std::vector<std::string> result_row;
+        result_row.push_back(test_result_string);
+        sql::QueryResultProtoBuilder queryResultBuilder;
+        queryResultBuilder.add_column("result");
+        queryResultBuilder.add_row(result_row.begin(), result_row.end());
+
+        std::string dummy_result = queryResultBuilder.get_result()->SerializeAsString();
+        return dummy_result;
+    }
+
+    return serialized_result;
 }
 
 void Server::ExecQueryEagerly(queryMetaDataMap::accessor &q, QueryMetaData *query_md, const std::string &queryId){
@@ -1718,6 +1723,19 @@ void Server::ExecQueryEagerly(queryMetaDataMap::accessor &q, QueryMetaData *quer
     QueryReadSetMgr queryReadSetMgr(query_md->queryResultReply->mutable_result()->mutable_query_read_set(), groupIdx); 
 
     std::string result(ExecQuery(queryReadSetMgr, query_md, false));
+
+    if(TEST_QUERY){
+        std::string toy_txn("toy_txn");
+        Timestamp toy_ts(0, 2); //set to genesis time.
+        sql::QueryResultProtoBuilder queryResultBuilder;
+        queryResultBuilder.add_columns({"key_", "val_"});
+        std::vector<std::string> result_row = {"alice", "blonde"};
+        queryResultBuilder.add_row(result_row.begin(), result_row.end());
+        result = queryResultBuilder.get_result()->SerializeAsString();
+    }
+
+
+
     query_md->has_result = true; 
 
     if(query_md->designated_for_reply){
@@ -1904,7 +1922,8 @@ void Server::SendQueryReply(QueryMetaData *query_md){
         } 
     }
 
-      Debug("BEGIN READ SET:"); //FIXME: Remove -- just for testing
+    if(TEST_READ_SET){
+      Debug("BEGIN READ SET:"); // just for testing
               
                 for(auto &read : result->query_read_set().read_set()){
                 //for(auto &[key, ts] : read_set){
@@ -1913,7 +1932,8 @@ void Server::SendQueryReply(QueryMetaData *query_md){
                   //Debug("[group %d] Read key %s with version [%lu:%lu]", group, key.c_str(), ts.timestamp(), ts.id());
                 }
               
-              Debug("END READ SET.");
+       Debug("END READ SET.");
+    }
 
     return;
 

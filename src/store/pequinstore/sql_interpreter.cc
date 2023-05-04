@@ -143,7 +143,7 @@ bool SQLTransformer::InterpretQueryRange(const std::string &_query, std::string 
    
     std::string_view cond_statement = query_statement.substr(where_pos + where_hook.length());
 
-    std::cerr << "checking col conds: " << cond_statement << std::endl;
+    //std::cerr << "checking col conds: " << cond_statement << std::endl;
     return CheckColConditions(cond_statement, table_name, p_col_values, relax); //TODO: Enable Relax
     //true == point, false == range read --> use table_name + p_col_value to do a point read.
 }
@@ -369,6 +369,8 @@ void SQLTransformer::TransformInsert(size_t pos, std::string_view &write_stateme
 
         //New version: 
         TableWrite *table_write = AddTableWrite(table_name, col_registry);
+        write->mutable_rowupdates()->set_row_idx(table_write->rows().size()); //set row_idx for proof reference
+
         RowUpdates *row_update = table_write->add_rows();
         *row_update->mutable_column_values() = {value_list.begin(), value_list.end()};
         // for(auto &[col_name, col_idx]: col_registry_ptr->col_name_index){
@@ -405,6 +407,7 @@ void SQLTransformer::TransformInsert(size_t pos, std::string_view &write_stateme
 
     //         //New version: 
     //         TableWrite *table_write = AddTableWrite(table_name, *col_registry_ptr);
+    //         write->mutable_rowupdates()->set_row_idx(table_write->rows().size()); //set row_idx for proof reference
     //         RowUpdates *row_update = table_write->add_rows();
     //         *row_update->mutable_column_values() = {value_list.begin(), value_list.end()};
     //         // for(auto &[col_name, col_idx]: col_registry_ptr->col_name_index){
@@ -505,7 +508,10 @@ void SQLTransformer::TransformUpdate(size_t pos, std::string_view &write_stateme
                // For each row in result, map primary key to the primary key in the query read set to identify the read version.
                // Note: if we want to support parallel writes (async) then we might need to identify the query explicitly (rather than just checking the latest query seq)
                                         
+    
     write_continuation = [this, wcb, table_name, col_updates](int status, query_result::QueryResult* result) mutable {
+        //std::cerr << "TEST WRITE CONT" << std::endl;
+        Debug("Issuing write_continuation"); //FIXME: Debug doesnt seem to be registered
 
         auto itr = TableRegistry.find(table_name);
         UW_ASSERT(itr != TableRegistry.end());
@@ -526,6 +532,7 @@ void SQLTransformer::TransformUpdate(size_t pos, std::string_view &write_stateme
             std::vector<std::string> primary_key_column_values;
             
             WriteMessage *write = txn->add_write_set();
+            write->mutable_rowupdates()->set_row_idx(table_write->rows().size()); //set row_idx for proof reference
             
             RowUpdates *row_update = AddTableWriteRow(table_write, col_registry); //row_update->mutable_column_values()->Resize(col_registry.col_names.size(), ""); Resize seems to not work for strings
             //std::cerr << "Row size: " <<  row_update->mutable_column_values()->size() << std::endl;
@@ -599,6 +606,10 @@ void SQLTransformer::TransformUpdate(size_t pos, std::string_view &write_stateme
             }
         }
 
+
+
+        Debug("Completed Write with %lu rows written", result->size());
+        //std::cerr << "Completed Write with " << result->size() << " row(s) written" << std::endl;
         result->set_rows_affected(result->size()); 
         wcb(REPLY_OK, result);
         
@@ -658,11 +669,15 @@ void SQLTransformer::TransformDelete(size_t pos, std::string_view &write_stateme
 
         //Add Delete also to Table Write : 
         TableWrite *table_write = AddTableWrite(table_name, col_registry);
+
+        WriteMessage *write = txn->add_write_set();
+        write->mutable_rowupdates()->set_row_idx(table_write->rows().size()); //set row_idx for proof reference
+
         RowUpdates *row_update = AddTableWriteRow(table_write, col_registry);
         row_update->set_deletion(true);
 
         std::string enc_key = EncodeTableRow(table_name, p_col_values);
-        WriteMessage *write = txn->add_write_set();
+        
         write->set_key(enc_key);
         write->set_value("d");
         write->mutable_rowupdates()->set_deletion(true);
@@ -724,6 +739,8 @@ void SQLTransformer::TransformDelete(size_t pos, std::string_view &write_stateme
             std::unique_ptr<query_result::Row> row = (*result)[i];
 
             //Create TableWrite for Delete too.
+            WriteMessage *write = txn->add_write_set();
+            write->mutable_rowupdates()->set_row_idx(table_write->rows().size()); //set row_idx for proof reference
             RowUpdates *row_update = AddTableWriteRow(table_write, *col_registry_ptr);
             row_update->set_deletion(true);
 
@@ -751,7 +768,7 @@ void SQLTransformer::TransformDelete(size_t pos, std::string_view &write_stateme
 
             std::string enc_key = EncodeTableRow(table_name, primary_key_column_values);
 
-            WriteMessage *write = txn->add_write_set();
+            
             write->set_key(enc_key);
             write->set_value("d");
             write->mutable_rowupdates()->set_deletion(true);
@@ -782,6 +799,7 @@ bool SQLTransformer::GenerateTableWriteStatement(std::string &write_statement, s
 
     const ColRegistry &col_registry = TableRegistry.at(table_name);
 
+    //NOTE: Inserts must always insert -- even if value exists ==> Insert new row.
     write_statement = fmt::format("INSERT INTO {0} VALUES ", table_name);
 
     // In Write statement: for rows that are marked as delete: don't insert. --> split into write_statement and delete_statement.
@@ -825,7 +843,7 @@ bool SQLTransformer::GenerateTableWriteStatement(std::string &write_statement, s
     write_statement.resize(write_statement.length()-2); //remove trailing ", "
 
     //TODO: If we are hacking Insert to always insert --> then can remove this block 
-    if(true){
+    if(false){
          write_statement += " ON CONFLICT (";
         for(auto &[col_name, _]: col_registry.primary_key_cols_idx){
             write_statement += col_name + ", ";
@@ -847,6 +865,8 @@ bool SQLTransformer::GenerateTableWriteStatement(std::string &write_statement, s
 
     //Else: Construct also a delete statement
 
+    //NOTE: Deletes must always delete -- even if no value exists ==> Insert empty row.
+
     delete_statement = fmt::format("DELETE FROM {0} WHERE ", table_name);
     for(auto &[col_name, p_idx]: col_registry.primary_key_cols_idx){
         delete_statement += fmt::format("{0} in ({1}) AND ", col_name, fmt::join(delete_conds[col_name], ", "));
@@ -860,33 +880,62 @@ bool SQLTransformer::GenerateTableWriteStatement(std::string &write_statement, s
 }
 
 bool SQLTransformer::GenerateTablePurgeStatement(std::string &purge_statement, const std::string &table_name, const TableWrite &table_write){
-   
+    //Abort all TableWrites: Previous writes must be deleted; Previous deletes must be un-done
+
     const ColRegistry &col_registry = TableRegistry.at(table_name);
-    std::map<std::string, std::vector<std::string>> delete_conds;
+    std::map<std::string, std::vector<std::string>> purge_conds;
 
     for(auto &row: table_write.rows()){
-            //Alternatively: Move row contents to a vector and use: fmt::join(vec, ",")
-            if(!row.deletion()){
-                for(auto &[col_name, p_idx]: col_registry.primary_key_cols_idx){
-                    if(fine_grained_quotes){
-                        if(col_registry.col_quotes[p_idx]) delete_conds[col_name].push_back("\'" + row.column_values()[p_idx] + "\'");
-                        else delete_conds[col_name].push_back(row.column_values()[p_idx] );
-                    }
-                    else{
-                        delete_conds[col_name].push_back("\'" + row.column_values()[p_idx] + "\'");
-                    }
-                }
+        //Alternatively: Move row contents to a vector and use: fmt::join(vec, ",")
+        for(auto &[col_name, p_idx]: col_registry.primary_key_cols_idx){
+            if(fine_grained_quotes){
+                if(col_registry.col_quotes[p_idx]) purge_conds[col_name].push_back("\'" + row.column_values()[p_idx] + "\'");
+                else purge_conds[col_name].push_back(row.column_values()[p_idx] );
             }
+            else{
+                purge_conds[col_name].push_back("\'" + row.column_values()[p_idx] + "\'");
+            }
+        }
+        //write_statement += fmt::format("{}, ", fmt::join(row.column_values(), ','));
     }
-    
-    if(delete_conds.empty()) return false;
+
+    if(purge_conds.empty()) return false;
 
     purge_statement = fmt::format("DELETE FROM {0} WHERE ", table_name);
     for(auto &[col_name, p_idx]: col_registry.primary_key_cols_idx){
-        purge_statement += fmt::format("{0} in ({1}) AND ", col_name, fmt::join(delete_conds[col_name], ", "));
+        purge_statement += fmt::format("{0} in ({1}) AND ", col_name, fmt::join(purge_conds[col_name], ", "));
     }
     purge_statement.resize(purge_statement.length()-5); //Remove trailing " AND "
     purge_statement += ";";
+
+    /////////////////////////
+    //This code only deletes table writes meant for insertion. However, we must also undo table writes for deletion
+    // const ColRegistry &col_registry = TableRegistry.at(table_name);
+    // std::map<std::string, std::vector<std::string>> delete_conds;
+
+    // for(auto &row: table_write.rows()){
+    //         //Alternatively: Move row contents to a vector and use: fmt::join(vec, ",")
+    //         if(!row.deletion()){
+    //             for(auto &[col_name, p_idx]: col_registry.primary_key_cols_idx){
+    //                 if(fine_grained_quotes){
+    //                     if(col_registry.col_quotes[p_idx]) delete_conds[col_name].push_back("\'" + row.column_values()[p_idx] + "\'");
+    //                     else delete_conds[col_name].push_back(row.column_values()[p_idx] );
+    //                 }
+    //                 else{
+    //                     delete_conds[col_name].push_back("\'" + row.column_values()[p_idx] + "\'");
+    //                 }
+    //             }
+    //         }
+    // }
+    
+    // if(delete_conds.empty()) return false;
+
+    // purge_statement = fmt::format("DELETE FROM {0} WHERE ", table_name);
+    // for(auto &[col_name, p_idx]: col_registry.primary_key_cols_idx){
+    //     purge_statement += fmt::format("{0} in ({1}) AND ", col_name, fmt::join(delete_conds[col_name], ", "));
+    // }
+    // purge_statement.resize(purge_statement.length()-5); //Remove trailing " AND "
+    // purge_statement += ";";
 
     //FIXME: If no delete clauses --> should not delete anything
     return true; //I.e. there is delete conds.

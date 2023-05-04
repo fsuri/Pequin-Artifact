@@ -104,7 +104,7 @@ class VersionedKVStore {
 
 template<class T, class V>
 VersionedKVStore<T, V>::VersionedKVStore() {
-  std::cerr << "USING SAFE VERSIONSTORE" << std::endl;
+  std::cerr << "USING THREAD SAFE VERSIONSTORE" << std::endl;
   lock_time = 0;
 }
 

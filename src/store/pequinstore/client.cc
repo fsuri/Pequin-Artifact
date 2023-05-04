@@ -264,17 +264,20 @@ void Client::Write(std::string &write_statement, write_callback wcb,
     // Write Statement parser/interpreter:   //For now design to supports only individual Insert/Update/Delete statements. No nesting, no concatenation
     //TODO: parse write statement into table, column list, values_list, and read condition
     
-
+    Debug("Processing Write Statement: %s", write_statement.c_str());
     std::string read_statement;
     std::function<void(int, query_result::QueryResult*)>  write_continuation;
     bool skip_query_interpretation = false;
 
     sql_interpreter.TransformWriteStatement(write_statement, read_statement, write_continuation, wcb, skip_query_interpretation);
+
+    Debug("Transformed Write into re-con read_statement: %s", read_statement.c_str());
     
   
     if(read_statement.empty()){
       //TODO: Add to writes directly.  //TODO: Call write_continuation for Insert ; for Point Delete -- > OR: Call them inside Transform.
       //NOTE: must return a QueryResult... 
+      Debug("No read statement, immediately writing");
       sql::QueryResultProtoWrapper *write_result = new sql::QueryResultProtoWrapper(""); //TODO: replace with real result.
       write_continuation(REPLY_OK, write_result);
     }
@@ -290,7 +293,8 @@ void Client::Write(std::string &write_statement, write_callback wcb,
       //   wtcb(status);
       //   return;
       // };
-      Query(read_statement, write_continuation, wtcb, timeout, skip_query_interpretation);
+      Debug("Issuing re-con Query");
+      Query(read_statement, std::move(write_continuation), wtcb, timeout, skip_query_interpretation);
     }
     return;
   }
@@ -396,10 +400,10 @@ void Client::Query(const std::string &query, query_callback qcb,
     
     pendingQuery->is_point = sql_interpreter.InterpretQueryRange(query, pendingQuery->table_name, pendingQuery->p_col_values, relax_point_cond); 
 
-    std::cerr << "is point?: " << pendingQuery->is_point << std::endl;
+    Debug("Query [%d] is %s ", query_seq_num, pendingQuery->is_point? "POINT" : "QUERY");
     
     if(pendingQuery->is_point){
-      std::cerr << "Encoded key: " << (EncodeTableRow(pendingQuery->table_name, pendingQuery->p_col_values)) << std::endl; 
+      Debug("Encoded key: %s", EncodeTableRow(pendingQuery->table_name, pendingQuery->p_col_values).c_str()); 
     } 
     //Alternatively: Instead of storing the key, we could also let servers provide the keys and wait for f+1 matching keys. But then we'd have to wait for 2f+1 reads in total... ==> Client stores key
 
@@ -486,6 +490,12 @@ void Client::QueryResultCallback(PendingQuery *pendingQuery,
       //If failure: re-set datastructure and try again. (any shard can report failure to sync)
       //Note: Ongoing shard clients PendingQuery implicitly maps to current retry_version
     
+  //JUST FOR TESTING::
+  // if(query_seq_num == 2){
+  //   success = false;
+  //   std::cerr << "TESTING RETRY FOR POINT" << std::endl;
+  // } 
+
   UW_ASSERT(pendingQuery != nullptr);
   if(!success){ //Retry query
     delete query_read_set;
@@ -513,8 +523,8 @@ void Client::QueryResultCallback(PendingQuery *pendingQuery,
   
   Debug("Received all required group replies for QuerySync[%lu:%lu] (seq:ver). UPCALLING \n", group, pendingQuery->queryMsg.query_seq_num(), pendingQuery->version);
 
-  //FIXME: REMOVE
-  TestReadSet(pendingQuery);
+  //just for testing
+  if(TEST_READ_SET) TestReadSet(pendingQuery);
 
   //Make query meta data part of current transaction. 
   //==> Add repeated item <QueryReply> with query_id, final version, and QueryMeta field per involved shard. Query Meta = optional read_sets, optional_result_hashes (+version)

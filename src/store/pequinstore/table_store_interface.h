@@ -28,6 +28,8 @@ class TableStore {
         //Execute a statement directly on the Table backend, no questions asked, no output
         void ExecRaw(const std::string &sql_statement);
 
+        void LoadTable(const std::string &load_statement, const std::string &txn_digest, const Timestamp &ts, const proto::CommittedProof *committedProof);
+
         //Execute a read query statement on the Table backend and return a query_result/proto (in serialized form) as well as a read set (managed by readSetMgr)
         std::string ExecReadQuery(const std::string &query_statement, const Timestamp &ts, QueryReadSetMgr &readSetMgr);
 

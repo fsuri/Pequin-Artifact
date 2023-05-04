@@ -152,20 +152,23 @@ Server::Server(const transport::Configuration &config, int groupIdx, int idx,
       table_store.SetPreparePredicate(read_prepared_pred);
   }
 
-   Timestamp toy_ts_c(0, 1);
-  proto::CommittedProof *real_proof = new proto::CommittedProof();
-    proto::Transaction *txn = real_proof->mutable_txn();
-    real_proof->mutable_txn()->set_client_id(0);
-    real_proof->mutable_txn()->set_client_seq_num(1);
-    toy_ts_c.serialize(real_proof->mutable_txn()->mutable_timestamp());
-    TableWrite &table_write = (*real_proof->mutable_txn()->mutable_table_writes())["datastore"];
-    RowUpdates *row = table_write.add_rows();
-    row->add_column_values("alice");
-    row->add_column_values("black");
-    WriteMessage *write_msg = real_proof->mutable_txn()->add_write_set();
-    write_msg->set_key("datastore#alice");
-    write_msg->mutable_rowupdates()->set_row_idx(0);
-  committed["toy_txn"] = real_proof; 
+  if(TEST_QUERY){
+      Timestamp toy_ts_c(0, 1);
+      proto::CommittedProof *real_proof = new proto::CommittedProof();
+      proto::Transaction *txn = real_proof->mutable_txn();
+      real_proof->mutable_txn()->set_client_id(0);
+      real_proof->mutable_txn()->set_client_seq_num(1);
+      toy_ts_c.serialize(real_proof->mutable_txn()->mutable_timestamp());
+      TableWrite &table_write = (*real_proof->mutable_txn()->mutable_table_writes())["datastore"];
+      RowUpdates *row = table_write.add_rows();
+      row->add_column_values("alice");
+      row->add_column_values("black");
+      WriteMessage *write_msg = real_proof->mutable_txn()->add_write_set();
+      write_msg->set_key("datastore#alice");
+      write_msg->mutable_rowupdates()->set_row_idx(0);
+      committed["toy_txn"] = real_proof; 
+}
+
 }
 
 Server::~Server() {
@@ -435,7 +438,14 @@ void Server::LoadTableData(const std::string &table_name, const std::string &tab
 
     //Call into TableStore with this statement.
     std::cerr << "Load Table: " << copy_table_statement << std::endl;
-    table_store.ExecRaw(copy_table_statement);
+
+    //table_store.ExecRaw(copy_table_statement);
+    auto committedItr = committed.find("");
+    UW_ASSERT(committedItr != committed.end());
+    std::string genesis_tx_dig("");
+    Timestamp genesis_ts(0,0);
+    proto::CommittedProof *genesis_proof = committedItr->second;
+    table_store.LoadTable(copy_table_statement, genesis_tx_dig, genesis_ts, genesis_proof);
 
     //std::cerr << "Load Table: " << copy_table_statement << std::endl;
 
@@ -515,7 +525,13 @@ void Server::LoadTableRow(const std::string &table_name, const std::vector<std::
   sql_statement += ");" ;
   
   //Call into TableStore with this statement.
-  table_store.ExecRaw(sql_statement);
+  //table_store.ExecRaw(sql_statement);
+  auto committedItr = committed.find("");
+  UW_ASSERT(committedItr != committed.end());
+  std::string genesis_tx_dig("");
+  Timestamp genesis_ts(0,0);
+  proto::CommittedProof *genesis_proof = committedItr->second;
+  table_store.LoadTable(sql_statement, genesis_tx_dig, genesis_ts, genesis_proof);
 
 
   std::vector<const std::string*> primary_cols;
@@ -644,6 +660,7 @@ void Server::HandleRead(const TransportAddress &remote,
   //Sign and Send Reply
   if (params.validateProofs && params.signedMessages && (readReply->write().has_committed_value() || (params.verifyDeps && readReply->write().has_prepared_value()))) {
     //remove params.verifyDeps requirement to sign prepared. Not sure if it causes a bug so I kept it for now -- realistically never triggered
+    //TODO: This code does not sign a message if there is no value at all (or if verifyDeps == false and there is only a prepared, i.e. no committed, value) -- change it so it always signs.  //Note: Need to make compatible in a bunch of places
         proto::Write *write = readReply->release_write();
         SignSendReadReply(write, readReply->mutable_signed_write(), sendCB);
   }

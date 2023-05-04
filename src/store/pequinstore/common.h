@@ -615,7 +615,7 @@ typedef struct Parameters {
 
   const QueryParameters query_params;
 
-  Parameters(bool signedMessages, bool validateProofs, bool hashDigest, bool verifyDeps,
+  Parameters(bool signedMessages, bool validateProofs, bool hashDigest, bool _verifyDeps,
     int signatureBatchSize, int64_t maxDepDepth, uint64_t readDepSize,
     bool readReplyBatch, bool adjustBatchSize, bool sharedMemBatches,
     bool sharedMemVerify, uint64_t merkleBranchFactor, const InjectFailure &injectFailure,
@@ -632,7 +632,7 @@ typedef struct Parameters {
     uint32_t rtsMode,
     QueryParameters query_params) :
     signedMessages(signedMessages), validateProofs(validateProofs),
-    hashDigest(hashDigest), verifyDeps(verifyDeps), signatureBatchSize(signatureBatchSize),
+    hashDigest(hashDigest), verifyDeps(false), signatureBatchSize(signatureBatchSize),
     maxDepDepth(maxDepDepth), readDepSize(readDepSize),
     readReplyBatch(readReplyBatch), adjustBatchSize(adjustBatchSize),
     sharedMemBatches(sharedMemBatches), sharedMemVerify(sharedMemVerify),
@@ -653,10 +653,12 @@ typedef struct Parameters {
     query_params(query_params) { 
         UW_ASSERT(!(mainThreadDispatching && dispatchMessageReceive)); //They should not be true at the same time.
 
-        if(verifyDeps){
+        UW_ASSERT(!verifyDeps);
+        if(_verifyDeps){
             Warning("VerifyDeps Parameter is deprecated in Pequinstore -- automatically setting to false. Always doing serverside local verification");
-            verifyDeps = false;
-            //Note: Cannot support non-local verification (proofs for deps) if write equality is only for prepares. (Since signature is for whole write)
+            //Note: Cannot support non-local verification (proofs for deps) if write equality is only for prepares. 
+            //Since signature is for whole write, verifyDeps will not be able to correctly verify a dependency that was formed by 
+            //f+1 Write messages with the same prepare value, but different committed values
         }
     }
 } Parameters;

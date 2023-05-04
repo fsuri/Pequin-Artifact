@@ -761,7 +761,7 @@ bool ShardClient::ProcessRead(const uint64_t &reqId, PendingQuorumGet *req, read
             valid = ValidateTransactionWrite(*proof, &committedTxnDigest, req->key, write->committed_value(), write->committed_timestamp(), config, params.signedMessages, keyManager, verifier);
         } 
         else { //if read type POINT 
-            std::cerr << "WriteValue: " << write->committed_value() << std::endl;   
+            //std::cerr << "WriteValue: " << write->committed_value() << std::endl;   
             valid = ValidateTransactionTableWrite(*proof, &committedTxnDigest, write->committed_timestamp(), req->key, write->committed_value(), req->table_name, &query_result);
         }
 
@@ -803,6 +803,7 @@ bool ShardClient::ProcessRead(const uint64_t &reqId, PendingQuorumGet *req, read
         //     *sig->mutable_signature() = reply.signed_write().signature();
         // }
 
+        //std::cerr << "WriteValue (prepared): " << write->prepared_value() << std::endl;   
 
         Timestamp preparedTs(std::move(*write->mutable_prepared_timestamp()));
         Debug("[group %i] ReadReply for %lu with prepared %lu byte value and ts %lu.%lu.", group, reqId, write->prepared_value().length(), preparedTs.getTimestamp(), preparedTs.getID());
@@ -812,6 +813,8 @@ bool ShardClient::ProcessRead(const uint64_t &reqId, PendingQuorumGet *req, read
         std::get<0>(prepVal) = std::move(*write->mutable_prepared_timestamp());
         std::get<1>(prepVal) = std::move(*write->mutable_prepared_txn_digest());
         std::get<2>(prepVal) = std::move(*write->mutable_prepared_value());
+
+        
        
         auto &[count, sigs] = req->prepared_new[std::move(prepVal)];
         count++;
@@ -876,9 +879,9 @@ bool ShardClient::ProcessRead(const uint64_t &reqId, PendingQuorumGet *req, read
         //Only read once.
         const auto [it, first_read] = readValues.emplace(req->key, req->maxValue); // readValues.insert(std::make_pair(req->key, req->maxValue));
 
-        std::cerr << "Key: " << req->key << std::endl;
-         std::cerr << "MaxValue: " << req->maxValue << std::endl;
-         std::cerr << "Max TS: " << req->maxTs.getTimestamp() << ":" << req->maxTs.getID() << std::endl;
+        // std::cerr << "Key: " << req->key << std::endl;
+        //  std::cerr << "MaxValue: " << req->maxValue << std::endl;
+        //  std::cerr << "Max TS: " << req->maxTs.getTimestamp() << ":" << req->maxTs.getID() << std::endl;
 
         if(first_read){ //for first read
             ReadMessage *read = txn.add_read_set();

@@ -38,6 +38,13 @@ void TableStore::ExecRaw(const std::string &sql_statement){
     //TODO: When calling the LoadStatement: We'll want to initialize all rows to be committed and have genesis proof (see server)
 }
 
+void TableStore::LoadTable(const std::string &load_statement, const std::string &txn_digest, const Timestamp &ts, const proto::CommittedProof *committedProof){
+         //Turn txn_digest into a shared_ptr, write everywhere it is needed.
+    std::shared_ptr<std::string> txn_dig(std::make_shared<std::string>(txn_digest));
+
+    //Call statement (of type Copy or Insert) and set meta data accordingly (bool commit = true, committedProof, txn_digest, ts)
+}
+
 //Execute a read query statement on the Table backend and return a query_result/proto (in serialized form) as well as a read set (managed by readSetMgr)
 std::string TableStore::ExecReadQuery(const std::string &query_statement, const Timestamp &ts, QueryReadSetMgr &readSetMgr){
 
@@ -81,7 +88,7 @@ void TableStore::ExecPointRead(const std::string &query_statement, std::string &
     //Don't read TableVersion (quetion: how do we read table version for normal query? --> let it return table name and then look up?)
     
 
-         //args: query, Ts, this->can_read_prepared ; commit: (result, timestamp, proof), prepared: (result, timestamp), key
+         //args: query, Ts, this->can_read_prepared ; commit: (result, timestamp, proof), prepared: (result, timestamp, txn_digest), key (optional)
     //TODO: Execute QueryStatement on Peloton. -> returns peloton result
             //TODO: Read latest committed (return committedProof) + Read latest prepared (if > committed)
 
@@ -124,6 +131,12 @@ void TableStore::PurgeTableWrite(const std::string &table_name, const TableWrite
     std::string purge_statement;
     bool has_purge = sql_interpreter.GenerateTablePurgeStatement(purge_statement, table_name, table_write);   
 
+    //TODO: Purge statement is a "special" delete statement:
+            // it deletes existing row insertions for the timestamp
+            // but it also undoes existing deletes for the timestamp
+
+    //==> Effectively it is "aborting" all suggested table writes.
+    
     //TODO: Execute on Peloton
 }
    
