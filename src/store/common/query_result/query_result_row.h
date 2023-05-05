@@ -43,7 +43,7 @@ class Row {
 
 	  virtual auto operator[]( const std::size_t column ) const -> std::unique_ptr<Field> = 0;
 		
-		virtual auto columns() const noexcept -> std::size_t = 0;
+		virtual auto num_columns() const noexcept -> std::size_t = 0;
 
 		virtual auto name( const std::size_t column ) const -> std::string = 0;
 

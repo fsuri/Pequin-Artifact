@@ -97,10 +97,10 @@ Promise::Reply(int r, Timestamp t, string v)
 }
 
 void
-Promise::Reply(int r, const query_result::QueryResult* res)
+Promise::Reply(int r, std::unique_ptr<const query_result::QueryResult>&& res)
 {
     lock_guard<mutex> l(lock);
-    result = res;
+    result = std::move(res);
     ReplyInternal(r);
 }
 
@@ -135,12 +135,22 @@ Promise::GetValue()
     return value;
 }
 
-const query_result::QueryResult*
-Promise::GetQueryResult()
+// const query_result::QueryResult*
+// Promise::GetQueryResult()
+// {
+//     unique_lock<mutex> l(lock);
+//     while(!done) {
+//         cv.wait(l);
+//     }
+//     return result;
+// }
+
+std::unique_ptr<const query_result::QueryResult>
+Promise::ReleaseQueryResult()
 {
     unique_lock<mutex> l(lock);
     while(!done) {
         cv.wait(l);
     }
-    return result;
+    return std::move(result);
 }

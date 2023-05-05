@@ -543,7 +543,7 @@ void SQLTransformer::TransformUpdate(size_t pos, std::string_view &write_stateme
             std::vector<std::string> backup_primary_key_column_values;
 
             // For col in col_updates update the columns specified by update_cols. Set value to update_values
-            for(int j=0; j<row->columns(); ++j){
+            for(int j=0; j<row->num_columns(); ++j){
                 const std::string &col = row->name(j);
                 std::unique_ptr<query_result::Field> field = (*row)[j];
               
@@ -745,7 +745,7 @@ void SQLTransformer::TransformDelete(size_t pos, std::string_view &write_stateme
             row_update->set_deletion(true);
 
             std::vector<const std::string*> primary_key_column_values;
-            for(int idx = 0; idx < row->columns(); ++idx){ //Note: Assume here that cols are in correct order of primary key cols.
+            for(int idx = 0; idx < row->num_columns(); ++idx){ //Note: Assume here that cols are in correct order of primary key cols.
             //for(auto [col_name, idx]: col_registry_ptr->primary_key_cols_idx){
                 
                 std::unique_ptr<query_result::Field> field = (*row)[idx];

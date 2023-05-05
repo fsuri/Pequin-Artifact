@@ -43,7 +43,7 @@ class QueryResult {
 		// size of the result set
 		virtual bool empty() const = 0;
 		virtual auto size() const -> std::size_t = 0;
-		virtual auto columns() const -> std::size_t = 0;
+		virtual auto num_columns() const -> std::size_t = 0;
 
 		virtual auto is_null( const std::size_t row, const std::size_t column ) const -> bool = 0;
 		virtual auto get( const std::size_t row, const std::size_t column, std::size_t* size ) const -> const char* = 0;

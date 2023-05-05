@@ -39,11 +39,15 @@ class TaoPQQueryResultWrapper : public query_result::QueryResult {
     tao::pq::result* result;
 
 	public:
-    TaoPQQueryResultWrapper(tao::pq::result* taopq_result) {
-      result = taopq_result;
+    TaoPQQueryResultWrapper(tao::pq::result* taopq_result): result(taopq_result) {
     }
 
+  // Delete copy constructor and assignment operator to enforce ownership of taopq_result
+    TaoPQQueryResultWrapper(const TaoPQQueryResultWrapper&) = delete;
+    TaoPQQueryResultWrapper& operator=(const TaoPQQueryResultWrapper&) = delete;
+
     ~TaoPQQueryResultWrapper() {
+      delete result;
     }
 
 		auto name( const std::size_t column ) const -> std::string;
@@ -51,7 +55,7 @@ class TaoPQQueryResultWrapper : public query_result::QueryResult {
 		// size of the result set
 		bool empty() const;
 		auto size() const -> std::size_t;
-    auto columns() const -> std::size_t;
+    auto num_columns() const -> std::size_t;
 
     auto is_null( const std::size_t row, const std::size_t column ) const -> bool;
 		auto get( const std::size_t row, const std::size_t column ) const -> const char*;

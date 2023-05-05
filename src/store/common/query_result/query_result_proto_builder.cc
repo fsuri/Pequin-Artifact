@@ -46,5 +46,9 @@ auto QueryResultProtoBuilder::get_result() -> std::unique_ptr<SQLResult> {
   return old_result;
 }
 
+auto QueryResultProtoBuilder::add_empty_row() -> void {
+  result->add_rows();
 }
+
+} //namespace sql
 

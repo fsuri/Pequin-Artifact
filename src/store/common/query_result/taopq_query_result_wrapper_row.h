@@ -46,7 +46,7 @@ class Row : public query_result::Row {
 
   auto operator[]( const std::size_t column ) const -> std::unique_ptr<query_result::Field>;
   
-  auto columns() const noexcept -> std::size_t;
+  auto num_columns() const noexcept -> std::size_t;
 
   auto name( const std::size_t column ) const -> std::string;
 

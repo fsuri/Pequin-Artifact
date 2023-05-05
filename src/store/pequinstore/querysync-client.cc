@@ -908,7 +908,7 @@ bool ShardClient::ValidateTransactionTableWrite(const proto::CommittedProof &pro
 
     Debug("[group %i] Trying to validate committed TableWrite.", group);
     
-    *query_result = sql::QueryResultProtoWrapper(value); //new
+    query_result = new sql::QueryResultProtoWrapper(value); //query_result takes ownership
     //turn value into Object //TODO: Can we avoid the redundant de-serialization in client.cc? ==> Modify prcb callback to take QueryResult as arg. 
                                 //Then need to change that gcb = prcb (no longer true)
 
@@ -977,7 +977,7 @@ bool ShardClient::ValidateTransactionTableWrite(const proto::CommittedProof &pro
 
     ColRegistry *col_registry = sql_interpreter->GetColRegistry(table_name); 
     int col_idx = 0;
-    for(int i = 0; i < query_result->columns(); ++i){
+    for(int i = 0; i < query_result->num_columns(); ++i){
         //find index of column name  -- if not present in table write --> return false
         const std::string &col_name = query_result->name(i);
         
@@ -992,9 +992,9 @@ bool ShardClient::ValidateTransactionTableWrite(const proto::CommittedProof &pro
        DeCerealize(col_val, col_val);
     
        //Check that values match
-       if(col_val != row_update.column_values()[col_idx]){
+       if(col_val != row_update.column_values(col_idx)){
             Debug("VALIDATE value failed for txn %lu.%lu key %s: txn value %s != %s returned value.", proof.txn().client_id(), proof.txn().client_seq_num(), 
-                key.c_str(), col_val.c_str(), (row_update.column_values()[col_idx]).c_str());
+                key.c_str(), col_val.c_str(), (row_update.column_values(col_idx)).c_str());
             return false;
        } 
     }

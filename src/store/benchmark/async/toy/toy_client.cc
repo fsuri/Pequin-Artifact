@@ -102,7 +102,8 @@ void ToyClient::ExecuteToy(){
             client.Begin(timeout);
 
             std::string query = "SELECT *";
-            const query_result::QueryResult* queryResult;
+            //const query_result::QueryResult* queryResult;
+            std::unique_ptr<const query_result::QueryResult> queryResult;
             client.Query(query, queryResult, timeout);  //--> Edit API in frontend sync_client.
                                            //For real benchmarks: Also edit in sync_transaction_bench_client.
                               
@@ -110,7 +111,7 @@ void ToyClient::ExecuteToy(){
 
             std::cerr << "Got res" << std::endl;
             UW_ASSERT(!queryResult->empty());
-            std::cerr << "num cols:" <<  queryResult->columns() << std::endl;
+            std::cerr << "num cols:" <<  queryResult->num_columns() << std::endl;
             std::cerr << "num rows written:" <<  queryResult->rows_affected() << std::endl;
             std::cerr << "num rows read:" << queryResult->size() << std::endl;
 
@@ -129,7 +130,8 @@ void ToyClient::ExecuteToy(){
             //Query 2: a point query:
 
             std::string p_query = fmt::format("SELECT * FROM datastore WHERE key_ = 'alice'");
-            const query_result::QueryResult* p_queryResult;
+            //const query_result::QueryResult* p_queryResult;
+            std::unique_ptr<const query_result::QueryResult> p_queryResult;
             client.Query(p_query, p_queryResult, timeout);  //--> Edit API in frontend sync_client.
                                            //For real benchmarks: Also edit in sync_transaction_bench_client.
                               
@@ -137,13 +139,13 @@ void ToyClient::ExecuteToy(){
 
             std::cerr << "Got res" << std::endl;
             std::cerr << "IS empty?: " << (p_queryResult->empty()) << std::endl;
-            std::cerr << "num cols:" <<  (p_queryResult->columns()) << std::endl;
+            std::cerr << "num cols:" <<  (p_queryResult->num_columns()) << std::endl;
             std::cerr << "num rows written:" <<  (p_queryResult->rows_affected()) << std::endl;
             std::cerr << "num rows read:" << (p_queryResult->size()) << std::endl;
 
             if(!p_queryResult->empty()){ 
                std::stringstream p_ss(std::ios::in | std::ios::out | std::ios::binary);
-               for(int i = 0; i<p_queryResult->columns(); ++i){
+               for(int i = 0; i<p_queryResult->num_columns(); ++i){
                    out = p_queryResult->get(0, i, &nbytes);
                   std::string p_output(out, nbytes);
                   p_ss << p_output;
@@ -159,12 +161,13 @@ void ToyClient::ExecuteToy(){
             
             std::string write = fmt::format("UPDATE datastore SET val_ = 'green' WHERE key_ = 'alice'");
 
-            const query_result::QueryResult* w_queryResult;
+            //const query_result::QueryResult* w_queryResult;
+            std::unique_ptr<const query_result::QueryResult> w_queryResult;
             client.Write(write, w_queryResult, timeout);  
                               
             std::cerr << "Got res" << std::endl;
             std::cerr << "IS empty?: " << (w_queryResult->empty()) << std::endl;
-            std::cerr << "num cols:" <<  (w_queryResult->columns()) << std::endl;
+            std::cerr << "num cols:" <<  (w_queryResult->num_columns()) << std::endl;
             std::cerr << "num rows written:" <<  (w_queryResult->rows_affected()) << std::endl;
             std::cerr << "num rows read:" << (w_queryResult->size()) << std::endl;
 
