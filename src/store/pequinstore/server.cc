@@ -1619,6 +1619,10 @@ void Server::Prepare(const std::string &txnDigest,
     //std::make_pair(p.first->second.first, p.first->second.second);
   for (const auto &write : writeSet) {
     if (IsKeyOwned(write.key())) {
+
+       //Skip applying TableVersion until after TableWrites have been applied
+      if(txn.table_writes().find(write.key()) != txn.table_writes().end()) continue; 
+
       std::pair<std::shared_mutex,std::map<Timestamp, const proto::Transaction *>> &x = preparedWrites[write.key()];
       std::unique_lock lock(x.first);
       x.second.insert(pWrite);
@@ -1632,6 +1636,10 @@ void Server::Prepare(const std::string &txnDigest,
 
   for (const auto &[table_name, table_write] : txn.table_writes()){
     table_store.ApplyTableWrite(table_name, table_write, ts, txnDigest, nullptr, false);
+    //Apply TableVersion 
+    std::pair<std::shared_mutex,std::map<Timestamp, const proto::Transaction *>> &x = preparedWrites[table_name];
+    std::unique_lock lock(x.first);
+    x.second.insert(pWrite);
   }
 }
 
@@ -1759,16 +1767,16 @@ void Server::CommitToStore(proto::CommittedProof *proof, proto::Transaction *txn
        write.key().c_str());
     
     if(write.has_value()) val.val = write.value();
+    else if(!params.query_params.sql_mode){
+      Panic("When running in KV-store mode write should always have a value");
+    }
     
+    //Skip applying TableVersion until after TableWrites have been applied
+    if(txn->table_writes().find(write.key()) != txn->table_writes().end()) continue; 
+
     store.put(write.key(), val, ts);
 
-    if(!write.has_value() && !params.query_params.sql_mode){
-      Panic("When running in KV-store mode write should always have a value");
-      //TODO: It is a table write:
-      //DecodeTableRow(write.key(), ...)
-      //Apply to Table.  (Note: Should only be applied after store.put)
-    }
-
+    
     if(params.rtsMode == 1){
       //Do nothing
     }
@@ -1796,6 +1804,13 @@ void Server::CommitToStore(proto::CommittedProof *proof, proto::Transaction *txn
                             // + how do we remove prepared rows? Do we treat it as SQL delete (at ts)? row becomes invisible -- fully removed from CC store.
   for (const auto &[table_name, table_write] : txn->table_writes()){
     table_store.ApplyTableWrite(table_name, table_write, ts, txnDigest, proof);
+    val.val = "";
+    store.put(table_name, val, ts);  //Apply TableVersion   //TODO: Confirm that ApplyTableWrite is synchronous -- i.e. only returns after all writes are applied. 
+                                                          //If not, then must call SetTableVersion as callback from within Peloton once it is done.
+    //Note: Should be safe to apply TableVersion table by table (i.e. don't need to wait for all TableWrites to finish before applying TableVersions)
+
+    
+    //Note: Does one have to do special handling for Abort? No ==> All prepared versions just produce unecessary conflicts & dependencies, so there is no safety concern.
   }
 }
 

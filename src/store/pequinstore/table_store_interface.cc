@@ -125,6 +125,10 @@ void TableStore::ApplyTableWrite(const std::string &table_name, const TableWrite
     //TODO: Execute on Peloton
     //Exec write
     //if(has_delete) Exec delete
+
+
+    //TODO: Confirm that ApplyTableWrite is synchronous -- i.e. only returns after all writes are applied. 
+     //If not, then must call SetTableVersion as callback from within Peloton once it is done to set the TableVersion (Currently, it is being set right after ApplyTableWrite() returns)
 }
 
 void TableStore::PurgeTableWrite(const std::string &table_name, const TableWrite &table_write, const Timestamp &ts, const std::string &txn_digest){
