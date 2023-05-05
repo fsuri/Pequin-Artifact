@@ -14,7 +14,10 @@ TableStore::~TableStore(){
 
 }
 
-void TableStore::SetPreparePredicate(const read_prepared_pred &read_prepared_pred){
+void TableStore::SetFindTableVersion(find_table_version _set_table_version){
+    set_table_version = std::move(_set_table_version);
+}
+void TableStore::SetPreparePredicate(read_prepared_pred read_prepared_pred){
     can_read_prepared = std::move(read_prepared_pred);
 } 
 
@@ -48,7 +51,7 @@ void TableStore::LoadTable(const std::string &load_statement, const std::string 
 //Execute a read query statement on the Table backend and return a query_result/proto (in serialized form) as well as a read set (managed by readSetMgr)
 std::string TableStore::ExecReadQuery(const std::string &query_statement, const Timestamp &ts, QueryReadSetMgr &readSetMgr){
 
-            //args: query, Ts, readSetMgr, this->can_read_prepared 
+            //args: query, Ts, readSetMgr, this->can_read_prepared, this->set_table_version
     //TODO: Execute on Peloton --> returns peloton result
 
     //TODO: Change Peloton result into query proto.
@@ -136,7 +139,7 @@ void TableStore::PurgeTableWrite(const std::string &table_name, const TableWrite
             // but it also undoes existing deletes for the timestamp
 
     //==> Effectively it is "aborting" all suggested table writes.
-    
+
     //TODO: Execute on Peloton
 }
    

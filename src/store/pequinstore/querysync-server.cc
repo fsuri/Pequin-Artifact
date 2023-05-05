@@ -1682,7 +1682,7 @@ std::string Server::ExecQuery(QueryReadSetMgr &queryReadSetMgr, QueryMetaData *q
                 const std::string &tx_id = i->first;
                 const proto::Transaction *txn = i->second.second;
 
-                queryReadSetMgr.AddToDepSet(tx_id, query_md->useOptimisticTxId, txn->timestamp());
+                queryReadSetMgr.AddToDepSet(tx_id, txn->timestamp());
 
                 // proto::Dependency *add_dep = query_md->queryResultReply->mutable_result()->mutable_query_read_set()->add_deps();
                 // add_dep->set_involved_group(groupIdx);
@@ -1720,7 +1720,7 @@ void Server::ExecQueryEagerly(queryMetaDataMap::accessor &q, QueryMetaData *quer
     query_md->executed_query = true;
 
     Debug("Eagerly Execute Query[%lu:%lu:%lu].", query_md->query_seq_num, query_md->client_id, query_md->retry_version);
-    QueryReadSetMgr queryReadSetMgr(query_md->queryResultReply->mutable_result()->mutable_query_read_set(), groupIdx); 
+    QueryReadSetMgr queryReadSetMgr(query_md->queryResultReply->mutable_result()->mutable_query_read_set(), groupIdx, false); 
 
     std::string result(ExecQuery(queryReadSetMgr, query_md, false));
 
@@ -1782,7 +1782,7 @@ void Server::HandleSyncCallback(queryMetaDataMap::accessor &q, QueryMetaData *qu
     // Build Read Set while executing; Add dependencies on demand as we observe uncommitted txn touched.
     //read set = map from key-> versions  //Note: Convert Timestamp to TimestampMessage
  
-    QueryReadSetMgr queryReadSetMgr(query_md->queryResultReply->mutable_result()->mutable_query_read_set(), groupIdx); 
+    QueryReadSetMgr queryReadSetMgr(query_md->queryResultReply->mutable_result()->mutable_query_read_set(), groupIdx, query_md->useOptimisticTxId); 
 
     std::string result(ExecQuery(queryReadSetMgr, query_md, true));
     query_md->has_result = true; 

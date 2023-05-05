@@ -449,6 +449,91 @@ void Server::ManageDispatchSupplyTx(const TransportAddress &remote, const std::s
 
 //////////////////////////////////////////////////////// Protocol Helper Functions
 
+void Server::FindTableVersion(const std::string &table_name, const Timestamp &ts, bool read_or_snapshot, QueryReadSetMgr *readSetMgr, SnapshotManager *snapshotMgr){
+
+  //Read committed
+  std::pair<Timestamp, Server::Value> tsVal;
+  //find committed write value to read from
+  bool committed_exists = store.get(table_name, ts, tsVal);
+  if(!committed_exists){
+    Panic("All Tables must have a genesis version");  //Note: CreateTable() writes the genesis version
+  }
+
+  const proto::Transaction *mostRecentPrepared = nullptr;
+
+  //Read prepared
+  if(occType == MVTSO && params.maxDepDepth > -2){    //TODO: possibly set RTS too here. Note: currently being set for whole Query ReadSet after exec. 
+      mostRecentPrepared = FindPreparedVersion(table_name, ts, committed_exists, tsVal);
+  }
+
+
+  if(read_or_snapshot){ //Creating ReadSet
+    UW_ASSERT(readSetMgr);
+
+    if(mostRecentPrepared != nullptr){ //Read prepared
+      readSetMgr->AddToReadSet(table_name, mostRecentPrepared->timestamp());
+      readSetMgr->AddToDepSet(TransactionDigest(*mostRecentPrepared, params.hashDigest), mostRecentPrepared->timestamp());
+    }
+    else{ //Read committed
+      TimestampMessage tsm;
+      tsVal.first.serialize(&tsm);
+      readSetMgr->AddToReadSet(table_name, tsm);
+    }
+  }
+  else{ //Creating Snapshot
+    UW_ASSERT(snapshotMgr);
+
+    if(mostRecentPrepared != nullptr){ //Read prepared
+      snapshotMgr->AddToLocalSnapshot(TransactionDigest(*mostRecentPrepared, params.hashDigest), mostRecentPrepared, false);
+    }
+    else{ //Read committed
+      snapshotMgr->AddToLocalSnapshot(TransactionDigest(*mostRecentPrepared, params.hashDigest), tsVal.first.getTimestamp(), tsVal.first.getID(), true);
+    }
+  }
+
+  return;
+}
+
+const proto::Transaction* Server::FindPreparedVersion(const std::string &key, const Timestamp &ts, bool committed_exists, std::pair<Timestamp, Server::Value> const &tsVal){
+
+  const proto::Transaction *mostRecent = nullptr;
+  auto itr = preparedWrites.find(key);
+  if (itr != preparedWrites.end()){
+
+    //std::pair &x = preparedWrites[write.key()];
+    std::shared_lock lock(itr->second.first);
+    if(itr->second.second.size() > 0) {
+
+      // //Find biggest prepared write smaller than TS.
+      // auto it = itr->second.second.lower_bound(ts); //finds smallest element greater equal TS
+      // if(it != itr->second.second.begin()) { //If such an elem exists; go back one == greates element less than TS
+      //     --it;
+      // }
+      // if(it != itr->second.second.begin()){ //if such elem exists: read from it.
+      //     mostRecent = it->second;
+      //     if(exists && tsVal.first > Timestamp(mostRecent->timestamp())) mostRecent = nullptr; // don't include prepared read if it is smaller than committed.
+      // }
+
+      // there is a prepared write for the key being read
+      for (const auto &t : itr->second.second) {
+        if(t.first > ts) break; //only consider it if it is smaller than TS (Map is ordered, so break should be fine here.)
+        if(committed_exists && t.first <= tsVal.first) continue; //only consider it if bigger than committed value. 
+        if (mostRecent == nullptr || t.first > Timestamp(mostRecent->timestamp())) { 
+          mostRecent = t.second;
+        }
+      }
+    }
+  }
+  return mostRecent;
+}
+
+// void Server::SetTableVersion(proto::Transaction *txn){
+//   //for all table write keys in table_writes.
+// }
+
+
+
+
 void* Server::CheckProposalValidity(::google::protobuf::Message &msg, const proto::Transaction *txn, std::string &txnDigest, bool fallback){
     if (params.validateProofs && params.signedMessages && params.verifyDeps) { 
       //Check whether claimed dependencies are actually dependencies, and whether f+1 replicas signed them

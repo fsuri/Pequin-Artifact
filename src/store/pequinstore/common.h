@@ -417,7 +417,7 @@ inline static bool compareReadSets (google::protobuf::RepeatedPtrField<ReadMessa
 
 
 struct QueryReadSetMgr {
-        QueryReadSetMgr(proto::ReadSet *read_set, const uint64_t &groupIdx): read_set(read_set), groupIdx(groupIdx){}
+        QueryReadSetMgr(proto::ReadSet *read_set, const uint64_t &groupIdx, const bool &useOptimisticId): read_set(read_set), groupIdx(groupIdx), useOptimisticId(useOptimisticId){}
         ~QueryReadSetMgr(){}
 
         void AddToReadSet(const std::string &key, const TimestampMessage &readtime){
@@ -427,13 +427,13 @@ struct QueryReadSetMgr {
           *read->mutable_readtime() = readtime;
         }
 
-        void AddToDepSet(const std::string &tx_id, bool optimisticId, const TimestampMessage &tx_ts){
+        void AddToDepSet(const std::string &tx_id, const TimestampMessage &tx_ts){
             proto::Dependency *add_dep = read_set->add_deps();
             add_dep->set_involved_group(groupIdx);
             add_dep->mutable_write()->set_prepared_txn_digest(tx_id);
             Debug("Adding Dep: %s", BytesToHex(tx_id, 16).c_str());
             //Note: Send merged TS.
-            if(optimisticId){
+            if(useOptimisticId){
                 //MergeTimestampId(txn->timestamp().timestamp(), txn->timestamp().id()
                 *add_dep->mutable_write()->mutable_prepared_timestamp() = tx_ts;
                 // add_dep->mutable_write()->mutable_prepared_timestamp()->set_timestamp(txn->timestamp().timestamp());
@@ -443,6 +443,7 @@ struct QueryReadSetMgr {
 
       proto::ReadSet *read_set;
       uint64_t groupIdx;
+      bool useOptimisticId;
 };
 
 
@@ -545,6 +546,7 @@ public:
   void InitLocalSnapshot(proto::LocalSnapshot *local_ss, const uint64_t &query_seq_num, const uint64_t &client_id, const uint64_t &replica_id, bool useOptimisticTxId = false);
   void ResetLocalSnapshot(bool useOptimisticTxId = false);
   void AddToLocalSnapshot(const std::string &txnDigest, const proto::Transaction *txn, bool committed_or_prepared = true); //For local snapshot; //TODO: Define something similar for merged? Should merged be a separate class?
+    void AddToLocalSnapshot(const std::string &txnDigest, const uint64_t &timestamp, const uint64_t &id, bool committed_or_prepared);
   void SealLocalSnapshot();
   void OpenLocalSnapshot(proto::LocalSnapshot *local_ss);
   
