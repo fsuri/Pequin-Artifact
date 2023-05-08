@@ -121,6 +121,7 @@ int main(int argc, char *argv[]) {
   Timestamp basil_timestamp(3, 5);
   Timestamp read_timestamp(2, 4);
   Timestamp five(5,7);
+  Timestamp six(6,8);
 
   /*std::unique_ptr<pequinstore::QueryReadSetMgr> query_read_set_mgr_one(new pequinstore::QueryReadSetMgr);
   std::unique_ptr<pequinstore::QueryReadSetMgr> query_read_set_mgr_two(new pequinstore::QueryReadSetMgr);
@@ -168,8 +169,13 @@ int main(int argc, char *argv[]) {
   std::cout << "After fifth query" << std::endl;
   ExecuteSQLQuery("UPDATE test SET b=16 WHERE a=99;", traffic_cop, counter_, result, tuple_descriptor, read_timestamp, query_read_set_mgr_six);
   std::cout << "After sixth query" << std::endl;
+  ExecuteSQLQuery("INSERT INTO test VALUES (1001, 542);", traffic_cop, counter_, result, tuple_descriptor, pesto_timestamp, query_read_set_mgr_three);
+  //ExecuteSQLQuery("INSERT INTO test VALUES (99, 24) ON CONFLICT (a) DO UPDATE SET b=EXCLUDED.b;", traffic_cop, counter_, result, tuple_descriptor, read_timestamp, query_read_set_mgr_six);
   ExecuteSQLQuery("SELECT * FROM test;", traffic_cop, counter_, result, tuple_descriptor, pesto_timestamp, query_read_set_mgr_seven);
-  std::cout << "After seventh query" << std::endl;
+  //ExecuteSQLQuery("CREATE TABLE string(a TEXT, b TEXT, PRIMARY KEY(a));", traffic_cop, counter_, result, tuple_descriptor, pesto_timestamp, query_read_set_mgr_one);
+  //ExecuteSQLQuery("INSERT INTO string VALUES ('apple', 'pear');", traffic_cop, counter_, result, tuple_descriptor, pesto_timestamp, query_read_set_mgr_two);
+  //ExecuteSQLQuery("SELECT * FROM string;", traffic_cop, counter_, result, tuple_descriptor, pesto_timestamp, query_read_set_mgr_seven);
+  //std::cout << "After seventh query" << std::endl;
   
   // function args: timestamp, snapshot manager, read set manager, boolean flag finding snapshot/executing (read set manager)
   //ExecuteSQLQuery("CREATE TABLE test1(c INT, b INT);", traffic_cop, counter_, result, basil_timestamp);

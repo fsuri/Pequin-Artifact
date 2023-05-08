@@ -129,6 +129,13 @@ class DataTable : public AbstractTable {
                           concurrency::TransactionContext *transaction,
                           ItemPointer **index_entry_ptr = nullptr,
                           bool check_fk = true);
+  
+  ItemPointer InsertTuple(const Tuple *tuple,
+                          concurrency::TransactionContext *transaction,
+                          bool &exists,
+                          ItemPointer **index_entry_ptr = nullptr,
+                          bool check_fk = true);
+  
   // designed for tables without primary key. e.g., output table used by
   // aggregate_executor.
   ItemPointer InsertTuple(const Tuple *tuple);
@@ -436,6 +443,9 @@ class DataTable : public AbstractTable {
   std::mutex index_samples_mutex_;
 
   static oid_t invalid_tile_group_id;
+
+  // table version
+  //Timestamp table_version;
 
   // trigger list
   //std::unique_ptr<trigger::TriggerList> trigger_list_;

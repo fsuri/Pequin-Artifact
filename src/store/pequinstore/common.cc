@@ -34,6 +34,7 @@
 
 #include "store/common/timestamp.h"
 #include "store/common/transaction.h"
+//#include "../../query-engine/type/value.h"
 #include <utility>
 
 
@@ -2035,11 +2036,29 @@ std::string EncodeTableRow(const std::string &table_name, const std::vector<cons
   //Note: Assuming unique delimiter that is neither part of table_nor string.
   std::string encoding = table_name;
   for(const char *primary_column: primary_key_columns){
+    std::cout << "EncodeTableRow: Primary column is " << primary_column << std::endl;
+    std::cout << "EncodeTableRow: Encoding before is " << encoding << std::endl;
     encoding += unique_delimiter + primary_column;
+    std::cout << "EncodeTableRow: Encoding after is " << encoding << std::endl;
   }
   return encoding;
   //return table_name + unique_delimiter + row_name;
 }
+
+/*std::string EncodeEngineTableRow(const std::string &table_name, const std::vector<peloton::type::Value> primary_key_columns){  //std::string &row_name
+  //Note: Assuming unique delimiter that is neither part of table_nor string.
+  std::string encoding = table_name;
+  for(auto primary_column: primary_key_columns){
+    std::string encode_primary = primary_column.GetAs<std::string>()
+    std::cout << "EncodeTableRow: Primary column is " << primary_column << std::endl;
+    std::cout << "EncodeTableRow: Encoding before is " << encoding << std::endl;
+    encoding += unique_delimiter + encode_primary;
+    std::cout << "EncodeTableRow: Encoding after is " << encoding << std::endl;
+  }
+  return encoding;
+  //return table_name + unique_delimiter + row_name;
+}*/
+
 
 //NOTE: Returns row primary keys as strings here... TODO: At application to table, convert as appropriate. E.g. Int: stoi(), String: string()
 void DecodeTableRow(const std::string &enc_key, std::string &table_name, std::vector<std::string> primary_key_columns ) {  //std::string &row_name){

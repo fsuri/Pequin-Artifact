@@ -293,16 +293,19 @@ bool DataTable::InstallVersion(const AbstractTuple *tuple,
                                concurrency::TransactionContext *transaction,
                                ItemPointer *index_entry_ptr) {
   if (CheckConstraints(tuple) == false) {
+    std::cout << "Check constraints false" << std::endl;
     LOG_TRACE("InsertVersion(): Constraint violated");
     return false;
   }
-
+  std::cout << "Past check constraints" << std::endl;
   // Index checks and updates
   if (InsertInSecondaryIndexes(tuple, targets_ptr, transaction,
                                index_entry_ptr) == false) {
+    std::cout << "Inside if insertinsecondaryindexes" << std::endl;
     LOG_TRACE("Index constraint violated");
     return false;
   }
+  std::cout << "Past insert into secondary indexes" << std::endl;
   return true;
 }
 
@@ -319,15 +322,40 @@ ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple,
   auto result =
       InsertTuple(tuple, location, transaction, index_entry_ptr, check_fk);
   if (result == false) {
+    //check_fk = false;
     return INVALID_ITEMPOINTER;
   }
   return location;
 }
 
+ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple,
+                                   concurrency::TransactionContext *transaction,
+                                   bool &exists,
+                                   ItemPointer **index_entry_ptr,
+                                   bool check_fk) {
+  ItemPointer location = GetEmptyTupleSlot(tuple);
+  if (location.block == INVALID_OID) {
+    LOG_TRACE("Failed to get tuple slot.");
+    return INVALID_ITEMPOINTER;
+  }
+
+  auto result =
+      InsertTuple(tuple, location, transaction, index_entry_ptr, check_fk);
+  if (result == false) {
+    //check_fk = false;
+    exists = false;
+    //return INVALID_ITEMPOINTER;
+  }
+  return location;
+}
+
+
+
 bool DataTable::InsertTuple(const AbstractTuple *tuple, ItemPointer location,
                             concurrency::TransactionContext *transaction,
                             ItemPointer **index_entry_ptr, bool check_fk) {
   if (CheckConstraints(tuple) == false) {
+    std::cout << "Index Constraint violated" << std::endl;
     LOG_TRACE("InsertTuple(): Constraint violated");
     return false;
   }
@@ -353,6 +381,7 @@ bool DataTable::InsertTuple(const AbstractTuple *tuple, ItemPointer location,
   }
   // Index checks and updates
   if (InsertInIndexes(tuple, location, transaction, index_entry_ptr) == false) {
+    std::cout << "Index Constraint violated" << std::endl;
     LOG_TRACE("Index constraint violated");
     return false;
   }
@@ -452,7 +481,8 @@ bool DataTable::InsertInIndexes(const AbstractTuple *tuple,
         // get unique tuple from primary/unique index.
         // if in this index there has been a visible or uncommitted
         // <key, location> pair, this constraint is violated
-        res = index->CondInsertEntry(key.get(), *index_entry_ptr, fn);
+        //res = index->CondInsertEntry(key.get(), *index_entry_ptr, fn);
+        index->InsertEntry(key.get(), *index_entry_ptr);
       } break;
 
       case IndexConstraintType::DEFAULT:
@@ -466,7 +496,7 @@ bool DataTable::InsertInIndexes(const AbstractTuple *tuple,
       // If some of the indexes have been inserted,
       // the pointer has a chance to be dereferenced by readers and it cannot be
       // deleted
-      *index_entry_ptr = nullptr;
+      //*index_entry_ptr = nullptr;
       return false;
     } else {
       success_count += 1;
@@ -486,10 +516,17 @@ bool DataTable::InsertInSecondaryIndexes(
   // when attempting to perform insertion to a secondary index,
   // we must check whether the updated column is a secondary index column.
   // insertion happens only if the updated column is a secondary index column.
-  std::unordered_set<oid_t> targets_set;
-  for (auto target : *targets_ptr) {
-    targets_set.insert(target.first);
+  if (targets_ptr == nullptr) {
+    std::cout << "Targets pointer is null" << std::endl;
   }
+  std::unordered_set<oid_t> targets_set;
+  if (targets_ptr != nullptr) {
+    for (auto target : *targets_ptr) {
+      targets_set.insert(target.first);
+    }
+  }
+
+  std::cout << "After iterating through targets_ptr" << std::endl;
 
   bool res = true;
 
@@ -530,6 +567,7 @@ bool DataTable::InsertInSecondaryIndexes(
     std::unique_ptr<storage::Tuple> key(new storage::Tuple(index_schema, true));
 
     key->SetFromTuple(tuple, indexed_columns, index->GetPool());
+    std::cout << "After setting key from tuple" << std::endl;
 
     switch (index->GetIndexType()) {
       case IndexConstraintType::PRIMARY_KEY:

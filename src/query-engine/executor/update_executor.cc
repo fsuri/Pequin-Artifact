@@ -333,6 +333,7 @@ bool UpdateExecutor::DExecute() {
           // acquire a version slot from the table.
           ItemPointer new_location = target_table_->AcquireVersion();
 
+          
           auto storage_manager = storage::StorageManager::GetInstance();
           auto new_tile_group = storage_manager->GetTileGroup(new_location.block);
 
@@ -381,6 +382,7 @@ bool UpdateExecutor::DExecute() {
                     old_location.offset);
           LOG_TRACE("perform update new location: %u, %u", new_location.block,
                     new_location.offset);
+          std::cout << "Performed the update here" << std::endl;
           transaction_manager.PerformUpdate(current_txn, old_location,
                                             new_location);
           statement_write_set_.insert(new_location);

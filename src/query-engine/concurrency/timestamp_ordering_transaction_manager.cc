@@ -394,8 +394,9 @@ void TimestampOrderingTransactionManager::PerformUpdate(
   auto transaction_id = current_txn->GetTransactionId();
   // if we can perform update, then we must have already locked the older
   // version.
-  PELOTON_ASSERT(tile_group_header->GetTransactionId(old_location.offset) ==
-                 transaction_id);
+  /** NEW: Commented this assertion out for upsert */
+  /*PELOTON_ASSERT(tile_group_header->GetTransactionId(old_location.offset) ==
+                 transaction_id);*/
   PELOTON_ASSERT(
       tile_group_header->GetPrevItemPointer(old_location.offset).IsNull() ==
       true);

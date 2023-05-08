@@ -191,12 +191,17 @@ bool SeqScanExecutor::DExecute() {
         std::cout << "Seq scan current tuple id is " << curr_tuple_id << std::endl;
         // Get the head of the version chain (latest version)
         ItemPointer* head = tile_group_header->GetIndirection(curr_tuple_id);
-        if (head->IsNull()) {
+        std::cout << "Before checking whether head is null" << std::endl;
+        /*if (head->IsNull()) {
           std::cout << "Head is null" << std::endl;
-        }
+        }*/
+        std::cout << "Seq scan seg fault 1" << std::endl;
         auto head_tile_group_header = storage_manager->GetTileGroup(head->block)->GetHeader();
+        std::cout << "Seq scan seg fault 2" << std::endl;
         tuple_timestamp = head_tile_group_header->GetBasilTimestamp(head->offset);
+        std::cout << "Seq scan seg fault 3" << std::endl;
         location = *head;
+        std::cout << "Seq scan seg fault 4" << std::endl;
         tile_group_header = head_tile_group_header;
         curr_tuple_id = location.offset;
 
@@ -235,17 +240,24 @@ bool SeqScanExecutor::DExecute() {
               position_set.insert(curr_tuple_id);
 
               ContainerTuple<storage::TileGroup> row(tile_group.get(), curr_tuple_id);
-              std::string encoded_key = target_table_->GetName();
+              //std::string encoded_key = target_table_->GetName();
               std::vector<const char *> primary_key_cols;
               for (auto col : primary_index_columns_) {
                 auto val = row.GetValue(col);
-                encoded_key = encoded_key + "///" + val.ToString();
+                //encoded_key = encoded_key + "///" + val.ToString();
                 primary_key_cols.push_back(val.ToString().c_str());
+                //primary_key_cols.push_back(val.GetAs<const char*>());
+                std::cout << "read set value is " << val.ToString() << std::endl;
               }
               Timestamp time = tile_group_header->GetBasilTimestamp(location.offset);
               //logical_tile->AddToReadSet(std::tie(encoded_key, time));
+
+              for (unsigned int i = 0; i < primary_key_cols.size(); i++) {
+                  std::cout << "Primary key columns are " << primary_key_cols[i] << std::endl;
+              }
               
               std::string encoded = pequinstore::EncodeTableRow(target_table_->GetName(), primary_key_cols);
+              std::cout << "Encoded key from read set is " << encoded << std::endl;
               TimestampMessage ts_message  = TimestampMessage();
               
               ts_message.set_id(time.getID());
@@ -280,16 +292,21 @@ bool SeqScanExecutor::DExecute() {
                 position_set.insert(curr_tuple_id);
                 ContainerTuple<storage::TileGroup> row(tile_group.get(), curr_tuple_id);
                 std::vector<const char *> primary_key_cols;
-                std::string encoded_key = target_table_->GetName();
+                //std::string encoded_key = target_table_->GetName();
                 for (auto col : primary_index_columns_) {
                   auto val = row.GetValue(col);
-                  encoded_key = encoded_key + "///" + val.ToString();
+                  //encoded_key = encoded_key + "///" + val.ToString();
                   primary_key_cols.push_back(val.ToString().c_str());
+                  std::cout << "read set value is " << val.ToString() << std::endl;
                 }
                 Timestamp time = tile_group_header->GetBasilTimestamp(location.offset);
                 //logical_tile->AddToReadSet(std::tie(encoded_key, time));
 
+                for (unsigned int i = 0; i < primary_key_cols.size(); i++) {
+                  std::cout << "Primary key columns are " << primary_key_cols[i] << std::endl;
+                }
                 std::string encoded = pequinstore::EncodeTableRow(target_table_->GetName(), primary_key_cols);
+                std::cout << "Encoded key from read set is " << encoded << std::endl;
                 TimestampMessage ts_message  = TimestampMessage();
               
                 ts_message.set_id(time.getID());
