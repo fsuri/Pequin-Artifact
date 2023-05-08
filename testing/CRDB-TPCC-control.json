@@ -10,8 +10,8 @@
   ],
   "replication_protocol": ["crdb"],
   "client_protocol_mode": ["crdb"],
-  "num_shards": [2],
-  "num_groups": [2],
+  "num_shards": [3],
+  "num_groups": [3],
 
   "client_num_keys": 10000000,
   
@@ -120,10 +120,8 @@
   "project_name": "crdbdriver-pg0",
   "fault_tolerance": 1,
   "server_names": [
-   
-    ["us-east-1-0", "us-east-1-1", "us-east-1-2", "eu-west-1-0",
-    "eu-west-1-1", "eu-west-1-2"] 
-	
+    ["us-east-1-0", "us-east-1-1", "us-east-1-2", "eu-west-1-0", "eu-west-1-1", "eu-west-1-2", "ap-northeast-1-0", "ap-northeast-1-1",
+    "ap-northeast-1-2"] 
   ],
 
   "server_regions": [
