@@ -52,12 +52,20 @@
 #include <thread>
 #include <set>
 
+#include "store/pequinstore/sql_interpreter.h"
+
 #define RESULT_COMMITTED 0
 #define RESULT_USER_ABORTED 1
 #define RESULT_SYSTEM_ABORTED 2
 #define RESULT_MAX_RETRIES 3
 
 namespace pequinstore {
+
+
+static bool TEST_READ_SET = true;  //check toy read sets for queries
+static bool TEST_WRITE_SET = true; //check toy write sets for writes
+
+static bool relax_point_cond = true;
 
 static uint64_t start_time = 0;
 static uint64_t total_failure_injections=0;
@@ -71,9 +79,10 @@ class Client : public ::Client {
       int nGroups, const std::vector<int> &closestReplicas, bool pingReplicas,
       Transport *transport, Partitioner *part, bool syncCommit,
       uint64_t readMessages, uint64_t readQuorumSize,
-      Parameters params, 
+      Parameters params, std::string &table_registry,
       KeyManager *keyManager, uint64_t phase1DecisionTimeout,
       uint64_t consecutiveMax = 1UL,
+      bool sql_bench = false,
       TrueTime timeserver = TrueTime(0,0));
   virtual ~Client();
 
@@ -90,11 +99,11 @@ class Client : public ::Client {
       put_callback pcb, put_timeout_callback ptcb,
       uint32_t timeout = PUT_TIMEOUT) override;
 
-  virtual void Write(std::string &write_statement, std::vector<std::vector<uint32_t>> primary_key_encoding_support, write_callback wcb,
+  virtual void Write(std::string &write_statement, write_callback wcb,
       write_timeout_callback wtcb, uint32_t timeout) override;
 
   virtual void Query(const std::string &query, query_callback qcb,
-    query_timeout_callback qtcb, uint32_t timeout) override; //TODO: ::Client client class needs to expose Query interface too.. --> All other clients need to support the interface.
+    query_timeout_callback qtcb, uint32_t timeout, bool skip_query_interpretation) override; //TODO: ::Client client class needs to expose Query interface too.. --> All other clients need to support the interface.
 
   // Commit all Get(s) and Put(s) since Begin().
   virtual void Commit(commit_callback ccb, commit_timeout_callback ctcb,
@@ -113,8 +122,10 @@ class Client : public ::Client {
    int total_counter;
    std::unordered_set<uint64_t> conflict_ids;
 
+  //Query protocol structures and functions
+
   struct PendingQuery {
-    PendingQuery(Client *client, uint64_t query_seq_num, const std::string &query_cmd) : version(0UL), group_replies(0UL){
+    PendingQuery(Client *client, uint64_t query_seq_num, const std::string &query_cmd, const query_callback &qcb) : version(0UL), group_replies(0UL), qcb(qcb){
       queryMsg.Clear();
       queryMsg.set_client_id(client->client_id);
       queryMsg.set_query_seq_num(query_seq_num);
@@ -150,6 +161,7 @@ class Client : public ::Client {
       // }
     }
 
+    query_callback qcb;
 
     uint64_t version;
     std::string queryId;
@@ -163,7 +175,26 @@ class Client : public ::Client {
     std::string result;
     uint64_t group_replies;
    
+    bool is_point;
+    std::string key;
+    std::string table_name;
+    std::vector<std::string> p_col_values; //if point read: this contains primary_key_col_vaues (in order) ==> Together with table_name can be used to compute encoding.
   };
+
+  SQLTransformer sql_interpreter;
+
+  void TestReadSet(PendingQuery *pendingQuery);
+  void PointQueryResultCallback(PendingQuery *pendingQuery,  
+                            int status, const std::string &key, const std::string &result, const Timestamp &read_time, const proto::Dependency &dep, bool hasDep, bool addReadSet); 
+  void QueryResultCallback(PendingQuery *pendingQuery,      //bound parameters
+                            int status, int group, proto::ReadSet *query_read_set, std::string &result_hash, std::string &result, bool success);  //free parameters
+  void ClearQuery(PendingQuery *pendingQuery);
+  void RetryQuery(PendingQuery *pendingQuery);
+  // void ClearQuery(uint64_t query_seq_num, std::vector<uint64_t> &involved_groups);
+  // void RetryQuery(uint64_t query_seq_num, std::vector<uint64_t> &involved_groups);
+
+
+  //Commit protocol structures and functions
 
   struct PendingRequest {
     PendingRequest(uint64_t id, Client *client) : id(id), outstandingPhase1s(0),
@@ -300,13 +331,6 @@ class Client : public ::Client {
   //Question: How can client have multiple pendingReqs?
   //TODO: would this simplify having a deeper depth?
   // --> would allow normal OCC handling on Wait results at the server?
-
-  //Query logic
-  void ClearQuery(PendingQuery *pendingQuery);
-  void RetryQuery(PendingQuery *pendingQuery);
-  // void ClearQuery(uint64_t query_seq_num, std::vector<uint64_t> &involved_groups);
-  // void RetryQuery(uint64_t query_seq_num, std::vector<uint64_t> &involved_groups);
-
 
 
 

@@ -39,14 +39,14 @@ namespace pequinstore {
 
 ShardClient::ShardClient(transport::Configuration *config, Transport *transport,
     uint64_t client_id, int group, const std::vector<int> &closestReplicas_,
-    bool pingReplicas,
-    Parameters params, KeyManager *keyManager, Verifier *verifier,
+    bool pingReplicas, uint64_t readMessages, uint64_t readQuorumSize,
+    Parameters params, KeyManager *keyManager, Verifier *verifier, SQLTransformer *sql_interpreter, Stats *stats,
     TrueTime &timeServer, uint64_t phase1DecisionTimeout, uint64_t consecutiveMax) :
     PingInitiator(this, transport, config->n),
     client_id(client_id), transport(transport), config(config), group(group),
-    timeServer(timeServer), pingReplicas(pingReplicas), params(params),
+    timeServer(timeServer), pingReplicas(pingReplicas), readMessages(readMessages), readQuorumSize(readQuorumSize), params(params),
     keyManager(keyManager), verifier(verifier), phase1DecisionTimeout(phase1DecisionTimeout),
-    lastReqId(0UL), failureActive(false), consecutiveMax(consecutiveMax) {
+    lastReqId(0UL), failureActive(false), consecutiveMax(consecutiveMax), sql_interpreter(sql_interpreter), stats(stats) {
   transport->Register(this, *config, -1, -1); //phase1DecisionTimeout(1000UL)
 
   if (closestReplicas_.size() == 0) {
@@ -137,6 +137,10 @@ void ShardClient::ReceiveMessage(const TransportAddress &remote,
     failQuery.ParseFromString(data);
     HandleFailQuery(failQuery);
   }
+  else if(type == pointResult.GetTypeName()){
+    pointResult.ParseFromString(data);
+    HandlePointQueryResult(pointResult);
+  }
   else {
     Panic("Received unexpected message type: %s", type.c_str());
   }
@@ -146,14 +150,14 @@ void ShardClient::Begin(uint64_t id) {
   Debug("[group %i] BEGIN: %lu", group, id);
 
   txn.Clear();
-  readValues.clear();
+  readValues.clear(); 
 }
 
 //////////// Execution Protocol 
 
 void ShardClient::Get(uint64_t id, const std::string &key,
     const TimestampMessage &ts, uint64_t readMessages, uint64_t rqs,
-    uint64_t rds, read_callback gcb, read_timeout_callback gtcb,
+    uint64_t rds, read_callback &gcb, read_timeout_callback &gtcb,
     uint32_t timeout) {
   if (BufferGet(key, gcb)) {
     Debug("[group %i] read from buffer.", group);
@@ -184,7 +188,7 @@ void ShardClient::Get(uint64_t id, const std::string &key,
 }
 
 void ShardClient::Put(uint64_t id, const std::string &key,
-      const std::string &value, put_callback pcb, put_timeout_callback ptcb,
+      const std::string &value, const put_callback &pcb, const put_timeout_callback &ptcb,
       uint32_t timeout) {
   WriteMessage *writeMsg = txn.add_write_set(); //TODO: May want to handle duplicate puts (2 puts to same key --> If we have already tried to write they key, remove that write from the read set.)
   writeMsg->set_key(key);
@@ -460,8 +464,8 @@ void ShardClient::Phase2Equivocate(uint64_t id,
   reqId = lastReqId++;
   PendingPhase2 *pendingP2Abort = new PendingPhase2(reqId, proto::ABORT);
   pendingPhase2s[reqId] = pendingP2Abort;
-  pendingP2Abort->pcb = pcb;
-  pendingP2Abort->ptcb = ptcb;
+  pendingP2Abort->pcb = std::move(pcb);
+  pendingP2Abort->ptcb = std::move(ptcb);
   pendingP2Abort->requestTimeout = new Timeout(transport, timeout, [this, pendingP2Abort]() {
       phase2_timeout_callback ptcb = pendingP2Abort->ptcb;
       auto itr = this->pendingPhase2s.find(pendingP2Abort->reqId);
@@ -677,7 +681,7 @@ bool ShardClient::SendPing(size_t replica, const PingMessage &ping) {
 }
 
 
-bool ShardClient::BufferGet(const std::string &key, read_callback rcb) {
+bool ShardClient::BufferGet(const std::string &key, read_callback &rcb) {
   for (const auto &write : txn.write_set()) {
     if (write.key() == key) {
       Debug("[group %i] Key %s was written with val %s.", group,
@@ -693,6 +697,7 @@ bool ShardClient::BufferGet(const std::string &key, read_callback rcb) {
       Debug("[group %i] Key %s was already read with ts %lu.%lu.", group,
           BytesToHex(key, 16).c_str(), read.readtime().timestamp(),
           read.readtime().id());
+      std::cerr << "already added (buffer) key " << BytesToHex(key, 16) << "to read set" << std::endl;
       rcb(REPLY_OK, key, readValues[key], read.readtime(), proto::Dependency(),
           false, false);
       return true;
@@ -706,8 +711,8 @@ void ShardClient::GetTimeout(uint64_t reqId) {
   auto itr = this->pendingGets.find(reqId);
   if (itr != this->pendingGets.end()) {
     PendingQuorumGet *pendingGet = itr->second;
-    get_timeout_callback gtcb = pendingGet->gtcb;
-    std::string key = pendingGet->key;
+    get_timeout_callback gtcb = std::move(pendingGet->gtcb);
+    std::string key = std::move(pendingGet->key);
     this->pendingGets.erase(itr);
     delete pendingGet;
     gtcb(REPLY_TIMEOUT, key);
@@ -1028,6 +1033,7 @@ void ShardClient::HandleReadReply(const proto::ReadReply &reply) {
       req->prepared.insert(std::make_pair(preparedTs,
             std::make_pair(*write, 1)));
     } else if (preparedItr->second.first == *write) {
+      //stats->Increment("prepare_equality", 1); 
       preparedItr->second.second += 1;
     }
     //if(!write->has_committed_value() && write->has_prepared_value()) std::cerr << "Prepared write was processed.\n";
@@ -1070,9 +1076,9 @@ void ShardClient::HandleReadReply(const proto::ReadReply &reply) {
     //     req->hasDep, true);
 
     //Only read once.
-    auto has_read = readValues.emplace(req->key, req->maxValue);
+    const auto [it, first_read] = readValues.emplace(req->key, req->maxValue); // readValues.insert(std::make_pair(req->key, req->maxValue));
     
-    if(has_read.second){
+    if(first_read){ //for first read
        ReadMessage *read = txn.add_read_set();
       *read->mutable_key() = req->key;
       req->maxTs.serialize(read->mutable_readtime());
@@ -1080,7 +1086,7 @@ void ShardClient::HandleReadReply(const proto::ReadReply &reply) {
       req->gcb(REPLY_OK, req->key, req->maxValue, req->maxTs, req->dep,req->hasDep, true);
     }
     else{ //TODO: Could optimize to do this right at the start of Handle Read to avoid any validation costs... -> Does mean all reads have to lookup twice though.
-      std::string &prev_read = has_read.first->second;
+      std::string &prev_read = it->second;
       req->maxTs = Timestamp();
       req->gcb(REPLY_OK, req->key, prev_read, req->maxTs, req->dep, false, false); //Don't add to read set.
     } 
@@ -1802,8 +1808,8 @@ void ShardClient::HandlePhase1Relay(proto::RelayP1 &relayP1){
 
 //TODO: Move all callbacks (also in client.)
 void ShardClient::Phase1FB(uint64_t reqId, proto::Transaction &txn, proto::SignedMessage &signed_txn, const std::string &txnDigest,
- relayP1FB_callback rP1FB, phase1FB_callbackA p1FBcbA, phase1FB_callbackB p1FBcbB,
- phase2FB_callback p2FBcb, writebackFB_callback wbFBcb, invokeFB_callback invFBcb, int64_t logGrp) {
+ const relayP1FB_callback &rP1FB, const phase1FB_callbackA &p1FBcbA, const phase1FB_callbackB &p1FBcbB,
+ const phase2FB_callback &p2FBcb, const writebackFB_callback &wbFBcb, const invokeFB_callback &invFBcb, int64_t logGrp) {
 
   Debug("[group %i] Sending PHASE1FB [%lu]", group, client_id);
   //uint64_t reqId = lastReqId++;

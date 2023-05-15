@@ -557,6 +557,7 @@ proto::ConcurrencyControl::Result Server::DoMVTSOOCCCheck(
       stats.Increment("cc_abstains_watermark", 1);
       return proto::ConcurrencyControl::ABSTAIN;
     }
+
     //2) Validate read set conflicts.
     for (const auto &read : readSet){//txn.read_set()) {
       // TODO: remove this check when txns only contain read set/write set for the
@@ -564,16 +565,28 @@ proto::ConcurrencyControl::Result Server::DoMVTSOOCCCheck(
       if (!IsKeyOwned(read.key())) {
         continue;
       }
+
       // Check for conflicts against committed writes
-      std::vector<std::pair<Timestamp, Server::Value>> committedWrites;
-      GetCommittedWrites(read.key(), read.readtime(), committedWrites);
-      for (const auto &committedWrite : committedWrites) {
-        // readVersion < committedTs < ts
-        //     GetCommittedWrites only returns writes larger than readVersion
-        if (committedWrite.first < ts) {
+
+       //FIXME: TEST Re-factor GetCommittedWrites to GetPreceeding. 
+      std::pair<Timestamp, Server::Value> committedWrite;
+      bool has_write = GetPreceedingCommittedWrite(read.key(), ts, committedWrite);
+      if(has_write){  //If replica does not have preceeding write locally it must have been read from a different replica
+        // readVersion < committedTs < ts   (if readVersion == committedTS no conflict)
+        //Conflict if: readTS < preceeding Write. Exception: readTS = genesis and preceeding Write := deletion
+        if (Timestamp(read.readtime()) < committedWrite.first && !(read.readtime().timestamp() == 0 && read.readtime().id() == 0 && committedWrite.second.val == "d")) { // && committedWrite.first < ts) {
+      //   }
+      // }
+      // std::vector<std::pair<Timestamp, Server::Value>> committedWrites;
+      // GetCommittedWrites(read.key(), read.readtime(), committedWrites);
+      // for (const auto &committedWrite : committedWrites) {
+      //   // readVersion < committedTs < ts
+      //   //     GetCommittedWrites only returns writes larger than readVersion
+      //   if (committedWrite.first < ts) {
           if (params.validateProofs) {
-            conflict = committedWrite.second.proof;
+              conflict = committedWrite.second.proof;
           }
+          
           Debug("[%lu:%lu][%s] ABORT wr conflict committed write for key %s:"
               " this txn's read ts %lu.%lu < committed ts %lu.%lu < this txn's ts %lu.%lu.",
               txn.client_id(),
@@ -593,8 +606,22 @@ proto::ConcurrencyControl::Result Server::DoMVTSOOCCCheck(
       if (preparedWritesItr != preparedWrites.end()) {
 
         std::shared_lock lock(preparedWritesItr->second.first);
-        for (const auto &preparedTs : preparedWritesItr->second.second) {
-          if (Timestamp(read.readtime()) < preparedTs.first && preparedTs.first < ts) {
+
+        std::vector<std::pair<Timestamp, const proto::Transaction *>> preparedPreceedingWrites;
+        GetPreceedingPreparedWrite(preparedWritesItr->second.second, ts, preparedPreceedingWrites); 
+        for (const auto &[preparedTs, preparedTx] : preparedPreceedingWrites) {
+        //for (const auto &preparedTs : preparedWritesItr->second.second) {
+          if (Timestamp(read.readtime()) < preparedTs && preparedTs < ts) {
+
+            //Check for exception:
+            if(read.readtime().timestamp() == 0 && read.readtime().id() == 0){
+                for(auto &write: preparedTx->write_set()){
+                  if(read.key() == write.key()){
+                      if(write.value() == "d") continue; //If read genesis TS (0,0) and conflict is deletion --> treat as conflict exception
+                  }
+                }
+            } 
+
             Debug("[%lu:%lu][%s] ABSTAIN wr conflict prepared write for key %s:"
               " this txn's read ts %lu.%lu < prepared ts %lu.%lu < this txn's ts %lu.%lu.",
                 txn.client_id(),
@@ -602,8 +629,8 @@ proto::ConcurrencyControl::Result Server::DoMVTSOOCCCheck(
                 BytesToHex(txnDigest, 16).c_str(),
                 BytesToHex(read.key(), 16).c_str(),
                 read.readtime().timestamp(),
-                read.readtime().id(), preparedTs.first.getTimestamp(),
-                preparedTs.first.getID(), ts.getTimestamp(), ts.getID());
+                read.readtime().id(), preparedTs.getTimestamp(),
+                preparedTs.getID(), ts.getTimestamp(), ts.getID());
             stats.Increment("cc_abstains", 1);
             stats.Increment("cc_abstains_wr_conflict", 1);
 
@@ -612,7 +639,7 @@ proto::ConcurrencyControl::Result Server::DoMVTSOOCCCheck(
             // }
             //std::cerr << "Abstain caused by txn: " << BytesToHex(TransactionDigest(*abstain_conflict, params.hashDigest), 16) << std::endl;
      
-            abstain_conflict = preparedTs.second;
+            abstain_conflict = preparedTx;
         
             //TODO: add handling for returning full signed p1.
             return proto::ConcurrencyControl::ABSTAIN;
@@ -639,6 +666,13 @@ proto::ConcurrencyControl::Result Server::DoMVTSOOCCCheck(
               //    if ts is larger than current itr, it is also larger than all subsequent itrs
               break;
             } else if (std::get<1>(*ritr) < ts) {
+
+               //Check for exception: No conflict if write is a deletion & "conflicting" read read empty/delete
+               //Note: This exception currently only protects deletions; it does not protect writes that are written before the deletion -- we could strengthen the check to except those too: //TODO: this would require updating the RTS of the reader
+              if(std::get<1>(*ritr).getTimestamp() == 0 && std::get<1>(*ritr).getID() == 0 && write.value() == "d"){
+                 continue; 
+              } 
+
               if (params.validateProofs) {
                 conflict = std::get<2>(*ritr);
               }
@@ -718,6 +752,13 @@ proto::ConcurrencyControl::Result Server::DoMVTSOOCCCheck(
           // if (!isDep && isReadVersionEarlier &&
           //     ts < Timestamp(preparedReadTxn->timestamp())) {
           if (isReadVersionEarlier) { //If prepared Txn with greater TS read a write with Ts smaller than the current tx -> abstain from preparing curr tx
+
+            //Check for exception: No conflict if write is a deletion & "conflicting" read read empty/delete
+             //Note: This exception currently only protects deletions; it does not protect writes that are written before the deletion -- we could strengthen the check to except those too: //TODO: this would require updating the RTS of the reader
+            if(readTs.getTimestamp() == 0 && readTs.getID() == 0 && write.value() == "d"){
+                continue; 
+            } 
+
             Debug("[%lu:%lu][%s] ABSTAIN rw conflict prepared read for key %s: prepared"
                 " read ts %lu.%lu < this txn's ts %lu.%lu < committed ts %lu.%lu.",
                 txn.client_id(),
@@ -1121,6 +1162,7 @@ void Server::GetPreparedReads(
    if(params.mainThreadDispatching) preparedMutex.unlock_shared();
 }
 
+//Get all Writes > ts (in this case the read time)
 void Server::GetCommittedWrites(const std::string &key, const Timestamp &ts,
     std::vector<std::pair<Timestamp, Server::Value>> &writes) {
 
@@ -1131,6 +1173,32 @@ void Server::GetCommittedWrites(const std::string &key, const Timestamp &ts,
     }
   }
 }
+
+//Get the last write < TS
+bool Server::GetPreceedingCommittedWrite(const std::string &key, const Timestamp &ts,
+    std::pair<Timestamp, Server::Value> &write) {
+  return store.getPreceedingCommit(key, ts, write);  //Note: should always be true. Reader must have read a write < TS
+}
+
+//const tbb::detail::d1::solist_iterator<std::string, std::pair<std::shared_mutex,
+void Server::GetPreceedingPreparedWrite(const std::map<Timestamp, const proto::Transaction *> &preparedKeyWrites, const Timestamp &ts,
+    std::vector<std::pair<Timestamp, const proto::Transaction*>> &writes){
+
+    auto setItr = preparedKeyWrites.lower_bound(ts);  //First itr >= T
+    if(setItr ==  preparedKeyWrites.begin()) {    //there exists no write < T // all values are > timestamp ==> return false
+      return;  
+    }
+    else{ //there is a write < T, decrement itr once.  
+      setItr--;   //First itr < T
+      if(setItr != preparedKeyWrites.end()){
+        writes.push_back(std::make_pair(setItr->first, setItr->second));
+      }                            
+    }
+}
+
+
+
+
 
 void Server::CheckDependents_WithMutex(const std::string &txnDigest) {
   //Latency_Start(&waitingOnLocks);
@@ -1377,6 +1445,16 @@ void Server::CleanDependencies(const std::string &txnDigest) {
   }
   f.release();
 
+}
+
+uint64_t Server::DependencyDepth(const std::string &txn_digest) const {
+    const proto::Transaction *txn;
+    ongoingMap::const_accessor o;
+    if(ongoing.find(o, txn_digest)){
+      txn = o->second.txn;
+    }
+    o.release();
+    return DependencyDepth(txn);
 }
 
 uint64_t Server::DependencyDepth(const proto::Transaction *txn) const {

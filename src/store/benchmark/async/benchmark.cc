@@ -184,7 +184,7 @@ static bool ValidateReadQuorum(const char* flagname,
   std::cerr << "Invalid value for --" << flagname << ": " << value << std::endl;
   return false;
 }
-DEFINE_string(indicus_read_quorum, read_quorum_args[0], "size of read quorums"
+DEFINE_string(indicus_read_quorum, read_quorum_args[1], "size of read quorums"
     " (for Indicus)");
 DEFINE_validator(indicus_read_quorum, &ValidateReadQuorum);
 
@@ -404,6 +404,7 @@ DEFINE_string(pequin_sync_messages, query_messages_args[0], "number of replicas 
 DEFINE_validator(pequin_sync_messages, &ValidateQueryMessages);
 
 DEFINE_bool(pequin_query_eager_exec, false, "skip query sync protocol and execute optimistically on local state");
+DEFINE_bool(pequin_query_point_eager_exec, false, "use eager query exec instead of proof based point read");
 
 DEFINE_bool(pequin_query_read_prepared, true, "allow query to read prepared values");
 DEFINE_bool(pequin_query_cache_read_set, true, "cache query read set at replicas"); // Send syncMessages to all if read set caching is enabled -- but still only sync_messages many replicas are tasked to execute and reply.
@@ -602,6 +603,12 @@ DEFINE_string(partitioner, partitioner_args[0],	"the partitioner to use during t
 DEFINE_validator(partitioner, &ValidatePartitioner);
 
 
+DEFINE_bool(store_mode, true, "true => Runs Table-store + CC-store (SQL); false => Runs pure KV-store");
+/**
+ * SQL Benchmark settings
+*/
+DEFINE_string(data_file_path, "", "path to file containing Table information to be loaded");
+DEFINE_bool(sql_bench, false, "Register Tables for SQL benchmarks. Input file is JSON Table args");
 
 /**
  * Retwis settings.
@@ -1271,12 +1278,14 @@ int main(int argc, char **argv) {
         break;
     }
     case PROTO_PEQUIN: {
-      pequinstore::QueryParameters query_params(syncQuorumSize,
+      pequinstore::QueryParameters query_params(FLAGS_store_mode,
+                                                 syncQuorumSize,
                                                  queryMessages,
                                                  mergeThreshold,
                                                  syncMessages,
                                                  resultQuorum,
                                                  FLAGS_pequin_query_eager_exec,
+                                                 FLAGS_pequin_query_point_eager_exec,
                                                  FLAGS_pequin_query_read_prepared,
                                                  FLAGS_pequin_query_cache_read_set,
                                                  FLAGS_pequin_query_optimistic_txid,
@@ -1311,9 +1320,14 @@ int main(int argc, char **argv) {
         client = new pequinstore::Client(config, clientId,
                                           FLAGS_num_shards,
                                           FLAGS_num_groups, closestReplicas, FLAGS_ping_replicas, tport, part,
-                                          FLAGS_tapir_sync_commit, readMessages, readQuorumSize,
-                                          params, keyManager, FLAGS_indicus_phase1_decision_timeout,
+                                          FLAGS_tapir_sync_commit, 
+                                          readMessages, readQuorumSize,
+                                          params, 
+                                          FLAGS_data_file_path,
+                                          keyManager, 
+                                          FLAGS_indicus_phase1_decision_timeout,
 																					FLAGS_indicus_max_consecutive_abstains,
+                                          FLAGS_sql_bench,
 																					TrueTime(FLAGS_clock_skew, FLAGS_clock_error));
         break;
     }

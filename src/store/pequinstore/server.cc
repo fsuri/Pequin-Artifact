@@ -49,13 +49,14 @@
 #include "store/pequinstore/sharedbatchverifier.h"
 #include "lib/batched_sigs.h"
 #include <valgrind/memcheck.h>
+#include <fmt/core.h>
 
 namespace pequinstore {
 
 Server::Server(const transport::Configuration &config, int groupIdx, int idx,
     int numShards, int numGroups, Transport *transport, KeyManager *keyManager,
-    Parameters params, uint64_t timeDelta, OCCType occType, Partitioner *part,
-    unsigned int batchTimeoutMicro, TrueTime timeServer) :
+    Parameters params, std::string &table_registry_path, uint64_t timeDelta, OCCType occType, Partitioner *part,
+    unsigned int batchTimeoutMicro, bool sql_bench, TrueTime timeServer) :
     PingServer(transport),
     config(config), groupIdx(groupIdx), idx(idx), numShards(numShards),
     numGroups(numGroups), id(groupIdx * config.n + idx),
@@ -139,7 +140,44 @@ Server::Server(const transport::Configuration &config, int groupIdx, int idx,
   committed.insert(std::make_pair("", proof));
   
   ts_to_tx.insert(std::make_pair(MergeTimestampId(0, 0), ""));
+
+  if(sql_bench){
+      table_store.RegisterTableSchema(table_registry_path);
+
+      //TODO: turn read_prepared into a function, not a lambda
+
+      auto read_prepared_pred = [this](const std::string &txn_digest){  
+        if(this->occType != MVTSO || this->params.maxDepDepth == -2) return false; //Only read prepared if parameters allow
+        //Check for Depth. Only read prepared if dep depth < maxDepth
+        return (this->params.maxDepDepth == -1 || DependencyDepth(txn_digest) <= this->params.maxDepDepth); 
+      };
+
+      //TODO: Create lambda/function for setting Table Version
+          //Look at store and preparedWrites ==> pick larger (if read_prepared true)
+          //Add it to QueryReadSetMgr
+
+      table_store.SetPreparePredicate(std::move(read_prepared_pred));
+      table_store.SetFindTableVersion(std::bind(&Server::FindTableVersion, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4, std::placeholders::_5));
+  }
+
+  if(TEST_QUERY){
+      Timestamp toy_ts_c(0, 1);
+      proto::CommittedProof *real_proof = new proto::CommittedProof();
+      proto::Transaction *txn = real_proof->mutable_txn();
+      real_proof->mutable_txn()->set_client_id(0);
+      real_proof->mutable_txn()->set_client_seq_num(1);
+      toy_ts_c.serialize(real_proof->mutable_txn()->mutable_timestamp());
+      TableWrite &table_write = (*real_proof->mutable_txn()->mutable_table_writes())["datastore"];
+      RowUpdates *row = table_write.add_rows();
+      row->add_column_values("alice");
+      row->add_column_values("black");
+      WriteMessage *write_msg = real_proof->mutable_txn()->add_write_set();
+      write_msg->set_key("datastore#alice");
+      write_msg->mutable_rowupdates()->set_row_idx(0);
+      committed["toy_txn"] = real_proof; 
+  }
 }
+
 
 Server::~Server() {
   std::cerr << "KVStore size: " << store.KVStore_size() << std::endl;
@@ -327,38 +365,45 @@ void Server::Load(const std::string &key, const std::string &value,
   }
 }
 
-//TODO: Add these functions as virtual inline to the general server.h -- make it panic if called for stores that don't implement load.
-//For hotstuffPG store --> let proxy call into PG
-//For Crdb --> let server establish a client connection to backend too.
-void Server::CreateTable(const std::string &table_name, const std::vector<std::pair<std::string, std::string>> &column_data_types, const std::vector<uint32_t> primary_key_col_idx ){
+//TODO: For hotstuffPG store --> let proxy call into PG
+//TODO: For Crdb --> let server establish a client connection to backend too.
+void Server::CreateTable(const std::string &table_name, const std::vector<std::pair<std::string, std::string>> &column_data_types, const std::vector<uint32_t> &primary_key_col_idx){
+  //Based on Syntax from: https://www.postgresqltutorial.com/postgresql-tutorial/postgresql-create-table/ 
 
   //NOTE: Assuming here we do not need special descriptors like foreign keys, column condidtions... (If so, it maybe easier to store the SQL statement in JSON directly)
+  UW_ASSERT(!column_data_types.empty());
+  UW_ASSERT(!primary_key_col_idx.empty());
 
   std::string sql_statement("CREATE TABLE");
   sql_statement += " " + table_name;
-
-  UW_ASSERT(!column_data_types.empty());
-  UW_ASSERT(!primary_key_col_idx.empty());
   
   sql_statement += " (";
   for(auto &[col, type]: column_data_types){
-    sql_statement += col + " " + type + ", ";
+    std::string p_key = (primary_key_col_idx.size() == 1 && col == column_data_types[primary_key_col_idx[0]].first) ? " PRIMARY KEY": "";
+    sql_statement += col + " " + type + p_key + ", ";
   }
 
+  sql_statement.resize(sql_statement.size() - 2); //remove trailing ", "
 
-  sql_statement += "PRIMARY_KEY ";
-  if(primary_key_col_idx.size() > 1) sql_statement += "(";
+  if(primary_key_col_idx.size() > 1){
+    sql_statement += ", PRIMARY_KEY ";
+    if(primary_key_col_idx.size() > 1) sql_statement += "(";
 
-  for(auto &p_idx: primary_key_col_idx){
-    sql_statement += column_data_types[p_idx].first + ", ";
+    for(auto &p_idx: primary_key_col_idx){
+      sql_statement += column_data_types[p_idx].first + ", ";
+    }
+    sql_statement.resize(sql_statement.size() - 2); //remove trailing ", "
+
+    if(primary_key_col_idx.size() > 1) sql_statement += ")";
   }
-  sql_statement.pop_back();
-  sql_statement.pop_back();
-  if(primary_key_col_idx.size() > 1) sql_statement += ")";
+  
   
   sql_statement +=");";
 
-  //TODO: Call into TableStore with this statement.
+  std::cerr << "Create Table: " << sql_statement << std::endl;
+
+  //Call into TableStore with this statement.
+  table_store.ExecRaw(sql_statement);
 
   //Create TABLE version  -- just use table_name as key.  This version tracks updates to "table state" (as opposed to row state): I.e. new row insertions; row deletions;
   //Note: It does currently not track table creation/deletion itself -- this is unsupported. If we do want to support it, either we need to make a separate version; 
@@ -367,9 +412,102 @@ void Server::CreateTable(const std::string &table_name, const std::vector<std::p
   Load(table_name, "", Timestamp());
 }
 
-void Server::LoadTableRow(const std::string &table_name, const std::vector<std::pair<std::string, std::string>> &column_data_types, const std::vector<std::string> &values, const std::vector<uint32_t> primary_key_col_idx ){
+void Server::CreateIndex(const std::string &table_name, const std::vector<std::pair<std::string, std::string>> &column_data_types, const std::string &index_name, const std::vector<uint32_t> &index_col_idx){
+  //Based on Syntax from: https://www.postgresqltutorial.com/postgresql-indexes/postgresql-create-index/ and  https://www.postgresqltutorial.com/postgresql-indexes/postgresql-multicolumn-indexes/
+  //CREATE INDEX index_name ON table_name(a,b,c,...);
+
+  UW_ASSERT(!column_data_types.empty());
+  UW_ASSERT(!index_col_idx.empty());
+  UW_ASSERT(column_data_types.size() >= index_col_idx.size());
+
+  std::string sql_statement("CREATE INDEX");
+  sql_statement += " " + index_name;
+  sql_statement += " ON " + table_name;
+
+  sql_statement += "(";
+  for(auto &i_idx: index_col_idx){
+    sql_statement += column_data_types[i_idx].first + ", ";
+  }
+   sql_statement.resize(sql_statement.size() - 2); //remove trailing ", "
+
+   sql_statement +=");";
+
+  //Call into TableStore with this statement.
+  table_store.ExecRaw(sql_statement);
+
+}
+
+void Server::LoadTableData(const std::string &table_name, const std::string &table_data_path, const std::vector<uint32_t> &primary_key_col_idx){
+  //Syntax based of: https://www.postgresqltutorial.com/postgresql-tutorial/import-csv-file-into-posgresql-table/ 
+    std::string copy_table_statement = fmt::format("COPY {0} FROM {1} DELIMITER ',' CSV HEADER", table_name, table_data_path);
+
+    //TODO: For CRDB: https://www.cockroachlabs.com/docs/stable/import-into.html
+    //std::string copy_table_statement_crdb = fmt::format("IMPORT INTO {0} CSV DATA {1} WITH skip = '1'", table_name, table_data_path); //FIXME: does one need to specify column names? Target columns don't appear to be enforced
+
+    //Call into TableStore with this statement.
+    std::cerr << "Load Table: " << copy_table_statement << std::endl;
+
+    //table_store.ExecRaw(copy_table_statement);
+    auto committedItr = committed.find("");
+    UW_ASSERT(committedItr != committed.end());
+    std::string genesis_tx_dig("");
+    Timestamp genesis_ts(0,0);
+    proto::CommittedProof *genesis_proof = committedItr->second;
+    table_store.LoadTable(copy_table_statement, genesis_tx_dig, genesis_ts, genesis_proof);
+
+    //std::cerr << "Load Table: " << copy_table_statement << std::endl;
+
+    //std::cerr << "read csv data: " << table_data_path << std::endl;
+    std::ifstream row_data(table_data_path);
+
+    //Skip header
+    std::string columns;
+    getline(row_data, columns); 
+
+    // std::cerr << "cols : " << columns << std::endl;
+
+    std::string row_line;
+    std::string value;
+
+    //NOTE: CSV Data is UNQUOTED always
+    //std::vector<bool> *col_quotes = table_store.GetRegistryColQuotes(table_name);
+
+    while(getline(row_data, row_line)){
+     
+      //std::cerr << "row_line: " << row_line;
+      std::vector<std::string> primary_col_vals;
+      uint32_t col_idx = 0;
+      uint32_t p_col_idx = 0;
+      // used for breaking words
+      std::stringstream row(row_line);
+
+      // read every column data of a row and store it in a string variable, 'value'. Extract only the primary_col_values
+      while (getline(row, value, ',')) {
+        if(col_idx == primary_key_col_idx[p_col_idx]){
+          // if((*col_quotes)[col_idx]){ //If value has quotes '' strip them off
+          //     primary_col_vals.push_back(value.substr(1, value.length()-2));
+          // }
+          // else{
+              primary_col_vals.push_back(std::move(value));
+
+              p_col_idx++;
+              if(p_col_idx >= primary_key_col_idx.size()) break;
+         //}
+        }
+        col_idx++;
+      }
+      std::string enc_key = EncodeTableRow(table_name, primary_col_vals);
+      Load(enc_key, "", Timestamp());
+
+      //std::cerr << "  ==> Enc Key: " << enc_key << std::endl;
+    }
+}
+
+//!!"Deprecated" (Unused)
+void Server::LoadTableRow(const std::string &table_name, const std::vector<std::pair<std::string, std::string>> &column_data_types, const std::vector<std::string> &values, const std::vector<uint32_t> &primary_key_col_idx ){
   
-  //TODO: Instead of using the INSERT SQL statement, use the TableWrite API we will establish.
+
+  //TODO: Instead of using the INSERT SQL statement, could generate a TableWrite and use the TableWrite API.
   std::string sql_statement("INSERT INTO");
   sql_statement += " " + table_name ;
 
@@ -380,25 +518,33 @@ void Server::LoadTableRow(const std::string &table_name, const std::vector<std::
   for(auto &[col, _]: column_data_types){
     sql_statement += col + ", ";
   }
-  sql_statement.pop_back();
-  sql_statement.pop_back();
+  sql_statement.resize(sql_statement.size() - 2); //remove trailing ", "
   sql_statement +=")";
   
   sql_statement += " VALUES (";
   
+  std::vector<bool> *col_quotes = table_store.GetRegistryColQuotes(table_name); //TODO: Add Quotes if applicable
   for(auto &val: values){
-    sql_statement += val + ", ";
+    //Note: Adding quotes indiscriminately for now.
+    sql_statement += "\'" + val + "\'" + ", ";
   }
-  sql_statement.pop_back();
-  sql_statement.pop_back();
+  sql_statement.resize(sql_statement.size() - 2); //remove trailing ", "
 
   sql_statement += ");" ;
   
-   //TODO: Call into TableStore with this statement.
+  //Call into TableStore with this statement.
+  //table_store.ExecRaw(sql_statement);
+  auto committedItr = committed.find("");
+  UW_ASSERT(committedItr != committed.end());
+  std::string genesis_tx_dig("");
+  Timestamp genesis_ts(0,0);
+  proto::CommittedProof *genesis_proof = committedItr->second;
+  table_store.LoadTable(sql_statement, genesis_tx_dig, genesis_ts, genesis_proof);
 
-  std::vector<const char*> primary_cols;
+
+  std::vector<const std::string*> primary_cols;
   for(auto i: primary_key_col_idx){
-    primary_cols.push_back(column_data_types[i].first.c_str());
+    primary_cols.push_back(&(column_data_types[i].first));
   }
   std::string enc_key = EncodeTableRow(table_name, primary_cols);
   Load(enc_key, "", Timestamp());
@@ -428,7 +574,7 @@ void Server::HandleRead(const TransportAddress &remote,
 
   proto::ReadReply* readReply = GetUnusedReadReply();
   readReply->set_req_id(msg.req_id());
-  readReply->set_key(msg.key());
+  readReply->set_key(msg.key()); //technically don't need to send back.
   if (committed_exists) {
     //if(tsVal.first > ts) Panic("Should not read committed value with larger TS than read");
     Debug("READ[%lu:%lu] Committed value of length %lu bytes with ts %lu.%lu.",
@@ -457,34 +603,10 @@ void Server::HandleRead(const TransportAddress &remote,
   
     //Sets RTS timestamp. Favors readers commit chances.
     //Disable if worried about Byzantine Readers DDos, or if one wants to favor writers.
-    if(params.rtsMode == 1){
-      Debug("Set up RTS for READ[%lu:%lu]", msg.timestamp().id(), msg.req_id());
-     auto itr = rts.find(msg.key());
-     if(itr != rts.end()){
-       if(ts.getTimestamp() > itr->second ) {
-         rts[msg.key()] = ts.getTimestamp();
-       }
-     }
-     else{
-       rts[msg.key()] = ts.getTimestamp();
-     }
-     /* update rts */
-    // TODO: For "proper Aborts": how to track RTS by transaction without knowing transaction digest?
-    }
-    else if(params.rtsMode == 2){
-      //XXX multiple RTS as set:
-      Debug("Set up RTS for READ[%lu:%lu]", msg.timestamp().id(), msg.req_id());
-      std::pair<std::shared_mutex, std::set<Timestamp>> &rts_set = rts_list[msg.key()];
-      {
-        std::unique_lock lock(rts_set.first);
-        rts_set.second.insert(ts);
-      }
-    }
-    else{
-      //No RTS
-    }
-      
+    Debug("Set up RTS for READ[%lu:%lu]", msg.timestamp().id(), msg.req_id());
+    SetRTS(ts, msg.key());
 
+  
     //find prepared write to read from
     /* add prepared deps */
     if (params.maxDepDepth > -2) {
@@ -543,71 +665,17 @@ void Server::HandleRead(const TransportAddress &remote,
     }
   }
 
-
-  if (params.validateProofs && params.signedMessages &&
-      (readReply->write().has_committed_value() || (params.verifyDeps && readReply->write().has_prepared_value()))) { //remove params.verifyDeps requirement to sign prepared. Not sure if it causes a bug so I kept it for now -- realistically never triggered
-    Debug("Sign Read Reply for READ[%lu:%lu]", msg.timestamp().id(), msg.req_id());
-//If readReplyBatch is false then respond immediately, otherwise respect batching policy
-    if (params.readReplyBatch) {
-      proto::Write* write = new proto::Write(readReply->write());
-      // move: sendCB = std::move(sendCB) or {std::move(sendCB)}
-      MessageToSign(write, readReply->mutable_signed_write(), [sendCB, write]() {
-        sendCB();
-        delete write;
-      });
-
-    } else if (params.signatureBatchSize == 1) {
-
-      if(params.multiThreading){
-        proto::Write* write = new proto::Write(readReply->write());
-        auto f = [this, readReply, sendCB = std::move(sendCB), write]()
-        {
-          SignMessage(write, keyManager->GetPrivateKey(id), id, readReply->mutable_signed_write());
-          sendCB();
-          delete write;
-          return (void*) true;
-        };
-        transport->DispatchTP_noCB(std::move(f));
-      }
-      else{
-        proto::Write write(readReply->write());
-        SignMessage(&write, keyManager->GetPrivateKey(id), id,
-            readReply->mutable_signed_write());
-        sendCB();
-      }
-
-    } else {
-
-      if(params.multiThreading){ //TODO: If read is already on a worker thread, then it does not make sense to defer signing again...
-
-        std::vector<::google::protobuf::Message *> msgs;
-        proto::Write* write = new proto::Write(readReply->write()); //TODO might want to add re-use buffer
-        msgs.push_back(write);
-        std::vector<proto::SignedMessage *> smsgs;
-        smsgs.push_back(readReply->mutable_signed_write());
-
-        auto f = [this, msgs, smsgs, sendCB = std::move(sendCB), write]()
-        {
-          SignMessages(msgs, keyManager->GetPrivateKey(id), id, smsgs, params.merkleBranchFactor);
-          sendCB();
-          delete write;
-          return (void*) true;
-        };
-        transport->DispatchTP_noCB(std::move(f));
-      }
-      else{
-        proto::Write write(readReply->write());
-        std::vector<::google::protobuf::Message *> msgs;
-        msgs.push_back(&write);
-        std::vector<proto::SignedMessage *> smsgs;
-        smsgs.push_back(readReply->mutable_signed_write());
-        SignMessages(msgs, keyManager->GetPrivateKey(id), id, smsgs, params.merkleBranchFactor);
-        sendCB();
-      }
-    }
-  } else {
-    sendCB();
+  //Sign and Send Reply
+  if (params.validateProofs && params.signedMessages && (readReply->write().has_committed_value() || (params.verifyDeps && readReply->write().has_prepared_value()))) {
+    //remove params.verifyDeps requirement to sign prepared. Not sure if it causes a bug so I kept it for now -- realistically never triggered
+    //TODO: This code does not sign a message if there is no value at all (or if verifyDeps == false and there is only a prepared, i.e. no committed, value) -- change it so it always signs.  //Note: Need to make compatible in a bunch of places
+        proto::Write *write = readReply->release_write();
+        SignSendReadReply(write, readReply->mutable_signed_write(), sendCB);
   }
+  else{
+      sendCB();
+  }
+
   if(params.mainThreadDispatching && (!params.dispatchMessageReceive || params.parallel_reads)) FreeReadmessage(&msg);
 }
 
@@ -1469,21 +1537,8 @@ void Server::HandleAbort(const TransportAddress &remote,
   //   rts[read].erase(abort->ts());
   // }
   //  if(params.mainThreadDispatching) rtsMutex.unlock();
-  if(params.rtsMode == 1){
-    //Do nothing -- If we removed latest RTS then smaller ones that should be subsumed become inactive too.
-  }
-  else if(params.rtsMode == 2){
-    for (const auto &read : abort->read_set()) {
-    std::pair<std::shared_mutex, std::set<Timestamp>> &rts_set = rts_list[read];
-      {
-        std::unique_lock lock(rts_set.first);
-        rts_set.second.erase(abort->ts());
-      }
-  }
-  }
-  else{
-    //No RTS
-  }
+  ClearRTS(abort->read_set(), abort->ts());
+  
 
   //Garbage collect Queries.
   for (const auto &query_id: abort->query_ids()){
@@ -1492,7 +1547,10 @@ void Server::HandleAbort(const TransportAddress &remote,
       //erase current retry version from missing (Note: all previous ones must have been deleted via ClearMetaData)
       queryMissingTxns.erase(QueryRetryId(query_id, q->second->retry_version, (params.query_params.signClientQueries && params.query_params.cacheReadSet && params.hashDigest)));
       
-      if(q->second != nullptr) delete q->second;
+      QueryMetaData *query_md = q->second;
+      ClearRTS(query_md->queryResultReply->result().query_read_set().read_set(), query_md->ts);
+
+      if(query_md != nullptr) delete query_md;
       //erase query_md
       queryMetaData.erase(q); 
     }
@@ -1512,6 +1570,8 @@ void Server::Prepare(const std::string &txnDigest,
   Debug("PREPARE[%s] agreed to commit with ts %lu.%lu.",
       BytesToHex(txnDigest, 16).c_str(), txn.timestamp().timestamp(), txn.timestamp().id());
 
+  Timestamp ts = Timestamp(txn.timestamp());
+
   //const ReadSet &readSet = txn.read_set();
   const WriteSet &writeSet = txn.write_set();
 
@@ -1526,7 +1586,7 @@ void Server::Prepare(const std::string &txnDigest,
   //const proto::Transaction *ongoingTxn = ongoing.at(txnDigest);
 
   preparedMap::accessor a;
-  bool first_prepare = prepared.insert(a, std::make_pair(txnDigest, std::make_pair(Timestamp(txn.timestamp()), ongoingTxn)));
+  bool first_prepare = prepared.insert(a, std::make_pair(txnDigest, std::make_pair(ts, ongoingTxn)));
   if(!first_prepare) return; //Already inserted all Read/Write Sets.
 
   // Debug("PREPARE: TESTING MERGED READ");
@@ -1559,6 +1619,10 @@ void Server::Prepare(const std::string &txnDigest,
     //std::make_pair(p.first->second.first, p.first->second.second);
   for (const auto &write : writeSet) {
     if (IsKeyOwned(write.key())) {
+
+       //Skip applying TableVersion until after TableWrites have been applied
+      if(txn.table_writes().find(write.key()) != txn.table_writes().end()) continue; 
+
       std::pair<std::shared_mutex,std::map<Timestamp, const proto::Transaction *>> &x = preparedWrites[write.key()];
       std::unique_lock lock(x.first);
       x.second.insert(pWrite);
@@ -1569,6 +1633,14 @@ void Server::Prepare(const std::string &txnDigest,
     }
   }
   o.release(); //Relase only at the end, so that Prepare and Clean in parallel for the same TX are atomic.
+
+  for (const auto &[table_name, table_write] : txn.table_writes()){
+    table_store.ApplyTableWrite(table_name, table_write, ts, txnDigest, nullptr, false);
+    //Apply TableVersion 
+    std::pair<std::shared_mutex,std::map<Timestamp, const proto::Transaction *>> &x = preparedWrites[table_name];
+    std::unique_lock lock(x.first);
+    x.second.insert(pWrite);
+  }
 }
 
 
@@ -1695,16 +1767,16 @@ void Server::CommitToStore(proto::CommittedProof *proof, proto::Transaction *txn
        write.key().c_str());
     
     if(write.has_value()) val.val = write.value();
+    else if(!params.query_params.sql_mode){
+      Panic("When running in KV-store mode write should always have a value");
+    }
     
+    //Skip applying TableVersion until after TableWrites have been applied
+    if(txn->table_writes().find(write.key()) != txn->table_writes().end()) continue; 
+
     store.put(write.key(), val, ts);
 
-    if(!write.has_value()){
-      Panic("When running in KV-store mode write should always have a value");
-      //TODO: It is a table write:
-      //DecodeTableRow(write.key(), ...)
-      //Apply to Table.  (Note: Should only be applied after store.put)
-    }
-
+    
     if(params.rtsMode == 1){
       //Do nothing
     }
@@ -1726,6 +1798,20 @@ void Server::CommitToStore(proto::CommittedProof *proof, proto::Transaction *txn
       //No RTS
     }
   }
+
+  //Apply TableWrites: //TODO: Apply also for Prepare: Mark TableWrites as prepared. TODO: add interface func to set prepared, and clean also.. commit should upgrade them. //FIXME: How does SQL update handle exising row
+                            // alternatively: don't mark prepare/commit inside the table store, only in CC store. But that requires extra lookup for all keys in read set.
+                            // + how do we remove prepared rows? Do we treat it as SQL delete (at ts)? row becomes invisible -- fully removed from CC store.
+  for (const auto &[table_name, table_write] : txn->table_writes()){
+    table_store.ApplyTableWrite(table_name, table_write, ts, txnDigest, proof);
+    val.val = "";
+    store.put(table_name, val, ts);  //Apply TableVersion   //TODO: Confirm that ApplyTableWrite is synchronous -- i.e. only returns after all writes are applied. 
+                                                          //If not, then must call SetTableVersion as callback from within Peloton once it is done.
+    //Note: Should be safe to apply TableVersion table by table (i.e. don't need to wait for all TableWrites to finish before applying TableVersions)
+
+    
+    //Note: Does one have to do special handling for Abort? No ==> All prepared versions just produce unecessary conflicts & dependencies, so there is no safety concern.
+  }
 }
 
 void Server::Abort(const std::string &txnDigest, proto::Transaction *txn) {
@@ -1738,8 +1824,12 @@ void Server::Abort(const std::string &txnDigest, proto::Transaction *txn) {
   CheckDependents(txnDigest);
   CleanDependencies(txnDigest);
 
+  ClearRTS(txn->read_set(), txn->timestamp());
+
   CleanQueries(txn, false);
   CheckWaitingQueries(txnDigest, txn->timestamp(), true); //is_abort  //NOTE: WARNING: If Clean(abort) deletes txn then must callCheckWaitingQueries before Clean.
+
+
 }
 
 
@@ -1772,28 +1862,34 @@ void Server::Clean(const std::string &txnDigest, bool abort, bool hard) {
   preparedMap::accessor a;
   bool is_prepared = prepared.find(a, txnDigest);
   if(is_prepared){
+      const proto::Transaction *txn = a->second.second;
+      Timestamp &ts = a->second.first;
   //if (itr != prepared.end()) {
-    for (const auto &read : a->second.second->read_set()) {
+    for (const auto &read : txn->read_set()) {
     //for (const auto &read : itr->second.second->read_set()) {
       if (IsKeyOwned(read.key())) {
         //preparedReads[read.key()].erase(a->second.second);
         //preparedReads[read.key()].erase(itr->second.second);
         std::pair<std::shared_mutex, std::set<const proto::Transaction *>> &y = preparedReads[read.key()];
         std::unique_lock lock(y.first);
-        y.second.erase(a->second.second);
+        y.second.erase(txn);
       }
     }
-    for (const auto &write : a->second.second->write_set()) {
+    for (const auto &write : txn->write_set()) {
     //for (const auto &write : itr->second.second->write_set()) {
       if (IsKeyOwned(write.key())) {
         //preparedWrites[write.key()].erase(itr->second.first);
         std::pair<std::shared_mutex,std::map<Timestamp, const proto::Transaction *>> &x = preparedWrites[write.key()];
         std::unique_lock lock(x.first);
-        x.second.erase(a->second.first);
+        x.second.erase(ts);
         //x.second.erase(itr->second.first);
       }
     }
     prepared.erase(a);
+
+    for (const auto &[table_name, table_write] : txn->table_writes()){
+      table_store.PurgeTableWrite(table_name, table_write, ts, txnDigest);
+    }
   }
   a.release();
 

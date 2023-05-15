@@ -58,11 +58,13 @@ class QueryResultProtoBuilder {
 
   auto add_columns(const std::vector<std::string>& columns) -> void;
   auto add_column(const std::string& name) -> void;
+  auto add_empty_row() -> void;
 
   auto get_result() -> std::unique_ptr<SQLResultProto>;
 
   template<class Iterable>
   void add_row(Iterable it, Iterable end)
+  //Note: Only use this if entire row is of the same data type.
   {
     RowProto *row = result->add_rows();
     while (it != end) {
@@ -86,6 +88,68 @@ class QueryResultProtoBuilder {
     } // archive goes out of scope, ensuring all contents are flushed
     return ss.str();
   }
+
+  //Add new empty row
+  inline RowProto * new_row()
+  {
+    return result->add_rows();
+  }
+
+  //Append field to given row
+  template<typename T>
+  void AddToRow(RowProto *row, T &t){
+  //Appends field to a row
+    FieldProto *field = row->add_fields();
+    field->set_data(serialize(t));
+  }
+
+    //New interface:
+
+   //Updates specific column in a row
+   //Note: Requires fields to be allocated.
+  template<typename T>
+  auto update_field_in_row(std::size_t row, std::size_t column, T &t) -> void {
+    FieldProto *field = result->mutable_rows(row)->mutable_fields(column);
+    field->set_data(serialize(t));
+  }
+
+  // Overwrites existing field in last row
+  template<typename T>
+  auto update_field_in_last_row(std::size_t column, T &t) -> void {
+    insert_field_to_row(result->rows_size() - 1, column, t);
+  }
+
+  // Adds new row with given field value in first column
+  template<typename T>
+  auto add_field_to_new_row(T &t) -> void {
+    FieldProto *field = new_row()->add_fields();
+    field->set_data(serialize(t));
+  }
+
+  // Adds new field to last row
+  template<typename T>
+  auto add_field_to_last_row(T &t) -> void {
+    FieldProto *field = result->mutable_rows(result->rows_size() - 1)->add_fields();
+    field->set_data(serialize(t));
+  }
+
+  // Adds new field to last row by column name
+  template<typename T>
+  auto add_field_to_last_row_by_name(const std::string &column_name, T &t) -> void {
+    uint32_t column = 0;
+    for(int i = 0; i < result->column_names_size(); i++) {
+      if (result->column_names(i) == column_name) {
+        break;
+      }
+      column++;
+    }
+    RowProto *row = result->mutable_rows(result->rows_size() - 1);
+    for(int i = row->fields_size() - 1; i < column; i++) {
+      row->add_fields();
+    }
+    insert_field_to_last_row(column, t);
+  }
+
 };
 
 }

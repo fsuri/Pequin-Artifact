@@ -78,12 +78,12 @@ void ThreadPool::start(int process_id, int total_processes, bool hyperthreading,
        //Use defaults. First core is messagine (inactive in threadpool), second is Main Logic Thread, remainder are workers (crypto/reads/asynchronous handling)
     } 
     else if (mode == 1){ //TxHotstuff
-      int num_core_for_hotstuff;
-      if (total_processes <= 2) {
-          num_core_for_hotstuff = 1;
-      } else {
-          num_core_for_hotstuff = 0;
-      }
+      int num_core_for_hotstuff = 0;
+      // if (total_processes <= 2) {
+      //     num_core_for_hotstuff = 1;
+      // } else {
+      //     num_core_for_hotstuff = 0;
+      // }
       end = end - num_core_for_hotstuff; //use last core for Hotstuff only
     }
     else if(mode == 2){ //TxBFTSmart

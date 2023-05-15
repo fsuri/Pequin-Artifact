@@ -139,13 +139,13 @@ int main(int argc, char *argv[]) {
   pequinstore::proto::ReadSet read_set_six;
   pequinstore::proto::ReadSet read_set_seven;
 
-  pequinstore::QueryReadSetMgr query_read_set_mgr_one(&read_set_one, 1);
-  pequinstore::QueryReadSetMgr query_read_set_mgr_two(&read_set_two, 2);
-  pequinstore::QueryReadSetMgr query_read_set_mgr_three(&read_set_three, 3);
-  pequinstore::QueryReadSetMgr query_read_set_mgr_four(&read_set_four, 4);
-  pequinstore::QueryReadSetMgr query_read_set_mgr_five(&read_set_five, 5);
-  pequinstore::QueryReadSetMgr query_read_set_mgr_six(&read_set_six, 6);
-  pequinstore::QueryReadSetMgr query_read_set_mgr_seven(&read_set_seven, 7);
+  pequinstore::QueryReadSetMgr query_read_set_mgr_one(&read_set_one, 1, false);
+  pequinstore::QueryReadSetMgr query_read_set_mgr_two(&read_set_two, 2, false);
+  pequinstore::QueryReadSetMgr query_read_set_mgr_three(&read_set_three, 3, false);
+  pequinstore::QueryReadSetMgr query_read_set_mgr_four(&read_set_four, 4, false);
+  pequinstore::QueryReadSetMgr query_read_set_mgr_five(&read_set_five, 5, false);
+  pequinstore::QueryReadSetMgr query_read_set_mgr_six(&read_set_six, 6, false);
+  pequinstore::QueryReadSetMgr query_read_set_mgr_seven(&read_set_seven, 7, false);
 
   /*pequinstore::QueryReadSetMgr* query_read_set_mgr_one = new pequinstore::QueryReadSetMgr;
   pequinstore::QueryReadSetMgr* query_read_set_mgr_two = new pequinstore::QueryReadSetMgr;

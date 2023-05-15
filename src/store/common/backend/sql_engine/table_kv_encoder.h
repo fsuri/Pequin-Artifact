@@ -1,8 +1,7 @@
 /***********************************************************************
  *
- * Copyright 2021 Florian Suri-Payer <fsp@cs.cornell.edu>
- *                Liam Arzola <lma77@cornell.edu>
- *
+ * Copyright 2023 Florian Suri-Payer <fsp@cs.cornell.edu>
+ *              
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
  * files (the "Software"), to deal in the Software without
@@ -24,41 +23,20 @@
  * SOFTWARE.
  *
  **********************************************************************/
+#ifndef _ENCODER_H_
+#define _ENCODER_H_
 
-#include <memory>
-#include "store/common/query_result/taopq_query_result_wrapper_row.h"
-#include "store/common/query_result/taopq_query_result_wrapper_field.h"
+#include <vector>
+#include <string>
 
-namespace taopq_wrapper {
+static std::string unique_delimiter = "#";
 
-auto Row::num_columns() const noexcept -> std::size_t 
-{
-    return row.columns();
-}
+//For managing CC-store WriteSet
+std::string EncodeTableRow(const std::string &table_name, const std::vector<std::string> &primary_key_column_values);
+std::string EncodeTableRow(const std::string &table_name, const std::vector<const std::string*> &primary_key_column_values);
+std::string EncodeTableRow(const std::string &table_name, const std::vector<const std::string*> &primary_key_column_values, const std::vector<bool>* p_col_quotes);
+std::string EncodeTableRow(const std::string &table_name, const std::vector<const std::string_view*> &primary_key_column_values);
+void DecodeTableRow(const std::string &enc_key, std::string &table_name, std::vector<std::string> &primary_key_column_values);
 
-auto Row::name( const std::size_t column ) const -> std::string
-{
-  return row.name(column);
-}
 
-auto Row::get( const std::size_t column, std::size_t* size ) const -> const char*
-{
-  return row.get(column);
-}
-
-auto Row::is_null( const std::size_t column ) const -> bool 
-{
-  return row.is_null(column);
-}
-
-auto Row::slice( const std::size_t offset, const std::size_t in_columns ) const -> std::unique_ptr<query_result::Row> 
-{
-  return std::unique_ptr<query_result::Row>(new taopq_wrapper::Row(row.slice(offset, in_columns)));
-}
-
-auto Row::operator[]( const std::size_t column ) const -> std::unique_ptr<query_result::Field> 
-{
-  return std::unique_ptr<query_result::Field>(new taopq_wrapper::Field(row[column]));
-}
-
-}
+#endif /* _FAILURES_H_ */

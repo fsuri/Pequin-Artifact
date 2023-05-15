@@ -13,10 +13,11 @@ message ReadMessage {
 message WriteMessage {
     required bytes key = 1;   //Key-value store key -- Can be decoded into table key.
     //required bytes value = 2;
-    oneof write_value {  //TODO: In prepare and commit: must add has_value() checks.
-        bytes value = 2;
-        RowUpdates rowupdates = 3;
-    }
+    //oneof write_value {  //TODO: In prepare and commit: must add has_value() checks.
+    optional bytes value = 2;
+        //TableWrite table_writes = 3;
+    optional RowUpdates rowupdates = 3;  //Table name and primary key cols are included in key encoding. //NOTE: WriteMessage is just using row_idx field currently
+    //}
 }
 
 message PingMessage {
@@ -33,12 +34,34 @@ message TransactionMessage {
 
 //Table Writes.  -- Alternatively -- add optional RowUpdates field
 message RowUpdates {
-    map<string, bytes> attribute_writes = 1; //map from attribute name to new value (in bytes for general encoding)
+    //Version 1
+    map<string, bytes> attribute_writes = 1; //map from attribute name to new value (in bytes for general encoding) //TODO: Maybe re-factor this to hold column id instead of name -- or to be in order
     optional TimestampMessage readtime = 2; //version of the row that was read (optional: for ReadModWrites) in order to fetch remaining row values (in case an update only updates some columns)
+    
+    //Version 2: Use only this. --> use column names from TableWrite
+    optional bool deletion = 3;
+    repeated bytes column_values = 4;
+
+    optional int32 row_idx = 5; //Idx of the RowUpdate (used to find correct row update from WriteMessage for proof)
+
 }
 message TableWrite {
+    //Version 1
     map<string, RowUpdates> row_updates = 1; //map from row-name to all attribute writes
+
+    //Version 2: Use only this:
+
+    //Note: Currently all this meta data is optional. ONLY using rows. (We expect all columns to be written each time)
+    repeated string column_names = 2;  //store column names in order
+    repeated bool column_quotes = 3;
+    repeated uint32 col_primary_idx = 4 ; //TODO: might not even need column names at all, just store primary col names then. Must make sure col_values are in schema order.
+
+    repeated RowUpdates rows = 5;            // each RowUpdate stores the column values in order.
+   
+    //repeated string primary_cols = 5;
 }
+
+//Deprecated -- unused.
 message TableWrites {
     map<string, TableWrite> tablewrites= 1; //map from table name to all writes for this table.
 }

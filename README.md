@@ -133,13 +133,18 @@ The prototype implementations depend the following development libraries:
 - libsodium-dev
 - libbost-all-dev
 - libuv1-dev
+- libpq-dev 
+- postgresql-server-dev-all
+- libfmt-dev
 
 You may install them directly using:
-- `sudo apt install libsodium-dev libgflags-dev libssl-dev libevent-dev libevent-openssl-2.1-7 libevent-pthreads-2.1-7 libboost-all-dev libuv1-dev libpq-dev postgresql-server-dev-all`
+- `sudo apt install libsodium-dev libgflags-dev libssl-dev libevent-dev libevent-openssl-2.1-7 libevent-pthreads-2.1-7 libboost-all-dev libuv1-dev libpq-dev postgresql-server-dev-all libfmt-dev`
 - If using Ubuntu 18.04, use `sudo apt install libevent-openssl-2.1-6 libevent-pthreads-2.1-6` instead for openssl and pthreads.
 
 In addition, you will need to install the following libraries from source (detailed instructions below):
 - [Hoard Allocator](https://github.com/emeryberger/Hoard)
+- [taopq](https://github.com/taocpp/taopq)
+- [nlohman/json](https://github.com/nlohmann/json)
 - [googletest-1.10](https://github.com/google/googletest/releases/tag/release-1.10.0)
 - [protobuf-3.5.1](https://github.com/protocolbuffers/protobuf/releases/tag/v3.5.1)
 - [cryptopp-8.2](https://github.com/weidai11/cryptopp/releases/tag/CRYPTOPP_8_2_0) <!-- (htps://cryptopp.com/cryptopp820.zip)-->
@@ -148,6 +153,7 @@ In addition, you will need to install the following libraries from source (detai
 - [ed25519-donna](https://github.com/floodyberry/ed25519-donna)
 - [Intel TBB](https://software.intel.com/content/www/us/en/develop/tools/oneapi/base-toolkit/get-the-toolkit.html). 
    - You will additionally need to [configure your CPU](https://software.intel.com/content/www/us/en/develop/documentation/get-started-with-intel-oneapi-base-linux/top/before-you-begin.html) before being able to compile the prototypes.
+- [CockroachDB](https://www.cockroachlabs.com/docs/stable/install-cockroachdb-linux.html)
 
 Detailed install instructions:
 
@@ -169,7 +175,7 @@ We recommend organizing all installs in a dedicated folder:
 
 Download the library:
 
-1. `git clone git@github.com:taocpp/taopq.git`
+1. `git clone https://github.com/taocpp/taopq.git`
 2. `cd taopq`
 3. `git checkout 943d827`
 
@@ -185,6 +191,21 @@ Next, build taopq:
 6. `sudo make install`
 7. `sudo ldconfig`
 8. `cd ..`
+
+#### Installing nlohman/json 
+
+Download the library:
+
+1. `git clone https://github.com/nlohmann/json.git`
+2. `cd json`
+
+Next, build nlohman/json
+
+4. `cmake .`
+6. `sudo make install`
+7. `sudo ldconfig`
+8. `cd ..`
+
 
 #### Installing google test
 
@@ -295,10 +316,14 @@ Move the shared libary:
 6. `cd ..`
 
 #### Installing Intel TBB
+> :warning: If you run into issues with the installation you may refer to https://www.intel.com/content/www/us/en/docs/oneapi/installation-guide-linux/2023-0/overview.html for detailed install resources.
 
-Download and execute the installation script:
+First, download the installation script:
 
 1. `wget https://registrationcenter-download.intel.com/akdlm/irc_nas/17977/l_BaseKit_p_2021.3.0.3219.sh`
+ Alternatively, you may download the latest Intel BaseKit version from https://www.intel.com/content/www/us/en/developer/tools/oneapi/base-toolkit-download.html?operatingsystem=linux&distributions=online (Note that you need to ensure the version is compatible with our code). 
+ 
+ Next, execute the installation script
 2. `sudo bash l_BaseKit_p_2021.3.0.3219.sh`
 (To run the installation script you may have to manually install `apt -y install ncurses-term` if you do not have it already).
 
@@ -342,6 +367,20 @@ If it is not installed in `/usr/lib/jvm` then source the `LD_LIBRARY_PATH` accor
 
 Afterwards, navigate to `/usr/lib/jvm/java-11-openjdk-amd64/conf/security/java.security`and comment out (or remove) the following line: `jdk.tls.disabledAlgorithms=SSLv3, TLSv1, RC4, DES, MD5withRSA, DH keySize < 1024 EC keySize < 224, 3DES_EDE_CBC, anon, NULL`
 
+#### Additional prereq for CockroachDB 
+
+First, download and extract cockroach.
+- `wget https://binaries.cockroachdb.com/cockroach-v22.2.2.linux-amd64.tgz --no-check-certificate`
+- `tar -xf cockroach-v22.2.2.linux-amd64.tgz`
+
+Then, create a directory to store the external libraries. Copy the libararies to the directory:
+- `sudo mkdir -p /usr/local/lib/cockroach`
+- `sudo cp -i cockroach-v22.2.2.linux-amd64/lib/libgeos.so /usr/local/lib/cockroach/`
+- `sudo cp -i cockroach-v22.2.2.linux-amd64/lib/libgeos_c.so /usr/local/lib/cockroach/`
+- `sudo cp -i cockroach-v22.2.2.linux-amd64/cockroach /usr/local/bin`
+
+For any Troubleshooting consult: https://www.cockroachlabs.com/docs/stable/install-cockroachdb-linux.html
+
 ### Building binaries:
    
 Finally, you can build the binaries:
@@ -357,6 +396,9 @@ Navigate to `Pequin-Artifact/src` and build:
 1. You may need to export your `LD_LIBRARY_PATH` if your installations are in non-standard locations:
    The default install locations are:
 
+   - Hoard: usr/local/lib
+   - TaoPq:  /usr/local/lib
+   - Nlohman/JSON:  /usr/local/include
    - Secp256k1:  /usr/local/lib
    - CryptoPP: /usr/local/include  /usr/local/bin   /usr/local/share
    - Blake3: /usr/local/lib
@@ -364,6 +406,7 @@ Navigate to `Pequin-Artifact/src` and build:
    - Googletest: /usr/local/lib /usr/local/include
    - Protobufs: /usr/local/lib
    - Intel TBB: /opt/intel/oneapi
+   - CockroachDB: /usr/local/lib/cockroach  /usr/local/bin/cockroach
 
  Run `export LD_LIBRARY_PATH=/usr/local/lib:/usr/local/share:/usr/local/include:$LD_LIBRARY_PATH` (adjusted depending on where `make install` puts the libraries) followed by `sudo ldconfig`.
    
@@ -681,7 +724,7 @@ We report evaluation results for 3 workloads (TPCC, Smallbank, Retwis) and 4 sys
          
    3. **TxHotstuff:** 
    
-   Use the configurations under `/experiment-configs/1-Workloads/3.TxHotstuff`. Before running these configs, you must configure Hotstuff using the instructions from section "1) Pre-configurations for Hotstuff and BFTSmart" (see above). Use a batch size of 4 when running TPCC, and 16 for Smallbank and Retwis for optimal results. Note, that you must re-run `src/scripts/remote_config.sh` **after** updating the batch size and **before** starting an experiment. 
+   Use the configurations under `/experiment-configs/1-Workloads/3.TxHotstuff`. Before running these configs, you must configure Hotstuff using the instructions from section "1) Pre-configurations for Hotstuff and BFTSmart" (see above). Use a batch size of 4 when running TPCC, and 16 for Smallbank and Retwis for optimal results. Note, that you must re-run `src/scripts/remote_remote.sh` **after** updating the batch size and **before** starting an experiment. 
    
      Reported peak results were roughly:
       - TPCC: Throughput: ~920 tx/s, Latency: ~73 ms
@@ -798,7 +841,7 @@ To reproduce the reported evaluation of the impact of different Read Quorum size
 
 The provided configs only run an experiment for the rough peak points reported in the paper which is sufficient to compare the overheads of larger Quorums. If you want to reproduce the full figure reported, you may run `combined.json`, however we advise against it, since it takes a *considerable* amount of time. You may instead run each configuration for a few neighboring client configurations (already included as comments in the configs). 
 
-1. **Single read*
+1. **Single read**
    - Run configuration `1.json`.
    - The reported peak throughput is ~17k tx/s.
 2. **f+1 reads**

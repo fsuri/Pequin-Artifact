@@ -30,6 +30,7 @@
 #include "../concurrency/transaction_manager_factory.h"
 #include "../common/logger.h"
 #include "../storage/storage_manager.h"
+#include "../../store/common/backend/sql_engine/table_kv_encoder.h"
 
 namespace peloton {
 namespace executor {
@@ -241,11 +242,11 @@ bool SeqScanExecutor::DExecute() {
 
               ContainerTuple<storage::TileGroup> row(tile_group.get(), curr_tuple_id);
               //std::string encoded_key = target_table_->GetName();
-              std::vector<const char *> primary_key_cols;
+              std::vector<std::string> primary_key_cols;
               for (auto col : primary_index_columns_) {
                 auto val = row.GetValue(col);
                 //encoded_key = encoded_key + "///" + val.ToString();
-                primary_key_cols.push_back(val.ToString().c_str());
+                primary_key_cols.push_back(val.ToString());
                 //primary_key_cols.push_back(val.GetAs<const char*>());
                 std::cout << "read set value is " << val.ToString() << std::endl;
               }
@@ -255,8 +256,8 @@ bool SeqScanExecutor::DExecute() {
               for (unsigned int i = 0; i < primary_key_cols.size(); i++) {
                   std::cout << "Primary key columns are " << primary_key_cols[i] << std::endl;
               }
-              
-              std::string encoded = pequinstore::EncodeTableRow(target_table_->GetName(), primary_key_cols);
+           
+              std::string encoded = EncodeTableRow(target_table_->GetName(), primary_key_cols);
               std::cout << "Encoded key from read set is " << encoded << std::endl;
               TimestampMessage ts_message  = TimestampMessage();
               
@@ -291,12 +292,12 @@ bool SeqScanExecutor::DExecute() {
                 position_list.push_back(curr_tuple_id);
                 position_set.insert(curr_tuple_id);
                 ContainerTuple<storage::TileGroup> row(tile_group.get(), curr_tuple_id);
-                std::vector<const char *> primary_key_cols;
+                std::vector<std::string> primary_key_cols;
                 //std::string encoded_key = target_table_->GetName();
                 for (auto col : primary_index_columns_) {
                   auto val = row.GetValue(col);
                   //encoded_key = encoded_key + "///" + val.ToString();
-                  primary_key_cols.push_back(val.ToString().c_str());
+                  primary_key_cols.push_back(val.ToString());
                   std::cout << "read set value is " << val.ToString() << std::endl;
                 }
                 Timestamp time = tile_group_header->GetBasilTimestamp(location.offset);
@@ -305,7 +306,7 @@ bool SeqScanExecutor::DExecute() {
                 for (unsigned int i = 0; i < primary_key_cols.size(); i++) {
                   std::cout << "Primary key columns are " << primary_key_cols[i] << std::endl;
                 }
-                std::string encoded = pequinstore::EncodeTableRow(target_table_->GetName(), primary_key_cols);
+                std::string encoded = EncodeTableRow(target_table_->GetName(), primary_key_cols);
                 std::cout << "Encoded key from read set is " << encoded << std::endl;
                 TimestampMessage ts_message  = TimestampMessage();
               

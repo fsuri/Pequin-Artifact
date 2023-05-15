@@ -43,7 +43,7 @@ class QueryResult {
 		// size of the result set
 		virtual bool empty() const = 0;
 		virtual auto size() const -> std::size_t = 0;
-		virtual auto columns() const -> std::size_t = 0;
+		virtual auto num_columns() const -> std::size_t = 0;
 
 		virtual auto is_null( const std::size_t row, const std::size_t column ) const -> bool = 0;
 		virtual auto get( const std::size_t row, const std::size_t column, std::size_t* size ) const -> const char* = 0;
@@ -55,6 +55,8 @@ class QueryResult {
 		// update/insert result
 		virtual auto has_rows_affected() const noexcept -> bool = 0;
 		virtual auto rows_affected() const -> std::size_t = 0;
+
+		inline virtual void set_rows_affected(const uint32_t _n_rows_affected){ }//Panic("Underlying Result Wrapper does not implement set_affected");}
 };
 
 }

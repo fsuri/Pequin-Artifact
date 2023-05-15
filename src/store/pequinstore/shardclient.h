@@ -50,6 +50,10 @@
 #include "store/common/pinginitiator.h"
 #include "store/pequinstore/common.h"
 
+#include "store/pequinstore/sql_interpreter.h"
+#include "store/common/query_result/query_result_proto_wrapper.h"
+#include "store/common/query_result/query_result_proto_builder.h"
+
 #include <map>
 #include <string>
 #include <vector>
@@ -69,6 +73,8 @@ typedef std::function<void(int, const std::string &)> read_timeout_callback;
 ////////// Queries
 //typedef std::function<void(int, int, std::map<std::string, TimestampMessage> &, std::string &, std::string &, bool)> result_callback; //status, group, read_set, result_hash, result, success
 typedef std::function<void(int, int, proto::ReadSet*, std::string &, std::string &, bool)> result_callback; //status, group, read_set, result_hash, result, success
+typedef std::function<void(int, const std::string &, const std::string &, const Timestamp &, const proto::Dependency &, bool, bool)> point_result_callback;  //TODO: This == Get callback.
+
 typedef std::function<void(int)> result_timeout_callback;
 
 /////////// Basil protocol
@@ -108,9 +114,9 @@ class ShardClient : public TransportReceiver, public PingInitiator, public PingT
  public:
   ShardClient(transport::Configuration *config, Transport *transport,
       uint64_t client_id, int group, const std::vector<int> &closestReplicas,
-      bool pingReplicas,
-      Parameters params, KeyManager *keyManager, Verifier *verifier,
-      TrueTime &timeServer, uint64_t phase1DecisionTimeout,
+      bool pingReplicas, uint64_t readMessages, uint64_t readQuorumSize,
+      Parameters params, KeyManager *keyManager, Verifier *verifier, SQLTransformer *sql_interpreter,  Stats *stats,
+      TrueTime &timeServer, uint64_t phase1DecisionTimeout, 
       uint64_t consecutiveMax = 1UL);
   virtual ~ShardClient();
 
@@ -125,17 +131,17 @@ class ShardClient : public TransportReceiver, public PingInitiator, public PingT
 
   // Get the value corresponding to key.
   virtual void Get(uint64_t id, const std::string &key, const TimestampMessage &ts,
-      uint64_t readMessages, uint64_t rqs, uint64_t rds, read_callback gcb,
-      read_timeout_callback gtcb, uint32_t timeout);
+      uint64_t readMessages, uint64_t rqs, uint64_t rds, read_callback &gcb,
+      read_timeout_callback &gtcb, uint32_t timeout);
 
   // Set the value for the given key.
   virtual void Put(uint64_t id, const std::string &key,
-      const std::string &value, put_callback pcb, put_timeout_callback ptcb,
+      const std::string &value, const put_callback &pcb, const put_timeout_callback &ptcb,
       uint32_t timeout);
 
   // Perform a query computation
   virtual void Query(uint64_t client_seq_num, uint64_t query_seq_num, proto::Query &queryMsg, //const std::string &query, const TimestampMessage &ts,
-      result_callback rcb, result_timeout_callback rtcb, uint32_t timeout);
+      uint32_t timeout, result_timeout_callback &rtcb, result_callback &rcb, point_result_callback &prcb, bool is_point = false, std::string *table_name = nullptr, std::string *key = nullptr);
 
 
 ///////////// End Execution Protocol
@@ -178,8 +184,8 @@ virtual void Phase2Equivocate_Simulate(uint64_t id, const proto::Transaction &tx
   virtual void EraseRelay(const std::string &txnDigest);
   virtual void StopP1FB(std::string &txnDigest);
   virtual void Phase1FB(uint64_t reqId, proto::Transaction &txn, proto::SignedMessage &signed_txn, const std::string &txnDigest,
-   relayP1FB_callback rP1FB, phase1FB_callbackA p1FBcbA, phase1FB_callbackB p1FBcbB,
-   phase2FB_callback p2FBcb, writebackFB_callback wbFBcb, invokeFB_callback invFBcb, int64_t logGrp);
+   const relayP1FB_callback &rP1FB, const phase1FB_callbackA &p1FBcbA, const phase1FB_callbackB &p1FBcbB,
+   const phase2FB_callback &p2FBcb, const writebackFB_callback &wbFBcb, const invokeFB_callback &invFBcb, int64_t logGrp);
   virtual void Phase2FB(uint64_t id,const proto::Transaction &txn, const std::string &txnDigest,proto::CommitDecision decision,
     const proto::GroupedSignatures &groupedSigs);
   //overloaded for different p2 alternative
@@ -191,7 +197,7 @@ virtual void Phase2Equivocate_Simulate(uint64_t id, const proto::Transaction &tx
 
   //public query functions:
    virtual void ClearQuery(uint64_t query_seq_num);
-   virtual void RetryQuery(uint64_t query_seq_num, proto::Query &queryMsg);
+   virtual void RetryQuery(uint64_t query_seq_num, proto::Query &queryMsg, bool is_point = false, point_result_callback prcb = nullptr);
 
 
  private:
@@ -205,6 +211,9 @@ virtual void Phase2Equivocate_Simulate(uint64_t id, const proto::Transaction &tx
 
   struct PendingQuorumGet {
     PendingQuorumGet(uint64_t reqId) : reqId(reqId),
+        numReplies(0UL), numOKReplies(0UL), hasDep(false),
+        firstCommittedReply(true) { }
+    PendingQuorumGet() : reqId(0UL),
         numReplies(0UL), numOKReplies(0UL), hasDep(false),
         firstCommittedReply(true) { }
     ~PendingQuorumGet() { }
@@ -224,6 +233,12 @@ virtual void Phase2Equivocate_Simulate(uint64_t id, const proto::Transaction &tx
     read_callback gcb;
     read_timeout_callback gtcb;
     bool firstCommittedReply;
+
+    //std::map<Timestamp, std::map<std::pair<std::string, std::string>, proto::Signatures>> prepared_new;
+    std::map<std::tuple<Timestamp, std::string, std::string>, std::pair<uint64_t, proto::Signatures>> prepared_new; //Tuple (Timestamp, TxnDigest, Value)
+
+    point_result_callback prcb; //A hack to access from PendingQuorumGet
+    std::string table_name;
   };
 
   struct Result_mgr {
@@ -239,7 +254,7 @@ virtual void Phase2Equivocate_Simulate(uint64_t id, const proto::Transaction &tx
 //TODO: Define management object fully
   struct PendingQuery {
     PendingQuery(uint64_t reqId, const QueryParameters *query_params) : reqId(reqId),
-        numResults(0UL), numFails(0UL), query_manager(false), success(false), retry_version(0UL), snapshot_mgr(query_params) //,  numSnapshotReplies(0UL),
+        numResults(0UL), numFails(0UL), query_manager(false), success(false), retry_version(0UL), snapshot_mgr(query_params), pendingPointQuery(reqId) //,  numSnapshotReplies(0UL),
         { 
           result_freq.clear();
         }
@@ -273,11 +288,19 @@ virtual void Phase2Equivocate_Simulate(uint64_t id, const proto::Transaction &tx
     std::unordered_map<std::string, std::unordered_map<std::string, Result_mgr>> result_freq; 
     //TODO: For each read_set -> maintain a list of deps that is updated.
     
-    
     bool query_manager;
     result_callback rcb;
     result_timeout_callback rtcb;
     bool success;
+
+
+    //point query meta 
+    bool is_point;
+    point_result_callback prcb;
+    PendingQuorumGet pendingPointQuery;
+
+    std::string *key;
+    std::string *table_name;
   };
 
 
@@ -439,7 +462,7 @@ virtual void Phase2Equivocate_Simulate(uint64_t id, const proto::Transaction &tx
     abort_timeout_callback atcb;
   };
 
-  bool BufferGet(const std::string &key, read_callback rcb);
+  bool BufferGet(const std::string &key, read_callback &rcb);
 
   /* Timeout for Get requests, which only go to one replica. */
   void GetTimeout(uint64_t reqId);
@@ -505,7 +528,18 @@ virtual void Phase2Equivocate_Simulate(uint64_t id, const proto::Transaction &tx
   void SyncReplicas(PendingQuery *pendingQuery);
   void HandleQueryResult(proto::QueryResultReply &queryResult);
   void HandleFailQuery(proto::FailQuery &msg);
+  void HandlePointQueryResult(proto::PointQueryResultReply &queryResult);
+  enum read_t {
+    GET,
+    POINT
+};
+bool ProcessRead(const uint64_t &reqId, PendingQuorumGet *req, read_t read_type, proto::Write *write, bool has_proof, const proto::CommittedProof *proof, proto::PointQueryResultReply &reply);
+bool ValidateTransactionTableWrite(const proto::CommittedProof &proof, const std::string *txnDigest, const Timestamp &timestamp, 
+      const std::string &key, const std::string &value, const std::string &table_name, sql::QueryResultProtoWrapper *query_result);
+SQLTransformer *sql_interpreter;
 
+
+///////////////
 
   inline size_t GetNthClosestReplica(size_t idx) const {
     if (pingReplicas && GetOrderedReplicas().size() > 0) {
@@ -515,12 +549,16 @@ virtual void Phase2Equivocate_Simulate(uint64_t id, const proto::Transaction &tx
     }
   }
 
+  Stats *stats;
+
   const uint64_t client_id; // Unique ID for this client.
   Transport *transport; // Transport layer.
   transport::Configuration *config;
   const int group; // which shard this client accesses
   TrueTime &timeServer;
   const bool pingReplicas;
+  const uint64_t readMessages;
+  const uint64_t readQuorumSize;
   const Parameters params;
   KeyManager *keyManager;
   Verifier *verifier;
@@ -550,7 +588,7 @@ virtual void Phase2Equivocate_Simulate(uint64_t id, const proto::Transaction &tx
   std::unordered_map<uint64_t, uint64_t> test_mapping;
   //keep additional maps for this from txnDigest ->Pending For Fallback instances?
 
-  std::unordered_map<uint64_t, uint64_t> query_seq_num_mapping;
+  std::unordered_map<uint64_t, uint64_t> query_seq_num_mapping; //map from query_seq_num to reqId
 
 //Main protocol
   proto::Read read;
@@ -588,6 +626,8 @@ virtual void Phase2Equivocate_Simulate(uint64_t id, const proto::Transaction &tx
   proto::QueryResult validated_result;
   proto::FailQuery failQuery;
   proto::FailQueryMsg validated_fail;
+
+  proto::PointQueryResultReply pointResult;
 
   proto::SyncClientProposal syncMsg;
 };
