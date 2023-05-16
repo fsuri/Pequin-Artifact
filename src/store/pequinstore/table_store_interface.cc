@@ -1,8 +1,54 @@
 #include "store/pequinstore/table_store_interface.h"
 
 //TODO: Include whatever Peloton Deps
+#include "../../query-engine/common/logger.h"
+#include "../../query-engine/common/macros.h"
+#include "../../query-engine/parser/drop_statement.h"
+#include "../../query-engine/parser/postgresparser.h"
+
+#include "../../query-engine/catalog/catalog.h"
+#include "../../query-engine/catalog/proc_catalog.h"
+#include "../../query-engine/catalog/system_catalogs.h"
+
+#include "../../query-engine/concurrency/transaction_manager_factory.h"
+
+#include "../../query-engine/executor/create_executor.h"
+#include "../../query-engine/executor/create_function_executor.h"
+#include "../../query-engine/executor/executor_context.h"
+
+#include "../../query-engine/planner/create_function_plan.h"
+#include "../../query-engine/planner/create_plan.h"
+#include "../../query-engine/storage/data_table.h"
+
+#include "../../query-engine/executor/insert_executor.h"
+#include "../../query-engine/expression/constant_value_expression.h"
+#include "../../query-engine/parser/insert_statement.h"
+#include "../../query-engine/planner/insert_plan.h"
+#include "../../query-engine/type/value_factory.h"
+#include "../../query-engine/traffic_cop/traffic_cop.h"
+#include "../../query-engine/type/type.h"
+#include "store/common/query_result/query_result_proto_builder.h"
+#include <tuple>
+
 
 namespace pequinstore {
+
+static std::string GetResultValueAsString(
+      const std::vector<peloton::ResultValue> &result, size_t index) {
+    std::string value(result[index].begin(), result[index].end());
+    return value;
+}
+
+void UtilTestTaskCallback(void *arg) {
+  std::atomic_int *count = static_cast<std::atomic_int *>(arg);
+  count->store(0);
+}
+
+void ContinueAfterComplete(std::atomic_int &counter_) {
+  while (counter_.load() == 1) {
+    usleep(10);
+  }
+}
 
 
 TableStore::TableStore(){
@@ -37,7 +83,51 @@ std::vector<bool>* TableStore::GetRegistryPColQuotes(const std::string &table_na
 void TableStore::ExecRaw(const std::string &sql_statement){
 
     //TODO: Execute on Peloton  //Note -- this should be a synchronous call. I.e. ExecRaw should not return before the call is done.
+		std::atomic_int counter_;
+  	std::vector<peloton::ResultValue> result;
+  	std::vector<peloton::FieldInfo> tuple_descriptor;
+		peloton::tcop::TrafficCop traffic_cop(UtilTestTaskCallback, &counter_);
+  	Timestamp basil_timestamp;
 
+		pequinstore::proto::ReadSet read_set_one;
+
+  	pequinstore::QueryReadSetMgr query_read_set_mgr_one(&read_set_one, 1, false);
+
+  	// execute the query using tcop
+  	// prepareStatement
+  	//LOG_TRACE("Query: %s", query.c_str());
+  	std::string unnamed_statement = "unnamed";
+  	auto &peloton_parser = peloton::parser::PostgresParser::GetInstance();
+  	auto sql_stmt_list = peloton_parser.BuildParseTree(sql_statement);
+  	//PELOTON_ASSERT(sql_stmt_list);
+  	if (!sql_stmt_list->is_valid) {
+    	//return peloton::ResultType::FAILURE;
+  	}
+  	auto statement = traffic_cop.PrepareStatement(unnamed_statement, sql_statement,
+                                                 std::move(sql_stmt_list));
+		if (statement.get() == nullptr) {
+			traffic_cop.setRowsAffected(0);
+			//return peloton::ResultType::FAILURE;
+		}
+		// ExecuteStatment
+		std::vector<peloton::type::Value> param_values;
+		bool unnamed = false;
+		std::vector<int> result_format(statement->GetTupleDescriptor().size(), 0);
+		// SetTrafficCopCounter();
+		counter_.store(1);
+		auto status = traffic_cop.ExecuteStatement(statement, param_values, unnamed,
+																								result_format, result, basil_timestamp, query_read_set_mgr_one);
+		if (traffic_cop.GetQueuing()) {
+			ContinueAfterComplete(counter_);
+			traffic_cop.ExecuteStatementPlanGetResult();
+			status = traffic_cop.ExecuteStatementGetResult();
+			traffic_cop.SetQueuing(false);
+		}
+		if (status == peloton::ResultType::SUCCESS) {
+			tuple_descriptor = statement->GetTupleDescriptor();
+		}
+
+		
     //TODO: When calling the LoadStatement: We'll want to initialize all rows to be committed and have genesis proof (see server)
 }
 
@@ -53,11 +143,89 @@ std::string TableStore::ExecReadQuery(const std::string &query_statement, const 
 
             //args: query, Ts, readSetMgr, this->can_read_prepared, this->set_table_version
     //TODO: Execute on Peloton --> returns peloton result
+		std::atomic_int counter_;
+  	std::vector<peloton::ResultValue> result;
+  	std::vector<peloton::FieldInfo> tuple_descriptor;
+		peloton::tcop::TrafficCop traffic_cop(UtilTestTaskCallback, &counter_);
+
+  	// execute the query using tcop
+  	// prepareStatement
+  	//LOG_TRACE("Query: %s", query.c_str());
+  	std::string unnamed_statement = "unnamed";
+  	auto &peloton_parser = peloton::parser::PostgresParser::GetInstance();
+  	auto sql_stmt_list = peloton_parser.BuildParseTree(query_statement);
+  	//PELOTON_ASSERT(sql_stmt_list);
+  	if (!sql_stmt_list->is_valid) {
+    	//return peloton::ResultType::FAILURE;
+  	}
+  	auto statement = traffic_cop.PrepareStatement(unnamed_statement, query_statement,
+                                                 std::move(sql_stmt_list));
+		if (statement.get() == nullptr) {
+			traffic_cop.setRowsAffected(0);
+			//return peloton::ResultType::FAILURE;
+		}
+		// ExecuteStatment
+		std::vector<peloton::type::Value> param_values;
+		bool unnamed = false;
+		std::vector<int> result_format(statement->GetTupleDescriptor().size(), 0);
+		// SetTrafficCopCounter();
+		counter_.store(1);
+		auto status = traffic_cop.ExecuteStatement(statement, param_values, unnamed,
+																								result_format, result, ts, readSetMgr);
+		if (traffic_cop.GetQueuing()) {
+			ContinueAfterComplete(counter_);
+			traffic_cop.ExecuteStatementPlanGetResult();
+			status = traffic_cop.ExecuteStatementGetResult();
+			traffic_cop.SetQueuing(false);
+		}
+		if (status == peloton::ResultType::SUCCESS) {
+			tuple_descriptor = statement->GetTupleDescriptor();
+		}
+
+
 
     //TODO: Change Peloton result into query proto.
     sql::QueryResultProtoBuilder queryResultBuilder;
     // queryResultBuilder.add_column("result");
     // queryResultBuilder.add_row(result_row.begin(), result_row.end());
+		std::cout << "Before adding columns" << std::endl;	
+		// Add columns
+		for (unsigned int i = 0; i < tuple_descriptor.size(); i++) {
+			std::string column_name = std::get<0>(tuple_descriptor[i]);
+			queryResultBuilder.add_column(column_name);
+		}
+
+		std::cout << "Before adding rows" << std::endl;
+		std::cout << "Tuple descriptor size is " << tuple_descriptor.size() << std::endl;
+		
+		// Add rows
+		unsigned int rows = result.size() / tuple_descriptor.size();
+		for (unsigned int i = 0; i < rows; i++) {
+			//std::string row_string = "Row " + std::to_string(i) + ": ";
+			std::cout << "Row index is " <<  i << std::endl;
+			//queryResultBuilder.add_empty_row();
+			RowProto* row = queryResultBuilder.new_row();
+
+			//queryResultBuilder.add_empty_row();
+			for (unsigned int j = 0; j < tuple_descriptor.size(); j++) {
+				//queryResultBuilder.AddToRow(row, result[i*tuple_descriptor.size()+j]);
+				std::cout << "Get field value" << std::endl;
+				FieldProto *field = row->add_fields();
+				//std::string field_value = GetResultValueAsString(result, i * tuple_descriptor.size() + j);
+				//field->set_data(queryResultBuilder.serialize(field_value));
+				field->set_data(result[i*tuple_descriptor.size()+j]);
+				std::cout << "After" << std::endl;
+				//queryResultBuilder.update_field_in_row(i, j, field_value);
+				//row_string += GetResultValueAsString(result, i * tuple_descriptor.size() + j);
+				
+				//std::cout << "Inside j loop" << std::endl;
+				//std::cout << GetResultValueAsString(result, i * tuple_descriptor.size() + j) << std::endl;
+
+			}
+		}
+
+		std::cout << "Result from query result builder is " << std::endl;
+		std::cout << queryResultBuilder.get_result()->SerializeAsString() << std::endl;
 
     return queryResultBuilder.get_result()->SerializeAsString();
 }

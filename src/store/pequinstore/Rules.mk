@@ -11,11 +11,13 @@ PROTOS += $(addprefix $(d), query-proto.proto)
 #LIB-sql_interpreter := $(o)sql_interpreter.o
 LIB-pequin-common := $(LIB-store-backend-sql-encoding) $(o)common.o $(o)snapshot_mgr.o $(o)sql_interpreter.o
 
-LIB-pequin-store := $(o)server.o $(o)servertools.o $(o)querysync-server.o $(o)concurrencycontrol.o $(LIB-latency) \
+LIB-pequin-store := $(o)sql_interpreter.o $(o)server.o $(o)servertools.o $(o)querysync-server.o $(o)concurrencycontrol.o $(LIB-latency) \
 	$(o)pequin-proto.o $(o)query-proto.o $(LIB-pequin-common) $(LIB-crypto) $(LIB-batched-sigs) $(LIB-bft-tapir-config) \
 	$(LIB-configuration) $(LIB-store-common) $(LIB-transport) $(o)phase1validator.o \
 	$(o)localbatchsigner.o $(o)sharedbatchsigner.o $(o)basicverifier.o \
-	$(o)localbatchverifier.o $(o)sharedbatchverifier.o $(o)table_store_interface.o
+	$(o)localbatchverifier.o $(o)sharedbatchverifier.o $(LIB-binder) $(LIB-catalog) $(LIB-common) $(LIB-concurrency) $(LIB-executor) $(LIB-expression) $(LIB-function) \
+$(LIB-gc) $(LIB-index) $(LIB-murmur) $(LIB-optimizer) $(LIB-parser) $(LIB-planner) $(LIB-settings) $(LIB-storage) $(LIB-threadpool) $(LIB-traffic-cop) \
+$(LIB-type) $(LIB-trigger) $(LIB-util) $(o)table_store_interface.o
 
 LIB-pequin-client := $(LIB-udptransport) \
 	$(LIB-store-frontend) $(LIB-store-common) $(o)pequin-proto.o $(o)query-proto.o\

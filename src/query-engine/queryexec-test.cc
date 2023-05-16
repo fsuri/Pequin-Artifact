@@ -1,4 +1,5 @@
 #include <iostream>
+#include <ostream>
 //#include "common/harness.h"
 #include "common/logger.h"
 #include "common/macros.h"
@@ -29,6 +30,8 @@
 
 #include "store/common/timestamp.h"
 #include "store/pequinstore/common.h"
+
+#include "store/pequinstore/table_store_interface.h"
 
 static std::string GetResultValueAsString(
       const std::vector<peloton::ResultValue> &result, size_t index) {
@@ -113,7 +116,11 @@ int main(int argc, char *argv[]) {
   txn_manager.CommitTransaction(txn);
   std::cout << "query exec test fifth" << std::endl;
 
-  std::atomic_int counter_;
+	Timestamp pesto_timestamp(4, 6);
+	pequinstore::proto::ReadSet read_set_one;
+	pequinstore::QueryReadSetMgr query_read_set_mgr_one(&read_set_one, 1, false);
+
+  /*std::atomic_int counter_;
   std::vector<peloton::ResultValue> result;
   std::vector<peloton::FieldInfo> tuple_descriptor;
   peloton::tcop::TrafficCop traffic_cop(UtilTestTaskCallback, &counter_);
@@ -122,14 +129,6 @@ int main(int argc, char *argv[]) {
   Timestamp read_timestamp(2, 4);
   Timestamp five(5,7);
   Timestamp six(6,8);
-
-  /*std::unique_ptr<pequinstore::QueryReadSetMgr> query_read_set_mgr_one(new pequinstore::QueryReadSetMgr);
-  std::unique_ptr<pequinstore::QueryReadSetMgr> query_read_set_mgr_two(new pequinstore::QueryReadSetMgr);
-  std::unique_ptr<pequinstore::QueryReadSetMgr> query_read_set_mgr_three(new pequinstore::QueryReadSetMgr);
-  std::unique_ptr<pequinstore::QueryReadSetMgr> query_read_set_mgr_four(new pequinstore::QueryReadSetMgr);
-  std::unique_ptr<pequinstore::QueryReadSetMgr> query_read_set_mgr_five(new pequinstore::QueryReadSetMgr);
-  std::unique_ptr<pequinstore::QueryReadSetMgr> query_read_set_mgr_six(new pequinstore::QueryReadSetMgr);
-  std::unique_ptr<pequinstore::QueryReadSetMgr> query_read_set_mgr_seven(new pequinstore::QueryReadSetMgr);*/
 
   pequinstore::proto::ReadSet read_set_one;
   pequinstore::proto::ReadSet read_set_two;
@@ -147,15 +146,6 @@ int main(int argc, char *argv[]) {
   pequinstore::QueryReadSetMgr query_read_set_mgr_six(&read_set_six, 6, false);
   pequinstore::QueryReadSetMgr query_read_set_mgr_seven(&read_set_seven, 7, false);
 
-  /*pequinstore::QueryReadSetMgr* query_read_set_mgr_one = new pequinstore::QueryReadSetMgr;
-  pequinstore::QueryReadSetMgr* query_read_set_mgr_two = new pequinstore::QueryReadSetMgr;
-  pequinstore::QueryReadSetMgr* query_read_set_mgr_three = new pequinstore::QueryReadSetMgr;
-  pequinstore::QueryReadSetMgr* query_read_set_mgr_four = new pequinstore::QueryReadSetMgr;
-  pequinstore::QueryReadSetMgr* query_read_set_mgr_five = new pequinstore::QueryReadSetMgr;
-  pequinstore::QueryReadSetMgr* query_read_set_mgr_six = new pequinstore::QueryReadSetMgr;
-  pequinstore::QueryReadSetMgr* query_read_set_mgr_seven = new pequinstore::QueryReadSetMgr;*/
-
-  /** Commented out queries */
   std::cout << "Before first query" << std::endl;
   ExecuteSQLQuery("CREATE TABLE test(a INT, b INT, PRIMARY KEY(a));", traffic_cop, counter_, result, tuple_descriptor, pesto_timestamp, query_read_set_mgr_one);
   std::cout << "After first query" << std::endl;
@@ -170,25 +160,7 @@ int main(int argc, char *argv[]) {
   ExecuteSQLQuery("UPDATE test SET b=16 WHERE a=99;", traffic_cop, counter_, result, tuple_descriptor, read_timestamp, query_read_set_mgr_six);
   std::cout << "After sixth query" << std::endl;
   ExecuteSQLQuery("INSERT INTO test VALUES (1001, 542);", traffic_cop, counter_, result, tuple_descriptor, pesto_timestamp, query_read_set_mgr_three);
-  //ExecuteSQLQuery("INSERT INTO test VALUES (99, 24) ON CONFLICT (a) DO UPDATE SET b=EXCLUDED.b;", traffic_cop, counter_, result, tuple_descriptor, read_timestamp, query_read_set_mgr_six);
   ExecuteSQLQuery("SELECT * FROM test;", traffic_cop, counter_, result, tuple_descriptor, pesto_timestamp, query_read_set_mgr_seven);
-  //ExecuteSQLQuery("CREATE TABLE string(a TEXT, b TEXT, PRIMARY KEY(a));", traffic_cop, counter_, result, tuple_descriptor, pesto_timestamp, query_read_set_mgr_one);
-  //ExecuteSQLQuery("INSERT INTO string VALUES ('apple', 'pear');", traffic_cop, counter_, result, tuple_descriptor, pesto_timestamp, query_read_set_mgr_two);
-  //ExecuteSQLQuery("SELECT * FROM string;", traffic_cop, counter_, result, tuple_descriptor, pesto_timestamp, query_read_set_mgr_seven);
-  //std::cout << "After seventh query" << std::endl;
-  
-  // function args: timestamp, snapshot manager, read set manager, boolean flag finding snapshot/executing (read set manager)
-  //ExecuteSQLQuery("CREATE TABLE test1(c INT, b INT);", traffic_cop, counter_, result, basil_timestamp);
-  //ExecuteSQLQuery("CREATE TABLE test2(b INT, d INT, e INT)", traffic_cop, counter_, result, basil_timestamp);
-  //ExecuteSQLQuery("INSERT INTO test1 VALUES (99, 200);", traffic_cop, counter_, result, basil_timestamp);
-  //ExecuteSQLQuery("INSERT INTO test1 VALUES (1001, 2202);", traffic_cop, counter_, result, basil_timestamp);
-  //ExecuteSQLQuery("INSERT INTO test2 VALUES (2202, 3303, 4404);", traffic_cop, counter_, result, basil_timestamp);
-  //ExecuteSQLQuery("INSERT INTO test2 VALUES (3303);", traffic_cop, counter_, result);
-  //ExecuteSQLQuery("INSERT INTO test2 VALUES (4404);", traffic_cop, counter_, result);
-  //ExecuteSQLQuery("SELECT * FROM (SELECT test1.b FROM test1 JOIN test ON test1.c = test.a WHERE test1.b > 100) AS X JOIN test2 ON test2.b=X.b;", traffic_cop, counter_, result, basil_timestamp);
-  
-  //std::cout << "Statement executed!! Result: " << peloton::ResultTypeToString(status).c_str() << std::endl;
-  //std::cout << "Result size: " << result.size() /*<< " First row " << GetResultValueAsString(result, 0) << " Second row " << GetResultValueAsString(result, 1)*/ << std::endl;
 
   std::cout << "Result is" << std::endl;
   std::cout << "---------------------------------------------------------" << std::endl;
@@ -215,24 +187,17 @@ int main(int argc, char *argv[]) {
 
   for(auto &read_msg : *(query_read_set_mgr_seven.read_set->mutable_read_set())){
       std::cout << "Encoded key: " << read_msg.key() << ". Timestamp: (" << read_msg.readtime().timestamp() << ", " << read_msg.readtime().id() << ")" << std::endl;
-  }
-
-  
-  /*for (unsigned int i = 0; i < traffic_cop.p_status_.read_set.size(); i++) {
-    std::string encoded_key;
-    Timestamp key_ts;
-
-    std::tie(encoded_key, key_ts) = traffic_cop.p_status_.read_set[i];
-    std::cout << "Encoded key: " << encoded_key << ". Timestamp: (" << key_ts.getTimestamp() << ", " << key_ts.getID() << ")" << std::endl;
   }*/
+  
 
-  /*delete query_read_set_mgr_one;
-  delete query_read_set_mgr_two;
-  delete query_read_set_mgr_three;
-  delete query_read_set_mgr_four;
-  delete query_read_set_mgr_five;
-  delete query_read_set_mgr_six;
-  delete query_read_set_mgr_seven;*/
+	pequinstore::TableStore table_store;
+	table_store.ExecRaw("CREATE TABLE test(a INT, b INT, PRIMARY KEY(a));");
+	table_store.ExecRaw("INSERT INTO test VALUES (42, 54);");
+	table_store.ExecRaw("INSERT INTO test VALUES (35, 26);");
+	table_store.ExecRaw("INSERT INTO test VALUES (190, 999);");
+
+	std::cout << "Actually compiled with new changes" << std::endl;
+	table_store.ExecReadQuery("SELECT * FROM test;", pesto_timestamp, query_read_set_mgr_one);
 
   return 0;
 }

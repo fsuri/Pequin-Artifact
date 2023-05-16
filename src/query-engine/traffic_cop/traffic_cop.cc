@@ -153,7 +153,7 @@ ResultType TrafficCop::ExecuteStatementGetResult() {
 executor::ExecutionResult TrafficCop::ExecuteHelper(
     std::shared_ptr<planner::AbstractPlan> plan,
     const std::vector<type::Value> &params, std::vector<ResultValue> &result,
-    const std::vector<int> &result_format, Timestamp &basil_timestamp, pequinstore::QueryReadSetMgr &query_read_set_mgr, size_t thread_id) {
+    const std::vector<int> &result_format, const Timestamp &basil_timestamp, pequinstore::QueryReadSetMgr &query_read_set_mgr, size_t thread_id) {
   auto &curr_state = GetCurrentTxnState();
 
   concurrency::TransactionContext *txn;
@@ -563,7 +563,7 @@ ResultType TrafficCop::ExecuteStatement(
     const std::vector<type::Value> &params, UNUSED_ATTRIBUTE bool unnamed,
     /*std::shared_ptr<stats::QueryMetric::QueryParams> param_stats,*/
     const std::vector<int> &result_format, std::vector<ResultValue> &result,
-    Timestamp &basil_timestamp, pequinstore::QueryReadSetMgr &query_read_set_mgr, size_t thread_id) {
+    const Timestamp &basil_timestamp, pequinstore::QueryReadSetMgr &query_read_set_mgr, size_t thread_id) {
   // TODO(Tianyi) Further simplify this API
   /*if (static_cast<StatsType>(settings::SettingsManager::GetInt(
           settings::SettingId::stats_mode)) != StatsType::INVALID) {
