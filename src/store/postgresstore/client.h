@@ -29,13 +29,16 @@
 
 #include "store/common/frontend/client.h"
 #include <tao/pq.hpp>
+#include "store/common/query_result/taopq_query_result_wrapper.h"
+#include <sys/time.h>
+#include "store/common/transaction.h"
 
-namespace postgresqlstore {
+namespace postgresstore {
 
 class Client : public ::Client {
  public:
-  Client(string connection_str, uint64_t id) {};
-  virtual ~Client() {};
+  Client(std::string connection_str, std::uint64_t id);
+  virtual ~Client();
 
 // Begin a transaction.
   virtual void Begin(begin_callback bcb, begin_timeout_callback btcb,
@@ -59,18 +62,19 @@ class Client : public ::Client {
 
   // Get the result for a given query SQL statement
   inline virtual void Query(const std::string &query_statement, query_callback qcb,
-      query_timeout_callback qtcb, uint32_t timeout, bool skip_query_interpretation = false);   
+      query_timeout_callback qtcb, uint32_t timeout, bool skip_query_interpretation = false) = 0;   
 
   // Get the result (rows affected) for a given write SQL statement
   inline virtual void Write(std::string &write_statement, write_callback wcb,
-      write_timeout_callback wtcb, uint32_t timeout);
+      write_timeout_callback wtcb, uint32_t timeout) = 0;
 
  private:
   std::shared_ptr<tao::pq::connection> connection;
   std::shared_ptr<tao::pq::transaction> transaction;
-  uint64_t client_id;
+  std::uint64_t txn_id;
+  std::uint64_t client_id;
 };
 
 }
 
-#endif _POSTGRESQL_CLIENT_H_
+#endif // _POSTGRESQL_CLIENT_H_

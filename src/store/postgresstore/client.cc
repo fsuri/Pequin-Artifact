@@ -29,18 +29,14 @@
  *
  **********************************************************************/
 
-#include "store/postgresqlstore/client.h"
-#include "store/common/query_result/taopq_query_result_wrapper.h"
-#include <sys/time.h>
-#include <tao/pq.hpp>
+#include "store/postgresstore/client.h"
 
-namespace postgresqlstore {
+namespace postgresstore {
 
-using namespace std;
-
-Client::Client(string connection_str, uint64_t id) : client_id(id) {
+Client::Client(std::string connection_str, std::uint64_t id) : client_id(id) {
   Debug("Initializing PostgreSQL client with id [%lu]", client_id);
   connection = tao::pq::connection::create(connection_str);
+  txn_id = 0;
   Debug("PostgreSQL client [%lu] created!", client_id);
 }
 
@@ -54,13 +50,15 @@ Client::~Client()
 void Client::Begin(begin_callback bcb, begin_timeout_callback btcb,
     uint32_t timeout, bool retry) {
   transaction = connection->transaction();
-  bcb(client_seq_num);
+  txn_id++;
+  bcb(txn_id);
 }
 
 void Client::Get(const std::string &key, get_callback gcb,
     get_timeout_callback gtcb, uint32_t timeout) {
-  auto result = transcation->execute("SELECT $1 FROM kv", key);
-  gcb(0, key, result[0][0].as<string>(), Timestamp::Now());
+  auto result = transaction->execute("SELECT $1 FROM kv", key);
+  const std::string result_str = result[0][0].as<std::string>();
+  gcb(0, key, result_str, Timestamp(0));
 }
 
 void Client::Put(const std::string &key, const std::string &value,
@@ -90,11 +88,11 @@ void Client::Abort(abort_callback acb, abort_timeout_callback atcb,
 }
 
 // Get the value corresponding to key.
-void Query(const std::string &query, query_callback qcb,
-    query_timeout_callback qtcb, uint32_t timeout) {
+inline void Client::Query(const std::string &query_statement, query_callback qcb,
+    query_timeout_callback qtcb, uint32_t timeout, bool skip_query_interpretation) {
   try {
-    auto result = transaction->execute(query);
-    auto wrapped_result = taopq_wrapper::TaoPQQueryResultWrapper(std::unique_ptr(result));
+    auto result = transaction->execute(query_statement);
+    auto wrapped_result = new taopq_wrapper::TaoPQQueryResultWrapper(std::make_unique<tao::pq::result>(result));
     qcb(0, wrapped_result);
   } catch (...) {
     qtcb(0);
