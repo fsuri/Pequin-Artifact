@@ -1558,6 +1558,7 @@ int main(int argc, char **argv) {
 	      tport->Timer(0, [bench, bdcb]() { bench->Start(bdcb); });
         break;
       case BENCH_SMALLBANK_SYNC:
+      case BENCH_TPCC_SQL:
       case BENCH_TPCC_SYNC: {
         SyncTransactionBenchClient *syncBench = dynamic_cast<SyncTransactionBenchClient *>(bench);
         UW_ASSERT(syncBench != nullptr);
