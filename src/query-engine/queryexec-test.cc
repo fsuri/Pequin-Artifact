@@ -213,6 +213,14 @@ int main(int argc, char *argv[]) {
   RowUpdates *row3 = table_write.add_rows();
   row3->add_column_values("34");
   row3->add_column_values("315");
+  row3->set_deletion(true);
+
+  /*TableWrite &table_write_1 = (*real_proof->mutable_txn()->mutable_table_writes())["test"];
+  RowUpdates *row_1 = table_write.add_rows();
+  row_1->add_column_values("42");
+  row_1->add_column_values("54");
+  row_1->set_deletion(true);*/
+
 
   static std::string file_name = "sql_interpreter_test_registry";
   //Create desired registry via table writer.
@@ -239,6 +247,7 @@ int main(int argc, char *argv[]) {
 	//table_store.ExecRaw("INSERT INTO test VALUES (35, 26);");
 	//table_store.ExecRaw("INSERT INTO test VALUES (190, 999);");
   table_store.ApplyTableWrite("test", table_write, toy_ts_c, "random", real_proof, true);
+  //table_store.ApplyTableWrite("test", table_write_1, toy_ts_c, "random", real_proof, true);
 
 	std::cout << "Actually compiled with new changes" << std::endl;
 	table_store.ExecReadQuery("SELECT * FROM test;", pesto_timestamp, query_read_set_mgr_one);

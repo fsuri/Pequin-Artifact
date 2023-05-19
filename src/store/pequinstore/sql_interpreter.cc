@@ -871,7 +871,7 @@ bool SQLTransformer::GenerateTableWriteStatement(std::string &write_statement, s
 
     delete_statement = fmt::format("DELETE FROM {0} WHERE ", table_name);
     for(auto &[col_name, p_idx]: col_registry.primary_key_cols_idx){
-        delete_statement += fmt::format("{0} in ({1}) AND ", col_name, fmt::join(delete_conds[col_name], ", "));
+        delete_statement += fmt::format("{0}={1} AND ", col_name, fmt::join(delete_conds[col_name], ", "));
     }
     delete_statement.resize(delete_statement.length()-5); //Remove trailing " AND "
     delete_statement += ";";
