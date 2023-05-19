@@ -74,11 +74,27 @@ class TrafficCop {
       const std::vector<int> &result_format, std::vector<ResultValue> &result,
       const Timestamp &basil_timestamp, pequinstore::QueryReadSetMgr &query_read_set_mgr, size_t thread_id = 0);
 
+   // Execute a write statement
+  ResultType ExecuteWriteStatement(
+      const std::shared_ptr<Statement> &statement,
+      const std::vector<type::Value> &params, const bool unnamed,
+      /*std::shared_ptr<stats::QueryMetric::QueryParams> param_stats,*/
+      const std::vector<int> &result_format, std::vector<ResultValue> &result,
+      const Timestamp &basil_timestamp, std::shared_ptr<std::string> txn_digest, 
+      pequinstore::proto::CommittedProof *commit_proof, bool commit_or_prepare, size_t thread_id = 0);
+
   // Helper to handle txn-specifics for the plan-tree of a statement.
   executor::ExecutionResult ExecuteHelper(
       std::shared_ptr<planner::AbstractPlan> plan,
       const std::vector<type::Value> &params, std::vector<ResultValue> &result,
       const std::vector<int> &result_format, const Timestamp &basil_timestamp, pequinstore::QueryReadSetMgr &query_read_set_mgr, size_t thread_id = 0);
+  
+  // Helper to handle txn-specifics for the plan-tree of a statement.
+  executor::ExecutionResult ExecuteWriteHelper(
+      std::shared_ptr<planner::AbstractPlan> plan,
+      const std::vector<type::Value> &params, std::vector<ResultValue> &result,
+      const std::vector<int> &result_format, const Timestamp &basil_timestamp, std::shared_ptr<std::string> txn_digest, 
+      pequinstore::proto::CommittedProof *commit_proof, bool commit_or_prepare, size_t thread_id = 0);
 
   // Prepare a statement using the parse tree
   std::shared_ptr<Statement> PrepareStatement(

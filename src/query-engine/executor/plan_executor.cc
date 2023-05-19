@@ -125,9 +125,9 @@ static void InterpretPlan(
   // Execute the tree until we get values tiles from root node
   while (status == true) {
     // Pass flag for snapshot, then executor only needs to execute the leaves
-    std::cout << "Segfault made it here 4" << std::endl;
+    //std::cout << "Segfault made it here 4" << std::endl;
     status = executor_tree->Execute();
-    std::cout << "Segfault made it here 5" << std::endl;
+    //std::cout << "Segfault made it here 5" << std::endl;
     std::unique_ptr<executor::LogicalTile> tile(executor_tree->GetOutput());
 
     // Hard code to know that this is a read operation
@@ -159,32 +159,32 @@ static void InterpretPlan(
   
       
       std::vector<std::vector<std::string>> tuples;
-      std::cout << "Segfault made it here 1" << std::endl;
+      //std::cout << "Segfault made it here 1" << std::endl;
       tuples = tile->GetAllValuesAsStrings(result_format, false);
 
       // Construct the returned results
       for (auto &tuple : tuples) {
-        std::cout << "Segfault made it here 2" << std::endl;
+        //std::cout << "Segfault made it here 2" << std::endl;
         for (unsigned int i = 0; i < tile->GetColumnCount(); i++) {
           LOG_TRACE("column content: %s",
                     tuple[i].c_str() != nullptr ? tuple[i].c_str() : "-empty-");
-          std::cout << "Segfault made it here 3" << std::endl;
+          //std::cout << "Segfault made it here 3" << std::endl;
           values.push_back(std::move(tuple[i]));
         }
       }
-      std::cout << "Past for loop" << std::endl;
+      //std::cout << "Past for loop" << std::endl;
       //break;
     }
-    std::cout << "Past if statement" << std::endl;
+    //std::cout << "Past if statement" << std::endl;
   }
   
-  std::cout << "After result" << std::endl;
+  //std::cout << "After result" << std::endl;
   result.m_processed = executor_context->num_processed;
   result.m_result = ResultType::SUCCESS;
   CleanExecutorTree(executor_tree.get());
-  std::cout << "After cleaning executors" << std::endl;
+  //std::cout << "After cleaning executors" << std::endl;
   plan->ClearParameterValues();
-  std::cout << "After cleaning parameters" << std::endl;
+  //std::cout << "After cleaning parameters" << std::endl;
   on_complete(result, std::move(values));
 }
 

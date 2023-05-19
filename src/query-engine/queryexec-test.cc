@@ -32,6 +32,12 @@
 #include "store/pequinstore/common.h"
 
 #include "store/pequinstore/table_store_interface.h"
+#include "store/common/query_result/query_result_proto_builder.h"
+#include "store/common/query_result/query_result.h"
+#include "store/common/query_result/query_result_proto_wrapper.h"
+
+#include "store/pequinstore/sql_interpreter.h"
+#include "store/benchmark/async/json_table_writer.h"
 
 static std::string GetResultValueAsString(
       const std::vector<peloton::ResultValue> &result, size_t index) {
@@ -188,13 +194,51 @@ int main(int argc, char *argv[]) {
   for(auto &read_msg : *(query_read_set_mgr_seven.read_set->mutable_read_set())){
       std::cout << "Encoded key: " << read_msg.key() << ". Timestamp: (" << read_msg.readtime().timestamp() << ", " << read_msg.readtime().id() << ")" << std::endl;
   }*/
+
+  Timestamp toy_ts_c(0, 1);
+  pequinstore::proto::CommittedProof *real_proof = new pequinstore::proto::CommittedProof();
+  real_proof->mutable_txn()->set_client_id(0);
+  real_proof->mutable_txn()->set_client_seq_num(1);
+  toy_ts_c.serialize(real_proof->mutable_txn()->mutable_timestamp());
+  TableWrite &table_write = (*real_proof->mutable_txn()->mutable_table_writes())["test"];
   
+  RowUpdates *row1 = table_write.add_rows();
+  row1->add_column_values("42");
+  row1->add_column_values("54");
+
+  RowUpdates *row2 = table_write.add_rows();
+  row2->add_column_values("24");
+  row2->add_column_values("225");
+
+  RowUpdates *row3 = table_write.add_rows();
+  row3->add_column_values("34");
+  row3->add_column_values("315");
+
+  static std::string file_name = "sql_interpreter_test_registry";
+  //Create desired registry via table writer.
+  std::string table_name = "test";
+  std::vector<std::pair<std::string, std::string>> column_names_and_types;
+  std::vector<uint32_t> primary_key_col_idx;
+
+  TableWriter table_writer(file_name);
+
+  //Table1:
+  table_name = "test";
+  column_names_and_types.push_back(std::make_pair("a", "INT"));
+  column_names_and_types.push_back(std::make_pair("b", "INT"));
+  primary_key_col_idx.push_back(0);
+  table_writer.add_table(table_name, column_names_and_types, primary_key_col_idx);
+  //Write Tables to JSON
+  table_writer.flush();
 
 	pequinstore::TableStore table_store;
+  std::string table_registry = file_name + "-tables-schema.json";
+  table_store.RegisterTableSchema(table_registry);
 	table_store.ExecRaw("CREATE TABLE test(a INT, b INT, PRIMARY KEY(a));");
-	table_store.ExecRaw("INSERT INTO test VALUES (42, 54);");
-	table_store.ExecRaw("INSERT INTO test VALUES (35, 26);");
-	table_store.ExecRaw("INSERT INTO test VALUES (190, 999);");
+	//table_store.ExecRaw("INSERT INTO test VALUES (42, 54);");
+	//table_store.ExecRaw("INSERT INTO test VALUES (35, 26);");
+	//table_store.ExecRaw("INSERT INTO test VALUES (190, 999);");
+  table_store.ApplyTableWrite("test", table_write, toy_ts_c, "random", real_proof, true);
 
 	std::cout << "Actually compiled with new changes" << std::endl;
 	table_store.ExecReadQuery("SELECT * FROM test;", pesto_timestamp, query_read_set_mgr_one);

@@ -24,6 +24,10 @@
 #include "../common/internal_types.h"
 #include "../type/value.h"
 #include "../../store/common/timestamp.h"
+#include "../../store/common/query_result/query_result_proto_builder.h"
+#include "../../store/common/query_result/query_result.h"
+#include "../../store/common/query_result/query_result_proto_wrapper.h"
+#include "../../store/pequinstore/common.h" 
 
 namespace peloton {
 namespace storage {
@@ -44,8 +48,9 @@ struct TupleHeader {
   ItemPointer next;
   ItemPointer prev;
   ItemPointer *indirection;
-  std::string tx_id;
-  bool is_prepared;
+  std::shared_ptr<std::string> txn_dig;
+  pequinstore::proto::CommittedProof* committed_proof;
+  bool commit_or_prepare;
   Timestamp basil_timestamp;
 } __attribute__((aligned(64)));
 
@@ -208,6 +213,18 @@ class TileGroupHeader : public Printable {
     return tuple_headers_[tuple_slot_id].basil_timestamp;
   }
 
+  inline std::shared_ptr<std::string> GetTxnDig(const oid_t &tuple_slot_id) const {
+    return tuple_headers_[tuple_slot_id].txn_dig;
+  }
+
+  inline pequinstore::proto::CommittedProof* GetCommittedProof(const oid_t &tuple_slot_id) const {
+    return tuple_headers_[tuple_slot_id].committed_proof;
+  }
+
+  inline bool GetCommitOrPrepare(const oid_t &tuple_slot_id) const {
+    return tuple_headers_[tuple_slot_id].commit_or_prepare;
+  }
+
   // Setters
 
   inline void SetTileGroup(TileGroup *tile_group) {
@@ -260,6 +277,22 @@ class TileGroupHeader : public Printable {
   inline void SetBasilTimestamp(const oid_t &tuple_slot_id, Timestamp basil_timestamp) {
     tuple_headers_[tuple_slot_id].basil_timestamp = basil_timestamp;
   }
+
+  // NEW: set txn digest
+  inline void SetTxnDig(const oid_t &tuple_slot_id, std::shared_ptr<std::string> txn_dig) {
+    tuple_headers_[tuple_slot_id].txn_dig = txn_dig;
+  }
+
+  // NEW: set commit proof
+  inline void SetCommittedProof(const oid_t &tuple_slot_id, pequinstore::proto::CommittedProof* committed_proof) {
+    tuple_headers_[tuple_slot_id].committed_proof = committed_proof;
+  }
+
+  // NEW: set txn digest
+  inline void SetCommitOrPrepare(const oid_t &tuple_slot_id, bool commit_or_prepare) {
+    tuple_headers_[tuple_slot_id].commit_or_prepare = commit_or_prepare;
+  }
+
 
   /*
   * @brief The following method use Compare and Swap to set the tilegroup's

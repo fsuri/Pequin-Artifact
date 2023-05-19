@@ -9,6 +9,7 @@
 #include "store/pequinstore/sql_interpreter.h"
 
 //TODO: Include whatever Peloton Deps
+#include "../../query-engine/traffic_cop/traffic_cop.h"
 
 namespace pequinstore {
 
@@ -42,7 +43,7 @@ class TableStore {
 
         //Apply a set of Table Writes (versioned row creations) to the Table backend
         void ApplyTableWrite(const std::string &table_name, const TableWrite &table_write, const Timestamp &ts, const std::string &txn_digest, 
-            const proto::CommittedProof *commit_proof = nullptr, bool commit_or_prepare = true); 
+            proto::CommittedProof *commit_proof = nullptr, bool commit_or_prepare = true); 
          ///https://www.postgresqltutorial.com/postgresql-tutorial/postgresql-upsert/ 
         void PurgeTableWrite(const std::string &table_name, const TableWrite &table_write, const Timestamp &ts, const std::string &txn_digest); 
 
@@ -61,6 +62,9 @@ class TableStore {
         read_prepared_pred can_read_prepared; //bool function to determine whether or not to read prepared row
         SQLTransformer sql_interpreter;
         //TODO: Peloton DB singleton "table_backend"
+		peloton::tcop::TrafficCop traffic_cop_;
+		std::atomic_int counter_;
+
 };
 
 

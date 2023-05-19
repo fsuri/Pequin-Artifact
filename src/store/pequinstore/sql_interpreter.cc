@@ -805,6 +805,8 @@ bool SQLTransformer::GenerateTableWriteStatement(std::string &write_statement, s
     // In Write statement: for rows that are marked as delete: don't insert. --> split into write_statement and delete_statement.
     std::map<std::string, std::vector<std::string>> delete_conds;
 
+    std::cout << "The number of rows is " << table_write.rows_size() << std::endl;
+
     for(auto &row: table_write.rows()){
         //Alternatively: Move row contents to a vector and use: fmt::join(vec, ",")
         if(row.deletion()){

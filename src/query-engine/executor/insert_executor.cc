@@ -55,18 +55,18 @@ bool InsertExecutor::DInit() {
  * @return true on success, false otherwise.
  */
 bool InsertExecutor::DExecute() {
-  std::cout << "Inside insert executor" << std::endl;
+  //std::cout << "Inside insert executor" << std::endl;
   if (done_) return false;
 
   PELOTON_ASSERT(!done_);
   PELOTON_ASSERT(executor_context_ != nullptr);
 
   const planner::InsertPlan &node = GetPlanNode<planner::InsertPlan>();
-  std::cout << "Inside insert executor 1" << std::endl;
+  //std::cout << "Inside insert executor 1" << std::endl;
   storage::DataTable *target_table = node.GetTable();
   oid_t bulk_insert_count = node.GetBulkInsertCount();
 
-  std::cout << "Inside insert executor 2" << std::endl;
+  //std::cout << "Inside insert executor 2" << std::endl;
 
   auto &transaction_manager =
       concurrency::TransactionManagerFactory::GetInstance();
@@ -79,7 +79,7 @@ bool InsertExecutor::DExecute() {
     return false;
   }
 
-  std::cout << "Inside insert executor 3" << std::endl;
+  //std::cout << "Inside insert executor 3" << std::endl;
 
   LOG_TRACE("Number of tuples in table before insert: %lu",
             target_table->GetTupleCount());
@@ -98,7 +98,7 @@ bool InsertExecutor::DExecute() {
 
   // Inserting a logical tile.
   if (children_.size() == 1) {
-    std::cout << "Inside insert executor 4" << std::endl;
+    //std::cout << "Inside insert executor 4" << std::endl;
     if (!children_[0]->Execute()) {
       return false;
     }
@@ -173,7 +173,7 @@ bool InsertExecutor::DExecute() {
   else if (children_.size() == 0) {
     // Extract expressions from plan node and construct the tuple.
     // For now we just handle a single tuple
-    std::cout << "Inside insert executor 4.5" << std::endl;
+    //std::cout << "Inside insert executor 4.5" << std::endl;
     auto schema = target_table->GetSchema();
     auto project_info = node.GetProjectInfo();
     auto tuple = node.GetTuple(0);

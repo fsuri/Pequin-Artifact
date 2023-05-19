@@ -25,6 +25,7 @@
 #include "../common/internal_types.h"
 #include "../../store/common/timestamp.h"
 #include "../../store/pequinstore/common.h"
+#include "store/pequinstore/pequin-proto.pb.h"
 
 namespace peloton {
 
@@ -292,6 +293,30 @@ class TransactionContext : public Printable {
     query_read_set_mgr_ = query_read_set_mgr;
   }
 
+	std::shared_ptr<std::string> GetTxnDig() {
+		return txn_dig_;
+	}
+
+	void SetTxnDig(std::shared_ptr<std::string> txn_dig) {
+		txn_dig_ = txn_dig;
+	}
+
+	pequinstore::proto::CommittedProof* GetCommittedProof() {
+		return committed_proof_;
+	}
+
+	void SetCommittedProof(pequinstore::proto::CommittedProof* commit_proof) {
+		committed_proof_ = commit_proof;
+	}
+
+	bool GetCommitOrPrepare() {
+		return commit_or_prepare_;
+	}
+
+	void SetCommitOrPrepare(bool commit_or_prepare) {
+		commit_or_prepare_ = commit_or_prepare;
+	}
+
   /**
    * @brief      Gets the isolation level.
    *
@@ -348,6 +373,15 @@ class TransactionContext : public Printable {
 
   /** Query read set manager */
   pequinstore::QueryReadSetMgr query_read_set_mgr_;
+
+	/** Transaction digest */
+	std::shared_ptr<std::string> txn_dig_;
+
+	/** Commit proof */
+  pequinstore::proto::CommittedProof *committed_proof_;
+
+	/** Commit or prepare */
+	bool commit_or_prepare_;
 
   ReadWriteSet rw_set_;
   CreateDropSet rw_object_set_;

@@ -367,6 +367,15 @@ void TimestampOrderingTransactionManager::PerformInsert(
   // NEW: add timestamp
   tile_group_header->SetBasilTimestamp(tuple_id, current_txn->GetBasilTimestamp());
 
+  // NEW: set txn digest
+  tile_group_header->SetTxnDig(tuple_id, current_txn->GetTxnDig());
+
+  // NEW: set commit proof
+  tile_group_header->SetCommittedProof(tuple_id, current_txn->GetCommittedProof());
+
+  // NEW: set commit or prepare
+  tile_group_header->SetCommitOrPrepare(tuple_id, current_txn->GetCommitOrPrepare());
+
   // Add the new tuple into the insert set
   current_txn->RecordInsert(location);
   tile_group_header->SetIndirection(tuple_id, index_entry_ptr);
