@@ -662,13 +662,24 @@ def generate_gnuplot_script_agg(plot, plot_script_file, plot_out_file, series):
                 f.write(', \\\n')
 
 def generate_plots(config, base_out_directory, out_dirs):
+    """ Read in outputs in directory using the config
+
+    Parameters
+    ----------
+    config : dict
+        jsonfied experiment config
+    base_out_directory : str
+        base directory
+    out_dirs : list
+        list of output directories
+
+    """
     plots_directory = os.path.join(base_out_directory, config['plot_directory_name'])
     os.makedirs(plots_directory, exist_ok=True)
     csv_classes = set()
     csv_files = []
     subprocesses = []
 
-    ###
     # Generate aggregate cdf plots
     for i in range(len(out_dirs[0])):
         # for each series i
