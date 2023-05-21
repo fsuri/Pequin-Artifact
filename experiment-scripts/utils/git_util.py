@@ -33,11 +33,11 @@ def compile_make(config):
         for k, v in config['make_env'].items():
             e[k] = v
     if not 'make_clean' in config or config['make_clean']:
-        subprocess.call(["make", "-j", "8", "clean"], cwd=config['src_directory'])
+        subprocess.call(["make", "-j", "$nproc", "clean"], cwd=config['src_directory'])
     if 'make_args' in config:
-        subprocess.call(["make", "-j", "8", config['make_args']], cwd=config['src_directory'], env=e)
+        subprocess.call(["make", "-j", "$nproc", config['make_args']], cwd=config['src_directory'], env=e)
     else:
-        subprocess.call(["make", "-j", "8"], cwd=config['src_directory'], env=e)
+        subprocess.call(["make", "-j", "$nproc"], cwd=config['src_directory'], env=e)
     bin_path = os.path.join(config['src_directory'], 'bin')
     os.makedirs(bin_path, exist_ok=True)
     if 'make_collect_bins' in config:
