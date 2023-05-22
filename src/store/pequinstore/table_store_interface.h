@@ -20,7 +20,7 @@ class TableStore {
         TableStore();
         virtual ~TableStore();
 
-        void SetFindTableVersion(find_table_version _set_table_version);
+        void SetFindTableVersion(find_table_version find_table_version);
         void SetPreparePredicate(read_prepared_pred read_prepared_pred); 
 
         void RegisterTableSchema(std::string &table_registry_path);
@@ -57,7 +57,7 @@ class TableStore {
 
 
     private:
-        find_table_version set_table_version;  //void function that finds current table version  ==> set bool accordingly whether using for read set or snapshot. Set un-used manager to nullptr
+        find_table_version record_table_version;  //void function that finds current table version  ==> set bool accordingly whether using for read set or snapshot. Set un-used manager to nullptr
         read_prepared_pred can_read_prepared; //bool function to determine whether or not to read prepared row
         SQLTransformer sql_interpreter;
         //TODO: Peloton DB singleton "table_backend"

@@ -72,7 +72,6 @@ enum OCCType {
   TAPIR = 1
 };
 
-static std::string genesis_tx = "";
 
 //TEST/DEBUG variables
 static bool TEST_QUERY = true;   //create toy results for queries

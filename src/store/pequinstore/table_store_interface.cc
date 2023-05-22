@@ -14,8 +14,8 @@ TableStore::~TableStore(){
 
 }
 
-void TableStore::SetFindTableVersion(find_table_version _set_table_version){
-    set_table_version = std::move(_set_table_version);
+void TableStore::SetFindTableVersion(find_table_version find_table_version){
+    record_table_version = std::move(find_table_version);
 }
 void TableStore::SetPreparePredicate(read_prepared_pred read_prepared_pred){
     can_read_prepared = std::move(read_prepared_pred);
@@ -141,6 +141,11 @@ void TableStore::PurgeTableWrite(const std::string &table_name, const TableWrite
     //TODO: Purge statement is a "special" delete statement:
             // it deletes existing row insertions for the timestamp
             // but it also undoes existing deletes for the timestamp
+        //Simple implementation: Check Versioned linked list and delete row with Timestamp ts. Return if ts > current
+        //Note: Since Delete does not impact Indexes no other changes are necessary.
+                //Note: Purging Prepared Inserts will not clean up Index updates, i.e. the aborted transaction may leave behind a false positive index entry.
+                        //Removing this false positive would require modifying the Peloton internals, so we will ignore this issue since it only affects efficiency and not results.
+                        // I.e. a hit to the false positive will just result in a wasted lookup.
 
     //==> Effectively it is "aborting" all suggested table writes.
 
@@ -152,6 +157,11 @@ void TableStore::PurgeTableWrite(const std::string &table_name, const TableWrite
 
 //Partially execute a read query statement (reconnaissance execution) and return the snapshot state (managed by ssMgr)
 void TableStore::FindSnapshot(std::string &query_statement, const Timestamp &ts, SnapshotManager &ssMgr){
+
+    //Generalize the PointRead interface:  
+        //Read k latest prepared.
+    //Use the same prepare predicate to determine whether to read or ignore a prepared version
+
 
     //TODO: Execute on Peloton
     //Note: Don't need to return a result
