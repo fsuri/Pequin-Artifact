@@ -68,8 +68,9 @@
 // Augustus-BftSmart
 #include <gflags/gflags.h>
 
-#include <nlohmann/json.hpp>
 #include <thread>
+#include <mutex>
+#include <condition_variable>
 
 #include "store/benchmark/async/tpcc/tpcc-proto.pb.h"
 #include "store/bftsmartstore_augustus/replica.h"
@@ -77,7 +78,10 @@
 #include "store/bftsmartstore_stable/replica.h"
 #include "store/bftsmartstore_stable/server.h"
 #include "store/indicusstore/common.h"
+
+#include <nlohmann/json.hpp>
 using json = nlohmann::json;
+
 
 enum protocol_t {
   PROTO_UNKNOWN,
@@ -413,6 +417,9 @@ Server *server = nullptr;
 TransportReceiver *replica = nullptr;
 ::Transport *tport = nullptr;
 Partitioner *part = nullptr;
+
+std::mutex m;
+std::condition_variable cv;
 
 void Cleanup(int signal);
 
@@ -1002,8 +1009,13 @@ int main(int argc, char **argv) {
   tport->Run();
   CALLGRIND_STOP_INSTRUMENTATION;
   CALLGRIND_DUMP_STATS;
-  for (;;) {
-  }
+
+  std::unique_lock lk(m);
+  bool stop = false;
+  //while(!stop){
+     cv.wait(lk, [&]{Notice("Server Woken."); return stop;});
+  //}
+ 
   Notice("Main done");
   return 0;
 }
@@ -1031,5 +1043,6 @@ void Cleanup(int signal) {
     tport = nullptr;
   }
   Notice("Exiting.");
+  //cv.notify_one();
   exit(0);
 }

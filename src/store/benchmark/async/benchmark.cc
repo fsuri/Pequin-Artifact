@@ -496,12 +496,15 @@ const protomode_t protomodes[]{PROTO_TAPIR, PROTO_TAPIR, PROTO_WEAK,
                                // Cockroach Database
                                PROTO_CRDB};
 const strongstore::Mode strongmodes[]{
-    strongstore::Mode::MODE_UNKNOWN,   strongstore::Mode::MODE_UNKNOWN,
-    strongstore::Mode::MODE_UNKNOWN,   strongstore::Mode::MODE_OCC,
-    strongstore::Mode::MODE_LOCK,      strongstore::Mode::MODE_SPAN_OCC,
-    strongstore::Mode::MODE_SPAN_LOCK, strongstore::Mode::MODE_UNKNOWN,
-    strongstore::Mode::MODE_UNKNOWN,   strongstore::Mode::MODE_UNKNOWN,
-    strongstore::Mode::MODE_UNKNOWN,   strongstore::Mode::MODE_UNKNOWN};
+    strongstore::Mode::MODE_UNKNOWN, strongstore::Mode::MODE_UNKNOWN, strongstore::Mode::MODE_UNKNOWN,   
+    strongstore::Mode::MODE_OCC, strongstore::Mode::MODE_LOCK,  strongstore::Mode::MODE_SPAN_OCC,
+    strongstore::Mode::MODE_SPAN_LOCK, 
+    strongstore::Mode::MODE_UNKNOWN, strongstore::Mode::MODE_UNKNOWN,   strongstore::Mode::MODE_UNKNOWN,
+    strongstore::Mode::MODE_UNKNOWN,   
+    strongstore::Mode::MODE_UNKNOWN,
+    strongstore::Mode::MODE_UNKNOWN,
+    strongstore::Mode::MODE_UNKNOWN,
+    strongstore::Mode::MODE_UNKNOWN};
 static bool ValidateProtocolMode(const char *flagname,
                                  const std::string &value) {
   int n = sizeof(protocol_args);
@@ -741,7 +744,7 @@ int main(int argc, char **argv) {
   for (int i = 0; i < numProtoModes; ++i) {
     if (FLAGS_protocol_mode == protocol_args[i]) {
       mode = protomodes[i];
-      strongmode = strongmodes[i];
+      if(i < (sizeof(strongmodes)/sizeof(strongmode))) strongmode = strongmodes[i];
       break;
     }
   }
@@ -1050,9 +1053,7 @@ int main(int argc, char **argv) {
 
   uint64_t replica_total = FLAGS_num_shards * config->n;
   uint64_t client_total = FLAGS_num_client_hosts * FLAGS_num_client_threads;
-  KeyManager *keyManager =
-      new KeyManager(FLAGS_indicus_key_path, keyType, true, replica_total,
-                     client_total, FLAGS_num_client_hosts);
+  KeyManager *keyManager = new KeyManager(FLAGS_indicus_key_path, keyType, true, replica_total, client_total, FLAGS_num_client_hosts);
   //keyManager->PreLoadPubKeys(false);
 
   if (closestReplicas.size() > 0 &&

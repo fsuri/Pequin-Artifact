@@ -23,7 +23,7 @@ void Server::exec_sql(std::string sql) {
   std::string crdb_command = "cockroach sql --insecure --host=" + host +
                              std::string() + ":" + port + " --execute=\"" +
                              sql + "\"";
-  cout << crdb_command << endl;
+  Notice("Issuing SQL command %s", crdb_command.c_str());
   int status = system(crdb_command.c_str());
   stats.Increment("sql_commands_executed", 1);
 }
@@ -37,6 +37,8 @@ Server::Server(const transport::Configuration &config, KeyManager *keyManager,
       id(groupIdx * config.n + idx),
       numShards(numShards),
       numGroups(numGroups) {
+
+  Notice("Starting Replica: g: %d, idx: %d, id: %d", groupIdx, idx, id);
   zone = config.replica(groupIdx, idx).host;
   port = config.replica(groupIdx, idx).port;
   int status = 0;
@@ -59,7 +61,7 @@ Server::Server(const transport::Configuration &config, KeyManager *keyManager,
    * --listen-addr determines which address(es) to listen on for connections
    *   from other nodes and clients.
    */
-  std::string start_script = "cockroach start";
+  std::string start_cmd = "cockroach start";
   std::string security_flag = " --insecure";
   std::string listen_addr_flag = " --listen-addr=" + host + ":" + port;
   std::string sql_addr_flag = " --advertise-sql-addr=" + host + ":" + port;
@@ -113,30 +115,33 @@ Server::Server(const transport::Configuration &config, KeyManager *keyManager,
                                 other_flags};
 
   for (std::string part : script_parts) {
-    start_script = start_script + part;
+    start_cmd = start_cmd + part;
   }
 
   // start server
   Notice("Debug start initalizing");
-  cout << start_script << endl;
-  status = system((start_script + "&").c_str());
+
+  Notice("Invoke start script: %s", start_cmd.c_str());
+
+  status = system((start_cmd + "&").c_str());
   Notice("Cockroach node %d started. Listening %s:%s", id, host.c_str(),
          port.c_str());
 
   if (idx == numShards - 1) {
     // If node is the last one in the group, serve as load balancer
-    std::string proxy_script =
+    std::string proxy_cmd =
         "cockroach gen haproxy --insecure --host=" + host + ":" + port +
         " --locality=region=" + std::to_string(groupIdx);
-    cout << proxy_script << endl;
-    status = system(proxy_script.c_str());
+
+    Notice("Invoke proxy script: %s", proxy_cmd.c_str());
+    status = system(proxy_cmd.c_str());
   }
   // If happens to be the last one, init server
   if (id == numGroups * config.n - 1) {
-    std::string init_script =
+    std::string init_cmd =
         "cockroach init --insecure --host=" + host + ":" + port;
 
-    status = system(init_script.c_str());
+    status = system(init_cmd.c_str());
     Notice("Cluster initliazed by node %d. Listening %s:%s", id, host.c_str(),
            port.c_str());
 
@@ -180,6 +185,8 @@ void Server::CreateTable(
   }
   sql_statement.resize(sql_statement.size() - 2);  // remove trailing ", "
   sql_statement += "));";
+
+  Notice("Create Table: %s", table_name.c_str());
   Server::exec_sql(sql_statement);
 }
 
@@ -203,8 +210,8 @@ void Server::LoadTableData(
       table_data_path);  // FIXME: does one need to specify column names?
                          // Target columns don't appear to be enforced
 
+  Notice("Load Table Data for table: %s", table_name.c_str());
   exec_sql(copy_table_statement_crdb);
-  std::cerr << "CALLED LOAD TABLE DATA" << std::endl;
   stats.Increment("TablesLoaded", 1);
 }
 
