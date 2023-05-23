@@ -10,15 +10,15 @@
   ],
   "replication_protocol": ["crdb"],
   "client_protocol_mode": ["crdb"],
-  "num_shards": [1],
-  "num_groups": [1],
+  "num_shards": [3],
+  "num_groups": [3],
 
   "client_num_keys": 10,
   "_client_num_keys": 10000000,
-  "server_load_time": 7,
+  "server_load_time": 15,
   
-  "benchmark_type": "sql_bench",
-  "benchmark_data_file_path": "/users/fs435/indicus/bin/test-tables-schema.json",
+  "_benchmark_type": "sql_bench",
+  "_benchmark_data_file_path": "/users/fs435/indicus/bin/test-tables-schema.json",
 
   "benchmark_name": "rw",
   "client_zipf_coefficient": 0.75,   
@@ -41,11 +41,6 @@
     
     {
     	"message_transport_type": "tcp",
-      
-    
-   
-
-		 
 		  "signature_type": 4,
 		  "sig_batch": 4,
 		  	"_sig_batch_timeout": 5000,
@@ -80,15 +75,17 @@
   "project_name": "pequin-pg0",
   "fault_tolerance": 1,
   
-  "server_names": [
+  "_server_names": [
    
     ["us-east-1-0", "us-east-1-1", "us-east-1-2"]
 	
   ],
 
-  "_server_names": [
+  "server_names": [
    
-    ["us-east-1-0", "us-east-1-1", "us-east-1-2", "eu-west-1-0", "eu-west-1-1", "eu-west-1-2"]
+    ["us-east-1-0", "us-east-1-1", "us-east-1-2", 
+     "eu-west-1-0", "eu-west-1-1", "eu-west-1-2", 
+     "ap-northeast-1-0", "ap-northeast-1-1", "ap-northeast-1-2"]
 	
   ],
 
