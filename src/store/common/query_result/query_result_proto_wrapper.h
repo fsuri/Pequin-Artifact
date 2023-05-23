@@ -60,7 +60,7 @@ class QueryResultProtoWrapper : public query_result::QueryResult {
     QueryResultProtoWrapper(std::unique_ptr<SQLResultProto> proto_result) 
       : proto_result(std::move(proto_result)) {}
 
-    QueryResultProtoWrapper(const std::string& data): proto_result(nullptr){
+    QueryResultProtoWrapper(const std::string& data){
       //SQLResultProto result;
       proto_result = std::make_unique<SQLResultProto>();
       if(data.empty()){ //default case
@@ -74,11 +74,21 @@ class QueryResultProtoWrapper : public query_result::QueryResult {
     }
 
      // Delete copy constructor and assignment operator to enforce ownership of proto
-    QueryResultProtoWrapper(const QueryResultProtoWrapper&) = delete;
-    QueryResultProtoWrapper& operator=(const QueryResultProtoWrapper&) = delete;
+    //QueryResultProtoWrapper(const QueryResultProtoWrapper&) = delete;
+    //QueryResultProtoWrapper& operator=(const QueryResultProtoWrapper&) = delete;
+
+    // QueryResultProtoWrapper& operator=(const QueryResultProtoWrapper& old){
+    //   this->proto_result.reset( new SQLResultProto(*old.proto_result));
+    //   return *this;
+    // }
+    
 
     ~QueryResultProtoWrapper() {
       //delete proto_result;
+    }
+
+    inline void SetResult(SQLResultProto &result){
+      proto_result = std::make_unique<SQLResultProto>(std::move(result));
     }
 
 		class const_iterator : sql::Row {

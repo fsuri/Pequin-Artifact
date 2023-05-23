@@ -498,10 +498,13 @@ const strongstore::Mode strongmodes[] {
   strongstore::Mode::MODE_LOCK,
   strongstore::Mode::MODE_SPAN_OCC,
   strongstore::Mode::MODE_SPAN_LOCK,
+  //
   strongstore::Mode::MODE_UNKNOWN,
   strongstore::Mode::MODE_UNKNOWN,
   strongstore::Mode::MODE_UNKNOWN,
 	strongstore::Mode::MODE_UNKNOWN,
+	strongstore::Mode::MODE_UNKNOWN,
+  strongstore::Mode::MODE_UNKNOWN,
 	strongstore::Mode::MODE_UNKNOWN
 };
 static bool ValidateProtocolMode(const char* flagname,
@@ -744,7 +747,7 @@ int main(int argc, char **argv) {
   for (int i = 0; i < numProtoModes; ++i) {
     if (FLAGS_protocol_mode == protocol_args[i]) {
       mode = protomodes[i];
-      strongmode = strongmodes[i];
+      if(i < (sizeof(strongmodes)/sizeof(strongmode))) strongmode = strongmodes[i];
       break;
     }
   }

@@ -785,7 +785,7 @@ void SQLTransformer::TransformDelete(size_t pos, std::string_view &write_stateme
 
 static bool fine_grained_quotes = false;
     //Using TableRegistry now. But still adding quotes to everything indiscriminately. That seems to work fine for Peloton
-bool SQLTransformer::GenerateTableWriteStatement(std::string &write_statement, std::string &delete_statement, const std::string &table_name, const TableWrite &table_write){
+void SQLTransformer::GenerateTableWriteStatement(std::string &write_statement, std::string &delete_statement, const std::string &table_name, const TableWrite &table_write){
    
 //Turn Table Writes into Upsert and Delete statement:  ///https://www.postgresqltutorial.com/postgresql-tutorial/postgresql-upsert/ 
     //Multi row Upsert:  https://stackoverflow.com/questions/40647600/postgresql-multi-value-upserts 
@@ -805,6 +805,9 @@ bool SQLTransformer::GenerateTableWriteStatement(std::string &write_statement, s
     // In Write statement: for rows that are marked as delete: don't insert. --> split into write_statement and delete_statement.
     std::map<std::string, std::vector<std::string>> delete_conds;
 
+    bool has_write = false;
+    bool has_delete = false;
+
     for(auto &row: table_write.rows()){
         //Alternatively: Move row contents to a vector and use: fmt::join(vec, ",")
         if(row.deletion()){
@@ -820,6 +823,7 @@ bool SQLTransformer::GenerateTableWriteStatement(std::string &write_statement, s
             }
         }
         else{
+            has_write = true;
             write_statement += "(";
             if(fine_grained_quotes){ // Use this to add fine grained quotes:
                 for(int i = 0; i < row.column_values_size(); ++i){
@@ -860,8 +864,9 @@ bool SQLTransformer::GenerateTableWriteStatement(std::string &write_statement, s
    
     write_statement += ";";
 
+    if(!has_write) write_statement = "";
     //std::cerr << "delete_conds size: " << delete_conds[0].size() << std::endl;
-    if(delete_conds.empty()) return false;
+    if(delete_conds.empty()) return;  //i.e. !has_delete
 
     //Else: Construct also a delete statement
 
@@ -875,12 +880,13 @@ bool SQLTransformer::GenerateTableWriteStatement(std::string &write_statement, s
     delete_statement += ";";
 
     //FIXME: If no delete clauses --> should not delete anything
-    return true;  //I.e. there is delete conds.
+    return;  //I.e. there is delete conds.
 
 }
 
-bool SQLTransformer::GenerateTablePurgeStatement(std::string &purge_statement, const std::string &table_name, const TableWrite &table_write){
+void SQLTransformer::GenerateTablePurgeStatement(std::string &purge_statement, const std::string &table_name, const TableWrite &table_write){
     //Abort all TableWrites: Previous writes must be deleted; Previous deletes must be un-done
+    //Puts all write and deletes into one purge
 
     const ColRegistry &col_registry = TableRegistry.at(table_name);
     std::map<std::string, std::vector<std::string>> purge_conds;
@@ -899,7 +905,7 @@ bool SQLTransformer::GenerateTablePurgeStatement(std::string &purge_statement, c
         //write_statement += fmt::format("{}, ", fmt::join(row.column_values(), ','));
     }
 
-    if(purge_conds.empty()) return false;
+    if(purge_conds.empty()) return;
 
     purge_statement = fmt::format("DELETE FROM {0} WHERE ", table_name);
     for(auto &[col_name, p_idx]: col_registry.primary_key_cols_idx){
@@ -938,7 +944,7 @@ bool SQLTransformer::GenerateTablePurgeStatement(std::string &purge_statement, c
     // purge_statement += ";";
 
     //FIXME: If no delete clauses --> should not delete anything
-    return true; //I.e. there is delete conds.
+    return; //I.e. there is delete conds.
    
    //extract all positive values
 }

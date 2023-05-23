@@ -165,8 +165,8 @@ class SQLTransformer {
 
         bool InterpretQueryRange(const std::string &_query, std::string &table_name, std::vector<std::string> &p_col_values, bool relax = false);
 
-        bool GenerateTableWriteStatement(std::string &write_statement, std::string &delete_statement, const std::string &table_name, const TableWrite &table_write);
-        bool GenerateTablePurgeStatement(std::string &purge_statement, const std::string &table_name, const TableWrite &table_write);
+        void GenerateTableWriteStatement(std::string &write_statement, std::string &delete_statement, const std::string &table_name, const TableWrite &table_write);
+        void GenerateTablePurgeStatement(std::string &purge_statement, const std::string &table_name, const TableWrite &table_write);
 
     private:
         proto::Transaction *txn;

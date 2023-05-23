@@ -908,7 +908,12 @@ bool ShardClient::ValidateTransactionTableWrite(const proto::CommittedProof &pro
 
     Debug("[group %i] Trying to validate committed TableWrite.", group);
     
-    query_result = new sql::QueryResultProtoWrapper(value); //query_result takes ownership
+    //*query_result = std::move(sql::QueryResultProtoWrapper(value));
+    SQLResultProto proto_result;
+    if(!value.empty()) proto_result.ParseFromString(value);
+    query_result->SetResult(proto_result);
+    
+    //query_result = new sql::QueryResultProtoWrapper(value); //query_result takes ownership
     //turn value into Object //TODO: Can we avoid the redundant de-serialization in client.cc? ==> Modify prcb callback to take QueryResult as arg. 
                                 //Then need to change that gcb = prcb (no longer true)
 

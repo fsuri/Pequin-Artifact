@@ -117,9 +117,9 @@ void TableStore::ApplyTableWrite(const std::string &table_name, const TableWrite
     //Turn txn_digest into a shared_ptr, write everywhere it is needed.
     std::shared_ptr<std::string> txn_dig(std::make_shared<std::string>(txn_digest));
 
-   std::string write_statement;
-   std::string delete_statement;
-   bool has_delete = sql_interpreter.GenerateTableWriteStatement(write_statement, delete_statement, table_name, table_write);
+   std::string write_statement; //empty if no writes
+   std::string delete_statement; //empty if no deletes
+   sql_interpreter.GenerateTableWriteStatement(write_statement, delete_statement, table_name, table_write);
     //TODO: Check whether there is a more efficient way than creating SQL commands for each.
 
     //TODO: Execute on Peloton
@@ -135,8 +135,8 @@ void TableStore::PurgeTableWrite(const std::string &table_name, const TableWrite
 
     std::shared_ptr<std::string> txn_dig(std::make_shared<std::string>(txn_digest));
 
-    std::string purge_statement;
-    bool has_purge = sql_interpreter.GenerateTablePurgeStatement(purge_statement, table_name, table_write);   
+    std::string purge_statement; //empty if no writes/deletes (i.e. nothing to abort)
+    sql_interpreter.GenerateTablePurgeStatement(purge_statement, table_name, table_write);   
 
     //TODO: Purge statement is a "special" delete statement:
             // it deletes existing row insertions for the timestamp
@@ -146,6 +146,8 @@ void TableStore::PurgeTableWrite(const std::string &table_name, const TableWrite
                 //Note: Purging Prepared Inserts will not clean up Index updates, i.e. the aborted transaction may leave behind a false positive index entry.
                         //Removing this false positive would require modifying the Peloton internals, so we will ignore this issue since it only affects efficiency and not results.
                         // I.e. a hit to the false positive will just result in a wasted lookup.
+
+        //TODO: MUST delete even if not in index.  -- TODO: MUST ALSO DO THIS FOR NORMAL ABORT
 
     //==> Effectively it is "aborting" all suggested table writes.
 
