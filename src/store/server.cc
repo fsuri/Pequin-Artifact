@@ -63,6 +63,11 @@
 #include "store/bftsmartstore/replica.h"
 #include "store/bftsmartstore/server.h"
 // Augustus-BftSmart
+#include <gflags/gflags.h>
+
+#include <thread>
+#include <mutex>
+#include <condition_variable>
 #include "store/bftsmartstore_augustus/replica.h"
 #include "store/bftsmartstore_augustus/server.h"
 #include "store/bftsmartstore_stable/replica.h"
@@ -70,9 +75,6 @@
 
 #include "store/benchmark/async/tpcc/tpcc-proto.pb.h"
 #include "store/indicusstore/common.h"
-
-#include <gflags/gflags.h>
-#include <thread>
 
 #include "store/benchmark/async/json_table_writer.h"
 #include <nlohmann/json.hpp>
@@ -445,6 +447,9 @@ Server *server = nullptr;
 TransportReceiver *replica = nullptr;
 ::Transport *tport = nullptr;
 Partitioner *part = nullptr;
+
+std::mutex m;
+std::condition_variable cv;
 
 void Cleanup(int signal);
 
@@ -1145,6 +1150,13 @@ int main(int argc, char **argv) {
   CALLGRIND_STOP_INSTRUMENTATION;
   CALLGRIND_DUMP_STATS;
 
+  std::unique_lock lk(m);
+  bool stop = false;
+  //while(!stop){
+     cv.wait(lk, [&]{Notice("Server Woken."); return stop;});
+  //}
+ 
+  Notice("Main done");
   return 0;
 }
 
@@ -1170,5 +1182,6 @@ void Cleanup(int signal) {
     tport = nullptr;
   }
   Notice("Exiting.");
+  //cv.notify_one();
   exit(0);
 }

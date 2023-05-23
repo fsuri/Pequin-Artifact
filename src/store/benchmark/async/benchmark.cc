@@ -118,7 +118,8 @@ enum protomode_t {
   PROTO_BFTSMART,
   // Augustus-Hotstuff
   PROTO_AUGUSTUS_SMART,
-  PROTO_POSTGRES
+  PROTO_POSTGRES,
+  PROTO_CRDB
 };
 
 enum benchmode_t {
@@ -480,6 +481,7 @@ DEFINE_string(trans_protocol, trans_args[1], "transport protocol to use for"
 		" passing messages");
 DEFINE_validator(trans_protocol, &ValidateTransMode);
 
+<<<<<<< HEAD
 const std::string protocol_args[] = {
   "blackhole",
 	"txn-l",
@@ -500,7 +502,9 @@ const std::string protocol_args[] = {
   "bftsmart",
 // Augustus-BFTSmart
 	"augustus",
-  "postgres"
+  "postgres",
+// Cockroach DB
+  "crdb"};
 };
 const protomode_t protomodes[] {
   PROTO_BLACKHOLE,
@@ -523,7 +527,9 @@ const protomode_t protomodes[] {
   PROTO_BFTSMART,
   // Augustus-BFTSmart
 	PROTO_AUGUSTUS_SMART,
-  PROTO_POSTGRES
+  PROTO_POSTGRES,
+  // Cockroach Database
+  PROTO_CRDB
 };
 
 //Note: this should match the size of protomodes
@@ -544,10 +550,12 @@ const strongstore::Mode strongmodes[] {
 	strongstore::Mode::MODE_UNKNOWN,
   strongstore::Mode::MODE_UNKNOWN,
 	strongstore::Mode::MODE_UNKNOWN, 
+  strongstore::Mode::MODE_UNKNOWN,
   strongstore::Mode::MODE_UNKNOWN
 };
 static bool ValidateProtocolMode(const char* flagname,
     const std::string &value) {
+
   int n = sizeof(protocol_args);
   for (int i = 0; i < n; ++i) {
     if (value == protocol_args[i]) {
@@ -822,8 +830,12 @@ int main(int argc, char **argv) {
   for (int i = 0; i < numProtoModes; ++i) {
     if (FLAGS_protocol_mode == protocol_args[i]) {
       mode = protomodes[i];
+<<<<<<< HEAD
       if(i < (sizeof(strongmodes)/sizeof(strongmode))) 
         strongmode = strongmodes[i];
+=======
+      if(i < (sizeof(strongmodes)/sizeof(strongmode))) strongmode = strongmodes[i];
+>>>>>>> 3b3f51df (updated cond var; fixed one of the segfaults)
       break;
     }
   }
@@ -1203,8 +1215,13 @@ int main(int argc, char **argv) {
 
   uint64_t replica_total = FLAGS_num_shards * config->n;
   uint64_t client_total = FLAGS_num_client_hosts * FLAGS_num_client_threads;
+<<<<<<< HEAD
   KeyManager* keyManager = new KeyManager(FLAGS_indicus_key_path, keyType, true, replica_total, client_total, FLAGS_num_client_hosts);
   keyManager->PreLoadPubKeys(false);
+=======
+  KeyManager *keyManager = new KeyManager(FLAGS_indicus_key_path, keyType, true, replica_total, client_total, FLAGS_num_client_hosts);
+  //keyManager->PreLoadPubKeys(false);
+>>>>>>> 3b3f51df (updated cond var; fixed one of the segfaults)
 
   if (closestReplicas.size() > 0 && closestReplicas.size() != static_cast<size_t>(config->n)) {
     std::cerr << "If specifying closest replicas, must specify all "
