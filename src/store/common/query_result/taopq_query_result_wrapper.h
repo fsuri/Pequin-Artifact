@@ -27,6 +27,7 @@
 
 #include <string>
 #include <memory>
+#include "lib/message.h"
 #include <tao/pq.hpp>
 #include "store/common/query_result/query_result.h"
 #include "store/common/query_result/query_result_row.h"
@@ -36,18 +37,18 @@ namespace taopq_wrapper {
 
 class TaoPQQueryResultWrapper : public query_result::QueryResult {
   private:
-    tao::pq::result* result;
+     std::unique_ptr<tao::pq::result> result;
 
 	public:
-    TaoPQQueryResultWrapper(tao::pq::result* taopq_result): result(taopq_result) {
-    }
+    TaoPQQueryResultWrapper(std::unique_ptr<tao::pq::result> taopq_result)
+        : result(std::move(taopq_result)) {}
 
   // Delete copy constructor and assignment operator to enforce ownership of taopq_result
     TaoPQQueryResultWrapper(const TaoPQQueryResultWrapper&) = delete;
     TaoPQQueryResultWrapper& operator=(const TaoPQQueryResultWrapper&) = delete;
 
     ~TaoPQQueryResultWrapper() {
-      delete result;
+      //delete result;
     }
 
 		auto name( const std::size_t column ) const -> std::string;
@@ -58,7 +59,7 @@ class TaoPQQueryResultWrapper : public query_result::QueryResult {
     auto num_columns() const -> std::size_t;
 
     auto is_null( const std::size_t row, const std::size_t column ) const -> bool;
-		auto get( const std::size_t row, const std::size_t column ) const -> const char*;
+		auto get( const std::size_t row, const std::size_t column, std::size_t* size) const -> const char*;
 		
 		// access rows
     auto operator[]( const std::size_t row ) const -> std::unique_ptr<query_result::Row>;
@@ -67,6 +68,8 @@ class TaoPQQueryResultWrapper : public query_result::QueryResult {
 		// update/insert result
 		auto has_rows_affected() const noexcept -> bool;
 		auto rows_affected() const -> std::size_t;
+
+    inline void set_rows_affected(const uint32_t _n_rows_affected) { Panic("Warning: taopq does not support setting rows affected"); };
 };
 
 }
