@@ -116,6 +116,22 @@ class LogicalTile : public Printable {
   // Materialize and return a physical tile.
   std::unique_ptr<storage::Tile> Materialize();
 
+  void AddToPreparedTuples(oid_t tuple_id) {
+    prepared_tuples_.push_back(tuple_id);
+  }
+
+  std::vector<oid_t> GetPreparedTuples() {
+    return prepared_tuples_;
+  }
+
+  void SetCommitProofs(pequinstore::proto::CommittedProof* proof) {
+    commit_proofs_ = proof;
+  }
+
+  pequinstore::proto::CommittedProof* GetCommitProofs() {
+    return commit_proofs_;
+  }
+
   /*void AddToReadSet(std::tuple<std::string, Timestamp> tuple) {
     read_set.push_back(tuple);
   }
@@ -375,6 +391,16 @@ class LogicalTile : public Printable {
    * Each list contains positions corresponding to particular tiles/columns.
    */
   PositionLists position_lists_;
+
+  /** 
+   * @brief List of prepared tuples
+  */
+  std::vector<oid_t> prepared_tuples_;
+
+  /**
+   * @brief List of commit proofs
+  */
+  pequinstore::proto::CommittedProof* commit_proofs_;
 
   /**
    * @brief Bit-vector storing visibility of each row in the position lists.

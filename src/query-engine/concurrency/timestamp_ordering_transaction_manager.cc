@@ -272,6 +272,14 @@ bool TimestampOrderingTransactionManager::PerformRead(TransactionContext *const 
 
     oid_t tuple_id = location.offset;
 
+    auto predicate = current_txn->GetPredicate();
+
+    if (predicate) {
+      if (!predicate(*(current_txn->GetTxnDig()))) {
+        return false;
+      }
+    }
+
     LOG_TRACE("PerformRead (%u, %u)\n", location.block, location.offset);
     // Check if it's select for update before we check the ownership
     // and modify the last reader cid.

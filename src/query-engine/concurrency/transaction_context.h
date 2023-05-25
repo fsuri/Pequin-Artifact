@@ -26,6 +26,7 @@
 #include "../../store/common/timestamp.h"
 #include "../../store/pequinstore/common.h"
 #include "store/pequinstore/pequin-proto.pb.h"
+#include "../../store/pequinstore/table_store_interface.h"
 
 namespace peloton {
 
@@ -293,6 +294,22 @@ class TransactionContext : public Printable {
     query_read_set_mgr_ = query_read_set_mgr;
   }
 
+  pequinstore::read_prepared_pred GetPredicate() {
+    return predicate_;
+  }
+
+  void SetPredicate(pequinstore::read_prepared_pred &predicate) {
+    predicate_ = predicate;
+  }
+
+  pequinstore::find_table_version GetTableVersion() {
+    return table_version_;
+  }
+
+  void SetTableVersion(pequinstore::find_table_version &table_version) {
+    table_version_ = table_version;
+  }
+
 	std::shared_ptr<std::string> GetTxnDig() {
 		return txn_dig_;
 	}
@@ -316,6 +333,14 @@ class TransactionContext : public Printable {
 	void SetCommitOrPrepare(bool commit_or_prepare) {
 		commit_or_prepare_ = commit_or_prepare;
 	}
+
+  bool CanReadPrepared() {
+    return can_read_prepared_;
+  }
+
+  void SetCanReadPrepared(bool can_read_prepared) {
+    can_read_prepared_ = can_read_prepared;
+  }
 
   /**
    * @brief      Gets the isolation level.
@@ -383,6 +408,15 @@ class TransactionContext : public Printable {
 	/** Commit or prepare */
 	bool commit_or_prepare_;
 
+  /** Read prepared predicate */
+  pequinstore::read_prepared_pred predicate_;
+
+  /** Find table version predicate */
+  pequinstore::find_table_version table_version_;
+
+  /** Can read prepared */
+  bool can_read_prepared_;
+  
   ReadWriteSet rw_set_;
   CreateDropSet rw_object_set_;
 

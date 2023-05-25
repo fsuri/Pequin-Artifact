@@ -84,7 +84,7 @@ peloton::ResultType ExecuteSQLQuery(const std::string query, peloton::tcop::Traf
   // SetTrafficCopCounter();
   counter_.store(1);
   auto status = traffic_cop.ExecuteStatement(statement, param_values, unnamed,
-                                              result_format, result, basil_timestamp, query_read_set_mgr);
+                                              result_format, result);
   if (traffic_cop.GetQueuing()) {
     ContinueAfterComplete(counter_);
     traffic_cop.ExecuteStatementPlanGetResult();
@@ -240,6 +240,8 @@ int main(int argc, char *argv[]) {
   table_writer.flush();
 
 	pequinstore::TableStore table_store;
+  pequinstore::proto::Write write;
+  pequinstore::proto::CommittedProof committed_proof;
   std::string table_registry = file_name + "-tables-schema.json";
   table_store.RegisterTableSchema(table_registry);
 	table_store.ExecRaw("CREATE TABLE test(a INT, b INT, PRIMARY KEY(a));");
@@ -248,9 +250,10 @@ int main(int argc, char *argv[]) {
 	//table_store.ExecRaw("INSERT INTO test VALUES (190, 999);");
   table_store.ApplyTableWrite("test", table_write, toy_ts_c, "random", real_proof, true);
   //table_store.ApplyTableWrite("test", table_write_1, toy_ts_c, "random", real_proof, true);
+  std::string enc_primary_key = "test//24";
+  table_store.ExecPointRead("SELECT * FROM test WHERE a=24;", enc_primary_key, toy_ts_c, &write, &committed_proof);
 
-	std::cout << "Actually compiled with new changes" << std::endl;
-	table_store.ExecReadQuery("SELECT * FROM test;", pesto_timestamp, query_read_set_mgr_one);
+	//table_store.ExecReadQuery("SELECT * FROM test;", pesto_timestamp, query_read_set_mgr_one);
 
   return 0;
 }

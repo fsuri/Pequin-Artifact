@@ -156,6 +156,7 @@ bool IndexScanExecutor::DExecute() {
 
 bool IndexScanExecutor::ExecPrimaryIndexLookup() {
   PELOTON_ASSERT(!done_);
+  std::cout << "Inside index scan executor" << std::endl;
 
   std::vector<ItemPointer *> tuple_location_ptrs;
 
@@ -208,6 +209,10 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
   auto current_txn = executor_context_->GetTransaction();
   auto storage_manager = storage::StorageManager::GetInstance();
   std::vector<ItemPointer> visible_tuple_locations;
+  // NEW: prepared_visible_tuple_locations;
+  std::vector<ItemPointer> prepared_visible_tuple_locations;
+  // NEW: Commit proofs
+  std::vector<pequinstore::proto::CommittedProof*> proofs;
 
 #ifdef LOG_TRACE_ENABLED
   int num_tuples_examined = 0;
@@ -219,6 +224,8 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
     auto tile_group = storage_manager->GetTileGroup(tuple_location.block);
     auto tile_group_header = tile_group.get()->GetHeader();
     size_t chain_length = 0;
+    bool found_committed = false;
+    bool found_prepared = false;
 
 #ifdef LOG_TRACE_ENABLED
     num_tuples_examined++;
@@ -265,11 +272,41 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
                                                      ResultType::FAILURE);
             return res;
           }
+
+          // The tuple is committed
+          if (tile_group_header->GetCommitOrPrepare(tuple_location.offset)) {
+            // Get the commit proof
+            auto commit_proof = tile_group_header->GetCommittedProof(
+                tuple_location.offset);
+            // Add the commit proof to the vector
+            proofs.push_back(commit_proof);
+            // Add the tuple to the visible tuple vector
+            visible_tuple_locations.push_back(tuple_location);
+            // Set boolean flag found_committed to true
+            found_committed = true;
+            // Since tuple is committed we can stop looking at the version chain
+            break;
+          }
+
           // if perform read is successful, then add to visible tuple vector.
-          visible_tuple_locations.push_back(tuple_location);
+          //visible_tuple_locations.push_back(tuple_location);
         }
 
-        break;
+        // NEW: if we can read prepared values, check to see if prepared tuple satisfies predicate
+        if (!found_committed && !found_prepared && current_txn->CanReadPrepared() && !tile_group_header->GetCommitOrPrepare(tuple_location.offset)) {
+          // NEW: check to see if tuple satisfies predicate
+          auto predicate = current_txn->GetPredicate();
+
+          if (predicate) {
+            if (predicate(*(current_txn->GetTxnDig()))) {
+              // NEW: if predicate satisfied then add to prepared visible tuple vector
+              visible_tuple_locations.push_back(tuple_location);
+              found_prepared = true;
+            }
+          }
+        }
+
+        //break;
       }
       // if the tuple is not visible.
       else {
@@ -359,6 +396,9 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
       // Add relevant columns to logical tile
       logical_tile->AddColumns(tile_group, full_column_ids_);
       logical_tile->AddPositionList(std::move(tuples));
+      // Add prepared values and commit proofs to logical tile
+      //logical_tile->AddPreparedValues(prepared_values[0]);
+      logical_tile->SetCommitProofs(proofs[0]);
       if (column_ids_.size() != 0) {
         logical_tile->ProjectColumns(full_column_ids_, column_ids_);
       }
@@ -378,6 +418,9 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
     // Add relevant columns to logical tile
     logical_tile->AddColumns(tile_group, full_column_ids_);
     logical_tile->AddPositionList(std::move(tuples));
+    // Add prepared values and commit proofs to logical tile
+    //logical_tile->AddPreparedValues(prepared_values[0]);
+    logical_tile->SetCommitProofs(proofs[0]);
     if (column_ids_.size() != 0) {
       logical_tile->ProjectColumns(full_column_ids_, column_ids_);
     }

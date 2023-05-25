@@ -17,6 +17,7 @@
 #include "../executor/logical_tile.h"
 #include "../../store/common/timestamp.h"
 #include "../../store/pequinstore/common.h"
+//#include "../../store/pequinstore/pequin-proto.proto"
 
 namespace peloton {
 
@@ -42,11 +43,8 @@ struct ExecutionResult {
   // string of error message
   std::string m_error_message;
 
-  // read set (for scans)
-  std::vector<std::tuple<std::string, Timestamp>> read_set;
-
-  // read set manager
-  pequinstore::QueryReadSetMgr* query_read_set_mgr;
+  // Commit proof for point reads
+  pequinstore::proto::CommittedProof* m_commit_proof;
 
   ExecutionResult() {
     m_processed = 0;

@@ -16,8 +16,8 @@ LIB-pequin-store := $(o)sql_interpreter.o $(o)server.o $(o)servertools.o $(o)que
 	$(LIB-configuration) $(LIB-store-common) $(LIB-transport) $(o)phase1validator.o \
 	$(o)localbatchsigner.o $(o)sharedbatchsigner.o $(o)basicverifier.o \
 	$(o)localbatchverifier.o $(o)sharedbatchverifier.o $(LIB-binder) $(LIB-catalog) $(LIB-common) $(LIB-concurrency) $(LIB-executor) $(LIB-expression) $(LIB-function) \
-$(LIB-gc) $(LIB-index) $(LIB-murmur) $(LIB-optimizer) $(LIB-parser) $(LIB-planner) $(LIB-settings) $(LIB-storage) $(LIB-threadpool) $(LIB-traffic-cop) \
-$(LIB-type) $(LIB-trigger) $(LIB-util) $(o)table_store_interface.o
+	$(LIB-gc) $(LIB-index) $(LIB-murmur) $(LIB-optimizer) $(LIB-parser) $(LIB-planner) $(LIB-settings) $(LIB-storage) $(LIB-threadpool) $(LIB-traffic-cop) \
+	$(LIB-type) $(LIB-trigger) $(LIB-util) $(o)table_store_interface.o
 
 LIB-pequin-client := $(LIB-udptransport) \
 	$(LIB-store-frontend) $(LIB-store-common) $(o)pequin-proto.o $(o)query-proto.o\
@@ -27,6 +27,8 @@ LIB-pequin-client := $(LIB-udptransport) \
 
 
 LIB-proto := $(o)pequin-proto.o $(o)query-proto.o
+
+# $(o)../../query-engine/traffic_cop/traffic_cop.o
 #-I/home/floriansuri/Research/Projects/Pequin/Pequin-Artifact/src/store/common
 
 #$(d)proto_bench: $(LIB-latency) $(LIB-crypto) $(LIB-batched-sigs) $(LIB-store-common) $(LIB-proto) $(o)proto_bench.o
