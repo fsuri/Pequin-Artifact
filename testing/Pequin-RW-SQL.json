@@ -10,15 +10,15 @@
   ],
   "replication_protocol": ["crdb"],
   "client_protocol_mode": ["crdb"],
-  "num_shards": [3],
-  "num_groups": [3],
+  "num_shards": [2],
+  "num_groups": [2],
 
-  "client_num_keys": 10,
+  "client_num_keys": 1000,
   "_client_num_keys": 10000000,
   "server_load_time": 15,
   
-  "_benchmark_type": "sql_bench",
-  "_benchmark_data_file_path": "/users/fs435/indicus/bin/test-tables-schema.json",
+  "benchmark_type": "sql_bench",
+  "benchmark_data_file_path": "/users/fs435/indicus/bin/test-tables-schema.json",
 
   "benchmark_name": "rw",
   "client_zipf_coefficient": 0.75,   
@@ -51,7 +51,7 @@
   "codebase_name": "indicus",
 
  "client_total": [
-    [24]
+    [72]
   ],
   "client_processes_per_client_node": [
     [8]
@@ -80,8 +80,15 @@
     ["us-east-1-0", "us-east-1-1", "us-east-1-2"]
 	
   ],
-
+  
   "server_names": [
+   
+    ["us-east-1-0", "us-east-1-1", "us-east-1-2", 
+     "eu-west-1-0", "eu-west-1-1", "eu-west-1-2"]
+	
+  ],
+
+  "_server_names": [
    
     ["us-east-1-0", "us-east-1-1", "us-east-1-2", 
      "eu-west-1-0", "eu-west-1-1", "eu-west-1-2", 
