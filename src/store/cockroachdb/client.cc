@@ -49,12 +49,12 @@ Client::Client(const transport::Configuration &config, uint64_t id, int nShards,
       ngroups(nGroups),
       transport(transport),
       timeServer(timeServer) {
-  try {
+  
     // TODO add encryption layer
     std::vector<transport::ReplicaAddress> gateways;
     // Last shard group serves as gateways. Can tolerate f failure
     // A gate way serves as a shard master
-    for (int i = 0; i < nShards; i++) {
+    for (int i = 0; i < nGroups; i++) {
       gateways.push_back(config.replica(nGroups - 1, i));
     }
     // Takes the last server as gateway
@@ -62,9 +62,14 @@ Client::Client(const transport::Configuration &config, uint64_t id, int nShards,
 
     char host_name[HOST_NAME_MAX];
     int result;
-    result = gethostname(host_name, HOST_NAME_MAX);
-    if (result) {
-      Panic("Unable to get host name for CRDB");
+
+    try {
+      result = gethostname(host_name, HOST_NAME_MAX);
+      if (result == -1) {
+        Panic("Unable to get host name for CRDB");
+      }
+    } catch (const std::exception &e) {
+      Panic("Failed Hostname Discovery: %s", e.what());
     }
     //cout << result << endl;
    
@@ -77,22 +82,53 @@ Client::Client(const transport::Configuration &config, uint64_t id, int nShards,
 
     Notice("Connecting to gateway %s", url.c_str());
     // Establish connection
-    conn = tao::pq::connection::create(url);
+
+
+    try{
+      conn = tao::pq::connection::create(url);
+    } catch (const std::exception &e) {
+      Panic("Failed TaoConnect: %s", e.what()); 
+    }
+
+    int con_tries = 1;
+    // bool connected = false;
+    // while(!connected){ //Keep connecting
+    //   if(con_tries == 20) Panic("stop trying to connect");
+    //   try{
+    //     conn = tao::pq::connection::create(url);
+    //     connected = true;
+    //   } catch (const std::exception &e) {
+    //     con_tries++;
+    //     Notice("Failed TaoConnect");
+    //     //Panic("Failed TaoConnect: %s", e.what());
+    //   }
+    // }
+   
+    Notice("Connected successfully after %d tries", con_tries);
+
+    if(conn->is_open()){
+      Notice("Established TaoPQ connection to backend");
+    }
+    else{
+      Panic("TaoPQ connection to backend could not be established");
+    } 
 
     // Prepare put function. Use PostgreSQL's upsert feature (i.e. if exists
     // update else insert)
-    conn->prepare("put",
+    try{
+       conn->prepare("put",
                   "INSERT INTO datastore(key_, val_) VALUES(\'$1\', \'$2\') ON "
                   "CONFLICT (key_) "
                   "DO UPDATE SET val_ = \'$2\';");
 
-    // Prepare get function. Use point query
-    conn->prepare("get", "SELECT val_ FROM datastore WHERE key_ = \'$1\'");
-    // cout << "Initialization confirmed" << endl;
+      // Prepare get function. Use point query
+      conn->prepare("get", "SELECT val_ FROM datastore WHERE key_ = \'$1\'");
+    } catch (const std::exception &e) {
+      Panic("Failed to prepare Put/Get statements: %s", e.what());
+    }
 
-  } catch (const std::exception &e) {
-    ////std::cerr << e.what() << '\n';
-  }
+    Notice("Client successfully started");
+ 
 }
 
 Client::~Client() {}

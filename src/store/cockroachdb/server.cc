@@ -23,7 +23,7 @@ void Server::exec_sql(std::string sql) {
   std::string crdb_command = "cockroach sql --insecure --host=" + host +
                              std::string() + ":" + port + " --execute=\"" +
                              sql + "\"";
-  Notice("Issuing SQL command %s", crdb_command.c_str());
+  //Notice("Issuing SQL command %s", crdb_command.c_str());
   int status = system(crdb_command.c_str());
   stats.Increment("sql_commands_executed", 1);
 }
@@ -166,6 +166,8 @@ void Server::CreateTable(
     const std::string &table_name,
     const std::vector<std::pair<std::string, std::string>> &column_data_types,
     const std::vector<uint32_t> primary_key_col_idx) {
+
+   
   std::string sql_statement("CREATE TABLE IF NOT EXISTS");
   sql_statement += " " + table_name;
   UW_ASSERT(!column_data_types.empty());
@@ -201,6 +203,8 @@ void Server::LoadTableData(
     table_column_name += "" + col + ",";
   }
   table_column_name.pop_back();
+
+  Notice("Loading table from path: %s", table_data_path.c_str());
 
   std::string copy_table_statement_crdb = fmt::format(
       "IMPORT INTO {0} ({1}) CSV DATA "
