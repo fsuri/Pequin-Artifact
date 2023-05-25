@@ -20,8 +20,8 @@ class TableStore {
         TableStore();
         virtual ~TableStore();
 
-        void SetFindTableVersion(find_table_version find_table_version);
-        void SetPreparePredicate(read_prepared_pred read_prepared_pred); 
+        void SetFindTableVersion(find_table_version &&find_table_version);
+        void SetPreparePredicate(read_prepared_pred &&read_prepared_pred); 
 
         void RegisterTableSchema(std::string &table_registry_path);
             std::vector<bool>* GetRegistryColQuotes(const std::string &table_name);

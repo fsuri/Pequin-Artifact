@@ -14,10 +14,10 @@ TableStore::~TableStore(){
 
 }
 
-void TableStore::SetFindTableVersion(find_table_version find_table_version){
+void TableStore::SetFindTableVersion(find_table_version &&find_table_version){
     record_table_version = std::move(find_table_version);
 }
-void TableStore::SetPreparePredicate(read_prepared_pred read_prepared_pred){
+void TableStore::SetPreparePredicate(read_prepared_pred &&read_prepared_pred){
     can_read_prepared = std::move(read_prepared_pred);
 } 
 
