@@ -2435,16 +2435,16 @@ void Server::ProcessProposalFB(proto::Phase1FB &msg, const TransportAddress &rem
   }
   else{
     auto try_exec(std::bind(&Server::TryExec, this, std::ref(msg), std::ref(remote), txnDigest, txn));
-        auto f = [this, msg_ptr = &msg, txn, txnDigest, try_exec]() mutable {
-            if(!CheckProposalValidity(*msg_ptr, txn, txnDigest, true)){
-            RemoveOngoing(txnDigest);
-              return (void*) false;
-            } 
-            
-            transport->DispatchTP_main(try_exec);
-            return (void*) true;
-        };
-        transport->DispatchTP_noCB(std::move(f));
+    auto f = [this, &msg, txn, txnDigest, try_exec]() mutable {
+        if(!CheckProposalValidity(msg, txn, txnDigest, true)){
+        RemoveOngoing(txnDigest);
+          return (void*) false;
+        } 
+        
+        transport->DispatchTP_main(try_exec);
+        return (void*) true;
+    };
+    transport->DispatchTP_noCB(std::move(f));
   }
 }
 
