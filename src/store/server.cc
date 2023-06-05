@@ -55,6 +55,9 @@
 // HotStuff
 #include "store/hotstuffstore/replica.h"
 #include "store/hotstuffstore/server.h"
+// HotStuffPG
+#include "store/hotstuffpgstore/replica.h"
+#include "store/hotstuffpgstore/server.h"
 // Augustus
 #include "store/augustusstore/replica.h"
 #include "store/augustusstore/server.h"
@@ -86,6 +89,8 @@ enum protocol_t {
 	PROTO_PBFT,
     // HotStuff
     PROTO_HOTSTUFF,
+    // HotStuffPG
+    PROTO_HOTSTUFF_PG,
     // Augustus-Hotstuff
     PROTO_AUGUSTUS,
     // BftSmart
@@ -133,6 +138,7 @@ const std::string protocol_args[] = {
   "indicus",
 	"pbft",
     "hotstuff",
+    "hotstuffpg",
     "augustus-hs", //not used currently by experiment scripts (deprecated)
   "bftsmart",
 	"augustus" //currently used as augustus version -- maps to BFTSmart Augustus implementation
@@ -145,6 +151,7 @@ const protocol_t protos[] {
   PROTO_INDICUS,
       PROTO_PBFT,
       PROTO_HOTSTUFF,
+      PROTO_HOTSTUFF_PG,
       PROTO_AUGUSTUS,
       PROTO_BFTSMART,
 			PROTO_AUGUSTUS_SMART
@@ -486,7 +493,7 @@ int main(int argc, char **argv) {
   }
 
   int threadpool_mode = 0; //default for Basil.
-  if(proto == PROTO_HOTSTUFF || proto == PROTO_AUGUSTUS) threadpool_mode = 1;
+  if(proto == PROTO_HOTSTUFF || proto == PROTO_HOTSTUFF_PG || proto == PROTO_AUGUSTUS) threadpool_mode = 1;
   if(proto == PROTO_BFTSMART || proto == PROTO_AUGUSTUS_SMART) threadpool_mode = 2;
 
   switch (trans) {
@@ -618,6 +625,7 @@ int main(int argc, char **argv) {
       case PROTO_PBFT:
         break;
       case PROTO_HOTSTUFF:
+      case PROTO_HOTSTUFF_PG:
       case PROTO_BFTSMART:
       case PROTO_AUGUSTUS_SMART:
       case PROTO_AUGUSTUS:
@@ -783,6 +791,27 @@ int main(int argc, char **argv) {
                                        FLAGS_pbft_esig_batch, FLAGS_pbft_esig_batch_timeout,
                                        FLAGS_indicus_use_coordinator, FLAGS_indicus_request_tx,
 																			 protocol_cpu, FLAGS_num_shards, tport);
+
+      break;
+  }
+
+     // HotStuffPG
+  case PROTO_HOTSTUFF_PG: {
+
+      server = new hotstuffpgstore::Server(config, &keyManager,
+                                     FLAGS_group_idx, FLAGS_replica_idx, FLAGS_num_shards, FLAGS_num_groups,
+                                     FLAGS_indicus_sign_messages, FLAGS_indicus_validate_proofs,
+                                     FLAGS_indicus_watermark_time_delta, part, tport,
+                                                                                                                                           FLAGS_pbft_order_commit, FLAGS_pbft_validate_abort);
+
+      replica = new hotstuffpgstore::Replica(config, &keyManager,
+                                       dynamic_cast<hotstuffpgstore::App *>(server),
+                                       FLAGS_group_idx, FLAGS_replica_idx, FLAGS_indicus_sign_messages,
+                                       FLAGS_indicus_sig_batch, FLAGS_indicus_sig_batch_timeout,
+                                       FLAGS_pbft_esig_batch, FLAGS_pbft_esig_batch_timeout,
+                                       FLAGS_indicus_use_coordinator, FLAGS_indicus_request_tx,
+
+             protocol_cpu, FLAGS_num_shards, tport);
 
       break;
   }
@@ -964,7 +993,7 @@ int main(int argc, char **argv) {
   CALLGRIND_START_INSTRUMENTATION;
 	//SET THREAD AFFINITY if running multi_threading:
 	//if(FLAGS_indicus_multi_threading){
-	if((proto == PROTO_INDICUS || proto == PROTO_PBFT || proto == PROTO_HOTSTUFF || proto == PROTO_AUGUSTUS || proto == PROTO_BFTSMART || proto == PROTO_AUGUSTUS_SMART) && FLAGS_indicus_multi_threading){
+	if((proto == PROTO_INDICUS || proto == PROTO_PBFT || proto == PROTO_HOTSTUFF || proto == PROTO_HOTSTUFF_PG || proto == PROTO_AUGUSTUS || proto == PROTO_BFTSMART || proto == PROTO_AUGUSTUS_SMART) && FLAGS_indicus_multi_threading){
 		cpu_set_t cpuset;
 		CPU_ZERO(&cpuset);
 		//bool hyperthreading = true;

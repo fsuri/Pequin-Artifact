@@ -10,7 +10,7 @@ EXPAND = lib/tmpl/expand
 include Sanitizer.mk
 #CFLAGS := -g -Wall -pthread -iquote.obj/gen -Wno-uninitialized -O2 -DNUW_ASSERT
 CFLAGS :=  -g -no-pie -Wall -pthread -iquote.obj/gen -Wno-uninitialized -O2 #-O3#-O1#-O2 
-CXXFLAGS := -g -no-pie -std=c++20 $(SANITIZE_FLAG) #-fsanitize=address -fno-omit-frame-pointer -fno-optimize-sibling-calls #-fsanitize=thread
+CXXFLAGS := -g -no-pie -std=c++2a $(SANITIZE_FLAG) #-fsanitize=address -fno-omit-frame-pointer -fno-optimize-sibling-calls #-fsanitize=thread
 # -luv for HotStuff
 LDFLAGS := -levent_pthreads -lrt -luv $(SANITIZE_FLAG) #-fsanitize=address -fno-omit-frame-pointer -fno-optimize-sibling-calls #-fsanitize=thread #
 
@@ -182,6 +182,7 @@ include store/pequinstore/Rules.mk
 include store/indicusstore/Rules.mk
 include store/pbftstore/Rules.mk
 include store/hotstuffstore/Rules.mk
+include store/hotstuffpgstore/Rules.mk
 include store/augustusstore/Rules.mk
 include store/bftsmartstore/Rules.mk
 include store/bftsmartstore_augustus/Rules.mk
@@ -365,7 +366,7 @@ compression:
 #	cd ./store/bftsmartstore_stable/libhotstuff/; ./build.sh
 #	@echo '====== Finish Building BftSmart_stable ======'
 
-.PHONY: hotstuff
+.PHONY: hotstuff hotstuffpg
 hotstuff: 
 	@echo '====== Start Building HotStuff ======'
 	cd ./store/hotstuffstore/libhotstuff/; ./build.sh
@@ -385,7 +386,7 @@ indicus: $(BINS) #$(TEST_BINS)
 
 .PHONY: all
 #all: bftsmart bftsmart2 hotstuff augustus_smart stable
-all: hotstuff bftsmart compression
+all: hotstuff hotstuffpg bftsmart compression
 	@echo '====== Start Building Indicus ======'
 	$(MAKE) indicus 
 	@echo '====== Finish Building Indicus ======'
