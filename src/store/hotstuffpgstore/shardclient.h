@@ -142,8 +142,8 @@ class ShardClient : public TransportReceiver {
     std::unordered_map<std::string, std::unordered_set<uint64_t>> receivedReplies;
     std::unordered_set<uint64_t> receivedFails;
     // the max read timestamp for a valid reply
-    Timestamp maxTs;
-    std::string maxValue;
+    // Timestamp maxTs;
+    // std::string maxValue;
     proto::CommitProof maxCommitProof;
 
     // the current status of the reply (default to fail)
@@ -151,6 +151,7 @@ class ShardClient : public TransportReceiver {
 
     inquiry_callback icb;
     // uint64_t numResultsRequired;
+    uint64_t numReceivedReplies;
 
     Timeout* timeout;
   };
@@ -196,6 +197,10 @@ class ShardClient : public TransportReceiver {
   };
 
   void HandleWritebackReply(const proto::GroupedDecisionAck& groupedDecisionAck, const proto::SignedMessage& signedMsg);
+
+  void HandleInquiryReply(const proto::InquiryReply& reply, const proto::SignedMessage& signedMsg);
+  void InquiryReplyHelper(PendingInquiry* pendingInquiry, const proto::InquiryReply& inquiryReply, 
+    uint64_t reqId, uint64_t status);
 
   // req id to (read)
   std::unordered_map<uint64_t, PendingRead> pendingReads;

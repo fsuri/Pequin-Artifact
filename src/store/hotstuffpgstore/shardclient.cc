@@ -155,6 +155,7 @@ void ShardClient::ReceiveMessage(const TransportAddress &remote,
   }
 
   proto::ReadReply readReply;
+  proto::InquiryReply inquiryReply;
   proto::GroupedDecisionAck groupedDecisionAck;
   if (type == readReply.GetTypeName()) {
     readReply.ParseFromString(data);
@@ -180,6 +181,14 @@ void ShardClient::ReceiveMessage(const TransportAddress &remote,
     }
 
     HandleWritebackReply(groupedDecisionAck, signedMessage);
+  } else if (type == inquiryReply.GetTypeName()) {
+    inquiryReply.ParseFromString(data);
+
+    if(signMessages && !recvSignedMessage) {
+      return;
+    }
+
+    HandleInquiryReply(inquiryReply, signedMessage);
   }
 }
 
@@ -454,6 +463,87 @@ void ShardClient::HandleWritebackReply(const proto::GroupedDecisionAck& groupedD
     }
   }
 }
+
+void ShardClient::HandleInquiryReply(const proto::InquiryReply& inquiryReply, const proto::SignedMessage& signedMsg) {
+  Debug("Handling an inquiry reply");
+
+  uint64_t reqId = inquiryReply.req_id();
+  Debug("Inquiry req id: %lu", reqId);
+
+  if(pendingInquiries.find(reqId) != pendingInquiries.end()) {
+    PendingInquiry* pendingInquiry = &pendingInquiries[reqId];
+
+    pendingInquiry->numReceivedReplies++;
+    if(signMessages) {
+      uint64_t replica_id = signedMsg.replica_id();
+      if (replica_id / config.n != (uint64_t) group_idx) {
+        Debug("Inquiry Reply: replica not in group");
+        return;
+      }
+      if(inquiryReply.status() == REPLY_OK) {
+        pendingInquiry->receivedReplies[inquiryReply.sql_res()].insert(replica_id);
+        // Timestamp its(inquiryReply.value_timestamp());
+        if(pendingInquiry->status == REPLY_FAIL) {
+          Debug("Updating inquiry reply");
+          // pendingInquiry->maxTs = its;
+          pendingInquiry->status = REPLY_OK;
+        }
+      } else {
+        pendingInquiry->receivedFails.insert(replica_id);
+      }
+
+    } else {
+      if(inquiryReply.status() == REPLY_OK) {
+        pendingInquiry->receivedReplies[inquiryReply.sql_res()].insert(pendingInquiry->numReceivedReplies);
+        // Timestamp its(inquiryReply.value_timestamp());
+        if(pendingInquiry->status == REPLY_FAIL) {
+          Debug("Updating inquiry reply");
+          // pendingInquiry->maxTs = its;
+          pendingInquiry->status = REPLY_OK;
+        }
+      
+      } else {
+        pendingInquiry->receivedFails.insert(pendingInquiry->numReceivedReplies);
+      }
+    }
+
+
+    if(pendingInquiry->receivedReplies[inquiryReply.sql_res()].size() 
+        >= (uint64_t) config.f + 1) {
+      InquiryReplyHelper(pendingInquiry, inquiryReply, reqId, pendingInquiry->status);
+      // if(pendingInquiry->timeout != nullptr) {
+      //   pendingInquiry->timeout->Stop();
+      // }
+      // inquiry_callback icb = pendingInqury->icb;
+      // std::string value = inquiryReply.sql_res();
+      // uint64_t status = pendingInquiry->status;
+      // pendingInquiries.erase(reqId);
+      // icb(status, value);
+    } else if(pendingInquiry->receivedReplies.size() + pendingInquiry->receivedFails.size() 
+        >= (uint64_t) config.f + 1) {
+      InquiryReplyHelper(pendingInquiry, inquiryReply, reqId, REPLY_FAIL);
+      // if(pendingInquiry->timeout != nullptr) {
+      //   pendingInquiry->timeout->Stop();
+      // }
+      // inquiry_callback icb = pendingInqury->icb;
+      // std::string value = inquiryReply.sql_res();
+      // pendingInquiries.erase(reqId);
+      // icb(REPLY_FAIL, value);
+    }
+  }
+}
+
+void ShardClient::InquiryReplyHelper(PendingInquiry* pendingInquiry, const proto::InquiryReply& inquiryReply, 
+    uint64_t reqId, uint64_t status) {
+  if(pendingInquiry->timeout != nullptr) {
+    pendingInquiry->timeout->Stop();
+  }
+  inquiry_callback icb = pendingInquiry->icb;
+  std::string value = inquiryReply.sql_res();
+  pendingInquiries.erase(reqId);
+  icb(status, value);
+}
+
 
 // ================================
 // ==== SHARD CLIENT INTERFACE ====
@@ -808,7 +898,8 @@ void ShardClient::Query(const std::string &query,  const Timestamp &ts, uint64_t
       PendingInquiry pi;
       pi.icb = icb;
       pi.status = REPLY_FAIL;
-      pi.maxTs = Timestamp();
+      pi.numReceivedReplies = 0;
+      // pi.maxTs = Timestamp();
       pi.timeout = new Timeout(transport, timeout, [this, reqId, itcb]() {
         Debug("Query timeout called (but nothing was done)");
           stats->Increment("q_tout", 1);
