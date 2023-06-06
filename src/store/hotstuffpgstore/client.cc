@@ -202,7 +202,7 @@ void Client::Query(const std::string &query, query_callback qcb, query_timeout_c
     };
     inquiry_timeout_callback itcb = qtcb;
 
-    // bclient[0]->Query(query, currentTxn.timestamp(), client_id, client_seq_num, icb, itcb, timeout);
+    bclient[0]->Query(query, currentTxn.timestamp(), client_id, client_seq_num, icb, itcb, timeout);
   });
 }
 

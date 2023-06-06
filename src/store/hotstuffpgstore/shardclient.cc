@@ -40,6 +40,7 @@ ShardClient::ShardClient(const transport::Configuration& config, Transport *tran
     keyManager(keyManager), stats(stats), order_commit(order_commit), validate_abort(validate_abort) {
   transport->Register(this, config, -1, -1);
   readReq = 0;
+  inquiryReq = 0;
 
   if (closestReplicas_.size() == 0) {
     for  (int i = 0; i < config.n; ++i) {
@@ -788,6 +789,35 @@ void ShardClient::Abort(std::string& txn_digest, const proto::ShardSignedDecisio
   } else {
     Debug("abort called on already aborted tx");
   }
+}
+
+void ShardClient::Query(const std::string &query,  const Timestamp &ts, uint64_t client_id, int client_seq_num, 
+      inquiry_callback icb, inquiry_timeout_callback itcb,  uint32_t timeout) {
+
+      proto::Inquiry inquiry;
+
+      uint64_t reqId = inquiryReq++;
+      Debug("Query id: %lu", reqId);
+
+      inquiry.set_req_id(reqId);
+      inquiry.set_query(query);
+      ts.serialize(inquiry.mutable_timestamp());
+
+      transport->SendMessageToGroup(this, group_idx, inquiry);
+
+      PendingInquiry pi;
+      pi.icb = icb;
+      pi.status = REPLY_FAIL;
+      pi.maxTs = Timestamp();
+      pi.timeout = new Timeout(transport, timeout, [this, reqId, itcb]() {
+        Debug("Query timeout called (but nothing was done)");
+          stats->Increment("q_tout", 1);
+          fprintf(stderr,"q_tout recv %lu\n",  (uint64_t) config.f + 1);
+      });
+      pi.timeout->Start();
+
+      pendingInquiries[reqId] = pi;
+
 }
 
 }

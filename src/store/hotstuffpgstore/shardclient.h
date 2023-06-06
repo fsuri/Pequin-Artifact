@@ -94,6 +94,9 @@ class ShardClient : public TransportReceiver {
 
   void Abort(std::string& txn_digest, const proto::ShardSignedDecisions& dec);
 
+  void Query(const std::string &query,  const Timestamp &ts, uint64_t client_id, int client_seq_num, 
+      inquiry_callback icb, inquiry_timeout_callback itcb,  uint32_t timeout);
+
  private:
    uint64_t start_time;
    uint64_t total_elapsed = 0 ;
@@ -111,6 +114,7 @@ class ShardClient : public TransportReceiver {
   bool validate_abort = false;
 
   uint64_t readReq;
+  uint64_t inquiryReq;
   std::vector<int> closestReplicas;
   inline size_t GetNthClosestReplica(size_t idx) const {
     return closestReplicas[idx];
@@ -129,6 +133,24 @@ class ShardClient : public TransportReceiver {
 
     read_callback rcb;
     uint64_t numResultsRequired;
+
+    Timeout* timeout;
+  };
+
+  struct PendingInquiry {
+    // the set of ids that we have received a read reply for
+    std::unordered_map<std::string, std::unordered_set<uint64_t>> receivedReplies;
+    std::unordered_set<uint64_t> receivedFails;
+    // the max read timestamp for a valid reply
+    Timestamp maxTs;
+    std::string maxValue;
+    proto::CommitProof maxCommitProof;
+
+    // the current status of the reply (default to fail)
+    uint64_t status;
+
+    inquiry_callback icb;
+    // uint64_t numResultsRequired;
 
     Timeout* timeout;
   };
@@ -177,6 +199,7 @@ class ShardClient : public TransportReceiver {
 
   // req id to (read)
   std::unordered_map<uint64_t, PendingRead> pendingReads;
+  std::unordered_map<uint64_t, PendingInquiry> pendingInquiries;
   std::unordered_map<std::string, PendingPrepare> pendingPrepares;
   std::unordered_map<std::string, PendingSignedPrepare> pendingSignedPrepares;
   std::unordered_map<std::string, PendingWritebackReply> pendingWritebacks;

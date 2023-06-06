@@ -12,6 +12,12 @@ message Read {
   required TimestampMessage timestamp = 3;
 }
 
+message Inquiry {
+  required uint64 req_id = 1;
+  required bytes query = 2;
+  required TimestampMessage timestamp = 3;
+}
+
 message CommitProof {
   // The commit proof will be a writeback message containing proof that
   // all participating shards committed the tx
@@ -36,7 +42,7 @@ message ReadReply {
 message InquiryReply {
   required uint64 req_id = 1;
   required int32 status = 2;
-  required SQLResult sql_res = 3;
+  required bytes sql_res = 3;
 }
 
 // This is the request sent to the replication layer
