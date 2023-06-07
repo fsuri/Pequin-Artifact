@@ -65,7 +65,7 @@ public:
   Stats* mutableStats();
 
 private:
-  std::shared_ptr<tao::pq::connection_pool> connection_pool;
+  std::shared_ptr<tao::pq::connection_pool> connectionPool;
   std::map<std::string, std::shared_ptr< tao::pq::transaction >> txnMap;
   Transport* tp;
   Stats stats;

@@ -377,7 +377,28 @@ std::vector<::google::protobuf::Message*> Server::HandleTransaction(const proto:
   proto::InquiryReply* reply = new proto::InquiryReply();
   reply->set_req_id(inquiry.req_id());
 
+  std::shared_ptr<tao::pq::transaction> tr;
+  std::string client_seq_key;
+  client_seq_key.append(std::to_string(inquiry.client_id()));
+  client_seq_key.append("|");
+  client_seq_key.append(std::to_string(inquiry.txn_seq_num()));
 
+  if(txnMap.find(client_seq_key) == txnMap.end()) {
+    auto connection = connectionPool->connection();
+    tr = connection->transaction();
+    txnMap[client_seq_key] = tr;
+  } else {
+    tr = txnMap[client_seq_key];
+  }
+
+  try {
+    const auto sqlRes = tr->execute(inquiry.query());
+
+  } catch(tao::pq::sql_error e) {
+    reply->set_status(REPLY_FAIL);
+  }
+
+  return result;
 }
 
 
