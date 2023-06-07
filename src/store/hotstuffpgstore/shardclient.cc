@@ -881,6 +881,8 @@ void ShardClient::Abort(std::string& txn_digest, const proto::ShardSignedDecisio
   }
 }
 
+
+// Currently assumes no duplicates, can add de-duping code later if needed
 void ShardClient::Query(const std::string &query,  const Timestamp &ts, uint64_t client_id, int client_seq_num, 
       inquiry_callback icb, inquiry_timeout_callback itcb,  uint32_t timeout) {
 
@@ -893,7 +895,12 @@ void ShardClient::Query(const std::string &query,  const Timestamp &ts, uint64_t
       inquiry.set_query(query);
       ts.serialize(inquiry.mutable_timestamp());
 
-      transport->SendMessageToGroup(this, group_idx, inquiry);
+      proto::Request request;
+      request.set_digest(crypto::Hash(inquiry.SerializeAsString()));
+      request.mutable_packed_msg()->set_msg(inquiry.SerializeAsString());
+      request.mutable_packed_msg()->set_type(inquiry.GetTypeName());
+
+      transport->SendMessageToGroup(this, group_idx, request);
 
       PendingInquiry pi;
       pi.icb = icb;
