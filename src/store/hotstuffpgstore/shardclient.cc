@@ -893,6 +893,8 @@ void ShardClient::Query(const std::string &query,  const Timestamp &ts, uint64_t
 
       inquiry.set_req_id(reqId);
       inquiry.set_query(query);
+      inquiry.set_client_id(client_id);
+      inquiry.set_txn_seq_num(client_seq_num);
       ts.serialize(inquiry.mutable_timestamp());
 
       proto::Request request;

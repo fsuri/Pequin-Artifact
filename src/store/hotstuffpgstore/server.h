@@ -42,6 +42,7 @@
 #include "store/common/partitioner.h"
 #include "store/common/truetime.h"
 #include "lib/transport.h"
+#include <tao/pq.hpp>
 
 namespace hotstuffpgstore {
 
@@ -64,6 +65,8 @@ public:
   Stats* mutableStats();
 
 private:
+  std::shared_ptr<tao::pq::connection_pool> connection_pool;
+  std::map<std::string, std::shared_ptr< tao::pq::transaction >> txnMap;
   Transport* tp;
   Stats stats;
   transport::Configuration config;
@@ -96,6 +99,8 @@ private:
 
 
   std::vector<::google::protobuf::Message*> HandleTransaction(const proto::Transaction& transaction);
+
+  ::google::protobuf::Message* HandleInquiry(const proto::Inquiry& inquiry);
 
   ::google::protobuf::Message* HandleRead(const proto::Read& read);
 

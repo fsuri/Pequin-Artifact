@@ -244,11 +244,17 @@ std::vector<::google::protobuf::Message*> Server::Execute(const string& type, co
   //std::unique_lock lock(atomicMutex);
 
   proto::Transaction transaction;
+  proto::Inquiry inquiry;
   proto::GroupedDecision gdecision;
   if (type == transaction.GetTypeName()) {
     transaction.ParseFromString(msg);
 
     return HandleTransaction(transaction);
+  } else if (type == inquiry.GetTypeName()) {
+    inquiry.ParseFromString(msg);
+    std::vector<::google::protobuf::Message*> results;
+    results.push_back(HandleInquiry(inquiry));
+    return results;
   } else if (type == gdecision.GetTypeName()) {
     gdecision.ParseFromString(msg);
 
@@ -365,6 +371,15 @@ std::vector<::google::protobuf::Message*> Server::HandleTransaction(const proto:
 
   return results;
 }
+
+::google::protobuf::Message* Server::HandleInquiry(const proto::Inquiry& inquiry) {
+  ::google::protobuf::Message* result;
+  proto::InquiryReply* reply = new proto::InquiryReply();
+  reply->set_req_id(inquiry.req_id());
+
+
+}
+
 
 ::google::protobuf::Message* Server::HandleMessage(const string& type, const string& msg) {
   Debug("Handle %s", type.c_str());
