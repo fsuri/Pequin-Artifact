@@ -44,7 +44,7 @@ message ReadReply {
 message InquiryReply {
   required uint64 req_id = 1;
   required int32 status = 2;
-  required bytes sql_res = 3;
+  optional bytes sql_res = 3;
 }
 
 // This is the request sent to the replication layer

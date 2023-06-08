@@ -373,7 +373,6 @@ std::vector<::google::protobuf::Message*> Server::HandleTransaction(const proto:
 }
 
 ::google::protobuf::Message* Server::HandleInquiry(const proto::Inquiry& inquiry) {
-  ::google::protobuf::Message* result;
   proto::InquiryReply* reply = new proto::InquiryReply();
   reply->set_req_id(inquiry.req_id());
 
@@ -392,13 +391,33 @@ std::vector<::google::protobuf::Message*> Server::HandleTransaction(const proto:
   }
 
   try {
-    const auto sqlRes = tr->execute(inquiry.query());
-
+    const auto sql_res = tr->execute(inquiry.query());
+    sql::QueryResultProtoBuilder* res_builder = new sql::QueryResultProtoBuilder();
+    // Should extrapolate out into builder method
+    // Start by looping over columns and adding column names
+    for(int i = 0; i < sql_res.columns(); i++) {
+      res_builder->add_column(sql_res.name(i));
+    }
+    // After loop over rows and add them using add_row method
+    // for(const auto& row : sql_res) {
+    //   res_builder->add_row(std::begin(row), std::end(row));
+    // }
+    // for(auto it = std::begin(sql_res); it != std::end(sql_res); ++it) {
+      
+    // }
+    for( const auto& row : sql_res ) {
+      res_builder->add_empty_row();
+      for( const auto& field : row ) {
+        std::string field_str = field.as<std::string>();
+        res_builder->add_field_to_last_row(field_str);
+      }
+    }
+    reply->set_status(REPLY_OK);
   } catch(tao::pq::sql_error e) {
     reply->set_status(REPLY_FAIL);
   }
 
-  return result;
+  return returnMessage(reply);
 }
 
 

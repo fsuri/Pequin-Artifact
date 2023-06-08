@@ -43,6 +43,7 @@
 #include "store/common/truetime.h"
 #include "lib/transport.h"
 #include <tao/pq.hpp>
+#include "store/common/query_result/query_result_proto_builder.h"
 
 namespace hotstuffpgstore {
 
