@@ -413,9 +413,10 @@ std::vector<::google::protobuf::Message*> Server::HandleTransaction(const proto:
       }
     }
     reply->set_status(REPLY_OK);
-    std::string* res_string;
-    res_builder->get_result()->SerializeToString(res_string);
-    reply->set_sql_res(*res_string); //&
+    // std::string* res_string;
+    // res_builder->get_result()->SerializeToString(res_string);
+    // reply->set_sql_res(*res_string); //&
+    reply->set_sql_res(res_builder->get_result()->SerializeAsString());
   } catch(tao::pq::sql_error e) {
     reply->set_status(REPLY_FAIL);
   }

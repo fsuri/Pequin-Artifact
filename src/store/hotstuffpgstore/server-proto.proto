@@ -51,8 +51,9 @@ message InquiryReply {
 message Transaction {
   repeated ReadMessage readset = 1;
   repeated WriteMessage writeset = 2;
-  required TimestampMessage timestamp = 3;
-  repeated uint64 participating_shards = 4;
+  repeated QueryMessage queryset = 3;
+  required TimestampMessage timestamp = 4;
+  repeated uint64 participating_shards = 5;
 }
 
 // This is the reply that a shard sends to the client after it finished its

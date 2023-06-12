@@ -886,37 +886,37 @@ void ShardClient::Abort(std::string& txn_digest, const proto::ShardSignedDecisio
 void ShardClient::Query(const std::string &query,  const Timestamp &ts, uint64_t client_id, int client_seq_num, 
       inquiry_callback icb, inquiry_timeout_callback itcb,  uint32_t timeout) {
 
-      proto::Inquiry inquiry;
+  proto::Inquiry inquiry;
 
-      uint64_t reqId = inquiryReq++;
-      Debug("Query id: %lu", reqId);
+  uint64_t reqId = inquiryReq++;
+  Debug("Query id: %lu", reqId);
 
-      inquiry.set_req_id(reqId);
-      inquiry.set_query(query);
-      inquiry.set_client_id(client_id);
-      inquiry.set_txn_seq_num(client_seq_num);
-      ts.serialize(inquiry.mutable_timestamp());
+  inquiry.set_req_id(reqId);
+  inquiry.set_query(query);
+  inquiry.set_client_id(client_id);
+  inquiry.set_txn_seq_num(client_seq_num);
+  ts.serialize(inquiry.mutable_timestamp());
 
-      proto::Request request;
-      request.set_digest(crypto::Hash(inquiry.SerializeAsString()));
-      request.mutable_packed_msg()->set_msg(inquiry.SerializeAsString());
-      request.mutable_packed_msg()->set_type(inquiry.GetTypeName());
+  proto::Request request;
+  request.set_digest(crypto::Hash(inquiry.SerializeAsString()));
+  request.mutable_packed_msg()->set_msg(inquiry.SerializeAsString());
+  request.mutable_packed_msg()->set_type(inquiry.GetTypeName());
 
-      transport->SendMessageToGroup(this, group_idx, request);
+  transport->SendMessageToGroup(this, group_idx, request);
 
-      PendingInquiry pi;
-      pi.icb = icb;
-      pi.status = REPLY_FAIL;
-      pi.numReceivedReplies = 0;
-      // pi.maxTs = Timestamp();
-      pi.timeout = new Timeout(transport, timeout, [this, reqId, itcb]() {
-        Debug("Query timeout called (but nothing was done)");
-          stats->Increment("q_tout", 1);
-          fprintf(stderr,"q_tout recv %lu\n",  (uint64_t) config.f + 1);
-      });
-      pi.timeout->Start();
+  PendingInquiry pi;
+  pi.icb = icb;
+  pi.status = REPLY_FAIL;
+  pi.numReceivedReplies = 0;
+  // pi.maxTs = Timestamp();
+  pi.timeout = new Timeout(transport, timeout, [this, reqId, itcb]() {
+    Debug("Query timeout called (but nothing was done)");
+      stats->Increment("q_tout", 1);
+      fprintf(stderr,"q_tout recv %lu\n",  (uint64_t) config.f + 1);
+  });
+  pi.timeout->Start();
 
-      pendingInquiries[reqId] = pi;
+  pendingInquiries[reqId] = pi;
 
 }
 

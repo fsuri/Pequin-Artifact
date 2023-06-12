@@ -192,11 +192,13 @@ void Client::Query(const std::string &query, query_callback qcb, query_timeout_c
   transport->Timer(0, [this, query, qcb, qtcb, timeout](){
 
 
-    inquiry_callback icb = [qcb, this](int status, const std::string& sql_res) {
+    inquiry_callback icb = [qcb, query, this](int status, const std::string& sql_res) {
       // if(status == REPLY_OK) {
       //   // Take Query Result Proto serialization and transform it into a query result here
       // }
       // sql::QueryResultProtoWrapper query_obj(sql_res);
+      QueryMessage *query_msg = currentTxn.add_queryset();
+      query_msg->set_query(query);
       query_result::QueryResult* query_res = new sql::QueryResultProtoWrapper(sql_res);
       qcb(status, query_res);
     };
