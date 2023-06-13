@@ -20,6 +20,13 @@ message Inquiry {
   required uint64 txn_seq_num = 5;
 }
 
+message Apply {
+  required uint64 req_id = 1;
+  required TimestampMessage timestamp = 2;
+  required uint64 client_id = 3;
+  required uint64 txn_seq_num = 4;
+}
+
 message CommitProof {
   // The commit proof will be a writeback message containing proof that
   // all participating shards committed the tx
@@ -45,6 +52,11 @@ message InquiryReply {
   required uint64 req_id = 1;
   required int32 status = 2;
   optional bytes sql_res = 3;
+}
+
+message ApplyReply {
+  required uint64 req_id = 1;
+  required int32 status = 2;
 }
 
 // This is the request sent to the replication layer
@@ -88,6 +100,8 @@ message GroupedDecision {
     ShardDecisions decisions = 3;
     ShardSignedDecisions signed_decisions = 4;
   }
+  required uint64 client_id = 5;
+  required uint64 txn_seq_num = 6;
 }
 
 // shards can acknowledge the writeback proof

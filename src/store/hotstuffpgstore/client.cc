@@ -188,6 +188,24 @@ void Client::Commit(commit_callback ccb, commit_timeout_callback ctcb,
   });
 }
 
+void Client::Query_Commit(commit_callback ccb, commit_timeout_callback ctcb, uint32_t timeout) {
+  transport->Timer(0, [this, ccb, ctcb, timeout]() {
+    apply_callback acb = [ccb, this](int status) {
+
+      if(status == REPLY_OK) {
+        ccb(COMMITTED);
+      } else {
+        ccb(ABORTED_SYSTEM);
+      }
+    };
+    apply_timeout_callback atcb = ctcb;
+
+    bclient[0]->Query_Commit(TransactionDigest(currentTxn),  currentTxn.timestamp(), client_id, client_seq_num, acb, atcb, timeout);
+  });
+}
+
+
+
 void Client::Query(const std::string &query, query_callback qcb, query_timeout_callback qtcb, uint32_t timeout, bool skip_query_interpretation) {
   transport->Timer(0, [this, query, qcb, qtcb, timeout](){
 
@@ -321,7 +339,7 @@ void Client::HandlePrepareReply(std::string digest, uint64_t shard_id, int statu
 void Client::WriteBackSigned(const proto::ShardSignedDecisions& dec, const proto::Transaction& txn, std::string digest) {
 
     for (const auto& shard_id : txn.participating_shards()) {
-      bclient[shard_id]->CommitSigned(digest, dec);
+      bclient[shard_id]->CommitSigned(digest, dec, client_id, client_seq_num);
     }
   }
 
@@ -344,7 +362,7 @@ void Client::WriteBackSigned(const proto::ShardSignedDecisions& dec, const proto
           Debug("timeout called");
       };
 
-      bclient[shard_id]->CommitSigned(digest, dec, wcb, wcbt, timeout);
+      bclient[shard_id]->CommitSigned(digest, dec, client_id, client_seq_num, wcb, wcbt, timeout);
     }
   }
 }
@@ -366,7 +384,7 @@ void Client::WriteBack(const proto::ShardDecisions& dec, const proto::Transactio
           Debug("timeout called");
       };
 
-      bclient[shard_id]->Commit(digest, dec, wcb, wcbt, timeout);
+      bclient[shard_id]->Commit(digest, dec, client_id, client_seq_num, wcb, wcbt, timeout);
     }
   }
 }

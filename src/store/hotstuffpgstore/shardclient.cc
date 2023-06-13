@@ -41,6 +41,7 @@ ShardClient::ShardClient(const transport::Configuration& config, Transport *tran
   transport->Register(this, config, -1, -1);
   readReq = 0;
   inquiryReq = 0;
+  applyReq = 0;
 
   if (closestReplicas_.size() == 0) {
     for  (int i = 0; i < config.n; ++i) {
@@ -722,13 +723,15 @@ void ShardClient::SignedPrepare(const proto::Transaction& txn, signed_prepare_ca
   }
 }
 
-void ShardClient::Commit(const std::string& txn_digest, const proto::ShardDecisions& dec,
+void ShardClient::Commit(const std::string& txn_digest, const proto::ShardDecisions& dec, uint64_t client_id, int client_seq_num,
     writeback_callback wcb, writeback_timeout_callback wtcp, uint32_t timeout) {
   Debug("Handling client commit");
   if (pendingWritebacks.find(txn_digest) == pendingWritebacks.end()) {
     proto::GroupedDecision groupedDecision;
     groupedDecision.set_status(REPLY_OK);
     groupedDecision.set_txn_digest(txn_digest);
+    groupedDecision.set_client_id(client_id);
+    groupedDecision.set_txn_seq_num(client_seq_num);
     *groupedDecision.mutable_decisions() = dec;
     stats->Increment("shard_commit", 1);
 
@@ -766,13 +769,15 @@ void ShardClient::Commit(const std::string& txn_digest, const proto::ShardDecisi
 
 //TODO: add flag, and wrap Commit in a Request in that case. In doing so, it will automatically be ordered.
 // THEN: make sure to adapt Execute to also handle Commits.
-void ShardClient::CommitSigned(const std::string& txn_digest, const proto::ShardSignedDecisions& dec,
+void ShardClient::CommitSigned(const std::string& txn_digest, const proto::ShardSignedDecisions& dec, uint64_t client_id, int client_seq_num,
     writeback_callback wcb, writeback_timeout_callback wtcp, uint32_t timeout) {
   Debug("Handling client commit signed");
   if (pendingWritebacks.find(txn_digest) == pendingWritebacks.end()) {
     proto::GroupedDecision groupedDecision;
     groupedDecision.set_status(REPLY_OK);
     groupedDecision.set_txn_digest(txn_digest);
+    groupedDecision.set_client_id(client_id);
+    groupedDecision.set_txn_seq_num(client_seq_num);
     *groupedDecision.mutable_signed_decisions() = dec;
     stats->Increment("shard_commit_s", 1);
 
@@ -818,12 +823,14 @@ void ShardClient::CommitSigned(const std::string& txn_digest, const proto::Shard
   }
 }
 
-void ShardClient::CommitSigned(const std::string& txn_digest, const proto::ShardSignedDecisions& dec) {
+void ShardClient::CommitSigned(const std::string& txn_digest, const proto::ShardSignedDecisions& dec, uint64_t client_id, int client_seq_num) {
   Debug("Handling client commit signed");
   if (pendingWritebacks.find(txn_digest) == pendingWritebacks.end()) {
     proto::GroupedDecision groupedDecision;
     groupedDecision.set_status(REPLY_OK);
     groupedDecision.set_txn_digest(txn_digest);
+    groupedDecision.set_client_id(client_id);
+    groupedDecision.set_txn_seq_num(client_seq_num);
     *groupedDecision.mutable_signed_decisions() = dec;
     stats->Increment("shard_commit_s", 1);
 
@@ -918,6 +925,37 @@ void ShardClient::Query(const std::string &query,  const Timestamp &ts, uint64_t
 
   pendingInquiries[reqId] = pi;
 
+}
+
+void ShardClient::Query_Commit(const std::string& txn_digest,  const Timestamp &ts, uint64_t client_id, int client_seq_num, 
+  apply_callback acb, apply_timeout_callback atcb, uint32_t timeout) {
+
+  proto::Apply apply;
+
+  uint64_t reqId = applyReq++;
+  Debug("Commiy id: %lu", reqId);
+
+  apply.set_req_id(reqId);
+  apply.set_client_id(client_id);
+  ts.serialize(apply.mutable_timestamp());
+
+  proto::Request request;
+  request.set_digest(txn_digest);
+  request.mutable_packed_msg()->set_msg(apply.SerializeAsString());
+  request.mutable_packed_msg()->set_type(apply.GetTypeName());
+
+  transport->SendMessageToGroup(this, group_idx, request);
+
+  PendingApply pa;
+  pa.acb = acb;
+  pa.timeout = new Timeout(transport, timeout, [this, reqId, atcb](){
+    Debug("Commit timeout called (but nothing was done)");
+      stats->Increment("c_tout", 1);
+      fprintf(stderr,"c_tout recv %lu\n",  (uint64_t) config.f + 1);
+  });
+  pa.timeout->Start();
+
+  pendingApplies[reqId] = pa;
 }
 
 }

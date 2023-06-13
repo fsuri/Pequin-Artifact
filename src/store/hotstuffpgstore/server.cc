@@ -298,6 +298,7 @@ std::vector<::google::protobuf::Message*> Server::HandleTransaction(const proto:
   decision->set_shard_id(groupIdx);
 
   pendingTransactions[digest] = transaction;
+
   if (bufferedGDecs.find(digest) != bufferedGDecs.end()) {
     stats.Increment("used_buffered_gdec",1);
     Debug("found buffered gdecision");
@@ -487,15 +488,17 @@ std::vector<::google::protobuf::Message*> Server::HandleTransaction(const proto:
   return returnMessage(readReply);
 }
 
+
+// Rewrite this to work for queries instead, will have to rewrite end point on client side too
 ::google::protobuf::Message* Server::HandleGroupedCommitDecision(const proto::GroupedDecision& gdecision) {
-  // proto::GroupedDecisionAck* groupedDecisionAck = new proto::GroupedDecisionAck();
+  proto::GroupedDecisionAck* groupedDecisionAck = new proto::GroupedDecisionAck();
 
 
   Debug("Handling Grouped commit Decision");
   string digest = gdecision.txn_digest();
   DebugHash(digest);
 
-  // groupedDecisionAck->set_txn_digest(digest);
+  groupedDecisionAck->set_txn_digest(digest);
   atomicMutex.lock();
   if (pendingTransactions.find(digest) == pendingTransactions.end()) {
 
@@ -562,23 +565,51 @@ std::vector<::google::protobuf::Message*> Server::HandleTransaction(const proto:
       // }
     }
 
+    // for (const auto &query : txn.queryset) {
+    //   // This is just for verification in the above code, I don't think I have to
+    //   // do anything with it here
+
+    // }
+
+    std::shared_ptr<tao::pq::transaction> tr;
+    std::string client_seq_key;
+    client_seq_key.append(std::to_string(gdecision.client_id()));
+    client_seq_key.append("|");
+    client_seq_key.append(std::to_string(gdecision.txn_seq_num()));
+
+    if(txnMap.find(client_seq_key) == txnMap.end()) {
+      auto connection = connectionPool->connection();
+      tr = connection->transaction();
+      txnMap[client_seq_key] = tr;
+    } else {
+      tr = txnMap[client_seq_key];
+    }
+
+    try {
+      tr->commit();
+      groupedDecisionAck->set_status(REPLY_OK);
+    } catch(tao::pq::sql_error e) {
+      groupedDecisionAck->set_status(REPLY_FAIL);
+    }
+    
+
     // mark txn as commited
     cleanupPendingTx(digest);
     // groupedDecisionAck->set_status(REPLY_OK);
   } else {
     stats.Increment("gdec_failed_valid",1);
-    // groupedDecisionAck->set_status(REPLY_FAIL);
+    groupedDecisionAck->set_status(REPLY_FAIL);
   }
 
-  // Debug("decision ack status: %d", groupedDecisionAck->status());
+  Debug("decision ack status: %d", groupedDecisionAck->status());
 
-  // return returnMessage(groupedDecisionAck);
-  return nullptr;
+  return returnMessage(groupedDecisionAck);
+  // return nullptr;
 }
 
 
 ::google::protobuf::Message* Server::HandleGroupedAbortDecision(const proto::GroupedDecision& gdecision) {
-  // proto::GroupedDecisionAck* groupedDecisionAck = new proto::GroupedDecisionAck();
+  proto::GroupedDecisionAck* groupedDecisionAck = new proto::GroupedDecisionAck();
 
 
   Debug("Handling Grouped abort Decision");
@@ -614,7 +645,23 @@ std::vector<::google::protobuf::Message*> Server::HandleTransaction(const proto:
  }
  std::unique_lock lock(atomicMutex);
 
-  // groupedDecisionAck->set_txn_digest(digest);
+  std::shared_ptr<tao::pq::transaction> tr;
+  std::string client_seq_key;
+  client_seq_key.append(std::to_string(gdecision.client_id()));
+  client_seq_key.append("|");
+  client_seq_key.append(std::to_string(gdecision.txn_seq_num()));
+
+  if(txnMap.find(client_seq_key) == txnMap.end()) {
+    auto connection = connectionPool->connection();
+    tr = connection->transaction();
+    txnMap[client_seq_key] = tr;
+  } else {
+    tr = txnMap[client_seq_key];
+  }
+
+  tr->rollback();
+
+  groupedDecisionAck->set_txn_digest(digest);
 
   stats.Increment("gdec_failed",1);
   // abort the tx
@@ -622,10 +669,10 @@ std::vector<::google::protobuf::Message*> Server::HandleTransaction(const proto:
   // there is a chance that this abort comes before we see the tx, so save the decision
   abortedTxs.insert(digest);
 
-  // groupedDecisionAck->set_status(REPLY_FAIL);
+  groupedDecisionAck->set_status(REPLY_FAIL);
   //
-  // return returnMessage(groupedDecisionAck);
-  return nullptr;
+  return returnMessage(groupedDecisionAck);
+  // return nullptr;
 }
 
 void Server::cleanupPendingTx(std::string digest) {

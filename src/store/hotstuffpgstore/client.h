@@ -82,6 +82,8 @@ class Client : public ::Client {
   virtual void Query(const std::string &query, query_callback qcb,
       query_timeout_callback qtcb, uint32_t timeout, bool skip_query_interpretation = false) override;
 
+  void Query_Commit(commit_callback ccb, commit_timeout_callback ctcb, uint32_t timeout);
+
  private:
   uint64_t client_id;
   /* Configuration State */

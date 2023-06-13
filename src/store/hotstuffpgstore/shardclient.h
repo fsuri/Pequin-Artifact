@@ -61,6 +61,9 @@ typedef std::function<void(int)> writeback_timeout_callback;
 typedef std::function<void(int, const std::string&)> inquiry_callback;
 typedef std::function<void(int)> inquiry_timeout_callback;
 
+typedef std::function<void(int)> apply_callback;
+typedef std::function<void()> apply_timeout_callback;
+
 class ShardClient : public TransportReceiver {
  public:
   /* Constructor needs path to shard config. */
@@ -85,17 +88,20 @@ class ShardClient : public TransportReceiver {
   void SignedPrepare(const proto::Transaction& txn, signed_prepare_callback pcb,
       prepare_timeout_callback ptcb, uint32_t timeout);
 
-  void Commit(const std::string& txn_digest, const proto::ShardDecisions& dec,
+  void Commit(const std::string& txn_digest, const proto::ShardDecisions& dec, uint64_t client_id, int client_seq_num,
       writeback_callback wcb, writeback_timeout_callback wtcp, uint32_t timeout);
-  void CommitSigned(const std::string& txn_digest, const proto::ShardSignedDecisions& dec,
+  void CommitSigned(const std::string& txn_digest, const proto::ShardSignedDecisions& dec, uint64_t client_id, int client_seq_num,
       writeback_callback wcb, writeback_timeout_callback wtcp, uint32_t timeout);
 
-  void CommitSigned(const std::string& txn_digest, const proto::ShardSignedDecisions& dec);
+  void CommitSigned(const std::string& txn_digest, const proto::ShardSignedDecisions& dec, uint64_t client_id, int client_seq_num);
 
   void Abort(std::string& txn_digest, const proto::ShardSignedDecisions& dec);
 
   void Query(const std::string &query,  const Timestamp &ts, uint64_t client_id, int client_seq_num, 
       inquiry_callback icb, inquiry_timeout_callback itcb,  uint32_t timeout);
+
+  void Query_Commit(const std::string& txn_digest, const Timestamp &ts, uint64_t client_id, int client_seq_num, 
+      apply_callback acb, apply_timeout_callback atcb, uint32_t timeout);
 
  private:
    uint64_t start_time;
@@ -115,6 +121,7 @@ class ShardClient : public TransportReceiver {
 
   uint64_t readReq;
   uint64_t inquiryReq;
+  uint64_t applyReq;
   std::vector<int> closestReplicas;
   inline size_t GetNthClosestReplica(size_t idx) const {
     return closestReplicas[idx];
@@ -152,6 +159,24 @@ class ShardClient : public TransportReceiver {
     inquiry_callback icb;
     // uint64_t numResultsRequired;
     uint64_t numReceivedReplies;
+
+    Timeout* timeout;
+  };
+  
+  struct PendingApply {
+    // the set of ids that we have received a read reply for
+    std::unordered_set<uint64_t> receivedSuccesses;
+    std::unordered_set<uint64_t> receivedFails;
+    // the max read timestamp for a valid reply
+    // Timestamp maxTs;
+    // std::string maxValue;
+    proto::CommitProof maxCommitProof;
+
+    // the current status of the reply (default to fail)
+    uint64_t status;
+
+    apply_callback acb;
+    // uint64_t numResultsRequired;
 
     Timeout* timeout;
   };
@@ -205,6 +230,7 @@ class ShardClient : public TransportReceiver {
   // req id to (read)
   std::unordered_map<uint64_t, PendingRead> pendingReads;
   std::unordered_map<uint64_t, PendingInquiry> pendingInquiries;
+  std::unordered_map<uint64_t, PendingApply> pendingApplies;
   std::unordered_map<std::string, PendingPrepare> pendingPrepares;
   std::unordered_map<std::string, PendingSignedPrepare> pendingSignedPrepares;
   std::unordered_map<std::string, PendingWritebackReply> pendingWritebacks;
