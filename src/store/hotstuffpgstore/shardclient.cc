@@ -545,6 +545,46 @@ void ShardClient::InquiryReplyHelper(PendingInquiry* pendingInquiry, const proto
   icb(status, value);
 }
 
+void ShardClient::HandleApplyReply(const proto::ApplyReply& applyReply, const proto::SignedMessage& signedMsg) {
+  Debug("Handling an inquiry reply");
+
+  uint64_t reqId = applyReply.req_id();
+  Debug("Apply req id: %lu", reqId);
+
+  if(pendingApplies.find(reqId) != pendingApplies.end()) {
+    PendingApply* pendingApply = &pendingApplies[reqId];
+
+    uint64_t replica_id = pendingApply->receivedAcks.size() + pendingApply->receivedFails.size();
+    if (signMessages) {
+      replica_id = signedMsg.replica_id();
+    }
+    
+    if(applyReply.status() == REPLY_OK) {
+      pendingApply->receivedAcks.insert(replica_id);
+      // Timestamp its(inquiryReply.value_timestamp());
+    } else {
+      pendingApply->receivedFails.insert(replica_id);
+    }
+
+
+    if(pendingApply->receivedAcks.size() >= (uint64_t) config.f + 1) {
+      if(pendingApply->timeout != nullptr) {
+        pendingApply->timeout->Stop();
+      }
+      apply_callback acb = pendingApply->acb;
+      pendingApplies.erase(reqId);
+      acb(REPLY_OK);
+    } else if(pendingApply->receivedFails.size() >= (uint64_t) config.f + 1) {
+      if(pendingApply->timeout != nullptr) {
+        pendingApply->timeout->Stop();
+      }
+      apply_callback acb = pendingApply->acb;
+      pendingApplies.erase(reqId);
+      acb(REPLY_FAIL);
+    }
+  }
+}
+
 
 // ================================
 // ==== SHARD CLIENT INTERFACE ====

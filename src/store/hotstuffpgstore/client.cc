@@ -148,6 +148,7 @@ void Client::Put(const std::string &key, const std::string &value,
 
 void Client::Commit(commit_callback ccb, commit_timeout_callback ctcb,
     uint32_t timeout) {
+  if(false) {
   transport->Timer(0, [this, ccb, ctcb, timeout]() {
     std::string digest = TransactionDigest(currentTxn);
     if (pendingPrepares.find(digest) == pendingPrepares.end()) {
@@ -186,6 +187,9 @@ void Client::Commit(commit_callback ccb, commit_timeout_callback ctcb,
       fprintf(stderr, "already committed\n");
     }
   });
+  } else {
+    Query_Commit(ccb, ctcb, timeout);
+  }
 }
 
 void Client::Query_Commit(commit_callback ccb, commit_timeout_callback ctcb, uint32_t timeout) {

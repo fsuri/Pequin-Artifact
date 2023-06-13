@@ -246,6 +246,7 @@ std::vector<::google::protobuf::Message*> Server::Execute(const string& type, co
   proto::Transaction transaction;
   proto::Inquiry inquiry;
   proto::GroupedDecision gdecision;
+  proto::Apply apply;
   if (type == transaction.GetTypeName()) {
     transaction.ParseFromString(msg);
 
@@ -254,6 +255,11 @@ std::vector<::google::protobuf::Message*> Server::Execute(const string& type, co
     inquiry.ParseFromString(msg);
     std::vector<::google::protobuf::Message*> results;
     results.push_back(HandleInquiry(inquiry));
+    return results;
+  } else if (type == apply.GetTypeName()) {
+    apply.ParseFromString(msg);
+    std::vector<::google::protobuf::Message*> results;
+    results.push_back(HandleApply(apply));
     return results;
   } else if (type == gdecision.GetTypeName()) {
     gdecision.ParseFromString(msg);
@@ -418,6 +424,34 @@ std::vector<::google::protobuf::Message*> Server::HandleTransaction(const proto:
     // res_builder->get_result()->SerializeToString(res_string);
     // reply->set_sql_res(*res_string); //&
     reply->set_sql_res(res_builder->get_result()->SerializeAsString());
+  } catch(tao::pq::sql_error e) {
+    reply->set_status(REPLY_FAIL);
+  }
+
+  return returnMessage(reply);
+}
+
+::google::protobuf::Message* Server::HandleApply(const proto::Apply& apply) {
+  proto::ApplyReply* reply = new proto::ApplyReply();
+  reply->set_req_id(apply.req_id());
+
+  std::shared_ptr<tao::pq::transaction> tr;
+  std::string client_seq_key;
+  client_seq_key.append(std::to_string(apply.client_id()));
+  client_seq_key.append("|");
+  client_seq_key.append(std::to_string(apply.txn_seq_num()));
+
+  if(txnMap.find(client_seq_key) == txnMap.end()) {
+    auto connection = connectionPool->connection();
+    tr = connection->transaction();
+    txnMap[client_seq_key] = tr;
+  } else {
+    tr = txnMap[client_seq_key];
+  }
+
+  try {
+    tr->commit();
+    reply->set_status(REPLY_OK);
   } catch(tao::pq::sql_error e) {
     reply->set_status(REPLY_FAIL);
   }

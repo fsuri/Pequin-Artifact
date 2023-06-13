@@ -165,7 +165,7 @@ class ShardClient : public TransportReceiver {
   
   struct PendingApply {
     // the set of ids that we have received a read reply for
-    std::unordered_set<uint64_t> receivedSuccesses;
+    std::unordered_set<uint64_t> receivedAcks;
     std::unordered_set<uint64_t> receivedFails;
     // the max read timestamp for a valid reply
     // Timestamp maxTs;
@@ -226,6 +226,9 @@ class ShardClient : public TransportReceiver {
   void HandleInquiryReply(const proto::InquiryReply& reply, const proto::SignedMessage& signedMsg);
   void InquiryReplyHelper(PendingInquiry* pendingInquiry, const proto::InquiryReply& inquiryReply, 
     uint64_t reqId, uint64_t status);
+
+  void HandleApplyReply(const proto::ApplyReply& reply, const proto::SignedMessage& signedMsg);
+
 
   // req id to (read)
   std::unordered_map<uint64_t, PendingRead> pendingReads;

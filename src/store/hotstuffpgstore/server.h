@@ -103,6 +103,8 @@ private:
 
   ::google::protobuf::Message* HandleInquiry(const proto::Inquiry& inquiry);
 
+  ::google::protobuf::Message* HandleApply(const proto::Apply& apply);
+
   ::google::protobuf::Message* HandleRead(const proto::Read& read);
 
   ::google::protobuf::Message* HandleGroupedCommitDecision(const proto::GroupedDecision& gdecision);
