@@ -967,16 +967,17 @@ void ShardClient::Query(const std::string &query,  const Timestamp &ts, uint64_t
 
 }
 
-void ShardClient::Query_Commit(const std::string& txn_digest,  const Timestamp &ts, uint64_t client_id, int client_seq_num, 
+void ShardClient::Query_Commit(const std::string& txn_digest, const Timestamp &ts, uint64_t client_id, int client_seq_num, 
   apply_callback acb, apply_timeout_callback atcb, uint32_t timeout) {
 
   proto::Apply apply;
 
   uint64_t reqId = applyReq++;
-  Debug("Commiy id: %lu", reqId);
+  Debug("Commit id: %lu", reqId);
 
   apply.set_req_id(reqId);
   apply.set_client_id(client_id);
+  apply.set_txn_seq_num(client_seq_num);
   ts.serialize(apply.mutable_timestamp());
 
   proto::Request request;
@@ -996,6 +997,23 @@ void ShardClient::Query_Commit(const std::string& txn_digest,  const Timestamp &
   pa.timeout->Start();
 
   pendingApplies[reqId] = pa;
+}
+
+void ShardClient::Query_Abort(const std::string& txn_digest,  uint64_t client_id, int client_seq_num) {
+
+  proto::Rollback rollback;
+
+  Debug("Abort Triggered");
+
+  rollback.set_client_id(client_id);
+  rollback.set_txn_seq_num(client_seq_num);
+
+  proto::Request request;
+  request.set_digest(txn_digest);
+  request.mutable_packed_msg()->set_msg(rollback.SerializeAsString());
+  request.mutable_packed_msg()->set_type(rollback.GetTypeName());
+
+  transport->SendMessageToGroup(this, group_idx, request);
 }
 
 }

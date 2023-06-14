@@ -247,6 +247,7 @@ std::vector<::google::protobuf::Message*> Server::Execute(const string& type, co
   proto::Inquiry inquiry;
   proto::GroupedDecision gdecision;
   proto::Apply apply;
+  proto::Rollback rollback;
   if (type == transaction.GetTypeName()) {
     transaction.ParseFromString(msg);
 
@@ -260,6 +261,11 @@ std::vector<::google::protobuf::Message*> Server::Execute(const string& type, co
     apply.ParseFromString(msg);
     std::vector<::google::protobuf::Message*> results;
     results.push_back(HandleApply(apply));
+    return results;
+  } else if (type == rollback.GetTypeName()) {
+    rollback.ParseFromString(msg);
+    std::vector<::google::protobuf::Message*> results;
+    results.push_back(HandleRollback(rollback));
     return results;
   } else if (type == gdecision.GetTypeName()) {
     gdecision.ParseFromString(msg);
@@ -457,6 +463,25 @@ std::vector<::google::protobuf::Message*> Server::HandleTransaction(const proto:
   }
 
   return returnMessage(reply);
+}
+
+::google::protobuf::Message* Server::HandleRollback(const proto::Rollback& rollback) {
+
+  std::shared_ptr<tao::pq::transaction> tr;
+  std::string client_seq_key;
+  client_seq_key.append(std::to_string(rollback.client_id()));
+  client_seq_key.append("|");
+  client_seq_key.append(std::to_string(rollback.txn_seq_num()));
+
+  if(txnMap.find(client_seq_key) == txnMap.end()) {
+    return nullptr;
+  } else {
+    tr = txnMap[client_seq_key];
+  }
+
+  tr->rollback();
+
+  return nullptr;
 }
 
 

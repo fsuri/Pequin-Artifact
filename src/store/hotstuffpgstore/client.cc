@@ -208,6 +208,13 @@ void Client::Query_Commit(commit_callback ccb, commit_timeout_callback ctcb, uin
   });
 }
 
+void Client::Query_Abort(abort_callback acb, abort_timeout_callback atcb, uint32_t timeout) {
+  transport->Timer(0, [this, acb, atcb, timeout]() {
+    bclient[0]->Query_Abort(TransactionDigest(currentTxn), client_id, client_seq_num);
+
+    acb();
+  });
+}
 
 
 void Client::Query(const std::string &query, query_callback qcb, query_timeout_callback qtcb, uint32_t timeout, bool skip_query_interpretation) {
@@ -413,11 +420,15 @@ void Client::HandleWritebackReply(std::string digest, uint64_t shard_id, int sta
 
 void Client::Abort(abort_callback acb, abort_timeout_callback atcb,
     uint32_t timeout) {
+  if(false) {
   transport->Timer(0, [this, acb, atcb, timeout]() {
     AbortTxn(currentTxn);
     // immediately invoke callback
     acb();
   });
+  } else {
+    Query_Abort(acb, atcb, timeout);
+  }
 }
 
 void Client::AbortTxn(const proto::Transaction& txn) {

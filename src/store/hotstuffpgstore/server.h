@@ -105,6 +105,8 @@ private:
 
   ::google::protobuf::Message* HandleApply(const proto::Apply& apply);
 
+  ::google::protobuf::Message* HandleRollback(const proto::Rollback& rollback);
+
   ::google::protobuf::Message* HandleRead(const proto::Read& read);
 
   ::google::protobuf::Message* HandleGroupedCommitDecision(const proto::GroupedDecision& gdecision);

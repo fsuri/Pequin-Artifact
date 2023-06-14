@@ -27,6 +27,11 @@ message Apply {
   required uint64 txn_seq_num = 4;
 }
 
+message Rollback {
+  required uint64 client_id = 1;
+  required uint64 txn_seq_num = 2;
+}
+
 message CommitProof {
   // The commit proof will be a writeback message containing proof that
   // all participating shards committed the tx

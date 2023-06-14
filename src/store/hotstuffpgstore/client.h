@@ -84,6 +84,8 @@ class Client : public ::Client {
 
   void Query_Commit(commit_callback ccb, commit_timeout_callback ctcb, uint32_t timeout);
 
+  void Query_Abort(abort_callback ccb, abort_timeout_callback ctcb, uint32_t timeout);
+
  private:
   uint64_t client_id;
   /* Configuration State */

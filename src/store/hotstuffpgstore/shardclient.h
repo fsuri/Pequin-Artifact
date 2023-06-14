@@ -64,6 +64,9 @@ typedef std::function<void(int)> inquiry_timeout_callback;
 typedef std::function<void(int)> apply_callback;
 typedef std::function<void()> apply_timeout_callback;
 
+typedef std::function<void(int)> rollback_callback;
+typedef std::function<void()> rollback_timeout_callback;
+
 class ShardClient : public TransportReceiver {
  public:
   /* Constructor needs path to shard config. */
@@ -102,6 +105,8 @@ class ShardClient : public TransportReceiver {
 
   void Query_Commit(const std::string& txn_digest, const Timestamp &ts, uint64_t client_id, int client_seq_num, 
       apply_callback acb, apply_timeout_callback atcb, uint32_t timeout);
+
+  void Query_Abort(const std::string& txn_digest, uint64_t client_id, int client_seq_num);
 
  private:
    uint64_t start_time;
