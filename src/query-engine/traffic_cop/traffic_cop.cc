@@ -183,7 +183,7 @@ executor::ExecutionResult TrafficCop::ExecuteHelper(
 
   auto on_complete = [&result, this](executor::ExecutionResult p_status,
                                      std::vector<ResultValue> &&values) {  
-    std::cout << "Made it to on complete" << std::endl;
+    std::cout << "Made it to on complete execute helper" << std::endl;
     this->p_status_ = p_status;
     std::cout << "The status is " << p_status.m_error_message << std::endl;
     // TODO (Tianyi) I would make a decision on keeping one of p_status or
@@ -191,6 +191,7 @@ executor::ExecutionResult TrafficCop::ExecuteHelper(
     this->error_message_ = std::move(p_status.m_error_message);
     result = std::move(values);
     task_callback_(task_callback_arg_);
+    std::cout << "After task callback execute helper" << std::endl;
   };
 
   auto &pool = threadpool::MonoQueuePool::GetInstance();
@@ -218,7 +219,7 @@ executor::ExecutionResult TrafficCop::ExecuteHelper(
 executor::ExecutionResult TrafficCop::ExecuteReadHelper(
     std::shared_ptr<planner::AbstractPlan> plan,
     const std::vector<type::Value> &params, std::vector<ResultValue> &result,
-    const std::vector<int> &result_format, const Timestamp &basil_timestamp, pequinstore::QueryReadSetMgr &query_read_set_mgr, 
+    const std::vector<int> &result_format, Timestamp &basil_timestamp, pequinstore::QueryReadSetMgr &query_read_set_mgr, 
     std::function<void(const std::string &, const Timestamp &, bool, pequinstore::QueryReadSetMgr *, pequinstore::SnapshotManager *)> &find_table_version,
     std::function<bool(const std::string &)> &read_prepared_pred,
     size_t thread_id) {
@@ -295,7 +296,7 @@ executor::ExecutionResult TrafficCop::ExecuteReadHelper(
 executor::ExecutionResult TrafficCop::ExecuteWriteHelper(
     std::shared_ptr<planner::AbstractPlan> plan,
     const std::vector<type::Value> &params, std::vector<ResultValue> &result,
-    const std::vector<int> &result_format, const Timestamp &basil_timestamp, std::shared_ptr<std::string> txn_dig, 
+    const std::vector<int> &result_format, Timestamp &basil_timestamp, std::shared_ptr<std::string> txn_dig, 
     pequinstore::proto::CommittedProof *commit_proof, bool commit_or_prepare, size_t thread_id) {
   auto &curr_state = GetCurrentTxnState();
 
@@ -399,7 +400,13 @@ executor::ExecutionResult TrafficCop::ExecuteWriteHelper(
 executor::ExecutionResult TrafficCop::ExecutePointReadHelper(
     std::shared_ptr<planner::AbstractPlan> plan,
     const std::vector<type::Value> &params, std::vector<ResultValue> &result,
-    const std::vector<int> &result_format, const Timestamp &basil_timestamp, std::function<bool(const std::string &)> &predicate, size_t thread_id) {
+    const std::vector<int> &result_format, Timestamp &basil_timestamp, std::function<bool(const std::string &)> &predicate, 
+    Timestamp *committed_timestamp,
+    pequinstore::proto::CommittedProof *commit_proof,
+    Timestamp *prepared_timestamp,
+    std::shared_ptr<std::string> txn_dig,
+    pequinstore::proto::Write *write,
+    size_t thread_id) {
   auto &curr_state = GetCurrentTxnState();
 
   concurrency::TransactionContext *txn;
@@ -419,6 +426,17 @@ executor::ExecutionResult TrafficCop::ExecutePointReadHelper(
   txn->SetBasilTimestamp(basil_timestamp);
   // Set the predicate
   txn->SetPredicate(predicate);
+  // Set the txn_digeset
+  txn->SetCommitTimestamp(committed_timestamp);
+  //auto time = txn->GetCommitTimestamp();
+  //time.setTimestamp(1024);
+
+  // Set the commit proof
+  txn->SetCommittedProof(commit_proof);
+  // Set the prepared timestamp
+  txn->SetPreparedTimestamp(prepared_timestamp);
+  // Set the prepared txn_dig
+  txn->SetPreparedTxnDigest(txn_dig);
 
   // skip if already aborted
   if (curr_state.second == ResultType::ABORTED) {
@@ -436,13 +454,13 @@ executor::ExecutionResult TrafficCop::ExecutePointReadHelper(
                                      std::vector<ResultValue> &&values) {  
     std::cout << "Made it to on complete" << std::endl;
     this->p_status_ = p_status;
-    std::cout << "The status is " << p_status.m_error_message << std::endl;
+    std::cout << "The status is for point read " << p_status.m_error_message << std::endl;
     // TODO (Tianyi) I would make a decision on keeping one of p_status or
     // error_message in my next PR
     this->error_message_ = std::move(p_status.m_error_message);
-    this->commit_proof_ = std::move(p_status.m_commit_proof);
     result = std::move(values);
     task_callback_(task_callback_arg_);
+    std::cout << "End of on complete" << std::endl;
   };
 
   auto &pool = threadpool::MonoQueuePool::GetInstance();
@@ -875,7 +893,7 @@ ResultType TrafficCop::ExecuteReadStatement(
     const std::vector<type::Value> &params, UNUSED_ATTRIBUTE bool unnamed,
     /*std::shared_ptr<stats::QueryMetric::QueryParams> param_stats,*/
     const std::vector<int> &result_format, std::vector<ResultValue> &result,
-    const Timestamp &basil_timestamp, pequinstore::QueryReadSetMgr &query_read_set_mgr, 
+    Timestamp &basil_timestamp, pequinstore::QueryReadSetMgr &query_read_set_mgr, 
     std::function<void(const std::string &, const Timestamp &, bool, pequinstore::QueryReadSetMgr *, pequinstore::SnapshotManager *)> &find_table_version,
     std::function<bool(const std::string &)> &read_prepared_pred,
     size_t thread_id) {
@@ -944,7 +962,7 @@ ResultType TrafficCop::ExecuteWriteStatement(
     const std::vector<type::Value> &params, UNUSED_ATTRIBUTE bool unnamed,
     /*std::shared_ptr<stats::QueryMetric::QueryParams> param_stats,*/
     const std::vector<int> &result_format, std::vector<ResultValue> &result,
-    const Timestamp &basil_timestamp, std::shared_ptr<std::string> txn_dig, 
+    Timestamp &basil_timestamp, std::shared_ptr<std::string> txn_dig, 
     pequinstore::proto::CommittedProof *commit_proof, bool commit_or_prepare, size_t thread_id) {
   // TODO(Tianyi) Further simplify this API
   /*if (static_cast<StatsType>(settings::SettingsManager::GetInt(
@@ -1011,7 +1029,13 @@ ResultType TrafficCop::ExecutePointReadStatement(
     const std::vector<type::Value> &params, UNUSED_ATTRIBUTE bool unnamed,
     /*std::shared_ptr<stats::QueryMetric::QueryParams> param_stats,*/
     const std::vector<int> &result_format, std::vector<ResultValue> &result,
-    const Timestamp &basil_timestamp, std::function<bool(const std::string &)> &predicate, size_t thread_id) {
+    Timestamp &basil_timestamp, std::function<bool(const std::string &)> &predicate, 
+    Timestamp *committed_timestamp,
+    pequinstore::proto::CommittedProof *commit_proof,
+    Timestamp *prepared_timestamp,
+    std::shared_ptr<std::string> txn_dig,
+    pequinstore::proto::Write *write,
+    size_t thread_id) {
   // TODO(Tianyi) Further simplify this API
   /*if (static_cast<StatsType>(settings::SettingsManager::GetInt(
           settings::SettingId::stats_mode)) != StatsType::INVALID) {
@@ -1058,7 +1082,7 @@ ResultType TrafficCop::ExecutePointReadStatement(
         }
 
         ExecutePointReadHelper(statement->GetPlanTree(), params, result, result_format,
-                      basil_timestamp, predicate, thread_id);
+                      basil_timestamp, predicate, committed_timestamp, commit_proof, prepared_timestamp, txn_dig, write, thread_id);
         if (GetQueuing()) {
           return ResultType::QUEUING;
         } else {

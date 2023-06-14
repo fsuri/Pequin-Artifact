@@ -43,8 +43,6 @@ struct ExecutionResult {
   // string of error message
   std::string m_error_message;
 
-  // Commit proof for point reads
-  pequinstore::proto::CommittedProof* m_commit_proof;
 
   ExecutionResult() {
     m_processed = 0;

@@ -195,10 +195,10 @@ int main(int argc, char *argv[]) {
       std::cout << "Encoded key: " << read_msg.key() << ". Timestamp: (" << read_msg.readtime().timestamp() << ", " << read_msg.readtime().id() << ")" << std::endl;
   }*/
 
-  Timestamp toy_ts_c(0, 1);
+  Timestamp toy_ts_c(10, 12);
   pequinstore::proto::CommittedProof *real_proof = new pequinstore::proto::CommittedProof();
-  real_proof->mutable_txn()->set_client_id(0);
-  real_proof->mutable_txn()->set_client_seq_num(1);
+  real_proof->mutable_txn()->set_client_id(10);
+  real_proof->mutable_txn()->set_client_seq_num(12);
   toy_ts_c.serialize(real_proof->mutable_txn()->mutable_timestamp());
   TableWrite &table_write = (*real_proof->mutable_txn()->mutable_table_writes())["test"];
   
@@ -249,11 +249,14 @@ int main(int argc, char *argv[]) {
 	//table_store.ExecRaw("INSERT INTO test VALUES (35, 26);");
 	//table_store.ExecRaw("INSERT INTO test VALUES (190, 999);");
   table_store.ApplyTableWrite("test", table_write, toy_ts_c, "random", real_proof, true);
+  std::cout << "New change 10" << std::endl;
   //table_store.ApplyTableWrite("test", table_write_1, toy_ts_c, "random", real_proof, true);
   std::string enc_primary_key = "test//24";
-  table_store.ExecPointRead("SELECT * FROM test WHERE a=24;", enc_primary_key, toy_ts_c, &write, &committed_proof);
+  //table_store.ExecRaw("DELETE FROM test WHERE a=24;");
+  std::cout << "End of queryexec test" << std::endl;
+  //table_store.ExecPointRead("SELECT * FROM test WHERE a=34;", enc_primary_key, toy_ts_c, &write, &committed_proof);
 
-	//table_store.ExecReadQuery("SELECT * FROM test;", pesto_timestamp, query_read_set_mgr_one);
+	table_store.ExecReadQuery("SELECT * FROM test;", toy_ts_c, query_read_set_mgr_one);
 
   return 0;
 }

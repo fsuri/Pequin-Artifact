@@ -274,7 +274,7 @@ class TileGroupHeader : public Printable {
   }
 
   // NEW: set basil timestamp
-  inline void SetBasilTimestamp(const oid_t &tuple_slot_id, Timestamp basil_timestamp) {
+  inline void SetBasilTimestamp(const oid_t &tuple_slot_id, Timestamp &basil_timestamp) {
     tuple_headers_[tuple_slot_id].basil_timestamp = basil_timestamp;
   }
 

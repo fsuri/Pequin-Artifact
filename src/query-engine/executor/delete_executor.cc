@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 #include <cinttypes>
+#include <iostream>
 #include "../storage/storage_manager.h"
 #include "../executor/delete_executor.h"
 #include "../executor/executor_context.h"
@@ -71,14 +72,17 @@ bool DeleteExecutor::DInit() {
  * @return true on success, false otherwise.
  */
 bool DeleteExecutor::DExecute() {
+  std::cout << "Inside delete executor" << std::endl;
   PELOTON_ASSERT(target_table_);
   // Retrieve next tile.
   if (!children_[0]->Execute()) {
     return false;
   }
 
+  std::cout << "After child execution" << std::endl;
   std::unique_ptr<LogicalTile> source_tile(children_[0]->GetOutput());
 
+  std::cout << "After delete child output" << std::endl;
   auto &pos_lists = source_tile.get()->GetPositionLists();
 
   auto &transaction_manager =
@@ -109,6 +113,7 @@ bool DeleteExecutor::DExecute() {
     }
   }*/
 
+  std::cout << "Before delete for loop" << std::endl;
   // Delete each tuple
   for (oid_t visible_tuple_id : *source_tile) {
     storage::TileGroup *tile_group =
@@ -188,6 +193,11 @@ bool DeleteExecutor::DExecute() {
       }
     }*/
 
+    //is_owner = true;
+    //is_written = true;
+
+    std::cout << "Is owner is " << is_owner << ". Is written is " << is_written << std::endl;
+
     if (is_owner == true && is_written == true) {
       // if the transaction is the owner of the tuple, then directly update in
       // place.
@@ -198,6 +208,7 @@ bool DeleteExecutor::DExecute() {
                         transaction_manager.IsOwnable(
                             current_txn, tile_group_header, physical_tuple_id);
 
+      //is_ownable = true;
       if (is_ownable == true) {
         // if the tuple is not owned by any transaction and is visible to
         // current transaction.
@@ -208,6 +219,7 @@ bool DeleteExecutor::DExecute() {
             transaction_manager.AcquireOwnership(current_txn, tile_group_header,
                                                  physical_tuple_id);
 
+        acquire_ownership_success = true;
         if (acquire_ownership_success == false) {
           transaction_manager.SetTransactionResult(current_txn,
                                                    ResultType::FAILURE);
@@ -235,6 +247,7 @@ bool DeleteExecutor::DExecute() {
                                                    ResultType::FAILURE);
           return false;
         }
+        std::cout << "Got to perform delete" << std::endl;
         transaction_manager.PerformDelete(current_txn, old_location,
                                           new_location);
 

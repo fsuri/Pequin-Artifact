@@ -174,7 +174,7 @@ static void InterpretPlan(
       }
 
       // Set the commit proof
-      result.m_commit_proof = tile->GetCommitProofs();
+      //result.m_commit_proof = tile->GetCommitProofs();
       
       //std::cout << "Past for loop" << std::endl;
       //break;

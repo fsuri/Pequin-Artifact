@@ -282,7 +282,7 @@ class TransactionContext : public Printable {
     return basil_timestamp_;
   }
 
-  void SetBasilTimestamp(Timestamp basil_timestamp) {
+  void SetBasilTimestamp(Timestamp &basil_timestamp) {
     basil_timestamp_ = basil_timestamp;
   }
 
@@ -340,6 +340,30 @@ class TransactionContext : public Printable {
 
   void SetCanReadPrepared(bool can_read_prepared) {
     can_read_prepared_ = can_read_prepared;
+  }
+
+  Timestamp* GetCommitTimestamp() {
+    return committed_timestamp_;
+  }
+
+  void SetCommitTimestamp(Timestamp* commit_timestamp) {
+    committed_timestamp_ = commit_timestamp;
+  }
+
+  std::shared_ptr<std::string> GetPreparedTxnDigest() {
+    return prepared_txn_dig_;
+  }
+
+  void SetPreparedTxnDigest(std::shared_ptr<std::string> prepared_txn_digest) {
+    prepared_txn_dig_ = prepared_txn_digest;
+  }
+
+  Timestamp* GetPreparedTimestamp() {
+    return prepared_timestamp_;
+  }
+
+  void SetPreparedTimestamp(Timestamp* prepared_timestamp) {
+    prepared_timestamp_ = prepared_timestamp;
   }
 
   /**
@@ -403,7 +427,16 @@ class TransactionContext : public Printable {
 	std::shared_ptr<std::string> txn_dig_;
 
 	/** Commit proof */
-  pequinstore::proto::CommittedProof *committed_proof_;
+  pequinstore::proto::CommittedProof* committed_proof_;
+
+  /** Timestamp of committed value */
+  Timestamp* committed_timestamp_;
+
+  /** Timestamp of the prepared value */
+  Timestamp* prepared_timestamp_;
+
+  /** Prepared value transaction digest */
+  std::shared_ptr<std::string> prepared_txn_dig_;
 
 	/** Commit or prepare */
 	bool commit_or_prepare_;

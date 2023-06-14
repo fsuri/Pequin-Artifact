@@ -79,7 +79,7 @@ class TrafficCop {
       const std::vector<type::Value> &params, const bool unnamed,
       /*std::shared_ptr<stats::QueryMetric::QueryParams> param_stats,*/
       const std::vector<int> &result_format, std::vector<ResultValue> &result,
-      const Timestamp &basil_timestamp, pequinstore::QueryReadSetMgr &query_read_set_mgr, 
+      Timestamp &basil_timestamp, pequinstore::QueryReadSetMgr &query_read_set_mgr, 
       std::function<void(const std::string &, const Timestamp &, bool, pequinstore::QueryReadSetMgr *, pequinstore::SnapshotManager *)> &find_table_version,
       std::function<bool(const std::string &)> &read_prepared_pred,
       size_t thread_id = 0);
@@ -90,7 +90,7 @@ class TrafficCop {
       const std::vector<type::Value> &params, const bool unnamed,
       /*std::shared_ptr<stats::QueryMetric::QueryParams> param_stats,*/
       const std::vector<int> &result_format, std::vector<ResultValue> &result,
-      const Timestamp &basil_timestamp, std::shared_ptr<std::string> txn_digest, 
+      Timestamp &basil_timestamp, std::shared_ptr<std::string> txn_digest, 
       pequinstore::proto::CommittedProof *commit_proof, bool commit_or_prepare, size_t thread_id = 0);
   
   // Execute a statement
@@ -99,7 +99,13 @@ class TrafficCop {
       const std::vector<type::Value> &params, const bool unnamed,
       /*std::shared_ptr<stats::QueryMetric::QueryParams> param_stats,*/
       const std::vector<int> &result_format, std::vector<ResultValue> &result,
-      const Timestamp &basil_timestamp, std::function<bool(const std::string &)> &predicate, size_t thread_id = 0);
+      Timestamp &basil_timestamp, std::function<bool(const std::string &)> &predicate,
+      Timestamp *committed_timestamp,
+      pequinstore::proto::CommittedProof *commit_proof,
+      Timestamp *prepared_timestamp,
+      std::shared_ptr<std::string> txn_dig,
+      pequinstore::proto::Write *write,
+      size_t thread_id = 0);
 
   // Helper to handle txn-specifics for the plan-tree of a statement.
   executor::ExecutionResult ExecuteHelper(
@@ -111,7 +117,7 @@ class TrafficCop {
   executor::ExecutionResult ExecuteReadHelper(
       std::shared_ptr<planner::AbstractPlan> plan,
       const std::vector<type::Value> &params, std::vector<ResultValue> &result,
-      const std::vector<int> &result_format, const Timestamp &basil_timestamp, pequinstore::QueryReadSetMgr &query_read_set_mgr, 
+      const std::vector<int> &result_format, Timestamp &basil_timestamp, pequinstore::QueryReadSetMgr &query_read_set_mgr, 
       std::function<void(const std::string &, const Timestamp &, bool, pequinstore::QueryReadSetMgr *, pequinstore::SnapshotManager *)> &find_table_version,
       std::function<bool(const std::string &)> &read_prepared_pred,
       size_t thread_id = 0);
@@ -120,14 +126,20 @@ class TrafficCop {
   executor::ExecutionResult ExecuteWriteHelper(
       std::shared_ptr<planner::AbstractPlan> plan,
       const std::vector<type::Value> &params, std::vector<ResultValue> &result,
-      const std::vector<int> &result_format, const Timestamp &basil_timestamp, std::shared_ptr<std::string> txn_digest, 
+      const std::vector<int> &result_format, Timestamp &basil_timestamp, std::shared_ptr<std::string> txn_digest, 
       pequinstore::proto::CommittedProof *commit_proof, bool commit_or_prepare, size_t thread_id = 0);
 
   // Helper to handle txn-specifics for the plan-tree of a statement.
   executor::ExecutionResult ExecutePointReadHelper(
       std::shared_ptr<planner::AbstractPlan> plan,
       const std::vector<type::Value> &params, std::vector<ResultValue> &result,
-      const std::vector<int> &result_format, const Timestamp &basil_timestamp, std::function<bool(const std::string &)> &predicate, size_t thread_id = 0);
+      const std::vector<int> &result_format, Timestamp &basil_timestamp, std::function<bool(const std::string &)> &predicate, 
+      Timestamp *committed_timestamp,
+      pequinstore::proto::CommittedProof *commit_proof,
+      Timestamp *prepared_timestamp,
+      std::shared_ptr<std::string> txn_dig,
+      pequinstore::proto::Write *write,
+      size_t thread_id = 0);
 
   // Prepare a statement using the parse tree
   std::shared_ptr<Statement> PrepareStatement(

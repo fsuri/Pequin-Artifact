@@ -284,6 +284,15 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
             visible_tuple_locations.push_back(tuple_location);
             // Set boolean flag found_committed to true
             found_committed = true;
+            // Set the committed timestmp
+            Timestamp committed_timestamp = tile_group_header->GetBasilTimestamp(tuple_location.offset);
+            std::cout << "Committed timestamp is " << committed_timestamp.getTimestamp() << ", " << committed_timestamp.getID() << std::endl;
+            /*Timestamp* txn_timestamp = current_txn->GetCommitTimestamp();
+
+            *txn_timestamp = committed_timestamp;
+            std::cout << "Commit timestamp is " << txn_timestamp->getTimestamp() << ", " << txn_timestamp->getID() << std::endl;*/
+
+            current_txn->SetCommittedProof(tile_group_header->GetCommittedProof(tuple_location.offset));
             // Since tuple is committed we can stop looking at the version chain
             break;
           }
@@ -301,6 +310,12 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
             if (predicate(*(current_txn->GetTxnDig()))) {
               // NEW: if predicate satisfied then add to prepared visible tuple vector
               visible_tuple_locations.push_back(tuple_location);
+              // Set the prepared timestamp
+              Timestamp prepared_timestamp = tile_group_header->GetBasilTimestamp(tuple_location.offset);
+              current_txn->SetPreparedTimestamp(&prepared_timestamp);
+              // Set the prepared txn digest
+              current_txn->SetPreparedTxnDigest(tile_group_header->GetTxnDig(tuple_location.offset));
+              // After finding latest prepare we can stop looking at the version chain
               found_prepared = true;
             }
           }

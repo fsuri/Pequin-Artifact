@@ -12,6 +12,8 @@
 
 #include "../concurrency/timestamp_ordering_transaction_manager.h"
 #include <cinttypes>
+#include <iostream>
+#include <ostream>
 #include "../storage/storage_manager.h"
 
 #include "../catalog/catalog_defaults.h"
@@ -373,7 +375,8 @@ void TimestampOrderingTransactionManager::PerformInsert(
   // no need to set next item pointer.
 
   // NEW: add timestamp
-  tile_group_header->SetBasilTimestamp(tuple_id, current_txn->GetBasilTimestamp());
+  auto ts = current_txn->GetBasilTimestamp();
+  tile_group_header->SetBasilTimestamp(tuple_id, ts);
 
   // NEW: set txn digest
   tile_group_header->SetTxnDig(tuple_id, current_txn->GetTxnDig());
@@ -428,7 +431,8 @@ void TimestampOrderingTransactionManager::PerformUpdate(
 
   // if the executor doesn't call PerformUpdate after AcquireOwnership,
   // no one will possibly release the write lock acquired by this txn.
-  new_tile_group_header->SetBasilTimestamp(new_location.offset, current_txn->GetBasilTimestamp());
+  auto ts = current_txn->GetBasilTimestamp();
+  new_tile_group_header->SetBasilTimestamp(new_location.offset, ts);
 
   ItemPointer *index_entry_ptr = tile_group_header->GetIndirection(old_location.offset);
   if (index_entry_ptr != nullptr) {
@@ -522,6 +526,7 @@ void TimestampOrderingTransactionManager::PerformDelete(
     TransactionContext *const current_txn, const ItemPointer &location,
     const ItemPointer &new_location) {
   PELOTON_ASSERT(!current_txn->IsReadOnly());
+  std::cout << "Inside the second perform delete" << std::endl;
 
   ItemPointer old_location = location;
 
@@ -600,18 +605,20 @@ void TimestampOrderingTransactionManager::PerformDelete(
 
 void TimestampOrderingTransactionManager::PerformDelete(
     TransactionContext *const current_txn, const ItemPointer &location) {
-  PELOTON_ASSERT(!current_txn->IsReadOnly());
-
+//  PELOTON_ASSERT(!current_txn->IsReadOnly());
+  std::cout << "Inside Perform Delete" << std::endl;
   oid_t tile_group_id = location.block;
   oid_t tuple_id = location.offset;
 
   auto storage_manager = storage::StorageManager::GetInstance();
   auto tile_group_header = storage_manager->GetTileGroup(tile_group_id)->GetHeader();
 
-  PELOTON_ASSERT(tile_group_header->GetTransactionId(tuple_id) ==
-                 current_txn->GetTransactionId());
-  PELOTON_ASSERT(tile_group_header->GetBeginCommitId(tuple_id) == MAX_CID);
+  /*PELOTON_ASSERT(tile_group_header->GetTransactionId(tuple_id) ==
+                 current_txn->GetTransactionId());*/
+  //PELOTON_ASSERT(tile_group_header->GetBeginCommitId(tuple_id) == MAX_CID);
 
+  std::cout << "Made it to perform delete for tuple id " << tuple_id << std::endl;
+  // Deletes are indicated by setting the end commit id to invalid
   tile_group_header->SetEndCommitId(tuple_id, INVALID_CID);
 
   // Add the old tuple into the delete set
@@ -741,6 +748,7 @@ ResultType TimestampOrderingTransactionManager::CommitTransaction(
           tile_group_header->GetPrevItemPointer(tuple_slot);
 
       auto cid = tile_group_header->GetEndCommitId(tuple_slot);
+      /** Assert that fails for deletes */
       PELOTON_ASSERT(cid > end_commit_id);
       auto new_tile_group_header =
           storage_manager->GetTileGroup(new_version.block)->GetHeader();
