@@ -366,6 +366,14 @@ class TransactionContext : public Printable {
     prepared_timestamp_ = prepared_timestamp;
   }
 
+  bool GetUndoDelete() {
+    return undo_delete_;
+  }
+
+  void SetUndoDelete(bool undo_delete) {
+    undo_delete_ = undo_delete;
+  }
+
   /**
    * @brief      Gets the isolation level.
    *
@@ -449,6 +457,9 @@ class TransactionContext : public Printable {
 
   /** Can read prepared */
   bool can_read_prepared_;
+
+  /** Whether purge is undoing a delete */
+  bool undo_delete_;
   
   ReadWriteSet rw_set_;
   CreateDropSet rw_object_set_;

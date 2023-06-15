@@ -544,6 +544,7 @@ void TimestampOrderingTransactionManager::PerformDelete(
 
   auto transaction_id = current_txn->GetTransactionId();
 
+
   PELOTON_ASSERT(tile_group_header->GetLastReaderCommitId(
                      old_location.offset) == current_txn->GetCommitId());
 

@@ -174,11 +174,17 @@ bool SeqScanExecutor::DExecute() {
         ItemPointer location(tile_group->GetTileGroupId(), tuple_id);
 
         // Commented out since CC is done at Basil level
-        //auto visibility = transaction_manager.IsVisible(
-        //    current_txn, tile_group_header, tuple_id);
+        std::cout << "tuple begin id is " << tile_group_header->GetBeginCommitId(tuple_id) << std::endl;
+        std::cout << "tuple end id is " << tile_group_header->GetEndCommitId(tuple_id) << std::endl;
+        std::cout << "tuple transaction id is " << tile_group_header->GetTransactionId(tuple_id) << std::endl;
+        std::cout << "current txn id is " << current_txn->GetTransactionId() << std::endl;
+        std::cout << "Tuple location is block " << location.block << " and offset " << location.offset << std::endl;
+        auto visibility = transaction_manager.IsVisible(
+            current_txn, tile_group_header, tuple_id);
+        std::cout << "Visibility is " << visibility << std::endl;
 
         // Always set visibility to be ok
-        auto visibility = VisibilityType::OK;
+        //auto visibility = VisibilityType::OK;
         
         // NEW: Logic for finding the right version to read
         auto storage_manager = storage::StorageManager::GetInstance();
@@ -196,13 +202,11 @@ bool SeqScanExecutor::DExecute() {
         /*if (head->IsNull()) {
           std::cout << "Head is null" << std::endl;
         }*/
-        std::cout << "Seq scan seg fault 1" << std::endl;
+
         auto head_tile_group_header = storage_manager->GetTileGroup(head->block)->GetHeader();
-        std::cout << "Seq scan seg fault 2" << std::endl;
+
         tuple_timestamp = head_tile_group_header->GetBasilTimestamp(head->offset);
-        std::cout << "Seq scan seg fault 3" << std::endl;
         location = *head;
-        std::cout << "Seq scan seg fault 4" << std::endl;
         tile_group_header = head_tile_group_header;
         curr_tuple_id = location.offset;
 

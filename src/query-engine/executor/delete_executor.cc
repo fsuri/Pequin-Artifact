@@ -32,6 +32,7 @@
 //#include "../trigger/trigger.h"
 #include "../catalog/table_catalog.h"
 #include "../parser/pg_trigger.h"
+#include "query-engine/common/internal_types.h"
 
 namespace peloton {
 namespace executor {
@@ -124,6 +125,8 @@ bool DeleteExecutor::DExecute() {
 
     ItemPointer old_location(tile_group->GetTileGroupId(), physical_tuple_id);
 
+    std::cout << "Deleted tuple id is block " << old_location.block << " and offset " << old_location.offset << std::endl;
+
     LOG_TRACE("Visible Tuple id : %u, Physical Tuple id : %u ",
               visible_tuple_id, physical_tuple_id);
 
@@ -208,7 +211,7 @@ bool DeleteExecutor::DExecute() {
                         transaction_manager.IsOwnable(
                             current_txn, tile_group_header, physical_tuple_id);
 
-      //is_ownable = true;
+      is_ownable = true;
       if (is_ownable == true) {
         // if the tuple is not owned by any transaction and is visible to
         // current transaction.
@@ -225,9 +228,26 @@ bool DeleteExecutor::DExecute() {
                                                    ResultType::FAILURE);
           return false;
         }
+
+        // Before getting new location
+        if (current_txn->GetUndoDelete()) {
+          // If undoing a delete then reset the begin and commit ids
+          std::cout << "Made it to undoing deletes" << std::endl;
+          tile_group_header->SetBeginCommitId(old_location.offset, current_txn->GetTransactionId());
+          tile_group_header->SetEndCommitId(old_location.offset, MAX_CID);
+          tile_group_header->SetTransactionId(old_location.offset, current_txn->GetTransactionId());
+          tile_group_header->SetLastReaderCommitId(old_location.offset,
+                                                       current_txn->GetCommitId());
+          //tile_group_header->SetEndCommitId(old_location.offset, INVALID_CID);
+          std::cout << "Trying to undo deleted tuple id is block " << old_location.block << " and offset " << old_location.offset << std::endl;
+          std::cout << "Undo delete visibility type is " << transaction_manager.IsVisible(current_txn, tile_group_header, old_location.offset) << std::endl;
+          return true;
+        }
         // if it is the latest version and not locked by other threads, then
         // insert an empty version.
         ItemPointer new_location = target_table_->InsertEmptyVersion();
+        std::cout << "Delete executor New location tuple id is block " << new_location.block << " and offset " << new_location.offset << std::endl;
+
 
         // PerformDelete() will not be executed if the insertion failed.
         // There is a write lock acquired, but since it is not in the write set,

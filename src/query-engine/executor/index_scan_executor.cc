@@ -166,6 +166,7 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
   PELOTON_ASSERT(index_->GetIndexType() == IndexConstraintType::PRIMARY_KEY);
 
   if (0 == key_column_ids_.size()) {
+    std::cout << "Index executor scan all keys" << std::endl;
     index_->ScanAllKeys(tuple_location_ptrs);
   } else {
     // Limit clause accelerate
@@ -173,12 +174,14 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
       // invoke index scan limit
       if (!descend_) {
         LOG_TRACE("ASCENDING SCAN LIMIT in Primary Index");
+        std::cout << "Index executor scan limit ascending" << std::endl;
         index_->ScanLimit(values_, key_column_ids_, expr_types_,
                           ScanDirectionType::FORWARD, tuple_location_ptrs,
                           &index_predicate_.GetConjunctionList()[0],
                           limit_number_, limit_offset_);
       } else {
         LOG_TRACE("DESCENDING SCAN LIMIT in Primary Index");
+        std::cout << "Index executor scan limit descending" << std::endl;
         index_->ScanLimit(values_, key_column_ids_, expr_types_,
                           ScanDirectionType::BACKWARD, tuple_location_ptrs,
                           &index_predicate_.GetConjunctionList()[0],
@@ -190,6 +193,7 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
     // Normal SQL (without limit)
     else {
       LOG_TRACE("Index Scan in Primary Index");
+      std::cout << "Index executor scan all" << std::endl;
       index_->Scan(values_, key_column_ids_, expr_types_,
                    ScanDirectionType::FORWARD, tuple_location_ptrs,
                    &index_predicate_.GetConjunctionList()[0]);
@@ -199,6 +203,7 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
   }
 
   if (tuple_location_ptrs.size() == 0) {
+    std::cout << "No tuples retrieved in the index" << std::endl;
     LOG_TRACE("no tuple is retrieved from index.");
     return false;
   }
@@ -218,8 +223,11 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
   int num_tuples_examined = 0;
 #endif
 
+  std::cout << "Index executor before for loop" << std::endl;
+  std::cout << "Size of tuple location ptrs is " << tuple_location_ptrs.size() << std::endl;
   // for every tuple that is found in the index.
   for (auto tuple_location_ptr : tuple_location_ptrs) {
+    std::cout << "Index executor inside for loop" << std::endl;
     ItemPointer tuple_location = *tuple_location_ptr;
     auto tile_group = storage_manager->GetTileGroup(tuple_location.block);
     auto tile_group_header = tile_group.get()->GetHeader();
@@ -239,10 +247,31 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
       auto visibility = transaction_manager.IsVisible(
           current_txn, tile_group_header, tuple_location.offset);
 
-      // if the tuple is deleted
-      if (visibility == VisibilityType::DELETED) {
+      std::cout << "Index executor visibility is " << visibility << " and undo delete is " << current_txn->GetUndoDelete() << std::endl;
+
+      // if the tuple is deleted and we are not undoing a delete
+      if (visibility == VisibilityType::DELETED && !current_txn->GetUndoDelete()) {
         LOG_TRACE("encounter deleted tuple: %u, %u", tuple_location.block,
                   tuple_location.offset);
+        break;
+      }
+      // else if the tuple is deleted and we are undoing a delete
+      else if (visibility == VisibilityType::DELETED && current_txn->GetUndoDelete()) {
+        std::cout << "Index executor undo the delete precondition satisfied" << std::endl;
+        auto tuple_timestamp = tile_group_header->GetBasilTimestamp(tuple_location.offset);
+        auto txn_timestamp = current_txn->GetBasilTimestamp();
+        // If the tuple timestamp is past the timestamp then add to visibile tuple locations to purge
+        std::cout << "Tuple timestamp " << tuple_timestamp.getID() << ", " << tuple_timestamp.getTimestamp() << std::endl;
+        std::cout << "Txn timestamp " << txn_timestamp.getID() << ", " << txn_timestamp.getTimestamp() << std::endl;
+        if (/*tuple_timestamp >= txn_timestamp*/true) {
+          //std::cout << "Index executor added tuple to visibile tuple locations" << std::endl;
+          //std::cout << "Index executor deleted tuple location block " << tuple_location.block << " and offset " << tuple_location.offset << std::endl;
+          auto new_tuple_location = tile_group_header->GetNextItemPointer(tuple_location.offset);
+          std::cout << "Index executor added tuple to visibile tuple locations" << std::endl;
+          std::cout << "Index executor deleted tuple location block " << new_tuple_location.block << " and offset " << new_tuple_location.offset << std::endl;
+
+          visible_tuple_locations.push_back(new_tuple_location);
+        }
         break;
       }
       // if the tuple is visible.
@@ -376,8 +405,11 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
         continue;
       }
     }
+    std::cout << "Outside while loop" << std::endl;
     LOG_TRACE("Traverse length: %d\n", (int)chain_length);
+    std::cout << "For loop iteration"<< std::endl;
   }
+  std::cout << "Outside for loop" << std::endl;
   LOG_TRACE("Examined %d tuples from index %s", num_tuples_examined,
             index_->GetName().c_str());
 
@@ -398,47 +430,71 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
 
   for (auto &visible_tuple_location : visible_tuple_locations) {
     if (current_tile_group_oid == INVALID_OID) {
+      std::cout << "1"<< std::endl;
       current_tile_group_oid = visible_tuple_location.block;
     }
     if (current_tile_group_oid == visible_tuple_location.block) {
+      std::cout << "2"<< std::endl;
       tuples.push_back(visible_tuple_location.offset);
     } else {
       // Since the tile_group_oids differ, fill in the current tile group
       // into the result vector
+      std::cout << "3"<< std::endl;
       auto storage_manager = storage::StorageManager::GetInstance();
+      std::cout << "4"<< std::endl;
       auto tile_group = storage_manager->GetTileGroup(current_tile_group_oid);
+      std::cout << "5"<< std::endl;
       std::unique_ptr<LogicalTile> logical_tile(LogicalTileFactory::GetTile());
+      std::cout << "6"<< std::endl;
       // Add relevant columns to logical tile
       logical_tile->AddColumns(tile_group, full_column_ids_);
+      std::cout << "7"<< std::endl;
       logical_tile->AddPositionList(std::move(tuples));
+      std::cout << "8"<< std::endl;
       // Add prepared values and commit proofs to logical tile
       //logical_tile->AddPreparedValues(prepared_values[0]);
       logical_tile->SetCommitProofs(proofs[0]);
+      std::cout << "9"<< std::endl;
       if (column_ids_.size() != 0) {
+        std::cout << "10"<< std::endl;
         logical_tile->ProjectColumns(full_column_ids_, column_ids_);
+        std::cout << "11"<< std::endl;
       }
       result_.push_back(logical_tile.release());
+      std::cout << "12"<< std::endl;
 
       // Change the current_tile_group_oid and add the current tuple
       tuples.clear();
+      std::cout << "13"<< std::endl;
       current_tile_group_oid = visible_tuple_location.block;
+      std::cout << "14"<< std::endl;
       tuples.push_back(visible_tuple_location.offset);
+      std::cout << "15"<< std::endl;
     }
   }
 
   // Add the remaining tuples to the result vector
   if ((current_tile_group_oid != INVALID_OID) && (!tuples.empty())) {
+    std::cout << "16"<< std::endl;
     auto tile_group = storage_manager->GetTileGroup(current_tile_group_oid);
+    std::cout << "17"<< std::endl;
     std::unique_ptr<LogicalTile> logical_tile(LogicalTileFactory::GetTile());
+    std::cout << "18"<< std::endl;
     // Add relevant columns to logical tile
     logical_tile->AddColumns(tile_group, full_column_ids_);
+    std::cout << "19"<< std::endl;
     logical_tile->AddPositionList(std::move(tuples));
+    std::cout << "20"<< std::endl;
     // Add prepared values and commit proofs to logical tile
     //logical_tile->AddPreparedValues(prepared_values[0]);
-    logical_tile->SetCommitProofs(proofs[0]);
+    //logical_tile->SetCommitProofs(proofs[0]);
+    std::cout << "21"<< std::endl;
     if (column_ids_.size() != 0) {
+      std::cout << "22"<< std::endl;
       logical_tile->ProjectColumns(full_column_ids_, column_ids_);
+      std::cout << "23"<< std::endl;
     }
+    std::cout << "24"<< std::endl;
     result_.push_back(logical_tile.release());
   }
 

@@ -47,9 +47,7 @@ namespace catalog {
 
 // Get instance of the global catalog
 Catalog *Catalog::GetInstance() {
-  std::cout << "Create instance 1" << std::endl;
   static Catalog global_catalog;
-  std::cout << "Create databse 2" << std::endl;
   return &global_catalog;
 }
 

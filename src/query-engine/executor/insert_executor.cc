@@ -247,7 +247,7 @@ bool InsertExecutor::DExecute() {
 
       // Carry out insertion
       ItemPointer *index_entry_ptr = nullptr;
-      std::cout << "Insert executor before insertion in else if statement" << std::endl;
+      //std::cout << "Insert executor before insertion in else if statement" << std::endl;
       bool result = true;
       
       /*ItemPointer location =

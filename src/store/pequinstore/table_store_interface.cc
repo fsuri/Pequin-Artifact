@@ -642,47 +642,48 @@ void TableStore::PurgeTableWrite(const std::string &table_name, const TableWrite
 
     std::string purge_statement;
     bool has_purge = sql_interpreter.GenerateTablePurgeStatement(purge_statement, table_name, table_write);
+    has_purge = true;
 
     std::cout << "Has purge value is " << has_purge << std::endl;
     std::cout << "Purge statement is " << purge_statement << std::endl;
 
-    if (has_purge) {
-      std::vector<peloton::ResultValue> result;
-      std::vector<peloton::FieldInfo> tuple_descriptor;
 
-      // execute the query using tcop
-      // prepareStatement
-      // LOG_TRACE("Query: %s", query.c_str());
-      std::string unnamed_statement = "unnamed";
-      auto &peloton_parser = peloton::parser::PostgresParser::GetInstance();
-      auto sql_stmt_list = peloton_parser.BuildParseTree(purge_statement);
-      // PELOTON_ASSERT(sql_stmt_list);
+    std::vector<peloton::ResultValue> result;
+    std::vector<peloton::FieldInfo> tuple_descriptor;
 
-      auto statement = traffic_cop_.PrepareStatement(unnamed_statement, purge_statement,
-													std::move(sql_stmt_list));
+    // execute the query using tcop
+    // prepareStatement
+    // LOG_TRACE("Query: %s", query.c_str());
+    std::string unnamed_statement = "unnamed";
+    auto &peloton_parser = peloton::parser::PostgresParser::GetInstance();
+    auto sql_stmt_list = peloton_parser.BuildParseTree(purge_statement);
+    // PELOTON_ASSERT(sql_stmt_list);
 
-      if (statement.get() == nullptr) {
-          traffic_cop_.setRowsAffected(0);
-      }
-      std::vector<peloton::type::Value> param_values;
-      bool unnamed = false;
-      param_values.clear();
-      std::vector<int> result_format(statement->GetTupleDescriptor().size(), 0);
+    auto statement = traffic_cop_.PrepareStatement(unnamed_statement, purge_statement,
+                                                  std::move(sql_stmt_list));
 
-      // SetTrafficCopCounter();
-      counter_.store(1);
-      pequinstore::proto::CommittedProof commit_proof;
-      auto status = traffic_cop_.ExecuteWriteStatement(statement, param_values, unnamed, result_format, result, ts, txn_dig, &commit_proof, true);
-      if (traffic_cop_.GetQueuing()) {
-          ContinueAfterComplete(counter_);
-          traffic_cop_.ExecuteStatementPlanGetResult();
-          status = traffic_cop_.ExecuteStatementGetResult();
-          traffic_cop_.SetQueuing(false);
-      }
-      if (status == peloton::ResultType::SUCCESS) {
-		tuple_descriptor = statement->GetTupleDescriptor();
-      }
+    if (statement.get() == nullptr) {
+        traffic_cop_.setRowsAffected(0);
     }
+    std::vector<peloton::type::Value> param_values;
+    bool unnamed = false;
+    param_values.clear();
+    std::vector<int> result_format(statement->GetTupleDescriptor().size(), 0);
+
+    // SetTrafficCopCounter();
+    counter_.store(1);
+    pequinstore::proto::CommittedProof commit_proof;
+    auto status = traffic_cop_.ExecutePurgeStatement(statement, param_values, unnamed, result_format, result, ts, txn_dig, has_purge);
+    if (traffic_cop_.GetQueuing()) {
+        ContinueAfterComplete(counter_);
+        traffic_cop_.ExecuteStatementPlanGetResult();
+        status = traffic_cop_.ExecuteStatementGetResult();
+        traffic_cop_.SetQueuing(false);
+    }
+    if (status == peloton::ResultType::SUCCESS) {
+      tuple_descriptor = statement->GetTupleDescriptor();
+    }
+
 
     //TODO: Purge statement is a "special" delete statement:
             // it deletes existing row insertions for the timestamp
