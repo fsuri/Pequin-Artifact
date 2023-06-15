@@ -53,6 +53,10 @@ Server::Server(const transport::Configuration& config, KeyManager *keyManager,
 
   dummyProof->mutable_txn()->mutable_timestamp()->set_timestamp(0);
   dummyProof->mutable_txn()->mutable_timestamp()->set_id(0);
+  std::string db_name = "datadb" + (1 + idx);
+  std::string connection_str = "user=pequin_client dbname=" + db_name + " port=5432";
+  connectionPool = tao::pq::connection_pool::create(connection_str);
+  Debug("PostgreSQL client created!", idx);
 }
 
 Server::~Server() {}
@@ -398,6 +402,7 @@ std::vector<::google::protobuf::Message*> Server::HandleTransaction(const proto:
   if(txnMap.find(client_seq_key) == txnMap.end()) {
     auto connection = connectionPool->connection();
     tr = connection->transaction();
+    connectionMap[client_seq_key] = connection;
     txnMap[client_seq_key] = tr;
   } else {
     tr = txnMap[client_seq_key];
@@ -450,6 +455,7 @@ std::vector<::google::protobuf::Message*> Server::HandleTransaction(const proto:
   if(txnMap.find(client_seq_key) == txnMap.end()) {
     auto connection = connectionPool->connection();
     tr = connection->transaction();
+    connectionMap[client_seq_key] = connection;
     txnMap[client_seq_key] = tr;
   } else {
     tr = txnMap[client_seq_key];
@@ -457,6 +463,8 @@ std::vector<::google::protobuf::Message*> Server::HandleTransaction(const proto:
 
   try {
     tr->commit();
+    txnMap.erase(client_seq_key);
+    connectionMap.erase(client_seq_key);
     reply->set_status(REPLY_OK);
   } catch(tao::pq::sql_error e) {
     reply->set_status(REPLY_FAIL);
@@ -480,6 +488,9 @@ std::vector<::google::protobuf::Message*> Server::HandleTransaction(const proto:
   }
 
   tr->rollback();
+
+  txnMap.erase(client_seq_key);
+  connectionMap.erase(client_seq_key);
 
   return nullptr;
 }
@@ -639,6 +650,7 @@ std::vector<::google::protobuf::Message*> Server::HandleTransaction(const proto:
     if(txnMap.find(client_seq_key) == txnMap.end()) {
       auto connection = connectionPool->connection();
       tr = connection->transaction();
+      connectionMap[client_seq_key] = connection;
       txnMap[client_seq_key] = tr;
     } else {
       tr = txnMap[client_seq_key];
@@ -647,6 +659,8 @@ std::vector<::google::protobuf::Message*> Server::HandleTransaction(const proto:
     try {
       tr->commit();
       groupedDecisionAck->set_status(REPLY_OK);
+      txnMap.erase(client_seq_key);
+      connectionMap.erase(client_seq_key);
     } catch(tao::pq::sql_error e) {
       groupedDecisionAck->set_status(REPLY_FAIL);
     }
@@ -713,12 +727,16 @@ std::vector<::google::protobuf::Message*> Server::HandleTransaction(const proto:
   if(txnMap.find(client_seq_key) == txnMap.end()) {
     auto connection = connectionPool->connection();
     tr = connection->transaction();
+    connectionMap[client_seq_key] = connection;
     txnMap[client_seq_key] = tr;
   } else {
     tr = txnMap[client_seq_key];
   }
 
   tr->rollback();
+
+  txnMap.erase(client_seq_key);
+  connectionMap.erase(client_seq_key);
 
   groupedDecisionAck->set_txn_digest(digest);
 

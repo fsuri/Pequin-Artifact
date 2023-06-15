@@ -67,7 +67,9 @@ public:
 
 private:
   std::shared_ptr<tao::pq::connection_pool> connectionPool;
+  // std::shared_ptr<tao::pq::connection> connection;
   std::map<std::string, std::shared_ptr< tao::pq::transaction >> txnMap;
+  std::map<std::string, std::shared_ptr< tao::pq::connection >> connectionMap;
   Transport* tp;
   Stats stats;
   transport::Configuration config;
