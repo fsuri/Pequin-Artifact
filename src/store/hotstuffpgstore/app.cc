@@ -41,6 +41,11 @@ std::vector<::google::protobuf::Message*> App::Execute(const std::string &msg, c
   Panic("Unimplemented");
 }
 
+void App::Execute_Callback(const std::string& type, const std::string& msg, std::function<void(std::vector<::google::protobuf::Message*>)> ecb) {
+  Panic("Unimplemented");
+}
+
+
 ::google::protobuf::Message* App::HandleMessage(const std::string& type, const std::string& msg) {
   Panic("Unimplemented");
 }

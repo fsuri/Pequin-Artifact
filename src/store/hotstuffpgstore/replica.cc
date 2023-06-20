@@ -929,42 +929,90 @@ void Replica::executeSlots_internal() {
         Debug("executing seq num: %lu %lu", execSeqNum, execBatchNum);
         proto::PackedMessage packedMsg = requests[digest];
 
-        std::vector<::google::protobuf::Message*> replies = app->Execute(packedMsg.type(), packedMsg.msg());
+        if(false) {
+          transport->Timer(0, [this, digest, batchDigest, packedMsg](){
 
-        for (const auto& reply : replies) {
-          if (reply != nullptr) {
-            Debug("Sending reply");
-            stats->Increment("execs_sent",1);
-            EpendingBatchedMessages.push_back(reply);
-            EpendingBatchedDigs.push_back(digest);
-            if (EpendingBatchedMessages.size() >= EbatchSize) {
-              Debug("EBatch is full, sending");
 
-              // HotStuff: disable timer for HotStuff due to concurrency bugs
-              // if (EbatchTimerRunning) {
-              //   transport->CancelTimer(EbatchTimerId);
-              //   EbatchTimerRunning = false;
-              // }
-              sendEbatch();
-            } else if (!EbatchTimerRunning) {
-              EbatchTimerRunning = true;
-              Debug("Starting ebatch timer");
-              // EbatchTimerId = transport->Timer(EbatchTimeoutMS, [this]() {
-              //   Debug("EBatch timer expired, sending");
-              //   this->EbatchTimerRunning = false;
-              //   this->sendEbatch();
-              // });
+            execute_callback ecb = [this, digest, batchDigest](std::vector<::google::protobuf::Message*> replies) {
+              for (const auto& reply : replies) {
+                if (reply != nullptr) {
+                  Debug("Sending reply");
+                  stats->Increment("execs_sent",1);
+                  EpendingBatchedMessages.push_back(reply);
+                  EpendingBatchedDigs.push_back(digest);
+                  if (EpendingBatchedMessages.size() >= EbatchSize) {
+                    Debug("EBatch is full, sending");
+
+                    // HotStuff: disable timer for HotStuff due to concurrency bugs
+                    // if (EbatchTimerRunning) {
+                    //   transport->CancelTimer(EbatchTimerId);
+                    //   EbatchTimerRunning = false;
+                    // }
+                    sendEbatch();
+                  } else if (!EbatchTimerRunning) {
+                    EbatchTimerRunning = true;
+                    Debug("Starting ebatch timer");
+                    // EbatchTimerId = transport->Timer(EbatchTimeoutMS, [this]() {
+                    //   Debug("EBatch timer expired, sending");
+                    //   this->EbatchTimerRunning = false;
+                    //   this->sendEbatch();
+                    // });
+                  }
+                } else {
+                  Debug("Invalid execution");
+                }
+              }
+
+              execBatchNum++;
+              if ((int) execBatchNum >= batchedRequests[batchDigest].digests_size()) {
+                Debug("Done executing batch");
+                execBatchNum = 0;
+                execSeqNum++;
+              }
+            };
+            // execute_timeout_callback etcb
+
+            app->Execute_Callback(packedMsg.type(), packedMsg.msg(), ecb);
+          });
+          
+        } else {
+          std::vector<::google::protobuf::Message*> replies = app->Execute(packedMsg.type(), packedMsg.msg());
+
+          for (const auto& reply : replies) {
+            if (reply != nullptr) {
+              Debug("Sending reply");
+              stats->Increment("execs_sent",1);
+              EpendingBatchedMessages.push_back(reply);
+              EpendingBatchedDigs.push_back(digest);
+              if (EpendingBatchedMessages.size() >= EbatchSize) {
+                Debug("EBatch is full, sending");
+
+                // HotStuff: disable timer for HotStuff due to concurrency bugs
+                // if (EbatchTimerRunning) {
+                //   transport->CancelTimer(EbatchTimerId);
+                //   EbatchTimerRunning = false;
+                // }
+                sendEbatch();
+              } else if (!EbatchTimerRunning) {
+                EbatchTimerRunning = true;
+                Debug("Starting ebatch timer");
+                // EbatchTimerId = transport->Timer(EbatchTimeoutMS, [this]() {
+                //   Debug("EBatch timer expired, sending");
+                //   this->EbatchTimerRunning = false;
+                //   this->sendEbatch();
+                // });
+              }
+            } else {
+              Debug("Invalid execution");
             }
-          } else {
-            Debug("Invalid execution");
           }
-        }
 
-        execBatchNum++;
-        if ((int) execBatchNum >= batchedRequests[batchDigest].digests_size()) {
-          Debug("Done executing batch");
-          execBatchNum = 0;
-          execSeqNum++;
+          execBatchNum++;
+          if ((int) execBatchNum >= batchedRequests[batchDigest].digests_size()) {
+            Debug("Done executing batch");
+            execBatchNum = 0;
+            execSeqNum++;
+          }
         }
       } else {
 #ifdef USE_HOTSTUFF_STORE
@@ -1011,6 +1059,8 @@ void Replica::executeSlots_internal() {
     }
   }
 }
+
+
 void Replica::sendEbatch(){
   if(true){
     // std::function<void*> f(std::bind(&Replica::delegateEbatch, this, EpendingBatchedMessages,

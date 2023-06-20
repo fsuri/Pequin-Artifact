@@ -292,6 +292,31 @@ std::vector<::google::protobuf::Message*> Server::Execute(const string& type, co
   return results;
 }
 
+void Server::Execute_Callback(const string& type, const string& msg, const execute_callback ecb) {
+  Debug("Execute with callback: %s", type.c_str());
+  //std::unique_lock lock(atomicMutex);
+
+  proto::Inquiry inquiry;
+  proto::Apply apply;
+  proto::Rollback rollback;
+  std::vector<::google::protobuf::Message*> results;
+  if (type == inquiry.GetTypeName()) {
+    inquiry.ParseFromString(msg);
+    results.push_back(HandleInquiry(inquiry));
+  } else if (type == apply.GetTypeName()) {
+    apply.ParseFromString(msg);
+    results.push_back(HandleApply(apply));
+  } else if (type == rollback.GetTypeName()) {
+    rollback.ParseFromString(msg);
+    results.push_back(HandleRollback(rollback));
+  } else{
+    results.push_back(nullptr);
+    Panic("Only failed grouped decisions should be atomically broadcast");
+  }
+  ecb(results);
+  // return results;
+}
+
 std::vector<::google::protobuf::Message*> Server::HandleTransaction(const proto::Transaction& transaction) {
   std::unique_lock lock(atomicMutex); //TODO: might be able to make it finer.
 

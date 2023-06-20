@@ -44,6 +44,7 @@
 #include "store/hotstuffpgstore/common.h"
 #include <mutex>
 #include "tbb/concurrent_unordered_map.h"
+#include "store/hotstuffpgstore/server.h"
 
 // use HotStuff library
 // comment out the below macro to switch back to pbftstore

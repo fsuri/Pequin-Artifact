@@ -32,6 +32,7 @@
 #include <google/protobuf/message.h>
 #include "store/common/stats.h"
 #include <vector>
+// #include "store/hotstuffpgstore/server.h"
 
 namespace hotstuffpgstore {
 
@@ -44,6 +45,9 @@ public:
     virtual ::google::protobuf::Message* HandleMessage(const std::string& type, const std::string& msg);
     // upcall to execute the message
     virtual std::vector<::google::protobuf::Message*> Execute(const std::string& type, const std::string& msg);
+    virtual void Execute_Callback(const std::string& type, const std::string& msg, std::function<void(std::vector<::google::protobuf::Message*>)> ecb);
+
+
 
     virtual Stats* mutableStats() = 0;
 };

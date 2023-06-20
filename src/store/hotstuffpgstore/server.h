@@ -47,6 +47,9 @@
 
 namespace hotstuffpgstore {
 
+typedef std::function<void(std::vector<::google::protobuf::Message*>)> execute_callback;
+// typedef std::function<void()> execute_timeout_callback;
+
 class Server : public App, public ::Server {
 public:
   Server(const transport::Configuration& config, KeyManager *keyManager, int groupIdx, int idx, int numShards,
@@ -56,6 +59,8 @@ public:
   ~Server();
 
   std::vector<::google::protobuf::Message*> Execute(const std::string& type, const std::string& msg);
+  void Execute_Callback(const std::string& type, const std::string& msg, const execute_callback ecb);
+
   ::google::protobuf::Message* HandleMessage(const std::string& type, const std::string& msg);
 
   void Load(const std::string &key, const std::string &value,
