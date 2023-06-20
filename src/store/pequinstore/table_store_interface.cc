@@ -29,6 +29,7 @@
 #include "../../query-engine/type/type.h"
 #include "store/common/query_result/query_result_proto_builder.h"
 #include <ostream>
+#include <string>
 #include <tuple>
 
 
@@ -133,7 +134,7 @@ void TableStore::LoadTable(const std::string &load_statement, const std::string 
     //TODO: When calling the LoadStatement: We'll want to initialize all rows to be committed and have genesis proof (see server)
 	
 	//Turn txn_digest into a shared_ptr, write everywhere it is needed.
-    /*std::shared_ptr<std::string> txn_dig(std::make_shared<std::string>(txn_digest));
+    std::shared_ptr<std::string> txn_dig(std::make_shared<std::string>(txn_digest));
 
     //Call statement (of type Copy or Insert) and set meta data accordingly (bool commit = true, committedProof, txn_digest, ts)
 	std::vector<peloton::ResultValue> result;
@@ -161,10 +162,10 @@ void TableStore::LoadTable(const std::string &load_statement, const std::string 
 	std::vector<int> result_format(statement->GetTupleDescriptor().size(), 0);
 	// SetTrafficCopCounter();
 	counter_.store(1);
-	pequinstore::proto::ReadSet read_set_one;
+	//pequinstore::proto::ReadSet read_set_one;
 
-  	pequinstore::QueryReadSetMgr query_read_set_mgr_one(&read_set_one, 1, false);
-	auto status = traffic_cop_.ExecuteStatement(statement, param_values, unnamed, result_format, result, ts, query_read_set_mgr_one);
+  	//pequinstore::QueryReadSetMgr query_read_set_mgr_one(&read_set_one, 1, false);
+	auto status = traffic_cop_.ExecuteStatement(statement, param_values, unnamed, result_format, result);
 	if (traffic_cop_.GetQueuing()) {
 		ContinueAfterComplete(counter_);
 		traffic_cop_.ExecuteStatementPlanGetResult();
@@ -174,49 +175,6 @@ void TableStore::LoadTable(const std::string &load_statement, const std::string 
 	if (status == peloton::ResultType::SUCCESS) {
 		tuple_descriptor = statement->GetTupleDescriptor();
 	}
-
-    //TODO: Change Peloton result into query proto.
-    sql::QueryResultProtoBuilder queryResultBuilder;
-    // queryResultBuilder.add_column("result");
-    // queryResultBuilder.add_row(result_row.begin(), result_row.end());
-	std::cout << "Before adding columns" << std::endl;	
-	// Add columns
-	for (unsigned int i = 0; i < tuple_descriptor.size(); i++) {
-		std::string column_name = std::get<0>(tuple_descriptor[i]);
-		queryResultBuilder.add_column(column_name);
-	}
-
-	std::cout << "Before adding rows" << std::endl;
-	std::cout << "Tuple descriptor size is " << tuple_descriptor.size() << std::endl;
-		
-	// Add rows
-	unsigned int rows = result.size() / tuple_descriptor.size();
-	for (unsigned int i = 0; i < rows; i++) {
-		//std::string row_string = "Row " + std::to_string(i) + ": ";
-		std::cout << "Row index is " <<  i << std::endl;
-		//queryResultBuilder.add_empty_row();
-		RowProto* row = queryResultBuilder.new_row();
-
-		//queryResultBuilder.add_empty_row();
-		for (unsigned int j = 0; j < tuple_descriptor.size(); j++) {
-			//queryResultBuilder.AddToRow(row, result[i*tuple_descriptor.size()+j]);
-			std::cout << "Get field value" << std::endl;
-			FieldProto *field = row->add_fields();
-			//std::string field_value = GetResultValueAsString(result, i * tuple_descriptor.size() + j);
-			//field->set_data(queryResultBuilder.serialize(field_value));
-			field->set_data(result[i*tuple_descriptor.size()+j]);
-			std::cout << "After" << std::endl;
-			//queryResultBuilder.update_field_in_row(i, j, field_value);
-			//row_string += GetResultValueAsString(result, i * tuple_descriptor.size() + j);
-				
-			//std::cout << "Inside j loop" << std::endl;
-			//std::cout << GetResultValueAsString(result, i * tuple_descriptor.size() + j) << std::endl;
-
-		}
-	}
-
-	std::cout << "Result from query result builder is " << std::endl;
-	std::cout << queryResultBuilder.get_result()->SerializeAsString() << std::endl;*/
 }
 
 //Execute a read query statement on the Table backend and return a query_result/proto (in serialized form) as well as a read set (managed by readSetMgr)
@@ -307,9 +265,12 @@ std::string TableStore::ExecReadQuery(const std::string &query_statement, Timest
 	}
 
 	std::cout << "Result from query result builder is " << std::endl;
-	std::cout << queryResultBuilder.get_result()->SerializeAsString() << std::endl;
+	//std::cout << queryResultBuilder.get_result()->SerializeAsString() << std::endl;
+    std::string query_result = queryResultBuilder.get_result()->SerializeAsString();
+    //std::string* copy = new std::string(query_result);
+    std::cout << query_result << std::endl;
 
-    return queryResultBuilder.get_result()->SerializeAsString();
+    return query_result;
 }
 
 //Execute a point read on the Table backend and return a query_result/proto (in serialized form) as well as a commitProof (note, the read set is implicit)
@@ -476,9 +437,9 @@ void TableStore::ApplyTableWrite(const std::string &table_name, const TableWrite
     //Turn txn_digest into a shared_ptr, write everywhere it is needed.
 	std::shared_ptr<std::string> txn_dig(std::make_shared<std::string>(txn_digest));
 
-   	std::string write_statement;
-   	std::string delete_statement;
-   	bool has_delete = sql_interpreter.GenerateTableWriteStatement(write_statement, delete_statement, table_name, table_write);
+    std::string write_statement;
+    std::string delete_statement;
+    bool has_delete = sql_interpreter.GenerateTableWriteStatement(write_statement, delete_statement, table_name, table_write);
   	//TODO: Check whether there is a more efficient way than creating SQL commands for each.
 
     //TODO: Execute on Peloton

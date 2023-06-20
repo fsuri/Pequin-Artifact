@@ -30,6 +30,7 @@
 #include "../../query-engine/traffic_cop/traffic_cop.h"
 #include "../../query-engine/type/type.h"
 
+#include "lib/assert.h"
 #include "store/common/timestamp.h"
 #include "store/pequinstore/common.h"
 
@@ -151,7 +152,7 @@ void test_read_query() {
     // enc_primary_key, toy_ts_c, &write, &committed_proof);
 
     //table_store.ExecReadQuery("SELECT * FROM test;", toy_ts_c, query_read_set_mgr_one);
-    //table_store.PurgeTableWrite("test", table_write4, toy_ts_c, "random");
+    table_store.PurgeTableWrite("test", table_write4, toy_ts_c, "random");
     table_store.ExecReadQuery("SELECT * FROM test;", toy_ts_c, query_read_set_mgr_one);
 }
 
@@ -191,7 +192,7 @@ void test_committed_table_write() {
     table_store.ExecRaw("CREATE TABLE test(a INT, b INT, PRIMARY KEY(a));");
 
     Timestamp toy_ts_c(10, 12);
-    size_t num_writes = 100;
+    size_t num_writes = 1000;
 
     for (size_t i = 0; i < num_writes; i++) {
         pequinstore::proto::CommittedProof *real_proof =
@@ -209,10 +210,25 @@ void test_committed_table_write() {
         table_store.ApplyTableWrite("test", table_write, toy_ts_c, "random", real_proof, true);
     }
 
-    table_store.ExecReadQuery("SELECT * FROM test;", toy_ts_c, query_read_set_mgr_one);
+    std::string result = table_store.ExecReadQuery("SELECT * FROM test;", toy_ts_c, query_read_set_mgr_one);
+
+    sql::QueryResultProtoBuilder queryResultBuilder;
+    queryResultBuilder.add_column("a");
+    queryResultBuilder.add_column("b");
+    for (unsigned int i = 0; i < num_writes; i++) {
+		RowProto* row = queryResultBuilder.new_row();
+
+		for (unsigned int j = 0; j < 2; j++) {
+            std::string val = std::to_string(i);
+			queryResultBuilder.AddToRow(row, val);
+		}
+	}
+    std::string expected = queryResultBuilder.get_result()->SerializeAsString();
+    UW_ASSERT_EQ(expected, result);
 }
 
 int main() {
     test_read_query();
+    //test_committed_table_write();
     return 0;
 }

@@ -155,6 +155,7 @@ bool TimestampOrderingTransactionManager::PerformRead(TransactionContext *const 
                                                       storage::TileGroupHeader *tile_group_header,
                                                       bool acquire_ownership) {
   ItemPointer location = read_location;
+  std::cout << "In perform read the location is block " << location.block << " and offset " << location.offset << std::endl;
 
   //////////////////////////////////////////////////////////
   //// handle READ_ONLY
@@ -290,12 +291,14 @@ bool TimestampOrderingTransactionManager::PerformRead(TransactionContext *const 
       if (IsOwner(current_txn, tile_group_header, tuple_id) == false) {
         // Acquire ownership if we haven't
         if (IsOwnable(current_txn, tile_group_header, tuple_id) == false) {
+          std::cout << "1" << std::endl;
           // Cannot own
           return false;
         }
         if (AcquireOwnership(current_txn, tile_group_header, tuple_id) ==
             false) {
           // Cannot acquire ownership
+          std::cout << "2" << std::endl;
           return false;
         }
 
@@ -317,6 +320,7 @@ bool TimestampOrderingTransactionManager::PerformRead(TransactionContext *const 
       PELOTON_ASSERT(tile_group_header->GetLastReaderCommitId(tuple_id) ==
                          current_txn->GetCommitId() ||
                      tile_group_header->GetLastReaderCommitId(tuple_id) == 0);
+      std::cout << "3" << std::endl;
       return true;
 
     } else {
@@ -325,11 +329,13 @@ bool TimestampOrderingTransactionManager::PerformRead(TransactionContext *const 
         // then attempt to set last reader cid.
         if (SetLastReaderCommitId(tile_group_header, tuple_id,
                                   current_txn->GetCommitId(), false) == true) {
+          std::cout << "4" << std::endl;
           return true;
         } else {
           // if the tuple has been owned by some concurrent transactions,
           // then read fails.
           LOG_TRACE("Transaction read failed");
+          std::cout << "5" << std::endl;
           return false;
         }
 
@@ -342,6 +348,7 @@ bool TimestampOrderingTransactionManager::PerformRead(TransactionContext *const 
 
         // this version must already be in the read/write set.
         // so no need to update read set.
+        std::cout << "6" << std::endl;
         return true;
       }
     }

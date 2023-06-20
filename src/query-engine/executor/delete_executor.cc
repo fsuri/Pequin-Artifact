@@ -238,6 +238,27 @@ bool DeleteExecutor::DExecute() {
           tile_group_header->SetTransactionId(old_location.offset, current_txn->GetTransactionId());
           tile_group_header->SetLastReaderCommitId(old_location.offset,
                                                        current_txn->GetCommitId());
+
+          ItemPointer *index_entry_ptr =
+              tile_group_header->GetIndirection(old_location.offset);
+
+          // if there's no primary index on a table, then index_entry_ptr == nullptr.
+          if (index_entry_ptr != nullptr) {
+            std::cout << "Undo delete inside if statement" << std::endl;
+            tile_group_header->SetIndirection(old_location.offset, index_entry_ptr);
+
+            // Set the index header in an atomic way.
+            // We do it atomically because we don't want any one to see a half-down
+            // pointer
+            // In case of contention, no one can update this pointer when we are
+            // updating it
+            // because we are holding the write lock. This update should success in
+            // its first trial.
+            UNUSED_ATTRIBUTE auto res =
+                AtomicUpdateItemPointer(index_entry_ptr, old_location);
+            PELOTON_ASSERT(res == true);
+          }
+
           //tile_group_header->SetEndCommitId(old_location.offset, INVALID_CID);
           std::cout << "Trying to undo deleted tuple id is block " << old_location.block << " and offset " << old_location.offset << std::endl;
           std::cout << "Undo delete visibility type is " << transaction_manager.IsVisible(current_txn, tile_group_header, old_location.offset) << std::endl;
