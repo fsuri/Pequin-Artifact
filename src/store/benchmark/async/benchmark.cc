@@ -65,6 +65,8 @@
 #include "store/pbftstore/client.h"
 // HotStuff
 #include "store/hotstuffstore/client.h"
+// HotStuffPostgres
+#include "store/hotstuffpgstore/client.h"
 // Augustus-Hotstuff
 #include "store/augustusstore/client.h"
 //BFTSmart
@@ -96,6 +98,8 @@ enum protomode_t {
 	PROTO_PBFT,
     // HotStuff
     PROTO_HOTSTUFF,
+    // HotStuffPG
+    PROTO_HOTSTUFF_PG,
     // Augustus-Hotstuff
     PROTO_AUGUSTUS,
     // Bftsmart
@@ -463,6 +467,8 @@ const std::string protocol_args[] = {
 	"pbft",
 // HotStuff
     "hotstuff",
+// HotStuff Postgres
+    "hotstuffpg",
 // Augustus-Hotstuff
     "augustus-hs",
 // BFTSmart
@@ -484,6 +490,8 @@ const protomode_t protomodes[] {
       PROTO_PBFT,
   // HotStuff
       PROTO_HOTSTUFF,
+  // HotStuff Postgres
+      PROTO_HOTSTUFF_PG,
   // Augustus-Hotstuff
       PROTO_AUGUSTUS,
   // BFTSmart
@@ -502,6 +510,9 @@ const strongstore::Mode strongmodes[] {
   strongstore::Mode::MODE_UNKNOWN,
   strongstore::Mode::MODE_UNKNOWN,
   strongstore::Mode::MODE_UNKNOWN,
+	strongstore::Mode::MODE_UNKNOWN,
+	strongstore::Mode::MODE_UNKNOWN,
+	strongstore::Mode::MODE_UNKNOWN,
 	strongstore::Mode::MODE_UNKNOWN,
 	strongstore::Mode::MODE_UNKNOWN
 };
@@ -1235,6 +1246,7 @@ int main(int argc, char **argv) {
         break;
       case PROTO_PBFT:
       case PROTO_HOTSTUFF:
+      case PROTO_HOTSTUFF_PG:
       case PROTO_BFTSMART:
       case PROTO_AUGUSTUS_SMART:
       case PROTO_AUGUSTUS:
@@ -1377,6 +1389,18 @@ int main(int argc, char **argv) {
 // HotStuff
     case PROTO_HOTSTUFF: {
         client = new hotstuffstore::Client(*config, clientId, FLAGS_num_shards,
+                                       FLAGS_num_groups, closestReplicas,
+																			  tport, part,
+                                       readMessages, readQuorumSize,
+                                       FLAGS_indicus_sign_messages, FLAGS_indicus_validate_proofs,
+                                       keyManager,
+																			 FLAGS_pbft_order_commit, FLAGS_pbft_validate_abort,
+																			 TrueTime(FLAGS_clock_skew, FLAGS_clock_error));
+        break;
+    }
+// HotStuff Postgres
+    case PROTO_HOTSTUFF_PG: {
+        client = new hotstuffpgstore::Client(*config, clientId, FLAGS_num_shards,
                                        FLAGS_num_groups, closestReplicas,
 																			  tport, part,
                                        readMessages, readQuorumSize,

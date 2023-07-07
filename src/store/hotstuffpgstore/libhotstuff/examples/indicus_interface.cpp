@@ -35,7 +35,7 @@ namespace hotstuffstore {
         argv[2] = "--conf";
         argv[3] = arg3;
 
-        std::cout << std::endl << "############## HotStuff Config: " << config_file << "   " << key_file << std::endl << std::endl;
+        std::cout << std::endl << "############## HotStuff Config (hotstuffpgstore): " << config_file << "   " << key_file << std::endl << std::endl;
 
         initialize(4, argv);
     }

@@ -949,6 +949,9 @@ void ShardClient::Query(const std::string &query,  const Timestamp &ts, uint64_t
   request.mutable_packed_msg()->set_msg(inquiry.SerializeAsString());
   request.mutable_packed_msg()->set_type(inquiry.GetTypeName());
 
+  
+  Debug("Sending Query id: %lu", reqId);
+
   transport->SendMessageToGroup(this, group_idx, request);
 
   PendingInquiry pi;

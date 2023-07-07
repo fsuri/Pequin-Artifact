@@ -1,10 +1,10 @@
 #!/bin/bash
 
 CLIENTS=1
-F=1
+F=0
 NUM_GROUPS=1
-CONFIG="0_local_test_outputs/configs/shard-r6.config"
-PROTOCOL="pequin"
+CONFIG="0_local_test_outputs/configs/shard-r0.config"
+PROTOCOL="hotstuffpg"
 STORE=${PROTOCOL}store
 DURATION=10
 ZIPF=0.0
@@ -28,7 +28,7 @@ b) BENCHMARK=${OPTARG};;
 esac;
 done
 
-N=$((5*$F+1))
+N=$((3*$F+1))
 
 echo '[1] Starting new clients'
 for i in `seq 1 $((CLIENTS-1))`; do

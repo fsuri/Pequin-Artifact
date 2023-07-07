@@ -1,9 +1,9 @@
 #!/bin/bash
 
-F=1
+F=0
 NUM_GROUPS=1
-CONFIG="0_local_test_outputs/configs/shard-r6.config"
-PROTOCOL="pequin"
+CONFIG="0_local_test_outputs/configs/shard-r1.config"
+PROTOCOL="hotstuffpg"
 STORE=${PROTOCOL}store
 DURATION=10
 ZIPF=0.0
@@ -27,7 +27,7 @@ num_keys) NUM_KEYS_IN_DB=${OPTARG};;
 esac;
 done
 
-N=$((5*$F+1))
+N=$((3*$F+1))
 
 echo '[1] Shutting down possibly open servers'
 for j in `seq 0 $((NUM_GROUPS-1))`; do
