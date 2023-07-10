@@ -318,6 +318,7 @@ void Replica::HandleRequest(const TransportAddress &remote,
   DebugHash(digest);
 
 #ifdef USE_HOTSTUFF_STORE
+  Debug("Using HOTSTUFF_STORE");
 
   if (requests_dup.find(digest) == requests_dup.end()) {
       Debug("new request: %s", request.packed_msg().type().c_str());
@@ -330,8 +331,9 @@ void Replica::HandleRequest(const TransportAddress &remote,
       proto::PackedMessage packedMsg = request.packed_msg();
       std::function<void(const std::string&, uint32_t seqnum)> execb = [this, digest, packedMsg, clientAddr](const std::string &digest_param, uint32_t seqnum) {
           if(numShards <= 6 || numShards == 12){
+              Debug("Creating and sending callback");
               auto f = [this, digest, packedMsg, clientAddr, digest_param, seqnum](){
-                  // Debug("Callback: %d, %ld", idx, seqnum);
+                  Debug("Callback: %d, %ld", idx, seqnum);
                   stats->Increment("hotstuffpg_exec_callback",1);
 
                   // prepare data structures for executeSlots()
@@ -345,10 +347,10 @@ void Replica::HandleRequest(const TransportAddress &remote,
                   string batchedDigest = BatchedDigest(batchedRequest);
                   batchedRequests[batchedDigest] = batchedRequest;
                   pendingExecutions[seqnum] = batchedDigest;
-
                   executeSlots();
                   return (void*) true;
               };
+              Debug("Dispatching to main");
               transport->DispatchTP_main(f);
               //transport->DispatchTP_noCB(f);
           } else {
@@ -374,7 +376,9 @@ void Replica::HandleRequest(const TransportAddress &remote,
           }
 
       };
+      Debug("Proposing execb");
       hotstuffpg_interface.propose(digest, execb);
+      Debug("Execb proposed");
 
       // digest[0] = 'b';
       // digest[1] = 'u';

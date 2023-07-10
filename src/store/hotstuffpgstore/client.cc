@@ -60,7 +60,7 @@ Client::Client(const transport::Configuration& config, uint64_t id, int nShards,
 
   bclient.reserve(ngroups);
 
-  Debug("Initializing HotStuff client with id [%lu] %lu", client_id, ngroups);
+  Debug("Initializing HotStuff Postgres client with id [%lu] %lu", client_id, ngroups);
 
   /* Start a client for each shard. */
   for (uint64_t i = 0; i < ngroups; i++) {
@@ -68,7 +68,7 @@ Client::Client(const transport::Configuration& config, uint64_t id, int nShards,
         signMessages, validateProofs, keyManager, &stats, order_commit, validate_abort);
   }
 
-  Debug("HotStuff client [%lu] created! %lu %lu", client_id, ngroups,
+  Debug("HotStuff Postgres client [%lu] created! %lu %lu", client_id, ngroups,
       bclient.size());
 }
 
@@ -220,12 +220,14 @@ void Client::Query_Abort(abort_callback acb, abort_timeout_callback atcb, uint32
 void Client::Query(const std::string &query, query_callback qcb, query_timeout_callback qtcb, uint32_t timeout, bool skip_query_interpretation) {
   transport->Timer(0, [this, query, qcb, qtcb, timeout](){
 
+    Debug("Query called");
 
     inquiry_callback icb = [qcb, query, this](int status, const std::string& sql_res) {
       // if(status == REPLY_OK) {
       //   // Take Query Result Proto serialization and transform it into a query result here
       // }
       // sql::QueryResultProtoWrapper query_obj(sql_res);
+      Debug("Received query response");
       QueryMessage *query_msg = currentTxn.add_queryset();
       query_msg->set_query(query);
       query_result::QueryResult* query_res = new sql::QueryResultProtoWrapper(sql_res);

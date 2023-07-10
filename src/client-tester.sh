@@ -3,7 +3,7 @@
 CLIENTS=1
 F=0
 NUM_GROUPS=1
-CONFIG="0_local_test_outputs/configs/shard-r0.config"
+CONFIG="0_local_test_outputs/configs/shard-r1.config"
 PROTOCOL="hotstuffpg"
 STORE=${PROTOCOL}store
 DURATION=10

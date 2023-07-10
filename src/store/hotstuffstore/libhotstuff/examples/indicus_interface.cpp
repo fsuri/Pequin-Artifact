@@ -8,7 +8,8 @@ namespace hotstuff {
 namespace hotstuffstore {
 
     void IndicusInterface::propose(const std::string& hash, hotstuff_exec_callback execb) {
-        //std::cout << "############# HotStuff Interface #############" << std::endl;
+        std::cout << "############# HotStuff Interface #############" << std::endl;
+        Debug("Received proposal and sent it down");
         hotstuff_papp->interface_propose(hash, execb);
     }
 

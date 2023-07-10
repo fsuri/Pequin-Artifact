@@ -102,7 +102,7 @@ void ToyClient::ExecuteToy(){
             
             client.Begin(timeout);
 
-            std::string query = "SELECT *";
+            std::string query = "INSERT INTO users (name, age) VALUES ('Oliver5', 31);";
             std::unique_ptr<const query_result::QueryResult> queryResult;
             client.Query(query, queryResult, timeout);  //--> Edit API in frontend sync_client.
                                            //For real benchmarks: Also edit in sync_transaction_bench_client.
