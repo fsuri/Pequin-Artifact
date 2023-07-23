@@ -346,7 +346,14 @@ void Replica::HandleRequest(const TransportAddress &remote,
                   (*batchedRequest.mutable_digests())[0] = digest_param;
                   string batchedDigest = BatchedDigest(batchedRequest);
                   batchedRequests[batchedDigest] = batchedRequest;
+                  Debug("Adding to pending executions");
                   pendingExecutions[seqnum] = batchedDigest;
+                  std::cout << batchedDigest << "\n";
+                  Debug("Printing out pendingExecutions");
+                  for(auto& it: pendingExecutions) {
+                    std::cout << it.first << " " << it.second << "\n";
+                  }
+                  Debug("Finished printing out pendingExecutions");
                   executeSlots();
                   return (void*) true;
               };
@@ -371,7 +378,6 @@ void Replica::HandleRequest(const TransportAddress &remote,
               string batchedDigest = BatchedDigest(batchedRequest);
               batchedRequests[batchedDigest] = batchedRequest;
               pendingExecutions[seqnum] = batchedDigest;
-
               executeSlots();
           }
 
@@ -908,8 +914,12 @@ void Replica::executeSlots_callback(std::vector<::google::protobuf::Message*> &r
 
 void Replica::executeSlots_internal() {
   Debug("exec seq num: %lu", execSeqNum);
+  for(auto& it: pendingExecutions) {
+    std::cout << it.first << " " << it.second << "\n";
+  }
   while(pendingExecutions.find(execSeqNum) != pendingExecutions.end()) {
     // cancel the commit timer
+    Debug("Pending execution exists");
     if (seqnumCommitTimers.find(execSeqNum) != seqnumCommitTimers.end()) {
       transport->CancelTimer(seqnumCommitTimers[execSeqNum]);
       seqnumCommitTimers.erase(execSeqNum);
@@ -925,6 +935,7 @@ void Replica::executeSlots_internal() {
     // }
     // only execute when we have the batched request
     if (batchedRequests.find(batchDigest) != batchedRequests.end()) {
+      Debug("Batched request");
       string digest = (*batchedRequests[batchDigest].mutable_digests())[execBatchNum];
       DebugHash(digest);
       // only execute if we have the full request
@@ -1020,6 +1031,8 @@ void Replica::executeSlots_internal() {
         }
       } else {
 #ifdef USE_HOTSTUFF_STORE
+        
+        Debug("Outside of requests");
 
           stats->Increment("miss_hotstuffpg_req_txn",1);
           // request resend not implemented for HotStuff
@@ -1043,6 +1056,7 @@ void Replica::executeSlots_internal() {
       }
     } else {
 #ifdef USE_HOTSTUFF_STORE
+        Debug("Outside of batched");
 
         stats->Increment("miss_hotstuffpg_req_batch",1);
         // batch resend not implemented for HotStuff
@@ -1062,6 +1076,7 @@ void Replica::executeSlots_internal() {
 #endif
     }
   }
+  Debug("Out of while");
 }
 
 

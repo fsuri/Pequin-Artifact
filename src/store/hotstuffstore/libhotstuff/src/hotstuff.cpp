@@ -113,6 +113,7 @@ void MsgConsensusRespCmd::postponed_parse() {
 
 // TODO: improve this function
 void HotStuffBase::exec_command(uint256_t cmd_hash, commit_cb_t callback) {
+    std::cout << "exec command reached" << std::endl;
     cmd_pending.enqueue(std::make_pair(cmd_hash, callback));
 }
 
@@ -525,6 +526,7 @@ void HotStuffBase::do_decide(Finality &&fin) {
     if (it != decision_waiting.end())
     {
         //it->second(std::move(fin));
+        std::cout << "enqueud to exec 3" << std::endl;
         exec_pending.enqueue(std::make_pair(it->second, std::move(fin)));
         decision_waiting.erase(it);
     } else {
@@ -538,6 +540,7 @@ HotStuffBase::~HotStuffBase() {}
 void HotStuffBase::start(
         std::vector<std::tuple<NetAddr, pubkey_bt, uint256_t>> &&replicas,
         bool ec_loop) {
+    std::cout << "HSBase started" << std::endl;
     for (size_t i = 0; i < replicas.size(); i++)
     {
         auto &addr = std::get<0>(replicas[i]);
@@ -649,11 +652,14 @@ void HotStuffBase::start(
         {
             // execute the command
             e.first(e.second);
+            std::cout << "command executed" << std::endl;
         }
         return false;
     });
 
+    
     cmd_pending.reg_handler(ec, [this](cmd_queue_t &q) {
+        std::cout << "reg_handler called" << std::endl;
         std::pair<uint256_t, commit_cb_t> e;
         while (q.try_dequeue(e))
         {
@@ -665,6 +671,7 @@ void HotStuffBase::start(
                 // command has been committed
                 auto seqinfo = decision_made[cmd_hash];
                 //e.second(Finality(id, 0, 0, height, cmd_hash, uint256_t()));
+                std::cout << "enqueud to exec" << std::endl;
                 exec_pending.enqueue(std::make_pair(e.second, Finality(id, 0, seqinfo.first, seqinfo.second, cmd_hash, uint256_t())));
                 continue;
             }
@@ -675,6 +682,8 @@ void HotStuffBase::start(
                 it = decision_waiting.insert(std::make_pair(cmd_hash, e.second)).first;
             else
                 //e.second(Finality(id, 0, 0, 0, cmd_hash, uint256_t()));
+                
+                std::cout << "enqueued to exec 2" << std::endl;
                 exec_pending.enqueue(std::make_pair(e.second, Finality(id, 0, 0, 0, cmd_hash, uint256_t())));
 
             if (proposer != get_id()) continue;
@@ -695,6 +704,8 @@ void HotStuffBase::start(
 
                 return true;
             }
+            
+            std::cout << "Something was dequeued" << std::endl;
         }
         return false;
     });

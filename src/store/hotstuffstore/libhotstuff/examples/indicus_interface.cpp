@@ -9,8 +9,8 @@ namespace hotstuffstore {
 
     void IndicusInterface::propose(const std::string& hash, hotstuff_exec_callback execb) {
         std::cout << "############# HotStuff Interface #############" << std::endl;
-        Debug("Received proposal and sent it down");
         hotstuff_papp->interface_propose(hash, execb);
+        std::cout << "############# HotStuff Interface Proposed #############" << std::endl;
     }
 
     IndicusInterface::IndicusInterface(int shardId, int replicaId, int cpuId):
@@ -195,6 +195,7 @@ namespace hotstuffstore {
         ev_sigterm.add(SIGTERM);
 
         hotstuff_papp->start(reps);
+        std::cout << "HotStuff PAPP started" << std::endl;
 
         // spawning a new thread to run hotstuff logic asynchronously
         std::thread t([this](){

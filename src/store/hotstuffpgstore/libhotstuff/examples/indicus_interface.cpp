@@ -8,7 +8,7 @@ namespace hotstuff {
 namespace hotstuffstore {
 
     void IndicusInterface::propose(const std::string& hash, hotstuff_exec_callback execb) {
-        //std::cout << "############# HotStuff Interface #############" << std::endl;
+        std::cout << "############# HotStuffPG Interface #############" << std::endl;
         hotstuff_papp->interface_propose(hash, execb);
     }
 
@@ -193,6 +193,8 @@ namespace hotstuffstore {
         ev_sigterm.add(SIGTERM);
 
         hotstuff_papp->start(reps);
+        std::cout << "HotStuff PAPP started pq" << std::endl;
+        std::cerr << "HotStuff PAPP started pq" << std::endl;
 
         // spawning a new thread to run hotstuff logic asynchronously
         std::thread t([this](){
