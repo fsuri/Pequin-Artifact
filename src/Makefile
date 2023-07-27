@@ -190,6 +190,7 @@ include store/postgresstore/Rules.mk
 
 include store/benchmark/async/tpcc/Rules.mk
 include store/benchmark/async/sql/tpcc/Rules.mk
+include store/benchmark/async/sql/auctionmark/Rules.mk
 include store/Rules.mk
 include store/benchmark/Rules.mk
 include store/benchmark/async/common/Rules.mk
