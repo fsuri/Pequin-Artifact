@@ -25,7 +25,7 @@
  *
  **********************************************************************/
 
-#include "store/benchmark/async/auctionmark/auctionmark_client.h"
+#include "store/benchmark/async/sql/auctionmark/auctionmark_client.h"
 
 #include <gflags/gflags.h>
 
@@ -42,7 +42,7 @@
 #include "store/common/truetime.h"
 #include "store/tapirstore/client.h"
 
-#include "store/benchmark/async/auctionmark/new_user.h"
+#include "store/benchmark/async/sql/auctionmark/new_user.h"
 
 namespace auctionmark
 {
@@ -63,10 +63,9 @@ AuctionMarkClient::~AuctionMarkClient() {}
 
 SyncTransaction *AuctionMarkClient::GetNextTransaction()
 {
-    constexpr vector<string> attributes{};
-    NewUser auction_mark_tx(10000, 0, 0, &attributes, GetRand());
+    const std::vector<std::string> attributes {};
     lastOp = "NewUser";
-    return auction_mark_tx;
+    return new NewUser(10000, 0, 0, attributes, GetRand());
 }
 std::string AuctionMarkClient::GetLastOp() const { return lastOp; }
 
