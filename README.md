@@ -164,7 +164,7 @@ We recommend organizing all installs in a dedicated folder:
 
 #### Installing fmt
 1. `git clone git@github.com:fmtlib/fmt.git`
-2. `cd src`
+2. `cd fmt`
 3. `cmake .`
 4. `sudo make install`
 5. `sudo ldconfig`
@@ -195,7 +195,7 @@ Alternatively, you may download and unzip from source:
 Next, build taopq:
 
 4. `sudo cmake .`
-5. `sudo cmake --build . -j $(nproc)`
+5. `sudo cmake --build . -j`
 6. `sudo make install`
 7. `sudo ldconfig`
 8. `cd ..`
