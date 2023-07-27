@@ -72,6 +72,8 @@
 // Augustus-BFTSmart
 #include "store/bftsmartstore_augustus/client.h"
 #include "store/bftsmartstore_stable/client.h"
+// Postgres
+#include "store/postgresstore/client.h"
 
 #include "store/common/frontend/one_shot_client.h"
 #include "store/common/frontend/async_one_shot_adapter_client.h"
@@ -94,14 +96,15 @@ enum protomode_t {
   PROTO_PEQUIN,
   PROTO_INDICUS,
 	PROTO_PBFT,
-    // HotStuff
-    PROTO_HOTSTUFF,
-    // Augustus-Hotstuff
-    PROTO_AUGUSTUS,
-    // Bftsmart
-    PROTO_BFTSMART,
-    // Augustus-Hotstuff
-		PROTO_AUGUSTUS_SMART
+  // HotStuff
+  PROTO_HOTSTUFF,
+  // Augustus-Hotstuff
+  PROTO_AUGUSTUS,
+  // Bftsmart
+  PROTO_BFTSMART,
+  // Augustus-Hotstuff
+  PROTO_AUGUSTUS_SMART,
+  PROTO_POSTGRES
 };
 
 enum benchmode_t {
@@ -468,7 +471,8 @@ const std::string protocol_args[] = {
 // BFTSmart
   "bftsmart",
 // Augustus-BFTSmart
-	"augustus"
+	"augustus",
+  "postgres"
 };
 const protomode_t protomodes[] {
   PROTO_TAPIR,
@@ -489,7 +493,8 @@ const protomode_t protomodes[] {
   // BFTSmart
   PROTO_BFTSMART,
   // Augustus-BFTSmart
-	PROTO_AUGUSTUS_SMART
+	PROTO_AUGUSTUS_SMART,
+  PROTO_POSTGRES
 };
 const strongstore::Mode strongmodes[] {
   strongstore::Mode::MODE_UNKNOWN,
@@ -610,6 +615,11 @@ DEFINE_validator(partitioner, &ValidatePartitioner);
 */
 DEFINE_string(data_file_path, "", "path to file containing Table information to be loaded");
 DEFINE_bool(sql_bench, false, "Register Tables for SQL benchmarks. Input file is JSON Table args");
+
+/**
+ * Postgres settings
+*/
+DEFINE_string(connection_str, "", "connection string to postgres database");
 
 /**
  * Retwis settings.
@@ -1424,6 +1434,10 @@ int main(int argc, char **argv) {
 																			 FLAGS_pbft_order_commit, FLAGS_pbft_validate_abort,
 																			 TrueTime(FLAGS_clock_skew, FLAGS_clock_error));
         break;
+    }
+
+    case PROTO_POSTGRES: {
+      client = new postgresstore::Client(FLAGS_connection_str, clientId);
     }
 
     default:
