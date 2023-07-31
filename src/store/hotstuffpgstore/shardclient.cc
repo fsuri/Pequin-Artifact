@@ -520,7 +520,7 @@ void ShardClient::HandleInquiryReply(const proto::InquiryReply& inquiryReply, co
         pendingInquiry->receivedReplies[inquiryReply.sql_res()].insert(replica_id);
         // Timestamp its(inquiryReply.value_timestamp());
         if(pendingInquiry->status == REPLY_FAIL) {
-          Debug("Updating inquiry reply");
+          Debug("Updating inquiry reply signed");
           // pendingInquiry->maxTs = its;
           pendingInquiry->status = REPLY_OK;
         }
@@ -543,7 +543,7 @@ void ShardClient::HandleInquiryReply(const proto::InquiryReply& inquiryReply, co
       }
     }
 
-
+    std::cout << "received replies: " << pendingInquiry->receivedReplies[inquiryReply.sql_res()].size() << std::endl;
     if(pendingInquiry->receivedReplies[inquiryReply.sql_res()].size() 
         >= (uint64_t) config.f + 1) {
       InquiryReplyHelper(pendingInquiry, inquiryReply, reqId, pendingInquiry->status);

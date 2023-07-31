@@ -1,8 +1,8 @@
 #!/bin/bash
 
-F=0
+F=1
 NUM_GROUPS=1
-CONFIG="0_local_test_outputs/configs/shard-r1.config"
+CONFIG="0_local_test_outputs/configs/shard-r4.config"
 PROTOCOL="hotstuffpg"
 STORE=${PROTOCOL}store
 DURATION=10
