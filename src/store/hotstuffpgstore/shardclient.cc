@@ -516,16 +516,22 @@ void ShardClient::HandleInquiryReply(const proto::InquiryReply& inquiryReply, co
         Debug("Inquiry Reply: replica not in group");
         return;
       }
-      if(inquiryReply.status() == REPLY_OK) {
-        pendingInquiry->receivedReplies[inquiryReply.sql_res()].insert(replica_id);
-        // Timestamp its(inquiryReply.value_timestamp());
-        if(pendingInquiry->status == REPLY_FAIL) {
-          Debug("Updating inquiry reply signed");
-          // pendingInquiry->maxTs = its;
-          pendingInquiry->status = REPLY_OK;
+      if(false){ // This is for a fault tolerant system, curently we only look for the leader's opinion
+        if(inquiryReply.status() == REPLY_OK) {
+          pendingInquiry->receivedReplies[inquiryReply.sql_res()].insert(replica_id);
+          // Timestamp its(inquiryReply.value_timestamp());
+          if(pendingInquiry->status == REPLY_FAIL) {
+            Debug("Updating inquiry reply signed");
+            // pendingInquiry->maxTs = its;
+            pendingInquiry->status = REPLY_OK;
+          }
+        } else {
+          pendingInquiry->receivedFails.insert(replica_id);
         }
-      } else {
-        pendingInquiry->receivedFails.insert(replica_id);
+      }
+
+      if(replica_id == 0) {
+        InquiryReplyHelper(pendingInquiry, inquiryReply, reqId, inquiryReply.status());
       }
 
     } else {
@@ -543,28 +549,30 @@ void ShardClient::HandleInquiryReply(const proto::InquiryReply& inquiryReply, co
       }
     }
 
-    std::cout << "received replies: " << pendingInquiry->receivedReplies[inquiryReply.sql_res()].size() << std::endl;
-    if(pendingInquiry->receivedReplies[inquiryReply.sql_res()].size() 
-        >= (uint64_t) config.f + 1) {
-      InquiryReplyHelper(pendingInquiry, inquiryReply, reqId, pendingInquiry->status);
-      // if(pendingInquiry->timeout != nullptr) {
-      //   pendingInquiry->timeout->Stop();
-      // }
-      // inquiry_callback icb = pendingInqury->icb;
-      // std::string value = inquiryReply.sql_res();
-      // uint64_t status = pendingInquiry->status;
-      // pendingInquiries.erase(reqId);
-      // icb(status, value);
-    } else if(pendingInquiry->receivedReplies.size() + pendingInquiry->receivedFails.size() 
-        >= (uint64_t) config.f + 1) {
-      InquiryReplyHelper(pendingInquiry, inquiryReply, reqId, REPLY_FAIL);
-      // if(pendingInquiry->timeout != nullptr) {
-      //   pendingInquiry->timeout->Stop();
-      // }
-      // inquiry_callback icb = pendingInqury->icb;
-      // std::string value = inquiryReply.sql_res();
-      // pendingInquiries.erase(reqId);
-      // icb(REPLY_FAIL, value);
+    
+    if(!signMessages) { // This is for a fault tolerant system, curently we only look for the leader's opinion (only works in signed system)
+      if(pendingInquiry->receivedReplies[inquiryReply.sql_res()].size() 
+          >= (uint64_t) config.f + 1) {
+        InquiryReplyHelper(pendingInquiry, inquiryReply, reqId, pendingInquiry->status);
+        // if(pendingInquiry->timeout != nullptr) {
+        //   pendingInquiry->timeout->Stop();
+        // }
+        // inquiry_callback icb = pendingInqury->icb;
+        // std::string value = inquiryReply.sql_res();
+        // uint64_t status = pendingInquiry->status;
+        // pendingInquiries.erase(reqId);
+        // icb(status, value);
+      } else if(pendingInquiry->receivedReplies.size() + pendingInquiry->receivedFails.size() 
+          >= (uint64_t) config.f + 1) {
+        InquiryReplyHelper(pendingInquiry, inquiryReply, reqId, REPLY_FAIL);
+        // if(pendingInquiry->timeout != nullptr) {
+        //   pendingInquiry->timeout->Stop();
+        // }
+        // inquiry_callback icb = pendingInqury->icb;
+        // std::string value = inquiryReply.sql_res();
+        // pendingInquiries.erase(reqId);
+        // icb(REPLY_FAIL, value);
+      }
     }
   }
 }

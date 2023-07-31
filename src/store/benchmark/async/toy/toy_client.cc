@@ -126,7 +126,7 @@ void ToyClient::ExecuteToy(){
              std::cerr << "Query 1 Done: " << output_row << std::endl << std::endl;
 
 
-            std::string query2 = "INSERT INTO users (name, age) VALUES ('Oliver7', 33)";
+            std::string query2 = "INSERT INTO users (name, age) VALUES ('Oliver8', 34)";
             std::unique_ptr<const query_result::QueryResult> queryResult2;
             client.Query(query2, queryResult2, timeout); 
             std::cerr << "Got res" << std::endl;
@@ -141,8 +141,10 @@ void ToyClient::ExecuteToy(){
             // std::cerr << "Query 2 Result: " << queryResult << std::endl << std::endl;
 
 
-            client.Commit(timeout);
-            std::cerr << "Committed Query\n";
+            // client.Commit(timeout);
+            // std::cerr << "Committed Query\n";
+            client.Abort(timeout);
+            std::cerr << "Aborted Query\n";
 
             // sleep(1);
             
