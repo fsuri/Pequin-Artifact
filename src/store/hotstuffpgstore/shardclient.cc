@@ -121,6 +121,8 @@ void ShardClient::ReceiveMessage(const TransportAddress &remote,
   std::string type;
   std::string data;
   proto::TransactionDecision transactionDecision;
+  proto::InquiryReply inquiryReply;
+  proto::ApplyReply applyReply;
 
   bool recvSignedMessage = false;
   if (t == signedMessage.GetTypeName()) {
@@ -130,6 +132,7 @@ void ShardClient::ReceiveMessage(const TransportAddress &remote,
 
     proto::PackedMessage pmsg;
     pmsg.ParseFromString(signedMessage.packed_msg());
+    std::cout << "Inner type: " << pmsg.type() << std::endl;
     if (pmsg.type() == transactionDecision.GetTypeName()) {
     crypto::PubKey* replicaPublicKey = keyManager->GetPublicKey(
         signedMessage.replica_id());
@@ -141,7 +144,31 @@ void ShardClient::ReceiveMessage(const TransportAddress &remote,
       data = pmsg.msg();
       type = pmsg.type();
 
-    } else {
+    } else if (pmsg.type() == inquiryReply.GetTypeName()) {
+      Debug("Inquiry packed message");
+    crypto::PubKey* replicaPublicKey = keyManager->GetPublicKey(
+        signedMessage.replica_id());
+      if (!hotstuffpgBatchedSigs::verifyBatchedSignature(signedMessage.mutable_signature(), signedMessage.mutable_packed_msg(),
+            replicaPublicKey)) {
+             Debug("dec signature was invalid, inquiry reply");
+             return;
+            }
+      data = pmsg.msg();
+      type = pmsg.type();
+
+    } else if (pmsg.type() == applyReply.GetTypeName()) {
+      Debug("Inquiry packed message");
+    crypto::PubKey* replicaPublicKey = keyManager->GetPublicKey(
+        signedMessage.replica_id());
+      if (!hotstuffpgBatchedSigs::verifyBatchedSignature(signedMessage.mutable_signature(), signedMessage.mutable_packed_msg(),
+            replicaPublicKey)) {
+             Debug("dec signature was invalid, inquiry reply");
+             return;
+            }
+      data = pmsg.msg();
+      type = pmsg.type();
+
+    }else {
       if(!ValidateSignedMessage(signedMessage, keyManager, data, type)) {
        Debug("signature was invalid");
        return;
@@ -156,7 +183,7 @@ void ShardClient::ReceiveMessage(const TransportAddress &remote,
   }
 
   proto::ReadReply readReply;
-  proto::InquiryReply inquiryReply;
+  // proto::InquiryReply inquiryReply;
   proto::GroupedDecisionAck groupedDecisionAck;
   if (type == readReply.GetTypeName()) {
     readReply.ParseFromString(data);
@@ -190,6 +217,14 @@ void ShardClient::ReceiveMessage(const TransportAddress &remote,
     }
 
     HandleInquiryReply(inquiryReply, signedMessage);
+  } else if (type == applyReply.GetTypeName()) {
+    applyReply.ParseFromString(data);
+
+    if(signMessages && !recvSignedMessage) {
+      return;
+    }
+
+    HandleApplyReply(applyReply, signedMessage);
   }
 }
 
@@ -475,7 +510,7 @@ void ShardClient::HandleInquiryReply(const proto::InquiryReply& inquiryReply, co
     PendingInquiry* pendingInquiry = &pendingInquiries[reqId];
 
     pendingInquiry->numReceivedReplies++;
-    if(signMessages) {
+    if(signMessages) { // May have to just take the second path?
       uint64_t replica_id = signedMsg.replica_id();
       if (replica_id / config.n != (uint64_t) group_idx) {
         Debug("Inquiry Reply: replica not in group");

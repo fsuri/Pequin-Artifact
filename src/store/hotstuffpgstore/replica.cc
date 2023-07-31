@@ -333,7 +333,7 @@ void Replica::HandleRequest(const TransportAddress &remote,
           if(numShards <= 6 || numShards == 12){
               Debug("Creating and sending callback");
               auto f = [this, digest, packedMsg, clientAddr, digest_param, seqnum](){
-                  Debug("Callback: %d, %ld", idx, seqnum);
+                  Debug("Callback: %d, %lu", idx, seqnum);
                   stats->Increment("hotstuffpg_exec_callback",1);
 
                   // prepare data structures for executeSlots()
@@ -348,10 +348,10 @@ void Replica::HandleRequest(const TransportAddress &remote,
                   batchedRequests[batchedDigest] = batchedRequest;
                   Debug("Adding to pending executions");
                   pendingExecutions[seqnum] = batchedDigest;
-                  std::cout << batchedDigest << "\n";
+                  std::cout << batchedDigest << std::endl;
                   Debug("Printing out pendingExecutions");
                   for(auto& it: pendingExecutions) {
-                    std::cout << it.first << " " << it.second << "\n";
+                    std::cout << it.first << " " << it.second << std::endl;
                   }
                   Debug("Finished printing out pendingExecutions");
                   executeSlots();
@@ -915,9 +915,11 @@ void Replica::executeSlots_callback(std::vector<::google::protobuf::Message*> &r
 void Replica::executeSlots_internal() {
   Debug("exec seq num: %lu", execSeqNum);
   for(auto& it: pendingExecutions) {
-    std::cout << it.first << " " << it.second << "\n";
+    std::cout << it.first << " " << it.second << std::endl;
+    Debug("Pending sequence number: %lu", it.first);
+    execSeqNum = it.first; //Just trying to get it to work
   }
-  while(pendingExecutions.find(execSeqNum) != pendingExecutions.end()) {
+  while(pendingExecutions.find(execSeqNum) != pendingExecutions.end()) { //pendingExecutions.find(execSeqNum) != pendingExecutions.end()
     // cancel the commit timer
     Debug("Pending execution exists");
     if (seqnumCommitTimers.find(execSeqNum) != seqnumCommitTimers.end()) {

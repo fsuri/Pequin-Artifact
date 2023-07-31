@@ -102,17 +102,16 @@ void ToyClient::ExecuteToy(){
             
             client.Begin(timeout);
 
-            std::string query = "INSERT INTO users (name, age) VALUES ('Oliver5', 31);";
+            std::string query = "SELECT * FROM users"; //INSERT INTO users (name, age) VALUES ('Oliver5', 31)
             std::unique_ptr<const query_result::QueryResult> queryResult;
             client.Query(query, queryResult, timeout);  //--> Edit API in frontend sync_client.
                                            //For real benchmarks: Also edit in sync_transaction_bench_client.
                               
             // (*queryResult->at(0))[0] //TODO: parse the output...  data.length
-
             std::cerr << "Got res" << std::endl;
             UW_ASSERT(!queryResult->empty());
-            std::cerr << "num cols:" <<  queryResult->columns() << std::endl;
-            std::cerr << "num rows:" <<  queryResult->rows_affected() << std::endl;
+            std::cerr << "num cols: " <<  queryResult->columns() << std::endl;
+            std::cerr << "num rows affected: " <<  queryResult->rows_affected() << std::endl;
 
              std::stringstream ss(std::ios::in | std::ios::out | std::ios::binary);
             size_t nbytes;
@@ -124,8 +123,17 @@ void ToyClient::ExecuteToy(){
               cereal::BinaryInputArchive iarchive(ss); // Create an input archive
               iarchive(output_row); // Read the data from the archive
             }
-             std::cerr << "Query 1 Result: " << output_row << std::endl << std::endl;
+             std::cerr << "Query 1 Done: " << output_row << std::endl << std::endl;
 
+
+            std::string query2 = "INSERT INTO users (name, age) VALUES ('Oliver7', 33)";
+            std::unique_ptr<const query_result::QueryResult> queryResult2;
+            client.Query(query2, queryResult2, timeout); 
+            std::cerr << "Got res" << std::endl;
+            UW_ASSERT(!queryResult2->empty());
+            std::cerr << "num cols:" <<  queryResult2->columns() << std::endl;
+            std::cerr << "num rows:" <<  queryResult2->rows_affected() << std::endl;
+             std::cerr << "Query 2 Done!" << std::endl << std::endl;
   
 
             // client.Query(query, queryResult, timeout);  //--> Edit API in frontend sync_client.

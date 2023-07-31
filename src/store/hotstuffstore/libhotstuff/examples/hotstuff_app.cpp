@@ -205,7 +205,14 @@ void HotStuffApp::interface_propose(const string &hash,  std::function<void(cons
     exec_command(cmd_hash, [this, hash, cb](Finality fin) {
             std::cout << "height: " << fin.cmd_height << ", idx: " << fin.cmd_idx << std::endl;
             assert(fin.cmd_height >= 1);
-            uint32_t seqnum = (fin.cmd_height - 1) * blk_size + fin.cmd_idx;
+            uint32_t cmd_height = fin.cmd_height;
+            if(fin.cmd_height < 1) {
+                cmd_height = 1;
+                std::cout << "Set cmd_height to one" << std::endl;
+            }
+            cmd_height = 1;
+            uint32_t seqnum = (cmd_height - 1) * blk_size + fin.cmd_idx;
+            std::cout << seqnum << std::endl;
             cb(hash, seqnum);
     });
 }

@@ -242,7 +242,7 @@ static bool ValidateReadMessages(const char* flagname,
 DEFINE_string(indicus_read_messages, read_messages_args[0], "number of replicas"
     " to send messages for reads (for Indicus)");
 DEFINE_validator(indicus_read_messages, &ValidateReadMessages);
-DEFINE_bool(indicus_sign_messages, true, "add signatures to messages as"
+DEFINE_bool(indicus_sign_messages, true, "add signatures to messages as" // Changed for testing of hotstuffpg
     " necessary to prevent impersonation (for Indicus)");
 DEFINE_bool(indicus_validate_proofs, true, "send and validate proofs as"
     " necessary to check Byzantine behavior (for Indicus)");

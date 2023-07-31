@@ -53,9 +53,25 @@ Server::Server(const transport::Configuration& config, KeyManager *keyManager,
 
   dummyProof->mutable_txn()->mutable_timestamp()->set_timestamp(0);
   dummyProof->mutable_txn()->mutable_timestamp()->set_id(0);
-  std::string db_name = "datadb" + (1 + idx);
-  std::string connection_str = "user=pequin_client dbname=" + db_name + " port=5432";
+  std::string db_name = "db" + std::to_string(1 + idx);
+  std::string connection_str = "host=localhost user=pequin_client dbname=" + db_name + " port=5433";
   connectionPool = tao::pq::connection_pool::create(connection_str);
+
+  // auto connection = connectionPool->connection();
+  // std::shared_ptr<tao::pq::transaction> tr;
+  // tr = connection->transaction();
+  // try {
+  //   auto res = tr->execute("INSERT INTO users (name, age) VALUES ($1, $2)", "Oliver3", 27);
+  //   Debug("Has rows affected: %d", res.has_rows_affected());
+  //   auto res2 = tr->execute("INSERT INTO users (name, age) VALUES ('Oliver4', 28)");
+  //   Debug("Has rows affected: %d", res2.has_rows_affected());
+  //   tr->commit();
+  //   Debug("test insert done!");
+  // } catch(tao::pq::sql_error e) {
+  //   Debug("test insert fail!");
+  //   Debug(e.what());
+  // }
+
   Debug("PostgreSQL client created!", idx);
 }
 
@@ -233,12 +249,14 @@ bool Server::CCC(const proto::Transaction& txn) {
 
 ::google::protobuf::Message* Server::returnMessage(::google::protobuf::Message* msg) {
   // Send decision to client
-  if (signMessages) {
+  if (false) { //signMessages
+    Debug("Returning signed Message");
     proto::SignedMessage *signedMessage = new proto::SignedMessage();
     SignMessage(*msg, keyManager->GetPrivateKey(id), id, *signedMessage);
     delete msg;
     return signedMessage;
   } else {
+    Debug("Returning basic Message");
     return msg;
   }
 }
@@ -415,6 +433,7 @@ std::vector<::google::protobuf::Message*> Server::HandleTransaction(const proto:
 }
 
 ::google::protobuf::Message* Server::HandleInquiry(const proto::Inquiry& inquiry) {
+  Debug("Handling Inquiry");
   proto::InquiryReply* reply = new proto::InquiryReply();
   reply->set_req_id(inquiry.req_id());
 
@@ -429,30 +448,45 @@ std::vector<::google::protobuf::Message*> Server::HandleTransaction(const proto:
     tr = connection->transaction();
     connectionMap[client_seq_key] = connection;
     txnMap[client_seq_key] = tr;
+    Debug("Query key: %s", client_seq_key);
+    std::cout << client_seq_key << std::endl;
   } else {
     tr = txnMap[client_seq_key];
+    Debug("Query key already in: %s", client_seq_key);
+    std::cout << client_seq_key << std::endl;
   }
 
   try {
+    Debug("Attempt query %s", inquiry.query());
+    std::cout << inquiry.query() << std::endl;
     const auto sql_res = tr->execute(inquiry.query());
+    Debug("Query executed");
     sql::QueryResultProtoBuilder* res_builder = new sql::QueryResultProtoBuilder();
     // Should extrapolate out into builder method
     // Start by looping over columns and adding column names
-    for(int i = 0; i < sql_res.columns(); i++) {
-      res_builder->add_column(sql_res.name(i));
-    }
-    // After loop over rows and add them using add_row method
-    // for(const auto& row : sql_res) {
-    //   res_builder->add_row(std::begin(row), std::end(row));
-    // }
-    // for(auto it = std::begin(sql_res); it != std::end(sql_res); ++it) {
-      
-    // }
-    for( const auto& row : sql_res ) {
+    if(sql_res.columns() == 0) {
+      Debug("Had rows affected");
       res_builder->add_empty_row();
-      for( const auto& field : row ) {
-        std::string field_str = field.as<std::string>();
-        res_builder->add_field_to_last_row(field_str);
+    } else {
+      Debug("No rows affected");
+      for(int i = 0; i < sql_res.columns(); i++) {
+        res_builder->add_column(sql_res.name(i));
+        std::cout << sql_res.name(i) << std::endl;
+      }
+      // After loop over rows and add them using add_row method
+      // for(const auto& row : sql_res) {
+      //   res_builder->add_row(std::begin(row), std::end(row));
+      // }
+      // for(auto it = std::begin(sql_res); it != std::end(sql_res); ++it) {
+        
+      // }
+      for( const auto& row : sql_res ) {
+        res_builder->add_empty_row();
+        for( const auto& field : row ) {
+          std::string field_str = field.as<std::string>();
+          res_builder->add_field_to_last_row(field_str);
+          std::cout << field_str << std::endl;
+        }
       }
     }
     reply->set_status(REPLY_OK);
@@ -468,6 +502,7 @@ std::vector<::google::protobuf::Message*> Server::HandleTransaction(const proto:
 }
 
 ::google::protobuf::Message* Server::HandleApply(const proto::Apply& apply) {
+  Debug("Applying(commiting) a txn");
   proto::ApplyReply* reply = new proto::ApplyReply();
   reply->set_req_id(apply.req_id());
 
@@ -482,8 +517,12 @@ std::vector<::google::protobuf::Message*> Server::HandleTransaction(const proto:
     tr = connection->transaction();
     connectionMap[client_seq_key] = connection;
     txnMap[client_seq_key] = tr;
+    Debug("Apply key: %s", client_seq_key);
+    std::cout << client_seq_key << std::endl;
   } else {
     tr = txnMap[client_seq_key];
+    Debug("Apply key already in(should be): %s", client_seq_key);
+    std::cout << client_seq_key << std::endl;
   }
 
   try {
@@ -491,6 +530,7 @@ std::vector<::google::protobuf::Message*> Server::HandleTransaction(const proto:
     txnMap.erase(client_seq_key);
     connectionMap.erase(client_seq_key);
     reply->set_status(REPLY_OK);
+    Debug("Apply went through successfully");
   } catch(tao::pq::sql_error e) {
     reply->set_status(REPLY_FAIL);
   }
