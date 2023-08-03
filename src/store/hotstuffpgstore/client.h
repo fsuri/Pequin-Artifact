@@ -54,7 +54,7 @@ class Client : public ::Client {
       uint64_t readMessages, uint64_t readQuorumSize, bool signMessages,
       bool validateProofs, KeyManager *keyManager,
       bool order_commit = false, bool validate_abort = false,
-      TrueTime timeserver = TrueTime(0,0));
+      TrueTime timeserver = TrueTime(0,0), bool deterministic = false);
   ~Client();
 
   // Begin a transaction.
@@ -107,6 +107,12 @@ class Client : public ::Client {
   // TrueTime server.
   TrueTime timeServer;
   int client_seq_num;
+
+  // This flag is to determine if the test should run deterministically.
+  // If this is false, then results are returned based on f + 1 including the
+  // leader's results to get consistent results. If it is, then it is based on a 
+  // simple f + 1, returning the result of any replica's execution
+  bool deterministic;
 
   //addtional knobs: 1) order commit, 2) validate abort
   bool order_commit = false;

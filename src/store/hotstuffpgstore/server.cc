@@ -456,6 +456,7 @@ std::vector<::google::protobuf::Message*> Server::HandleTransaction(const proto:
     std::cout << client_seq_key << std::endl;
   }
 
+
   try {
     Debug("Attempt query %s", inquiry.query());
     std::cout << inquiry.query() << std::endl;

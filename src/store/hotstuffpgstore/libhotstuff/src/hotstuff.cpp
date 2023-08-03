@@ -113,7 +113,6 @@ void MsgConsensusRespCmd::postponed_parse() {
 
 // TODO: improve this function
 void HotStuffBase::exec_command(uint256_t cmd_hash, commit_cb_t callback) {
-    std::cout << "exec command reached" << std::endl;
     cmd_pending.enqueue(std::make_pair(cmd_hash, callback));
 }
 

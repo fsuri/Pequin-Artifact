@@ -33,11 +33,12 @@ namespace hotstuffpgstore {
 ShardClient::ShardClient(const transport::Configuration& config, Transport *transport,
     uint64_t client_id, uint64_t group_idx, const std::vector<int> &closestReplicas_,
     bool signMessages, bool validateProofs,
-    KeyManager *keyManager, Stats* stats, bool order_commit, bool validate_abort) :
+    KeyManager *keyManager, Stats* stats, bool order_commit, bool validate_abort, bool deterministic) :
     config(config), transport(transport),
     group_idx(group_idx),
     signMessages(signMessages), validateProofs(validateProofs),
-    keyManager(keyManager), stats(stats), order_commit(order_commit), validate_abort(validate_abort) {
+    keyManager(keyManager), stats(stats), order_commit(order_commit), validate_abort(validate_abort),
+    deterministic(deterministic) {
   transport->Register(this, config, -1, -1);
   readReq = 0;
   inquiryReq = 0;
@@ -516,23 +517,29 @@ void ShardClient::HandleInquiryReply(const proto::InquiryReply& inquiryReply, co
         Debug("Inquiry Reply: replica not in group");
         return;
       }
-      if(false){ // This is for a fault tolerant system, curently we only look for the leader's opinion
-        if(inquiryReply.status() == REPLY_OK) {
-          pendingInquiry->receivedReplies[inquiryReply.sql_res()].insert(replica_id);
-          // Timestamp its(inquiryReply.value_timestamp());
-          if(pendingInquiry->status == REPLY_FAIL) {
-            Debug("Updating inquiry reply signed");
-            // pendingInquiry->maxTs = its;
-            pendingInquiry->status = REPLY_OK;
+      if(inquiryReply.status() == REPLY_OK) {
+        pendingInquiry->receivedReplies[inquiryReply.sql_res()].insert(replica_id);
+
+        // Timestamp its(inquiryReply.value_timestamp());
+        if(pendingInquiry->status == REPLY_FAIL) {
+          Debug("Updating inquiry reply signed");
+          // pendingInquiry->maxTs = its;
+          pendingInquiry->status = REPLY_OK;
+        }
+        if(!deterministic) {
+          pendingInquiry->receivedSuccesses.insert(replica_id);
+          if(replica_id == 0) {
+            pendingInquiry->leaderReply = inquiryReply.sql_res();
           }
-        } else {
-          pendingInquiry->receivedFails.insert(replica_id);
+        }
+      } else {
+        pendingInquiry->receivedFails.insert(replica_id);
+        if(!deterministic && replica_id == 0) {
+          InquiryReplyHelper(pendingInquiry, inquiryReply.sql_res(), reqId, REPLY_FAIL);
         }
       }
 
-      if(replica_id == 0) {
-        InquiryReplyHelper(pendingInquiry, inquiryReply, reqId, inquiryReply.status());
-      }
+
 
     } else {
       if(inquiryReply.status() == REPLY_OK) {
@@ -550,42 +557,31 @@ void ShardClient::HandleInquiryReply(const proto::InquiryReply& inquiryReply, co
     }
 
     
-    if(!signMessages) { // This is for a fault tolerant system, curently we only look for the leader's opinion (only works in signed system)
+    if(!signMessages || deterministic) { // This is for a fault tolerant system, curently we only look for the leader's opinion (only works in signed system)
       if(pendingInquiry->receivedReplies[inquiryReply.sql_res()].size() 
           >= (uint64_t) config.f + 1) {
-        InquiryReplyHelper(pendingInquiry, inquiryReply, reqId, pendingInquiry->status);
-        // if(pendingInquiry->timeout != nullptr) {
-        //   pendingInquiry->timeout->Stop();
-        // }
-        // inquiry_callback icb = pendingInqury->icb;
-        // std::string value = inquiryReply.sql_res();
-        // uint64_t status = pendingInquiry->status;
-        // pendingInquiries.erase(reqId);
-        // icb(status, value);
+        InquiryReplyHelper(pendingInquiry, inquiryReply.sql_res(), reqId, pendingInquiry->status);
       } else if(pendingInquiry->receivedReplies.size() + pendingInquiry->receivedFails.size() 
           >= (uint64_t) config.f + 1) {
-        InquiryReplyHelper(pendingInquiry, inquiryReply, reqId, REPLY_FAIL);
-        // if(pendingInquiry->timeout != nullptr) {
-        //   pendingInquiry->timeout->Stop();
-        // }
-        // inquiry_callback icb = pendingInqury->icb;
-        // std::string value = inquiryReply.sql_res();
-        // pendingInquiries.erase(reqId);
-        // icb(REPLY_FAIL, value);
+        InquiryReplyHelper(pendingInquiry, inquiryReply.sql_res(), reqId, REPLY_FAIL);
+      }
+    } else {
+      if(pendingInquiry->receivedSuccesses.size() >= (uint64_t) config.f + 1 && 
+          pendingInquiry->receivedSuccesses.find(0) != pendingInquiry->receivedSuccesses.end()) {
+        InquiryReplyHelper(pendingInquiry, pendingInquiry->leaderReply, reqId, pendingInquiry->status);
       }
     }
   }
 }
 
-void ShardClient::InquiryReplyHelper(PendingInquiry* pendingInquiry, const proto::InquiryReply& inquiryReply, 
+void ShardClient::InquiryReplyHelper(PendingInquiry* pendingInquiry, const std::string inquiryRes, 
     uint64_t reqId, uint64_t status) {
   if(pendingInquiry->timeout != nullptr) {
     pendingInquiry->timeout->Stop();
   }
   inquiry_callback icb = pendingInquiry->icb;
-  std::string value = inquiryReply.sql_res();
   pendingInquiries.erase(reqId);
-  icb(status, value);
+  icb(status, inquiryRes);
 }
 
 void ShardClient::HandleApplyReply(const proto::ApplyReply& applyReply, const proto::SignedMessage& signedMsg) {
@@ -607,23 +603,42 @@ void ShardClient::HandleApplyReply(const proto::ApplyReply& applyReply, const pr
       // Timestamp its(inquiryReply.value_timestamp());
     } else {
       pendingApply->receivedFails.insert(replica_id);
+      if(replica_id == 0) {
+        if(pendingApply->timeout != nullptr) {
+          pendingApply->timeout->Stop();
+        }
+        apply_callback acb = pendingApply->acb;
+        pendingApplies.erase(reqId);
+        acb(REPLY_FAIL);
+      }
     }
 
-
-    if(pendingApply->receivedAcks.size() >= (uint64_t) config.f + 1) {
-      if(pendingApply->timeout != nullptr) {
-        pendingApply->timeout->Stop();
+    if(deterministic) {
+      if(pendingApply->receivedAcks.size() >= (uint64_t) config.f + 1) {
+        if(pendingApply->timeout != nullptr) {
+          pendingApply->timeout->Stop();
+        }
+        apply_callback acb = pendingApply->acb;
+        pendingApplies.erase(reqId);
+        acb(REPLY_OK);
+      } else if(pendingApply->receivedFails.size() >= (uint64_t) config.f + 1) {
+        if(pendingApply->timeout != nullptr) {
+          pendingApply->timeout->Stop();
+        }
+        apply_callback acb = pendingApply->acb;
+        pendingApplies.erase(reqId);
+        acb(REPLY_FAIL);
       }
-      apply_callback acb = pendingApply->acb;
-      pendingApplies.erase(reqId);
-      acb(REPLY_OK);
-    } else if(pendingApply->receivedFails.size() >= (uint64_t) config.f + 1) {
-      if(pendingApply->timeout != nullptr) {
-        pendingApply->timeout->Stop();
+    } else {
+      if(pendingApply->receivedAcks.size() >= (uint64_t) config.f + 1 && 
+      pendingApply->receivedAcks.find(0) != pendingApply->receivedAcks.end()) {
+        if(pendingApply->timeout != nullptr) {
+          pendingApply->timeout->Stop();
+        }
+        apply_callback acb = pendingApply->acb;
+        pendingApplies.erase(reqId);
+        acb(REPLY_OK);
       }
-      apply_callback acb = pendingApply->acb;
-      pendingApplies.erase(reqId);
-      acb(REPLY_FAIL);
     }
   }
 }
@@ -997,10 +1012,53 @@ void ShardClient::Query(const std::string &query,  const Timestamp &ts, uint64_t
 
   transport->SendMessageToGroup(this, group_idx, request);
 
+  proto::Request request2;
+  request2.set_digest(crypto::Hash(inquiry.SerializeAsString() + "2"));
+  request2.mutable_packed_msg()->set_msg(inquiry.SerializeAsString());
+  request2.mutable_packed_msg()->set_type(inquiry.GetTypeName());
+
+  
+  Debug("Sending Query id: %lu", reqId);
+
+  transport->SendMessageToGroup(this, group_idx, request2);
+
+  proto::Request request3;
+  request3.set_digest(crypto::Hash(inquiry.SerializeAsString() + "3"));
+  request3.mutable_packed_msg()->set_msg(inquiry.SerializeAsString());
+  request3.mutable_packed_msg()->set_type(inquiry.GetTypeName());
+
+  
+  Debug("Sending Query id: %lu", reqId);
+
+  transport->SendMessageToGroup(this, group_idx, request3);
+
+  proto::Request request4;
+  request4.set_digest(crypto::Hash(inquiry.SerializeAsString() + "4"));
+  request4.mutable_packed_msg()->set_msg(inquiry.SerializeAsString());
+  request4.mutable_packed_msg()->set_type(inquiry.GetTypeName());
+
+  
+  Debug("Sending Query id: %lu", reqId);
+
+  transport->SendMessageToGroup(this, group_idx, request4);
+
+  proto::Request request5;
+  request5.set_digest(crypto::Hash(inquiry.SerializeAsString() + "5"));
+  request5.mutable_packed_msg()->set_msg(inquiry.SerializeAsString());
+  request5.mutable_packed_msg()->set_type(inquiry.GetTypeName());
+
+  
+  Debug("Sending Query id: %lu", reqId);
+
+  transport->SendMessageToGroup(this, group_idx, request5);
+
+
+
   PendingInquiry pi;
   pi.icb = icb;
   pi.status = REPLY_FAIL;
   pi.numReceivedReplies = 0;
+  pi.leaderReply = "";
   // pi.maxTs = Timestamp();
   pi.timeout = new Timeout(transport, timeout, [this, reqId, itcb]() {
     Debug("Query timeout called (but nothing was done)");
@@ -1032,6 +1090,37 @@ void ShardClient::Query_Commit(const std::string& txn_digest, const Timestamp &t
   request.mutable_packed_msg()->set_type(apply.GetTypeName());
 
   transport->SendMessageToGroup(this, group_idx, request);
+
+  proto::Request request2;
+  request2.set_digest(txn_digest + "2");
+  request2.mutable_packed_msg()->set_msg(apply.SerializeAsString());
+  request2.mutable_packed_msg()->set_type(apply.GetTypeName());
+
+  transport->SendMessageToGroup(this, group_idx, request2);
+
+  proto::Request request3;
+  request3.set_digest(txn_digest + "3");
+  request3.mutable_packed_msg()->set_msg(apply.SerializeAsString());
+  request3.mutable_packed_msg()->set_type(apply.GetTypeName());
+
+  transport->SendMessageToGroup(this, group_idx, request3);
+
+  proto::Request request4;
+  request4.set_digest(txn_digest + "4");
+  request4.mutable_packed_msg()->set_msg(apply.SerializeAsString());
+  request4.mutable_packed_msg()->set_type(apply.GetTypeName());
+
+  transport->SendMessageToGroup(this, group_idx, request4);
+
+  proto::Request request5;
+  request5.set_digest(txn_digest + "5");
+  request5.mutable_packed_msg()->set_msg(apply.SerializeAsString());
+  request5.mutable_packed_msg()->set_type(apply.GetTypeName());
+
+  transport->SendMessageToGroup(this, group_idx, request5);
+
+
+
 
   PendingApply pa;
   pa.acb = acb;

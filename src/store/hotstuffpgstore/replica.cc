@@ -917,7 +917,7 @@ void Replica::executeSlots_internal() {
   for(auto& it: pendingExecutions) {
     std::cout << it.first << " " << it.second << std::endl;
     Debug("Pending sequence number: %lu", it.first);
-    execSeqNum = it.first; //Just trying to get it to work
+    // execSeqNum = it.first; //Just trying to get it to work
   }
   while(pendingExecutions.find(execSeqNum) != pendingExecutions.end()) { //pendingExecutions.find(execSeqNum) != pendingExecutions.end()
     // cancel the commit timer

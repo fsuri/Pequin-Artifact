@@ -73,7 +73,8 @@ class ShardClient : public TransportReceiver {
   ShardClient(const transport::Configuration& config, Transport *transport,
       uint64_t client_id, uint64_t group_idx, const std::vector<int> &closestReplicas_,
       bool signMessages, bool validateProofs,
-      KeyManager *keyManager, Stats* stats, bool order_commit = false, bool validate_abort = false);
+      KeyManager *keyManager, Stats* stats, bool order_commit = false, bool validate_abort = false,
+      bool deterministic = false);
   ~ShardClient();
 
   void ReceiveMessage(const TransportAddress &remote,
@@ -120,6 +121,12 @@ class ShardClient : public TransportReceiver {
   bool validateProofs;
   KeyManager *keyManager;
 
+  // This flag is to determine if the test should run deterministically.
+  // If this is false, then results are returned based on f + 1 including the
+  // leader's results to get consistent results. If it is, then it is based on a 
+  // simple f + 1, returning the result of any replica's execution
+  bool deterministic;
+
   //addtional knobs: 1) order commit, 2) validate abort
   bool order_commit = false;
   bool validate_abort = false;
@@ -152,6 +159,8 @@ class ShardClient : public TransportReceiver {
   struct PendingInquiry {
     // the set of ids that we have received a read reply for
     std::unordered_map<std::string, std::unordered_set<uint64_t>> receivedReplies;
+    std::unordered_set<uint64_t> receivedSuccesses;
+    std::string leaderReply;
     std::unordered_set<uint64_t> receivedFails;
     // the max read timestamp for a valid reply
     // Timestamp maxTs;
@@ -229,7 +238,7 @@ class ShardClient : public TransportReceiver {
   void HandleWritebackReply(const proto::GroupedDecisionAck& groupedDecisionAck, const proto::SignedMessage& signedMsg);
 
   void HandleInquiryReply(const proto::InquiryReply& reply, const proto::SignedMessage& signedMsg);
-  void InquiryReplyHelper(PendingInquiry* pendingInquiry, const proto::InquiryReply& inquiryReply, 
+  void InquiryReplyHelper(PendingInquiry* pendingInquiry, const std::string inquiryReply, 
     uint64_t reqId, uint64_t status);
 
   void HandleApplyReply(const proto::ApplyReply& reply, const proto::SignedMessage& signedMsg);

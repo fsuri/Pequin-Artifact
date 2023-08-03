@@ -289,6 +289,8 @@ DEFINE_bool(indicus_parallel_CCC, true, "sort read/write set for parallel CCC lo
 
 DEFINE_bool(indicus_hyper_threading, true, "use hyperthreading");
 
+DEFINE_bool(deterministic, false, "Indicate if server is deterministic or not. If not, will return leader's results for consistency");
+
 //Indicus failure handling and injection
 DEFINE_bool(indicus_no_fallback, false, "turn off fallback protocol");
 DEFINE_uint64(indicus_max_consecutive_abstains, 1, "number of consecutive conflicts before fallback is triggered");
@@ -1407,7 +1409,7 @@ int main(int argc, char **argv) {
                                        FLAGS_indicus_sign_messages, FLAGS_indicus_validate_proofs,
                                        keyManager,
 																			 FLAGS_pbft_order_commit, FLAGS_pbft_validate_abort,
-																			 TrueTime(FLAGS_clock_skew, FLAGS_clock_error));
+																			 TrueTime(FLAGS_clock_skew, FLAGS_clock_error), FLAGS_deterministic);
         break;
     }
 

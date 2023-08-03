@@ -200,10 +200,9 @@ void HotStuffApp::client_request_cmd_handler(MsgReqCmd &&msg, const conn_t &conn
 
 
 void HotStuffApp::interface_propose(const string &hash,  std::function<void(const std::string&, uint32_t seqnum)> cb) {
-    std::cout << "interface propose reached" << std::endl;
+    
     uint256_t cmd_hash((const uint8_t *)hash.c_str());
     exec_command(cmd_hash, [this, hash, cb](Finality fin) {
-            std::cout << "height: " << fin.cmd_height << ", idx: " << fin.cmd_idx << std::endl;
             assert(fin.cmd_height >= 1);
             uint32_t seqnum = (fin.cmd_height - 1) * blk_size + fin.cmd_idx;
             cb(hash, seqnum);

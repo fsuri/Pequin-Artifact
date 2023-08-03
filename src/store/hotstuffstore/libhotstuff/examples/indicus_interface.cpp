@@ -195,7 +195,6 @@ namespace hotstuffstore {
         ev_sigterm.add(SIGTERM);
 
         hotstuff_papp->start(reps);
-        std::cout << "HotStuff PAPP started" << std::endl;
 
         // spawning a new thread to run hotstuff logic asynchronously
         std::thread t([this](){

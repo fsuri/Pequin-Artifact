@@ -366,7 +366,7 @@ compression:
 #	cd ./store/bftsmartstore_stable/libhotstuff/; ./build.sh
 #	@echo '====== Finish Building BftSmart_stable ======'
 
-.PHONY: hotstuff hotstuffpg
+.PHONY: hotstuff
 hotstuff: 
 	@echo '====== Start Building HotStuff ======'
 	cd ./store/hotstuffstore/libhotstuff/; ./build.sh
@@ -386,7 +386,7 @@ indicus: $(BINS) #$(TEST_BINS)
 
 .PHONY: all
 #all: bftsmart bftsmart2 hotstuff augustus_smart stable
-all: hotstuff hotstuffpg bftsmart compression
+all: hotstuff bftsmart compression
 	@echo '====== Start Building Indicus ======'
 	$(MAKE) indicus 
 	@echo '====== Finish Building Indicus ======'
