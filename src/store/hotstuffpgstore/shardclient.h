@@ -92,22 +92,27 @@ class ShardClient : public TransportReceiver {
   void SignedPrepare(const proto::Transaction& txn, signed_prepare_callback pcb,
       prepare_timeout_callback ptcb, uint32_t timeout);
 
-  void Commit(const std::string& txn_digest, const proto::ShardDecisions& dec, uint64_t client_id, int client_seq_num,
-      writeback_callback wcb, writeback_timeout_callback wtcp, uint32_t timeout);
-  void CommitSigned(const std::string& txn_digest, const proto::ShardSignedDecisions& dec, uint64_t client_id, int client_seq_num,
-      writeback_callback wcb, writeback_timeout_callback wtcp, uint32_t timeout);
+  // void Commit(const std::string& txn_digest, const proto::ShardDecisions& dec, uint64_t client_id, int client_seq_num,
+  //     writeback_callback wcb, writeback_timeout_callback wtcp, uint32_t timeout);
+  // void CommitSigned(const std::string& txn_digest, const proto::ShardSignedDecisions& dec, uint64_t client_id, int client_seq_num,
+  //     writeback_callback wcb, writeback_timeout_callback wtcp, uint32_t timeout);
 
-  void CommitSigned(const std::string& txn_digest, const proto::ShardSignedDecisions& dec, uint64_t client_id, int client_seq_num);
+  // void CommitSigned(const std::string& txn_digest, const proto::ShardSignedDecisions& dec, uint64_t client_id, int client_seq_num);
 
-  void Abort(std::string& txn_digest, const proto::ShardSignedDecisions& dec);
+  // void Abort(std::string& txn_digest, const proto::ShardSignedDecisions& dec);
 
   void Query(const std::string &query,  const Timestamp &ts, uint64_t client_id, int client_seq_num, 
       inquiry_callback icb, inquiry_timeout_callback itcb,  uint32_t timeout);
 
-  void Query_Commit(const std::string& txn_digest, const Timestamp &ts, uint64_t client_id, int client_seq_num, 
+  void Commit(const std::string& txn_digest, const Timestamp &ts, uint64_t client_id, int client_seq_num, 
       apply_callback acb, apply_timeout_callback atcb, uint32_t timeout);
 
-  void Query_Abort(const std::string& txn_digest, uint64_t client_id, int client_seq_num);
+  void Abort(const std::string& txn_digest, uint64_t client_id, int client_seq_num);
+
+  // void Query_Commit(const std::string& txn_digest, const Timestamp &ts, uint64_t client_id, int client_seq_num, 
+  //     apply_callback acb, apply_timeout_callback atcb, uint32_t timeout);
+
+  // void Query_Abort(const std::string& txn_digest, uint64_t client_id, int client_seq_num);
 
  private:
    uint64_t start_time;

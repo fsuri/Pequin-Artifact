@@ -126,17 +126,11 @@ void ToyClient::ExecuteToy(){
              std::cerr << "Query 1 Done: " << output_row << std::endl << std::endl;
 
 
-            std::string query2 = "INSERT INTO users (name, age) VALUES ('Oliver8', 34)";
+            std::string query2 = "INSERT INTO users (name, age) VALUES ('Oliver9', 35)";
             std::unique_ptr<const query_result::QueryResult> queryResult2;
             client.Query(query2, queryResult2, timeout); 
             std::cerr << "Got res" << std::endl;
              std::cerr << "Query 2 Done!" << std::endl << std::endl;
-
-             std::string query22 = "INSERT INTO users (name, age) VALUES ('Oliver82', 342)";
-            std::unique_ptr<const query_result::QueryResult> queryResult22;
-            client.Query(query22, queryResult22, timeout); 
-            std::cerr << "Got res" << std::endl;
-             std::cerr << "Query 22 Done!" << std::endl << std::endl;
   
 
             // client.Query(query, queryResult, timeout);  //--> Edit API in frontend sync_client.

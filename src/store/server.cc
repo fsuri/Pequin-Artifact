@@ -362,6 +362,8 @@ DEFINE_uint64(pbft_esig_batch_timeout, 10, "signature batch timeout ms"
 DEFINE_bool(pbft_order_commit, true, "order commit writebacks as well");
 DEFINE_bool(pbft_validate_abort, true, "validate abort writebacks as well");
 
+DEFINE_bool(async_server, false, "Determine if using a replica that does async server calls");
+
 const std::string occ_type_args[] = {
 	"tapir",
   "mvtso"
@@ -811,7 +813,7 @@ int main(int argc, char **argv) {
                                        FLAGS_pbft_esig_batch, FLAGS_pbft_esig_batch_timeout,
                                        FLAGS_indicus_use_coordinator, FLAGS_indicus_request_tx,
 
-             protocol_cpu, FLAGS_num_shards, tport);
+             protocol_cpu, FLAGS_num_shards, tport, FLAGS_async_server);
 
       break;
   }

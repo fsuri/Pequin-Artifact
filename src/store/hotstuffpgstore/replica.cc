@@ -56,14 +56,16 @@ using namespace std;
 
 Replica::Replica(const transport::Configuration &config, KeyManager *keyManager,
   App *app, int groupIdx, int idx, bool signMessages, uint64_t maxBatchSize,
-                 uint64_t batchTimeoutMS, uint64_t EbatchSize, uint64_t EbatchTimeoutMS, bool primaryCoordinator, bool requestTx, int hotstuffpg_cpu, int numShards, Transport *transport)
+                 uint64_t batchTimeoutMS, uint64_t EbatchSize, uint64_t EbatchTimeoutMS, bool primaryCoordinator, bool requestTx, int hotstuffpg_cpu, int numShards, Transport *transport,
+                 bool asyncServer)
     : config(config),
 #ifdef USE_HOTSTUFF_STORE
       hotstuffpg_interface(groupIdx, idx, hotstuffpg_cpu),
 #endif
       keyManager(keyManager), app(app), groupIdx(groupIdx), idx(idx),
     id(groupIdx * config.n + idx), signMessages(signMessages), maxBatchSize(maxBatchSize),
-      batchTimeoutMS(batchTimeoutMS), EbatchSize(EbatchSize), EbatchTimeoutMS(EbatchTimeoutMS), primaryCoordinator(primaryCoordinator), requestTx(requestTx), numShards(numShards), transport(transport) {
+      batchTimeoutMS(batchTimeoutMS), EbatchSize(EbatchSize), EbatchTimeoutMS(EbatchTimeoutMS), primaryCoordinator(primaryCoordinator), requestTx(requestTx), numShards(numShards), transport(transport),
+      asyncServer(asyncServer) {
   transport->Register(this, config, groupIdx, idx);
 
   // intial view
@@ -946,7 +948,13 @@ void Replica::executeSlots_internal() {
         Debug("executing seq num: %lu %lu", execSeqNum, execBatchNum);
         proto::PackedMessage packedMsg = requests[digest];
 
-        if(false) {
+        if(asyncServer) {
+          execBatchNum++;
+          if ((int) execBatchNum >= batchedRequests[batchDigest].digests_size()) {
+            Debug("Done executing batch");
+            execBatchNum = 0;
+            execSeqNum++;
+          }
           transport->Timer(0, [this, digest, batchDigest, packedMsg](){
 
 
@@ -980,12 +988,12 @@ void Replica::executeSlots_internal() {
                 }
               }
 
-              execBatchNum++;
-              if ((int) execBatchNum >= batchedRequests[batchDigest].digests_size()) {
-                Debug("Done executing batch");
-                execBatchNum = 0;
-                execSeqNum++;
-              }
+              // execBatchNum++;
+              // if ((int) execBatchNum >= batchedRequests[batchDigest].digests_size()) {
+              //   Debug("Done executing batch");
+              //   execBatchNum = 0;
+              //   execSeqNum++;
+              // }
             };
             // execute_timeout_callback etcb
 
