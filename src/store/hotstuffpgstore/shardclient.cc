@@ -1012,45 +1012,45 @@ void ShardClient::Query(const std::string &query,  const Timestamp &ts, uint64_t
 
   transport->SendMessageToGroup(this, group_idx, request);
 
-  proto::Request request2;
-  request2.set_digest(crypto::Hash(inquiry.SerializeAsString() + "2"));
-  request2.mutable_packed_msg()->set_msg(inquiry.SerializeAsString());
-  request2.mutable_packed_msg()->set_type(inquiry.GetTypeName());
+  // proto::Request request2;
+  // request2.set_digest(crypto::Hash(inquiry.SerializeAsString() + "2"));
+  // request2.mutable_packed_msg()->set_msg(inquiry.SerializeAsString());
+  // request2.mutable_packed_msg()->set_type(inquiry.GetTypeName());
 
   
-  Debug("Sending Query id: %lu", reqId);
+  // Debug("Sending Query id: %lu", reqId);
 
-  transport->SendMessageToGroup(this, group_idx, request2);
+  // transport->SendMessageToGroup(this, group_idx, request2);
 
-  proto::Request request3;
-  request3.set_digest(crypto::Hash(inquiry.SerializeAsString() + "3"));
-  request3.mutable_packed_msg()->set_msg(inquiry.SerializeAsString());
-  request3.mutable_packed_msg()->set_type(inquiry.GetTypeName());
-
-  
-  Debug("Sending Query id: %lu", reqId);
-
-  transport->SendMessageToGroup(this, group_idx, request3);
-
-  proto::Request request4;
-  request4.set_digest(crypto::Hash(inquiry.SerializeAsString() + "4"));
-  request4.mutable_packed_msg()->set_msg(inquiry.SerializeAsString());
-  request4.mutable_packed_msg()->set_type(inquiry.GetTypeName());
+  // proto::Request request3;
+  // request3.set_digest(crypto::Hash(inquiry.SerializeAsString() + "3"));
+  // request3.mutable_packed_msg()->set_msg(inquiry.SerializeAsString());
+  // request3.mutable_packed_msg()->set_type(inquiry.GetTypeName());
 
   
-  Debug("Sending Query id: %lu", reqId);
+  // Debug("Sending Query id: %lu", reqId);
 
-  transport->SendMessageToGroup(this, group_idx, request4);
+  // transport->SendMessageToGroup(this, group_idx, request3);
 
-  proto::Request request5;
-  request5.set_digest(crypto::Hash(inquiry.SerializeAsString() + "5"));
-  request5.mutable_packed_msg()->set_msg(inquiry.SerializeAsString());
-  request5.mutable_packed_msg()->set_type(inquiry.GetTypeName());
+  // proto::Request request4;
+  // request4.set_digest(crypto::Hash(inquiry.SerializeAsString() + "4"));
+  // request4.mutable_packed_msg()->set_msg(inquiry.SerializeAsString());
+  // request4.mutable_packed_msg()->set_type(inquiry.GetTypeName());
 
   
-  Debug("Sending Query id: %lu", reqId);
+  // Debug("Sending Query id: %lu", reqId);
 
-  transport->SendMessageToGroup(this, group_idx, request5);
+  // transport->SendMessageToGroup(this, group_idx, request4);
+
+  // proto::Request request5;
+  // request5.set_digest(crypto::Hash(inquiry.SerializeAsString() + "5"));
+  // request5.mutable_packed_msg()->set_msg(inquiry.SerializeAsString());
+  // request5.mutable_packed_msg()->set_type(inquiry.GetTypeName());
+
+  
+  // Debug("Sending Query id: %lu", reqId);
+
+  // transport->SendMessageToGroup(this, group_idx, request5);
 
 
 
@@ -1091,33 +1091,33 @@ void ShardClient::Commit(const std::string& txn_digest, const Timestamp &ts, uin
 
   transport->SendMessageToGroup(this, group_idx, request);
 
-  proto::Request request2;
-  request2.set_digest(txn_digest + "2");
-  request2.mutable_packed_msg()->set_msg(apply.SerializeAsString());
-  request2.mutable_packed_msg()->set_type(apply.GetTypeName());
+  // proto::Request request2;
+  // request2.set_digest(txn_digest + "2");
+  // request2.mutable_packed_msg()->set_msg(apply.SerializeAsString());
+  // request2.mutable_packed_msg()->set_type(apply.GetTypeName());
 
-  transport->SendMessageToGroup(this, group_idx, request2);
+  // transport->SendMessageToGroup(this, group_idx, request2);
 
-  proto::Request request3;
-  request3.set_digest(txn_digest + "3");
-  request3.mutable_packed_msg()->set_msg(apply.SerializeAsString());
-  request3.mutable_packed_msg()->set_type(apply.GetTypeName());
+  // proto::Request request3;
+  // request3.set_digest(txn_digest + "3");
+  // request3.mutable_packed_msg()->set_msg(apply.SerializeAsString());
+  // request3.mutable_packed_msg()->set_type(apply.GetTypeName());
 
-  transport->SendMessageToGroup(this, group_idx, request3);
+  // transport->SendMessageToGroup(this, group_idx, request3);
 
-  proto::Request request4;
-  request4.set_digest(txn_digest + "4");
-  request4.mutable_packed_msg()->set_msg(apply.SerializeAsString());
-  request4.mutable_packed_msg()->set_type(apply.GetTypeName());
+  // proto::Request request4;
+  // request4.set_digest(txn_digest + "4");
+  // request4.mutable_packed_msg()->set_msg(apply.SerializeAsString());
+  // request4.mutable_packed_msg()->set_type(apply.GetTypeName());
 
-  transport->SendMessageToGroup(this, group_idx, request4);
+  // transport->SendMessageToGroup(this, group_idx, request4);
 
-  proto::Request request5;
-  request5.set_digest(txn_digest + "5");
-  request5.mutable_packed_msg()->set_msg(apply.SerializeAsString());
-  request5.mutable_packed_msg()->set_type(apply.GetTypeName());
+  // proto::Request request5;
+  // request5.set_digest(txn_digest + "5");
+  // request5.mutable_packed_msg()->set_msg(apply.SerializeAsString());
+  // request5.mutable_packed_msg()->set_type(apply.GetTypeName());
 
-  transport->SendMessageToGroup(this, group_idx, request5);
+  // transport->SendMessageToGroup(this, group_idx, request5);
 
 
 
