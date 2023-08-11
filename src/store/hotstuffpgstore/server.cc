@@ -53,8 +53,10 @@ Server::Server(const transport::Configuration& config, KeyManager *keyManager,
 
   dummyProof->mutable_txn()->mutable_timestamp()->set_timestamp(0);
   dummyProof->mutable_txn()->mutable_timestamp()->set_id(0);
-  std::string db_name = "db" + std::to_string(1 + idx);
-  std::string connection_str = "host=localhost user=pequin_client dbname=" + db_name + " port=5433";
+  // std::string db_name = "db" + std::to_string(1 + idx);
+  std::string db_name = "db1"; // Use this code if every server is run on a 
+  //separate host, otherwise use the above so they all reference a different database
+  std::string connection_str = "host=localhost user=pequin_user dbname=" + db_name + " port=5432";
   connectionPool = tao::pq::connection_pool::create(connection_str);
 
   // auto connection = connectionPool->connection();
