@@ -140,6 +140,7 @@ void test_read_query() {
     table_store.ApplyTableWrite("test", table_write4, toy_ts_c, "random",
                                 real_proof4, true);
 
+
     std::cout << "New change 10" << std::endl;
     // table_store.ApplyTableWrite("test", table_write_1, toy_ts_c, "random",
     // real_proof, true);
