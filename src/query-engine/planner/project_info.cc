@@ -48,9 +48,11 @@ ProjectInfo::~ProjectInfo() {
 bool ProjectInfo::Evaluate(storage::Tuple *dest, const AbstractTuple *tuple1,
                            const AbstractTuple *tuple2,
                            executor::ExecutorContext *econtext) const {
+  std::cout << "In evalute 1" << std::endl;
   // Get varlen pool
   type::AbstractPool *pool = nullptr;
-  if (econtext != nullptr) pool = econtext->GetPool();
+  if (econtext != nullptr)
+    pool = econtext->GetPool();
 
   // (A) Execute target list
   for (auto target : target_list_) {
@@ -83,6 +85,7 @@ bool ProjectInfo::Evaluate(storage::Tuple *dest, const AbstractTuple *tuple1,
 bool ProjectInfo::Evaluate(AbstractTuple *dest, const AbstractTuple *tuple1,
                            const AbstractTuple *tuple2,
                            executor::ExecutorContext *econtext) const {
+  std::cout << "In evaluate 2" << std::endl;
   // (A) Execute target list
   for (auto target : target_list_) {
     auto col_id = target.first;
@@ -182,8 +185,8 @@ void ProjectInfo::PartitionInputs(
 hash_t ProjectInfo::Hash(const planner::DerivedAttribute &attribute) const {
   hash_t hash = HashUtil::Hash(&attribute.attribute_info.type);
 
-  hash = HashUtil::CombineHashes(hash,
-      HashUtil::Hash(&attribute.attribute_info.attribute_id));
+  hash = HashUtil::CombineHashes(
+      hash, HashUtil::Hash(&attribute.attribute_info.attribute_id));
 
   return HashUtil::CombineHashes(hash, attribute.expr->Hash());
 }
@@ -270,5 +273,5 @@ bool ProjectInfo::operator==(const ProjectInfo &rhs) const {
   }
 }*/
 
-}  // namespace planner
-}  // namespace peloton
+} // namespace planner
+} // namespace peloton

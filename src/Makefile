@@ -67,7 +67,7 @@ LDFLAGS += -l:libpg_query.a
 # libcount
 LDFLAGS += -lcount
 # llvm
-LDFLAGS += -lLLVM-6.0
+#LDFLAGS += -lLLVM-6.0
 # libffi
 LDFLAGS += -lffi
 # atomic

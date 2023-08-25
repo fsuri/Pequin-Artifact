@@ -18,16 +18,15 @@
 #include <queue>
 #include <set>
 
+#include "../catalog/schema.h"
 #include "../common/container/lock_free_array.h"
 #include "../common/item_pointer.h"
 #include "../common/platform.h"
-#include "../common/container/lock_free_array.h"
 #include "../index/index.h"
 #include "../storage/abstract_table.h"
 #include "../storage/indirection_array.h"
 #include "../storage/layout.h"
-#include "../catalog/schema.h"
-//#include "../trigger/trigger.h"
+// #include "../trigger/trigger.h"
 
 //===--------------------------------------------------------------------===//
 // Configuration Variables
@@ -39,28 +38,28 @@ namespace peloton {
 
 namespace tuning {
 class Sample;
-}  // namespace indextuner
+} // namespace tuning
 
 namespace catalog {
 class ForeignKey;
 class Catalog;
-}  // namespace catalog
+} // namespace catalog
 
 namespace executor {
 class ExecutorContext;
-}  // namespace executor
+} // namespace executor
 
 namespace index {
 class Index;
-}  // namespace index
+} // namespace index
 
 namespace logging {
 class LogManager;
-}  // namespace logging
+} // namespace logging
 
 namespace concurrency {
 class TransactionContext;
-}  // namespace concurrency
+} // namespace concurrency
 
 namespace storage {
 
@@ -91,7 +90,7 @@ class DataTable : public AbstractTable {
   DataTable() = delete;
   DataTable(DataTable const &) = delete;
 
- public:
+public:
   // Table constructor
   DataTable(catalog::Schema *schema, const std::string &table_name,
             const oid_t &database_oid, const oid_t &table_oid,
@@ -129,13 +128,13 @@ class DataTable : public AbstractTable {
                           concurrency::TransactionContext *transaction,
                           ItemPointer **index_entry_ptr = nullptr,
                           bool check_fk = true);
-  
+
   ItemPointer InsertTuple(const Tuple *tuple,
                           concurrency::TransactionContext *transaction,
-                          bool &exists,
+                          bool &exists, ItemPointer &old_location,
                           ItemPointer **index_entry_ptr = nullptr,
                           bool check_fk = true);
-  
+
   // designed for tables without primary key. e.g., output table used by
   // aggregate_executor.
   ItemPointer InsertTuple(const Tuple *tuple);
@@ -143,7 +142,8 @@ class DataTable : public AbstractTable {
   // Insert tuple with ItemPointer provided explicitly
   bool InsertTuple(const AbstractTuple *tuple, ItemPointer location,
                    concurrency::TransactionContext *transaction,
-                   ItemPointer **index_entry_ptr, bool check_fk = true);
+                   ItemPointer &old_location, ItemPointer **index_entry_ptr,
+                   bool check_fk = true);
 
   //===--------------------------------------------------------------------===//
   // TILE GROUP
@@ -155,12 +155,12 @@ class DataTable : public AbstractTable {
   void AddTileGroup(const std::shared_ptr<TileGroup> &tile_group);
 
   // Offset is a 0-based number local to the table
-  std::shared_ptr<storage::TileGroup> GetTileGroup(
-      const std::size_t &tile_group_offset) const;
+  std::shared_ptr<storage::TileGroup>
+  GetTileGroup(const std::size_t &tile_group_offset) const;
 
   // ID is the global identifier in the entire DBMS
-  std::shared_ptr<storage::TileGroup> GetTileGroupById(
-      const oid_t &tile_group_id) const;
+  std::shared_ptr<storage::TileGroup>
+  GetTileGroupById(const oid_t &tile_group_id) const;
 
   size_t GetTileGroupCount() const;
 
@@ -242,11 +242,11 @@ class DataTable : public AbstractTable {
   // LAYOUT TUNER
   //===--------------------------------------------------------------------===//
 
-  //void RecordLayoutSample(const tuning::Sample &sample);
+  // void RecordLayoutSample(const tuning::Sample &sample);
 
-  //std::vector<tuning::Sample> GetLayoutSamples();
+  // std::vector<tuning::Sample> GetLayoutSamples();
 
-  //void ClearLayoutSamples();
+  // void ClearLayoutSamples();
 
   void SetDefaultLayout(std::shared_ptr<const Layout> new_layout) {
     PELOTON_ASSERT(new_layout->GetColumnCount() == schema->GetColumnCount());
@@ -267,11 +267,11 @@ class DataTable : public AbstractTable {
   // INDEX TUNER
   //===--------------------------------------------------------------------===//
 
-  //void RecordIndexSample(const tuning::Sample &sample);
+  // void RecordIndexSample(const tuning::Sample &sample);
 
-  //std::vector<tuning::Sample> GetIndexSamples();
+  // std::vector<tuning::Sample> GetIndexSamples();
 
-  //void ClearIndexSamples();
+  // void ClearIndexSamples();
 
   //===--------------------------------------------------------------------===//
   // UTILITIES
@@ -288,7 +288,8 @@ class DataTable : public AbstractTable {
   // tuple.
   bool InsertInIndexes(const AbstractTuple *tuple, ItemPointer location,
                        concurrency::TransactionContext *transaction,
-                       ItemPointer **index_entry_ptr);
+                       ItemPointer **index_entry_ptr,
+                       ItemPointer &old_location);
 
   inline static size_t GetActiveTileGroupCount() {
     return default_active_tilegroup_count_;
@@ -302,8 +303,8 @@ class DataTable : public AbstractTable {
     return default_active_indirection_array_count_;
   }
 
-  static void SetActiveIndirectionArrayCount(
-      const size_t active_indirection_array_count) {
+  static void
+  SetActiveIndirectionArrayCount(const size_t active_indirection_array_count) {
     default_active_indirection_array_count_ = active_indirection_array_count;
   }
 
@@ -316,7 +317,7 @@ class DataTable : public AbstractTable {
   bool operator==(const DataTable &rhs) const;
   bool operator!=(const DataTable &rhs) const { return !(*this == rhs); }
 
- protected:
+protected:
   //===--------------------------------------------------------------------===//
   // INTEGRITY CHECKS
   //===--------------------------------------------------------------------===//
@@ -370,7 +371,7 @@ class DataTable : public AbstractTable {
   // and returns the incremented value.
   oid_t GetNextLayoutOid() { return ++current_layout_oid_; }
 
- private:
+private:
   //===--------------------------------------------------------------------===//
   // STATIC MEMBERS
   //===--------------------------------------------------------------------===//
@@ -431,13 +432,13 @@ class DataTable : public AbstractTable {
   bool adapt_table_ = true;
 
   // samples for layout tuning
-  //std::vector<tuning::Sample> layout_samples_;
+  // std::vector<tuning::Sample> layout_samples_;
 
   // layout samples mutex
   std::mutex layout_samples_mutex_;
 
   // samples for layout tuning
-  //std::vector<tuning::Sample> index_samples_;
+  // std::vector<tuning::Sample> index_samples_;
 
   // index samples mutex
   std::mutex index_samples_mutex_;
@@ -445,11 +446,11 @@ class DataTable : public AbstractTable {
   static oid_t invalid_tile_group_id;
 
   // table version
-  //Timestamp table_version;
+  // Timestamp table_version;
 
   // trigger list
-  //std::unique_ptr<trigger::TriggerList> trigger_list_;
+  // std::unique_ptr<trigger::TriggerList> trigger_list_;
 };
 
-}  // namespace storage
-}  // namespace peloton
+} // namespace storage
+} // namespace peloton

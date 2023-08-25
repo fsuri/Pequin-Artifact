@@ -13,19 +13,20 @@
 #include "../executor/insert_executor.h"
 
 #include "../catalog/manager.h"
+#include "../common/container_tuple.h"
 #include "../common/logger.h"
 #include "../concurrency/transaction_manager_factory.h"
-#include "../executor/logical_tile.h"
 #include "../executor/executor_context.h"
-#include "../common/container_tuple.h"
+#include "../executor/logical_tile.h"
 #include "../planner/insert_plan.h"
 #include "../storage/data_table.h"
 #include "../storage/tuple_iterator.h"
-//#include "../trigger/trigger.h"
-#include "../storage/tuple.h"
+// #include "../trigger/trigger.h"
 #include "../catalog/catalog.h"
 #include "../catalog/trigger_catalog.h"
 #include "../storage/storage_manager.h"
+#include "../storage/tuple.h"
+#include "query-engine/common/item_pointer.h"
 
 namespace peloton {
 namespace executor {
@@ -55,18 +56,19 @@ bool InsertExecutor::DInit() {
  * @return true on success, false otherwise.
  */
 bool InsertExecutor::DExecute() {
-  //std::cout << "Inside insert executor" << std::endl;
-  if (done_) return false;
+  // std::cout << "Inside insert executor" << std::endl;
+  if (done_)
+    return false;
 
   PELOTON_ASSERT(!done_);
   PELOTON_ASSERT(executor_context_ != nullptr);
 
   const planner::InsertPlan &node = GetPlanNode<planner::InsertPlan>();
-  //std::cout << "Inside insert executor 1" << std::endl;
+  // std::cout << "Inside insert executor 1" << std::endl;
   storage::DataTable *target_table = node.GetTable();
   oid_t bulk_insert_count = node.GetBulkInsertCount();
 
-  //std::cout << "Inside insert executor 2" << std::endl;
+  // std::cout << "Inside insert executor 2" << std::endl;
 
   auto &transaction_manager =
       concurrency::TransactionManagerFactory::GetInstance();
@@ -79,7 +81,7 @@ bool InsertExecutor::DExecute() {
     return false;
   }
 
-  //std::cout << "Inside insert executor 3" << std::endl;
+  // std::cout << "Inside insert executor 3" << std::endl;
 
   LOG_TRACE("Number of tuples in table before insert: %lu",
             target_table->GetTupleCount());
@@ -98,7 +100,7 @@ bool InsertExecutor::DExecute() {
 
   // Inserting a logical tile.
   if (children_.size() == 1) {
-    //std::cout << "Inside insert executor 4" << std::endl;
+    // std::cout << "Inside insert executor 4" << std::endl;
     if (!children_[0]->Execute()) {
       return false;
     }
@@ -108,7 +110,6 @@ bool InsertExecutor::DExecute() {
     storage::TileGroup *tile_group =
         logical_tile->GetBaseTile(0)->GetTileGroup();
     storage::TileGroupHeader *tile_group_header = tile_group->GetHeader();
-
 
     // FIXME: Wrong? What if the result of select is nothing? Michael
     PELOTON_ASSERT(logical_tile.get() != nullptr);
@@ -138,8 +139,9 @@ bool InsertExecutor::DExecute() {
       // it is possible that some concurrent transactions have inserted the same
       // tuple.
       // in this case, abort the transaction.
-      // Commented out this check since concurrency control happens at Basil layer
-      //if (location.block == INVALID_OID) {
+      // Commented out this check since concurrency control happens at Basil
+      // layer
+      // if (location.block == INVALID_OID) {
       //  transaction_manager.SetTransactionResult(current_txn,
       //                                           peloton::ResultType::FAILURE);
       //  return false;
@@ -147,7 +149,7 @@ bool InsertExecutor::DExecute() {
 
       transaction_manager.PerformInsert(current_txn, location, index_entry_ptr);
 
-      executor_context_->num_processed += 1;  // insert one
+      executor_context_->num_processed += 1; // insert one
     }
 
     // execute after-insert-statement triggers and
@@ -173,7 +175,7 @@ bool InsertExecutor::DExecute() {
   else if (children_.size() == 0) {
     // Extract expressions from plan node and construct the tuple.
     // For now we just handle a single tuple
-    //std::cout << "Inside insert executor 4.5" << std::endl;
+    // std::cout << "Inside insert executor 4.5" << std::endl;
     auto schema = target_table->GetSchema();
     auto project_info = node.GetProjectInfo();
     auto tuple = node.GetTuple(0);
@@ -220,7 +222,7 @@ bool InsertExecutor::DExecute() {
         }
       }
 
-      //trigger::TriggerList *trigger_list = target_table->GetTriggerList();
+      // trigger::TriggerList *trigger_list = target_table->GetTriggerList();
 
       auto new_tuple = tuple;
       /*if (trigger_list != nullptr) {
@@ -247,97 +249,117 @@ bool InsertExecutor::DExecute() {
 
       // Carry out insertion
       ItemPointer *index_entry_ptr = nullptr;
-      //std::cout << "Insert executor before insertion in else if statement" << std::endl;
+      // std::cout << "Insert executor before insertion in else if statement" <<
+      // std::endl;
       bool result = true;
-      
+
       /*ItemPointer location =
           target_table->InsertTuple(new_tuple, current_txn, &index_entry_ptr);*/
-      
-      ItemPointer location =
-          target_table->InsertTuple(new_tuple, current_txn, result, &index_entry_ptr);
-      
+
+      ItemPointer old_location = ItemPointer(0, 0);
+      ItemPointer location = target_table->InsertTuple(
+          new_tuple, current_txn, result, old_location, &index_entry_ptr);
+
       if (new_tuple->GetColumnCount() > 2) {
         type::Value val = (new_tuple->GetValue(2));
         LOG_TRACE("value: %s", val.GetInfo().c_str());
       }
 
       // Txn should never fail since CC is done at Basil level
-      //if (location.block == INVALID_OID) {
+      // if (location.block == INVALID_OID) {
       //  LOG_TRACE("Failed to Insert. Set txn failure.");
       //  transaction_manager.SetTransactionResult(current_txn,
       //                                           ResultType::FAILURE);
       //  return false;
       //}
 
-      /*if (!result) {
-        std::cout << "Tried to insert row with same primary key, so will do an update" << std::endl;
-        ItemPointer new_location = target_table->AcquireVersion();
-        std::cout << "Tuple id is " << new_location.offset << std::endl;
+      if (!result) {
+        std::cout
+            << "Tried to insert row with same primary key, so will do an update"
+            << std::endl;
+        // ItemPointer new_location = target_table->AcquireVersion();
+        ItemPointer new_location = location;
+        std::cout << "New location is (" << new_location.block << ", "
+                  << new_location.offset << ")" << std::endl;
         auto storage_manager = storage::StorageManager::GetInstance();
-        auto tile_group = storage_manager->GetTileGroup(location.block);
+
+        if (old_location.IsNull()) {
+          std::cout << "Old location is null" << std::endl;
+        } else {
+          std::cout << "old location is (" << old_location.block << ", "
+                    << old_location.offset << ")" << std::endl;
+        }
+
+        auto tile_group = storage_manager->GetTileGroup(old_location.block);
         auto tile_group_header = tile_group->GetHeader();
+
         auto new_tile_group = storage_manager->GetTileGroup(new_location.block);
 
-          ContainerTuple<storage::TileGroup> new_tuple_one(new_tile_group.get(),
-                                                       new_location.offset);
+        ContainerTuple<storage::TileGroup> new_tuple_one(new_tile_group.get(),
+                                                         new_location.offset);
 
-          ContainerTuple<storage::TileGroup> old_tuple_one(tile_group.get(),
-                                                       location.offset);
+        ContainerTuple<storage::TileGroup> old_tuple_one(tile_group.get(),
+                                                         old_location.offset);
 
-          // perform projection from old version to new version.
-          // this triggers in-place update, and we do not need to allocate
-          // another version.
-          /*project_info->Evaluate(&new_tuple, &old_tuple, nullptr,
-                                  executor_context_);*/
+        // perform projection from old version to new version.
+        // this triggers in-place update, and we do not need to allocate
+        // another version.
+        // project_info->Evaluate(&new_tuple_one, &old_tuple_one, nullptr,
+        //                       executor_context_);
 
-          // get indirection.
-          /*std::cout << "Before getting indirection" << std::endl;
-          ItemPointer *indirection =
-              tile_group_header->GetIndirection(location.offset);
-          std::cout << "After getting indirection" << std::endl;
-          if (indirection->IsNull()) {
-            std::cout << "Indirection pointer is null" << std::endl;
+        // get indirection.
+        std::cout << "Before getting indirection" << std::endl;
+        ItemPointer *indirection =
+            tile_group_header->GetIndirection(old_location.offset);
+        std::cout << "After getting indirection" << std::endl;
+        if (indirection == nullptr) {
+          std::cout << "Indirection pointer is null" << std::endl;
+        }
+        // finally install new version into the table
+        target_table->InstallVersion(&new_tuple_one,
+                                     &(project_info->GetTargetList()),
+                                     current_txn, indirection);
+        new_tile_group->GetHeader()->SetIndirection(new_location.offset,
+                                                    indirection);
+        std::cout << "After installing version" << std::endl;
+
+        // PerformUpdate() will not be executed if the insertion failed.
+        // There is a write lock acquired, but since it is not in the write
+        // set,
+        // because we haven't yet put them into the write set.
+        // the acquired lock can't be released when the txn is aborted.
+        // the YieldOwnership() function helps us release the acquired write
+        // lock.
+        /*if (ret == false) {
+          LOG_TRACE("Fail to insert new tuple. Set txn failure.");
+          if (is_owner == false) {
+            // If the ownership is acquire inside this update executor, we
+            // release it here
+            transaction_manager.YieldOwnership(current_txn, tile_group_header,
+                                               physical_tuple_id);
           }
-          // finally install new version into the table
-          target_table->InstallVersion(&new_tuple_one,
-                                              &(project_info->GetTargetList()),
-                                              current_txn, indirection);
-          new_tile_group->GetHeader()->SetIndirection(new_location.offset, indirection);
-          std::cout << "After installing version" << std::endl;*/
+          transaction_manager.SetTransactionResult(current_txn,
+                                                   ResultType::FAILURE);
+          std::cout << "Fourth false" << std::endl;
+          return false;
+        }*/
 
-          // PerformUpdate() will not be executed if the insertion failed.
-          // There is a write lock acquired, but since it is not in the write
-          // set,
-          // because we haven't yet put them into the write set.
-          // the acquired lock can't be released when the txn is aborted.
-          // the YieldOwnership() function helps us release the acquired write
-          // lock.
-          /*if (ret == false) {
-            LOG_TRACE("Fail to insert new tuple. Set txn failure.");
-            if (is_owner == false) {
-              // If the ownership is acquire inside this update executor, we
-              // release it here
-              transaction_manager.YieldOwnership(current_txn, tile_group_header,
-                                                 physical_tuple_id);
-            }
-            transaction_manager.SetTransactionResult(current_txn,
-                                                     ResultType::FAILURE);
-            std::cout << "Fourth false" << std::endl;
-            return false;
-          }*/
-
-          /*transaction_manager.PerformUpdate(current_txn, location,
-                                            new_location);
-          new_tile_group->GetHeader()->SetIndirection(new_location.offset, indirection);
+        transaction_manager.PerformUpdate(current_txn, old_location,
+                                          new_location);
+        new_tile_group->GetHeader()->SetIndirection(new_location.offset,
+                                                    indirection);
       } else {
-        transaction_manager.PerformInsert(current_txn, location, index_entry_ptr);
-      }*/
-      transaction_manager.PerformInsert(current_txn, location, index_entry_ptr);
+        transaction_manager.PerformInsert(current_txn, location,
+                                          index_entry_ptr);
+      }
+      // TODO: This is what was here before
+      // transaction_manager.PerformInsert(current_txn, location,
+      // index_entry_ptr);
 
       LOG_TRACE("Number of tuples in table after insert: %lu",
                 target_table->GetTupleCount());
 
-      executor_context_->num_processed += 1;  // insert one
+      executor_context_->num_processed += 1; // insert one
 
       // execute after-insert-row triggers and
       // record on-commit-insert-row triggers into current transaction
@@ -392,5 +414,5 @@ bool InsertExecutor::DExecute() {
   return true;
 }
 
-}  // namespace executor
-}  // namespace peloton
+} // namespace executor
+} // namespace peloton

@@ -26,7 +26,7 @@
 #include "../executor/executor_context.h"
 #include "../gc/gc_manager_factory.h"
 #include "../index/index.h"
-//#include "../logging/log_manager.h"
+// #include "../logging/log_manager.h"
 #include "../storage/abstract_table.h"
 #include "../storage/data_table.h"
 #include "../storage/database.h"
@@ -36,8 +36,9 @@
 #include "../storage/tile_group_factory.h"
 #include "../storage/tile_group_header.h"
 #include "../storage/tuple.h"
-//#include "../tuning/clusterer.h"
-//#include "../tuning/sample.h"
+#include "query-engine/common/item_pointer.h"
+// #include "../tuning/clusterer.h"
+// #include "../tuning/sample.h"
 
 //===--------------------------------------------------------------------===//
 // Configuration Variables
@@ -63,12 +64,12 @@ DataTable::DataTable(catalog::Schema *schema, const std::string &table_name,
                      const bool adapt_table, const bool is_catalog,
                      const peloton::LayoutType layout_type)
     : AbstractTable(table_oid, schema, own_schema, layout_type),
-      database_oid(database_oid),
-      table_name(table_name),
+      database_oid(database_oid), table_name(table_name),
       tuples_per_tilegroup_(tuples_per_tilegroup),
       current_layout_oid_(ATOMIC_VAR_INIT(COLUMN_STORE_LAYOUT_OID)),
-      adapt_table_(adapt_table)/*,
-      trigger_list_(new trigger::TriggerList())*/ {
+      adapt_table_(adapt_table) /*,
+       trigger_list_(new trigger::TriggerList())*/
+{
   if (is_catalog == true) {
     active_tilegroup_count_ = 1;
     active_indirection_array_count_ = 1;
@@ -124,10 +125,9 @@ DataTable::~DataTable() {
 bool DataTable::CheckNotNulls(const AbstractTuple *tuple,
                               oid_t column_idx) const {
   if (tuple->GetValue(column_idx).IsNull()) {
-    LOG_TRACE(
-        "%u th attribute in the tuple was NULL. It is non-nullable "
-        "attribute.",
-        column_idx);
+    LOG_TRACE("%u th attribute in the tuple was NULL. It is non-nullable "
+              "attribute.",
+              column_idx);
     return false;
   }
   return true;
@@ -156,38 +156,38 @@ bool DataTable::CheckConstraints(const AbstractTuple *tuple) const {
     auto cons = cons_pair.second;
     ConstraintType type = cons->GetType();
     switch (type) {
-      case ConstraintType::CHECK: {
-        //          std::pair<ExpressionType, type::Value> exp =
-        //          cons.GetCheckExpression();
-        //          if (CheckExp(tuple, column_itr, exp) == false) {
-        //            LOG_TRACE("CHECK EXPRESSION constraint violated");
-        //            throw ConstraintException(
-        //                "CHECK EXPRESSION constraint violated : " +
-        //                std::string(tuple->GetInfo()));
-        //          }
-        break;
-      }
-      case ConstraintType::UNIQUE: {
-        break;
-      }
-      case ConstraintType::PRIMARY: {
-        break;
-      }
-      case ConstraintType::FOREIGN: {
-        break;
-      }
-      case ConstraintType::EXCLUSION: {
-        break;
-      }
-      default: {
-        std::string error =
-            StringUtil::Format("ConstraintType '%s' is not supported",
-                               ConstraintTypeToString(type).c_str());
-        LOG_TRACE("%s", error.c_str());
-        throw ConstraintException(error);
-      }
-    }  // SWITCH
-  }    // FOR (constraints)
+    case ConstraintType::CHECK: {
+      //          std::pair<ExpressionType, type::Value> exp =
+      //          cons.GetCheckExpression();
+      //          if (CheckExp(tuple, column_itr, exp) == false) {
+      //            LOG_TRACE("CHECK EXPRESSION constraint violated");
+      //            throw ConstraintException(
+      //                "CHECK EXPRESSION constraint violated : " +
+      //                std::string(tuple->GetInfo()));
+      //          }
+      break;
+    }
+    case ConstraintType::UNIQUE: {
+      break;
+    }
+    case ConstraintType::PRIMARY: {
+      break;
+    }
+    case ConstraintType::FOREIGN: {
+      break;
+    }
+    case ConstraintType::EXCLUSION: {
+      break;
+    }
+    default: {
+      std::string error =
+          StringUtil::Format("ConstraintType '%s' is not supported",
+                             ConstraintTypeToString(type).c_str());
+      LOG_TRACE("%s", error.c_str());
+      throw ConstraintException(error);
+    }
+    } // SWITCH
+  }   // FOR (constraints)
 
   return true;
 }
@@ -319,10 +319,12 @@ ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple,
     return INVALID_ITEMPOINTER;
   }
 
-  auto result =
-      InsertTuple(tuple, location, transaction, index_entry_ptr, check_fk);
+  ItemPointer old_location = ItemPointer(0, 0);
+
+  auto result = InsertTuple(tuple, location, transaction, old_location,
+                            index_entry_ptr, check_fk);
   if (result == false) {
-    //check_fk = false;
+    // check_fk = false;
     return INVALID_ITEMPOINTER;
   }
   return location;
@@ -330,29 +332,31 @@ ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple,
 
 ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple,
                                    concurrency::TransactionContext *transaction,
-                                   bool &exists,
+                                   bool &exists, ItemPointer &old_location,
                                    ItemPointer **index_entry_ptr,
                                    bool check_fk) {
+
   ItemPointer location = GetEmptyTupleSlot(tuple);
   if (location.block == INVALID_OID) {
     LOG_TRACE("Failed to get tuple slot.");
     return INVALID_ITEMPOINTER;
   }
 
-  auto result =
-      InsertTuple(tuple, location, transaction, index_entry_ptr, check_fk);
+  // ItemPointer *old_location;
+  auto result = InsertTuple(tuple, location, transaction, old_location,
+                            index_entry_ptr, check_fk);
   if (result == false) {
-    //check_fk = false;
+    std::cout << "result is false" << std::endl;
+    // check_fk = false;
     exists = false;
-    //return INVALID_ITEMPOINTER;
+    // return INVALID_ITEMPOINTER;
   }
-  return location;
+  return location; //*old_location;
 }
-
-
 
 bool DataTable::InsertTuple(const AbstractTuple *tuple, ItemPointer location,
                             concurrency::TransactionContext *transaction,
+                            ItemPointer &old_location,
                             ItemPointer **index_entry_ptr, bool check_fk) {
   if (CheckConstraints(tuple) == false) {
     std::cout << "Index Constraint violated" << std::endl;
@@ -380,8 +384,9 @@ bool DataTable::InsertTuple(const AbstractTuple *tuple, ItemPointer location,
     return true;
   }
   // Index checks and updates
-  if (InsertInIndexes(tuple, location, transaction, index_entry_ptr) == false) {
-    std::cout << "Index Constraint violated" << std::endl;
+  if (InsertInIndexes(tuple, location, transaction, index_entry_ptr,
+                      old_location) == false) {
+    std::cout << "Index Constraint violated old location" << std::endl;
     LOG_TRACE("Index constraint violated");
     return false;
   }
@@ -429,7 +434,8 @@ ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple) {
 bool DataTable::InsertInIndexes(const AbstractTuple *tuple,
                                 ItemPointer location,
                                 concurrency::TransactionContext *transaction,
-                                ItemPointer **index_entry_ptr) {
+                                ItemPointer **index_entry_ptr,
+                                ItemPointer &old_location) {
   int index_count = GetIndexCount();
 
   size_t active_indirection_array_id =
@@ -465,30 +471,34 @@ bool DataTable::InsertInIndexes(const AbstractTuple *tuple,
 
   // Since this is NOT protected by a lock, concurrent insert may happen.
   bool res = true;
+  std::vector<ItemPointer *> old_locations;
   int success_count = 0;
 
   for (int index_itr = index_count - 1; index_itr >= 0; --index_itr) {
     auto index = GetIndex(index_itr);
-    if (index == nullptr) continue;
+    if (index == nullptr)
+      continue;
     auto index_schema = index->GetKeySchema();
     auto indexed_columns = index_schema->GetIndexedColumns();
     std::unique_ptr<storage::Tuple> key(new storage::Tuple(index_schema, true));
     key->SetFromTuple(tuple, indexed_columns, index->GetPool());
 
     switch (index->GetIndexType()) {
-      case IndexConstraintType::PRIMARY_KEY:
-      case IndexConstraintType::UNIQUE: {
-        // get unique tuple from primary/unique index.
-        // if in this index there has been a visible or uncommitted
-        // <key, location> pair, this constraint is violated
-        //res = index->CondInsertEntry(key.get(), *index_entry_ptr, fn);
-        index->InsertEntry(key.get(), *index_entry_ptr);
-      } break;
+    case IndexConstraintType::PRIMARY_KEY:
+    case IndexConstraintType::UNIQUE: {
+      // get unique tuple from primary/unique index.
+      // if in this index there has been a visible or uncommitted
+      // <key, location> pair, this constraint is violated
+      res = index->CondInsertEntry(key.get(), *index_entry_ptr, fn);
+      // index->ScanKey(key.get(), old_locations);
+      // NOTE: Commented this out to support linked list version updates
+      // index->InsertEntry(key.get(), *index_entry_ptr);
+    } break;
 
-      case IndexConstraintType::DEFAULT:
-      default:
-        index->InsertEntry(key.get(), *index_entry_ptr);
-        break;
+    case IndexConstraintType::DEFAULT:
+    default:
+      index->InsertEntry(key.get(), *index_entry_ptr);
+      break;
     }
 
     // Handle failure
@@ -497,6 +507,18 @@ bool DataTable::InsertInIndexes(const AbstractTuple *tuple,
       // the pointer has a chance to be dereferenced by readers and it cannot be
       // deleted
       //*index_entry_ptr = nullptr;
+      index->ScanKey(key.get(), old_locations);
+      ItemPointer *first_element = old_locations[0];
+      if (first_element->IsNull()) {
+        std::cout << "First element is null" << std::endl;
+      }
+      /*if (old_location->IsNull()) {
+        std::cout << "Old location is null" << std::endl;
+      }*/
+      old_location.block = first_element->block;
+      old_location.offset = first_element->offset;
+      std::cout << "Old location block is " << old_location.block
+                << " and offset is " << old_location.offset << std::endl;
       return false;
     } else {
       success_count += 1;
@@ -541,7 +563,8 @@ bool DataTable::InsertInSecondaryIndexes(
   // Since this is NOT protected by a lock, concurrent insert may happen.
   for (int index_itr = index_count - 1; index_itr >= 0; --index_itr) {
     auto index = GetIndex(index_itr);
-    if (index == nullptr) continue;
+    if (index == nullptr)
+      continue;
     auto index_schema = index->GetKeySchema();
     auto indexed_columns = index_schema->GetIndexedColumns();
 
@@ -570,14 +593,14 @@ bool DataTable::InsertInSecondaryIndexes(
     std::cout << "After setting key from tuple" << std::endl;
 
     switch (index->GetIndexType()) {
-      case IndexConstraintType::PRIMARY_KEY:
-      case IndexConstraintType::UNIQUE: {
-        res = index->CondInsertEntry(key.get(), index_entry_ptr, fn);
-      } break;
-      case IndexConstraintType::DEFAULT:
-      default:
-        index->InsertEntry(key.get(), index_entry_ptr);
-        break;
+    case IndexConstraintType::PRIMARY_KEY:
+    case IndexConstraintType::UNIQUE: {
+      res = index->CondInsertEntry(key.get(), index_entry_ptr, fn);
+    } break;
+    case IndexConstraintType::DEFAULT:
+    default:
+      index->InsertEntry(key.get(), index_entry_ptr);
+      break;
     }
     LOG_TRACE("Index constraint check on %s passed.", index->GetName().c_str());
   }
@@ -607,7 +630,8 @@ bool DataTable::CheckForeignKeySrcAndCascade(
     storage::Tuple *prev_tuple, storage::Tuple *new_tuple,
     concurrency::TransactionContext *current_txn,
     executor::ExecutorContext *context, bool is_update) {
-  if (!schema->HasForeignKeySources()) return true;
+  if (!schema->HasForeignKeySources())
+    return true;
 
   auto &transaction_manager =
       concurrency::TransactionManagerFactory::GetInstance();
@@ -627,7 +651,8 @@ bool DataTable::CheckForeignKeySrcAndCascade(
     int src_table_index_count = src_table->GetIndexCount();
     for (int iter = 0; iter < src_table_index_count; iter++) {
       auto index = src_table->GetIndex(iter);
-      if (index == nullptr) continue;
+      if (index == nullptr)
+        continue;
 
       // Make sure this is the right index to search in
       if (index->GetOid() == cons->GetIndexOid() &&
@@ -657,86 +682,87 @@ bool DataTable::CheckForeignKeySrcAndCascade(
                 current_txn, src_tile_group_header, ptr->offset,
                 VisibilityIdType::COMMIT_ID);
 
-            if (visibility != VisibilityType::OK) continue;
+            if (visibility != VisibilityType::OK)
+              continue;
 
             switch (cons->GetFKUpdateAction()) {
-              // Currently NOACTION is the same as RESTRICT
-              case FKConstrActionType::NOACTION:
-              case FKConstrActionType::RESTRICT: {
+            // Currently NOACTION is the same as RESTRICT
+            case FKConstrActionType::NOACTION:
+            case FKConstrActionType::RESTRICT: {
+              return false;
+            }
+            case FKConstrActionType::CASCADE:
+            default: {
+              // Update
+              bool src_is_owner = transaction_manager.IsOwner(
+                  current_txn, src_tile_group_header, ptr->offset);
+
+              // Read the referencing tuple, update the read timestamp so that
+              // we can
+              // delete it later
+              bool ret = transaction_manager.PerformRead(
+                  current_txn, *ptr, src_tile_group_header, true);
+
+              if (ret == false) {
+                if (src_is_owner) {
+                  transaction_manager.YieldOwnership(
+                      current_txn, src_tile_group_header, ptr->offset);
+                }
                 return false;
               }
-              case FKConstrActionType::CASCADE:
-              default: {
-                // Update
-                bool src_is_owner = transaction_manager.IsOwner(
-                    current_txn, src_tile_group_header, ptr->offset);
 
-                // Read the referencing tuple, update the read timestamp so that
-                // we can
-                // delete it later
-                bool ret = transaction_manager.PerformRead(
-                    current_txn, *ptr, src_tile_group_header, true);
+              ContainerTuple<storage::TileGroup> src_old_tuple(
+                  src_tile_group.get(), ptr->offset);
+              storage::Tuple src_new_tuple(src_table->GetSchema(), true);
 
-                if (ret == false) {
-                  if (src_is_owner) {
-                    transaction_manager.YieldOwnership(
-                        current_txn, src_tile_group_header, ptr->offset);
-                  }
-                  return false;
+              if (is_update) {
+                for (oid_t col_itr = 0;
+                     col_itr < src_table->GetSchema()->GetColumnCount();
+                     col_itr++) {
+                  type::Value val = src_old_tuple.GetValue(col_itr);
+                  src_new_tuple.SetValue(col_itr, val, context->GetPool());
                 }
 
-                ContainerTuple<storage::TileGroup> src_old_tuple(
-                    src_tile_group.get(), ptr->offset);
-                storage::Tuple src_new_tuple(src_table->GetSchema(), true);
-
-                if (is_update) {
-                  for (oid_t col_itr = 0;
-                       col_itr < src_table->GetSchema()->GetColumnCount();
-                       col_itr++) {
-                    type::Value val = src_old_tuple.GetValue(col_itr);
-                    src_new_tuple.SetValue(col_itr, val, context->GetPool());
-                  }
-
-                  // Set the primary key fields
-                  for (oid_t k = 0; k < key_attrs.size(); k++) {
-                    auto src_col_index = key_attrs[k];
-                    auto sink_col_index = cons->GetFKSinkColumnIds()[k];
-                    src_new_tuple.SetValue(src_col_index,
-                                           new_tuple->GetValue(sink_col_index),
-                                           context->GetPool());
-                  }
+                // Set the primary key fields
+                for (oid_t k = 0; k < key_attrs.size(); k++) {
+                  auto src_col_index = key_attrs[k];
+                  auto sink_col_index = cons->GetFKSinkColumnIds()[k];
+                  src_new_tuple.SetValue(src_col_index,
+                                         new_tuple->GetValue(sink_col_index),
+                                         context->GetPool());
                 }
+              }
 
-                ItemPointer new_loc = src_table->InsertEmptyVersion();
+              ItemPointer new_loc = src_table->InsertEmptyVersion();
 
-                if (new_loc.IsNull()) {
-                  if (src_is_owner == false) {
-                    transaction_manager.YieldOwnership(
-                        current_txn, src_tile_group_header, ptr->offset);
-                  }
-                  return false;
+              if (new_loc.IsNull()) {
+                if (src_is_owner == false) {
+                  transaction_manager.YieldOwnership(
+                      current_txn, src_tile_group_header, ptr->offset);
                 }
+                return false;
+              }
 
-                transaction_manager.PerformDelete(current_txn, *ptr, new_loc);
+              transaction_manager.PerformDelete(current_txn, *ptr, new_loc);
 
-                // For delete cascade, just stop here
-                if (is_update == false) {
-                  break;
-                }
-
-                ItemPointer *index_entry_ptr = nullptr;
-                peloton::ItemPointer location = src_table->InsertTuple(
-                    &src_new_tuple, current_txn, &index_entry_ptr, false);
-
-                if (location.block == INVALID_OID) {
-                  return false;
-                }
-
-                transaction_manager.PerformInsert(current_txn, location,
-                                                  index_entry_ptr);
-
+              // For delete cascade, just stop here
+              if (is_update == false) {
                 break;
               }
+
+              ItemPointer *index_entry_ptr = nullptr;
+              peloton::ItemPointer location = src_table->InsertTuple(
+                  &src_new_tuple, current_txn, &index_entry_ptr, false);
+
+              if (location.block == INVALID_OID) {
+                return false;
+              }
+
+              transaction_manager.PerformInsert(current_txn, location,
+                                                index_entry_ptr);
+
+              break;
+            }
             }
           }
         }
@@ -781,7 +807,8 @@ bool DataTable::CheckForeignKeyConstraints(
     for (int index_itr = ref_table_index_count - 1; index_itr >= 0;
          --index_itr) {
       auto index = ref_table->GetIndex(index_itr);
-      if (index == nullptr) continue;
+      if (index == nullptr)
+        continue;
 
       // The foreign key constraints only refer to the primary key
       if (index->GetIndexType() == IndexConstraintType::PRIMARY_KEY) {
@@ -814,11 +841,10 @@ bool DataTable::CheckForeignKeyConstraints(
             VisibilityIdType::READ_ID);
 
         if (visibility != VisibilityType::OK) {
-          LOG_DEBUG(
-              "The key: %s is not yet visible in table %s, visibility "
-              "type: %s.\n",
-              key->GetInfo().c_str(), ref_table->GetName().c_str(),
-              VisibilityTypeToString(visibility).c_str());
+          LOG_DEBUG("The key: %s is not yet visible in table %s, visibility "
+                    "type: %s.\n",
+                    key->GetInfo().c_str(), ref_table->GetName().c_str(),
+                    VisibilityTypeToString(visibility).c_str());
           return false;
         }
 
@@ -882,8 +908,8 @@ void DataTable::ResetDirty() { dirty_ = false; }
 // TILE GROUP
 //===--------------------------------------------------------------------===//
 
-TileGroup *DataTable::GetTileGroupWithLayout(
-    std::shared_ptr<const Layout> layout) {
+TileGroup *
+DataTable::GetTileGroupWithLayout(std::shared_ptr<const Layout> layout) {
   oid_t tile_group_id =
       storage::StorageManager::GetInstance()->GetNextTileGroupId();
   return (AbstractTable::GetTileGroupWithLayout(database_oid, tile_group_id,
@@ -1010,8 +1036,8 @@ void DataTable::AddTileGroup(const std::shared_ptr<TileGroup> &tile_group) {
 
 size_t DataTable::GetTileGroupCount() const { return tile_group_count_; }
 
-std::shared_ptr<storage::TileGroup> DataTable::GetTileGroup(
-    const std::size_t &tile_group_offset) const {
+std::shared_ptr<storage::TileGroup>
+DataTable::GetTileGroup(const std::size_t &tile_group_offset) const {
   PELOTON_ASSERT(tile_group_offset < GetTileGroupCount());
 
   auto tile_group_id =
@@ -1020,8 +1046,8 @@ std::shared_ptr<storage::TileGroup> DataTable::GetTileGroup(
   return GetTileGroupById(tile_group_id);
 }
 
-std::shared_ptr<storage::TileGroup> DataTable::GetTileGroupById(
-    const oid_t &tile_group_id) const {
+std::shared_ptr<storage::TileGroup>
+DataTable::GetTileGroupById(const oid_t &tile_group_id) const {
   auto storage_manager = storage::StorageManager::GetInstance();
   return storage_manager->GetTileGroup(tile_group_id);
 }
@@ -1063,8 +1089,8 @@ void DataTable::AddIndex(std::shared_ptr<index::Index> index) {
   indexes_columns_.push_back(index_columns_set);
 }
 
-std::shared_ptr<index::Index> DataTable::GetIndexWithOid(
-    const oid_t &index_oid) {
+std::shared_ptr<index::Index>
+DataTable::GetIndexWithOid(const oid_t &index_oid) {
   std::shared_ptr<index::Index> ret_index;
   auto index_count = indexes_.GetSize();
 
@@ -1153,8 +1179,8 @@ oid_t DataTable::GetValidIndexCount() const {
 }
 
 // Get the schema for the new transformed tile group
-std::vector<catalog::Schema> TransformTileGroupSchema(
-    storage::TileGroup *tile_group, const Layout &layout) {
+std::vector<catalog::Schema>
+TransformTileGroupSchema(storage::TileGroup *tile_group, const Layout &layout) {
   std::vector<catalog::Schema> new_schema;
   oid_t orig_tile_offset, orig_tile_column_offset;
   oid_t new_tile_offset, new_tile_column_offset;
@@ -1236,8 +1262,9 @@ void SetTransformedTileGroup(storage::TileGroup *orig_tile_group,
   *new_header = *header;
 }
 
-storage::TileGroup *DataTable::TransformTileGroup(
-    const oid_t &tile_group_offset, const double &theta) {
+storage::TileGroup *
+DataTable::TransformTileGroup(const oid_t &tile_group_offset,
+                              const double &theta) {
   // First, check if the tile group is in this table
   if (tile_group_offset >= tile_groups_.GetSize()) {
     LOG_ERROR("Tile group offset not found in table : %u ", tile_group_offset);
@@ -1367,9 +1394,12 @@ bool DataTable::Equals(const storage::DataTable &other) const {
 }
 
 bool DataTable::operator==(const DataTable &rhs) const {
-  if (GetName() != rhs.GetName()) return false;
-  if (GetDatabaseOid() != rhs.GetDatabaseOid()) return false;
-  if (GetOid() != rhs.GetOid()) return false;
+  if (GetName() != rhs.GetName())
+    return false;
+  if (GetDatabaseOid() != rhs.GetDatabaseOid())
+    return false;
+  if (GetOid() != rhs.GetOid())
+    return false;
   return true;
 }
 
@@ -1384,5 +1414,5 @@ bool DataTable::SetCurrentLayoutOid(oid_t new_layout_oid) {
   return false;
 }
 
-}  // namespace storage
-}  // namespace peloton
+} // namespace storage
+} // namespace peloton

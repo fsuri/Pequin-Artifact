@@ -209,9 +209,11 @@ bool SeqScanExecutor::DExecute() {
         // Get the head of the version chain (latest version)
         ItemPointer *head = tile_group_header->GetIndirection(curr_tuple_id);
         std::cout << "Before checking whether head is null" << std::endl;
-        /*if (head->IsNull()) {
-          std::cout << "Head is null" << std::endl;
-        }*/
+        if (head == nullptr) {
+          std::cout << "Head is null and location of curr tuple is ("
+                    << location.block << ", " << location.offset << ")"
+                    << std::endl;
+        }
 
         auto head_tile_group_header =
             storage_manager->GetTileGroup(head->block)->GetHeader();
