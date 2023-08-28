@@ -63,7 +63,8 @@ Server::Server(const transport::Configuration &config, int groupIdx, int idx,
     transport(transport), occType(occType), part(part),
     params(params), keyManager(keyManager),
     timeDelta(timeDelta),
-    timeServer(timeServer)
+    timeServer(timeServer),
+    sql_bench(sql_bench)
      {
 
   ongoing = ongoingMap(100000);
@@ -142,7 +143,15 @@ Server::Server(const transport::Configuration &config, int groupIdx, int idx,
   ts_to_tx.insert(std::make_pair(MergeTimestampId(0, 0), ""));
 
   if(sql_bench){
-      table_store.RegisterTableSchema(table_registry_path);
+
+      if(TEST_QUERY){
+        table_store = new ToyTableStore();
+      }
+      else{
+        table_store = new PelotonTableStore();
+      }
+
+      table_store->RegisterTableSchema(table_registry_path);
 
       //TODO: turn read_prepared into a function, not a lambda
 
@@ -156,8 +165,8 @@ Server::Server(const transport::Configuration &config, int groupIdx, int idx,
           //Look at store and preparedWrites ==> pick larger (if read_prepared true)
           //Add it to QueryReadSetMgr
 
-      table_store.SetPreparePredicate(std::move(read_prepared_pred));
-      table_store.SetFindTableVersion(std::bind(&Server::FindTableVersion, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4, std::placeholders::_5));
+      table_store->SetPreparePredicate(std::move(read_prepared_pred));
+      table_store->SetFindTableVersion(std::bind(&Server::FindTableVersion, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4, std::placeholders::_5));
   }
 
   if(TEST_QUERY){
@@ -194,6 +203,12 @@ Server::~Server() {
   //Latency_Dump(&waitOnProtoLock);
   //Latency_Dump(&batchSigner->waitOnBatchLock);
   //Latency_Dump(&(store.storeLockLat));
+
+  if(sql_bench){
+    Notice("Freeing Table Store interface");
+    delete table_store;
+  }
+
   Notice("Freeing verifier.");
   delete verifier;
    //if(params.mainThreadDispatching) committedMutex.lock();
@@ -403,7 +418,7 @@ void Server::CreateTable(const std::string &table_name, const std::vector<std::p
   std::cerr << "Create Table: " << sql_statement << std::endl;
 
   //Call into TableStore with this statement.
-  table_store.ExecRaw(sql_statement);
+  table_store->ExecRaw(sql_statement);
 
   //Create TABLE version  -- just use table_name as key.  This version tracks updates to "table state" (as opposed to row state): I.e. new row insertions; row deletions;
   //Note: It does currently not track table creation/deletion itself -- this is unsupported. If we do want to support it, either we need to make a separate version; 
@@ -433,7 +448,7 @@ void Server::CreateIndex(const std::string &table_name, const std::vector<std::p
    sql_statement +=");";
 
   //Call into TableStore with this statement.
-  table_store.ExecRaw(sql_statement);
+  table_store->ExecRaw(sql_statement);
 
 }
 
@@ -447,13 +462,13 @@ void Server::LoadTableData(const std::string &table_name, const std::string &tab
     //Call into TableStore with this statement.
     std::cerr << "Load Table: " << copy_table_statement << std::endl;
 
-    //table_store.ExecRaw(copy_table_statement);
+    //table_store->ExecRaw(copy_table_statement);
     auto committedItr = committed.find("");
     UW_ASSERT(committedItr != committed.end());
     std::string genesis_tx_dig("");
     Timestamp genesis_ts(0,0);
     proto::CommittedProof *genesis_proof = committedItr->second;
-    table_store.LoadTable(copy_table_statement, genesis_tx_dig, genesis_ts, genesis_proof);
+    table_store->LoadTable(copy_table_statement, genesis_tx_dig, genesis_ts, genesis_proof);
 
     //std::cerr << "Load Table: " << copy_table_statement << std::endl;
 
@@ -470,7 +485,7 @@ void Server::LoadTableData(const std::string &table_name, const std::string &tab
     std::string value;
 
     //NOTE: CSV Data is UNQUOTED always
-    //std::vector<bool> *col_quotes = table_store.GetRegistryColQuotes(table_name);
+    //std::vector<bool> *col_quotes = table_store->GetRegistryColQuotes(table_name);
 
     while(getline(row_data, row_line)){
      
@@ -523,7 +538,7 @@ void Server::LoadTableRow(const std::string &table_name, const std::vector<std::
   
   sql_statement += " VALUES (";
   
-  std::vector<bool> *col_quotes = table_store.GetRegistryColQuotes(table_name); //TODO: Add Quotes if applicable
+  std::vector<bool> *col_quotes = table_store->GetRegistryColQuotes(table_name); //TODO: Add Quotes if applicable
   for(auto &val: values){
     //Note: Adding quotes indiscriminately for now.
     sql_statement += "\'" + val + "\'" + ", ";
@@ -533,13 +548,13 @@ void Server::LoadTableRow(const std::string &table_name, const std::vector<std::
   sql_statement += ");" ;
   
   //Call into TableStore with this statement.
-  //table_store.ExecRaw(sql_statement);
+  //table_store->ExecRaw(sql_statement);
   auto committedItr = committed.find("");
   UW_ASSERT(committedItr != committed.end());
   std::string genesis_tx_dig("");
   Timestamp genesis_ts(0,0);
   proto::CommittedProof *genesis_proof = committedItr->second;
-  table_store.LoadTable(sql_statement, genesis_tx_dig, genesis_ts, genesis_proof);
+  table_store->LoadTable(sql_statement, genesis_tx_dig, genesis_ts, genesis_proof);
 
 
   std::vector<const std::string*> primary_cols;
@@ -1635,7 +1650,7 @@ void Server::Prepare(const std::string &txnDigest,
   o.release(); //Relase only at the end, so that Prepare and Clean in parallel for the same TX are atomic.
 
   for (const auto &[table_name, table_write] : txn.table_writes()){
-    table_store.ApplyTableWrite(table_name, table_write, ts, txnDigest, nullptr, false);
+    table_store->ApplyTableWrite(table_name, table_write, ts, txnDigest, nullptr, false);
     //Apply TableVersion 
     std::pair<std::shared_mutex,std::map<Timestamp, const proto::Transaction *>> &x = preparedWrites[table_name];
     std::unique_lock lock(x.first);
@@ -1803,7 +1818,7 @@ void Server::CommitToStore(proto::CommittedProof *proof, proto::Transaction *txn
                             // alternatively: don't mark prepare/commit inside the table store, only in CC store. But that requires extra lookup for all keys in read set.
                             // + how do we remove prepared rows? Do we treat it as SQL delete (at ts)? row becomes invisible -- fully removed from CC store.
   for (const auto &[table_name, table_write] : txn->table_writes()){
-    table_store.ApplyTableWrite(table_name, table_write, ts, txnDigest, proof);
+    table_store->ApplyTableWrite(table_name, table_write, ts, txnDigest, proof);
     val.val = "";
     store.put(table_name, val, ts);  //Apply TableVersion   //TODO: Confirm that ApplyTableWrite is synchronous -- i.e. only returns after all writes are applied. 
                                                           //If not, then must call SetTableVersion as callback from within Peloton once it is done.
@@ -1888,7 +1903,7 @@ void Server::Clean(const std::string &txnDigest, bool abort, bool hard) {
     prepared.erase(a);
 
     for (const auto &[table_name, table_write] : txn->table_writes()){
-      table_store.PurgeTableWrite(table_name, table_write, ts, txnDigest);
+      table_store->PurgeTableWrite(table_name, table_write, ts, txnDigest);
     }
   }
   a.release();

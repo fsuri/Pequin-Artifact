@@ -1142,7 +1142,7 @@ int main(int argc, char **argv) {
             NOT_REACHABLE();
          }
          if(mergeThreshold > syncQuorumSize) Panic("Merge Threshold for Query Sync cannot be larger than Quorum itself");
-         if(mergeThreshold + config->f > syncQuorumSize) std::cerr << "WARNING: Query Sync Merge is not live in presence of byzantine replies in Query Sync Quorum" << std::endl;
+         if(mergeThreshold + config->f > syncQuorumSize) std::cerr << "WARNING: Under given Config Query Sync Merge is not live in presence of byzantine replies in Query Sync Quorum" << std::endl;
         
          switch (query_messages) {
           case QUERY_MESSAGES_QUERY_QUORUM:
