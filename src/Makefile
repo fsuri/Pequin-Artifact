@@ -58,6 +58,20 @@ LDFLAGS += -ltbb #-lpthread
 CFLAGS += -I/usr/include/postgresql
 LDFLAGS += -ltaopq
 LDFLAGS += -lpq
+# boost
+LDFLAGS += -lboost_filesystem -lboost_system -lboost_iostreams -lboost_serialization -lboost_thread -lboost_regex -lboost_container
+# readline
+LDFLAGS += -lreadline
+# libpg_query
+LDFLAGS += -l:libpg_query.a
+# libcount
+LDFLAGS += -lcount
+# llvm
+LDFLAGS += -lLLVM-6.0
+# libffi
+LDFLAGS += -lffi
+# atomic
+LDFLAGS += -latomic
 
 # fmt
 LDFLAGS += -lfmt #-l:libfmt.a
@@ -137,6 +151,8 @@ GTEST_SRCS :=
 # C_SRCS are the .c and .s files
 C_SRCS :=
 
+B_SRCS :=
+
 # PROTOS is the list of protobuf *.proto files
 PROTOS :=
 
@@ -171,6 +187,8 @@ include lib/Rules.mk
 include replication/common/Rules.mk
 include replication/vr/Rules.mk
 include replication/ir/Rules.mk
+include query-engine/Rules.mk
+
 include store/common/Rules.mk
 include store/tapirstore/Rules.mk
 include store/strongstore/Rules.mk
@@ -225,7 +243,7 @@ $(PROTOSRCS) : .obj/gen/%.pb.cc: %.proto
 DEPFLAGS = -M -MF ${@:.o=.d} -MP -MT $@ -MG
 
 # $(call add-CFLAGS,$(TEST_SRCS),$(CHECK_CFLAGS))
-OBJS := $(S_SRCS:%.S=.obj/%.o) $(C_SRCS:%.c=.obj/%.o) $(SRCS:%.cc=.obj/%.o) $(TEST_SRCS:%.cc=.obj/%.o) $(GTEST_SRCS:%.cc=.obj/%.o)
+OBJS := $(S_SRCS:%.S=.obj/%.o) $(C_SRCS:%.c=.obj/%.o) $(SRCS:%.cc=.obj/%.o) $(B_SRCS:%.y=.obj/%.o) $(TEST_SRCS:%.cc=.obj/%.o) $(GTEST_SRCS:%.cc=.obj/%.o)
 
 define compile
 	@mkdir -p $(dir $@)

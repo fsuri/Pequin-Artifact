@@ -44,7 +44,8 @@
 #include <endian.h>     /* attempt to define endianness */
 #endif
 
-
+#undef hashsize
+#undef hashmask
 #define hashsize(n) ((uint32_t)1<<(n))
 #define hashmask(n) (hashsize(n)-1)
 

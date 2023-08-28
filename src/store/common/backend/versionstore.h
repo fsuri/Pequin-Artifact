@@ -60,6 +60,7 @@ class VersionedKVStore {
   /* Global store which keeps key -> (timestamp, value) list. */
 
   //XXX make sets/map concurrent too.
+  // table map string -> rows, have function to create tables on temand, create from scratch before
   tbb::concurrent_unordered_map<std::string, std::set<VersionedValue>> store;
 
   tbb::concurrent_unordered_map<std::string, std::map<T, T>> lastReads;
