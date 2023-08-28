@@ -204,27 +204,46 @@ void test_committed_table_write() {
   table_store.ExecRaw("CREATE TABLE test(a INT, b INT, PRIMARY KEY(a));");
 
   Timestamp toy_ts_c(10, 12);
-  size_t num_writes = 3;
+  Timestamp toy_ts_c_1(20, 20);
+  size_t num_writes = 100;
+  size_t num_overwrites = 100;
 
   for (size_t i = 0; i < num_writes; i++) {
     pequinstore::proto::CommittedProof *real_proof =
         new pequinstore::proto::CommittedProof();
-    real_proof->mutable_txn()->set_client_id(10);
-    real_proof->mutable_txn()->set_client_seq_num(12);
+    real_proof->mutable_txn()->set_client_id(toy_ts_c.getID());
+    real_proof->mutable_txn()->set_client_seq_num(toy_ts_c_1.getTimestamp());
     toy_ts_c.serialize(real_proof->mutable_txn()->mutable_timestamp());
     TableWrite &table_write =
         (*real_proof->mutable_txn()->mutable_table_writes())["test"];
 
     RowUpdates *row1 = table_write.add_rows();
-    row1->add_column_values(std::to_string(i % 2));
+    row1->add_column_values(std::to_string(i));
     row1->add_column_values(std::to_string(i));
 
     table_store.ApplyTableWrite("test", table_write, toy_ts_c, "random",
                                 real_proof, true);
   }
 
+  for (size_t i = 0; i < num_overwrites; i++) {
+    pequinstore::proto::CommittedProof *real_proof =
+        new pequinstore::proto::CommittedProof();
+    real_proof->mutable_txn()->set_client_id(toy_ts_c_1.getID());
+    real_proof->mutable_txn()->set_client_seq_num(toy_ts_c_1.getTimestamp());
+    toy_ts_c.serialize(real_proof->mutable_txn()->mutable_timestamp());
+    TableWrite &table_write =
+        (*real_proof->mutable_txn()->mutable_table_writes())["test"];
+
+    RowUpdates *row1 = table_write.add_rows();
+    row1->add_column_values(std::to_string(i));
+    row1->add_column_values(std::to_string(i + 100));
+
+    table_store.ApplyTableWrite("test", table_write, toy_ts_c_1, "random",
+                                real_proof, true);
+  }
+
   std::string result = table_store.ExecReadQuery(
-      "SELECT * FROM test;", toy_ts_c, query_read_set_mgr_one);
+      "SELECT * FROM test;", toy_ts_c_1, query_read_set_mgr_one);
 
   sql::QueryResultProtoBuilder queryResultBuilder;
   queryResultBuilder.add_column("a");
@@ -233,7 +252,13 @@ void test_committed_table_write() {
     RowProto *row = queryResultBuilder.new_row();
 
     for (unsigned int j = 0; j < 2; j++) {
-      std::string val = std::to_string(i);
+      std::string val = "";
+      if (j == 0) {
+        val = std::to_string(i);
+      } else {
+        val = std::to_string(i + 100);
+      }
+      // std::string val = std::to_string(i);
       queryResultBuilder.AddToRow(row, val);
     }
   }

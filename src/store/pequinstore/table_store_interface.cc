@@ -242,22 +242,22 @@ std::string TableStore::ExecReadQuery(const std::string &query_statement,
   sql::QueryResultProtoBuilder queryResultBuilder;
   // queryResultBuilder.add_column("result");
   // queryResultBuilder.add_row(result_row.begin(), result_row.end());
-  std::cout << "Before adding columns" << std::endl;
+  // std::cout << "Before adding columns" << std::endl;
   // Add columns
   for (unsigned int i = 0; i < tuple_descriptor.size(); i++) {
     std::string column_name = std::get<0>(tuple_descriptor[i]);
     queryResultBuilder.add_column(column_name);
   }
 
-  std::cout << "Before adding rows" << std::endl;
-  std::cout << "Tuple descriptor size is " << tuple_descriptor.size()
-            << std::endl;
+  // std::cout << "Before adding rows" << std::endl;
+  // std::cout << "Tuple descriptor size is " << tuple_descriptor.size()
+  //<< std::endl;
 
   // Add rows
   unsigned int rows = result.size() / tuple_descriptor.size();
   for (unsigned int i = 0; i < rows; i++) {
     // std::string row_string = "Row " + std::to_string(i) + ": ";
-    std::cout << "Row index is " << i << std::endl;
+    // std::cout << "Row index is " << i << std::endl;
     // queryResultBuilder.add_empty_row();
 
     RowProto *row = queryResultBuilder.new_row();
@@ -266,16 +266,16 @@ std::string TableStore::ExecReadQuery(const std::string &query_statement,
       // TODO: Use interface addtorow, and pass in field to that row
 
       queryResultBuilder.AddToRow(row, result[i * tuple_descriptor.size() + j]);
-      std::cout << "Get field value" << std::endl;
-      // FieldProto *field = row->add_fields();
-      // std::string field_value = GetResultValueAsString(result, i *
-      // tuple_descriptor.size() + j);
-      // field->set_data(queryResultBuilder.serialize(field_value));
-      // field->set_data(result[i*tuple_descriptor.size()+j]);
-      std::cout << "After" << std::endl;
-      // queryResultBuilder.update_field_in_row(i, j, field_value);
-      // row_string += GetResultValueAsString(result, i *
-      // tuple_descriptor.size() + j);
+      // std::cout << "Get field value" << std::endl;
+      //  FieldProto *field = row->add_fields();
+      //  std::string field_value = GetResultValueAsString(result, i *
+      //  tuple_descriptor.size() + j);
+      //  field->set_data(queryResultBuilder.serialize(field_value));
+      //  field->set_data(result[i*tuple_descriptor.size()+j]);
+      // std::cout << "After" << std::endl;
+      //  queryResultBuilder.update_field_in_row(i, j, field_value);
+      //  row_string += GetResultValueAsString(result, i *
+      //  tuple_descriptor.size() + j);
 
       // std::cout << "Inside j loop" << std::endl;
       // std::cout << GetResultValueAsString(result, i * tuple_descriptor.size()
@@ -405,9 +405,9 @@ void TableStore::ExecPointRead(const std::string &query_statement,
     queryResultBuilder.add_column(column_name);
   }
 
-  std::cout << "Before adding rows" << std::endl;
-  std::cout << "Tuple descriptor size is " << tuple_descriptor.size()
-            << std::endl;
+  // std::cout << "Before adding rows" << std::endl;
+  // std::cout << "Tuple descriptor size is " << tuple_descriptor.size()
+  //<< std::endl;
   bool read_prepared = false;
   bool already_read_prepared = false;
 
@@ -415,7 +415,7 @@ void TableStore::ExecPointRead(const std::string &query_statement,
   unsigned int rows = result.size() / tuple_descriptor.size();
   for (unsigned int i = 0; i < rows; i++) {
     // std::string row_string = "Row " + std::to_string(i) + ": ";
-    std::cout << "Row index is " << i << std::endl;
+    // std::cout << "Row index is " << i << std::endl;
     // queryResultBuilder.add_empty_row();
     RowProto *row = queryResultBuilder.new_row();
     std::string row_string = "";
@@ -423,14 +423,14 @@ void TableStore::ExecPointRead(const std::string &query_statement,
     // queryResultBuilder.add_empty_row();
     for (unsigned int j = 0; j < tuple_descriptor.size(); j++) {
       // queryResultBuilder.AddToRow(row, result[i*tuple_descriptor.size()+j]);
-      std::cout << "Get field value" << std::endl;
+      // std::cout << "Get field value" << std::endl;
       // FieldProto *field = row->add_fields();
       // std::string field_value = GetResultValueAsString(result, i *
       // tuple_descriptor.size() + j);
       queryResultBuilder.AddToRow(row, result[i * tuple_descriptor.size() + j]);
       // field->set_data(queryResultBuilder.serialize(field_value));
       // field->set_data(result[i*tuple_descriptor.size()+j]);
-      std::cout << "After" << std::endl;
+      // std::cout << "After" << std::endl;
       // row_string += field_value + " ";
 
       // queryResultBuilder.update_field_in_row(i, j, field_value);
@@ -456,10 +456,9 @@ void TableStore::ExecPointRead(const std::string &query_statement,
 
     write->set_committed_value(row_string);
     std::cout << "Committed value is " << row_string << std::endl;
-    // write->set_allocated_committed_timestamp(TimestampMessage(committed_timestamp));
+    //  write->set_allocated_committed_timestamp(TimestampMessage(committed_timestamp));
     std::cout << "Commit timestamp is " << committed_timestamp.getTimestamp()
               << ", " << committed_timestamp.getID() << std::endl;
-    std::cout << "TEsting 124" << std::endl;
   }
   // write->set_allocated_proof(traffic_cop_.commit_proof_->SerializeAsString());
 
