@@ -176,9 +176,12 @@ void ThreadPool::start(int process_id, int total_processes, bool hyperthreading,
       fprintf(stderr, "starting client threadpool\n");
       int num_cpus = std::thread::hardware_concurrency(); ///(2-hyperthreading);
       fprintf(stderr, "Num_cpus: %d \n", num_cpus);
-      num_cpus /= total_processes;
-      //num_cpus = 8; //XXX change back to dynamic
-      //int offset = process_id * num_cpus;
+      if(num_cpus > 8){
+        num_cpus = 8; 
+        fprintf(stderr, "Total Num_cpus on client downregulated to: %d \n", num_cpus);
+      }
+      //Note: Each client uses all 8 cores for additional workers. (However, by default we run with client_multithreading off though, so they are unused.)
+      //num_cpus /= total_processes;   //Note: Use this if one wants to dedicate a certain number of threads per client.
 
       Debug("num cpus per process: %d", num_cpus);
       uint32_t num_threads = (uint32_t) std::max(1, num_cpus);
