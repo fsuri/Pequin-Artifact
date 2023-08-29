@@ -16,18 +16,18 @@
 #include <atomic>
 #include <cstring>
 
+#include "../../store/common/query_result/query_result.h"
+#include "../../store/common/query_result/query_result_proto_builder.h"
+#include "../../store/common/query_result/query_result_proto_wrapper.h"
+#include "../../store/common/timestamp.h"
+#include "../../store/pequinstore/common.h"
+#include "../common/internal_types.h"
 #include "../common/item_pointer.h"
 #include "../common/macros.h"
-#include "../common/synchronization/spin_latch.h"
 #include "../common/printable.h"
+#include "../common/synchronization/spin_latch.h"
 #include "../storage/tuple.h"
-#include "../common/internal_types.h"
 #include "../type/value.h"
-#include "../../store/common/timestamp.h"
-#include "../../store/common/query_result/query_result_proto_builder.h"
-#include "../../store/common/query_result/query_result.h"
-#include "../../store/common/query_result/query_result_proto_wrapper.h"
-#include "../../store/pequinstore/common.h" 
 
 namespace peloton {
 namespace storage {
@@ -37,8 +37,9 @@ class TileGroup;
 //===--------------------------------------------------------------------===//
 // Tuple Header
 //===--------------------------------------------------------------------===//
-// remove read_ts, begin_ts, end_ts, add tx_id (pointer so not redundant), store whether it's prepared or committed (boolean flag)
-// need timestamp (should be version), tx_id, and encoded key (string version of table_name + primary_key)
+// remove read_ts, begin_ts, end_ts, add tx_id (pointer so not redundant), store
+// whether it's prepared or committed (boolean flag) need timestamp (should be
+// version), tx_id, and encoded key (string version of table_name + primary_key)
 struct TupleHeader {
   common::synchronization::SpinLatch latch;
   std::atomic<txn_id_t> txn_id;
@@ -49,7 +50,11 @@ struct TupleHeader {
   ItemPointer prev;
   ItemPointer *indirection;
   std::shared_ptr<std::string> txn_dig;
+<<<<<<< HEAD
   const pequinstore::proto::CommittedProof* committed_proof;
+=======
+  const pequinstore::proto::CommittedProof *committed_proof;
+>>>>>>> query-exec
   bool commit_or_prepare;
   Timestamp basil_timestamp;
 } __attribute__((aligned(64)));
@@ -64,8 +69,9 @@ struct TupleHeader {
  *  end_ts: the upper bound of the version visibility range.
  *  next: the pointer pointing to the next (older) version in the version chain.
  *  prev: the pointer pointing to the prev (newer) version in the version chain.
- *  indirection: the pointer pointing to the index entry that holds the address of the version chain header.
-*/
+ *  indirection: the pointer pointing to the index entry that holds the address
+ * of the version chain header.
+ */
 
 //===--------------------------------------------------------------------===//
 // Tile Group Header
@@ -78,21 +84,23 @@ struct TupleHeader {
  *
  *  STATUS:
  *  ===================
- *  TxnID == INITIAL_TXN_ID, BeginTS == MAX_CID, EndTS == MAX_CID --> empty version
- *  TxnID != INITIAL_TXN_ID, BeginTS != MAX_CID --> to-be-updated old version
- *  TxnID != INITIAL_TXN_ID, BeginTS == MAX_CID, EndTS == MAX_CID --> to-be-installed new version
- *  TxnID != INITIAL_TXN_ID, BeginTS == MAX_CID, EndTS == INVALID_CID --> to-be-installed deleted version
+ *  TxnID == INITIAL_TXN_ID, BeginTS == MAX_CID, EndTS == MAX_CID --> empty
+ * version TxnID != INITIAL_TXN_ID, BeginTS != MAX_CID --> to-be-updated old
+ * version TxnID != INITIAL_TXN_ID, BeginTS == MAX_CID, EndTS == MAX_CID -->
+ * to-be-installed new version TxnID != INITIAL_TXN_ID, BeginTS == MAX_CID,
+ * EndTS == INVALID_CID --> to-be-installed deleted version
  */
 
 class TileGroupHeader : public Printable {
   TileGroupHeader() = delete;
 
- public:
+public:
   TileGroupHeader(const BackendType &backend_type, const int &tuple_count);
 
   TileGroupHeader &operator=(const peloton::storage::TileGroupHeader &other) {
     // check for self-assignment
-    if (&other == this) return *this;
+    if (&other == this)
+      return *this;
 
     backend_type = other.backend_type;
     tile_group = other.tile_group;
@@ -175,8 +183,8 @@ class TileGroupHeader : public Printable {
     return tile_group;
   }
 
-  inline common::synchronization::SpinLatch &GetSpinLatch(
-      const oid_t &tuple_slot_id) const {
+  inline common::synchronization::SpinLatch &
+  GetSpinLatch(const oid_t &tuple_slot_id) const {
     return tuple_headers_[tuple_slot_id].latch;
   }
 
@@ -213,7 +221,8 @@ class TileGroupHeader : public Printable {
     return tuple_headers_[tuple_slot_id].basil_timestamp;
   }
 
-  inline std::shared_ptr<std::string> GetTxnDig(const oid_t &tuple_slot_id) const {
+  inline std::shared_ptr<std::string>
+  GetTxnDig(const oid_t &tuple_slot_id) const {
     return tuple_headers_[tuple_slot_id].txn_dig;
   }
 
@@ -274,37 +283,45 @@ class TileGroupHeader : public Printable {
   }
 
   // NEW: set basil timestamp
-  inline void SetBasilTimestamp(const oid_t &tuple_slot_id, Timestamp &basil_timestamp) {
+  inline void SetBasilTimestamp(const oid_t &tuple_slot_id,
+                                Timestamp &basil_timestamp) {
     tuple_headers_[tuple_slot_id].basil_timestamp = basil_timestamp;
   }
 
   // NEW: set txn digest
-  inline void SetTxnDig(const oid_t &tuple_slot_id, std::shared_ptr<std::string> txn_dig) {
+  inline void SetTxnDig(const oid_t &tuple_slot_id,
+                        std::shared_ptr<std::string> txn_dig) {
     tuple_headers_[tuple_slot_id].txn_dig = txn_dig;
   }
 
   // NEW: set commit proof
+<<<<<<< HEAD
   inline void SetCommittedProof(const oid_t &tuple_slot_id, const pequinstore::proto::CommittedProof* committed_proof) {
+=======
+  inline void
+  SetCommittedProof(const oid_t &tuple_slot_id,
+                    const pequinstore::proto::CommittedProof *committed_proof) {
+>>>>>>> query-exec
     tuple_headers_[tuple_slot_id].committed_proof = committed_proof;
   }
 
   // NEW: set txn digest
-  inline void SetCommitOrPrepare(const oid_t &tuple_slot_id, bool commit_or_prepare) {
+  inline void SetCommitOrPrepare(const oid_t &tuple_slot_id,
+                                 bool commit_or_prepare) {
     tuple_headers_[tuple_slot_id].commit_or_prepare = commit_or_prepare;
   }
 
-
   /*
   * @brief The following method use Compare and Swap to set the tilegroup's
-  immutable flag to be true. 
+  immutable flag to be true.
   */
   inline bool SetImmutability() {
     return __sync_bool_compare_and_swap(&immutable, false, true);
   }
-  
+
   /*
   * @brief The following method use Compare and Swap to set the tilegroup's
-  immutable flag to be false. 
+  immutable flag to be false.
   */
   inline bool ResetImmutability() {
     return __sync_bool_compare_and_swap(&immutable, true, false);
@@ -315,7 +332,9 @@ class TileGroupHeader : public Printable {
   void PrintVisibility(txn_id_t txn_id, cid_t at_cid);
 
   // Getter for spin lock
-  common::synchronization::SpinLatch &GetHeaderLock() { return tile_header_lock; }
+  common::synchronization::SpinLatch &GetHeaderLock() {
+    return tile_header_lock;
+  }
 
   //===--------------------------------------------------------------------===//
   // Utilities
@@ -324,7 +343,7 @@ class TileGroupHeader : public Printable {
   // Get a string representation for debugging
   const std::string GetInfo() const;
 
- private:
+private:
   //===--------------------------------------------------------------------===//
   // Data members
   //===--------------------------------------------------------------------===//
@@ -352,5 +371,5 @@ class TileGroupHeader : public Printable {
   bool immutable;
 };
 
-}  // namespace storage
-}  // namespace peloton
+} // namespace storage
+} // namespace peloton
