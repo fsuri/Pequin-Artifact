@@ -3,7 +3,38 @@
 
 #include "store/pequinstore/table_store_interface.h"
 
-//TODO: Include whatever Peloton Deps
+//Include whatever Peloton Deps
+#include "../../query-engine/traffic_cop/traffic_cop.h"
+#include "../../query-engine/common/logger.h"
+#include "../../query-engine/common/macros.h"
+#include "../../query-engine/parser/drop_statement.h"
+#include "../../query-engine/parser/postgresparser.h"
+
+#include "../../query-engine/catalog/catalog.h"
+#include "../../query-engine/catalog/proc_catalog.h"
+#include "../../query-engine/catalog/system_catalogs.h"
+
+#include "../../query-engine/concurrency/transaction_manager_factory.h"
+
+#include "../../query-engine/executor/create_executor.h"
+#include "../../query-engine/executor/create_function_executor.h"
+#include "../../query-engine/executor/executor_context.h"
+
+#include "../../query-engine/planner/create_function_plan.h"
+#include "../../query-engine/planner/create_plan.h"
+#include "../../query-engine/storage/data_table.h"
+
+#include "../../query-engine/executor/insert_executor.h"
+#include "../../query-engine/expression/constant_value_expression.h"
+#include "../../query-engine/parser/insert_statement.h"
+#include "../../query-engine/planner/insert_plan.h"
+#include "../../query-engine/traffic_cop/traffic_cop.h"
+#include "../../query-engine/type/type.h"
+#include "../../query-engine/type/value_factory.h"
+#include "store/common/query_result/query_result_proto_builder.h"
+#include <ostream>
+#include <string>
+#include <tuple>
 
 namespace pequinstore {
 
@@ -42,9 +73,28 @@ class PelotonTableStore : public TableStore {
         void MaterializeSnapshot(const std::string &query_id, const proto::MergedSnapshot &merged_ss, const std::set<proto::Transaction*> &ss_txns) override; //Note: Not sure whether we should materialize full snapshot on demand, or continuously as we sync on Tx
         std::string ExecReadOnSnapshot(const std::string &query_id, std::string &query_statement, const Timestamp &ts, QueryReadSetMgr &readSetMgr, bool abort_early = false) override;
 
+        
 
     private:
-        //TODO: Peloton DB singleton "table_backend"
+        //Peloton DB singleton "table_backend"
+		peloton::tcop::TrafficCop traffic_cop_;
+		std::atomic_int counter_;
+
+        static std::string GetResultValueAsString(const std::vector<peloton::ResultValue> &result, size_t index) {
+            std::string value(result[index].begin(), result[index].end());
+            return value;
+        }
+
+        void UtilTestTaskCallback(void *arg) {
+            std::atomic_int *count = static_cast<std::atomic_int *>(arg);
+            count->store(0);
+        }
+
+        void ContinueAfterComplete(std::atomic_int &counter_) {
+            while (counter_.load() == 1) {
+                usleep(10);
+            }
+        }
 };
 
 

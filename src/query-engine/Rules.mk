@@ -154,8 +154,12 @@ type/integer_type.cc type/numeric_type.cc type/smallint_type.cc type/timestamp_t
 # Util
 SRCS += $(addprefix $(d), util/file.cc util/string_util.cc util/stringbox_util.cc)
 
+
 # Queryexec test
 SRCS += $(addprefix $(d), queryexec-test.cc)
+
+#PROTOS += $(addprefix $(d), ../store/common/pequin-proto.proto)
+#PROTOS += $(addprefix $(d), ../store/common/query-result-proto.proto)
 
 # Object files
 
@@ -315,7 +319,10 @@ LIB-util := $(o)util/file.o $(o)util/string_util.o $(o)util/stringbox_util.o
 #$(LIB-codegen-expression) $(LIB-codegen-interpreter) $(LIB-codegen-lang) $(LIB-codegen-operator) $(LIB-codegen-proxy) \
 $(LIB-codegen-type) $(LIB-codegen-util) $(LIB-codegen) $(LIB-udf) $(LIB-tuning) $(LIB-adr) $(LIB-statistics)
 
-$(d)queryexec-test: $(o)../store/common/timestamp.o $(LIB-binder) $(LIB-catalog) $(LIB-common) $(LIB-concurrency) $(LIB-executor) $(LIB-expression) $(LIB-function) \
-$(LIB-gc) $(LIB-index) $(LIB-murmur) $(LIB-optimizer) $(LIB-parser) $(LIB-planner) $(LIB-settings) $(LIB-storage) $(LIB-threadpool) $(LIB-traffic-cop) \
-$(LIB-type) $(LIB-trigger) $(LIB-util) $(LIB-store-common) $(o)queryexec-test.o
-BINS += $(d)queryexec-test
+#$(d)queryexec-test: $(o)../store/pequinstore/pequin-proto.o $(o)../store/pequinstore/query-proto.o $(o)../store/common/query_result/query-result-proto.o $(o)../store/common/query_result/query_result_proto_builder.o $(o)../store/common/timestamp.o $(o)../store/common/common-proto.o $(o)../store/pequinstore/pequin-proto.o $(o)../lib/message.o $(o)../lib/crypto.o $(o)../lib/batched_sigs.o $(o)../lib/configuration.o $(o)../lib/keymanager.o $(o)../lib/transport.o $(o)../store/pequinstore/common.o $(o)../store/common/backend/sql_engine/table_kv_encoder.o $(o)../store/pequinstore/table_store_interface.o $(o)../store/common/query_result/query_result_proto_wrapper_row.o $(o)../store/common/query_result/query_result_proto_wrapper_field.o $(o)../store/common/query_result/query_result_proto_wrapper.o $(o)../store/pequinstore/sql_interpreter.o $(LIB-binder) $(LIB-catalog) $(LIB-common) $(LIB-concurrency) $(LIB-executor) $(LIB-expression) $(LIB-function) $(LIB-gc) $(LIB-index) $(LIB-murmur) $(LIB-optimizer) $(LIB-parser) $(LIB-planner) $(LIB-settings) $(LIB-storage) $(LIB-threadpool) $(LIB-traffic-cop) $(LIB-type) $(LIB-trigger) $(LIB-util) $(LIB-store-common) $(o)queryexec-test.o
+
+#BINS += $(d)queryexec-test
+
+#$(o)../store/common/query_result/query_result_proto_builder.o 
+
+#$(o)../store/common/timestamp.o $(o)../store/common/common-proto.o $(o)../store/pequinstore/pequin-proto.o $(o)../lib/message.o $(o)../lib/crypto.o $(o)../lib/batched_sigs.o $(o)../lib/configuration.o $(o)../lib/keymanager.o $(o)../lib/transport.o $(o)../store/pequinstore/common.o

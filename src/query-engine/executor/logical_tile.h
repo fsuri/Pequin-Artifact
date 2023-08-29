@@ -20,6 +20,8 @@
 #include "../common/printable.h"
 #include "../common/internal_types.h"
 #include "../type/value.h"
+#include "../../store/common/timestamp.h"
+#include "../../store/pequinstore/common.h"
 
 namespace peloton {
 
@@ -113,6 +115,45 @@ class LogicalTile : public Printable {
 
   // Materialize and return a physical tile.
   std::unique_ptr<storage::Tile> Materialize();
+
+  void AddToPreparedTuples(oid_t tuple_id) {
+    prepared_tuples_.push_back(tuple_id);
+  }
+
+  std::vector<oid_t> GetPreparedTuples() {
+    return prepared_tuples_;
+  }
+
+  void SetCommitProofs(pequinstore::proto::CommittedProof* proof) {
+    commit_proofs_ = proof;
+  }
+
+  pequinstore::proto::CommittedProof* GetCommitProofs() {
+    return commit_proofs_;
+  }
+
+  /*void AddToReadSet(std::tuple<std::string, Timestamp> tuple) {
+    read_set.push_back(tuple);
+  }
+
+  std::vector<std::tuple<std::string, Timestamp>> GetReadSet() {
+    return read_set;
+  }
+
+  void AddEntryReadSet(std::string &key, Timestamp &version) {
+    std::cout << "Before constructing ts_message" << std::endl;
+    TimestampMessage ts_message  = TimestampMessage();
+    std::cout << "After constructing ts_message" << std::endl;
+    ts_message.set_id(version.getID());
+    ts_message.set_timestamp(version.getTimestamp());
+    //query_read_set_mgr.AddToReadSet(key, ts_message);
+    query_read_set_mgr->AddToReadSet(key, ts_message);
+    std::cout << "After adding to read set" << std::endl;
+  }
+
+  pequinstore::QueryReadSetMgr* GetReadSetMgr() {
+    return query_read_set_mgr;
+  }*/
 
   //===--------------------------------------------------------------------===//
   // Logical Tile Iterator
@@ -351,6 +392,16 @@ class LogicalTile : public Printable {
    */
   PositionLists position_lists_;
 
+  /** 
+   * @brief List of prepared tuples
+  */
+  std::vector<oid_t> prepared_tuples_;
+
+  /**
+   * @brief List of commit proofs
+  */
+  pequinstore::proto::CommittedProof* commit_proofs_;
+
   /**
    * @brief Bit-vector storing visibility of each row in the position lists.
    * Used to cheaply invalidate rows of positions.
@@ -362,6 +413,7 @@ class LogicalTile : public Printable {
 
   /** @brief Keeps track of the number of tuples that are still visible. */
   oid_t visible_tuples_ = 0;
+
 };
 
 }  // namespace executor

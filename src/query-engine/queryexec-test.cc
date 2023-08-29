@@ -1,4 +1,5 @@
 #include <iostream>
+#include <ostream>
 //#include "common/harness.h"
 #include "common/logger.h"
 #include "common/macros.h"
@@ -28,6 +29,15 @@
 #include "type/type.h"
 
 #include "store/common/timestamp.h"
+#include "store/pequinstore/common.h"
+
+#include "store/pequinstore/table_store_interface.h"
+#include "store/common/query_result/query_result_proto_builder.h"
+#include "store/common/query_result/query_result.h"
+#include "store/common/query_result/query_result_proto_wrapper.h"
+
+#include "store/pequinstore/sql_interpreter.h"
+#include "store/benchmark/async/json_table_writer.h"
 
 static std::string GetResultValueAsString(
       const std::vector<peloton::ResultValue> &result, size_t index) {
@@ -47,7 +57,7 @@ void ContinueAfterComplete(std::atomic_int &counter_) {
 }
 
 // Should additionally take a timestamp and a txn id
-peloton::ResultType ExecuteSQLQuery(const std::string query, peloton::tcop::TrafficCop &traffic_cop, std::atomic_int &counter_, std::vector<peloton::ResultValue> &result, std::vector<peloton::FieldInfo> &tuple_descriptor, Timestamp &basil_timestamp) {
+peloton::ResultType ExecuteSQLQuery(const std::string query, peloton::tcop::TrafficCop &traffic_cop, std::atomic_int &counter_, std::vector<peloton::ResultValue> &result, std::vector<peloton::FieldInfo> &tuple_descriptor, Timestamp &basil_timestamp, pequinstore::QueryReadSetMgr &query_read_set_mgr) {
   //std::vector<peloton::ResultValue> result;
   //std::vector<peloton::FieldInfo> tuple_descriptor;
 
@@ -74,7 +84,7 @@ peloton::ResultType ExecuteSQLQuery(const std::string query, peloton::tcop::Traf
   // SetTrafficCopCounter();
   counter_.store(1);
   auto status = traffic_cop.ExecuteStatement(statement, param_values, unnamed,
-                                              result_format, result, basil_timestamp);
+                                              result_format, result);
   if (traffic_cop.GetQueuing()) {
     ContinueAfterComplete(counter_);
     traffic_cop.ExecuteStatementPlanGetResult();
@@ -91,70 +101,79 @@ peloton::ResultType ExecuteSQLQuery(const std::string query, peloton::tcop::Traf
   return status;
 }
 
-int main(int argc, char *argv[]) {
-  auto &txn_manager = peloton::concurrency::TransactionManagerFactory::GetInstance();
-  auto txn = txn_manager.BeginTransaction();
-  peloton::catalog::Catalog::GetInstance()->CreateDatabase(txn, DEFAULT_DB_NAME);
-  txn_manager.CommitTransaction(txn);
+std::string ConvertTableWriteToUpdate(std::string encoded_key, std::vector<std::vector<std::string>> values) {
+  std::string update_statement = "UPDATE test SET ";
+  for (unsigned int i = 1; i < values.size(); i++) {
+    for (unsigned int j = 0; j < values[i].size(); j++) {
+      //update_statement = update_statement + values[0][j] + "=" values[i][j] + " ";
+    }
+  }
+  return update_statement;
+}
 
-  std::atomic_int counter_;
+int main(int argc, char *argv[]) {
+  std::cout << "Beginning of query exec test" << std::endl;
+  auto &txn_manager = peloton::concurrency::TransactionManagerFactory::GetInstance();
+  std::cout << "query exec test second" << std::endl;
+  auto txn = txn_manager.BeginTransaction();
+  std::cout << "query exec test third" << std::endl;
+  peloton::catalog::Catalog::GetInstance()->CreateDatabase(txn, DEFAULT_DB_NAME);
+  std::cout << "query exec test fourth" << std::endl;
+  txn_manager.CommitTransaction(txn);
+  std::cout << "query exec test fifth" << std::endl;
+
+	Timestamp pesto_timestamp(4, 6);
+	pequinstore::proto::ReadSet read_set_one;
+	pequinstore::QueryReadSetMgr query_read_set_mgr_one(&read_set_one, 1, false);
+
+  /*std::atomic_int counter_;
   std::vector<peloton::ResultValue> result;
   std::vector<peloton::FieldInfo> tuple_descriptor;
   peloton::tcop::TrafficCop traffic_cop(UtilTestTaskCallback, &counter_);
   Timestamp pesto_timestamp(4, 6);
   Timestamp basil_timestamp(3, 5);
   Timestamp read_timestamp(2, 4);
+  Timestamp five(5,7);
+  Timestamp six(6,8);
 
-  //auto &traffic_cop = peloton::tcop::TrafficCop::GetInstance();
+  pequinstore::proto::ReadSet read_set_one;
+  pequinstore::proto::ReadSet read_set_two;
+  pequinstore::proto::ReadSet read_set_three;
+  pequinstore::proto::ReadSet read_set_four;
+  pequinstore::proto::ReadSet read_set_five;
+  pequinstore::proto::ReadSet read_set_six;
+  pequinstore::proto::ReadSet read_set_seven;
 
-  /*std::string unnamed_statement = "unnamed";
-  std::string query = "CREATE TABLE test(salary INT); INSERT INTO test VALUES (100); SELECT * FROM test;";  
-  auto &peloton_parser = peloton::parser::PostgresParser::GetInstance();
-  auto sql_stmt_list = peloton_parser.BuildParseTree(query);
+  pequinstore::QueryReadSetMgr query_read_set_mgr_one(&read_set_one, 1, false);
+  pequinstore::QueryReadSetMgr query_read_set_mgr_two(&read_set_two, 2, false);
+  pequinstore::QueryReadSetMgr query_read_set_mgr_three(&read_set_three, 3, false);
+  pequinstore::QueryReadSetMgr query_read_set_mgr_four(&read_set_four, 4, false);
+  pequinstore::QueryReadSetMgr query_read_set_mgr_five(&read_set_five, 5, false);
+  pequinstore::QueryReadSetMgr query_read_set_mgr_six(&read_set_six, 6, false);
+  pequinstore::QueryReadSetMgr query_read_set_mgr_seven(&read_set_seven, 7, false);
 
-  auto statement = traffic_cop.PrepareStatement(unnamed_statement, query,
-                                                 std::move(sql_stmt_list));
-  
-  std::vector<peloton::type::Value> param_values;
-  bool unnamed = false;
-  std::vector<int> result_format(statement->GetTupleDescriptor().size(), 0);
-  std::vector<peloton::ResultValue> result;
-  auto status = traffic_cop.ExecuteStatement(statement, param_values, unnamed,
-                                              result_format, result);
-
-  if (traffic_cop.GetQueuing()) {
-    //ContinueAfterComplete();
-    usleep(10);
-    traffic_cop.ExecuteStatementPlanGetResult();
-    status = traffic_cop.ExecuteStatementGetResult();
-    traffic_cop.SetQueuing(false);
-  }*/
-
-  ExecuteSQLQuery("CREATE TABLE test(a INT, b INT, PRIMARY KEY(a));", traffic_cop, counter_, result, tuple_descriptor, pesto_timestamp);
-  ExecuteSQLQuery("INSERT INTO test VALUES (99, 999);", traffic_cop, counter_, result, tuple_descriptor, read_timestamp);
-  ExecuteSQLQuery("INSERT INTO test VALUES (1001, 10001);", traffic_cop, counter_, result, tuple_descriptor, pesto_timestamp);
-  ExecuteSQLQuery("UPDATE test SET b=72 WHERE a=99;", traffic_cop, counter_, result, tuple_descriptor, basil_timestamp);
-  ExecuteSQLQuery("UPDATE test SET b=855 WHERE a=99;", traffic_cop, counter_, result, tuple_descriptor, pesto_timestamp);
-  ExecuteSQLQuery("SELECT * FROM test;", traffic_cop, counter_, result, tuple_descriptor, pesto_timestamp);
-  // function args: timestamp, snapshot manager, read set manager, boolean flag finding snapshot/executing (read set manager)
-  //ExecuteSQLQuery("CREATE TABLE test1(c INT, b INT);", traffic_cop, counter_, result, basil_timestamp);
-  //ExecuteSQLQuery("CREATE TABLE test2(b INT, d INT, e INT)", traffic_cop, counter_, result, basil_timestamp);
-  //ExecuteSQLQuery("INSERT INTO test1 VALUES (99, 200);", traffic_cop, counter_, result, basil_timestamp);
-  //ExecuteSQLQuery("INSERT INTO test1 VALUES (1001, 2202);", traffic_cop, counter_, result, basil_timestamp);
-  //ExecuteSQLQuery("INSERT INTO test2 VALUES (2202, 3303, 4404);", traffic_cop, counter_, result, basil_timestamp);
-  //ExecuteSQLQuery("INSERT INTO test2 VALUES (3303);", traffic_cop, counter_, result);
-  //ExecuteSQLQuery("INSERT INTO test2 VALUES (4404);", traffic_cop, counter_, result);
-  //ExecuteSQLQuery("SELECT * FROM (SELECT test1.b FROM test1 JOIN test ON test1.c = test.a WHERE test1.b > 100) AS X JOIN test2 ON test2.b=X.b;", traffic_cop, counter_, result, basil_timestamp);
-  
-  //std::cout << "Statement executed!! Result: " << peloton::ResultTypeToString(status).c_str() << std::endl;
-  //std::cout << "Result size: " << result.size() /*<< " First row " << GetResultValueAsString(result, 0) << " Second row " << GetResultValueAsString(result, 1)*/ << std::endl;
+  std::cout << "Before first query" << std::endl;
+  ExecuteSQLQuery("CREATE TABLE test(a INT, b INT, PRIMARY KEY(a));", traffic_cop, counter_, result, tuple_descriptor, pesto_timestamp, query_read_set_mgr_one);
+  std::cout << "After first query" << std::endl;
+  ExecuteSQLQuery("INSERT INTO test VALUES (99, 999);", traffic_cop, counter_, result, tuple_descriptor, pesto_timestamp, query_read_set_mgr_two);
+  std::cout << "After second query" << std::endl;
+  ExecuteSQLQuery("INSERT INTO test VALUES (1001, 10001);", traffic_cop, counter_, result, tuple_descriptor, pesto_timestamp, query_read_set_mgr_three);
+  std::cout << "After third query" << std::endl;
+  ExecuteSQLQuery("UPDATE test SET b=72 WHERE a=99;", traffic_cop, counter_, result, tuple_descriptor, basil_timestamp, query_read_set_mgr_four);
+  std::cout << "After fourth query" << std::endl;
+  ExecuteSQLQuery("UPDATE test SET b=855 WHERE a=99;", traffic_cop, counter_, result, tuple_descriptor, five, query_read_set_mgr_five);
+  std::cout << "After fifth query" << std::endl;
+  ExecuteSQLQuery("UPDATE test SET b=16 WHERE a=99;", traffic_cop, counter_, result, tuple_descriptor, read_timestamp, query_read_set_mgr_six);
+  std::cout << "After sixth query" << std::endl;
+  ExecuteSQLQuery("INSERT INTO test VALUES (1001, 542);", traffic_cop, counter_, result, tuple_descriptor, pesto_timestamp, query_read_set_mgr_three);
+  ExecuteSQLQuery("SELECT * FROM test;", traffic_cop, counter_, result, tuple_descriptor, pesto_timestamp, query_read_set_mgr_seven);
 
   std::cout << "Result is" << std::endl;
   std::cout << "---------------------------------------------------------" << std::endl;
 
   unsigned int rows = result.size() / tuple_descriptor.size();
   for (unsigned int i = 0; i < rows; i++) {
-    std::string row_string;
+    std::string row_string = "Row " + std::to_string(i) + ": ";
     for (unsigned int j = 0; j < tuple_descriptor.size(); j++) {
       row_string += GetResultValueAsString(result, i * tuple_descriptor.size() + j);
       if (j < tuple_descriptor.size() - 1) {
@@ -166,131 +185,78 @@ int main(int argc, char *argv[]) {
   }
 
   std::cout << "---------------------------------------------------------" << std::endl;
+  std::cout << "Read Set is not" << std::endl;
+
+  if (query_read_set_mgr_seven.read_set->mutable_read_set() != nullptr) {
+    std::cout << "Query read set is not null" << std::endl;
+  }
+
+  for(auto &read_msg : *(query_read_set_mgr_seven.read_set->mutable_read_set())){
+      std::cout << "Encoded key: " << read_msg.key() << ". Timestamp: (" << read_msg.readtime().timestamp() << ", " << read_msg.readtime().id() << ")" << std::endl;
+  }*/
+
+  Timestamp toy_ts_c(10, 12);
+  pequinstore::proto::CommittedProof *real_proof = new pequinstore::proto::CommittedProof();
+  real_proof->mutable_txn()->set_client_id(10);
+  real_proof->mutable_txn()->set_client_seq_num(12);
+  toy_ts_c.serialize(real_proof->mutable_txn()->mutable_timestamp());
+  TableWrite &table_write = (*real_proof->mutable_txn()->mutable_table_writes())["test"];
   
-  /*peloton::catalog::Catalog::GetInstance();
+  RowUpdates *row1 = table_write.add_rows();
+  row1->add_column_values("42");
+  row1->add_column_values("54");
 
-  auto &txn_manager = peloton::concurrency::TransactionManagerFactory::GetInstance();
-  auto txn = txn_manager.BeginTransaction();
-  // Insert a table first
-  auto id_column = peloton::catalog::Column(
-      peloton::type::TypeId::INTEGER, peloton::type::Type::GetTypeSize(peloton::type::TypeId::INTEGER),
-      "dept_id", true);
-  auto name_column =
-      peloton::catalog::Column(peloton::type::TypeId::VARCHAR, 32, "dept_name", false);
+  RowUpdates *row2 = table_write.add_rows();
+  row2->add_column_values("24");
+  row2->add_column_values("225");
 
-  std::unique_ptr<peloton::catalog::Schema> table_schema(
-      new peloton::catalog::Schema({id_column, name_column}));
+  RowUpdates *row3 = table_write.add_rows();
+  row3->add_column_values("34");
+  row3->add_column_values("315");
+  row3->set_deletion(true);
 
-  peloton::catalog::Catalog::GetInstance()->CreateDatabase(txn, DEFAULT_DB_NAME);
-  txn_manager.CommitTransaction(txn);
+  /*TableWrite &table_write_1 = (*real_proof->mutable_txn()->mutable_table_writes())["test"];
+  RowUpdates *row_1 = table_write.add_rows();
+  row_1->add_column_values("42");
+  row_1->add_column_values("54");
+  row_1->set_deletion(true);*/
 
-  txn = txn_manager.BeginTransaction();
-  peloton::catalog::Catalog::GetInstance()->CreateTable(txn,
-                                               DEFAULT_DB_NAME,
-                                               DEFAULT_SCHEMA_NAME,
-                                               std::move(table_schema),
-                                               "TEST_TABLE",
-                                               false);
 
-  auto table = peloton::catalog::Catalog::GetInstance()->GetTableWithName(txn,
-                                                                 DEFAULT_DB_NAME,
-                                                                 DEFAULT_SCHEMA_NAME,
-                                                                 "TEST_TABLE");
-  txn_manager.CommitTransaction(txn);
+  static std::string file_name = "sql_interpreter_test_registry";
+  //Create desired registry via table writer.
+  std::string table_name = "test";
+  std::vector<std::pair<std::string, std::string>> column_names_and_types;
+  std::vector<uint32_t> primary_key_col_idx;
 
-  txn = txn_manager.BeginTransaction();
+  TableWriter table_writer(file_name);
 
-  std::unique_ptr<peloton::executor::ExecutorContext> context(
-      new peloton::executor::ExecutorContext(txn));
+  //Table1:
+  table_name = "test";
+  column_names_and_types.push_back(std::make_pair("a", "INT"));
+  column_names_and_types.push_back(std::make_pair("b", "INT"));
+  primary_key_col_idx.push_back(0);
+  table_writer.add_table(table_name, column_names_and_types, primary_key_col_idx);
+  //Write Tables to JSON
+  table_writer.flush();
 
-  std::unique_ptr<peloton::parser::InsertStatement> insert_node(
-      new peloton::parser::InsertStatement(peloton::InsertType::VALUES));
+	pequinstore::TableStore table_store;
+  pequinstore::proto::Write write;
+  pequinstore::proto::CommittedProof committed_proof;
+  std::string table_registry = file_name + "-tables-schema.json";
+  table_store.RegisterTableSchema(table_registry);
+	table_store.ExecRaw("CREATE TABLE test(a INT, b INT, PRIMARY KEY(a));");
+	//table_store.ExecRaw("INSERT INTO test VALUES (42, 54);");
+	//table_store.ExecRaw("INSERT INTO test VALUES (35, 26);");
+	//table_store.ExecRaw("INSERT INTO test VALUES (190, 999);");
+  table_store.ApplyTableWrite("test", table_write, toy_ts_c, "random", real_proof, true);
+  std::cout << "New change 10" << std::endl;
+  //table_store.ApplyTableWrite("test", table_write_1, toy_ts_c, "random", real_proof, true);
+  std::string enc_primary_key = "test//24";
+  //table_store.ExecRaw("DELETE FROM test WHERE a=24;");
+  std::cout << "End of queryexec test" << std::endl;
+  //table_store.ExecPointRead("SELECT * FROM test WHERE a=34;", enc_primary_key, toy_ts_c, &write, &committed_proof);
 
-  std::string name = "TEST_TABLE";
-  auto table_ref = new peloton::parser::TableRef(peloton::TableReferenceType::NAME);
-  peloton::parser::TableInfo *table_info = new peloton::parser::TableInfo();
-  table_info->table_name = name;
+	table_store.ExecReadQuery("SELECT * FROM test;", toy_ts_c, query_read_set_mgr_one);
 
-  std::string col_1 = "dept_id";
-  std::string col_2 = "dept_name";
-
-  table_ref->table_info_.reset(table_info);
-  insert_node->table_ref_.reset(table_ref);
-
-  insert_node->columns.push_back(col_1);
-  insert_node->columns.push_back(col_2);
-
-  insert_node->insert_values.push_back(
-      std::vector<std::unique_ptr<peloton::expression::AbstractExpression>>());
-  auto &values_ptr = insert_node->insert_values[0];
-
-  values_ptr.push_back(std::unique_ptr<peloton::expression::AbstractExpression>(
-      new peloton::expression::ConstantValueExpression(
-          peloton::type::ValueFactory::GetIntegerValue(70))));
-
-  values_ptr.push_back(std::unique_ptr<peloton::expression::AbstractExpression>(
-      new peloton::expression::ConstantValueExpression(
-          peloton::type::ValueFactory::GetVarcharValue("Hello"))));
-
-  insert_node->select.reset(new peloton::parser::SelectStatement());
-
-  peloton::planner::InsertPlan node(table, &insert_node->columns,
-                           &insert_node->insert_values);
-  peloton::executor::InsertExecutor executor(&node, context.get());
-
-  executor.Init();
-  executor.Execute();
-
-  std::cout << "number of tuples is " << table->GetTupleCount() << std::endl;*/
-
-    /*auto &txn_manager = peloton::concurrency::TransactionManagerFactory::GetInstance();
-    std::cout << "1" << std::endl;
-    auto txn = txn_manager.BeginTransaction();
-    std::cout << "2" << std::endl;
-    peloton::catalog::Catalog::GetInstance()->CreateDatabase(txn, DEFAULT_DB_NAME);
-    std::cout << "3" << std::endl;
-
-  // Insert a table first
-  auto id_column = peloton::catalog::Column(
-      peloton::type::TypeId::INTEGER, peloton::type::Type::GetTypeSize(peloton::type::TypeId::INTEGER),
-      "dept_id", true);
-    std::cout << "4" << std::endl;
-  auto name_column =
-      peloton::catalog::Column(peloton::type::TypeId::VARCHAR, 32, "dept_name", false);
-  std::cout << "5" << std::endl;    
-
-  // Schema
-  std::unique_ptr<peloton::catalog::Schema> table_schema(
-      new peloton::catalog::Schema({id_column, name_column}));
-  std::cout << "6" << std::endl;    
-
-  std::unique_ptr<peloton::executor::ExecutorContext> context(
-      new peloton::executor::ExecutorContext(txn));
-  std::cout << "7" << std::endl;    
-
-  // Create plans
-  peloton::planner::CreatePlan node("department_table", DEFAULT_SCHEMA_NAME,
-                           DEFAULT_DB_NAME, std::move(table_schema),
-                           peloton::CreateType::TABLE);
-  std::cout << "8" << std::endl;                         
-
-  // Create executer
-  peloton::executor::CreateExecutor executor(&node, context.get());
-  std::cout << "9" << std::endl;
-
-  executor.Init();
-  std::cout << "10" << std::endl;
-  executor.Execute();
-  std::cout << "Executed create table" << std::endl;
-    
-    std::cout << "begin" << std::endl;
-    auto parser = peloton::parser::PostgresParser::GetInstance();
-    std::cout << "after first" << std::endl;
-    std::string query = "CREATE TABLE test(a INT PRIMARY KEY, b INT, c INT);";
-    std::cout << "after second" << std::endl;
-    std::unique_ptr<peloton::parser::SQLStatementList> stmt_list(parser.BuildParseTree(query).release());
-    std::cout << "after third" << std::endl;
-
-    std::cout << "Testing 123" << std::endl;*/
-    return 0;
+  return 0;
 }

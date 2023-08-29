@@ -15,6 +15,9 @@
 #include "../common/internal_types.h"
 #include "../common/statement.h"
 #include "../executor/logical_tile.h"
+#include "../../store/common/timestamp.h"
+#include "../../store/pequinstore/common.h"
+//#include "../../store/pequinstore/pequin-proto.proto"
 
 namespace peloton {
 
@@ -39,6 +42,7 @@ struct ExecutionResult {
 
   // string of error message
   std::string m_error_message;
+
 
   ExecutionResult() {
     m_processed = 0;

@@ -511,7 +511,7 @@ int main() {
 
   test_write();
 
-  std::cerr << "test string view scope" << std::endl;
+  std::cerr << "test string view scope 1" << std::endl;
 
   std::vector<std::string_view> vec;
  

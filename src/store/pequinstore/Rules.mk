@@ -12,15 +12,19 @@ PROTOS += $(addprefix $(d), query-proto.proto)
 LIB-pequin-common := $(LIB-store-backend-sql-encoding) $(o)common.o $(o)snapshot_mgr.o $(o)sql_interpreter.o
 
 
-SRCS += $(addprefix $(d), table_store_interface_peloton.cc table_store_interface_toy.cc)
+SRCS += $(addprefix $(d), table_store_interface_peloton.cc table_store_interface_toy.cc) # table_store_interface_old.cc)
 #LIB-table-store-interface := $(o)table_store_interface_peloton.o $(o)table_store_interface_toy.o 
+LIB-query-engine := $(LIB-binder) $(LIB-catalog) $(LIB-common) $(LIB-concurrency) $(LIB-executor) $(LIB-expression) $(LIB-function) \
+	$(LIB-gc) $(LIB-index) $(LIB-murmur) $(LIB-optimizer) $(LIB-parser) $(LIB-planner) $(LIB-settings) $(LIB-storage) $(LIB-threadpool) $(LIB-traffic-cop) \
+	$(LIB-type) $(LIB-trigger) $(LIB-util)
 
 
 LIB-pequin-store := $(o)server.o $(o)servertools.o $(o)querysync-server.o $(o)concurrencycontrol.o $(LIB-latency) \
 	$(o)pequin-proto.o $(o)query-proto.o $(LIB-pequin-common) $(LIB-crypto) $(LIB-batched-sigs) $(LIB-bft-tapir-config) \
 	$(LIB-configuration) $(LIB-store-common) $(LIB-transport) $(o)phase1validator.o \
-	$(o)localbatchsigner.o $(o)sharedbatchsigner.o $(o)basicverifier.o \
-	$(o)localbatchverifier.o $(o)sharedbatchverifier.o $(o)table_store_interface_peloton.o $(o)table_store_interface_toy.o  #$(o)table_store_interface.o
+	$(o)localbatchsigner.o $(o)sharedbatchsigner.o $(o)basicverifier.o $(o)localbatchverifier.o $(o)sharedbatchverifier.o \
+	$(LIB-query-engine) $(o)table_store_interface_peloton.o $(o)table_store_interface_toy.o #$(o)table_store_interface_old.o
+
 
 LIB-pequin-client := $(LIB-udptransport) \
 	$(LIB-store-frontend) $(LIB-store-common) $(o)pequin-proto.o $(o)query-proto.o\
@@ -30,6 +34,8 @@ LIB-pequin-client := $(LIB-udptransport) \
 
 
 LIB-proto := $(o)pequin-proto.o $(o)query-proto.o
+
+# $(o)../../query-engine/traffic_cop/traffic_cop.o
 #-I/home/floriansuri/Research/Projects/Pequin/Pequin-Artifact/src/store/common
 
 #$(d)proto_bench: $(LIB-latency) $(LIB-crypto) $(LIB-batched-sigs) $(LIB-store-common) $(LIB-proto) $(o)proto_bench.o

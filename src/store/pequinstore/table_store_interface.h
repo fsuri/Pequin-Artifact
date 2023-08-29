@@ -77,11 +77,9 @@ class TableStore {
         SQLTransformer sql_interpreter;
     private:
         
-        //TODO: Peloton DB singleton "table_backend"
 };
 
 
 } // namespace pequinstore
 
 #endif //_PEQUIN_TABLESTORE_H
-

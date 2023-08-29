@@ -24,6 +24,9 @@
 #include "../common/printable.h"
 #include "../common/internal_types.h"
 #include "../../store/common/timestamp.h"
+#include "../../store/pequinstore/common.h"
+#include "store/pequinstore/pequin-proto.pb.h"
+#include "../../store/pequinstore/table_store_interface.h"
 
 namespace peloton {
 
@@ -50,6 +53,9 @@ class TransactionContext : public Printable {
 
   TransactionContext(const size_t thread_id, const IsolationLevelType isolation,
               const cid_t &read_id, const cid_t &commit_id);
+
+  TransactionContext(const size_t thread_id, const IsolationLevelType isolation,
+              const cid_t &read_id, const cid_t &commit_id, const pequinstore::QueryReadSetMgr &query_read_set_mgr);
 
   /**
    * @brief      Destroys the object.
@@ -276,8 +282,96 @@ class TransactionContext : public Printable {
     return basil_timestamp_;
   }
 
-  void SetBasilTimestamp(Timestamp basil_timestamp) {
+  void SetBasilTimestamp(Timestamp &basil_timestamp) {
     basil_timestamp_ = basil_timestamp;
+  }
+
+  pequinstore::QueryReadSetMgr GetQueryReadSetMgr() {
+    return query_read_set_mgr_;
+  }
+
+  void SetQueryReadSetMgr(pequinstore::QueryReadSetMgr &query_read_set_mgr) {
+    query_read_set_mgr_ = query_read_set_mgr;
+  }
+
+  pequinstore::read_prepared_pred GetPredicate() {
+    return predicate_;
+  }
+
+  void SetPredicate(pequinstore::read_prepared_pred &predicate) {
+    predicate_ = predicate;
+  }
+
+  pequinstore::find_table_version GetTableVersion() {
+    return table_version_;
+  }
+
+  void SetTableVersion(pequinstore::find_table_version &table_version) {
+    table_version_ = table_version;
+  }
+
+	std::shared_ptr<std::string> GetTxnDig() {
+		return txn_dig_;
+	}
+
+	void SetTxnDig(std::shared_ptr<std::string> txn_dig) {
+		txn_dig_ = txn_dig;
+	}
+
+	pequinstore::proto::CommittedProof* GetCommittedProof() {
+		return committed_proof_;
+	}
+
+	void SetCommittedProof(pequinstore::proto::CommittedProof* commit_proof) {
+		committed_proof_ = commit_proof;
+	}
+
+	bool GetCommitOrPrepare() {
+		return commit_or_prepare_;
+	}
+
+	void SetCommitOrPrepare(bool commit_or_prepare) {
+		commit_or_prepare_ = commit_or_prepare;
+	}
+
+  bool CanReadPrepared() {
+    return can_read_prepared_;
+  }
+
+  void SetCanReadPrepared(bool can_read_prepared) {
+    can_read_prepared_ = can_read_prepared;
+  }
+
+  Timestamp* GetCommitTimestamp() {
+    return committed_timestamp_;
+  }
+
+  void SetCommitTimestamp(Timestamp* commit_timestamp) {
+    committed_timestamp_ = commit_timestamp;
+  }
+
+  std::shared_ptr<std::string> GetPreparedTxnDigest() {
+    return prepared_txn_dig_;
+  }
+
+  void SetPreparedTxnDigest(std::shared_ptr<std::string> prepared_txn_digest) {
+    prepared_txn_dig_ = prepared_txn_digest;
+  }
+
+  Timestamp* GetPreparedTimestamp() {
+    return prepared_timestamp_;
+  }
+
+  void SetPreparedTimestamp(Timestamp* prepared_timestamp) {
+    prepared_timestamp_ = prepared_timestamp;
+  }
+
+  bool GetUndoDelete() {
+    return undo_delete_;
+  }
+
+  void SetUndoDelete(bool undo_delete) {
+    undo_delete_ = undo_delete;
   }
 
   /**
@@ -334,6 +428,39 @@ class TransactionContext : public Printable {
   /** Basil timestamp */
   Timestamp basil_timestamp_;
 
+  /** Query read set manager */
+  pequinstore::QueryReadSetMgr query_read_set_mgr_;
+
+	/** Transaction digest */
+	std::shared_ptr<std::string> txn_dig_;
+
+	/** Commit proof */
+  pequinstore::proto::CommittedProof* committed_proof_;
+
+  /** Timestamp of committed value */
+  Timestamp* committed_timestamp_;
+
+  /** Timestamp of the prepared value */
+  Timestamp* prepared_timestamp_;
+
+  /** Prepared value transaction digest */
+  std::shared_ptr<std::string> prepared_txn_dig_;
+
+	/** Commit or prepare */
+	bool commit_or_prepare_;
+
+  /** Read prepared predicate */
+  pequinstore::read_prepared_pred predicate_;
+
+  /** Find table version predicate */
+  pequinstore::find_table_version table_version_;
+
+  /** Can read prepared */
+  bool can_read_prepared_;
+
+  /** Whether purge is undoing a delete */
+  bool undo_delete_;
+  
   ReadWriteSet rw_set_;
   CreateDropSet rw_object_set_;
 

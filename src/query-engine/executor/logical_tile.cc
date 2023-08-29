@@ -30,6 +30,7 @@ namespace executor {
 LogicalTile::LogicalTile() {
   // Preallocate schema
   schema_.reserve(SCHEMA_PREALLOCATION_SIZE);
+  //query_read_set_mgr = new pequinstore::QueryReadSetMgr;
 }
 
 /**

@@ -36,6 +36,7 @@
 #include "store/pequinstore/verifier.h"
 #include "lib/tcptransport.h"
 
+#include <stack>
 #include <map>
 #include <string>
 #include <vector>
@@ -417,6 +418,7 @@ inline static bool compareReadSets (google::protobuf::RepeatedPtrField<ReadMessa
 
 
 struct QueryReadSetMgr {
+        QueryReadSetMgr(){}
         QueryReadSetMgr(proto::ReadSet *read_set, const uint64_t &groupIdx, const bool &useOptimisticId): read_set(read_set), groupIdx(groupIdx), useOptimisticId(useOptimisticId){}
         ~QueryReadSetMgr(){}
 

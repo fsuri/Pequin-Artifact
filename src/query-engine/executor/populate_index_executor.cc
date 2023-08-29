@@ -10,15 +10,15 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "../common/logger.h"
-#include "../type/value.h"
-#include "../executor/logical_tile.h"
 #include "../executor/populate_index_executor.h"
+#include "../common/logger.h"
 #include "../executor/executor_context.h"
-#include "../planner/populate_index_plan.h"
+#include "../executor/logical_tile.h"
 #include "../expression/tuple_value_expression.h"
+#include "../planner/populate_index_plan.h"
 #include "../storage/data_table.h"
 #include "../storage/tile.h"
+#include "../type/value.h"
 
 namespace peloton {
 namespace executor {
@@ -54,7 +54,7 @@ bool PopulateIndexExecutor::DExecute() {
   auto current_txn = executor_context_->GetTransaction();
   auto executor_pool = executor_context_->GetPool();
   if (done_ == false) {
-    //Get the output from seq_scan
+    // Get the output from seq_scan
     while (children_[0]->Execute()) {
       child_tiles_.emplace_back(children_[0]->GetOutput());
     }
@@ -85,13 +85,14 @@ bool PopulateIndexExecutor::DExecute() {
           tuple->SetValue(column_ids_[column_itr], val, executor_pool);
         }
 
-        ItemPointer location(tile->GetBaseTile(0)->GetTileGroup()->GetTileGroupId(),
-                             tuple_id);
+        ItemPointer location(
+            tile->GetBaseTile(0)->GetTileGroup()->GetTileGroupId(), tuple_id);
 
         // insert tuple into the index.
         ItemPointer *index_entry_ptr = nullptr;
+        ItemPointer old_location = ItemPointer(0, 0);
         target_table_->InsertInIndexes(tuple.get(), location, current_txn,
-                                       &index_entry_ptr);
+                                       &index_entry_ptr, old_location);
       }
     }
 
@@ -101,5 +102,5 @@ bool PopulateIndexExecutor::DExecute() {
   return false;
 }
 
-}  // namespace executor
-}  // namespace peloton
+} // namespace executor
+} // namespace peloton

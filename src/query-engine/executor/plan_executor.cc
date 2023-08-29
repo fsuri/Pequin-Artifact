@@ -125,30 +125,71 @@ static void InterpretPlan(
   // Execute the tree until we get values tiles from root node
   while (status == true) {
     // Pass flag for snapshot, then executor only needs to execute the leaves
+    //std::cout << "Segfault made it here 4" << std::endl;
     status = executor_tree->Execute();
+    //std::cout << "Segfault made it here 5" << std::endl;
     std::unique_ptr<executor::LogicalTile> tile(executor_tree->GetOutput());
+
+    // Hard code to know that this is a read operation
+    /*if (txn->GetBasilTimestamp().getTimestamp() == 5) {
+      std::string res_key;
+      Timestamp time;
+
+      std::tie(res_key, time) = tile->GetReadSet()[1];
+      std::cout << "Read set values " << res_key << ". Timestamp is " << time.getTimestamp() << std::endl;
+    }*/
+    
 
     // Some executors don't return logical tiles (e.g., Update).
     if (tile.get() != nullptr) {
       LOG_TRACE("Final Answer: %s", tile->GetInfo().c_str());
+      //auto read_set = tile->GetReadSet();
+      //result.read_set = read_set;
+      //result.query_read_set_mgr = tile->GetReadSetMgr();
+
+      /*std::cout << "Before tile get read set manager" << std::endl;
+      for(auto &read_msg : *(txn->GetQueryReadSetMgr().read_set->mutable_read_set())) {
+        std::cout << "Encoded key: " << read_msg.key() << ". Timestamp: (" << read_msg.readtime().timestamp() << ", " << read_msg.readtime().id() << ")" << std::endl;
+      }*/
+
+      /*for(auto &read_msg : *(result.query_read_set_mgr->read_set->mutable_read_set())){
+        std::cout << "Encoded key: " << read_msg.key() << ". Timestamp: (" << read_msg.readtime().timestamp() << ", " << read_msg.readtime().id() << ")" << std::endl;
+      }*/
+      //std::cout << "After tile get read set manager" << std::endl;
+  
+      
       std::vector<std::vector<std::string>> tuples;
+      //std::cout << "Segfault made it here 1" << std::endl;
       tuples = tile->GetAllValuesAsStrings(result_format, false);
 
       // Construct the returned results
       for (auto &tuple : tuples) {
+        //std::cout << "Segfault made it here 2" << std::endl;
         for (unsigned int i = 0; i < tile->GetColumnCount(); i++) {
           LOG_TRACE("column content: %s",
                     tuple[i].c_str() != nullptr ? tuple[i].c_str() : "-empty-");
+          //std::cout << "Segfault made it here 3" << std::endl;
           values.push_back(std::move(tuple[i]));
         }
       }
-    }
-  }
 
+      // Set the commit proof
+      //result.m_commit_proof = tile->GetCommitProofs();
+      
+      //std::cout << "Past for loop" << std::endl;
+      //break;
+    }
+    //std::cout << "Past if statement" << std::endl;
+  }
+  
+  //std::cout << "After result" << std::endl;
   result.m_processed = executor_context->num_processed;
   result.m_result = ResultType::SUCCESS;
+
   CleanExecutorTree(executor_tree.get());
+  //std::cout << "After cleaning executors" << std::endl;
   plan->ClearParameterValues();
+  //std::cout << "After cleaning parameters" << std::endl;
   on_complete(result, std::move(values));
 }
 

@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 #include <cinttypes>
+#include <iostream>
 #include "../storage/storage_manager.h"
 #include "../executor/delete_executor.h"
 #include "../executor/executor_context.h"
@@ -31,6 +32,7 @@
 //#include "../trigger/trigger.h"
 #include "../catalog/table_catalog.h"
 #include "../parser/pg_trigger.h"
+#include "query-engine/common/internal_types.h"
 
 namespace peloton {
 namespace executor {
@@ -71,14 +73,17 @@ bool DeleteExecutor::DInit() {
  * @return true on success, false otherwise.
  */
 bool DeleteExecutor::DExecute() {
+  std::cout << "Inside delete executor" << std::endl;
   PELOTON_ASSERT(target_table_);
   // Retrieve next tile.
   if (!children_[0]->Execute()) {
     return false;
   }
 
+  std::cout << "After child execution" << std::endl;
   std::unique_ptr<LogicalTile> source_tile(children_[0]->GetOutput());
 
+  std::cout << "After delete child output" << std::endl;
   auto &pos_lists = source_tile.get()->GetPositionLists();
 
   auto &transaction_manager =
@@ -109,6 +114,7 @@ bool DeleteExecutor::DExecute() {
     }
   }*/
 
+  std::cout << "Before delete for loop" << std::endl;
   // Delete each tuple
   for (oid_t visible_tuple_id : *source_tile) {
     storage::TileGroup *tile_group =
@@ -118,6 +124,8 @@ bool DeleteExecutor::DExecute() {
     oid_t physical_tuple_id = pos_lists[0][visible_tuple_id];
 
     ItemPointer old_location(tile_group->GetTileGroupId(), physical_tuple_id);
+
+    std::cout << "Deleted tuple id is block " << old_location.block << " and offset " << old_location.offset << std::endl;
 
     LOG_TRACE("Visible Tuple id : %u, Physical Tuple id : %u ",
               visible_tuple_id, physical_tuple_id);
@@ -188,6 +196,11 @@ bool DeleteExecutor::DExecute() {
       }
     }*/
 
+    //is_owner = true;
+    //is_written = true;
+
+    std::cout << "Is owner is " << is_owner << ". Is written is " << is_written << std::endl;
+
     if (is_owner == true && is_written == true) {
       // if the transaction is the owner of the tuple, then directly update in
       // place.
@@ -198,6 +211,7 @@ bool DeleteExecutor::DExecute() {
                         transaction_manager.IsOwnable(
                             current_txn, tile_group_header, physical_tuple_id);
 
+      is_ownable = true;
       if (is_ownable == true) {
         // if the tuple is not owned by any transaction and is visible to
         // current transaction.
@@ -208,14 +222,53 @@ bool DeleteExecutor::DExecute() {
             transaction_manager.AcquireOwnership(current_txn, tile_group_header,
                                                  physical_tuple_id);
 
+        acquire_ownership_success = true;
         if (acquire_ownership_success == false) {
           transaction_manager.SetTransactionResult(current_txn,
                                                    ResultType::FAILURE);
           return false;
         }
+
+        // Before getting new location
+        if (current_txn->GetUndoDelete()) {
+          // If undoing a delete then reset the begin and commit ids
+          std::cout << "Made it to undoing deletes" << std::endl;
+          tile_group_header->SetBeginCommitId(old_location.offset, current_txn->GetTransactionId());
+          tile_group_header->SetEndCommitId(old_location.offset, MAX_CID);
+          tile_group_header->SetTransactionId(old_location.offset, current_txn->GetTransactionId());
+          tile_group_header->SetLastReaderCommitId(old_location.offset,
+                                                       current_txn->GetCommitId());
+
+          ItemPointer *index_entry_ptr =
+              tile_group_header->GetIndirection(old_location.offset);
+
+          // if there's no primary index on a table, then index_entry_ptr == nullptr.
+          if (index_entry_ptr != nullptr) {
+            std::cout << "Undo delete inside if statement" << std::endl;
+            tile_group_header->SetIndirection(old_location.offset, index_entry_ptr);
+
+            // Set the index header in an atomic way.
+            // We do it atomically because we don't want any one to see a half-down
+            // pointer
+            // In case of contention, no one can update this pointer when we are
+            // updating it
+            // because we are holding the write lock. This update should success in
+            // its first trial.
+            UNUSED_ATTRIBUTE auto res =
+                AtomicUpdateItemPointer(index_entry_ptr, old_location);
+            PELOTON_ASSERT(res == true);
+          }
+
+          //tile_group_header->SetEndCommitId(old_location.offset, INVALID_CID);
+          std::cout << "Trying to undo deleted tuple id is block " << old_location.block << " and offset " << old_location.offset << std::endl;
+          std::cout << "Undo delete visibility type is " << transaction_manager.IsVisible(current_txn, tile_group_header, old_location.offset) << std::endl;
+          return true;
+        }
         // if it is the latest version and not locked by other threads, then
         // insert an empty version.
         ItemPointer new_location = target_table_->InsertEmptyVersion();
+        std::cout << "Delete executor New location tuple id is block " << new_location.block << " and offset " << new_location.offset << std::endl;
+
 
         // PerformDelete() will not be executed if the insertion failed.
         // There is a write lock acquired, but since it is not in the write set,
@@ -235,6 +288,7 @@ bool DeleteExecutor::DExecute() {
                                                    ResultType::FAILURE);
           return false;
         }
+        std::cout << "Got to perform delete" << std::endl;
         transaction_manager.PerformDelete(current_txn, old_location,
                                           new_location);
 

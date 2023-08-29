@@ -884,6 +884,7 @@ void SQLTransformer::GenerateTableWriteStatement(std::string &write_statement, s
 
 }
 
+// std::vector<std::string> &purge_statements, 
 void SQLTransformer::GenerateTablePurgeStatement(std::string &purge_statement, const std::string &table_name, const TableWrite &table_write){
     //Abort all TableWrites: Previous writes must be deleted; Previous deletes must be un-done
     //Puts all write and deletes into one purge
