@@ -18,15 +18,15 @@
 #include <unordered_set>
 #include <vector>
 
-#include "../catalog/catalog_cache.h"
-#include "../common/exception.h"
-#include "../common/item_pointer.h"
-#include "../common/printable.h"
-#include "../common/internal_types.h"
 #include "../../store/common/timestamp.h"
 #include "../../store/pequinstore/common.h"
-#include "store/pequinstore/pequin-proto.pb.h"
 #include "../../store/pequinstore/table_store_interface.h"
+#include "../catalog/catalog_cache.h"
+#include "../common/exception.h"
+#include "../common/internal_types.h"
+#include "../common/item_pointer.h"
+#include "../common/printable.h"
+#include "store/pequinstore/pequin-proto.pb.h"
 
 namespace peloton {
 
@@ -47,22 +47,23 @@ namespace concurrency {
 class TransactionContext : public Printable {
   TransactionContext(TransactionContext const &) = delete;
 
- public:
+public:
   TransactionContext(const size_t thread_id, const IsolationLevelType isolation,
-              const cid_t &read_id);
+                     const cid_t &read_id);
 
   TransactionContext(const size_t thread_id, const IsolationLevelType isolation,
-              const cid_t &read_id, const cid_t &commit_id);
+                     const cid_t &read_id, const cid_t &commit_id);
 
   TransactionContext(const size_t thread_id, const IsolationLevelType isolation,
-              const cid_t &read_id, const cid_t &commit_id, const pequinstore::QueryReadSetMgr &query_read_set_mgr);
+                     const cid_t &read_id, const cid_t &commit_id,
+                     const pequinstore::QueryReadSetMgr &query_read_set_mgr);
 
   /**
    * @brief      Destroys the object.
    */
   ~TransactionContext() = default;
 
- private:
+private:
   void Init(const size_t thread_id, const IsolationLevelType isolation,
             const cid_t &read_id) {
     Init(thread_id, isolation, read_id, read_id);
@@ -71,7 +72,7 @@ class TransactionContext : public Printable {
   void Init(const size_t thread_id, const IsolationLevelType isolation,
             const cid_t &read_id, const cid_t &commit_id);
 
- public:
+public:
   //===--------------------------------------------------------------------===//
   // Mutators and Accessors
   //===--------------------------------------------------------------------===//
@@ -123,8 +124,9 @@ class TransactionContext : public Printable {
    *
    * @return     The query strings.
    */
-  inline const std::vector<std::string>& GetQueryStrings() const {
-                                                      return query_strings_; }
+  inline const std::vector<std::string> &GetQueryStrings() const {
+    return query_strings_;
+  }
 
   /**
    * @brief      Sets the commit identifier.
@@ -139,7 +141,7 @@ class TransactionContext : public Printable {
    * @param[in]  epoch_id  The epoch identifier
    */
   inline void SetEpochId(const eid_t epoch_id) { epoch_id_ = epoch_id; }
-  
+
   /**
    * @brief      Sets the timestamp.
    *
@@ -152,18 +154,18 @@ class TransactionContext : public Printable {
    *
    * @param[in]  query_string  The query string
    */
-  inline void AddQueryString(const char* query_string) {
+  inline void AddQueryString(const char *query_string) {
     query_strings_.push_back(std::string(query_string));
   }
 
   void RecordCreate(oid_t database_oid, oid_t table_oid, oid_t index_oid) {
-    rw_object_set_.push_back(std::make_tuple(database_oid, table_oid,
-                                index_oid, DDLType::CREATE));
+    rw_object_set_.push_back(
+        std::make_tuple(database_oid, table_oid, index_oid, DDLType::CREATE));
   }
 
   void RecordDrop(oid_t database_oid, oid_t table_oid, oid_t index_oid) {
-    rw_object_set_.push_back(std::make_tuple(database_oid, table_oid,
-                                index_oid, DDLType::DROP));
+    rw_object_set_.push_back(
+        std::make_tuple(database_oid, table_oid, index_oid, DDLType::DROP));
   }
 
   void RecordReadOwn(const ItemPointer &);
@@ -187,9 +189,9 @@ class TransactionContext : public Printable {
    *
    * @param      trigger_data  The trigger data
    */
-  //void AddOnCommitTrigger(trigger::TriggerData &trigger_data);
+  // void AddOnCommitTrigger(trigger::TriggerData &trigger_data);
 
-  //void ExecOnCommitTriggers();
+  // void ExecOnCommitTriggers();
 
   /**
    * @brief      Determines if in rw set.
@@ -266,21 +268,15 @@ class TransactionContext : public Printable {
    *
    * @return     True if read only, False otherwise.
    */
-  bool IsReadOnly() const {
-    return read_only_;
-  }
+  bool IsReadOnly() const { return read_only_; }
 
   /**
    * @brief      mark this context as read only
    *
    */
-  void SetReadOnly() {
-    read_only_ = true;
-  }
+  void SetReadOnly() { read_only_ = true; }
 
-  Timestamp GetBasilTimestamp() {
-    return basil_timestamp_;
-  }
+  Timestamp GetBasilTimestamp() { return basil_timestamp_; }
 
   void SetBasilTimestamp(Timestamp &basil_timestamp) {
     basil_timestamp_ = basil_timestamp;
@@ -294,59 +290,46 @@ class TransactionContext : public Printable {
     query_read_set_mgr_ = query_read_set_mgr;
   }
 
-  pequinstore::read_prepared_pred GetPredicate() {
-    return predicate_;
-  }
+  pequinstore::read_prepared_pred GetPredicate() { return predicate_; }
 
   void SetPredicate(pequinstore::read_prepared_pred &predicate) {
     predicate_ = predicate;
   }
 
-  pequinstore::find_table_version GetTableVersion() {
-    return table_version_;
-  }
+  pequinstore::find_table_version GetTableVersion() { return table_version_; }
 
   void SetTableVersion(pequinstore::find_table_version &table_version) {
     table_version_ = table_version;
   }
 
-	std::shared_ptr<std::string> GetTxnDig() {
-		return txn_dig_;
-	}
+  std::shared_ptr<std::string> GetTxnDig() { return txn_dig_; }
 
-	void SetTxnDig(std::shared_ptr<std::string> txn_dig) {
-		txn_dig_ = txn_dig;
-	}
+  void SetTxnDig(std::shared_ptr<std::string> txn_dig) { txn_dig_ = txn_dig; }
 
-	pequinstore::proto::CommittedProof* GetCommittedProof() {
-		return committed_proof_;
-	}
-
-	void SetCommittedProof(pequinstore::proto::CommittedProof* commit_proof) {
-		committed_proof_ = commit_proof;
-	}
-
-	bool GetCommitOrPrepare() {
-		return commit_or_prepare_;
-	}
-
-	void SetCommitOrPrepare(bool commit_or_prepare) {
-		commit_or_prepare_ = commit_or_prepare;
-	}
-
-  bool CanReadPrepared() {
-    return can_read_prepared_;
+  const pequinstore::proto::CommittedProof *GetCommittedProof() {
+    return committed_proof_;
   }
+
+  void
+  SetCommittedProof(const pequinstore::proto::CommittedProof *commit_proof) {
+    committed_proof_ = commit_proof;
+  }
+
+  bool GetCommitOrPrepare() { return commit_or_prepare_; }
+
+  void SetCommitOrPrepare(bool commit_or_prepare) {
+    commit_or_prepare_ = commit_or_prepare;
+  }
+
+  bool CanReadPrepared() { return can_read_prepared_; }
 
   void SetCanReadPrepared(bool can_read_prepared) {
     can_read_prepared_ = can_read_prepared;
   }
 
-  Timestamp* GetCommitTimestamp() {
-    return committed_timestamp_;
-  }
+  Timestamp *GetCommitTimestamp() { return committed_timestamp_; }
 
-  void SetCommitTimestamp(Timestamp* commit_timestamp) {
+  void SetCommitTimestamp(Timestamp *commit_timestamp) {
     committed_timestamp_ = commit_timestamp;
   }
 
@@ -358,21 +341,15 @@ class TransactionContext : public Printable {
     prepared_txn_dig_ = prepared_txn_digest;
   }
 
-  Timestamp* GetPreparedTimestamp() {
-    return prepared_timestamp_;
-  }
+  Timestamp *GetPreparedTimestamp() { return prepared_timestamp_; }
 
-  void SetPreparedTimestamp(Timestamp* prepared_timestamp) {
+  void SetPreparedTimestamp(Timestamp *prepared_timestamp) {
     prepared_timestamp_ = prepared_timestamp;
   }
 
-  bool GetUndoDelete() {
-    return undo_delete_;
-  }
+  bool GetUndoDelete() { return undo_delete_; }
 
-  void SetUndoDelete(bool undo_delete) {
-    undo_delete_ = undo_delete;
-  }
+  void SetUndoDelete(bool undo_delete) { undo_delete_ = undo_delete; }
 
   /**
    * @brief      Gets the isolation level.
@@ -386,7 +363,7 @@ class TransactionContext : public Printable {
   /** cache for table catalog objects */
   catalog::CatalogCache catalog_cache;
 
- private:
+private:
   //===--------------------------------------------------------------------===//
   // Data members
   //===--------------------------------------------------------------------===//
@@ -431,23 +408,23 @@ class TransactionContext : public Printable {
   /** Query read set manager */
   pequinstore::QueryReadSetMgr query_read_set_mgr_;
 
-	/** Transaction digest */
-	std::shared_ptr<std::string> txn_dig_;
+  /** Transaction digest */
+  std::shared_ptr<std::string> txn_dig_;
 
-	/** Commit proof */
-  pequinstore::proto::CommittedProof* committed_proof_;
+  /** Commit proof */
+  const pequinstore::proto::CommittedProof *committed_proof_;
 
   /** Timestamp of committed value */
-  Timestamp* committed_timestamp_;
+  Timestamp *committed_timestamp_;
 
   /** Timestamp of the prepared value */
-  Timestamp* prepared_timestamp_;
+  Timestamp *prepared_timestamp_;
 
   /** Prepared value transaction digest */
   std::shared_ptr<std::string> prepared_txn_dig_;
 
-	/** Commit or prepare */
-	bool commit_or_prepare_;
+  /** Commit or prepare */
+  bool commit_or_prepare_;
 
   /** Read prepared predicate */
   pequinstore::read_prepared_pred predicate_;
@@ -460,12 +437,12 @@ class TransactionContext : public Printable {
 
   /** Whether purge is undoing a delete */
   bool undo_delete_;
-  
+
   ReadWriteSet rw_set_;
   CreateDropSet rw_object_set_;
 
-  /** 
-   * this set contains data location that needs to be gc'd in the transaction. 
+  /**
+   * this set contains data location that needs to be gc'd in the transaction.
    */
   std::shared_ptr<GCSet> gc_set_;
   std::shared_ptr<GCObjectSet> gc_object_set_;
@@ -477,11 +454,12 @@ class TransactionContext : public Printable {
 
   bool is_written_;
 
-  //std::unique_ptr<trigger::TriggerSet> on_commit_triggers_;
+  // std::unique_ptr<trigger::TriggerSet> on_commit_triggers_;
 
-  /** one default transaction is NOT 'read only' unless it is marked 'read only' explicitly*/
+  /** one default transaction is NOT 'read only' unless it is marked 'read only'
+   * explicitly*/
   bool read_only_ = false;
 };
 
-}  // namespace concurrency
-}  // namespace peloton
+} // namespace concurrency
+} // namespace peloton

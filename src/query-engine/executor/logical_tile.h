@@ -16,12 +16,12 @@
 #include <unordered_map>
 #include <vector>
 
-#include "../common/macros.h"
-#include "../common/printable.h"
-#include "../common/internal_types.h"
-#include "../type/value.h"
 #include "../../store/common/timestamp.h"
 #include "../../store/pequinstore/common.h"
+#include "../common/internal_types.h"
+#include "../common/macros.h"
+#include "../common/printable.h"
+#include "../type/value.h"
 
 namespace peloton {
 
@@ -32,7 +32,7 @@ class Schema;
 namespace storage {
 class Tile;
 class TileGroup;
-}
+} // namespace storage
 
 namespace executor {
 
@@ -52,7 +52,7 @@ namespace executor {
 class LogicalTile : public Printable {
   friend class LogicalTileFactory;
 
- public:
+public:
   struct ColumnInfo;
 
   /* A vector of position to represent a column */
@@ -107,8 +107,9 @@ class LogicalTile : public Printable {
 
   void SetPositionListsAndVisibility(PositionLists &&position_lists);
 
-  std::vector<std::vector<std::string>> GetAllValuesAsStrings(
-      const std::vector<int> &result_format, bool use_to_string_null);
+  std::vector<std::vector<std::string>>
+  GetAllValuesAsStrings(const std::vector<int> &result_format,
+                        bool use_to_string_null);
 
   // Get a string representation for debugging
   const std::string GetInfo() const;
@@ -120,15 +121,13 @@ class LogicalTile : public Printable {
     prepared_tuples_.push_back(tuple_id);
   }
 
-  std::vector<oid_t> GetPreparedTuples() {
-    return prepared_tuples_;
-  }
+  std::vector<oid_t> GetPreparedTuples() { return prepared_tuples_; }
 
-  void SetCommitProofs(pequinstore::proto::CommittedProof* proof) {
+  void SetCommitProofs(const pequinstore::proto::CommittedProof *proof) {
     commit_proofs_ = proof;
   }
 
-  pequinstore::proto::CommittedProof* GetCommitProofs() {
+  const pequinstore::proto::CommittedProof *GetCommitProofs() {
     return commit_proofs_;
   }
 
@@ -168,7 +167,7 @@ class LogicalTile : public Printable {
     // It's a friend so it can call this iterator's private constructor.
     friend class LogicalTile;
 
-   public:
+  public:
     iterator &operator++();
 
     iterator operator++(int);
@@ -179,7 +178,7 @@ class LogicalTile : public Printable {
 
     oid_t operator*();
 
-   private:
+  private:
     iterator(LogicalTile *tile, bool begin);
 
     /** @brief Keeps track of position of iterator. */
@@ -219,7 +218,7 @@ class LogicalTile : public Printable {
   // Position Lists Builder
   //===--------------------------------------------------------------------===//
   class PositionListsBuilder {
-   public:
+  public:
     PositionListsBuilder();
 
     PositionListsBuilder(LogicalTile *left_tile, LogicalTile *right_tile);
@@ -313,18 +312,19 @@ class LogicalTile : public Printable {
     }
 
     inline size_t Size() const {
-      if (output_lists_.size() >= 1) return output_lists_[0].size();
+      if (output_lists_.size() >= 1)
+        return output_lists_[0].size();
       return 0;
     }
 
-   private:
+  private:
     const PositionLists *left_source_ = nullptr;
     const PositionLists *right_source_ = nullptr;
     PositionLists output_lists_;
     bool invalid_ = false;
   };
 
- private:
+private:
   // Default constructor
   LogicalTile();
 
@@ -371,10 +371,10 @@ class LogicalTile : public Printable {
    *for
    * efficiency reasons.
    */
-  void GenerateTileToColMap(
-      const std::unordered_map<oid_t, oid_t> &old_to_new_cols,
-      std::unordered_map<storage::Tile *, std::vector<oid_t>>
-          &cols_in_physical_tile);
+  void
+  GenerateTileToColMap(const std::unordered_map<oid_t, oid_t> &old_to_new_cols,
+                       std::unordered_map<storage::Tile *, std::vector<oid_t>>
+                           &cols_in_physical_tile);
 
   //===--------------------------------------------------------------------===//
   // Members
@@ -392,15 +392,15 @@ class LogicalTile : public Printable {
    */
   PositionLists position_lists_;
 
-  /** 
+  /**
    * @brief List of prepared tuples
-  */
+   */
   std::vector<oid_t> prepared_tuples_;
 
   /**
    * @brief List of commit proofs
-  */
-  pequinstore::proto::CommittedProof* commit_proofs_;
+   */
+  const pequinstore::proto::CommittedProof *commit_proofs_;
 
   /**
    * @brief Bit-vector storing visibility of each row in the position lists.
@@ -413,8 +413,7 @@ class LogicalTile : public Printable {
 
   /** @brief Keeps track of the number of tuples that are still visible. */
   oid_t visible_tuples_ = 0;
-
 };
 
-}  // namespace executor
-}  // namespace peloton
+} // namespace executor
+} // namespace peloton

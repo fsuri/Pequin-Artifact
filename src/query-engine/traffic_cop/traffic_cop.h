@@ -20,6 +20,8 @@
 // Libevent 2.0
 #include "event.h"
 
+#include "../../store/common/timestamp.h"
+#include "../../store/pequinstore/common.h"
 #include "../catalog/column.h"
 #include "../common/internal_types.h"
 #include "../common/portal.h"
@@ -28,15 +30,13 @@
 #include "../optimizer/abstract_optimizer.h"
 #include "../parser/sql_statement.h"
 #include "../type/type.h"
-#include "../../store/common/timestamp.h"
-#include "../../store/pequinstore/common.h"
-//#include "../../store/pequinstore/table_store_interface.h"
+// #include "../../store/pequinstore/table_store_interface.h"
 
 namespace peloton {
 
 namespace concurrency {
 class TransactionContext;
-}  // namespace concurrency
+} // namespace concurrency
 
 namespace tcop {
 
@@ -56,7 +56,7 @@ namespace tcop {
 //===--------------------------------------------------------------------===//
 
 class TrafficCop {
- public:
+public:
   TrafficCop();
   TrafficCop(void (*task_callback)(void *), void *task_callback_arg);
   ~TrafficCop();
@@ -69,19 +69,24 @@ class TrafficCop {
   void Reset();
 
   // Execute a statement
-  ResultType ExecuteStatement(
-      const std::shared_ptr<Statement> &statement,
-      const std::vector<type::Value> &params, const bool unnamed,
-      const std::vector<int> &result_format, std::vector<ResultValue> &result, size_t thread_id = 0);
-  
+  ResultType ExecuteStatement(const std::shared_ptr<Statement> &statement,
+                              const std::vector<type::Value> &params,
+                              const bool unnamed,
+                              const std::vector<int> &result_format,
+                              std::vector<ResultValue> &result,
+                              size_t thread_id = 0);
+
   // Execute a statement
   ResultType ExecuteReadStatement(
       const std::shared_ptr<Statement> &statement,
       const std::vector<type::Value> &params, const bool unnamed,
       /*std::shared_ptr<stats::QueryMetric::QueryParams> param_stats,*/
       const std::vector<int> &result_format, std::vector<ResultValue> &result,
-      Timestamp &basil_timestamp, pequinstore::QueryReadSetMgr &query_read_set_mgr, 
-      std::function<void(const std::string &, const Timestamp &, bool, pequinstore::QueryReadSetMgr *, pequinstore::SnapshotManager *)> &find_table_version,
+      Timestamp &basil_timestamp,
+      pequinstore::QueryReadSetMgr &query_read_set_mgr,
+      std::function<void(const std::string &, const Timestamp &, bool,
+                         pequinstore::QueryReadSetMgr *,
+                         pequinstore::SnapshotManager *)> &find_table_version,
       std::function<bool(const std::string &)> &read_prepared_pred,
       size_t thread_id = 0);
 
@@ -91,8 +96,9 @@ class TrafficCop {
       const std::vector<type::Value> &params, const bool unnamed,
       /*std::shared_ptr<stats::QueryMetric::QueryParams> param_stats,*/
       const std::vector<int> &result_format, std::vector<ResultValue> &result,
-      Timestamp &basil_timestamp, std::shared_ptr<std::string> txn_digest, 
-      pequinstore::proto::CommittedProof *commit_proof, bool commit_or_prepare, size_t thread_id = 0);
+      Timestamp &basil_timestamp, std::shared_ptr<std::string> txn_digest,
+      const pequinstore::proto::CommittedProof *commit_proof,
+      bool commit_or_prepare, size_t thread_id = 0);
 
   // Execute a purge statement
   ResultType ExecutePurgeStatement(
@@ -103,75 +109,79 @@ class TrafficCop {
       Timestamp &basil_timestamp, std::shared_ptr<std::string> txn_digest,
       bool undo_delete, size_t thread_id = 0);
 
-  
   // Execute a statement
   ResultType ExecutePointReadStatement(
       const std::shared_ptr<Statement> &statement,
       const std::vector<type::Value> &params, const bool unnamed,
       /*std::shared_ptr<stats::QueryMetric::QueryParams> param_stats,*/
       const std::vector<int> &result_format, std::vector<ResultValue> &result,
-      Timestamp &basil_timestamp, std::function<bool(const std::string &)> &predicate,
+      Timestamp &basil_timestamp,
+      std::function<bool(const std::string &)> &predicate,
       Timestamp *committed_timestamp,
-      pequinstore::proto::CommittedProof *commit_proof,
-      Timestamp *prepared_timestamp,
-      std::shared_ptr<std::string> txn_dig,
-      pequinstore::proto::Write *write,
-      size_t thread_id = 0);
+      const pequinstore::proto::CommittedProof *commit_proof,
+      Timestamp *prepared_timestamp, std::shared_ptr<std::string> txn_dig,
+      pequinstore::proto::Write *write, size_t thread_id = 0);
 
   // Helper to handle txn-specifics for the plan-tree of a statement.
-  executor::ExecutionResult ExecuteHelper(
-      std::shared_ptr<planner::AbstractPlan> plan,
-      const std::vector<type::Value> &params, std::vector<ResultValue> &result,
-      const std::vector<int> &result_format, size_t thread_id = 0);
+  executor::ExecutionResult
+  ExecuteHelper(std::shared_ptr<planner::AbstractPlan> plan,
+                const std::vector<type::Value> &params,
+                std::vector<ResultValue> &result,
+                const std::vector<int> &result_format, size_t thread_id = 0);
 
   // Helper to handle txn-specifics for the plan-tree of a statement.
   executor::ExecutionResult ExecuteReadHelper(
       std::shared_ptr<planner::AbstractPlan> plan,
       const std::vector<type::Value> &params, std::vector<ResultValue> &result,
-      const std::vector<int> &result_format, Timestamp &basil_timestamp, pequinstore::QueryReadSetMgr &query_read_set_mgr, 
-      std::function<void(const std::string &, const Timestamp &, bool, pequinstore::QueryReadSetMgr *, pequinstore::SnapshotManager *)> &find_table_version,
+      const std::vector<int> &result_format, Timestamp &basil_timestamp,
+      pequinstore::QueryReadSetMgr &query_read_set_mgr,
+      std::function<void(const std::string &, const Timestamp &, bool,
+                         pequinstore::QueryReadSetMgr *,
+                         pequinstore::SnapshotManager *)> &find_table_version,
       std::function<bool(const std::string &)> &read_prepared_pred,
       size_t thread_id = 0);
-  
+
   // Helper to handle txn-specifics for the plan-tree of a statement.
   executor::ExecutionResult ExecuteWriteHelper(
       std::shared_ptr<planner::AbstractPlan> plan,
       const std::vector<type::Value> &params, std::vector<ResultValue> &result,
-      const std::vector<int> &result_format, Timestamp &basil_timestamp, std::shared_ptr<std::string> txn_digest, 
-      pequinstore::proto::CommittedProof *commit_proof, bool commit_or_prepare, size_t thread_id = 0);
+      const std::vector<int> &result_format, Timestamp &basil_timestamp,
+      std::shared_ptr<std::string> txn_digest,
+      const pequinstore::proto::CommittedProof *commit_proof,
+      bool commit_or_prepare, size_t thread_id = 0);
 
   // Helper to handle txn-specifics for the plan-tree of a statement.
   executor::ExecutionResult ExecutePurgeHelper(
       std::shared_ptr<planner::AbstractPlan> plan,
       const std::vector<type::Value> &params, std::vector<ResultValue> &result,
-      const std::vector<int> &result_format, Timestamp &basil_timestamp, std::shared_ptr<std::string> txn_digest,
-      bool undo_delete, size_t thread_id = 0);
-
+      const std::vector<int> &result_format, Timestamp &basil_timestamp,
+      std::shared_ptr<std::string> txn_digest, bool undo_delete,
+      size_t thread_id = 0);
 
   // Helper to handle txn-specifics for the plan-tree of a statement.
   executor::ExecutionResult ExecutePointReadHelper(
       std::shared_ptr<planner::AbstractPlan> plan,
       const std::vector<type::Value> &params, std::vector<ResultValue> &result,
-      const std::vector<int> &result_format, Timestamp &basil_timestamp, std::function<bool(const std::string &)> &predicate, 
+      const std::vector<int> &result_format, Timestamp &basil_timestamp,
+      std::function<bool(const std::string &)> &predicate,
       Timestamp *committed_timestamp,
-      pequinstore::proto::CommittedProof *commit_proof,
-      Timestamp *prepared_timestamp,
-      std::shared_ptr<std::string> txn_dig,
-      pequinstore::proto::Write *write,
-      size_t thread_id = 0);
+      const pequinstore::proto::CommittedProof *commit_proof,
+      Timestamp *prepared_timestamp, std::shared_ptr<std::string> txn_dig,
+      pequinstore::proto::Write *write, size_t thread_id = 0);
 
   // Prepare a statement using the parse tree
-  std::shared_ptr<Statement> PrepareStatement(
-      const std::string &statement_name, const std::string &query_string,
-      std::unique_ptr<parser::SQLStatementList> sql_stmt_list,
-      size_t thread_id = 0);
+  std::shared_ptr<Statement>
+  PrepareStatement(const std::string &statement_name,
+                   const std::string &query_string,
+                   std::unique_ptr<parser::SQLStatementList> sql_stmt_list,
+                   size_t thread_id = 0);
 
   bool BindParamsForCachePlan(
       const std::vector<std::unique_ptr<expression::AbstractExpression>> &,
       const size_t thread_id = 0);
 
-  std::vector<FieldInfo> GenerateTupleDescriptor(
-      parser::SQLStatement *select_stmt);
+  std::vector<FieldInfo>
+  GenerateTupleDescriptor(parser::SQLStatement *select_stmt);
 
   FieldInfo GetColumnFieldForValueType(std::string column_name,
                                        type::TypeId column_type);
@@ -234,7 +244,7 @@ class TrafficCop {
   // Commit proof returned
   pequinstore::proto::CommittedProof *commit_proof_;
 
- private:
+private:
   bool is_queuing_;
 
   std::string error_message_;
@@ -283,5 +293,5 @@ class TrafficCop {
                        std::vector<catalog::Column> &target_tables);
 };
 
-}  // namespace tcop
-}  // namespace peloton
+} // namespace tcop
+} // namespace peloton

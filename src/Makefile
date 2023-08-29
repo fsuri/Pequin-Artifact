@@ -59,7 +59,7 @@ CFLAGS += -I/usr/include/postgresql
 LDFLAGS += -ltaopq
 LDFLAGS += -lpq
 # boost
-LDFLAGS += -lboost_filesystem -lboost_system -lboost_iostreams -lboost_serialization -lboost_thread -lboost_regex -lboost_container
+LDFLAGS += -lboost_thread#-lboost_filesystem -lboost_system -lboost_iostreams -lboost_serialization -lboost_thread -lboost_regex -lboost_container
 # readline
 LDFLAGS += -lreadline
 # libpg_query

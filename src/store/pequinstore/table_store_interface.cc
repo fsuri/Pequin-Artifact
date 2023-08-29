@@ -299,7 +299,7 @@ std::string TableStore::ExecReadQuery(const std::string &query_statement,
 void TableStore::ExecPointRead(const std::string &query_statement,
                                std::string &enc_primary_key, Timestamp &ts,
                                proto::Write *write,
-                               proto::CommittedProof *committedProof) {
+                               const proto::CommittedProof *committedProof) {
   // TODO: If read_prepared = true read both committed/prepared read
   // if true --> After execution check txn_digest of prepared_value (if exist).
   // Check dependency depth. for txn_digest. If too deep, remove it.
@@ -481,7 +481,7 @@ void TableStore::ExecPointRead(const std::string &query_statement,
 void TableStore::ApplyTableWrite(const std::string &table_name,
                                  const TableWrite &table_write, Timestamp &ts,
                                  const std::string &txn_digest,
-                                 proto::CommittedProof *commit_proof,
+                                 const proto::CommittedProof *commit_proof,
                                  bool commit_or_prepare) {
   std::cout << "In apply table write" << std::endl;
   // Turn txn_digest into a shared_ptr, write everywhere it is needed.
