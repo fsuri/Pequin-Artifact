@@ -327,33 +327,33 @@ void test_read_predicate() {
   // Write Tables to JSON
   table_writer.flush();
 
-  pequinstore::TableStore table_store;
+  pequinstore::TableStore *table_store = new pequinstore::PelotonTableStore();
   pequinstore::proto::Write write;
   pequinstore::proto::CommittedProof committed_proof;
   std::string table_registry = file_name + "-tables-schema.json";
-  table_store.RegisterTableSchema(table_registry);
-  table_store.ExecRaw("CREATE TABLE test(a INT, b INT, PRIMARY KEY(a));");
-  // table_store.ExecRaw("INSERT INTO test VALUES (42, 54);");
-  // table_store.ExecRaw("INSERT INTO test VALUES (35, 26);");
-  // table_store.ExecRaw("INSERT INTO test VALUES (190, 999);");
-  table_store.ApplyTableWrite("test", table_write, toy_ts_c, "random",
+  table_store->RegisterTableSchema(table_registry);
+  table_store->ExecRaw("CREATE TABLE test(a INT, b INT, PRIMARY KEY(a));");
+  // table_store->ExecRaw("INSERT INTO test VALUES (42, 54);");
+  // table_store->ExecRaw("INSERT INTO test VALUES (35, 26);");
+  // table_store->ExecRaw("INSERT INTO test VALUES (190, 999);");
+  table_store->ApplyTableWrite("test", table_write, toy_ts_c, "random",
                               real_proof, false);
-  table_store.ApplyTableWrite("test", table_write2, toy_ts_c, "random",
+  table_store->ApplyTableWrite("test", table_write2, toy_ts_c, "random",
                               real_proof2, true);
 
-  // table_store.ApplyTableWrite("test", table_write_1, toy_ts_c, "random",
+  // table_store->ApplyTableWrite("test", table_write_1, toy_ts_c, "random",
   // real_proof, true);
   std::string enc_primary_key = "test//24";
-  // table_store.ExecRaw("INSERT INTO test VALUES (24, 256)");
-  // table_store.ExecRaw("INSERT INTO test VALUES (26, 870)");
-  // table_store.ExecRaw("DELETE FROM test WHERE a=24;");
+  // table_store->ExecRaw("INSERT INTO test VALUES (24, 256)");
+  // table_store->ExecRaw("INSERT INTO test VALUES (26, 870)");
+  // table_store->ExecRaw("DELETE FROM test WHERE a=24;");
   std::cout << "End of queryexec test" << std::endl;
-  // table_store.ExecPointRead("SELECT * FROM test WHERE a=34;",
+  // table_store->ExecPointRead("SELECT * FROM test WHERE a=34;",
   // enc_primary_key, toy_ts_c, &write, &committed_proof);
 
-  // table_store.ExecReadQuery("SELECT * FROM test;", toy_ts_c,
+  // table_store->ExecReadQuery("SELECT * FROM test;", toy_ts_c,
   // query_read_set_mgr_one);
-  table_store.ExecReadQuery("SELECT * FROM test WHERE a=42;", toy_ts_c,
+  table_store->ExecReadQuery("SELECT * FROM test WHERE a=42;", toy_ts_c,
                             query_read_set_mgr_one);
 }
 

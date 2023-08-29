@@ -38,22 +38,6 @@
 
 namespace pequinstore {
 
-static std::string GetResultValueAsString(const std::vector<peloton::ResultValue> &result, size_t index) {
-            std::string value(result[index].begin(), result[index].end());
-            return value;
-        }
-
-        void UtilTestTaskCallback(void *arg) {
-            std::atomic_int *count = static_cast<std::atomic_int *>(arg);
-            count->store(0);
-        }
-
-        void ContinueAfterComplete(std::atomic_int &counter_) {
-            while (counter_.load() == 1) {
-                usleep(10);
-            }
-        }
-
 class PelotonTableStore : public TableStore {
     public:
         PelotonTableStore();

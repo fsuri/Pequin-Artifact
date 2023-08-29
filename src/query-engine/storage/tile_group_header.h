@@ -50,11 +50,7 @@ struct TupleHeader {
   ItemPointer prev;
   ItemPointer *indirection;
   std::shared_ptr<std::string> txn_dig;
-<<<<<<< HEAD
-  const pequinstore::proto::CommittedProof* committed_proof;
-=======
   const pequinstore::proto::CommittedProof *committed_proof;
->>>>>>> query-exec
   bool commit_or_prepare;
   Timestamp basil_timestamp;
 } __attribute__((aligned(64)));
@@ -295,13 +291,7 @@ public:
   }
 
   // NEW: set commit proof
-<<<<<<< HEAD
   inline void SetCommittedProof(const oid_t &tuple_slot_id, const pequinstore::proto::CommittedProof* committed_proof) {
-=======
-  inline void
-  SetCommittedProof(const oid_t &tuple_slot_id,
-                    const pequinstore::proto::CommittedProof *committed_proof) {
->>>>>>> query-exec
     tuple_headers_[tuple_slot_id].committed_proof = committed_proof;
   }
 

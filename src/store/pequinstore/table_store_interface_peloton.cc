@@ -5,6 +5,23 @@
 namespace pequinstore {
 
 
+std::string GetResultValueAsString(const std::vector<peloton::ResultValue> &result, size_t index) {
+            std::string value(result[index].begin(), result[index].end());
+            return value;
+        }
+
+        void UtilTestTaskCallback(void *arg) {
+            std::atomic_int *count = static_cast<std::atomic_int *>(arg);
+            count->store(0);
+        }
+
+        void ContinueAfterComplete(std::atomic_int &counter_) {
+            while (counter_.load() == 1) {
+                usleep(10);
+            }
+        }
+
+
 
 PelotonTableStore::PelotonTableStore(): traffic_cop_(UtilTestTaskCallback, &counter_) {
   // init Peloton
@@ -310,9 +327,9 @@ void PelotonTableStore::ExecPointRead(const std::string &query_statement, std::s
 
     // write->set_committed_value()
     std::cout << "Commit proof client id: "
-                << traffic_cop_.commit_proof_->mutable_txn()->client_id()
+                << traffic_cop_.commit_proof_->txn().client_id()
                 << " : sequence number: "
-                << traffic_cop_.commit_proof_->mutable_txn()->client_seq_num()
+                << traffic_cop_.commit_proof_->txn().client_seq_num()
                 << std::endl;
 
     // TODO: Change Peloton result into query proto.

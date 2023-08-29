@@ -410,13 +410,8 @@ private:
   /** Transaction digest */
   std::shared_ptr<std::string> txn_dig_;
 
-<<<<<<< HEAD
-	/** Commit proof */
-  const pequinstore::proto::CommittedProof* committed_proof_;
-=======
   /** Commit proof */
   const pequinstore::proto::CommittedProof *committed_proof_;
->>>>>>> query-exec
 
   /** Timestamp of committed value */
   Timestamp *committed_timestamp_;

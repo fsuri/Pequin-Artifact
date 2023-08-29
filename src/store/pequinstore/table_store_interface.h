@@ -11,13 +11,8 @@
 
 namespace pequinstore {
 
-typedef std::function<void(const std::string &, const Timestamp &, bool,
-                           QueryReadSetMgr *, SnapshotManager *)>
-    find_table_version;
-typedef std::function<bool(const std::string &)>
-    read_prepared_pred; // This is a function that, given a txnDigest of a
-                        // prepared tx, evals to true if it is readable, and
-                        // false if not.
+typedef std::function<void(const std::string &, const Timestamp &, bool, QueryReadSetMgr *, SnapshotManager *)> find_table_version;
+typedef std::function<bool(const std::string &)> read_prepared_pred; // This is a function that, given a txnDigest of a prepared tx, evals to true if it is readable, and false if not.
 
 class TableStore {
     public:
