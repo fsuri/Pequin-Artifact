@@ -307,8 +307,7 @@ void Server::ProcessPointQuery(const uint64_t &reqId, proto::Query *query, const
 
     //1) Execute
     proto::Write *write = pointQueryReply->mutable_write();
-    // Removed const for easier integration purposes
-    proto::CommittedProof *committedProof;
+    const proto::CommittedProof *committedProof;
     std::string enc_primary_key;  //TODO: Replace with query->primary_enc_key()
 
    

@@ -219,7 +219,7 @@ executor::ExecutionResult TrafficCop::ExecuteHelper(
 executor::ExecutionResult TrafficCop::ExecuteReadHelper(
     std::shared_ptr<planner::AbstractPlan> plan,
     const std::vector<type::Value> &params, std::vector<ResultValue> &result,
-    const std::vector<int> &result_format, Timestamp &basil_timestamp,
+    const std::vector<int> &result_format, const Timestamp &basil_timestamp,
     pequinstore::QueryReadSetMgr &query_read_set_mgr,
     std::function<void(const std::string &, const Timestamp &, bool,
                        pequinstore::QueryReadSetMgr *,
@@ -301,9 +301,9 @@ executor::ExecutionResult TrafficCop::ExecuteReadHelper(
 executor::ExecutionResult TrafficCop::ExecuteWriteHelper(
     std::shared_ptr<planner::AbstractPlan> plan,
     const std::vector<type::Value> &params, std::vector<ResultValue> &result,
-    const std::vector<int> &result_format, Timestamp &basil_timestamp,
+    const std::vector<int> &result_format, const Timestamp &basil_timestamp,
     std::shared_ptr<std::string> txn_dig,
-    pequinstore::proto::CommittedProof *commit_proof, bool commit_or_prepare,
+    const pequinstore::proto::CommittedProof *commit_proof, bool commit_or_prepare,
     size_t thread_id) {
   auto &curr_state = GetCurrentTxnState();
 
@@ -380,7 +380,7 @@ executor::ExecutionResult TrafficCop::ExecuteWriteHelper(
 executor::ExecutionResult TrafficCop::ExecutePurgeHelper(
     std::shared_ptr<planner::AbstractPlan> plan,
     const std::vector<type::Value> &params, std::vector<ResultValue> &result,
-    const std::vector<int> &result_format, Timestamp &basil_timestamp,
+    const std::vector<int> &result_format, const Timestamp &basil_timestamp,
     std::shared_ptr<std::string> txn_dig, bool undo_delete, size_t thread_id) {
   auto &curr_state = GetCurrentTxnState();
 
@@ -486,10 +486,10 @@ executor::ExecutionResult TrafficCop::ExecutePurgeHelper(
 executor::ExecutionResult TrafficCop::ExecutePointReadHelper(
     std::shared_ptr<planner::AbstractPlan> plan,
     const std::vector<type::Value> &params, std::vector<ResultValue> &result,
-    const std::vector<int> &result_format, Timestamp &basil_timestamp,
+    const std::vector<int> &result_format, const Timestamp &basil_timestamp,
     std::function<bool(const std::string &)> &predicate,
     Timestamp *committed_timestamp,
-    pequinstore::proto::CommittedProof *commit_proof,
+    const pequinstore::proto::CommittedProof *commit_proof,
     Timestamp *prepared_timestamp, std::shared_ptr<std::string> txn_dig,
     pequinstore::proto::Write *write, size_t thread_id) {
   auto &curr_state = GetCurrentTxnState();
@@ -983,7 +983,7 @@ ResultType TrafficCop::ExecuteReadStatement(
     const std::vector<type::Value> &params, UNUSED_ATTRIBUTE bool unnamed,
     /*std::shared_ptr<stats::QueryMetric::QueryParams> param_stats,*/
     const std::vector<int> &result_format, std::vector<ResultValue> &result,
-    Timestamp &basil_timestamp,
+    const Timestamp &basil_timestamp,
     pequinstore::QueryReadSetMgr &query_read_set_mgr,
     std::function<void(const std::string &, const Timestamp &, bool,
                        pequinstore::QueryReadSetMgr *,
@@ -1056,7 +1056,7 @@ ResultType TrafficCop::ExecutePurgeStatement(
     const std::vector<type::Value> &params, UNUSED_ATTRIBUTE bool unnamed,
     /*std::shared_ptr<stats::QueryMetric::QueryParams> param_stats,*/
     const std::vector<int> &result_format, std::vector<ResultValue> &result,
-    Timestamp &basil_timestamp, std::shared_ptr<std::string> txn_dig,
+    const Timestamp &basil_timestamp, std::shared_ptr<std::string> txn_dig,
     bool undo_delete, size_t thread_id) {
   // TODO(Tianyi) Further simplify this API
   /*if (static_cast<StatsType>(settings::SettingsManager::GetInt(
@@ -1125,8 +1125,8 @@ ResultType TrafficCop::ExecuteWriteStatement(
     const std::vector<type::Value> &params, UNUSED_ATTRIBUTE bool unnamed,
     /*std::shared_ptr<stats::QueryMetric::QueryParams> param_stats,*/
     const std::vector<int> &result_format, std::vector<ResultValue> &result,
-    Timestamp &basil_timestamp, std::shared_ptr<std::string> txn_dig,
-    pequinstore::proto::CommittedProof *commit_proof, bool commit_or_prepare,
+    const Timestamp &basil_timestamp, std::shared_ptr<std::string> txn_dig,
+    const pequinstore::proto::CommittedProof *commit_proof, bool commit_or_prepare,
     size_t thread_id) {
   // TODO(Tianyi) Further simplify this API
   /*if (static_cast<StatsType>(settings::SettingsManager::GetInt(
@@ -1194,10 +1194,10 @@ ResultType TrafficCop::ExecutePointReadStatement(
     const std::vector<type::Value> &params, UNUSED_ATTRIBUTE bool unnamed,
     /*std::shared_ptr<stats::QueryMetric::QueryParams> param_stats,*/
     const std::vector<int> &result_format, std::vector<ResultValue> &result,
-    Timestamp &basil_timestamp,
+    const Timestamp &basil_timestamp,
     std::function<bool(const std::string &)> &predicate,
     Timestamp *committed_timestamp,
-    pequinstore::proto::CommittedProof *commit_proof,
+    const pequinstore::proto::CommittedProof *commit_proof,
     Timestamp *prepared_timestamp, std::shared_ptr<std::string> txn_dig,
     pequinstore::proto::Write *write, size_t thread_id) {
   // TODO(Tianyi) Further simplify this API

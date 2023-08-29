@@ -1902,8 +1902,10 @@ void Server::Clean(const std::string &txnDigest, bool abort, bool hard) {
     }
     prepared.erase(a);
 
-    for (const auto &[table_name, table_write] : txn->table_writes()){
-      table_store->PurgeTableWrite(table_name, table_write, ts, txnDigest);
+    if(abort){ //Remove any prepared writes; Note: ApplyWrites(commit) already updates all prepared values to committed.
+      for (const auto &[table_name, table_write] : txn->table_writes()){
+        table_store->PurgeTableWrite(table_name, table_write, ts, txnDigest);
+      }
     }
   }
   a.release();

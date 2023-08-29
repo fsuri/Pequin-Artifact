@@ -125,7 +125,7 @@ void test_read_query() {
   // Write Tables to JSON
   table_writer.flush();
 
-  pequinstore::TableStore *table_store = pequinstore::PelotonTableStore::PelotonTableStore();
+  pequinstore::TableStore *table_store = new pequinstore::PelotonTableStore();
   pequinstore::proto::Write write;
   pequinstore::proto::CommittedProof committed_proof;
   std::string table_registry = file_name + "-tables-schema.json";
@@ -159,6 +159,8 @@ void test_read_query() {
   table_store->PurgeTableWrite("test", table_write4, toy_ts_c, "random");
   table_store->ExecReadQuery("SELECT * FROM test;", toy_ts_c,
                             query_read_set_mgr_one);
+
+  delete table_store;
 }
 
 void test_committed_table_write() {
@@ -195,7 +197,7 @@ void test_committed_table_write() {
   // Write Tables to JSON
   table_writer.flush();
 
-  pequinstore::TableStore *table_store = pequinstore::PelotonTableStore::PelotonTableStore();
+  pequinstore::TableStore *table_store = new pequinstore::PelotonTableStore();
   pequinstore::proto::Write write;
   pequinstore::proto::CommittedProof committed_proof;
   std::string table_registry = file_name + "-tables-schema.json";
@@ -265,6 +267,8 @@ void test_committed_table_write() {
   }
   std::string expected = queryResultBuilder.get_result()->SerializeAsString();
   UW_ASSERT_EQ(expected, result);
+
+  delete table_store;
 }
 
 int main() {

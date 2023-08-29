@@ -11,7 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
-#undef Debug
+//#undef Debug
 
 #include <atomic>
 #include <cstring>
@@ -49,7 +49,7 @@ struct TupleHeader {
   ItemPointer prev;
   ItemPointer *indirection;
   std::shared_ptr<std::string> txn_dig;
-  pequinstore::proto::CommittedProof* committed_proof;
+  const pequinstore::proto::CommittedProof* committed_proof;
   bool commit_or_prepare;
   Timestamp basil_timestamp;
 } __attribute__((aligned(64)));
@@ -217,7 +217,7 @@ class TileGroupHeader : public Printable {
     return tuple_headers_[tuple_slot_id].txn_dig;
   }
 
-  inline pequinstore::proto::CommittedProof* GetCommittedProof(const oid_t &tuple_slot_id) const {
+  inline const pequinstore::proto::CommittedProof* GetCommittedProof(const oid_t &tuple_slot_id) const {
     return tuple_headers_[tuple_slot_id].committed_proof;
   }
 
@@ -284,7 +284,7 @@ class TileGroupHeader : public Printable {
   }
 
   // NEW: set commit proof
-  inline void SetCommittedProof(const oid_t &tuple_slot_id, pequinstore::proto::CommittedProof* committed_proof) {
+  inline void SetCommittedProof(const oid_t &tuple_slot_id, const pequinstore::proto::CommittedProof* committed_proof) {
     tuple_headers_[tuple_slot_id].committed_proof = committed_proof;
   }
 

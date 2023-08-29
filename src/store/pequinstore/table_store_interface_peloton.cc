@@ -258,11 +258,7 @@ void PelotonTableStore::ExecPointRead(const std::string &query_statement, std::s
     //TODO: Execute QueryStatement on Peloton. -> returns peloton result
             //TODO: Read latest committed (return committedProof) + Read latest prepared (if > committed)
 
-    //TODO: Change Peloton result into query proto. //TODO: For both the prepared/committed value 
-    sql::QueryResultProtoBuilder queryResultBuilder;
-    // queryResultBuilder.add_column("result");
-    // queryResultBuilder.add_row(result_row.begin(), result_row.end());
-    queryResultBuilder.get_result()->SerializeAsString(); //TODO: store into prepared/committed value
+  
 
     //TODO: Extract proof/version from CC-store. --> return ReadReply + value = serialized proto result.
 
@@ -407,7 +403,7 @@ void PelotonTableStore::ApplyTableWrite(const std::string &table_name, const Tab
 
     std::cout << "In apply table write" << std::endl;
 
-    if(table_write.rows.empty()) return;
+    if(table_write.rows().empty()) return;
 
     //Turn txn_digest into a shared_ptr, write everywhere it is needed.
     std::shared_ptr<std::string> txn_dig(std::make_shared<std::string>(txn_digest));
@@ -577,7 +573,7 @@ void PelotonTableStore::ApplyTableWrite(const std::string &table_name, const Tab
 
 void PelotonTableStore::PurgeTableWrite(const std::string &table_name, const TableWrite &table_write, const Timestamp &ts, const std::string &txn_digest){
 
-    if(table_write.rows.empty()) return;
+    if(table_write.rows().empty()) return;
 
     std::shared_ptr<std::string> txn_dig(std::make_shared<std::string>(txn_digest));
 
@@ -588,6 +584,7 @@ void PelotonTableStore::PurgeTableWrite(const std::string &table_name, const Tab
             // it deletes existing row insertions for the timestamp
             // but it also undoes existing deletes for the timestamp
         //Simple implementation: Check Versioned linked list and delete row with Timestamp ts. Return if ts > current
+        //WARNING: ONLY Purge Rows/Tuples that are prepared. Do NOT purge committed ones.
         //Note: Since Delete does not impact Indexes no other changes are necessary.
                 //Note: Purging Prepared Inserts will not clean up Index updates, i.e. the aborted transaction may leave behind a false positive index entry.
                         //Removing this false positive would require modifying the Peloton internals, so we will ignore this issue since it only affects efficiency and not results.

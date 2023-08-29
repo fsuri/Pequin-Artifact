@@ -282,7 +282,7 @@ class TransactionContext : public Printable {
     return basil_timestamp_;
   }
 
-  void SetBasilTimestamp(Timestamp &basil_timestamp) {
+  void SetBasilTimestamp(const Timestamp &basil_timestamp) {
     basil_timestamp_ = basil_timestamp;
   }
 
@@ -318,11 +318,11 @@ class TransactionContext : public Printable {
 		txn_dig_ = txn_dig;
 	}
 
-	pequinstore::proto::CommittedProof* GetCommittedProof() {
+	const pequinstore::proto::CommittedProof* GetCommittedProof() {
 		return committed_proof_;
 	}
 
-	void SetCommittedProof(pequinstore::proto::CommittedProof* commit_proof) {
+	void SetCommittedProof(const pequinstore::proto::CommittedProof* commit_proof) {
 		committed_proof_ = commit_proof;
 	}
 
@@ -435,7 +435,7 @@ class TransactionContext : public Printable {
 	std::shared_ptr<std::string> txn_dig_;
 
 	/** Commit proof */
-  pequinstore::proto::CommittedProof* committed_proof_;
+  const pequinstore::proto::CommittedProof* committed_proof_;
 
   /** Timestamp of committed value */
   Timestamp* committed_timestamp_;
