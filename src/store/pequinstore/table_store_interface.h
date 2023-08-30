@@ -8,96 +8,75 @@
 
 #include "store/pequinstore/sql_interpreter.h"
 
-// TODO: Include whatever Peloton Deps
-#include "../../query-engine/traffic_cop/traffic_cop.h"
 
 namespace pequinstore {
 
-typedef std::function<void(const std::string &, const Timestamp &, bool,
-                           QueryReadSetMgr *, SnapshotManager *)>
-    find_table_version;
-typedef std::function<bool(const std::string &)>
-    read_prepared_pred; // This is a function that, given a txnDigest of a
-                        // prepared tx, evals to true if it is readable, and
-                        // false if not.
+typedef std::function<void(const std::string &, const Timestamp &, bool, QueryReadSetMgr *, SnapshotManager *)> find_table_version;
+typedef std::function<bool(const std::string &)> read_prepared_pred; // This is a function that, given a txnDigest of a prepared tx, evals to true if it is readable, and false if not.
 
 class TableStore {
-public:
-  TableStore();
-  virtual ~TableStore();
+    public:
+        TableStore() {};
+        virtual ~TableStore() {};
 
-  void SetFindTableVersion(find_table_version _set_table_version);
-  void SetPreparePredicate(read_prepared_pred read_prepared_pred);
+        //Generic helper functions
+        void SetFindTableVersion(find_table_version &&find_table_version){
+            record_table_version = std::move(find_table_version);
+        }
+        void SetPreparePredicate(read_prepared_pred &&read_prepared_pred){
+            can_read_prepared = std::move(read_prepared_pred);
+        } 
 
-  void RegisterTableSchema(std::string &table_registry_path);
-  std::vector<bool> *GetRegistryColQuotes(const std::string &table_name);
-  std::vector<bool> *GetRegistryPColQuotes(const std::string &table_name);
+        void RegisterTableSchema(std::string &table_registry_path){
+            sql_interpreter.RegisterTables(table_registry_path);
+        }
 
-  // Execute a statement directly on the Table backend, no questions asked, no
-  // output
-  void ExecRaw(const std::string &sql_statement);
+        std::vector<bool>* GetRegistryColQuotes(const std::string &table_name){
+            return &(sql_interpreter.GetColRegistry(table_name)->col_quotes);
+        }
 
-  void LoadTable(const std::string &load_statement,
-                 const std::string &txn_digest, const Timestamp &ts,
-                 const proto::CommittedProof *committedProof);
+        std::vector<bool>* GetRegistryPColQuotes(const std::string &table_name){
+            return &(sql_interpreter.GetColRegistry(table_name)->p_col_quotes);
+        }
 
-  // Execute a read query statement on the Table backend and return a
-  // query_result/proto (in serialized form) as well as a read set (managed by
-  // readSetMgr)
-  std::string ExecReadQuery(const std::string &query_statement, Timestamp &ts,
-                            QueryReadSetMgr &readSetMgr);
+        //Backend specific implementations
 
-  // Execute a point read on the Table backend and return a query_result/proto
-  // (in serialized form) as well as a commitProof (note, the read set is
-  // implicit)
-  void ExecPointRead(const std::string &query_statement,
-                     std::string &enc_primary_key, Timestamp &ts,
-                     proto::Write *write,
-                     const proto::CommittedProof *committedProof);
-  // Note: Could execute PointRead via ExecReadQuery (Eagerly) as well.
-  //  ExecPointRead should translate enc_primary_key into a query_statement to
-  //  be exec by ExecReadQuery. (Alternatively: Could already send a Sql command
-  //  from the client)
+        //Execute a statement directly on the Table backend, no questions asked, no output
+        virtual void ExecRaw(const std::string &sql_statement) = 0;
 
-  // Apply a set of Table Writes (versioned row creations) to the Table backend
-  void ApplyTableWrite(const std::string &table_name,
-                       const TableWrite &table_write, Timestamp &ts,
-                       const std::string &txn_digest,
-                       const proto::CommittedProof *commit_proof = nullptr,
-                       bool commit_or_prepare = true);
-  /// https://www.postgresqltutorial.com/postgresql-tutorial/postgresql-upsert/
-  void PurgeTableWrite(const std::string &table_name,
-                       const TableWrite &table_write, Timestamp &ts,
-                       const std::string &txn_digest);
+        virtual void LoadTable(const std::string &load_statement, const std::string &txn_digest, const Timestamp &ts, const proto::CommittedProof *committedProof) = 0;
 
-  // Partially execute a read query statement (reconnaissance execution) and
-  // return the snapshot state (managed by ssMgr)
-  void FindSnapshot(std::string &query_statement, const Timestamp &ts,
-                    SnapshotManager &ssMgr);
+        //Execute a read query statement on the Table backend and return a query_result/proto (in serialized form) as well as a read set (managed by readSetMgr)
+        virtual std::string ExecReadQuery(const std::string &query_statement, const Timestamp &ts, QueryReadSetMgr &readSetMgr) = 0;
 
-  // Materialize a snapshot on the Table backend and execute on said snapshot.
-  void MaterializeSnapshot(
-      const std::string &query_id, const proto::MergedSnapshot &merged_ss,
-      const std::set<proto::Transaction *>
-          &ss_txns); // Note: Not sure whether we should materialize full
-                     // snapshot on demand, or continuously as we sync on Tx
-  std::string ExecReadOnSnapshot(const std::string &query_id,
-                                 std::string &query_statement,
-                                 const Timestamp &ts,
-                                 QueryReadSetMgr &readSetMgr,
-                                 bool abort_early = false);
+        //Execute a point read on the Table backend and return a query_result/proto (in serialized form) as well as a commitProof (note, the read set is implicit)
+        virtual void ExecPointRead(const std::string &query_statement, std::string &enc_primary_key, const Timestamp &ts, proto::Write *write, const proto::CommittedProof *committedProof) = 0;  
+                //Note: Could execute PointRead via ExecReadQuery (Eagerly) as well.
+                // ExecPointRead should translate enc_primary_key into a query_statement to be exec by ExecReadQuery. (Alternatively: Could already send a Sql command from the client)
 
-private:
-  find_table_version
-      set_table_version; // void function that finds current table version  ==>
-                         // set bool accordingly whether using for read set or
-                         // snapshot. Set un-used manager to nullptr
-  read_prepared_pred can_read_prepared; // bool function to determine whether or
-                                        // not to read prepared row
-  SQLTransformer sql_interpreter;
-  // TODO: Peloton DB singleton "table_backend"
-  peloton::tcop::TrafficCop traffic_cop_;
-  std::atomic_int counter_;
+        //Apply a set of Table Writes (versioned row creations) to the Table backend
+        virtual void ApplyTableWrite(const std::string &table_name, const TableWrite &table_write, const Timestamp &ts, const std::string &txn_digest, 
+            const proto::CommittedProof *commit_proof = nullptr, bool commit_or_prepare = true) = 0; 
+
+         ///https://www.postgresqltutorial.com/postgresql-tutorial/postgresql-upsert/ 
+        virtual void PurgeTableWrite(const std::string &table_name, const TableWrite &table_write, const Timestamp &ts, const std::string &txn_digest) = 0; 
+
+        
+
+        //Partially execute a read query statement (reconnaissance execution) and return the snapshot state (managed by ssMgr)
+        virtual void FindSnapshot(std::string &query_statement, const Timestamp &ts, SnapshotManager &ssMgr) = 0;
+
+        //Materialize a snapshot on the Table backend and execute on said snapshot.
+        virtual void MaterializeSnapshot(const std::string &query_id, const proto::MergedSnapshot &merged_ss, const std::set<proto::Transaction*> &ss_txns) = 0; 
+        //Note: Not sure whether we should materialize full snapshot on demand, or continuously as we sync on Tx
+        virtual std::string ExecReadOnSnapshot(const std::string &query_id, std::string &query_statement, const Timestamp &ts, QueryReadSetMgr &readSetMgr, bool abort_early = false) = 0; 
+
+
+        find_table_version record_table_version;  //void function that finds current table version  ==> set bool accordingly whether using for read set or snapshot. Set un-used manager to nullptr
+        read_prepared_pred can_read_prepared; //bool function to determine whether or not to read prepared row
+        SQLTransformer sql_interpreter;
+    private:
+        
 };
 
 } // namespace pequinstore

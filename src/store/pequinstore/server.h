@@ -46,6 +46,8 @@
 #include "store/pequinstore/batchsigner.h"
 #include "store/pequinstore/verifier.h"
 #include "store/pequinstore/table_store_interface.h"
+#include "store/pequinstore/table_store_interface_toy.h"
+#include "store/pequinstore/table_store_interface_peloton.h"
 //#include "store/pequinstore/sql_interpreter.h"
 #include <sys/time.h>
 
@@ -73,7 +75,6 @@ enum OCCType {
   TAPIR = 1
 };
 
-static std::string genesis_tx = "";
 
 //TEST/DEBUG variables
 static bool TEST_QUERY = true;   //create toy results for queries
@@ -927,8 +928,8 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
   void CreateHMACedMessage(const ::google::protobuf::Message &msg, proto::SignedMessage *signedMessage);
 
 // DATA STRUCTURES
-
-  TableStore table_store;
+  bool sql_bench;
+  TableStore *table_store;
   //SQLTransformer sql_interpreter;
 
   VersionedKVStore<Timestamp, Value> store;

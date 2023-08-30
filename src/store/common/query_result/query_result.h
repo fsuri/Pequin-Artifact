@@ -56,7 +56,7 @@ class QueryResult {
 		virtual auto has_rows_affected() const noexcept -> bool = 0;
 		virtual auto rows_affected() const -> std::size_t = 0;
 
-		inline virtual void set_rows_affected(const uint32_t _n_rows_affected){ }//Panic("Underlying Result Wrapper does not implement set_affected");}
+		inline virtual void set_rows_affected(const uint32_t _n_rows_affected) = 0; //{Panic("Underlying Result Wrapper does not implement set_affected");}
 };
 
 }

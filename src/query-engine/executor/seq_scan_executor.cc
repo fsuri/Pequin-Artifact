@@ -292,12 +292,12 @@ bool SeqScanExecutor::DExecute() {
                   EncodeTableRow(target_table_->GetName(), primary_key_cols);
               std::cout << "Encoded key from read set is " << encoded
                         << std::endl;
-              // TimestampMessage ts_message  = TimestampMessage();
+              TimestampMessage ts_message = TimestampMessage();
 
-              // ts_message.set_id(time.getID());
-              // ts_message.set_timestamp(time.getTimestamp());
+              ts_message.set_id(time.getID());
+              ts_message.set_timestamp(time.getTimestamp());
 
-              // query_read_set_mgr.AddToReadSet(encoded, ts_message);
+              query_read_set_mgr.AddToReadSet(encoded, ts_message);
 
               // logical_tile->AddEntryReadSet(encoded, time);
             }
@@ -345,11 +345,11 @@ bool SeqScanExecutor::DExecute() {
                     EncodeTableRow(target_table_->GetName(), primary_key_cols);
                 std::cout << "Encoded key from read set is " << encoded
                           << std::endl;
-                // TimestampMessage ts_message  = TimestampMessage();
+                TimestampMessage ts_message = TimestampMessage();
 
-                // ts_message.set_id(time.getID());
-                // ts_message.set_timestamp(time.getTimestamp());
-                // query_read_set_mgr.AddToReadSet(encoded, ts_message);
+                ts_message.set_id(time.getID());
+                ts_message.set_timestamp(time.getTimestamp());
+                query_read_set_mgr.AddToReadSet(encoded, ts_message);
 
                 // logical_tile->AddEntryReadSet(encoded_key, time);
               }

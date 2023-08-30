@@ -278,7 +278,7 @@ public:
 
   Timestamp GetBasilTimestamp() { return basil_timestamp_; }
 
-  void SetBasilTimestamp(Timestamp &basil_timestamp) {
+  void SetBasilTimestamp(const Timestamp &basil_timestamp) {
     basil_timestamp_ = basil_timestamp;
   }
 
@@ -310,8 +310,7 @@ public:
     return committed_proof_;
   }
 
-  void
-  SetCommittedProof(const pequinstore::proto::CommittedProof *commit_proof) {
+  void SetCommittedProof(const pequinstore::proto::CommittedProof *commit_proof) {
     committed_proof_ = commit_proof;
   }
 

@@ -126,8 +126,8 @@ void outputLogHeader_(const char *file, int line, const char *func, int level);
 #endif
 #if LOG_LEVEL <= LOG_LEVEL_DEBUG
 #define LOG_DEBUG_ENABLED
-#undef DEBUG
-#undef LOG_DEBUG
+//#undef DEBUG
+//#undef LOG_DEBUG
 //#pragma message("LOG_DEBUG was enabled.")
 #define LOG_DEBUG(...)                                                        \
   outputLogHeader_(__PELOTONFILE__, __LINE__, __FUNCTION__, LOG_LEVEL_DEBUG); \
@@ -137,7 +137,7 @@ void outputLogHeader_(const char *file, int line, const char *func, int level);
 #else
 #define LOG_DEBUG(...) ((void)0)
 #endif
-#undef DEBUG
+//#undef DEBUG
 
 #ifdef LOG_TRACE_ENABLED
 #undef LOG_TRACE_ENABLED

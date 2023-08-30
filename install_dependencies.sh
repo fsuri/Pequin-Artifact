@@ -13,7 +13,7 @@ sudo apt-get upgrade
 
 sudo apt install python3-pip
 sudo -H pip3 install numpy
-sudo apt-get install autoconf automake libtool curl make g++ unzip valgrind cmake gnuplot pkg-config ant libreadline-dev libeigen3-dev
+sudo apt-get install autoconf automake libtool curl make g++ unzip valgrind cmake gnuplot pkg-config ant 
 
 echo "$(tput setaf 2) COMPLETE: GENERAL PRE-REQ $(tput sgr0)"
 read -p "Press enter to continue"
@@ -22,7 +22,7 @@ echo ""
 #Development library dependencies
 echo "Installing Development library dependencies"
 echo ""
-sudo apt install libsodium-dev libgflags-dev libssl-dev libevent-dev libevent-openssl-2.1-7 libevent-pthreads-2.1-7 libboost-all-dev libuv1-dev libpq-dev postgresql-server-dev-all libfmt-dev
+sudo apt install libsodium-dev libgflags-dev libssl-dev libevent-dev libevent-openssl-2.1-7 libevent-pthreads-2.1-7 libboost-all-dev libuv1-dev libpq-dev postgresql-server-dev-all libfmt-dev libreadline-dev libeigen3-dev libboost-all-dev
 echo "$(tput setaf 2) COMPLETE: GENERAL DEVELOPMENT LIB DEPS $(tput sgr0)"
 echo ""
 read -p "Press enter to continue"
@@ -155,11 +155,13 @@ sudo ldconfig
 cd ..
 echo "$(tput setaf 2) COMPLETE: ed25519-donna $(tput sgr0)"
 echo ""
+read -p "Press enter to continue"
 
-echo "Installing peloton dependencies"
+###################
+echo "Installing Peloton dependencies"
 echo ""
 
-echo "Installing libcount"
+echo "--libcount"
 echo ""
 git clone https://github.com/dialtr/libcount
 cd libcount
@@ -167,28 +169,36 @@ sudo make
 sudo make install
 cd ..
 
-echo "Installing libpg_query"
+echo "--libpg_query"
 echo ""
 git clone https://github.com/cmu-db/peloton.git
 cd peloton/third_party/libpgquery
 sudo make
 cd ..
-cp -r libpgquery /usr/local/include
-cp libpg_query/libpg_query.a /usr/local/lib
+sudo cp -r libpgquery /usr/local/include
+sudo cp libpg_query/libpg_query.a /usr/local/lib
 
-echo "Installing libcuckoo"
+echo "--libcuckoo"
 echo ""
-cp -r libcuckoo /usr/local/include
+sudo cp -r libcuckoo /usr/local/include
 
-echo "Installing date"
+echo "--date"
 echo ""
-cp -r date /usr/local/include
+sudo cp -r date /usr/local/include
 
-echo "Installing adaptive radix tree"
+echo "--adaptive_radix_tree"
 echo ""
-cp -r adaptive_radix_tree /usr/local/include
+sudo cp -r adaptive_radix_tree /usr/local/include
 
-read -p "Press enter to continue -- Manual interaction required: See install guide IntelTBB"
+sudo ldconfig
+cd ../..
+
+echo "$(tput setaf 2) COMPLETE: Peloton deps $(tput sgr0)"
+echo ""
+
+########################
+
+read -p "Press enter to continue -- Manual interaction required for the next step: See install guide, section IntelTBB"
 #IntelTBB
 echo "Installing Intel TBB"
 echo ""

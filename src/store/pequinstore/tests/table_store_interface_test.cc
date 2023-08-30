@@ -38,6 +38,7 @@
 #include "store/common/query_result/query_result_proto_builder.h"
 #include "store/common/query_result/query_result_proto_wrapper.h"
 #include "store/pequinstore/table_store_interface.h"
+#include "store/pequinstore/table_store_interface_peloton.h"
 
 #include "store/benchmark/async/json_table_writer.h"
 #include "store/pequinstore/sql_interpreter.h"
@@ -125,40 +126,42 @@ void test_read_query() {
   // Write Tables to JSON
   table_writer.flush();
 
-  pequinstore::TableStore table_store;
+  pequinstore::TableStore *table_store = new pequinstore::PelotonTableStore();
   pequinstore::proto::Write write;
   pequinstore::proto::CommittedProof committed_proof;
   std::string table_registry = file_name + "-tables-schema.json";
-  table_store.RegisterTableSchema(table_registry);
-  table_store.ExecRaw("CREATE TABLE test(a INT, b INT, PRIMARY KEY(a));");
-  // table_store.ExecRaw("INSERT INTO test VALUES (42, 54);");
-  // table_store.ExecRaw("INSERT INTO test VALUES (35, 26);");
-  // table_store.ExecRaw("INSERT INTO test VALUES (190, 999);");
-  table_store.ApplyTableWrite("test", table_write, toy_ts_c, "random",
-                              real_proof, true);
-  table_store.ApplyTableWrite("test", table_write2, toy_ts_c, "random",
-                              real_proof2, true);
-  table_store.ApplyTableWrite("test", table_write3, toy_ts_c, "random",
-                              real_proof3, true);
-  table_store.ApplyTableWrite("test", table_write4, toy_ts_c, "random",
-                              real_proof4, true);
+  table_store->RegisterTableSchema(table_registry);
+  table_store->ExecRaw("CREATE TABLE test(a INT, b INT, PRIMARY KEY(a));");
+  // table_store->ExecRaw("INSERT INTO test VALUES (42, 54);");
+  // table_store->ExecRaw("INSERT INTO test VALUES (35, 26);");
+  // table_store->ExecRaw("INSERT INTO test VALUES (190, 999);");
+  table_store->ApplyTableWrite("test", table_write, toy_ts_c, "random",
+                               real_proof, true);
+  table_store->ApplyTableWrite("test", table_write2, toy_ts_c, "random",
+                               real_proof2, true);
+  table_store->ApplyTableWrite("test", table_write3, toy_ts_c, "random",
+                               real_proof3, true);
+  table_store->ApplyTableWrite("test", table_write4, toy_ts_c, "random",
+                               real_proof4, true);
 
   std::cout << "New change 10" << std::endl;
-  // table_store.ApplyTableWrite("test", table_write_1, toy_ts_c, "random",
+  // table_store->ApplyTableWrite("test", table_write_1, toy_ts_c, "random",
   // real_proof, true);
   std::string enc_primary_key = "test//24";
-  // table_store.ExecRaw("INSERT INTO test VALUES (24, 256)");
-  // table_store.ExecRaw("INSERT INTO test VALUES (26, 870)");
-  // table_store.ExecRaw("DELETE FROM test WHERE a=24;");
+  // table_store->ExecRaw("INSERT INTO test VALUES (24, 256)");
+  // table_store->ExecRaw("INSERT INTO test VALUES (26, 870)");
+  // table_store->ExecRaw("DELETE FROM test WHERE a=24;");
   std::cout << "End of queryexec test" << std::endl;
-  // table_store.ExecPointRead("SELECT * FROM test WHERE a=34;",
+  // table_store->ExecPointRead("SELECT * FROM test WHERE a=34;",
   // enc_primary_key, toy_ts_c, &write, &committed_proof);
 
-  // table_store.ExecReadQuery("SELECT * FROM test;", toy_ts_c,
+  // table_store->ExecReadQuery("SELECT * FROM test;", toy_ts_c,
   // query_read_set_mgr_one);
-  table_store.PurgeTableWrite("test", table_write4, toy_ts_c, "random");
-  table_store.ExecReadQuery("SELECT * FROM test;", toy_ts_c,
-                            query_read_set_mgr_one);
+  table_store->PurgeTableWrite("test", table_write4, toy_ts_c, "random");
+  table_store->ExecReadQuery("SELECT * FROM test;", toy_ts_c,
+                             query_read_set_mgr_one);
+
+  delete table_store;
 }
 
 void test_committed_table_write() {
@@ -195,14 +198,14 @@ void test_committed_table_write() {
   // Write Tables to JSON
   table_writer.flush();
 
-  pequinstore::TableStore table_store;
+  pequinstore::TableStore *table_store = new pequinstore::PelotonTableStore();
   pequinstore::proto::Write write;
   pequinstore::proto::CommittedProof committed_proof;
   std::string table_registry = file_name + "-tables-schema.json";
   std::cout << "Pre register" << std::endl;
-  table_store.RegisterTableSchema(table_registry);
+  table_store->RegisterTableSchema(table_registry);
   std::cout << "Post register" << std::endl;
-  table_store.ExecRaw("CREATE TABLE test(a INT, b INT, PRIMARY KEY(a));");
+  table_store->ExecRaw("CREATE TABLE test(a INT, b INT, PRIMARY KEY(a));");
 
   Timestamp toy_ts_c(10, 12);
   Timestamp toy_ts_c_1(20, 20);
@@ -222,8 +225,8 @@ void test_committed_table_write() {
     row1->add_column_values(std::to_string(i));
     row1->add_column_values(std::to_string(i));
 
-    table_store.ApplyTableWrite("test", table_write, toy_ts_c, "random",
-                                real_proof, true);
+    table_store->ApplyTableWrite("test", table_write, toy_ts_c, "random",
+                                 real_proof, true);
   }
 
   for (size_t i = 0; i < num_overwrites; i++) {
@@ -239,11 +242,11 @@ void test_committed_table_write() {
     row1->add_column_values(std::to_string(i));
     row1->add_column_values(std::to_string(i + 100));
 
-    table_store.ApplyTableWrite("test", table_write, toy_ts_c_1, "random",
-                                real_proof, true);
+    table_store->ApplyTableWrite("test", table_write, toy_ts_c_1, "random",
+                                 real_proof, true);
   }
 
-  std::string result = table_store.ExecReadQuery(
+  std::string result = table_store->ExecReadQuery(
       "SELECT * FROM test;", toy_ts_c_1, query_read_set_mgr_one);
 
   sql::QueryResultProtoBuilder queryResultBuilder;
@@ -265,6 +268,8 @@ void test_committed_table_write() {
   }
   std::string expected = queryResultBuilder.get_result()->SerializeAsString();
   UW_ASSERT_EQ(expected, result);
+
+  delete table_store;
 }
 
 void test_read_predicate() {
@@ -323,12 +328,12 @@ void test_read_predicate() {
   // Write Tables to JSON
   table_writer.flush();
 
-  pequinstore::TableStore table_store;
+  pequinstore::TableStore *table_store = new pequinstore::PelotonTableStore();
   pequinstore::proto::Write write;
   pequinstore::proto::CommittedProof committed_proof;
   std::string table_registry = file_name + "-tables-schema.json";
-  table_store.RegisterTableSchema(table_registry);
-  table_store.ExecRaw("CREATE TABLE test(a INT, b INT, PRIMARY KEY(a));");
+  table_store->RegisterTableSchema(table_registry);
+  table_store->ExecRaw("CREATE TABLE test(a INT, b INT, PRIMARY KEY(a));");
   // table_store.ExecRaw("INSERT INTO test VALUES (42, 54);");
   // table_store.ExecRaw("INSERT INTO test VALUES (35, 26);");
   // table_store.ExecRaw("INSERT INTO test VALUES (190, 999);");
@@ -350,8 +355,8 @@ void test_read_predicate() {
     row1->add_column_values(std::to_string(i));
     row1->add_column_values(std::to_string(i));
 
-    table_store.ApplyTableWrite("test", table_write, pesto_timestamp, "random",
-                                real_proof, true);
+    table_store->ApplyTableWrite("test", table_write, pesto_timestamp, "random",
+                                 real_proof, true);
   }
 
   for (size_t i = 0; i < num_overwrites; i++) {
@@ -367,8 +372,8 @@ void test_read_predicate() {
     row1->add_column_values(std::to_string(i));
     row1->add_column_values(std::to_string(i + 34));
 
-    table_store.ApplyTableWrite("test", table_write, toy_ts_c, "random",
-                                real_proof, false);
+    table_store->ApplyTableWrite("test", table_write, toy_ts_c, "random",
+                                 real_proof, false);
   }
 
   /*table_store.ApplyTableWrite("test", table_write, toy_ts_c, "random",
@@ -376,25 +381,25 @@ void test_read_predicate() {
   table_store.ApplyTableWrite("test", table_write2, toy_ts_c, "random",
                               real_proof2, true);*/
 
-  // table_store.ApplyTableWrite("test", table_write_1, toy_ts_c, "random",
+  // table_store->ApplyTableWrite("test", table_write_1, toy_ts_c, "random",
   // real_proof, true);
   std::string enc_primary_key = "test//24";
-  // table_store.ExecRaw("INSERT INTO test VALUES (24, 256)");
-  // table_store.ExecRaw("INSERT INTO test VALUES (26, 870)");
-  // table_store.ExecRaw("DELETE FROM test WHERE a=24;");
+  // table_store->ExecRaw("INSERT INTO test VALUES (24, 256)");
+  // table_store->ExecRaw("INSERT INTO test VALUES (26, 870)");
+  // table_store->ExecRaw("DELETE FROM test WHERE a=24;");
   std::cout << "End of queryexec test" << std::endl;
-  // table_store.ExecPointRead("SELECT * FROM test WHERE a=34;",
+  // table_store->ExecPointRead("SELECT * FROM test WHERE a=34;",
   // enc_primary_key, toy_ts_c, &write, &committed_proof);
 
-  // table_store.ExecReadQuery("SELECT * FROM test;", toy_ts_c,
+  // table_store->ExecReadQuery("SELECT * FROM test;", toy_ts_c,
   // query_read_set_mgr_one);
-  table_store.ExecReadQuery("SELECT * FROM test WHERE a=0;", toy_ts_c,
-                            query_read_set_mgr_one);
+  table_store->ExecReadQuery("SELECT * FROM test WHERE a=0;", toy_ts_c,
+                             query_read_set_mgr_one);
 }
 
 int main() {
-  test_read_query();
+  // test_read_query();
   // test_committed_table_write();
-  // test_read_predicate();
+  test_read_predicate();
   return 0;
 }

@@ -32,6 +32,7 @@
 #include <csignal>
 
 #include <valgrind/callgrind.h>
+#include <filesystem>
 
 #include "lib/keymanager.h"
 #include "lib/transport.h"
@@ -913,7 +914,9 @@ int main(int argc, char **argv) {
             server->CreateIndex(table_name, column_names_and_types, index_name, index_col_idx);
           }
           //Load full table data
-          server->LoadTableData(table_name, table_args["row_data_path"], primary_key_col_idx);
+          //TODO: splice row_data path into Data_file_path.   //TODO: Add json file suffix to the file itself. (i.e. add filename)   ===> Test in table_write tester.
+          std::string row_data_path = std::filesystem::path(FLAGS_data_file_path).replace_filename(table_args["row_data_path"]); //https://en.cppreference.com/w/cpp/filesystem/path
+          server->LoadTableData(table_name, row_data_path, primary_key_col_idx);
           // //Load Rows individually 
           // for(auto &row: table_args["rows"]){
           //   const std::vector<std::string> &values = row;

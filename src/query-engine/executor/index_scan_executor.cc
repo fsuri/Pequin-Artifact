@@ -721,73 +721,118 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
   oid_t current_tile_group_oid = INVALID_OID;
   std::vector<oid_t> tuples;
 
+  auto primary_index_columns_ = index_->GetMetadata()->GetKeyAttrs();
+  auto query_read_set_mgr = current_txn->GetQueryReadSetMgr();
+
   for (auto &visible_tuple_location : visible_tuple_locations) {
     if (current_tile_group_oid == INVALID_OID) {
-      std::cout << "1" << std::endl;
       current_tile_group_oid = visible_tuple_location.block;
     }
     if (current_tile_group_oid == visible_tuple_location.block) {
-      std::cout << "2" << std::endl;
+      auto tile_group =
+          storage_manager->GetTileGroup(visible_tuple_location.block);
+      auto tile_group_header = tile_group.get()->GetHeader();
+
+      ContainerTuple<storage::TileGroup> row(tile_group.get(),
+                                             visible_tuple_location.offset);
+
       tuples.push_back(visible_tuple_location.offset);
+      std::vector<std::string> primary_key_cols;
+      for (auto col : primary_index_columns_) {
+        auto val = row.GetValue(col);
+        // encoded_key = encoded_key + "///" + val.ToString();
+        primary_key_cols.push_back(val.ToString());
+        // primary_key_cols.push_back(val.GetAs<const char*>());
+        std::cout << "read set value is " << val.ToString() << std::endl;
+      }
+      Timestamp time =
+          tile_group_header->GetBasilTimestamp(visible_tuple_location.offset);
+      // logical_tile->AddToReadSet(std::tie(encoded_key, time));
+
+      for (unsigned int i = 0; i < primary_key_cols.size(); i++) {
+        std::cout << "Primary key columns are " << primary_key_cols[i]
+                  << std::endl;
+      }
+
+      std::string encoded = EncodeTableRow(index_->GetName(), primary_key_cols);
+      std::cout << "Encoded key from read set is " << encoded << std::endl;
+      TimestampMessage ts_message = TimestampMessage();
+
+      ts_message.set_id(time.getID());
+      ts_message.set_timestamp(time.getTimestamp());
+
+      query_read_set_mgr.AddToReadSet(encoded, ts_message);
+
     } else {
       // Since the tile_group_oids differ, fill in the current tile group
       // into the result vector
-      std::cout << "3" << std::endl;
       auto storage_manager = storage::StorageManager::GetInstance();
-      std::cout << "4" << std::endl;
       auto tile_group = storage_manager->GetTileGroup(current_tile_group_oid);
-      std::cout << "5" << std::endl;
       std::unique_ptr<LogicalTile> logical_tile(LogicalTileFactory::GetTile());
-      std::cout << "6" << std::endl;
       // Add relevant columns to logical tile
       logical_tile->AddColumns(tile_group, full_column_ids_);
-      std::cout << "7" << std::endl;
       logical_tile->AddPositionList(std::move(tuples));
-      std::cout << "8" << std::endl;
       // Add prepared values and commit proofs to logical tile
       // logical_tile->AddPreparedValues(prepared_values[0]);
       logical_tile->SetCommitProofs(proofs[0]);
-      std::cout << "9" << std::endl;
       if (column_ids_.size() != 0) {
-        std::cout << "10" << std::endl;
         logical_tile->ProjectColumns(full_column_ids_, column_ids_);
-        std::cout << "11" << std::endl;
       }
       result_.push_back(logical_tile.release());
-      std::cout << "12" << std::endl;
 
       // Change the current_tile_group_oid and add the current tuple
       tuples.clear();
-      std::cout << "13" << std::endl;
       current_tile_group_oid = visible_tuple_location.block;
-      std::cout << "14" << std::endl;
       tuples.push_back(visible_tuple_location.offset);
-      std::cout << "15" << std::endl;
+
+      tile_group = storage_manager->GetTileGroup(visible_tuple_location.block);
+      auto tile_group_header = tile_group.get()->GetHeader();
+
+      ContainerTuple<storage::TileGroup> row(tile_group.get(),
+                                             visible_tuple_location.offset);
+
+      tuples.push_back(visible_tuple_location.offset);
+      std::vector<std::string> primary_key_cols;
+      for (auto col : primary_index_columns_) {
+        auto val = row.GetValue(col);
+        // encoded_key = encoded_key + "///" + val.ToString();
+        primary_key_cols.push_back(val.ToString());
+        // primary_key_cols.push_back(val.GetAs<const char*>());
+        std::cout << "read set value is " << val.ToString() << std::endl;
+      }
+      Timestamp time =
+          tile_group_header->GetBasilTimestamp(visible_tuple_location.offset);
+      // logical_tile->AddToReadSet(std::tie(encoded_key, time));
+
+      for (unsigned int i = 0; i < primary_key_cols.size(); i++) {
+        std::cout << "Primary key columns are " << primary_key_cols[i]
+                  << std::endl;
+      }
+
+      std::string encoded = EncodeTableRow(index_->GetName(), primary_key_cols);
+      std::cout << "Encoded key from read set is " << encoded << std::endl;
+      TimestampMessage ts_message = TimestampMessage();
+
+      ts_message.set_id(time.getID());
+      ts_message.set_timestamp(time.getTimestamp());
+
+      query_read_set_mgr.AddToReadSet(encoded, ts_message);
     }
   }
 
   // Add the remaining tuples to the result vector
   if ((current_tile_group_oid != INVALID_OID) && (!tuples.empty())) {
-    std::cout << "16" << std::endl;
     auto tile_group = storage_manager->GetTileGroup(current_tile_group_oid);
-    std::cout << "17" << std::endl;
     std::unique_ptr<LogicalTile> logical_tile(LogicalTileFactory::GetTile());
-    std::cout << "18" << std::endl;
     // Add relevant columns to logical tile
     logical_tile->AddColumns(tile_group, full_column_ids_);
-    std::cout << "19" << std::endl;
     logical_tile->AddPositionList(std::move(tuples));
-    std::cout << "20" << std::endl;
     // Add prepared values and commit proofs to logical tile
     // logical_tile->AddPreparedValues(prepared_values[0]);
     // logical_tile->SetCommitProofs(proofs[0]);
-    std::cout << "21" << std::endl;
     if (column_ids_.size() != 0) {
-      std::cout << "22" << std::endl;
       logical_tile->ProjectColumns(full_column_ids_, column_ids_);
-      std::cout << "23" << std::endl;
     }
-    std::cout << "24" << std::endl;
     result_.push_back(logical_tile.release());
   }
 

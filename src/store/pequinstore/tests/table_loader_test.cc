@@ -135,6 +135,17 @@ int main() {
     //   }
     // }
 
+    std::string FLAGS_data_file_path = "/Research/Projects/Pequin/Pequin-Artifact/src/pequinstore/testing/test-data-tables-schema.json";
+    //std::string FLAGS_data_file_path = "test-data-tables-schema.json";
+    // std::cerr << "PARSE PATH ROOT NAME: " << std::filesystem::path(FLAGS_data_file_path).root_name() << std::endl;
+    // std::cerr << "PARSE PATH ROOT DIR: " << std::filesystem::path(FLAGS_data_file_path).root_directory() << std::endl;
+    // std::cerr << "PARSE PATH ROOT PATH: " << std::filesystem::path(FLAGS_data_file_path).root_path() << std::endl;
+    // std::cerr << "PARSE PATH RELATIVE: " << std::filesystem::path(FLAGS_data_file_path).relative_path() << std::endl;
+    // std::cerr << "PARSE PATH PARENT: " << std::filesystem::path(FLAGS_data_file_path).parent_path() << std::endl;
+
+    std::string row_data_path = std::filesystem::path(FLAGS_data_file_path).replace_filename(table["row_data_path"]);
+    std::cerr << "TEST DATA PATH: " << row_data_path << std::endl;
+
     //Read in CSV:
     const std::string &row_file_name = table["row_data_path"];  //TODO: pass this to Import function
     //Additionally: Read The primary column values  
@@ -176,116 +187,118 @@ int main() {
         
     }
   
-       
-
-
-
     std::cerr << std::endl;
   }
 
   // CRDB Example:
 
-  file_name = "crdb_example/crdb-kv";
-   
-   // TableWriter test_writer(file_name);
+  // std::cerr << "Testing CRDB Generation" << std::endl;
 
-  //  column_names_and_types.clear();
+  // file_name = "crdb_example/crdb-kv";
+   
+  //  // TableWriter test_writer(file_name);
+
+  // //  column_names_and_types.clear();
  
-  // primary_key_col_idx.clear();
+  // // primary_key_col_idx.clear();
  
-  // std::string test_name = "datastore";
+  // // std::string test_name = "datastore";
   
-  // column_names_and_types.push_back(std::make_pair("key_", "TEXT"));
-  // column_names_and_types.push_back(std::make_pair("val_", "TEXT"));
+  // // column_names_and_types.push_back(std::make_pair("key_", "TEXT"));
+  // // column_names_and_types.push_back(std::make_pair("val_", "TEXT"));
 
-  // primary_key_col_idx.push_back(0);
-  // test_writer.add_table(test_name, column_names_and_types, primary_key_col_idx);
+  // // primary_key_col_idx.push_back(0);
+  // // test_writer.add_table(test_name, column_names_and_types, primary_key_col_idx);
 
-  // //Write Tables to JSON
-  // test_writer.flush();
+  // // //Write Tables to JSON
+  // // test_writer.flush();
 
 
-  //Read CSV
+  // //Read CSV
 
-  load_name = file_name + "-tables-schema.json";
-   std::ifstream crdb_tables(load_name);
-   json crdb_tables_to_load = json::parse(crdb_tables);
+  // load_name = file_name + "-tables-schema.json";
+  //  std::ifstream crdb_tables(load_name);
+  //  json crdb_tables_to_load = json::parse(crdb_tables);
 
-  //Load all tables. 
-  for(auto &[table_name, table]: crdb_tables_to_load.items()){
-    //std::string table_name = name; //["table_name"]; 
-    const std::vector<std::pair<std::string, std::string>> &column_names_and_types = table["column_names_and_types"];
-    const std::vector<uint32_t> &primary_key_col_idx = table["primary_key_col_idx"];
-    std::cerr << table_name << std::endl;
-    for(auto &[col, type]: column_names_and_types){
-      std::cerr << col << " : " << type << std::endl;
-    }
+  // //Load all tables. 
+  // for(auto &[table_name, table]: crdb_tables_to_load.items()){
+  //   //std::string table_name = name; //["table_name"]; 
+  //   const std::vector<std::pair<std::string, std::string>> &column_names_and_types = table["column_names_and_types"];
+  //   const std::vector<uint32_t> &primary_key_col_idx = table["primary_key_col_idx"];
+  //   std::cerr << table_name << std::endl;
+  //   for(auto &[col, type]: column_names_and_types){
+  //     std::cerr << col << " : " << type << std::endl;
+  //   }
    
-    std::cerr << "primary cols: ";
-    std::cerr << "(";
-    for(auto &pidx: primary_key_col_idx){
-      std::cerr << (column_names_and_types[pidx].first) << ", ";
-    }
-    std::cerr << ")" << std::endl;
+  //   std::cerr << "primary cols: ";
+  //   std::cerr << "(";
+  //   for(auto &pidx: primary_key_col_idx){
+  //     std::cerr << (column_names_and_types[pidx].first) << ", ";
+  //   }
+  //   std::cerr << ")" << std::endl;
 
-    for(auto &[index_name, index_col_idx]: table["indexes"].items()){
-        std::cerr << "Index name: " << index_name << ":(";
-        for(auto &i_idx: index_col_idx){
-          std::cerr << (column_names_and_types[i_idx].first) << ", ";
-        }
-        std::cerr << ")" << std::endl;
-    }
+  //   for(auto &[index_name, index_col_idx]: table["indexes"].items()){
+  //       std::cerr << "Index name: " << index_name << ":(";
+  //       for(auto &i_idx: index_col_idx){
+  //         std::cerr << (column_names_and_types[i_idx].first) << ", ";
+  //       }
+  //       std::cerr << ")" << std::endl;
+  //   }
 
-    // for(auto &row: table["rows"]){
-    //  // server->LoadTableRow(table_name, column_names_and_types, row["values"], primary_key_col_idx);
-    //   const std::vector<std::string> &vals = row;
-    //   for(auto &val: vals){
-    //     std::cerr << val << std::endl;
-    //   }
-    // }
+  //   // for(auto &row: table["rows"]){
+  //   //  // server->LoadTableRow(table_name, column_names_and_types, row["values"], primary_key_col_idx);
+  //   //   const std::vector<std::string> &vals = row;
+  //   //   for(auto &val: vals){
+  //   //     std::cerr << val << std::endl;
+  //   //   }
+  //   // }
 
-    //Read in CSV:
-    const std::string &row_file_name = table["row_data_path"];  //TODO: pass this to Import function
-    //Additionally: Read The primary column values  
-        //Read full column value, and then find primary.
-        //OR: Read Header --> find index, then only extract that index
+
+  //   //Read in CSV:
+  //   const std::string &row_file_name = table["row_data_path"];  //TODO: pass this to Import function
+  //   //Additionally: Read The primary column values  
+  //       //Read full column value, and then find primary.
+  //       //OR: Read Header --> find index, then only extract that index
     
-    std::cerr << "Reading Table Data from: " << row_file_name << std::endl;
+  //   std::cerr << "Reading Table Data from: " << row_file_name << std::endl;
 
-    std::ifstream row_data(row_file_name);
+  //   std::ifstream row_data(row_file_name);
 
-    //Skip header
-    std::string columns;
-    getline(row_data, columns); 
-    std::cerr << "columns: " << columns << std::endl;
+  //   //Skip header
+  //   std::string columns;
+  //   getline(row_data, columns); 
+  //   std::cerr << "columns: " << columns << std::endl;
 
 
-    std::string row_line;
-    std::string value;
+  //   std::string row_line;
+  //   std::string value;
 
-    while(getline(row_data, row_line)){
-      std::cerr << "next row: " << row_line << std::endl;
-        std::vector<std::string> primary_col_vals;
-        uint32_t col_idx = 0;
-        uint32_t p_col_idx = 0;
-       // used for breaking words
-        std::stringstream row(row_line);
+  //   while(getline(row_data, row_line)){
+  //     std::cerr << "next row: " << row_line << std::endl;
+  //       std::vector<std::string> primary_col_vals;
+  //       uint32_t col_idx = 0;
+  //       uint32_t p_col_idx = 0;
+  //      // used for breaking words
+  //       std::stringstream row(row_line);
   
-        // read every column data of a row and store it in a string variable, 'value'. Extract only the primary_col_values
-         while (getline(row, value, ',')) {
-          if(col_idx == primary_key_col_idx[p_col_idx]){
-            p_col_idx++;
+  //       // read every column data of a row and store it in a string variable, 'value'. Extract only the primary_col_values
+  //        while (getline(row, value, ',')) {
+  //         if(col_idx == primary_key_col_idx[p_col_idx]){
+  //           p_col_idx++;
       
-             std::cerr << "p_col_value: " << value << std::endl;
-            primary_col_vals.push_back(std::move(value));
-          }
-          col_idx++;
+  //            std::cerr << "p_col_value: " << value << std::endl;
+  //           primary_col_vals.push_back(std::move(value));
+  //         }
+  //         col_idx++;
         
-        }
+  //       }
         
-    }
-    std::cerr << std::endl;
-  }
+  //   }
+  //   std::cerr << std::endl;
+  // }
+
+
+  
 
 
   return 0;

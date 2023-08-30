@@ -11,7 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
-#undef Debug
+//#undef Debug
 
 #include <atomic>
 #include <cstring>
@@ -222,8 +222,7 @@ public:
     return tuple_headers_[tuple_slot_id].txn_dig;
   }
 
-  inline const pequinstore::proto::CommittedProof *
-  GetCommittedProof(const oid_t &tuple_slot_id) const {
+  inline const pequinstore::proto::CommittedProof* GetCommittedProof(const oid_t &tuple_slot_id) const {
     return tuple_headers_[tuple_slot_id].committed_proof;
   }
 
@@ -292,9 +291,7 @@ public:
   }
 
   // NEW: set commit proof
-  inline void
-  SetCommittedProof(const oid_t &tuple_slot_id,
-                    const pequinstore::proto::CommittedProof *committed_proof) {
+  inline void SetCommittedProof(const oid_t &tuple_slot_id, const pequinstore::proto::CommittedProof* committed_proof) {
     tuple_headers_[tuple_slot_id].committed_proof = committed_proof;
   }
 

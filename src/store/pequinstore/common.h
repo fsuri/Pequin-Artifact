@@ -36,6 +36,7 @@
 #include "store/pequinstore/verifier.h"
 #include "lib/tcptransport.h"
 
+#include <stack>
 #include <map>
 #include <string>
 #include <vector>

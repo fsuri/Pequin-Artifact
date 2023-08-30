@@ -307,8 +307,7 @@ void Server::ProcessPointQuery(const uint64_t &reqId, proto::Query *query, const
 
     //1) Execute
     proto::Write *write = pointQueryReply->mutable_write();
-    // Removed const for easier integration purposes
-    proto::CommittedProof *committedProof;
+    const proto::CommittedProof *committedProof;
     std::string enc_primary_key;  //TODO: Replace with query->primary_enc_key()
 
    
@@ -319,8 +318,13 @@ void Server::ProcessPointQuery(const uint64_t &reqId, proto::Query *query, const
         SetRTS(ts, query->primary_enc_key());
     }
 
-    table_store.ExecPointRead(query->query_cmd(), enc_primary_key, ts, write, committedProof);
+    table_store->ExecPointRead(query->query_cmd(), enc_primary_key, ts, write, committedProof);
     delete query;
+
+    if(write->has_committed_value()){
+        UW_ASSERT(committedProof); //proof must exist
+        *pointQueryReply->mutable_proof() = *committedProof;
+    } 
 
     if(TEST_QUERY){
         ///////////
@@ -498,7 +502,7 @@ void Server::FindSnapshot(QueryMetaData *query_md, proto::Query *query){
     //                                                         //
     //
     //              EXEC BLACKBOX -- TBD
-    table_store.FindSnapshot(query_md->query_cmd, query_md->ts, query_md->snapshot_mgr);
+    table_store->FindSnapshot(query_md->query_cmd, query_md->ts, query_md->snapshot_mgr);
     //                                                         //
     //                                                         //
     //                                                         //
@@ -1602,7 +1606,7 @@ void Server::UpdateWaitingQueriesTS(const uint64_t &txnTS, const std::string &tx
         }
         q.release();
     }
-
+    Debug("Completed all possible wake-ups for queries waiting on txn_id %s with ts_id %lu", BytesToHex(txnDigest, 16).c_str(), txnTS);
 }
 
 
@@ -1620,7 +1624,7 @@ std::string Server::ExecQuery(QueryReadSetMgr &queryReadSetMgr, QueryMetaData *q
 
        //If MVTSO: Read prepared, Set RTS
     std::string serialized_result;
-    if(!materialize) serialized_result = table_store.ExecReadQuery(query_md->query_cmd, query_md->ts, queryReadSetMgr);
+    if(!materialize) serialized_result = table_store->ExecReadQuery(query_md->query_cmd, query_md->ts, queryReadSetMgr);
     if(materialize) Warning("Do not yet support Snapshot materialization");
 
     if(occType == MVTSO && params.rtsMode > 0){
