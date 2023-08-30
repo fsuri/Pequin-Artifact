@@ -212,7 +212,7 @@ void test_committed_table_write() {
     pequinstore::proto::CommittedProof *real_proof =
         new pequinstore::proto::CommittedProof();
     real_proof->mutable_txn()->set_client_id(toy_ts_c.getID());
-    real_proof->mutable_txn()->set_client_seq_num(toy_ts_c_1.getTimestamp());
+    real_proof->mutable_txn()->set_client_seq_num(toy_ts_c.getTimestamp());
     toy_ts_c.serialize(real_proof->mutable_txn()->mutable_timestamp());
     TableWrite &table_write =
         (*real_proof->mutable_txn()->mutable_table_writes())["test"];
@@ -279,7 +279,7 @@ void test_read_predicate() {
   pequinstore::QueryReadSetMgr query_read_set_mgr_one(&read_set_one, 1, false);
 
   Timestamp toy_ts_c(10, 12);
-  pequinstore::proto::CommittedProof *real_proof =
+  /*pequinstore::proto::CommittedProof *real_proof =
       new pequinstore::proto::CommittedProof();
   real_proof->mutable_txn()->set_client_id(toy_ts_c.getID());
   real_proof->mutable_txn()->set_client_seq_num(toy_ts_c.getTimestamp());
@@ -301,7 +301,7 @@ void test_read_predicate() {
 
   RowUpdates *row2 = table_write2.add_rows();
   row2->add_column_values("24");
-  row2->add_column_values("225");
+  row2->add_column_values("225");*/
 
   static std::string file_name =
       "store/pequinstore/tests/sql_interpreter_test_registry";
@@ -331,10 +331,49 @@ void test_read_predicate() {
   // table_store.ExecRaw("INSERT INTO test VALUES (42, 54);");
   // table_store.ExecRaw("INSERT INTO test VALUES (35, 26);");
   // table_store.ExecRaw("INSERT INTO test VALUES (190, 999);");
-  table_store.ApplyTableWrite("test", table_write, toy_ts_c, "random",
+
+  size_t num_writes = 2;
+  size_t num_overwrites = 1;
+
+  for (size_t i = 0; i < num_writes; i++) {
+    pequinstore::proto::CommittedProof *real_proof =
+        new pequinstore::proto::CommittedProof();
+    real_proof->mutable_txn()->set_client_id(pesto_timestamp.getID());
+    real_proof->mutable_txn()->set_client_seq_num(
+        pesto_timestamp.getTimestamp());
+    toy_ts_c.serialize(real_proof->mutable_txn()->mutable_timestamp());
+    TableWrite &table_write =
+        (*real_proof->mutable_txn()->mutable_table_writes())["test"];
+
+    RowUpdates *row1 = table_write.add_rows();
+    row1->add_column_values(std::to_string(i));
+    row1->add_column_values(std::to_string(i));
+
+    table_store.ApplyTableWrite("test", table_write, pesto_timestamp, "random",
+                                real_proof, true);
+  }
+
+  for (size_t i = 0; i < num_overwrites; i++) {
+    pequinstore::proto::CommittedProof *real_proof =
+        new pequinstore::proto::CommittedProof();
+    real_proof->mutable_txn()->set_client_id(toy_ts_c.getID());
+    real_proof->mutable_txn()->set_client_seq_num(toy_ts_c.getTimestamp());
+    toy_ts_c.serialize(real_proof->mutable_txn()->mutable_timestamp());
+    TableWrite &table_write =
+        (*real_proof->mutable_txn()->mutable_table_writes())["test"];
+
+    RowUpdates *row1 = table_write.add_rows();
+    row1->add_column_values(std::to_string(i));
+    row1->add_column_values(std::to_string(i + 34));
+
+    table_store.ApplyTableWrite("test", table_write, toy_ts_c, "random",
+                                real_proof, false);
+  }
+
+  /*table_store.ApplyTableWrite("test", table_write, toy_ts_c, "random",
                               real_proof, false);
   table_store.ApplyTableWrite("test", table_write2, toy_ts_c, "random",
-                              real_proof2, true);
+                              real_proof2, true);*/
 
   // table_store.ApplyTableWrite("test", table_write_1, toy_ts_c, "random",
   // real_proof, true);
@@ -348,7 +387,7 @@ void test_read_predicate() {
 
   // table_store.ExecReadQuery("SELECT * FROM test;", toy_ts_c,
   // query_read_set_mgr_one);
-  table_store.ExecReadQuery("SELECT * FROM test WHERE a=42;", toy_ts_c,
+  table_store.ExecReadQuery("SELECT * FROM test WHERE a=0;", toy_ts_c,
                             query_read_set_mgr_one);
 }
 

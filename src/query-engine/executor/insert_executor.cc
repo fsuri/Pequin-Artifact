@@ -348,9 +348,18 @@ bool InsertExecutor::DExecute() {
                                           new_location);
         new_tile_group->GetHeader()->SetIndirection(new_location.offset,
                                                     indirection);
+        new_tile_group->GetHeader()->SetCommitOrPrepare(
+            new_location.offset, current_txn->GetCommitOrPrepare());
       } else {
         transaction_manager.PerformInsert(current_txn, location,
                                           index_entry_ptr);
+        auto storage_manager = storage::StorageManager::GetInstance();
+
+        auto tile_group = storage_manager->GetTileGroup(location.block);
+        auto tile_group_header = tile_group->GetHeader();
+
+        tile_group_header->SetCommitOrPrepare(
+            location.offset, current_txn->GetCommitOrPrepare());
       }
       // TODO: This is what was here before
       // transaction_manager.PerformInsert(current_txn, location,
