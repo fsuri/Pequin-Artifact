@@ -257,6 +257,7 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
         !current_txn->GetUndoDelete()) {
       LOG_TRACE("encounter deleted tuple: %u, %u", tuple_location.block,
                 tuple_location.offset);
+      continue;
       // break;
     }
     // else if the tuple is deleted and we are undoing a delete
@@ -293,6 +294,7 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
         }
         // visible_tuple_locations.push_back(new_tuple_location);
       }
+      continue;
       // break;
     }
 

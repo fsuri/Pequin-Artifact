@@ -106,7 +106,8 @@ void test_read_query() {
   row4->add_column_values("225");
   row4->set_deletion(true);
 
-  static std::string file_name = "sql_interpreter_test_registry";
+  static std::string file_name =
+      "store/pequinstore/tests/sql_interpreter_test_registry";
   // Create desired registry via table writer.
   std::string table_name = "test";
   std::vector<std::pair<std::string, std::string>> column_names_and_types;
@@ -392,8 +393,8 @@ void test_read_predicate() {
 }
 
 int main() {
-  // test_read_query();
+  test_read_query();
   // test_committed_table_write();
-  test_read_predicate();
+  // test_read_predicate();
   return 0;
 }
