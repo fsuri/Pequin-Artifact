@@ -6,25 +6,29 @@ namespace pequinstore {
 
 
 std::string GetResultValueAsString(const std::vector<peloton::ResultValue> &result, size_t index) {
-            std::string value(result[index].begin(), result[index].end());
-            return value;
-        }
+    std::string value(result[index].begin(), result[index].end());
+    return value;
+}
 
-        void UtilTestTaskCallback(void *arg) {
-            std::atomic_int *count = static_cast<std::atomic_int *>(arg);
-            count->store(0);
-        }
+void UtilTestTaskCallback(void *arg) {
+    std::atomic_int *count = static_cast<std::atomic_int *>(arg);
+    count->store(0);
+}
 
-        void ContinueAfterComplete(std::atomic_int &counter_) {
-            while (counter_.load() == 1) {
-                usleep(10);
-            }
-        }
+void ContinueAfterComplete(std::atomic_int &counter_) {
+    while (counter_.load() == 1) {
+        usleep(10);
+    }
+}
 
 
 
-PelotonTableStore::PelotonTableStore(): traffic_cop_(UtilTestTaskCallback, &counter_) {
+PelotonTableStore::PelotonTableStore(): traffic_cop_(UtilTestTaskCallback, &counter_), unnamed_statement("unnamed"), unnamed(false) {
   // init Peloton
+  auto &txn_manager = peloton::concurrency::TransactionManagerFactory::GetInstance();
+  auto txn = txn_manager.BeginTransaction();
+  peloton::catalog::Catalog::GetInstance()->CreateDatabase(txn, DEFAULT_DB_NAME);
+  txn_manager.CommitTransaction(txn);
   // traffic_cop_ = peloton::tcop::TrafficCop(UtilTestTaskCallback, &counter_);
 }
 
@@ -46,7 +50,6 @@ void PelotonTableStore::ExecRaw(const std::string &sql_statement){
     // execute the query using tcop
     // prepareStatement
     // LOG_TRACE("Query: %s", query.c_str());
-    std::string unnamed_statement = "unnamed";
     auto &peloton_parser = peloton::parser::PostgresParser::GetInstance();
     auto sql_stmt_list = peloton_parser.BuildParseTree(sql_statement);
     // PELOTON_ASSERT(sql_stmt_list);
@@ -61,7 +64,7 @@ void PelotonTableStore::ExecRaw(const std::string &sql_statement){
     }
     // ExecuteStatment
     std::vector<peloton::type::Value> param_values;
-    bool unnamed = false;
+    
     std::vector<int> result_format(statement->GetTupleDescriptor().size(), 0);
 
     // SetTrafficCopCounter();
@@ -95,7 +98,6 @@ void PelotonTableStore::LoadTable(const std::string &load_statement, const std::
     // execute the query using tcop
     // prepareStatement
     // LOG_TRACE("Query: %s", query.c_str());
-    std::string unnamed_statement = "unnamed";
     auto &peloton_parser = peloton::parser::PostgresParser::GetInstance();
     auto sql_stmt_list = peloton_parser.BuildParseTree(load_statement);
     // PELOTON_ASSERT(sql_stmt_list);
@@ -110,7 +112,7 @@ void PelotonTableStore::LoadTable(const std::string &load_statement, const std::
     }
     // ExecuteStatment
     std::vector<peloton::type::Value> param_values;
-    bool unnamed = false;
+    
     std::vector<int> result_format(statement->GetTupleDescriptor().size(), 0);
     // SetTrafficCopCounter();
     counter_.store(1);
@@ -138,7 +140,6 @@ std::string PelotonTableStore::ExecReadQuery(const std::string &query_statement,
             //args: query, Ts, readSetMgr, this->can_read_prepared, this->set_table_version
     //TODO: Execute on Peloton --> returns peloton result
 
-    //TODO: Change Peloton result into query proto.
     std::cout << "Inside ExecReadQuery" << std::endl;
     // args: query, Ts, readSetMgr, this->can_read_prepared,
     // this->set_table_version
@@ -149,7 +150,6 @@ std::string PelotonTableStore::ExecReadQuery(const std::string &query_statement,
     // execute the query using tcop
     // prepareStatement
     // LOG_TRACE("Query: %s", query.c_str());
-    std::string unnamed_statement = "unnamed";
     auto &peloton_parser = peloton::parser::PostgresParser::GetInstance();
     auto sql_stmt_list = peloton_parser.BuildParseTree(query_statement);
     // PELOTON_ASSERT(sql_stmt_list);
@@ -165,7 +165,9 @@ std::string PelotonTableStore::ExecReadQuery(const std::string &query_statement,
     }
     // ExecuteStatment
     std::vector<peloton::type::Value> param_values;
-    bool unnamed = false;
+    
+    // TODO: Pass in predicate here as well, table_version not for point read
+    //only readquery, done before touching indexes
     std::vector<int> result_format(statement->GetTupleDescriptor().size(), 0);
     // SetTrafficCopCounter();
     counter_.store(1);
@@ -183,64 +185,28 @@ std::string PelotonTableStore::ExecReadQuery(const std::string &query_statement,
         tuple_descriptor = statement->GetTupleDescriptor();
     }
 
-    // TODO: Pass in predicate here as well, table_version not for point read only
-    // readquery, done before touching indexes
+    
 
-    // TODO: Change Peloton result into query proto.
+    // Change Peloton result into query proto.
+     // std::cout << "Tuple descriptor size is " << tuple_descriptor.size() << std::endl;
     sql::QueryResultProtoBuilder queryResultBuilder;
-    // queryResultBuilder.add_column("result");
-    // queryResultBuilder.add_row(result_row.begin(), result_row.end());
-    // std::cout << "Before adding columns" << std::endl;
     // Add columns
     for (unsigned int i = 0; i < tuple_descriptor.size(); i++) {
         std::string column_name = std::get<0>(tuple_descriptor[i]);
         queryResultBuilder.add_column(column_name);
     }
-
-    // std::cout << "Before adding rows" << std::endl;
-    // std::cout << "Tuple descriptor size is " << tuple_descriptor.size()
-    //<< std::endl;
-
+   
     // Add rows
     unsigned int rows = result.size() / tuple_descriptor.size();
     for (unsigned int i = 0; i < rows; i++) {
-        // std::string row_string = "Row " + std::to_string(i) + ": ";
-        // std::cout << "Row index is " << i << std::endl;
-        // queryResultBuilder.add_empty_row();
-
         RowProto *row = queryResultBuilder.new_row();
-        // queryResultBuilder.add_empty_row();
         for (unsigned int j = 0; j < tuple_descriptor.size(); j++) {
         // TODO: Use interface addtorow, and pass in field to that row
-
-        queryResultBuilder.AddToRow(row, result[i * tuple_descriptor.size() + j]);
-        // std::cout << "Get field value" << std::endl;
-        //  FieldProto *field = row->add_fields();
-        //  std::string field_value = GetResultValueAsString(result, i *
-        //  tuple_descriptor.size() + j);
-        //  field->set_data(queryResultBuilder.serialize(field_value));
-        //  field->set_data(result[i*tuple_descriptor.size()+j]);
-        // std::cout << "After" << std::endl;
-        //  queryResultBuilder.update_field_in_row(i, j, field_value);
-        //  row_string += GetResultValueAsString(result, i *
-        //  tuple_descriptor.size() + j);
-
-        // std::cout << "Inside j loop" << std::endl;
-        // std::cout << GetResultValueAsString(result, i * tuple_descriptor.size()
-        // + j) << std::endl;
+            queryResultBuilder.AddToRow(row, result[i * tuple_descriptor.size() + j]);
         }
     }
 
-    std::cout << "Result from query result builder is " << std::endl;
-    // std::cout << queryResultBuilder.get_result()->SerializeAsString() <<
-    // std::endl;
-    std::string query_result =
-        queryResultBuilder.get_result()->SerializeAsString();
-    // std::string* copy = new std::string(query_result);
-    std::cout << query_result << std::endl;
-    
-
-    return query_result;
+    return queryResultBuilder.get_result()->SerializeAsString();
 }
 
 //Execute a point read on the Table backend and return a query_result/proto (in serialized form) as well as a commitProof (note, the read set is implicit)
@@ -288,7 +254,6 @@ void PelotonTableStore::ExecPointRead(const std::string &query_statement, std::s
     // execute the query using tcop
     // prepareStatement
     // LOG_TRACE("Query: %s", query.c_str());
-    std::string unnamed_statement = "unnamed";
     auto &peloton_parser = peloton::parser::PostgresParser::GetInstance();
     auto sql_stmt_list = peloton_parser.BuildParseTree(query_statement);
     // PELOTON_ASSERT(sql_stmt_list);
@@ -303,7 +268,7 @@ void PelotonTableStore::ExecPointRead(const std::string &query_statement, std::s
     }
     // ExecuteStatment
     std::vector<peloton::type::Value> param_values;
-    bool unnamed = false;
+    
     std::vector<int> result_format(statement->GetTupleDescriptor().size(), 0);
     // SetTrafficCopCounter();
     counter_.store(1);
@@ -449,7 +414,6 @@ void PelotonTableStore::ApplyTableWrite(const std::string &table_name, const Tab
         // execute the query using tcop
         // prepareStatement
         // LOG_TRACE("Query: %s", query.c_str());
-        std::string unnamed_statement = "unnamed";
         auto &peloton_parser = peloton::parser::PostgresParser::GetInstance();
         auto sql_stmt_list = peloton_parser.BuildParseTree(write_statement);
         // PELOTON_ASSERT(sql_stmt_list);
@@ -464,7 +428,7 @@ void PelotonTableStore::ApplyTableWrite(const std::string &table_name, const Tab
         }
         // ExecuteStatment
         std::vector<peloton::type::Value> param_values;
-        bool unnamed = false;
+        
         std::vector<int> result_format(statement->GetTupleDescriptor().size(), 0);
         // SetTrafficCopCounter();
         counter_.store(1);
@@ -510,7 +474,7 @@ void PelotonTableStore::ApplyTableWrite(const std::string &table_name, const Tab
     }
     // ExecuteStatment
     std::vector<peloton::type::Value> param_values;
-    bool unnamed = false;
+    
     std::vector<int> result_format(statement->GetTupleDescriptor().size(), 0);
     // SetTrafficCopCounter();
     counter_.store(1);
@@ -542,7 +506,6 @@ void PelotonTableStore::ApplyTableWrite(const std::string &table_name, const Tab
 
     //if (!delete_statement.empty()) {
     for(auto &delete_statement: delete_statements){
-        std::string unnamed_statement = "unnamed";
         auto &peloton_parser = peloton::parser::PostgresParser::GetInstance();
         auto sql_stmt_list = peloton_parser.BuildParseTree(delete_statement);
 
@@ -559,7 +522,7 @@ void PelotonTableStore::ApplyTableWrite(const std::string &table_name, const Tab
         // ExecuteStatment
         std::vector<peloton::type::Value> param_values;
         param_values.clear();
-        bool unnamed = false;
+        
         std::vector<int> result_format(statement->GetTupleDescriptor().size(), 0);
         // SetTrafficCopCounter();
         counter_.store(1);
@@ -650,7 +613,7 @@ void PelotonTableStore::PurgeTableWrite(const std::string &table_name, const Tab
             traffic_cop_.setRowsAffected(0);
         }
         std::vector<peloton::type::Value> param_values;
-        bool unnamed = false;
+        
         param_values.clear();
         std::vector<int> result_format(statement->GetTupleDescriptor().size(), 0);
 

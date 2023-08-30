@@ -77,6 +77,8 @@ class PelotonTableStore : public TableStore {
         //Peloton DB singleton "table_backend"
 		peloton::tcop::TrafficCop traffic_cop_;
 		std::atomic_int counter_;
+        std::string unnamed_statement;
+        bool unnamed;
 
 };
 
