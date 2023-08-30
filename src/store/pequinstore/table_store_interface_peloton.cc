@@ -238,6 +238,7 @@ std::string PelotonTableStore::ExecReadQuery(const std::string &query_statement,
         queryResultBuilder.get_result()->SerializeAsString();
     // std::string* copy = new std::string(query_result);
     std::cout << query_result << std::endl;
+    
 
     return query_result;
 }

@@ -786,6 +786,8 @@ void SQLTransformer::TransformDelete(size_t pos, std::string_view &write_stateme
 static bool fine_grained_quotes = false;  //false == add quotes to everything, true == add quotes only to the fields that need it.
 //fine_grained_quotes requires use of TableRegistry now. However, it seems to work fine for Peloton to add quotes to everything indiscriminately. 
 
+//NOTE: Peloton does not support WHERE IN syntax for delete statements. => must use the generator version that creates separate delete statements.
+
 void SQLTransformer::GenerateTableWriteStatement(std::string &write_statement, std::string &delete_statement, const std::string &table_name, const TableWrite &table_write){
    
 //Turn Table Writes into Upsert and Delete statement:  ///https://www.postgresqltutorial.com/postgresql-tutorial/postgresql-upsert/ 

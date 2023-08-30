@@ -450,6 +450,8 @@ void Server::ManageDispatchSupplyTx(const TransportAddress &remote, const std::s
 //////////////////////////////////////////////////////// Protocol Helper Functions
 
 void Server::FindTableVersion(const std::string &table_name, const Timestamp &ts, bool read_or_snapshot, QueryReadSetMgr *readSetMgr, SnapshotManager *snapshotMgr){
+  //Read the current TableVersion from CC-store
+  //Note: TableVersion is updated AFTER all TableWrites of a TX have been written. So the TableVersion from CC-store is a pessimistic version; if it is outdated we abort, but that is safe.
 
   //Read committed
   std::pair<Timestamp, Server::Value> tsVal;
