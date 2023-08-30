@@ -494,7 +494,7 @@ void ShardClient::HandleQueryResult(proto::QueryResultReply &queryResult){
         }
          //Set deps to merged deps == recorded dependencies from f+1 replicas -> one correct replica reported upper bound on deps
         if(matching_res == params.query_params.resultQuorum){
-            proto::ReadSet *query_read_set =  replica_result->mutable_query_read_set();
+            proto::ReadSet *query_read_set = replica_result->mutable_query_read_set();
             query_read_set->clear_deps(); //Reset and override with merged deps
             for(auto write: result_mgr.merged_deps){
                 Debug("TEST: Adding dep %s", BytesToHex(write->prepared_txn_digest(), 16).c_str());

@@ -827,7 +827,8 @@ void* Server::TryPrepare(uint64_t reqId, const TransportAddress &remote, proto::
       if(params.query_params.optimisticTxID){ //If using optimisticTxID: Store ts to Tx mapping
         ts_to_txMap::accessor t; 
         bool first = ts_to_tx.insert(t, MergeTimestampId(txn->timestamp().timestamp(), txn->timestamp().id()));
-        if(!first && !TEST_PREPARE_SYNC) Panic("Two Transactions have the same Timestamp. Equivocation"); // Report issuing client (txn->client_id() = txn->timestamp.id())
+        if(!first && !TEST_PREPARE_SYNC) Panic("Two Transactions have the same Timestamp. Equivocation"); // Report issuing client (txn->client_id() = txn->timestamp.id()) 
+                  //TODO: Hard Abort/Clean this TX & forward to other replicas so they can resolve TXs
         t->second = txnDigest;
         t.release();
         //Note: Timestamp mappings are not garbage collected during clean. They may only be deleted when garbage collecting < Low Watermark ==> because then we no longer need to access the Tx

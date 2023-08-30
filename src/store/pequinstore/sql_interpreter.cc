@@ -783,8 +783,9 @@ void SQLTransformer::TransformDelete(size_t pos, std::string_view &write_stateme
 
 //////////////////// Table Write Generator
 
-static bool fine_grained_quotes = false;
-    //Using TableRegistry now. But still adding quotes to everything indiscriminately. That seems to work fine for Peloton
+static bool fine_grained_quotes = false;  //false == add quotes to everything, true == add quotes only to the fields that need it.
+//fine_grained_quotes requires use of TableRegistry now. However, it seems to work fine for Peloton to add quotes to everything indiscriminately. 
+
 void SQLTransformer::GenerateTableWriteStatement(std::string &write_statement, std::string &delete_statement, const std::string &table_name, const TableWrite &table_write){
    
 //Turn Table Writes into Upsert and Delete statement:  ///https://www.postgresqltutorial.com/postgresql-tutorial/postgresql-upsert/ 
@@ -810,7 +811,7 @@ void SQLTransformer::GenerateTableWriteStatement(std::string &write_statement, s
 
     for(auto &row: table_write.rows()){
         //Alternatively: Move row contents to a vector and use: fmt::join(vec, ",")
-        if(row.deletion()){
+        if(row.has_deletion() && row.deletion()){
 
             for(auto &[col_name, p_idx]: col_registry.primary_key_cols_idx){
                 if(fine_grained_quotes){
@@ -884,7 +885,6 @@ void SQLTransformer::GenerateTableWriteStatement(std::string &write_statement, s
 
 }
 
-// std::vector<std::string> &purge_statements, 
 void SQLTransformer::GenerateTablePurgeStatement(std::string &purge_statement, const std::string &table_name, const TableWrite &table_write){
     //Abort all TableWrites: Previous writes must be deleted; Previous deletes must be un-done
     //Puts all write and deletes into one purge
@@ -915,41 +915,121 @@ void SQLTransformer::GenerateTablePurgeStatement(std::string &purge_statement, c
     purge_statement.resize(purge_statement.length()-5); //Remove trailing " AND "
     purge_statement += ";";
 
-    /////////////////////////
-    //This code only deletes table writes meant for insertion. However, we must also undo table writes for deletion
-    // const ColRegistry &col_registry = TableRegistry.at(table_name);
-    // std::map<std::string, std::vector<std::string>> delete_conds;
-
-    // for(auto &row: table_write.rows()){
-    //         //Alternatively: Move row contents to a vector and use: fmt::join(vec, ",")
-    //         if(!row.deletion()){
-    //             for(auto &[col_name, p_idx]: col_registry.primary_key_cols_idx){
-    //                 if(fine_grained_quotes){
-    //                     if(col_registry.col_quotes[p_idx]) delete_conds[col_name].push_back("\'" + row.column_values()[p_idx] + "\'");
-    //                     else delete_conds[col_name].push_back(row.column_values()[p_idx] );
-    //                 }
-    //                 else{
-    //                     delete_conds[col_name].push_back("\'" + row.column_values()[p_idx] + "\'");
-    //                 }
-    //             }
-    //         }
-    // }
-    
-    // if(delete_conds.empty()) return false;
-
-    // purge_statement = fmt::format("DELETE FROM {0} WHERE ", table_name);
-    // for(auto &[col_name, p_idx]: col_registry.primary_key_cols_idx){
-    //     purge_statement += fmt::format("{0} in ({1}) AND ", col_name, fmt::join(delete_conds[col_name], ", "));
-    // }
-    // purge_statement.resize(purge_statement.length()-5); //Remove trailing " AND "
-    // purge_statement += ";";
-
-    //FIXME: If no delete clauses --> should not delete anything
-    return; //I.e. there is delete conds.
-   
-   //extract all positive values
+    return; 
 }
 
+void SQLTransformer::GenerateTableWriteStatement(std::string &write_statement, std::vector<std::string> &delete_statements, const std::string &table_name, const TableWrite &table_write){
+    //Create one joint WriteStatement for all insertions
+        //NOTE: Inserts must always insert -- even if value exists ==> Insert new row.
+    //Create separate Delete statements for each delete
+
+    // write_statement = fmt::format("INSERT INTO {0} VALUES ", table_name);
+
+    const ColRegistry &col_registry = TableRegistry.at(table_name);
+
+    for(auto &row: table_write.rows()){
+        
+        if(row.has_deletion() && row.deletion()){
+            delete_statements.push_back("");
+            std::string &delete_statement = delete_statements.back();
+            delete_statement = fmt::format("DELETE FROM {0} WHERE ", table_name);
+
+            for(auto &[col_name, p_idx]: col_registry.primary_key_cols_idx){
+                //delete_statement += fmt::format("{0}={1} AND ", col_name, row.column_values()[p_idx]);
+                //delete_statement += col_name + "=" + row.column_values()[p_idx] + " AND ";
+
+                if(fine_grained_quotes){
+                    if(col_registry.col_quotes[p_idx]) delete_statement += col_name + "=" + "\'" + row.column_values()[p_idx] + "\'" + " AND ";
+                    else delete_statement += col_name + "=" + row.column_values()[p_idx] + " AND ";
+                }
+                else{
+                    delete_statement += col_name + "=" + "\'" + row.column_values()[p_idx] + "\'" + " AND ";
+                }
+            }
+
+            delete_statement.resize(delete_statement.length()-5); //Remove trailing " AND "
+            delete_statement += ";";
+        }
+        else{
+            write_statement += "(";
+            UW_ASSERT(row.column_values_size() == col_registry.col_names.size());
+            if(fine_grained_quotes){ // Use this to add fine grained quotes:
+                for(int i = 0; i < row.column_values_size(); ++i){
+                    if(col_registry.col_quotes[i])  write_statement += "\'" + row.column_values()[i]  + "\'" + ", ";
+                    else write_statement += row.column_values()[i] + ", ";
+                }
+            }
+            else{
+                for(auto &col_val: row.column_values()){
+                    write_statement += "\'" + col_val  + "\'" + ", ";
+                }
+            }
+        
+            write_statement.resize(write_statement.length()-2); //remove trailing ", "
+            write_statement += "), ";
+        }
+      
+
+        //write_statement += fmt::format("{}, ", fmt::join(row.column_values(), ','));
+    }
+    if(!write_statement.empty()){
+        write_statement.resize(write_statement.length()-2); //remove trailing ", "
+        write_statement = fmt::format("INSERT INTO {0} VALUES ", table_name) + write_statement;
+
+        //TODO: If we are hacking Insert to always insert --> then can remove this block 
+        if(false){
+            write_statement += " ON CONFLICT (";
+            for(auto &[col_name, _]: col_registry.primary_key_cols_idx){
+                write_statement += col_name + ", ";
+            }
+            write_statement.resize(write_statement.length()-2); //remove trailing ", "
+
+            write_statement += ") VALUES DO UPDATE SET "; //TODO: loop, replace with index
+            for(auto &col: col_registry.col_names){
+                write_statement += fmt::format("{0} = EXCLUDED.{0}, ", col);
+            }
+            write_statement.resize(write_statement.length()-2); //remove trailing ", "
+
+        }
+    
+        write_statement += ";";
+    }
+    
+    return;  
+}
+
+void SQLTransformer::GenerateTablePurgeStatement(std::vector<std::string> &purge_statements, const std::string &table_name, const TableWrite &table_write){
+
+    const ColRegistry &col_registry = TableRegistry.at(table_name);
+
+    for(auto &row: table_write.rows()){
+         //generate a purge statement per row.
+        purge_statements.push_back("");
+        std::string &purge_statement = purge_statements.back();
+        purge_statement = fmt::format("DELETE FROM {0} WHERE ", table_name);
+
+        for(auto &[col_name, p_idx]: col_registry.primary_key_cols_idx){
+            //purge_statement += fmt::format("{0}={1} AND ", col_name, row.column_values()[p_idx]);
+            //purge_statement += col_name + "=" + row.column_values()[p_idx] + " AND ";
+
+            if(fine_grained_quotes){
+                if(col_registry.col_quotes[p_idx]) purge_statement += col_name + "=" + "\'" + row.column_values()[p_idx] + "\'" + " AND ";
+                else purge_statement += col_name + "=" + row.column_values()[p_idx] + " AND ";
+            }
+            else{
+                purge_statement += col_name + "=" + "\'" + row.column_values()[p_idx] + "\'" + " AND ";
+            }
+        }
+
+        purge_statement.resize(purge_statement.length()-5); //Remove trailing " AND "
+        purge_statement += ";";
+    }
+
+    return;
+    //TODO: update GenerateDelete Statements too.
+    //TODO: update interface to use this function. Loop over deletes and purges.
+        
+}
 
 //////////////////// OLD: Without TableRegistry
 

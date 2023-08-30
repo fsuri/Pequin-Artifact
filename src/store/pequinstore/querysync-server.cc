@@ -98,7 +98,7 @@ void Server::HandleQuery(const TransportAddress &remote, proto::QueryRequest &ms
         query = msg.release_query(); //mutable_query()
     }
 
-    //Only process if below watermark.
+    //Only process if above watermark. I.e. ignore old queries
     clientQueryWatermarkMap::const_accessor qw;
     if(clientQueryWatermark.find(qw, query->client_id()) && qw->second >= query->query_seq_num()){
     //if(clientQueryWatermark[query->client_id()] >= query->query_seq_num()){

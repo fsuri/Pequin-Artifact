@@ -46,11 +46,10 @@
 using namespace pequinstore;
 
 void test_read_query() {
-  auto &txn_manager =
-      peloton::concurrency::TransactionManagerFactory::GetInstance();
+
+  auto &txn_manager = peloton::concurrency::TransactionManagerFactory::GetInstance();
   auto txn = txn_manager.BeginTransaction();
-  peloton::catalog::Catalog::GetInstance()->CreateDatabase(txn,
-                                                           DEFAULT_DB_NAME);
+  peloton::catalog::Catalog::GetInstance()->CreateDatabase(txn, DEFAULT_DB_NAME);
   txn_manager.CommitTransaction(txn);
 
   Timestamp pesto_timestamp(4, 6);
@@ -58,49 +57,41 @@ void test_read_query() {
   pequinstore::QueryReadSetMgr query_read_set_mgr_one(&read_set_one, 1, false);
 
   Timestamp toy_ts_c(10, 12);
-  pequinstore::proto::CommittedProof *real_proof =
-      new pequinstore::proto::CommittedProof();
+  pequinstore::proto::CommittedProof *real_proof = new pequinstore::proto::CommittedProof();
   real_proof->mutable_txn()->set_client_id(10);
   real_proof->mutable_txn()->set_client_seq_num(12);
   toy_ts_c.serialize(real_proof->mutable_txn()->mutable_timestamp());
-  TableWrite &table_write =
-      (*real_proof->mutable_txn()->mutable_table_writes())["test"];
+  TableWrite &table_write = (*real_proof->mutable_txn()->mutable_table_writes())["test"];
 
   RowUpdates *row1 = table_write.add_rows();
   row1->add_column_values("42");
   row1->add_column_values("54");
 
-  pequinstore::proto::CommittedProof *real_proof2 =
-      new pequinstore::proto::CommittedProof();
+  pequinstore::proto::CommittedProof *real_proof2 = new pequinstore::proto::CommittedProof();
   real_proof2->mutable_txn()->set_client_id(10);
   real_proof2->mutable_txn()->set_client_seq_num(12);
 
-  TableWrite &table_write2 =
-      (*real_proof2->mutable_txn()->mutable_table_writes())["test"];
+  TableWrite &table_write2 = (*real_proof2->mutable_txn()->mutable_table_writes())["test"];
 
   RowUpdates *row2 = table_write2.add_rows();
   row2->add_column_values("24");
   row2->add_column_values("225");
 
-  pequinstore::proto::CommittedProof *real_proof3 =
-      new pequinstore::proto::CommittedProof();
+  pequinstore::proto::CommittedProof *real_proof3 = new pequinstore::proto::CommittedProof();
   real_proof3->mutable_txn()->set_client_id(10);
   real_proof3->mutable_txn()->set_client_seq_num(12);
 
-  TableWrite &table_write3 =
-      (*real_proof3->mutable_txn()->mutable_table_writes())["test"];
+  TableWrite &table_write3 = (*real_proof3->mutable_txn()->mutable_table_writes())["test"];
 
   RowUpdates *row3 = table_write3.add_rows();
   row3->add_column_values("34");
   row3->add_column_values("315");
 
-  pequinstore::proto::CommittedProof *real_proof4 =
-      new pequinstore::proto::CommittedProof();
+  pequinstore::proto::CommittedProof *real_proof4 = new pequinstore::proto::CommittedProof();
   real_proof4->mutable_txn()->set_client_id(10);
   real_proof4->mutable_txn()->set_client_seq_num(12);
 
-  TableWrite &table_write4 =
-      (*real_proof4->mutable_txn()->mutable_table_writes())["test"];
+  TableWrite &table_write4 = (*real_proof4->mutable_txn()->mutable_table_writes())["test"];
 
   RowUpdates *row4 = table_write4.add_rows();
   row4->add_column_values("24");
@@ -358,8 +349,8 @@ void test_read_predicate() {
 }
 
 int main() {
-  // test_read_query();
-  // test_committed_table_write();
-  test_read_predicate();
+  test_read_query();
+  test_committed_table_write();
+  // test_read_predicate();
   return 0;
 }
