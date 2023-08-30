@@ -398,8 +398,8 @@ void test_read_predicate() {
 }
 
 int main() {
-  // test_read_query();
+  test_read_query();
   // test_committed_table_write();
-  test_read_predicate();
+  // test_read_predicate();
   return 0;
 }
