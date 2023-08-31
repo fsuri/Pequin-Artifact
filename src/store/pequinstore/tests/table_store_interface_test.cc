@@ -468,7 +468,7 @@ void test_read_predicate() {
   // table_store->ExecReadQuery("SELECT * FROM test;", toy_ts_c,
   // query_read_set_mgr_one);
   std::string result = table_store->ExecReadQuery(
-      "SELECT * FROM test WHERE a=0;", toy_ts_c, query_read_set_mgr_one);
+      "SELECT * FROM test WHERE a=0;", pesto_timestamp, query_read_set_mgr_one);
 
   // Print out result
   sql::QueryResultProtoWrapper *p_queryResult =
@@ -507,8 +507,8 @@ int main() {
   // test_read_query(); // Adds 3 rows; deletes one; purges the delete;
   //   QueryRead for all 3
   //   FIXME: all 3 Segfault at the end.
-  test_committed_table_write(); // 100 writes, 100 overwrites, Query Read for
+  // test_committed_table_write(); // 100 writes, 100 overwrites, Query Read for
   // all
-  // test_read_predicate();
+  test_read_predicate();
   return 0;
 }

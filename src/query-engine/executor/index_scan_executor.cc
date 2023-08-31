@@ -461,7 +461,7 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
                     << "." << std::endl;
 
           // Go to the next version
-          ItemPointer old_item = tuple_location;
+          /*ItemPointer old_item = tuple_location;
           std::cout << "Offset is " << old_item.offset << std::endl;
           tuple_location =
               tile_group_header->GetNextItemPointer(old_item.offset);
@@ -469,8 +469,17 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
           if (tuple_location.IsNull()) {
             std::cout << "Tuple location is null" << std::endl;
             break;
-          }
+          }*/
         }
+      }
+
+      ItemPointer old_item = tuple_location;
+      std::cout << "Offset is " << old_item.offset << std::endl;
+      tuple_location = tile_group_header->GetNextItemPointer(old_item.offset);
+
+      if (tuple_location.IsNull()) {
+        std::cout << "Tuple location is null" << std::endl;
+        break;
       }
 
       /*auto visibility = transaction_manager.IsVisible(
