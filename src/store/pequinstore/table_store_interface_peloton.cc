@@ -172,7 +172,7 @@ std::string PelotonTableStore::ExecReadQuery(const std::string &query_statement,
             //args: query, Ts, readSetMgr, this->can_read_prepared, this->set_table_version
     //TODO: Execute on Peloton --> returns peloton result
 
-    size_t t_id = std::hash<std::thread::id>{}(std::this_thread::get_id()) % 4;
+    size_t t_id = std::hash<std::thread::id>{}(std::this_thread::get_id()); // % 4;
     std::cout << "################################# STARTING  ExecReadQuery ############################## on Thread: " << t_id << std::endl;
     // args: query, Ts, readSetMgr, this->can_read_prepared,
     // this->set_table_version
@@ -194,7 +194,7 @@ std::string PelotonTableStore::ExecReadQuery(const std::string &query_statement,
     //auto [traffic_cop, counter] = GetUnusedTrafficCop();
     // std::atomic_int counter; 
     // peloton::tcop::TrafficCop traffic_cop(UtilTestTaskCallback, &counter);
-    traffic_cop_.Reset(); //This works...
+    //traffic_cop_.Reset(); //This works...
 
     auto statement = traffic_cop_.PrepareStatement(unnamed_statement, query_statement, std::move(sql_stmt_list));
     if (statement.get() == nullptr) {
@@ -210,9 +210,8 @@ std::string PelotonTableStore::ExecReadQuery(const std::string &query_statement,
     std::vector<int> result_format(statement->GetTupleDescriptor().size(), 0);
     // SetTrafficCopCounter();
     counter_.store(1);
-    auto status = traffic_cop_.ExecuteReadStatement(
-        statement, param_values, unnamed, result_format, result, ts, readSetMgr,
-        this->record_table_version, this->can_read_prepared, t_id);
+    auto status = traffic_cop_.ExecuteReadStatement(statement, param_values, unnamed, result_format, result, ts, readSetMgr, this->record_table_version, this->can_read_prepared, t_id);
+    
     if (traffic_cop_.GetQueuing()) {
         ContinueAfterComplete(counter_);
         traffic_cop_.ExecuteStatementPlanGetResult();

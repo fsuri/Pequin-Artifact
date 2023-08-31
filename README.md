@@ -142,7 +142,8 @@ You may install them directly using:
 - If using Ubuntu 18.04, use `sudo apt install libevent-openssl-2.1-6 libevent-pthreads-2.1-6` instead for openssl and pthreads.
 
 In addition, you will need to install the following libraries from source (detailed instructions below):
-- [Hoard Allocator](https://github.com/emeryberger/Hoard)
+<!---- [Hoard Allocator](https://github.com/emeryberger/Hoard) -->
+- [jemalloc](https://github.com/jemalloc/jemalloc)
 - [taopq](https://github.com/taocpp/taopq)
 - [nlohman/json](https://github.com/nlohmann/json)
 - [googletest-1.10](https://github.com/google/googletest/releases/tag/release-1.10.0)
@@ -162,13 +163,31 @@ We recommend organizing all installs in a dedicated folder:
 1. `mkdir dependencies`
 2. `cd dependencies`
 
-#### Installing Hoard Allocator
+<!--- #### Installing Hoard Allocator
 1. `sudo apt-get install clang`
 2. `git clone https://github.com/emeryberger/Hoard`
 3. `cd src`
 4. `make`
 5. `sudo cp libhoard.so /usr/local/lib`
 6. `sudo echo 'export LD_PRELOAD=/usr/local/lib/libhoard.so' >> ~/.bashrc; source ~/.bashrc;` (once) or `export LD_PRELOAD=/usr/local/lib/libhoard.so` (everytime)
+7. `cd ..`
+-->
+#### Installing jemalloc
+```
+git clone https://github.com/jemalloc/jemalloc
+cd jemalloc
+./autogen.h
+make
+sudo make install
+sudo echo 'export LD_PRELOAD=/usr/local/lib/libjemalloc.so' >> ~/.bashrc; source ~/.bashrc;`
+cd ..`
+```
+1. `git clone https://github.com/jemalloc/jemalloc`
+2. `cd jemalloc`
+3. `./autogen.h`
+4. `make`
+5. `sudo make install`
+6. `sudo echo 'export LD_PRELOAD=/usr/local/lib/libjemalloc.so' >> ~/.bashrc; source ~/.bashrc;` (once) or `export LD_PRELOAD=/usr/local/lib/libjemalloc.so` (everytime)
 7. `cd ..`
 
 #### Installing taopq 
@@ -396,7 +415,8 @@ Navigate to `Pequin-Artifact/src` and build:
 1. You may need to export your `LD_LIBRARY_PATH` if your installations are in non-standard locations:
    The default install locations are:
 
-   - Hoard: usr/local/lib
+   <!--- Hoard: usr/local/lib -->
+   - Jemalloc: usr/local/lib
    - TaoPq:  /usr/local/lib
    - Nlohman/JSON:  /usr/local/include
    - Secp256k1:  /usr/local/lib

@@ -31,16 +31,29 @@ mkdir dependencies
 cd dependencies
 
 #Optional: Hoard
-echo "Installing Hoard Allocator"
+#echo "Installing Hoard Allocator"
+#echo ""
+#sudo apt-get install clang
+#git clone https://github.com/emeryberger/Hoard
+#cd Hoard
+#cd src
+#make
+#sudo cp libhoard.so /usr/local/lib
+#sudo echo 'export LD_PRELOAD=/usr/local/lib/libhoard.so' >>~/.bashrc
+#export LD_PRELOAD=/usr/local/lib/libhoard.so
+#cd ../..
+
+#Optional: Jemalloc
+echo "Installing Jemalloc Allocator"
 echo ""
-sudo apt-get install clang
-git clone https://github.com/emeryberger/Hoard
-cd Hoard
-cd src
+git clone https://github.com/jemalloc/jemalloc.git
+cd jemalloc
+./autogen.sh
 make
-sudo cp libhoard.so /usr/local/lib
-sudo echo 'export LD_PRELOAD=/usr/local/lib/libhoard.so' >>~/.bashrc
-export LD_PRELOAD=/usr/local/lib/libhoard.so
+sudo make install
+
+sudo echo 'export LD_PRELOAD=/usr/local/lib/libjemalloc.so' >>~/.bashrc
+export LD_PRELOAD=/usr/local/lib/libjemalloc.so
 cd ../..
 
 #Installing taopq
@@ -233,7 +246,6 @@ sudo cp -i cockroach-v22.2.2.linux-amd64/lib/libgeos.so /usr/local/lib/cockroach
 sudo cp -i cockroach-v22.2.2.linux-amd64/lib/libgeos_c.so /usr/local/lib/cockroach/
 sudo cp -i cockroach-v22.2.2.linux-amd64/cockroach /usr/local/bin
 
-export LD_PRELOAD=/usr/local/lib/libhoard.so
 
 echo ""
 source ~/.bashrc

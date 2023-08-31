@@ -204,6 +204,7 @@ def start_clients(config, local_exp_directory, remote_exp_directory, run):
                 if is_exp_remote(config):
                     #cmd4 = 'export LD_LIBRARY_PATH=/usr/lib/jvm/java-11-openjdk-amd64/lib/server/:$LD_LIBRARY_PATH;'
                     #cmd5 = 'export LD_PRELOAD=/usr/local/lib/libhoard.so;'
+                    #cmd5 = 'export LD_PRELOAD=/usr/local/lib/libjemalloc.so;'
                     cmd6 = 'source /usr/local/etc/set_env.sh;' # echo $LD_PRELOAD;' # source .bashrc' (disk image doesnt store bashrc. Could write to it dynamically though.) #TODO: remove cmd4+5
                     appended_client_commands = cmd6 + appended_client_commands
 
@@ -267,6 +268,7 @@ def start_servers(config, local_exp_directory, remote_exp_directory, run):
             cmd =  cmd3 + cmd
             #cmd4 = 'export LD_LIBRARY_PATH=/usr/lib/jvm/java-11-openjdk-amd64/lib/server/:$LD_LIBRARY_PATH;'
             #cmd5 = 'export LD_PRELOAD=/usr/local/lib/libhoard.so;'
+            #cmd5 = 'export LD_PRELOAD=/usr/local/lib/libjemalloc.so;'
             cmd6 = 'source /usr/local/etc/set_env.sh;' # echo $LD_PRELOAD;' #; source .bashrc' #TODO: Or try sourcing .bashrc //Replace cmd4+cmd5..
             cmd = cmd6 + cmd
             server_threads.append(run_remote_command_async(cmd,
