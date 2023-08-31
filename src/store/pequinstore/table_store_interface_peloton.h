@@ -88,7 +88,11 @@ class PelotonTableStore : public TableStore {
 
         std::pair<peloton::tcop::TrafficCop*, std::atomic_int*> GetUnusedTrafficCop();
         void ReleaseTrafficCop(std::pair<peloton::tcop::TrafficCop*, std::atomic_int*> cop_pair);
-        
+
+        std::shared_ptr<peloton::Statement> ParseAndPrepare(const std::string &query_statement);
+        void GetResult(peloton::ResultType &status);
+        //std::string TransformResult(std::vector<peloton::FieldInfo> &tuple_descriptor, std::vector<peloton::ResultValue> &result);
+        std::string TransformResult(peloton::ResultType &status, std::shared_ptr<peloton::Statement> statement, std::vector<peloton::ResultValue> &result);
 };
 
 
