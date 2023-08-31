@@ -36,6 +36,8 @@
 #include <string>
 #include <tuple>
 
+#include "lib/concurrentqueue/concurrentqueue.h"
+
 namespace pequinstore {
 
 class PelotonTableStore : public TableStore {
@@ -74,12 +76,19 @@ class PelotonTableStore : public TableStore {
         
 
     private:
-        //Peloton DB singleton "table_backend"
-		peloton::tcop::TrafficCop traffic_cop_;
-		std::atomic_int counter_;
         std::string unnamed_statement;
         bool unnamed;
 
+        //Peloton DB singleton "table_backend"
+		peloton::tcop::TrafficCop traffic_cop_;
+		std::atomic_int counter_;
+
+        //std::vector<peloton::tcop::TrafficCop*> traffic_cops;
+        moodycamel::ConcurrentQueue<std::pair<peloton::tcop::TrafficCop*, std::atomic_int*>> traffic_cops; //https://github.com/cameron314/concurrentqueue
+
+        std::pair<peloton::tcop::TrafficCop*, std::atomic_int*> GetUnusedTrafficCop();
+        void ReleaseTrafficCop(std::pair<peloton::tcop::TrafficCop*, std::atomic_int*> cop_pair);
+        
 };
 
 
