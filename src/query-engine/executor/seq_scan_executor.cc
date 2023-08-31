@@ -299,6 +299,11 @@ bool SeqScanExecutor::DExecute() {
 
               query_read_set_mgr.AddToReadSet(encoded, ts_message);
 
+              if (!tile_group_header->GetCommitOrPrepare(curr_tuple_id)) {
+                query_read_set_mgr.AddToDepSet(current_txn->GetTxnDig()->data(),
+                                               ts_message);
+              }
+
               // logical_tile->AddEntryReadSet(encoded, time);
             }
             // position_list.push_back(curr_tuple_id);
@@ -350,6 +355,11 @@ bool SeqScanExecutor::DExecute() {
                 ts_message.set_id(time.getID());
                 ts_message.set_timestamp(time.getTimestamp());
                 query_read_set_mgr.AddToReadSet(encoded, ts_message);
+
+                if (!tile_group_header->GetCommitOrPrepare(curr_tuple_id)) {
+                  query_read_set_mgr.AddToDepSet(
+                      current_txn->GetTxnDig()->data(), ts_message);
+                }
 
                 // logical_tile->AddEntryReadSet(encoded_key, time);
               }

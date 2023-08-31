@@ -43,9 +43,17 @@
 #include "store/benchmark/async/json_table_writer.h"
 #include "store/pequinstore/sql_interpreter.h"
 
+#include "lib/cereal/archives/binary.hpp"
+#include "lib/cereal/types/string.hpp"
+#include "store/common/query_result/query_result.h"
+#include "store/common/query_result/query_result_proto_builder.h"
+#include "store/common/query_result/query_result_proto_wrapper.h"
+
 using namespace pequinstore;
 
 void test_read_query() {
+
+  // Init Peloton default DB
   auto &txn_manager =
       peloton::concurrency::TransactionManagerFactory::GetInstance();
   auto txn = txn_manager.BeginTransaction();
@@ -53,10 +61,12 @@ void test_read_query() {
                                                            DEFAULT_DB_NAME);
   txn_manager.CommitTransaction(txn);
 
+  //
   Timestamp pesto_timestamp(4, 6);
   pequinstore::proto::ReadSet read_set_one;
   pequinstore::QueryReadSetMgr query_read_set_mgr_one(&read_set_one, 1, false);
 
+  // Table Write 1: Write row
   Timestamp toy_ts_c(10, 12);
   pequinstore::proto::CommittedProof *real_proof =
       new pequinstore::proto::CommittedProof();
@@ -70,6 +80,7 @@ void test_read_query() {
   row1->add_column_values("42");
   row1->add_column_values("54");
 
+  // Table Write 2:
   pequinstore::proto::CommittedProof *real_proof2 =
       new pequinstore::proto::CommittedProof();
   real_proof2->mutable_txn()->set_client_id(10);
@@ -82,6 +93,7 @@ void test_read_query() {
   row2->add_column_values("24");
   row2->add_column_values("225");
 
+  // Table Write 3:
   pequinstore::proto::CommittedProof *real_proof3 =
       new pequinstore::proto::CommittedProof();
   real_proof3->mutable_txn()->set_client_id(10);
@@ -94,6 +106,7 @@ void test_read_query() {
   row3->add_column_values("34");
   row3->add_column_values("315");
 
+  // Table Write 4: Deletion of 2
   pequinstore::proto::CommittedProof *real_proof4 =
       new pequinstore::proto::CommittedProof();
   real_proof4->mutable_txn()->set_client_id(10);
@@ -107,8 +120,8 @@ void test_read_query() {
   row4->add_column_values("225");
   row4->set_deletion(true);
 
-  static std::string file_name =
-      "store/pequinstore/tests/sql_interpreter_test_registry";
+  // setup
+  static std::string file_name = "sql_interpreter_test_registry";
   // Create desired registry via table writer.
   std::string table_name = "test";
   std::vector<std::pair<std::string, std::string>> column_names_and_types;
@@ -158,29 +171,58 @@ void test_read_query() {
   // table_store->ExecReadQuery("SELECT * FROM test;", toy_ts_c,
   // query_read_set_mgr_one);
   table_store->PurgeTableWrite("test", table_write4, toy_ts_c, "random");
-  table_store->ExecReadQuery("SELECT * FROM test;", toy_ts_c,
-                             query_read_set_mgr_one);
+  std::string result = table_store->ExecReadQuery(
+      "SELECT * FROM test;", toy_ts_c, query_read_set_mgr_one);
+
+  sql::QueryResultProtoWrapper *p_queryResult =
+      new sql::QueryResultProtoWrapper(result);
+  std::cerr << "Got res" << std::endl;
+  std::cerr << "IS empty?: " << (p_queryResult->empty()) << std::endl;
+  std::cerr << "num cols:" << (p_queryResult->num_columns()) << std::endl;
+  std::cerr << "num rows written:" << (p_queryResult->rows_affected())
+            << std::endl;
+  std::cerr << "num rows read:" << (p_queryResult->size()) << std::endl;
+
+  std::string output_row;
+  const char *out;
+  size_t nbytes;
+
+  if (!p_queryResult->empty()) {
+    for (int j = 0; j < p_queryResult->size(); ++j) {
+      std::cerr << "Read row " << j << " : " << std::endl;
+      std::stringstream p_ss(std::ios::in | std::ios::out | std::ios::binary);
+      for (int i = 0; i < p_queryResult->num_columns(); ++i) {
+        out = p_queryResult->get(j, i, &nbytes);
+        std::string p_output(out, nbytes);
+        p_ss << p_output;
+        output_row;
+        {
+          cereal::BinaryInputArchive iarchive(p_ss); // Create an input archive
+          iarchive(output_row); // Read the data from the archive
+        }
+        std::cerr << "Col " << i << ": " << output_row << std::endl;
+      }
+    }
+  }
 
   delete table_store;
+  delete txn;
+  // txn_manager.EndTransaction(txn);
 }
 
 void test_committed_table_write() {
   auto &txn_manager =
       peloton::concurrency::TransactionManagerFactory::GetInstance();
-
   auto txn = txn_manager.BeginTransaction();
-
   peloton::catalog::Catalog::GetInstance()->CreateDatabase(txn,
                                                            DEFAULT_DB_NAME);
-
   txn_manager.CommitTransaction(txn);
 
   Timestamp pesto_timestamp(4, 6);
   pequinstore::proto::ReadSet read_set_one;
   pequinstore::QueryReadSetMgr query_read_set_mgr_one(&read_set_one, 1, false);
 
-  static std::string file_name =
-      "store/pequinstore/tests/sql_interpreter_test_registry";
+  static std::string file_name = "sql_interpreter_test_registry";
   // Create desired registry via table writer.
   std::string table_name = "test";
   std::vector<std::pair<std::string, std::string>> column_names_and_types;
@@ -207,6 +249,7 @@ void test_committed_table_write() {
   std::cout << "Post register" << std::endl;
   table_store->ExecRaw("CREATE TABLE test(a INT, b INT, PRIMARY KEY(a));");
 
+  // Write a 100 writes
   Timestamp toy_ts_c(10, 12);
   Timestamp toy_ts_c_1(20, 20);
   size_t num_writes = 100;
@@ -269,6 +312,38 @@ void test_committed_table_write() {
   std::string expected = queryResultBuilder.get_result()->SerializeAsString();
   UW_ASSERT_EQ(expected, result);
 
+  // Print out result
+  sql::QueryResultProtoWrapper *p_queryResult =
+      new sql::QueryResultProtoWrapper(result);
+  std::cerr << "Got res" << std::endl;
+  std::cerr << "IS empty?: " << (p_queryResult->empty()) << std::endl;
+  std::cerr << "num cols:" << (p_queryResult->num_columns()) << std::endl;
+  std::cerr << "num rows written:" << (p_queryResult->rows_affected())
+            << std::endl;
+  std::cerr << "num rows read:" << (p_queryResult->size()) << std::endl;
+
+  std::string output_row;
+  const char *out;
+  size_t nbytes;
+
+  if (!p_queryResult->empty()) {
+    for (int j = 0; j < p_queryResult->size(); ++j) {
+      std::cerr << "Read row " << j << " : " << std::endl;
+      std::stringstream p_ss(std::ios::in | std::ios::out | std::ios::binary);
+      for (int i = 0; i < p_queryResult->num_columns(); ++i) {
+        out = p_queryResult->get(j, i, &nbytes);
+        std::string p_output(out, nbytes);
+        p_ss << p_output;
+        output_row;
+        {
+          cereal::BinaryInputArchive iarchive(p_ss); // Create an input archive
+          iarchive(output_row); // Read the data from the archive
+        }
+        std::cerr << " Col " << i << ": " << output_row << ";";
+      }
+      std::cerr << std::endl;
+    }
+  }
   delete table_store;
 }
 
@@ -309,8 +384,7 @@ void test_read_predicate() {
   row2->add_column_values("24");
   row2->add_column_values("225");*/
 
-  static std::string file_name =
-      "store/pequinstore/tests/sql_interpreter_test_registry";
+  static std::string file_name = "sql_interpreter_test_registry";
   // Create desired registry via table writer.
   std::string table_name = "test";
   std::vector<std::pair<std::string, std::string>> column_names_and_types;
@@ -393,13 +467,48 @@ void test_read_predicate() {
 
   // table_store->ExecReadQuery("SELECT * FROM test;", toy_ts_c,
   // query_read_set_mgr_one);
-  table_store->ExecReadQuery("SELECT * FROM test WHERE a=0;", toy_ts_c,
-                             query_read_set_mgr_one);
+  std::string result = table_store->ExecReadQuery(
+      "SELECT * FROM test WHERE a=0;", toy_ts_c, query_read_set_mgr_one);
+
+  // Print out result
+  sql::QueryResultProtoWrapper *p_queryResult =
+      new sql::QueryResultProtoWrapper(result);
+  std::cerr << "Got res" << std::endl;
+  std::cerr << "IS empty?: " << (p_queryResult->empty()) << std::endl;
+  std::cerr << "num cols:" << (p_queryResult->num_columns()) << std::endl;
+  std::cerr << "num rows written:" << (p_queryResult->rows_affected())
+            << std::endl;
+  std::cerr << "num rows read:" << (p_queryResult->size()) << std::endl;
+
+  std::string output_row;
+  const char *out;
+  size_t nbytes;
+
+  if (!p_queryResult->empty()) {
+    for (int j = 0; j < p_queryResult->size(); ++j) {
+      std::cerr << "Read row " << j << " : " << std::endl;
+      std::stringstream p_ss(std::ios::in | std::ios::out | std::ios::binary);
+      for (int i = 0; i < p_queryResult->num_columns(); ++i) {
+        out = p_queryResult->get(j, i, &nbytes);
+        std::string p_output(out, nbytes);
+        p_ss << p_output;
+        output_row;
+        {
+          cereal::BinaryInputArchive iarchive(p_ss); // Create an input archive
+          iarchive(output_row); // Read the data from the archive
+        }
+        std::cerr << "Col " << i << ": " << output_row << std::endl;
+      }
+    }
+  }
 }
 
 int main() {
-  test_read_query();
-  // test_committed_table_write();
+  // test_read_query(); // Adds 3 rows; deletes one; purges the delete;
+  //   QueryRead for all 3
+  //   FIXME: all 3 Segfault at the end.
+  test_committed_table_write(); // 100 writes, 100 overwrites, Query Read for
+  // all
   // test_read_predicate();
   return 0;
 }

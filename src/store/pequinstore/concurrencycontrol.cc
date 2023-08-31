@@ -661,13 +661,13 @@ proto::ConcurrencyControl::Result Server::DoMVTSOOCCCheck(
          if(committedReadsItr->second.second.size() > 0) {
           for (auto ritr = committedReadsItr->second.second.rbegin();
               ritr != committedReadsItr->second.second.rend(); ++ritr) {
-            if (ts >= std::get<0>(*ritr)) {
+            if (ts >= std::get<0>(*ritr)) { //if Write is at TS > reader TS, no conflict
               // iterating over committed reads from largest to smallest committed txn ts
               //    if ts is larger than current itr, it is also larger than all subsequent itrs
               break;
-            } else if (std::get<1>(*ritr) < ts) {
+            } else if (std::get<1>(*ritr) < ts) { // if Write is at TS < read version, no conflict
 
-               //Check for exception: No conflict if write is a deletion & "conflicting" read read empty/delete
+               //Check for exception: No conflict if write is a deletion & "conflicting" read read empty/delete.   I.e in practice this is just an invisible deletion: it doesn't change any read value/version
                //Note: This exception currently only protects deletions; it does not protect writes that are written before the deletion -- we could strengthen the check to except those too: //TODO: this would require updating the RTS of the reader
               if(std::get<1>(*ritr).getTimestamp() == 0 && std::get<1>(*ritr).getID() == 0 && write.value() == "d"){
                  continue; 

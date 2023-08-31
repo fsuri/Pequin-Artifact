@@ -306,8 +306,8 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
     // we should always find a visible version from a version chain.
     // NOTE: Similar read logic as seq_scan_executor
     auto timestamp = current_txn->GetBasilTimestamp();
-    std::cout << "Txn timestamp is " << timestamp.getID() << ", "
-              << timestamp.getTimestamp() << std::endl;
+    std::cout << "Txn timestamp is " << timestamp.getTimestamp() << ", "
+              << timestamp.getID() << std::endl;
 
     // Get the head of the version chain (latest version)
     ItemPointer *head =
@@ -731,7 +731,7 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
     if (current_tile_group_oid == visible_tuple_location.block) {
       tuples.push_back(visible_tuple_location.offset);
 
-      if (query_read_set_mgr.read_set != nullptr) {
+      if (current_txn->GetHasReadSetMgr()) {
 
         auto tile_group =
             storage_manager->GetTileGroup(visible_tuple_location.block);
@@ -740,7 +740,6 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
         ContainerTuple<storage::TileGroup> row(tile_group.get(),
                                                visible_tuple_location.offset);
 
-        tuples.push_back(visible_tuple_location.offset);
         std::vector<std::string> primary_key_cols;
         for (auto col : primary_index_columns_) {
           auto val = row.GetValue(col);
@@ -767,6 +766,12 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
         ts_message.set_timestamp(time.getTimestamp());
 
         query_read_set_mgr.AddToReadSet(encoded, ts_message);
+
+        if (!tile_group_header->GetCommitOrPrepare(
+                visible_tuple_location.offset)) {
+          query_read_set_mgr.AddToDepSet(current_txn->GetTxnDig()->data(),
+                                         ts_message);
+        }
       }
 
     } else {
@@ -791,7 +796,7 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
       current_tile_group_oid = visible_tuple_location.block;
       tuples.push_back(visible_tuple_location.offset);
 
-      if (query_read_set_mgr.read_set != nullptr) {
+      if (current_txn->GetHasReadSetMgr()) {
 
         tile_group =
             storage_manager->GetTileGroup(visible_tuple_location.block);
@@ -826,6 +831,12 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
         ts_message.set_timestamp(time.getTimestamp());
 
         query_read_set_mgr.AddToReadSet(encoded, ts_message);
+
+        if (!tile_group_header->GetCommitOrPrepare(
+                visible_tuple_location.offset)) {
+          query_read_set_mgr.AddToDepSet(current_txn->GetTxnDig()->data(),
+                                         ts_message);
+        }
       }
     }
   }

@@ -310,7 +310,8 @@ public:
     return committed_proof_;
   }
 
-  void SetCommittedProof(const pequinstore::proto::CommittedProof *commit_proof) {
+  void
+  SetCommittedProof(const pequinstore::proto::CommittedProof *commit_proof) {
     committed_proof_ = commit_proof;
   }
 
@@ -349,6 +350,12 @@ public:
   bool GetUndoDelete() { return undo_delete_; }
 
   void SetUndoDelete(bool undo_delete) { undo_delete_ = undo_delete; }
+
+  bool GetHasReadSetMgr() { return has_read_set_mgr_; }
+
+  void SetHasReadSetMgr(bool has_read_set_mgr) {
+    has_read_set_mgr_ = has_read_set_mgr;
+  }
 
   /**
    * @brief      Gets the isolation level.
@@ -436,6 +443,9 @@ private:
 
   /** Whether purge is undoing a delete */
   bool undo_delete_;
+
+  /** Whether read set manager was passed in */
+  bool has_read_set_mgr_;
 
   ReadWriteSet rw_set_;
   CreateDropSet rw_object_set_;
