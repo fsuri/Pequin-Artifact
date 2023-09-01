@@ -144,29 +144,31 @@ Server::Server(const transport::Configuration &config, int groupIdx, int idx,
 
   if(sql_bench){
 
-      if(TEST_QUERY){
-        table_store = new ToyTableStore();
-      }
-      else{
-        table_store = new PelotonTableStore();
-      }
-
-      table_store->RegisterTableSchema(table_registry_path);
-
       //TODO: turn read_prepared into a function, not a lambda
-
-      auto read_prepared_pred = [this](const std::string &txn_digest){  
+       auto read_prepared_pred = [this](const std::string &txn_digest){  
         if(this->occType != MVTSO || this->params.maxDepDepth == -2) return false; //Only read prepared if parameters allow
         //Check for Depth. Only read prepared if dep depth < maxDepth
         return (this->params.maxDepDepth == -1 || DependencyDepth(txn_digest) <= this->params.maxDepDepth); 
       };
 
+      if(TEST_QUERY){
+        table_store = new ToyTableStore(); //Just a black hole
+      }
+      else{
+        table_store = new PelotonTableStore(table_registry_path, 
+                        std::bind(&Server::FindTableVersion, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4, std::placeholders::_5),
+                        std::move(read_prepared_pred));
+        //table_store = new PelotonTableStore();
+      }
+
+      //table_store->RegisterTableSchema(table_registry_path);
+
       //TODO: Create lambda/function for setting Table Version
           //Look at store and preparedWrites ==> pick larger (if read_prepared true)
           //Add it to QueryReadSetMgr
 
-      table_store->SetPreparePredicate(std::move(read_prepared_pred));
-      table_store->SetFindTableVersion(std::bind(&Server::FindTableVersion, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4, std::placeholders::_5));
+      // table_store->SetPreparePredicate(std::move(read_prepared_pred));
+      // table_store->SetFindTableVersion(std::bind(&Server::FindTableVersion, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4, std::placeholders::_5));
   }
 
   if(TEST_QUERY){

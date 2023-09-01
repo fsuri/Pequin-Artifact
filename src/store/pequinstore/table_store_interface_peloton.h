@@ -45,6 +45,7 @@ namespace pequinstore {
 class PelotonTableStore : public TableStore {
     public:
         PelotonTableStore();
+        PelotonTableStore(std::string &table_registry_path, find_table_version &&find_table_version, read_prepared_pred &&read_prepared_pred);
         virtual ~PelotonTableStore();
 
         //Execute a statement directly on the Table backend, no questions asked, no output

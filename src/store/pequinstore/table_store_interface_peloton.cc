@@ -34,6 +34,18 @@ PelotonTableStore::PelotonTableStore(): traffic_cop_(UtilTestTaskCallback, &coun
   // traffic_cop_ = peloton::tcop::TrafficCop(UtilTestTaskCallback, &counter_);
 }
 
+PelotonTableStore::PelotonTableStore(std::string &table_registry_path, find_table_version &&find_table_version, read_prepared_pred &&read_prepared_pred):
+            TableStore(table_registry_path, std::move(find_table_version), std::move(read_prepared_pred)), 
+            traffic_cop_(UtilTestTaskCallback, &counter_), unnamed_statement("unnamed"), unnamed(false) 
+{
+  //Init Peloton default DB
+  auto &txn_manager = peloton::concurrency::TransactionManagerFactory::GetInstance();
+  auto txn = txn_manager.BeginTransaction();
+  peloton::catalog::Catalog::GetInstance()->CreateDatabase(txn, DEFAULT_DB_NAME);
+  txn_manager.CommitTransaction(txn);
+  // traffic_cop_ = peloton::tcop::TrafficCop(UtilTestTaskCallback, &counter_);
+}
+
 PelotonTableStore::~PelotonTableStore(){
 
     //Release all allocated cops

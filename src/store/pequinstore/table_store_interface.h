@@ -17,6 +17,11 @@ typedef std::function<bool(const std::string &)> read_prepared_pred; // This is 
 class TableStore {
     public:
         TableStore() {};
+        TableStore(std::string &table_registry_path, find_table_version &&find_table_version, read_prepared_pred &&read_prepared_pred) {
+            sql_interpreter.RegisterTables(table_registry_path);
+            record_table_version = std::move(find_table_version);
+            can_read_prepared = std::move(read_prepared_pred);
+        };
         virtual ~TableStore() {};
 
         //Generic helper functions
