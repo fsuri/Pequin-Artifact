@@ -77,7 +77,7 @@ public:
   ApplyTableWrite(const std::string &table_name, const TableWrite &table_write,
                   const Timestamp &ts, const std::string &txn_digest,
                   const proto::CommittedProof *commit_proof = nullptr,
-                  bool commit_or_prepare = true, int i = 0) = 0;
+                  bool commit_or_prepare = true) = 0;
 
   /// https://www.postgresqltutorial.com/postgresql-tutorial/postgresql-upsert/
   virtual void PurgeTableWrite(const std::string &table_name,

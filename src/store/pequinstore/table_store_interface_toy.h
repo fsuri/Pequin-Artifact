@@ -42,7 +42,7 @@ public:
                        const TableWrite &table_write, const Timestamp &ts,
                        const std::string &txn_digest,
                        const proto::CommittedProof *commit_proof = nullptr,
-                       bool commit_or_prepare = true, int i = 0) override;
+                       bool commit_or_prepare = true) override;
   /// https://www.postgresqltutorial.com/postgresql-tutorial/postgresql-upsert/
   void PurgeTableWrite(const std::string &table_name,
                        const TableWrite &table_write, const Timestamp &ts,

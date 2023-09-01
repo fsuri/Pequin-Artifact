@@ -289,7 +289,7 @@ void WriteToTable(TableStore *table_store, int i) {
   row1->add_column_values(std::to_string(i + 100));
 
   table_store->ApplyTableWrite("test", table_write, toy_ts_c_1, "random",
-                               real_proof, true, i);
+                               real_proof, true);
 }
 
 void test_committed_table_write() {

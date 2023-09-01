@@ -214,7 +214,7 @@ void ToyTableStore::ApplyTableWrite(const std::string &table_name,
                                     const Timestamp &ts,
                                     const std::string &txn_digest,
                                     const proto::CommittedProof *commit_proof,
-                                    bool commit_or_prepare, int i) {
+                                    bool commit_or_prepare) {
   std::cerr << "APPLY TABLE WRITE ON TOY INTERFACE" << std::endl;
 }
 

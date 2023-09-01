@@ -1,6 +1,4 @@
 #include "store/pequinstore/table_store_interface_peloton.h"
-#include <sstream>
-#include <thread>
 
 // TODO: Include whatever Peloton Deps
 
@@ -24,26 +22,7 @@ void ContinueAfterComplete(std::atomic_int &counter_) {
   }
 }
 
-std::pair<peloton::tcop::TrafficCop *, std::atomic_int *>
-PelotonTableStore::GetUnusedTrafficCop() {
-  std::pair<peloton::tcop::TrafficCop *, std::atomic_int *> cop_pair;
-  bool found = traffic_cops.try_dequeue(cop_pair);
-
-  if (found) {
-    cop_pair.first->Reset(); // Reset traffic cop
-    return cop_pair;
-  }
-
-  std::atomic_int *counter = new std::atomic_int();
-  peloton::tcop::TrafficCop *new_cop =
-      new peloton::tcop::TrafficCop(UtilTestTaskCallback, counter);
-  return {new_cop, counter};
-}
-
-void PelotonTableStore::ReleaseTrafficCop(
-    std::pair<peloton::tcop::TrafficCop *, std::atomic_int *> cop_pair) {
-  traffic_cops.enqueue(cop_pair);
-}
+///////////////////// CLASS FUNCTIONS ///////////////////////////
 
 PelotonTableStore::PelotonTableStore()
     : traffic_cop_(UtilTestTaskCallback, &counter_),
@@ -76,187 +55,55 @@ PelotonTableStore::~PelotonTableStore() {
   }
 }
 
-// Execute a statement directly on the Table backend, no questions asked, no
-// output
-void PelotonTableStore::ExecRaw(const std::string &sql_statement) {
-
-  // TODO: Execute on Peloton  //Note -- this should be a synchronous call. I.e.
-  // ExecRaw should not return before the call is done.
-
-  // TODO: When calling the LoadStatement: We'll want to initialize all rows to
-  // be committed and have genesis proof (see server)
-
-  std::vector<peloton::ResultValue> result;
-  std::vector<peloton::FieldInfo> tuple_descriptor;
-
-  // execute the query using tcop
+////////////////  Helper Functions //////////////////////////
+std::shared_ptr<peloton::Statement>
+PelotonTableStore::ParseAndPrepare(const std::string &query_statement) {
   // prepareStatement
-  // LOG_TRACE("Query: %s", query.c_str());
-  auto &peloton_parser = peloton::parser::PostgresParser::GetInstance();
-  auto sql_stmt_list = peloton_parser.BuildParseTree(sql_statement);
-  // PELOTON_ASSERT(sql_stmt_list);
-  if (!sql_stmt_list->is_valid) {
-    // return peloton::ResultType::FAILURE;
-  }
-  auto statement = traffic_cop_.PrepareStatement(
-      unnamed_statement, sql_statement, std::move(sql_stmt_list));
-  if (statement.get() == nullptr) {
-    traffic_cop_.setRowsAffected(0);
-    // return peloton::ResultType::FAILURE;
-  }
-  // ExecuteStatment
-  std::vector<peloton::type::Value> param_values;
-
-  std::vector<int> result_format(statement->GetTupleDescriptor().size(), 0);
-
-  // SetTrafficCopCounter();
-  counter_.store(1);
-  auto status = traffic_cop_.ExecuteStatement(statement, param_values, unnamed,
-                                              result_format, result);
-  std::cout << "Made it after status" << std::endl;
-  if (traffic_cop_.GetQueuing()) {
-    ContinueAfterComplete(counter_);
-    traffic_cop_.ExecuteStatementPlanGetResult();
-    status = traffic_cop_.ExecuteStatementGetResult();
-    traffic_cop_.SetQueuing(false);
-  }
-  std::cout << "Check if status is success" << std::endl;
-  if (status == peloton::ResultType::SUCCESS) {
-    tuple_descriptor = statement->GetTupleDescriptor();
-  }
-
-  std::cout << "End of exec raw" << std::endl;
-}
-
-void PelotonTableStore::LoadTable(const std::string &load_statement,
-                                  const std::string &txn_digest,
-                                  const Timestamp &ts,
-                                  const proto::CommittedProof *committedProof) {
-  // Turn txn_digest into a shared_ptr, write everywhere it is needed.
-  std::shared_ptr<std::string> txn_dig(
-      std::make_shared<std::string>(txn_digest));
-
-  // Call statement (of type Copy or Insert) and set meta data accordingly (bool
-  // commit = true, committedProof, txn_digest, ts)
-  std::vector<peloton::ResultValue> result;
-  std::vector<peloton::FieldInfo> tuple_descriptor;
-
-  // execute the query using tcop
-  // prepareStatement
-  // LOG_TRACE("Query: %s", query.c_str());
-  auto &peloton_parser = peloton::parser::PostgresParser::GetInstance();
-  auto sql_stmt_list = peloton_parser.BuildParseTree(load_statement);
-  // PELOTON_ASSERT(sql_stmt_list);
-  if (!sql_stmt_list->is_valid) {
-    // return peloton::ResultType::FAILURE;
-  }
-  auto statement = traffic_cop_.PrepareStatement(
-      unnamed_statement, load_statement, std::move(sql_stmt_list));
-  if (statement.get() == nullptr) {
-    traffic_cop_.setRowsAffected(0);
-    // return peloton::ResultType::FAILURE;
-  }
-  // ExecuteStatment
-  std::vector<peloton::type::Value> param_values;
-
-  std::vector<int> result_format(statement->GetTupleDescriptor().size(), 0);
-  // SetTrafficCopCounter();
-  counter_.store(1);
-  // pequinstore::proto::ReadSet read_set_one;
-
-  // pequinstore::QueryReadSetMgr query_read_set_mgr_one(&read_set_one, 1,
-  // false);
-  auto status = traffic_cop_.ExecuteStatement(statement, param_values, unnamed,
-                                              result_format, result);
-
-  if (traffic_cop_.GetQueuing()) {
-    ContinueAfterComplete(counter_);
-    traffic_cop_.ExecuteStatementPlanGetResult();
-    status = traffic_cop_.ExecuteStatementGetResult();
-    traffic_cop_.SetQueuing(false);
-  }
-  if (status == peloton::ResultType::SUCCESS) {
-    tuple_descriptor = statement->GetTupleDescriptor();
-  }
-}
-
-// Execute a read query statement on the Table backend and return a
-// query_result/proto (in serialized form) as well as a read set (managed by
-// readSetMgr)
-std::string PelotonTableStore::ExecReadQuery(const std::string &query_statement,
-                                             const Timestamp &ts,
-                                             QueryReadSetMgr &readSetMgr) {
-
-  // args: query, Ts, readSetMgr, this->can_read_prepared,
-  // this->set_table_version
-  // TODO: Execute on Peloton --> returns peloton result
-
-  size_t t_id =
-      std::hash<std::thread::id>{}(std::this_thread::get_id()); // % 4;
-  std::cout << "################################# STARTING  ExecReadQuery "
-               "############################## on Thread: "
-            << t_id << std::endl;
-  // args: query, Ts, readSetMgr, this->can_read_prepared,
-  // this->set_table_version
-  // TODO: Execute on Peloton --> returns peloton result
-  std::vector<peloton::ResultValue> result;
-  std::vector<peloton::FieldInfo> tuple_descriptor;
-
-  // execute the query using tcop
-  // prepareStatement
-  // LOG_TRACE("Query: %s", query.c_str());
   auto &peloton_parser = peloton::parser::PostgresParser::GetInstance();
   auto sql_stmt_list = peloton_parser.BuildParseTree(query_statement);
   // PELOTON_ASSERT(sql_stmt_list);
   if (!sql_stmt_list->is_valid) {
-    // return peloton::ResultType::FAILURE;
+    Panic("SQL command not valid"); // return peloton::ResultType::FAILURE;
   }
-
-  // TRY TO CREATE SEPARATE TRAFFIC COP
-  // auto [traffic_cop, counter] = GetUnusedTrafficCop();
-  //  std::atomic_int counter;
-  //  peloton::tcop::TrafficCop traffic_cop(UtilTestTaskCallback, &counter);
-  // traffic_cop_.Reset(); //This works...
 
   auto statement = traffic_cop_.PrepareStatement(
       unnamed_statement, query_statement, std::move(sql_stmt_list));
   if (statement.get() == nullptr) {
     traffic_cop_.setRowsAffected(0);
-    // return peloton::ResultType::FAILURE;
+    Panic("SQL command not valid"); // return peloton::ResultType::FAILURE;
   }
-  // ExecuteStatment
-  std::vector<peloton::type::Value> param_values;
+  return statement;
+}
 
-  // TODO: Pass in predicate here as well, table_version not for point read
-  // only readquery, done before touching indexes
-  std::vector<int> result_format(statement->GetTupleDescriptor().size(), 0);
-  // SetTrafficCopCounter();
-  counter_.store(1);
-  auto status = traffic_cop_.ExecuteReadStatement(
-      statement, param_values, unnamed, result_format, result, ts, readSetMgr,
-      this->record_table_version, this->can_read_prepared, t_id);
-
+void PelotonTableStore::GetResult(peloton::ResultType &status) {
+  // busy loop until result is ready. TODO: Change into callback style to avoid
+  // busy loop.
   if (traffic_cop_.GetQueuing()) {
     ContinueAfterComplete(counter_);
     traffic_cop_.ExecuteStatementPlanGetResult();
     status = traffic_cop_.ExecuteStatementGetResult();
     traffic_cop_.SetQueuing(false);
   }
+}
 
+// std::string
+// PelotonTableStore::TransformResult(std::vector<peloton::FieldInfo>
+// &tuple_descriptor, std::vector<peloton::ResultValue> &result){
+std::string PelotonTableStore::TransformResult(
+    peloton::ResultType &status, std::shared_ptr<peloton::Statement> statement,
+    std::vector<peloton::ResultValue> &result) {
+
+  std::vector<peloton::FieldInfo> tuple_descriptor;
   if (status == peloton::ResultType::SUCCESS) {
     tuple_descriptor = statement->GetTupleDescriptor();
   }
 
-  // Change Peloton result into query proto.
-  // std::cout << "Tuple descriptor size is " << tuple_descriptor.size() <<
-  // std::endl;
   sql::QueryResultProtoBuilder queryResultBuilder;
   // Add columns
   for (unsigned int i = 0; i < tuple_descriptor.size(); i++) {
     std::string column_name = std::get<0>(tuple_descriptor[i]);
     queryResultBuilder.add_column(column_name);
   }
-
   // Add rows
   unsigned int rows = result.size() / tuple_descriptor.size();
   for (unsigned int i = 0; i < rows; i++) {
@@ -270,6 +117,134 @@ std::string PelotonTableStore::ExecReadQuery(const std::string &query_statement,
   return queryResultBuilder.get_result()->SerializeAsString();
 }
 
+std::pair<peloton::tcop::TrafficCop *, std::atomic_int *>
+PelotonTableStore::GetUnusedTrafficCop() {
+  std::pair<peloton::tcop::TrafficCop *, std::atomic_int *> cop_pair;
+  bool found = traffic_cops.try_dequeue(cop_pair);
+
+  if (found) {
+    cop_pair.first->Reset(); // Reset traffic cop
+    return cop_pair;
+  }
+
+  std::atomic_int *counter = new std::atomic_int();
+  peloton::tcop::TrafficCop *new_cop =
+      new peloton::tcop::TrafficCop(UtilTestTaskCallback, counter);
+  return {new_cop, counter};
+}
+
+void PelotonTableStore::ReleaseTrafficCop(
+    std::pair<peloton::tcop::TrafficCop *, std::atomic_int *> cop_pair) {
+  traffic_cops.enqueue(cop_pair);
+}
+
+/////////////////// INTERFACE FUNCTIONS //////////////////////////////
+
+// Execute a statement directly on the Table backend, no questions asked, no
+// output
+void PelotonTableStore::ExecRaw(const std::string &sql_statement) {
+  // Execute on Peloton  //Note -- this should be a synchronous call. I.e.
+  // ExecRaw should not return before the call is done.
+
+  // prepareStatement
+  auto statement = ParseAndPrepare(sql_statement);
+
+  // ExecuteStatment
+  std::vector<peloton::type::Value> param_values;
+  std::vector<peloton::ResultValue> result;
+  std::vector<int> result_format(statement->GetTupleDescriptor().size(), 0);
+
+  counter_.store(1); // SetTrafficCopCounter();
+  auto status = traffic_cop_.ExecuteStatement(statement, param_values, unnamed,
+                                              result_format, result);
+
+  Debug("Made it after status");
+  GetResult(status);
+
+  if (status == peloton::ResultType::SUCCESS)
+    Debug("RawExec success");
+  else
+    Debug("RawExec failure");
+}
+
+void PelotonTableStore::LoadTable(const std::string &load_statement,
+                                  const std::string &txn_digest,
+                                  const Timestamp &ts,
+                                  const proto::CommittedProof *committedProof) {
+  // When calling the LoadStatement: We'll want to initialize all rows to be
+  // committed and have genesis proof (see server) Call statement (of type Copy
+  // or Insert) and set meta data accordingly (bool commit = true,
+  // committedProof, txn_digest, ts)
+
+  std::shared_ptr<std::string> txn_dig(std::make_shared<std::string>(
+      txn_digest)); // Turn txn_digest into a shared_ptr, write everywhere it is
+                    // needed.
+
+  // execute the query using tcop
+  // prepareStatement
+  auto statement = ParseAndPrepare(load_statement);
+
+  // ExecuteStatment
+  std::vector<peloton::type::Value> param_values;
+  std::vector<int> result_format(statement->GetTupleDescriptor().size(), 0);
+  std::vector<peloton::ResultValue> result;
+
+  counter_.store(1); // SetTrafficCopCounter();
+  auto status = traffic_cop_.ExecuteStatement(statement, param_values, unnamed,
+                                              result_format, result);
+
+  GetResult(status);
+
+  if (status == peloton::ResultType::SUCCESS)
+    Debug("Load success");
+  else
+    Debug("RawExec failure");
+}
+
+// Execute a read query statement on the Table backend and return a
+// query_result/proto (in serialized form) as well as a read set (managed by
+// readSetMgr)
+std::string PelotonTableStore::ExecReadQuery(const std::string &query_statement,
+                                             const Timestamp &ts,
+                                             QueryReadSetMgr &readSetMgr) {
+  // Execute on Peloton (args: query, Ts, readSetMgr, this->can_read_prepared,
+  // this->set_table_version) --> returns peloton result --> transform into
+  // protoResult
+
+  // TRY TO CREATE SEPARATE TRAFFIC COP
+  // auto [traffic_cop, counter] = GetUnusedTrafficCop();
+  //  std::atomic_int counter;
+  //  peloton::tcop::TrafficCop traffic_cop(UtilTestTaskCallback, &counter);
+  // traffic_cop_.Reset();
+
+  // TRY TO SET A THREAD ID
+  size_t t_id =
+      std::hash<std::thread::id>{}(std::this_thread::get_id()); // % 4;
+  std::cout << "################################# STARTING  ExecReadQuery "
+               "############################## on Thread: "
+            << t_id << std::endl;
+
+  // prepareStatement
+  auto statement = ParseAndPrepare(query_statement);
+
+  // ExecuteStatment
+  std::vector<peloton::type::Value> param_values;
+  std::vector<int> result_format(statement->GetTupleDescriptor().size(), 0);
+  std::vector<peloton::ResultValue> result;
+
+  // SetTrafficCopCounter();
+  counter_.store(1);
+  // execute the query using tcop
+  auto status = traffic_cop_.ExecuteReadStatement(
+      statement, param_values, unnamed, result_format, result, ts, readSetMgr,
+      this->record_table_version, this->can_read_prepared, t_id);
+
+  GetResult(status);
+
+  // Transform PelotonResult into ProtoResult
+  return TransformResult(status, statement, result);
+}
+
 // Execute a point read on the Table backend and return a query_result/proto (in
 // serialized form) as well as a commitProof (note, the read set is implicit)
 void PelotonTableStore::ExecPointRead(
@@ -278,174 +253,62 @@ void PelotonTableStore::ExecPointRead(
     const proto::CommittedProof *committedProof) {
 
   // Client sends query statement, and expects a Query Result for the given key,
-  // a timestamp, and a proof (if it was a committed value it read) Sending a
-  // query statement (even though it is a point request) allows us to handle
-  // complex Select operators (like Count, Max, or just some subset of rows,
-  // etc) without additional parsing Since the CC-store holds no data, we have
-  // to generate a statement otherwise anyways --> so it's easiest to just send
-  // it from the client as is (rather than assembling it from the encoded key )
-  //  std::string table_name;
-  //  std::vector<std::string> primary_key_column_values;
-  //  DecodeTableRow(enc_primary_key, table_name, primary_key_column_values);
+  // a timestamp, and a proof (if it was a committed value it read) Note:
+  // Sending a query statement (even though it is a point request) allows us to
+  // handle complex Select operators (like Count, Max, or just some subset of
+  // rows, etc) without additional parsing Since the CC-store holds no data, the
+  // server would have to generate a statement anyways --> so it's easiest to
+  // just send it from the client as is (rather than assembling it from the
+  // encoded key )
 
-  // TODO: If read_prepared = true read both committed/prepared read
-  //  if true --> After execution check txn_digest of prepared_value (if exist).
-  //  Check dependency depth. for txn_digest. If too deep, remove it.
-  // FIXME: to have access to this: need server (pass as this in constructor?)
-  // ==> No, do this stuff inside the ProcessPointQuery level.
+  // Read prepared predicate will evaluate to true if a) prepared reads are
+  // enabled, AND b) the dependency depth of a prepared value is within the
+  // threshold. Pass down a Lambda function that takes in txn_digest and checks
+  // whether is readable (Like passing an electrical probe down the ocean)
+
   // TODO: If no write/read exists (result == empty) -> send empty result (i.e.
   // no fields in write are set), read_time = 0 by default
   //  WARNING: Don't set prepared or committed -- let client side default
-  //  handling take care of it.
-
-  // (optional TODO:) For optimal CC we'd ideally send the time of last delete
-  // (to minimize conflict window)
+  //  handling take care of it. (optional TODO:) For optimal CC we'd ideally
+  //  send the time of last delete (to minimize conflict window) rather than
+  //  default to 0
   //- but then we have to send it as committed (with proof) or as prepared (with
   // value = empty result) Client will have to check proof txn ==> lookup that
   // key exists in Writeset was marked as delete. Note: For Query reads that
   // would technically be the best too --> the coarse lock of the Table Version
   // helps simulate it.
 
-  // Alternatively:
-  // Since we also need to avoid reading prepared for the normal queries:
-  // Pass down a Lambda function that takes in txn_digest and checks whether is
-  // readable (Like passing an electrical probe down the ocean)
-  // Don't read TableVersion (quetion: how do we read table version for normal
-  // query? --> let it return table name and then look up?)
+  // Note: Don't read TableVersion for PointReads -- they do not care about what
+  // other rows exist
 
-  // args: query, Ts, this->can_read_prepared ; commit: (result, timestamp,
-  // proof), prepared: (result, timestamp, txn_digest), key (optional)
-  // TODO: Execute QueryStatement on Peloton. -> returns peloton result
-  // TODO: Read latest committed (return committedProof) + Read latest prepared
-  // (if > committed)
-
-  // TODO: Extract proof/version from CC-store. --> return ReadReply + value =
-  // serialized proto result.
-
-  // TODO: use add row interface for serialization //
-  // DecodeTableRow(enc_primary_key, table_name, primary_key_column_values);
-  std::vector<peloton::ResultValue> result;
-  std::vector<peloton::FieldInfo> tuple_descriptor;
-
-  // execute the query using tcop
   // prepareStatement
-  // LOG_TRACE("Query: %s", query.c_str());
-  auto &peloton_parser = peloton::parser::PostgresParser::GetInstance();
-  auto sql_stmt_list = peloton_parser.BuildParseTree(query_statement);
-  // PELOTON_ASSERT(sql_stmt_list);
-  if (!sql_stmt_list->is_valid) {
-    // return peloton::ResultType::FAILURE;
-  }
-  auto statement = traffic_cop_.PrepareStatement(
-      unnamed_statement, query_statement, std::move(sql_stmt_list));
-  if (statement.get() == nullptr) {
-    traffic_cop_.setRowsAffected(0);
-    // return peloton::ResultType::FAILURE;
-  }
+  auto statement = ParseAndPrepare(query_statement);
+
   // ExecuteStatment
   std::vector<peloton::type::Value> param_values;
-
+  std::vector<peloton::ResultValue> result;
   std::vector<int> result_format(statement->GetTupleDescriptor().size(), 0);
-  // SetTrafficCopCounter();
-  counter_.store(1);
+
+  counter_.store(1); // SetTrafficCopCounter();
 
   Timestamp committed_timestamp;
-  Timestamp prepared_timestamp;
-  std::shared_ptr<std::string> txn_dig;
+  Timestamp prepared_timestamp;         // TODO: Change into write subparts.
+  std::shared_ptr<std::string> txn_dig; // prepared dependency
 
+  // Execute PointQueryStatement on Peloton using traffic_cop
+  // args: query, Ts, this->can_read_prepared ; commit: (result1, timestamp1,
+  // proof), prepared: (result2, timestamp2, txn_digest), key (optional) Read
+  // latest committed (return committedProof) + Read latest prepared (if >
+  // committed)
   auto status = traffic_cop_.ExecutePointReadStatement(
       statement, param_values, unnamed, result_format, result, ts,
       this->can_read_prepared, &committed_timestamp, committedProof,
       &prepared_timestamp, txn_dig, write);
-  if (traffic_cop_.GetQueuing()) {
-    ContinueAfterComplete(counter_);
-    traffic_cop_.ExecuteStatementPlanGetResult();
-    status = traffic_cop_.ExecuteStatementGetResult();
-    traffic_cop_.SetQueuing(false);
-  }
-  if (status == peloton::ResultType::SUCCESS) {
-    tuple_descriptor = statement->GetTupleDescriptor();
-  }
 
-  // write->set_committed_value()
-  std::cout << "Commit proof client id: "
-            << traffic_cop_.commit_proof_->txn().client_id()
-            << " : sequence number: "
-            << traffic_cop_.commit_proof_->txn().client_seq_num() << std::endl;
+  GetResult(status);
 
-  // TODO: Change Peloton result into query proto.
-  sql::QueryResultProtoBuilder queryResultBuilder;
-  // queryResultBuilder.add_column("result");
-  // queryResultBuilder.add_row(result_row.begin(), result_row.end());
-  std::cout << "Before adding columns" << std::endl;
-  // Add columns
-  for (unsigned int i = 0; i < tuple_descriptor.size(); i++) {
-    std::string column_name = std::get<0>(tuple_descriptor[i]);
-    queryResultBuilder.add_column(column_name);
-  }
-
-  // std::cout << "Before adding rows" << std::endl;
-  // std::cout << "Tuple descriptor size is " << tuple_descriptor.size()
-  //<< std::endl;
-  bool read_prepared = false;
-  bool already_read_prepared = false;
-
-  // Add rows
-  unsigned int rows = result.size() / tuple_descriptor.size();
-  for (unsigned int i = 0; i < rows; i++) {
-    // std::string row_string = "Row " + std::to_string(i) + ": ";
-    // std::cout << "Row index is " << i << std::endl;
-    // queryResultBuilder.add_empty_row();
-    RowProto *row = queryResultBuilder.new_row();
-    std::string row_string = "";
-
-    // queryResultBuilder.add_empty_row();
-    for (unsigned int j = 0; j < tuple_descriptor.size(); j++) {
-      // queryResultBuilder.AddToRow(row, result[i*tuple_descriptor.size()+j]);
-      // std::cout << "Get field value" << std::endl;
-      // FieldProto *field = row->add_fields();
-      // std::string field_value = GetResultValueAsString(result, i *
-      // tuple_descriptor.size() + j);
-      queryResultBuilder.AddToRow(row, result[i * tuple_descriptor.size() + j]);
-      // field->set_data(queryResultBuilder.serialize(field_value));
-      // field->set_data(result[i*tuple_descriptor.size()+j]);
-      // std::cout << "After" << std::endl;
-      // row_string += field_value + " ";
-
-      // queryResultBuilder.update_field_in_row(i, j, field_value);
-      // row_string += GetResultValueAsString(result, i *
-      // tuple_descriptor.size() + j);
-
-      // std::cout << "Inside j loop" << std::endl;
-      // std::cout << GetResultValueAsString(result, i * tuple_descriptor.size()
-      // + j) << std::endl;
-    }
-    if (read_prepared && !already_read_prepared) {
-      write->set_prepared_value(row_string);
-      std::cout << "Prepared value is " << row_string << std::endl;
-      write->set_prepared_txn_digest(*txn_dig.get());
-      std::cout << "Prepared txn digest is " << *txn_dig.get() << std::endl;
-      // write->set_allocated_prepared_timestamp(TimestampMessage{prepared_timestamp.getID(),
-      // prepared_timestamp.getTimestamp()});
-      std::cout << "Prepared timestamp is " << prepared_timestamp.getTimestamp()
-                << ", " << prepared_timestamp.getID() << std::endl;
-
-      already_read_prepared = true;
-    }
-
-    write->set_committed_value(row_string);
-    std::cout << "Committed value is " << row_string << std::endl;
-    //  write->set_allocated_committed_timestamp(TimestampMessage(committed_timestamp));
-    std::cout << "Commit timestamp is " << committed_timestamp.getTimestamp()
-              << ", " << committed_timestamp.getID() << std::endl;
-  }
-  // write->set_allocated_proof(traffic_cop_.commit_proof_->SerializeAsString());
-
-  std::cout << "Result from query result builder is " << std::endl;
-  std::cout << queryResultBuilder.get_result()->SerializeAsString()
-            << std::endl;
-
-  // return queryResultBuilder.get_result()->SerializeAsString();
+  TransformPointResult(write, committed_timestamp, prepared_timestamp, txn_dig,
+                       status, statement, result);
 
   return;
 }
@@ -456,13 +319,96 @@ void PelotonTableStore::ExecPointRead(
 // do it at the client, so that we can keep whatever Select specification, e.g.
 // * or specific cols...
 
+void PelotonTableStore::TransformPointResult(
+    proto::Write *write, Timestamp &committed_timestamp,
+    Timestamp &prepared_timestamp, std::shared_ptr<std::string> txn_dig,
+    peloton::ResultType &status, std::shared_ptr<peloton::Statement> statement,
+    std::vector<peloton::ResultValue> &result) {
+
+  std::vector<peloton::FieldInfo> tuple_descriptor;
+  if (status == peloton::ResultType::SUCCESS) {
+    tuple_descriptor = statement->GetTupleDescriptor();
+  }
+
+  // write->set_committed_value()
+  std::cout << "Commit proof client id: "
+            << traffic_cop_.commit_proof_->txn().client_id()
+            << " : sequence number: "
+            << traffic_cop_.commit_proof_->txn().client_seq_num() << std::endl;
+
+  // Change Peloton result into query proto.
+
+  unsigned int rows = result.size() / tuple_descriptor.size();
+  UW_ASSERT(rows <= 2); // There should be at most 2 rows: One committed, and
+                        // one prepared. The committed one always comes last.
+
+  if (rows == 0)
+    return; // Empty result: No tuple exists for the supplied Row-key
+
+  // Committed
+  sql::QueryResultProtoBuilder queryResultBuilder;
+  RowProto *row = queryResultBuilder.new_row();
+
+  for (unsigned int i = 0; i < tuple_descriptor.size(); i++) {
+    std::string &column_name = std::get<0>(tuple_descriptor[i]);
+    queryResultBuilder.add_column(column_name);
+    queryResultBuilder.AddToRow(
+        row, result[rows - 1 * tuple_descriptor.size() +
+                    i]); // Note: rows-1 == last row == Committed
+  }
+
+  write->set_committed_value(
+      queryResultBuilder.get_result()
+          ->SerializeAsString()); // Note: This "clears" the builder
+  committed_timestamp.serialize(write->mutable_committed_timestamp());
+
+  // Prepared
+  if (rows < 2)
+    return; // no prepared
+
+  row = queryResultBuilder.new_row();
+  for (unsigned int i = 0; i < tuple_descriptor.size(); i++) {
+    std::string &column_name = std::get<0>(tuple_descriptor[i]);
+    queryResultBuilder.add_column(column_name);
+    queryResultBuilder.AddToRow(
+        row, result[0 * tuple_descriptor.size() +
+                    i]); // Note: first row == Prepared (if present)
+  }
+
+  write->set_prepared_value(
+      queryResultBuilder.get_result()
+          ->SerializeAsString()); // Note: This "clears" the builder
+  prepared_timestamp.serialize(write->mutable_prepared_timestamp());
+  write->set_prepared_txn_digest(*txn_dig);
+
+  return;
+}
+
+//////////////////////// WRITE STATEMENTS
+
+// void ExecWrite(std::string &write_statement, const Timestamp &ts, const
+// std::string &txn_digest,
+//     const proto::CommittedProof *commit_proof, bool commit_or_prepare)
+
 // Apply a set of Table Writes (versioned row creations) to the Table backend
 void PelotonTableStore::ApplyTableWrite(
     const std::string &table_name, const TableWrite &table_write,
     const Timestamp &ts, const std::string &txn_digest,
-    const proto::CommittedProof *commit_proof, bool commit_or_prepare, int i) {
+    const proto::CommittedProof *commit_proof, bool commit_or_prepare) {
+  // Note: These are "no questions asked writes", i.e. they should always
+  // succeed/be applied, because they don't care about any semantics
+  //  TODO: can add boolean to allow a use of this function that DOES respect
+  //  Insert/Update/Delete semantics -- however those can just go through
+  //  ExecRaw (and wait for the result)
 
-  std::cout << "In apply table write" << std::endl;
+  // Ensure that ApplyTableWrite is synchronous -- i.e. only returns after all
+  // writes are applied. => currently this is achieved by waiting for the Write
+  // Result If we don't want to wait for the Write Result, then must call
+  // SetTableVersion as callback from within Peloton once it is done to set the
+  // TableVersion (Currently, it is being set right after ApplyTableWrite()
+  // returns)
+
+  Debug("Apply TableWrite for txn %s", BytesToHex(txn_digest, 16));
 
   if (table_write.rows().empty())
     return;
@@ -470,190 +416,99 @@ void PelotonTableStore::ApplyTableWrite(
   // Turn txn_digest into a shared_ptr, write everywhere it is needed.
   std::shared_ptr<std::string> txn_dig(
       std::make_shared<std::string>(txn_digest));
-  std::stringstream ss;
-  ss << "INSERT INTO test VALUES (" << i << ", " << (i + 100) << ")";
 
-  std::string write_statement = ss.str(); // empty if no writes
+  std::string write_statement; // empty if no writes
+  write_statement = "INSERT INTO test VALUES(0, 100)";
   // std::string delete_statement; //empty if no deletes
   std::vector<std::string> delete_statements;
-  // NOTE: This line is causing issues when using multi threads
   // sql_interpreter.GenerateTableWriteStatement(
   // write_statement, delete_statements, table_name, table_write);
 
-  // TODO: Check whether there is a more efficient way than creating SQL
-  // commands for each.
-
-  // TODO: Execute on Peloton
-  // Exec write
-  // if(has_delete) Exec delete
+  // Execute Writes and Deletes on Peloton
   std::vector<peloton::ResultValue> result;
-  std::vector<peloton::FieldInfo> tuple_descriptor;
 
-  std::cout << "The write statement is: " << write_statement << std::endl;
-  std::cout << "The delete statements are: " << std::endl;
-  for (auto &delete_statement : delete_statements) {
-    std::cout << delete_statement << std::endl;
-  }
+  Debug("Write statement: %s", write_statement);
+  Debug("Delete statements: %s", fmt::join(delete_statements, "|"));
 
+  // Execute Write Statement
   if (!write_statement.empty()) {
-    // execute the query using tcop
     // prepareStatement
-    // LOG_TRACE("Query: %s", query.c_str());
-    auto &peloton_parser = peloton::parser::PostgresParser::GetInstance();
-    auto sql_stmt_list = peloton_parser.BuildParseTree(write_statement);
-    //  PELOTON_ASSERT(sql_stmt_list);
-    if (!sql_stmt_list->is_valid) {
-      // return peloton::ResultType::FAILURE;
-    }
-    auto statement = traffic_cop_.PrepareStatement(
-        unnamed_statement, write_statement, std::move(sql_stmt_list));
-    if (statement.get() == nullptr) {
-      traffic_cop_.setRowsAffected(0);
-      // return peloton::ResultType::FAILURE;
-    }
+    auto statement = ParseAndPrepare(write_statement);
+
     // ExecuteStatment
     std::vector<peloton::type::Value> param_values;
-
-    size_t t_id = std::hash<std::thread::id>{}(std::this_thread::get_id());
+    size_t t_id =
+        0; // std::hash<std::thread::id>{}(std::this_thread::get_id());
 
     std::vector<int> result_format(statement->GetTupleDescriptor().size(), 0);
-    // SetTrafficCopCounter();
-    counter_.store(1);
+
+    counter_.store(1); // SetTrafficCopCounter();
     auto status = traffic_cop_.ExecuteWriteStatement(
         statement, param_values, unnamed, result_format, result, ts, txn_dig,
         commit_proof, commit_or_prepare, t_id);
-    if (traffic_cop_.GetQueuing()) {
-      ContinueAfterComplete(counter_);
-      traffic_cop_.ExecuteStatementPlanGetResult();
-      status = traffic_cop_.ExecuteStatementGetResult();
-      traffic_cop_.SetQueuing(false);
-    }
-    if (status == peloton::ResultType::SUCCESS) {
-      tuple_descriptor = statement->GetTupleDescriptor();
-    }
 
-    // TODO: Change Peloton result into query proto.
-    sql::QueryResultProtoBuilder queryResultBuilder;
-    // queryResultBuilder.add_column("result");
-    // queryResultBuilder.add_row(result_row.begin(), result_row.end());
-    std::cout << "Before adding columns" << std::endl;
-    // Add columns
-    for (unsigned int i = 0; i < tuple_descriptor.size(); i++) {
-      std::string column_name = std::get<0>(tuple_descriptor[i]);
-      queryResultBuilder.add_column(column_name);
-    }
+    GetResult(status);
+
+    if (status == peloton::ResultType::SUCCESS)
+      Debug("Write successful");
+    else
+      Panic("Write failure");
   }
 
-  // execute the query using tcop
-  // prepareStatement
-  // LOG_TRACE("Query: %s", query.c_str());
-  /*std::string unnamed_statement = "unnamed";
-  auto &peloton_parser = peloton::parser::PostgresParser::GetInstance();
-  auto sql_stmt_list = peloton_parser.BuildParseTree(write_statement);
-  //PELOTON_ASSERT(sql_stmt_list);
-  if (!sql_stmt_list->is_valid) {
-  //return peloton::ResultType::FAILURE;
-  }
-  auto statement = traffic_cop_.PrepareStatement(unnamed_statement,
-  write_statement, std::move(sql_stmt_list)); if (statement.get() == nullptr) {
-          traffic_cop_.setRowsAffected(0);
-          //return peloton::ResultType::FAILURE;
-  }
-  // ExecuteStatment
-  std::vector<peloton::type::Value> param_values;
-
-  std::vector<int> result_format(statement->GetTupleDescriptor().size(), 0);
-  // SetTrafficCopCounter();
-  counter_.store(1);
-  auto status = traffic_cop_.ExecuteWriteStatement(statement, param_values,
-  unnamed, result_format, result, ts, txn_dig, commit_proof, commit_or_prepare);
-  if (traffic_cop_.GetQueuing()) {
-          ContinueAfterComplete(counter_);
-          traffic_cop_.ExecuteStatementPlanGetResult();
-          status = traffic_cop_.ExecuteStatementGetResult();
-          traffic_cop_.SetQueuing(false);
-  }
-  if (status == peloton::ResultType::SUCCESS) {
-          tuple_descriptor = statement->GetTupleDescriptor();
-  }
-
-  //TODO: Change Peloton result into query proto.
-  sql::QueryResultProtoBuilder queryResultBuilder;
-  // queryResultBuilder.add_column("result");
-  // queryResultBuilder.add_row(result_row.begin(), result_row.end());
-  std::cout << "Before adding columns" << std::endl;
-  // Add columns
-  for (unsigned int i = 0; i < tuple_descriptor.size(); i++) {
-          std::string column_name = std::get<0>(tuple_descriptor[i]);
-          queryResultBuilder.add_column(column_name);
-  }*/
-
-  // TODO: Replace has_delete with !delete_statement.empty()
-  // if(has_delete) Exec delete
+  // Execute Delete Statement
+  // Note: Peloton does not support WHERE IN syntax in Delete statements. Thus
+  // we have to represent multi deletes as indidivdual statements -- which is
+  // quite inefficient
 
   // if (!delete_statement.empty()) {
-  for (auto &delete_statement : delete_statements) {
-    auto &peloton_parser = peloton::parser::PostgresParser::GetInstance();
-    auto sql_stmt_list = peloton_parser.BuildParseTree(delete_statement);
-
-    // PELOTON_ASSERT(sql_stmt_list);
-    if (!sql_stmt_list->is_valid) {
-      // return peloton::ResultType::FAILURE;
-    }
-    auto statement = traffic_cop_.PrepareStatement(
-        unnamed_statement, delete_statement, std::move(sql_stmt_list));
-    if (statement.get() == nullptr) {
-      traffic_cop_.setRowsAffected(0);
-      // return peloton::ResultType::FAILURE;
-    }
+  for (auto &delete_statement :
+       delete_statements) { // TODO: Find a way to parallelize these statement
+                            // calls (they don't conflict)
+    // prepare Statement
+    auto statement = ParseAndPrepare(delete_statement);
     // ExecuteStatment
-    std::vector<peloton::type::Value> param_values;
-    param_values.clear();
+    std::vector<peloton::type::Value> param_values; // param_values.clear();
 
     std::vector<int> result_format(statement->GetTupleDescriptor().size(), 0);
-    // SetTrafficCopCounter();
-    counter_.store(1);
+
+    counter_.store(1); // SetTrafficCopCounter();
     auto status = traffic_cop_.ExecuteWriteStatement(
         statement, param_values, unnamed, result_format, result, ts, txn_dig,
         commit_proof, commit_or_prepare);
-    if (traffic_cop_.GetQueuing()) {
-      ContinueAfterComplete(counter_);
-      traffic_cop_.ExecuteStatementPlanGetResult();
-      status = traffic_cop_.ExecuteStatementGetResult();
-      traffic_cop_.SetQueuing(false);
-    }
-    if (status == peloton::ResultType::SUCCESS) {
-      tuple_descriptor = statement->GetTupleDescriptor();
-    }
 
-    // TODO: add boolean to sometimes not force writes and deletes
-    // Don't need to return anything
+    GetResult(status);
 
-    // TODO: Change Peloton result into query proto.
-    sql::QueryResultProtoBuilder queryResultBuilder1;
-    // queryResultBuilder.add_column("result");
-    // queryResultBuilder.add_row(result_row.begin(), result_row.end());
-    std::cout << "Before adding columns" << std::endl;
-    // Add columns
-    for (unsigned int i = 0; i < tuple_descriptor.size(); i++) {
-      std::string column_name = std::get<0>(tuple_descriptor[i]);
-      queryResultBuilder1.add_column(column_name);
-    }
+    if (status == peloton::ResultType::SUCCESS)
+      Debug("Delete successful");
+    else
+      Panic("Delete failure");
   }
-
-  // TODO: Confirm that ApplyTableWrite is synchronous -- i.e. only returns
-  // after all writes are applied. If not, then must call SetTableVersion as
-  // callback from within Peloton once it is done to set the TableVersion
-  // (Currently, it is being set right after ApplyTableWrite() returns)
 }
 
 void PelotonTableStore::PurgeTableWrite(const std::string &table_name,
                                         const TableWrite &table_write,
                                         const Timestamp &ts,
                                         const std::string &txn_digest) {
-
   if (table_write.rows().empty())
     return;
+
+  // Purge statement is a "special" delete statement:
+  //  it deletes existing row insertions for the timestamp, but it also undoes
+  //  existing deletes for the timestamp
+
+  // Simple implementation: Check Versioned linked list and delete row with
+  // Timestamp ts. Return if ts > current WARNING: ONLY Purge Rows/Tuples that
+  // are prepared. Do NOT purge committed ones. Note: Since Delete does not
+  // impact Indexes no other changes are necessary. MUST delete even if not in
+  // index Note: Purging Prepared Inserts will not clean up Index updates, i.e.
+  // the aborted transaction may leave behind a false positive index entry.
+  // Removing this false positive would require modifying the Peloton internals,
+  // so we will ignore this issue since it only affects efficiency and not
+  // results.
+  //  I.e. a hit to the false positive will just result in a wasted lookup.
+
+  //==> Effectively it is "aborting" all previously suggested (prepared) table
+  // writes.
 
   std::shared_ptr<std::string> txn_dig(
       std::make_shared<std::string>(txn_digest));
@@ -664,74 +519,32 @@ void PelotonTableStore::PurgeTableWrite(const std::string &table_name,
   sql_interpreter.GenerateTablePurgeStatement(purge_statements, table_name,
                                               table_write);
 
-  // TODO: Purge statement is a "special" delete statement:
-  //  it deletes existing row insertions for the timestamp
-  //  but it also undoes existing deletes for the timestamp
-  // Simple implementation: Check Versioned linked list and delete row with
-  // Timestamp ts. Return if ts > current WARNING: ONLY Purge Rows/Tuples that
-  // are prepared. Do NOT purge committed ones. Note: Since Delete does not
-  // impact Indexes no other changes are necessary. Note: Purging Prepared
-  // Inserts will not clean up Index updates, i.e. the aborted transaction may
-  // leave behind a false positive index entry. Removing this false positive
-  // would require modifying the Peloton internals, so we will ignore this issue
-  // since it only affects efficiency and not results.
-  //  I.e. a hit to the false positive will just result in a wasted lookup.
+  if (purge_statements.empty())
+    return; // Nothing to undo.
 
-  // TODO: MUST delete even if not in index.  -- TODO: MUST ALSO DO THIS FOR
-  // NORMAL ABORT
-
-  //==> Effectively it is "aborting" all suggested table writes.
-
-  // TODO: Execute on Peloton
-  bool has_purge = !purge_statements.empty();
-
-  std::cout << "Has purge value is " << has_purge << std::endl;
-  for (auto &purge_statement : purge_statements) {
-    std::cout << "Purge statement:" << purge_statement << std::endl;
-  }
-
-  if (!has_purge)
-    return; // Nothing to undo.   //TODO: CONFIRM WITH NEIL THAT PURGE ALSO
-            // UNDOES DELETES
+  Debug("Purge statements: %s", fmt::join(purge_statements, "|"));
 
   std::vector<peloton::ResultValue> result;
   std::vector<peloton::FieldInfo> tuple_descriptor;
 
   for (auto &purge_statement : purge_statements) {
-    // execute the query using tcop
     // prepareStatement
-    // LOG_TRACE("Query: %s", query.c_str());
-    std::string unnamed_statement = "unnamed";
-    auto &peloton_parser = peloton::parser::PostgresParser::GetInstance();
-    auto sql_stmt_list = peloton_parser.BuildParseTree(purge_statement);
-    // PELOTON_ASSERT(sql_stmt_list);
+    auto statement = ParseAndPrepare(purge_statement);
 
-    auto statement = traffic_cop_.PrepareStatement(
-        unnamed_statement, purge_statement, std::move(sql_stmt_list));
-
-    if (statement.get() == nullptr) {
-      traffic_cop_.setRowsAffected(0);
-    }
-    std::vector<peloton::type::Value> param_values;
-
-    param_values.clear();
+    std::vector<peloton::type::Value> param_values; // param_values.clear();
     std::vector<int> result_format(statement->GetTupleDescriptor().size(), 0);
 
-    // SetTrafficCopCounter();
-    counter_.store(1);
-    pequinstore::proto::CommittedProof commit_proof;
+    counter_.store(1); // SetTrafficCopCounter();
     auto status = traffic_cop_.ExecutePurgeStatement(
         statement, param_values, unnamed, result_format, result, ts, txn_dig,
-        has_purge);
-    if (traffic_cop_.GetQueuing()) {
-      ContinueAfterComplete(counter_);
-      traffic_cop_.ExecuteStatementPlanGetResult();
-      status = traffic_cop_.ExecuteStatementGetResult();
-      traffic_cop_.SetQueuing(false);
-    }
-    if (status == peloton::ResultType::SUCCESS) {
-      tuple_descriptor = statement->GetTupleDescriptor();
-    }
+        !purge_statements.empty());
+
+    GetResult(status);
+
+    if (status == peloton::ResultType::SUCCESS)
+      Debug("Delete successful");
+    else
+      Panic("Delete failure");
   }
 }
 
