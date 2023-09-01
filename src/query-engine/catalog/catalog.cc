@@ -48,7 +48,6 @@ namespace catalog {
 // Get instance of the global catalog
 Catalog *Catalog::GetInstance() {
   static Catalog global_catalog;
-  std::cout << "Obtained catalog" << std::endl;
   return &global_catalog;
 }
 

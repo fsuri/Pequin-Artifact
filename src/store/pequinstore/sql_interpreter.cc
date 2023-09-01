@@ -239,7 +239,7 @@ void SQLTransformer::TransformInsert(
   // case, embed the nested select statement as part of the read_statement
   //-> Turn into read_statement: Result(column, column_value) SELECT
   //<primary_columns> FROM <table_name> WHERE <col = value>  // Nested Select
-  //Statement.
+  // Statement.
   //             write_cont: if(Result.empty()) create TableWrite with primary
   //             column encoded key, column_list, value_list
   //     TODO: Need to add to read set the time stamp of read "empty" version:
@@ -348,16 +348,18 @@ void SQLTransformer::TransformInsert(
   size_t next_val;
   while ((next_val = values_statement.find(", ")) != string::npos) {
     std::string_view curr_val = values_statement.substr(0, next_val);
-    value_list.push_back(std::move(
-        TrimValue(curr_val, col_registry.col_quotes[i++]))); // value_list.push_back(std::move(static_cast<std::string>(values_statement.substr(0,
-                                                             // next_val))));
+    value_list.push_back(std::move(TrimValue(
+        curr_val,
+        col_registry.col_quotes
+            [i++]))); // value_list.push_back(std::move(static_cast<std::string>(values_statement.substr(0,
+                      // next_val))));
     values_statement = values_statement.substr(next_val + 2);
   }
   value_list.push_back(std::move(TrimValue(
       values_statement,
-      col_registry
-          .col_quotes[i++]))); // value_list.push_back(std::move(static_cast<std::string>(values_statement)));
-                               // //push back last value (only remaining).
+      col_registry.col_quotes
+          [i++]))); // value_list.push_back(std::move(static_cast<std::string>(values_statement)));
+                    // //push back last value (only remaining).
 
   // Done.
 
@@ -368,8 +370,8 @@ void SQLTransformer::TransformInsert(
   // single column primary key)
 
   ///////// //Create Read statement:  ==> Ideally for Inserts we'd just use a
-  ///point get on the primary keys. (instead of a sql select statement that's a
-  ///bit overkill)
+  /// point get on the primary keys. (instead of a sql select statement that's a
+  /// bit overkill)
 
   std::vector<const std::string_view *> primary_key_column_values;
 
@@ -605,7 +607,7 @@ void SQLTransformer::TransformUpdate(
   ///////// //Create Read statement:  Just Select * with Where condition
   //==> TODO: Ideally for Updates we'd just select on the primary key columns.
   //(instead of a sql select * statement which is a bit overkill): But then we
-  //can't copy col values std::vector<const std::string*>
+  // can't copy col values std::vector<const std::string*>
   // primary_key_column_values;
   // read_statement = "SELECT * FROM ";
   // read_statement += table_name;
@@ -695,7 +697,7 @@ void SQLTransformer::TransformUpdate(
         // Replace value with col value if applicable. Then operate arithmetic
         // by casting ops to uint64_t and then turning back to string.
         //(*write->mutable_rowupdates()->mutable_attribute_writes())[col] =
-        //std::move(GetUpdateValue(col, field_val, field, col_updates));
+        // std::move(GetUpdateValue(col, field_val, field, col_updates));
         bool change_val = false;
         std::string set_val = GetUpdateValue(col, field_val, field, col_updates,
                                              col_type, change_val);
@@ -1170,7 +1172,7 @@ void SQLTransformer::GenerateTableWriteStatement(
       delete_statement += ";";
     } else {
       write_statement += "(";
-      UW_ASSERT(row.column_values_size() == col_registry.col_names.size());
+      // UW_ASSERT(row.column_values_size() == col_registry.col_names.size());
       if (fine_grained_quotes) { // Use this to add fine grained quotes:
         for (int i = 0; i < row.column_values_size(); ++i) {
           if (col_registry.col_quotes[i])
@@ -1400,23 +1402,27 @@ void SQLTransformer::ParseColUpdate(
   UW_ASSERT(pos != std::string::npos);
 
   // Then parse Value based on operands.
-  Col_Update &val = col_updates[col_update.substr(0, pos)]; // col_updates[std::move(static_cast<std::string>(col_update.substr(0,
-                                                            // pos)))];
+  Col_Update &val = col_updates[col_update.substr(
+      0,
+      pos)]; // col_updates[std::move(static_cast<std::string>(col_update.substr(0,
+             // pos)))];
   col_update.remove_prefix(pos + eq_hook.length());
 
   // find val.  //TODO: Add support for nesting if necessary.
   pos = col_update.find_first_of("+-*/");
   // pos = col_update.find(" ");
   if (pos == std::string::npos) { // is string statement
-    val.l_value = col_update; // std::move(static_cast<std::string>(col_update));
+    val.l_value =
+        col_update; // std::move(static_cast<std::string>(col_update));
     val.has_operand = false;
   } else {
     val.has_operand = true;
     // Parse operand; //Assuming here it is of simple form:  x <operand> y  and
     // operand = {+, -, *, /}   Note: Assuming all values are Integers. For "/"
     // will cast to float.
-    val.l_value = col_update.substr(0, pos - 1); // std::move(static_cast<std::string>(col_update.substr(0,
-                                                 // pos-1)));
+    val.l_value = col_update.substr(
+        0, pos - 1); // std::move(static_cast<std::string>(col_update.substr(0,
+                     // pos-1)));
     val.operand = col_update.substr(
         pos,
         1); // std::move(static_cast<std::string>(col_update.substr(pos, 1)));

@@ -230,8 +230,10 @@ executor::ExecutionResult TrafficCop::ExecuteReadHelper(
 
   concurrency::TransactionContext *txn;
   if (!tcop_txn_state_.empty()) {
+    std::cout << "Read helper use existing txn" << std::endl;
     txn = curr_state.first;
   } else {
+    std::cout << "Read helper create txn" << std::endl;
     // No active txn, single-statement txn
     auto &txn_manager = concurrency::TransactionManagerFactory::GetInstance();
     // new txn, reset result status
@@ -310,8 +312,10 @@ executor::ExecutionResult TrafficCop::ExecuteWriteHelper(
 
   concurrency::TransactionContext *txn;
   if (!tcop_txn_state_.empty()) {
+    std::cout << "Write helper use of existing txn" << std::endl;
     txn = curr_state.first;
   } else {
+    std::cout << "Write helper create new txn" << std::endl;
     // No active txn, single-statement txn
     auto &txn_manager = concurrency::TransactionManagerFactory::GetInstance();
     // new txn, reset result status
