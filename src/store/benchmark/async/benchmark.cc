@@ -46,6 +46,7 @@
 #include "store/strongstore/client.h"
 #include "store/weakstore/client.h"
 #include "store/tapirstore/client.h"
+
 //benchmark clients
 #include "store/benchmark/async/bench_client.h"
 #include "store/benchmark/async/common/key_selector.h"
@@ -56,6 +57,8 @@
 #include "store/benchmark/async/tpcc/async/tpcc_client.h"
 #include "store/benchmark/async/smallbank/smallbank_client.h"
 #include "store/benchmark/async/toy/toy_client.h"
+#include "store/benchmark/async/rw-sql/rw-sql_client.h"
+
 //protocol clients
 //Pesto
 #include "store/pequinstore/client.h"

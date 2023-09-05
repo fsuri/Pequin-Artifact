@@ -24,13 +24,52 @@
  * SOFTWARE.
  *
  **********************************************************************/
+#ifndef RW_SQL_TRANSACTION_H
+#define RW_SQL_TRANSACTION_H
+
+#include <vector>
+
+#include "store/common/frontend/async_transaction.h"
+#include "store/common/frontend/client.h"
 #include "store/benchmark/async/common/key_selector.h"
 
-KeySelector::KeySelector(const std::vector<std::string> &keys) : keys(keys), numKeys(keys.size()) {
+#include "store/common/frontend/sync_client.h"
+#include "store/common/frontend/sync_transaction.h"
+
+namespace rwsql {
+
+
+class RWSQLTransaction : public SyncTransaction { //AsyncTransaction
+ public:
+  RWSQLTransaction(QuerySelector *querySelector, uint64_t &numOps, std::mt19937 &rand, bool readOnly = false); 
+  virtual ~RWSQLTransaction();
+
+  transaction_status_t Execute(SyncClient &client);
+
+  inline const std::vector<int> getKeyIdxs() const {
+    return keyIdxs;
+  }
+ protected:
+  inline const std::string &GetKey(int i) const {
+    return keySelector->GetKey(keyIdxs[i]);
+  }
+
+  //inline const size_t GetNumOps() const { return numOps; }
+
+  KeySelector *keySelector;
+  QuerySelector *querySelector;
+
+ private:
+  const size_t numOps;
+  const bool readOnly;
+  std::vector<int> keyIdxs;
+
+  std::vector<int> tables;
+  std::vector<int> bases;
+  std::vector<int> ranges;
+
+};
+
 }
 
-KeySelector::KeySelector(const std::vector<std::string> &keys, const int numKeys) : keys(keys), numKeys(numKeys) {
-}
-
-KeySelector::~KeySelector() {
-}
+#endif /* RW_TRANSACTION_H */

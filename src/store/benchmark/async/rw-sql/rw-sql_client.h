@@ -24,13 +24,50 @@
  * SOFTWARE.
  *
  **********************************************************************/
+#ifndef RW_SQL_CLIENT_H
+#define RW_SQL_CLIENT_H
+
+#include "store/benchmark/async/async_transaction_bench_client.h"
+#include "store/benchmark/async/sync_transaction_bench_client.h"
+#include "store/benchmark/async/rw-sql/rw-sql_transaction.h"
 #include "store/benchmark/async/common/key_selector.h"
+#include <unordered_map>
 
-KeySelector::KeySelector(const std::vector<std::string> &keys) : keys(keys), numKeys(keys.size()) {
-}
+namespace rwsql {
 
-KeySelector::KeySelector(const std::vector<std::string> &keys, const int numKeys) : keys(keys), numKeys(numKeys) {
-}
+enum KeySelection {
+  UNIFORM,
+  ZIPF
+};
 
-KeySelector::~KeySelector() {
-}
+
+class RWSQLClient : public SyncTransactionBenchClient {
+ public:
+  RWSQLClient(uint64_t numKeys, KeySelector *tableSelector, KeySelector *baseSelector, KeySelector *rangeSelector, bool readOnly,
+      SyncClient &client, Transport &transport, uint64_t id, int numRequests, int expDuration,
+      uint64_t delay, int warmupSec, int cooldownSec, int tputInterval,
+      uint32_t abortBackoff, bool retryAborted, uint32_t maxBackoff, uint32_t maxAttempts, const uint32_t timeout,
+      const std::string &latencyFilename = "");
+
+
+  virtual ~RWSQLClient();
+
+  std::unordered_map<int, int> key_counts;
+
+ protected:
+  virtual SyncTransaction *GetNextTransaction();
+  virtual std::string GetLastOp() const;
+
+ private:
+  QuerySelector *querySelector;
+  uint64_t numOps; //number of
+
+
+  uint64_t tid = 0;
+  bool readOnly;
+
+};
+
+} //namespace rw
+
+#endif /* RW_CLIENT_H */
