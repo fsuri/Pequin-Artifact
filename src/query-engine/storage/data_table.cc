@@ -519,6 +519,7 @@ bool DataTable::InsertInIndexes(const AbstractTuple *tuple,
       old_location.offset = first_element->offset;
       std::cout << "Old location block is " << old_location.block
                 << " and offset is " << old_location.offset << std::endl;
+
       return false;
     } else {
       success_count += 1;

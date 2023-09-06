@@ -347,7 +347,7 @@ void test_committed_table_write() {
   Timestamp toy_ts_c(10, 12);
   Timestamp toy_ts_c_1(20, 20);
   size_t num_writes = 1;
-  size_t num_overwrites = 12;
+  size_t num_overwrites = 1;
 
   /*for (size_t i = 0; i < num_writes; i++) {
     pequinstore::proto::CommittedProof *real_proof =
@@ -388,13 +388,31 @@ void test_committed_table_write() {
 
     /*threads.emplace_back(
         std::thread(WriteToTable, table_store1, toy_ts_c, i, i + 16));*/
-    threads.emplace_back(
-        std::thread(WriteToTable, table_store1, toy_ts_c_1, i, i + 72));
+    /*threads.emplace_back(
+        std::thread(WriteToTable, table_store1, toy_ts_c_1, i, i + 72));*/
   }
 
   for (auto &th : threads) {
     th.join();
   }
+
+  pequinstore::proto::CommittedProof *real_proof =
+      new pequinstore::proto::CommittedProof();
+  real_proof->mutable_txn()->set_client_id(toy_ts_c_1.getID());
+  real_proof->mutable_txn()->set_client_seq_num(toy_ts_c_1.getTimestamp());
+  toy_ts_c_1.serialize(real_proof->mutable_txn()->mutable_timestamp());
+  TableWrite &table_write =
+      (*real_proof->mutable_txn()->mutable_table_writes())["test"];
+
+  RowUpdates *row1 = table_write.add_rows();
+  row1->add_column_values(std::to_string(10));
+  row1->add_column_values(std::to_string(100));
+
+  table_store1->ApplyTableWrite("test", table_write, toy_ts_c_1, "random",
+                                real_proof, false);
+
+  table_store1->ApplyTableWrite("test", table_write, toy_ts_c_1, "random",
+                                real_proof, true);
 
   // std::thread t(WriteToTable, table_store, 0);
   //  WriteToTable(table_store, 0);
