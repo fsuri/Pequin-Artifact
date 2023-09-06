@@ -56,7 +56,9 @@ message TableWrite {
     repeated bool column_quotes = 3;
     repeated uint32 col_primary_idx = 4 ; //TODO: might not even need column names at all, just store primary col names then. Must make sure col_values are in schema order.
 
+    //IN USE:
     repeated RowUpdates rows = 5;            // each RowUpdate stores the column values in order.
+    optional bool changed_table = 6;
    
     //repeated string primary_cols = 5;
 }

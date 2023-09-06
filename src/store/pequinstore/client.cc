@@ -698,6 +698,16 @@ void Client::Commit(commit_callback ccb, commit_timeout_callback ctcb,
       
     }
 
+    //Add a TableVersion for each TableWrite -- CON: Don't want to do this for updates...
+    for(auto &[table_name, table_write] : txn.table_writes()){
+      //Only update TableVersion if we inserted/deleted a row
+      if(table_write.has_changed_table() && table_write.changed_table()){
+          WriteMessage *table_ver = txn.add_write_set();
+          table_ver->set_key(table_name);
+          table_ver->set_value("");
+      }
+    }
+
     //XXX flag to sort read/write sets for parallel OCC
     if(params.parallel_CCC || true){ //NOTE: FIXME: Currently always sorting: This way we can detect duplicate table versions early.
       try {

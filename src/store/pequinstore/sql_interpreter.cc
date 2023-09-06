@@ -176,7 +176,7 @@ void SQLTransformer::TransformWriteStatement(std::string &_write_statement,
     //Case 4) SELECT INTO : Not supported, write statement as Select followed by Insert Into (new table)? Or parse into INSERT INTO statement with nested SELECT (same logic)
 }
 
-
+//TODO: Modify to support multi-row insert -> create row in TableWrite for each parsed result.
 void SQLTransformer::TransformInsert(size_t pos, std::string_view &write_statement,
     std::string &read_statement, std::function<void(int, query_result::QueryResult*)>  &write_continuation, write_callback &wcb){
     //Based on Syntax from: https://www.postgresqltutorial.com/postgresql-tutorial/postgresql-insert/ 
@@ -184,7 +184,7 @@ void SQLTransformer::TransformInsert(size_t pos, std::string_view &write_stateme
 
      //Case 1) INSERT INTO <table_name> (<column_list>) VALUES (<value_list>)
               //Note: Value list may be the output of a nested SELECT statement. In that case, embed the nested select statement as part of the read_statement
-        //-> Turn into read_statement: Result(column, column_value) SELECT <primary_columns> FROM <table_name> WHERE <col = value>  // Nested Select Statement.
+        //-> Turn into read_statement: Result(column, column_value) SELECT <primary_columns> FROM <table_name> WHERE <col = value>  // Nested Select Statement. //Optimization: Don't send a Read.
         //             write_cont: if(Result.empty()) create TableWrite with primary column encoded key, column_list, value_list
         //     TODO: Need to add to read set the time stamp of read "empty" version: I.e. for no existing version (result = empty) -> 0 (genesis TS); for deleted version --> version that deleted row.
                                                                                         // I think it's always fine to just set version to 0 here.
@@ -345,10 +345,12 @@ void SQLTransformer::TransformInsert(size_t pos, std::string_view &write_stateme
         wcb(REPLY_OK, result); 
     };
 
-    //Write Table Version itself. //Only for kv-store.
-        WriteMessage *table_ver = txn->add_write_set();
-        table_ver->set_key(table_name);
-        table_ver->set_value("");
+    //Write Table Version itself. //Only for kv-store.   
+    //-- Note: If a TX issues many Inserts => we'll write table_version redundantly to write set -- However, these are all ignored by Prepare/Commit & filtered out in LockTxnKeys_scoped
+    //Safe but wasteful (message bigger than need be + CC checks keys redundantly) // TODO: Improve: Either filter out during client sorting; or better: only when submitting a TXN for commit, add key per table write
+        // WriteMessage *table_ver = txn->add_write_set();
+        // table_ver->set_key(table_name);
+        // table_ver->set_value("");
 
         
         //Read genesis timestamp (0) for key ==> FIXME: THIS CURRENTLY DOES NOT WORK WITH EXISTING OCC CHECK.
@@ -518,9 +520,13 @@ void SQLTransformer::TransformUpdate(size_t pos, std::string_view &write_stateme
         ColRegistry &col_registry = itr->second; //TableRegistry[table_name];
 
          //Write Table Version itself. //Only for kv-store. //FIXME: This is for coarse CC -- Update conflicts with ALL Selects on Table
-        WriteMessage *table_ver = txn->add_write_set();
-        table_ver->set_key(table_name);
-        table_ver->set_value("");
+        //TODO: Ideally UPDATE statement does not need to change TableVersion: It does not create or remove any rows. I.e. the Table "stays the same"
+        //However, currently updates do need to change the TableVersion. Why? Because Updates change the Index, and the Index implicitly creates an "Active" Read Set for scans.
+            //I.e. due to an update, a scan might miss reading a given row (this is indistinguishable for us as if the row as inserted later/deleted etc)
+        // WriteMessage *table_ver = txn->add_write_set();
+        // table_ver->set_key(table_name);
+        // table_ver->set_value("");
+        bool changed_table = false; // false //FOR NOW ALWAYS SETTING TO TRUE due to UPDATE INDEX issue (see above comment) TODO: Implement TableColumnVersion optimization
 
         TableWrite *table_write = AddTableWrite(table_name, col_registry);
        
@@ -603,7 +609,16 @@ void SQLTransformer::TransformUpdate(size_t pos, std::string_view &write_stateme
 
                 
                 Warning("Trying to update primary key value");
+                bool changed_table = true;
             }
+        }
+
+        if(changed_table){ //Update resulted in row insertion + deletion => must update TableVersion
+            //Write Table Version itself. //Only for kv-store. //FIXME: This is for coarse CC -- Update conflicts with ALL Selects on Table
+            // WriteMessage *table_ver = txn->add_write_set();
+            // table_ver->set_key(table_name);
+            // table_ver->set_value("");
+            table_write->set_changed_table(true);
         }
 
 
@@ -663,9 +678,9 @@ void SQLTransformer::TransformDelete(size_t pos, std::string_view &write_stateme
         std::cerr << "IS POINT DELETE" << std::endl;
 
         //Write Table Version itself. //Only for kv-store.
-        WriteMessage *table_ver = txn->add_write_set();
-        table_ver->set_key(table_name);
-        table_ver->set_value("");
+        // WriteMessage *table_ver = txn->add_write_set();
+        // table_ver->set_key(table_name);
+        // table_ver->set_value("");
 
         //Add Delete also to Table Write : 
         TableWrite *table_write = AddTableWrite(table_name, col_registry);
@@ -728,9 +743,9 @@ void SQLTransformer::TransformDelete(size_t pos, std::string_view &write_stateme
     write_continuation = [this, wcb, table_name, col_registry_ptr = &col_registry](int status, query_result::QueryResult* result){
 
          //Write Table Version itself. //Only for kv-store.
-        WriteMessage *table_ver = txn->add_write_set();
-        table_ver->set_key(table_name);
-        table_ver->set_value("");
+        // WriteMessage *table_ver = txn->add_write_set();
+        // table_ver->set_key(table_name);
+        // table_ver->set_value("");
 
          TableWrite *table_write = AddTableWrite(table_name, *col_registry_ptr);
 

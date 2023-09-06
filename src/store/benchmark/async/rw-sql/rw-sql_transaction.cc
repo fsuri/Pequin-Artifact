@@ -62,9 +62,22 @@ transaction_status_t RWSQLTransaction::Execute(SyncClient &client) {
     int right_bound = left_bound + ranges[i] % querySelector->numKeys;   //If keys+ range goes out of bound, wrap around and check smaller and greaer. Turn statement into OR
   
     std::string query;
-    // if(left_bound == right_bound) query = fmt::format("UPDATE {0} SET value = value + 1 WHERE key = {1};", table, left_bound); // POINT QUERY -- TODO: FOR NOW DISABLE
-    if(left_bound <= right_bound) query = fmt::format("UPDATE {0} SET value = value + 1 WHERE key >= {1} AND key <= {2};", table, left_bound, right_bound);
-    else query = fmt::format("UPDATE {0} SET value = value + 1 WHERE key >= {1} OR key <= {2};", table, left_bound, right_bound);
+
+    if(readOnly){
+      if(left_bound <= right_bound) query = fmt::format("SELECT FROM {0} WHERE key >= {1} AND key <= {2};", table, left_bound, right_bound);
+      else query = fmt::format("SELECT FROM {0} WHERE key >= {1} OR key <= {2};", table, left_bound, right_bound);
+    }
+
+    else{
+      // if(left_bound == right_bound) query = fmt::format("UPDATE {0} SET value = value + 1 WHERE key = {1};", table, left_bound); // POINT QUERY -- TODO: FOR NOW DISABLE
+      if(left_bound <= right_bound) query = fmt::format("UPDATE {0} SET value = value + 1 WHERE key >= {1} AND key <= {2};", table, left_bound, right_bound);
+      else query = fmt::format("UPDATE {0} SET value = value + 1 WHERE key >= {1} OR key <= {2};", table, left_bound, right_bound);
+    }
+    //TODO: FIXME: Currently Ignoring TableVersion writes -- Because we KNOW that we are not changing primary key, which is the search condition.  
+
+
+    Debug("Start new RW-SQL Query: %s", query);
+    std::cerr << "Start new RW-SQL Query: " << query << std::endl;
            
     std::unique_ptr<const query_result::QueryResult> queryResult;
     client.Query(query, queryResult, timeout);  //--> Edit API in frontend sync_client.
@@ -72,7 +85,12 @@ transaction_status_t RWSQLTransaction::Execute(SyncClient &client) {
                               
     //TODO: if key doesn't exist => INSERT IT
     UW_ASSERT(queryResult->rows_affected());
-
+    int num_rows = abs(right_bound - left_bound); 
+    if(queryResult->rows_affected() < num_rows){
+      std::cerr << "Was not able to read all expected rows -- Check whether initialized correctly serverside" << std::endl;
+      //Insert all -- just issue a bunch of point writes (bundle under one statement?) => TODO: check if sql_interpreter deals with multi-writes
+      //ideally just insert the missing ones, but we don't know.
+    }
   
   }
 
