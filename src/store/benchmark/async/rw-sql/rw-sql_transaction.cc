@@ -31,17 +31,19 @@
 namespace rwsql {
 
 
-RWSQLTransaction::RWSQLTransaction(QuerySelector *querySelector, uint64_t &numOps, std::mt19937 &rand, bool readOnly) : querySelector(querySelector), numOps(numOps), readOnly(readOnly) {
+RWSQLTransaction::RWSQLTransaction(QuerySelector *querySelector, uint64_t &numOps, std::mt19937 &rand, bool readOnly) 
+    : SyncTransaction(10000), querySelector(querySelector), numOps(numOps), readOnly(readOnly) {
 
+  //std::cout << "New TX with numOps " << numOps << std::endl;
   for (int i = 0; i < numOps; ++i) {
-    uint64_t table = querySelector->tableSelector->GetKey(rand);
+    uint64_t table = querySelector->tableSelector->GetKey(rand);   //TODO: This will pick 0 or 1?
     tables.push_back(table);
 
     uint64_t base = querySelector->baseSelector->GetKey(rand);
     bases.push_back(base);
 
     uint64_t range = querySelector->rangeSelector->GetKey(rand); 
-    ranges.push_back(key);
+    ranges.push_back(range);
   }
   
 }
@@ -57,40 +59,56 @@ transaction_status_t RWSQLTransaction::Execute(SyncClient &client) {
  //RW LOGIC
   //UPDATE / INSERT / READ
   for(int i=0; i < numOps; ++i){
-    int table = "table" + tables[i];
-    int left_bound = bases[i]; 
-    int right_bound = left_bound + ranges[i] % querySelector->numKeys;   //If keys+ range goes out of bound, wrap around and check smaller and greaer. Turn statement into OR
   
-    std::string query;
-
+    string table = "table_" + std::to_string(tables[i]);
+    int left_bound = bases[i]; 
+    //std::cout << "left: " << left_bound << std::endl;
+    int right_bound = (left_bound + ranges[i]) % querySelector->numKeys;   //If keys+ range goes out of bound, wrap around and check smaller and greaer. Turn statement into OR
+    //std::cout << "range " << ranges[i] << std::endl;
+    //std::cout << "numKeys " << querySelector->numKeys << std::endl;
+  
+    std::string statement;    
+    
     if(readOnly){
-      if(left_bound <= right_bound) query = fmt::format("SELECT FROM {0} WHERE key >= {1} AND key <= {2};", table, left_bound, right_bound);
-      else query = fmt::format("SELECT FROM {0} WHERE key >= {1} OR key <= {2};", table, left_bound, right_bound);
+      if(left_bound <= right_bound) statement = fmt::format("SELECT FROM {0} WHERE key >= {1} AND key <= {2};", table, left_bound, right_bound);
+      else statement = fmt::format("SELECT FROM {0} WHERE key >= {1} OR key <= {2};", table, left_bound, right_bound);
     }
 
     else{
       // if(left_bound == right_bound) query = fmt::format("UPDATE {0} SET value = value + 1 WHERE key = {1};", table, left_bound); // POINT QUERY -- TODO: FOR NOW DISABLE
-      if(left_bound <= right_bound) query = fmt::format("UPDATE {0} SET value = value + 1 WHERE key >= {1} AND key <= {2};", table, left_bound, right_bound);
-      else query = fmt::format("UPDATE {0} SET value = value + 1 WHERE key >= {1} OR key <= {2};", table, left_bound, right_bound);
+      if(left_bound <= right_bound) statement = fmt::format("UPDATE {0} SET value = value + 1 WHERE key >= {1} AND key <= {2};", table, left_bound, right_bound);
+      else statement = fmt::format("UPDATE {0} SET value = value + 1 WHERE key >= {1} OR key <= {2};", table, left_bound, right_bound); 
+
     }
     //TODO: FIXME: Currently Ignoring TableVersion writes -- Because we KNOW that we are not changing primary key, which is the search condition.  
 
 
-    Debug("Start new RW-SQL Query: %s", query);
-    std::cerr << "Start new RW-SQL Query: " << query << std::endl;
+    Debug("Start new RW-SQL Request: %s", statement);
+    std::cerr << "Start new RW-SQL Request: " << statement << std::endl;
            
-    std::unique_ptr<const query_result::QueryResult> queryResult;
-    client.Query(query, queryResult, timeout);  //--> Edit API in frontend sync_client.
+    
+    if(readOnly){
+        std::unique_ptr<const query_result::QueryResult> queryResult;
+        client.Query(statement, queryResult, timeout);  //--> Edit API in frontend sync_client.
                                            //For real benchmarks: Also edit in sync_transaction_bench_client.
-                              
-    //TODO: if key doesn't exist => INSERT IT
-    UW_ASSERT(queryResult->rows_affected());
-    int num_rows = abs(right_bound - left_bound); 
-    if(queryResult->rows_affected() < num_rows){
-      std::cerr << "Was not able to read all expected rows -- Check whether initialized correctly serverside" << std::endl;
-      //Insert all -- just issue a bunch of point writes (bundle under one statement?) => TODO: check if sql_interpreter deals with multi-writes
-      //ideally just insert the missing ones, but we don't know.
     }
+    else{
+      std::unique_ptr<const query_result::QueryResult> queryResult;
+      client.Write(statement, queryResult, timeout);  //--> Edit API in frontend sync_client.
+                                           //For real benchmarks: Also edit in sync_transaction_bench_client.
+    
+      //TODO: if key doesn't exist => INSERT IT
+      UW_ASSERT(queryResult->rows_affected());
+      int num_rows = abs(right_bound - left_bound); 
+      if(queryResult->rows_affected() < num_rows){
+        std::cerr << "Was not able to read all expected rows -- Check whether initialized correctly serverside" << std::endl;
+        //Insert all -- just issue a bunch of point writes (bundle under one statement?) => TODO: check if sql_interpreter deals with multi-writes
+        //ideally just insert the missing ones, but we don't know.
+      }
+    }
+   
+                              
+    
   
   }
 

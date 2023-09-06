@@ -892,6 +892,28 @@ int main(int argc, char **argv) {
 			Notice("Created and Stored %lu out of %lu key-value pairs", stored,
 	        loaded);
 		}
+
+    // if(FLAGS_sql_bench){
+    //   //Set up a bunch of Tables: Num_tables many; with num_items...
+    //    const std::vector<std::pair<std::string, std::string>> &column_names_and_types = {{"key", "INT"}, {"value", "INT"}};
+    //     const std::vector<uint32_t> &primary_key_col_idx = {0};
+    //       //Create Table
+          
+    //   for(int i=0; i<FLAGS_num_tables; ++i){
+    //     string table_name = "table_" + std::to_string(i);
+    //     server->CreateTable(table_name, column_names_and_types, primary_key_col_idx); 
+
+    //     //TODO: Create one big insert statement: ==> Ideally just use Load (in that case must generate a csv)
+    //     //FIXME: Must call ApplyTableWrite with genesis proof + one large TableWrite.
+    //     //Then call Exec Raw.
+
+    //     for(int j=0; j<FLAGS_num_keys_per_table; ++j){
+    //         const std::vector<std::string> &values = {""+std::to_string(j), ""+std::to_string(j)};
+    //         server->LoadTableRow(table_name, column_names_and_types, row, primary_key_col_idx);
+    //     }
+    //   }
+    //   //read this in from the config config...
+    // }
   } 
   else if(FLAGS_sql_bench && FLAGS_data_file_path.length() > 0 && FLAGS_keys_path.empty()) {
        std::ifstream generated_tables(FLAGS_data_file_path);

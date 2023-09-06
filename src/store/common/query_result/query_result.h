@@ -38,6 +38,7 @@ namespace query_result {
 // SQL semantics for field ordering, primary key sorting, etc are not enforced by this interface.
 class QueryResult {
 	public:
+		virtual ~QueryResult() = default;
 		virtual auto name( const std::size_t column ) const -> std::string = 0;
 
 		// size of the result set

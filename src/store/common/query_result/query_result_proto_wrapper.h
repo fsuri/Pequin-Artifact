@@ -53,7 +53,7 @@ class QueryResultProtoWrapper : public query_result::QueryResult {
     auto check_has_result_set() const -> void;
 
 	public:
-    QueryResultProtoWrapper(): proto_result(nullptr) {} 
+    QueryResultProtoWrapper(): proto_result(std::make_unique<SQLResultProto>()) {} 
     // QueryResultProtoWrapper(SQLResultProto* proto_result): proto_result(proto_result) {
     //   //create_from_proto(proto_result);
     // }

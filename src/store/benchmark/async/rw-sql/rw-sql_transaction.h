@@ -41,7 +41,7 @@ namespace rwsql {
 
 class RWSQLTransaction : public SyncTransaction { //AsyncTransaction
  public:
-  RWSQLTransaction(QuerySelector *querySelector, uint64_t &numOps, std::mt19937 &rand, bool readOnly = false); 
+  RWSQLTransaction(QuerySelector *querySelector, uint64_t &numOps, std::mt19937 &rand, bool readOnly);
   virtual ~RWSQLTransaction();
 
   transaction_status_t Execute(SyncClient &client);

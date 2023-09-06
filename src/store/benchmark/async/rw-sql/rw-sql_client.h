@@ -43,10 +43,12 @@ enum KeySelection {
 
 class RWSQLClient : public SyncTransactionBenchClient {
  public:
-  RWSQLClient(uint64_t numKeys, KeySelector *tableSelector, KeySelector *baseSelector, KeySelector *rangeSelector, bool readOnly,
-      SyncClient &client, Transport &transport, uint64_t id, int numRequests, int expDuration,
-      uint64_t delay, int warmupSec, int cooldownSec, int tputInterval,
-      uint32_t abortBackoff, bool retryAborted, uint32_t maxBackoff, uint32_t maxAttempts, const uint32_t timeout,
+  RWSQLClient(uint64_t numOps, QuerySelector *querySelector, bool readOnly,
+      SyncClient &client, Transport &transport, uint64_t id, 
+      int numRequests, int expDuration, uint64_t delay, 
+      int warmupSec, int cooldownSec, int tputInterval,
+      uint32_t abortBackoff, bool retryAborted, uint32_t maxBackoff, uint32_t maxAttempts, 
+      const uint32_t timeout,
       const std::string &latencyFilename = "");
 
 

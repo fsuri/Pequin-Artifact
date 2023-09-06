@@ -37,6 +37,7 @@
 #include <sys/time.h>
 #include <algorithm>
 
+#include "store/common/query_result/query_result.h"
 #include "store/common/query_result/query_result_proto_wrapper.h"
 #include "store/common/query_result/query_result_proto_builder.h"
 
@@ -471,7 +472,7 @@ void Client::PointQueryResultCallback(PendingQuery *pendingQuery,
   //Note: result = empty ==>default case: no replica reported valid result (== all honest replicas send empty)
   // ==> QueryResultWrapper constructor will create empty result.
 
-  sql::QueryResultProtoWrapper *q_result = new sql::QueryResultProtoWrapper(result);
+  query_result::QueryResult *q_result = new sql::QueryResultProtoWrapper(result);
   pendingQuery->qcb(REPLY_OK, q_result); //callback to application 
   
   

@@ -35,6 +35,7 @@ namespace query_result {
 // A field in a row, contains an interpretable collection of bytes
 class Field {
  public:
+  virtual ~Field() {}
   virtual auto name() const -> std::string = 0;
   virtual auto index() const -> std::size_t = 0;
 

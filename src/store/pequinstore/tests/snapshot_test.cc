@@ -107,7 +107,7 @@ void test_snapshot_tx_id(){
 
     bool finished_merge = snapshot_mgr.ProcessReplicaLocalSnapshot(&local_ss);
 
-    if(!finished_merge) std:cerr << "Error: Not done with merge" << std::endl;
+    if(!finished_merge) std::cerr << "Error: Not done with merge" << std::endl;
 
     snapshot_mgr.OpenMergedSnapshot(&merged_ss);
 

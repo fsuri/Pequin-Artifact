@@ -60,6 +60,8 @@
 #include "store/benchmark/async/rw-sql/rw-sql_client.h"
 
 //protocol clients
+//Blackhole test printer
+#include "store/blackholestore/client.h"
 //Pesto
 #include "store/pequinstore/client.h"
 // Basil
@@ -90,6 +92,7 @@
 
 enum protomode_t {
 	PROTO_UNKNOWN,
+  PROTO_BLACKHOLE,
 	PROTO_TAPIR,
 	PROTO_WEAK,
 	PROTO_STRONG,
@@ -113,7 +116,8 @@ enum benchmode_t {
   BENCH_SMALLBANK_SYNC,
   BENCH_RW,
   BENCH_TPCC_SYNC,
-  BENCH_TOY
+  BENCH_TOY,
+  BENCH_RW_SQL
 };
 
 enum keysmode_t {
@@ -453,6 +457,7 @@ DEFINE_string(trans_protocol, trans_args[1], "transport protocol to use for"
 DEFINE_validator(trans_protocol, &ValidateTransMode);
 
 const std::string protocol_args[] = {
+  "blackhole",
 	"txn-l",
   "txn-s",
   "qw",
@@ -473,6 +478,7 @@ const std::string protocol_args[] = {
 	"augustus"
 };
 const protomode_t protomodes[] {
+  PROTO_BLACKHOLE,
   PROTO_TAPIR,
   PROTO_TAPIR,
   PROTO_WEAK,
@@ -494,6 +500,7 @@ const protomode_t protomodes[] {
 	PROTO_AUGUSTUS_SMART
 };
 const strongstore::Mode strongmodes[] {
+  strongstore::Mode::MODE_UNKNOWN,
   strongstore::Mode::MODE_UNKNOWN,
   strongstore::Mode::MODE_UNKNOWN,
   strongstore::Mode::MODE_UNKNOWN,
@@ -531,7 +538,8 @@ const std::string benchmark_args[] = {
   "smallbank",
   "rw",
   "tpcc-sync",
-  "toy"
+  "toy",
+  "rw-sql"
 };
 const benchmode_t benchmodes[] {
   BENCH_RETWIS,
@@ -539,7 +547,8 @@ const benchmode_t benchmodes[] {
   BENCH_SMALLBANK_SYNC,
   BENCH_RW,
   BENCH_TPCC_SYNC,
-  BENCH_TOY
+  BENCH_TOY,
+  BENCH_RW_SQL
 };
 static bool ValidateBenchmark(const char* flagname, const std::string &value) {
   int n = sizeof(benchmark_args);
@@ -656,6 +665,14 @@ DEFINE_uint64(num_ops_txn, 1, "number of ops in each txn"
 DEFINE_bool(rw_read_only, false, "only do read operations");
 // RW benchmark also uses same config parameters as Retwis.
 
+/**
+ * RW-sql additional settings.
+ */
+
+DEFINE_uint64(num_tables, 1, "number of tables for rw-sql");
+DEFINE_uint64(num_keys_per_table, 100, "number of keys per table for rw-sql");
+DEFINE_uint64(max_range, 30, "max amount of reads in a single scan for rw-sql");
+
 
 /**
  * TPCC settings.
@@ -718,6 +735,7 @@ transport::Configuration *config;
 KeyManager *keyManager;
 Partitioner *part;
 KeySelector *keySelector;
+QuerySelector *querySelector;
 
 void Cleanup(int signal);
 void FlushStats();
@@ -973,6 +991,40 @@ int main(int argc, char **argv) {
     default:
       NOT_REACHABLE();
   }
+
+  /// QuerySelector
+  if(FLAGS_sql_bench && benchMode == BENCH_RW_SQL){
+    //Create QuerySelector
+    KeySelector *tableSelector;
+    KeySelector *baseSelector;
+    KeySelector *rangeSelector; 
+
+    //Note: "keys" is an empty/un-used argument for this setup.
+    switch (keySelectionMode) {
+      case KEYS_UNIFORM:
+        tableSelector = new UniformKeySelector(keys, FLAGS_num_tables);
+        baseSelector = new UniformKeySelector(keys, FLAGS_num_keys_per_table);
+        rangeSelector = new UniformKeySelector(keys, FLAGS_max_range);
+        break;
+      case KEYS_ZIPF:
+        tableSelector = new ZipfKeySelector(keys, FLAGS_zipf_coefficient, FLAGS_num_tables);
+        baseSelector = new ZipfKeySelector(keys, FLAGS_zipf_coefficient, FLAGS_num_keys_per_table);
+        rangeSelector = new ZipfKeySelector(keys, FLAGS_zipf_coefficient, FLAGS_max_range);
+        break;
+      default:
+        NOT_REACHABLE();
+    }
+
+    querySelector = new QuerySelector(FLAGS_num_keys_per_table, tableSelector, baseSelector, rangeSelector);
+
+
+    //Read in a TableRegistry? (Probably not needed, but can add)
+  }
+
+
+
+  ///
+
 
   std::mt19937 rand(FLAGS_client_id); // TODO: is this safe?
 
@@ -1275,6 +1327,10 @@ int main(int argc, char **argv) {
 //Declare Protocol Clients
 
     switch (mode) {
+    case PROTO_BLACKHOLE: {
+        client = new blackhole::Client();
+        break;
+    }
     case PROTO_TAPIR: {
         client = new tapirstore::Client(config, clientId,
                                         FLAGS_num_shards, FLAGS_num_groups, FLAGS_closest_replica,
@@ -1461,6 +1517,7 @@ int main(int argc, char **argv) {
         }
         break;
       case BENCH_TOY: 
+      case BENCH_RW_SQL:
       case BENCH_SMALLBANK_SYNC:
       case BENCH_TPCC_SYNC:
         if (syncClient == nullptr) {
@@ -1539,6 +1596,16 @@ int main(int argc, char **argv) {
             FLAGS_abort_backoff, FLAGS_retry_aborted, FLAGS_max_backoff, FLAGS_max_attempts,
             FLAGS_timeout);
         break;
+      case BENCH_RW_SQL:
+        UW_ASSERT(syncClient != nullptr);
+        bench = new rwsql::RWSQLClient(FLAGS_num_ops_txn, querySelector, FLAGS_rw_read_only,
+            *syncClient, *tport, seed,
+            FLAGS_num_requests, FLAGS_exp_duration, FLAGS_delay,
+            FLAGS_warmup_secs, FLAGS_cooldown_secs, FLAGS_tput_interval,
+            FLAGS_abort_backoff, FLAGS_retry_aborted, FLAGS_max_backoff, FLAGS_max_attempts,
+            FLAGS_timeout);
+        break;
+
       default:
         NOT_REACHABLE();
     }
@@ -1550,6 +1617,7 @@ int main(int argc, char **argv) {
         // async benchmarks
 	      tport->Timer(0, [bench, bdcb]() { bench->Start(bdcb); });
         break;
+      case BENCH_RW_SQL:
       case BENCH_SMALLBANK_SYNC:
       case BENCH_TPCC_SYNC: {
         SyncTransactionBenchClient *syncBench = dynamic_cast<SyncTransactionBenchClient *>(bench);
@@ -1618,6 +1686,9 @@ void Cleanup(int signal) {
   delete config;
   delete keyManager;
   delete keySelector;
+
+  if(FLAGS_sql_bench && querySelector != nullptr) delete querySelector;
+
   for (auto i : threads) {
     i->join();
     delete i;
