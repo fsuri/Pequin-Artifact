@@ -1139,7 +1139,11 @@ void SQLTransformer::GenerateTableWriteStatement(
   // Create separate Delete statements for each delete
 
   // write_statement = fmt::format("INSERT INTO {0} VALUES ", table_name);
-
+  /*std::cout << "Printing table registry" << std::endl;
+  for (const auto &elem : TableRegistry) {
+    std::cout << elem.first << " "
+              << " \n";
+  }*/
   const ColRegistry &col_registry = TableRegistry.at(table_name);
 
   for (auto &row : table_write.rows()) {

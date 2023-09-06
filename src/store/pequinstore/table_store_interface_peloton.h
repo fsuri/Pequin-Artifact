@@ -45,6 +45,7 @@ namespace pequinstore {
 class PelotonTableStore : public TableStore {
 public:
   PelotonTableStore();
+  PelotonTableStore(int num_threads);
   virtual ~PelotonTableStore();
 
   // Execute a statement directly on the Table backend, no questions asked, no
@@ -104,11 +105,12 @@ public:
 
 private:
   std::string unnamed_statement;
-  bool unnamed;
+  bool unnamed_variable;
 
   // Peloton DB singleton "table_backend"
   peloton::tcop::TrafficCop traffic_cop_;
   std::atomic_int counter_;
+  bool is_recycled_version_;
 
   // std::vector<peloton::tcop::TrafficCop*> traffic_cops;
   moodycamel::ConcurrentQueue<
@@ -120,9 +122,16 @@ private:
   void ReleaseTrafficCop(
       std::pair<peloton::tcop::TrafficCop *, std::atomic_int *> cop_pair);
 
+  int num_threads;
+  std::vector<std::pair<peloton::tcop::TrafficCop *, std::atomic_int *>>
+      traffic_cops_;
+  std::pair<peloton::tcop::TrafficCop *, std::atomic_int *> GetCop();
+
   std::shared_ptr<peloton::Statement>
-  ParseAndPrepare(const std::string &query_statement);
-  void GetResult(peloton::ResultType &status);
+  ParseAndPrepare(const std::string &query_statement,
+                  peloton::tcop::TrafficCop *tcop);
+  void GetResult(peloton::ResultType &status, peloton::tcop::TrafficCop *tcop,
+                 std::atomic_int *c);
   // std::string TransformResult(std::vector<peloton::FieldInfo>
   // &tuple_descriptor, std::vector<peloton::ResultValue> &result);
   std::string TransformResult(peloton::ResultType &status,

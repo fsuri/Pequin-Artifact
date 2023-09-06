@@ -274,6 +274,7 @@ bool InsertExecutor::DExecute() {
       //}
 
       if (!result) {
+
         std::cout
             << "Tried to insert row with same primary key, so will do an update"
             << std::endl;
@@ -300,6 +301,29 @@ bool InsertExecutor::DExecute() {
 
         ContainerTuple<storage::TileGroup> old_tuple_one(tile_group.get(),
                                                          old_location.offset);
+
+        // Check if we can upgrade a prepared tuple to committed
+        /*if (!tile_group_header->GetCommitOrPrepare(old_location.offset) &&
+            new_tile_group->GetHeader()->GetCommitOrPrepare(
+                new_location.offset)) {
+          bool same_columns = true;
+          // std::string encoded_key = target_table_->GetName();
+          const auto *schema = tile_group->GetAbstractTable()->GetSchema();
+          for (uint32_t col_idx = 0; col_idx < schema->GetColumnCount();
+               col_idx++) {
+            auto val1 = tile_group->GetValue(old_location.offset, col_idx);
+            auto val2 = new_tile_group->GetValue(new_location.offset, col_idx);
+
+            if (val1.ToString() != val2.ToString()) {
+              same_columns = false;
+              break;
+            }
+          }
+
+          if (same_columns) {
+
+          }
+        }*/
 
         // perform projection from old version to new version.
         // this triggers in-place update, and we do not need to allocate
@@ -351,6 +375,7 @@ bool InsertExecutor::DExecute() {
         new_tile_group->GetHeader()->SetCommitOrPrepare(
             new_location.offset, current_txn->GetCommitOrPrepare());
       } else {
+        std::cout << "Insert was performed" << std::endl;
         transaction_manager.PerformInsert(current_txn, location,
                                           index_entry_ptr);
         auto storage_manager = storage::StorageManager::GetInstance();

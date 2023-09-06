@@ -2,6 +2,7 @@
 #include <iostream>
 #include <ostream>
 #include <string>
+#include <unistd.h>
 // #include "common/harness.h"
 #include "../../query-engine/common/logger.h"
 #include "../../query-engine/common/macros.h"
@@ -268,9 +269,9 @@ void ReadFromStore(TableStore *table_store) {
   UW_ASSERT_EQ(expected, result);
 }
 
-void WriteToTable(TableStore *table_store, int i) {
-  Timestamp toy_ts_c(10, 12);
-  Timestamp toy_ts_c_1(20, 20);
+void WriteToTable(TableStore *table_store, Timestamp toy_ts_c_1, int i, int j) {
+  // Timestamp toy_ts_c(10, 12);
+  // Timestamp toy_ts_c_1(20, 20);
   size_t num_writes = 10;
 
   // int i = 0;
@@ -280,13 +281,13 @@ void WriteToTable(TableStore *table_store, int i) {
       new pequinstore::proto::CommittedProof();
   real_proof->mutable_txn()->set_client_id(toy_ts_c_1.getID());
   real_proof->mutable_txn()->set_client_seq_num(toy_ts_c_1.getTimestamp());
-  toy_ts_c.serialize(real_proof->mutable_txn()->mutable_timestamp());
+  toy_ts_c_1.serialize(real_proof->mutable_txn()->mutable_timestamp());
   TableWrite &table_write =
       (*real_proof->mutable_txn()->mutable_table_writes())["test"];
 
   RowUpdates *row1 = table_write.add_rows();
   row1->add_column_values(std::to_string(i));
-  row1->add_column_values(std::to_string(i + 100));
+  row1->add_column_values(std::to_string(j));
 
   table_store->ApplyTableWrite("test", table_write, toy_ts_c_1, "random",
                                real_proof, true);
@@ -324,25 +325,29 @@ void test_committed_table_write() {
   // Write Tables to JSON
   table_writer.flush();
 
-  pequinstore::TableStore *table_store = new pequinstore::PelotonTableStore();
-  pequinstore::TableStore *table_store1 = new pequinstore::PelotonTableStore();
+  // pequinstore::TableStore *table_store = new
+  // pequinstore::PelotonTableStore();
+  //   pequinstore::TableStore *table_store1 = new
+  //   pequinstore::PelotonTableStore();
 
-  pequinstore::TableStore *table_store2 = new pequinstore::PelotonTableStore();
-  pequinstore::TableStore *table_store3 = new pequinstore::PelotonTableStore();
+  // pequinstore::TableStore *table_store2 = new
+  // pequinstore::PelotonTableStore(); pequinstore::TableStore *table_store3 =
+  // new pequinstore::PelotonTableStore();
 
   pequinstore::proto::Write write;
   pequinstore::proto::CommittedProof committed_proof;
   std::string table_registry = file_name + "-tables-schema.json";
   std::cout << "Pre register" << std::endl;
-  table_store->RegisterTableSchema(table_registry);
+  // table_store->RegisterTableSchema(table_registry);
   std::cout << "Post register" << std::endl;
-  table_store->ExecRaw("CREATE TABLE test(a INT, b INT, PRIMARY KEY(a));");
+  // table_store->ExecRaw("CREATE TABLE test(a INT, b INT, PRIMARY KEY(a));");
+  //   sleep(5);
 
   // Write a 100 writes
   Timestamp toy_ts_c(10, 12);
   Timestamp toy_ts_c_1(20, 20);
-  size_t num_writes = 100;
-  size_t num_overwrites = 100;
+  size_t num_writes = 1;
+  size_t num_overwrites = 12;
 
   /*for (size_t i = 0; i < num_writes; i++) {
     pequinstore::proto::CommittedProof *real_proof =
@@ -361,30 +366,30 @@ void test_committed_table_write() {
                                  real_proof, true);
   }*/
 
+  std::cout << "num cores is " << std::thread::hardware_concurrency()
+            << std::endl;
+
+  pequinstore::TableStore *table_store1 =
+      new pequinstore::PelotonTableStore(std::thread::hardware_concurrency());
+  table_store1->RegisterTableSchema(table_registry);
+  table_store1->ExecRaw("CREATE TABLE test(a INT, b INT, PRIMARY KEY(a));");
+
+  /*pequinstore::TableStore *table_store2 = new
+  pequinstore::PelotonTableStore();
+  table_store2->RegisterTableSchema(table_registry);*/
+
   std::vector<std::thread> threads;
 
   for (size_t i = 0; i < num_overwrites; i++) {
-    /*pequinstore::proto::CommittedProof *real_proof =
-        new pequinstore::proto::CommittedProof();
-    real_proof->mutable_txn()->set_client_id(toy_ts_c_1.getID());
-    real_proof->mutable_txn()->set_client_seq_num(toy_ts_c_1.getTimestamp());
-    toy_ts_c.serialize(real_proof->mutable_txn()->mutable_timestamp());
-    TableWrite &table_write =
-        (*real_proof->mutable_txn()->mutable_table_writes())["test"];
-
-    RowUpdates *row1 = table_write.add_rows();
-    row1->add_column_values(std::to_string(i));
-    row1->add_column_values(std::to_string(i + 100));
-
-    // table_store->ApplyTableWrite("test", table_write, toy_ts_c_1, "random",
-    // real_proof, true);
-
-    // pequinstore::TableStore *table_store_ = new
-    // pequinstore::PelotonTableStore();*/
     // std::thread t(WriteToTable, table_store, i);
     //  t.join();
+    // pequinstore::TableStore *t_store = new pequinstore::PelotonTableStore();
+    // t_store->RegisterTableSchema(table_registry);
+
+    /*threads.emplace_back(
+        std::thread(WriteToTable, table_store1, toy_ts_c, i, i + 16));*/
     threads.emplace_back(
-        std::thread(WriteToTable, new pequinstore::PelotonTableStore(), i));
+        std::thread(WriteToTable, table_store1, toy_ts_c_1, i, i + 72));
   }
 
   for (auto &th : threads) {
@@ -400,19 +405,21 @@ void test_committed_table_write() {
   // t.join();
   // t_1.join();
 
-  ReadFromStore(table_store2);
-  // std::thread t1(ReadFromStore, table_store2);
-  //   t1.join();
-  // std::thread t2(ReadFromStore, table_store3);
-  //   t2.join();
-  //    std::thread t3(ReadFromStore, table_store);
+  ReadFromStore(table_store1);
+  // std::thread t1(ReadFromStore, table_store1);
+  //       t1.join();
+  // std::thread t2(ReadFromStore, table_store1);
+  //       t2.join();
+  //        std::thread t3(ReadFromStore, table_store);
 
   // t1.join();
   // t2.join();
-  //     t3.join();
-  delete table_store;
-  delete table_store2;
-  delete table_store3;
+  //       t3.join();
+  // delete table_store;
+  delete table_store1;
+  // delete table_store2;
+  /*delete table_store2;
+  delete table_store3;*/
 }
 
 void test_read_predicate() {
