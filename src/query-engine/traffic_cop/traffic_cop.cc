@@ -230,8 +230,10 @@ executor::ExecutionResult TrafficCop::ExecuteReadHelper(
 
   concurrency::TransactionContext *txn;
   if (!tcop_txn_state_.empty()) {
+    std::cout << "Read helper use existing txn" << std::endl;
     txn = curr_state.first;
   } else {
+    std::cout << "Read helper create txn" << std::endl;
     // No active txn, single-statement txn
     auto &txn_manager = concurrency::TransactionManagerFactory::GetInstance();
     // new txn, reset result status
@@ -245,6 +247,7 @@ executor::ExecutionResult TrafficCop::ExecuteReadHelper(
   txn->SetBasilTimestamp(basil_timestamp);
   // Set the readset manager
   txn->SetQueryReadSetMgr(query_read_set_mgr);
+  txn->SetHasReadSetMgr(true);
   // Set the function to check if a table is prepared
   txn->SetPredicate(read_prepared_pred);
   // Set the function to find the table version
@@ -303,14 +306,16 @@ executor::ExecutionResult TrafficCop::ExecuteWriteHelper(
     const std::vector<type::Value> &params, std::vector<ResultValue> &result,
     const std::vector<int> &result_format, const Timestamp &basil_timestamp,
     std::shared_ptr<std::string> txn_dig,
-    const pequinstore::proto::CommittedProof *commit_proof, bool commit_or_prepare,
-    size_t thread_id) {
+    const pequinstore::proto::CommittedProof *commit_proof,
+    bool commit_or_prepare, size_t thread_id) {
   auto &curr_state = GetCurrentTxnState();
 
   concurrency::TransactionContext *txn;
   if (!tcop_txn_state_.empty()) {
+    std::cout << "Write helper use of existing txn" << std::endl;
     txn = curr_state.first;
   } else {
+    std::cout << "Write helper create new txn" << std::endl;
     // No active txn, single-statement txn
     auto &txn_manager = concurrency::TransactionManagerFactory::GetInstance();
     // new txn, reset result status
@@ -330,6 +335,8 @@ executor::ExecutionResult TrafficCop::ExecuteWriteHelper(
   txn->SetCommitOrPrepare(commit_or_prepare);
   // Set undo delete false
   txn->SetUndoDelete(false);
+  // Set has read set mgr to false
+  txn->SetHasReadSetMgr(false);
 
   // skip if already aborted
   if (curr_state.second == ResultType::ABORTED) {
@@ -407,6 +414,8 @@ executor::ExecutionResult TrafficCop::ExecutePurgeHelper(
             << std::endl;
   std::cout << "Txn get undo delete in execute purge helper is "
             << txn->GetUndoDelete() << std::endl;
+  // No read set manager for purge
+  txn->SetHasReadSetMgr(false);
 
   // skip if already aborted
   if (curr_state.second == ResultType::ABORTED) {
@@ -524,6 +533,8 @@ executor::ExecutionResult TrafficCop::ExecutePointReadHelper(
   txn->SetPreparedTxnDigest(txn_dig);
   // Not undoing deletes
   txn->SetUndoDelete(false);
+  // No read set manager
+  txn->SetHasReadSetMgr(false);
 
   // skip if already aborted
   if (curr_state.second == ResultType::ABORTED) {
@@ -1126,8 +1137,8 @@ ResultType TrafficCop::ExecuteWriteStatement(
     /*std::shared_ptr<stats::QueryMetric::QueryParams> param_stats,*/
     const std::vector<int> &result_format, std::vector<ResultValue> &result,
     const Timestamp &basil_timestamp, std::shared_ptr<std::string> txn_dig,
-    const pequinstore::proto::CommittedProof *commit_proof, bool commit_or_prepare,
-    size_t thread_id) {
+    const pequinstore::proto::CommittedProof *commit_proof,
+    bool commit_or_prepare, size_t thread_id) {
   // TODO(Tianyi) Further simplify this API
   /*if (static_cast<StatsType>(settings::SettingsManager::GetInt(
           settings::SettingId::stats_mode)) != StatsType::INVALID) {

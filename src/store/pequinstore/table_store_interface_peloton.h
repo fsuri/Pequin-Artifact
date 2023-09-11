@@ -3,12 +3,12 @@
 
 #include "store/pequinstore/table_store_interface.h"
 
-//Include whatever Peloton Deps
-#include "../../query-engine/traffic_cop/traffic_cop.h"
+// Include whatever Peloton Deps
 #include "../../query-engine/common/logger.h"
 #include "../../query-engine/common/macros.h"
 #include "../../query-engine/parser/drop_statement.h"
 #include "../../query-engine/parser/postgresparser.h"
+#include "../../query-engine/traffic_cop/traffic_cop.h"
 
 #include "../../query-engine/catalog/catalog.h"
 #include "../../query-engine/catalog/proc_catalog.h"
@@ -37,33 +37,36 @@
 #include <tuple>
 
 #include "lib/concurrentqueue/concurrentqueue.h"
-#include <fmt/ranges.h>
 #include <fmt/core.h>
+#include <fmt/ranges.h>
 
 namespace pequinstore {
 
 class PelotonTableStore : public TableStore {
     public:
-        PelotonTableStore();
-        PelotonTableStore(std::string &table_registry_path, find_table_version &&find_table_version, read_prepared_pred &&read_prepared_pred);
+        PelotonTableStore(int num_threads = 0);
+        PelotonTableStore(std::string &table_registry_path, find_table_version &&find_table_version, read_prepared_pred &&read_prepared_pred, int num_threads = 0);
         virtual ~PelotonTableStore();
 
         //Execute a statement directly on the Table backend, no questions asked, no output
         void ExecRaw(const std::string &sql_statement) override;
 
-        void LoadTable(const std::string &load_statement, const std::string &txn_digest, const Timestamp &ts, const proto::CommittedProof *committedProof) override;
+        void LoadTable(const std::string &load_statement,
+                 const std::string &txn_digest, const Timestamp &ts,
+                 const proto::CommittedProof *committedProof) override;
 
         //Execute a read query statement on the Table backend and return a query_result/proto (in serialized form) as well as a read set (managed by readSetMgr)
         std::string ExecReadQuery(const std::string &query_statement, const Timestamp &ts, QueryReadSetMgr &readSetMgr) override;
-
+                            
         //Execute a point read on the Table backend and return a query_result/proto (in serialized form) as well as a commitProof (note, the read set is implicit)
         void ExecPointRead(const std::string &query_statement, std::string &enc_primary_key, const Timestamp &ts, proto::Write *write, const proto::CommittedProof *committedProof) override;  
                 //Note: Could execute PointRead via ExecReadQuery (Eagerly) as well.
                 // ExecPointRead should translate enc_primary_key into a query_statement to be exec by ExecReadQuery. (Alternatively: Could already send a Sql command from the client)
 
         //Apply a set of Table Writes (versioned row creations) to the Table backend
-        void ApplyTableWrite(const std::string &table_name, const TableWrite &table_write, const Timestamp &ts, const std::string &txn_digest, 
-            const proto::CommittedProof *commit_proof = nullptr, bool commit_or_prepare = true) override; 
+        void ApplyTableWrite(const std::string &table_name, const TableWrite &table_write, const Timestamp &ts,
+                const std::string &txn_digest, const proto::CommittedProof *commit_proof = nullptr, bool commit_or_prepare = true) override;
+
          ///https://www.postgresqltutorial.com/postgresql-tutorial/postgresql-upsert/ 
         void PurgeTableWrite(const std::string &table_name, const TableWrite &table_write, const Timestamp &ts, const std::string &txn_digest) override; 
 
@@ -79,12 +82,15 @@ class PelotonTableStore : public TableStore {
         
 
     private:
+        void Init(int num_threads);
+
         std::string unnamed_statement;
-        bool unnamed;
+        bool unnamed_variable;
 
         //Peloton DB singleton "table_backend"
 		peloton::tcop::TrafficCop traffic_cop_;
 		std::atomic_int counter_;
+        bool is_recycled_version_;
 
         //std::vector<peloton::tcop::TrafficCop*> traffic_cops;
         moodycamel::ConcurrentQueue<std::pair<peloton::tcop::TrafficCop*, std::atomic_int*>> traffic_cops; //https://github.com/cameron314/concurrentqueue
@@ -92,21 +98,24 @@ class PelotonTableStore : public TableStore {
         std::pair<peloton::tcop::TrafficCop*, std::atomic_int*> GetUnusedTrafficCop();
         void ReleaseTrafficCop(std::pair<peloton::tcop::TrafficCop*, std::atomic_int*> cop_pair);
 
-        std::shared_ptr<peloton::Statement> ParseAndPrepare(const std::string &query_statement);
-        void GetResult(peloton::ResultType &status);
+        int num_threads;
+        std::vector<std::pair<peloton::tcop::TrafficCop *, std::atomic_int *>> traffic_cops_;
+        std::pair<peloton::tcop::TrafficCop *, std::atomic_int *> GetCop();
+
+        std::shared_ptr<peloton::Statement> ParseAndPrepare(const std::string &query_statement, peloton::tcop::TrafficCop *tcop);
+
+        void GetResult(peloton::ResultType &status, peloton::tcop::TrafficCop *tcop, std::atomic_int *c);
+
         //std::string TransformResult(std::vector<peloton::FieldInfo> &tuple_descriptor, std::vector<peloton::ResultValue> &result);
         std::string TransformResult(peloton::ResultType &status, std::shared_ptr<peloton::Statement> statement, std::vector<peloton::ResultValue> &result);
         void TransformPointResult(proto::Write *write, Timestamp &committed_timestamp, Timestamp &prepared_timestamp, std::shared_ptr<std::string> txn_dig, 
                                     peloton::ResultType &status, std::shared_ptr<peloton::Statement> statement, std::vector<peloton::ResultValue> &result);
-};
 
+};
 
 } // namespace pequinstore
 
 #endif //_PELOTON_TABLESTORE_H
-
-
-
 
 //// OLD POINT QUERY CODE:
 // std::vector<peloton::FieldInfo> tuple_descriptor;
@@ -149,12 +158,14 @@ class PelotonTableStore : public TableStore {
 
 //         // queryResultBuilder.add_empty_row();
 //         for (unsigned int j = 0; j < tuple_descriptor.size(); j++) {
-//         // queryResultBuilder.AddToRow(row, result[i*tuple_descriptor.size()+j]);
+//         // queryResultBuilder.AddToRow(row,
+//         result[i*tuple_descriptor.size()+j]);
 //         // std::cout << "Get field value" << std::endl;
 //         // FieldProto *field = row->add_fields();
 //         // std::string field_value = GetResultValueAsString(result, i *
 //         // tuple_descriptor.size() + j);
-//         queryResultBuilder.AddToRow(row, result[i * tuple_descriptor.size() + j]);
+//         queryResultBuilder.AddToRow(row, result[i * tuple_descriptor.size() +
+//         j]);
 //         // field->set_data(queryResultBuilder.serialize(field_value));
 //         // field->set_data(result[i*tuple_descriptor.size()+j]);
 //         // std::cout << "After" << std::endl;
@@ -165,17 +176,21 @@ class PelotonTableStore : public TableStore {
 //         // tuple_descriptor.size() + j);
 
 //         // std::cout << "Inside j loop" << std::endl;
-//         // std::cout << GetResultValueAsString(result, i * tuple_descriptor.size()
+//         // std::cout << GetResultValueAsString(result, i *
+//         tuple_descriptor.size()
 //         // + j) << std::endl;
 //         }
 //         if (read_prepared && !already_read_prepared) {
 //         write->set_prepared_value(row_string);
 //         std::cout << "Prepared value is " << row_string << std::endl;
 //         write->set_prepared_txn_digest(*txn_dig.get());
-//         std::cout << "Prepared txn digest is " << *txn_dig.get() << std::endl;
-//         // write->set_allocated_prepared_timestamp(TimestampMessage{prepared_timestamp.getID(),
+//         std::cout << "Prepared txn digest is " << *txn_dig.get() <<
+//         std::endl;
+//         //
+//         write->set_allocated_prepared_timestamp(TimestampMessage{prepared_timestamp.getID(),
 //         // prepared_timestamp.getTimestamp()});
-//         std::cout << "Prepared timestamp is " << prepared_timestamp.getTimestamp()
+//         std::cout << "Prepared timestamp is " <<
+//         prepared_timestamp.getTimestamp()
 //                     << ", " << prepared_timestamp.getID() << std::endl;
 
 //         already_read_prepared = true;
@@ -183,11 +198,14 @@ class PelotonTableStore : public TableStore {
 
 //         write->set_committed_value(row_string);
 //         std::cout << "Committed value is " << row_string << std::endl;
-//         //  write->set_allocated_committed_timestamp(TimestampMessage(committed_timestamp));
-//         std::cout << "Commit timestamp is " << committed_timestamp.getTimestamp()
+//         //
+//         write->set_allocated_committed_timestamp(TimestampMessage(committed_timestamp));
+//         std::cout << "Commit timestamp is " <<
+//         committed_timestamp.getTimestamp()
 //                 << ", " << committed_timestamp.getID() << std::endl;
 //     }
-//     // write->set_allocated_proof(traffic_cop_.commit_proof_->SerializeAsString());
+//     //
+//     write->set_allocated_proof(traffic_cop_.commit_proof_->SerializeAsString());
 
 //     std::cout << "Result from query result builder is " << std::endl;
 //     std::cout << queryResultBuilder.get_result()->SerializeAsString()

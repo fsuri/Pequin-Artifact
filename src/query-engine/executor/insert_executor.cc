@@ -274,6 +274,7 @@ bool InsertExecutor::DExecute() {
       //}
 
       if (!result) {
+
         std::cout
             << "Tried to insert row with same primary key, so will do an update"
             << std::endl;
@@ -293,6 +294,9 @@ bool InsertExecutor::DExecute() {
         auto tile_group = storage_manager->GetTileGroup(old_location.block);
         auto tile_group_header = tile_group->GetHeader();
 
+        tile_group_header->SetCommitOrPrepare(
+            location.offset, current_txn->GetCommitOrPrepare());
+
         auto new_tile_group = storage_manager->GetTileGroup(new_location.block);
 
         ContainerTuple<storage::TileGroup> new_tuple_one(new_tile_group.get(),
@@ -301,56 +305,102 @@ bool InsertExecutor::DExecute() {
         ContainerTuple<storage::TileGroup> old_tuple_one(tile_group.get(),
                                                          old_location.offset);
 
+        bool same_columns = true;
+        // NOTE: Check if we can upgrade a prepared tuple to committed
+        if (!tile_group_header->GetCommitOrPrepare(old_location.offset) &&
+            new_tile_group->GetHeader()->GetCommitOrPrepare(
+                new_location.offset)) {
+          // std::string encoded_key = target_table_->GetName();
+          const auto *schema = tile_group->GetAbstractTable()->GetSchema();
+          for (uint32_t col_idx = 0; col_idx < schema->GetColumnCount();
+               col_idx++) {
+            auto val1 = tile_group->GetValue(old_location.offset, col_idx);
+            auto val2 = new_tile_group->GetValue(new_location.offset, col_idx);
+
+            std::cout << "Val 1 is " << val1.ToString() << std::endl;
+            std::cout << "Val 2 is " << val2.ToString() << std::endl;
+
+            if (val1.ToString() != val2.ToString()) {
+              same_columns = false;
+              break;
+            }
+          }
+
+          if (same_columns) {
+            std::cout << "Upgrading from prepared to committed" << std::endl;
+            tile_group_header->SetCommitOrPrepare(old_location.offset, true);
+            ItemPointer *indirection =
+                tile_group_header->GetIndirection(old_location.offset);
+
+            new_tile_group->GetHeader()->SetIndirection(new_location.offset,
+                                                        indirection);
+
+            // transaction_manager.PerformDelete(current_txn, new_location);
+          }
+        }
+
         // perform projection from old version to new version.
         // this triggers in-place update, and we do not need to allocate
         // another version.
         // project_info->Evaluate(&new_tuple_one, &old_tuple_one, nullptr,
         //                       executor_context_);
 
-        // get indirection.
-        std::cout << "Before getting indirection" << std::endl;
-        ItemPointer *indirection =
-            tile_group_header->GetIndirection(old_location.offset);
-        std::cout << "After getting indirection" << std::endl;
-        if (indirection == nullptr) {
-          std::cout << "Indirection pointer is null" << std::endl;
-        }
-        // finally install new version into the table
-        target_table->InstallVersion(&new_tuple_one,
-                                     &(project_info->GetTargetList()),
-                                     current_txn, indirection);
-        new_tile_group->GetHeader()->SetIndirection(new_location.offset,
-                                                    indirection);
-        std::cout << "After installing version" << std::endl;
-
-        // PerformUpdate() will not be executed if the insertion failed.
-        // There is a write lock acquired, but since it is not in the write
-        // set,
-        // because we haven't yet put them into the write set.
-        // the acquired lock can't be released when the txn is aborted.
-        // the YieldOwnership() function helps us release the acquired write
-        // lock.
-        /*if (ret == false) {
-          LOG_TRACE("Fail to insert new tuple. Set txn failure.");
-          if (is_owner == false) {
-            // If the ownership is acquire inside this update executor, we
-            // release it here
-            transaction_manager.YieldOwnership(current_txn, tile_group_header,
-                                               physical_tuple_id);
+        if (!same_columns) {
+          // get indirection.
+          std::cout << "Before getting indirection" << std::endl;
+          ItemPointer *indirection =
+              tile_group_header->GetIndirection(old_location.offset);
+          std::cout << "After getting indirection" << std::endl;
+          if (indirection == nullptr) {
+            std::cout << "Indirection pointer is null" << std::endl;
           }
-          transaction_manager.SetTransactionResult(current_txn,
-                                                   ResultType::FAILURE);
-          std::cout << "Fourth false" << std::endl;
-          return false;
-        }*/
+          // finally install new version into the table
+          target_table->InstallVersion(&new_tuple_one,
+                                       &(project_info->GetTargetList()),
+                                       current_txn, indirection);
+          new_tile_group->GetHeader()->SetIndirection(new_location.offset,
+                                                      indirection);
+          std::cout << "After installing version" << std::endl;
 
-        transaction_manager.PerformUpdate(current_txn, old_location,
-                                          new_location);
-        new_tile_group->GetHeader()->SetIndirection(new_location.offset,
-                                                    indirection);
+          // PerformUpdate() will not be executed if the insertion failed.
+          // There is a write lock acquired, but since it is not in the write
+          // set,
+          // because we haven't yet put them into the write set.
+          // the acquired lock can't be released when the txn is aborted.
+          // the YieldOwnership() function helps us release the acquired write
+          // lock.
+          /*if (ret == false) {
+            LOG_TRACE("Fail to insert new tuple. Set txn failure.");
+            if (is_owner == false) {
+              // If the ownership is acquire inside this update executor, we
+              // release it here
+              transaction_manager.YieldOwnership(current_txn, tile_group_header,
+                                                 physical_tuple_id);
+            }
+            transaction_manager.SetTransactionResult(current_txn,
+                                                     ResultType::FAILURE);
+            std::cout << "Fourth false" << std::endl;
+            return false;
+          }*/
+
+          transaction_manager.PerformUpdate(current_txn, old_location,
+                                            new_location);
+          new_tile_group->GetHeader()->SetIndirection(new_location.offset,
+                                                      indirection);
+          new_tile_group->GetHeader()->SetCommitOrPrepare(
+              new_location.offset, current_txn->GetCommitOrPrepare());
+        }
       } else {
+        std::cout << "Insert was performed" << std::endl;
         transaction_manager.PerformInsert(current_txn, location,
                                           index_entry_ptr);
+        auto storage_manager = storage::StorageManager::GetInstance();
+
+        auto tile_group = storage_manager->GetTileGroup(location.block);
+        auto tile_group_header = tile_group->GetHeader();
+
+        tile_group_header->SetCommitOrPrepare(
+            location.offset, current_txn->GetCommitOrPrepare());
       }
       // TODO: This is what was here before
       // transaction_manager.PerformInsert(current_txn, location,
