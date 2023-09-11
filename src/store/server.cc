@@ -419,6 +419,8 @@ DEFINE_string(keys_path, "", "path to file containing keys in the system");
 DEFINE_uint64(num_keys, 0, "number of keys to generate");
 DEFINE_string(data_file_path, "", "path to file containing key-value pairs to be loaded");
 DEFINE_bool(sql_bench, false, "Load not just key-value pairs, but also Tables. Input file is JSON Tabe args");
+DEFINE_uint64(num_tables, 0, "number of tables to generate");
+DEFINE_uint64(num_keys_per_table, 0, "number of keys to generate per table");
 
 Server *server = nullptr;
 TransportReceiver *replica = nullptr;
@@ -893,27 +895,29 @@ int main(int argc, char **argv) {
 	        loaded);
 		}
 
-    // if(FLAGS_sql_bench){
-    //   //Set up a bunch of Tables: Num_tables many; with num_items...
-    //    const std::vector<std::pair<std::string, std::string>> &column_names_and_types = {{"key", "INT"}, {"value", "INT"}};
-    //     const std::vector<uint32_t> &primary_key_col_idx = {0};
-    //       //Create Table
+    if(FLAGS_sql_bench){ // Init Tables when using RW-SQL bench.
+      //Set up a bunch of Tables: Num_tables many; with num_items...
+      const std::vector<std::pair<std::string, std::string>> &column_names_and_types = {{"key", "INT"}, {"value", "INT"}};
+      const std::vector<uint32_t> &primary_key_col_idx = {0};
+          //Create Table
           
-    //   for(int i=0; i<FLAGS_num_tables; ++i){
-    //     string table_name = "table_" + std::to_string(i);
-    //     server->CreateTable(table_name, column_names_and_types, primary_key_col_idx); 
+      for(int i=0; i<FLAGS_num_tables; ++i){
+        string table_name = "table_" + std::to_string(i);
+        server->CreateTable(table_name, column_names_and_types, primary_key_col_idx); 
 
-    //     //TODO: Create one big insert statement: ==> Ideally just use Load (in that case must generate a csv)
-    //     //FIXME: Must call ApplyTableWrite with genesis proof + one large TableWrite.
-    //     //Then call Exec Raw.
+        //LoadTableRows creates one TableWrite and then uses ApplyTableWrite to write it with genesis proof
+        //TODO: Replace with LoadTableData when ready.
 
-    //     for(int j=0; j<FLAGS_num_keys_per_table; ++j){
-    //         const std::vector<std::string> &values = {""+std::to_string(j), ""+std::to_string(j)};
-    //         server->LoadTableRow(table_name, column_names_and_types, row, primary_key_col_idx);
-    //     }
-    //   }
-    //   //read this in from the config config...
-    // }
+        std::vector<std::vector<std::string>> values;
+        for(int j=0; j<FLAGS_num_keys_per_table; ++j){
+            //values.emplace_back(std::initializer_list<string>{"", ""};)
+            values.emplace_back(std::initializer_list<string>{std::to_string(j), std::to_string(j)});
+            server->LoadTableRows(table_name, column_names_and_types, values, primary_key_col_idx);
+            //TODO: change LoadTableRow to create one big TableWrite?
+        }
+      }
+      //read this in from the config config...
+    }
   } 
   else if(FLAGS_sql_bench && FLAGS_data_file_path.length() > 0 && FLAGS_keys_path.empty()) {
        std::ifstream generated_tables(FLAGS_data_file_path);

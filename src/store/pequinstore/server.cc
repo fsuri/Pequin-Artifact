@@ -520,6 +520,37 @@ void Server::LoadTableData(const std::string &table_name, const std::string &tab
     }
 }
 
+
+void Server::LoadTableRows(const std::string &table_name, const std::vector<std::pair<std::string, std::string>> &column_data_types, const std::vector<std::vector<std::string>> &row_values, const std::vector<uint32_t> &primary_key_col_idx ){
+  
+
+  //TODO: Instead of using the INSERT SQL statement, could generate a TableWrite and use the TableWrite API.
+  TableWrite table_write;
+  for(auto &row: row_values){
+    RowUpdates *new_row = table_write.add_rows();
+    for(auto &value: row){
+      new_row->add_column_values(value);
+    }
+  }
+  
+  //Call into TableStore with this statement.
+  //table_store->ExecRaw(sql_statement);
+  auto committedItr = committed.find("");
+  UW_ASSERT(committedItr != committed.end());
+  std::string genesis_tx_dig("");
+  Timestamp genesis_ts(0,0);
+  proto::CommittedProof *genesis_proof = committedItr->second;
+
+  table_store->ApplyTableWrite(table_name, table_write, genesis_ts, genesis_tx_dig, genesis_proof);
+  
+
+  std::vector<const std::string*> primary_cols;
+  for(auto i: primary_key_col_idx){
+    primary_cols.push_back(&(column_data_types[i].first));
+  }
+  std::string enc_key = EncodeTableRow(table_name, primary_cols);
+  Load(enc_key, "", Timestamp());
+}
 //!!"Deprecated" (Unused)
 void Server::LoadTableRow(const std::string &table_name, const std::vector<std::pair<std::string, std::string>> &column_data_types, const std::vector<std::string> &values, const std::vector<uint32_t> &primary_key_col_idx ){
   
@@ -556,8 +587,8 @@ void Server::LoadTableRow(const std::string &table_name, const std::vector<std::
   std::string genesis_tx_dig("");
   Timestamp genesis_ts(0,0);
   proto::CommittedProof *genesis_proof = committedItr->second;
-  table_store->LoadTable(sql_statement, genesis_tx_dig, genesis_ts, genesis_proof);
 
+  table_store->LoadTable(sql_statement, genesis_tx_dig, genesis_ts, genesis_proof);
 
   std::vector<const std::string*> primary_cols;
   for(auto i: primary_key_col_idx){
