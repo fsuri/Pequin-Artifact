@@ -23,11 +23,11 @@ using json = nlohmann::json;
 
 class TableWriter {
     public:
-        TableWriter(std::string &file_name);
+        TableWriter(const std::string &file_name);
         virtual ~TableWriter();
-        void add_table(std::string &table_name, std::vector<std::pair<std::string, std::string>>& column_names_and_types, const std::vector<uint32_t> primary_key_col_idx);
-        void add_index(std::string &table_name, std::string &index_name, const std::vector<uint32_t> &index_col_idx);
-        void add_row(std::string &table_name, const std::vector<std::string> &values);
+        void add_table(const std::string &table_name, const std::vector<std::pair<std::string, std::string>>& column_names_and_types, const std::vector<uint32_t> primary_key_col_idx, bool add_data = true);
+        void add_index(const std::string &table_name, const std::string &index_name, const std::vector<uint32_t> &index_col_idx);
+        void add_row(const std::string &table_name, const std::vector<std::string> &values);
         void flush();
     private:
         std::string file_name;
@@ -36,7 +36,7 @@ class TableWriter {
         std::map<std::string, std::ofstream> table_rows; //map from table_name to csv file name: //TODO: change map to be to a stream.. TODO: Pass file name to TableWriter()
 };
 
-TableWriter::TableWriter(std::string &file_name): file_name(file_name){
+TableWriter::TableWriter(const std::string &file_name): file_name(file_name){
     //out_tables["tables"] = {};
     mkdir((file_name + "-data").data(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
 }
@@ -50,13 +50,14 @@ TableWriter::~TableWriter(){
 
 //--> How would these be enforced? DB engine would say an operation failed -> app should abort? (app abort, not system abort) 
 
-void TableWriter::add_table(std::string &table_name, std::vector<std::pair<std::string, std::string>>& column_names_and_types, const std::vector<uint32_t> primary_key_col_idx ){
+void TableWriter::add_table(const std::string &table_name, const std::vector<std::pair<std::string, std::string>>& column_names_and_types, const std::vector<uint32_t> primary_key_col_idx, bool add_data){
     json &table = tables[table_name];
     table["table_name"] = table_name; //Not needed for parsing, but can make it easier to search for "table_name" if trying to read Json file.
     table["column_names_and_types"] = json(column_names_and_types);  //Note: data type length should be part of type. 
     table["primary_key_col_idx"] = json(primary_key_col_idx);
     //table["rows"] = {};
 
+    if(!add_data) return;
     // Create a new stream to a CSV file. 
     std::string file_path(file_name + "-data"+ "/" + table_name + "-data.csv");
     table_rows[table_name].open(file_path, std::ios::trunc);
@@ -65,13 +66,13 @@ void TableWriter::add_table(std::string &table_name, std::vector<std::pair<std::
     table_rows[table_name] << fmt::format("{}\n", fmt::join(column_names_and_types, ","));
 }
 
-void TableWriter::add_index(std::string &table_name, std::string &index_name, const std::vector<uint32_t> &index_col_idx){
+void TableWriter::add_index(const std::string &table_name, const std::string &index_name, const std::vector<uint32_t> &index_col_idx){
     json &table = tables[table_name];
     json &indexes = table["indexes"];
     indexes[index_name] = json(index_col_idx);
 }
 
-void TableWriter::add_row(std::string &table_name, const std::vector<std::string> &values) { //const std::vector<(std::string) &columns, const std::vector<uint32_t> primary_key_col_idx){
+void TableWriter::add_row(const std::string &table_name, const std::vector<std::string> &values) { //const std::vector<(std::string) &columns, const std::vector<uint32_t> primary_key_col_idx){
    
     //Note: No longer write data to json. Write data only to CSV
     // json &table = tables[table_name];

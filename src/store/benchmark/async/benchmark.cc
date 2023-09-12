@@ -90,6 +90,8 @@
 #include <thread>
 #include <vector>
 
+#include "store/benchmark/async/json_table_writer.h"
+
 enum protomode_t {
 	PROTO_UNKNOWN,
   PROTO_BLACKHOLE,
@@ -410,7 +412,7 @@ DEFINE_string(pequin_sync_messages, query_messages_args[0], "number of replicas 
 
 DEFINE_validator(pequin_sync_messages, &ValidateQueryMessages);
 
-DEFINE_bool(pequin_query_eager_exec, false, "skip query sync protocol and execute optimistically on local state");
+DEFINE_bool(pequin_query_eager_exec, true, "skip query sync protocol and execute optimistically on local state");
 DEFINE_bool(pequin_query_point_eager_exec, false, "use eager query exec instead of proof based point read");
 
 DEFINE_bool(pequin_query_read_prepared, true, "allow query to read prepared values");
@@ -670,8 +672,8 @@ DEFINE_bool(rw_read_only, false, "only do read operations");
  */
 
 DEFINE_uint64(num_tables, 1, "number of tables for rw-sql");
-DEFINE_uint64(num_keys_per_table, 100, "number of keys per table for rw-sql");
-DEFINE_uint64(max_range, 30, "max amount of reads in a single scan for rw-sql");
+DEFINE_uint64(num_keys_per_table, 10, "number of keys per table for rw-sql");
+DEFINE_uint64(max_range, 3, "max amount of reads in a single scan for rw-sql");
 
 
 /**
@@ -1018,6 +1020,22 @@ int main(int argc, char **argv) {
     querySelector = new QuerySelector(FLAGS_num_keys_per_table, tableSelector, baseSelector, rangeSelector);
 
 
+     //RW-SQL ==> auto-generate TableRegistry
+    FLAGS_data_file_path = std::filesystem::path(FLAGS_data_file_path).replace_filename("rw-sql-gen-client" + std::to_string(FLAGS_client_id));
+    TableWriter table_writer(FLAGS_data_file_path);
+
+    //Set up a bunch of Tables: Num_tables many; with num_items...
+    const std::vector<std::pair<std::string, std::string>> &column_names_and_types = {{"key", "INT"}, {"value", "INT"}};
+    const std::vector<uint32_t> &primary_key_col_idx = {0};
+        //Create Table
+        
+    for(int i=0; i<FLAGS_num_tables; ++i){
+      string table_name = "table_" + std::to_string(i);
+      table_writer.add_table(table_name, column_names_and_types, primary_key_col_idx, false);
+    }
+
+    table_writer.flush();
+    FLAGS_data_file_path += "-tables-schema.json";
     //Read in a TableRegistry? (Probably not needed, but can add)
   }
 
@@ -1385,7 +1403,7 @@ int main(int argc, char **argv) {
                                           FLAGS_tapir_sync_commit, 
                                           readMessages, readQuorumSize,
                                           params, 
-                                          FLAGS_data_file_path,
+                                          FLAGS_data_file_path, //table_registry
                                           keyManager, 
                                           FLAGS_indicus_phase1_decision_timeout,
 																					FLAGS_indicus_max_consecutive_abstains,

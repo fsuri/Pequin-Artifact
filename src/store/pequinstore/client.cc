@@ -102,6 +102,7 @@ Client::Client(transport::Configuration *config, uint64_t id, int nShards,
   //   std::cerr<< "experiment about to elapse 10 seconds";
   // });
   if(sql_bench){
+     Debug("Register tables from: %s", table_registry.c_str());
      sql_interpreter.RegisterTables(table_registry);
   }
 }

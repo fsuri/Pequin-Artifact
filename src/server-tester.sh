@@ -11,7 +11,8 @@ NUM_OPS_TX=2
 NUM_KEYS_IN_DB=1
 KEY_PATH="keys"
 SQL_BENCH="true"
-FILE_PATH="0_local_test_outputs/kv_example/kv-tables-schema.json"
+FILE_PATH="0_local_test_outputs/rw-sql/rw-sql.json"
+#"0_local_test_outputs/kv_example/kv-tables-schema.json"
 
 
 
