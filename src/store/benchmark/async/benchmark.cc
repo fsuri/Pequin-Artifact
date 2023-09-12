@@ -531,7 +531,8 @@ const std::string benchmark_args[] = {
   "smallbank",
   "rw",
   "tpcc-sync",
-  "toy"
+  "toy",
+  "tpcc-sql"
 };
 const benchmode_t benchmodes[] {
   BENCH_RETWIS,
@@ -619,7 +620,7 @@ DEFINE_bool(sql_bench, false, "Register Tables for SQL benchmarks. Input file is
 /**
  * Postgres settings
 */
-DEFINE_string(connection_str, "", "connection string to postgres database");
+DEFINE_string(connection_str, "postgres://postgres:password@localhost:5432/tpccdb", "connection string to postgres database");
 
 /**
  * Retwis settings.
@@ -755,7 +756,8 @@ int main(int argc, char **argv) {
   for (int i = 0; i < numProtoModes; ++i) {
     if (FLAGS_protocol_mode == protocol_args[i]) {
       mode = protomodes[i];
-      strongmode = strongmodes[i];
+      if(i < (sizeof(strongmodes)/sizeof(strongmode))) 
+        strongmode = strongmodes[i];
       break;
     }
   }
@@ -1438,6 +1440,7 @@ int main(int argc, char **argv) {
 
     case PROTO_POSTGRES: {
       client = new postgresstore::Client(FLAGS_connection_str, clientId);
+      break;
     }
 
     default:

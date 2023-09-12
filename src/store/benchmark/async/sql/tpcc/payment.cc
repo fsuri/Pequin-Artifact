@@ -83,15 +83,17 @@ transaction_status_t SQLPayment::Execute(SyncClient &client) {
 
   statement = fmt::format("UPDATE Warehouse SET ytd = ytd + {} WHERE id = {}", h_amount, w_id);
   client.Write(statement, queryResult, timeout);
+  assert(queryResult->has_rows_affected());
 
-  statement = fmt::format("SELECT FROM Warehouse WHERE id = {}", w_id);
+  statement = fmt::format("SELECT * FROM Warehouse WHERE id = {}", w_id);
   client.Query(statement, timeout);
 
   statement = fmt::format("UPDATE District SET ytd = ytd + {} WHERE id = {} AND w_id = {}", h_amount, d_id, d_w_id);
   client.Write(statement, queryResult, timeout);
+  assert(queryResult->has_rows_affected());
   
   Debug("District: %u", d_id);
-  statement = fmt::format("SELECT FROM District WHERE id = {} AND w_id = {}", d_id, d_w_id);
+  statement = fmt::format("SELECT * FROM District WHERE id = {} AND w_id = {}", d_id, d_w_id);
   client.Query(statement, timeout);
 
   tpcc::CustomerRow c_row;
@@ -100,7 +102,7 @@ transaction_status_t SQLPayment::Execute(SyncClient &client) {
     Debug("  Get(c_w_id=%u, c_d_id=%u, c_last=%s)", c_w_id, c_d_id,
       c_last.c_str());
 
-    statement = fmt::format("SELECT FROM Customer WHERE d_id = {} AND w_id = {} AND last = '{}' ORDER BY first", c_d_id, c_w_id, c_last);
+    statement = fmt::format("SELECT * FROM Customer WHERE d_id = {} AND w_id = {} AND last = '{}' ORDER BY first", c_d_id, c_w_id, c_last);
     client.Query(statement, timeout);
     client.Wait(results);
     int namecnt = results[2]->size();
@@ -108,7 +110,8 @@ transaction_status_t SQLPayment::Execute(SyncClient &client) {
     c_id = c_row.id();
     Debug("  ID: %u", c_id);
   } else {
-    statement = fmt::format("SELECT FROM Customer WHERE id = {} AND d_id = {} AND w_id = {}", c_id, c_d_id, c_w_id);
+    statement = fmt::format("SELECT * FROM Customer WHERE id = {} AND d_id = {} AND w_id = {}", c_id, c_d_id, c_w_id);
+    fprintf(stderr, "statement: %s\n", statement.c_str());
     client.Query(statement, timeout);
     client.Wait(results);
     deserialize(c_row, results[2]);

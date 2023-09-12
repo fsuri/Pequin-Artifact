@@ -95,7 +95,7 @@ inline void Client::Query(const std::string &query_statement, query_callback qcb
     auto wrapped_result = new taopq_wrapper::TaoPQQueryResultWrapper(std::make_unique<tao::pq::result>(result));
     qcb(0, wrapped_result);
   } catch (...) {
-    qtcb(0);
+    qtcb(1);
   }
 }
 
@@ -104,10 +104,11 @@ inline void Client::Write(std::string &write_statement, write_callback wcb,
       write_timeout_callback wtcb, uint32_t timeout) {
   try {
     auto result = transaction->execute(write_statement);
-    auto wrapped_result = new taopq_wrapper::TaoPQQueryResultWrapper(std::make_unique<tao::pq::result>(result));
-    wcb(0, wrapped_result);
+    const auto wrapped_result = new taopq_wrapper::TaoPQQueryResultWrapper(std::make_unique<tao::pq::result>(result));
+    assert(wrapped_result->has_rows_affected());
+    wcb(0, (const query_result::QueryResult*) wrapped_result);
   } catch (...) {
-    wtcb(0);
+    wtcb(1);
   }
 }
 } // namespace postgresqlstore

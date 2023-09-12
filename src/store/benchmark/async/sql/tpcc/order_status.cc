@@ -66,14 +66,14 @@ transaction_status_t SQLOrderStatus::Execute(SyncClient &client) {
   if (c_by_last_name) { // access customer by last name
     Debug("Customer: %s", c_last.c_str());
 
-    query = fmt::format("SELECT FROM Customer WHERE d_id = {} AND w_id = {} AND last = '{}' ORDER BY first", c_d_id, c_w_id, c_last);
+    query = fmt::format("SELECT * FROM Customer WHERE d_id = {} AND w_id = {} AND last = '{}' ORDER BY first", c_d_id, c_w_id, c_last);
     client.Query(query, queryResult, timeout);
     int namecnt = queryResult->size();
     deserialize(c_row, queryResult, namecnt / 2);
     c_id = c_row.id();
     Debug("  ID: %u", c_id);
   } else {
-    query = fmt::format("SELECT FROM Customer WHERE id = {} AND d_id = {} AND w_id = {}", c_id, c_d_id, c_w_id);
+    query = fmt::format("SELECT * FROM Customer WHERE id = {} AND d_id = {} AND w_id = {}", c_id, c_d_id, c_w_id);
     client.Query(query, queryResult, timeout);
     deserialize(c_row, queryResult);
     Debug("Customer: %u", c_id);
@@ -87,7 +87,7 @@ transaction_status_t SQLOrderStatus::Execute(SyncClient &client) {
   int o_id;
   deserialize(o_id, queryResult);
   Debug("Order: %u", o_id);
-  query = fmt::format("SELECT FROM Order WHERE id = {} AND d_id = {} AND w_id = {}", o_id, c_d_id, c_w_id);
+  query = fmt::format("SELECT * FROM Order WHERE id = {} AND d_id = {} AND w_id = {}", o_id, c_d_id, c_w_id);
   client.Query(query, queryResult, timeout);
   tpcc::OrderRow o_row;
   if(queryResult->empty()) Panic("empty result for Order Row");
@@ -96,7 +96,7 @@ transaction_status_t SQLOrderStatus::Execute(SyncClient &client) {
   Debug("  Entry Date: %u", o_row.entry_d());
   Debug("  Carrier ID: %u", o_row.carrier_id());
 
-  query = fmt::format("SELECT FROM OrderLine WHERE o_id = {} AND d_id = {} AND w_id = {} AND number < {}", o_id, c_d_id, c_w_id, o_row.ol_cnt());
+  query = fmt::format("SELECT * FROM OrderLine WHERE o_id = {} AND d_id = {} AND w_id = {} AND number < {}", o_id, c_d_id, c_w_id, o_row.ol_cnt());
   client.Query(query, queryResult, timeout);
   Debug("COMMIT");
   return client.Commit(timeout);

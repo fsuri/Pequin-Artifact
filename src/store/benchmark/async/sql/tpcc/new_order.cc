@@ -75,13 +75,13 @@ transaction_status_t SQLNewOrder::Execute(SyncClient &client) {
 
   client.Begin(timeout);
 
-  statement = fmt::format("SELECT FROM Warehouse WHERE id = {}", w_id);
+  statement = fmt::format("SELECT * FROM Warehouse WHERE id = {}", w_id);
   client.Query(statement, timeout);
   Debug("District: %u", d_id);
-  statement = fmt::format("SELECT FROM District WHERE id = {} AND w_id = {}", d_id, w_id);
+  statement = fmt::format("SELECT * FROM District WHERE id = {} AND w_id = {}", d_id, w_id);
   client.Query(statement, timeout);
   Debug("Customer: %u", c_id);
-  statement = fmt::format("SELECT FROM Customer WHERE id = {} AND d_id = {} AND w_id = {}",
+  statement = fmt::format("SELECT * FROM Customer WHERE id = {} AND d_id = {} AND w_id = {}",
                       c_id, d_id, w_id);
   client.Query(statement, timeout);
 
@@ -123,14 +123,14 @@ transaction_status_t SQLNewOrder::Execute(SyncClient &client) {
   for (size_t ol_number = 0; ol_number < ol_cnt; ++ol_number) {
     Debug("  Order Line %lu", ol_number);
     Debug("    Item: %u", o_ol_i_ids[ol_number]);
-    statement = fmt::format("SELECT FROM Item WHERE id = {}", o_ol_i_ids[ol_number]);
+    statement = fmt::format("SELECT * FROM Item WHERE id = {}", o_ol_i_ids[ol_number]);
     client.Query(statement, timeout);
   }
 
   for (size_t ol_number = 0; ol_number < ol_cnt; ++ol_number) {
     Debug("  Order Line %lu", ol_number);
     Debug("    Supply Warehouse: %u", o_ol_supply_w_ids[ol_number]);
-    statement = fmt::format("SELECT FROM Stock WHERE i_id = {} AND w_id = {}",
+    statement = fmt::format("SELECT * FROM Stock WHERE i_id = {} AND w_id = {}",
           o_ol_i_ids[ol_number], o_ol_supply_w_ids[ol_number]);
     client.Query(statement, timeout);
   }

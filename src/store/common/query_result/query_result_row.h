@@ -41,7 +41,7 @@ class Row {
 	public:
 		virtual auto slice( const std::size_t offset, const std::size_t in_columns ) const -> std::unique_ptr<Row> = 0;
 
-	  virtual auto operator[]( const std::size_t column ) const -> std::unique_ptr<Field> = 0;
+		virtual auto operator[]( const std::size_t column ) const -> std::unique_ptr<Field> = 0;
 		
 		virtual auto columns() const noexcept -> std::size_t = 0;
 

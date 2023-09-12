@@ -346,8 +346,9 @@ template<class T>
 void deserialize(T& t, std::unique_ptr<const query_result::QueryResult>& queryResult, const std::size_t row) {
   std::stringstream ss(std::ios::in | std::ios::out | std::ios::binary);
   for(std::size_t i = 0; i < queryResult->columns(); i++) {
-    std::size_t n_bytes;
+    std::size_t n_bytes = 0;
     const char* r_chars = queryResult->get(row, i, &n_bytes);
+    fprintf(stderr, "n_bytes: %lu\n", n_bytes);
     std::string r = std::string(r_chars, n_bytes);
     ss << r;
   }
