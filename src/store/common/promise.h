@@ -36,9 +36,13 @@
 #include "lib/message.h"
 #include "lib/transport.h"
 #include "store/common/transaction.h"
+#include "store/common/query_result/query_result.h"
+
+#include "store/common/query_result/query_result.h"
 
 #include <condition_variable>
 #include <mutex>
+#include <memory>
 
 class Promise
 {
@@ -48,6 +52,8 @@ private:
     int reply;
     Timestamp timestamp;
     std::string value;
+    std::unique_ptr<const query_result::QueryResult> result;
+
     std::mutex lock;
     std::condition_variable cv;
 
@@ -63,6 +69,7 @@ public:
     void Reply(int r, Timestamp t);
     void Reply(int r, std::string v);
     void Reply(int r, Timestamp t, std::string v);
+    void Reply(int r, std::unique_ptr<const query_result::QueryResult>&& res);
 
     // Return configured timeout
     int GetTimeout();
@@ -71,6 +78,7 @@ public:
     int GetReply();
     Timestamp GetTimestamp();
     std::string GetValue();
+    std::unique_ptr<const query_result::QueryResult> ReleaseQueryResult();
 };
 
 #endif /* _PROMISE_H_ */

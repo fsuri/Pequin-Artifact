@@ -131,6 +131,9 @@ private:
     std::vector<int> txnGroups;
     return static_cast<int>((*part)(key, numShards, groupIdx, txnGroups) % numGroups) == groupIdx;
   }
+
+  //Testing:
+  std::unordered_set<std::string> executed_tx;
 };
 
 }

@@ -1,9 +1,9 @@
 #!/bin/bash
 
-F=0
+F=1
 NUM_GROUPS=1
-CONFIG="shard-r1.config"
-PROTOCOL="indicus"
+CONFIG="0_local_test_outputs/configs/shard-r4.config"
+PROTOCOL="hotstuffpg"
 STORE=${PROTOCOL}store
 DURATION=10
 ZIPF=0.0
@@ -27,7 +27,7 @@ num_keys) NUM_KEYS_IN_DB=${OPTARG};;
 esac;
 done
 
-N=$((5*$F+1))
+N=$((3*$F+1))
 
 echo '[1] Shutting down possibly open servers'
 for j in `seq 0 $((NUM_GROUPS-1))`; do
@@ -43,6 +43,7 @@ for j in `seq 0 $((NUM_GROUPS-1))`; do
 	#echo Starting Group $j
 	for i in `seq 0 $((N-1))`; do
 		#echo Starting Replica $(($i+$j*$N))
-		DEBUG=store/$STORE/* store/server --config_path $CONFIG --group_idx $j --num_groups $NUM_GROUPS --num_shards $NUM_GROUPS --replica_idx $i --protocol $PROTOCOL --num_keys $NUM_KEYS_IN_DB --debug_stats --indicus_key_path $KEY_PATH &> server$(($i+$j*$N)).out &
+		#store/$STORE/*
+		DEBUG=store/$STORE/* store/server store/hotstuffstore/libhotstuff/examples/* --config_path $CONFIG --group_idx $j --num_groups $NUM_GROUPS --num_shards $NUM_GROUPS --replica_idx $i --protocol $PROTOCOL --num_keys $NUM_KEYS_IN_DB --debug_stats --indicus_key_path $KEY_PATH &> ./0_local_test_outputs/server$(($i+$j*$N)).out &
 	done;
 done;

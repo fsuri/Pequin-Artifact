@@ -339,6 +339,7 @@ void Replica::HandleRequest(const TransportAddress &remote,
                   requests[digest] = packedMsg;
                   replyAddrs[digest] = clientAddr;
 
+                  //FIXME: For Hotstuff this code seems essentially useless: It just creates a mapping back to itself... (Seems to be a relic of PBFT code handling)
                   proto::BatchedRequest batchedRequest;
                   (*batchedRequest.mutable_digests())[0] = digest_param;
                   string batchedDigest = BatchedDigest(batchedRequest);

@@ -7,11 +7,12 @@ CXX = g++
 LD = g++
 EXPAND = lib/tmpl/expand
 
+include Sanitizer.mk
 #CFLAGS := -g -Wall -pthread -iquote.obj/gen -Wno-uninitialized -O2 -DNUW_ASSERT
-CFLAGS :=  -g -no-pie -Wall -pthread -iquote.obj/gen -Wno-uninitialized -O2#-O3#-O1#-O2
-CXXFLAGS := -g -no-pie -std=c++17 #-fsanitize=address -fno-omit-frame-pointer -fno-optimize-sibling-calls #-fsanitize=thread
+CFLAGS :=  -g -no-pie -Wall -pthread -iquote.obj/gen -Wno-uninitialized -O2 #-O3#-O1#-O2 
+CXXFLAGS := -g -no-pie -std=c++2a $(SANITIZE_FLAG) #-fsanitize=address -fno-omit-frame-pointer -fno-optimize-sibling-calls #-fsanitize=thread
 # -luv for HotStuff
-LDFLAGS := -levent_pthreads -lrt -luv #-fsanitize=address -fno-omit-frame-pointer -fno-optimize-sibling-calls #-fsanitize=thread #
+LDFLAGS := -levent_pthreads -lrt -luv $(SANITIZE_FLAG) #-fsanitize=address -fno-omit-frame-pointer -fno-optimize-sibling-calls #-fsanitize=thread #
 
 ## Debian package: check
 #CHECK_CFLAGS := $(shell pkg-config --cflags check)
@@ -34,6 +35,8 @@ LIBSSL_CFLAGS := $(shell pkg-config --cflags openssl)
 LIBSSL_LDFLAGS := $(shell pkg-config --libs openssl)
 CFLAGS += $(LIBSSL_CFLAGS)
 LDFLAGS += $(LIBSSL_LDFLAGS)
+# fmt
+LDFLAGS += -lfmt
 # cryptopp
 LDFLAGS += -l:libcryptopp.a #why does lcryptopp not work? why the .a file here?
 # libsodium
@@ -50,6 +53,16 @@ LDFLAGS += $(LIBSECP256K1_LDFLAGS)
 #-lcrypto #need this? try out, somehow neither are necessary? what about mbits?
 LDFLAGS +=  -lssl -lcrypto -led25519_donna
 LDFLAGS += -ltbb #-lpthread
+#Hoard
+#LDFLAGS += -L/Software/Hoard/src/libhoard.so
+
+# taopq
+CFLAGS += -I/usr/include/postgresql
+LDFLAGS += -ltaopq
+LDFLAGS += -lpq
+
+# fmt
+LDFLAGS += -lfmt #-l:libfmt.a
 
 # Google test framework. This doesn't use pkgconfig
 GTEST_DIR := /usr/src/gtest-1.10.0/googletest
@@ -138,6 +151,9 @@ BINS :=
 # to run for the `test' target.
 TEST_BINS :=
 
+#External object files for linking
+EXT_OBJS :=
+
 # add-CFLAGS is a utility macro that takes a space-separated list of
 # sources and a set of CFLAGS.  It sets the CFLAGS for each provided
 # source.  This should be used like
@@ -161,25 +177,33 @@ include store/common/Rules.mk
 include store/tapirstore/Rules.mk
 include store/strongstore/Rules.mk
 include store/weakstore/Rules.mk
+
+include store/pequinstore/Rules.mk
 include store/indicusstore/Rules.mk
 include store/pbftstore/Rules.mk
 include store/hotstuffstore/Rules.mk
+include store/hotstuffpgstore/Rules.mk
 include store/augustusstore/Rules.mk
 include store/bftsmartstore/Rules.mk
 include store/bftsmartstore_augustus/Rules.mk
 include store/bftsmartstore_stable/Rules.mk
+include store/postgresstore/Rules.mk
+
 include store/benchmark/async/tpcc/Rules.mk
+include store/benchmark/async/sql/tpcc/Rules.mk
 include store/Rules.mk
 include store/benchmark/Rules.mk
 include store/benchmark/async/common/Rules.mk
 include store/benchmark/async/rw/Rules.mk
 include store/benchmark/async/retwis/Rules.mk
 include store/benchmark/async/smallbank/Rules.mk
+include store/benchmark/async/toy/Rules.mk
 include store/benchmark/async/Rules.mk
 include lockserver/Rules.mk
 include timeserver/Rules.mk
-include libtapir/Rules.mk
+#include libtapir/Rules.mk # removed because .so file is incompatible with static linking for compression libs. 
 include create_keys/Rules.mk
+#include simple_app/Rules.mk 
 ##################################################################
 # General rules
 #
@@ -231,7 +255,7 @@ endef
 # Slightly different rules for protobuf object files
 # because their source files have different locations.
 
-$(OBJS): .obj/%.o: %.cc $(PROTOSRCS)
+$(OBJS): .obj/%.o: %.cc $(PROTOSRCS) 
 	$(call compilecxx,CC,)
 
 $(OBJS:%.o=%-pic.o): .obj/%-pic.o: %.cc $(PROTOSRCS)
@@ -246,17 +270,20 @@ $(PROTOOBJS:%.o=%-pic.o): .obj/%-pic.o: .obj/gen/%.pb.cc $(PROTOSRCS)
 #
 # Linking
 #
+LDFLAGS += $(EXT_OBJS)
+#CFLAGS += -fPIC
+#CXXFLAGS += -fPIC
 
 $(call add-LDFLAGS,$(TEST_BINS),$(CHECK_LDFLAGS))
 
 $(BINS) $(TEST_BINS): %:
-	$(call trace,LD,$@,$(LD) -o $@ $^ $(LDFLAGS) $(LDFLAGS-$@))
+	$(call trace,LD,$@,$(LD) -o $@ $^ $(LDFLAGS) $(LDFLAGS-$@)) 
 
 #
 # Automatic dependencies
 #
 
-DEPS := $(OBJS:.o=.d) $(OBJS:.o=-pic.d)
+DEPS := $(OBJS:.o=.d) $(OBJS:.o=-pic.d) 
 
 -include $(DEPS)
 
@@ -296,6 +323,8 @@ $(GMOCK_MAIN) : .obj/gmock/gmock-all.o .obj/gmock/gmock_main.o
 clean:
 	$(call trace,RM,binaries,rm -f $(BINS) $(TEST_BINS))
 	$(call trace,RM,objects,rm -rf .obj)
+#	@cd ./lib/compression/TurboPFor-Integer-Compression/; $(MAKE) clean
+#	@cd ./lib/compression/FrameOfReference/; $(MAKE) clean
 
 #
 # Debugging
@@ -305,6 +334,13 @@ print-%:
 
 ##################################################################
 # Targets
+
+.PHONY: compression
+compression: 
+	@echo '====== Installing Compression Libs ======'
+	@cd ./lib/compression/TurboPFor-Integer-Compression/; $(MAKE)
+	@cd ./lib/compression/FrameOfReference/; $(MAKE)
+	@echo '====== Finish Installing Compression Libs ======'
 #
 #.PHONY: bftsmart
 #bftsmart: 
@@ -345,12 +381,12 @@ bftsmart2:
 #because the one_step_config.sh script always uploads the jars from the bftsmartstore folder -- i.e. they are used for all.
 
 .PHONY: indicus
-indicus: $(BINS)
+indicus: $(BINS) #$(TEST_BINS)
 
 
 .PHONY: all
 #all: bftsmart bftsmart2 hotstuff augustus_smart stable
-all: hotstuff bftsmart
+all: hotstuff bftsmart compression
 	@echo '====== Start Building Indicus ======'
 	$(MAKE) indicus 
 	@echo '====== Finish Building Indicus ======'

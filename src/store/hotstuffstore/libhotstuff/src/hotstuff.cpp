@@ -538,6 +538,7 @@ HotStuffBase::~HotStuffBase() {}
 void HotStuffBase::start(
         std::vector<std::tuple<NetAddr, pubkey_bt, uint256_t>> &&replicas,
         bool ec_loop) {
+    std::cout << "HSBase started" << std::endl;
     for (size_t i = 0; i < replicas.size(); i++)
     {
         auto &addr = std::get<0>(replicas[i]);
@@ -653,6 +654,7 @@ void HotStuffBase::start(
         return false;
     });
 
+    
     cmd_pending.reg_handler(ec, [this](cmd_queue_t &q) {
         std::pair<uint256_t, commit_cb_t> e;
         while (q.try_dequeue(e))
@@ -675,6 +677,7 @@ void HotStuffBase::start(
                 it = decision_waiting.insert(std::make_pair(cmd_hash, e.second)).first;
             else
                 //e.second(Finality(id, 0, 0, 0, cmd_hash, uint256_t()));
+                
                 exec_pending.enqueue(std::make_pair(e.second, Finality(id, 0, 0, 0, cmd_hash, uint256_t())));
 
             if (proposer != get_id()) continue;
@@ -695,6 +698,7 @@ void HotStuffBase::start(
 
                 return true;
             }
+            
         }
         return false;
     });

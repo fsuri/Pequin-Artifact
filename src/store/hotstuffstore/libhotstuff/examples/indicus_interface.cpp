@@ -8,8 +8,9 @@ namespace hotstuff {
 namespace hotstuffstore {
 
     void IndicusInterface::propose(const std::string& hash, hotstuff_exec_callback execb) {
-        //std::cout << "############# HotStuff Interface #############" << std::endl;
+        std::cout << "############# HotStuff Interface #############" << std::endl;
         hotstuff_papp->interface_propose(hash, execb);
+        std::cout << "############# HotStuff Interface Proposed #############" << std::endl;
     }
 
     IndicusInterface::IndicusInterface(int shardId, int replicaId, int cpuId):
@@ -18,10 +19,11 @@ namespace hotstuffstore {
 
         hotstuff::hotstuff_core_offset = (cpuId + 4) % 8;
 
+
         string config_dir = config_dir_base + "shard" + std::to_string(shardId) + "/";
 
-        string config_file = config_dir + "hotstuff.gen.conf";
         string key_file = config_dir + "hotstuff.gen-sec" + std::to_string(replicaId) + ".conf";
+        string config_file = config_dir + "hotstuff.gen.conf";
 
         char* argv[4];
         char arg1[200];
@@ -35,7 +37,7 @@ namespace hotstuffstore {
         argv[2] = "--conf";
         argv[3] = arg3;
 
-        std::cout << std::endl << "############## HotStuff Config: " << config_file << "   " << key_file << std::endl << std::endl;
+        std::cout << std::endl << "############## HotStuff Config (hotstuffstore): " << config_file << "   " << key_file << std::endl << std::endl;
 
         initialize(4, argv);
     }
@@ -133,10 +135,14 @@ namespace hotstuffstore {
 
         auto parent_limit = opt_parent_limit->get();
         hotstuff::pacemaker_bt pmaker;
-        if (opt_pace_maker->get() == "dummy")
+        if (opt_pace_maker->get() == "dummy"){
+            std::cerr << "USING DUMMY PACEMAKER" << std::endl;
             pmaker = new hotstuff::PaceMakerDummyFixed(opt_fixed_proposer->get(), parent_limit);
-        else
+        }
+        else{
+            std::cerr << "USING ROUND-ROBIN PACEMAKER" << std::endl;  //Note: It appears that the RR pacemaker performs better. 
             pmaker = new hotstuff::PaceMakerRR(ec, parent_limit, opt_base_timeout->get(), opt_prop_delay->get());
+        }
 
         HotStuffApp::Net::Config repnet_config;
         ClientNetwork<opcode_t>::Config clinet_config;
@@ -192,11 +198,11 @@ namespace hotstuffstore {
 
         // spawning a new thread to run hotstuff logic asynchronously
         std::thread t([this](){
-                cpu_set_t cpuset;
-                CPU_ZERO(&cpuset);
-                CPU_SET(cpuId, &cpuset);
-                pthread_setaffinity_np(pthread_self(),	sizeof(cpu_set_t), &cpuset);
-                std::cout << "HotStuff runs on CPU" << cpuId << std::endl;
+                // cpu_set_t cpuset;
+                // CPU_ZERO(&cpuset);
+                // CPU_SET(cpuId, &cpuset);
+                // pthread_setaffinity_np(pthread_self(),	sizeof(cpu_set_t), &cpuset);
+                // std::cerr << "HotStuff runs on CPU" << cpuId << std::endl;
                 hotstuff_papp->interface_entry();
                 //elapsed.stop(true);
             });

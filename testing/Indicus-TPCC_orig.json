@@ -61,7 +61,7 @@
 	
       "validate_proofs": true,
       "sign_messages": true,
-      "sign_client_proposals": true,
+      "sign_client_proposals": false,
       
       "signature_type": 4,
       "sig_batch": 4,

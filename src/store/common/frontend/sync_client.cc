@@ -25,6 +25,7 @@
  *
  **********************************************************************/
 #include "store/common/frontend/sync_client.h"
+#include "store/common/query_result/query_result_proto_wrapper.h"
 
 
 SyncClient::SyncClient(Client *client) : client(client) {
@@ -110,6 +111,47 @@ void SyncClient::Abort(uint32_t timeout) {
   promise.GetReply();
 }
 
+
+void SyncClient::Write(std::string &statement, std::unique_ptr<const query_result::QueryResult> &result, uint32_t timeout) {
+  Promise promise(timeout);
+  
+  client->Write(statement, std::bind(&SyncClient::WriteCallback, this, &promise,
+        std::placeholders::_1, std::placeholders::_2), 
+        std::bind(&SyncClient::WriteTimeoutCallback, this,
+        &promise, std::placeholders::_1), timeout);
+ result = promise.ReleaseQueryResult(); //TODO: Possibly want Write parallelism too.
+}
+
+
+void SyncClient::Query(const std::string &query, std::unique_ptr<const query_result::QueryResult> &result, uint32_t timeout) { // Change to unique ptr
+  Promise promise(timeout);
+  
+  client->Query(query, std::bind(&SyncClient::QueryCallback, this, &promise,
+        std::placeholders::_1, std::placeholders::_2), 
+        std::bind(&SyncClient::QueryTimeoutCallback, this,
+        &promise, std::placeholders::_1), timeout);
+  result = promise.ReleaseQueryResult();
+}
+
+void SyncClient::Query(const std::string &query, uint32_t timeout) {
+  Promise *promise = new Promise(timeout);
+  queryPromises.push_back(promise);
+  client->Query(query, std::bind(&SyncClient::QueryCallback, this, promise,
+        std::placeholders::_1, std::placeholders::_2), 
+        std::bind(&SyncClient::QueryTimeoutCallback, this,
+        promise, std::placeholders::_1), timeout);
+}
+
+void SyncClient::Wait(std::vector<std::unique_ptr<const query_result::QueryResult>> &values) {
+  for (auto promise : queryPromises) {
+    values.push_back(promise->ReleaseQueryResult());
+    delete promise;
+  }
+  queryPromises.clear();
+}
+
+///////// Callbacks
+
 void SyncClient::GetCallback(Promise *promise, int status,
     const std::string &key, const std::string &value, Timestamp ts){
   promise->Reply(status, ts, value);
@@ -143,5 +185,22 @@ void SyncClient::AbortCallback(Promise *promise) {
 
 void SyncClient::AbortTimeoutCallback(Promise *promise) {
   promise->Reply(REPLY_TIMEOUT);
+}
+
+void SyncClient::WriteCallback(Promise *promise, int status, const query_result::QueryResult* result){
+  promise->Reply(status, std::unique_ptr<const query_result::QueryResult>(result)); 
+}
+
+void SyncClient::WriteTimeoutCallback(Promise *promise, int status){
+  promise->Reply(status);
+}
+
+
+void SyncClient::QueryCallback(Promise *promise, int status, query_result::QueryResult* result){
+  promise->Reply(status, std::unique_ptr<query_result::QueryResult>(result));
+}
+
+void SyncClient::QueryTimeoutCallback(Promise *promise, int status){
+  promise->Reply(status);
 }
 

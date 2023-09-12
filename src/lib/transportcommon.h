@@ -63,6 +63,12 @@ public:
                 const Message &m) override
     {
         const ADDR &dstAddr = dynamic_cast<const ADDR &>(dst);
+
+        // const ADDR *srcAddr = dynamic_cast<const ADDR *>(src->GetAddress());
+        // if (*srcAddr == dstAddr) {
+        //     Panic("Sending message to self");
+        // }
+
         return SendMessageInternal(src, dstAddr, m);
     }
 
