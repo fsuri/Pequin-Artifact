@@ -147,14 +147,18 @@ static void InterpretPlan(
       //result.read_set = read_set;
       //result.query_read_set_mgr = tile->GetReadSetMgr();
 
-      /*std::cout << "Before tile get read set manager" << std::endl;
+      /*
+      std::cout << "Before tile get read set manager" << std::endl;
       for(auto &read_msg : *(txn->GetQueryReadSetMgr().read_set->mutable_read_set())) {
         std::cout << "Encoded key: " << read_msg.key() << ". Timestamp: (" << read_msg.readtime().timestamp() << ", " << read_msg.readtime().id() << ")" << std::endl;
-      }*/
+      }
+      */
 
-      /*for(auto &read_msg : *(result.query_read_set_mgr->read_set->mutable_read_set())){
+      /*
+      for(auto &read_msg : *(result.query_read_set_mgr->read_set->mutable_read_set())){
         std::cout << "Encoded key: " << read_msg.key() << ". Timestamp: (" << read_msg.readtime().timestamp() << ", " << read_msg.readtime().id() << ")" << std::endl;
-      }*/
+      }
+      */
       //std::cout << "After tile get read set manager" << std::endl;
   
       

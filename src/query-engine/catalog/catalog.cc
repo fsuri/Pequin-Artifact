@@ -259,19 +259,19 @@ void Catalog::Bootstrap() {
 
 ResultType Catalog::CreateDatabase(concurrency::TransactionContext *txn,
                                    const std::string &database_name) {
-  std::cout << "Reached create database" << std::endl;
+  Debug("Reached create database");
   if (txn == nullptr) {
-    std::cout << "txn is null in create database" << std::endl;
+    Panic("txn is null in create database");
     throw CatalogException("Do not have transaction to create database " +
                            database_name);
   }
 
-  std::cout << "Create databse 0.2" << std::endl;
+  //std::cout << "Create databse 0.2" << std::endl;
   auto pg_database = DatabaseCatalog::GetInstance(nullptr, nullptr, nullptr);
-  std::cout << "Create databse 0.6" << std::endl;
+  //std::cout << "Create databse 0.6" << std::endl;
   auto storage_manager = storage::StorageManager::GetInstance();
 
-  std::cout << "Create databse 1" << std::endl;
+  //std::cout << "Create databse 1" << std::endl;
 
   // Check if a database with the same name exists
   auto database_object =
@@ -280,13 +280,13 @@ ResultType Catalog::CreateDatabase(concurrency::TransactionContext *txn,
   if (database_object != nullptr)
     throw CatalogException("Database " + database_name + " already exists");
 
-  std::cout << "Create databse 2" << std::endl;
+  //std::cout << "Create databse 2" << std::endl;
 
   // Create actual database
   oid_t database_oid = pg_database->GetNextOid();
 
   storage::Database *database = new storage::Database(database_oid);
-  std::cout << "Create databse 3" << std::endl;
+  //std::cout << "Create databse 3" << std::endl;
 
   // TODO: This should be deprecated, dbname should only exists in pg_db
   database->setDBName(database_name);
@@ -295,7 +295,7 @@ ResultType Catalog::CreateDatabase(concurrency::TransactionContext *txn,
     storage_manager->AddDatabaseToStorageManager(database);
   }
 
-  std::cout << "Create databse 4" << std::endl;
+  //std::cout << "Create databse 4" << std::endl;
 
   // put database object into rw_object_set
   txn->RecordCreate(database_oid, INVALID_OID, INVALID_OID);
@@ -303,14 +303,14 @@ ResultType Catalog::CreateDatabase(concurrency::TransactionContext *txn,
   // Insert database record into pg_db
   pg_database->InsertDatabase(txn, database_oid, database_name, pool_.get());
 
-  std::cout << "Create databse 5" << std::endl;
+  //std::cout << "Create databse 5" << std::endl;
 
   // add core & non-core system catalog tables into database
   BootstrapSystemCatalogs(txn, database);
 
   catalog_map_[database_oid]->Bootstrap(txn, database_name);
 
-  std::cout << "Create databse 6" << std::endl;
+  //std::cout << "Create databse 6" << std::endl;
 
   LOG_TRACE("Database %s created. Returning RESULT_SUCCESS.",
             database_name.c_str());

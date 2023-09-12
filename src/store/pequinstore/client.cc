@@ -37,6 +37,7 @@
 #include <sys/time.h>
 #include <algorithm>
 
+#include "store/common/query_result/query_result.h"
 #include "store/common/query_result/query_result_proto_wrapper.h"
 #include "store/common/query_result/query_result_proto_builder.h"
 
@@ -101,6 +102,7 @@ Client::Client(transport::Configuration *config, uint64_t id, int nShards,
   //   std::cerr<< "experiment about to elapse 10 seconds";
   // });
   if(sql_bench){
+     Debug("Register tables from: %s", table_registry.c_str());
      sql_interpreter.RegisterTables(table_registry);
   }
 }
@@ -471,7 +473,7 @@ void Client::PointQueryResultCallback(PendingQuery *pendingQuery,
   //Note: result = empty ==>default case: no replica reported valid result (== all honest replicas send empty)
   // ==> QueryResultWrapper constructor will create empty result.
 
-  sql::QueryResultProtoWrapper *q_result = new sql::QueryResultProtoWrapper(result);
+  query_result::QueryResult *q_result = new sql::QueryResultProtoWrapper(result);
   pendingQuery->qcb(REPLY_OK, q_result); //callback to application 
   
   
@@ -696,6 +698,16 @@ void Client::Commit(commit_callback ccb, commit_timeout_callback ctcb,
       std::sort(txn.mutable_deps()->begin(), txn.mutable_deps()->end(), sortDepSet);
       txn.mutable_deps()->erase(std::unique(txn.mutable_deps()->begin(), txn.mutable_deps()->end(), equalDep), txn.mutable_deps()->end());  //erases all but last appearance
       
+    }
+
+    //Add a TableVersion for each TableWrite -- CON: Don't want to do this for updates...
+    for(auto &[table_name, table_write] : txn.table_writes()){
+      //Only update TableVersion if we inserted/deleted a row
+      if(table_write.has_changed_table() && table_write.changed_table()){
+          WriteMessage *table_ver = txn.add_write_set();
+          table_ver->set_key(table_name);
+          table_ver->set_value("");
+      }
     }
 
     //XXX flag to sort read/write sets for parallel OCC

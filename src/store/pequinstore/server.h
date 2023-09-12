@@ -77,9 +77,9 @@ enum OCCType {
 
 
 //TEST/DEBUG variables
-static bool TEST_QUERY = true;   //create toy results for queries
-static bool TEST_SNAPSHOT = true;  //create toy snapshots for queries
-static bool TEST_READ_SET = true;  //create toy read sets for queries
+static bool TEST_QUERY = false; //true;   //create toy results for queries
+static bool TEST_SNAPSHOT = false; //true;  //create toy snapshots for queries
+static bool TEST_READ_SET = false; //true;  //create toy read sets for queries
 static bool TEST_FAIL_QUERY = false;  //create an artificial retry for queries
 static bool TEST_PREPARE_SYNC = false;  //Create artificial sync for queries that supplies prepares even though value is committed
 static bool TEST_SYNC = false;  //create an artificial sync for queries
@@ -120,8 +120,13 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
 
   virtual void LoadTableData(const std::string &table_name, const std::string &table_data_path, const std::vector<uint32_t> &primary_key_col_idx) override;
 
+  virtual void LoadTableRows(const std::string &table_name, const std::vector<std::pair<std::string, std::string>> &column_data_types, 
+      const std::vector<std::vector<std::string>> &row_values, const std::vector<uint32_t> &primary_key_col_idx ) override;
+      
   virtual void LoadTableRow(const std::string &table_name, const std::vector<std::pair<std::string, std::string>> &column_data_types, 
       const std::vector<std::string> &values, const std::vector<uint32_t> &primary_key_col_idx) override;
+
+  
 
   virtual inline Stats &GetStats() override { return stats; }
 

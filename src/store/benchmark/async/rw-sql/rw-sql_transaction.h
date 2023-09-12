@@ -1,7 +1,7 @@
 /***********************************************************************
  *
- * Copyright 2023 Florian Suri-Payer <fsp@cs.cornell.edu>
- *                Liam Arzola <lma77@cornell.edu>
+ * Copyright 2021 Florian Suri-Payer <fsp@cs.cornell.edu>
+ *                Matthew Burke <matthelb@cs.cornell.edu>
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -24,25 +24,52 @@
  * SOFTWARE.
  *
  **********************************************************************/
-#ifndef FIELD_H
-#define FIELD_H
+#ifndef RW_SQL_TRANSACTION_H
+#define RW_SQL_TRANSACTION_H
 
-#include <string>
 #include <vector>
 
-namespace query_result {
+#include "store/common/frontend/async_transaction.h"
+#include "store/common/frontend/client.h"
+#include "store/benchmark/async/common/key_selector.h"
 
-// A field in a row, contains an interpretable collection of bytes
-class Field {
+#include "store/common/frontend/sync_client.h"
+#include "store/common/frontend/sync_transaction.h"
+
+namespace rwsql {
+
+
+class RWSQLTransaction : public SyncTransaction { //AsyncTransaction
  public:
-  virtual ~Field() {}
-  virtual auto name() const -> std::string = 0;
-  virtual auto index() const -> std::size_t = 0;
+  RWSQLTransaction(QuerySelector *querySelector, uint64_t &numOps, std::mt19937 &rand, bool readOnly);
+  virtual ~RWSQLTransaction();
 
-  virtual bool is_null() const = 0;
-  virtual auto get(std::size_t* size) const -> const char* = 0;
+  transaction_status_t Execute(SyncClient &client);
+
+  inline const std::vector<int> getKeyIdxs() const {
+    return keyIdxs;
+  }
+ protected:
+  inline const std::string &GetKey(int i) const {
+    return keySelector->GetKey(keyIdxs[i]);
+  }
+
+  //inline const size_t GetNumOps() const { return numOps; }
+
+  KeySelector *keySelector;
+  QuerySelector *querySelector;
+
+ private:
+  const size_t numOps;
+  const bool readOnly;
+  std::vector<int> keyIdxs;
+
+  std::vector<int> tables;
+  std::vector<int> bases;
+  std::vector<int> ranges;
+
 };
 
 }
 
-#endif /* FIELD_H */
+#endif /* RW_TRANSACTION_H */

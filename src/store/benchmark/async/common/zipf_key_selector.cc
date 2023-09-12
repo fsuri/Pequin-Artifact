@@ -36,8 +36,23 @@ ZipfKeySelector::ZipfKeySelector(const std::vector<std::string> &keys,
 }
 
 ZipfKeySelector::ZipfKeySelector(const std::vector<std::string> &keys,
+    double zipfianconstant, uint64_t num_keys) :
+    ZipfKeySelector(keys, zipfianconstant, zetastatic(num_keys,
+        zipfianconstant), num_keys) {
+}
+
+ZipfKeySelector::ZipfKeySelector(const std::vector<std::string> &keys,
     double zipfianconstant, double zetan) :
     KeySelector(keys), items(keys.size()), base(0),
+    zipfianconstant(zipfianconstant), theta(zipfianconstant),
+    zeta2theta(zeta(2, theta)), alpha(1.0 / (1.0 - theta)), zetan(zetan),
+    countforzeta(items) {
+  eta = (1 - std::pow(2.0 / items, 1 - theta)) / (1 - zeta2theta / zetan);
+}
+
+ZipfKeySelector::ZipfKeySelector(const std::vector<std::string> &keys,
+    double zipfianconstant, double zetan, uint64_t num_keys) :
+    KeySelector(keys, num_keys), items(num_keys), base(0),
     zipfianconstant(zipfianconstant), theta(zipfianconstant),
     zeta2theta(zeta(2, theta)), alpha(1.0 / (1.0 - theta)), zetan(zetan),
     countforzeta(items) {

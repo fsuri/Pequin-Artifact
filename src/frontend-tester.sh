@@ -1,10 +1,10 @@
 #!/bin/bash
 
 CLIENTS=1
-F=0
+F=1
 NUM_GROUPS=1
-CONFIG="0_local_test_outputs/configs/shard-r1.config"
-PROTOCOL="pequin"
+CONFIG="0_local_test_outputs/configs/shard-r6.config"
+PROTOCOL="blackhole"
 STORE=${PROTOCOL}store
 DURATION=10
 ZIPF=0.0
@@ -14,8 +14,7 @@ KEY_PATH="keys"
 BENCHMARK="rw-sql"
 
 SQL_BENCH="true"
-FILE_PATH="0_local_test_outputs/rw-sql/rw-sql.json"
-#"0_local_test_outputs/kv_example/kv-tables-schema.json"
+FILE_PATH="0_local_test_outputs/kv_example/kv-tables-schema.json"
 
 while getopts c:f:g:cpath:p:d:z:num_ops:num_keys:b: option; do
 case "${option}" in
@@ -41,7 +40,7 @@ for i in `seq 1 $((CLIENTS-1))`; do
     --num_shards $NUM_GROUPS \
     --protocol_mode $PROTOCOL --num_keys $NUM_KEYS_IN_DB --benchmark $BENCHMARK --sql_bench=$SQL_BENCH --data_file_path $FILE_PATH --num_ops_txn $NUM_OPS_TX \
     --exp_duration $DURATION --client_id $i --num_client_hosts $CLIENTS --warmup_secs 0 --cooldown_secs 0 \
-    --key_selector zipf --zipf_coefficient $ZIPF --indicus_key_path $KEY_PATH &> ./0_local_test_outputs/client-$i.out &
+    --key_selector zipf --zipf_coefficient $ZIPF --indicus_key_path $KEY_PATH &> ./0_local_test_outputs/frontend-$i.out &
 done;
 
 #valgrind
@@ -49,7 +48,7 @@ DEBUG=store/$STORE/*client.cc store/benchmark/async/benchmark --config_path $CON
   --num_shards $NUM_GROUPS --protocol_mode $PROTOCOL --num_keys $NUM_KEYS_IN_DB --benchmark $BENCHMARK --sql_bench=$SQL_BENCH --data_file_path $FILE_PATH \
   --num_ops_txn $NUM_OPS_TX --exp_duration $DURATION --client_id 0 --num_client_hosts $CLIENTS --warmup_secs 0 \
   --cooldown_secs 0 --key_selector zipf --zipf_coefficient $ZIPF \
-  --stats_file "stats-0.json" --indicus_key_path $KEY_PATH &> ./0_local_test_outputs/client-0.out &
+  --stats_file "stats-0.json" --indicus_key_path $KEY_PATH &> ./0_local_test_outputs/frontend-0.out &
 
 
 sleep $((DURATION+2))

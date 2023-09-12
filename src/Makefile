@@ -187,14 +187,14 @@ include lib/Rules.mk
 include replication/common/Rules.mk
 include replication/vr/Rules.mk
 include replication/ir/Rules.mk
-include query-engine/Rules.mk
 
 include store/common/Rules.mk
 include store/tapirstore/Rules.mk
 include store/strongstore/Rules.mk
 include store/weakstore/Rules.mk
 
-include store/pequinstore/Rules.mk
+include store/blackholestore/Rules.mk
+
 include store/indicusstore/Rules.mk
 include store/pbftstore/Rules.mk
 include store/hotstuffstore/Rules.mk
@@ -203,14 +203,22 @@ include store/bftsmartstore/Rules.mk
 include store/bftsmartstore_augustus/Rules.mk
 include store/bftsmartstore_stable/Rules.mk
 
-include store/benchmark/async/tpcc/Rules.mk
+
+
+include query-engine/Rules.mk
+
+include store/pequinstore/Rules.mk
+
 include store/Rules.mk
 include store/benchmark/Rules.mk
 include store/benchmark/async/common/Rules.mk
 include store/benchmark/async/rw/Rules.mk
 include store/benchmark/async/retwis/Rules.mk
 include store/benchmark/async/smallbank/Rules.mk
+include store/benchmark/async/tpcc/Rules.mk
 include store/benchmark/async/toy/Rules.mk
+include store/benchmark/async/rw-sql/Rules.mk
+
 include store/benchmark/async/Rules.mk
 include lockserver/Rules.mk
 include timeserver/Rules.mk

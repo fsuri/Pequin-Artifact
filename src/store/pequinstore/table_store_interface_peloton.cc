@@ -28,28 +28,20 @@ void ContinueAfterComplete(std::atomic_int &counter_) {
 
 ///////////////////// CLASS FUNCTIONS ///////////////////////////
 
-PelotonTableStore::PelotonTableStore()
-    : traffic_cop_(UtilTestTaskCallback, &counter_),
-      unnamed_statement("unnamed"), unnamed_variable(false) {
-
-  // Init Peloton default DB
-  /*auto &txn_manager =
-      peloton::concurrency::TransactionManagerFactory::GetInstance();
-  auto txn = txn_manager.BeginTransaction();
-  peloton::catalog::Catalog::GetInstance()->CreateDatabase(txn,
-                                                           DEFAULT_DB_NAME);
-  txn_manager.CommitTransaction(txn);*/
-  // traffic_cop_ = peloton::tcop::TrafficCop(UtilTestTaskCallback, &counter_);
+PelotonTableStore::PelotonTableStore(int num_threads)
+    : unnamed_statement("unnamed"), unnamed_variable(false) 
+{
+  //Init Peloton default DB
+  Init(num_threads);
 }
 
-PelotonTableStore::PelotonTableStore(int num_threads) {
-  is_recycled_version_ = false;
-  for (int i = 0; i < num_threads; i++) {
-    std::atomic_int *counter = new std::atomic_int();
-    peloton::tcop::TrafficCop *new_cop =
-        new peloton::tcop::TrafficCop(UtilTestTaskCallback, counter);
-    traffic_cops_.push_back({new_cop, counter});
-  }
+
+PelotonTableStore::PelotonTableStore(std::string &table_registry_path, find_table_version &&find_table_version, read_prepared_pred &&read_prepared_pred, int num_threads):
+            TableStore(table_registry_path, std::move(find_table_version), std::move(read_prepared_pred)), 
+            unnamed_statement("unnamed"), unnamed_variable(false) 
+{
+  //Init Peloton default DB
+  Init(num_threads);
 }
 
 PelotonTableStore::~PelotonTableStore() {
@@ -77,6 +69,25 @@ PelotonTableStore::~PelotonTableStore() {
     delete cop_pair.first;
     delete cop_pair.second;
     cops_left--;
+  }
+}
+
+void PelotonTableStore::Init(int num_threads){
+  // Init Peloton default DB
+  auto &txn_manager = peloton::concurrency::TransactionManagerFactory::GetInstance();
+  auto txn = txn_manager.BeginTransaction();
+  peloton::catalog::Catalog::GetInstance()->CreateDatabase(txn, DEFAULT_DB_NAME);
+  txn_manager.CommitTransaction(txn);
+  // traffic_cop_ = peloton::tcop::TrafficCop(UtilTestTaskCallback, &counter_);
+  
+  if(num_threads > 0){
+    is_recycled_version_ = false;
+    for (int i = 0; i < num_threads; i++) {
+      std::atomic_int *counter = new std::atomic_int();
+      peloton::tcop::TrafficCop *new_cop =
+          new peloton::tcop::TrafficCop(UtilTestTaskCallback, counter);
+      traffic_cops_.push_back({new_cop, counter});
+    }
   }
 }
 
@@ -149,7 +160,7 @@ std::pair<peloton::tcop::TrafficCop *, std::atomic_int *>
 PelotonTableStore::GetCop() {
   if (!is_recycled_version_) {
     int t_id = sched_getcpu();
-    std::cout << "Thread id is " << t_id << std::endl;
+    //std::cout << "Thread id is " << t_id << std::endl;
     return traffic_cops_.at(t_id);
   } else {
     return GetUnusedTrafficCop();
@@ -207,6 +218,7 @@ void PelotonTableStore::ExecRaw(const std::string &sql_statement) {
   auto status = tcop->ExecuteStatement(statement, param_values, unamed,
                                        result_format, result);
 
+  
   Debug("Made it after status");
   // GetResult(status);
   GetResult(status, tcop, counter);
@@ -478,7 +490,7 @@ void PelotonTableStore::ApplyTableWrite(
   // TableVersion (Currently, it is being set right after ApplyTableWrite()
   // returns)
 
-  Debug("Apply TableWrite for txn %s", BytesToHex(txn_digest, 16));
+  Debug("Apply TableWrite for txn %s", BytesToHex(txn_digest, 16).c_str());
 
   if (table_write.rows().empty())
     return;
@@ -502,11 +514,13 @@ void PelotonTableStore::ApplyTableWrite(
   // Execute Writes and Deletes on Peloton
   std::vector<peloton::ResultValue> result;
 
-  Debug("Write statement: %s", write_statement);
-  Debug("Delete statements: %s", fmt::join(delete_statements, "|"));
+  
+  //Debug("Delete statements: %s", fmt::join(delete_statements, "|"));
 
   // Execute Write Statement
   if (!write_statement.empty()) {
+
+    Debug("Write statement: %s", write_statement.c_str());
     // prepareStatement
     auto statement = ParseAndPrepare(write_statement, tcop);
 
@@ -545,6 +559,7 @@ void PelotonTableStore::ApplyTableWrite(
   for (auto &delete_statement :
        delete_statements) { // TODO: Find a way to parallelize these statement
                             // calls (they don't conflict)
+    Debug("Delete statement: %s", delete_statement.c_str());
     // prepare Statement
     auto statement = ParseAndPrepare(delete_statement, tcop);
     // ExecuteStatment

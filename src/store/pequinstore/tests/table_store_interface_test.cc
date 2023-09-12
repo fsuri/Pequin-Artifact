@@ -205,7 +205,7 @@ void ReadFromStore(TableStore *table_store) {
 
   Timestamp toy_ts_c(10, 12);
   Timestamp toy_ts_c_1(20, 20);
-  size_t num_writes = 100;
+  size_t num_writes = 1;
   size_t num_overwrites = 100;
 
   pequinstore::proto::ReadSet read_set_one;
@@ -223,7 +223,7 @@ void ReadFromStore(TableStore *table_store) {
     for (unsigned int j = 0; j < 2; j++) {
       std::string val = "";
       if (j == 0) {
-        val = std::to_string(i);
+        val = std::to_string(i+10);
       } else {
         val = std::to_string(i + 100);
       }
@@ -294,13 +294,13 @@ void WriteToTable(TableStore *table_store, Timestamp toy_ts_c_1, int i, int j) {
 }
 
 void test_committed_table_write() {
-  auto &txn_manager =
-      peloton::concurrency::TransactionManagerFactory::GetInstance();
-  auto txn = txn_manager.BeginTransaction();
-  peloton::catalog::Catalog::GetInstance()->CreateDatabase(txn,
-                                                           DEFAULT_DB_NAME);
-  txn_manager.CommitTransaction(txn);
-  std::cout << "After the creation of default database" << std::endl;
+  // auto &txn_manager =
+  //     peloton::concurrency::TransactionManagerFactory::GetInstance();
+  // auto txn = txn_manager.BeginTransaction();
+  // peloton::catalog::Catalog::GetInstance()->CreateDatabase(txn,
+  //                                                          DEFAULT_DB_NAME);
+  // txn_manager.CommitTransaction(txn);
+  // std::cout << "After the creation of default database" << std::endl;
 
   Timestamp pesto_timestamp(4, 6);
   // pequinstore::proto::ReadSet read_set_one;

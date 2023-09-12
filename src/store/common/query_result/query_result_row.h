@@ -39,6 +39,7 @@ namespace query_result {
 // A row in a table, contains an ordered collection of fields
 class Row {
 	public:
+		virtual ~Row(){}
 		virtual auto slice( const std::size_t offset, const std::size_t in_columns ) const -> std::unique_ptr<Row> = 0;
 
 	  virtual auto operator[]( const std::size_t column ) const -> std::unique_ptr<Field> = 0;

@@ -48,7 +48,7 @@ SeqScanExecutor::SeqScanExecutor(const planner::AbstractPlan *node,
  * @return true on success, false otherwise.
  */
 bool SeqScanExecutor::DInit() {
-  std::cout << "Inside seq scan executor" << std::endl;
+  Debug("Inside seq scan executor");
   auto status = AbstractScanExecutor::DInit();
 
   if (!status)
@@ -171,24 +171,27 @@ bool SeqScanExecutor::DExecute() {
       // and applying the predicate.
       std::vector<oid_t> position_list;
       std::set<oid_t> position_set;
-      std::cout << "Active tuple count is " << active_tuple_count << std::endl;
+      //std::cout << "Active tuple count is " << active_tuple_count << std::endl;
+      Debug("Active tuple count: %d", active_tuple_count);
       for (oid_t tuple_id = 0; tuple_id < active_tuple_count; tuple_id++) {
         ItemPointer location(tile_group->GetTileGroupId(), tuple_id);
 
         // Commented out since CC is done at Basil level
-        std::cout << "tuple begin id is "
-                  << tile_group_header->GetBeginCommitId(tuple_id) << std::endl;
-        std::cout << "tuple end id is "
-                  << tile_group_header->GetEndCommitId(tuple_id) << std::endl;
-        std::cout << "tuple transaction id is "
-                  << tile_group_header->GetTransactionId(tuple_id) << std::endl;
-        std::cout << "current txn id is " << current_txn->GetTransactionId()
-                  << std::endl;
-        std::cout << "Tuple location is block " << location.block
-                  << " and offset " << location.offset << std::endl;
+        Debug("Tuple. begin id: %d. end id: %d. tuple tx-id: %d, curr tx-id: %d. tuple location block %d, offset %d", 
+              tile_group_header->GetBeginCommitId(tuple_id),
+              tile_group_header->GetEndCommitId(tuple_id),
+              tile_group_header->GetTransactionId(tuple_id),
+              current_txn->GetTransactionId(),
+              location.block, location.offset);
+        // std::cout << "tuple begin id is " << tile_group_header->GetBeginCommitId(tuple_id) << std::endl;
+        // std::cout << "tuple end id is " << tile_group_header->GetEndCommitId(tuple_id) << std::endl;
+        // std::cout << "tuple transaction id is " << tile_group_header->GetTransactionId(tuple_id) << std::endl;
+        // std::cout << "current txn id is " << current_txn->GetTransactionId() << std::endl;
+        // std::cout << "Tuple location is block " << location.block << " and offset " << location.offset << std::endl;
         auto visibility = transaction_manager.IsVisible(
             current_txn, tile_group_header, tuple_id);
-        std::cout << "Visibility is " << visibility << std::endl;
+        Debug("Visibility is %d", visibility);
+        //std::cout << "Visibility is " << visibility << std::endl;
 
         // Always set visibility to be ok
         // auto visibility = VisibilityType::OK;
@@ -199,20 +202,18 @@ bool SeqScanExecutor::DExecute() {
         auto tuple_timestamp = tile_group_header->GetBasilTimestamp(tuple_id);
         auto curr_tuple_id = tuple_id;
 
-        std::cout << "Timestamp of current txn is " << timestamp.getTimestamp()
-                  << ", " << timestamp.getID() << std::endl;
-        std::cout << "Timestamp of tuple is " << tuple_timestamp.getTimestamp()
-                  << ", " << tuple_timestamp.getID() << std::endl;
+        Debug("Current Txn has TS: [%d:%d]. Tuple TS: [%d:%d]. Seq scan curr tuple id: %d", timestamp.getTimestamp(), timestamp.getID(), tuple_timestamp.getTimestamp(), tuple_timestamp.getID(), curr_tuple_id);
+        // std::cout << "Timestamp of current txn is " << timestamp.getTimestamp() << ", " << timestamp.getID() << std::endl;
+        // std::cout << "Timestamp of tuple is " << tuple_timestamp.getTimestamp() << ", " << tuple_timestamp.getID() << std::endl;
+        // std::cout << "Seq scan current tuple id is " << curr_tuple_id  << std::endl;
 
-        std::cout << "Seq scan current tuple id is " << curr_tuple_id
-                  << std::endl;
         // Get the head of the version chain (latest version)
         ItemPointer *head = tile_group_header->GetIndirection(curr_tuple_id);
-        std::cout << "Before checking whether head is null" << std::endl;
+        //std::cout << "Before checking whether head is null" << std::endl;
         if (head == nullptr) {
-          std::cout << "Head is null and location of curr tuple is ("
-                    << location.block << ", " << location.offset << ")"
-                    << std::endl;
+          // std::cout << "Head is null and location of curr tuple is ("
+          //           << location.block << ", " << location.offset << ")"
+          //           << std::endl;
         }
 
         auto head_tile_group_header =
@@ -224,8 +225,9 @@ bool SeqScanExecutor::DExecute() {
         tile_group_header = head_tile_group_header;
         curr_tuple_id = location.offset;
 
-        std::cout << "Head timestamp is " << tuple_timestamp.getTimestamp()
-                  << ", " << tuple_timestamp.getID() << std::endl;
+        Debug("Head timestamp: [%d: %d]", tuple_timestamp.getTimestamp(), tuple_timestamp.getID());
+        // std::cout << "Head timestamp is " << tuple_timestamp.getTimestamp()
+        //           << ", " << tuple_timestamp.getID() << std::endl;
 
         // Now we find the appropriate version to read that's less than the
         // timestamp by traversing the next pointers
@@ -236,28 +238,24 @@ bool SeqScanExecutor::DExecute() {
 
           // Get the associated tile group header so we can find the timestamp
           if (new_location.IsNull()) {
-            std::cout << "New location is null" << std::endl;
+            //std::cout << "New location is null" << std::endl;
             visibility = VisibilityType::INVISIBLE;
             break;
           }
 
-          auto new_tile_group_header =
-              storage_manager->GetTileGroup(new_location.block)->GetHeader();
+          auto new_tile_group_header = storage_manager->GetTileGroup(new_location.block)->GetHeader();
           // Update the timestamp
-          tuple_timestamp =
-              new_tile_group_header->GetBasilTimestamp(new_location.offset);
-          std::cout << "New timestamp is " << tuple_timestamp.getTimestamp()
-                    << ", " << tuple_timestamp.getID() << std::endl;
+          tuple_timestamp = new_tile_group_header->GetBasilTimestamp(new_location.offset);
+          // std::cout << "New timestamp is " << tuple_timestamp.getTimestamp()
+          //           << ", " << tuple_timestamp.getID() << std::endl;
           location = new_location;
           tile_group_header = new_tile_group_header;
           curr_tuple_id = new_location.offset;
         }
 
-        std::cout << "Location timestamp is "
-                  << tile_group_header->GetBasilTimestamp(location.offset)
-                         .getTimestamp()
-                  << std::endl;
-        std::cout << "Current tuple id is " << curr_tuple_id << std::endl;
+        Debug("location timestamp is: [%d:%d", tile_group_header->GetBasilTimestamp(location.offset).getTimestamp(), tile_group_header->GetBasilTimestamp(location.offset).getID());
+        // std::cout << "Location timestamp is " << tile_group_header->GetBasilTimestamp(location.offset).getTimestamp() << std::endl;
+        // std::cout << "Current tuple id is " << curr_tuple_id << std::endl;
 
         // check transaction visibility
         if (visibility == VisibilityType::OK) {
@@ -276,22 +274,19 @@ bool SeqScanExecutor::DExecute() {
                 // encoded_key = encoded_key + "///" + val.ToString();
                 primary_key_cols.push_back(val.ToString());
                 // primary_key_cols.push_back(val.GetAs<const char*>());
-                std::cout << "read set value is " << val.ToString()
-                          << std::endl;
+                // std::cout << "read set value is " << val.ToString()
+                //           << std::endl;
               }
-              Timestamp time =
-                  tile_group_header->GetBasilTimestamp(location.offset);
+              Timestamp time =  tile_group_header->GetBasilTimestamp(location.offset);
               // logical_tile->AddToReadSet(std::tie(encoded_key, time));
 
-              for (unsigned int i = 0; i < primary_key_cols.size(); i++) {
-                std::cout << "Primary key columns are " << primary_key_cols[i]
-                          << std::endl;
-              }
+              // for (unsigned int i = 0; i < primary_key_cols.size(); i++) {
+              //   std::cout << "Primary key columns are " << primary_key_cols[i]  << std::endl;
+              // }
 
-              std::string encoded =
-                  EncodeTableRow(target_table_->GetName(), primary_key_cols);
-              std::cout << "Encoded key from read set is " << encoded
-                        << std::endl;
+              std::string encoded = EncodeTableRow(target_table_->GetName(), primary_key_cols);
+              Debug("encoded read set key: %s", encoded.c_str());
+              //std::cout << "Encoded key from read set is " << encoded << std::endl;
               TimestampMessage ts_message = TimestampMessage();
 
               ts_message.set_id(time.getID());
@@ -335,21 +330,19 @@ bool SeqScanExecutor::DExecute() {
                   auto val = row.GetValue(col);
                   // encoded_key = encoded_key + "///" + val.ToString();
                   primary_key_cols.push_back(val.ToString());
-                  std::cout << "read set value is " << val.ToString()
-                            << std::endl;
+                  Debug("Read set value: %s", val.ToString().c_str());
+                  //std::cout << "read set value is " << val.ToString() << std::endl;
                 }
                 Timestamp time =
                     tile_group_header->GetBasilTimestamp(location.offset);
                 // logical_tile->AddToReadSet(std::tie(encoded_key, time));
 
-                for (unsigned int i = 0; i < primary_key_cols.size(); i++) {
-                  std::cout << "Primary key columns are " << primary_key_cols[i]
-                            << std::endl;
-                }
-                std::string encoded =
-                    EncodeTableRow(target_table_->GetName(), primary_key_cols);
-                std::cout << "Encoded key from read set is " << encoded
-                          << std::endl;
+                // for (unsigned int i = 0; i < primary_key_cols.size(); i++) {
+                //   std::cout << "Primary key columns are " << primary_key_cols[i] << std::endl;
+                // }
+                std::string encoded = EncodeTableRow(target_table_->GetName(), primary_key_cols);
+                Debug("encoded read set key is: %s", encoded.c_str());
+                //std::cout << "Encoded key from read set is " << encoded << std::endl;
                 TimestampMessage ts_message = TimestampMessage();
 
                 ts_message.set_id(time.getID());

@@ -131,7 +131,8 @@ public:
     return commit_proofs_;
   }
 
-  /*void AddToReadSet(std::tuple<std::string, Timestamp> tuple) {
+  /*
+  void AddToReadSet(std::tuple<std::string, Timestamp> tuple) {
     read_set.push_back(tuple);
   }
 
@@ -152,7 +153,8 @@ public:
 
   pequinstore::QueryReadSetMgr* GetReadSetMgr() {
     return query_read_set_mgr;
-  }*/
+  }
+  */
 
   //===--------------------------------------------------------------------===//
   // Logical Tile Iterator

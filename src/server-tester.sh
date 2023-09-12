@@ -1,8 +1,8 @@
 #!/bin/bash
 
-F=1
+F=0
 NUM_GROUPS=1
-CONFIG="0_local_test_outputs/configs/shard-r6.config"
+CONFIG="0_local_test_outputs/configs/shard-r1.config"
 PROTOCOL="pequin"
 STORE=${PROTOCOL}store
 DURATION=10
@@ -11,7 +11,8 @@ NUM_OPS_TX=2
 NUM_KEYS_IN_DB=1
 KEY_PATH="keys"
 SQL_BENCH="true"
-FILE_PATH="0_local_test_outputs/kv_example/kv-tables-schema.json"
+FILE_PATH="0_local_test_outputs/rw-sql/rw-sql.json"
+#"0_local_test_outputs/kv_example/kv-tables-schema.json"
 
 
 

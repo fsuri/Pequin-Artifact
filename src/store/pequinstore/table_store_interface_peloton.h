@@ -43,106 +43,74 @@
 namespace pequinstore {
 
 class PelotonTableStore : public TableStore {
-public:
-  PelotonTableStore();
-  PelotonTableStore(int num_threads);
-  virtual ~PelotonTableStore();
+    public:
+        PelotonTableStore(int num_threads = 0);
+        PelotonTableStore(std::string &table_registry_path, find_table_version &&find_table_version, read_prepared_pred &&read_prepared_pred, int num_threads = 0);
+        virtual ~PelotonTableStore();
 
-  // Execute a statement directly on the Table backend, no questions asked, no
-  // output
-  void ExecRaw(const std::string &sql_statement) override;
+        //Execute a statement directly on the Table backend, no questions asked, no output
+        void ExecRaw(const std::string &sql_statement) override;
 
-  void LoadTable(const std::string &load_statement,
+        void LoadTable(const std::string &load_statement,
                  const std::string &txn_digest, const Timestamp &ts,
                  const proto::CommittedProof *committedProof) override;
 
-  // Execute a read query statement on the Table backend and return a
-  // query_result/proto (in serialized form) as well as a read set (managed by
-  // readSetMgr)
-  std::string ExecReadQuery(const std::string &query_statement,
-                            const Timestamp &ts,
-                            QueryReadSetMgr &readSetMgr) override;
+        //Execute a read query statement on the Table backend and return a query_result/proto (in serialized form) as well as a read set (managed by readSetMgr)
+        std::string ExecReadQuery(const std::string &query_statement, const Timestamp &ts, QueryReadSetMgr &readSetMgr) override;
+                            
+        //Execute a point read on the Table backend and return a query_result/proto (in serialized form) as well as a commitProof (note, the read set is implicit)
+        void ExecPointRead(const std::string &query_statement, std::string &enc_primary_key, const Timestamp &ts, proto::Write *write, const proto::CommittedProof *committedProof) override;  
+                //Note: Could execute PointRead via ExecReadQuery (Eagerly) as well.
+                // ExecPointRead should translate enc_primary_key into a query_statement to be exec by ExecReadQuery. (Alternatively: Could already send a Sql command from the client)
 
-  // Execute a point read on the Table backend and return a query_result/proto
-  // (in serialized form) as well as a commitProof (note, the read set is
-  // implicit)
-  void ExecPointRead(const std::string &query_statement,
-                     std::string &enc_primary_key, const Timestamp &ts,
-                     proto::Write *write,
-                     const proto::CommittedProof *committedProof) override;
-  // Note: Could execute PointRead via ExecReadQuery (Eagerly) as well.
-  //  ExecPointRead should translate enc_primary_key into a query_statement to
-  //  be exec by ExecReadQuery. (Alternatively: Could already send a Sql command
-  //  from the client)
+        //Apply a set of Table Writes (versioned row creations) to the Table backend
+        void ApplyTableWrite(const std::string &table_name, const TableWrite &table_write, const Timestamp &ts,
+                const std::string &txn_digest, const proto::CommittedProof *commit_proof = nullptr, bool commit_or_prepare = true) override;
 
-  // Apply a set of Table Writes (versioned row creations) to the Table backend
-  void ApplyTableWrite(const std::string &table_name,
-                       const TableWrite &table_write, const Timestamp &ts,
-                       const std::string &txn_digest,
-                       const proto::CommittedProof *commit_proof = nullptr,
-                       bool commit_or_prepare = true) override;
-  /// https://www.postgresqltutorial.com/postgresql-tutorial/postgresql-upsert/
-  void PurgeTableWrite(const std::string &table_name,
-                       const TableWrite &table_write, const Timestamp &ts,
-                       const std::string &txn_digest) override;
+         ///https://www.postgresqltutorial.com/postgresql-tutorial/postgresql-upsert/ 
+        void PurgeTableWrite(const std::string &table_name, const TableWrite &table_write, const Timestamp &ts, const std::string &txn_digest) override; 
 
-  // Partially execute a read query statement (reconnaissance execution) and
-  // return the snapshot state (managed by ssMgr)
-  void FindSnapshot(std::string &query_statement, const Timestamp &ts,
-                    SnapshotManager &ssMgr) override;
+        
 
-  // Materialize a snapshot on the Table backend and execute on said snapshot.
-  void MaterializeSnapshot(const std::string &query_id,
-                           const proto::MergedSnapshot &merged_ss,
-                           const std::set<proto::Transaction *> &ss_txns)
-      override; // Note: Not sure whether we should materialize full snapshot on
-                // demand, or continuously as we sync on Tx
-  std::string ExecReadOnSnapshot(const std::string &query_id,
-                                 std::string &query_statement,
-                                 const Timestamp &ts,
-                                 QueryReadSetMgr &readSetMgr,
-                                 bool abort_early = false) override;
+        //Partially execute a read query statement (reconnaissance execution) and return the snapshot state (managed by ssMgr)
+        void FindSnapshot(std::string &query_statement, const Timestamp &ts, SnapshotManager &ssMgr) override;
 
-private:
-  std::string unnamed_statement;
-  bool unnamed_variable;
+        //Materialize a snapshot on the Table backend and execute on said snapshot.
+        void MaterializeSnapshot(const std::string &query_id, const proto::MergedSnapshot &merged_ss, const std::set<proto::Transaction*> &ss_txns) override; //Note: Not sure whether we should materialize full snapshot on demand, or continuously as we sync on Tx
+        std::string ExecReadOnSnapshot(const std::string &query_id, std::string &query_statement, const Timestamp &ts, QueryReadSetMgr &readSetMgr, bool abort_early = false) override;
 
-  // Peloton DB singleton "table_backend"
-  peloton::tcop::TrafficCop traffic_cop_;
-  std::atomic_int counter_;
-  bool is_recycled_version_;
+        
 
-  // std::vector<peloton::tcop::TrafficCop*> traffic_cops;
-  moodycamel::ConcurrentQueue<
-      std::pair<peloton::tcop::TrafficCop *, std::atomic_int *>>
-      traffic_cops; // https://github.com/cameron314/concurrentqueue
+    private:
+        void Init(int num_threads);
 
-  std::pair<peloton::tcop::TrafficCop *, std::atomic_int *>
-  GetUnusedTrafficCop();
-  void ReleaseTrafficCop(
-      std::pair<peloton::tcop::TrafficCop *, std::atomic_int *> cop_pair);
+        std::string unnamed_statement;
+        bool unnamed_variable;
 
-  int num_threads;
-  std::vector<std::pair<peloton::tcop::TrafficCop *, std::atomic_int *>>
-      traffic_cops_;
-  std::pair<peloton::tcop::TrafficCop *, std::atomic_int *> GetCop();
+        //Peloton DB singleton "table_backend"
+		peloton::tcop::TrafficCop traffic_cop_;
+		std::atomic_int counter_;
+        bool is_recycled_version_;
 
-  std::shared_ptr<peloton::Statement>
-  ParseAndPrepare(const std::string &query_statement,
-                  peloton::tcop::TrafficCop *tcop);
-  void GetResult(peloton::ResultType &status, peloton::tcop::TrafficCop *tcop,
-                 std::atomic_int *c);
-  // std::string TransformResult(std::vector<peloton::FieldInfo>
-  // &tuple_descriptor, std::vector<peloton::ResultValue> &result);
-  std::string TransformResult(peloton::ResultType &status,
-                              std::shared_ptr<peloton::Statement> statement,
-                              std::vector<peloton::ResultValue> &result);
-  void TransformPointResult(proto::Write *write, Timestamp &committed_timestamp,
-                            Timestamp &prepared_timestamp,
-                            std::shared_ptr<std::string> txn_dig,
-                            peloton::ResultType &status,
-                            std::shared_ptr<peloton::Statement> statement,
-                            std::vector<peloton::ResultValue> &result);
+        //std::vector<peloton::tcop::TrafficCop*> traffic_cops;
+        moodycamel::ConcurrentQueue<std::pair<peloton::tcop::TrafficCop*, std::atomic_int*>> traffic_cops; //https://github.com/cameron314/concurrentqueue
+
+        std::pair<peloton::tcop::TrafficCop*, std::atomic_int*> GetUnusedTrafficCop();
+        void ReleaseTrafficCop(std::pair<peloton::tcop::TrafficCop*, std::atomic_int*> cop_pair);
+
+        int num_threads;
+        std::vector<std::pair<peloton::tcop::TrafficCop *, std::atomic_int *>> traffic_cops_;
+        std::pair<peloton::tcop::TrafficCop *, std::atomic_int *> GetCop();
+
+        std::shared_ptr<peloton::Statement> ParseAndPrepare(const std::string &query_statement, peloton::tcop::TrafficCop *tcop);
+
+        void GetResult(peloton::ResultType &status, peloton::tcop::TrafficCop *tcop, std::atomic_int *c);
+
+        //std::string TransformResult(std::vector<peloton::FieldInfo> &tuple_descriptor, std::vector<peloton::ResultValue> &result);
+        std::string TransformResult(peloton::ResultType &status, std::shared_ptr<peloton::Statement> statement, std::vector<peloton::ResultValue> &result);
+        void TransformPointResult(proto::Write *write, Timestamp &committed_timestamp, Timestamp &prepared_timestamp, std::shared_ptr<std::string> txn_dig, 
+                                    peloton::ResultType &status, std::shared_ptr<peloton::Statement> statement, std::vector<peloton::ResultValue> &result);
+
 };
 
 } // namespace pequinstore
