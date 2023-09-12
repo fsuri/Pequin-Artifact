@@ -249,7 +249,7 @@ void PelotonTableStore::LoadTable(const std::string &load_statement,
   auto status = tcop->ExecuteStatement(statement, param_values, unamed,
                                        result_format, result);
 
-  // GetResult(status);
+  GetResult(status, tcop, counter);
 
   if (status == peloton::ResultType::SUCCESS)
     Debug("Load success");

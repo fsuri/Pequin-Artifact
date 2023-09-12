@@ -12,17 +12,17 @@
 
 #include "../executor/copy_executor.h"
 
-#include <sys/stat.h>
 #include <sys/mman.h>
+#include <sys/stat.h>
 
-#include "../common/logger.h"
 #include "../catalog/catalog.h"
+#include "../common/logger.h"
 #include "../concurrency/transaction_manager_factory.h"
 #include "../executor/executor_context.h"
 #include "../executor/logical_tile_factory.h"
 #include "../planner/export_external_file_plan.h"
 #include "../storage/table_factory.h"
-//#include "../network/postgres_protocol_handler.h"
+// #include "../network/postgres_protocol_handler.h"
 #include "../common/exception.h"
 #include "../common/macros.h"
 
@@ -101,11 +101,11 @@ void CopyExecutor::FlushBuffer() {
   buff_ptr = 0;
 }
 
-
 void CopyExecutor::FFlushFsync() {
   // First, flush
   PELOTON_ASSERT(file_handle_.fd != -1);
-  if (file_handle_.fd == -1) return;
+  if (file_handle_.fd == -1)
+    return;
   int ret = fflush(file_handle_.file);
   if (ret != 0) {
     LOG_ERROR("Error occurred in fflush(%s)", strerror(errno));
@@ -151,11 +151,11 @@ void CopyExecutor::Copy(const char *data, int len, bool end_of_line) {
  */
 bool CopyExecutor::DExecute() {
   // skip if we're done
-  if (done) {
+  /*if (done) {
     return false;
   }
 
-  /*while (children_[0]->Execute() == true) {
+  while (children_[0]->Execute() == true) {
     // Get input a tile
     std::unique_ptr<LogicalTile> logical_tile(children_[0]->GetOutput());
     LOG_DEBUG("Looping over the output tile..");
@@ -175,8 +175,7 @@ bool CopyExecutor::DExecute() {
     auto col_count = output_schema->GetColumnCount();
     std::vector<std::vector<std::string>> answer_tuples;
     std::vector<int> result_format(col_count, 0);
-    answer_tuples =
-        logical_tile->GetAllValuesAsStrings(result_format, true);
+    answer_tuples = logical_tile->GetAllValuesAsStrings(result_format, true);
 
     // Loop over the returned results
     for (auto &tuple : answer_tuples) {
@@ -195,14 +194,16 @@ bool CopyExecutor::DExecute() {
         } else if (origin_col_id == param_type_col_id) {
           // param_types column
           PELOTON_ASSERT(output_schema->GetColumn(col_index).GetType() ==
-                    type::TypeId::VARBINARY);
+                         type::TypeId::VARBINARY);
 
           network::InputPacket packet(len, val);
 
           // Read param types
           types.resize(num_params);
-          //TODO: Instead of passing packet to executor, some data structure more generic is need
-          network::PostgresProtocolHandler::ReadParamType(&packet, num_params, types);
+          // TODO: Instead of passing packet to executor, some data structure
+          // more generic is need
+          network::PostgresProtocolHandler::ReadParamType(&packet, num_params,
+                                                          types);
 
           // Write all the types to output file
           for (int i = 0; i < num_params; i++) {
@@ -212,27 +213,30 @@ bool CopyExecutor::DExecute() {
         } else if (origin_col_id == param_format_col_id) {
           // param_formats column
           PELOTON_ASSERT(output_schema->GetColumn(col_index).GetType() ==
-                    type::TypeId::VARBINARY);
+                         type::TypeId::VARBINARY);
 
           network::InputPacket packet(len, val);
 
           // Read param formats
           formats.resize(num_params);
-          //TODO: Instead of passing packet to executor, some data structure more generic is need
-          network::PostgresProtocolHandler::ReadParamFormat(&packet, num_params, formats);
+          // TODO: Instead of passing packet to executor, some data structure
+          // more generic is need
+          network::PostgresProtocolHandler::ReadParamFormat(&packet, num_params,
+                                                            formats);
 
         } else if (origin_col_id == param_val_col_id) {
           // param_values column
           PELOTON_ASSERT(output_schema->GetColumn(col_index).GetType() ==
-                    type::TypeId::VARBINARY);
+                         type::TypeId::VARBINARY);
 
           network::InputPacket packet(len, val);
           bind_parameters.resize(num_params);
           param_values.resize(num_params);
-          //TODO: Instead of passing packet to executor, some data structure more generic is need
-          network::PostgresProtocolHandler::ReadParamValue(&packet, num_params, types,
-                                              bind_parameters, param_values,
-                                              formats);
+          // TODO: Instead of passing packet to executor, some data structure
+          // more generic is need
+          network::PostgresProtocolHandler::ReadParamValue(
+              &packet, num_params, types, bind_parameters, param_values,
+              formats);
 
           // Write all the values to output file
           for (int i = 0; i < num_params; i++) {
@@ -272,5 +276,5 @@ bool CopyExecutor::DExecute() {
   return true;
 }
 
-}  // namespace executor
-}  // namespace peloton
+} // namespace executor
+} // namespace peloton

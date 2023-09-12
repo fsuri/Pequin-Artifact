@@ -152,7 +152,7 @@ type/integer_type.cc type/numeric_type.cc type/smallint_type.cc type/timestamp_t
 #SRCS += $(addprefix $(d), udf/ast_nodes.cc udf/udf_handler.cc udf/udf_parser.cc)
 
 # Util
-SRCS += $(addprefix $(d), util/file.cc util/string_util.cc util/stringbox_util.cc)
+SRCS += $(addprefix $(d), util/file.cc util/string_util.cc util/stringbox_util.cc util/csv_scanner.cc)
 
 
 # Queryexec test
@@ -314,7 +314,7 @@ $(o)type/integer_type.o $(o)type/numeric_type.o $(o)type/smallint_type.o $(o)typ
 #LIB-udf := $(o)udf/ast_nodes.o $(o)udf/udf_handler.o $(o)udf/udf_parser.o
 
 # Util
-LIB-util := $(o)util/file.o $(o)util/string_util.o $(o)util/stringbox_util.o
+LIB-util := $(o)util/file.o $(o)util/string_util.o $(o)util/stringbox_util.o $(o)util/csv_scanner.o
 
 #$(LIB-codegen-expression) $(LIB-codegen-interpreter) $(LIB-codegen-lang) $(LIB-codegen-operator) $(LIB-codegen-proxy) \
 $(LIB-codegen-type) $(LIB-codegen-util) $(LIB-codegen) $(LIB-udf) $(LIB-tuning) $(LIB-adr) $(LIB-statistics)

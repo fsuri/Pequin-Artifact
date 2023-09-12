@@ -373,6 +373,10 @@ void test_committed_table_write() {
       new pequinstore::PelotonTableStore(std::thread::hardware_concurrency());
   table_store1->RegisterTableSchema(table_registry);
   table_store1->ExecRaw("CREATE TABLE test(a INT, b INT, PRIMARY KEY(a));");
+  sleep(5);
+  table_store1->ExecRaw("COPY test FROM 'test.csv' with (FORMAT csv)");
+  /*table_store1->LoadTable("COPY test FROM 'test.csv' with (FORMAT csv);",
+                          "random", pesto_timestamp, &committed_proof);*/
 
   /*pequinstore::TableStore *table_store2 = new
   pequinstore::PelotonTableStore();
@@ -408,11 +412,11 @@ void test_committed_table_write() {
   row1->add_column_values(std::to_string(10));
   row1->add_column_values(std::to_string(100));
 
-  table_store1->ApplyTableWrite("test", table_write, toy_ts_c_1, "random",
+  /*table_store1->ApplyTableWrite("test", table_write, toy_ts_c_1, "random",
                                 real_proof, false);
 
   table_store1->ApplyTableWrite("test", table_write, toy_ts_c_1, "random",
-                                real_proof, true);
+                                real_proof, true);*/
 
   // std::thread t(WriteToTable, table_store, 0);
   //  WriteToTable(table_store, 0);

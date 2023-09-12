@@ -12,8 +12,8 @@
 
 #pragma once
 
+// #include "../catalog/query_metrics_catalog.h"
 #include "../executor/abstract_executor.h"
-//#include "../catalog/query_metrics_catalog.h"
 
 #define COPY_BUFFER_SIZE 65536
 #define INVALID_COL_ID -1
@@ -22,7 +22,7 @@ namespace peloton {
 namespace executor {
 
 class CopyExecutor : public AbstractExecutor {
- public:
+public:
   CopyExecutor(const CopyExecutor &) = delete;
   CopyExecutor &operator=(const CopyExecutor &) = delete;
   CopyExecutor(CopyExecutor &&) = delete;
@@ -35,7 +35,7 @@ class CopyExecutor : public AbstractExecutor {
 
   inline size_t GetTotalBytesWritten() { return total_bytes_written; }
 
- protected:
+protected:
   bool DInit();
 
   bool DExecute();
@@ -89,5 +89,5 @@ class CopyExecutor : public AbstractExecutor {
       catalog::QueryMetricsCatalog::ColumnId::PARAM_VALUES;*/
 };
 
-}  // namespace executor
-}  // namespace peloton
+} // namespace executor
+} // namespace peloton
