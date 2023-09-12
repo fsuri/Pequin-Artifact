@@ -153,14 +153,16 @@ bool UpdateExecutor::DExecute() {
 
   // We are scanning over a logical tile.
   LOG_TRACE("Update executor :: 1 child ");
-  std::cout << "Update executor reached" << std::endl;
+  Debug("reached update executor");
+  //std::cout << "Update executor reached" << std::endl;
 
   if (!children_[0]->Execute()) {
-    std::cout << "Faulty executor" << std::endl;
+    Debug("Faulty executor");
+    //std::cout << "Faulty executor" << std::endl;
     return false;
   }
 
-  std::cout << "After if statement" << std::endl;
+  //std::cout << "After if statement" << std::endl;
 
 
   std::unique_ptr<LogicalTile> source_tile(children_[0]->GetOutput());
@@ -188,7 +190,9 @@ bool UpdateExecutor::DExecute() {
   }*/
 
   // Update tuples in a given table
-  std::cout << "number of visible tuples is " << source_tile->GetTupleCount() << std::endl;
+  Debug("Num visible tuples: %d", source_tile->GetTupleCount());
+  //std::cout << "number of visible tuples is " << source_tile->GetTupleCount() << std::endl;
+
   for (oid_t visible_tuple_id : *source_tile) {
     storage::TileGroup *tile_group =
         source_tile->GetBaseTile(0)->GetTileGroup();
@@ -197,7 +201,9 @@ bool UpdateExecutor::DExecute() {
     oid_t physical_tuple_id = pos_lists[0][visible_tuple_id];
 
     ItemPointer old_location(tile_group->GetTileGroupId(), physical_tuple_id);
-    std::cout << "Old timestamp is " << tile_group_header->GetBasilTimestamp(physical_tuple_id).getTimestamp() << std::endl;
+
+    Debug("Old timestamp = [%d:%d]", tile_group_header->GetBasilTimestamp(physical_tuple_id).getTimestamp(), tile_group_header->GetBasilTimestamp(physical_tuple_id).getID());
+    //std::cout << "Old timestamp is " << tile_group_header->GetBasilTimestamp(physical_tuple_id).getTimestamp() << std::endl;
 
     LOG_TRACE("Visible Tuple id : %u, Physical Tuple id : %u ",
               visible_tuple_id, physical_tuple_id);
@@ -249,7 +255,8 @@ bool UpdateExecutor::DExecute() {
     // Prepare to examine primary key
     bool ret = false;
     const planner::UpdatePlan &update_node = GetPlanNode<planner::UpdatePlan>();
-    std::cout << "Is owner is " << is_owner << ". Is written is " << is_written << std::endl;
+    Debug("Is owner: %d. Is written: %d", is_owner, is_written);
+    //std::cout << "Is owner is " << is_owner << ". Is written is " << is_written << std::endl;
 
     // if the current transaction is the creator of this version.
     // which means the current transaction has already updated the version.
@@ -264,7 +271,7 @@ bool UpdateExecutor::DExecute() {
         }
         // When fail, ownership release is done inside PerformUpdatePrimaryKey
         else {
-          std::cout << "First false" << std::endl;
+          //std::cout << "First false" << std::endl;
           return false;
         }
       }
@@ -288,10 +295,9 @@ bool UpdateExecutor::DExecute() {
     else {
       // Skip the IsOwnable and AcquireOwnership if we have already got the
       // ownership
-      bool is_ownable = is_owner ||
-                        transaction_manager.IsOwnable(
-                            current_txn, tile_group_header, physical_tuple_id);
-      std::cout << "Is ownable is " << is_ownable << std::endl;
+      bool is_ownable = is_owner || transaction_manager.IsOwnable(current_txn, tile_group_header, physical_tuple_id);
+      Debug("is ownable: %d", is_ownable);
+      //std::cout << "Is ownable is " << is_ownable << std::endl;
 
       if (is_ownable == true) {
         // if the tuple is not owned by any transaction and is visible to
@@ -306,7 +312,7 @@ bool UpdateExecutor::DExecute() {
           LOG_TRACE("Fail to insert new tuple. Set txn failure.");
           transaction_manager.SetTransactionResult(current_txn,
                                                    ResultType::FAILURE);
-          std::cout << "Second false" << std::endl;
+          //std::cout << "Second false" << std::endl;
           return false;
         }
 
@@ -320,7 +326,7 @@ bool UpdateExecutor::DExecute() {
           }
           // When fail, ownership release is done inside PerformUpdatePrimaryKey
           else {
-            std::cout << "Third false" << std::endl;
+            //std::cout << "Third false" << std::endl;
             return false;
           }
         }
@@ -374,7 +380,7 @@ bool UpdateExecutor::DExecute() {
             }
             transaction_manager.SetTransactionResult(current_txn,
                                                      ResultType::FAILURE);
-            std::cout << "Fourth false" << std::endl;
+            //std::cout << "Fourth false" << std::endl;
             return false;
           }
 
@@ -382,7 +388,9 @@ bool UpdateExecutor::DExecute() {
                     old_location.offset);
           LOG_TRACE("perform update new location: %u, %u", new_location.block,
                     new_location.offset);
-          std::cout << "Performed the update here" << std::endl;
+          
+          Debug("Performed update here");
+          //std::cout << "Performed the update here" << std::endl;
           transaction_manager.PerformUpdate(current_txn, old_location,
                                             new_location);
           statement_write_set_.insert(new_location);
@@ -437,7 +445,7 @@ bool UpdateExecutor::DExecute() {
         LOG_TRACE("Fail to update tuple. Set txn failure.");
         transaction_manager.SetTransactionResult(current_txn,
                                                  ResultType::FAILURE);
-        std::cout << "Fifth false" << std::endl;
+        //std::cout << "Fifth false" << std::endl;
         return false;
       }
     }
@@ -459,7 +467,8 @@ bool UpdateExecutor::DExecute() {
                                  current_txn);
     }
   }*/
-  std::cout << "Update Returned true" << std::endl;
+  Debug("Update return true");
+  //std::cout << "Update Returned true" << std::endl;
   return true;
 }
 

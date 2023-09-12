@@ -218,6 +218,7 @@ void PelotonTableStore::ExecRaw(const std::string &sql_statement) {
   auto status = tcop->ExecuteStatement(statement, param_values, unamed,
                                        result_format, result);
 
+  
   Debug("Made it after status");
   // GetResult(status);
   GetResult(status, tcop, counter);
@@ -489,7 +490,7 @@ void PelotonTableStore::ApplyTableWrite(
   // TableVersion (Currently, it is being set right after ApplyTableWrite()
   // returns)
 
-  Debug("Apply TableWrite for txn %s", BytesToHex(txn_digest, 16));
+  Debug("Apply TableWrite for txn %s", BytesToHex(txn_digest, 16).c_str());
 
   if (table_write.rows().empty())
     return;
@@ -513,11 +514,13 @@ void PelotonTableStore::ApplyTableWrite(
   // Execute Writes and Deletes on Peloton
   std::vector<peloton::ResultValue> result;
 
-  Debug("Write statement: %s", write_statement);
-  Debug("Delete statements: %s", fmt::join(delete_statements, "|"));
+  
+  //Debug("Delete statements: %s", fmt::join(delete_statements, "|"));
 
   // Execute Write Statement
   if (!write_statement.empty()) {
+
+    Debug("Write statement: %s", write_statement.c_str());
     // prepareStatement
     auto statement = ParseAndPrepare(write_statement, tcop);
 
@@ -556,6 +559,7 @@ void PelotonTableStore::ApplyTableWrite(
   for (auto &delete_statement :
        delete_statements) { // TODO: Find a way to parallelize these statement
                             // calls (they don't conflict)
+    Debug("Delete statement: %s", delete_statement.c_str());
     // prepare Statement
     auto statement = ParseAndPrepare(delete_statement, tcop);
     // ExecuteStatment

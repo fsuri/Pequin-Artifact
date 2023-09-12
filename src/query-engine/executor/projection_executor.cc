@@ -55,7 +55,7 @@ bool ProjectionExecutor::DInit() {
  * @return true on success, false otherwise.
  */
 bool ProjectionExecutor::DExecute() {
-  std::cout << "Projection executor is running" << std::endl;
+  Debug("Projection executor is running"); //std::cout << "Projection executor is running" << std::endl;
   PELOTON_ASSERT(project_info_);
   PELOTON_ASSERT(schema_);
   // NOTE: We only handle 1 child or no child for now

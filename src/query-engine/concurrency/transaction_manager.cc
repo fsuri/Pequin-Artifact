@@ -56,11 +56,11 @@ TransactionContext *TransactionManager::BeginTransaction(
     // - REPEATABLE_READS, or
     // - READ_COMMITTED.
     // transaction processing with decentralized epoch manager
-    std::cout << "created txn else clause" << std::endl;
+    //std::cout << "created txn else clause" << std::endl;
     cid_t read_id = EpochManagerFactory::GetInstance().EnterEpoch(
         thread_id, TimestampType::READ);
     txn = new TransactionContext(thread_id, type, read_id);
-    std::cout << "created txn" << std::endl;
+    //std::cout << "created txn" << std::endl;
   }
 
   if (read_only) {
@@ -69,7 +69,7 @@ TransactionContext *TransactionManager::BeginTransaction(
 
   txn->SetTimestamp(function::DateFunctions::Now());
 
-  std::cout << "begin txn at the end" << std::endl;
+  //std::cout << "begin txn at the end" << std::endl;
   return txn;
 }
 

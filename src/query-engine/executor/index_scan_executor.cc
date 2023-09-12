@@ -159,7 +159,7 @@ bool IndexScanExecutor::DExecute() {
 
 bool IndexScanExecutor::ExecPrimaryIndexLookup() {
   PELOTON_ASSERT(!done_);
-  std::cout << "Inside index scan executor" << std::endl;
+  Debug("Inside Index Scan Executor"); //std::cout << "Inside index scan executor" << std::endl;
 
   std::vector<ItemPointer *> tuple_location_ptrs;
 
@@ -169,7 +169,7 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
   PELOTON_ASSERT(index_->GetIndexType() == IndexConstraintType::PRIMARY_KEY);
 
   if (0 == key_column_ids_.size()) {
-    std::cout << "Index executor scan all keys" << std::endl;
+    //std::cout << "Index executor scan all keys" << std::endl;
     index_->ScanAllKeys(tuple_location_ptrs);
   } else {
     // Limit clause accelerate
@@ -177,14 +177,14 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
       // invoke index scan limit
       if (!descend_) {
         LOG_TRACE("ASCENDING SCAN LIMIT in Primary Index");
-        std::cout << "Index executor scan limit ascending" << std::endl;
+        //std::cout << "Index executor scan limit ascending" << std::endl;
         index_->ScanLimit(values_, key_column_ids_, expr_types_,
                           ScanDirectionType::FORWARD, tuple_location_ptrs,
                           &index_predicate_.GetConjunctionList()[0],
                           limit_number_, limit_offset_);
       } else {
         LOG_TRACE("DESCENDING SCAN LIMIT in Primary Index");
-        std::cout << "Index executor scan limit descending" << std::endl;
+        //std::cout << "Index executor scan limit descending" << std::endl;
         index_->ScanLimit(values_, key_column_ids_, expr_types_,
                           ScanDirectionType::BACKWARD, tuple_location_ptrs,
                           &index_predicate_.GetConjunctionList()[0],
@@ -196,7 +196,7 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
     // Normal SQL (without limit)
     else {
       LOG_TRACE("Index Scan in Primary Index");
-      std::cout << "Index executor scan all" << std::endl;
+      //std::cout << "Index executor scan all" << std::endl;
       index_->Scan(values_, key_column_ids_, expr_types_,
                    ScanDirectionType::FORWARD, tuple_location_ptrs,
                    &index_predicate_.GetConjunctionList()[0]);
@@ -206,7 +206,7 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
   }
 
   if (tuple_location_ptrs.size() == 0) {
-    std::cout << "No tuples retrieved in the index" << std::endl;
+    //std::cout << "No tuples retrieved in the index" << std::endl;
     LOG_TRACE("no tuple is retrieved from index.");
     return false;
   }
@@ -231,12 +231,12 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
   int num_tuples_examined = 0;
 #endif
 
-  std::cout << "Index executor before for loop" << std::endl;
-  std::cout << "Size of tuple location ptrs is " << tuple_location_ptrs.size()
-            << std::endl;
+  //std::cout << "Index executor before for loop" << std::endl;
+  //std::cout << "Size of tuple location ptrs is " << tuple_location_ptrs.size() << std::endl;
+
   // for every tuple that is found in the index.
   for (auto tuple_location_ptr : tuple_location_ptrs) {
-    std::cout << "Index executor inside for loop" << std::endl;
+   // std::cout << "Index executor inside for loop" << std::endl;
     ItemPointer tuple_location = *tuple_location_ptr;
     auto tile_group = storage_manager->GetTileGroup(tuple_location.block);
     auto tile_group_header = tile_group.get()->GetHeader();
@@ -247,9 +247,8 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
     auto visibility = transaction_manager.IsVisible(
         current_txn, tile_group_header, tuple_location.offset);
 
-    std::cout << "Index executor visibility is " << visibility
-              << " and undo delete is " << current_txn->GetUndoDelete()
-              << std::endl;
+    Debug("Index executor visibility: %d. Undo delete: %d", visibility, current_txn->GetUndoDelete());
+    //std::cout << "Index executor visibility is " << visibility << " and undo delete is " << current_txn->GetUndoDelete() << std::endl;
 
     // NOTE: Delete and undo delete cases
     // if the tuple is deleted and we are not undoing a delete
@@ -263,32 +262,25 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
     // else if the tuple is deleted and we are undoing a delete
     else if (visibility == VisibilityType::DELETED &&
              current_txn->GetUndoDelete()) {
-      std::cout << "Index executor undo the delete precondition satisfied"
-                << std::endl;
+      //std::cout << "Index executor undo the delete precondition satisfied" << std::endl;
       auto tuple_timestamp =
           tile_group_header->GetBasilTimestamp(tuple_location.offset);
       auto txn_timestamp = current_txn->GetBasilTimestamp();
       // If the tuple timestamp is past the timestamp then add to visibile
       // tuple locations to purge
-      std::cout << "Tuple timestamp " << tuple_timestamp.getID() << ", "
-                << tuple_timestamp.getTimestamp() << std::endl;
-      std::cout << "Txn timestamp " << txn_timestamp.getID() << ", "
-                << txn_timestamp.getTimestamp() << std::endl;
+      Debug("Tuple TS: [%d, %d], Txn TS: [%d, %d]", tuple_timestamp.getTimestamp(), tuple_timestamp.getID(), txn_timestamp.getTimestamp(), txn_timestamp.getID());
+      // std::cout << "Tuple timestamp " << tuple_timestamp.getID() << ", "<< tuple_timestamp.getTimestamp() << std::endl;
+      // std::cout << "Txn timestamp " << txn_timestamp.getID() << ", " << txn_timestamp.getTimestamp() << std::endl;
       if (/*tuple_timestamp >= txn_timestamp*/ true) {
         // std::cout << "Index executor added tuple to visibile tuple
         // locations" << std::endl; std::cout << "Index executor deleted tuple
         // location block " << tuple_location.block << " and offset " <<
         // tuple_location.offset << std::endl;
-        auto new_tuple_location =
-            tile_group_header->GetNextItemPointer(tuple_location.offset);
-        std::cout << "Index executor added tuple to visibile tuple locations"
-                  << std::endl;
-        std::cout << "Index executor deleted tuple location block "
-                  << new_tuple_location.block << " and offset "
-                  << new_tuple_location.offset << std::endl;
+        auto new_tuple_location = tile_group_header->GetNextItemPointer(tuple_location.offset);
+        // std::cout << "Index executor added tuple to visibile tuple locations" << std::endl;
+        // std::cout << "Index executor deleted tuple location block "<< new_tuple_location.block << " and offset " << new_tuple_location.offset << std::endl;
 
-        if (visible_tuple_set.find(new_tuple_location) ==
-            visible_tuple_set.end()) {
+        if (visible_tuple_set.find(new_tuple_location) == visible_tuple_set.end()) {
           visible_tuple_locations.push_back(new_tuple_location);
           visible_tuple_set.insert(new_tuple_location);
         }
@@ -306,17 +298,16 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
     // we should always find a visible version from a version chain.
     // NOTE: Similar read logic as seq_scan_executor
     auto timestamp = current_txn->GetBasilTimestamp();
-    std::cout << "Txn timestamp is " << timestamp.getTimestamp() << ", "
-              << timestamp.getID() << std::endl;
+
+    Debug(" Txn TS: [%d, %d]", timestamp.getTimestamp(), timestamp.getID());
+    //std::cout << "Txn timestamp is " << timestamp.getTimestamp() << ", " << timestamp.getID() << std::endl;
 
     // Get the head of the version chain (latest version)
     ItemPointer *head =
         tile_group_header->GetIndirection(tuple_location.offset);
-    std::cout << "Before checking whether head is null" << std::endl;
+   
     if (head == nullptr) {
-      std::cout << "Head is null and location of curr tuple is ("
-                << tuple_location.block << ", " << tuple_location.offset << ")"
-                << std::endl;
+      //std::cout << "Head is null and location of curr tuple is (" << tuple_location.block << ", " << tuple_location.offset << ")" << std::endl;
     }
 
     auto head_tile_group_header =
@@ -336,8 +327,8 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
       ++chain_length;
       auto tuple_timestamp =
           tile_group_header->GetBasilTimestamp(tuple_location.offset);
-      std::cout << "Tuple timestamp is " << tuple_timestamp.getTimestamp()
-                << ", " << tuple_timestamp.getID() << std::endl;
+      Debug("Tuple TS: [%d, %d]", tuple_timestamp.getTimestamp(), tuple_timestamp.getID());
+      //std::cout << "Tuple timestamp is " << tuple_timestamp.getTimestamp() << ", " << tuple_timestamp.getID() << std::endl;
 
       if (timestamp >= tuple_timestamp) {
         // Within range of timestamp
@@ -362,14 +353,10 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
             return res;
           }
 
-          std::cout << "Tuple commit is "
-                    << tile_group_header->GetCommitOrPrepare(
-                           tuple_location.offset)
-                    << std::endl;
-          std::cout << "Tuple in visible set is "
-                    << (visible_tuple_set.find(tuple_location) ==
-                        visible_tuple_set.end())
-                    << std::endl;
+          Debug("Tuple commit state: %d. Is tuple in visibility set? %d", tile_group_header->GetCommitOrPrepare(tuple_location.offset), 
+                                                                  (visible_tuple_set.find(tuple_location) == visible_tuple_set.end()));
+          // std::cout << "Tuple commit is "<< tile_group_header->GetCommitOrPrepare(tuple_location.offset) << std::endl;
+          // std::cout << "Tuple in visible set is " << (visible_tuple_set.find(tuple_location) == visible_tuple_set.end()) << std::endl;
 
           // The tuple is committed
           if (tile_group_header->GetCommitOrPrepare(tuple_location.offset) &&
@@ -388,9 +375,8 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
             // Set the committed timestmp
             Timestamp committed_timestamp =
                 tile_group_header->GetBasilTimestamp(tuple_location.offset);
-            std::cout << "Committed timestamp is "
-                      << committed_timestamp.getTimestamp() << ", "
-                      << committed_timestamp.getID() << std::endl;
+            Debug("Committed Timestamp: [%d:%d]", committed_timestamp.getTimestamp(), committed_timestamp.getID());
+            //std::cout << "Committed timestamp is " << committed_timestamp.getTimestamp() << ", " << committed_timestamp.getID() << std::endl;
             /*Timestamp* txn_timestamp = current_txn->GetCommitTimestamp();
 
             *txn_timestamp = committed_timestamp;
@@ -452,13 +438,15 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
                 tile_group_header->GetNextItemPointer(tuple_location.offset);*/
           }
 
-          std::cout << "Found committed is " << found_committed
-                    << ". Found prepared is " << found_prepared
-                    << ". CanReadPrepared is " << current_txn->CanReadPrepared()
-                    << ". GetCommitOrPrepare is "
-                    << tile_group_header->GetCommitOrPrepare(
-                           tuple_location.offset)
-                    << "." << std::endl;
+          Debug("Found committed: %d. Found prepared: %d, Can Read Prepared: %d, GetCommitOrPrepare: %d", found_committed, found_prepared, 
+                  current_txn->CanReadPrepared(), tile_group_header->GetCommitOrPrepare(tuple_location.offset));
+          // std::cout << "Found committed is " << found_committed
+          //           << ". Found prepared is " << found_prepared
+          //           << ". CanReadPrepared is " << current_txn->CanReadPrepared()
+          //           << ". GetCommitOrPrepare is "
+          //           << tile_group_header->GetCommitOrPrepare(
+          //                  tuple_location.offset)
+          //           << "." << std::endl;
 
           // Go to the next version
           /*ItemPointer old_item = tuple_location;
@@ -474,11 +462,11 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
       }
 
       ItemPointer old_item = tuple_location;
-      std::cout << "Offset is " << old_item.offset << std::endl;
+      //std::cout << "Offset is " << old_item.offset << std::endl;
       tuple_location = tile_group_header->GetNextItemPointer(old_item.offset);
 
       if (tuple_location.IsNull()) {
-        std::cout << "Tuple location is null" << std::endl;
+        //std::cout << "Tuple location is null" << std::endl;
         break;
       }
 
@@ -707,11 +695,11 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
         continue;
       }*/
     }
-    std::cout << "Outside while loop" << std::endl;
+    //std::cout << "Outside while loop" << std::endl;
     LOG_TRACE("Traverse length: %d\n", (int)chain_length);
-    std::cout << "For loop iteration" << std::endl;
+    //std::cout << "For loop iteration" << std::endl;
   }
-  std::cout << "Outside for loop" << std::endl;
+  //std::cout << "Outside for loop" << std::endl;
   LOG_TRACE("Examined %d tuples from index %s", num_tuples_examined,
             index_->GetName().c_str());
 
@@ -755,20 +743,20 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
           // encoded_key = encoded_key + "///" + val.ToString();
           primary_key_cols.push_back(val.ToString());
           // primary_key_cols.push_back(val.GetAs<const char*>());
-          std::cout << "read set value is " << val.ToString() << std::endl;
+          Debug("Read set value: %s", val.ToString().c_str());
+          //std::cout << "read set value is " << val.ToString() << std::endl;
         }
         Timestamp time =
             tile_group_header->GetBasilTimestamp(visible_tuple_location.offset);
         // logical_tile->AddToReadSet(std::tie(encoded_key, time));
 
-        for (unsigned int i = 0; i < primary_key_cols.size(); i++) {
-          std::cout << "Primary key columns are " << primary_key_cols[i]
-                    << std::endl;
-        }
+        // for (unsigned int i = 0; i < primary_key_cols.size(); i++) {
+        //   std::cout << "Primary key columns are " << primary_key_cols[i] << std::endl;
+        // }
 
-        std::string encoded =
-            EncodeTableRow(index_->GetName(), primary_key_cols);
-        std::cout << "Encoded key from read set is " << encoded << std::endl;
+        std::string encoded = EncodeTableRow(index_->GetName(), primary_key_cols);
+        Debug("Encoded read set key: %s", encoded.c_str()); //std::cout << "Encoded key from read set is " << encoded << std::endl;
+        
         TimestampMessage ts_message = TimestampMessage();
 
         ts_message.set_id(time.getID());
@@ -820,20 +808,18 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
           // encoded_key = encoded_key + "///" + val.ToString();
           primary_key_cols.push_back(val.ToString());
           // primary_key_cols.push_back(val.GetAs<const char*>());
-          std::cout << "read set value is " << val.ToString() << std::endl;
+          Debug("Read set value: %s", val.ToString().c_str()); //std::cout << "read set value is " << val.ToString() << std::endl;
         }
         Timestamp time =
             tile_group_header->GetBasilTimestamp(visible_tuple_location.offset);
         // logical_tile->AddToReadSet(std::tie(encoded_key, time));
 
-        for (unsigned int i = 0; i < primary_key_cols.size(); i++) {
-          std::cout << "Primary key columns are " << primary_key_cols[i]
-                    << std::endl;
-        }
+        // for (unsigned int i = 0; i < primary_key_cols.size(); i++) {
+        //   std::cout << "Primary key columns are " << primary_key_cols[i] << std::endl;
+        // }
 
-        std::string encoded =
-            EncodeTableRow(index_->GetName(), primary_key_cols);
-        std::cout << "Encoded key from read set is " << encoded << std::endl;
+        std::string encoded = EncodeTableRow(index_->GetName(), primary_key_cols);
+         Debug("Encoded read set key: %s", encoded.c_str()); //std::cout << "Encoded key from read set is " << encoded << std::endl;
         TimestampMessage ts_message = TimestampMessage();
 
         ts_message.set_id(time.getID());

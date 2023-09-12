@@ -73,17 +73,17 @@ bool DeleteExecutor::DInit() {
  * @return true on success, false otherwise.
  */
 bool DeleteExecutor::DExecute() {
-  std::cout << "Inside delete executor" << std::endl;
+  Debug("INSIDE DELETE EXECUTOR"); //std::cout << "Inside delete executor" << std::endl;
   PELOTON_ASSERT(target_table_);
   // Retrieve next tile.
   if (!children_[0]->Execute()) {
     return false;
   }
 
-  std::cout << "After child execution" << std::endl;
+  //std::cout << "After child execution" << std::endl;
   std::unique_ptr<LogicalTile> source_tile(children_[0]->GetOutput());
 
-  std::cout << "After delete child output" << std::endl;
+  //std::cout << "After delete child output" << std::endl;
   auto &pos_lists = source_tile.get()->GetPositionLists();
 
   auto &transaction_manager =
@@ -114,7 +114,7 @@ bool DeleteExecutor::DExecute() {
     }
   }*/
 
-  std::cout << "Before delete for loop" << std::endl;
+  //std::cout << "Before delete for loop" << std::endl;
   // Delete each tuple
   for (oid_t visible_tuple_id : *source_tile) {
     storage::TileGroup *tile_group =
@@ -125,7 +125,8 @@ bool DeleteExecutor::DExecute() {
 
     ItemPointer old_location(tile_group->GetTileGroupId(), physical_tuple_id);
 
-    std::cout << "Deleted tuple id is block " << old_location.block << " and offset " << old_location.offset << std::endl;
+    Debug("Deleted tuple id %d, offset %d", old_location.block, old_location.offset);
+    //std::cout << "Deleted tuple id is block " << old_location.block << " and offset " << old_location.offset << std::endl;
 
     LOG_TRACE("Visible Tuple id : %u, Physical Tuple id : %u ",
               visible_tuple_id, physical_tuple_id);
@@ -199,7 +200,8 @@ bool DeleteExecutor::DExecute() {
     //is_owner = true;
     //is_written = true;
 
-    std::cout << "Is owner is " << is_owner << ". Is written is " << is_written << std::endl;
+    Debug("Is owner: %d, Is written: %d", is_owner, is_written);
+    //std::cout << "Is owner is " << is_owner << ". Is written is " << is_written << std::endl;
 
     if (is_owner == true && is_written == true) {
       // if the transaction is the owner of the tuple, then directly update in
@@ -232,7 +234,7 @@ bool DeleteExecutor::DExecute() {
         // Before getting new location
         if (current_txn->GetUndoDelete()) {
           // If undoing a delete then reset the begin and commit ids
-          std::cout << "Made it to undoing deletes" << std::endl;
+          //std::cout << "Made it to undoing deletes" << std::endl;
           tile_group_header->SetBeginCommitId(old_location.offset, current_txn->GetTransactionId());
           tile_group_header->SetEndCommitId(old_location.offset, MAX_CID);
           tile_group_header->SetTransactionId(old_location.offset, current_txn->GetTransactionId());
@@ -244,7 +246,7 @@ bool DeleteExecutor::DExecute() {
 
           // if there's no primary index on a table, then index_entry_ptr == nullptr.
           if (index_entry_ptr != nullptr) {
-            std::cout << "Undo delete inside if statement" << std::endl;
+            //std::cout << "Undo delete inside if statement" << std::endl;
             tile_group_header->SetIndirection(old_location.offset, index_entry_ptr);
 
             // Set the index header in an atomic way.
@@ -260,14 +262,18 @@ bool DeleteExecutor::DExecute() {
           }
 
           //tile_group_header->SetEndCommitId(old_location.offset, INVALID_CID);
-          std::cout << "Trying to undo deleted tuple id is block " << old_location.block << " and offset " << old_location.offset << std::endl;
-          std::cout << "Undo delete visibility type is " << transaction_manager.IsVisible(current_txn, tile_group_header, old_location.offset) << std::endl;
+          Debug("Trying to undo deleted tuple id. block %d, offset %d", old_location.block, old_location.offset);
+          //std::cout << "Trying to undo deleted tuple id is block " << old_location.block << " and offset " << old_location.offset << std::endl;
+          Debug("Undo delete visibility type is: %d", transaction_manager.IsVisible(current_txn, tile_group_header, old_location.offset));
+          //std::cout << "Undo delete visibility type is " << transaction_manager.IsVisible(current_txn, tile_group_header, old_location.offset) << std::endl;
           return true;
         }
         // if it is the latest version and not locked by other threads, then
         // insert an empty version.
         ItemPointer new_location = target_table_->InsertEmptyVersion();
-        std::cout << "Delete executor New location tuple id is block " << new_location.block << " and offset " << new_location.offset << std::endl;
+        
+        Debug("Delete executor New location tuple id. block %d, offset %d", new_location.block, new_location.offset);
+        //std::cout << "Delete executor New location tuple id is block " << new_location.block << " and offset " << new_location.offset << std::endl;
 
 
         // PerformDelete() will not be executed if the insertion failed.
@@ -288,7 +294,7 @@ bool DeleteExecutor::DExecute() {
                                                    ResultType::FAILURE);
           return false;
         }
-        std::cout << "Got to perform delete" << std::endl;
+        //std::cout << "Got to perform delete" << std::endl;
         transaction_manager.PerformDelete(current_txn, old_location,
                                           new_location);
 

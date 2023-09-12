@@ -595,7 +595,7 @@ int main(int argc, char **argv) {
   if(FLAGS_sql_bench && std::filesystem::path(FLAGS_data_file_path).filename() == "rw-sql.json"){
     //Autogenerate a registry file for RW-SQL.
       FLAGS_data_file_path = std::filesystem::path(FLAGS_data_file_path).replace_filename("rw-sql-gen-server" + std::to_string(FLAGS_replica_idx));
-      TableWriter table_writer(FLAGS_data_file_path);
+      TableWriter table_writer(FLAGS_data_file_path, FLAGS_clock_skew);
 
       //Set up a bunch of Tables: Num_tables many; with num_items...
       const std::vector<std::pair<std::string, std::string>> &column_names_and_types = {{"key", "INT"}, {"value", "INT"}};
@@ -604,7 +604,7 @@ int main(int argc, char **argv) {
           
       for(int i=0; i<FLAGS_num_tables; ++i){
         string table_name = "table_" + std::to_string(i);
-        table_writer.add_table(table_name, column_names_and_types, primary_key_col_idx, false);
+        table_writer.add_table(table_name, column_names_and_types, primary_key_col_idx);
       }
 
       table_writer.flush();
@@ -888,7 +888,6 @@ int main(int argc, char **argv) {
   //RW, Retwis
   if (FLAGS_data_file_path.empty() && FLAGS_keys_path.empty()) {
     Notice("Benchmark: RW, Retwis");
-    std::cerr << "CASE 1" << std::endl;
     /*if (FLAGS_num_keys > 0) {
       for (size_t i = 0; i < FLAGS_num_keys; ++i) {
         keys.push_back(std::to_string(i));
@@ -927,7 +926,6 @@ int main(int argc, char **argv) {
   } 
   //SQL Benchmarks -- they all require a schema file!
   else if(FLAGS_sql_bench && FLAGS_data_file_path.length() > 0 && FLAGS_keys_path.empty()) {
-    std::cerr << "CASE 2" << std::endl;
      Notice("Benchmark: SQL with Loaded Table Registry");
        std::ifstream generated_tables(FLAGS_data_file_path);
        json tables_to_load;
@@ -975,8 +973,8 @@ int main(int argc, char **argv) {
       
   }
   else if (FLAGS_data_file_path.length() > 0 && FLAGS_keys_path.empty()) {
-    std::cerr << "CASE 3" << std::endl;
-     Notice("Benchmark: TPCC/Smallbank");
+    Notice("Benchmark: TPCC/Smallbank");
+
     std::ifstream in;
     in.open(FLAGS_data_file_path);
     if (!in) {
@@ -1007,7 +1005,6 @@ int main(int argc, char **argv) {
     // Debug("Stored %lu out of %lu key-value pairs from file %s.", stored,
     //     loaded, FLAGS_data_file_path.c_str());
   } else {
-    std::cerr << "CASE 4" << std::endl;
     Notice("Benchmark: reading from keys");
     std::ifstream in;
     in.open(FLAGS_keys_path);

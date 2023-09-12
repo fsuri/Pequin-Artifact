@@ -391,7 +391,7 @@ bool InsertExecutor::DExecute() {
               new_location.offset, current_txn->GetCommitOrPrepare());
         }
       } else {
-        std::cout << "Insert was performed" << std::endl;
+        //std::cout << "Insert was performed" << std::endl;
         transaction_manager.PerformInsert(current_txn, location,
                                           index_entry_ptr);
         auto storage_manager = storage::StorageManager::GetInstance();

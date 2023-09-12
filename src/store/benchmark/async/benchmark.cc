@@ -1022,7 +1022,7 @@ int main(int argc, char **argv) {
 
      //RW-SQL ==> auto-generate TableRegistry
     FLAGS_data_file_path = std::filesystem::path(FLAGS_data_file_path).replace_filename("rw-sql-gen-client" + std::to_string(FLAGS_client_id));
-    TableWriter table_writer(FLAGS_data_file_path);
+    TableWriter table_writer(FLAGS_data_file_path, false);
 
     //Set up a bunch of Tables: Num_tables many; with num_items...
     const std::vector<std::pair<std::string, std::string>> &column_names_and_types = {{"key", "INT"}, {"value", "INT"}};
@@ -1031,7 +1031,7 @@ int main(int argc, char **argv) {
         
     for(int i=0; i<FLAGS_num_tables; ++i){
       string table_name = "table_" + std::to_string(i);
-      table_writer.add_table(table_name, column_names_and_types, primary_key_col_idx, false);
+      table_writer.add_table(table_name, column_names_and_types, primary_key_col_idx);
     }
 
     table_writer.flush();
