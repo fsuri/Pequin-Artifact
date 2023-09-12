@@ -52,6 +52,8 @@
 #include <thread>
 #include <set>
 
+#include "store/pequinstore/sql_interpreter.h"
+
 #define RESULT_COMMITTED 0
 #define RESULT_USER_ABORTED 1
 #define RESULT_SYSTEM_ABORTED 2
@@ -71,10 +73,11 @@ class Client : public ::Client {
       int nGroups, const std::vector<int> &closestReplicas, bool pingReplicas,
       Transport *transport, Partitioner *part, bool syncCommit,
       uint64_t readMessages, uint64_t readQuorumSize,
-      Parameters params, 
+      Parameters params, std::string &table_registry,
       KeyManager *keyManager, uint64_t phase1DecisionTimeout,
       uint64_t consecutiveMax = 1UL,
-      TrueTime timeserver = TrueTime(0,0));
+      TrueTime timeserver = TrueTime(0,0),
+      bool sql_bench = false);
   virtual ~Client();
 
   // Begin a transaction.
@@ -90,8 +93,11 @@ class Client : public ::Client {
       put_callback pcb, put_timeout_callback ptcb,
       uint32_t timeout = PUT_TIMEOUT) override;
 
-  virtual void Query(std::string &query, query_callback qcb,
-    query_timeout_callback qtcb, uint32_t timeout) override; //TODO: ::Client client class needs to expose Query interface too.. --> All other clients need to support the interface.
+  virtual void Write(std::string &write_statement, write_callback wcb,
+      write_timeout_callback wtcb, uint32_t timeout) override;
+
+  virtual void Query(const std::string &query, query_callback qcb,
+    query_timeout_callback qtcb, uint32_t timeout, bool skip_query_interpretation) override; //TODO: ::Client client class needs to expose Query interface too.. --> All other clients need to support the interface.
 
   // Commit all Get(s) and Put(s) since Begin().
   virtual void Commit(commit_callback ccb, commit_timeout_callback ctcb,
@@ -111,7 +117,7 @@ class Client : public ::Client {
    std::unordered_set<uint64_t> conflict_ids;
 
   struct PendingQuery {
-    PendingQuery(Client *client, uint64_t query_seq_num, std::string &query_cmd) : version(0UL), group_replies(0UL){
+    PendingQuery(Client *client, uint64_t query_seq_num, const std::string &query_cmd) : version(0UL), group_replies(0UL){
       queryMsg.Clear();
       queryMsg.set_client_id(client->client_id);
       queryMsg.set_query_seq_num(query_seq_num);
@@ -119,21 +125,32 @@ class Client : public ::Client {
       *queryMsg.mutable_timestamp() = client->txn.timestamp();
       queryMsg.set_retry_version(0);
     }
-    ~PendingQuery(){}
+    ~PendingQuery(){
+       ClearReplySets();
+    }
 
-   void SetInvolvedGroups(Client *client, std::vector<uint64_t> &involved_groups_){
+   void ClearReplySets(){
+    for(auto [group, rs]: group_read_sets){
+        if(rs!=nullptr) delete rs;
+    }
+    group_read_sets.clear();
+    group_result_hashes.clear();
+   }
+
+   void SetInvolvedGroups(std::vector<uint64_t> &involved_groups_){
       involved_groups = std::move(involved_groups_);
       queryMsg.set_query_manager(involved_groups[0]);
-      SetQueryId(client);
     }
 
     void SetQueryId(Client *client){
-      if(client->params.query_params.signClientQueries && client->params.query_params.cacheReadSet){ //TODO: when to use hash id? always?
-          queryId = QueryDigest(queryMsg, client->params.hashDigest); 
-      }
-      else{
-          queryId =  "[" + std::to_string(queryMsg.query_seq_num()) + ":" + std::to_string(queryMsg.client_id()) + "]";
-      }
+      queryId = QueryDigest(queryMsg, (client->params.query_params.signClientQueries && client->params.query_params.cacheReadSet && client->params.hashDigest)); 
+
+      // if(client->params.query_params.signClientQueries && client->params.query_params.cacheReadSet){ //TODO: when to use hash id? always?
+      //     queryId = QueryDigest(queryMsg, client->params.hashDigest); 
+      // }
+      // else{
+      //     queryId =  "[" + std::to_string(queryMsg.query_seq_num()) + ":" + std::to_string(queryMsg.client_id()) + "]";
+      // }
     }
 
 
@@ -143,7 +160,8 @@ class Client : public ::Client {
     proto::Query queryMsg;
     
     std::vector<uint64_t> involved_groups;
-    std::map<uint64_t, std::map<std::string, TimestampMessage>> group_read_sets;
+    //std::map<uint64_t, std::map<std::string, TimestampMessage>> group_read_sets;
+    std::map<uint64_t, proto::ReadSet*> group_read_sets;
     std::map<uint64_t, std::string> group_result_hashes;
     std::string result;
     uint64_t group_replies;
@@ -196,6 +214,7 @@ class Client : public ::Client {
     proto::Transaction txn;
     proto::SignedMessage signed_txn;
     proto::P2Replies p2Replies;
+    proto::Writeback writeback;
 
     int64_t logGrp;
     bool startFB;
@@ -265,6 +284,7 @@ class Client : public ::Client {
   void Phase2FBcallback(uint64_t conflict_id, std::string txnDigest, int64_t group, proto::CommitDecision decision,
     const proto::Signatures &p2ReplySig, uint64_t view);
   void WritebackFBcallback(uint64_t conflict_id, std::string txnDigest, proto::Writeback &wb);
+  bool ValidateWB(proto::Writeback &msg, std::string *txnDigest, proto::Transaction *txn);
   bool InvokeFBcallback(uint64_t conflict_id, std::string txnDigest, int64_t group);
   //keep track of pending Fallback instances. Maps from txnDigest, req Id is oblivious to us.
   std::unordered_map<std::string, PendingRequest*> FB_instances;
@@ -285,6 +305,9 @@ class Client : public ::Client {
   // --> would allow normal OCC handling on Wait results at the server?
 
   //Query logic
+
+  SQLTransformer sql_interpreter;
+
   void ClearQuery(PendingQuery *pendingQuery);
   void RetryQuery(PendingQuery *pendingQuery);
   // void ClearQuery(uint64_t query_seq_num, std::vector<uint64_t> &involved_groups);
@@ -348,9 +371,6 @@ class Client : public ::Client {
   std::unordered_map<uint64_t, PendingRequest *> pendingReqs;
 
   std::unordered_map<uint64_t, uint64_t> pendingReqs_starttime;
-
-  inline static bool sortReadByKey(const ReadMessage &lhs, const ReadMessage &rhs) { return lhs.key() < rhs.key(); }
-  inline static bool sortWriteByKey(const WriteMessage &lhs, const WriteMessage &rhs) { return lhs.key() < rhs.key(); }
 
 
   /* Debug State */

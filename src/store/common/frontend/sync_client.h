@@ -41,7 +41,7 @@
 #include "store/common/partitioner.h"
 #include "store/common/frontend/client.h"
 #include "store/common/promise.h"
-#include "store/common/query_result.h"
+#include "store/common/query_result/query_result.h"
 
 #include <functional>
 #include <string>
@@ -76,8 +76,15 @@ class SyncClient {
   // Abort all Get(s) and Put(s) since Begin().
   virtual void Abort(uint32_t timeout);
 
-  // Send query, wait for computation result. 
-  virtual void Query(std::string &query, query_result::QueryResult &result, uint32_t timeout);
+  //Issue write Sql statement.
+  virtual void Write(std::string &statement, std::unique_ptr<const query_result::QueryResult> &result, uint32_t timeout);
+
+  //Issue query Sql statement, wait for computation result. 
+  virtual void Query(const std::string &query, std::unique_ptr<const query_result::QueryResult> &result, uint32_t timeout);
+  // Query without in-built waiting -- e.g. for parallel queries.
+  void Query(const std::string &query, uint32_t timeout);
+  // Wait for outstanding Queries to finish in FIFO order.
+  void Wait(std::vector<std::unique_ptr<const query_result::QueryResult>> &values);
 
  private:
   void GetCallback(Promise *promise, int status, const std::string &key, const std::string &value,
@@ -92,11 +99,14 @@ class SyncClient {
   void AbortCallback(Promise *promise);
   void AbortTimeoutCallback(Promise *promise);
 
-  void QueryCallback(Promise *promise, int status, const query_result::QueryResult &result); //const std::string &query,
+  void WriteCallback(Promise *promise, int status, const query_result::QueryResult* result);
+  void WriteTimeoutCallback(Promise *promise, int status);
+  void QueryCallback(Promise *promise, int status, query_result::QueryResult* result); //const std::string &query,
   void QueryTimeoutCallback(Promise *promise, int status); //, const std::string &query);
 
 
   std::vector<Promise *> getPromises;
+  std::vector<Promise *> queryPromises;
 
   Client *client;
 };

@@ -54,6 +54,7 @@
 #include "store/benchmark/async/rw/rw_client.h"
 #include "store/benchmark/async/tpcc/sync/tpcc_client.h"
 #include "store/benchmark/async/tpcc/async/tpcc_client.h"
+#include "store/benchmark/async/sql/tpcc/tpcc_client.h"
 #include "store/benchmark/async/smallbank/smallbank_client.h"
 #include "store/benchmark/async/toy/toy_client.h"
 //protocol clients
@@ -71,6 +72,8 @@
 // Augustus-BFTSmart
 #include "store/bftsmartstore_augustus/client.h"
 #include "store/bftsmartstore_stable/client.h"
+// Postgres
+#include "store/postgresstore/client.h"
 
 #include "store/common/frontend/one_shot_client.h"
 #include "store/common/frontend/async_one_shot_adapter_client.h"
@@ -93,14 +96,15 @@ enum protomode_t {
   PROTO_PEQUIN,
   PROTO_INDICUS,
 	PROTO_PBFT,
-    // HotStuff
-    PROTO_HOTSTUFF,
-    // Augustus-Hotstuff
-    PROTO_AUGUSTUS,
-    // Bftsmart
-    PROTO_BFTSMART,
-    // Augustus-Hotstuff
-		PROTO_AUGUSTUS_SMART
+  // HotStuff
+  PROTO_HOTSTUFF,
+  // Augustus-Hotstuff
+  PROTO_AUGUSTUS,
+  // Bftsmart
+  PROTO_BFTSMART,
+  // Augustus-Hotstuff
+  PROTO_AUGUSTUS_SMART,
+  PROTO_POSTGRES
 };
 
 enum benchmode_t {
@@ -110,7 +114,8 @@ enum benchmode_t {
   BENCH_SMALLBANK_SYNC,
   BENCH_RW,
   BENCH_TPCC_SYNC,
-  BENCH_TOY
+  BENCH_TOY,
+  BENCH_TPCC_SQL
 };
 
 enum keysmode_t {
@@ -150,7 +155,7 @@ enum read_messages_t {
 /**
  * System settings.
  */
-DEFINE_uint64(client_id, 0, "unique identifier for client");
+DEFINE_uint64(client_id, 0, "unique identifier for client process");
 DEFINE_string(config_path, "", "path to shard configuration file");
 DEFINE_uint64(num_shards, 1, "number of shards in the system");
 DEFINE_uint64(num_groups, 1, "number of replica groups in the system");
@@ -266,7 +271,7 @@ DEFINE_uint64(indicus_inject_failure_proportion, 0, "proportion of clients that"
 DEFINE_uint64(indicus_inject_failure_freq, 100, "number of transactions per ONE failure"
 		    " in a Byz client (for Indicus)"); //default 100
 
-DEFINE_uint64(indicus_phase1DecisionTimeout, 1000UL, "p1 timeout before going slowpath");
+DEFINE_uint64(indicus_phase1_decision_timeout, 1000UL, "p1 timeout before going slowpath");
 //Verification computation configurations
 DEFINE_bool(indicus_multi_threading, false, "dispatch crypto to parallel threads");
 DEFINE_bool(indicus_batch_verification, false, "using ed25519 donna batch verification");
@@ -358,9 +363,9 @@ enum query_messages_t {
   QUERY_MESSAGES_ALL //send to all replicas
 };
 const std::string query_messages_args[] = {
-	"quorum",
-  "pessimistic-bonus",
-  "all"
+	"query-quorum",
+  "query-pessimistic-bonus",
+  "query-all"
 };
 const query_messages_t query_messagess[] {
   QUERY_MESSAGES_QUERY_QUORUM,
@@ -376,6 +381,10 @@ static bool ValidateQueryMessages(const char* flagname,
   std::cerr << "Invalid value for --" << flagname << ": " << value << std::endl;
   return false;
 }
+
+/*
+ Pequin settings
+*/
 
 DEFINE_string(pequin_query_sync_quorum, query_sync_quorum_args[2], "number of replica replies required for sync quorum"); //by default: SyncClient should wait for 2f+1 replies
 DEFINE_validator(pequin_query_sync_quorum, &ValidateQuerySyncQuorum);
@@ -399,11 +408,19 @@ DEFINE_string(pequin_sync_messages, query_messages_args[0], "number of replicas 
 
 DEFINE_validator(pequin_sync_messages, &ValidateQueryMessages);
 
-DEFINE_bool(pequin_query_read_prepared, false, "allow query to read prepared values");
-DEFINE_bool(pequin_query_optimistic_txid, false, "use optimistic tx-id for sync protocol");
-DEFINE_bool(pequin_query_cache_read_set, false, "cache query read set at replicas"); // Send syncMessages to all if read set caching is enabled -- but still only sync_messages many replicas are tasked to execute and reply.
+DEFINE_bool(pequin_query_eager_exec, false, "skip query sync protocol and execute optimistically on local state");
+
+DEFINE_bool(pequin_query_read_prepared, true, "allow query to read prepared values");
+DEFINE_bool(pequin_query_cache_read_set, true, "cache query read set at replicas"); // Send syncMessages to all if read set caching is enabled -- but still only sync_messages many replicas are tasked to execute and reply.
+
+DEFINE_bool(pequin_query_optimistic_txid, true, "use optimistic tx-id for sync protocol");
+DEFINE_bool(pequin_query_compress_optimistic_txid, false, "compress optimistic tx-id for sync protocol");
+
+
+DEFINE_bool(pequin_query_merge_active_at_client, true, "merge active query read sets client-side");
 
 DEFINE_bool(pequin_sign_client_queries, false, "sign query and sync messages"); //proves non-equivocation of query contents, and query snapshot respectively. 
+//DEFINE_bool(pequin_sign_replica_to_replica_sync, false, "sign inter replica sync messages with HMACs"); //proves authenticity of channels.
 //Note: Should not be necessary. Unique hash of query should suffice for non-equivocation; autheniticated channels would suffice for authentication. 
 DEFINE_bool(pequin_parallel_queries, false, "dispatch queries to parallel worker threads");
 
@@ -454,7 +471,8 @@ const std::string protocol_args[] = {
 // BFTSmart
   "bftsmart",
 // Augustus-BFTSmart
-	"augustus"
+	"augustus",
+  "postgres"
 };
 const protomode_t protomodes[] {
   PROTO_TAPIR,
@@ -475,7 +493,8 @@ const protomode_t protomodes[] {
   // BFTSmart
   PROTO_BFTSMART,
   // Augustus-BFTSmart
-	PROTO_AUGUSTUS_SMART
+	PROTO_AUGUSTUS_SMART,
+  PROTO_POSTGRES
 };
 const strongstore::Mode strongmodes[] {
   strongstore::Mode::MODE_UNKNOWN,
@@ -512,7 +531,8 @@ const std::string benchmark_args[] = {
   "smallbank",
   "rw",
   "tpcc-sync",
-  "toy"
+  "toy",
+  "tpcc-sql"
 };
 const benchmode_t benchmodes[] {
   BENCH_RETWIS,
@@ -520,7 +540,8 @@ const benchmode_t benchmodes[] {
   BENCH_SMALLBANK_SYNC,
   BENCH_RW,
   BENCH_TPCC_SYNC,
-  BENCH_TOY
+  BENCH_TOY,
+  BENCH_TPCC_SQL
 };
 static bool ValidateBenchmark(const char* flagname, const std::string &value) {
   int n = sizeof(benchmark_args);
@@ -546,7 +567,7 @@ DEFINE_uint64(cooldown_secs, 5, "time (in seconds) to cool down system after"
     " recording stats");
 DEFINE_uint64(tput_interval, 0, "time (in seconds) between throughput"
     " measurements");
-DEFINE_uint64(num_client_threads, 1, "number of client threads to run in this process");
+DEFINE_uint64(num_client_threads, 1, "number of client threads to run on each process");
 DEFINE_uint64(num_client_hosts, 1, "number of client processes across all nodes and servers");
 DEFINE_uint64(num_requests, -1, "number of requests (transactions) per"
     " client");
@@ -590,6 +611,16 @@ DEFINE_string(partitioner, partitioner_args[0],	"the partitioner to use during t
 DEFINE_validator(partitioner, &ValidatePartitioner);
 
 
+/**
+ * SQL Benchmark settings
+*/
+DEFINE_string(data_file_path, "", "path to file containing Table information to be loaded");
+DEFINE_bool(sql_bench, false, "Register Tables for SQL benchmarks. Input file is JSON Table args");
+
+/**
+ * Postgres settings
+*/
+DEFINE_string(connection_str, "postgres://postgres:password@localhost:5432/tpccdb", "connection string to postgres database");
 
 /**
  * Retwis settings.
@@ -692,6 +723,7 @@ Transport *tport;
 transport::Configuration *config;
 KeyManager *keyManager;
 Partitioner *part;
+KeySelector *keySelector;
 
 void Cleanup(int signal);
 void FlushStats();
@@ -724,7 +756,8 @@ int main(int argc, char **argv) {
   for (int i = 0; i < numProtoModes; ++i) {
     if (FLAGS_protocol_mode == protocol_args[i]) {
       mode = protomodes[i];
-      strongmode = strongmodes[i];
+      if(i < (sizeof(strongmodes)/sizeof(strongmode))) 
+        strongmode = strongmodes[i];
       break;
     }
   }
@@ -889,6 +922,7 @@ int main(int argc, char **argv) {
   int replica;
   iss >> replica;
   while (!iss.fail()) {
+    std::cerr << "Next closest replica: " << replica << std::endl;
     closestReplicas.push_back(replica);
     iss >> replica;
   }
@@ -936,8 +970,6 @@ int main(int argc, char **argv) {
 
   Debug("transport protocol used: %d",trans);
 
-
-  KeySelector *keySelector;
   switch (keySelectionMode) {
     case KEYS_UNIFORM:
       keySelector = new UniformKeySelector(keys);
@@ -1052,8 +1084,10 @@ int main(int argc, char **argv) {
     SyncClient *syncClient = nullptr;
     OneShotClient *oneShotClient = nullptr;
 
-    uint64_t clientId = (FLAGS_client_id << 6) | i;
-    //uint64_t clientId = FLAGS_client_id + FLAGS_num_client_hosts * i;
+    //uint64_t clientId = (FLAGS_client_id << 6) | i;
+    //uint64_t clientId = (FLAGS_client_id << 2) | i;
+    //uint64_t clientId = FLAGS_client_id | i;
+    uint64_t clientId = FLAGS_client_id + FLAGS_num_client_hosts * i;
     std::cerr <<  "num hosts=" << FLAGS_num_client_hosts << "; num_threads=" << FLAGS_num_client_threads << std::endl;
     //keyManager->PreLoadPrivKey(clientId, true);
     // Alternatively: uint64_t clientId = FLAGS_client_id * FLAGS_num_client_threads + i;
@@ -1262,10 +1296,14 @@ int main(int argc, char **argv) {
                                                  mergeThreshold,
                                                  syncMessages,
                                                  resultQuorum,
+                                                 FLAGS_pequin_query_eager_exec,
                                                  FLAGS_pequin_query_read_prepared,
-                                                 FLAGS_pequin_query_optimistic_txid,
                                                  FLAGS_pequin_query_cache_read_set,
+                                                 FLAGS_pequin_query_optimistic_txid,
+                                                 FLAGS_pequin_query_compress_optimistic_txid, 
+                                                 FLAGS_pequin_query_merge_active_at_client,
                                                  FLAGS_pequin_sign_client_queries,
+                                                 false,    // FLAGS_pequin_sign_replica_to_replica_sync,
                                                  FLAGS_pequin_parallel_queries);
 
         pequinstore::Parameters params(FLAGS_indicus_sign_messages,
@@ -1293,10 +1331,15 @@ int main(int argc, char **argv) {
         client = new pequinstore::Client(config, clientId,
                                           FLAGS_num_shards,
                                           FLAGS_num_groups, closestReplicas, FLAGS_ping_replicas, tport, part,
-                                          FLAGS_tapir_sync_commit, readMessages, readQuorumSize,
-                                          params, keyManager, FLAGS_indicus_phase1DecisionTimeout,
+                                          FLAGS_tapir_sync_commit, 
+                                          readMessages, readQuorumSize,
+                                          params, 
+                                          FLAGS_data_file_path,
+                                          keyManager, 
+                                          FLAGS_indicus_phase1_decision_timeout,
 																					FLAGS_indicus_max_consecutive_abstains,
-																					TrueTime(FLAGS_clock_skew, FLAGS_clock_error));
+																					TrueTime(FLAGS_clock_skew, FLAGS_clock_error),
+                                          FLAGS_sql_bench);
         break;
     }
     case PROTO_INDICUS: {
@@ -1325,7 +1368,7 @@ int main(int argc, char **argv) {
                                           FLAGS_num_shards,
                                           FLAGS_num_groups, closestReplicas, FLAGS_ping_replicas, tport, part,
                                           FLAGS_tapir_sync_commit, readMessages, readQuorumSize,
-                                          params, keyManager, FLAGS_indicus_phase1DecisionTimeout,
+                                          params, keyManager, FLAGS_indicus_phase1_decision_timeout,
 																					FLAGS_indicus_max_consecutive_abstains,
 																					TrueTime(FLAGS_clock_skew, FLAGS_clock_error));
         break;
@@ -1395,6 +1438,11 @@ int main(int argc, char **argv) {
         break;
     }
 
+    case PROTO_POSTGRES: {
+      client = new postgresstore::Client(FLAGS_connection_str, clientId);
+      break;
+    }
+
     default:
         NOT_REACHABLE();
     }
@@ -1425,6 +1473,7 @@ int main(int argc, char **argv) {
       case BENCH_TOY: 
       case BENCH_SMALLBANK_SYNC:
       case BENCH_TPCC_SYNC:
+      case BENCH_TPCC_SQL:
         if (syncClient == nullptr) {
           UW_ASSERT(client != nullptr);
           syncClient = new SyncClient(client);
@@ -1461,6 +1510,19 @@ int main(int argc, char **argv) {
       case BENCH_TPCC_SYNC:
         UW_ASSERT(syncClient != nullptr);
         bench = new tpcc::SyncTPCCClient(*syncClient, *tport,
+            seed,
+            FLAGS_num_requests, FLAGS_exp_duration, FLAGS_delay,
+            FLAGS_warmup_secs, FLAGS_cooldown_secs, FLAGS_tput_interval,
+            FLAGS_tpcc_num_warehouses, FLAGS_tpcc_w_id, FLAGS_tpcc_C_c_id,
+            FLAGS_tpcc_C_c_last, FLAGS_tpcc_new_order_ratio,
+            FLAGS_tpcc_delivery_ratio, FLAGS_tpcc_payment_ratio,
+            FLAGS_tpcc_order_status_ratio, FLAGS_tpcc_stock_level_ratio,
+            FLAGS_static_w_id, FLAGS_abort_backoff,
+            FLAGS_retry_aborted, FLAGS_max_backoff, FLAGS_max_attempts, FLAGS_message_timeout);
+        break;
+      case BENCH_TPCC_SQL:
+        UW_ASSERT(syncClient != nullptr);
+        bench = new tpcc_sql::TPCCSQLClient(*syncClient, *tport,
             seed,
             FLAGS_num_requests, FLAGS_exp_duration, FLAGS_delay,
             FLAGS_warmup_secs, FLAGS_cooldown_secs, FLAGS_tput_interval,
@@ -1513,6 +1575,7 @@ int main(int argc, char **argv) {
 	      tport->Timer(0, [bench, bdcb]() { bench->Start(bdcb); });
         break;
       case BENCH_SMALLBANK_SYNC:
+      case BENCH_TPCC_SQL:
       case BENCH_TPCC_SYNC: {
         SyncTransactionBenchClient *syncBench = dynamic_cast<SyncTransactionBenchClient *>(bench);
         UW_ASSERT(syncBench != nullptr);
@@ -1579,6 +1642,7 @@ void Cleanup(int signal) {
   FlushStats();
   delete config;
   delete keyManager;
+  delete keySelector;
   for (auto i : threads) {
     i->join();
     delete i;

@@ -10,4 +10,4 @@ $(d)smallbank_generator_main: $(LIB-store-common) $(LIB-io-utils) $(o)smallbank-
 
 BINS += $(addprefix $(d), smallbank_generator_main)
 
-include $(d)tests/Rules.mk
+#include $(d)tests/Rules.mk

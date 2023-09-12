@@ -1841,14 +1841,21 @@ std::string TransactionDigest(const proto::Transaction &txn, bool hashDigest) {
         }
         else{
           //hash read set explicitly
-           for (auto const &[key, ts] : group_md.read_set()) {
-              // hash the input leafs. I.e. (key, version) pairs 
-              blake3_hasher_update(&hasher, (unsigned char*) &key[0], key.length());
-              uint64_t timestampId = ts.id(); // getID();
-              uint64_t timestampTs = ts.timestamp(); // getTimestamp(); 
-              blake3_hasher_update(&hasher, (unsigned char *) &timestampId, sizeof(timestampId));
-              blake3_hasher_update(&hasher, (unsigned char *) &timestampTs, sizeof(timestampTs));
-           }
+          //  for (auto const &[key, ts] : group_md.read_set()) {
+          //     // hash the input leafs. I.e. (key, version) pairs 
+          //     blake3_hasher_update(&hasher, (unsigned char*) &key[0], key.length());
+          //     uint64_t timestampId = ts.id(); // getID();
+          //     uint64_t timestampTs = ts.timestamp(); // getTimestamp(); 
+          //     blake3_hasher_update(&hasher, (unsigned char *) &timestampId, sizeof(timestampId));
+          //     blake3_hasher_update(&hasher, (unsigned char *) &timestampTs, sizeof(timestampTs));
+          //  }
+           for (auto const &read : group_md.query_read_set().read_set()){
+              uint64_t readtimeId = read.readtime().id();
+              uint64_t readtimeTs = read.readtime().timestamp();
+              blake3_hasher_update(&hasher, (unsigned char *) &read.key()[0], read.key().length());
+              blake3_hasher_update(&hasher, (unsigned char *) &readtimeId, sizeof(read.readtime().id()));
+              blake3_hasher_update(&hasher, (unsigned char *) &readtimeTs, sizeof(read.readtime().timestamp()));
+          }
         }
 
         //TODO: Include deps too (if using)
@@ -1869,7 +1876,7 @@ std::string TransactionDigest(const proto::Transaction &txn, bool hashDigest) {
 
 std::string QueryDigest(const proto::Query &query, bool queryHashDigest){
     //TODO: Change Txn to also include Query + query digest.
-    if (queryHashDigest) {
+  if (queryHashDigest) {
     blake3_hasher hasher;
     blake3_hasher_init(&hasher);
     std::string digest(BLAKE3_OUT_LEN, 0);
@@ -1898,13 +1905,50 @@ std::string QueryDigest(const proto::Query &query, bool queryHashDigest){
   } else {
     char digestChar[16];
     *reinterpret_cast<uint64_t *>(digestChar) = query.client_id();
-    *reinterpret_cast<uint64_t *>(digestChar + 8) = query.query_seq_num();;
+    *reinterpret_cast<uint64_t *>(digestChar + 8) = query.query_seq_num();
     return std::string(digestChar, 16);
   }
 }
 
+std::string QueryRetryId(const std::string &queryId, const uint64_t &retry_version, bool queryHashDigest){
+  if (queryHashDigest) {
+    blake3_hasher hasher;
+    blake3_hasher_init(&hasher);
+    std::string digest(BLAKE3_OUT_LEN, 0);
+
+    blake3_hasher_update(&hasher, (unsigned char *) &queryId[0], queryId.length());
+    blake3_hasher_update(&hasher, (unsigned char *) &retry_version, sizeof(retry_version));
+  
+    blake3_hasher_finalize(&hasher, (unsigned char *) &digest[0], BLAKE3_OUT_LEN);
+    return digest;
+  } else {
+    char digestChar[8];
+    *reinterpret_cast<uint64_t *>(digestChar) = retry_version;
+    return queryId + std::string(digestChar, 8);
+  }
+}
+
+// TODO:  Could change input directly to google::protobuf::RepeatedPtrField<ReadMessage>
+std::string generateReadSetSingleHash(const proto::ReadSet &query_read_set) { 
+  blake3_hasher hasher;
+  blake3_hasher_init(&hasher);
+  std::string hash_chain(BLAKE3_OUT_LEN, 0);
+  //hash the read_set
+  for (auto const &read : query_read_set.read_set()){
+      uint64_t readtimeId = read.readtime().id();
+      uint64_t readtimeTs = read.readtime().timestamp();
+      blake3_hasher_update(&hasher, (unsigned char *) &read.key()[0], read.key().length());
+      blake3_hasher_update(&hasher, (unsigned char *) &readtimeId, sizeof(read.readtime().id()));
+      blake3_hasher_update(&hasher, (unsigned char *) &readtimeTs, sizeof(read.readtime().timestamp()));
+  }
+   // copy the digest into the output array
+  blake3_hasher_finalize(&hasher, (unsigned char *) &hash_chain[0], BLAKE3_OUT_LEN);
+  return hash_chain;
+}
+
 
 std::string generateReadSetSingleHash(const std::map<std::string, TimestampMessage> &read_set) { 
+
   blake3_hasher hasher;
   blake3_hasher_init(&hasher);
   std::string hash_chain(BLAKE3_OUT_LEN, 0);
@@ -1985,20 +2029,6 @@ std::string generateReadSetMerkleRoot(const std::map<std::string, TimestampMessa
   return rootHash;
 }
 
-void CompressTxnIds(std::vector<uint64_t>&txn_ts){
-    // Test if I can allocate less space for timestamps:  if(timestamp << log(num_clients) < -1)
-    // 1) change timestampedMessage/Timestamp = (timestamp, client) to be stored as one 64 bit Timestamp
-    // 2) Create delta encoding:
-    //     a) sort, b) subtract 2nd from 1st (and so on); store first value (offset)
-    // 3) Throw integer compression at it. (Ideally 64 bit; but delta compression may have already made it 32 bit)
-
-    //return reference to compressed data structure
-}
-
-std::vector<uint64_t> DecompressTxnIds(){
-  //decompress datastructure
-}
-
 
 std::string BytesToHex(const std::string &bytes, size_t maxLength) {
   static const char digits[] = "0123456789abcdef";
@@ -2076,3 +2106,4 @@ int64_t GetLogGroup(const proto::Transaction &txn, const std::string &txnDigest)
 }
 
 } // namespace pequinstore
+
