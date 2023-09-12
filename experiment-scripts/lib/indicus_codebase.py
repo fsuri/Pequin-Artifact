@@ -80,7 +80,7 @@ class IndicusCodebase(ExperimentCodebase):
         if 'message_transport_type' in config['replication_protocol_settings']:
             client_command += ' --trans_protocol %s' % config['replication_protocol_settings']['message_transport_type']
 
-        if config['replication_protocol'] == 'indicus' or config['replication_protocol'] == 'pbft' or config['replication_protocol'] == 'hotstuff' or config['replication_protocol'] == 'bftsmart' or config['replication_protocol'] == 'augustus':
+        if config['replication_protocol'] == 'indicus' or config['replication_protocol'] == 'pequin' or config['replication_protocol'] == 'pbft' or config['replication_protocol'] == 'hotstuff' or config['replication_protocol'] == 'bftsmart' or config['replication_protocol'] == 'augustus':
             if 'read_quorum' in config['replication_protocol_settings']:
                 client_command += ' --indicus_read_quorum %s' % config['replication_protocol_settings']['read_quorum']
             if 'optimistic_read_quorum' in config['replication_protocol_settings']:
@@ -108,8 +108,10 @@ class IndicusCodebase(ExperimentCodebase):
                 client_command += ' --indicus_sig_batch %d' % config['replication_protocol_settings']['sig_batch']
             if 'merkle_branch_factor' in config['replication_protocol_settings']:
                 client_command += ' --indicus_merkle_branch_factor %d' % config['replication_protocol_settings']['merkle_branch_factor']
+            if 'p1_decision_timeout' in config['replication_protocol_settings'] :
+                client_command += ' --indicus_phase1_decision_timeout %d' % config['replication_protocol_settings']['p1_decision_timeout']
             if 'p1DecisionTimeout' in config['replication_protocol_settings']:
-                client_command += ' --indicus_phase1DecisionTimeout %d' % config['replication_protocol_settings']['p1DecisionTimeout']
+                client_command += ' --indicus_phase1_decision_timeout %d' % config['replication_protocol_settings']['p1DecisionTimeout']
             if 'max_consecutive_abstains' in config['replication_protocol_settings']:
                 client_command += ' --indicus_max_consecutive_abstains %d' % config['replication_protocol_settings']['max_consecutive_abstains']
 
@@ -136,7 +138,36 @@ class IndicusCodebase(ExperimentCodebase):
                 client_command += ' --indicus_relayP1_timeout %d' % config['replication_protocol_settings']['relayP1_timeout']
             if 'all_to_all_fb' in config['replication_protocol_settings']:
                 client_command += ' --indicus_all_to_all_fb=%s' % str(config['replication_protocol_settings']['all_to_all_fb']).lower()
-            #pbft/hotstuff options
+
+        if config['replication_protocol'] == 'pequin':
+            if 'query_sync_quorum' in config['replication_protocol_settings']:
+                client_command += " --pequin_query_sync_quorum=%s" % str(config['replication_protocol_settings']['query_sync_quorum']).lower()
+            if 'query_messages' in config['replication_protocol_settings']:
+                client_command += " --pequin_query_messages=%s" % str(config['replication_protocol_settings']['query_messages']).lower()
+            if 'query_merge_threshold' in config['replication_protocol_settings']:
+                client_command += " --pequin_query_merge_threshold=%s" % str(config['replication_protocol_settings']['query_merge_threshold']).lower()
+            if 'query_result_honest' in config['replication_protocol_settings']:
+                client_command += " --pequin_query_result_honest=%s" % str(config['replication_protocol_settings']['query_result_honest']).lower()
+            if 'sync_messages' in config['replication_protocol_settings']:
+                client_command += " --pequin_sync_messages=%s" % str(config['replication_protocol_settings']['sync_messages']).lower()
+
+            if 'query_eager_exec' in config['replication_protocol_settings']:
+                client_command += " --pequin_query_eager_exec=%s" % str(config['replication_protocol_settings']['query_eager_exec']).lower()
+            if 'query_read_prepared' in config['replication_protocol_settings']:
+                client_command += " --pequin_query_read_prepared=%s" % str(config['replication_protocol_settings']['query_read_prepared']).lower()
+            if 'query_cache_read_set' in config['replication_protocol_settings']:
+                client_command += " --pequin_query_cache_read_set=%s" % str(config['replication_protocol_settings']['query_cache_read_set']).lower()
+            if 'query_optimistic_txid' in config['replication_protocol_settings']:
+                client_command += " --pequin_query_optimistic_txid=%s" % str(config['replication_protocol_settings']['query_optimistic_txid']).lower()
+            if 'query_compress_optimistic_txid' in config['replication_protocol_settings']:
+                client_command += " --pequin_query_compress_optimistic_txid=%s" % str(config['replication_protocol_settings']['query_compress_optimistic_txid']).lower()
+            if 'query_merge_active_at_client' in config['replication_protocol_settings']:
+                client_command += " --pequin_query_merge_active_at_client=%s" % str(config['replication_protocol_settings']['query_merge_active_at_client']).lower()
+            if 'sign_client_queries' in config['replication_protocol_settings']:
+                client_command += " --pequin_sign_client_queries=%s" % str(config['replication_protocol_settings']['sign_client_queries']).lower()
+
+        if config['replication_protocol'] == 'pbft' or config['replication_protocol'] == 'hotstuff' or config['replication_protocol'] == 'bftsmart' or config['replication_protocol'] == 'augustus':
+            #TxSMR options
             if 'order_commit' in config['replication_protocol_settings']:
                 client_command += ' --pbft_order_commit=%s' % str(config['replication_protocol_settings']['order_commit']).lower()
             if 'validate_abort' in config['replication_protocol_settings']:
@@ -180,6 +211,10 @@ class IndicusCodebase(ExperimentCodebase):
 
         if 'partitioner' in config:
             client_command += ' --partitioner %s' % config['partitioner']
+
+        if 'benchmark_type' in config and config['benchmark_type'] == 'sql_bench':
+            client_command += ' --sql_bench %s' % config['benchmark_type']
+            client_command += ' --data_file_path' % config['benchmark_data_file_path'] #file path to schema
 
         if config['benchmark_name'] == 'retwis':
             client_command += ' --num_keys %d' % config['client_num_keys']
@@ -287,7 +322,7 @@ class IndicusCodebase(ExperimentCodebase):
                     config['out_directory_name'],
                     'server-%d-%d-stats-%d.json' % (i, k, run))
 
-        if config['replication_protocol'] == 'indicus':
+        if config['replication_protocol'] == 'indicus' or config['replication_protocol'] == 'pequin':
             n = 5 * config['fault_tolerance'] + 1
         elif config['replication_protocol'] == 'pbft' or config['replication_protocol'] == 'hotstuff' or config['replication_protocol'] == 'bftsmart' or config['replication_protocol'] == 'augustus':
             n = 3 * config['fault_tolerance'] + 1
@@ -332,11 +367,11 @@ class IndicusCodebase(ExperimentCodebase):
 
 
 
-        if config['replication_protocol'] == 'indicus' or config['replication_protocol'] == 'pbft' or config['replication_protocol'] == 'hotstuff' or config['replication_protocol'] == 'bftsmart' or config['replication_protocol'] == 'augustus':
+        if config['replication_protocol'] == 'indicus' or config['replication_protocol'] == 'pequin' or config['replication_protocol'] == 'pbft' or config['replication_protocol'] == 'hotstuff' or config['replication_protocol'] == 'bftsmart' or config['replication_protocol'] == 'augustus':
             if 'read_dep' in config['replication_protocol_settings']:
                 replica_command += ' --indicus_read_dep %s' % config['replication_protocol_settings']['read_dep']
             if 'watermark_time_delta' in config['replication_protocol_settings']:
-                replica_command += ' --indicus_time_delta %d' % config['replication_protocol_settings']['watermark_time_delta']
+                replica_command += ' --indicus_watermark_time_delta %d' % config['replication_protocol_settings']['watermark_time_delta']
             if 'sign_messages' in config['replication_protocol_settings']:
                 replica_command += ' --indicus_sign_messages=%s' % str(config['replication_protocol_settings']['sign_messages']).lower()
                 replica_command += ' --indicus_key_path %s' % config['replication_protocol_settings']['key_path']
@@ -350,6 +385,8 @@ class IndicusCodebase(ExperimentCodebase):
                 replica_command += ' --indicus_verify_deps=%s' % str(config['replication_protocol_settings']['verify_deps']).lower()
             if 'max_dep_depth' in config['replication_protocol_settings']:
                 replica_command += ' --indicus_max_dep_depth %d' % config['replication_protocol_settings']['max_dep_depth']
+            if 'rts_mode' in config['replication_protocol_settings']:
+                replica_command += ' --indicus_rts_mode %d' % config['replication_protocol_settings']['rts_mode']
             if 'signature_type' in config['replication_protocol_settings']:
                 replica_command += ' --indicus_key_type %d' % config['replication_protocol_settings']['signature_type']
             if 'sig_batch' in config['replication_protocol_settings']:
@@ -407,15 +444,36 @@ class IndicusCodebase(ExperimentCodebase):
             if 'replica_gossip' in config['replication_protocol_settings']:
                 replica_command += ' --indicus_replica_gossip=%s' % str(config['replication_protocol_settings']['replica_gossip']).lower()
 
-            #pbft/hotstuff options
+        
+        #if 'rw_or_retwis' in config:
+        #    replica_command += ' --rw_or_retwis=%s' % str(config['rw_or_retwis']).lower()
+
+        if config['replication_protocol'] == 'pequin':
+            if 'query_eager_exec' in config['replication_protocol_settings']:
+                replica_command += " --pequin_query_eager_exec=%s" % str(config['replication_protocol_settings']['query_eager_exec']).lower()
+            if 'query_read_prepared' in config['replication_protocol_settings']:
+                replica_command += " --pequin_query_read_prepared=%s" % str(config['replication_protocol_settings']['query_read_prepared']).lower()
+            if 'query_cache_read_set' in config['replication_protocol_settings']:
+                replica_command += " --pequin_query_cache_read_set=%s" % str(config['replication_protocol_settings']['query_cache_read_set']).lower()
+            if 'query_optimistic_txid' in config['replication_protocol_settings']:
+                replica_command += " --pequin_query_optimistic_txid=%s" % str(config['replication_protocol_settings']['query_optimistic_txid']).lower()
+            if 'query_compress_optimistic_txid' in config['replication_protocol_settings']:
+                replica_command += " --pequin_query_compress_optimistic_txid=%s" % str(config['replication_protocol_settings']['query_compress_optimistic_txid']).lower()
+            if 'query_merge_active_at_client' in config['replication_protocol_settings']:
+                replica_command += " --pequin_query_merge_active_at_client=%s" % str(config['replication_protocol_settings']['query_merge_active_at_client']).lower()
+            if 'sign_client_queries' in config['replication_protocol_settings']:
+                replica_command += " --pequin_sign_client_queries=%s" % str(config['replication_protocol_settings']['sign_client_queries']).lower()
+            if 'sign_replica_to_replica_sync' in config['replication_protocol_settings']:
+                replica_command += " --pequin_sign_replica_to_replica_sync=%s" % str(config['replication_protocol_settings']['sign_replica_to_replica_sync']).lower()
+            if 'parallel_queries' in config['replication_protocol_settings']:
+                replica_command += " --pequin_parallel_queries=%s" % str(config['replication_protocol_settings']['parallel_queries']).lower()
+    
+        if config['replication_protocol'] == 'pbft' or config['replication_protocol'] == 'hotstuff' or config['replication_protocol'] == 'bftsmart' or config['replication_protocol'] == 'augustus':
+            #TxSMR options
             if 'order_commit' in config['replication_protocol_settings']:
                 replica_command += ' --pbft_order_commit=%s' % str(config['replication_protocol_settings']['order_commit']).lower()
             if 'validate_abort' in config['replication_protocol_settings']:
                 replica_command += ' --pbft_validate_abort=%s' % str(config['replication_protocol_settings']['validate_abort']).lower()
-
-
-        #if 'rw_or_retwis' in config:
-        #    replica_command += ' --rw_or_retwis=%s' % str(config['rw_or_retwis']).lower()
 
         if config['replication_protocol'] == 'bftsmart':
             replica_command += " --bftsmart_codebase_dir=%s" % str(config['bftsmart_codebase_dir'])
@@ -423,6 +481,9 @@ class IndicusCodebase(ExperimentCodebase):
         if 'server_debug_stats' in config and config['server_debug_stats']:
             replica_command += ' --debug_stats'
 
+        if 'benchmark_type' in config and config['benchmark_type'] == 'sql_bench':
+            replica_command += ' --sql_bench %s' % config['benchmark_type']
+            replica_command += ' --data_file_path' % config['benchmark_data_file_path'] #file path to schema
 
         if config['benchmark_name'] == 'retwis':
             replica_command += ' --num_keys %d' % config['client_num_keys']
@@ -439,6 +500,10 @@ class IndicusCodebase(ExperimentCodebase):
             replica_command += ' --tpcc_num_warehouses %d' % config['tpcc_num_warehouses']
         elif config['benchmark_name'] == 'smallbank':
             replica_command += ' --data_file_path %s' % config['smallbank_data_file_path']
+        
+        
+       
+           
 
 
         if 'partitioner' in config:
@@ -499,7 +564,7 @@ class IndicusCodebase(ExperimentCodebase):
         local_exp_directory = super().prepare_local_exp_directory(config, config_file)
         config_file = os.path.join(local_exp_directory, config['network_config_file_name'])
         with open(config_file, 'w') as f:
-            if config['replication_protocol'] == 'indicus':
+            if config['replication_protocol'] == 'indicus' or config['replication_protocol'] == 'pequin':
                 n = 5 * config['fault_tolerance'] + 1
             elif config['replication_protocol'] == 'pbft' or config['replication_protocol'] == 'hotstuff' or config['replication_protocol'] == 'bftsmart' or config['replication_protocol'] == 'augustus':
                 n = 3 * config['fault_tolerance'] + 1
@@ -523,7 +588,7 @@ class IndicusCodebase(ExperimentCodebase):
         return local_exp_directory
 
     def prepare_remote_server_codebase(self, config, host, local_exp_directory, remote_out_directory):
-        if config['replication_protocol'] == 'indicus' or config['replication_protocol'] == 'pbft' or config['replication_protocol'] == 'hotstuff' or config['replication_protocol'] == 'bftsmart' or config['replication_protocol'] == 'augustus':
+        if config['replication_protocol'] == 'indicus' or config['replication_protocol'] == 'pequin' or config['replication_protocol'] == 'pbft' or config['replication_protocol'] == 'hotstuff' or config['replication_protocol'] == 'bftsmart' or config['replication_protocol'] == 'augustus':
             run_remote_command_sync('sudo rm -rf /dev/shm/*', config['emulab_user'], host)
 
     def setup_nodes(self, config):

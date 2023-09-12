@@ -51,7 +51,7 @@ ShardClient::ShardClient(transport::Configuration *config, Transport *transport,
 
   if (closestReplicas_.size() == 0) {
     for  (int i = 0; i < config->n; ++i) {
-      closestReplicas.push_back((i + client_id) % config->n);
+      closestReplicas.push_back((i + (client_id * 2)) % config->n);  //client_id * 2 splits all client ids into n/2 buckets for preferred nearest
       // Debug("i: %d; client_id: %d", i, client_id);
       // Debug("Calculations: %d", (i + client_id) % config->n);
     }
@@ -585,7 +585,7 @@ void ShardClient::Abort(uint64_t id, const TimestampMessage &ts) {
     *abort.mutable_internal()->add_read_set() = read.key();
   }
 
-  if (params.validateProofs && params.signedMessages) {
+  if (params.validateProofs && params.signedMessages && params.signClientProposals) {
     proto::AbortInternal internal(abort.internal());
 
     //Not using batchsigner -- Server is now configured to use client_verifier. Uses new client_id mapping.

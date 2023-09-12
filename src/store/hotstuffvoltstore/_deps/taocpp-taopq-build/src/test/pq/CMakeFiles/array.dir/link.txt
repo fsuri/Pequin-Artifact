@@ -1,0 +1,1 @@
+/usr/bin/c++     CMakeFiles/array.dir/array.cpp.o  -o array  ../../../libtaopq.a /usr/lib/x86_64-linux-gnu/libpq.so 

@@ -39,6 +39,17 @@ class Server {
   virtual void Load(const std::string &key, const std::string &value,
       const Timestamp timestamp) = 0;
 
+  inline virtual void CreateTable(const std::string &table_name, const std::vector<std::pair<std::string, std::string>> &column_data_types, 
+      const std::vector<uint32_t> &primary_key_col_idx){Panic("This store does not support SQL Table operations");}
+
+  inline virtual void CreateIndex(const std::string &table_name, const std::vector<std::pair<std::string, std::string>> &column_data_types, 
+      const std::string &index_name, const std::vector<uint32_t> &index_col_idx){Panic("This store does not support SQL Table operations");}
+
+  inline virtual void LoadTableData(const std::string &table_name, const std::string &table_data_path, const std::vector<uint32_t> &primary_key_col_idx){Panic("This store does not support SQL Table operations");}
+
+  inline virtual void LoadTableRow(const std::string &table_name, const std::vector<std::pair<std::string, std::string>> &column_data_types, 
+      const std::vector<std::string> &values, const std::vector<uint32_t> &primary_key_col_idx){Panic("This store does not support SQL Table operations");}
+
   virtual Stats &GetStats() = 0;
 };
 

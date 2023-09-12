@@ -71,7 +71,7 @@ Server::Server(const transport::Configuration &config, int groupIdx, int idx,
   prepared = preparedMap(100000);
   preparedReads = tbb::concurrent_unordered_map<std::string, std::pair<std::shared_mutex, std::set<const proto::Transaction *>>>(100000);
   preparedWrites = tbb::concurrent_unordered_map<std::string, std::pair<std::shared_mutex,std::map<Timestamp, const proto::Transaction *>>>(100000);
-  rts = tbb::concurrent_unordered_map<std::string, std::atomic_int>(100000);
+  rts = tbb::concurrent_unordered_map<std::string, std::atomic_uint64_t>(100000);
   committed = tbb::concurrent_unordered_map<std::string, proto::CommittedProof *>(100000);
   writebackMessages = tbb::concurrent_unordered_map<std::string, proto::Writeback>(100000);
   dependents = dependentsMap(100000);
@@ -1305,7 +1305,7 @@ void Server::WritebackCallback(proto::Writeback *msg, const std::string* txnDige
 void Server::HandleAbort(const TransportAddress &remote,
     const proto::Abort &msg) {
   const proto::AbortInternal *abort;
-  if (params.validateProofs && params.signedMessages) {
+  if (params.validateProofs && params.signedMessages && params.signClientProposals) {
     if (!msg.has_signed_internal()) {
       return;
     }

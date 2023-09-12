@@ -1,0 +1,46 @@
+{
+	"sources" : 
+	[
+		{
+			"file" : "/root/Pequin-Artifact/src/store/hotstuffvoltstore/_deps/taocpp-taopq-subbuild/CMakeFiles/taocpp-taopq-populate"
+		},
+		{
+			"file" : "/root/Pequin-Artifact/src/store/hotstuffvoltstore/_deps/taocpp-taopq-subbuild/CMakeFiles/taocpp-taopq-populate.rule"
+		},
+		{
+			"file" : "/root/Pequin-Artifact/src/store/hotstuffvoltstore/_deps/taocpp-taopq-subbuild/CMakeFiles/taocpp-taopq-populate-complete.rule"
+		},
+		{
+			"file" : "/root/Pequin-Artifact/src/store/hotstuffvoltstore/_deps/taocpp-taopq-subbuild/taocpp-taopq-populate-prefix/src/taocpp-taopq-populate-stamp/taocpp-taopq-populate-install.rule"
+		},
+		{
+			"file" : "/root/Pequin-Artifact/src/store/hotstuffvoltstore/_deps/taocpp-taopq-subbuild/taocpp-taopq-populate-prefix/src/taocpp-taopq-populate-stamp/taocpp-taopq-populate-mkdir.rule"
+		},
+		{
+			"file" : "/root/Pequin-Artifact/src/store/hotstuffvoltstore/_deps/taocpp-taopq-subbuild/taocpp-taopq-populate-prefix/src/taocpp-taopq-populate-stamp/taocpp-taopq-populate-download.rule"
+		},
+		{
+			"file" : "/root/Pequin-Artifact/src/store/hotstuffvoltstore/_deps/taocpp-taopq-subbuild/taocpp-taopq-populate-prefix/src/taocpp-taopq-populate-stamp/taocpp-taopq-populate-update.rule"
+		},
+		{
+			"file" : "/root/Pequin-Artifact/src/store/hotstuffvoltstore/_deps/taocpp-taopq-subbuild/taocpp-taopq-populate-prefix/src/taocpp-taopq-populate-stamp/taocpp-taopq-populate-patch.rule"
+		},
+		{
+			"file" : "/root/Pequin-Artifact/src/store/hotstuffvoltstore/_deps/taocpp-taopq-subbuild/taocpp-taopq-populate-prefix/src/taocpp-taopq-populate-stamp/taocpp-taopq-populate-configure.rule"
+		},
+		{
+			"file" : "/root/Pequin-Artifact/src/store/hotstuffvoltstore/_deps/taocpp-taopq-subbuild/taocpp-taopq-populate-prefix/src/taocpp-taopq-populate-stamp/taocpp-taopq-populate-build.rule"
+		},
+		{
+			"file" : "/root/Pequin-Artifact/src/store/hotstuffvoltstore/_deps/taocpp-taopq-subbuild/taocpp-taopq-populate-prefix/src/taocpp-taopq-populate-stamp/taocpp-taopq-populate-test.rule"
+		}
+	],
+	"target" : 
+	{
+		"labels" : 
+		[
+			"taocpp-taopq-populate"
+		],
+		"name" : "taocpp-taopq-populate"
+	}
+}

@@ -47,6 +47,7 @@ src/store/bftsmartstore_augustus/library/remote
 src/store/bftsmartstore_stable/library/remote
 src/store/bftsmartstore/library/jars
 
+.vscode/
 src/.vscode
 src/.vscode/*
 
@@ -103,3 +104,6 @@ tags
 *.exe
 *.out
 *.app
+
+# VS Code
+.vscode/

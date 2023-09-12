@@ -1,0 +1,1 @@
+/usr/bin/c++     CMakeFiles/connection.dir/connection.cpp.o  -o connection  ../../../libtaopq.a /usr/lib/x86_64-linux-gnu/libpq.so 

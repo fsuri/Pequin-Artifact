@@ -1,0 +1,1 @@
+/usr/bin/c++     CMakeFiles/getenv.dir/getenv.cpp.o  -o getenv  ../../../libtaopq.a /usr/lib/x86_64-linux-gnu/libpq.so 

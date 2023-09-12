@@ -1,0 +1,1 @@
+/usr/bin/c++     CMakeFiles/table_reader.dir/table_reader.cpp.o  -o table_reader  ../../../libtaopq.a /usr/lib/x86_64-linux-gnu/libpq.so 

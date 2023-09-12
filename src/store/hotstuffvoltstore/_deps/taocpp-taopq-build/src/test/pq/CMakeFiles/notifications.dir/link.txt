@@ -1,0 +1,1 @@
+/usr/bin/c++     CMakeFiles/notifications.dir/notifications.cpp.o  -o notifications  ../../../libtaopq.a /usr/lib/x86_64-linux-gnu/libpq.so 
