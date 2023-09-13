@@ -306,10 +306,14 @@ bool InsertExecutor::DExecute() {
                                                          old_location.offset);
 
         bool same_columns = true;
-        // NOTE: Check if we can upgrade a prepared tuple to committed
-        if (!tile_group_header->GetCommitOrPrepare(old_location.offset) &&
+        bool should_upgrade =
+            !tile_group_header->GetCommitOrPrepare(old_location.offset) &&
             new_tile_group->GetHeader()->GetCommitOrPrepare(
-                new_location.offset)) {
+                new_location.offset);
+        // NOTE: Check if we can upgrade a prepared tuple to committed
+        if (should_upgrade) {
+          std::cout << "trying to upgrade from prepared to committed"
+                    << std::endl;
           // std::string encoded_key = target_table_->GetName();
           const auto *schema = tile_group->GetAbstractTable()->GetSchema();
           for (uint32_t col_idx = 0; col_idx < schema->GetColumnCount();
@@ -345,7 +349,7 @@ bool InsertExecutor::DExecute() {
         // project_info->Evaluate(&new_tuple_one, &old_tuple_one, nullptr,
         //                       executor_context_);
 
-        if (!same_columns) {
+        if (!should_upgrade) {
           // get indirection.
           std::cout << "Before getting indirection" << std::endl;
           ItemPointer *indirection =
@@ -391,7 +395,7 @@ bool InsertExecutor::DExecute() {
               new_location.offset, current_txn->GetCommitOrPrepare());
         }
       } else {
-        //std::cout << "Insert was performed" << std::endl;
+        // std::cout << "Insert was performed" << std::endl;
         transaction_manager.PerformInsert(current_txn, location,
                                           index_entry_ptr);
         auto storage_manager = storage::StorageManager::GetInstance();
