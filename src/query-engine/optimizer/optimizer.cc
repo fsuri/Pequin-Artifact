@@ -120,6 +120,7 @@ shared_ptr<planner::AbstractPlan> Optimizer::BuildPelotonPlanTree(
   }
   // TODO: support multi-statement queries
   auto parse_tree = parse_tree_list->GetStatement(0);
+  std::cerr << "parse tree: " << parse_tree->GetInfo() << std::endl;
 
   unique_ptr<planner::AbstractPlan> child_plan = nullptr;
 
@@ -144,8 +145,7 @@ shared_ptr<planner::AbstractPlan> Optimizer::BuildPelotonPlanTree(
   }
 
   try {
-    auto best_plan = ChooseBestPlan(root_id, query_info.physical_props,
-                                    query_info.output_exprs);
+    auto best_plan = ChooseBestPlan(root_id, query_info.physical_props, query_info.output_exprs);
     if (best_plan == nullptr) return nullptr;
     // Reset memo after finishing the optimization
     Reset();
@@ -250,8 +250,7 @@ unique_ptr<planner::AbstractPlan> Optimizer::HandleDDLStatement(
 shared_ptr<GroupExpression> Optimizer::InsertQueryTree(
     parser::SQLStatement *tree, concurrency::TransactionContext *txn) {
   QueryToOperatorTransformer converter(txn);
-  shared_ptr<OperatorExpression> initial =
-      converter.ConvertToOpExpression(tree);
+  shared_ptr<OperatorExpression> initial = converter.ConvertToOpExpression(tree);
   shared_ptr<GroupExpression> gexpr;
   metadata_.RecordTransformedExpression(initial, gexpr);
   return gexpr;
@@ -344,12 +343,13 @@ const std::string Optimizer::GetOperatorInfo(
 }
 
 
-unique_ptr<planner::AbstractPlan> Optimizer::ChooseBestPlan(
-    GroupID id, std::shared_ptr<PropertySet> required_props,
-    std::vector<expression::AbstractExpression *> required_cols) {
+unique_ptr<planner::AbstractPlan> Optimizer::ChooseBestPlan( GroupID id, std::shared_ptr<PropertySet> required_props, std::vector<expression::AbstractExpression *> required_cols) {
+
   Group *group = metadata_.memo.GetGroupByID(id);
   LOG_TRACE("Choosing with property : %s", required_props->ToString().c_str());
   auto gexpr = group->GetBestExpression(required_props);
+
+  std::cerr << "GEXPR: " << gexpr->Op().GetName() << std::endl; 
 
   LOG_TRACE("Choosing best plan for group %d with op %s", gexpr->GetGroupID(),
             gexpr->Op().GetName().c_str());
@@ -375,16 +375,16 @@ unique_ptr<planner::AbstractPlan> Optimizer::ChooseBestPlan(
       PELOTON_ASSERT(input_cols[i][offset] != nullptr);
       child_expr_map[input_cols[i][offset]] = offset;
     }
-    auto child_plan =
-        ChooseBestPlan(child_groups[i], required_input_props[i], input_cols[i]);
+    auto child_plan = ChooseBestPlan(child_groups[i], required_input_props[i], input_cols[i]);
     children_expr_map.push_back(move(child_expr_map));
     PELOTON_ASSERT(child_plan != nullptr);
     children_plans.push_back(move(child_plan));
   }
 
   // Derive root plan
-  shared_ptr<OperatorExpression> op =
-      make_shared<OperatorExpression>(gexpr->Op());
+  shared_ptr<OperatorExpression> op =make_shared<OperatorExpression>(gexpr->Op());
+
+  std::cerr << "OP: " << op->GetInfo() << std::endl;
 
   PlanGenerator generator;
   auto plan = generator.ConvertOpExpression(op, required_props, required_cols,

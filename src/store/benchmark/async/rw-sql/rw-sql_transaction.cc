@@ -59,7 +59,7 @@ transaction_status_t RWSQLTransaction::Execute(SyncClient &client) {
  //RW LOGIC
   //UPDATE / INSERT / READ
   for(int i=0; i < numOps; ++i){
-  
+    
     string table = "table_" + std::to_string(tables[i]);
     int left_bound = 7; //bases[i]; 
     //std::cout << "left: " << left_bound << std::endl;
@@ -99,7 +99,7 @@ transaction_status_t RWSQLTransaction::Execute(SyncClient &client) {
     
       //TODO: if key doesn't exist => INSERT IT
       UW_ASSERT(queryResult->rows_affected());
-      std::cerr << "Expected rows affected: " << 3 << std::endl;
+      std::cerr << "Expected rows affected. Max: " << 3 << std::endl;
       std::cerr << "Num rows affected: " << queryResult->rows_affected() << std::endl;
 
       if(queryResult->rows_affected() < ranges[i] + 1){
@@ -110,7 +110,7 @@ transaction_status_t RWSQLTransaction::Execute(SyncClient &client) {
     }
    
                               
-    
+    //sleep(9);
   
   }
 

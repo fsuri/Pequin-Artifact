@@ -37,6 +37,7 @@ QueryToOperatorTransformer::QueryToOperatorTransformer(
           settings::SettingId::predicate_push_down)) {}
 std::shared_ptr<OperatorExpression>
 QueryToOperatorTransformer::ConvertToOpExpression(parser::SQLStatement *op) {
+  //std::cerr << "convert: " << op->GetInfo() << std::endl;
   output_expr_ = nullptr;
   op->Accept(this);
   return output_expr_;
