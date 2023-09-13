@@ -266,8 +266,7 @@ int PlanExecutor::ExecutePlan(
     status = executor_tree->Execute();
     if (status == false) break;
 
-    std::unique_ptr<executor::LogicalTile> logical_tile(
-        executor_tree->GetOutput());
+    std::unique_ptr<executor::LogicalTile> logical_tile(executor_tree->GetOutput());
     logical_tile_list.push_back(std::move(logical_tile));
   }
 

@@ -283,6 +283,8 @@ executor::ExecutionResult TrafficCop::ExecuteReadHelper(
   };
 
   auto &pool = threadpool::MonoQueuePool::GetInstance();
+
+  Debug("submit read query with TS [%d:%d]", basil_timestamp.getTimestamp(), basil_timestamp.getID());
   pool.SubmitTask([plan, txn, &params, &result_format, on_complete] {
     executor::PlanExecutor::ExecutePlan(plan, txn, params, result_format,
                                         on_complete);
@@ -641,10 +643,8 @@ std::shared_ptr<Statement> TrafficCop::PrepareStatement(
   }
 
   StatementType stmt_type = sql_stmt_list->GetStatement(0)->GetType();
-  QueryType query_type =
-      StatementTypeToQueryType(stmt_type, sql_stmt_list->GetStatement(0));
-  std::shared_ptr<Statement> statement = std::make_shared<Statement>(
-      stmt_name, query_type, query_string, std::move(sql_stmt_list));
+  QueryType query_type = StatementTypeToQueryType(stmt_type, sql_stmt_list->GetStatement(0));
+  std::shared_ptr<Statement> statement = std::make_shared<Statement>(stmt_name, query_type, query_string, std::move(sql_stmt_list));
 
   // We can learn transaction's states, BEGIN, COMMIT, ABORT, or ROLLBACK from
   // member variables, tcop_txn_state_. We can also get single-statement txn or
@@ -705,8 +705,8 @@ std::shared_ptr<Statement> TrafficCop::PrepareStatement(
     statement->SetReferencedTables(table_oids);
 
     if (query_type == QueryType::QUERY_SELECT) {
-      auto tuple_descriptor = GenerateTupleDescriptor(
-          statement->GetStmtParseTreeList()->GetStatement(0));
+      auto tuple_descriptor = GenerateTupleDescriptor(statement->GetStmtParseTreeList()->GetStatement(0));
+      std::cerr << "QUERY SELECT" << std::endl;
       statement->SetTupleDescriptor(tuple_descriptor);
       LOG_TRACE("select query, finish setting");
     }
@@ -715,6 +715,8 @@ std::shared_ptr<Statement> TrafficCop::PrepareStatement(
     ProcessInvalidStatement();
     return nullptr;
   }
+
+std::cerr << "After Prepare: " << statement->GetPlanTree().get()->GetInfo() << std::endl;
 
 #ifdef LOG_DEBUG_ENABLED
   if (statement->GetPlanTree().get() != nullptr) {
@@ -1013,16 +1015,11 @@ ResultType TrafficCop::ExecuteReadStatement(
         statement, std::move(param_stats));
   }*/
 
-  LOG_TRACE("Execute Statement of name: %s",
-            statement->GetStatementName().c_str());
-  LOG_TRACE("Execute Statement of query: %s",
-            statement->GetQueryString().c_str());
-  LOG_TRACE("Execute Statement Plan:\n%s",
-            planner::PlanUtil::GetInfo(statement->GetPlanTree().get()).c_str());
-  LOG_TRACE("Execute Statement Query Type: %s",
-            statement->GetQueryTypeString().c_str());
-  LOG_TRACE("----QueryType: %d--------",
-            static_cast<int>(statement->GetQueryType()));
+  LOG_TRACE("Execute Statement of name: %s", statement->GetStatementName().c_str());
+  LOG_TRACE("Execute Statement of query: %s", statement->GetQueryString().c_str());
+  LOG_TRACE("Execute Statement Plan:\n%s", planner::PlanUtil::GetInfo(statement->GetPlanTree().get()).c_str());
+  LOG_TRACE("Execute Statement Query Type: %s",statement->GetQueryTypeString().c_str());
+  LOG_TRACE("----QueryType: %d--------", static_cast<int>(statement->GetQueryType()));
 
   try {
     switch (statement->GetQueryType()) {

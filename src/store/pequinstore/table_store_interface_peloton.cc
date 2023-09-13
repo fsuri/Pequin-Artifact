@@ -3,6 +3,7 @@
 #include <atomic>
 #include <sched.h>
 #include <utility>
+#include "lib/message.h"
 
 // TODO: Include whatever Peloton Deps
 
@@ -275,6 +276,8 @@ void PelotonTableStore::LoadTable(const std::string &load_statement,
 std::string PelotonTableStore::ExecReadQuery(const std::string &query_statement,
                                              const Timestamp &ts,
                                              QueryReadSetMgr &readSetMgr) {
+
+  Debug("Execute ReadQuery: %s", query_statement.c_str());
   // Execute on Peloton (args: query, Ts, readSetMgr, this->can_read_prepared,
   // this->set_table_version) --> returns peloton result --> transform into
   // protoResult
@@ -291,11 +294,11 @@ std::string PelotonTableStore::ExecReadQuery(const std::string &query_statement,
   bool unamed;
 
   // TRY TO SET A THREAD ID
-  size_t t_id =
-      std::hash<std::thread::id>{}(std::this_thread::get_id()); // % 4;
-  std::cout << "################################# STARTING  ExecReadQuery "
-               "############################## on Thread: "
-            << t_id << std::endl;
+  // size_t t_id =
+  //     std::hash<std::thread::id>{}(std::this_thread::get_id()); // % 4;
+  // std::cout << "################################# STARTING  ExecReadQuery "
+  //              "############################## on Thread: "
+  //           << t_id << std::endl;
 
   // prepareStatement
   auto statement = ParseAndPrepare(query_statement, tcop);
@@ -311,7 +314,7 @@ std::string PelotonTableStore::ExecReadQuery(const std::string &query_statement,
   // execute the query using tcop
   auto status = tcop->ExecuteReadStatement(
       statement, param_values, unamed, result_format, result, ts, readSetMgr,
-      this->record_table_version, this->can_read_prepared, t_id);
+      this->record_table_version, this->can_read_prepared);
 
   // GetResult(status);
   GetResult(status, tcop, counter);

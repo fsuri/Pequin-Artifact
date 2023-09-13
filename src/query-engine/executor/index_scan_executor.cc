@@ -766,8 +766,7 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
 
         if (!tile_group_header->GetCommitOrPrepare(
                 visible_tuple_location.offset)) {
-          query_read_set_mgr.AddToDepSet(current_txn->GetTxnDig()->data(),
-                                         ts_message);
+          query_read_set_mgr.AddToDepSet(current_txn->GetTxnDig()->data(), ts_message);
         }
       }
 

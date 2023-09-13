@@ -211,16 +211,13 @@ bool SeqScanExecutor::DExecute() {
         ItemPointer *head = tile_group_header->GetIndirection(curr_tuple_id);
         //std::cout << "Before checking whether head is null" << std::endl;
         if (head == nullptr) {
-          // std::cout << "Head is null and location of curr tuple is ("
-          //           << location.block << ", " << location.offset << ")"
-          //           << std::endl;
+          std::cout << "Head is null and location of curr tuple is ("<< location.block << ", " << location.offset << ")" << std::endl;
+          //return false;
         }
 
-        auto head_tile_group_header =
-            storage_manager->GetTileGroup(head->block)->GetHeader();
+        auto head_tile_group_header = storage_manager->GetTileGroup(head->block)->GetHeader();
 
-        tuple_timestamp =
-            head_tile_group_header->GetBasilTimestamp(head->offset);
+        tuple_timestamp = head_tile_group_header->GetBasilTimestamp(head->offset);
         location = *head;
         tile_group_header = head_tile_group_header;
         curr_tuple_id = location.offset;
@@ -253,7 +250,7 @@ bool SeqScanExecutor::DExecute() {
           curr_tuple_id = new_location.offset;
         }
 
-        Debug("location timestamp is: [%d:%d", tile_group_header->GetBasilTimestamp(location.offset).getTimestamp(), tile_group_header->GetBasilTimestamp(location.offset).getID());
+        Debug("location timestamp is: [%d:%d]", tile_group_header->GetBasilTimestamp(location.offset).getTimestamp(), tile_group_header->GetBasilTimestamp(location.offset).getID());
         // std::cout << "Location timestamp is " << tile_group_header->GetBasilTimestamp(location.offset).getTimestamp() << std::endl;
         // std::cout << "Current tuple id is " << curr_tuple_id << std::endl;
 

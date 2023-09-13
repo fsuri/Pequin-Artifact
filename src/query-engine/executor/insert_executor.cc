@@ -275,20 +275,17 @@ bool InsertExecutor::DExecute() {
 
       if (!result) {
 
-        std::cout
-            << "Tried to insert row with same primary key, so will do an update"
-            << std::endl;
+        //std::cout << "Tried to insert row with same primary key, so will do an update"  << std::endl;
+        Debug("Trying to insert with existing primary key -- doing update instead");
         // ItemPointer new_location = target_table->AcquireVersion();
         ItemPointer new_location = location;
-        std::cout << "New location is (" << new_location.block << ", "
-                  << new_location.offset << ")" << std::endl;
+        //std::cout << "New location is (" << new_location.block << ", " << new_location.offset << ")" << std::endl;
         auto storage_manager = storage::StorageManager::GetInstance();
 
         if (old_location.IsNull()) {
-          std::cout << "Old location is null" << std::endl;
+          //std::cout << "Old location is null" << std::endl;
         } else {
-          std::cout << "old location is (" << old_location.block << ", "
-                    << old_location.offset << ")" << std::endl;
+          //std::cout << "old location is (" << old_location.block << ", "  << old_location.offset << ")" << std::endl;
         }
 
         auto tile_group = storage_manager->GetTileGroup(old_location.block);
@@ -317,8 +314,8 @@ bool InsertExecutor::DExecute() {
             auto val1 = tile_group->GetValue(old_location.offset, col_idx);
             auto val2 = new_tile_group->GetValue(new_location.offset, col_idx);
 
-            std::cout << "Val 1 is " << val1.ToString() << std::endl;
-            std::cout << "Val 2 is " << val2.ToString() << std::endl;
+            //std::cout << "Val 1 is " << val1.ToString() << std::endl;
+            //std::cout << "Val 2 is " << val2.ToString() << std::endl;
 
             if (val1.ToString() != val2.ToString()) {
               same_columns = false;
@@ -327,7 +324,7 @@ bool InsertExecutor::DExecute() {
           }
 
           if (same_columns) {
-            std::cout << "Upgrading from prepared to committed" << std::endl;
+            //std::cout << "Upgrading from prepared to committed" << std::endl;
             tile_group_header->SetCommitOrPrepare(old_location.offset, true);
             ItemPointer *indirection =
                 tile_group_header->GetIndirection(old_location.offset);
@@ -347,12 +344,12 @@ bool InsertExecutor::DExecute() {
 
         if (!same_columns) {
           // get indirection.
-          std::cout << "Before getting indirection" << std::endl;
+          //std::cout << "Before getting indirection" << std::endl;
           ItemPointer *indirection =
               tile_group_header->GetIndirection(old_location.offset);
-          std::cout << "After getting indirection" << std::endl;
+          //std::cout << "After getting indirection" << std::endl;
           if (indirection == nullptr) {
-            std::cout << "Indirection pointer is null" << std::endl;
+            //std::cout << "Indirection pointer is null" << std::endl;
           }
           // finally install new version into the table
           target_table->InstallVersion(&new_tuple_one,
@@ -360,7 +357,7 @@ bool InsertExecutor::DExecute() {
                                        current_txn, indirection);
           new_tile_group->GetHeader()->SetIndirection(new_location.offset,
                                                       indirection);
-          std::cout << "After installing version" << std::endl;
+          //std::cout << "After installing version" << std::endl;
 
           // PerformUpdate() will not be executed if the insertion failed.
           // There is a write lock acquired, but since it is not in the write
