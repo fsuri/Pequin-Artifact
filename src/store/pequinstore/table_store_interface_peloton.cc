@@ -298,6 +298,7 @@ std::string PelotonTableStore::ExecReadQuery(const std::string &query_statement,
   std::cout << "################################# STARTING  ExecReadQuery "
                "############################## on Thread: "
             << t_id << std::endl;
+  std::cout << query_statement << std::endl;
 
   // prepareStatement
   auto statement = ParseAndPrepare(query_statement, tcop);

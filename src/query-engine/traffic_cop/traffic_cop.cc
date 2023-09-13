@@ -183,15 +183,15 @@ executor::ExecutionResult TrafficCop::ExecuteHelper(
 
   auto on_complete = [&result, this](executor::ExecutionResult p_status,
                                      std::vector<ResultValue> &&values) {
-    //std::cout << "Made it to on complete execute helper" << std::endl;
+    // std::cout << "Made it to on complete execute helper" << std::endl;
     this->p_status_ = p_status;
-    //std::cout << "The status is " << p_status.m_error_message << std::endl;
-    // TODO (Tianyi) I would make a decision on keeping one of p_status or
-    // error_message in my next PR
+    // std::cout << "The status is " << p_status.m_error_message << std::endl;
+    //  TODO (Tianyi) I would make a decision on keeping one of p_status or
+    //  error_message in my next PR
     this->error_message_ = std::move(p_status.m_error_message);
     result = std::move(values);
     task_callback_(task_callback_arg_);
-    //std::cout << "After task callback execute helper" << std::endl;
+    // std::cout << "After task callback execute helper" << std::endl;
     Debug("Completed Task Callback Execute helper");
   };
 
@@ -231,11 +231,11 @@ executor::ExecutionResult TrafficCop::ExecuteReadHelper(
 
   concurrency::TransactionContext *txn;
   if (!tcop_txn_state_.empty()) {
-    //std::cout << "Read helper use existing txn" << std::endl;
+    // std::cout << "Read helper use existing txn" << std::endl;
     txn = curr_state.first;
   } else {
-    //std::cout << "Read helper create txn" << std::endl;
-    // No active txn, single-statement txn
+    // std::cout << "Read helper create txn" << std::endl;
+    //  No active txn, single-statement txn
     auto &txn_manager = concurrency::TransactionManagerFactory::GetInstance();
     // new txn, reset result status
     curr_state.second = ResultType::SUCCESS;
@@ -270,16 +270,15 @@ executor::ExecutionResult TrafficCop::ExecuteReadHelper(
 
   auto on_complete = [&result, this](executor::ExecutionResult p_status,
                                      std::vector<ResultValue> &&values) {
-    //std::cout << "Made it to on complete" << std::endl;
+    // std::cout << "Made it to on complete" << std::endl;
     this->p_status_ = p_status;
-    //std::cout << "The status is " << p_status.m_error_message << std::endl;
-    // TODO (Tianyi) I would make a decision on keeping one of p_status or
-    // error_message in my next PR
+    // std::cout << "The status is " << p_status.m_error_message << std::endl;
+    //  TODO (Tianyi) I would make a decision on keeping one of p_status or
+    //  error_message in my next PR
     this->error_message_ = std::move(p_status.m_error_message);
     result = std::move(values);
     Debug("Calling task callback");
     task_callback_(task_callback_arg_);
-    
   };
 
   auto &pool = threadpool::MonoQueuePool::GetInstance();
@@ -315,11 +314,11 @@ executor::ExecutionResult TrafficCop::ExecuteWriteHelper(
 
   concurrency::TransactionContext *txn;
   if (!tcop_txn_state_.empty()) {
-    //std::cout << "Write helper use of existing txn" << std::endl;
+    // std::cout << "Write helper use of existing txn" << std::endl;
     txn = curr_state.first;
   } else {
-    //std::cout << "Write helper create new txn" << std::endl;
-    // No active txn, single-statement txn
+    // std::cout << "Write helper create new txn" << std::endl;
+    //  No active txn, single-statement txn
     auto &txn_manager = concurrency::TransactionManagerFactory::GetInstance();
     // new txn, reset result status
     curr_state.second = ResultType::SUCCESS;
@@ -332,6 +331,7 @@ executor::ExecutionResult TrafficCop::ExecuteWriteHelper(
   txn->SetBasilTimestamp(basil_timestamp);
   // Set the txn_digeset
   txn->SetTxnDig(txn_dig);
+  std::cout << "Txn digest is " << *txn_dig << std::endl;
   // Set the commit proof
   txn->SetCommittedProof(commit_proof);
   // Set commit or prepare
@@ -355,11 +355,11 @@ executor::ExecutionResult TrafficCop::ExecuteWriteHelper(
 
   auto on_complete = [&result, this](executor::ExecutionResult p_status,
                                      std::vector<ResultValue> &&values) {
-    //std::cout << "Made it to on complete" << std::endl;
+    // std::cout << "Made it to on complete" << std::endl;
     this->p_status_ = p_status;
-    //std::cout << "The status is " << p_status.m_error_message << std::endl;
-    // TODO (Tianyi) I would make a decision on keeping one of p_status or
-    // error_message in my next PR
+    // std::cout << "The status is " << p_status.m_error_message << std::endl;
+    //  TODO (Tianyi) I would make a decision on keeping one of p_status or
+    //  error_message in my next PR
     this->error_message_ = std::move(p_status.m_error_message);
     result = std::move(values);
     Debug("Calling Task callback");
@@ -415,10 +415,11 @@ executor::ExecutionResult TrafficCop::ExecutePurgeHelper(
   // Set undo delete
   txn->SetUndoDelete(undo_delete);
 
-  Debug("Purge helper: undo_delete %d, txn->GetUndoDelete() %d", undo_delete, txn->GetUndoDelete());
-  // std::cout << "Undo delete in execute purge helper is " << undo_delete << std::endl;
-  // std::cout << "Txn get undo delete in execute purge helper is " << txn->GetUndoDelete() << std::endl;
-  // No read set manager for purge
+  Debug("Purge helper: undo_delete %d, txn->GetUndoDelete() %d", undo_delete,
+        txn->GetUndoDelete());
+  // std::cout << "Undo delete in execute purge helper is " << undo_delete <<
+  // std::endl; std::cout << "Txn get undo delete in execute purge helper is "
+  // << txn->GetUndoDelete() << std::endl; No read set manager for purge
   txn->SetHasReadSetMgr(false);
 
   // skip if already aborted
@@ -435,11 +436,11 @@ executor::ExecutionResult TrafficCop::ExecutePurgeHelper(
 
   auto on_complete = [&result, this](executor::ExecutionResult p_status,
                                      std::vector<ResultValue> &&values) {
-    //std::cout << "Made it to on complete" << std::endl;
+    // std::cout << "Made it to on complete" << std::endl;
     this->p_status_ = p_status;
-    //std::cout << "The status is " << p_status.m_error_message << std::endl;
-    // TODO (Tianyi) I would make a decision on keeping one of p_status or
-    // error_message in my next PR
+    // std::cout << "The status is " << p_status.m_error_message << std::endl;
+    //  TODO (Tianyi) I would make a decision on keeping one of p_status or
+    //  error_message in my next PR
     this->error_message_ = std::move(p_status.m_error_message);
     result = std::move(values);
     Debug("Calling task callback");
@@ -555,16 +556,17 @@ executor::ExecutionResult TrafficCop::ExecutePointReadHelper(
 
   auto on_complete = [&result, this](executor::ExecutionResult p_status,
                                      std::vector<ResultValue> &&values) {
-    //std::cout << "Made it to on complete" << std::endl;
+    // std::cout << "Made it to on complete" << std::endl;
     this->p_status_ = p_status;
-    //std::cout << "The status is for point read " << p_status.m_error_message << std::endl;
-    // TODO (Tianyi) I would make a decision on keeping one of p_status or
-    // error_message in my next PR
+    // std::cout << "The status is for point read " << p_status.m_error_message
+    // << std::endl;
+    //  TODO (Tianyi) I would make a decision on keeping one of p_status or
+    //  error_message in my next PR
     this->error_message_ = std::move(p_status.m_error_message);
     result = std::move(values);
     task_callback_(task_callback_arg_);
     Debug("calling task callback");
-    //std::cout << "End of on complete" << std::endl;
+    // std::cout << "End of on complete" << std::endl;
   };
 
   auto &pool = threadpool::MonoQueuePool::GetInstance();
@@ -1119,7 +1121,8 @@ ResultType TrafficCop::ExecutePurgeStatement(
         statement->SetNeedsReplan(true);
       }
       Debug("Purge statement. undo_delete: %d", undo_delete);
-      //std::cout << "Undo delete in execute purge statement is " << undo_delete << std::endl;
+      // std::cout << "Undo delete in execute purge statement is " <<
+      // undo_delete << std::endl;
       ExecutePurgeHelper(statement->GetPlanTree(), params, result,
                          result_format, basil_timestamp, txn_dig, undo_delete,
                          thread_id);

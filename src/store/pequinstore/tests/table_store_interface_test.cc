@@ -212,7 +212,7 @@ void ReadFromStore(TableStore *table_store) {
   pequinstore::QueryReadSetMgr query_read_set_mgr_one(&read_set_one, 1, false);
 
   std::string result =
-      table_store->ExecReadQuery("SELECT * FROM test WHERE a>=9 OR a <= 0;",
+      table_store->ExecReadQuery("SELECT * FROM test WHERE a>=9 OR a <= 1;",
                                  toy_ts_c_1, query_read_set_mgr_one);
 
   sql::QueryResultProtoBuilder queryResultBuilder;
@@ -697,7 +697,7 @@ void test_rw_sql() {
   Timestamp timestamp13(13, 0);
   Timestamp timestamp14(14, 0);
 
-  WriteToTable(table_store1, timestamp1, 6, 7);
+  /*WriteToTable(table_store1, timestamp1, 6, 7);
 
   WriteToTable(table_store1, timestamp2, 0, 0);
 
@@ -723,7 +723,35 @@ void test_rw_sql() {
 
   WriteToTable(table_store1, timestamp13, 6, 8);
 
-  WriteToTable(table_store1, timestamp14, 9, 0);
+  WriteToTable(table_store1, timestamp14, 9, 0);*/
+
+  WriteToTable(table_store1, timestamp1, 1, 2);
+
+  WriteToTable(table_store1, timestamp1, 1, 2);
+
+  WriteToTable(table_store1, timestamp1, 1, 2);
+
+  WriteToTable(table_store1, timestamp1, 1, 2);
+
+  WriteToTable(table_store1, timestamp1, 1, 2);
+
+  /*WriteToTable(table_store1, timestamp6, 1, 2);
+
+  WriteToTable(table_store1, timestamp7, 1, 2);
+
+  WriteToTable(table_store1, timestamp8, 1, 2);
+
+  WriteToTable(table_store1, timestamp9, 1, 2);
+
+  WriteToTable(table_store1, timestamp10, 1, 2);
+
+  WriteToTable(table_store1, timestamp11, 1, 2);
+
+  WriteToTable(table_store1, timestamp12, 1, 2);
+
+  WriteToTable(table_store1, timestamp13, 1, 2);
+
+  WriteToTable(table_store1, timestamp14, 1, 2);*/
 
   /*table_store1->ApplyTableWrite("test", table_write, toy_ts_c_1, "random",
                                 real_proof, false);

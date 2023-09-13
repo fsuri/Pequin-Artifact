@@ -305,6 +305,11 @@ bool InsertExecutor::DExecute() {
         ContainerTuple<storage::TileGroup> old_tuple_one(tile_group.get(),
                                                          old_location.offset);
 
+        if (current_txn->GetTxnDig() != nullptr) {
+          new_tile_group->GetHeader()->SetTxnDig(new_location.offset,
+                                                 current_txn->GetTxnDig());
+        }
+
         bool same_columns = true;
         bool should_upgrade =
             !tile_group_header->GetCommitOrPrepare(old_location.offset) &&
@@ -343,18 +348,40 @@ bool InsertExecutor::DExecute() {
           }
         }
 
+        bool same_txn =
+            tile_group_header->GetBasilTimestamp(old_location.offset) ==
+            new_tile_group->GetHeader()->GetBasilTimestamp(new_location.offset);
+        if (same_txn) {
+          std::cout << "Same txn so going to change the value" << std::endl;
+          const auto *schema = tile_group->GetAbstractTable()->GetSchema();
+          for (uint32_t col_idx = 0; col_idx < schema->GetColumnCount();
+               col_idx++) {
+            auto val1 = tile_group->GetValue(old_location.offset, col_idx);
+            auto val2 = new_tile_group->GetValue(new_location.offset, col_idx);
+            tile_group->SetValue(val2, old_location.offset, col_idx);
+
+            // std::cout << "Val 1 is " << val1.ToString() << std::endl;
+            // std::cout << "Val 2 is " << val2.ToString() << std::endl;
+          }
+          ItemPointer *indirection =
+              tile_group_header->GetIndirection(old_location.offset);
+
+          new_tile_group->GetHeader()->SetIndirection(new_location.offset,
+                                                      indirection);
+        }
+
         // perform projection from old version to new version.
         // this triggers in-place update, and we do not need to allocate
         // another version.
         // project_info->Evaluate(&new_tuple_one, &old_tuple_one, nullptr,
         //                       executor_context_);
 
-        if (!should_upgrade) {
+        if (!should_upgrade && !same_txn) {
           // get indirection.
-          std::cout << "Before getting indirection" << std::endl;
+          // std::cout << "Before getting indirection" << std::endl;
           ItemPointer *indirection =
               tile_group_header->GetIndirection(old_location.offset);
-          std::cout << "After getting indirection" << std::endl;
+          // std::cout << "After getting indirection" << std::endl;
           if (indirection == nullptr) {
             std::cout << "Indirection pointer is null" << std::endl;
           }
@@ -364,7 +391,7 @@ bool InsertExecutor::DExecute() {
                                        current_txn, indirection);
           new_tile_group->GetHeader()->SetIndirection(new_location.offset,
                                                       indirection);
-          std::cout << "After installing version" << std::endl;
+          // std::cout << "After installing version" << std::endl;
 
           // PerformUpdate() will not be executed if the insertion failed.
           // There is a write lock acquired, but since it is not in the write
@@ -405,6 +432,11 @@ bool InsertExecutor::DExecute() {
 
         tile_group_header->SetCommitOrPrepare(
             location.offset, current_txn->GetCommitOrPrepare());
+
+        if (current_txn->GetTxnDig() != nullptr) {
+          tile_group_header->SetTxnDig(location.offset,
+                                       current_txn->GetTxnDig());
+        }
       }
       // TODO: This is what was here before
       // transaction_manager.PerformInsert(current_txn, location,
