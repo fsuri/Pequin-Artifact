@@ -107,8 +107,7 @@ PelotonTableStore::ParseAndPrepare(const std::string &query_statement,
     Panic("SQL command not valid"); // return peloton::ResultType::FAILURE;
   }
 
-  auto statement = tcop->PrepareStatement(unnamed_statement, query_statement,
-                                          std::move(sql_stmt_list));
+  auto statement = tcop->PrepareStatement(unnamed_statement, query_statement, std::move(sql_stmt_list));
   if (statement.get() == nullptr) {
     tcop->setRowsAffected(0);
     Panic("SQL command not valid"); // return peloton::ResultType::FAILURE;
@@ -279,7 +278,11 @@ std::string PelotonTableStore::ExecReadQuery(const std::string &query_statement,
                                              const Timestamp &ts,
                                              QueryReadSetMgr &readSetMgr) {
 
-  Debug("Execute ReadQuery: %s", query_statement.c_str());
+  
+  //UW_ASSERT(ts.getTimestamp() >= 0 && ts.getID() >= 0);
+  
+  Debug("Execute ReadQuery: %s. TS: [%lu:%lu]", query_statement.c_str(), ts.getTimestamp(), ts.getID());
+ 
   // Execute on Peloton (args: query, Ts, readSetMgr, this->can_read_prepared,
   // this->set_table_version) --> returns peloton result --> transform into
   // protoResult
@@ -296,11 +299,10 @@ std::string PelotonTableStore::ExecReadQuery(const std::string &query_statement,
   bool unamed;
 
   // TRY TO SET A THREAD ID
-  // size_t t_id =
-  //     std::hash<std::thread::id>{}(std::this_thread::get_id()); // % 4;
-  // std::cout << "################################# STARTING  ExecReadQuery "
-  //              "############################## on Thread: "
-  //           << t_id << std::endl;
+  // size_t t_id = std::hash<std::thread::id>{}(std::this_thread::get_id()); // % 4;
+  // std::cout << "################################# STARTING  ExecReadQuery  ############################## on Thread: " < t_id << std::endl;
+  
+  //std::cout << query_statement << std::endl;
 
   // prepareStatement
   auto statement = ParseAndPrepare(query_statement, tcop);
@@ -495,7 +497,8 @@ void PelotonTableStore::ApplyTableWrite(
   // TableVersion (Currently, it is being set right after ApplyTableWrite()
   // returns)
 
-  Debug("Apply TableWrite for txn %s", BytesToHex(txn_digest, 16).c_str());
+  //UW_ASSERT(ts.getTimestamp() >= 0 && ts.getID() >= 0);
+  Debug("Apply TableWrite for txn %s. TS [%lu:%lu]", BytesToHex(txn_digest, 16).c_str(), ts.getTimestamp(), ts.getID()); 
 
   if (table_write.rows().empty())
     return;

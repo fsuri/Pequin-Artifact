@@ -1705,8 +1705,6 @@ void Cleanup(int signal) {
   delete keyManager;
   delete keySelector;
 
-  if(FLAGS_sql_bench && querySelector != nullptr) delete querySelector;
-
   for (auto i : threads) {
     i->join();
     delete i;
@@ -1729,6 +1727,8 @@ void Cleanup(int signal) {
   tport->Stop();
   delete tport;
   delete part;
+
+  if(FLAGS_sql_bench && querySelector != nullptr) delete querySelector;
 }
 
 void FlushStats() {
