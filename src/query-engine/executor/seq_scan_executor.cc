@@ -311,7 +311,12 @@ bool SeqScanExecutor::DExecute() {
               query_read_set_mgr.AddToReadSet(encoded, ts_message);
 
               if (!tile_group_header->GetCommitOrPrepare(curr_tuple_id)) {
-                query_read_set_mgr.AddToDepSet(current_txn->GetTxnDig()->data(), ts_message);
+                if (tile_group_header->GetTxnDig(curr_tuple_id) != nullptr) {
+                    query_read_set_mgr.AddToDepSet(*tile_group_header->GetTxnDig(curr_tuple_id), ts_message);
+                  }
+                  else{
+                    Panic("Txn Dig null");
+                  }
               }
 
               // logical_tile->AddEntryReadSet(encoded, time);
@@ -369,8 +374,12 @@ bool SeqScanExecutor::DExecute() {
                 query_read_set_mgr.AddToReadSet(encoded, ts_message);
 
                 if (!tile_group_header->GetCommitOrPrepare(curr_tuple_id)) {
-                  query_read_set_mgr.AddToDepSet(
-                      current_txn->GetTxnDig()->data(), ts_message);
+                  if (tile_group_header->GetTxnDig(curr_tuple_id) != nullptr) {
+                    query_read_set_mgr.AddToDepSet(*tile_group_header->GetTxnDig(curr_tuple_id), ts_message);
+                  }
+                  else{
+                    Panic("Txn Dig null");
+                  }
                 }
 
                 // logical_tile->AddEntryReadSet(encoded_key, time);

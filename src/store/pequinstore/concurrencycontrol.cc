@@ -587,6 +587,7 @@ proto::ConcurrencyControl::Result Server::DoMVTSOOCCCheck(
               conflict = committedWrite.second.proof;
           }
           
+          std::cerr << "key: " << read.key() << std::endl;
           Debug("[%lu:%lu][%s] ABORT wr conflict committed write for key %s:"
               " this txn's read ts %lu.%lu < committed ts %lu.%lu < this txn's ts %lu.%lu.",
               txn.client_id(),

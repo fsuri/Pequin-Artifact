@@ -156,7 +156,7 @@ SRCS += $(addprefix $(d), util/file.cc util/string_util.cc util/stringbox_util.c
 
 
 # Queryexec test
-SRCS += $(addprefix $(d), queryexec-test.cc)
+#SRCS += $(addprefix $(d), queryexec-test.cc)
 
 #PROTOS += $(addprefix $(d), ../store/common/pequin-proto.proto)
 #PROTOS += $(addprefix $(d), ../store/common/query-result-proto.proto)

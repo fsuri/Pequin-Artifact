@@ -120,7 +120,7 @@ transaction_status_t RWSQLTransaction::Execute(SyncClient &client) {
   transaction_status_t commitRes = client.Commit(timeout);
   std::cerr << "TXN COMMIT STATUS: " << commitRes << std::endl;
 
-  usleep(1000);
+  //usleep(1000);
   return commitRes;
 }
 

@@ -1642,6 +1642,12 @@ std::string Server::ExecQuery(QueryReadSetMgr &queryReadSetMgr, QueryMetaData *q
     /////////////////////////////////////////////////////////////
     //TODO: Result should be of protobuf result type: --> can either return serialized value, or result object (probably easiest) -- but need serialized value anyways to check for equality.
 
+
+    for(auto &read : queryReadSetMgr.read_set->read_set()){
+        Debug("Read key %s with version [%lu:%lu]", read.key().c_str(), read.readtime().timestamp(), read.readtime().id());
+    }
+
+
     if(TEST_READ_SET){
 
         for(auto const&[tx_id, proof] : committed){

@@ -5,7 +5,8 @@
 #include <utility>
 #include "lib/message.h"
 
-// TODO: Include whatever Peloton Deps
+#include "store/common/query_result/query_result.h"
+
 
 namespace pequinstore {
 
@@ -153,6 +154,8 @@ std::string PelotonTableStore::TransformResult(
     for (unsigned int j = 0; j < tuple_descriptor.size(); j++) {
       // TODO: Use interface addtorow, and pass in field to that row
       queryResultBuilder.AddToRow(row, result[i * tuple_descriptor.size() + j]);
+      // auto r = result[i * tuple_descriptor.size() + j];
+      // std::cerr << "Col/Row" << j << " : " << (result[i * tuple_descriptor.size() + j]) << std::endl;
     }
   }
 
@@ -322,6 +325,39 @@ std::string PelotonTableStore::ExecReadQuery(const std::string &query_statement,
 
   // GetResult(status);
   GetResult(status, tcop, counter);
+
+  // std::string result_string = TransformResult(status, statement, result);
+  // //Testing:
+  // //TODO: turn result into protowrapper and read it out.
+  // query_result::QueryResult *res = new sql::QueryResultProtoWrapper(result_string);
+  // //TODO: what type are the result values? does the transformation shomehow need to mention this.
+
+  //   std::cerr << "IS empty?: " << (res->empty()) << std::endl;
+  //   std::cerr << "num cols:" <<  (res->num_columns()) << std::endl;
+  //   std::cerr << "num rows written:" <<  (res->rows_affected()) << std::endl;
+  //   std::cerr << "num rows read:" << (res->size()) << std::endl;
+
+  //  size_t nbytes;
+  //  const char* out;
+  // std::string output_row;
+          
+  // for(int j = 0; j < res->size(); ++j){
+  //    std::stringstream p_ss(std::ios::in | std::ios::out | std::ios::binary);
+  //   for(int i = 0; i<res->num_columns(); ++i){
+  //     out = res->get(j, i, &nbytes);
+  //     std::string p_output(out, nbytes);
+  //     p_ss << p_output;
+  //     output_row;
+  //     {
+  //       cereal::BinaryInputArchive iarchive(p_ss); // Create an input archive
+  //       iarchive(output_row); // Read the data from the archive
+  //     }
+  //     std::cerr << "Query Result. Col " << i << ": " << output_row << std::endl;
+  //   }
+  // }
+   
+  // delete res;               
+            
 
   // Transform PelotonResult into ProtoResult
   return TransformResult(status, statement, result);
