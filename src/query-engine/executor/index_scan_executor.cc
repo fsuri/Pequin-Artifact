@@ -870,17 +870,11 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
 
         query_read_set_mgr.AddToReadSet(encoded, ts_message);
 
-        if (!tile_group_header->GetCommitOrPrepare(
-                visible_tuple_location.offset)) {
-          if (tile_group_header->GetTxnDig(visible_tuple_location.offset) ==
-              nullptr) {
-            std::cout << "Dep Digest is null" << std::endl;
+        if (!tile_group_header->GetCommitOrPrepare(visible_tuple_location.offset)) {
+          if (tile_group_header->GetTxnDig(visible_tuple_location.offset) == nullptr) {
+            Panic("Dep Digest is null");
           } else {
-            std::cout << "Dep Digest is not null" << std::endl;
-
-            query_read_set_mgr.AddToDepSet(
-                *tile_group_header->GetTxnDig(visible_tuple_location.offset),
-                ts_message);
+            query_read_set_mgr.AddToDepSet(*tile_group_header->GetTxnDig(visible_tuple_location.offset), ts_message);
           }
         }
       }
