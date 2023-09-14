@@ -429,6 +429,13 @@ struct QueryReadSetMgr {
           *read->mutable_readtime() = readtime;
         }
 
+        void AddToReadSet(std::string &&key, const Timestamp &readtime){
+           ReadMessage *read = read_set->add_read_set();
+          //ReadMessage *read = query_md->queryResult->mutable_query_read_set()->add_read_set();
+          read->set_key(std::move(key));
+          readtime.serialize(read->mutable_readtime());
+        }
+
         void AddToDepSet(const std::string &tx_id, const TimestampMessage &tx_ts){
             proto::Dependency *add_dep = read_set->add_deps();
             add_dep->set_involved_group(groupIdx);
@@ -440,6 +447,19 @@ struct QueryReadSetMgr {
                 *add_dep->mutable_write()->mutable_prepared_timestamp() = tx_ts;
                 // add_dep->mutable_write()->mutable_prepared_timestamp()->set_timestamp(txn->timestamp().timestamp());
                 // add_dep->mutable_write()->mutable_prepared_timestamp()->set_id(txn->timestamp().id());
+            }
+        }
+
+        void AddToDepSet(const std::string &tx_id, const Timestamp &tx_ts){
+            proto::Dependency *add_dep = read_set->add_deps();
+            add_dep->set_involved_group(groupIdx);
+            add_dep->mutable_write()->set_prepared_txn_digest(tx_id);
+            Debug("Adding Dep: %s", BytesToHex(tx_id, 16).c_str());
+            //Note: Send merged TS.
+            if(useOptimisticId){
+                //MergeTimestampId(txn->timestamp().timestamp(), txn->timestamp().id()
+                add_dep->mutable_write()->mutable_prepared_timestamp()->set_timestamp(tx_ts.getTimestamp());
+                add_dep->mutable_write()->mutable_prepared_timestamp()->set_id(tx_ts.getID());
             }
         }
 
