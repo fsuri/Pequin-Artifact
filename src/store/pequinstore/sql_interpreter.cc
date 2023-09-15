@@ -361,6 +361,7 @@ void SQLTransformer::TransformInsert(size_t pos, std::string_view &write_stateme
         // table_ver->set_key(table_name);
         // table_ver->set_value("");
 
+
         
         //Read genesis timestamp (0) for key ==> FIXME: THIS CURRENTLY DOES NOT WORK WITH EXISTING OCC CHECK.
         ReadMessage *read = txn->add_read_set();
@@ -380,6 +381,7 @@ void SQLTransformer::TransformInsert(size_t pos, std::string_view &write_stateme
 
         //New version: 
         TableWrite *table_write = AddTableWrite(table_name, col_registry);
+        table_write->set_changed_table(true); //Add Table Version.
         write->mutable_rowupdates()->set_row_idx(table_write->rows().size()); //set row_idx for proof reference
 
         RowUpdates *row_update = table_write->add_rows();
@@ -525,6 +527,13 @@ void SQLTransformer::TransformUpdate(size_t pos, std::string_view &write_stateme
         //std::cerr << "TEST WRITE CONT" << std::endl;
         Debug("Issuing write_continuation"); //FIXME: Debug doesnt seem to be registered
 
+        if(result->empty()){
+            Debug("No rows to update");
+            result->set_rows_affected(result->size()); 
+            wcb(REPLY_OK, result);
+        }
+    
+
         auto itr = TableRegistry.find(table_name);
         UW_ASSERT(itr != TableRegistry.end());
         ColRegistry &col_registry = itr->second; //TableRegistry[table_name];
@@ -538,10 +547,11 @@ void SQLTransformer::TransformUpdate(size_t pos, std::string_view &write_stateme
         // table_ver->set_value("");
         bool changed_table = false; // false //FOR NOW ALWAYS SETTING TO TRUE due to UPDATE INDEX issue (see above comment) TODO: Implement TableColumnVersion optimization
 
+        //Write TableColVersions
         for(auto &[col, _]: col_updates){
             WriteMessage *write = txn->add_write_set();   
             write->set_key(table_name + unique_delimiter + std::string(col));  
-           // write->set_delay(true);
+            write->set_delay(true);
              //If a TX has multiple Queries with the same Col updates there will be duplicates. Does that matter? //Writes are sorted to avoid deadlock.
         }
 
@@ -704,6 +714,7 @@ void SQLTransformer::TransformDelete(size_t pos, std::string_view &write_stateme
 
         //Add Delete also to Table Write : 
         TableWrite *table_write = AddTableWrite(table_name, col_registry);
+        table_write->set_changed_table(true); //Add Table Version.
 
         WriteMessage *write = txn->add_write_set();
         write->mutable_rowupdates()->set_row_idx(table_write->rows().size()); //set row_idx for proof reference
@@ -766,8 +777,14 @@ void SQLTransformer::TransformDelete(size_t pos, std::string_view &write_stateme
         // WriteMessage *table_ver = txn->add_write_set();
         // table_ver->set_key(table_name);
         // table_ver->set_value("");
+        if(result->empty()){
+            Debug("No rows to delete");
+            result->set_rows_affected(result->size()); 
+            wcb(REPLY_OK, result);
+        }
 
          TableWrite *table_write = AddTableWrite(table_name, *col_registry_ptr);
+         table_write->set_changed_table(true); //Add Table Version.
 
         //For each row in query result
         for(int i = 0; i < result->size(); ++i){

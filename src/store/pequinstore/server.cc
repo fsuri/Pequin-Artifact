@@ -1678,8 +1678,7 @@ void Server::Prepare(const std::string &txnDigest,const proto::Transaction &txn,
     if (IsKeyOwned(write.key())) {
 
        //Skip applying TableVersion until after TableWrites have been applied; Same for TableColVersions. Currenty those are both marked as delay.
-       //(write.has_delay() && write.delay()) || 
-      if(txn.table_writes().find(write.key()) != txn.table_writes().end() ){
+      if((write.has_delay() && write.delay()) || txn.table_writes().find(write.key()) != txn.table_writes().end() ){
         table_and_col_versions.push_back(&write.key());
         continue;
       }   
@@ -1855,8 +1854,7 @@ void Server::CommitToStore(proto::CommittedProof *proof, proto::Transaction *txn
     
     
     //Skip applying TableVersion until after TableWrites have been applied; Same for TableColVersions. Currenty those are both marked as delay.
-    //(write.has_delay() && write.delay()) || 
-    if(txn->table_writes().find(write.key()) != txn->table_writes().end() ){
+    if((write.has_delay() && write.delay()) || txn->table_writes().find(write.key()) != txn->table_writes().end() ){
       table_and_col_versions.push_back(&write.key());
       continue;
     }   
