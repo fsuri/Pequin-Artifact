@@ -778,21 +778,25 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
           // std::cout << "read set value is " << val.ToString() << std::endl;
         }
 
-
-        const Timestamp &time = tile_group_header->GetBasilTimestamp(visible_tuple_location.offset); //TODO: remove copy
-               
-        std::string &&encoded = EncodeTableRow(index_->GetName(), primary_key_cols);
-        Debug("encoded read set key is: %s. Version: [%lu: %lu]", encoded.c_str(), time.getTimestamp(), time.getID());
+        const Timestamp &time = tile_group_header->GetBasilTimestamp(
+            visible_tuple_location.offset); // TODO: remove copy
+        std::string &&encoded =
+            EncodeTableRow(table_->GetName(), primary_key_cols);
+        Debug("encoded read set key is: %s. Version: [%lu: %lu]",
+              encoded.c_str(), time.getTimestamp(), time.getID());
         query_read_set_mgr.AddToReadSet(std::move(encoded), time);
 
+        if (!tile_group_header->GetCommitOrPrepare(
+                visible_tuple_location.offset)) {
 
-        if (!tile_group_header->GetCommitOrPrepare( visible_tuple_location.offset)) {
-
-          if (tile_group_header->GetTxnDig(visible_tuple_location.offset) == nullptr) {
+          if (tile_group_header->GetTxnDig(visible_tuple_location.offset) ==
+              nullptr) {
             Panic("Dep Digest is null");
           } else {
-            
-          query_read_set_mgr.AddToDepSet( *tile_group_header->GetTxnDig(visible_tuple_location.offset), time);
+
+            query_read_set_mgr.AddToDepSet(
+                *tile_group_header->GetTxnDig(visible_tuple_location.offset),
+                time);
           }
         }
       }
@@ -821,10 +825,12 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
 
       if (current_txn->GetHasReadSetMgr()) {
 
-        tile_group = storage_manager->GetTileGroup(visible_tuple_location.block);
+        tile_group =
+            storage_manager->GetTileGroup(visible_tuple_location.block);
         auto tile_group_header = tile_group.get()->GetHeader();
 
-        ContainerTuple<storage::TileGroup> row(tile_group.get(), visible_tuple_location.offset);
+        ContainerTuple<storage::TileGroup> row(tile_group.get(),
+                                               visible_tuple_location.offset);
 
         std::vector<std::string> primary_key_cols;
         for (auto col : primary_index_columns_) {
@@ -837,17 +843,24 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
                                          // val.ToString() << std::endl;
         }
 
-        const Timestamp &time = tile_group_header->GetBasilTimestamp(visible_tuple_location.offset); //TODO: remove copy
-               
-        std::string &&encoded = EncodeTableRow(index_->GetName(), primary_key_cols);
-        Debug("encoded read set key is: %s. Version: [%lu: %lu]", encoded.c_str(), time.getTimestamp(), time.getID());
+        const Timestamp &time = tile_group_header->GetBasilTimestamp(
+            visible_tuple_location.offset); // TODO: remove copy
+
+        std::string &&encoded =
+            EncodeTableRow(table_->GetName(), primary_key_cols);
+        Debug("encoded read set key is: %s. Version: [%lu: %lu]",
+              encoded.c_str(), time.getTimestamp(), time.getID());
         query_read_set_mgr.AddToReadSet(std::move(encoded), time);
 
-        if (!tile_group_header->GetCommitOrPrepare(visible_tuple_location.offset)) {
-          if (tile_group_header->GetTxnDig(visible_tuple_location.offset) == nullptr) {
+        if (!tile_group_header->GetCommitOrPrepare(
+                visible_tuple_location.offset)) {
+          if (tile_group_header->GetTxnDig(visible_tuple_location.offset) ==
+              nullptr) {
             Panic("Dep Digest is null");
           } else {
-            query_read_set_mgr.AddToDepSet(*tile_group_header->GetTxnDig(visible_tuple_location.offset), time);
+            query_read_set_mgr.AddToDepSet(
+                *tile_group_header->GetTxnDig(visible_tuple_location.offset),
+                time);
           }
         }
       }
