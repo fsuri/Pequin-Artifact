@@ -154,7 +154,9 @@ In addition, you will need to install the following libraries from source (detai
 - [ed25519-donna](https://github.com/floodyberry/ed25519-donna)
 - [Intel TBB](https://software.intel.com/content/www/us/en/develop/tools/oneapi/base-toolkit/get-the-toolkit.html). 
    - You will additionally need to [configure your CPU](https://software.intel.com/content/www/us/en/develop/documentation/get-started-with-intel-oneapi-base-linux/top/before-you-begin.html) before being able to compile the prototypes.
+- [PelotonDB](https://github.com/cmu-db/peloton)
 - [CockroachDB](https://www.cockroachlabs.com/docs/stable/install-cockroachdb-linux.html)
+
 
 Detailed install instructions:
 
@@ -333,6 +335,38 @@ Move the shared libary:
 4. `sudo cp libed25519_donna.so /usr/local/lib`
 5. `sudo ldconfig`
 6. `cd ..`
+
+
+
+#### Installing Peloton dependencies"
+```
+//install libcount
+git clone https://github.com/dialtr/libcount
+cd libcount
+sudo make
+sudo make install
+cd ..
+
+//install peloton third party dependencies
+git clone https://github.com/cmu-db/peloton.git
+cd peloton/third_party/libpgquery
+sudo make
+cd ..
+sudo cp -r libpgquery /usr/local/include
+sudo cp libpg_query/libpg_query.a /usr/local/lib
+
+sudo cp -r libcuckoo /usr/local/include
+
+sudo cp -r date /usr/local/include
+
+sudo cp -r adaptive_radix_tree /usr/local/include
+
+sudo ldconfig
+cd ../..
+
+```
+
+
 
 #### Installing Intel TBB
 > :warning: If you run into issues with the installation you may refer to https://www.intel.com/content/www/us/en/docs/oneapi/installation-guide-linux/2023-0/overview.html for detailed install resources.
