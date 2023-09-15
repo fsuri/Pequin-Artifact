@@ -211,9 +211,8 @@ void ReadFromStore(TableStore *table_store) {
   pequinstore::proto::ReadSet read_set_one;
   pequinstore::QueryReadSetMgr query_read_set_mgr_one(&read_set_one, 1, false);
 
-  std::string result =
-      table_store->ExecReadQuery("SELECT * FROM test WHERE a>=9 OR a <= 1;",
-                                 toy_ts_c_1, query_read_set_mgr_one);
+  std::string result = table_store->ExecReadQuery(
+      "SELECT * FROM test;", toy_ts_c_1, query_read_set_mgr_one);
 
   sql::QueryResultProtoBuilder queryResultBuilder;
   queryResultBuilder.add_column("a");
@@ -697,43 +696,43 @@ void test_rw_sql() {
   Timestamp timestamp13(13, 0);
   Timestamp timestamp14(14, 0);
 
-  /*WriteToTable(table_store1, timestamp1, 6, 7);
+  WriteToTable(table_store1, timestamp1, 6, 7);
 
-  WriteToTable(table_store1, timestamp2, 0, 0);
+  WriteToTable(table_store1, timestamp1, 0, 0);
 
-  WriteToTable(table_store1, timestamp3, 8, 9);
+  WriteToTable(table_store1, timestamp1, 8, 9);
 
-  WriteToTable(table_store1, timestamp4, 8, 9);
+  WriteToTable(table_store1, timestamp1, 8, 9);
 
-  WriteToTable(table_store1, timestamp5, 3, 5);
+  WriteToTable(table_store1, timestamp1, 3, 5);
 
-  WriteToTable(table_store1, timestamp6, 8, 9);
+  WriteToTable(table_store1, timestamp1, 8, 9);
 
-  WriteToTable(table_store1, timestamp7, 5, 7);
+  WriteToTable(table_store1, timestamp1, 5, 7);
 
-  WriteToTable(table_store1, timestamp8, 5, 6);
-
-  WriteToTable(table_store1, timestamp9, 1, 2);
-
-  WriteToTable(table_store1, timestamp10, 7, 7);
-
-  WriteToTable(table_store1, timestamp11, 3, 3);
-
-  WriteToTable(table_store1, timestamp12, 3, 5);
-
-  WriteToTable(table_store1, timestamp13, 6, 8);
-
-  WriteToTable(table_store1, timestamp14, 9, 0);*/
+  WriteToTable(table_store1, timestamp1, 5, 6);
 
   WriteToTable(table_store1, timestamp1, 1, 2);
 
-  WriteToTable(table_store1, timestamp1, 1, 2);
+  WriteToTable(table_store1, timestamp1, 7, 7);
+
+  WriteToTable(table_store1, timestamp1, 3, 3);
+
+  WriteToTable(table_store1, timestamp1, 3, 5);
+
+  WriteToTable(table_store1, timestamp1, 6, 8);
+
+  WriteToTable(table_store1, timestamp1, 9, 0);
+
+  /*WriteToTable(table_store1, timestamp1, 1, 2);
+
+  WriteToTable(table_store1, timestamp1, 1, 6);*/
+
+  /*WriteToTable(table_store1, timestamp1, 1, 2);
 
   WriteToTable(table_store1, timestamp1, 1, 2);
 
-  WriteToTable(table_store1, timestamp1, 1, 2);
-
-  WriteToTable(table_store1, timestamp1, 1, 2);
+  WriteToTable(table_store1, timestamp1, 1, 2);*/
 
   /*WriteToTable(table_store1, timestamp6, 1, 2);
 

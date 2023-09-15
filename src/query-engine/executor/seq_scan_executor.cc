@@ -175,8 +175,10 @@ bool SeqScanExecutor::DExecute() {
       // std::cout << "Active tuple count is " << active_tuple_count <<
       // std::endl;
       Debug("Active tuple count: %d", active_tuple_count);
+      std::cout << "Active tuple count is " << active_tuple_count << std::endl;
       for (oid_t tuple_id = 0; tuple_id < active_tuple_count; tuple_id++) {
         ItemPointer location(tile_group->GetTileGroupId(), tuple_id);
+        std::cout << "Tuple id is " << tuple_id << std::endl;
 
         // Commented out since CC is done at Basil level
         Debug("Tuple. begin id: %d. end id: %d. tuple tx-id: %d, curr tx-id: "
@@ -196,7 +198,11 @@ bool SeqScanExecutor::DExecute() {
         auto visibility = transaction_manager.IsVisible(
             current_txn, tile_group_header, tuple_id);
         Debug("Visibility is %d", visibility);
-        // std::cout << "Visibility is " << visibility << std::endl;
+        std::cout << "Visibility is " << visibility << std::endl;
+
+        if (visibility != VisibilityType::OK) {
+          continue;
+        }
 
         // Always set visibility to be ok
         // auto visibility = VisibilityType::OK;
@@ -207,11 +213,12 @@ bool SeqScanExecutor::DExecute() {
         auto tuple_timestamp = tile_group_header->GetBasilTimestamp(tuple_id);
         auto curr_tuple_id = tuple_id;
 
-        Debug("Current Txn has TS: [%lu:%lu]. Tuple TS: [%lu:%lu]. Seq scan curr "
-              "tuple id: %d",
-              timestamp.getTimestamp(), timestamp.getID(),
-              tuple_timestamp.getTimestamp(), tuple_timestamp.getID(),
-              curr_tuple_id);
+        Debug(
+            "Current Txn has TS: [%lu:%lu]. Tuple TS: [%lu:%lu]. Seq scan curr "
+            "tuple id: %d",
+            timestamp.getTimestamp(), timestamp.getID(),
+            tuple_timestamp.getTimestamp(), tuple_timestamp.getID(),
+            curr_tuple_id);
         // std::cout << "Timestamp of current txn is " <<
         // timestamp.getTimestamp() << ", " << timestamp.getID() << std::endl;
         // std::cout << "Timestamp of tuple is " <<
@@ -223,21 +230,25 @@ bool SeqScanExecutor::DExecute() {
         ItemPointer *head = tile_group_header->GetIndirection(curr_tuple_id);
         // std::cout << "Before checking whether head is null" << std::endl;
         if (head == nullptr) {
-          std::cout << "Head is null and location of curr tuple is ("<< location.block << ", " << location.offset << ")" << std::endl;
-          //return false;
+          std::cout << "Head is null and location of curr tuple is ("
+                    << location.block << ", " << location.offset << ")"
+                    << std::endl;
+          // return false;
         }
 
-        auto head_tile_group_header = storage_manager->GetTileGroup(head->block)->GetHeader();
+        auto head_tile_group_header =
+            storage_manager->GetTileGroup(head->block)->GetHeader();
 
-        tuple_timestamp = head_tile_group_header->GetBasilTimestamp(head->offset);
+        tuple_timestamp =
+            head_tile_group_header->GetBasilTimestamp(head->offset);
         location = *head;
         tile_group_header = head_tile_group_header;
         curr_tuple_id = location.offset;
 
         Debug("Head timestamp: [%d: %d]", tuple_timestamp.getTimestamp(),
               tuple_timestamp.getID());
-        // std::cout << "Head timestamp is " << tuple_timestamp.getTimestamp()
-        //           << ", " << tuple_timestamp.getID() << std::endl;
+        std::cout << "Head timestamp is " << tuple_timestamp.getTimestamp()
+                  << ", " << tuple_timestamp.getID() << std::endl;
 
         // Now we find the appropriate version to read that's less than the
         // timestamp by traversing the next pointers
@@ -265,10 +276,15 @@ bool SeqScanExecutor::DExecute() {
           curr_tuple_id = new_location.offset;
         }
 
-        Debug("location timestamp is: [%lu:%lu]", tile_group_header->GetBasilTimestamp(location.offset).getTimestamp(), tile_group_header->GetBasilTimestamp(location.offset).getID());
-        // std::cout << "Location timestamp is " << tile_group_header->GetBasilTimestamp(location.offset).getTimestamp() << std::endl;
-        // std::cout << "Current tuple id is " << curr_tuple_id << std::endl;
-      
+        Debug("location timestamp is: [%lu:%lu]",
+              tile_group_header->GetBasilTimestamp(location.offset)
+                  .getTimestamp(),
+              tile_group_header->GetBasilTimestamp(location.offset).getID());
+        // std::cout << "Location timestamp is " <<
+        // tile_group_header->GetBasilTimestamp(location.offset).getTimestamp()
+        // << std::endl; std::cout << "Current tuple id is " << curr_tuple_id <<
+        // std::endl;
+
         // check transaction visibility
         if (visibility == VisibilityType::OK) {
           // if the tuple is visible, then perform predicate evaluation.
@@ -290,21 +306,23 @@ bool SeqScanExecutor::DExecute() {
                 //           << std::endl;
               }
 
-              const Timestamp &time = tile_group_header->GetBasilTimestamp(location.offset); //TODO: remove copy
-               
-              std::string &&encoded = EncodeTableRow(target_table_->GetName(), primary_key_cols);
-              Debug("encoded read set key is: %s. Version: [%lu: %lu]", encoded.c_str(), time.getTimestamp(), time.getID());
+              const Timestamp &time = tile_group_header->GetBasilTimestamp(
+                  location.offset); // TODO: remove copy
 
-      
+              std::string &&encoded =
+                  EncodeTableRow(target_table_->GetName(), primary_key_cols);
+              Debug("encoded read set key is: %s. Version: [%lu: %lu]",
+                    encoded.c_str(), time.getTimestamp(), time.getID());
+
               query_read_set_mgr.AddToReadSet(std::move(encoded), time);
 
               if (!tile_group_header->GetCommitOrPrepare(curr_tuple_id)) {
                 if (tile_group_header->GetTxnDig(curr_tuple_id) != nullptr) {
-                    query_read_set_mgr.AddToDepSet(*tile_group_header->GetTxnDig(curr_tuple_id), time);
-                  }
-                  else{
-                    Panic("Txn Dig null");
-                  }
+                  query_read_set_mgr.AddToDepSet(
+                      *tile_group_header->GetTxnDig(curr_tuple_id), time);
+                } else {
+                  Panic("Txn Dig null");
+                }
               }
 
               // logical_tile->AddEntryReadSet(encoded, time);
@@ -315,7 +333,8 @@ bool SeqScanExecutor::DExecute() {
             // Since CC is done at Basil level res should always be true
             res = true;
             if (!res) {
-              transaction_manager.SetTransactionResult(current_txn, ResultType::FAILURE);
+              transaction_manager.SetTransactionResult(current_txn,
+                                                       ResultType::FAILURE);
               return res;
             }
           } else {
@@ -329,25 +348,30 @@ bool SeqScanExecutor::DExecute() {
               if (position_set.find(curr_tuple_id) == position_set.end()) {
                 position_list.push_back(curr_tuple_id);
                 position_set.insert(curr_tuple_id);
-                ContainerTuple<storage::TileGroup> row(tile_group.get(), curr_tuple_id);
+                ContainerTuple<storage::TileGroup> row(tile_group.get(),
+                                                       curr_tuple_id);
                 std::vector<std::string> primary_key_cols;
                 // std::string encoded_key = target_table_->GetName();
                 for (auto col : primary_index_columns_) {
                   auto val = row.GetValue(col);
                   // encoded_key = encoded_key + "///" + val.ToString();
                   primary_key_cols.push_back(val.ToString());
-                  //Debug("Read set value: %s", val.ToString().c_str());
-                  // std::cout << "read set value is " << val.ToString() << std::endl;
+                  // Debug("Read set value: %s", val.ToString().c_str());
+                  //  std::cout << "read set value is " << val.ToString() <<
+                  //  std::endl;
                 }
-               const Timestamp &time = tile_group_header->GetBasilTimestamp(location.offset); //TODO: remove copy
+                const Timestamp &time = tile_group_header->GetBasilTimestamp(
+                    location.offset); // TODO: remove copy
                 // logical_tile->AddToReadSet(std::tie(encoded_key, time));
 
                 // for (unsigned int i = 0; i < primary_key_cols.size(); i++) {
                 //   std::cout << "Primary key columns are " <<
                 //   primary_key_cols[i] << std::endl;
                 // }
-                std::string &&encoded = EncodeTableRow(target_table_->GetName(), primary_key_cols);
-                Debug("encoded read set key is: %s. Version: [%lu: %lu]", encoded.c_str(), time.getTimestamp(), time.getID());
+                std::string &&encoded =
+                    EncodeTableRow(target_table_->GetName(), primary_key_cols);
+                Debug("encoded read set key is: %s. Version: [%lu: %lu]",
+                      encoded.c_str(), time.getTimestamp(), time.getID());
                 // std::cout << "Encoded key from read set is " << encoded <<
                 // std::endl;
                 // TimestampMessage ts_message = TimestampMessage();
@@ -357,9 +381,9 @@ bool SeqScanExecutor::DExecute() {
 
                 if (!tile_group_header->GetCommitOrPrepare(curr_tuple_id)) {
                   if (tile_group_header->GetTxnDig(curr_tuple_id) != nullptr) {
-                    query_read_set_mgr.AddToDepSet(*tile_group_header->GetTxnDig(curr_tuple_id), time);
-                  }
-                  else{
+                    query_read_set_mgr.AddToDepSet(
+                        *tile_group_header->GetTxnDig(curr_tuple_id), time);
+                  } else {
                     Panic("Txn Dig null");
                   }
                 }
