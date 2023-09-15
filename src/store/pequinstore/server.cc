@@ -429,6 +429,12 @@ void Server::CreateTable(const std::string &table_name, const std::vector<std::p
                                                                  //or we require inserts/updates to include the version in the ReadSet. 
                                                                  //However, we don't want an insert to abort just because another row was inserted.
   Load(table_name, "", Timestamp());
+
+  //Create TABLE_COL version -- use table_name + delim + col_name as key. This version tracks updates to "column state" (as opposed to table state): I.e. row Updates;
+  //Updates to column values change search meta data such as Indexes on a given Table. Scans that search on the column (using Active Reads) should conflict
+  for(auto &[col_name, _] : column_data_types){
+    Load(table_name + unique_delimiter + col_name, "", Timestamp());
+  }
 }
 
 void Server::CreateIndex(const std::string &table_name, const std::vector<std::pair<std::string, std::string>> &column_data_types, const std::string &index_name, const std::vector<uint32_t> &index_col_idx){

@@ -146,7 +146,7 @@ SRCS += $(addprefix $(d), traffic_cop/traffic_cop.cc)
 
 # Type
 SRCS += $(addprefix $(d), type/array_type.cc type/bigint_type.cc type/boolean_type.cc type/date_type.cc type/decimal_type.cc type/integer_parent_type.cc \
-type/integer_type.cc type/numeric_type.cc type/smallint_type.cc type/timestamp_type.cc type/tinyint_type.cc type/type.cc type/value.cc type/value.cc type/varlen_type.cc)
+type/integer_type.cc type/numeric_type.cc type/smallint_type.cc type/timestamp_type.cc type/tinyint_type.cc type/type.cc type/value.cc type/varlen_type.cc)
 
 # UDF
 #SRCS += $(addprefix $(d), udf/ast_nodes.cc udf/udf_handler.cc udf/udf_parser.cc)
@@ -156,7 +156,7 @@ SRCS += $(addprefix $(d), util/file.cc util/string_util.cc util/stringbox_util.c
 
 
 # Queryexec test
-SRCS += $(addprefix $(d), queryexec-test.cc)
+#SRCS += $(addprefix $(d), queryexec-test.cc)
 
 #PROTOS += $(addprefix $(d), ../store/common/pequin-proto.proto)
 #PROTOS += $(addprefix $(d), ../store/common/query-result-proto.proto)
@@ -308,7 +308,7 @@ LIB-traffic-cop := $(o)traffic_cop/traffic_cop.o
 
 # Type
 LIB-type := $(o)type/array_type.o $(o)type/bigint_type.o $(o)type/boolean_type.o $(o)type/date_type.o $(o)type/decimal_type.o $(o)type/integer_parent_type.o \
-$(o)type/integer_type.o $(o)type/numeric_type.o $(o)type/smallint_type.o $(o)type/timestamp_type.o $(o)type/tinyint_type.o $(o)type/type.o $(o)type/value.o $(o)type/value.o $(o)type/varlen_type.o
+$(o)type/integer_type.o $(o)type/numeric_type.o $(o)type/smallint_type.o $(o)type/timestamp_type.o $(o)type/tinyint_type.o $(o)type/type.o $(o)type/value.o $(o)type/varlen_type.o
 
 # Udf
 #LIB-udf := $(o)udf/ast_nodes.o $(o)udf/udf_handler.o $(o)udf/udf_parser.o

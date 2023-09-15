@@ -69,6 +69,7 @@ typedef std::function<void()> cleanCallback;
 typedef std::function<void(void*)> mainThreadCallback; //TODO change back to this...
 //typedef std::function<void(bool)> mainThreadCallback;
 
+
 struct Triplet {
   Triplet() {};
   Triplet(::google::protobuf::Message* msg,
@@ -429,6 +430,13 @@ struct QueryReadSetMgr {
           *read->mutable_readtime() = readtime;
         }
 
+        void AddToReadSet(std::string &&key, const Timestamp &readtime){
+           ReadMessage *read = read_set->add_read_set();
+          //ReadMessage *read = query_md->queryResult->mutable_query_read_set()->add_read_set();
+          read->set_key(std::move(key));
+          readtime.serialize(read->mutable_readtime());
+        }
+
         void AddToDepSet(const std::string &tx_id, const TimestampMessage &tx_ts){
             proto::Dependency *add_dep = read_set->add_deps();
             add_dep->set_involved_group(groupIdx);
@@ -443,11 +451,23 @@ struct QueryReadSetMgr {
             }
         }
 
+        void AddToDepSet(const std::string &tx_id, const Timestamp &tx_ts){
+            proto::Dependency *add_dep = read_set->add_deps();
+            add_dep->set_involved_group(groupIdx);
+            add_dep->mutable_write()->set_prepared_txn_digest(tx_id);
+            Debug("Adding Dep: %s", BytesToHex(tx_id, 16).c_str());
+            //Note: Send merged TS.
+            if(useOptimisticId){
+                //MergeTimestampId(txn->timestamp().timestamp(), txn->timestamp().id()
+                add_dep->mutable_write()->mutable_prepared_timestamp()->set_timestamp(tx_ts.getTimestamp());
+                add_dep->mutable_write()->mutable_prepared_timestamp()->set_id(tx_ts.getID());
+            }
+        }
+
       proto::ReadSet *read_set;
       uint64_t groupIdx;
       bool useOptimisticId;
 };
-
 
 // enum InjectFailureType {
 //   CLIENT_EQUIVOCATE = 0,
@@ -580,6 +600,11 @@ private:
     std::unordered_map<std::string, std::set<uint64_t>> txn_freq; //replicas that have txn committed.
     std::unordered_map<uint64_t, std::set<uint64_t>> ts_freq; //replicas that have txn committed.
 };
+
+typedef std::function<void(const std::string &, const Timestamp &, bool, QueryReadSetMgr *, SnapshotManager *)> find_table_version;
+typedef std::function<bool(const std::string &)> read_prepared_pred; // This is a function that, given a txnDigest of a prepared tx, evals to true if it is readable, and false if not.
+
+
 
 typedef struct Parameters {
 

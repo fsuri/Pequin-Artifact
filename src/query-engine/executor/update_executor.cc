@@ -202,7 +202,7 @@ bool UpdateExecutor::DExecute() {
 
     ItemPointer old_location(tile_group->GetTileGroupId(), physical_tuple_id);
 
-    Debug("Old timestamp = [%d:%d]", tile_group_header->GetBasilTimestamp(physical_tuple_id).getTimestamp(), tile_group_header->GetBasilTimestamp(physical_tuple_id).getID());
+    Debug("Old timestamp = [%lu:%lu]", tile_group_header->GetBasilTimestamp(physical_tuple_id).getTimestamp(), tile_group_header->GetBasilTimestamp(physical_tuple_id).getID());
     //std::cout << "Old timestamp is " << tile_group_header->GetBasilTimestamp(physical_tuple_id).getTimestamp() << std::endl;
 
     LOG_TRACE("Visible Tuple id : %u, Physical Tuple id : %u ",

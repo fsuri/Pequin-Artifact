@@ -98,8 +98,8 @@ SETTING_int(monoqueue_task_queue_size,
 
 // Size of the MonoQueue worker pool
 SETTING_int(monoqueue_worker_pool_size,
-            "MonoQueue Worker Pool Size (default: 4)",
-            4, 
+            "MonoQueue Worker Pool Size (default: 8)", //4
+            8, // 4, 
             1, 32,
             false, false)
 

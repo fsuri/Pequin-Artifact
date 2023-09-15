@@ -521,6 +521,7 @@ void SQLTransformer::TransformUpdate(size_t pos, std::string_view &write_stateme
                                         
     
     write_continuation = [this, wcb, table_name, col_updates](int status, query_result::QueryResult* result) mutable {
+
         //std::cerr << "TEST WRITE CONT" << std::endl;
         Debug("Issuing write_continuation"); //FIXME: Debug doesnt seem to be registered
 
@@ -536,6 +537,12 @@ void SQLTransformer::TransformUpdate(size_t pos, std::string_view &write_stateme
         // table_ver->set_key(table_name);
         // table_ver->set_value("");
         bool changed_table = false; // false //FOR NOW ALWAYS SETTING TO TRUE due to UPDATE INDEX issue (see above comment) TODO: Implement TableColumnVersion optimization
+
+        for(auto &[col, _]: col_updates){
+            WriteMessage *write = txn->add_write_set();   
+            write->set_key(table_name + unique_delimiter + std::string(col));  
+             //If a TX has multiple Queries with the same Col updates there will be duplicates. Does that matter? //Writes are sorted to avoid deadlock.
+        }
 
         TableWrite *table_write = AddTableWrite(table_name, col_registry);
        
@@ -560,22 +567,23 @@ void SQLTransformer::TransformUpdate(size_t pos, std::string_view &write_stateme
             // For col in col_updates update the columns specified by update_cols. Set value to update_values
             for(int j=0; j<row->num_columns(); ++j){
                 const std::string &col = row->name(j);
+               
                 std::unique_ptr<query_result::Field> field = (*row)[j];
-              
+          
                 //Deserialize encoding to be a stringified type (e.g. whether it's int/bool/string store all as normal readable string)
                 const std::string &col_type = col_registry.col_name_type[col];
                 auto field_val(DecodeType(field, col_type));
                 //std::string field_val(DecodeType(field, col_registry.col_name_type[col]));
 
 
-                //std::cerr << "Checking column " << col << " with field " << std::visit(StringVisitor(), field_val) << std::endl;
+                std::cerr << "Checking column: " << col << " , with field " << std::visit(StringVisitor(), field_val) << std::endl;
                 
                
                 //Replace value with col value if applicable. Then operate arithmetic by casting ops to uint64_t and then turning back to string.
                 //(*write->mutable_rowupdates()->mutable_attribute_writes())[col] = std::move(GetUpdateValue(col, field_val, field, col_updates));
                 bool change_val = false;
                 std::string set_val = GetUpdateValue(col, field_val, field, col_updates, col_type, change_val);
-              
+                //TODO: return bool if set_val is changed. In that case, record which columsn changed. and add a CC-store write entry per column updated.
                
                 if(col_registry.primary_key_cols.count(col)){
                    
@@ -629,6 +637,8 @@ void SQLTransformer::TransformUpdate(size_t pos, std::string_view &write_stateme
             // table_ver->set_value("");
             table_write->set_changed_table(true);
         }
+
+
 
 
 
@@ -1327,6 +1337,17 @@ std::variant<bool, int32_t, std::string> DecodeType(std::unique_ptr<query_result
     return DecodeType(field_val, col_type);
 }
 
+ //  out = field->get(&nbytes);
+                // std::string p_output(out, nbytes);
+                //  std::stringstream p_ss(std::ios::in | std::ios::out | std::ios::binary);
+                // p_ss << p_output;
+                // output_row;
+                // {
+                // cereal::BinaryInputArchive iarchive(p_ss); // Create an input archive
+                // iarchive(output_row); // Read the data from the archive
+                // }
+                // std::cerr << "Query Result. Col " << i << ": " << output_row << std::endl;
+
 std::variant<bool, int32_t, std::string> DecodeType(std::string &enc_value, const std::string &col_type){
     //Based on Syntax from: https://www.postgresqltutorial.com/postgresql-tutorial/postgresql-data-types/ && https://www.postgresql.org/docs/current/datatype-numeric.html 
     //Resource for std::variant: https://www.cppstories.com/2018/06/variant/ 
@@ -1347,10 +1368,14 @@ std::variant<bool, int32_t, std::string> DecodeType(std::string &enc_value, cons
     //     type_variant = std::move(dec_value);
     // }
     else if(col_type == "INT" || col_type == "BIGINT" || col_type == "SMALLINT"){ // SMALLINT (2byteS) INT (4), BIGINT (8), DOUBLE () 
-       
-        int32_t dec_value;
+        //int32_t dec_value;  //FIXME: Peloton encodes everything as string currently. So must DeCerialize as string and only then convert.
+        std::string dec_value;
         DeCerealize(enc_value, dec_value);
-        type_variant = std::move(dec_value);
+        //std::cerr << "DEC VALUE: " << dec_value << std::endl; 
+
+        int32_t dec = std::stoi(dec_value);
+        type_variant = std::move(dec);
+
     }
     // else if(col_type == "INT []" || col_type == "BIGINT []" || col_type == "SMALLINT []"){
     //     std::vector<int32_t> dec_value;
@@ -1358,9 +1383,14 @@ std::variant<bool, int32_t, std::string> DecodeType(std::string &enc_value, cons
     //     type_variant = std::move(dec_value);
     // }
     else if(col_type == "BOOL"){
-        bool dec_value;
+
+       
+         std::string dec_value;
+        bool dec; //FIXME: Peloton encodes everything as string currently. So must DeCerialize as string and only then convert.
         DeCerealize(enc_value, dec_value);
-        type_variant = std::move(dec_value);
+        
+        istringstream(dec_value) >> dec;
+        type_variant = std::move(dec);
     }
     else{
         Panic("Types other than {VARCHAR, INT, BIGINT, SMALLINT, BOOL} Currently not supported");
@@ -1391,6 +1421,7 @@ bool set_in_map(std::map<std::string, std::string> const &lhs, std::set<std::str
     }
     return true;
 }
+
 
 //Note: input (cond_statement) contains everything following "WHERE" keyword
 //Returns true if cond_statement can be issued as Point Operation. P_col_value contains all extracted primary key col values (without quotes)

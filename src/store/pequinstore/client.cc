@@ -127,6 +127,8 @@ Client::~Client()
  */
 void Client::Begin(begin_callback bcb, begin_timeout_callback btcb,
       uint32_t timeout, bool retry) {
+
+  std::cerr << "Try Begin" << std::endl;
   // fail the current txn iff failuer timer is up and
   // the number of txn is a multiple of frequency
   //only fail fresh transactions
@@ -142,6 +144,7 @@ void Client::Begin(begin_callback bcb, begin_timeout_callback btcb,
     if(!failureEnabled) stats.Increment("total_fresh_tx_honest", 1);
   }
 
+  std::cerr << "Reach timer" << std::endl;
   transport->Timer(0, [this, bcb, btcb, timeout]() { 
     if (pingReplicas) {
       if (!first && !startedPings) {

@@ -3,8 +3,10 @@
 #include <atomic>
 #include <sched.h>
 #include <utility>
+#include "lib/message.h"
 
-// TODO: Include whatever Peloton Deps
+#include "store/common/query_result/query_result.h"
+
 
 namespace pequinstore {
 
@@ -106,8 +108,7 @@ PelotonTableStore::ParseAndPrepare(const std::string &query_statement,
     Panic("SQL command not valid"); // return peloton::ResultType::FAILURE;
   }
 
-  auto statement = tcop->PrepareStatement(unnamed_statement, query_statement,
-                                          std::move(sql_stmt_list));
+  auto statement = tcop->PrepareStatement(unnamed_statement, query_statement, std::move(sql_stmt_list));
   if (statement.get() == nullptr) {
     tcop->setRowsAffected(0);
     Panic("SQL command not valid"); // return peloton::ResultType::FAILURE;
@@ -153,6 +154,8 @@ std::string PelotonTableStore::TransformResult(
     for (unsigned int j = 0; j < tuple_descriptor.size(); j++) {
       // TODO: Use interface addtorow, and pass in field to that row
       queryResultBuilder.AddToRow(row, result[i * tuple_descriptor.size() + j]);
+      // auto r = result[i * tuple_descriptor.size() + j];
+      // std::cerr << "Col/Row" << j << " : " << (result[i * tuple_descriptor.size() + j]) << std::endl;
     }
   }
 
@@ -277,6 +280,12 @@ void PelotonTableStore::LoadTable(const std::string &load_statement,
 std::string PelotonTableStore::ExecReadQuery(const std::string &query_statement,
                                              const Timestamp &ts,
                                              QueryReadSetMgr &readSetMgr) {
+
+  
+  //UW_ASSERT(ts.getTimestamp() >= 0 && ts.getID() >= 0);
+  
+  Debug("Execute ReadQuery: %s. TS: [%lu:%lu]", query_statement.c_str(), ts.getTimestamp(), ts.getID());
+ 
   // Execute on Peloton (args: query, Ts, readSetMgr, this->can_read_prepared,
   // this->set_table_version) --> returns peloton result --> transform into
   // protoResult
@@ -293,12 +302,10 @@ std::string PelotonTableStore::ExecReadQuery(const std::string &query_statement,
   bool unamed;
 
   // TRY TO SET A THREAD ID
-  size_t t_id =
-      std::hash<std::thread::id>{}(std::this_thread::get_id()); // % 4;
-  std::cout << "################################# STARTING  ExecReadQuery "
-               "############################## on Thread: "
-            << t_id << std::endl;
-  std::cout << query_statement << std::endl;
+  // size_t t_id = std::hash<std::thread::id>{}(std::this_thread::get_id()); // % 4;
+  // std::cout << "################################# STARTING  ExecReadQuery  ############################## on Thread: " < t_id << std::endl;
+  
+  //std::cout << query_statement << std::endl;
 
   // prepareStatement
   auto statement = ParseAndPrepare(query_statement, tcop);
@@ -314,10 +321,43 @@ std::string PelotonTableStore::ExecReadQuery(const std::string &query_statement,
   // execute the query using tcop
   auto status = tcop->ExecuteReadStatement(
       statement, param_values, unamed, result_format, result, ts, readSetMgr,
-      this->record_table_version, this->can_read_prepared, t_id);
+      this->record_table_version, this->can_read_prepared);
 
   // GetResult(status);
   GetResult(status, tcop, counter);
+
+  // std::string result_string = TransformResult(status, statement, result);
+  // //Testing:
+  // //TODO: turn result into protowrapper and read it out.
+  // query_result::QueryResult *res = new sql::QueryResultProtoWrapper(result_string);
+  // //TODO: what type are the result values? does the transformation shomehow need to mention this.
+
+  //   std::cerr << "IS empty?: " << (res->empty()) << std::endl;
+  //   std::cerr << "num cols:" <<  (res->num_columns()) << std::endl;
+  //   std::cerr << "num rows written:" <<  (res->rows_affected()) << std::endl;
+  //   std::cerr << "num rows read:" << (res->size()) << std::endl;
+
+  //  size_t nbytes;
+  //  const char* out;
+  // std::string output_row;
+          
+  // for(int j = 0; j < res->size(); ++j){
+  //    std::stringstream p_ss(std::ios::in | std::ios::out | std::ios::binary);
+  //   for(int i = 0; i<res->num_columns(); ++i){
+  //     out = res->get(j, i, &nbytes);
+  //     std::string p_output(out, nbytes);
+  //     p_ss << p_output;
+  //     output_row;
+  //     {
+  //       cereal::BinaryInputArchive iarchive(p_ss); // Create an input archive
+  //       iarchive(output_row); // Read the data from the archive
+  //     }
+  //     std::cerr << "Query Result. Col " << i << ": " << output_row << std::endl;
+  //   }
+  // }
+   
+  // delete res;               
+            
 
   // Transform PelotonResult into ProtoResult
   return TransformResult(status, statement, result);
@@ -493,7 +533,8 @@ void PelotonTableStore::ApplyTableWrite(
   // TableVersion (Currently, it is being set right after ApplyTableWrite()
   // returns)
 
-  Debug("Apply TableWrite for txn %s", BytesToHex(txn_digest, 16).c_str());
+  //UW_ASSERT(ts.getTimestamp() >= 0 && ts.getID() >= 0);
+  Debug("Apply TableWrite for txn %s. TS [%lu:%lu]", BytesToHex(txn_digest, 16).c_str(), ts.getTimestamp(), ts.getID()); 
 
   if (table_write.rows().empty())
     return;

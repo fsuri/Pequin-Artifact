@@ -54,16 +54,24 @@ RWSQLTransaction::~RWSQLTransaction() {
 
 transaction_status_t RWSQLTransaction::Execute(SyncClient &client) {
   
+  //TODO: Record ranges checked by the TX
+  // For a new TX, if it partially falls within a range => move it outside. If fully subsumed, cancel the request.
+  //CURRENTLY DO NOT SUPPORT READ YOUR OWN WRITES
+    //Could simulate within TX by making it +2 for the subsumed ranges.
+
+  std::cerr << "Exec next TX" << std::endl;
+
   client.Begin(timeout);
 
+  std::cerr << "Begin TX" << std::endl;
  //RW LOGIC
   //UPDATE / INSERT / READ
   for(int i=0; i < numOps; ++i){
-  
+    
     string table = "table_" + std::to_string(tables[i]);
-    int left_bound = bases[i]; 
+    int left_bound = 7; //bases[i]; 
     //std::cout << "left: " << left_bound << std::endl;
-    int right_bound = (left_bound + ranges[i]) % querySelector->numKeys;   //If keys+ range goes out of bound, wrap around and check smaller and greaer. Turn statement into OR
+    int right_bound = 3;//(left_bound + ranges[i]) % querySelector->numKeys;   //If keys+ range goes out of bound, wrap around and check smaller and greaer. Turn statement into OR
     //std::cout << "range " << ranges[i] << std::endl;
     //std::cout << "numKeys " << querySelector->numKeys << std::endl;
   
@@ -93,29 +101,31 @@ transaction_status_t RWSQLTransaction::Execute(SyncClient &client) {
                                            //For real benchmarks: Also edit in sync_transaction_bench_client.
     }
     else{
+      std::cerr << "send Query TX" << i << std::endl;
       std::unique_ptr<const query_result::QueryResult> queryResult;
       client.Write(statement, queryResult, timeout);  //--> Edit API in frontend sync_client.
                                            //For real benchmarks: Also edit in sync_transaction_bench_client.
     
       //TODO: if key doesn't exist => INSERT IT
       UW_ASSERT(queryResult->rows_affected());
-      int num_rows = abs(right_bound - left_bound); 
-      if(queryResult->rows_affected() < num_rows){
+      std::cerr << "Expected rows affected. Max: " << 3 << std::endl;
+      std::cerr << "Num rows affected: " << queryResult->rows_affected() << std::endl;
+
+      if(queryResult->rows_affected() < ranges[i] + 1){
         std::cerr << "Was not able to read all expected rows -- Check whether initialized correctly serverside" << std::endl;
         //Insert all -- just issue a bunch of point writes (bundle under one statement?) => TODO: check if sql_interpreter deals with multi-writes
         //ideally just insert the missing ones, but we don't know.
       }
     }
-   
-                              
-    
-  
   }
 
     // client.Abort(timeout);
     // return ABORTED_USER;
   
   transaction_status_t commitRes = client.Commit(timeout);
+  std::cerr << "TXN COMMIT STATUS: " << commitRes << std::endl;
+
+  usleep(1000);
   return commitRes;
 }
 

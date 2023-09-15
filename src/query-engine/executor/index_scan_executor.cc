@@ -399,7 +399,7 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
             // Set the committed timestmp
             Timestamp committed_timestamp =
                 tile_group_header->GetBasilTimestamp(tuple_location.offset);
-            Debug("Committed Timestamp: [%d:%d]",
+            Debug("Committed Timestamp: [%lu:%lu]",
                   committed_timestamp.getTimestamp(),
                   committed_timestamp.getID());
             // std::cout << "Committed timestamp is " <<
@@ -777,38 +777,22 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
           Debug("Read set value: %s", val.ToString().c_str());
           // std::cout << "read set value is " << val.ToString() << std::endl;
         }
-        Timestamp time =
-            tile_group_header->GetBasilTimestamp(visible_tuple_location.offset);
-        // logical_tile->AddToReadSet(std::tie(encoded_key, time));
 
-        // for (unsigned int i = 0; i < primary_key_cols.size(); i++) {
-        //   std::cout << "Primary key columns are " << primary_key_cols[i] <<
-        //   std::endl;
-        // }
 
-        std::string encoded =
-            EncodeTableRow(index_->GetName(), primary_key_cols);
-        Debug("Encoded read set key: %s",
-              encoded.c_str()); // std::cout << "Encoded key from read set is "
-                                // << encoded << std::endl;
+        const Timestamp &time = tile_group_header->GetBasilTimestamp(visible_tuple_location.offset); //TODO: remove copy
+               
+        std::string &&encoded = EncodeTableRow(index_->GetName(), primary_key_cols);
+        Debug("encoded read set key is: %s. Version: [%lu: %lu]", encoded.c_str(), time.getTimestamp(), time.getID());
+        query_read_set_mgr.AddToReadSet(std::move(encoded), time);
 
-        TimestampMessage ts_message = TimestampMessage();
 
-        ts_message.set_id(time.getID());
-        ts_message.set_timestamp(time.getTimestamp());
+        if (!tile_group_header->GetCommitOrPrepare( visible_tuple_location.offset)) {
 
-        query_read_set_mgr.AddToReadSet(encoded, ts_message);
-
-        if (!tile_group_header->GetCommitOrPrepare(
-                visible_tuple_location.offset)) {
-          if (tile_group_header->GetTxnDig(visible_tuple_location.offset) ==
-              nullptr) {
-            std::cout << "Dep Digest is null" << std::endl;
+          if (tile_group_header->GetTxnDig(visible_tuple_location.offset) == nullptr) {
+            Panic("Dep Digest is null");
           } else {
-            std::cout << "Dep Digest is not null" << std::endl;
-            query_read_set_mgr.AddToDepSet(
-                *tile_group_header->GetTxnDig(visible_tuple_location.offset),
-                ts_message);
+            
+          query_read_set_mgr.AddToDepSet( *tile_group_header->GetTxnDig(visible_tuple_location.offset), time);
           }
         }
       }
@@ -837,12 +821,10 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
 
       if (current_txn->GetHasReadSetMgr()) {
 
-        tile_group =
-            storage_manager->GetTileGroup(visible_tuple_location.block);
+        tile_group = storage_manager->GetTileGroup(visible_tuple_location.block);
         auto tile_group_header = tile_group.get()->GetHeader();
 
-        ContainerTuple<storage::TileGroup> row(tile_group.get(),
-                                               visible_tuple_location.offset);
+        ContainerTuple<storage::TileGroup> row(tile_group.get(), visible_tuple_location.offset);
 
         std::vector<std::string> primary_key_cols;
         for (auto col : primary_index_columns_) {
@@ -854,38 +836,18 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
                 val.ToString().c_str()); // std::cout << "read set value is " <<
                                          // val.ToString() << std::endl;
         }
-        Timestamp time =
-            tile_group_header->GetBasilTimestamp(visible_tuple_location.offset);
-        // logical_tile->AddToReadSet(std::tie(encoded_key, time));
 
-        // for (unsigned int i = 0; i < primary_key_cols.size(); i++) {
-        //   std::cout << "Primary key columns are " << primary_key_cols[i] <<
-        //   std::endl;
-        // }
+        const Timestamp &time = tile_group_header->GetBasilTimestamp(visible_tuple_location.offset); //TODO: remove copy
+               
+        std::string &&encoded = EncodeTableRow(index_->GetName(), primary_key_cols);
+        Debug("encoded read set key is: %s. Version: [%lu: %lu]", encoded.c_str(), time.getTimestamp(), time.getID());
+        query_read_set_mgr.AddToReadSet(std::move(encoded), time);
 
-        std::string encoded =
-            EncodeTableRow(index_->GetName(), primary_key_cols);
-        Debug("Encoded read set key: %s",
-              encoded.c_str()); // std::cout << "Encoded key from read set is "
-                                // << encoded << std::endl;
-        TimestampMessage ts_message = TimestampMessage();
-
-        ts_message.set_id(time.getID());
-        ts_message.set_timestamp(time.getTimestamp());
-
-        query_read_set_mgr.AddToReadSet(encoded, ts_message);
-
-        if (!tile_group_header->GetCommitOrPrepare(
-                visible_tuple_location.offset)) {
-          if (tile_group_header->GetTxnDig(visible_tuple_location.offset) ==
-              nullptr) {
-            std::cout << "Dep Digest is null" << std::endl;
+        if (!tile_group_header->GetCommitOrPrepare(visible_tuple_location.offset)) {
+          if (tile_group_header->GetTxnDig(visible_tuple_location.offset) == nullptr) {
+            Panic("Dep Digest is null");
           } else {
-            std::cout << "Dep Digest is not null" << std::endl;
-
-            query_read_set_mgr.AddToDepSet(
-                *tile_group_header->GetTxnDig(visible_tuple_location.offset),
-                ts_message);
+            query_read_set_mgr.AddToDepSet(*tile_group_header->GetTxnDig(visible_tuple_location.offset), time);
           }
         }
       }
