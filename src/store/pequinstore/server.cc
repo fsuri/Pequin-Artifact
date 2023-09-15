@@ -1621,16 +1621,14 @@ void Server::HandleAbort(const TransportAddress &remote,
 
 /////////////////////////////////////// PREPARE, COMMIT AND ABORT LOGIC  + Cleanup
 
-void Server::Prepare(const std::string &txnDigest,
-    const proto::Transaction &txn, const ReadSet &readSet) {
-  Debug("PREPARE[%s] agreed to commit with ts %lu.%lu.",
-      BytesToHex(txnDigest, 16).c_str(), txn.timestamp().timestamp(), txn.timestamp().id());
+void Server::Prepare(const std::string &txnDigest,const proto::Transaction &txn, const ReadSet &readSet) {
+  Debug("PREPARE[%s] agreed to commit with ts %lu.%lu.",BytesToHex(txnDigest, 16).c_str(), txn.timestamp().timestamp(), txn.timestamp().id());
 
   Timestamp ts = Timestamp(txn.timestamp());
 
   //const ReadSet &readSet = txn.read_set();
   const WriteSet &writeSet = txn.write_set();
-
+  
   ongoingMap::const_accessor o;
   auto ongoingItr = ongoing.find(o, txnDigest);
   if(!ongoingItr){
@@ -1673,11 +1671,28 @@ void Server::Prepare(const std::string &txnDigest,
   std::pair<Timestamp, const proto::Transaction *> pWrite = std::make_pair(a->second.first, a->second.second);
   a.release();
     //std::make_pair(p.first->second.first, p.first->second.second);
+
+  std::vector<const std::string*> table_and_col_versions; 
+
   for (const auto &write : writeSet) {
     if (IsKeyOwned(write.key())) {
 
-       //Skip applying TableVersion until after TableWrites have been applied
-      if(txn.table_writes().find(write.key()) != txn.table_writes().end()) continue; 
+       //Skip applying TableVersion until after TableWrites have been applied; Same for TableColVersions. Currenty those are both marked as delay.
+       //(write.has_delay() && write.delay()) || 
+      if(txn.table_writes().find(write.key()) != txn.table_writes().end() ){
+        table_and_col_versions.push_back(&write.key());
+        continue;
+      }   
+      //Also need to do this for TableColVersions...  //write them aside in a little map (just keep a pointer ref to the position)
+      //Currently rely on unique_delim to figure out it is a TableColVersion. Ideally check that prefix is table_name too.
+      // size_t pos;
+      // if((pos = write.key().find(unique_delimiter)) != std::string::npos){  //FIXME: This currently filters out ALL keys
+      //   table_and_col_versions.push_back(&write.key());
+      //   continue;
+      // }
+      //Better solution: Mark keys as skip inside the write itself? That way client controls what gets skipped. 
+      //Not really BFT, but it simplifies. Otherwise have to go and consult the TableRegistry...
+      //Attack: Byz client applies version after tablewrite..Causes honest Tx to not respect safety.
 
       std::pair<std::shared_mutex,std::map<Timestamp, const proto::Transaction *>> &x = preparedWrites[write.key()];
       std::unique_lock lock(x.first);
@@ -1692,8 +1707,18 @@ void Server::Prepare(const std::string &txnDigest,
 
   for (const auto &[table_name, table_write] : txn.table_writes()){
     table_store->ApplyTableWrite(table_name, table_write, ts, txnDigest, nullptr, false);
-    //Apply TableVersion 
-    std::pair<std::shared_mutex,std::map<Timestamp, const proto::Transaction *>> &x = preparedWrites[table_name];
+    //Apply TableVersion  ==> currently moved below
+    // std::pair<std::shared_mutex,std::map<Timestamp, const proto::Transaction *>> &x = preparedWrites[table_name];
+    // std::unique_lock lock(x.first);
+    // x.second.insert(pWrite);
+  }
+
+  //Apply TableVersion and TableColVersion
+  //TODO: for max efficiency (minimal wait time to update): Set_change table in table_write, and write TableVersion as soon as TableWrite has been applied
+                                                            //Do the same for Table_Col_Version. TODO: this requires parsing out the table_name however.
+  for(auto table_or_col_version: table_and_col_versions){   
+    Debug("Preparing TableVersion or TableColVersion: %s with TS: [%lu:%lu]", (*table_or_col_version).c_str(), ts.getTimestamp(), ts.getID());
+    std::pair<std::shared_mutex,std::map<Timestamp, const proto::Transaction *>> &x = preparedWrites[*table_or_col_version];
     std::unique_lock lock(x.first);
     x.second.insert(pWrite);
   }
@@ -1810,6 +1835,7 @@ void Server::UpdateCommittedReads(proto::Transaction *txn, const std::string &tx
 }
 
 void Server::CommitToStore(proto::CommittedProof *proof, proto::Transaction *txn, const std::string &txnDigest, Timestamp &ts, Value &val){
+  std::vector<const std::string*> table_and_col_versions; 
 
   UpdateCommittedReads(txn, txnDigest, ts, proof);
 
@@ -1827,8 +1853,20 @@ void Server::CommitToStore(proto::CommittedProof *proof, proto::Transaction *txn
       Panic("When running in KV-store mode write should always have a value");
     }
     
-    //Skip applying TableVersion until after TableWrites have been applied
-    if(txn->table_writes().find(write.key()) != txn->table_writes().end()) continue; 
+    
+    //Skip applying TableVersion until after TableWrites have been applied; Same for TableColVersions. Currenty those are both marked as delay.
+    //(write.has_delay() && write.delay()) || 
+    if(txn->table_writes().find(write.key()) != txn->table_writes().end() ){
+      table_and_col_versions.push_back(&write.key());
+      continue;
+    }   
+    // //Also need to do this for TableColVersions...  //write them aside in a little map (just keep a pointer ref to the position)
+    // //Currently rely on unique_delim to figure out it is a TableColVersion. Ideally check that prefix is table_name too.
+    // size_t pos;
+    // if((pos = write.key().find(unique_delimiter)) != std::string::npos){
+    //   table_and_col_versions.push_back(&write.key());
+    //   continue;
+    // }
 
     store.put(write.key(), val, ts);
 
@@ -1860,13 +1898,21 @@ void Server::CommitToStore(proto::CommittedProof *proof, proto::Transaction *txn
                             // + how do we remove prepared rows? Do we treat it as SQL delete (at ts)? row becomes invisible -- fully removed from CC store.
   for (const auto &[table_name, table_write] : txn->table_writes()){
     table_store->ApplyTableWrite(table_name, table_write, ts, txnDigest, proof);
-    val.val = "";
-    store.put(table_name, val, ts);  //Apply TableVersion   //TODO: Confirm that ApplyTableWrite is synchronous -- i.e. only returns after all writes are applied. 
+    //val.val = "";
+    //store.put(table_name, val, ts);     //TODO: Confirm that ApplyTableWrite is synchronous -- i.e. only returns after all writes are applied. 
                                                           //If not, then must call SetTableVersion as callback from within Peloton once it is done.
     //Note: Should be safe to apply TableVersion table by table (i.e. don't need to wait for all TableWrites to finish before applying TableVersions)
 
     
     //Note: Does one have to do special handling for Abort? No ==> All prepared versions just produce unecessary conflicts & dependencies, so there is no safety concern.
+  }
+  //Apply TableVersion and TableColVersion
+  //TODO: for max efficiency (minimal wait time to update): Set_change table in table_write, and write TableVersion as soon as TableWrite has been applied
+                                                            //Do the same for Table_Col_Version. TODO: this requires parsing out the table_name however.
+  for(auto table_or_col_version: table_and_col_versions){   
+     Debug("Commit TableVersion or TableColVersion: %s with TS: [%lu:%lu]", (*table_or_col_version).c_str(), ts.getTimestamp(), ts.getID());
+    val.val = ""; 
+    store.put(*table_or_col_version, val, ts);  
   }
 }
 

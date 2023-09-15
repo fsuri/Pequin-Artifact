@@ -449,14 +449,14 @@ void Server::ManageDispatchSupplyTx(const TransportAddress &remote, const std::s
 
 //////////////////////////////////////////////////////// Protocol Helper Functions
 
-void Server::FindTableVersion(const std::string &table_name, const Timestamp &ts, bool read_or_snapshot, QueryReadSetMgr *readSetMgr, SnapshotManager *snapshotMgr){
-  //Read the current TableVersion from CC-store
+void Server::FindTableVersion(const std::string &key_name, const Timestamp &ts, bool read_or_snapshot, QueryReadSetMgr *readSetMgr, SnapshotManager *snapshotMgr){
+  //Read the current TableVersion or TableColVersion from CC-store  -- I.e. key_name = "table_name" OR "table_name + delim + column_name" 
   //Note: TableVersion is updated AFTER all TableWrites of a TX have been written. So the TableVersion from CC-store is a pessimistic version; if it is outdated we abort, but that is safe.
 
   //Read committed
   std::pair<Timestamp, Server::Value> tsVal;
   //find committed write value to read from
-  bool committed_exists = store.get(table_name, ts, tsVal);
+  bool committed_exists = store.get(key_name, ts, tsVal);
   if(!committed_exists){
     Panic("All Tables must have a genesis version");  //Note: CreateTable() writes the genesis version
   }
@@ -465,7 +465,7 @@ void Server::FindTableVersion(const std::string &table_name, const Timestamp &ts
 
   //Read prepared
   if(occType == MVTSO && params.maxDepDepth > -2){    //TODO: possibly set RTS too here. Note: currently being set for whole Query ReadSet after exec. 
-      mostRecentPrepared = FindPreparedVersion(table_name, ts, committed_exists, tsVal);
+      mostRecentPrepared = FindPreparedVersion(key_name, ts, committed_exists, tsVal);
   }
 
 
@@ -473,13 +473,13 @@ void Server::FindTableVersion(const std::string &table_name, const Timestamp &ts
     UW_ASSERT(readSetMgr);
 
     if(mostRecentPrepared != nullptr){ //Read prepared
-      readSetMgr->AddToReadSet(table_name, mostRecentPrepared->timestamp());
+      readSetMgr->AddToReadSet(key_name, mostRecentPrepared->timestamp());
       readSetMgr->AddToDepSet(TransactionDigest(*mostRecentPrepared, params.hashDigest), mostRecentPrepared->timestamp());
     }
     else{ //Read committed
       TimestampMessage tsm;
       tsVal.first.serialize(&tsm);
-      readSetMgr->AddToReadSet(table_name, tsm);
+      readSetMgr->AddToReadSet(key_name, tsm);
     }
   }
   else{ //Creating Snapshot

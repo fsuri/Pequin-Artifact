@@ -18,6 +18,8 @@ message WriteMessage {
         //TableWrite table_writes = 3;
     optional RowUpdates rowupdates = 3;  //Table name and primary key cols are included in key encoding. //NOTE: WriteMessage is just using row_idx field currently
     //}
+
+    //optional bool delay = 4;
 }
 
 message PingMessage {
