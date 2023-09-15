@@ -338,7 +338,7 @@ Move the shared libary:
 
 
 
-#### Installing Peloton dependencies"
+#### Installing Peloton dependencies
 ```
 //install libcount
 git clone https://github.com/dialtr/libcount
@@ -363,7 +363,6 @@ sudo cp -r adaptive_radix_tree /usr/local/include
 
 sudo ldconfig
 cd ../..
-
 ```
 
 
