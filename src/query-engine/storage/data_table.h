@@ -129,11 +129,10 @@ public:
                           ItemPointer **index_entry_ptr = nullptr,
                           bool check_fk = true);
 
-  ItemPointer InsertTuple(const Tuple *tuple,
-                          concurrency::TransactionContext *transaction,
-                          bool &exists, ItemPointer &old_location,
-                          ItemPointer **index_entry_ptr = nullptr,
-                          bool check_fk = true);
+  ItemPointer
+  InsertTuple(const Tuple *tuple, concurrency::TransactionContext *transaction,
+              bool &exists, bool &is_duplicate, ItemPointer &old_location,
+              ItemPointer **index_entry_ptr = nullptr, bool check_fk = true);
 
   // designed for tables without primary key. e.g., output table used by
   // aggregate_executor.
@@ -282,6 +281,9 @@ public:
 
   // deprecated, use catalog::TableCatalog::GetInstance()->GetDatabaseOid()
   inline oid_t GetDatabaseOid() const { return (database_oid); }
+
+  ItemPointer CheckIfInIndex(const storage::Tuple *tuple,
+                             concurrency::TransactionContext *transaction);
 
   // try to insert into all indexes.
   // the last argument is the index entry in primary index holding the new

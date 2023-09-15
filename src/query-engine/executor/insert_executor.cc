@@ -252,13 +252,15 @@ bool InsertExecutor::DExecute() {
       // std::cout << "Insert executor before insertion in else if statement" <<
       // std::endl;
       bool result = true;
+      bool is_duplicate = false;
 
       /*ItemPointer location =
           target_table->InsertTuple(new_tuple, current_txn, &index_entry_ptr);*/
 
       ItemPointer old_location = ItemPointer(0, 0);
       ItemPointer location = target_table->InsertTuple(
-          new_tuple, current_txn, result, old_location, &index_entry_ptr);
+          new_tuple, current_txn, result, is_duplicate, old_location,
+          &index_entry_ptr);
 
       if (new_tuple->GetColumnCount() > 2) {
         type::Value val = (new_tuple->GetValue(2));
@@ -273,7 +275,7 @@ bool InsertExecutor::DExecute() {
       //  return false;
       //}
 
-      if (!result) {
+      if (!result && !is_duplicate) {
 
         std::cout
             << "Tried to insert row with same primary key, so will do an update"
@@ -311,7 +313,7 @@ bool InsertExecutor::DExecute() {
         }
 
         bool same_columns = true;
-        bool should_upgrade =
+        /*bool should_upgrade =
             !tile_group_header->GetCommitOrPrepare(old_location.offset) &&
             new_tile_group->GetHeader()->GetCommitOrPrepare(
                 new_location.offset);
@@ -368,7 +370,7 @@ bool InsertExecutor::DExecute() {
 
           new_tile_group->GetHeader()->SetIndirection(new_location.offset,
                                                       indirection);
-        }
+        }*/
 
         // perform projection from old version to new version.
         // this triggers in-place update, and we do not need to allocate
@@ -376,7 +378,7 @@ bool InsertExecutor::DExecute() {
         // project_info->Evaluate(&new_tuple_one, &old_tuple_one, nullptr,
         //                       executor_context_);
 
-        if (!should_upgrade && !same_txn) {
+        if (true /*!should_upgrade && !same_txn*/) {
           // get indirection.
           // std::cout << "Before getting indirection" << std::endl;
           ItemPointer *indirection =
@@ -421,8 +423,8 @@ bool InsertExecutor::DExecute() {
           new_tile_group->GetHeader()->SetCommitOrPrepare(
               new_location.offset, current_txn->GetCommitOrPrepare());
         }
-      } else {
-        // std::cout << "Insert was performed" << std::endl;
+      } else if (!is_duplicate) {
+        std::cout << "Insert was performed" << std::endl;
         transaction_manager.PerformInsert(current_txn, location,
                                           index_entry_ptr);
         auto storage_manager = storage::StorageManager::GetInstance();
@@ -433,11 +435,15 @@ bool InsertExecutor::DExecute() {
         tile_group_header->SetCommitOrPrepare(
             location.offset, current_txn->GetCommitOrPrepare());
 
+        auto ts = current_txn->GetBasilTimestamp();
+        tile_group_header->SetBasilTimestamp(location.offset, ts);
+
         if (current_txn->GetTxnDig() != nullptr) {
           tile_group_header->SetTxnDig(location.offset,
                                        current_txn->GetTxnDig());
         }
       }
+
       // TODO: This is what was here before
       // transaction_manager.PerformInsert(current_txn, location,
       // index_entry_ptr);

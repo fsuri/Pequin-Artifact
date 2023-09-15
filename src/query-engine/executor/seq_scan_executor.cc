@@ -175,8 +175,10 @@ bool SeqScanExecutor::DExecute() {
       // std::cout << "Active tuple count is " << active_tuple_count <<
       // std::endl;
       Debug("Active tuple count: %d", active_tuple_count);
+      std::cout << "Active tuple count is " << active_tuple_count << std::endl;
       for (oid_t tuple_id = 0; tuple_id < active_tuple_count; tuple_id++) {
         ItemPointer location(tile_group->GetTileGroupId(), tuple_id);
+        std::cout << "Tuple id is " << tuple_id << std::endl;
 
         // Commented out since CC is done at Basil level
         Debug("Tuple. begin id: %d. end id: %d. tuple tx-id: %d, curr tx-id: "
@@ -196,7 +198,11 @@ bool SeqScanExecutor::DExecute() {
         auto visibility = transaction_manager.IsVisible(
             current_txn, tile_group_header, tuple_id);
         Debug("Visibility is %d", visibility);
-        // std::cout << "Visibility is " << visibility << std::endl;
+        std::cout << "Visibility is " << visibility << std::endl;
+
+        if (visibility != VisibilityType::OK) {
+          continue;
+        }
 
         // Always set visibility to be ok
         // auto visibility = VisibilityType::OK;
@@ -230,6 +236,7 @@ bool SeqScanExecutor::DExecute() {
 
         auto head_tile_group_header =
             storage_manager->GetTileGroup(head->block)->GetHeader();
+        std::cout << "Looking through tuples in seq scan" << std::endl;
 
         tuple_timestamp =
             head_tile_group_header->GetBasilTimestamp(head->offset);
@@ -239,8 +246,8 @@ bool SeqScanExecutor::DExecute() {
 
         Debug("Head timestamp: [%d: %d]", tuple_timestamp.getTimestamp(),
               tuple_timestamp.getID());
-        // std::cout << "Head timestamp is " << tuple_timestamp.getTimestamp()
-        //           << ", " << tuple_timestamp.getID() << std::endl;
+        std::cout << "Head timestamp is " << tuple_timestamp.getTimestamp()
+                  << ", " << tuple_timestamp.getID() << std::endl;
 
         // Now we find the appropriate version to read that's less than the
         // timestamp by traversing the next pointers
@@ -272,10 +279,11 @@ bool SeqScanExecutor::DExecute() {
               tile_group_header->GetBasilTimestamp(location.offset)
                   .getTimestamp(),
               tile_group_header->GetBasilTimestamp(location.offset).getID());
-        // std::cout << "Location timestamp is " <<
-        // tile_group_header->GetBasilTimestamp(location.offset).getTimestamp()
-        // << std::endl; std::cout << "Current tuple id is " << curr_tuple_id <<
-        // std::endl;
+        std::cout << "Location timestamp is "
+                  << tile_group_header->GetBasilTimestamp(location.offset)
+                         .getTimestamp()
+                  << std::endl;
+        std::cout << "Current tuple id is " << curr_tuple_id << std::endl;
 
         // check transaction visibility
         if (visibility == VisibilityType::OK) {
@@ -319,8 +327,10 @@ bool SeqScanExecutor::DExecute() {
               query_read_set_mgr.AddToReadSet(encoded, ts_message);
 
               if (!tile_group_header->GetCommitOrPrepare(curr_tuple_id)) {
-                query_read_set_mgr.AddToDepSet(current_txn->GetTxnDig()->data(),
-                                               ts_message);
+                if (tile_group_header->GetTxnDig(curr_tuple_id) != nullptr) {
+                  query_read_set_mgr.AddToDepSet(
+                      *tile_group_header->GetTxnDig(curr_tuple_id), ts_message);
+                }
               }
 
               // logical_tile->AddEntryReadSet(encoded, time);
@@ -378,8 +388,11 @@ bool SeqScanExecutor::DExecute() {
                 query_read_set_mgr.AddToReadSet(encoded, ts_message);
 
                 if (!tile_group_header->GetCommitOrPrepare(curr_tuple_id)) {
-                  query_read_set_mgr.AddToDepSet(
-                      current_txn->GetTxnDig()->data(), ts_message);
+                  if (tile_group_header->GetTxnDig(curr_tuple_id) != nullptr) {
+                    query_read_set_mgr.AddToDepSet(
+                        *tile_group_header->GetTxnDig(curr_tuple_id),
+                        ts_message);
+                  }
                 }
 
                 // logical_tile->AddEntryReadSet(encoded_key, time);
