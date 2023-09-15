@@ -69,6 +69,7 @@ typedef std::function<void()> cleanCallback;
 typedef std::function<void(void*)> mainThreadCallback; //TODO change back to this...
 //typedef std::function<void(bool)> mainThreadCallback;
 
+
 struct Triplet {
   Triplet() {};
   Triplet(::google::protobuf::Message* msg,
@@ -468,7 +469,6 @@ struct QueryReadSetMgr {
       bool useOptimisticId;
 };
 
-
 // enum InjectFailureType {
 //   CLIENT_EQUIVOCATE = 0,
 //   CLIENT_CRASH = 1,
@@ -600,6 +600,11 @@ private:
     std::unordered_map<std::string, std::set<uint64_t>> txn_freq; //replicas that have txn committed.
     std::unordered_map<uint64_t, std::set<uint64_t>> ts_freq; //replicas that have txn committed.
 };
+
+typedef std::function<void(const std::string &, const Timestamp &, bool, QueryReadSetMgr *, SnapshotManager *)> find_table_version;
+typedef std::function<bool(const std::string &)> read_prepared_pred; // This is a function that, given a txnDigest of a prepared tx, evals to true if it is readable, and false if not.
+
+
 
 typedef struct Parameters {
 

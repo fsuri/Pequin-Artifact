@@ -20,7 +20,7 @@
 
 #include "../../store/common/timestamp.h"
 #include "../../store/pequinstore/common.h"
-#include "../../store/pequinstore/table_store_interface.h"
+//#include "../../store/pequinstore/table_store_interface.h"
 #include "../catalog/catalog_cache.h"
 #include "../common/exception.h"
 #include "../common/internal_types.h"

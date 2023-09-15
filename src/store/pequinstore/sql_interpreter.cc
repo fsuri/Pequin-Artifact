@@ -522,39 +522,6 @@ void SQLTransformer::TransformUpdate(size_t pos, std::string_view &write_stateme
     
     write_continuation = [this, wcb, table_name, col_updates](int status, query_result::QueryResult* result) mutable {
 
-
-                // query_result::QueryResult *res = new sql::QueryResultProtoWrapper(result_string);
-        //TODO: what type are the result values? does the transformation shomehow need to mention this.
-
-        // std::cerr << "SPECIAL TEST" << std::endl;
-        // query_result::QueryResult *res = result;
-        //   std::cerr << "IS empty?: " << (res->empty()) << std::endl;
-        //   std::cerr << "num cols:" <<  (res->num_columns()) << std::endl;
-        //   std::cerr << "num rows written:" <<  (res->rows_affected()) << std::endl;
-        //   std::cerr << "num rows read:" << (res->size()) << std::endl;
-
-        //  size_t nbytes;
-        //  const char* out;
-        // std::string output_row;
-                
-        // for(int j = 0; j < res->size(); ++j){
-        //    std::stringstream p_ss(std::ios::in | std::ios::out | std::ios::binary);
-        //   for(int i = 0; i<res->num_columns(); ++i){
-        //     out = res->get(j, i, &nbytes);
-        //     std::string p_output(out, nbytes);
-        //     p_ss << p_output;
-        //     output_row;
-        //     {
-        //       cereal::BinaryInputArchive iarchive(p_ss); // Create an input archive
-        //       iarchive(output_row); // Read the data from the archive
-        //     }
-        //     std::cerr << "Query Result. Col " << i << ": " << output_row << std::endl;
-        //   }
-        // }
-        
-                     
-                    
-
         //std::cerr << "TEST WRITE CONT" << std::endl;
         Debug("Issuing write_continuation"); //FIXME: Debug doesnt seem to be registered
 
@@ -570,6 +537,12 @@ void SQLTransformer::TransformUpdate(size_t pos, std::string_view &write_stateme
         // table_ver->set_key(table_name);
         // table_ver->set_value("");
         bool changed_table = false; // false //FOR NOW ALWAYS SETTING TO TRUE due to UPDATE INDEX issue (see above comment) TODO: Implement TableColumnVersion optimization
+
+        for(auto &[col, _]: col_updates){
+            WriteMessage *write = txn->add_write_set();   
+            write->set_key(table_name + unique_delimiter + std::string(col));  
+             //If a TX has multiple Queries with the same Col updates there will be duplicates. Does that matter? //Writes are sorted to avoid deadlock.
+        }
 
         TableWrite *table_write = AddTableWrite(table_name, col_registry);
        
@@ -610,7 +583,7 @@ void SQLTransformer::TransformUpdate(size_t pos, std::string_view &write_stateme
                 //(*write->mutable_rowupdates()->mutable_attribute_writes())[col] = std::move(GetUpdateValue(col, field_val, field, col_updates));
                 bool change_val = false;
                 std::string set_val = GetUpdateValue(col, field_val, field, col_updates, col_type, change_val);
-              
+                //TODO: return bool if set_val is changed. In that case, record which columsn changed. and add a CC-store write entry per column updated.
                
                 if(col_registry.primary_key_cols.count(col)){
                    
@@ -664,6 +637,8 @@ void SQLTransformer::TransformUpdate(size_t pos, std::string_view &write_stateme
             // table_ver->set_value("");
             table_write->set_changed_table(true);
         }
+
+
 
 
 
@@ -1446,6 +1421,7 @@ bool set_in_map(std::map<std::string, std::string> const &lhs, std::set<std::str
     }
     return true;
 }
+
 
 //Note: input (cond_statement) contains everything following "WHERE" keyword
 //Returns true if cond_statement can be issued as Point Operation. P_col_value contains all extracted primary key col values (without quotes)

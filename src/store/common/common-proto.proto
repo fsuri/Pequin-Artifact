@@ -58,7 +58,7 @@ message TableWrite {
 
     //IN USE:
     repeated RowUpdates rows = 5;            // each RowUpdate stores the column values in order.
-    optional bool changed_table = 6;
+    optional bool changed_table = 6;         //Records locally at client whether or not the table was changed (i.e. whether to set Tableversion)
    
     //repeated string primary_cols = 5;
 }

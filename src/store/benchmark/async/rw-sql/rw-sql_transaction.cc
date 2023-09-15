@@ -54,6 +54,11 @@ RWSQLTransaction::~RWSQLTransaction() {
 
 transaction_status_t RWSQLTransaction::Execute(SyncClient &client) {
   
+  //TODO: Record ranges checked by the TX
+  // For a new TX, if it partially falls within a range => move it outside. If fully subsumed, cancel the request.
+  //CURRENTLY DO NOT SUPPORT READ YOUR OWN WRITES
+    //Could simulate within TX by making it +2 for the subsumed ranges.
+
   std::cerr << "Exec next TX" << std::endl;
 
   client.Begin(timeout);
