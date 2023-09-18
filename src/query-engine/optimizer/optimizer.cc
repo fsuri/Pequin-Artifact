@@ -120,7 +120,7 @@ shared_ptr<planner::AbstractPlan> Optimizer::BuildPelotonPlanTree(
   }
   // TODO: support multi-statement queries
   auto parse_tree = parse_tree_list->GetStatement(0);
-  std::cerr << "parse tree: " << parse_tree->GetInfo() << std::endl;
+  Debug("Parse Tree: %s ", parse_tree->GetInfo().c_str());
 
   unique_ptr<planner::AbstractPlan> child_plan = nullptr;
 
@@ -349,7 +349,7 @@ unique_ptr<planner::AbstractPlan> Optimizer::ChooseBestPlan( GroupID id, std::sh
   LOG_TRACE("Choosing with property : %s", required_props->ToString().c_str());
   auto gexpr = group->GetBestExpression(required_props);
 
-  std::cerr << "GEXPR: " << gexpr->Op().GetName() << std::endl; 
+  Debug("GEXPR: %s", gexpr->Op().GetName().c_str());
 
   LOG_TRACE("Choosing best plan for group %d with op %s", gexpr->GetGroupID(),
             gexpr->Op().GetName().c_str());
@@ -384,7 +384,7 @@ unique_ptr<planner::AbstractPlan> Optimizer::ChooseBestPlan( GroupID id, std::sh
   // Derive root plan
   shared_ptr<OperatorExpression> op =make_shared<OperatorExpression>(gexpr->Op());
 
-  std::cerr << "OP: " << op->GetInfo() << std::endl;
+  Debug("OP: %s", op->GetInfo().c_str());
 
   PlanGenerator generator;
   auto plan = generator.ConvertOpExpression(op, required_props, required_cols,

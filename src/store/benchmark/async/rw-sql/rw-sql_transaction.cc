@@ -27,6 +27,7 @@
 #include "store/benchmark/async/rw-sql/rw-sql_transaction.h"
 #include <fmt/core.h>
 #include "store/common/query_result/query_result.h"
+#include "rw-sql_transaction.h"
 
 namespace rwsql {
 
@@ -52,6 +53,7 @@ RWSQLTransaction::~RWSQLTransaction() {
 }
 
 
+
 transaction_status_t RWSQLTransaction::Execute(SyncClient &client) {
   
   //TODO: Record ranges checked by the TX
@@ -69,12 +71,20 @@ transaction_status_t RWSQLTransaction::Execute(SyncClient &client) {
   for(int i=0; i < numOps; ++i){
     
     string table = "table_" + std::to_string(tables[i]);
-    int left_bound = 7; //bases[i]; 
+    uint64_t left_bound = bases[i]; 
     //std::cout << "left: " << left_bound << std::endl;
-    int right_bound = 3;//(left_bound + ranges[i]) % querySelector->numKeys;   //If keys+ range goes out of bound, wrap around and check smaller and greaer. Turn statement into OR
+    uint64_t right_bound = (left_bound + ranges[i]) % querySelector->numKeys;   //If keys+ range goes out of bound, wrap around and check smaller and greaer. Turn statement into OR
     //std::cout << "range " << ranges[i] << std::endl;
     //std::cout << "numKeys " << querySelector->numKeys << std::endl;
   
+    if(AVOID_DUPLICATE_READS){
+      //adjust bounds: shrink to not overlap. //if shrinkage makes bounds invert => cancel this read.
+      if(!AdjustBounds(left_bound, right_bound)){
+        std::cerr << "CANCELLED REDUNDANT QUERY" << std::endl;
+        continue;
+      } 
+    }
+
     std::string statement;    
     
     if(readOnly){
@@ -125,8 +135,124 @@ transaction_status_t RWSQLTransaction::Execute(SyncClient &client) {
   transaction_status_t commitRes = client.Commit(timeout);
   std::cerr << "TXN COMMIT STATUS: " << commitRes << std::endl;
 
-  usleep(1000);
+  //usleep(1000);
   return commitRes;
 }
+
+
+bool RWSQLTransaction::AdjustBounds(uint64_t &left, uint64_t &right)
+{
+  //return false if statement is to be skipped.    
+  std::cerr << "Input Left: " << left << " Right: " << right << std::endl;
+
+    int size = (right - left + 1) % querySelector->numKeys;
+
+    //shrink in every loop (never grow!)
+     for(auto &[l, r]: past_ranges){
+        
+        if(l <= r){
+          //Case A.1
+          if(left <= right){
+             //             l  left right   r                     ==> cancel
+            if(l <= left && right <= r) return false;
+
+            //              l               r     left right      ==> do notihng
+            // left right   l               r                     ==> do nothing
+            if((left >= r && right >=r)|| left <= l && right <= l) continue;
+
+              // left         l               r     right           ==> create 2: left to l, r to right
+            if(left <= l && r >= right){
+              //TODO: create two!
+              return false;
+            }
+
+              // left         l     right     r                     ==> shrink to right = l-1
+              //              l      left     r     right           ==> shrink to left = r+1
+            if(right >= l) right = l-1 % querySelector->numKeys;
+            if(left <= r) left = r+1 % querySelector->numKeys;
+          }
+          //Case A.2
+          else
+          { // right>< left 
+
+            // right        l               r     left          ==> do nothing
+            if(right < l && left > r) continue;
+             //              l  right left   r                     ==> //split into two: left to r, l to right
+            if(right > l && left < r) {   // l right  left < r
+              //TODO: create two parallel reads: one from l to right, and one from left to r
+              return false;
+            }
+            if(right >= r || left <= l) {
+            //TODO: split: 
+                return false;
+            }
+
+            // right        l     left      r                     ==> shrink left = r+1
+            //              l     right     r     left           ==> shrink to right = l-1
+            left = std::max(r+1 % querySelector->numKeys, left); 
+            right = std::min(l-1 % querySelector->numKeys, right); 
+
+
+            //              l               r     right left      ==> split into two: left to l, r to right
+            // right left   l               r                     ==> split into two: left to l, r to right
+           
+
+           
+          }
+        }
+        if(r < l){ //wrap around case
+          //Case B.1
+          if(left <= right){
+           
+            //              r   left right  l              ==> do nothing
+            if(r < left && right < l) continue;
+
+            //              r               l     left right      ==> cancel
+            // left right   r               l                     ==> cancel
+            if(left >= l || right <= r ) return false;
+          
+            // left         r               l     right           ==> shrink to  left = r+1, right = l-1
+            // left         r     right     l                     ==> shrink to left = r+1
+            //              r      left     l     right           ==> shrink to right = l-1
+            left = std::max(r+1 % querySelector->numKeys, left);
+            right = std::min(l-1 % querySelector->numKeys, right);
+
+          }
+
+          //Case B.2
+          else{  //right < left
+            
+            //             r   right left  l
+            if(right >= r && left <= r) {   
+              //TODO: create two parallel reads: one from r to right, and one from left to l
+              return false;
+            }
+
+
+            //             r               l     right left    ==> cancel
+            // right left  r               l                   ==> cancel
+            // right       r               l     left          ==> cancel
+            if(right >= l || left <= r) return false;
+
+            
+            // right       r      left     l                   ==> shrink to right = l-1
+            //             r     right     l     left          ==> shrink to left = r+1
+            if(right <= r) right = l-1 % querySelector->numKeys;
+            if(left  >= l) left = r+1 % querySelector->numKeys;
+
+          }
+        }
+
+        int new_size = (right - left + 1) % querySelector->numKeys;
+        if(new_size > size) return false;  //Confirm that we shrank range (and not accidentally flipped signs and made it bigger)
+        size = new_size;
+    }
+
+    std::cerr << "Adjusted to Left: " << left << " Right: " << right << std::endl;
+    past_ranges.push_back({left, right});
+
+    return true;
+}
+
 
 } // namespace rw

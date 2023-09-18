@@ -38,6 +38,7 @@
 
 namespace rwsql {
 
+static bool AVOID_DUPLICATE_READS = true; 
 
 class RWSQLTransaction : public SyncTransaction { //AsyncTransaction
  public:
@@ -49,11 +50,14 @@ class RWSQLTransaction : public SyncTransaction { //AsyncTransaction
   inline const std::vector<int> getKeyIdxs() const {
     return keyIdxs;
   }
+ private:
+  bool AdjustBounds(uint64_t &left, uint64_t &right);
  protected:
   inline const std::string &GetKey(int i) const {
     return keySelector->GetKey(keyIdxs[i]);
   }
 
+  
   //inline const size_t GetNumOps() const { return numOps; }
 
   KeySelector *keySelector;
@@ -64,10 +68,13 @@ class RWSQLTransaction : public SyncTransaction { //AsyncTransaction
   const bool readOnly;
   std::vector<int> keyIdxs;
 
-  std::vector<int> tables;
-  std::vector<int> bases;
-  std::vector<int> ranges;
+  std::vector<uint64_t> tables;
+  std::vector<uint64_t> bases;
+  std::vector<uint64_t> ranges;
 
+  //avoid duplicates
+  std::vector<std::pair<uint64_t, uint64_t>> past_ranges;
+  
 };
 
 }

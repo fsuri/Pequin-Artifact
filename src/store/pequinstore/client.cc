@@ -62,6 +62,7 @@ Client::Client(transport::Configuration *config, uint64_t id, int nShards,
     failureEnabled(false), failureActive(false), faulty_counter(0UL),
     consecutiveMax(consecutiveMax) {
 
+  Notice("Pequinstore currently does not support Read-your-own-Write semantics for Queries. Adjust application accordingly!!");
 
   Debug("Initializing Indicus client with id [%lu] %lu", client_id, nshards);
   std::cerr<< "P1 Decision Timeout: " <<phase1DecisionTimeout<< std::endl;
