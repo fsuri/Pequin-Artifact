@@ -370,30 +370,28 @@ ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple,
 
     auto ts = tile_group_header->GetBasilTimestamp(check.offset);
 
-    if (ts == transaction->GetBasilTimestamp()) {
+    bool same_columns = true;
+    bool should_upgrade =
+        !tile_group_header->GetCommitOrPrepare(check.offset) &&
+        transaction->GetCommitOrPrepare();
+    // NOTE: Check if we can upgrade a prepared tuple to committed
+    // std::string encoded_key = target_table_->GetName();
+    const auto *schema = tile_group->GetAbstractTable()->GetSchema();
+    for (uint32_t col_idx = 0; col_idx < schema->GetColumnCount(); col_idx++) {
+      auto val1 = tile_group->GetValue(check.offset, col_idx);
+      auto val2 = tuple->GetValue(col_idx);
+
+      if (val1.ToString() != val2.ToString()) {
+        tile_group->SetValue(val2, check.offset, col_idx);
+        same_columns = false;
+      }
+    }
+
+    if (ts == transaction->GetBasilTimestamp() || same_columns) {
       std::cout << "Duplicate" << std::endl;
       is_duplicate = true;
 
-      bool same_columns = true;
-      bool should_upgrade =
-          !tile_group_header->GetCommitOrPrepare(old_location.offset) &&
-          transaction->GetCommitOrPrepare();
-      // NOTE: Check if we can upgrade a prepared tuple to committed
-      // std::string encoded_key = target_table_->GetName();
-      const auto *schema = tile_group->GetAbstractTable()->GetSchema();
-      for (uint32_t col_idx = 0; col_idx < schema->GetColumnCount();
-           col_idx++) {
-        auto val1 = tile_group->GetValue(check.offset, col_idx);
-        auto val2 = tuple->GetValue(col_idx);
-
-        if (val1.ToString() != val2.ToString()) {
-          tile_group->SetValue(val2, check.offset, col_idx);
-          same_columns = false;
-          // break;
-        }
-      }
-
-      if (should_upgrade /*&& same_columns*/) {
+      if (should_upgrade) {
         std::cout << "Upgrading from prepared to committed" << std::endl;
         tile_group_header->SetCommitOrPrepare(check.offset, true);
       }
