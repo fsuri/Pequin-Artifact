@@ -138,7 +138,12 @@ std::string PelotonTableStore::TransformResult(
   std::vector<peloton::FieldInfo> tuple_descriptor;
   if (status == peloton::ResultType::SUCCESS) {
     tuple_descriptor = statement->GetTupleDescriptor();
+    Debug("Query Read successful");
   }
+  else{
+    Panic("Query read failure");
+  }
+  
 
   sql::QueryResultProtoBuilder queryResultBuilder;
   // Add columns

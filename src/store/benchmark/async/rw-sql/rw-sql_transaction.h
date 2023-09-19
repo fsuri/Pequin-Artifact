@@ -39,6 +39,7 @@
 namespace rwsql {
 
 static bool AVOID_DUPLICATE_READS = true; 
+static bool POINT_READS_ENABLED = false;
 
 class RWSQLTransaction : public SyncTransaction { //AsyncTransaction
  public:

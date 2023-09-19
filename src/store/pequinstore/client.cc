@@ -480,6 +480,7 @@ void Client::PointQueryResultCallback(PendingQuery *pendingQuery,
   query_result::QueryResult *q_result = new sql::QueryResultProtoWrapper(result);
   pendingQuery->qcb(REPLY_OK, q_result); //callback to application 
   
+  stats.Increment("PointQuerySuccess", 1);
   
   delete pendingQuery;
   //clean pendingQuery and query_seq_num_mapping in all shards. ==> Not necessary here: Already happens in HandlePointQuery
@@ -588,6 +589,14 @@ void Client::QueryResultCallback(PendingQuery *pendingQuery,
   Debug("Upcall with Query result");
   sql::QueryResultProtoWrapper *q_result = new sql::QueryResultProtoWrapper(pendingQuery->result);
   pendingQuery->qcb(REPLY_OK, q_result); //callback to application 
+
+  stats.Increment("QuerySuccess", 1);
+  //if it was a point query
+  if(pendingQuery->is_point && params.query_params.eagerPointExec) stats.Increment("PointQueryEager_successes", 1);
+  //If it was an eager exec.    //Note: Running eager exec whenever version == 0 AND either eagerExec param is set, or it is a pointQuery and eagerPointExec is set
+  else if(pendingQuery->version == 0 && params.query_params.eagerExec) stats.Increment("EagerExec_successes", 1);
+  else stats.Increment("Sync_successes", 1);
+
   //clean pendingQuery and query_seq_num_mapping in all shards.
   ClearQuery(pendingQuery);      
 
@@ -641,6 +650,16 @@ void Client::ClearQuery(PendingQuery *pendingQuery){
 }
 
 void Client::RetryQuery(PendingQuery *pendingQuery){
+
+  
+  stats.Increment("QueryRetries", 1);
+  //if it was a point query
+  if(pendingQuery->is_point && params.query_params.eagerPointExec) stats.Increment("PointQueryEager_failures", 1);
+  //If it was an eager exec.    //Note: Running eager exec whenever version == 0 AND either eagerExec param is set, or it is a pointQuery and eagerPointExec is set
+  else if(pendingQuery->version == 0 && params.query_params.eagerExec) stats.Increment("EagerExec_failures", 1);
+  else stats.Increment("Sync_failures", 1);
+  
+
   pendingQuery->version++;
   pendingQuery->group_replies = 0;
   pendingQuery->queryMsg.set_retry_version(pendingQuery->version);

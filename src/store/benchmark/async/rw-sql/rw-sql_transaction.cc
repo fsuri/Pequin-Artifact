@@ -93,19 +93,29 @@ transaction_status_t RWSQLTransaction::Execute(SyncClient &client) {
     }
 
     std::string statement;    
-    
-    if(readOnly){
-      if(left_bound <= right_bound) statement = fmt::format("SELECT FROM {0} WHERE key >= {1} AND key <= {2};", table, left_bound, right_bound);
-      else statement = fmt::format("SELECT FROM {0} WHERE key >= {1} OR key <= {2};", table, left_bound, right_bound);
-    }
 
+    //TODO: 
+    if(POINT_READS_ENABLED && left_bound == right_bound){
+        if(readOnly) statement = fmt::format("SELECT FROM {0} WHERE key = {1};", table, left_bound);
+        else statement = fmt::format("UPDATE {0} SET value = value + 1 WHERE key = {1};", table, left_bound);
+    }
+   
     else{
-      // if(left_bound == right_bound) query = fmt::format("UPDATE {0} SET value = value + 1 WHERE key = {1};", table, left_bound); // POINT QUERY -- TODO: FOR NOW DISABLE
-      if(left_bound <= right_bound) statement = fmt::format("UPDATE {0} SET value = value + 1 WHERE key >= {1} AND key <= {2};", table, left_bound, right_bound);
-      else statement = fmt::format("UPDATE {0} SET value = value + 1 WHERE key >= {1} OR key <= {2};", table, left_bound, right_bound); 
+      if(readOnly){
+        if(left_bound <= right_bound) statement = fmt::format("SELECT FROM {0} WHERE key >= {1} AND key <= {2};", table, left_bound, right_bound);
+        else statement = fmt::format("SELECT FROM {0} WHERE key >= {1} OR key <= {2};", table, left_bound, right_bound);
+      }
 
+      else{
+        // if(left_bound == right_bound) query = fmt::format("UPDATE {0} SET value = value + 1 WHERE key = {1};", table, left_bound); // POINT QUERY -- TODO: FOR NOW DISABLE
+        if(left_bound <= right_bound) statement = fmt::format("UPDATE {0} SET value = value + 1 WHERE key >= {1} AND key <= {2};", table, left_bound, right_bound);
+        else statement = fmt::format("UPDATE {0} SET value = value + 1 WHERE key >= {1} OR key <= {2};", table, left_bound, right_bound); 
+
+      }
     }
-    //TODO: FIXME: Currently Ignoring TableVersion writes -- Because we KNOW that we are not changing primary key, which is the search condition.  
+    
+    
+    //Note: Updates will not conflict on TableVersion -- Because we are not changing primary key, which is the search condition.  
 
 
     Debug("Start new RW-SQL Request: %s", statement);
