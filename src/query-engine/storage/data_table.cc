@@ -376,8 +376,9 @@ ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple,
 
       bool same_columns = true;
       bool should_upgrade =
-          !tile_group_header->GetCommitOrPrepare(old_location.offset) &&
+          !tile_group_header->GetCommitOrPrepare(check.offset) &&
           transaction->GetCommitOrPrepare();
+
       // NOTE: Check if we can upgrade a prepared tuple to committed
       // std::string encoded_key = target_table_->GetName();
       const auto *schema = tile_group->GetAbstractTable()->GetSchema();
@@ -389,7 +390,6 @@ ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple,
         if (val1.ToString() != val2.ToString()) {
           tile_group->SetValue(val2, check.offset, col_idx);
           same_columns = false;
-          break;
         }
       }
 

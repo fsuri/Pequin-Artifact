@@ -20,7 +20,7 @@
 
 #include "../../store/common/timestamp.h"
 #include "../../store/pequinstore/common.h"
-//#include "../../store/pequinstore/table_store_interface.h"
+// #include "../../store/pequinstore/table_store_interface.h"
 #include "../catalog/catalog_cache.h"
 #include "../common/exception.h"
 #include "../common/internal_types.h"
@@ -357,6 +357,10 @@ public:
     has_read_set_mgr_ = has_read_set_mgr;
   }
 
+  bool IsPointRead() { return is_point_read_; }
+
+  void SetIsPointRead(bool is_point_read) { is_point_read_ = is_point_read; }
+
   /**
    * @brief      Gets the isolation level.
    *
@@ -446,6 +450,9 @@ private:
 
   /** Whether read set manager was passed in */
   bool has_read_set_mgr_;
+
+  /** Whether this is a point read query */
+  bool is_point_read_;
 
   ReadWriteSet rw_set_;
   CreateDropSet rw_object_set_;
