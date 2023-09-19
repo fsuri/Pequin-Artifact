@@ -335,7 +335,7 @@ executor::ExecutionResult TrafficCop::ExecuteWriteHelper(
   txn->SetBasilTimestamp(basil_timestamp);
   // Set the txn_digeset
   txn->SetTxnDig(txn_dig);
-  std::cout << "Txn digest is " << *txn_dig << std::endl;
+  Debug("Txn digest is %s", pequinstore::BytesToHex(*txn_dig, 16).c_str());
   // Set the commit proof
   txn->SetCommittedProof(commit_proof);
   // Set commit or prepare

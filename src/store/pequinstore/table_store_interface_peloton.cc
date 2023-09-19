@@ -3,7 +3,6 @@
 #include <atomic>
 #include <sched.h>
 #include <utility>
-#include "lib/message.h"
 
 #include "store/common/query_result/query_result.h"
 
@@ -691,6 +690,7 @@ void PelotonTableStore::PurgeTableWrite(const std::string &table_name,
         !purge_statements.empty());
 
     // GetResult(status);
+    GetResult(status, tcop, counter);
 
     if (status == peloton::ResultType::SUCCESS)
       Debug("Delete successful");

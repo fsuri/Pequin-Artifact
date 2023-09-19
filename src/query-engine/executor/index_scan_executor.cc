@@ -274,7 +274,7 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
       auto txn_timestamp = current_txn->GetBasilTimestamp();
       // If the tuple timestamp is past the timestamp then add to visibile
       // tuple locations to purge
-      Debug("Tuple TS: [%d, %d], Txn TS: [%d, %d]",
+      Debug("Tuple TS: [%lu:%lu], Txn TS: [%lu:%lu]",
             tuple_timestamp.getTimestamp(), tuple_timestamp.getID(),
             txn_timestamp.getTimestamp(), txn_timestamp.getID());
       // std::cout << "Tuple timestamp " << tuple_timestamp.getID() << ", "<<
@@ -313,7 +313,7 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
     // NOTE: Similar read logic as seq_scan_executor
     auto timestamp = current_txn->GetBasilTimestamp();
 
-    Debug(" Txn TS: [%d, %d]", timestamp.getTimestamp(), timestamp.getID());
+    Debug(" Txn TS: [%lu, %lu]", timestamp.getTimestamp(), timestamp.getID());
     // std::cout << "Txn timestamp is " << timestamp.getTimestamp() << ", " <<
     // timestamp.getID() << std::endl;
 
@@ -344,7 +344,7 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
       ++chain_length;
       auto tuple_timestamp =
           tile_group_header->GetBasilTimestamp(tuple_location.offset);
-      Debug("Tuple TS: [%d, %d]", tuple_timestamp.getTimestamp(),
+      Debug("Tuple TS: [%lu:%lu]", tuple_timestamp.getTimestamp(),
             tuple_timestamp.getID());
       // std::cout << "Tuple timestamp is " << tuple_timestamp.getTimestamp() <<
       // ", " << tuple_timestamp.getID() << std::endl;

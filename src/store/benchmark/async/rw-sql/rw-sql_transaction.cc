@@ -57,8 +57,11 @@ RWSQLTransaction::~RWSQLTransaction() {
 
 transaction_status_t RWSQLTransaction::Execute(SyncClient &client) {
   
-  //TODO: Record ends checked by the TX
-  // For a new TX, if it partially falls within a range => move it outside. If fully subsumed, cancel the request.
+  //reset Tx exec state
+  liveOps = numOps;
+  past_ranges.clear();
+
+
   //CURRENTLY DO NOT SUPPORT READ YOUR OWN WRITES
     //Could simulate within TX by making it +2 for the subsumed ends.
 
@@ -69,7 +72,7 @@ transaction_status_t RWSQLTransaction::Execute(SyncClient &client) {
   std::cerr << "Begin TX" << std::endl;
  //RW LOGIC
   //UPDATE / INSERT / READ
-  for(int i=0; i < numOps; ++i){
+  for(int i=0; i < liveOps; ++i){
     
     string table = "table_" + std::to_string(tables[i]);
     uint64_t left_bound = starts[i]; 
@@ -169,11 +172,11 @@ bool RWSQLTransaction::AdjustBounds(uint64_t &left, uint64_t &right, uint64_t ta
               //create two new updates instead!
               //Add them back to the queue; when we process them, we might have to shrink them again.
               std::cerr << "SPLITTING INTO TWO. One: l: " << left << "; r: " << (l-1) << ". Two: l: " << (r+1) << "; r: " << right << std::endl;
-              numOps+=2;
+              liveOps+=2;
               starts.push_back(left);
-              ends.push_back(l-1 % querySelector->numKeys);
+              ends.push_back((l-1) % querySelector->numKeys);
               tables.push_back(table);
-              starts.push_back(r+1 % querySelector->numKeys);
+              starts.push_back((r+1) % querySelector->numKeys);
               ends.push_back(right);
               tables.push_back(table);
               return false;
@@ -201,11 +204,11 @@ bool RWSQLTransaction::AdjustBounds(uint64_t &left, uint64_t &right, uint64_t ta
             // right left   l               r                     ==> split into two: left to l, r to right
             if(right > r || left < l) {
               std::cerr << "SPLITTING INTO TWO. One: l: " << left << "; r: " << (l-1) << ". Two: l: " << (r+1) << "; r: " << right << std::endl;
-              numOps+=2;
+              liveOps+=2;
               starts.push_back(left);
-              ends.push_back(l-1 % querySelector->numKeys);
+              ends.push_back((l-1) % querySelector->numKeys);
               tables.push_back(table);
-              starts.push_back(r+1 % querySelector->numKeys);
+              starts.push_back((r+1) % querySelector->numKeys);
               ends.push_back(right);
               tables.push_back(table);
               return false;
@@ -249,11 +252,11 @@ bool RWSQLTransaction::AdjustBounds(uint64_t &left, uint64_t &right, uint64_t ta
             if(right > r && left < r) {   
               //create two parallel reads: one from r to right, and one from left to l
               std::cerr << "SPLITTING INTO TWO. One: l: " << left << "; r: " << (l-1) << ". Two: l: " << (r+1) << "; r: " << right << std::endl;
-              numOps+=2;
+              liveOps+=2;
               starts.push_back(left);
-              ends.push_back(l-1 % querySelector->numKeys);
+              ends.push_back((l-1) % querySelector->numKeys);
               tables.push_back(table);
-              starts.push_back(r+1 % querySelector->numKeys);
+              starts.push_back((r+1) % querySelector->numKeys);
               ends.push_back(right);
               tables.push_back(table);
               return false;

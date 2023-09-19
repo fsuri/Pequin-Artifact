@@ -64,7 +64,8 @@ class RWSQLTransaction : public SyncTransaction { //AsyncTransaction
   QuerySelector *querySelector;
 
  private:
-  size_t numOps;
+  const size_t numOps;
+  
   const bool readOnly;
   std::vector<int> keyIdxs;
 
@@ -72,6 +73,7 @@ class RWSQLTransaction : public SyncTransaction { //AsyncTransaction
   std::vector<uint64_t> starts;
   std::vector<uint64_t> ends;
 
+  size_t liveOps;
   //avoid duplicates
   std::vector<std::pair<uint64_t, uint64_t>> past_ranges;
   
