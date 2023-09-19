@@ -389,11 +389,11 @@ ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple,
         if (val1.ToString() != val2.ToString()) {
           tile_group->SetValue(val2, check.offset, col_idx);
           same_columns = false;
-          break;
+          // break;
         }
       }
 
-      if (should_upgrade && same_columns) {
+      if (should_upgrade /*&& same_columns*/) {
         std::cout << "Upgrading from prepared to committed" << std::endl;
         tile_group_header->SetCommitOrPrepare(check.offset, true);
       }

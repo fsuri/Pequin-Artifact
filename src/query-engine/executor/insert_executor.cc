@@ -297,8 +297,8 @@ bool InsertExecutor::DExecute() {
         auto tile_group = storage_manager->GetTileGroup(old_location.block);
         auto tile_group_header = tile_group->GetHeader();
 
-        tile_group_header->SetCommitOrPrepare(
-            location.offset, current_txn->GetCommitOrPrepare());
+        /*tile_group_header->SetCommitOrPrepare(
+            location.offset, current_txn->GetCommitOrPrepare());*/
 
         auto new_tile_group = storage_manager->GetTileGroup(new_location.block);
 

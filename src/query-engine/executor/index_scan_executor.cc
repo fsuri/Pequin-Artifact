@@ -446,6 +446,7 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
                       visible_tuple_set.end()) {
                 // NEW: if predicate satisfied then add to prepared visible
                 // tuple vector
+                Debug("Tuple is prepared and predicate is satisfied");
                 visible_tuple_locations.push_back(tuple_location);
                 visible_tuple_set.insert(tuple_location);
                 // Set the prepared timestamp
@@ -458,6 +459,13 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
                 // After finding latest prepare we can stop looking at the
                 // version chain
                 found_prepared = true;
+
+                // If it's not a point read query then don't need to read
+                // committed
+                if (!current_txn->IsPointRead()) {
+                  Debug("Not a point read query");
+                  break;
+                }
               }
             }
 

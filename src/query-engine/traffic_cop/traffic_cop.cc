@@ -255,6 +255,7 @@ executor::ExecutionResult TrafficCop::ExecuteReadHelper(
   txn->SetTableVersion(find_table_version);
   // Not undoing deletes
   txn->SetUndoDelete(false);
+  txn->SetIsPointRead(false);
 
   // skip if already aborted
   if (curr_state.second == ResultType::ABORTED) {
@@ -283,7 +284,8 @@ executor::ExecutionResult TrafficCop::ExecuteReadHelper(
 
   auto &pool = threadpool::MonoQueuePool::GetInstance();
 
-  Debug("submit read query with TS [%lu:%lu]", basil_timestamp.getTimestamp(), basil_timestamp.getID());
+  Debug("submit read query with TS [%lu:%lu]", basil_timestamp.getTimestamp(),
+        basil_timestamp.getID());
   pool.SubmitTask([plan, txn, &params, &result_format, on_complete] {
     executor::PlanExecutor::ExecutePlan(plan, txn, params, result_format,
                                         on_complete);
@@ -291,7 +293,8 @@ executor::ExecutionResult TrafficCop::ExecuteReadHelper(
 
   is_queuing_ = true;
 
-  LOG_TRACE("Check Tcop_txn_state Size After ExecuteHelper %lu", tcop_txn_state_.size());
+  LOG_TRACE("Check Tcop_txn_state Size After ExecuteHelper %lu",
+            tcop_txn_state_.size());
   return p_status_;
 }
 
@@ -542,6 +545,8 @@ executor::ExecutionResult TrafficCop::ExecutePointReadHelper(
   txn->SetUndoDelete(false);
   // No read set manager
   txn->SetHasReadSetMgr(false);
+  // Is a point read query
+  txn->SetIsPointRead(true);
 
   // skip if already aborted
   if (curr_state.second == ResultType::ABORTED) {
@@ -644,9 +649,11 @@ std::shared_ptr<Statement> TrafficCop::PrepareStatement(
   }
 
   StatementType stmt_type = sql_stmt_list->GetStatement(0)->GetType();
-  QueryType query_type = StatementTypeToQueryType(stmt_type, sql_stmt_list->GetStatement(0));
- 
-  std::shared_ptr<Statement> statement = std::make_shared<Statement>(stmt_name, query_type, query_string, std::move(sql_stmt_list));
+  QueryType query_type =
+      StatementTypeToQueryType(stmt_type, sql_stmt_list->GetStatement(0));
+
+  std::shared_ptr<Statement> statement = std::make_shared<Statement>(
+      stmt_name, query_type, query_string, std::move(sql_stmt_list));
 
   // We can learn transaction's states, BEGIN, COMMIT, ABORT, or ROLLBACK from
   // member variables, tcop_txn_state_. We can also get single-statement txn or
@@ -693,9 +700,12 @@ std::shared_ptr<Statement> TrafficCop::PrepareStatement(
   // to increase coherence
   try {
     // Run binder
-    auto bind_node_visitor = binder::BindNodeVisitor(tcop_txn_state_.top().first, default_database_name_);
-    bind_node_visitor.BindNameToNode(statement->GetStmtParseTreeList()->GetStatement(0));
-    auto plan = optimizer_->BuildPelotonPlanTree(statement->GetStmtParseTreeList(), tcop_txn_state_.top().first);
+    auto bind_node_visitor = binder::BindNodeVisitor(
+        tcop_txn_state_.top().first, default_database_name_);
+    bind_node_visitor.BindNameToNode(
+        statement->GetStmtParseTreeList()->GetStatement(0));
+    auto plan = optimizer_->BuildPelotonPlanTree(
+        statement->GetStmtParseTreeList(), tcop_txn_state_.top().first);
     statement->SetPlanTree(plan);
     // Get the tables that our plan references so that we know how to
     // invalidate it at a later point when the catalog changes
@@ -704,8 +714,9 @@ std::shared_ptr<Statement> TrafficCop::PrepareStatement(
     statement->SetReferencedTables(table_oids);
 
     if (query_type == QueryType::QUERY_SELECT) {
-      auto tuple_descriptor = GenerateTupleDescriptor(statement->GetStmtParseTreeList()->GetStatement(0));
-     
+      auto tuple_descriptor = GenerateTupleDescriptor(
+          statement->GetStmtParseTreeList()->GetStatement(0));
+
       statement->SetTupleDescriptor(tuple_descriptor);
       LOG_TRACE("select query, finish setting");
     }
@@ -715,9 +726,9 @@ std::shared_ptr<Statement> TrafficCop::PrepareStatement(
     return nullptr;
   }
 
-// std::cerr << "QueryType Select? " << QueryTypeToString(query_type)  << std::endl;
-// std::cerr << "Prepare Statement: " << statement->GetPlanTree().get()->GetInfo() << std::endl;
-
+  // std::cerr << "QueryType Select? " << QueryTypeToString(query_type)  <<
+  // std::endl; std::cerr << "Prepare Statement: " <<
+  // statement->GetPlanTree().get()->GetInfo() << std::endl;
 
 #ifdef LOG_DEBUG_ENABLED
   if (statement->GetPlanTree().get() != nullptr) {
@@ -1016,14 +1027,20 @@ ResultType TrafficCop::ExecuteReadStatement(
         statement, std::move(param_stats));
   }*/
 
-  LOG_TRACE("Execute Statement of name: %s", statement->GetStatementName().c_str());
-  LOG_TRACE("Execute Statement of query: %s", statement->GetQueryString().c_str());
-  LOG_TRACE("Execute Statement Plan:\n%s", planner::PlanUtil::GetInfo(statement->GetPlanTree().get()).c_str());
-  LOG_TRACE("Execute Statement Query Type: %s",statement->GetQueryTypeString().c_str());
-  LOG_TRACE("----QueryType: %d--------", static_cast<int>(statement->GetQueryType()));
+  LOG_TRACE("Execute Statement of name: %s",
+            statement->GetStatementName().c_str());
+  LOG_TRACE("Execute Statement of query: %s",
+            statement->GetQueryString().c_str());
+  LOG_TRACE("Execute Statement Plan:\n%s",
+            planner::PlanUtil::GetInfo(statement->GetPlanTree().get()).c_str());
+  LOG_TRACE("Execute Statement Query Type: %s",
+            statement->GetQueryTypeString().c_str());
+  LOG_TRACE("----QueryType: %d--------",
+            static_cast<int>(statement->GetQueryType()));
 
-  // std::cerr << "Exec Read: " << statement->GetPlanTree().get()->GetInfo() << std::endl;
-  // std::cerr << "Plan Node type: " << statement->GetPlanTree()->GetPlanNodeType() << std::endl;
+  // std::cerr << "Exec Read: " << statement->GetPlanTree().get()->GetInfo() <<
+  // std::endl; std::cerr << "Plan Node type: " <<
+  // statement->GetPlanTree()->GetPlanNodeType() << std::endl;
 
   try {
     switch (statement->GetQueryType()) {
