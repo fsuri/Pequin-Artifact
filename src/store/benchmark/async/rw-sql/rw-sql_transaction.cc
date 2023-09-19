@@ -73,17 +73,20 @@ transaction_status_t RWSQLTransaction::Execute(SyncClient &client) {
     
     string table = "table_" + std::to_string(tables[i]);
     uint64_t left_bound = starts[i]; 
-    //std::cout << "left: " << left_bound << std::endl;
+    std::cout << "left: " << left_bound << std::endl;
     uint64_t right_bound = ends[i]; //(left_bound + ends[i]) % querySelector->numKeys;   //If keys+ range goes out of bound, wrap around and check smaller and greaer. Turn statement into OR
+    std::cout << "right: " << right_bound << std::endl;
     //std::cout << "range " << ends[i] << std::endl;
     //std::cout << "numKeys " << querySelector->numKeys << std::endl;
   
     if(AVOID_DUPLICATE_READS){
       //adjust bounds: shrink to not overlap. //if shrinkage makes bounds invert => cancel this read.
-      if(!AdjustBounds(left_bound, right_bound)){
-        std::cerr << "CANCELLED REDUNDANT QUERY" << std::endl;
+      UW_ASSERT(left_bound < querySelector->numKeys && right_bound < querySelector->numKeys);
+      if(!AdjustBounds(left_bound, right_bound, tables[i])){
+        std::cerr << "CANCELLED REDUNDANT QUERY" << std::endl;   //TODO: Run Split Queries in parallel. Use Wait interface.
         continue;
       } 
+      UW_ASSERT(left_bound < querySelector->numKeys && right_bound < querySelector->numKeys);
     }
 
     std::string statement;    
@@ -141,11 +144,14 @@ transaction_status_t RWSQLTransaction::Execute(SyncClient &client) {
 }
 
 
-bool RWSQLTransaction::AdjustBounds(uint64_t &left, uint64_t &right)
+bool RWSQLTransaction::AdjustBounds(uint64_t &left, uint64_t &right, uint64_t table)
 {
+  
   std::cerr << "ADJUSTING NEXT QUERY: " << std::endl;
   //return false if statement is to be skipped.    
   std::cerr << "Input Left: " << left << " Right: " << right << std::endl;
+
+  UW_ASSERT(left < querySelector->numKeys && right < querySelector->numKeys);
 
     int size = (right - left + 1) % querySelector->numKeys;
 
@@ -162,12 +168,14 @@ bool RWSQLTransaction::AdjustBounds(uint64_t &left, uint64_t &right)
             if(left < l && r < right){
               //create two new updates instead!
               //Add them back to the queue; when we process them, we might have to shrink them again.
-              std::cerr << "SPLITTING INTO TWO" << std::endl;
+              std::cerr << "SPLITTING INTO TWO. One: l: " << left << "; r: " << (l-1) << ". Two: l: " << (r+1) << "; r: " << right << std::endl;
               numOps+=2;
               starts.push_back(left);
-              ends.push_back(l-1);
-              starts.push_back(r+1);
+              ends.push_back(l-1 % querySelector->numKeys);
+              tables.push_back(table);
+              starts.push_back(r+1 % querySelector->numKeys);
               ends.push_back(right);
+              tables.push_back(table);
               return false;
             }
 
@@ -177,8 +185,8 @@ bool RWSQLTransaction::AdjustBounds(uint64_t &left, uint64_t &right)
 
             // left         l     right     r                     ==> shrink to right = l-1
             //              l      left     r     right           ==> shrink to left = r+1
-            if(left < l) right = std::min(l-1 % querySelector->numKeys, right); //it must be that l <= right <= r
-            if(right > r)  left = std::max(r+1 % querySelector->numKeys, left); //it must be that l <= left <= r
+            if(left < l) right = std::min(l-1, right) % querySelector->numKeys; //it must be that l <= right <= r
+            if(right > r)  left = std::max(r+1, left) % querySelector->numKeys; //it must be that l <= left <= r
             //in both cases, make them non-overlapping.
 
             std::cerr << "adjusted to Left: " << left << " Right: " << right << std::endl;
@@ -191,12 +199,15 @@ bool RWSQLTransaction::AdjustBounds(uint64_t &left, uint64_t &right)
 
             //              l               r     right left      ==> split into two: left to l, r to right
             // right left   l               r                     ==> split into two: left to l, r to right
-            if(right >= r || left <= l) {
+            if(right > r || left < l) {
+              std::cerr << "SPLITTING INTO TWO. One: l: " << left << "; r: " << (l-1) << ". Two: l: " << (r+1) << "; r: " << right << std::endl;
               numOps+=2;
               starts.push_back(left);
-              ends.push_back(l-1);
-              starts.push_back(r+1);
+              ends.push_back(l-1 % querySelector->numKeys);
+              tables.push_back(table);
+              starts.push_back(r+1 % querySelector->numKeys);
               ends.push_back(right);
+              tables.push_back(table);
               return false;
             }
 
@@ -205,8 +216,8 @@ bool RWSQLTransaction::AdjustBounds(uint64_t &left, uint64_t &right)
             //              l  right left   r                     ==> shrink left = r+1, right = l-1
             // right        l     left      r                     ==> shrink left = r+1
             //              l     right     r     left           ==> shrink to right = l-1
-            left = std::max(r+1 % querySelector->numKeys, left); 
-            right = std::min(l-1 % querySelector->numKeys, right); 
+            left = std::max(r+1, left) % querySelector->numKeys;
+            right = std::min(l-1, right) % querySelector->numKeys; 
             //in all cases, just move left and right outside the l r range
            
           }
@@ -225,8 +236,8 @@ bool RWSQLTransaction::AdjustBounds(uint64_t &left, uint64_t &right)
             // left         r               l     right           ==> shrink to  left = r+1, right = l-1
             // left         r     right     l                     ==> shrink to left = r+1
             //              r      left     l     right           ==> shrink to right = l-1
-            left = std::max(r+1 % querySelector->numKeys, left);
-            right = std::min(l-1 % querySelector->numKeys, right);
+            left = std::max(r+1, left) % querySelector->numKeys;
+            right = std::min(l-1, right) % querySelector->numKeys;
             //in all cases, just move left and right inside the r l range
 
           }
@@ -237,11 +248,14 @@ bool RWSQLTransaction::AdjustBounds(uint64_t &left, uint64_t &right)
             //             r   right left  l
             if(right > r && left < r) {   
               //create two parallel reads: one from r to right, and one from left to l
+              std::cerr << "SPLITTING INTO TWO. One: l: " << left << "; r: " << (l-1) << ". Two: l: " << (r+1) << "; r: " << right << std::endl;
               numOps+=2;
               starts.push_back(left);
-              ends.push_back(l-1);
-              starts.push_back(r+1);
+              ends.push_back(l-1 % querySelector->numKeys);
+              tables.push_back(table);
+              starts.push_back(r+1 % querySelector->numKeys);
               ends.push_back(right);
+              tables.push_back(table);
               return false;
             }
 
@@ -254,8 +268,8 @@ bool RWSQLTransaction::AdjustBounds(uint64_t &left, uint64_t &right)
             //             r     right     l     left          ==> shrink to left = r+1
             //             r               l     right left    ==> shrink to right = l-1 and left = r+1 
             // right left  r               l                   ==> shrink to right = l-1 and left = r+1 
-            right = std::min(l-1 % querySelector->numKeys, right);
-            left = std::max(r+1 % querySelector->numKeys, left);
+            right = std::min(l-1, right) % querySelector->numKeys;
+            left = std::max(r+1, left) % querySelector->numKeys;
             //in all cases, just move left and right inside the r l range
 
           }
@@ -267,6 +281,7 @@ bool RWSQLTransaction::AdjustBounds(uint64_t &left, uint64_t &right)
     }
 
     std::cerr << "Adjusted to Left: " << left << " Right: " << right << std::endl;
+    UW_ASSERT(left < querySelector->numKeys && right < querySelector->numKeys);
     past_ranges.push_back({left, right});
 
     return true;

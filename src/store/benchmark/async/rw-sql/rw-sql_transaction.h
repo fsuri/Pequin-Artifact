@@ -51,7 +51,7 @@ class RWSQLTransaction : public SyncTransaction { //AsyncTransaction
     return keyIdxs;
   }
  private:
-  bool AdjustBounds(uint64_t &left, uint64_t &right);
+  bool AdjustBounds(uint64_t &left, uint64_t &right, uint64_t table);
  protected:
   inline const std::string &GetKey(int i) const {
     return keySelector->GetKey(keyIdxs[i]);
