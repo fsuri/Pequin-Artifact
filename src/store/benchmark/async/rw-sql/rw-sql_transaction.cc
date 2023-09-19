@@ -41,10 +41,11 @@ RWSQLTransaction::RWSQLTransaction(QuerySelector *querySelector, uint64_t &numOp
     tables.push_back(table);
 
     uint64_t base = querySelector->baseSelector->GetKey(rand);
-    bases.push_back(base);
+    starts.push_back(base);
 
     uint64_t range = querySelector->rangeSelector->GetKey(rand); 
-    ranges.push_back(range);
+    uint64_t end = (base + range) % querySelector->numKeys;
+    ends.push_back(end);
   }
   
 }
@@ -56,10 +57,10 @@ RWSQLTransaction::~RWSQLTransaction() {
 
 transaction_status_t RWSQLTransaction::Execute(SyncClient &client) {
   
-  //TODO: Record ranges checked by the TX
+  //TODO: Record ends checked by the TX
   // For a new TX, if it partially falls within a range => move it outside. If fully subsumed, cancel the request.
   //CURRENTLY DO NOT SUPPORT READ YOUR OWN WRITES
-    //Could simulate within TX by making it +2 for the subsumed ranges.
+    //Could simulate within TX by making it +2 for the subsumed ends.
 
   std::cerr << "Exec next TX" << std::endl;
 
@@ -71,10 +72,10 @@ transaction_status_t RWSQLTransaction::Execute(SyncClient &client) {
   for(int i=0; i < numOps; ++i){
     
     string table = "table_" + std::to_string(tables[i]);
-    uint64_t left_bound = bases[i]; 
+    uint64_t left_bound = starts[i]; 
     //std::cout << "left: " << left_bound << std::endl;
-    uint64_t right_bound = (left_bound + ranges[i]) % querySelector->numKeys;   //If keys+ range goes out of bound, wrap around and check smaller and greaer. Turn statement into OR
-    //std::cout << "range " << ranges[i] << std::endl;
+    uint64_t right_bound = ends[i]; //(left_bound + ends[i]) % querySelector->numKeys;   //If keys+ range goes out of bound, wrap around and check smaller and greaer. Turn statement into OR
+    //std::cout << "range " << ends[i] << std::endl;
     //std::cout << "numKeys " << querySelector->numKeys << std::endl;
   
     if(AVOID_DUPLICATE_READS){
@@ -121,7 +122,7 @@ transaction_status_t RWSQLTransaction::Execute(SyncClient &client) {
       std::cerr << "Expected rows affected. Max: " << 3 << std::endl;
       std::cerr << "Num rows affected: " << queryResult->rows_affected() << std::endl;
 
-      if(queryResult->rows_affected() < ranges[i] + 1){
+      if(queryResult->rows_affected() < ends[i] + 1){
         std::cerr << "Was not able to read all expected rows -- Check whether initialized correctly serverside" << std::endl;
         //Insert all -- just issue a bunch of point writes (bundle under one statement?) => TODO: check if sql_interpreter deals with multi-writes
         //ideally just insert the missing ones, but we don't know.
@@ -142,6 +143,7 @@ transaction_status_t RWSQLTransaction::Execute(SyncClient &client) {
 
 bool RWSQLTransaction::AdjustBounds(uint64_t &left, uint64_t &right)
 {
+  std::cerr << "ADJUSTING NEXT QUERY: " << std::endl;
   //return false if statement is to be skipped.    
   std::cerr << "Input Left: " << left << " Right: " << right << std::endl;
 
@@ -149,54 +151,63 @@ bool RWSQLTransaction::AdjustBounds(uint64_t &left, uint64_t &right)
 
     //shrink in every loop (never grow!)
      for(auto &[l, r]: past_ranges){
-        
+        std::cerr << "Comparing against past range: l="<< l << ", r=" << r << std::endl;
         if(l <= r){
           //Case A.1
           if(left <= right){
              //             l  left right   r                     ==> cancel
             if(l <= left && right <= r) return false;
 
-            //              l               r     left right      ==> do notihng
-            // left right   l               r                     ==> do nothing
-            if((left >= r && right >=r)|| left <= l && right <= l) continue;
-
               // left         l               r     right           ==> create 2: left to l, r to right
-            if(left <= l && r >= right){
-              //TODO: create two!
+            if(left < l && r < right){
+              //create two new updates instead!
+              //Add them back to the queue; when we process them, we might have to shrink them again.
+              std::cerr << "SPLITTING INTO TWO" << std::endl;
+              numOps+=2;
+              starts.push_back(left);
+              ends.push_back(l-1);
+              starts.push_back(r+1);
+              ends.push_back(right);
               return false;
             }
 
-              // left         l     right     r                     ==> shrink to right = l-1
-              //              l      left     r     right           ==> shrink to left = r+1
-            if(right >= l) right = l-1 % querySelector->numKeys;
-            if(left <= r) left = r+1 % querySelector->numKeys;
+            //              l               r     left right      ==> do notihng
+            // left right   l               r                     ==> do nothing
+            if(left > r || right < l) continue;
+
+            // left         l     right     r                     ==> shrink to right = l-1
+            //              l      left     r     right           ==> shrink to left = r+1
+            if(left < l) right = std::min(l-1 % querySelector->numKeys, right); //it must be that l <= right <= r
+            if(right > r)  left = std::max(r+1 % querySelector->numKeys, left); //it must be that l <= left <= r
+            //in both cases, make them non-overlapping.
+
+            std::cerr << "adjusted to Left: " << left << " Right: " << right << std::endl;
+
+            
           }
           //Case A.2
           else
-          { // right>< left 
+          { // right < left 
 
-            // right        l               r     left          ==> do nothing
-            if(right < l && left > r) continue;
-             //              l  right left   r                     ==> //split into two: left to r, l to right
-            if(right > l && left < r) {   // l right  left < r
-              //TODO: create two parallel reads: one from l to right, and one from left to r
+            //              l               r     right left      ==> split into two: left to l, r to right
+            // right left   l               r                     ==> split into two: left to l, r to right
+            if(right >= r || left <= l) {
+              numOps+=2;
+              starts.push_back(left);
+              ends.push_back(l-1);
+              starts.push_back(r+1);
+              ends.push_back(right);
               return false;
             }
-            if(right >= r || left <= l) {
-            //TODO: split: 
-                return false;
-            }
 
+            // right        l               r     left          ==> do nothing
+            //if(right < l && r < left) continue;
+            //              l  right left   r                     ==> shrink left = r+1, right = l-1
             // right        l     left      r                     ==> shrink left = r+1
             //              l     right     r     left           ==> shrink to right = l-1
             left = std::max(r+1 % querySelector->numKeys, left); 
             right = std::min(l-1 % querySelector->numKeys, right); 
-
-
-            //              l               r     right left      ==> split into two: left to l, r to right
-            // right left   l               r                     ==> split into two: left to l, r to right
-           
-
+            //in all cases, just move left and right outside the l r range
            
           }
         }
@@ -216,6 +227,7 @@ bool RWSQLTransaction::AdjustBounds(uint64_t &left, uint64_t &right)
             //              r      left     l     right           ==> shrink to right = l-1
             left = std::max(r+1 % querySelector->numKeys, left);
             right = std::min(l-1 % querySelector->numKeys, right);
+            //in all cases, just move left and right inside the r l range
 
           }
 
@@ -223,22 +235,28 @@ bool RWSQLTransaction::AdjustBounds(uint64_t &left, uint64_t &right)
           else{  //right < left
             
             //             r   right left  l
-            if(right >= r && left <= r) {   
-              //TODO: create two parallel reads: one from r to right, and one from left to l
+            if(right > r && left < r) {   
+              //create two parallel reads: one from r to right, and one from left to l
+              numOps+=2;
+              starts.push_back(left);
+              ends.push_back(l-1);
+              starts.push_back(r+1);
+              ends.push_back(right);
               return false;
             }
 
 
-            //             r               l     right left    ==> cancel
-            // right left  r               l                   ==> cancel
             // right       r               l     left          ==> cancel
-            if(right >= l || left <= r) return false;
+            if(right <= r && l <= left) return false;
 
             
             // right       r      left     l                   ==> shrink to right = l-1
             //             r     right     l     left          ==> shrink to left = r+1
-            if(right <= r) right = l-1 % querySelector->numKeys;
-            if(left  >= l) left = r+1 % querySelector->numKeys;
+            //             r               l     right left    ==> shrink to right = l-1 and left = r+1 
+            // right left  r               l                   ==> shrink to right = l-1 and left = r+1 
+            right = std::min(l-1 % querySelector->numKeys, right);
+            left = std::max(r+1 % querySelector->numKeys, left);
+            //in all cases, just move left and right inside the r l range
 
           }
         }

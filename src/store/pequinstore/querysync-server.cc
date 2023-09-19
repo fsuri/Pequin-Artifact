@@ -1941,7 +1941,7 @@ void Server::SendQueryReply(QueryMetaData *query_md){
 
     }
 
-    if(true || TEST_READ_SET){
+    if(TEST_READ_SET){
       Debug("BEGIN READ SET:"); // just for testing
               
                 for(auto &read : result->query_read_set().read_set()){
