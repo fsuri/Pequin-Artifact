@@ -76,14 +76,17 @@ class SyncClient {
   // Abort all Get(s) and Put(s) since Begin().
   virtual void Abort(uint32_t timeout);
 
-  //Issue write Sql statement.
+  //Issue write Sql statement, wait for computation result
   virtual void Write(std::string &statement, std::unique_ptr<const query_result::QueryResult> &result, uint32_t timeout);
+  //Write without in-built waiting -- e.g. for parallel writes.
+  void Write(std::string &statement,  uint32_t timeout);
 
   //Issue query Sql statement, wait for computation result. 
   virtual void Query(const std::string &query, std::unique_ptr<const query_result::QueryResult> &result, uint32_t timeout);
   // Query without in-built waiting -- e.g. for parallel queries.
   void Query(const std::string &query, uint32_t timeout);
-  // Wait for outstanding Queries to finish in FIFO order.
+
+  // Wait for all outstanding Queries/Writes to finish in FIFO order.
   void Wait(std::vector<std::unique_ptr<const query_result::QueryResult>> &values);
 
  private:

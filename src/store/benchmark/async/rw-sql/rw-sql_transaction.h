@@ -40,6 +40,7 @@ namespace rwsql {
 
 static bool AVOID_DUPLICATE_READS = true; 
 static bool POINT_READS_ENABLED = false;
+static bool PARALLEL_QUERIES = false;
 
 class RWSQLTransaction : public SyncTransaction { //AsyncTransaction
  public:
@@ -52,6 +53,9 @@ class RWSQLTransaction : public SyncTransaction { //AsyncTransaction
     return keyIdxs;
   }
  private:
+  std::string GenerateStatement(const std::string &table_name, uint64_t &left_bound, uint64_t &right_bound);
+  void SubmitStatement(SyncClient &client, std::string &statement, const int &i);
+  void GetResults(SyncClient &client);
   bool AdjustBounds(uint64_t &left, uint64_t &right, uint64_t table);
  protected:
   inline const std::string &GetKey(int i) const {

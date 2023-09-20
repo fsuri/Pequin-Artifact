@@ -599,6 +599,11 @@ proto::ConcurrencyControl::Result Server::DoMVTSOOCCCheck(
               committedWrite.first.getID(), ts.getTimestamp(), ts.getID());
           stats.Increment("cc_aborts", 1);
           stats.Increment("cc_aborts_wr_conflict", 1);
+       
+          if(read.is_table_col_version()){
+            stats.Increment("table_col_version_read_abort", 1);
+            stats.Increment("table_col_version_read_abort_" + read.key(), 1);
+          }
           return proto::ConcurrencyControl::ABORT;
         }
       }
@@ -635,6 +640,10 @@ proto::ConcurrencyControl::Result Server::DoMVTSOOCCCheck(
             stats.Increment("cc_abstains", 1);
             stats.Increment("cc_abstains_wr_conflict", 1);
 
+            if(read.is_table_col_version()){
+              stats.Increment("table_col_version_read_abort", 1);
+              stats.Increment("table_col_version_read_abort_" + read.key(), 1);
+            }
             // if(fallback_flow){
             //   std::cerr<< "Abstain ["<<BytesToHex(txnDigest, 16)<<"] against prepared write from tx[" << BytesToHex(TransactionDigest(*preparedTs.second, params.hashDigest), 16) << "]" << std::endl;
             // }
@@ -689,6 +698,11 @@ proto::ConcurrencyControl::Result Server::DoMVTSOOCCCheck(
                   std::get<0>(*ritr).getID());
               stats.Increment("cc_aborts", 1);
               stats.Increment("cc_aborts_rw_conflict", 1);
+
+              if(write.delay()){
+                stats.Increment("table_col_version_write_abort", 1);
+                stats.Increment("table_col_version_write_abort_" + write.key(), 1);
+              }
               return proto::ConcurrencyControl::ABORT;
             }
           }
@@ -773,6 +787,10 @@ proto::ConcurrencyControl::Result Server::DoMVTSOOCCCheck(
             stats.Increment("cc_abstains", 1);
             stats.Increment("cc_abstains_rw_conflict", 1);
 
+            if(write.delay()){
+                stats.Increment("table_col_version_write_abort", 1);
+                stats.Increment("table_col_version_write_abort_" + write.key(), 1);
+              }
             // if(fallback_flow){
             //   std::cerr<< "Abstain ["<<BytesToHex(txnDigest, 16)<<"] against prepared read from tx[" << BytesToHex(TransactionDigest(*preparedReadTxn, params.hashDigest), 16) << "]" << std::endl;
             // }

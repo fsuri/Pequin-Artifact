@@ -1850,7 +1850,13 @@ void Server::SendQueryReply(QueryMetaData *query_md){
 
     bool testing_hash = false; //note, if this is on, the client will crash since it expects a read set but does not get one.
     if(testing_hash || params.query_params.cacheReadSet){
-        std::sort(result->mutable_query_read_set()->mutable_read_set()->begin(), result->mutable_query_read_set()->mutable_read_set()->end(), sortReadSetByKey); 
+        try {
+            std::sort(result->mutable_query_read_set()->mutable_read_set()->begin(), result->mutable_query_read_set()->mutable_read_set()->end(), sortReadSetByKey); 
+        }
+        catch(...) {
+            Panic("Trying to send QueryReply with two different reads for the same key");
+        }
+        
         //Note: Sorts by key to ensure all replicas create the same hash. (Note: Not necessary if using ordered map)
         result->set_query_result_hash(generateReadSetSingleHash(result->query_read_set()));
         //Temporarily release read-set and deps: This way we don't send it. Afterwards, re-allocate it. This avoid copying.

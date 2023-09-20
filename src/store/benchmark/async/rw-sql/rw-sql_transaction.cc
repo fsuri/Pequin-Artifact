@@ -36,15 +36,15 @@ RWSQLTransaction::RWSQLTransaction(QuerySelector *querySelector, uint64_t &numOp
     : SyncTransaction(10000), querySelector(querySelector), numOps(numOps), readOnly(readOnly) {
 
   //std::cout << "New TX with numOps " << numOps << std::endl;
-  for (int i = 0; i < numOps; ++i) {
-    uint64_t table = querySelector->tableSelector->GetKey(rand);   //TODO: This will pick 0 or 1?
+  for (int i = 0; i < numOps; ++i) { //Issue at least numOps many Queries
+    uint64_t table = querySelector->tableSelector->GetKey(rand);  //Choose which table to read from for query i
     tables.push_back(table);
 
-    uint64_t base = querySelector->baseSelector->GetKey(rand);
+    uint64_t base = querySelector->baseSelector->GetKey(rand); //Choose which key to use as starting point for query i
     starts.push_back(base);
 
-    uint64_t range = querySelector->rangeSelector->GetKey(rand); 
-    uint64_t end = (base + range) % querySelector->numKeys;
+    uint64_t range = querySelector->rangeSelector->GetKey(rand); //Choose the number of keys to read (in addition to base) for query i
+    uint64_t end = (base + range) % querySelector->numKeys; //calculate end point for range. Note: wrap around if > numKeys
     ends.push_back(end);
   }
   
@@ -55,96 +55,46 @@ RWSQLTransaction::~RWSQLTransaction() {
 
 
 
+//WARNING: CURRENTLY DO NOT SUPPORT READ YOUR OWN WRITES
 transaction_status_t RWSQLTransaction::Execute(SyncClient &client) {
   
-  //reset Tx exec state
+  //reset Tx exec state. When avoiding redundant queries we may split into new queries. liveOps keeps track of total number of attempted queries
   liveOps = numOps;
   past_ranges.clear();
 
 
-  //CURRENTLY DO NOT SUPPORT READ YOUR OWN WRITES
-    //Could simulate within TX by making it +2 for the subsumed ends.
-
-  std::cerr << "Exec next TX" << std::endl;
+  Debug("Start next Transaction");
+  //std::cerr << "Exec next TX" << std::endl;
 
   client.Begin(timeout);
 
-  std::cerr << "Begin TX" << std::endl;
- //RW LOGIC
-  //UPDATE / INSERT / READ
+  //Execute #liveOps queries
   for(int i=0; i < liveOps; ++i){
     
-    string table = "table_" + std::to_string(tables[i]);
+    string table_name = "table_" + std::to_string(tables[i]);
     uint64_t left_bound = starts[i]; 
-    std::cout << "left: " << left_bound << std::endl;
-    uint64_t right_bound = ends[i]; //(left_bound + ends[i]) % querySelector->numKeys;   //If keys+ range goes out of bound, wrap around and check smaller and greaer. Turn statement into OR
-    std::cout << "right: " << right_bound << std::endl;
-    //std::cout << "range " << ends[i] << std::endl;
-    //std::cout << "numKeys " << querySelector->numKeys << std::endl;
-  
+    uint64_t right_bound = ends[i];  //If right_bound < left_bound, wrap around and read >= left, and <= right. Turn statement into OR
+    UW_ASSERT(left_bound < querySelector->numKeys && right_bound < querySelector->numKeys);
+
     if(AVOID_DUPLICATE_READS){
       //adjust bounds: shrink to not overlap. //if shrinkage makes bounds invert => cancel this read.
-      UW_ASSERT(left_bound < querySelector->numKeys && right_bound < querySelector->numKeys);
       if(!AdjustBounds(left_bound, right_bound, tables[i])){
-        std::cerr << "CANCELLED REDUNDANT QUERY" << std::endl;   //TODO: Run Split Queries in parallel. Use Wait interface.
+        std::cerr << "CANCELLED REDUNDANT QUERY" << std::endl;  
         continue;
       } 
-      UW_ASSERT(left_bound < querySelector->numKeys && right_bound < querySelector->numKeys);
     }
 
-    std::string statement;    
-
-    //TODO: 
-    if(POINT_READS_ENABLED && left_bound == right_bound){
-        if(readOnly) statement = fmt::format("SELECT FROM {0} WHERE key = {1};", table, left_bound);
-        else statement = fmt::format("UPDATE {0} SET value = value + 1 WHERE key = {1};", table, left_bound);
-    }
-   
-    else{
-      if(readOnly){
-        if(left_bound <= right_bound) statement = fmt::format("SELECT FROM {0} WHERE key >= {1} AND key <= {2};", table, left_bound, right_bound);
-        else statement = fmt::format("SELECT FROM {0} WHERE key >= {1} OR key <= {2};", table, left_bound, right_bound);
-      }
-
-      else{
-        // if(left_bound == right_bound) query = fmt::format("UPDATE {0} SET value = value + 1 WHERE key = {1};", table, left_bound); // POINT QUERY -- TODO: FOR NOW DISABLE
-        if(left_bound <= right_bound) statement = fmt::format("UPDATE {0} SET value = value + 1 WHERE key >= {1} AND key <= {2};", table, left_bound, right_bound);
-        else statement = fmt::format("UPDATE {0} SET value = value + 1 WHERE key >= {1} OR key <= {2};", table, left_bound, right_bound); 
-
-      }
-    }
-    
-    
-    //Note: Updates will not conflict on TableVersion -- Because we are not changing primary key, which is the search condition.  
-
+    std::string statement = GenerateStatement(table_name, left_bound, right_bound);    
 
     Debug("Start new RW-SQL Request: %s", statement);
     std::cerr << "Start new RW-SQL Request: " << statement << std::endl;
-           
-    
-    if(readOnly){
-        std::unique_ptr<const query_result::QueryResult> queryResult;
-        client.Query(statement, queryResult, timeout);  //--> Edit API in frontend sync_client.
-                                           //For real benchmarks: Also edit in sync_transaction_bench_client.
-    }
-    else{
-      std::cerr << "send Query TX" << i << std::endl;
-      std::unique_ptr<const query_result::QueryResult> queryResult;
-      client.Write(statement, queryResult, timeout);  //--> Edit API in frontend sync_client.
-                                           //For real benchmarks: Also edit in sync_transaction_bench_client.
-    
-      //TODO: if key doesn't exist => INSERT IT
-      UW_ASSERT(queryResult->rows_affected());
-      std::cerr << "Expected rows affected. Max: " << 3 << std::endl;
-      std::cerr << "Num rows affected: " << queryResult->rows_affected() << std::endl;
 
-      if(queryResult->rows_affected() < ends[i] + 1){
-        std::cerr << "Was not able to read all expected rows -- Check whether initialized correctly serverside" << std::endl;
-        //Insert all -- just issue a bunch of point writes (bundle under one statement?) => TODO: check if sql_interpreter deals with multi-writes
-        //ideally just insert the missing ones, but we don't know.
-      }
-    }
+    SubmitStatement(client, statement, i);
+    //Note: Updates will not conflict on TableVersion -- Because we are not changing primary key, which is the search condition.  
   }
+
+  GetResults(client);
+ 
 
     // client.Abort(timeout);
     // return ABORTED_USER;
@@ -156,6 +106,79 @@ transaction_status_t RWSQLTransaction::Execute(SyncClient &client) {
   return commitRes;
 }
 
+
+std::string RWSQLTransaction::GenerateStatement(const std::string &table_name, uint64_t &left_bound, uint64_t &right_bound){
+
+  if(readOnly){
+    if(POINT_READS_ENABLED && left_bound == right_bound) return fmt::format("SELECT FROM {0} WHERE key = {1};", table_name, left_bound);
+    if(left_bound <= right_bound) return fmt::format("SELECT FROM {0} WHERE key >= {1} AND key <= {2};", table_name, left_bound, right_bound);
+    else return fmt::format("SELECT FROM {0} WHERE key >= {1} OR key <= {2};", table_name, left_bound, right_bound);
+  }
+  else{
+    if(POINT_READS_ENABLED && left_bound == right_bound) return fmt::format("UPDATE {0} SET value = value + 1 WHERE key = {1};", table_name, left_bound);
+    // if(left_bound == right_bound) query = fmt::format("UPDATE {0} SET value = value + 1 WHERE key = {1};", table, left_bound); // POINT QUERY -- TODO: FOR NOW DISABLE
+    if(left_bound <= right_bound) return fmt::format("UPDATE {0} SET value = value + 1 WHERE key >= {1} AND key <= {2};", table_name, left_bound, right_bound);
+    else return fmt::format("UPDATE {0} SET value = value + 1 WHERE key >= {1} OR key <= {2};", table_name, left_bound, right_bound); 
+  }
+  
+}
+
+void RWSQLTransaction::SubmitStatement(SyncClient &client, std::string &statement, const int &i){
+
+  if(readOnly){
+      if(PARALLEL_QUERIES){ 
+        client.Query(statement, timeout);
+      }
+      else{
+        std::unique_ptr<const query_result::QueryResult> queryResult;
+        client.Query(statement, queryResult, timeout); 
+        //TODO: Debug
+      }
+  }
+
+  //Write queries.
+
+  else{
+   
+    if(PARALLEL_QUERIES){ 
+      std::cerr << "Issue parallel Write request" << std::endl;
+      client.Write(statement, timeout);
+    }
+    else{
+      std::cerr << "Issue sequential Write request" << std::endl;
+      std::unique_ptr<const query_result::QueryResult> queryResult;
+      client.Write(statement, queryResult, timeout);  
+    
+      UW_ASSERT(queryResult->rows_affected());
+      std::cerr << "Num rows affected: " << queryResult->rows_affected() << std::endl;
+
+      int expected_size = (ends[i] - starts[i] + 1) % querySelector->numKeys;
+      if(queryResult->rows_affected() < expected_size){ //ranges[i] + 1
+        std::cerr << "Was not able to read all expected rows -- Check whether initialized correctly serverside" << std::endl;
+        //TODO: if key doesn't exist => INSERT IT
+        //Insert all -- just issue a bunch of point writes (bundle under one statement?) => TODO: Currently sql_interpreter does not support multi-writes
+        //ideally just insert the missing ones, but we cannot tell WHICH ones are missing at the app layer -- queryResult only has num_rows_affected. //T
+      }
+
+      
+    }
+  }
+
+}
+
+void RWSQLTransaction::GetResults(SyncClient &client){
+
+  if(PARALLEL_QUERIES){
+    std::vector<std::unique_ptr<const query_result::QueryResult>> results; 
+    client.Wait(results);
+
+    for(auto &queryResult: results){
+      UW_ASSERT(queryResult->rows_affected());
+      std::cerr << "Num rows affected: " << queryResult->rows_affected() << std::endl;
+    }
+  }
+
+}
 
 bool RWSQLTransaction::AdjustBounds(uint64_t &left, uint64_t &right, uint64_t table)
 {

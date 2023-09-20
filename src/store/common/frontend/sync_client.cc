@@ -121,6 +121,16 @@ void SyncClient::Write(std::string &statement, std::unique_ptr<const query_resul
  result = promise.ReleaseQueryResult(); //TODO: Possibly want Write parallelism too.
 }
 
+void SyncClient::Write(std::string &statement, uint32_t timeout) {
+   Promise *promise = new Promise(timeout);
+  queryPromises.push_back(promise);
+  
+  client->Write(statement, std::bind(&SyncClient::WriteCallback, this, promise,
+        std::placeholders::_1, std::placeholders::_2), 
+        std::bind(&SyncClient::WriteTimeoutCallback, this,
+        promise, std::placeholders::_1), timeout);
+}
+
 
 void SyncClient::Query(const std::string &query, std::unique_ptr<const query_result::QueryResult> &result, uint32_t timeout) {
   Promise promise(timeout);

@@ -423,14 +423,18 @@ struct QueryReadSetMgr {
         QueryReadSetMgr(proto::ReadSet *read_set, const uint64_t &groupIdx, const bool &useOptimisticId): read_set(read_set), groupIdx(groupIdx), useOptimisticId(useOptimisticId){}
         ~QueryReadSetMgr(){}
 
-        void AddToReadSet(const std::string &key, const TimestampMessage &readtime){
-           ReadMessage *read = read_set->add_read_set();
+        void AddToReadSet(const std::string &key, const TimestampMessage &readtime, bool is_table_col_ver = false){
+          Debug("Adding to ReadSet. Key: %s, with TS:[%lu:%lu]", key.c_str(), readtime.timestamp(), readtime.id());
+          ReadMessage *read = read_set->add_read_set();
           //ReadMessage *read = query_md->queryResult->mutable_query_read_set()->add_read_set();
           read->set_key(key);
           *read->mutable_readtime() = readtime;
+
+          if(is_table_col_ver) read->set_is_table_col_version(true);
         }
 
         void AddToReadSet(std::string &&key, const Timestamp &readtime){
+        Debug("Adding to ReadSet. Key: %s, with TS:[%lu:%lu]", key.c_str(), readtime.getTimestamp(), readtime.getID());
            ReadMessage *read = read_set->add_read_set();
           //ReadMessage *read = query_md->queryResult->mutable_query_read_set()->add_read_set();
           read->set_key(std::move(key));

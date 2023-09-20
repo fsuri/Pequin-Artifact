@@ -164,7 +164,7 @@ void SQLTransformer::TransformWriteStatement(std::string &_write_statement,
     size_t pos = 0;
 
     //TODO: Make write_statement a string view already.
-    std::string_view write_statement(_write_statement);
+    std::string_view write_statement(std::move(_write_statement));
 
     //Case 1) INSERT INTO <table_name> (<column_list>) VALUES (<value_list>)
     if( (pos = write_statement.find(insert_hook) != string::npos)){   //  if(write_statement.rfind("INSERT", 0) == 0){
