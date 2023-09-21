@@ -25,6 +25,7 @@
 #include "../gc/gc_manager_factory.h"
 // #include "../logging/log_manager_factory.h"
 #include "../settings/settings_manager.h"
+#include "lib/message.h"
 
 namespace peloton {
 namespace concurrency {
@@ -154,7 +155,8 @@ bool TimestampOrderingTransactionManager::PerformRead(
     TransactionContext *const current_txn, const ItemPointer &read_location,
     storage::TileGroupHeader *tile_group_header, bool acquire_ownership) {
   ItemPointer location = read_location;
-  Debug("Perform read a location block %d with offset %d", location.block, location.offset );
+  Debug("Perform read a location block %d with offset %d", location.block,
+        location.offset);
 
   //////////////////////////////////////////////////////////
   //// handle READ_ONLY
@@ -276,11 +278,13 @@ bool TimestampOrderingTransactionManager::PerformRead(
 
     auto predicate = current_txn->GetPredicate();
 
-    if (predicate) {
+    /*if (predicate) {
+      Debug("Predicate is set");
       if (!predicate(*(current_txn->GetTxnDig()))) {
+        Debug("Predicate is not satisfied");
         return false;
       }
-    }
+    }*/
 
     LOG_TRACE("PerformRead (%u, %u)\n", location.block, location.offset);
     // Check if it's select for update before we check the ownership
@@ -290,14 +294,16 @@ bool TimestampOrderingTransactionManager::PerformRead(
       if (IsOwner(current_txn, tile_group_header, tuple_id) == false) {
         // Acquire ownership if we haven't
         if (IsOwnable(current_txn, tile_group_header, tuple_id) == false) {
-          //std::cout << "1" << std::endl;
-          // Cannot own
+          // std::cout << "1" << std::endl;
+          //  Cannot own
+          Debug("Is false 1 here");
           return false;
         }
         if (AcquireOwnership(current_txn, tile_group_header, tuple_id) ==
             false) {
           // Cannot acquire ownership
-          //std::cout << "2" << std::endl;
+          // std::cout << "2" << std::endl;
+          Debug("Is false 2 here");
           return false;
         }
 
@@ -309,17 +315,20 @@ bool TimestampOrderingTransactionManager::PerformRead(
         UNUSED_ATTRIBUTE bool ret = SetLastReaderCommitId(
             tile_group_header, tuple_id, current_txn->GetCommitId(), true);
 
+        Debug("Before assert 1");
         PELOTON_ASSERT(ret == true);
         // there's no need to maintain read set for timestamp ordering protocol.
         // T/O does not check the read set during commit phase.
       }
 
       // if we have already owned the version.
+      Debug("Before assert 2");
       PELOTON_ASSERT(IsOwner(current_txn, tile_group_header, tuple_id) == true);
+      Debug("Before assert 3");
       PELOTON_ASSERT(tile_group_header->GetLastReaderCommitId(tuple_id) ==
                          current_txn->GetCommitId() ||
                      tile_group_header->GetLastReaderCommitId(tuple_id) == 0);
-      //std::cout << "3" << std::endl;
+      // std::cout << "3" << std::endl;
       return true;
 
     } else {
@@ -328,26 +337,29 @@ bool TimestampOrderingTransactionManager::PerformRead(
         // then attempt to set last reader cid.
         if (SetLastReaderCommitId(tile_group_header, tuple_id,
                                   current_txn->GetCommitId(), false) == true) {
-          //std::cout << "4" << std::endl;
+          // std::cout << "4" << std::endl;
           return true;
         } else {
           // if the tuple has been owned by some concurrent transactions,
           // then read fails.
           LOG_TRACE("Transaction read failed");
-          //std::cout << "5" << std::endl;
-          return false;
+          // std::cout << "5" << std::endl;
+          Debug("Is false 3 here");
+          // return false;
+          return true;
         }
 
       } else {
         // if the current transaction has already owned this tuple,
         // then perform read directly.
+        Debug("Before assert 4");
         PELOTON_ASSERT(tile_group_header->GetLastReaderCommitId(tuple_id) ==
                            current_txn->GetCommitId() ||
                        tile_group_header->GetLastReaderCommitId(tuple_id) == 0);
 
         // this version must already be in the read/write set.
         // so no need to update read set.
-        //std::cout << "6" << std::endl;
+        // std::cout << "6" << std::endl;
         return true;
       }
     }
@@ -405,7 +417,7 @@ void TimestampOrderingTransactionManager::PerformUpdate(
     TransactionContext *const current_txn, const ItemPointer &location,
     const ItemPointer &new_location) {
   PELOTON_ASSERT(!current_txn->IsReadOnly());
-  Debug("Perform Update"); 
+  Debug("Perform Update");
 
   ItemPointer old_location = location;
 
@@ -426,9 +438,11 @@ void TimestampOrderingTransactionManager::PerformUpdate(
   /** NEW: Commented this assertion out for upsert */
   /*PELOTON_ASSERT(tile_group_header->GetTransactionId(old_location.offset) ==
                  transaction_id);*/
-  PELOTON_ASSERT(
+  /** NEW: Commented out because we can update in the middle of the linked list,
+   * we don't assume we always update the head */
+  /*PELOTON_ASSERT(
       tile_group_header->GetPrevItemPointer(old_location.offset).IsNull() ==
-      true);
+      true);*/
 
   // check whether the new version is empty.
   PELOTON_ASSERT(new_tile_group_header->GetTransactionId(new_location.offset) ==
@@ -448,7 +462,7 @@ void TimestampOrderingTransactionManager::PerformUpdate(
   if (index_entry_ptr != nullptr) {
     auto index_tile_group_header =
         storage_manager->GetTileGroup(index_entry_ptr->block)->GetHeader();
-    //std::cout << "index entry not null" << std::endl;
+    // std::cout << "index entry not null" << std::endl;
     ItemPointer curr_pointer = *index_entry_ptr;
     auto curr_tile_group_header =
         storage_manager->GetTileGroup(curr_pointer.block)->GetHeader();
@@ -456,7 +470,7 @@ void TimestampOrderingTransactionManager::PerformUpdate(
     while (new_tile_group_header->GetBasilTimestamp(new_location.offset) <
            curr_tile_group_header->GetBasilTimestamp(curr_pointer.offset)) {
       // Update current pointer and the associated header
-      //std::cout << "Iterate through while loop" << std::endl;
+      // std::cout << "Iterate through while loop" << std::endl;
       if (curr_tile_group_header->GetNextItemPointer(curr_pointer.offset)
               .IsNull()) {
         break;
@@ -469,7 +483,7 @@ void TimestampOrderingTransactionManager::PerformUpdate(
 
     if (new_tile_group_header->GetBasilTimestamp(new_location.offset) >
         curr_tile_group_header->GetBasilTimestamp(curr_pointer.offset)) {
-      //std::cout << "If case" << std::endl;
+      // std::cout << "If case" << std::endl;
       curr_tile_group_header->SetPrevItemPointer(curr_pointer.offset,
                                                  new_location);
       new_tile_group_header->SetNextItemPointer(new_location.offset,
@@ -480,7 +494,7 @@ void TimestampOrderingTransactionManager::PerformUpdate(
       new_tile_group_header->SetLastReaderCommitId(new_location.offset,
                                                    current_txn->GetCommitId());
     } else {
-      //std::cout << "Else case" << std::endl;
+      // std::cout << "Else case" << std::endl;
       curr_tile_group_header->SetNextItemPointer(curr_pointer.offset,
                                                  new_location);
       new_tile_group_header->SetPrevItemPointer(new_location.offset,
@@ -514,7 +528,7 @@ void TimestampOrderingTransactionManager::PerformUpdate(
       PELOTON_ASSERT(res == true);
       current_txn->RecordUpdate(old_location);
     } else {
-      //std::cout << "Record update else case" << std::endl;
+      // std::cout << "Record update else case" << std::endl;
       current_txn->RecordUpdate(new_location);
     }
   }
@@ -642,8 +656,9 @@ void TimestampOrderingTransactionManager::PerformDelete(
                  current_txn->GetTransactionId());*/
   // PELOTON_ASSERT(tile_group_header->GetBeginCommitId(tuple_id) == MAX_CID);
 
-  //std::cout << "Made it to perform delete for tuple id " << tuple_id << std::endl;
-  // Deletes are indicated by setting the end commit id to invalid
+  // std::cout << "Made it to perform delete for tuple id " << tuple_id <<
+  // std::endl;
+  //  Deletes are indicated by setting the end commit id to invalid
   tile_group_header->SetEndCommitId(tuple_id, INVALID_CID);
 
   // Add the old tuple into the delete set
@@ -730,15 +745,17 @@ ResultType TimestampOrderingTransactionManager::CommitTransaction(
           tile_group_header->GetPrevItemPointer(tuple_slot);*/
 
       ItemPointer new_version = *tile_group_header->GetIndirection(tuple_slot);
-      //std::cout << "Made it to here " << std::endl;
-      // NEW: Added to prevent assert from failing
+      // std::cout << "Made it to here " << std::endl;
+      //  NEW: Added to prevent assert from failing
       /*if (new_version.IsNull()) {
         new_version = tile_group_header->GetNextItemPointer(tuple_slot);
       }*/
 
-      Debug("New version is: %d, offset: %d. Tuple slot: %d", new_version.block, new_version.offset, tuple_slot);
-      //std::cout << "New version is (" << new_version.block << ", " << new_version.offset << ")" << std::endl;
-      //std::cout << "tuple slot is " << tuple_slot << std::endl;
+      Debug("New version is: %d, offset: %d. Tuple slot: %d", new_version.block,
+            new_version.offset, tuple_slot);
+      // std::cout << "New version is (" << new_version.block << ", " <<
+      // new_version.offset << ")" << std::endl; std::cout << "tuple slot is "
+      // << tuple_slot << std::endl;
 
       // Assert that previously failed
       PELOTON_ASSERT(new_version.IsNull() == false);
@@ -750,7 +767,7 @@ ResultType TimestampOrderingTransactionManager::CommitTransaction(
       new_tile_group_header->SetBeginCommitId(new_version.offset,
                                               end_commit_id);
       new_tile_group_header->SetEndCommitId(new_version.offset, cid);
-      //std::cout << "Made it to here 1" << std::endl;
+      // std::cout << "Made it to here 1" << std::endl;
 
       COMPILER_MEMORY_FENCE;
 
@@ -763,7 +780,7 @@ ResultType TimestampOrderingTransactionManager::CommitTransaction(
                                               INITIAL_TXN_ID);
       tile_group_header->SetTransactionId(tuple_slot, INITIAL_TXN_ID);
 
-      //std::cout << "Made it to here 2" << std::endl;
+      // std::cout << "Made it to here 2" << std::endl;
 
       // add old version into gc set.
       // may need to delete versions from secondary indexes.
@@ -771,7 +788,7 @@ ResultType TimestampOrderingTransactionManager::CommitTransaction(
           GCVersionType::COMMIT_UPDATE;
 
       // log_manager.LogUpdate(new_version);
-      //std::cout << "Made it to here 3" << std::endl;
+      // std::cout << "Made it to here 3" << std::endl;
 
     } else if (tuple_entry.second == RWType::DELETE) {
       ItemPointer new_version =
