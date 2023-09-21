@@ -409,8 +409,10 @@ ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple,
       }
 
       // ItemPointer *old_location;
-      auto result = InsertTuple(tuple, location, transaction, old_location,
-                                index_entry_ptr, check_fk);
+      auto result = InsertTuple(tuple, location, transaction, old_location, index_entry_ptr, check_fk);
+      //bool result = false;
+      //IncreaseTupleCount(1);
+
       if (result == false) {
         std::cout << "The result is false" << std::endl;
         Debug("InsertTuple result false");

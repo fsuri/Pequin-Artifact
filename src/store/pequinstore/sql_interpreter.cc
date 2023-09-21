@@ -553,6 +553,7 @@ void SQLTransformer::TransformUpdate(size_t pos, std::string_view &write_stateme
             write->set_key(table_name + unique_delimiter + std::string(col));  
             write->set_delay(true);
              //If a TX has multiple Queries with the same Col updates there will be duplicates. Does that matter? //Writes are sorted to avoid deadlock.
+             //TODO: to avoid duplicates: store the idx of the cols accessed and write Version only later.
         }
 
         TableWrite *table_write = AddTableWrite(table_name, col_registry);

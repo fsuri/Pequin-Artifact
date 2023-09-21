@@ -156,7 +156,7 @@ Server::Server(const transport::Configuration &config, int groupIdx, int idx,
       }
       else{
         //TODO: Configure with num Threads == 8
-        int num_threads = 8;
+        int num_threads = std::thread::hardware_concurrency();
         table_store = new PelotonTableStore(table_registry_path, 
                         std::bind(&Server::FindTableVersion, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4, std::placeholders::_5),
                         std::move(read_prepared_pred), num_threads);
