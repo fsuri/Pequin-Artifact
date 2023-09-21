@@ -365,12 +365,12 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
           LOG_TRACE("perform read operation");
           auto res = transaction_manager.PerformRead(
               current_txn, tuple_location, tile_group_header, acquire_owner);
-          if (!res) {
+          /*if (!res) {
             LOG_TRACE("read nothing");
             transaction_manager.SetTransactionResult(current_txn,
                                                      ResultType::FAILURE);
             return res;
-          }
+          }*/
 
           Debug("Tuple commit state: %d. Is tuple in visibility set? %d",
                 tile_group_header->GetCommitOrPrepare(tuple_location.offset),

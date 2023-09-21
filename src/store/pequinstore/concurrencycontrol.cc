@@ -253,7 +253,7 @@ proto::ConcurrencyControl::Result Server::fetchReadSet(const proto::QueryResultM
       } 
   
       if(!cached_queryResult.has_query_result_hash() || query_group_md->read_set_hash() != cached_queryResult.query_result_hash()){
-        Debug("Cached wrong read-set");
+        Debug("Cached wrong read-set %s. Require %s", cached_queryResult.query_result_hash().c_str(), query_group_md->read_set_hash().c_str());
         return proto::ConcurrencyControl::ABSTAIN;
       } 
      

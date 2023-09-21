@@ -95,6 +95,7 @@ class QueryResultProtoBuilder {
     return result->add_rows();
   }
 
+
   //Append field to given row
   template<typename T>
   void AddToRow(RowProto *row, T &t){

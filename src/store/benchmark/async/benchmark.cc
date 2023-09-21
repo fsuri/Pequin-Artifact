@@ -416,7 +416,7 @@ DEFINE_bool(pequin_query_eager_exec, true, "skip query sync protocol and execute
 DEFINE_bool(pequin_query_point_eager_exec, false, "use eager query exec instead of proof based point read");
 
 DEFINE_bool(pequin_query_read_prepared, true, "allow query to read prepared values");
-DEFINE_bool(pequin_query_cache_read_set, true, "cache query read set at replicas"); // Send syncMessages to all if read set caching is enabled -- but still only sync_messages many replicas are tasked to execute and reply.
+DEFINE_bool(pequin_query_cache_read_set, false, "cache query read set at replicas"); // Send syncMessages to all if read set caching is enabled -- but still only sync_messages many replicas are tasked to execute and reply.
 
 DEFINE_bool(pequin_query_optimistic_txid, true, "use optimistic tx-id for sync protocol");
 DEFINE_bool(pequin_query_compress_optimistic_txid, false, "compress optimistic tx-id for sync protocol");
@@ -999,19 +999,19 @@ int main(int argc, char **argv) {
     //Create QuerySelector
     KeySelector *tableSelector;
     KeySelector *baseSelector;
-    KeySelector *rangeSelector; 
+    KeySelector *rangeSelector = new UniformKeySelector(keys, FLAGS_max_range); //doesn't make sense really to have a zipfean range selector - does not strongly correlate to contention. The bigger the range = the bigger contention
 
     //Note: "keys" is an empty/un-used argument for this setup.
     switch (keySelectionMode) {
       case KEYS_UNIFORM:
         tableSelector = new UniformKeySelector(keys, FLAGS_num_tables);
         baseSelector = new UniformKeySelector(keys, FLAGS_num_keys_per_table);
-        rangeSelector = new UniformKeySelector(keys, FLAGS_max_range);
+        //rangeSelector = new UniformKeySelector(keys, FLAGS_max_range);
         break;
       case KEYS_ZIPF:
         tableSelector = new ZipfKeySelector(keys, FLAGS_zipf_coefficient, FLAGS_num_tables);
         baseSelector = new ZipfKeySelector(keys, FLAGS_zipf_coefficient, FLAGS_num_keys_per_table);
-        rangeSelector = new ZipfKeySelector(keys, FLAGS_zipf_coefficient, FLAGS_max_range);
+        //rangeSelector = new ZipfKeySelector(keys, FLAGS_zipf_coefficient, FLAGS_max_range);
         break;
       default:
         NOT_REACHABLE();

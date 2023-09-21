@@ -749,7 +749,6 @@ void Client::Commit(commit_callback ccb, commit_timeout_callback ctcb,
       }
       catch(...) {
         Debug("Preemptive Abort: Trying to commit a transaction with 2 different reads for the same key");
-        uint64_t ns = Latency_End(&executeLatency);
 
         Debug("ABORT[%lu:%lu]", client_id, client_seq_num);
         if(!params.query_params.mergeActiveAtClient) Panic("Without Client-side query merge Client should never read same key twice");
