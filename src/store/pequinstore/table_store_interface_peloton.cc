@@ -730,12 +730,12 @@ void PelotonTableStore::PurgeTableWrite(const std::string &table_name,
   std::string purge_statement; //empty if no writes/deletes (i.e. nothing to abort)
   sql_interpreter.GenerateTablePurgeStatement_NEW(purge_statement, table_name, table_write);
   //std::vector<std::string> purge_statements;
-  //sql_interpreter.GenerateTablePurgeStatement(purge_statements, table_name,
-                                              table_write);
+  //sql_interpreter.GenerateTablePurgeStatement(purge_statements, table_name, table_write);
 
   if (purge_statement.empty()) return; // Nothing to undo.
 
-  Debug("Purge statements: %s", fmt::join(purge_statements, "|"));
+  Debug("Purge statement: %s", purge_statement);
+  //Debug("Purge statements: %s", fmt::join(purge_statements, "|"));
 
   std::vector<peloton::ResultValue> result;
   std::vector<peloton::FieldInfo> tuple_descriptor;
@@ -749,8 +749,7 @@ void PelotonTableStore::PurgeTableWrite(const std::string &table_name,
 
     counter->store(1); // SetTrafficCopCounter();
     auto status = tcop->ExecutePurgeStatement(
-        statement, param_values, unamed, result_format, result, ts, txn_dig,
-        !purge_statements.empty());
+        statement, param_values, unamed, result_format, result, ts, txn_dig, true); //!purge_statements.empty());
 
     // GetResult(status);
     GetResult(status, tcop, counter);

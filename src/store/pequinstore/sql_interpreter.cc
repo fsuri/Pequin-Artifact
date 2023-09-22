@@ -1097,8 +1097,6 @@ void SQLTransformer::GenerateTablePurgeStatement_NEW(std::string &purge_statemen
     } 
     //NOTE: Inserts must always insert -- even if value exists ==> Insert new row.
     purge_statement = fmt::format("INSERT INTO {0} VALUES ", table_name);
-
-    
     
     for(auto &row: table_write.rows()){
         //Alternatively: Move row contents to a vector and use: fmt::join(vec, ",")
@@ -1118,7 +1116,6 @@ void SQLTransformer::GenerateTablePurgeStatement_NEW(std::string &purge_statemen
     
         purge_statement.resize(purge_statement.length()-2); //remove trailing ", "
         purge_statement += "), ";
-        }
       
 
         //purge_statement += fmt::format("{}, ", fmt::join(row.column_values(), ','));
