@@ -27,8 +27,22 @@
 
 #include <memory>
 #include "store/common/query_result/query_result_proto_builder.h"
+#include "lib/assert.h"
 
 namespace sql {
+
+  //TODO: Ideally construct it in sorted manner:
+  //e.g. have minheap of Rows
+  static bool orderRowsbyCol(const Row &l, const Row &r){
+
+    UW_ASSERT(l.fields_size() == r.fields_size());
+    for(int i = 0; i < l.fields_size(); ++ i){
+      if(l.fields()[i].data() < r.fields()[i].data()) return true;
+      else if(l.fields()[i].data() >  r.fields()[i].data()) return false;
+      //else continue;
+    }
+    return false;
+  }
 
 auto QueryResultProtoBuilder::add_columns(const std::vector<std::string>& columns) -> void {
   for (auto name : columns) {
@@ -41,6 +55,7 @@ auto QueryResultProtoBuilder::add_column(const std::string& name) -> void {
 }
 
 auto QueryResultProtoBuilder::get_result() -> std::unique_ptr<SQLResult> {
+  std::sort(result->mutable_rows()->begin(), result->mutable_rows()->end(), orderRowsbyCol);
   auto old_result = std::move(result);
   result = std::make_unique<SQLResult>();
   return old_result;

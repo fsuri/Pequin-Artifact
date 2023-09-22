@@ -188,7 +188,10 @@ void ShardClient::RequestQuery(PendingQuery *pendingQuery, proto::Query &queryMs
   //queryReq.set_retry_version(pendingQuery->retry_version);
   
   queryReq.set_is_point(pendingQuery->is_point);
-  queryReq.set_eager_exec(!pendingQuery->retry_version && (pendingQuery->is_point? params.query_params.eagerPointExec : params.query_params.eagerExec));
+
+  queryReq.set_eager_exec(true);
+  Debug("FOR REAL RUN UNCOMMENT CORRECT EAGER EXEC LINE");
+  //queryReq.set_eager_exec(!pendingQuery->retry_version && (pendingQuery->is_point? params.query_params.eagerPointExec : params.query_params.eagerExec));
   Debug("Sending TX eagerly? %s", queryReq.eager_exec()? "yes" : "no");
   if(!queryReq.eager_exec()) Panic("Currently only testing eager exec");
   if(queryReq.is_point()) Panic("Not testing point query currently");
@@ -223,19 +226,21 @@ void ShardClient::RequestQuery(PendingQuery *pendingQuery, proto::Query &queryMs
   }
 
   uint64_t total_msg;
-  uint64_t num_designated_replies;
+  //uint64_t num_designated_replies;
   if(queryReq.eager_exec()){
     total_msg = params.query_params.cacheReadSet? config->n : params.query_params.syncMessages;
-    num_designated_replies = params.query_params.syncMessages; 
+    pendingQuery->num_designated_replies = params.query_params.syncMessages; 
   }
+
   else{
     total_msg = params.query_params.cacheReadSet? config->n : params.query_params.queryMessages;
-    num_designated_replies = params.query_params.queryMessages;
+    pendingQuery->num_designated_replies = params.query_params.queryMessages;
   }
-   
+  
+
   UW_ASSERT(total_msg <= closestReplicas.size());
   for (size_t i = 0; i < total_msg; ++i) {
-    queryReq.set_designated_for_reply(i < num_designated_replies);
+    queryReq.set_designated_for_reply(i < pendingQuery->num_designated_replies);
     Debug("[group %i] Sending QUERY to replica id %lu", group, group * config->n + GetNthClosestReplica(i));
     transport->SendMessageToReplica(this, group, GetNthClosestReplica(i), queryReq);
   }
@@ -447,7 +452,7 @@ void ShardClient::HandleQueryResult(proto::QueryResultReply &queryResult){
 
     //3) wait for up to result_threshold many matching replies (result + result_hash/read set)
     if(params.query_params.cacheReadSet){
-        Debug("Read-set hash: %s", BytesToHex(replica_result->query_result_hash(), 16).c_str());
+        Debug("Read-set hash: %s", BytesToHex(replica_result->query_result_hash(), 50).c_str());
          matching_res = ++pendingQuery->result_freq[replica_result->query_result()][replica_result->query_result_hash()].freq; //map should be default initialized to 0.
 
     }
@@ -461,20 +466,40 @@ void ShardClient::HandleQueryResult(proto::QueryResultReply &queryResult){
         //     for(auto &read: replica_result->query_read_set().read_set()){
         //         Debug("Read key %s with version [%lu:%lu]", read.key().c_str(), read.readtime().timestamp(), read.readtime().id());
         //     }
-
-        std::sort(replica_result->mutable_query_read_set()->mutable_read_set()->begin(), replica_result->mutable_query_read_set()->mutable_read_set()->end(), sortReadSetByKey); //Note: Only necessary because we use repeated field; Not necessary if we used ordered map
-        std::string validated_result_hash = std::move(generateReadSetSingleHash(replica_result->query_read_set()));
+        try {
+            std::sort(replica_result->mutable_query_read_set()->mutable_read_set()->begin(), replica_result->mutable_query_read_set()->mutable_read_set()->end(), sortReadSetByKey); 
+            //Note: Only necessary because we use repeated field; Not necessary if we used ordered map
+        }
+        catch(...){
+            Panic("Read set contains two reads of the same key with different timestamp. Sent by replica %d", replica_result->replica_id());
+        }
+       std::string validated_result_hash = std::move(generateReadSetSingleHash(replica_result->query_read_set()));
         //TODO: Instead of hashing, could also use "compareReadSets" function from common.h to compare two maps/lists
         
             // //TESTING:
-            Debug("TESTING: Read-set hash: %s", BytesToHex(validated_result_hash, 16).c_str());
-            // for(auto &read: replica_result->query_read_set().read_set()){
-            //     Debug("Read key %s with version [%lu:%lu]", read.key().c_str(), read.readtime().timestamp(), read.readtime().id());
-            // }
+            Debug("TESTING Read set:");
+            for(auto &read: replica_result->query_read_set().read_set()){
+                Debug("Read key %s with version [%lu:%lu]", read.key().c_str(), read.readtime().timestamp(), read.readtime().id());
+            }
            
         //matching_res = ++pendingQuery->result_freq[replica_result->query_result()][validated_result_hash].freq; //map should be default initialized to 0.
-        Result_mgr &result_mgr = pendingQuery->result_freq[replica_result->query_result()][validated_result_hash];
+        Debug("Validated_read_set_hash: %s", BytesToHex(validated_result_hash, 16).c_str());
+        Debug("Result: %lu", std::hash<std::string>{}(replica_result->query_result()));
+
+        Result_mgr &result_mgr = pendingQuery->result_freq[replica_result->query_result()][validated_result_hash];  //Could flatten this into 2D structure if make result part of result_hash... But we need access to result
         matching_res = ++result_mgr.freq; //map should be default initialized to 0.
+
+        //  std::cerr << "current freq: " << result_mgr.freq << std::endl;
+        // std::cerr<< "current result_mgr " << result_mgr.rand_id << std::endl;
+
+        // if(pendingQuery->resultsVerified.size() == 1){
+        //     pendingQuery->first_result = replica_result->query_result();
+        // }
+        // else{
+        //     std::cerr << "first result: " << pendingQuery->first_result << std::endl;
+        //     std::cerr << "current result:" << replica_result->query_result() << std::endl;
+        //     UW_ASSERT(pendingQuery->first_result == replica_result->query_result());
+        // }
 
         //Record the dependencies.
        
@@ -535,6 +560,8 @@ void ShardClient::HandleQueryResult(proto::QueryResultReply &queryResult){
     }
   
     //4) if receive enough --> upcall;  At client: Add query identifier and result to Txn
+
+    Debug("[group %i] Req %lu. Matching_res %d. resultQuorum: %d \n", group, queryResult.req_id(), matching_res, params.query_params.resultQuorum);
         // Only need results from "result" shard (assuming simple migration scheme)
     if(matching_res == params.query_params.resultQuorum){
         Debug("[group %i] Reached sufficient matching results for QueryResult Reply %lu", group, queryResult.req_id());
@@ -547,12 +574,20 @@ void ShardClient::HandleQueryResult(proto::QueryResultReply &queryResult){
 
     //5) if not enough matching --> retry; 
     // if not optimistic id: wait for up to result Quorum many messages (f+1). With optimistic id, wait for f additional.
-    uint64_t expectedResults = (params.query_params.optimisticTxID && !pendingQuery->retry_version) ? params.query_params.resultQuorum + config->f : params.query_params.resultQuorum;
+
+    bool no_bonus = (params.query_params.eagerExec) || (params.query_params.optimisticTxID && pendingQuery->retry_version);
+    //bool request_bonus = (!params.query_params.eagerExec && params.query_params.optimisticTxID && pendingQuery->retry_version == 0);
+    uint64_t expectedResults = no_bonus ? params.query_params.resultQuorum : params.query_params.resultQuorum + config->f;
+
+    std::cerr << "Designated replies: " << pendingQuery->num_designated_replies << std::endl;
+    std::cerr << "ExpectedResults: " << expectedResults << std::endl;
     int maxWait = std::max(pendingQuery->num_designated_replies - config->f, expectedResults); //wait for at least maxWait many, but can wait up to #syncMessages sent - f. (if that is larger). 
+    UW_ASSERT(maxWait > 0);
     //Note that expectedResults <= num_designated_replies, since params.resultQuorum <= params.syncMessages, and +f optimisticID is applied to both.
     
     //Waited for max number of result replies that can be expected. //TODO: Can be "smarter" about this. E.g. if waiting for at most f+1 replies, as soon as first non-matching arrives return...
     if(pendingQuery->resultsVerified.size() == maxWait){
+        //Panic("Testing");
         Debug("[group %i] Received sufficient inconsistent replies to determine Failure for QueryResult %lu", group, queryResult.req_id());
        //pendingQuery->rcb(REPLY_FAIL, group, read_set, *replica_result->mutable_query_result_hash(), *replica_result->mutable_query_result(), false);
        pendingQuery->rcb(REPLY_FAIL, group, replica_result->release_query_read_set(), *replica_result->mutable_query_result_hash(), *replica_result->mutable_query_result(), false);
@@ -560,7 +595,8 @@ void ShardClient::HandleQueryResult(proto::QueryResultReply &queryResult){
        return;
     }
    
-    Debug("[group %i] Waiting for additional QueryResult Replies for Req %lu \n", group, queryResult.req_id());
+    Debug("[group %i] Waiting for additional QueryResult Replies for Req %lu. So far: %d. maxWait %d \n", group, queryResult.req_id(), pendingQuery->resultsVerified.size(), maxWait);
+   
 
     //6) remove pendingQuery object --> happens in upcall to client (calls ClearQuery)
 
@@ -616,8 +652,11 @@ void ShardClient::HandleFailQuery(proto::FailQuery &queryFail){
     
 
     //5) if enough failures to imply one correct reported failure OR not enough replies to conclude success ==> retry
-      // if not optimistic id: wait for up to result Quorum many messages (f+1). With optimistic id, wait for f additional.
-        uint64_t expectedResults = (params.query_params.optimisticTxID && !pendingQuery->retry_version) ? params.query_params.resultQuorum + config->f : params.query_params.resultQuorum;
+      // if eager or not optimistic id: wait for up to result Quorum many messages (f+1). With optimistic id, wait for f additional.
+        
+        bool no_bonus = (params.query_params.eagerExec) || (params.query_params.optimisticTxID && pendingQuery->retry_version);
+        //bool request_bonus = (!params.query_params.eagerExec && params.query_params.optimisticTxID && pendingQuery->retry_version == 0);
+        uint64_t expectedResults = no_bonus ? params.query_params.resultQuorum : params.query_params.resultQuorum + config->f;
         int maxWait = std::max(pendingQuery->num_designated_replies - config->f, expectedResults); //wait for at least maxWait many, but can wait up to #syncMessages sent - f. (if that is larger). 
         //Note that expectedResults <= num_designated_replies, since params.resultQuorum <= params.syncMessages, and +f optimisticID is applied to both.
 

@@ -11,7 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
-//#undef Debug
+// #undef Debug
 
 #include <atomic>
 #include <cstring>
@@ -53,6 +53,7 @@ struct TupleHeader {
   const pequinstore::proto::CommittedProof *committed_proof;
   bool commit_or_prepare;
   Timestamp basil_timestamp;
+  bool is_deleted = false;
 } __attribute__((aligned(64)));
 
 /**
@@ -222,12 +223,17 @@ public:
     return tuple_headers_[tuple_slot_id].txn_dig;
   }
 
-  inline const pequinstore::proto::CommittedProof* GetCommittedProof(const oid_t &tuple_slot_id) const {
+  inline const pequinstore::proto::CommittedProof *
+  GetCommittedProof(const oid_t &tuple_slot_id) const {
     return tuple_headers_[tuple_slot_id].committed_proof;
   }
 
   inline bool GetCommitOrPrepare(const oid_t &tuple_slot_id) const {
     return tuple_headers_[tuple_slot_id].commit_or_prepare;
+  }
+
+  inline bool IsDeleted(const oid_t &tuple_slot_id) const {
+    return tuple_headers_[tuple_slot_id].is_deleted;
   }
 
   // Setters
@@ -291,7 +297,9 @@ public:
   }
 
   // NEW: set commit proof
-  inline void SetCommittedProof(const oid_t &tuple_slot_id, const pequinstore::proto::CommittedProof* committed_proof) {
+  inline void
+  SetCommittedProof(const oid_t &tuple_slot_id,
+                    const pequinstore::proto::CommittedProof *committed_proof) {
     tuple_headers_[tuple_slot_id].committed_proof = committed_proof;
   }
 
@@ -299,6 +307,11 @@ public:
   inline void SetCommitOrPrepare(const oid_t &tuple_slot_id,
                                  bool commit_or_prepare) {
     tuple_headers_[tuple_slot_id].commit_or_prepare = commit_or_prepare;
+  }
+
+  // NEW: set whether is deleted
+  inline void SetIsDeleted(const oid_t &tuple_slot_id, bool is_deleted) {
+    tuple_headers_[tuple_slot_id].is_deleted = is_deleted;
   }
 
   /*

@@ -161,9 +161,8 @@ std::string PelotonTableStore::TransformResult(
     for (unsigned int j = 0; j < tuple_descriptor.size(); j++) {
       // TODO: Use interface addtorow, and pass in field to that row
       queryResultBuilder.AddToRow(row, result[i * tuple_descriptor.size() + j]);
-      // auto r = result[i * tuple_descriptor.size() + j];
-      // std::cerr << "Col/Row" << j << " : " << (result[i *
-      // tuple_descriptor.size() + j]) << std::endl;
+      auto r = result[i * tuple_descriptor.size() + j];
+      std::cerr << "Col/Row" << j << " : " << r << std::endl;
     }
   }
 
@@ -624,6 +623,7 @@ void PelotonTableStore::ApplyTableWrite(
        delete_statements) { // TODO: Find a way to parallelize these statement
                             // calls (they don't conflict)
     Debug("Delete statement: %s", delete_statement.c_str());
+    std::cout << "Delete statement is " << delete_statement << std::endl;
     // prepare Statement
     auto statement = ParseAndPrepare(delete_statement, tcop);
     // ExecuteStatment

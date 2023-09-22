@@ -1627,6 +1627,8 @@ std::string Server::ExecQuery(QueryReadSetMgr &queryReadSetMgr, QueryMetaData *q
     if(!materialize) serialized_result = table_store->ExecReadQuery(query_md->query_cmd, query_md->ts, queryReadSetMgr);
     if(materialize) Warning("Do not yet support Snapshot materialization");
 
+    Debug("SERIALIZED RESULT: %lu", std::hash<std::string>{}(serialized_result));
+
     if(occType == MVTSO && params.rtsMode > 0){
         Debug("Set up all RTS for Query[%lu:%lu]", query_md->query_seq_num, query_md->client_id);
         for(auto &read: queryReadSetMgr.read_set->read_set()){
@@ -1838,13 +1840,44 @@ void Server::HandleSyncCallback(queryMetaDataMap::accessor &q, QueryMetaData *qu
 void Server::SendQueryReply(QueryMetaData *query_md){ 
 
 
-    Debug("SendQuery Reply for Query[%lu:%lu:%lu].", query_md->query_seq_num, query_md->client_id, query_md->retry_version);
+    Debug("SendQuery Reply for Query[%lu:%lu:%lu]. ", query_md->query_seq_num, query_md->client_id, query_md->retry_version);
     
     proto::QueryResultReply *queryResultReply = query_md->queryResultReply;
     proto::QueryResult *result = queryResultReply->mutable_result();
     proto::ReadSet *query_read_set;
-    //proto::LocalDeps *query_local_deps; //Deprecated --> made deps part of read set
 
+    //proto::LocalDeps *query_local_deps; //Deprecated --> made deps part of read set
+    Debug("QueryResult[%lu:%lu:%lu]: %s", query_md->query_seq_num, query_md->client_id, query_md->retry_version, BytesToHex(result->query_result(), 16).c_str());
+    //Testing:
+        //
+    
+
+        // query_result::QueryResult *p_queryResult = new sql::QueryResultProtoWrapper(result->query_result());
+        //   std::cerr << "IS empty?: " << (p_queryResult->empty()) << std::endl;
+        //     std::cerr << "num cols:" <<  (p_queryResult->num_columns()) << std::endl;
+        //     std::cerr << "num rows written:" <<  (p_queryResult->rows_affected()) << std::endl;
+        //     std::cerr << "num rows read:" << (p_queryResult->size()) << std::endl;
+        // std::string out;
+        // size_t nbytes;
+        // std::string output_row;
+        // for(int j = 0; j < p_queryResult->size(); ++j){
+        //        std::stringstream p_ss(std::ios::in | std::ios::out | std::ios::binary);
+        //        for(int i = 0; i<p_queryResult->num_columns(); ++i){
+        //            out = p_queryResult->get(j, i, &nbytes);
+        //           std::string p_output(out, nbytes);
+        //           p_ss << p_output;
+        //           output_row;
+        //           {
+        //             cereal::BinaryInputArchive iarchive(p_ss); // Create an input archive
+        //             iarchive(output_row); // Read the data from the archive
+        //           }
+        //           std::cerr << "Row: " <<j << " Col " << i << ": " << output_row << std::endl;
+        //        }
+               
+            
+        // }
+
+    //
 
     // 3) Generate Merkle Tree over Read Set, (optionally can also make it be over result, query id)
 

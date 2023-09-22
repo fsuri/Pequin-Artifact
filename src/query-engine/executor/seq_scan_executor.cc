@@ -269,8 +269,8 @@ bool SeqScanExecutor::DExecute() {
           // Update the timestamp
           tuple_timestamp =
               new_tile_group_header->GetBasilTimestamp(new_location.offset);
-          // std::cout << "New timestamp is " << tuple_timestamp.getTimestamp()
-          //           << ", " << tuple_timestamp.getID() << std::endl;
+          std::cout << "New timestamp is " << tuple_timestamp.getTimestamp()
+                    << ", " << tuple_timestamp.getID() << std::endl;
           location = new_location;
           tile_group_header = new_tile_group_header;
           curr_tuple_id = new_location.offset;
@@ -284,9 +284,16 @@ bool SeqScanExecutor::DExecute() {
         // tile_group_header->GetBasilTimestamp(location.offset).getTimestamp()
         // << std::endl; std::cout << "Current tuple id is " << curr_tuple_id <<
         // std::endl;
+        //
 
+        bool is_deleted = tile_group_header->IsDeleted(curr_tuple_id);
+        std::cout << "Is deleted is " << is_deleted << std::endl;
+        std::cout << "Curr tuple id is " << curr_tuple_id << std::endl;
+
+        /*visibility = transaction_manager.IsVisible(
+            current_txn, tile_group_header, curr_tuple_id);*/
         // check transaction visibility
-        if (visibility == VisibilityType::OK) {
+        if (visibility == VisibilityType::OK && !is_deleted) {
           // if the tuple is visible, then perform predicate evaluation.
           if (predicate_ == nullptr) {
             if (position_set.find(curr_tuple_id) == position_set.end()) {

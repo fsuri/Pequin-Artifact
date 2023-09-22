@@ -164,28 +164,7 @@ Server::Server(const transport::Configuration &config, int groupIdx, int idx,
 
   committed.insert(std::make_pair("", proof));
 
-  // TODO: turn read_prepared into a function, not a lambda
-  auto read_prepared_pred = [this](const std::string &txn_digest) {
-    if (this->occType != MVTSO || this->params.maxDepDepth == -2)
-      return false; // Only read prepared if parameters allow
-    // Check for Depth. Only read prepared if dep depth < maxDepth
-    return (this->params.maxDepDepth == -1 ||
-            DependencyDepth(txn_digest) <= this->params.maxDepDepth);
-  };
-
-  if (TEST_QUERY) {
-    table_store = new ToyTableStore(); // Just a black hole
-  } else {
-    // TODO: Configure with num Threads == 8
-    int num_threads = std::thread::hardware_concurrency();
-    table_store = new PelotonTableStore(
-        table_registry_path,
-        std::bind(&Server::FindTableVersion, this, std::placeholders::_1,
-                  std::placeholders::_2, std::placeholders::_3,
-                  std::placeholders::_4, std::placeholders::_5),
-        std::move(read_prepared_pred), num_threads);
-    // table_store = new PelotonTableStore();
-  }
+  ts_to_tx.insert(std::make_pair(MergeTimestampId(0, 0), ""));
 
   if (sql_bench) {
 
@@ -2163,6 +2142,7 @@ void Server::UpdateCommittedReads(proto::Transaction *txn,
                                   const std::string &txnDigest, Timestamp &ts,
                                   proto::CommittedProof *proof) {
 
+  Debug("Update Committed Reads for txn %s", BytesToHex(txnDigest, 16).c_str());
   const ReadSet *readSet = &txn->read_set(); // DEFAULT
   const DepSet *depSet = &txn->deps();       // DEFAULT
 
