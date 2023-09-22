@@ -416,7 +416,7 @@ DEFINE_bool(pequin_query_eager_exec, true, "skip query sync protocol and execute
 DEFINE_bool(pequin_query_point_eager_exec, false, "use eager query exec instead of proof based point read");
 
 DEFINE_bool(pequin_query_read_prepared, true, "allow query to read prepared values");
-DEFINE_bool(pequin_query_cache_read_set, false, "cache query read set at replicas"); // Send syncMessages to all if read set caching is enabled -- but still only sync_messages many replicas are tasked to execute and reply.
+DEFINE_bool(pequin_query_cache_read_set, true, "cache query read set at replicas"); // Send syncMessages to all if read set caching is enabled -- but still only sync_messages many replicas are tasked to execute and reply.
 
 DEFINE_bool(pequin_query_optimistic_txid, true, "use optimistic tx-id for sync protocol");
 DEFINE_bool(pequin_query_compress_optimistic_txid, false, "compress optimistic tx-id for sync protocol");
