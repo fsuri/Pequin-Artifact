@@ -1039,7 +1039,7 @@ bool ShardClient::ValidateTransactionTableWrite(const proto::CommittedProof &pro
 }
 
 
-bool ShardClient::isValidQueryDep(const uint64_t &query_seq_num, const std::string &txnDigest){
+bool ShardClient::isValidQueryDep(const uint64_t &query_seq_num, const std::string &txnDigest, const proto::Transaction* txn){
 
     Debug("Check if Txn: %s is a valid dep for query seq no: %d", BytesToHex(txnDigest, 16).c_str(), query_seq_num);
     auto itr_q = query_seq_num_mapping.find(query_seq_num);
@@ -1070,7 +1070,11 @@ bool ShardClient::isValidQueryDep(const uint64_t &query_seq_num, const std::stri
 
   //TODO: also support TS version ==> TODO: Add Timestamp to arguments here and in isDep. Then compute MergedTimestamp from Timestamp, and look it up.
   if(params.query_params.optimisticTxID && !pendingQuery->retry_version){
-    Warning("Currently don't yet support isValidQueryDep for merged snapshots with TS only");
+    //Warning("Currently don't yet support isValidQueryDep for merged snapshots with TS only");
+    uint64_t merged_ts = MergeTimestampId(txn->timestamp().timestamp(), txn->timestamp().id());
+    for(auto &[ts_id, _]: merged_ss.merged_ts()){
+        if(ts_id == merged_ts) return true;
+    }
     return true;
   }
 

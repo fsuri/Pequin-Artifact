@@ -1464,13 +1464,13 @@ void Client::FinishConflict(uint64_t reqId, const std::string &txnDigest, proto:
   if(!failureEnabled) stats.Increment("total_honest_conflict_FB_started", 1);
 }
 
-bool Client::isDep(const std::string &txnDigest, proto::Transaction &Req_txn){
+bool Client::isDep(const std::string &txnDigest, proto::Transaction &Req_txn, const proto::Transaction* txn){
 
   //If we are caching: Check whether dependency is part of snapshot; If eager, make an exception and accept dep
   if(params.query_params.cacheReadSet){
     for(auto &[query_seq_num, pendingQuery]: pendingQueries){ 
       for(auto &group: pendingQuery->involved_groups){  
-        if(bclient[group]->isValidQueryDep(query_seq_num, txnDigest)) return true; 
+        if(bclient[group]->isValidQueryDep(query_seq_num, txnDigest, txn)) return true; 
       }
     }
   }
@@ -1543,7 +1543,7 @@ void Client::RelayP1callback(uint64_t reqId, proto::RelayP1 &relayP1, std::strin
   if(Completed_transactions.find(txnDigest) != Completed_transactions.end()) return;
   if(FB_instances.find(txnDigest) != FB_instances.end()) return;
   //Check if the current pending request has this txn as dependency.
-  if(!isDep(txnDigest, itr->second->txn)){
+  if(!isDep(txnDigest, itr->second->txn, &relayP1.p1().txn())){
     Debug("Tx[%s] is not a dependency of ReqId: %d", BytesToHex(txnDigest, 16).c_str(), reqId);
     return;
   }
@@ -1603,7 +1603,7 @@ void Client::RelayP1callbackFB(uint64_t reqId, const std::string &dependent_txnD
   if(Completed_transactions.find(txnDigest) != Completed_transactions.end()) return;
   if(FB_instances.find(txnDigest) != FB_instances.end()) return;
    //Check if the current pending request has this txn as dependency.
-  if(!isDep(txnDigest, itrFB->second->txn)){
+  if(!isDep(txnDigest, itrFB->second->txn, &relayP1.p1().txn())){
     Debug("Tx[%s] is not a dependency of ReqId: %d", BytesToHex(txnDigest, 128).c_str(), reqId);
     return;
   }

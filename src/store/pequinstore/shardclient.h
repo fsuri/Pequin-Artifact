@@ -198,7 +198,7 @@ virtual void Phase2Equivocate_Simulate(uint64_t id, const proto::Transaction &tx
   //public query functions:
    virtual void ClearQuery(uint64_t query_seq_num);
    virtual void RetryQuery(uint64_t query_seq_num, proto::Query &queryMsg, bool is_point = false, point_result_callback prcb = nullptr);
-   bool isValidQueryDep(const uint64_t &query_seq_num, const std::string &txnDigest);
+   bool isValidQueryDep(const uint64_t &query_seq_num, const std::string &txnDigest, const proto::Transaction* txn = nullptr);
 
 
  private:

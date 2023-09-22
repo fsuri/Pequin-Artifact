@@ -294,7 +294,7 @@ class Client : public ::Client {
 
   // Fallback logic
   void FinishConflict(uint64_t reqId, const std::string &txnDigest, proto::Phase1 *p1);
-  bool isDep(const std::string &txnDigest, proto::Transaction &Req_txn);
+  bool isDep(const std::string &txnDigest, proto::Transaction &Req_txn, const proto::Transaction* txn);
   bool StillActive(uint64_t conflict_id, std::string &txnDigest);
   void CleanFB(PendingRequest *pendingFB, const std::string &txnDigest, bool clean_shards = true);
   void EraseRelays(proto::RelayP1 &relayP1, std::string &txnDigest);
