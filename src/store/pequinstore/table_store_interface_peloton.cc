@@ -683,12 +683,15 @@ void PelotonTableStore::PurgeTableWrite(const std::string &table_name,
   std::shared_ptr<std::string> txn_dig(
       std::make_shared<std::string>(txn_digest));
 
-  // std::string purge_statement; //empty if no writes/deletes (i.e. nothing
+  std::string purge_statement; // empty if no writes/deletes (i.e. nothing
   // to abort)
   std::vector<std::string> purge_statements;
-  sql_interpreter.GenerateTablePurgeStatement(purge_statements, table_name,
-                                              table_write);
+  /*sql_interpreter.GenerateTablePurgeStatement(purge_statements, table_name,
+                                              table_write);*/
+  sql_interpreter.GenerateTableWriteStatement(purge_statement, purge_statements,
+                                              table_name, table_write);
 
+  purge_statements.push_back(purge_statement);
   if (purge_statements.empty())
     return; // Nothing to undo.
 
@@ -700,6 +703,7 @@ void PelotonTableStore::PurgeTableWrite(const std::string &table_name,
   for (auto &purge_statement : purge_statements) {
     // prepareStatement
     auto statement = ParseAndPrepare(purge_statement, tcop);
+    std::cout << purge_statement << std::endl;
 
     std::vector<peloton::type::Value> param_values; // param_values.clear();
     std::vector<int> result_format(statement->GetTupleDescriptor().size(), 0);

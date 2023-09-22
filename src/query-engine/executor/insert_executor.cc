@@ -274,8 +274,11 @@ bool InsertExecutor::DExecute() {
       //                                           ResultType::FAILURE);
       //  return false;
       //}
+      //
 
-      if (!result && !is_duplicate) {
+      bool is_purge = current_txn->GetUndoDelete();
+
+      if (!result && !is_duplicate && !is_purge) {
 
         // std::cout << "Tried to insert row with same primary key, so will do
         // an update"  << std::endl;
@@ -427,7 +430,7 @@ bool InsertExecutor::DExecute() {
                                                     indirection);
         new_tile_group->GetHeader()->SetCommitOrPrepare(
             new_location.offset, current_txn->GetCommitOrPrepare());
-      } else if (!is_duplicate) {
+      } else if (!is_duplicate && !is_purge) {
         std::cout << "Insert was performed" << std::endl;
         transaction_manager.PerformInsert(current_txn, location,
                                           index_entry_ptr);

@@ -147,9 +147,8 @@ void test_read_query() {
                                true);
   sleep(1);
 
-  table_store->ApplyTableWrite("test", table_write4, pesto_timestamp, "random",
-                               real_proof4, true);
-  sleep(1);
+  /*table_store->ApplyTableWrite("test", table_write4, pesto_timestamp,
+  "random", real_proof4, true); sleep(1);*/
 
   table_store->ApplyTableWrite("test", table_write3, toy_ts_c, "random",
                                real_proof3, true);
@@ -159,22 +158,20 @@ void test_read_query() {
                                real_proof2, true);
   sleep(1);
 
-  std::cout << "New change 10" << std::endl;
   // table_store->ApplyTableWrite("test", table_write_1, toy_ts_c, "random",
   // real_proof, true);
   std::string enc_primary_key = "test//24";
   // table_store->ExecRaw("INSERT INTO test VALUES (24, 256)");
   // table_store->ExecRaw("INSERT INTO test VALUES (26, 870)");
   // table_store->ExecRaw("DELETE FROM test WHERE a=24;");
-  std::cout << "End of queryexec test" << std::endl;
   // table_store->ExecPointRead("SELECT * FROM test WHERE a=34;",
   // enc_primary_key, toy_ts_c, &write, &committed_proof);
 
   // table_store->ExecReadQuery("SELECT * FROM test;", toy_ts_c,
   // query_read_set_mgr_one);
-  // table_store->PurgeTableWrite("test", table_write4, toy_ts_c, "random");
-  std::string result = table_store->ExecReadQuery(
-      "SELECT * FROM test WHERE a=24;", toy_ts_c, query_read_set_mgr_one);
+  table_store->PurgeTableWrite("test", table_write3, toy_ts_c, "random");
+  std::string result = table_store->ExecReadQuery("SELECT * FROM test;", one,
+                                                  query_read_set_mgr_one);
 
   sql::QueryResultProtoWrapper *p_queryResult =
       new sql::QueryResultProtoWrapper(result);
