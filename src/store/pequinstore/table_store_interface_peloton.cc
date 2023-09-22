@@ -727,21 +727,20 @@ void PelotonTableStore::PurgeTableWrite(const std::string &table_name,
   std::shared_ptr<std::string> txn_dig(
       std::make_shared<std::string>(txn_digest));
 
-  // std::string purge_statement; //empty if no writes/deletes (i.e. nothing
-  // to abort)
-  std::vector<std::string> purge_statements;
-  sql_interpreter.GenerateTablePurgeStatement(purge_statements, table_name,
+  std::string purge_statement; //empty if no writes/deletes (i.e. nothing to abort)
+  sql_interpreter.GenerateTablePurgeStatement_NEW(purge_statement, table_name, table_write);
+  //std::vector<std::string> purge_statements;
+  //sql_interpreter.GenerateTablePurgeStatement(purge_statements, table_name,
                                               table_write);
 
-  if (purge_statements.empty())
-    return; // Nothing to undo.
+  if (purge_statement.empty()) return; // Nothing to undo.
 
   Debug("Purge statements: %s", fmt::join(purge_statements, "|"));
 
   std::vector<peloton::ResultValue> result;
   std::vector<peloton::FieldInfo> tuple_descriptor;
 
-  for (auto &purge_statement : purge_statements) {
+  //for (auto &purge_statement : purge_statements) {
     // prepareStatement
     auto statement = ParseAndPrepare(purge_statement, tcop);
 
@@ -760,7 +759,7 @@ void PelotonTableStore::PurgeTableWrite(const std::string &table_name,
       Debug("Delete successful");
     else
       Panic("Delete failure");
-  }
+  //}
 
   Debug("End writeLat on core: %d", sched_getcpu());
   Latency_End(&writeLats[sched_getcpu()]);

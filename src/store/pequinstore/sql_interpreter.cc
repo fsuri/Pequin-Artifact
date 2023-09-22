@@ -1087,6 +1087,46 @@ void SQLTransformer::GenerateTablePurgeStatement(std::vector<std::string> &purge
         
 }
 
+
+void SQLTransformer::GenerateTablePurgeStatement_NEW(std::string &purge_statement, const std::string &table_name, const TableWrite &table_write){
+    const ColRegistry &col_registry = TableRegistry.at(table_name);
+
+    if(table_write.rows().empty()){
+        purge_statement = "";
+        return;
+    } 
+    //NOTE: Inserts must always insert -- even if value exists ==> Insert new row.
+    purge_statement = fmt::format("INSERT INTO {0} VALUES ", table_name);
+
+    
+    
+    for(auto &row: table_write.rows()){
+        //Alternatively: Move row contents to a vector and use: fmt::join(vec, ",")
+
+        purge_statement += "(";
+        if(fine_grained_quotes){ // Use this to add fine grained quotes:
+            for(int i = 0; i < row.column_values_size(); ++i){
+                if(col_registry.col_quotes[i])  purge_statement += "\'" + row.column_values()[i]  + "\'" + ", ";
+                else purge_statement += row.column_values()[i] + ", ";
+            }
+        }
+        else{
+            for(auto &col_val: row.column_values()){
+                purge_statement += "\'" + col_val  + "\'" + ", ";
+            }
+        }
+    
+        purge_statement.resize(purge_statement.length()-2); //remove trailing ", "
+        purge_statement += "), ";
+        }
+      
+
+        //purge_statement += fmt::format("{}, ", fmt::join(row.column_values(), ','));
+    }
+    purge_statement.resize(purge_statement.length()-2); //remove trailing ", "
+   
+    purge_statement += ";";
+}
 //////////////////// OLD: Without TableRegistry
 
 

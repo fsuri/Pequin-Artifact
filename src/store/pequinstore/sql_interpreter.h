@@ -170,6 +170,8 @@ class SQLTransformer {
         void GenerateTablePurgeStatement(std::string &purge_statement, const std::string &table_name, const TableWrite &table_write);
             void GenerateTablePurgeStatement(std::vector<std::string> &purge_statements, const std::string &table_name, const TableWrite &table_write);
 
+        void GenerateTablePurgeStatement_NEW(std::string &purge_statement, const std::string &table_name, const TableWrite &table_write); //FIXME: Clean up the old ones
+
     private:
         proto::Transaction *txn;
 
