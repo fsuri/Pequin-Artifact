@@ -180,6 +180,7 @@ class Client : public ::Client {
     std::string table_name;
     std::vector<std::string> p_col_values; //if point read: this contains primary_key_col_vaues (in order) ==> Together with table_name can be used to compute encoding.
   };
+  std::map<uint64_t, PendingQuery*> pendingQueries;
 
   SQLTransformer sql_interpreter;
 
@@ -188,6 +189,7 @@ class Client : public ::Client {
                             int status, const std::string &key, const std::string &result, const Timestamp &read_time, const proto::Dependency &dep, bool hasDep, bool addReadSet); 
   void QueryResultCallback(PendingQuery *pendingQuery,      //bound parameters
                             int status, int group, proto::ReadSet *query_read_set, std::string &result_hash, std::string &result, bool success);  //free parameters
+  void ClearTxnQueries();
   void ClearQuery(PendingQuery *pendingQuery);
   void RetryQuery(PendingQuery *pendingQuery);
   // void ClearQuery(uint64_t query_seq_num, std::vector<uint64_t> &involved_groups);

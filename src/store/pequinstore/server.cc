@@ -1086,75 +1086,45 @@ void Server::HandlePhase1(const TransportAddress &remote, proto::Phase1 &msg) {
     //(TODO) Instead: use original client list and store pairs <txnDigest,
     //<reqID, remote>>
     if (result == proto::ConcurrencyControl::WAIT) {
-      c->second.SubscribeOriginal(
-          remote,
-          msg.req_id()); // Subscribe Client in case result is wait (either due
+      c->second.SubscribeOriginal(remote, msg.req_id()); // Subscribe Client in case result is wait (either due
                          // to waiting for query, or due to waiting for tx dep)
                          // -- subsumes/replaces ManageDependencies subscription
-      ManageDependencies(txnDigest, *txn, remote,
-                         msg.req_id()); // Request RelayP1 tx in case we are
-                                        // blocking on dependencies
+      ManageDependencies(txnDigest, *txn, remote, msg.req_id()); // Request RelayP1 tx in case we are blocking on dependencies
     }
     if (result == proto::ConcurrencyControl::ABORT) {
       committedProof = c->second.conflict;
       UW_ASSERT(committedProof != nullptr);
     }
-    Debug("P1 message for txn[%s] received is of type Normal, and P1 has "
-          "already been received with result %d",
-          BytesToHex(txnDigest, 16).c_str(), result);
-  } else if (committed.find(txnDigest) !=
-             committed.end()) { // has already committed Txn
-    Debug("Already committed txn[%s]. Replying with result %d",
-          BytesToHex(txnDigest, 16).c_str(), 0);
-    result = proto::ConcurrencyControl::
-        COMMIT; // TODO: Eventually update to send direct WritebackAck --> Can
+    Debug("P1 message for txn[%s] received is of type Normal, and P1 has already been received with result %d", BytesToHex(txnDigest, 16).c_str(), result);
+  } else if (committed.find(txnDigest) !=  committed.end()) { // has already committed Txn
+    Debug("Already committed txn[%s]. Replying with result %d", BytesToHex(txnDigest, 16).c_str(), 0);
+    result = proto::ConcurrencyControl::COMMIT; // TODO: Eventually update to send direct WritebackAck --> Can
                 // move this up before p1Meta check --> can delete P1 Meta
                 // (currently need to keep it because original expects p1 reply)
-  } else if (aborted.find(txnDigest) !=
-             aborted.end()) { // has already aborted Txn
-    Debug("Already committed txn[%s]. Replying with result %d",
-          BytesToHex(txnDigest, 16).c_str(), 1);
+  } else if (aborted.find(txnDigest) != aborted.end()) { // has already aborted Txn
+    Debug("Already committed txn[%s]. Replying with result %d", BytesToHex(txnDigest, 16).c_str(), 1);
     result = proto::ConcurrencyControl::ABSTAIN; // TODO: Eventually update to
                                                  // send direct WritebackAck
-  } else { // FIRST P1 request received (i.e. from original client). Gossip if
-           // desired and check whether dependencies are valid
+  } else { // FIRST P1 request received (i.e. from original client). Gossip if desired and check whether dependencies are valid
     process_proposal = true;
   }
   c.release();
 
   if (process_proposal) {
-    if (params.replicaGossip)
-      ForwardPhase1(msg); // If params.replicaGossip is enabled then set
-                          // msg.replica_gossip to true and forward.
-    if (!isGossip)
-      msg.set_replica_gossip(
-          false); // unset msg.replica_gossip (which we possibly just set to
-                  // foward) if the message was received by the client
+    if (params.replicaGossip) ForwardPhase1(msg); // If params.replicaGossip is enabled then set msg.replica_gossip to true and forward.
+    if (!isGossip) msg.set_replica_gossip(false); // unset msg.replica_gossip (which we possibly just set to forward) if the message was received by the client
 
-    // TODO: DispatchTP_noCB(Verify Client Proposals)
-    //  Verification calls DispatchTP_main (ProcessProposal.) -- Re-cecheck
-    //  hasP1 (if used multithread branch)
+    // TODO: DispatchTP_noCB(Verify Client Proposals) Verification calls DispatchTP_main (ProcessProposal.) -- Re-cecheck hasP1 (if used multithread branch)
 
-    Debug("P1 message for txn[%s] received is of type Normal, no P1 result "
-          "exist. Calling ProcessProposal",
-          BytesToHex(txnDigest, 16).c_str());
-    ProcessProposal(msg, remote, txn, txnDigest,
-                    isGossip); // committedProof, abstain_conflict, result);
-  } else { // If we already have result: Send it and free msg/delete txn ---
-           // only send result if it is of type != Wait/Ignore (i.e. only send
-           // Commit, Abstain, Abort)
-    if (result != proto::ConcurrencyControl::WAIT &&
-        result != proto::ConcurrencyControl::IGNORE) {
-      SendPhase1Reply(msg.req_id(), result, committedProof, txnDigest, &remote,
-                      abstain_conflict); // TODO: Eventually update to send
+    Debug("P1 message for txn[%s] received is of type Normal, no P1 result " "exist. Calling ProcessProposal", BytesToHex(txnDigest, 16).c_str());
+    ProcessProposal(msg, remote, txn, txnDigest, isGossip); // committedProof, abstain_conflict, result);
+  } else { // If we already have result: Send it and free msg/delete txn ---only send result if it is of type != Wait/Ignore (i.e. only sendCommit, Abstain, Abort)
+    if (result != proto::ConcurrencyControl::WAIT && result != proto::ConcurrencyControl::IGNORE) {
+      SendPhase1Reply(msg.req_id(), result, committedProof, txnDigest, &remote,abstain_conflict); // TODO: Eventually update to send
                                          // direct WritebackAck
     }
-    if ((params.mainThreadDispatching &&
-         (!params.dispatchMessageReceive || params.parallel_CCC)) ||
-        (params.multiThreading && params.signClientProposals))
-      FreePhase1message(&msg);
-    if (params.signClientProposals)
-      delete txn;
+    if ((params.mainThreadDispatching && (!params.dispatchMessageReceive || params.parallel_CCC)) ||(params.multiThreading && params.signClientProposals)) FreePhase1message(&msg);
+    if (params.signClientProposals) delete txn;
   }
   return;
   // HandlePhase1CB(&msg, result, committedProof, txnDigest, remote,
@@ -2497,20 +2467,15 @@ void Server::Clean(const std::string &txnDigest, bool abort, bool hard) {
 ///Fallback realm!)
 
 // TODO: change arguments (move strings) to avoid the copy in Timer.
-void Server::RelayP1(const std::string &dependency_txnDig, bool fallback_flow,
-                     uint64_t reqId, const TransportAddress &remote,
-                     const std::string &txnDigest) {
+void Server::RelayP1(const std::string &dependency_txnDig, bool fallback_flow, uint64_t reqId, const TransportAddress &remote, const std::string &txnDigest) {
   stats.Increment("Relays_Called", 1);
   // schedule Relay for client timeout only..
   uint64_t conflict_id = !fallback_flow ? reqId : -1;
-  const std::string &dependent_txnDig =
-      !fallback_flow ? std::string() : txnDigest;
+  const std::string &dependent_txnDig = !fallback_flow ? std::string() : txnDigest;
   TransportAddress *remoteCopy = remote.clone();
   uint64_t relayDelay = !fallback_flow ? params.relayP1_timeout : 0;
-  transport->Timer(relayDelay, [this, remoteCopy, dependency_txnDig,
-                                conflict_id, dependent_txnDig]() mutable {
-    this->SendRelayP1(*remoteCopy, dependency_txnDig, conflict_id,
-                      dependent_txnDig);
+  transport->Timer(relayDelay, [this, remoteCopy, dependency_txnDig, conflict_id, dependent_txnDig]() mutable {
+    this->SendRelayP1(*remoteCopy, dependency_txnDig, conflict_id, dependent_txnDig);
     delete remoteCopy;
   });
 }
@@ -2518,22 +2483,16 @@ void Server::RelayP1(const std::string &dependency_txnDig, bool fallback_flow,
 // RELAY DEPENDENCY IN ORDER FOR CLIENT TO START FALLBACK
 // params: dependent_it = client tx identifier for blocked tx;
 // dependency_txnDigest = tx that is stalling
-void Server::SendRelayP1(const TransportAddress &remote,
-                         const std::string &dependency_txnDig,
-                         uint64_t dependent_id,
-                         const std::string &dependent_txnDig) {
+void Server::SendRelayP1(const TransportAddress &remote, const std::string &dependency_txnDig, uint64_t dependent_id, const std::string &dependent_txnDig) {
 
-  Debug("RelayP1[%s] timed out. Sending now!",
-        BytesToHex(dependent_txnDig, 256).c_str());
+  Debug("RelayP1[%s] timed out. Sending now!", BytesToHex(dependent_txnDig, 256).c_str());
   proto::Transaction *tx;
   proto::SignedMessage *signed_tx;
 
   // ongoingMap::const_accessor o;
   ongoingMap::accessor o;
   bool ongoingItr = ongoing.find(o, dependency_txnDig);
-  if (!ongoingItr)
-    return; // If txnDigest no longer ongoing, then no FB necessary as it has
-            // completed already
+  if (!ongoingItr) return; // If txnDigest no longer ongoing, then no FB necessary as it has completed already
   tx = o->second.txn;
   p1MetaDataMap::accessor c;
   // o.release();
@@ -2551,10 +2510,9 @@ void Server::SendRelayP1(const TransportAddress &remote,
   // }
   relayP1.Clear();
   relayP1.set_dependent_id(dependent_id);
-  relayP1.mutable_p1()->set_req_id(
-      0); // doesnt matter, its not used for fallback requests really.
-  //*relayP1.mutable_p1()->mutable_txn() = *tx; //TODO:: avoid copy by
-  //allocating, and releasing again after.
+  relayP1.mutable_p1()->set_req_id(0); // doesnt matter, its not used for fallback requests really.
+  //*relayP1.mutable_p1()->mutable_txn() = *tx; //TODO:: avoid copy by allocating, and releasing again after.
+  relayP1.set_replica_id(id);
 
   if (params.signClientProposals) {
     // b.release();
@@ -3028,22 +2986,13 @@ void Server::HandlePhase1FB(const TransportAddress &remote,
     // << std::endl;
   }
 
-  if ((params.mainThreadDispatching &&
-       (!params.dispatchMessageReceive || params.parallel_CCC)) ||
-      (params.multiThreading && params.signClientProposals))
-    FreePhase1FBmessage(&msg);
+  if ((params.mainThreadDispatching && (!params.dispatchMessageReceive || params.parallel_CCC)) || (params.multiThreading && params.signClientProposals)) FreePhase1FBmessage(&msg);
 }
 
-void Server::ProcessProposalFB(proto::Phase1FB &msg,
-                               const TransportAddress &remote,
-                               std::string &txnDigest,
-                               proto::Transaction *txn) {
+void Server::ProcessProposalFB(proto::Phase1FB &msg, const TransportAddress &remote, std::string &txnDigest, proto::Transaction *txn) {
 
-  if (!params.signClientProposals)
-    txn = msg.release_txn();
-  if (params.signClientProposals)
-    *txn->mutable_txndigest() =
-        txnDigest; // HACK to include txnDigest to lookup signed_tx.
+  if (!params.signClientProposals) txn = msg.release_txn();
+  if (params.signClientProposals) *txn->mutable_txndigest() = txnDigest; // HACK to include txnDigest to lookup signed_tx.
   AddOngoing(txnDigest, txn);
 
   // Todo: Improve efficiency if Valid: insert into P1Meta and check conditions
@@ -3054,12 +3003,10 @@ void Server::ProcessProposalFB(proto::Phase1FB &msg,
       return;
     }
 
-    if (!CheckProposalValidity(msg, txn, txnDigest))
-      return;
+    if (!CheckProposalValidity(msg, txn, txnDigest)) return;
     TryExec(msg, remote, txnDigest, txn);
   } else {
-    auto try_exec(std::bind(&Server::TryExec, this, std::ref(msg),
-                            std::ref(remote), txnDigest, txn));
+    auto try_exec(std::bind(&Server::TryExec, this, std::ref(msg), std::ref(remote), txnDigest, txn));
     auto f = [this, &msg, txn, txnDigest, try_exec]() mutable {
       if (!CheckProposalValidity(msg, txn, txnDigest, true)) {
         RemoveOngoing(txnDigest);

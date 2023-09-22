@@ -312,7 +312,7 @@ proto::ConcurrencyControl::Result Server::mergeTxReadSets(const ReadSet *&readSe
   //*txn.mutable_merged_read_set() = txn.read_set(); //store backup
   //ReadSet *mergedReadSet = txn.mutable_read_set();
 
-  std::cerr << "Has merged read_set: " << txn.has_merged_read_set() << std::endl;
+  Debug("Already has merged read_set? %d", txn.has_merged_read_set());
 
    //If tx already has mergedReadSet -> just return that, no need in re-doing the work.
   if(txn.has_merged_read_set()){

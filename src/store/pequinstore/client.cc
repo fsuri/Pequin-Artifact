@@ -171,6 +171,8 @@ void Client::Begin(begin_callback bcb, begin_timeout_callback btcb,
 
     sql_interpreter.NewTx(&txn);
 
+    pendingQueries.clear(); //shouldn't be necessary to call, should be empty anyways
+
     bcb(client_seq_num);
   });
 }
@@ -371,6 +373,7 @@ void Client::Query(const std::string &query, query_callback qcb,
     //Requires parsing the Query statement to extract tables touched? Might touch multiple shards...
     //Assume for now only touching one group. (single sharded system)
     PendingQuery *pendingQuery = new PendingQuery(this, query_seq_num, query, qcb);
+    pendingQueries[query_seq_num] = pendingQuery;
 
     std::vector<uint64_t> involved_groups = {0};//{0UL, 1UL};
     pendingQuery->SetInvolvedGroups(involved_groups);
@@ -598,7 +601,7 @@ void Client::QueryResultCallback(PendingQuery *pendingQuery,
   else stats.Increment("Sync_successes", 1);
 
   //clean pendingQuery and query_seq_num_mapping in all shards.
-  ClearQuery(pendingQuery);      
+  //ClearQuery(pendingQuery); ==> now clearing all Queries together only upon Writeback
 
   return;               
 }
@@ -641,11 +644,19 @@ void Client::TestReadSet(PendingQuery *pendingQuery){
 
 }
 
+void Client::ClearTxnQueries(){
+  for(auto &[_, pendingQuery]: pendingQueries){
+    ClearQuery(pendingQuery);
+  }
+  pendingQueries.clear();
+}
+
 void Client::ClearQuery(PendingQuery *pendingQuery){
   for(auto &g: pendingQuery->involved_groups){
     bclient[g]->ClearQuery(pendingQuery->queryMsg.query_seq_num()); //-->Remove mapping + pendingRequest.
   }
 
+  //pendingQueries.erase(pendingQuery->queryMsg.query_seq_num()); Don't delete early..
   delete pendingQuery;
 }
 
@@ -1287,6 +1298,7 @@ void Client::Writeback(PendingRequest *req) {
   //   bclient[group]->StopP1(req->id);
   // }
 
+  ClearTxnQueries();
   this->pendingReqs.erase(req->id);
   delete req;
 }
@@ -1315,6 +1327,7 @@ void Client::Abort(abort_callback acb, abort_timeout_callback atcb,
       bclient[group]->Abort(client_seq_num, txn.timestamp(), txn); 
     }
 
+    ClearTxnQueries();
     // TODO: can we just call callback immediately?
     acb();
   });
@@ -1349,6 +1362,8 @@ void Client::FailureCleanUp(PendingRequest *req) {
     req->ccb(result);
     req->callbackInvoked = true;
   }
+  
+  ClearTxnQueries();
   this->pendingReqs.erase(req->id);
   delete req;
 }
@@ -1451,9 +1466,19 @@ void Client::FinishConflict(uint64_t reqId, const std::string &txnDigest, proto:
 
 bool Client::isDep(const std::string &txnDigest, proto::Transaction &Req_txn){
 
+  //If we are caching: Check whether dependency is part of snapshot; If eager, make an exception and accept dep
+  if(params.query_params.cacheReadSet){
+    for(auto &[query_seq_num, pendingQuery]: pendingQueries){ 
+      for(auto &group: pendingQuery->involved_groups){  
+        if(bclient[group]->isValidQueryDep(query_seq_num, txnDigest)) return true; 
+      }
+    }
+  }
+
   for(auto & dep: Req_txn.deps()){
    if(dep.write().prepared_txn_digest() == txnDigest){ return true;}
   }
+  Panic("Don't expect to receive non-relevant Relay's in simulation");
   return false;
 }
 

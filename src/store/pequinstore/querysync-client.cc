@@ -1033,23 +1033,53 @@ bool ShardClient::ValidateTransactionTableWrite(const proto::CommittedProof &pro
        col_idx = col_registry->col_name_index[col_name]; 
          //while(col_name != table_write.column_names) If storing column names in table write --> iterate through them to find matching col (idx).  Assuming here column names are in the same order.
 
-       size_t nbytes;
-       const char* field_val = query_result->get(0, i, &nbytes);
-       std::string col_val(field_val, nbytes);
-    
-       DeCerealize(col_val, col_val);
-    
-       //Check that values match
-       if(col_val != row_update.column_values(col_idx)){
-            Debug("VALIDATE value failed for txn %lu.%lu key %s: txn value %s != %s returned value.", proof.txn().client_id(), proof.txn().client_seq_num(), 
-                key.c_str(), col_val.c_str(), (row_update.column_values(col_idx)).c_str());
-            return false;
-       } 
     }
     Debug("VALIDATE TableWrite value successfully for txn %lu.%lu key %s", proof.txn().client_id(), proof.txn().client_seq_num(), key.c_str());
   return true;
 }
 
+
+bool ShardClient::isValidQueryDep(const uint64_t &query_seq_num, const std::string &txnDigest){
+
+    Debug("Check if Txn: %s is a valid dep for query seq no: %d", BytesToHex(txnDigest, 16).c_str(), query_seq_num);
+    auto itr_q = query_seq_num_mapping.find(query_seq_num);
+    if(itr_q == query_seq_num_mapping.end()){
+        return false;
+    }
+    auto itr = pendingQueries.find(itr_q->second);
+    if (itr == pendingQueries.end()) {
+        return false; // this is a stale request
+    }
+    
+    PendingQuery *pendingQuery = itr->second;
+    proto::MergedSnapshot &merged_ss =pendingQuery->merged_ss;
+
+    if(params.query_params.eagerExec){  //Make exception if current Query is eager and we are caching   
+        return true; // CURRENTLY always eager.
+        Debug("With caching + always eager exec: Accept any dependency");
+        Debug("FOR REAL RUN UNCOMMENT CORRECT EAGER EXEC LINE");
+        bool is_eager = (!pendingQuery->retry_version && (pendingQuery->is_point? params.query_params.eagerPointExec : params.query_params.eagerExec));
+        if(is_eager) return true;
+
+        //Note: If one really wanted to avoid false positive deps even during the eager case -> send a bloom filter of tx_ids in addition to the read_set_hash. 
+        //Check whether or not Txn is in the bloom filter. (there might be some false positives, but that's fine) BF should be sized relative to txns.
+    }
+
+    //else: cannot be eager. Thus, in order to have dependencies, the sync protocol must have issued a snapshot 
+     //Note: pointQueries that were not eager don't cache
+
+  //TODO: also support TS version ==> TODO: Add Timestamp to arguments here and in isDep. Then compute MergedTimestamp from Timestamp, and look it up.
+  if(params.query_params.optimisticTxID && !pendingQuery->retry_version){
+    Warning("Currently don't yet support isValidQueryDep for merged snapshots with TS only");
+    return true;
+  }
+
+  for(auto &[tx_id, _]: merged_ss.merged_txns()){
+    if(tx_id == txnDigest) return true;
+  }
+ 
+  return false;
+}
 
 } //namespace pequinstore
 
