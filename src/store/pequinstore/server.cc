@@ -164,7 +164,28 @@ Server::Server(const transport::Configuration &config, int groupIdx, int idx,
 
   committed.insert(std::make_pair("", proof));
 
-  ts_to_tx.insert(std::make_pair(MergeTimestampId(0, 0), ""));
+  // TODO: turn read_prepared into a function, not a lambda
+  auto read_prepared_pred = [this](const std::string &txn_digest) {
+    if (this->occType != MVTSO || this->params.maxDepDepth == -2)
+      return false; // Only read prepared if parameters allow
+    // Check for Depth. Only read prepared if dep depth < maxDepth
+    return (this->params.maxDepDepth == -1 ||
+            DependencyDepth(txn_digest) <= this->params.maxDepDepth);
+  };
+
+  if (TEST_QUERY) {
+    table_store = new ToyTableStore(); // Just a black hole
+  } else {
+    // TODO: Configure with num Threads == 8
+    int num_threads = std::thread::hardware_concurrency();
+    table_store = new PelotonTableStore(
+        table_registry_path,
+        std::bind(&Server::FindTableVersion, this, std::placeholders::_1,
+                  std::placeholders::_2, std::placeholders::_3,
+                  std::placeholders::_4, std::placeholders::_5),
+        std::move(read_prepared_pred), num_threads);
+    // table_store = new PelotonTableStore();
+  }
 
   if (sql_bench) {
 
@@ -1038,7 +1059,7 @@ void Server::HandlePhase1(const TransportAddress &remote, proto::Phase1 &msg) {
   }
   // KEEP track of interested client //TODO: keep track of original client?
   //--> Not doing this currently. Instead: We let the original client always do
-  //its P1/P2/Writeback processing
+  // its P1/P2/Writeback processing
   //                                        even if it is possibly redundant.
   //                                        The current code does this for
   //                                        simplicity, but it can be updated in
@@ -1077,9 +1098,9 @@ void Server::HandlePhase1(const TransportAddress &remote, proto::Phase1 &msg) {
     result = proto::ConcurrencyControl::IGNORE;
   } else if (hasP1result) { //&& !isGossip // If P1 has already been received
                             //(sent by a fallback) and current message is from
-                            //original client, then only inform client of
-                            //blocked dependencies so it can issue fallbacks of
-                            //its own
+                            // original client, then only inform client of
+                            // blocked dependencies so it can issue fallbacks of
+                            // its own
     result = c->second.result;
     // need to check if result is WAIT: if so, need to add to waitingDeps
     // original client..
@@ -1913,7 +1934,7 @@ void Server::HandleAbort(const TransportAddress &remote,
 }
 
 /////////////////////////////////////// PREPARE, COMMIT AND ABORT LOGIC  +
-///Cleanup
+/// Cleanup
 
 void Server::Prepare(const std::string &txnDigest,
                      const proto::Transaction &txn, const ReadSet &readSet) {
@@ -2455,7 +2476,7 @@ void Server::Clean(const std::string &txnDigest, bool abort, bool hard) {
   // Currently commented out so that original client does not re-do work if
   // p1/p2 has already happened
   //--> TODO: Make original client dynamic, i.e. it can directly receive a
-  //writeback if it exists, instead of HAVING to finish normal case.
+  // writeback if it exists, instead of HAVING to finish normal case.
   p1MetaDataMap::accessor c;
   bool p1MetaExists = p1MetaData.find(c, txnDigest);
   if (p1MetaExists && !TEST_PREPARE_SYNC) {
@@ -2494,7 +2515,7 @@ void Server::Clean(const std::string &txnDigest, bool abort, bool hard) {
 }
 
 ///////////////////////////////////////// FALLBACK PROTOCOL LOGIC (Enter the
-///Fallback realm!)
+/// Fallback realm!)
 
 // TODO: change arguments (move strings) to avoid the copy in Timer.
 void Server::RelayP1(const std::string &dependency_txnDig, bool fallback_flow,
@@ -2554,7 +2575,7 @@ void Server::SendRelayP1(const TransportAddress &remote,
   relayP1.mutable_p1()->set_req_id(
       0); // doesnt matter, its not used for fallback requests really.
   //*relayP1.mutable_p1()->mutable_txn() = *tx; //TODO:: avoid copy by
-  //allocating, and releasing again after.
+  // allocating, and releasing again after.
 
   if (params.signClientProposals) {
     // b.release();
@@ -4106,7 +4127,7 @@ void Server::InvokeFBProcessP2FBCallback(proto::InvokeFB *msg,
                 groupIdx); // can already send before moving to view since we do
                            // not skip views during synchrony (even when no
                            // correct clients interested)
-  } else { // verify views & Send ElectFB
+  } else {                 // verify views & Send ElectFB
     VerifyViews(*msg, groupIdx, *remote);
   }
 
@@ -4551,7 +4572,7 @@ void Server::HandleDecisionFB(proto::DecisionFB &msg) {
   // is because correct replicas would only send their ElectFB message (which
   // includes a view) to the according replica. So this Quorum could only come
   // from that replica (Knowing that is not required for safety anyways, only
-  //for liveness)
+  // for liveness)
 
   const proto::Transaction *txn;
   ongoingMap::const_accessor o;
