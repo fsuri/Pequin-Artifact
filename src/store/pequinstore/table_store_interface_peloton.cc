@@ -9,9 +9,7 @@
 
 namespace pequinstore {
 
-std::string
-GetResultValueAsString(const std::vector<peloton::ResultValue> &result,
-                       size_t index) {
+std::string GetResultValueAsString(const std::vector<peloton::ResultValue> &result, size_t index) {
   std::string value(result[index].begin(), result[index].end());
   return value;
 }
@@ -39,8 +37,7 @@ PelotonTableStore::PelotonTableStore(std::string &table_registry_path,
                                      find_table_version &&find_table_version,
                                      read_prepared_pred &&read_prepared_pred,
                                      int num_threads)
-    : TableStore(table_registry_path, std::move(find_table_version),
-                 std::move(read_prepared_pred)),
+    : TableStore(table_registry_path, std::move(find_table_version), std::move(read_prepared_pred)),
       unnamed_statement("unnamed"), unnamed_variable(false) {
   // Init Peloton default DB
   Init(num_threads);
@@ -72,6 +69,20 @@ PelotonTableStore::~PelotonTableStore() {
     delete cop_pair.second;
     cops_left--;
   }
+
+  Latency_t sum_read;
+  _Latency_Init(&sum_read, "total_read");
+  for (unsigned int i = 0; i < readLats.size(); i++) {
+    Latency_Sum(&sum_read, &readLats[i]);
+  }
+  Latency_t sum_write;
+  _Latency_Init(&sum_write, "total_write");
+  for (unsigned int i = 0; i < writeLats.size(); i++) {
+    Latency_Sum(&sum_write, &writeLats[i]);
+  }
+
+  Latency_Dump(&sum_read);
+  Latency_Dump(&sum_write);
 }
 
 void PelotonTableStore::Init(int num_threads) {
@@ -93,6 +104,15 @@ void PelotonTableStore::Init(int num_threads) {
       traffic_cops_.push_back({new_cop, counter});
     }
   }
+
+  for(int i=0; i< num_threads; ++i){
+      Latency_t readLat;
+      Latency_t writeLat;
+      readLats.push_back(readLat);
+      writeLats.push_back(writeLat);
+      _Latency_Init(&readLats.back(), "read");
+      _Latency_Init(&writeLats.back(), "write");
+    }
 }
 
 ////////////////  Helper Functions //////////////////////////
@@ -293,11 +313,14 @@ void PelotonTableStore::LoadTable(const std::string &load_statement,
 std::string PelotonTableStore::ExecReadQuery(const std::string &query_statement,
                                              const Timestamp &ts,
                                              QueryReadSetMgr &readSetMgr) {
-
+  
   // UW_ASSERT(ts.getTimestamp() >= 0 && ts.getID() >= 0);
 
   Debug("Execute ReadQuery: %s. TS: [%lu:%lu]", query_statement.c_str(),
         ts.getTimestamp(), ts.getID());
+    
+  Debug("Begin readLat on core: %d", sched_getcpu());
+  Latency_Start(&readLats[sched_getcpu()]);
 
   // Execute on Peloton (args: query, Ts, readSetMgr, this->can_read_prepared,
   // this->set_table_version) --> returns peloton result --> transform into
@@ -332,6 +355,7 @@ std::string PelotonTableStore::ExecReadQuery(const std::string &query_statement,
   // SetTrafficCopCounter();
   // counter_.store(1);
   counter->store(1);
+
   // execute the query using tcop
   auto status = tcop->ExecuteReadStatement(
       statement, param_values, unamed, result_format, result, ts, readSetMgr,
@@ -339,6 +363,8 @@ std::string PelotonTableStore::ExecReadQuery(const std::string &query_statement,
 
   // GetResult(status);
   GetResult(status, tcop, counter);
+
+  
 
   // std::string result_string = TransformResult(status, statement, result);
   // //Testing:
@@ -376,7 +402,11 @@ std::string PelotonTableStore::ExecReadQuery(const std::string &query_statement,
   // delete res;
 
   // Transform PelotonResult into ProtoResult
-  return TransformResult(status, statement, result);
+  std::string && res(TransformResult(status, statement, result));
+
+  Debug("End readLat on core: %d", sched_getcpu());
+  Latency_End(&readLats[sched_getcpu()]);
+  return std::move(res); //return TransformResult(status, statement, result)
 }
 
 // Execute a point read on the Table backend and return a query_result/proto (in
@@ -415,6 +445,9 @@ void PelotonTableStore::ExecPointRead(
 
   // Note: Don't read TableVersion for PointReads -- they do not care about what
   // other rows exist
+
+  Debug("Begin readLat on core: %d", sched_getcpu());
+  Latency_Start(&readLats[sched_getcpu()]);
   std::pair<peloton::tcop::TrafficCop *, std::atomic_int *> cop_pair = GetCop();
 
   std::atomic_int *counter = cop_pair.second;
@@ -447,9 +480,13 @@ void PelotonTableStore::ExecPointRead(
 
   // GetResult(status);
   GetResult(status, tcop, counter);
+  
 
   TransformPointResult(write, committed_timestamp, prepared_timestamp, txn_dig,
                        status, statement, result);
+
+  Debug("End readLat on core: %d", sched_getcpu());
+  Latency_End(&readLats[sched_getcpu()]);
 
   return;
 }
@@ -549,6 +586,8 @@ void PelotonTableStore::ApplyTableWrite(
   // SetTableVersion as callback from within Peloton once it is done to set the
   // TableVersion (Currently, it is being set right after ApplyTableWrite()
   // returns)
+  Debug("Begin writeLat on core: %d", sched_getcpu());
+  Latency_Start(&writeLats[sched_getcpu()]);
 
   // UW_ASSERT(ts.getTimestamp() >= 0 && ts.getID() >= 0);
   Debug("Apply TableWrite for txn %s. TS [%lu:%lu]",
@@ -580,6 +619,7 @@ void PelotonTableStore::ApplyTableWrite(
 
   // Debug("Delete statements: %s", fmt::join(delete_statements, "|"));
 
+ 
   // Execute Write Statement
   if (!write_statement.empty()) {
 
@@ -646,6 +686,9 @@ void PelotonTableStore::ApplyTableWrite(
     else
       Panic("Delete failure");
   }
+
+  Debug("End writeLat on core: %d", sched_getcpu());
+  Latency_End(&writeLats[sched_getcpu()]);
 }
 
 void PelotonTableStore::PurgeTableWrite(const std::string &table_name,
@@ -655,6 +698,8 @@ void PelotonTableStore::PurgeTableWrite(const std::string &table_name,
   if (table_write.rows().empty())
     return;
 
+  Debug("Begin writeLat on core: %d", sched_getcpu());
+  Latency_Start(&writeLats[sched_getcpu()]);
   // Purge statement is a "special" delete statement:
   //  it deletes existing row insertions for the timestamp, but it also undoes
   //  existing deletes for the timestamp
@@ -716,6 +761,9 @@ void PelotonTableStore::PurgeTableWrite(const std::string &table_name,
     else
       Panic("Delete failure");
   }
+
+  Debug("End writeLat on core: %d", sched_getcpu());
+  Latency_End(&writeLats[sched_getcpu()]);
 }
 
 ///////////////////// Snapshot Protocol Support
@@ -725,6 +773,8 @@ void PelotonTableStore::PurgeTableWrite(const std::string &table_name,
 void PelotonTableStore::FindSnapshot(std::string &query_statement,
                                      const Timestamp &ts,
                                      SnapshotManager &ssMgr) {
+
+                                      //TODO: Snapshotting & materialize latencies
 
   // Generalize the PointRead interface:
   // Read k latest prepared.

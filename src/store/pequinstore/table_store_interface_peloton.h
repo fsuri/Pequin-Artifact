@@ -4,6 +4,7 @@
 #include "store/pequinstore/table_store_interface.h"
 
 #include "lib/message.h"
+#include "lib/latency.h"
 
 // Include whatever Peloton Deps
 //#include "../../query-engine/common/logger.h"
@@ -85,6 +86,9 @@ class PelotonTableStore : public TableStore {
 
     private:
         void Init(int num_threads);
+
+        std::vector<Latency_t> readLats;
+        std::vector<Latency_t> writeLats;
 
         std::string unnamed_statement;
         bool unnamed_variable;
