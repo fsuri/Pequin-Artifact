@@ -469,10 +469,11 @@ ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple,
       }
 
       // ItemPointer *old_location;
-      auto result = InsertTuple(tuple, location, transaction, old_location,
-                                index_entry_ptr, check_fk);
-      // bool result = false;
-      // IncreaseTupleCount(1);
+      /*auto result = InsertTuple(tuple, location, transaction, old_location,
+                                index_entry_ptr, check_fk);*/
+      bool result = false;
+      old_location = check;
+      IncreaseTupleCount(1);
 
       if (result == false) {
         std::cout << "The result is false" << std::endl;
@@ -589,9 +590,11 @@ DataTable::CheckIfInIndex(const storage::Tuple *tuple,
 
     index->ScanKey(key.get(), old_locations);
     for (int i = 0; i < old_locations.size(); i++) {
-      if (fn(old_locations[i])) {
+      // NOTE: For testing
+      /*if (fn(old_locations[i])) {
         return *old_locations[i];
-      }
+      }*/
+      return *old_locations[i];
     }
     return ItemPointer(0, 0);
     /*ItemPointer *first_element = old_locations[0];

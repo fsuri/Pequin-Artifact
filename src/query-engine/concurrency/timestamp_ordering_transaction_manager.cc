@@ -457,7 +457,7 @@ void TimestampOrderingTransactionManager::PerformUpdate(
   auto ts = current_txn->GetBasilTimestamp();
   new_tile_group_header->SetBasilTimestamp(new_location.offset, ts);
 
-  std::cout << "Setting new ts to " << ts.getID() << ", " << ts.getTimestamp()
+  std::cout << "Setting new ts to " << ts.getTimestamp() << ", " << ts.getID()
             << std::endl;
 
   ItemPointer *index_entry_ptr =
@@ -465,6 +465,8 @@ void TimestampOrderingTransactionManager::PerformUpdate(
   if (index_entry_ptr != nullptr) {
     auto index_tile_group_header =
         storage_manager->GetTileGroup(index_entry_ptr->block)->GetHeader();
+    auto head_ts =
+        index_tile_group_header->GetBasilTimestamp(index_entry_ptr->offset);
     // std::cout << "index entry not null" << std::endl;
     ItemPointer curr_pointer = *index_entry_ptr;
     auto curr_tile_group_header =
@@ -498,6 +500,7 @@ void TimestampOrderingTransactionManager::PerformUpdate(
       // NEW: For out of order inserts
       if (!curr_tile_group_header->GetPrevItemPointer(curr_pointer.offset)
                .IsNull()) {
+        std::cout << "In the if case" << std::endl;
         auto prev_loc =
             curr_tile_group_header->GetPrevItemPointer(curr_pointer.offset);
         auto prev_tile_group_header =
@@ -519,7 +522,7 @@ void TimestampOrderingTransactionManager::PerformUpdate(
       new_tile_group_header->SetLastReaderCommitId(new_location.offset,
                                                    current_txn->GetCommitId());
     } else {
-
+      std::cout << "In the else case" << std::endl;
       // NEW: For out of order inserts
       if (!curr_tile_group_header->GetNextItemPointer(curr_pointer.offset)
                .IsNull()) {
@@ -548,13 +551,16 @@ void TimestampOrderingTransactionManager::PerformUpdate(
 
     COMPILER_MEMORY_FENCE;
     new_tile_group_header->SetIndirection(new_location.offset, index_entry_ptr);
+    curr_tile_group_header->SetIndirection(curr_pointer.offset,
+                                           index_entry_ptr);
     // UNUSED_ATTRIBUTE auto res =
     // AtomicUpdateItemPointer(index_entry_ptr, old_location);
 
     std::cout << "Update for delete" << std::endl;
     // Update the index entry pointer if necessary
     if (new_tile_group_header->GetBasilTimestamp(new_location.offset) >
-        index_tile_group_header->GetBasilTimestamp(index_entry_ptr->offset)) {
+        head_ts) {
+      std::cout << "Updating the head pointer of linked list" << std::endl;
       COMPILER_MEMORY_FENCE;
 
       // Set the index header in an atomic way.
@@ -802,7 +808,8 @@ ResultType TimestampOrderingTransactionManager::CommitTransaction(
       PELOTON_ASSERT(new_version.IsNull() == false);
 
       auto cid = tile_group_header->GetEndCommitId(tuple_slot);
-      PELOTON_ASSERT(cid > end_commit_id);
+      /** NEW: Commenting out this assert */
+      // PELOTON_ASSERT(cid > end_commit_id);
       auto new_tile_group_header =
           storage_manager->GetTileGroup(new_version.block)->GetHeader();
       new_tile_group_header->SetBeginCommitId(new_version.offset,

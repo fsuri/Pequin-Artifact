@@ -147,8 +147,9 @@ void test_read_query() {
                                true);
   sleep(1);
 
-  /*table_store->ApplyTableWrite("test", table_write4, pesto_timestamp,
-  "random", real_proof4, true); sleep(1);*/
+  table_store->ApplyTableWrite("test", table_write4, pesto_timestamp, "random",
+                               real_proof4, true);
+  sleep(1);
 
   table_store->ApplyTableWrite("test", table_write3, toy_ts_c, "random",
                                real_proof3, true);
@@ -169,7 +170,7 @@ void test_read_query() {
 
   // table_store->ExecReadQuery("SELECT * FROM test;", toy_ts_c,
   // query_read_set_mgr_one);
-  table_store->PurgeTableWrite("test", table_write3, toy_ts_c, "random");
+  table_store->PurgeTableWrite("test", table_write4, pesto_timestamp, "random");
   std::string result = table_store->ExecReadQuery("SELECT * FROM test;", one,
                                                   query_read_set_mgr_one);
 

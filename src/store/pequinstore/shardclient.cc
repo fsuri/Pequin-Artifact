@@ -1783,8 +1783,7 @@ void ShardClient::HandlePhase1Relay(proto::RelayP1 &relayP1){
   //if (!pendingRelays.insert(txnDigest).second) return; //USING this works? seemingly does not either.
   if(this->pendingFallbacks.find(txnDigest) != this->pendingFallbacks.end()) return;
 
-  Debug("RelayP1[%lu][%s].", relayP1.dependent_id(),
-      BytesToHex(txnDigest, 64).c_str());
+  Debug("RelayP1[%lu][%s]. Sent by replica: %d", relayP1.dependent_id(), BytesToHex(txnDigest, 64).c_str(), relayP1.replica_id());
   uint64_t req_id = relayP1.dependent_id();
 
   if(req_id != -1){ //this is a dep of an ongoing p1 request.

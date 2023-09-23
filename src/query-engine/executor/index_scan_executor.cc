@@ -336,9 +336,20 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
     tile_group_header = head_tile_group_header;
     // auto curr_tuple_id = location.offset;
 
-    /*std::cout << "Head timestamp is " << tuple_timestamp.getTimestamp() << ",
-       "
-              << tuple_timestamp.getID() << std::endl;*/
+    std::cout << "Head timestamp is " << tuple_timestamp.getTimestamp() << ", "
+              << tuple_timestamp.getID() << std::endl;
+
+    ContainerTuple<storage::TileGroup> row_(tile_group.get(),
+                                            tuple_location.offset);
+
+    auto index_columns_ = index_->GetMetadata()->GetKeyAttrs();
+    for (auto col : index_columns_) {
+      auto val = row_.GetValue(col);
+      // encoded_key = encoded_key + "///" + val.ToString();
+      // primary_key_cols.push_back(val.GetAs<const char*>());
+      Debug("Primary key value: %s", val.ToString().c_str());
+      // std::cout << "read set value is " << val.ToString() << std::endl;
+    }
 
     while (true) {
       ++chain_length;

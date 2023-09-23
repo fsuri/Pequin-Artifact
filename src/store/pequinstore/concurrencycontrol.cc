@@ -253,7 +253,7 @@ proto::ConcurrencyControl::Result Server::fetchReadSet(const proto::QueryResultM
       } 
   
       if(!cached_queryResult.has_query_result_hash() || query_group_md->read_set_hash() != cached_queryResult.query_result_hash()){
-        Debug("Cached wrong read-set %s. Require %s", cached_queryResult.query_result_hash().c_str(), query_group_md->read_set_hash().c_str());
+        Debug("Cached wrong read-set %s. Require %s", BytesToHex(cached_queryResult.query_result_hash(), 16).c_str(), BytesToHex(query_group_md->read_set_hash(), 16).c_str());
         return proto::ConcurrencyControl::ABSTAIN;
       } 
      
@@ -280,7 +280,8 @@ void Server::restoreTxn(proto::Transaction &txn){
 
 //NOTE: If storing mergedReadSet inside tx is threadsafe, then technically don't need to pass readSet/depSet as function args, but can just pull from txn.
 
-proto::ConcurrencyControl::Result Server::mergeTxReadSets(const ReadSet *&readSet, const DepSet *&depSet, proto::Transaction &txn, const std::string &txnDigest, uint64_t req_id, const TransportAddress &remote, bool isGossip){
+proto::ConcurrencyControl::Result Server::mergeTxReadSets(const ReadSet *&readSet, const DepSet *&depSet, proto::Transaction &txn, const std::string &txnDigest, 
+                                                          uint64_t req_id, const TransportAddress &remote, bool isGossip){
   return mergeTxReadSets(readSet, depSet, txn, txnDigest, 0, req_id, &remote, isGossip, nullptr);
 }
 proto::ConcurrencyControl::Result Server::mergeTxReadSets(const ReadSet *&readSet, const DepSet *&depSet, proto::Transaction &txn, const std::string &txnDigest, proto::CommittedProof *proof){ //, proto::GroupedSignatures *groupedSigs, bool p1Sigs, uint64_t view){
@@ -311,6 +312,8 @@ proto::ConcurrencyControl::Result Server::mergeTxReadSets(const ReadSet *&readSe
   //*txn.mutable_merged_read_set() = txn.read_set(); //store backup
   //ReadSet *mergedReadSet = txn.mutable_read_set();
 
+  Debug("Already has merged read_set? %d", txn.has_merged_read_set());
+
    //If tx already has mergedReadSet -> just return that, no need in re-doing the work.
   if(txn.has_merged_read_set()){
     Debug("Already cached a merged read set. Re-using.");
@@ -320,7 +323,7 @@ proto::ConcurrencyControl::Result Server::mergeTxReadSets(const ReadSet *&readSe
   }
 
   //Else: Try to generate a new mergedReadSet
-  proto::ReadSet *mergedReadSet = new proto::ReadSet(); //if this doesn't work, just create a local proto::ReadSet
+  std::unique_ptr<proto::ReadSet> mergedReadSet(new proto::ReadSet()); //if this doesn't work, just create a local proto::ReadSet
    //For now: Try to store it inside Tx (use set_allocated)
    //However, if that causes a problem (since it's technically not threadsafe) ==> Create a map that holds mergedReadSet (map from txnDigest -> ReadSet) -- 
          //while trying to use it, release it (to avoid concurrency issues of the object on the map) from protobuf (only create it if .has_read_set = false.); after DoMVTSO restore it ==> put it back into the map.
@@ -331,6 +334,7 @@ proto::ConcurrencyControl::Result Server::mergeTxReadSets(const ReadSet *&readSe
   bool already_subscribed = !TxnMissingQueries.insert(mq, txnDigest); //Note: Reading should still take a write lock. (If not, can insert here, and erase at the end if empty.)
 
   if(already_subscribed){
+    UW_ASSERT(mq->second); //Must exist if we are subscribed. If it doesn't exist, we shou'dve erased from TxnMissingQueries again
     if(prepare_or_commit==1) mq->second->setToCommit(proof); //groupedSigs, p1Sigs, view, 1); //Upgrade subscription to commit.
     return proto::ConcurrencyControl::WAIT; //The txn is missing queries and is already subscribed.
   } 
@@ -352,7 +356,8 @@ proto::ConcurrencyControl::Result Server::mergeTxReadSets(const ReadSet *&readSe
       //has_missing = true;
     }
     else if(res != proto::ConcurrencyControl::COMMIT){ //No need to continue CC check.
-      Debug("Query invalid or doomed to abort. Stopping Merge");
+      Debug("Query invalid or doomed to abort. Stopping Merge. res: %d", res);
+      TxnMissingQueries.erase(mq); //Erase if we added the data structure for no reason.
       return res;  //Note: Might have already subscribed some queries on a tx. If they wake up and there is no waiting tx object thats fine -- nothing happens
     }
     if(query_rs != nullptr && missing_queries.empty()){ //If we are waiting on queries, don't need to build mergedSet.
@@ -426,7 +431,7 @@ proto::ConcurrencyControl::Result Server::mergeTxReadSets(const ReadSet *&readSe
   mergedReadSet->mutable_deps()->erase(std::unique(mergedReadSet->mutable_deps()->begin(), mergedReadSet->mutable_deps()->end(), equalDep), mergedReadSet->mutable_deps()->end()); //Erase duplicates...
   
    //add mergedreadSet to tx - return success
-  txn.set_allocated_merged_read_set(mergedReadSet);
+  txn.set_allocated_merged_read_set(mergedReadSet.release());
   readSet = &txn.merged_read_set().read_set();
   depSet = &txn.merged_read_set().deps();
 
@@ -468,7 +473,7 @@ proto::ConcurrencyControl::Result Server::DoOCCCheck(
   result = mergeTxReadSets(readSet, depSet, txn, txnDigest, reqId, remote, isGossip);
   //If we have an early abstain or Wait (due to invalid request) then return early.
   if(result != proto::ConcurrencyControl::COMMIT){  //query either invalid (Ignore), doomed to fail (abstain/abort), or queries not ready (Wait)
-    Debug("Returning. Merge indicated query read sets are not ready or invalid");
+    Debug("Returning. Merge indicated query read sets are not ready or invalid. result = %d", result);
     return result;  //NOTE: Could optimize and turn Abstains into full Abort if we used duplicate reads as proof. (would have to distinguish from the abstains caused by cached mismatch)
   }
   //Note: if we wait, we might end up never garbage collecting TX from ongoing (and possibly from other replicas Prepare set - since the tx is blocked); Can garbage collect after some time if desired (since we didn't process, theres no impact on decisions)

@@ -180,6 +180,7 @@ class Client : public ::Client {
     std::string table_name;
     std::vector<std::string> p_col_values; //if point read: this contains primary_key_col_vaues (in order) ==> Together with table_name can be used to compute encoding.
   };
+  std::map<uint64_t, PendingQuery*> pendingQueries;
 
   SQLTransformer sql_interpreter;
 
@@ -188,6 +189,7 @@ class Client : public ::Client {
                             int status, const std::string &key, const std::string &result, const Timestamp &read_time, const proto::Dependency &dep, bool hasDep, bool addReadSet); 
   void QueryResultCallback(PendingQuery *pendingQuery,      //bound parameters
                             int status, int group, proto::ReadSet *query_read_set, std::string &result_hash, std::string &result, bool success);  //free parameters
+  void ClearTxnQueries();
   void ClearQuery(PendingQuery *pendingQuery);
   void RetryQuery(PendingQuery *pendingQuery);
   // void ClearQuery(uint64_t query_seq_num, std::vector<uint64_t> &involved_groups);
@@ -292,7 +294,7 @@ class Client : public ::Client {
 
   // Fallback logic
   void FinishConflict(uint64_t reqId, const std::string &txnDigest, proto::Phase1 *p1);
-  bool isDep(const std::string &txnDigest, proto::Transaction &Req_txn);
+  bool isDep(const std::string &txnDigest, proto::Transaction &Req_txn, const proto::Transaction* txn);
   bool StillActive(uint64_t conflict_id, std::string &txnDigest);
   void CleanFB(PendingRequest *pendingFB, const std::string &txnDigest, bool clean_shards = true);
   void EraseRelays(proto::RelayP1 &relayP1, std::string &txnDigest);

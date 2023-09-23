@@ -1129,20 +1129,20 @@ void Server::HandlePhase1(const TransportAddress &remote, proto::Phase1 &msg) {
     if (!isGossip)
       msg.set_replica_gossip(
           false); // unset msg.replica_gossip (which we possibly just set to
-                  // foward) if the message was received by the client
+                  // forward) if the message was received by the client
 
-    // TODO: DispatchTP_noCB(Verify Client Proposals)
-    //  Verification calls DispatchTP_main (ProcessProposal.) -- Re-cecheck
-    //  hasP1 (if used multithread branch)
+    // TODO: DispatchTP_noCB(Verify Client Proposals) Verification calls
+    // DispatchTP_main (ProcessProposal.) -- Re-cecheck hasP1 (if used
+    // multithread branch)
 
     Debug("P1 message for txn[%s] received is of type Normal, no P1 result "
           "exist. Calling ProcessProposal",
           BytesToHex(txnDigest, 16).c_str());
     ProcessProposal(msg, remote, txn, txnDigest,
                     isGossip); // committedProof, abstain_conflict, result);
-  } else { // If we already have result: Send it and free msg/delete txn ---
-           // only send result if it is of type != Wait/Ignore (i.e. only send
-           // Commit, Abstain, Abort)
+  } else { // If we already have result: Send it and free msg/delete txn ---only
+           // send result if it is of type != Wait/Ignore (i.e. only sendCommit,
+           // Abstain, Abort)
     if (result != proto::ConcurrencyControl::WAIT &&
         result != proto::ConcurrencyControl::IGNORE) {
       SendPhase1Reply(msg.req_id(), result, committedProof, txnDigest, &remote,
@@ -2146,13 +2146,20 @@ void Server::UpdateCommittedReads(proto::Transaction *txn,
   const ReadSet *readSet = &txn->read_set(); // DEFAULT
   const DepSet *depSet = &txn->deps();       // DEFAULT
 
-  mergeTxReadSets(readSet, depSet, *txn, txnDigest, proof);
+  proto::ConcurrencyControl::Result res =
+      mergeTxReadSets(readSet, depSet, *txn, txnDigest, proof);
+  Debug("was able to pull read set from cache? res: %d", res);
   // Note: use whatever readSet is returned -- if query read sets are not
   // correct/present just use base (it's safe: another replica would've had all)
+  // I.e.: If the TX got enough commit votes (3f+1), then at least 2f+1 correct
+  // replicas must have had the correct readSet. Those suffice for safety
+  // conflicts. this replica will STILL apply the TableWrites, so visibility
+  // isn't impeded.
+
   // Once subscription on queries wakes up, it will call UpdatecommittedReads
   // again, at which point mergeReadSet will return the full mergedReadSet
   // TODO: For eventually consistent state may want to explicitly sync on the
-  // waiting queries -- not necessary for safety though
+  // waiting queries -- not necessary for safety though (see above)
   // TODO: FIXME: Currently, we ignore processing queries whose Tx have already
   // committed. Consequently, UpdateCommitted won't be called. This is safe, but
   // might result in this replica unecessarily preparing conflicting tx that are
@@ -2556,6 +2563,7 @@ void Server::SendRelayP1(const TransportAddress &remote,
       0); // doesnt matter, its not used for fallback requests really.
   //*relayP1.mutable_p1()->mutable_txn() = *tx; //TODO:: avoid copy by
   // allocating, and releasing again after.
+  relayP1.set_replica_id(id);
 
   if (params.signClientProposals) {
     // b.release();
