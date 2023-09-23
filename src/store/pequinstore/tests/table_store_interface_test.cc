@@ -143,6 +143,7 @@ void test_read_query() {
   // table_store->ExecRaw("INSERT INTO test VALUES (35, 26);");
   // table_store->ExecRaw("INSERT INTO test VALUES (190, 999);");
 
+  sleep(1);
   table_store->ApplyTableWrite("test", table_write, one, "random", real_proof,
                                true);
   sleep(1);
@@ -170,8 +171,8 @@ void test_read_query() {
 
   // table_store->ExecReadQuery("SELECT * FROM test;", toy_ts_c,
   // query_read_set_mgr_one);
-  table_store->PurgeTableWrite("test", table_write4, pesto_timestamp, "random");
-  std::string result = table_store->ExecReadQuery("SELECT * FROM test;", one,
+  table_store->PurgeTableWrite("test", table_write3, toy_ts_c, "random");
+  std::string result = table_store->ExecReadQuery("SELECT * FROM test;", five,
                                                   query_read_set_mgr_one);
 
   sql::QueryResultProtoWrapper *p_queryResult =
