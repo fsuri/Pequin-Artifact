@@ -56,7 +56,7 @@ auto Row::end() const -> std::unique_ptr<const_iterator>
   return std::unique_ptr<const_iterator>(new const_iterator( Field( *this, m_offset + m_columns ) ));
 }
 
-auto Row::get( const std::size_t column, std::size_t* size ) const -> const char*
+auto Row::get_bytes( const std::size_t column, std::size_t* size ) const -> const char*
 {
   return m_result->get( m_row, m_offset + column, size );
 }
@@ -76,6 +76,34 @@ auto Row::slice( const std::size_t offset, const std::size_t in_columns ) const 
       throw std::out_of_range("slice out of range");
   }
   return std::unique_ptr<query_result::Row>(new Row(m_result, this->m_row, m_offset + offset, in_columns ));
+}
+
+void Row::get(const std::size_t column, bool *field) const {
+  deserialize(column, *field);
+}
+
+void Row::get(const std::size_t column, int32_t *field) const {
+  deserialize(column, *field);
+}
+
+void Row::get(const std::size_t column, int64_t *field) const {
+  deserialize(column, *field);
+}
+
+void Row::get(const std::size_t column, uint32_t *field) const {
+  get(column, reinterpret_cast<int32_t*>(field));
+}
+
+void Row::get(const std::size_t column, uint64_t *field) const {
+  get(column, reinterpret_cast<int64_t*>(field));
+}
+
+void Row::get(const std::size_t column, double *field) const {
+  deserialize(column, *field);
+}
+
+void Row::get(const std::size_t column, std::string *field) const {
+  deserialize(column, *field);
 }
 
 }
