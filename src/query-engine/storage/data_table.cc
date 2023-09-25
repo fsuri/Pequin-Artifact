@@ -369,33 +369,93 @@ ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple,
     auto tile_group_header = tile_group->GetHeader();
 
     auto ts = tile_group_header->GetBasilTimestamp(check.offset);
+    auto curr_pointer = check;
+    auto curr_tile_group_header = tile_group_header;
+
+    /** NEW: for purge */
+    while (ts > transaction->GetBasilTimestamp()) {
+      if (curr_tile_group_header->GetNextItemPointer(curr_pointer.offset)
+              .IsNull()) {
+        break;
+      }
+      curr_pointer =
+          curr_tile_group_header->GetNextItemPointer(curr_pointer.offset);
+      curr_tile_group_header =
+          this->GetTileGroupById(curr_pointer.block)->GetHeader();
+      ts = curr_tile_group_header->GetBasilTimestamp(curr_pointer.offset);
+    }
 
     if (ts == transaction->GetBasilTimestamp()) {
       std::cout << "Duplicate" << std::endl;
       is_duplicate = true;
 
-      bool same_columns = true;
-      bool should_upgrade =
-          !tile_group_header->GetCommitOrPrepare(check.offset) &&
-          transaction->GetCommitOrPrepare();
+      /** TODO: Add check to make sure it's prepared */
+      if (transaction->GetUndoDelete()) {
+        std::cout << "In undo delete for purge" << std::endl;
+        // Purge this tuple
+        // Set the linked list pointers
+        auto prev_loc =
+            curr_tile_group_header->GetPrevItemPointer(curr_pointer.offset);
+        auto next_loc =
+            curr_tile_group_header->GetNextItemPointer(curr_pointer.offset);
 
-      // NOTE: Check if we can upgrade a prepared tuple to committed
-      // std::string encoded_key = target_table_->GetName();
-      const auto *schema = tile_group->GetAbstractTable()->GetSchema();
-      for (uint32_t col_idx = 0; col_idx < schema->GetColumnCount();
-           col_idx++) {
-        auto val1 = tile_group->GetValue(check.offset, col_idx);
-        auto val2 = tuple->GetValue(col_idx);
+        if (!prev_loc.IsNull() && !next_loc.IsNull()) {
+          std::cout << "Updating both pointers" << std::endl;
+          auto prev_tgh = this->GetTileGroupById(prev_loc.block)->GetHeader();
+          auto next_tgh = this->GetTileGroupById(next_loc.block)->GetHeader();
+          std::cout << "prev loc" << prev_loc.block << ", " << prev_loc.offset
+                    << std::endl;
+          std::cout << "next loc" << next_loc.block << ", " << next_loc.offset
+                    << std::endl;
+          prev_tgh->SetNextItemPointer(prev_loc.offset, next_loc);
+          next_tgh->SetPrevItemPointer(next_loc.offset, prev_loc);
+        } else if (prev_loc.IsNull() && !next_loc.IsNull()) {
+          std::cout << "Updating head pointer" << std::endl;
+          auto next_tgh = this->GetTileGroupById(next_loc.block)->GetHeader();
+          ItemPointer *index_entry_ptr =
+              next_tgh->GetIndirection(next_loc.offset);
+          COMPILER_MEMORY_FENCE;
 
-        if (val1.ToString() != val2.ToString()) {
-          tile_group->SetValue(val2, check.offset, col_idx);
-          same_columns = false;
+          // Set the index header in an atomic way.
+          // We do it atomically because we don't want any one to see a
+          // half-done pointer. In case of contention, no one can update this
+          // pointer when we are updating it because we are holding the write
+          // lock. This update should success in its first trial.
+          UNUSED_ATTRIBUTE auto res =
+              AtomicUpdateItemPointer(index_entry_ptr, next_loc);
+          PELOTON_ASSERT(res == true);
+
+        } else if (next_loc.IsNull() && !prev_loc.IsNull()) {
+          std::cout << "Updating prev pointer" << std::endl;
+          auto prev_tgh = this->GetTileGroupById(prev_loc.block)->GetHeader();
+          prev_tgh->SetNextItemPointer(prev_loc.offset,
+                                       ItemPointer(INVALID_OID, INVALID_OID));
         }
-      }
+      } else {
 
-      if (should_upgrade && same_columns) {
-        std::cout << "Upgrading from prepared to committed" << std::endl;
-        tile_group_header->SetCommitOrPrepare(check.offset, true);
+        bool same_columns = true;
+        bool should_upgrade =
+            !tile_group_header->GetCommitOrPrepare(check.offset) &&
+            transaction->GetCommitOrPrepare();
+
+        // NOTE: Check if we can upgrade a prepared tuple to committed
+        // std::string encoded_key = target_table_->GetName();
+        const auto *schema = tile_group->GetAbstractTable()->GetSchema();
+        for (uint32_t col_idx = 0; col_idx < schema->GetColumnCount();
+             col_idx++) {
+          auto val1 = tile_group->GetValue(check.offset, col_idx);
+          auto val2 = tuple->GetValue(col_idx);
+
+          if (val1.ToString() != val2.ToString()) {
+            tile_group->SetValue(val2, check.offset, col_idx);
+            same_columns = false;
+          }
+        }
+
+        if (should_upgrade && same_columns) {
+          std::cout << "Upgrading from prepared to committed" << std::endl;
+          tile_group_header->SetCommitOrPrepare(check.offset, true);
+        }
       }
 
     } else {
@@ -409,9 +469,11 @@ ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple,
       }
 
       // ItemPointer *old_location;
-      auto result = InsertTuple(tuple, location, transaction, old_location, index_entry_ptr, check_fk);
-      //bool result = false;
-      //IncreaseTupleCount(1);
+      /*auto result = InsertTuple(tuple, location, transaction, old_location,
+                                index_entry_ptr, check_fk);*/
+      bool result = false;
+      old_location = check;
+      IncreaseTupleCount(1);
 
       if (result == false) {
         std::cout << "The result is false" << std::endl;
@@ -528,9 +590,11 @@ DataTable::CheckIfInIndex(const storage::Tuple *tuple,
 
     index->ScanKey(key.get(), old_locations);
     for (int i = 0; i < old_locations.size(); i++) {
-      if (fn(old_locations[i])) {
+      // NOTE: For testing
+      /*if (fn(old_locations[i])) {
         return *old_locations[i];
-      }
+      }*/
+      return *old_locations[i];
     }
     return ItemPointer(0, 0);
     /*ItemPointer *first_element = old_locations[0];

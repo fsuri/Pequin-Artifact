@@ -446,7 +446,7 @@ private:
   bool can_read_prepared_;
 
   /** Whether purge is undoing a delete */
-  bool undo_delete_;
+  bool undo_delete_ = false;
 
   /** Whether read set manager was passed in */
   bool has_read_set_mgr_;

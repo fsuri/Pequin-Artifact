@@ -336,9 +336,20 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
     tile_group_header = head_tile_group_header;
     // auto curr_tuple_id = location.offset;
 
-    /*std::cout << "Head timestamp is " << tuple_timestamp.getTimestamp() << ",
-       "
-              << tuple_timestamp.getID() << std::endl;*/
+    std::cout << "Head timestamp is " << tuple_timestamp.getTimestamp() << ", "
+              << tuple_timestamp.getID() << std::endl;
+
+    ContainerTuple<storage::TileGroup> row_(tile_group.get(),
+                                            tuple_location.offset);
+
+    auto index_columns_ = index_->GetMetadata()->GetKeyAttrs();
+    for (auto col : index_columns_) {
+      auto val = row_.GetValue(col);
+      // encoded_key = encoded_key + "///" + val.ToString();
+      // primary_key_cols.push_back(val.GetAs<const char*>());
+      Debug("Primary key value: %s", val.ToString().c_str());
+      // std::cout << "read set value is " << val.ToString() << std::endl;
+    }
 
     while (true) {
       ++chain_length;
@@ -346,8 +357,8 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
           tile_group_header->GetBasilTimestamp(tuple_location.offset);
       Debug("Tuple TS: [%lu:%lu]", tuple_timestamp.getTimestamp(),
             tuple_timestamp.getID());
-      // std::cout << "Tuple timestamp is " << tuple_timestamp.getTimestamp() <<
-      // ", " << tuple_timestamp.getID() << std::endl;
+      std::cout << "Tuple timestamp is " << tuple_timestamp.getTimestamp()
+                << ", " << tuple_timestamp.getID() << std::endl;
 
       if (timestamp >= tuple_timestamp) {
         // Within range of timestamp
@@ -360,6 +371,12 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
           eval =
               predicate_->Evaluate(&tuple, nullptr, executor_context_).IsTrue();
         }
+
+        /** NEW: Force eval to be true if deleted */
+        if (tile_group_header->IsDeleted(tuple_location.offset)) {
+          eval = true;
+        }
+
         // if passed evaluation, then perform write.
         if (eval == true) {
           LOG_TRACE("perform read operation");
@@ -386,6 +403,16 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
           if (tile_group_header->GetCommitOrPrepare(tuple_location.offset) &&
               visible_tuple_set.find(tuple_location) ==
                   visible_tuple_set.end()) {
+
+            // Set boolean flag found_committed to true
+            found_committed = true;
+            std::cout << "Found committed tuple" << std::endl;
+
+            if (tile_group_header->IsDeleted(tuple_location.offset)) {
+              std::cout << "Tuple is deleted so will break" << std::endl;
+              break;
+            }
+
             // Get the commit proof
             auto commit_proof =
                 tile_group_header->GetCommittedProof(tuple_location.offset);
@@ -394,8 +421,6 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
             // Add the tuple to the visible tuple vector
             visible_tuple_locations.push_back(tuple_location);
             visible_tuple_set.insert(tuple_location);
-            // Set boolean flag found_committed to true
-            found_committed = true;
             // Set the committed timestmp
             Timestamp committed_timestamp =
                 tile_group_header->GetBasilTimestamp(tuple_location.offset);
@@ -446,9 +471,7 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
                       visible_tuple_set.end()) {
                 // NEW: if predicate satisfied then add to prepared visible
                 // tuple vector
-                Debug("Tuple is prepared and predicate is satisfied");
-                visible_tuple_locations.push_back(tuple_location);
-                visible_tuple_set.insert(tuple_location);
+
                 // Set the prepared timestamp
                 Timestamp prepared_timestamp =
                     tile_group_header->GetBasilTimestamp(tuple_location.offset);
@@ -459,6 +482,14 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
                 // After finding latest prepare we can stop looking at the
                 // version chain
                 found_prepared = true;
+
+                if (tile_group_header->IsDeleted(tuple_location.offset)) {
+                  break;
+                }
+
+                Debug("Tuple is prepared and predicate is satisfied");
+                visible_tuple_locations.push_back(tuple_location);
+                visible_tuple_set.insert(tuple_location);
 
                 // If it's not a point read query then don't need to read
                 // committed
