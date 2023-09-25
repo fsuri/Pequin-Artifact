@@ -162,6 +162,9 @@ void ShardClient::RetryQuery(uint64_t query_seq_num, proto::Query &queryMsg, boo
 
     pendingQuery->retry_version++;
     queryMsg.clear_query_cmd(); //NOTE: Don't need to re-send query command for retries. (Assuming we're sending it only to the same replicas)
+
+    Debug("group[%d], QueryRequest[%lu]. Retry version: %lu", group, query_seq_num, pendingQuery->retry_version);
+     
   
     RequestQuery(pendingQuery, queryMsg);
 }
@@ -190,7 +193,7 @@ void ShardClient::RequestQuery(PendingQuery *pendingQuery, proto::Query &queryMs
   queryReq.set_is_point(pendingQuery->is_point);
 
   queryReq.set_eager_exec(true);
-  Debug("FOR REAL RUN UNCOMMENT CORRECT EAGER EXEC LINE");
+  Notice("SET EAGER TO TRUE ALWAYS -- FOR REAL RUN UNCOMMENT CORRECT EAGER EXEC LINE");
   //queryReq.set_eager_exec(!pendingQuery->retry_version && (pendingQuery->is_point? params.query_params.eagerPointExec : params.query_params.eagerExec));
   Debug("Sending TX eagerly? %s", queryReq.eager_exec()? "yes" : "no");
   if(!queryReq.eager_exec()) Panic("Currently only testing eager exec");
@@ -486,8 +489,11 @@ void ShardClient::HandleQueryResult(proto::QueryResultReply &queryResult){
         Debug("Validated_read_set_hash: %s", BytesToHex(validated_result_hash, 16).c_str());
         Debug("Result: %lu", std::hash<std::string>{}(replica_result->query_result()));
 
-        Result_mgr &result_mgr = pendingQuery->result_freq[replica_result->query_result()][validated_result_hash];  //Could flatten this into 2D structure if make result part of result_hash... But we need access to result
+
+        Result_mgr &result_mgr = pendingQuery->result_freq[validated_result_hash][replica_result->query_result()]; //[validated_result_hash];  //Could flatten this into 2D structure if make result part of result_hash... But we need access to result
         matching_res = ++result_mgr.freq; //map should be default initialized to 0.
+
+        if(pendingQuery->result_freq[validated_result_hash].size() > 1) Panic("Two different results with the same read hash...");
 
         //  std::cerr << "current freq: " << result_mgr.freq << std::endl;
         // std::cerr<< "current result_mgr " << result_mgr.rand_id << std::endl;

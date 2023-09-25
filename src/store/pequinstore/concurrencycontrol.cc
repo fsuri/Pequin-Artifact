@@ -180,12 +180,13 @@ proto::ConcurrencyControl::Result Server::fetchReadSet(const proto::QueryResultM
       return proto::ConcurrencyControl::COMMIT; //return empty readset; ideally don't return anything... -- could make this a void function, and pass return field as argument pointer.
     }
     if(query_group_md->has_query_read_set()){
-      Debug("Merging Query Read Set from Transaction"); //TODO:: In this case, could avoid copies by letting client put all active read sets into the main read set. 
+      Debug("Merging Query[%s] Read Set from Transaction[%s]", BytesToHex(query_md.query_id(), 16).c_str(), BytesToHex(txnDigest, 16).c_str());
+       //TODO:: In this case, could avoid copies by letting client put all active read sets into the main read set. 
                                                         // --> Client should apply sort function -> will find invalid duplicates and abort early!
       query_rs = &query_group_md->query_read_set();
     }
     else{ //else go to cache (via query_id) and check if query_result hash matches. if so, use read set.
-      Debug("Merging Query Read Set from Cache");
+      Debug("Merging Query[%s] Read Set from Cache", BytesToHex(query_md.query_id(), 16).c_str());
       // If tx includes no read_set_hash => abort; invalid transaction //TODO: Could strengthen Abstain into Abort by incuding proof...
       if(!query_group_md->has_read_set_hash()) return proto::ConcurrencyControl::IGNORE; //ABSTAIN;
 
@@ -243,7 +244,7 @@ proto::ConcurrencyControl::Result Server::fetchReadSet(const proto::QueryResultM
       const proto::QueryResult &cached_queryResult = cached_queryResultReply->result();
 
       if(!cached_queryResult.has_query_read_set()){
-        Debug("Cached QueryFailure for current query version");
+        Debug("Cached QueryFailure for current query version;");
         return proto::ConcurrencyControl::ABSTAIN;
       } 
 
@@ -251,9 +252,10 @@ proto::ConcurrencyControl::Result Server::fetchReadSet(const proto::QueryResultM
         Debug("Cached QueryFailure for current query version");
         return proto::ConcurrencyControl::ABSTAIN; //Replica has already previously voted to abstain by reporting an exec failure (conflicting tx already committed, or sync request aborted) -- choice won't change
       } 
-  
+ 
       if(!cached_queryResult.has_query_result_hash() || query_group_md->read_set_hash() != cached_queryResult.query_result_hash()){
-        Debug("Cached wrong read-set %s. Require %s", BytesToHex(cached_queryResult.query_result_hash(), 16).c_str(), BytesToHex(query_group_md->read_set_hash(), 16).c_str());
+        Debug("Txn[%s]. Query[%s].Cached wrong read-set %s. Require %s", BytesToHex(txnDigest, 16).c_str(), BytesToHex(query_md.query_id(), 16).c_str(),
+                BytesToHex(cached_queryResult.query_result_hash(), 16).c_str(), BytesToHex(query_group_md->read_set_hash(), 16).c_str());
         return proto::ConcurrencyControl::ABSTAIN;
       } 
      
@@ -351,12 +353,12 @@ proto::ConcurrencyControl::Result Server::mergeTxReadSets(const ReadSet *&readSe
     if(res == proto::ConcurrencyControl::WAIT){ //Set up waiting.
       //TODO: Subscribe query.
       // Add to waitingOnQuery object.
-      Debug("Waiting on Query. Add to missing");
+      Debug("Waiting on Query %s. Add to missing", BytesToHex(query_md.query_id(), 16).c_str());
       missing_queries.push_back(std::make_pair(query_md.mutable_query_id(), query_md.retry_version()));
       //has_missing = true;
     }
     else if(res != proto::ConcurrencyControl::COMMIT){ //No need to continue CC check.
-      Debug("Query invalid or doomed to abort. Stopping Merge. res: %d", res);
+      Debug("Query[%s] invalid or doomed to abort. Stopping Merge. res: %d", BytesToHex(query_md.query_id(), 16).c_str(), res);
       TxnMissingQueries.erase(mq); //Erase if we added the data structure for no reason.
       return res;  //Note: Might have already subscribed some queries on a tx. If they wake up and there is no waiting tx object thats fine -- nothing happens
     }

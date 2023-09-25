@@ -700,6 +700,8 @@ void PelotonTableStore::PurgeTableWrite(const std::string &table_name,
                                         const TableWrite &table_write,
                                         const Timestamp &ts,
                                         const std::string &txn_digest) {
+
+  Debug("Purge Txn[%s]", BytesToHex(txn_digest, 16).c_str());
   if (table_write.rows().empty())
     return;
 
