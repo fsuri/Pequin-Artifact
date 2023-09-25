@@ -435,7 +435,7 @@ ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple,
 
         bool same_columns = true;
         bool should_upgrade =
-            !tile_group_header->GetCommitOrPrepare(check.offset) &&
+            !tile_group_header->GetCommitOrPrepare(curr_pointer.offset) &&
             transaction->GetCommitOrPrepare();
 
         // NOTE: Check if we can upgrade a prepared tuple to committed
@@ -443,18 +443,18 @@ ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple,
         const auto *schema = tile_group->GetAbstractTable()->GetSchema();
         for (uint32_t col_idx = 0; col_idx < schema->GetColumnCount();
              col_idx++) {
-          auto val1 = tile_group->GetValue(check.offset, col_idx);
+          auto val1 = tile_group->GetValue(curr_pointer.offset, col_idx);
           auto val2 = tuple->GetValue(col_idx);
 
           if (val1.ToString() != val2.ToString()) {
-            tile_group->SetValue(val2, check.offset, col_idx);
+            tile_group->SetValue(val2, curr_pointer.offset, col_idx);
             same_columns = false;
           }
         }
 
         if (should_upgrade && same_columns) {
           std::cout << "Upgrading from prepared to committed" << std::endl;
-          tile_group_header->SetCommitOrPrepare(check.offset, true);
+          tile_group_header->SetCommitOrPrepare(curr_pointer.offset, true);
         }
       }
 
