@@ -388,9 +388,11 @@ ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple,
     if (ts == transaction->GetBasilTimestamp()) {
       std::cout << "Duplicate" << std::endl;
       is_duplicate = true;
+      bool is_prepared =
+          !curr_tile_group_header->GetCommitOrPrepare(curr_pointer.offset);
 
       /** TODO: Add check to make sure it's prepared */
-      if (transaction->GetUndoDelete()) {
+      if (transaction->GetUndoDelete() && is_prepared) {
         std::cout << "In undo delete for purge" << std::endl;
         // Purge this tuple
         // Set the linked list pointers
