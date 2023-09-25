@@ -111,10 +111,8 @@ Server::Server(const transport::Configuration &config, int groupIdx, int idx,
   // define signer and verifier for replica signatures
   if (params.signatureBatchSize == 1) {
     // verifier = new BasicVerifier(transport);
-    verifier =
-        new BasicVerifier(transport, batchTimeoutMicro,
-                          params.validateProofs && params.signedMessages &&
-                              params.adjustBatchSize,
+    verifier = new BasicVerifier(transport, batchTimeoutMicro,
+                          params.validateProofs && params.signedMessages && params.adjustBatchSize,
                           params.verificationBatchSize);
     batchSigner = nullptr;
   } else {

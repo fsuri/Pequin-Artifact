@@ -319,8 +319,9 @@ std::string PelotonTableStore::ExecReadQuery(const std::string &query_statement,
   Debug("Execute ReadQuery: %s. TS: [%lu:%lu]", query_statement.c_str(),
         ts.getTimestamp(), ts.getID());
     
-  Debug("Begin readLat on core: %d", sched_getcpu());
-  Latency_Start(&readLats[sched_getcpu()]);
+  int core = sched_getcpu();
+  Debug("Begin readLat on core: %d", core);
+  Latency_Start(&readLats[core]);
 
   // Execute on Peloton (args: query, Ts, readSetMgr, this->can_read_prepared,
   // this->set_table_version) --> returns peloton result --> transform into
@@ -404,8 +405,8 @@ std::string PelotonTableStore::ExecReadQuery(const std::string &query_statement,
   // Transform PelotonResult into ProtoResult
   std::string && res(TransformResult(status, statement, result));
 
-  Debug("End readLat on core: %d", sched_getcpu());
-  Latency_End(&readLats[sched_getcpu()]);
+  Debug("End readLat on core: %d", core);
+  Latency_End(&readLats[core]);
   return std::move(res); //return TransformResult(status, statement, result)
 }
 
@@ -446,8 +447,9 @@ void PelotonTableStore::ExecPointRead(
   // Note: Don't read TableVersion for PointReads -- they do not care about what
   // other rows exist
 
-  Debug("Begin readLat on core: %d", sched_getcpu());
-  Latency_Start(&readLats[sched_getcpu()]);
+  int core = sched_getcpu();
+  Debug("Begin readLat on core: %d", core);
+  Latency_Start(&readLats[core]);
   std::pair<peloton::tcop::TrafficCop *, std::atomic_int *> cop_pair = GetCop();
 
   std::atomic_int *counter = cop_pair.second;
@@ -485,8 +487,8 @@ void PelotonTableStore::ExecPointRead(
   TransformPointResult(write, committed_timestamp, prepared_timestamp, txn_dig,
                        status, statement, result);
 
-  Debug("End readLat on core: %d", sched_getcpu());
-  Latency_End(&readLats[sched_getcpu()]);
+  Debug("End readLat on core: %d", core);
+  Latency_End(&readLats[core]);
 
   return;
 }
@@ -586,9 +588,10 @@ void PelotonTableStore::ApplyTableWrite(
   // SetTableVersion as callback from within Peloton once it is done to set the
   // TableVersion (Currently, it is being set right after ApplyTableWrite()
   // returns)
-  Debug("Begin writeLat on core: %d", sched_getcpu());
-  Latency_Start(&writeLats[sched_getcpu()]);
-
+   int core = sched_getcpu();
+  Debug("Begin writeLat on core: %d", core);
+  Latency_Start(&writeLats[core]);
+  
   // UW_ASSERT(ts.getTimestamp() >= 0 && ts.getID() >= 0);
   Debug("Apply TableWrite for txn %s. TS [%lu:%lu]",
         BytesToHex(txn_digest, 16).c_str(), ts.getTimestamp(), ts.getID());
@@ -687,8 +690,10 @@ void PelotonTableStore::ApplyTableWrite(
       Panic("Delete failure");
   }
 
-  Debug("End writeLat on core: %d", sched_getcpu());
-  Latency_End(&writeLats[sched_getcpu()]);
+  Debug("End writeLat on core: %d", core);
+  //Debug("getCPU says on core: %d", sched_getcpu());
+  //UW_ASSERT(core == sched_getcpu()); 
+  Latency_End(&writeLats[core]);
 }
 
 void PelotonTableStore::PurgeTableWrite(const std::string &table_name,
@@ -698,8 +703,9 @@ void PelotonTableStore::PurgeTableWrite(const std::string &table_name,
   if (table_write.rows().empty())
     return;
 
-  Debug("Begin writeLat on core: %d", sched_getcpu());
-  Latency_Start(&writeLats[sched_getcpu()]);
+  int core = sched_getcpu();
+  Debug("Begin writeLat on core: %d", core);
+  Latency_Start(&writeLats[core]);
   // Purge statement is a "special" delete statement:
   //  it deletes existing row insertions for the timestamp, but it also undoes
   //  existing deletes for the timestamp
@@ -755,13 +761,14 @@ void PelotonTableStore::PurgeTableWrite(const std::string &table_name,
     GetResult(status, tcop, counter);
 
     if (status == peloton::ResultType::SUCCESS)
-      Debug("Delete successful");
+      Debug("Purge successful");
     else
-      Panic("Delete failure");
+      Panic("Purge failure");
   //}
 
-  Debug("End writeLat on core: %d", sched_getcpu());
-  Latency_End(&writeLats[sched_getcpu()]);
+  Debug("End writeLat on core: %d", core);
+  //UW_ASSERT(core == sched_getcpu());
+  Latency_End(&writeLats[core]);
 }
 
 ///////////////////// Snapshot Protocol Support

@@ -12,6 +12,9 @@ null
 .vscode/*
 .vscode/settings.json
 
+0_local_test_outputs/rw-sql/rw-sql-gen*
+
+
 lib/crypto_bench
 lib/batched_sigs_test
 lib/blake3_test
@@ -65,6 +68,9 @@ store/pequinstore/tests/snapshot_test
 store/pequinstore/tests/table_loader_test
 store/pequinstore/tests/write_parser_test
 store/pequinstore/tests/sql_interpreter_test
+store/pequinstore/tests/table_store_interface_test
+store/pequinstore/tests/out_interface_test.txt
+
 store/pequinstore/tests/*/
 store/pequinstore/tests/*.json
 store/pequinstore/*.json

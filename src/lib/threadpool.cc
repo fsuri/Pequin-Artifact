@@ -94,7 +94,7 @@ void ThreadPool::start(int process_id, int total_processes, bool hyperthreading,
     } else
       Panic("No valid system defined");
 
-    Debug("Main Process running on CPU %d.", sched_getcpu());
+    Debug("Network Process running on CPU %d.", sched_getcpu());
     running = true;
     for (uint32_t i = start; i < end; i++) {
       std::thread *t;
@@ -115,8 +115,9 @@ void ThreadPool::start(int process_id, int total_processes, bool hyperthreading,
           while (true) {
             std::function<void *()> job;
 
-            Debug("Main Thread %d running on CPU %d", i, sched_getcpu());
             main_thread_request_list.wait_dequeue(job);
+             Debug("Main Thread %d running job on CPU %d", i, sched_getcpu());
+            //Notice("Main Thread %d running job on CPU %d", i, sched_getcpu());
 
             if (!running) {
               break;
@@ -124,10 +125,8 @@ void ThreadPool::start(int process_id, int total_processes, bool hyperthreading,
             job();
           }
         });
-        std::cerr << "THREADPOOL SETUP: Trying to pin thread to core: " << i
-                  << " + " << offset << std::endl;
-        int rc = pthread_setaffinity_np(t->native_handle(), sizeof(cpu_set_t),
-                                        &cpuset);
+        std::cerr << "THREADPOOL SETUP: Trying to pin thread to core: " << i << " + " << offset << std::endl;
+        int rc = pthread_setaffinity_np(t->native_handle(), sizeof(cpu_set_t),  &cpuset);
         if (rc != 0) {
           Panic("Error calling pthread_setaffinity_np: %d", rc);
         }
@@ -135,8 +134,7 @@ void ThreadPool::start(int process_id, int total_processes, bool hyperthreading,
         t->detach();
       }
       // Cryptothread
-      if ((i + put_all_threads_on_same_core) >
-          start) { // if run with >=3 cores: start==1 &
+      if ((i + put_all_threads_on_same_core) > start) { // if run with >=3 cores: start==1 &
                    // put_all_threads_on_same_core == 0 --> workers start on
                    // cores 2+; if < 3 cores: start == 0, put_all = 1
         // else{
@@ -144,10 +142,12 @@ void ThreadPool::start(int process_id, int total_processes, bool hyperthreading,
           while (true) {
             std::pair<std::function<void *()>, EventInfo *> job;
 
-            Debug("Worker Thread %d running on CPU %d", i, sched_getcpu());
+            
             worker_thread_request_list.wait_dequeue(job);
+            Debug("Worker Thread %d running job on CPU %d", i, sched_getcpu());
+            //Notice("Worker Thread %d running job on CPU %d", i, sched_getcpu());
 
-            Debug("popped job on CPU %d.", i);
+           // Debug("popped job on CPU %d.", i);
             if (!running) {
               break;
             }
@@ -160,10 +160,8 @@ void ThreadPool::start(int process_id, int total_processes, bool hyperthreading,
             }
           }
         });
-        std::cerr << "THREADPOOL SETUP: Trying to pin thread to core: " << i
-                  << " + " << offset << std::endl;
-        int rc = pthread_setaffinity_np(t->native_handle(), sizeof(cpu_set_t),
-                                        &cpuset);
+        std::cerr << "THREADPOOL SETUP: Trying to pin thread to core: " << i << " + " << offset << std::endl;
+        int rc = pthread_setaffinity_np(t->native_handle(), sizeof(cpu_set_t), &cpuset);
         if (rc != 0) {
           Panic("Error calling pthread_setaffinity_np: %d", rc);
         }
@@ -180,6 +178,7 @@ void ThreadPool::start(int process_id, int total_processes, bool hyperthreading,
       // }
       // threads.push_back(t);
       // t->detach();
+      Notice("Finished server-side threadpool configurations");
     }
     //}
   } else {
