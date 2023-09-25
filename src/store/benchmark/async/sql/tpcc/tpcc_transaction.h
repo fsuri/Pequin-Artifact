@@ -34,20 +34,17 @@
 #include "lib/cereal/archives/binary.hpp"
 #include "lib/cereal/types/string.hpp"
 
-namespace tpcc {
+namespace tpcc_sql {
 
-template<class Archive>
-void save(Archive & archive, 
-          tpcc::WarehouseRow const & w)
-{ 
-  archive( w.id(), w.name(), w.street_1(), w.street_2(), w.city(), w.state(), w.zip(), w.tax(), w.ytd());
+template <class T>
+void load_row(std::unique_ptr<query_result::Row> row, T& t) {
+  row->get(0, &t);
 }
 
-template<class Archive>
-void load(Archive & archive,
-          tpcc::WarehouseRow & w)
+inline void load_row(std::unique_ptr<query_result::Row> row,
+          tpcc::WarehouseRow& w)
 {
-  uint32_t id;
+  int32_t id;
   std::string name;
   std::string street_1;
   std::string street_2;
@@ -56,8 +53,16 @@ void load(Archive & archive,
   std::string zip;
   int32_t tax;
   int32_t ytd;
-  archive( id, name, street_1, street_2, city, state, zip, tax, ytd );
-  w.set_id(id);
+  row->get(0, &id);
+  row->get(1, &name);
+  row->get(2, &street_1);
+  row->get(3, &street_2);
+  row->get(4, &city);
+  row->get(5, &state);
+  row->get(6, &zip);
+  row->get(7, &tax);
+  row->get(8, &ytd);
+  w.set_id((uint32_t) id);
   w.set_name(name);
   w.set_street_1(street_1);
   w.set_street_2(street_2);
@@ -67,32 +72,12 @@ void load(Archive & archive,
   w.set_tax(tax);
   w.set_ytd(ytd);
 }
-
-
-template<class Archive>
-void save(Archive & archive, 
-          tpcc::DistrictRow const & d)
-{ 
-  uint32_t id = d.id();
-  uint32_t w_id = d.w_id();
-  std::string name = d.name();
-  std::string street_1 = d.street_1();
-  std::string street_2 = d.street_2();
-  std::string city = d.city();
-  std::string state = d.state();
-  std::string zip = d.zip();
-  int32_t tax = d.tax();
-  int32_t ytd = d.ytd();
-  uint32_t next_o_id = d.next_o_id();
-  archive( id, w_id, name, street_1, street_2, city, state, zip, tax, ytd, next_o_id );
-}
-
-template<class Archive>
-void load(Archive & archive,
-          tpcc::DistrictRow & d)
+ 
+inline void load_row(std::unique_ptr<query_result::Row> row,
+          tpcc::DistrictRow& d)
 {
-  uint32_t id;
-  uint32_t w_id;
+  int32_t id;
+  int32_t w_id;
   std::string name;
   std::string street_1;
   std::string street_2;
@@ -101,10 +86,20 @@ void load(Archive & archive,
   std::string zip;
   int32_t tax;
   int32_t ytd;
-  uint32_t next_o_id;
-  archive( id, w_id, name, street_1, street_2, city, state, zip, tax, ytd, next_o_id );
-  d.set_id(id);
-  d.set_w_id(w_id);
+  int32_t next_o_id;
+  row->get(0, &id);
+  row->get(1, &w_id);
+  row->get(2, &name);
+  row->get(3, &street_1);
+  row->get(4, &street_2);
+  row->get(5, &city);
+  row->get(6, &state);
+  row->get(7, &zip);
+  row->get(8, &tax);
+  row->get(9, &ytd);
+  row->get(10, &next_o_id);
+  d.set_id((uint32_t) id);
+  d.set_w_id((uint32_t) w_id);
   d.set_name(name);
   d.set_street_1(street_1);
   d.set_street_2(street_2);
@@ -113,90 +108,77 @@ void load(Archive & archive,
   d.set_zip(zip);
   d.set_tax(tax);
   d.set_ytd(ytd);
-  d.set_next_o_id(next_o_id);
+  d.set_next_o_id((uint32_t) next_o_id);
 }
-
-template<class Archive>
-void save(Archive & archive, 
-          tpcc::OrderRow const & o)
-{ 
-  archive( o.id(), o.d_id(), o.w_id(), o.c_id(), o.entry_d(), o.carrier_id(), o.ol_cnt(), o.all_local() );
-}
-
-template<class Archive>
-void load(Archive & archive,
-          tpcc::OrderRow & o)
+ 
+inline void load_row(std::unique_ptr<query_result::Row> row,
+          tpcc::OrderRow& o)
 {
-  uint32_t id;
-  uint32_t d_id;
-  uint32_t w_id;
-  uint32_t c_id;
-  uint32_t entry_d;
-  uint32_t carrier_id;
-  uint32_t ol_cnt;
-  uint32_t all_local;
-  archive( id, d_id, w_id, c_id, entry_d, carrier_id, ol_cnt, all_local );
-  o.set_id(id);
-  o.set_d_id(d_id);
-  o.set_w_id(w_id);
-  o.set_c_id(c_id);
-  o.set_entry_d(entry_d);
-  o.set_carrier_id(carrier_id);
-  o.set_ol_cnt(ol_cnt);
-  o.set_all_local(all_local);
+  int32_t id;
+  int32_t d_id;
+  int32_t w_id;
+  int32_t c_id;
+  int32_t entry_d;
+  int32_t carrier_id;
+  int32_t ol_cnt;
+  int32_t all_local;
+  row->get(0, &id);
+  row->get(1, &d_id);
+  row->get(2, &w_id);
+  row->get(3, &c_id);
+  row->get(4, &entry_d);
+  row->get(5, &carrier_id);
+  row->get(6, &ol_cnt);
+  row->get(7, &all_local);
+  o.set_id((uint32_t) id);
+  o.set_d_id((uint32_t) d_id);
+  o.set_w_id((uint32_t) w_id);
+  o.set_c_id((uint32_t) c_id);
+  o.set_entry_d((uint32_t) entry_d);
+  o.set_carrier_id((uint32_t) carrier_id);
+  o.set_ol_cnt((uint32_t) ol_cnt);
+  o.set_all_local((uint32_t) all_local);
 }
 
-template<class Archive>
-void save(Archive & archive, 
-          tpcc::OrderLineRow const & o)
-{ 
-  archive( o.o_id(), o.d_id(), o.w_id(), o.number(), o.i_id(), o.supply_w_id(), o.delivery_d(), o.quantity(), o.amount(), o.dist_info() );
-}
-
-template<class Archive>
-void load(Archive & archive,
-          tpcc::OrderLineRow & o)
+inline void load_row(std::unique_ptr<query_result::Row> row,
+          tpcc::OrderLineRow& o)
 {
-  uint32_t o_id;
-  uint32_t d_id;
-  uint32_t w_id;
-  uint32_t number;
-  uint32_t i_id;
-  uint32_t supply_w_id;
-  uint32_t delivery_d;
-  uint32_t quantity;
+  int32_t  o_id;
+  int32_t  d_id;
+  int32_t  w_id;
+  int32_t  number;
+  int32_t  i_id;
+  int32_t  supply_w_id;
+  int32_t  delivery_d;
+  int32_t  quantity;
   int32_t amount;
   std::string dist_info;
-  archive( o_id, d_id, w_id, number, i_id, supply_w_id, delivery_d, quantity, amount, dist_info );
-  o.set_o_id(o_id);
-  o.set_d_id(d_id);
-  o.set_w_id(w_id);
-  o.set_number(number);
-  o.set_i_id(i_id);
-  o.set_supply_w_id(supply_w_id);
-  o.set_delivery_d(delivery_d);
-  o.set_quantity(quantity);
+  row->get(0, &o_id);
+  row->get(1, &d_id);
+  row->get(2, &w_id);
+  row->get(3, &number);
+  row->get(4, &i_id);
+  row->get(5, &supply_w_id);
+  row->get(6, &delivery_d);
+  row->get(7, &quantity);
+  o.set_o_id((uint32_t) o_id);
+  o.set_d_id((uint32_t) d_id);
+  o.set_w_id((uint32_t) w_id);
+  o.set_number((uint32_t) number);
+  o.set_i_id((uint32_t) i_id);
+  o.set_supply_w_id((uint32_t) supply_w_id);
+  o.set_delivery_d((uint32_t) delivery_d);
+  o.set_quantity((uint32_t) quantity);
   o.set_amount(amount);
   o.set_dist_info(dist_info);
 }
-
-template<class Archive>
-void save(Archive & archive, 
-          tpcc::CustomerRow const & c)
-{ 
-  archive(c.id(), c.d_id(), c.w_id(), c.first(), c.middle(), c.last(), 
-          c.street_1(), c.street_2(), c.city(), c.state(), c.zip(), c.phone(), 
-          c.since(), c.credit(), c.credit_lim(), c.discount(), c.balance(), 
-          c.ytd_payment(), c.payment_cnt(), c.delivery_cnt(), c.data());
-}
-
-template<class Archive>
-void load(Archive & archive,
-          tpcc::CustomerRow & c)
+ 
+inline void load_row(std::unique_ptr<query_result::Row> row,
+          tpcc::CustomerRow& c)
 {
-  uint32_t id;
-  uint32_t d_id;
-  uint32_t w_id;
+  int32_t  id;
+  int32_t  d_id;
+  int32_t  w_id;
   std::string first;
   std::string middle;
   std::string last;
@@ -206,21 +188,39 @@ void load(Archive & archive,
   std::string state;
   std::string zip;
   std::string phone;
-  uint32_t since;
+  int32_t  since;
   std::string credit;
   int32_t credit_lim;
-  float discount;
-  float balance;
-  float ytd_payment;
-  uint32_t payment_cnt;
-  uint32_t delivery_cnt;
+  double discount;
+  double balance;
+  double ytd_payment;
+  int32_t  payment_cnt;
+  int32_t  delivery_cnt;
   std::string data;
-  archive( id, d_id, w_id, first, middle, last, street_1, street_2, city, state,
-           zip, phone, since, credit, credit_lim, discount, balance, ytd_payment, 
-           payment_cnt, delivery_cnt, data );
-  c.set_id(id);
-  c.set_d_id(d_id);
-  c.set_w_id(w_id);
+  row->get(0, &id);
+  row->get(1, &d_id);
+  row->get(2, &w_id);
+  row->get(3, &first);
+  row->get(4, &middle);
+  row->get(5, &last);
+  row->get(6, &street_1);
+  row->get(7, &street_2);
+  row->get(8, &city);
+  row->get(9, &state);
+  row->get(10, &zip);
+  row->get(11, &phone);
+  row->get(12, &since);
+  row->get(13, &credit);
+  row->get(14, &credit_lim);
+  row->get(15, &discount);
+  row->get(16, &balance);
+  row->get(17, &ytd_payment);
+  row->get(18, &payment_cnt);
+  row->get(19, &delivery_cnt);
+  row->get(20, &data);
+  c.set_id((uint32_t) id);
+  c.set_d_id((uint32_t) d_id);
+  c.set_w_id((uint32_t) w_id);
   c.set_first(first);
   c.set_middle(middle);
   c.set_last(last);
@@ -230,54 +230,35 @@ void load(Archive & archive,
   c.set_state(state);
   c.set_zip(zip);
   c.set_phone(phone);
-  c.set_since(since);
+  c.set_since((uint32_t) since);
   c.set_credit(credit);
-  c.set_credit_lim(credit_lim);
+  c.set_credit_lim((uint32_t) credit_lim);
   c.set_discount(discount);
   c.set_balance(balance);
   c.set_ytd_payment(ytd_payment);
-  c.set_payment_cnt(payment_cnt);
-  c.set_delivery_cnt(delivery_cnt);
+  c.set_payment_cnt((uint32_t) payment_cnt);
+  c.set_delivery_cnt((uint32_t) delivery_cnt);
   c.set_data(data);
 }
-
-template<class Archive>
-void save(Archive & archive, 
-          tpcc::ItemRow const & i)
-{ 
-  archive(i.id(), i.im_id(), i.name(), i.price(), i.data());
-}
-
-template<class Archive>
-void load(Archive & archive,
-          tpcc::ItemRow & i)
+ 
+inline void load_row(std::unique_ptr<query_result::Row> row,
+          tpcc::ItemRow& i)
 {
   uint32_t id;
   uint32_t im_id;
   std::string name;
-  float price;
+  double price;
   std::string data;
-  archive( id, im_id, name, price, data );
+
   i.set_id(id);
   i.set_im_id(im_id);
   i.set_name(name);
   i.set_price(price);
   i.set_data(data);
 }
-
-template<class Archive>
-void save(Archive & archive, 
-          tpcc::StockRow const & s)
-{ 
-  archive(s.i_id(), s.w_id(), s.quantity(), s.dist_01(), s.dist_02(),
-          s.dist_03(), s.dist_04(), s.dist_05(), s.dist_06(), s.dist_07(),
-          s.dist_08(), s.dist_09(), s.dist_10(), s.ytd(), s.order_cnt(),
-          s.remote_cnt(), s.data());
-}
-
-template<class Archive>
-void load(Archive & archive,
-          tpcc::StockRow & s)
+ 
+inline void load_row(std::unique_ptr<query_result::Row> row,
+          tpcc::StockRow& s)
 {
   uint32_t i_id;
   uint32_t w_id;
@@ -296,9 +277,8 @@ void load(Archive & archive,
   int32_t order_cnt;
   int32_t remote_cnt;
   std::string data;
-  archive( i_id, w_id, quantity, dist_01, dist_02, dist_03, dist_04, dist_05,
-           dist_06, dist_07, dist_08, dist_09, dist_10, ytd, order_cnt, remote_cnt,
-           data );
+
+
   s.set_i_id(i_id);
   s.set_w_id(w_id);
   s.set_quantity(quantity);
@@ -318,44 +298,22 @@ void load(Archive & archive,
   s.set_data(data);
 }
 
-template<class Archive>
-void save(Archive & archive, 
-          tpcc::NewOrderRow const & new_o)
-{ 
-  archive(new_o.o_id(), new_o.d_id(), new_o.w_id());
-}
-
-template<class Archive>
-void load(Archive & archive,
-          tpcc::NewOrderRow & new_o)
+ 
+inline void load_row(std::unique_ptr<query_result::Row> row,
+          tpcc::NewOrderRow& new_o)
 {
   uint32_t id;
   uint32_t d_id;
   uint32_t w_id;
-  archive( id, d_id, w_id );
+
   new_o.set_o_id(id);
   new_o.set_d_id(d_id);
   new_o.set_w_id(w_id);
 }
-}
-
-namespace tpcc_sql {
-
 
 template<class T>
 void deserialize(T& t, std::unique_ptr<const query_result::QueryResult>& queryResult, const std::size_t row) {
-  std::stringstream ss(std::ios::in | std::ios::out | std::ios::binary);
-  for(std::size_t i = 0; i < queryResult->columns(); i++) {
-    std::size_t n_bytes = 0;
-    const char* r_chars = queryResult->get(row, i, &n_bytes);
-    fprintf(stderr, "n_bytes: %lu\n", n_bytes);
-    std::string r = std::string(r_chars, n_bytes);
-    ss << r;
-  }
-  {
-    cereal::BinaryInputArchive iarchive(ss); // Create an input archive
-    iarchive(t); // Read the data from the archive
-  }
+  load_row(queryResult->at(row), t);
 }
 
 template<class T>
