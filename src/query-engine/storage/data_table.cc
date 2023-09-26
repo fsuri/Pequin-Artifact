@@ -37,6 +37,7 @@
 #include "../storage/tile_group_factory.h"
 #include "../storage/tile_group_header.h"
 #include "../storage/tuple.h"
+#include "lib/message.h"
 #include "query-engine/common/internal_types.h"
 #include "query-engine/common/item_pointer.h"
 // #include "../tuning/clusterer.h"
@@ -415,6 +416,8 @@ ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple,
         } else if (prev_loc.IsNull() && !next_loc.IsNull()) {
           std::cout << "Updating head pointer" << std::endl;
           auto next_tgh = this->GetTileGroupById(next_loc.block)->GetHeader();
+          next_tgh->SetPrevItemPointer(next_loc.offset,
+                                       ItemPointer(INVALID_OID, INVALID_OID));
           ItemPointer *index_entry_ptr =
               next_tgh->GetIndirection(next_loc.offset);
           COMPILER_MEMORY_FENCE;
@@ -458,6 +461,15 @@ ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple,
         if (should_upgrade && same_columns) {
           std::cout << "Upgrading from prepared to committed" << std::endl;
           curr_tile_group_header->SetCommitOrPrepare(curr_pointer.offset, true);
+        } else {
+          std::cout << "Should upgrade is " << should_upgrade << std::endl;
+          std::cout << "Same columns is " << same_columns << std::endl;
+          std::cout << "Timestamp is " << ts.getTimestamp() << ", "
+                    << ts.getID() << std::endl;
+          std::cout << "Txn timestamp is "
+                    << transaction->GetBasilTimestamp().getTimestamp() << ", "
+                    << transaction->GetBasilTimestamp().getID() << std::endl;
+          // Panic("Tried to add a duplicate write");
         }
       }
 
