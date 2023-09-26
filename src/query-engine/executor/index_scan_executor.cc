@@ -534,6 +534,7 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
       ItemPointer old_item = tuple_location;
       // std::cout << "Offset is " << old_item.offset << std::endl;
       tuple_location = tile_group_header->GetNextItemPointer(old_item.offset);
+      tile_group = storage_manager->GetTileGroup(tuple_location.block);
 
       if (tuple_location.IsNull()) {
         // std::cout << "Tuple location is null" << std::endl;
@@ -802,7 +803,7 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
 
         auto tile_group =
             storage_manager->GetTileGroup(visible_tuple_location.block);
-        auto tile_group_header = tile_group.get()->GetHeader();
+        auto tile_group_header = tile_group->GetHeader();
 
         ContainerTuple<storage::TileGroup> row(tile_group.get(),
                                                visible_tuple_location.offset);
@@ -866,7 +867,7 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
 
         tile_group =
             storage_manager->GetTileGroup(visible_tuple_location.block);
-        auto tile_group_header = tile_group.get()->GetHeader();
+        auto tile_group_header = tile_group->GetHeader();
 
         ContainerTuple<storage::TileGroup> row(tile_group.get(),
                                                visible_tuple_location.offset);
