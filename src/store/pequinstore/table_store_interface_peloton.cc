@@ -746,7 +746,7 @@ void PelotonTableStore::PurgeTableWrite(const std::string &table_name,
   if (purge_statement.empty())
     return; // Nothing to undo.
 
-  Debug("Purge statement: %s", purge_statement);
+  Debug("Purge statement: %s", purge_statement.c_str());
   // Debug("Purge statements: %s", fmt::join(purge_statements, "|"));
 
   std::vector<peloton::ResultValue> result;
