@@ -497,6 +497,8 @@ void ShardClient::HandleQueryResult(proto::QueryResultReply &queryResult){
 
         if(pendingQuery->result_freq[validated_result_hash].size() > 1) Panic("Two different results with the same read hash...");
 
+        //if(pendingQuery->result_freq[replica_result->query_result()].size() > 1) Panic("When testing without optimistic id's all hashes should be the same."); //Switched the order
+
         //  std::cerr << "current freq: " << result_mgr.freq << std::endl;
         // std::cerr<< "current result_mgr " << result_mgr.rand_id << std::endl;
 
@@ -564,7 +566,7 @@ void ShardClient::HandleQueryResult(proto::QueryResultReply &queryResult){
         // }
         
 
-         if(pendingQuery->result_freq[replica_result->query_result()].size() > 1) Panic("When testing without optimistic id's all hashes should be the same.");
+         
     }
   
     //4) if receive enough --> upcall;  At client: Add query identifier and result to Txn
