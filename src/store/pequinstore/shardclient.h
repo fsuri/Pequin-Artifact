@@ -292,7 +292,7 @@ virtual void Phase2Equivocate_Simulate(uint64_t id, const proto::Transaction &tx
 
     
     //map from result to map of associated result hash + their frequency (could be that two same results have different result hash; and vice versa)
-    std::unordered_map<std::string, std::unordered_map<std::string, Result_mgr>> result_freq; 
+    std::unordered_map<std::string, std::unordered_map<std::string, Result_mgr>> result_freq; //result_hash (read-set) -> (result (serialization) -> freq)
     //TODO: For each read_set -> maintain a list of deps that is updated.
     
     bool query_manager;
