@@ -836,7 +836,7 @@ void SQLTransformer::TransformDelete(size_t pos, std::string_view &write_stateme
 
 //////////////////// Table Write Generator
 
-static bool fine_grained_quotes = false;  //false == add quotes to everything, true == add quotes only to the fields that need it.
+static bool fine_grained_quotes = true;  //false == add quotes to everything, true == add quotes only to the fields that need it. (e.g. strings, bool; not int)
 //fine_grained_quotes requires use of TableRegistry now. However, it seems to work fine for Peloton to add quotes to everything indiscriminately. 
 
 //NOTE: Peloton does not support WHERE IN syntax for delete statements. => must use the generator version that creates separate delete statements.
@@ -1263,7 +1263,7 @@ void SQLTransformer::ParseColUpdate(std::string_view col_update, std::map<std::s
 }
 
 
-std::string SQLTransformer::GetUpdateValue(const std::string &col, std::variant<bool, int32_t, std::string> &field_val, std::unique_ptr<query_result::Field> &field, 
+std::string SQLTransformer::GetUpdateValue(const std::string &col, std::variant<bool, int64_t, std::string> &field_val, std::unique_ptr<query_result::Field> &field, 
     std::map<std::string_view, Col_Update> &col_updates, const std::string &col_type, bool &change_val){
 
      //Copy all column values (unless in col_updates)
@@ -1282,16 +1282,16 @@ std::string SQLTransformer::GetUpdateValue(const std::string &col, std::variant<
         if(col_update.has_operand){
             //std::cerr << "update has operand: " << col_update.operand << std::endl;
                 //std::cerr << "lvalue = " << col_update.l_value << std::endl;
-            int32_t l_value;
-            int32_t r_value;
+            int64_t l_value;
+            int64_t r_value;
             // Check if l_value needs to be replaced
             //For now just check current col name (field->name()) -- I assume that's always the case tbh.. //FIXME: Ideally search arbitrary Col by name...
             if(col_update.l_value == field->name()){
                 try {
-                    l_value = std::get<int32_t>(field_val);
+                    l_value = std::get<int64_t>(field_val);
                 }
                 catch (std::bad_variant_access&) {
-                    Panic("Could not extract numeric type (int32_t) from field_val variant");
+                    Panic("Could not extract numeric type (int64_t) from field_val variant");
                 }
 
                 // std::istringstream iss(field_val);
@@ -1306,10 +1306,10 @@ std::string SQLTransformer::GetUpdateValue(const std::string &col, std::variant<
 
             if(col_update.r_value == field->name()){
                 try {
-                    r_value = std::get<int32_t>(field_val);
+                    r_value = std::get<int64_t>(field_val);
                 }
                 catch (std::bad_variant_access&) {
-                    Panic("Could not extract numeric type (int32_t) from field_val variant");
+                    Panic("Could not extract numeric type (int64_t) from field_val variant");
                 }
                 // std::istringstream iss(field_val);
                 // iss.exceptions(std::ios::failbit | std::ios::badbit);
@@ -1320,7 +1320,7 @@ std::string SQLTransformer::GetUpdateValue(const std::string &col, std::variant<
                 iss >> r_value;  
             }
 
-            int32_t output;
+            int64_t output;
             if(col_update.operand == "+"){
                 output = l_value + r_value;
             }
@@ -1387,7 +1387,7 @@ RowUpdates* SQLTransformer::AddTableWriteRow(TableWrite *table_write, const ColR
     return row_update;
 }
 
-std::variant<bool, int32_t, std::string> DecodeType(std::unique_ptr<query_result::Field> &field, const std::string &col_type){
+std::variant<bool, int64_t, std::string> DecodeType(std::unique_ptr<query_result::Field> &field, const std::string &col_type){
     size_t nbytes;
     const char* field_val_char = field->get(&nbytes);
     std::string field_val(field_val_char, nbytes);
@@ -1405,13 +1405,13 @@ std::variant<bool, int32_t, std::string> DecodeType(std::unique_ptr<query_result
                 // }
                 // std::cerr << "Query Result. Col " << i << ": " << output_row << std::endl;
 
-std::variant<bool, int32_t, std::string> DecodeType(std::string &enc_value, const std::string &col_type){
+std::variant<bool, int64_t, std::string> DecodeType(std::string &enc_value, const std::string &col_type){
     //Based on Syntax from: https://www.postgresqltutorial.com/postgresql-tutorial/postgresql-data-types/ && https://www.postgresql.org/docs/current/datatype-numeric.html 
     //Resource for std::variant: https://www.cppstories.com/2018/06/variant/ 
    
     //Note: currently the generated types are PostGresSQL types. We could however also input "normal types" and transform them into SQL types only for Peloton.
 
-    std::variant<bool, int32_t, std::string> type_variant;   //TODO: can pass variant to cereal? Then don't need all the redundant code
+    std::variant<bool, int64_t, std::string> type_variant;   //TODO: can pass variant to cereal? Then don't need all the redundant code
 
     //match on col_type
     if(col_type == "VARCHAR" || col_type == "TEXT"){ //FIXME: VARCHAR might actually look like "VARCHAR (n)"
@@ -1425,17 +1425,17 @@ std::variant<bool, int32_t, std::string> DecodeType(std::string &enc_value, cons
     //     type_variant = std::move(dec_value);
     // }
     else if(col_type == "INT" || col_type == "BIGINT" || col_type == "SMALLINT"){ // SMALLINT (2byteS) INT (4), BIGINT (8), DOUBLE () 
-        //int32_t dec_value;  //FIXME: Peloton encodes everything as string currently. So must DeCerialize as string and only then convert.
+        //int64_t dec_value;  //FIXME: Peloton encodes everything as string currently. So must DeCerialize as string and only then convert.
         std::string dec_value;
         DeCerealize(enc_value, dec_value);
         //std::cerr << "DEC VALUE: " << dec_value << std::endl; 
 
-        int32_t dec = std::stoi(dec_value);
+        int64_t dec = std::stoi(dec_value); 
         type_variant = std::move(dec);
 
     }
     // else if(col_type == "INT []" || col_type == "BIGINT []" || col_type == "SMALLINT []"){
-    //     std::vector<int32_t> dec_value;
+    //     std::vector<int64_t> dec_value;
     //     DeCerealize(enc_value, dec_value);
     //     type_variant = std::move(dec_value);
     // }
