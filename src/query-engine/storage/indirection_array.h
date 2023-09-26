@@ -19,7 +19,7 @@ const size_t INDIRECTION_ARRAY_MAX_SIZE = 1000;
 const size_t INVALID_INDIRECTION_OFFSET = std::numeric_limits<size_t>::max();
 
 class IndirectionArray {
- public:
+public:
   IndirectionArray(oid_t oid) : oid_(oid) {
     indirections_.reset(new indirection_array_t());
   }
@@ -46,15 +46,17 @@ class IndirectionArray {
 
   inline oid_t GetOid() { return oid_; }
 
- private:
+  std::atomic<size_t> indirection_counter_ = ATOMIC_VAR_INIT(0);
+
+private:
   typedef std::array<ItemPointer, INDIRECTION_ARRAY_MAX_SIZE>
       indirection_array_t;
 
   std::unique_ptr<indirection_array_t> indirections_;
 
-  std::atomic<size_t> indirection_counter_ = ATOMIC_VAR_INIT(0);
+  // std::atomic<size_t> indirection_counter_ = ATOMIC_VAR_INIT(0);
 
   oid_t oid_;
 };
-}
-}
+} // namespace storage
+} // namespace peloton
