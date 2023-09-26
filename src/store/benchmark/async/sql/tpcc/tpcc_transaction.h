@@ -44,7 +44,7 @@ void load_row(std::unique_ptr<query_result::Row> row, T& t) {
 inline void load_row(std::unique_ptr<query_result::Row> row,
           tpcc::WarehouseRow& w)
 {
-  int32_t id;
+  uint32_t id;
   std::string name;
   std::string street_1;
   std::string street_2;
@@ -62,7 +62,7 @@ inline void load_row(std::unique_ptr<query_result::Row> row,
   row->get(6, &zip);
   row->get(7, &tax);
   row->get(8, &ytd);
-  w.set_id((uint32_t) id);
+  w.set_id(id);
   w.set_name(name);
   w.set_street_1(street_1);
   w.set_street_2(street_2);
@@ -76,8 +76,8 @@ inline void load_row(std::unique_ptr<query_result::Row> row,
 inline void load_row(std::unique_ptr<query_result::Row> row,
           tpcc::DistrictRow& d)
 {
-  int32_t id;
-  int32_t w_id;
+  uint32_t id;
+  uint32_t w_id;
   std::string name;
   std::string street_1;
   std::string street_2;
@@ -86,7 +86,7 @@ inline void load_row(std::unique_ptr<query_result::Row> row,
   std::string zip;
   int32_t tax;
   int32_t ytd;
-  int32_t next_o_id;
+  uint32_t next_o_id;
   row->get(0, &id);
   row->get(1, &w_id);
   row->get(2, &name);
@@ -98,8 +98,8 @@ inline void load_row(std::unique_ptr<query_result::Row> row,
   row->get(8, &tax);
   row->get(9, &ytd);
   row->get(10, &next_o_id);
-  d.set_id((uint32_t) id);
-  d.set_w_id((uint32_t) w_id);
+  d.set_id(id);
+  d.set_w_id(w_id);
   d.set_name(name);
   d.set_street_1(street_1);
   d.set_street_2(street_2);
@@ -108,20 +108,20 @@ inline void load_row(std::unique_ptr<query_result::Row> row,
   d.set_zip(zip);
   d.set_tax(tax);
   d.set_ytd(ytd);
-  d.set_next_o_id((uint32_t) next_o_id);
+  d.set_next_o_id(next_o_id);
 }
  
 inline void load_row(std::unique_ptr<query_result::Row> row,
           tpcc::OrderRow& o)
 {
-  int32_t id;
-  int32_t d_id;
-  int32_t w_id;
-  int32_t c_id;
-  int32_t entry_d;
-  int32_t carrier_id;
-  int32_t ol_cnt;
-  int32_t all_local;
+  uint32_t id;
+  uint32_t d_id;
+  uint32_t w_id;
+  uint32_t c_id;
+  uint32_t entry_d;
+  uint32_t carrier_id;
+  uint32_t ol_cnt;
+  uint32_t all_local;
   row->get(0, &id);
   row->get(1, &d_id);
   row->get(2, &w_id);
@@ -130,27 +130,27 @@ inline void load_row(std::unique_ptr<query_result::Row> row,
   row->get(5, &carrier_id);
   row->get(6, &ol_cnt);
   row->get(7, &all_local);
-  o.set_id((uint32_t) id);
-  o.set_d_id((uint32_t) d_id);
-  o.set_w_id((uint32_t) w_id);
-  o.set_c_id((uint32_t) c_id);
-  o.set_entry_d((uint32_t) entry_d);
-  o.set_carrier_id((uint32_t) carrier_id);
-  o.set_ol_cnt((uint32_t) ol_cnt);
-  o.set_all_local((uint32_t) all_local);
+  o.set_id(id);
+  o.set_d_id(d_id);
+  o.set_w_id(w_id);
+  o.set_c_id(c_id);
+  o.set_entry_d(entry_d);
+  o.set_carrier_id(carrier_id);
+  o.set_ol_cnt(ol_cnt);
+  o.set_all_local(all_local);
 }
 
 inline void load_row(std::unique_ptr<query_result::Row> row,
           tpcc::OrderLineRow& o)
 {
-  int32_t  o_id;
-  int32_t  d_id;
-  int32_t  w_id;
-  int32_t  number;
-  int32_t  i_id;
-  int32_t  supply_w_id;
-  int32_t  delivery_d;
-  int32_t  quantity;
+  uint32_t  o_id;
+  uint32_t  d_id;
+  uint32_t  w_id;
+  uint32_t  number;
+  uint32_t  i_id;
+  uint32_t  supply_w_id;
+  uint32_t  delivery_d;
+  uint32_t  quantity;
   int32_t amount;
   std::string dist_info;
   row->get(0, &o_id);
@@ -161,14 +161,14 @@ inline void load_row(std::unique_ptr<query_result::Row> row,
   row->get(5, &supply_w_id);
   row->get(6, &delivery_d);
   row->get(7, &quantity);
-  o.set_o_id((uint32_t) o_id);
-  o.set_d_id((uint32_t) d_id);
-  o.set_w_id((uint32_t) w_id);
-  o.set_number((uint32_t) number);
-  o.set_i_id((uint32_t) i_id);
-  o.set_supply_w_id((uint32_t) supply_w_id);
-  o.set_delivery_d((uint32_t) delivery_d);
-  o.set_quantity((uint32_t) quantity);
+  o.set_o_id(o_id);
+  o.set_d_id(d_id);
+  o.set_w_id(w_id);
+  o.set_number(number);
+  o.set_i_id(i_id);
+  o.set_supply_w_id(supply_w_id);
+  o.set_delivery_d(delivery_d);
+  o.set_quantity(quantity);
   o.set_amount(amount);
   o.set_dist_info(dist_info);
 }
@@ -176,9 +176,9 @@ inline void load_row(std::unique_ptr<query_result::Row> row,
 inline void load_row(std::unique_ptr<query_result::Row> row,
           tpcc::CustomerRow& c)
 {
-  int32_t  id;
-  int32_t  d_id;
-  int32_t  w_id;
+  uint32_t  id;
+  uint32_t  d_id;
+  uint32_t  w_id;
   std::string first;
   std::string middle;
   std::string last;
@@ -188,14 +188,14 @@ inline void load_row(std::unique_ptr<query_result::Row> row,
   std::string state;
   std::string zip;
   std::string phone;
-  int32_t  since;
+  uint32_t  since;
   std::string credit;
-  int32_t credit_lim;
-  double discount;
-  double balance;
-  double ytd_payment;
-  int32_t  payment_cnt;
-  int32_t  delivery_cnt;
+  uint32_t credit_lim;
+  int32_t discount;
+  int32_t balance;
+  int32_t ytd_payment;
+  uint32_t  payment_cnt;
+  uint32_t  delivery_cnt;
   std::string data;
   row->get(0, &id);
   row->get(1, &d_id);
@@ -218,9 +218,9 @@ inline void load_row(std::unique_ptr<query_result::Row> row,
   row->get(18, &payment_cnt);
   row->get(19, &delivery_cnt);
   row->get(20, &data);
-  c.set_id((uint32_t) id);
-  c.set_d_id((uint32_t) d_id);
-  c.set_w_id((uint32_t) w_id);
+  c.set_id(id);
+  c.set_d_id(d_id);
+  c.set_w_id(w_id);
   c.set_first(first);
   c.set_middle(middle);
   c.set_last(last);
@@ -230,14 +230,14 @@ inline void load_row(std::unique_ptr<query_result::Row> row,
   c.set_state(state);
   c.set_zip(zip);
   c.set_phone(phone);
-  c.set_since((uint32_t) since);
+  c.set_since(since);
   c.set_credit(credit);
-  c.set_credit_lim((uint32_t) credit_lim);
+  c.set_credit_lim(credit_lim);
   c.set_discount(discount);
   c.set_balance(balance);
   c.set_ytd_payment(ytd_payment);
-  c.set_payment_cnt((uint32_t) payment_cnt);
-  c.set_delivery_cnt((uint32_t) delivery_cnt);
+  c.set_payment_cnt(payment_cnt);
+  c.set_delivery_cnt(delivery_cnt);
   c.set_data(data);
 }
  
@@ -247,9 +247,13 @@ inline void load_row(std::unique_ptr<query_result::Row> row,
   uint32_t id;
   uint32_t im_id;
   std::string name;
-  double price;
+  uint32_t price;
   std::string data;
-
+  row->get(0, &id);
+  row->get(1, &im_id);
+  row->get(2, &name);
+  row->get(3, &price);
+  row->get(4, &data);
   i.set_id(id);
   i.set_im_id(im_id);
   i.set_name(name);
@@ -277,8 +281,23 @@ inline void load_row(std::unique_ptr<query_result::Row> row,
   int32_t order_cnt;
   int32_t remote_cnt;
   std::string data;
-
-
+  row->get(0, &i_id);
+  row->get(1, &w_id);
+  row->get(2, &quantity);
+  row->get(3, &dist_01);
+  row->get(4, &dist_02);
+  row->get(5, &dist_03);
+  row->get(6, &dist_04);
+  row->get(7, &dist_05);
+  row->get(8, &dist_06);
+  row->get(9, &dist_07);
+  row->get(10, &dist_08);
+  row->get(11, &dist_09);
+  row->get(12, &dist_10);
+  row->get(13, &ytd);
+  row->get(14, &order_cnt);
+  row->get(15, &remote_cnt);
+  row->get(16, &data);
   s.set_i_id(i_id);
   s.set_w_id(w_id);
   s.set_quantity(quantity);
@@ -305,7 +324,9 @@ inline void load_row(std::unique_ptr<query_result::Row> row,
   uint32_t id;
   uint32_t d_id;
   uint32_t w_id;
-
+  row->get(0, &id);
+  row->get(1, &d_id);
+  row->get(2, &w_id);
   new_o.set_o_id(id);
   new_o.set_d_id(d_id);
   new_o.set_w_id(w_id);
