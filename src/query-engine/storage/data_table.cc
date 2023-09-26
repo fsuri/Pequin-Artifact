@@ -371,6 +371,7 @@ ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple,
     auto ts = tile_group_header->GetBasilTimestamp(check.offset);
     auto curr_pointer = check;
     auto curr_tile_group_header = tile_group_header;
+    auto curr_tile_group = tile_group;
 
     /** NEW: for purge */
     while (ts > transaction->GetBasilTimestamp()) {
@@ -380,8 +381,8 @@ ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple,
       }
       curr_pointer =
           curr_tile_group_header->GetNextItemPointer(curr_pointer.offset);
-      curr_tile_group_header =
-          this->GetTileGroupById(curr_pointer.block)->GetHeader();
+      curr_tile_group = this->GetTileGroupById(curr_pointer.block);
+      curr_tile_group_header = curr_tile_group->GetHeader();
       ts = curr_tile_group_header->GetBasilTimestamp(curr_pointer.offset);
     }
 
@@ -437,26 +438,26 @@ ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple,
 
         bool same_columns = true;
         bool should_upgrade =
-            !tile_group_header->GetCommitOrPrepare(curr_pointer.offset) &&
+            !curr_tile_group_header->GetCommitOrPrepare(curr_pointer.offset) &&
             transaction->GetCommitOrPrepare();
 
         // NOTE: Check if we can upgrade a prepared tuple to committed
         // std::string encoded_key = target_table_->GetName();
-        const auto *schema = tile_group->GetAbstractTable()->GetSchema();
+        const auto *schema = curr_tile_group->GetAbstractTable()->GetSchema();
         for (uint32_t col_idx = 0; col_idx < schema->GetColumnCount();
              col_idx++) {
-          auto val1 = tile_group->GetValue(curr_pointer.offset, col_idx);
+          auto val1 = curr_tile_group->GetValue(curr_pointer.offset, col_idx);
           auto val2 = tuple->GetValue(col_idx);
 
           if (val1.ToString() != val2.ToString()) {
-            tile_group->SetValue(val2, curr_pointer.offset, col_idx);
+            // tile_group->SetValue(val2, curr_pointer.offset, col_idx);
             same_columns = false;
           }
         }
 
         if (should_upgrade && same_columns) {
           std::cout << "Upgrading from prepared to committed" << std::endl;
-          tile_group_header->SetCommitOrPrepare(curr_pointer.offset, true);
+          curr_tile_group_header->SetCommitOrPrepare(curr_pointer.offset, true);
         }
       }
 

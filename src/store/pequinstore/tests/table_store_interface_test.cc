@@ -220,8 +220,9 @@ void ReadFromStore(TableStore *table_store) {
   pequinstore::proto::ReadSet read_set_one;
   pequinstore::QueryReadSetMgr query_read_set_mgr_one(&read_set_one, 1, false);
 
-  std::string result = table_store->ExecReadQuery(
-      "SELECT * FROM test;", toy_ts_c, query_read_set_mgr_one);
+  std::string result =
+      table_store->ExecReadQuery("SELECT * FROM test WHERE a >= 8 OR a <= 0;",
+                                 toy_ts_c, query_read_set_mgr_one);
 
   sql::QueryResultProtoBuilder queryResultBuilder;
   queryResultBuilder.add_column("a");
