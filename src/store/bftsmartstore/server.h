@@ -33,6 +33,7 @@
 #include <mutex>
 #include <shared_mutex>
 
+#include "lib/message.h"
 #include "store/bftsmartstore/app.h"
 #include "store/bftsmartstore/server-proto.pb.h"
 #include "store/server.h"

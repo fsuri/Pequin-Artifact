@@ -98,7 +98,7 @@ void Server::HandleQuery(const TransportAddress &remote, proto::QueryRequest &ms
         query = msg.release_query(); //mutable_query()
     }
 
-    //Only process if below watermark.
+    //Only process if above watermark. I.e. ignore old queries
     clientQueryWatermarkMap::const_accessor qw;
     if(clientQueryWatermark.find(qw, query->client_id()) && qw->second >= query->query_seq_num()){
     //if(clientQueryWatermark[query->client_id()] >= query->query_seq_num()){
@@ -156,6 +156,15 @@ void Server::HandleQuery(const TransportAddress &remote, proto::QueryRequest &ms
             if(params.mainThreadDispatching && (!params.dispatchMessageReceive || params.query_params.parallel_queries)) FreeQueryRequestMessage(&msg);
             return;
         }
+    }
+
+    //If PointQuery: 
+    if(msg.is_point() && !msg.eager_exec()){ 
+        q.release(); //Release if hold
+        //Note: If Point uses Eager Exec --> Just use normal protocol path in order to possibly cache read set etc. //FIXME: Make sure is_designated_For_reply
+        ProcessPointQuery(msg.req_id(), query, remote);
+        if(params.mainThreadDispatching && (!params.dispatchMessageReceive || params.query_params.parallel_queries)) FreeQueryRequestMessage(&msg);
+        return;
     }
 
     //5) Buffer Query conent and timestamp (only buffer the first time)
@@ -279,6 +288,144 @@ void Server::HandleQuery(const TransportAddress &remote, proto::QueryRequest &ms
 }
 
 
+void Server::ProcessPointQuery(const uint64_t &reqId, proto::Query *query, const TransportAddress &remote){
+
+    Timestamp ts(query->timestamp()); 
+
+    Debug("PointQuery[%lu:%lu] %s.", query->query_seq_num(), query->client_id(), query->query_cmd().c_str());
+
+    if (CheckHighWatermark(ts)) {
+        // ignore request if beyond high watermark
+        Debug("Point Read timestamp beyond high watermark.");
+        delete query;
+        return;
+    }
+
+    proto::PointQueryResultReply *pointQueryReply = GetUnusedPointQueryResultReply(); 
+    pointQueryReply->set_req_id(reqId);
+    pointQueryReply->set_replica_id(id);
+
+    //1) Execute
+    proto::Write *write = pointQueryReply->mutable_write();
+    const proto::CommittedProof *committedProof;
+    std::string enc_primary_key;  //TODO: Replace with query->primary_enc_key()
+
+   
+    //If MVTSO: Read prepared, Set RTS
+    if (occType == MVTSO) {
+        //Sets RTS timestamp. Favors readers commit chances.
+        Debug("Set up RTS for PointQuery[%lu:%lu]", query->query_seq_num(), query->client_id());
+        SetRTS(ts, query->primary_enc_key());
+    }
+
+    table_store->ExecPointRead(query->query_cmd(), enc_primary_key, ts, write, committedProof);
+    delete query;
+
+    if(write->has_committed_value()){
+        UW_ASSERT(committedProof); //proof must exist
+        *pointQueryReply->mutable_proof() = *committedProof;
+    } 
+
+    if(TEST_QUERY){
+        ///////////
+        //Toy Transaction
+        std::string toy_txn("toy_txn");
+        Timestamp toy_ts(0, 2); //set to genesis time.
+        sql::QueryResultProtoBuilder queryResultBuilder;
+        queryResultBuilder.add_columns({"key_", "val_"});
+        std::vector<std::string> result_row = {"alice", "blonde"};
+        queryResultBuilder.add_row(result_row.begin(), result_row.end());
+        std::string toy_result = queryResultBuilder.get_result()->SerializeAsString();
+
+        //Panic("stop here");
+        // //Create Toy prepared Tx
+        if(id ==0){
+        
+            write->set_prepared_value(toy_result);
+            std::cerr << "SENT PREPARED RESULT: " << write->prepared_value() << std::endl;
+            write->set_prepared_txn_digest(toy_txn);
+            toy_ts.serialize(write->mutable_prepared_timestamp());
+        }
+    
+
+        //Create Toy committed Tx with genesis proof
+        // proto::CommittedProof *genesis_proof = new proto::CommittedProof();
+        // genesis_proof->mutable_txn()->set_client_id(0);
+        // genesis_proof->mutable_txn()->set_client_seq_num(0);
+        // toy_ts.serialize(genesis_proof->mutable_txn()->mutable_timestamp());
+
+        // committed.insert(std::make_pair(toy_txn, genesis_proof));  //TODO: Need to move this elsewhere so all servers have it.
+
+        // write->set_committed_value(toy_result);
+        // toy_ts.serialize(write->mutable_committed_timestamp());
+        // *pointQueryReply->mutable_proof() = *genesis_proof;
+
+
+        //Create Toy committed Tx with real proof tx -- create toy "real" QC
+
+        sql::QueryResultProtoBuilder queryResultBuilder2;
+        queryResultBuilder2.add_columns({"key_", "val_"});
+        result_row = {"alice", "black"};
+        queryResultBuilder2.add_row(result_row.begin(), result_row.end());
+        std::string toy_result2 = queryResultBuilder2.get_result()->SerializeAsString();
+
+        Timestamp toy_ts_c(0, 1);
+
+        proto::CommittedProof *real_proof = new proto::CommittedProof();
+        proto::Transaction *txn = real_proof->mutable_txn();
+        real_proof->mutable_txn()->set_client_id(0);
+        real_proof->mutable_txn()->set_client_seq_num(1);
+        toy_ts_c.serialize(real_proof->mutable_txn()->mutable_timestamp());
+        TableWrite &table_write = (*real_proof->mutable_txn()->mutable_table_writes())["datastore"];
+        RowUpdates *row = table_write.add_rows();
+        row->add_column_values("alice");
+        row->add_column_values("black");
+        WriteMessage *write_msg = real_proof->mutable_txn()->add_write_set();
+        write_msg->set_key("datastore#alice");
+        write_msg->mutable_rowupdates()->set_row_idx(0);
+
+        //Add relal qC:
+        // proto::Signatures &sigs = (*real_proof->mutable_p1_sigs())[id];
+        // sigs.add_sigs();
+        // SignMessage()
+
+        //committed[toy_txn]  = real_proof;  //TODO: Need to move this elsewhere so all servers have it.
+
+        write->set_committed_value(toy_result2);
+        
+        toy_ts_c.serialize(write->mutable_committed_timestamp());
+        *pointQueryReply->mutable_proof() = *real_proof;
+    }
+
+
+
+    ////////////
+    
+
+    //2) Sign & Send Reply
+    TransportAddress *remoteCopy = remote.clone();
+
+    //auto sendCB = [this, remoteCopy, readReply, c_id = msg.timestamp().id(), req_id=msg.req_id()]() {
+    //Debug("Sent ReadReply[%lu:%lu]", c_id, req_id);  
+    auto sendCB = [this, remoteCopy, pointQueryReply]() {
+        this->transport->SendMessage(this, *remoteCopy, *pointQueryReply);
+        delete remoteCopy;
+        //Panic("stop here");
+        FreePointQueryResultReply(pointQueryReply);
+    }; 
+
+     //TODO: This code does not sign a message if there is no value at all (or if verifyDeps == false and there is only a prepared, i.e. no committed, value) -- change it so it always signs. 
+    if (params.validateProofs && params.signedMessages && (write->has_committed_value() || (params.verifyDeps && write->has_prepared_value()))) { 
+        write = pointQueryReply->release_write();
+         
+        SignSendReadReply(write, pointQueryReply->mutable_signed_write(), sendCB);
+    }
+    else{
+       
+        sendCB();
+    }
+}
+
 void Server::ProcessQuery(queryMetaDataMap::accessor &q, const TransportAddress &remote, proto::Query *query, QueryMetaData *query_md){
 
     query_md->executed_query = true;
@@ -355,6 +502,7 @@ void Server::FindSnapshot(QueryMetaData *query_md, proto::Query *query){
     //                                                         //
     //
     //              EXEC BLACKBOX -- TBD
+    table_store->FindSnapshot(query_md->query_cmd, query_md->ts, query_md->snapshot_mgr);
     //                                                         //
     //                                                         //
     //                                                         //
@@ -408,7 +556,7 @@ void Server::FindSnapshot(QueryMetaData *query_md, proto::Query *query){
     //FIXME: TOY INSERT TESTING.
         //-- real tx-ids are cryptographic hashes of length 256bit = 32 byte.
             for(auto const&[tx_id, proof] : committed){
-                if(tx_id == "") continue;
+                if(tx_id == "" || tx_id == "toy_txn") continue;
                 const proto::Transaction *txn = &proof->txn();
                 query_md->snapshot_mgr.AddToLocalSnapshot(tx_id, txn, true);
                 Debug("Proposing committed txn_id [%s] for local Query Sync State[%lu:%lu:%d]", BytesToHex(tx_id, 16).c_str(), query->query_seq_num(), query->client_id(), query->retry_version());
@@ -556,7 +704,7 @@ void Server::HandleSync(const TransportAddress &remote, proto::SyncClientProposa
 
 void Server::ProcessSync(queryMetaDataMap::accessor &q, const TransportAddress &remote, proto::MergedSnapshot *merged_ss, const std::string *queryId, QueryMetaData *query_md) { 
 
-    query_md->merged_ss_msg = merged_ss; //FIXME: Don't delete at the end. 
+    query_md->merged_ss_msg = merged_ss; 
 
     //1) Determine all missing transactions 
     //query_md->missing_txns.clear();
@@ -1458,7 +1606,7 @@ void Server::UpdateWaitingQueriesTS(const uint64_t &txnTS, const std::string &tx
         }
         q.release();
     }
-
+    Debug("Completed all possible wake-ups for queries waiting on txn_id %s with ts_id %lu", BytesToHex(txnDigest, 16).c_str(), txnTS);
 }
 
 
@@ -1472,6 +1620,23 @@ std::string Server::ExecQuery(QueryReadSetMgr &queryReadSetMgr, QueryMetaData *q
     //                                                         //
     //
     //              EXEC BLACKBOX -- TBD
+
+
+       //If MVTSO: Read prepared, Set RTS
+    std::string serialized_result;
+    if(!materialize) serialized_result = table_store->ExecReadQuery(query_md->query_cmd, query_md->ts, queryReadSetMgr);
+    if(materialize) Warning("Do not yet support Snapshot materialization");
+
+    Debug("SERIALIZED RESULT: %lu", std::hash<std::string>{}(serialized_result));
+
+    if(occType == MVTSO && params.rtsMode > 0){
+        Debug("Set up all RTS for Query[%lu:%lu]", query_md->query_seq_num, query_md->client_id);
+        for(auto &read: queryReadSetMgr.read_set->read_set()){
+            SetRTS(query_md->ts, read.key());
+        }
+        //TODO: On Abort, Clear RTS.
+    }
+
     //                                                         //
     //                                                         //
     //                                                         //
@@ -1479,9 +1644,16 @@ std::string Server::ExecQuery(QueryReadSetMgr &queryReadSetMgr, QueryMetaData *q
     /////////////////////////////////////////////////////////////
     //TODO: Result should be of protobuf result type: --> can either return serialized value, or result object (probably easiest) -- but need serialized value anyways to check for equality.
 
+
+    for(auto &read : queryReadSetMgr.read_set->read_set()){
+        Debug("Read key %s with version [%lu:%lu]", read.key().c_str(), read.readtime().timestamp(), read.readtime().id());
+    }
+
+
     if(TEST_READ_SET){
 
         for(auto const&[tx_id, proof] : committed){
+            if(tx_id == "toy_txn") continue;
             const proto::Transaction *txn = &proof->txn();
             for(auto &write: txn->write_set()){
                 queryReadSetMgr.AddToReadSet(write.key(), txn->timestamp());
@@ -1490,7 +1662,7 @@ std::string Server::ExecQuery(QueryReadSetMgr &queryReadSetMgr, QueryMetaData *q
             //queryReadSetMgr.AddToDepSet(tx_id, query_md->useOptimisticTxId, txn->timestamp());
         }
         
-        //Creating Dummy keys for testing //FIXME: REPLACE 
+        //Creating Dummy keys for testing 
         for(int i=5;i > 0; --i){
             TimestampMessage ts;
             ts.set_id(query_md->ts.getID());
@@ -1506,7 +1678,7 @@ std::string Server::ExecQuery(QueryReadSetMgr &queryReadSetMgr, QueryMetaData *q
             // read->set_key(dummy_key);
             // *read->mutable_readtime() = ts;
         }
-        //Creating Dummy deps for testing //FIXME: Replace
+        //Creating Dummy deps for testing 
     
             //Write to Query Result; Release/Re-allocate temporarily if not sending;
             //For caching:
@@ -1518,12 +1690,12 @@ std::string Server::ExecQuery(QueryReadSetMgr &queryReadSetMgr, QueryMetaData *q
         //  i.e. if (params.maxDepDepth == -1 || DependencyDepth(txn) <= params.maxDepDepth)  (maxdepth = -1 means no limit)
         if (params.query_params.readPrepared && params.maxDepDepth > -2) {
 
-            //FIXME: JUST FOR TESTING.
+            //JUST FOR TESTING.
             for(preparedMap::const_iterator i=prepared.begin(); i!=prepared.end(); ++i ) {
                 const std::string &tx_id = i->first;
                 const proto::Transaction *txn = i->second.second;
 
-                queryReadSetMgr.AddToDepSet(tx_id, query_md->useOptimisticTxId, txn->timestamp());
+                queryReadSetMgr.AddToDepSet(tx_id, txn->timestamp());
 
                 // proto::Dependency *add_dep = query_md->queryResultReply->mutable_result()->mutable_query_read_set()->add_deps();
                 // add_dep->set_involved_group(groupIdx);
@@ -1538,18 +1710,22 @@ std::string Server::ExecQuery(QueryReadSetMgr &queryReadSetMgr, QueryMetaData *q
             }
         }
     }
-    //FIXME: Just for testing: Creating Dummy result 
-   
-  
-    std::string test_result_string = "success" + std::to_string(query_md->query_seq_num);
-    std::vector<std::string> result_row;
-    result_row.push_back(test_result_string);
-    sql::QueryResultProtoBuilder queryResultBuilder;
-    queryResultBuilder.add_column("result");
-    queryResultBuilder.add_row(result_row.begin(), result_row.end());
 
-    std::string dummy_result = queryResultBuilder.get_result()->SerializeAsString();
-    return dummy_result;
+    //Just for testing: Creating Dummy result 
+    if(TEST_QUERY){
+  
+        std::string test_result_string = "success" + std::to_string(query_md->query_seq_num);
+        std::vector<std::string> result_row;
+        result_row.push_back(test_result_string);
+        sql::QueryResultProtoBuilder queryResultBuilder;
+        queryResultBuilder.add_column("result");
+        queryResultBuilder.add_row(result_row.begin(), result_row.end());
+
+        std::string dummy_result = queryResultBuilder.get_result()->SerializeAsString();
+        return dummy_result;
+    }
+
+    return serialized_result;
 }
 
 void Server::ExecQueryEagerly(queryMetaDataMap::accessor &q, QueryMetaData *query_md, const std::string &queryId){
@@ -1557,9 +1733,24 @@ void Server::ExecQueryEagerly(queryMetaDataMap::accessor &q, QueryMetaData *quer
     query_md->executed_query = true;
 
     Debug("Eagerly Execute Query[%lu:%lu:%lu].", query_md->query_seq_num, query_md->client_id, query_md->retry_version);
-    QueryReadSetMgr queryReadSetMgr(query_md->queryResultReply->mutable_result()->mutable_query_read_set(), groupIdx); 
+    QueryReadSetMgr queryReadSetMgr(query_md->queryResultReply->mutable_result()->mutable_query_read_set(), groupIdx, false); 
 
     std::string result(ExecQuery(queryReadSetMgr, query_md, false));
+
+    Debug("Got result for Query[%lu:%lu:%lu].", query_md->query_seq_num, query_md->client_id, query_md->retry_version);
+
+    if(TEST_QUERY){
+        std::string toy_txn("toy_txn");
+        Timestamp toy_ts(0, 2); //set to genesis time.
+        sql::QueryResultProtoBuilder queryResultBuilder;
+        queryResultBuilder.add_columns({"key_", "val_"});
+        std::vector<std::string> result_row = {"alice", "blonde"};
+        queryResultBuilder.add_row(result_row.begin(), result_row.end());
+        result = queryResultBuilder.get_result()->SerializeAsString();
+    }
+
+
+
     query_md->has_result = true; 
 
     if(query_md->designated_for_reply){
@@ -1606,7 +1797,7 @@ void Server::HandleSyncCallback(queryMetaDataMap::accessor &q, QueryMetaData *qu
     // Build Read Set while executing; Add dependencies on demand as we observe uncommitted txn touched.
     //read set = map from key-> versions  //Note: Convert Timestamp to TimestampMessage
  
-    QueryReadSetMgr queryReadSetMgr(query_md->queryResultReply->mutable_result()->mutable_query_read_set(), groupIdx); 
+    QueryReadSetMgr queryReadSetMgr(query_md->queryResultReply->mutable_result()->mutable_query_read_set(), groupIdx, query_md->useOptimisticTxId); 
 
     std::string result(ExecQuery(queryReadSetMgr, query_md, true));
     query_md->has_result = true; 
@@ -1648,17 +1839,58 @@ void Server::HandleSyncCallback(queryMetaDataMap::accessor &q, QueryMetaData *qu
 
 void Server::SendQueryReply(QueryMetaData *query_md){ 
 
+
+    Debug("SendQuery Reply for Query[%lu:%lu:%lu]. ", query_md->query_seq_num, query_md->client_id, query_md->retry_version);
+    
     proto::QueryResultReply *queryResultReply = query_md->queryResultReply;
     proto::QueryResult *result = queryResultReply->mutable_result();
     proto::ReadSet *query_read_set;
-    //proto::LocalDeps *query_local_deps; //Deprecated --> made deps part of read set
 
+    //proto::LocalDeps *query_local_deps; //Deprecated --> made deps part of read set
+    Debug("QueryResult[%lu:%lu:%lu]: %s", query_md->query_seq_num, query_md->client_id, query_md->retry_version, BytesToHex(result->query_result(), 16).c_str());
+    //Testing:
+        //
+    
+
+        // query_result::QueryResult *p_queryResult = new sql::QueryResultProtoWrapper(result->query_result());
+        //   std::cerr << "IS empty?: " << (p_queryResult->empty()) << std::endl;
+        //     std::cerr << "num cols:" <<  (p_queryResult->num_columns()) << std::endl;
+        //     std::cerr << "num rows written:" <<  (p_queryResult->rows_affected()) << std::endl;
+        //     std::cerr << "num rows read:" << (p_queryResult->size()) << std::endl;
+        // std::string out;
+        // size_t nbytes;
+        // std::string output_row;
+        // for(int j = 0; j < p_queryResult->size(); ++j){
+        //        std::stringstream p_ss(std::ios::in | std::ios::out | std::ios::binary);
+        //        for(int i = 0; i<p_queryResult->num_columns(); ++i){
+        //            out = p_queryResult->get(j, i, &nbytes);
+        //           std::string p_output(out, nbytes);
+        //           p_ss << p_output;
+        //           output_row;
+        //           {
+        //             cereal::BinaryInputArchive iarchive(p_ss); // Create an input archive
+        //             iarchive(output_row); // Read the data from the archive
+        //           }
+        //           std::cerr << "Row: " <<j << " Col " << i << ": " << output_row << std::endl;
+        //        }
+               
+            
+        // }
+
+    //
 
     // 3) Generate Merkle Tree over Read Set, (optionally can also make it be over result, query id)
 
     bool testing_hash = false; //note, if this is on, the client will crash since it expects a read set but does not get one.
     if(testing_hash || params.query_params.cacheReadSet){
-        std::sort(result->mutable_query_read_set()->mutable_read_set()->begin(), result->mutable_query_read_set()->mutable_read_set()->end(), sortReadSetByKey); //Note: Sorts by key to ensure all replicas create the same hash. (Note: Not necessary if using ordered map)
+        try {
+            std::sort(result->mutable_query_read_set()->mutable_read_set()->begin(), result->mutable_query_read_set()->mutable_read_set()->end(), sortReadSetByKey); 
+        }
+        catch(...) {
+            Panic("Trying to send QueryReply with two different reads for the same key");
+        }
+        
+        //Note: Sorts by key to ensure all replicas create the same hash. (Note: Not necessary if using ordered map)
         result->set_query_result_hash(generateReadSetSingleHash(result->query_read_set()));
         //Temporarily release read-set and deps: This way we don't send it. Afterwards, re-allocate it. This avoid copying.
         query_read_set = result->release_query_read_set();
@@ -1670,7 +1902,6 @@ void Server::SendQueryReply(QueryMetaData *query_md){
                                                                                                         //TODO: Can avoid hashing leaves by making them unique strings? "[key:version]" should do the trick?
         //Debug("Read-set hash: %s", BytesToHex(query_md->result_hash, 16).c_str());
     }
-    
 
     //4) If Caching Read Set: Buffer Read Set (map: query_digest -> <result_hash, read set>) ==> implicitly done by storing read set + result hash in query_md 
    
@@ -1713,6 +1944,8 @@ void Server::SendQueryReply(QueryMetaData *query_md){
 
         }
         else{ //realistically don't ever need to batch query sigs --> batching helps with amortized sig generation, but not with verificiation since client don't forward proofs.
+
+
             if(params.signatureBatchSize == 1){
                 SignMessage(result, keyManager->GetPrivateKey(id), id, queryResultReply->mutable_signed_result());
             }
@@ -1725,7 +1958,7 @@ void Server::SendQueryReply(QueryMetaData *query_md){
             }
             
             this->transport->SendMessage(this, *query_md->original_client, *queryResultReply);
-             Debug("Sent Signed Query Resut for Query[%lu:%lu]", result->query_seq_num(), result->client_id());
+             Debug("Sent Signed Query Result for Query[%lu:%lu]", result->query_seq_num(), result->client_id());
             //delete queryResultReply;
             
             if(params.query_params.cacheReadSet){ //Restore read set and deps to be cached
@@ -1738,15 +1971,17 @@ void Server::SendQueryReply(QueryMetaData *query_md){
     }
     else{
         this->transport->SendMessage(this, *query_md->original_client, *queryResultReply);
-
+        Debug("Sent Signed Query Result (no sigs) for Query[%lu:%lu]", result->query_seq_num(), result->client_id());
         //Note: In this branch result is still part of queryResultReply; thus it suffices to only allocate back to result.
         if(params.query_params.cacheReadSet){ //Restore read set and deps to be cached
             result->set_allocated_query_read_set(query_read_set);
             //result->set_allocated_query_local_deps(query_local_deps);
         } 
+
     }
 
-      Debug("BEGIN READ SET:"); //FIXME: Remove -- just for testing
+    if(TEST_READ_SET){
+      Debug("BEGIN READ SET:"); // just for testing
               
                 for(auto &read : result->query_read_set().read_set()){
                 //for(auto &[key, ts] : read_set){
@@ -1755,7 +1990,8 @@ void Server::SendQueryReply(QueryMetaData *query_md){
                   //Debug("[group %d] Read key %s with version [%lu:%lu]", group, key.c_str(), ts.timestamp(), ts.id());
                 }
               
-              Debug("END READ SET.");
+       Debug("END READ SET.");
+    }
 
     return;
 
@@ -1839,33 +2075,46 @@ void Server::CleanQueries(proto::Transaction *txn, bool is_commit){
   //clientQueryWatermark[txn->client_id()] = txn->last_query_seq(); //only update timestamp for commit if greater than last one... //To do this atomically need hashmap lock.
 
   //For every query in txn: 
-  for(proto::QueryResultMetaData &query_md : *txn->mutable_query_set()){
-     queryMetaDataMap::accessor q;
-     bool hasQuery = queryMetaData.find(q, query_md.query_id());
-     if(hasQuery){
-        //Move read set if caching. Note: Don't need to move read_set_hash -> tx already stores it. 
-         if(is_commit && params.query_params.cacheReadSet){
-          proto::QueryGroupMeta &query_group_meta = (*query_md.mutable_group_meta())[groupIdx];
-           //Note: only move if read_set hash matches. It might not. But at least 2f+1 correct replicas do have it matching.
-          if(query_group_meta.read_set_hash() == q->second->queryResultReply->result().query_result_hash()){
-            proto::ReadSet *read_set = q->second->queryResultReply->mutable_result()->release_query_read_set();
+  for(proto::QueryResultMetaData &tx_query_md : *txn->mutable_query_set()){
+    queryMetaDataMap::accessor q;
+    bool hasQuery = queryMetaData.find(q, tx_query_md.query_id());
+    if(hasQuery){
+    QueryMetaData *local_query_md = q->second; //Local query_md
+
+    //Move read set if caching. Note: Don't need to move read_set_hash -> tx already stores it. 
+    if(is_commit && params.query_params.cacheReadSet){
+        proto::QueryGroupMeta &query_group_meta = (*tx_query_md.mutable_group_meta())[groupIdx];
+        //Note: only move if read_set hash matches. It might not. But at least 2f+1 correct replicas do have it matching.
+        if(query_group_meta.read_set_hash() == local_query_md->queryResultReply->result().query_result_hash()){
+            proto::ReadSet *read_set = local_query_md->queryResultReply->mutable_result()->release_query_read_set();
             query_group_meta.set_allocated_query_read_set(read_set);
-          }
-       }
-    
-       //erase current retry version from missing (Note: all previous ones must have been deleted via ClearMetaData)
-       queryMissingTxns.erase(QueryRetryId(query_md.query_id(), q->second->retry_version, (params.query_params.signClientQueries && params.query_params.cacheReadSet && params.hashDigest)));
-    
-       if(q->second != nullptr) delete q->second;
-       //q->second = nullptr;
-       queryMetaData.erase(q); 
-     }
-     //Don't erase Md entry --> Keeping it disallows future queries. ==> Improve by adding the client TS map forcing monotonic queries. (Map size O(clients) instead of O(queries))
-     //queryMetaData.erase(query_md.query_id())
-     q.release();
+        }
+         //Try to clear RTS in case it was moved:  //TODO: For commit: Could optimize RTS GC to remove all RTS >= committed TS (see CommitToStore) 
+        ClearRTS(query_group_meta.query_read_set().read_set(), local_query_md->ts);
+    }
+    else if(params.query_params.cacheReadSet){ //Try to clear RTS in case it was cached 
+        ClearRTS(local_query_md->queryResultReply->result().query_read_set().read_set(), local_query_md->ts);
+    }   
+    else{  //Try to clear RTS in case tx had it all along: 
+        proto::QueryGroupMeta &query_group_meta = (*tx_query_md.mutable_group_meta())[groupIdx];
+        ClearRTS(query_group_meta.query_read_set().read_set(), local_query_md->ts);
+    }
+
+    //erase current retry version from missing (Note: all previous ones must have been deleted via ClearMetaData)
+    queryMissingTxns.erase(QueryRetryId(tx_query_md.query_id(), q->second->retry_version, (params.query_params.signClientQueries && params.query_params.cacheReadSet && params.hashDigest)));
+
+   
+
+    if(local_query_md != nullptr) delete local_query_md;
+    //local_query_md = nullptr;
+    queryMetaData.erase(q); 
+    }
+    //Don't erase Md entry --> Keeping it disallows future queries. ==> Improve by adding the client TS map forcing monotonic queries. (Map size O(clients) instead of O(queries))
+    //queryMetaData.erase(tx_query_md.query_id())
+    q.release();
 
     //Delete any possibly subscribed queries.
-    subscribedQuery.erase(query_md.query_id());
+    subscribedQuery.erase(tx_query_md.query_id());
   }
        
   //TODO: Fallback;:

@@ -27,9 +27,6 @@
  * SOFTWARE.
  *
  **********************************************************************/
-
-#include "store/pequinstore/common.h"
-#include <sys/time.h>
 #include <algorithm>
 #include <variant>
 #include <iostream>
@@ -40,10 +37,6 @@
 #include <fmt/core.h>
 #include <fmt/ranges.h>
 
-
-#include "store/common/query_result/query_result_proto_wrapper.h"
-#include "store/common/query_result/query_result_proto_builder.h"
-
 #include "store/pequinstore/sql_interpreter.h"
 
 namespace pequinstore {
@@ -51,9 +44,19 @@ namespace pequinstore {
 using namespace std;
 
 
+//Note on Value quoting:
+    //We expect the following input syntax: https://www.prisma.io/dataguide/postgresql/short-guides/quoting-rules 
+        // Insert: Only strings are single quoted (i.e. TEXT or VARCHAR)
+        // Update SET: Only strings are single quoted ''  -- put differently, you can write "col1 = col1 + 5", or "col1 = 5" without quotes around 5.
+        // WHERE: Only strings single quoted. E.g write WHERE col1 = 5 or col = true or col = 'monkey'.
+    //The client side Transformer functions remove all quotes and produce a) a quote free primary key encoding, and b) a quote free TableWrite set
+    //The serverside Generator function adds quotes to all values indiscriminately
+    //Note: The Peloton result set (and consequently the QueryResult set) contains no quotes.
+
 //Table Write byte encoding:
     //"Stringify" all values
     // Peloton Engine is able to convert to appropriate Table type using Schema information.
+    // Currently we just turn Values into a joint Insert statement
 
     //Alternatively:
         // Could encode the column values as generic bytes using the cereal library
@@ -71,54 +74,68 @@ using namespace std;
 
 void SQLTransformer::RegisterTables(std::string &table_registry){ //TODO: This table registry file does not need to include the rows.
 
-    std::ifstream generated_tables(table_registry);
-    json tables_to_load = json::parse(generated_tables);
-       
-       //Load all tables. 
-       for(auto &[table_name, table_args]: tables_to_load.items()){ 
-          const std::vector<std::pair<std::string, std::string>> &column_names_and_types = table_args["column_names_and_types"];
-          const std::vector<uint32_t> &primary_key_col_idx = table_args["primary_key_col_idx"];
+    Debug("Register tables from registry: %s", table_registry.c_str());
+    if(table_registry.empty()) Panic("Did not provide a table_registry for a sql_bench");
 
-          ColRegistry &col_registry = TableRegistry[table_name];
-          //std::cerr << "Register table " << table_name << std::endl;
-          
-          //register column types
-          uint32_t i = 0;
-          for(auto &[col_name, col_type]: column_names_and_types){
-            col_registry.col_name_type[col_name] = col_type;
-            //col_registry.col_name_index.emplace_back(col_name, i++);
-            col_registry.col_name_index[col_name] = i++;
-            col_registry.col_names.push_back(col_name);
-            
-            //std::cerr << "   Register column " << col_name << " : " << col_type << std::endl;
-          }
-          //register primary key
-          for(auto &p_idx: primary_key_col_idx){
-            //col_registry.primary_key_cols_idx[column_names_and_types[p_idx].first] = p_idx;
-            col_registry.primary_key_cols_idx.emplace_back(column_names_and_types[p_idx].first, p_idx);
-            col_registry.primary_key_cols.insert(column_names_and_types[p_idx].first);
-            //std::cerr << "Primary key col " << column_names_and_types[p_idx].first << std::endl;
-          }
-          //register secondary indexes
-          for(auto &[index_name, index_col_idx]: table_args["indexes"].items()){
-             std::vector<std::string> &index_cols = col_registry.secondary_key_cols[index_name];
-              //std::cerr << "  Register secondary index " << index_name << std::endl;
-             for(auto &i_idx: index_col_idx){
-                index_cols.push_back(column_names_and_types[i_idx].first);
-                //std::cerr << "   Secondary key col " << column_names_and_types[i_idx].first << std::endl;
-             }
-          }
-       }
+    std::ifstream generated_tables(table_registry);
+    json tables_to_load;
+     try {
+        tables_to_load = json::parse(generated_tables);
+    }
+    catch (const std::exception &e) {
+        Panic("Failed to load Table JSON Schema");
+    }
+       
+    //Load all tables. 
+    for(auto &[table_name, table_args]: tables_to_load.items()){ 
+        const std::vector<std::pair<std::string, std::string>> &column_names_and_types = table_args["column_names_and_types"];
+        const std::vector<uint32_t> &primary_key_col_idx = table_args["primary_key_col_idx"];
+
+        ColRegistry &col_registry = TableRegistry[table_name];
+        //std::cerr << "Register table " << table_name << std::endl;
+        
+        //register column types
+        uint32_t i = 0;
+        for(auto &[col_name, col_type]: column_names_and_types){
+        col_registry.col_name_type[col_name] = col_type;
+        //col_registry.col_name_index.emplace_back(col_name, i++);
+        col_registry.col_name_index[col_name] = i++;
+        col_registry.col_names.push_back(col_name);
+        (col_type == "TEXT" || col_type == "VARCHAR") ? col_registry.col_quotes.push_back(true) : col_registry.col_quotes.push_back(false);
+        
+        //std::cerr << "   Register column " << col_name << " : " << col_type << std::endl;
+        }
+        //register primary key
+        for(auto &p_idx: primary_key_col_idx){
+        //col_registry.primary_key_cols_idx[column_names_and_types[p_idx].first] = p_idx;
+        col_registry.primary_key_cols_idx.emplace_back(column_names_and_types[p_idx].first, p_idx);
+        col_registry.primary_key_cols.insert(column_names_and_types[p_idx].first);
+        (col_registry.col_quotes[p_idx]) ? col_registry.p_col_quotes.push_back(true) : col_registry.p_col_quotes.push_back(false);
+        //std::cerr << "Primary key col " << column_names_and_types[p_idx].first << std::endl;
+        }
+        col_registry.primary_col_idx = primary_key_col_idx;
+
+        //register secondary indexes
+        for(auto &[index_name, index_col_idx]: table_args["indexes"].items()){
+            std::vector<std::string> &index_cols = col_registry.secondary_key_cols[index_name];
+            //std::cerr << "  Register secondary index " << index_name << std::endl;
+            for(auto &i_idx: index_col_idx){
+            index_cols.push_back(column_names_and_types[i_idx].first);
+            //std::cerr << "   Secondary key col " << column_names_and_types[i_idx].first << std::endl;
+            }
+        }
+    }
 }
 
 
-bool SQLTransformer::InterpretQueryRange(std::string &_query, std::string &table_name, std::map<std::string, std::string> &p_col_value){
+bool SQLTransformer::InterpretQueryRange(const std::string &_query, std::string &table_name, std::vector<std::string> &p_col_values, bool relax){
     //Using Syntax from: https://www.postgresqltutorial.com/postgresql-tutorial/postgresql-select/
 
     std::string_view query_statement(_query);
     //Parse Table name.
     size_t from_pos = query_statement.find(from_hook);
-    UW_ASSERT(from_pos != std::string::npos);
+    if(from_pos == std::string::npos) return false; //Reading full DB.
+    
     query_statement.remove_prefix(from_pos + from_hook.length());
 
     //If query contains a JOIN statement --> Cannot be point read.
@@ -130,10 +147,13 @@ bool SQLTransformer::InterpretQueryRange(std::string &_query, std::string &table
     if(where_pos == std::string::npos) return false;
     
     table_name = std::move(static_cast<std::string>(query_statement.substr(0, where_pos)));
+    //If query tries to read from multiple tables --> Cannot be point read. E.g. "Select * FROM table1, table2 WHERE"
+    if(size_t pos = table_name.find(","); pos != std::string::npos) return false;
    
     std::string_view cond_statement = query_statement.substr(where_pos + where_hook.length());
 
-    return CheckColConditions(cond_statement, table_name, p_col_value);
+    //std::cerr << "checking col conds: " << cond_statement << std::endl;
+    return CheckColConditions(cond_statement, table_name, p_col_values, relax); //TODO: Enable Relax
     //true == point, false == range read --> use table_name + p_col_value to do a point read.
 }
 
@@ -144,7 +164,7 @@ void SQLTransformer::TransformWriteStatement(std::string &_write_statement,
     size_t pos = 0;
 
     //TODO: Make write_statement a string view already.
-    std::string_view write_statement(_write_statement);
+    std::string_view write_statement(std::move(_write_statement));
 
     //Case 1) INSERT INTO <table_name> (<column_list>) VALUES (<value_list>)
     if( (pos = write_statement.find(insert_hook) != string::npos)){   //  if(write_statement.rfind("INSERT", 0) == 0){
@@ -165,6 +185,7 @@ void SQLTransformer::TransformWriteStatement(std::string &_write_statement,
     //Case 4) SELECT INTO : Not supported, write statement as Select followed by Insert Into (new table)? Or parse into INSERT INTO statement with nested SELECT (same logic)
 }
 
+//TODO: Modify to support multi-row insert -> create row in TableWrite for each parsed result.
 void SQLTransformer::TransformInsert(size_t pos, std::string_view &write_statement,
     std::string &read_statement, std::function<void(int, query_result::QueryResult*)>  &write_continuation, write_callback &wcb){
     //Based on Syntax from: https://www.postgresqltutorial.com/postgresql-tutorial/postgresql-insert/ 
@@ -172,7 +193,7 @@ void SQLTransformer::TransformInsert(size_t pos, std::string_view &write_stateme
 
      //Case 1) INSERT INTO <table_name> (<column_list>) VALUES (<value_list>)
               //Note: Value list may be the output of a nested SELECT statement. In that case, embed the nested select statement as part of the read_statement
-        //-> Turn into read_statement: Result(column, column_value) SELECT <primary_columns> FROM <table_name> WHERE <col = value>  // Nested Select Statement.
+        //-> Turn into read_statement: Result(column, column_value) SELECT <primary_columns> FROM <table_name> WHERE <col = value>  // Nested Select Statement. //Optimization: Don't send a Read.
         //             write_cont: if(Result.empty()) create TableWrite with primary column encoded key, column_list, value_list
         //     TODO: Need to add to read set the time stamp of read "empty" version: I.e. for no existing version (result = empty) -> 0 (genesis TS); for deleted version --> version that deleted row.
                                                                                         // I think it's always fine to just set version to 0 here.
@@ -230,6 +251,10 @@ void SQLTransformer::TransformInsert(size_t pos, std::string_view &write_stateme
         }
         // Done.
     }
+
+    auto itr = TableRegistry.find(table_name);
+    UW_ASSERT(itr != TableRegistry.end()); //Panic if ColRegistry does not exist.
+    const ColRegistry &col_registry = itr->second;//TableRegistry[table_name];
     
     //4) Extract values
     // Remove "()"
@@ -252,13 +277,15 @@ void SQLTransformer::TransformInsert(size_t pos, std::string_view &write_stateme
                                                                             //Callback Write_cont ==> Loop through results and apply update with arithmetic.
 
     // split on ", "
-    // add item inbetween to values vector                                    
+    // add item inbetween to values vector    
+    int i = 0;        //remove quotes if applicable                        
     size_t next_val;                                                                
     while((next_val = values_statement.find(", ")) != string::npos){
-        value_list.push_back(values_statement.substr(0, next_val)); //value_list.push_back(std::move(static_cast<std::string>(values_statement.substr(0, next_val))));
+        std::string_view curr_val = values_statement.substr(0, next_val);
+        value_list.push_back(std::move(TrimValue(curr_val, col_registry.col_quotes[i++]))); //value_list.push_back(std::move(static_cast<std::string>(values_statement.substr(0, next_val))));
         values_statement = values_statement.substr(next_val+2);
     }
-    value_list.push_back(std::move(values_statement)); //value_list.push_back(std::move(static_cast<std::string>(values_statement))); //push back last value (only remaining).
+    value_list.push_back(std::move(TrimValue(values_statement, col_registry.col_quotes[i++]))); //value_list.push_back(std::move(static_cast<std::string>(values_statement))); //push back last value (only remaining).
 
     // Done.
             
@@ -271,9 +298,6 @@ void SQLTransformer::TransformInsert(size_t pos, std::string_view &write_stateme
     
     std::vector<const std::string_view*> primary_key_column_values;
 
-    auto itr = TableRegistry.find(table_name);
-    UW_ASSERT(itr != TableRegistry.end()); //Panic if ColRegistry does not exist.
-    const ColRegistry &col_registry = itr->second;//TableRegistry[table_name];
 
     UW_ASSERT(value_list.size() == col_registry.col_name_type.size());
 
@@ -321,53 +345,100 @@ void SQLTransformer::TransformInsert(size_t pos, std::string_view &write_stateme
     std::string enc_key = EncodeTableRow(table_name, primary_key_column_values);
 
     //////// Create Write continuation:  
-    write_continuation = [this, wcb, enc_key, table_name, col_registry_ptr = &col_registry, value_list](int status, query_result::QueryResult* result){
+
+     write_continuation = [this, wcb](int status, query_result::QueryResult* result){
         //TODO: Does one need to use status? --> Query should not fail?
-        if(result->empty()){
-
-            //Write Table Version itself. //Only for kv-store.
-            WriteMessage *table_ver = txn->add_write_set();
-            table_ver->set_key(table_name);
-            table_ver->set_value("");
-
-            
-            //Read genesis timestamp (0) for key ==> FIXME: THIS CURRENTLY DOES NOT WORK WITH EXISTING OCC CHECK.
-            ReadMessage *read = txn->add_read_set();
-            read->set_key(enc_key);
-            read->mutable_readtime()->set_id(0);
-            read->mutable_readtime()->set_timestamp(0);
-
-            //Create Table Write for key. Note: Enc_key encodes table_name + primary key column values.
-            WriteMessage *write = txn->add_write_set();
-            write->set_key(enc_key);
-            // // for(int i=0; i<column_list.size(); ++i){
-            // //     (*write->mutable_rowupdates()->mutable_attribute_writes())[column_list[i]] = value_list[i];
-            // // }
-            // for(auto &[col_name, col_idx]: col_registry_ptr->col_name_index){
-            //     (*write->mutable_rowupdates()->mutable_attribute_writes())[col_name] = value_list[col_idx];
-            // }
-
-            //New version: 
-            TableWrite &table_write = (*txn->mutable_table_writes())[table_name];
-            if(table_write.column_names().empty()) *table_write.mutable_column_names() = {col_registry_ptr->col_names.begin(), col_registry_ptr->col_names.end()}; //set columns if first TableWrite
-            RowUpdates *row_update = table_write.add_rows();
-            *row_update->mutable_column_values() = {value_list.begin(), value_list.end()};
-            // for(auto &[col_name, col_idx]: col_registry_ptr->col_name_index){
-            //     std::string *col_val = row_update->add_column_values();
-            //     *col_val = std::move(value_list[col_idx]);
-            // }
-
-            
-            //Create result object with rows affected = 1.
-            result->set_rows_affected(1);
-            wcb(REPLY_OK, result);
-        }
-        else{
-            //Create result object with rows affected = 0.
-            result->set_rows_affected(0);
-            wcb(REPLY_OK, result);
-        }
+        
+        //Create result object with rows affected = 1.
+        result->set_rows_affected(1);
+        wcb(REPLY_OK, result); 
     };
+
+    //Write Table Version itself. //Only for kv-store.   
+    //-- Note: If a TX issues many Inserts => we'll write table_version redundantly to write set -- However, these are all ignored by Prepare/Commit & filtered out in LockTxnKeys_scoped
+    //Safe but wasteful (message bigger than need be + CC checks keys redundantly) // TODO: Improve: Either filter out during client sorting; or better: only when submitting a TXN for commit, add key per table write
+        // WriteMessage *table_ver = txn->add_write_set();
+        // table_ver->set_key(table_name);
+        // table_ver->set_value("");
+
+
+        
+        //Read genesis timestamp (0) for key ==> FIXME: THIS CURRENTLY DOES NOT WORK WITH EXISTING OCC CHECK.
+        ReadMessage *read = txn->add_read_set();
+        read->set_key(enc_key);
+        read->mutable_readtime()->set_id(0);
+        read->mutable_readtime()->set_timestamp(0);
+
+        //Create Table Write for key. Note: Enc_key encodes table_name + primary key column values.
+        WriteMessage *write = txn->add_write_set();
+        write->set_key(enc_key);
+        // // for(int i=0; i<column_list.size(); ++i){
+        // //     (*write->mutable_rowupdates()->mutable_attribute_writes())[column_list[i]] = value_list[i];
+        // // }
+        // for(auto &[col_name, col_idx]: col_registry_ptr->col_name_index){
+        //     (*write->mutable_rowupdates()->mutable_attribute_writes())[col_name] = value_list[col_idx];
+        // }
+
+        //New version: 
+        TableWrite *table_write = AddTableWrite(table_name, col_registry);
+        table_write->set_changed_table(true); //Add Table Version.
+        write->mutable_rowupdates()->set_row_idx(table_write->rows().size()); //set row_idx for proof reference
+
+        RowUpdates *row_update = table_write->add_rows();
+        *row_update->mutable_column_values() = {value_list.begin(), value_list.end()};
+        // for(auto &[col_name, col_idx]: col_registry_ptr->col_name_index){
+        //     std::string *col_val = row_update->add_column_values();
+        //     *col_val = std::move(value_list[col_idx]);
+        // }
+
+    //Write cont that takes in a result (from read)
+    // write_continuation = [this, wcb, enc_key, table_name, col_registry_ptr = &col_registry, value_list](int status, query_result::QueryResult* result){
+    //     //TODO: Does one need to use status? --> Query should not fail?
+    //     if(result->empty()){
+
+    //         //Write Table Version itself. //Only for kv-store.
+    //         WriteMessage *table_ver = txn->add_write_set();
+    //         table_ver->set_key(table_name);
+    //         table_ver->set_value("");
+
+            
+    //         //Read genesis timestamp (0) for key ==> FIXME: THIS CURRENTLY DOES NOT WORK WITH EXISTING OCC CHECK.
+    //         ReadMessage *read = txn->add_read_set();
+    //         read->set_key(enc_key);
+    //         read->mutable_readtime()->set_id(0);
+    //         read->mutable_readtime()->set_timestamp(0);
+
+    //         //Create Table Write for key. Note: Enc_key encodes table_name + primary key column values.
+    //         WriteMessage *write = txn->add_write_set();
+    //         write->set_key(enc_key);
+    //         // // for(int i=0; i<column_list.size(); ++i){
+    //         // //     (*write->mutable_rowupdates()->mutable_attribute_writes())[column_list[i]] = value_list[i];
+    //         // // }
+    //         // for(auto &[col_name, col_idx]: col_registry_ptr->col_name_index){
+    //         //     (*write->mutable_rowupdates()->mutable_attribute_writes())[col_name] = value_list[col_idx];
+    //         // }
+
+    //         //New version: 
+    //         TableWrite *table_write = AddTableWrite(table_name, *col_registry_ptr);
+    //         write->mutable_rowupdates()->set_row_idx(table_write->rows().size()); //set row_idx for proof reference
+    //         RowUpdates *row_update = table_write->add_rows();
+    //         *row_update->mutable_column_values() = {value_list.begin(), value_list.end()};
+    //         // for(auto &[col_name, col_idx]: col_registry_ptr->col_name_index){
+    //         //     std::string *col_val = row_update->add_column_values();
+    //         //     *col_val = std::move(value_list[col_idx]);
+    //         // }
+
+            
+    //         //Create result object with rows affected = 1.
+    //         result->set_rows_affected(1);
+    //         wcb(REPLY_OK, result);
+    //     }
+    //     else{
+    //         //Create result object with rows affected = 0.
+    //         result->set_rows_affected(0);
+    //         wcb(REPLY_OK, result);
+    //     }
+    // };
 
     return;
 
@@ -450,59 +521,141 @@ void SQLTransformer::TransformUpdate(size_t pos, std::string_view &write_stateme
                // For each row in result, map primary key to the primary key in the query read set to identify the read version.
                // Note: if we want to support parallel writes (async) then we might need to identify the query explicitly (rather than just checking the latest query seq)
                                         
-    write_continuation = [this, wcb, table_name, col_updates](int status, query_result::QueryResult* result){
+    
+    write_continuation = [this, wcb, table_name, col_updates](int status, query_result::QueryResult* result) mutable {
+
+        //std::cerr << "TEST WRITE CONT" << std::endl;
+        Debug("Issuing write_continuation"); //FIXME: Debug doesnt seem to be registered
+
+        if(result->empty()){
+            Debug("No rows to update");
+            result->set_rows_affected(result->size()); 
+            wcb(REPLY_OK, result);
+        }
+    
 
         auto itr = TableRegistry.find(table_name);
         UW_ASSERT(itr != TableRegistry.end());
         ColRegistry &col_registry = itr->second; //TableRegistry[table_name];
 
          //Write Table Version itself. //Only for kv-store. //FIXME: This is for coarse CC -- Update conflicts with ALL Selects on Table
-        WriteMessage *table_ver = txn->add_write_set();
-        table_ver->set_key(table_name);
-        table_ver->set_value("");
+        //TODO: Ideally UPDATE statement does not need to change TableVersion: It does not create or remove any rows. I.e. the Table "stays the same"
+        //However, currently updates do need to change the TableVersion. Why? Because Updates change the Index, and the Index implicitly creates an "Active" Read Set for scans.
+            //I.e. due to an update, a scan might miss reading a given row (this is indistinguishable for us as if the row as inserted later/deleted etc)
+        // WriteMessage *table_ver = txn->add_write_set();
+        // table_ver->set_key(table_name);
+        // table_ver->set_value("");
+        bool changed_table = false; // false //FOR NOW ALWAYS SETTING TO TRUE due to UPDATE INDEX issue (see above comment) TODO: Implement TableColumnVersion optimization
 
+        //Write TableColVersions
+        for(auto &[col, _]: col_updates){
+            WriteMessage *write = txn->add_write_set();   
+            write->set_key(table_name + unique_delimiter + std::string(col));  
+            write->set_delay(true);
+             //If a TX has multiple Queries with the same Col updates there will be duplicates. Does that matter? //Writes are sorted to avoid deadlock.
+             //TODO: to avoid duplicates: store the idx of the cols accessed and write Version only later.
+        }
+
+        TableWrite *table_write = AddTableWrite(table_name, col_registry);
+       
         //For each row in query result
         for(int i = 0; i < result->size(); ++i){
-            std::unique_ptr<query_result::Row> row = (*result)[i];
+            std::unique_ptr<query_result::Row> row = (*result)[i]; 
 
             //Note: Enc key is based on pkey values, not col names!!!  -- if we want access to index; can store in primary key map too.
             std::vector<std::string> primary_key_column_values;
             
             WriteMessage *write = txn->add_write_set();
+            write->mutable_rowupdates()->set_row_idx(table_write->rows().size()); //set row_idx for proof reference
             
-    //New version: 
-            RowUpdates *row_update = AddTableWriteRow(table_name, col_registry);
-            //row_update->mutable_column_values()->Resize(col_registry.col_names.size(), ""); Resize seems to not work for strings
+            RowUpdates *row_update = AddTableWriteRow(table_write, col_registry); //row_update->mutable_column_values()->Resize(col_registry.col_names.size(), ""); Resize seems to not work for strings
             //std::cerr << "Row size: " <<  row_update->mutable_column_values()->size() << std::endl;
+
           
             //TODO: Do this for UPDATE and DELETE too. //TODO: For Delete: Set all columns. Set values only for the columns we care about.
+            bool update_primary_key = false;
+            std::vector<std::string> backup_primary_key_column_values;
 
             // For col in col_updates update the columns specified by update_cols. Set value to update_values
-            for(int j=0; j<row->columns(); ++j){
+            for(int j=0; j<row->num_columns(); ++j){
                 const std::string &col = row->name(j);
+               
                 std::unique_ptr<query_result::Field> field = (*row)[j];
-              
+          
                 //Deserialize encoding to be a stringified type (e.g. whether it's int/bool/string store all as normal readable string)
-                auto field_val(DecodeType(field, col_registry.col_name_type[col]));
+                const std::string &col_type = col_registry.col_name_type[col];
+                auto field_val(DecodeType(field, col_type));
                 //std::string field_val(DecodeType(field, col_registry.col_name_type[col]));
 
-                if(col_registry.primary_key_cols.count(col)){
-                      // //Isolate primary keys ==> create encoding and table write
-                    primary_key_column_values.emplace_back(std::visit(StringVisitor(), field_val));
-                }
-                //std::cerr << "Checking column " << col << " with field " << std::visit(StringVisitor(), field_val) << std::endl;
+
+                std::cerr << "Checking column: " << col << " , with field " << std::visit(StringVisitor(), field_val) << std::endl;
                 
                
                 //Replace value with col value if applicable. Then operate arithmetic by casting ops to uint64_t and then turning back to string.
                 //(*write->mutable_rowupdates()->mutable_attribute_writes())[col] = std::move(GetUpdateValue(col, field_val, field, col_updates));
-                (*row_update->mutable_column_values())[col_registry.col_name_index[col]] = std::move(GetUpdateValue(col, field_val, field, col_updates)); //Realistically row columns will be in correct order. But in case they are not, must insert at the right position.
+                bool change_val = false;
+                std::string set_val = GetUpdateValue(col, field_val, field, col_updates, col_type, change_val);
+                //TODO: return bool if set_val is changed. In that case, record which columsn changed. and add a CC-store write entry per column updated.
+               
+                if(col_registry.primary_key_cols.count(col)){
+                   
+                    if(!update_primary_key && change_val){ //If primary key changes: Create TableWrite/WriteMsg for deletion of current row.
+                        update_primary_key = true;
+                        backup_primary_key_column_values = primary_key_column_values; //Copy map
+                    } 
+
+                     //Isolate primary keys ==> create encoding and table write
+                    primary_key_column_values.emplace_back(set_val);
+                   
+                    if(update_primary_key){ //If primary key changes: Record current value too
+                        backup_primary_key_column_values.emplace_back(std::visit(StringVisitor(), field_val));
+                        
+                    } 
+                }
+
+             
+                (*row_update->mutable_column_values())[col_registry.col_name_index[col]] = std::move(set_val); //Realistically row columns will be in correct order. But in case they are not, must insert at the right position.
                 
             }    
         
             std::string enc_key = EncodeTableRow(table_name, primary_key_column_values);
             write->set_key(enc_key);
+
+            if(update_primary_key){ //Also set Primary key we replace.
+                write = txn->add_write_set();
+                enc_key = EncodeTableRow(table_name, backup_primary_key_column_values);
+                write->set_key(enc_key);
+                write->set_value("d");
+                write->mutable_rowupdates()->set_deletion(true);
+
+                 row_update = AddTableWriteRow(table_write, col_registry);
+
+                int i = 0;
+                for(auto &[col_name, p_idx]: col_registry.primary_key_cols_idx){
+                    (*row_update->mutable_column_values())[p_idx] = std::move(backup_primary_key_column_values[i++]);
+                }
+                row_update->set_deletion(true);
+
+                
+                Warning("Trying to update primary key value");
+                bool changed_table = true;
+            }
         }
 
+        if(changed_table){ //Update resulted in row insertion + deletion => must update TableVersion
+            //Write Table Version itself. //Only for kv-store. //FIXME: This is for coarse CC -- Update conflicts with ALL Selects on Table
+            // WriteMessage *table_ver = txn->add_write_set();
+            // table_ver->set_key(table_name);
+            // table_ver->set_value("");
+            table_write->set_changed_table(true);
+        }
+
+
+
+
+
+        Debug("Completed Write with %lu rows written", result->size());
+        //std::cerr << "Completed Write with " << result->size() << " row(s) written" << std::endl;
         result->set_rows_affected(result->size()); 
         wcb(REPLY_OK, result);
         
@@ -546,41 +699,45 @@ void SQLTransformer::TransformDelete(size_t pos, std::string_view &write_stateme
 
     //Check whether delete is for single key (point) or flexible amount of rows
    
-    std::map<std::string, std::string> p_col_values;
+    //std::map<std::string, std::string> p_col_values;  
+    std::vector<std::string> p_col_values;  
     bool is_point_delete = CheckColConditions(where_cond, col_registry, p_col_values); 
     skip_query_interpretation = true;
 
     if(is_point_delete){
         //Add to write set.
+        std::cerr << "IS POINT DELETE" << std::endl;
 
+        //Write Table Version itself. //Only for kv-store.
+        // WriteMessage *table_ver = txn->add_write_set();
+        // table_ver->set_key(table_name);
+        // table_ver->set_value("");
+
+        //Add Delete also to Table Write : 
+        TableWrite *table_write = AddTableWrite(table_name, col_registry);
+        table_write->set_changed_table(true); //Add Table Version.
+
+        WriteMessage *write = txn->add_write_set();
+        write->mutable_rowupdates()->set_row_idx(table_write->rows().size()); //set row_idx for proof reference
+
+        RowUpdates *row_update = AddTableWriteRow(table_write, col_registry);
+        row_update->set_deletion(true);
+
+        std::string enc_key = EncodeTableRow(table_name, p_col_values);
+        
+        write->set_key(enc_key);
+        write->set_value("d");
+        write->mutable_rowupdates()->set_deletion(true);
+    
+        std::vector<const std::string*> primary_key_column_values;
+        int col_idx = 0;
+        for(auto &[col_name, _]: col_registry.primary_key_cols_idx){
+            std::string &col_value = (*row_update->mutable_column_values())[col_registry.col_name_index[col_name]];
+            col_value = std::move(p_col_values.at(col_idx++));
+        }
+        
         //Create a QueryResult -- set rows affected to 1.
-        write_continuation = [this, wcb, table_name, p_col_values, col_registry_ptr = &col_registry](int status, query_result::QueryResult* result){
-             //Write Table Version itself. //Only for kv-store.
-            WriteMessage *table_ver = txn->add_write_set();
-            table_ver->set_key(table_name);
-            table_ver->set_value("");
-
-            //Add Delete also to Table Write : 
-            RowUpdates *row_update = AddTableWriteRow(table_name, *col_registry_ptr);
-            row_update->set_deletion(true);
-        
-            std::vector<const std::string*> primary_key_column_values;
-            for(auto &[col_name, idx]: col_registry_ptr->primary_key_cols_idx){
-          
-                std::string &col_value = (*row_update->mutable_column_values())[col_registry_ptr->col_name_index[col_name]];
-                col_value = std::move(p_col_values.at(col_name));
-
-                primary_key_column_values.push_back(&col_value);
-                
-            }
-          
-            std::string enc_key = EncodeTableRow(table_name, primary_key_column_values);
-        
-            WriteMessage *write = txn->add_write_set();
-            write->set_key(enc_key);
-            write->set_value("d");
-            write->mutable_rowupdates()->set_deletion(true);
-
+        write_continuation = [this, wcb](int status, query_result::QueryResult* result){
             result->set_rows_affected(result->size()); 
             wcb(REPLY_OK, result);
         };
@@ -618,20 +775,30 @@ void SQLTransformer::TransformDelete(size_t pos, std::string_view &write_stateme
     write_continuation = [this, wcb, table_name, col_registry_ptr = &col_registry](int status, query_result::QueryResult* result){
 
          //Write Table Version itself. //Only for kv-store.
-        WriteMessage *table_ver = txn->add_write_set();
-        table_ver->set_key(table_name);
-        table_ver->set_value("");
+        // WriteMessage *table_ver = txn->add_write_set();
+        // table_ver->set_key(table_name);
+        // table_ver->set_value("");
+        if(result->empty()){
+            Debug("No rows to delete");
+            result->set_rows_affected(result->size()); 
+            wcb(REPLY_OK, result);
+        }
+
+         TableWrite *table_write = AddTableWrite(table_name, *col_registry_ptr);
+         table_write->set_changed_table(true); //Add Table Version.
 
         //For each row in query result
         for(int i = 0; i < result->size(); ++i){
             std::unique_ptr<query_result::Row> row = (*result)[i];
 
             //Create TableWrite for Delete too.
-            RowUpdates *row_update = AddTableWriteRow(table_name, *col_registry_ptr);
+            WriteMessage *write = txn->add_write_set();
+            write->mutable_rowupdates()->set_row_idx(table_write->rows().size()); //set row_idx for proof reference
+            RowUpdates *row_update = AddTableWriteRow(table_write, *col_registry_ptr);
             row_update->set_deletion(true);
 
             std::vector<const std::string*> primary_key_column_values;
-            for(int idx = 0; idx < row->columns(); ++idx){ //Note: Assume here that cols are in correct order of primary key cols.
+            for(int idx = 0; idx < row->num_columns(); ++idx){ //Note: Assume here that cols are in correct order of primary key cols.
             //for(auto [col_name, idx]: col_registry_ptr->primary_key_cols_idx){
                 
                 std::unique_ptr<query_result::Field> field = (*row)[idx];
@@ -654,7 +821,7 @@ void SQLTransformer::TransformDelete(size_t pos, std::string_view &write_stateme
 
             std::string enc_key = EncodeTableRow(table_name, primary_key_column_values);
 
-            WriteMessage *write = txn->add_write_set();
+            
             write->set_key(enc_key);
             write->set_value("d");
             write->mutable_rowupdates()->set_deletion(true);
@@ -665,6 +832,405 @@ void SQLTransformer::TransformDelete(size_t pos, std::string_view &write_stateme
         
     };
 }
+
+
+//////////////////// Table Write Generator
+
+static bool fine_grained_quotes = false;  //false == add quotes to everything, true == add quotes only to the fields that need it.
+//fine_grained_quotes requires use of TableRegistry now. However, it seems to work fine for Peloton to add quotes to everything indiscriminately. 
+
+//NOTE: Peloton does not support WHERE IN syntax for delete statements. => must use the generator version that creates separate delete statements.
+//TODO: Turn into a bunch of (x=4 OR x=5 OR x=7 OR) AND (y=a OR y=b OR) .. statements...
+
+void SQLTransformer::GenerateTableWriteStatement(std::string &write_statement, std::string &delete_statement, const std::string &table_name, const TableWrite &table_write){
+   
+//Turn Table Writes into Upsert and Delete statement:  ///https://www.postgresqltutorial.com/postgresql-tutorial/postgresql-upsert/ 
+    //Multi row Upsert:  https://stackoverflow.com/questions/40647600/postgresql-multi-value-upserts 
+    // INSERT INTO table1 VALUES (1, 'foo'), (2,'bar'), (3,'baz')
+    // ON CONFLICT (col1)
+    // DO UPDATE SET col2 = EXCLUDED.col2;
+
+    //Multi row Delete: https://www.commandprompt.com/education/how-to-delete-multiple-rows-from-a-table-in-postgresql/ 
+    // DELETE FROM article_details
+    // WHERE article_id IN (2, 4, 7);
+
+    const ColRegistry &col_registry = TableRegistry.at(table_name);
+
+    //NOTE: Inserts must always insert -- even if value exists ==> Insert new row.
+    write_statement = fmt::format("INSERT INTO {0} VALUES ", table_name);
+
+    // In Write statement: for rows that are marked as delete: don't insert. --> split into write_statement and delete_statement.
+    std::map<std::string, std::vector<std::string>> delete_conds;
+
+    bool has_write = false;
+    bool has_delete = false;
+
+    for(auto &row: table_write.rows()){
+        //Alternatively: Move row contents to a vector and use: fmt::join(vec, ",")
+        if(row.has_deletion() && row.deletion()){
+
+            for(auto &[col_name, p_idx]: col_registry.primary_key_cols_idx){
+                if(fine_grained_quotes){
+                    if(col_registry.col_quotes[p_idx]) delete_conds[col_name].push_back("\'" + row.column_values()[p_idx] + "\'");
+                    else delete_conds[col_name].push_back(row.column_values()[p_idx] );
+                }
+                else{
+                    delete_conds[col_name].push_back("\'" + row.column_values()[p_idx] + "\'");
+                }
+            }
+        }
+        else{
+            has_write = true;
+            write_statement += "(";
+            if(fine_grained_quotes){ // Use this to add fine grained quotes:
+                for(int i = 0; i < row.column_values_size(); ++i){
+                    if(col_registry.col_quotes[i])  write_statement += "\'" + row.column_values()[i]  + "\'" + ", ";
+                    else write_statement += row.column_values()[i] + ", ";
+                }
+            }
+            else{
+                for(auto &col_val: row.column_values()){
+                    write_statement += "\'" + col_val  + "\'" + ", ";
+                }
+            }
+        
+            write_statement.resize(write_statement.length()-2); //remove trailing ", "
+            write_statement += "), ";
+        }
+      
+
+        //write_statement += fmt::format("{}, ", fmt::join(row.column_values(), ','));
+    }
+    write_statement.resize(write_statement.length()-2); //remove trailing ", "
+
+    //TODO: If we are hacking Insert to always insert --> then can remove this block 
+    if(false){
+         write_statement += " ON CONFLICT (";
+        for(auto &[col_name, _]: col_registry.primary_key_cols_idx){
+            write_statement += col_name + ", ";
+        }
+        write_statement.resize(write_statement.length()-2); //remove trailing ", "
+
+        write_statement += ") VALUES DO UPDATE SET "; //TODO: loop, replace with index
+        for(auto &col: col_registry.col_names){
+            write_statement += fmt::format("{0} = EXCLUDED.{0}, ", col);
+        }
+        write_statement.resize(write_statement.length()-2); //remove trailing ", "
+
+    }
+   
+    write_statement += ";";
+
+    if(!has_write) write_statement = "";
+    //std::cerr << "delete_conds size: " << delete_conds[0].size() << std::endl;
+    if(delete_conds.empty()) return;  //i.e. !has_delete
+
+    //Else: Construct also a delete statement
+
+    //NOTE: Deletes must always delete -- even if no value exists ==> Insert empty row.
+
+    delete_statement = fmt::format("DELETE FROM {0} WHERE ", table_name);
+    for(auto &[col_name, p_idx]: col_registry.primary_key_cols_idx){
+        delete_statement += fmt::format("{0} in ({1}) AND ", col_name, fmt::join(delete_conds[col_name], ", "));
+    }
+    delete_statement.resize(delete_statement.length()-5); //Remove trailing " AND "
+    delete_statement += ";";
+
+    //FIXME: If no delete clauses --> should not delete anything
+    return;  //I.e. there is delete conds.
+
+}
+
+void SQLTransformer::GenerateTablePurgeStatement(std::string &purge_statement, const std::string &table_name, const TableWrite &table_write){
+    //Abort all TableWrites: Previous writes must be deleted; Previous deletes must be un-done
+    //Puts all write and deletes into one purge
+
+    const ColRegistry &col_registry = TableRegistry.at(table_name);
+    std::map<std::string, std::vector<std::string>> purge_conds;
+
+    for(auto &row: table_write.rows()){
+        //Alternatively: Move row contents to a vector and use: fmt::join(vec, ",")
+        for(auto &[col_name, p_idx]: col_registry.primary_key_cols_idx){
+            if(fine_grained_quotes){
+                if(col_registry.col_quotes[p_idx]) purge_conds[col_name].push_back("\'" + row.column_values()[p_idx] + "\'");
+                else purge_conds[col_name].push_back(row.column_values()[p_idx] );
+            }
+            else{
+                purge_conds[col_name].push_back("\'" + row.column_values()[p_idx] + "\'");
+            }
+        }
+        //write_statement += fmt::format("{}, ", fmt::join(row.column_values(), ','));
+    }
+
+    if(purge_conds.empty()) return;
+
+    purge_statement = fmt::format("DELETE FROM {0} WHERE ", table_name);
+    for(auto &[col_name, p_idx]: col_registry.primary_key_cols_idx){
+        purge_statement += fmt::format("{0} in ({1}) AND ", col_name, fmt::join(purge_conds[col_name], ", "));
+    }
+    purge_statement.resize(purge_statement.length()-5); //Remove trailing " AND "
+    purge_statement += ";";
+
+    return; 
+}
+
+void SQLTransformer::GenerateTableWriteStatement(std::string &write_statement, std::vector<std::string> &delete_statements, const std::string &table_name, const TableWrite &table_write){
+    //Create one joint WriteStatement for all insertions
+        //NOTE: Inserts must always insert -- even if value exists ==> Insert new row.
+    //Create separate Delete statements for each delete
+
+    // write_statement = fmt::format("INSERT INTO {0} VALUES ", table_name);
+
+    const ColRegistry &col_registry = TableRegistry.at(table_name);
+
+    for(auto &row: table_write.rows()){
+        
+        if(row.has_deletion() && row.deletion()){
+            delete_statements.push_back("");
+            std::string &delete_statement = delete_statements.back();
+            delete_statement = fmt::format("DELETE FROM {0} WHERE ", table_name);
+
+            for(auto &[col_name, p_idx]: col_registry.primary_key_cols_idx){
+                //delete_statement += fmt::format("{0}={1} AND ", col_name, row.column_values()[p_idx]);
+                //delete_statement += col_name + "=" + row.column_values()[p_idx] + " AND ";
+
+                if(fine_grained_quotes){
+                    if(col_registry.col_quotes[p_idx]) delete_statement += col_name + "=" + "\'" + row.column_values()[p_idx] + "\'" + " AND ";
+                    else delete_statement += col_name + "=" + row.column_values()[p_idx] + " AND ";
+                }
+                else{
+                    delete_statement += col_name + "=" + "\'" + row.column_values()[p_idx] + "\'" + " AND ";
+                }
+            }
+
+            delete_statement.resize(delete_statement.length()-5); //Remove trailing " AND "
+            delete_statement += ";";
+        }
+        else{
+            write_statement += "(";
+            UW_ASSERT(row.column_values_size() == col_registry.col_names.size());
+            if(fine_grained_quotes){ // Use this to add fine grained quotes:
+                for(int i = 0; i < row.column_values_size(); ++i){
+                    if(col_registry.col_quotes[i])  write_statement += "\'" + row.column_values()[i]  + "\'" + ", ";
+                    else write_statement += row.column_values()[i] + ", ";
+                }
+            }
+            else{
+                for(auto &col_val: row.column_values()){
+                    write_statement += "\'" + col_val  + "\'" + ", ";
+                }
+            }
+        
+            write_statement.resize(write_statement.length()-2); //remove trailing ", "
+            write_statement += "), ";
+        }
+      
+
+        //write_statement += fmt::format("{}, ", fmt::join(row.column_values(), ','));
+    }
+    if(!write_statement.empty()){
+        write_statement.resize(write_statement.length()-2); //remove trailing ", "
+        write_statement = fmt::format("INSERT INTO {0} VALUES ", table_name) + write_statement;
+
+        //TODO: If we are hacking Insert to always insert --> then can remove this block 
+        if(false){
+            write_statement += " ON CONFLICT (";
+            for(auto &[col_name, _]: col_registry.primary_key_cols_idx){
+                write_statement += col_name + ", ";
+            }
+            write_statement.resize(write_statement.length()-2); //remove trailing ", "
+
+            write_statement += ") VALUES DO UPDATE SET "; //TODO: loop, replace with index
+            for(auto &col: col_registry.col_names){
+                write_statement += fmt::format("{0} = EXCLUDED.{0}, ", col);
+            }
+            write_statement.resize(write_statement.length()-2); //remove trailing ", "
+
+        }
+    
+        write_statement += ";";
+    }
+    
+    return;  
+}
+
+void SQLTransformer::GenerateTablePurgeStatement(std::vector<std::string> &purge_statements, const std::string &table_name, const TableWrite &table_write){
+
+    const ColRegistry &col_registry = TableRegistry.at(table_name);
+
+    for(auto &row: table_write.rows()){
+         //generate a purge statement per row.
+        purge_statements.push_back("");
+        std::string &purge_statement = purge_statements.back();
+        purge_statement = fmt::format("DELETE FROM {0} WHERE ", table_name);
+
+        for(auto &[col_name, p_idx]: col_registry.primary_key_cols_idx){
+            //purge_statement += fmt::format("{0}={1} AND ", col_name, row.column_values()[p_idx]);
+            //purge_statement += col_name + "=" + row.column_values()[p_idx] + " AND ";
+
+            if(fine_grained_quotes){
+                if(col_registry.col_quotes[p_idx]) purge_statement += col_name + "=" + "\'" + row.column_values()[p_idx] + "\'" + " AND ";
+                else purge_statement += col_name + "=" + row.column_values()[p_idx] + " AND ";
+            }
+            else{
+                purge_statement += col_name + "=" + "\'" + row.column_values()[p_idx] + "\'" + " AND ";
+            }
+        }
+
+        purge_statement.resize(purge_statement.length()-5); //Remove trailing " AND "
+        purge_statement += ";";
+    }
+
+    return;
+    //TODO: update GenerateDelete Statements too.
+    //TODO: update interface to use this function. Loop over deletes and purges.
+        
+}
+
+
+void SQLTransformer::GenerateTablePurgeStatement_NEW(std::string &purge_statement, const std::string &table_name, const TableWrite &table_write){
+    const ColRegistry &col_registry = TableRegistry.at(table_name);
+
+    if(table_write.rows().empty()){
+        purge_statement = "";
+        return;
+    } 
+    //NOTE: Inserts must always insert -- even if value exists ==> Insert new row.
+    purge_statement = fmt::format("INSERT INTO {0} VALUES ", table_name);
+    
+    for(auto &row: table_write.rows()){
+        //Alternatively: Move row contents to a vector and use: fmt::join(vec, ",")
+
+        purge_statement += "(";
+        if(fine_grained_quotes){ // Use this to add fine grained quotes:
+            for(int i = 0; i < row.column_values_size(); ++i){
+                if(col_registry.col_quotes[i])  purge_statement += "\'" + row.column_values()[i]  + "\'" + ", ";
+                else purge_statement += row.column_values()[i] + ", ";
+            }
+        }
+        else{
+            for(auto &col_val: row.column_values()){
+                purge_statement += "\'" + col_val  + "\'" + ", ";
+            }
+        }
+    
+        purge_statement.resize(purge_statement.length()-2); //remove trailing ", "
+        purge_statement += "), ";
+      
+
+        //purge_statement += fmt::format("{}, ", fmt::join(row.column_values(), ','));
+    }
+    purge_statement.resize(purge_statement.length()-2); //remove trailing ", "
+   
+    purge_statement += ";";
+}
+//////////////////// OLD: Without TableRegistry
+
+
+// //Note: If we turn table writes into a sql statement, then don't actually need to decode type into anything else than a string... 
+//             //could just send statement (with replaced columnvalue) and skip performing arithmetic ourselves. 
+//             //(Note: this makes it harder to perform proofs for point reads, because the reader would need to perform the arithmetic ad hoc)
+// bool SQLTransformer::GenerateTableWriteStatement(std::string &write_statement, std::string &delete_statement, const std::string &table_name, const TableWrite &table_write){
+
+
+// //Turn Table Writes into Upsert and Delete statement:  ///https://www.postgresqltutorial.com/postgresql-tutorial/postgresql-upsert/ 
+//     //Multi row Upsert:  https://stackoverflow.com/questions/40647600/postgresql-multi-value-upserts 
+//     // INSERT INTO table1 VALUES (1, 'foo'), (2,'bar'), (3,'baz')
+//     // ON CONFLICT (col1)
+//     // DO UPDATE SET col2 = EXCLUDED.col2;
+
+//     //Multi row Delete: https://www.commandprompt.com/education/how-to-delete-multiple-rows-from-a-table-in-postgresql/ 
+//     // DELETE FROM article_details
+//     // WHERE article_id IN (2, 4, 7);
+
+//     write_statement = fmt::format("INSERT INTO {0} VALUES ", table_name);
+
+//     std::vector<std::vector<std::string>> delete_conds(table_write.col_primary_idx_size());
+
+//     for(auto &row: table_write.rows()){
+//         //Alternatively: Move row contents to a vector and use: fmt::join(vec, ",")
+//         if(row.deletion()){
+//             for(int i = 0; i<table_write.col_primary_idx_size(); ++i){
+//                 delete_conds[i].push_back("\'" + row.column_values()[table_write.col_primary_idx()[i]] + "\'");
+//             }
+//         }
+//         else{
+//             write_statement += "(";
+//             for(auto &col_val: row.column_values()){
+//                 write_statement += "\'" + col_val  + "\'" + ", ";
+//             }
+//             write_statement.resize(write_statement.length()-2); //remove trailing ", "
+//             write_statement += "), ";
+//         }
+      
+
+//         //write_statement += fmt::format("{}, ", fmt::join(row.column_values(), ','));
+//     }
+//     write_statement.resize(write_statement.length()-2); //remove trailing ", "
+
+//     //TODO: If we are hacking Insert to always insert --> then can remove this block 
+//     if(true){
+//          write_statement += " ON CONFLICT (";
+//         for(auto &p_idx: table_write.col_primary_idx()){
+//             write_statement += table_write.column_names()[p_idx] + ", ";
+//         }
+//         write_statement.resize(write_statement.length()-2); //remove trailing ", "
+
+//         write_statement += ") VALUES DO UPDATE SET "; //TODO: loop, replace with index
+//         for(auto &col: table_write.column_names()){
+//             write_statement += fmt::format("{0} = EXCLUDED.{0}, ", col);
+//         }
+//         write_statement.resize(write_statement.length()-2); //remove trailing ", "
+
+//     }
+   
+//     write_statement += ";";
+
+//     //std::cerr << "delete_conds size: " << delete_conds[0].size() << std::endl;
+//     if(delete_conds[0].empty()) return false;
+
+//     //Else: Construct also a delete statement
+
+//     delete_statement = fmt::format("DELETE FROM {0} WHERE ", table_name);
+//     for(int i = 0; i<table_write.col_primary_idx_size(); ++i){
+//         delete_statement += fmt::format("{0} in ({1}) AND ", table_write.column_names()[table_write.col_primary_idx()[i]], fmt::join(delete_conds[i], ", "));
+//     }
+//     delete_statement.resize(delete_statement.length()-5); //Remove trailing " AND "
+//     delete_statement += ";";
+
+   
+//     return true;  //I.e. there is delete conds.
+
+// }
+
+// bool SQLTransformer::GenerateTablePurgeStatement(std::string &purge_statement, const std::string &table_name, const TableWrite &table_write){
+   
+//     std::vector<std::vector<std::string>> delete_conds(table_write.col_primary_idx_size());
+
+//     for(auto &row: table_write.rows()){
+//             //Alternatively: Move row contents to a vector and use: fmt::join(vec, ",")
+//             if(!row.deletion()){
+//                 for(int i = 0; i<table_write.col_primary_idx_size(); ++i){
+//                     delete_conds[i].push_back("\'" + row.column_values()[table_write.col_primary_idx()[i]] + "\'");
+//                 }
+//             }
+//     }
+    
+//     if(delete_conds[0].empty()) return false;
+    
+//     purge_statement = fmt::format("DELETE FROM {0} WHERE ", table_name);
+//     for(int i = 0; i<table_write.col_primary_idx_size(); ++i){
+//         purge_statement += fmt::format("{0} in ({1}) AND ", table_write.column_names()[table_write.col_primary_idx()[i]], fmt::join(delete_conds[i], ", "));
+//     }
+//     purge_statement.resize(purge_statement.length()-5); //Remove trailing " AND "
+//     purge_statement += ";";
+
+//     return true; //I.e. there is delete conds.
+   
+// }
+
+
+
 
 //////////////////// Helper functions:
 
@@ -697,7 +1263,8 @@ void SQLTransformer::ParseColUpdate(std::string_view col_update, std::map<std::s
 }
 
 
-std::string_view SQLTransformer::GetUpdateValue(const std::string &col, std::variant<bool, int32_t, std::string> &field_val, std::unique_ptr<query_result::Field> &field, const std::map<std::string_view, Col_Update> &col_updates){
+std::string SQLTransformer::GetUpdateValue(const std::string &col, std::variant<bool, int32_t, std::string> &field_val, std::unique_ptr<query_result::Field> &field, 
+    std::map<std::string_view, Col_Update> &col_updates, const std::string &col_type, bool &change_val){
 
      //Copy all column values (unless in col_updates)
             //Replace update value with read col value if applicable. 
@@ -705,20 +1272,20 @@ std::string_view SQLTransformer::GetUpdateValue(const std::string &col, std::var
 
     auto itr = col_updates.find(col);
     if(itr == col_updates.end()){ //No update for the column --> just copy
-        return std::move(std::visit(StringVisitor(), field_val)); 
+        return std::visit(StringVisitor(), field_val); 
     }
     else{ //There is update for the column -> assign new value: possibly replace col:
+        change_val = true;
         //std::cerr << "replacing col: " << col << std::endl;
         //Update value.
-        const Col_Update &col_update = itr->second;
+        Col_Update &col_update = itr->second;
         if(col_update.has_operand){
             //std::cerr << "update has operand: " << col_update.operand << std::endl;
                 //std::cerr << "lvalue = " << col_update.l_value << std::endl;
             int32_t l_value;
             int32_t r_value;
-            //TODO: Check if l_value needs to be replaced
-            //Search Col by name... 
-            //FIXME: For now just use current col -- I assume that's always the case tbh..
+            // Check if l_value needs to be replaced
+            //For now just check current col name (field->name()) -- I assume that's always the case tbh.. //FIXME: Ideally search arbitrary Col by name...
             if(col_update.l_value == field->name()){
                 try {
                     l_value = std::get<int32_t>(field_val);
@@ -777,20 +1344,38 @@ std::string_view SQLTransformer::GetUpdateValue(const std::string &col, std::var
             //Replace col value if it's a placeholder:  ///FIXME: Currently this just takes the same col name, i.e. it keeps the value the same... NOTE: Should never be triggered
             if(col_update.l_value == field->name()){
                 Panic("Placeholder should not be existing column value");
-                return std::move(std::visit(StringVisitor(), field_val));
+                return std::visit(StringVisitor(), field_val);
             }
             else{
-                return std::move(col_update.l_value);
+                return static_cast<std::string>(std::move(TrimValueByType(col_update.l_value, col_type)));
+                // if(field_val.index() == 2){ //For now assuming numerics and bools are not quoted in Update Set Statements, but only strings are. Only trim if string..
+                //     std::cerr << "Trimming: " << col_update.l_value << std::endl; 
+                //     return static_cast<std::string>(std::move(TrimValue(col_update.l_value, true)));
+                // }
+                // else{
+                //     return static_cast<std::string>(std::move(col_update.l_value));
+                // }
             }
         }
     }
     
 }
 
-RowUpdates* SQLTransformer::AddTableWriteRow(const std::string &table_name, const ColRegistry &col_registry){
+TableWrite* SQLTransformer::AddTableWrite(const std::string &table_name, const ColRegistry &col_registry){
     TableWrite &table_write = (*txn->mutable_table_writes())[table_name];
-    if(table_write.column_names().empty()) *table_write.mutable_column_names() = {col_registry.col_names.begin(), col_registry.col_names.end()}; //set columns if first TableWrite
-    RowUpdates *row_update = table_write.add_rows();
+
+    // if(table_write.column_names().empty()){
+    //     *table_write.mutable_column_names() = {col_registry.col_names.begin(), col_registry.col_names.end()}; //set columns if first TableWrite
+    //     *table_write.mutable_col_primary_idx() = {col_registry.primary_col_idx.begin(), col_registry.primary_col_idx.end()}; //set columns if first TableWrite
+    // } 
+   
+   return &table_write;
+}
+
+RowUpdates* SQLTransformer::AddTableWriteRow(TableWrite *table_write, const ColRegistry &col_registry){
+   
+    
+    RowUpdates *row_update = table_write->add_rows();
    
     //std::vector<std::string *> col_vals;
     for(int q=0; q<col_registry.col_names.size(); ++q){
@@ -809,15 +1394,16 @@ std::variant<bool, int32_t, std::string> DecodeType(std::unique_ptr<query_result
     return DecodeType(field_val, col_type);
 }
 
-template<typename T>
-void DeCerealize(std::string &enc_value, T &dec_value){
-    std::stringstream ss(std::ios::in | std::ios::out | std::ios::binary); 
-    ss << enc_value;
-    {
-        cereal::BinaryInputArchive iarchive(ss); // Create an input archive
-        iarchive(dec_value); // Read the data from the archive
-    }
-}
+ //  out = field->get(&nbytes);
+                // std::string p_output(out, nbytes);
+                //  std::stringstream p_ss(std::ios::in | std::ios::out | std::ios::binary);
+                // p_ss << p_output;
+                // output_row;
+                // {
+                // cereal::BinaryInputArchive iarchive(p_ss); // Create an input archive
+                // iarchive(output_row); // Read the data from the archive
+                // }
+                // std::cerr << "Query Result. Col " << i << ": " << output_row << std::endl;
 
 std::variant<bool, int32_t, std::string> DecodeType(std::string &enc_value, const std::string &col_type){
     //Based on Syntax from: https://www.postgresqltutorial.com/postgresql-tutorial/postgresql-data-types/ && https://www.postgresql.org/docs/current/datatype-numeric.html 
@@ -839,10 +1425,14 @@ std::variant<bool, int32_t, std::string> DecodeType(std::string &enc_value, cons
     //     type_variant = std::move(dec_value);
     // }
     else if(col_type == "INT" || col_type == "BIGINT" || col_type == "SMALLINT"){ // SMALLINT (2byteS) INT (4), BIGINT (8), DOUBLE () 
-       
-        int32_t dec_value;
+        //int32_t dec_value;  //FIXME: Peloton encodes everything as string currently. So must DeCerialize as string and only then convert.
+        std::string dec_value;
         DeCerealize(enc_value, dec_value);
-        type_variant = std::move(dec_value);
+        //std::cerr << "DEC VALUE: " << dec_value << std::endl; 
+
+        int32_t dec = std::stoi(dec_value);
+        type_variant = std::move(dec);
+
     }
     // else if(col_type == "INT []" || col_type == "BIGINT []" || col_type == "SMALLINT []"){
     //     std::vector<int32_t> dec_value;
@@ -850,9 +1440,14 @@ std::variant<bool, int32_t, std::string> DecodeType(std::string &enc_value, cons
     //     type_variant = std::move(dec_value);
     // }
     else if(col_type == "BOOL"){
-        bool dec_value;
+
+       
+         std::string dec_value;
+        bool dec; //FIXME: Peloton encodes everything as string currently. So must DeCerialize as string and only then convert.
         DeCerealize(enc_value, dec_value);
-        type_variant = std::move(dec_value);
+        
+        istringstream(dec_value) >> dec;
+        type_variant = std::move(dec);
     }
     else{
         Panic("Types other than {VARCHAR, INT, BIGINT, SMALLINT, BOOL} Currently not supported");
@@ -868,19 +1463,37 @@ std::variant<bool, int32_t, std::string> DecodeType(std::string &enc_value, cons
   
 /////////////////////////////// Read parser:
 
+bool set_in_map(std::map<std::string, std::string> const &lhs, std::set<std::string> const &rhs){
+    //for(auto)
+    auto first1 = lhs.begin();
+    auto last1 = lhs.end();
+    auto first2 = rhs.begin();
+    auto last2 = rhs.end();
+    for (; first2 != last2; ++first1)
+    {
+        if (first1 == last1 || *first2 < first1->first)
+            return false;
+        if ( !(first1->first < *first2) )
+            ++first2;
+    }
+    return true;
+}
+
+
 //Note: input (cond_statement) contains everything following "WHERE" keyword
-bool SQLTransformer::CheckColConditions(std::string_view &cond_statement, std::string &table_name, std::map<std::string, std::string> &p_col_value){
+//Returns true if cond_statement can be issued as Point Operation. P_col_value contains all extracted primary key col values (without quotes)
+bool SQLTransformer::CheckColConditions(std::string_view &cond_statement, std::string &table_name, std::vector<std::string> &p_col_values, bool relax){
     //Using Syntax from: https://www.postgresqltutorial.com/postgresql-tutorial/postgresql-where/ ; https://www.postgresqltutorial.com/postgresql-tutorial/postgresql-order-by/ 
     
     auto itr = TableRegistry.find(table_name);
     UW_ASSERT(itr != TableRegistry.end());
     const ColRegistry &col_registry = itr->second; //TableRegistry[table_name]; 
 
-    return CheckColConditions(cond_statement, col_registry, p_col_value);
+    return CheckColConditions(cond_statement, col_registry, p_col_values, relax);
 }
 
 
-bool SQLTransformer::CheckColConditions(std::string_view &cond_statement, const ColRegistry &col_registry, std::map<std::string, std::string> &p_col_value){
+bool SQLTransformer::CheckColConditions(std::string_view &cond_statement, const ColRegistry &col_registry, std::vector<std::string> &p_col_values, bool relax){
 
     size_t pos;
 
@@ -901,7 +1514,22 @@ bool SQLTransformer::CheckColConditions(std::string_view &cond_statement, const 
 
     bool terminate_early = false;
     size_t end = 0;
-    return CheckColConditions(end, cond_statement, col_registry, p_col_value, terminate_early);
+
+    std::map<std::string, std::string> p_col_value;
+    if(!CheckColConditions(end, cond_statement, col_registry, p_col_value, terminate_early, relax)) return false;
+
+    // for(auto &[key, _]: p_col_value){
+    //     std::cerr << "extracted cols: " << key << std::endl;
+    // }
+
+    //Else: Transform map into p_col_values only (in correct order); extract just the primary key cols.
+    for(auto &[col_name, idx]: col_registry.primary_key_cols_idx){
+        p_col_values.push_back(std::move(p_col_value.at(col_name)));
+        //std::cerr << "extracted p_ cols: " << col_name << std::endl;
+    }
+   
+
+    return true; // is_point
 
      //Return true if can definitely do a point key lookup
     //E.g. if pkey = col1
@@ -928,8 +1556,9 @@ bool SQLTransformer::CheckColConditions(std::string_view &cond_statement, const 
 //TODO: check that column type is primitive: If its array or Timestamp --> defer it to query engine.
 
 //Note: Don't pass cond_statement by reference inside recursion.
-bool SQLTransformer::CheckColConditions(size_t &end, std::string_view cond_statement, const ColRegistry &col_registry, std::map<std::string, std::string> &p_col_value, bool &terminate_early){
-   
+bool SQLTransformer::CheckColConditions(size_t &end, std::string_view cond_statement, const ColRegistry &col_registry, std::map<std::string, std::string> &p_col_value, bool &terminate_early, bool relax){
+    //Note: If relax = true ==> primary_key_compare checks for subset, if false ==> checks for equality.
+
     std::map<std::string, std::string> &left_p_col_value = p_col_value;
     std::map<std::string, std::string> right_p_col_value;
 
@@ -959,7 +1588,7 @@ bool SQLTransformer::CheckColConditions(size_t &end, std::string_view cond_state
             if(op_pos > pos){
                 next_op_type = SQL_NONE; // equivalent to break;
                 size_t dummy = 0;
-                CheckColConditions(dummy, cond_statement.substr(pos), col_registry, right_p_col_value, terminate_early);
+                CheckColConditions(dummy, cond_statement.substr(pos), col_registry, right_p_col_value, terminate_early, relax);
             }
             else{
                 ExtractColCondition(cond_statement.substr(0, op_pos), col_registry, right_p_col_value);
@@ -977,7 +1606,7 @@ bool SQLTransformer::CheckColConditions(size_t &end, std::string_view cond_state
         //     std::cerr << "col vals: " << col << ":" << val << std::endl;
         // }
         
-        return !terminate_early && primary_key_compare(p_col_value, col_registry.primary_key_cols);      //p_col_value.size() == col_registry.primary_key_cols.size();
+        return !terminate_early && primary_key_compare(p_col_value, col_registry.primary_key_cols, relax);      //p_col_value.size() == col_registry.primary_key_cols.size();
     }
 
 
@@ -989,10 +1618,10 @@ bool SQLTransformer::CheckColConditions(size_t &end, std::string_view cond_state
         cond_statement.remove_prefix(pos+1);
 
         //Recurse --> Returns result inside ")"  
-        CheckColConditions(end, cond_statement, col_registry, left_p_col_value, terminate_early);   //End = pos after ) that matches opening (  (or base case no bracket.)
+        CheckColConditions(end, cond_statement, col_registry, left_p_col_value, terminate_early, relax);   //End = pos after ) that matches opening (  (or base case no bracket.)
       
         if(end == std::string::npos || cond_statement.substr(end, 1) == ")"){ //this is the right side of a statement -> return.
-            return !terminate_early && primary_key_compare(left_p_col_value, col_registry.primary_key_cols);      //p_col_value.size() == col_registry.primary_key_cols.size();
+            return !terminate_early && primary_key_compare(left_p_col_value, col_registry.primary_key_cols, relax);      //p_col_value.size() == col_registry.primary_key_cols.size();
         }
        
         //else: this is the left side of a statement. ==> there must be at least one operator to the right.
@@ -1010,16 +1639,16 @@ bool SQLTransformer::CheckColConditions(size_t &end, std::string_view cond_state
             return false;
         } 
         if(next_op_type == SQL_NONE){
-            return primary_key_compare(p_col_value, col_registry.primary_key_cols);      //p_col_value.size() == col_registry.primary_key_cols.size();
+            return primary_key_compare(p_col_value, col_registry.primary_key_cols, relax);      //p_col_value.size() == col_registry.primary_key_cols.size();
         }
 
         //After that recurse on right cond.
-        CheckColConditions(end, cond_statement.substr(op_pos_post), col_registry, right_p_col_value, terminate_early);
+        CheckColConditions(end, cond_statement.substr(op_pos_post), col_registry, right_p_col_value, terminate_early, relax);
 
         //Merge left and right side of operator
         terminate_early = !MergeColConditions(next_op_type, left_p_col_value, right_p_col_value);
 
-        return !terminate_early && primary_key_compare(p_col_value, col_registry.primary_key_cols);      //p_col_value.size() == col_registry.primary_key_cols.size();
+        return !terminate_early && primary_key_compare(p_col_value, col_registry.primary_key_cols, relax);      //p_col_value.size() == col_registry.primary_key_cols.size();
     }
 
     //Recursive cases:
@@ -1030,15 +1659,17 @@ bool SQLTransformer::CheckColConditions(size_t &end, std::string_view cond_state
         // Recurse to use base case and return result.
          size_t dummy;
 
-        CheckColConditions(dummy, sub_cond, col_registry, p_col_value, terminate_early);
+        CheckColConditions(dummy, sub_cond, col_registry, p_col_value, terminate_early, relax);
 
         end = pos+1; //Next level receives p_col_values, and end 
-        return !terminate_early && primary_key_compare(p_col_value, col_registry.primary_key_cols);      //p_col_value.size() == col_registry.primary_key_cols.size(); 
+        return !terminate_early && primary_key_compare(p_col_value, col_registry.primary_key_cols, relax);      //p_col_value.size() == col_registry.primary_key_cols.size(); 
     }
 }
 
 void SQLTransformer::ExtractColCondition(std::string_view cond_statement, const ColRegistry &col_registry, std::map<std::string, std::string> &p_col_value){
-  
+    //Note: Expecting all conditions to be of form "col_name = X"
+    //Do not currently support boolean conditions, like "col_name";
+
     size_t pos = cond_statement.find(" = ");
     if(pos == std::string::npos) return;
 
@@ -1046,7 +1677,9 @@ void SQLTransformer::ExtractColCondition(std::string_view cond_statement, const 
     std::string_view left = cond_statement.substr(0, pos);
     const std::string &left_str = static_cast<std::string>(left);
     //if(col_registry.primary_key_cols.count(left_str)){ //if primary key and equality --> add value to map so we can compute enc_key for point read/write
-        p_col_value[std::move(left_str)] = cond_statement.substr(pos + 3);
+        std::string_view right = cond_statement.substr(pos + 3);
+        const std::string &type = col_registry.col_name_type.at(left_str);
+        p_col_value[left_str] = TrimValueByType(right, type);
     //}
     return;
 }
@@ -1171,7 +1804,7 @@ bool SQLTransformer::CheckColConditionsDumb(std::string_view &cond_statement, co
             return false;
         }
         p_col_value[std::move(left_str)] = left_cond.substr(pos + 3);
-        return CheckColConditions(right_cond, col_registry, p_col_value); //TODO: don't recurse (this re-checks all above statements) --> just while loop  
+        return CheckColConditionsDumb(right_cond, col_registry, p_col_value); //TODO: don't recurse (this re-checks all above statements) --> just while loop  
                                                                             
     }
     else { //No more bindings.

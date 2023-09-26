@@ -32,6 +32,12 @@ UniformKeySelector::UniformKeySelector(const std::vector<std::string> &keys)
     : KeySelector(keys) {
 }
 
+UniformKeySelector::UniformKeySelector(const std::vector<std::string> &keys, uint64_t num_keys)
+    : KeySelector(keys, num_keys) {
+}
+
+
+
 UniformKeySelector::~UniformKeySelector() {
 }
 

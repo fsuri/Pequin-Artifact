@@ -37,12 +37,12 @@
 
 using namespace pequinstore;
 
+static std::string file_name = "sql_interpreter_test_registry";
 void test_registry(){
   std::cerr << std::endl << "Test Registry" << std::endl;
 
   //Create desired registry via table writer.
-  std::string file_name = "sql_interpreter_test_registry";
- 
+
   std::string table_name = "table";
   std::vector<std::pair<std::string, std::string>> column_names_and_types;
   std::vector<uint32_t> primary_key_col_idx;
@@ -52,8 +52,8 @@ void test_registry(){
   //Table1:
   table_name = "user";
   column_names_and_types.push_back(std::make_pair("col1", "INT"));
-  column_names_and_types.push_back(std::make_pair("col2", "VARCHAR"));
-  column_names_and_types.push_back(std::make_pair("col3", "VARCHAR"));
+  column_names_and_types.push_back(std::make_pair("col2", "TEXT"));
+  column_names_and_types.push_back(std::make_pair("col3", "TEXT"));
   primary_key_col_idx.push_back(0);
   primary_key_col_idx.push_back(2);
   table_writer.add_table(table_name, column_names_and_types, primary_key_col_idx);
@@ -61,7 +61,7 @@ void test_registry(){
   table_writer.flush();
 
   SQLTransformer sql_interpreter;
-  std::string table_registry = "sql_interpreter_test_registry-client.json";
+  std::string table_registry = file_name + "-tables-schema.json";
   sql_interpreter.RegisterTables(table_registry);
 }
 
@@ -70,14 +70,14 @@ void test_insert(){
   std::cerr << std::endl << "Test Insert" << std::endl;
   
   SQLTransformer sql_interpreter;
-  std::string table_registry = "sql_interpreter_test_registry-client.json";
+  std::string table_registry = file_name + "-tables-schema.json";
   sql_interpreter.RegisterTables(table_registry);
   proto::Transaction txn;
   sql_interpreter.NewTx(&txn);
 
 
 
-  std::string write_statement = "INSERT INTO user(col1, col2, col3) VALUES (val1, val2, val3);";  
+  std::string write_statement = "INSERT INTO user(col1, col2, col3) VALUES (val1, 'val2', 'val3');";  
   std::string read_statement;
   std::function<void(int, query_result::QueryResult*)>  write_continuation = [](int status, const query_result::QueryResult* res){
     std::cerr << "Issued write_continuation" << std::endl;
@@ -100,17 +100,22 @@ void test_insert(){
   std::cerr << "Write Set: "  << std::endl;
   for(auto write: txn.write_set()){
       std::cerr << "Key: " << write.key() << std::endl;
-      for(auto [col, val]: write.rowupdates().attribute_writes()){
-           std::cerr << "Col: " << col << " -- Val: " << val << std::endl;
-      }
+      // for(auto [col, val]: write.rowupdates().attribute_writes()){
+      //      std::cerr << "Col: " << col << " -- Val: " << val << std::endl;
+      // }
   }
 
+
   for(auto &[table, table_write]: txn.table_writes()){
-    std:cerr << "Write to Table: " << table << std::endl;
+    ColRegistry *col_registry = sql_interpreter.GetColRegistry(table);
+    std::cerr << "Write to Table: " << table << std::endl;
     for(auto &row: table_write.rows()){
       std::cerr << " Write row: " << std::endl;
+      // for(auto &[col_name, idx]: col_registry->col_name_index){
+      //      std::cerr << "  Col: " << col_name << " -- Val: " << (row.column_values()[idx]) << "; ";
+      // }
       for(int i=0; i<row.column_values().size(); ++i){
-           std::cerr << "  Col: " << (table_write.column_names()[i]) << " -- Val: " << (row.column_values()[i]) << "; ";
+           std::cerr << "  Col: " << (col_registry->col_names[i]) << " -- Val: " << (row.column_values()[i]) << "; ";
       }
        std::cerr << "is deletion: " << row.deletion() << std::endl;
     }
@@ -123,12 +128,12 @@ void test_update(){
   std::cerr << std::endl << "Test Update" << std::endl;
 
   SQLTransformer sql_interpreter;
-  std::string table_registry = "sql_interpreter_test_registry-client.json";
+  std::string table_registry = file_name + "-tables-schema.json";
   sql_interpreter.RegisterTables(table_registry);
   proto::Transaction txn;
   sql_interpreter.NewTx(&txn);
 
-  std::string write_statement = "UPDATE user SET col1 = col1 + 1, col2 = monkey WHERE col2 = apple AND col3 = giraffe;";
+  std::string write_statement = "UPDATE user SET col1 = col1 + 1, col2 = 'monkey', col3 = 'pear' WHERE col2 = 'giraffe' AND col3 = 'apple';";
   std::string read_statement;
   std::function<void(int, query_result::QueryResult*)>  write_continuation = [](int status, const query_result::QueryResult* res){
     std::cerr << "Issued write_continuation" << std::endl;
@@ -183,17 +188,20 @@ void test_update(){
       }
   }
 
-  for(auto &[table, table_write]: txn.table_writes()){
-    std:cerr << "Write to Table: " << table << std::endl;
+   for(auto &[table, table_write]: txn.table_writes()){
+    ColRegistry *col_registry = sql_interpreter.GetColRegistry(table);
+    std::cerr << "Write to Table: " << table << std::endl;
     for(auto &row: table_write.rows()){
       std::cerr << " Write row: " << std::endl;
+      // for(auto &[col_name, idx]: col_registry->col_name_index){
+      //      std::cerr << "  Col: " << col_name << " -- Val: " << (row.column_values()[idx]) << "; ";
+      // }
       for(int i=0; i<row.column_values().size(); ++i){
-           std::cerr << "  Col: " << (table_write.column_names()[i]) << " -- Val: " << (row.column_values()[i]) << "; ";
+           std::cerr << "  Col: " << (col_registry->col_names[i]) << " -- Val: " << (row.column_values()[i]) << "; ";
       }
-      std::cerr << "is deletion: " << row.deletion() << std::endl;
+       std::cerr << "is deletion: " << row.deletion() << std::endl;
     }
   }
-
 
   std::cerr << std::endl;
 }
@@ -201,14 +209,14 @@ void test_update(){
 void test_delete(){
   std::cerr << std::endl << "Test Delete" << std::endl;
   SQLTransformer sql_interpreter;
-  std::string table_registry = "sql_interpreter_test_registry-client.json";
+  std::string table_registry = file_name + "-tables-schema.json";
   sql_interpreter.RegisterTables(table_registry);
   proto::Transaction txn;
   sql_interpreter.NewTx(&txn);
 
 
   //DELETE FROM <table_name> WHERE <condition>
-  std::string write_statement = "DELETE FROM user WHERE col2 = apple AND col3 = giraffe;";
+  std::string write_statement = "DELETE FROM user WHERE col2 = 'giraffe' AND col3 = 'apple';";
  
   std::string read_statement;
   std::function<void(int, query_result::QueryResult*)>  write_continuation = [](int status, const query_result::QueryResult* res){
@@ -255,15 +263,56 @@ void test_delete(){
       std::cerr << "Is Deletion: " << write.rowupdates().deletion() << std::endl;
   }
 
-  for(auto &[table, table_write]: txn.table_writes()){
-    std:cerr << "Write to Table: " << table << std::endl;
+   for(auto &[table, table_write]: txn.table_writes()){
+    ColRegistry *col_registry = sql_interpreter.GetColRegistry(table);
+    std::cerr << "Write to Table: " << table << std::endl;
     for(auto &row: table_write.rows()){
       std::cerr << " Write row: " << std::endl;
+      // for(auto &[col_name, idx]: col_registry->col_name_index){
+      //      std::cerr << "  Col: " << col_name << " -- Val: " << (row.column_values()[idx]) << "; ";
+      // }
       for(int i=0; i<row.column_values().size(); ++i){
-           std::cerr << "  Col: " << (table_write.column_names()[i]) << " -- Val: " << (row.column_values()[i]) << "; ";
-           
+           std::cerr << "  Col: " << (col_registry->col_names[i]) << " -- Val: " << (row.column_values()[i]) << "; ";
       }
-      std::cerr << "is deletion: " << row.deletion() << std::endl;
+       std::cerr << "is deletion: " << row.deletion() << std::endl;
+    }
+  }
+
+  ////////////////////// Test point delete
+  std::cerr << "\n Test point delete: " << std::endl;
+
+  txn.Clear();
+  sql_interpreter.NewTx(&txn);
+
+  write_statement = "DELETE FROM user WHERE col1 = 5 AND col3 = 'apple';";
+  read_statement = "";
+ 
+  std::cerr << write_statement << std::endl;
+
+  sql_interpreter.TransformWriteStatement(write_statement, read_statement, write_continuation, wcb);
+
+  std::cerr << "Read Statement: " << read_statement << std::endl;
+
+  write_continuation(0, res);
+
+  std::cerr << "Write Set: "  << std::endl;
+  for(auto write: txn.write_set()){
+      std::cerr << "Key: " << write.key() << " Value: " << write.value() << std::endl;
+      std::cerr << "Is Deletion: " << write.rowupdates().deletion() << std::endl;
+  }
+
+   for(auto &[table, table_write]: txn.table_writes()){
+    ColRegistry *col_registry = sql_interpreter.GetColRegistry(table);
+    std::cerr << "Write to Table: " << table << std::endl;
+    for(auto &row: table_write.rows()){
+      std::cerr << " Write row: " << std::endl;
+      // for(auto &[col_name, idx]: col_registry->col_name_index){
+      //      std::cerr << "  Col: " << col_name << " -- Val: " << (row.column_values()[idx]) << "; ";
+      // }
+      for(int i=0; i<row.column_values().size(); ++i){
+           std::cerr << "  Col: " << (col_registry->col_names[i]) << " -- Val: " << (row.column_values()[i]) << "; ";
+      }
+       std::cerr << "is deletion: " << row.deletion() << std::endl;
     }
   }
 
@@ -273,7 +322,7 @@ void test_delete(){
 void test_cond(){
   std::cerr << std::endl << "Test Cond" << std::endl;
   SQLTransformer sql_interpreter;
-  std::string table_registry = "sql_interpreter_test_registry-client.json";
+  std::string table_registry = file_name + "-tables-schema.json";
   sql_interpreter.RegisterTables(table_registry);
   proto::Transaction txn;
   sql_interpreter.NewTx(&txn);
@@ -281,12 +330,12 @@ void test_cond(){
 
   //DELETE FROM <table_name> WHERE <condition>
   //Test 1:
-  std::string query_statement = "SELECT * FROM user WHERE col2 = apple AND col3 = giraffe;";
+  std::string query_statement = "SELECT * FROM user WHERE col2 = 'apple' AND col3 = 'giraffe';";
   
   std::cerr << "Test1: " << query_statement << std::endl;
 
   std::string table_name;
-  std::map<std::string, std::string> p_col_value;
+  std::vector<std::string> p_col_value;
   bool skip_interpretation = false; //In Query pass this arg; if true, don't interpret and just treat as range.
   bool is_point = sql_interpreter.InterpretQueryRange(query_statement, table_name, p_col_value);
 
@@ -294,7 +343,7 @@ void test_cond(){
   UW_ASSERT(is_point == false);
   
   //Test 2
-  query_statement = "SELECT * FROM user WHERE col1 = 5 AND col3 = giraffe;";
+  query_statement = "SELECT * FROM user WHERE col1 = 5 AND col3 = 'giraffe';";
   std::cerr << "Test2: " << query_statement << std::endl;
   p_col_value.clear();
   is_point = sql_interpreter.InterpretQueryRange(query_statement, table_name, p_col_value);
@@ -310,14 +359,14 @@ void test_cond(){
   is_point = sql_interpreter.InterpretQueryRange(query_statement, table_name, p_col_value);
 
   std::cerr << is_point << std::endl;
-  for(auto &[col, val]: p_col_value){
-    std::cerr << "primary col: " << col << " -- with value: " << val << std::endl;
+  for(auto &val: p_col_value){
+    std::cerr << "primary col with value: " << val << std::endl;
   }
   std::cerr << is_point << std::endl;
   UW_ASSERT(is_point == false);
 
   //Test 4
-  query_statement = "SELECT * FROM user WHERE col2 = apple OR col1 = 5 AND col3 = giraffe;";
+  query_statement = "SELECT * FROM user WHERE col2 = 'apple' OR col1 = 5 AND col3 = 'giraffe';";
   
   std::cerr << "Test4: " << query_statement << std::endl;
   p_col_value.clear();
@@ -327,7 +376,7 @@ void test_cond(){
   UW_ASSERT(is_point == false);
 
   //Test 5
-  query_statement = "SELECT * FROM user WHERE (col2 = apple OR col1 = 5) AND (col3 = giraffe AND col1 = 5);";
+  query_statement = "SELECT * FROM user WHERE (col2 = 'apple' OR col1 = 5) AND (col3 = 'giraffe' AND col1 = 5);";
   
   std::cerr << "Test5: " << query_statement << std::endl;
   p_col_value.clear();
@@ -337,7 +386,7 @@ void test_cond(){
   UW_ASSERT(is_point == true);
 
   //Test 6
-  query_statement = "SELECT * FROM user WHERE (col2 = apple OR col1 = 5) AND (col3 = giraffe AND col1 = 5) AND col2 = apple;";
+  query_statement = "SELECT * FROM user WHERE (col2 = 'apple' OR col1 = 5) AND (col3 = 'giraffe' AND col1 = 5) AND col2 = 'apple';";
   
   std::cerr << "Test6: " << query_statement << std::endl;
   p_col_value.clear();
@@ -346,8 +395,9 @@ void test_cond(){
   std::cerr << is_point << std::endl << std::endl;
   UW_ASSERT(is_point == false);
 
+
   //Test 7
-  query_statement = "SELECT * FROM user WHERE col2 = apple AND (col2 = apple OR col1 = 5) AND (col3 = giraffe AND col1 = 5);";
+  query_statement = "SELECT * FROM user WHERE col2 = 'apple' AND (col2 = 'apple' OR col1 = 5) AND (col3 = 'giraffe' AND col1 = 5);";
   
   std::cerr << "Test7: " << query_statement << std::endl;
   p_col_value.clear();
@@ -357,7 +407,7 @@ void test_cond(){
   UW_ASSERT(is_point == false);
 
    //Test 8
-  query_statement = "SELECT * FROM user WHERE col1 = 5 AND (col3 = giraffe);";
+  query_statement = "SELECT * FROM user WHERE col1 = 5 AND (col3 = 'giraffe');";
   
   std::cerr << "Test8: " << query_statement << std::endl;
   p_col_value.clear();
@@ -367,6 +417,82 @@ void test_cond(){
   UW_ASSERT(is_point == true);
 
   std::cerr << std::endl;
+
+
+  //Test 9: Relaxed
+
+  query_statement = "SELECT * FROM user WHERE col1 = 5 AND col2 = 'apple' AND col3 = 'giraffe';";
+  
+  std::cerr << "Test9(relaxed): " << query_statement << std::endl;
+  p_col_value.clear();
+  is_point = sql_interpreter.InterpretQueryRange(query_statement, table_name, p_col_value, true);
+
+  std::cerr << is_point << std::endl;
+  UW_ASSERT(is_point == true);
+
+  std::cerr << std::endl;
+  
+  query_statement = "SELECT * FROM user WHERE (col2 = 'apple' OR col1 = 5) AND (col3 = 'giraffe' AND col1 = 5) AND col2 = 'apple';";
+  std::cerr << "Test10(relaxed): " << query_statement << std::endl;
+  p_col_value.clear();
+  is_point = sql_interpreter.InterpretQueryRange(query_statement, table_name, p_col_value, true);
+
+  std::cerr << is_point << std::endl << std::endl;
+  UW_ASSERT(is_point == true);
+
+  query_statement = "SELECT * FROM user WHERE col2 = 'apple' AND (col2 = 'apple' OR col1 = 5) AND (col3 = 'giraffe' AND col1 = 5);";
+  
+  std::cerr << "Test11(relaxed): " << query_statement << std::endl;
+  p_col_value.clear();
+  is_point = sql_interpreter.InterpretQueryRange(query_statement, table_name, p_col_value, true);
+
+  std::cerr << is_point << std::endl << std::endl;
+  UW_ASSERT(is_point == true);
+}
+
+void test_write(){
+
+   std::cerr << "Test Write Generation:" << std::endl;
+
+   SQLTransformer sql_interpreter;
+  std::string table_registry = file_name + "-tables-schema.json";
+  sql_interpreter.RegisterTables(table_registry);
+  proto::Transaction txn;
+  sql_interpreter.NewTx(&txn);
+
+  std::string table_name = "user";
+  std::string write_statement;
+  std::string delete_statement;
+  TableWrite table_write;
+
+  std::vector<std::string> col_names = {"age", "name", "color"};
+  std::vector<uint32_t> p_col_idx = {0, 2};
+  *table_write.mutable_column_names() = {col_names.begin(), col_names.end()};
+  *table_write.mutable_col_primary_idx() = {p_col_idx.begin(), p_col_idx.end()};
+
+  std::vector<std::string> val1 = {"26", "flo", "brown"};
+  std::vector<std::string> val2 = {"24", "neil", "black"};
+  RowUpdates *row1 = table_write.add_rows();
+  *row1->mutable_column_values() = {val1.begin(), val1.end()};
+   RowUpdates *row2 = table_write.add_rows();
+  *row2->mutable_column_values() = {val2.begin(), val2.end()};
+
+  //deletions:
+  std::vector<std::string> val3 = {"62", "lor", "brown"};
+  std::vector<std::string> val4 = {"31", "nat", "blonde"};
+   RowUpdates *row3 = table_write.add_rows();
+  *row3->mutable_column_values() = {val3.begin(), val3.end()};
+  row3->set_deletion(true);
+   RowUpdates *row4 = table_write.add_rows();
+  *row4->mutable_column_values() = {val4.begin(), val4.end()};
+  row4->set_deletion(true);
+ 
+
+  //
+  sql_interpreter.GenerateTableWriteStatement(write_statement, delete_statement, table_name, table_write);
+  std::cerr << "write: " << write_statement << std::endl;
+   std::cerr << "delete: " << delete_statement << std::endl;
+
 }
 
 int main() {
@@ -383,7 +509,9 @@ int main() {
 
   test_cond();
 
-  std::cerr << "test string view scope" << std::endl;
+  test_write();
+
+  std::cerr << "test string view scope 1" << std::endl;
 
   std::vector<std::string_view> vec;
  
@@ -417,6 +545,15 @@ int main() {
   // std::string_view s(t);
   // r[s] = 1;
   //Can look up string_view with string, but not in reverse --> string is superset of string view
+
+  // ::google::protobuf::Message test_proto_m = proto::PointQueryResultReply;
+  // proto::PointQueryResultReply test_proto = dynamic_cast<proto::PointQueryResultReply&>(test_proto_m);
+  // test_proto.mutable_write()->set_prepared_txn_digest("hello");
+  // proto::SignedMessage *sm = test_proto.mutable_signed_write();
+
+  // std::cerr << "has write? " << (test_proto.has_write()) << std::endl;
+  // std::cerr << "has signed write? " << (test_proto.has_signed_write()) << std::endl;
+  // std::cerr << "write " << (test_proto.write().prepared_txn_digest()) << std::endl;
 
   return 0;
 }

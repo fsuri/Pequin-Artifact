@@ -432,6 +432,7 @@ def calculate_statistics_for_run(config, local_out_directory, run):
     for k, v in stats_new.items():
         stats[k] = v
 
+    stats['attempts'] = 1
     if total_attempts > 0:
         stats['committed'] = total_committed
         stats['attempts'] = total_attempts

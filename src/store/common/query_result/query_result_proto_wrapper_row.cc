@@ -32,9 +32,9 @@
 
 namespace sql {
 
-auto Row::columns() const noexcept -> std::size_t
+auto Row::num_columns() const noexcept -> std::size_t
 {
-  return m_result->columns();
+  return m_result->num_columns();
 }
 
 auto Row::name( std::size_t column ) const -> std::string

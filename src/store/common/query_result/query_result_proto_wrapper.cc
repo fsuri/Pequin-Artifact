@@ -69,7 +69,7 @@ auto QueryResultProtoWrapper::size() const -> std::size_t
   return proto_result->rows_size();
 }
 
-auto QueryResultProtoWrapper::columns() const -> std::size_t
+auto QueryResultProtoWrapper::num_columns() const -> std::size_t
 {
   return proto_result->column_names_size();
 }
@@ -77,12 +77,12 @@ auto QueryResultProtoWrapper::columns() const -> std::size_t
 auto QueryResultProtoWrapper::begin() const -> std::unique_ptr<const_iterator>
 {
   check_has_result_set();
-  return std::unique_ptr<const_iterator>(new const_iterator( Row(this, 0, 0, columns())));
+  return std::unique_ptr<const_iterator>(new const_iterator( Row(this, 0, 0, num_columns())));
 }
 
 auto QueryResultProtoWrapper::end() const -> std::unique_ptr<const_iterator>
 {
-  return std::unique_ptr<const_iterator>(new const_iterator( Row(this, size(), 0, columns() ) ));
+  return std::unique_ptr<const_iterator>(new const_iterator( Row(this, size(), 0, num_columns() ) ));
 }
 
 auto QueryResultProtoWrapper::is_null( const std::size_t row, const std::size_t column ) const -> bool {
@@ -108,7 +108,7 @@ auto QueryResultProtoWrapper::get( const std::size_t row, const std::string& col
 }
 
 auto QueryResultProtoWrapper::operator[]( const std::size_t row ) const -> std::unique_ptr<query_result::Row> {
-  return std::unique_ptr<query_result::Row>(new sql::Row(this, row, 0, this->columns()));
+  return std::unique_ptr<query_result::Row>(new sql::Row(this, row, 0, this->num_columns()));
 }
 
 auto QueryResultProtoWrapper::at( const std::size_t row ) const -> std::unique_ptr<query_result::Row> {

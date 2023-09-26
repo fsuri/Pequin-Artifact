@@ -61,12 +61,14 @@ void test_snapshot_tx_id(){
 
   std::cerr << "TEST SNAPSHOT TX ID" << std::endl;
      uint64_t config_f = 0;
-     QueryParameters query_params(2*config_f + 1, //syncQuorumSize,
+     QueryParameters query_params(true,
+                                  2*config_f + 1, //syncQuorumSize,
                                   2*config_f + 1,    //  queryMessages,
                                   1*config_f + 1,    //  mergeThreshold,
                                   1*config_f + 1,    //  syncMessages,
                                   1*config_f + 1,    //  resultQuorum,
                                   false,  // FLAGS_pequin_query_eager_exec,
+                                  false, 
                                   true,    //  FLAGS_pequin_query_read_prepared,
                                   false,    //  FLAGS_pequin_query_cache_read_set,
                                   false,    //  FLAGS_pequin_query_optimistic_txid,
@@ -105,7 +107,7 @@ void test_snapshot_tx_id(){
 
     bool finished_merge = snapshot_mgr.ProcessReplicaLocalSnapshot(&local_ss);
 
-    if(!finished_merge) std:cerr << "Error: Not done with merge" << std::endl;
+    if(!finished_merge) std::cerr << "Error: Not done with merge" << std::endl;
 
     snapshot_mgr.OpenMergedSnapshot(&merged_ss);
 
@@ -119,12 +121,14 @@ void test_snapshot_optimistic_tx_id(bool compress){
 
   std::cerr << "TEST SNAPSHOT OPTIMISTIC TX ID. Compress = " << compress << std::endl;
      uint64_t config_f = 0;
-     QueryParameters query_params(2*config_f + 1, //syncQuorumSize,
+     QueryParameters query_params(true,
+                                  2*config_f + 1, //syncQuorumSize,
                                   2*config_f + 1,    //  queryMessages,
                                   1*config_f + 1,    //  mergeThreshold,
                                   1*config_f + 1,    //  syncMessages,
                                   1*config_f + 1,    //  resultQuorum,
                                   false, // FLAGS_pequin_query_eager_exec,
+                                  false, 
                                   true,    //  FLAGS_pequin_query_read_prepared,
                                   false,    //  FLAGS_pequin_query_cache_read_set,
                                   true,    //  FLAGS_pequin_query_optimistic_txid,

@@ -160,7 +160,7 @@ class Row : public query_result::Row {
     }
   }
   
-  auto columns() const noexcept -> std::size_t;
+  auto num_columns() const noexcept -> std::size_t;
 
   auto name( const std::size_t column ) const -> std::string;
   auto column_index_by_name(const std::string &name) const -> std::size_t;

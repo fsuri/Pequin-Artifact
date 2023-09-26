@@ -4,7 +4,6 @@
 #include "lib/assert.h"
 
 
-static std::string unique_delimiter = "###";
 //TODO: input: convert row_name type into byte array. E.g. Int: static_cast<char*>(static_cast<void*>(&x)); String: str.c_str();
 std::string EncodeTableRow(const std::string &table_name, const std::vector<std::string> &primary_key_column_values){  //std::string &row_name
   
@@ -23,6 +22,19 @@ std::string EncodeTableRow(const std::string &table_name, const std::vector<cons
   std::string encoding = table_name;
   for(auto primary_column_value: primary_key_column_values){
     encoding += unique_delimiter + (*primary_column_value);
+  }
+  return encoding;
+  //return table_name + unique_delimiter + row_name;
+}
+
+//If p_key values come with quotes --> dynamically remove them here
+std::string EncodeTableRow(const std::string &table_name, const std::vector<const std::string*> &primary_key_column_values, const std::vector<bool>* p_col_quotes){  //std::string &row_name
+  
+  //Note: Assuming unique delimiter that is neither part of table_nor string.
+  std::string encoding = table_name;
+  for(int i = 0; i < primary_key_column_values.size(); ++i){
+    const std::string *p_col_val = primary_key_column_values[i];
+    encoding += unique_delimiter + ((*p_col_quotes)[i] ? p_col_val->substr(1, p_col_val->length()-2) : *p_col_val);
   }
   return encoding;
   //return table_name + unique_delimiter + row_name;

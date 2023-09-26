@@ -138,11 +138,12 @@ The prototype implementations depend the following development libraries:
 - libfmt-dev
 
 You may install them directly using:
-- `sudo apt install libsodium-dev libgflags-dev libssl-dev libevent-dev libevent-openssl-2.1-7 libevent-pthreads-2.1-7 libboost-all-dev libuv1-dev libpq-dev postgresql-server-dev-all libfmt-dev`
+- `sudo apt install libsodium-dev libgflags-dev libssl-dev libevent-dev libevent-openssl-2.1-7 libevent-pthreads-2.1-7 libboost-all-dev libuv1-dev libpq-dev postgresql-server-dev-all libfmt-dev libreadline-dev`
 - If using Ubuntu 18.04, use `sudo apt install libevent-openssl-2.1-6 libevent-pthreads-2.1-6` instead for openssl and pthreads.
 
 In addition, you will need to install the following libraries from source (detailed instructions below):
-- [Hoard Allocator](https://github.com/emeryberger/Hoard)
+<!---- [Hoard Allocator](https://github.com/emeryberger/Hoard) -->
+- [jemalloc](https://github.com/jemalloc/jemalloc)
 - [taopq](https://github.com/taocpp/taopq)
 - [nlohman/json](https://github.com/nlohmann/json)
 - [googletest-1.10](https://github.com/google/googletest/releases/tag/release-1.10.0)
@@ -153,7 +154,9 @@ In addition, you will need to install the following libraries from source (detai
 - [ed25519-donna](https://github.com/floodyberry/ed25519-donna)
 - [Intel TBB](https://software.intel.com/content/www/us/en/develop/tools/oneapi/base-toolkit/get-the-toolkit.html). 
    - You will additionally need to [configure your CPU](https://software.intel.com/content/www/us/en/develop/documentation/get-started-with-intel-oneapi-base-linux/top/before-you-begin.html) before being able to compile the prototypes.
+- [PelotonDB](https://github.com/cmu-db/peloton)
 - [CockroachDB](https://www.cockroachlabs.com/docs/stable/install-cockroachdb-linux.html)
+
 
 Detailed install instructions:
 
@@ -170,13 +173,31 @@ We recommend organizing all installs in a dedicated folder:
 5. `sudo ldconfig`
 6. `cd ..`
 
-#### Installing Hoard Allocator
+<!--- #### Installing Hoard Allocator
 1. `sudo apt-get install clang`
 2. `git clone https://github.com/emeryberger/Hoard`
 3. `cd src`
 4. `make`
 5. `sudo cp libhoard.so /usr/local/lib`
 6. `sudo echo 'export LD_PRELOAD=/usr/local/lib/libhoard.so' >> ~/.bashrc; source ~/.bashrc;` (once) or `export LD_PRELOAD=/usr/local/lib/libhoard.so` (everytime)
+7. `cd ..`
+-->
+#### Installing jemalloc
+```
+git clone https://github.com/jemalloc/jemalloc
+cd jemalloc
+./autogen.h
+make
+sudo make install
+sudo echo 'export LD_PRELOAD=/usr/local/lib/libjemalloc.so' >> ~/.bashrc; source ~/.bashrc;`
+cd ..`
+```
+1. `git clone https://github.com/jemalloc/jemalloc`
+2. `cd jemalloc`
+3. `./autogen.h`
+4. `make`
+5. `sudo make install`
+6. `sudo echo 'export LD_PRELOAD=/usr/local/lib/libjemalloc.so' >> ~/.bashrc; source ~/.bashrc;` (once) or `export LD_PRELOAD=/usr/local/lib/libjemalloc.so` (everytime)
 7. `cd ..`
 
 #### Installing taopq 
@@ -323,6 +344,37 @@ Move the shared libary:
 5. `sudo ldconfig`
 6. `cd ..`
 
+
+
+#### Installing Peloton dependencies
+```
+//install libcount
+git clone https://github.com/dialtr/libcount
+cd libcount
+sudo make
+sudo make install
+cd ..
+
+//install peloton third party dependencies
+git clone https://github.com/cmu-db/peloton.git
+cd peloton/third_party/libpg_query
+sudo make
+cd ..
+sudo cp -r libpg_query /usr/local/include
+sudo cp libpg_query/libpg_query.a /usr/local/lib
+
+sudo cp -r libcuckoo /usr/local/include
+
+sudo cp -r date /usr/local/include
+
+sudo cp -r adaptive_radix_tree /usr/local/include
+
+sudo ldconfig
+cd ../..
+```
+
+
+
 #### Installing Intel TBB
 > :warning: If you run into issues with the installation you may refer to https://www.intel.com/content/www/us/en/docs/oneapi/installation-guide-linux/2023-0/overview.html for detailed install resources.
 
@@ -404,7 +456,8 @@ Navigate to `Pequin-Artifact/src` and build:
 1. You may need to export your `LD_LIBRARY_PATH` if your installations are in non-standard locations:
    The default install locations are:
 
-   - Hoard: usr/local/lib
+   <!--- Hoard: usr/local/lib -->
+   - Jemalloc: usr/local/lib
    - TaoPq:  /usr/local/lib
    - Nlohman/JSON:  /usr/local/include
    - Secp256k1:  /usr/local/lib

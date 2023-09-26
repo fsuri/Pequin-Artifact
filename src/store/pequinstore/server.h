@@ -32,6 +32,7 @@
 #ifndef _PEQUIN_SERVER_H_
 #define _PEQUIN_SERVER_H_
 
+#include "lib/message.h"
 #include "lib/latency.h"
 #include "lib/transport.h"
 #include "store/common/backend/pingserver.h"
@@ -44,6 +45,10 @@
 #include "store/pequinstore/pequin-proto.pb.h"
 #include "store/pequinstore/batchsigner.h"
 #include "store/pequinstore/verifier.h"
+#include "store/pequinstore/table_store_interface.h"
+#include "store/pequinstore/table_store_interface_toy.h"
+#include "store/pequinstore/table_store_interface_peloton.h"
+//#include "store/pequinstore/sql_interpreter.h"
 #include <sys/time.h>
 
 #include <set>
@@ -58,6 +63,7 @@
 #include "tbb/concurrent_hash_map.h"
 #include "tbb/concurrent_unordered_set.h"
 
+
 //#include "lib/threadpool.cc"
 
 namespace pequinstore {
@@ -69,12 +75,14 @@ enum OCCType {
   TAPIR = 1
 };
 
+
 //TEST/DEBUG variables
-static bool TEST_SNAPSHOT = true;
-static bool TEST_READ_SET = true;
-static bool TEST_FAIL_QUERY = false;
-static bool TEST_PREPARE_SYNC = false;
-static bool TEST_SYNC = false;
+static bool TEST_QUERY = false; //true;   //create toy results for queries
+static bool TEST_SNAPSHOT = false; //true;  //create toy snapshots for queries
+static bool TEST_READ_SET = false; //true;  //create toy read sets for queries
+static bool TEST_FAIL_QUERY = false;  //create an artificial retry for queries
+static bool TEST_PREPARE_SYNC = false;  //Create artificial sync for queries that supplies prepares even though value is committed
+static bool TEST_SYNC = false;  //create an artificial sync for queries
 
 static int fail_writeback = 0;
 typedef std::vector<std::unique_lock<std::mutex>> locks_t;
@@ -92,8 +100,8 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
  public:
   Server(const transport::Configuration &config, int groupIdx, int idx,
       int numShards, int numGroups,
-      Transport *transport, KeyManager *keyManager, Parameters params, uint64_t timeDelta,
-      OCCType occType, Partitioner *part, unsigned int batchTimeoutMS,
+      Transport *transport, KeyManager *keyManager, Parameters params, std::string &table_registry_path,
+      uint64_t timeDelta, OCCType occType, Partitioner *part, unsigned int batchTimeoutMS, bool sql_bench = false,
       TrueTime timeServer = TrueTime(0, 0));
   virtual ~Server();
 
@@ -112,8 +120,13 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
 
   virtual void LoadTableData(const std::string &table_name, const std::string &table_data_path, const std::vector<uint32_t> &primary_key_col_idx) override;
 
+  virtual void LoadTableRows(const std::string &table_name, const std::vector<std::pair<std::string, std::string>> &column_data_types, 
+      const std::vector<std::vector<std::string>> &row_values, const std::vector<uint32_t> &primary_key_col_idx ) override;
+      
   virtual void LoadTableRow(const std::string &table_name, const std::vector<std::pair<std::string, std::string>> &column_data_types, 
       const std::vector<std::string> &values, const std::vector<uint32_t> &primary_key_col_idx) override;
+
+  
 
   virtual inline Stats &GetStats() override { return stats; }
 
@@ -410,6 +423,10 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
     typedef tbb::concurrent_hash_map<std::string, MissingTxns> queryMissingTxnsMap;  //std::unordered_set<std::string>
     queryMissingTxnsMap queryMissingTxns; 
 
+    void FindTableVersion(const std::string &key_name, const Timestamp &ts, bool read_or_snapshot, QueryReadSetMgr *readSetMgr, SnapshotManager *snapshotMgr);
+    const proto::Transaction* FindPreparedVersion(const std::string &key, const Timestamp &ts, bool committed_exists, std::pair<Timestamp, Server::Value> const &tsVal);
+
+    void ProcessPointQuery(const uint64_t &reqId, proto::Query *query, const TransportAddress &remote);
     void ProcessQuery(queryMetaDataMap::accessor &q, const TransportAddress &remote, proto::Query *query, QueryMetaData *query_md);
     void FindSnapshot(QueryMetaData *query_md, proto::Query *query);
     void ProcessSync(queryMetaDataMap::accessor &q, const TransportAddress &remote, proto::MergedSnapshot *merged_ss, const std::string *queryId, QueryMetaData *query_md);
@@ -726,9 +743,11 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
   void LookupP2Decision(const std::string &txnDigest,
       int64_t &myProcessId, proto::CommitDecision &myDecision) const;
   void LookupCurrentView(const std::string &txnDigest, uint64_t &myCurrentView) const;
+  uint64_t DependencyDepth(const std::string &txn_digest) const;
   uint64_t DependencyDepth(const proto::Transaction *txn) const;
   void MessageToSign(::google::protobuf::Message* msg,
       proto::SignedMessage *signedMessage, signedCallback cb);
+  void SignSendReadReply(proto::Write *write, proto::SignedMessage *signed_write, const std::function<void()> &sendCB);
 
   //main protocol messages
   proto::ReadReply *GetUnusedReadReply();
@@ -777,6 +796,8 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
   void FreeRequestTxMessage(proto::RequestMissingTxns *msg);
   proto::SupplyMissingTxns* GetUnusedSupplyTxMessage();
   void FreeSupplyTxMessage(proto::SupplyMissingTxns *msg);
+  proto::PointQueryResultReply* GetUnusedPointQueryResultReply();
+  void FreePointQueryResultReply(proto::PointQueryResultReply *msg);
 
   //generic delete function.
   void FreeMessage(::google::protobuf::Message *msg);
@@ -912,6 +933,9 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
   void CreateHMACedMessage(const ::google::protobuf::Message &msg, proto::SignedMessage *signedMessage);
 
 // DATA STRUCTURES
+  bool sql_bench;
+  TableStore *table_store;
+  //SQLTransformer sql_interpreter;
 
   VersionedKVStore<Timestamp, Value> store;
   // Key -> V
@@ -922,6 +946,10 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
   tbb::concurrent_unordered_map<std::string, std::atomic_uint64_t> rts;
   //tbb::concurrent_hash_map<std::string, std::set<Timestamp>> rts; //TODO: if want to use this again: need per key locks like below.
   tbb::concurrent_unordered_map<std::string, std::pair<std::shared_mutex, std::set<Timestamp>>> rts_list;
+
+  void SetRTS(Timestamp &ts, const std::string &key);
+  void ClearRTS(const google::protobuf::RepeatedPtrField<std::string> &read_set, const TimestampMessage &ts);
+  void ClearRTS(const google::protobuf::RepeatedPtrField<ReadMessage> &read_set, const Timestamp&ts);
 
   // Digest -> V
   //std::unordered_map<std::string, proto::Transaction *> ongoing;

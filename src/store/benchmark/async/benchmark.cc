@@ -46,6 +46,7 @@
 #include "store/strongstore/client.h"
 #include "store/weakstore/client.h"
 #include "store/tapirstore/client.h"
+
 //benchmark clients
 #include "store/benchmark/async/bench_client.h"
 #include "store/benchmark/async/common/key_selector.h"
@@ -57,7 +58,11 @@
 #include "store/benchmark/async/sql/tpcc/tpcc_client.h"
 #include "store/benchmark/async/smallbank/smallbank_client.h"
 #include "store/benchmark/async/toy/toy_client.h"
+#include "store/benchmark/async/rw-sql/rw-sql_client.h"
+
 //protocol clients
+//Blackhole test printer
+#include "store/blackholestore/client.h"
 //Pesto
 #include "store/pequinstore/client.h"
 // Basil
@@ -88,8 +93,11 @@
 #include <thread>
 #include <vector>
 
+#include "store/benchmark/async/json_table_writer.h"
+
 enum protomode_t {
 	PROTO_UNKNOWN,
+  PROTO_BLACKHOLE,
 	PROTO_TAPIR,
 	PROTO_WEAK,
 	PROTO_STRONG,
@@ -115,7 +123,8 @@ enum benchmode_t {
   BENCH_RW,
   BENCH_TPCC_SYNC,
   BENCH_TOY,
-  BENCH_TPCC_SQL
+  BENCH_TPCC_SQL,
+  BENCH_RW_SQL
 };
 
 enum keysmode_t {
@@ -189,7 +198,7 @@ static bool ValidateReadQuorum(const char* flagname,
   std::cerr << "Invalid value for --" << flagname << ": " << value << std::endl;
   return false;
 }
-DEFINE_string(indicus_read_quorum, read_quorum_args[0], "size of read quorums"
+DEFINE_string(indicus_read_quorum, read_quorum_args[1], "size of read quorums"
     " (for Indicus)");
 DEFINE_validator(indicus_read_quorum, &ValidateReadQuorum);
 
@@ -408,10 +417,11 @@ DEFINE_string(pequin_sync_messages, query_messages_args[0], "number of replicas 
 
 DEFINE_validator(pequin_sync_messages, &ValidateQueryMessages);
 
-DEFINE_bool(pequin_query_eager_exec, false, "skip query sync protocol and execute optimistically on local state");
+DEFINE_bool(pequin_query_eager_exec, true, "skip query sync protocol and execute optimistically on local state");
+DEFINE_bool(pequin_query_point_eager_exec, false, "use eager query exec instead of proof based point read");
 
 DEFINE_bool(pequin_query_read_prepared, true, "allow query to read prepared values");
-DEFINE_bool(pequin_query_cache_read_set, true, "cache query read set at replicas"); // Send syncMessages to all if read set caching is enabled -- but still only sync_messages many replicas are tasked to execute and reply.
+DEFINE_bool(pequin_query_cache_read_set, false, "cache query read set at replicas"); // Send syncMessages to all if read set caching is enabled -- but still only sync_messages many replicas are tasked to execute and reply.
 
 DEFINE_bool(pequin_query_optimistic_txid, true, "use optimistic tx-id for sync protocol");
 DEFINE_bool(pequin_query_compress_optimistic_txid, false, "compress optimistic tx-id for sync protocol");
@@ -454,6 +464,7 @@ DEFINE_string(trans_protocol, trans_args[1], "transport protocol to use for"
 DEFINE_validator(trans_protocol, &ValidateTransMode);
 
 const std::string protocol_args[] = {
+  "blackhole",
 	"txn-l",
   "txn-s",
   "qw",
@@ -475,6 +486,7 @@ const std::string protocol_args[] = {
   "postgres"
 };
 const protomode_t protomodes[] {
+  PROTO_BLACKHOLE,
   PROTO_TAPIR,
   PROTO_TAPIR,
   PROTO_WEAK,
@@ -500,14 +512,18 @@ const strongstore::Mode strongmodes[] {
   strongstore::Mode::MODE_UNKNOWN,
   strongstore::Mode::MODE_UNKNOWN,
   strongstore::Mode::MODE_UNKNOWN,
+  strongstore::Mode::MODE_UNKNOWN,
   strongstore::Mode::MODE_OCC,
   strongstore::Mode::MODE_LOCK,
   strongstore::Mode::MODE_SPAN_OCC,
   strongstore::Mode::MODE_SPAN_LOCK,
+  //
   strongstore::Mode::MODE_UNKNOWN,
   strongstore::Mode::MODE_UNKNOWN,
   strongstore::Mode::MODE_UNKNOWN,
 	strongstore::Mode::MODE_UNKNOWN,
+	strongstore::Mode::MODE_UNKNOWN,
+  strongstore::Mode::MODE_UNKNOWN,
 	strongstore::Mode::MODE_UNKNOWN
 };
 static bool ValidateProtocolMode(const char* flagname,
@@ -532,7 +548,8 @@ const std::string benchmark_args[] = {
   "rw",
   "tpcc-sync",
   "toy",
-  "tpcc-sql"
+  "tpcc-sql",
+  "rw-sql"
 };
 const benchmode_t benchmodes[] {
   BENCH_RETWIS,
@@ -541,7 +558,8 @@ const benchmode_t benchmodes[] {
   BENCH_RW,
   BENCH_TPCC_SYNC,
   BENCH_TOY,
-  BENCH_TPCC_SQL
+  BENCH_TPCC_SQL,
+  BENCH_RW_SQL
 };
 static bool ValidateBenchmark(const char* flagname, const std::string &value) {
   int n = sizeof(benchmark_args);
@@ -611,6 +629,7 @@ DEFINE_string(partitioner, partitioner_args[0],	"the partitioner to use during t
 DEFINE_validator(partitioner, &ValidatePartitioner);
 
 
+DEFINE_bool(store_mode, true, "true => Runs Table-store + CC-store (SQL); false => Runs pure KV-store");
 /**
  * SQL Benchmark settings
 */
@@ -661,6 +680,14 @@ DEFINE_uint64(num_ops_txn, 1, "number of ops in each txn"
     " (for rw)");
 DEFINE_bool(rw_read_only, false, "only do read operations");
 // RW benchmark also uses same config parameters as Retwis.
+
+/**
+ * RW-sql additional settings.
+ */
+
+DEFINE_uint64(num_tables, 1, "number of tables for rw-sql");
+DEFINE_uint64(num_keys_per_table, 10, "number of keys per table for rw-sql");
+DEFINE_uint64(max_range, 3, "max amount of reads in a single scan for rw-sql");
 
 
 /**
@@ -724,6 +751,7 @@ transport::Configuration *config;
 KeyManager *keyManager;
 Partitioner *part;
 KeySelector *keySelector;
+QuerySelector *querySelector;
 
 void Cleanup(int signal);
 void FlushStats();
@@ -981,6 +1009,56 @@ int main(int argc, char **argv) {
       NOT_REACHABLE();
   }
 
+  /// QuerySelector
+  if(FLAGS_sql_bench && benchMode == BENCH_RW_SQL){
+    //Create QuerySelector
+    KeySelector *tableSelector;
+    KeySelector *baseSelector;
+    KeySelector *rangeSelector = new UniformKeySelector(keys, FLAGS_max_range); //doesn't make sense really to have a zipfean range selector - does not strongly correlate to contention. The bigger the range = the bigger contention
+
+    //Note: "keys" is an empty/un-used argument for this setup.
+    switch (keySelectionMode) {
+      case KEYS_UNIFORM:
+        tableSelector = new UniformKeySelector(keys, FLAGS_num_tables);
+        baseSelector = new UniformKeySelector(keys, FLAGS_num_keys_per_table);
+        //rangeSelector = new UniformKeySelector(keys, FLAGS_max_range);
+        break;
+      case KEYS_ZIPF:
+        tableSelector = new ZipfKeySelector(keys, FLAGS_zipf_coefficient, FLAGS_num_tables);
+        baseSelector = new ZipfKeySelector(keys, FLAGS_zipf_coefficient, FLAGS_num_keys_per_table);
+        //rangeSelector = new ZipfKeySelector(keys, FLAGS_zipf_coefficient, FLAGS_max_range);
+        break;
+      default:
+        NOT_REACHABLE();
+    }
+
+    querySelector = new QuerySelector(FLAGS_num_keys_per_table, tableSelector, baseSelector, rangeSelector);
+
+
+     //RW-SQL ==> auto-generate TableRegistry
+    FLAGS_data_file_path = std::filesystem::path(FLAGS_data_file_path).replace_filename("rw-sql-gen-client" + std::to_string(FLAGS_client_id));
+    TableWriter table_writer(FLAGS_data_file_path, false);
+
+    //Set up a bunch of Tables: Num_tables many; with num_items...
+    const std::vector<std::pair<std::string, std::string>> &column_names_and_types = {{"key", "INT"}, {"value", "INT"}};
+    const std::vector<uint32_t> &primary_key_col_idx = {0};
+        //Create Table
+        
+    for(int i=0; i<FLAGS_num_tables; ++i){
+      string table_name = "table_" + std::to_string(i);
+      table_writer.add_table(table_name, column_names_and_types, primary_key_col_idx);
+    }
+
+    table_writer.flush();
+    FLAGS_data_file_path += "-tables-schema.json";
+    //Read in a TableRegistry? (Probably not needed, but can add)
+  }
+
+
+
+  ///
+
+
   std::mt19937 rand(FLAGS_client_id); // TODO: is this safe?
 
   switch (partType) {
@@ -1152,7 +1230,7 @@ int main(int argc, char **argv) {
             NOT_REACHABLE();
          }
          if(mergeThreshold > syncQuorumSize) Panic("Merge Threshold for Query Sync cannot be larger than Quorum itself");
-         if(mergeThreshold + config->f > syncQuorumSize) std::cerr << "WARNING: Query Sync Merge is not live in presence of byzantine replies in Query Sync Quorum" << std::endl;
+         if(mergeThreshold + config->f > syncQuorumSize) std::cerr << "WARNING: Under given Config Query Sync Merge is not live in presence of byzantine replies in Query Sync Quorum" << std::endl;
         
          switch (query_messages) {
           case QUERY_MESSAGES_QUERY_QUORUM:
@@ -1282,6 +1360,10 @@ int main(int argc, char **argv) {
 //Declare Protocol Clients
 
     switch (mode) {
+    case PROTO_BLACKHOLE: {
+        client = new blackhole::Client();
+        break;
+    }
     case PROTO_TAPIR: {
         client = new tapirstore::Client(config, clientId,
                                         FLAGS_num_shards, FLAGS_num_groups, FLAGS_closest_replica,
@@ -1291,12 +1373,14 @@ int main(int argc, char **argv) {
         break;
     }
     case PROTO_PEQUIN: {
-      pequinstore::QueryParameters query_params(syncQuorumSize,
+      pequinstore::QueryParameters query_params(FLAGS_store_mode,
+                                                 syncQuorumSize,
                                                  queryMessages,
                                                  mergeThreshold,
                                                  syncMessages,
                                                  resultQuorum,
                                                  FLAGS_pequin_query_eager_exec,
+                                                 FLAGS_pequin_query_point_eager_exec,
                                                  FLAGS_pequin_query_read_prepared,
                                                  FLAGS_pequin_query_cache_read_set,
                                                  FLAGS_pequin_query_optimistic_txid,
@@ -1334,12 +1418,12 @@ int main(int argc, char **argv) {
                                           FLAGS_tapir_sync_commit, 
                                           readMessages, readQuorumSize,
                                           params, 
-                                          FLAGS_data_file_path,
+                                          FLAGS_data_file_path, //table_registry
                                           keyManager, 
                                           FLAGS_indicus_phase1_decision_timeout,
 																					FLAGS_indicus_max_consecutive_abstains,
-																					TrueTime(FLAGS_clock_skew, FLAGS_clock_error),
-                                          FLAGS_sql_bench);
+                                          FLAGS_sql_bench,
+																					TrueTime(FLAGS_clock_skew, FLAGS_clock_error));
         break;
     }
     case PROTO_INDICUS: {
@@ -1471,6 +1555,7 @@ int main(int argc, char **argv) {
         }
         break;
       case BENCH_TOY: 
+      case BENCH_RW_SQL:
       case BENCH_SMALLBANK_SYNC:
       case BENCH_TPCC_SYNC:
       case BENCH_TPCC_SQL:
@@ -1563,6 +1648,16 @@ int main(int argc, char **argv) {
             FLAGS_abort_backoff, FLAGS_retry_aborted, FLAGS_max_backoff, FLAGS_max_attempts,
             FLAGS_timeout);
         break;
+      case BENCH_RW_SQL:
+        UW_ASSERT(syncClient != nullptr);
+        bench = new rwsql::RWSQLClient(FLAGS_num_ops_txn, querySelector, FLAGS_rw_read_only,
+            *syncClient, *tport, seed,
+            FLAGS_num_requests, FLAGS_exp_duration, FLAGS_delay,
+            FLAGS_warmup_secs, FLAGS_cooldown_secs, FLAGS_tput_interval,
+            FLAGS_abort_backoff, FLAGS_retry_aborted, FLAGS_max_backoff, FLAGS_max_attempts,
+            FLAGS_timeout);
+        break;
+
       default:
         NOT_REACHABLE();
     }
@@ -1574,6 +1669,7 @@ int main(int argc, char **argv) {
         // async benchmarks
 	      tport->Timer(0, [bench, bdcb]() { bench->Start(bdcb); });
         break;
+      case BENCH_RW_SQL:
       case BENCH_SMALLBANK_SYNC:
       case BENCH_TPCC_SQL:
       case BENCH_TPCC_SYNC: {
@@ -1643,6 +1739,7 @@ void Cleanup(int signal) {
   delete config;
   delete keyManager;
   delete keySelector;
+
   for (auto i : threads) {
     i->join();
     delete i;
@@ -1665,6 +1762,8 @@ void Cleanup(int signal) {
   tport->Stop();
   delete tport;
   delete part;
+
+  if(FLAGS_sql_bench && querySelector != nullptr) delete querySelector;
 }
 
 void FlushStats() {

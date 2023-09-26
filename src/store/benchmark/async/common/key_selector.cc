@@ -26,7 +26,10 @@
  **********************************************************************/
 #include "store/benchmark/async/common/key_selector.h"
 
-KeySelector::KeySelector(const std::vector<std::string> &keys) : keys(keys) {
+KeySelector::KeySelector(const std::vector<std::string> &keys) : keys(keys), numKeys(keys.size()) {
+}
+
+KeySelector::KeySelector(const std::vector<std::string> &keys, const int numKeys) : keys(keys), numKeys(numKeys) {
 }
 
 KeySelector::~KeySelector() {

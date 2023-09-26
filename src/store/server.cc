@@ -32,6 +32,7 @@
 #include <csignal>
 
 #include <valgrind/callgrind.h>
+#include <filesystem>
 
 #include "lib/keymanager.h"
 #include "lib/transport.h"
@@ -73,8 +74,10 @@
 #include <gflags/gflags.h>
 #include <thread>
 
+#include "store/benchmark/async/json_table_writer.h"
 #include <nlohmann/json.hpp>
 using json = nlohmann::json;
+
 
 enum protocol_t {
 	PROTO_UNKNOWN,
@@ -328,10 +331,11 @@ DEFINE_bool(indicus_replica_gossip, false, "use gossip between replicas to excha
 /*
  Pequin settings
 */
-DEFINE_bool(pequin_query_eager_exec, false, "skip query sync protocol and execute optimistically on local state");
+DEFINE_bool(pequin_query_eager_exec, true, "skip query sync protocol and execute optimistically on local state");
+DEFINE_bool(pequin_query_point_eager_exec, false, "use eager query exec instead of proof based point read");
 
 DEFINE_bool(pequin_query_read_prepared, true, "allow query to read prepared values");
-DEFINE_bool(pequin_query_cache_read_set, true, "cache query read set at replicas");
+DEFINE_bool(pequin_query_cache_read_set, false, "cache query read set at replicas");
 
 DEFINE_bool(pequin_query_optimistic_txid, true, "use optimistic tx-id for sync protocol");
 DEFINE_bool(pequin_query_compress_optimistic_txid, false, "compress optimistic tx-id for sync protocol");
@@ -407,6 +411,9 @@ DEFINE_int32(clock_skew, 0, "difference between real clock and TrueTime");
 DEFINE_int32(clock_error, 0, "maximum error for clock");
 DEFINE_string(stats_file, "", "path to file for server stats");
 
+
+DEFINE_bool(store_mode, true, "true => Runs Table-store + CC-store (SQL); false => Runs pure KV-store");
+
 /**
  * Benchmark settings.
  */
@@ -414,6 +421,8 @@ DEFINE_string(keys_path, "", "path to file containing keys in the system");
 DEFINE_uint64(num_keys, 0, "number of keys to generate");
 DEFINE_string(data_file_path, "", "path to file containing key-value pairs to be loaded");
 DEFINE_bool(sql_bench, false, "Load not just key-value pairs, but also Tables. Input file is JSON Tabe args");
+DEFINE_uint64(num_tables, 1, "number of tables to generate");
+DEFINE_uint64(num_keys_per_table, 10, "number of keys to generate per table");
 
 Server *server = nullptr;
 TransportReceiver *replica = nullptr;
@@ -582,6 +591,29 @@ int main(int argc, char **argv) {
     throw "unimplemented";
   }
 
+  //////////
+  if(FLAGS_sql_bench && std::filesystem::path(FLAGS_data_file_path).filename() == "rw-sql.json"){
+    //Autogenerate a registry file for RW-SQL.
+      FLAGS_data_file_path = std::filesystem::path(FLAGS_data_file_path).replace_filename("rw-sql-gen-server" + std::to_string(FLAGS_replica_idx));
+      TableWriter table_writer(FLAGS_data_file_path, FLAGS_clock_skew);
+
+      //Set up a bunch of Tables: Num_tables many; with num_items...
+      const std::vector<std::pair<std::string, std::string>> &column_names_and_types = {{"key", "INT"}, {"value", "INT"}};
+      const std::vector<uint32_t> &primary_key_col_idx = {0};
+          //Create Table
+          
+      for(int i=0; i<FLAGS_num_tables; ++i){
+        string table_name = "table_" + std::to_string(i);
+        table_writer.add_table(table_name, column_names_and_types, primary_key_col_idx);
+      }
+
+      table_writer.flush();
+      FLAGS_data_file_path += "-tables-schema.json";
+  }
+   
+
+  //////////
+
   uint64_t replica_total = FLAGS_num_shards * config.n;
   uint64_t client_total = FLAGS_num_client_hosts * FLAGS_num_client_threads;
   // std::cerr << "config n: " << config.n << " num_shards: " << FLAGS_num_shards << " replica_total: " << replica_total << std::endl;
@@ -670,12 +702,14 @@ int main(int argc, char **argv) {
           NOT_REACHABLE();
       }
     
-      pequinstore::QueryParameters query_params(0,
+      pequinstore::QueryParameters query_params(FLAGS_store_mode,
+                                                 0,
                                                  0,
                                                  0,
                                                  0,
                                                  0,
                                                  FLAGS_pequin_query_eager_exec,
+                                                 FLAGS_pequin_query_point_eager_exec,
                                                  FLAGS_pequin_query_read_prepared,
                                                  FLAGS_pequin_query_cache_read_set,
                                                  FLAGS_pequin_query_optimistic_txid,
@@ -707,10 +741,11 @@ int main(int argc, char **argv) {
                                       query_params);
 
       Debug("Starting new server object");
+      std::cerr << "FILE PATH: " << FLAGS_data_file_path << std::endl;
       server = new pequinstore::Server(config, FLAGS_group_idx,
                                         FLAGS_replica_idx, FLAGS_num_shards, FLAGS_num_groups, tport,
-                                        &keyManager, params, timeDelta, pequinOCCType, part,
-                                        FLAGS_indicus_sig_batch_timeout); //TODO: Move to params.
+                                        &keyManager, params, FLAGS_data_file_path, timeDelta, pequinOCCType, part,
+                                        FLAGS_indicus_sig_batch_timeout, FLAGS_sql_bench); //TODO: Move to params.
       break;
   }
   case PROTO_INDICUS: {
@@ -847,9 +882,32 @@ int main(int argc, char **argv) {
   }
   }
 
+  //SET THREAD AFFINITY if running multi_threading:
+	//if(FLAGS_indicus_multi_threading){
+  bool pinned_protocol = proto == PROTO_PEQUIN || proto == PROTO_INDICUS || proto == PROTO_PBFT;
+     // || proto == PROTO_HOTSTUFF || proto == PROTO_AUGUSTUS || proto == PROTO_BFTSMART || proto == PROTO_AUGUSTUS_SMART;   
+     //For Hotstuff and Augustus store it's likely best to not pin the main Process in order to allow their internal threadpools to use more cores
+	if(FLAGS_indicus_multi_threading && pinned_protocol){
+		cpu_set_t cpuset;
+		CPU_ZERO(&cpuset);
+		//bool hyperthreading = true;
+        int num_cpus = std::thread::hardware_concurrency();///(2-FLAGS_indicus_hyper_threading);
+		//CPU_SET(num_cpus-1, &cpuset); //last core is for main
+		num_cpus /= FLAGS_indicus_total_processes;
+        int offset = FLAGS_indicus_process_id * num_cpus;
+        Debug("Process ID: %d. CPU offset: %d.", FLAGS_indicus_process_id, offset);
+		//int offset = FLAGS_indicus_process_id;
+		CPU_SET(0 + offset, &cpuset); //first assigned core is for main
+		pthread_setaffinity_np(pthread_self(),	sizeof(cpu_set_t), &cpuset);
+		Debug("Main Process running on CPU %d.", sched_getcpu());
+	}
+
   // parse keys
   std::vector<std::string> keys;
+
+  //RW, Retwis
   if (FLAGS_data_file_path.empty() && FLAGS_keys_path.empty()) {
+    Notice("Benchmark: RW, Retwis");
     /*if (FLAGS_num_keys > 0) {
       for (size_t i = 0; i < FLAGS_num_keys; ++i) {
         keys.push_back(std::to_string(i));
@@ -886,11 +944,21 @@ int main(int argc, char **argv) {
 	        loaded);
 		}
   } 
+  //SQL Benchmarks -- they all require a schema file!
   else if(FLAGS_sql_bench && FLAGS_data_file_path.length() > 0 && FLAGS_keys_path.empty()) {
+     Notice("Benchmark: SQL with Loaded Table Registry");
        std::ifstream generated_tables(FLAGS_data_file_path);
-       json tables_to_load = json::parse(generated_tables);
+       json tables_to_load;
+       try {
+          tables_to_load = json::parse(generated_tables);
+       }
+       catch (const std::exception &e) {
+         Panic("Failed to load Table JSON Schema");
+       }
        
-       //Load all tables. 
+       //Note: If RW-SQL, then currently already autogenerating a file further up. if(tables_to_load.empty()){ => Autogen. 
+     
+        //Load all tables. 
        for(auto &[table_name, table_args]: tables_to_load.items()){ 
           const std::vector<std::pair<std::string, std::string>> &column_names_and_types = table_args["column_names_and_types"];
           const std::vector<uint32_t> &primary_key_col_idx = table_args["primary_key_col_idx"];
@@ -900,16 +968,33 @@ int main(int argc, char **argv) {
           for(auto &[index_name, index_col_idx]: table_args["indexes"].items()){
             server->CreateIndex(table_name, column_names_and_types, index_name, index_col_idx);
           }
-          //Load full table data
-          server->LoadTableData(table_name, table_args["row_data_path"], primary_key_col_idx);
+
+          if(!table_args.contains("row_data_path")) { //RW-SQL ==> generate rows 
+            std::vector<std::vector<std::string>> values;
+            for(int j=0; j<FLAGS_num_keys_per_table; ++j){
+                //values.emplace_back(std::initializer_list<string>{"", ""};)
+                values.push_back({std::to_string(j), std::to_string(j)});
+            }
+            server->LoadTableRows(table_name, column_names_and_types, values, primary_key_col_idx);
+
+            continue;
+          }
+
+          //If data path exists: Load full table data
+          //TODO: splice row_data path into Data_file_path.   //TODO: Add json file suffix to the file itself. (i.e. add filename)   ===> Test in table_write tester.
+          std::string row_data_path = std::filesystem::path(FLAGS_data_file_path).replace_filename(table_args["row_data_path"]); //https://en.cppreference.com/w/cpp/filesystem/path
+          server->LoadTableData(table_name, row_data_path, primary_key_col_idx);
           // //Load Rows individually 
           // for(auto &row: table_args["rows"]){
           //   const std::vector<std::string> &values = row;
           //   server->LoadTableRow(table_name, column_names_and_types, row, primary_key_col_idx);
           // }
        }
+      
   }
   else if (FLAGS_data_file_path.length() > 0 && FLAGS_keys_path.empty()) {
+    Notice("Benchmark: TPCC/Smallbank");
+
     std::ifstream in;
     in.open(FLAGS_data_file_path);
     if (!in) {
@@ -940,6 +1025,7 @@ int main(int argc, char **argv) {
     // Debug("Stored %lu out of %lu key-value pairs from file %s.", stored,
     //     loaded, FLAGS_data_file_path.c_str());
   } else {
+    Notice("Benchmark: reading from keys");
     std::ifstream in;
     in.open(FLAGS_keys_path);
     if (!in) {
@@ -962,21 +1048,7 @@ int main(int argc, char **argv) {
   std::signal(SIGINT, Cleanup);
 
   CALLGRIND_START_INSTRUMENTATION;
-	//SET THREAD AFFINITY if running multi_threading:
-	//if(FLAGS_indicus_multi_threading){
-	if((proto == PROTO_INDICUS || proto == PROTO_PBFT || proto == PROTO_HOTSTUFF || proto == PROTO_AUGUSTUS || proto == PROTO_BFTSMART || proto == PROTO_AUGUSTUS_SMART) && FLAGS_indicus_multi_threading){
-		cpu_set_t cpuset;
-		CPU_ZERO(&cpuset);
-		//bool hyperthreading = true;
-        int num_cpus = std::thread::hardware_concurrency();///(2-FLAGS_indicus_hyper_threading);
-		//CPU_SET(num_cpus-1, &cpuset); //last core is for main
-		num_cpus /= FLAGS_indicus_total_processes;
-        int offset = FLAGS_indicus_process_id * num_cpus;
-		//int offset = FLAGS_indicus_process_id;
-		CPU_SET(0 + offset, &cpuset); //first assigned core is for main
-		//pthread_setaffinity_np(pthread_self(),	sizeof(cpu_set_t), &cpuset);
-		Debug("MainThread running on CPU %d.", sched_getcpu());
-	}
+	
 
 	//event_enable_debug_logging(EVENT_DBG_ALL);
 
