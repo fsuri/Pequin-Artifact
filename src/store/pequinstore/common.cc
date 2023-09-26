@@ -34,6 +34,7 @@
 
 #include "store/common/timestamp.h"
 #include "store/common/transaction.h"
+//#include "../../query-engine/type/value.h"
 #include <utility>
 
 
@@ -1774,9 +1775,9 @@ bool ValidateDependency(const proto::Dependency &dep,
 }
 
 bool operator==(const proto::Write &pw1, const proto::Write &pw2) {
-  return pw1.committed_value() == pw2.committed_value() &&
-    pw1.committed_timestamp().timestamp() == pw2.committed_timestamp().timestamp() &&
-    pw1.committed_timestamp().id() == pw2.committed_timestamp().id() &&
+  return //pw1.committed_value() == pw2.committed_value() &&
+    //pw1.committed_timestamp().timestamp() == pw2.committed_timestamp().timestamp() &&
+    //pw1.committed_timestamp().id() == pw2.committed_timestamp().id() &&
     pw1.prepared_value() == pw2.prepared_value() &&
     pw1.prepared_timestamp().timestamp() == pw2.prepared_timestamp().timestamp() &&
     pw1.prepared_timestamp().id() == pw2.prepared_timestamp().id() &&
@@ -1849,19 +1850,31 @@ std::string TransactionDigest(const proto::Transaction &txn, bool hashDigest) {
           //     blake3_hasher_update(&hasher, (unsigned char *) &timestampId, sizeof(timestampId));
           //     blake3_hasher_update(&hasher, (unsigned char *) &timestampTs, sizeof(timestampTs));
           //  }
-           for (auto const &read : group_md.query_read_set().read_set()){
+          for (auto const &read : group_md.query_read_set().read_set()){
               uint64_t readtimeId = read.readtime().id();
               uint64_t readtimeTs = read.readtime().timestamp();
               blake3_hasher_update(&hasher, (unsigned char *) &read.key()[0], read.key().length());
-              blake3_hasher_update(&hasher, (unsigned char *) &readtimeId, sizeof(read.readtime().id()));
-              blake3_hasher_update(&hasher, (unsigned char *) &readtimeTs, sizeof(read.readtime().timestamp()));
+              blake3_hasher_update(&hasher, (unsigned char *) &readtimeId, sizeof(readtimeId));
+              blake3_hasher_update(&hasher, (unsigned char *) &readtimeTs, sizeof(readtimeTs));
+          }
+          for (const auto &dep : group_md.query_read_set().deps()) {
+              blake3_hasher_update(&hasher, (unsigned char *) &dep.write().prepared_txn_digest()[0],
+                dep.write().prepared_txn_digest().length());
           }
         }
-
-        //TODO: Include deps too (if using)
       }
     }
-    //
+    //Account for TableWrites too:
+    for (const auto &[table, table_write]: txn.table_writes()) {
+        blake3_hasher_update(&hasher, (unsigned char *) &table[0], table.length());
+
+        for(const auto &row: table_write.rows()){
+           if(row.has_deletion()) blake3_hasher_update(&hasher, (void *) row.deletion(), sizeof(row.deletion()));
+           for(const auto &val: row.column_values()){
+              blake3_hasher_update(&hasher, (unsigned char *) &val[0], val.length());
+           }
+        }
+    }
 
     blake3_hasher_finalize(&hasher, (unsigned char *) &digest[0], BLAKE3_OUT_LEN);
 

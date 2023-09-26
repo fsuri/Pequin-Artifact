@@ -36,6 +36,7 @@
 #include "store/pequinstore/verifier.h"
 #include "lib/tcptransport.h"
 
+#include <stack>
 #include <map>
 #include <string>
 #include <vector>
@@ -67,6 +68,7 @@ typedef std::function<void()> cleanCallback;
 //typedef std::function<void(void*)> verifyCallback;
 typedef std::function<void(void*)> mainThreadCallback; //TODO change back to this...
 //typedef std::function<void(bool)> mainThreadCallback;
+
 
 struct Triplet {
   Triplet() {};
@@ -371,8 +373,8 @@ inline static bool sortReadSetByKey(const ReadMessage &lhs, const ReadMessage &r
         if(lhs.readtime().timestamp() != rhs.readtime().timestamp() || lhs.readtime().id() != rhs.readtime().id()){ 
         //Note: What about an app corner case in which you want to read your own write? Such reads don't have to be added to Read Set -- they are valid by default.
         //Note: See ShardClient "BufferGet" -- we either read our own write, or read previously read value => thus it is impossible to read 2 different TS. We don't add such reads to ReadSet
-             Panic("duplicate read set key with different TS");
-             throw std::exception();
+             //Panic("duplicate read set key with different TS");
+             throw std::runtime_error("Read set contains two reads of the same key with different timestamp");
         }
         //return (lhs.readtime().timestamp() == rhs.readtime().timestamp()) ? lhs.readtime().id() < rhs.readtime().id() : lhs.readtime().timestamp() < rhs.readtime().timestamp(); 
     }
@@ -417,23 +419,35 @@ inline static bool compareReadSets (google::protobuf::RepeatedPtrField<ReadMessa
 
 
 struct QueryReadSetMgr {
-        QueryReadSetMgr(proto::ReadSet *read_set, const uint64_t &groupIdx): read_set(read_set), groupIdx(groupIdx) {}
+        QueryReadSetMgr(){}
+        QueryReadSetMgr(proto::ReadSet *read_set, const uint64_t &groupIdx, const bool &useOptimisticId): read_set(read_set), groupIdx(groupIdx), useOptimisticId(useOptimisticId){}
         ~QueryReadSetMgr(){}
 
-        void AddToReadSet(const std::string &key, const TimestampMessage &readtime){
-           ReadMessage *read = read_set->add_read_set();
+        void AddToReadSet(const std::string &key, const TimestampMessage &readtime, bool is_table_col_ver = false){
+          Debug("Adding to ReadSet. Key: %s, with TS:[%lu:%lu]", key.c_str(), readtime.timestamp(), readtime.id());
+          ReadMessage *read = read_set->add_read_set();
           //ReadMessage *read = query_md->queryResult->mutable_query_read_set()->add_read_set();
           read->set_key(key);
           *read->mutable_readtime() = readtime;
+
+          if(is_table_col_ver) read->set_is_table_col_version(true);
         }
 
-        void AddToDepSet(const std::string &tx_id, bool optimisticId, const TimestampMessage &tx_ts){
+        void AddToReadSet(std::string &&key, const Timestamp &readtime){
+        Debug("Adding to ReadSet. Key: %s, with TS:[%lu:%lu]", key.c_str(), readtime.getTimestamp(), readtime.getID());
+           ReadMessage *read = read_set->add_read_set();
+          //ReadMessage *read = query_md->queryResult->mutable_query_read_set()->add_read_set();
+          read->set_key(std::move(key));
+          readtime.serialize(read->mutable_readtime());
+        }
+
+        void AddToDepSet(const std::string &tx_id, const TimestampMessage &tx_ts){
             proto::Dependency *add_dep = read_set->add_deps();
             add_dep->set_involved_group(groupIdx);
             add_dep->mutable_write()->set_prepared_txn_digest(tx_id);
             Debug("Adding Dep: %s", BytesToHex(tx_id, 16).c_str());
             //Note: Send merged TS.
-            if(optimisticId){
+            if(useOptimisticId){
                 //MergeTimestampId(txn->timestamp().timestamp(), txn->timestamp().id()
                 *add_dep->mutable_write()->mutable_prepared_timestamp() = tx_ts;
                 // add_dep->mutable_write()->mutable_prepared_timestamp()->set_timestamp(txn->timestamp().timestamp());
@@ -441,10 +455,23 @@ struct QueryReadSetMgr {
             }
         }
 
+        void AddToDepSet(const std::string &tx_id, const Timestamp &tx_ts){
+            proto::Dependency *add_dep = read_set->add_deps();
+            add_dep->set_involved_group(groupIdx);
+            add_dep->mutable_write()->set_prepared_txn_digest(tx_id);
+            Debug("Adding Dep: %s", BytesToHex(tx_id, 16).c_str());
+            //Note: Send merged TS.
+            if(useOptimisticId){
+                //MergeTimestampId(txn->timestamp().timestamp(), txn->timestamp().id()
+                add_dep->mutable_write()->mutable_prepared_timestamp()->set_timestamp(tx_ts.getTimestamp());
+                add_dep->mutable_write()->mutable_prepared_timestamp()->set_id(tx_ts.getID());
+            }
+        }
+
       proto::ReadSet *read_set;
       uint64_t groupIdx;
+      bool useOptimisticId;
 };
-
 
 // enum InjectFailureType {
 //   CLIENT_EQUIVOCATE = 0,
@@ -468,6 +495,7 @@ struct QueryReadSetMgr {
 
 
 typedef struct QueryParameters {
+    const bool sql_mode; //false ==> KV-store; true ==> SQL-store
     //protocol parameters
     const uint64_t syncQuorum; //number of replies necessary to form a sync quorum
     const uint64_t queryMessages; //number of query messages sent to replicas to request sync replies
@@ -475,7 +503,9 @@ typedef struct QueryParameters {
     const uint64_t syncMessages;    //number of sync messages sent to replicas to request result replies
     const uint64_t resultQuorum ;   //number of matching query replies necessary to return
     
-    const bool eagerExec;
+    const bool eagerExec;   //Perform eager execution on Queries
+    const bool eagerPointExec;  //Perform query style eager execution on point queries (instead of using proof)
+    
     const bool readPrepared; //read only committed or also prepared values in query?
     const bool cacheReadSet; //return query read set to client, or cache it locally at servers?
     const bool optimisticTxID; //use unique hash tx ids (normal ids), or optimistically use timestamp as identifier?
@@ -490,11 +520,11 @@ typedef struct QueryParameters {
     //performance parameters
     const bool parallel_queries;
 
-    QueryParameters(uint64_t syncQuorum, uint64_t queryMessages, uint64_t mergeThreshold, uint64_t syncMessages, uint64_t resultQuorum, 
-        bool eagerExec, bool readPrepared, bool cacheReadSet, bool optimisticTxID, bool compressOptimisticTxIDs, bool mergeActiveAtClient, 
+    QueryParameters(bool sql_mode, uint64_t syncQuorum, uint64_t queryMessages, uint64_t mergeThreshold, uint64_t syncMessages, uint64_t resultQuorum, 
+        bool eagerExec, bool eagerPointExec, bool readPrepared, bool cacheReadSet, bool optimisticTxID, bool compressOptimisticTxIDs, bool mergeActiveAtClient, 
         bool signClientQueries, bool signReplicaToReplicaSync, bool parallel_queries) : 
-        syncQuorum(syncQuorum), queryMessages(queryMessages), mergeThreshold(mergeThreshold), syncMessages(syncMessages), resultQuorum(resultQuorum),
-        eagerExec(eagerExec), readPrepared(readPrepared), cacheReadSet(cacheReadSet), optimisticTxID(optimisticTxID), compressOptimisticTxIDs(compressOptimisticTxIDs), mergeActiveAtClient(mergeActiveAtClient), 
+        sql_mode(sql_mode), syncQuorum(syncQuorum), queryMessages(queryMessages), mergeThreshold(mergeThreshold), syncMessages(syncMessages), resultQuorum(resultQuorum),
+        eagerExec(eagerExec), eagerPointExec(eagerPointExec), readPrepared(readPrepared), cacheReadSet(cacheReadSet), optimisticTxID(optimisticTxID), compressOptimisticTxIDs(compressOptimisticTxIDs), mergeActiveAtClient(mergeActiveAtClient), 
         signClientQueries(signClientQueries), signReplicaToReplicaSync(signReplicaToReplicaSync), parallel_queries(parallel_queries) {}
 
 } QueryParameters;
@@ -542,6 +572,7 @@ public:
   void InitLocalSnapshot(proto::LocalSnapshot *local_ss, const uint64_t &query_seq_num, const uint64_t &client_id, const uint64_t &replica_id, bool useOptimisticTxId = false);
   void ResetLocalSnapshot(bool useOptimisticTxId = false);
   void AddToLocalSnapshot(const std::string &txnDigest, const proto::Transaction *txn, bool committed_or_prepared = true); //For local snapshot; //TODO: Define something similar for merged? Should merged be a separate class?
+    void AddToLocalSnapshot(const std::string &txnDigest, const uint64_t &timestamp, const uint64_t &id, bool committed_or_prepared);
   void SealLocalSnapshot();
   void OpenLocalSnapshot(proto::LocalSnapshot *local_ss);
   
@@ -573,6 +604,11 @@ private:
     std::unordered_map<std::string, std::set<uint64_t>> txn_freq; //replicas that have txn committed.
     std::unordered_map<uint64_t, std::set<uint64_t>> ts_freq; //replicas that have txn committed.
 };
+
+typedef std::function<void(const std::string &, const Timestamp &, bool, QueryReadSetMgr *, SnapshotManager *)> find_table_version;
+typedef std::function<bool(const std::string &)> read_prepared_pred; // This is a function that, given a txnDigest of a prepared tx, evals to true if it is readable, and false if not.
+
+
 
 typedef struct Parameters {
 
@@ -613,7 +649,7 @@ typedef struct Parameters {
 
   const QueryParameters query_params;
 
-  Parameters(bool signedMessages, bool validateProofs, bool hashDigest, bool verifyDeps,
+  Parameters(bool signedMessages, bool validateProofs, bool hashDigest, bool _verifyDeps,
     int signatureBatchSize, int64_t maxDepDepth, uint64_t readDepSize,
     bool readReplyBatch, bool adjustBatchSize, bool sharedMemBatches,
     bool sharedMemVerify, uint64_t merkleBranchFactor, const InjectFailure &injectFailure,
@@ -630,7 +666,7 @@ typedef struct Parameters {
     uint32_t rtsMode,
     QueryParameters query_params) :
     signedMessages(signedMessages), validateProofs(validateProofs),
-    hashDigest(hashDigest), verifyDeps(verifyDeps), signatureBatchSize(signatureBatchSize),
+    hashDigest(hashDigest), verifyDeps(false), signatureBatchSize(signatureBatchSize),
     maxDepDepth(maxDepDepth), readDepSize(readDepSize),
     readReplyBatch(readReplyBatch), adjustBatchSize(adjustBatchSize),
     sharedMemBatches(sharedMemBatches), sharedMemVerify(sharedMemVerify),
@@ -650,6 +686,14 @@ typedef struct Parameters {
     rtsMode(rtsMode),
     query_params(query_params) { 
         UW_ASSERT(!(mainThreadDispatching && dispatchMessageReceive)); //They should not be true at the same time.
+
+        UW_ASSERT(!verifyDeps);
+        if(_verifyDeps){
+            Warning("VerifyDeps Parameter is deprecated in Pequinstore -- automatically setting to false. Always doing serverside local verification");
+            //Note: Cannot support non-local verification (proofs for deps) if write equality is only for prepares. 
+            //Since signature is for whole write, verifyDeps will not be able to correctly verify a dependency that was formed by 
+            //f+1 Write messages with the same prepare value, but different committed values
+        }
     }
 } Parameters;
 

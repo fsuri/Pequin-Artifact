@@ -61,6 +61,12 @@
 
 namespace pequinstore {
 
+
+static bool TEST_READ_SET = true;  //check toy read sets for queries
+static bool TEST_WRITE_SET = true; //check toy write sets for writes
+
+static bool relax_point_cond = true;
+
 static uint64_t start_time = 0;
 static uint64_t total_failure_injections=0;
 static uint64_t total_writebacks=0;
@@ -76,8 +82,8 @@ class Client : public ::Client {
       Parameters params, std::string &table_registry,
       KeyManager *keyManager, uint64_t phase1DecisionTimeout,
       uint64_t consecutiveMax = 1UL,
-      TrueTime timeserver = TrueTime(0,0),
-      bool sql_bench = false);
+      bool sql_bench = false,
+      TrueTime timeserver = TrueTime(0,0));
   virtual ~Client();
 
   // Begin a transaction.
@@ -116,8 +122,10 @@ class Client : public ::Client {
    int total_counter;
    std::unordered_set<uint64_t> conflict_ids;
 
+  //Query protocol structures and functions
+
   struct PendingQuery {
-    PendingQuery(Client *client, uint64_t query_seq_num, const std::string &query_cmd) : version(0UL), group_replies(0UL){
+    PendingQuery(Client *client, uint64_t query_seq_num, const std::string &query_cmd, const query_callback &qcb) : version(0UL), group_replies(0UL), qcb(qcb){
       queryMsg.Clear();
       queryMsg.set_client_id(client->client_id);
       queryMsg.set_query_seq_num(query_seq_num);
@@ -153,6 +161,7 @@ class Client : public ::Client {
       // }
     }
 
+    query_callback qcb;
 
     uint64_t version;
     std::string queryId;
@@ -166,7 +175,28 @@ class Client : public ::Client {
     std::string result;
     uint64_t group_replies;
    
+    bool is_point;
+    std::string key;
+    std::string table_name;
+    std::vector<std::string> p_col_values; //if point read: this contains primary_key_col_vaues (in order) ==> Together with table_name can be used to compute encoding.
   };
+  std::map<uint64_t, PendingQuery*> pendingQueries;
+
+  SQLTransformer sql_interpreter;
+
+  void TestReadSet(PendingQuery *pendingQuery);
+  void PointQueryResultCallback(PendingQuery *pendingQuery,  
+                            int status, const std::string &key, const std::string &result, const Timestamp &read_time, const proto::Dependency &dep, bool hasDep, bool addReadSet); 
+  void QueryResultCallback(PendingQuery *pendingQuery,      //bound parameters
+                            int status, int group, proto::ReadSet *query_read_set, std::string &result_hash, std::string &result, bool success);  //free parameters
+  void ClearTxnQueries();
+  void ClearQuery(PendingQuery *pendingQuery);
+  void RetryQuery(PendingQuery *pendingQuery);
+  // void ClearQuery(uint64_t query_seq_num, std::vector<uint64_t> &involved_groups);
+  // void RetryQuery(uint64_t query_seq_num, std::vector<uint64_t> &involved_groups);
+
+
+  //Commit protocol structures and functions
 
   struct PendingRequest {
     PendingRequest(uint64_t id, Client *client) : id(id), outstandingPhase1s(0),
@@ -264,7 +294,7 @@ class Client : public ::Client {
 
   // Fallback logic
   void FinishConflict(uint64_t reqId, const std::string &txnDigest, proto::Phase1 *p1);
-  bool isDep(const std::string &txnDigest, proto::Transaction &Req_txn);
+  bool isDep(const std::string &txnDigest, proto::Transaction &Req_txn, const proto::Transaction* txn);
   bool StillActive(uint64_t conflict_id, std::string &txnDigest);
   void CleanFB(PendingRequest *pendingFB, const std::string &txnDigest, bool clean_shards = true);
   void EraseRelays(proto::RelayP1 &relayP1, std::string &txnDigest);
@@ -303,16 +333,6 @@ class Client : public ::Client {
   //Question: How can client have multiple pendingReqs?
   //TODO: would this simplify having a deeper depth?
   // --> would allow normal OCC handling on Wait results at the server?
-
-  //Query logic
-
-  SQLTransformer sql_interpreter;
-
-  void ClearQuery(PendingQuery *pendingQuery);
-  void RetryQuery(PendingQuery *pendingQuery);
-  // void ClearQuery(uint64_t query_seq_num, std::vector<uint64_t> &involved_groups);
-  // void RetryQuery(uint64_t query_seq_num, std::vector<uint64_t> &involved_groups);
-
 
 
 

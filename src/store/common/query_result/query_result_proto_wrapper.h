@@ -47,13 +47,21 @@ class QueryResultProtoWrapper : public query_result::QueryResult {
     auto check_has_result_set() const -> void;
 
 	public:
+    QueryResultProtoWrapper(): proto_result(std::make_unique<SQLResultProto>()) {} 
+    // QueryResultProtoWrapper(SQLResultProto* proto_result): proto_result(proto_result) {
+    //   //create_from_proto(proto_result);
+    // }
     QueryResultProtoWrapper(std::unique_ptr<SQLResultProto> proto_result) 
       : proto_result(std::move(proto_result)) {}
 
-    QueryResultProtoWrapper(const std::string& data) {
+    QueryResultProtoWrapper(const std::string& data){
+      //SQLResultProto result;
       proto_result = std::make_unique<SQLResultProto>();
-      if(proto_result->ParseFromString(data)) {
-        return;
+      if(data.empty()){ //default case
+        //create_from_proto(&result);
+      }
+      else if(proto_result->ParseFromString(data)) {
+        //create_from_proto(&result);
       } else {
         throw std::invalid_argument("Failed to parse QueryResultProtoWrapper from data");
       }
@@ -63,7 +71,16 @@ class QueryResultProtoWrapper : public query_result::QueryResult {
     QueryResultProtoWrapper(const QueryResultProtoWrapper&) = delete;
     QueryResultProtoWrapper& operator=(const QueryResultProtoWrapper&) = delete;
 
+    // QueryResultProtoWrapper& operator=(const QueryResultProtoWrapper& old){
+    //   this->proto_result.reset( new SQLResultProto(*old.proto_result));
+    //   return *this;
+    // }
+
     ~QueryResultProtoWrapper() {}
+
+    inline void SetResult(SQLResultProto &result){
+      proto_result = std::make_unique<SQLResultProto>(std::move(result));
+    }
 
 		class const_iterator : sql::Row {
       private:
@@ -142,7 +159,7 @@ class QueryResultProtoWrapper : public query_result::QueryResult {
 		// size of the result set
 		bool empty() const;
 		auto size() const -> std::size_t;
-    auto columns() const -> std::size_t;
+    auto num_columns() const -> std::size_t;
 
 		// iteration
     auto begin() const -> std::unique_ptr<const_iterator>;

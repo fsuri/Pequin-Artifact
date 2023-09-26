@@ -31,7 +31,7 @@
 
 namespace taopq_wrapper {
 
-auto Row::columns() const noexcept -> std::size_t 
+auto Row::num_columns() const noexcept -> std::size_t 
 {
     return row.columns();
 }

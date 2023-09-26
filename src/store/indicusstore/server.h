@@ -32,6 +32,7 @@
 #ifndef _INDICUS_SERVER_H_
 #define _INDICUS_SERVER_H_
 
+#include "lib/message.h"
 #include "lib/latency.h"
 #include "lib/transport.h"
 #include "store/common/backend/pingserver.h"

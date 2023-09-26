@@ -81,6 +81,7 @@ class ZipfKeySelector : public KeySelector {
    * @param zipfianconstant The zipfian constant to use.
    */
   ZipfKeySelector(const std::vector<std::string> &keys, double zipfianconstant);
+  ZipfKeySelector(const std::vector<std::string> &keys, double zipfianconstant, uint64_t num_keys);
 
   /**
    * Create a zipfian generator for items between min and max (inclusive) for the specified zipfian constant, using
@@ -93,7 +94,8 @@ class ZipfKeySelector : public KeySelector {
    */
   ZipfKeySelector(const std::vector<std::string> &keys, double zipfianconstant,
       double zetan);
-
+  ZipfKeySelector(const std::vector<std::string> &keys, double zipfianconstant,
+      double zetan, uint64_t num_keys);
 
   /**************************************************************************/
 

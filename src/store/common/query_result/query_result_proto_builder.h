@@ -59,6 +59,7 @@ class QueryResultProtoBuilder {
 
   template<class Iterable>
   void add_row(Iterable it, Iterable end)
+  //Note: Only use this if entire row is of the same data type.
   {
     RowProto *row = result->add_rows();
     while (it != end) {
@@ -124,16 +125,35 @@ class QueryResultProtoBuilder {
     return ss.str();
   }
 
-  
+  //Add new empty row
   inline RowProto * new_row()
   {
     return result->add_rows();
   }
 
+
+  //Append field to given row
   template<typename T>
-  inline void AddToRow(RowProto *row, T &t){
+  void AddToRow(RowProto *row, T &t){
+  //Appends field to a row
     FieldProto *field = row->add_fields();
     field->set_data(serialize(t));
+  }
+
+    //New interface:
+
+   //Updates specific column in a row
+   //Note: Requires fields to be allocated.
+  template<typename T>
+  auto update_field_in_row(std::size_t row, std::size_t column, T &t) -> void {
+    FieldProto *field = result->mutable_rows(row)->mutable_fields(column);
+    field->set_data(serialize(t));
+  }
+
+  // Overwrites existing field in last row
+  template<typename T>
+  auto update_field_in_last_row(std::size_t column, T &t) -> void {
+    insert_field_to_row(result->rows_size() - 1, column, t);
   }
 
 };

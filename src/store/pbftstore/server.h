@@ -33,6 +33,7 @@
 #include <mutex>
 #include <shared_mutex>
 
+#include "lib/message.h"
 #include "store/pbftstore/app.h"
 #include "store/pbftstore/server-proto.pb.h"
 #include "store/server.h"

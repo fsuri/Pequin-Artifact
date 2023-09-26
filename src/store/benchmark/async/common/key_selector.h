@@ -34,15 +34,37 @@
 class KeySelector {
  public:
   KeySelector(const std::vector<std::string> &keys);
+  KeySelector(const std::vector<std::string> &keys, const int numKeys);
   virtual ~KeySelector();
 
   virtual int GetKey(std::mt19937 &rand) = 0;
 
   inline const std::string &GetKey(int idx) const { return keys[idx]; }
-  inline size_t GetNumKeys() const { return keys.size(); }
+  inline size_t GetNumKeys() const { return numKeys; } //return keys.size(); }
 
  private:
   const std::vector<std::string> &keys;
+  const int numKeys;
+
+};
+
+struct QuerySelector{
+  QuerySelector(uint64_t numKeys, KeySelector *tableSelector, KeySelector *baseSelector, KeySelector *rangeSelector) : 
+     numKeys(numKeys), tableSelector(tableSelector), baseSelector(baseSelector), rangeSelector(rangeSelector) {}
+  ~QuerySelector(){ //TODO: Need to delete them in benchmark.cc
+  
+  }
+  //uint64_t numTables;
+  //uint64_t maxRange;
+  uint64_t numKeys; //keys per Table
+
+  KeySelector *tableSelector;  //pick which table to read from -- pick random TableIdx (i.e. pick between 0 and numTables-1)
+
+  //pick a random amount of keys to read (i.e. between 1 and maxRange)
+  //read the range: base < x < base + offset
+  KeySelector *baseSelector;  //pick which row to start scan from -- pick random starting point Idx (i.e. pick between 0 and numKeys-1)
+  
+  KeySelector *rangeSelector; //pick size of scan  -- pick random offset (i.e. pick between 0 and maxRange)
 
 };
 

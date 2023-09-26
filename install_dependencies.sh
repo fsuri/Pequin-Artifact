@@ -13,7 +13,7 @@ sudo apt-get upgrade
 
 sudo apt install python3-pip
 sudo -H pip3 install numpy
-sudo apt-get install autoconf automake libtool curl make g++ unzip valgrind cmake gnuplot pkg-config ant
+sudo apt-get install autoconf automake libtool curl make g++ unzip valgrind cmake gnuplot pkg-config ant 
 
 echo "$(tput setaf 2) COMPLETE: GENERAL PRE-REQ $(tput sgr0)"
 read -p "Press enter to continue"
@@ -22,7 +22,7 @@ echo ""
 #Development library dependencies
 echo "Installing Development library dependencies"
 echo ""
-sudo apt install libsodium-dev libgflags-dev libssl-dev libevent-dev libevent-openssl-2.1-7 libevent-pthreads-2.1-7 libboost-all-dev libuv1-dev libpq-dev postgresql-server-dev-all libfmt-dev
+sudo apt install libsodium-dev libgflags-dev libssl-dev libevent-dev libevent-openssl-2.1-7 libevent-pthreads-2.1-7 libboost-all-dev libuv1-dev libpq-dev postgresql-server-dev-all libfmt-dev libreadline-dev libeigen3-dev libboost-all-dev
 echo "$(tput setaf 2) COMPLETE: GENERAL DEVELOPMENT LIB DEPS $(tput sgr0)"
 echo ""
 read -p "Press enter to continue"
@@ -31,19 +31,32 @@ mkdir dependencies
 cd dependencies
 
 #Optional: Hoard
-echo "Installing Hoard Allocator"
+#echo "Installing Hoard Allocator"
+#echo ""
+#sudo apt-get install clang
+#git clone https://github.com/emeryberger/Hoard
+#cd Hoard
+#cd src
+#make
+#sudo cp libhoard.so /usr/local/lib
+#sudo echo 'export LD_PRELOAD=/usr/local/lib/libhoard.so' >>~/.bashrc
+#export LD_PRELOAD=/usr/local/lib/libhoard.so
+#cd ../..
+
+#Optional: Jemalloc
+echo "Installing Jemalloc Allocator"
 echo ""
-sudo apt-get install clang
-git clone https://github.com/emeryberger/Hoard
-cd Hoard
-cd src
+git clone https://github.com/jemalloc/jemalloc.git
+cd jemalloc
+./autogen.sh
 make
-sudo cp libhoard.so /usr/local/lib
-sudo echo 'export LD_PRELOAD=/usr/local/lib/libhoard.so' >> ~/.bashrc
-export LD_PRELOAD=/usr/local/lib/libhoard.so
+sudo make install
+
+sudo echo 'export LD_PRELOAD=/usr/local/lib/libjemalloc.so' >>~/.bashrc
+export LD_PRELOAD=/usr/local/lib/libjemalloc.so
 cd ../..
 
-#Installing taopq 
+#Installing taopq
 echo "Installing TaoPq"
 echo ""
 git clone https://github.com/taocpp/taopq.git
@@ -64,7 +77,6 @@ cmake .
 sudo make install
 sudo ldconfig
 cd ..
-
 
 #googletest
 echo "Installing googletest"
@@ -156,8 +168,50 @@ sudo ldconfig
 cd ..
 echo "$(tput setaf 2) COMPLETE: ed25519-donna $(tput sgr0)"
 echo ""
+read -p "Press enter to continue"
 
-read -p "Press enter to continue -- Manual interaction required: See install guide IntelTBB"
+###################
+echo "Installing Peloton dependencies"
+echo ""
+
+echo "--libcount"
+echo ""
+git clone https://github.com/dialtr/libcount
+cd libcount
+sudo make
+sudo make install
+cd ..
+
+echo "--libpg_query"
+echo ""
+git clone https://github.com/cmu-db/peloton.git
+cd peloton/third_party/libpgquery
+sudo make
+cd ..
+sudo cp -r libpgquery /usr/local/include
+sudo cp libpg_query/libpg_query.a /usr/local/lib
+
+echo "--libcuckoo"
+echo ""
+sudo cp -r libcuckoo /usr/local/include
+
+echo "--date"
+echo ""
+sudo cp -r date /usr/local/include
+
+echo "--adaptive_radix_tree"
+echo ""
+sudo cp -r adaptive_radix_tree /usr/local/include
+
+sudo ldconfig
+cd ../..
+
+echo "$(tput setaf 2) COMPLETE: Peloton deps $(tput sgr0)"
+echo ""
+
+########################
+
+read -p "Press enter to continue -- Manual interaction required for the next step: See install guide, section IntelTBB"
 #IntelTBB
 echo "Installing Intel TBB"
 echo ""
@@ -166,7 +220,7 @@ wget https://registrationcenter-download.intel.com/akdlm/irc_nas/17977/l_BaseKit
 sudo bash l_BaseKit_p_2021.3.0.3219.sh
 cd ~
 source /opt/intel/oneapi/setvars.sh
-echo source /opt/intel/oneapi/setvars.sh --force >> ~/.bashrc
+echo source /opt/intel/oneapi/setvars.sh --force >>~/.bashrc
 source ~/.bashrc
 echo "$(tput setaf 2) COMPLETE: IntelTBB $(tput sgr0)"
 echo ""
@@ -178,7 +232,7 @@ echo ""
 sudo apt-get install openjdk-11-jdk
 export LD_LIBRARY_PATH=/usr/lib/jvm/java-1.11.0-openjdk-amd64/lib/server:$LD_LIBRARY_PATH
 sudo ldconfig
-sudo echo 'export LD_LIBRARY_PATH=/usr/lib/jvm/java-1.11.0-openjdk-amd64/lib/server:$LD_LIBRARY_PATH' >> ~/.bashrc
+sudo echo 'export LD_LIBRARY_PATH=/usr/lib/jvm/java-1.11.0-openjdk-amd64/lib/server:$LD_LIBRARY_PATH' >>~/.bashrc
 echo "$(tput setaf 2) TODO: SEE MANUAL INSTALLATION REQ BFT-SMART $(tput sgr0)"
 
 read -p "Press enter to continue"
@@ -193,12 +247,6 @@ sudo cp -i cockroach-v22.2.2.linux-amd64/lib/libgeos_c.so /usr/local/lib/cockroa
 sudo cp -i cockroach-v22.2.2.linux-amd64/cockroach /usr/local/bin
 
 
-
-export LD_PRELOAD=/usr/local/lib/libhoard.so
-
 echo ""
 source ~/.bashrc
 echo "$(tput setaf 2) FINISHED INSTALLATION: SUCCESS $(tput sgr0)"
-
-
-

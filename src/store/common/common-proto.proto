@@ -7,7 +7,10 @@ message TimestampMessage {
 
 message ReadMessage {
     required bytes key = 1;
-    optional TimestampMessage readtime = 2;
+    //optional bool is_table_col_version = 2;  //only for stat-keeping purposes
+    optional TimestampMessage readtime = 3;
+    optional bool is_table_col_version = 4;  //only for stat-keeping purposes
+    
 }
 
 message WriteMessage {
@@ -16,8 +19,11 @@ message WriteMessage {
     //oneof write_value {  //TODO: In prepare and commit: must add has_value() checks.
     optional bytes value = 2;
         //TableWrite table_writes = 3;
-    optional RowUpdates rowupdates = 3;  //Table name and primary key cols are included in key encoding.
+    
+    optional RowUpdates rowupdates = 3;  //Table name and primary key cols are included in key encoding. //NOTE: WriteMessage is just using row_idx field currently
     //}
+    optional bool delay = 4; //only to skip CC-store application of Table/Col versions until after writes are applied
+
 }
 
 message PingMessage {
@@ -37,18 +43,30 @@ message RowUpdates {
     //Version 1
     map<string, bytes> attribute_writes = 1; //map from attribute name to new value (in bytes for general encoding) //TODO: Maybe re-factor this to hold column id instead of name -- or to be in order
     optional TimestampMessage readtime = 2; //version of the row that was read (optional: for ReadModWrites) in order to fetch remaining row values (in case an update only updates some columns)
-    optional bool deletion = 3;
-
+    
     //Version 2: Use only this. --> use column names from TableWrite
+    optional bool deletion = 3;
     repeated bytes column_values = 4;
+
+    optional int32 row_idx = 5; //Idx of the RowUpdate (used to find correct row update from WriteMessage for proof)
+
 }
 message TableWrite {
     //Version 1
     map<string, RowUpdates> row_updates = 1; //map from row-name to all attribute writes
 
     //Version 2: Use only this:
+
+    //Note: Currently all this meta data is optional. ONLY using rows. (We expect all columns to be written each time)
     repeated string column_names = 2;  //store column names in order
-    repeated RowUpdates rows = 3;            // each RowUpdate stores the column values in order.
+    repeated bool column_quotes = 3;
+    repeated uint32 col_primary_idx = 4 ; //TODO: might not even need column names at all, just store primary col names then. Must make sure col_values are in schema order.
+
+    //IN USE:
+    repeated RowUpdates rows = 5;            // each RowUpdate stores the column values in order.
+    optional bool changed_table = 6;         //Records locally at client whether or not the table was changed (i.e. whether to set Tableversion)
+   
+    //repeated string primary_cols = 5;
 }
 
 //Deprecated -- unused.

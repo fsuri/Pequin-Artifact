@@ -449,6 +449,93 @@ void Server::ManageDispatchSupplyTx(const TransportAddress &remote, const std::s
 
 //////////////////////////////////////////////////////// Protocol Helper Functions
 
+void Server::FindTableVersion(const std::string &key_name, const Timestamp &ts, bool read_or_snapshot, QueryReadSetMgr *readSetMgr, SnapshotManager *snapshotMgr){
+  //Read the current TableVersion or TableColVersion from CC-store  -- I.e. key_name = "table_name" OR "table_name + delim + column_name" 
+  //Note: TableVersion is updated AFTER all TableWrites of a TX have been written. So the TableVersion from CC-store is a pessimistic version; if it is outdated we abort, but that is safe.
+
+  //Read committed
+  std::pair<Timestamp, Server::Value> tsVal;
+  //find committed write value to read from
+  bool committed_exists = store.get(key_name, ts, tsVal);
+  if(!committed_exists){
+    Panic("All Tables must have a genesis version");  //Note: CreateTable() writes the genesis version
+  }
+
+  const proto::Transaction *mostRecentPrepared = nullptr;
+
+  //Read prepared
+  if(occType == MVTSO && params.maxDepDepth > -2){    //TODO: possibly set RTS too here. Note: currently being set for whole Query ReadSet after exec. 
+      mostRecentPrepared = FindPreparedVersion(key_name, ts, committed_exists, tsVal);
+  }
+
+
+  if(read_or_snapshot){ //Creating ReadSet
+    UW_ASSERT(readSetMgr);
+
+    if(mostRecentPrepared != nullptr){ //Read prepared
+      readSetMgr->AddToReadSet(key_name, mostRecentPrepared->timestamp());
+      readSetMgr->AddToDepSet(TransactionDigest(*mostRecentPrepared, params.hashDigest), mostRecentPrepared->timestamp());
+    }
+    else{ //Read committed
+      TimestampMessage tsm;
+      tsVal.first.serialize(&tsm);
+      readSetMgr->AddToReadSet(key_name, tsm);
+    }
+  }
+  else{ //Creating Snapshot
+    UW_ASSERT(snapshotMgr);
+
+    if(mostRecentPrepared != nullptr){ //Read prepared
+      snapshotMgr->AddToLocalSnapshot(TransactionDigest(*mostRecentPrepared, params.hashDigest), mostRecentPrepared, false);
+    }
+    else{ //Read committed
+      snapshotMgr->AddToLocalSnapshot(TransactionDigest(*mostRecentPrepared, params.hashDigest), tsVal.first.getTimestamp(), tsVal.first.getID(), true);
+    }
+  }
+
+  return;
+}
+
+const proto::Transaction* Server::FindPreparedVersion(const std::string &key, const Timestamp &ts, bool committed_exists, std::pair<Timestamp, Server::Value> const &tsVal){
+
+  const proto::Transaction *mostRecent = nullptr;
+  auto itr = preparedWrites.find(key);
+  if (itr != preparedWrites.end()){
+
+    //std::pair &x = preparedWrites[write.key()];
+    std::shared_lock lock(itr->second.first);
+    if(itr->second.second.size() > 0) {
+
+      // //Find biggest prepared write smaller than TS.
+      // auto it = itr->second.second.lower_bound(ts); //finds smallest element greater equal TS
+      // if(it != itr->second.second.begin()) { //If such an elem exists; go back one == greates element less than TS
+      //     --it;
+      // }
+      // if(it != itr->second.second.begin()){ //if such elem exists: read from it.
+      //     mostRecent = it->second;
+      //     if(exists && tsVal.first > Timestamp(mostRecent->timestamp())) mostRecent = nullptr; // don't include prepared read if it is smaller than committed.
+      // }
+
+      // there is a prepared write for the key being read
+      for (const auto &t : itr->second.second) {
+        if(t.first > ts) break; //only consider it if it is smaller than TS (Map is ordered, so break should be fine here.)
+        if(committed_exists && t.first <= tsVal.first) continue; //only consider it if bigger than committed value. 
+        if (mostRecent == nullptr || t.first > Timestamp(mostRecent->timestamp())) { 
+          mostRecent = t.second;
+        }
+      }
+    }
+  }
+  return mostRecent;
+}
+
+// void Server::SetTableVersion(proto::Transaction *txn){
+//   //for all table write keys in table_writes.
+// }
+
+
+
+
 void* Server::CheckProposalValidity(::google::protobuf::Message &msg, const proto::Transaction *txn, std::string &txnDigest, bool fallback){
     if (params.validateProofs && params.signedMessages && params.verifyDeps) { 
       //Check whether claimed dependencies are actually dependencies, and whether f+1 replicas signed them
@@ -741,8 +828,13 @@ void* Server::TryPrepare(uint64_t reqId, const TransportAddress &remote, proto::
 
       if(params.query_params.optimisticTxID){ //If using optimisticTxID: Store ts to Tx mapping
         ts_to_txMap::accessor t; 
+        Debug("TS_TO_TX insert TX[%s] with TS[%lu:%lu]", BytesToHex(txnDigest, 16).c_str(), txn->timestamp().timestamp(), txn->timestamp().id());
         bool first = ts_to_tx.insert(t, MergeTimestampId(txn->timestamp().timestamp(), txn->timestamp().id()));
-        if(!first && !TEST_PREPARE_SYNC) Panic("Two Transactions have the same Timestamp. Equivocation"); // Report issuing client (txn->client_id() = txn->timestamp.id())
+        if(!first && !TEST_PREPARE_SYNC && t->second != txnDigest){
+          Panic("Two different Transactions [%s:%s] have the same Timestamp: [%lu:%lu]. Equivocation", t->second, txnDigest, txn->timestamp().timestamp(), txn->timestamp().id()); 
+                  // Report issuing client (txn->client_id() = txn->timestamp.id()) 
+                  //TODO: Hard Abort/Clean this TX & forward to other replicas so they can resolve TXs
+        } 
         t->second = txnDigest;
         t.release();
         //Note: Timestamp mappings are not garbage collected during clean. They may only be deleted when garbage collecting < Low Watermark ==> because then we no longer need to access the Tx
@@ -753,7 +845,7 @@ void* Server::TryPrepare(uint64_t reqId, const TransportAddress &remote, proto::
       //ongoing.insert(o, std::make_pair(txnDigest, txn));
       ongoing.insert(o, txnDigest);
       o->second.txn = txn;
-      o->second.num_concurrent_clients++;
+      o->second.num_concurrent_clients++;  
       o.release();
 
     return;
@@ -765,7 +857,7 @@ void* Server::TryPrepare(uint64_t reqId, const TransportAddress &remote, proto::
         if(!ongoing.find(o, txnDigest)) return;
         o->second.num_concurrent_clients--;
         if(o->second.num_concurrent_clients==0){
-            delete o->second.txn;
+            delete o->second.txn;    //TODO: instead of this manual deletion just store a shared_ptr to txn. //Note: still need the shared counting, since we don't want to erase ongoing
             ongoing.erase(o);
         }
         o.release();
@@ -1016,7 +1108,140 @@ void Server::LookupCurrentView(const std::string &txnDigest,
 
 }
 
-//////////////////////////////////////////////////////////////// MESSAGE VERIFICATION HELPER FUNCTIONS
+void Server::SetRTS(Timestamp &ts, const std::string &key){ 
+    //Sets RTS timestamp. Favors readers commit chances.
+    //Disable if worried about Byzantine Readers DDos, or if one wants to favor writers.
+    if(params.rtsMode == 1){
+   
+    auto itr = rts.find(key);
+    if(itr != rts.end()){
+    if(ts.getTimestamp() > itr->second ) {
+        rts[key] = ts.getTimestamp();              
+    }
+    }
+    else{
+    rts[key] = ts.getTimestamp();
+    }
+    /* update rts */
+    // TODO: For "proper Aborts": how to track RTS by transaction without knowing transaction digest?
+    }
+    else if(params.rtsMode == 2){
+    //XXX multiple RTS as set:
+    
+    std::pair<std::shared_mutex, std::set<Timestamp>> &rts_set = rts_list[key];
+    {
+        std::unique_lock lock(rts_set.first);
+        rts_set.second.insert(ts);
+    }
+    }
+    else{
+    //No RTS
+    }
+}
+
+void Server::ClearRTS(const google::protobuf::RepeatedPtrField<std::string> &read_set, const TimestampMessage &ts){
+
+  if(params.rtsMode == 1){
+    //Do nothing -- If we removed latest RTS then smaller ones that should be subsumed become inactive too.
+  }
+  else if(params.rtsMode == 2){
+    for (const auto &read : read_set) {
+      std::pair<std::shared_mutex, std::set<Timestamp>> &rts_set = rts_list[read];
+      {
+        std::unique_lock lock(rts_set.first);
+        rts_set.second.erase(ts);
+      }
+    }
+  }
+  else{
+    //No RTS
+  }
+}
+
+void Server::ClearRTS(const google::protobuf::RepeatedPtrField<ReadMessage> &read_set, const Timestamp &ts){
+
+  if(params.rtsMode == 1){
+    //Do nothing -- If we removed latest RTS then smaller ones that should be subsumed become inactive too.
+  }
+  else if(params.rtsMode == 2){
+    for (const auto &read : read_set) {
+      std::pair<std::shared_mutex, std::set<Timestamp>> &rts_set = rts_list[read.key()];
+      {
+        std::unique_lock lock(rts_set.first);
+        rts_set.second.erase(ts);
+      }
+    }
+  }
+  else{
+    //No RTS
+  }
+}
+
+//TODO: Clear ReadSet as part of Abort() and Commit()
+// void Server::ClearQueryRTS(proto::Transaction *txn){
+
+// }
+
+//////////////////////////////////////////////////////////////// MESSAGE SIGNING/VERIFICATION HELPER FUNCTIONS
+
+void Server::SignSendReadReply(proto::Write *write, proto::SignedMessage *signed_write, const std::function<void()> &sendCB){
+      
+    //If readReplyBatch is false then respond immediately, otherwise respect batching policy
+    if (params.readReplyBatch) {
+        // move: sendCB = std::move(sendCB) or {std::move(sendCB)}
+        MessageToSign(write, signed_write, [sendCB, write]() {
+            sendCB();
+            delete write;
+        });
+
+    } else if (params.signatureBatchSize == 1) {
+
+        if(params.multiThreading){
+            auto f = [this, signed_write, sendCB = std::move(sendCB), write]()
+            {
+              SignMessage(write, keyManager->GetPrivateKey(id), id, signed_write);
+              sendCB();
+              delete write;
+              return (void*) true;
+            };
+            transport->DispatchTP_noCB(std::move(f));
+        }
+        else{
+            SignMessage(write, keyManager->GetPrivateKey(id), id, signed_write);
+            sendCB();
+            delete write;
+        }
+
+    } else {
+
+        if(params.multiThreading){ //TODO: If read is already on a worker thread, then it does not make sense to defer signing again...
+
+            std::vector<::google::protobuf::Message *> msgs;
+            msgs.push_back(write);
+            std::vector<proto::SignedMessage *> smsgs;
+            smsgs.push_back(signed_write);
+
+            auto f = [this, msgs, smsgs, sendCB = std::move(sendCB), write]()
+            {
+            SignMessages(msgs, keyManager->GetPrivateKey(id), id, smsgs, params.merkleBranchFactor);
+            sendCB();
+            delete write;
+            return (void*) true;
+            };
+            transport->DispatchTP_noCB(std::move(f));
+        }
+        else{
+           
+            std::vector<::google::protobuf::Message *> msgs;
+            msgs.push_back(write);
+            std::vector<proto::SignedMessage *> smsgs;
+            smsgs.push_back(signed_write);
+            SignMessages(msgs, keyManager->GetPrivateKey(id), id, smsgs, params.merkleBranchFactor);
+            sendCB();
+            delete write;
+        }
+    }
+}
 
 void Server::ManagePhase2Validation(const TransportAddress &remote, proto::Phase2 &msg, const std::string *txnDigest, const proto::Transaction *txn, const std::function<void()> &sendCB, proto::Phase2Reply* phase2Reply, 
      const std::function<void()> &cleanCB, const int64_t &myProcessId, const proto::ConcurrencyControl::Result &myResult)
@@ -1666,6 +1891,14 @@ proto::SupplyMissingTxns* Server::GetUnusedSupplyTxMessage(){
 }
 
 void Server::FreeSupplyTxMessage(proto::SupplyMissingTxns *msg){
+  delete msg;
+}
+
+proto::PointQueryResultReply* Server::GetUnusedPointQueryResultReply(){
+  return new proto::PointQueryResultReply();
+}
+
+void Server::FreePointQueryResultReply(proto::PointQueryResultReply *msg){
   delete msg;
 }
 

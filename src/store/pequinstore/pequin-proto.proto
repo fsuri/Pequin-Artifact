@@ -101,6 +101,7 @@ message ReadSet {
   repeated ReadMessage read_set = 1;
   repeated Dependency deps = 2;
   
+  //Deprecated
   repeated bytes dep_ids = 3;
   repeated DepTs dep_ts_ids = 4;
 }
@@ -136,6 +137,7 @@ message Transaction {
   map<string, TableWrite> table_writes = 9; //contains all Writes for Queries: --> can be turned into an adhoc write set via encoding function
   optional uint64 last_query_seq = 10; //Used to update queryWatermark.
 
+  //not part of TX: server side local information
   optional bytes txndigest = 11; //NOT PART OF TX. HACK HERE TO STORE txn digest in the local txn version without changing data structures that hold TXN.
   optional ReadSet merged_read_set = 12; //NOT PART OF TX. HACK HERE TO STORE oltp read set while merging query read sets during CC (serverside)
   //repeated WriteMessage enc_write_set = 13; //NOT PART OF TX. HACK HERE TO STORE encoded write set before performing CC on TableWrites (serverside)
@@ -274,7 +276,8 @@ message Abort {
 message RelayP1 {  //datatype that replicas send clients to inform them that they can start a FB etc.
   required uint64 dependent_id = 1; //this is the ID of the txn that has the p1 as a dependency
   required Phase1 p1 = 2;  //this is the dependency.
-  optional bytes dependent_txn = 3; //this is the txnDigest of the txn that has the p1 as a dependency
+  required uint64 replica_id = 3; //sender -- just for debugging.
+  optional bytes dependent_txn = 4; //this is the txnDigest of the txn that has the p1 as a dependency
 }
 
 
