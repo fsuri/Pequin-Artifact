@@ -321,7 +321,7 @@ std::string PelotonTableStore::ExecReadQuery(const std::string &query_statement,
 
   Debug("Execute ReadQuery: %s. TS: [%lu:%lu]", query_statement.c_str(),
         ts.getTimestamp(), ts.getID());
-    
+
   int core = sched_getcpu();
   Debug("Begin readLat on core: %d", core);
   Latency_Start(&readLats[core]);
@@ -408,7 +408,7 @@ std::string PelotonTableStore::ExecReadQuery(const std::string &query_statement,
 
   Debug("End readLat on core: %d", core);
   Latency_End(&readLats[core]);
-  return std::move(res); //return TransformResult(status, statement, result)
+  return std::move(res); // return TransformResult(status, statement, result)
 }
 
 // Execute a point read on the Table backend and return a query_result/proto (in
@@ -591,7 +591,7 @@ void PelotonTableStore::ApplyTableWrite(
   int core = sched_getcpu();
   Debug("Begin writeLat on core: %d", core);
   Latency_Start(&writeLats[core]);
-  
+
   // UW_ASSERT(ts.getTimestamp() >= 0 && ts.getID() >= 0);
   Debug("Apply TableWrite for txn %s. TS [%lu:%lu]",
         BytesToHex(txn_digest, 16).c_str(), ts.getTimestamp(), ts.getID());
@@ -626,6 +626,7 @@ void PelotonTableStore::ApplyTableWrite(
   if (!write_statement.empty()) {
 
     Debug("Write statement: %s", write_statement.c_str());
+    Debug("Commit or prepare is %d", commit_or_prepare);
     // prepareStatement
     auto statement = ParseAndPrepare(write_statement, tcop);
 
@@ -691,8 +692,8 @@ void PelotonTableStore::ApplyTableWrite(
   }
 
   Debug("End writeLat on core: %d", core);
-  //Debug("getCPU says on core: %d", sched_getcpu());
-  //UW_ASSERT(core == sched_getcpu()); 
+  // Debug("getCPU says on core: %d", sched_getcpu());
+  // UW_ASSERT(core == sched_getcpu());
   Latency_End(&writeLats[core]);
 }
 
@@ -768,14 +769,14 @@ void PelotonTableStore::PurgeTableWrite(const std::string &table_name,
   // GetResult(status);
   GetResult(status, tcop, counter);
 
-    if (status == peloton::ResultType::SUCCESS)
-      Debug("Purge successful");
-    else
-      Panic("Purge failure");
+  if (status == peloton::ResultType::SUCCESS)
+    Debug("Purge successful");
+  else
+    Panic("Purge failure");
   //}
 
   Debug("End writeLat on core: %d", core);
-  //UW_ASSERT(core == sched_getcpu());
+  // UW_ASSERT(core == sched_getcpu());
   Latency_End(&writeLats[core]);
 }
 

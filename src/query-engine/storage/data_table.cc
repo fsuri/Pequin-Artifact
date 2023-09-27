@@ -463,6 +463,12 @@ ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple,
           curr_tile_group_header->SetCommitOrPrepare(curr_pointer.offset, true);
         } else {
           std::cout << "Should upgrade is " << should_upgrade << std::endl;
+          std::cout << "Is Prepared is "
+                    << !curr_tile_group_header->GetCommitOrPrepare(
+                           curr_pointer.offset)
+                    << std::endl;
+          std::cout << "Transaction is committed is "
+                    << transaction->GetCommitOrPrepare() << std::endl;
           std::cout << "Same columns is " << same_columns << std::endl;
           std::cout << "Timestamp is " << ts.getTimestamp() << ", "
                     << ts.getID() << std::endl;
