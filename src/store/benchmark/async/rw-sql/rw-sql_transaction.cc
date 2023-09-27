@@ -58,7 +58,7 @@ RWSQLTransaction::RWSQLTransaction(QuerySelector *querySelector, uint64_t &numOp
 RWSQLTransaction::~RWSQLTransaction() {
 }
 
-static int count = 10;
+static int count = 0;
 
 //WARNING: CURRENTLY DO NOT SUPPORT READ YOUR OWN WRITES
 transaction_status_t RWSQLTransaction::Execute(SyncClient &client) {
@@ -108,7 +108,7 @@ transaction_status_t RWSQLTransaction::Execute(SyncClient &client) {
 
     // client.Abort(timeout);
     // return ABORTED_USER;
-  if(++count == 3) Panic("stop testing");
+  //if(++count == 3) Panic("stop testing");
 
   transaction_status_t commitRes = client.Commit(timeout);
   std::cerr << "TXN COMMIT STATUS: " << commitRes << std::endl;
@@ -192,62 +192,6 @@ void RWSQLTransaction::GetResults(SyncClient &client){
 }
 
 
-// bool RWSQLTransaction::AdjustBounds(int &left, int &right, uint64_t table)
-// {
-  
-//   std::cerr << "ADJUSTING NEXT QUERY: " << std::endl;
-//   //return false if statement is to be skipped.    
-//   std::cerr << "Input Left: " << left << " Right: " << right << std::endl;
-
-//     int size = wrap(right - left) + 1;
-
-//     //shrink in every loop (never grow!)
-//     for(auto &[l, r]: past_ranges){
-//       //Linearize all Keys onto a plane: 0 - (numKeys-1 + numKeys)  right side must always be >= left 
-    
-//        if(l > r) r += numKeys;
-//        if(left > right) right += numKeys;
-
-//       //1) no overlap:
-//       if(left > r || right < l) continue;
-
-//       //2) subsumed    l  <= left right <= r
-//       if(l <= left && right <= r) return false; 
-
-//       //3) encompass   left < l  r < right
-//       // => split
-//       if(left < l && r < right){
-//           liveOps+=2;
-//           std::cerr << "SPLITTING INTO TWO. One: l: " << left << "; r: " << ((l-1) %numKeys) << ". Two: l: " << ((r+1) %numKeys) << "; r: " << right << std::endl;
-//           starts.push_back(left % numKeys);
-//           ends.push_back((l-1) % numKeys);
-//           tables.push_back(table);
-//           starts.push_back((r+1) % numKeys);
-//           ends.push_back(right % numKeys);
-//           tables.push_back(table);
-//           return false;
-//       }
-
-//       //4) overlap  l <= left <= r <= right   Or: left <= l <= right <= r
-//       //=> move out of bounds;
-//       if(l <= left) left = r+1;  
-//       if(right <= r) right = l-1;
-//     }
-
-//     //return range to original plane
-//     left = left % numKeys;
-//     right = right % numKeys;
-
-//     past_ranges.push_back({left, right});
-//     //if not spanning across planes, add to both planes:
-//     if(left < numKeys && right < numKeys) past_ranges.push_back({left % numKeys + numKeys, right % numKeys + numKeys});
-
-//     std::cerr << "Output Left: " << left << " Right: " << right << std::endl;
-
-//     return true;
-// }
-
-
 bool RWSQLTransaction::AdjustBounds(int &left, int &right, uint64_t table)
 {
   
@@ -255,176 +199,247 @@ bool RWSQLTransaction::AdjustBounds(int &left, int &right, uint64_t table)
   //return false if statement is to be skipped.    
   std::cerr << "Input Left: " << left << " Right: " << right << std::endl;
 
-  UW_ASSERT(left < querySelector->numKeys && right < querySelector->numKeys);
-
     int size = wrap(right - left) + 1;
 
     //shrink in every loop (never grow!)
-     for(auto &[l, r]: past_ranges){
-        std::cerr << "Comparing against past range: l="<< l << ", r=" << r << std::endl;
-        if(l <= r){
-          //Case A.1
-          if(left <= right){
-             //             l  left right   r                     ==> cancel
-            if(l <= left && right <= r) return false;
+    for(auto [l, r]: past_ranges){
+      std::cerr << "Compare against: " << l << ":" << r << std::endl;
 
-              // left         l               r     right           ==> create 2: left to l, r to right
-            if(left < l && r < right){
-              //create two new updates instead!
-              //Add them back to the queue; when we process them, we might have to shrink them again.
-              std::cerr << "SPLITTING INTO TWO. One: l: " << left << "; r: " << (wrap(l-1)) << ". Two: l: " << (wrap(r+1)) << "; r: " << right << std::endl;
-              liveOps+=2;
-              starts.push_back(left);
-              ends.push_back(wrap(l-1));
-              tables.push_back(table);
-              starts.push_back(wrap(r+1));
-              ends.push_back(right);
-              tables.push_back(table);
-              return false;
-            }
+      //Linearize all Keys onto a plane: 0 - (numKeys-1 + numKeys)  right side must always be >= left 
+    
+       if(l > r) r += numKeys;
+       if(left > right) right += numKeys;
 
-            //              l               r     left right      ==> do notihng
-            // left right   l               r                     ==> do nothing
-            if(left > r || right < l) continue;
+      //1) no overlap: (in either plane)
+      //if(left > r || right < l) continue;
 
-            // left         l     right     r                     ==> shrink to right = l-1
-            //              l      left     r     right           ==> shrink to left = r+1
-            if(left < l) right = wrap(std::min(l-1, right)); //it must be that l <= right <= r
-            if(right > r)  left = wrap(std::max(r+1, left)); //it must be that l <= left <= r
-            //in both cases, make them non-overlapping.
-
-            std::cerr << "adjusted to Left: " << left << " Right: " << right << std::endl;
-
-            
-          }
-          //Case A.2
-          else
-          { // right < left 
-
-            //              l               r     right left      ==> split into two: left to l, r to right
-            // right left   l               r                     ==> split into two: left to l, r to right
-            if(right > r || left < l) {
-               std::cerr << "SPLITTING INTO TWO. One: l: " << left << "; r: " << (wrap(l-1)) << ". Two: l: " << (wrap(r+1)) << "; r: " << right << std::endl;
-              liveOps+=2;
-              starts.push_back(left);
-              ends.push_back(wrap(l-1));
-              tables.push_back(table);
-              starts.push_back(wrap(r+1));
-              ends.push_back(right);
-              tables.push_back(table);
-              return false;
-            }
-
-            // right        l               r     left          ==> do nothing
-            //if(right < l && r < left) continue;
-            //              l  right left   r                     ==> shrink left = r+1, right = l-1
-            // right        l     left      r                     ==> shrink left = r+1
-            //              l     right     r     left           ==> shrink to right = l-1
-            left = wrap(std::max(r+1, left));
-            right = wrap(std::min(l-1, right)); 
-            //in all cases, just move left and right outside the l r range
-           
-          }
+      if(left > r || right < l){
+        //if no overlap in base plane; confirm that there is no overlap if we lift l and r to higher plane
+        if(l < numKeys && r < numKeys){
+          std::cerr << "dynamically lift l/r into higher plane" << std::endl;
+          l += numKeys;
+          r += numKeys;
+          if(right < l) continue; //no overlap in higher plane either.
         }
-        if(r < l){ //wrap around case
-          //Case B.1
-          if(left <= right){
-           
-            //              r   left right  l              ==> do nothing
-            if(r < left && right < l) continue;
+        else continue;
+      }
 
-            //              r               l     left right      ==> cancel
-            // left right   r               l                     ==> cancel
-            if(left >= l || right <= r ) return false;
-          
-            // left         r               l     right           ==> shrink to  left = r+1, right = l-1
-            // left         r     right     l                     ==> shrink to left = r+1
-            //              r      left     l     right           ==> shrink to right = l-1
-            left = wrap(std::max(r+1, left));
-            right = wrap(std::min(l-1, right));
-            //in all cases, just move left and right inside the r l range
+      //2) subsumed    l  <= left right <= r
+      if(l <= left && right <= r) return false; 
 
-          }
+      //3) encompass   left < l  r < right
+      // => split
+      if(left < l && r < right){
+          std::cerr << "l: " << l << std::endl;
+           std::cerr << "r: " << r << std::endl;
+          liveOps+=2;
+          std::cerr << "SPLITTING INTO TWO. One: l: " << (left % numKeys) << "; r: " << ((l-1) %numKeys) << ". Two: l: " << ((r+1) %numKeys) << "; r: " << (right % numKeys) << std::endl;
+          starts.push_back(left % numKeys);
+          ends.push_back((l-1) % numKeys);
+          tables.push_back(table);
+          starts.push_back((r+1) % numKeys);
+          ends.push_back(right % numKeys);
+          tables.push_back(table);
+          return false;
+      }
 
-          //Case B.2
-          else{  //right < left
-            
-             // right       r               l     left          ==> cancel
-            if(right <= r && l <= left) return false;
-
-            //             r   right left  l
-            if(r < right && left < l) {   
-              //create two parallel reads: one from r to right, and one from left to l
-               std::cerr << "SPLITTING INTO TWO. One: l: " << left << "; r: " << (wrap(l-1)) << ". Two: l: " << (wrap(r+1)) << "; r: " << right << std::endl;
-              liveOps+=2;
-              starts.push_back(left);
-              ends.push_back(wrap(l-1));
-              tables.push_back(table);
-              starts.push_back(wrap(r+1));
-              ends.push_back(right);
-              tables.push_back(table);
-              return false;
-            }
-
-           
-
-            //in all other cases, just move left and right inside the r l range
-
-            //             r               l     right left    ==> shrink to right = l-1 and left = r+1 
-            // right left  r               l                   ==> shrink to right = l-1 and left = r+1    //this case.
-            // right       r      left     l                   ==> shrink to right = l-1
-            //             r     right     l     left          ==> shrink to left = r+1
-            if(right <= r || right >= l){
-              right = wrap(l-1);
-            } 
-            if(left <= r || left >= l){
-              left = wrap(r+1);
-            } 
-
-            
-           
-            // //             r               l     right left    ==> shrink to right = l-1 and left = r+1 
-            // // right left  r               l                   ==> shrink to right = l-1 and left = r+1 
-            // if(l <= right || left <= r){
-            //    right = wrap(std::min(l-1, right));
-            //   std::cerr << "New right:" << right << std::endl;
-            //   left = wrap(std::max(r+1, left));
-            // }
-
-
-            //  // right       r      left     l                   ==> shrink to right = l-1
-            //  if(right <= r){ //&& left inbetween
-            //     right = wrap(l-1);
-            //  }
-
-            // //             r     right     l     left          ==> shrink to left = r+1
-            // if(left >= l){ //&& right inbetween
-            //     left = wrap(r+1);
-            // }
-
-           
-            
-
-          }
-        }
-        
-        std::cerr << "New left:" << left << std::endl;
-        std::cerr << "New right:" << right << std::endl;
-             
-
-        int new_size = wrap(right - left) + 1;
-        std::cerr << "size: " << size << std::endl;
-        std::cerr << "new size: " << new_size << std::endl;
-        if(new_size > size) return false;  //Confirm that we shrank range (and not accidentally flipped signs and made it bigger)
-        size = new_size;
+      //4) overlap  l <= left <= r <= right   Or: left <= l <= right <= r
+      //=> move out of bounds;
+      if(l <= left) left = r+1;  
+      if(right <= r) right = l-1;
     }
 
-    std::cerr << "Adjusted to Left: " << left << " Right: " << right << std::endl;
-    UW_ASSERT(left < querySelector->numKeys && right < querySelector->numKeys);
+    //return range to original plane
+    left = left % numKeys;
+    right = right % numKeys;
+
     past_ranges.push_back({left, right});
+    //if not spanning across planes, add to both planes:
+    //if(left < numKeys && right < numKeys) past_ranges.push_back({left + numKeys, right + numKeys}); // => do it in-place instead
+
+    std::cerr << "Output Left: " << left << " Right: " << right << std::endl;
 
     return true;
 }
+
+
+// bool RWSQLTransaction::AdjustBounds(int &left, int &right, uint64_t table)
+// {
+  
+//   std::cerr << "ADJUSTING NEXT QUERY: " << std::endl;
+//   //return false if statement is to be skipped.    
+//   std::cerr << "Input Left: " << left << " Right: " << right << std::endl;
+
+//   UW_ASSERT(left < querySelector->numKeys && right < querySelector->numKeys);
+
+//     int size = wrap(right - left) + 1;
+
+//     //shrink in every loop (never grow!)
+//      for(auto &[l, r]: past_ranges){
+//         std::cerr << "Comparing against past range: l="<< l << ", r=" << r << std::endl;
+//         if(l <= r){
+//           //Case A.1
+//           if(left <= right){
+//              //             l  left right   r                     ==> cancel
+//             if(l <= left && right <= r) return false;
+
+//               // left         l               r     right           ==> create 2: left to l, r to right
+//             if(left < l && r < right){
+//               //create two new updates instead!
+//               //Add them back to the queue; when we process them, we might have to shrink them again.
+//               std::cerr << "SPLITTING INTO TWO. One: l: " << left << "; r: " << (wrap(l-1)) << ". Two: l: " << (wrap(r+1)) << "; r: " << right << std::endl;
+//               liveOps+=2;
+//               starts.push_back(left);
+//               ends.push_back(wrap(l-1));
+//               tables.push_back(table);
+//               starts.push_back(wrap(r+1));
+//               ends.push_back(right);
+//               tables.push_back(table);
+//               return false;
+//             }
+
+//             //              l               r     left right      ==> do notihng
+//             // left right   l               r                     ==> do nothing
+//             if(left > r || right < l) continue;
+
+//             // left         l     right     r                     ==> shrink to right = l-1
+//             //              l      left     r     right           ==> shrink to left = r+1
+//             if(left < l) right = wrap(std::min(l-1, right)); //it must be that l <= right <= r
+//             if(right > r)  left = wrap(std::max(r+1, left)); //it must be that l <= left <= r
+//             //in both cases, make them non-overlapping.
+
+//             std::cerr << "adjusted to Left: " << left << " Right: " << right << std::endl;
+
+            
+//           }
+//           //Case A.2
+//           else
+//           { // right < left 
+
+//             //              l               r     right left      ==> split into two: left to l, r to right
+//             // right left   l               r                     ==> split into two: left to l, r to right
+//             if(right > r || left < l) {
+//                std::cerr << "SPLITTING INTO TWO. One: l: " << left << "; r: " << (wrap(l-1)) << ". Two: l: " << (wrap(r+1)) << "; r: " << right << std::endl;
+//               liveOps+=2;
+//               starts.push_back(left);
+//               ends.push_back(wrap(l-1));
+//               tables.push_back(table);
+//               starts.push_back(wrap(r+1));
+//               ends.push_back(right);
+//               tables.push_back(table);
+//               return false;
+//             }
+
+//             // right        l               r     left          ==> do nothing
+//             //if(right < l && r < left) continue;
+//             //              l  right left   r                     ==> shrink left = r+1, right = l-1
+//             // right        l     left      r                     ==> shrink left = r+1
+//             //              l     right     r     left           ==> shrink to right = l-1
+//             left = wrap(std::max(r+1, left));
+//             right = wrap(std::min(l-1, right)); 
+//             //in all cases, just move left and right outside the l r range
+           
+//           }
+//         }
+//         if(r < l){ //wrap around case
+//           //Case B.1
+//           if(left <= right){
+           
+//             //              r   left right  l              ==> do nothing
+//             if(r < left && right < l) continue;
+
+//             //              r               l     left right      ==> cancel
+//             // left right   r               l                     ==> cancel
+//             if(left >= l || right <= r ) return false;
+          
+//             // left         r               l     right           ==> shrink to  left = r+1, right = l-1
+//             // left         r     right     l                     ==> shrink to left = r+1
+//             //              r      left     l     right           ==> shrink to right = l-1
+//             left = wrap(std::max(r+1, left));
+//             right = wrap(std::min(l-1, right));
+//             //in all cases, just move left and right inside the r l range
+
+//           }
+
+//           //Case B.2
+//           else{  //right < left
+            
+//              // right       r               l     left          ==> cancel
+//             if(right <= r && l <= left) return false;
+
+//             //             r   right left  l
+//             if(r < right && left < l) {   
+//               //create two parallel reads: one from r to right, and one from left to l
+//                std::cerr << "SPLITTING INTO TWO. One: l: " << left << "; r: " << (wrap(l-1)) << ". Two: l: " << (wrap(r+1)) << "; r: " << right << std::endl;
+//               liveOps+=2;
+//               starts.push_back(left);
+//               ends.push_back(wrap(l-1));
+//               tables.push_back(table);
+//               starts.push_back(wrap(r+1));
+//               ends.push_back(right);
+//               tables.push_back(table);
+//               return false;
+//             }
+
+           
+
+//             //in all other cases, just move left and right inside the r l range
+
+//             //             r               l     right left    ==> shrink to right = l-1 and left = r+1 
+//             // right left  r               l                   ==> shrink to right = l-1 and left = r+1    //this case.
+//             // right       r      left     l                   ==> shrink to right = l-1
+//             //             r     right     l     left          ==> shrink to left = r+1
+//             if(right <= r || right >= l){
+//               right = wrap(l-1);
+//             } 
+//             if(left <= r || left >= l){
+//               left = wrap(r+1);
+//             } 
+
+            
+           
+//             // //             r               l     right left    ==> shrink to right = l-1 and left = r+1 
+//             // // right left  r               l                   ==> shrink to right = l-1 and left = r+1 
+//             // if(l <= right || left <= r){
+//             //    right = wrap(std::min(l-1, right));
+//             //   std::cerr << "New right:" << right << std::endl;
+//             //   left = wrap(std::max(r+1, left));
+//             // }
+
+
+//             //  // right       r      left     l                   ==> shrink to right = l-1
+//             //  if(right <= r){ //&& left inbetween
+//             //     right = wrap(l-1);
+//             //  }
+
+//             // //             r     right     l     left          ==> shrink to left = r+1
+//             // if(left >= l){ //&& right inbetween
+//             //     left = wrap(r+1);
+//             // }
+
+           
+            
+
+//           }
+//         }
+        
+//         std::cerr << "New left:" << left << std::endl;
+//         std::cerr << "New right:" << right << std::endl;
+             
+
+//         int new_size = wrap(right - left) + 1;
+//         std::cerr << "size: " << size << std::endl;
+//         std::cerr << "new size: " << new_size << std::endl;
+//         if(new_size > size) return false;  //Confirm that we shrank range (and not accidentally flipped signs and made it bigger)
+//         size = new_size;
+//     }
+
+//     std::cerr << "Adjusted to Left: " << left << " Right: " << right << std::endl;
+//     UW_ASSERT(left < querySelector->numKeys && right < querySelector->numKeys);
+//     past_ranges.push_back({left, right});
+
+//     return true;
+// }
 
 
 } // namespace rw
