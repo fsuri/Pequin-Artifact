@@ -3,34 +3,37 @@
 
 #include "store/pequinstore/table_store_interface.h"
 
+#include "lib/message.h"
+#include "lib/latency.h"
+
 // Include whatever Peloton Deps
-#include "../../query-engine/common/logger.h"
-#include "../../query-engine/common/macros.h"
-#include "../../query-engine/parser/drop_statement.h"
-#include "../../query-engine/parser/postgresparser.h"
+//#include "../../query-engine/common/logger.h"
+//#include "../../query-engine/common/macros.h"
+// #include "../../query-engine/parser/drop_statement.h"
+ #include "../../query-engine/parser/postgresparser.h"
+// #include "../../query-engine/traffic_cop/traffic_cop.h"
+
+ #include "../../query-engine/catalog/catalog.h"
+// #include "../../query-engine/catalog/proc_catalog.h"
+// #include "../../query-engine/catalog/system_catalogs.h"
+
+ #include "../../query-engine/concurrency/transaction_manager_factory.h"
+
+// #include "../../query-engine/executor/create_executor.h"
+// #include "../../query-engine/executor/create_function_executor.h"
+// #include "../../query-engine/executor/executor_context.h"
+
+// #include "../../query-engine/planner/create_function_plan.h"
+// #include "../../query-engine/planner/create_plan.h"
+// #include "../../query-engine/storage/data_table.h"
+
+// #include "../../query-engine/executor/insert_executor.h"
+// #include "../../query-engine/expression/constant_value_expression.h"
+// #include "../../query-engine/parser/insert_statement.h"
+// #include "../../query-engine/planner/insert_plan.h"
 #include "../../query-engine/traffic_cop/traffic_cop.h"
-
-#include "../../query-engine/catalog/catalog.h"
-#include "../../query-engine/catalog/proc_catalog.h"
-#include "../../query-engine/catalog/system_catalogs.h"
-
-#include "../../query-engine/concurrency/transaction_manager_factory.h"
-
-#include "../../query-engine/executor/create_executor.h"
-#include "../../query-engine/executor/create_function_executor.h"
-#include "../../query-engine/executor/executor_context.h"
-
-#include "../../query-engine/planner/create_function_plan.h"
-#include "../../query-engine/planner/create_plan.h"
-#include "../../query-engine/storage/data_table.h"
-
-#include "../../query-engine/executor/insert_executor.h"
-#include "../../query-engine/expression/constant_value_expression.h"
-#include "../../query-engine/parser/insert_statement.h"
-#include "../../query-engine/planner/insert_plan.h"
-#include "../../query-engine/traffic_cop/traffic_cop.h"
-#include "../../query-engine/type/type.h"
-#include "../../query-engine/type/value_factory.h"
+// #include "../../query-engine/type/type.h"
+// #include "../../query-engine/type/value_factory.h"
 #include "store/common/query_result/query_result_proto_builder.h"
 #include <ostream>
 #include <string>
@@ -83,6 +86,9 @@ class PelotonTableStore : public TableStore {
 
     private:
         void Init(int num_threads);
+
+        std::vector<Latency_t> readLats;
+        std::vector<Latency_t> writeLats;
 
         std::string unnamed_statement;
         bool unnamed_variable;

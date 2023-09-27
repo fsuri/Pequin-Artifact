@@ -10,10 +10,10 @@
  * modify, merge, publish, distribute, sublicense, and/or sell copies
  * of the Software, and to permit persons to whom the Software is
  * furnished to do so, subject to the following conditions:
- * 
+ *
  * The above copyright notice and this permission notice shall be
  * included in all copies or substantial portions of the Software.
- * 
+ *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
  * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
  * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
@@ -32,33 +32,36 @@
 #include <memory>
 #include "query_result_row.h"
 
-namespace query_result {
+namespace query_result
+{
 
-// QueryResult contains a collection of rows containing fields of data.
-// SQL semantics for field ordering, primary key sorting, etc are not enforced by this interface.
-class QueryResult {
+	// QueryResult contains a collection of rows containing fields of data.
+	// SQL semantics for field ordering, primary key sorting, etc are not enforced by this interface.
+	class QueryResult
+	{
 	public:
 		virtual ~QueryResult() = default;
-		virtual auto name( const std::size_t column ) const -> std::string = 0;
+
+		virtual auto name(const std::size_t column) const -> std::string = 0;
 
 		// size of the result set
 		virtual bool empty() const = 0;
 		virtual auto size() const -> std::size_t = 0;
 		virtual auto num_columns() const -> std::size_t = 0;
 
-		virtual auto is_null( const std::size_t row, const std::size_t column ) const -> bool = 0;
-		virtual auto get( const std::size_t row, const std::size_t column, std::size_t* size ) const -> const char* = 0;
-		
+		virtual auto is_null(const std::size_t row, const std::size_t column) const -> bool = 0;
+		virtual auto get(const std::size_t row, const std::size_t column, std::size_t *size) const -> const char * = 0;
+
 		// access rows
-    virtual auto operator[]( const std::size_t row ) const -> std::unique_ptr<Row> = 0;
-    virtual auto at( const std::size_t row ) const -> std::unique_ptr<Row> = 0;
+		virtual auto operator[](const std::size_t row) const -> std::unique_ptr<Row> = 0;
+		virtual auto at(const std::size_t row) const -> std::unique_ptr<Row> = 0;
 
 		// update/insert result
 		virtual auto has_rows_affected() const noexcept -> bool = 0;
 		virtual auto rows_affected() const -> std::size_t = 0;
 
-		inline virtual void set_rows_affected(const uint32_t _n_rows_affected) = 0; //{Panic("Underlying Result Wrapper does not implement set_affected");}
-};
+		inline virtual void set_rows_affected(const uint32_t _n_rows_affected) = 0; // {Panic("Underlying Result Wrapper does not implement set_affected");}
+	};
 
 }
 

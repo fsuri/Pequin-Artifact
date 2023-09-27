@@ -198,6 +198,7 @@ virtual void Phase2Equivocate_Simulate(uint64_t id, const proto::Transaction &tx
   //public query functions:
    virtual void ClearQuery(uint64_t query_seq_num);
    virtual void RetryQuery(uint64_t query_seq_num, proto::Query &queryMsg, bool is_point = false, point_result_callback prcb = nullptr);
+   bool isValidQueryDep(const uint64_t &query_seq_num, const std::string &txnDigest, const proto::Transaction* txn = nullptr);
 
 
  private:
@@ -242,23 +243,29 @@ virtual void Phase2Equivocate_Simulate(uint64_t id, const proto::Transaction &tx
   };
 
   struct Result_mgr {
-      Result_mgr(): freq(0){
+      Result_mgr(): freq(0UL){
         merged_deps.clear();
         //merged_deps() = std::set<proto::Write*, decltype(&compDepWritePtr)>();
+         rand_id = std::rand();
       }
       ~Result_mgr(){}
+      uint64_t rand_id;
       uint64_t freq; //Number of times the given result and result-hash (read set) were received
       std::set<proto::Write*, decltype(&compDepWritePtr)> merged_deps;
       
   }; 
 //TODO: Define management object fully
   struct PendingQuery {
-    PendingQuery(uint64_t reqId, const QueryParameters *query_params) : reqId(reqId),
-        numResults(0UL), numFails(0UL), query_manager(false), success(false), retry_version(0UL), snapshot_mgr(query_params), pendingPointQuery(reqId) //,  numSnapshotReplies(0UL),
+    PendingQuery(uint64_t reqId, const QueryParameters *query_params) : reqId(reqId), client_seq_num(0UL), query_seq_num(0UL),
+        retry_version(0UL), num_designated_replies(0UL), numResults(0UL), numFails(0UL), 
+        query_manager(false), success(false),  snapshot_mgr(query_params), pendingPointQuery(reqId) //,  numSnapshotReplies(0UL),
         { 
           result_freq.clear();
         }
     ~PendingQuery() { }
+
+    std::string first_result;
+
     uint64_t reqId; 
     uint64_t client_seq_num;
     uint64_t query_seq_num;
@@ -536,6 +543,7 @@ virtual void Phase2Equivocate_Simulate(uint64_t id, const proto::Transaction &tx
 bool ProcessRead(const uint64_t &reqId, PendingQuorumGet *req, read_t read_type, proto::Write *write, bool has_proof, const proto::CommittedProof *proof, proto::PointQueryResultReply &reply);
 bool ValidateTransactionTableWrite(const proto::CommittedProof &proof, const std::string *txnDigest, const Timestamp &timestamp, 
       const std::string &key, const std::string &value, const std::string &table_name, sql::QueryResultProtoWrapper *query_result);
+
 SQLTransformer *sql_interpreter;
 
 

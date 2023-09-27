@@ -49,7 +49,8 @@ namespace peloton {
 #define LOG_LOG_TIME_FORMAT "%Y-%m-%d %H:%M:%S"
 #define LOG_OUTPUT_STREAM stdout
 
-#define LOG_LEVEL LOG_LEVEL_DEBUG 
+//SET DEBUG LEVEL HERE
+#define LOG_LEVEL LOG_LEVEL_OFF 
 
 // Compile Option
 #ifndef LOG_LEVEL

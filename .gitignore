@@ -104,3 +104,6 @@ tags
 *.exe
 *.out
 *.app
+
+# VS Code
+.vscode/

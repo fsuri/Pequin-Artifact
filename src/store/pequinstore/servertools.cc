@@ -449,14 +449,14 @@ void Server::ManageDispatchSupplyTx(const TransportAddress &remote, const std::s
 
 //////////////////////////////////////////////////////// Protocol Helper Functions
 
-void Server::FindTableVersion(const std::string &table_name, const Timestamp &ts, bool read_or_snapshot, QueryReadSetMgr *readSetMgr, SnapshotManager *snapshotMgr){
-  //Read the current TableVersion from CC-store
+void Server::FindTableVersion(const std::string &key_name, const Timestamp &ts, bool read_or_snapshot, QueryReadSetMgr *readSetMgr, SnapshotManager *snapshotMgr){
+  //Read the current TableVersion or TableColVersion from CC-store  -- I.e. key_name = "table_name" OR "table_name + delim + column_name" 
   //Note: TableVersion is updated AFTER all TableWrites of a TX have been written. So the TableVersion from CC-store is a pessimistic version; if it is outdated we abort, but that is safe.
 
   //Read committed
   std::pair<Timestamp, Server::Value> tsVal;
   //find committed write value to read from
-  bool committed_exists = store.get(table_name, ts, tsVal);
+  bool committed_exists = store.get(key_name, ts, tsVal);
   if(!committed_exists){
     Panic("All Tables must have a genesis version");  //Note: CreateTable() writes the genesis version
   }
@@ -465,7 +465,7 @@ void Server::FindTableVersion(const std::string &table_name, const Timestamp &ts
 
   //Read prepared
   if(occType == MVTSO && params.maxDepDepth > -2){    //TODO: possibly set RTS too here. Note: currently being set for whole Query ReadSet after exec. 
-      mostRecentPrepared = FindPreparedVersion(table_name, ts, committed_exists, tsVal);
+      mostRecentPrepared = FindPreparedVersion(key_name, ts, committed_exists, tsVal);
   }
 
 
@@ -473,13 +473,13 @@ void Server::FindTableVersion(const std::string &table_name, const Timestamp &ts
     UW_ASSERT(readSetMgr);
 
     if(mostRecentPrepared != nullptr){ //Read prepared
-      readSetMgr->AddToReadSet(table_name, mostRecentPrepared->timestamp());
+      readSetMgr->AddToReadSet(key_name, mostRecentPrepared->timestamp());
       readSetMgr->AddToDepSet(TransactionDigest(*mostRecentPrepared, params.hashDigest), mostRecentPrepared->timestamp());
     }
     else{ //Read committed
       TimestampMessage tsm;
       tsVal.first.serialize(&tsm);
-      readSetMgr->AddToReadSet(table_name, tsm);
+      readSetMgr->AddToReadSet(key_name, tsm);
     }
   }
   else{ //Creating Snapshot
@@ -828,9 +828,13 @@ void* Server::TryPrepare(uint64_t reqId, const TransportAddress &remote, proto::
 
       if(params.query_params.optimisticTxID){ //If using optimisticTxID: Store ts to Tx mapping
         ts_to_txMap::accessor t; 
+        Debug("TS_TO_TX insert TX[%s] with TS[%lu:%lu]", BytesToHex(txnDigest, 16).c_str(), txn->timestamp().timestamp(), txn->timestamp().id());
         bool first = ts_to_tx.insert(t, MergeTimestampId(txn->timestamp().timestamp(), txn->timestamp().id()));
-        if(!first && !TEST_PREPARE_SYNC) Panic("Two Transactions have the same Timestamp. Equivocation"); // Report issuing client (txn->client_id() = txn->timestamp.id()) 
+        if(!first && !TEST_PREPARE_SYNC && t->second != txnDigest){
+          Panic("Two different Transactions [%s:%s] have the same Timestamp: [%lu:%lu]. Equivocation", t->second, txnDigest, txn->timestamp().timestamp(), txn->timestamp().id()); 
+                  // Report issuing client (txn->client_id() = txn->timestamp.id()) 
                   //TODO: Hard Abort/Clean this TX & forward to other replicas so they can resolve TXs
+        } 
         t->second = txnDigest;
         t.release();
         //Note: Timestamp mappings are not garbage collected during clean. They may only be deleted when garbage collecting < Low Watermark ==> because then we no longer need to access the Tx
@@ -841,7 +845,7 @@ void* Server::TryPrepare(uint64_t reqId, const TransportAddress &remote, proto::
       //ongoing.insert(o, std::make_pair(txnDigest, txn));
       ongoing.insert(o, txnDigest);
       o->second.txn = txn;
-      o->second.num_concurrent_clients++;
+      o->second.num_concurrent_clients++;  
       o.release();
 
     return;
@@ -853,7 +857,7 @@ void* Server::TryPrepare(uint64_t reqId, const TransportAddress &remote, proto::
         if(!ongoing.find(o, txnDigest)) return;
         o->second.num_concurrent_clients--;
         if(o->second.num_concurrent_clients==0){
-            delete o->second.txn;
+            delete o->second.txn;    //TODO: instead of this manual deletion just store a shared_ptr to txn. //Note: still need the shared counting, since we don't want to erase ongoing
             ongoing.erase(o);
         }
         o.release();

@@ -252,13 +252,15 @@ bool InsertExecutor::DExecute() {
       // std::cout << "Insert executor before insertion in else if statement" <<
       // std::endl;
       bool result = true;
+      bool is_duplicate = false;
 
       /*ItemPointer location =
           target_table->InsertTuple(new_tuple, current_txn, &index_entry_ptr);*/
 
       ItemPointer old_location = ItemPointer(0, 0);
       ItemPointer location = target_table->InsertTuple(
-          new_tuple, current_txn, result, old_location, &index_entry_ptr);
+          new_tuple, current_txn, result, is_duplicate, old_location,
+          &index_entry_ptr);
 
       if (new_tuple->GetColumnCount() > 2) {
         type::Value val = (new_tuple->GetValue(2));
@@ -272,27 +274,34 @@ bool InsertExecutor::DExecute() {
       //                                           ResultType::FAILURE);
       //  return false;
       //}
+      //
 
-      if (!result) {
+      bool is_purge = current_txn->GetUndoDelete();
 
-        //std::cout << "Tried to insert row with same primary key, so will do an update"  << std::endl;
-        Debug("Trying to insert with existing primary key -- doing update instead");
+      if (!result && !is_duplicate && !is_purge) {
+
+        // std::cout << "Tried to insert row with same primary key, so will do
+        // an update"  << std::endl;
+        Debug("Trying to insert with existing primary key -- doing update "
+              "instead");
         // ItemPointer new_location = target_table->AcquireVersion();
         ItemPointer new_location = location;
-        //std::cout << "New location is (" << new_location.block << ", " << new_location.offset << ")" << std::endl;
+        // std::cout << "New location is (" << new_location.block << ", " <<
+        // new_location.offset << ")" << std::endl;
         auto storage_manager = storage::StorageManager::GetInstance();
 
         if (old_location.IsNull()) {
-          //std::cout << "Old location is null" << std::endl;
+          // std::cout << "Old location is null" << std::endl;
         } else {
-          //std::cout << "old location is (" << old_location.block << ", "  << old_location.offset << ")" << std::endl;
+          // std::cout << "old location is (" << old_location.block << ", "  <<
+          // old_location.offset << ")" << std::endl;
         }
 
         auto tile_group = storage_manager->GetTileGroup(old_location.block);
         auto tile_group_header = tile_group->GetHeader();
 
-        tile_group_header->SetCommitOrPrepare(
-            location.offset, current_txn->GetCommitOrPrepare());
+        /*tile_group_header->SetCommitOrPrepare(
+            location.offset, current_txn->GetCommitOrPrepare());*/
 
         auto new_tile_group = storage_manager->GetTileGroup(new_location.block);
 
@@ -307,8 +316,8 @@ bool InsertExecutor::DExecute() {
                                                  current_txn->GetTxnDig());
         }
 
-        bool same_columns = true;
-        bool should_upgrade =
+        // bool same_columns = true;
+        /*bool should_upgrade =
             !tile_group_header->GetCommitOrPrepare(old_location.offset) &&
             new_tile_group->GetHeader()->GetCommitOrPrepare(
                 new_location.offset);
@@ -365,7 +374,7 @@ bool InsertExecutor::DExecute() {
 
           new_tile_group->GetHeader()->SetIndirection(new_location.offset,
                                                       indirection);
-        }
+        }*/
 
         // perform projection from old version to new version.
         // this triggers in-place update, and we do not need to allocate
@@ -373,52 +382,56 @@ bool InsertExecutor::DExecute() {
         // project_info->Evaluate(&new_tuple_one, &old_tuple_one, nullptr,
         //                       executor_context_);
 
-        if (!should_upgrade && !same_txn) {
-          // get indirection.
-          // std::cout << "Before getting indirection" << std::endl;
-          ItemPointer *indirection = tile_group_header->GetIndirection(old_location.offset);
-          // std::cout << "After getting indirection" << std::endl;
-          if (indirection == nullptr) {
-            //std::cout << "Indirection pointer is null" << std::endl;
-          }
-          // finally install new version into the table
-          target_table->InstallVersion(&new_tuple_one,
-                                       &(project_info->GetTargetList()),
-                                       current_txn, indirection);
-          new_tile_group->GetHeader()->SetIndirection(new_location.offset,
-                                                      indirection);
-          // std::cout << "After installing version" << std::endl;
-
-          // PerformUpdate() will not be executed if the insertion failed.
-          // There is a write lock acquired, but since it is not in the write
-          // set,
-          // because we haven't yet put them into the write set.
-          // the acquired lock can't be released when the txn is aborted.
-          // the YieldOwnership() function helps us release the acquired write
-          // lock.
-          /*if (ret == false) {
-            LOG_TRACE("Fail to insert new tuple. Set txn failure.");
-            if (is_owner == false) {
-              // If the ownership is acquire inside this update executor, we
-              // release it here
-              transaction_manager.YieldOwnership(current_txn, tile_group_header,
-                                                 physical_tuple_id);
-            }
-            transaction_manager.SetTransactionResult(current_txn,
-                                                     ResultType::FAILURE);
-            std::cout << "Fourth false" << std::endl;
-            return false;
-          }*/
-
-          transaction_manager.PerformUpdate(current_txn, old_location,
-                                            new_location);
-          new_tile_group->GetHeader()->SetIndirection(new_location.offset,
-                                                      indirection);
-          new_tile_group->GetHeader()->SetCommitOrPrepare(
-              new_location.offset, current_txn->GetCommitOrPrepare());
+        // get indirection.
+        // std::cout << "Before getting indirection" << std::endl;
+        ItemPointer *indirection =
+            tile_group_header->GetIndirection(old_location.offset);
+        // std::cout << "After getting indirection" << std::endl;
+        if (indirection == nullptr) {
+          // std::cout << "Indirection pointer is null" << std::endl;
         }
-      } else {
-        // std::cout << "Insert was performed" << std::endl;
+        // finally install new version into the table
+        target_table->InstallVersion(&new_tuple_one,
+                                     &(project_info->GetTargetList()),
+                                     current_txn, indirection);
+        new_tile_group->GetHeader()->SetIndirection(new_location.offset,
+                                                    indirection);
+
+        Timestamp time = current_txn->GetBasilTimestamp();
+        new_tile_group->GetHeader()->SetBasilTimestamp(new_location.offset,
+                                                       time);
+
+        // std::cout << "After installing version" << std::endl;
+
+        // PerformUpdate() will not be executed if the insertion failed.
+        // There is a write lock acquired, but since it is not in the write
+        // set,
+        // because we haven't yet put them into the write set.
+        // the acquired lock can't be released when the txn is aborted.
+        // the YieldOwnership() function helps us release the acquired write
+        // lock.
+        /*if (ret == false) {
+          LOG_TRACE("Fail to insert new tuple. Set txn failure.");
+          if (is_owner == false) {
+            // If the ownership is acquire inside this update executor, we
+            // release it here
+            transaction_manager.YieldOwnership(current_txn, tile_group_header,
+                                               physical_tuple_id);
+          }
+          transaction_manager.SetTransactionResult(current_txn,
+                                                   ResultType::FAILURE);
+          std::cout << "Fourth false" << std::endl;
+          return false;
+        }*/
+
+        transaction_manager.PerformUpdate(current_txn, old_location,
+                                          new_location);
+        new_tile_group->GetHeader()->SetIndirection(new_location.offset,
+                                                    indirection);
+        new_tile_group->GetHeader()->SetCommitOrPrepare(
+            new_location.offset, current_txn->GetCommitOrPrepare());
+      } else if (!is_duplicate && !is_purge) {
+        std::cout << "Insert was performed" << std::endl;
         transaction_manager.PerformInsert(current_txn, location,
                                           index_entry_ptr);
         auto storage_manager = storage::StorageManager::GetInstance();
@@ -429,11 +442,15 @@ bool InsertExecutor::DExecute() {
         tile_group_header->SetCommitOrPrepare(
             location.offset, current_txn->GetCommitOrPrepare());
 
+        auto ts = current_txn->GetBasilTimestamp();
+        tile_group_header->SetBasilTimestamp(location.offset, ts);
+
         if (current_txn->GetTxnDig() != nullptr) {
           tile_group_header->SetTxnDig(location.offset,
                                        current_txn->GetTxnDig());
         }
       }
+
       // TODO: This is what was here before
       // transaction_manager.PerformInsert(current_txn, location,
       // index_entry_ptr);

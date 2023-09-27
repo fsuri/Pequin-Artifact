@@ -335,7 +335,7 @@ DEFINE_bool(pequin_query_eager_exec, true, "skip query sync protocol and execute
 DEFINE_bool(pequin_query_point_eager_exec, false, "use eager query exec instead of proof based point read");
 
 DEFINE_bool(pequin_query_read_prepared, true, "allow query to read prepared values");
-DEFINE_bool(pequin_query_cache_read_set, true, "cache query read set at replicas");
+DEFINE_bool(pequin_query_cache_read_set, false, "cache query read set at replicas");
 
 DEFINE_bool(pequin_query_optimistic_txid, true, "use optimistic tx-id for sync protocol");
 DEFINE_bool(pequin_query_compress_optimistic_txid, false, "compress optimistic tx-id for sync protocol");
@@ -882,6 +882,26 @@ int main(int argc, char **argv) {
   }
   }
 
+  //SET THREAD AFFINITY if running multi_threading:
+	//if(FLAGS_indicus_multi_threading){
+  bool pinned_protocol = proto == PROTO_PEQUIN || proto == PROTO_INDICUS || proto == PROTO_PBFT;
+     // || proto == PROTO_HOTSTUFF || proto == PROTO_AUGUSTUS || proto == PROTO_BFTSMART || proto == PROTO_AUGUSTUS_SMART;   
+     //For Hotstuff and Augustus store it's likely best to not pin the main Process in order to allow their internal threadpools to use more cores
+	if(FLAGS_indicus_multi_threading && pinned_protocol){
+		cpu_set_t cpuset;
+		CPU_ZERO(&cpuset);
+		//bool hyperthreading = true;
+        int num_cpus = std::thread::hardware_concurrency();///(2-FLAGS_indicus_hyper_threading);
+		//CPU_SET(num_cpus-1, &cpuset); //last core is for main
+		num_cpus /= FLAGS_indicus_total_processes;
+        int offset = FLAGS_indicus_process_id * num_cpus;
+        Debug("Process ID: %d. CPU offset: %d.", FLAGS_indicus_process_id, offset);
+		//int offset = FLAGS_indicus_process_id;
+		CPU_SET(0 + offset, &cpuset); //first assigned core is for main
+		pthread_setaffinity_np(pthread_self(),	sizeof(cpu_set_t), &cpuset);
+		Debug("Main Process running on CPU %d.", sched_getcpu());
+	}
+
   // parse keys
   std::vector<std::string> keys;
 
@@ -1028,21 +1048,7 @@ int main(int argc, char **argv) {
   std::signal(SIGINT, Cleanup);
 
   CALLGRIND_START_INSTRUMENTATION;
-	//SET THREAD AFFINITY if running multi_threading:
-	//if(FLAGS_indicus_multi_threading){
-	if((proto == PROTO_INDICUS || proto == PROTO_PBFT || proto == PROTO_HOTSTUFF || proto == PROTO_AUGUSTUS || proto == PROTO_BFTSMART || proto == PROTO_AUGUSTUS_SMART) && FLAGS_indicus_multi_threading){
-		cpu_set_t cpuset;
-		CPU_ZERO(&cpuset);
-		//bool hyperthreading = true;
-        int num_cpus = std::thread::hardware_concurrency();///(2-FLAGS_indicus_hyper_threading);
-		//CPU_SET(num_cpus-1, &cpuset); //last core is for main
-		num_cpus /= FLAGS_indicus_total_processes;
-        int offset = FLAGS_indicus_process_id * num_cpus;
-		//int offset = FLAGS_indicus_process_id;
-		CPU_SET(0 + offset, &cpuset); //first assigned core is for main
-		//pthread_setaffinity_np(pthread_self(),	sizeof(cpu_set_t), &cpuset);
-		Debug("MainThread running on CPU %d.", sched_getcpu());
-	}
+	
 
 	//event_enable_debug_logging(EVENT_DBG_ALL);
 

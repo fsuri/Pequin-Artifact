@@ -138,7 +138,7 @@ The prototype implementations depend the following development libraries:
 - libfmt-dev
 
 You may install them directly using:
-- `sudo apt install libsodium-dev libgflags-dev libssl-dev libevent-dev libevent-openssl-2.1-7 libevent-pthreads-2.1-7 libboost-all-dev libuv1-dev libpq-dev postgresql-server-dev-all libfmt-dev`
+- `sudo apt install libsodium-dev libgflags-dev libssl-dev libevent-dev libevent-openssl-2.1-7 libevent-pthreads-2.1-7 libboost-all-dev libuv1-dev libpq-dev postgresql-server-dev-all libfmt-dev libreadline-dev`
 - If using Ubuntu 18.04, use `sudo apt install libevent-openssl-2.1-6 libevent-pthreads-2.1-6` instead for openssl and pthreads.
 
 In addition, you will need to install the following libraries from source (detailed instructions below):
@@ -154,7 +154,9 @@ In addition, you will need to install the following libraries from source (detai
 - [ed25519-donna](https://github.com/floodyberry/ed25519-donna)
 - [Intel TBB](https://software.intel.com/content/www/us/en/develop/tools/oneapi/base-toolkit/get-the-toolkit.html). 
    - You will additionally need to [configure your CPU](https://software.intel.com/content/www/us/en/develop/documentation/get-started-with-intel-oneapi-base-linux/top/before-you-begin.html) before being able to compile the prototypes.
+- [PelotonDB](https://github.com/cmu-db/peloton)
 - [CockroachDB](https://www.cockroachlabs.com/docs/stable/install-cockroachdb-linux.html)
+
 
 Detailed install instructions:
 
@@ -162,6 +164,14 @@ We recommend organizing all installs in a dedicated folder:
 
 1. `mkdir dependencies`
 2. `cd dependencies`
+
+#### Installing fmt
+1. `git clone git@github.com:fmtlib/fmt.git`
+2. `cd fmt`
+3. `cmake .`
+4. `sudo make install`
+5. `sudo ldconfig`
+6. `cd ..`
 
 <!--- #### Installing Hoard Allocator
 1. `sudo apt-get install clang`
@@ -206,7 +216,7 @@ Alternatively, you may download and unzip from source:
 Next, build taopq:
 
 4. `sudo cmake .`
-5. `sudo cmake --build . -j $(nproc)`
+5. `sudo cmake --build . -j`
 6. `sudo make install`
 7. `sudo ldconfig`
 8. `cd ..`
@@ -333,6 +343,37 @@ Move the shared libary:
 4. `sudo cp libed25519_donna.so /usr/local/lib`
 5. `sudo ldconfig`
 6. `cd ..`
+
+
+
+#### Installing Peloton dependencies
+```
+//install libcount
+git clone https://github.com/dialtr/libcount
+cd libcount
+sudo make
+sudo make install
+cd ..
+
+//install peloton third party dependencies
+git clone https://github.com/cmu-db/peloton.git
+cd peloton/third_party/libpg_query
+sudo make
+cd ..
+sudo cp -r libpg_query /usr/local/include
+sudo cp libpg_query/libpg_query.a /usr/local/lib
+
+sudo cp -r libcuckoo /usr/local/include
+
+sudo cp -r date /usr/local/include
+
+sudo cp -r adaptive_radix_tree /usr/local/include
+
+sudo ldconfig
+cd ../..
+```
+
+
 
 #### Installing Intel TBB
 > :warning: If you run into issues with the installation you may refer to https://www.intel.com/content/www/us/en/docs/oneapi/installation-guide-linux/2023-0/overview.html for detailed install resources.

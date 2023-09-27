@@ -41,10 +41,10 @@ auto Row::name( const std::size_t column ) const -> std::string
   return row.name(column);
 }
 
-auto Row::get( const std::size_t column, std::size_t* size ) const -> const char*
-{
-  return row.get(column);
-}
+// auto Row::get( const std::size_t column, std::size_t* size ) const -> const char*
+// {
+//   return row.get(column);
+// }
 
 auto Row::is_null( const std::size_t column ) const -> bool 
 {
@@ -59,6 +59,34 @@ auto Row::slice( const std::size_t offset, const std::size_t in_columns ) const 
 auto Row::operator[]( const std::size_t column ) const -> std::unique_ptr<query_result::Field> 
 {
   return std::unique_ptr<query_result::Field>(new taopq_wrapper::Field(row[column]));
+}
+
+void Row::get(const std::size_t column, bool *field) const {
+  *field = row.get<bool>(column);
+}
+
+void Row::get(const std::size_t column, int32_t *field) const {
+  *field = row.get<int32_t>(column);
+}
+
+void Row::get(const std::size_t column, int64_t *field) const {
+  *field = row.get<int64_t>(column);
+}
+
+void Row::get(const std::size_t column, uint32_t *field) const {
+  *field = row.get<uint32_t>(column);
+}
+
+void Row::get(const std::size_t column, uint64_t *field) const {
+  *field = row.get<uint64_t>(column);
+}
+
+void Row::get(const std::size_t column, double *field) const {
+  *field = row.get<double>(column);
+}
+
+void Row::get(const std::size_t column, std::string *field) const {
+  *field = row.get<std::string>(column);
 }
 
 }

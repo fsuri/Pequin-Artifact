@@ -10,6 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <iostream>
 #include <mutex>
 #include <utility>
 
@@ -36,6 +37,7 @@
 #include "../storage/tile_group_factory.h"
 #include "../storage/tile_group_header.h"
 #include "../storage/tuple.h"
+#include "query-engine/common/internal_types.h"
 #include "query-engine/common/item_pointer.h"
 // #include "../tuning/clusterer.h"
 // #include "../tuning/sample.h"
@@ -294,20 +296,20 @@ bool DataTable::InstallVersion(const AbstractTuple *tuple,
                                ItemPointer *index_entry_ptr) {
   if (CheckConstraints(tuple) == false) {
     Debug("Check constraints false");
-    //std::cout << "Check constraints false" << std::endl;
+    // std::cout << "Check constraints false" << std::endl;
     LOG_TRACE("InsertVersion(): Constraint violated");
     return false;
   }
-  //std::cout << "Past check constraints" << std::endl;
-  // Index checks and updates
+  // std::cout << "Past check constraints" << std::endl;
+  //  Index checks and updates
   if (InsertInSecondaryIndexes(tuple, targets_ptr, transaction,
                                index_entry_ptr) == false) {
-    //std::cout << "Inside if insertinsecondaryindexes" << std::endl;
+    // std::cout << "Inside if insertinsecondaryindexes" << std::endl;
     LOG_TRACE("Index constraint violated");
     return false;
   }
   Debug("Past insert and into secondary indexes");
-  //std::cout << "Past insert into secondary indexes" << std::endl;
+  // std::cout << "Past insert into secondary indexes" << std::endl;
   return true;
 }
 
@@ -334,27 +336,158 @@ ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple,
 
 ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple,
                                    concurrency::TransactionContext *transaction,
-                                   bool &exists, ItemPointer &old_location,
+                                   bool &exists, bool &is_duplicate,
+                                   ItemPointer &old_location,
                                    ItemPointer **index_entry_ptr,
                                    bool check_fk) {
 
-  ItemPointer location = GetEmptyTupleSlot(tuple);
-  if (location.block == INVALID_OID) {
-    LOG_TRACE("Failed to get tuple slot.");
-    return INVALID_ITEMPOINTER;
+  ItemPointer check = CheckIfInIndex(tuple, transaction);
+
+  if (check.block == 0 && check.offset == 0) {
+
+    is_duplicate = false;
+    ItemPointer location = GetEmptyTupleSlot(tuple);
+    if (location.block == INVALID_OID) {
+      LOG_TRACE("Failed to get tuple slot.");
+      return INVALID_ITEMPOINTER;
+    }
+
+    // ItemPointer *old_location;
+    auto result = InsertTuple(tuple, location, transaction, old_location,
+                              index_entry_ptr, check_fk);
+    if (result == false) {
+      std::cout << "The result is false" << std::endl;
+      Debug("InsertTuple result false");
+      // std::cout << "result is false" << std::endl;
+      //  check_fk = false;
+      exists = false;
+      // return INVALID_ITEMPOINTER;
+    }
+    return location; //*old_location;
+  } else {
+    auto tile_group = this->GetTileGroupById(check.block);
+    auto tile_group_header = tile_group->GetHeader();
+
+    auto ts = tile_group_header->GetBasilTimestamp(check.offset);
+    auto curr_pointer = check;
+    auto curr_tile_group_header = tile_group_header;
+
+    /** NEW: for purge */
+    while (ts > transaction->GetBasilTimestamp()) {
+      if (curr_tile_group_header->GetNextItemPointer(curr_pointer.offset)
+              .IsNull()) {
+        break;
+      }
+      curr_pointer =
+          curr_tile_group_header->GetNextItemPointer(curr_pointer.offset);
+      curr_tile_group_header =
+          this->GetTileGroupById(curr_pointer.block)->GetHeader();
+      ts = curr_tile_group_header->GetBasilTimestamp(curr_pointer.offset);
+    }
+
+    if (ts == transaction->GetBasilTimestamp()) {
+      std::cout << "Duplicate" << std::endl;
+      is_duplicate = true;
+
+      /** TODO: Add check to make sure it's prepared */
+      if (transaction->GetUndoDelete()) {
+        std::cout << "In undo delete for purge" << std::endl;
+        // Purge this tuple
+        // Set the linked list pointers
+        auto prev_loc =
+            curr_tile_group_header->GetPrevItemPointer(curr_pointer.offset);
+        auto next_loc =
+            curr_tile_group_header->GetNextItemPointer(curr_pointer.offset);
+
+        if (!prev_loc.IsNull() && !next_loc.IsNull()) {
+          std::cout << "Updating both pointers" << std::endl;
+          auto prev_tgh = this->GetTileGroupById(prev_loc.block)->GetHeader();
+          auto next_tgh = this->GetTileGroupById(next_loc.block)->GetHeader();
+          std::cout << "prev loc" << prev_loc.block << ", " << prev_loc.offset
+                    << std::endl;
+          std::cout << "next loc" << next_loc.block << ", " << next_loc.offset
+                    << std::endl;
+          prev_tgh->SetNextItemPointer(prev_loc.offset, next_loc);
+          next_tgh->SetPrevItemPointer(next_loc.offset, prev_loc);
+        } else if (prev_loc.IsNull() && !next_loc.IsNull()) {
+          std::cout << "Updating head pointer" << std::endl;
+          auto next_tgh = this->GetTileGroupById(next_loc.block)->GetHeader();
+          ItemPointer *index_entry_ptr =
+              next_tgh->GetIndirection(next_loc.offset);
+          COMPILER_MEMORY_FENCE;
+
+          // Set the index header in an atomic way.
+          // We do it atomically because we don't want any one to see a
+          // half-done pointer. In case of contention, no one can update this
+          // pointer when we are updating it because we are holding the write
+          // lock. This update should success in its first trial.
+          UNUSED_ATTRIBUTE auto res =
+              AtomicUpdateItemPointer(index_entry_ptr, next_loc);
+          PELOTON_ASSERT(res == true);
+
+        } else if (next_loc.IsNull() && !prev_loc.IsNull()) {
+          std::cout << "Updating prev pointer" << std::endl;
+          auto prev_tgh = this->GetTileGroupById(prev_loc.block)->GetHeader();
+          prev_tgh->SetNextItemPointer(prev_loc.offset,
+                                       ItemPointer(INVALID_OID, INVALID_OID));
+        }
+      } else {
+
+        bool same_columns = true;
+        bool should_upgrade =
+            !tile_group_header->GetCommitOrPrepare(check.offset) &&
+            transaction->GetCommitOrPrepare();
+
+        // NOTE: Check if we can upgrade a prepared tuple to committed
+        // std::string encoded_key = target_table_->GetName();
+        const auto *schema = tile_group->GetAbstractTable()->GetSchema();
+        for (uint32_t col_idx = 0; col_idx < schema->GetColumnCount();
+             col_idx++) {
+          auto val1 = tile_group->GetValue(check.offset, col_idx);
+          auto val2 = tuple->GetValue(col_idx);
+
+          if (val1.ToString() != val2.ToString()) {
+            tile_group->SetValue(val2, check.offset, col_idx);
+            same_columns = false;
+          }
+        }
+
+        if (should_upgrade && same_columns) {
+          std::cout << "Upgrading from prepared to committed" << std::endl;
+          tile_group_header->SetCommitOrPrepare(check.offset, true);
+        }
+      }
+
+    } else {
+      std::cout << "Data table performing update" << std::endl;
+      is_duplicate = false;
+
+      ItemPointer location = GetEmptyTupleSlot(tuple);
+      if (location.block == INVALID_OID) {
+        LOG_TRACE("Failed to get tuple slot.");
+        return INVALID_ITEMPOINTER;
+      }
+
+      // ItemPointer *old_location;
+      /*auto result = InsertTuple(tuple, location, transaction, old_location,
+                                index_entry_ptr, check_fk);*/
+      bool result = false;
+      old_location = check;
+      IncreaseTupleCount(1);
+
+      if (result == false) {
+        std::cout << "The result is false" << std::endl;
+        Debug("InsertTuple result false");
+        // std::cout << "result is false" << std::endl;
+        //  check_fk = false;
+        exists = false;
+        // return INVALID_ITEMPOINTER;
+      }
+      return location;
+    }
   }
 
-  // ItemPointer *old_location;
-  auto result = InsertTuple(tuple, location, transaction, old_location,
-                            index_entry_ptr, check_fk);
-  if (result == false) {
-    Debug("InsertTuple result false");
-    //std::cout << "result is false" << std::endl;
-    // check_fk = false;
-    exists = false;
-    // return INVALID_ITEMPOINTER;
-  }
-  return location; //*old_location;
+  return ItemPointer(0, 0);
 }
 
 bool DataTable::InsertTuple(const AbstractTuple *tuple, ItemPointer location,
@@ -363,7 +496,7 @@ bool DataTable::InsertTuple(const AbstractTuple *tuple, ItemPointer location,
                             ItemPointer **index_entry_ptr, bool check_fk) {
   if (CheckConstraints(tuple) == false) {
     Debug("Index constraint violated");
-    //std::cout << "Index Constraint violated" << std::endl;
+    // std::cout << "Index Constraint violated" << std::endl;
     LOG_TRACE("InsertTuple(): Constraint violated");
     return false;
   }
@@ -391,7 +524,7 @@ bool DataTable::InsertTuple(const AbstractTuple *tuple, ItemPointer location,
   if (InsertInIndexes(tuple, location, transaction, index_entry_ptr,
                       old_location) == false) {
     Debug("Index Constraint violated old location");
-    //std::cout << "Index Constraint violated old location" << std::endl;
+    // std::cout << "Index Constraint violated old location" << std::endl;
     LOG_TRACE("Index constraint violated");
     return false;
   }
@@ -425,6 +558,62 @@ ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple) {
   // Increase the table's number of tuples by 1
   IncreaseTupleCount(1);
   return location;
+}
+
+ItemPointer
+DataTable::CheckIfInIndex(const storage::Tuple *tuple,
+                          concurrency::TransactionContext *transaction) {
+
+  int index_count = GetIndexCount();
+
+  auto &transaction_manager =
+      concurrency::TransactionManagerFactory::GetInstance();
+
+  std::function<bool(const void *)> fn =
+      std::bind(&concurrency::TransactionManager::IsOccupied,
+                &transaction_manager, transaction, std::placeholders::_1);
+
+  std::vector<ItemPointer *> old_locations;
+
+  for (int index_itr = index_count - 1; index_itr >= 0; --index_itr) {
+    auto index = GetIndex(index_itr);
+    if (index == nullptr)
+      continue;
+    auto index_schema = index->GetKeySchema();
+    auto indexed_columns = index_schema->GetIndexedColumns();
+    std::unique_ptr<storage::Tuple> key(new storage::Tuple(index_schema, true));
+    key->SetFromTuple(tuple, indexed_columns, index->GetPool());
+
+    if (index->GetIndexType() != IndexConstraintType::PRIMARY_KEY) {
+      continue;
+    }
+
+    index->ScanKey(key.get(), old_locations);
+    for (int i = 0; i < old_locations.size(); i++) {
+      // NOTE: For testing
+      /*if (fn(old_locations[i])) {
+        return *old_locations[i];
+      }*/
+      return *old_locations[i];
+    }
+    return ItemPointer(0, 0);
+    /*ItemPointer *first_element = old_locations[0];
+    if (first_element->IsNull()) {
+      Debug("First element is null"); // std::cout << "First element is null"
+                                      // << std::endl;
+    }*/
+
+    // auto res = index->CondInsertEntry(key.get(), index_entry_ptr, fn);
+    // return res;
+
+    // Handle failure
+    // If some of the indexes have been inserted,
+    // the pointer has a chance to be dereferenced by readers and it cannot be
+    // deleted
+    //*index_entry_ptr = nullptr;
+  }
+
+  return ItemPointer(0, 0);
 }
 
 /**
@@ -515,14 +704,16 @@ bool DataTable::InsertInIndexes(const AbstractTuple *tuple,
       index->ScanKey(key.get(), old_locations);
       ItemPointer *first_element = old_locations[0];
       if (first_element->IsNull()) {
-        Debug("First element is null"); //std::cout << "First element is null" << std::endl;
+        Debug("First element is null"); // std::cout << "First element is null"
+                                        // << std::endl;
       }
       /*if (old_location->IsNull()) {
         std::cout << "Old location is null" << std::endl;
       }*/
       old_location.block = first_element->block;
       old_location.offset = first_element->offset;
-      //std::cout << "Old location block is " << old_location.block << " and offset is " << old_location.offset << std::endl;
+      // std::cout << "Old location block is " << old_location.block << " and
+      // offset is " << old_location.offset << std::endl;
 
       return false;
     } else {
@@ -544,7 +735,8 @@ bool DataTable::InsertInSecondaryIndexes(
   // we must check whether the updated column is a secondary index column.
   // insertion happens only if the updated column is a secondary index column.
   if (targets_ptr == nullptr) {
-    Debug("Targets pointer == null"); //std::cout << "Targets pointer is null" << std::endl;
+    Debug("Targets pointer == null"); // std::cout << "Targets pointer is null"
+                                      // << std::endl;
   }
   std::unordered_set<oid_t> targets_set;
   if (targets_ptr != nullptr) {
@@ -553,7 +745,7 @@ bool DataTable::InsertInSecondaryIndexes(
     }
   }
 
-  //std::cout << "After iterating through targets_ptr" << std::endl;
+  // std::cout << "After iterating through targets_ptr" << std::endl;
 
   bool res = true;
 
@@ -595,7 +787,7 @@ bool DataTable::InsertInSecondaryIndexes(
     std::unique_ptr<storage::Tuple> key(new storage::Tuple(index_schema, true));
 
     key->SetFromTuple(tuple, indexed_columns, index->GetPool());
-    //std::cout << "After setting key from tuple" << std::endl;
+    // std::cout << "After setting key from tuple" << std::endl;
 
     switch (index->GetIndexType()) {
     case IndexConstraintType::PRIMARY_KEY:

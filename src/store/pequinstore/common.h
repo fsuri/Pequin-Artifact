@@ -69,6 +69,7 @@ typedef std::function<void()> cleanCallback;
 typedef std::function<void(void*)> mainThreadCallback; //TODO change back to this...
 //typedef std::function<void(bool)> mainThreadCallback;
 
+
 struct Triplet {
   Triplet() {};
   Triplet(::google::protobuf::Message* msg,
@@ -373,7 +374,7 @@ inline static bool sortReadSetByKey(const ReadMessage &lhs, const ReadMessage &r
         //Note: What about an app corner case in which you want to read your own write? Such reads don't have to be added to Read Set -- they are valid by default.
         //Note: See ShardClient "BufferGet" -- we either read our own write, or read previously read value => thus it is impossible to read 2 different TS. We don't add such reads to ReadSet
              //Panic("duplicate read set key with different TS");
-             throw std::exception();
+             throw std::runtime_error("Read set contains two reads of the same key with different timestamp");
         }
         //return (lhs.readtime().timestamp() == rhs.readtime().timestamp()) ? lhs.readtime().id() < rhs.readtime().id() : lhs.readtime().timestamp() < rhs.readtime().timestamp(); 
     }
@@ -422,11 +423,22 @@ struct QueryReadSetMgr {
         QueryReadSetMgr(proto::ReadSet *read_set, const uint64_t &groupIdx, const bool &useOptimisticId): read_set(read_set), groupIdx(groupIdx), useOptimisticId(useOptimisticId){}
         ~QueryReadSetMgr(){}
 
-        void AddToReadSet(const std::string &key, const TimestampMessage &readtime){
-           ReadMessage *read = read_set->add_read_set();
+        void AddToReadSet(const std::string &key, const TimestampMessage &readtime, bool is_table_col_ver = false){
+          Debug("Adding to ReadSet. Key: %s, with TS:[%lu:%lu]", key.c_str(), readtime.timestamp(), readtime.id());
+          ReadMessage *read = read_set->add_read_set();
           //ReadMessage *read = query_md->queryResult->mutable_query_read_set()->add_read_set();
           read->set_key(key);
           *read->mutable_readtime() = readtime;
+
+          if(is_table_col_ver) read->set_is_table_col_version(true);
+        }
+
+        void AddToReadSet(std::string &&key, const Timestamp &readtime){
+        Debug("Adding to ReadSet. Key: %s, with TS:[%lu:%lu]", key.c_str(), readtime.getTimestamp(), readtime.getID());
+           ReadMessage *read = read_set->add_read_set();
+          //ReadMessage *read = query_md->queryResult->mutable_query_read_set()->add_read_set();
+          read->set_key(std::move(key));
+          readtime.serialize(read->mutable_readtime());
         }
 
         void AddToDepSet(const std::string &tx_id, const TimestampMessage &tx_ts){
@@ -443,11 +455,23 @@ struct QueryReadSetMgr {
             }
         }
 
+        void AddToDepSet(const std::string &tx_id, const Timestamp &tx_ts){
+            proto::Dependency *add_dep = read_set->add_deps();
+            add_dep->set_involved_group(groupIdx);
+            add_dep->mutable_write()->set_prepared_txn_digest(tx_id);
+            Debug("Adding Dep: %s", BytesToHex(tx_id, 16).c_str());
+            //Note: Send merged TS.
+            if(useOptimisticId){
+                //MergeTimestampId(txn->timestamp().timestamp(), txn->timestamp().id()
+                add_dep->mutable_write()->mutable_prepared_timestamp()->set_timestamp(tx_ts.getTimestamp());
+                add_dep->mutable_write()->mutable_prepared_timestamp()->set_id(tx_ts.getID());
+            }
+        }
+
       proto::ReadSet *read_set;
       uint64_t groupIdx;
       bool useOptimisticId;
 };
-
 
 // enum InjectFailureType {
 //   CLIENT_EQUIVOCATE = 0,
@@ -580,6 +604,11 @@ private:
     std::unordered_map<std::string, std::set<uint64_t>> txn_freq; //replicas that have txn committed.
     std::unordered_map<uint64_t, std::set<uint64_t>> ts_freq; //replicas that have txn committed.
 };
+
+typedef std::function<void(const std::string &, const Timestamp &, bool, QueryReadSetMgr *, SnapshotManager *)> find_table_version;
+typedef std::function<bool(const std::string &)> read_prepared_pred; // This is a function that, given a txnDigest of a prepared tx, evals to true if it is readable, and false if not.
+
+
 
 typedef struct Parameters {
 

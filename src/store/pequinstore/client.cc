@@ -62,6 +62,7 @@ Client::Client(transport::Configuration *config, uint64_t id, int nShards,
     failureEnabled(false), failureActive(false), faulty_counter(0UL),
     consecutiveMax(consecutiveMax) {
 
+  Notice("Pequinstore currently does not support Read-your-own-Write semantics for Queries. Adjust application accordingly!!");
 
   Debug("Initializing Indicus client with id [%lu] %lu", client_id, nshards);
   std::cerr<< "P1 Decision Timeout: " <<phase1DecisionTimeout<< std::endl;
@@ -169,6 +170,8 @@ void Client::Begin(begin_callback bcb, begin_timeout_callback btcb,
     txn.mutable_timestamp()->set_id(client_id);
 
     sql_interpreter.NewTx(&txn);
+
+    pendingQueries.clear(); //shouldn't be necessary to call, should be empty anyways
 
     bcb(client_seq_num);
   });
@@ -370,6 +373,7 @@ void Client::Query(const std::string &query, query_callback qcb,
     //Requires parsing the Query statement to extract tables touched? Might touch multiple shards...
     //Assume for now only touching one group. (single sharded system)
     PendingQuery *pendingQuery = new PendingQuery(this, query_seq_num, query, qcb);
+    pendingQueries[query_seq_num] = pendingQuery;
 
     std::vector<uint64_t> involved_groups = {0};//{0UL, 1UL};
     pendingQuery->SetInvolvedGroups(involved_groups);
@@ -479,6 +483,7 @@ void Client::PointQueryResultCallback(PendingQuery *pendingQuery,
   query_result::QueryResult *q_result = new sql::QueryResultProtoWrapper(result);
   pendingQuery->qcb(REPLY_OK, q_result); //callback to application 
   
+  stats.Increment("PointQuerySuccess", 1);
   
   delete pendingQuery;
   //clean pendingQuery and query_seq_num_mapping in all shards. ==> Not necessary here: Already happens in HandlePointQuery
@@ -587,8 +592,16 @@ void Client::QueryResultCallback(PendingQuery *pendingQuery,
   Debug("Upcall with Query result");
   sql::QueryResultProtoWrapper *q_result = new sql::QueryResultProtoWrapper(pendingQuery->result);
   pendingQuery->qcb(REPLY_OK, q_result); //callback to application 
+
+  stats.Increment("QuerySuccess", 1);
+  //if it was a point query
+  if(pendingQuery->is_point && params.query_params.eagerPointExec) stats.Increment("PointQueryEager_successes", 1);
+  //If it was an eager exec.    //Note: Running eager exec whenever version == 0 AND either eagerExec param is set, or it is a pointQuery and eagerPointExec is set
+  else if(pendingQuery->version == 0 && params.query_params.eagerExec) stats.Increment("EagerExec_successes", 1);
+  else stats.Increment("Sync_successes", 1);
+
   //clean pendingQuery and query_seq_num_mapping in all shards.
-  ClearQuery(pendingQuery);      
+  //ClearQuery(pendingQuery); ==> now clearing all Queries together only upon Writeback
 
   return;               
 }
@@ -631,15 +644,33 @@ void Client::TestReadSet(PendingQuery *pendingQuery){
 
 }
 
+void Client::ClearTxnQueries(){
+  for(auto &[_, pendingQuery]: pendingQueries){
+    ClearQuery(pendingQuery);
+  }
+  pendingQueries.clear();
+}
+
 void Client::ClearQuery(PendingQuery *pendingQuery){
   for(auto &g: pendingQuery->involved_groups){
     bclient[g]->ClearQuery(pendingQuery->queryMsg.query_seq_num()); //-->Remove mapping + pendingRequest.
   }
 
+  //pendingQueries.erase(pendingQuery->queryMsg.query_seq_num()); Don't delete early..
   delete pendingQuery;
 }
 
 void Client::RetryQuery(PendingQuery *pendingQuery){
+
+  
+  stats.Increment("QueryRetries", 1);
+  //if it was a point query
+  if(pendingQuery->is_point && params.query_params.eagerPointExec) stats.Increment("PointQueryEager_failures", 1);
+  //If it was an eager exec.    //Note: Running eager exec whenever version == 0 AND either eagerExec param is set, or it is a pointQuery and eagerPointExec is set
+  else if(pendingQuery->version == 0 && params.query_params.eagerExec) stats.Increment("EagerExec_failures", 1);
+  else stats.Increment("Sync_failures", 1);
+  
+
   pendingQuery->version++;
   pendingQuery->group_replies = 0;
   pendingQuery->queryMsg.set_retry_version(pendingQuery->version);
@@ -706,10 +737,11 @@ void Client::Commit(commit_callback ccb, commit_timeout_callback ctcb,
     //Add a TableVersion for each TableWrite -- CON: Don't want to do this for updates...
     for(auto &[table_name, table_write] : txn.table_writes()){
       //Only update TableVersion if we inserted/deleted a row
-      if(table_write.has_changed_table() && table_write.changed_table()){
+      if(table_write.has_changed_table() && table_write.changed_table()){  //TODO: Set changed_table for insert and delete.
           WriteMessage *table_ver = txn.add_write_set();
           table_ver->set_key(table_name);
           table_ver->set_value("");
+          //table_ver->set_delay(true);
       }
     }
 
@@ -728,7 +760,6 @@ void Client::Commit(commit_callback ccb, commit_timeout_callback ctcb,
       }
       catch(...) {
         Debug("Preemptive Abort: Trying to commit a transaction with 2 different reads for the same key");
-        uint64_t ns = Latency_End(&executeLatency);
 
         Debug("ABORT[%lu:%lu]", client_id, client_seq_num);
         if(!params.query_params.mergeActiveAtClient) Panic("Without Client-side query merge Client should never read same key twice");
@@ -1267,6 +1298,7 @@ void Client::Writeback(PendingRequest *req) {
   //   bclient[group]->StopP1(req->id);
   // }
 
+  ClearTxnQueries();
   this->pendingReqs.erase(req->id);
   delete req;
 }
@@ -1295,6 +1327,7 @@ void Client::Abort(abort_callback acb, abort_timeout_callback atcb,
       bclient[group]->Abort(client_seq_num, txn.timestamp(), txn); 
     }
 
+    ClearTxnQueries();
     // TODO: can we just call callback immediately?
     acb();
   });
@@ -1329,6 +1362,8 @@ void Client::FailureCleanUp(PendingRequest *req) {
     req->ccb(result);
     req->callbackInvoked = true;
   }
+  
+  ClearTxnQueries();
   this->pendingReqs.erase(req->id);
   delete req;
 }
@@ -1429,11 +1464,21 @@ void Client::FinishConflict(uint64_t reqId, const std::string &txnDigest, proto:
   if(!failureEnabled) stats.Increment("total_honest_conflict_FB_started", 1);
 }
 
-bool Client::isDep(const std::string &txnDigest, proto::Transaction &Req_txn){
+bool Client::isDep(const std::string &txnDigest, proto::Transaction &Req_txn, const proto::Transaction* txn){
+
+  //If we are caching: Check whether dependency is part of snapshot; If eager, make an exception and accept dep
+  if(params.query_params.cacheReadSet){
+    for(auto &[query_seq_num, pendingQuery]: pendingQueries){ 
+      for(auto &group: pendingQuery->involved_groups){  
+        if(bclient[group]->isValidQueryDep(query_seq_num, txnDigest, txn)) return true; 
+      }
+    }
+  }
 
   for(auto & dep: Req_txn.deps()){
    if(dep.write().prepared_txn_digest() == txnDigest){ return true;}
   }
+  Panic("Don't expect to receive non-relevant Relay's in simulation");
   return false;
 }
 
@@ -1498,7 +1543,7 @@ void Client::RelayP1callback(uint64_t reqId, proto::RelayP1 &relayP1, std::strin
   if(Completed_transactions.find(txnDigest) != Completed_transactions.end()) return;
   if(FB_instances.find(txnDigest) != FB_instances.end()) return;
   //Check if the current pending request has this txn as dependency.
-  if(!isDep(txnDigest, itr->second->txn)){
+  if(!isDep(txnDigest, itr->second->txn, &relayP1.p1().txn())){
     Debug("Tx[%s] is not a dependency of ReqId: %d", BytesToHex(txnDigest, 16).c_str(), reqId);
     return;
   }
@@ -1558,7 +1603,7 @@ void Client::RelayP1callbackFB(uint64_t reqId, const std::string &dependent_txnD
   if(Completed_transactions.find(txnDigest) != Completed_transactions.end()) return;
   if(FB_instances.find(txnDigest) != FB_instances.end()) return;
    //Check if the current pending request has this txn as dependency.
-  if(!isDep(txnDigest, itrFB->second->txn)){
+  if(!isDep(txnDigest, itrFB->second->txn, &relayP1.p1().txn())){
     Debug("Tx[%s] is not a dependency of ReqId: %d", BytesToHex(txnDigest, 128).c_str(), reqId);
     return;
   }

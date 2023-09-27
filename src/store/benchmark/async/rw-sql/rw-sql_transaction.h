@@ -38,6 +38,13 @@
 
 namespace rwsql {
 
+static bool AVOID_DUPLICATE_READS = true; 
+static bool POINT_READS_ENABLED = false;
+static bool PARALLEL_QUERIES = false;
+
+inline int mod(int &x, const int &N){
+    return (x % N + N) %N;
+}
 
 class RWSQLTransaction : public SyncTransaction { //AsyncTransaction
  public:
@@ -49,11 +56,18 @@ class RWSQLTransaction : public SyncTransaction { //AsyncTransaction
   inline const std::vector<int> getKeyIdxs() const {
     return keyIdxs;
   }
+ private:
+  std::string GenerateStatement(const std::string &table_name, int &left_bound, int &right_bound);
+  void SubmitStatement(SyncClient &client, std::string &statement, const int &i);
+  void GetResults(SyncClient &client);
+  bool AdjustBounds(int &left, int &right, uint64_t table);
+  
  protected:
   inline const std::string &GetKey(int i) const {
     return keySelector->GetKey(keyIdxs[i]);
   }
 
+  
   //inline const size_t GetNumOps() const { return numOps; }
 
   KeySelector *keySelector;
@@ -61,13 +75,23 @@ class RWSQLTransaction : public SyncTransaction { //AsyncTransaction
 
  private:
   const size_t numOps;
+  const int numKeys;
+  
   const bool readOnly;
   std::vector<int> keyIdxs;
 
-  std::vector<int> tables;
-  std::vector<int> bases;
-  std::vector<int> ranges;
+  std::vector<uint64_t> tables;
+  std::vector<int> starts;
+  std::vector<int> ends;
 
+  size_t liveOps;
+  //avoid duplicates
+  std::vector<std::pair<int, int>> past_ranges;
+
+  inline int wrap(int x){
+    return mod(x, numKeys);
+  }
+  
 };
 
 }

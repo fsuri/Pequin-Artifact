@@ -423,7 +423,7 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
     typedef tbb::concurrent_hash_map<std::string, MissingTxns> queryMissingTxnsMap;  //std::unordered_set<std::string>
     queryMissingTxnsMap queryMissingTxns; 
 
-    void FindTableVersion(const std::string &table_name, const Timestamp &ts, bool read_or_snapshot, QueryReadSetMgr *readSetMgr, SnapshotManager *snapshotMgr);
+    void FindTableVersion(const std::string &key_name, const Timestamp &ts, bool read_or_snapshot, QueryReadSetMgr *readSetMgr, SnapshotManager *snapshotMgr);
     const proto::Transaction* FindPreparedVersion(const std::string &key, const Timestamp &ts, bool committed_exists, std::pair<Timestamp, Server::Value> const &tsVal);
 
     void ProcessPointQuery(const uint64_t &reqId, proto::Query *query, const TransportAddress &remote);

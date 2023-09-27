@@ -1627,6 +1627,8 @@ std::string Server::ExecQuery(QueryReadSetMgr &queryReadSetMgr, QueryMetaData *q
     if(!materialize) serialized_result = table_store->ExecReadQuery(query_md->query_cmd, query_md->ts, queryReadSetMgr);
     if(materialize) Warning("Do not yet support Snapshot materialization");
 
+    Debug("SERIALIZED RESULT: %lu", std::hash<std::string>{}(serialized_result));
+
     if(occType == MVTSO && params.rtsMode > 0){
         Debug("Set up all RTS for Query[%lu:%lu]", query_md->query_seq_num, query_md->client_id);
         for(auto &read: queryReadSetMgr.read_set->read_set()){
@@ -1641,6 +1643,12 @@ std::string Server::ExecQuery(QueryReadSetMgr &queryReadSetMgr, QueryMetaData *q
     //                                                         //
     /////////////////////////////////////////////////////////////
     //TODO: Result should be of protobuf result type: --> can either return serialized value, or result object (probably easiest) -- but need serialized value anyways to check for equality.
+
+
+    for(auto &read : queryReadSetMgr.read_set->read_set()){
+        Debug("Read key %s with version [%lu:%lu]", read.key().c_str(), read.readtime().timestamp(), read.readtime().id());
+    }
+
 
     if(TEST_READ_SET){
 
@@ -1728,6 +1736,8 @@ void Server::ExecQueryEagerly(queryMetaDataMap::accessor &q, QueryMetaData *quer
     QueryReadSetMgr queryReadSetMgr(query_md->queryResultReply->mutable_result()->mutable_query_read_set(), groupIdx, false); 
 
     std::string result(ExecQuery(queryReadSetMgr, query_md, false));
+
+    Debug("Got result for Query[%lu:%lu:%lu].", query_md->query_seq_num, query_md->client_id, query_md->retry_version);
 
     if(TEST_QUERY){
         std::string toy_txn("toy_txn");
@@ -1829,17 +1839,58 @@ void Server::HandleSyncCallback(queryMetaDataMap::accessor &q, QueryMetaData *qu
 
 void Server::SendQueryReply(QueryMetaData *query_md){ 
 
+
+    Debug("SendQuery Reply for Query[%lu:%lu:%lu]. ", query_md->query_seq_num, query_md->client_id, query_md->retry_version);
+    
     proto::QueryResultReply *queryResultReply = query_md->queryResultReply;
     proto::QueryResult *result = queryResultReply->mutable_result();
     proto::ReadSet *query_read_set;
-    //proto::LocalDeps *query_local_deps; //Deprecated --> made deps part of read set
 
+    //proto::LocalDeps *query_local_deps; //Deprecated --> made deps part of read set
+    Debug("QueryResult[%lu:%lu:%lu]: %s", query_md->query_seq_num, query_md->client_id, query_md->retry_version, BytesToHex(result->query_result(), 16).c_str());
+    //Testing:
+        //
+    
+
+        // query_result::QueryResult *p_queryResult = new sql::QueryResultProtoWrapper(result->query_result());
+        //   std::cerr << "IS empty?: " << (p_queryResult->empty()) << std::endl;
+        //     std::cerr << "num cols:" <<  (p_queryResult->num_columns()) << std::endl;
+        //     std::cerr << "num rows written:" <<  (p_queryResult->rows_affected()) << std::endl;
+        //     std::cerr << "num rows read:" << (p_queryResult->size()) << std::endl;
+        // std::string out;
+        // size_t nbytes;
+        // std::string output_row;
+        // for(int j = 0; j < p_queryResult->size(); ++j){
+        //        std::stringstream p_ss(std::ios::in | std::ios::out | std::ios::binary);
+        //        for(int i = 0; i<p_queryResult->num_columns(); ++i){
+        //            out = p_queryResult->get(j, i, &nbytes);
+        //           std::string p_output(out, nbytes);
+        //           p_ss << p_output;
+        //           output_row;
+        //           {
+        //             cereal::BinaryInputArchive iarchive(p_ss); // Create an input archive
+        //             iarchive(output_row); // Read the data from the archive
+        //           }
+        //           std::cerr << "Row: " <<j << " Col " << i << ": " << output_row << std::endl;
+        //        }
+               
+            
+        // }
+
+    //
 
     // 3) Generate Merkle Tree over Read Set, (optionally can also make it be over result, query id)
 
     bool testing_hash = false; //note, if this is on, the client will crash since it expects a read set but does not get one.
     if(testing_hash || params.query_params.cacheReadSet){
-        std::sort(result->mutable_query_read_set()->mutable_read_set()->begin(), result->mutable_query_read_set()->mutable_read_set()->end(), sortReadSetByKey); //Note: Sorts by key to ensure all replicas create the same hash. (Note: Not necessary if using ordered map)
+        try {
+            std::sort(result->mutable_query_read_set()->mutable_read_set()->begin(), result->mutable_query_read_set()->mutable_read_set()->end(), sortReadSetByKey); 
+        }
+        catch(...) {
+            Panic("Trying to send QueryReply with two different reads for the same key");
+        }
+        
+        //Note: Sorts by key to ensure all replicas create the same hash. (Note: Not necessary if using ordered map)
         result->set_query_result_hash(generateReadSetSingleHash(result->query_read_set()));
         //Temporarily release read-set and deps: This way we don't send it. Afterwards, re-allocate it. This avoid copying.
         query_read_set = result->release_query_read_set();
@@ -1851,7 +1902,6 @@ void Server::SendQueryReply(QueryMetaData *query_md){
                                                                                                         //TODO: Can avoid hashing leaves by making them unique strings? "[key:version]" should do the trick?
         //Debug("Read-set hash: %s", BytesToHex(query_md->result_hash, 16).c_str());
     }
-    
 
     //4) If Caching Read Set: Buffer Read Set (map: query_digest -> <result_hash, read set>) ==> implicitly done by storing read set + result hash in query_md 
    
@@ -1894,6 +1944,8 @@ void Server::SendQueryReply(QueryMetaData *query_md){
 
         }
         else{ //realistically don't ever need to batch query sigs --> batching helps with amortized sig generation, but not with verificiation since client don't forward proofs.
+
+
             if(params.signatureBatchSize == 1){
                 SignMessage(result, keyManager->GetPrivateKey(id), id, queryResultReply->mutable_signed_result());
             }
@@ -1906,7 +1958,7 @@ void Server::SendQueryReply(QueryMetaData *query_md){
             }
             
             this->transport->SendMessage(this, *query_md->original_client, *queryResultReply);
-             Debug("Sent Signed Query Resut for Query[%lu:%lu]", result->query_seq_num(), result->client_id());
+             Debug("Sent Signed Query Result for Query[%lu:%lu]", result->query_seq_num(), result->client_id());
             //delete queryResultReply;
             
             if(params.query_params.cacheReadSet){ //Restore read set and deps to be cached
@@ -1919,12 +1971,13 @@ void Server::SendQueryReply(QueryMetaData *query_md){
     }
     else{
         this->transport->SendMessage(this, *query_md->original_client, *queryResultReply);
-
+        Debug("Sent Signed Query Result (no sigs) for Query[%lu:%lu]", result->query_seq_num(), result->client_id());
         //Note: In this branch result is still part of queryResultReply; thus it suffices to only allocate back to result.
         if(params.query_params.cacheReadSet){ //Restore read set and deps to be cached
             result->set_allocated_query_read_set(query_read_set);
             //result->set_allocated_query_local_deps(query_local_deps);
         } 
+
     }
 
     if(TEST_READ_SET){

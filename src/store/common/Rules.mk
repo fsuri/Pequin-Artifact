@@ -2,7 +2,7 @@ d := $(dir $(lastword $(MAKEFILE_LIST)))
 
 SRCS += $(addprefix $(d), promise.cc timestamp.cc tracer.cc \
 				transaction.cc truetime.cc stats.cc partitioner.cc \
-                pinginitiator.cc)
+        pinginitiator.cc)
 
 PROTOS += $(addprefix $(d), common-proto.proto)
 
