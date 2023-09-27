@@ -2529,8 +2529,7 @@ void Server::SendRelayP1(const TransportAddress &remote,
                          uint64_t dependent_id,
                          const std::string &dependent_txnDig) {
 
-  Debug("RelayP1[%s] timed out. Sending now!",
-        BytesToHex(dependent_txnDig, 256).c_str());
+  Debug("RelayP1[%s] timed out. Sending now!", BytesToHex(dependent_txnDig, 256).c_str());
   proto::Transaction *tx;
   proto::SignedMessage *signed_tx;
 

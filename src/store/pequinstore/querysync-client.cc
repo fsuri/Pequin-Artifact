@@ -455,7 +455,8 @@ void ShardClient::HandleQueryResult(proto::QueryResultReply &queryResult){
 
     //3) wait for up to result_threshold many matching replies (result + result_hash/read set)
     if(params.query_params.cacheReadSet){
-        Debug("Read-set hash: %s", BytesToHex(replica_result->query_result_hash(), 50).c_str());
+        Debug("Read-set hash: %s", BytesToHex(replica_result->query_result_hash(), 16).c_str());
+        Debug("Result: %lu", std::hash<std::string>{}(replica_result->query_result()));
          matching_res = ++pendingQuery->result_freq[replica_result->query_result_hash()][replica_result->query_result()].freq; //map should be default initialized to 0.
 
           if(pendingQuery->result_freq[replica_result->query_result_hash()].size() > 1) Panic("Two different results with the same read hash...");

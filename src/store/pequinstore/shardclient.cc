@@ -1165,7 +1165,7 @@ void ShardClient::ProcessP1R(proto::Phase1Reply &reply, bool FB_path, PendingFB 
     cc = &reply.cc();
   }
 
-  Debug("[group %i][replica %lu] PHASE1R process ccr=%d", group, reply.signed_cc().process_id(), cc->ccr());
+  Debug("[group %i][replica %lu] PHASE1R[%s] process ccr=%d", group, reply.signed_cc().process_id(), BytesToHex(TransactionDigest(pendingPhase1->txn_ , params.hashDigest), 16).c_str() , cc->ccr());
 
   if (!pendingPhase1->p1Validator.ProcessMessage(*cc, (failureActive && !FB_path) )) {
     return;

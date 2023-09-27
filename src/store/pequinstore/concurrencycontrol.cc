@@ -882,6 +882,7 @@ proto::ConcurrencyControl::Result Server::DoMVTSOOCCCheck(
     return proto::ConcurrencyControl::WAIT;
   } else {
     //8) Check whether all dependencies are committed (i.e. none abort), and whether TS still valid
+    Debug("check dependencies: %s", BytesToHex(txnDigest, 16).c_str());
     return CheckDependencies(txn); //abort checks are redundant with new abort check in 5)
     //TODO: Current Implementation iterates through dependencies 3 times -- re-factor code to do this once.
     //Move check 5) up and outside the if/else case for whether prepared exists: if !params.verifyDeps, then CheckDependencies is mostly obsolete.
@@ -1058,6 +1059,7 @@ bool Server::RegisterWaitingTxn(const std::string &dep_id, const std::string &tx
 const uint64_t &reqId, bool fallback_flow, bool isGossip, std::vector<const std::string*> &missing_deps, const bool new_waiting_dep){
   bool isFinished = true;
   
+  Debug("Txn[%s] depends on txn: %s", BytesToHex(txnDigest, 16).c_str(), BytesToHex(dep_id,16).c_str());
   dependentsMap::accessor e;
   bool first_dependent = false;
   
@@ -1136,7 +1138,9 @@ bool Server::ManageDependencies(const DepSet &depSet, const std::string &txnDige
          continue;
        }
       //Check if dep is committed/aborted -- if not, register waiting txn in dependents and startRelayP1.
-      allFinished = RegisterWaitingTxn(dep.write().prepared_txn_digest(), txnDigest, txn, remote, reqId, fallback_flow, isGossip, missing_deps, new_waiting_dep);
+      if(!RegisterWaitingTxn(dep.write().prepared_txn_digest(), txnDigest, txn, remote, reqId, fallback_flow, isGossip, missing_deps, new_waiting_dep)){
+        allFinished = false;
+      }
     }
 
     if(!allFinished){
@@ -1154,7 +1158,7 @@ bool Server::ManageDependencies(const DepSet &depSet, const std::string &txnDige
 
     f.release();
   }
-
+  Debug("TX[%s] All finished? %d", BytesToHex(txnDigest, 16).c_str(), allFinished);
   return allFinished;
 }
 
@@ -1406,19 +1410,23 @@ proto::ConcurrencyControl::Result Server::CheckDependencies(
     }
     if (committed.find(dep.write().prepared_txn_digest()) != committed.end()) {
       //Check if dependency still has smaller timestamp than reader: Could be violated if dependency re-tried with higher TS and committed -- Currently retries are not implemented.
+       Debug("Txn[%lu:%lu] dependency %s committed", txn.client_id(), txn.client_seq_num(), dep.write().prepared_txn_digest());
       if (Timestamp(dep.write().prepared_timestamp()) > Timestamp(txn.timestamp())) {
+        Debug("Txn[%lu:%lu] dependency %s committed with wrong TS. Abstain!", txn.client_id(), txn.client_seq_num(), BytesToHex(dep.write().prepared_txn_digest(), 16).c_str());
         stats.Increment("cc_aborts", 1);
         stats.Increment("cc_aborts_dep_ts", 1);
          //if(params.mainThreadDispatching) committedMutex.unlock_shared();
         return proto::ConcurrencyControl::ABSTAIN;
       }
     } else {
+      Debug("Txn[%lu:%lu] dependency %s aborted", txn.client_id(), txn.client_seq_num(), BytesToHex(dep.write().prepared_txn_digest(), 16).c_str());
       stats.Increment("cc_aborts", 1);
       stats.Increment("cc_aborts_dep_aborted", 1);
        //if(params.mainThreadDispatching) committedMutex.unlock_shared();
       return proto::ConcurrencyControl::ABSTAIN;
     }
   }
+  Debug("Txn[%lu:%lu] All dependencies committed", txn.client_id(), txn.client_seq_num());
    //if(params.mainThreadDispatching) committedMutex.unlock_shared();
   return proto::ConcurrencyControl::COMMIT;
 }
