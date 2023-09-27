@@ -167,10 +167,11 @@ class SQLTransformer {
 
         void GenerateTableWriteStatement(std::string &write_statement, std::string &delete_statement, const std::string &table_name, const TableWrite &table_write);
             void GenerateTableWriteStatement(std::string &write_statement, std::vector<std::string> &delete_statements, const std::string &table_name, const TableWrite &table_write);
-        void GenerateTablePurgeStatement(std::string &purge_statement, const std::string &table_name, const TableWrite &table_write);
-            void GenerateTablePurgeStatement(std::vector<std::string> &purge_statements, const std::string &table_name, const TableWrite &table_write);
+        void GenerateTablePurgeStatement(std::string &purge_statement, const std::string &table_name, const TableWrite &table_write); 
+            void GenerateTablePurgeStatement_DEPRECATED(std::string &purge_statement, const std::string &table_name, const TableWrite &table_write);
+            void GenerateTablePurgeStatement_DEPRECATED(std::vector<std::string> &purge_statements, const std::string &table_name, const TableWrite &table_write);
 
-        void GenerateTablePurgeStatement_NEW(std::string &purge_statement, const std::string &table_name, const TableWrite &table_write); //FIXME: Clean up the old ones
+        
 
     private:
         proto::Transaction *txn;

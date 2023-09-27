@@ -941,39 +941,6 @@ void SQLTransformer::GenerateTableWriteStatement(std::string &write_statement, s
 
 }
 
-void SQLTransformer::GenerateTablePurgeStatement(std::string &purge_statement, const std::string &table_name, const TableWrite &table_write){
-    //Abort all TableWrites: Previous writes must be deleted; Previous deletes must be un-done
-    //Puts all write and deletes into one purge
-
-    const ColRegistry &col_registry = TableRegistry.at(table_name);
-    std::map<std::string, std::vector<std::string>> purge_conds;
-
-    for(auto &row: table_write.rows()){
-        //Alternatively: Move row contents to a vector and use: fmt::join(vec, ",")
-        for(auto &[col_name, p_idx]: col_registry.primary_key_cols_idx){
-            if(fine_grained_quotes){
-                if(col_registry.col_quotes[p_idx]) purge_conds[col_name].push_back("\'" + row.column_values()[p_idx] + "\'");
-                else purge_conds[col_name].push_back(row.column_values()[p_idx] );
-            }
-            else{
-                purge_conds[col_name].push_back("\'" + row.column_values()[p_idx] + "\'");
-            }
-        }
-        //write_statement += fmt::format("{}, ", fmt::join(row.column_values(), ','));
-    }
-
-    if(purge_conds.empty()) return;
-
-    purge_statement = fmt::format("DELETE FROM {0} WHERE ", table_name);
-    for(auto &[col_name, p_idx]: col_registry.primary_key_cols_idx){
-        purge_statement += fmt::format("{0} in ({1}) AND ", col_name, fmt::join(purge_conds[col_name], ", "));
-    }
-    purge_statement.resize(purge_statement.length()-5); //Remove trailing " AND "
-    purge_statement += ";";
-
-    return; 
-}
-
 void SQLTransformer::GenerateTableWriteStatement(std::string &write_statement, std::vector<std::string> &delete_statements, const std::string &table_name, const TableWrite &table_write){
     //Create one joint WriteStatement for all insertions
         //NOTE: Inserts must always insert -- even if value exists ==> Insert new row.
@@ -1054,41 +1021,7 @@ void SQLTransformer::GenerateTableWriteStatement(std::string &write_statement, s
     return;  
 }
 
-void SQLTransformer::GenerateTablePurgeStatement(std::vector<std::string> &purge_statements, const std::string &table_name, const TableWrite &table_write){
-
-    const ColRegistry &col_registry = TableRegistry.at(table_name);
-
-    for(auto &row: table_write.rows()){
-         //generate a purge statement per row.
-        purge_statements.push_back("");
-        std::string &purge_statement = purge_statements.back();
-        purge_statement = fmt::format("DELETE FROM {0} WHERE ", table_name);
-
-        for(auto &[col_name, p_idx]: col_registry.primary_key_cols_idx){
-            //purge_statement += fmt::format("{0}={1} AND ", col_name, row.column_values()[p_idx]);
-            //purge_statement += col_name + "=" + row.column_values()[p_idx] + " AND ";
-
-            if(fine_grained_quotes){
-                if(col_registry.col_quotes[p_idx]) purge_statement += col_name + "=" + "\'" + row.column_values()[p_idx] + "\'" + " AND ";
-                else purge_statement += col_name + "=" + row.column_values()[p_idx] + " AND ";
-            }
-            else{
-                purge_statement += col_name + "=" + "\'" + row.column_values()[p_idx] + "\'" + " AND ";
-            }
-        }
-
-        purge_statement.resize(purge_statement.length()-5); //Remove trailing " AND "
-        purge_statement += ";";
-    }
-
-    return;
-    //TODO: update GenerateDelete Statements too.
-    //TODO: update interface to use this function. Loop over deletes and purges.
-        
-}
-
-
-void SQLTransformer::GenerateTablePurgeStatement_NEW(std::string &purge_statement, const std::string &table_name, const TableWrite &table_write){
+void SQLTransformer::GenerateTablePurgeStatement(std::string &purge_statement, const std::string &table_name, const TableWrite &table_write){
     const ColRegistry &col_registry = TableRegistry.at(table_name);
 
     if(table_write.rows().empty()){
@@ -1124,6 +1057,78 @@ void SQLTransformer::GenerateTablePurgeStatement_NEW(std::string &purge_statemen
    
     purge_statement += ";";
 }
+
+//Deprecated
+void SQLTransformer::GenerateTablePurgeStatement_DEPRECATED(std::string &purge_statement, const std::string &table_name, const TableWrite &table_write){
+    //Abort all TableWrites: Previous writes must be deleted; Previous deletes must be un-done
+    //Puts all write and deletes into one purge
+
+    const ColRegistry &col_registry = TableRegistry.at(table_name);
+    std::map<std::string, std::vector<std::string>> purge_conds;
+
+    for(auto &row: table_write.rows()){
+        //Alternatively: Move row contents to a vector and use: fmt::join(vec, ",")
+        for(auto &[col_name, p_idx]: col_registry.primary_key_cols_idx){
+            if(fine_grained_quotes){
+                if(col_registry.col_quotes[p_idx]) purge_conds[col_name].push_back("\'" + row.column_values()[p_idx] + "\'");
+                else purge_conds[col_name].push_back(row.column_values()[p_idx] );
+            }
+            else{
+                purge_conds[col_name].push_back("\'" + row.column_values()[p_idx] + "\'");
+            }
+        }
+        //write_statement += fmt::format("{}, ", fmt::join(row.column_values(), ','));
+    }
+
+    if(purge_conds.empty()) return;
+
+    purge_statement = fmt::format("DELETE FROM {0} WHERE ", table_name);
+    for(auto &[col_name, p_idx]: col_registry.primary_key_cols_idx){
+        purge_statement += fmt::format("{0} in ({1}) AND ", col_name, fmt::join(purge_conds[col_name], ", "));
+    }
+    purge_statement.resize(purge_statement.length()-5); //Remove trailing " AND "
+    purge_statement += ";";
+
+    return; 
+}
+
+
+//Deprecated
+void SQLTransformer::GenerateTablePurgeStatement_DEPRECATED(std::vector<std::string> &purge_statements, const std::string &table_name, const TableWrite &table_write){
+
+    const ColRegistry &col_registry = TableRegistry.at(table_name);
+
+    for(auto &row: table_write.rows()){
+         //generate a purge statement per row.
+        purge_statements.push_back("");
+        std::string &purge_statement = purge_statements.back();
+        purge_statement = fmt::format("DELETE FROM {0} WHERE ", table_name);
+
+        for(auto &[col_name, p_idx]: col_registry.primary_key_cols_idx){
+            //purge_statement += fmt::format("{0}={1} AND ", col_name, row.column_values()[p_idx]);
+            //purge_statement += col_name + "=" + row.column_values()[p_idx] + " AND ";
+
+            if(fine_grained_quotes){
+                if(col_registry.col_quotes[p_idx]) purge_statement += col_name + "=" + "\'" + row.column_values()[p_idx] + "\'" + " AND ";
+                else purge_statement += col_name + "=" + row.column_values()[p_idx] + " AND ";
+            }
+            else{
+                purge_statement += col_name + "=" + "\'" + row.column_values()[p_idx] + "\'" + " AND ";
+            }
+        }
+
+        purge_statement.resize(purge_statement.length()-5); //Remove trailing " AND "
+        purge_statement += ";";
+    }
+
+    return;
+    //TODO: update GenerateDelete Statements too.
+    //TODO: update interface to use this function. Loop over deletes and purges.
+        
+}
+
+
+
 //////////////////// OLD: Without TableRegistry
 
 

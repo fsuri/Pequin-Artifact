@@ -23,7 +23,8 @@ void UtilTestTaskCallback(void *arg) {
 
 void ContinueAfterComplete(std::atomic_int &counter_) {
   while (counter_.load() == 1) {
-    usleep(10);
+    usleep(2); //TODO: Instead of busy looping turn this into a callback. Note: in that case it's tricky to manage that the tpool will schedule the CB to the right core
+               // => Use c++ async programming? promise.wait?
   }
 }
 
@@ -702,8 +703,7 @@ void PelotonTableStore::PurgeTableWrite(const std::string &table_name,
                                         const std::string &txn_digest) {
 
   Debug("Purge Txn[%s]", BytesToHex(txn_digest, 16).c_str());
-  if (table_write.rows().empty())
-    return;
+  if (table_write.rows().empty()) return;
 
   int core = sched_getcpu();
   Debug("Begin writeLat on core: %d", core);
@@ -732,19 +732,15 @@ void PelotonTableStore::PurgeTableWrite(const std::string &table_name,
   peloton::tcop::TrafficCop *tcop = cop_pair.first;
   bool unamed;
 
-  std::shared_ptr<std::string> txn_dig(
-      std::make_shared<std::string>(txn_digest));
+  std::shared_ptr<std::string> txn_dig(std::make_shared<std::string>(txn_digest));
 
-  std::string
-      purge_statement; // empty if no writes/deletes (i.e. nothing to abort)
-  sql_interpreter.GenerateTablePurgeStatement_NEW(purge_statement, table_name,
-                                                  table_write);
+  std::string purge_statement; // empty if no writes/deletes (i.e. nothing to abort)
+  sql_interpreter.GenerateTablePurgeStatement(purge_statement, table_name, table_write);
   // std::vector<std::string> purge_statements;
   // sql_interpreter.GenerateTablePurgeStatement(purge_statements, table_name,
   // table_write);
 
-  if (purge_statement.empty())
-    return; // Nothing to undo.
+  if (purge_statement.empty()) return; // Nothing to undo.
 
   Debug("Purge statement: %s", purge_statement.c_str());
   // Debug("Purge statements: %s", fmt::join(purge_statements, "|"));
@@ -761,9 +757,7 @@ void PelotonTableStore::PurgeTableWrite(const std::string &table_name,
   std::vector<int> result_format(statement->GetTupleDescriptor().size(), 0);
 
   counter->store(1); // SetTrafficCopCounter();
-  auto status = tcop->ExecutePurgeStatement(
-      statement, param_values, unamed, result_format, result, ts, txn_dig,
-      true); //! purge_statements.empty());
+  auto status = tcop->ExecutePurgeStatement(statement, param_values, unamed, result_format, result, ts, txn_dig, true); //! purge_statements.empty());
 
   // GetResult(status);
   GetResult(status, tcop, counter);
