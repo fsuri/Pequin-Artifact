@@ -61,6 +61,7 @@ class RWSQLTransaction : public SyncTransaction { //AsyncTransaction
   void SubmitStatement(SyncClient &client, std::string &statement, const int &i);
   void GetResults(SyncClient &client);
   bool AdjustBounds(int &left, int &right, uint64_t table);
+  bool AdjustBounds_manual(int &left, int &right, uint64_t table);
   
  protected:
   inline const std::string &GetKey(int i) const {
