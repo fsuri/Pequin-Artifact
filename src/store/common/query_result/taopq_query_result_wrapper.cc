@@ -53,7 +53,7 @@ auto TaoPQQueryResultWrapper::is_null( const std::size_t row, const std::size_t 
 {
   return result->is_null(row, column);
 }
-auto TaoPQQueryResultWrapper::get( const std::size_t row, const std::size_t column, std::size_t* size ) const -> const char*
+auto TaoPQQueryResultWrapper::get_bytes( const std::size_t row, const std::size_t column, std::size_t* size ) const -> const char*
 {
   return result->get(row, column);
 }

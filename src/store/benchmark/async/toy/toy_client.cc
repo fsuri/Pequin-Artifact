@@ -119,7 +119,7 @@ void ToyClient::ExecuteToy(){
 
              std::stringstream ss(std::ios::in | std::ios::out | std::ios::binary);
             size_t nbytes;
-            const char* out = queryResult->get(0, 0, &nbytes);
+            const char* out = queryResult->get_bytes(0, 0, &nbytes);
             std::string output(out, nbytes);
             ss << output;
             std::string output_row;
@@ -148,7 +148,7 @@ void ToyClient::ExecuteToy(){
             if(!p_queryResult->empty()){ 
                std::stringstream p_ss(std::ios::in | std::ios::out | std::ios::binary);
                for(int i = 0; i<p_queryResult->num_columns(); ++i){
-                   out = p_queryResult->get(0, i, &nbytes);
+                   out = p_queryResult->get_bytes(0, i, &nbytes);
                   std::string p_output(out, nbytes);
                   p_ss << p_output;
                   output_row;

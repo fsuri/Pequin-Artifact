@@ -58,7 +58,7 @@ auto Row::end() const -> std::unique_ptr<const_iterator>
 
 auto Row::get_bytes( const std::size_t column, std::size_t* size ) const -> const char*
 {
-  return m_result->get( m_row, m_offset + column, size );
+  return m_result->get_bytes( m_row, m_offset + column, size );
 }
 
 auto Row::is_null( const std::size_t column ) const -> bool 
