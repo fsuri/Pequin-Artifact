@@ -337,18 +337,18 @@ enum query_sync_quorum_t {
   QUERY_SYNC_QUORUM_ALL_POSSIBLE // at least 4f+1 (all that one can expect to receive)
 };
 const std::string query_sync_quorum_args[] = {
-	"query-one",
-  "query-one-honest",
-  "query-majority-honest",
-  "query-super-majority-honest",
-  "query-all-possible"
+	"query-one",                   //1
+  "query-one-honest",            //f+1
+  "query-majority-honest",       //2f+1
+  "query-super-majority-honest", //3f+1
+  "query-all-possible"           //4f+1
 };
 const query_sync_quorum_t query_sync_quorums[] {
-  QUERY_SYNC_QUROUM_ONE,
+  QUERY_SYNC_QUROUM_ONE,         //1
   QUERY_SYNC_QUORUM_ONE_HONEST,  //at least f+1 --> 1 honest
   QUERY_SYNC_QUORUM_MAJORITY_HONEST, //at least 2f+1 --> f+1 honest
   QUERY_SYNC_QUORUM_MAJORITY, // at least 3f+1 --> 2f+1 honest (supermajority)
-  QUERY_SYNC_QUORUM_ALL_POSSIBLE // at least 4f+1 (all that one can expect to receive)
+  QUERY_SYNC_QUORUM_ALL_POSSIBLE // at least 4f+1 (all that one can expect to receive, i.e. n-f)
 };
 static bool ValidateQuerySyncQuorum(const char* flagname,
     const std::string &value) {
@@ -367,9 +367,9 @@ enum query_messages_t {
   QUERY_MESSAGES_ALL //send to all replicas
 };
 const std::string query_messages_args[] = {
-	"query-quorum",
-  "query-pessimistic-bonus",
-  "query-all"
+	"query-quorum",               //quorum+0
+  "query-pessimistic-bonus",    //quorum+f
+  "query-all"                   //n
 };
 const query_messages_t query_messagess[] {
   QUERY_MESSAGES_QUERY_QUORUM,

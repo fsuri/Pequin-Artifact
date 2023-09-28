@@ -214,7 +214,7 @@ class IndicusCodebase(ExperimentCodebase):
 
         if 'benchmark_type' in config and config['benchmark_type'] == 'sql_bench':
             client_command += ' --sql_bench %s' % config['benchmark_type']
-            client_command += ' --data_file_path %s' % config['benchmark_data_file_path'] #file path to schema
+            client_command += ' --data_file_path %s' % config['benchmark_schema_file_path'] #file path to schema
 
         if config['benchmark_name'] == 'retwis':
             client_command += ' --num_keys %d' % config['client_num_keys']
@@ -222,7 +222,7 @@ class IndicusCodebase(ExperimentCodebase):
                 client_command += ' --key_selector %s' % config['client_key_selector']
                 if config['client_key_selector'] == 'zipf':
                     client_command += ' --zipf_coefficient %f' % config['client_zipf_coefficient']
-        elif config['benchmark_name'] == 'rw':
+        elif config['benchmark_name'] == 'rw' or config['benchmark_name'] == 'rw-sql':
             client_command += ' --num_keys %d' % config['client_num_keys']
             client_command += ' --num_ops_txn %d' % config['rw_num_ops_txn']
             if 'rw_read_only' in config:
@@ -231,6 +231,12 @@ class IndicusCodebase(ExperimentCodebase):
                 client_command += ' --key_selector %s' % config['client_key_selector']
                 if config['client_key_selector'] == 'zipf':
                     client_command += ' --zipf_coefficient %f' % config['client_zipf_coefficient']
+
+            if config['benchmark_name'] == 'rw-sql':
+                client_command += '--num_tables %d' % config['num_tables']
+                client_command += '--num_keys_per_table %d' % config['num_keys_per_table']
+                client_command += '--max_range %d' % config['max_range']
+
         elif config['benchmark_name'] == 'tpcc' or config['benchmark_name'] == 'tpcc-sync':
             client_command += ' --tpcc_num_warehouses %d' % config['tpcc_num_warehouses']
             client_command += ' --tpcc_w_id %d' % (client_id % config['tpcc_num_warehouses'] + 1)
@@ -251,6 +257,7 @@ class IndicusCodebase(ExperimentCodebase):
             client_command += ' --num_customers %d' % config['smallbank_num_customers']
             client_command += ' --hotspot_probability %f' % config['smallbank_hotspot_probability']
             client_command += ' --customer_name_file_path %s' % config['smallbank_customer_name_file_path']
+
 
         if 'client_wrap_command' in config and len(config['client_wrap_command']) > 0:
             client_command = config['client_wrap_command'] % client_command
@@ -483,7 +490,7 @@ class IndicusCodebase(ExperimentCodebase):
 
         if 'benchmark_type' in config and config['benchmark_type'] == 'sql_bench':
             replica_command += ' --sql_bench %s' % config['benchmark_type']
-            replica_command += ' --data_file_path %s' % config['benchmark_data_file_path'] #file path to schema
+            replica_command += ' --data_file_path %s' % config['benchmark_schema_file_path'] #file path to schema
 
         if config['benchmark_name'] == 'retwis':
             replica_command += ' --num_keys %d' % config['client_num_keys']
@@ -500,6 +507,9 @@ class IndicusCodebase(ExperimentCodebase):
             replica_command += ' --tpcc_num_warehouses %d' % config['tpcc_num_warehouses']
         elif config['benchmark_name'] == 'smallbank':
             replica_command += ' --data_file_path %s' % config['smallbank_data_file_path']
+        elif config['benchmark_name'] == 'rw-sql':
+            replica_command += '--num_tables %d' % config['num_tables']
+            replica_command += '--num_keys_per_table %d' % config['num_keys_per_table']
         
         
        

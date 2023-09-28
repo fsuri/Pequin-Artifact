@@ -201,8 +201,10 @@ PelotonTableStore::GetCop() {
     if (t_id >= traffic_cops_.size()) {
       Panic("Not enough traffic cops allocated for the number of cores");
     }
+    Debug("Using Traffic Cop: %d", t_id);
     return traffic_cops_.at(t_id);
   } else {
+    Debug("Using un-used Traffic Cop");
     return GetUnusedTrafficCop();
   }
 }
