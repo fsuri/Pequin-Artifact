@@ -93,7 +93,6 @@ bool LocalBatchVerifier::Verify(crypto::PubKey *publicKey, const std::string &me
   VALGRIND_DO_LEAK_CHECK;
 
   int core = sched_getcpu();
-  //std::cerr << "Verify on Core: " << core << std::endl;
   Debug("VERIFYING ON THIS cpu: %d",  core);
   // Debug("(CPU:%d) P1 LIVE-VERIFICATION for Sig:[%s] with Msg:[%s].", sched_getcpu(),
   //     BytesToHex(signature, 1024).c_str(),
@@ -101,7 +100,7 @@ bool LocalBatchVerifier::Verify(crypto::PubKey *publicKey, const std::string &me
   std::string hashStr;
   std::string rootSig;
   
-  Latency_Start(&hashLats[core]);
+  //Latency_Start(&hashLats[core]);
   if (!BatchedSigs::computeBatchedSignatureHash(&signature, &message, publicKey,
       hashStr, rootSig, merkleBranchFactor)) {
     Debug("(CPU:%d) Signature batch hash computation failed: Sig:[%s] with Msg:[%s].",
@@ -110,17 +109,17 @@ bool LocalBatchVerifier::Verify(crypto::PubKey *publicKey, const std::string &me
         BytesToHex(message, 1024).c_str());
     return false;
   }
-  Latency_End(&hashLats[core]);
+  //Latency_End(&hashLats[core]);
   std::unique_lock<std::mutex> lock(cacheMutex);
   auto itr = cache.find(rootSig);
   if (itr == cache.end()) {
     lock.unlock();
     stats.Increment("verify_cache_miss");
-    Latency_Start(&cryptoLats[core]);
+    //Latency_Start(&cryptoLats[core]);
     //TODO: here: call AddToBatch  . This function needs to include the callback of the return
     //TODO: add automatic dispatch/ VerifyBatch when batch is full. Pass Callback function that manages all the callbacks.
     bool valid = crypto::Verify(publicKey, &hashStr[0], hashStr.length(), &rootSig[0]);
-    Latency_End(&cryptoLats[core]);
+    //Latency_End(&cryptoLats[core]);
     if (valid) {
       Debug("(CPU:%d) Adding rootSig:[%s] and hashStr:[%s].",
           sched_getcpu(),
