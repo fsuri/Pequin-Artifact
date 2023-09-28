@@ -67,6 +67,7 @@ transaction_status_t RWSQLTransaction::Execute(SyncClient &client) {
   //reset Tx exec state. When avoiding redundant queries we may split into new queries. liveOps keeps track of total number of attempted queries
   liveOps = numOps;
   past_ranges.clear();
+  statements.clear();
 
 
   Debug("Start next Transaction");
@@ -94,7 +95,9 @@ transaction_status_t RWSQLTransaction::Execute(SyncClient &client) {
     }
     UW_ASSERT(left_bound >= 0 && left_bound < querySelector->numKeys && right_bound >= 0 && right_bound < querySelector->numKeys);
 
-    std::string statement = GenerateStatement(table_name, left_bound, right_bound);    
+    //std::string statement = GenerateStatement(table_name, left_bound, right_bound);
+    statements.push_back(GenerateStatement(table_name, left_bound, right_bound));  
+    std::string &statement = statements.back();
 
     Debug("Start new RW-SQL Request: %s", statement);
     std::cerr << "Start new RW-SQL Request: " << statement << std::endl;
@@ -121,9 +124,9 @@ transaction_status_t RWSQLTransaction::Execute(SyncClient &client) {
 std::string RWSQLTransaction::GenerateStatement(const std::string &table_name, int &left_bound, int &right_bound){
 
   if(readOnly){
-    if(POINT_READS_ENABLED && left_bound == right_bound) return fmt::format("SELECT FROM {0} WHERE key = {1};", table_name, left_bound);
-    if(left_bound <= right_bound) return fmt::format("SELECT FROM {0} WHERE key >= {1} AND key <= {2};", table_name, left_bound, right_bound);
-    else return fmt::format("SELECT FROM {0} WHERE key >= {1} OR key <= {2};", table_name, left_bound, right_bound);
+    if(POINT_READS_ENABLED && left_bound == right_bound) return fmt::format("SELECT * FROM {0} WHERE key = {1};", table_name, left_bound);
+    if(left_bound <= right_bound) return fmt::format("SELECT * FROM {0} WHERE key >= {1} AND key <= {2};", table_name, left_bound, right_bound);
+    else return fmt::format("SELECT * FROM {0} WHERE key >= {1} OR key <= {2};", table_name, left_bound, right_bound);
   }
   else{
     if(POINT_READS_ENABLED && left_bound == right_bound) return fmt::format("UPDATE {0} SET value = value + 1 WHERE key = {1};", table_name, left_bound);
@@ -184,7 +187,7 @@ void RWSQLTransaction::GetResults(SyncClient &client){
     client.Wait(results);
 
     for(auto &queryResult: results){
-      UW_ASSERT(queryResult->rows_affected());
+      if(!readOnly) UW_ASSERT(queryResult->rows_affected());
       std::cerr << "Num rows affected: " << queryResult->rows_affected() << std::endl;
     }
   }

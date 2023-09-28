@@ -160,7 +160,7 @@ void Client::Begin(begin_callback bcb, begin_timeout_callback btcb,
     //std::cerr<< "BEGIN TX with client_seq_num: " << client_seq_num << std::endl;
     Debug("BEGIN [%lu]", client_seq_num);
 
-    txn = proto::Transaction();
+    txn.Clear(); //txn = proto::Transaction();
     txn.set_client_id(client_id);
     txn.set_client_seq_num(client_seq_num);
     // Optimistically choose a read timestamp for all reads in this transaction
@@ -363,7 +363,7 @@ void Client::Query(const std::string &query, query_callback qcb,
 
     query_seq_num++;
     txn.set_last_query_seq(query_seq_num);
-    Debug("\n Query[%lu:%lu:%lu]", client_id, client_seq_num, query_seq_num);
+    Debug("\n Query[%lu:%lu:%lu]: %s", client_id, client_seq_num, query_seq_num, query.c_str());
 
  
     // Contact the appropriate shard to execute the query on.
@@ -407,7 +407,7 @@ void Client::Query(const std::string &query, query_callback qcb,
     
     pendingQuery->is_point = sql_interpreter.InterpretQueryRange(query, pendingQuery->table_name, pendingQuery->p_col_values, relax_point_cond); 
 
-    Debug("Query [%d] is %s ", query_seq_num, pendingQuery->is_point? "POINT" : "QUERY");
+    Debug("Query [%d] is of type: %s ", query_seq_num, pendingQuery->is_point? "POINT" : "RANGE");
     
     if(pendingQuery->is_point){
       Debug("Encoded key: %s", EncodeTableRow(pendingQuery->table_name, pendingQuery->p_col_values).c_str()); 
@@ -479,9 +479,9 @@ void Client::PointQueryResultCallback(PendingQuery *pendingQuery,
   // ==> QueryResultWrapper constructor will create empty result.
 
   query_result::QueryResult *q_result = new sql::QueryResultProtoWrapper(result);
-  pendingQuery->qcb(REPLY_OK, q_result); //callback to application 
-  
+
   stats.Increment("PointQuerySuccess", 1);
+  pendingQuery->qcb(REPLY_OK, q_result); //callback to application 
   
   delete pendingQuery;
   //clean pendingQuery and query_seq_num_mapping in all shards. ==> Not necessary here: Already happens in HandlePointQuery
@@ -589,7 +589,6 @@ void Client::QueryResultCallback(PendingQuery *pendingQuery,
 
   Debug("Upcall with Query result");
   sql::QueryResultProtoWrapper *q_result = new sql::QueryResultProtoWrapper(pendingQuery->result);
-  pendingQuery->qcb(REPLY_OK, q_result); //callback to application 
 
   stats.Increment("QuerySuccess", 1);
   //if it was a point query
@@ -598,6 +597,7 @@ void Client::QueryResultCallback(PendingQuery *pendingQuery,
   else if(pendingQuery->version == 0 && params.query_params.eagerExec) stats.Increment("EagerExec_successes", 1);
   else stats.Increment("Sync_successes", 1);
 
+  pendingQuery->qcb(REPLY_OK, q_result); //callback to application 
   //clean pendingQuery and query_seq_num_mapping in all shards.
   //ClearQuery(pendingQuery); ==> now clearing all Queries together only upon Writeback
 

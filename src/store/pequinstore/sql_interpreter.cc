@@ -163,8 +163,14 @@ void SQLTransformer::TransformWriteStatement(std::string &_write_statement,
     //match on write type:
     size_t pos = 0;
 
-    //TODO: Make write_statement a string view already.
-    std::string_view write_statement(std::move(_write_statement));
+    //Note: This creates a reference to the _write_statement; as long as Write is ongoing, _write_statement must stay in scope!
+    std::string_view write_statement(_write_statement);
+
+    // std::cerr << "TEST: " << std::endl;
+    //  std::cerr << "string write: " << _write_statement << std::endl;
+    //  std::cerr << "string view write: " << write_statement << std::endl;
+    //  _write_statement = "TEST";
+    //   std::cerr << "string view write2: " << write_statement << std::endl;
 
     //Case 1) INSERT INTO <table_name> (<column_list>) VALUES (<value_list>)
     if( (pos = write_statement.find(insert_hook) != string::npos)){   //  if(write_statement.rfind("INSERT", 0) == 0){
@@ -547,9 +553,13 @@ void SQLTransformer::TransformUpdate(size_t pos, std::string_view &write_stateme
         // table_ver->set_value("");
         bool changed_table = false; // false //FOR NOW ALWAYS SETTING TO TRUE due to UPDATE INDEX issue (see above comment) TODO: Implement TableColumnVersion optimization
 
+        
         //Write TableColVersions
         for(auto &[col, _]: col_updates){
             WriteMessage *write = txn->add_write_set();   
+            std::cerr << "table_name: " << table_name << std::endl;
+            std::cerr << "delim: " << unique_delimiter << std::endl;
+            std::cerr << "col: " << col << std::endl;  //Segfault with parallel queries: write_statement has gone out of scope; col is a string_views
             write->set_key(table_name + unique_delimiter + std::string(col));  
             write->set_delay(true);
              //If a TX has multiple Queries with the same Col updates there will be duplicates. Does that matter? //Writes are sorted to avoid deadlock.
