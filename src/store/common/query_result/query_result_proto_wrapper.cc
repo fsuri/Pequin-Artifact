@@ -89,7 +89,7 @@ auto QueryResultProtoWrapper::is_null( const std::size_t row, const std::size_t 
   return !proto_result->rows(row).fields(column).has_data();
 }
 
-auto QueryResultProtoWrapper::get( const std::size_t row, const std::size_t column, std::size_t* size ) const -> const char* 
+auto QueryResultProtoWrapper::get_bytes( const std::size_t row, const std::size_t column, std::size_t* size ) const -> const char* 
 {
   if(!is_null(row, column)) {
     const std::string& r_bytes = proto_result->rows(row).fields(column).data(); // result.at(row).at(column);
@@ -101,10 +101,10 @@ auto QueryResultProtoWrapper::get( const std::size_t row, const std::size_t colu
   }
 }
 
-auto QueryResultProtoWrapper::get( const std::size_t row, const std::string& column, std::size_t* size ) const -> const char* 
+auto QueryResultProtoWrapper::get_bytes( const std::size_t row, const std::string& column, std::size_t* size ) const -> const char* 
 {
   const std::size_t column_idx = column_index_by_name(column);
-  return get(row, column_idx, size);
+  return get_bytes(row, column_idx, size);
 }
 
 auto QueryResultProtoWrapper::operator[]( const std::size_t row ) const -> std::unique_ptr<query_result::Row> {

@@ -126,7 +126,7 @@ Category CategoryParser::add_new_category(std::string full_category_name, int it
     category_name = full_category_name.substr(serparator_index + 1);
   }
 
-  if(categories.contains(parent_category_name)) {
+  if(categories.count(parent_category_name)) {
     parent_category = categories[parent_category_name];
   } else if(!parent_category_name.empty()) {
     add_new_category(parent_category_name, 0, false);

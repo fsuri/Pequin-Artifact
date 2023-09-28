@@ -58,7 +58,7 @@ class QueryResultProtoBuilder {
   auto get_result() -> std::unique_ptr<SQLResultProto>;
 
   template<class Iterable>
-  void add_row(Iterable it, Iterable end)
+  void add_row_serialize(Iterable it, Iterable end)
   //Note: Only use this if entire row is of the same data type.
   {
     RowProto *row = result->add_rows();
@@ -70,9 +70,20 @@ class QueryResultProtoBuilder {
     }
   }
 
+  template< typename T >
+  void add_row( typename std::enable_if< std::is_same< typename T::value_type, std::string >::value, T >::type it, T end )
+  {
+    RowProto *row = result->add_rows();
+    while (it != end) {
+      FieldProto *field = row->add_fields();
+      field->set_data(*it);
+      it++;
+    }
+  }
+
   // Overwrites existing field
   template<typename T>
-  auto insert_field_to_row(std::size_t row, std::size_t column, T &t) -> void {
+  auto insert_field_to_row_serialize(std::size_t row, std::size_t column, T &t) -> void {
     FieldProto *field = result->mutable_rows(row)->mutable_fields(column);
     field->set_data(serialize(t));
   }
@@ -85,14 +96,14 @@ class QueryResultProtoBuilder {
 
   // Adds new row with given field value in first column
   template<typename T>
-  auto add_field_to_new_row(T &t) -> void {
+  auto add_field_to_new_row_serialize(T &t) -> void {
     FieldProto *field = new_row()->add_fields();
     field->set_data(serialize(t));
   }
 
   // Adds new field to last row
   template<typename T>
-  auto add_field_to_last_row(T &t) -> void {
+  auto add_field_to_last_row_serialize(T &t) -> void {
     FieldProto *field = result->mutable_rows(result->rows_size() - 1)->add_fields();
     field->set_data(serialize(t));
   }
@@ -134,10 +145,24 @@ class QueryResultProtoBuilder {
 
   //Append field to given row
   template<typename T>
-  void AddToRow(RowProto *row, T &t){
+  void AddToRowSerialize(RowProto *row, T &t){
   //Appends field to a row
     FieldProto *field = row->add_fields();
     field->set_data(serialize(t));
+  }
+
+  //Append field to given row
+  template<typename T>
+  void AddToRow(RowProto *row, T &t){
+    //Appends field to a row
+    FieldProto *field = row->add_fields();
+    field->set_data(std::to_string(t));
+  }
+
+  inline void AddToRow(RowProto *row, std::string &t){
+    //Appends field to a row
+    FieldProto *field = row->add_fields();
+    field->set_data(t);
   }
 
     //New interface:

@@ -41,10 +41,10 @@ auto Row::name( const std::size_t column ) const -> std::string
   return row.name(column);
 }
 
-// auto Row::get( const std::size_t column, std::size_t* size ) const -> const char*
-// {
-//   return row.get(column);
-// }
+auto Row::get_bytes( const std::size_t column, std::size_t* size ) const -> const char*
+{
+  return row.get(column);
+}
 
 auto Row::is_null( const std::size_t column ) const -> bool 
 {
