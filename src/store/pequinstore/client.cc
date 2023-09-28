@@ -1899,7 +1899,7 @@ void Client::Phase2FBcallback(uint64_t conflict_id, std::string txnDigest, int64
   // check if conflict transaction still active
   if(!StillActive(conflict_id, txnDigest)) return;
 
-  Debug("PHASE2FB[%lu:%s] callback", client_id, txnDigest.c_str());
+  Debug("PHASE2FB[%lu:%s] callback", client_id, BytesToHex(txnDigest, 16).c_str());
 
   PendingRequest* req = FB_instances[txnDigest];
 

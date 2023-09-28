@@ -416,7 +416,7 @@ DEFINE_bool(pequin_query_eager_exec, true, "skip query sync protocol and execute
 DEFINE_bool(pequin_query_point_eager_exec, false, "use eager query exec instead of proof based point read");
 
 DEFINE_bool(pequin_query_read_prepared, true, "allow query to read prepared values");
-DEFINE_bool(pequin_query_cache_read_set, true, "cache query read set at replicas"); // Send syncMessages to all if read set caching is enabled -- but still only sync_messages many replicas are tasked to execute and reply.
+DEFINE_bool(pequin_query_cache_read_set, false, "cache query read set at replicas"); // Send syncMessages to all if read set caching is enabled -- but still only sync_messages many replicas are tasked to execute and reply.
 
 DEFINE_bool(pequin_query_optimistic_txid, true, "use optimistic tx-id for sync protocol");
 DEFINE_bool(pequin_query_compress_optimistic_txid, false, "compress optimistic tx-id for sync protocol");
@@ -427,7 +427,8 @@ DEFINE_bool(pequin_query_merge_active_at_client, true, "merge active query read 
 DEFINE_bool(pequin_sign_client_queries, false, "sign query and sync messages"); //proves non-equivocation of query contents, and query snapshot respectively. 
 //DEFINE_bool(pequin_sign_replica_to_replica_sync, false, "sign inter replica sync messages with HMACs"); //proves authenticity of channels.
 //Note: Should not be necessary. Unique hash of query should suffice for non-equivocation; autheniticated channels would suffice for authentication. 
-DEFINE_bool(pequin_parallel_queries, true, "dispatch queries to parallel worker threads");
+
+//DEFINE_bool(pequin_parallel_queries, false, "dispatch queries to parallel worker threads"); -- only serverside arg
 
 
 ///////////////////////////////////////////////////////////
@@ -1373,7 +1374,7 @@ int main(int argc, char **argv) {
                                                  FLAGS_pequin_query_merge_active_at_client,
                                                  FLAGS_pequin_sign_client_queries,
                                                  false,    // FLAGS_pequin_sign_replica_to_replica_sync,
-                                                 FLAGS_pequin_parallel_queries);
+                                                 false);   //FLAGS_pequin_parallel_queries);
 
         pequinstore::Parameters params(FLAGS_indicus_sign_messages,
                                         FLAGS_indicus_validate_proofs, FLAGS_indicus_hash_digest,
@@ -1700,6 +1701,7 @@ int main(int argc, char **argv) {
 }
 
 void Cleanup(int signal) {
+  Notice("clean up with signal %d", signal);
   FlushStats();
   delete config;
   delete keyManager;
@@ -1729,6 +1731,7 @@ void Cleanup(int signal) {
   delete part;
 
   if(FLAGS_sql_bench && querySelector != nullptr) delete querySelector;
+  //exit(0);
 }
 
 void FlushStats() {

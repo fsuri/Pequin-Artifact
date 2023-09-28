@@ -15,6 +15,10 @@
 
   "client_num_keys": 10000000,
   
+  "server_load_time": 5,
+  "client_zipf_coefficient": 0.75,   
+  "client_key_selector": "zipf",
+  
   "benchmark_type": "sql_bench",  
   
   "benchmark_name": "rw-sql",
@@ -112,7 +116,7 @@
 		  
 		  "sign_client_queries": false,
 		  "sign_replica_to_replica_sync": false,
-		  "parallel_queries": false
+		  "parallel_queries": true
       
     }
   ],
