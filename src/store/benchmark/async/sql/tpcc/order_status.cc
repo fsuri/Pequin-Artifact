@@ -82,12 +82,13 @@ transaction_status_t SQLOrderStatus::Execute(SyncClient &client) {
   Debug("  First: %s", c_row.first().c_str());
   Debug("  Last: %s", c_row.last().c_str());
 
-  query = fmt::format("SELECT MAX(o_id) FROM Order WHERE d_id = {} AND w_id = {} AND c_id = {}", c_d_id, c_w_id, c_id);
+  query = fmt::format("SELECT MAX(id) FROM \"order\" WHERE d_id = {} AND w_id = {} AND c_id = {}", c_d_id, c_w_id, c_id);
   client.Query(query, queryResult, timeout);
   int o_id;
   deserialize(o_id, queryResult);
   Debug("Order: %u", o_id);
-  query = fmt::format("SELECT * FROM Order WHERE id = {} AND d_id = {} AND w_id = {}", o_id, c_d_id, c_w_id);
+  query = fmt::format("SELECT * FROM \"order\" WHERE id = {} AND d_id = {} AND w_id = {}", o_id, c_d_id, c_w_id);
+  Debug(query.c_str());
   client.Query(query, queryResult, timeout);
   tpcc::OrderRow o_row;
   if(queryResult->empty()) Panic("empty result for Order Row");

@@ -115,7 +115,7 @@ transaction_status_t SQLNewOrder::Execute(SyncClient &client) {
             o_id, d_id, w_id);
   client.Write(statement, queryResult, timeout);
 
-  statement = fmt::format("INSERT INTO Order (id, d_id, w_id, c_id, entry_d, carrier_id, ol_cnt, all_local)\n"
+  statement = fmt::format("INSERT INTO \"order\" (id, d_id, w_id, c_id, entry_d, carrier_id, ol_cnt, all_local)\n"
           "VALUES ({}, {}, {}, {}, {}, {}, {}, {});", 
           o_id, d_id, w_id, c_id, o_entry_d, 0, ol_cnt, all_local);
   client.Write(statement, queryResult, timeout);

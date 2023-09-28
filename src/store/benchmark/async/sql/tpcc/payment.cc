@@ -111,7 +111,6 @@ transaction_status_t SQLPayment::Execute(SyncClient &client) {
     Debug("  ID: %u", c_id);
   } else {
     statement = fmt::format("SELECT * FROM Customer WHERE id = {} AND d_id = {} AND w_id = {}", c_id, c_d_id, c_w_id);
-    fprintf(stderr, "statement: %s\n", statement.c_str());
     client.Query(statement, timeout);
     client.Wait(results);
     deserialize(c_row, results[2]);
