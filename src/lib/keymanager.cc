@@ -44,10 +44,10 @@ KeyManager::KeyManager(const std::string &keyPath, crypto::KeyType t, bool preco
 }
 
 KeyManager::~KeyManager() {
-  for(auto [id, pubKey]: publicKeys){
+  for(auto &[id, pubKey]: publicKeys){
     free(pubKey);
   }
-  for(auto [id, privKey]: privateKeys){
+  for(auto &[id, privKey]: privateKeys){
     free(privKey);
   }
 }
