@@ -315,6 +315,15 @@ public:
     committed_proof_ = commit_proof;
   }
 
+  const pequinstore::proto::CommittedProof **GetCommittedProofRef() {
+    return committed_proof_ref_;
+  }
+
+  void SetCommittedProofRef(
+      const pequinstore::proto::CommittedProof **commit_proof) {
+    committed_proof_ref_ = commit_proof;
+  }
+
   bool GetCommitOrPrepare() { return commit_or_prepare_; }
 
   void SetCommitOrPrepare(bool commit_or_prepare) {
@@ -423,6 +432,9 @@ private:
 
   /** Commit proof */
   const pequinstore::proto::CommittedProof *committed_proof_;
+
+  /* Commit proof ref */
+  const pequinstore::proto::CommittedProof **committed_proof_ref_;
 
   /** Timestamp of committed value */
   Timestamp *committed_timestamp_;

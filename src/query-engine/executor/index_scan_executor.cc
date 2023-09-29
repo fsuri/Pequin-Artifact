@@ -30,6 +30,8 @@
 #include "../storage/tile_group.h"
 #include "../storage/tile_group_header.h"
 #include "../type/value.h"
+#include "lib/message.h"
+#include "store/pequinstore/pequin-proto.pb.h"
 
 namespace peloton {
 namespace executor {
@@ -227,7 +229,7 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
 
   std::set<ItemPointer> prepared_tuple_set;
   // NEW: Commit proofs
-  std::vector<const pequinstore::proto::CommittedProof *> proofs;
+  // std::vector<const pequinstore::proto::CommittedProof *> proofs;
 
 #ifdef LOG_TRACE_ENABLED
   int num_tuples_examined = 0;
@@ -359,7 +361,7 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
             auto commit_proof =
                 tile_group_header->GetCommittedProof(tuple_location.offset);
             // Add the commit proof to the vector
-            proofs.push_back(commit_proof);
+            // proofs.push_back(commit_proof);
             // Add the tuple to the visible tuple vector
             visible_tuple_locations.push_back(tuple_location);
             visible_tuple_set.insert(tuple_location);
@@ -370,10 +372,34 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
                   committed_timestamp.getTimestamp(),
                   committed_timestamp.getID());
 
-            current_txn->SetCommittedProof(
-                tile_group_header->GetCommittedProof(tuple_location.offset));
-            // Since tuple is committed we can stop looking at the version
-            // chain
+            if (current_txn->IsPointRead()) {
+              Debug("Setting the commit proof");
+              const pequinstore::proto::CommittedProof **commit_proof_ref =
+                  current_txn->GetCommittedProofRef();
+              *commit_proof_ref = commit_proof;
+              //*commit_proof_ref = *commit_proof;
+              // current_txn->SetCommittedProofRef(commit_proof);
+              //  std::cout << (*commit_proof)->DebugString() << std::endl;
+              if (commit_proof == nullptr) {
+                Debug("Commit proof is null");
+              } else {
+                Debug("Inside index scan proof not null");
+              }
+
+              if (commit_proof_ref == nullptr) {
+                Debug("Commit proof ref is null");
+              } else {
+                if (*commit_proof_ref == nullptr) {
+                  Debug("* commit proof ref is null");
+                } else {
+                  Debug("Neither pointer is null");
+                }
+              }
+            }
+            // current_txn->SetCommittedProof(
+            //     tile_group_header->GetCommittedProof(tuple_location.offset));
+            //  Since tuple is committed we can stop looking at the version
+            //  chain
             break;
           }
 

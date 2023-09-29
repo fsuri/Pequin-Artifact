@@ -338,7 +338,8 @@ executor::ExecutionResult TrafficCop::ExecuteWriteHelper(
   Debug("Txn digest is %s", pequinstore::BytesToHex(*txn_dig, 16).c_str());
   // Set the commit proof
   txn->SetCommittedProof(commit_proof);
-  // Set commit or prepare
+  // txn->SetCommittedProofRef(commit_proof);
+  //   Set commit or prepare
   txn->SetCommitOrPrepare(commit_or_prepare);
   // Set undo delete false
   txn->SetUndoDelete(false);
@@ -508,7 +509,7 @@ executor::ExecutionResult TrafficCop::ExecutePointReadHelper(
     const std::vector<int> &result_format, const Timestamp &basil_timestamp,
     std::function<bool(const std::string &)> &predicate,
     Timestamp *committed_timestamp,
-    const pequinstore::proto::CommittedProof *commit_proof,
+    const pequinstore::proto::CommittedProof **commit_proof,
     Timestamp *prepared_timestamp, std::shared_ptr<std::string> txn_dig,
     pequinstore::proto::Write *write, size_t thread_id) {
   auto &curr_state = GetCurrentTxnState();
@@ -536,8 +537,9 @@ executor::ExecutionResult TrafficCop::ExecutePointReadHelper(
   // time.setTimestamp(1024);
 
   // Set the commit proof
-  txn->SetCommittedProof(commit_proof);
-  // Set the prepared timestamp
+  txn->SetCommittedProofRef(commit_proof);
+  // commit_proof = txn->GetCommittedProof();
+  //  Set the prepared timestamp
   txn->SetPreparedTimestamp(prepared_timestamp);
   // Set the prepared txn_dig
   txn->SetPreparedTxnDigest(txn_dig);
@@ -1232,7 +1234,7 @@ ResultType TrafficCop::ExecutePointReadStatement(
     const Timestamp &basil_timestamp,
     std::function<bool(const std::string &)> &predicate,
     Timestamp *committed_timestamp,
-    const pequinstore::proto::CommittedProof *commit_proof,
+    const pequinstore::proto::CommittedProof **commit_proof,
     Timestamp *prepared_timestamp, std::shared_ptr<std::string> txn_dig,
     pequinstore::proto::Write *write, size_t thread_id) {
   // TODO(Tianyi) Further simplify this API

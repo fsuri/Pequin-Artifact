@@ -23,8 +23,10 @@ void UtilTestTaskCallback(void *arg) {
 
 void ContinueAfterComplete(std::atomic_int &counter_) {
   while (counter_.load() == 1) {
-    usleep(2); //TODO: Instead of busy looping turn this into a callback. Note: in that case it's tricky to manage that the tpool will schedule the CB to the right core
-               // => Use c++ async programming? promise.wait?
+    usleep(2); // TODO: Instead of busy looping turn this into a callback. Note:
+               // in that case it's tricky to manage that the tpool will
+               // schedule the CB to the right core
+               //  => Use c++ async programming? promise.wait?
   }
 }
 
@@ -417,8 +419,8 @@ std::string PelotonTableStore::ExecReadQuery(const std::string &query_statement,
 void PelotonTableStore::ExecPointRead(
     const std::string &query_statement, std::string &enc_primary_key,
     const Timestamp &ts, proto::Write *write,
-    const proto::CommittedProof *committedProof) {
-  Panic("Currently not using");
+    const proto::CommittedProof *&committedProof) {
+  // Panic("Currently not using");
 
   // Client sends query statement, and expects a Query Result for the given key,
   // a timestamp, and a proof (if it was a committed value it read) Note:
@@ -479,7 +481,7 @@ void PelotonTableStore::ExecPointRead(
   // committed)
   auto status = tcop->ExecutePointReadStatement(
       statement, param_values, unamed, result_format, result, ts,
-      this->can_read_prepared, &committed_timestamp, committedProof,
+      this->can_read_prepared, &committed_timestamp, &committedProof,
       &prepared_timestamp, txn_dig, write);
 
   // GetResult(status);
@@ -487,6 +489,12 @@ void PelotonTableStore::ExecPointRead(
 
   TransformPointResult(write, committed_timestamp, prepared_timestamp, txn_dig,
                        status, statement, result);
+
+  if (committedProof == nullptr) {
+    Debug("The commit proof after executing point read is null");
+  } else {
+    Debug("The commit proof is not null");
+  }
 
   Debug("End readLat on core: %d", core);
   Latency_End(&readLats[core]);
@@ -534,9 +542,10 @@ void PelotonTableStore::TransformPointResult(
   for (unsigned int i = 0; i < tuple_descriptor.size(); i++) {
     std::string &column_name = std::get<0>(tuple_descriptor[i]);
     queryResultBuilder.add_column(column_name);
+    size_t index = (rows - 1) * tuple_descriptor.size() + i;
+    Debug("Index in result array is %u", index);
     queryResultBuilder.AddToRow(
-        row, result[rows - 1 * tuple_descriptor.size() +
-                    i]); // Note: rows-1 == last row == Committed
+        row, result[index]); // Note: rows-1 == last row == Committed
   }
 
   write->set_committed_value(
@@ -704,7 +713,8 @@ void PelotonTableStore::PurgeTableWrite(const std::string &table_name,
                                         const std::string &txn_digest) {
 
   Debug("Purge Txn[%s]", BytesToHex(txn_digest, 16).c_str());
-  if (table_write.rows().empty()) return;
+  if (table_write.rows().empty())
+    return;
 
   int core = sched_getcpu();
   Debug("Begin writeLat on core: %d", core);
@@ -733,15 +743,19 @@ void PelotonTableStore::PurgeTableWrite(const std::string &table_name,
   peloton::tcop::TrafficCop *tcop = cop_pair.first;
   bool unamed;
 
-  std::shared_ptr<std::string> txn_dig(std::make_shared<std::string>(txn_digest));
+  std::shared_ptr<std::string> txn_dig(
+      std::make_shared<std::string>(txn_digest));
 
-  std::string purge_statement; // empty if no writes/deletes (i.e. nothing to abort)
-  sql_interpreter.GenerateTablePurgeStatement(purge_statement, table_name, table_write);
+  std::string
+      purge_statement; // empty if no writes/deletes (i.e. nothing to abort)
+  sql_interpreter.GenerateTablePurgeStatement(purge_statement, table_name,
+                                              table_write);
   // std::vector<std::string> purge_statements;
   // sql_interpreter.GenerateTablePurgeStatement(purge_statements, table_name,
   // table_write);
 
-  if (purge_statement.empty()) return; // Nothing to undo.
+  if (purge_statement.empty())
+    return; // Nothing to undo.
 
   Debug("Purge statement: %s", purge_statement.c_str());
   // Debug("Purge statements: %s", fmt::join(purge_statements, "|"));
@@ -758,7 +772,9 @@ void PelotonTableStore::PurgeTableWrite(const std::string &table_name,
   std::vector<int> result_format(statement->GetTupleDescriptor().size(), 0);
 
   counter->store(1); // SetTrafficCopCounter();
-  auto status = tcop->ExecutePurgeStatement(statement, param_values, unamed, result_format, result, ts, txn_dig, true); //! purge_statements.empty());
+  auto status = tcop->ExecutePurgeStatement(
+      statement, param_values, unamed, result_format, result, ts, txn_dig,
+      true); //! purge_statements.empty());
 
   // GetResult(status);
   GetResult(status, tcop, counter);

@@ -475,7 +475,7 @@ ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple,
           std::cout << "Txn timestamp is "
                     << transaction->GetBasilTimestamp().getTimestamp() << ", "
                     << transaction->GetBasilTimestamp().getID() << std::endl;
-          Panic("Tried to add a duplicate write");
+          // Panic("Tried to add a duplicate write");
         }
       }
 

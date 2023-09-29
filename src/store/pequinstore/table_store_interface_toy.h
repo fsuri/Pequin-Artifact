@@ -31,7 +31,7 @@ public:
   void ExecPointRead(const std::string &query_statement,
                      std::string &enc_primary_key, const Timestamp &ts,
                      proto::Write *write,
-                     const proto::CommittedProof *committedProof) override;
+                     const proto::CommittedProof *&committedProof) override;
   // Note: Could execute PointRead via ExecReadQuery (Eagerly) as well.
   //  ExecPointRead should translate enc_primary_key into a query_statement to
   //  be exec by ExecReadQuery. (Alternatively: Could already send a Sql command
