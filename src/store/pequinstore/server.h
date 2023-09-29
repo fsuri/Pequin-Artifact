@@ -241,14 +241,15 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
     //SnapshotMgr lives in Snapshot_mgr.cc
 
     struct QueryMetaData {
-      QueryMetaData(const std::string &query_cmd, const TimestampMessage &timestamp, const TransportAddress &remote, const uint64_t &req_id, 
-                    const uint64_t &query_seq_num, const uint64_t &client_id, const QueryParameters *query_params): 
-         failure(false), retry_version(0UL), has_query(true), waiting_sync(false), started_sync(false), has_result(false), 
-         query_cmd(query_cmd), ts(timestamp), original_client(remote.clone()), req_id(req_id), query_seq_num(query_seq_num), client_id(client_id), is_waiting(false),
+      QueryMetaData(const std::string &_query_cmd, const TimestampMessage &timestamp, const TransportAddress &remote, const uint64_t &req_id, 
+                    const uint64_t &query_seq_num, const uint64_t &client_id, const QueryParameters *query_params, const uint64_t &retry_version): 
+         failure(false), retry_version(retry_version), waiting_sync(false), started_sync(false), has_result(false), 
+         query_cmd(_query_cmd), ts(timestamp), original_client(remote.clone()), req_id(req_id), query_seq_num(query_seq_num), client_id(client_id), is_waiting(false),
          snapshot_mgr(query_params), useOptimisticTxId(false), executed_query(false), merged_ss_msg(nullptr)
       {
           //queryResult = new proto::QueryResult();
           queryResultReply = new proto::QueryResultReply(); //TODO: Replace with GetUnused.
+          has_query = !query_cmd.empty();
 
       }
        QueryMetaData(const uint64_t &query_seq_num, const uint64_t &client_id, const QueryParameters *query_params): 
@@ -283,7 +284,7 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
         query_cmd = _query_cmd;
         ts = timestamp;
         if(original_client == nullptr) original_client = remote.clone();
-        req_id = _req_id;
+        req_id = std::max(req_id, _req_id); //if we already received a retry, keep it's req_id.
       }
       void RegisterWaitingSync(proto::MergedSnapshot *_merged_ss_msg, const TransportAddress &remote){
         waiting_sync = true;

@@ -124,10 +124,12 @@ std::shared_ptr<peloton::Statement>
 PelotonTableStore::ParseAndPrepare(const std::string &query_statement,
                                    peloton::tcop::TrafficCop *tcop) {
 
-  std::cout << "Beginning of parse and prepare" << std::endl;
+  UW_ASSERT(!query_statement.empty());
+  Debug("Beginning of parse and prepare: %s", query_statement.c_str()); 
   // prepareStatement
   auto &peloton_parser = peloton::parser::PostgresParser::GetInstance();
   auto sql_stmt_list = peloton_parser.BuildParseTree(query_statement);
+  UW_ASSERT(sql_stmt_list);
   // PELOTON_ASSERT(sql_stmt_list);
   if (!sql_stmt_list->is_valid) {
     Panic("SQL command not valid"); // return peloton::ResultType::FAILURE;

@@ -1232,7 +1232,7 @@ int main(int argc, char **argv) {
               NOT_REACHABLE();
           }
           if(syncQuorumSize > queryMessages) Panic("Query Quorum size cannot be larger than number of Query requests sent");
-          if(syncQuorumSize + config->f > queryMessages) std::cerr << "WARNING: Query Sync is not live in presence of byzantine replies witholding query sync replies (omission faults)" << std::endl;
+          if(syncQuorumSize + config->f > queryMessages) std::cerr << "WARNING: Under given Config Query Sync is not live in presence of byzantine replies witholding query sync replies (omission faults)" << std::endl;
          
          switch (sync_messages) {
           case QUERY_MESSAGES_QUERY_QUORUM:

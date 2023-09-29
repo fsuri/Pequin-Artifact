@@ -98,7 +98,7 @@ void Server::HandleQuery(const TransportAddress &remote, proto::QueryRequest &ms
         query = msg.release_query(); //mutable_query()
     }
 
-    //Only process if above watermark. I.e. ignore old queries
+    //Only process if above watermark. I.e. ignore old queries from the same client
     clientQueryWatermarkMap::const_accessor qw;
     if(clientQueryWatermark.find(qw, query->client_id()) && qw->second >= query->query_seq_num()){
     //if(clientQueryWatermark[query->client_id()] >= query->query_seq_num()){
@@ -128,11 +128,15 @@ void Server::HandleQuery(const TransportAddress &remote, proto::QueryRequest &ms
     if(hasQuery){
         QueryMetaData *query_md = q->second;
         bool valid = true;
-        if(query->retry_version() < query_md->retry_version){
+        if(query->retry_version() == 0 && !query_md->has_query){
+            //This is the first query mention. This will lead to an execution.
+            Debug("Received Query cmd. Query Request[%lu:%lu:%d] (seq:client:ver)", query->query_seq_num(), query->client_id(), query->retry_version(), query_md->retry_version);
+        }
+        else if(query->retry_version() < query_md->retry_version){
             Debug("Retry version for Query Request Query[%lu:%lu:%d] (seq:client:ver) is outdated. Currently %d", query->query_seq_num(), query->client_id(), query->retry_version(), query_md->retry_version);
             valid = false;
         }
-        if(query->retry_version() == query_md->retry_version){ //TODO: if have result, return result
+        else if(query->retry_version() == query_md->retry_version){ //TODO: if have result, return result
             //Two cases for which proposed retry version could be == stored retry_version:
                 //a) have already received query for this retry version 
                 //b) have already received a sync for this retry version (and the sync is not waiting for query)
@@ -173,21 +177,21 @@ void Server::HandleQuery(const TransportAddress &remote, proto::QueryRequest &ms
             //Note: tbb find and insert are not atomic: Find does not take a lock if noQuery; before insert can claim lock another thread might add query. 
             //==> Must check whether query is the first -- and if not, must re-check (technically it's the first check since hasQuery must have been false) retry version and sync status
     if(!hasQuery){
-        bool new_insert = queryMetaData.insert(q, queryId); //If not first insert -> must re-check.
+        bool new_insert = queryMetaData.insert(q, queryId); //If not first insert -> must re-check.  //NOTE: this will unlock and re-lock q
         if(new_insert){
-            q->second = new QueryMetaData(query->query_cmd(), query->timestamp(), remote, msg.req_id(), query->query_seq_num(), query->client_id(), &params.query_params);
+            //UW_ASSERT(query->retry_version() == 0); // We might get them out of order with multi-threading
+            q->second = new QueryMetaData(query->query_cmd(), query->timestamp(), remote, msg.req_id(), query->query_seq_num(), query->client_id(), &params.query_params, query->retry_version());
         }
         re_check = !new_insert;
     }
     
     QueryMetaData *query_md = q->second;
 
-    if(!query_md->has_query){ //If queryMetaData was inserted by Sync first (i.e. query has not been processed yet), set query.
-        UW_ASSERT(query->has_query_cmd());  //TODO: Could avoid re-sending query_cmd in retry messages (but then might have to wait for first query attempt in case multithreading violates FIFO)
-        query_md->SetQuery(query->query_cmd(), query->timestamp(), remote, msg.req_id());  
-       
+    if(!query->query_cmd().empty()){ //If queryMetaData was inserted by Sync first, or we received retry first (i.e. query has not been processed yet), set query.
+        //UW_ASSERT(query->has_query_cmd()); 
+        //We avoid re-sending query_cmd in retry messages (but might have to wait for first query attempt in case multithreading violates FIFO)
+        query_md->SetQuery(query->query_cmd(), query->timestamp(), remote, msg.req_id());  //Keep current req_id if it's greater (i.e. belongs to retry that is waiting for original query)
     }
-
 
     // //3 Buffer Query content and timestamp (only buffer the first time)
     // queryMetaDataMap::accessor q;
@@ -205,11 +209,15 @@ void Server::HandleQuery(const TransportAddress &remote, proto::QueryRequest &ms
     if(re_check){ //must re-check retry-version because tbb lookup and insert are not atomic...
         //Ignore if retry version old, or we already started sync for this retry version.
         bool valid = true;
-        if(query->retry_version() < query_md->retry_version){
+        if(query->retry_version() == 0 && !query_md->has_query){
+            //This is the first query mention. This will lead to an execution.
+            Debug("Received Query cmd. Query Request[%lu:%lu:%d] (seq:client:ver)", query->query_seq_num(), query->client_id(), query->retry_version(), query_md->retry_version);
+        }
+        else if(query->retry_version() < query_md->retry_version){
             Debug("Retry version for Query Request Query[%lu:%lu:%d] (seq:client:ver) is outdated. Currently %d", query->query_seq_num(), query->client_id(), query->retry_version(), query_md->retry_version);
             valid = false;
         }
-        if(query->retry_version() == query_md->retry_version){  //TODO: if have result, return result
+        else if(query->retry_version() == query_md->retry_version){  //TODO: if have result, return result
             ////Return if already received query or sync for the retry version, and sync is not waiting for query. (I.e. no need to process Query) (implies result will be sent.)
             if(query_md->executed_query || query_md->started_sync && !query_md->waiting_sync){ 
                 Debug("Already received Sync or Query for Query[%lu:%lu:%d] (seq:client:ver). Skipping Query", query->query_seq_num(), query->client_id(), query->retry_version(), query_md->retry_version);
@@ -260,6 +268,15 @@ void Server::HandleQuery(const TransportAddress &remote, proto::QueryRequest &ms
     //     return;
     // }
 
+
+     if(!query_md->has_query){ //Wait for command. E.g. when retry version arrives before original version
+    //Note: Have updated retry versions and req_id's, but have not started execution
+        //q automatically released
+        if(params.mainThreadDispatching && (!params.dispatchMessageReceive || params.query_params.parallel_queries)) FreeQueryRequestMessage(&msg);
+        return;
+    }
+
+    //EXECUTE:
 
     //If Eager Exec --> Skip sync and just execute on local state --> Call EagerExec function: Calls same exec as HandleSyncCallback (but without materializing snapshot) + SendQueryResult.
     if((msg.designated_for_reply() || params.query_params.cacheReadSet) && msg.has_eager_exec() && msg.eager_exec()){ //Note: If eager exec on && caching read set --> all must execute.

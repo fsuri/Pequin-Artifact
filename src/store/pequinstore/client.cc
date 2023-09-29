@@ -369,7 +369,7 @@ void Client::Query(const std::string &query, query_callback qcb,
 
     query_seq_num++;
     txn.set_last_query_seq(query_seq_num);
-    Debug("\n Query[%lu:%lu:%lu]: %s", client_id, client_seq_num, query_seq_num, query.c_str());
+    Debug("\n Query[%lu:%lu:%lu] (client:tx-seq:query-seq): %s", client_id, client_seq_num, query_seq_num, query.c_str());
 
  
     // Contact the appropriate shard to execute the query on.
@@ -489,9 +489,10 @@ void Client::PointQueryResultCallback(PendingQuery *pendingQuery,
   stats.Increment("PointQuerySuccess", 1);
   pendingQuery->qcb(REPLY_OK, q_result); //callback to application 
   
-  delete pendingQuery;
+  pendingQueries.erase(pendingQuery->queryMsg.query_seq_num());
+  delete pendingQuery;  //For Point Queries can delete immediately;
   //clean pendingQuery and query_seq_num_mapping in all shards. ==> Not necessary here: Already happens in HandlePointQuery
-  //ClearQuery(pendingQuery);      
+  //ClearQuery(pendingQuery);     
 
   return;               
 
