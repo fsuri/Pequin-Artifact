@@ -137,7 +137,7 @@ std::string ToyTableStore::ExecReadQuery(const std::string &query_statement,
 void ToyTableStore::ExecPointRead(const std::string &query_statement,
                                   std::string &enc_primary_key,
                                   const Timestamp &ts, proto::Write *write,
-                                  const proto::CommittedProof *committedProof) {
+                                  const proto::CommittedProof *&committedProof) {
 
   std::cerr << "EXECUTING POINT READ ON TOY INTERFACE" << std::endl;
   // Toy Transaction

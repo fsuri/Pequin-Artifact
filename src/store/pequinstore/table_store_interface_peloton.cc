@@ -419,7 +419,7 @@ std::string PelotonTableStore::ExecReadQuery(const std::string &query_statement,
 void PelotonTableStore::ExecPointRead(
     const std::string &query_statement, std::string &enc_primary_key,
     const Timestamp &ts, proto::Write *write,
-    const proto::CommittedProof *committedProof) {
+    const proto::CommittedProof* &committedProof) {
   Panic("Currently not using");
 
   // Client sends query statement, and expects a Query Result for the given key,

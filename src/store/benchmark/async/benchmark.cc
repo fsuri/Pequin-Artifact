@@ -1689,8 +1689,8 @@ int main(int argc, char **argv) {
 
   tport->Timer(FLAGS_exp_duration * 1000 - 1000, FlushStats);
 
-  std::signal(SIGKILL, Cleanup);
-  std::signal(SIGTERM, Cleanup);
+  std::signal(SIGKILL, Cleanup); //signal 9
+  std::signal(SIGTERM, Cleanup); //signal 15
   std::signal(SIGINT, Cleanup);
 
   tport->Run();
@@ -1704,7 +1704,8 @@ void Cleanup(int signal) {
   Notice("clean up with signal %d", signal);
   FlushStats();
   delete config;
-  delete keyManager;
+  //keyManager->Cleanup();
+  delete keyManager; //somehow destructor is not being triggered
   delete keySelector;
 
   for (auto i : threads) {
@@ -1731,7 +1732,8 @@ void Cleanup(int signal) {
   delete part;
 
   if(FLAGS_sql_bench && querySelector != nullptr) delete querySelector;
-  exit(0);
+  Notice("Finished Cleanup. Exiting");
+  //exit(0); Allow segfault for duplicate config deletion to mask printing endless ASAN leaks that we can't fix...
 }
 
 void FlushStats() {

@@ -117,6 +117,12 @@ Client::~Client()
   Latency_Dump(&executeLatency);
   Latency_Dump(&getLatency);
   Latency_Dump(&commitLatency);
+
+  //Note pendingReqs and pendingQueries should be empty. 
+  for(auto &[_, pendingFB]: FB_instances){
+    delete pendingFB;
+  }
+
   for (auto b : bclient) {
       delete b;
   }

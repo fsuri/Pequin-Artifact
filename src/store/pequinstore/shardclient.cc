@@ -1767,17 +1767,20 @@ void ShardClient::EraseRelay(const std::string &txnDigest){
 
 void ShardClient::HandlePhase1Relay(proto::RelayP1 &relayP1){
 
-  proto::Transaction *txn;
+  //proto::Transaction *txn;
   if(params.signClientProposals){
-    txn = new proto::Transaction();
-    UW_ASSERT(txn->ParseFromString(relayP1.p1().signed_txn().data()));
+    UW_ASSERT(relayP1.mutable_p1()->mutable_txn()->ParseFromString(relayP1.p1().signed_txn().data()));
+    // txn = new proto::Transaction();
+    // UW_ASSERT(txn->ParseFromString(relayP1.p1().signed_txn().data()));
   }
-  else{
-    txn = relayP1.mutable_p1()->mutable_txn();
-  }
-  std::string txnDigest(TransactionDigest(*txn, params.hashDigest));
+  // else{
+  //   txn = relayP1.mutable_p1()->mutable_txn();
+  // }
+ 
+  //std::string txnDigest(TransactionDigest(*txn, params.hashDigest));
+  std::string txnDigest(TransactionDigest(relayP1.p1().txn(), params.hashDigest));
   //if(params.signClientProposals) delete txn;
-  if(params.signClientProposals) relayP1.mutable_p1()->set_allocated_txn(txn);
+  //if(params.signClientProposals) relayP1.mutable_p1()->set_allocated_txn(txn);
 
   //only process the first relay for a txn.
   //if (!pendingRelays.insert(txnDigest).second) return; //USING this works? seemingly does not either.

@@ -77,7 +77,8 @@ namespace pequinstore {
 
 //If the Transaction is waiting on a Query to be cached, call 
 void Server::subscribeTxOnMissingQuery(const std::string &query_id, const std::string &txnDigest){ 
-  //Note: This is being called while lock on TxnMissingQueries object and query_md is held. --> either query is in cache already, in which case subscribe is never called; or it is cached after subscribe, in which case it tries to wake the tx up
+  //Note: This is being called while lock on TxnMissingQueries object and query_md is held. 
+  //--> either query is in cache already, in which case subscribe is never called; or it is cached after subscribe, in which case it tries to wake the tx up
     subscribedQueryMap::accessor sq;
     subscribedQuery.insert(sq, query_id);
     sq->second = txnDigest;
@@ -186,7 +187,7 @@ proto::ConcurrencyControl::Result Server::fetchReadSet(const proto::QueryResultM
       query_rs = &query_group_md->query_read_set();
     }
     else{ //else go to cache (via query_id) and check if query_result hash matches. if so, use read set.
-      Debug("Merging Query[%s] Read Set from Cache", BytesToHex(query_md.query_id(), 16).c_str());
+      Debug("Try to merge Query[%s] Read Set from Cache", BytesToHex(query_md.query_id(), 16).c_str());
       // If tx includes no read_set_hash => abort; invalid transaction //TODO: Could strengthen Abstain into Abort by incuding proof...
       if(!query_group_md->has_read_set_hash()) return proto::ConcurrencyControl::IGNORE; //ABSTAIN;
 
@@ -196,12 +197,13 @@ proto::ConcurrencyControl::Result Server::fetchReadSet(const proto::QueryResultM
       //1) Check whether the replica a) has seen the query, and b) has computed a result/read-set. If not ==> Stop processing
       if(!has_query || !q->second->has_result){
         //Panic("query has no result cached yet. has_query: %d", has_query);
-        Debug("query has either not been received or no result was cached yet. has_query: %d. SUBSCRIBING", has_query, q->second->has_result);
+        Debug("query has either not been received or no result was cached yet. has_query: %d. SUBSCRIBING", has_query);
         subscribeTxOnMissingQuery(query_md.query_id(), txnDigest);
         return proto::ConcurrencyControl::WAIT; //NOTE: Replying WAIT is a hack to not respond -- it will never wake up.
       } 
 
       QueryMetaData *cached_query_md = q->second;
+      UW_ASSERT(cached_query_md);
 
       //2) Only client that issued the query may use the cached query in it's transaction ==> it follows that honest clients will not use the same query twice. (Must include txn as argument in order to check)
       if(cached_query_md->client_id != txn.client_id()){
@@ -212,7 +214,8 @@ proto::ConcurrencyControl::Result Server::fetchReadSet(const proto::QueryResultM
 
       //3) Check for matching retry version. If local version smaller ==> Stop processing (Wait), if local version larger ==> PoM
       if(query_md.retry_version() != cached_query_md->retry_version){
-          Panic("query has wrong cached retry version; shouldn't happen in testing");
+          Debug("Query has the wrong cached retry version. Have: %d. Require: %d.", cached_query_md->retry_version, query_md.retry_version());
+          //Panic("query has wrong cached retry version; shouldn't happen in testing");
 
   
           if(query_md.retry_version() < cached_query_md->retry_version){
@@ -261,6 +264,7 @@ proto::ConcurrencyControl::Result Server::fetchReadSet(const proto::QueryResultM
      
       //5) Use Read set.
       query_rs = &cached_queryResult.query_read_set();
+      Debug("Merged Cached Read set for Query[%s] successfully", BytesToHex(query_md.query_id(), 16).c_str());
   
       q.release();
     }

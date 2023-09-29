@@ -112,6 +112,9 @@ PrivKey* LoadPrivateKey(const string &filename, KeyType t, bool precompute);
 
 std::pair<PrivKey*, PubKey*> GenerateKeypair(KeyType t, bool precompute);
 
+void FreePubKey(PubKey *pubKey);
+void FreePrivKey(PrivKey *privKey);
+
 // TODO should have canonical serialization for this to be correct,
 // but this should be fine for now
 template <typename S>
