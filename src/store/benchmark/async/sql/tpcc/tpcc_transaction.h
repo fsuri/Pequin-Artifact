@@ -28,7 +28,6 @@
 #ifndef TPCC_SQL_TRANSACTION_H
 #define TPCC_SQL_TRANSACTION_H
 
-#include "store/common/frontend/sync_client.h"
 #include "store/common/frontend/sync_transaction.h"
 #include "tpcc_schema.h"
 

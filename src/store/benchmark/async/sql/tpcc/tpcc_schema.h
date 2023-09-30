@@ -27,11 +27,7 @@
 #ifndef TPCC_SQL_SCHEMA_H
 #define TPCC_SQL_SCHEMA_H
 
-#include "store/benchmark/async/tpcc/tpcc-proto.pb.h"
-#include "store/common/frontend/sync_client.h"
-#include "store/common/frontend/sync_transaction.h"
-#include "lib/cereal/archives/binary.hpp"
-#include "lib/cereal/types/string.hpp"
+#include <stdint.h>
 
 namespace tpcc_sql {
 

@@ -26,6 +26,7 @@
  **********************************************************************/
 #include "store/benchmark/async/sql/tpcc/payment.h"
 
+#include <sstream>
 #include <fmt/core.h>
 
 #include "store/benchmark/async/sql/tpcc/tpcc_utils.h"

@@ -1,6 +1,6 @@
 d := $(dir $(lastword $(MAKEFILE_LIST)))
 
-SRCS += $(addprefix $(d), auctionmark_client.cc auctionmark_transaction.cc new_user.cc category_parser.cc) # source /opt/intel/oneapi/setvars.sh
+SRCS += $(addprefix $(d), auctionmark_client.cc auctionmark_transaction.cc new_user.cc category_parser.cc)
 
 PROTOS += $(addprefix $(d), auctionmark.proto)
 
