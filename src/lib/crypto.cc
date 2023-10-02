@@ -590,8 +590,7 @@ std::pair<PrivKey*, PubKey*> GenerateKeypair(KeyType t, bool precompute) {
   //TODO: Caller should free...
 }
 
-//Free PublicKey
-void FreePubKey(PubKey *pubKey){
+void FreePubKey(PubKey *pubKey, bool free_generated){
  switch(pubKey->t) {
       case RSA: {
         delete pubKey->rsaKey;
@@ -607,7 +606,8 @@ void FreePubKey(PubKey *pubKey){
         break;
       }
       case DONNA: {
-        free(pubKey->donnaKey);
+        if(!free_generated) free(pubKey->donnaKey); //don't free if it's just a ptr to the PrivKey.second
+        break;
       }
       default: {
         Panic("unimplemented");
