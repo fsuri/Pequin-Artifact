@@ -54,7 +54,7 @@ sudo make install
 
 sudo echo 'export LD_PRELOAD=/usr/local/lib/libjemalloc.so' >>~/.bashrc
 export LD_PRELOAD=/usr/local/lib/libjemalloc.so
-cd ../..
+cd ..
 
 #Installing taopq
 echo "Installing TaoPq"
