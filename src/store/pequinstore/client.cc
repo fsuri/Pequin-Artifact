@@ -265,6 +265,17 @@ void Client::Put(const std::string &key, const std::string &value,
   });
 }
 
+void Client::SQLRequest(std::string &statement, sql_callback scb,
+    sql_timeout_callback stcb, uint32_t timeout){
+
+    size_t pos;
+    if((pos = statement.find(select_hook) != string::npos)){  
+      Query(statement, std::move(scb), std::move(stcb), timeout);
+    }
+    else {
+      Write(statement, std::move(scb), std::move(stcb), timeout);
+    }
+}
 
 //primary_key_encoding_support is an encoding_helper function: Specify which columns of a write statement correspond to the primary key; each vector belongs to one insert. 
 //In case of nesting or concat --> order = order of reading

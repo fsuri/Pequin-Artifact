@@ -141,11 +141,13 @@ void RWSQLTransaction::SubmitStatement(SyncClient &client, std::string &statemen
 
   if(readOnly){
       if(PARALLEL_QUERIES){ 
-        client.Query(statement, timeout);
+        client.SQLRequest(statement, timeout);
+        //client.Query(statement, timeout);
       }
       else{
         std::unique_ptr<const query_result::QueryResult> queryResult;
-        client.Query(statement, queryResult, timeout); 
+        client.SQLRequest(statement, queryResult, timeout); 
+        //client.Query(statement, queryResult, timeout); 
         //TODO: Debug
       }
   }
@@ -156,12 +158,12 @@ void RWSQLTransaction::SubmitStatement(SyncClient &client, std::string &statemen
    
     if(PARALLEL_QUERIES){ 
       std::cerr << "Issue parallel Write request" << std::endl;
-      client.Write(statement, timeout);
+      client.SQLRequest(statement, timeout);  //client.Write
     }
     else{
       std::cerr << "Issue sequential Write request" << std::endl;
       std::unique_ptr<const query_result::QueryResult> queryResult;
-      client.Write(statement, queryResult, timeout);  
+      client.SQLRequest(statement, queryResult, timeout);  //client.Write
     
       UW_ASSERT(queryResult->rows_affected());
       std::cerr << "Num rows affected: " << queryResult->rows_affected() << std::endl;
