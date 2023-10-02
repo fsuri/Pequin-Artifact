@@ -634,6 +634,7 @@ void FreePrivKey(PrivKey *privKey){
       case DONNA: {
         free(privKey->donnaKey.first);
         free(privKey->donnaKey.second);
+        break;
       }
       default: {
         Panic("unimplemented");
