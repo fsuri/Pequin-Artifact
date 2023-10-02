@@ -31,68 +31,75 @@
 
 #include "store/pequinstore/client.h"
 
-#include "store/pequinstore/localbatchverifier.h"
 #include "store/pequinstore/basicverifier.h"
 #include "store/pequinstore/common.h"
-#include <sys/time.h>
+#include "store/pequinstore/localbatchverifier.h"
 #include <algorithm>
+#include <sys/time.h>
 
 #include "store/common/query_result/query_result.h"
-#include "store/common/query_result/query_result_proto_wrapper.h"
 #include "store/common/query_result/query_result_proto_builder.h"
+#include "store/common/query_result/query_result_proto_wrapper.h"
 
 namespace pequinstore {
 
 using namespace std;
 
-//TODO: add argument for p1Timeout, pass down to Shardclient as well.
+// TODO: add argument for p1Timeout, pass down to Shardclient as well.
 Client::Client(transport::Configuration *config, uint64_t id, int nShards,
-    int nGroups,
-    const std::vector<int> &closestReplicas, bool pingReplicas, Transport *transport,
-    Partitioner *part, bool syncCommit, uint64_t readMessages,
-    uint64_t readQuorumSize, Parameters params, std::string &table_registry,
-    KeyManager *keyManager, uint64_t phase1DecisionTimeout, uint64_t consecutiveMax, bool sql_bench, TrueTime timeServer)
+               int nGroups, const std::vector<int> &closestReplicas,
+               bool pingReplicas, Transport *transport, Partitioner *part,
+               bool syncCommit, uint64_t readMessages, uint64_t readQuorumSize,
+               Parameters params, std::string &table_registry,
+               KeyManager *keyManager, uint64_t phase1DecisionTimeout,
+               uint64_t consecutiveMax, bool sql_bench, TrueTime timeServer)
     : config(config), client_id(id), nshards(nShards), ngroups(nGroups),
-    transport(transport), part(part), syncCommit(syncCommit), pingReplicas(pingReplicas),
-    readMessages(readMessages), readQuorumSize(readQuorumSize),
-    params(params),
-    keyManager(keyManager),
-    timeServer(timeServer), first(true), startedPings(false),
-    query_seq_num(0UL), client_seq_num(0UL), lastReqId(0UL), getIdx(0UL),
-    failureEnabled(false), failureActive(false), faulty_counter(0UL),
-    consecutiveMax(consecutiveMax) {
+      transport(transport), part(part), syncCommit(syncCommit),
+      pingReplicas(pingReplicas), readMessages(readMessages),
+      readQuorumSize(readQuorumSize), params(params), keyManager(keyManager),
+      timeServer(timeServer), first(true), startedPings(false),
+      query_seq_num(0UL), client_seq_num(0UL), lastReqId(0UL), getIdx(0UL),
+      failureEnabled(false), failureActive(false), faulty_counter(0UL),
+      consecutiveMax(consecutiveMax) {
 
-  Notice("Pequinstore currently does not support Read-your-own-Write semantics for Queries. Adjust application accordingly!!");
+  Notice("Pequinstore currently does not support Read-your-own-Write semantics "
+         "for Queries. Adjust application accordingly!!");
 
   Debug("Initializing Indicus client with id [%lu] %lu", client_id, nshards);
-  std::cerr<< "P1 Decision Timeout: " <<phase1DecisionTimeout<< std::endl;
-  if(params.injectFailure.enabled) stats.Increment("total_byz_clients", 1);
+  std::cerr << "P1 Decision Timeout: " << phase1DecisionTimeout << std::endl;
+  if (params.injectFailure.enabled)
+    stats.Increment("total_byz_clients", 1);
 
   if (params.signatureBatchSize == 1) {
-    verifier = new BasicVerifier(transport);//transport, 1000000UL,false); //Need to change interface so client can use it too?
+    verifier = new BasicVerifier(
+        transport); // transport, 1000000UL,false); //Need to change interface
+                    // so client can use it too?
   } else {
-    verifier = new LocalBatchVerifier(params.merkleBranchFactor, dummyStats, transport);
+    verifier = new LocalBatchVerifier(params.merkleBranchFactor, dummyStats,
+                                      transport);
   }
 
   /* Start a client for each shard. */
   for (uint64_t i = 0; i < ngroups; i++) {
-    bclient.push_back(new ShardClient(config, transport, client_id, i,
-        closestReplicas, pingReplicas, readMessages, readQuorumSize, params,
-        keyManager, verifier, &sql_interpreter, &stats,
-        timeServer, phase1DecisionTimeout, consecutiveMax));
+    bclient.push_back(
+        new ShardClient(config, transport, client_id, i, closestReplicas,
+                        pingReplicas, readMessages, readQuorumSize, params,
+                        keyManager, verifier, &sql_interpreter, &stats,
+                        timeServer, phase1DecisionTimeout, consecutiveMax));
   }
 
   Debug("Indicus client [%lu] created! %lu %lu", client_id, nshards,
-      bclient.size());
+        bclient.size());
   _Latency_Init(&executeLatency, "execute");
   _Latency_Init(&getLatency, "get");
   _Latency_Init(&commitLatency, "commit");
 
   if (params.injectFailure.enabled) {
-    transport->Timer(params.injectFailure.timeMs, [this](){
-        failureEnabled = true;
-        // TODO: restore the client after it stalls from phase2_callback from previous txn
-      });
+    transport->Timer(params.injectFailure.timeMs, [this]() {
+      failureEnabled = true;
+      // TODO: restore the client after it stalls from phase2_callback from
+      // previous txn
+    });
   }
 
   // struct timeval tv;
@@ -102,23 +109,22 @@ Client::Client(transport::Configuration *config, uint64_t id, int nShards,
   // transport->Timer(9500, [this](){
   //   std::cerr<< "experiment about to elapse 10 seconds";
   // });
-  if(sql_bench){
-     Debug("Register tables from: %s", table_registry.c_str());
-     sql_interpreter.RegisterTables(table_registry);
+  if (sql_bench) {
+    Debug("Register tables from: %s", table_registry.c_str());
+    sql_interpreter.RegisterTables(table_registry);
   }
 }
 
-Client::~Client()
-{
-  //std::cerr << "total failure injections: " << total_failure_injections << std::endl;
-  //std::cerr << "total writebacks: " << total_writebacks << std::endl;
-  //std::cerr<< "total prepares: " << total_counter << std::endl;
-  //std::cerr<< "fast path prepares: " << fast_path_counter << std::endl;
+Client::~Client() {
+  // std::cerr << "total failure injections: " << total_failure_injections <<
+  // std::endl; std::cerr << "total writebacks: " << total_writebacks <<
+  // std::endl; std::cerr<< "total prepares: " << total_counter << std::endl;
+  // std::cerr<< "fast path prepares: " << fast_path_counter << std::endl;
   Latency_Dump(&executeLatency);
   Latency_Dump(&getLatency);
   Latency_Dump(&commitLatency);
   for (auto b : bclient) {
-      delete b;
+    delete b;
   }
   delete verifier;
 }
@@ -127,26 +133,29 @@ Client::~Client()
  * abort() are part of this transaction.
  */
 void Client::Begin(begin_callback bcb, begin_timeout_callback btcb,
-      uint32_t timeout, bool retry) {
+                   uint32_t timeout, bool retry) {
 
   std::cerr << "Try Begin" << std::endl;
   // fail the current txn iff failuer timer is up and
   // the number of txn is a multiple of frequency
-  //only fail fresh transactions
-  if(!retry) {
+  // only fail fresh transactions
+  if (!retry) {
     faulty_counter++;
     failureActive = failureEnabled &&
-      (faulty_counter % params.injectFailure.frequency == 0);
+                    (faulty_counter % params.injectFailure.frequency == 0);
     for (auto b : bclient) {
       b->SetFailureFlag(failureActive);
     }
-    if(failureActive) stats.Increment("failure_attempts", 1);
-    if(failureEnabled) stats.Increment("total_fresh_tx_byz", 1);
-    if(!failureEnabled) stats.Increment("total_fresh_tx_honest", 1);
+    if (failureActive)
+      stats.Increment("failure_attempts", 1);
+    if (failureEnabled)
+      stats.Increment("total_fresh_tx_byz", 1);
+    if (!failureEnabled)
+      stats.Increment("total_fresh_tx_honest", 1);
   }
 
   std::cerr << "Reach timer" << std::endl;
-  transport->Timer(0, [this, bcb, btcb, timeout]() { 
+  transport->Timer(0, [this, bcb, btcb, timeout]() {
     if (pingReplicas) {
       if (!first && !startedPings) {
         startedPings = true;
@@ -159,7 +168,8 @@ void Client::Begin(begin_callback bcb, begin_timeout_callback btcb,
 
     Latency_Start(&executeLatency);
     client_seq_num++;
-    //std::cerr<< "BEGIN TX with client_seq_num: " << client_seq_num << std::endl;
+    // std::cerr<< "BEGIN TX with client_seq_num: " << client_seq_num <<
+    // std::endl;
     Debug("BEGIN [%lu]", client_seq_num);
 
     txn = proto::Transaction();
@@ -171,23 +181,25 @@ void Client::Begin(begin_callback bcb, begin_timeout_callback btcb,
 
     sql_interpreter.NewTx(&txn);
 
-    pendingQueries.clear(); //shouldn't be necessary to call, should be empty anyways
+    pendingQueries
+        .clear(); // shouldn't be necessary to call, should be empty anyways
 
     bcb(client_seq_num);
   });
 }
 
 void Client::Get(const std::string &key, get_callback gcb,
-    get_timeout_callback gtcb, uint32_t timeout) {
+                 get_timeout_callback gtcb, uint32_t timeout) {
 
   transport->Timer(0, [this, key, gcb, gtcb, timeout]() {
     // Latency_Start(&getLatency);
 
     Debug("GET[%lu:%lu] for key %s", client_id, client_seq_num,
-        BytesToHex(key, 16).c_str());
+          BytesToHex(key, 16).c_str());
 
     // Contact the appropriate shard to get the value.
-    std::vector<int> txnGroups(txn.involved_groups().begin(), txn.involved_groups().end());
+    std::vector<int> txnGroups(txn.involved_groups().begin(),
+                               txn.involved_groups().end());
     int i = (*part)(key, nshards, -1, txnGroups) % ngroups;
 
     // If needed, add this shard to set of participants and send BEGIN.
@@ -197,19 +209,20 @@ void Client::Get(const std::string &key, get_callback gcb,
     }
 
     read_callback rcb = [gcb, this](int status, const std::string &key,
-        const std::string &val, const Timestamp &ts, const proto::Dependency &dep,
-        bool hasDep, bool addReadSet) {
-
-      uint64_t ns = 0; //Latency_End(&getLatency);
+                                    const std::string &val, const Timestamp &ts,
+                                    const proto::Dependency &dep, bool hasDep,
+                                    bool addReadSet) {
+      uint64_t ns = 0; // Latency_End(&getLatency);
       if (Message_DebugEnabled(__FILE__)) {
-        Debug("GET[%lu:%lu] Callback for key %s with %lu bytes and ts %lu.%lu after %luus.",
-            client_id, client_seq_num, BytesToHex(key, 16).c_str(), val.length(),
-            ts.getTimestamp(), ts.getID(), ns / 1000);
+        Debug("GET[%lu:%lu] Callback for key %s with %lu bytes and ts %lu.%lu "
+              "after %luus.",
+              client_id, client_seq_num, BytesToHex(key, 16).c_str(),
+              val.length(), ts.getTimestamp(), ts.getID(), ns / 1000);
         if (hasDep) {
           Debug("GET[%lu:%lu] Callback for key %s with dep ts %lu.%lu.",
-              client_id, client_seq_num, BytesToHex(key, 16).c_str(),
-              dep.write().prepared_timestamp().timestamp(),
-              dep.write().prepared_timestamp().id());
+                client_id, client_seq_num, BytesToHex(key, 16).c_str(),
+                dep.write().prepared_timestamp().timestamp(),
+                dep.write().prepared_timestamp().id());
         }
       }
       if (addReadSet) {
@@ -225,23 +238,24 @@ void Client::Get(const std::string &key, get_callback gcb,
     };
     read_timeout_callback rtcb = gtcb;
 
-  
     // Send the GET operation to appropriate shard.
     bclient[i]->Get(client_seq_num, key, txn.timestamp(), readMessages,
-        readQuorumSize, params.readDepSize, rcb, rtcb, timeout);
+                    readQuorumSize, params.readDepSize, rcb, rtcb, timeout);
   });
 }
 
 void Client::Put(const std::string &key, const std::string &value,
-    put_callback pcb, put_timeout_callback ptcb, uint32_t timeout) {
+                 put_callback pcb, put_timeout_callback ptcb,
+                 uint32_t timeout) {
   transport->Timer(0, [this, key, value, pcb, ptcb, timeout]() {
-
-    //std::cerr << "value size: " << value.size() << "; key " << BytesToHex(key,16).c_str() << std::endl;
-    Debug("PUT[%lu:%lu] for key %s", client_id, client_seq_num, BytesToHex(key,
-          16).c_str());
+    // std::cerr << "value size: " << value.size() << "; key " <<
+    // BytesToHex(key,16).c_str() << std::endl;
+    Debug("PUT[%lu:%lu] for key %s", client_id, client_seq_num,
+          BytesToHex(key, 16).c_str());
 
     // Contact the appropriate shard to set the value.
-    std::vector<int> txnGroups(txn.involved_groups().begin(), txn.involved_groups().end());
+    std::vector<int> txnGroups(txn.involved_groups().begin(),
+                               txn.involved_groups().end());
     int i = (*part)(key, nshards, -1, txnGroups) % ngroups;
 
     // If needed, add this shard to set of participants and send BEGIN.
@@ -254,111 +268,141 @@ void Client::Put(const std::string &key, const std::string &value,
     write->set_key(key);
     write->set_value(value);
 
-
-
     // Buffering, so no need to wait.
     bclient[i]->Put(client_seq_num, key, value, pcb, ptcb, timeout);
   });
 }
 
-
-//primary_key_encoding_support is an encoding_helper function: Specify which columns of a write statement correspond to the primary key; each vector belongs to one insert. 
-//In case of nesting or concat --> order = order of reading
+// primary_key_encoding_support is an encoding_helper function: Specify which
+// columns of a write statement correspond to the primary key; each vector
+// belongs to one insert. In case of nesting or concat --> order = order of
+// reading
 void Client::Write(std::string &write_statement, write_callback wcb,
-      write_timeout_callback wtcb, uint32_t timeout){
+                   write_timeout_callback wtcb, uint32_t timeout) {
 
-    
-    //////////////////
-    // Write Statement parser/interpreter:   //For now design to supports only individual Insert/Update/Delete statements. No nesting, no concatenation
-    //TODO: parse write statement into table, column list, values_list, and read condition
-    
-    Debug("Processing Write Statement: %s", write_statement.c_str());
-    std::string read_statement;
-    std::function<void(int, query_result::QueryResult*)>  write_continuation;
-    bool skip_query_interpretation = false;
+  //////////////////
+  // Write Statement parser/interpreter:   //For now design to supports only
+  // individual Insert/Update/Delete statements. No nesting, no concatenation
+  // TODO: parse write statement into table, column list, values_list, and read
+  // condition
 
-    sql_interpreter.TransformWriteStatement(write_statement, read_statement, write_continuation, wcb, skip_query_interpretation);
+  Debug("Processing Write Statement: %s", write_statement.c_str());
+  std::string read_statement;
+  std::function<void(int, query_result::QueryResult *)> write_continuation;
+  bool skip_query_interpretation = false;
 
-    Debug("Transformed Write into re-con read_statement: %s", read_statement.c_str());
-    
-  
-    if(read_statement.empty()){
-      //TODO: Add to writes directly.  //TODO: Call write_continuation for Insert ; for Point Delete -- > OR: Call them inside Transform.
-      //NOTE: must return a QueryResult... 
-      Debug("No read statement, immediately writing");
-      sql::QueryResultProtoWrapper *write_result = new sql::QueryResultProtoWrapper(""); //TODO: replace with real result.
-      write_continuation(REPLY_OK, write_result);
-    }
-    else{
-      //  auto qcb = [this, write_continuation, wcb](int status, const query_result::QueryResult *result) mutable { 
+  sql_interpreter.TransformWriteStatement(write_statement, read_statement,
+                                          write_continuation, wcb,
+                                          skip_query_interpretation);
 
-      //   //result ==> replace with protoResult type
-      //   const query_result::QueryResult *write_result = write_continuation(result);
-      //   wcb(REPLY_OK, write_result);
-      //   return;
-      // };
-      // auto qtcb = [this, wtcb](int status) {
-      //   wtcb(status);
-      //   return;
-      // };
-      Debug("Issuing re-con Query");
-      Query(read_statement, std::move(write_continuation), wtcb, timeout, skip_query_interpretation);
-    }
-    return;
+  Debug("Transformed Write into re-con read_statement: %s",
+        read_statement.c_str());
+
+  if (read_statement.empty()) {
+    // TODO: Add to writes directly.  //TODO: Call write_continuation for Insert
+    // ; for Point Delete -- > OR: Call them inside Transform. NOTE: must return
+    // a QueryResult...
+    Debug("No read statement, immediately writing");
+    sql::QueryResultProtoWrapper *write_result =
+        new sql::QueryResultProtoWrapper(""); // TODO: replace with real result.
+    write_continuation(REPLY_OK, write_result);
+  } else {
+    //  auto qcb = [this, write_continuation, wcb](int status, const
+    //  query_result::QueryResult *result) mutable {
+
+    //   //result ==> replace with protoResult type
+    //   const query_result::QueryResult *write_result =
+    //   write_continuation(result); wcb(REPLY_OK, write_result); return;
+    // };
+    // auto qtcb = [this, wtcb](int status) {
+    //   wtcb(status);
+    //   return;
+    // };
+    Debug("Issuing re-con Query");
+    Query(read_statement, std::move(write_continuation), wtcb, timeout,
+          skip_query_interpretation);
   }
+  return;
+}
 
-    //statement like: INSERT INTO test VALUES (1001);
-    //REPLACE INTO table(column_list) VALUES(value_list);  is a shorter form of  INSERT OR REPLACE INTO table(column_list) VALUES(value_list);
+// statement like: INSERT INTO test VALUES (1001);
+// REPLACE INTO table(column_list) VALUES(value_list);  is a shorter form of
+// INSERT OR REPLACE INTO table(column_list) VALUES(value_list);
 
-    //Maybe simpler: Let Write take table, column list, and values as attributes. And then turn it into a REPLACE INTO statement.
-    //I.e. our frontend currently implements a manual insert (just so we can ignore automizing "Update Where" statements)
+// Maybe simpler: Let Write take table, column list, and values as attributes.
+// And then turn it into a REPLACE INTO statement. I.e. our frontend currently
+// implements a manual insert (just so we can ignore automizing "Update Where"
+// statements)
 
-    
+// TODO: How can we only update certain attributes while creating a new version?
+//  a) In table: Mark version per attribute...
+//  b) When updating in table: Copy the version we read -- to identify that, the
+//  write needs to pass the version...
+// Or is it fine to just copy the last version known to the server? No... this
+// might produce non-serializable state...
 
-    //TODO: How can we only update certain attributes while creating a new version?
-    // a) In table: Mark version per attribute...
-    // b) When updating in table: Copy the version we read -- to identify that, the write needs to pass the version...
-            //Or is it fine to just copy the last version known to the server? No... this might produce non-serializable state...
+// Note: if we had all attributes here, then we could just insert a whole new
+// row.
+//  --> However, a query read does not necessarily return the whole rows.  ==>
+//  But maybe our Select dialect (turning Update into Select + multiple inserts)
+//  does retrive the whole row:
 
-    //Note: if we had all attributes here, then we could just insert a whole new row.
-    // --> However, a query read does not necessarily return the whole rows.  ==> But maybe our Select dialect (turning Update into Select + multiple inserts) does retrive the whole row:
+// I..e for updates: Whole row is available: Write new:
+// For independent inserts: Write new row with empty attributes? No.. only write
+// if no previous row existed.   I.e. also split into Select + Write. ==> If
+// Select == empty, then write. Add to readSet: 0 Timestamp.
 
-    //I..e for updates: Whole row is available: Write new:
-    //For independent inserts: Write new row with empty attributes? No.. only write if no previous row existed.   I.e. also split into Select + Write. ==> If Select == empty, then write. Add to readSet: 0 Timestamp.
+// It seems easiest for the frontend to not worry about the details at all: In
+// order to support that, must turn the request into read/writes at THIS level.
+// That way it would be easy to keep track of readmodify write ops to track read
+// timestamps too Write type Statement function:
+//   -- turn into a Query statement:
+//  On reply, don't use query callback though, and instead issue the updates to
+//  ReadSet + WriteSet (table writes), and then callback.
 
-    //It seems easiest for the frontend to not worry about the details at all: In order to support that, must turn the request into read/writes at THIS level.
-    //That way it would be easy to keep track of readmodify write ops to track read timestamps too
-    //Write type Statement function:
-    //  -- turn into a Query statement:
-    // On reply, don't use query callback though, and instead issue the updates to ReadSet + WriteSet (table writes), and then callback.
+// Insert: Conditional Read Mod Write
+// Replace: Unconditional (Blind) Write  -- REPLACE INTO == INSERT OR REPLACE
+// --> weaker cond holds: Blind Write. Update: Conditional Read Mod Write
+// Delete: Conditional Read Mod Write
 
-    //Insert: Conditional Read Mod Write
-    //Replace: Unconditional (Blind) Write  -- REPLACE INTO == INSERT OR REPLACE --> weaker cond holds: Blind Write.
-    //Update: Conditional Read Mod Write
-    //Delete: Conditional Read Mod Write
+// Conditional Read lets us now read version for serializability checks
+// Insert and Delete don't need to know row values
+// But don't necessarily know full row for Update -- if we only want to update
+// certain rows then that is a problem.  Same for Replace certain rows?
+//  --> Because we are multi-versioned, we want to create a separate row. What
+//  we can do is include the "read version" as part of the Write req, so that we
+//  can fetch+copythe row on demand and only update the few missing
+// Note: If the read row was deleted in the meantime -- then there would be a
+// new row that is empty with a higher TS. The write would conflict with this
+// delete row and thus abort.
 
-    //Conditional Read lets us now read version for serializability checks
-    //Insert and Delete don't need to know row values
-    //But don't necessarily know full row for Update -- if we only want to update certain rows then that is a problem.  Same for Replace certain rows?
-       // --> Because we are multi-versioned, we want to create a separate row. What we can do is include the "read version" as part of the Write req, so that we can fetch+copythe row on demand and only update the few missing
-      //Note: If the read row was deleted in the meantime -- then there would be a new row that is empty with a higher TS. The write would conflict with this delete row and thus abort.
+// TODO: Need a way to infer encoded key (essentially primary key) from the
+// column list?
+//  for conditional read mod writes one can just use the read key!
+//  but for unconditional (blind) writes one needs to figure out the column
+//  list. Maybe one can add it to the Write function as argument? (Difficult for
+//  nested queries, but should be easy for single blind writes)
 
-    //TODO: Need a way to infer encoded key (essentially primary key) from the column list?
-     // for conditional read mod writes one can just use the read key!
-     // but for unconditional (blind) writes one needs to figure out the column list. Maybe one can add it to the Write function as argument? (Difficult for nested queries, but should be easy for single blind writes)
+// Primary key that is auto-increment? Insert has to also read last primary key?
+// And then propose new one?
 
-    //Primary key that is auto-increment? Insert has to also read last primary key? And then propose new one?
+// NOTE: Unlike Get, Query currently cannot read own write, or previous reads ->
+// consequently, different queries may read the same key differently
+//  (Could edit query to include "previoudReads" + writes and use it for
+//  materialization)
 
-
-//NOTE: Unlike Get, Query currently cannot read own write, or previous reads -> consequently, different queries may read the same key differently
-// (Could edit query to include "previoudReads" + writes and use it for materialization)
-
-//Simulate Select * for now
-// TODO: --> Return all rows in the store.
+// Simulate Select * for now
+//  TODO: --> Return all rows in the store.
 void Client::Query(const std::string &query, query_callback qcb,
-    query_timeout_callback qtcb, uint32_t timeout, bool skip_query_interpretation) {
+                   query_timeout_callback qtcb, uint32_t timeout,
+                   bool skip_query_interpretation) {
 
-  UW_ASSERT(query.length() < ((uint64_t)1<<32)); //Protobuf cannot handle strings longer than 2^32 bytes --> cannot handle "arbitrarily" complex queries: If this is the case, we need to break down the query command.
+  UW_ASSERT(
+      query.length() <
+      ((uint64_t)1
+       << 32)); // Protobuf cannot handle strings longer than 2^32 bytes -->
+                // cannot handle "arbitrarily" complex queries: If this is the
+                // case, we need to break down the query command.
 
   transport->Timer(0, [this, query, qcb, qtcb, timeout]() mutable {
     // Latency_Start(&getLatency);
@@ -367,106 +411,134 @@ void Client::Query(const std::string &query, query_callback qcb,
     txn.set_last_query_seq(query_seq_num);
     Debug("\n Query[%lu:%lu:%lu]", client_id, client_seq_num, query_seq_num);
 
- 
     // Contact the appropriate shard to execute the query on.
-    //TODO: Determine involved groups
-    //Requires parsing the Query statement to extract tables touched? Might touch multiple shards...
-    //Assume for now only touching one group. (single sharded system)
-    PendingQuery *pendingQuery = new PendingQuery(this, query_seq_num, query, qcb);
+    // TODO: Determine involved groups
+    // Requires parsing the Query statement to extract tables touched? Might
+    // touch multiple shards... Assume for now only touching one group. (single
+    // sharded system)
+    PendingQuery *pendingQuery =
+        new PendingQuery(this, query_seq_num, query, qcb);
     pendingQueries[query_seq_num] = pendingQuery;
 
-    std::vector<uint64_t> involved_groups = {0};//{0UL, 1UL};
+    std::vector<uint64_t> involved_groups = {0}; //{0UL, 1UL};
     pendingQuery->SetInvolvedGroups(involved_groups);
-    Debug("[group %i] designated as Query Execution Manager for query [%lu:%lu]", pendingQuery->queryMsg.query_manager(), client_seq_num, query_seq_num);
+    Debug(
+        "[group %i] designated as Query Execution Manager for query [%lu:%lu]",
+        pendingQuery->queryMsg.query_manager(), client_seq_num, query_seq_num);
     pendingQuery->SetQueryId(this);
 
     // std::vector<uint64_t> involved_groups = {0UL};
     // uint64_t query_manager = involved_groups[0];
-    // Debug("[group %i] designated as Query Execution Manager for query [%lu:%lu]", query_manager, client_seq_num, query_seq_num);
+    // Debug("[group %i] designated as Query Execution Manager for query
+    // [%lu:%lu]", query_manager, client_seq_num, query_seq_num);
 
-        //TODO: just create a new object.. allocate is easier..
-    
+    // TODO: just create a new object.. allocate is easier..
+
     // queryMsg.Clear();
     // queryMsg.set_client_id(client_id);
     // queryMsg.set_query_seq_num(query_seq_num);
     // *queryMsg.mutable_query_cmd() = std::move(query);
     // *queryMsg.mutable_timestamp() = txn.timestamp();
     // queryMsg.set_query_manager(query_manager);
-    
-    //TODO: store --> so we can access it with query_seq_num if necessary for retry.
-      
 
+    // TODO: store --> so we can access it with query_seq_num if necessary for
+    // retry.
 
     // If needed, add this shard to set of participants and send BEGIN.
-    for(auto &i: pendingQuery->involved_groups){
-       if (!IsParticipant(i)) {
+    for (auto &i : pendingQuery->involved_groups) {
+      if (!IsParticipant(i)) {
         txn.add_involved_groups(i);
         bclient[i]->Begin(client_seq_num);
       }
     }
-  
-    //TODO: Check col conditions. --> Switch between QueryResultCallback and PointQueryResultCallback
-    
-    pendingQuery->is_point = sql_interpreter.InterpretQueryRange(query, pendingQuery->table_name, pendingQuery->p_col_values, relax_point_cond); 
 
-    Debug("Query [%d] is %s ", query_seq_num, pendingQuery->is_point? "POINT" : "QUERY");
-    
-    if(pendingQuery->is_point){
-      Debug("Encoded key: %s", EncodeTableRow(pendingQuery->table_name, pendingQuery->p_col_values).c_str()); 
-    } 
-    //Alternatively: Instead of storing the key, we could also let servers provide the keys and wait for f+1 matching keys. But then we'd have to wait for 2f+1 reads in total... ==> Client stores key
+    // TODO: Check col conditions. --> Switch between QueryResultCallback and
+    // PointQueryResultCallback
 
+    pendingQuery->is_point = sql_interpreter.InterpretQueryRange(
+        query, pendingQuery->table_name, pendingQuery->p_col_values,
+        relax_point_cond);
 
-  
-    //Could send table_name always? Then we know how to lookup table_version (NOTE: Won't work for joins etc though..)
+    Debug("Query [%d] is %s ", query_seq_num,
+          pendingQuery->is_point ? "POINT" : "QUERY");
 
-       
+    if (pendingQuery->is_point) {
+      Debug("Encoded key: %s",
+            EncodeTableRow(pendingQuery->table_name, pendingQuery->p_col_values)
+                .c_str());
+    }
+    // Alternatively: Instead of storing the key, we could also let servers
+    // provide the keys and wait for f+1 matching keys. But then we'd have to
+    // wait for 2f+1 reads in total... ==> Client stores key
+
+    // Could send table_name always? Then we know how to lookup table_version
+    // (NOTE: Won't work for joins etc though..)
+
     result_callback rcb = nullptr;
     point_result_callback prcb = nullptr;
-    
-    //For Retry: Override callback to be this one.
-    if(pendingQuery->is_point && !params.query_params.eagerPointExec){ //TODO: Create separate param for point eagerExec
-      //In callback: If point and query fails (it was using eager exec) -> Retry should issue Point without eager exec.
 
-      pendingQuery->key = EncodeTableRow(pendingQuery->table_name, pendingQuery->p_col_values); //TODO: Pass it down!!! Ptr to table_name and key.
+    // For Retry: Override callback to be this one.
+    if (pendingQuery->is_point &&
+        !params.query_params.eagerPointExec) { // TODO: Create separate param
+                                               // for point eagerExec
+      // In callback: If point and query fails (it was using eager exec) ->
+      // Retry should issue Point without eager exec.
+
+      pendingQuery->key = EncodeTableRow(
+          pendingQuery->table_name,
+          pendingQuery->p_col_values); // TODO: Pass it down!!! Ptr to
+                                       // table_name and key.
       prcb = std::bind(&Client::PointQueryResultCallback, this, pendingQuery,
-                     std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, 
-                     std::placeholders::_4, std::placeholders::_5, std::placeholders::_6, std::placeholders::_7);
-    }
-    else{
+                       std::placeholders::_1, std::placeholders::_2,
+                       std::placeholders::_3, std::placeholders::_4,
+                       std::placeholders::_5, std::placeholders::_6,
+                       std::placeholders::_7);
+    } else {
       rcb = std::bind(&Client::QueryResultCallback, this, pendingQuery,
-                     std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, 
-                     std::placeholders::_4, std::placeholders::_5, std::placeholders::_6);
+                      std::placeholders::_1, std::placeholders::_2,
+                      std::placeholders::_3, std::placeholders::_4,
+                      std::placeholders::_5, std::placeholders::_6);
     }
 
+    // result_callback rcb = qcb;
+    // NOTE: result_hash = read_set hash. ==> currently not hashing queryId,
+    // version or result contents into it. Appears unecessary. result_callback
+    // rcb = [qcb, pendingQuery, this](int status, int group,
+    // std::map<std::string, TimestampMessage> &read_set, std::string
+    // &result_hash, std::string &result, bool success) mutable {
 
-    //result_callback rcb = qcb;
-    //NOTE: result_hash = read_set hash. ==> currently not hashing queryId, version or result contents into it. Appears unecessary.
-    //result_callback rcb = [qcb, pendingQuery, this](int status, int group, std::map<std::string, TimestampMessage> &read_set, std::string &result_hash, std::string &result, bool success) mutable { 
-    
     result_timeout_callback rtcb = qtcb;
 
-    // Send the Query operation to involved shards & select transaction manager (shard responsible for result reply) 
-    for(auto &i: pendingQuery->involved_groups){
-      Debug("[group %i] starting Query [%lu:%lu]", i, client_seq_num, query_seq_num);
-      bclient[i]->Query(client_seq_num, query_seq_num, pendingQuery->queryMsg, timeout, rtcb, rcb, prcb, pendingQuery->is_point, &pendingQuery->table_name, &pendingQuery->key);
+    // Send the Query operation to involved shards & select transaction manager
+    // (shard responsible for result reply)
+    for (auto &i : pendingQuery->involved_groups) {
+      Debug("[group %i] starting Query [%lu:%lu]", i, client_seq_num,
+            query_seq_num);
+      bclient[i]->Query(client_seq_num, query_seq_num, pendingQuery->queryMsg,
+                        timeout, rtcb, rcb, prcb, pendingQuery->is_point,
+                        &pendingQuery->table_name, &pendingQuery->key);
     }
-    // Shard Client upcalls only if it is the leader for the query, and if it gets matching result hashes  ..........const std::string &resultHash
-       //store QueryID + result hash in transaction.
+    // Shard Client upcalls only if it is the leader for the query, and if it
+    // gets matching result hashes  ..........const std::string &resultHash
+    // store QueryID + result hash in transaction.
 
-    //queryBuffer[query_seq_num] = std::move(queryMsg);  //Buffering only after sending, so we can move contents for free.
-
+    // queryBuffer[query_seq_num] = std::move(queryMsg);  //Buffering only after
+    // sending, so we can move contents for free.
   });
 }
 
+void Client::PointQueryResultCallback(PendingQuery *pendingQuery, int status,
+                                      const std::string &key,
+                                      const std::string &result,
+                                      const Timestamp &read_time,
+                                      const proto::Dependency &dep, bool hasDep,
+                                      bool addReadSet) {
 
-void Client::PointQueryResultCallback(PendingQuery *pendingQuery,  
-                                  int status, const std::string &key, const std::string &result, const Timestamp &read_time, const proto::Dependency &dep, bool hasDep, bool addReadSet) 
-{ 
-  
-  if (addReadSet) { 
-    //Note: We add to read set even if result = empty (i.e. there was no write). In that case, mutable_read time will be empty.
-    Debug("Adding key %s read set with readtime [%lu:%lu]", key.c_str(), read_time.getTimestamp(), read_time.getID());
+  if (addReadSet) {
+    // Note: We add to read set even if result = empty (i.e. there was no
+    // write). In that case, mutable_read time will be empty.
+    Debug("Adding key %s read set with readtime [%lu:%lu]", key.c_str(),
+          read_time.getTimestamp(), read_time.getID());
     ReadMessage *read = txn.add_read_set();
     read->set_key(key);
     read_time.serialize(read->mutable_readtime());
@@ -474,313 +546,440 @@ void Client::PointQueryResultCallback(PendingQuery *pendingQuery,
   if (hasDep) {
     *txn.add_deps() = dep;
   }
-      
+
   Debug("Upcall with Point Query result");
 
-  //Note: result = empty ==>default case: no replica reported valid result (== all honest replicas send empty)
-  // ==> QueryResultWrapper constructor will create empty result.
+  // Note: result = empty ==>default case: no replica reported valid result (==
+  // all honest replicas send empty)
+  //  ==> QueryResultWrapper constructor will create empty result.
 
-  query_result::QueryResult *q_result = new sql::QueryResultProtoWrapper(result);
-  pendingQuery->qcb(REPLY_OK, q_result); //callback to application 
-  
+  query_result::QueryResult *q_result =
+      new sql::QueryResultProtoWrapper(result);
+  pendingQuery->qcb(REPLY_OK, q_result); // callback to application
+
   stats.Increment("PointQuerySuccess", 1);
-  
+
+  pendingQueries.erase(pendingQuery->queryMsg.query_seq_num());
   delete pendingQuery;
-  //clean pendingQuery and query_seq_num_mapping in all shards. ==> Not necessary here: Already happens in HandlePointQuery
-  //ClearQuery(pendingQuery);      
+  //  clean pendingQuery and query_seq_num_mapping in all shards. ==> Not
+  //  necessary here: Already happens in HandlePointQuery
+  //  ClearQuery(pendingQuery);
 
-  return;               
-
+  return;
 }
 
-void Client::QueryResultCallback(PendingQuery *pendingQuery,  
-                                  int status, int group, proto::ReadSet *query_read_set, std::string &result_hash, std::string &result, bool success) 
-{ 
-      //FIXME: If success: add readset/result hash to datastructure. If group==query manager, record result. If all shards received ==> upcall. 
-      //If failure: re-set datastructure and try again. (any shard can report failure to sync)
-      //Note: Ongoing shard clients PendingQuery implicitly maps to current retry_version
-    
-  //JUST FOR TESTING::
-  // if(query_seq_num == 2){
-  //   success = false;
-  //   std::cerr << "TESTING RETRY FOR POINT" << std::endl;
-  // } 
+void Client::QueryResultCallback(PendingQuery *pendingQuery, int status,
+                                 int group, proto::ReadSet *query_read_set,
+                                 std::string &result_hash, std::string &result,
+                                 bool success) {
+  // FIXME: If success: add readset/result hash to datastructure. If
+  // group==query manager, record result. If all shards received ==> upcall. If
+  // failure: re-set datastructure and try again. (any shard can report failure
+  // to sync) Note: Ongoing shard clients PendingQuery implicitly maps to
+  // current retry_version
+
+  // JUST FOR TESTING::
+  //  if(query_seq_num == 2){
+  //    success = false;
+  //    std::cerr << "TESTING RETRY FOR POINT" << std::endl;
+  //  }
 
   UW_ASSERT(pendingQuery != nullptr);
-  if(!success){ //Retry query
+  if (!success) { // Retry query
     delete query_read_set;
-    Debug("[group %i] Reported failure for QuerySync [seq : ver] [%lu : %lu] \n", group, pendingQuery->queryMsg.query_seq_num(), pendingQuery->version);
+    Debug(
+        "[group %i] Reported failure for QuerySync [seq : ver] [%lu : %lu] \n",
+        group, pendingQuery->queryMsg.query_seq_num(), pendingQuery->version);
     RetryQuery(pendingQuery);
     return;
-  }      
-  
+  }
 
-  Debug("[group %i] Reported success for QuerySync [seq : ver] [%lu : %lu] \n", group, pendingQuery->queryMsg.query_seq_num(), pendingQuery->version);
+  Debug("[group %i] Reported success for QuerySync [seq : ver] [%lu : %lu] \n",
+        group, pendingQuery->queryMsg.query_seq_num(), pendingQuery->version);
   pendingQuery->group_replies++;
 
-  if(params.query_params.cacheReadSet){ 
-      pendingQuery->group_result_hashes[group] = std::move(result_hash);
+  if (params.query_params.cacheReadSet) {
+    pendingQuery->group_result_hashes[group] = std::move(result_hash);
+  } else {
+    // pendingQuery->group_read_sets[group] = std::move(read_set);
+    pendingQuery->group_read_sets[group] =
+        query_read_set; // Note: this is an allocated object, must be freed
+                        // eventually.
   }
-  else{
-      //pendingQuery->group_read_sets[group] = std::move(read_set);
-      pendingQuery->group_read_sets[group] = query_read_set; //Note: this is an allocated object, must be freed eventually.
-  }
-  if(group == pendingQuery->involved_groups[0]) pendingQuery->result = std::move(result); 
+  if (group == pendingQuery->involved_groups[0])
+    pendingQuery->result = std::move(result);
 
-  //wait for all shard read-sets to arrive before reporting result. (Realistically result shard replies last, since it has to coordinate data transfer for computation)
-  if(pendingQuery->involved_groups.size() != pendingQuery->group_replies) return;
+  // wait for all shard read-sets to arrive before reporting result.
+  // (Realistically result shard replies last, since it has to coordinate data
+  // transfer for computation)
+  if (pendingQuery->involved_groups.size() != pendingQuery->group_replies)
+    return;
 
-  
-  Debug("Received all required group replies for QuerySync[%lu:%lu] (seq:ver). UPCALLING \n", group, pendingQuery->queryMsg.query_seq_num(), pendingQuery->version);
+  Debug("Received all required group replies for QuerySync[%lu:%lu] (seq:ver). "
+        "UPCALLING \n",
+        group, pendingQuery->queryMsg.query_seq_num(), pendingQuery->version);
 
-  //just for testing
-  if(TEST_READ_SET) TestReadSet(pendingQuery);
+  // just for testing
+  if (TEST_READ_SET)
+    TestReadSet(pendingQuery);
 
-  //Make query meta data part of current transaction. 
-  //==> Add repeated item <QueryReply> with query_id, final version, and QueryMeta field per involved shard. Query Meta = optional read_sets, optional_result_hashes (+version)
+  // Make query meta data part of current transaction.
+  //==> Add repeated item <QueryReply> with query_id, final version, and
+  // QueryMeta field per involved shard. Query Meta = optional read_sets,
+  // optional_result_hashes (+version)
   proto::QueryResultMetaData *queryRep = txn.add_query_set();
   queryRep->set_query_id(pendingQuery->queryId);
-  queryRep->set_retry_version(pendingQuery->version); //technically only needed for caching
+  queryRep->set_retry_version(
+      pendingQuery->version); // technically only needed for caching
 
-  //TODO: Add dependencies once prepared reads are implemented. Note: Replicas can also just check for every key in read-set that it is commmitted. However, the client may already know a given tx is committed.
-                                                                                                            // Specifying an explicit dependency set can "reduce" the amount of tx a replica needs to wait for.
+  // TODO: Add dependencies once prepared reads are implemented. Note: Replicas
+  // can also just check for every key in read-set that it is commmitted.
+  // However, the client may already know a given tx is committed.
+  //  Specifying an explicit dependency set can "reduce" the amount of tx a
+  //  replica needs to wait for.
 
   //*queryRep->mutable_query_group_meta() = {pendingQuery->}
 
-  if(params.query_params.cacheReadSet){ 
-    for(auto &[group, read_set_hash] : pendingQuery->group_result_hashes){
-      proto::QueryGroupMeta &queryMD = (*queryRep->mutable_group_meta())[group]; 
+  if (params.query_params.cacheReadSet) {
+    for (auto &[group, read_set_hash] : pendingQuery->group_result_hashes) {
+      proto::QueryGroupMeta &queryMD = (*queryRep->mutable_group_meta())[group];
       queryMD.set_read_set_hash(read_set_hash);
     }
-      //When caching read sets: Check that client reported version matches local one. If not, report Client. (FIFO guarantees that client wouldn't send prepare before retry)
-          //Problem: What if client crashes, and another interested client proposes the prepare for a version whose retry has not yet reached some replicas (no FIFO across channels). Could cause deterministic tx abort.
-          //==> Replica waits for query-id/version to arrive before processing P1 request. Interested client is guaranteed to be able to supply it.
-          // ==> What if client used different versions of same query id for different prepares?
-              // Should never happen: Client must only use each query id ONCE. Thus, if there are two prepares with the same query-id but different version ==> report client
-  }
-  else{ //Move Read Sets into Transaction
-    for(auto &[group, query_read_set] : pendingQuery->group_read_sets){
-      
-      if(params.query_params.mergeActiveAtClient){
-          //Option 1): Merge all active read sets into main_read set. When sorting, catch errors and abort early.
-        for(auto &read : *query_read_set->mutable_read_set()){
-          ReadMessage* add_read = txn.add_read_set();
+    // When caching read sets: Check that client reported version matches local
+    // one. If not, report Client. (FIFO guarantees that client wouldn't send
+    // prepare before retry) Problem: What if client crashes, and another
+    // interested client proposes the prepare for a version whose retry has not
+    // yet reached some replicas (no FIFO across channels). Could cause
+    // deterministic tx abort.
+    //==> Replica waits for query-id/version to arrive before processing P1
+    // request. Interested client is guaranteed to be able to supply it.
+    //  ==> What if client used different versions of same query id for
+    //  different prepares? Should never happen: Client must only use each query
+    //  id ONCE. Thus, if there are two prepares with the same query-id but
+    //  different version ==> report client
+  } else { // Move Read Sets into Transaction
+    for (auto &[group, query_read_set] : pendingQuery->group_read_sets) {
+
+      if (params.query_params.mergeActiveAtClient) {
+        // Option 1): Merge all active read sets into main_read set. When
+        // sorting, catch errors and abort early.
+        for (auto &read : *query_read_set->mutable_read_set()) {
+          ReadMessage *add_read = txn.add_read_set();
           *add_read = std::move(read);
         }
-        //Merge all deps as well. Note: Optimistic Id's were already reverted back to real tx-ids at this point. (Must ensure that all dep is on correct txn - cannot be optimistic anymore)
-        for(auto &dep : *query_read_set->mutable_deps()){
+        // Merge all deps as well. Note: Optimistic Id's were already reverted
+        // back to real tx-ids at this point. (Must ensure that all dep is on
+        // correct txn - cannot be optimistic anymore)
+        for (auto &dep : *query_read_set->mutable_deps()) {
           proto::Dependency *add_dep = txn.add_deps();
           *add_dep = std::move(dep);
         }
         // for(auto &dep_id : *query_read_set->mutable_dep_ids()){
         //   Dependency *add_dep = txn.add_deps();
         //   add_dep->set_involved_group(group);
-        //   *add_dep->mutable_write()->prepared_txn_digest() = std::move(dep_id);
+        //   *add_dep->mutable_write()->prepared_txn_digest() =
+        //   std::move(dep_id);
         // }
 
         delete query_read_set;
-      }
-      else{
-        //Option 2): send all active read sets individually per query
-        proto::QueryGroupMeta &queryMD = (*queryRep->mutable_group_meta())[group]; 
+      } else {
+        // Option 2): send all active read sets individually per query
+        proto::QueryGroupMeta &queryMD =
+            (*queryRep->mutable_group_meta())[group];
         queryMD.set_allocated_query_read_set(query_read_set);
       }
     }
-    pendingQuery->group_read_sets.clear(); //Note: Clearing here early to avoid double deletions on read sets whose allocated memory was moved.
+    pendingQuery->group_read_sets
+        .clear(); // Note: Clearing here early to avoid double deletions on read
+                  // sets whose allocated memory was moved.
   }
 
   Debug("Upcall with Query result");
-  sql::QueryResultProtoWrapper *q_result = new sql::QueryResultProtoWrapper(pendingQuery->result);
-  pendingQuery->qcb(REPLY_OK, q_result); //callback to application 
+  sql::QueryResultProtoWrapper *q_result =
+      new sql::QueryResultProtoWrapper(pendingQuery->result);
+  pendingQuery->qcb(REPLY_OK, q_result); // callback to application
 
   stats.Increment("QuerySuccess", 1);
-  //if it was a point query
-  if(pendingQuery->is_point && params.query_params.eagerPointExec) stats.Increment("PointQueryEager_successes", 1);
-  //If it was an eager exec.    //Note: Running eager exec whenever version == 0 AND either eagerExec param is set, or it is a pointQuery and eagerPointExec is set
-  else if(pendingQuery->version == 0 && params.query_params.eagerExec) stats.Increment("EagerExec_successes", 1);
-  else stats.Increment("Sync_successes", 1);
+  // if it was a point query
+  if (pendingQuery->is_point && params.query_params.eagerPointExec)
+    stats.Increment("PointQueryEager_successes", 1);
+  // If it was an eager exec.    //Note: Running eager exec whenever version ==
+  // 0 AND either eagerExec param is set, or it is a pointQuery and
+  // eagerPointExec is set
+  else if (pendingQuery->version == 0 && params.query_params.eagerExec)
+    stats.Increment("EagerExec_successes", 1);
+  else
+    stats.Increment("Sync_successes", 1);
 
-  //clean pendingQuery and query_seq_num_mapping in all shards.
-  //ClearQuery(pendingQuery); ==> now clearing all Queries together only upon Writeback
+  // clean pendingQuery and query_seq_num_mapping in all shards.
+  // ClearQuery(pendingQuery); ==> now clearing all Queries together only upon
+  // Writeback
 
-  return;               
+  return;
 }
 
-void Client::TestReadSet(PendingQuery *pendingQuery){
-  //BEGIN FIXME: DELETE THIS. IT IS TEST CODE ONLY
-    //TESTING Read-set
-    Debug("BEGIN READ SET:");
-    for(auto &[group, query_read_set] : pendingQuery->group_read_sets){
-      for(auto &read : query_read_set->read_set()){
-      //for(auto &[key, ts] : read_set){
-        //std::cerr << "key: " << key << std::endl;
-        Debug("[group %d] Read key %s with version [%lu:%lu]", group, read.key().c_str(), read.readtime().timestamp(), read.readtime().id());
-        //Debug("[group %d] Read key %s with version [%lu:%lu]", group, key.c_str(), ts.timestamp(), ts.id());
-      }
+void Client::TestReadSet(PendingQuery *pendingQuery) {
+  // BEGIN FIXME: DELETE THIS. IT IS TEST CODE ONLY
+  // TESTING Read-set
+  Debug("BEGIN READ SET:");
+  for (auto &[group, query_read_set] : pendingQuery->group_read_sets) {
+    for (auto &read : query_read_set->read_set()) {
+      // for(auto &[key, ts] : read_set){
+      // std::cerr << "key: " << key << std::endl;
+      Debug("[group %d] Read key %s with version [%lu:%lu]", group,
+            read.key().c_str(), read.readtime().timestamp(),
+            read.readtime().id());
+      // Debug("[group %d] Read key %s with version [%lu:%lu]", group,
+      // key.c_str(), ts.timestamp(), ts.id());
     }
-    Debug("END READ SET.");
+  }
+  Debug("END READ SET.");
 
-    // Debug("Test Read Set merge:");
-    // proto::ReadSet* read_set_0 = pendingQuery->group_read_sets[0];
-    // proto::ReadSet* read_set_1 = pendingQuery->group_read_sets[1];
-    // // ReadMessage* read = read_set_0->add_read_set();
-    // // read = read_set_1->release_read_set();
-    //  for(auto &read : *(read_set_1->mutable_read_set())){
-    //    ReadMessage* add_read = read_set_0->add_read_set();
-    //    *add_read = std::move(read);
-    //  }
-    //  //This code moves read sets instead of coyping. However, if we are caching then we want to copy during merge in order to preserve the cached value.
+  // Debug("Test Read Set merge:");
+  // proto::ReadSet* read_set_0 = pendingQuery->group_read_sets[0];
+  // proto::ReadSet* read_set_1 = pendingQuery->group_read_sets[1];
+  // // ReadMessage* read = read_set_0->add_read_set();
+  // // read = read_set_1->release_read_set();
+  //  for(auto &read : *(read_set_1->mutable_read_set())){
+  //    ReadMessage* add_read = read_set_0->add_read_set();
+  //    *add_read = std::move(read);
+  //  }
+  //  //This code moves read sets instead of coyping. However, if we are caching
+  //  then we want to copy during merge in order to preserve the cached value.
 
-
-    // //read_set_0->mutable_read_set()->MergeFrom(read_set_1->read_set());
-    // for(auto &read : read_set_0->read_set()){
-    //     Debug("[group Merged] Read key %s with version [%lu:%lu]", read.key().c_str(), read.readtime().timestamp(), read.readtime().id());
-    //   }
-    // for(auto &read : read_set_1->read_set()){
-    //     Debug("[group Removed] Read key %s with version [%lu:%lu]", read.key().c_str(), read.readtime().timestamp(), read.readtime().id());
-    //   }
-    //TODO: merge all group read sets together before sending tx. Or clear all read-sets that are not relevant to a group (==> Need to use a sub-hash to represent groups read set)
-//END FIXME:
-
+  // //read_set_0->mutable_read_set()->MergeFrom(read_set_1->read_set());
+  // for(auto &read : read_set_0->read_set()){
+  //     Debug("[group Merged] Read key %s with version [%lu:%lu]",
+  //     read.key().c_str(), read.readtime().timestamp(), read.readtime().id());
+  //   }
+  // for(auto &read : read_set_1->read_set()){
+  //     Debug("[group Removed] Read key %s with version [%lu:%lu]",
+  //     read.key().c_str(), read.readtime().timestamp(), read.readtime().id());
+  //   }
+  // TODO: merge all group read sets together before sending tx. Or clear all
+  // read-sets that are not relevant to a group (==> Need to use a sub-hash to
+  // represent groups read set)
+  // END FIXME:
 }
 
-void Client::ClearTxnQueries(){
-  for(auto &[_, pendingQuery]: pendingQueries){
+void Client::ClearTxnQueries() {
+  for (auto &[_, pendingQuery] : pendingQueries) {
     ClearQuery(pendingQuery);
   }
   pendingQueries.clear();
 }
 
-void Client::ClearQuery(PendingQuery *pendingQuery){
-  for(auto &g: pendingQuery->involved_groups){
-    bclient[g]->ClearQuery(pendingQuery->queryMsg.query_seq_num()); //-->Remove mapping + pendingRequest.
+void Client::ClearQuery(PendingQuery *pendingQuery) {
+  for (auto &g : pendingQuery->involved_groups) {
+    bclient[g]->ClearQuery(
+        pendingQuery->queryMsg
+            .query_seq_num()); //-->Remove mapping + pendingRequest.
   }
 
-  //pendingQueries.erase(pendingQuery->queryMsg.query_seq_num()); Don't delete early..
+  // pendingQueries.erase(pendingQuery->queryMsg.query_seq_num()); Don't delete
+  // early..
   delete pendingQuery;
 }
 
-void Client::RetryQuery(PendingQuery *pendingQuery){
+void Client::RetryQuery(PendingQuery *pendingQuery) {
 
-  
   stats.Increment("QueryRetries", 1);
-  //if it was a point query
-  if(pendingQuery->is_point && params.query_params.eagerPointExec) stats.Increment("PointQueryEager_failures", 1);
-  //If it was an eager exec.    //Note: Running eager exec whenever version == 0 AND either eagerExec param is set, or it is a pointQuery and eagerPointExec is set
-  else if(pendingQuery->version == 0 && params.query_params.eagerExec) stats.Increment("EagerExec_failures", 1);
-  else stats.Increment("Sync_failures", 1);
-  
+  // if it was a point query
+  if (pendingQuery->is_point && params.query_params.eagerPointExec)
+    stats.Increment("PointQueryEager_failures", 1);
+  // If it was an eager exec.    //Note: Running eager exec whenever version ==
+  // 0 AND either eagerExec param is set, or it is a pointQuery and
+  // eagerPointExec is set
+  else if (pendingQuery->version == 0 && params.query_params.eagerExec)
+    stats.Increment("EagerExec_failures", 1);
+  else
+    stats.Increment("Sync_failures", 1);
 
   pendingQuery->version++;
   pendingQuery->group_replies = 0;
   pendingQuery->queryMsg.set_retry_version(pendingQuery->version);
   pendingQuery->ClearReplySets();
 
-  for(auto &g: pendingQuery->involved_groups){
-    if(pendingQuery->is_point){
+  for (auto &g : pendingQuery->involved_groups) {
+    if (pendingQuery->is_point) {
       stats.Increment("eager_point_fail", 1);
-      pendingQuery->key = EncodeTableRow(pendingQuery->table_name, pendingQuery->p_col_values);
-      bclient[g]->RetryQuery(pendingQuery->queryMsg.query_seq_num(), pendingQuery->queryMsg, true, std::bind(&Client::PointQueryResultCallback, this, pendingQuery,
-                     std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, 
-                     std::placeholders::_4, std::placeholders::_5, std::placeholders::_6, std::placeholders::_7));
-    } 
-    else{
-      bclient[g]->RetryQuery(pendingQuery->queryMsg.query_seq_num(), pendingQuery->queryMsg); //--> Retry Query, shard clients already have the rcb.
+      pendingQuery->key =
+          EncodeTableRow(pendingQuery->table_name, pendingQuery->p_col_values);
+      bclient[g]->RetryQuery(
+          pendingQuery->queryMsg.query_seq_num(), pendingQuery->queryMsg, true,
+          std::bind(&Client::PointQueryResultCallback, this, pendingQuery,
+                    std::placeholders::_1, std::placeholders::_2,
+                    std::placeholders::_3, std::placeholders::_4,
+                    std::placeholders::_5, std::placeholders::_6,
+                    std::placeholders::_7));
+    } else {
+      bclient[g]->RetryQuery(
+          pendingQuery->queryMsg.query_seq_num(),
+          pendingQuery->queryMsg); //--> Retry Query, shard clients already have
+                                   // the rcb.
     }
   }
 
-  //If point query && retry --> Issue PointQueryCallback (pass as extra argument/alternate function)
+  // If point query && retry --> Issue PointQueryCallback (pass as extra
+  // argument/alternate function)
 }
 
-// void Client::ClearQuery(uint64_t query_seq_num, std::vector<uint64_t> &involved_groups){
+// void Client::ClearQuery(uint64_t query_seq_num, std::vector<uint64_t>
+// &involved_groups){
 
 //    queryBuffer.erase(query_seq_num);
 
 //    for(auto &g: involved_groups){
-//     bclient[g]->ClearQuery(query_seq_num); //-->Remove mapping + pendingRequest.
+//     bclient[g]->ClearQuery(query_seq_num); //-->Remove mapping +
+//     pendingRequest.
 //    }
 // }
 
-
-// void Client::RetryQuery(uint64_t query_seq_num, std::vector<uint64_t> &involved_groups){
+// void Client::RetryQuery(uint64_t query_seq_num, std::vector<uint64_t>
+// &involved_groups){
 //   //find buffered query_seq_num Query.
 //   // pass query_id to all involved shards.
 //   // shards find their RequestInstance and reset it.
-//   proto::Query &query_msg = queryBuffer[query_seq_num]; //TODO: Assert this exists. -- it must, or else we wouldnt' have called Retry.
-//   for(auto &g: involved_groups){
-//     bclient[g]->RetryQuery(query_seq_num, query_msg); //--> Retry Query, shard clients already have the rcb.
+//   proto::Query &query_msg = queryBuffer[query_seq_num]; //TODO: Assert this
+//   exists. -- it must, or else we wouldnt' have called Retry. for(auto &g:
+//   involved_groups){
+//     bclient[g]->RetryQuery(query_seq_num, query_msg); //--> Retry Query,
+//     shard clients already have the rcb.
 //   }
 
-
-//    // 1) Re-send query, but this time don't use optimistic id's, 2) start fall-back for responsible ids. 
-//                                                             //TODO: Replica that observes duplicate: Send Report message with payload: list<pairs: txn>> (pairs of txn with same optimistic id)
-//                                                             //   Note: For replica to observe duplicate: Gossip is necessary to receive both.
-//                                                             // If replica instead sends full read set to client, then client can look at read sets to figure out divergence: 
-//                                                                           // Find mismatched keys, or keys with different versions. Send to replicas request for tx for (key, version) --> replica replies with txn-digest.
+//    // 1) Re-send query, but this time don't use optimistic id's, 2) start
+//    fall-back for responsible ids.
+//                                                             //TODO: Replica
+//                                                             that observes
+//                                                             duplicate: Send
+//                                                             Report message
+//                                                             with payload:
+//                                                             list<pairs: txn>>
+//                                                             (pairs of txn
+//                                                             with same
+//                                                             optimistic id)
+//                                                             //   Note: For
+//                                                             replica to
+//                                                             observe
+//                                                             duplicate: Gossip
+//                                                             is necessary to
+//                                                             receive both.
+//                                                             // If replica
+//                                                             instead sends
+//                                                             full read set to
+//                                                             client, then
+//                                                             client can look
+//                                                             at read sets to
+//                                                             figure out
+//                                                             divergence:
+//                                                                           //
+//                                                                           Find
+//                                                                           mismatched
+//                                                                           keys,
+//                                                                           or
+//                                                                           keys
+//                                                                           with
+//                                                                           different
+//                                                                           versions.
+//                                                                           Send
+//                                                                           to
+//                                                                           replicas
+//                                                                           request
+//                                                                           for
+//                                                                           tx
+//                                                                           for
+//                                                                           (key,
+//                                                                           version)
+//                                                                           -->
+//                                                                           replica
+//                                                                           replies
+//                                                                           with
+//                                                                           txn-digest.
 // }
 
-
 void Client::Commit(commit_callback ccb, commit_timeout_callback ctcb,
-    uint32_t timeout) {
+                    uint32_t timeout) {
   transport->Timer(0, [this, ccb, ctcb, timeout]() {
     uint64_t ns = Latency_End(&executeLatency);
     Latency_Start(&commitLatency);
 
-    if(!txn.query_set().empty() && !params.query_params.cacheReadSet && params.query_params.mergeActiveAtClient){
-      //If has queries, and query deps are meant to be reported by client:
-      // Sort and erase all duplicate dependencies. (equality = same txn_id and same involved group.)
-      std::sort(txn.mutable_deps()->begin(), txn.mutable_deps()->end(), sortDepSet);
-      txn.mutable_deps()->erase(std::unique(txn.mutable_deps()->begin(), txn.mutable_deps()->end(), equalDep), txn.mutable_deps()->end());  //erases all but last appearance
-      
+    if (!txn.query_set().empty() && !params.query_params.cacheReadSet &&
+        params.query_params.mergeActiveAtClient) {
+      // If has queries, and query deps are meant to be reported by client:
+      //  Sort and erase all duplicate dependencies. (equality = same txn_id and
+      //  same involved group.)
+      std::sort(txn.mutable_deps()->begin(), txn.mutable_deps()->end(),
+                sortDepSet);
+      txn.mutable_deps()->erase(
+          std::unique(txn.mutable_deps()->begin(), txn.mutable_deps()->end(),
+                      equalDep),
+          txn.mutable_deps()->end()); // erases all but last appearance
     }
 
-    //Add a TableVersion for each TableWrite -- CON: Don't want to do this for updates...
-    for(auto &[table_name, table_write] : txn.table_writes()){
-      //Only update TableVersion if we inserted/deleted a row
-      if(table_write.has_changed_table() && table_write.changed_table()){  //TODO: Set changed_table for insert and delete.
-          WriteMessage *table_ver = txn.add_write_set();
-          table_ver->set_key(table_name);
-          table_ver->set_value("");
-          //table_ver->set_delay(true);
+    // Add a TableVersion for each TableWrite -- CON: Don't want to do this for
+    // updates...
+    for (auto &[table_name, table_write] : txn.table_writes()) {
+      // Only update TableVersion if we inserted/deleted a row
+      if (table_write.has_changed_table() &&
+          table_write.changed_table()) { // TODO: Set changed_table for insert
+                                         // and delete.
+        WriteMessage *table_ver = txn.add_write_set();
+        table_ver->set_key(table_name);
+        table_ver->set_value("");
+        // table_ver->set_delay(true);
       }
     }
 
-    //XXX flag to sort read/write sets for parallel OCC
-    if(params.parallel_CCC || true){ //NOTE: FIXME: Currently always sorting: This way we can detect duplicate table versions early.
+    // XXX flag to sort read/write sets for parallel OCC
+    if (params.parallel_CCC ||
+        true) { // NOTE: FIXME: Currently always sorting: This way we can detect
+                // duplicate table versions early.
       try {
-        std::sort(txn.mutable_read_set()->begin(), txn.mutable_read_set()->end(), sortReadSetByKey);
-        std::sort(txn.mutable_write_set()->begin(), txn.mutable_write_set()->end(), sortWriteSetByKey);
-        //Note: Use stable_sort to guarantee order respects duplicates; Altnernatively: Can try to delete from write sets to save redundant size.
+        std::sort(txn.mutable_read_set()->begin(),
+                  txn.mutable_read_set()->end(), sortReadSetByKey);
+        std::sort(txn.mutable_write_set()->begin(),
+                  txn.mutable_write_set()->end(), sortWriteSetByKey);
+        // Note: Use stable_sort to guarantee order respects duplicates;
+        // Altnernatively: Can try to delete from write sets to save redundant
+        // size.
 
-        //If write set can contain duplicates use the following: Reverse + sort --> "latest" put is first. Erase all but first entry. 
-        //(Note: probably cheaper to erase all duplicates manually during insert? Or use map?)
-        // std::reverse(txn.mutable_write_set()->begin(), txn.mutable_write_set()->end());
-        // std::stable_sort(txn.mutable_write_set()->begin(), txn.mutable_write_set()->end(), sortWriteSetByKey);  //sorts while maintaining relative order
-        // txn.mutable_write_set()->erase(std::unique(txn.mutable_write_set()->begin(), txn.mutable_write_set()->end(), equalWriteMsg), txn.mutable_write_set()->end());  //erases all but last appearance
-      }
-      catch(...) {
-        Debug("Preemptive Abort: Trying to commit a transaction with 2 different reads for the same key");
+        // If write set can contain duplicates use the following: Reverse + sort
+        // --> "latest" put is first. Erase all but first entry. (Note: probably
+        // cheaper to erase all duplicates manually during insert? Or use map?)
+        //  std::reverse(txn.mutable_write_set()->begin(),
+        //  txn.mutable_write_set()->end());
+        //  std::stable_sort(txn.mutable_write_set()->begin(),
+        //  txn.mutable_write_set()->end(), sortWriteSetByKey);  //sorts while
+        //  maintaining relative order
+        //  txn.mutable_write_set()->erase(std::unique(txn.mutable_write_set()->begin(),
+        //  txn.mutable_write_set()->end(), equalWriteMsg),
+        //  txn.mutable_write_set()->end());  //erases all but last appearance
+      } catch (...) {
+        Debug("Preemptive Abort: Trying to commit a transaction with 2 "
+              "different reads for the same key");
 
         Debug("ABORT[%lu:%lu]", client_id, client_seq_num);
-        if(!params.query_params.mergeActiveAtClient) Panic("Without Client-side query merge Client should never read same key twice");
+        if (!params.query_params.mergeActiveAtClient)
+          Panic("Without Client-side query merge Client should never read same "
+                "key twice");
 
         for (auto group : txn.involved_groups()) {
           bclient[group]->Abort(client_seq_num, txn.timestamp(), txn);
         }
         ccb(ABORTED_SYSTEM);
-        //Panic("Client should never read same key twice");
+        // Panic("Client should never read same key twice");
         return;
       }
     }
 
     PendingRequest *req = new PendingRequest(client_seq_num, this);
     pendingReqs[client_seq_num] = req;
-    req->txn = txn; //Is this a copy or just reference?
+    req->txn = txn; // Is this a copy or just reference?
     req->ccb = ccb;
     req->ctcb = ctcb;
     req->callbackInvoked = false;
     req->txnDigest = TransactionDigest(txn, params.hashDigest);
-    req->timeout = timeout; //20000UL; //timeout;
+    req->timeout = timeout; // 20000UL; //timeout;
     stats.IncrementList("txn_groups", txn.involved_groups().size());
 
     Phase1(req);
@@ -789,51 +988,61 @@ void Client::Commit(commit_callback ccb, commit_timeout_callback ctcb,
 
 void Client::Phase1(PendingRequest *req) {
   Debug("PHASE1 [%lu:%lu] for txn_id %s at TS %lu", client_id, client_seq_num,
-      BytesToHex(TransactionDigest(req->txn, params.hashDigest), 16).c_str(), txn.timestamp().timestamp());
-
+        BytesToHex(TransactionDigest(req->txn, params.hashDigest), 16).c_str(),
+        txn.timestamp().timestamp());
 
   UW_ASSERT(txn.involved_groups().size() > 0);
 
   for (auto group : txn.involved_groups()) {
-    bclient[group]->Phase1(client_seq_num, txn, req->txnDigest,
-        std::bind( &Client::Phase1Callback, this, req->id, group, std::placeholders::_1,
-          std::placeholders::_2, std::placeholders::_3,
-          std::placeholders::_4, std::placeholders::_5, std::placeholders::_6),
+    bclient[group]->Phase1(
+        client_seq_num, txn, req->txnDigest,
+        std::bind(&Client::Phase1Callback, this, req->id, group,
+                  std::placeholders::_1, std::placeholders::_2,
+                  std::placeholders::_3, std::placeholders::_4,
+                  std::placeholders::_5, std::placeholders::_6),
         std::bind(&Client::Phase1TimeoutCallback, this, group, req->id,
-          std::placeholders::_1),
-        std::bind(&Client::RelayP1callback, this, req->id, std::placeholders::_1, std::placeholders::_2),
-        std::bind(&Client::FinishConflict, this, req->id, std::placeholders::_1, std::placeholders::_2),
+                  std::placeholders::_1),
+        std::bind(&Client::RelayP1callback, this, req->id,
+                  std::placeholders::_1, std::placeholders::_2),
+        std::bind(&Client::FinishConflict, this, req->id, std::placeholders::_1,
+                  std::placeholders::_2),
         req->timeout);
     req->outstandingPhase1s++;
   }
-  //schedule timeout for when we allow starting FB P1.
-  transport->Timer(params.relayP1_timeout, [this, reqId = req->id](){RelayP1TimeoutCallback(reqId);});
+  // schedule timeout for when we allow starting FB P1.
+  transport->Timer(params.relayP1_timeout, [this, reqId = req->id]() {
+    RelayP1TimeoutCallback(reqId);
+  });
 
-  if(!failureEnabled) stats.Increment("total_honest_p1_started", 1);
+  if (!failureEnabled)
+    stats.Increment("total_honest_p1_started", 1);
 
-  //FAIL right after sending P1
+  // FAIL right after sending P1
 
-  if (failureActive && (params.injectFailure.type == InjectFailureType::CLIENT_CRASH || params.injectFailure.type == InjectFailureType::CLIENT_SEND_PARTIAL_P1)) {
-    Debug("INJECT CRASH FAILURE[%lu:%lu] with decision %d. txnDigest: %s", client_id, req->id, req->decision,
-          BytesToHex(TransactionDigest(req->txn, params.hashDigest), 16).c_str());
+  if (failureActive &&
+      (params.injectFailure.type == InjectFailureType::CLIENT_CRASH ||
+       params.injectFailure.type ==
+           InjectFailureType::CLIENT_SEND_PARTIAL_P1)) {
+    Debug(
+        "INJECT CRASH FAILURE[%lu:%lu] with decision %d. txnDigest: %s",
+        client_id, req->id, req->decision,
+        BytesToHex(TransactionDigest(req->txn, params.hashDigest), 16).c_str());
     stats.Increment("inject_failure_crash");
-    //total_failure_injections++;
+    // total_failure_injections++;
     FailureCleanUp(req);
     return;
   }
 }
 
-
-
-void Client::Phase1CallbackProcessing(PendingRequest *req, int group,
-    proto::CommitDecision decision, bool fast, bool conflict_flag,
-    const proto::CommittedProof &conflict,
+void Client::Phase1CallbackProcessing(
+    PendingRequest *req, int group, proto::CommitDecision decision, bool fast,
+    bool conflict_flag, const proto::CommittedProof &conflict,
     const std::map<proto::ConcurrencyControl::Result, proto::Signatures> &sigs,
-    bool eqv_ready, bool fb){
+    bool eqv_ready, bool fb) {
 
   if (decision == proto::ABORT && fast && conflict_flag) {
-      req->conflict = conflict;
-      req->conflict_flag = true;
+    req->conflict = conflict;
+    req->conflict_flag = true;
   }
 
   if (params.validateProofs && params.signedMessages) {
@@ -841,46 +1050,51 @@ void Client::Phase1CallbackProcessing(PendingRequest *req, int group,
       // saving abort sigs in req->eqvAbortSigsGrouped
       auto itr_abort = sigs.find(proto::ConcurrencyControl::ABSTAIN);
       UW_ASSERT(itr_abort != sigs.end());
-      Debug("Have %d ABSTAIN replies from group %d. Saving in eqvAbortSigsGrouped",
-          itr_abort->second.sigs_size(), group);
-      (*req->eqvAbortSigsGrouped.mutable_grouped_sigs())[group] = itr_abort->second;
+      Debug("Have %d ABSTAIN replies from group %d. Saving in "
+            "eqvAbortSigsGrouped",
+            itr_abort->second.sigs_size(), group);
+      (*req->eqvAbortSigsGrouped.mutable_grouped_sigs())[group] =
+          itr_abort->second;
       req->slowAbortGroup = group;
       // saving commit sigs in req->p1ReplySigsGrouped
       auto itr_commit = sigs.find(proto::ConcurrencyControl::COMMIT);
       UW_ASSERT(itr_commit != sigs.end());
-      Debug("Have %d COMMIT replies from group %d.", itr_commit->second.sigs_size(),
-          group);
-      (*req->p1ReplySigsGrouped.mutable_grouped_sigs())[group] = itr_commit->second;
+      Debug("Have %d COMMIT replies from group %d.",
+            itr_commit->second.sigs_size(), group);
+      (*req->p1ReplySigsGrouped.mutable_grouped_sigs())[group] =
+          itr_commit->second;
 
     }
-    //non-equivocation processing
-    else if(decision == proto::ABORT && fast && !conflict_flag){
+    // non-equivocation processing
+    else if (decision == proto::ABORT && fast && !conflict_flag) {
       auto itr = sigs.find(proto::ConcurrencyControl::ABSTAIN);
       UW_ASSERT(itr != sigs.end());
       Debug("Have %d ABSTAIN replies from group %d.", itr->second.sigs_size(),
-          group);
+            group);
       (*req->p1ReplySigsGrouped.mutable_grouped_sigs())[group] = itr->second;
       req->fastAbortGroup = group;
     } else if (decision == proto::ABORT && !fast) {
       auto itr = sigs.find(proto::ConcurrencyControl::ABSTAIN);
       UW_ASSERT(itr != sigs.end());
       Debug("Have %d ABSTAIN replies from group %d.", itr->second.sigs_size(),
-          group);
+            group);
       (*req->p1ReplySigsGrouped.mutable_grouped_sigs())[group] = itr->second;
       req->slowAbortGroup = group;
     } else if (decision == proto::COMMIT) {
       auto itr = sigs.find(proto::ConcurrencyControl::COMMIT);
       // if(itr == sigs.end()){
       //   if(fb){
-      //     std::cerr << "abort on fallback path for txn: " << BytesToHex(req->txnDigest, 16) << std::endl;
+      //     std::cerr << "abort on fallback path for txn: " <<
+      //     BytesToHex(req->txnDigest, 16) << std::endl;
       //   }
       //   if(!fb){
-      //     std::cerr << "abort on normal path for txn: " << BytesToHex(req->txnDigest, 16) << std::endl;
+      //     std::cerr << "abort on normal path for txn: " <<
+      //     BytesToHex(req->txnDigest, 16) << std::endl;
       //   }
       // }
       UW_ASSERT(itr != sigs.end());
       Debug("Have %d COMMIT replies from group %d.", itr->second.sigs_size(),
-          group);
+            group);
       (*req->p1ReplySigsGrouped.mutable_grouped_sigs())[group] = itr->second;
     }
   }
@@ -890,60 +1104,67 @@ void Client::Phase1CallbackProcessing(PendingRequest *req, int group,
   } else {
     req->fast = req->fast && fast;
   }
-  if (eqv_ready) req->eqv_ready = true;
+  if (eqv_ready)
+    req->eqv_ready = true;
 
   --req->outstandingPhase1s;
-  switch(decision) {
-    case proto::COMMIT:
-      break; //decision is proto::COMMIT by default
-    case proto::ABORT:
-      // abort!
-      req->decision = proto::ABORT;
-      req->eqv_ready = false; //if there is a single shard that is only abort, then equiv not possible
-      req->outstandingPhase1s = 0;
-      break;
-    default:
-      break;
+  switch (decision) {
+  case proto::COMMIT:
+    break; // decision is proto::COMMIT by default
+  case proto::ABORT:
+    // abort!
+    req->decision = proto::ABORT;
+    req->eqv_ready = false; // if there is a single shard that is only abort,
+                            // then equiv not possible
+    req->outstandingPhase1s = 0;
+    break;
+  default:
+    break;
   }
 }
 
-void Client::Phase1Callback(uint64_t txnId, int group,
-    proto::CommitDecision decision, bool fast, bool conflict_flag,
-    const proto::CommittedProof &conflict,
+void Client::Phase1Callback(
+    uint64_t txnId, int group, proto::CommitDecision decision, bool fast,
+    bool conflict_flag, const proto::CommittedProof &conflict,
     const std::map<proto::ConcurrencyControl::Result, proto::Signatures> &sigs,
     bool eqv_ready) {
   auto itr = this->pendingReqs.find(txnId);
   if (itr == this->pendingReqs.end()) {
     Debug("Phase1Callback for terminated request %lu (txn already committed"
-        " or aborted.", txnId);
+          " or aborted.",
+          txnId);
     return;
   }
 
-  //total_counter++;
-  //if(fast) fast_path_counter++;
+  // total_counter++;
+  // if(fast) fast_path_counter++;
   stats.Increment("total_prepares", 1);
-  if(fast) stats.Increment("total_prepares_fast", 1);
+  if (fast)
+    stats.Increment("total_prepares_fast", 1);
 
-  Debug("PHASE1[%lu:%lu] callback decision %d [Fast:%s][Conflict:%s] from group %d", client_id,
-      client_seq_num, decision, fast ? "yes" : "no", conflict_flag ? "yes" : "no", group);
+  Debug("PHASE1[%lu:%lu] callback decision %d [Fast:%s][Conflict:%s] from "
+        "group %d",
+        client_id, client_seq_num, decision, fast ? "yes" : "no",
+        conflict_flag ? "yes" : "no", group);
 
   PendingRequest *req = itr->second;
 
   if (req->startedPhase2 || req->startedWriteback) {
     Debug("Already started Phase2/Writeback for request id %lu. Ignoring Phase1"
-        " response from group %d.", txnId, group);
+          " response from group %d.",
+          txnId, group);
     return;
   }
 
-  Phase1CallbackProcessing(req, group, decision, fast, conflict_flag, conflict, sigs, eqv_ready, false);
+  Phase1CallbackProcessing(req, group, decision, fast, conflict_flag, conflict,
+                           sigs, eqv_ready, false);
 
   if (req->outstandingPhase1s == 0) {
     HandleAllPhase1Received(req);
   }
-    //XXX use StopP1 to shortcircuit all shard clients
-  //bclient[group]->StopP1(txnId);
+  // XXX use StopP1 to shortcircuit all shard clients
+  // bclient[group]->StopP1(txnId);
 }
-
 
 void Client::Phase1TimeoutCallback(int group, uint64_t txnId, int status) {
   auto itr = this->pendingReqs.find(txnId);
@@ -951,7 +1172,7 @@ void Client::Phase1TimeoutCallback(int group, uint64_t txnId, int status) {
     return;
   }
   Debug("P1 TIMEOUT IS TRIGGERED for tx_id %d on group %d", txnId, group);
-  return;  //TODO:: REMOVE AND REPLACE
+  return; // TODO:: REMOVE AND REPLACE
 
   PendingRequest *req = itr->second;
   if (req->startedPhase2 || req->startedWriteback) {
@@ -969,52 +1190,58 @@ void Client::Phase1TimeoutCallback(int group, uint64_t txnId, int status) {
   }
   Phase1(req);
 
-  //TODO:: alternatively upon timeout: just start Phase1FB for ones own TX:
-  //Todo so: shard client needs to upcall with the respective reqId from shard client.. re-create the p1 message.
-  // proto::Phase1 *p1 = new proto::Phase1();
-  // p1->set_req_id(reqId); //TODO: probably can remove this reqId again.
-  // *p1->mutable_txn()= req->txn;
-  // Phase1FB(p1, txnId, req->txnDigest);
+  // TODO:: alternatively upon timeout: just start Phase1FB for ones own TX:
+  // Todo so: shard client needs to upcall with the respective reqId from shard
+  // client.. re-create the p1 message.
+  //  proto::Phase1 *p1 = new proto::Phase1();
+  //  p1->set_req_id(reqId); //TODO: probably can remove this reqId again.
+  //  *p1->mutable_txn()= req->txn;
+  //  Phase1FB(p1, txnId, req->txnDigest);
 }
 
 void Client::HandleAllPhase1Received(PendingRequest *req) {
   Debug("All PHASE1's [%lu] received", client_seq_num);
 
-  //NOTE: Forcefully imulated failures, even if according to protocol logic it is not possible:
-  if(failureActive && params.injectFailure.type == InjectFailureType::CLIENT_EQUIVOCATE_SIMULATE
-       && req->decision == proto::COMMIT){
+  // NOTE: Forcefully imulated failures, even if according to protocol logic it
+  // is not possible:
+  if (failureActive &&
+      params.injectFailure.type ==
+          InjectFailureType::CLIENT_EQUIVOCATE_SIMULATE &&
+      req->decision == proto::COMMIT) {
     Phase2SimulateEquivocation(req);
-  }
-  else if (req->fast) { //TO force P2, add "req->conflict_flag". Conflict Aborts *must* go fast path.
+  } else if (req->fast) { // TO force P2, add "req->conflict_flag". Conflict
+                          // Aborts *must* go fast path.
     Writeback(req);
   } else {
     // slow path, must log final result to 1 group
     if (req->eqv_ready) {
       Phase2Equivocate(req);
-    }
-    else {
+    } else {
       Phase2(req);
     }
   }
 }
 
-void Client::Phase2Processing(PendingRequest *req){
+void Client::Phase2Processing(PendingRequest *req) {
 
   if (params.validateProofs && params.signedMessages) {
     if (req->decision == proto::ABORT) {
       UW_ASSERT(req->slowAbortGroup >= 0);
-      UW_ASSERT(req->p1ReplySigsGrouped.grouped_sigs().find(req->slowAbortGroup) != req->p1ReplySigsGrouped.grouped_sigs().end());
+      UW_ASSERT(
+          req->p1ReplySigsGrouped.grouped_sigs().find(req->slowAbortGroup) !=
+          req->p1ReplySigsGrouped.grouped_sigs().end());
       while (req->p1ReplySigsGrouped.grouped_sigs().size() > 1) {
         auto itr = req->p1ReplySigsGrouped.mutable_grouped_sigs()->begin();
         if (itr->first == req->slowAbortGroup) {
-          itr++;  //skips this group, i.e. deletes all besides this one.
+          itr++; // skips this group, i.e. deletes all besides this one.
         }
         req->p1ReplySigsGrouped.mutable_grouped_sigs()->erase(itr);
       }
     }
 
-    uint64_t quorumSize = req->decision == proto::COMMIT ?
-        SlowCommitQuorumSize(config) : SlowAbortQuorumSize(config);
+    uint64_t quorumSize = req->decision == proto::COMMIT
+                              ? SlowCommitQuorumSize(config)
+                              : SlowAbortQuorumSize(config);
     for (auto &groupSigs : *req->p1ReplySigsGrouped.mutable_grouped_sigs()) {
       while (static_cast<uint64_t>(groupSigs.second.sigs_size()) > quorumSize) {
         groupSigs.second.mutable_sigs()->RemoveLast();
@@ -1029,75 +1256,80 @@ void Client::Phase2(PendingRequest *req) {
   int64_t logGroup = GetLogGroup(txn, req->txnDigest);
 
   Debug("PHASE2[%lu:%lu][%s] logging to group %ld", client_id, client_seq_num,
-      BytesToHex(req->txnDigest, 16).c_str(), logGroup);
+        BytesToHex(req->txnDigest, 16).c_str(), logGroup);
 
   Phase2Processing(req);
 
   bclient[logGroup]->Phase2(client_seq_num, txn, req->txnDigest, req->decision,
-      req->p1ReplySigsGrouped,
-      std::bind(&Client::Phase2Callback, this, req->id, logGroup,
-        std::placeholders::_1, std::placeholders::_2, std::placeholders::_3),
-      std::bind(&Client::Phase2TimeoutCallback, this, logGroup, req->id,
-        std::placeholders::_1), req->timeout);
+                            req->p1ReplySigsGrouped,
+                            std::bind(&Client::Phase2Callback, this, req->id,
+                                      logGroup, std::placeholders::_1,
+                                      std::placeholders::_2,
+                                      std::placeholders::_3),
+                            std::bind(&Client::Phase2TimeoutCallback, this,
+                                      logGroup, req->id, std::placeholders::_1),
+                            req->timeout);
 
-    //XXX use StopP1 to shortcircuit all shard clients
+  // XXX use StopP1 to shortcircuit all shard clients
   // for(auto group : req->txn.involved_groups()){
   //     bclient[group]->StopP1(req->id);
   // }
 }
 
-void Client::Phase2SimulateEquivocation(PendingRequest *req){
+void Client::Phase2SimulateEquivocation(PendingRequest *req) {
   int64_t logGroup = GetLogGroup(txn, req->txnDigest);
 
-  Debug("SIMULATE EQUIVOCATION PHASE2[%lu:%lu][%s] logging to group %ld", client_id, client_seq_num,
-      BytesToHex(req->txnDigest, 16).c_str(), logGroup);
+  Debug("SIMULATE EQUIVOCATION PHASE2[%lu:%lu][%s] logging to group %ld",
+        client_id, client_seq_num, BytesToHex(req->txnDigest, 16).c_str(),
+        logGroup);
 
-  Phase2Processing(req);  //trim commit quorums if applicable.
+  Phase2Processing(req); // trim commit quorums if applicable.
 
-  //Simulating equiv failures, only if current decision is Commit
+  // Simulating equiv failures, only if current decision is Commit
 
-  bclient[logGroup]->Phase2Equivocate_Simulate(client_seq_num, txn, req->txnDigest,
-        req->p1ReplySigsGrouped);
+  bclient[logGroup]->Phase2Equivocate_Simulate(
+      client_seq_num, txn, req->txnDigest, req->p1ReplySigsGrouped);
 
-  //std::cerr << "SIMULATED EQUIVOCATION. STOPPING" << std::endl;
-    //Panic("simulated equiv.");
-    //terminate ongoing tx mangagement and move to next tx:
+  // std::cerr << "SIMULATED EQUIVOCATION. STOPPING" << std::endl;
+  // Panic("simulated equiv.");
+  // terminate ongoing tx mangagement and move to next tx:
   stats.Increment("inject_equiv_forced", 1);
   FailureCleanUp(req);
   return;
-
 }
 
 void Client::Phase2Equivocate(PendingRequest *req) {
   int64_t logGroup = GetLogGroup(txn, req->txnDigest);
 
-  Debug("PHASE2[%lu:%lu][%s] logging to group %ld with equivocation", client_id, client_seq_num,
-      BytesToHex(req->txnDigest, 16).c_str(), logGroup);
+  Debug("PHASE2[%lu:%lu][%s] logging to group %ld with equivocation", client_id,
+        client_seq_num, BytesToHex(req->txnDigest, 16).c_str(), logGroup);
 
   if (params.validateProofs && params.signedMessages) {
     // build grouped commits sigs with size of commitQuorum
     for (auto &groupSigs : *req->p1ReplySigsGrouped.mutable_grouped_sigs()) {
-      while (static_cast<uint64_t>(groupSigs.second.sigs_size()) > SlowCommitQuorumSize(config)) {
+      while (static_cast<uint64_t>(groupSigs.second.sigs_size()) >
+             SlowCommitQuorumSize(config)) {
         groupSigs.second.mutable_sigs()->RemoveLast();
       }
     }
 
     // build grouped abort sigs with *one* shard Quorum the size of abortQuorum
 
-      UW_ASSERT(req->slowAbortGroup >= 0);
-      UW_ASSERT(req->eqvAbortSigsGrouped.grouped_sigs().find(req->slowAbortGroup) != req->eqvAbortSigsGrouped.grouped_sigs().end());
-      while (req->eqvAbortSigsGrouped.grouped_sigs().size() > 1) {
-        auto itr = req->eqvAbortSigsGrouped.mutable_grouped_sigs()->begin();
-        if (itr->first == req->slowAbortGroup) {
-          itr++;  //skips this group, i.e. deletes all besides this one.
-        }
-        req->eqvAbortSigsGrouped.mutable_grouped_sigs()->erase(itr);
+    UW_ASSERT(req->slowAbortGroup >= 0);
+    UW_ASSERT(
+        req->eqvAbortSigsGrouped.grouped_sigs().find(req->slowAbortGroup) !=
+        req->eqvAbortSigsGrouped.grouped_sigs().end());
+    while (req->eqvAbortSigsGrouped.grouped_sigs().size() > 1) {
+      auto itr = req->eqvAbortSigsGrouped.mutable_grouped_sigs()->begin();
+      if (itr->first == req->slowAbortGroup) {
+        itr++; // skips this group, i.e. deletes all besides this one.
       }
-
-
+      req->eqvAbortSigsGrouped.mutable_grouped_sigs()->erase(itr);
+    }
 
     for (auto &groupSigs : *req->eqvAbortSigsGrouped.mutable_grouped_sigs()) {
-      while (static_cast<uint64_t>(groupSigs.second.sigs_size()) > SlowAbortQuorumSize(config)) {
+      while (static_cast<uint64_t>(groupSigs.second.sigs_size()) >
+             SlowAbortQuorumSize(config)) {
         groupSigs.second.mutable_sigs()->RemoveLast();
       }
     }
@@ -1105,26 +1337,32 @@ void Client::Phase2Equivocate(PendingRequest *req) {
 
   req->startedPhase2 = true;
   bclient[logGroup]->Phase2Equivocate(client_seq_num, txn, req->txnDigest,
-      req->p1ReplySigsGrouped, req->eqvAbortSigsGrouped);
-  //NOTE DONT need to use version with callbacks... callbacks are obsolete if we return directly.
-  // bclient[logGroup]->Phase2Equivocate(client_seq_num, txn, req->txnDigest,
-  //     req->p1ReplySigsGrouped, req->eqvAbortSigsGrouped,
-  //     std::bind(&Client::Phase2Callback, this, req->id, logGroup,
-  //       std::placeholders::_1),
-  //     std::bind(&Client::Phase2TimeoutCallback, this, logGroup, req->id,
-  //       std::placeholders::_1), req->timeout);
+                                      req->p1ReplySigsGrouped,
+                                      req->eqvAbortSigsGrouped);
+  // NOTE DONT need to use version with callbacks... callbacks are obsolete if
+  // we return directly.
+  //  bclient[logGroup]->Phase2Equivocate(client_seq_num, txn, req->txnDigest,
+  //      req->p1ReplySigsGrouped, req->eqvAbortSigsGrouped,
+  //      std::bind(&Client::Phase2Callback, this, req->id, logGroup,
+  //        std::placeholders::_1),
+  //      std::bind(&Client::Phase2TimeoutCallback, this, logGroup, req->id,
+  //        std::placeholders::_1), req->timeout);
 
-  //terminate ongoing tx mangagement and move to next tx:
+  // terminate ongoing tx mangagement and move to next tx:
   stats.Increment("inject_equiv_real");
   FailureCleanUp(req);
 }
 
-void Client::Phase2Callback(uint64_t txnId, int group, proto::CommitDecision decision, uint64_t decision_view,
-    const proto::Signatures &p2ReplySigs) {
+void Client::Phase2Callback(uint64_t txnId, int group,
+                            proto::CommitDecision decision,
+                            uint64_t decision_view,
+                            const proto::Signatures &p2ReplySigs) {
 
   auto itr = this->pendingReqs.find(txnId);
   if (itr == this->pendingReqs.end()) {
-    Debug("Phase2Callback for terminated request id %lu (txn already committed or aborted).", txnId);
+    Debug("Phase2Callback for terminated request id %lu (txn already committed "
+          "or aborted).",
+          txnId);
     return;
   }
 
@@ -1133,8 +1371,9 @@ void Client::Phase2Callback(uint64_t txnId, int group, proto::CommitDecision dec
   PendingRequest *req = itr->second;
 
   if (req->startedWriteback) {
-    Debug("Already started Writeback for request id %lu. Ignoring Phase2 response.",
-        txnId);
+    Debug("Already started Writeback for request id %lu. Ignoring Phase2 "
+          "response.",
+          txnId);
     return;
   }
 
@@ -1160,18 +1399,22 @@ void Client::Phase2TimeoutCallback(int group, uint64_t txnId, int status) {
   }
 
   Warning("PHASE2[%lu:%lu] group %d timed out.", client_id, txnId, group);
-  Panic("P2 timing out for txnId: %lu; honest client: %s", txnId, failureActive ? "False" : "True");
+  Panic("P2 timing out for txnId: %lu; honest client: %s", txnId,
+        failureActive ? "False" : "True");
 
   Phase2(req);
 }
 
-void Client::WritebackProcessing(PendingRequest *req){
+void Client::WritebackProcessing(PendingRequest *req) {
 
-  //////Block to handle Fast Abort case with no conflict: Reduce groups sent... and total replies sent
+  //////Block to handle Fast Abort case with no conflict: Reduce groups sent...
+  /// and total replies sent
   if (params.validateProofs && params.signedMessages) {
     if (req->decision == proto::ABORT && req->fast && !req->conflict_flag) {
       UW_ASSERT(req->fastAbortGroup >= 0);
-      UW_ASSERT(req->p1ReplySigsGrouped.grouped_sigs().find(req->fastAbortGroup) != req->p1ReplySigsGrouped.grouped_sigs().end());
+      UW_ASSERT(
+          req->p1ReplySigsGrouped.grouped_sigs().find(req->fastAbortGroup) !=
+          req->p1ReplySigsGrouped.grouped_sigs().end());
       while (req->p1ReplySigsGrouped.grouped_sigs().size() > 1) {
         auto itr = req->p1ReplySigsGrouped.mutable_grouped_sigs()->begin();
         if (itr->first == req->fastAbortGroup) {
@@ -1182,11 +1425,12 @@ void Client::WritebackProcessing(PendingRequest *req){
 
       uint64_t quorumSize = FastAbortQuorumSize(config);
       for (auto &groupSigs : *req->p1ReplySigsGrouped.mutable_grouped_sigs()) {
-        while (static_cast<uint64_t>(groupSigs.second.sigs_size()) > quorumSize) {
+        while (static_cast<uint64_t>(groupSigs.second.sigs_size()) >
+               quorumSize) {
           groupSigs.second.mutable_sigs()->RemoveLast();
         }
       }
-     }
+    }
   }
 
   req->writeback.Clear();
@@ -1195,24 +1439,29 @@ void Client::WritebackProcessing(PendingRequest *req){
   if (params.validateProofs && params.signedMessages) {
     if (req->fast && req->decision == proto::COMMIT) {
       *req->writeback.mutable_p1_sigs() = std::move(req->p1ReplySigsGrouped);
-    }
-    else if (req->fast && !req->conflict_flag && req->decision == proto::ABORT) {
+    } else if (req->fast && !req->conflict_flag &&
+               req->decision == proto::ABORT) {
       *req->writeback.mutable_p1_sigs() = std::move(req->p1ReplySigsGrouped);
-    }
-    else if (req->fast && req->conflict_flag && req->decision == proto::ABORT) {
-      if(req->conflict.has_p2_view()){
-        req->writeback.set_p2_view(req->conflict.p2_view()); //XXX not really necessary, we never check it
-      }
-      else{
-        req->writeback.set_p2_view(0); //implies that this was a p1 proof for the conflict, attaching a view anyway..
+    } else if (req->fast && req->conflict_flag &&
+               req->decision == proto::ABORT) {
+      if (req->conflict.has_p2_view()) {
+        req->writeback.set_p2_view(
+            req->conflict
+                .p2_view()); // XXX not really necessary, we never check it
+      } else {
+        req->writeback.set_p2_view(
+            0); // implies that this was a p1 proof for the conflict, attaching
+                // a view anyway..
       }
       *req->writeback.mutable_conflict() = std::move(req->conflict);
 
     } else {
       *req->writeback.mutable_p2_sigs() = std::move(req->p2ReplySigsGrouped);
-      req->writeback.set_p2_view(req->decision_view); //TODO: extend this to process other views too? Bookkeeping should only be needed
-      // for fallback though. Either combine the logic, or change it so that the orignial client issues FB function too
-
+      req->writeback.set_p2_view(
+          req->decision_view); // TODO: extend this to process other views too?
+                               // Bookkeeping should only be needed
+      // for fallback though. Either combine the logic, or change it so that the
+      // orignial client issues FB function too
     }
   }
   req->writeback.set_txn_digest(req->txnDigest);
@@ -1220,83 +1469,90 @@ void Client::WritebackProcessing(PendingRequest *req){
 
 void Client::Writeback(PendingRequest *req) {
 
-  //total_writebacks++;
-  Debug("WRITEBACK[%lu:%lu] result %s", client_id, req->id, req->decision ?  "ABORT" : "COMMIT");
+  // total_writebacks++;
+  Debug("WRITEBACK[%lu:%lu] result %s", client_id, req->id,
+        req->decision ? "ABORT" : "COMMIT");
   req->startedWriteback = true;
 
-  if (failureActive && params.injectFailure.type == InjectFailureType::CLIENT_STALL_AFTER_P1) {
-    Debug("INJECT CRASH FAILURE[%lu:%lu] with decision %d. txnDigest: %s", client_id, req->id, req->decision,
-          BytesToHex(TransactionDigest(req->txn, params.hashDigest), 16).c_str());
+  if (failureActive &&
+      params.injectFailure.type == InjectFailureType::CLIENT_STALL_AFTER_P1) {
+    Debug(
+        "INJECT CRASH FAILURE[%lu:%lu] with decision %d. txnDigest: %s",
+        client_id, req->id, req->decision,
+        BytesToHex(TransactionDigest(req->txn, params.hashDigest), 16).c_str());
     stats.Increment("inject_stall_after_p1", 1);
-    //stats.Increment("total_stall_after_p1");
-    //total_failure_injections++;
+    // stats.Increment("total_stall_after_p1");
+    // total_failure_injections++;
     FailureCleanUp(req);
     return;
   }
 
-
   transaction_status_t result;
   switch (req->decision) {
-    case proto::COMMIT: {
-      Debug("WRITEBACK[%lu:%lu][%s] COMMIT.", client_id, req->id,
+  case proto::COMMIT: {
+    Debug("WRITEBACK[%lu:%lu][%s] COMMIT.", client_id, req->id,
           BytesToHex(req->txnDigest, 16).c_str());
-      result = COMMITTED;
-      break;
-    }
-    case proto::ABORT: {
-      result = ABORTED_SYSTEM;
-      Debug("WRITEBACK[%lu:%lu][%s] ABORT.", client_id, req->id,
-          BytesToHex(req->txnDigest, 16).c_str());
-      break;
-    }
-    default: {
-      NOT_REACHABLE();
-    }
+    result = COMMITTED;
+    break;
   }
-  //this function truncates sigs for the Abort p1 fast case
+  case proto::ABORT: {
+    result = ABORTED_SYSTEM;
+    Debug("WRITEBACK[%lu:%lu][%s] ABORT.", client_id, req->id,
+          BytesToHex(req->txnDigest, 16).c_str());
+    break;
+  }
+  default: {
+    NOT_REACHABLE();
+  }
+  }
+  // this function truncates sigs for the Abort p1 fast case
   WritebackProcessing(req);
 
-  // if(!ValidateWB(req->writeback, &req->txnDigest, &req->txn)){ //FIXME: Remove: Just for testing.
+  // if(!ValidateWB(req->writeback, &req->txnDigest, &req->txn)){ //FIXME:
+  // Remove: Just for testing.
   //   Panic("Writeback Validation should never be false for own proposal");
   //   return;
   // }
 
-  //if(req->decision ==0 && client_id == 1) Panic("Testing client 1 fail stop after preparing."); //Manual testing.
+  // if(req->decision ==0 && client_id == 1) Panic("Testing client 1 fail stop
+  // after preparing."); //Manual testing.
 
   for (auto group : txn.involved_groups()) {
     bclient[group]->Writeback(client_seq_num, req->writeback);
     // bclient[group]->Writeback(client_seq_num, txn, req->txnDigest,
-    //     req->decision, req->fast, req->conflict_flag, req->conflict, req->p1ReplySigsGrouped,
-    //     req->p2ReplySigsGrouped, req->decision_view);
+    //     req->decision, req->fast, req->conflict_flag, req->conflict,
+    //     req->p1ReplySigsGrouped, req->p2ReplySigsGrouped,
+    //     req->decision_view);
   }
 
   if (!req->callbackInvoked) {
     uint64_t ns = Latency_End(&commitLatency);
-    //For Failures (byz clients), do not count any commits in order to isolate honest throughput.
-    if(failureEnabled && result == COMMITTED){ //--> breaks overall tput???
-      //stats.Increment("total_user_abort_orig_commit", 1);
+    // For Failures (byz clients), do not count any commits in order to isolate
+    // honest throughput.
+    if (failureEnabled && result == COMMITTED) { //--> breaks overall tput???
+      // stats.Increment("total_user_abort_orig_commit", 1);
       stats.Increment("total_commit_byz", 1);
       result = ABORTED_USER;
-    }
-    else if(!failureEnabled && result == COMMITTED){
+    } else if (!failureEnabled && result == COMMITTED) {
       stats.Increment("total_commit_honest", 1);
     }
-    if(failureEnabled && result == ABORTED_SYSTEM){ //--> breaks overall tput???
+    if (failureEnabled &&
+        result == ABORTED_SYSTEM) { //--> breaks overall tput???
       stats.Increment("total_abort_byz", 1);
-      //stats.Increment("total_user_abort_orig_abort", 1);
-      //result = ABORTED_USER;
-    }
-    else if(!failureEnabled && result == ABORTED_SYSTEM){ //--> breaks overall tput???
+      // stats.Increment("total_user_abort_orig_abort", 1);
+      // result = ABORTED_USER;
+    } else if (!failureEnabled &&
+               result == ABORTED_SYSTEM) { //--> breaks overall tput???
       stats.Increment("total_abort_honest", 1);
-      //result = ABORTED_USER;
+      // result = ABORTED_USER;
     }
     req->ccb(result);
     req->callbackInvoked = true;
   }
-  //XXX use StopP1 to shortcircuit all shard clients
-  // for(auto group : req->txn.involved_groups()){
-  //   bclient[group]->StopP1(req->id);
-  // }
+  // XXX use StopP1 to shortcircuit all shard clients
+  //  for(auto group : req->txn.involved_groups()){
+  //    bclient[group]->StopP1(req->id);
+  //  }
 
   ClearTxnQueries();
   this->pendingReqs.erase(req->id);
@@ -1313,18 +1569,18 @@ bool Client::IsParticipant(int g) const {
 }
 
 void Client::Abort(abort_callback acb, abort_timeout_callback atcb,
-    uint32_t timeout) {
+                   uint32_t timeout) {
   transport->Timer(0, [this, acb, atcb, timeout]() {
-    // presumably this will be called with empty callbacks as the application can
-    // immediately move on to its next transaction without waiting for confirmation
-    // that this transaction was aborted
+    // presumably this will be called with empty callbacks as the application
+    // can immediately move on to its next transaction without waiting for
+    // confirmation that this transaction was aborted
 
     uint64_t ns = Latency_End(&executeLatency);
 
     Debug("ABORT[%lu:%lu]", client_id, client_seq_num);
 
     for (auto group : txn.involved_groups()) {
-      bclient[group]->Abort(client_seq_num, txn.timestamp(), txn); 
+      bclient[group]->Abort(client_seq_num, txn.timestamp(), txn);
     }
 
     ClearTxnQueries();
@@ -1337,95 +1593,100 @@ void Client::Abort(abort_callback acb, abort_timeout_callback atcb,
 // for equivocation, always report ABORT, always delete
 void Client::FailureCleanUp(PendingRequest *req) {
 
-  //usleep(3000); //sleep X/1000 miliseconds as to not return immediately...
+  // usleep(3000); //sleep X/1000 miliseconds as to not return immediately...
   stats.Increment("inject_failure");
   stats.Increment("total_user_abort", 1);
   UW_ASSERT(failureActive);
   transaction_status_t result;
   Debug("FailureCleanUp[%lu:%lu] for type[%s]", client_id, req->id,
-    params.injectFailure.type == InjectFailureType::CLIENT_CRASH ? "CRASH" : "EQUIVOCATE");
-  if (!failureEnabled && params.injectFailure.type == InjectFailureType::CLIENT_CRASH) {
+        params.injectFailure.type == InjectFailureType::CLIENT_CRASH
+            ? "CRASH"
+            : "EQUIVOCATE");
+  if (!failureEnabled &&
+      params.injectFailure.type == InjectFailureType::CLIENT_CRASH) {
     if (req->decision == proto::COMMIT) {
       result = COMMITTED;
     } else {
       result = ABORTED_USER;
-      //result = ABORTED_SYSTEM;
+      // result = ABORTED_SYSTEM;
     }
   } else {
     // always report ABORT for equivocation
     result = ABORTED_USER;
-    //result = ABORTED_SYSTEM;
-
+    // result = ABORTED_SYSTEM;
   }
   if (!req->callbackInvoked) {
     uint64_t ns = Latency_End(&commitLatency);
     req->ccb(result);
     req->callbackInvoked = true;
   }
-  
+
   ClearTxnQueries();
   this->pendingReqs.erase(req->id);
   delete req;
 }
 
-//DEPRECATED/UNUSED
-//INSTEAD: just use the existing ForwardWriteback function from the FB, and then add ongoing txn to it..
-void Client::ForwardWBcallback(uint64_t txnId, int group, proto::ForwardWriteback &forwardWB){ 
+// DEPRECATED/UNUSED
+// INSTEAD: just use the existing ForwardWriteback function from the FB, and
+// then add ongoing txn to it..
+void Client::ForwardWBcallback(uint64_t txnId, int group,
+                               proto::ForwardWriteback &forwardWB) {
   auto itr = this->pendingReqs.find(txnId);
   if (itr == this->pendingReqs.end()) {
-    Debug("ForwardWBcallback for terminated request id %lu (txn already committed or aborted).", txnId);
+    Debug("ForwardWBcallback for terminated request id %lu (txn already "
+          "committed or aborted).",
+          txnId);
     return;
   }
   PendingRequest *req = itr->second;
 
   if (req->startedWriteback) {
-    Debug("Already started Writeback for request id %lu. Ignoring Phase2 response.",
-        txnId);
+    Debug("Already started Writeback for request id %lu. Ignoring Phase2 "
+          "response.",
+          txnId);
     return;
   }
 
   req->startedWriteback = true;
   req->decision = forwardWB.decision();
-  if(forwardWB.has_p1_sigs()){
+  if (forwardWB.has_p1_sigs()) {
     req->fast = true;
     req->p1ReplySigsGrouped.Swap(forwardWB.mutable_p1_sigs());
-  }
-  else if(forwardWB.has_p2_sigs()){
+  } else if (forwardWB.has_p2_sigs()) {
     req->fast = false;
     req->p2ReplySigsGrouped.Swap(forwardWB.mutable_p2_sigs());
-  }
-  else if(forwardWB.has_conflict()){
+  } else if (forwardWB.has_conflict()) {
     req->conflict_flag = true;
     req->conflict.Swap(forwardWB.mutable_conflict());
-  }
-  else{
+  } else {
     Panic("ForwardWB message has no proofs");
   }
 
   transaction_status_t result;
   switch (req->decision) {
-    case proto::COMMIT: {
-      Debug("WRITEBACK[%lu:%lu][%s] COMMIT.", client_id, req->id,
+  case proto::COMMIT: {
+    Debug("WRITEBACK[%lu:%lu][%s] COMMIT.", client_id, req->id,
           BytesToHex(req->txnDigest, 16).c_str());
-      result = COMMITTED;
-      break;
-    }
-    case proto::ABORT: {
-      result = ABORTED_SYSTEM;
-      Debug("WRITEBACK[%lu:%lu][%s] ABORT.", client_id, req->id,
+    result = COMMITTED;
+    break;
+  }
+  case proto::ABORT: {
+    result = ABORTED_SYSTEM;
+    Debug("WRITEBACK[%lu:%lu][%s] ABORT.", client_id, req->id,
           BytesToHex(req->txnDigest, 16).c_str());
-      break;
-    }
-    default: {
-      NOT_REACHABLE();
-    }
+    break;
+  }
+  default: {
+    NOT_REACHABLE();
+  }
   }
 
   for (auto group : txn.involved_groups()) {
-    //bclient[group]->Writeback(client_seq_num, writeback);
+    // bclient[group]->Writeback(client_seq_num, writeback);
     bclient[group]->Writeback(client_seq_num, txn, req->txnDigest,
-        req->decision, req->fast, req->conflict_flag, req->conflict, req->p1ReplySigsGrouped,
-        req->p2ReplySigsGrouped);
+                              req->decision, req->fast, req->conflict_flag,
+                              req->conflict, req->p1ReplySigsGrouped,
+                              req->p2ReplySigsGrouped);
   }
 
   if (!req->callbackInvoked) {
@@ -1433,178 +1694,219 @@ void Client::ForwardWBcallback(uint64_t txnId, int group, proto::ForwardWritebac
     req->ccb(result);
     req->callbackInvoked = true;
   }
-
 }
-///////////////////////// Fallback logic starts here ///////////////////////////////////////////////////////////////
+///////////////////////// Fallback logic starts here
+//////////////////////////////////////////////////////////////////
 
-void Client::FinishConflict(uint64_t reqId, const std::string &txnDigest, proto::Phase1 *p1){
-  //check whether we already have FB instance for this going.. dont do multiple and replace old FB.
-  if(FB_instances.find(txnDigest) != FB_instances.end()) return;
+void Client::FinishConflict(uint64_t reqId, const std::string &txnDigest,
+                            proto::Phase1 *p1) {
+  // check whether we already have FB instance for this going.. dont do multiple
+  // and replace old FB.
+  if (FB_instances.find(txnDigest) != FB_instances.end())
+    return;
 
   // i.e. did a re-do still not help. THEN start this.
 
-
-  PendingRequest* pendingFB = new PendingRequest(0, this); //Id doesnt really matter here
-  //pendingFB->txn = std::move(*txn);
-  if(params.signClientProposals){
-     pendingFB->signed_txn = std::move(p1->signed_txn());
+  PendingRequest *pendingFB =
+      new PendingRequest(0, this); // Id doesnt really matter here
+  // pendingFB->txn = std::move(*txn);
+  if (params.signClientProposals) {
+    pendingFB->signed_txn = std::move(p1->signed_txn());
   }
-  //else{ //Always move txn as well: SendingPhase1FB requires the txn. Shardclient parses txn from signed_txn and adds it to P1.
-     pendingFB->txn = std::move(p1->txn());
+  // else{ //Always move txn as well: SendingPhase1FB requires the txn.
+  // Shardclient parses txn from signed_txn and adds it to P1.
+  pendingFB->txn = std::move(p1->txn());
   //}
 
   pendingFB->txnDigest = txnDigest;
   pendingFB->has_dependent = false;
-  FB_instances[txnDigest] = pendingFB; //relies on altruism.
+  FB_instances[txnDigest] = pendingFB; // relies on altruism.
 
-  Debug("Started Phase1FB for txn: %s, for conflicting ID: %d", BytesToHex(txnDigest, 16).c_str(), reqId);
-  SendPhase1FB(reqId, txnDigest, pendingFB); //TODO change so that it does not require p1.
-  //delete p1; already deleted inside shard client PendingPhase1 destructor.
-  //delete txn; //WARNING dont delete, since shard client already deletes itself.
-  if(!failureEnabled) stats.Increment("total_honest_conflict_FB_started", 1);
+  Debug("Started Phase1FB for txn: %s, for conflicting ID: %d",
+        BytesToHex(txnDigest, 16).c_str(), reqId);
+  SendPhase1FB(reqId, txnDigest,
+               pendingFB); // TODO change so that it does not require p1.
+  // delete p1; already deleted inside shard client PendingPhase1 destructor.
+  // delete txn; //WARNING dont delete, since shard client already deletes
+  // itself.
+  if (!failureEnabled)
+    stats.Increment("total_honest_conflict_FB_started", 1);
 }
 
-bool Client::isDep(const std::string &txnDigest, proto::Transaction &Req_txn, const proto::Transaction* txn){
+bool Client::isDep(const std::string &txnDigest, proto::Transaction &Req_txn,
+                   const proto::Transaction *txn) {
 
-  //If we are caching: Check whether dependency is part of snapshot; If eager, make an exception and accept dep
-  if(params.query_params.cacheReadSet){
-    for(auto &[query_seq_num, pendingQuery]: pendingQueries){ 
-      for(auto &group: pendingQuery->involved_groups){  
-        if(bclient[group]->isValidQueryDep(query_seq_num, txnDigest, txn)) return true; 
+  // If we are caching: Check whether dependency is part of snapshot; If eager,
+  // make an exception and accept dep
+  if (params.query_params.cacheReadSet) {
+    for (auto &[query_seq_num, pendingQuery] : pendingQueries) {
+      for (auto &group : pendingQuery->involved_groups) {
+        if (bclient[group]->isValidQueryDep(query_seq_num, txnDigest, txn))
+          return true;
       }
     }
   }
 
-  for(auto & dep: Req_txn.deps()){
-   if(dep.write().prepared_txn_digest() == txnDigest){ return true;}
+  for (auto &dep : Req_txn.deps()) {
+    if (dep.write().prepared_txn_digest() == txnDigest) {
+      return true;
+    }
   }
   Panic("Don't expect to receive non-relevant Relay's in simulation");
   return false;
 }
 
-bool Client::StillActive(uint64_t conflict_id, std::string &txnDigest){
-  //check if FB instance is (still) active.
+bool Client::StillActive(uint64_t conflict_id, std::string &txnDigest) {
+  // check if FB instance is (still) active.
   auto itr = FB_instances.find(txnDigest);
-  if(itr == FB_instances.end()){
+  if (itr == FB_instances.end()) {
     Debug("FB instances %s already committed or aborted.", txnDigest.c_str());
     return false;
   }
 
-  return true; //Altruism
-  //TODO: Can be altruistic and finish FB instance even if not blocking.
+  return true; // Altruism
+  // TODO: Can be altruistic and finish FB instance even if not blocking.
   auto itrReq = pendingReqs.find(conflict_id);
-  if(itrReq == pendingReqs.end() || itrReq->second->outstandingPhase1s == 0){
-    Debug("Request id %lu already committed, aborted, or in the process of doing so.", conflict_id);
-    CleanFB(itr->second, txnDigest); //call into Shard clients to clean up state as well!
+  if (itrReq == pendingReqs.end() || itrReq->second->outstandingPhase1s == 0) {
+    Debug("Request id %lu already committed, aborted, or in the process of "
+          "doing so.",
+          conflict_id);
+    CleanFB(itr->second,
+            txnDigest); // call into Shard clients to clean up state as well!
     return false;
   }
 
-  //check if we have a dependent (has_dependent), and whether it is done? If so, call cleanCB()
-  if(itr->second->has_dependent && FB_instances.find(itr->second->dependent) == FB_instances.end()){
-    Debug("Dependent of txn[%s] already committed, aborted, or in the process of doing so.", BytesToHex(txnDigest, 64).c_str());
-    CleanFB(itr->second, txnDigest); //call into Shard clients to clean up state as well!
+  // check if we have a dependent (has_dependent), and whether it is done? If
+  // so, call cleanCB()
+  if (itr->second->has_dependent &&
+      FB_instances.find(itr->second->dependent) == FB_instances.end()) {
+    Debug("Dependent of txn[%s] already committed, aborted, or in the process "
+          "of doing so.",
+          BytesToHex(txnDigest, 64).c_str());
+    CleanFB(itr->second,
+            txnDigest); // call into Shard clients to clean up state as well!
     return false;
   }
 
   return true;
 }
 
-void Client::CleanFB(PendingRequest *pendingFB, const std::string &txnDigest, bool clean_shards){
+void Client::CleanFB(PendingRequest *pendingFB, const std::string &txnDigest,
+                     bool clean_shards) {
   Debug("Called CleanFB for txnDigest: %s ", BytesToHex(txnDigest, 64).c_str());
-  if(clean_shards){
-    for(auto group : pendingFB->txn.involved_groups()){
+  if (clean_shards) {
+    for (auto group : pendingFB->txn.involved_groups()) {
       Debug("Cleaned shard client: %d", group);
       bclient[group]->CleanFB(txnDigest);
-    } //TODO: this is not actually necessary if it is part of pendingFB destructor...
+    } // TODO: this is not actually necessary if it is part of pendingFB
+      // destructor...
   }
   FB_instances.erase(txnDigest);
   delete pendingFB;
 }
 
-void Client::EraseRelays(proto::RelayP1 &relayP1, std::string &txnDigest){
-  for(auto group : relayP1.p1().txn().involved_groups()){
+void Client::EraseRelays(proto::RelayP1 &relayP1, std::string &txnDigest) {
+  for (auto group : relayP1.p1().txn().involved_groups()) {
     bclient[group]->EraseRelay(txnDigest);
   }
 }
 
-void Client::RelayP1callback(uint64_t reqId, proto::RelayP1 &relayP1, std::string& txnDigest){
+void Client::RelayP1callback(uint64_t reqId, proto::RelayP1 &relayP1,
+                             std::string &txnDigest) {
 
   auto itr = pendingReqs.find(reqId);
-  if(itr == pendingReqs.end()){
+  if (itr == pendingReqs.end()) {
     Debug("ReqId[%d] has already completed", reqId);
-    //EraseRelays(relayP1, txnDigest);
+    // EraseRelays(relayP1, txnDigest);
     return;
   }
 
-  //const std::string &txnDigest = TransactionDigest(p1->txn(), params.hashDigest);
+  // const std::string &txnDigest = TransactionDigest(p1->txn(),
+  // params.hashDigest);
 
-  //do not start multiple FB instances for the same TX
-  //if(itr->second->req_FB_instances.find(txnDigest) != itr->second->req_FB_instances.end()) return;
-  if(Completed_transactions.find(txnDigest) != Completed_transactions.end()) return;
-  if(FB_instances.find(txnDigest) != FB_instances.end()) return;
-  //Check if the current pending request has this txn as dependency.
-  if(!isDep(txnDigest, itr->second->txn, &relayP1.p1().txn())){
-    Debug("Tx[%s] is not a dependency of ReqId: %d", BytesToHex(txnDigest, 16).c_str(), reqId);
+  // do not start multiple FB instances for the same TX
+  // if(itr->second->req_FB_instances.find(txnDigest) !=
+  // itr->second->req_FB_instances.end()) return;
+  if (Completed_transactions.find(txnDigest) != Completed_transactions.end())
+    return;
+  if (FB_instances.find(txnDigest) != FB_instances.end())
+    return;
+  // Check if the current pending request has this txn as dependency.
+  if (!isDep(txnDigest, itr->second->txn, &relayP1.p1().txn())) {
+    Debug("Tx[%s] is not a dependency of ReqId: %d",
+          BytesToHex(txnDigest, 16).c_str(), reqId);
     return;
   }
 
   proto::Phase1 *p1 = relayP1.release_p1();
 
-  if(itr->second->startFB){
-    Debug("Starting Phase1FB directly for txn: %s", BytesToHex(txnDigest, 16).c_str());
-    //itr->second->req_FB_instances.insert(txnDigest); //XXX mark connection between reqId and FB instance
+  if (itr->second->startFB) {
+    Debug("Starting Phase1FB directly for txn: %s",
+          BytesToHex(txnDigest, 16).c_str());
+    // itr->second->req_FB_instances.insert(txnDigest); //XXX mark connection
+    // between reqId and FB instance
     Phase1FB(txnDigest, reqId, p1);
-  }
-  else{
+  } else {
     Debug("Adding to FB buffer for txn: %s", BytesToHex(txnDigest, 16).c_str());
-    //itr->second->RelayP1s.emplace_back(p1, txnDigest);
+    // itr->second->RelayP1s.emplace_back(p1, txnDigest);
     itr->second->RelayP1s[txnDigest] = p1;
   }
 }
 
-void Client::RelayP1TimeoutCallback(uint64_t reqId){
+void Client::RelayP1TimeoutCallback(uint64_t reqId) {
   auto itr = pendingReqs.find(reqId);
-  if(itr == pendingReqs.end()){
+  if (itr == pendingReqs.end()) {
     Debug("ClientSeqNum[%d] has already completed", reqId);
     return;
   }
 
   itr->second->startFB = true;
-  for(auto p1_pair : itr->second->RelayP1s){
+  for (auto p1_pair : itr->second->RelayP1s) {
     Debug("Starting Phase1FB from FB buffer for dependent txnId: %d", reqId);
-    //itr->second->req_FB_instances.insert(p1_pair.first); //XXX mark connection between reqId and FB instance
+    // itr->second->req_FB_instances.insert(p1_pair.first); //XXX mark
+    // connection between reqId and FB instance
     Phase1FB(p1_pair.first, reqId, p1_pair.second);
   }
   //
 }
 
 // Additional Relay FB handler for Fallbacks for dependencies of dependencies.
-void Client::RelayP1callbackFB(uint64_t reqId, const std::string &dependent_txnDigest, proto::RelayP1 &relayP1, std::string& txnDigest){
-  //dont need to respect a time out here?
+void Client::RelayP1callbackFB(uint64_t reqId,
+                               const std::string &dependent_txnDigest,
+                               proto::RelayP1 &relayP1,
+                               std::string &txnDigest) {
+  // dont need to respect a time out here?
 
   auto itr = pendingReqs.find(reqId);
-  if(itr == pendingReqs.end()){
+  if (itr == pendingReqs.end()) {
     Debug("ReqId[%d] has already completed", reqId);
-    //EraseRelays(relayP1, txnDigest);
+    // EraseRelays(relayP1, txnDigest);
     return;
   }
 
   auto itrFB = FB_instances.find(dependent_txnDigest);
-  if(itrFB == FB_instances.end()){
-    Debug("FB txn[%s] has already completed", BytesToHex(dependent_txnDigest, 64).c_str());
-    //EraseRelays(relayP1, txnDigest);
+  if (itrFB == FB_instances.end()) {
+    Debug("FB txn[%s] has already completed",
+          BytesToHex(dependent_txnDigest, 64).c_str());
+    // EraseRelays(relayP1, txnDigest);
     return;
   }
 
-  //const std::string &txnDigest = TransactionDigest(p1->txn(), params.hashDigest);
+  // const std::string &txnDigest = TransactionDigest(p1->txn(),
+  // params.hashDigest);
 
-  //do not start multiple FB instances for the same TX
-  //if(itr->second->req_FB_instances.find(txnDigest) != itr->second->req_FB_instances.end()) return; //Unlike FB_instances, this set only gets erased upon Request completion
-  if(Completed_transactions.find(txnDigest) != Completed_transactions.end()) return;
-  if(FB_instances.find(txnDigest) != FB_instances.end()) return;
-   //Check if the current pending request has this txn as dependency.
-  if(!isDep(txnDigest, itrFB->second->txn, &relayP1.p1().txn())){
-    Debug("Tx[%s] is not a dependency of ReqId: %d", BytesToHex(txnDigest, 128).c_str(), reqId);
+  // do not start multiple FB instances for the same TX
+  // if(itr->second->req_FB_instances.find(txnDigest) !=
+  // itr->second->req_FB_instances.end()) return; //Unlike FB_instances, this
+  // set only gets erased upon Request completion
+  if (Completed_transactions.find(txnDigest) != Completed_transactions.end())
+    return;
+  if (FB_instances.find(txnDigest) != FB_instances.end())
+    return;
+  // Check if the current pending request has this txn as dependency.
+  if (!isDep(txnDigest, itrFB->second->txn, &relayP1.p1().txn())) {
+    Debug("Tx[%s] is not a dependency of ReqId: %d",
+          BytesToHex(txnDigest, 128).c_str(), reqId);
     return;
   }
 
@@ -1612,23 +1914,30 @@ void Client::RelayP1callbackFB(uint64_t reqId, const std::string &dependent_txnD
 
   Debug("Starting Phase1FB for deeper depth right away");
 
-  //itr->second->req_FB_instances.insert(txnDigest); //XXX mark connection between reqId and FB instance
+  // itr->second->req_FB_instances.insert(txnDigest); //XXX mark connection
+  // between reqId and FB instance
   Phase1FB_deeper(reqId, txnDigest, dependent_txnDigest, p1);
 }
 
+void Client::Phase1FB(const std::string &txnDigest, uint64_t conflict_id,
+                      proto::Phase1 *p1) { // passes callbacks
 
-void Client::Phase1FB(const std::string &txnDigest, uint64_t conflict_id, proto::Phase1 *p1){  //passes callbacks
+  Debug("Started Phase1FB for txn: %s, for dependent ID: %d",
+        BytesToHex(txnDigest, 16).c_str(), conflict_id);
 
-  Debug("Started Phase1FB for txn: %s, for dependent ID: %d", BytesToHex(txnDigest, 16).c_str(), conflict_id);
-
-  PendingRequest* pendingFB = new PendingRequest(p1->req_id(), this); //Id doesnt really matter here
-  if(params.signClientProposals){
-     pendingFB->signed_txn = std::move(p1->signed_txn()); 
-     // QUESTION: Should Clients verify signed txn they receive themselves before proposing them for fallback?
-     // ANSWER: No need. If a byz replica forwarded a txn with a wrong signature, then the client is doing some wasteful work by starting a FB that will be rejected, but it doesnt affect anything else.
+  PendingRequest *pendingFB =
+      new PendingRequest(p1->req_id(), this); // Id doesnt really matter here
+  if (params.signClientProposals) {
+    pendingFB->signed_txn = std::move(p1->signed_txn());
+    // QUESTION: Should Clients verify signed txn they receive themselves before
+    // proposing them for fallback? ANSWER: No need. If a byz replica forwarded
+    // a txn with a wrong signature, then the client is doing some wasteful work
+    // by starting a FB that will be rejected, but it doesnt affect anything
+    // else.
   }
-  //else{ //Always move txn as well: SendingPhase1FB requires the txn. Shardclient parses txn from signed_txn and adds it to P1.
-     pendingFB->txn = std::move(p1->txn());
+  // else{ //Always move txn as well: SendingPhase1FB requires the txn.
+  // Shardclient parses txn from signed_txn and adds it to P1.
+  pendingFB->txn = std::move(p1->txn());
   //}
   pendingFB->txnDigest = txnDigest;
   pendingFB->has_dependent = false;
@@ -1637,25 +1946,31 @@ void Client::Phase1FB(const std::string &txnDigest, uint64_t conflict_id, proto:
   SendPhase1FB(conflict_id, txnDigest, pendingFB);
   delete p1;
 
-  if(!failureEnabled){
+  if (!failureEnabled) {
     stats.Increment("total_honest_dep_FB_started", 1);
     // if(conflict_ids.insert(conflict_id).second){
     //   stats.Increment("total_honest_p1_needed_FB", 1);
     // }
   }
-
 }
 
-void Client::Phase1FB_deeper(uint64_t conflict_id, const std::string &txnDigest, const std::string &dependent_txnDigest, proto::Phase1 *p1){
+void Client::Phase1FB_deeper(uint64_t conflict_id, const std::string &txnDigest,
+                             const std::string &dependent_txnDigest,
+                             proto::Phase1 *p1) {
 
-  Debug("Starting Phase1FB for deeper depth. Original conflict id: %d, Dependent txnDigest: %s, txnDigest of tx causing the stall %s", conflict_id, BytesToHex(dependent_txnDigest, 16).c_str(), BytesToHex(txnDigest, 16).c_str());
+  Debug("Starting Phase1FB for deeper depth. Original conflict id: %d, "
+        "Dependent txnDigest: %s, txnDigest of tx causing the stall %s",
+        conflict_id, BytesToHex(dependent_txnDigest, 16).c_str(),
+        BytesToHex(txnDigest, 16).c_str());
 
-  PendingRequest* pendingFB = new PendingRequest(p1->req_id(), this); //Id doesnt really matter here
-  if(params.signClientProposals){
-     pendingFB->signed_txn = std::move(p1->signed_txn());
+  PendingRequest *pendingFB =
+      new PendingRequest(p1->req_id(), this); // Id doesnt really matter here
+  if (params.signClientProposals) {
+    pendingFB->signed_txn = std::move(p1->signed_txn());
   }
-  //else{ //Always move txn as well: SendingPhase1FB requires the txn. Shardclient parses txn from signed_txn and adds it to P1.
-     pendingFB->txn = std::move(p1->txn());
+  // else{ //Always move txn as well: SendingPhase1FB requires the txn.
+  // Shardclient parses txn from signed_txn and adds it to P1.
+  pendingFB->txn = std::move(p1->txn());
   //}
   pendingFB->txnDigest = txnDigest;
   pendingFB->has_dependent = true;
@@ -1665,166 +1980,217 @@ void Client::Phase1FB_deeper(uint64_t conflict_id, const std::string &txnDigest,
   SendPhase1FB(conflict_id, txnDigest, pendingFB);
   delete p1;
 
-  Debug("PendingFB request tx:[%s] has default decision: %s", BytesToHex(txnDigest, 16).c_str(), pendingFB->decision ? "ABORT" : "COMMIT");
-  if(!failureEnabled) stats.Increment("total_honest_deeper_FB_started", 1);
+  Debug("PendingFB request tx:[%s] has default decision: %s",
+        BytesToHex(txnDigest, 16).c_str(),
+        pendingFB->decision ? "ABORT" : "COMMIT");
+  if (!failureEnabled)
+    stats.Increment("total_honest_deeper_FB_started", 1);
 }
 
-void Client::SendPhase1FB(uint64_t conflict_id, const std::string &txnDigest, PendingRequest *pendingFB){
-  Debug("trying to send Phase1FB for txn %s", BytesToHex(txnDigest, 16).c_str());
+void Client::SendPhase1FB(uint64_t conflict_id, const std::string &txnDigest,
+                          PendingRequest *pendingFB) {
+  Debug("trying to send Phase1FB for txn %s",
+        BytesToHex(txnDigest, 16).c_str());
   pendingFB->logGrp = GetLogGroup(pendingFB->txn, txnDigest);
   for (auto group : pendingFB->txn.involved_groups()) {
-      Debug("Client %d, Send Phase1FB for txn %s to involved group %d", client_id, BytesToHex(txnDigest, 16).c_str(), group);
+    Debug("Client %d, Send Phase1FB for txn %s to involved group %d", client_id,
+          BytesToHex(txnDigest, 16).c_str(), group);
 
-    //define all the callbacks here
-      //bind conflict_id (i.e. the top level dependent) to all, so we can check if it is still waiting.
-      //TODO: dont bind it but make it a field of the PendingRequest..
-      auto p1Relay = std::bind(&Client::RelayP1callbackFB, this, conflict_id, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3);
+    // define all the callbacks here
+    // bind conflict_id (i.e. the top level dependent) to all, so we can check
+    // if it is still waiting.
+    // TODO: dont bind it but make it a field of the PendingRequest..
+    auto p1Relay = std::bind(&Client::RelayP1callbackFB, this, conflict_id,
+                             std::placeholders::_1, std::placeholders::_2,
+                             std::placeholders::_3);
 
-      auto p1fbA = std::bind(&Client::Phase1FBcallbackA, this, conflict_id, txnDigest, group, std::placeholders::_1,
-          std::placeholders::_2, std::placeholders::_3, std::placeholders::_4, std::placeholders::_5);
-      auto p1fbB = std::bind(&Client::Phase1FBcallbackB, this, conflict_id, txnDigest, group, std::placeholders::_1,
-        std::placeholders::_2);
-      auto p2fb = std::bind(&Client::Phase2FBcallback, this, conflict_id, txnDigest, group, std::placeholders::_1,
-        std::placeholders::_2, std::placeholders::_3);
-      auto wb = std::bind(&Client::WritebackFBcallback, this, conflict_id, txnDigest, std::placeholders::_1);
-      auto invoke = std::bind(&Client::InvokeFBcallback, this, conflict_id, txnDigest, group); //technically only needed at logging shard
+    auto p1fbA = std::bind(&Client::Phase1FBcallbackA, this, conflict_id,
+                           txnDigest, group, std::placeholders::_1,
+                           std::placeholders::_2, std::placeholders::_3,
+                           std::placeholders::_4, std::placeholders::_5);
+    auto p1fbB =
+        std::bind(&Client::Phase1FBcallbackB, this, conflict_id, txnDigest,
+                  group, std::placeholders::_1, std::placeholders::_2);
+    auto p2fb = std::bind(&Client::Phase2FBcallback, this, conflict_id,
+                          txnDigest, group, std::placeholders::_1,
+                          std::placeholders::_2, std::placeholders::_3);
+    auto wb = std::bind(&Client::WritebackFBcallback, this, conflict_id,
+                        txnDigest, std::placeholders::_1);
+    auto invoke =
+        std::bind(&Client::InvokeFBcallback, this, conflict_id, txnDigest,
+                  group); // technically only needed at logging shard
 
-      //bclient[group]->Phase1FB(p1->req_id(), pendingFB->txn, txnDigest, p1Relay, p1fbA, p1fbB, p2fb, wb, invoke);
-      bclient[group]->Phase1FB(client_id, pendingFB->txn, pendingFB->signed_txn, txnDigest, p1Relay, p1fbA, p1fbB, p2fb, wb, invoke, pendingFB->logGrp);
+    // bclient[group]->Phase1FB(p1->req_id(), pendingFB->txn, txnDigest,
+    // p1Relay, p1fbA, p1fbB, p2fb, wb, invoke);
+    bclient[group]->Phase1FB(client_id, pendingFB->txn, pendingFB->signed_txn,
+                             txnDigest, p1Relay, p1fbA, p1fbB, p2fb, wb, invoke,
+                             pendingFB->logGrp);
 
-      pendingFB->outstandingPhase1s++;
-    }
+    pendingFB->outstandingPhase1s++;
+  }
   Debug("Sent all Phase1FB for txn[%s]", BytesToHex(txnDigest, 64).c_str());
   return;
-
 }
 
+// If Receive a finished FB just forward it.
+void Client::WritebackFBcallback(uint64_t conflict_id, std::string txnDigest,
+                                 proto::Writeback &wb) {
+  Debug("Received WritebackFB callback fast for txn: %s",
+        BytesToHex(txnDigest, 16).c_str());
 
-
-//If Receive a finished FB just forward it.
-void Client::WritebackFBcallback(uint64_t conflict_id, std::string txnDigest, proto::Writeback &wb) {
-  Debug("Received WritebackFB callback fast for txn: %s", BytesToHex(txnDigest, 16).c_str());
-
-  if(!StillActive(conflict_id, txnDigest)) return;
+  if (!StillActive(conflict_id, txnDigest))
+    return;
   auto itr = FB_instances.find(txnDigest);
   PendingRequest *pendingFB = itr->second;
-  if(pendingFB->startedWriteback) return;
+  if (pendingFB->startedWriteback)
+    return;
   pendingFB->startedWriteback = true;
 
-  Debug("Forwarding WritebackFB fast for txn: %s",BytesToHex(txnDigest, 16).c_str());
-  //Note: Currently optimistically just accepting forwarded Writeback and stopping Fallback.
-  //Note: TODO: May want to pessimistically validate WB message: Don't need to validate it for safety! (replicas will verify it). Only for liveness, since currently we stop fallback processing. Either verify or continue FB processing.
-  //TODO: Would want it to be asynchronous though, such that it doesn't block the client from receiving and processing its ongoing tx.
-  // if(!ValidateWB(wb, &txnDigest, &pendingFB->txn)){
-  //   Panic("Wb validation should never be false while testing without byz replica sending corrupt message");
-  //   return;
-  // }
-  
-  //CHECK THAT fbtxn matches digest? Not necessary if we just set the contents ourselves.
-  //Also: server side message might not include txn, hence include it ourselves just in case.
+  Debug("Forwarding WritebackFB fast for txn: %s",
+        BytesToHex(txnDigest, 16).c_str());
+  // Note: Currently optimistically just accepting forwarded Writeback and
+  // stopping Fallback. Note: TODO: May want to pessimistically validate WB
+  // message: Don't need to validate it for safety! (replicas will verify it).
+  // Only for liveness, since currently we stop fallback processing. Either
+  // verify or continue FB processing.
+  // TODO: Would want it to be asynchronous though, such that it doesn't block
+  // the client from receiving and processing its ongoing tx.
+  //  if(!ValidateWB(wb, &txnDigest, &pendingFB->txn)){
+  //    Panic("Wb validation should never be false while testing without byz
+  //    replica sending corrupt message"); return;
+  //  }
+
+  // CHECK THAT fbtxn matches digest? Not necessary if we just set the contents
+  // ourselves. Also: server side message might not include txn, hence include
+  // it ourselves just in case.
   *wb.mutable_txn() = std::move(pendingFB->txn);
 
- for (auto group : wb.txn().involved_groups()) {
-   bclient[group]->WritebackFB_fast(txnDigest, wb);
- }
- //delete FB instance. (doing so early will make sure other ShardClients dont waste work.)
- Completed_transactions.insert(txnDigest);
- CleanFB(pendingFB, txnDigest, false); //NOTE: In this case, shard clients clean themselves (in order to support the move operator)
+  for (auto group : wb.txn().involved_groups()) {
+    bclient[group]->WritebackFB_fast(txnDigest, wb);
+  }
+  // delete FB instance. (doing so early will make sure other ShardClients dont
+  // waste work.)
+  Completed_transactions.insert(txnDigest);
+  CleanFB(pendingFB, txnDigest,
+          false); // NOTE: In this case, shard clients clean themselves (in
+                  // order to support the move operator)
 }
 
-bool Client::ValidateWB(proto::Writeback &msg, std::string *txnDigest, proto::Transaction *txn){
-  Debug("Validating Writeback msg for txn %s", BytesToHex(*txnDigest, 16).c_str());
-  //Note: Does not support multithreading or batchVerification currently.
+bool Client::ValidateWB(proto::Writeback &msg, std::string *txnDigest,
+                        proto::Transaction *txn) {
+  Debug("Validating Writeback msg for txn %s",
+        BytesToHex(*txnDigest, 16).c_str());
+  // Note: Does not support multithreading or batchVerification currently.
 
   // 1) check that txnDigest matches txn content
-  if (msg.has_txn_digest()){
-    if(*txnDigest != msg.txn_digest()){
+  if (msg.has_txn_digest()) {
+    if (*txnDigest != msg.txn_digest()) {
       std::cerr << "txnDigs don't match" << std::endl;
       return false;
-    } 
-  }
-  else if(msg.has_txn()){
-    if(*txnDigest != TransactionDigest(msg.txn(), params.hashDigest)){
+    }
+  } else if (msg.has_txn()) {
+    if (*txnDigest != TransactionDigest(msg.txn(), params.hashDigest)) {
       std::cerr << "txnDig doesnt match Transaction" << std::endl;
       return false;
-    } 
-  }
-  else {
+    }
+  } else {
     Panic("Should have txn or txn_digest");
     return false;
   }
-  
-   // 2) check that sigs match decision and txnDigest
+
+  // 2) check that sigs match decision and txnDigest
   if (params.validateProofs) {
     if (params.signedMessages && msg.has_p1_sigs()) {
-        proto::ConcurrencyControl::Result myResult;
+      proto::ConcurrencyControl::Result myResult;
 
-        if (!ValidateP1Replies(msg.decision(), true, txn, txnDigest, msg.p1_sigs(), keyManager, config, -1, myResult, verifier)) {
-              Debug("WRITEBACK[%s] Failed to validate P1 replies for fast decision %s.", BytesToHex(*txnDigest, 16).c_str(), (msg.decision() == proto::CommitDecision::COMMIT) ? "commit" : "abort");
-              std::cerr << "Wb failed P1 fast validation" << std::endl;
-              return false;
-        }   
-    }
-    else if (params.signedMessages && msg.has_p2_sigs()) {
-        if(!msg.has_p2_view()) return false;
-        proto::CommitDecision myDecision;
-  
-        if (!ValidateP2Replies(msg.decision(), msg.p2_view(), txn, txnDigest, msg.p2_sigs(), keyManager, config, -1, myDecision, verifier)) {
-                Debug("WRITEBACK[%s] Failed to validate P2 replies for decision %s.", BytesToHex(*txnDigest, 16).c_str(), (msg.decision() == proto::CommitDecision::COMMIT) ? "commit" : "abort");
-                std::cerr << "Wb failed P2 slow validation" << std::endl;
-                return false;
-        }
-    } 
-    else if (msg.decision() == proto::ABORT && msg.has_conflict()) {
-      std::string committedTxnDigest = TransactionDigest(msg.conflict().txn(), params.hashDigest);
-
-      if (!ValidateCommittedConflict(msg.conflict(), &committedTxnDigest, txn, txnDigest, params.signedMessages, keyManager, config, verifier)) {
-            Debug("WRITEBACK[%s] Failed to validate committed conflict for fast abort.", BytesToHex(*txnDigest, 16).c_str());
-            std::cerr << "Wb failed conflict validation" << endl;
-            return false;
+      if (!ValidateP1Replies(msg.decision(), true, txn, txnDigest,
+                             msg.p1_sigs(), keyManager, config, -1, myResult,
+                             verifier)) {
+        Debug(
+            "WRITEBACK[%s] Failed to validate P1 replies for fast decision %s.",
+            BytesToHex(*txnDigest, 16).c_str(),
+            (msg.decision() == proto::CommitDecision::COMMIT) ? "commit"
+                                                              : "abort");
+        std::cerr << "Wb failed P1 fast validation" << std::endl;
+        return false;
       }
-    } 
-    else if (params.signedMessages) {
-      Debug("WRITEBACK[%s] decision %d, has_p1_sigs %d, has_p2_sigs %d, and has_conflict %d.", BytesToHex(*txnDigest, 16).c_str(), msg.decision(), msg.has_p1_sigs(), msg.has_p2_sigs(), msg.has_conflict());
+    } else if (params.signedMessages && msg.has_p2_sigs()) {
+      if (!msg.has_p2_view())
+        return false;
+      proto::CommitDecision myDecision;
+
+      if (!ValidateP2Replies(msg.decision(), msg.p2_view(), txn, txnDigest,
+                             msg.p2_sigs(), keyManager, config, -1, myDecision,
+                             verifier)) {
+        Debug("WRITEBACK[%s] Failed to validate P2 replies for decision %s.",
+              BytesToHex(*txnDigest, 16).c_str(),
+              (msg.decision() == proto::CommitDecision::COMMIT) ? "commit"
+                                                                : "abort");
+        std::cerr << "Wb failed P2 slow validation" << std::endl;
+        return false;
+      }
+    } else if (msg.decision() == proto::ABORT && msg.has_conflict()) {
+      std::string committedTxnDigest =
+          TransactionDigest(msg.conflict().txn(), params.hashDigest);
+
+      if (!ValidateCommittedConflict(msg.conflict(), &committedTxnDigest, txn,
+                                     txnDigest, params.signedMessages,
+                                     keyManager, config, verifier)) {
+        Debug("WRITEBACK[%s] Failed to validate committed conflict for fast "
+              "abort.",
+              BytesToHex(*txnDigest, 16).c_str());
+        std::cerr << "Wb failed conflict validation" << endl;
+        return false;
+      }
+    } else if (params.signedMessages) {
+      Debug("WRITEBACK[%s] decision %d, has_p1_sigs %d, has_p2_sigs %d, and "
+            "has_conflict %d.",
+            BytesToHex(*txnDigest, 16).c_str(), msg.decision(),
+            msg.has_p1_sigs(), msg.has_p2_sigs(), msg.has_conflict());
       Panic("Wb without proof.");
       return false;
     }
-  }  
+  }
   return true;
 }
 
+void Client::Phase1FBcallbackA(uint64_t conflict_id, std::string txnDigest,
+                               int64_t group, proto::CommitDecision decision,
+                               bool fast, bool conflict_flag,
+                               const proto::CommittedProof &conflict,
+                               const std::map<proto::ConcurrencyControl::Result,
+                                              proto::Signatures> &sigs) {
 
+  Debug("Phase1FBcallbackA called for txn[%s] with decision: %d",
+        BytesToHex(txnDigest, 64).c_str(), decision);
 
-void Client::Phase1FBcallbackA(uint64_t conflict_id, std::string txnDigest, int64_t group,
-  proto::CommitDecision decision, bool fast, bool conflict_flag,
-  const proto::CommittedProof &conflict,
-  const std::map<proto::ConcurrencyControl::Result, proto::Signatures> &sigs)  {
+  if (!StillActive(conflict_id, txnDigest))
+    return;
 
-  Debug("Phase1FBcallbackA called for txn[%s] with decision: %d", BytesToHex(txnDigest, 64).c_str(), decision);
-
-  if(!StillActive(conflict_id, txnDigest)) return;
-
-  PendingRequest* req = FB_instances[txnDigest];
+  PendingRequest *req = FB_instances[txnDigest];
 
   if (req->startedPhase2 || req->startedWriteback) {
-    Debug("Already started Phase2FB/WritebackFB for tx [%s[]. Ignoring Phase1 callback"
-        " response from group %d.", BytesToHex(txnDigest, 128).c_str(), group);
+    Debug("Already started Phase2FB/WritebackFB for tx [%s[]. Ignoring Phase1 "
+          "callback"
+          " response from group %d.",
+          BytesToHex(txnDigest, 128).c_str(), group);
     return;
   }
 
-  Debug("Processing Phase1CallbackA for txn: %s with decision %d", BytesToHex(txnDigest, 16).c_str(), decision);
-  Phase1CallbackProcessing(req, group, decision, fast, conflict_flag, conflict, sigs);
+  Debug("Processing Phase1CallbackA for txn: %s with decision %d",
+        BytesToHex(txnDigest, 16).c_str(), decision);
+  Phase1CallbackProcessing(req, group, decision, fast, conflict_flag, conflict,
+                           sigs);
 
   if (req->outstandingPhase1s == 0) {
     FBHandleAllPhase1Received(req);
   }
-  //TODO: find mechanism to include this work in InvokeFB too.
+  // TODO: find mechanism to include this work in InvokeFB too.
 }
 
-
-
 void Client::FBHandleAllPhase1Received(PendingRequest *req) {
-  Debug("FB instance [%s]: All PHASE1's received", BytesToHex(req->txnDigest, 16).c_str());
+  Debug("FB instance [%s]: All PHASE1's received",
+        BytesToHex(req->txnDigest, 16).c_str());
   if (req->fast) {
     WritebackFB(req);
   } else {
@@ -1833,82 +2199,94 @@ void Client::FBHandleAllPhase1Received(PendingRequest *req) {
   }
 }
 
+// XXX cannot just send decision, but need to send whole p2 replies because the
+// decision views might differ making it of type bool so that shard client does
+// not require req Id dependency
+bool Client::Phase1FBcallbackB(uint64_t conflict_id, std::string txnDigest,
+                               int64_t group, proto::CommitDecision decision,
+                               const proto::P2Replies &p2replies) {
 
-//XXX cannot just send decision, but need to send whole p2 replies because the decision views might differ
-//making it of type bool so that shard client does not require req Id dependency
-bool Client::Phase1FBcallbackB(uint64_t conflict_id, std::string txnDigest, int64_t group,
-   proto::CommitDecision decision, const proto::P2Replies &p2replies){
+  Debug("Phase1FBcallbackB called for txn[%s] with decision %d",
+        BytesToHex(txnDigest, 64).c_str(), decision);
 
-     Debug("Phase1FBcallbackB called for txn[%s] with decision %d", BytesToHex(txnDigest, 64).c_str(), decision);
-
-     // check if conflict transaction still active
-    if(!StillActive(conflict_id, txnDigest)) return false;
-
-    PendingRequest* req = FB_instances[txnDigest];
-
-    if (req->startedPhase2 || req->startedWriteback) {
-      Debug("Already started Phase2FB/WritebackFB for tx [%s[]. Ignoring Phase1 callback"
-          " response from group %d.", BytesToHex(txnDigest, 128).c_str(), group);
-      return true;
-    }
-
-    req->decision = decision;
-    req->p2Replies = std::move(p2replies);
-    //WARNING: CURRENTLY HAVE PHASE1FBCALLBACK B DISABLED. BUT STILL USING P2Replies for Invoke.
-    return true;
-       //Issue P2FB.
-    Phase2FB(req);
-
-    return true;
-        //TODO: find a mechanism to include this work in InvokeFB too.
-}
-
-void Client::Phase2FB(PendingRequest *req){
-
-      Debug("Sending Phase2FB for txn[%s] with decision: %d", BytesToHex(req->txnDigest, 16).c_str(), req->decision);
-
-      const proto::Transaction &fb_txn = req->txn;
-
-      // uint8_t groupIdx = req->txnDigest[0];
-      // groupIdx = groupIdx % fb_txn.involved_groups_size();
-      // UW_ASSERT(groupIdx < fb_txn.involved_groups_size());
-      // int64_t logGroup = fb_txn.involved_groups(groupIdx);
-      Debug("PHASE2FB[%lu][%s] logging to group %ld", client_id,
-          BytesToHex(req->txnDigest, 16).c_str(), req->logGrp);
-
-      //CASE THAT CHECKS FOR P2 REPLIES AS VALID  PROOFS
-      // check if p2Replies is of size f+1
-      if(req->p2Replies.p2replies().size() >= config->f +1){
-        req->startedPhase2 = true;
-        bclient[req->logGrp]->Phase2FB(req->id, req->txn, req->txnDigest, req->decision, req->p2Replies);
-      }
-      else{ //OTHERWISE: Use p1 sigs just like in normal case.
-        Phase2Processing(req);
-
-        bclient[req->logGrp]->Phase2FB(req->id, req->txn, req->txnDigest, req->decision,
-          req->p1ReplySigsGrouped);
-      }
-      for (auto group : req->txn.involved_groups()) {
-        bclient[group]->StopP1FB(req->txnDigest);
-      }
-}
-
-//TODO: extend with view.
-void Client::Phase2FBcallback(uint64_t conflict_id, std::string txnDigest, int64_t group,
-   proto::CommitDecision decision, const proto::Signatures &p2ReplySigs, uint64_t view){
-
-  Debug("Phase2FBcallback called for txn[%s] with decision %d", BytesToHex(txnDigest, 16).c_str(), decision);
   // check if conflict transaction still active
-  if(!StillActive(conflict_id, txnDigest)) return;
+  if (!StillActive(conflict_id, txnDigest))
+    return false;
+
+  PendingRequest *req = FB_instances[txnDigest];
+
+  if (req->startedPhase2 || req->startedWriteback) {
+    Debug("Already started Phase2FB/WritebackFB for tx [%s[]. Ignoring Phase1 "
+          "callback"
+          " response from group %d.",
+          BytesToHex(txnDigest, 128).c_str(), group);
+    return true;
+  }
+
+  req->decision = decision;
+  req->p2Replies = std::move(p2replies);
+  // WARNING: CURRENTLY HAVE PHASE1FBCALLBACK B DISABLED. BUT STILL USING
+  // P2Replies for Invoke.
+  return true;
+  // Issue P2FB.
+  Phase2FB(req);
+
+  return true;
+  // TODO: find a mechanism to include this work in InvokeFB too.
+}
+
+void Client::Phase2FB(PendingRequest *req) {
+
+  Debug("Sending Phase2FB for txn[%s] with decision: %d",
+        BytesToHex(req->txnDigest, 16).c_str(), req->decision);
+
+  const proto::Transaction &fb_txn = req->txn;
+
+  // uint8_t groupIdx = req->txnDigest[0];
+  // groupIdx = groupIdx % fb_txn.involved_groups_size();
+  // UW_ASSERT(groupIdx < fb_txn.involved_groups_size());
+  // int64_t logGroup = fb_txn.involved_groups(groupIdx);
+  Debug("PHASE2FB[%lu][%s] logging to group %ld", client_id,
+        BytesToHex(req->txnDigest, 16).c_str(), req->logGrp);
+
+  // CASE THAT CHECKS FOR P2 REPLIES AS VALID  PROOFS
+  //  check if p2Replies is of size f+1
+  if (req->p2Replies.p2replies().size() >= config->f + 1) {
+    req->startedPhase2 = true;
+    bclient[req->logGrp]->Phase2FB(req->id, req->txn, req->txnDigest,
+                                   req->decision, req->p2Replies);
+  } else { // OTHERWISE: Use p1 sigs just like in normal case.
+    Phase2Processing(req);
+
+    bclient[req->logGrp]->Phase2FB(req->id, req->txn, req->txnDigest,
+                                   req->decision, req->p1ReplySigsGrouped);
+  }
+  for (auto group : req->txn.involved_groups()) {
+    bclient[group]->StopP1FB(req->txnDigest);
+  }
+}
+
+// TODO: extend with view.
+void Client::Phase2FBcallback(uint64_t conflict_id, std::string txnDigest,
+                              int64_t group, proto::CommitDecision decision,
+                              const proto::Signatures &p2ReplySigs,
+                              uint64_t view) {
+
+  Debug("Phase2FBcallback called for txn[%s] with decision %d",
+        BytesToHex(txnDigest, 16).c_str(), decision);
+  // check if conflict transaction still active
+  if (!StillActive(conflict_id, txnDigest))
+    return;
 
   Debug("PHASE2FB[%lu:%s] callback", client_id, txnDigest.c_str());
 
-  PendingRequest* req = FB_instances[txnDigest];
+  PendingRequest *req = FB_instances[txnDigest];
 
   if (req->startedWriteback) {
-      Debug("Already started WritebackFB for FB request id %s. Ignoring Phase2FB response.",
-               txnDigest.c_str());
-          return;
+    Debug("Already started WritebackFB for FB request id %s. Ignoring Phase2FB "
+          "response.",
+          txnDigest.c_str());
+    return;
   }
   req->decision = decision;
   req->decision_view = view;
@@ -1921,9 +2299,11 @@ void Client::Phase2FBcallback(uint64_t conflict_id, std::string txnDigest, int64
   WritebackFB(req);
 }
 
-void Client::WritebackFB(PendingRequest *req){
+void Client::WritebackFB(PendingRequest *req) {
 
-  Debug("WRITEBACKFB[%lu:%s] result: %s", client_id, BytesToHex(req->txnDigest, 16).c_str(), req->decision ? "ABORT" : "COMMIT");
+  Debug("WRITEBACKFB[%lu:%s] result: %s", client_id,
+        BytesToHex(req->txnDigest, 16).c_str(),
+        req->decision ? "ABORT" : "COMMIT");
 
   req->startedWriteback = true;
   WritebackProcessing(req);
@@ -1931,51 +2311,56 @@ void Client::WritebackFB(PendingRequest *req){
   for (auto group : req->txn.involved_groups()) {
     bclient[group]->WritebackFB(req->txnDigest, req->writeback);
     // bclient[group]->Writeback(0, req->txn, req->txnDigest,
-    //     req->decision, req->fast, req->conflict_flag, req->conflict, req->p1ReplySigsGrouped,
-    //     req->p2ReplySigsGrouped, req->decision_view);
+    //     req->decision, req->fast, req->conflict_flag, req->conflict,
+    //     req->p1ReplySigsGrouped, req->p2ReplySigsGrouped,
+    //     req->decision_view);
   }
-  //delete FB instance. (doing so early will make sure other ShardClients dont waste work.)
+  // delete FB instance. (doing so early will make sure other ShardClients dont
+  // waste work.)
   Completed_transactions.insert(req->txnDigest);
   CleanFB(req, req->txnDigest);
 }
 
-//TODO: add view here:
-bool Client::InvokeFBcallback(uint64_t conflict_id, std::string txnDigest, int64_t group){
-  //Just send InvokeFB request to the logging shard. but only if the tx has not already finished. and only if we have already sent a P2
-  //Otherwise, Include the P2 here!.
+// TODO: add view here:
+bool Client::InvokeFBcallback(uint64_t conflict_id, std::string txnDigest,
+                              int64_t group) {
+  // Just send InvokeFB request to the logging shard. but only if the tx has not
+  // already finished. and only if we have already sent a P2 Otherwise, Include
+  // the P2 here!.
 
   // check if conflict transaction still active
-  if(!StillActive(conflict_id, txnDigest)) return false;
+  if (!StillActive(conflict_id, txnDigest))
+    return false;
 
-
-  //TODO: add flags for P2 sent: If not sent yet, need to wait for that.
-  PendingRequest* req = FB_instances[txnDigest];
-  if(req->startedWriteback){
+  // TODO: add flags for P2 sent: If not sent yet, need to wait for that.
+  PendingRequest *req = FB_instances[txnDigest];
+  if (req->startedWriteback) {
     Debug("Already sent WB - unecessary InvokeFB");
     return true;
   }
-  //TODO: RECOMMENT. Currently assuming that all servers already have p2 decision.
-  if(req->p2Replies.p2replies().size() < config->f +1){
+  // TODO: RECOMMENT. Currently assuming that all servers already have p2
+  // decision.
+  if (req->p2Replies.p2replies().size() < config->f + 1) {
     Debug("No p2 decision included - invalid InvokeFB");
     return true;
   }
 
-  Debug("Called InvokeFB on logging shard group %lu, for txn: %s", group, BytesToHex(txnDigest, 16).c_str());
-  //we know this group is the FB group, only that group would have invoked this callback.
-  bclient[group]->InvokeFB(conflict_id, txnDigest, req->txn, req->decision, req->p2Replies);
+  Debug("Called InvokeFB on logging shard group %lu, for txn: %s", group,
+        BytesToHex(txnDigest, 16).c_str());
+  // we know this group is the FB group, only that group would have invoked this
+  // callback.
+  bclient[group]->InvokeFB(conflict_id, txnDigest, req->txn, req->decision,
+                           req->p2Replies);
 
-return true;
-  //TODO: add logic to include a P2 based of P1's.
-  // else if (req->outstandingPhase1s == 0) {
-  //     req->p1ReplySigsGrouped
-  // else return;
+  return true;
+  // TODO: add logic to include a P2 based of P1's.
+  //  else if (req->outstandingPhase1s == 0) {
+  //      req->p1ReplySigsGrouped
+  //  else return;
 }
 
-//void Phase2FB: passes callbacks
-//void InvokeFB: calls Phase2FB and adds that to the InvokeFB message.
-//void Phase2FBcallback: call either WritebackFB, or InvokeFB
-
-
-
+// void Phase2FB: passes callbacks
+// void InvokeFB: calls Phase2FB and adds that to the InvokeFB message.
+// void Phase2FBcallback: call either WritebackFB, or InvokeFB
 
 } // namespace pequinstore

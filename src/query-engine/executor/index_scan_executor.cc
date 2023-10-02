@@ -377,6 +377,9 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
               const pequinstore::proto::CommittedProof **commit_proof_ref =
                   current_txn->GetCommittedProofRef();
               *commit_proof_ref = commit_proof;
+              auto commit_ts = current_txn->GetCommitTimestamp();
+              *commit_ts = committed_timestamp;
+              current_txn->SetCommitTimestamp(&committed_timestamp);
               //*commit_proof_ref = *commit_proof;
               // current_txn->SetCommittedProofRef(commit_proof);
               //  std::cout << (*commit_proof)->DebugString() << std::endl;
@@ -384,6 +387,9 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
                 Debug("Commit proof is null");
               } else {
                 Debug("Inside index scan proof not null");
+                auto proof_ts = Timestamp(commit_proof->txn().timestamp());
+                Debug("Proof ts is %lu, %lu", proof_ts.getTimestamp(),
+                      proof_ts.getID());
               }
 
               if (commit_proof_ref == nullptr) {
@@ -423,9 +429,12 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
                 Timestamp prepared_timestamp =
                     tile_group_header->GetBasilTimestamp(tuple_location.offset);
                 current_txn->SetPreparedTimestamp(&prepared_timestamp);
+                auto prepared_txn_digest = current_txn->GetPreparedTxnDigest();
+                *prepared_txn_digest =
+                    tile_group_header->GetTxnDig(tuple_location.offset);
                 // Set the prepared txn digest
-                current_txn->SetPreparedTxnDigest(
-                    tile_group_header->GetTxnDig(tuple_location.offset));
+                /*current_txn->SetPreparedTxnDigest(
+                    tile_group_header->GetTxnDig(tuple_location.offset));*/
                 // After finding latest prepare we can stop looking at the
                 // version chain
                 found_prepared = true;

@@ -119,7 +119,7 @@ public:
       std::function<bool(const std::string &)> &predicate,
       Timestamp *committed_timestamp,
       const pequinstore::proto::CommittedProof **commit_proof,
-      Timestamp *prepared_timestamp, std::shared_ptr<std::string> txn_dig,
+      Timestamp *prepared_timestamp, std::shared_ptr<std::string> *txn_dig,
       pequinstore::proto::Write *write, size_t thread_id = 0);
 
   // Helper to handle txn-specifics for the plan-tree of a statement.
@@ -166,7 +166,7 @@ public:
       std::function<bool(const std::string &)> &predicate,
       Timestamp *committed_timestamp,
       const pequinstore::proto::CommittedProof **commit_proof,
-      Timestamp *prepared_timestamp, std::shared_ptr<std::string> txn_dig,
+      Timestamp *prepared_timestamp, std::shared_ptr<std::string> *txn_dig,
       pequinstore::proto::Write *write, size_t thread_id = 0);
 
   // Prepare a statement using the parse tree

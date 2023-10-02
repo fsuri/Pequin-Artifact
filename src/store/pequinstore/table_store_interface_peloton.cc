@@ -1,4 +1,5 @@
 #include "store/pequinstore/table_store_interface_peloton.h"
+#include "lib/assert.h"
 #include "lib/message.h"
 #include "query-engine/traffic_cop/traffic_cop.h"
 #include <atomic>
@@ -482,19 +483,26 @@ void PelotonTableStore::ExecPointRead(
   auto status = tcop->ExecutePointReadStatement(
       statement, param_values, unamed, result_format, result, ts,
       this->can_read_prepared, &committed_timestamp, &committedProof,
-      &prepared_timestamp, txn_dig, write);
+      &prepared_timestamp, &txn_dig, write);
 
   // GetResult(status);
   GetResult(status, tcop, counter);
-
-  TransformPointResult(write, committed_timestamp, prepared_timestamp, txn_dig,
-                       status, statement, result);
 
   if (committedProof == nullptr) {
     Debug("The commit proof after executing point read is null");
   } else {
     Debug("The commit proof is not null");
+
+    auto proof_ts = Timestamp(committedProof->txn().timestamp());
+    Debug("ExecPointRead Proof ts is %lu, %lu", proof_ts.getTimestamp(),
+          proof_ts.getID());
+
+    Debug("ExecPointRead committed ts is %lu, %lu",
+          committed_timestamp.getTimestamp(), committed_timestamp.getID());
   }
+
+  TransformPointResult(write, committed_timestamp, prepared_timestamp, txn_dig,
+                       status, statement, result);
 
   Debug("End readLat on core: %d", core);
   Latency_End(&readLats[core]);
@@ -543,15 +551,19 @@ void PelotonTableStore::TransformPointResult(
     std::string &column_name = std::get<0>(tuple_descriptor[i]);
     queryResultBuilder.add_column(column_name);
     size_t index = (rows - 1) * tuple_descriptor.size() + i;
-    Debug("Index in result array is %u", index);
+    Debug("Index in result array is %lu", index);
     queryResultBuilder.AddToRow(
         row, result[index]); // Note: rows-1 == last row == Committed
+    Debug("After adding to row");
   }
 
+  Debug("Setting committed value");
   write->set_committed_value(
       queryResultBuilder.get_result()
           ->SerializeAsString()); // Note: This "clears" the builder
+  Debug("Before serializing committed timestamp");
   committed_timestamp.serialize(write->mutable_committed_timestamp());
+  Debug("After serializing committed timestamp");
 
   // Prepared
   if (rows < 2)
@@ -561,16 +573,22 @@ void PelotonTableStore::TransformPointResult(
   for (unsigned int i = 0; i < tuple_descriptor.size(); i++) {
     std::string &column_name = std::get<0>(tuple_descriptor[i]);
     queryResultBuilder.add_column(column_name);
+    Debug("Before adding to row");
     queryResultBuilder.AddToRow(
         row, result[0 * tuple_descriptor.size() +
                     i]); // Note: first row == Prepared (if present)
+    Debug("After adding to row");
   }
 
+  Debug("Before setting prepared value");
   write->set_prepared_value(
       queryResultBuilder.get_result()
           ->SerializeAsString()); // Note: This "clears" the builder
+  Debug("Before setting prepapred timestamp");
   prepared_timestamp.serialize(write->mutable_prepared_timestamp());
+  Debug("Before setting prepared txn digest");
   write->set_prepared_txn_digest(*txn_dig);
+  Debug("After setting txn digest");
 
   return;
 }
@@ -601,6 +619,11 @@ void PelotonTableStore::ApplyTableWrite(
   int core = sched_getcpu();
   Debug("Begin writeLat on core: %d", core);
   Latency_Start(&writeLats[core]);
+
+  if (commit_or_prepare) {
+    Debug("Before timestamp asserts for apply table write");
+    UW_ASSERT(ts == Timestamp(commit_proof->txn().timestamp()));
+  }
 
   // UW_ASSERT(ts.getTimestamp() >= 0 && ts.getID() >= 0);
   Debug("Apply TableWrite for txn %s. TS [%lu:%lu]",

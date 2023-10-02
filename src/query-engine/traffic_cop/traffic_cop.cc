@@ -510,7 +510,7 @@ executor::ExecutionResult TrafficCop::ExecutePointReadHelper(
     std::function<bool(const std::string &)> &predicate,
     Timestamp *committed_timestamp,
     const pequinstore::proto::CommittedProof **commit_proof,
-    Timestamp *prepared_timestamp, std::shared_ptr<std::string> txn_dig,
+    Timestamp *prepared_timestamp, std::shared_ptr<std::string> *txn_dig,
     pequinstore::proto::Write *write, size_t thread_id) {
   auto &curr_state = GetCurrentTxnState();
 
@@ -1235,7 +1235,7 @@ ResultType TrafficCop::ExecutePointReadStatement(
     std::function<bool(const std::string &)> &predicate,
     Timestamp *committed_timestamp,
     const pequinstore::proto::CommittedProof **commit_proof,
-    Timestamp *prepared_timestamp, std::shared_ptr<std::string> txn_dig,
+    Timestamp *prepared_timestamp, std::shared_ptr<std::string> *txn_dig,
     pequinstore::proto::Write *write, size_t thread_id) {
   // TODO(Tianyi) Further simplify this API
   /*if (static_cast<StatsType>(settings::SettingsManager::GetInt(

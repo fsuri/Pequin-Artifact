@@ -403,6 +403,11 @@ void TimestampOrderingTransactionManager::PerformInsert(
   // NEW: set commit proof
   const pequinstore::proto::CommittedProof *proof =
       current_txn->GetCommittedProof();
+  if (current_txn->GetCommitOrPrepare() && proof != nullptr) {
+    /*auto ts1 = Timestamp(proof->txn().timestamp());
+    Debug("The commit proof timestamp is %lu, %lu", ts1.getTimestamp(),
+          ts1.getID());*/
+  }
   tile_group_header->SetCommittedProof(tuple_id, proof);
   // NEW: set commit or prepare
   tile_group_header->SetCommitOrPrepare(tuple_id,
@@ -463,6 +468,11 @@ void TimestampOrderingTransactionManager::PerformUpdate(
   // NEW: set commit proof
   const pequinstore::proto::CommittedProof *proof =
       current_txn->GetCommittedProof();
+  if (current_txn->GetCommitOrPrepare() && proof != nullptr) {
+    auto ts1 = Timestamp(proof->txn().timestamp());
+    Debug("The commit proof timestamp is %lu, %lu", ts1.getTimestamp(),
+          ts1.getID());
+  }
   new_tile_group_header->SetCommittedProof(new_location.offset, proof);
 
   // NEW: set commit or prepare

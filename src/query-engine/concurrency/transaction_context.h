@@ -342,11 +342,11 @@ public:
     committed_timestamp_ = commit_timestamp;
   }
 
-  std::shared_ptr<std::string> GetPreparedTxnDigest() {
+  std::shared_ptr<std::string> *GetPreparedTxnDigest() {
     return prepared_txn_dig_;
   }
 
-  void SetPreparedTxnDigest(std::shared_ptr<std::string> prepared_txn_digest) {
+  void SetPreparedTxnDigest(std::shared_ptr<std::string> *prepared_txn_digest) {
     prepared_txn_dig_ = prepared_txn_digest;
   }
 
@@ -443,7 +443,7 @@ private:
   Timestamp *prepared_timestamp_;
 
   /** Prepared value transaction digest */
-  std::shared_ptr<std::string> prepared_txn_dig_;
+  std::shared_ptr<std::string> *prepared_txn_dig_;
 
   /** Commit or prepare */
   bool commit_or_prepare_;
