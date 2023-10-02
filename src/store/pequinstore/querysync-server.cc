@@ -107,7 +107,8 @@ void Server::HandleQuery(const TransportAddress &remote,
     query = msg.release_query(); // mutable_query()
   }
 
-  // Only process if above watermark. I.e. ignore old queries
+  // Only process if above watermark. I.e. ignore old queries from the same
+  // client
   clientQueryWatermarkMap::const_accessor qw;
   if (clientQueryWatermark.find(qw, query->client_id()) &&
       qw->second >= query->query_seq_num()) {
@@ -148,15 +149,19 @@ void Server::HandleQuery(const TransportAddress &remote,
   if (hasQuery) {
     QueryMetaData *query_md = q->second;
     bool valid = true;
-    if (query->retry_version() < query_md->retry_version) {
+    if (query->retry_version() == 0 && !query_md->has_query) {
+      // This is the first query mention. This will lead to an execution.
+      Debug("Received Query cmd. Query Request[%lu:%lu:%d] (seq:client:ver)",
+            query->query_seq_num(), query->client_id(), query->retry_version(),
+            query_md->retry_version);
+    } else if (query->retry_version() < query_md->retry_version) {
       Debug("Retry version for Query Request Query[%lu:%lu:%d] "
             "(seq:client:ver) is outdated. Currently %d",
             query->query_seq_num(), query->client_id(), query->retry_version(),
             query_md->retry_version);
       valid = false;
-    }
-    if (query->retry_version() ==
-        query_md->retry_version) { // TODO: if have result, return result
+    } else if (query->retry_version() ==
+               query_md->retry_version) { // TODO: if have result, return result
       // Two cases for which proposed retry version could be == stored
       // retry_version: a) have already received query for this retry version b)
       // have already received a sync for this retry version (and the sync is
@@ -227,26 +232,32 @@ void Server::HandleQuery(const TransportAddress &remote,
   //version and sync status
   if (!hasQuery) {
     bool new_insert = queryMetaData.insert(
-        q, queryId); // If not first insert -> must re-check.
+        q, queryId); // If not first insert -> must re-check.  //NOTE: this will
+                     // unlock and re-lock q
     if (new_insert) {
+      // UW_ASSERT(query->retry_version() == 0); // We might get them out of
+      // order with multi-threading
       q->second = new QueryMetaData(
           query->query_cmd(), query->timestamp(), remote, msg.req_id(),
-          query->query_seq_num(), query->client_id(), &params.query_params);
+          query->query_seq_num(), query->client_id(), &params.query_params,
+          query->retry_version());
     }
     re_check = !new_insert;
   }
 
   QueryMetaData *query_md = q->second;
 
-  if (!query_md
-           ->has_query) { // If queryMetaData was inserted by Sync first (i.e.
-                          // query has not been processed yet), set query.
-    UW_ASSERT(query->has_query_cmd()); // TODO: Could avoid re-sending query_cmd
-                                       // in retry messages (but then might have
-                                       // to wait for first query attempt in
-                                       // case multithreading violates FIFO)
-    query_md->SetQuery(query->query_cmd(), query->timestamp(), remote,
-                       msg.req_id());
+  if (!query->query_cmd()
+           .empty()) { // If queryMetaData was inserted by Sync first, or we
+                       // received retry first (i.e. query has not been
+                       // processed yet), set query.
+    // UW_ASSERT(query->has_query_cmd());
+    // We avoid re-sending query_cmd in retry messages (but might have to wait
+    // for first query attempt in case multithreading violates FIFO)
+    query_md->SetQuery(
+        query->query_cmd(), query->timestamp(), remote,
+        msg.req_id()); // Keep current req_id if it's greater (i.e. belongs to
+                       // retry that is waiting for original query)
   }
 
   // //3 Buffer Query content and timestamp (only buffer the first time)
@@ -273,15 +284,19 @@ void Server::HandleQuery(const TransportAddress &remote,
     // Ignore if retry version old, or we already started sync for this retry
     // version.
     bool valid = true;
-    if (query->retry_version() < query_md->retry_version) {
+    if (query->retry_version() == 0 && !query_md->has_query) {
+      // This is the first query mention. This will lead to an execution.
+      Debug("Received Query cmd. Query Request[%lu:%lu:%d] (seq:client:ver)",
+            query->query_seq_num(), query->client_id(), query->retry_version(),
+            query_md->retry_version);
+    } else if (query->retry_version() < query_md->retry_version) {
       Debug("Retry version for Query Request Query[%lu:%lu:%d] "
             "(seq:client:ver) is outdated. Currently %d",
             query->query_seq_num(), query->client_id(), query->retry_version(),
             query_md->retry_version);
       valid = false;
-    }
-    if (query->retry_version() ==
-        query_md->retry_version) { // TODO: if have result, return result
+    } else if (query->retry_version() ==
+               query_md->retry_version) { // TODO: if have result, return result
       ////Return if already received query or sync for the retry version, and
       ///sync is not waiting for query. (I.e. no need to process Query) (implies
       ///result will be sent.)
@@ -353,6 +368,18 @@ void Server::HandleQuery(const TransportAddress &remote,
   //     Panic("Requesting Query with outdating retry version");
   //     return;
   // }
+
+  if (!query_md->has_query) { // Wait for command. E.g. when retry version
+                              // arrives before original version
+    // Note: Have updated retry versions and req_id's, but have not started
+    // execution q automatically released
+    if (params.mainThreadDispatching && (!params.dispatchMessageReceive ||
+                                         params.query_params.parallel_queries))
+      FreeQueryRequestMessage(&msg);
+    return;
+  }
+
+  // EXECUTE:
 
   // If Eager Exec --> Skip sync and just execute on local state --> Call
   // EagerExec function: Calls same exec as HandleSyncCallback (but without
@@ -432,9 +459,6 @@ void Server::ProcessPointQuery(const uint64_t &reqId, proto::Query *query,
 
   if (write->has_committed_value()) {
     UW_ASSERT(committedProof); // proof must exist
-    auto proof_ts = Timestamp(committedProof->txn().timestamp());
-    Debug("Querysync-server Proof ts is %lu, %lu", proof_ts.getTimestamp(),
-          proof_ts.getID());
     *pointQueryReply->mutable_proof() = *committedProof;
   }
 

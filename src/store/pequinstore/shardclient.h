@@ -264,7 +264,7 @@ virtual void Phase2Equivocate_Simulate(uint64_t id, const proto::Transaction &tx
         }
     ~PendingQuery() { }
 
-    std::string first_result;
+    //std::string first_result; //just for debugging
 
     uint64_t reqId; 
     uint64_t client_seq_num;

@@ -163,8 +163,14 @@ void SQLTransformer::TransformWriteStatement(std::string &_write_statement,
     //match on write type:
     size_t pos = 0;
 
-    //TODO: Make write_statement a string view already.
-    std::string_view write_statement(std::move(_write_statement));
+    //Note: This creates a reference to the _write_statement; as long as Write is ongoing, _write_statement must stay in scope!
+    std::string_view write_statement(_write_statement);
+
+    // std::cerr << "TEST: " << std::endl;
+    //  std::cerr << "string write: " << _write_statement << std::endl;
+    //  std::cerr << "string view write: " << write_statement << std::endl;
+    //  _write_statement = "TEST";
+    //   std::cerr << "string view write2: " << write_statement << std::endl;
 
     //Case 1) INSERT INTO <table_name> (<column_list>) VALUES (<value_list>)
     if( (pos = write_statement.find(insert_hook) != string::npos)){   //  if(write_statement.rfind("INSERT", 0) == 0){
@@ -547,6 +553,7 @@ void SQLTransformer::TransformUpdate(size_t pos, std::string_view &write_stateme
         // table_ver->set_value("");
         bool changed_table = false; // false //FOR NOW ALWAYS SETTING TO TRUE due to UPDATE INDEX issue (see above comment) TODO: Implement TableColumnVersion optimization
 
+        
         //Write TableColVersions
         for(auto &[col, _]: col_updates){
             WriteMessage *write = txn->add_write_set();   
@@ -619,6 +626,14 @@ void SQLTransformer::TransformUpdate(size_t pos, std::string_view &write_stateme
             }    
         
             std::string enc_key = EncodeTableRow(table_name, primary_key_column_values);
+            
+            //if(std::find(txn->write_set().begin(), txn->write_set().end(), enc_key) != txn->write_set().end()) Panic("duplicate write");
+            Notice("TODO: REMOVE WRITE SET DUPLICATE CHECK");
+            for(int i = 0; i < txn->write_set_size() - 1; ++i){
+                //ignore last write -- has no key set yet.
+                if(txn->write_set()[i].key() == enc_key) Panic("duplicate write: %s", enc_key.c_str());
+            }
+
             write->set_key(enc_key);
 
             if(update_primary_key){ //Also set Primary key we replace.

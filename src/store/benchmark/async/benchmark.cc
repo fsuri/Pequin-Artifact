@@ -337,18 +337,18 @@ enum query_sync_quorum_t {
   QUERY_SYNC_QUORUM_ALL_POSSIBLE // at least 4f+1 (all that one can expect to receive)
 };
 const std::string query_sync_quorum_args[] = {
-	"query-one",
-  "query-one-honest",
-  "query-majority-honest",
-  "query-super-majority-honest",
-  "query-all-possible"
+	"query-one",                   //1
+  "query-one-honest",            //f+1
+  "query-majority-honest",       //2f+1
+  "query-super-majority-honest", //3f+1
+  "query-all-possible"           //4f+1
 };
 const query_sync_quorum_t query_sync_quorums[] {
-  QUERY_SYNC_QUROUM_ONE,
+  QUERY_SYNC_QUROUM_ONE,         //1
   QUERY_SYNC_QUORUM_ONE_HONEST,  //at least f+1 --> 1 honest
   QUERY_SYNC_QUORUM_MAJORITY_HONEST, //at least 2f+1 --> f+1 honest
   QUERY_SYNC_QUORUM_MAJORITY, // at least 3f+1 --> 2f+1 honest (supermajority)
-  QUERY_SYNC_QUORUM_ALL_POSSIBLE // at least 4f+1 (all that one can expect to receive)
+  QUERY_SYNC_QUORUM_ALL_POSSIBLE // at least 4f+1 (all that one can expect to receive, i.e. n-f)
 };
 static bool ValidateQuerySyncQuorum(const char* flagname,
     const std::string &value) {
@@ -367,9 +367,9 @@ enum query_messages_t {
   QUERY_MESSAGES_ALL //send to all replicas
 };
 const std::string query_messages_args[] = {
-	"query-quorum",
-  "query-pessimistic-bonus",
-  "query-all"
+	"query-quorum",               //quorum+0
+  "query-pessimistic-bonus",    //quorum+f
+  "query-all"                   //n
 };
 const query_messages_t query_messagess[] {
   QUERY_MESSAGES_QUERY_QUORUM,
@@ -416,7 +416,7 @@ DEFINE_bool(pequin_query_eager_exec, true, "skip query sync protocol and execute
 DEFINE_bool(pequin_query_point_eager_exec, false, "use eager query exec instead of proof based point read");
 
 DEFINE_bool(pequin_query_read_prepared, true, "allow query to read prepared values");
-DEFINE_bool(pequin_query_cache_read_set, false, "cache query read set at replicas"); // Send syncMessages to all if read set caching is enabled -- but still only sync_messages many replicas are tasked to execute and reply.
+DEFINE_bool(pequin_query_cache_read_set, true, "cache query read set at replicas"); // Send syncMessages to all if read set caching is enabled -- but still only sync_messages many replicas are tasked to execute and reply.
 
 DEFINE_bool(pequin_query_optimistic_txid, true, "use optimistic tx-id for sync protocol");
 DEFINE_bool(pequin_query_compress_optimistic_txid, false, "compress optimistic tx-id for sync protocol");
@@ -427,7 +427,8 @@ DEFINE_bool(pequin_query_merge_active_at_client, true, "merge active query read 
 DEFINE_bool(pequin_sign_client_queries, false, "sign query and sync messages"); //proves non-equivocation of query contents, and query snapshot respectively. 
 //DEFINE_bool(pequin_sign_replica_to_replica_sync, false, "sign inter replica sync messages with HMACs"); //proves authenticity of channels.
 //Note: Should not be necessary. Unique hash of query should suffice for non-equivocation; autheniticated channels would suffice for authentication. 
-DEFINE_bool(pequin_parallel_queries, false, "dispatch queries to parallel worker threads");
+
+//DEFINE_bool(pequin_parallel_queries, false, "dispatch queries to parallel worker threads"); -- only serverside arg
 
 
 ///////////////////////////////////////////////////////////
@@ -673,7 +674,7 @@ DEFINE_bool(rw_read_only, false, "only do read operations");
 
 DEFINE_uint64(num_tables, 1, "number of tables for rw-sql");
 DEFINE_uint64(num_keys_per_table, 10, "number of keys per table for rw-sql");
-DEFINE_uint64(max_range, 10, "max amount of reads in a single scan for rw-sql");
+DEFINE_uint64(max_range, 3, "max amount of reads in a single scan for rw-sql");
 
 
 /**
@@ -1231,7 +1232,7 @@ int main(int argc, char **argv) {
               NOT_REACHABLE();
           }
           if(syncQuorumSize > queryMessages) Panic("Query Quorum size cannot be larger than number of Query requests sent");
-          if(syncQuorumSize + config->f > queryMessages) std::cerr << "WARNING: Query Sync is not live in presence of byzantine replies witholding query sync replies (omission faults)" << std::endl;
+          if(syncQuorumSize + config->f > queryMessages) std::cerr << "WARNING: Under given Config Query Sync is not live in presence of byzantine replies witholding query sync replies (omission faults)" << std::endl;
          
          switch (sync_messages) {
           case QUERY_MESSAGES_QUERY_QUORUM:
@@ -1373,7 +1374,7 @@ int main(int argc, char **argv) {
                                                  FLAGS_pequin_query_merge_active_at_client,
                                                  FLAGS_pequin_sign_client_queries,
                                                  false,    // FLAGS_pequin_sign_replica_to_replica_sync,
-                                                 FLAGS_pequin_parallel_queries);
+                                                 false);   //FLAGS_pequin_parallel_queries);
 
         pequinstore::Parameters params(FLAGS_indicus_sign_messages,
                                         FLAGS_indicus_validate_proofs, FLAGS_indicus_hash_digest,
@@ -1688,8 +1689,8 @@ int main(int argc, char **argv) {
 
   tport->Timer(FLAGS_exp_duration * 1000 - 1000, FlushStats);
 
-  std::signal(SIGKILL, Cleanup);
-  std::signal(SIGTERM, Cleanup);
+  std::signal(SIGKILL, Cleanup); //signal 9
+  std::signal(SIGTERM, Cleanup); //signal 15
   std::signal(SIGINT, Cleanup);
 
   tport->Run();
@@ -1700,9 +1701,11 @@ int main(int argc, char **argv) {
 }
 
 void Cleanup(int signal) {
+  Notice("clean up with signal %d", signal);
   FlushStats();
   delete config;
-  delete keyManager;
+  //keyManager->Cleanup();
+  delete keyManager; //somehow destructor is not being triggered
   delete keySelector;
 
   for (auto i : threads) {
@@ -1729,6 +1732,8 @@ void Cleanup(int signal) {
   delete part;
 
   if(FLAGS_sql_bench && querySelector != nullptr) delete querySelector;
+  Notice("Finished Cleanup. Exiting");
+  //exit(0); Allow segfault for duplicate config deletion to mask printing endless ASAN leaks that we can't fix...
 }
 
 void FlushStats() {

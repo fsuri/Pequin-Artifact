@@ -596,7 +596,9 @@ void ShardClient::HandleQueryResult(proto::QueryResultReply &queryResult) {
   // result_hash/read set)
   if (params.query_params.cacheReadSet) {
     Debug("Read-set hash: %s",
-          BytesToHex(replica_result->query_result_hash(), 50).c_str());
+          BytesToHex(replica_result->query_result_hash(), 16).c_str());
+    Debug("Result: %lu",
+          std::hash<std::string>{}(replica_result->query_result()));
     matching_res = ++pendingQuery
                          ->result_freq[replica_result->query_result_hash()]
                                       [replica_result->query_result()]
@@ -659,10 +661,10 @@ void ShardClient::HandleQueryResult(proto::QueryResultReply &queryResult) {
         pendingQuery->result_freq
             [validated_result_hash]
             [replica_result->query_result()]; //[validated_result_hash]; //Could
-                                              // flatten this into 2D structure
-                                              // if make result part of
-                                              // result_hash... But we need
-                                              // access to result
+                                              //flatten this into 2D structure
+                                              //if make result part of
+                                              //result_hash... But we need
+                                              //access to result
     matching_res = ++result_mgr.freq; // map should be default initialized to 0.
 
     if (pendingQuery->result_freq[validated_result_hash].size() > 1)

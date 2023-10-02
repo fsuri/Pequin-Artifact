@@ -327,6 +327,7 @@ void Server::ManageDispatchQuery(const TransportAddress &remote, const std::stri
         return (void*) true;
       };
       if(params.query_params.parallel_queries){ 
+        Debug("Dispatching Query to worker");
         transport->DispatchTP_noCB(std::move(f));  //dispatch to worker
       }
       else{

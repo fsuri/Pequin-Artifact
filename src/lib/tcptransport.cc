@@ -230,8 +230,7 @@ TCPTransport::~TCPTransport()
     event_base_free(libeventBase);
 }
 
-void TCPTransport::ConnectTCP(
-    const std::pair<TCPTransportAddress, TransportReceiver *> &dstSrc) {
+void TCPTransport::ConnectTCP(const std::pair<TCPTransportAddress, TransportReceiver *> &dstSrc) {
   Debug("Opening new TCP connection to %s:%d", inet_ntoa(dstSrc.first.addr.sin_addr),
         htons(dstSrc.first.addr.sin_port));
 
@@ -280,11 +279,8 @@ void TCPTransport::ConnectTCP(
     tcpAddresses.insert(pair<struct bufferevent*, pair<TCPTransportAddress, TransportReceiver*>>(bev, dstSrc));
     //mtx.unlock();
 
-    bufferevent_setcb(bev, TCPReadableCallback, NULL,
-                      TCPOutgoingEventCallback, info);
-    if (bufferevent_socket_connect(bev,
-                                   (struct sockaddr *)&(dstSrc.first.addr),
-                                   sizeof(dstSrc.first.addr)) < 0) {
+    bufferevent_setcb(bev, TCPReadableCallback, NULL, TCPOutgoingEventCallback, info);
+    if (bufferevent_socket_connect(bev, (struct sockaddr *)&(dstSrc.first.addr), sizeof(dstSrc.first.addr)) < 0) {
         bufferevent_free(bev);
 
         //mtx.lock();
@@ -306,9 +302,9 @@ void TCPTransport::ConnectTCP(
     if (getsockname(fd, (sockaddr *) &sin, &sinsize) < 0) {
         PPanic("Failed to get socket name");
     }
-    TCPTransportAddress *addr = new TCPTransportAddress(sin);
-
+    
     if (dstSrc.second->GetAddress() == nullptr) {
+      TCPTransportAddress *addr = new TCPTransportAddress(sin);
       dstSrc.second->SetAddress(addr);
     }
 

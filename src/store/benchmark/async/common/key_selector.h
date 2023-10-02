@@ -49,10 +49,13 @@ class KeySelector {
 };
 
 struct QuerySelector{
+  QuerySelector() {}
   QuerySelector(uint64_t numKeys, KeySelector *tableSelector, KeySelector *baseSelector, KeySelector *rangeSelector) : 
      numKeys(numKeys), tableSelector(tableSelector), baseSelector(baseSelector), rangeSelector(rangeSelector) {}
-  ~QuerySelector(){ //TODO: Need to delete them in benchmark.cc
-  
+  ~QuerySelector(){ 
+    if(tableSelector != nullptr) delete tableSelector;
+    if(baseSelector != nullptr) delete baseSelector;
+    if(rangeSelector != nullptr) delete rangeSelector;
   }
   //uint64_t numTables;
   //uint64_t maxRange;

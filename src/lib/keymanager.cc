@@ -43,13 +43,26 @@ KeyManager::KeyManager(const std::string &keyPath, crypto::KeyType t, bool preco
   }
 }
 
+
 KeyManager::~KeyManager() {
-  for(auto [id, pubKey]: publicKeys){
-    free(pubKey);
+  Notice("Freeing all Keys");
+  for(auto &[id, pubKey]: publicKeys){
+    crypto::FreePubKey(pubKey);
   }
-  for(auto [id, privKey]: privateKeys){
-    free(privKey);
+  for(auto &[id, privKey]: privateKeys){
+    crypto::FreePrivKey(privKey);
   }
+}
+
+void KeyManager::Cleanup(){
+  // Notice("Freeing all Keys");
+  // std::unique_lock<std::mutex> lock(keyMutex); 
+  // for(auto &[id, pubKey]: publicKeys){ //somehow this causes a segfault...
+  //   crypto::FreePubKey(pubKey);
+  // }
+  // for(auto &[id, privKey]: privateKeys){
+  //   crypto::FreePrivKey(privKey);
+  // }
 }
 
 crypto::PubKey* KeyManager::GetPublicKey(uint64_t id) {

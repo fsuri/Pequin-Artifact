@@ -123,6 +123,12 @@ Client::~Client() {
   Latency_Dump(&executeLatency);
   Latency_Dump(&getLatency);
   Latency_Dump(&commitLatency);
+
+  // Note pendingReqs and pendingQueries should be empty.
+  for (auto &[_, pendingFB] : FB_instances) {
+    delete pendingFB;
+  }
+
   for (auto b : bclient) {
     delete b;
   }
@@ -135,7 +141,6 @@ Client::~Client() {
 void Client::Begin(begin_callback bcb, begin_timeout_callback btcb,
                    uint32_t timeout, bool retry) {
 
-  std::cerr << "Try Begin" << std::endl;
   // fail the current txn iff failuer timer is up and
   // the number of txn is a multiple of frequency
   // only fail fresh transactions
@@ -154,7 +159,6 @@ void Client::Begin(begin_callback bcb, begin_timeout_callback btcb,
       stats.Increment("total_fresh_tx_honest", 1);
   }
 
-  std::cerr << "Reach timer" << std::endl;
   transport->Timer(0, [this, bcb, btcb, timeout]() {
     if (pingReplicas) {
       if (!first && !startedPings) {
@@ -172,7 +176,7 @@ void Client::Begin(begin_callback bcb, begin_timeout_callback btcb,
     // std::endl;
     Debug("BEGIN [%lu]", client_seq_num);
 
-    txn = proto::Transaction();
+    txn.Clear(); // txn = proto::Transaction();
     txn.set_client_id(client_id);
     txn.set_client_seq_num(client_seq_num);
     // Optimistically choose a read timestamp for all reads in this transaction
@@ -409,7 +413,8 @@ void Client::Query(const std::string &query, query_callback qcb,
 
     query_seq_num++;
     txn.set_last_query_seq(query_seq_num);
-    Debug("\n Query[%lu:%lu:%lu]", client_id, client_seq_num, query_seq_num);
+    Debug("\n Query[%lu:%lu:%lu] (client:tx-seq:query-seq): %s", client_id,
+          client_seq_num, query_seq_num, query.c_str());
 
     // Contact the appropriate shard to execute the query on.
     // TODO: Determine involved groups
@@ -458,6 +463,17 @@ void Client::Query(const std::string &query, query_callback qcb,
     pendingQuery->is_point = sql_interpreter.InterpretQueryRange(
         query, pendingQuery->table_name, pendingQuery->p_col_values,
         relax_point_cond);
+    Debug("Query [%d] is of type: %s ", query_seq_num,
+          pendingQuery->is_point ? "POINT" : "RANGE");
+
+    if (pendingQuery->is_point) {
+      Debug("Encoded key: %s",
+            EncodeTableRow(pendingQuery->table_name, pendingQuery->p_col_values)
+                .c_str());
+    }
+    // Alternatively: Instead of storing the key, we could also let servers
+    // provide the keys and wait for f+1 matching keys. But then we'd have to
+    // wait for 2f+1 reads in total... ==> Client stores key
 
     Debug("Query [%d] is %s ", query_seq_num,
           pendingQuery->is_point ? "POINT" : "QUERY");
@@ -555,12 +571,15 @@ void Client::PointQueryResultCallback(PendingQuery *pendingQuery, int status,
 
   query_result::QueryResult *q_result =
       new sql::QueryResultProtoWrapper(result);
-  pendingQuery->qcb(REPLY_OK, q_result); // callback to application
 
   stats.Increment("PointQuerySuccess", 1);
+  pendingQuery->qcb(REPLY_OK, q_result); // callback to application
 
   pendingQueries.erase(pendingQuery->queryMsg.query_seq_num());
-  delete pendingQuery;
+  delete pendingQuery; // For Point Queries can delete immediately;
+  // clean pendingQuery and query_seq_num_mapping in all shards. ==> Not
+  // necessary here: Already happens in HandlePointQuery
+  // ClearQuery(pendingQuery);
   //  clean pendingQuery and query_seq_num_mapping in all shards. ==> Not
   //  necessary here: Already happens in HandlePointQuery
   //  ClearQuery(pendingQuery);
@@ -697,7 +716,6 @@ void Client::QueryResultCallback(PendingQuery *pendingQuery, int status,
   Debug("Upcall with Query result");
   sql::QueryResultProtoWrapper *q_result =
       new sql::QueryResultProtoWrapper(pendingQuery->result);
-  pendingQuery->qcb(REPLY_OK, q_result); // callback to application
 
   stats.Increment("QuerySuccess", 1);
   // if it was a point query
@@ -711,6 +729,11 @@ void Client::QueryResultCallback(PendingQuery *pendingQuery, int status,
   else
     stats.Increment("Sync_successes", 1);
 
+  // clean pendingQuery and query_seq_num_mapping in all shards.
+  // ClearQuery(pendingQuery); ==> now clearing all Queries together only upon
+  // Writeback
+
+  pendingQuery->qcb(REPLY_OK, q_result); // callback to application
   // clean pendingQuery and query_seq_num_mapping in all shards.
   // ClearQuery(pendingQuery); ==> now clearing all Queries together only upon
   // Writeback
@@ -2278,7 +2301,8 @@ void Client::Phase2FBcallback(uint64_t conflict_id, std::string txnDigest,
   if (!StillActive(conflict_id, txnDigest))
     return;
 
-  Debug("PHASE2FB[%lu:%s] callback", client_id, txnDigest.c_str());
+  Debug("PHASE2FB[%lu:%s] callback", client_id,
+        BytesToHex(txnDigest, 16).c_str());
 
   PendingRequest *req = FB_instances[txnDigest];
 

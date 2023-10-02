@@ -77,7 +77,8 @@ namespace pequinstore {
 
 //If the Transaction is waiting on a Query to be cached, call 
 void Server::subscribeTxOnMissingQuery(const std::string &query_id, const std::string &txnDigest){ 
-  //Note: This is being called while lock on TxnMissingQueries object and query_md is held. --> either query is in cache already, in which case subscribe is never called; or it is cached after subscribe, in which case it tries to wake the tx up
+  //Note: This is being called while lock on TxnMissingQueries object and query_md is held. 
+  //--> either query is in cache already, in which case subscribe is never called; or it is cached after subscribe, in which case it tries to wake the tx up
     subscribedQueryMap::accessor sq;
     subscribedQuery.insert(sq, query_id);
     sq->second = txnDigest;
@@ -186,7 +187,7 @@ proto::ConcurrencyControl::Result Server::fetchReadSet(const proto::QueryResultM
       query_rs = &query_group_md->query_read_set();
     }
     else{ //else go to cache (via query_id) and check if query_result hash matches. if so, use read set.
-      Debug("Merging Query[%s] Read Set from Cache", BytesToHex(query_md.query_id(), 16).c_str());
+      Debug("Try to merge Query[%s] Read Set from Cache", BytesToHex(query_md.query_id(), 16).c_str());
       // If tx includes no read_set_hash => abort; invalid transaction //TODO: Could strengthen Abstain into Abort by incuding proof...
       if(!query_group_md->has_read_set_hash()) return proto::ConcurrencyControl::IGNORE; //ABSTAIN;
 
@@ -196,12 +197,13 @@ proto::ConcurrencyControl::Result Server::fetchReadSet(const proto::QueryResultM
       //1) Check whether the replica a) has seen the query, and b) has computed a result/read-set. If not ==> Stop processing
       if(!has_query || !q->second->has_result){
         //Panic("query has no result cached yet. has_query: %d", has_query);
-        Debug("query has either not been received or no result was cached yet. has_query: %d. SUBSCRIBING", has_query, q->second->has_result);
+        Debug("query has either not been received or no result was cached yet. has_query: %d. SUBSCRIBING", has_query);
         subscribeTxOnMissingQuery(query_md.query_id(), txnDigest);
         return proto::ConcurrencyControl::WAIT; //NOTE: Replying WAIT is a hack to not respond -- it will never wake up.
       } 
 
       QueryMetaData *cached_query_md = q->second;
+      UW_ASSERT(cached_query_md);
 
       //2) Only client that issued the query may use the cached query in it's transaction ==> it follows that honest clients will not use the same query twice. (Must include txn as argument in order to check)
       if(cached_query_md->client_id != txn.client_id()){
@@ -212,7 +214,8 @@ proto::ConcurrencyControl::Result Server::fetchReadSet(const proto::QueryResultM
 
       //3) Check for matching retry version. If local version smaller ==> Stop processing (Wait), if local version larger ==> PoM
       if(query_md.retry_version() != cached_query_md->retry_version){
-          Panic("query has wrong cached retry version; shouldn't happen in testing");
+          Debug("Query has the wrong cached retry version. Have: %d. Require: %d.", cached_query_md->retry_version, query_md.retry_version());
+          //Panic("query has wrong cached retry version; shouldn't happen in testing");
 
   
           if(query_md.retry_version() < cached_query_md->retry_version){
@@ -261,6 +264,7 @@ proto::ConcurrencyControl::Result Server::fetchReadSet(const proto::QueryResultM
      
       //5) Use Read set.
       query_rs = &cached_queryResult.query_read_set();
+      Debug("Merged Cached Read set for Query[%s] successfully", BytesToHex(query_md.query_id(), 16).c_str());
   
       q.release();
     }
@@ -594,7 +598,7 @@ proto::ConcurrencyControl::Result Server::DoMVTSOOCCCheck(
               conflict = committedWrite.second.proof;
           }
           
-          std::cerr << "key: " << read.key() << std::endl;
+          //std::cerr << "key: " << read.key() << std::endl;
           Debug("[%lu:%lu][%s] ABORT wr conflict committed write for key %s:"
               " this txn's read ts %lu.%lu < committed ts %lu.%lu < this txn's ts %lu.%lu.",
               txn.client_id(),
@@ -882,6 +886,7 @@ proto::ConcurrencyControl::Result Server::DoMVTSOOCCCheck(
     return proto::ConcurrencyControl::WAIT;
   } else {
     //8) Check whether all dependencies are committed (i.e. none abort), and whether TS still valid
+    Debug("check dependencies: %s", BytesToHex(txnDigest, 16).c_str());
     return CheckDependencies(txn); //abort checks are redundant with new abort check in 5)
     //TODO: Current Implementation iterates through dependencies 3 times -- re-factor code to do this once.
     //Move check 5) up and outside the if/else case for whether prepared exists: if !params.verifyDeps, then CheckDependencies is mostly obsolete.
@@ -1058,6 +1063,7 @@ bool Server::RegisterWaitingTxn(const std::string &dep_id, const std::string &tx
 const uint64_t &reqId, bool fallback_flow, bool isGossip, std::vector<const std::string*> &missing_deps, const bool new_waiting_dep){
   bool isFinished = true;
   
+  Debug("Txn[%s] depends on txn: %s", BytesToHex(txnDigest, 16).c_str(), BytesToHex(dep_id,16).c_str());
   dependentsMap::accessor e;
   bool first_dependent = false;
   
@@ -1136,7 +1142,9 @@ bool Server::ManageDependencies(const DepSet &depSet, const std::string &txnDige
          continue;
        }
       //Check if dep is committed/aborted -- if not, register waiting txn in dependents and startRelayP1.
-      allFinished = RegisterWaitingTxn(dep.write().prepared_txn_digest(), txnDigest, txn, remote, reqId, fallback_flow, isGossip, missing_deps, new_waiting_dep);
+      if(!RegisterWaitingTxn(dep.write().prepared_txn_digest(), txnDigest, txn, remote, reqId, fallback_flow, isGossip, missing_deps, new_waiting_dep)){
+        allFinished = false;
+      }
     }
 
     if(!allFinished){
@@ -1154,7 +1162,7 @@ bool Server::ManageDependencies(const DepSet &depSet, const std::string &txnDige
 
     f.release();
   }
-
+  Debug("TX[%s] All finished? %d", BytesToHex(txnDigest, 16).c_str(), allFinished);
   return allFinished;
 }
 
@@ -1406,19 +1414,23 @@ proto::ConcurrencyControl::Result Server::CheckDependencies(
     }
     if (committed.find(dep.write().prepared_txn_digest()) != committed.end()) {
       //Check if dependency still has smaller timestamp than reader: Could be violated if dependency re-tried with higher TS and committed -- Currently retries are not implemented.
+       Debug("Txn[%lu:%lu] dependency %s committed", txn.client_id(), txn.client_seq_num(), dep.write().prepared_txn_digest());
       if (Timestamp(dep.write().prepared_timestamp()) > Timestamp(txn.timestamp())) {
+        Debug("Txn[%lu:%lu] dependency %s committed with wrong TS. Abstain!", txn.client_id(), txn.client_seq_num(), BytesToHex(dep.write().prepared_txn_digest(), 16).c_str());
         stats.Increment("cc_aborts", 1);
         stats.Increment("cc_aborts_dep_ts", 1);
          //if(params.mainThreadDispatching) committedMutex.unlock_shared();
         return proto::ConcurrencyControl::ABSTAIN;
       }
     } else {
+      Debug("Txn[%lu:%lu] dependency %s aborted", txn.client_id(), txn.client_seq_num(), BytesToHex(dep.write().prepared_txn_digest(), 16).c_str());
       stats.Increment("cc_aborts", 1);
       stats.Increment("cc_aborts_dep_aborted", 1);
        //if(params.mainThreadDispatching) committedMutex.unlock_shared();
       return proto::ConcurrencyControl::ABSTAIN;
     }
   }
+  Debug("Txn[%lu:%lu] All dependencies committed", txn.client_id(), txn.client_seq_num());
    //if(params.mainThreadDispatching) committedMutex.unlock_shared();
   return proto::ConcurrencyControl::COMMIT;
 }

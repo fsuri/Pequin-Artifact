@@ -429,9 +429,12 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
                 Timestamp prepared_timestamp =
                     tile_group_header->GetBasilTimestamp(tuple_location.offset);
                 current_txn->SetPreparedTimestamp(&prepared_timestamp);
-                auto prepared_txn_digest = current_txn->GetPreparedTxnDigest();
-                *prepared_txn_digest =
-                    tile_group_header->GetTxnDig(tuple_location.offset);
+                if (current_txn->IsPointRead()) {
+                  auto prepared_txn_digest =
+                      current_txn->GetPreparedTxnDigest();
+                  *prepared_txn_digest =
+                      tile_group_header->GetTxnDig(tuple_location.offset);
+                }
                 // Set the prepared txn digest
                 /*current_txn->SetPreparedTxnDigest(
                     tile_group_header->GetTxnDig(tuple_location.offset));*/
