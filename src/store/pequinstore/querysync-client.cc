@@ -221,6 +221,7 @@ void ShardClient::RequestQuery(PendingQuery *pendingQuery, proto::Query &queryMs
 
   if(pendingQuery->is_point && !queryReq.eager_exec()){
     UW_ASSERT(readMessages <= closestReplicas.size());
+    queryReq.set_designated_for_reply(true);
     for (size_t i = 0; i < readMessages; ++i) {
         Debug("[group %i] Sending PointQuery to replica %lu", group, GetNthClosestReplica(i));
         transport->SendMessageToReplica(this, group, GetNthClosestReplica(i), queryReq);
