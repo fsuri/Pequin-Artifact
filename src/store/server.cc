@@ -592,10 +592,11 @@ int main(int argc, char **argv) {
   }
 
   //////////
+  Notice("Sql bench? %d, file path: %s", FLAGS_sql_bench, FLAGS_data_file_path.c_str());
   if(FLAGS_sql_bench && std::filesystem::path(FLAGS_data_file_path).filename() == "rw-sql.json"){
     //Autogenerate a registry file for RW-SQL.
       FLAGS_data_file_path = std::filesystem::path(FLAGS_data_file_path).replace_filename("rw-sql-gen-server" + std::to_string(FLAGS_replica_idx));
-      TableWriter table_writer(FLAGS_data_file_path, FLAGS_clock_skew);
+      TableWriter table_writer(FLAGS_data_file_path, false);
 
       //Set up a bunch of Tables: Num_tables many; with num_items...
       const std::vector<std::pair<std::string, std::string>> &column_names_and_types = {{"key", "INT"}, {"value", "INT"}};
@@ -609,6 +610,7 @@ int main(int argc, char **argv) {
 
       table_writer.flush();
       FLAGS_data_file_path += "-tables-schema.json";
+      Notice("Autogenerating Schema JSON. Writing to: %s", FLAGS_data_file_path.c_str());
   }
    
 

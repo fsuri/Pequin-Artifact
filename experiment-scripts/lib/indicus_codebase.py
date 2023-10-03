@@ -233,9 +233,9 @@ class IndicusCodebase(ExperimentCodebase):
                     client_command += ' --zipf_coefficient %f' % config['client_zipf_coefficient']
 
             if config['benchmark_name'] == 'rw-sql':
-                client_command += '--num_tables %d' % config['num_tables']
-                client_command += '--num_keys_per_table %d' % config['num_keys_per_table']
-                client_command += '--max_range %d' % config['max_range']
+                client_command += ' --num_tables %d' % config['num_tables']
+                client_command += ' --num_keys_per_table %d' % config['num_keys_per_table']
+                client_command += ' --max_range %d' % config['max_range']
 
         elif config['benchmark_name'] == 'tpcc' or config['benchmark_name'] == 'tpcc-sync':
             client_command += ' --tpcc_num_warehouses %d' % config['tpcc_num_warehouses']
@@ -508,8 +508,8 @@ class IndicusCodebase(ExperimentCodebase):
         elif config['benchmark_name'] == 'smallbank':
             replica_command += ' --data_file_path %s' % config['smallbank_data_file_path']
         elif config['benchmark_name'] == 'rw-sql':
-            replica_command += '--num_tables %d' % config['num_tables']
-            replica_command += '--num_keys_per_table %d' % config['num_keys_per_table']
+            replica_command += ' --num_tables %d' % config['num_tables']
+            replica_command += ' --num_keys_per_table %d' % config['num_keys_per_table']
         
         
        

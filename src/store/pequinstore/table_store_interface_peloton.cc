@@ -630,8 +630,14 @@ void PelotonTableStore::ApplyTableWrite(
   // Execute Write Statement
   if (!write_statement.empty()) {
 
+    Notice("Write statement: %s", write_statement.c_str());
+
     Debug("Write statement: %s", write_statement.c_str());
     Debug("Commit or prepare is %d", commit_or_prepare);
+
+    Notice("Txn %s is trying to %s with TS[%lu:%lu]", BytesToHex(txn_digest, 16).c_str(), commit_or_prepare? "commit" : "prepare" , ts.getTimestamp(), ts.getID());
+    Notice("Commit or prepare is %d", commit_or_prepare);
+    
     // prepareStatement
     auto statement = ParseAndPrepare(write_statement, tcop);
 
@@ -670,8 +676,9 @@ void PelotonTableStore::ApplyTableWrite(
   for (auto &delete_statement :
        delete_statements) { // TODO: Find a way to parallelize these statement
                             // calls (they don't conflict)
+    Notice("Delete statement: %s", delete_statement.c_str());
     Debug("Delete statement: %s", delete_statement.c_str());
-    std::cout << "Delete statement is " << delete_statement << std::endl;
+    
     // prepare Statement
     auto statement = ParseAndPrepare(delete_statement, tcop);
     // ExecuteStatment
@@ -747,6 +754,7 @@ void PelotonTableStore::PurgeTableWrite(const std::string &table_name,
 
   if (purge_statement.empty()) return; // Nothing to undo.
 
+  Notice("Purge statement: %s", purge_statement.c_str());
   Debug("Purge statement: %s", purge_statement.c_str());
   // Debug("Purge statements: %s", fmt::join(purge_statements, "|"));
 

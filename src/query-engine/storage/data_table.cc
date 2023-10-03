@@ -388,6 +388,9 @@ ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple,
     }
 
     if (ts == transaction->GetBasilTimestamp()) {
+      std::cout << "IN INSERT TUPLE Txn: " << pequinstore::BytesToHex(*transaction->GetTxnDig(), 16) << std::endl;
+       std::cout << "IN INSERT TUPLE Txn: Commit Or Prepare:" << transaction->GetCommitOrPrepare() << std::endl;
+     
       std::cout << "Duplicate" << std::endl;
       is_duplicate = true;
       bool is_prepared =
@@ -475,6 +478,8 @@ ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple,
           std::cout << "Txn timestamp is "
                     << transaction->GetBasilTimestamp().getTimestamp() << ", "
                     << transaction->GetBasilTimestamp().getID() << std::endl;
+          
+           //UW_ASSERT(*transaction->GetTxnDig() != *curr_tile_group_header->GetTxnDig(curr_pointer.offset));
            Panic("Tried to add a duplicate write");
         }
       }
