@@ -1,0 +1,199 @@
+syntax = "proto2";
+
+package seats;
+
+enum Tables {
+  COUNTRY = 0;
+  AIRPORT = 1;
+  AIRPORT_DISTANCE = 2;
+  AIRLINE = 3;
+  CUSTOMER = 4;
+  FREQUENT_FLYER = 5;
+  FLIGHT = 6;
+  RESERVATION = 7;
+}
+
+message CountryRow {
+    required int64 co_id = 1;
+    required string co_name = 2;
+    required string co_code_2 = 3;
+    required string co_code_3 = 4;
+}
+
+message AirportRow {
+    required int64 ap_id = 1;
+    required string ap_code = 2;
+    required string ap_name = 3;
+    required string ap_city = 4;
+    required string ap_postal_code = 5;
+    required int64 ap_co_id = 6;
+    required float ap_longitude = 7;
+    required float ap_latitude = 8;
+    required int64 ap_wac = 9;
+    required int64 ap_iattr00 = 10;
+    required int64 ap_iattr01 = 11;
+    required int64 ap_iattr02 = 12;
+    required int64 ap_iattr03 = 13; 
+    required int64 ap_iattr04 = 14;
+    required int64 ap_iattr05 = 15;
+    required int64 ap_iattr06 = 16; 
+    required int64 ap_iattr07 = 17;
+    required int64 ap_iattr08 = 18;
+    required int64 ap_iattr09 = 19;
+    required int64 ap_iattr10 = 20;
+    required int64 ap_iattr11 = 21;
+    required int64 ap_iattr12 = 22;
+    required int64 ap_iattr13 = 23;
+    required int64 ap_iattr14 = 24;
+    required int64 ap_iattr15 = 25;
+}
+
+message AirportDistanceRow {
+    required int64 d_ap_id0 = 1;
+    required int64 d_ap_id1 = 2;
+    required float d_distance = 3;
+}
+
+message AirlineRow {
+    required int64 al_id = 1;
+    required string al_iata_code = 2;
+    required string al_icao_code = 3;
+    required string al_call_sign = 4;
+    required string al_name = 5;
+    required int64 al_co_id = 6; 
+    required int64 al_iattr00 = 7;
+    required int64 al_iattr01 = 8;
+    required int64 al_iattr02 = 9;
+    required int64 al_iattr03 = 10;
+    required int64 al_iattr04 = 11;
+    required int64 al_iattr05 = 12;
+    required int64 al_iattr06 = 13;
+    required int64 al_iattr07 = 14;
+    required int64 al_iattr08 = 15;
+    required int64 al_iattr09 = 16;
+    required int64 al_iattr10 = 17;
+    required int64 al_iattr11 = 18;
+    required int64 al_iattr12 = 19;
+    required int64 al_iattr13 = 20;
+    required int64 al_iattr14 = 21;
+    required int64 al_iattr15 = 22;
+}
+
+message CustomerRow {
+    required int64 c_id = 1;
+    required int64 c_base_ap_id = 2;
+    required string c_sattr00 = 3; 
+    required string c_sattr01 = 4;
+    required string c_sattr02 = 5;
+    required string c_sattr03 = 6;
+    required string c_sattr04 = 7;
+    required string c_sattr05 = 8;
+    required string c_sattr06 = 9;
+    required string c_sattr07 = 10;
+    required string c_sattr08 = 11;
+    required string c_sattr09 = 12;
+    required string c_sattr10 = 13;
+    required string c_sattr11 = 14;
+    required string c_sattr12 = 15;
+    required string c_sattr13 = 16;
+    required string c_sattr14 = 17;
+    required string c_sattr15 = 18;
+    required int64 c_iattr00 = 19;
+    required int64 c_iattr01 = 20;
+    required int64 c_iattr02 = 21;
+    required int64 c_iattr03 = 22;
+    required int64 c_iattr04 = 23;
+    required int64 c_iattr05 = 24;
+    required int64 c_iattr06 = 25;
+    required int64 c_iattr07 = 26;
+    required int64 c_iattr08 = 27;
+    required int64 c_iattr09 = 28;
+    required int64 c_iattr10 = 29;
+    required int64 c_iattr11 = 30;
+    required int64 c_iattr12 = 31;
+    required int64 c_iattr13 = 32;
+    required int64 c_iattr14 = 33;
+    required int64 c_iattr15 = 34;
+    required int64 c_iattr16 = 35;
+    required int64 c_iattr17 = 36;
+    required int64 c_iattr18 = 37;
+    required int64 c_iattr19 = 38;
+}
+
+message FrequentFlyerRow {
+    required int64 ff_c_id = 1;
+    required int64 ff_al_id = 2;
+    required int64 ff_iattr00 = 3;
+    required int64 ff_iattr01 = 4;
+    required int64 ff_iattr02 = 5;
+    required int64 ff_iattr03 = 6;
+    required int64 ff_iattr04 = 7;
+    required int64 ff_iattr05 = 8;
+    required int64 ff_iattr06 = 9;
+    required int64 ff_iattr07 = 10;
+    required int64 ff_iattr08 = 11;
+    required int64 ff_iattr09 = 12;
+    required int64 ff_iattr10 = 13;
+    required int64 ff_iattr11 = 14;
+    required int64 ff_iattr12 = 15;
+    required int64 ff_iattr13 = 16;
+    required int64 ff_iattr14 = 17;
+    required int64 ff_iattr15 = 18;
+}
+
+message FlightRow {
+    required int64 f_id = 1;
+    required int64 f_al_id = 2;
+    required int64 f_depart_ap_id = 3;
+    required int64 f_depart_time = 4;
+    required int64 f_arrive_ap_id = 5;
+    required int64 f_arrive_time = 6;
+    required int64 f_status = 7;
+    required int64 f_seats_left = 8;
+    required int64 f_iattr00 = 9;
+    required int64 f_iattr01 = 10;
+    required int64 f_iattr02 = 11;
+    required int64 f_iattr03 = 12;
+    required int64 f_iattr04 = 13; 
+    required int64 f_iattr05 = 14;
+    required int64 f_iattr06 = 15;
+    required int64 f_iattr07 = 16;
+    required int64 f_iattr08 = 17;
+    required int64 f_iattr09 = 18;
+    required int64 f_iattr10 = 19;
+    required int64 f_iattr11 = 20;
+    required int64 f_iattr12 = 21;
+    required int64 f_iattr13 = 22;
+    required int64 f_iattr14 = 23;
+    required int64 f_iattr15 = 24;
+    required int64 f_iattr16 = 25;
+    required int64 f_iattr17 = 26;
+    required int64 f_iattr18 = 27;
+    required int64 f_iattr19 = 28;
+    required int64 f_iattr20 = 29;
+    required int64 f_iattr21 = 30;
+    required int64 f_iattr22 = 31;
+    required int64 f_iattr23 = 32;
+    required int64 f_iattr24 = 33;
+    required int64 f_iattr25 = 34;
+    required int64 f_iattr26 = 35;
+    required int64 f_iattr27 = 36;
+    required int64 f_iattr28 = 37;
+    required int64 f_iattr29 = 38;    
+}
+
+message ReservationRow {
+    required int64 r_id = 1;
+    required int64 r_c_id = 2;
+    required int64 r_f_id = 3;
+    required int64 r_seat = 4;
+    required int64 r_iattr00 = 5;
+    required int64 r_iattr01 = 6;
+    required int64 r_iattr02 = 7;
+    required int64 r_iattr03 = 8;
+    required int64 r_iattr04 = 9;
+    required int64 r_iattr05 = 10;
+    required int64 r_iattr06 = 11;
+    required int64 r_iattr07 = 12;
+    required int64 r_iattr08 = 13;
+}

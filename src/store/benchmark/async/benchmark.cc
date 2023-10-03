@@ -124,7 +124,8 @@ enum benchmode_t {
   BENCH_TPCC_SYNC,
   BENCH_TOY,
   BENCH_TPCC_SQL,
-  BENCH_RW_SQL
+  BENCH_RW_SQL, 
+  BENCH_SEATS_SQL
 };
 
 enum keysmode_t {
@@ -524,7 +525,8 @@ const strongstore::Mode strongmodes[] {
 	strongstore::Mode::MODE_UNKNOWN,
 	strongstore::Mode::MODE_UNKNOWN,
   strongstore::Mode::MODE_UNKNOWN,
-	strongstore::Mode::MODE_UNKNOWN
+	strongstore::Mode::MODE_UNKNOWN, 
+  strongstore::Mode::MODE_UNKNOWN
 };
 static bool ValidateProtocolMode(const char* flagname,
     const std::string &value) {
@@ -559,7 +561,8 @@ const benchmode_t benchmodes[] {
   BENCH_TPCC_SYNC,
   BENCH_TOY,
   BENCH_TPCC_SQL,
-  BENCH_RW_SQL
+  BENCH_RW_SQL,
+  BENCH_SEATS_SQL
 };
 static bool ValidateBenchmark(const char* flagname, const std::string &value) {
   int n = sizeof(benchmark_args);
@@ -1559,6 +1562,7 @@ int main(int argc, char **argv) {
       case BENCH_SMALLBANK_SYNC:
       case BENCH_TPCC_SYNC:
       case BENCH_TPCC_SQL:
+      case BENCH_SEATS_SQL:
         if (syncClient == nullptr) {
           UW_ASSERT(client != nullptr);
           syncClient = new SyncClient(client);
@@ -1657,6 +1661,15 @@ int main(int argc, char **argv) {
             FLAGS_abort_backoff, FLAGS_retry_aborted, FLAGS_max_backoff, FLAGS_max_attempts,
             FLAGS_timeout);
         break;
+    case BENCH_SEATS_SQL:
+        UW_ASSERT(syncClient != nullptr);
+        bench = new rwsql::RWSQLClient(FLAGS_num_ops_txn, querySelector, FLAGS_rw_read_only,
+            *syncClient, *tport, seed,
+            FLAGS_num_requests, FLAGS_exp_duration, FLAGS_delay,
+            FLAGS_warmup_secs, FLAGS_cooldown_secs, FLAGS_tput_interval,
+            FLAGS_abort_backoff, FLAGS_retry_aborted, FLAGS_max_backoff, FLAGS_max_attempts,
+            FLAGS_timeout);
+        break;
 
       default:
         NOT_REACHABLE();
@@ -1671,6 +1684,7 @@ int main(int argc, char **argv) {
         break;
       case BENCH_RW_SQL:
       case BENCH_SMALLBANK_SYNC:
+      case BENCH_SEATS_SQL:
       case BENCH_TPCC_SQL:
       case BENCH_TPCC_SYNC: {
         SyncTransactionBenchClient *syncBench = dynamic_cast<SyncTransactionBenchClient *>(bench);
