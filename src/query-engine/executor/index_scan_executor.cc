@@ -321,6 +321,8 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
               predicate_->Evaluate(&tuple, nullptr, executor_context_).IsTrue();
         }
 
+        std::cout << "Before delete check" << std::endl;
+
         /** NEW: Force eval to be true if deleted */
         if (tile_group_header->IsDeleted(tuple_location.offset)) {
           eval = true;
@@ -342,6 +344,14 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
                 tile_group_header->GetCommitOrPrepare(tuple_location.offset),
                 (visible_tuple_set.find(tuple_location) ==
                  visible_tuple_set.end()));
+
+          std::cout << "Tuple check if committed is "
+                    << tile_group_header->GetCommitOrPrepare(
+                           tuple_location.offset)
+                    << ". Already processed is "
+                    << (visible_tuple_set.find(tuple_location) ==
+                        visible_tuple_set.end())
+                    << std::endl;
 
           // The tuple is committed
           if (tile_group_header->GetCommitOrPrepare(tuple_location.offset) &&
@@ -385,20 +395,29 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
               //  std::cout << (*commit_proof)->DebugString() << std::endl;
               if (commit_proof == nullptr) {
                 Debug("Commit proof is null");
+                std::cout << "Commit proof is null" << std::endl;
               } else {
                 Debug("Inside index scan proof not null");
+                std::cout << "Inside index scan proof not null" << std::endl;
+
                 auto proof_ts = Timestamp(commit_proof->txn().timestamp());
                 Debug("Proof ts is %lu, %lu", proof_ts.getTimestamp(),
                       proof_ts.getID());
+
+                std::cout << "Proof ts is " << proof_ts.getTimestamp() << ", "
+                          << proof_ts.getID() << std::endl;
               }
 
               if (commit_proof_ref == nullptr) {
                 Debug("Commit proof ref is null");
+                std::cout << "Commit proof ref is null" << std::endl;
               } else {
                 if (*commit_proof_ref == nullptr) {
                   Debug("* commit proof ref is null");
+                  std::cout << "* commit proof ref is null" << std::endl;
                 } else {
                   Debug("Neither pointer is null");
+                  std::cout << "Neither pointer is null" << std::endl;
                 }
               }
             }
@@ -419,12 +438,15 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
             auto predicate = current_txn->GetPredicate();
 
             if (predicate) {
-              if (predicate(*(current_txn->GetTxnDig())) &&
+              auto txn_digest =
+                  tile_group_header->GetTxnDig(tuple_location.offset);
+              if (predicate(*txn_digest) &&
                   visible_tuple_set.find(tuple_location) ==
                       visible_tuple_set.end()) {
                 // NEW: if predicate satisfied then add to prepared visible
                 // tuple vector
 
+                std::cout << "Predicate is satisfied" << std::endl;
                 // Set the prepared timestamp
                 Timestamp prepared_timestamp =
                     tile_group_header->GetBasilTimestamp(tuple_location.offset);
@@ -471,6 +493,7 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
       // std::cout << "Offset is " << old_item.offset << std::endl;
       tuple_location = tile_group_header->GetNextItemPointer(old_item.offset);
       tile_group = storage_manager->GetTileGroup(tuple_location.block);
+      tile_group_header = tile_group->GetHeader();
 
       if (tuple_location.IsNull()) {
         // std::cout << "Tuple location is null" << std::endl;

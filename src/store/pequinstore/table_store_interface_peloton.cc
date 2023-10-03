@@ -497,9 +497,9 @@ void PelotonTableStore::ExecPointRead(
   } else {
     Debug("The commit proof is not null");
 
-    auto proof_ts = Timestamp(committedProof->txn().timestamp());
+    /*auto proof_ts = Timestamp(committedProof->txn().timestamp());
     Debug("ExecPointRead Proof ts is %lu, %lu", proof_ts.getTimestamp(),
-          proof_ts.getID());
+          proof_ts.getID());*/
 
     Debug("ExecPointRead committed ts is %lu, %lu",
           committed_timestamp.getTimestamp(), committed_timestamp.getID());
