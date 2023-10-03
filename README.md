@@ -283,13 +283,14 @@ Download and build the library:
 
 1. `git clone https://github.com/bitcoin-core/secp256k1.git`
 2. `cd secp256k1`
-3. `./autogen.sh`
-4. `./configure`
-5. `make -j $(nproc)`
-6. `make check -j $(nproc)`
-7. `sudo make install`
-8. `sudo ldconfig`
-9. `cd ..`
+3. `git checkout ac83be33` (our cloudlab images have version 0.0.0)
+4. `./autogen.sh`
+5. `./configure`
+6. `make -j $(nproc)`
+7. `make check -j $(nproc)`
+8. `sudo make install`
+9. `sudo ldconfig`
+10. `cd ..`
 
 
 #### Installing cryptopp
