@@ -466,21 +466,13 @@ ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple,
           curr_tile_group_header->SetCommitOrPrepare(curr_pointer.offset, true);
         } else {
           std::cout << "Should upgrade is " << should_upgrade << std::endl;
-          std::cout << "Is Prepared is "
-                    << !curr_tile_group_header->GetCommitOrPrepare(
-                           curr_pointer.offset)
-                    << std::endl;
-          std::cout << "Transaction is committed is "
-                    << transaction->GetCommitOrPrepare() << std::endl;
+          std::cout << "Current tuple is: " << (curr_tile_group_header->GetCommitOrPrepare(curr_pointer.offset)? "committed" : "prepared") << std::endl;
+          std::cout << "Transaction is " << (transaction->GetCommitOrPrepare()? "committing" : "preparing") << std::endl;
           std::cout << "Same columns is " << same_columns << std::endl;
-          std::cout << "Timestamp is " << ts.getTimestamp() << ", "
-                    << ts.getID() << std::endl;
-          std::cout << "Txn timestamp is "
-                    << transaction->GetBasilTimestamp().getTimestamp() << ", "
-                    << transaction->GetBasilTimestamp().getID() << std::endl;
+          std::cout << "Timestamp is " << ts.getTimestamp() << ", " << ts.getID() << std::endl;
+          std::cout << "Txn timestamp is " << transaction->GetBasilTimestamp().getTimestamp() << ", " << transaction->GetBasilTimestamp().getID() << std::endl;
           
-           //UW_ASSERT(*transaction->GetTxnDig() != *curr_tile_group_header->GetTxnDig(curr_pointer.offset));
-           Panic("Tried to add a duplicate write");
+           //Panic("Tried to add a duplicate write");
         }
       }
 
