@@ -672,7 +672,7 @@ DEFINE_bool(rw_read_only, false, "only do read operations");
  * RW-sql additional settings.
  */
 
-DEFINE_uint64(num_tables, 3, "number of tables for rw-sql");
+DEFINE_uint64(num_tables, 10, "number of tables for rw-sql");
 DEFINE_uint64(num_keys_per_table, 100, "number of keys per table for rw-sql");
 DEFINE_uint64(max_range, 10, "max amount of reads in a single scan for rw-sql");
 
@@ -1249,7 +1249,7 @@ int main(int argc, char **argv) {
           }
          
          // ==> Moved to client logic in order to account for retries.
-         //if(FLAGS_pequin_query_optimistic_txid) syncMessages = std::max((uint64_t) config->n, syncMessages + config->n); //If optimisticTxID enabled send to f additional replicas to guarantee result. 
+         //if(FLAGS_pequin_query_optimistic_txid) syncMessages = std::max((uint64_t) config->n, syncMessages + config->f); //If optimisticTxID enabled send to f additional replicas to guarantee result. 
          // if read_cache is True:--> send sync to all, but still only ask syncMessages many to execute.
 
         Debug("Configuring Pequin to send query messages to %lu replicas and wait for %lu replies. Merge Threshold is %lu. %lu Sync messages are being sent", queryMessages, syncQuorumSize, mergeThreshold, syncMessages);

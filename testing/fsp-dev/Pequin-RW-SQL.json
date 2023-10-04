@@ -16,7 +16,7 @@
   "client_num_keys": 10000000,
   
   "server_load_time": 5,
-  "client_zipf_coefficient": 0.75,   
+  "client_zipf_coefficient": 0,   
   "client_key_selector": "zipf",
   
   "benchmark_type": "sql_bench",  
@@ -24,9 +24,9 @@
   "benchmark_name": "rw-sql",
   "benchmark_schema_file_path": "/users/fs435/indicus/rw-sql.json",
   "rw_num_ops_txn": 2, 
-  "num_tables": 1,
+  "num_tables": 10,
   "num_keys_per_table": 10, 
-  "max_range": 3, 
+  "max_range": 10, 
   "read_only": "false",
 
   "client_abort_backoff": 2,
@@ -125,7 +125,7 @@
   "codebase_name": "indicus",
 
   "client_total": [
-    [2]
+    [10]
   ],
   "client_processes_per_client_node": [
     [8]

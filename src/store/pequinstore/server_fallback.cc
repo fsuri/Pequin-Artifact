@@ -102,6 +102,7 @@ void Server::SendRelayP1(const TransportAddress &remote, const std::string &depe
   relayP1.set_dependent_id(dependent_id);
   relayP1.mutable_p1()->set_req_id(0); //doesnt matter, its not used for fallback requests really.
   //*relayP1.mutable_p1()->mutable_txn() = *tx; //TODO:: avoid copy by allocating, and releasing again after.
+  relayP1.set_replica_id(id);
 
   if(params.signClientProposals){
     //b.release();

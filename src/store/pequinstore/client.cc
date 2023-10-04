@@ -1482,6 +1482,7 @@ void Client::FinishConflict(uint64_t reqId, const std::string &txnDigest, proto:
 
 bool Client::isDep(const std::string &txnDigest, proto::Transaction &Req_txn, const proto::Transaction* txn){
 
+      //TODO: if TXN not yet preparing => cannot be a relevant dep.
   //If we are caching: Check whether dependency is part of snapshot; If eager, make an exception and accept dep
   if(params.query_params.cacheReadSet){
     for(auto &[query_seq_num, pendingQuery]: pendingQueries){ 

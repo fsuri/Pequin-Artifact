@@ -437,6 +437,7 @@ proto::ConcurrencyControl::Result Server::mergeTxReadSets(const ReadSet *&readSe
   mergedReadSet->mutable_deps()->erase(std::unique(mergedReadSet->mutable_deps()->begin(), mergedReadSet->mutable_deps()->end(), equalDep), mergedReadSet->mutable_deps()->end()); //Erase duplicates...
   
    //add mergedreadSet to tx - return success
+  if(txn.has_merged_read_set()) Panic("Thread unsafe interaction");
   txn.set_allocated_merged_read_set(mergedReadSet.release());
   readSet = &txn.merged_read_set().read_set();
   depSet = &txn.merged_read_set().deps();

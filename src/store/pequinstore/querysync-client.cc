@@ -233,7 +233,8 @@ void ShardClient::RequestQuery(PendingQuery *pendingQuery, proto::Query &queryMs
   //uint64_t num_designated_replies;
   if(queryReq.eager_exec()){
     total_msg = params.query_params.cacheReadSet? config->n : params.query_params.syncMessages;
-    pendingQuery->num_designated_replies = params.query_params.syncMessages; 
+    pendingQuery->num_designated_replies = params.query_params.syncMessages;  
+    //Notice("Num designated replies %d", params.query_params.syncMessages);
   }
 
   else{
@@ -245,7 +246,7 @@ void ShardClient::RequestQuery(PendingQuery *pendingQuery, proto::Query &queryMs
   UW_ASSERT(total_msg <= closestReplicas.size());
   for (size_t i = 0; i < total_msg; ++i) {
     queryReq.set_designated_for_reply(i < pendingQuery->num_designated_replies);
-    Debug("[group %i] Sending QUERY to replica id %lu", group, group * config->n + GetNthClosestReplica(i));
+    Debug("[group %i] Sending QUERY to replica id %lu. designated for reply? %d ", group, group * config->n + GetNthClosestReplica(i),  i < pendingQuery->num_designated_replies);
     transport->SendMessageToReplica(this, group, GetNthClosestReplica(i), queryReq);
   }
 
@@ -261,6 +262,7 @@ void ShardClient::HandleQuerySyncReply(proto::SyncReply &SyncReply){
         return; // this is a stale request
     }
     PendingQuery *pendingQuery = itr->second;
+    if(pendingQuery->done) return; //this is a stale request; (Query finished, but Txn not yet)
 
     // 1) authenticate reply -- record duplicates   --> could use MACs instead of signatures? Don't need to forward sigs... --> but this requires establishing a MAC between every client/replica pair. Sigs is easier.
     // 2) If signed -- parse contents
@@ -395,6 +397,7 @@ void ShardClient::HandleQueryResult(proto::QueryResultReply &queryResult){
     } 
 
     PendingQuery *pendingQuery = itr->second;
+    if(pendingQuery->done) return; //this is a stale request; (Query finished, but Txn not yet)
     
     Debug("[group %i] Received QueryResult Reply for req-id [%lu]", group, queryResult.req_id());
     // if(!pendingQuery->query_manager){
@@ -578,6 +581,7 @@ void ShardClient::HandleQueryResult(proto::QueryResultReply &queryResult){
     if(matching_res == params.query_params.resultQuorum){
         Debug("[group %i] Reached sufficient matching results for QueryResult Reply %lu", group, queryResult.req_id());
         
+        pendingQuery->done = true;
         //pendingQuery->rcb(REPLY_OK, group, read_set, *replica_result->mutable_query_result_hash(), *replica_result->mutable_query_result(), true);
         pendingQuery->rcb(REPLY_OK, group, replica_result->release_query_read_set(), *replica_result->mutable_query_result_hash(), *replica_result->mutable_query_result(), true);
         // Remove/Deltete pendingQuery happens in upcall
@@ -621,6 +625,7 @@ void ShardClient::HandleFailQuery(proto::FailQuery &queryFail){
     if (itr == this->pendingQueries.end()) return; // this is a stale request
 
     PendingQuery *pendingQuery = itr->second;
+    if(pendingQuery->done) return; //this is a stale request; (Query finished, but Txn not yet)
     Debug("[group %i] QueryFail Reply for request %lu.", group, queryResult.req_id());
 
     //1) authenticate reply & parse contents
@@ -717,6 +722,7 @@ void ShardClient::HandlePointQueryResult(proto::PointQueryResultReply &queryResu
     } 
 
     PendingQuery *pendingQuery = itr->second;
+    if(pendingQuery->done) return; //this is a stale request; (Query finished, but Txn not yet)
     
     Debug("[group %i] Received PointQueryResult Reply for req-id [%lu]", group, queryResult.req_id());
 
@@ -1064,6 +1070,7 @@ bool ShardClient::isValidQueryDep(const uint64_t &query_seq_num, const std::stri
     }
     
     PendingQuery *pendingQuery = itr->second;
+    if(!pendingQuery->done) return false; //The query is not yet finished; cannot yet have dependencies.
     proto::MergedSnapshot &merged_ss =pendingQuery->merged_ss;
 
     if(params.query_params.eagerExec){  //Make exception if current Query is eager and we are caching   

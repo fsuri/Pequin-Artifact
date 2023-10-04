@@ -1122,11 +1122,9 @@ void ShardClient::ProcessP1R(proto::Phase1Reply &reply, bool FB_path, PendingFB 
 
   const proto::ConcurrencyControl *cc = nullptr;
   if (hasSigned) {
-    Debug("[group %i] Verifying signed_cc from server %lu with signatures bytes %lu"
-        " because has_cc %d and ccr %d.",
+    Debug("[group %i] Verifying signed_cc from server %lu with signatures bytes %lu because has_cc %d (i.e. is signed).",
         group, reply.signed_cc().process_id(), reply.signed_cc().signature().length(),
-        reply.has_cc(),
-        reply.cc().ccr());
+        reply.has_cc());
     if (!reply.has_signed_cc()) {
       return;
     }
