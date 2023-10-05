@@ -740,8 +740,6 @@ void Client::Commit(commit_callback ccb, commit_timeout_callback ctcb,
     uint32_t timeout) {
   transport->Timer(0, [this, ccb, ctcb, timeout]() {
 
-    //if(!past_timestamps.insert(txn.timestamp().timestamp()).second) Panic("Issuing two tx with same TS");
-
     uint64_t ns = Latency_End(&executeLatency);
     Latency_Start(&commitLatency);
 
@@ -799,11 +797,11 @@ void Client::Commit(commit_callback ccb, commit_timeout_callback ctcb,
     req->ctcb = ctcb;
     req->callbackInvoked = false;
     req->txnDigest = TransactionDigest(txn, params.hashDigest);
-    Debug("TRY COMMIT[%s] (sanity: %s)", BytesToHex(req->txnDigest, 16).c_str(), BytesToHex(TransactionDigest(req->txn, params.hashDigest), 16).c_str());
+   
     req->timeout = timeout; //20000UL; //timeout;
     stats.IncrementList("txn_groups", txn.involved_groups().size());
 
-    Debug("TRY COMMIT[%s] (sanity: %s)", BytesToHex(req->txnDigest, 16).c_str(), BytesToHex(TransactionDigest(req->txn, params.hashDigest), 16).c_str());
+    Debug("TRY COMMIT[%s]", BytesToHex(req->txnDigest, 16).c_str());
 
     Phase1(req);
   });
@@ -813,10 +811,7 @@ void Client::Phase1(PendingRequest *req) {
   Debug("PHASE1 [%lu:%lu] for txn_id %s at TS %lu", client_id, client_seq_num,
       BytesToHex(TransactionDigest(req->txn, params.hashDigest), 16).c_str(), txn.timestamp().timestamp());
 
-
   UW_ASSERT(txn.involved_groups().size() > 0);
-
-  Notice("TxnDigest %s. (compute: %s)", BytesToHex(req->txnDigest, 16).c_str(), BytesToHex(TransactionDigest(req->txn, params.hashDigest), 16).c_str());
 
   for (auto group : txn.involved_groups()) {
     bclient[group]->Phase1(client_seq_num, txn, req->txnDigest,

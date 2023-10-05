@@ -1880,7 +1880,6 @@ std::string TransactionDigest(const proto::Transaction &txn, bool hashDigest) {
     std::sort(tt.begin(), tt.end(), [](auto l, auto r){ return (*l.first) < (*r.first); });
 
     for (const auto &[table, table_write]: tt) {
-      //Notice("Table %s. Length: %d", table->c_str(), table->length());
       blake3_hasher_update(&hasher, (unsigned char *) &(*table)[0], table->length());
 
       for(const auto &row: table_write->rows()){

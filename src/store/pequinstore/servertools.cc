@@ -831,9 +831,6 @@ void* Server::TryPrepare(uint64_t reqId, const TransportAddress &remote, proto::
         ts_to_txMap::accessor t; 
         Debug("TS_TO_TX insert TX[%s] with TS[%lu:%lu]. MergedTS:[%lu]", BytesToHex(txnDigest, 16).c_str(), txn->timestamp().timestamp(), txn->timestamp().id(),
                                                                            MergeTimestampId(txn->timestamp().timestamp(), txn->timestamp().id()));
-
-        std::cerr << "TS: " << std::hex << std::uppercase << (txn->timestamp().timestamp()) << std::endl;
-        std::cerr << "ID: " << std::hex << std::uppercase << (txn->timestamp().id()) << std::endl;
        
         bool first = ts_to_tx.insert(t, MergeTimestampId(txn->timestamp().timestamp(), txn->timestamp().id()));
         if(!first && !TEST_PREPARE_SYNC && t->second != txnDigest){

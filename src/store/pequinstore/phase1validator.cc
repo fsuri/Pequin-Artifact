@@ -37,8 +37,7 @@ Phase1Validator::Phase1Validator(int group, const proto::Transaction *txn,
     txn(txn), txnDigest(txnDigest), config(config), keyManager(keyManager),
     params(params), verifier(verifier), state(NOT_ENOUGH), commits(0U), abstains(0U) {
 
-    Debug("Create Phase1Validator with digest: %s. (sanity: %s)", BytesToHex(*txnDigest, 16).c_str(), BytesToHex(TransactionDigest(*txn, params.hashDigest), 16).c_str());
-    UW_ASSERT(*txnDigest == TransactionDigest(*txn, params.hashDigest));
+    Debug("Create Phase1Validator with digest: %s.", BytesToHex(*txnDigest, 16).c_str());
 }
 
 Phase1Validator::~Phase1Validator() {

@@ -198,10 +198,8 @@ class Client : public ::Client {
   // void ClearQuery(uint64_t query_seq_num, std::vector<uint64_t> &involved_groups);
   // void RetryQuery(uint64_t query_seq_num, std::vector<uint64_t> &involved_groups);
 
-  //JUST FOR TESTING:
-  //std::set<uint64_t> past_timestamps;
 
-  //Commit protocol structures and functions
+  ///////////////   Commit protocol structures and functions
 
   struct PendingRequest {
     PendingRequest(uint64_t id, Client *client) : id(id), outstandingPhase1s(0),
