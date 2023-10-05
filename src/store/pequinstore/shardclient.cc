@@ -207,7 +207,7 @@ void ShardClient::Put(uint64_t id, const std::string &key,
 void ShardClient::Phase1(uint64_t id, const proto::Transaction &transaction, const std::string &txnDigest,
   phase1_callback pcb, phase1_timeout_callback ptcb, relayP1_callback rcb, finishConflictCB fcb, uint32_t timeout) {
   uint64_t reqId = lastReqId++;
-  Debug("[group %i] Sending PHASE1 for id[%lu], reqId[%lu]", group, id, reqId);
+  Debug("[group %i] Sending PHASE1[%s] for id[%lu], reqId[%lu]", group, BytesToHex(txnDigest, 16).c_str(), id, reqId);
   client_seq_num_mapping[id].pendingP1_id = reqId;
   PendingPhase1 *pendingPhase1 = new PendingPhase1(reqId, group, transaction,
       txnDigest, config, keyManager, params, verifier, id);
@@ -1163,7 +1163,8 @@ void ShardClient::ProcessP1R(proto::Phase1Reply &reply, bool FB_path, PendingFB 
     cc = &reply.cc();
   }
 
-  Debug("[group %i][replica %lu] PHASE1R[%s] process ccr=%d", group, reply.signed_cc().process_id(), BytesToHex(TransactionDigest(pendingPhase1->txn_ , params.hashDigest), 16).c_str() , cc->ccr());
+  Debug("[group %i][replica %lu] PHASE1R[%s] process ccr=%d", group, reply.signed_cc().process_id(), 
+                                              BytesToHex(TransactionDigest(pendingPhase1->txn_ , params.hashDigest), 16).c_str() , cc->ccr());
 
   if (!pendingPhase1->p1Validator.ProcessMessage(*cc, (failureActive && !FB_path) )) {
     return;

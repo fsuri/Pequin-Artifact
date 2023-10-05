@@ -36,6 +36,9 @@ Phase1Validator::Phase1Validator(int group, const proto::Transaction *txn,
     KeyManager *keyManager, Parameters params, Verifier *verifier) : group(group),
     txn(txn), txnDigest(txnDigest), config(config), keyManager(keyManager),
     params(params), verifier(verifier), state(NOT_ENOUGH), commits(0U), abstains(0U) {
+
+    Debug("Create Phase1Validator with digest: %s. (sanity: %s)", BytesToHex(*txnDigest, 16).c_str(), BytesToHex(TransactionDigest(*txn, params.hashDigest), 16).c_str());
+    UW_ASSERT(*txnDigest == TransactionDigest(*txn, params.hashDigest));
 }
 
 Phase1Validator::~Phase1Validator() {
@@ -51,6 +54,7 @@ bool Phase1Validator::ProcessMessage(const proto::ConcurrencyControl &cc, bool f
     Debug("[group %d] Phase1Reply digest %s does not match computed digest %s.",
         group, BytesToHex(cc.txn_digest(), 16).c_str(),
         BytesToHex(*txnDigest, 16).c_str());
+    Panic("Phase1Reply digests do not match");
     return false;
   }
 

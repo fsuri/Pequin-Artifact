@@ -13,7 +13,7 @@ null
 .vscode/settings.json
 
 0_local_test_outputs/rw-sql/rw-sql-gen*
-
+0_local_test_outputs/*.zip
 
 lib/crypto_bench
 lib/batched_sigs_test

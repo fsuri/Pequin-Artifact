@@ -564,7 +564,7 @@ void SQLTransformer::TransformUpdate(size_t pos, std::string_view &write_stateme
         }
 
         TableWrite *table_write = AddTableWrite(table_name, col_registry);
-       
+
         //For each row in query result
         for(int i = 0; i < result->size(); ++i){
             std::unique_ptr<query_result::Row> row = (*result)[i]; 
@@ -577,7 +577,6 @@ void SQLTransformer::TransformUpdate(size_t pos, std::string_view &write_stateme
             
             RowUpdates *row_update = AddTableWriteRow(table_write, col_registry); //row_update->mutable_column_values()->Resize(col_registry.col_names.size(), ""); Resize seems to not work for strings
             //std::cerr << "Row size: " <<  row_update->mutable_column_values()->size() << std::endl;
-
           
             //TODO: Do this for UPDATE and DELETE too. //TODO: For Delete: Set all columns. Set values only for the columns we care about.
             bool update_primary_key = false;
@@ -620,9 +619,8 @@ void SQLTransformer::TransformUpdate(size_t pos, std::string_view &write_stateme
                     } 
                 }
 
-             
                 (*row_update->mutable_column_values())[col_registry.col_name_index[col]] = std::move(set_val); //Realistically row columns will be in correct order. But in case they are not, must insert at the right position.
-                
+               
             }    
         
             std::string enc_key = EncodeTableRow(table_name, primary_key_column_values);
