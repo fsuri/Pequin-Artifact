@@ -536,7 +536,7 @@ void Server::LoadTableRows(const std::string &table_name, const std::vector<std:
   Timestamp genesis_ts(0,0);
   proto::CommittedProof *genesis_proof = committedItr->second;
 
-  table_store->ApplyTableWrite(table_name, table_write, genesis_ts, genesis_tx_dig, genesis_proof);
+  ApplyTableWrites(table_name, table_write, genesis_ts, genesis_tx_dig, genesis_proof);
   
 
   std::vector<const std::string*> primary_cols;
@@ -1122,6 +1122,7 @@ void Server::HandlePhase2(const TransportAddress &remote, proto::Phase2 &msg) {
       txn = &msg.txn();
       computedTxnDigest = TransactionDigest(msg.txn(), params.hashDigest);
       txnDigest = &computedTxnDigest;
+      RegisterTxTS(computedTxnDigest, txn);
     }
 
   }
@@ -1246,6 +1247,7 @@ void Server::HandlePhase2(const TransportAddress &remote, proto::Phase2 &msg) {
               txn = &msg.txn();
               // check that digest and txn match..
                if(*txnDigest !=TransactionDigest(*txn, params.hashDigest)) return;
+               RegisterTxTS(*txnDigest, txn);
             }
             else{
               Debug("PHASE2[%s] message does not contain txn, but have not seen"
@@ -1420,6 +1422,8 @@ void Server::HandleWriteback(const TransportAddress &remote,
         txn = msg.release_txn();
         // check that digest and txn match..
          if(*txnDigest !=TransactionDigest(*txn, params.hashDigest)) return;
+        
+        RegisterTxTS(*txnDigest, txn);
       }
       else{
         //No longer ongoing => was committed/aborted on a concurrent thread
@@ -1435,9 +1439,11 @@ void Server::HandleWriteback(const TransportAddress &remote,
       }
     }
   } else {
+    UW_ASSERT(msg.has_txn());
     txn = msg.release_txn();
     computedTxnDigest = TransactionDigest(*txn, params.hashDigest);
     txnDigest = &computedTxnDigest;
+    RegisterTxTS(*txnDigest, txn);
 
     if(committed.find(*txnDigest) != committed.end() || aborted.find(*txnDigest) != aborted.end()){
       if(params.multiThreading || (params.mainThreadDispatching && !params.dispatchMessageReceive)){
@@ -1504,7 +1510,9 @@ void Server::WritebackCallback(proto::Writeback *msg, const std::string *txnDige
         stats.Increment("total_transactions", 1);
         stats.Increment("total_transactions_abort", 1);
         Debug("WRITEBACK[%s] successfully aborting.", BytesToHex(*txnDigest, 16).c_str());
-        //msg->set_allocated_txn(txn); //dont need to set since client will?
+        //msg->set_allocated_txn(txn); //dont need to set since client will?   
+        *msg->mutable_txn() = *txn; //Copy Txn back into msg => This might be necessary in case a replica syncs on an aborted Txn that it hasn't seen before. //TODO: can we use set_allocated? Or is that not threadsafe
+
         writebackMessages.insert(std::make_pair(*txnDigest, *msg)); //Note: Could move data item and create a copy of txnDigest and Timestamp to call Abort instead. (writebackMessages insert has to happen before Abort insert)
         //writebackMessages[*txnDigest] = *msg;  //Only necessary for fallback... (could avoid storing these, if one just replied with a p2 vote instead - but that is not as responsive)
         ///CAUTION: msg might no longer hold txn; could have been released in HanldeWriteback
@@ -1681,7 +1689,7 @@ void Server::Prepare(const std::string &txnDigest,const proto::Transaction &txn,
   o.release(); //Relase only at the end, so that Prepare and Clean in parallel for the same TX are atomic.
 
   for (const auto &[table_name, table_write] : txn.table_writes()){
-    table_store->ApplyTableWrite(table_name, table_write, ts, txnDigest, nullptr, false);
+    ApplyTableWrites(table_name, table_write, ts, txnDigest, nullptr, false);
     //Apply TableVersion  ==> currently moved below
     // std::pair<std::shared_mutex,std::map<Timestamp, const proto::Transaction *>> &x = preparedWrites[table_name];
     // std::unique_lock lock(x.first);
@@ -1742,7 +1750,7 @@ void Server::Commit(const std::string &txnDigest, proto::Transaction *txn,
   CleanDependencies(txnDigest);
 
   CleanQueries(proof->mutable_txn()); //Note: Changing txn is not threadsafe per se, but should not cause any issues..
-  CheckWaitingQueries(txnDigest, proof->txn().timestamp());
+  //CheckWaitingQueries(txnDigest, txn->timestamp().timestamp(), txn->timestamp().id()); //Now waking after applyTablewrite
 }
 
 //Note: This might be called on a different thread than mainthread. Thus insertion into committed + Clean are concurrent. Safe because proof comes with its own owned tx, which is not used by any other thread.
@@ -1766,8 +1774,7 @@ void Server::CommitWithProof(const std::string &txnDigest, proto::CommittedProof
     CleanDependencies(txnDigest);
 
     CleanQueries(proof->mutable_txn()); //Note: Changing txn is not threadsafe per se, but should not cause any issues..
-    UpdateWaitingQueries(txnDigest);
-    if(params.query_params.optimisticTxID) UpdateWaitingQueriesTS(MergeTimestampId(proof->txn().timestamp().timestamp(), proof->txn().timestamp().id()), txnDigest);
+    //CheckWaitingQueries(txnDigest, txn->timestamp().timestamp(), txn->timestamp().id());  //Now waking after applyTablewrite
 }
 
 
@@ -1876,7 +1883,7 @@ void Server::CommitToStore(proto::CommittedProof *proof, proto::Transaction *txn
                             // alternatively: don't mark prepare/commit inside the table store, only in CC store. But that requires extra lookup for all keys in read set.
                             // + how do we remove prepared rows? Do we treat it as SQL delete (at ts)? row becomes invisible -- fully removed from CC store.
   for (const auto &[table_name, table_write] : txn->table_writes()){
-    table_store->ApplyTableWrite(table_name, table_write, ts, txnDigest, proof);
+    ApplyTableWrites(table_name, table_write, ts, txnDigest, proof);
     //val.val = "";
     //store.put(table_name, val, ts);     //TODO: Confirm that ApplyTableWrite is synchronous -- i.e. only returns after all writes are applied. 
                                                           //If not, then must call SetTableVersion as callback from within Peloton once it is done.
@@ -1908,7 +1915,14 @@ void Server::Abort(const std::string &txnDigest, proto::Transaction *txn) {
   ClearRTS(txn->read_set(), txn->timestamp());
 
   CleanQueries(txn, false);
-  CheckWaitingQueries(txnDigest, txn->timestamp(), true); //is_abort  //NOTE: WARNING: If Clean(abort) deletes txn then must callCheckWaitingQueries before Clean.
+
+  materializedMap::accessor ap;
+  materializedTSMap::accessor apt;
+  if(!materialized.insert(ap, txnDigest)) return; //NOTE: Even though abort does not "write anything", we still mark the data structure to indicate it has been materialized
+  if(!materializedTS.insert(ap, MergeTimestampId(txn->timestamp().timestamp(), txn->timestamp().id()))) return; //NOTE: Even though abort does not "write anything", we still mark the data structure to indicate it has been materialized
+  CheckWaitingQueries(txnDigest, txn->timestamp().timestamp(), txn->timestamp().id(), true); //is_abort  //NOTE: WARNING: If Clean(abort) deletes txn then must callCheckWaitingQueries before Clean.
+  apt.release();
+  ap.release();
 
 
 }

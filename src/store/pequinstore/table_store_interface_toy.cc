@@ -214,7 +214,8 @@ void ToyTableStore::ApplyTableWrite(const std::string &table_name,
                                     const Timestamp &ts,
                                     const std::string &txn_digest,
                                     const proto::CommittedProof *commit_proof,
-                                    bool commit_or_prepare) {
+                                    bool commit_or_prepare
+                                    bool forcedMaterialize) {
   std::cerr << "APPLY TABLE WRITE ON TOY INTERFACE" << std::endl;
 }
 
@@ -230,28 +231,39 @@ void ToyTableStore::PurgeTableWrite(const std::string &table_name,
 
 // Partially execute a read query statement (reconnaissance execution) and
 // return the snapshot state (managed by ssMgr)
-void ToyTableStore::FindSnapshot(std::string &query_statement,
+void ToyTableStore::FindSnapshot(const std::string &query_statement,
                                  const Timestamp &ts, SnapshotManager &ssMgr) {
 
   std::cerr << "FIND SNAPSHOT ON TOY INTERFACE" << std::endl;
 }
 
-// Materialize a snapshot on the Table backend and execute on said snapshot.
-void ToyTableStore::MaterializeSnapshot(
-    const std::string &query_retry_id, const proto::MergedSnapshot &merged_ss,
-    const std::set<proto::Transaction *> &ss_txns) {}
+void ToyTableStore::EagerExecAndSnapshot(const std::string &query_statement, const Timestamp &ts, SnapshotManager &ssMgr, QueryReadSetMgr &readSetMgr){
 
-std::string ToyTableStore::ExecReadOnSnapshot(const std::string &query_retry_id,
-                                              std::string &query_statement,
-                                              const Timestamp &ts,
-                                              QueryReadSetMgr &readSetMgr,
-                                              bool abort_early) {
-
-  sql::QueryResultProtoBuilder queryResultBuilder;
-  // queryResultBuilder.add_column("result");
-  // queryResultBuilder.add_row(result_row.begin(), result_row.end());
-
-  return queryResultBuilder.get_result()->SerializeAsString();
 }
+
+void ToyTableStore::ExecReadQueryOnMaterializedSnapshot(const std::string &query_statement, const Timestamp &ts, QueryReadSetMgr &readSetMgr,
+           const ::google::protobuf::Map<std::string, proto::ReplicaList> &ss_txns)
+{
+
+
+//DEPRECATED: 
+
+// // Materialize a snapshot on the Table backend and execute on said snapshot.
+// void ToyTableStore::MaterializeSnapshot(
+//     const std::string &query_retry_id, const proto::MergedSnapshot &merged_ss,
+//     const std::set<proto::Transaction *> &ss_txns) {}
+
+// std::string ToyTableStore::ExecReadOnSnapshot(const std::string &query_retry_id,
+//                                               std::string &query_statement,
+//                                               const Timestamp &ts,
+//                                               QueryReadSetMgr &readSetMgr,
+//                                               bool abort_early) {
+
+//   sql::QueryResultProtoBuilder queryResultBuilder;
+//   // queryResultBuilder.add_column("result");
+//   // queryResultBuilder.add_row(result_row.begin(), result_row.end());
+
+//   return queryResultBuilder.get_result()->SerializeAsString();
+// }
 
 } // namespace pequinstore

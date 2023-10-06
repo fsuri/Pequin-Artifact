@@ -523,7 +523,7 @@ proto::ConcurrencyControl::Result Server::DoOCCCheck(
       Panic("Unknown OCC type: %d.", occType);
       return proto::ConcurrencyControl::ABORT;
   }
-  
+
   //Note: Can eagerly Abort if result final -- Note Still sending Phase1Replies though, because client hard-coded to receive it currently
       //Is there any point to this though? Tx won't be prepared anyways (thus has no impact on CCC). Only pro: Can forwardWriteback
   // if(result == proto::ConcurrencyControl::ABORT){

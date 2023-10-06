@@ -68,7 +68,7 @@ class PelotonTableStore : public TableStore {
 
         //Apply a set of Table Writes (versioned row creations) to the Table backend
         void ApplyTableWrite(const std::string &table_name, const TableWrite &table_write, const Timestamp &ts,
-                const std::string &txn_digest, const proto::CommittedProof *commit_proof = nullptr, bool commit_or_prepare = true) override;
+                const std::string &txn_digest, const proto::CommittedProof *commit_proof = nullptr, bool commit_or_prepare = true, bool forceMaterialize = false) override;
 
          ///https://www.postgresqltutorial.com/postgresql-tutorial/postgresql-upsert/ 
         void PurgeTableWrite(const std::string &table_name, const TableWrite &table_write, const Timestamp &ts, const std::string &txn_digest) override; 
@@ -76,11 +76,20 @@ class PelotonTableStore : public TableStore {
         
 
         //Partially execute a read query statement (reconnaissance execution) and return the snapshot state (managed by ssMgr)
-        void FindSnapshot(std::string &query_statement, const Timestamp &ts, SnapshotManager &ssMgr) override;
+        void FindSnapshot(const std::string &query_statement, const Timestamp &ts, SnapshotManager &ssMgr) override;
 
-        //Materialize a snapshot on the Table backend and execute on said snapshot.
-        void MaterializeSnapshot(const std::string &query_id, const proto::MergedSnapshot &merged_ss, const std::set<proto::Transaction*> &ss_txns) override; //Note: Not sure whether we should materialize full snapshot on demand, or continuously as we sync on Tx
-        std::string ExecReadOnSnapshot(const std::string &query_id, std::string &query_statement, const Timestamp &ts, QueryReadSetMgr &readSetMgr, bool abort_early = false) override;
+        void EagerExecAndSnapshot(const std::string &query_statement, const Timestamp &ts, SnapshotManager &ssMgr, QueryReadSetMgr &readSetMgr) override;
+
+        void ExecReadQueryOnMaterializedSnapshot(const std::string &query_statement, const Timestamp &ts, QueryReadSetMgr &readSetMgr,
+            const google::protobuf::Map<std::string, proto::ReplicaList> &ss_txns) override;
+        //TODO: in this read; only read if txn-id of tuple in snapshot. Allow to read "materialized" visibility
+
+        //DEPRECATED:
+
+        // //Materialize a snapshot on the Table backend and execute on said snapshot.
+        // void MaterializeSnapshot(const std::string &query_id, const proto::MergedSnapshot &merged_ss, const std::set<proto::Transaction*> &ss_txns) override; 
+        //         //Note: Not sure whether we should materialize full snapshot on demand, or continuously as we sync on Tx
+        // std::string ExecReadOnSnapshot(const std::string &query_id, std::string &query_statement, const Timestamp &ts, QueryReadSetMgr &readSetMgr, bool abort_early = false) override;
 
         
 

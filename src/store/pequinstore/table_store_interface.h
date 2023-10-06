@@ -65,7 +65,7 @@ class TableStore {
 
         //Apply a set of Table Writes (versioned row creations) to the Table backend
         virtual void ApplyTableWrite(const std::string &table_name, const TableWrite &table_write, const Timestamp &ts, const std::string &txn_digest, 
-            const proto::CommittedProof *commit_proof = nullptr, bool commit_or_prepare = true) = 0; 
+            const proto::CommittedProof *commit_proof = nullptr, bool commit_or_prepare = true, bool forcedMaterialize = false) = 0; 
 
          ///https://www.postgresqltutorial.com/postgresql-tutorial/postgresql-upsert/ 
         virtual void PurgeTableWrite(const std::string &table_name, const TableWrite &table_write, const Timestamp &ts, const std::string &txn_digest) = 0; 
@@ -73,12 +73,18 @@ class TableStore {
         
 
         //Partially execute a read query statement (reconnaissance execution) and return the snapshot state (managed by ssMgr)
-        virtual void FindSnapshot(std::string &query_statement, const Timestamp &ts, SnapshotManager &ssMgr) = 0;
+        virtual void FindSnapshot(const std::string &query_statement, const Timestamp &ts, SnapshotManager &ssMgr) = 0;
 
-        //Materialize a snapshot on the Table backend and execute on said snapshot.
-        virtual void MaterializeSnapshot(const std::string &query_id, const proto::MergedSnapshot &merged_ss, const std::set<proto::Transaction*> &ss_txns) = 0; 
-        //Note: Not sure whether we should materialize full snapshot on demand, or continuously as we sync on Tx
-        virtual std::string ExecReadOnSnapshot(const std::string &query_id, std::string &query_statement, const Timestamp &ts, QueryReadSetMgr &readSetMgr, bool abort_early = false) = 0; 
+        virtual void EagerExecAndSnapshot(const std::string &query_statement, const Timestamp &ts, SnapshotManager &ssMgr, QueryReadSetMgr &readSetMgr) = 0;
+
+        virtual void ExecReadQueryOnMaterializedSnapshot(const std::string &query_statement, const Timestamp &ts, QueryReadSetMgr &readSetMgr,
+            const ::google::protobuf::Map<std::string, proto::ReplicaList> &ss_txns) = 0;
+
+
+        // //Materialize a snapshot on the Table backend and execute on said snapshot.
+        // virtual void MaterializeSnapshot(const std::string &query_id, const proto::MergedSnapshot &merged_ss, const std::set<proto::Transaction*> &ss_txns) = 0; 
+        // //Note: Not sure whether we should materialize full snapshot on demand, or continuously as we sync on Tx
+        // virtual std::string ExecReadOnSnapshot(const std::string &query_id, std::string &query_statement, const Timestamp &ts, QueryReadSetMgr &readSetMgr, bool abort_early = false) = 0; 
 
 
         find_table_version record_table_version;  //void function that finds current table version  ==> set bool accordingly whether using for read set or snapshot. Set un-used manager to nullptr

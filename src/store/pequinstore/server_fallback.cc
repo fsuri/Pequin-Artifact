@@ -557,7 +557,7 @@ bool Server::ExecP1(proto::Phase1FB &msg, const TransportAddress &remote,
      txn->client_seq_num(), BytesToHex(txnDigest, 16).c_str(),
      txn->timestamp().timestamp());
 
-  CheckWaitingQueries(txnDigest, txn->timestamp(), false, true); //is_abort = false //Check for waiting queries in non-blocking fashion.
+  //CheckWaitingQueries(txnDigest, txn->timestamp().timestamp(), txn->timestamp().id(), false, true); //is_abort = false //Check for waiting queries in non-blocking fashion.
 
   //start new current view
   // current_views[txnDigest] = 0;

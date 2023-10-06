@@ -580,7 +580,7 @@ void PelotonTableStore::TransformPointResult(
 void PelotonTableStore::ApplyTableWrite(
     const std::string &table_name, const TableWrite &table_write,
     const Timestamp &ts, const std::string &txn_digest,
-    const proto::CommittedProof *commit_proof, bool commit_or_prepare) {
+    const proto::CommittedProof *commit_proof, bool commit_or_prepare, bool forceMaterialize) {
   // Note: These are "no questions asked writes", i.e. they should always
   // succeed/be applied, because they don't care about any semantics
   //  TODO: can add boolean to allow a use of this function that DOES respect
@@ -790,50 +790,74 @@ void PelotonTableStore::PurgeTableWrite(const std::string &table_name,
 
 // Partially execute a read query statement (reconnaissance execution) and
 // return the snapshot state (managed by ssMgr)
-void PelotonTableStore::FindSnapshot(std::string &query_statement,
+void PelotonTableStore::FindSnapshot(const std::string &query_statement,
                                      const Timestamp &ts,
                                      SnapshotManager &ssMgr) {
 
   // TODO: Snapshotting & materialize latencies
 
-  // Generalize the PointRead interface:
-  // Read k latest prepared.
-  // Use the same prepare predicate to determine whether to read or ignore a
-  // prepared version
+  // Generalize the PointRead interface: Read k latest prepared.
+  // Use the same prepare predicate to determine whether to read or ignore a prepared version
 
   // TODO: Execute on Peloton
   // Note: Don't need to return a result
-  // Note: Ideally execution is "partial" and only executes the leaf scan
-  // operations.
+  // Note: Ideally execution is "partial" and only executes the leaf scan operations.
+
+  //TODO: Parameterize the read such that it can be used to both return snapshot and read (eager exec) at the same time
+  //ExecReadQuery(query_statement, ts, ..., snapshot);
 }
+
+void PelotonTableStore::EagerExecAndSnapshot(const std::string &query_statement,
+                                     const Timestamp &ts,
+                                     SnapshotManager &ssMgr,
+                                     QueryReadSetMgr &readSetMgr) {
+
+
+  //TODO: Parameterize the read such that it can be used to both return snapshot and read (eager exec) at the same time
+
+  
+}
+
+
+
+void PelotonTableStore::ExecReadQueryOnMaterializedSnapshot(const std::string &query_statement, const Timestamp &ts, QueryReadSetMgr &readSetMgr,
+            const ::google::protobuf::Map<std::string, proto::ReplicaList> &ss_txns)
+{
+
+  //TODO: Perfom Read on snapshot
+
+}
+
+
+/////////////// DEPRECATED:
 
 // Materialize a snapshot on the Table backend and execute on said snapshot.
-void PelotonTableStore::MaterializeSnapshot(
-    const std::string &query_retry_id, const proto::MergedSnapshot &merged_ss,
-    const std::set<proto::Transaction *> &ss_txns) {
-  // Note: Not sure whether we should materialize full snapshot on demand, or
-  // continuously as we sync on Tx
+//TODO: Deprecate this interface. Instead: Add bool to ApplyTableWrite that let's you write even if not prepared (special gray visibility)
 
-  // TODO: Apply all txn in snapshot to Table backend as a "view" that is only
-  // visible to query_id
-  // FIXME: The merged_ss argument only holds the txn_ids. --> instead, call
-  // Materialize Snapshot on a set of transactions... ==> if doing it
-  // continuously might need to call this function often.
-}
+// void PelotonTableStore::MaterializeSnapshot(
+//     const std::string &query_retry_id, const proto::MergedSnapshot &merged_ss,
+//     const std::set<proto::Transaction *> &ss_txns) {
+//   // Note: Not sure whether we should materialize full snapshot on demand, or
+//   // continuously as we sync on Tx
 
-std::string PelotonTableStore::ExecReadOnSnapshot(
-    const std::string &query_retry_id, std::string &query_statement,
-    const Timestamp &ts, QueryReadSetMgr &readSetMgr, bool abort_early) {
-  // TODO: Execute on the snapshot for query_id/retry_version
+//   // TODO: Apply all txn in snapshot to Table backend as a "view" that is only visible to query_id
+//   // FIXME: The merged_ss argument only holds the txn_ids. --> instead, call Materialize Snapshot on a set of transactions... ==> if doing it
+//   // continuously might need to call this function often.
+// }
 
-  //--> returns peloton result
-  // TODO: Change peloton result into query proto:
+// std::string PelotonTableStore::ExecReadOnSnapshot(
+//     const std::string &query_retry_id, std::string &query_statement,
+//     const Timestamp &ts, QueryReadSetMgr &readSetMgr, bool abort_early) {
+//   // TODO: Execute on the snapshot for query_id/retry_version
 
-  sql::QueryResultProtoBuilder queryResultBuilder;
-  // queryResultBuilder.add_column("result");
-  // queryResultBuilder.add_row(result_row.begin(), result_row.end());
+//   //--> returns peloton result
+//   // TODO: Change peloton result into query proto:
 
-  return queryResultBuilder.get_result()->SerializeAsString();
-}
+//   sql::QueryResultProtoBuilder queryResultBuilder;
+//   // queryResultBuilder.add_column("result");
+//   // queryResultBuilder.add_row(result_row.begin(), result_row.end());
+
+//   return queryResultBuilder.get_result()->SerializeAsString();
+// }
 
 } // namespace pequinstore
