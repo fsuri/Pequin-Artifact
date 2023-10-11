@@ -823,7 +823,7 @@ void Server::ProcessPhase1_atomic(const TransportAddress &remote,
   }
   c.release();
   //atomic_testMutex.unlock();
-  HandlePhase1CB(msg.req_id(), result, committedProof, txnDigest, remote, abstain_conflict, false);
+  HandlePhase1CB(msg.req_id(), result, committedProof, txnDigest, txn, remote, abstain_conflict, false);
   if((params.mainThreadDispatching && (!params.dispatchMessageReceive || params.parallel_CCC)) || (params.multiThreading && params.signClientProposals)) FreePhase1message(&msg);
 }
 
@@ -970,7 +970,10 @@ void Server::HandlePhase1(const TransportAddress &remote, proto::Phase1 &msg) {
 //Sends P1Reply to client. Sends no reply if P1 receives was simply forwarded by another replica.
 //TODO: move p1Decision into this function (not sendp1: Then, can unlock here.)
 void Server::HandlePhase1CB(uint64_t reqId, proto::ConcurrencyControl::Result result,
-  const proto::CommittedProof* &committedProof, std::string &txnDigest, const TransportAddress &remote, const proto::Transaction *abstain_conflict, bool isGossip){
+  const proto::CommittedProof* &committedProof, std::string &txnDigest, proto::Transaction *txn, const TransportAddress &remote, 
+  const proto::Transaction *abstain_conflict, bool isGossip, bool forceMaterialize){
+
+
 
   Debug("Call HandleP1CB for txn %s with result %d", BytesToHex(txnDigest, 16).c_str(), result);
   if(result == proto::ConcurrencyControl::IGNORE) return;
@@ -980,7 +983,7 @@ void Server::HandlePhase1CB(uint64_t reqId, proto::ConcurrencyControl::Result re
   uint64_t req_id = reqId;
   bool wake_fallbacks = false;
   p1MetaDataMap::accessor c;
-  bool sub_original = BufferP1Result(c, result, committedProof, txnDigest, req_id, remote_original, wake_fallbacks, isGossip, 0);
+  bool sub_original = BufferP1Result(c, result, committedProof, txnDigest, req_id, remote_original, wake_fallbacks, forceMaterialize, isGossip, 0);
   bool send_reply = (result != proto::ConcurrencyControl::WAIT && !isGossip) || sub_original; //Note: sub_original = true only if originall subbed AND result != wait.
   if(send_reply){ //Send reply to subscribed original client instead.
      Debug("Sending P1Reply for txn [%s] to original client. sub_original=%d, isGossip=%d", BytesToHex(txnDigest, 16).c_str(), sub_original, isGossip);
@@ -990,6 +993,10 @@ void Server::HandlePhase1CB(uint64_t reqId, proto::ConcurrencyControl::Result re
   //Note: wake_fallbacks only true if result != wait
   if(wake_fallbacks) WakeAllInterestedFallbacks(txnDigest, result, committedProof); //Note: Possibly need to wakeup interested fallbacks here since waking tx from missing query triggers TryPrepare (which returns here). 
  
+  //If result is Abstain, and ForceMaterialization was requested => materialize Txn.
+  if(forceMaterialize) ForceMaterialization(result, txnDigest, txn);
+
+
   // if (result != proto::ConcurrencyControl::WAIT && !isGossip) { //forwarded P1 needs no reply.
   //   //XXX setting client time outs for Fallback
   //   // if(client_starttime.find(txnDigest) == client_starttime.end()){
@@ -1916,13 +1923,16 @@ void Server::Abort(const std::string &txnDigest, proto::Transaction *txn) {
 
   CleanQueries(txn, false);
 
-  materializedMap::accessor ap;
-  materializedTSMap::accessor apt;
-  if(!materialized.insert(ap, txnDigest)) return; //NOTE: Even though abort does not "write anything", we still mark the data structure to indicate it has been materialized
-  if(!materializedTS.insert(ap, MergeTimestampId(txn->timestamp().timestamp(), txn->timestamp().id()))) return; //NOTE: Even though abort does not "write anything", we still mark the data structure to indicate it has been materialized
-  CheckWaitingQueries(txnDigest, txn->timestamp().timestamp(), txn->timestamp().id(), true); //is_abort  //NOTE: WARNING: If Clean(abort) deletes txn then must callCheckWaitingQueries before Clean.
-  apt.release();
-  ap.release();
+  materializedMap::accessor mat;
+  // materializedTSMap::accessor apt;
+  bool first_mat = materialized.insert(mat, txnDigest); //NOTE: Even though abort does not "write anything", we still mark the data structure to indicate it has been materialized
+  //if(!materialized.insert(ap, txnDigest)) return; 
+  // if(!materializedTS.insert(ap, MergeTimestampId(txn->timestamp().timestamp(), txn->timestamp().id()))) return; //NOTE: Even though abort does not "write anything", we still mark the data structure to indicate it has been materialized
+  CheckWaitingQueries(txnDigest, txn->timestamp().timestamp(), txn->timestamp().id(), true, first_mat? 0 : 1); //is_abort  //NOTE: WARNING: If Clean(abort) deletes txn then must callCheckWaitingQueries before Clean.
+        //If not the first materialization: only wake TS.
+
+  //apt.release();
+  mat.release();
 
 
 }

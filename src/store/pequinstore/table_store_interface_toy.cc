@@ -214,7 +214,7 @@ void ToyTableStore::ApplyTableWrite(const std::string &table_name,
                                     const Timestamp &ts,
                                     const std::string &txn_digest,
                                     const proto::CommittedProof *commit_proof,
-                                    bool commit_or_prepare
+                                    bool commit_or_prepare,
                                     bool forcedMaterialize) {
   std::cerr << "APPLY TABLE WRITE ON TOY INTERFACE" << std::endl;
 }
@@ -241,10 +241,11 @@ void ToyTableStore::EagerExecAndSnapshot(const std::string &query_statement, con
 
 }
 
-void ToyTableStore::ExecReadQueryOnMaterializedSnapshot(const std::string &query_statement, const Timestamp &ts, QueryReadSetMgr &readSetMgr,
+std::string ToyTableStore::ExecReadQueryOnMaterializedSnapshot(const std::string &query_statement, const Timestamp &ts, QueryReadSetMgr &readSetMgr,
            const ::google::protobuf::Map<std::string, proto::ReplicaList> &ss_txns)
 {
-
+  return "";
+}
 
 //DEPRECATED: 
 

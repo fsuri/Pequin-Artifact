@@ -157,8 +157,8 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
   void HandlePhase1(const TransportAddress &remote,
       proto::Phase1 &msg);
   void HandlePhase1CB(uint64_t reqId, proto::ConcurrencyControl::Result result,
-        const proto::CommittedProof* &committedProof, std::string &txnDigest, const TransportAddress &remote,
-        const proto::Transaction *abstain_conflict, bool isGossip = false);
+        const proto::CommittedProof* &committedProof, std::string &txnDigest, proto::Transaction *txn, const TransportAddress &remote,
+        const proto::Transaction *abstain_conflict, bool isGossip = false, bool forceMaterialize = false);
   void SendPhase1Reply(uint64_t reqId, proto::ConcurrencyControl::Result result,
         const proto::CommittedProof *conflict, const std::string &txnDigest, const TransportAddress *remote,
         const proto::Transaction *abstain_conflict = nullptr);
@@ -415,14 +415,14 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
     waitingQueryTSMap waitingQueriesTS;
 
     //map from <query_id, retry_version> to list of missing txn (+ num supply replies received ).
-    struct MissingTxns {
+    struct MissingTxns {  
         std::unordered_map<std::string, uint64_t> missing_txns;
         std::unordered_map<uint64_t, uint64_t> missing_ts; // for optimistic id's use this
         std::string query_id;
         uint64_t retry_version;
     };
     typedef tbb::concurrent_hash_map<std::string, MissingTxns> queryMissingTxnsMap;  //std::unordered_set<std::string>
-    queryMissingTxnsMap queryMissingTxns; 
+    queryMissingTxnsMap queryMissingTxns;  //List of Transactions missing for a Query to materialize snapshot.
 
     void FindTableVersion(const std::string &key_name, const Timestamp &ts, bool read_or_snapshot, QueryReadSetMgr *readSetMgr, SnapshotManager *snapshotMgr);
     const proto::Transaction* FindPreparedVersion(const std::string &key, const Timestamp &ts, bool committed_exists, std::pair<Timestamp, Server::Value> const &tsVal);
@@ -432,13 +432,14 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
     void FindSnapshot(QueryMetaData *query_md, proto::Query *query);
     void ProcessSync(queryMetaDataMap::accessor &q, const TransportAddress &remote, proto::MergedSnapshot *merged_ss, const std::string *queryId, QueryMetaData *query_md);
 
-    bool CheckPresence(const std::string &tx_id, const std::string *queryId, const std::string &query_retry_id, QueryMetaData *query_md, 
+    bool CheckPresence(const std::string &tx_id, const std::string &query_retry_id, QueryMetaData *query_md, 
         std::map<uint64_t, proto::RequestMissingTxns> &replica_requests, const pequinstore::proto::ReplicaList &replica_list,
         std::unordered_map<std::string, uint64_t> &missing_txns);
-    bool CheckPresence(const uint64_t &ts_id, const std::string *queryId, const std::string &query_retry_id, QueryMetaData *query_md, 
+    bool CheckPresence(const uint64_t &ts_id, const std::string &query_retry_id, QueryMetaData *query_md, 
         std::map<uint64_t, proto::RequestMissingTxns> &replica_requests, const pequinstore::proto::ReplicaList &replica_list,
         std::unordered_map<std::string, uint64_t> &missing_txns, std::unordered_map<uint64_t, uint64_t> &missing_ts);
-    void RequestMissing(const proto::ReplicaList &replica_list, std::map<uint64_t, proto::RequestMissingTxns> &replica_requests, bool by_tx_or_ts, const std::string &&tx_id = "", const uint64_t &&ts_id = 0UL);
+    void RequestMissing(const proto::ReplicaList &replica_list, std::map<uint64_t, proto::RequestMissingTxns> &replica_requests, const std::string &tx_id);
+    void RequestMissing(const proto::ReplicaList &replica_list, std::map<uint64_t, proto::RequestMissingTxns> &replica_requests, const uint64_t &ts_id);
 
     // void SetWaiting(std::unordered_map<std::string, uint64_t> &missing_txns, const std::string &tx_id, const std::string *queryId, const std::string &query_retry_id,
     //     const proto::ReplicaList &replica_list, std::map<uint64_t, proto::RequestMissingTxns> &replica_requests);
@@ -455,7 +456,7 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
     void ProcessSuppliedTxn(const std::string &txn_id, proto::TxnInfo &txn_info, bool &stop);
 
    
-    void CheckWaitingQueries(const std::string &txnDigest, const uint64_t &ts, const uint64_t ts_id, bool is_abort, bool non_blocking);
+    void CheckWaitingQueries(const std::string &txnDigest, const uint64_t &ts, const uint64_t ts_id, bool is_abort = false, bool non_blocking = false, int tx_ts_mode = 0);
 
     void UpdateWaitingQueries(const std::string &txnDigest, bool is_abort = false);
     void UpdateWaitingQueriesTS(const uint64_t &txnTS, const std::string &txnDigest, bool is_abort = false);
@@ -470,13 +471,15 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
     //Materialization
     void ApplyTableWrites(const std::string &table_name, const TableWrite &table_write, const Timestamp &ts,
                 const std::string &txn_digest, const proto::CommittedProof *commit_proof, bool commit_or_prepare = false, bool forceMaterialize = false);
-    bool WaitForMaterialization(const std::string &tx_id, const std::string *queryId, const std::string &query_retry_id, std::unordered_map<std::string, uint64_t> &missing_txns);
-    bool WaitForMaterialization(const uint64_t &ts_id, const std::string *queryId, const std::string &query_retry_id, std::unordered_map<uint64_t, uint64_t> &missing_ts);
+    bool WaitForMaterialization(const std::string &tx_id, const std::string &query_retry_id, std::unordered_map<std::string, uint64_t> &missing_txns);
+    bool WaitForTX(const uint64_t &ts_id, const std::string &query_retry_id, std::unordered_map<uint64_t, uint64_t> &missing_ts);
+      bool WaitForMaterialization(const uint64_t &ts_id, const std::string &query_retry_id, std::unordered_map<uint64_t, uint64_t> &missing_ts);
 
+    bool RegisterForceMaterialization(const std::string &txnDigest, const proto::Transaction *txn);
     void ForceMaterialization(const proto::ConcurrencyControl::Result &result, const std::string &txnDigest, const proto::Transaction *txn);
-    typedef tbb::concurrent_unordered_map<std::string, bool> materializedMap; //second argument is void: set of materialized txns.
+    typedef tbb::concurrent_hash_map<std::string, bool> materializedMap; //second argument is void: set of materialized txns.
     materializedMap materialized;
-     typedef tbb::concurrent_unordered_map<uint64_t, bool> materializedTSMap; //second argument is void: set of materialized txns.
+     typedef tbb::concurrent_hash_map<uint64_t, bool> materializedTSMap; //second argument is void: set of materialized txns.
     materializedTSMap materializedTS;
 
 
@@ -486,8 +489,8 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
     //FALLBACK helper datastructures
 
     struct P1MetaData {
-        P1MetaData(): conflict(nullptr), hasP1(false), sub_original(false), hasSignedP1(false), reqId(0), fallbacks_interested(false) {}
-        P1MetaData(proto::ConcurrencyControl::Result result): result(result), conflict(nullptr), hasP1(true), sub_original(false), hasSignedP1(false), reqId(0), fallbacks_interested(false) {}
+        P1MetaData(): conflict(nullptr), hasP1(false), sub_original(false), hasSignedP1(false), reqId(0), fallbacks_interested(false), forceMaterialize(false) {}
+        P1MetaData(proto::ConcurrencyControl::Result result): result(result), conflict(nullptr), hasP1(true), sub_original(false), hasSignedP1(false), reqId(0), fallbacks_interested(false), forceMaterialize(false) {}
         ~P1MetaData(){
           if(signed_txn != nullptr) delete signed_txn;
           if(original != nullptr) delete original;
@@ -518,6 +521,8 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
 
         bool fallbacks_interested;
         //could have a list of interested clients.
+
+        bool forceMaterialize;
       };
       typedef tbb::concurrent_hash_map<std::string, P1MetaData> p1MetaDataMap;
     p1MetaDataMap p1MetaData;
@@ -762,10 +767,10 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
   proto::ConcurrencyControl::Result CheckDependencies(
     const proto::Transaction &txn, const DepSet &depSet);
   bool CheckHighWatermark(const Timestamp &ts);
-  bool BufferP1Result(proto::ConcurrencyControl::Result &result,
-    const proto::CommittedProof *conflict, const std::string &txnDigest, uint64_t &reqId, const TransportAddress *&remote, bool &wake_fallbacks, bool isGossip = false, int fb =0);
-  bool BufferP1Result(p1MetaDataMap::accessor &c, proto::ConcurrencyControl::Result &result,
-    const proto::CommittedProof *conflict, const std::string &txnDigest, uint64_t &reqId, const TransportAddress *&remote, bool &wake_fallbacks, bool isGossip = false, int fb = 0);
+  bool BufferP1Result(proto::ConcurrencyControl::Result &result, const proto::CommittedProof *conflict, const std::string &txnDigest, 
+      uint64_t &reqId, const TransportAddress *&remote, bool &wake_fallbacks, bool &forceMaterialize, bool isGossip = false, int fb =0);
+  bool BufferP1Result(p1MetaDataMap::accessor &c, proto::ConcurrencyControl::Result &result, const proto::CommittedProof *conflict, const std::string &txnDigest, 
+      uint64_t &reqId, const TransportAddress *&remote, bool &wake_fallbacks, bool &forceMaterialize, bool isGossip = false, int fb = 0);
   
   void Clean(const std::string &txnDigest, bool abort = false, bool hard = false);
   void CleanDependencies(const std::string &txnDigest);

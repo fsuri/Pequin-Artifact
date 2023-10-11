@@ -820,11 +820,12 @@ void PelotonTableStore::EagerExecAndSnapshot(const std::string &query_statement,
 
 
 
-void PelotonTableStore::ExecReadQueryOnMaterializedSnapshot(const std::string &query_statement, const Timestamp &ts, QueryReadSetMgr &readSetMgr,
+std::string PelotonTableStore::ExecReadQueryOnMaterializedSnapshot(const std::string &query_statement, const Timestamp &ts, QueryReadSetMgr &readSetMgr,
             const ::google::protobuf::Map<std::string, proto::ReplicaList> &ss_txns)
 {
 
   //TODO: Perfom Read on snapshot
+  return "";
 
 }
 

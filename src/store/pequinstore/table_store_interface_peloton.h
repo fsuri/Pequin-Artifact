@@ -80,7 +80,7 @@ class PelotonTableStore : public TableStore {
 
         void EagerExecAndSnapshot(const std::string &query_statement, const Timestamp &ts, SnapshotManager &ssMgr, QueryReadSetMgr &readSetMgr) override;
 
-        void ExecReadQueryOnMaterializedSnapshot(const std::string &query_statement, const Timestamp &ts, QueryReadSetMgr &readSetMgr,
+        std::string ExecReadQueryOnMaterializedSnapshot(const std::string &query_statement, const Timestamp &ts, QueryReadSetMgr &readSetMgr,
             const google::protobuf::Map<std::string, proto::ReplicaList> &ss_txns) override;
         //TODO: in this read; only read if txn-id of tuple in snapshot. Allow to read "materialized" visibility
 

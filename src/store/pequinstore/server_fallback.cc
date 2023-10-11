@@ -592,12 +592,17 @@ bool Server::ExecP1(proto::Phase1FB &msg, const TransportAddress &remote,
   const TransportAddress *remote_original = nullptr;
   uint64_t req_id;
   bool wake_fallbacks = false;
-  bool sub_original = BufferP1Result(result, committedProof, txnDigest, req_id, remote_original, wake_fallbacks, false, 1);
+  bool forceMaterialize = false;
+  bool sub_original = BufferP1Result(result, committedProof, txnDigest, req_id, remote_original, wake_fallbacks, forceMaterialize, false, 1);
         //std::cerr << "[Normal] release lock for txn: " << BytesToHex(txnDigest, 64) << std::endl;
   if(sub_original){ //Send to original client too if it is subscribed (This may happen if the original client was waiting on a query, and then a fallback client re-does Occ check in parallel)
         Debug("Sending Phase1 Reply for txn: %s, id: %d", BytesToHex(txnDigest, 64).c_str(), req_id);
         SendPhase1Reply(req_id, result, committedProof, txnDigest, remote_original, abstain_conflict); //TODO: Confirm that this does not consume committedProof.
   }
+
+  //If result is Abstain, and ForceMaterialization was requested => materialize Txn.
+  if(forceMaterialize) ForceMaterialization(result, txnDigest, txn);
+
 
   if(result == proto::ConcurrencyControl::IGNORE) return false; //Note: If result is Ignore, then BufferP1 will already Clean tx.
 

@@ -526,15 +526,16 @@ proto::ConcurrencyControl::Result Server::DoOCCCheck(
 
   //Note: Can eagerly Abort if result final -- Note Still sending Phase1Replies though, because client hard-coded to receive it currently
       //Is there any point to this though? Tx won't be prepared anyways (thus has no impact on CCC). Only pro: Can forwardWriteback
-  // if(result == proto::ConcurrencyControl::ABORT){
-  //   proto::Writeback abort_wb;
-  //   abort_wb.set_decision(proto::CommitDecision::ABORT);
-  //   abort_wb.set_txn_digest(txnDigest);
-  //   *abort_wb.mutable_conflict() = *conflict;
-  //   writebackMessages.insert(std::make_pair(txnDigest, std::move(abort_wb)));
-  //   //writebackMessages[txnDigest] = std::move(abort_wb); // Use insert instead: returns false. if exists..
-  //   Abort(txnDigest, &txn); //Note: This might call Clean from a different Thread than Mainthread: might remove ongoing. However, we never delete Tx currently, so parallel access to Txn should be safe.
-  // }
+      //Answer: This is useful for snapshot materialization. Calling ABORT will result in the txn-id being added to the materialized set, thus waking waiting Queries.
+  if(result == proto::ConcurrencyControl::ABORT){
+    proto::Writeback abort_wb;
+    abort_wb.set_decision(proto::CommitDecision::ABORT);
+    abort_wb.set_txn_digest(txnDigest);
+    *abort_wb.mutable_conflict() = *conflict;
+    writebackMessages.insert(std::make_pair(txnDigest, std::move(abort_wb)));
+    //writebackMessages[txnDigest] = std::move(abort_wb); // Use insert instead: returns false. if exists..
+    Abort(txnDigest, &txn); //Note: This might call Clean from a different Thread than Mainthread: might remove ongoing. However, we never delete Tx currently, so parallel access to Txn should be safe.
+  }
     
 
   return result;
@@ -1278,7 +1279,8 @@ void Server::CheckDependents_WithMutex(const std::string &txnDigest) {
         const TransportAddress *remote_original = nullptr;
         uint64_t req_id;
         bool wake_fallbacks = false;
-        bool sub_original = BufferP1Result(result, conflict, dependent, req_id, remote_original, wake_fallbacks, false, 2);
+        bool forceMaterialize = false; //Note: No Materialization necessary:  In this case the result was WAIT, and thus it must've already been materialized.
+        bool sub_original = BufferP1Result(result, conflict, dependent, req_id, remote_original, wake_fallbacks, forceMaterialize, false, 2);
         //std::cerr << "[Normal] release lock for txn: " << BytesToHex(txnDigest, 64) << std::endl;
         if(sub_original){
           Debug("Sending Phase1 Reply for txn: %s, id: %d", BytesToHex(dependent, 64).c_str(), req_id);
@@ -1341,7 +1343,9 @@ void Server::CheckDependents(const std::string &txnDigest) {
         const TransportAddress *remote_original = nullptr;
         uint64_t req_id;
         bool wake_fallbacks = false;
-        bool sub_original = BufferP1Result(result, conflict, dependent, req_id, remote_original, wake_fallbacks, false, 2);
+        bool forceMaterialize = false; //Note: No Materialization necessary:  In this case the result was WAIT, and thus it must've already been materialized.
+        
+        bool sub_original = BufferP1Result(result, conflict, dependent, req_id, remote_original, wake_fallbacks, forceMaterialize, false, 2);
         //std::cerr << "[Normal] release lock for txn: " << BytesToHex(txnDigest, 64) << std::endl;
         if(sub_original){
           Debug("Sending Phase1 Reply for txn: %s, id: %d", BytesToHex(dependent, 64).c_str(), req_id);

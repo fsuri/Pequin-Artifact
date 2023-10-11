@@ -77,7 +77,7 @@ class TableStore {
 
         virtual void EagerExecAndSnapshot(const std::string &query_statement, const Timestamp &ts, SnapshotManager &ssMgr, QueryReadSetMgr &readSetMgr) = 0;
 
-        virtual void ExecReadQueryOnMaterializedSnapshot(const std::string &query_statement, const Timestamp &ts, QueryReadSetMgr &readSetMgr,
+        virtual std::string ExecReadQueryOnMaterializedSnapshot(const std::string &query_statement, const Timestamp &ts, QueryReadSetMgr &readSetMgr,
             const ::google::protobuf::Map<std::string, proto::ReplicaList> &ss_txns) = 0;
 
 

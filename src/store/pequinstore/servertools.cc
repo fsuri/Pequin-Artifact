@@ -748,7 +748,7 @@ void* Server::TryPrepare(uint64_t reqId, const TransportAddress &remote, proto::
     Debug("Calling TryPrepare for txn[%s] on MainThread %d", BytesToHex(txnDigest, 16).c_str(), sched_getcpu());
 
     //New: Now waking after applyTablewrite
-    //CheckWaitingQueries(txnDigest, txn->timestamp().timestamp(), txn->timestamp().id(), false, true); //is_abort = false //non_blocking = true => Check for waiting queries in non-blocking fashion.
+    CheckWaitingQueries(txnDigest, txn->timestamp().timestamp(), txn->timestamp().id(), false, true, 1); //is_abort = false //non_blocking = true, only wake TS => Check for waiting queries in non-blocking fashion.
     //NOTE: If want to incorporate the result from prepare (in case it is abort), then need to move this after Occ Check.
 
     //current_views[txnDigest] = 0;
@@ -782,9 +782,7 @@ void* Server::TryPrepare(uint64_t reqId, const TransportAddress &remote, proto::
       result = DoOCCCheck(reqId, remote, txnDigest, *txn, retryTs,
             committedProof, abstain_conflict, false, isGossip); //forwarded messages dont need to be treated as original client.
       
-      if(forceMaterialize) ForceMaterialization(result, txnDigest, txn);
-
-      HandlePhase1CB(reqId, result, committedProof, txnDigest, remote, abstain_conflict, isGossip);
+      HandlePhase1CB(reqId, result, committedProof, txnDigest, txn, remote, abstain_conflict, isGossip, forceMaterialize);
 
       return (void*) true;
     }
@@ -817,9 +815,7 @@ void* Server::TryPrepare(uint64_t reqId, const TransportAddress &remote, proto::
         proto::ConcurrencyControl::Result *result = new proto::ConcurrencyControl::Result(this->DoOCCCheck(reqId,
         *remote_ptr, txnDigest, *txn, retryTs, committedProof, abstain_conflict, false, isGossip));
 
-        if(forceMaterialize) ForceMaterialization(result, txnDigest, txn);
-
-        HandlePhase1CB(reqId, *result, committedProof, txnDigest, *remote_ptr, abstain_conflict, isGossip);
+        HandlePhase1CB(reqId, *result, committedProof, txnDigest, txn, *remote_ptr, abstain_conflict, isGossip, forceMaterialize);
 
         delete result;
         delete remote_ptr;
@@ -965,16 +961,18 @@ void* Server::TryPrepare(uint64_t reqId, const TransportAddress &remote, proto::
 //It is possible for multiple different (fallback) clients to execute OCC check -- but only one result should ever be used.
 //XXX if you *DONT* want to buffer Wait results then call BufferP1Result only inside SendPhase1Reply
 bool Server::BufferP1Result(proto::ConcurrencyControl::Result &result,
-  const proto::CommittedProof *conflict, const std::string &txnDigest, uint64_t &reqId, const TransportAddress *&remote, bool &wake_fallbacks, bool isGossip, int fb){  // fb = 0 => normal, fb = 1 => fallback, fb = 2 => dependency woke up
+  const proto::CommittedProof *conflict, const std::string &txnDigest, uint64_t &reqId, const TransportAddress *&remote, bool &wake_fallbacks, bool &forceMaterialize, bool isGossip, int fb){  
+                                                                                                                    // fb = 0 => normal, fb = 1 => fallback, fb = 2 => dependency woke up
 
     p1MetaDataMap::accessor c;
-    bool original_sub = BufferP1Result(c, result, conflict, txnDigest, reqId, remote, wake_fallbacks, isGossip, fb);
+    bool original_sub = BufferP1Result(c, result, conflict, txnDigest, reqId, remote, wake_fallbacks, forceMaterialize, isGossip, fb);
     c.release();
     return original_sub;
 }
 
+//TODO: Fix BufferP1 args in .h and wherever it is called
 bool Server::BufferP1Result(p1MetaDataMap::accessor &c, proto::ConcurrencyControl::Result &result,
-  const proto::CommittedProof *conflict, const std::string &txnDigest, uint64_t &reqId, const TransportAddress *&remote, bool &wake_fallbacks, bool isGossip, int fb){
+  const proto::CommittedProof *conflict, const std::string &txnDigest, uint64_t &reqId, const TransportAddress *&remote, bool &wake_fallbacks, bool &forceMaterialize, bool isGossip, int fb){
 
     //TODO: ideally buffer abstain_conflict too.
 
@@ -1039,6 +1037,11 @@ bool Server::BufferP1Result(p1MetaDataMap::accessor &c, proto::ConcurrencyContro
         wake_fallbacks = true;
         c->second.fallbacks_interested = false;
       }
+    }
+
+    if(!forceMaterialize) {
+      forceMaterialize = c->second.forceMaterialize;
+      c->second.forceMaterialize = false; // Only forceMat once.
     }
 
     return original_sub;

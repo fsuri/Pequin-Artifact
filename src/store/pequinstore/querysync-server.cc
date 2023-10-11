@@ -501,14 +501,14 @@ void Server::HandleSync(const TransportAddress &remote, proto::SyncClientProposa
     if(params.query_params.signClientQueries && params.query_params.cacheReadSet){
         merged_ss = new proto::MergedSnapshot(); //TODO: replace with GetUnused
         merged_ss->ParseFromString(msg.signed_merged_ss().data());
-        queryId = merged_ss->mutable_query_digest();
+        queryId = &merged_ss->query_digest();
     }
     else{
          //For now, can also index via (client id, query seq_num) pair. Just define an ordering function for query id pair. (In this case, unique string combination)
         merged_ss = msg.release_merged_ss();
         //query_id =  "[" + std::to_string(merged_ss->query_seq_num()) + ":" + std::to_string(merged_ss->client_id()) + "]";
         //queryId = &query_id;
-        queryId = merged_ss->mutable_query_digest();
+        queryId = &merged_ss->query_digest();
     }
     Debug("\n Received Query Sync Proposal for Query[%lu:%lu:%d] (seq:client:ver)", merged_ss->query_seq_num(), merged_ss->client_id(), merged_ss->retry_version());
 
@@ -631,7 +631,7 @@ void Server::ProcessSync(queryMetaDataMap::accessor &q, const TransportAddress &
             //query_md->merged_ss.insert(tx_id); //store snapshot locally. //DEPRECATED -->  now just storing the merged_ss_msg directly
             
             //Check whether replica has the txn & whether it is already materialized
-            fullyMaterialized &= CheckPresence(tx_id, queryId, query_retry_id, query_md, replica_requests, replica_list, missing_txns); 
+            fullyMaterialized &= CheckPresence(tx_id, query_retry_id, query_md, replica_requests, replica_list, missing_txns); 
         }
     }
     //else: Using optimistic tx-id
@@ -641,7 +641,7 @@ void Server::ProcessSync(queryMetaDataMap::accessor &q, const TransportAddress &
             Debug("Snapshot for Query Sync Proposal[%lu:%lu:%d] contains ts_id [%lu]", merged_ss->query_seq_num(), merged_ss->client_id(), merged_ss->retry_version(), ts_id);
             
             //Check whether replica has the txn & whether it is already materialized
-            fullyMaterialized &= CheckPresence(ts_id, queryId, query_retry_id, query_md, replica_requests, replica_list, missing_txns, missing_ts;
+            fullyMaterialized &= CheckPresence(ts_id, query_retry_id, query_md, replica_requests, replica_list, missing_txns, missing_ts);
         }
     }
     
@@ -1135,6 +1135,7 @@ void Server::ProcessSuppliedTxn(const std::string &txn_id, proto::TxnInfo &txn_i
     if(!TEST_SYNC && p1MetaData.find(c, txn_id)){
          Debug("Already started P1 handling for tx-id: [%s]", BytesToHex(txn_id, 16).c_str());
         if(c->second.hasP1){
+            Panic("This line shouldn't be necessary anymore: RegisterForceMaterialization should take care of it");
             if(txn_info.has_p1()) ForceMaterialization(c->second.result, txn_id, &txn_info.p1().txn()); //Try and materialize Transaction; the ongoing prepare may or may not materialize it itself.
             // if(c->second.result == proto::ConcurrencyControl::ABORT){
             //      //Mark all waiting queries as failed.  ==> Better: Just remove from snapshot.   NOTE: Nothing needs to be done to support this -- it simply won't be materialized and read.
