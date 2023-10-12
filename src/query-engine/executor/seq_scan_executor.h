@@ -50,6 +50,8 @@ protected:
 
   void Scan();
 
+  void GetColNames(const expression::AbstractExpression * child_expr, std::unordered_set<std::string> &column_names);
+
 private:
   //===--------------------------------------------------------------------===//
   // Helper Functions

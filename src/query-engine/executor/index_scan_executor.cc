@@ -22,6 +22,7 @@
 #include "../executor/logical_tile.h"
 #include "../executor/logical_tile_factory.h"
 #include "../expression/abstract_expression.h"
+#include "../expression/tuple_value_expression.h"
 #include "../index/index.h"
 #include "../planner/index_scan_plan.h"
 #include "../storage/data_table.h"
@@ -31,6 +32,7 @@
 #include "../storage/tile_group_header.h"
 #include "../type/value.h"
 #include "lib/message.h"
+#include "store/common/backend/sql_engine/table_kv_encoder.h"
 #include "store/pequinstore/pequin-proto.pb.h"
 
 namespace peloton {
@@ -159,6 +161,18 @@ bool IndexScanExecutor::DExecute() {
 
   return false;
 }
+
+void IndexScanExecutor::GetColNames(const expression::AbstractExpression * child_expr, std::unordered_set<std::string> &column_names) {
+  for (size_t i = 0; i < child_expr->GetChildrenSize(); i++) {
+    auto child = child_expr->GetChild(i);
+    if (dynamic_cast<const expression::TupleValueExpression*>(child) != nullptr) {
+      auto tv_expr = dynamic_cast<const expression::TupleValueExpression*>(child);
+      column_names.insert(tv_expr->GetColumnName());
+    }
+    GetColNames(child, column_names);
+  }
+}
+
 
 bool IndexScanExecutor::ExecPrimaryIndexLookup() {
   PELOTON_ASSERT(!done_);
@@ -525,6 +539,25 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
 
   auto primary_index_columns_ = index_->GetMetadata()->GetKeyAttrs();
   auto query_read_set_mgr = current_txn->GetQueryReadSetMgr();
+  auto current_txn_timestamp = current_txn->GetBasilTimestamp();
+
+  if (!current_txn->IsPointRead()) {
+    // Read table version and table col versions
+    current_txn->GetTableVersion()(table_->GetName(), current_txn_timestamp, true, &query_read_set_mgr, nullptr);
+    // Table column version
+    std::unordered_set<std::string> column_names;
+    std::vector<std::string> col_names;
+    GetColNames(predicate_, column_names);
+
+    for (auto &col : column_names) {
+      std::cout << "Col name is " << col << std::endl;
+      col_names.push_back(col);
+    }
+
+    std::string encoded_key = EncodeTableRow(table_->GetName(), col_names);
+    std::cout << "Encoded key is " << encoded_key << std::endl;
+    current_txn->GetTableVersion()(encoded_key, current_txn_timestamp, true, &query_read_set_mgr, nullptr);
+  }
 
   for (auto &visible_tuple_location : visible_tuple_locations) {
     if (current_tile_group_oid == INVALID_OID) {
