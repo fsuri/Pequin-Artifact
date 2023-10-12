@@ -197,7 +197,7 @@ void ShardClient::RequestQuery(PendingQuery *pendingQuery, proto::Query &queryMs
   //queryReq.set_eager_exec(!pendingQuery->retry_version && (pendingQuery->is_point? params.query_params.eagerPointExec : params.query_params.eagerExec));
   Debug("Sending TX eagerly? %s", queryReq.eager_exec()? "yes" : "no");
   if(!queryReq.eager_exec()) Panic("Currently only testing eager exec");
-  if(queryReq.is_point()) Panic("Not testing point query currently");
+  if(queryReq.is_point()) queryReq.set_eager_exec(false); //Panic("Not testing point query currently");
 
   if(pendingQuery->is_point && !queryReq.eager_exec()){ //If point query is eager: treat as normal eager query. If non-eager, manage as pointQuery
     pendingQuery->pendingPointQuery.prcb = std::move(pendingQuery->prcb); //Move callback

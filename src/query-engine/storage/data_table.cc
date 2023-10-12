@@ -462,6 +462,13 @@ ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple,
         if (should_upgrade && same_columns) {
           std::cout << "Upgrading from prepared to committed" << std::endl;
           curr_tile_group_header->SetCommitOrPrepare(curr_pointer.offset, true);
+          const pequinstore::proto::CommittedProof *proof =
+              transaction->GetCommittedProof();
+          auto proof_ts = Timestamp(proof->txn().timestamp());
+          Debug("Proof ts is %lu, %lu", proof_ts.getTimestamp(),
+                proof_ts.getID());
+          Debug("Current ts is %lu, %lu", ts.getTimestamp(), ts.getID());
+          curr_tile_group_header->SetCommittedProof(curr_pointer.offset, proof);
         } else {
           std::cout << "Should upgrade is " << should_upgrade << std::endl;
           std::cout << "Current tuple is: " << (curr_tile_group_header->GetCommitOrPrepare(curr_pointer.offset)? "committed" : "prepared") << std::endl;

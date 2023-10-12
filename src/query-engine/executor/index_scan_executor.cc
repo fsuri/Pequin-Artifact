@@ -22,6 +22,7 @@
 #include "../executor/logical_tile.h"
 #include "../executor/logical_tile_factory.h"
 #include "../expression/abstract_expression.h"
+#include "../expression/tuple_value_expression.h"
 #include "../index/index.h"
 #include "../planner/index_scan_plan.h"
 #include "../storage/data_table.h"
@@ -30,6 +31,9 @@
 #include "../storage/tile_group.h"
 #include "../storage/tile_group_header.h"
 #include "../type/value.h"
+#include "lib/message.h"
+#include "store/common/backend/sql_engine/table_kv_encoder.h"
+#include "store/pequinstore/pequin-proto.pb.h"
 
 namespace peloton {
 namespace executor {
@@ -158,6 +162,18 @@ bool IndexScanExecutor::DExecute() {
   return false;
 }
 
+void IndexScanExecutor::GetColNames(const expression::AbstractExpression * child_expr, std::unordered_set<std::string> &column_names) {
+  for (size_t i = 0; i < child_expr->GetChildrenSize(); i++) {
+    auto child = child_expr->GetChild(i);
+    if (dynamic_cast<const expression::TupleValueExpression*>(child) != nullptr) {
+      auto tv_expr = dynamic_cast<const expression::TupleValueExpression*>(child);
+      column_names.insert(tv_expr->GetColumnName());
+    }
+    GetColNames(child, column_names);
+  }
+}
+
+
 bool IndexScanExecutor::ExecPrimaryIndexLookup() {
   PELOTON_ASSERT(!done_);
   Debug("Inside Index Scan Executor"); // std::cout << "Inside index scan
@@ -227,7 +243,7 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
 
   std::set<ItemPointer> prepared_tuple_set;
   // NEW: Commit proofs
-  std::vector<const pequinstore::proto::CommittedProof *> proofs;
+  // std::vector<const pequinstore::proto::CommittedProof *> proofs;
 
 #ifdef LOG_TRACE_ENABLED
   int num_tuples_examined = 0;
@@ -319,6 +335,8 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
               predicate_->Evaluate(&tuple, nullptr, executor_context_).IsTrue();
         }
 
+        std::cout << "Before delete check" << std::endl;
+
         /** NEW: Force eval to be true if deleted */
         if (tile_group_header->IsDeleted(tuple_location.offset)) {
           eval = true;
@@ -341,6 +359,14 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
                 (visible_tuple_set.find(tuple_location) ==
                  visible_tuple_set.end()));
 
+          std::cout << "Tuple check if committed is "
+                    << tile_group_header->GetCommitOrPrepare(
+                           tuple_location.offset)
+                    << ". Already processed is "
+                    << (visible_tuple_set.find(tuple_location) ==
+                        visible_tuple_set.end())
+                    << std::endl;
+
           // The tuple is committed
           if (tile_group_header->GetCommitOrPrepare(tuple_location.offset) &&
               visible_tuple_set.find(tuple_location) ==
@@ -359,7 +385,7 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
             auto commit_proof =
                 tile_group_header->GetCommittedProof(tuple_location.offset);
             // Add the commit proof to the vector
-            proofs.push_back(commit_proof);
+            // proofs.push_back(commit_proof);
             // Add the tuple to the visible tuple vector
             visible_tuple_locations.push_back(tuple_location);
             visible_tuple_set.insert(tuple_location);
@@ -370,10 +396,49 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
                   committed_timestamp.getTimestamp(),
                   committed_timestamp.getID());
 
-            current_txn->SetCommittedProof(
-                tile_group_header->GetCommittedProof(tuple_location.offset));
-            // Since tuple is committed we can stop looking at the version
-            // chain
+            if (current_txn->IsPointRead()) {
+              Debug("Setting the commit proof");
+              const pequinstore::proto::CommittedProof **commit_proof_ref =
+                  current_txn->GetCommittedProofRef();
+              *commit_proof_ref = commit_proof;
+              auto commit_ts = current_txn->GetCommitTimestamp();
+              *commit_ts = committed_timestamp;
+              current_txn->SetCommitTimestamp(&committed_timestamp);
+              //*commit_proof_ref = *commit_proof;
+              // current_txn->SetCommittedProofRef(commit_proof);
+              //  std::cout << (*commit_proof)->DebugString() << std::endl;
+              if (commit_proof == nullptr) {
+                Debug("Commit proof is null");
+                std::cout << "Commit proof is null" << std::endl;
+              } else {
+                Debug("Inside index scan proof not null");
+                std::cout << "Inside index scan proof not null" << std::endl;
+
+                auto proof_ts = Timestamp(commit_proof->txn().timestamp());
+                Debug("Proof ts is %lu, %lu", proof_ts.getTimestamp(),
+                      proof_ts.getID());
+
+                std::cout << "Proof ts is " << proof_ts.getTimestamp() << ", "
+                          << proof_ts.getID() << std::endl;
+              }
+
+              if (commit_proof_ref == nullptr) {
+                Debug("Commit proof ref is null");
+                std::cout << "Commit proof ref is null" << std::endl;
+              } else {
+                if (*commit_proof_ref == nullptr) {
+                  Debug("* commit proof ref is null");
+                  std::cout << "* commit proof ref is null" << std::endl;
+                } else {
+                  Debug("Neither pointer is null");
+                  std::cout << "Neither pointer is null" << std::endl;
+                }
+              }
+            }
+            // current_txn->SetCommittedProof(
+            //     tile_group_header->GetCommittedProof(tuple_location.offset));
+            //  Since tuple is committed we can stop looking at the version
+            //  chain
             break;
           }
 
@@ -387,19 +452,28 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
             auto predicate = current_txn->GetPredicate();
 
             if (predicate) {
-              if (predicate(*(current_txn->GetTxnDig())) &&
+              auto txn_digest =
+                  tile_group_header->GetTxnDig(tuple_location.offset);
+              if (predicate(*txn_digest) &&
                   visible_tuple_set.find(tuple_location) ==
                       visible_tuple_set.end()) {
                 // NEW: if predicate satisfied then add to prepared visible
                 // tuple vector
 
+                std::cout << "Predicate is satisfied" << std::endl;
                 // Set the prepared timestamp
                 Timestamp prepared_timestamp =
                     tile_group_header->GetBasilTimestamp(tuple_location.offset);
                 current_txn->SetPreparedTimestamp(&prepared_timestamp);
+                if (current_txn->IsPointRead()) {
+                  auto prepared_txn_digest =
+                      current_txn->GetPreparedTxnDigest();
+                  *prepared_txn_digest =
+                      tile_group_header->GetTxnDig(tuple_location.offset);
+                }
                 // Set the prepared txn digest
-                current_txn->SetPreparedTxnDigest(
-                    tile_group_header->GetTxnDig(tuple_location.offset));
+                /*current_txn->SetPreparedTxnDigest(
+                    tile_group_header->GetTxnDig(tuple_location.offset));*/
                 // After finding latest prepare we can stop looking at the
                 // version chain
                 found_prepared = true;
@@ -433,6 +507,7 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
       // std::cout << "Offset is " << old_item.offset << std::endl;
       tuple_location = tile_group_header->GetNextItemPointer(old_item.offset);
       tile_group = storage_manager->GetTileGroup(tuple_location.block);
+      tile_group_header = tile_group->GetHeader();
 
       if (tuple_location.IsNull()) {
         // std::cout << "Tuple location is null" << std::endl;
@@ -464,6 +539,25 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
 
   auto primary_index_columns_ = index_->GetMetadata()->GetKeyAttrs();
   auto query_read_set_mgr = current_txn->GetQueryReadSetMgr();
+  auto current_txn_timestamp = current_txn->GetBasilTimestamp();
+
+  if (!current_txn->IsPointRead()) {
+    // Read table version and table col versions
+    current_txn->GetTableVersion()(table_->GetName(), current_txn_timestamp, true, &query_read_set_mgr, nullptr);
+    // Table column version
+    std::unordered_set<std::string> column_names;
+    std::vector<std::string> col_names;
+    GetColNames(predicate_, column_names);
+
+    for (auto &col : column_names) {
+      std::cout << "Col name is " << col << std::endl;
+      col_names.push_back(col);
+    }
+
+    std::string encoded_key = EncodeTableRow(table_->GetName(), col_names);
+    std::cout << "Encoded key is " << encoded_key << std::endl;
+    current_txn->GetTableVersion()(encoded_key, current_txn_timestamp, true, &query_read_set_mgr, nullptr);
+  }
 
   for (auto &visible_tuple_location : visible_tuple_locations) {
     if (current_tile_group_oid == INVALID_OID) {

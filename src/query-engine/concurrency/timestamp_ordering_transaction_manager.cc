@@ -401,9 +401,14 @@ void TimestampOrderingTransactionManager::PerformInsert(
   tile_group_header->SetTxnDig(tuple_id, current_txn->GetTxnDig());
 
   // NEW: set commit proof
-  tile_group_header->SetCommittedProof(tuple_id,
-                                       current_txn->GetCommittedProof());
-
+  const pequinstore::proto::CommittedProof *proof =
+      current_txn->GetCommittedProof();
+  if (current_txn->GetCommitOrPrepare() && proof != nullptr) {
+    /*auto ts1 = Timestamp(proof->txn().timestamp());
+    Debug("The commit proof timestamp is %lu, %lu", ts1.getTimestamp(),
+          ts1.getID());*/
+  }
+  tile_group_header->SetCommittedProof(tuple_id, proof);
   // NEW: set commit or prepare
   tile_group_header->SetCommitOrPrepare(tuple_id,
                                         current_txn->GetCommitOrPrepare());
@@ -456,6 +461,23 @@ void TimestampOrderingTransactionManager::PerformUpdate(
   // no one will possibly release the write lock acquired by this txn.
   auto ts = current_txn->GetBasilTimestamp();
   new_tile_group_header->SetBasilTimestamp(new_location.offset, ts);
+
+  new_tile_group_header->SetTxnDig(new_location.offset,
+                                   current_txn->GetTxnDig());
+
+  // NEW: set commit proof
+  const pequinstore::proto::CommittedProof *proof =
+      current_txn->GetCommittedProof();
+  if (current_txn->GetCommitOrPrepare() && proof != nullptr) {
+    auto ts1 = Timestamp(proof->txn().timestamp());
+    Debug("The commit proof timestamp is %lu, %lu", ts1.getTimestamp(),
+          ts1.getID());
+  }
+  new_tile_group_header->SetCommittedProof(new_location.offset, proof);
+
+  // NEW: set commit or prepare
+  new_tile_group_header->SetCommitOrPrepare(new_location.offset,
+                                            current_txn->GetCommitOrPrepare());
 
   std::cout << "Setting new ts to " << ts.getTimestamp() << ", " << ts.getID()
             << std::endl;

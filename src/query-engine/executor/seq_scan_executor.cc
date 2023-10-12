@@ -33,6 +33,8 @@
 #include "../type/value_factory.h"
 #include "lib/message.h"
 #include "query-engine/common/item_pointer.h"
+#include "query-engine/planner/attribute_info.h"
+#include <unordered_set>
 
 namespace peloton {
 namespace executor {
@@ -77,6 +79,17 @@ bool SeqScanExecutor::DInit() {
   return true;
 }
 
+void SeqScanExecutor::GetColNames(const expression::AbstractExpression * child_expr, std::unordered_set<std::string> &column_names) {
+  for (size_t i = 0; i < child_expr->GetChildrenSize(); i++) {
+    auto child = child_expr->GetChild(i);
+    if (dynamic_cast<const expression::TupleValueExpression*>(child) != nullptr) {
+      auto tv_expr = dynamic_cast<const expression::TupleValueExpression*>(child);
+      column_names.insert(tv_expr->GetColumnName());
+    }
+    GetColNames(child, column_names);
+  }
+}
+
 void SeqScanExecutor::Scan() {
   concurrency::TransactionManager &transaction_manager =
       concurrency::TransactionManagerFactory::GetInstance();
@@ -98,6 +111,21 @@ void SeqScanExecutor::Scan() {
 
   auto storage_manager = storage::StorageManager::GetInstance();
   auto timestamp = current_txn->GetBasilTimestamp();
+
+  // Read table version and table col versions
+  current_txn->GetTableVersion()(target_table_->GetName(), timestamp, true, &query_read_set_mgr, nullptr);
+  std::unordered_set<std::string> column_names;
+  std::vector<std::string> col_names;
+  GetColNames(predicate_, column_names);
+
+  for (auto &col : column_names) {
+    std::cout << "Col name is " << col << std::endl;
+    col_names.push_back(col);
+  }
+
+  std::string encoded_key = EncodeTableRow(target_table_->GetName(), col_names);
+  std::cout << "Encoded key is " << encoded_key << std::endl;
+  current_txn->GetTableVersion()(encoded_key, timestamp, true, &query_read_set_mgr, nullptr);
 
   ItemPointer location_copy;
   for (auto indirection_array : target_table_->active_indirection_arrays_) {
