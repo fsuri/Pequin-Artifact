@@ -351,10 +351,10 @@ cd ..
 
 //install peloton third party dependencies
 git clone https://github.com/cmu-db/peloton.git
-cd peloton/third_party/libpgquery
+cd peloton/third_party/libpg_query
 sudo make
 cd ..
-sudo cp -r libpgquery /usr/local/include
+sudo cp -r libpg_query /usr/local/include
 sudo cp libpg_query/libpg_query.a /usr/local/lib
 
 sudo cp -r libcuckoo /usr/local/include
