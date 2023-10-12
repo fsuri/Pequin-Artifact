@@ -253,8 +253,10 @@ void Server::HandleQuery(const TransportAddress &remote, proto::QueryRequest &ms
 
     //EXECUTE:
 
+
     //If Eager Exec --> Skip sync and just execute on local state --> Call EagerExec function: Calls same exec as HandleSyncCallback (but without materializing snapshot) + SendQueryResult.
-    if((msg.designated_for_reply() || params.query_params.cacheReadSet) && msg.has_eager_exec() && msg.eager_exec()){ //Note: If eager exec on && caching read set --> all must execute.
+    if((msg.designated_for_reply() || params.query_params.cacheReadSet) && msg.has_eager_exec() && msg.eager_exec() && !query_md->waiting_sync){  //If waiting_sync => ProcessSync. (must be on eagerPlusSnapshot)
+        //Note: If eager exec on && caching read set --> all must execute.
         ExecQueryEagerly(q, query_md, queryId);
         if(params.mainThreadDispatching && (!params.dispatchMessageReceive || params.query_params.parallel_queries)) FreeQueryRequestMessage(&msg);
         return;
@@ -617,7 +619,7 @@ void Server::ProcessSync(queryMetaDataMap::accessor &q, const TransportAddress &
     UW_ASSERT(first_qm); //ProcessSync should never be called twice for one retry version.
 
     // In SetWaiting -> add missing to qm->second. (pass qm->second as arg.)
-    std::unordered_map<std::string, uint64_t> &missing_txns = qm->second.missing_txns; //query_md->missing_txns;
+    std::unordered_map<std::string, uint64_t> &missing_txns = qm->second.missing_txns; //query_md->missing_txns;  //Set of TX waiting to be materialized
     std::unordered_map<uint64_t, uint64_t> &missing_ts = qm->second.missing_ts; //querHandleReqy_md->missing_ts;
     // If missing empty after checking snapshot -> erase again
     
@@ -634,7 +636,7 @@ void Server::ProcessSync(queryMetaDataMap::accessor &q, const TransportAddress &
             fullyMaterialized &= CheckPresence(tx_id, query_retry_id, query_md, replica_requests, replica_list, missing_txns); 
         }
     }
-    //else: Using optimistic tx-id
+    //else: Using optimistic tx-id (i.e. TS)
     if(query_md->useOptimisticTxId){
         query_md->snapshot_mgr.OpenMergedSnapshot(merged_ss); //Decompresses if applicable 
         for(auto const &[ts_id, replica_list] : merged_ss->merged_ts()){
@@ -1281,7 +1283,7 @@ void Server::ProcessSuppliedTxn(const std::string &txn_id, proto::TxnInfo &txn_i
             if(params.signClientProposals) *txn->mutable_txndigest() = txn_dig; //Hack to have access to txnDigest inside TXN later (used for abstain conflict)
 
             const TCPTransportAddress *dummy_remote = new TCPTransportAddress(sockaddr_in()); //must allocate because ProcessProposal binds ref...
-            ProcessProposal(*p1, *dummy_remote, txn, txn_dig, true, true); //Set gossip to true ==> No reply; set forceMaterialize to true                       
+            ProcessProposal(*p1, *dummy_remote, txn, txn_dig, true, true); //Set gossip to true ==> No reply; set forceMaterialize to true   (Shouldn't be necessary anymore with the RegisterForce logic)                    
             if((!params.mainThreadDispatching || (params.dispatchMessageReceive && !params.parallel_CCC)) && (!params.multiThreading || !params.signClientProposals)){
                 delete p1; //I.e. if receiveMessage would not be allocating (See ManageDispatchP1)
                 delete dummy_remote;

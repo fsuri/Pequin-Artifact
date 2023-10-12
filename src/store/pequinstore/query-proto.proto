@@ -84,6 +84,8 @@ message QueryResult {
   optional ReadSet query_read_set = 6;
   //optional LocalDeps query_local_deps = 7; //only if reading prepared.   Note: Client turns deps into Dependency; only includes a Write- which in turn just holds prepared_txn_dig
   
+  //Eager Exec + Snapsho
+  optional LocalSnapshot local_ss = 7;
 }
 
 message QueryResultReply {

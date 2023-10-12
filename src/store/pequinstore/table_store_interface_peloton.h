@@ -78,7 +78,7 @@ class PelotonTableStore : public TableStore {
         //Partially execute a read query statement (reconnaissance execution) and return the snapshot state (managed by ssMgr)
         void FindSnapshot(const std::string &query_statement, const Timestamp &ts, SnapshotManager &ssMgr) override;
 
-        void EagerExecAndSnapshot(const std::string &query_statement, const Timestamp &ts, SnapshotManager &ssMgr, QueryReadSetMgr &readSetMgr) override;
+        std::string EagerExecAndSnapshot(const std::string &query_statement, const Timestamp &ts, SnapshotManager &ssMgr, QueryReadSetMgr &readSetMgr) override;
 
         std::string ExecReadQueryOnMaterializedSnapshot(const std::string &query_statement, const Timestamp &ts, QueryReadSetMgr &readSetMgr,
             const google::protobuf::Map<std::string, proto::ReplicaList> &ss_txns) override;

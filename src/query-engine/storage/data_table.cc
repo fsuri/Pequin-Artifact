@@ -443,9 +443,7 @@ ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple,
       } else {
 
         bool same_columns = true;
-        bool should_upgrade =
-            !curr_tile_group_header->GetCommitOrPrepare(curr_pointer.offset) &&
-            transaction->GetCommitOrPrepare();
+        bool should_upgrade = !curr_tile_group_header->GetCommitOrPrepare(curr_pointer.offset) && transaction->GetCommitOrPrepare(); //i.e. prev = prepare, curr tx = commit
 
         // NOTE: Check if we can upgrade a prepared tuple to committed
         // std::string encoded_key = target_table_->GetName();

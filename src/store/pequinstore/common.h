@@ -527,7 +527,7 @@ typedef struct QueryParameters {
         sql_mode(sql_mode), syncQuorum(syncQuorum), queryMessages(queryMessages), mergeThreshold(mergeThreshold), syncMessages(syncMessages), resultQuorum(resultQuorum),
         eagerExec(eagerExec), eagerPointExec(eagerPointExec), eagerPlusSnapshot(eagerPlusSnapshot), readPrepared(readPrepared), cacheReadSet(cacheReadSet), optimisticTxID(optimisticTxID), compressOptimisticTxIDs(compressOptimisticTxIDs), mergeActiveAtClient(mergeActiveAtClient), 
         signClientQueries(signClientQueries), signReplicaToReplicaSync(signReplicaToReplicaSync), parallel_queries(parallel_queries) {
-            
+            if(eagerPlusSnapshot) UW_ASSERT(eagerExec); 
         }
 
 } QueryParameters;

@@ -237,8 +237,8 @@ void ToyTableStore::FindSnapshot(const std::string &query_statement,
   std::cerr << "FIND SNAPSHOT ON TOY INTERFACE" << std::endl;
 }
 
-void ToyTableStore::EagerExecAndSnapshot(const std::string &query_statement, const Timestamp &ts, SnapshotManager &ssMgr, QueryReadSetMgr &readSetMgr){
-
+std::string ToyTableStore::EagerExecAndSnapshot(const std::string &query_statement, const Timestamp &ts, SnapshotManager &ssMgr, QueryReadSetMgr &readSetMgr){
+  return "";
 }
 
 std::string ToyTableStore::ExecReadQueryOnMaterializedSnapshot(const std::string &query_statement, const Timestamp &ts, QueryReadSetMgr &readSetMgr,

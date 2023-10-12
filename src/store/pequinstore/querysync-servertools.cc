@@ -60,7 +60,7 @@ namespace pequinstore {
 
 /////////////////////////// EXECUTION ////////////////////////////
 
-std::string Server::ExecQuery(QueryReadSetMgr &queryReadSetMgr, QueryMetaData *query_md, bool read_materialized){
+std::string Server::ExecQuery(QueryReadSetMgr &queryReadSetMgr, QueryMetaData *query_md, bool read_materialized, bool eager){
     //TODO: Must take as input some Materialization info... (whether to use a materialized snapshot (details are in query_md), or whether to just use current state)
     //TODO: Must be able to report exec failure (e.g. materialized snapshot inconsistent) -- note that if eagerly executiong (no materialization) there is no concept of failure.
 
@@ -69,28 +69,24 @@ std::string Server::ExecQuery(QueryReadSetMgr &queryReadSetMgr, QueryMetaData *q
     //                                                         //
     //                                                         //
     //
-    //              EXEC BLACKBOX -- TBD
+    //              EXEC BLACKBOX 
 
-
-       //If MVTSO: Read prepared, Set RTS
     std::string serialized_result;
     if(!read_materialized){
-        serialized_result = table_store->ExecReadQuery(query_md->query_cmd, query_md->ts, queryReadSetMgr);
+        if(eager && params.query_params.eagerPlusSnapshot){ //If eager exec Plus Snapshot => find snapshot as part of ExecRead
+            proto::LocalSnapshot *local_ss = query_md->queryResultReply->mutable_result()->mutable_local_ss();
+            query_md->snapshot_mgr.InitLocalSnapshot(local_ss, query_md->query_seq_num, query_md->client_id, id, query_md->useOptimisticTxId);
+            serialized_result = table_store->EagerExecAndSnapshot(query_md->query_cmd, query_md->ts, query_md->snapshot_mgr, queryReadSetMgr);
+            query_md->snapshot_mgr.SealLocalSnapshot(); 
+        } 
+        else{
+            serialized_result = table_store->ExecReadQuery(query_md->query_cmd, query_md->ts, queryReadSetMgr);
+        }
     } 
     if(read_materialized){
         Warning("Do not yet support reads from materialized snapshot");
         serialized_result = table_store->ExecReadQueryOnMaterializedSnapshot(query_md->query_cmd, query_md->ts, queryReadSetMgr, query_md->merged_ss_msg->merged_txns());
     } 
-
-    Debug("SERIALIZED RESULT: %lu", std::hash<std::string>{}(serialized_result));
-
-    if(occType == MVTSO && params.rtsMode > 0){
-        Debug("Set up all RTS for Query[%lu:%lu]", query_md->query_seq_num, query_md->client_id);
-        for(auto &read: queryReadSetMgr.read_set->read_set()){
-            SetRTS(query_md->ts, read.key());
-        }
-        //TODO: On Abort, Clear RTS.
-    }
 
     //                                                         //
     //                                                         //
@@ -99,6 +95,18 @@ std::string Server::ExecQuery(QueryReadSetMgr &queryReadSetMgr, QueryMetaData *q
     /////////////////////////////////////////////////////////////
     //TODO: Result should be of protobuf result type: --> can either return serialized value, or result object (probably easiest) -- but need serialized value anyways to check for equality.
 
+
+
+    Debug("SERIALIZED RESULT: %lu", std::hash<std::string>{}(serialized_result));
+
+     //If MVTSO: Read prepared (handled by predicate in table_store), Set RTS
+    if(occType == MVTSO && params.rtsMode > 0){
+        Debug("Set up all RTS for Query[%lu:%lu]", query_md->query_seq_num, query_md->client_id);
+        for(auto &read: queryReadSetMgr.read_set->read_set()){
+            SetRTS(query_md->ts, read.key());
+        }
+        //TODO: On Abort, Clear RTS.
+    }
 
     for(auto &read : queryReadSetMgr.read_set->read_set()){
         Debug("Read key %s with version [%lu:%lu]", read.key().c_str(), read.readtime().timestamp(), read.readtime().id());
@@ -190,8 +198,8 @@ void Server::ExecQueryEagerly(queryMetaDataMap::accessor &q, QueryMetaData *quer
     Debug("Eagerly Execute Query[%lu:%lu:%lu].", query_md->query_seq_num, query_md->client_id, query_md->retry_version);
     QueryReadSetMgr queryReadSetMgr(query_md->queryResultReply->mutable_result()->mutable_query_read_set(), groupIdx, false); 
 
-    std::string result(ExecQuery(queryReadSetMgr, query_md, false));
-
+    std::string result(ExecQuery(queryReadSetMgr, query_md, false, true)); //eager = true
+    
     Debug("Got result for Query[%lu:%lu:%lu].", query_md->query_seq_num, query_md->client_id, query_md->retry_version);
 
     if(TEST_QUERY){
@@ -203,7 +211,6 @@ void Server::ExecQueryEagerly(queryMetaDataMap::accessor &q, QueryMetaData *quer
         queryResultBuilder.add_row(result_row.begin(), result_row.end());
         result = queryResultBuilder.get_result()->SerializeAsString();
     }
-
 
 
     query_md->has_result = true; 
@@ -373,7 +380,7 @@ bool Server::CheckPresence(const std::string &tx_id, const std::string &query_re
     // o.release(); 
 
      //1) If we have never seen the Txn, we must request it
-     if(TEST_SYNC || !has_txn_locally){
+     if(TEST_SYNC || !has_txn_locally){                                      //TODO: TEST_SYNC will trigger message sync, but won't cause Query to wait for it. 
         RequestMissing(replica_list, replica_requests, tx_id);
     }
 
@@ -530,7 +537,7 @@ void Server::ForceMaterialization(const proto::ConcurrencyControl::Result &resul
     //Materialize only if result is ABSTAIN:
     Debug("Forcefully Materialize Txn[%s]!", BytesToHex(txnDigest, 16).c_str());
     for (const auto &[table_name, table_write] : txn->table_writes()){
-        ApplyTableWrites(table_name, table_write, Timestamp(txn->timestamp()), txnDigest, nullptr, false, true);
+        ApplyTableWrites(table_name, table_write, Timestamp(txn->timestamp()), txnDigest, nullptr, false, true); //forceMaterialize = true
     }
 }
 
@@ -552,7 +559,7 @@ void Server::ApplyTableWrites(const std::string &table_name, const TableWrite &t
     table_store->ApplyTableWrite(table_name, table_write, ts, txn_digest, commit_proof, commit_or_prepare, forceMaterialize);
 
     //Wake any queries waiting for full materialization:
-    CheckWaitingQueries(txn_digest, ts.getTimestamp(), ts.getID());   
+    CheckWaitingQueries(txn_digest, ts.getTimestamp(), ts.getID());   //TODO: Inside or outside mat lock?
 
     //apt.release();
     mat.release();
@@ -660,7 +667,7 @@ void Server::CheckWaitingQueries(const std::string &txnDigest, const uint64_t &t
         if(tx_ts_mode != 2) UpdateWaitingQueriesTS(txnTS, txnDigest, is_abort);
     }
   }
-  else{
+  else{ //Running only with real TX-ids
     //Wake waiting queries.
     if(params.mainThreadDispatching && (params.query_params.parallel_queries || non_blocking)){   //if mainThreadDispatching = true then dispatchMessageReceive = false
         //Dispatch job to worker thread (since it may wake and excute sync)

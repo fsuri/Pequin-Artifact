@@ -449,7 +449,7 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
     void CheckLocalAvailability(const std::string &txn_id, proto::TxnInfo &txn_info);
       //void CheckLocalAvailability(const std::string &txn_id, proto::SupplyMissingTxnsMessage &supply_txn, bool sync_on_ts = false);
 
-    std::string ExecQuery(QueryReadSetMgr &queryReadSetMgr, QueryMetaData *query_md, bool read_materialized = false);
+    std::string ExecQuery(QueryReadSetMgr &queryReadSetMgr, QueryMetaData *query_md, bool read_materialized = false, bool eager = false);
     void ExecQueryEagerly(queryMetaDataMap::accessor &q, QueryMetaData *query_md, const std::string &queryId);
     void HandleSyncCallback(queryMetaDataMap::accessor &q, QueryMetaData *query_md, const std::string &queryId);
     void SendQueryReply(QueryMetaData *query_md);
@@ -470,7 +470,7 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
 
     //Materialization
     void ApplyTableWrites(const std::string &table_name, const TableWrite &table_write, const Timestamp &ts,
-                const std::string &txn_digest, const proto::CommittedProof *commit_proof, bool commit_or_prepare = false, bool forceMaterialize = false);
+                const std::string &txn_digest, const proto::CommittedProof *commit_proof, bool commit_or_prepare = true, bool forceMaterialize = false);
     bool WaitForMaterialization(const std::string &tx_id, const std::string &query_retry_id, std::unordered_map<std::string, uint64_t> &missing_txns);
     bool WaitForTX(const uint64_t &ts_id, const std::string &query_retry_id, std::unordered_map<uint64_t, uint64_t> &missing_ts);
       bool WaitForMaterialization(const uint64_t &ts_id, const std::string &query_retry_id, std::unordered_map<uint64_t, uint64_t> &missing_ts);
