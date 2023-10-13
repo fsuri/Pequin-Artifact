@@ -326,8 +326,8 @@ void Server::ProcessPointQuery(const uint64_t &reqId, proto::Query *query, const
         std::string toy_txn("toy_txn");
         Timestamp toy_ts(0, 2); //set to genesis time.
         sql::QueryResultProtoBuilder queryResultBuilder;
-        queryResultBuilder.add_columns({"key_", "val_"});
-        std::vector<std::string> result_row = {"alice", "blonde"};
+        queryResultBuilder.add_columns({"key", "value"});
+        std::vector<std::string> result_row = {"0", "42"};
         queryResultBuilder.add_row(result_row.begin(), result_row.end());
         std::string toy_result = queryResultBuilder.get_result()->SerializeAsString();
 
@@ -358,8 +358,8 @@ void Server::ProcessPointQuery(const uint64_t &reqId, proto::Query *query, const
         //Create Toy committed Tx with real proof tx -- create toy "real" QC
 
         sql::QueryResultProtoBuilder queryResultBuilder2;
-        queryResultBuilder2.add_columns({"key_", "val_"});
-        result_row = {"alice", "black"};
+        queryResultBuilder2.add_columns({"key", "val"});
+        result_row = {"0", "41"};
         queryResultBuilder2.add_row(result_row.begin(), result_row.end());
         std::string toy_result2 = queryResultBuilder2.get_result()->SerializeAsString();
 
@@ -372,8 +372,8 @@ void Server::ProcessPointQuery(const uint64_t &reqId, proto::Query *query, const
         toy_ts_c.serialize(real_proof->mutable_txn()->mutable_timestamp());
         TableWrite &table_write = (*real_proof->mutable_txn()->mutable_table_writes())["datastore"];
         RowUpdates *row = table_write.add_rows();
-        row->add_column_values("alice");
-        row->add_column_values("black");
+        row->add_column_values("0");
+        row->add_column_values("41");
         WriteMessage *write_msg = real_proof->mutable_txn()->add_write_set();
         write_msg->set_key("datastore#alice");
         write_msg->mutable_rowupdates()->set_row_idx(0);
@@ -604,6 +604,11 @@ void Server::HandleSync(const TransportAddress &remote, proto::SyncClientProposa
 
 void Server::ProcessSync(queryMetaDataMap::accessor &q, const TransportAddress &remote, proto::MergedSnapshot *merged_ss, const std::string *queryId, QueryMetaData *query_md) { 
 
+    // if(!TEST_MATERIALIZE_TS){
+    //     uint64_t ts = 5UL << 32;
+    //     ts_to_tx.erase(MergeTimestampId(ts, 0UL));
+    // }
+
     query_md->merged_ss_msg = merged_ss; 
 
     bool fullyMaterialized = true;
@@ -669,7 +674,7 @@ void Server::ProcessSync(queryMetaDataMap::accessor &q, const TransportAddress &
     //If no missing_txn ==> already fully synced. Exec callback direclty
     if(!replica_requests.empty()){
     //if there are missng txn, i.e. replica_requests not empty ==> send out sync requests.
-        query_md->is_waiting = true; //Note: If query is waiting, but (byz) client supplied wrong/insufficient replicas to sync from ==> query loses liveness.
+        //query_md->is_waiting = true; //Note: If query is waiting, but (byz) client supplied wrong/insufficient replicas to sync from ==> query loses liveness.
         q.release();
         Debug("Sync State incomplete for Query[%lu:%lu:%d]", merged_ss->query_seq_num(), merged_ss->client_id(), merged_ss->retry_version()); 
         for(auto const &[replica_idx, replica_req] : replica_requests){
@@ -680,16 +685,73 @@ void Server::ProcessSync(queryMetaDataMap::accessor &q, const TransportAddress &
         }
     }
 
+    Debug("fullyMat? %d", fullyMaterialized);
+    
     //else: if no missing Txns & all already materialized   
     //Note: fullyMaterialized == missing_txns.empty() && missing_ts.empty()
     if(fullyMaterialized) return HandleSyncCallback(q, query_md, *queryId);
+
+    query_md->is_waiting = true; //Note: If query is waiting, but (byz) client supplied wrong/insufficient replicas to sync from ==> query loses liveness.
+    //TODO: is _waiting_ still necessary now that Update orchestration is on a per retry basis?
     
+    if(TEST_MATERIALIZE){ //materialize the missing Tx in order to wake.
+         std::string test_txn_id = "[test_id_of_length_32 bytes----]";
+         std::string bonus_test = "BONUS TEST";
+         uint64_t ts = 5UL << 32;
+       
+       
+       
+        if(TEST_MATERIALIZE_TS){
+            ts_to_tx.insert(std::make_pair(MergeTimestampId(ts, 0UL), test_txn_id));
+            ts_to_tx.insert(std::make_pair(MergeTimestampId(ts, 1UL), bonus_test));
+        }
+
+       
+        CheckWaitingQueries(test_txn_id, ts, 0); //this should wake TS but make TX wait on mat
+       
+         materializedMap::accessor mat;
+          std::cerr << "MATERIALIZE MISSING TRANSACTION " << BytesToHex(bonus_test, 16) << std::endl;
+        materialized.insert(mat, bonus_test);
+        CheckWaitingQueries(bonus_test, ts, 1); //this will wake on this TS, but won't be able to start callback because there is a waiting TX
+        mat.release();
+
+        if(!TEST_MATERIALIZE_FORCE){
+             sleep(1);        
+            std::cerr << "MATERIALIZE MISSING TRANSACTION " << BytesToHex(test_txn_id, 16) << std::endl;
+            materialized.insert(mat, test_txn_id); //this will wake TX
+            CheckWaitingQueries(test_txn_id, ts, 0); //this should go wait on TX mat
+            mat.release();
+        }
+        if(TEST_MATERIALIZE_FORCE){
+            // sleep(1);
+            // proto::Transaction *txn = new proto::Transaction();
+            // //Genesis proof: client id + client seq = 0.
+            // txn->set_client_id(0);
+            // txn->set_client_seq_num(0);
+            // txn->mutable_timestamp()->set_timestamp(ts);
+            // txn->mutable_timestamp()->set_id(0UL);
+            // txn->add_involved_groups(0);
+
+            // const proto::CommittedProof* committedProof = nullptr; //abort conflict
+            // const proto::Transaction *abstain_conflict = nullptr;
+            // sockaddr_in addr;
+            // const TCPTransportAddress remote = TCPTransportAddress(addr);
+
+            // //Note: if forceMaterialize is set to false, this should still forceMat because we registered
+            // HandlePhase1CB(0, proto::ConcurrencyControl_Result_ABORT, committedProof, test_txn_id, txn, remote, abstain_conflict, true, false);
+        }
+       
+        
+    }
+   
     //delete merged_ss; // ==> Deleting only upon ClearMetaData or delete query_md 
     return;
 }
 
 //Note: WARNING: must be called while holding a lock on query_md. 
 void Server::HandleSyncCallback(queryMetaDataMap::accessor &q, QueryMetaData *query_md, const std::string &queryId){
+
+    Panic("wake up successfully");
 
     Debug("Sync complete for Query[%lu:%lu]. Starting Execution", query_md->query_seq_num, query_md->client_id);
     query_md->is_waiting = false;
@@ -908,7 +970,7 @@ void Server::SendQueryReply(QueryMetaData *query_md){
 
 void Server::HandleRequestTx(const TransportAddress &remote, proto::RequestMissingTxns &req_txn){
 
-     Debug("\n Received RequestMissingTxn from replica %d", req_txn.replica_idx()); 
+     Debug("   Received RequestMissingTxn from replica %d. MissingTxs: %d, MissingTS: %d", req_txn.replica_idx(), req_txn.missing_txn_size(), req_txn.missing_txn_ts_size()); 
 
     //1) Parse Message
     proto::SupplyMissingTxns supplyMissingTxn; // = new proto::SupplyMissingTxns();

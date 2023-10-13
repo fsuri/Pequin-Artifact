@@ -77,12 +77,15 @@ enum OCCType {
 
 
 //TEST/DEBUG variables
-static bool TEST_QUERY = false; //true;   //create toy results for queries
-static bool TEST_SNAPSHOT = false; //true;  //create toy snapshots for queries
-static bool TEST_READ_SET = false; //true;  //create toy read sets for queries
+static bool TEST_QUERY = true; //true;   //create toy results for queries
+static bool TEST_SNAPSHOT = true; //true;  //create toy snapshots for queries
+static bool TEST_READ_SET = true; //true;  //create toy read sets for queries
 static bool TEST_FAIL_QUERY = false;  //create an artificial retry for queries
 static bool TEST_PREPARE_SYNC = false;  //Create artificial sync for queries that supplies prepares even though value is committed
 static bool TEST_SYNC = false;  //create an artificial sync for queries
+static bool TEST_MATERIALIZE = true; //artificially cause a wait on materialize.
+static bool TEST_MATERIALIZE_TS = true; //artificially cause a wait on materialize for a TS based sync
+static bool TEST_MATERIALIZE_FORCE = true; //artificially force a materialization.
 
 static int fail_writeback = 0;
 typedef std::vector<std::unique_lock<std::mutex>> locks_t;
@@ -469,11 +472,13 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
 
 
     //Materialization
-    void ApplyTableWrites(const std::string &table_name, const TableWrite &table_write, const Timestamp &ts,
+    void ApplyTableWrites(const proto::Transaction &txn, const Timestamp &ts,
                 const std::string &txn_digest, const proto::CommittedProof *commit_proof, bool commit_or_prepare = true, bool forceMaterialize = false);
+    // void ApplyTableWrites(const std::string &table_name, const TableWrite &table_write, const Timestamp &ts,
+    //             const std::string &txn_digest, const proto::CommittedProof *commit_proof, bool commit_or_prepare = true, bool forceMaterialize = false);
     bool WaitForMaterialization(const std::string &tx_id, const std::string &query_retry_id, std::unordered_map<std::string, uint64_t> &missing_txns);
-    bool WaitForTX(const uint64_t &ts_id, const std::string &query_retry_id, std::unordered_map<uint64_t, uint64_t> &missing_ts);
-      bool WaitForMaterialization(const uint64_t &ts_id, const std::string &query_retry_id, std::unordered_map<uint64_t, uint64_t> &missing_ts);
+    void WaitForTX(const uint64_t &ts_id, const std::string &query_retry_id, std::unordered_map<uint64_t, uint64_t> &missing_ts);
+      bool WaitForMaterialization(const uint64_t &ts_id, const std::string &query_retry_id, std::unordered_map<uint64_t, uint64_t> &missing_ts); //DEPRECATED
 
     bool RegisterForceMaterialization(const std::string &txnDigest, const proto::Transaction *txn);
     void ForceMaterialization(const proto::ConcurrencyControl::Result &result, const std::string &txnDigest, const proto::Transaction *txn);

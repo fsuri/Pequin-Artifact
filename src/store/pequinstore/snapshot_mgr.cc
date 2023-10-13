@@ -169,6 +169,7 @@ bool SnapshotManager::ProcessReplicaLocalSnapshot(proto::LocalSnapshot* local_ss
     OpenLocalSnapshot(local_ss); // decompresses if applicable.
 
     //2) Compute Merged Snapshot -- path for both tx-id and ts-id
+                                 //Note: Invariant: Replica only votes for a Txn as EITHER committed or aborted; not both.
     if(!useOptimisticTxId){
             //what if some replicas have it as committed, and some as prepared. If >=f+1 committed ==> count as committed, include only those replicas in list.. If mixed, count as prepared
         //DOES client need to consider at all whether a txn is committed/prepared? --> don't think so; replicas can determine dependency set at exec time (and either inform client, or cache locally)
@@ -193,7 +194,6 @@ bool SnapshotManager::ProcessReplicaLocalSnapshot(proto::LocalSnapshot* local_ss
         for(const uint64_t &ts : local_ss->local_txns_prepared_ts()){
             proto::ReplicaList &replica_list = (*merged_ss->mutable_merged_ts())[ts];
             replica_list.add_replicas(local_ss->replica_id());
-            replica_list.set_commit_count(replica_list.commit_count()+1);
         }
 
         //NOTE: TODO: If we are trying to compress the Timestamps --> cannot store this as map from ts -> replica_lists.

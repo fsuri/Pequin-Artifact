@@ -519,14 +519,7 @@ void Server::LoadTableData(const std::string &table_name, const std::string &tab
 void Server::LoadTableRows(const std::string &table_name, const std::vector<std::pair<std::string, std::string>> &column_data_types, const std::vector<std::vector<std::string>> &row_values, const std::vector<uint32_t> &primary_key_col_idx ){
   
 
-  //TODO: Instead of using the INSERT SQL statement, could generate a TableWrite and use the TableWrite API.
-  TableWrite table_write;
-  for(auto &row: row_values){
-    RowUpdates *new_row = table_write.add_rows();
-    for(auto &value: row){
-      new_row->add_column_values(value);
-    }
-  }
+ 
   
   //Call into TableStore with this statement.
   //table_store->ExecRaw(sql_statement);
@@ -536,8 +529,18 @@ void Server::LoadTableRows(const std::string &table_name, const std::vector<std:
   Timestamp genesis_ts(0,0);
   proto::CommittedProof *genesis_proof = committedItr->second;
 
-  ApplyTableWrites(table_name, table_write, genesis_ts, genesis_tx_dig, genesis_proof);
+   //TODO: Instead of using the INSERT SQL statement, could generate a TableWrite and use the TableWrite API.
+  TableWrite &table_write = (*genesis_proof->mutable_txn()->mutable_table_writes())[table_name];
+  for(auto &row: row_values){
+    RowUpdates *new_row = table_write.add_rows();
+    for(auto &value: row){
+      new_row->add_column_values(value);
+    }
+  }
   
+  ApplyTableWrites(genesis_proof->txn(), genesis_ts, genesis_tx_dig, genesis_proof);
+  
+  genesis_proof->mutable_txn()->clear_table_writes(); //don't need to keep storing them. 
 
   std::vector<const std::string*> primary_cols;
   for(auto i: primary_key_col_idx){
@@ -1695,13 +1698,14 @@ void Server::Prepare(const std::string &txnDigest,const proto::Transaction &txn,
   }
   o.release(); //Relase only at the end, so that Prepare and Clean in parallel for the same TX are atomic.
 
-  for (const auto &[table_name, table_write] : txn.table_writes()){
-    ApplyTableWrites(table_name, table_write, ts, txnDigest, nullptr, false);
-    //Apply TableVersion  ==> currently moved below
-    // std::pair<std::shared_mutex,std::map<Timestamp, const proto::Transaction *>> &x = preparedWrites[table_name];
-    // std::unique_lock lock(x.first);
-    // x.second.insert(pWrite);
-  }
+  ApplyTableWrites(txn, ts, txnDigest, nullptr, false);
+  // for (const auto &[table_name, table_write] : txn.table_writes()){
+  //   ApplyTableWrites(table_name, table_write, ts, txnDigest, nullptr, false);
+  //   //Apply TableVersion  ==> currently moved below
+  //   // std::pair<std::shared_mutex,std::map<Timestamp, const proto::Transaction *>> &x = preparedWrites[table_name];
+  //   // std::unique_lock lock(x.first);
+  //   // x.second.insert(pWrite);
+  // }
 
   //Apply TableVersion and TableColVersion
   //TODO: for max efficiency (minimal wait time to update): Set_change table in table_write, and write TableVersion as soon as TableWrite has been applied
@@ -1889,16 +1893,17 @@ void Server::CommitToStore(proto::CommittedProof *proof, proto::Transaction *txn
   //Apply TableWrites: //TODO: Apply also for Prepare: Mark TableWrites as prepared. TODO: add interface func to set prepared, and clean also.. commit should upgrade them. //FIXME: How does SQL update handle exising row
                             // alternatively: don't mark prepare/commit inside the table store, only in CC store. But that requires extra lookup for all keys in read set.
                             // + how do we remove prepared rows? Do we treat it as SQL delete (at ts)? row becomes invisible -- fully removed from CC store.
-  for (const auto &[table_name, table_write] : txn->table_writes()){
-    ApplyTableWrites(table_name, table_write, ts, txnDigest, proof);
-    //val.val = "";
-    //store.put(table_name, val, ts);     //TODO: Confirm that ApplyTableWrite is synchronous -- i.e. only returns after all writes are applied. 
-                                                          //If not, then must call SetTableVersion as callback from within Peloton once it is done.
-    //Note: Should be safe to apply TableVersion table by table (i.e. don't need to wait for all TableWrites to finish before applying TableVersions)
+   ApplyTableWrites(*txn, ts, txnDigest, nullptr, false);
+  // for (const auto &[table_name, table_write] : txn->table_writes()){
+  //   ApplyTableWrites(table_name, table_write, ts, txnDigest, proof);
+  //   //val.val = "";
+  //   //store.put(table_name, val, ts);     //TODO: Confirm that ApplyTableWrite is synchronous -- i.e. only returns after all writes are applied. 
+  //                                                         //If not, then must call SetTableVersion as callback from within Peloton once it is done.
+  //   //Note: Should be safe to apply TableVersion table by table (i.e. don't need to wait for all TableWrites to finish before applying TableVersions)
 
     
-    //Note: Does one have to do special handling for Abort? No ==> All prepared versions just produce unecessary conflicts & dependencies, so there is no safety concern.
-  }
+  //   //Note: Does one have to do special handling for Abort? No ==> All prepared versions just produce unecessary conflicts & dependencies, so there is no safety concern.
+  // }
   //Apply TableVersion and TableColVersion
   //TODO: for max efficiency (minimal wait time to update): Set_change table in table_write, and write TableVersion as soon as TableWrite has been applied
                                                             //Do the same for Table_Col_Version. TODO: this requires parsing out the table_name however.
@@ -1924,17 +1929,11 @@ void Server::Abort(const std::string &txnDigest, proto::Transaction *txn) {
   CleanQueries(txn, false);
 
   materializedMap::accessor mat;
-  // materializedTSMap::accessor apt;
   bool first_mat = materialized.insert(mat, txnDigest); //NOTE: Even though abort does not "write anything", we still mark the data structure to indicate it has been materialized
-  //if(!materialized.insert(ap, txnDigest)) return; 
-  // if(!materializedTS.insert(ap, MergeTimestampId(txn->timestamp().timestamp(), txn->timestamp().id()))) return; //NOTE: Even though abort does not "write anything", we still mark the data structure to indicate it has been materialized
-  CheckWaitingQueries(txnDigest, txn->timestamp().timestamp(), txn->timestamp().id(), true, first_mat? 0 : 1); //is_abort  //NOTE: WARNING: If Clean(abort) deletes txn then must callCheckWaitingQueries before Clean.
-        //If not the first materialization: only wake TS.
-
-  //apt.release();
   mat.release();
 
-
+  CheckWaitingQueries(txnDigest, txn->timestamp().timestamp(), txn->timestamp().id(), true, first_mat? 0 : 1); //is_abort  //NOTE: WARNING: If Clean(abort) deletes txn then must callCheckWaitingQueries before Clean.
+        //If not the first materialization: only wake TS.
 }
 
 void Server::Clean(const std::string &txnDigest, bool abort, bool hard) {

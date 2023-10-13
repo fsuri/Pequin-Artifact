@@ -58,7 +58,7 @@ RWSQLTransaction::RWSQLTransaction(QuerySelector *querySelector, uint64_t &numOp
 RWSQLTransaction::~RWSQLTransaction() {
 }
 
-static int count = 2;
+static int count = 1;
 
 //WARNING: CURRENTLY DO NOT SUPPORT READ YOUR OWN WRITES
 transaction_status_t RWSQLTransaction::Execute(SyncClient &client) {
@@ -112,6 +112,7 @@ transaction_status_t RWSQLTransaction::Execute(SyncClient &client) {
     // client.Abort(timeout);
     // return ABORTED_USER;
   //if(++count == 3) Panic("stop testing");
+  Panic("stop after one");
 
   transaction_status_t commitRes = client.Commit(timeout);
   std::cerr << "TXN COMMIT STATUS: " << commitRes << std::endl;

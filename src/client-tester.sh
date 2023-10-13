@@ -1,6 +1,6 @@
 #!/bin/bash
 
-CLIENTS=10
+CLIENTS=1
 F=1
 NUM_GROUPS=1
 CONFIG="0_local_test_outputs/configs/shard-r6.config"
@@ -8,7 +8,7 @@ PROTOCOL="pequin"
 STORE=${PROTOCOL}store
 DURATION=10
 ZIPF=0.0
-NUM_OPS_TX=2
+NUM_OPS_TX=1
 NUM_KEYS_IN_DB=1
 KEY_PATH="keys"
 BENCHMARK="rw-sql"

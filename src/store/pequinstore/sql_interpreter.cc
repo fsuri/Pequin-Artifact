@@ -589,7 +589,10 @@ void SQLTransformer::TransformUpdate(size_t pos, std::string_view &write_stateme
                 std::unique_ptr<query_result::Field> field = (*row)[j];
           
                 //Deserialize encoding to be a stringified type (e.g. whether it's int/bool/string store all as normal readable string)
-                const std::string &col_type = col_registry.col_name_type[col];
+                 std::cerr << "Checking column: " << col << std::endl;
+                const std::string &col_type = col_registry.col_name_type.at(col);
+               
+
                 auto field_val(DecodeType(field, col_type));
                 //std::string field_val(DecodeType(field, col_registry.col_name_type[col]));
 

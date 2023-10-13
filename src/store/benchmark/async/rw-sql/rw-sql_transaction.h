@@ -39,7 +39,7 @@
 namespace rwsql {
 
 static bool AVOID_DUPLICATE_READS = true; 
-static bool POINT_READS_ENABLED = false;
+static bool POINT_READS_ENABLED = true;
 static bool PARALLEL_QUERIES = true;
 
 inline int mod(int &x, const int &N){

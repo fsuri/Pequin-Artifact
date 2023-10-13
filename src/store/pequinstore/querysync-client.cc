@@ -192,12 +192,12 @@ void ShardClient::RequestQuery(PendingQuery *pendingQuery, proto::Query &queryMs
   
   queryReq.set_is_point(pendingQuery->is_point);
 
-  queryReq.set_eager_exec(true);
+  //queryReq.set_eager_exec(true);
   Notice("SET EAGER TO TRUE ALWAYS -- FOR REAL RUN UNCOMMENT CORRECT EAGER EXEC LINE");
-  //queryReq.set_eager_exec(!pendingQuery->retry_version && (pendingQuery->is_point? params.query_params.eagerPointExec : params.query_params.eagerExec));
+  queryReq.set_eager_exec(!pendingQuery->retry_version && (pendingQuery->is_point? params.query_params.eagerPointExec : params.query_params.eagerExec));
   Debug("Sending TX eagerly? %s", queryReq.eager_exec()? "yes" : "no");
-  if(!queryReq.eager_exec()) Panic("Currently only testing eager exec");
-  if(queryReq.is_point()) queryReq.set_eager_exec(false); //Panic("Not testing point query currently");
+  //if(!queryReq.eager_exec()) Panic("Currently only testing eager exec");
+  //if(queryReq.is_point()) queryReq.set_eager_exec(false); //Panic("Not testing point query currently");
 
   if(pendingQuery->is_point && !queryReq.eager_exec()){ //If point query is eager: treat as normal eager query. If non-eager, manage as pointQuery
     pendingQuery->pendingPointQuery.prcb = std::move(pendingQuery->prcb); //Move callback
@@ -341,6 +341,17 @@ void ShardClient::ProcessSync(PendingQuery *pendingQuery, proto::LocalSnapshot *
         //If necessary, decode tx list
       
     bool mergeComplete = pendingQuery->snapshot_mgr.ProcessReplicaLocalSnapshot(local_ss); //TODO: Need to make local_ss non-const.
+
+
+    //TEST:
+    // for(auto &[ts, replica_list] : pendingQuery->merged_ss.merged_ts()){
+    //     std::cerr << "MergedSS contains TS: " << ts << std::endl;
+    //     for(auto &replica: replica_list.replicas()){
+    //           std::cerr << "   Replica list has replica:  " << replica << std::endl;
+    //     }
+    // }
+
+    //
 
     // 6) Once #QueryQuorum replies received, send SyncMessages
     if(mergeComplete){
