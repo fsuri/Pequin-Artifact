@@ -55,7 +55,7 @@ namespace taopq_wrapper
   
     auto name(const std::size_t column) const -> std::string;
   
-    // auto get(const std::size_t column, std::size_t *size) const -> const char *;
+    auto get_bytes(const std::size_t column, std::size_t *size) const -> const char *;
 
     auto is_null(const std::size_t column) const -> bool;
 

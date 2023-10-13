@@ -43,7 +43,7 @@ namespace peloton {
 #endif
 
 #define UNUSED_ATTRIBUTE __attribute__((unused))
-#define PACKED __attribute__((packed))
+#define PACKED_M __attribute__((packed))
 
 //===--------------------------------------------------------------------===//
 // memfuncs
@@ -68,7 +68,7 @@ namespace peloton {
 #define CACHE_PADOUT                       \
   char __XCONCAT(__padout, __COUNTER__)[0] \
       __attribute__((aligned(CACHELINE_SIZE)))
-#define PACKED __attribute__((packed))
+#define PACKED_M __attribute__((packed))
 
 //===--------------------------------------------------------------------===//
 // invariants

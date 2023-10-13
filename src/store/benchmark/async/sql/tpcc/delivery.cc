@@ -54,7 +54,7 @@ transaction_status_t SQLDelivery::Execute(SyncClient &client) {
 
   client.Begin(timeout);
 
-  statement = fmt::format("SELECT id FROM NewOrder WHERE d_id = {} AND w_id = {}"
+  statement = fmt::format("SELECT o_id FROM NewOrder WHERE d_id = {} AND w_id = {}"
                   "ORDER BY o_id ASC;", d_id, w_id);
   client.Query(statement, queryResult, timeout);
 
@@ -69,7 +69,7 @@ transaction_status_t SQLDelivery::Execute(SyncClient &client) {
       no_o_id, d_id, w_id);
   client.Write(statement, queryResult, timeout);
 
-  statement = fmt::format("SELECT c_id FROM Order WHERE id = {} AND d_id = {} AND w_id = {};",
+  statement = fmt::format("SELECT c_id FROM \"order\" WHERE id = {} AND d_id = {} AND w_id = {};",
         no_o_id, d_id, w_id);
   client.Query(statement, queryResult, timeout);
   if (queryResult->empty()) {
@@ -79,7 +79,7 @@ transaction_status_t SQLDelivery::Execute(SyncClient &client) {
   int c_id;
   deserialize(c_id, queryResult);
 
-  statement = fmt::format("UPDATE Order SET carrier_id = {} WHERE id = {} AND d_id = {} AND w_id = {};",
+  statement = fmt::format("UPDATE \"order\" SET carrier_id = {} WHERE id = {} AND d_id = {} AND w_id = {};",
         o_carrier_id, no_o_id, d_id, w_id);
   client.Write(statement, queryResult, timeout);
   Debug("  Carrier ID: %u", o_carrier_id);

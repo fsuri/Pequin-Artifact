@@ -121,7 +121,7 @@ inline void load_row(std::unique_ptr<query_result::Row> row,
   uint32_t entry_d;
   uint32_t carrier_id;
   uint32_t ol_cnt;
-  uint32_t all_local;
+  bool all_local;
   row->get(0, &id);
   row->get(1, &d_id);
   row->get(2, &w_id);

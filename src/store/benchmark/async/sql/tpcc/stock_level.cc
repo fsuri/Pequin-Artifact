@@ -60,7 +60,7 @@ transaction_status_t SQLStockLevel::Execute(SyncClient &client) {
   deserialize(next_o_id, queryResult);
   Debug("Orders: %u-%u", next_o_id - 20, next_o_id - 1);
 
-  query = fmt::format("SELECT COUNT(DISTINCT(i_id)) FROM OrderLine, Stock WHERE OrderLine.w_id = {} AND OrderLine.d_id = {} "
+  query = fmt::format("SELECT COUNT(DISTINCT(OrderLine.i_id)) FROM OrderLine, Stock WHERE OrderLine.w_id = {} AND OrderLine.d_id = {} "
                       "AND OrderLine.o_id < {} AND OrderLine.o_id >= {} AND Stock.w_id = {} AND Stock.i_id = OrderLine.i_id "
                       "AND Stock.quantity < {}", w_id, d_id, next_o_id, 
                       next_o_id - 20, w_id, min_quantity);
