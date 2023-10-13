@@ -2,14 +2,20 @@
 #include "store/benchmark/async/sql/seats/seats_constants.h"
 
 #include <fmt/core.h>
+#include <random>
 
 namespace seats_sql {
 
 const int MAX_NUM_FLIGHTS = 10;
 
-SQLFindFlights::SQLFindFlights(uint32_t timeout, int64_t depart_aid, int64_t arrive_aid, int64_t start_time, int64_t end_time, int64_t distance) :
-    SEATSSQLTransaction(timeout), depart_aid(depart_aid), arrive_aid(arrive_aid), start_time(start_time), end_time(end_time), distance(distance)
-    {}
+SQLFindFlights::SQLFindFlights(uint32_t timeout, std::mt19937_64 gen) :
+    SEATSSQLTransaction(timeout), distance(distance)
+    {
+        depart_aid = std::uniform_int_distribution<int64_t>(1, NUM_AIRPORTS)(gen);
+        arrive_aid = std::uniform_int_distribution<int64_t>(1, NUM_AIRPORTS)(gen);
+        start_time = std::uniform_int_distribution<std::time_t>(MIN_TS, MAX_TS)(gen);
+        end_time = std::uniform_int_distribution<std::time_t>(start_time, MAX_TS)(gen);
+    }
 
 SQLFindFlights::~SQLFindFlights() {}
 

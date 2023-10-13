@@ -7,7 +7,7 @@ namespace seats_sql {
 
 class SQLNewReservation:public SEATSSQLTransaction {
     public: 
-        SQLNewReservation(uint32_t timeout, int64_t r_id, int64_t c_id, int64_t f_id, int64_t seatnum, double price, std::vector<int64_t> &attributes, std::time_t time);
+        SQLNewReservation(uint32_t timeout, std::mt19937_64 gen, int64_t r_id);
         virtual ~SQLNewReservation();
         virtual transaction_status_t Execute(SyncClient &client);
     private:

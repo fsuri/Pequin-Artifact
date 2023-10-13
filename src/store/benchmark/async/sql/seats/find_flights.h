@@ -2,12 +2,13 @@
 #define SEATS_SQL_FIND_FLIGHTS_H 
 
 #include "store/benchmark/async/sql/seats/seats_transaction.h"
+#include <random>
 
 namespace seats_sql {
 
 class SQLFindFlights: public SEATSSQLTransaction {
     public: 
-        SQLFindFlights(uint32_t timeout, int64_t depart_aid, int64_t arrive_aid, int64_t start_time, int64_t end_time, int64_t distance);
+        SQLFindFlights(uint32_t timeout, std::mt19937_64 gen);
         virtual ~SQLFindFlights();
         virtual transaction_status_t Execute(SyncClient &client);
     private:

@@ -5,8 +5,10 @@
 
 namespace seats_sql {
 
-SQLFindOpenSeats::SQLFindOpenSeats(uint32_t timeout, uint64_t f_id) : 
-    SEATSSQLTransaction(timeout), f_id(f_id) {}
+SQLFindOpenSeats::SQLFindOpenSeats(uint32_t timeout, std::mt19937_64 gen) : 
+    SEATSSQLTransaction(timeout) {
+        f_id = std::uniform_int_distribution<int64_t>(1, NUM_FLIGHTS)(gen);
+    }
 
 SQLFindOpenSeats::~SQLFindOpenSeats() {};
 

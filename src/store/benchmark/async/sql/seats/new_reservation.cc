@@ -5,8 +5,19 @@
 
 namespace seats_sql {
     
-SQLNewReservation::SQLNewReservation(uint32_t timeout, int64_t r_id, int64_t c_id, int64_t f_id, int64_t seatnum, double price, std::vector<int64_t> &attributes, std::time_t time) : 
-    SEATSSQLTransaction(timeout), r_id(r_id), c_id(c_id), f_id(f_id), seatnum(seatnum), price(price), attributes(attributes), time(time) {}
+SQLNewReservation::SQLNewReservation(uint32_t timeout, std::mt19937_64 gen, int64_t r_id) : 
+    SEATSSQLTransaction(timeout), r_id(r_id), price(price) {
+        c_id = std::uniform_int_distribution<int64_t>(1, NUM_CUSTOMERS)(gen);
+        f_id = std::uniform_int_distribution<int64_t>(1, NUM_FLIGHTS)(gen);
+        seatnum = std::uniform_int_distribution<int64_t>(1, TOTAL_SEATS_PER_FLIGHT)(gen);
+        time = std::time(nullptr);
+        attributes.reserve(NEW_RESERVATION_ATTRS_SIZE);
+        auto attr_dist = std::uniform_int_distribution<int64_t>(1, 100000);
+        for (int i = 0; i < NEW_RESERVATION_ATTRS_SIZE; i++) {
+            attributes.push_back(attr_dist(gen));
+        }
+        price = std::uniform_real_distribution<double>(MIN_RESERVATION_PRICE, MAX_RESERVATION_PRICE)(gen);
+    }
 
 SQLNewReservation::~SQLNewReservation() {} 
 

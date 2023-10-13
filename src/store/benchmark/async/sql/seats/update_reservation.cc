@@ -3,8 +3,16 @@
 #include <fmt/core.h>
 
 namespace seats_sql {
-SQLUpdateReservation::SQLUpdateReservation(uint32_t timeout, int64_t r_id, int64_t c_id, int64_t f_id, int64_t seatnum, int64_t attr_idx, int64_t attr_val)
-    : SEATSSQLTransaction(timeout), r_id(r_id), c_id(c_id), f_id(f_id), seatnum(seatnum), attr_idx(attr_idx), attr_val(attr_val) {}
+SQLUpdateReservation::SQLUpdateReservation(uint32_t timeout, std::mt19937_64 gen)
+    : SEATSSQLTransaction(timeout) {
+        c_id = std::uniform_int_distribution<int64_t>(1, NUM_CUSTOMERS)(gen);
+        // figure out how to get customer -- reserve id mapping in client
+        r_id = std::uniform_int_distribution<int64_t>(1, 1000000)(gen);
+        f_id = std::uniform_int_distribution<int64_t>(1, NUM_FLIGHTS)(gen);
+        seatnum = std::uniform_int_distribution<int64_t>(1, TOTAL_SEATS_PER_FLIGHT)(gen);
+        attr_idx = std::uniform_int_distribution<int64_t>(0, 3)(gen);
+        attr_val = std::uniform_int_distribution<int64_t>(1, 100000)(gen);
+    }
 
 SQLUpdateReservation::~SQLUpdateReservation() {}
 

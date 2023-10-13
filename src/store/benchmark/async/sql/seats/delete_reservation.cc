@@ -1,11 +1,17 @@
 #include "store/benchmark/async/sql/seats/delete_reservation.h"
 #include "store/benchmark/async/sql/seats/seats_constants.h"
 #include <fmt/core.h>
+#include <random> 
 
 namespace seats_sql{
 
-SQLDeleteReservation::SQLDeleteReservation(uint32_t timeout, int64_t f_id, int64_t c_id, std::string c_id_str, std::string ff_c_id_str) : 
-    SEATSSQLTransaction(timeout), f_id(f_id), c_id(c_id), c_id_str(c_id_str), ff_c_id_str(ff_c_id_str) {}
+SQLDeleteReservation::SQLDeleteReservation(uint32_t timeout, std::mt19937_64 gen) : 
+    SEATSSQLTransaction(timeout) {
+        c_id = std::uniform_int_distribution<int64_t>(1, NUM_CUSTOMERS)(gen);
+        f_id = std::uniform_int_distribution<int64_t>(1, NUM_FLIGHTS)(gen);
+        c_id_str = "";
+        ff_c_id_str = "";
+    }
 
 SQLDeleteReservation::~SQLDeleteReservation() {}
 
@@ -65,7 +71,7 @@ public:
     int64_t f_seats_left;
     int64_t r_id;
     int64_t r_seat;
-    int64_t r_price;
+    double r_price;
     int64_t r_iattr00;
 };
 
@@ -132,7 +138,7 @@ transaction_status_t SQLDeleteReservation::Execute(SyncClient &client) {
     int64_t c_iattr00 = cr_row.c_iattr00;
     int64_t seats_left = cr_row.f_seats_left;
     int64_t r_id = cr_row.r_id;
-    float r_price = cr_row.r_price;
+    double r_price = cr_row.r_price;
     query = fmt::format("DELETE FROM {} WHERE R_ID = {} AND R_C_ID = {} AND R_F_ID = {}", RESERVATION_TABLE, r_id, c_id, f_id);
     client.Write(query, queryResult, timeout);
     if (queryResult->empty()) {

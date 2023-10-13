@@ -4,11 +4,16 @@
 
 namespace seats_sql {
 
-SQLUpdateCustomer::SQLUpdateCustomer(uint32_t timeout, int64_t c_id, std::string c_id_str, int64_t update_ff, int64_t attr0, int64_t attr1) 
-    : SEATSSQLTransaction(timeout), c_id(c_id), c_id_str(c_id_str), update_ff(update_ff), attr0(attr0), attr1(attr1) {}
+SQLUpdateCustomer::SQLUpdateCustomer(uint32_t timeout, std::mt19937_64 gen) 
+    : SEATSSQLTransaction(timeout) {
+        c_id = std::uniform_int_distribution<int64_t>(1, NUM_CUSTOMERS)(gen);
+        c_id_str = "";
+        update_ff = 0;
+        attr0 = std::uniform_int_distribution<int64_t>(1, 100000)(gen);
+        attr1 = std::uniform_int_distribution<int64_t>(1, 100000)(gen);
+    }
 
 SQLUpdateCustomer::~SQLUpdateCustomer() {}
-
 
 struct GetCustomerResultRow {
 public:
@@ -159,8 +164,8 @@ void inline load_row(GetFrequentFlyersResultRow &store, std::unique_ptr<query_re
     row->get(20, &store.ff_iattr13);
     row->get(21, &store.ff_iattr14);
     row->get(22, &store.ff_iattr15);
-
 }
+
 transaction_status_t SQLUpdateCustomer::Execute(SyncClient &client) {
     std::unique_ptr<const query_result::QueryResult> queryResult;
     std::string query;
