@@ -163,8 +163,14 @@ void SQLTransformer::TransformWriteStatement(std::string &_write_statement,
     //match on write type:
     size_t pos = 0;
 
-    //TODO: Make write_statement a string view already.
-    std::string_view write_statement(std::move(_write_statement));
+    //Note: This creates a reference to the _write_statement; as long as Write is ongoing, _write_statement must stay in scope!
+    std::string_view write_statement(_write_statement);
+
+    // std::cerr << "TEST: " << std::endl;
+    //  std::cerr << "string write: " << _write_statement << std::endl;
+    //  std::cerr << "string view write: " << write_statement << std::endl;
+    //  _write_statement = "TEST";
+    //   std::cerr << "string view write2: " << write_statement << std::endl;
 
     //Case 1) INSERT INTO <table_name> (<column_list>) VALUES (<value_list>)
     if( (pos = write_statement.find(insert_hook) != string::npos)){   //  if(write_statement.rfind("INSERT", 0) == 0){
@@ -547,6 +553,7 @@ void SQLTransformer::TransformUpdate(size_t pos, std::string_view &write_stateme
         // table_ver->set_value("");
         bool changed_table = false; // false //FOR NOW ALWAYS SETTING TO TRUE due to UPDATE INDEX issue (see above comment) TODO: Implement TableColumnVersion optimization
 
+        
         //Write TableColVersions
         for(auto &[col, _]: col_updates){
             WriteMessage *write = txn->add_write_set();   
@@ -557,7 +564,7 @@ void SQLTransformer::TransformUpdate(size_t pos, std::string_view &write_stateme
         }
 
         TableWrite *table_write = AddTableWrite(table_name, col_registry);
-       
+
         //For each row in query result
         for(int i = 0; i < result->size(); ++i){
             std::unique_ptr<query_result::Row> row = (*result)[i]; 
@@ -570,7 +577,6 @@ void SQLTransformer::TransformUpdate(size_t pos, std::string_view &write_stateme
             
             RowUpdates *row_update = AddTableWriteRow(table_write, col_registry); //row_update->mutable_column_values()->Resize(col_registry.col_names.size(), ""); Resize seems to not work for strings
             //std::cerr << "Row size: " <<  row_update->mutable_column_values()->size() << std::endl;
-
           
             //TODO: Do this for UPDATE and DELETE too. //TODO: For Delete: Set all columns. Set values only for the columns we care about.
             bool update_primary_key = false;
@@ -613,12 +619,19 @@ void SQLTransformer::TransformUpdate(size_t pos, std::string_view &write_stateme
                     } 
                 }
 
-             
                 (*row_update->mutable_column_values())[col_registry.col_name_index[col]] = std::move(set_val); //Realistically row columns will be in correct order. But in case they are not, must insert at the right position.
-                
+               
             }    
         
             std::string enc_key = EncodeTableRow(table_name, primary_key_column_values);
+            
+            //if(std::find(txn->write_set().begin(), txn->write_set().end(), enc_key) != txn->write_set().end()) Panic("duplicate write");
+            Notice("TODO: REMOVE WRITE SET DUPLICATE CHECK");
+            for(int i = 0; i < txn->write_set_size() - 1; ++i){
+                //ignore last write -- has no key set yet.
+                if(txn->write_set()[i].key() == enc_key) Panic("duplicate write: %s", enc_key.c_str());
+            }
+
             write->set_key(enc_key);
 
             if(update_primary_key){ //Also set Primary key we replace.
@@ -836,7 +849,7 @@ void SQLTransformer::TransformDelete(size_t pos, std::string_view &write_stateme
 
 //////////////////// Table Write Generator
 
-static bool fine_grained_quotes = false;  //false == add quotes to everything, true == add quotes only to the fields that need it.
+static bool fine_grained_quotes = true;  //false == add quotes to everything, true == add quotes only to the fields that need it. (e.g. strings, bool; not int)
 //fine_grained_quotes requires use of TableRegistry now. However, it seems to work fine for Peloton to add quotes to everything indiscriminately. 
 
 //NOTE: Peloton does not support WHERE IN syntax for delete statements. => must use the generator version that creates separate delete statements.
@@ -941,39 +954,6 @@ void SQLTransformer::GenerateTableWriteStatement(std::string &write_statement, s
 
 }
 
-void SQLTransformer::GenerateTablePurgeStatement(std::string &purge_statement, const std::string &table_name, const TableWrite &table_write){
-    //Abort all TableWrites: Previous writes must be deleted; Previous deletes must be un-done
-    //Puts all write and deletes into one purge
-
-    const ColRegistry &col_registry = TableRegistry.at(table_name);
-    std::map<std::string, std::vector<std::string>> purge_conds;
-
-    for(auto &row: table_write.rows()){
-        //Alternatively: Move row contents to a vector and use: fmt::join(vec, ",")
-        for(auto &[col_name, p_idx]: col_registry.primary_key_cols_idx){
-            if(fine_grained_quotes){
-                if(col_registry.col_quotes[p_idx]) purge_conds[col_name].push_back("\'" + row.column_values()[p_idx] + "\'");
-                else purge_conds[col_name].push_back(row.column_values()[p_idx] );
-            }
-            else{
-                purge_conds[col_name].push_back("\'" + row.column_values()[p_idx] + "\'");
-            }
-        }
-        //write_statement += fmt::format("{}, ", fmt::join(row.column_values(), ','));
-    }
-
-    if(purge_conds.empty()) return;
-
-    purge_statement = fmt::format("DELETE FROM {0} WHERE ", table_name);
-    for(auto &[col_name, p_idx]: col_registry.primary_key_cols_idx){
-        purge_statement += fmt::format("{0} in ({1}) AND ", col_name, fmt::join(purge_conds[col_name], ", "));
-    }
-    purge_statement.resize(purge_statement.length()-5); //Remove trailing " AND "
-    purge_statement += ";";
-
-    return; 
-}
-
 void SQLTransformer::GenerateTableWriteStatement(std::string &write_statement, std::vector<std::string> &delete_statements, const std::string &table_name, const TableWrite &table_write){
     //Create one joint WriteStatement for all insertions
         //NOTE: Inserts must always insert -- even if value exists ==> Insert new row.
@@ -1054,41 +1034,7 @@ void SQLTransformer::GenerateTableWriteStatement(std::string &write_statement, s
     return;  
 }
 
-void SQLTransformer::GenerateTablePurgeStatement(std::vector<std::string> &purge_statements, const std::string &table_name, const TableWrite &table_write){
-
-    const ColRegistry &col_registry = TableRegistry.at(table_name);
-
-    for(auto &row: table_write.rows()){
-         //generate a purge statement per row.
-        purge_statements.push_back("");
-        std::string &purge_statement = purge_statements.back();
-        purge_statement = fmt::format("DELETE FROM {0} WHERE ", table_name);
-
-        for(auto &[col_name, p_idx]: col_registry.primary_key_cols_idx){
-            //purge_statement += fmt::format("{0}={1} AND ", col_name, row.column_values()[p_idx]);
-            //purge_statement += col_name + "=" + row.column_values()[p_idx] + " AND ";
-
-            if(fine_grained_quotes){
-                if(col_registry.col_quotes[p_idx]) purge_statement += col_name + "=" + "\'" + row.column_values()[p_idx] + "\'" + " AND ";
-                else purge_statement += col_name + "=" + row.column_values()[p_idx] + " AND ";
-            }
-            else{
-                purge_statement += col_name + "=" + "\'" + row.column_values()[p_idx] + "\'" + " AND ";
-            }
-        }
-
-        purge_statement.resize(purge_statement.length()-5); //Remove trailing " AND "
-        purge_statement += ";";
-    }
-
-    return;
-    //TODO: update GenerateDelete Statements too.
-    //TODO: update interface to use this function. Loop over deletes and purges.
-        
-}
-
-
-void SQLTransformer::GenerateTablePurgeStatement_NEW(std::string &purge_statement, const std::string &table_name, const TableWrite &table_write){
+void SQLTransformer::GenerateTablePurgeStatement(std::string &purge_statement, const std::string &table_name, const TableWrite &table_write){
     const ColRegistry &col_registry = TableRegistry.at(table_name);
 
     if(table_write.rows().empty()){
@@ -1124,6 +1070,78 @@ void SQLTransformer::GenerateTablePurgeStatement_NEW(std::string &purge_statemen
    
     purge_statement += ";";
 }
+
+//Deprecated
+void SQLTransformer::GenerateTablePurgeStatement_DEPRECATED(std::string &purge_statement, const std::string &table_name, const TableWrite &table_write){
+    //Abort all TableWrites: Previous writes must be deleted; Previous deletes must be un-done
+    //Puts all write and deletes into one purge
+
+    const ColRegistry &col_registry = TableRegistry.at(table_name);
+    std::map<std::string, std::vector<std::string>> purge_conds;
+
+    for(auto &row: table_write.rows()){
+        //Alternatively: Move row contents to a vector and use: fmt::join(vec, ",")
+        for(auto &[col_name, p_idx]: col_registry.primary_key_cols_idx){
+            if(fine_grained_quotes){
+                if(col_registry.col_quotes[p_idx]) purge_conds[col_name].push_back("\'" + row.column_values()[p_idx] + "\'");
+                else purge_conds[col_name].push_back(row.column_values()[p_idx] );
+            }
+            else{
+                purge_conds[col_name].push_back("\'" + row.column_values()[p_idx] + "\'");
+            }
+        }
+        //write_statement += fmt::format("{}, ", fmt::join(row.column_values(), ','));
+    }
+
+    if(purge_conds.empty()) return;
+
+    purge_statement = fmt::format("DELETE FROM {0} WHERE ", table_name);
+    for(auto &[col_name, p_idx]: col_registry.primary_key_cols_idx){
+        purge_statement += fmt::format("{0} in ({1}) AND ", col_name, fmt::join(purge_conds[col_name], ", "));
+    }
+    purge_statement.resize(purge_statement.length()-5); //Remove trailing " AND "
+    purge_statement += ";";
+
+    return; 
+}
+
+
+//Deprecated
+void SQLTransformer::GenerateTablePurgeStatement_DEPRECATED(std::vector<std::string> &purge_statements, const std::string &table_name, const TableWrite &table_write){
+
+    const ColRegistry &col_registry = TableRegistry.at(table_name);
+
+    for(auto &row: table_write.rows()){
+         //generate a purge statement per row.
+        purge_statements.push_back("");
+        std::string &purge_statement = purge_statements.back();
+        purge_statement = fmt::format("DELETE FROM {0} WHERE ", table_name);
+
+        for(auto &[col_name, p_idx]: col_registry.primary_key_cols_idx){
+            //purge_statement += fmt::format("{0}={1} AND ", col_name, row.column_values()[p_idx]);
+            //purge_statement += col_name + "=" + row.column_values()[p_idx] + " AND ";
+
+            if(fine_grained_quotes){
+                if(col_registry.col_quotes[p_idx]) purge_statement += col_name + "=" + "\'" + row.column_values()[p_idx] + "\'" + " AND ";
+                else purge_statement += col_name + "=" + row.column_values()[p_idx] + " AND ";
+            }
+            else{
+                purge_statement += col_name + "=" + "\'" + row.column_values()[p_idx] + "\'" + " AND ";
+            }
+        }
+
+        purge_statement.resize(purge_statement.length()-5); //Remove trailing " AND "
+        purge_statement += ";";
+    }
+
+    return;
+    //TODO: update GenerateDelete Statements too.
+    //TODO: update interface to use this function. Loop over deletes and purges.
+        
+}
+
+
+
 //////////////////// OLD: Without TableRegistry
 
 
@@ -1263,7 +1281,7 @@ void SQLTransformer::ParseColUpdate(std::string_view col_update, std::map<std::s
 }
 
 
-std::string SQLTransformer::GetUpdateValue(const std::string &col, std::variant<bool, int32_t, std::string> &field_val, std::unique_ptr<query_result::Field> &field, 
+std::string SQLTransformer::GetUpdateValue(const std::string &col, std::variant<bool, int64_t, std::string> &field_val, std::unique_ptr<query_result::Field> &field, 
     std::map<std::string_view, Col_Update> &col_updates, const std::string &col_type, bool &change_val){
 
      //Copy all column values (unless in col_updates)
@@ -1282,16 +1300,16 @@ std::string SQLTransformer::GetUpdateValue(const std::string &col, std::variant<
         if(col_update.has_operand){
             //std::cerr << "update has operand: " << col_update.operand << std::endl;
                 //std::cerr << "lvalue = " << col_update.l_value << std::endl;
-            int32_t l_value;
-            int32_t r_value;
+            int64_t l_value;
+            int64_t r_value;
             // Check if l_value needs to be replaced
             //For now just check current col name (field->name()) -- I assume that's always the case tbh.. //FIXME: Ideally search arbitrary Col by name...
             if(col_update.l_value == field->name()){
                 try {
-                    l_value = std::get<int32_t>(field_val);
+                    l_value = std::get<int64_t>(field_val);
                 }
                 catch (std::bad_variant_access&) {
-                    Panic("Could not extract numeric type (int32_t) from field_val variant");
+                    Panic("Could not extract numeric type (int64_t) from field_val variant");
                 }
 
                 // std::istringstream iss(field_val);
@@ -1306,10 +1324,10 @@ std::string SQLTransformer::GetUpdateValue(const std::string &col, std::variant<
 
             if(col_update.r_value == field->name()){
                 try {
-                    r_value = std::get<int32_t>(field_val);
+                    r_value = std::get<int64_t>(field_val);
                 }
                 catch (std::bad_variant_access&) {
-                    Panic("Could not extract numeric type (int32_t) from field_val variant");
+                    Panic("Could not extract numeric type (int64_t) from field_val variant");
                 }
                 // std::istringstream iss(field_val);
                 // iss.exceptions(std::ios::failbit | std::ios::badbit);
@@ -1320,7 +1338,7 @@ std::string SQLTransformer::GetUpdateValue(const std::string &col, std::variant<
                 iss >> r_value;  
             }
 
-            int32_t output;
+            int64_t output;
             if(col_update.operand == "+"){
                 output = l_value + r_value;
             }
@@ -1387,7 +1405,7 @@ RowUpdates* SQLTransformer::AddTableWriteRow(TableWrite *table_write, const ColR
     return row_update;
 }
 
-std::variant<bool, int32_t, std::string> DecodeType(std::unique_ptr<query_result::Field> &field, const std::string &col_type){
+std::variant<bool, int64_t, std::string> DecodeType(std::unique_ptr<query_result::Field> &field, const std::string &col_type){
     size_t nbytes;
     const char* field_val_char = field->get(&nbytes);
     std::string field_val(field_val_char, nbytes);
@@ -1405,13 +1423,13 @@ std::variant<bool, int32_t, std::string> DecodeType(std::unique_ptr<query_result
                 // }
                 // std::cerr << "Query Result. Col " << i << ": " << output_row << std::endl;
 
-std::variant<bool, int32_t, std::string> DecodeType(std::string &enc_value, const std::string &col_type){
+std::variant<bool, int64_t, std::string> DecodeType(std::string &enc_value, const std::string &col_type){
     //Based on Syntax from: https://www.postgresqltutorial.com/postgresql-tutorial/postgresql-data-types/ && https://www.postgresql.org/docs/current/datatype-numeric.html 
     //Resource for std::variant: https://www.cppstories.com/2018/06/variant/ 
    
     //Note: currently the generated types are PostGresSQL types. We could however also input "normal types" and transform them into SQL types only for Peloton.
 
-    std::variant<bool, int32_t, std::string> type_variant;   //TODO: can pass variant to cereal? Then don't need all the redundant code
+    std::variant<bool, int64_t, std::string> type_variant;   //TODO: can pass variant to cereal? Then don't need all the redundant code
 
     //match on col_type
     if(col_type == "VARCHAR" || col_type == "TEXT"){ //FIXME: VARCHAR might actually look like "VARCHAR (n)"
@@ -1425,17 +1443,17 @@ std::variant<bool, int32_t, std::string> DecodeType(std::string &enc_value, cons
     //     type_variant = std::move(dec_value);
     // }
     else if(col_type == "INT" || col_type == "BIGINT" || col_type == "SMALLINT"){ // SMALLINT (2byteS) INT (4), BIGINT (8), DOUBLE () 
-        //int32_t dec_value;  //FIXME: Peloton encodes everything as string currently. So must DeCerialize as string and only then convert.
+        //int64_t dec_value;  //FIXME: Peloton encodes everything as string currently. So must DeCerialize as string and only then convert.
         std::string dec_value;
         DeCerealize(enc_value, dec_value);
         //std::cerr << "DEC VALUE: " << dec_value << std::endl; 
 
-        int32_t dec = std::stoi(dec_value);
+        int64_t dec = std::stoi(dec_value); 
         type_variant = std::move(dec);
 
     }
     // else if(col_type == "INT []" || col_type == "BIGINT []" || col_type == "SMALLINT []"){
-    //     std::vector<int32_t> dec_value;
+    //     std::vector<int64_t> dec_value;
     //     DeCerealize(enc_value, dec_value);
     //     type_variant = std::move(dec_value);
     // }

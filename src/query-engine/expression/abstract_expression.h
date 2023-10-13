@@ -20,6 +20,7 @@
 //#include "../codegen/query_parameters_map.h"
 #include "../common/internal_types.h"
 #include "../storage/zone_map_manager.h"
+#include "query-engine/common/sql_node_visitor.h"
 
 namespace peloton {
 

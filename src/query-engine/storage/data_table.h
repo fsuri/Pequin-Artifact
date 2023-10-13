@@ -319,6 +319,11 @@ public:
   bool operator==(const DataTable &rhs) const;
   bool operator!=(const DataTable &rhs) const { return !(*this == rhs); }
 
+  size_t active_indirection_array_count_;
+
+  std::vector<std::shared_ptr<storage::IndirectionArray>>
+      active_indirection_arrays_;
+
 protected:
   //===--------------------------------------------------------------------===//
   // INTEGRITY CHECKS
@@ -385,7 +390,7 @@ private:
   //===--------------------------------------------------------------------===//
 
   size_t active_tilegroup_count_;
-  size_t active_indirection_array_count_;
+  // size_t active_indirection_array_count_;
 
   const oid_t database_oid;
 
@@ -403,8 +408,8 @@ private:
   std::atomic<size_t> tile_group_count_ = ATOMIC_VAR_INIT(0);
 
   // INDIRECTIONS
-  std::vector<std::shared_ptr<storage::IndirectionArray>>
-      active_indirection_arrays_;
+  // std::vector<std::shared_ptr<storage::IndirectionArray>>
+  //   active_indirection_arrays_;
 
   // data table mutex
   std::mutex data_table_mutex_;

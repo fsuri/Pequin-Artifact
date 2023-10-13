@@ -197,7 +197,7 @@ void ShardClient::RequestQuery(PendingQuery *pendingQuery, proto::Query &queryMs
   //queryReq.set_eager_exec(!pendingQuery->retry_version && (pendingQuery->is_point? params.query_params.eagerPointExec : params.query_params.eagerExec));
   Debug("Sending TX eagerly? %s", queryReq.eager_exec()? "yes" : "no");
   if(!queryReq.eager_exec()) Panic("Currently only testing eager exec");
-  if(queryReq.is_point()) Panic("Not testing point query currently");
+  if(queryReq.is_point()) queryReq.set_eager_exec(false); //Panic("Not testing point query currently");
 
   if(pendingQuery->is_point && !queryReq.eager_exec()){ //If point query is eager: treat as normal eager query. If non-eager, manage as pointQuery
     pendingQuery->pendingPointQuery.prcb = std::move(pendingQuery->prcb); //Move callback
@@ -221,6 +221,7 @@ void ShardClient::RequestQuery(PendingQuery *pendingQuery, proto::Query &queryMs
 
   if(pendingQuery->is_point && !queryReq.eager_exec()){
     UW_ASSERT(readMessages <= closestReplicas.size());
+    queryReq.set_designated_for_reply(true);
     for (size_t i = 0; i < readMessages; ++i) {
         Debug("[group %i] Sending PointQuery to replica %lu", group, GetNthClosestReplica(i));
         transport->SendMessageToReplica(this, group, GetNthClosestReplica(i), queryReq);
@@ -230,12 +231,13 @@ void ShardClient::RequestQuery(PendingQuery *pendingQuery, proto::Query &queryMs
 
   uint64_t total_msg;
   //uint64_t num_designated_replies;
-  if(queryReq.eager_exec()){
+  if(queryReq.eager_exec() && !params.query_params.eagerPlusSnapshot){  
     total_msg = params.query_params.cacheReadSet? config->n : params.query_params.syncMessages;
-    pendingQuery->num_designated_replies = params.query_params.syncMessages; 
+    pendingQuery->num_designated_replies = params.query_params.syncMessages;  
+    //Notice("Num designated replies %d", params.query_params.syncMessages);
   }
 
-  else{
+  else{  //Note: if eagerPlusSnapshot is set, then send larger quorum
     total_msg = params.query_params.cacheReadSet? config->n : params.query_params.queryMessages;
     pendingQuery->num_designated_replies = params.query_params.queryMessages;
   }
@@ -244,7 +246,7 @@ void ShardClient::RequestQuery(PendingQuery *pendingQuery, proto::Query &queryMs
   UW_ASSERT(total_msg <= closestReplicas.size());
   for (size_t i = 0; i < total_msg; ++i) {
     queryReq.set_designated_for_reply(i < pendingQuery->num_designated_replies);
-    Debug("[group %i] Sending QUERY to replica id %lu", group, group * config->n + GetNthClosestReplica(i));
+    Debug("[group %i] Sending QUERY to replica id %lu. designated for reply? %d ", group, group * config->n + GetNthClosestReplica(i),  i < pendingQuery->num_designated_replies);
     transport->SendMessageToReplica(this, group, GetNthClosestReplica(i), queryReq);
   }
 
@@ -260,6 +262,7 @@ void ShardClient::HandleQuerySyncReply(proto::SyncReply &SyncReply){
         return; // this is a stale request
     }
     PendingQuery *pendingQuery = itr->second;
+    if(pendingQuery->done) return; //this is a stale request; (Query finished, but Txn not yet)
 
     // 1) authenticate reply -- record duplicates   --> could use MACs instead of signatures? Don't need to forward sigs... --> but this requires establishing a MAC between every client/replica pair. Sigs is easier.
     // 2) If signed -- parse contents
@@ -290,7 +293,36 @@ void ShardClient::HandleQuerySyncReply(proto::SyncReply &SyncReply){
     } else {
         local_ss = SyncReply.mutable_local_ss();
     }
-    Debug("[group %i] QuerySyncReply for request %lu from replica %d.", group, SyncReply.req_id(), local_ss->replica_id());
+
+    ProcessSync(pendingQuery, local_ss);
+
+    
+
+    // //what if some replicas have it as committed, and some as prepared. If >=f+1 committed ==> count as committed, include only those replicas in list.. If mixed, count as prepared
+    // //DOES client need to consider at all whether a txn is committed/prepared? --> don't think so; replicas can determine dependency set at exec time (and either inform client, or cache locally)
+    // //TODO: probably don't need separate lists! --> FIXME: Change back to single list in protobuf.
+    // for(const std::string &txn_dig : local_ss->local_txns_committed()){
+    //    std::set<uint64_t> &replica_set = pendingQuery->txn_freq[txn_dig];
+    //    replica_set.insert(local_ss->replica_id());
+    //    if(replica_set.size() == params.query_params.mergeThreshold){
+    //       *(*pendingQuery->merged_ss.mutable_merged_txns())[txn_dig].mutable_replicas() = {replica_set.begin(), replica_set.end()}; //creates a temp copy, and moves it into replica list.
+    //    }
+
+    // }
+    // // for(std::string &txn_dig : local_ss.local_txns_prepared()){ 
+    // //    pendingQueries->txn_freq[txn_dig].insert(local_ss->replica_id());
+    // // }
+    
+    // // 6) Once #QueryQuorum replies received, send SyncMessages
+    // pendingQuery->numSnapshotReplies++;
+    // if(pendingQuery->numSnapshotReplies == params.query_params.syncQuorum){
+    //     SyncReplicas(pendingQuery);
+    // }
+}
+
+void ShardClient::ProcessSync(PendingQuery *pendingQuery, proto::LocalSnapshot *local_ss){ //SyncReply.signed_local_ss().process_id()
+
+    Debug("[group %i] Process QuerySyncReply for request %lu from replica %d.", group, SyncReply.req_id(), local_ss->replica_id());
 
     //3) check for duplicates -- (ideally check before verifying sig)
     if (!pendingQuery->snapshotsVerified.insert(local_ss->replica_id()).second) {
@@ -315,28 +347,8 @@ void ShardClient::HandleQuerySyncReply(proto::SyncReply &SyncReply){
         Debug("Merge complete, Syncing for query [%lu : %lu]:", pendingQuery->query_seq_num, pendingQuery->retry_version);
         SyncReplicas(pendingQuery);
     } 
-
-    // //what if some replicas have it as committed, and some as prepared. If >=f+1 committed ==> count as committed, include only those replicas in list.. If mixed, count as prepared
-    // //DOES client need to consider at all whether a txn is committed/prepared? --> don't think so; replicas can determine dependency set at exec time (and either inform client, or cache locally)
-    // //TODO: probably don't need separate lists! --> FIXME: Change back to single list in protobuf.
-    // for(const std::string &txn_dig : local_ss->local_txns_committed()){
-    //    std::set<uint64_t> &replica_set = pendingQuery->txn_freq[txn_dig];
-    //    replica_set.insert(local_ss->replica_id());
-    //    if(replica_set.size() == params.query_params.mergeThreshold){
-    //       *(*pendingQuery->merged_ss.mutable_merged_txns())[txn_dig].mutable_replicas() = {replica_set.begin(), replica_set.end()}; //creates a temp copy, and moves it into replica list.
-    //    }
-
-    // }
-    // // for(std::string &txn_dig : local_ss.local_txns_prepared()){ 
-    // //    pendingQueries->txn_freq[txn_dig].insert(local_ss->replica_id());
-    // // }
-    
-    // // 6) Once #QueryQuorum replies received, send SyncMessages
-    // pendingQuery->numSnapshotReplies++;
-    // if(pendingQuery->numSnapshotReplies == params.query_params.syncQuorum){
-    //     SyncReplicas(pendingQuery);
-    // }
 }
+
 
 void ShardClient::SyncReplicas(PendingQuery *pendingQuery){
     //1) Compose SyncMessage
@@ -394,6 +406,7 @@ void ShardClient::HandleQueryResult(proto::QueryResultReply &queryResult){
     } 
 
     PendingQuery *pendingQuery = itr->second;
+    if(pendingQuery->done) return; //this is a stale request; (Query finished, but Txn not yet)
     
     Debug("[group %i] Received QueryResult Reply for req-id [%lu]", group, queryResult.req_id());
     // if(!pendingQuery->query_manager){
@@ -455,8 +468,11 @@ void ShardClient::HandleQueryResult(proto::QueryResultReply &queryResult){
 
     //3) wait for up to result_threshold many matching replies (result + result_hash/read set)
     if(params.query_params.cacheReadSet){
-        Debug("Read-set hash: %s", BytesToHex(replica_result->query_result_hash(), 50).c_str());
-         matching_res = ++pendingQuery->result_freq[replica_result->query_result()][replica_result->query_result_hash()].freq; //map should be default initialized to 0.
+        Debug("Read-set hash: %s", BytesToHex(replica_result->query_result_hash(), 16).c_str());
+        Debug("Result: %lu", std::hash<std::string>{}(replica_result->query_result()));
+         matching_res = ++pendingQuery->result_freq[replica_result->query_result_hash()][replica_result->query_result()].freq; //map should be default initialized to 0.
+
+          if(pendingQuery->result_freq[replica_result->query_result_hash()].size() > 1) Panic("Two different results with the same read hash...");
 
     }
     else{ //manually compare that read sets match. Easy way to compare: Hash ReadSet.
@@ -495,17 +511,8 @@ void ShardClient::HandleQueryResult(proto::QueryResultReply &queryResult){
 
         if(pendingQuery->result_freq[validated_result_hash].size() > 1) Panic("Two different results with the same read hash...");
 
-        //  std::cerr << "current freq: " << result_mgr.freq << std::endl;
-        // std::cerr<< "current result_mgr " << result_mgr.rand_id << std::endl;
+        //if(pendingQuery->result_freq[replica_result->query_result()].size() > 1) Panic("When testing without optimistic id's all hashes should be the same."); //Switched the order
 
-        // if(pendingQuery->resultsVerified.size() == 1){
-        //     pendingQuery->first_result = replica_result->query_result();
-        // }
-        // else{
-        //     std::cerr << "first result: " << pendingQuery->first_result << std::endl;
-        //     std::cerr << "current result:" << replica_result->query_result() << std::endl;
-        //     UW_ASSERT(pendingQuery->first_result == replica_result->query_result());
-        // }
 
         //Record the dependencies.
        
@@ -537,32 +544,7 @@ void ShardClient::HandleQueryResult(proto::QueryResultReply &queryResult){
                 add_dep->set_involved_group(group);
                 add_dep->set_allocated_write(write);
             }
-        }
-        // for(auto tx_id: *replica_result->mutable_query_read_set()->mutable_dep_ids()){ //For normal Tx-id
-        //     //Add to dependencies only if it was a tx that was seen during sync, and that was marked as prepare.
-        //     if(pendingQuery->merged_ss.merged_txns().count(tx_id)){
-        //         result_mgr.merged_deps.insert(std::move(tx_id));
-        //     }
-        // }
-        // for(auto dep_ts: *replica_result->mutable_query_read_set()->mutable_dep_ts_ids()){  //For optimistic Tx-id (TS)
-        //     //Add to dependencies only if it was a tx that was seen during sync, and that was marked as prepare.
-        //     if(pendingQuery->merged_ss.merged_ts().count(dep_ts.dep_ts())){
-        //         result_mgr.merged_deps.insert(std::move(*dep_ts.mutable_dep_id()));
-        //     }
-        // }
-        
-        // //Set deps to merged deps == recorded dependencies from f+1 replicas -> one correct replica reported upper bound on deps
-        // if(matching_res == params.query_params.resultQuorum){
-        //     proto::ReadSet *query_read_set =  replica_result->mutable_query_read_set();
-        //     query_read_set->clear_dep_ids(); //Reset and override with merged deps
-        //     query_read_set->clear_dep_ts_ids(); //Reset and override with merged deps
-        //     for(auto tx_id: result_mgr.merged_deps){
-        //         query_read_set->add_dep_ids(std::move(tx_id));
-        //     }
-        // }
-        
-
-         if(pendingQuery->result_freq[replica_result->query_result()].size() > 1) Panic("When testing without optimistic id's all hashes should be the same.");
+        }    
     }
   
     //4) if receive enough --> upcall;  At client: Add query identifier and result to Txn
@@ -572,27 +554,44 @@ void ShardClient::HandleQueryResult(proto::QueryResultReply &queryResult){
     if(matching_res == params.query_params.resultQuorum){
         Debug("[group %i] Reached sufficient matching results for QueryResult Reply %lu", group, queryResult.req_id());
         
+        pendingQuery->done = true;
         //pendingQuery->rcb(REPLY_OK, group, read_set, *replica_result->mutable_query_result_hash(), *replica_result->mutable_query_result(), true);
         pendingQuery->rcb(REPLY_OK, group, replica_result->release_query_read_set(), *replica_result->mutable_query_result_hash(), *replica_result->mutable_query_result(), true);
         // Remove/Deltete pendingQuery happens in upcall
         return;
     }
+    //Note: If pendingQuery->done = true => will never reach any of the code below.
+
 
     //5) if not enough matching --> retry; 
     // if not optimistic id: wait for up to result Quorum many messages (f+1). With optimistic id, wait for f additional.
 
-    bool no_bonus = (params.query_params.eagerExec) || (params.query_params.optimisticTxID && pendingQuery->retry_version);
+    //if using eager exec + sync, then don't return query failure upon inconsistent replies => continue with sync protocol (pretend never did eager exec)
+    bool do_sync_upon_failure = params.query_params.eagerPlusSnapshot && pendingQuery->retry_version == 0 && replica_result->has_local_ss();
+        //Note: Do not count the SyncRead as a new retry version?
+        //simply don't upcall; wipe result data structure; "pretend like we never got result, just sync
+
+
+    bool no_bonus = (params.query_params.eagerExec && !pendingQuery->use_bonus) || (params.query_params.optimisticTxID && pendingQuery->retry_version > 0);
     //bool request_bonus = (!params.query_params.eagerExec && params.query_params.optimisticTxID && pendingQuery->retry_version == 0);
     uint64_t expectedResults = no_bonus ? params.query_params.resultQuorum : params.query_params.resultQuorum + config->f;
 
     std::cerr << "Designated replies: " << pendingQuery->num_designated_replies << std::endl;
     std::cerr << "ExpectedResults: " << expectedResults << std::endl;
-    int maxWait = std::max(pendingQuery->num_designated_replies - config->f, expectedResults); //wait for at least maxWait many, but can wait up to #syncMessages sent - f. (if that is larger). 
+    int maxWait = std::max(pendingQuery->num_designated_replies - config->f, expectedResults); //wait for at least expectedResults many, but can wait up to #syncMessages sent - f. (if that is larger). 
+
+    //eager should only wait for |syncMessages|; eagerPlusSnapshot sent to |queryMessages| but only in order to be able to form sync Quorum if result fails.
+    if(do_sync_upon_failure){
+        UW_ASSERT(pendingQuery->num_designated_replies == params.query_params.queryMessages); //confirm that we sent out |queryMessages| instead of the expected |syncMessages| for eager
+        UW_ASSERT(params.query_params.syncMessages < params.query_params.queryMessages);        //assert that we sent strictly more messages that anticipated
+        maxWait = std::max(params.query_params.syncMessages - config->f, expectedResults); 
+    } 
+    
     UW_ASSERT(maxWait > 0);
     //Note that expectedResults <= num_designated_replies, since params.resultQuorum <= params.syncMessages, and +f optimisticID is applied to both.
     
     //Waited for max number of result replies that can be expected. //TODO: Can be "smarter" about this. E.g. if waiting for at most f+1 replies, as soon as first non-matching arrives return...
-    if(pendingQuery->resultsVerified.size() == maxWait){
+    if(pendingQuery->resultsVerified.size() == maxWait && !do_sync_upon_failure){
         //Panic("Testing");
         Debug("[group %i] Received sufficient inconsistent replies to determine Failure for QueryResult %lu", group, queryResult.req_id());
        //pendingQuery->rcb(REPLY_FAIL, group, read_set, *replica_result->mutable_query_result_hash(), *replica_result->mutable_query_result(), false);
@@ -606,7 +605,32 @@ void ShardClient::HandleQueryResult(proto::QueryResultReply &queryResult){
 
     //6) remove pendingQuery object --> happens in upcall to client (calls ClearQuery)
 
-    //TODO: edit syncQueryReply such that it can also function as HandleQueryResult...
+
+    //7) If doing EagerExecution + Snapshot at the same time => also process snapshot in case eager exec fails.
+        //if Exec&Snapshot flag is on, then as part of HandleQueryResult also call ProcessSync
+    if(do_sync_upon_failure){
+         //If EagerPlusSnapshot: adjust Quorums or flags such that SyncReplicas only triggers if ExecFails.
+        // Eager exec should send to at least queryMessages many (and designate for replies)
+        // SyncReplicas() should not trigger early: => Probably no changes necessary? Result quorum is smaller than sync quorum? (f+1 out of 2f+1  VS 2f+1 out of 3f+1)
+
+        if(pendingQuery->resultsVerified.size() == maxWait){
+            //wipe result data
+            pendingQuery->resultsVerified.clear();
+            pendingQuery->numResults = 0;
+            pendingQuery->result_freq.clear();
+            pendingQuery->numFails = 0;   //Note Probably don't need to set this for eager exec; FailQuery will only be sent as a response to a snapshot that is invalid.
+
+            pendingQuery->use_bonus = true; //If optimisticTxID is on, wait for bonus if result is coming from sync.
+        }
+
+        if (params.validateProofs && params.signedMessages) {
+            if(replica_result->local_ss().replica_id() !=  queryResult.signed_result().process_id()){
+                        Debug("Replica %lu falsely claims to be replica %lu",  queryResult.signed_result().process_id(), replica_result->local_ss().replica_id());
+                        return;
+            } 
+        }            
+        ProcessSync(pendingQuery, replica_result->mutable_local_ss());
+    }
 }
 
 void ShardClient::HandleFailQuery(proto::FailQuery &queryFail){
@@ -615,6 +639,7 @@ void ShardClient::HandleFailQuery(proto::FailQuery &queryFail){
     if (itr == this->pendingQueries.end()) return; // this is a stale request
 
     PendingQuery *pendingQuery = itr->second;
+    if(pendingQuery->done) return; //this is a stale request; (Query finished, but Txn not yet)
     Debug("[group %i] QueryFail Reply for request %lu.", group, queryResult.req_id());
 
     //1) authenticate reply & parse contents
@@ -711,6 +736,7 @@ void ShardClient::HandlePointQueryResult(proto::PointQueryResultReply &queryResu
     } 
 
     PendingQuery *pendingQuery = itr->second;
+    if(pendingQuery->done) return; //this is a stale request; (Query finished, but Txn not yet)
     
     Debug("[group %i] Received PointQueryResult Reply for req-id [%lu]", group, queryResult.req_id());
 
@@ -1058,6 +1084,7 @@ bool ShardClient::isValidQueryDep(const uint64_t &query_seq_num, const std::stri
     }
     
     PendingQuery *pendingQuery = itr->second;
+    if(!pendingQuery->done) return false; //The query is not yet finished; cannot yet have dependencies.
     proto::MergedSnapshot &merged_ss =pendingQuery->merged_ss;
 
     if(params.query_params.eagerExec){  //Make exception if current Query is eager and we are caching   

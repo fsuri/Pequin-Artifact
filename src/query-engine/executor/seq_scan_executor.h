@@ -12,8 +12,8 @@
 
 #pragma once
 
-#include "../planner/seq_scan_plan.h"
 #include "../executor/abstract_scan_executor.h"
+#include "../planner/seq_scan_plan.h"
 
 namespace peloton {
 namespace executor {
@@ -24,7 +24,7 @@ namespace executor {
  * @deprecated
  */
 class SeqScanExecutor : public AbstractScanExecutor {
- public:
+public:
   SeqScanExecutor(const SeqScanExecutor &) = delete;
   SeqScanExecutor &operator=(const SeqScanExecutor &) = delete;
   SeqScanExecutor(SeqScanExecutor &&) = delete;
@@ -36,24 +36,40 @@ class SeqScanExecutor : public AbstractScanExecutor {
   void UpdatePredicate(const std::vector<oid_t> &column_ids,
                        const std::vector<type::Value> &values) override;
 
-  void ResetState() override { current_tile_group_offset_ = START_OID; }
+  void ResetState() override {
+    current_tile_group_offset_ = START_OID;
+    result_itr_ = 0;
+    result_.clear();
+    done_ = false;
+  }
 
- protected:
-  bool DInit() override ;
+protected:
+  bool DInit() override;
 
-  bool DExecute() override ;
+  bool DExecute() override;
 
- private:
+  void Scan();
+
+  void GetColNames(const expression::AbstractExpression * child_expr, std::unordered_set<std::string> &column_names);
+
+private:
   //===--------------------------------------------------------------------===//
   // Helper Functions
   //===--------------------------------------------------------------------===//
 
-  expression::AbstractExpression *ColumnsValuesToExpr(
-      const std::vector<oid_t> &predicate_column_ids,
-      const std::vector<type::Value> &values, size_t idx);
+  expression::AbstractExpression *
+  ColumnsValuesToExpr(const std::vector<oid_t> &predicate_column_ids,
+                      const std::vector<type::Value> &values, size_t idx);
 
-  expression::AbstractExpression *ColumnValueToCmpExpr(
-      const oid_t column_id, const type::Value &value);
+  expression::AbstractExpression *
+  ColumnValueToCmpExpr(const oid_t column_id, const type::Value &value);
+
+  std::vector<LogicalTile *> result_;
+  /** @brief Result itr */
+  oid_t result_itr_ = 0;
+
+  /** @brief Computed the result */
+  bool done_ = false;
 
   //===--------------------------------------------------------------------===//
   // Executor State
@@ -79,9 +95,9 @@ class SeqScanExecutor : public AbstractScanExecutor {
   std::unique_ptr<expression::AbstractExpression> new_predicate_ = nullptr;
 
   // The original predicate, if it's not nullptr
-  // we need to combine it with the undated predicate 
+  // we need to combine it with the undated predicate
   const expression::AbstractExpression *old_predicate_;
 };
 
-}  // namespace executor
-}  // namespace peloton
+} // namespace executor
+} // namespace peloton

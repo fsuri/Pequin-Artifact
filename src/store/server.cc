@@ -334,8 +334,10 @@ DEFINE_bool(indicus_replica_gossip, false, "use gossip between replicas to excha
 DEFINE_bool(pequin_query_eager_exec, true, "skip query sync protocol and execute optimistically on local state");
 DEFINE_bool(pequin_query_point_eager_exec, false, "use eager query exec instead of proof based point read");
 
+DEFINE_bool(pequin_eager_plus_snapshot, false, "perform a snapshot and eager execution simultaneously; proceed with sync only if eager fails");
+
 DEFINE_bool(pequin_query_read_prepared, true, "allow query to read prepared values");
-DEFINE_bool(pequin_query_cache_read_set, false, "cache query read set at replicas");
+DEFINE_bool(pequin_query_cache_read_set, true, "cache query read set at replicas");
 
 DEFINE_bool(pequin_query_optimistic_txid, true, "use optimistic tx-id for sync protocol");
 DEFINE_bool(pequin_query_compress_optimistic_txid, false, "compress optimistic tx-id for sync protocol");
@@ -346,7 +348,7 @@ DEFINE_bool(pequin_query_merge_active_at_client, true, "merge active query read 
 DEFINE_bool(pequin_sign_client_queries, false, "sign query and sync messages"); //proves non-equivocation of query contents, and query snapshot respectively.
 DEFINE_bool(pequin_sign_replica_to_replica_sync, false, "sign inter replica sync messages with HMACs"); //proves authenticity of channels.
 
-DEFINE_bool(pequin_parallel_queries, false, "dispatch queries to parallel worker threads");
+DEFINE_bool(pequin_parallel_queries, true, "dispatch queries to parallel worker threads");
 
 //Baseline settings
 DEFINE_string(bftsmart_codebase_dir, "", "path to directory containing bftsmart configurations");
@@ -421,8 +423,8 @@ DEFINE_string(keys_path, "", "path to file containing keys in the system");
 DEFINE_uint64(num_keys, 0, "number of keys to generate");
 DEFINE_string(data_file_path, "", "path to file containing key-value pairs to be loaded");
 DEFINE_bool(sql_bench, false, "Load not just key-value pairs, but also Tables. Input file is JSON Tabe args");
-DEFINE_uint64(num_tables, 1, "number of tables to generate");
-DEFINE_uint64(num_keys_per_table, 10, "number of keys to generate per table");
+DEFINE_uint64(num_tables, 10, "number of tables to generate");
+DEFINE_uint64(num_keys_per_table, 100, "number of keys to generate per table");
 
 Server *server = nullptr;
 TransportReceiver *replica = nullptr;
@@ -592,10 +594,11 @@ int main(int argc, char **argv) {
   }
 
   //////////
+  Notice("Sql bench? %d, file path: %s", FLAGS_sql_bench, FLAGS_data_file_path.c_str());
   if(FLAGS_sql_bench && std::filesystem::path(FLAGS_data_file_path).filename() == "rw-sql.json"){
     //Autogenerate a registry file for RW-SQL.
       FLAGS_data_file_path = std::filesystem::path(FLAGS_data_file_path).replace_filename("rw-sql-gen-server" + std::to_string(FLAGS_replica_idx));
-      TableWriter table_writer(FLAGS_data_file_path, FLAGS_clock_skew);
+      TableWriter table_writer(FLAGS_data_file_path, false);
 
       //Set up a bunch of Tables: Num_tables many; with num_items...
       const std::vector<std::pair<std::string, std::string>> &column_names_and_types = {{"key", "INT"}, {"value", "INT"}};
@@ -609,6 +612,7 @@ int main(int argc, char **argv) {
 
       table_writer.flush();
       FLAGS_data_file_path += "-tables-schema.json";
+      Notice("Autogenerating Schema JSON. Writing to: %s", FLAGS_data_file_path.c_str());
   }
    
 
@@ -710,6 +714,7 @@ int main(int argc, char **argv) {
                                                  0,
                                                  FLAGS_pequin_query_eager_exec,
                                                  FLAGS_pequin_query_point_eager_exec,
+                                                 FLAGS_pequin_eager_plus_snapshot,
                                                  FLAGS_pequin_query_read_prepared,
                                                  FLAGS_pequin_query_cache_read_set,
                                                  FLAGS_pequin_query_optimistic_txid,

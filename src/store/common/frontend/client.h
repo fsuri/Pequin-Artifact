@@ -46,10 +46,14 @@ typedef std::function<void()> commit_timeout_callback;
 typedef std::function<void()> abort_callback;
 typedef std::function<void()> abort_timeout_callback;
 
-typedef std::function<void(int, query_result::QueryResult*)> query_callback; 
+typedef std::function<void(int, query_result::QueryResult*)> sql_callback; 
+typedef std::function<void(int)> sql_timeout_callback;
+
+//Deprecating these calls
+typedef std::function<void(int, query_result::QueryResult*)> query_callback; //Note: cannot be const QueryResult because Write receives a QueryCallback and overwrites it...
 typedef std::function<void(int)> query_timeout_callback;
 
-typedef std::function<void(int, const query_result::QueryResult*)> write_callback; 
+typedef std::function<void(int, query_result::QueryResult*)> write_callback; 
 typedef std::function<void(int)> write_timeout_callback;
 
 class Stats;
@@ -78,6 +82,10 @@ class Client {
   // Abort all Get(s) and Put(s) since Begin().
   virtual void Abort(abort_callback acb, abort_timeout_callback atcb,
       uint32_t timeout) = 0;
+
+
+  inline virtual void SQLRequest(std::string &statement, sql_callback scb,
+    sql_timeout_callback stcb, uint32_t timeout){ Panic("This protocol-store does not implement support for SQL Statements"); }
 
   // Get the result for a given query SQL statement
   inline virtual void Query(const std::string &query_statement, query_callback qcb,

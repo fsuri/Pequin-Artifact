@@ -57,7 +57,7 @@ void ThreadPool::start(int process_id, int total_processes, bool hyperthreading,
 
     bool put_all_threads_on_same_core = false;
     if (num_cpus > 8) {
-      // num_cpus = 8;
+      num_cpus = 8;
       fprintf(stderr, "Total Num_cpus on server downregulated to: %d \n",
               num_cpus);
     }

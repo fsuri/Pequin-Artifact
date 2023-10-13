@@ -37,6 +37,7 @@
 #include "../storage/tile_group_factory.h"
 #include "../storage/tile_group_header.h"
 #include "../storage/tuple.h"
+#include "lib/message.h"
 #include "query-engine/common/internal_types.h"
 #include "query-engine/common/item_pointer.h"
 // #include "../tuning/clusterer.h"
@@ -371,6 +372,7 @@ ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple,
     auto ts = tile_group_header->GetBasilTimestamp(check.offset);
     auto curr_pointer = check;
     auto curr_tile_group_header = tile_group_header;
+    auto curr_tile_group = tile_group;
 
     /** NEW: for purge */
     while (ts > transaction->GetBasilTimestamp()) {
@@ -380,17 +382,22 @@ ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple,
       }
       curr_pointer =
           curr_tile_group_header->GetNextItemPointer(curr_pointer.offset);
-      curr_tile_group_header =
-          this->GetTileGroupById(curr_pointer.block)->GetHeader();
+      curr_tile_group = this->GetTileGroupById(curr_pointer.block);
+      curr_tile_group_header = curr_tile_group->GetHeader();
       ts = curr_tile_group_header->GetBasilTimestamp(curr_pointer.offset);
     }
 
     if (ts == transaction->GetBasilTimestamp()) {
+      std::cout << "IN INSERT TUPLE Txn: " << pequinstore::BytesToHex(*transaction->GetTxnDig(), 16) << std::endl;
+       std::cout << "IN INSERT TUPLE Txn: Commit Or Prepare:" << transaction->GetCommitOrPrepare() << std::endl;
+     
       std::cout << "Duplicate" << std::endl;
       is_duplicate = true;
+      bool is_prepared =
+          !curr_tile_group_header->GetCommitOrPrepare(curr_pointer.offset);
 
       /** TODO: Add check to make sure it's prepared */
-      if (transaction->GetUndoDelete()) {
+      if (transaction->GetUndoDelete() && is_prepared) {
         std::cout << "In undo delete for purge" << std::endl;
         // Purge this tuple
         // Set the linked list pointers
@@ -412,6 +419,8 @@ ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple,
         } else if (prev_loc.IsNull() && !next_loc.IsNull()) {
           std::cout << "Updating head pointer" << std::endl;
           auto next_tgh = this->GetTileGroupById(next_loc.block)->GetHeader();
+          next_tgh->SetPrevItemPointer(next_loc.offset,
+                                       ItemPointer(INVALID_OID, INVALID_OID));
           ItemPointer *index_entry_ptr =
               next_tgh->GetIndirection(next_loc.offset);
           COMPILER_MEMORY_FENCE;
@@ -434,27 +443,41 @@ ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple,
       } else {
 
         bool same_columns = true;
-        bool should_upgrade =
-            !tile_group_header->GetCommitOrPrepare(check.offset) &&
-            transaction->GetCommitOrPrepare();
+        bool should_upgrade = !curr_tile_group_header->GetCommitOrPrepare(curr_pointer.offset) && transaction->GetCommitOrPrepare(); //i.e. prev = prepare, curr tx = commit
 
         // NOTE: Check if we can upgrade a prepared tuple to committed
         // std::string encoded_key = target_table_->GetName();
-        const auto *schema = tile_group->GetAbstractTable()->GetSchema();
+        const auto *schema = curr_tile_group->GetAbstractTable()->GetSchema();
         for (uint32_t col_idx = 0; col_idx < schema->GetColumnCount();
              col_idx++) {
-          auto val1 = tile_group->GetValue(check.offset, col_idx);
+          auto val1 = curr_tile_group->GetValue(curr_pointer.offset, col_idx);
           auto val2 = tuple->GetValue(col_idx);
 
           if (val1.ToString() != val2.ToString()) {
-            tile_group->SetValue(val2, check.offset, col_idx);
+            // tile_group->SetValue(val2, curr_pointer.offset, col_idx);
             same_columns = false;
           }
         }
 
         if (should_upgrade && same_columns) {
           std::cout << "Upgrading from prepared to committed" << std::endl;
-          tile_group_header->SetCommitOrPrepare(check.offset, true);
+          curr_tile_group_header->SetCommitOrPrepare(curr_pointer.offset, true);
+          const pequinstore::proto::CommittedProof *proof =
+              transaction->GetCommittedProof();
+          auto proof_ts = Timestamp(proof->txn().timestamp());
+          Debug("Proof ts is %lu, %lu", proof_ts.getTimestamp(),
+                proof_ts.getID());
+          Debug("Current ts is %lu, %lu", ts.getTimestamp(), ts.getID());
+          curr_tile_group_header->SetCommittedProof(curr_pointer.offset, proof);
+        } else {
+          std::cout << "Should upgrade is " << should_upgrade << std::endl;
+          std::cout << "Current tuple is: " << (curr_tile_group_header->GetCommitOrPrepare(curr_pointer.offset)? "committed" : "prepared") << std::endl;
+          std::cout << "Transaction is " << (transaction->GetCommitOrPrepare()? "committing" : "preparing") << std::endl;
+          std::cout << "Same columns is " << same_columns << std::endl;
+          std::cout << "Timestamp is " << ts.getTimestamp() << ", " << ts.getID() << std::endl;
+          std::cout << "Txn timestamp is " << transaction->GetBasilTimestamp().getTimestamp() << ", " << transaction->GetBasilTimestamp().getID() << std::endl;
+          
+          if(curr_tile_group_header->GetCommitOrPrepare(curr_pointer.offset) == transaction->GetCommitOrPrepare() ) Panic("Tried to add a duplicate write (prepare/commit) same TX twice");
         }
       }
 

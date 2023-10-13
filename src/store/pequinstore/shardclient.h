@@ -256,7 +256,7 @@ virtual void Phase2Equivocate_Simulate(uint64_t id, const proto::Transaction &tx
   }; 
 //TODO: Define management object fully
   struct PendingQuery {
-    PendingQuery(uint64_t reqId, const QueryParameters *query_params) : reqId(reqId), client_seq_num(0UL), query_seq_num(0UL),
+    PendingQuery(uint64_t reqId, const QueryParameters *query_params) : done(false), use_bonus(false), reqId(reqId), client_seq_num(0UL), query_seq_num(0UL),
         retry_version(0UL), num_designated_replies(0UL), numResults(0UL), numFails(0UL), 
         query_manager(false), success(false),  snapshot_mgr(query_params), pendingPointQuery(reqId) //,  numSnapshotReplies(0UL),
         { 
@@ -264,7 +264,11 @@ virtual void Phase2Equivocate_Simulate(uint64_t id, const proto::Transaction &tx
         }
     ~PendingQuery() { }
 
-    std::string first_result;
+    //std::string first_result; //just for debugging
+
+    bool done;
+
+    bool use_bonus; //always false, unless using Snapshot path in EagerPlusSnapshot
 
     uint64_t reqId; 
     uint64_t client_seq_num;
@@ -292,7 +296,7 @@ virtual void Phase2Equivocate_Simulate(uint64_t id, const proto::Transaction &tx
 
     
     //map from result to map of associated result hash + their frequency (could be that two same results have different result hash; and vice versa)
-    std::unordered_map<std::string, std::unordered_map<std::string, Result_mgr>> result_freq; 
+    std::unordered_map<std::string, std::unordered_map<std::string, Result_mgr>> result_freq; //result_hash (read-set) -> (result (serialization) -> freq)
     //TODO: For each read_set -> maintain a list of deps that is updated.
     
     bool query_manager;
@@ -532,6 +536,7 @@ virtual void Phase2Equivocate_Simulate(uint64_t id, const proto::Transaction &tx
   void RequestQuery(PendingQuery *pendingQuery, proto::Query &queryMsg);
   //void RetryQuery(PendingQuery *pendingQuery);
   void HandleQuerySyncReply(proto::SyncReply &SyncReply);
+  void ProcessSync(PendingQuery *pendingQuery, proto::LocalSnapshot *local_ss);
   void SyncReplicas(PendingQuery *pendingQuery);
   void HandleQueryResult(proto::QueryResultReply &queryResult);
   void HandleFailQuery(proto::FailQuery &msg);

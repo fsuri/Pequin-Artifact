@@ -315,6 +315,15 @@ public:
     committed_proof_ = commit_proof;
   }
 
+  const pequinstore::proto::CommittedProof **GetCommittedProofRef() {
+    return committed_proof_ref_;
+  }
+
+  void SetCommittedProofRef(
+      const pequinstore::proto::CommittedProof **commit_proof) {
+    committed_proof_ref_ = commit_proof;
+  }
+
   bool GetCommitOrPrepare() { return commit_or_prepare_; }
 
   void SetCommitOrPrepare(bool commit_or_prepare) {
@@ -333,11 +342,11 @@ public:
     committed_timestamp_ = commit_timestamp;
   }
 
-  std::shared_ptr<std::string> GetPreparedTxnDigest() {
+  std::shared_ptr<std::string> *GetPreparedTxnDigest() {
     return prepared_txn_dig_;
   }
 
-  void SetPreparedTxnDigest(std::shared_ptr<std::string> prepared_txn_digest) {
+  void SetPreparedTxnDigest(std::shared_ptr<std::string> *prepared_txn_digest) {
     prepared_txn_dig_ = prepared_txn_digest;
   }
 
@@ -424,6 +433,9 @@ private:
   /** Commit proof */
   const pequinstore::proto::CommittedProof *committed_proof_;
 
+  /* Commit proof ref */
+  const pequinstore::proto::CommittedProof **committed_proof_ref_;
+
   /** Timestamp of committed value */
   Timestamp *committed_timestamp_;
 
@@ -431,7 +443,7 @@ private:
   Timestamp *prepared_timestamp_;
 
   /** Prepared value transaction digest */
-  std::shared_ptr<std::string> prepared_txn_dig_;
+  std::shared_ptr<std::string> *prepared_txn_dig_;
 
   /** Commit or prepare */
   bool commit_or_prepare_;

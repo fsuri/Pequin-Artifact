@@ -40,7 +40,7 @@ namespace rwsql {
 
 static bool AVOID_DUPLICATE_READS = true; 
 static bool POINT_READS_ENABLED = false;
-static bool PARALLEL_QUERIES = false;
+static bool PARALLEL_QUERIES = true;
 
 inline int mod(int &x, const int &N){
     return (x % N + N) %N;
@@ -61,6 +61,7 @@ class RWSQLTransaction : public SyncTransaction { //AsyncTransaction
   void SubmitStatement(SyncClient &client, std::string &statement, const int &i);
   void GetResults(SyncClient &client);
   bool AdjustBounds(int &left, int &right, uint64_t table);
+  bool AdjustBounds_manual(int &left, int &right, uint64_t table);
   
  protected:
   inline const std::string &GetKey(int i) const {
@@ -87,6 +88,8 @@ class RWSQLTransaction : public SyncTransaction { //AsyncTransaction
   size_t liveOps;
   //avoid duplicates
   std::vector<std::pair<int, int>> past_ranges;
+  
+  std::vector<std::string> statements; //keep statements in scope to allow for parallel Writes
 
   inline int wrap(int x){
     return mod(x, numKeys);

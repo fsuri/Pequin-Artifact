@@ -5,7 +5,6 @@ NUM_GROUPS=1
 CONFIG="0_local_test_outputs/configs/shard-r6.config"
 PROTOCOL="pequin"
 STORE=${PROTOCOL}store
-DURATION=10
 ZIPF=0.0
 NUM_OPS_TX=2
 NUM_KEYS_IN_DB=1
@@ -17,13 +16,12 @@ FILE_PATH="0_local_test_outputs/rw-sql/rw-sql.json"
 
 
 
-while getopts f:g:cpath:p:d:z:num_ops:num_keys: option; do
+while getopts f:g:cpath:p:z:num_ops:num_keys: option; do
 case "${option}" in
 f) F=${OPTARG};;
 g) NUM_GROUPS=${OPTARG};;
 cpath) CONFIG=${OPTARG};;
 p) PROTOCOL=${OPTARG};;
-d) DURATION=${OPTARG};;
 z) ZIPF=${OPTARG};;
 num_ops) NUM_OPS_TX=${OPTARG};;
 num_keys) NUM_KEYS_IN_DB=${OPTARG};;
@@ -46,6 +44,6 @@ for j in `seq 0 $((NUM_GROUPS-1))`; do
 	#echo Starting Group $j
 	for i in `seq 0 $((N-1))`; do
 		#echo Starting Replica $(($i+$j*$N))
-		DEBUG=* store/server --config_path $CONFIG --group_idx $j --num_groups $NUM_GROUPS --num_shards $NUM_GROUPS --replica_idx $i --protocol $PROTOCOL --num_keys $NUM_KEYS_IN_DB --sql_bench=$SQL_BENCH --data_file_path $FILE_PATH --debug_stats --indicus_key_path $KEY_PATH &> ./0_local_test_outputs/server$(($i+$j*$N)).out &
+		DEBUG=store/pequinstore/* store/server --config_path $CONFIG --group_idx $j --num_groups $NUM_GROUPS --num_shards $NUM_GROUPS --replica_idx $i --protocol $PROTOCOL --num_keys $NUM_KEYS_IN_DB --sql_bench=$SQL_BENCH --data_file_path $FILE_PATH --debug_stats --indicus_key_path $KEY_PATH &> ./0_local_test_outputs/server$(($i+$j*$N)).out &
 	done;
 done;

@@ -439,6 +439,8 @@ bool InsertExecutor::DExecute() {
         auto tile_group = storage_manager->GetTileGroup(location.block);
         auto tile_group_header = tile_group->GetHeader();
 
+        std::cout << "Commit or prepare is "
+                  << current_txn->GetCommitOrPrepare() << std::endl;
         tile_group_header->SetCommitOrPrepare(
             location.offset, current_txn->GetCommitOrPrepare());
 

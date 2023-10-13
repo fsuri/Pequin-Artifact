@@ -99,11 +99,14 @@ class Client : public ::Client {
       put_callback pcb, put_timeout_callback ptcb,
       uint32_t timeout = PUT_TIMEOUT) override;
 
+  virtual void SQLRequest(std::string &statement, sql_callback scb,
+    sql_timeout_callback stcb, uint32_t timeout) override;
+
   virtual void Write(std::string &write_statement, write_callback wcb,
       write_timeout_callback wtcb, uint32_t timeout) override;
 
   virtual void Query(const std::string &query, query_callback qcb,
-    query_timeout_callback qtcb, uint32_t timeout, bool skip_query_interpretation) override; //TODO: ::Client client class needs to expose Query interface too.. --> All other clients need to support the interface.
+    query_timeout_callback qtcb, uint32_t timeout, bool skip_query_interpretation = false) override; //TODO: ::Client client class needs to expose Query interface too.. --> All other clients need to support the interface.
 
   // Commit all Get(s) and Put(s) since Begin().
   virtual void Commit(commit_callback ccb, commit_timeout_callback ctcb,
@@ -196,7 +199,7 @@ class Client : public ::Client {
   // void RetryQuery(uint64_t query_seq_num, std::vector<uint64_t> &involved_groups);
 
 
-  //Commit protocol structures and functions
+  ///////////////   Commit protocol structures and functions
 
   struct PendingRequest {
     PendingRequest(uint64_t id, Client *client) : id(id), outstandingPhase1s(0),

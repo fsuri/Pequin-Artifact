@@ -82,8 +82,11 @@ public:
       const std::vector<type::Value> &params, const bool unnamed,
       /*std::shared_ptr<stats::QueryMetric::QueryParams> param_stats,*/
       const std::vector<int> &result_format, std::vector<ResultValue> &result,
-      const Timestamp &basil_timestamp, pequinstore::QueryReadSetMgr &query_read_set_mgr, 
-      std::function<void(const std::string &, const Timestamp &, bool, pequinstore::QueryReadSetMgr *, pequinstore::SnapshotManager *)> &find_table_version,
+      const Timestamp &basil_timestamp,
+      pequinstore::QueryReadSetMgr &query_read_set_mgr,
+      std::function<void(const std::string &, const Timestamp &, bool,
+                         pequinstore::QueryReadSetMgr *,
+                         pequinstore::SnapshotManager *)> &find_table_version,
       std::function<bool(const std::string &)> &read_prepared_pred,
       size_t thread_id = 0);
 
@@ -93,8 +96,9 @@ public:
       const std::vector<type::Value> &params, const bool unnamed,
       /*std::shared_ptr<stats::QueryMetric::QueryParams> param_stats,*/
       const std::vector<int> &result_format, std::vector<ResultValue> &result,
-      const Timestamp &basil_timestamp, std::shared_ptr<std::string> txn_digest, 
-      const pequinstore::proto::CommittedProof *commit_proof, bool commit_or_prepare, size_t thread_id = 0);
+      const Timestamp &basil_timestamp, std::shared_ptr<std::string> txn_digest,
+      const pequinstore::proto::CommittedProof *commit_proof,
+      bool commit_or_prepare, size_t thread_id = 0);
 
   // Execute a purge statement
   ResultType ExecutePurgeStatement(
@@ -111,13 +115,12 @@ public:
       const std::vector<type::Value> &params, const bool unnamed,
       /*std::shared_ptr<stats::QueryMetric::QueryParams> param_stats,*/
       const std::vector<int> &result_format, std::vector<ResultValue> &result,
-      const Timestamp &basil_timestamp, std::function<bool(const std::string &)> &predicate,
+      const Timestamp &basil_timestamp,
+      std::function<bool(const std::string &)> &predicate,
       Timestamp *committed_timestamp,
-      const pequinstore::proto::CommittedProof *commit_proof,
-      Timestamp *prepared_timestamp,
-      std::shared_ptr<std::string> txn_dig,
-      pequinstore::proto::Write *write,
-      size_t thread_id = 0);
+      const pequinstore::proto::CommittedProof **commit_proof,
+      Timestamp *prepared_timestamp, std::shared_ptr<std::string> *txn_dig,
+      pequinstore::proto::Write *write, size_t thread_id = 0);
 
   // Helper to handle txn-specifics for the plan-tree of a statement.
   executor::ExecutionResult
@@ -130,8 +133,11 @@ public:
   executor::ExecutionResult ExecuteReadHelper(
       std::shared_ptr<planner::AbstractPlan> plan,
       const std::vector<type::Value> &params, std::vector<ResultValue> &result,
-      const std::vector<int> &result_format, const Timestamp &basil_timestamp, pequinstore::QueryReadSetMgr &query_read_set_mgr, 
-      std::function<void(const std::string &, const Timestamp &, bool, pequinstore::QueryReadSetMgr *, pequinstore::SnapshotManager *)> &find_table_version,
+      const std::vector<int> &result_format, const Timestamp &basil_timestamp,
+      pequinstore::QueryReadSetMgr &query_read_set_mgr,
+      std::function<void(const std::string &, const Timestamp &, bool,
+                         pequinstore::QueryReadSetMgr *,
+                         pequinstore::SnapshotManager *)> &find_table_version,
       std::function<bool(const std::string &)> &read_prepared_pred,
       size_t thread_id = 0);
 
@@ -139,28 +145,29 @@ public:
   executor::ExecutionResult ExecuteWriteHelper(
       std::shared_ptr<planner::AbstractPlan> plan,
       const std::vector<type::Value> &params, std::vector<ResultValue> &result,
-      const std::vector<int> &result_format, const Timestamp &basil_timestamp, std::shared_ptr<std::string> txn_digest, 
-      const pequinstore::proto::CommittedProof *commit_proof, bool commit_or_prepare, size_t thread_id = 0);
+      const std::vector<int> &result_format, const Timestamp &basil_timestamp,
+      std::shared_ptr<std::string> txn_digest,
+      const pequinstore::proto::CommittedProof *commit_proof,
+      bool commit_or_prepare, size_t thread_id = 0);
 
   // Helper to handle txn-specifics for the plan-tree of a statement.
   executor::ExecutionResult ExecutePurgeHelper(
       std::shared_ptr<planner::AbstractPlan> plan,
       const std::vector<type::Value> &params, std::vector<ResultValue> &result,
-      const std::vector<int> &result_format, const Timestamp &basil_timestamp, std::shared_ptr<std::string> txn_digest,
-      bool undo_delete, size_t thread_id = 0);
-
+      const std::vector<int> &result_format, const Timestamp &basil_timestamp,
+      std::shared_ptr<std::string> txn_digest, bool undo_delete,
+      size_t thread_id = 0);
 
   // Helper to handle txn-specifics for the plan-tree of a statement.
   executor::ExecutionResult ExecutePointReadHelper(
       std::shared_ptr<planner::AbstractPlan> plan,
       const std::vector<type::Value> &params, std::vector<ResultValue> &result,
-      const std::vector<int> &result_format, const Timestamp &basil_timestamp, std::function<bool(const std::string &)> &predicate, 
+      const std::vector<int> &result_format, const Timestamp &basil_timestamp,
+      std::function<bool(const std::string &)> &predicate,
       Timestamp *committed_timestamp,
-      const pequinstore::proto::CommittedProof *commit_proof,
-      Timestamp *prepared_timestamp,
-      std::shared_ptr<std::string> txn_dig,
-      pequinstore::proto::Write *write,
-      size_t thread_id = 0);
+      const pequinstore::proto::CommittedProof **commit_proof,
+      Timestamp *prepared_timestamp, std::shared_ptr<std::string> *txn_dig,
+      pequinstore::proto::Write *write, size_t thread_id = 0);
 
   // Prepare a statement using the parse tree
   std::shared_ptr<Statement>
