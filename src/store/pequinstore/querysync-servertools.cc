@@ -395,9 +395,7 @@ bool Server::CheckPresence(const std::string &tx_id, const std::string &query_re
     if(preparing) txn = o->second.txn;
     o.release();
 
-    
-
-
+    Debug("Checked presence for txn[%s]. Present? %d. Is final? %d. Is ongoing? %d. Is preparing? %d", BytesToHex(tx_id, 16).c_str(), has_txn_locally, is_final, is_ongoing, preparing);
     // bool has_txn_locally = ongoing.find(o, tx_id);
     // ///o.release();
     // if(!has_txn_locally){
@@ -428,6 +426,8 @@ bool Server::CheckPresence(const std::string &tx_id, const std::string &query_re
          // If it doesn't => register in BufferP1 to call ForceMaterialize       ~~~TODO: Move ForceMaterialize into HandlePhase1CB (currently in TryPrepare)~~~
 
     bool ready = WaitForMaterialization(tx_id, query_retry_id, missing_txns);
+
+    Debug("Check materialization of txn: %s. Is mat? %d", BytesToHex(tx_id, 16).c_str(), ready);
     if(!ready && (preparing || TEST_MATERIALIZE_FORCE)){
         //if Tx not yet materialized (ready) but it is in process of preparing => Register Force Materialization (i.e. force apply TableWrite in case Prepare turns out to be Abstain)
 
@@ -459,7 +459,7 @@ bool Server::CheckPresence(const std::string &tx_id, const std::string &query_re
         RegisterForceMaterialization(tx_id, txn); 
     }
 
-    Debug("Check presence for txn: %s. Is mat? %d. Is final? %d. Is ongoing? %d. Is preparing? %d", BytesToHex(tx_id, 16).c_str(), ready, is_final, is_ongoing, preparing);
+   
     return ready;
 }
 
@@ -512,11 +512,11 @@ bool Server::CheckPresence(const uint64_t &ts_id, const std::string &query_retry
 }
 
 void Server::RequestMissing(const proto::ReplicaList &replica_list, std::map<uint64_t, proto::RequestMissingTxns> &replica_requests, const std::string &tx_id){
-    //TODO: make this interface accept ts_id too. Pass by && so I can do "" by default. Switch arg order: make tx_id, and Ts last so they default.
-    //Note, this will not take ownership, since we are not calling std::move. It just allows for handling defaults :)
-    
+   
+     Debug("Request missing TX[%s]", tx_id);
     uint64_t count = 0;
     for(auto const &replica_id: replica_list.replicas()){ 
+        Debug("    Request missing Txn[%s] from replica id[%d]", BytesToHex(tx_id, 16).c_str(), replica_id);
         if(count > config.f +1) return; //only send to f+1 --> an honest client will never include more than f+1 replicas to request from. --> can ignore byz request.
         
         
@@ -538,8 +538,7 @@ void Server::RequestMissing(const proto::ReplicaList &replica_list, std::map<uin
 }
 
 void Server::RequestMissing(const proto::ReplicaList &replica_list, std::map<uint64_t, proto::RequestMissingTxns> &replica_requests, const uint64_t &ts_id) {
-    //TODO: make this interface accept ts_id too. Pass by && so I can do "" by default. Switch arg order: make tx_id, and Ts last so they default.
-    //Note, this will not take ownership, since we are not calling std::move. It just allows for handling defaults :)
+  
     Debug("Request missing TS[%lu]", ts_id);
     uint64_t count = 0;
     for(auto const &replica_id: replica_list.replicas()){ 
@@ -614,6 +613,10 @@ void Server::ForceMaterialization(const proto::ConcurrencyControl::Result &resul
 void Server::ApplyTableWrites(const proto::Transaction &txn, const Timestamp &ts,
                 const std::string &txn_digest, const proto::CommittedProof *commit_proof, bool commit_or_prepare, bool forceMaterialize){
 
+    Debug("Apply all TableWrites for Txn[%s]. TS[%lu:%lu]", BytesToHex(txn_digest, 16).c_str(), ts.getTimestamp(), ts.getID());
+
+    //TODO: Parallelize application of each table's writes. Note: This requires multi-threading + callback to ensure synchronous join
+        //Not urgent: Realistically most transactions do not touch that many tables...
     for (const auto &[table_name, table_write] : txn.table_writes()){
         table_store->ApplyTableWrite(table_name, table_write, ts, txn_digest, commit_proof, commit_or_prepare, forceMaterialize); 
     }
@@ -621,6 +624,8 @@ void Server::ApplyTableWrites(const proto::Transaction &txn, const Timestamp &ts
     materializedMap::accessor mat;
     materialized.insert(mat, txn_digest);
     mat.release();
+
+    Debug("Materialized Txn[%s]. TS[%lu:%lu]. CheckWaitingQueries", BytesToHex(txn_digest, 16).c_str(), ts.getTimestamp(), ts.getID());
 
     //Wake any queries waiting for materialization of Txn:
     CheckWaitingQueries(txn_digest, ts.getTimestamp(), ts.getID());  
@@ -663,6 +668,7 @@ bool Server::WaitForMaterialization(const std::string &tx_id, const std::string 
     //if(!materialized.find(ap, tx_id)){  //FIXME: If it doesnt exist, this does not take a lock. Is this threadsafe w.r.t to concurrent Write?
                                             //Tsafe yes, since no read is happening; but not atomic, since we want to do more. ==> FIXME: replace with insert + erase combination.
 
+        Debug("Txn[%s] is not yet materialized. Add query_retry_version[%s] to Queries waiting for Txn", BytesToHex(tx_id, 16).c_str(), BytesToHex(query_retry_id, 16).c_str());
         waitingQueryMap::accessor w;
         waitingQueries.insert(w, tx_id);
         bool already_requested = !w->second.empty(); //TODO: if there is already a waiting query, don't need to request the txn again. Problem: Could have been requested by a byz client that gave wrong replica_ids...
@@ -679,6 +685,7 @@ bool Server::WaitForMaterialization(const std::string &tx_id, const std::string 
 
     mat.release();
 
+    Debug("Txn[%s] is already materialized.", BytesToHex(tx_id, 16).c_str());
     return true; //return true if Ready (i.e. not waiting)
 }
 
@@ -714,6 +721,7 @@ bool Server::WaitForMaterialization(const uint64_t &ts_id, const std::string &qu
 void Server::WaitForTX(const uint64_t &ts_id, const std::string &query_retry_id, std::unordered_map<uint64_t, uint64_t> &missing_ts){
     //wait for Tx to arrive. Upon Tx arriving (TryPrepare, Commit, Abort) wake up and CheckPresence
 
+    Debug("TS[%lu] not local. Add query_retry_version[%s] to Queries waiting for TS", ts_id, BytesToHex(query_retry_id, 16).c_str());
     waitingQueryTSMap::accessor w;
     waitingQueriesTS.insert(w, ts_id);
     bool already_requested = !w->second.empty(); //TODO: if there is already a waiting query, don't need to request the txn again. Problem: Could have been requested by a byz client that gave wrong replica_ids...
@@ -897,6 +905,7 @@ void Server::UpdateWaitingQueries(const std::string &txnDigest, bool is_abort){
             Debug("QueryId[%s] is still waiting on (%d) transactions and (%d) TS", BytesToHex(missingTxns.query_id, 16).c_str(), missingTxns.missing_txns.size(), missingTxns.missing_ts.size());
             if(was_present && missingTxns.missing_txns.empty() && missingTxns.missing_ts.empty()){  //don't wake up unless there is NO missing TX OR TS
                    //Note: was_present -> only call this the first time missing_txn goes empty: present captures the fact that map was non-empty before erase.
+                Debug("Wake QueryId[%s]!",  BytesToHex(missingTxns.query_id, 16).c_str());
                 queries_to_wake[missingTxns.query_id] = missingTxns.retry_version;
             }
             else if(is_abort) queries_to_rm_txn[missingTxns.query_id] = missingTxns.retry_version;
@@ -945,6 +954,7 @@ void Server::UpdateWaitingQueries(const std::string &txnDigest, bool is_abort){
 
             if(query_md->is_waiting && query_md->retry_version == retry_version){ 
                 //6) Erase txn from snapshot if abort.
+                Debug("Remove TX[%s] from merged_ss of Query[%lu:%lu:%lu]", BytesToHex(txnDigest, 16).c_str(), query_md->query_seq_num, query_md->client_id, query_md->retry_version);
                 query_md->merged_ss_msg->mutable_merged_txns()->erase(txnDigest); 
             }
         }
@@ -1102,6 +1112,7 @@ void Server::UpdateWaitingQueriesTS(const uint64_t &txnTS, const std::string &tx
             QueryMetaData *query_md = q->second;
 
             if(query_md->is_waiting && query_md->retry_version == retry_version){ 
+                Debug("Trying to wake Query: %s with retry version %lu; waiting on TS[%lu]. ", BytesToHex(queryId, 16).c_str(), retry_version, txnTS);
                 //Note: is_waiting -> make sure query is waiting. E.g. missing_txn could be empty because we re-tried the query and now are not missing any. 
                 //In this case is_waiting will be set to false. -> no need to call callback
                 
@@ -1124,7 +1135,7 @@ void Server::UpdateWaitingQueriesTS(const uint64_t &txnTS, const std::string &tx
               
                  bool ready = missingTxns.missing_ts.empty() && missingTxns.missing_txns.empty(); 
                 // I.e. all missing TS have been resolved, and all of their translations into TX have been materialized
-                Debug("Trying to wake Query: %s with retry version %lu; waiting on TS[%lu]. isTXFinished? %d, isQueryReady? %d ", BytesToHex(queryId, 16).c_str(), retry_version, txnTS, isFinished, ready);
+                Debug("Is Query[%s] with retry version %lu ready? isTXFinished? %d, isQueryReady? %d ", BytesToHex(queryId, 16).c_str(), retry_version, isFinished, ready);
 
                 qm.release();
 

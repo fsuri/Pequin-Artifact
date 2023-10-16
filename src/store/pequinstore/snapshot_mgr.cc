@@ -173,15 +173,15 @@ bool SnapshotManager::ProcessReplicaLocalSnapshot(proto::LocalSnapshot* local_ss
     if(!useOptimisticTxId){
             //what if some replicas have it as committed, and some as prepared. If >=f+1 committed ==> count as committed, include only those replicas in list.. If mixed, count as prepared
         //DOES client need to consider at all whether a txn is committed/prepared? --> don't think so; replicas can determine dependency set at exec time (and either inform client, or cache locally)
-        //TODO: probably don't need separate lists! --> FIXME: Change back to single list in protobuf.
-
+        //don't need separate lists! 
+        
         for(const std::string &txn_dig : local_ss->local_txns_committed()){
             proto::ReplicaList &replica_list = (*merged_ss->mutable_merged_txns())[txn_dig];
             replica_list.add_replicas(local_ss->replica_id());
             replica_list.set_commit_count(replica_list.commit_count()+1);
         }
         for(const std::string &txn_dig : local_ss->local_txns_prepared()){
-            proto::ReplicaList &replica_list = (*merged_ss->mutable_merged_txns())[txn_dig];
+            proto::ReplicaList &replica_list = (*merged_ss->mutable_merged_txns())[txn_dig]; //TODO: If a byz sends BOTH commit and prepare shouldn't add to replica list twice.. Alt: filter out duplicates in prune
             replica_list.add_replicas(local_ss->replica_id());
         }
     }

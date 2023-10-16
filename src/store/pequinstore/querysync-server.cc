@@ -685,7 +685,7 @@ void Server::ProcessSync(queryMetaDataMap::accessor &q, const TransportAddress &
         }
     }
 
-    Debug("fullyMat? %d", fullyMaterialized);
+    Debug("Query[%d][ver:%d] has been fullyMat? %d", *queryId, query_md->retry_version, fullyMaterialized);
     
     //else: if no missing Txns & all already materialized   
     //Note: fullyMaterialized == missing_txns.empty() && missing_ts.empty()
