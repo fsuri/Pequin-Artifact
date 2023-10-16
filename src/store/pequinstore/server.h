@@ -77,15 +77,18 @@ enum OCCType {
 
 
 //TEST/DEBUG variables
-static bool TEST_QUERY = true; //true;   //create toy results for queries
-static bool TEST_SNAPSHOT = true; //true;  //create toy snapshots for queries
-static bool TEST_READ_SET = true; //true;  //create toy read sets for queries
+static bool TEST_QUERY = false; //true;   //create toy results for queries
+static bool TEST_SNAPSHOT = false; //true;  //create toy snapshots for queries
+static bool TEST_READ_SET = false; //true;  //create toy read sets for queries
+//set all above 3 to test sync protocol
 static bool TEST_FAIL_QUERY = false;  //create an artificial retry for queries
 static bool TEST_PREPARE_SYNC = false;  //Create artificial sync for queries that supplies prepares even though value is committed
 static bool TEST_SYNC = false;  //create an artificial sync for queries
-static bool TEST_MATERIALIZE = true; //artificially cause a wait on materialize.
-static bool TEST_MATERIALIZE_TS = true; //artificially cause a wait on materialize for a TS based sync
-static bool TEST_MATERIALIZE_FORCE = true; //artificially force a materialization.
+
+static bool TEST_MATERIALIZE = false; //artificially cause a wait on materialize.
+static bool TEST_MATERIALIZE_TS = false; //artificially cause a wait on materialize for a TS based sync
+static bool TEST_MATERIALIZE_FORCE = false; //artificially force a materialization.  //Note: TEST_MATERIALIZE or TEST_MATERIALIZE_TS must be set.
+
 
 static int fail_writeback = 0;
 typedef std::vector<std::unique_lock<std::mutex>> locks_t;

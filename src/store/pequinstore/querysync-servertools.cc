@@ -614,14 +614,12 @@ void Server::ForceMaterialization(const proto::ConcurrencyControl::Result &resul
 void Server::ApplyTableWrites(const proto::Transaction &txn, const Timestamp &ts,
                 const std::string &txn_digest, const proto::CommittedProof *commit_proof, bool commit_or_prepare, bool forceMaterialize){
 
-    materializedMap::accessor mat;
-    
-    materialized.insert(mat, txn_digest);
-  
     for (const auto &[table_name, table_write] : txn.table_writes()){
-        table_store->ApplyTableWrite(table_name, table_write, ts, txn_digest, commit_proof, commit_or_prepare, forceMaterialize); //FIXME: Loop here!!!! not outside.
+        table_store->ApplyTableWrite(table_name, table_write, ts, txn_digest, commit_proof, commit_or_prepare, forceMaterialize); 
     }
-    
+
+    materializedMap::accessor mat;
+    materialized.insert(mat, txn_digest);
     mat.release();
 
     //Wake any queries waiting for materialization of Txn:
