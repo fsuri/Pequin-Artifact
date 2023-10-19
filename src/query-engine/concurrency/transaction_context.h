@@ -290,6 +290,22 @@ public:
     query_read_set_mgr_ = query_read_set_mgr;
   }
 
+  pequinstore::SnapshotManager* GetSnapshotMgr() {
+    return snapshot_mgr_;
+  }
+
+  void SetSnapshotMgr(pequinstore::SnapshotManager *snapshot_mgr) {
+    snapshot_mgr_ = snapshot_mgr;
+  }
+
+  size_t GetKPreparedVersions() {
+    return k_prepared_versions_;
+  }
+
+  void SetKPreparedVersions(size_t k_prepared_versions) {
+    k_prepared_versions_ = k_prepared_versions;
+  }
+
   pequinstore::read_prepared_pred GetPredicate() { return predicate_; }
 
   void SetPredicate(pequinstore::read_prepared_pred &predicate) {
@@ -364,6 +380,12 @@ public:
 
   void SetHasReadSetMgr(bool has_read_set_mgr) {
     has_read_set_mgr_ = has_read_set_mgr;
+  }
+
+  bool GetHasSnapshotMgr() { return has_snapshot_mgr_; }
+
+  void SetHasSnapshotMgr(bool has_snapshot_mgr) {
+    has_snapshot_mgr_ = has_snapshot_mgr;
   }
 
   bool IsPointRead() { return is_point_read_; }
@@ -462,6 +484,15 @@ private:
 
   /** Whether read set manager was passed in */
   bool has_read_set_mgr_;
+
+  /** Whether snapshot manager was passed in */
+  bool has_snapshot_mgr_ = false;
+
+  /** Snapshot manager */
+  pequinstore::SnapshotManager *snapshot_mgr_;
+
+  /** K prepared versions */
+  size_t k_prepared_versions_;
 
   /** Whether this is a point read query */
   bool is_point_read_;

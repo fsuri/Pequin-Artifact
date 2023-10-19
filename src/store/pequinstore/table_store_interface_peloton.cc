@@ -722,6 +722,40 @@ void PelotonTableStore::PurgeTableWrite(const std::string &table_name, const Tab
 void PelotonTableStore::FindSnapshot(const std::string &query_statement, const Timestamp &ts, SnapshotManager &ssMgr) {
 
   // TODO: Snapshotting & materialize latencies
+  Debug("Execute FindSnapshot: %s. TS: [%lu:%lu]", query_statement.c_str(), ts.getTimestamp(), ts.getID());
+
+  int core = sched_getcpu();
+  Debug("Begin readLat on core: %d", core);
+  Latency_Start(&readLats[core]);
+
+  std::pair<peloton::tcop::TrafficCop *, std::atomic_int *> cop_pair = GetCop();
+
+  std::atomic_int *counter = cop_pair.second;
+  peloton::tcop::TrafficCop *tcop = cop_pair.first;
+  bool unamed;
+
+  // prepareStatement
+  auto statement = ParseAndPrepare(query_statement, tcop);
+
+  // ExecuteStatment
+  std::vector<peloton::type::Value> param_values;
+  std::vector<int> result_format(statement->GetTupleDescriptor().size(), 0);
+  std::vector<peloton::ResultValue> result;
+
+  counter->store(1);
+  size_t k_prepared_versions = 1;
+
+  // execute the query using tcop
+  auto status = tcop->ExecuteFindSnapshotStatement(statement, param_values, unamed, result_format, result, ts, &ssMgr, k_prepared_versions,
+      this->record_table_version, this->can_read_prepared);
+
+  GetResult(status, tcop, counter);
+
+  // Transform PelotonResult into ProtoResult
+  std::string &&res(TransformResult(status, statement, result));
+
+  Debug("End readLat on core: %d", core);
+  Latency_End(&readLats[core]);
 
   // Generalize the PointRead interface: Read k latest prepared.
   // Use the same prepare predicate to determine whether to read or ignore a prepared version

@@ -100,12 +100,7 @@ void SeqScanExecutor::Scan() {
   // NEW: calculate encoded key for the read set
   auto primary_index_columns_ =
       target_table_->GetIndex(0)->GetMetadata()->GetKeyAttrs();
-  bool has_read_set_mgr = current_txn->GetHasReadSetMgr();
   auto query_read_set_mgr = current_txn->GetQueryReadSetMgr();
-
-  bool has_snapshot_mgr = current_txn->GetHasSnapshotMgr();
-  auto snapshot_mgr = current_txn->GetSnapshotMgr();
-  size_t k_prepared_versions = current_txn->GetKPreparedVersions();
 
   std::vector<oid_t> position_list;
   std::set<oid_t> position_set;
@@ -190,8 +185,6 @@ void SeqScanExecutor::Scan() {
 
       bool is_deleted = tile_group_header->IsDeleted(curr_tuple_id);
       auto tile_group = target_table_->GetTileGroupById(location.block);
-      bool found_committed = false;
-      size_t num_iters = 0;
 
       /*visibility = transaction_manager.IsVisible(
           current_txn, tile_group_header, curr_tuple_id);*/
@@ -230,17 +223,7 @@ void SeqScanExecutor::Scan() {
           Debug("encoded read set key is: %s. Version: [%lu: %lu]",
                 encoded.c_str(), time.getTimestamp(), time.getID());
 
-          if (has_read_set_mgr) {
-            query_read_set_mgr.AddToReadSet(std::move(encoded), time);
-          }
-
-          if (has_snapshot_mgr) {
-            auto txn_digest = tile_group_header->GetTxnDig(curr_tuple_id);
-            auto commit_or_prepare = tile_group_header->GetCommitOrPrepare(curr_tuple_id);
-            if (txn_digest != nullptr) {
-              //snapshot_mgr->AddToLocalSnapshot(txn_digest, timestamp.getTimestamp(), timestamp.getID(), commit_or_prepare);
-            }
-          }
+          query_read_set_mgr.AddToReadSet(std::move(encoded), time);
 
           if (!tile_group_header->GetCommitOrPrepare(curr_tuple_id)) {
             if (tile_group_header->GetTxnDig(curr_tuple_id) != nullptr) {
