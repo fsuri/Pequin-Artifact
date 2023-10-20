@@ -2,6 +2,7 @@
 #include "lib/assert.h"
 #include "lib/message.h"
 #include "query-engine/traffic_cop/traffic_cop.h"
+#include <algorithm>
 #include <atomic>
 #include <sched.h>
 #include <utility>
@@ -596,7 +597,7 @@ void PelotonTableStore::ApplyTableWrite(const std::string &table_name, const Tab
     /*auto status = traffic_cop_.ExecuteWriteStatement(statement, param_values, unnamed, result_format, result, ts, txn_dig,commit_proof, commit_or_prepare, t_id);*/
 
     counter->store(1);
-    auto status = tcop->ExecuteWriteStatement(statement, param_values, unamed, result_format, result, ts, txn_dig, commit_proof, commit_or_prepare);
+    auto status = tcop->ExecuteWriteStatement(statement, param_values, unamed, result_format, result, ts, txn_dig, commit_proof, commit_or_prepare, forceMaterialize);
 
     // GetResult(status);
     GetResult(status, tcop, counter);
@@ -626,7 +627,7 @@ void PelotonTableStore::ApplyTableWrite(const std::string &table_name, const Tab
 
     // counter_.store(1); // SetTrafficCopCounter();
     /*auto status = traffic_cop_.ExecuteWriteStatement( statement, param_values, unnamed, result_format, result, ts, txn_dig, commit_proof, commit_or_prepare);*/
-    auto status = tcop->ExecuteWriteStatement(statement, param_values, unamed, result_format, result, ts, txn_dig, commit_proof, commit_or_prepare);
+    auto status = tcop->ExecuteWriteStatement(statement, param_values, unamed, result_format, result, ts, txn_dig, commit_proof, commit_or_prepare, forceMaterialize);
 
     // GetResult(status);
     GetResult(status, tcop, counter);
@@ -770,10 +771,44 @@ void PelotonTableStore::FindSnapshot(const std::string &query_statement, const T
 
 std::string PelotonTableStore::EagerExecAndSnapshot(const std::string &query_statement, const Timestamp &ts, SnapshotManager &ssMgr, QueryReadSetMgr &readSetMgr) {
 
+  Debug("Execute EagerExecAndSnapshot: %s. TS: [%lu:%lu]", query_statement.c_str(), ts.getTimestamp(), ts.getID());
+
+  int core = sched_getcpu();
+  Debug("Begin readLat on core: %d", core);
+  Latency_Start(&readLats[core]);
+
+  std::pair<peloton::tcop::TrafficCop *, std::atomic_int *> cop_pair = GetCop();
+
+  std::atomic_int *counter = cop_pair.second;
+  peloton::tcop::TrafficCop *tcop = cop_pair.first;
+  bool unamed;
+
+  // prepareStatement
+  auto statement = ParseAndPrepare(query_statement, tcop);
+
+  // ExecuteStatment
+  std::vector<peloton::type::Value> param_values;
+  std::vector<int> result_format(statement->GetTupleDescriptor().size(), 0);
+  std::vector<peloton::ResultValue> result;
+
+  counter->store(1);
+  size_t k_prepared_versions = 1;
+
+  // execute the query using tcop
+  auto status = tcop->ExecuteEagerExecAndSnapshotStatement(statement, param_values, unamed, result_format, result, ts, readSetMgr, &ssMgr, k_prepared_versions,
+      this->record_table_version, this->can_read_prepared);
+
+  GetResult(status, tcop, counter);
+
+  // Transform PelotonResult into ProtoResult
+  std::string &&res(TransformResult(status, statement, result));
+
+  Debug("End readLat on core: %d", core);
+  Latency_End(&readLats[core]);
 
   //TODO: Parameterize the read such that it can be used to both return snapshot and read (eager exec) at the same time
 
-  return "";
+  return std::move(res);
 }
 
 
@@ -784,8 +819,58 @@ std::string PelotonTableStore::ExecReadQueryOnMaterializedSnapshot(const std::st
 
   //TODO: Perfom Read on snapshot
 
-  //if no read for snapshot => read latest.
-  return "";
+  Debug("Execute ReadQuery: %s. TS: [%lu:%lu]", query_statement.c_str(), ts.getTimestamp(), ts.getID());
+
+  int core = sched_getcpu();
+  Debug("Begin readLat on core: %d", core);
+  Latency_Start(&readLats[core]);
+
+  // Execute on Peloton (args: query, Ts, readSetMgr, this->can_read_prepared, this->set_table_version) --> returns peloton result --> transform into protoResult
+
+  // TRY TO CREATE SEPARATE TRAFFIC COP
+  // auto [traffic_cop, counter] = GetUnusedTrafficCop();
+  //  std::atomic_int counter;
+  //  peloton::tcop::TrafficCop traffic_cop(UtilTestTaskCallback, &counter);
+  // traffic_cop_.Reset();
+  std::pair<peloton::tcop::TrafficCop *, std::atomic_int *> cop_pair = GetCop();
+
+  std::atomic_int *counter = cop_pair.second;
+  peloton::tcop::TrafficCop *tcop = cop_pair.first;
+  bool unamed;
+
+  // TRY TO SET A THREAD ID
+  // size_t t_id = std::hash<std::thread::id>{}(std::this_thread::get_id()); //
+  // % 4; std::cout << "################################# STARTING ExecReadQuery
+  // ############################## on Thread: " < t_id << std::endl;
+
+  // std::cout << query_statement << std::endl;
+
+  // prepareStatement
+  auto statement = ParseAndPrepare(query_statement, tcop);
+
+  // ExecuteStatment
+  std::vector<peloton::type::Value> param_values;
+  std::vector<int> result_format(statement->GetTupleDescriptor().size(), 0);
+  std::vector<peloton::ResultValue> result;
+
+  // SetTrafficCopCounter();
+  // counter_.store(1);
+  counter->store(1);
+
+  // execute the query using tcop
+  auto status = tcop->ExecuteSnapshotReadStatement(statement, param_values, unamed, result_format, result, ts, readSetMgr, &ss_txns,
+      this->record_table_version, this->can_read_prepared);
+
+  // GetResult(status);
+  GetResult(status, tcop, counter);
+
+
+  // Transform PelotonResult into ProtoResult
+  std::string &&res(TransformResult(status, statement, result));
+
+  Debug("End readLat on core: %d", core);
+  Latency_End(&readLats[core]);
+  return std::move(res); // return TransformResult(status, statement, result)
 
 }
 

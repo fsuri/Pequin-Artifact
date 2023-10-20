@@ -307,6 +307,102 @@ executor::ExecutionResult TrafficCop::ExecuteReadHelper(
  * queries), directly return
  * Otherwise, call ExecutePlan()
  */
+executor::ExecutionResult TrafficCop::ExecuteSnapshotReadHelper(
+    std::shared_ptr<planner::AbstractPlan> plan,
+    const std::vector<type::Value> &params, std::vector<ResultValue> &result,
+    const std::vector<int> &result_format, const Timestamp &basil_timestamp,
+    pequinstore::QueryReadSetMgr &query_read_set_mgr,
+    const ::google::protobuf::Map<std::string, pequinstore::proto::ReplicaList> *ss_txns,
+    std::function<void(const std::string &, const Timestamp &, bool,
+                       pequinstore::QueryReadSetMgr *,
+                       pequinstore::SnapshotManager *)> &find_table_version,
+    std::function<bool(const std::string &)> &read_prepared_pred,
+    size_t thread_id) {
+  auto &curr_state = GetCurrentTxnState();
+
+  concurrency::TransactionContext *txn;
+  if (!tcop_txn_state_.empty()) {
+    // std::cout << "Read helper use existing txn" << std::endl;
+    txn = curr_state.first;
+  } else {
+    // std::cout << "Read helper create txn" << std::endl;
+    //  No active txn, single-statement txn
+    auto &txn_manager = concurrency::TransactionManagerFactory::GetInstance();
+    // new txn, reset result status
+    curr_state.second = ResultType::SUCCESS;
+    single_statement_txn_ = true;
+    txn = txn_manager.BeginTransaction(thread_id);
+    tcop_txn_state_.emplace(txn, ResultType::SUCCESS);
+  }
+
+  // Set the Basil timestamp
+  txn->SetBasilTimestamp(basil_timestamp);
+  // Set the readset manager
+  txn->SetQueryReadSetMgr(query_read_set_mgr);
+  txn->SetHasReadSetMgr(true);
+  txn->SetSnapshotRead(true);
+  txn->SetSnapshotSet(ss_txns);
+  txn->SetHasSnapshotMgr(false);
+  // Set the function to check if a table is prepared
+  txn->SetPredicate(read_prepared_pred);
+  // Set the function to find the table version
+  txn->SetTableVersion(find_table_version);
+  // Not undoing deletes
+  txn->SetUndoDelete(false);
+  txn->SetIsPointRead(false);
+
+  // skip if already aborted
+  if (curr_state.second == ResultType::ABORTED) {
+    // If the transaction state is ABORTED, the transaction should be aborted
+    // but Peloton didn't explicitly abort it yet since it didn't receive a
+    // COMMIT/ROLLBACK.
+    // Here, it receive queries other than COMMIT/ROLLBACK in an broken
+    // transaction,
+    // it should tell the client that these queries will not be executed.
+    p_status_.m_result = ResultType::TO_ABORT;
+    return p_status_;
+  }
+
+  auto on_complete = [&result, this](executor::ExecutionResult p_status,
+                                     std::vector<ResultValue> &&values) {
+    // std::cout << "Made it to on complete" << std::endl;
+    this->p_status_ = p_status;
+    // std::cout << "The status is " << p_status.m_error_message << std::endl;
+    //  TODO (Tianyi) I would make a decision on keeping one of p_status or
+    //  error_message in my next PR
+    this->error_message_ = std::move(p_status.m_error_message);
+    result = std::move(values);
+    Debug("Calling task callback");
+    task_callback_(task_callback_arg_);
+  };
+
+  auto &pool = threadpool::MonoQueuePool::GetInstance();
+
+  Debug("submit read query with TS [%lu:%lu]", basil_timestamp.getTimestamp(),
+        basil_timestamp.getID());
+  pool.SubmitTask([plan, txn, &params, &result_format, on_complete] {
+    executor::PlanExecutor::ExecutePlan(plan, txn, params, result_format,
+                                        on_complete);
+  });
+
+  is_queuing_ = true;
+
+  LOG_TRACE("Check Tcop_txn_state Size After ExecuteHelper %lu",
+            tcop_txn_state_.size());
+  return p_status_;
+}
+
+
+
+/*
+ * Execute a statement that needs a plan(so, BEGIN, COMMIT, ROLLBACK does not
+ * come here).
+ * Begin a new transaction if necessary.
+ * If the current transaction is already broken(for example due to previous
+ * invalid
+ * queries), directly return
+ * Otherwise, call ExecutePlan()
+ */
 executor::ExecutionResult TrafficCop::ExecuteFindSnapshotHelper(
     std::shared_ptr<planner::AbstractPlan> plan,
     const std::vector<type::Value> &params, std::vector<ResultValue> &result,
@@ -340,6 +436,95 @@ executor::ExecutionResult TrafficCop::ExecuteFindSnapshotHelper(
   // Set the snapshot manager
   txn->SetSnapshotMgr(snapshot_mgr);
   txn->SetHasSnapshotMgr(true);
+  txn->SetHasReadSetMgr(false);
+  // Set the value of k to read
+  txn->SetKPreparedVersions(k_prepared_versions);
+  // Set the function to check if a table is prepared
+  txn->SetPredicate(read_prepared_pred);
+  // Set the function to find the table version
+  txn->SetTableVersion(find_table_version);
+  // Not undoing deletes
+  txn->SetUndoDelete(false);
+  txn->SetIsPointRead(false);
+
+  // skip if already aborted
+  if (curr_state.second == ResultType::ABORTED) {
+    // If the transaction state is ABORTED, the transaction should be aborted
+    // but Peloton didn't explicitly abort it yet since it didn't receive a
+    // COMMIT/ROLLBACK.
+    // Here, it receive queries other than COMMIT/ROLLBACK in an broken
+    // transaction,
+    // it should tell the client that these queries will not be executed.
+    p_status_.m_result = ResultType::TO_ABORT;
+    return p_status_;
+  }
+
+  auto on_complete = [&result, this](executor::ExecutionResult p_status,
+                                     std::vector<ResultValue> &&values) {
+    // std::cout << "Made it to on complete" << std::endl;
+    this->p_status_ = p_status;
+    // std::cout << "The status is " << p_status.m_error_message << std::endl;
+    //  TODO (Tianyi) I would make a decision on keeping one of p_status or
+    //  error_message in my next PR
+    this->error_message_ = std::move(p_status.m_error_message);
+    result = std::move(values);
+    Debug("Calling task callback");
+    task_callback_(task_callback_arg_);
+  };
+
+  auto &pool = threadpool::MonoQueuePool::GetInstance();
+
+  Debug("submit read query with TS [%lu:%lu]", basil_timestamp.getTimestamp(),
+        basil_timestamp.getID());
+  pool.SubmitTask([plan, txn, &params, &result_format, on_complete] {
+    executor::PlanExecutor::ExecutePlan(plan, txn, params, result_format,
+                                        on_complete);
+  });
+
+  is_queuing_ = true;
+
+  LOG_TRACE("Check Tcop_txn_state Size After ExecuteHelper %lu",
+            tcop_txn_state_.size());
+  return p_status_;
+}
+
+executor::ExecutionResult TrafficCop::ExecuteEagerExecAndSnapshotHelper(
+    std::shared_ptr<planner::AbstractPlan> plan,
+    const std::vector<type::Value> &params, std::vector<ResultValue> &result,
+    const std::vector<int> &result_format, const Timestamp &basil_timestamp,
+    pequinstore::QueryReadSetMgr &query_read_set_mgr,
+    pequinstore::SnapshotManager *snapshot_mgr,
+    size_t k_prepared_versions,
+    std::function<void(const std::string &, const Timestamp &, bool,
+                       pequinstore::QueryReadSetMgr *,
+                       pequinstore::SnapshotManager *)> &find_table_version,
+    std::function<bool(const std::string &)> &read_prepared_pred,
+    size_t thread_id) {
+  auto &curr_state = GetCurrentTxnState();
+
+  concurrency::TransactionContext *txn;
+  if (!tcop_txn_state_.empty()) {
+    // std::cout << "Read helper use existing txn" << std::endl;
+    txn = curr_state.first;
+  } else {
+    // std::cout << "Read helper create txn" << std::endl;
+    //  No active txn, single-statement txn
+    auto &txn_manager = concurrency::TransactionManagerFactory::GetInstance();
+    // new txn, reset result status
+    curr_state.second = ResultType::SUCCESS;
+    single_statement_txn_ = true;
+    txn = txn_manager.BeginTransaction(thread_id);
+    tcop_txn_state_.emplace(txn, ResultType::SUCCESS);
+  }
+
+  // Set the Basil timestamp
+  txn->SetBasilTimestamp(basil_timestamp);
+  // Set the snapshot manager
+  txn->SetSnapshotMgr(snapshot_mgr);
+  txn->SetHasSnapshotMgr(true);
+  // Set the readset manager
+  txn->SetQueryReadSetMgr(query_read_set_mgr);
+  txn->SetHasReadSetMgr(true);
   // Set the value of k to read
   txn->SetKPreparedVersions(k_prepared_versions);
   // Set the function to check if a table is prepared
@@ -392,6 +577,8 @@ executor::ExecutionResult TrafficCop::ExecuteFindSnapshotHelper(
 }
 
 
+
+
 /*
  * Execute a statement that needs a plan(so, BEGIN, COMMIT, ROLLBACK does not
  * come here).
@@ -407,7 +594,7 @@ executor::ExecutionResult TrafficCop::ExecuteWriteHelper(
     const std::vector<int> &result_format, const Timestamp &basil_timestamp,
     std::shared_ptr<std::string> txn_dig,
     const pequinstore::proto::CommittedProof *commit_proof,
-    bool commit_or_prepare, size_t thread_id) {
+    bool commit_or_prepare, bool forceMaterialize, size_t thread_id) {
   auto &curr_state = GetCurrentTxnState();
 
   concurrency::TransactionContext *txn;
@@ -439,6 +626,8 @@ executor::ExecutionResult TrafficCop::ExecuteWriteHelper(
   txn->SetUndoDelete(false);
   // Set has read set mgr to false
   txn->SetHasReadSetMgr(false);
+  // Set whether to force materialize
+  txn->SetForceMaterialize(forceMaterialize);
 
   Notice("IN WRITE HELPER: Txn %s is trying to %s", pequinstore::BytesToHex(*txn_dig, 16).c_str(), commit_or_prepare? "commit" : "prepare");
   Notice("Commit or prepare is %d", txn->GetCommitOrPrepare());
@@ -1187,6 +1376,86 @@ ResultType TrafficCop::ExecuteReadStatement(
   }
 }
 
+ResultType TrafficCop::ExecuteSnapshotReadStatement(
+    const std::shared_ptr<Statement> &statement,
+    const std::vector<type::Value> &params, UNUSED_ATTRIBUTE bool unnamed,
+    /*std::shared_ptr<stats::QueryMetric::QueryParams> param_stats,*/
+    const std::vector<int> &result_format, std::vector<ResultValue> &result,
+    const Timestamp &basil_timestamp,
+    pequinstore::QueryReadSetMgr &query_read_set_mgr,
+    const ::google::protobuf::Map<std::string, pequinstore::proto::ReplicaList> *ss_txns,
+    std::function<void(const std::string &, const Timestamp &, bool,
+                       pequinstore::QueryReadSetMgr *,
+                       pequinstore::SnapshotManager *)> &find_table_version,
+    std::function<bool(const std::string &)> &read_prepared_pred,
+    size_t thread_id) {
+  // TODO(Tianyi) Further simplify this API
+  /*if (static_cast<StatsType>(settings::SettingsManager::GetInt(
+          settings::SettingId::stats_mode)) != StatsType::INVALID) {
+    stats::BackendStatsContext::GetInstance()->InitQueryMetric(
+        statement, std::move(param_stats));
+  }*/
+
+  LOG_TRACE("Execute Statement of name: %s",
+            statement->GetStatementName().c_str());
+  LOG_TRACE("Execute Statement of query: %s",
+            statement->GetQueryString().c_str());
+  LOG_TRACE("Execute Statement Plan:\n%s",
+            planner::PlanUtil::GetInfo(statement->GetPlanTree().get()).c_str());
+  LOG_TRACE("Execute Statement Query Type: %s",
+            statement->GetQueryTypeString().c_str());
+  LOG_TRACE("----QueryType: %d--------",
+            static_cast<int>(statement->GetQueryType()));
+
+  // std::cerr << "Exec Read: " << statement->GetPlanTree().get()->GetInfo() <<
+  // std::endl; std::cerr << "Plan Node type: " <<
+  // statement->GetPlanTree()->GetPlanNodeType() << std::endl;
+
+  try {
+    switch (statement->GetQueryType()) {
+    case QueryType::QUERY_BEGIN: {
+      return BeginQueryHelper(thread_id);
+    }
+    case QueryType::QUERY_COMMIT: {
+      return CommitQueryHelper();
+    }
+    case QueryType::QUERY_ROLLBACK: {
+      return AbortQueryHelper();
+    }
+    default:
+      // The statement may be out of date
+      // It needs to be replan
+      if (statement->GetNeedsReplan()) {
+        // TODO(Tianyi) Move Statement Replan into Statement's method
+        // to increase coherence
+        auto bind_node_visitor = binder::BindNodeVisitor(
+            tcop_txn_state_.top().first, default_database_name_);
+        bind_node_visitor.BindNameToNode(
+            statement->GetStmtParseTreeList()->GetStatement(0));
+        auto plan = optimizer_->BuildPelotonPlanTree(
+            statement->GetStmtParseTreeList(), tcop_txn_state_.top().first);
+        statement->SetPlanTree(plan);
+        statement->SetNeedsReplan(true);
+      }
+
+      ExecuteSnapshotReadHelper(statement->GetPlanTree(), params, result, result_format,
+                        basil_timestamp, query_read_set_mgr, ss_txns, find_table_version,
+                        read_prepared_pred, thread_id);
+      if (GetQueuing()) {
+        return ResultType::QUEUING;
+      } else {
+        return ExecuteStatementGetResult();
+      }
+    }
+
+  } catch (Exception &e) {
+    error_message_ = e.what();
+    return ResultType::FAILURE;
+  }
+}
+
+
+
 ResultType TrafficCop::ExecuteFindSnapshotStatement(
     const std::shared_ptr<Statement> &statement,
     const std::vector<type::Value> &params, UNUSED_ATTRIBUTE bool unnamed,
@@ -1264,6 +1533,87 @@ ResultType TrafficCop::ExecuteFindSnapshotStatement(
     return ResultType::FAILURE;
   }
 }
+
+ResultType TrafficCop::ExecuteEagerExecAndSnapshotStatement(
+    const std::shared_ptr<Statement> &statement,
+    const std::vector<type::Value> &params, UNUSED_ATTRIBUTE bool unnamed,
+    /*std::shared_ptr<stats::QueryMetric::QueryParams> param_stats,*/
+    const std::vector<int> &result_format, std::vector<ResultValue> &result,
+    const Timestamp &basil_timestamp,
+    pequinstore::QueryReadSetMgr &query_read_set_mgr,
+    pequinstore::SnapshotManager *snapshot_mgr,
+    size_t k_prepared_versions,
+    std::function<void(const std::string &, const Timestamp &, bool,
+                       pequinstore::QueryReadSetMgr *,
+                       pequinstore::SnapshotManager *)> &find_table_version,
+    std::function<bool(const std::string &)> &read_prepared_pred,
+    size_t thread_id) {
+  // TODO(Tianyi) Further simplify this API
+  /*if (static_cast<StatsType>(settings::SettingsManager::GetInt(
+          settings::SettingId::stats_mode)) != StatsType::INVALID) {
+    stats::BackendStatsContext::GetInstance()->InitQueryMetric(
+        statement, std::move(param_stats));
+  }*/
+
+  LOG_TRACE("Execute Statement of name: %s",
+            statement->GetStatementName().c_str());
+  LOG_TRACE("Execute Statement of query: %s",
+            statement->GetQueryString().c_str());
+  LOG_TRACE("Execute Statement Plan:\n%s",
+            planner::PlanUtil::GetInfo(statement->GetPlanTree().get()).c_str());
+  LOG_TRACE("Execute Statement Query Type: %s",
+            statement->GetQueryTypeString().c_str());
+  LOG_TRACE("----QueryType: %d--------",
+            static_cast<int>(statement->GetQueryType()));
+
+  // std::cerr << "Exec Read: " << statement->GetPlanTree().get()->GetInfo() <<
+  // std::endl; std::cerr << "Plan Node type: " <<
+  // statement->GetPlanTree()->GetPlanNodeType() << std::endl;
+
+  try {
+    switch (statement->GetQueryType()) {
+    case QueryType::QUERY_BEGIN: {
+      return BeginQueryHelper(thread_id);
+    }
+    case QueryType::QUERY_COMMIT: {
+      return CommitQueryHelper();
+    }
+    case QueryType::QUERY_ROLLBACK: {
+      return AbortQueryHelper();
+    }
+    default:
+      // The statement may be out of date
+      // It needs to be replan
+      if (statement->GetNeedsReplan()) {
+        // TODO(Tianyi) Move Statement Replan into Statement's method
+        // to increase coherence
+        auto bind_node_visitor = binder::BindNodeVisitor(
+            tcop_txn_state_.top().first, default_database_name_);
+        bind_node_visitor.BindNameToNode(
+            statement->GetStmtParseTreeList()->GetStatement(0));
+        auto plan = optimizer_->BuildPelotonPlanTree(
+            statement->GetStmtParseTreeList(), tcop_txn_state_.top().first);
+        statement->SetPlanTree(plan);
+        statement->SetNeedsReplan(true);
+      }
+
+      ExecuteEagerExecAndSnapshotHelper(statement->GetPlanTree(), params, result, result_format,
+                        basil_timestamp, query_read_set_mgr, snapshot_mgr, k_prepared_versions, find_table_version,
+                        read_prepared_pred, thread_id);
+      if (GetQueuing()) {
+        return ResultType::QUEUING;
+      } else {
+        return ExecuteStatementGetResult();
+      }
+    }
+
+  } catch (Exception &e) {
+    error_message_ = e.what();
+    return ResultType::FAILURE;
+  }
+}
+
+
 
 
 ResultType TrafficCop::ExecutePurgeStatement(
@@ -1343,7 +1693,7 @@ ResultType TrafficCop::ExecuteWriteStatement(
     const std::vector<int> &result_format, std::vector<ResultValue> &result,
     const Timestamp &basil_timestamp, std::shared_ptr<std::string> txn_dig,
     const pequinstore::proto::CommittedProof *commit_proof,
-    bool commit_or_prepare, size_t thread_id) {
+    bool commit_or_prepare, bool forceMaterialize, size_t thread_id) {
   // TODO(Tianyi) Further simplify this API
   /*if (static_cast<StatsType>(settings::SettingsManager::GetInt(
           settings::SettingId::stats_mode)) != StatsType::INVALID) {
@@ -1391,7 +1741,7 @@ ResultType TrafficCop::ExecuteWriteStatement(
 
       ExecuteWriteHelper(statement->GetPlanTree(), params, result,
                          result_format, basil_timestamp, txn_dig, commit_proof,
-                         commit_or_prepare, thread_id);
+                         commit_or_prepare, forceMaterialize, thread_id);
       if (GetQueuing()) {
         return ResultType::QUEUING;
       } else {

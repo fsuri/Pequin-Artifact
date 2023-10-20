@@ -52,6 +52,7 @@ struct TupleHeader {
   std::shared_ptr<std::string> txn_dig;
   const pequinstore::proto::CommittedProof *committed_proof;
   bool commit_or_prepare;
+  bool materialize;
   Timestamp basil_timestamp;
   bool is_deleted = false;
 } __attribute__((aligned(64)));
@@ -232,6 +233,10 @@ public:
     return tuple_headers_[tuple_slot_id].commit_or_prepare;
   }
 
+  inline bool GetMaterialize(const oid_t &tuple_slot_id) const {
+    return tuple_headers_[tuple_slot_id].materialize;
+  }
+
   inline bool IsDeleted(const oid_t &tuple_slot_id) const {
     return tuple_headers_[tuple_slot_id].is_deleted;
   }
@@ -308,6 +313,13 @@ public:
                                  bool commit_or_prepare) {
     tuple_headers_[tuple_slot_id].commit_or_prepare = commit_or_prepare;
   }
+
+  // NEW: set materialize
+  inline void SetMaterialize(const oid_t &tuple_slot_id,
+                                 bool materialize) {
+    tuple_headers_[tuple_slot_id].materialize = materialize;
+  }
+
 
   // NEW: set whether is deleted
   inline void SetIsDeleted(const oid_t &tuple_slot_id, bool is_deleted) {

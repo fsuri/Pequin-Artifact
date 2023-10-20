@@ -459,6 +459,12 @@ ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple,
           }
         }
 
+        // For snapshotting upgrade from materialize to commit
+        if (curr_tile_group_header->GetMaterialize(curr_pointer.offset) && !transaction->GetForceMaterialize()) {
+          curr_tile_group_header->SetMaterialize(curr_pointer.offset, false);
+          curr_tile_group_header->SetCommitOrPrepare(curr_pointer.offset, transaction->GetCommitOrPrepare());
+        }
+
         if (should_upgrade && same_columns) {
           std::cout << "Upgrading from prepared to committed" << std::endl;
           curr_tile_group_header->SetCommitOrPrepare(curr_pointer.offset, true);

@@ -430,6 +430,7 @@ bool InsertExecutor::DExecute() {
                                                     indirection);
         new_tile_group->GetHeader()->SetCommitOrPrepare(
             new_location.offset, current_txn->GetCommitOrPrepare());
+        new_tile_group->GetHeader()->SetMaterialize(new_location.offset, current_txn->GetForceMaterialize());
       } else if (!is_duplicate && !is_purge) {
         std::cout << "Insert was performed" << std::endl;
         transaction_manager.PerformInsert(current_txn, location,
@@ -443,6 +444,7 @@ bool InsertExecutor::DExecute() {
                   << current_txn->GetCommitOrPrepare() << std::endl;
         tile_group_header->SetCommitOrPrepare(
             location.offset, current_txn->GetCommitOrPrepare());
+        tile_group_header->SetMaterialize(location.offset, current_txn->GetForceMaterialize());
 
         auto ts = current_txn->GetBasilTimestamp();
         tile_group_header->SetBasilTimestamp(location.offset, ts);

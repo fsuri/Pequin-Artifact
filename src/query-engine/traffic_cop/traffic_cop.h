@@ -92,12 +92,47 @@ public:
 
 
   // Execute a statement
+  ResultType ExecuteSnapshotReadStatement(
+      const std::shared_ptr<Statement> &statement,
+      const std::vector<type::Value> &params, const bool unnamed,
+      /*std::shared_ptr<stats::QueryMetric::QueryParams> param_stats,*/
+      const std::vector<int> &result_format, std::vector<ResultValue> &result,
+      const Timestamp &basil_timestamp,
+      pequinstore::QueryReadSetMgr &query_read_set_mgr,
+      const ::google::protobuf::Map<std::string, pequinstore::proto::ReplicaList> *ss_txns,
+      std::function<void(const std::string &, const Timestamp &, bool,
+                         pequinstore::QueryReadSetMgr *,
+                         pequinstore::SnapshotManager *)> &find_table_version,
+      std::function<bool(const std::string &)> &read_prepared_pred,
+      size_t thread_id = 0);
+
+
+
+
+  // Execute a statement
   ResultType ExecuteFindSnapshotStatement(
       const std::shared_ptr<Statement> &statement,
       const std::vector<type::Value> &params, const bool unnamed,
       /*std::shared_ptr<stats::QueryMetric::QueryParams> param_stats,*/
       const std::vector<int> &result_format, std::vector<ResultValue> &result,
       const Timestamp &basil_timestamp,
+      pequinstore::SnapshotManager *snapshot_mgr,
+      size_t k_prepared_versions,
+      std::function<void(const std::string &, const Timestamp &, bool,
+                         pequinstore::QueryReadSetMgr *,
+                         pequinstore::SnapshotManager *)> &find_table_version,
+      std::function<bool(const std::string &)> &read_prepared_pred,
+      size_t thread_id = 0);
+
+
+  // Execute a statement
+  ResultType ExecuteEagerExecAndSnapshotStatement(
+      const std::shared_ptr<Statement> &statement,
+      const std::vector<type::Value> &params, const bool unnamed,
+      /*std::shared_ptr<stats::QueryMetric::QueryParams> param_stats,*/
+      const std::vector<int> &result_format, std::vector<ResultValue> &result,
+      const Timestamp &basil_timestamp,
+      pequinstore::QueryReadSetMgr &query_read_set_mgr,
       pequinstore::SnapshotManager *snapshot_mgr,
       size_t k_prepared_versions,
       std::function<void(const std::string &, const Timestamp &, bool,
@@ -114,7 +149,7 @@ public:
       const std::vector<int> &result_format, std::vector<ResultValue> &result,
       const Timestamp &basil_timestamp, std::shared_ptr<std::string> txn_digest,
       const pequinstore::proto::CommittedProof *commit_proof,
-      bool commit_or_prepare, size_t thread_id = 0);
+      bool commit_or_prepare, bool forceMaterialize, size_t thread_id = 0);
 
   // Execute a purge statement
   ResultType ExecutePurgeStatement(
@@ -159,10 +194,37 @@ public:
 
 
   // Helper to handle txn-specifics for the plan-tree of a statement.
+  executor::ExecutionResult ExecuteSnapshotReadHelper(
+      std::shared_ptr<planner::AbstractPlan> plan,
+      const std::vector<type::Value> &params, std::vector<ResultValue> &result,
+      const std::vector<int> &result_format, const Timestamp &basil_timestamp,
+      pequinstore::QueryReadSetMgr &query_read_set_mgr,
+      const ::google::protobuf::Map<std::string, pequinstore::proto::ReplicaList> *ss_txns,
+      std::function<void(const std::string &, const Timestamp &, bool,
+                         pequinstore::QueryReadSetMgr *,
+                         pequinstore::SnapshotManager *)> &find_table_version,
+      std::function<bool(const std::string &)> &read_prepared_pred,
+      size_t thread_id = 0);
+
+  // Helper to handle txn-specifics for the plan-tree of a statement.
   executor::ExecutionResult ExecuteFindSnapshotHelper(
       std::shared_ptr<planner::AbstractPlan> plan,
       const std::vector<type::Value> &params, std::vector<ResultValue> &result,
       const std::vector<int> &result_format, const Timestamp &basil_timestamp,
+      pequinstore::SnapshotManager *snapshot_mgr,
+      size_t k_prepared_versions,
+      std::function<void(const std::string &, const Timestamp &, bool,
+                         pequinstore::QueryReadSetMgr *,
+                         pequinstore::SnapshotManager *)> &find_table_version,
+      std::function<bool(const std::string &)> &read_prepared_pred,
+      size_t thread_id = 0);
+
+  // Helper to handle txn-specifics for the plan-tree of a statement.
+  executor::ExecutionResult ExecuteEagerExecAndSnapshotHelper(
+      std::shared_ptr<planner::AbstractPlan> plan,
+      const std::vector<type::Value> &params, std::vector<ResultValue> &result,
+      const std::vector<int> &result_format, const Timestamp &basil_timestamp,
+      pequinstore::QueryReadSetMgr &query_read_set_mgr,
       pequinstore::SnapshotManager *snapshot_mgr,
       size_t k_prepared_versions,
       std::function<void(const std::string &, const Timestamp &, bool,
@@ -178,7 +240,7 @@ public:
       const std::vector<int> &result_format, const Timestamp &basil_timestamp,
       std::shared_ptr<std::string> txn_digest,
       const pequinstore::proto::CommittedProof *commit_proof,
-      bool commit_or_prepare, size_t thread_id = 0);
+      bool commit_or_prepare, bool forceMaterialize, size_t thread_id = 0);
 
   // Helper to handle txn-specifics for the plan-tree of a statement.
   executor::ExecutionResult ExecutePurgeHelper(

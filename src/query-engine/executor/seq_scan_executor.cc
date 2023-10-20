@@ -107,6 +107,9 @@ void SeqScanExecutor::Scan() {
   auto snapshot_mgr = current_txn->GetSnapshotMgr();
   size_t k_prepared_versions = current_txn->GetKPreparedVersions();
 
+  bool is_snapshot_read = current_txn->GetSnapshotRead();
+  auto snapshot_set = current_txn->GetSnapshotSet();
+
   std::vector<oid_t> position_list;
   std::set<oid_t> position_set;
   std::unordered_map<oid_t, std::vector<oid_t>> position_map;
@@ -151,13 +154,14 @@ void SeqScanExecutor::Scan() {
       auto tile_group_header = head_tile_group_header;
       auto curr_tuple_id = location.offset;
       location_copy = location;
+      bool materialize = tile_group_header->GetMaterialize(curr_tuple_id);
 
       Debug("Head timestamp: [%d: %d]", tuple_timestamp.getTimestamp(),
             tuple_timestamp.getID());
 
       // Now we find the appropriate version to read that's less than the
       // timestamp by traversing the next pointers
-      while (tuple_timestamp > timestamp) {
+      while (tuple_timestamp > timestamp || (!is_snapshot_read && materialize)) {
         // Get the previous version in the linked list
         ItemPointer new_location =
             tile_group_header->GetNextItemPointer(curr_tuple_id);
@@ -176,6 +180,7 @@ void SeqScanExecutor::Scan() {
         location = new_location;
         tile_group_header = new_tile_group_header;
         curr_tuple_id = new_location.offset;
+        materialize = new_tile_group_header->GetMaterialize(curr_tuple_id);
       }
 
       Debug(
@@ -192,6 +197,8 @@ void SeqScanExecutor::Scan() {
       auto tile_group = target_table_->GetTileGroupById(location.block);
       bool found_committed = false;
       size_t num_iters = 0;
+      bool read_completed = false;
+
 
       /*visibility = transaction_manager.IsVisible(
           current_txn, tile_group_header, curr_tuple_id);*/
@@ -203,11 +210,18 @@ void SeqScanExecutor::Scan() {
           position_list.push_back(curr_tuple_id);
           position_set.insert(curr_tuple_id);
 
-          if (position_map.find(location.block) == position_map.end()) {
-            position_map[location.block] = std::vector<oid_t>();
-          }
+          auto committed = tile_group_header->GetCommitOrPrepare(curr_tuple_id);
+          auto txn_dig = tile_group_header->GetTxnDig(curr_tuple_id);
+          bool should_read = !is_snapshot_read || committed || snapshot_set->find(*txn_dig.get()) != snapshot_set->end();
 
-          position_map[location.block].push_back(location.offset);
+          if (should_read) {
+            if (position_map.find(location.block) == position_map.end()) {
+              position_map[location.block] = std::vector<oid_t>();
+            }
+
+            position_map[location.block].push_back(location.offset);
+            read_completed = true;
+          }
 
           ContainerTuple<storage::TileGroup> row(tile_group.get(),
                                                  curr_tuple_id);
@@ -230,16 +244,33 @@ void SeqScanExecutor::Scan() {
           Debug("encoded read set key is: %s. Version: [%lu: %lu]",
                 encoded.c_str(), time.getTimestamp(), time.getID());
 
-          if (has_read_set_mgr) {
+          if (has_read_set_mgr && should_read) {
             query_read_set_mgr.AddToReadSet(std::move(encoded), time);
           }
 
           if (has_snapshot_mgr) {
             auto txn_digest = tile_group_header->GetTxnDig(curr_tuple_id);
             auto commit_or_prepare = tile_group_header->GetCommitOrPrepare(curr_tuple_id);
-            if (txn_digest != nullptr) {
-              //snapshot_mgr->AddToLocalSnapshot(txn_digest, timestamp.getTimestamp(), timestamp.getID(), commit_or_prepare);
+            found_committed = commit_or_prepare;
+
+
+            if (!commit_or_prepare) {
+              auto predicate = current_txn->GetPredicate();
+
+              if (predicate) {
+                if (txn_digest != nullptr && predicate(*txn_digest)) {
+                  snapshot_mgr->AddToLocalSnapshot(*txn_digest.get(), timestamp.getTimestamp(), timestamp.getID(), commit_or_prepare);
+                  num_iters++;
+                }
+              }
+            } else {
+              // If committed don't need to check the predicate
+              if (txn_digest != nullptr) {
+                snapshot_mgr->AddToLocalSnapshot(*txn_digest.get(), time.getTimestamp(), time.getID(), commit_or_prepare);
+                num_iters++;
+              }
             }
+
           }
 
           if (!tile_group_header->GetCommitOrPrepare(curr_tuple_id)) {
@@ -274,13 +305,21 @@ void SeqScanExecutor::Scan() {
             position_list.push_back(curr_tuple_id);
             position_set.insert(curr_tuple_id);
 
-            if (position_map.find(location.block) == position_map.end()) {
-              Debug("Created new vector for new block in tile group");
-              position_map[location.block] = std::vector<oid_t>();
-            }
 
-            position_map[location.block].push_back(location.offset);
-            Debug("Location is %d, %d", location.block, location.offset);
+            auto committed = tile_group_header->GetCommitOrPrepare(curr_tuple_id);
+            auto txn_dig = tile_group_header->GetTxnDig(curr_tuple_id);
+            bool should_read = !is_snapshot_read || committed || snapshot_set->find(*txn_dig.get()) != snapshot_set->end();
+
+            if (should_read) {
+              if (position_map.find(location.block) == position_map.end()) {
+                Debug("Created new vector for new block in tile group");
+                position_map[location.block] = std::vector<oid_t>();
+              }
+
+              position_map[location.block].push_back(location.offset);
+              read_completed = true;
+              Debug("Location is %d, %d", location.block, location.offset);
+            }
             ContainerTuple<storage::TileGroup> row(tile_group.get(),
                                                    curr_tuple_id);
             std::vector<std::string> primary_key_cols;
@@ -310,7 +349,35 @@ void SeqScanExecutor::Scan() {
             // TimestampMessage ts_message = TimestampMessage();
             // ts_message.set_id(time.getID());
             // ts_message.set_timestamp(time.getTimestamp());
-            query_read_set_mgr.AddToReadSet(std::move(encoded), time);
+            //query_read_set_mgr.AddToReadSet(std::move(encoded), time);
+            
+            if (has_read_set_mgr && should_read) {
+              query_read_set_mgr.AddToReadSet(std::move(encoded), time);
+            }
+
+            if (has_snapshot_mgr) {
+              auto txn_digest = tile_group_header->GetTxnDig(curr_tuple_id);
+              auto commit_or_prepare = tile_group_header->GetCommitOrPrepare(curr_tuple_id);
+              found_committed = commit_or_prepare;
+
+
+              if (!commit_or_prepare) {
+                auto predicate = current_txn->GetPredicate();
+
+                if (predicate) {
+                  if (txn_digest != nullptr && predicate(*txn_digest)) {
+                    snapshot_mgr->AddToLocalSnapshot(*txn_digest.get(), timestamp.getTimestamp(), timestamp.getID(), commit_or_prepare);
+                    num_iters++;
+                  }
+                }
+              } else {
+                // If committed don't need to check the predicate
+                if (txn_digest != nullptr) {
+                  snapshot_mgr->AddToLocalSnapshot(*txn_digest.get(), time.getTimestamp(), time.getID(), commit_or_prepare);
+                  num_iters++;
+                }
+              }
+            }
 
             if (!tile_group_header->GetCommitOrPrepare(curr_tuple_id)) {
               if (tile_group_header->GetTxnDig(curr_tuple_id) != nullptr) {
@@ -338,6 +405,252 @@ void SeqScanExecutor::Scan() {
           }
         }
       }
+
+      while (is_snapshot_read && !read_completed) {
+        location = tile_group_header->GetNextItemPointer(curr_tuple_id);
+
+        if (location.IsNull()) {
+          break;
+        }
+
+        tile_group = target_table_->GetTileGroupById(location.block);
+        tile_group_header = tile_group->GetHeader();
+        curr_tuple_id = location.offset;
+
+
+        is_deleted = tile_group_header->IsDeleted(curr_tuple_id);
+
+        // if the tuple is visible, then perform predicate evaluation.
+        if (predicate_ == nullptr && !is_deleted) {
+          // if (position_set.find(curr_tuple_id) == position_set.end()) {
+          position_list.push_back(curr_tuple_id);
+          position_set.insert(curr_tuple_id);
+
+          auto committed = tile_group_header->GetCommitOrPrepare(curr_tuple_id);
+          auto txn_dig = tile_group_header->GetTxnDig(curr_tuple_id);
+          bool should_read = !is_snapshot_read || committed || snapshot_set->find(*txn_dig.get()) != snapshot_set->end();
+
+          if (should_read) {
+            if (position_map.find(location.block) == position_map.end()) {
+              position_map[location.block] = std::vector<oid_t>();
+            }
+
+            position_map[location.block].push_back(location.offset);
+            read_completed = true;
+          }
+
+          ContainerTuple<storage::TileGroup> row(tile_group.get(),
+                                                 curr_tuple_id);
+          // std::string encoded_key = target_table_->GetName();
+          std::vector<std::string> primary_key_cols;
+          for (auto col : primary_index_columns_) {
+            auto val = row.GetValue(col);
+            // encoded_key = encoded_key + "///" + val.ToString();
+            primary_key_cols.push_back(val.ToString());
+            // primary_key_cols.push_back(val.GetAs<const char*>());
+            // std::cout << "read set value is " << val.ToString()
+            //           << std::endl;
+          }
+
+          const Timestamp &time = tile_group_header->GetBasilTimestamp(
+              location.offset); // TODO: remove copy
+
+          std::string &&encoded =
+              EncodeTableRow(target_table_->GetName(), primary_key_cols);
+          Debug("encoded read set key is: %s. Version: [%lu: %lu]",
+                encoded.c_str(), time.getTimestamp(), time.getID());
+
+          if (has_read_set_mgr && should_read) {
+            query_read_set_mgr.AddToReadSet(std::move(encoded), time);
+          }
+
+          if (!tile_group_header->GetCommitOrPrepare(curr_tuple_id)) {
+            if (tile_group_header->GetTxnDig(curr_tuple_id) != nullptr) {
+              query_read_set_mgr.AddToDepSet(
+                  *tile_group_header->GetTxnDig(curr_tuple_id), time);
+            } else {
+              Panic("Txn Dig null");
+            }
+          }
+
+          auto res = transaction_manager.PerformRead(
+              current_txn, location, tile_group_header, acquire_owner);
+          // Since CC is done at Basil level res should always be true
+          res = true;
+          if (!res) {
+            transaction_manager.SetTransactionResult(current_txn,
+                                                     ResultType::FAILURE);
+          }
+        } else if (!is_deleted) {
+          ContainerTuple<storage::TileGroup> tuple(tile_group.get(),
+                                                   curr_tuple_id);
+          LOG_TRACE("Evaluate predicate for a tuple");
+          auto eval = predicate_->Evaluate(&tuple, nullptr, executor_context_);
+          LOG_TRACE("Evaluation result: %s", eval.GetInfo().c_str());
+          if (eval.IsTrue()) {
+            // if (position_set.find(curr_tuple_id) == position_set.end()) {
+            position_list.push_back(curr_tuple_id);
+            position_set.insert(curr_tuple_id);
+
+
+            auto committed = tile_group_header->GetCommitOrPrepare(curr_tuple_id);
+            auto txn_dig = tile_group_header->GetTxnDig(curr_tuple_id);
+            bool should_read = !is_snapshot_read || committed || snapshot_set->find(*txn_dig.get()) != snapshot_set->end();
+
+            if (should_read) {
+              if (position_map.find(location.block) == position_map.end()) {
+                Debug("Created new vector for new block in tile group");
+                position_map[location.block] = std::vector<oid_t>();
+              }
+
+              position_map[location.block].push_back(location.offset);
+              read_completed = true;
+              Debug("Location is %d, %d", location.block, location.offset);
+            }
+            ContainerTuple<storage::TileGroup> row(tile_group.get(),
+                                                   curr_tuple_id);
+            std::vector<std::string> primary_key_cols;
+            // std::string encoded_key = target_table_->GetName();
+            for (auto col : primary_index_columns_) {
+              auto val = row.GetValue(col);
+              // encoded_key = encoded_key + "///" + val.ToString();
+              primary_key_cols.push_back(val.ToString());
+              // Debug("Read set value: %s", val.ToString().c_str());
+              //  std::cout << "read set value is " << val.ToString() <<
+              //  std::endl;
+            }
+            const Timestamp &time = tile_group_header->GetBasilTimestamp(
+                location.offset); // TODO: remove copy
+            // logical_tile->AddToReadSet(std::tie(encoded_key, time));
+
+            // for (unsigned int i = 0; i < primary_key_cols.size(); i++) {
+            //   std::cout << "Primary key columns are " <<
+            //   primary_key_cols[i] << std::endl;
+            // }
+            std::string &&encoded =
+                EncodeTableRow(target_table_->GetName(), primary_key_cols);
+            Debug("encoded read set key is: %s. Version: [%lu: %lu]",
+                  encoded.c_str(), time.getTimestamp(), time.getID());
+            // std::cout << "Encoded key from read set is " << encoded <<
+            // std::endl;
+            // TimestampMessage ts_message = TimestampMessage();
+            // ts_message.set_id(time.getID());
+            // ts_message.set_timestamp(time.getTimestamp());
+            //query_read_set_mgr.AddToReadSet(std::move(encoded), time);
+            
+            if (has_read_set_mgr && should_read) {
+              query_read_set_mgr.AddToReadSet(std::move(encoded), time);
+            }
+
+            if (!tile_group_header->GetCommitOrPrepare(curr_tuple_id)) {
+              if (tile_group_header->GetTxnDig(curr_tuple_id) != nullptr) {
+                query_read_set_mgr.AddToDepSet(
+                    *tile_group_header->GetTxnDig(curr_tuple_id), time);
+              } else {
+                Panic("Txn Dig null");
+              }
+            }
+
+            // logical_tile->AddEntryReadSet(encoded_key, time);
+            //}
+            // position_list.push_back(curr_tuple_id);
+            auto res = transaction_manager.PerformRead(
+                current_txn, location, tile_group_header, acquire_owner);
+            // Since CC is done at Basil level res shoud always be true
+            res = true;
+            if (!res) {
+              transaction_manager.SetTransactionResult(current_txn,
+                                                       ResultType::FAILURE);
+              // return res;
+            } else {
+              LOG_TRACE("Sequential Scan Predicate Satisfied");
+            }
+          }
+        }
+      }
+
+      // Read the last k prepared or until we reach a committed
+      while (has_snapshot_mgr && !found_committed && num_iters < k_prepared_versions) {
+        location = tile_group_header->GetNextItemPointer(curr_tuple_id);
+
+        if (location.IsNull()) {
+          break;
+        }
+
+        tile_group = target_table_->GetTileGroupById(location.block);
+        tile_group_header = tile_group->GetHeader();
+        curr_tuple_id = location.offset;
+
+
+        is_deleted = tile_group_header->IsDeleted(curr_tuple_id);
+
+        if (!is_deleted) {
+          // if the tuple is visible, then perform predicate evaluation.
+          if (predicate_ == nullptr) {
+            const Timestamp &time = tile_group_header->GetBasilTimestamp(
+                location.offset); // TODO: remove copy
+
+            auto txn_digest = tile_group_header->GetTxnDig(curr_tuple_id);
+            auto commit_or_prepare = tile_group_header->GetCommitOrPrepare(curr_tuple_id);
+            found_committed = commit_or_prepare;
+
+            if (!commit_or_prepare) {
+              auto predicate = current_txn->GetPredicate();
+
+              if (predicate) {
+                if (txn_digest != nullptr && predicate(*txn_digest)) {
+                  snapshot_mgr->AddToLocalSnapshot(*txn_digest.get(), timestamp.getTimestamp(), timestamp.getID(), commit_or_prepare);
+                  num_iters++;
+                }
+              }
+            } else {
+              if (txn_digest != nullptr) {
+                snapshot_mgr->AddToLocalSnapshot(*txn_digest.get(), time.getTimestamp(), time.getID(), commit_or_prepare);
+                num_iters++;
+              }
+            }
+
+          } else {
+            ContainerTuple<storage::TileGroup> tuple(tile_group.get(),
+                                                    curr_tuple_id);
+            LOG_TRACE("Evaluate predicate for a tuple");
+            auto eval = predicate_->Evaluate(&tuple, nullptr, executor_context_);
+            LOG_TRACE("Evaluation result: %s", eval.GetInfo().c_str());
+            if (eval.IsTrue()) {
+              const Timestamp &time = tile_group_header->GetBasilTimestamp(
+                  location.offset); // TODO: remove copy
+
+              auto txn_digest = tile_group_header->GetTxnDig(curr_tuple_id);
+              auto commit_or_prepare = tile_group_header->GetCommitOrPrepare(curr_tuple_id);
+              found_committed = commit_or_prepare;
+
+              // If prepared check the predicate
+              if (!commit_or_prepare) {
+                auto predicate = current_txn->GetPredicate();
+
+                if (predicate) {
+                  if (txn_digest != nullptr && predicate(*txn_digest)) {
+                    snapshot_mgr->AddToLocalSnapshot(*txn_digest.get(), timestamp.getTimestamp(), timestamp.getID(), commit_or_prepare);
+                    num_iters++;
+                  }
+                }
+              } else {
+                // If committed don't need to check the predicate
+                if (txn_digest != nullptr) {
+                  snapshot_mgr->AddToLocalSnapshot(*txn_digest.get(), time.getTimestamp(), time.getID(), commit_or_prepare);
+                  num_iters++;
+                }
+              }
+            } else {
+                LOG_TRACE("Sequential Scan Predicate Satisfied");
+            }
+          }
+        }
+      }
+
+      // Reset counters
+      num_iters = 0;
+      found_committed = false;
 
       /*if (position_list.size() > 0) {
         std::cout << "Adding to position list" << std::endl;

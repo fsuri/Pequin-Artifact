@@ -242,6 +242,17 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
   std::vector<ItemPointer> prepared_visible_tuple_locations;
 
   std::set<ItemPointer> prepared_tuple_set;
+
+  bool has_snapshot_mgr = current_txn->GetHasSnapshotMgr();
+  auto snapshot_mgr = current_txn->GetSnapshotMgr();
+
+  size_t k_prepared_versions = current_txn->GetKPreparedVersions();
+  std::vector<ItemPointer> snapshot_tuple_locations;
+
+  bool is_snapshot_read = current_txn->GetSnapshotRead();
+  auto snapshot_set = current_txn->GetSnapshotSet();
+
+
   // NEW: Commit proofs
   // std::vector<const pequinstore::proto::CommittedProof *> proofs;
 
@@ -258,6 +269,7 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
     size_t chain_length = 0;
     bool found_committed = false;
     bool found_prepared = false;
+    size_t num_iters = 0;
 
     auto visibility = transaction_manager.IsVisible(
         current_txn, tile_group_header, tuple_location.offset);
@@ -396,6 +408,18 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
                   committed_timestamp.getTimestamp(),
                   committed_timestamp.getID());
 
+
+            if (has_snapshot_mgr) {
+              auto txn_digest = tile_group_header->GetTxnDig(tuple_location.offset);
+              auto commit_or_prepare = tile_group_header->GetCommitOrPrepare(tuple_location.offset);
+
+              if (txn_digest != nullptr) {
+                snapshot_mgr->AddToLocalSnapshot(*txn_digest.get(), timestamp.getTimestamp(), timestamp.getID(), commit_or_prepare);
+                num_iters++;
+              }
+            }
+
+
             if (current_txn->IsPointRead()) {
               Debug("Setting the commit proof");
               const pequinstore::proto::CommittedProof **commit_proof_ref =
@@ -442,6 +466,42 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
             break;
           }
 
+
+          // If finding a snapshot then read prepared values
+          else if (has_snapshot_mgr && num_iters < k_prepared_versions && !found_committed && found_prepared && !tile_group_header->GetCommitOrPrepare(tuple_location.offset)) {
+
+            auto predicate = current_txn->GetPredicate();
+
+            if (predicate) {
+              auto txn_digest = tile_group_header->GetTxnDig(tuple_location.offset);
+              auto commit_or_prepare = tile_group_header->GetCommitOrPrepare(tuple_location.offset);
+
+              if (txn_digest != nullptr && predicate(*txn_digest)) {
+                snapshot_mgr->AddToLocalSnapshot(*txn_digest.get(), timestamp.getTimestamp(), timestamp.getID(), commit_or_prepare);
+                num_iters++;
+              }
+            }
+             
+          }
+
+          // For snapshot read
+          else if (is_snapshot_read && !found_committed) {
+            auto txn_dig = tile_group_header->GetTxnDig(tuple_location.offset);
+            bool should_read = snapshot_set->find(*txn_dig.get()) != snapshot_set->end();
+
+            if (should_read) {
+              if (tile_group_header->IsDeleted(tuple_location.offset)) {
+                  break;
+              }
+
+              Debug("Tuple is prepared and predicate is satisfied");
+              visible_tuple_locations.push_back(tuple_location);
+              visible_tuple_set.insert(tuple_location);
+              found_prepared = true;
+              break;
+            }
+          }
+
           // NEW: if we can read prepared values, check to see if prepared
           // tuple satisfies predicate
           else if (!found_committed && !found_prepared &&
@@ -478,6 +538,17 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
                 // version chain
                 found_prepared = true;
 
+
+                if (has_snapshot_mgr) {
+                  auto commit_or_prepare = tile_group_header->GetCommitOrPrepare(tuple_location.offset);
+
+                  if (txn_digest != nullptr) {
+                    snapshot_mgr->AddToLocalSnapshot(*txn_digest.get(), timestamp.getTimestamp(), timestamp.getID(), commit_or_prepare);
+                    num_iters++;
+                  }
+                }
+
+
                 if (tile_group_header->IsDeleted(tuple_location.offset)) {
                   break;
                 }
@@ -487,8 +558,8 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
                 visible_tuple_set.insert(tuple_location);
 
                 // If it's not a point read query then don't need to read
-                // committed
-                if (!current_txn->IsPointRead()) {
+                // committed, unless it's find snapshot
+                if (!current_txn->IsPointRead() && !has_snapshot_mgr) {
                   Debug("Not a point read query");
                   break;
                 }

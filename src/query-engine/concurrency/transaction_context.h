@@ -372,6 +372,30 @@ public:
     prepared_timestamp_ = prepared_timestamp;
   }
 
+  bool GetForceMaterialize() {
+    return force_materialize_;
+  }
+
+  void SetForceMaterialize(bool force_materialize) {
+    force_materialize_ = force_materialize;
+  }
+
+  bool GetSnapshotRead() {
+    return snapshot_read_;
+  }
+
+  void SetSnapshotRead(bool snapshot_read) {
+    snapshot_read_ = snapshot_read;
+  }
+
+  const ::google::protobuf::Map<std::string, pequinstore::proto::ReplicaList> *GetSnapshotSet() {
+    return snapshot_set_;
+  }
+
+  void SetSnapshotSet(const ::google::protobuf::Map<std::string, pequinstore::proto::ReplicaList> *snapshot_set) {
+    snapshot_set_ = snapshot_set;
+  }
+
   bool GetUndoDelete() { return undo_delete_; }
 
   void SetUndoDelete(bool undo_delete) { undo_delete_ = undo_delete; }
@@ -469,6 +493,15 @@ private:
 
   /** Commit or prepare */
   bool commit_or_prepare_;
+
+  /** Force materialize for ApplyTableWrite */
+  bool force_materialize_;
+
+  /** Snapshot read */
+  bool snapshot_read_ = false;
+
+  /** Snapshot set */
+  const ::google::protobuf::Map<std::string, pequinstore::proto::ReplicaList> *snapshot_set_;
 
   /** Read prepared predicate */
   pequinstore::read_prepared_pred predicate_;
