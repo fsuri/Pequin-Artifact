@@ -61,6 +61,12 @@ class IndexScanExecutor : public AbstractScanExecutor {
   // Helper
   //===--------------------------------------------------------------------===//
   bool ExecPrimaryIndexLookup();
+    void CheckRow(ItemPointer tuple_location, TransactionContext &current_txn, StorageManager &storage_manager, 
+          std::vector<ItemPointer> &visible_tuple_locations, std::set<ItemPointer> &visible_tuple_set, std::vector<ItemPointer> &prepared_visible_tuple_locations, std::set<ItemPointer> &prepared_tuple_set,
+          bool perform_snapshot, pequinstore::SnapshotManager *snapshot_mgr, size_t k_prepared_versions, std::vector<ItemPointer> &snapshot_tuple_locations,
+          bool perform_materialization, google::protobuf::Map<std::string, pequinstore::proto::ReplicaList> *snapshot_set);
+    void FindRowVersion()
+    void ManageReadSet()
   bool ExecSecondaryIndexLookup();
 
   // When the required scan range has open boundaries, the tuples found by the

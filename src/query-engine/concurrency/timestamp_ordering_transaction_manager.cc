@@ -274,7 +274,7 @@ bool TimestampOrderingTransactionManager::PerformRead(
 
     oid_t tuple_id = location.offset;
 
-    auto const &predicate = current_txn->GetPredicate();
+    auto const &read_prepared_pred = current_txn->GetReadPreparedPred();
 
     /*if (predicate) {
       Debug("Predicate is set");

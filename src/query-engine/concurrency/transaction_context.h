@@ -306,10 +306,10 @@ public:
     k_prepared_versions_ = k_prepared_versions;
   }
 
-  pequinstore::read_prepared_pred GetPredicate() { return *predicate_; }
+  pequinstore::read_prepared_pred GetReadPreparedPred() { return *read_prepared_pred_; }
 
-  void SetPredicate(pequinstore::read_prepared_pred *predicate) {
-    predicate_ = predicate;
+  void SetReadPreparedPred(pequinstore::read_prepared_pred *read_prepared) {
+    read_prepared_pred_ = read_prepared;
   }
 
   pequinstore::find_table_version GetTableVersion() { return *table_version_; }
@@ -504,7 +504,7 @@ private:
   const ::google::protobuf::Map<std::string, pequinstore::proto::ReplicaList> *snapshot_set_ = nullptr;
 
   /** Read prepared predicate */
-  pequinstore::read_prepared_pred *predicate_ = nullptr;
+  pequinstore::read_prepared_pred *read_prepared_pred_ = nullptr;
 
   /** Find table version predicate */
   pequinstore::find_table_version *table_version_ = nullptr;

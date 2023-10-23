@@ -91,15 +91,13 @@ void SeqScanExecutor::GetColNames(const expression::AbstractExpression * child_e
 }
 
 void SeqScanExecutor::Scan() {
-  concurrency::TransactionManager &transaction_manager =
-      concurrency::TransactionManagerFactory::GetInstance();
+  concurrency::TransactionManager &transaction_manager = concurrency::TransactionManagerFactory::GetInstance();
 
   bool acquire_owner = GetPlanNode<planner::AbstractScan>().IsForUpdate();
   auto current_txn = executor_context_->GetTransaction();
 
   // NEW: calculate encoded key for the read set
-  auto primary_index_columns_ =
-      target_table_->GetIndex(0)->GetMetadata()->GetKeyAttrs();
+  auto primary_index_columns_ = target_table_->GetIndex(0)->GetMetadata()->GetKeyAttrs();
   bool has_read_set_mgr = current_txn->GetHasReadSetMgr();
   auto query_read_set_mgr = current_txn->GetQueryReadSetMgr();
 
@@ -122,18 +120,20 @@ void SeqScanExecutor::Scan() {
 
   // Read table version and table col versions
   current_txn->GetTableVersion()(target_table_->GetName(), timestamp, true, query_read_set_mgr, nullptr);
-  std::unordered_set<std::string> column_names;
-  std::vector<std::string> col_names;
-  GetColNames(predicate_, column_names);
 
-  for (auto &col : column_names) {
-    std::cout << "Col name is " << col << std::endl;
-    col_names.push_back(col);
-  }
+  //NOTE: Don't need TableColVersion when doing seq_scan
+  // std::unordered_set<std::string> column_names;
+  // std::vector<std::string> col_names;
+  // GetColNames(predicate_, column_names);
 
-  std::string encoded_key = EncodeTableRow(target_table_->GetName(), col_names);
-  std::cout << "Encoded key is " << encoded_key << std::endl;
-  current_txn->GetTableVersion()(encoded_key, timestamp, true, query_read_set_mgr, nullptr);
+  // for (auto &col : column_names) {
+  //   std::cout << "Col name is " << col << std::endl;
+  //   col_names.push_back(col);
+  // }
+
+  // std::string encoded_key = EncodeTableRow(target_table_->GetName(), col_names);
+  // std::cout << "Encoded ColumnVersion key is " << encoded_key << std::endl;  
+  // current_txn->GetTableVersion()(encoded_key, timestamp, true, query_read_set_mgr, nullptr);  //FIXME: Should be a Version per column touched
 
   ItemPointer location_copy;
   for (auto indirection_array : target_table_->active_indirection_arrays_) {
@@ -145,11 +145,9 @@ void SeqScanExecutor::Scan() {
         // return false;
       }
 
-      auto head_tile_group_header =
-          storage_manager->GetTileGroup(head->block)->GetHeader();
+      auto head_tile_group_header = storage_manager->GetTileGroup(head->block)->GetHeader();
 
-      auto tuple_timestamp =
-          head_tile_group_header->GetBasilTimestamp(head->offset);
+      auto tuple_timestamp = head_tile_group_header->GetBasilTimestamp(head->offset);
       auto location = *head;
       auto tile_group_header = head_tile_group_header;
       auto curr_tuple_id = location.offset;
@@ -159,12 +157,11 @@ void SeqScanExecutor::Scan() {
       Debug("Head timestamp: [%d: %d]", tuple_timestamp.getTimestamp(),
             tuple_timestamp.getID());
 
-      // Now we find the appropriate version to read that's less than the
-      // timestamp by traversing the next pointers
+      // Now we find the appropriate version to read that's less than the timestamp by traversing the next pointers (I.e. find the last version with writeTS < curr.readTS)
+                                            //Note: If the row is only "materialized" (not prepared/committed), and we are not performing a snapshot read, then don't read it.
       while (tuple_timestamp > timestamp || (!is_snapshot_read && materialize)) {
         // Get the previous version in the linked list
-        ItemPointer new_location =
-            tile_group_header->GetNextItemPointer(curr_tuple_id);
+        ItemPointer new_location = tile_group_header->GetNextItemPointer(curr_tuple_id);
 
         // Get the associated tile group header so we can find the timestamp
         if (new_location.IsNull()) {
@@ -172,21 +169,16 @@ void SeqScanExecutor::Scan() {
           break;
         }
 
-        auto new_tile_group_header =
-            storage_manager->GetTileGroup(new_location.block)->GetHeader();
+        auto new_tile_group_header = storage_manager->GetTileGroup(new_location.block)->GetHeader();
         // Update the timestamp
-        tuple_timestamp =
-            new_tile_group_header->GetBasilTimestamp(new_location.offset);
+        tuple_timestamp = new_tile_group_header->GetBasilTimestamp(new_location.offset);
         location = new_location;
         tile_group_header = new_tile_group_header;
         curr_tuple_id = new_location.offset;
         materialize = new_tile_group_header->GetMaterialize(curr_tuple_id);
       }
 
-      Debug(
-          "location timestamp is: [%lu:%lu]",
-          tile_group_header->GetBasilTimestamp(location.offset).getTimestamp(),
-          tile_group_header->GetBasilTimestamp(location.offset).getID());
+      Debug( "location timestamp is: [%lu:%lu]", tile_group_header->GetBasilTimestamp(location.offset).getTimestamp(),  tile_group_header->GetBasilTimestamp(location.offset).getID());
       // std::cout << "Location timestamp is " <<
       // tile_group_header->GetBasilTimestamp(location.offset).getTimestamp()
       // << std::endl; std::cout << "Current tuple id is " << curr_tuple_id <<
@@ -212,6 +204,7 @@ void SeqScanExecutor::Scan() {
 
           auto committed = tile_group_header->GetCommitOrPrepare(curr_tuple_id);
           auto txn_dig = tile_group_header->GetTxnDig(curr_tuple_id);
+          //Read if: a) this is not a read from snapshot, or b) it is, but it is not in the snapshot set, cor ommitted (and thus should be read anyways)
           bool should_read = !is_snapshot_read || committed || snapshot_set->find(*txn_dig.get()) != snapshot_set->end();
 
           if (should_read) {
@@ -222,9 +215,10 @@ void SeqScanExecutor::Scan() {
             position_map[location.block].push_back(location.offset);
             read_completed = true;
           }
+          //TODO: if !should_read, return early.
 
-          ContainerTuple<storage::TileGroup> row(tile_group.get(),
-                                                 curr_tuple_id);
+          ContainerTuple<storage::TileGroup> row(tile_group.get(), curr_tuple_id);
+
           // std::string encoded_key = target_table_->GetName();
           std::vector<std::string> primary_key_cols;
           for (auto col : primary_index_columns_) {
@@ -232,16 +226,13 @@ void SeqScanExecutor::Scan() {
             // encoded_key = encoded_key + "///" + val.ToString();
             primary_key_cols.push_back(val.ToString());
             // primary_key_cols.push_back(val.GetAs<const char*>());
-            // std::cout << "read set value is " << val.ToString()
-            //           << std::endl;
+            // std::cout << "read set value is " << val.ToString() << std::endl;
           }
 
           const Timestamp &time = tile_group_header->GetBasilTimestamp(location.offset); 
 
-          std::string &&encoded =
-              EncodeTableRow(target_table_->GetName(), primary_key_cols);
-          Debug("encoded read set key is: %s. Version: [%lu: %lu]",
-                encoded.c_str(), time.getTimestamp(), time.getID());
+          std::string &&encoded = EncodeTableRow(target_table_->GetName(), primary_key_cols);
+          Debug("encoded read set key is: %s. Version: [%lu: %lu]", encoded.c_str(), time.getTimestamp(), time.getID());
 
           if (has_read_set_mgr && should_read) {
             query_read_set_mgr->AddToReadSet(std::move(encoded), time);
@@ -254,16 +245,16 @@ void SeqScanExecutor::Scan() {
 
 
             if (!commit_or_prepare) {
-              auto const &predicate = current_txn->GetPredicate();
+              auto const &read_prepared_pred = current_txn->GetReadPreparedPred();
 
-              if (predicate) {
-                if (txn_digest != nullptr && predicate(*txn_digest)) {
+              if (read_prepared_pred) {
+                if (txn_digest != nullptr && read_prepared_pred(*txn_digest)) {
                   snapshot_mgr->AddToLocalSnapshot(*txn_digest.get(), timestamp.getTimestamp(), timestamp.getID(), commit_or_prepare);
                   num_iters++;
                 }
               }
             } else {
-              // If committed don't need to check the predicate
+              // If committed don't need to check the read_prepared_pred
               if (txn_digest != nullptr) {
                 snapshot_mgr->AddToLocalSnapshot(*txn_digest.get(), time.getTimestamp(), time.getID(), commit_or_prepare);
                 num_iters++;
@@ -274,8 +265,7 @@ void SeqScanExecutor::Scan() {
 
           if (!tile_group_header->GetCommitOrPrepare(curr_tuple_id)) {
             if (tile_group_header->GetTxnDig(curr_tuple_id) != nullptr) {
-              query_read_set_mgr->AddToDepSet(
-                  *tile_group_header->GetTxnDig(curr_tuple_id), time);
+              query_read_set_mgr->AddToDepSet(*tile_group_header->GetTxnDig(curr_tuple_id), time);
             } else {
               Panic("Txn Dig null");
             }
@@ -284,18 +274,15 @@ void SeqScanExecutor::Scan() {
           // logical_tile->AddEntryReadSet(encoded, time);
           //}
           // position_list.push_back(curr_tuple_id);
-          auto res = transaction_manager.PerformRead(
-              current_txn, location, tile_group_header, acquire_owner);
+          auto res = transaction_manager.PerformRead(current_txn, location, tile_group_header, acquire_owner);
           // Since CC is done at Basil level res should always be true
           res = true;
           if (!res) {
-            transaction_manager.SetTransactionResult(current_txn,
-                                                     ResultType::FAILURE);
+            transaction_manager.SetTransactionResult(current_txn, ResultType::FAILURE);
             // return res;
           }
         } else {
-          ContainerTuple<storage::TileGroup> tuple(tile_group.get(),
-                                                   curr_tuple_id);
+          ContainerTuple<storage::TileGroup> tuple(tile_group.get(), curr_tuple_id);
           LOG_TRACE("Evaluate predicate for a tuple");
           auto eval = predicate_->Evaluate(&tuple, nullptr, executor_context_);
           LOG_TRACE("Evaluation result: %s", eval.GetInfo().c_str());
@@ -328,23 +315,18 @@ void SeqScanExecutor::Scan() {
               // encoded_key = encoded_key + "///" + val.ToString();
               primary_key_cols.push_back(val.ToString());
               // Debug("Read set value: %s", val.ToString().c_str());
-              //  std::cout << "read set value is " << val.ToString() <<
-              //  std::endl;
+              //  std::cout << "read set value is " << val.ToString() << std::endl;
             }
-            const Timestamp &time = tile_group_header->GetBasilTimestamp(
-                location.offset); // TODO: remove copy
+            const Timestamp &time = tile_group_header->GetBasilTimestamp(location.offset); 
             // logical_tile->AddToReadSet(std::tie(encoded_key, time));
 
             // for (unsigned int i = 0; i < primary_key_cols.size(); i++) {
             //   std::cout << "Primary key columns are " <<
             //   primary_key_cols[i] << std::endl;
             // }
-            std::string &&encoded =
-                EncodeTableRow(target_table_->GetName(), primary_key_cols);
-            Debug("encoded read set key is: %s. Version: [%lu: %lu]",
-                  encoded.c_str(), time.getTimestamp(), time.getID());
-            // std::cout << "Encoded key from read set is " << encoded <<
-            // std::endl;
+            std::string &&encoded = EncodeTableRow(target_table_->GetName(), primary_key_cols);
+            Debug("encoded read set key is: %s. Version: [%lu: %lu]",  encoded.c_str(), time.getTimestamp(), time.getID());
+            // std::cout << "Encoded key from read set is " << encoded << std::endl;
             // TimestampMessage ts_message = TimestampMessage();
             // ts_message.set_id(time.getID());
             // ts_message.set_timestamp(time.getTimestamp());
@@ -361,16 +343,16 @@ void SeqScanExecutor::Scan() {
 
 
               if (!commit_or_prepare) {
-                auto const &predicate = current_txn->GetPredicate();
+                auto const &read_prepared_pred = current_txn->GetReadPreparedPred();
 
-                if (predicate) {
-                  if (txn_digest != nullptr && predicate(*txn_digest)) {
+                if (read_prepared_pred) {
+                  if (txn_digest != nullptr && read_prepared_pred(*txn_digest)) {
                     snapshot_mgr->AddToLocalSnapshot(*txn_digest.get(), timestamp.getTimestamp(), timestamp.getID(), commit_or_prepare);
                     num_iters++;
                   }
                 }
               } else {
-                // If committed don't need to check the predicate
+                // If committed don't need to check the read_prepared_pred
                 if (txn_digest != nullptr) {
                   snapshot_mgr->AddToLocalSnapshot(*txn_digest.get(), time.getTimestamp(), time.getID(), commit_or_prepare);
                   num_iters++;
@@ -594,10 +576,10 @@ void SeqScanExecutor::Scan() {
             found_committed = commit_or_prepare;
 
             if (!commit_or_prepare) {
-              auto const &predicate = current_txn->GetPredicate();
+              auto const &read_prepared_pred = current_txn->GetReadPreparedPred();
 
-              if (predicate) {
-                if (txn_digest != nullptr && predicate(*txn_digest)) {
+              if (read_prepared_pred) {
+                if (txn_digest != nullptr && read_prepared_pred(*txn_digest)) {
                   snapshot_mgr->AddToLocalSnapshot(*txn_digest.get(), timestamp.getTimestamp(), timestamp.getID(), commit_or_prepare);
                   num_iters++;
                 }
@@ -623,18 +605,18 @@ void SeqScanExecutor::Scan() {
               auto commit_or_prepare = tile_group_header->GetCommitOrPrepare(curr_tuple_id);
               found_committed = commit_or_prepare;
 
-              // If prepared check the predicate
+              // If prepared check the read_prepared_pred
               if (!commit_or_prepare) {
-                auto const &predicate = current_txn->GetPredicate();
+                auto const &read_prepared_pred = current_txn->GetReadPreparedPred();
 
-                if (predicate) {
-                  if (txn_digest != nullptr && predicate(*txn_digest)) {
+                if (read_prepared_pred) {
+                  if (txn_digest != nullptr && read_prepared_pred(*txn_digest)) {
                     snapshot_mgr->AddToLocalSnapshot(*txn_digest.get(), timestamp.getTimestamp(), timestamp.getID(), commit_or_prepare);
                     num_iters++;
                   }
                 }
               } else {
-                // If committed don't need to check the predicate
+                // If committed don't need to check the read_prepared_pred
                 if (txn_digest != nullptr) {
                   snapshot_mgr->AddToLocalSnapshot(*txn_digest.get(), time.getTimestamp(), time.getID(), commit_or_prepare);
                   num_iters++;

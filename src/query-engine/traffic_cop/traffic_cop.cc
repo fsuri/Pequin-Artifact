@@ -252,7 +252,7 @@ executor::ExecutionResult TrafficCop::ExecuteReadHelper(
   txn->SetBasilTimestamp(basil_timestamp);
 
   // Set the function to check if a table is prepared
-  txn->SetPredicate(read_prepared_pred);
+  txn->SetReadPreparedPred(read_prepared_pred);
 
   // Set the function to find the table version
   txn->SetTableVersion(find_table_version);
@@ -350,7 +350,7 @@ executor::ExecutionResult TrafficCop::ExecuteReadHelper(
   txn->SetQueryReadSetMgr(&query_read_set_mgr);
   txn->SetHasReadSetMgr(true);
   // Set the function to check if a table is prepared
-  txn->SetPredicate(&read_prepared_pred);
+  txn->SetReadPreparedPred(&read_prepared_pred);
   // Set the function to find the table version
   txn->SetTableVersion(&find_table_version);
   // Not undoing deletes
@@ -444,7 +444,7 @@ executor::ExecutionResult TrafficCop::ExecuteSnapshotReadHelper(
   txn->SetSnapshotSet(ss_txns);
   txn->SetHasSnapshotMgr(false);
   // Set the function to check if a table is prepared
-  txn->SetPredicate(&read_prepared_pred);
+  txn->SetReadPreparedPred(&read_prepared_pred);
   // Set the function to find the table version
   txn->SetTableVersion(&find_table_version);
   // Not undoing deletes
@@ -540,7 +540,7 @@ executor::ExecutionResult TrafficCop::ExecuteFindSnapshotHelper(
   // Set the value of k to read
   txn->SetKPreparedVersions(k_prepared_versions);
   // Set the function to check if a table is prepared
-  txn->SetPredicate(&read_prepared_pred);
+  txn->SetReadPreparedPred(&read_prepared_pred);
   // Set the function to find the table version
   txn->SetTableVersion(&find_table_version);
   // Not undoing deletes
@@ -628,7 +628,7 @@ executor::ExecutionResult TrafficCop::ExecuteEagerExecAndSnapshotHelper(
   // Set the value of k to read
   txn->SetKPreparedVersions(k_prepared_versions);
   // Set the function to check if a table is prepared
-  txn->SetPredicate(&read_prepared_pred);
+  txn->SetReadPreparedPred(&read_prepared_pred);
   // Set the function to find the table version
   txn->SetTableVersion(&find_table_version);
   // Not undoing deletes
@@ -919,7 +919,7 @@ executor::ExecutionResult TrafficCop::ExecutePointReadHelper(
   // Set the Basil timestamp
   txn->SetBasilTimestamp(basil_timestamp);
   // Set the predicate
-  txn->SetPredicate(&predicate);
+  txn->SetReadPreparedPred(&predicate);
   // Set the txn_digeset
   txn->SetCommitTimestamp(committed_timestamp);
   // auto time = txn->GetCommitTimestamp();
