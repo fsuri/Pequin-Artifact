@@ -121,7 +121,7 @@ void SeqScanExecutor::Scan() {
   auto timestamp = current_txn->GetBasilTimestamp();
 
   // Read table version and table col versions
-  current_txn->GetTableVersion()(target_table_->GetName(), timestamp, true, &query_read_set_mgr, nullptr);
+  current_txn->GetTableVersion()(target_table_->GetName(), timestamp, true, query_read_set_mgr, nullptr);
   std::unordered_set<std::string> column_names;
   std::vector<std::string> col_names;
   GetColNames(predicate_, column_names);
@@ -133,7 +133,7 @@ void SeqScanExecutor::Scan() {
 
   std::string encoded_key = EncodeTableRow(target_table_->GetName(), col_names);
   std::cout << "Encoded key is " << encoded_key << std::endl;
-  current_txn->GetTableVersion()(encoded_key, timestamp, true, &query_read_set_mgr, nullptr);
+  current_txn->GetTableVersion()(encoded_key, timestamp, true, query_read_set_mgr, nullptr);
 
   ItemPointer location_copy;
   for (auto indirection_array : target_table_->active_indirection_arrays_) {
@@ -236,8 +236,7 @@ void SeqScanExecutor::Scan() {
             //           << std::endl;
           }
 
-          const Timestamp &time = tile_group_header->GetBasilTimestamp(
-              location.offset); // TODO: remove copy
+          const Timestamp &time = tile_group_header->GetBasilTimestamp(location.offset); 
 
           std::string &&encoded =
               EncodeTableRow(target_table_->GetName(), primary_key_cols);
@@ -245,7 +244,7 @@ void SeqScanExecutor::Scan() {
                 encoded.c_str(), time.getTimestamp(), time.getID());
 
           if (has_read_set_mgr && should_read) {
-            query_read_set_mgr.AddToReadSet(std::move(encoded), time);
+            query_read_set_mgr->AddToReadSet(std::move(encoded), time);
           }
 
           if (has_snapshot_mgr) {
@@ -255,7 +254,7 @@ void SeqScanExecutor::Scan() {
 
 
             if (!commit_or_prepare) {
-              auto predicate = current_txn->GetPredicate();
+              auto const &predicate = current_txn->GetPredicate();
 
               if (predicate) {
                 if (txn_digest != nullptr && predicate(*txn_digest)) {
@@ -275,7 +274,7 @@ void SeqScanExecutor::Scan() {
 
           if (!tile_group_header->GetCommitOrPrepare(curr_tuple_id)) {
             if (tile_group_header->GetTxnDig(curr_tuple_id) != nullptr) {
-              query_read_set_mgr.AddToDepSet(
+              query_read_set_mgr->AddToDepSet(
                   *tile_group_header->GetTxnDig(curr_tuple_id), time);
             } else {
               Panic("Txn Dig null");
@@ -349,10 +348,10 @@ void SeqScanExecutor::Scan() {
             // TimestampMessage ts_message = TimestampMessage();
             // ts_message.set_id(time.getID());
             // ts_message.set_timestamp(time.getTimestamp());
-            //query_read_set_mgr.AddToReadSet(std::move(encoded), time);
+            //query_read_set_mgr->AddToReadSet(std::move(encoded), time);
             
             if (has_read_set_mgr && should_read) {
-              query_read_set_mgr.AddToReadSet(std::move(encoded), time);
+              query_read_set_mgr->AddToReadSet(std::move(encoded), time);
             }
 
             if (has_snapshot_mgr) {
@@ -362,7 +361,7 @@ void SeqScanExecutor::Scan() {
 
 
               if (!commit_or_prepare) {
-                auto predicate = current_txn->GetPredicate();
+                auto const &predicate = current_txn->GetPredicate();
 
                 if (predicate) {
                   if (txn_digest != nullptr && predicate(*txn_digest)) {
@@ -381,7 +380,7 @@ void SeqScanExecutor::Scan() {
 
             if (!tile_group_header->GetCommitOrPrepare(curr_tuple_id)) {
               if (tile_group_header->GetTxnDig(curr_tuple_id) != nullptr) {
-                query_read_set_mgr.AddToDepSet(
+                query_read_set_mgr->AddToDepSet(
                     *tile_group_header->GetTxnDig(curr_tuple_id), time);
               } else {
                 Panic("Txn Dig null");
@@ -461,12 +460,12 @@ void SeqScanExecutor::Scan() {
                 encoded.c_str(), time.getTimestamp(), time.getID());
 
           if (has_read_set_mgr && should_read) {
-            query_read_set_mgr.AddToReadSet(std::move(encoded), time);
+            query_read_set_mgr->AddToReadSet(std::move(encoded), time);
           }
 
           if (!tile_group_header->GetCommitOrPrepare(curr_tuple_id)) {
             if (tile_group_header->GetTxnDig(curr_tuple_id) != nullptr) {
-              query_read_set_mgr.AddToDepSet(
+              query_read_set_mgr->AddToDepSet(
                   *tile_group_header->GetTxnDig(curr_tuple_id), time);
             } else {
               Panic("Txn Dig null");
@@ -536,15 +535,15 @@ void SeqScanExecutor::Scan() {
             // TimestampMessage ts_message = TimestampMessage();
             // ts_message.set_id(time.getID());
             // ts_message.set_timestamp(time.getTimestamp());
-            //query_read_set_mgr.AddToReadSet(std::move(encoded), time);
+            //query_read_set_mgr->AddToReadSet(std::move(encoded), time);
             
             if (has_read_set_mgr && should_read) {
-              query_read_set_mgr.AddToReadSet(std::move(encoded), time);
+              query_read_set_mgr->AddToReadSet(std::move(encoded), time);
             }
 
             if (!tile_group_header->GetCommitOrPrepare(curr_tuple_id)) {
               if (tile_group_header->GetTxnDig(curr_tuple_id) != nullptr) {
-                query_read_set_mgr.AddToDepSet(
+                query_read_set_mgr->AddToDepSet(
                     *tile_group_header->GetTxnDig(curr_tuple_id), time);
               } else {
                 Panic("Txn Dig null");
@@ -595,7 +594,7 @@ void SeqScanExecutor::Scan() {
             found_committed = commit_or_prepare;
 
             if (!commit_or_prepare) {
-              auto predicate = current_txn->GetPredicate();
+              auto const &predicate = current_txn->GetPredicate();
 
               if (predicate) {
                 if (txn_digest != nullptr && predicate(*txn_digest)) {
@@ -626,7 +625,7 @@ void SeqScanExecutor::Scan() {
 
               // If prepared check the predicate
               if (!commit_or_prepare) {
-                auto predicate = current_txn->GetPredicate();
+                auto const &predicate = current_txn->GetPredicate();
 
                 if (predicate) {
                   if (txn_digest != nullptr && predicate(*txn_digest)) {

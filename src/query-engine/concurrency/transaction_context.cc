@@ -62,14 +62,14 @@ TransactionContext::TransactionContext(const size_t thread_id,
   Init(thread_id, isolation, read_id, commit_id);
 }
 
-TransactionContext::TransactionContext(const size_t thread_id,
-                                       const IsolationLevelType isolation,
-                                       const cid_t &read_id,
-                                       const cid_t &commit_id,
-                                       const pequinstore::QueryReadSetMgr &query_read_set_mgr) {
-  Init(thread_id, isolation, read_id, commit_id);
-  query_read_set_mgr_ = query_read_set_mgr;
-}
+// TransactionContext::TransactionContext(const size_t thread_id,
+//                                        const IsolationLevelType isolation,
+//                                        const cid_t &read_id,
+//                                        const cid_t &commit_id,
+//                                        const pequinstore::QueryReadSetMgr *query_read_set_mgr) {
+//   Init(thread_id, isolation, read_id, commit_id);
+//   query_read_set_mgr_ = query_read_set_mgr;
+// }
 
 
 void TransactionContext::Init(const size_t thread_id,

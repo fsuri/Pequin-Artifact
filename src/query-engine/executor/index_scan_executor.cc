@@ -470,7 +470,7 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
           // If finding a snapshot then read prepared values
           else if (has_snapshot_mgr && num_iters < k_prepared_versions && !found_committed && found_prepared && !tile_group_header->GetCommitOrPrepare(tuple_location.offset)) {
 
-            auto predicate = current_txn->GetPredicate();
+            auto const &predicate = current_txn->GetPredicate();
 
             if (predicate) {
               auto txn_digest = tile_group_header->GetTxnDig(tuple_location.offset);
@@ -509,7 +509,7 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
                    !tile_group_header->GetCommitOrPrepare(
                        tuple_location.offset)) {
             // NEW: check to see if tuple satisfies predicate
-            auto predicate = current_txn->GetPredicate();
+            auto const &predicate = current_txn->GetPredicate();
 
             if (predicate) {
               auto txn_digest =
@@ -614,7 +614,7 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
 
   if (!current_txn->IsPointRead()) {
     // Read table version and table col versions
-    current_txn->GetTableVersion()(table_->GetName(), current_txn_timestamp, true, &query_read_set_mgr, nullptr);
+    current_txn->GetTableVersion()(table_->GetName(), current_txn_timestamp, true, query_read_set_mgr, nullptr);
     // Table column version
     std::unordered_set<std::string> column_names;
     std::vector<std::string> col_names;
@@ -627,7 +627,7 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
 
     std::string encoded_key = EncodeTableRow(table_->GetName(), col_names);
     std::cout << "Encoded key is " << encoded_key << std::endl;
-    current_txn->GetTableVersion()(encoded_key, current_txn_timestamp, true, &query_read_set_mgr, nullptr);
+    current_txn->GetTableVersion()(encoded_key, current_txn_timestamp, true, query_read_set_mgr, nullptr);
   }
 
   for (auto &visible_tuple_location : visible_tuple_locations) {
@@ -662,7 +662,7 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
             EncodeTableRow(table_->GetName(), primary_key_cols);
         Debug("encoded read set key is: %s. Version: [%lu: %lu]",
               encoded.c_str(), time.getTimestamp(), time.getID());
-        query_read_set_mgr.AddToReadSet(std::move(encoded), time);
+        query_read_set_mgr->AddToReadSet(std::move(encoded), time);
 
         if (!tile_group_header->GetCommitOrPrepare(
                 visible_tuple_location.offset)) {
@@ -672,7 +672,7 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
             Panic("Dep Digest is null");
           } else {
 
-            query_read_set_mgr.AddToDepSet(
+            query_read_set_mgr->AddToDepSet(
                 *tile_group_header->GetTxnDig(visible_tuple_location.offset),
                 time);
           }
@@ -728,7 +728,7 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
             EncodeTableRow(table_->GetName(), primary_key_cols);
         Debug("encoded read set key is: %s. Version: [%lu: %lu]",
               encoded.c_str(), time.getTimestamp(), time.getID());
-        query_read_set_mgr.AddToReadSet(std::move(encoded), time);
+        query_read_set_mgr->AddToReadSet(std::move(encoded), time);
 
         if (!tile_group_header->GetCommitOrPrepare(
                 visible_tuple_location.offset)) {
@@ -736,7 +736,7 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
               nullptr) {
             Panic("Dep Digest is null");
           } else {
-            query_read_set_mgr.AddToDepSet(
+            query_read_set_mgr->AddToDepSet(
                 *tile_group_header->GetTxnDig(visible_tuple_location.offset),
                 time);
           }

@@ -54,9 +54,9 @@ public:
   TransactionContext(const size_t thread_id, const IsolationLevelType isolation,
                      const cid_t &read_id, const cid_t &commit_id);
 
-  TransactionContext(const size_t thread_id, const IsolationLevelType isolation,
-                     const cid_t &read_id, const cid_t &commit_id,
-                     const pequinstore::QueryReadSetMgr &query_read_set_mgr);
+  // TransactionContext(const size_t thread_id, const IsolationLevelType isolation,
+  //                    const cid_t &read_id, const cid_t &commit_id,
+  //                    const pequinstore::QueryReadSetMgr *query_read_set_mgr);
 
   /**
    * @brief      Destroys the object.
@@ -282,11 +282,11 @@ public:
     basil_timestamp_ = basil_timestamp;
   }
 
-  pequinstore::QueryReadSetMgr GetQueryReadSetMgr() {
+  pequinstore::QueryReadSetMgr* GetQueryReadSetMgr() {
     return query_read_set_mgr_;
   }
 
-  void SetQueryReadSetMgr(pequinstore::QueryReadSetMgr &query_read_set_mgr) {
+  void SetQueryReadSetMgr(pequinstore::QueryReadSetMgr *query_read_set_mgr) {
     query_read_set_mgr_ = query_read_set_mgr;
   }
 
@@ -306,15 +306,15 @@ public:
     k_prepared_versions_ = k_prepared_versions;
   }
 
-  pequinstore::read_prepared_pred GetPredicate() { return predicate_; }
+  pequinstore::read_prepared_pred GetPredicate() { return *predicate_; }
 
-  void SetPredicate(pequinstore::read_prepared_pred &predicate) {
+  void SetPredicate(pequinstore::read_prepared_pred *predicate) {
     predicate_ = predicate;
   }
 
-  pequinstore::find_table_version GetTableVersion() { return table_version_; }
+  pequinstore::find_table_version GetTableVersion() { return *table_version_; }
 
-  void SetTableVersion(pequinstore::find_table_version &table_version) {
+  void SetTableVersion(pequinstore::find_table_version *table_version) {
     table_version_ = table_version;
   }
 
@@ -471,7 +471,7 @@ private:
   Timestamp basil_timestamp_;
 
   /** Query read set manager */
-  pequinstore::QueryReadSetMgr query_read_set_mgr_;
+  pequinstore::QueryReadSetMgr *query_read_set_mgr_ = nullptr;
 
   /** Transaction digest */
   std::shared_ptr<std::string> txn_dig_;
@@ -495,40 +495,40 @@ private:
   bool commit_or_prepare_;
 
   /** Force materialize for ApplyTableWrite */
-  bool force_materialize_;
+  bool force_materialize_ = false;
 
   /** Snapshot read */
   bool snapshot_read_ = false;
 
   /** Snapshot set */
-  const ::google::protobuf::Map<std::string, pequinstore::proto::ReplicaList> *snapshot_set_;
+  const ::google::protobuf::Map<std::string, pequinstore::proto::ReplicaList> *snapshot_set_ = nullptr;
 
   /** Read prepared predicate */
-  pequinstore::read_prepared_pred predicate_;
+  pequinstore::read_prepared_pred *predicate_ = nullptr;
 
   /** Find table version predicate */
-  pequinstore::find_table_version table_version_;
+  pequinstore::find_table_version *table_version_ = nullptr;
 
   /** Can read prepared */
-  bool can_read_prepared_;
+  bool can_read_prepared_ = false;
 
   /** Whether purge is undoing a delete */
   bool undo_delete_ = false;
 
   /** Whether read set manager was passed in */
-  bool has_read_set_mgr_;
+  bool has_read_set_mgr_ = false;
 
   /** Whether snapshot manager was passed in */
   bool has_snapshot_mgr_ = false;
 
   /** Snapshot manager */
-  pequinstore::SnapshotManager *snapshot_mgr_;
+  pequinstore::SnapshotManager *snapshot_mgr_ = nullptr;
 
   /** K prepared versions */
-  size_t k_prepared_versions_;
+  size_t k_prepared_versions_ = 1;
 
   /** Whether this is a point read query */
-  bool is_point_read_;
+  bool is_point_read_ = false;
 
   ReadWriteSet rw_set_;
   CreateDropSet rw_object_set_;

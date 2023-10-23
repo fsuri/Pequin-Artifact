@@ -503,6 +503,8 @@ typedef struct QueryParameters {
     const uint64_t syncMessages;    //number of sync messages sent to replicas to request result replies
     const uint64_t resultQuorum ;   //number of matching query replies necessary to return
     
+    const size_t snapshotPrepared_k; //number of prepared reads to include in the snapshot (before reaching first committed version)
+
     const bool eagerExec;   //Perform eager execution on Queries
     const bool eagerPointExec;  //Perform query style eager execution on point queries (instead of using proof)
     const bool eagerPlusSnapshot; //Perform eager exec and snapshot simultaneously
@@ -521,10 +523,10 @@ typedef struct QueryParameters {
     //performance parameters
     const bool parallel_queries;
 
-    QueryParameters(bool sql_mode, uint64_t syncQuorum, uint64_t queryMessages, uint64_t mergeThreshold, uint64_t syncMessages, uint64_t resultQuorum, 
+    QueryParameters(bool sql_mode, uint64_t syncQuorum, uint64_t queryMessages, uint64_t mergeThreshold, uint64_t syncMessages, uint64_t resultQuorum, size_t snapshotPrepared_k,
         bool eagerExec, bool eagerPointExec, bool eagerPlusSnapshot, bool readPrepared, bool cacheReadSet, bool optimisticTxID, bool compressOptimisticTxIDs, bool mergeActiveAtClient, 
         bool signClientQueries, bool signReplicaToReplicaSync, bool parallel_queries) : 
-        sql_mode(sql_mode), syncQuorum(syncQuorum), queryMessages(queryMessages), mergeThreshold(mergeThreshold), syncMessages(syncMessages), resultQuorum(resultQuorum),
+        sql_mode(sql_mode), syncQuorum(syncQuorum), queryMessages(queryMessages), mergeThreshold(mergeThreshold), syncMessages(syncMessages), resultQuorum(resultQuorum), snapshotPrepared_k(snapshotPrepared_k),
         eagerExec(eagerExec), eagerPointExec(eagerPointExec), eagerPlusSnapshot(eagerPlusSnapshot), readPrepared(readPrepared), cacheReadSet(cacheReadSet), optimisticTxID(optimisticTxID), compressOptimisticTxIDs(compressOptimisticTxIDs), mergeActiveAtClient(mergeActiveAtClient), 
         signClientQueries(signClientQueries), signReplicaToReplicaSync(signReplicaToReplicaSync), parallel_queries(parallel_queries) {
             if(eagerPlusSnapshot) UW_ASSERT(eagerExec); 

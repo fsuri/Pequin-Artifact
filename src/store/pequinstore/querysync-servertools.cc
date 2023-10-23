@@ -76,7 +76,7 @@ std::string Server::ExecQuery(QueryReadSetMgr &queryReadSetMgr, QueryMetaData *q
         if(eager && params.query_params.eagerPlusSnapshot){ //If eager exec Plus Snapshot => find snapshot as part of ExecRead
             proto::LocalSnapshot *local_ss = query_md->queryResultReply->mutable_result()->mutable_local_ss();
             query_md->snapshot_mgr.InitLocalSnapshot(local_ss, query_md->query_seq_num, query_md->client_id, id, query_md->useOptimisticTxId);
-            serialized_result = table_store->EagerExecAndSnapshot(query_md->query_cmd, query_md->ts, query_md->snapshot_mgr, queryReadSetMgr);
+            serialized_result = table_store->EagerExecAndSnapshot(query_md->query_cmd, query_md->ts, query_md->snapshot_mgr, queryReadSetMgr, params.query_params.snapshotPrepared_k);
             query_md->snapshot_mgr.SealLocalSnapshot(); 
         } 
         else{
@@ -247,7 +247,7 @@ void Server::FindSnapshot(QueryMetaData *query_md, proto::Query *query){
     //                                                         //
     //
     //              EXEC BLACKBOX -- TBD
-    table_store->FindSnapshot(query_md->query_cmd, query_md->ts, query_md->snapshot_mgr);
+    table_store->FindSnapshot(query_md->query_cmd, query_md->ts, query_md->snapshot_mgr, params.query_params.snapshotPrepared_k);
     //                                                         //
     //                                                         //
     //                                                         //

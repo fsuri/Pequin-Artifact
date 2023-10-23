@@ -331,6 +331,8 @@ DEFINE_bool(indicus_replica_gossip, false, "use gossip between replicas to excha
 /*
  Pequin settings
 */
+DEFINE_uint32(pequin_snapshot_prepared_k, 1, "number of prepared reads to include in snapshot (before reaching first committed version)");
+
 DEFINE_bool(pequin_query_eager_exec, false, "skip query sync protocol and execute optimistically on local state");
 DEFINE_bool(pequin_query_point_eager_exec, false, "use eager query exec instead of proof based point read");
 
@@ -712,6 +714,7 @@ int main(int argc, char **argv) {
                                                  0,
                                                  0,
                                                  0,
+                                                 FLAGS_pequin_snapshot_prepared_k,
                                                  FLAGS_pequin_query_eager_exec,
                                                  FLAGS_pequin_query_point_eager_exec,
                                                  FLAGS_pequin_eager_plus_snapshot,

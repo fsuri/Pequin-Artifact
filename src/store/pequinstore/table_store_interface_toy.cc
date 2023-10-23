@@ -232,12 +232,12 @@ void ToyTableStore::PurgeTableWrite(const std::string &table_name,
 // Partially execute a read query statement (reconnaissance execution) and
 // return the snapshot state (managed by ssMgr)
 void ToyTableStore::FindSnapshot(const std::string &query_statement,
-                                 const Timestamp &ts, SnapshotManager &ssMgr) {
+                                 const Timestamp &ts, SnapshotManager &ssMgr, size_t snapshot_prepared_k) {
 
   std::cerr << "FIND SNAPSHOT ON TOY INTERFACE" << std::endl;
 }
 
-std::string ToyTableStore::EagerExecAndSnapshot(const std::string &query_statement, const Timestamp &ts, SnapshotManager &ssMgr, QueryReadSetMgr &readSetMgr){
+std::string ToyTableStore::EagerExecAndSnapshot(const std::string &query_statement, const Timestamp &ts, SnapshotManager &ssMgr, QueryReadSetMgr &readSetMgr, size_t snapshot_prepared_k){
   return "";
 }
 

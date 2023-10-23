@@ -73,9 +73,9 @@ class TableStore {
         
 
         //Partially execute a read query statement (reconnaissance execution) and return the snapshot state (managed by ssMgr)
-        virtual void FindSnapshot(const std::string &query_statement, const Timestamp &ts, SnapshotManager &ssMgr) = 0;
+        virtual void FindSnapshot(const std::string &query_statement, const Timestamp &ts, SnapshotManager &ssMgr, size_t snapshot_prepared_k = 1) = 0;
 
-        virtual std::string EagerExecAndSnapshot(const std::string &query_statement, const Timestamp &ts, SnapshotManager &ssMgr, QueryReadSetMgr &readSetMgr) = 0;
+        virtual std::string EagerExecAndSnapshot(const std::string &query_statement, const Timestamp &ts, SnapshotManager &ssMgr, QueryReadSetMgr &readSetMgr, size_t snapshot_prepared_k = 1) = 0;
 
         virtual std::string ExecReadQueryOnMaterializedSnapshot(const std::string &query_statement, const Timestamp &ts, QueryReadSetMgr &readSetMgr,
             const ::google::protobuf::Map<std::string, proto::ReplicaList> &ss_txns) = 0;

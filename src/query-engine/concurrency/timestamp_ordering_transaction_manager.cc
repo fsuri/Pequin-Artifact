@@ -269,14 +269,12 @@ bool TimestampOrderingTransactionManager::PerformRead(
   //// handle SERIALIZABLE and REPEATABLE_READS
   //////////////////////////////////////////////////////////
   else {
-    PELOTON_ASSERT(current_txn->GetIsolationLevel() ==
-                       IsolationLevelType::SERIALIZABLE ||
-                   current_txn->GetIsolationLevel() ==
-                       IsolationLevelType::REPEATABLE_READS);
+    PELOTON_ASSERT(current_txn->GetIsolationLevel() == IsolationLevelType::SERIALIZABLE ||
+                   current_txn->GetIsolationLevel() == IsolationLevelType::REPEATABLE_READS);
 
     oid_t tuple_id = location.offset;
 
-    auto predicate = current_txn->GetPredicate();
+    auto const &predicate = current_txn->GetPredicate();
 
     /*if (predicate) {
       Debug("Predicate is set");

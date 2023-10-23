@@ -38,6 +38,13 @@ namespace concurrency {
 class TransactionContext;
 } // namespace concurrency
 
+enum PequinMode{
+  eagerRead = 0,
+  readMaterialized = 1,
+  eagerPlusSnapshot = 2,
+  findSnapshot = 3, 
+};
+
 namespace tcop {
 
 //===--------------------------------------------------------------------===//
@@ -75,6 +82,25 @@ public:
                               const std::vector<int> &result_format,
                               std::vector<ResultValue> &result,
                               size_t thread_id = 0);
+
+
+  // Execute a Pequin Read Statement
+  ResultType ExecuteReadStatement(
+    const std::shared_ptr<Statement> &statement,
+    const std::vector<type::Value> &params, UNUSED_ATTRIBUTE bool unnamed,
+    const std::vector<int> &result_format, std::vector<ResultValue> &result,
+    //////////////////////// PEQUIN ARGS //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    const Timestamp &basil_timestamp,
+    std::function<void(const std::string &, const Timestamp &, bool, pequinstore::QueryReadSetMgr *, pequinstore::SnapshotManager *)> *find_table_version,
+    std::function<bool(const std::string &)> *read_prepared_pred,
+
+    PequinMode mode, //mode = 1: eagerRead, mode = 2: readMaterialized, mode = 3: eagerPlusSnapshot, mode = 4: findSnapshot
+    pequinstore::QueryReadSetMgr *query_read_set_mgr = nullptr, 
+    pequinstore::SnapshotManager *snapshot_mgr = nullptr,
+    size_t k_prepared_versions = 1,
+    const ::google::protobuf::Map<std::string, pequinstore::proto::ReplicaList> *ss_txns = nullptr,
+    ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    size_t thread_id = 0);
 
   // Execute a statement
   ResultType ExecuteReadStatement(
@@ -179,6 +205,22 @@ public:
                 const std::vector<type::Value> &params,
                 std::vector<ResultValue> &result,
                 const std::vector<int> &result_format, size_t thread_id = 0);
+
+  // Helper to handle txn-specifics for the plan-tree of a Pequin statement.
+  executor::ExecutionResult ExecuteReadHelper(
+    std::shared_ptr<planner::AbstractPlan> plan, const std::vector<type::Value> &params, std::vector<ResultValue> &result, const std::vector<int> &result_format, 
+    //////////////////////// PEQUIN ARGS ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    const Timestamp &basil_timestamp,
+    std::function<void(const std::string &, const Timestamp &, bool, pequinstore::QueryReadSetMgr *, pequinstore::SnapshotManager *)> *find_table_version,
+    std::function<bool(const std::string &)> *read_prepared_pred,
+
+    PequinMode mode, //mode = 1: eagerRead, mode = 2: readMaterialized, mode = 3: eagerPlusSnapshot, mode = 4: findSnapshot
+    pequinstore::QueryReadSetMgr *query_read_set_mgr = nullptr, //TODO: change to ptr
+    pequinstore::SnapshotManager *snapshot_mgr = nullptr,
+    size_t k_prepared_versions = 1,
+    const ::google::protobuf::Map<std::string, pequinstore::proto::ReplicaList> *ss_txns = nullptr,
+    ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    size_t thread_id = 0);
 
   // Helper to handle txn-specifics for the plan-tree of a statement.
   executor::ExecutionResult ExecuteReadHelper(
