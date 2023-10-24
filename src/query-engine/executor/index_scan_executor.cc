@@ -32,6 +32,7 @@
 #include "../storage/tile_group_header.h"
 #include "../type/value.h"
 #include "lib/message.h"
+#include "query-engine/common/item_pointer.h"
 #include "store/common/backend/sql_engine/table_kv_encoder.h"
 #include "store/pequinstore/pequin-proto.pb.h"
 
@@ -305,20 +306,20 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup__REFACTOR__IN__PROGRESS() {    //
       // Since the tile_group_oids differ, fill in the current tile group into the result vector
       auto storage_manager = storage::StorageManager::GetInstance();
       auto tile_group = storage_manager->GetTileGroup(current_tile_group_oid);
-      PrepareResult(tile_group);
+      PrepareResult(tuples, tile_group);
 
       // Change the current_tile_group_oid and add the current tuple
       tuples.clear();
       current_tile_group_oid = visible_tuple_location.block;
       tuples.push_back(visible_tuple_location.offset);
     }
-    ManageReadSet(visible_tuple_location);
+    ManageReadSet(visible_tuple_location, current_txn, primary_index_columns_, query_read_set_mgr, storage_manager);
   }
 
   // Add the remaining tuples to the result vector
   if ((current_tile_group_oid != INVALID_OID) && (!tuples.empty())) {
     auto tile_group = storage_manager->GetTileGroup(current_tile_group_oid);
-    PrepareResult(tile_group);
+    PrepareResult(tuples, tile_group);
   }
 
   done_ = true;
@@ -328,23 +329,23 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup__REFACTOR__IN__PROGRESS() {    //
   return true;
 }
 
-void PrepareResult(){
-  
-      std::unique_ptr<LogicalTile> logical_tile(LogicalTileFactory::GetTile());
-      // Add relevant columns to logical tile
-      logical_tile->AddColumns(tile_group, full_column_ids_);
-      logical_tile->AddPositionList(std::move(tuples));
-      // Add prepared values and commit proofs to logical tile
-      // logical_tile->AddPreparedValues(prepared_values[0]);
-      // logical_tile->SetCommitProofs(proofs[0]);
-      if (column_ids_.size() != 0) {
-        logical_tile->ProjectColumns(full_column_ids_, column_ids_);
-      }
-      result_.push_back(logical_tile.release());
+void PrepareResult(std::vector<oid_t> &tuples, std::shared_ptr<storage::TileGroup> tile_group) {
+    std::unique_ptr<LogicalTile> logical_tile(LogicalTileFactory::GetTile());
+    // Add relevant columns to logical tile
+    logical_tile->AddColumns(tile_group, full_column_ids_);
+    logical_tile->AddPositionList(std::move(tuples));
+    // Add prepared values and commit proofs to logical tile
+    // logical_tile->AddPreparedValues(prepared_values[0]);
+    // logical_tile->SetCommitProofs(proofs[0]);
+    if (column_ids_.size() != 0) {
+      logical_tile->ProjectColumns(full_column_ids_, column_ids_);
+    }
+    result_.push_back(logical_tile.release());
 }
 
 
-void ManageReadSet(visible_tuple_location, current_txn){
+void ManageReadSet(ItemPointer &visible_tuple_location, concurrency::TransactionContext *current_txn, std::vector<oid_t> &primary_index_columns_,
+    pequinstore::QueryReadSetMgr *query_read_set_mgr, storage::StorageManager *storage_manager) {
   if (current_txn->GetHasReadSetMgr()) {
     auto tile_group = storage_manager->GetTileGroup(visible_tuple_location.block);
     auto tile_group_header = tile_group->GetHeader();
@@ -372,7 +373,7 @@ void ManageReadSet(visible_tuple_location, current_txn){
 }
 
 
-void CheckRow(ItemPointer tuple_location, TransactionContext &current_txn, StorageManager &storage_manager, 
+void CheckRow(ItemPointer tuple_location, concurrency::TransactionContext *current_txn, storage::StorageManager *storage_manager, 
   std::vector<ItemPointer> &visible_tuple_locations, std::set<ItemPointer> &visible_tuple_set, std::vector<ItemPointer> &prepared_visible_tuple_locations, std::set<ItemPointer> &prepared_tuple_set,
   bool perform_find_snapshot, pequinstore::SnapshotManager *snapshot_mgr, size_t k_prepared_versions, std::vector<ItemPointer> &snapshot_tuple_locations,
   bool perform_read_on_snapshot, google::protobuf::Map<std::string, pequinstore::proto::ReplicaList> *snapshot_set)
@@ -396,7 +397,7 @@ void CheckRow(ItemPointer tuple_location, TransactionContext &current_txn, Stora
 #endif
     // the following code traverses the version chain until a certain visible version is found. we should always find a visible version from a version chain.
     // NOTE: Similar read logic as seq_scan_executor
-    auto &timestamp = current_txn->GetBasilTimestamp();
+    auto timestamp = current_txn->GetBasilTimestamp();
 
     Debug(" Txn TS: [%lu, %lu]", timestamp.getTimestamp(), timestamp.getID());
    
@@ -418,16 +419,6 @@ void CheckRow(ItemPointer tuple_location, TransactionContext &current_txn, Stora
 
     ContainerTuple<storage::TileGroup> row_(tile_group.get(), tuple_location.offset);
 
-    //FIXME: REMOVE? This looks like its just for testing
-    auto index_columns_ = index_->GetMetadata()->GetKeyAttrs();
-    for (auto col : index_columns_) {
-      auto val = row_.GetValue(col);
-      // encoded_key = encoded_key + "///" + val.ToString();
-      // primary_key_cols.push_back(val.GetAs<const char*>());
-      Debug("Primary key value: %s", val.ToString().c_str());
-      // std::cout << "read set value is " << val.ToString() << std::endl;
-    }
-
     bool done = false;
     while(!done){
       ++chain_length;
@@ -438,9 +429,10 @@ void CheckRow(ItemPointer tuple_location, TransactionContext &current_txn, Stora
       if (timestamp >= tuple_timestamp) {
         // Within range of timestamp
       
-        done = FindRightRowVersion(); //TODO: Might be more elegant to put the entire loop into FindRightRowVersion, and then call Eval and visible_push_back AFTER it's done.
+        done = FindRightRowVersion(timestamp, tile_group, tile_group_header, tuple_location, visible_tuple_set, found_committed, found_prepared, num_iters); //TODO: Might be more elegant to put the entire loop into FindRightRowVersion, and then call Eval and visible_push_back AFTER it's done.
 
         //FIXME: what if this tuple points to a null position, can this happen?
+        //NOTE: The null check happens at the end of the loop. At the beginning the head must exist because this tuple was returned by the index
 
           //Eval should be called on the latest readable version. I.e. call after FindRowVersion is done
         if(done){
@@ -451,7 +443,7 @@ void CheckRow(ItemPointer tuple_location, TransactionContext &current_txn, Stora
               eval = predicate_->Evaluate(&tuple, nullptr, executor_context_).IsTrue();
           }
           // Add the tuple to the visible tuple vector
-          if(eval == true){
+          if(eval) {
             visible_tuple_locations.push_back(tuple_location);
             visible_tuple_set.insert(tuple_location);
           }
@@ -469,16 +461,18 @@ void CheckRow(ItemPointer tuple_location, TransactionContext &current_txn, Stora
 
       if (tuple_location.IsNull()) {
         // std::cout << "Tuple location is null" << std::endl;
-        done = true;      }
+        done = true;      
+      }
     }
 
     LOG_TRACE("Traverse length: %d\n", (int)chain_length);
 }
 
-bool FindRightRowVersion(Timestamp &timestamp, std::shared_ptr<TileGroup> tile_group, TileGroupHeader &tile_group_header, size_t chain_length
-    bool found_committed, bool found_prepared, size_t num_iters)
+bool FindRightRowVersion(Timestamp &timestamp, std::shared_ptr<storage::TileGroup> tile_group, std::shared_ptr<storage::TileGroupHeader> tile_group_header, ItemPointer &tuple_location,
+    std::unordered_set<ItemPointer> &visible_tuple_set, std::vector<ItemPointer> &visible_tuple_locations, bool &found_committed, bool &found_prepared, size_t &num_iters, 
+    pequinstore::SnapshotManager *snapshot_mgr, concurrency::TransactionContext *current_txn, bool has_snapshot_mgr, size_t k_prepared_versions, 
+    bool perform_read_on_snapshot, bool perform_find_snapshot)
 {
-  
 
     Debug("Tuple commit state: %d. Is tuple in visibility set (already processed)? %d", tile_group_header->GetCommitOrPrepare(tuple_location.offset), (visible_tuple_set.find(tuple_location) == visible_tuple_set.end()));
 
