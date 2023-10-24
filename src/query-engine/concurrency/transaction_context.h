@@ -315,7 +315,12 @@ public:
   pequinstore::find_table_version GetTableVersion() { return *table_version_; }
 
   void SetTableVersion(pequinstore::find_table_version *table_version) {
+    if(read_prepared_pred_) predicates_initialized = true;
     table_version_ = table_version;
+  }
+
+  bool CheckPredicatesInitialized(){
+    return predicates_initialized;
   }
 
   std::shared_ptr<std::string> GetTxnDig() { return txn_dig_; }
@@ -513,7 +518,7 @@ private:
   
 
   /** Commit or prepare */
-  bool commit_or_prepare_;
+  bool commit_or_prepare_ = true;
 
   /** Force materialize for ApplyTableWrite */
   bool force_materialize_ = false;
@@ -524,6 +529,7 @@ private:
   /** Snapshot set */
   const ::google::protobuf::Map<std::string, pequinstore::proto::ReplicaList> *snapshot_set_ = nullptr;
 
+  bool predicates_initialized = false;
   /** Read prepared predicate */
   pequinstore::read_prepared_pred *read_prepared_pred_ = nullptr;
 

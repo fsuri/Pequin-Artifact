@@ -424,15 +424,12 @@ bool InsertExecutor::DExecute() {
           return false;
         }*/
 
-        transaction_manager.PerformUpdate(current_txn, old_location,
-                                          new_location);
-        new_tile_group->GetHeader()->SetIndirection(new_location.offset,
-                                                    indirection);
-        new_tile_group->GetHeader()->SetCommitOrPrepare(
-            new_location.offset, current_txn->GetCommitOrPrepare());
+        transaction_manager.PerformUpdate(current_txn, old_location, new_location);
+        new_tile_group->GetHeader()->SetIndirection(new_location.offset, indirection);
+        new_tile_group->GetHeader()->SetCommitOrPrepare(new_location.offset, current_txn->GetCommitOrPrepare());
         new_tile_group->GetHeader()->SetMaterialize(new_location.offset, current_txn->GetForceMaterialize());
       } else if (!is_duplicate && !is_purge) {
-        std::cout << "Insert was performed" << std::endl;
+        Debug("Insert was performed");
         transaction_manager.PerformInsert(current_txn, location,
                                           index_entry_ptr);
         auto storage_manager = storage::StorageManager::GetInstance();
@@ -440,18 +437,15 @@ bool InsertExecutor::DExecute() {
         auto tile_group = storage_manager->GetTileGroup(location.block);
         auto tile_group_header = tile_group->GetHeader();
 
-        std::cout << "Commit or prepare is "
-                  << current_txn->GetCommitOrPrepare() << std::endl;
-        tile_group_header->SetCommitOrPrepare(
-            location.offset, current_txn->GetCommitOrPrepare());
+        Debug("Commit or prepare is %d", current_txn->GetCommitOrPrepare());
+        tile_group_header->SetCommitOrPrepare(location.offset, current_txn->GetCommitOrPrepare());
         tile_group_header->SetMaterialize(location.offset, current_txn->GetForceMaterialize());
 
         auto ts = current_txn->GetBasilTimestamp();
         tile_group_header->SetBasilTimestamp(location.offset, ts);
 
         if (current_txn->GetTxnDig() != nullptr) {
-          tile_group_header->SetTxnDig(location.offset,
-                                       current_txn->GetTxnDig());
+          tile_group_header->SetTxnDig(location.offset, current_txn->GetTxnDig());
         }
       }
 

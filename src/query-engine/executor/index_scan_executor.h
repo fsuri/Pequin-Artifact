@@ -80,6 +80,7 @@ class IndexScanExecutor : public AbstractScanExecutor {
     void ManageReadSet(ItemPointer &tuple_location, std::shared_ptr<storage::TileGroup> tile_group, storage::TileGroupHeader *tile_group_header, 
         concurrency::TransactionContext *current_txn);
   bool ExecSecondaryIndexLookup();
+  bool ExecSecondaryIndexLookup___REFACTORED__NOT_YET__TESTED(); 
 
   // When the required scan range has open boundaries, the tuples found by the
   // index might not be exact since the index can only give back tuples in a

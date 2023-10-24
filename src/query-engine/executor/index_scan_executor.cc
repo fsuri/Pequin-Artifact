@@ -131,14 +131,15 @@ bool IndexScanExecutor::DInit() {
  */
 bool IndexScanExecutor::DExecute() {
   LOG_TRACE("Index Scan executor :: 0 child");
-  std::cout << "Doing an index scan" << std::endl;
 
   if (!done_) {
     if (index_->GetIndexType() == IndexConstraintType::PRIMARY_KEY) {
+      Debug("Doing a primary index scan");
       auto status = ExecPrimaryIndexLookup();
       if (status == false)
         return false;
     } else {
+      Debug("Doing a secondary index scan");
       auto status = ExecSecondaryIndexLookup();
       if (status == false)
         return false;
@@ -535,7 +536,7 @@ bool IndexScanExecutor::FindRightRowVersion(const Timestamp &timestamp, std::sha
     auto snapshot_set = current_txn->GetSnapshotSet();
    ///////////////////////////////////////////////////////////////////////////////////
 
-  UW_ASSERT(perform_find_snapshot != perform_read_on_snapshot); //shouldn't do both simultaneously currently. Though we could support it in theory.
+  UW_ASSERT(!(perform_find_snapshot && perform_read_on_snapshot)); //shouldn't do both simultaneously currently. Though we could support it in theory.
 
   Debug("Tuple commit state: %d. Is tuple in visibility set (already processed)? %d", tile_group_header->GetCommitOrPrepare(tuple_location.offset), (visible_tuple_set.find(tuple_location) == visible_tuple_set.end()));
 
@@ -1220,13 +1221,279 @@ bool IndexScanExecutor::ExecSecondaryIndexLookup() {
   PELOTON_ASSERT(!done_);
   PELOTON_ASSERT(index_->GetIndexType() != IndexConstraintType::PRIMARY_KEY);
 
+  std::vector<ItemPointer *> tuple_location_ptrs;
+
+  // Grab info from plan node
+  bool acquire_owner = GetPlanNode<planner::AbstractScan>().IsForUpdate();
+
+  if (0 == key_column_ids_.size()) {
+    index_->ScanAllKeys(tuple_location_ptrs);
+  } else {
+    // Limit clause accelerate
+    if (limit_) {
+      // invoke index scan limit
+      if (!descend_) {
+        LOG_TRACE("ASCENDING SCAN LIMIT in Secondary Index");
+        index_->ScanLimit(values_, key_column_ids_, expr_types_,
+                          ScanDirectionType::FORWARD, tuple_location_ptrs,
+                          &index_predicate_.GetConjunctionList()[0],
+                          limit_number_, limit_offset_);
+      } else {
+        LOG_TRACE("DESCENDING SCAN LIMIT in Secondary Index");
+        index_->ScanLimit(values_, key_column_ids_, expr_types_,
+                          ScanDirectionType::BACKWARD, tuple_location_ptrs,
+                          &index_predicate_.GetConjunctionList()[0],
+                          limit_number_, limit_offset_);
+
+        if (tuple_location_ptrs.size() == 0) {
+          LOG_TRACE("2-Result size is %lu", tuple_location_ptrs.size());
+        }
+      }
+    }
+    // Normal SQL (without limit)
+    else {
+      LOG_TRACE("Index Scan in Primary Index");
+      index_->Scan(values_, key_column_ids_, expr_types_,
+                   ScanDirectionType::FORWARD, tuple_location_ptrs,
+                   &index_predicate_.GetConjunctionList()[0]);
+    }
+  }
+
+  if (tuple_location_ptrs.size() == 0) {
+    LOG_TRACE("no tuple is retrieved from index.");
+    return false;
+  }
+
+  auto &transaction_manager =
+      concurrency::TransactionManagerFactory::GetInstance();
+
+  auto current_txn = executor_context_->GetTransaction();
+
+  std::vector<ItemPointer> visible_tuple_locations;
+
+  // Quickie Hack
+  // Sometimes we can get the tuples we need in the same block if they
+  // were inserted at the same time. So we'll record the last block that
+  // we got for each tuple and check whether its the same to avoid having
+  // to go back to the catalog each time.
+  oid_t last_block = INVALID_OID;
+  std::shared_ptr<storage::TileGroup> tile_group;
+  storage::TileGroupHeader *tile_group_header = nullptr;
+
+#ifdef LOG_TRACE_ENABLED
+  int num_tuples_examined = 0;
+  int num_blocks_reused = 0;
+#endif
+  auto storage_manager = storage::StorageManager::GetInstance();
+  for (auto tuple_location_ptr : tuple_location_ptrs) {
+    ItemPointer tuple_location = *tuple_location_ptr;
+    if (tuple_location.block != last_block) {
+      tile_group = storage_manager->GetTileGroup(tuple_location.block);
+      tile_group_header = tile_group.get()->GetHeader();
+    }
+#ifdef LOG_TRACE_ENABLED
+    else
+      num_blocks_reused++;
+    num_tuples_examined++;
+#endif
+
+    // the following code traverses the version chain until a certain visible
+    // version is found.
+    // we should always find a visible version from a version chain.
+    // different from primary key index lookup, we have to compare the
+    // secondary
+    // key to guarantee the correctness of the result.
+    size_t chain_length = 0;
+    while (true) {
+      ++chain_length;
+
+      auto visibility = transaction_manager.IsVisible(
+          current_txn, tile_group_header, tuple_location.offset);
+
+      // if the tuple is deleted
+      if (visibility == VisibilityType::DELETED) {
+        LOG_TRACE("encounter deleted tuple: %u, %u", tuple_location.block,
+                  tuple_location.offset);
+        break;
+      }
+      // if the tuple is visible.
+      else if (visibility == VisibilityType::OK) {
+        LOG_TRACE("perform read: %u, %u", tuple_location.block,
+                  tuple_location.offset);
+
+        // Further check if the version has the secondary key
+        ContainerTuple<storage::TileGroup> candidate_tuple(
+            tile_group.get(), tuple_location.offset);
+
+        LOG_TRACE("candidate_tuple size: %s",
+                  candidate_tuple.GetInfo().c_str());
+        // Construct the key tuple
+        auto &indexed_columns = index_->GetKeySchema()->GetIndexedColumns();
+        storage::MaskedTuple key_tuple(&candidate_tuple, indexed_columns);
+
+        // Compare the key tuple and the key
+        if (index_->Compare(key_tuple, key_column_ids_, expr_types_, values_) ==
+            false) {
+          LOG_TRACE("Secondary key mismatch: %u, %u\n", tuple_location.block,
+                    tuple_location.offset);
+          break;
+        }
+
+        bool eval = true;
+        // if having predicate, then perform evaluation.
+        if (predicate_ != nullptr) {
+          eval =
+              predicate_->Evaluate(&candidate_tuple, nullptr, executor_context_)
+                  .IsTrue();
+        }
+        // if passed evaluation, then perform write.
+        if (eval == true) {
+          auto res = transaction_manager.PerformRead(
+              current_txn, tuple_location, tile_group_header, acquire_owner);
+          if (!res) {
+            transaction_manager.SetTransactionResult(current_txn,
+                                                     ResultType::FAILURE);
+            LOG_TRACE("passed evaluation, but txn read fails");
+            return res;
+          }
+          // if perform read is successful, then add to visible tuple vector.
+          visible_tuple_locations.push_back(tuple_location);
+          LOG_TRACE("passed evaluation, visible_tuple_locations size: %lu",
+                    visible_tuple_locations.size());
+        } else {
+          LOG_TRACE("predicate evaluate fails");
+        }
+
+        break;
+      }
+      // if the tuple is not visible.
+      else {
+        PELOTON_ASSERT(visibility == VisibilityType::INVISIBLE);
+
+        LOG_TRACE("Invisible read: %u, %u", tuple_location.block,
+                  tuple_location.offset);
+
+        bool is_acquired = (tile_group_header->GetTransactionId(
+                                tuple_location.offset) == INITIAL_TXN_ID);
+        bool is_alive =
+            (tile_group_header->GetEndCommitId(tuple_location.offset) <=
+             current_txn->GetReadId());
+        if (is_acquired && is_alive) {
+          // See an invisible version that does not belong to any one in the
+          // version chain.
+          // this means that some other transactions have modified the version
+          // chain.
+          // Wire back because the current version is expired. have to search
+          // from scratch.
+          tuple_location =
+              *(tile_group_header->GetIndirection(tuple_location.offset));
+          tile_group = storage_manager->GetTileGroup(tuple_location.block);
+          tile_group_header = tile_group.get()->GetHeader();
+          chain_length = 0;
+          continue;
+        }
+
+        ItemPointer old_item = tuple_location;
+        tuple_location = tile_group_header->GetNextItemPointer(old_item.offset);
+
+        if (tuple_location.IsNull()) {
+          // For an index scan on a version chain, the result should be one of
+          // the following:
+          //    (1) find a visible version
+          //    (2) find a deleted version
+          //    (3) find an aborted version with chain length equal to one
+          if (chain_length == 1) {
+            break;
+          }
+
+          // in most cases, there should exist a visible version.
+          // if we have traversed through the chain and still can not fulfill
+          // one of the above conditions,
+          // then return result_failure.
+          transaction_manager.SetTransactionResult(current_txn,
+                                                   ResultType::FAILURE);
+          return false;
+        }
+
+        // search for next version.
+        tile_group = storage_manager->GetTileGroup(tuple_location.block);
+        tile_group_header = tile_group.get()->GetHeader();
+      }
+    }
+    LOG_TRACE("Traverse length: %d\n", (int)chain_length);
+  }
+  LOG_TRACE("Examined %d tuples from index %s [num_blocks_reused=%d]",
+            num_tuples_examined, index_->GetName().c_str(), num_blocks_reused);
+
+  // Check whether the boundaries satisfy the required condition
+  CheckOpenRangeWithReturnedTuples(visible_tuple_locations);
+
+  // Add the tuple locations to the result vector in the order returned by
+  // the index scan. We might end up reading the same tile group multiple
+  // times. However, this is necessary to adhere to the ORDER BY clause
+  oid_t current_tile_group_oid = INVALID_OID;
+  std::vector<oid_t> tuples;
+
+  for (auto &visible_tuple_location : visible_tuple_locations) {
+    if (current_tile_group_oid == INVALID_OID) {
+      current_tile_group_oid = visible_tuple_location.block;
+    }
+    if (current_tile_group_oid == visible_tuple_location.block) {
+      tuples.push_back(visible_tuple_location.offset);
+    } else {
+      // Since the tile_group_oids differ, fill in the current tile group
+      // into the result vector
+      auto tile_group = storage_manager->GetTileGroup(current_tile_group_oid);
+      std::unique_ptr<LogicalTile> logical_tile(LogicalTileFactory::GetTile());
+      // Add relevant columns to logical tile
+      logical_tile->AddColumns(tile_group, full_column_ids_);
+      logical_tile->AddPositionList(std::move(tuples));
+      if (column_ids_.size() != 0) {
+        logical_tile->ProjectColumns(full_column_ids_, column_ids_);
+      }
+      result_.push_back(logical_tile.release());
+
+      // Change the current_tile_group_oid and add the current tuple
+      tuples.clear();
+      current_tile_group_oid = visible_tuple_location.block;
+      tuples.push_back(visible_tuple_location.offset);
+    }
+  }
+
+  // Add the remaining tuples (if any) to the result vector
+  if ((current_tile_group_oid != INVALID_OID) && (!tuples.empty())) {
+    auto tile_group = storage_manager->GetTileGroup(current_tile_group_oid);
+    std::unique_ptr<LogicalTile> logical_tile(LogicalTileFactory::GetTile());
+    // Add relevant columns to logical tile
+    logical_tile->AddColumns(tile_group, full_column_ids_);
+    logical_tile->AddPositionList(std::move(tuples));
+    if (column_ids_.size() != 0) {
+      logical_tile->ProjectColumns(full_column_ids_, column_ids_);
+    }
+    result_.push_back(logical_tile.release());
+  }
+
+  done_ = true;
+
+  LOG_TRACE("Result tiles : %lu", result_.size());
+
+  return true;
+}
+
+//TODO: Add old one back. //FIXME: Make sure pred has been set originally..
+bool IndexScanExecutor::ExecSecondaryIndexLookup___REFACTORED__NOT_YET__TESTED() {
+  LOG_TRACE("ExecSecondaryIndexLookup");
+  PELOTON_ASSERT(!done_);
+  PELOTON_ASSERT(index_->GetIndexType() != IndexConstraintType::PRIMARY_KEY);
+
    auto current_txn = executor_context_->GetTransaction();
 
   //////////////// Get TableVersion and TableColVersions    //These should be taken before the index lookup //   //TODO: Confirm that this works the same way for secondary index
   auto query_read_set_mgr = current_txn->GetQueryReadSetMgr();
   auto const &current_txn_timestamp = current_txn->GetBasilTimestamp();
 
-  if (!current_txn->IsPointRead()) {
+  if (!current_txn->IsPointRead() && current_txn->CheckPredicatesInitialized()) {
+  
     // Read table version and table col versions
     current_txn->GetTableVersion()(table_->GetName(), current_txn_timestamp, true, query_read_set_mgr, nullptr);
     // Table column version : FIXME: Read version per Col, not composite key
