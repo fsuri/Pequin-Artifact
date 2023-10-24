@@ -283,10 +283,8 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup__REFACTOR__IN__PROGRESS() {    //
   oid_t current_tile_group_oid = INVALID_OID;
   std::vector<oid_t> tuples;
 
-  auto const &primary_index_columns_ = index_->GetMetadata()->GetKeyAttrs();
 
   for (auto &visible_tuple_location : visible_tuple_locations) {
-    
     if (current_tile_group_oid == INVALID_OID) {
       current_tile_group_oid = visible_tuple_location.block;
     }
@@ -303,7 +301,7 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup__REFACTOR__IN__PROGRESS() {    //
       current_tile_group_oid = visible_tuple_location.block;
       tuples.push_back(visible_tuple_location.offset);
     }
-    ManageReadSet(visible_tuple_location, current_txn, primary_index_columns_, query_read_set_mgr, storage_manager);
+    //ManageReadSet(visible_tuple_location, current_txn, storage_manager);
   }
 
   // Add the remaining tuples to the result vector
@@ -335,15 +333,31 @@ void IndexScanExecutor::PrepareResult(std::vector<oid_t> &tuples, std::shared_pt
 }
 
 
-void IndexScanExecutor::ManageReadSet(ItemPointer &visible_tuple_location, concurrency::TransactionContext *current_txn, const std::vector<oid_t> &primary_index_columns_,
+void IndexScanExecutor::ManageReadSet(ItemPointer &visible_tuple_location, concurrency::TransactionContext *current_txn,
     pequinstore::QueryReadSetMgr *query_read_set_mgr, storage::StorageManager *storage_manager) {
   
   //Don't create a read set if it's a point query, or the query is executed in snapshot only mode
   if (current_txn->GetHasReadSetMgr()) {
+    auto const &primary_index_columns_ = index_->GetMetadata()->GetKeyAttrs();
+    auto query_read_set_mgr = current_txn->GetQueryReadSetMgr();
+
     auto tile_group = storage_manager->GetTileGroup(visible_tuple_location.block);
     auto tile_group_header = tile_group->GetHeader();
 
-    ContainerTuple<storage::TileGroup> row(tile_group.get(), visible_tuple_location.offset);
+    ManageReadSet(visible_tuple_location, tile_group, tile_group_header, current_txn);
+  }
+}
+
+void IndexScanExecutor::ManageReadSet(ItemPointer &tuple_location, std::shared_ptr<storage::TileGroup> tile_group, storage::TileGroupHeader *tile_group_header, 
+    concurrency::TransactionContext *current_txn) {
+  
+  //Don't create a read set if it's a point query, or the query is executed in snapshot only mode
+  if (current_txn->GetHasReadSetMgr()) {
+
+    auto const &primary_index_columns_ = index_->GetMetadata()->GetKeyAttrs();
+    auto query_read_set_mgr = current_txn->GetQueryReadSetMgr();
+
+    ContainerTuple<storage::TileGroup> row(tile_group.get(), tuple_location.offset);
 
     std::vector<std::string> primary_key_cols;
     for (auto col : primary_index_columns_) {
@@ -352,15 +366,15 @@ void IndexScanExecutor::ManageReadSet(ItemPointer &visible_tuple_location, concu
       Debug("Read set value: %s", val.ToString().c_str());
     }
 
-    const Timestamp &time = tile_group_header->GetBasilTimestamp(visible_tuple_location.offset);
+    const Timestamp &time = tile_group_header->GetBasilTimestamp(tuple_location.offset);
     std::string &&encoded = EncodeTableRow(table_->GetName(), primary_key_cols);
     Debug("encoded read set key is: %s. Version: [%lu: %lu]", encoded.c_str(), time.getTimestamp(), time.getID());
     query_read_set_mgr->AddToReadSet(std::move(encoded), time);
 
     //If prepared: Additionally set Dependency
-    if (!tile_group_header->GetCommitOrPrepare(visible_tuple_location.offset)) {
-      if (tile_group_header->GetTxnDig(visible_tuple_location.offset) == nullptr) Panic("Dep Digest is null");
-      query_read_set_mgr->AddToDepSet(*tile_group_header->GetTxnDig(visible_tuple_location.offset), time);
+    if (!tile_group_header->GetCommitOrPrepare(tuple_location.offset)) {
+      if (tile_group_header->GetTxnDig(tuple_location.offset) == nullptr) Panic("Dep Digest is null");
+      query_read_set_mgr->AddToDepSet(*tile_group_header->GetTxnDig(tuple_location.offset), time);
     }
   }
 }
@@ -407,16 +421,13 @@ void IndexScanExecutor::CheckRow(ItemPointer tuple_location, concurrency::Transa
 
     std::cout << "Head timestamp is " << tuple_timestamp.getTimestamp() << ", " << tuple_timestamp.getID() << std::endl;
 
-    ContainerTuple<storage::TileGroup> row_(tile_group.get(), tuple_location.offset);
-
     //Find the Right Row Version to read
     bool done = false;
 
     bool found_committed = false;
     bool found_prepared = false;
 
-  //TODO: Might be more elegant to put the entire loop into FindRightRowVersion, and then call Eval and visible_push_back AFTER it's done. => this won't do: might have to eval and push back twice for points.
-
+    //Iterate through linked list, from newest to oldest version   
     while(!done){
       ++chain_length;
       auto tuple_timestamp = tile_group_header->GetBasilTimestamp(tuple_location.offset);
@@ -428,21 +439,9 @@ void IndexScanExecutor::CheckRow(ItemPointer tuple_location, concurrency::Transa
         bool read_curr_version = false;
         done = FindRightRowVersion(timestamp, tile_group, tile_group_header, tuple_location, visible_tuple_set, visible_tuple_locations, num_iters, current_txn, read_curr_version, found_committed, found_prepared); 
 
-        //FIXME: How to parse PointReadResult if it does not have 2 rows because one of them did not eval to true
-
         //Eval should be called on the latest readable version. Note: For point reads we will call this up to twice (for prepared & committed)
         if(read_curr_version){
-          bool eval = true;
-          if (predicate_ != nullptr) { // if having predicate (WHERE clause), then perform evaluation.
-              LOG_TRACE("perform predicate evaluate");
-              ContainerTuple<storage::TileGroup> tuple(tile_group.get(), tuple_location.offset);
-              eval = predicate_->Evaluate(&tuple, nullptr, executor_context_).IsTrue();
-          }
-          // Add the tuple to the visible tuple vector
-          if(eval && (current_txn->GetHasReadSetMgr() && !current_txn->GetHasSnapshotMgr())) {  //If in snapshot only mode don't need to produce a result. Note: if doing pointQuery DO want the result
-            visible_tuple_locations.push_back(tuple_location);
-            visible_tuple_set.insert(tuple_location);
-          }
+          EvalRead(tile_group, tile_group_header, tuple_location, visible_tuple_set, visible_tuple_locations, current_txn);  //TODO: might be more elegant to move this into FindRightRowVersion
         }
         
       }
@@ -462,6 +461,43 @@ void IndexScanExecutor::CheckRow(ItemPointer tuple_location, concurrency::Transa
     }
 
     LOG_TRACE("Traverse length: %d\n", (int)chain_length);
+}
+
+static bool use_active_read_set = true; //If true, then Must use Table_Col_Version
+
+void IndexScanExecutor::EvalRead(std::shared_ptr<storage::TileGroup> tile_group, storage::TileGroupHeader *tile_group_header, ItemPointer tuple_location,
+    std::set<ItemPointer> &visible_tuple_set, std::vector<ItemPointer> &visible_tuple_locations, concurrency::TransactionContext *current_txn){
+    //Eval should be called on the latest readable version. Note: For point reads we will call this up to twice (for prepared & committed)
+  
+  bool eval = false;
+  if (predicate_ != nullptr) { // if having predicate (WHERE clause), then perform evaluation.
+      LOG_TRACE("perform predicate evaluate");
+      ContainerTuple<storage::TileGroup> tuple(tile_group.get(), tuple_location.offset);
+      eval = predicate_->Evaluate(&tuple, nullptr, executor_context_).IsTrue();
+  }
+  // Add the tuple to the visible tuple vector
+  if(eval && (current_txn->GetHasReadSetMgr() && !current_txn->GetHasSnapshotMgr())) {  //If in snapshot only mode don't need to produce a result. Note: if doing pointQuery DO want the result
+    visible_tuple_locations.push_back(tuple_location);
+    visible_tuple_set.insert(tuple_location);
+
+    if(use_active_read_set) ManageReadSet(tuple_location, tile_group, tile_group_header, current_txn);
+  }
+   //FOR NOW ONLY PICK ACTIVE READ SET. USE THIS LINE FOR COMPLETE RS: 
+  if(!use_active_read_set) ManageReadSet(tuple_location, tile_group, tile_group_header, current_txn); //Note: For primary index they'll always be the same.
+
+  //Mark whether or not the result read for a committed/prepared version is empty or exists
+  if(eval == true && current_txn->IsPointRead()){
+    if(tile_group_header->GetCommitOrPrepare(tuple_location.offset)){
+      //mark commit result as usable
+      auto commit_val = current_txn->GetCommittedValue();
+      *commit_val = "u";
+    }
+    else{
+      //mark prepare result as usable
+      auto prepare_val = current_txn->GetPreparedValue();
+      *prepare_val = "u";
+    }
+  }         
 }
 
 bool IndexScanExecutor::FindRightRowVersion(const Timestamp &timestamp, std::shared_ptr<storage::TileGroup> tile_group, storage::TileGroupHeader *tile_group_header, ItemPointer tuple_location,
@@ -502,7 +538,7 @@ bool IndexScanExecutor::FindRightRowVersion(const Timestamp &timestamp, std::sha
           // visible_tuple_set.insert(tuple_location);
 
       // Set the committed timestmp
-      Timestamp committed_timestamp = tile_group_header->GetBasilTimestamp(tuple_location.offset);
+      Timestamp const &committed_timestamp = tile_group_header->GetBasilTimestamp(tuple_location.offset);
       Debug("Committed Timestamp: [%lu:%lu]", committed_timestamp.getTimestamp(), committed_timestamp.getID());
 
       if (perform_find_snapshot) {
@@ -510,7 +546,7 @@ bool IndexScanExecutor::FindRightRowVersion(const Timestamp &timestamp, std::sha
         auto commit_or_prepare = tile_group_header->GetCommitOrPrepare(tuple_location.offset);
 
         if (txn_digest != nullptr) {
-          snapshot_mgr->AddToLocalSnapshot(*txn_digest.get(), timestamp.getTimestamp(), timestamp.getID(), commit_or_prepare);
+          snapshot_mgr->AddToLocalSnapshot(*txn_digest.get(), committed_timestamp.getTimestamp(), committed_timestamp.getID(), commit_or_prepare);
           num_iters++;
         }
       }
@@ -519,9 +555,10 @@ bool IndexScanExecutor::FindRightRowVersion(const Timestamp &timestamp, std::sha
         Debug("Setting the commit proof");
         const pequinstore::proto::CommittedProof **commit_proof_ref = current_txn->GetCommittedProofRef();
         *commit_proof_ref = commit_proof;
-        auto commit_ts = current_txn->GetCommitTimestamp();
-        *commit_ts = committed_timestamp;
-        current_txn->SetCommitTimestamp(&committed_timestamp);
+        auto commit_ts = current_txn->GetCommitTimestamp(); 
+        *commit_ts = committed_timestamp; //Use either this line to copy TS, OR the SetCommitTs func below to set ref. Don't need both... 
+        //current_txn->SetCommitTimestamp(&committed_timestamp); 
+
         //*commit_proof_ref = *commit_proof;
         // current_txn->SetCommittedProofRef(commit_proof);
         //  std::cout << (*commit_proof)->DebugString() << std::endl;
@@ -549,7 +586,7 @@ bool IndexScanExecutor::FindRightRowVersion(const Timestamp &timestamp, std::sha
     }
 
 
-    // If finding a snapshot then read up to k prepared values (but don't add them to the result)
+    // If finding a snapshot then read up to k prepared values (but don't add them to the result) -- Note, the first prepared value is handled by normal prepare process below.
     else if (perform_find_snapshot && num_iters < current_txn->GetKPreparedVersions() && !found_committed && found_prepared && !tile_group_header->GetCommitOrPrepare(tuple_location.offset)) {
       
       auto const &read_prepared_pred = current_txn->GetReadPreparedPred();
@@ -557,14 +594,16 @@ bool IndexScanExecutor::FindRightRowVersion(const Timestamp &timestamp, std::sha
         auto txn_digest = tile_group_header->GetTxnDig(tuple_location.offset);
         auto commit_or_prepare = tile_group_header->GetCommitOrPrepare(tuple_location.offset);
 
+        Timestamp const &prepared_timestamp = tile_group_header->GetBasilTimestamp(tuple_location.offset);
+
         if (txn_digest != nullptr && read_prepared_pred(*txn_digest)) {
-          snapshot_mgr->AddToLocalSnapshot(*txn_digest.get(), timestamp.getTimestamp(), timestamp.getID(), commit_or_prepare);
+          snapshot_mgr->AddToLocalSnapshot(*txn_digest.get(), prepared_timestamp.getTimestamp(), prepared_timestamp.getID(), commit_or_prepare);
           num_iters++;
         }
       } 
     }
 
-    // For the first snapshot read
+    // For reads on snapshot: Read regardless of whether it is prepared or force_materialized
     else if (perform_read_on_snapshot && !found_committed) {
       auto txn_dig = tile_group_header->GetTxnDig(tuple_location.offset);
       bool should_read = snapshot_set->find(*txn_dig.get()) != snapshot_set->end();
@@ -580,8 +619,13 @@ bool IndexScanExecutor::FindRightRowVersion(const Timestamp &timestamp, std::sha
       }
     }
 
-    // NEW: if we can read prepared values, check to see if prepared tuple satisfies predicate
+    // NEW: if we can read prepared values, check to see if prepared tuple satisfies predicate 
     else if (!found_committed && !found_prepared && /*current_txn->CanReadPrepared() &&*/ !tile_group_header->GetCommitOrPrepare( tuple_location.offset)) {
+      if(tile_group_header->GetMaterialize(tuple_location.offset)){
+        Debug("dont read force materialized versions for queries that are not reading from snapshot");
+        return false;
+      } 
+
       // NEW: check to see if tuple satisfies predicate
       auto const &read_prepared_pred = current_txn->GetReadPreparedPred();
       if (read_prepared_pred) {
@@ -592,10 +636,15 @@ bool IndexScanExecutor::FindRightRowVersion(const Timestamp &timestamp, std::sha
 
           std::cout << "ReadPreparedPredicate is satisfied" << std::endl;
 
-          // Set the prepared timestamp
           Timestamp prepared_timestamp = tile_group_header->GetBasilTimestamp(tuple_location.offset);
-          current_txn->SetPreparedTimestamp(&prepared_timestamp);
+
           if (current_txn->IsPointRead()) {
+            // Set the prepared timestamp
+            
+            auto prepared_ts = current_txn->GetPreparedTimestamp(); 
+            *prepared_ts = prepared_timestamp; //Use either this line to copy TS, OR the SetCommitTs func below to set ref. Don't need both...  Copy seems safer: prepare might get purged...
+            //current_txn->SetPreparedTimestamp(&prepared_timestamp); 
+
             auto prepared_txn_digest = current_txn->GetPreparedTxnDigest();
             *prepared_txn_digest = tile_group_header->GetTxnDig(tuple_location.offset);
           }
@@ -609,7 +658,7 @@ bool IndexScanExecutor::FindRightRowVersion(const Timestamp &timestamp, std::sha
             auto commit_or_prepare = tile_group_header->GetCommitOrPrepare(tuple_location.offset);
 
             if (txn_digest != nullptr) {
-              snapshot_mgr->AddToLocalSnapshot(*txn_digest.get(), timestamp.getTimestamp(), timestamp.getID(), commit_or_prepare);
+              snapshot_mgr->AddToLocalSnapshot(*txn_digest.get(), prepared_timestamp.getTimestamp(), prepared_timestamp.getID(), commit_or_prepare);
               num_iters++;
             }
           }
@@ -632,7 +681,8 @@ bool IndexScanExecutor::FindRightRowVersion(const Timestamp &timestamp, std::sha
       }
     }
 
-    Debug("Found committed: %d. Found prepared: %d, Can Read Prepared: %d, GetCommitOrPrepare: %d", found_committed, found_prepared, current_txn->CanReadPrepared(), tile_group_header->GetCommitOrPrepare(tuple_location.offset));
+    Debug("Found committed: %d. Found prepared: %d, Can Read Prepared: %d, GetCommitOrPrepare: %d, GetMaterialize: %d", found_committed, found_prepared, current_txn->CanReadPrepared(), 
+          tile_group_header->GetCommitOrPrepare(tuple_location.offset), tile_group_header->GetMaterialize(tuple_location.offset));
 
     return false;   
 }

@@ -932,6 +932,11 @@ executor::ExecutionResult TrafficCop::ExecutePointReadHelper(
   txn->SetPreparedTimestamp(prepared_timestamp);
   // Set the prepared txn_dig
   txn->SetPreparedTxnDigest(txn_dig);
+
+  txn->SetCommittedValue(write->mutable_committed_value());
+  txn->SetPreparedValue(write->mutable_prepared_value());
+
+
   // Not undoing deletes
   txn->SetUndoDelete(false);
   // No read set manager

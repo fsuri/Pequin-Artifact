@@ -488,49 +488,61 @@ void PelotonTableStore::TransformPointResult(proto::Write *write, Timestamp &com
   // Change Peloton result into query proto.
 
   unsigned int rows = result.size() / tuple_descriptor.size();
-  UW_ASSERT(rows <= 2); // There should be at most 2 rows: One committed, and one prepared. The committed one always comes last.
+  UW_ASSERT(rows <= 2); // There should be at most 2 rows: One committed, and one prepared. The committed one always comes last. (if it exists)
 
   if (rows == 0)
     return; // Empty result: No tuple exists for the supplied Row-key
 
-  // Committed
   sql::QueryResultProtoBuilder queryResultBuilder;
-  RowProto *row = queryResultBuilder.new_row();
+  RowProto *row;
 
-  for (unsigned int i = 0; i < tuple_descriptor.size(); i++) {
-    std::string &column_name = std::get<0>(tuple_descriptor[i]);
-    queryResultBuilder.add_column(column_name);
-    size_t index = (rows - 1) * tuple_descriptor.size() + i;
-    Debug("Index in result array is %lu", index);
-    queryResultBuilder.AddToRow(row, result[index]); // Note: rows-1 == last row == Committed
-    Debug("After adding to row");
+  // Committed
+  if(write->has_committed_timestamp()){ //Indicate that we read a committed version
+  
+    if(write->has_committed_value()){ //Indicate that the committed version produced a result. If not, just return empty result
+      row = queryResultBuilder.new_row();
+      for (unsigned int i = 0; i < tuple_descriptor.size(); i++) {
+        std::string &column_name = std::get<0>(tuple_descriptor[i]);
+        queryResultBuilder.add_column(column_name);
+        size_t index = (rows - 1) * tuple_descriptor.size() + i;
+        Debug("Index in result array is %lu", index);
+        queryResultBuilder.AddToRow(row, result[index]); // Note: rows-1 == last row == Committed
+        Debug("After adding to row");
+      }
+    }
+
+    Debug("Setting committed value");
+    write->set_committed_value(queryResultBuilder.get_result()->SerializeAsString()); // Note: This "clears" the builder
+    Debug("Before serializing committed timestamp");
+    committed_timestamp.serialize(write->mutable_committed_timestamp());
+    Debug("After serializing committed timestamp");
   }
-
-  Debug("Setting committed value");
-  write->set_committed_value(queryResultBuilder.get_result()->SerializeAsString()); // Note: This "clears" the builder
-  Debug("Before serializing committed timestamp");
-  committed_timestamp.serialize(write->mutable_committed_timestamp());
-  Debug("After serializing committed timestamp");
 
   // Prepared
   if (rows < 2) return; // no prepared
 
-  row = queryResultBuilder.new_row();
-  for (unsigned int i = 0; i < tuple_descriptor.size(); i++) {
-    std::string &column_name = std::get<0>(tuple_descriptor[i]);
-    queryResultBuilder.add_column(column_name);
-    Debug("Before adding to row");
-    queryResultBuilder.AddToRow(row, result[0 * tuple_descriptor.size() + i]); // Note: first row == Prepared (if present)
-    Debug("After adding to row");
-  }
+  if(write->has_prepared_timestamp()){ //Indicate that we read a prepared version
 
-  Debug("Before setting prepared value");
-  write->set_prepared_value( queryResultBuilder.get_result()->SerializeAsString()); // Note: This "clears" the builder
-  Debug("Before setting prepapred timestamp");
-  prepared_timestamp.serialize(write->mutable_prepared_timestamp());
-  Debug("Before setting prepared txn digest");
-  write->set_prepared_txn_digest(*txn_dig);
-  Debug("After setting txn digest");
+    if(write->has_prepared_value()){ //Indicate that the prepared version produced a result. If not, just return empty result
+      row = queryResultBuilder.new_row();
+      for (unsigned int i = 0; i < tuple_descriptor.size(); i++) {
+        std::string &column_name = std::get<0>(tuple_descriptor[i]);
+        queryResultBuilder.add_column(column_name);
+        Debug("Before adding to row");
+        queryResultBuilder.AddToRow(row, result[0 * tuple_descriptor.size() + i]); // Note: first row == Prepared (if present)
+        Debug("After adding to row");
+      }
+
+      Debug("Before setting prepared value");
+      write->set_prepared_value( queryResultBuilder.get_result()->SerializeAsString()); // Note: This "clears" the builder
+      Debug("Before setting prepapred timestamp");
+      prepared_timestamp.serialize(write->mutable_prepared_timestamp());
+      Debug("Before setting prepared txn digest");
+      write->set_prepared_txn_digest(*txn_dig);
+      Debug("After setting txn digest");
+    }
+  }
+  
 
   return;
 }

@@ -372,6 +372,22 @@ public:
     prepared_timestamp_ = prepared_timestamp;
   }
 
+  std::string* GetCommittedValue() {
+    return committed_value_;
+  }
+  std::string* GetPreparedValue() {
+    return prepared_value_;
+  }
+
+  void SetCommittedValue(std::string *committed_value) {
+    committed_value_ = committed_value;
+  }
+  void SetPreparedValue(std::string *prepared_value) {
+    prepared_value_ = prepared_value;
+  }
+  
+
+
   bool GetForceMaterialize() {
     return force_materialize_;
   }
@@ -490,6 +506,11 @@ private:
 
   /** Prepared value transaction digest */
   std::shared_ptr<std::string> *prepared_txn_dig_;
+
+  /** Committed and Prepared Result dummy values */
+  std::string* committed_value_;
+  std::string* prepared_value_;
+  
 
   /** Commit or prepare */
   bool commit_or_prepare_;
