@@ -97,21 +97,23 @@ void SQLTransformer::RegisterTables(std::string &table_registry){ //TODO: This t
         //register column types
         uint32_t i = 0;
         for(auto &[col_name, col_type]: column_names_and_types){
-        col_registry.col_name_type[col_name] = col_type;
-        //col_registry.col_name_index.emplace_back(col_name, i++);
-        col_registry.col_name_index[col_name] = i++;
-        col_registry.col_names.push_back(col_name);
-        (col_type == "TEXT" || col_type == "VARCHAR") ? col_registry.col_quotes.push_back(true) : col_registry.col_quotes.push_back(false);
+            col_registry.col_name_type[col_name] = col_type;
+            //col_registry.col_name_index.emplace_back(col_name, i++);
+            col_registry.col_name_index[col_name] = i++;
+            col_registry.col_names.push_back(col_name);
+            (col_type == "TEXT" || col_type == "VARCHAR") ? col_registry.col_quotes.push_back(true) : col_registry.col_quotes.push_back(false);
         
         //std::cerr << "   Register column " << col_name << " : " << col_type << std::endl;
         }
         //register primary key
         for(auto &p_idx: primary_key_col_idx){
-        //col_registry.primary_key_cols_idx[column_names_and_types[p_idx].first] = p_idx;
-        col_registry.primary_key_cols_idx.emplace_back(column_names_and_types[p_idx].first, p_idx);
-        col_registry.primary_key_cols.insert(column_names_and_types[p_idx].first);
-        (col_registry.col_quotes[p_idx]) ? col_registry.p_col_quotes.push_back(true) : col_registry.p_col_quotes.push_back(false);
-        //std::cerr << "Primary key col " << column_names_and_types[p_idx].first << std::endl;
+            //col_registry.primary_key_cols_idx[column_names_and_types[p_idx].first] = p_idx;
+            col_registry.primary_key_cols_idx.emplace_back(column_names_and_types[p_idx].first, p_idx);
+            col_registry.primary_key_cols.insert(column_names_and_types[p_idx].first);
+            (col_registry.col_quotes[p_idx]) ? col_registry.p_col_quotes.push_back(true) : col_registry.p_col_quotes.push_back(false);
+            //std::cerr << "Primary key col " << column_names_and_types[p_idx].first << std::endl;
+
+            col_registry.indexed_cols.emplace(col_registry.col_names[p_idx]);
         }
         col_registry.primary_col_idx = primary_key_col_idx;
 
@@ -123,6 +125,7 @@ void SQLTransformer::RegisterTables(std::string &table_registry){ //TODO: This t
             index_cols.push_back(column_names_and_types[i_idx].first);
             //std::cerr << "   Secondary key col " << column_names_and_types[i_idx].first << std::endl;
             }
+            col_registry.indexed_cols.insert(col_registry.col_names[index_col_idx]);
         }
     }
 }
@@ -556,6 +559,8 @@ void SQLTransformer::TransformUpdate(size_t pos, std::string_view &write_stateme
         
         //Write TableColVersions
         for(auto &[col, _]: col_updates){
+            if(!col_registry.indexed_cols.count(col)) continue; //only set col version for indexed columns
+
             WriteMessage *write = txn->add_write_set();   
             write->set_key(table_name + unique_delimiter + std::string(col));  
             write->set_delay(true);

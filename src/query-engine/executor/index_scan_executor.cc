@@ -164,6 +164,7 @@ bool IndexScanExecutor::DExecute() {
 }
 
 void IndexScanExecutor::GetColNames(const expression::AbstractExpression * child_expr, std::unordered_set<std::string> &column_names) {
+  //Get all Column Names in the WHERE clause. 
   for (size_t i = 0; i < child_expr->GetChildrenSize(); i++) {
     auto child = child_expr->GetChild(i);
     if (dynamic_cast<const expression::TupleValueExpression*>(child) != nullptr) {

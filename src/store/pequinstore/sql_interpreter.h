@@ -41,6 +41,7 @@
 #include <iostream>
 #include <sstream>
 #include <cstdint>
+#include <string_view>
 
 #include "store/common/query_result/query_result_proto_wrapper.h"
 #include "store/common/query_result/query_result_proto_builder.h"
@@ -144,7 +145,9 @@ typedef struct ColRegistry {
             std::vector<bool> p_col_quotes; //col_quotes in order
 
 
-            std::map<std::string, std::vector<std::string>> secondary_key_cols;
+            std::map<std::string, std::vector<std::string>> secondary_key_cols; //index name -> composite key vector
+
+            std::set<std::string_view> indexed_cols; //all column names that are part of some index (be it primary or secondary)
 } ColRegistry;
 
 
