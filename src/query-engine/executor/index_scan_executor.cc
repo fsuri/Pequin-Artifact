@@ -178,6 +178,32 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup__REFACTOR__IN__PROGRESS() {    //
   PELOTON_ASSERT(!done_);
   Debug("Inside Index Scan Executor"); // std::cout << "Inside index scan executor" << std::endl;
 
+  auto current_txn = executor_context_->GetTransaction();
+
+  //////////////// Get TableVersion and TableColVersions    //These should be taken before the index lookup //
+  auto query_read_set_mgr = current_txn->GetQueryReadSetMgr();
+  auto const &current_txn_timestamp = current_txn->GetBasilTimestamp();
+
+  if (!current_txn->IsPointRead()) {
+    // Read table version and table col versions
+    current_txn->GetTableVersion()(table_->GetName(), current_txn_timestamp, true, query_read_set_mgr, nullptr);
+    // Table column version : FIXME: Read version per Col, not composite key
+    std::unordered_set<std::string> column_names;
+    //std::vector<std::string> col_names;
+    GetColNames(predicate_, column_names);
+
+    for (auto &col : column_names) {
+      std::cout << "Col name is " << col << std::endl;
+      current_txn->GetTableVersion()(EncodeTableCol(table_->GetName(), col), current_txn_timestamp, true, query_read_set_mgr, nullptr);
+      //col_names.push_back(col);
+    }
+
+    // std::string encoded_key = EncodeTableRow(table_->GetName(), col_names);
+    // std::cout << "Encoded key is " << encoded_key << std::endl;
+    // current_txn->GetTableVersion()(encoded_key, current_txn_timestamp, true, query_read_set_mgr, nullptr);
+  }
+  ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
   std::vector<ItemPointer *> tuple_location_ptrs;
 
   // Grab info from plan node
@@ -220,7 +246,7 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup__REFACTOR__IN__PROGRESS() {    //
 
   auto &transaction_manager = concurrency::TransactionManagerFactory::GetInstance();
 
-  auto current_txn = executor_context_->GetTransaction();
+
   auto storage_manager = storage::StorageManager::GetInstance();
   std::vector<ItemPointer> visible_tuple_locations;
   // Add set for visible and prepared visible tuple locations to prevent duplicates
@@ -230,20 +256,9 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup__REFACTOR__IN__PROGRESS() {    //
 
   std::set<ItemPointer> prepared_tuple_set;
 
-  /////////////////////////////// PESTO MODIFIERS ///////////////////////////////////
-  bool has_snapshot_mgr = current_txn->GetHasSnapshotMgr();
-  auto snapshot_mgr = current_txn->GetSnapshotMgr();
-
-  size_t k_prepared_versions = current_txn->GetKPreparedVersions();
-  std::vector<ItemPointer> snapshot_tuple_locations;
-
-  bool is_snapshot_read = current_txn->GetSnapshotRead();
-  auto snapshot_set = current_txn->GetSnapshotSet();
-  ///////////////////////////////////////////////////////////////////////////////////
-
-
   // NEW: Commit proofs
   // std::vector<const pequinstore::proto::CommittedProof *> proofs;
+
 
   #ifdef LOG_TRACE_ENABLED
     int num_tuples_examined = 0;
@@ -251,49 +266,24 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup__REFACTOR__IN__PROGRESS() {    //
 
   // for every tuple that is found in the index.
   for (auto tuple_location_ptr : tuple_location_ptrs) {
-    CheckRow(*tuple_location_ptr)
+    CheckRow(*tuple_location_ptr, transaction_manager, current_txn, storage_manager, visible_tuple_locations, visible_tuple_set, prepared_visible_tuple_locations, prepared_tuple_set);
   }
 
   // std::cout << "Outside for loop" << std::endl;
-  LOG_TRACE("Examined %d tuples from index %s", num_tuples_examined,
-            index_->GetName().c_str());
+  LOG_TRACE("Examined %d tuples from index %s", num_tuples_examined, index_->GetName().c_str());
 
-  LOG_TRACE("%ld tuples before pruning boundaries",
-            visible_tuple_locations.size());
+  LOG_TRACE("%ld tuples before pruning boundaries", visible_tuple_locations.size());
 
   // Check whether the boundaries satisfy the required condition
   CheckOpenRangeWithReturnedTuples(visible_tuple_locations);
 
   LOG_TRACE("%ld tuples after pruning boundaries", visible_tuple_locations.size());
 
-  // Add the tuple locations to the result vector in the order returned by
-  // the index scan. We might end up reading the same tile group multiple
-  // times. However, this is necessary to adhere to the ORDER BY clause
+  // Add the tuple locations to the result vector in the order returned by the index scan. We might end up reading the same tile group multiple times. However, this is necessary to adhere to the ORDER BY clause
   oid_t current_tile_group_oid = INVALID_OID;
   std::vector<oid_t> tuples;
 
-  auto primary_index_columns_ = index_->GetMetadata()->GetKeyAttrs();
-  auto query_read_set_mgr = current_txn->GetQueryReadSetMgr();
-  auto current_txn_timestamp = current_txn->GetBasilTimestamp();
-
-  if (!current_txn->IsPointRead()) {
-    // Read table version and table col versions
-    current_txn->GetTableVersion()(table_->GetName(), current_txn_timestamp, true, query_read_set_mgr, nullptr);
-    // Table column version : FIXME: Read version per Col, not composite key
-    std::unordered_set<std::string> column_names;
-    //std::vector<std::string> col_names;
-    GetColNames(predicate_, column_names);
-
-    for (auto &col : column_names) {
-      std::cout << "Col name is " << col << std::endl;
-      current_txn->GetTableVersion()(EncodeTableCol(table_->GetName(), col), current_txn_timestamp, true, query_read_set_mgr, nullptr);
-      //col_names.push_back(col);
-    }
-
-    // std::string encoded_key = EncodeTableRow(table_->GetName(), col_names);
-    // std::cout << "Encoded key is " << encoded_key << std::endl;
-    // current_txn->GetTableVersion()(encoded_key, current_txn_timestamp, true, query_read_set_mgr, nullptr);
-  }
+  auto const &primary_index_columns_ = index_->GetMetadata()->GetKeyAttrs();
 
   for (auto &visible_tuple_location : visible_tuple_locations) {
     
@@ -329,7 +319,8 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup__REFACTOR__IN__PROGRESS() {    //
   return true;
 }
 
-void PrepareResult(std::vector<oid_t> &tuples, std::shared_ptr<storage::TileGroup> tile_group) {
+void IndexScanExecutor::PrepareResult(std::vector<oid_t> &tuples, std::shared_ptr<storage::TileGroup> tile_group) {
+
     std::unique_ptr<LogicalTile> logical_tile(LogicalTileFactory::GetTile());
     // Add relevant columns to logical tile
     logical_tile->AddColumns(tile_group, full_column_ids_);
@@ -344,8 +335,10 @@ void PrepareResult(std::vector<oid_t> &tuples, std::shared_ptr<storage::TileGrou
 }
 
 
-void ManageReadSet(ItemPointer &visible_tuple_location, concurrency::TransactionContext *current_txn, std::vector<oid_t> &primary_index_columns_,
+void IndexScanExecutor::ManageReadSet(ItemPointer &visible_tuple_location, concurrency::TransactionContext *current_txn, const std::vector<oid_t> &primary_index_columns_,
     pequinstore::QueryReadSetMgr *query_read_set_mgr, storage::StorageManager *storage_manager) {
+  
+  //Don't create a read set if it's a point query, or the query is executed in snapshot only mode
   if (current_txn->GetHasReadSetMgr()) {
     auto tile_group = storage_manager->GetTileGroup(visible_tuple_location.block);
     auto tile_group_header = tile_group->GetHeader();
@@ -373,19 +366,16 @@ void ManageReadSet(ItemPointer &visible_tuple_location, concurrency::Transaction
 }
 
 
-void CheckRow(ItemPointer tuple_location, concurrency::TransactionContext *current_txn, storage::StorageManager *storage_manager, 
-  std::vector<ItemPointer> &visible_tuple_locations, std::set<ItemPointer> &visible_tuple_set, std::vector<ItemPointer> &prepared_visible_tuple_locations, std::set<ItemPointer> &prepared_tuple_set,
-  bool perform_find_snapshot, pequinstore::SnapshotManager *snapshot_mgr, size_t k_prepared_versions, std::vector<ItemPointer> &snapshot_tuple_locations,
-  bool perform_read_on_snapshot, google::protobuf::Map<std::string, pequinstore::proto::ReplicaList> *snapshot_set)
+void IndexScanExecutor::CheckRow(ItemPointer tuple_location, concurrency::TransactionManager &transaction_manager, concurrency::TransactionContext *current_txn, storage::StorageManager *storage_manager, 
+  std::vector<ItemPointer> &visible_tuple_locations, std::set<ItemPointer> &visible_tuple_set, 
+  std::vector<ItemPointer> &prepared_visible_tuple_locations, std::set<ItemPointer> &prepared_tuple_set)
 {
-  UW_ASSERT(perform_find_snapshot != perform_read_on_snapshot); //shouldn't do both simultaneously currently. Though we could support it in theory.
+
 
   // std::cout << "Index executor inside for loop" << std::endl;
     auto tile_group = storage_manager->GetTileGroup(tuple_location.block);
     auto tile_group_header = tile_group.get()->GetHeader();
     size_t chain_length = 0;
-    bool found_committed = false;
-    bool found_prepared = false;
     size_t num_iters = 0;
 
     auto visibility = transaction_manager.IsVisible(current_txn, tile_group_header, tuple_location.offset);
@@ -397,7 +387,7 @@ void CheckRow(ItemPointer tuple_location, concurrency::TransactionContext *curre
 #endif
     // the following code traverses the version chain until a certain visible version is found. we should always find a visible version from a version chain.
     // NOTE: Similar read logic as seq_scan_executor
-    auto timestamp = current_txn->GetBasilTimestamp();
+    auto const &timestamp = current_txn->GetBasilTimestamp();
 
     Debug(" Txn TS: [%lu, %lu]", timestamp.getTimestamp(), timestamp.getID());
    
@@ -419,7 +409,14 @@ void CheckRow(ItemPointer tuple_location, concurrency::TransactionContext *curre
 
     ContainerTuple<storage::TileGroup> row_(tile_group.get(), tuple_location.offset);
 
+    //Find the Right Row Version to read
     bool done = false;
+
+    bool found_committed = false;
+    bool found_prepared = false;
+
+  //TODO: Might be more elegant to put the entire loop into FindRightRowVersion, and then call Eval and visible_push_back AFTER it's done. => this won't do: might have to eval and push back twice for points.
+
     while(!done){
       ++chain_length;
       auto tuple_timestamp = tile_group_header->GetBasilTimestamp(tuple_location.offset);
@@ -428,14 +425,13 @@ void CheckRow(ItemPointer tuple_location, concurrency::TransactionContext *curre
 
       if (timestamp >= tuple_timestamp) {
         // Within range of timestamp
-      
-        done = FindRightRowVersion(timestamp, tile_group, tile_group_header, tuple_location, visible_tuple_set, found_committed, found_prepared, num_iters); //TODO: Might be more elegant to put the entire loop into FindRightRowVersion, and then call Eval and visible_push_back AFTER it's done.
+        bool read_curr_version = false;
+        done = FindRightRowVersion(timestamp, tile_group, tile_group_header, tuple_location, visible_tuple_set, visible_tuple_locations, num_iters, current_txn, read_curr_version, found_committed, found_prepared); 
 
-        //FIXME: what if this tuple points to a null position, can this happen?
-        //NOTE: The null check happens at the end of the loop. At the beginning the head must exist because this tuple was returned by the index
+        //FIXME: How to parse PointReadResult if it does not have 2 rows because one of them did not eval to true
 
-          //Eval should be called on the latest readable version. I.e. call after FindRowVersion is done
-        if(done){
+        //Eval should be called on the latest readable version. Note: For point reads we will call this up to twice (for prepared & committed)
+        if(read_curr_version){
           bool eval = true;
           if (predicate_ != nullptr) { // if having predicate (WHERE clause), then perform evaluation.
               LOG_TRACE("perform predicate evaluate");
@@ -443,7 +439,7 @@ void CheckRow(ItemPointer tuple_location, concurrency::TransactionContext *curre
               eval = predicate_->Evaluate(&tuple, nullptr, executor_context_).IsTrue();
           }
           // Add the tuple to the visible tuple vector
-          if(eval) {
+          if(eval && (current_txn->GetHasReadSetMgr() && !current_txn->GetHasSnapshotMgr())) {  //If in snapshot only mode don't need to produce a result. Note: if doing pointQuery DO want the result
             visible_tuple_locations.push_back(tuple_location);
             visible_tuple_set.insert(tuple_location);
           }
@@ -468,23 +464,32 @@ void CheckRow(ItemPointer tuple_location, concurrency::TransactionContext *curre
     LOG_TRACE("Traverse length: %d\n", (int)chain_length);
 }
 
-bool FindRightRowVersion(Timestamp &timestamp, std::shared_ptr<storage::TileGroup> tile_group, std::shared_ptr<storage::TileGroupHeader> tile_group_header, ItemPointer &tuple_location,
-    std::unordered_set<ItemPointer> &visible_tuple_set, std::vector<ItemPointer> &visible_tuple_locations, bool &found_committed, bool &found_prepared, size_t &num_iters, 
-    pequinstore::SnapshotManager *snapshot_mgr, concurrency::TransactionContext *current_txn, bool has_snapshot_mgr, size_t k_prepared_versions, 
-    bool perform_read_on_snapshot, bool perform_find_snapshot)
+bool IndexScanExecutor::FindRightRowVersion(const Timestamp &timestamp, std::shared_ptr<storage::TileGroup> tile_group, storage::TileGroupHeader *tile_group_header, ItemPointer tuple_location,
+    std::set<ItemPointer> &visible_tuple_set, std::vector<ItemPointer> &visible_tuple_locations, size_t &num_iters, concurrency::TransactionContext *current_txn, 
+    bool &read_curr_version, bool &found_committed, bool &found_prepared)
 {
+    /////////////////////////////// PESTO MODIFIERS  -- these are just aliases for convenience  ///////////////////////////////////
+    bool perform_find_snapshot = current_txn->GetHasSnapshotMgr();
+    auto snapshot_mgr = current_txn->GetSnapshotMgr();
+    //size_t k_prepared_versions = current_txn->GetKPreparedVersions();
+  
+    bool perform_read_on_snapshot = current_txn->GetSnapshotRead();
+    auto snapshot_set = current_txn->GetSnapshotSet();
+   ///////////////////////////////////////////////////////////////////////////////////
 
-    Debug("Tuple commit state: %d. Is tuple in visibility set (already processed)? %d", tile_group_header->GetCommitOrPrepare(tuple_location.offset), (visible_tuple_set.find(tuple_location) == visible_tuple_set.end()));
+  UW_ASSERT(perform_find_snapshot != perform_read_on_snapshot); //shouldn't do both simultaneously currently. Though we could support it in theory.
+
+  Debug("Tuple commit state: %d. Is tuple in visibility set (already processed)? %d", tile_group_header->GetCommitOrPrepare(tuple_location.offset), (visible_tuple_set.find(tuple_location) == visible_tuple_set.end()));
 
     // The tuple is committed
     if (tile_group_header->GetCommitOrPrepare(tuple_location.offset) && visible_tuple_set.find(tuple_location) == visible_tuple_set.end()) {
 
       // Set boolean flag found_committed to true
       found_committed = true;
-      std::cout << "Found committed tuple" << std::endl;
+      Debug("Found committed tuple");
 
       if (tile_group_header->IsDeleted(tuple_location.offset)) {
-        std::cout << "Tuple is deleted so will break" << std::endl;
+        Debug("Tuple is deleted so will break");
         return true;
       }
 
@@ -492,8 +497,9 @@ bool FindRightRowVersion(Timestamp &timestamp, std::shared_ptr<storage::TileGrou
       auto commit_proof = tile_group_header->GetCommittedProof(tuple_location.offset);
       // Add the commit proof to the vector 
       //proofs.push_back(commit_proof);
-
-
+      read_curr_version = true;
+          // visible_tuple_locations.push_back(tuple_location);
+          // visible_tuple_set.insert(tuple_location);
 
       // Set the committed timestmp
       Timestamp committed_timestamp = tile_group_header->GetBasilTimestamp(tuple_location.offset);
@@ -543,11 +549,10 @@ bool FindRightRowVersion(Timestamp &timestamp, std::shared_ptr<storage::TileGrou
     }
 
 
-    // If finding a snapshot then read prepared values
-    else if (has_snapshot_mgr && num_iters < k_prepared_versions && !found_committed && found_prepared && !tile_group_header->GetCommitOrPrepare(tuple_location.offset)) {
-
+    // If finding a snapshot then read up to k prepared values (but don't add them to the result)
+    else if (perform_find_snapshot && num_iters < current_txn->GetKPreparedVersions() && !found_committed && found_prepared && !tile_group_header->GetCommitOrPrepare(tuple_location.offset)) {
+      
       auto const &read_prepared_pred = current_txn->GetReadPreparedPred();
-
       if (read_prepared_pred) {
         auto txn_digest = tile_group_header->GetTxnDig(tuple_location.offset);
         auto commit_or_prepare = tile_group_header->GetCommitOrPrepare(tuple_location.offset);
@@ -556,11 +561,10 @@ bool FindRightRowVersion(Timestamp &timestamp, std::shared_ptr<storage::TileGrou
           snapshot_mgr->AddToLocalSnapshot(*txn_digest.get(), timestamp.getTimestamp(), timestamp.getID(), commit_or_prepare);
           num_iters++;
         }
-      }
-        
+      } 
     }
 
-    // For snapshot read
+    // For the first snapshot read
     else if (perform_read_on_snapshot && !found_committed) {
       auto txn_dig = tile_group_header->GetTxnDig(tuple_location.offset);
       bool should_read = snapshot_set->find(*txn_dig.get()) != snapshot_set->end();
@@ -571,8 +575,6 @@ bool FindRightRowVersion(Timestamp &timestamp, std::shared_ptr<storage::TileGrou
         }
 
         Debug("Tuple is prepared and read_prepared_pred is satisfied");
-        visible_tuple_locations.push_back(tuple_location);
-        visible_tuple_set.insert(tuple_location);
         found_prepared = true;
         return true;
       }
@@ -582,9 +584,7 @@ bool FindRightRowVersion(Timestamp &timestamp, std::shared_ptr<storage::TileGrou
     else if (!found_committed && !found_prepared && /*current_txn->CanReadPrepared() &&*/ !tile_group_header->GetCommitOrPrepare( tuple_location.offset)) {
       // NEW: check to see if tuple satisfies predicate
       auto const &read_prepared_pred = current_txn->GetReadPreparedPred();
-
       if (read_prepared_pred) {
-
         auto txn_digest = tile_group_header->GetTxnDig(tuple_location.offset);
 
         if (read_prepared_pred(*txn_digest) && visible_tuple_set.find(tuple_location) == visible_tuple_set.end()) {
@@ -619,8 +619,9 @@ bool FindRightRowVersion(Timestamp &timestamp, std::shared_ptr<storage::TileGrou
           }
 
           Debug("Tuple is prepared and predicate is satisfied");
-          visible_tuple_locations.push_back(tuple_location);
-          visible_tuple_set.insert(tuple_location);
+          read_curr_version = true;
+              // visible_tuple_locations.push_back(tuple_location);
+              // visible_tuple_set.insert(tuple_location);
 
           // If it's not a point read query then don't need to read committed, unless it's find snapshot
           if (!current_txn->IsPointRead() && !perform_find_snapshot) {
@@ -732,7 +733,7 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
 #endif
     // the following code traverses the version chain until a certain visible version is found. we should always find a visible version from a version chain.
     // NOTE: Similar read logic as seq_scan_executor
-    auto &timestamp = current_txn->GetBasilTimestamp();
+    auto const &timestamp = current_txn->GetBasilTimestamp();
 
     Debug(" Txn TS: [%lu, %lu]", timestamp.getTimestamp(), timestamp.getID());
    
@@ -799,17 +800,12 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
             return res;
           }*/
 
-          Debug("Tuple commit state: %d. Is tuple in visibility set? %d",
-                tile_group_header->GetCommitOrPrepare(tuple_location.offset),
-                (visible_tuple_set.find(tuple_location) == visible_tuple_set.end()));
+          Debug("Tuple commit state: %d. Is tuple in visibility set? %d", tile_group_header->GetCommitOrPrepare(tuple_location.offset), (visible_tuple_set.find(tuple_location) == visible_tuple_set.end()));
 
-          std::cout << "Tuple check if committed is " << tile_group_header->GetCommitOrPrepare(tuple_location.offset) << ". Already processed is "
-           << (visible_tuple_set.find(tuple_location) == visible_tuple_set.end()) << std::endl;
+          std::cout << "Tuple check if committed is " << tile_group_header->GetCommitOrPrepare(tuple_location.offset) << ". Already processed is " << (visible_tuple_set.find(tuple_location) == visible_tuple_set.end()) << std::endl;
 
           // The tuple is committed
-          if (tile_group_header->GetCommitOrPrepare(tuple_location.offset) &&
-              visible_tuple_set.find(tuple_location) ==
-                  visible_tuple_set.end()) {
+          if (tile_group_header->GetCommitOrPrepare(tuple_location.offset) && visible_tuple_set.find(tuple_location) == visible_tuple_set.end()) {
 
             // Set boolean flag found_committed to true
             found_committed = true;
@@ -821,19 +817,15 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
             }
 
             // Get the commit proof
-            auto commit_proof =
-                tile_group_header->GetCommittedProof(tuple_location.offset);
+            auto commit_proof = tile_group_header->GetCommittedProof(tuple_location.offset);
             // Add the commit proof to the vector
             // proofs.push_back(commit_proof);
             // Add the tuple to the visible tuple vector
             visible_tuple_locations.push_back(tuple_location);
             visible_tuple_set.insert(tuple_location);
             // Set the committed timestmp
-            Timestamp committed_timestamp =
-                tile_group_header->GetBasilTimestamp(tuple_location.offset);
-            Debug("Committed Timestamp: [%lu:%lu]",
-                  committed_timestamp.getTimestamp(),
-                  committed_timestamp.getID());
+            Timestamp committed_timestamp = tile_group_header->GetBasilTimestamp(tuple_location.offset);
+            Debug("Committed Timestamp: [%lu:%lu]", committed_timestamp.getTimestamp(), committed_timestamp.getID());
 
 
             if (has_snapshot_mgr) {
@@ -849,8 +841,7 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
 
             if (current_txn->IsPointRead()) {
               Debug("Setting the commit proof");
-              const pequinstore::proto::CommittedProof **commit_proof_ref =
-                  current_txn->GetCommittedProofRef();
+              const pequinstore::proto::CommittedProof **commit_proof_ref = current_txn->GetCommittedProofRef();
               *commit_proof_ref = commit_proof;
               auto commit_ts = current_txn->GetCommitTimestamp();
               *commit_ts = committed_timestamp;
@@ -866,11 +857,9 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
                 std::cout << "Inside index scan proof not null" << std::endl;
 
                 auto proof_ts = Timestamp(commit_proof->txn().timestamp());
-                Debug("Proof ts is %lu, %lu", proof_ts.getTimestamp(),
-                      proof_ts.getID());
+                Debug("Proof ts is %lu, %lu", proof_ts.getTimestamp(), proof_ts.getID());
 
-                std::cout << "Proof ts is " << proof_ts.getTimestamp() << ", "
-                          << proof_ts.getID() << std::endl;
+                std::cout << "Proof ts is " << proof_ts.getTimestamp() << ", " << proof_ts.getID() << std::endl;
               }
 
               if (commit_proof_ref == nullptr) {
@@ -1011,11 +1000,9 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
     // std::cout << "For loop iteration" << std::endl;
   }
   // std::cout << "Outside for loop" << std::endl;
-  LOG_TRACE("Examined %d tuples from index %s", num_tuples_examined,
-            index_->GetName().c_str());
+  LOG_TRACE("Examined %d tuples from index %s", num_tuples_examined, index_->GetName().c_str());
 
-  LOG_TRACE("%ld tuples before pruning boundaries",
-            visible_tuple_locations.size());
+  LOG_TRACE("%ld tuples before pruning boundaries", visible_tuple_locations.size());
 
   // Check whether the boundaries satisfy the required condition
   CheckOpenRangeWithReturnedTuples(visible_tuple_locations);
@@ -1023,15 +1010,13 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
   LOG_TRACE("%ld tuples after pruning boundaries",
             visible_tuple_locations.size());
 
-  // Add the tuple locations to the result vector in the order returned by
-  // the index scan. We might end up reading the same tile group multiple
-  // times. However, this is necessary to adhere to the ORDER BY clause
+  // Add the tuple locations to the result vector in the order returned by the index scan. We might end up reading the same tile group multipletimes. However, this is necessary to adhere to the ORDER BY clause
   oid_t current_tile_group_oid = INVALID_OID;
   std::vector<oid_t> tuples;
 
-  auto primary_index_columns_ = index_->GetMetadata()->GetKeyAttrs();
+  auto const &primary_index_columns_ = index_->GetMetadata()->GetKeyAttrs();
   auto query_read_set_mgr = current_txn->GetQueryReadSetMgr();
-  auto current_txn_timestamp = current_txn->GetBasilTimestamp();
+  auto const &current_txn_timestamp = current_txn->GetBasilTimestamp();
 
   if (!current_txn->IsPointRead()) {
     // Read table version and table col versions

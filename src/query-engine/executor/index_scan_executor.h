@@ -18,6 +18,7 @@
 #include "../index/scan_optimizer.h"
 #include "../storage/tile_group_header.h"
 #include "../storage/storage_manager.h"
+#include "../concurrency/transaction_manager.h"
 
 namespace peloton {
 
@@ -63,17 +64,16 @@ class IndexScanExecutor : public AbstractScanExecutor {
   // Helper
   //===--------------------------------------------------------------------===//
   bool ExecPrimaryIndexLookup();
-  void CheckRow(ItemPointer tuple_location, concurrency::TransactionContext &current_txn, storage::StorageManager &storage_manager, 
-        std::vector<ItemPointer> &visible_tuple_locations, std::set<ItemPointer> &visible_tuple_set, std::vector<ItemPointer> &prepared_visible_tuple_locations, std::set<ItemPointer> &prepared_tuple_set,
-        bool perform_snapshot, pequinstore::SnapshotManager *snapshot_mgr, size_t k_prepared_versions, std::vector<ItemPointer> &snapshot_tuple_locations,
-        bool perform_materialization, google::protobuf::Map<std::string, pequinstore::proto::ReplicaList> *snapshot_set);
-  bool FindRightRowVersion(Timestamp &timestamp, std::shared_ptr<storage::TileGroup> tile_group, storage::TileGroupHeader &tile_group_header, ItemPointer &tuple_location,
-    std::unordered_set<ItemPointer> &visible_tuple_set, std::vector<ItemPointer> &visible_tuple_locations, bool &found_committed, bool &found_prepared, size_t &num_iters, 
-    pequinstore::SnapshotManager *snapshot_mgr, concurrency::TransactionContext *current_txn, bool has_snapshot_mgr, size_t k_prepared_versions, 
-    bool perform_read_on_snapshot, bool perform_find_snapshot);
-  void PrepareResult(std::vector<oid_t> &tuples, std::shared_ptr<storage::TileGroup> tile_group);
-  void ManageReadSet(ItemPointer &visible_tuple_location, concurrency::TransactionContext *current_txn, std::vector<oid_t> &primary_index_columns_,
-    pequinstore::QueryReadSetMgr *query_read_set_mgr, storage::StorageManager *storage_manager);
+  bool ExecPrimaryIndexLookup__REFACTOR__IN__PROGRESS();
+    void CheckRow(ItemPointer tuple_location, concurrency::TransactionManager &transaction_manager, concurrency::TransactionContext *current_txn, storage::StorageManager *storage_manager, 
+          std::vector<ItemPointer> &visible_tuple_locations, std::set<ItemPointer> &visible_tuple_set, 
+          std::vector<ItemPointer> &prepared_visible_tuple_locations, std::set<ItemPointer> &prepared_tuple_set);
+    bool FindRightRowVersion(const Timestamp &timestamp, std::shared_ptr<storage::TileGroup> tile_group, storage::TileGroupHeader *tile_group_header, ItemPointer tuple_location,
+      std::set<ItemPointer> &visible_tuple_set, std::vector<ItemPointer> &visible_tuple_locations, size_t &num_iters, concurrency::TransactionContext *current_txn, 
+      bool &read_curr_version, bool &found_committed, bool &found_prepared);
+    void PrepareResult(std::vector<oid_t> &tuples, std::shared_ptr<storage::TileGroup> tile_group);
+    void ManageReadSet(ItemPointer &visible_tuple_location, concurrency::TransactionContext *current_txn, const std::vector<oid_t> &primary_index_columns_,
+      pequinstore::QueryReadSetMgr *query_read_set_mgr, storage::StorageManager *storage_manager);
   bool ExecSecondaryIndexLookup();
 
   // When the required scan range has open boundaries, the tuples found by the
