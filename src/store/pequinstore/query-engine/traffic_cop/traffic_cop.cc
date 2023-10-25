@@ -230,6 +230,9 @@ executor::ExecutionResult TrafficCop::ExecuteReadHelper(
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     size_t thread_id) {
 
+  Debug("ExecuteReadHelper with mode: %d", mode);
+  std::cerr << "MAKING IT HERE TEEEEEEEEEEEEEEEEEEEEEEEEST" << std::endl;
+
   auto &curr_state = GetCurrentTxnState();
 
   concurrency::TransactionContext *txn;
@@ -1414,6 +1417,8 @@ ResultType TrafficCop::ExecuteReadStatement(
     size_t thread_id)   
 {
   UW_ASSERT(1 <= mode <= 4); //Assert we are using a valid Pequin mode
+
+  Debug("ExecuteReadStatement with mode: %d", mode);
 
   LOG_TRACE("Execute Statement of name: %s", statement->GetStatementName().c_str());
   LOG_TRACE("Execute Statement of query: %s", statement->GetQueryString().c_str());

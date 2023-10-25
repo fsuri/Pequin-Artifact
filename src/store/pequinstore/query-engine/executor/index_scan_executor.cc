@@ -767,6 +767,8 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
   bool has_snapshot_mgr = current_txn->GetHasSnapshotMgr();
   auto snapshot_mgr = current_txn->GetSnapshotMgr();
 
+  std::cerr << "HAS SNAPSHOT MGR?" << has_snapshot_mgr << std::endl;
+
   size_t k_prepared_versions = current_txn->GetKPreparedVersions();
   std::vector<ItemPointer> snapshot_tuple_locations;
 
@@ -902,7 +904,7 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
               auto commit_or_prepare = tile_group_header->GetCommitOrPrepare(tuple_location.offset);
 
               if (txn_digest != nullptr) {
-                snapshot_mgr->AddToLocalSnapshot(*txn_digest.get(), timestamp.getTimestamp(), timestamp.getID(), commit_or_prepare);
+                snapshot_mgr->AddToLocalSnapshot(*txn_digest.get(), committed_timestamp.getTimestamp(), committed_timestamp.getID(), commit_or_prepare);
                 num_iters++;
               }
             }
@@ -961,8 +963,10 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
               auto txn_digest = tile_group_header->GetTxnDig(tuple_location.offset);
               auto commit_or_prepare = tile_group_header->GetCommitOrPrepare(tuple_location.offset);
 
+              Timestamp const &prepared_timestamp = tile_group_header->GetBasilTimestamp(tuple_location.offset);
+
               if (txn_digest != nullptr && read_prepared_pred(*txn_digest)) {
-                snapshot_mgr->AddToLocalSnapshot(*txn_digest.get(), timestamp.getTimestamp(), timestamp.getID(), commit_or_prepare);
+                snapshot_mgr->AddToLocalSnapshot(*txn_digest.get(), prepared_timestamp.getTimestamp(), prepared_timestamp.getID(), commit_or_prepare);
                 num_iters++;
               }
             }
@@ -1022,7 +1026,7 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
                   auto commit_or_prepare = tile_group_header->GetCommitOrPrepare(tuple_location.offset);
 
                   if (txn_digest != nullptr) {
-                    snapshot_mgr->AddToLocalSnapshot(*txn_digest.get(), timestamp.getTimestamp(), timestamp.getID(), commit_or_prepare);
+                    snapshot_mgr->AddToLocalSnapshot(*txn_digest.get(), prepared_timestamp.getTimestamp(), prepared_timestamp.getID(), commit_or_prepare);
                     num_iters++;
                   }
                 }
@@ -1087,7 +1091,9 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
   auto query_read_set_mgr = current_txn->GetQueryReadSetMgr();
   auto const &current_txn_timestamp = current_txn->GetBasilTimestamp();
 
+
   if (!current_txn->IsPointRead()) {
+    Debug("Get Table and Col Versions");
     // Read table version and table col versions
     current_txn->GetTableVersion()(table_->GetName(), current_txn_timestamp, current_txn->GetHasReadSetMgr(), query_read_set_mgr, current_txn->GetHasSnapshotMgr(), current_txn->GetSnapshotMgr());
     // Table column version : FIXME: Read version per Col, not composite key

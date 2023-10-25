@@ -1,26 +1,20 @@
 /***********************************************************************
  *
- * Copyright 2021 Florian Suri-Payer <fsp@cs.cornell.edu>
+ * store/pequinstore/querysync-server.cc: 
+ *      Implementation of server-side query orchestration in Pesto
  *
- * Permission is hereby granted, free of charge, to any person
- * obtaining a copy of this software and associated documentation
- * files (the "Software"), to deal in the Software without
- * restriction, including without limitation the rights to use, copy,
- * modify, merge, publish, distribute, sublicense, and/or sell copies
- * of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- * 
- * The above copyright notice and this permission notice shall be
- * included in all copies or substantial portions of the Software.
- * 
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
- * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
- * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
- * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS
- * BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
- * ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
- * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
- * SOFTWARE.
+ * Copyright 2023 Florian Suri-Payer <fsp@cs.cornell.edu>
+ *            
+ * Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), 
+ * to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, 
+ * and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+ * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. 
+ * IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, 
+ * TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  *
  **********************************************************************/
 
@@ -253,6 +247,10 @@ void Server::HandleQuery(const TransportAddress &remote, proto::QueryRequest &ms
 
     //EXECUTE:
 
+    //7) Record whether current retry version uses optimistic tx-ids or not
+    if(msg.has_optimistic_txid()) query_md->useOptimisticTxId = msg.optimistic_txid(); 
+
+    //8) Process Query only if designated for reply; and if there is no Sync already waiting for this retry version
 
     //If Eager Exec --> Skip sync and just execute on local state --> Call EagerExec function: Calls same exec as HandleSyncCallback (but without materializing snapshot) + SendQueryResult.
     if((msg.designated_for_reply() || params.query_params.cacheReadSet) && msg.has_eager_exec() && msg.eager_exec() && !query_md->waiting_sync){  //If waiting_sync => ProcessSync. (must be on eagerPlusSnapshot)
@@ -262,10 +260,7 @@ void Server::HandleQuery(const TransportAddress &remote, proto::QueryRequest &ms
         return;
     }
 
-    //7) Record whether current retry version uses optimistic tx-ids or not
-    if(msg.has_optimistic_txid()) query_md->useOptimisticTxId = msg.optimistic_txid(); 
 
-    //8) Process Query only if designated for reply; and if there is no Sync already waiting for this retry version
     if(msg.designated_for_reply() && !query_md->waiting_sync){
         ProcessQuery(q, remote, query, query_md);
     }
@@ -750,8 +745,6 @@ void Server::ProcessSync(queryMetaDataMap::accessor &q, const TransportAddress &
 
 //Note: WARNING: must be called while holding a lock on query_md. 
 void Server::HandleSyncCallback(queryMetaDataMap::accessor &q, QueryMetaData *query_md, const std::string &queryId){
-
-    Panic("wake up successfully");
 
     Debug("Sync complete for Query[%lu:%lu]. Starting Execution", query_md->query_seq_num, query_md->client_id);
     query_md->is_waiting = false;

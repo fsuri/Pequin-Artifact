@@ -429,7 +429,7 @@ bool InsertExecutor::DExecute() {
         new_tile_group->GetHeader()->SetCommitOrPrepare(new_location.offset, current_txn->GetCommitOrPrepare());
         new_tile_group->GetHeader()->SetMaterialize(new_location.offset, current_txn->GetForceMaterialize());
       } else if (!is_duplicate && !is_purge) {
-        Debug("Insert was performed");
+        //Debug("Insert was performed");
         transaction_manager.PerformInsert(current_txn, location,
                                           index_entry_ptr);
         auto storage_manager = storage::StorageManager::GetInstance();
@@ -437,7 +437,7 @@ bool InsertExecutor::DExecute() {
         auto tile_group = storage_manager->GetTileGroup(location.block);
         auto tile_group_header = tile_group->GetHeader();
 
-        Debug("Commit or prepare is %d", current_txn->GetCommitOrPrepare());
+        //Debug("Commit or prepare is %d", current_txn->GetCommitOrPrepare());
         tile_group_header->SetCommitOrPrepare(location.offset, current_txn->GetCommitOrPrepare());
         tile_group_header->SetMaterialize(location.offset, current_txn->GetForceMaterialize());
 

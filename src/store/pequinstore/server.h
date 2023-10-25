@@ -1032,7 +1032,7 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
   //std::unordered_map<std::string, std::set<const proto::Transaction *>> preparedReads;
   tbb::concurrent_unordered_map<std::string, std::pair<std::shared_mutex, std::set<const proto::Transaction *>>> preparedReads;
   //std::unordered_map<std::string, std::map<Timestamp, const proto::Transaction *>> preparedWrites;
-  tbb::concurrent_unordered_map<std::string, std::pair<std::shared_mutex,std::map<Timestamp, const proto::Transaction *>>> preparedWrites;
+  tbb::concurrent_unordered_map<std::string, std::pair<std::shared_mutex,std::map<Timestamp, const proto::Transaction *>>> preparedWrites; //map from: key ->
 
   //XXX key locks for atomicity of OCC check
   tbb::concurrent_unordered_map<std::string, std::mutex> lock_keys;

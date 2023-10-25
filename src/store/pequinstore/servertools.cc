@@ -454,6 +454,8 @@ void Server::FindTableVersion(const std::string &key_name, const Timestamp &ts, 
   //Read the current TableVersion or TableColVersion from CC-store  -- I.e. key_name = "table_name" OR "table_name + delim + column_name" 
   //Note: TableVersion is updated AFTER all TableWrites of a TX have been written. So the TableVersion from CC-store is a pessimistic version; if it is outdated we abort, but that is safe.
 
+  Debug("FindTableVersion for key %s. Called from TS[%lu:%lu]. AddToRead? %d. AddToSnap? %d", key_name.c_str(), ts.getTimestamp(), ts.getID(), add_to_read_set, add_to_snapshot);
+
   //Read committed
   std::pair<Timestamp, Server::Value> tsVal;
   //find committed write value to read from
@@ -486,11 +488,12 @@ void Server::FindTableVersion(const std::string &key_name, const Timestamp &ts, 
  if(add_to_snapshot){ //Creating Snapshot
     UW_ASSERT(snapshotMgr);
 
+    //TODO: Instead of hashing TXN, can we store the txn_digest somehwere such that we can just re-use it.
     if(mostRecentPrepared != nullptr){ //Read prepared
-      snapshotMgr->AddToLocalSnapshot(TransactionDigest(*mostRecentPrepared, params.hashDigest), mostRecentPrepared, false);
+      snapshotMgr->AddToLocalSnapshot(*mostRecentPrepared, params.hashDigest, false);
     }
     else{ //Read committed
-      snapshotMgr->AddToLocalSnapshot(TransactionDigest(*mostRecentPrepared, params.hashDigest), tsVal.first.getTimestamp(), tsVal.first.getID(), true);
+      snapshotMgr->AddToLocalSnapshot(tsVal.second.proof->txn(), params.hashDigest, true);
     }
   }
 

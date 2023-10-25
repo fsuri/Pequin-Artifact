@@ -103,15 +103,40 @@ void SnapshotManager::AddToLocalSnapshot(const std::string &txnDigest, const pro
   AddToLocalSnapshot(txnDigest, txn->timestamp().timestamp(), txn->timestamp().id(), committed_or_prepared);
 }
 
-void SnapshotManager::AddToLocalSnapshot(const std::string &txnDigest, const uint64_t &timestamp, const uint64_t &id, bool committed_or_prepared){ //optimistTxId = params.query_params.optimisticTxId && retry_version == 0.
+void SnapshotManager::AddToLocalSnapshot(const proto::Transaction &txn, bool hash_param, bool committed_or_prepared){ //optimistTxId = params.query_params.optimisticTxId && retry_version == 0.
 
   if(!useOptimisticTxId){ //Add txnDigest to snapshot
     //Just add txnDig to RepeatedPtr directly  //TODO: Make one general structure for prepared/committed.
+
+    Debug("Add txnDig(%s) to snapshot", BytesToHex(TransactionDigest(txn, hash_param), 16).c_str());
+    std::string &&txnDigest(TransactionDigest(txn, hash_param));
+    committed_or_prepared? local_ss->add_local_txns_committed(std::move(txnDigest)) : local_ss->add_local_txns_prepared(std::move(txnDigest));
+  }
+  else{ //Add (merged) Timestamp to snapshot
+    //ts_comp.AddToBucket(txn->timestamp()); //If we want to compute a delta manually first use this.
+    uint64_t const &timestamp = txn.timestamp().timestamp();
+    uint64_t const &id = txn.timestamp().id(); 
+    // merge ts and id into one 64 bit number and add to snapshot
+    Debug("Add mergedTS[%lu] (original: [%lu:%lu] to snapshot)", MergeTimestampId(timestamp, id), timestamp, id);
+    committed_or_prepared? local_ss->add_local_txns_committed_ts(MergeTimestampId(timestamp, id)) : local_ss->add_local_txns_prepared_ts(MergeTimestampId(timestamp, id));
+  
+  }
+  return;
+}
+
+void SnapshotManager::AddToLocalSnapshot(const std::string &txnDigest, const uint64_t &timestamp, const uint64_t &id, bool committed_or_prepared){ //optimistTxId = params.query_params.optimisticTxId && retry_version == 0.
+
+  Debug("USE OPTIMISTIC? %d", useOptimisticTxId);
+
+  if(!useOptimisticTxId){ //Add txnDigest to snapshot
+    //Just add txnDig to RepeatedPtr directly  //TODO: Make one general structure for prepared/committed.
+    Debug("Add txnDig(%s) to snapshot", BytesToHex(txnDigest, 16).c_str());
     committed_or_prepared? local_ss->add_local_txns_committed(txnDigest) : local_ss->add_local_txns_prepared(txnDigest);
   }
   else{ //Add (merged) Timestamp to snapshot
     //ts_comp.AddToBucket(txn->timestamp()); //If we want to compute a delta manually first use this.
 
+    Debug("Add mergedTS[%lu] (original: [%lu:%lu] to snapshot)", MergeTimestampId(timestamp, id), timestamp, id);
     // merge ts and id into one 64 bit number and add to snapshot
     committed_or_prepared? local_ss->add_local_txns_committed_ts(MergeTimestampId(timestamp, id)) : local_ss->add_local_txns_prepared_ts(MergeTimestampId(timestamp, id));
   
@@ -174,7 +199,7 @@ bool SnapshotManager::ProcessReplicaLocalSnapshot(proto::LocalSnapshot* local_ss
             //what if some replicas have it as committed, and some as prepared. If >=f+1 committed ==> count as committed, include only those replicas in list.. If mixed, count as prepared
         //DOES client need to consider at all whether a txn is committed/prepared? --> don't think so; replicas can determine dependency set at exec time (and either inform client, or cache locally)
         //don't need separate lists! 
-        
+
         for(const std::string &txn_dig : local_ss->local_txns_committed()){
             proto::ReplicaList &replica_list = (*merged_ss->mutable_merged_txns())[txn_dig];
             replica_list.add_replicas(local_ss->replica_id());

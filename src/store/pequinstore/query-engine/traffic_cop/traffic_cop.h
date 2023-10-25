@@ -39,10 +39,10 @@ class TransactionContext;
 } // namespace concurrency
 
 enum PequinMode{
-  eagerRead = 0,
-  readMaterialized = 1,
-  eagerPlusSnapshot = 2,
-  findSnapshot = 3, 
+  eagerRead = 1,
+  readMaterialized = 2,
+  eagerPlusSnapshot = 3,
+  findSnapshot = 4, 
 };
 
 namespace tcop {

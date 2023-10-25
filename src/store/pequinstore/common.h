@@ -576,6 +576,7 @@ public:
   //Local Snapshot operations:
   void InitLocalSnapshot(proto::LocalSnapshot *local_ss, const uint64_t &query_seq_num, const uint64_t &client_id, const uint64_t &replica_id, bool useOptimisticTxId = false);
   void ResetLocalSnapshot(bool useOptimisticTxId = false);
+  void AddToLocalSnapshot(const proto::Transaction &txn, bool hash_param, bool committed_or_prepared);
   void AddToLocalSnapshot(const std::string &txnDigest, const proto::Transaction *txn, bool committed_or_prepared = true); //For local snapshot; //TODO: Define something similar for merged? Should merged be a separate class?
     void AddToLocalSnapshot(const std::string &txnDigest, const uint64_t &timestamp, const uint64_t &id, bool committed_or_prepared);
   void SealLocalSnapshot();

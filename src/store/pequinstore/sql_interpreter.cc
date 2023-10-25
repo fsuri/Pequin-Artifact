@@ -634,11 +634,11 @@ void SQLTransformer::TransformUpdate(size_t pos, std::string_view &write_stateme
             std::string enc_key = EncodeTableRow(table_name, primary_key_column_values);
             
             //if(std::find(txn->write_set().begin(), txn->write_set().end(), enc_key) != txn->write_set().end()) Panic("duplicate write");
-            Notice("TODO: REMOVE WRITE SET DUPLICATE CHECK");
-            for(int i = 0; i < txn->write_set_size() - 1; ++i){
-                //ignore last write -- has no key set yet.
-                if(txn->write_set()[i].key() == enc_key) Panic("duplicate write: %s", enc_key.c_str());
-            }
+            // Notice("TODO: REMOVE WRITE SET DUPLICATE CHECK");
+            // for(int i = 0; i < txn->write_set_size() - 1; ++i){
+            //     //ignore last write -- has no key set yet.
+            //     if(txn->write_set()[i].key() == enc_key) Panic("duplicate write: %s", enc_key.c_str());
+            // }
 
             write->set_key(enc_key);
 
