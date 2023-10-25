@@ -35,6 +35,9 @@ class TriggerSet;
 class TriggerData;
 }  // namespace trigger*/
 
+static pequinstore::read_prepared_pred default_read_prepared_pred;
+static pequinstore::find_table_version default_find_table_version;
+
 namespace concurrency {
 
 //===--------------------------------------------------------------------===//
@@ -315,13 +318,13 @@ public:
   pequinstore::find_table_version GetTableVersion() { return *table_version_; }
 
   void SetTableVersion(pequinstore::find_table_version *table_version) {
-    if(read_prepared_pred_) predicates_initialized = true;
+    //if(read_prepared_pred_) predicates_initialized = true;
     table_version_ = table_version;
   }
 
-  bool CheckPredicatesInitialized(){
-    return predicates_initialized;
-  }
+  // bool CheckPredicatesInitialized(){
+  //   return predicates_initialized;
+  // }
 
   std::shared_ptr<std::string> GetTxnDig() { return txn_dig_; }
 
@@ -531,10 +534,10 @@ private:
 
   bool predicates_initialized = false;
   /** Read prepared predicate */
-  pequinstore::read_prepared_pred *read_prepared_pred_ = nullptr;
+  pequinstore::read_prepared_pred *read_prepared_pred_ = &default_read_prepared_pred;
 
   /** Find table version predicate */
-  pequinstore::find_table_version *table_version_ = nullptr;
+  pequinstore::find_table_version *table_version_ = &default_find_table_version;
 
   /** Can read prepared */
   bool can_read_prepared_ = false;

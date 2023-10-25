@@ -253,10 +253,7 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup__REFACTOR__IN__PROGRESS() {    //
   std::vector<ItemPointer> visible_tuple_locations;
   // Add set for visible and prepared visible tuple locations to prevent duplicates
   std::set<ItemPointer> visible_tuple_set;
-  // NEW: prepared_visible_tuple_locations;
-  std::vector<ItemPointer> prepared_visible_tuple_locations; //TODO: CUT
-  std::set<ItemPointer> prepared_tuple_set;
-
+  
   // NEW: Commit proofs
   // std::vector<const pequinstore::proto::CommittedProof *> proofs;
 
@@ -267,7 +264,7 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup__REFACTOR__IN__PROGRESS() {    //
 
   // for every tuple that is found in the index.
   for (auto tuple_location_ptr : tuple_location_ptrs) {
-    CheckRow(*tuple_location_ptr, transaction_manager, current_txn, storage_manager, visible_tuple_locations, visible_tuple_set, prepared_visible_tuple_locations, prepared_tuple_set);
+    CheckRow(*tuple_location_ptr, transaction_manager, current_txn, storage_manager, visible_tuple_locations, visible_tuple_set);
   }
 
   // std::cout << "Outside for loop" << std::endl;
@@ -383,7 +380,6 @@ void IndexScanExecutor::ManageReadSet(ItemPointer &tuple_location, std::shared_p
 
 void IndexScanExecutor::CheckRow(ItemPointer tuple_location, concurrency::TransactionManager &transaction_manager, concurrency::TransactionContext *current_txn, storage::StorageManager *storage_manager, 
   std::vector<ItemPointer> &visible_tuple_locations, std::set<ItemPointer> &visible_tuple_set, 
-  std::vector<ItemPointer> &prepared_visible_tuple_locations, std::set<ItemPointer> &prepared_tuple_set,
   bool use_secondary_index)
 {
 
@@ -1492,7 +1488,7 @@ bool IndexScanExecutor::ExecSecondaryIndexLookup___REFACTORED__NOT_YET__TESTED()
   auto query_read_set_mgr = current_txn->GetQueryReadSetMgr();
   auto const &current_txn_timestamp = current_txn->GetBasilTimestamp();
 
-  if (!current_txn->IsPointRead() && current_txn->CheckPredicatesInitialized()) {
+  if (!current_txn->IsPointRead()){ 
   
     // Read table version and table col versions
     current_txn->GetTableVersion()(table_->GetName(), current_txn_timestamp, true, query_read_set_mgr, nullptr);
@@ -1556,9 +1552,6 @@ bool IndexScanExecutor::ExecSecondaryIndexLookup___REFACTORED__NOT_YET__TESTED()
   // Add set for visible and prepared visible tuple locations to prevent duplicates
   std::set<ItemPointer> visible_tuple_set;
 
-  std::vector<ItemPointer> prepared_visible_tuple_locations; //TODO: CUT
-  std::set<ItemPointer> prepared_tuple_set;
-
   //TODO: FS: I don't understand this comment (It's a hack only in secondary indexes). Is this something that we can use to optimize PrimaryIndex too?
 
   // Quickie Hack: Sometimes we can get the tuples we need in the same block if they were inserted at the same time. 
@@ -1584,7 +1577,7 @@ bool IndexScanExecutor::ExecSecondaryIndexLookup___REFACTORED__NOT_YET__TESTED()
     //     num_tuples_examined++;
     // #endif
 
-    CheckRow(*tuple_location_ptr, transaction_manager, current_txn, storage_manager, visible_tuple_locations, visible_tuple_set, prepared_visible_tuple_locations, prepared_tuple_set, true);
+    CheckRow(*tuple_location_ptr, transaction_manager, current_txn, storage_manager, visible_tuple_locations, visible_tuple_set, true);
   }
 
   // std::cout << "Outside for loop" << std::endl;
