@@ -10,14 +10,14 @@
 // #include "../../query-engine/common/logger.h"
 // #include "../../query-engine/common/macros.h"
 // #include "../../query-engine/parser/drop_statement.h"
-#include "../../query-engine/parser/postgresparser.h"
+#include "./query-engine/parser/postgresparser.h"
 // #include "../../query-engine/traffic_cop/traffic_cop.h"
 
-#include "../../query-engine/catalog/catalog.h"
+#include "./query-engine/catalog/catalog.h"
 // #include "../../query-engine/catalog/proc_catalog.h"
 // #include "../../query-engine/catalog/system_catalogs.h"
 
-#include "../../query-engine/concurrency/transaction_manager_factory.h"
+#include "./query-engine/concurrency/transaction_manager_factory.h"
 
 // #include "../../query-engine/executor/create_executor.h"
 // #include "../../query-engine/executor/create_function_executor.h"
@@ -31,7 +31,7 @@
 // #include "../../query-engine/expression/constant_value_expression.h"
 // #include "../../query-engine/parser/insert_statement.h"
 // #include "../../query-engine/planner/insert_plan.h"
-#include "../../query-engine/traffic_cop/traffic_cop.h"
+#include "./query-engine/traffic_cop/traffic_cop.h"
 // #include "../../query-engine/type/type.h"
 // #include "../../query-engine/type/value_factory.h"
 #include "store/common/query_result/query_result_proto_builder.h"

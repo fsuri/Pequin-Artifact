@@ -450,7 +450,7 @@ void Server::ManageDispatchSupplyTx(const TransportAddress &remote, const std::s
 
 //////////////////////////////////////////////////////// Protocol Helper Functions
 
-void Server::FindTableVersion(const std::string &key_name, const Timestamp &ts, bool read_or_snapshot, QueryReadSetMgr *readSetMgr, SnapshotManager *snapshotMgr){
+void Server::FindTableVersion(const std::string &key_name, const Timestamp &ts, bool add_to_read_set, QueryReadSetMgr *readSetMgr, bool add_to_snapshot, SnapshotManager *snapshotMgr){
   //Read the current TableVersion or TableColVersion from CC-store  -- I.e. key_name = "table_name" OR "table_name + delim + column_name" 
   //Note: TableVersion is updated AFTER all TableWrites of a TX have been written. So the TableVersion from CC-store is a pessimistic version; if it is outdated we abort, but that is safe.
 
@@ -470,7 +470,7 @@ void Server::FindTableVersion(const std::string &key_name, const Timestamp &ts, 
   }
 
 
-  if(read_or_snapshot){ //Creating ReadSet
+  if(add_to_read_set){ //Creating ReadSet
     UW_ASSERT(readSetMgr);
 
     if(mostRecentPrepared != nullptr){ //Read prepared
@@ -483,7 +483,7 @@ void Server::FindTableVersion(const std::string &key_name, const Timestamp &ts, 
       readSetMgr->AddToReadSet(key_name, tsm);
     }
   }
-  else{ //Creating Snapshot
+ if(add_to_snapshot){ //Creating Snapshot
     UW_ASSERT(snapshotMgr);
 
     if(mostRecentPrepared != nullptr){ //Read prepared

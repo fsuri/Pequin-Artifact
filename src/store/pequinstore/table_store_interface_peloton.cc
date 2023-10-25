@@ -1,7 +1,7 @@
 #include "store/pequinstore/table_store_interface_peloton.h"
 #include "lib/assert.h"
 #include "lib/message.h"
-#include "query-engine/traffic_cop/traffic_cop.h"
+#include "store/pequinstore/query-engine/traffic_cop/traffic_cop.h"
 #include <algorithm>
 #include <atomic>
 #include <sched.h>
@@ -498,7 +498,7 @@ void PelotonTableStore::TransformPointResult(proto::Write *write, Timestamp &com
 
   // Committed
   if(write->has_committed_timestamp()){ //Indicate that we read a committed version
-  
+
     if(write->has_committed_value()){ //Indicate that the committed version produced a result. If not, just return empty result
       row = queryResultBuilder.new_row();
       for (unsigned int i = 0; i < tuple_descriptor.size(); i++) {

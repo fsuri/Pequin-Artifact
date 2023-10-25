@@ -155,7 +155,7 @@ Server::Server(const transport::Configuration &config, int groupIdx, int idx,
       // TODO: Configure with num Threads == 8
       int num_threads = std::thread::hardware_concurrency();
       table_store = new PelotonTableStore(table_registry_path,
-          std::bind(&Server::FindTableVersion, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4, std::placeholders::_5),
+          std::bind(&Server::FindTableVersion, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4, std::placeholders::_5, std::placeholders::_6),
           std::move(read_prepared_pred), num_threads);
       // table_store = new PelotonTableStore();
     }
@@ -169,7 +169,7 @@ Server::Server(const transport::Configuration &config, int groupIdx, int idx,
     // table_store->SetPreparePredicate(std::move(read_prepared_pred));
     // table_store->SetFindTableVersion(std::bind(&Server::FindTableVersion,
     // this, std::placeholders::_1, std::placeholders::_2,
-    // std::placeholders::_3, std::placeholders::_4, std::placeholders::_5));
+    // std::placeholders::_3, std::placeholders::_4, std::placeholders::_5, std::placeholders::_6));
   }
 
   if (TEST_QUERY) {

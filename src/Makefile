@@ -205,7 +205,7 @@ include store/bftsmartstore_stable/Rules.mk
 
 
 
-include query-engine/Rules.mk
+include store/pequinstore/query-engine/Rules.mk
 
 include store/pequinstore/Rules.mk
 
