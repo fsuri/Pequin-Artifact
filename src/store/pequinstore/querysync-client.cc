@@ -555,7 +555,7 @@ void ShardClient::HandleQueryResult(proto::QueryResultReply &queryResult){
     Debug("[group %i] Req %lu. Matching_res %d. resultQuorum: %d \n", group, queryResult.req_id(), matching_res, params.query_params.resultQuorum);
         // Only need results from "result" shard (assuming simple migration scheme)
     if(matching_res == params.query_params.resultQuorum){
-        Debug("[group %i] Reached sufficient matching results for QueryResult Reply %lu", group, queryResult.req_id());
+        Debug("[group %i] Reached sufficient matching QueryResults (req_id: %lu)", group, queryResult.req_id());
         
         pendingQuery->done = true;
         //pendingQuery->rcb(REPLY_OK, group, read_set, *replica_result->mutable_query_result_hash(), *replica_result->mutable_query_result(), true);

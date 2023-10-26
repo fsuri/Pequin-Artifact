@@ -64,7 +64,7 @@ class IndexScanExecutor : public AbstractScanExecutor {
   // Helper
   //===--------------------------------------------------------------------===//
   bool ExecPrimaryIndexLookup();
-  bool ExecPrimaryIndexLookup__REFACTOR__IN__PROGRESS();
+  bool ExecPrimaryIndexLookup_OLD(); //__REFACTOR__IN__PROGRESS();
     void CheckRow(ItemPointer tuple_location, concurrency::TransactionManager &transaction_manager, concurrency::TransactionContext *current_txn, storage::StorageManager *storage_manager, 
           std::vector<ItemPointer> &visible_tuple_locations, std::set<ItemPointer> &visible_tuple_set, 
           bool use_secondary_index = false);
@@ -79,7 +79,7 @@ class IndexScanExecutor : public AbstractScanExecutor {
     void ManageReadSet(ItemPointer &tuple_location, std::shared_ptr<storage::TileGroup> tile_group, storage::TileGroupHeader *tile_group_header, 
         concurrency::TransactionContext *current_txn);
   bool ExecSecondaryIndexLookup();
-  bool ExecSecondaryIndexLookup___REFACTORED__NOT_YET__TESTED(); 
+  bool ExecSecondaryIndexLookup_OLD(); 
 
   // When the required scan range has open boundaries, the tuples found by the
   // index might not be exact since the index can only give back tuples in a

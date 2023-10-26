@@ -562,13 +562,11 @@ proto::ConcurrencyControl::Result Server::DoMVTSOOCCCheck(
     a.release();
     //1) Reject Transactions with TS above Watermark
     if (CheckHighWatermark(ts)) {
-      Debug("[%lu:%lu][%s] ABSTAIN ts %lu beyond high watermark.",
-          txn.client_id(), txn.client_seq_num(),
-          BytesToHex(txnDigest, 16).c_str(),
-          ts.getTimestamp());
+      Debug("[%lu:%lu][%s] ABSTAIN ts %lu beyond high watermark.", txn.client_id(), txn.client_seq_num(), BytesToHex(txnDigest, 16).c_str(), ts.getTimestamp());
       stats.Increment("cc_abstains", 1);
       stats.Increment("cc_abstains_watermark", 1);
-      return proto::ConcurrencyControl::ABSTAIN;
+      return proto::ConcurrencyControl::ABSTAIN;  
+      //TODO: instead of aborting TXs, we could schedule all TXs with TS > local time to only be executed once we reach the local time. I.e. start a timer for (TS-local_time) and then re-execute
     }
 
     //2) Validate read set conflicts.

@@ -176,7 +176,7 @@ void IndexScanExecutor::GetColNames(const expression::AbstractExpression * child
   }
 }
 
-bool IndexScanExecutor::ExecPrimaryIndexLookup__REFACTOR__IN__PROGRESS() {    //TODO: Fill in arguments of the helper functions. FIXME: Correct the Eval execution
+bool IndexScanExecutor::ExecPrimaryIndexLookup() {    
   PELOTON_ASSERT(!done_);
   Debug("Inside Index Scan Executor"); // std::cout << "Inside index scan executor" << std::endl;
 
@@ -473,29 +473,30 @@ void IndexScanExecutor::EvalRead(std::shared_ptr<storage::TileGroup> tile_group,
       ContainerTuple<storage::TileGroup> tuple(tile_group.get(), tuple_location.offset);
 
 
-      if(use_secondary_index){  //FIXME: FS: I don't really know what this code does. 
-        //Check whether current version is in secondary index(?)
-        LOG_TRACE("candidate_tuple size: %s", tuple.GetInfo().c_str());
-        // Construct the key tuple
-        auto &indexed_columns = index_->GetKeySchema()->GetIndexedColumns();  
-        storage::MaskedTuple key_tuple(&tuple, indexed_columns);
+      // if(use_secondary_index){  //FIXME: This code seems unecessary... Compare just checks for a subset of Evaluate as far as I can tell
+      //   //Check whether current version is in secondary index(?)
+      //   LOG_TRACE("candidate_tuple size: %s", tuple.GetInfo().c_str());
+      //   // Construct the key tuple
+      //   auto &indexed_columns = index_->GetKeySchema()->GetIndexedColumns();  
+      //   storage::MaskedTuple key_tuple(&tuple, indexed_columns);
 
-        // Compare the key tuple and the key
-        if (index_->Compare(key_tuple, key_column_ids_, expr_types_, values_) == false) {
-          LOG_TRACE("Secondary key mismatch: %u, %u\n", tuple_location.block, tuple_location.offset);
-          //break; //simply do nothing => don't evaluate
-          eval = false;
-        }
-        else{
-          eval = predicate_->Evaluate(&tuple, nullptr, executor_context_).IsTrue();
-        }
-      }
-      else{
+      //   // Compare the key tuple and the key
+      //   if (index_->Compare(key_tuple, key_column_ids_, expr_types_, values_) == false) {
+      //     LOG_TRACE("Secondary key mismatch: %u, %u\n", tuple_location.block, tuple_location.offset);
+      //     //break; //simply do nothing => don't evaluate
+      //     eval = false;
+      //   }
+      //   else{
+      //     eval = predicate_->Evaluate(&tuple, nullptr, executor_context_).IsTrue();
+      //   }
+      // }
+      // else{
         eval = predicate_->Evaluate(&tuple, nullptr, executor_context_).IsTrue();
-      }
+      //}
   }
   // Add the tuple to the visible tuple vector
-  if(eval && (current_txn->GetHasReadSetMgr() && !current_txn->GetHasSnapshotMgr())) {  //If in snapshot only mode don't need to produce a result. Note: if doing pointQuery DO want the result
+  bool snapshot_only_mode = !current_txn->GetHasReadSetMgr() && current_txn->GetHasSnapshotMgr();
+  if(eval && !snapshot_only_mode) {  //If in snapshot only mode don't need to produce a result. Note: if doing pointQuery DO want the result
     visible_tuple_locations.push_back(tuple_location);
     visible_tuple_set.insert(tuple_location);
 
@@ -708,7 +709,7 @@ bool IndexScanExecutor::FindRightRowVersion(const Timestamp &timestamp, std::sha
 
 
 
-bool IndexScanExecutor::ExecPrimaryIndexLookup() {
+bool IndexScanExecutor::ExecPrimaryIndexLookup_OLD() {
   PELOTON_ASSERT(!done_);
   Debug("Inside Index Scan Executor"); // std::cout << "Inside index scan executor" << std::endl;
 
@@ -1218,7 +1219,7 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
   return true;
 }
 
-bool IndexScanExecutor::ExecSecondaryIndexLookup() {
+bool IndexScanExecutor::ExecSecondaryIndexLookup_OLD() {
   LOG_TRACE("ExecSecondaryIndexLookup");
   PELOTON_ASSERT(!done_);
   PELOTON_ASSERT(index_->GetIndexType() != IndexConstraintType::PRIMARY_KEY);
@@ -1482,8 +1483,8 @@ bool IndexScanExecutor::ExecSecondaryIndexLookup() {
   return true;
 }
 
-//TODO: Add old one back. //FIXME: Make sure pred has been set originally..
-bool IndexScanExecutor::ExecSecondaryIndexLookup___REFACTORED__NOT_YET__TESTED() {
+
+bool IndexScanExecutor::ExecSecondaryIndexLookup() {
   LOG_TRACE("ExecSecondaryIndexLookup");
   PELOTON_ASSERT(!done_);
   PELOTON_ASSERT(index_->GetIndexType() != IndexConstraintType::PRIMARY_KEY);

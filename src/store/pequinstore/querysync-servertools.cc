@@ -79,7 +79,7 @@ std::string Server::ExecQuery(QueryReadSetMgr &queryReadSetMgr, QueryMetaData *q
         }
     } 
     if(read_materialized){
-        Warning("Do not yet support reads from materialized snapshot");
+        Warning("READ FROM MARTERIALIZED SNAPSHOT NOT YET STABLE TESTED");
         serialized_result = table_store->ExecReadQueryOnMaterializedSnapshot(query_md->query_cmd, query_md->ts, queryReadSetMgr, query_md->merged_ss_msg->merged_txns());
     } 
 
