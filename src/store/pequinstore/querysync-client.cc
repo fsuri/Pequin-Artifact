@@ -552,9 +552,11 @@ void ShardClient::HandleQueryResult(proto::QueryResultReply &queryResult){
   
     //4) if receive enough --> upcall;  At client: Add query identifier and result to Txn
 
+    bool TEST_SYNC_PATH = false; //params.query_params.eagerPlusSnapshot && pendingQuery->retry_version == 0 && replica_result->has_local_ss();
+
     Debug("[group %i] Req %lu. Matching_res %d. resultQuorum: %d \n", group, queryResult.req_id(), matching_res, params.query_params.resultQuorum);
         // Only need results from "result" shard (assuming simple migration scheme)
-    if(matching_res == params.query_params.resultQuorum){
+    if(!TEST_SYNC_PATH && matching_res == params.query_params.resultQuorum){
         Debug("[group %i] Reached sufficient matching QueryResults (req_id: %lu)", group, queryResult.req_id());
         
         pendingQuery->done = true;
