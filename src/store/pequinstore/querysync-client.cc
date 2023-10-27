@@ -183,7 +183,8 @@ void ShardClient::RequestQuery(PendingQuery *pendingQuery, proto::Query &queryMs
   queryReq.set_optimistic_txid(params.query_params.optimisticTxID && !pendingQuery->retry_version);//On retry use unique/deterministic tx id only.
   //std::cerr << "USE OPT?? " << queryReq.optimistic_txid() << std::endl;
   //queryReq.set_retry_version(pendingQuery->retry_version);
-  
+    
+
   queryReq.set_is_point(pendingQuery->is_point);
 
   //queryReq.set_eager_exec(true);

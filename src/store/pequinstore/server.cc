@@ -137,8 +137,12 @@ Server::Server(const transport::Configuration &config, int groupIdx, int idx,
   proof->mutable_txn()->mutable_timestamp()->set_id(0);
 
   committed.insert(std::make_pair("", proof));
+  //ts_to_tx.insert(std::make_pair(MergeTimestampId(0, 0), ""));
 
-  ts_to_tx.insert(std::make_pair(MergeTimestampId(0, 0), ""));
+  std::string genesis_txn_dig = TransactionDigest(proof->txn(), params.hashDigest);
+  committed.insert(std::make_pair(genesis_txn_dig, proof));
+  ts_to_tx.insert(std::make_pair(MergeTimestampId(0, 0), genesis_txn_dig));
+
 
   if (sql_bench) {
 
@@ -1841,9 +1845,7 @@ void Server::CommitToStore(proto::CommittedProof *proof, proto::Transaction *txn
       continue;
     }
 
-    Debug("COMMIT[%lu,%lu] Committing write for key %s.",
-        txn->client_id(), txn->client_seq_num(),
-       write.key().c_str());
+    Debug("COMMIT[%lu,%lu] Committing write for key %s.", txn->client_id(), txn->client_seq_num(), write.key().c_str());
     
     if(write.has_value()) val.val = write.value();
     else if(!params.query_params.sql_mode){
@@ -1893,7 +1895,7 @@ void Server::CommitToStore(proto::CommittedProof *proof, proto::Transaction *txn
   //Apply TableWrites: //TODO: Apply also for Prepare: Mark TableWrites as prepared. TODO: add interface func to set prepared, and clean also.. commit should upgrade them. //FIXME: How does SQL update handle exising row
                             // alternatively: don't mark prepare/commit inside the table store, only in CC store. But that requires extra lookup for all keys in read set.
                             // + how do we remove prepared rows? Do we treat it as SQL delete (at ts)? row becomes invisible -- fully removed from CC store.
-   ApplyTableWrites(*txn, ts, txnDigest, nullptr, false);
+   ApplyTableWrites(*txn, ts, txnDigest, proof);
   // for (const auto &[table_name, table_write] : txn->table_writes()){
   //   ApplyTableWrites(table_name, table_write, ts, txnDigest, proof);
   //   //val.val = "";

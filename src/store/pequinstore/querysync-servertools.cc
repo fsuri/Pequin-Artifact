@@ -206,7 +206,7 @@ void Server::ExecQueryEagerly(queryMetaDataMap::accessor &q, QueryMetaData *quer
             //query_md->queryResult->set_query_result(dummy_result);
     }
 
-    if(query_md->designated_for_reply) SendQueryReply(query_md);
+    SendQueryReply(query_md);
     uint64_t retry_version = query_md->retry_version;
     q.release();
 
@@ -482,7 +482,7 @@ void Server::ForceMaterialization(const proto::ConcurrencyControl::Result &resul
 void Server::ApplyTableWrites(const proto::Transaction &txn, const Timestamp &ts,
                 const std::string &txn_digest, const proto::CommittedProof *commit_proof, bool commit_or_prepare, bool forceMaterialize){
 
-    Debug("Apply all TableWrites for Txn[%s]. TS[%lu:%lu]", BytesToHex(txn_digest, 16).c_str(), ts.getTimestamp(), ts.getID());
+    Debug("Apply all TableWrites for Txn[%s]. TS[%lu:%lu]. ForceMat? %d", BytesToHex(txn_digest, 16).c_str(), ts.getTimestamp(), ts.getID(), forceMaterialize);
 
     //TODO: Parallelize application of each table's writes. Note: This requires multi-threading + callback to ensure synchronous join
         //Not urgent: Realistically most transactions do not touch that many tables...

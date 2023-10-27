@@ -483,7 +483,7 @@ ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple,
           std::cout << "Timestamp is " << ts.getTimestamp() << ", " << ts.getID() << std::endl;
           std::cout << "Txn timestamp is " << transaction->GetBasilTimestamp().getTimestamp() << ", " << transaction->GetBasilTimestamp().getID() << std::endl;
           
-          if(curr_tile_group_header->GetCommitOrPrepare(curr_pointer.offset) == transaction->GetCommitOrPrepare() ) Panic("Tried to add a duplicate write (prepare/commit) same TX twice");
+          if(curr_tile_group_header->GetCommitOrPrepare(curr_pointer.offset) == transaction->GetCommitOrPrepare() ) Panic("Tried to prepare twice or commit twice for same TX");
         }
       }
 

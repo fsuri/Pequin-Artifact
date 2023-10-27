@@ -660,12 +660,10 @@ void Server::HandleSyncCallback(queryMetaDataMap::accessor &q, QueryMetaData *qu
         TEST_FAIL_QUERY = false;
     }
     else{
-         query_md->failure = false;
-        
-        if(query_md->designated_for_reply){
-            SendQueryReply(query_md);
+        query_md->failure = false;
+    
+        SendQueryReply(query_md);
             //query_md->queryResultReply->mutable_result()->set_query_result(result);
-        }
         //TODO: If not query_manager => don't need to send the result. Only need read set
     }
    
@@ -676,6 +674,7 @@ void Server::HandleSyncCallback(queryMetaDataMap::accessor &q, QueryMetaData *qu
      //After executing and caching read set -> Try to wake possibly subscribed transaction that has started to prepare, but was blocked waiting on it's cached read set.
     if(params.query_params.cacheReadSet) wakeSubscribedTx(queryId, retry_version); //TODO: Instead of passing it along, just store the queryId...
 }
+
 
 
 void Server::SendQueryReply(QueryMetaData *query_md){ 
@@ -689,64 +688,15 @@ void Server::SendQueryReply(QueryMetaData *query_md){
 
     //proto::LocalDeps *query_local_deps; //Deprecated --> made deps part of read set
     Debug("QueryResult[%lu:%lu:%lu]: %s", query_md->query_seq_num, query_md->client_id, query_md->retry_version, BytesToHex(result->query_result(), 16).c_str());
-    //Testing:
-        //
     
-
-        // query_result::QueryResult *p_queryResult = new sql::QueryResultProtoWrapper(result->query_result());
-        //   std::cerr << "IS empty?: " << (p_queryResult->empty()) << std::endl;
-        //     std::cerr << "num cols:" <<  (p_queryResult->num_columns()) << std::endl;
-        //     std::cerr << "num rows written:" <<  (p_queryResult->rows_affected()) << std::endl;
-        //     std::cerr << "num rows read:" << (p_queryResult->size()) << std::endl;
-        // std::string out;
-        // size_t nbytes;
-        // std::string output_row;
-        // for(int j = 0; j < p_queryResult->size(); ++j){
-        //        std::stringstream p_ss(std::ios::in | std::ios::out | std::ios::binary);
-        //        for(int i = 0; i<p_queryResult->num_columns(); ++i){
-        //            out = p_queryResult->get(j, i, &nbytes);
-        //           std::string p_output(out, nbytes);
-        //           p_ss << p_output;
-        //           output_row;
-        //           {
-        //             cereal::BinaryInputArchive iarchive(p_ss); // Create an input archive
-        //             iarchive(output_row); // Read the data from the archive
-        //           }
-        //           std::cerr << "Row: " <<j << " Col " << i << ": " << output_row << std::endl;
-        //        }
-               
-            
-        // }
-
-    //
-
-    // 3) Generate Merkle Tree over Read Set, (optionally can also make it be over result, query id)
-
+    // 3) Cache read set
     bool testing_hash = false; //note, if this is on, the client will crash since it expects a read set but does not get one.
-    if(testing_hash || params.query_params.cacheReadSet){
-        try {
-            std::sort(result->mutable_query_read_set()->mutable_read_set()->begin(), result->mutable_query_read_set()->mutable_read_set()->end(), sortReadSetByKey); 
-        }
-        catch(...) {
-            Panic("Trying to send QueryReply with two different reads for the same key");
-        }
-        
-        //Note: Sorts by key to ensure all replicas create the same hash. (Note: Not necessary if using ordered map)
-        result->set_query_result_hash(generateReadSetSingleHash(result->query_read_set()));
-        //Temporarily release read-set and deps: This way we don't send it. Afterwards, re-allocate it. This avoid copying.
-        query_read_set = result->release_query_read_set();
-        //query_local_deps = result->release_query_local_deps();
-        Debug("Read-set hash: %s", BytesToHex(result->query_result_hash(), 16).c_str());
-       
-        //query_md->result_hash = std::move(generateReadSetSingleHash(query_md->read_set));  
-        //query_md->result_hash = std::move(generateReadSetMerkleRoot(query_md->read_set, params.merkleBranchFactor)); //by default: merkleBranchFactor = 2 ==> might want to use flatter tree to minimize hashes.
-                                                                                                        //TODO: Can avoid hashing leaves by making them unique strings? "[key:version]" should do the trick?
-        //Debug("Read-set hash: %s", BytesToHex(query_md->result_hash, 16).c_str());
-    }
+    if(testing_hash || params.query_params.cacheReadSet) CacheReadSet(query_md, result, query_read_set);
 
-    //4) If Caching Read Set: Buffer Read Set (map: query_digest -> <result_hash, read set>) ==> implicitly done by storing read set + result hash in query_md 
-   
-    //5) Create Result reply --  // only include result if chosen for reply.
+
+
+    //4) Create Result reply --  // only send if chosen for reply
+    if(!query_md->designated_for_reply) return;
 
     result->set_query_seq_num(query_md->query_seq_num); //FIXME: put this directly when instantiating.
     result->set_client_id(query_md->client_id); //FIXME: set this directly when instantiating.
@@ -754,7 +704,7 @@ void Server::SendQueryReply(QueryMetaData *query_md){
     
     queryResultReply->set_req_id(query_md->req_id);
 
-    //6) (Sign and) send reply 
+    //5) (Sign and) send reply 
 
      if (params.validateProofs && params.signedMessages) {
         //Debug("Sign Query Result Reply for Query[%lu:%lu]", query_reply->query_seq_num(), query_reply->client_id());
@@ -827,6 +777,30 @@ void Server::SendQueryReply(QueryMetaData *query_md){
 
 }
 
+void Server::CacheReadSet(QueryMetaData *query_md, proto::QueryResult *result, proto::ReadSet *query_read_set){
+    //Generate unique hash over Read Set (hash-chain or Merkle Tree), (optionally can also make it be over result, query id)
+    //4) If Caching Read Set: Buffer Read Set (map: query_digest -> <result_hash, read set>) ==> implicitly done by storing read set + result hash in query_md 
+
+    Debug("Cache read set for Query[%lu:%lu:%lu]. ", query_md->query_seq_num, query_md->client_id, query_md->retry_version);
+    try {
+        std::sort(result->mutable_query_read_set()->mutable_read_set()->begin(), result->mutable_query_read_set()->mutable_read_set()->end(), sortReadSetByKey); 
+    }
+    catch(...) {
+        Panic("Trying to send QueryReply with two different reads for the same key");
+    }
+    
+    //Note: Sorts by key to ensure all replicas create the same hash. (Note: Not necessary if using ordered map)
+    result->set_query_result_hash(generateReadSetSingleHash(result->query_read_set()));
+    //Temporarily release read-set and deps: This way we don't send it. Afterwards, re-allocate it. This avoid copying.
+    if(query_md->designated_for_reply)  query_read_set = result->release_query_read_set();
+    //query_local_deps = result->release_query_local_deps();
+    Debug("Read-set hash: %s", BytesToHex(result->query_result_hash(), 16).c_str());
+    
+    //query_md->result_hash = std::move(generateReadSetSingleHash(query_md->read_set));  
+    //query_md->result_hash = std::move(generateReadSetMerkleRoot(query_md->read_set, params.merkleBranchFactor)); //by default: merkleBranchFactor = 2 ==> might want to use flatter tree to minimize hashes.
+                                                                                                    //TODO: Can avoid hashing leaves by making them unique strings? "[key:version]" should do the trick?
+    //Debug("Read-set hash: %s", BytesToHex(query_md->result_hash, 16).c_str());
+}
 
 ////////////////////////// Replica To Replica Sync exchange ////////////////////////////////
 
