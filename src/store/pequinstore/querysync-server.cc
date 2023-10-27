@@ -317,76 +317,7 @@ void Server::ProcessPointQuery(const uint64_t &reqId, proto::Query *query, const
         *pointQueryReply->mutable_proof() = *committedProof;
     } 
 
-    if(TEST_QUERY){
-        ///////////
-        //Toy Transaction
-        std::string toy_txn("toy_txn");
-        Timestamp toy_ts(0, 2); //set to genesis time.
-        sql::QueryResultProtoBuilder queryResultBuilder;
-        queryResultBuilder.add_columns({"key", "value"});
-        std::vector<std::string> result_row = {"0", "42"};
-        queryResultBuilder.add_row(result_row.begin(), result_row.end());
-        std::string toy_result = queryResultBuilder.get_result()->SerializeAsString();
-
-        //Panic("stop here");
-        // //Create Toy prepared Tx
-        if(id ==0){
-        
-            write->set_prepared_value(toy_result);
-            std::cerr << "SENT PREPARED RESULT: " << write->prepared_value() << std::endl;
-            write->set_prepared_txn_digest(toy_txn);
-            toy_ts.serialize(write->mutable_prepared_timestamp());
-        }
-    
-
-        //Create Toy committed Tx with genesis proof
-        // proto::CommittedProof *genesis_proof = new proto::CommittedProof();
-        // genesis_proof->mutable_txn()->set_client_id(0);
-        // genesis_proof->mutable_txn()->set_client_seq_num(0);
-        // toy_ts.serialize(genesis_proof->mutable_txn()->mutable_timestamp());
-
-        // committed.insert(std::make_pair(toy_txn, genesis_proof));  //TODO: Need to move this elsewhere so all servers have it.
-
-        // write->set_committed_value(toy_result);
-        // toy_ts.serialize(write->mutable_committed_timestamp());
-        // *pointQueryReply->mutable_proof() = *genesis_proof;
-
-
-        //Create Toy committed Tx with real proof tx -- create toy "real" QC
-
-        sql::QueryResultProtoBuilder queryResultBuilder2;
-        queryResultBuilder2.add_columns({"key", "val"});
-        result_row = {"0", "41"};
-        queryResultBuilder2.add_row(result_row.begin(), result_row.end());
-        std::string toy_result2 = queryResultBuilder2.get_result()->SerializeAsString();
-
-        Timestamp toy_ts_c(0, 1);
-
-        proto::CommittedProof *real_proof = new proto::CommittedProof();
-        proto::Transaction *txn = real_proof->mutable_txn();
-        real_proof->mutable_txn()->set_client_id(0);
-        real_proof->mutable_txn()->set_client_seq_num(1);
-        toy_ts_c.serialize(real_proof->mutable_txn()->mutable_timestamp());
-        TableWrite &table_write = (*real_proof->mutable_txn()->mutable_table_writes())["datastore"];
-        RowUpdates *row = table_write.add_rows();
-        row->add_column_values("0");
-        row->add_column_values("41");
-        WriteMessage *write_msg = real_proof->mutable_txn()->add_write_set();
-        write_msg->set_key("datastore#alice");
-        write_msg->mutable_rowupdates()->set_row_idx(0);
-
-        //Add relal qC:
-        // proto::Signatures &sigs = (*real_proof->mutable_p1_sigs())[id];
-        // sigs.add_sigs();
-        // SignMessage()
-
-        //committed[toy_txn]  = real_proof;  //TODO: Need to move this elsewhere so all servers have it.
-
-        write->set_committed_value(toy_result2);
-        
-        toy_ts_c.serialize(write->mutable_committed_timestamp());
-        *pointQueryReply->mutable_proof() = *real_proof;
-    }
+    if(TEST_QUERY) TEST_QUERY_f(write, pointQueryReply);
 
 
 
@@ -601,11 +532,6 @@ void Server::HandleSync(const TransportAddress &remote, proto::SyncClientProposa
 
 void Server::ProcessSync(queryMetaDataMap::accessor &q, const TransportAddress &remote, proto::MergedSnapshot *merged_ss, const std::string *queryId, QueryMetaData *query_md) { 
 
-    // if(!TEST_MATERIALIZE_TS){
-    //     uint64_t ts = 5UL << 32;
-    //     ts_to_tx.erase(MergeTimestampId(ts, 0UL));
-    // }
-
     query_md->merged_ss_msg = merged_ss; 
 
     bool fullyMaterialized = true;
@@ -691,56 +617,8 @@ void Server::ProcessSync(queryMetaDataMap::accessor &q, const TransportAddress &
     query_md->is_waiting = true; //Note: If query is waiting, but (byz) client supplied wrong/insufficient replicas to sync from ==> query loses liveness.
     //TODO: is _waiting_ still necessary now that Update orchestration is on a per retry basis?
     
-    if(TEST_MATERIALIZE){ //materialize the missing Tx in order to wake.
-         std::string test_txn_id = "[test_id_of_length_32 bytes----]";
-         std::string bonus_test = "BONUS TEST";
-         uint64_t ts = 5UL << 32;
+    if(TEST_MATERIALIZE) TEST_MATERIALIZE_f();
        
-       
-       
-        if(TEST_MATERIALIZE_TS){
-            ts_to_tx.insert(std::make_pair(MergeTimestampId(ts, 0UL), test_txn_id));
-            ts_to_tx.insert(std::make_pair(MergeTimestampId(ts, 1UL), bonus_test));
-        }
-
-       
-        CheckWaitingQueries(test_txn_id, ts, 0); //this should wake TS but make TX wait on mat
-       
-         materializedMap::accessor mat;
-          std::cerr << "MATERIALIZE MISSING TRANSACTION " << BytesToHex(bonus_test, 16) << std::endl;
-        materialized.insert(mat, bonus_test);
-        CheckWaitingQueries(bonus_test, ts, 1); //this will wake on this TS, but won't be able to start callback because there is a waiting TX
-        mat.release();
-
-        if(!TEST_MATERIALIZE_FORCE){
-             sleep(1);        
-            std::cerr << "MATERIALIZE MISSING TRANSACTION " << BytesToHex(test_txn_id, 16) << std::endl;
-            materialized.insert(mat, test_txn_id); //this will wake TX
-            CheckWaitingQueries(test_txn_id, ts, 0); //this should go wait on TX mat
-            mat.release();
-        }
-        if(TEST_MATERIALIZE_FORCE){
-            // sleep(1);
-            // proto::Transaction *txn = new proto::Transaction();
-            // //Genesis proof: client id + client seq = 0.
-            // txn->set_client_id(0);
-            // txn->set_client_seq_num(0);
-            // txn->mutable_timestamp()->set_timestamp(ts);
-            // txn->mutable_timestamp()->set_id(0UL);
-            // txn->add_involved_groups(0);
-
-            // const proto::CommittedProof* committedProof = nullptr; //abort conflict
-            // const proto::Transaction *abstain_conflict = nullptr;
-            // sockaddr_in addr;
-            // const TCPTransportAddress remote = TCPTransportAddress(addr);
-
-            // //Note: if forceMaterialize is set to false, this should still forceMat because we registered
-            // HandlePhase1CB(0, proto::ConcurrencyControl_Result_ABORT, committedProof, test_txn_id, txn, remote, abstain_conflict, true, false);
-        }
-       
-        
-    }
-   
     //delete merged_ss; // ==> Deleting only upon ClearMetaData or delete query_md 
     return;
 }
@@ -754,32 +632,7 @@ void Server::HandleSyncCallback(queryMetaDataMap::accessor &q, QueryMetaData *qu
     // 1) Materialize Snapshot -- do nothing! already done.
         //Invariant: HandleSyncCallback is only called if snapshot is fully materialized. I.e. all txns in snapshot must be either applied to table_store or aborted
 
-    if(TEST_READ_FROM_SS){
-        TEST_READ_FROM_SS = false; //only do once
-        std::string test_txn_id = "dont read this tx";
-        proto::CommittedProof *proof = new proto::CommittedProof();
-        proof->mutable_txn()->set_client_id(1);
-        proof->mutable_txn()->set_client_seq_num(0);
-        uint64_t ts = 5UL << 32; //timeServer.GetTime(); 
-        proof->mutable_txn()->mutable_timestamp()->set_timestamp(ts);
-        proof->mutable_txn()->mutable_timestamp()->set_id(1UL); //just above the genesis TXs
-        proof->mutable_txn()->add_involved_groups(0);
-        committed[test_txn_id] = proof;
-        ts_to_tx.insert(std::make_pair(MergeTimestampId(ts, 1UL), test_txn_id));
-
-        std::string table_name = "table_5";
-        TableWrite &table_write = (*proof->mutable_txn()->mutable_table_writes())[table_name];
-        table_write.add_column_names("key");
-        table_write.add_column_names("value");
-        RowUpdates *new_row = table_write.add_rows();
-        new_row->add_column_values("84");
-        new_row->add_column_values("100");
-
-        Timestamp t(ts, 1UL);
-        //Note: If write committed = SSread should still see it; if prepared, it should not.
-        bool commit_or_prepare = false; 
-        ApplyTableWrites(proof->txn(), t, test_txn_id, proof, commit_or_prepare, false);
-    }
+    if(TEST_READ_FROM_SS) TEST_READ_FROM_SS_f();
 
     // 2) Execute Query & Construct Read Set
     //Execute Query -- Go through store, and check if latest tx in store is present in syncList. If it is missing one (committed) --> reply EarlyAbort (tx cannot succeed). 
@@ -968,19 +821,8 @@ void Server::SendQueryReply(QueryMetaData *query_md){
 
     }
 
-    if(TEST_READ_SET){
-      Debug("BEGIN READ SET:"); // just for testing
-              
-                for(auto &read : result->query_read_set().read_set()){
-                //for(auto &[key, ts] : read_set){
-                  //std::cerr << "key: " << key << std::endl;
-                  Debug("Cached Read key %s with version [%lu:%lu]", read.key().c_str(), read.readtime().timestamp(), read.readtime().id());
-                  //Debug("[group %d] Read key %s with version [%lu:%lu]", group, key.c_str(), ts.timestamp(), ts.id());
-                }
-              
-       Debug("END READ SET.");
-    }
-
+    if(TEST_READ_SET) TEST_READ_SET_f(result);
+   
     return;
 
 }

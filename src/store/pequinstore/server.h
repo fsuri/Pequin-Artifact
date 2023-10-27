@@ -88,8 +88,8 @@ static bool TEST_SYNC = false;  //create an artificial sync for queries
 static bool TEST_MATERIALIZE = false; //artificially cause a wait on materialize.
 static bool TEST_MATERIALIZE_TS = false; //artificially cause a wait on materialize for a TS based sync
 static bool TEST_MATERIALIZE_FORCE = false; //artificially force a materialization.  //Note: TEST_MATERIALIZE or TEST_MATERIALIZE_TS must be set.
-static bool TEST_READ_FROM_SS = false; //artificially create a new prepared/committed TX in order to test whether or not read from SS ignores it.
-static bool TEST_READ_MATERIALIZED = true; //artificially create a new force materialized TX to confirm that read skips it, but ss reads it
+static bool TEST_READ_FROM_SS = false; //artificially create a new prepared/committed TX in order to test whether or not read from SS ignores it. (currently creates prepared => should not be read; committed would be read)
+static bool TEST_READ_MATERIALIZED = false; //artificially create a new force materialized TX to confirm that read skips it, but if it's in ss then it reads it (currently not part of snapshot)
 
 static int fail_writeback = 0;
 typedef std::vector<std::unique_lock<std::mutex>> locks_t;
@@ -1122,6 +1122,19 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
   //Note: 
   //dependents is a map from tx -> all tx that are waiting for it
   //waitingDependencies: map from waiting tx -> list of tx that are missing
+
+
+  //TEST FUNCTIONS:
+  std::string TEST_QUERY_f(uint64_t q_seq_no);
+  void TEST_QUERY_f(std::string &result);
+  void TEST_QUERY_f(proto::Write *write, proto::PointQueryResultReply *pointQueryReply);
+  void TEST_READ_SET_f(pequinstore::proto::QueryResult *result);
+  void TEST_SNAPSHOT_f(proto::Query *query, QueryMetaData *query_md);
+
+  void TEST_MATERIALIZE_f();
+  void TEST_MATERIALIZE_FORCE_f(const proto::Transaction *txn, const std::string &tx_id);
+  void TEST_READ_MATERIALIZED_f();
+  void TEST_READ_FROM_SS_f();
 
 };
 

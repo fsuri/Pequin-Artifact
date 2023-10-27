@@ -59,30 +59,7 @@ std::string Server::ExecQuery(QueryReadSetMgr &queryReadSetMgr, QueryMetaData *q
     //TODO: Must be able to report exec failure (e.g. materialized snapshot inconsistent) -- note that if eagerly executiong (no materialization) there is no concept of failure.
 
 
-     if(TEST_READ_MATERIALIZED){
-        TEST_READ_MATERIALIZED = false; //only do once
-        std::string test_txn_id = "dont read this tx2";
-        proto::CommittedProof *proof = new proto::CommittedProof();
-        proof->mutable_txn()->set_client_id(1);
-        proof->mutable_txn()->set_client_seq_num(0);
-        uint64_t ts = 5UL << 32; //timeServer.GetTime(); 
-        proof->mutable_txn()->mutable_timestamp()->set_timestamp(ts);
-        proof->mutable_txn()->mutable_timestamp()->set_id(1UL); //just above the genesis TXs
-        proof->mutable_txn()->add_involved_groups(0);
-        committed[test_txn_id] = proof;
-        ts_to_tx.insert(std::make_pair(MergeTimestampId(ts, 1UL), test_txn_id));
-
-        std::string table_name = "table_5";
-        TableWrite &table_write = (*proof->mutable_txn()->mutable_table_writes())[table_name];
-        table_write.add_column_names("key");
-        table_write.add_column_names("value");
-        RowUpdates *new_row = table_write.add_rows();
-        new_row->add_column_values("85");
-        new_row->add_column_values("100");
-
-        Timestamp t(ts, 1UL);
-        ApplyTableWrites(proof->txn(), t, test_txn_id, proof, false, false); //prepared, force materialize
-    }
+     if(TEST_READ_MATERIALIZED) TEST_READ_MATERIALIZED_f();
 
         /////////////////////////////////////////////////////////////
     //                                                         //
@@ -199,21 +176,8 @@ std::string Server::ExecQuery(QueryReadSetMgr &queryReadSetMgr, QueryMetaData *q
     }
 
     //Just for testing: Creating Dummy result 
-    if(TEST_QUERY){
-  
-        std::string test_result_string = std::to_string(query_md->query_seq_num);
-        std::vector<std::string> result_row;
-        result_row.push_back(test_result_string);
-        result_row.push_back(std::to_string(42));
-        sql::QueryResultProtoBuilder queryResultBuilder;
-        queryResultBuilder.add_column("key");
-        queryResultBuilder.add_column("value");
-        queryResultBuilder.add_row(result_row.begin(), result_row.end());
-
-        std::string dummy_result = queryResultBuilder.get_result()->SerializeAsString();
-        return dummy_result;
-    }
-
+    if(TEST_QUERY) return TEST_QUERY_f(query_md->query_seq_num);
+   
     return serialized_result;
 }
 
@@ -228,16 +192,8 @@ void Server::ExecQueryEagerly(queryMetaDataMap::accessor &q, QueryMetaData *quer
     
     Debug("Got result for Query[%lu:%lu:%lu].", query_md->query_seq_num, query_md->client_id, query_md->retry_version);
 
-    if(TEST_QUERY){
-        std::string toy_txn("toy_txn");
-        Timestamp toy_ts(0, 2); //set to genesis time.
-        sql::QueryResultProtoBuilder queryResultBuilder;
-        queryResultBuilder.add_columns({"key", "value"});
-        std::vector<std::string> result_row = {"0", "42"};
-        queryResultBuilder.add_row(result_row.begin(), result_row.end());
-        result = queryResultBuilder.get_result()->SerializeAsString();
-    }
-
+    if(TEST_QUERY) TEST_QUERY_f(result);
+   
 
     query_md->has_result = true; 
 
@@ -292,95 +248,7 @@ void Server::FindSnapshot(QueryMetaData *query_md, proto::Query *query){
     //FindSnapshot(local_ss, query_cmd); //TODO: Function that calls blackbox exec and sets snapshot.
 
     //FIXME: TOY TX PROOF IN COMMITTED
-    if(TEST_SNAPSHOT){
-
-        std::string test_txn_id = "[test_id_of_length_32 bytes----]";
-        proto::CommittedProof *proof = new proto::CommittedProof();
-        //Genesis proof: client id + client seq = 0.
-            proof->mutable_txn()->set_client_id(0);
-        proof->mutable_txn()->set_client_seq_num(0);
-        uint64_t ts = 5UL << 32; //timeServer.GetTime(); 
-        proof->mutable_txn()->mutable_timestamp()->set_timestamp(ts);
-        proof->mutable_txn()->mutable_timestamp()->set_id(0UL);
-        proof->mutable_txn()->add_involved_groups(0);
-        committed[test_txn_id] = proof;
-
-        if(!TEST_MATERIALIZE){
-            materializedMap::accessor mat;
-            materialized.insert(mat, test_txn_id);
-            mat.release();
-        }
-        
-        if(!TEST_MATERIALIZE_TS){
-              ts_to_tx.insert(std::make_pair(MergeTimestampId(ts, 0UL), test_txn_id));
-        }
-      
-        
-        
-        proto::Phase1 p1 = proto::Phase1();
-        p1.set_req_id(1);
-    
-        std::vector<::google::protobuf::Message *> p1s;
-        p1s.push_back(proof->mutable_txn());
-        std::vector<proto::SignedMessage *> sp1s;
-        sp1s.push_back(p1.mutable_signed_txn());
-        SignMessages(p1s, keyManager->GetPrivateKey(keyManager->GetClientKeyId(0)), 0, sp1s, params.merkleBranchFactor);
-
-        p1MetaDataMap::accessor c;
-        p1MetaData.insert(c, test_txn_id);
-        c->second.hasSignedP1 = true;
-        c->second.signed_txn = p1.release_signed_txn();
-        c.release();
-
-
-        std::string bonus_test = "BONUS TEST";
-        proof = new proto::CommittedProof();
-        //Genesis proof: client id + client seq = 0.
-        proof->mutable_txn()->set_client_id(0);
-        proof->mutable_txn()->set_client_seq_num(0);
-        proof->mutable_txn()->mutable_timestamp()->set_timestamp(ts);
-        proof->mutable_txn()->mutable_timestamp()->set_id(1UL);
-        proof->mutable_txn()->add_involved_groups(0);
-        committed[bonus_test] = proof;
-
-        if(!TEST_MATERIALIZE){
-            materializedMap::accessor mat;
-            materialized.insert(mat, bonus_test);
-            mat.release();
-        }
-        
-        if(!TEST_MATERIALIZE_TS){
-              ts_to_tx.insert(std::make_pair(MergeTimestampId(ts, 1UL), bonus_test));
-        }
-      
-    //FIXME: TOY INSERT TESTING.
-        //-- real tx-ids are cryptographic hashes of length 256bit = 32 byte.
-
-            
-
-            for(auto const&[tx_id, proof] : committed){
-                if(tx_id == "" || tx_id == "toy_txn") continue;
-                const proto::Transaction *txn = &proof->txn();
-                query_md->snapshot_mgr.AddToLocalSnapshot(tx_id, txn, true);
-
-                Debug("Proposing committed txn_id [%s] for local Query Sync State[%lu:%lu:%d]", BytesToHex(tx_id, 16).c_str(), query->query_seq_num(), query->client_id(), query->retry_version());
-                
-                //Adding some dummy tx to prepared.
-                preparedMap::accessor p;
-                prepared.insert(p, tx_id);
-                Timestamp ts(txn->timestamp());
-                p->second = std::make_pair(ts, txn);
-                p.release();
-            }
-            //Not threadsafe, but just for testing purposes.
-            for(preparedMap::const_iterator i=prepared.begin(); i!=prepared.end(); ++i ) {
-                const std::string &tx_id = i->first;
-                const proto::Transaction *txn = i->second.second;
-                query_md->snapshot_mgr.AddToLocalSnapshot(tx_id, txn, false);
-                Debug("Proposing prepared txn_id [%s] for local Query Sync State[%lu:%lu:%d]", BytesToHex(tx_id, 16).c_str(), query->query_seq_num(), query->client_id(), query->retry_version());
-            }
-    
-    }
+    if(TEST_SNAPSHOT) TEST_SNAPSHOT_f(query, query_md);
 }
 
 //const std::string *queryId, 
@@ -455,31 +323,8 @@ bool Server::CheckPresence(const std::string &tx_id, const std::string &query_re
     if(!ready && (preparing || TEST_MATERIALIZE_FORCE)){
         //if Tx not yet materialized (ready) but it is in process of preparing => Register Force Materialization (i.e. force apply TableWrite in case Prepare turns out to be Abstain)
 
-        if(TEST_MATERIALIZE_FORCE){
-            //In this case: RegisterForceMaterialization should trigger instant ForceMaterialize. HandleP1CB call should not re-issue ForceMat.
-            proto::Transaction *tx = new proto::Transaction();
-            //Genesis proof: client id + client seq = 0.
-            tx->set_client_id(0);
-            tx->set_client_seq_num(0);
-             uint64_t ts = 5UL << 32;
-            tx->mutable_timestamp()->set_timestamp(ts);
-            tx->mutable_timestamp()->set_id(0UL);
-            tx->add_involved_groups(0);
-            txn = tx;
-
-            const proto::CommittedProof* committedProof = nullptr; //abort conflict
-            const proto::Transaction *abstain_conflict = nullptr;
-            sockaddr_in addr;
-            TCPTransportAddress remote =TCPTransportAddress(addr);
-            const TransportAddress *remote_orig = &remote;
-            proto::ConcurrencyControl::Result res = proto::ConcurrencyControl_Result_ABSTAIN;
-            uint64_t req_id = 0;
-            bool wake = false;
-            bool force = false;
-            
-            BufferP1Result(res, committedProof, tx_id, req_id, remote_orig, wake, force, true, 0);
-        }
-
+        if(TEST_MATERIALIZE_FORCE) TEST_MATERIALIZE_FORCE_f(txn, tx_id);
+     
         RegisterForceMaterialization(tx_id, txn); 
     }
 
