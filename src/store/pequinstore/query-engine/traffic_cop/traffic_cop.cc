@@ -267,6 +267,7 @@ executor::ExecutionResult TrafficCop::ExecuteReadHelper(
     txn->SetHasReadSetMgr(true);
     if(mode == 2){
       txn->SetSnapshotSet(ss_txns);
+      txn->SetSnapshotRead(true);
     }
   }
   if(mode >= 3){

@@ -58,6 +58,32 @@ std::string Server::ExecQuery(QueryReadSetMgr &queryReadSetMgr, QueryMetaData *q
     //TODO: Must take as input some Materialization info... (whether to use a materialized snapshot (details are in query_md), or whether to just use current state)
     //TODO: Must be able to report exec failure (e.g. materialized snapshot inconsistent) -- note that if eagerly executiong (no materialization) there is no concept of failure.
 
+
+     if(TEST_READ_MATERIALIZED){
+        TEST_READ_MATERIALIZED = false; //only do once
+        std::string test_txn_id = "dont read this tx2";
+        proto::CommittedProof *proof = new proto::CommittedProof();
+        proof->mutable_txn()->set_client_id(1);
+        proof->mutable_txn()->set_client_seq_num(0);
+        uint64_t ts = 5UL << 32; //timeServer.GetTime(); 
+        proof->mutable_txn()->mutable_timestamp()->set_timestamp(ts);
+        proof->mutable_txn()->mutable_timestamp()->set_id(1UL); //just above the genesis TXs
+        proof->mutable_txn()->add_involved_groups(0);
+        committed[test_txn_id] = proof;
+        ts_to_tx.insert(std::make_pair(MergeTimestampId(ts, 1UL), test_txn_id));
+
+        std::string table_name = "table_5";
+        TableWrite &table_write = (*proof->mutable_txn()->mutable_table_writes())[table_name];
+        table_write.add_column_names("key");
+        table_write.add_column_names("value");
+        RowUpdates *new_row = table_write.add_rows();
+        new_row->add_column_values("85");
+        new_row->add_column_values("100");
+
+        Timestamp t(ts, 1UL);
+        ApplyTableWrites(proof->txn(), t, test_txn_id, proof, false, false); //prepared, force materialize
+    }
+
         /////////////////////////////////////////////////////////////
     //                                                         //
     //                                                         //
@@ -105,6 +131,9 @@ std::string Server::ExecQuery(QueryReadSetMgr &queryReadSetMgr, QueryMetaData *q
 
     for(auto &read : queryReadSetMgr.read_set->read_set()){
         Debug("Read key %s with version [%lu:%lu]", read.key().c_str(), read.readtime().timestamp(), read.readtime().id());
+    }
+    for(auto &dep : queryReadSetMgr.read_set->deps()){
+        Debug("Dependency on Txn: %s", dep.write().prepared_txn_digest().c_str());
     }
 
 

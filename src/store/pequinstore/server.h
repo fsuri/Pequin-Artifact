@@ -88,7 +88,8 @@ static bool TEST_SYNC = false;  //create an artificial sync for queries
 static bool TEST_MATERIALIZE = false; //artificially cause a wait on materialize.
 static bool TEST_MATERIALIZE_TS = false; //artificially cause a wait on materialize for a TS based sync
 static bool TEST_MATERIALIZE_FORCE = false; //artificially force a materialization.  //Note: TEST_MATERIALIZE or TEST_MATERIALIZE_TS must be set.
-
+static bool TEST_READ_FROM_SS = false; //artificially create a new prepared/committed TX in order to test whether or not read from SS ignores it.
+static bool TEST_READ_MATERIALIZED = true; //artificially create a new force materialized TX to confirm that read skips it, but ss reads it
 
 static int fail_writeback = 0;
 typedef std::vector<std::unique_lock<std::mutex>> locks_t;

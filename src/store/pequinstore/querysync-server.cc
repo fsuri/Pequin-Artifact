@@ -751,14 +751,40 @@ void Server::HandleSyncCallback(queryMetaDataMap::accessor &q, QueryMetaData *qu
     Debug("Sync complete for Query[%lu:%lu]. Starting Execution", query_md->query_seq_num, query_md->client_id);
     query_md->is_waiting = false;
     
-    // 1) Materialize Snapshot -- do nothing! laready done.
+    // 1) Materialize Snapshot -- do nothing! already done.
         //Invariant: HandleSyncCallback is only called if snapshot is fully materialized. I.e. all txns in snapshot must be either applied to table_store or aborted
 
+    if(TEST_READ_FROM_SS){
+        TEST_READ_FROM_SS = false; //only do once
+        std::string test_txn_id = "dont read this tx";
+        proto::CommittedProof *proof = new proto::CommittedProof();
+        proof->mutable_txn()->set_client_id(1);
+        proof->mutable_txn()->set_client_seq_num(0);
+        uint64_t ts = 5UL << 32; //timeServer.GetTime(); 
+        proof->mutable_txn()->mutable_timestamp()->set_timestamp(ts);
+        proof->mutable_txn()->mutable_timestamp()->set_id(1UL); //just above the genesis TXs
+        proof->mutable_txn()->add_involved_groups(0);
+        committed[test_txn_id] = proof;
+        ts_to_tx.insert(std::make_pair(MergeTimestampId(ts, 1UL), test_txn_id));
+
+        std::string table_name = "table_5";
+        TableWrite &table_write = (*proof->mutable_txn()->mutable_table_writes())[table_name];
+        table_write.add_column_names("key");
+        table_write.add_column_names("value");
+        RowUpdates *new_row = table_write.add_rows();
+        new_row->add_column_values("84");
+        new_row->add_column_values("100");
+
+        Timestamp t(ts, 1UL);
+        //Note: If write committed = SSread should still see it; if prepared, it should not.
+        bool commit_or_prepare = false; 
+        ApplyTableWrites(proof->txn(), t, test_txn_id, proof, commit_or_prepare, false);
+    }
 
     // 2) Execute Query & Construct Read Set
-    //Execute Query -- Go through store, and check if latest tx in store is present in syncList. If it is missing one (committed) --> reply EarlyAbort (tx cannot succeed). If prepared is missing, ignore, skip to next
-    // Build Read Set while executing; Add dependencies on demand as we observe uncommitted txn touched.
-    //read set = map from key-> versions  //Note: Convert Timestamp to TimestampMessage
+    //Execute Query -- Go through store, and check if latest tx in store is present in syncList. If it is missing one (committed) --> reply EarlyAbort (tx cannot succeed). 
+    //If prepared is missing, ignore, skip to next
+    // Build Read Set while executing; Add dependencies on demand as we observe uncommitted txn touched. read set = map from key-> versions  //Note: Convert Timestamp to TimestampMessage
  
     QueryReadSetMgr queryReadSetMgr(query_md->queryResultReply->mutable_result()->mutable_query_read_set(), groupIdx, query_md->useOptimisticTxId); 
 

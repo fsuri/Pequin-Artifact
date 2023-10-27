@@ -535,6 +535,8 @@ bool IndexScanExecutor::FindRightRowVersion(const Timestamp &timestamp, std::sha
   
     bool perform_read_on_snapshot = current_txn->GetSnapshotRead();
     auto snapshot_set = current_txn->GetSnapshotSet();
+
+  Debug("Perform find snapshot? %d. Perform read_on_snapshot? %d", perform_find_snapshot, perform_read_on_snapshot);
    ///////////////////////////////////////////////////////////////////////////////////
 
   UW_ASSERT(!(perform_find_snapshot && perform_read_on_snapshot)); //shouldn't do both simultaneously currently. Though we could support it in theory.
@@ -629,6 +631,7 @@ bool IndexScanExecutor::FindRightRowVersion(const Timestamp &timestamp, std::sha
 
     // For reads on snapshot: Read regardless of whether it is prepared or force_materialized
     else if (perform_read_on_snapshot && !found_committed) {
+      Debug("Performing read on snapshot. Trying to read prepared Txn");
       auto txn_dig = tile_group_header->GetTxnDig(tuple_location.offset);
       bool should_read = snapshot_set->find(*txn_dig.get()) != snapshot_set->end();
 
@@ -637,16 +640,19 @@ bool IndexScanExecutor::FindRightRowVersion(const Timestamp &timestamp, std::sha
             return true;
         }
 
-        Debug("Tuple is prepared and read_prepared_pred is satisfied");
+        Debug("TxnDig[%s] is part of snapshot. Read prepared tuple", pequinstore::BytesToHex(*txn_dig, 16).c_str());
         found_prepared = true;
+        read_curr_version = true;
         return true;
       }
     }
 
     // NEW: if we can read prepared values, check to see if prepared tuple satisfies predicate 
     else if (!found_committed && !found_prepared && /*current_txn->CanReadPrepared() &&*/ !tile_group_header->GetCommitOrPrepare( tuple_location.offset)) {
+     
       if(tile_group_header->GetMaterialize(tuple_location.offset)){
-        Debug("dont read force materialized versions for queries that are not reading from snapshot");
+        Debug("dont read force materialized versions for queries that are not reading from snapshot. TxnDig[%s] is forceMaterialized. Continue reading", 
+                pequinstore::BytesToHex(*tile_group_header->GetTxnDig(tuple_location.offset), 16).c_str());
         return false;
       } 
 
@@ -654,6 +660,7 @@ bool IndexScanExecutor::FindRightRowVersion(const Timestamp &timestamp, std::sha
       auto const &read_prepared_pred = current_txn->GetReadPreparedPred();
       if (read_prepared_pred) {
         auto txn_digest = tile_group_header->GetTxnDig(tuple_location.offset);
+         Debug("Checking prepared tuple with txnDig[%s].", pequinstore::BytesToHex(*txn_digest, 16).c_str());
 
         if (read_prepared_pred(*txn_digest) && visible_tuple_set.find(tuple_location) == visible_tuple_set.end()) {
           // NEW: if predicate satisfied then add to prepared visible tuple vector
@@ -692,13 +699,21 @@ bool IndexScanExecutor::FindRightRowVersion(const Timestamp &timestamp, std::sha
           }
 
           Debug("Tuple is prepared and predicate is satisfied");
-          read_curr_version = true;
+          if(num_iters == 1) read_curr_version = true; //Only add the first read to the result
+
               // visible_tuple_locations.push_back(tuple_location);
               // visible_tuple_set.insert(tuple_location);
 
           // If it's not a point read query then don't need to read committed, unless it's find snapshot
-          if (!current_txn->IsPointRead() && !perform_find_snapshot) {
-            Debug("Not a point read query");
+          if(current_txn->IsPointRead()){
+            Debug("PointQuery read prepared. Still try to read committed");
+            return false; // Need to still try to read committed
+          }
+          if(perform_find_snapshot && num_iters < current_txn->GetKPreparedVersions()){
+            Debug("Perform snapshot has read %d prepared. Continue reading until have %d", num_iters, current_txn->GetKPreparedVersions());
+            return false;
+          }
+          else{
             return true;
           }
         }
