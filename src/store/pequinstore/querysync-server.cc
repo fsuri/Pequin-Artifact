@@ -251,17 +251,19 @@ void Server::HandleQuery(const TransportAddress &remote, proto::QueryRequest &ms
     if(msg.has_optimistic_txid()) query_md->useOptimisticTxId = msg.optimistic_txid(); 
 
     //8) Process Query only if designated for reply; and if there is no Sync already waiting for this retry version
+    query_md->designated_for_reply = msg.designated_for_reply();
 
     //If Eager Exec --> Skip sync and just execute on local state --> Call EagerExec function: Calls same exec as HandleSyncCallback (but without materializing snapshot) + SendQueryResult.
-    if((msg.designated_for_reply() || params.query_params.cacheReadSet) && msg.has_eager_exec() && msg.eager_exec() && !query_md->waiting_sync){  //If waiting_sync => ProcessSync. (must be on eagerPlusSnapshot)
+    if((query_md->designated_for_reply || params.query_params.cacheReadSet) && msg.has_eager_exec() && msg.eager_exec() && !query_md->waiting_sync){  //If waiting_sync => ProcessSync. (must be on eagerPlusSnapshot)
         //Note: If eager exec on && caching read set --> all must execute.
+        Debug("ExecQueryEagerly. QueryId[%s]. Designated for reply? %d", BytesToHex(queryId, 16).c_str(), msg.designated_for_reply());
         ExecQueryEagerly(q, query_md, queryId);
         if(params.mainThreadDispatching && (!params.dispatchMessageReceive || params.query_params.parallel_queries)) FreeQueryRequestMessage(&msg);
         return;
     }
 
 
-    if(msg.designated_for_reply() && !query_md->waiting_sync){
+    if(query_md->designated_for_reply && !query_md->waiting_sync){
         ProcessQuery(q, remote, query, query_md);
     }
     else{  //If not designated for reply, or sync is already waiting -> no need to process query. //TODO: In this case ideally shouldn't send Query separately at all -> Send it together with Sync and add to q_md then.
@@ -760,7 +762,8 @@ void Server::HandleSyncCallback(queryMetaDataMap::accessor &q, QueryMetaData *qu
  
     QueryReadSetMgr queryReadSetMgr(query_md->queryResultReply->mutable_result()->mutable_query_read_set(), groupIdx, query_md->useOptimisticTxId); 
 
-    std::string result(ExecQuery(queryReadSetMgr, query_md, true)); //TODO: Call the Read from Snapshot interface.
+    //std::string result(ExecQuery(queryReadSetMgr, query_md, true)); //TODO: Call the Read from Snapshot interface.
+    query_md->queryResultReply->mutable_result()->set_query_result(ExecQuery(queryReadSetMgr, query_md, true));
     query_md->has_result = true; 
    
     //Note: Blackbox might do multi-replica coordination to compute result and full read-set (though read set can actually be reported directly by each shard...)
@@ -769,26 +772,24 @@ void Server::HandleSyncCallback(queryMetaDataMap::accessor &q, QueryMetaData *qu
         //-- want to do this so that Exec can be a better blackbox: This way data exchange might just be a small intermediary data, yet client learns full read set. 
             //In this case, read set hash from a shard is not enough to prove integrity to another shard (since less data than full read set might be exchanged)
 
+    //Clear set snapshot. Could've been set by EagerPlusSnapshot path.
+    query_md->queryResultReply->mutable_result()->clear_local_ss();
 
-    bool exec_success = !(TEST_FAIL_QUERY && query_md->retry_version == 0); //Global Test var to simulate a retry once. //FIXME: Remove
-    if(exec_success){
-         query_md->failure = false;
-        
-         if(query_md->designated_for_reply){
-            query_md->queryResultReply->mutable_result()->set_query_result(result);
-            //query_md->queryResult->set_query_result(dummy_result); //TODO: replace with real result
-        }
-        else{
-            query_md->queryResultReply->mutable_result()->set_query_result(result); //set for non-query manager.
-            //query_md->queryResult->set_query_result(dummy_result);
-        }
-
-         SendQueryReply(query_md);
-    }
-    else{
+   
+    if(TEST_FAIL_QUERY && query_md->retry_version == 0){ //Test to simulate a retry once.
         FailQuery(query_md);
         TEST_FAIL_QUERY = false;
     }
+    else{
+         query_md->failure = false;
+        
+        if(query_md->designated_for_reply){
+            SendQueryReply(query_md);
+            //query_md->queryResultReply->mutable_result()->set_query_result(result);
+        }
+        //TODO: If not query_manager => don't need to send the result. Only need read set
+    }
+   
 
     uint64_t retry_version = query_md->retry_version;
     q.release();

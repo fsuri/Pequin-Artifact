@@ -221,7 +221,7 @@ void Server::ExecQueryEagerly(queryMetaDataMap::accessor &q, QueryMetaData *quer
             //query_md->queryResult->set_query_result(dummy_result);
     }
 
-    SendQueryReply(query_md);
+    if(query_md->designated_for_reply) SendQueryReply(query_md);
     uint64_t retry_version = query_md->retry_version;
     q.release();
 
@@ -508,7 +508,7 @@ bool Server::CheckPresence(const uint64_t &ts_id, const std::string &query_retry
 
 void Server::RequestMissing(const proto::ReplicaList &replica_list, std::map<uint64_t, proto::RequestMissingTxns> &replica_requests, const std::string &tx_id){
    
-     Debug("Request missing TX[%s]", tx_id);
+     Debug("Request missing TX[%s]", BytesToHex(tx_id, 16).c_str());
     uint64_t count = 0;
     for(auto const &replica_id: replica_list.replicas()){ 
         Debug("    Request missing Txn[%s] from replica id[%d]", BytesToHex(tx_id, 16).c_str(), replica_id);

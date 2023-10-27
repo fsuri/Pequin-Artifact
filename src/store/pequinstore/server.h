@@ -251,7 +251,7 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
                     const uint64_t &query_seq_num, const uint64_t &client_id, const QueryParameters *query_params, const uint64_t &retry_version): 
          failure(false), retry_version(retry_version), waiting_sync(false), started_sync(false), has_result(false), 
          query_cmd(_query_cmd), ts(timestamp), original_client(remote.clone()), req_id(req_id), query_seq_num(query_seq_num), client_id(client_id), is_waiting(false),
-         snapshot_mgr(query_params), useOptimisticTxId(false), executed_query(false), merged_ss_msg(nullptr)
+         snapshot_mgr(query_params), useOptimisticTxId(false), executed_query(false), merged_ss_msg(nullptr), designated_for_reply(false)
       {
           //queryResult = new proto::QueryResult();
           queryResultReply = new proto::QueryResultReply(); //TODO: Replace with GetUnused.
@@ -261,7 +261,7 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
        QueryMetaData(const uint64_t &query_seq_num, const uint64_t &client_id, const QueryParameters *query_params): 
           failure(false), retry_version(0UL), has_query(false), waiting_sync(false), started_sync(false), 
           has_result(false), query_seq_num(query_seq_num), client_id(client_id), is_waiting(false) ,
-          snapshot_mgr(query_params), useOptimisticTxId(false), executed_query(false), original_client(nullptr), merged_ss_msg(nullptr)
+          snapshot_mgr(query_params), useOptimisticTxId(false), executed_query(false), original_client(nullptr), merged_ss_msg(nullptr), designated_for_reply(false)
       {
           //queryResult = new proto::QueryResult();
           queryResultReply = new proto::QueryResultReply(); //TODO: Replace with GetUnused.

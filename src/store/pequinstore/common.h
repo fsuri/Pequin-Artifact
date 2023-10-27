@@ -420,7 +420,9 @@ inline static bool compareReadSets (google::protobuf::RepeatedPtrField<ReadMessa
 
 struct QueryReadSetMgr {
         QueryReadSetMgr(){}
-        QueryReadSetMgr(proto::ReadSet *read_set, const uint64_t &groupIdx, const bool &useOptimisticId): read_set(read_set), groupIdx(groupIdx), useOptimisticId(useOptimisticId){}
+        QueryReadSetMgr(proto::ReadSet *read_set, const uint64_t &groupIdx, const bool &useOptimisticId): read_set(read_set), groupIdx(groupIdx), useOptimisticId(useOptimisticId){
+            read_set->Clear(); //Reset read set -- e.g. if we've already done eagerexec, and then we do snapshot read after
+        }
         ~QueryReadSetMgr(){}
 
         void AddToReadSet(const std::string &key, const TimestampMessage &readtime, bool is_table_col_ver = false){

@@ -256,7 +256,7 @@ virtual void Phase2Equivocate_Simulate(uint64_t id, const proto::Transaction &tx
   }; 
 //TODO: Define management object fully
   struct PendingQuery {
-    PendingQuery(uint64_t reqId, const QueryParameters *query_params) : done(false), use_bonus(false), reqId(reqId), client_seq_num(0UL), query_seq_num(0UL),
+    PendingQuery(uint64_t reqId, const QueryParameters *query_params) : done(false), snapshot_mode(true), reqId(reqId), client_seq_num(0UL), query_seq_num(0UL),
         retry_version(0UL), num_designated_replies(0UL), numResults(0UL), numFails(0UL), 
         query_manager(false), success(false),  snapshot_mgr(query_params), pendingPointQuery(reqId) //,  numSnapshotReplies(0UL),
         { 
@@ -268,7 +268,7 @@ virtual void Phase2Equivocate_Simulate(uint64_t id, const proto::Transaction &tx
 
     bool done;
 
-    bool use_bonus; //always false, unless using Snapshot path in EagerPlusSnapshot
+    bool snapshot_mode; //true when in snapshot mode (e.g. when NOT using eagerExec, OR when using Snapshot path in EagerPlusSnapshot)
 
     uint64_t reqId; 
     uint64_t client_seq_num;

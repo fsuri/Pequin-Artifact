@@ -27,6 +27,8 @@
 
 namespace pequinstore {
 
+static bool TEST_EAGER_PLUS_SNAPSHOT = true; //Artificially cause eager exec to fail in order to trigger Sync path
+
 //TODO: Add: Handle Query Fail
 //-> Every shard (not just query_manager shard) should be able to send this if it observes a committed query was missed; or if the materialized snapshot frontier includes a prepare that aborted (or is guaranteed to, e.g. vote Abort)
 
@@ -186,7 +188,10 @@ void ShardClient::RequestQuery(PendingQuery *pendingQuery, proto::Query &queryMs
 
   //queryReq.set_eager_exec(true);
   Notice("SET EAGER TO TRUE ALWAYS -- FOR REAL RUN UNCOMMENT CORRECT EAGER EXEC LINE");
-  queryReq.set_eager_exec(!pendingQuery->retry_version && (pendingQuery->is_point? params.query_params.eagerPointExec : params.query_params.eagerExec));
+  bool use_eager_exec = !pendingQuery->retry_version && (pendingQuery->is_point? params.query_params.eagerPointExec : params.query_params.eagerExec);
+  queryReq.set_eager_exec(use_eager_exec);
+  pendingQuery->snapshot_mode = !use_eager_exec;
+
   Debug("Sending TX eagerly? %s", queryReq.eager_exec()? "yes" : "no");
   //if(!queryReq.eager_exec()) Panic("Currently only testing eager exec");
   //if(queryReq.is_point()) queryReq.set_eager_exec(false); //Panic("Not testing point query currently");
@@ -354,6 +359,20 @@ void ShardClient::ProcessSync(PendingQuery *pendingQuery, proto::LocalSnapshot *
 
 
 void ShardClient::SyncReplicas(PendingQuery *pendingQuery){
+    //0)
+   
+    if(params.query_params.eagerPlusSnapshot){
+        //reset result meta data if we do snapshot on eagerPlusSnapshot path. I.e. as if we were retrying, but in the same version
+        pendingQuery->resultsVerified.clear();
+        pendingQuery->numResults = 0;
+        pendingQuery->result_freq.clear();
+        pendingQuery->numFails = 0;   //Note Probably don't need to set this for eager exec; FailQuery will only be sent as a response to a snapshot that is invalid.
+
+        pendingQuery->snapshot_mode = true; //Upgrade to snapshot mode 
+    }
+    
+    
+
     //1) Compose SyncMessage
     pendingQuery->merged_ss.set_query_seq_num(pendingQuery->query_seq_num);
     pendingQuery->merged_ss.set_client_id(client_id);
@@ -392,7 +411,7 @@ void ShardClient::SyncReplicas(PendingQuery *pendingQuery){
     for (size_t i = 0; i < total_msg; ++i) {
         syncMsg.set_designated_for_reply(i < num_designated_replies); //only designate num_designated_replies many replicas for exec replies.
 
-        Debug("[group %i] Sending Query Sync Msg to replica %lu", group, group * config->n + GetNthClosestReplica(i));
+        Debug("[group %i] Sending Query Sync Msg to replica %lu. Designated for reply? %d", group, group * config->n + GetNthClosestReplica(i), syncMsg.designated_for_reply());
         transport->SendMessageToReplica(this, group, GetNthClosestReplica(i), syncMsg);
     }
 
@@ -552,8 +571,8 @@ void ShardClient::HandleQueryResult(proto::QueryResultReply &queryResult){
   
     //4) if receive enough --> upcall;  At client: Add query identifier and result to Txn
 
-    bool TEST_SYNC_PATH = false; //params.query_params.eagerPlusSnapshot && pendingQuery->retry_version == 0 && replica_result->has_local_ss();
-
+    bool TEST_SYNC_PATH = TEST_EAGER_PLUS_SNAPSHOT && params.query_params.eagerPlusSnapshot && !pendingQuery->snapshot_mode;
+   
     Debug("[group %i] Req %lu. Matching_res %d. resultQuorum: %d \n", group, queryResult.req_id(), matching_res, params.query_params.resultQuorum);
         // Only need results from "result" shard (assuming simple migration scheme)
     if(!TEST_SYNC_PATH && matching_res == params.query_params.resultQuorum){
@@ -572,12 +591,12 @@ void ShardClient::HandleQueryResult(proto::QueryResultReply &queryResult){
     // if not optimistic id: wait for up to result Quorum many messages (f+1). With optimistic id, wait for f additional.
 
     //if using eager exec + sync, then don't return query failure upon inconsistent replies => continue with sync protocol (pretend never did eager exec)
-    bool do_sync_upon_failure = params.query_params.eagerPlusSnapshot && pendingQuery->retry_version == 0 && replica_result->has_local_ss();
-        //Note: Do not count the SyncRead as a new retry version?
-        //simply don't upcall; wipe result data structure; "pretend like we never got result, just sync
+    bool do_sync_upon_failure = !pendingQuery->snapshot_mode && params.query_params.eagerPlusSnapshot && pendingQuery->retry_version == 0 && replica_result->has_local_ss();
+                            //  don't do it again if already in snapshot mode, only do it if parameterized to use eager+snapshot path. retry_version == 0 is obsolete when using snapshot_mode
+    //Note: Do not count the SyncRead as a new retry version simply don't upcall; wipe result data structure; "pretend like we never got result, just sync
 
-
-    bool no_bonus = (params.query_params.eagerExec && !pendingQuery->use_bonus) || (params.query_params.optimisticTxID && pendingQuery->retry_version > 0);
+    //if eagerExec is on, but we are running in EagerPlusSnapshot mode, then consider bonus. 
+    bool no_bonus = (params.query_params.eagerExec && !pendingQuery->snapshot_mode) || (params.query_params.optimisticTxID && pendingQuery->retry_version > 0);
     //bool request_bonus = (!params.query_params.eagerExec && params.query_params.optimisticTxID && pendingQuery->retry_version == 0);
     uint64_t expectedResults = no_bonus ? params.query_params.resultQuorum : params.query_params.resultQuorum + config->f;
 
@@ -617,16 +636,6 @@ void ShardClient::HandleQueryResult(proto::QueryResultReply &queryResult){
          //If EagerPlusSnapshot: adjust Quorums or flags such that SyncReplicas only triggers if ExecFails.
         // Eager exec should send to at least queryMessages many (and designate for replies)
         // SyncReplicas() should not trigger early: => Probably no changes necessary? Result quorum is smaller than sync quorum? (f+1 out of 2f+1  VS 2f+1 out of 3f+1)
-
-        if(pendingQuery->resultsVerified.size() == maxWait){
-            //wipe result data
-            pendingQuery->resultsVerified.clear();
-            pendingQuery->numResults = 0;
-            pendingQuery->result_freq.clear();
-            pendingQuery->numFails = 0;   //Note Probably don't need to set this for eager exec; FailQuery will only be sent as a response to a snapshot that is invalid.
-
-            pendingQuery->use_bonus = true; //If optimisticTxID is on, wait for bonus if result is coming from sync.
-        }
 
         if (params.validateProofs && params.signedMessages) {
             if(replica_result->local_ss().replica_id() !=  queryResult.signed_result().process_id()){
