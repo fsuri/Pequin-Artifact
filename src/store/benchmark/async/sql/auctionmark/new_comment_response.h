@@ -24,29 +24,27 @@
  * SOFTWARE.
  *
  **********************************************************************/
-#include "store/benchmark/async/auctionmark/transactions/new_item.h"
+#ifndef AUCTION_MARK_NEW_COMMENT_RESPONSE_H
+#define AUCTION_MARK_NEW_COMMENT_RESPONSE_H
+
+#include "store/benchmark/async/sql/auctionmark/auctionmark_transaction.h"
 
 namespace auctionmark {
 
-NewItem::NewItem(uint32_t timeout, uint64_t i_id, uint64_t u_id, uint64_t c_id,
-  string_view name, string_view description, double initial_price,
-  double reserve_price, double buy_now, const vector<string>& attributes, 
-  const vector<uint64_t>& gag_ids, const vector<uint64_t>& gav_ids, 
-  const vector<string_view>& images, uint64_t start_date, uint64_t end_date,
-  std::mt19937 &gen) : SyncTransaction(timeout), i_id(i_id), u_id(u_id), c_id(c_id),
-  name(name), description(description), initial_price(initial_price),
-  reserve_price(reserve_price), buy_now(buy_now), attributes(attributes),
-  gag_ids(gag_ids), gav_ids(gav_ids), images(images), start_date(start_date),
-  end_date(end_date) {
-  }
-NewItem::~NewItem(){
-}
+class NewCommentResponse : public AuctionMarkTransaction {
+ public:
+  NewCommentResponse(uint32_t timeout, uint64_t i_id, uint64_t i_c_id, uint64_t seller_id,
+      std::string response, std::mt19937 &gen);
+  virtual ~NewCommentResponse();
+  virtual transaction_status_t Execute(SyncClient &client);
 
-transaction_status_t Execute(SyncClient &client) {
-  string description = "";
-  for(auto &gag_id : gag_ids) {
-    
-  }
-}
+ private:
+  uint64_t i_id;
+  uint64_t i_c_id;
+  uint64_t seller_id;
+  std::string response;
+};
 
 } // namespace auctionmark
+
+#endif /* AUCTION_MARK_NEW_COMMENT_RESPONSE_H */

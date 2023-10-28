@@ -62,7 +62,7 @@ transaction_status_t SQLOrderStatus::Execute(SyncClient &client) {
 
   client.Begin(timeout);
 
-  tpcc::CustomerRow c_row;
+  CustomerRow c_row;
   if (c_by_last_name) { // access customer by last name
     Debug("Customer: %s", c_last.c_str());
 
@@ -70,7 +70,7 @@ transaction_status_t SQLOrderStatus::Execute(SyncClient &client) {
     client.Query(query, queryResult, timeout);
     int namecnt = queryResult->size();
     deserialize(c_row, queryResult, namecnt / 2);
-    c_id = c_row.id();
+    c_id = c_row.get_id();
     Debug("  ID: %u", c_id);
   } else {
     query = fmt::format("SELECT * FROM Customer WHERE id = {} AND d_id = {} AND w_id = {}", c_id, c_d_id, c_w_id);
@@ -79,8 +79,8 @@ transaction_status_t SQLOrderStatus::Execute(SyncClient &client) {
     Debug("Customer: %u", c_id);
   }
 
-  Debug("  First: %s", c_row.first().c_str());
-  Debug("  Last: %s", c_row.last().c_str());
+  Debug("  First: %s", c_row.get_first().c_str());
+  Debug("  Last: %s", c_row.get_last().c_str());
 
   query = fmt::format("SELECT MAX(id) FROM \"order\" WHERE d_id = {} AND w_id = {} AND c_id = {}", c_d_id, c_w_id, c_id);
   client.Query(query, queryResult, timeout);
@@ -90,14 +90,14 @@ transaction_status_t SQLOrderStatus::Execute(SyncClient &client) {
   query = fmt::format("SELECT * FROM \"order\" WHERE id = {} AND d_id = {} AND w_id = {}", o_id, c_d_id, c_w_id);
   Debug(query.c_str());
   client.Query(query, queryResult, timeout);
-  tpcc::OrderRow o_row;
+  OrderRow o_row;
   if(queryResult->empty()) Panic("empty result for Order Row");
   deserialize(o_row, queryResult);
-  Debug("  Order Lines: %u", o_row.ol_cnt());
-  Debug("  Entry Date: %u", o_row.entry_d());
-  Debug("  Carrier ID: %u", o_row.carrier_id());
+  Debug("  Order Lines: %u", o_row.get_ol_cnt());
+  Debug("  Entry Date: %u", o_row.get_entry_d());
+  Debug("  Carrier ID: %u", o_row.get_carrier_id());
 
-  query = fmt::format("SELECT * FROM OrderLine WHERE o_id = {} AND d_id = {} AND w_id = {} AND number < {}", o_id, c_d_id, c_w_id, o_row.ol_cnt());
+  query = fmt::format("SELECT * FROM OrderLine WHERE o_id = {} AND d_id = {} AND w_id = {} AND number < {}", o_id, c_d_id, c_w_id, o_row.get_ol_cnt());
   client.Query(query, queryResult, timeout);
   Debug("COMMIT");
   return client.Commit(timeout);

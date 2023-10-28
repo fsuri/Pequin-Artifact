@@ -28,10 +28,11 @@
 #include <random>
 #include <gflags/gflags.h>
 #include <set>
+#include <boost/histogram.hpp>
 
 #include "store/benchmark/async/json_table_writer.h"
 #include "store/benchmark/async/sql/auctionmark/category_parser.h"
-#include <boost/histogram.hpp>
+#include "store/benchmark/async/sql/auctionmark/auctionmark_params.h"
 
 const char ALPHA_NUMERIC[] = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
 
@@ -47,7 +48,7 @@ std::string RandomAString(size_t x, size_t y, std::mt19937 &gen)
   return s;
 }
 
-void GenerateRegionTable(TableWriter &writer, const uint32_t n_regions)
+void GenerateRegionTable(TableWriter &writer, const uint32_t N_REGIONS)
 {
   const size_t min_region_name_length = 6;
   const size_t max_region_name_length = 32;
@@ -60,7 +61,7 @@ void GenerateRegionTable(TableWriter &writer, const uint32_t n_regions)
   std::string table_name = "Region";
   writer.add_table(table_name, column_names_and_types, primary_key_col_idx);
   std::mt19937 gen;
-  for (uint32_t r_id = 1; r_id <= n_regions; ++r_id)
+  for (uint32_t r_id = 1; r_id <= N_REGIONS; ++r_id)
   {
     std::vector<std::string> values;
     values.push_back(std::to_string(r_id));
@@ -100,7 +101,7 @@ int GenerateCategoryTable(TableWriter &writer)
   return categories.size();
 }
 
-std::set<uint32_t> GenerateGlobalAttributeGroupTable(TableWriter &writer, int n_categories, int n_gags, int gav_per_group)
+std::set<uint32_t> GenerateGlobalAttributeGroupTable(TableWriter &writer, int n_categories, int N_GAGS, int GAV_PER_GROUP)
 {
   using namespace boost::histogram;
   auto h = make_histogram(axis::integer<>(0, n_categories - 1));
@@ -115,13 +116,13 @@ std::set<uint32_t> GenerateGlobalAttributeGroupTable(TableWriter &writer, int n_
 
   std::string table_name = "GlobalAttributeGroup";
   writer.add_table(table_name, column_names_and_types, primary_key_col_idx);
-  for (int i = 0; i < n_gags; i++)
+  for (int i = 0; i < N_GAGS; i++)
   {
     std::vector<std::string> values;
     uint32_t category_id = std::uniform_int_distribution<uint32_t>(0, n_categories - 1)(gen);
     h(category_id);
     uint32_t id = h.at(category_id);
-    uint32_t gag_id = ((category_id << 22) >> 22) | ((id << 22) >> 12) | (gav_per_group << 22) >> 2;
+    uint32_t gag_id = ((category_id << 22) >> 22) | ((id << 22) >> 12) | (GAV_PER_GROUP << 22) >> 2;
     gag_ids.insert(gag_id);
     values.push_back(std::to_string(gag_id));
     values.push_back(std::to_string(category_id));
@@ -132,7 +133,7 @@ std::set<uint32_t> GenerateGlobalAttributeGroupTable(TableWriter &writer, int n_
   return gag_ids;
 }
 
-void GenerateGlobalAttributeValueTable(TableWriter &writer, int gav_per_group, std::set<uint32_t> gag_ids)
+void GenerateGlobalAttributeValueTable(TableWriter &writer, int GAV_PER_GROUP, std::set<uint32_t> gag_ids)
 {
   std::mt19937 gen;
 
@@ -147,7 +148,7 @@ void GenerateGlobalAttributeValueTable(TableWriter &writer, int gav_per_group, s
 
   for (uint32_t gag_id : gag_ids)
   {
-    for (int j = 0; j < gav_per_group; j++)
+    for (int j = 0; j < GAV_PER_GROUP; j++)
     {
       std::vector<std::string> values;
       uint64_t gav_id = (gag_id << 34) >> 34 | j << 30;
@@ -159,7 +160,7 @@ void GenerateGlobalAttributeValueTable(TableWriter &writer, int gav_per_group, s
   }
 }
 
-void GenerateUserTable(TableWriter &writer, uint32_t n_regions, uint32_t n_users)
+void GenerateUserTable(TableWriter &writer, uint32_t N_REGIONS, uint32_t N_USERS)
 {
   std::mt19937 gen;
   const uint32_t user_min_rating = 0;
@@ -178,11 +179,11 @@ void GenerateUserTable(TableWriter &writer, uint32_t n_regions, uint32_t n_users
   std::string table_name = "User";
   writer.add_table(table_name, column_names_and_types, primary_key_col_idx);
 
-  for (int i = 0; i < n_users; i++)
+  for (int i = 0; i < N_USERS; i++)
   {
     std::vector<std::string> values;
     values.push_back(std::to_string(i));
-    values.push_back(std::to_string(std::zipf_distribution<uint32_t>(user_min_rating, user_max_rating)(gen)));
+    // values.push_back(std::to_string(std::zipf_distribution<uint32_t>(user_min_rating, user_max_rating)(gen)));
   }
 }
 
@@ -193,16 +194,11 @@ int main(int argc, char *argv[])
   std::string file_name = "auctionmark";
   TableWriter writer = TableWriter(file_name);
 
-  const uint32_t n_regions = 75;
-  const uint32_t n_gags = 100;
-  const uint32_t gav_per_group = 10;
-  const uint32_t n_users = 1000000;
-
-  GenerateRegionTable(writer, n_regions);
+  GenerateRegionTable(writer, auctionmark::N_REGIONS);
   int n_categories = GenerateCategoryTable(writer);
-  std::set<uint32_t> gag_ids = GenerateGlobalAttributeGroupTable(writer, n_categories, n_gags, gav_per_group);
-  GenerateGlobalAttributeValueTable(writer, gav_per_group, gag_ids);
-  GenerateUserTable(writer, n_regions, n_users);
+  std::set<uint32_t> gag_ids = GenerateGlobalAttributeGroupTable(writer, n_categories, auctionmark::N_GAGS, auctionmark::GAV_PER_GROUP);
+  GenerateGlobalAttributeValueTable(writer, auctionmark::GAV_PER_GROUP, gag_ids);
+  GenerateUserTable(writer, auctionmark::N_REGIONS, auctionmark::N_USERS);
   writer.flush();
   std::cerr << "Wrote tables." << std::endl;
   return 0;

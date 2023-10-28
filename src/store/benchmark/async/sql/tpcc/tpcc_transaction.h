@@ -28,11 +28,8 @@
 #ifndef TPCC_SQL_TRANSACTION_H
 #define TPCC_SQL_TRANSACTION_H
 
-#include "store/benchmark/async/tpcc/tpcc-proto.pb.h"
-#include "store/common/frontend/sync_client.h"
 #include "store/common/frontend/sync_transaction.h"
-#include "lib/cereal/archives/binary.hpp"
-#include "lib/cereal/types/string.hpp"
+#include "tpcc_schema.h"
 
 namespace tpcc_sql {
 
@@ -42,7 +39,7 @@ void load_row(std::unique_ptr<query_result::Row> row, T& t) {
 }
 
 inline void load_row(std::unique_ptr<query_result::Row> row,
-          tpcc::WarehouseRow& w)
+          WarehouseRow& w)
 {
   uint32_t id;
   std::string name;
@@ -74,7 +71,7 @@ inline void load_row(std::unique_ptr<query_result::Row> row,
 }
  
 inline void load_row(std::unique_ptr<query_result::Row> row,
-          tpcc::DistrictRow& d)
+          DistrictRow& d)
 {
   uint32_t id;
   uint32_t w_id;
@@ -112,7 +109,7 @@ inline void load_row(std::unique_ptr<query_result::Row> row,
 }
  
 inline void load_row(std::unique_ptr<query_result::Row> row,
-          tpcc::OrderRow& o)
+          OrderRow& o)
 {
   uint32_t id;
   uint32_t d_id;
@@ -141,7 +138,7 @@ inline void load_row(std::unique_ptr<query_result::Row> row,
 }
 
 inline void load_row(std::unique_ptr<query_result::Row> row,
-          tpcc::OrderLineRow& o)
+          OrderLineRow& o)
 {
   uint32_t  o_id;
   uint32_t  d_id;
@@ -174,7 +171,7 @@ inline void load_row(std::unique_ptr<query_result::Row> row,
 }
  
 inline void load_row(std::unique_ptr<query_result::Row> row,
-          tpcc::CustomerRow& c)
+          CustomerRow& c)
 {
   uint32_t  id;
   uint32_t  d_id;
@@ -242,7 +239,7 @@ inline void load_row(std::unique_ptr<query_result::Row> row,
 }
  
 inline void load_row(std::unique_ptr<query_result::Row> row,
-          tpcc::ItemRow& i)
+          ItemRow& i)
 {
   uint32_t id;
   uint32_t im_id;
@@ -262,7 +259,7 @@ inline void load_row(std::unique_ptr<query_result::Row> row,
 }
  
 inline void load_row(std::unique_ptr<query_result::Row> row,
-          tpcc::StockRow& s)
+          StockRow& s)
 {
   uint32_t i_id;
   uint32_t w_id;
@@ -319,7 +316,7 @@ inline void load_row(std::unique_ptr<query_result::Row> row,
 
  
 inline void load_row(std::unique_ptr<query_result::Row> row,
-          tpcc::NewOrderRow& new_o)
+          NewOrderRow& new_o)
 {
   uint32_t id;
   uint32_t d_id;

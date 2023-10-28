@@ -26,6 +26,7 @@
  **********************************************************************/
 #include "store/benchmark/async/sql/tpcc/payment.h"
 
+#include <sstream>
 #include <fmt/core.h>
 
 #include "store/benchmark/async/sql/tpcc/tpcc_utils.h"
@@ -96,7 +97,7 @@ transaction_status_t SQLPayment::Execute(SyncClient &client) {
   statement = fmt::format("SELECT * FROM District WHERE id = {} AND w_id = {}", d_id, d_w_id);
   client.Query(statement, timeout);
 
-  tpcc::CustomerRow c_row;
+  CustomerRow c_row;
   if (c_by_last_name) { // access customer by last name
     Debug("Customer: %s", c_last.c_str());
     Debug("  Get(c_w_id=%u, c_d_id=%u, c_last=%s)", c_w_id, c_d_id,
@@ -107,7 +108,7 @@ transaction_status_t SQLPayment::Execute(SyncClient &client) {
     client.Wait(results);
     int namecnt = results[2]->size();
     deserialize(c_row, results[2], namecnt / 2);
-    c_id = c_row.id();
+    c_id = c_row.get_id();
     Debug("  ID: %u", c_id);
   } else {
     statement = fmt::format("SELECT * FROM Customer WHERE id = {} AND d_id = {} AND w_id = {}", c_id, c_d_id, c_w_id);
@@ -117,40 +118,40 @@ transaction_status_t SQLPayment::Execute(SyncClient &client) {
     Debug("Customer: %u", c_id);
   }
 
-  c_row.set_balance(c_row.balance() - h_amount);
-  c_row.set_ytd_payment(c_row.ytd_payment() + h_amount);
-  c_row.set_payment_cnt(c_row.payment_cnt() + 1);
-  Debug("  Balance: %u", c_row.balance());
-  Debug("  YTD: %u", c_row.ytd_payment());
-  Debug("  Payment Count: %u", c_row.payment_cnt());
-  if (c_row.credit() == "BC") {
+  c_row.set_balance(c_row.get_balance() - h_amount);
+  c_row.set_ytd_payment(c_row.get_ytd_payment() + h_amount);
+  c_row.set_payment_cnt(c_row.get_payment_cnt() + 1);
+  Debug("  Balance: %u", c_row.get_balance());
+  Debug("  YTD: %u", c_row.get_ytd_payment());
+  Debug("  Payment Count: %u", c_row.get_payment_cnt());
+  if (c_row.get_credit() == "BC") {
     std::stringstream ss;
     ss << c_id << "," << c_d_id << "," << c_w_id << "," << d_id << ","
              << w_id << "," << h_amount;
-    std::string new_data = ss.str() +  c_row.data();
+    std::string new_data = ss.str() +  c_row.get_data();
     new_data = new_data.substr(std::min(new_data.size(), 500UL));
     c_row.set_data(new_data);
   }
   statement = fmt::format("UPDATE Customer SET balance = {}, ytd_payment = {}, "
             "payment_cnt = {}, data = '{}' "
             "WHERE id = {} AND d_id = {} AND w_id = {};", 
-            c_row.balance(), c_row.ytd_payment(), c_row.payment_cnt(), 
-            c_row.data(), c_row.id(), c_row.d_id(), c_row.w_id());
+            c_row.get_balance(), c_row.get_ytd_payment(), c_row.get_payment_cnt(), 
+            c_row.get_data(), c_row.get_id(), c_row.get_d_id(), c_row.get_w_id());
   client.Write(statement, queryResult, timeout);
 
-  tpcc::WarehouseRow w_row;
+  WarehouseRow w_row;
   deserialize(w_row, results[0]);
-  Debug("  YTD: %u", w_row.ytd());
+  Debug("  YTD: %u", w_row.get_ytd());
 
-  tpcc::DistrictRow d_row;
+  DistrictRow d_row;
   deserialize(d_row, results[1]);
-  Debug("  YTD: %u", d_row.ytd());
+  Debug("  YTD: %u", d_row.get_ytd());
 
   statement = fmt::format("INSERT INTO History (c_id, c_d_id, c_w_id, d_id, "
             "w_id, date, amount, data)\n"
             "VALUES ({}, {}, {}, {}, {}, {}, {}, '{}');", 
             c_id, c_d_id, c_w_id, d_id, w_id,
-            h_date, h_amount, w_row.name() + "    " + d_row.name());
+            h_date, h_amount, w_row.get_name() + "    " + d_row.get_name());
   client.Write(statement, queryResult, timeout);
 
   Debug("COMMIT");

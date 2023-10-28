@@ -24,22 +24,37 @@
  * SOFTWARE.
  *
  **********************************************************************/
-#ifndef AUCTION_MARK_NEW_BID_H
-#define AUCTION_MARK_NEW_BID_H
-
-#include "store/common/frontend/sync_transaction.h"
+#include "store/benchmark/async/sql/auctionmark/get_watched_items.h"
+#include <fmt/core.h>
 
 namespace auctionmark {
 
-class NewBid : public SyncTransaction {
- public:
-  NewBid(uint32_t timeout, uint64_t i_id, uint64_t u_id, uint64_t i_buyer_id,
-      double bid, double max_bid, std::mt19937 &gen);
-  virtual ~NewBid();
-  virtual transaction_status_t Execute(SyncClient &client);
+GetWatchedItems::GetWatchedItems(uint32_t timeout, uint64_t u_id, std::mt19937 &gen) : 
+    AuctionMarkTransaction(timeout), u_id(u_id) {
+}
 
-};
+GetWatchedItems::~GetWatchedItems(){
+}
+
+transaction_status_t GetWatchedItems::Execute(SyncClient &client) {
+  std::unique_ptr<const query_result::QueryResult> queryResult;
+  std::string statement;
+  std::vector<std::unique_ptr<const query_result::QueryResult>> results;
+
+  Debug("GET WATCHED ITEMS");
+  Debug("User ID: %lu", u_id);
+
+  client.Begin(timeout);
+
+  statement = fmt::format("SELECT uw_u_id, i_id, i_u_id, i_name, i_current_price, "
+                          "i_end_date, i_status, uw_created FROM USER_WATCH, ITEM WHERE "
+                          "uw_u_id = {} AND uw_i_id = i_id AND uw_i_u_id = i_u_id "
+                          "ORDER BY i_end_date ASC LIMIT 25", u_id);
+  client.Query(statement, queryResult, timeout);
+  Debug("Number of watched items: %lu", queryResult->size());
+  
+  Debug("COMMIT");
+  return client.Commit(timeout);
+}
 
 } // namespace auctionmark
-
-#endif /* AUCTION_MARK_NEW_BID_H */

@@ -24,22 +24,39 @@
  * SOFTWARE.
  *
  **********************************************************************/
-#ifndef AUCTION_MARK_NEW_FEEDBACK_H
-#define AUCTION_MARK_NEW_FEEDBACK_H
-
-#include "store/common/frontend/sync_transaction.h"
+#include "store/benchmark/async/sql/auctionmark/get_comment.h"
+#include <fmt/core.h>
 
 namespace auctionmark {
 
-class NewFeedback : public SyncTransaction {
- public:
-  NewFeedback(uint32_t timeout, uint64_t i_id, uint64_t seller_id, uint64_t buyer_id,
-      uint64_t rating, string comment, std::mt19937 &gen);
-  virtual ~NewFeedback();
-  virtual transaction_status_t Execute(SyncClient &client);
+GetComment::GetComment(uint32_t timeout, uint64_t seller_id, std::mt19937 &gen) : 
+    AuctionMarkTransaction(timeout), seller_id(seller_id) {
+}
 
-};
+GetComment::~GetComment(){
+}
+
+transaction_status_t GetComment::Execute(SyncClient &client) {
+  std::unique_ptr<const query_result::QueryResult> queryResult;
+  std::string statement;
+  std::vector<std::unique_ptr<const query_result::QueryResult>> results;
+
+  Debug("GET COMMENT");
+  Debug("Comment Seller ID: %lu", seller_id);
+
+  client.Begin(timeout);
+
+  statement = fmt::format("SELECT * FROM ITEM_COMMENT WHERE ic_u_id = {} AND "
+                          "ic_response IS NULL;", seller_id);
+  client.Query(statement, queryResult, timeout);
+  for (std::size_t i = 0; i < queryResult->size(); i++) {
+    ItemCommentRow ic;
+    deserialize(ic, queryResult, i);
+    assert(ic.get_ic_u_id() == seller_id);
+  }
+  
+  Debug("COMMIT");
+  return client.Commit(timeout);
+}
 
 } // namespace auctionmark
-
-#endif /* AUCTION_MARK_NEW_FEEDBACK_H */
