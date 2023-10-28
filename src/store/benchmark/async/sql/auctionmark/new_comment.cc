@@ -1,6 +1,6 @@
 /***********************************************************************
  *
- * Copyright 2023 Florian Suri-Payer <fsp@cs.cornell.edu>
+ * Copyright 2021 Florian Suri-Payer <fsp@cs.cornell.edu>
  *                Liam Arzola <lma77@cornell.edu>
  *
  * Permission is hereby granted, free of charge, to any person
@@ -24,40 +24,41 @@
  * SOFTWARE.
  *
  **********************************************************************/
-
-#include "store/benchmark/async/sql/auctionmark/new_user.h"
-
+#include "store/benchmark/async/sql/auctionmark/new_comment.h"
 #include <fmt/core.h>
 
 namespace auctionmark {
 
-NewUser::NewUser(uint32_t timeout, uint64_t u_id, uint64_t u_r_id,
-      const std::vector<std::string> &attributes, std::mt19937 &gen) :
-    AuctionMarkTransaction(timeout), u_id(u_id), u_r_id(u_r_id), attributes(attributes) {
+NewComment::NewComment(uint32_t timeout, uint64_t i_id, uint64_t seller_id, uint64_t buyer_id,
+      std::string question, std::mt19937 &gen) : AuctionMarkTransaction(timeout),
+      i_id(i_id), seller_id(seller_id), buyer_id(buyer_id), question(question) {
 }
 
-NewUser::~NewUser() {
+NewComment::~NewComment(){
 }
 
-transaction_status_t NewUser::Execute(SyncClient &client) {
+transaction_status_t NewComment::Execute(SyncClient &client) {
   std::unique_ptr<const query_result::QueryResult> queryResult;
+  std::string statement;
+  std::vector<std::unique_ptr<const query_result::QueryResult>> results;
 
-  Debug("NEW USER");
-  Debug("User ID: %lu", u_id);
-  Debug("User Region ID: %lu", u_r_id);
+  Debug("NEW COMMENT");
+  Debug("Item ID: %lu", i_id);
+  Debug("Seller ID: %lu", seller_id);
+  Debug("Buyer ID: %lu", buyer_id);
 
   client.Begin(timeout);
-  std::string query_values = fmt::format("VALUES ({}, 0, 0, {}, {}, {}, {}, {}, {}, {}, {}, {}, {});",
-      u_id, u_r_id, attributes[0], attributes[1], attributes[2], attributes[3], attributes[4], attributes[5], attributes[6], attributes[7]);
-  std::string query = 
-    "INSERT INTO USER "
-    "(u_id, u_rating, u_balance, u_created, u_r_id, u_sattr0, "
-    "u_sattr1, u_sattr2, u_sattr3, u_sattr4, u_sttar5, u_sattr6, u_sattr 7) " +
-    query_values;
-  client.Write(query, queryResult, timeout);
-  assert(queryResult->has_rows_affected());
 
+  statement = fmt::format("INSERT INTO ITEM_COMMENT (ic_id, ic_i_id, ic_u_id, "
+                          "ic_buyer_id, ic_date, ic_question) VALUES (("
+                          "SELECT MAX(ic_id) FROM ITEM_COMMENT WHERE ic_i_id = {} "
+                          "AND ic_u_id = {}) + 1, {}, {}, {}, {}, {});",
+                          i_id, seller_id, i_id, seller_id, buyer_id, 0, question);
+  client.Write(statement, queryResult, timeout);
+  assert(queryResult->has_rows_affected());
+  
   Debug("COMMIT");
   return client.Commit(timeout);
 }
+
 } // namespace auctionmark

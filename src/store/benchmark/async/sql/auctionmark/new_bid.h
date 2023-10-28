@@ -24,21 +24,28 @@
  * SOFTWARE.
  *
  **********************************************************************/
-#ifndef AUCTION_MARK_GET_COMMENT_H
-#define AUCTION_MARK_GET_COMMENT_H
+#ifndef AUCTION_MARK_NEW_BID_H
+#define AUCTION_MARK_NEW_BID_H
 
-#include "store/common/frontend/sync_transaction.h"
+#include "store/benchmark/async/sql/auctionmark/auctionmark_transaction.h"
 
 namespace auctionmark {
 
-class GetComment : public SyncTransaction {
+class NewBid : public AuctionMarkTransaction {
  public:
-  GetComment(uint32_t timeout, uint64_t seller_id, std::mt19937 &gen);
-  virtual ~GetComment();
+  NewBid(uint32_t timeout, uint64_t i_id, uint64_t u_id, uint64_t i_buyer_id,
+      double bid, double max_bid, std::mt19937 &gen);
+  virtual ~NewBid();
   virtual transaction_status_t Execute(SyncClient &client);
 
+ private:
+  uint64_t i_id;
+  uint64_t u_id;
+  uint64_t i_buyer_id;
+  double bid;
+  double max_bid;
 };
 
 } // namespace auctionmark
 
-#endif /* AUCTION_MARK_GET_COMMENT_H */
+#endif /* AUCTION_MARK_NEW_BID_H */

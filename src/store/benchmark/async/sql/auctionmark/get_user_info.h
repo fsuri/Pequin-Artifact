@@ -24,28 +24,27 @@
  * SOFTWARE.
  *
  **********************************************************************/
-#include "store/common/frontend/sync_transaction.h"
+#ifndef AUCTION_MARK_GET_USER_INFO_H
+#define AUCTION_MARK_GET_USER_INFO_H
+
+#include "store/benchmark/async/sql/auctionmark/auctionmark_transaction.h"
 
 namespace auctionmark {
 
-UpdateItem::UpdateItem(uint32_t timeout, uint64_t i_id, uint64_t i_u_id, 
-string description, std::mt19937 &gen) : SyncTransaction(timeout), i_id(i_id), 
-i_u_id(i_u_id), description(description) {
-}
+class GetUserInfo : public AuctionMarkTransaction {
+ public:
+  GetUserInfo(uint32_t timeout, uint64_t u_id, uint64_t get_seller_items, 
+    uint64_t get_buyer_items, uint64_t get_feedback, std::mt19937 &gen);
+  virtual ~GetUserInfo();
+  virtual transaction_status_t Execute(SyncClient &client);
 
-UpdateItem::~UpdateItem();
-
-transaction_status_t UpdateItem::Execute(SyncClient &client) {
-  client.Begin(timeout);
-  string set_clause = std::format("SET i_description = {}", description);
-  string where_clause = std::format("WHERE i_id = {} AND i_u_id = {}", i_id,
-i_u_id);
-  string full_command = std::format("UPDATE ITEM \n {} \n {}", 
-set_clause, where_clause);
-
-  string result;
-  client.Execute(full_command, &result, timeout);
-  return client.Commit(timeout);
-}
+ private:
+  uint64_t u_id;
+  uint64_t get_seller_items;
+  uint64_t get_buyer_items;
+  uint64_t get_feedback;
+};
 
 } // namespace auctionmark
+
+#endif /* AUCTION_MARK_GET_USER_INFO_H */

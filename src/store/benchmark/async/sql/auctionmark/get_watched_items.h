@@ -24,26 +24,23 @@
  * SOFTWARE.
  *
  **********************************************************************/
-#ifndef AUCTION_MARK_UPDATE_ITEM_H
-#define AUCTION_MARK_UPDATE_ITEM_H
+#ifndef AUCTION_MARK_GET_WATCHED_ITEMS_H
+#define AUCTION_MARK_GET_WATCHED_ITEMS_H
 
-#include "store/common/frontend/sync_transaction.h"
+#include "store/benchmark/async/sql/auctionmark/auctionmark_transaction.h"
 
 namespace auctionmark {
 
-class UpdateItem : public SyncTransaction {
+class GetWatchedItems : public AuctionMarkTransaction {
  public:
-  UpdateItem(uint32_t timeout, uint64_t i_id, uint64_t i_u_id, 
-  std::string description, std::mt19937 &gen);
-  virtual ~UpdateItem();
+  GetWatchedItems(uint32_t timeout, uint64_t u_id, std::mt19937 &gen);
+  virtual ~GetWatchedItems();
   virtual transaction_status_t Execute(SyncClient &client);
- 
+
  private:
-  uint64_t i_id;
-  uint64_t i_u_id;
-  std::string description;
+  uint64_t u_id;
 };
 
 } // namespace auctionmark
 
-#endif /* AUCTION_MARK_UPDATE_ITEM_H */
+#endif /* AUCTION_MARK_GET_WATCHED_ITEMS_H */

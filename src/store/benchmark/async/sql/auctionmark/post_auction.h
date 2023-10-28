@@ -24,20 +24,27 @@
  * SOFTWARE.
  *
  **********************************************************************/
-#ifndef AUCTION_MARK_CHECK_WINNING_BIDS_H
-#define AUCTION_MARK_CHECK_WINNING_BIDS_H
+#ifndef AUCTION_MARK_POST_AUCTION_H
+#define AUCTION_MARK_POST_AUCTION_H
 
-#include "store/common/frontend/sync_transaction.h"
+#include "store/benchmark/async/sql/auctionmark/auctionmark_transaction.h"
 
 namespace auctionmark {
 
-class CheckWinningBids : public SyncTransaction {
+class PostAuction : public AuctionMarkTransaction {
  public:
-  CheckWinningBids(uint32_t timeout, uint64_t start_time, uint64_t end_time, std::mt19937 &gen);
-  virtual ~CheckWinningBids();
+  PostAuction(uint32_t timeout, std::vector<uint64_t> i_ids, std::vector<uint64_t> seller_ids,
+   std::vector<uint64_t> buyer_ids, std::vector<std::optional<uint64_t>> ib_ids, std::mt19937 &gen);
+  virtual ~PostAuction();
   virtual transaction_status_t Execute(SyncClient &client);
+
+ private:
+  std::vector<uint64_t> i_ids;
+  std::vector<uint64_t> seller_ids;
+  std::vector<uint64_t> buyer_ids;
+  std::vector<std::optional<uint64_t>> ib_ids;
 };
 
 } // namespace auctionmark
 
-#endif /* AUCTION_MARK_CHECK_WINNING_BIDS_H */
+#endif /* AUCTION_MARK_POST_AUCTION_H */

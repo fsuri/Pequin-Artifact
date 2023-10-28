@@ -32,6 +32,11 @@
 
 namespace auctionmark {
 
+template <class T>
+void load_row(std::unique_ptr<query_result::Row> row, T& t) {
+  row->get(0, &t);
+}
+
 inline void load_row(std::unique_ptr<query_result::Row> row,
           RegionRow& rr)
 {

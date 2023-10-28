@@ -24,22 +24,37 @@
  * SOFTWARE.
  *
  **********************************************************************/
-#ifndef AUCTION_MARK_NEW_COMMENT_H
-#define AUCTION_MARK_NEW_COMMENT_H
-
-#include "store/common/frontend/sync_transaction.h"
+#include "store/benchmark/async/sql/auctionmark/update_item.h"
+#include <fmt/core.h>
 
 namespace auctionmark {
 
-class NewComment : public SyncTransaction {
- public:
-  NewComment(uint32_t timeout, uint64_t i_id, uint64_t seller_id, uint64_t buyer_id,
-      string question, std::mt19937 &gen);
-  virtual ~NewComment();
-  virtual transaction_status_t Execute(SyncClient &client);
+UpdateItem::UpdateItem(uint32_t timeout, uint64_t i_id, uint64_t i_u_id, 
+      string description, std::mt19937 &gen) : AuctionMarkTransaction(timeout), i_id(i_id), 
+      i_u_id(i_u_id), description(description) {
+}
 
+UpdateItem::~UpdateItem(){
 };
 
-} // namespace auctionmark
+transaction_status_t UpdateItem::Execute(SyncClient &client) {
+  std::unique_ptr<const query_result::QueryResult> queryResult;
+  std::string statement;
+  std::vector<std::unique_ptr<const query_result::QueryResult>> results;
 
-#endif /* AUCTION_MARK_NEW_COMMENT_H */
+  Debug("UPDATE ITEM");
+  Debug("Item ID: %lu", i_id);
+  Debug("User ID: %lu", i_u_id);
+
+  client.Begin(timeout);
+
+  statement = fmt::format("UPDATE ITEM SET i_description = {} WHERE i_id = {} AND i_u_id = {}",
+                          description, i_id, i_u_id);
+  client.Write(statement, queryResult, timeout);
+  assert(queryResult->has_rows_affected());
+  
+  Debug("COMMIT");
+  return client.Commit(timeout);
+}
+
+} // namespace auctionmark

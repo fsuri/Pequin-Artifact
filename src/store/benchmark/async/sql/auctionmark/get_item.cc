@@ -1,6 +1,6 @@
 /***********************************************************************
  *
- * Copyright 2023 Florian Suri-Payer <fsp@cs.cornell.edu>
+ * Copyright 2021 Florian Suri-Payer <fsp@cs.cornell.edu>
  *                Liam Arzola <lma77@cornell.edu>
  *
  * Permission is hereby granted, free of charge, to any person
@@ -24,40 +24,41 @@
  * SOFTWARE.
  *
  **********************************************************************/
-
-#include "store/benchmark/async/sql/auctionmark/new_user.h"
-
+#include "store/benchmark/async/sql/auctionmark/get_item.h"
 #include <fmt/core.h>
 
 namespace auctionmark {
 
-NewUser::NewUser(uint32_t timeout, uint64_t u_id, uint64_t u_r_id,
-      const std::vector<std::string> &attributes, std::mt19937 &gen) :
-    AuctionMarkTransaction(timeout), u_id(u_id), u_r_id(u_r_id), attributes(attributes) {
+GetItem::GetItem(uint32_t timeout, uint64_t i_id, uint64_t i_u_id, std::mt19937 &gen) : 
+    AuctionMarkTransaction(timeout), i_id(i_id), i_u_id(i_u_id) {
 }
 
-NewUser::~NewUser() {
+GetItem::~GetItem(){
 }
 
-transaction_status_t NewUser::Execute(SyncClient &client) {
+transaction_status_t GetItem::Execute(SyncClient &client) {
   std::unique_ptr<const query_result::QueryResult> queryResult;
+  std::string statement;
+  std::vector<std::unique_ptr<const query_result::QueryResult>> results;
 
-  Debug("NEW USER");
-  Debug("User ID: %lu", u_id);
-  Debug("User Region ID: %lu", u_r_id);
+  Debug("GET ITEM");
+  Debug("Item ID: %lu", i_id);
+  Debug("User ID: %lu", i_u_id);
 
   client.Begin(timeout);
-  std::string query_values = fmt::format("VALUES ({}, 0, 0, {}, {}, {}, {}, {}, {}, {}, {}, {}, {});",
-      u_id, u_r_id, attributes[0], attributes[1], attributes[2], attributes[3], attributes[4], attributes[5], attributes[6], attributes[7]);
-  std::string query = 
-    "INSERT INTO USER "
-    "(u_id, u_rating, u_balance, u_created, u_r_id, u_sattr0, "
-    "u_sattr1, u_sattr2, u_sattr3, u_sattr4, u_sttar5, u_sattr6, u_sattr 7) " +
-    query_values;
-  client.Write(query, queryResult, timeout);
-  assert(queryResult->has_rows_affected());
 
+  statement = fmt::format("SELECT i_id, i_u_id, i_initial_price, i_current_price FROM "
+                          "ITEM WHERE i_id = {} AND i_u_id = {} AND i_status = 0;",
+                          i_id, i_u_id);
+  client.Query(statement, queryResult, timeout);
+  uint64_t query_i_id, query_i_u_id;
+  queryResult->at(0)->get(0, &query_i_id);
+  queryResult->at(0)->get(1, &query_i_u_id);
+  assert(query_i_id == i_id);
+  assert(query_i_u_id == i_u_id);
+  
   Debug("COMMIT");
   return client.Commit(timeout);
 }
+
 } // namespace auctionmark

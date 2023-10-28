@@ -24,41 +24,39 @@
  * SOFTWARE.
  *
  **********************************************************************/
-#ifndef AUCTION_MARK_NEW_ITEM_H
-#define AUCTION_MARK_NEW_ITEM_H
-
-#include "store/common/frontend/sync_transaction.h"
+#include "store/benchmark/async/sql/auctionmark/new_comment_response.h"
+#include <fmt/core.h>
 
 namespace auctionmark {
 
-class NewItem : public SyncTransaction {
- public:
-  NewItem(uint32_t timeout, uint64_t i_id, uint64_t u_id, uint64_t c_id,
-      string_view name, string_view description, double initial_price,
-      double reserve_price, double buy_now, const vector<string_view>& attributes, 
-      const vector<uint64_t>& gag_ids, const vector<uint64_t>& gav_ids, 
-      const vector<string_view>& images, uint64_t start_date, uint64_t end_date,
-      std::mt19937 &gen);
-  virtual ~NewItem();
-  virtual transaction_status_t Execute(SyncClient &client);
- 
- private:
-  uint64_t i_id;
-  uint64_t u_id;
-  uint64_t c_id;
-  string_view name;
-  string_view description;
-  double initial_price;
-  double reserve_price;
-  double buy_now;
-  const vector<string_view>& attributes;
-  const vector<uint64_t>& gag_ids;
-  const vector<uint64_t>& gav_ids;
-  const vector<string_view>& images;
-  uint64_t start_date;
-  uint64_t end_date;
-};
+NewCommentResponse::NewCommentResponse(uint32_t timeout, uint64_t i_id, uint64_t i_c_id, uint64_t seller_id,
+      std::string response, std::mt19937 &gen) : AuctionMarkTransaction(timeout),
+      i_id(i_id), i_c_id(i_c_id), seller_id(seller_id), response(response) {
+}
+
+NewCommentResponse::~NewCommentResponse(){
+}
+
+transaction_status_t NewCommentResponse::Execute(SyncClient &client) {
+  std::unique_ptr<const query_result::QueryResult> queryResult;
+  std::string statement;
+  std::vector<std::unique_ptr<const query_result::QueryResult>> results;
+
+  Debug("NEW COMMENT RESPONSE");
+  Debug("Item ID: %lu", i_id);
+  Debug("Comment ID: %lu", i_c_id);
+  Debug("Seller ID: %lu", seller_id);
+
+  client.Begin(timeout);
+
+  statement = fmt::format("UPDATE ITEM_COMMENT SET ic_response = {} WHERE "
+                          "ic_id = {} AND ic_i_id = {} AND ic_u_id = {}",
+                          response, i_c_id, i_id, seller_id);
+  client.Write(statement, queryResult, timeout);
+  assert(queryResult->has_rows_affected());
+  
+  Debug("COMMIT");
+  return client.Commit(timeout);
+}
 
 } // namespace auctionmark
-
-#endif /* AUCTION_MARK_NEW_ITEM_H */
