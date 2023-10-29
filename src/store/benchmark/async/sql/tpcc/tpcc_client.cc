@@ -66,6 +66,7 @@ SyncTransaction* TPCCSQLClient::GetNextTransaction() {
     deliveryDId++;
     wid = deliveryWId;
     did = deliveryDId;
+    lastOp = "delivery";
     return new SQLDelivery(GetTimeout(), wid, did, GetRand());
   } else {
     delivery = false;
