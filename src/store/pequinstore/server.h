@@ -460,7 +460,7 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
     void ExecQueryEagerly(queryMetaDataMap::accessor &q, QueryMetaData *query_md, const std::string &queryId);
     void HandleSyncCallback(queryMetaDataMap::accessor &q, QueryMetaData *query_md, const std::string &queryId);
     void SendQueryReply(QueryMetaData *query_md);
-    void CacheReadSet(QueryMetaData *query_md, proto::QueryResult *result, proto::ReadSet *query_read_set);
+    void CacheReadSet(QueryMetaData *query_md, proto::QueryResult *&result, proto::ReadSet *&query_read_set);
     void ProcessSuppliedTxn(const std::string &txn_id, proto::TxnInfo &txn_info, bool &stop);
 
    

@@ -105,6 +105,8 @@ void SnapshotManager::AddToLocalSnapshot(const std::string &txnDigest, const pro
 
 void SnapshotManager::AddToLocalSnapshot(const proto::Transaction &txn, bool hash_param, bool committed_or_prepared){ //optimistTxId = params.query_params.optimisticTxId && retry_version == 0.
 
+  Debug("USE OPTIMISTIC? %d", useOptimisticTxId);
+  
   if(!useOptimisticTxId){ //Add txnDigest to snapshot
     //Just add txnDig to RepeatedPtr directly  //TODO: Make one general structure for prepared/committed.
 

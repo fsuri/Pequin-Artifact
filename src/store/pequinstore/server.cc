@@ -136,12 +136,19 @@ Server::Server(const transport::Configuration &config, int groupIdx, int idx,
   proof->mutable_txn()->mutable_timestamp()->set_timestamp(0);
   proof->mutable_txn()->mutable_timestamp()->set_id(0);
 
-  committed.insert(std::make_pair("", proof));
-  //ts_to_tx.insert(std::make_pair(MergeTimestampId(0, 0), ""));
+  committed.insert(std::make_pair("", proof));   //This is not the genesis digest -- this is just a dummy reference to use for loading.
+  // ts_to_tx.insert(std::make_pair(MergeTimestampId(0, 0), ""));
+  // materializedMap::accessor mat;
+  // materialized.insert(mat, "");
+  // mat.release();
 
+  //Add real genesis digest   --  Might be needed when we add TableVersions to snapshot and need to sync on them
   std::string genesis_txn_dig = TransactionDigest(proof->txn(), params.hashDigest);
   committed.insert(std::make_pair(genesis_txn_dig, proof));
   ts_to_tx.insert(std::make_pair(MergeTimestampId(0, 0), genesis_txn_dig));
+  materializedMap::accessor mat;
+  materialized.insert(mat, genesis_txn_dig);
+  mat.release();
 
 
   if (sql_bench) {
@@ -467,10 +474,11 @@ void Server::LoadTableData(const std::string &table_name, const std::string &tab
     //table_store->ExecRaw(copy_table_statement);
     auto committedItr = committed.find("");
     UW_ASSERT(committedItr != committed.end());
-    std::string genesis_tx_dig("");
+    
     Timestamp genesis_ts(0,0);
     proto::CommittedProof *genesis_proof = committedItr->second;
-    table_store->LoadTable(copy_table_statement, genesis_tx_dig, genesis_ts, genesis_proof);
+    std::string genesis_txn_dig = TransactionDigest(genesis_proof->txn(), params.hashDigest); //("");
+    table_store->LoadTable(copy_table_statement, genesis_txn_dig, genesis_ts, genesis_proof);
 
     //std::cerr << "Load Table: " << copy_table_statement << std::endl;
 
@@ -529,9 +537,11 @@ void Server::LoadTableRows(const std::string &table_name, const std::vector<std:
   //table_store->ExecRaw(sql_statement);
   auto committedItr = committed.find("");
   UW_ASSERT(committedItr != committed.end());
-  std::string genesis_tx_dig("");
+  //std::string genesis_tx_dig("");
   Timestamp genesis_ts(0,0);
   proto::CommittedProof *genesis_proof = committedItr->second;
+
+  std::string genesis_txn_dig = TransactionDigest(genesis_proof->txn(), params.hashDigest); //("");
 
    //TODO: Instead of using the INSERT SQL statement, could generate a TableWrite and use the TableWrite API.
   TableWrite &table_write = (*genesis_proof->mutable_txn()->mutable_table_writes())[table_name];
@@ -542,7 +552,7 @@ void Server::LoadTableRows(const std::string &table_name, const std::vector<std:
     }
   }
   
-  ApplyTableWrites(genesis_proof->txn(), genesis_ts, genesis_tx_dig, genesis_proof);
+  ApplyTableWrites(genesis_proof->txn(), genesis_ts, genesis_txn_dig, genesis_proof);
   
   genesis_proof->mutable_txn()->clear_table_writes(); //don't need to keep storing them. 
 
@@ -586,11 +596,12 @@ void Server::LoadTableRow(const std::string &table_name, const std::vector<std::
   //table_store->ExecRaw(sql_statement);
   auto committedItr = committed.find("");
   UW_ASSERT(committedItr != committed.end());
-  std::string genesis_tx_dig("");
+  //std::string genesis_tx_dig("");
   Timestamp genesis_ts(0,0);
   proto::CommittedProof *genesis_proof = committedItr->second;
+   std::string genesis_txn_dig = TransactionDigest(genesis_proof->txn(), params.hashDigest); //("");
 
-  table_store->LoadTable(sql_statement, genesis_tx_dig, genesis_ts, genesis_proof);
+  table_store->LoadTable(sql_statement, genesis_txn_dig, genesis_ts, genesis_proof);
 
   std::vector<const std::string*> primary_cols;
   for(auto i: primary_key_col_idx){

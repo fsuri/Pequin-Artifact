@@ -249,6 +249,7 @@ void Server::HandleQuery(const TransportAddress &remote, proto::QueryRequest &ms
 
     //7) Record whether current retry version uses optimistic tx-ids or not
     if(msg.has_optimistic_txid()) query_md->useOptimisticTxId = msg.optimistic_txid(); 
+    std::cerr << "MSG OPT? " << msg.optimistic_txid() << std::endl;
 
     //8) Process Query only if designated for reply; and if there is no Sync already waiting for this retry version
     query_md->designated_for_reply = msg.designated_for_reply();
@@ -362,7 +363,7 @@ void Server::ProcessQuery(queryMetaDataMap::accessor &q, const TransportAddress 
     //Set LocalSnapshot
     syncReply->set_optimistic_tx_id(query_md->useOptimisticTxId);
     query_md->snapshot_mgr.InitLocalSnapshot(local_ss, query->query_seq_num(), query->client_id(), id, query_md->useOptimisticTxId);
-
+    std::cerr << "USE OPT???? " << query_md->useOptimisticTxId << std::endl;
     //TODO: perform exec and snapshot together if flag query_params.eagerPlusSnapshot is set.
     FindSnapshot(query_md, query);
 
@@ -777,7 +778,7 @@ void Server::SendQueryReply(QueryMetaData *query_md){
 
 }
 
-void Server::CacheReadSet(QueryMetaData *query_md, proto::QueryResult *result, proto::ReadSet *query_read_set){
+void Server::CacheReadSet(QueryMetaData *query_md, proto::QueryResult *&result, proto::ReadSet *&query_read_set){
     //Generate unique hash over Read Set (hash-chain or Merkle Tree), (optionally can also make it be over result, query id)
     //4) If Caching Read Set: Buffer Read Set (map: query_digest -> <result_hash, read set>) ==> implicitly done by storing read set + result hash in query_md 
 
