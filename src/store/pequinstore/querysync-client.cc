@@ -187,8 +187,8 @@ void ShardClient::RequestQuery(PendingQuery *pendingQuery, proto::Query &queryMs
 
   queryReq.set_is_point(pendingQuery->is_point);
 
-  //queryReq.set_eager_exec(true);
-  Notice("SET EAGER TO TRUE ALWAYS -- FOR REAL RUN UNCOMMENT CORRECT EAGER EXEC LINE");
+//   //queryReq.set_eager_exec(true);
+//   Notice("SET EAGER TO TRUE ALWAYS -- FOR REAL RUN UNCOMMENT CORRECT EAGER EXEC LINE");
   bool use_eager_exec = !pendingQuery->retry_version && (pendingQuery->is_point? params.query_params.eagerPointExec : params.query_params.eagerExec);
   queryReq.set_eager_exec(use_eager_exec);
   pendingQuery->snapshot_mode = !use_eager_exec;
@@ -978,6 +978,8 @@ bool ShardClient::ProcessRead(const uint64_t &reqId, PendingQuorumGet *req, read
             *read->mutable_key() = req->key;
             req->maxTs.serialize(read->mutable_readtime());
             
+            std::cerr << "MaxVAl: " << req->maxValue << std::endl;
+            std::cerr << "MaxTS: " << (req->maxTs.getTimestamp()) << ":" <<req->maxTs.getID() << std::endl;
             req->prcb(REPLY_OK, req->key, req->maxValue, req->maxTs, req->dep,req->hasDep, true);
         }
         else{ //TODO: Could optimize to do this right at the start of Handle Read to avoid any validation costs... -> Does mean all reads have to lookup twice though.

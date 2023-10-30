@@ -496,9 +496,11 @@ void Client::PointQueryResultCallback(PendingQuery *pendingQuery,
   // ==> QueryResultWrapper constructor will create empty result.
 
   query_result::QueryResult *q_result = new sql::QueryResultProtoWrapper(result);
+  
+  Debug("Result size: %d. Result rows affected: %d", q_result->size(), q_result->rows_affected());
 
   stats.Increment("PointQuerySuccess", 1);
-  pendingQuery->qcb(REPLY_OK, q_result); //callback to application 
+  pendingQuery->qcb(REPLY_OK, q_result); //callback to application (or write cont)
   
   pendingQueries.erase(pendingQuery->queryMsg.query_seq_num());
   delete pendingQuery;  //For Point Queries can delete immediately;

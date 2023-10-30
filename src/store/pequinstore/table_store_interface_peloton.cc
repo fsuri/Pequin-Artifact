@@ -424,6 +424,7 @@ std::string PelotonTableStore::ExecReadQuery(const std::string &query_statement,
 void PelotonTableStore::ExecPointRead(const std::string &query_statement, std::string &enc_primary_key, const Timestamp &ts,
       proto::Write *write, const proto::CommittedProof* &committedProof) {
   
+  Debug("ExecPointRead for query statement: %s with Timestamp[%lu:%lu]", query_statement.c_str(), ts.getTimestamp(), ts.getID());
   // Client sends query statement, and expects a Query Result for the given key, a timestamp, and a proof (if it was a committed value it read) Note:
   // Sending a query statement (even though it is a point request) allows us to handle complex Select operators (like Count, Max, or just some subset of
   // rows, etc) without additional parsing Since the CC-store holds no data, the server would have to generate a statement anyways --> so it's easiest to
@@ -503,68 +504,68 @@ void PelotonTableStore::TransformPointResult(proto::Write *write, Timestamp &com
     tuple_descriptor = statement->GetTupleDescriptor();
   }
 
-  // write->set_committed_value()
-  /*std::cout << "Commit proof client id: " << traffic_cop_.commit_proof_->txn().client_id() << " : sequence number: " << traffic_cop_.commit_proof_->txn().client_seq_num() << std::endl;*/
-
+  Debug("Transform PointResult");
   // Change Peloton result into query proto.
 
   unsigned int rows = result.size() / tuple_descriptor.size();
   UW_ASSERT(rows <= 2); // There should be at most 2 rows: One committed, and one prepared. The committed one always comes last. (if it exists)
 
-  if (rows == 0)
-    return; // Empty result: No tuple exists for the supplied Row-key
+  if (rows == 0){
+    Debug("Empty result: No tuple exists for the supplied Row-key");
+    UW_ASSERT(!write->has_committed_value()); 
+    UW_ASSERT(!write->has_prepared_value());
+    Panic("This should never happen in test");
+    return; // Empty result: No tuple exists for the supplied Row-key => Note: Client creates empty result in this case, nothing to do here.
+  }
+    
 
   sql::QueryResultProtoBuilder queryResultBuilder;
   RowProto *row;
+ 
+  //Invariant: If we read a value, then write->has_XX_value() is true (it contains "e") -- where XX = committed/prepared
+  
+  //UW_ASSERT(!write->has_committed_value() || write->has_committed_timestamp()); //if have a committed val, then committedTS MUST be set.
+  //UW_ASSERT(!write->has_prepared_value() || write->has_prepared_timestamp());
+   // => This is not true currently, since we are writing to "Timestamp committed_timestamp" instead of "write.committed_timestamp()" 
+     //TODO: Instead of passing TS, pass in Write.TimestampedMessage?  ==> Optimize this anyways.
 
   // Committed
-  if(write->has_committed_timestamp()){ //Indicate that we read a committed version
-
-    if(write->has_committed_value()){ //Indicate that the committed version produced a result. If not, just return empty result
-      row = queryResultBuilder.new_row();
-      for (unsigned int i = 0; i < tuple_descriptor.size(); i++) {
-        std::string &column_name = std::get<0>(tuple_descriptor[i]);
-        queryResultBuilder.add_column(column_name);
-        size_t index = (rows - 1) * tuple_descriptor.size() + i;
-        Debug("Index in result array is %lu", index);
-        queryResultBuilder.AddToRow(row, result[index]); // Note: rows-1 == last row == Committed
-        Debug("After adding to row");
-      }
+  if(!write->committed_value().empty()){ //Indicate that the committed version produced a result. If not, just return empty result
+    //NOTE: value == "e" 
+    //if tuple_descriptor.empty() => could write value = "" (empty) => frontend will handle it
+    row = queryResultBuilder.new_row();
+    for (unsigned int i = 0; i < tuple_descriptor.size(); i++) {
+      std::string &column_name = std::get<0>(tuple_descriptor[i]);
+      queryResultBuilder.add_column(column_name);
+      size_t index = (rows - 1) * tuple_descriptor.size() + i;
+      Debug("Index in result array is %lu", index);
+      queryResultBuilder.AddToRow(row, result[index]); // Note: rows-1 == last row == Committed
     }
 
-    Debug("Setting committed value");
     write->set_committed_value(queryResultBuilder.get_result()->SerializeAsString()); // Note: This "clears" the builder
-    Debug("Before serializing committed timestamp");
     committed_timestamp.serialize(write->mutable_committed_timestamp());
-    Debug("After serializing committed timestamp");
-  }
 
-  // Prepared
-  if (rows < 2) return; // no prepared
-
-  if(write->has_prepared_timestamp()){ //Indicate that we read a prepared version
-
-    if(write->has_prepared_value()){ //Indicate that the prepared version produced a result. If not, just return empty result
-      row = queryResultBuilder.new_row();
-      for (unsigned int i = 0; i < tuple_descriptor.size(); i++) {
-        std::string &column_name = std::get<0>(tuple_descriptor[i]);
-        queryResultBuilder.add_column(column_name);
-        Debug("Before adding to row");
-        queryResultBuilder.AddToRow(row, result[0 * tuple_descriptor.size() + i]); // Note: first row == Prepared (if present)
-        Debug("After adding to row");
-      }
-
-      Debug("Before setting prepared value");
-      write->set_prepared_value( queryResultBuilder.get_result()->SerializeAsString()); // Note: This "clears" the builder
-      Debug("Before setting prepapred timestamp");
-      prepared_timestamp.serialize(write->mutable_prepared_timestamp());
-      Debug("Before setting prepared txn digest");
-      write->set_prepared_txn_digest(*txn_dig);
-      Debug("After setting txn digest");
-    }
+    Debug("PointRead Committed Val: %s", write->committed_value().c_str());
   }
   
+  // Prepared
+  //if (rows < 2) return; // no prepared //FIX: Remove this line. We might read only a prepared row, and no committed one.
 
+  if(!write->prepared_value().empty()){ //Indicate that the prepared version produced a result. If not, just return empty result
+    row = queryResultBuilder.new_row();
+    for (unsigned int i = 0; i < tuple_descriptor.size(); i++) {
+      std::string &column_name = std::get<0>(tuple_descriptor[i]);
+      queryResultBuilder.add_column(column_name);
+      queryResultBuilder.AddToRow(row, result[0 * tuple_descriptor.size() + i]); // Note: first row == Prepared (if present)
+    }
+
+    write->set_prepared_value(queryResultBuilder.get_result()->SerializeAsString()); // Note: This "clears" the builder
+    prepared_timestamp.serialize(write->mutable_prepared_timestamp());
+    write->set_prepared_txn_digest(*txn_dig);
+    
+    Debug("PointRead Prepared Val: %s", write->prepared_value().c_str());
+  }
+   
   return;
 }
 
