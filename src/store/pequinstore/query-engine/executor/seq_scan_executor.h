@@ -14,6 +14,9 @@
 
 #include "../executor/abstract_scan_executor.h"
 #include "../planner/seq_scan_plan.h"
+#include "../concurrency/transaction_manager.h"
+#include "../storage/storage_manager.h"
+#include "../storage/tile_group_header.h"
 
 namespace peloton {
 namespace executor {
@@ -50,7 +53,26 @@ protected:
 
   void Scan();
 
+  void OldScan();
+
   void GetColNames(const expression::AbstractExpression * child_expr, std::unordered_set<std::string> &column_names);
+
+  void CheckRow(ItemPointer head_tuple_location, concurrency::TransactionManager &transaction_manager, concurrency::TransactionContext *current_txn, 
+    storage::StorageManager *storage_manager, std::unordered_map<oid_t, std::vector<oid_t>> &position_map);
+
+  void EvalRead(std::shared_ptr<storage::TileGroup> tile_group, storage::TileGroupHeader *tile_group_header, ItemPointer tuple_location, 
+    concurrency::TransactionContext *current_txn, std::unordered_map<oid_t, std::vector<oid_t>> &position_map); 
+
+  void ManageSnapshot(storage::TileGroupHeader *tile_group_header, ItemPointer tuple_location, Timestamp const &timestamp, 
+    pequinstore::SnapshotManager *snapshot_mgr);
+
+  void ManageReadSet(concurrency::TransactionContext *current_txn, std::shared_ptr<storage::TileGroup> tile_group, storage::TileGroupHeader *tile_group_header, 
+    ItemPointer location, pequinstore::QueryReadSetMgr *query_read_set_mgr);
+
+  bool FindRightRowVersion(const Timestamp &txn_timestamp, std::shared_ptr<storage::TileGroup> tile_group, storage::TileGroupHeader *tile_group_header,
+    ItemPointer tuple_location, size_t &num_iters, concurrency::TransactionContext *current_txn, bool &read_curr_version, bool &found_committed, bool &found_prepared);
+
+  void PrepareResult(std::unordered_map<oid_t, std::vector<oid_t>> &position_map);
 
 private:
   //===--------------------------------------------------------------------===//
