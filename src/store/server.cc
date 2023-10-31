@@ -981,7 +981,7 @@ int main(int argc, char **argv) {
             std::vector<std::vector<std::string>> values;
             for(int j=0; j<FLAGS_num_keys_per_table; ++j){
                 //values.emplace_back(std::initializer_list<string>{"", ""};)
-                values.push_back({std::to_string(j), std::to_string(j)});
+                values.push_back({std::to_string(j), std::to_string(j+100)});
             }
             server->LoadTableRows(table_name, column_names_and_types, values, primary_key_col_idx);
 

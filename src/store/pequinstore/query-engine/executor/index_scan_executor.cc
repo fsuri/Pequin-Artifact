@@ -358,8 +358,8 @@ void IndexScanExecutor::ManageReadSet(ItemPointer &tuple_location, std::shared_p
     ContainerTuple<storage::TileGroup> row(tile_group.get(), tuple_location.offset);
 
     std::vector<std::string> primary_key_cols;
-    for (auto col : primary_index_columns_) {
-      auto val = row.GetValue(col);
+    for (auto const &col : primary_index_columns_) {
+      auto const &val = row.GetValue(col);
       primary_key_cols.push_back(val.ToString());
       Debug("Read set value: %s", val.ToString().c_str());
     }
@@ -390,14 +390,7 @@ void IndexScanExecutor::CheckRow(ItemPointer tuple_location, concurrency::Transa
   // std::cout << "Index executor inside for loop" << std::endl;
     auto tile_group = storage_manager->GetTileGroup(tuple_location.block);
     auto tile_group_header = tile_group.get()->GetHeader();
-    size_t chain_length = 0;
-    size_t num_iters = 0;
-
-    auto visibility = transaction_manager.IsVisible(current_txn, tile_group_header, tuple_location.offset);
-
-    Debug("Index executor visibility: %d. Undo delete: %d", visibility, current_txn->GetUndoDelete());
    
-
     // the following code traverses the version chain until a certain visible version is found. we should always find a visible version from a version chain.
     // NOTE: Similar read logic as seq_scan_executor
     auto const &timestamp = current_txn->GetBasilTimestamp();
@@ -425,7 +418,12 @@ void IndexScanExecutor::CheckRow(ItemPointer tuple_location, concurrency::Transa
     bool found_committed = false;
     bool found_prepared = false;
 
+    bool snapshot_only_mode = !current_txn->GetHasReadSetMgr() && current_txn->GetHasSnapshotMgr(); //If in snapshot only mode don't need to produce a result. Note: if doing pointQuery DO want the result
+       
     //Iterate through linked list, from newest to oldest version   
+    size_t chain_length = 0;
+    size_t num_iters = 0;
+
     while(!done){
       ++chain_length;
 
@@ -436,15 +434,12 @@ void IndexScanExecutor::CheckRow(ItemPointer tuple_location, concurrency::Transa
       if (timestamp >= tuple_timestamp) {
         // Within range of timestamp
         bool read_curr_version = false;
-        done = FindRightRowVersion(timestamp, tile_group, tile_group_header, tuple_location, visible_tuple_set, visible_tuple_locations, num_iters, current_txn, read_curr_version, found_committed, found_prepared); 
-
-       
+        done = FindRightRowVersion(timestamp, tile_group, tile_group_header, tuple_location, num_iters, current_txn, read_curr_version, found_committed, found_prepared); 
 
         //Eval should be called on the latest readable version. Note: For point reads we will call this up to twice (for prepared & committed)
-        if(read_curr_version){
-          EvalRead(tile_group, tile_group_header, tuple_location, visible_tuple_set, visible_tuple_locations, current_txn, use_secondary_index);  //TODO: might be more elegant to move this into FindRightRowVersion
+        if(read_curr_version && !snapshot_only_mode){
+          EvalRead(tile_group, tile_group_header, tuple_location, visible_tuple_locations, current_txn, use_secondary_index);  //TODO: might be more elegant to move this into FindRightRowVersion
         }
-        
       }
 
       if(done) break;
@@ -464,14 +459,150 @@ void IndexScanExecutor::CheckRow(ItemPointer tuple_location, concurrency::Transa
     LOG_TRACE("Traverse length: %d\n", (int)chain_length);
 }
 
-static bool use_active_read_set = true; //If true, then Must use Table_Col_Version
+static bool USE_ACTIVE_READ_SET = true; //If true, then Must use Table_Col_Version
+static bool USE_ACTIVE_SNAPSHOT_SET = false; //Currently, our Snapshots are always Complete (non-Active)
+
+
+bool IndexScanExecutor::FindRightRowVersion(const Timestamp &timestamp, std::shared_ptr<storage::TileGroup> tile_group, storage::TileGroupHeader *tile_group_header, ItemPointer tuple_location,
+    size_t &num_iters, concurrency::TransactionContext *current_txn, 
+    bool &read_curr_version, bool &found_committed, bool &found_prepared)
+{
+    /////////////////////////////// PESTO MODIFIERS  -- these are just aliases for convenience  ///////////////////////////////////
+    bool perform_find_snapshot = current_txn->GetHasSnapshotMgr();
+    auto snapshot_mgr = current_txn->GetSnapshotMgr();
+    //size_t k_prepared_versions = current_txn->GetKPreparedVersions();
+  
+    bool perform_read_on_snapshot = current_txn->GetSnapshotRead();
+    auto snapshot_set = current_txn->GetSnapshotSet();
+
+  Debug("Perform find snapshot? %d. Perform read_on_snapshot? %d", perform_find_snapshot, perform_read_on_snapshot);
+   ///////////////////////////////////////////////////////////////////////////////////
+
+  UW_ASSERT(!(perform_find_snapshot && perform_read_on_snapshot)); //shouldn't do both simultaneously currently. Though we could support it in theory.
+
+  Debug("Tuple commit state: %d.", tile_group_header->GetCommitOrPrepare(tuple_location.offset));
+    //Debug("Tuple commit state: %d. Is tuple in visibility set (already processed)? %d", tile_group_header->GetCommitOrPrepare(tuple_location.offset), (visible_tuple_set.find(tuple_location) == visible_tuple_set.end()));
+
+    //CASE 1:  The tuple is committed
+    if (tile_group_header->GetCommitOrPrepare(tuple_location.offset)) { // && !visible_tuple_set.count(tuple_location)) {
+
+      // Set boolean flag found_committed to true
+      found_committed = true;
+      Debug("Found committed tuple");
+
+      read_curr_version = true; //Try reading from this value
+
+      // Set the committed timestmp
+      Timestamp const &committed_timestamp = tile_group_header->GetBasilTimestamp(tuple_location.offset);
+      Debug("Committed Timestamp: [%lu:%lu]", committed_timestamp.getTimestamp(), committed_timestamp.getID());
+
+      if (perform_find_snapshot) ManageSnapshot(current_txn, tile_group_header, tuple_location, committed_timestamp, num_iters, true);
+      
+      if (current_txn->IsPointRead()) SetPointRead(current_txn, tile_group_header, tuple_location, committed_timestamp);
+  
+      return true; //  Since tuple is committed we can stop looking at the version chain
+    }
+
+    //CASE 2: Tuple is prepared (or forceMaterialized)
+
+    //CASE 2a: For reads on snapshot: Read regardless of whether it is prepared or force_materialized
+    else if (perform_read_on_snapshot && !found_committed) {
+      Debug("Performing read on snapshot. Trying to read prepared Txn");
+      auto txn_dig = tile_group_header->GetTxnDig(tuple_location.offset);
+      bool should_read = snapshot_set->find(*txn_dig.get()) != snapshot_set->end();
+
+      if (should_read) {
+        Debug("TxnDig[%s] is part of snapshot. Read prepared tuple", pequinstore::BytesToHex(*txn_dig, 16).c_str());
+        found_prepared = true;
+        read_curr_version = true;
+        return true;
+      }
+    }
+
+
+    //CASE 2b: Tuple is prepared, Finding Snapshot
+    // If finding a snapshot then read up to k prepared values (but don't add them to the result) -- Note, the first prepared value is handled by normal prepare process below.
+    else if (perform_find_snapshot && num_iters < current_txn->GetKPreparedVersions() && !found_committed && found_prepared && !tile_group_header->GetCommitOrPrepare(tuple_location.offset)) {
+        
+        auto const &read_prepared_pred = current_txn->GetReadPreparedPred();
+        if (read_prepared_pred) {
+          auto txn_digest = tile_group_header->GetTxnDig(tuple_location.offset);
+          UW_ASSERT(txn_digest);
+          if (read_prepared_pred(*txn_digest)){
+            Timestamp const &prepared_timestamp = tile_group_header->GetBasilTimestamp(tuple_location.offset);
+            ManageSnapshot(current_txn, tile_group_header, tuple_location, prepared_timestamp, num_iters, false);
+          }
+        }
+        
+        return false;
+    }
+
+    //CASE 2c: Read first prepared tuple (either for normal exec, or first of snapshot)
+    else if (!found_committed && !found_prepared && /*current_txn->CanReadPrepared() &&*/ !tile_group_header->GetCommitOrPrepare( tuple_location.offset)) {
+     
+      //do not read forcefully materialized values
+      if(tile_group_header->GetMaterialize(tuple_location.offset)){
+        Debug("dont read force materialized versions for queries that are not reading from snapshot. TxnDig[%s] is forceMaterialized. Continue reading", 
+                pequinstore::BytesToHex(*tile_group_header->GetTxnDig(tuple_location.offset), 16).c_str());
+        return false;
+      } 
+
+      //check to see if tuple satisfies predicate
+      auto const &read_prepared_pred = current_txn->GetReadPreparedPred();
+      if (read_prepared_pred) {
+        auto txn_digest = tile_group_header->GetTxnDig(tuple_location.offset);
+         Debug("Checking prepared tuple with txnDig[%s].", pequinstore::BytesToHex(*txn_digest, 16).c_str());
+
+        //if predicate satisfied then add to prepared visible tuple vector (avoid duplicates)
+        if (read_prepared_pred(*txn_digest)) { // && !visible_tuple_set.count(tuple_location) ) {
+         
+          Debug("ReadPreparedPredicate is satisfied");
+          // After finding latest prepare we can stop looking at the version chain
+          found_prepared = true;
+
+          Timestamp const &prepared_timestamp = tile_group_header->GetBasilTimestamp(tuple_location.offset);
+      
+          Debug("Tuple is prepared and predicate is satisfied");
+          if(num_iters == 0) read_curr_version = true; //Only add the first read to the result
+
+          // If it's not a point read query then don't need to read committed, unless it's find snapshot
+          if(current_txn->IsPointRead()){
+            SetPointRead(current_txn, tile_group_header, tuple_location, prepared_timestamp);
+            Debug("PointQuery read prepared. Still try to read committed");
+            return false; // Need to still try to read committed
+          }
+
+          if (perform_find_snapshot) {
+            ManageSnapshot(current_txn, tile_group_header, tuple_location, prepared_timestamp, num_iters, false);
+            if(num_iters < current_txn->GetKPreparedVersions()){
+              Debug("Perform snapshot has read %d prepared. Continue reading until have %d", num_iters, current_txn->GetKPreparedVersions());
+              return false;
+            }
+          }
+          return true;
+        }
+      }
+    }
+
+    //Current tuple was not readable.
+    Debug("Found committed: %d. Found prepared: %d, Can Read Prepared: %d, GetCommitOrPrepare: %d, GetMaterialize: %d", found_committed, found_prepared, current_txn->CanReadPrepared(), 
+          tile_group_header->GetCommitOrPrepare(tuple_location.offset), tile_group_header->GetMaterialize(tuple_location.offset));
+
+    return false;   
+}
 
 void IndexScanExecutor::EvalRead(std::shared_ptr<storage::TileGroup> tile_group, storage::TileGroupHeader *tile_group_header, ItemPointer tuple_location,
-    std::set<ItemPointer> &visible_tuple_set, std::vector<ItemPointer> &visible_tuple_locations, concurrency::TransactionContext *current_txn, bool use_secondary_index){
+    std::vector<ItemPointer> &visible_tuple_locations, concurrency::TransactionContext *current_txn, bool use_secondary_index){
     //Eval should be called on the latest readable version. Note: For point reads we will call this up to twice (for prepared & committed)
   
+
   bool eval = true;
-  if (predicate_ != nullptr) { // if having predicate (WHERE clause), then perform evaluation.
+
+  if (tile_group_header->IsDeleted(tuple_location.offset)) {
+      Debug("Tuple is deleted so will not include in result");
+      eval = false;
+  }
+  else if (predicate_ != nullptr) { // if having predicate (WHERE clause), then perform evaluation.
       LOG_TRACE("perform predicate evaluate");
       ContainerTuple<storage::TileGroup> tuple(tile_group.get(), tuple_location.offset);
 
@@ -496,234 +627,73 @@ void IndexScanExecutor::EvalRead(std::shared_ptr<storage::TileGroup> tile_group,
       // else{
         eval = predicate_->Evaluate(&tuple, nullptr, executor_context_).IsTrue();
       //}
+      //Note: Eval is false by default for Deleted Rows
   }
              
   // Add the tuple to the visible tuple vector
-  bool snapshot_only_mode = !current_txn->GetHasReadSetMgr() && current_txn->GetHasSnapshotMgr();
-  if(eval && !snapshot_only_mode) {  //If in snapshot only mode don't need to produce a result. Note: if doing pointQuery DO want the result
+  if(eval) {  
     visible_tuple_locations.push_back(tuple_location);
-    visible_tuple_set.insert(tuple_location);
+    //visible_tuple_set.insert(tuple_location);
 
-    if(use_active_read_set) ManageReadSet(tuple_location, tile_group, tile_group_header, current_txn);
+    if(USE_ACTIVE_READ_SET) ManageReadSet(tuple_location, tile_group, tile_group_header, current_txn);
   }
-   //FOR NOW ONLY PICK ACTIVE READ SET. USE THIS LINE FOR COMPLETE RS: 
-  if(!use_active_read_set) ManageReadSet(tuple_location, tile_group, tile_group_header, current_txn); //Note: For primary index they'll always be the same.
 
-  //Mark whether or not the result read for a committed/prepared version is empty or exists
-  if(eval == true && current_txn->IsPointRead()){
-    if(tile_group_header->GetCommitOrPrepare(tuple_location.offset)){
-      //mark commit result as usable
-      auto commit_val = current_txn->GetCommittedValue();
-      *commit_val = "u";
-    }
-    else{
-      //mark prepare result as usable
-      auto prepare_val = current_txn->GetPreparedValue();
-      *prepare_val = "u";
-    }
-  }         
+  //FOR NOW ONLY PICK ACTIVE READ SET. USE THIS LINE FOR COMPLETE RS: 
+  if(!USE_ACTIVE_READ_SET) ManageReadSet(tuple_location, tile_group, tile_group_header, current_txn); //Note: For primary index they'll always be the same.
+
+  //SetPointRead();
 }
 
-bool IndexScanExecutor::FindRightRowVersion(const Timestamp &timestamp, std::shared_ptr<storage::TileGroup> tile_group, storage::TileGroupHeader *tile_group_header, ItemPointer tuple_location,
-    std::set<ItemPointer> &visible_tuple_set, std::vector<ItemPointer> &visible_tuple_locations, size_t &num_iters, concurrency::TransactionContext *current_txn, 
-    bool &read_curr_version, bool &found_committed, bool &found_prepared)
-{
-    /////////////////////////////// PESTO MODIFIERS  -- these are just aliases for convenience  ///////////////////////////////////
-    bool perform_find_snapshot = current_txn->GetHasSnapshotMgr();
-    auto snapshot_mgr = current_txn->GetSnapshotMgr();
-    //size_t k_prepared_versions = current_txn->GetKPreparedVersions();
+
+void IndexScanExecutor::SetPointRead(concurrency::TransactionContext *current_txn, storage::TileGroupHeader *tile_group_header, ItemPointer tuple_location, Timestamp const &write_timestamp){
+  //Manage PointRead Result
   
-    bool perform_read_on_snapshot = current_txn->GetSnapshotRead();
-    auto snapshot_set = current_txn->GetSnapshotSet();
+  if(tile_group_header->GetCommitOrPrepare(tuple_location.offset)){
+    //mark commit result as existent
+    auto commit_val = current_txn->GetCommittedValue();
+    *commit_val = "e"; //e for exists
 
-  Debug("Perform find snapshot? %d. Perform read_on_snapshot? %d", perform_find_snapshot, perform_read_on_snapshot);
-   ///////////////////////////////////////////////////////////////////////////////////
+    Debug("Setting the commit proof");
+    // Get the commit proof
+    auto write_commit_proof = tile_group_header->GetCommittedProof(tuple_location.offset);
+    const pequinstore::proto::CommittedProof **commit_proof_ref = current_txn->GetCommittedProofRef();
+    *commit_proof_ref = write_commit_proof;
+    auto commit_ts = current_txn->GetCommitTimestamp(); 
+    *commit_ts = write_timestamp; //Use either this line to copy TS, OR the SetCommitTs func below to set ref. Don't need both...  (can also get TS via: commit_proof->txn().timestamp())
+    Debug("PointRead CommittedTS:[%lu:%lu]", current_txn->GetCommitTimestamp()->getTimestamp(), current_txn->GetCommitTimestamp()->getID());
+    //current_txn->SetCommitTimestamp(&committed_timestamp); 
 
-  UW_ASSERT(!(perform_find_snapshot && perform_read_on_snapshot)); //shouldn't do both simultaneously currently. Though we could support it in theory.
+    UW_ASSERT(write_commit_proof);
+  }
+  else{
+    //mark prepare result as existent
+    auto prepare_val = current_txn->GetPreparedValue();
+    *prepare_val = "e";
 
-  Debug("Tuple commit state: %d. Is tuple in visibility set (already processed)? %d", tile_group_header->GetCommitOrPrepare(tuple_location.offset), (visible_tuple_set.find(tuple_location) == visible_tuple_set.end()));
+    // Set the prepared timestamp
+    auto prepared_ts = current_txn->GetPreparedTimestamp(); 
+    *prepared_ts = write_timestamp; //Use either this line to copy TS, OR the SetCommitTs func below to set ref. Don't need both...  Copy seems safer: prepare might get purged...
+    //current_txn->SetPreparedTimestamp(&prepared_timestamp); 
+    
+    //Set the prepared digest
+    auto prepared_txn_digest = current_txn->GetPreparedTxnDigest();
+    *prepared_txn_digest = tile_group_header->GetTxnDig(tuple_location.offset);
 
-    // The tuple is committed
-    if (tile_group_header->GetCommitOrPrepare(tuple_location.offset) && visible_tuple_set.find(tuple_location) == visible_tuple_set.end()) {
-
-      // Set boolean flag found_committed to true
-      found_committed = true;
-      Debug("Found committed tuple");
-
-      if (tile_group_header->IsDeleted(tuple_location.offset)) {
-        Debug("Tuple is deleted so will break");
-        return true;
-      }
-
-      // Get the commit proof
-      auto commit_proof = tile_group_header->GetCommittedProof(tuple_location.offset);
-      // Add the commit proof to the vector 
-      //proofs.push_back(commit_proof);
-      read_curr_version = true;
-          // visible_tuple_locations.push_back(tuple_location);
-          // visible_tuple_set.insert(tuple_location);
-
-      // Set the committed timestmp
-      Timestamp const &committed_timestamp = tile_group_header->GetBasilTimestamp(tuple_location.offset);
-      Debug("Committed Timestamp: [%lu:%lu]", committed_timestamp.getTimestamp(), committed_timestamp.getID());
-
-      if (perform_find_snapshot) {
-        auto txn_digest = tile_group_header->GetTxnDig(tuple_location.offset);
-        auto commit_or_prepare = tile_group_header->GetCommitOrPrepare(tuple_location.offset);
-
-        if (txn_digest != nullptr) {
-          snapshot_mgr->AddToLocalSnapshot(*txn_digest.get(), committed_timestamp.getTimestamp(), committed_timestamp.getID(), commit_or_prepare);
-          num_iters++;
-        }
-      }
-
-      if (current_txn->IsPointRead()) {
-        Debug("Setting the commit proof");
-        const pequinstore::proto::CommittedProof **commit_proof_ref = current_txn->GetCommittedProofRef();
-        *commit_proof_ref = commit_proof;
-        auto commit_ts = current_txn->GetCommitTimestamp(); 
-        *commit_ts = committed_timestamp; //Use either this line to copy TS, OR the SetCommitTs func below to set ref. Don't need both... 
-        //current_txn->SetCommitTimestamp(&committed_timestamp); 
-
-        //*commit_proof_ref = *commit_proof;
-        // current_txn->SetCommittedProofRef(commit_proof);
-        //  std::cout << (*commit_proof)->DebugString() << std::endl;
-        if (commit_proof == nullptr) {
-          Debug("Commit proof is null");
-        } else {
-          Debug("Inside index scan proof not null");
-          auto proof_ts = Timestamp(commit_proof->txn().timestamp());
-          Debug("Proof ts is %lu, %lu", proof_ts.getTimestamp(), proof_ts.getID());
-        }
-
-        if (commit_proof_ref == nullptr) {
-          Debug("Commit proof ref is null");
-        } else {
-          if (*commit_proof_ref == nullptr) {
-            Debug("* commit proof ref is null");
-          } else {
-            Debug("Neither pointer is null");
-          }
-        }
-      }
-      // current_txn->SetCommittedProof(tile_group_header->GetCommittedProof(tuple_location.offset));
-      //  Since tuple is committed we can stop looking at the version chain
-      return true;
-    }
+    Debug("PointRead PreparedTS:[%lu:%lu], dependency: %s", current_txn->GetPreparedTimestamp()->getTimestamp(), current_txn->GetPreparedTimestamp()->getID(), *prepared_txn_digest);
+          
+  }
+}         
 
 
-    // If finding a snapshot then read up to k prepared values (but don't add them to the result) -- Note, the first prepared value is handled by normal prepare process below.
-    else if (perform_find_snapshot && num_iters < current_txn->GetKPreparedVersions() && !found_committed && found_prepared && !tile_group_header->GetCommitOrPrepare(tuple_location.offset)) {
-      
-      auto const &read_prepared_pred = current_txn->GetReadPreparedPred();
-      if (read_prepared_pred) {
-        auto txn_digest = tile_group_header->GetTxnDig(tuple_location.offset);
-        auto commit_or_prepare = tile_group_header->GetCommitOrPrepare(tuple_location.offset);
+void IndexScanExecutor::ManageSnapshot(concurrency::TransactionContext *current_txn, storage::TileGroupHeader *tile_group_header, ItemPointer tuple_location, const Timestamp &write_timestamp, size_t &num_iters, bool commit_or_prepare){
 
-        Timestamp const &prepared_timestamp = tile_group_header->GetBasilTimestamp(tuple_location.offset);
+  auto txn_digest = tile_group_header->GetTxnDig(tuple_location.offset);
+  UW_ASSERT(txn_digest);
 
-        if (txn_digest != nullptr && read_prepared_pred(*txn_digest)) {
-          snapshot_mgr->AddToLocalSnapshot(*txn_digest.get(), prepared_timestamp.getTimestamp(), prepared_timestamp.getID(), commit_or_prepare);
-          num_iters++;
-        }
-      } 
-    }
+  auto snapshot_mgr = current_txn->GetSnapshotMgr();
 
-    // For reads on snapshot: Read regardless of whether it is prepared or force_materialized
-    else if (perform_read_on_snapshot && !found_committed) {
-      Debug("Performing read on snapshot. Trying to read prepared Txn");
-      auto txn_dig = tile_group_header->GetTxnDig(tuple_location.offset);
-      bool should_read = snapshot_set->find(*txn_dig.get()) != snapshot_set->end();
-
-      if (should_read) {
-        if (tile_group_header->IsDeleted(tuple_location.offset)) {
-            return true;
-        }
-
-        Debug("TxnDig[%s] is part of snapshot. Read prepared tuple", pequinstore::BytesToHex(*txn_dig, 16).c_str());
-        found_prepared = true;
-        read_curr_version = true;
-        return true;
-      }
-    }
-
-    // NEW: if we can read prepared values, check to see if prepared tuple satisfies predicate 
-    else if (!found_committed && !found_prepared && /*current_txn->CanReadPrepared() &&*/ !tile_group_header->GetCommitOrPrepare( tuple_location.offset)) {
-     
-      if(tile_group_header->GetMaterialize(tuple_location.offset)){
-        Debug("dont read force materialized versions for queries that are not reading from snapshot. TxnDig[%s] is forceMaterialized. Continue reading", 
-                pequinstore::BytesToHex(*tile_group_header->GetTxnDig(tuple_location.offset), 16).c_str());
-        return false;
-      } 
-
-      // NEW: check to see if tuple satisfies predicate
-      auto const &read_prepared_pred = current_txn->GetReadPreparedPred();
-      if (read_prepared_pred) {
-        auto txn_digest = tile_group_header->GetTxnDig(tuple_location.offset);
-         Debug("Checking prepared tuple with txnDig[%s].", pequinstore::BytesToHex(*txn_digest, 16).c_str());
-
-        if (read_prepared_pred(*txn_digest) && visible_tuple_set.find(tuple_location) == visible_tuple_set.end()) {
-          // NEW: if predicate satisfied then add to prepared visible tuple vector
-
-          std::cout << "ReadPreparedPredicate is satisfied" << std::endl;
-
-          Timestamp prepared_timestamp = tile_group_header->GetBasilTimestamp(tuple_location.offset);
-
-          if (current_txn->IsPointRead()) {
-            // Set the prepared timestamp
-            
-            auto prepared_ts = current_txn->GetPreparedTimestamp(); 
-            *prepared_ts = prepared_timestamp; //Use either this line to copy TS, OR the SetCommitTs func below to set ref. Don't need both...  Copy seems safer: prepare might get purged...
-            //current_txn->SetPreparedTimestamp(&prepared_timestamp); 
-
-            auto prepared_txn_digest = current_txn->GetPreparedTxnDigest();
-            *prepared_txn_digest = tile_group_header->GetTxnDig(tuple_location.offset);
-          }
-          // Set the prepared txn digest
-          /*current_txn->SetPreparedTxnDigest(tile_group_header->GetTxnDig(tuple_location.offset));*/
-
-          // After finding latest prepare we can stop looking at the version chain
-          found_prepared = true;
-
-          if (perform_find_snapshot) {
-            auto commit_or_prepare = tile_group_header->GetCommitOrPrepare(tuple_location.offset);
-
-            if (txn_digest != nullptr) {
-              snapshot_mgr->AddToLocalSnapshot(*txn_digest.get(), prepared_timestamp.getTimestamp(), prepared_timestamp.getID(), commit_or_prepare);
-              num_iters++;
-            }
-          }
-
-          if (tile_group_header->IsDeleted(tuple_location.offset)) {
-            return true;
-          }
-
-          Debug("Tuple is prepared and predicate is satisfied");
-          if(num_iters == 1) read_curr_version = true; //Only add the first read to the result
-
-              // visible_tuple_locations.push_back(tuple_location);
-              // visible_tuple_set.insert(tuple_location);
-
-          // If it's not a point read query then don't need to read committed, unless it's find snapshot
-          if(current_txn->IsPointRead()){
-            Debug("PointQuery read prepared. Still try to read committed");
-            return false; // Need to still try to read committed
-          }
-          if(perform_find_snapshot && num_iters < current_txn->GetKPreparedVersions()){
-            Debug("Perform snapshot has read %d prepared. Continue reading until have %d", num_iters, current_txn->GetKPreparedVersions());
-            return false;
-          }
-          else{
-            return true;
-          }
-        }
-      }
-    }
-
-    Debug("Found committed: %d. Found prepared: %d, Can Read Prepared: %d, GetCommitOrPrepare: %d, GetMaterialize: %d", found_committed, found_prepared, current_txn->CanReadPrepared(), 
-          tile_group_header->GetCommitOrPrepare(tuple_location.offset), tile_group_header->GetMaterialize(tuple_location.offset));
-
-    return false;   
+  snapshot_mgr->AddToLocalSnapshot(*txn_digest.get(), write_timestamp.getTimestamp(), write_timestamp.getID(), commit_or_prepare);
+  num_iters++; //currently only count "readable" ones towards snapshotK. This is so that we read at lest one committed if there is >= k unreadable prepared
 }
 
 

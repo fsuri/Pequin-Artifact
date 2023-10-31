@@ -31,6 +31,7 @@
 #include <string>
 #include <vector>
 #include <memory>
+
 #include "store/common/query_result/query_result.h"
 #include "store/common/query_result/query_result_row.h"
 #include "store/common/query_result/query-result-proto.pb.h"
@@ -65,6 +66,7 @@ class QueryResultProtoWrapper : public query_result::QueryResult {
       proto_result = std::make_unique<SQLResultProto>();
       if(data.empty()){ //default case
         //create_from_proto(&result);
+        //Just return empty result.
       }
       else if(proto_result->ParseFromString(data)) {
         //create_from_proto(&result);

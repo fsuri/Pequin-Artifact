@@ -540,6 +540,7 @@ void SQLTransformer::TransformUpdate(size_t pos, std::string_view &write_stateme
             Debug("No rows to update");
             result->set_rows_affected(result->size()); 
             wcb(REPLY_OK, result);
+            return;
         }
     
 

@@ -69,10 +69,12 @@ class IndexScanExecutor : public AbstractScanExecutor {
           std::vector<ItemPointer> &visible_tuple_locations, std::set<ItemPointer> &visible_tuple_set, 
           bool use_secondary_index = false);
     bool FindRightRowVersion(const Timestamp &timestamp, std::shared_ptr<storage::TileGroup> tile_group, storage::TileGroupHeader *tile_group_header, ItemPointer tuple_location,
-        std::set<ItemPointer> &visible_tuple_set, std::vector<ItemPointer> &visible_tuple_locations, size_t &num_iters, concurrency::TransactionContext *current_txn, 
-        bool &read_curr_version, bool &found_committed, bool &found_prepared);
+        size_t &num_iters, concurrency::TransactionContext *current_txn, bool &read_curr_version, bool &found_committed, bool &found_prepared);
     void EvalRead(std::shared_ptr<storage::TileGroup> tile_group, storage::TileGroupHeader *tile_group_header, ItemPointer tuple_location,
-        std::set<ItemPointer> &visible_tuple_set, std::vector<ItemPointer> &visible_tuple_locations, concurrency::TransactionContext *current_txn, bool use_secondary_index = false);
+        std::vector<ItemPointer> &visible_tuple_locations, concurrency::TransactionContext *current_txn, bool use_secondary_index = false);
+    void SetPointRead(concurrency::TransactionContext *current_txn, storage::TileGroupHeader *tile_group_header, ItemPointer tuple_location, Timestamp const &write_timestamp);
+    void ManageSnapshot(concurrency::TransactionContext *current_txn, storage::TileGroupHeader *tile_group_header, ItemPointer tuple_location, const Timestamp &write_timestamp, 
+            size_t &num_iters, bool commit_or_prepare);
     void PrepareResult(std::vector<oid_t> &tuples, std::shared_ptr<storage::TileGroup> tile_group);
     void ManageReadSet(ItemPointer &visible_tuple_location, concurrency::TransactionContext *current_txn,
         pequinstore::QueryReadSetMgr *query_read_set_mgr, storage::StorageManager *storage_manager);

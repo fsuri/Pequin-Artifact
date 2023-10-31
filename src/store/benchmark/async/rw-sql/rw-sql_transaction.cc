@@ -86,6 +86,12 @@ transaction_status_t RWSQLTransaction::Execute(SyncClient &client) {
     int right_bound = ends[i];  //If right_bound < left_bound, wrap around and read >= left, and <= right. Turn statement into OR
     UW_ASSERT(left_bound < querySelector->numKeys && right_bound < querySelector->numKeys);
 
+    if(DISABLE_WRAP_AROUND && right_bound < left_bound){
+      std::cerr << "DO NOT ALLOW WRAP AROUNDS. ADJUST QUERY TO LEFT = 0" << std::endl;
+      left_bound = 0;
+      //continue;
+    }
+
     if(AVOID_DUPLICATE_READS){
       //adjust bounds: shrink to not overlap. //if shrinkage makes bounds invert => cancel this read.
       if(!AdjustBounds(left_bound, right_bound, tables[i])){

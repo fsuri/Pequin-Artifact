@@ -10,7 +10,7 @@ std::string EncodeTableRow(const std::string &table_name, const std::vector<std:
   //Note: Assuming unique delimiter that is neither part of table_nor string.
   std::string encoding = table_name;
   for(auto primary_column_value: primary_key_column_values){
-    encoding += unique_delimiter + primary_column_value;
+    encoding += unique_delimiter + std::move(primary_column_value);
   }
   return encoding;
   //return table_name + unique_delimiter + row_name;

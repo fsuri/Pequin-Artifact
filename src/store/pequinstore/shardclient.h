@@ -224,7 +224,7 @@ virtual void Phase2Equivocate_Simulate(uint64_t id, const proto::Transaction &tx
     uint64_t rqs; //readQuorumSize
     uint64_t rds; //readDependencySize
     Timestamp maxTs;  // 0 by default.
-    std::string maxValue; // "" by default.
+    std::string maxValue; // "" by default. -> i.e. if no readable value received, we return empty val
     uint64_t numReplies;
     uint64_t numOKReplies;
     std::map<Timestamp, std::pair<proto::Write, uint64_t>> prepared;

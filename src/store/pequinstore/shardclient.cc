@@ -995,23 +995,17 @@ void ShardClient::HandleReadReply(const proto::ReadReply &reply) {
         return;
       }
 
-      std::string committedTxnDigest = TransactionDigest(
-          reply.proof().txn(), params.hashDigest);
-      if (!ValidateTransactionWrite(reply.proof(), &committedTxnDigest,
-            req->key, write->committed_value(), write->committed_timestamp(),
-            config, params.signedMessages, keyManager, verifier)) {
-        Debug("[group %i] Failed to validate committed value for read %lu.",
-            group, reply.req_id());
-        // invalid replies can be treated as if we never received a reply from
-        //     a crashed replica
+      std::string committedTxnDigest = TransactionDigest(reply.proof().txn(), params.hashDigest);
+      if (!ValidateTransactionWrite(reply.proof(), &committedTxnDigest, req->key, write->committed_value(), write->committed_timestamp(), config, params.signedMessages, keyManager, verifier)) {
+        Debug("[group %i] Failed to validate committed value for read %lu.",group, reply.req_id());
+        // invalid replies can be treated as if we never received a reply from a crashed replica
         return;
       }
     }
 
     Timestamp replyTs(write->committed_timestamp());
-    Debug("[group %i] ReadReply for %lu with committed %lu byte value and ts"
-        " %lu.%lu.", group, reply.req_id(), write->committed_value().length(),
-        replyTs.getTimestamp(), replyTs.getID());
+    Debug("[group %i] ReadReply for %lu with committed %lu byte value and ts %lu.%lu.", 
+        group, reply.req_id(), write->committed_value().length(), replyTs.getTimestamp(), replyTs.getID());
     if (req->firstCommittedReply || req->maxTs < replyTs) {
       req->maxTs = replyTs;
       req->maxValue = write->committed_value();
@@ -1021,17 +1015,13 @@ void ShardClient::HandleReadReply(const proto::ReadReply &reply) {
 
   //TODO: change so client does not accept reads with depth > some t... (fine for now since
   // servers dont fail and use the same param setting)
-  if (params.maxDepDepth > -2 && write->has_prepared_value() &&
-      write->has_prepared_timestamp() &&
-      write->has_prepared_txn_digest()) {
+  if (params.maxDepDepth > -2 && write->has_prepared_value() && write->has_prepared_timestamp() && write->has_prepared_txn_digest()) {
     Timestamp preparedTs(write->prepared_timestamp());
-    Debug("[group %i] ReadReply for %lu with prepared %lu byte value and ts"
-        " %lu.%lu.", group, reply.req_id(), write->prepared_value().length(),
-        preparedTs.getTimestamp(), preparedTs.getID());
+    Debug("[group %i] ReadReply for %lu with prepared %lu byte value and ts %lu.%lu.", 
+        group, reply.req_id(), write->prepared_value().length(), preparedTs.getTimestamp(), preparedTs.getID());
     auto preparedItr = req->prepared.find(preparedTs);
     if (preparedItr == req->prepared.end()) {
-      req->prepared.insert(std::make_pair(preparedTs,
-            std::make_pair(*write, 1)));
+      req->prepared.insert(std::make_pair(preparedTs, std::make_pair(*write, 1)));
     } else if (preparedItr->second.first == *write) {
       //stats->Increment("prepare_equality", 1); 
       preparedItr->second.second += 1;

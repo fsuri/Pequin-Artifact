@@ -743,8 +743,7 @@ executor::ExecutionResult TrafficCop::ExecuteWriteHelper(
     return p_status_;
   }
 
-  auto on_complete = [&result, this](executor::ExecutionResult p_status,
-                                     std::vector<ResultValue> &&values) {
+  auto on_complete = [&result, this](executor::ExecutionResult p_status, std::vector<ResultValue> &&values) {
     // std::cout << "Made it to on complete" << std::endl;
     this->p_status_ = p_status;
     // std::cout << "The status is " << p_status.m_error_message << std::endl;
@@ -758,14 +757,12 @@ executor::ExecutionResult TrafficCop::ExecuteWriteHelper(
 
   auto &pool = threadpool::MonoQueuePool::GetInstance();
   pool.SubmitTask([plan, txn, &params, &result_format, on_complete] {
-    executor::PlanExecutor::ExecutePlan(plan, txn, params, result_format,
-                                        on_complete);
+    executor::PlanExecutor::ExecutePlan(plan, txn, params, result_format,on_complete);
   });
 
   is_queuing_ = true;
 
-  LOG_TRACE("Check Tcop_txn_state Size After ExecuteHelper %lu",
-            tcop_txn_state_.size());
+  LOG_TRACE("Check Tcop_txn_state Size After ExecuteHelper %lu", tcop_txn_state_.size());
   return p_status_;
 }
 
@@ -931,6 +928,8 @@ executor::ExecutionResult TrafficCop::ExecutePointReadHelper(
 
   txn->SetCommittedValue(write->mutable_committed_value());
   txn->SetPreparedValue(write->mutable_prepared_value());
+  //WARNING: Accessing mutable turns "has_committed/prepared_value" to true, even if they are empty!!
+  
 
 
   // Not undoing deletes
