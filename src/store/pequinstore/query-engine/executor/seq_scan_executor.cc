@@ -228,8 +228,8 @@ bool SeqScanExecutor::FindRightRowVersion(const Timestamp &txn_timestamp, std::s
         AddToSnapshot(txn_digest, tile_group_header, tuple_location, prepared_timestamp, num_iters, snapshot_mgr);
       }
 
-      bool finished_reading = num_iters >= current_txn->GetKPreparedVersions();
-      return finished_reading;
+      // We are done if we read k prepared versions
+      done = num_iters >= current_txn->GetKPreparedVersions();
     }
   }
 
@@ -279,9 +279,67 @@ bool SeqScanExecutor::FindRightRowVersion(const Timestamp &txn_timestamp, std::s
       return true;
     }
   }
+
+  return done;
 }
 
 void SeqScanExecutor::Scan() {
+  concurrency::TransactionManager &transaction_manager = concurrency::TransactionManagerFactory::GetInstance();
+  auto current_txn = executor_context_->GetTransaction();
+  auto storage_manager = storage::StorageManager::GetInstance();
+
+  auto const &current_txn_timestamp = current_txn->GetBasilTimestamp();
+  auto query_read_set_mgr = current_txn->GetQueryReadSetMgr();
+
+  std::unordered_map<oid_t, std::vector<oid_t>> position_map;
+
+
+  // Get TableVersion and TableColVersions
+  if (current_txn->CheckPredicatesInitialized()) {
+    current_txn->GetTableVersion()(table_->GetName(), current_txn_timestamp, current_txn->GetHasReadSetMgr(), query_read_set_mgr, current_txn->GetHasSnapshotMgr(), current_txn->GetSnapshotMgr());
+    std::unordered_set<std::string> column_names;
+    GetColNames(predicate_, column_names);
+
+    for (auto &col : column_names) {
+      current_txn->GetTableVersion()(EncodeTableCol(table_->GetName(), col), current_txn_timestamp, current_txn->GetHasReadSetMgr(), query_read_set_mgr, current_txn->GetHasSnapshotMgr(), current_txn->GetSnapshotMgr());
+    }
+  }
+
+  for (auto indirection_array : target_table_->active_indirection_arrays_) {
+    int indirection_counter = indirection_array->indirection_counter_;
+    for (int offset = 0; offset < indirection_counter; offset++) {
+      std::cout << "Offset is " << offset << std::endl;
+      ItemPointer *head = indirection_array->GetIndirectionByOffset(offset);
+      if (head == nullptr) {
+        // return false;
+      }
+      auto location = *head;
+      CheckRow(location, transaction_manager, current_txn, storage_manager, position_map);
+    }
+  }
+
+
+  if (position_map.size() > 0) {
+    for (auto &pair : position_map) {
+      current_tile_group_offset_ = pair.first;
+      Debug("The block is %d", pair.first);
+      for (size_t i = 0; i < pair.second.size(); i++) {
+        Debug("The oid_t is %d", pair.second[i]);
+      }
+      std::unique_ptr<LogicalTile> logical_tile(LogicalTileFactory::GetTile());
+      auto tile_group = this->target_table_->GetTileGroupById(pair.first);
+      logical_tile->AddColumns(tile_group, column_ids_);
+      logical_tile->AddPositionList(std::move(pair.second));
+      // SetOutput(logical_tile.release());
+      result_.push_back(logical_tile.release());
+    }
+    // return true;
+  }
+  done_ = true;
+
+}
+
+void SeqScanExecutor::OldScan() {
   concurrency::TransactionManager &transaction_manager = concurrency::TransactionManagerFactory::GetInstance();
 
   bool acquire_owner = GetPlanNode<planner::AbstractScan>().IsForUpdate();
