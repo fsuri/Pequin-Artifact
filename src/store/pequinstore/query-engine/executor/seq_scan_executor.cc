@@ -194,6 +194,13 @@ void SeqScanExecutor::AddToReadSet(std::vector<oid_t> primary_index_columns, std
   Debug("encoded read set key is: %s. Version: [%lu: %lu]", encoded.c_str(), time.getTimestamp(), time.getID());
 
   query_read_set_mgr->AddToReadSet(std::move(encoded), time);
+
+  //If prepared: Additionally set Dependency
+  if (!tile_group_header->GetCommitOrPrepare(tuple_location.offset)) {
+    if (tile_group_header->GetTxnDig(tuple_location.offset) == nullptr) Panic("Dep Digest is null");
+    query_read_set_mgr->AddToDepSet(*tile_group_header->GetTxnDig(tuple_location.offset), time);
+  }
+ 
 }
 
 bool SeqScanExecutor::FindRightRowVersion(const Timestamp &txn_timestamp, std::shared_ptr<storage::TileGroup> tile_group, storage::TileGroupHeader *tile_group_header,
@@ -209,23 +216,25 @@ bool SeqScanExecutor::FindRightRowVersion(const Timestamp &txn_timestamp, std::s
 
   bool perform_find_snapshot = current_txn->GetHasSnapshotMgr();
   auto snapshot_mgr = current_txn->GetSnapshotMgr();
+  UW_ASSERT(!(perform_read_on_snapshot && perform_find_snapshot)); //shouldn't do both simultaneously currently
 
   auto txn_digest = tile_group_header->GetTxnDig(tuple_location.offset);
   bool done = false;
 
 
-  // If calling eager read
+  // If reading.
   if (perform_read) {
     // Three cases: Tuple is committed, or prepared. If prepared, it might have been forceMaterialized
     
-    // If the tuple is committed read the version
+    // If the tuple is committed read the version.    Try to read committed always -- whether it is eager or snapshot_read
     if (tile_group_header->GetCommitOrPrepare(tuple_location.offset)) {
       found_committed = true;
       read_curr_version = true;
-    } else {
-     
-      if (!perform_read_on_snapshot){
-         // Don't read materialized for eager read
+      done = true;
+    } 
+    else { //tuple is prepared
+      if (!perform_read_on_snapshot){   //if doing eager read
+         // Don't read materialized 
         if(tile_group_header->GetMaterialize(tuple_location.offset)) {
           Debug("Don't read force materialized, continue reading");
           return false;
@@ -239,13 +248,15 @@ bool SeqScanExecutor::FindRightRowVersion(const Timestamp &txn_timestamp, std::s
           found_prepared = true;
           if(num_iters == 0) read_curr_version = true;
         }
+        if(!perform_find_snapshot) done = true;
       }
     }
 
   }
 
-  // If calling read from snapshot
+  // If calling read from snapshot 
   if (perform_read_on_snapshot) {
+    //Note: Read committed already handled by normal read case above.
     // Read regardless if it's prepared or force materialized as long as it's in the snapshot
     bool should_read_from_snapshot = !found_committed && snapshot_set->find(*txn_digest.get()) != snapshot_set->end();
 
