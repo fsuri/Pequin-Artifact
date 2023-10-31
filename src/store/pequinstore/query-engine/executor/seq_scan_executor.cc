@@ -126,7 +126,7 @@ void SeqScanExecutor::CheckRow(ItemPointer head_tuple_location, concurrency::Tra
       done = FindRightRowVersion(txn_timestamp, tile_group, tile_group_header, tuple_location, num_iters, current_txn, read_curr_version, found_committed, found_prepared);
 
       if (read_curr_version && !snapshot_only_mode) {
-        EvalRead(tile_group, tile_group_header, tuple_location, current_txn);
+        EvalRead(tile_group, tile_group_header, tuple_location, current_txn, position_map);
       }
     }
 
@@ -138,21 +138,12 @@ void SeqScanExecutor::CheckRow(ItemPointer head_tuple_location, concurrency::Tra
     tile_group = storage_manager->GetTileGroup(tuple_location.block);
     tile_group_header = tile_group->GetHeader();
 
-    done = tuple_location.IsNull();
-  }
-}
-
-void SeqScanExecutor::ManageReadSet(ItemPointer &tuple_location, std::shared_ptr<storage::TileGroup> tile_group, storage::TileGroupHeader *tile_group_header,
-    concurrency::TransactionContext *current_txn) {
-  if (current_txn->GetHasReadSetMgr()) {
-    auto &primary_index_columns = target_table_->GetIndex(0)->GetMetadata()->GetKeyAttrs();
-    auto query_read_set_mgr = current_txn->GetQueryReadSetMgr();
-    AddToReadSet(primary_index_columns, tile_group, tile_group_header, tuple_location, query_read_set_mgr);
+    if (tuple_location.IsNull()) done = true;
   }
 }
 
 void SeqScanExecutor::EvalRead(std::shared_ptr<storage::TileGroup> tile_group, storage::TileGroupHeader *tile_group_header, ItemPointer tuple_location, 
-    concurrency::TransactionContext *current_txn) {
+    concurrency::TransactionContext *current_txn, std::unordered_map<oid_t, std::vector<oid_t>> &position_map) {
   bool eval = true;
 
   if (tile_group_header->IsDeleted(tuple_location.offset)) {
@@ -166,44 +157,57 @@ void SeqScanExecutor::EvalRead(std::shared_ptr<storage::TileGroup> tile_group, s
 
   if (eval) {
     // Add to position map
+    if (position_map.find(tuple_location.block) == position_map.end()) {
+      position_map[tuple_location.block] = std::vector<oid_t>();
+    }
+
+    position_map[tuple_location.block].push_back(tuple_location.offset);
+
     // If active read set then add to read
-    if (USE_ACTIVE_READ_SET) ManageReadSet(tuple_location, tile_group, tile_group_header, current_txn);
+    if (USE_ACTIVE_READ_SET) ManageReadSet(current_txn, tile_group, tile_group_header, tuple_location, current_txn->GetQueryReadSetMgr());
   }
-  if (!USE_ACTIVE_READ_SET) ManageReadSet(tuple_location, tile_group, tile_group_header, current_txn);
+  if (!USE_ACTIVE_READ_SET) ManageReadSet(current_txn, tile_group, tile_group_header, tuple_location, current_txn->GetQueryReadSetMgr());
 }
 
-void SeqScanExecutor::AddToSnapshot(std::shared_ptr<std::string> txn_digest, storage::TileGroupHeader *tile_group_header, ItemPointer tuple_location, Timestamp const &timestamp, 
+void SeqScanExecutor::ManageSnapshot(storage::TileGroupHeader *tile_group_header, ItemPointer tuple_location, Timestamp const &timestamp, 
     pequinstore::SnapshotManager *snapshot_mgr) {
 
+  auto txn_digest = tile_group_header->GetTxnDig(tuple_location.offset);
   bool commit_or_prepare = tile_group_header->GetCommitOrPrepare(tuple_location.offset);
   if (txn_digest != nullptr) {
     snapshot_mgr->AddToLocalSnapshot(*txn_digest.get(), timestamp.getTimestamp(), timestamp.getID(), commit_or_prepare);
   }
 }
 
-void SeqScanExecutor::AddToReadSet(std::vector<oid_t> primary_index_columns, std::shared_ptr<storage::TileGroup> tile_group, storage::TileGroupHeader *tile_group_header, 
+void SeqScanExecutor::ManageReadSet(concurrency::TransactionContext *current_txn, std::shared_ptr<storage::TileGroup> tile_group, storage::TileGroupHeader *tile_group_header, 
     ItemPointer location, pequinstore::QueryReadSetMgr *query_read_set_mgr) {
-  ContainerTuple<storage::TileGroup> row(tile_group.get(), location.offset);
-  std::vector<std::string> primary_key_cols;
 
-  for (auto col : primary_index_columns) {
-    auto val = row.GetValue(col);
-    primary_key_cols.push_back(val.ToString());
+  // Don't create read set if query is executed in snapshot only mode
+  if (current_txn->GetHasReadSetMgr()) {
+    auto &primary_index_columns = target_table_->GetIndex(0)->GetMetadata()->GetKeyAttrs();
+    auto query_read_set_mgr = current_txn->GetQueryReadSetMgr();
+   
+    ContainerTuple<storage::TileGroup> row(tile_group.get(), location.offset);
+    std::vector<std::string> primary_key_cols;
+
+    for (auto col : primary_index_columns) {
+      auto val = row.GetValue(col);
+      primary_key_cols.push_back(val.ToString());
+    }
+
+    const Timestamp &time = tile_group_header->GetBasilTimestamp(location.offset); 
+
+    std::string &&encoded = EncodeTableRow(target_table_->GetName(), primary_key_cols);
+    Debug("encoded read set key is: %s. Version: [%lu: %lu]", encoded.c_str(), time.getTimestamp(), time.getID());
+
+    query_read_set_mgr->AddToReadSet(std::move(encoded), time);
+
+    //If prepared: Additionally set Dependency
+    if (!tile_group_header->GetCommitOrPrepare(location.offset)) {
+      if (tile_group_header->GetTxnDig(location.offset) == nullptr) Panic("Dep Digest is null");
+      query_read_set_mgr->AddToDepSet(*tile_group_header->GetTxnDig(location.offset), time);
+    }
   }
-
-  const Timestamp &time = tile_group_header->GetBasilTimestamp(location.offset); 
-
-  std::string &&encoded = EncodeTableRow(target_table_->GetName(), primary_key_cols);
-  Debug("encoded read set key is: %s. Version: [%lu: %lu]", encoded.c_str(), time.getTimestamp(), time.getID());
-
-  query_read_set_mgr->AddToReadSet(std::move(encoded), time);
-
-  //If prepared: Additionally set Dependency
-  if (!tile_group_header->GetCommitOrPrepare(location.offset)) {
-    if (tile_group_header->GetTxnDig(location.offset) == nullptr) Panic("Dep Digest is null");
-    query_read_set_mgr->AddToDepSet(*tile_group_header->GetTxnDig(location.offset), time);
-  }
- 
 }
 
 bool SeqScanExecutor::FindRightRowVersion(const Timestamp &txn_timestamp, std::shared_ptr<storage::TileGroup> tile_group, storage::TileGroupHeader *tile_group_header,
@@ -211,7 +215,6 @@ bool SeqScanExecutor::FindRightRowVersion(const Timestamp &txn_timestamp, std::s
 
   // Shorthand for table store interface functions
   bool perform_read = current_txn->GetHasReadSetMgr();
-  auto readset_mgr = current_txn->GetQueryReadSetMgr();
 
   bool perform_read_on_snapshot = current_txn->GetSnapshotRead();
   auto snapshot_set = current_txn->GetSnapshotSet();
@@ -220,8 +223,6 @@ bool SeqScanExecutor::FindRightRowVersion(const Timestamp &txn_timestamp, std::s
   bool perform_find_snapshot = current_txn->GetHasSnapshotMgr();
   auto snapshot_mgr = current_txn->GetSnapshotMgr();
   UW_ASSERT(!(perform_read_on_snapshot && perform_find_snapshot)); //shouldn't do both simultaneously currently
-
-  bool eager_read = current_txn->GetHasReadSetMgr() && !perform_read_on_snapshot;
 
   auto txn_digest = tile_group_header->GetTxnDig(tuple_location.offset);
   bool done = false;
@@ -276,8 +277,10 @@ bool SeqScanExecutor::FindRightRowVersion(const Timestamp &txn_timestamp, std::s
     // Two cases: tuple is either prepared or committed
     if (tile_group_header->GetCommitOrPrepare(tuple_location.offset)) {
       found_committed = true;
+      read_curr_version = true;
+
       Timestamp const &committed_timestamp = tile_group_header->GetBasilTimestamp(tuple_location.offset);
-      AddToSnapshot(txn_digest, tile_group_header, tuple_location, committed_timestamp, snapshot_mgr);
+      ManageSnapshot(tile_group_header, tuple_location, committed_timestamp, snapshot_mgr);
       done = true;
     } else {
       auto const &read_prepared_pred = current_txn->GetReadPreparedPred();
@@ -286,7 +289,7 @@ bool SeqScanExecutor::FindRightRowVersion(const Timestamp &txn_timestamp, std::s
       bool should_add_to_snapshot = !found_committed && num_iters < current_txn->GetKPreparedVersions() && read_prepared_pred && read_prepared_pred(*txn_digest);
 
       if (should_add_to_snapshot) {
-        AddToSnapshot(txn_digest, tile_group_header, tuple_location, prepared_timestamp, snapshot_mgr);
+        ManageSnapshot(tile_group_header, tuple_location, prepared_timestamp, snapshot_mgr);
         num_iters++;
       }
 
@@ -296,6 +299,24 @@ bool SeqScanExecutor::FindRightRowVersion(const Timestamp &txn_timestamp, std::s
   }
 
   return done;
+}
+
+void SeqScanExecutor::PrepareResult(std::unordered_map<oid_t, std::vector<oid_t>> &position_map) {
+  if (position_map.size() > 0) {
+    for (auto &pair : position_map) {
+      current_tile_group_offset_ = pair.first;
+      Debug("The block is %d", pair.first);
+      for (size_t i = 0; i < pair.second.size(); i++) {
+        Debug("The oid_t is %d", pair.second[i]);
+      }
+      std::unique_ptr<LogicalTile> logical_tile(LogicalTileFactory::GetTile());
+      auto tile_group = this->target_table_->GetTileGroupById(pair.first);
+      logical_tile->AddColumns(tile_group, column_ids_);
+      logical_tile->AddPositionList(std::move(pair.second));
+      // SetOutput(logical_tile.release());
+      result_.push_back(logical_tile.release());
+    }
+  }
 }
 
 //NOTE: PointReads always go through IndexScan
@@ -324,6 +345,7 @@ void SeqScanExecutor::Scan() {
     }
   }
 
+  // Iterate through each linked list per row
   for (auto indirection_array : target_table_->active_indirection_arrays_) {
     int indirection_counter = indirection_array->indirection_counter_;
     for (int offset = 0; offset < indirection_counter; offset++) {
@@ -337,23 +359,7 @@ void SeqScanExecutor::Scan() {
     }
   }
 
-
-  if (position_map.size() > 0) {
-    for (auto &pair : position_map) {
-      current_tile_group_offset_ = pair.first;
-      Debug("The block is %d", pair.first);
-      for (size_t i = 0; i < pair.second.size(); i++) {
-        Debug("The oid_t is %d", pair.second[i]);
-      }
-      std::unique_ptr<LogicalTile> logical_tile(LogicalTileFactory::GetTile());
-      auto tile_group = this->target_table_->GetTileGroupById(pair.first);
-      logical_tile->AddColumns(tile_group, column_ids_);
-      logical_tile->AddPositionList(std::move(pair.second));
-      // SetOutput(logical_tile.release());
-      result_.push_back(logical_tile.release());
-    }
-    // return true;
-  }
+  PrepareResult(position_map);
   done_ = true;
 
 }
@@ -424,7 +430,7 @@ void SeqScanExecutor::OldScan() {
       location_copy = location;
       bool materialize = tile_group_header->GetMaterialize(curr_tuple_id);
 
-      Debug("Head timestamp: [%d: %d]", tuple_timestamp.getTimestamp(), tuple_timestamp.getID());
+      Debug("Head timestamp: [%lu: %lu]", tuple_timestamp.getTimestamp(), tuple_timestamp.getID());
 
       // Now we find the appropriate version to read that's less than the timestamp by traversing the next pointers (I.e. find the last version with writeTS < curr.readTS)
               //Note: If the row is only "materialized" (not prepared/committed), and we are not performing a snapshot read, then don't read it.

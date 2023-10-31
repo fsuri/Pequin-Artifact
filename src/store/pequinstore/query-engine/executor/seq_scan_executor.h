@@ -60,20 +60,19 @@ protected:
   void CheckRow(ItemPointer head_tuple_location, concurrency::TransactionManager &transaction_manager, concurrency::TransactionContext *current_txn, 
     storage::StorageManager *storage_manager, std::unordered_map<oid_t, std::vector<oid_t>> &position_map);
 
-  void ManageReadSet(ItemPointer &tuple_location, std::shared_ptr<storage::TileGroup> tile_group, storage::TileGroupHeader *tile_group_header,
-    concurrency::TransactionContext *current_txn);
-
   void EvalRead(std::shared_ptr<storage::TileGroup> tile_group, storage::TileGroupHeader *tile_group_header, ItemPointer tuple_location, 
-    concurrency::TransactionContext *current_txn); 
+    concurrency::TransactionContext *current_txn, std::unordered_map<oid_t, std::vector<oid_t>> &position_map); 
 
-  void AddToSnapshot(std::shared_ptr<std::string> txn_digest, storage::TileGroupHeader *tile_group_header, ItemPointer tuple_location, Timestamp const &timestamp, 
+  void ManageSnapshot(storage::TileGroupHeader *tile_group_header, ItemPointer tuple_location, Timestamp const &timestamp, 
     pequinstore::SnapshotManager *snapshot_mgr);
 
-  void AddToReadSet(std::vector<oid_t> primary_index_columns, std::shared_ptr<storage::TileGroup> tile_group, storage::TileGroupHeader *tile_group_header, 
+  void ManageReadSet(concurrency::TransactionContext *current_txn, std::shared_ptr<storage::TileGroup> tile_group, storage::TileGroupHeader *tile_group_header, 
     ItemPointer location, pequinstore::QueryReadSetMgr *query_read_set_mgr);
 
   bool FindRightRowVersion(const Timestamp &txn_timestamp, std::shared_ptr<storage::TileGroup> tile_group, storage::TileGroupHeader *tile_group_header,
     ItemPointer tuple_location, size_t &num_iters, concurrency::TransactionContext *current_txn, bool &read_curr_version, bool &found_committed, bool &found_prepared);
+
+  void PrepareResult(std::unordered_map<oid_t, std::vector<oid_t>> &position_map);
 
 private:
   //===--------------------------------------------------------------------===//
