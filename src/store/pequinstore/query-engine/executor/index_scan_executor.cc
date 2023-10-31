@@ -391,11 +391,6 @@ void IndexScanExecutor::CheckRow(ItemPointer tuple_location, concurrency::Transa
     auto tile_group = storage_manager->GetTileGroup(tuple_location.block);
     auto tile_group_header = tile_group.get()->GetHeader();
    
-    auto visibility = transaction_manager.IsVisible(current_txn, tile_group_header, tuple_location.offset);
-
-    Debug("Index executor visibility: %d. Undo delete: %d", visibility, current_txn->GetUndoDelete());
-   
-
     // the following code traverses the version chain until a certain visible version is found. we should always find a visible version from a version chain.
     // NOTE: Similar read logic as seq_scan_executor
     auto const &timestamp = current_txn->GetBasilTimestamp();
@@ -485,7 +480,7 @@ bool IndexScanExecutor::FindRightRowVersion(const Timestamp &timestamp, std::sha
 
   UW_ASSERT(!(perform_find_snapshot && perform_read_on_snapshot)); //shouldn't do both simultaneously currently. Though we could support it in theory.
 
-  Debug("Tuple commit state: %d. Is tuple in visibility set (already processed)? %d", tile_group_header->GetCommitOrPrepare(tuple_location.offset));
+  Debug("Tuple commit state: %d.", tile_group_header->GetCommitOrPrepare(tuple_location.offset));
     //Debug("Tuple commit state: %d. Is tuple in visibility set (already processed)? %d", tile_group_header->GetCommitOrPrepare(tuple_location.offset), (visible_tuple_set.find(tuple_location) == visible_tuple_set.end()));
 
     //CASE 1:  The tuple is committed

@@ -100,7 +100,6 @@ void SeqScanExecutor::CheckRow(ItemPointer head_tuple_location, concurrency::Tra
   auto tile_group = storage_manager->GetTileGroup(head_tuple_location.block);
   auto tile_group_header = tile_group.get()->GetHeader();
   
-  auto visibility = transaction_manager.IsVisible(current_txn, tile_group_header, head_tuple_location.offset);
   auto const &txn_timestamp = current_txn->GetBasilTimestamp();
 
   // Pointer to current version in linked list
@@ -111,6 +110,7 @@ void SeqScanExecutor::CheckRow(ItemPointer head_tuple_location, concurrency::Tra
   bool found_committed = false;
   bool found_prepared = false;
 
+  bool snapshot_only_mode = !current_txn->GetHasReadSetMgr() && current_txn->GetHasSnapshotMgr();
   size_t num_iters = 0;
 
 
@@ -122,7 +122,7 @@ void SeqScanExecutor::CheckRow(ItemPointer head_tuple_location, concurrency::Tra
       bool read_curr_version = false;
       done = FindRightRowVersion(txn_timestamp, tile_group, tile_group_header, tuple_location, num_iters, current_txn, read_curr_version, found_committed, found_prepared);
 
-      if (read_curr_version) {
+      if (read_curr_version && !snapshot_only_mode) {
         EvalRead(tile_group, tile_group_header, tuple_location, current_txn);
       }
     }
@@ -152,13 +152,16 @@ void SeqScanExecutor::EvalRead(std::shared_ptr<storage::TileGroup> tile_group, s
     concurrency::TransactionContext *current_txn) {
   bool eval = true;
 
-  if (predicate_ != nullptr) {
+  if (tile_group_header->IsDeleted(tuple_location.offset)) {
+      Debug("Tuple is deleted so will not include in result");
+      eval = false;
+  }
+  else if (predicate_ != nullptr) {
     ContainerTuple<storage::TileGroup> tuple(tile_group.get(), tuple_location.offset);
     eval = predicate_->Evaluate(&tuple, nullptr, executor_context_);
   }
 
-  bool snapshot_only_mode = !current_txn->GetHasReadSetMgr() && current_txn->GetHasSnapshotMgr();
-  if (eval && !snapshot_only_mode) {
+  if (eval) {
     // Add to position map
     // If active read set then add to read
     if (use_active_read_set) ManageReadSet(tuple_location, tile_group, tile_group_header, current_txn);
@@ -202,16 +205,60 @@ bool SeqScanExecutor::FindRightRowVersion(const Timestamp &txn_timestamp, std::s
   bool perform_find_snapshot = current_txn->GetHasSnapshotMgr();
   auto snapshot_mgr = current_txn->GetSnapshotMgr();
 
-  bool eager_read = current_txn->GetHasReadSetMgr();
+  bool perform_read = current_txn->GetHasReadSetMgr();
   auto readset_mgr = current_txn->GetQueryReadSetMgr();
 
   bool perform_read_on_snapshot = current_txn->GetSnapshotRead();
   auto snapshot_set = current_txn->GetSnapshotSet();
+  UW_ASSERT(!perform_read_on_snapshot || perform_read);
 
   auto txn_digest = tile_group_header->GetTxnDig(tuple_location.offset);
   bool done = false;
 
-  // If calling find snapshot in table store interface
+
+  // If calling eager read
+  if (perform_read) {
+    // Three cases: Tuple is committed, or prepared. If prepared, it might have been forceMaterialized
+    
+    // If the tuple is committed read the version
+    if (tile_group_header->GetCommitOrPrepare(tuple_location.offset)) {
+      found_committed = true;
+      read_curr_version = true;
+    } else {
+     
+      if (!perform_read_on_snapshot){
+         // Don't read materialized for eager read
+        if(tile_group_header->GetMaterialize(tuple_location.offset)) {
+          Debug("Don't read force materialized, continue reading");
+          return false;
+        }
+
+        auto const &read_prepared_pred = current_txn->GetReadPreparedPred();
+        Timestamp const &prepared_timestamp = tile_group_header->GetBasilTimestamp(tuple_location.offset);
+
+        // Only read prepared tuples if it satisfies the prepared predicate
+        if (read_prepared_pred && read_prepared_pred(*txn_digest)) {
+          found_prepared = true;
+          if(num_iters == 0) read_curr_version = true;
+        }
+      }
+    }
+
+  }
+
+  // If calling read from snapshot
+  if (perform_read_on_snapshot) {
+    // Read regardless if it's prepared or force materialized as long as it's in the snapshot
+    bool should_read_from_snapshot = !found_committed && snapshot_set->find(*txn_digest.get()) != snapshot_set->end();
+
+    if (should_read_from_snapshot) {
+      found_prepared = true;
+      read_curr_version = true;
+      return true;
+    }
+  }
+
+    // If calling find snapshot in table store interface
   if (perform_find_snapshot) {
     // Two cases: tuple is either prepared or committed
     if (tile_group_header->GetCommitOrPrepare(tuple_location.offset)) {
@@ -234,56 +281,13 @@ bool SeqScanExecutor::FindRightRowVersion(const Timestamp &txn_timestamp, std::s
     }
   }
 
-  // If calling eager read
-  if (eager_read) {
-    // Three cases: tuple is materialized, prepared, or committed
-    // Don't read materialized for eager read
-    if (tile_group_header->GetMaterialize(tuple_location.offset)) {
-      Debug("Don't read force materialized, continue reading");
-      return false;
-    }
-
-    // If the tuple is committed read the version
-    if (tile_group_header->GetCommitOrPrepare(tuple_location.offset)) {
-      found_committed = true;
-      read_curr_version = true;
-    } else {
-      auto const &read_prepared_pred = current_txn->GetReadPreparedPred();
-      Timestamp const &prepared_timestamp = tile_group_header->GetBasilTimestamp(tuple_location.offset);
-
-      // Only read prepared tuples if it satisfies the prepared predicate
-      if (read_prepared_pred && read_prepared_pred(*txn_digest)) {
-        found_prepared = true;
-        if(num_iters == 1) read_curr_version = true;
-      }
-    }
-
-    // If deleted then force read
-    if (tile_group_header->IsDeleted(tuple_location.offset)) {
-      return true;
-    }
-  }
-
-
-  // If calling read from snapshot
-  if (perform_read_on_snapshot) {
-    // Read regardless if it's prepared or force materialized as long as it's in the snapshot
-    bool should_read_from_snapshot = !found_committed && snapshot_set->find(*txn_digest.get()) != snapshot_set->end();
-
-    if (should_read_from_snapshot) {
-      if (tile_group_header->IsDeleted(tuple_location.offset)) {
-        return true;
-      }
-
-      found_prepared = true;
-      read_curr_version = true;
-      return true;
-    }
-  }
-
   return done;
 }
 
+static bool USE_ACTIVE_READ_SET = true; //If true, then Must use Table_Col_Version
+static bool USE_ACTIVE_SNAPSHOT_SET = false; //Currently, our Snapshots are always Complete (non-Active)
+
+//NOTE: PointReads always go through IndexScan
 void SeqScanExecutor::Scan() {
   concurrency::TransactionManager &transaction_manager = concurrency::TransactionManagerFactory::GetInstance();
   auto current_txn = executor_context_->GetTransaction();
@@ -298,11 +302,14 @@ void SeqScanExecutor::Scan() {
   // Get TableVersion and TableColVersions
   if (current_txn->CheckPredicatesInitialized()) {
     current_txn->GetTableVersion()(table_->GetName(), current_txn_timestamp, current_txn->GetHasReadSetMgr(), query_read_set_mgr, current_txn->GetHasSnapshotMgr(), current_txn->GetSnapshotMgr());
-    std::unordered_set<std::string> column_names;
-    GetColNames(predicate_, column_names);
 
-    for (auto &col : column_names) {
-      current_txn->GetTableVersion()(EncodeTableCol(table_->GetName(), col), current_txn_timestamp, current_txn->GetHasReadSetMgr(), query_read_set_mgr, current_txn->GetHasSnapshotMgr(), current_txn->GetSnapshotMgr());
+    if(USE_ACTIVE_READ_SET){
+      std::unordered_set<std::string> column_names;
+      GetColNames(predicate_, column_names);
+
+      for (auto &col : column_names) {
+        current_txn->GetTableVersion()(EncodeTableCol(table_->GetName(), col), current_txn_timestamp, current_txn->GetHasReadSetMgr(), query_read_set_mgr, current_txn->GetHasSnapshotMgr(), current_txn->GetSnapshotMgr());
+      }
     }
   }
 
