@@ -158,15 +158,15 @@ void SeqScanExecutor::EvalRead(std::shared_ptr<storage::TileGroup> tile_group, s
   }
   else if (predicate_ != nullptr) {
     ContainerTuple<storage::TileGroup> tuple(tile_group.get(), tuple_location.offset);
-    eval = predicate_->Evaluate(&tuple, nullptr, executor_context_);
+    eval = predicate_->Evaluate(&tuple, nullptr, executor_context_).IsTrue();
   }
 
   if (eval) {
     // Add to position map
     // If active read set then add to read
-    if (use_active_read_set) ManageReadSet(tuple_location, tile_group, tile_group_header, current_txn);
+    if (USE_ACTIVE_READ_SET) ManageReadSet(tuple_location, tile_group, tile_group_header, current_txn);
   }
-  if (!use_active_read_set) ManageReadSet(tuple_location, tile_group, tile_group_header, current_txn);
+  if (!USE_ACTIVE_READ_SET) ManageReadSet(tuple_location, tile_group, tile_group_header, current_txn);
 }
 
 void SeqScanExecutor::AddToSnapshot(std::shared_ptr<std::string> txn_digest, storage::TileGroupHeader *tile_group_header, ItemPointer tuple_location, Timestamp const &timestamp, 
