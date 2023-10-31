@@ -358,8 +358,8 @@ void IndexScanExecutor::ManageReadSet(ItemPointer &tuple_location, std::shared_p
     ContainerTuple<storage::TileGroup> row(tile_group.get(), tuple_location.offset);
 
     std::vector<std::string> primary_key_cols;
-    for (auto col : primary_index_columns_) {
-      auto val = row.GetValue(col);
+    for (auto const &col : primary_index_columns_) {
+      auto const &val = row.GetValue(col);
       primary_key_cols.push_back(val.ToString());
       Debug("Read set value: %s", val.ToString().c_str());
     }
