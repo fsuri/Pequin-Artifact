@@ -95,8 +95,10 @@ void SeqScanExecutor::GetColNames(const expression::AbstractExpression * child_e
   }
 }
 
+static bool use_active_read_set = true;
+
 void SeqScanExecutor::CheckRow(ItemPointer head_tuple_location, concurrency::TransactionManager &transaction_manager, concurrency::TransactionContext *current_txn, 
-    storage::StorageManager *storage_manager) {
+    storage::StorageManager *storage_manager, std::unordered_map<oid_t, std::vector<oid_t>> &position_map) {
 
   auto tile_group = storage_manager->GetTileGroup(head_tuple_location.block);
   auto tile_group_header = tile_group.get()->GetHeader();
@@ -201,11 +203,11 @@ bool SeqScanExecutor::FindRightRowVersion(const Timestamp &txn_timestamp, std::s
   bool perform_find_snapshot = current_txn->GetHasSnapshotMgr();
   auto snapshot_mgr = current_txn->GetSnapshotMgr();
 
-  bool eager_read = current_txn->GetHasReadSetMgr();
-  auto readset_mgr = current_txn->GetQueryReadSetMgr();
-
   bool perform_read_on_snapshot = current_txn->GetSnapshotRead();
   auto snapshot_set = current_txn->GetSnapshotSet();
+
+  bool eager_read = current_txn->GetHasReadSetMgr() && !perform_read_on_snapshot;
+  auto readset_mgr = current_txn->GetQueryReadSetMgr();
 
   auto txn_digest = tile_group_header->GetTxnDig(tuple_location.offset);
   bool done = false;
@@ -215,6 +217,8 @@ bool SeqScanExecutor::FindRightRowVersion(const Timestamp &txn_timestamp, std::s
     // Two cases: tuple is either prepared or committed
     if (tile_group_header->GetCommitOrPrepare(tuple_location.offset)) {
       found_committed = true;
+      read_curr_version = true;
+
       Timestamp const &committed_timestamp = tile_group_header->GetBasilTimestamp(tuple_location.offset);
       AddToSnapshot(txn_digest, tile_group_header, tuple_location, committed_timestamp, num_iters, snapshot_mgr);
       done = true;
@@ -246,6 +250,7 @@ bool SeqScanExecutor::FindRightRowVersion(const Timestamp &txn_timestamp, std::s
     if (tile_group_header->GetCommitOrPrepare(tuple_location.offset)) {
       found_committed = true;
       read_curr_version = true;
+      done = true;
     } else {
       auto const &read_prepared_pred = current_txn->GetReadPreparedPred();
       Timestamp const &prepared_timestamp = tile_group_header->GetBasilTimestamp(tuple_location.offset);
@@ -259,7 +264,7 @@ bool SeqScanExecutor::FindRightRowVersion(const Timestamp &txn_timestamp, std::s
 
     // If deleted then force read
     if (tile_group_header->IsDeleted(tuple_location.offset)) {
-      return true;
+      done = true;
     }
   }
 
@@ -271,12 +276,12 @@ bool SeqScanExecutor::FindRightRowVersion(const Timestamp &txn_timestamp, std::s
 
     if (should_read_from_snapshot) {
       if (tile_group_header->IsDeleted(tuple_location.offset)) {
-        return true;
+        done = true;
       }
 
       found_prepared = true;
       read_curr_version = true;
-      return true;
+      done = true;
     }
   }
 
