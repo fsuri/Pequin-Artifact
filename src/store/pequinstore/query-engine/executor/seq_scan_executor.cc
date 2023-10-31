@@ -32,8 +32,13 @@
 #include "../storage/tile_group_header.h"
 #include "../type/value_factory.h"
 #include "lib/message.h"
+#include "store/pequinstore/common.h"
 #include "store/pequinstore/query-engine/common/item_pointer.h"
+#include "store/pequinstore/query-engine/concurrency/transaction_context.h"
+#include "store/pequinstore/query-engine/concurrency/transaction_manager.h"
 #include "store/pequinstore/query-engine/planner/attribute_info.h"
+#include "store/pequinstore/query-engine/storage/tile_group.h"
+#include <memory>
 #include <unordered_set>
 
 namespace peloton {
@@ -87,6 +92,192 @@ void SeqScanExecutor::GetColNames(const expression::AbstractExpression * child_e
       column_names.insert(tv_expr->GetColumnName());
     }
     GetColNames(child, column_names);
+  }
+}
+
+void SeqScanExecutor::CheckRow(ItemPointer head_tuple_location, concurrency::TransactionManager &transaction_manager, concurrency::TransactionContext *current_txn, 
+    storage::StorageManager *storage_manager) {
+
+  auto tile_group = storage_manager->GetTileGroup(head_tuple_location.block);
+  auto tile_group_header = tile_group.get()->GetHeader();
+  size_t num_iters = 0;
+
+  auto visibility = transaction_manager.IsVisible(current_txn, tile_group_header, head_tuple_location.offset);
+  auto const &txn_timestamp = current_txn->GetBasilTimestamp();
+
+  // Pointer to current version in linked list
+  ItemPointer tuple_location = head_tuple_location;
+  // Find the right version to read
+  bool done = false;
+
+  bool found_committed = false;
+  bool found_prepared = false;
+
+  while(!done) {
+    auto tuple_timestamp = tile_group_header->GetBasilTimestamp(tuple_location.offset);
+
+    if (txn_timestamp >= tuple_timestamp) {
+      // Within the range of the txn timestamp
+      bool read_curr_version = false;
+      done = FindRightRowVersion(txn_timestamp, tile_group, tile_group_header, tuple_location, num_iters, current_txn, read_curr_version, found_committed, found_prepared);
+
+      if (read_curr_version) {
+        EvalRead(tile_group, tile_group_header, tuple_location, current_txn);
+      }
+    }
+
+    if (done) break;
+
+    ItemPointer old_location = tuple_location;
+    tuple_location = tile_group_header->GetNextItemPointer(old_location.offset);
+    
+    tile_group = storage_manager->GetTileGroup(tuple_location.block);
+    tile_group_header = tile_group->GetHeader();
+
+    done = tuple_location.IsNull();
+  }
+}
+
+void SeqScanExecutor::ManageReadSet(ItemPointer &tuple_location, std::shared_ptr<storage::TileGroup> tile_group, storage::TileGroupHeader *tile_group_header,
+    concurrency::TransactionContext *current_txn) {
+  if (current_txn->GetHasReadSetMgr()) {
+    auto const &primary_index_columns = target_table_->GetIndexColumns();
+    auto query_read_set_mgr = current_txn->GetQueryReadSetMgr();
+    AddToReadSet(primary_index_columns, tile_group, tile_group_header, tuple_location, query_read_set_mgr);
+  }
+}
+
+void SeqScanExecutor::EvalRead(std::shared_ptr<storage::TileGroup> tile_group, storage::TileGroupHeader *tile_group_header, ItemPointer tuple_location, 
+    concurrency::TransactionContext *current_txn) {
+  bool eval = true;
+
+  if (predicate_ != nullptr) {
+    ContainerTuple<storage::TileGroup> tuple(tile_group.get(), tuple_location.offset);
+    eval = predicate_->Evaluate(&tuple, nullptr, executor_context_);
+  }
+
+  bool snapshot_only_mode = !current_txn->GetHasReadSetMgr() && current_txn->GetHasSnapshotMgr();
+  if (eval && !snapshot_only_mode) {
+    // Add to position map
+    // If active read set then add to read
+    if (use_active_read_set) ManageReadSet(tuple_location, tile_group, tile_group_header, current_txn);
+  }
+  if (!use_active_read_set) ManageReadSet(tuple_location, tile_group, tile_group_header, current_txn);
+}
+
+void SeqScanExecutor::AddToSnapshot(std::shared_ptr<std::string> txn_digest, storage::TileGroupHeader *tile_group_header, ItemPointer tuple_location, Timestamp const &timestamp, 
+    size_t &num_iters, pequinstore::SnapshotManager *snapshot_mgr) {
+
+  bool commit_or_prepare = tile_group_header->GetCommitOrPrepare(tuple_location.offset);
+
+  if (txn_digest != nullptr) {
+    snapshot_mgr->AddToLocalSnapshot(*txn_digest.get(), timestamp.getTimestamp(), timestamp.getID(), commit_or_prepare);
+    num_iters++;
+  }
+}
+
+void SeqScanExecutor::AddToReadSet(std::vector<oid_t> primary_index_columns, std::shared_ptr<storage::TileGroup> tile_group, storage::TileGroupHeader *tile_group_header, 
+    ItemPointer location, pequinstore::QueryReadSetMgr *query_read_set_mgr) {
+  ContainerTuple<storage::TileGroup> row(tile_group.get(), location.offset);
+  std::vector<std::string> primary_key_cols;
+
+  for (auto col : primary_index_columns) {
+    auto val = row.GetValue(col);
+    primary_key_cols.push_back(val.ToString());
+  }
+
+  const Timestamp &time = tile_group_header->GetBasilTimestamp(location.offset); 
+
+  std::string &&encoded = EncodeTableRow(target_table_->GetName(), primary_key_cols);
+  Debug("encoded read set key is: %s. Version: [%lu: %lu]", encoded.c_str(), time.getTimestamp(), time.getID());
+
+  query_read_set_mgr->AddToReadSet(std::move(encoded), time);
+}
+
+bool SeqScanExecutor::FindRightRowVersion(const Timestamp &txn_timestamp, std::shared_ptr<storage::TileGroup> tile_group, storage::TileGroupHeader *tile_group_header,
+    ItemPointer tuple_location, size_t &num_iters, concurrency::TransactionContext *current_txn, bool &read_curr_version, bool &found_committed, bool &found_prepared) {
+
+  // Shorthand for table store interface functions
+  bool perform_find_snapshot = current_txn->GetHasSnapshotMgr();
+  auto snapshot_mgr = current_txn->GetSnapshotMgr();
+
+  bool eager_read = current_txn->GetHasReadSetMgr();
+  auto readset_mgr = current_txn->GetQueryReadSetMgr();
+
+  bool perform_read_on_snapshot = current_txn->GetSnapshotRead();
+  auto snapshot_set = current_txn->GetSnapshotSet();
+
+  auto txn_digest = tile_group_header->GetTxnDig(tuple_location.offset);
+  bool done = false;
+
+  // If calling find snapshot in table store interface
+  if (perform_find_snapshot) {
+    // Two cases: tuple is either prepared or committed
+    if (tile_group_header->GetCommitOrPrepare(tuple_location.offset)) {
+      found_committed = true;
+      Timestamp const &committed_timestamp = tile_group_header->GetBasilTimestamp(tuple_location.offset);
+      AddToSnapshot(txn_digest, tile_group_header, tuple_location, committed_timestamp, num_iters, snapshot_mgr);
+      done = true;
+    } else {
+      auto const &read_prepared_pred = current_txn->GetReadPreparedPred();
+      Timestamp const &prepared_timestamp = tile_group_header->GetBasilTimestamp(tuple_location.offset);
+      // Add to snapshot if tuple satisfies read prepared predicate and haven't read more than k versions
+      bool should_add_to_snapshot = !found_committed && num_iters < current_txn->GetKPreparedVersions() && read_prepared_pred && read_prepared_pred(*txn_digest);
+
+      if (should_add_to_snapshot) {
+        AddToSnapshot(txn_digest, tile_group_header, tuple_location, prepared_timestamp, num_iters, snapshot_mgr);
+      }
+
+      bool finished_reading = num_iters >= current_txn->GetKPreparedVersions();
+      return finished_reading;
+    }
+  }
+
+  // If calling eager read
+  if (eager_read) {
+    // Three cases: tuple is materialized, prepared, or committed
+    // Don't read materialized for eager read
+    if (tile_group_header->GetMaterialize(tuple_location.offset)) {
+      Debug("Don't read force materialized, continue reading");
+      return false;
+    }
+
+    // If the tuple is committed read the version
+    if (tile_group_header->GetCommitOrPrepare(tuple_location.offset)) {
+      found_committed = true;
+      read_curr_version = true;
+    } else {
+      auto const &read_prepared_pred = current_txn->GetReadPreparedPred();
+      Timestamp const &prepared_timestamp = tile_group_header->GetBasilTimestamp(tuple_location.offset);
+
+      // Only read prepared tuples if it satisfies the prepared predicate
+      if (read_prepared_pred && read_prepared_pred(*txn_digest)) {
+        found_prepared = true;
+        if(num_iters == 1) read_curr_version = true;
+      }
+    }
+
+    // If deleted then force read
+    if (tile_group_header->IsDeleted(tuple_location.offset)) {
+      return true;
+    }
+  }
+
+
+  // If calling read from snapshot
+  if (perform_read_on_snapshot) {
+    // Read regardless if it's prepared or force materialized as long as it's in the snapshot
+    bool should_read_from_snapshot = !found_committed && snapshot_set->find(*txn_digest.get()) != snapshot_set->end();
+
+    if (should_read_from_snapshot) {
+      if (tile_group_header->IsDeleted(tuple_location.offset)) {
+        return true;
+      }
+
+      found_prepared = true;
+      read_curr_version = true;
+      return true;
+    }
   }
 }
 
