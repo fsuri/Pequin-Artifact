@@ -170,13 +170,11 @@ void SeqScanExecutor::EvalRead(std::shared_ptr<storage::TileGroup> tile_group, s
 }
 
 void SeqScanExecutor::AddToSnapshot(std::shared_ptr<std::string> txn_digest, storage::TileGroupHeader *tile_group_header, ItemPointer tuple_location, Timestamp const &timestamp, 
-    size_t &num_iters, pequinstore::SnapshotManager *snapshot_mgr) {
+    pequinstore::SnapshotManager *snapshot_mgr) {
 
   bool commit_or_prepare = tile_group_header->GetCommitOrPrepare(tuple_location.offset);
-
   if (txn_digest != nullptr) {
     snapshot_mgr->AddToLocalSnapshot(*txn_digest.get(), timestamp.getTimestamp(), timestamp.getID(), commit_or_prepare);
-    num_iters++;
   }
 }
 
@@ -202,15 +200,15 @@ bool SeqScanExecutor::FindRightRowVersion(const Timestamp &txn_timestamp, std::s
     ItemPointer tuple_location, size_t &num_iters, concurrency::TransactionContext *current_txn, bool &read_curr_version, bool &found_committed, bool &found_prepared) {
 
   // Shorthand for table store interface functions
-  bool perform_find_snapshot = current_txn->GetHasSnapshotMgr();
-  auto snapshot_mgr = current_txn->GetSnapshotMgr();
-
   bool perform_read = current_txn->GetHasReadSetMgr();
   auto readset_mgr = current_txn->GetQueryReadSetMgr();
 
   bool perform_read_on_snapshot = current_txn->GetSnapshotRead();
   auto snapshot_set = current_txn->GetSnapshotSet();
   UW_ASSERT(!perform_read_on_snapshot || perform_read);
+
+  bool perform_find_snapshot = current_txn->GetHasSnapshotMgr();
+  auto snapshot_mgr = current_txn->GetSnapshotMgr();
 
   auto txn_digest = tile_group_header->GetTxnDig(tuple_location.offset);
   bool done = false;
@@ -273,7 +271,8 @@ bool SeqScanExecutor::FindRightRowVersion(const Timestamp &txn_timestamp, std::s
       bool should_add_to_snapshot = !found_committed && num_iters < current_txn->GetKPreparedVersions() && read_prepared_pred && read_prepared_pred(*txn_digest);
 
       if (should_add_to_snapshot) {
-        AddToSnapshot(txn_digest, tile_group_header, tuple_location, prepared_timestamp, num_iters, snapshot_mgr);
+        AddToSnapshot(txn_digest, tile_group_header, tuple_location, prepared_timestamp, snapshot_mgr);
+        num_iters++;
       }
 
       // We are done if we read k prepared versions
