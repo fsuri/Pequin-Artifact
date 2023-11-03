@@ -27,22 +27,22 @@
 
 #include "store/benchmark/async/sql/auctionmark/auctionmark_client.h"
 
-#include <gflags/gflags.h>
-
-#include <algorithm>
 #include <random>
-#include <vector>
 
-#include "lib/latency.h"
-#include "lib/tcptransport.h"
-#include "lib/timeval.h"
-#include "store/benchmark/async/bench_client.h"
-
-#include "store/common/frontend/sync_client.h"
-#include "store/common/truetime.h"
-#include "store/tapirstore/client.h"
-
+#include "store/benchmark/async/sql/auctionmark/check_winning_bids.h"
+#include "store/benchmark/async/sql/auctionmark/get_comment.h"
+#include "store/benchmark/async/sql/auctionmark/get_item.h"
+#include "store/benchmark/async/sql/auctionmark/get_user_info.h"
+#include "store/benchmark/async/sql/auctionmark/get_watched_items.h"
+#include "store/benchmark/async/sql/auctionmark/new_bid.h"
+#include "store/benchmark/async/sql/auctionmark/new_comment_response.h"
+#include "store/benchmark/async/sql/auctionmark/new_comment.h"
+#include "store/benchmark/async/sql/auctionmark/new_feedback.h"
+#include "store/benchmark/async/sql/auctionmark/new_item.h"
+#include "store/benchmark/async/sql/auctionmark/new_purchase.h"
 #include "store/benchmark/async/sql/auctionmark/new_user.h"
+#include "store/benchmark/async/sql/auctionmark/post_auction.h"
+#include "store/benchmark/async/sql/auctionmark/update_item.h"
 
 namespace auctionmark
 {
@@ -56,16 +56,71 @@ AuctionMarkClient::AuctionMarkClient(
                                     tputInterval, abortBackoff, retryAborted, maxBackoff, maxAttempts, timeout,
                                     latencyFilename)
 {
-    lastOp = "";
+  lastOp = "";
 }
 
 AuctionMarkClient::~AuctionMarkClient() {}
 
 SyncTransaction *AuctionMarkClient::GetNextTransaction()
 {
+  std::mt19937 gen = GetRand();
+  uint32_t ttype = std::uniform_int_distribution<uint32_t>(0, TXNS_TOTAL - 1)(gen);
+  if (ttype < NEW_USER_RATIO) {
+    lastOp = "new_user";
     const std::vector<std::string> attributes {};
-    lastOp = "NewUser";
-    return new NewUser(10000, 0, 0, attributes, GetRand());
+    return new NewUser(GetTimeout(), 0, 0, attributes, GetRand());
+  } else if (ttype < NEW_ITEM_RATIO + NEW_USER_RATIO) {
+    lastOp = "new_item";
+    return new NewItem(GetTimeout(), 0, 0, 0, "", "", 0, 0, 0, "", {}, {}, {}, 0, 0, GetRand());
+  } else if (ttype < NEW_BID_RATIO + NEW_ITEM_RATIO + NEW_USER_RATIO) {
+    lastOp = "new_bid";
+    return new NewBid(GetTimeout(), 0, 0, 0, 0, 0, GetRand());
+  } else if (ttype < NEW_COMMENT_RATIO + NEW_BID_RATIO + NEW_ITEM_RATIO + 
+  NEW_USER_RATIO) {
+    lastOp = "new_comment";
+    return new NewComment(GetTimeout(), 0, 0, 0, "", GetRand());
+  } else if (ttype < NEW_COMMENT_RESPONSE_RATIO + NEW_COMMENT_RATIO + NEW_BID_RATIO + 
+  NEW_ITEM_RATIO + NEW_USER_RATIO) {
+    lastOp = "new_comment_response";
+    return new NewCommentResponse(GetTimeout(), 0, 0, 0, "", GetRand());
+  } else if (ttype < NEW_PURCHASE_RATIO + NEW_COMMENT_RESPONSE_RATIO + NEW_COMMENT_RATIO + 
+  NEW_BID_RATIO + NEW_ITEM_RATIO + NEW_USER_RATIO) {
+    lastOp = "new_purchase";
+    return new NewPurchase(GetTimeout(), 0, 0, 0, 0, GetRand());
+  } else if (ttype < NEW_FEEDBACK_RATIO + NEW_PURCHASE_RATIO + NEW_COMMENT_RESPONSE_RATIO + 
+  NEW_COMMENT_RATIO + NEW_BID_RATIO + NEW_ITEM_RATIO + NEW_USER_RATIO) {
+    lastOp = "new_feedback";
+    return new NewFeedback(GetTimeout(), 0, 0, 0, 0, 0, GetRand());
+  } else if (ttype < GET_ITEM_RATIO + NEW_FEEDBACK_RATIO + NEW_PURCHASE_RATIO + 
+  NEW_COMMENT_RESPONSE_RATIO + NEW_COMMENT_RATIO + NEW_BID_RATIO + NEW_ITEM_RATIO + 
+  NEW_USER_RATIO) {
+    lastOp = "get_item";
+    return new GetItem(GetTimeout(), 0, 0, GetRand());
+  } else if (ttype < UPDATE_ITEM_RATIO + GET_ITEM_RATIO + NEW_FEEDBACK_RATIO +
+  NEW_PURCHASE_RATIO + NEW_COMMENT_RESPONSE_RATIO + NEW_COMMENT_RATIO + NEW_BID_RATIO +
+  NEW_ITEM_RATIO + NEW_USER_RATIO) {
+    lastOp = "update_item";
+    return new UpdateItem(GetTimeout(), 0, 0, "", GetRand());
+  } else if (ttype < GET_COMMENT_RATIO + UPDATE_ITEM_RATIO + GET_ITEM_RATIO + NEW_FEEDBACK_RATIO +
+  NEW_PURCHASE_RATIO + NEW_COMMENT_RESPONSE_RATIO + NEW_COMMENT_RATIO + NEW_BID_RATIO +
+  NEW_ITEM_RATIO + NEW_USER_RATIO) {
+    lastOp = "get_comment";
+    return new GetComment(GetTimeout(), 0, GetRand());
+  } else if (ttype < GET_USER_INFO_RATIO + GET_COMMENT_RATIO + UPDATE_ITEM_RATIO + GET_ITEM_RATIO +
+  NEW_FEEDBACK_RATIO + NEW_PURCHASE_RATIO + NEW_COMMENT_RESPONSE_RATIO + NEW_COMMENT_RATIO +
+  NEW_BID_RATIO + NEW_ITEM_RATIO + NEW_USER_RATIO) {
+    lastOp = "get_user_info";
+    return new GetUserInfo(GetTimeout(), 0, 0, 0, 0, GetRand());
+  } else if (ttype < GET_WATCHED_ITEMS_RATIO + GET_USER_INFO_RATIO + GET_COMMENT_RATIO +
+  UPDATE_ITEM_RATIO + GET_ITEM_RATIO + NEW_FEEDBACK_RATIO + NEW_PURCHASE_RATIO +
+  NEW_COMMENT_RESPONSE_RATIO + NEW_COMMENT_RATIO + NEW_BID_RATIO + NEW_ITEM_RATIO +
+  NEW_USER_RATIO) {
+    lastOp = "get_watched_items";
+    return new GetWatchedItems(GetTimeout(), 0, GetRand());
+  } else {
+    lastOp = "post_auction";
+    return new PostAuction(GetTimeout(), {}, {}, {}, {}, GetRand());
+  }
 }
 std::string AuctionMarkClient::GetLastOp() const { return lastOp; }
 
