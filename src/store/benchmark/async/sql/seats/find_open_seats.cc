@@ -64,10 +64,12 @@ transaction_status_t SQLFindOpenSeats::Execute(SyncClient &client) {
     std::string query;
 
     Debug("FIND_OPEN_SEATS on flight %ld", f_id);
+    std::cerr << f_id << std::endl;
     client.Begin(timeout);
 
     GetFlightResultRow fr_row = GetFlightResultRow();
     query = fmt::format("SELECT F_ID, F_AL_ID, F_DEPART_AP_ID, F_DEPART_TIME, F_ARRIVE_AP_ID, F_ARRIVE_TIME, F_BASE_PRICE, F_SEATS_TOTAL, F_SEATS_LEFT, (F_BASE_PRICE + (F_BASE_PRICE * (1 - (F_SEATS_LEFT / F_SEATS_TOTAL)))) AS F_PRICE FROM {} WHERE F_ID = {}", FLIGHT_TABLE, f_id);
+    client.Query(query, queryResult, timeout);
     if (queryResult->empty()) { 
         Debug("no flight with that id exists");
         client.Abort(timeout);
@@ -78,7 +80,6 @@ transaction_status_t SQLFindOpenSeats::Execute(SyncClient &client) {
     int64_t seats_total = fr_row.f_seats_total;
     int64_t seats_left = fr_row.f_seats_left;
     double seat_price = fr_row.f_price;
-
     query = fmt::format("SELECT R_ID, R_F_ID, R_SEAT FROM {} WHERE R_F_ID = {}", RESERVATION_TABLE, f_id);
     client.Query(query, queryResult, timeout);
 

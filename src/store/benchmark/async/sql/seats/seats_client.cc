@@ -13,14 +13,13 @@
 namespace seats_sql {
 
 SEATSSQLClient::SEATSSQLClient(SyncClient &client, Transport &transport, uint64_t id,
-      int numRequests, int expDuration, uint64_t delay, int warmupSec,
-      int cooldownSec, int tputInterval, double min_reserved_ratio, double max_reserved_ratio,
-      uint32_t abortBackoff, bool retryAborted, uint32_t maxBackoff, uint32_t maxAttempts,
-      uint32_t timeout, const std::string &latencyFilename = "") :       
+      uint64_t numRequests, uint64_t expDuration, uint64_t delay, uint64_t warmupSec,
+      uint64_t cooldownSec, uint64_t tputInterval, uint32_t abortBackoff, bool retryAborted, 
+      uint64_t maxBackoff, int64_t maxAttempts,
+      uint64_t timeout, const std::string &latencyFilename) :       
       SyncTransactionBenchClient(client, transport, id, numRequests,
         expDuration, delay, warmupSec, cooldownSec, tputInterval, abortBackoff,
-        retryAborted, maxBackoff, maxAttempts, timeout, latencyFilename), 
-        min_reserved_ratio(min_reserved_ratio), max_reserved_ratio(max_reserved_ratio) {
+        retryAborted, maxBackoff, maxAttempts, timeout, latencyFilename) {
             gen.seed(time(nullptr));
             num_res_made = 0;
             seats_id = id;
@@ -31,6 +30,7 @@ SEATSSQLClient::~SEATSSQLClient() {}
 
 SyncTransaction* SEATSSQLClient::GetNextTransaction() {
   // need to populate reservations first
+  std::cerr << "getting transactions" << std::endl;
   if (!started_workload) {
     started_workload = true; 
     return new SQLFindOpenSeats(GetTimeout(), gen, insert_reservations);

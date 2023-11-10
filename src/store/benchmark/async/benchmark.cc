@@ -1669,12 +1669,10 @@ int main(int argc, char **argv) {
         break;
     case BENCH_SEATS_SQL:
         UW_ASSERT(syncClient != nullptr);
-        bench = new rwsql::RWSQLClient(FLAGS_num_ops_txn, querySelector, FLAGS_rw_read_only,
-            *syncClient, *tport, seed,
-            FLAGS_num_requests, FLAGS_exp_duration, FLAGS_delay,
+        bench = new seats_sql::SEATSSQLClient( *syncClient, *tport,
+            seed, FLAGS_num_requests, FLAGS_exp_duration, FLAGS_delay,
             FLAGS_warmup_secs, FLAGS_cooldown_secs, FLAGS_tput_interval,
-            FLAGS_abort_backoff, FLAGS_retry_aborted, FLAGS_max_backoff, FLAGS_max_attempts,
-            FLAGS_timeout);
+            FLAGS_abort_backoff, FLAGS_retry_aborted, FLAGS_max_backoff, FLAGS_max_attempts, FLAGS_message_timeout);
         break;
 
       default:
