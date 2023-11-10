@@ -24,21 +24,41 @@
  * SOFTWARE.
  *
  **********************************************************************/
-#ifndef AUCTION_MARK_GET_WATCHED_ITEMS_H
-#define AUCTION_MARK_GET_WATCHED_ITEMS_H
+#ifndef AUCTION_MARK_NEW_ITEM_H
+#define AUCTION_MARK_NEW_ITEM_H
 
-#include "store/common/frontend/sync_transaction.h"
+#include "store/benchmark/async/sql/auctionmark/auctionmark_transaction.h"
 
 namespace auctionmark {
 
-class GetWatchedItems : public SyncTransaction {
+class NewItem : public AuctionMarkTransaction {
  public:
-  GetWatchedItems(uint32_t timeout, uint64_t u_id, std::mt19937 &gen);
-  virtual ~GetWatchedItems();
+  NewItem(uint32_t timeout, uint64_t i_id, uint64_t u_id, uint64_t c_id,
+      std::string name, std::string description, double initial_price,
+      double reserve_price, double buy_now, const std::string attributes, 
+      const std::vector<uint64_t> gag_ids, const std::vector<uint64_t> gav_ids, 
+      const std::vector<std::string> images, uint64_t start_date, uint64_t end_date,
+      std::mt19937 &gen);
+  virtual ~NewItem();
   virtual transaction_status_t Execute(SyncClient &client);
-
+ 
+ private:
+  uint64_t i_id;
+  uint64_t u_id;
+  uint64_t c_id;
+  std::string name;
+  std::string description;
+  double initial_price;
+  double reserve_price;
+  double buy_now;
+  const std::string attributes;
+  const std::vector<uint64_t> gag_ids;
+  const std::vector<uint64_t> gav_ids;
+  const std::vector<std::string> images;
+  uint64_t start_date;
+  uint64_t end_date;
 };
 
 } // namespace auctionmark
 
-#endif /* AUCTION_MARK_GET_WATCHED_ITEMS_H */
+#endif /* AUCTION_MARK_NEW_ITEM_H */

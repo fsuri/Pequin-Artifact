@@ -24,22 +24,24 @@
  * SOFTWARE.
  *
  **********************************************************************/
-#ifndef AUCTION_MARK_NEW_PURCHASE_H
-#define AUCTION_MARK_NEW_PURCHASE_H
+#ifndef AUCTION_MARK_CHECK_WINNING_BIDS_H
+#define AUCTION_MARK_CHECK_WINNING_BIDS_H
 
-#include "store/common/frontend/sync_transaction.h"
+#include "store/benchmark/async/sql/auctionmark/auctionmark_transaction.h"
 
 namespace auctionmark {
 
-class NewPurchase : public SyncTransaction {
+class CheckWinningBids : public AuctionMarkTransaction {
  public:
-  NewPurchase(uint32_t timeout, uint64_t ib_id, uint64_t i_id, uint64_t u_id,
-      uint32_t buyer_id, std::mt19937 &gen);
-  virtual ~NewPurchase();
+  CheckWinningBids(uint32_t timeout, uint64_t start_time, uint64_t end_time, std::mt19937 &gen);
+  virtual ~CheckWinningBids();
   virtual transaction_status_t Execute(SyncClient &client);
 
+ private:
+  uint64_t start_time;
+  uint64_t end_time;
 };
 
 } // namespace auctionmark
 
-#endif /* AUCTION_MARK_NEW_PURCHASE_H */
+#endif /* AUCTION_MARK_CHECK_WINNING_BIDS_H */

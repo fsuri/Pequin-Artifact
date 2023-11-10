@@ -87,26 +87,26 @@ transaction_status_t SQLNewOrder::Execute(SyncClient &client) {
 
   client.Wait(results);
 
-  tpcc::WarehouseRow w_row;
+  WarehouseRow w_row;
   deserialize(w_row, results[0]);
-  Debug("  Tax Rate: %u", w_row.tax());
+  Debug("  Tax Rate: %u", w_row.get_tax());
 
-  tpcc::DistrictRow d_row;
+  DistrictRow d_row;
   deserialize(d_row, results[1]);
-  Debug("  Tax Rate: %u", d_row.tax());
-  uint32_t o_id = d_row.next_o_id();
+  Debug("  Tax Rate: %u", d_row.get_tax());
+  uint32_t o_id = d_row.get_next_o_id();
   Debug("  Order Number: %u", o_id);
 
-  d_row.set_next_o_id(d_row.next_o_id() + 1);
+  d_row.set_next_o_id(d_row.get_next_o_id() + 1);
   statement = fmt::format("UPDATE District SET next_o_id = {} WHERE id = {} AND w_id = {}",
-                      d_row.next_o_id(), d_id, w_id);
+                      d_row.get_next_o_id(), d_id, w_id);
   client.Write(statement, queryResult, timeout);
 
-  tpcc::CustomerRow c_row;
+  CustomerRow c_row;
   deserialize(c_row, results[2]);
-  Debug("  Discount: %i", c_row.discount());
-  Debug("  Last Name: %s", c_row.last().c_str());
-  Debug("  Credit: %s", c_row.credit().c_str());
+  Debug("  Discount: %i", c_row.get_discount());
+  Debug("  Last Name: %s", c_row.get_last().c_str());
+  Debug("  Credit: %s", c_row.get_credit().c_str());
 
   results.clear();
 
@@ -142,65 +142,65 @@ transaction_status_t SQLNewOrder::Execute(SyncClient &client) {
       client.Abort(timeout);
       return ABORTED_USER;
     } else {
-      tpcc::ItemRow i_row;
+      ItemRow i_row;
       deserialize(i_row, results[ol_number]);
-      Debug("    Item Name: %s", i_row.name().c_str());
+      Debug("    Item Name: %s", i_row.get_name().c_str());
 
-      tpcc::StockRow s_row;
+      StockRow s_row;
       deserialize(s_row, results[ol_number + ol_cnt]);
 
-      if (s_row.quantity() - o_ol_quantities[ol_number] >= 10) {
-        s_row.set_quantity(s_row.quantity() - o_ol_quantities[ol_number]);
+      if (s_row.get_quantity() - o_ol_quantities[ol_number] >= 10) {
+        s_row.set_quantity(s_row.get_quantity() - o_ol_quantities[ol_number]);
       } else {
-        s_row.set_quantity(s_row.quantity() - o_ol_quantities[ol_number] + 91);
+        s_row.set_quantity(s_row.get_quantity() - o_ol_quantities[ol_number] + 91);
       }
       Debug("    Quantity: %u", o_ol_quantities[ol_number]);
-      s_row.set_ytd(s_row.ytd() + o_ol_quantities[ol_number]);
-      s_row.set_order_cnt(s_row.order_cnt() + 1);
-      Debug("    Remaining Quantity: %u", s_row.quantity());
-      Debug("    YTD: %u", s_row.ytd());
-      Debug("    Order Count: %u", s_row.order_cnt());
+      s_row.set_ytd(s_row.get_ytd() + o_ol_quantities[ol_number]);
+      s_row.set_order_cnt(s_row.get_order_cnt() + 1);
+      Debug("    Remaining Quantity: %u", s_row.get_quantity());
+      Debug("    YTD: %u", s_row.get_ytd());
+      Debug("    Order Count: %u", s_row.get_order_cnt());
       if (w_id != o_ol_supply_w_ids[ol_number]) {
-        s_row.set_remote_cnt(s_row.remote_cnt() + 1);
+        s_row.set_remote_cnt(s_row.get_remote_cnt() + 1);
       }
       statement = fmt::format("UPDATE Stock\n" 
               "SET quantity = {}, ytd = {}, order_cnt = {}, remote_cnt = {}\n"
               "WHERE i_id = {} AND w_id = {}",
-          s_row.quantity(), s_row.ytd(), s_row.order_cnt(), s_row.remote_cnt(),
+          s_row.get_quantity(), s_row.get_ytd(), s_row.get_order_cnt(), s_row.get_remote_cnt(),
           o_ol_i_ids[ol_number], o_ol_supply_w_ids[ol_number]);
       client.Write(statement, queryResult, timeout);
 
       std::string dist_info;
       switch (d_id) {
         case 1:
-          dist_info = s_row.dist_01();
+          dist_info = s_row.get_dist_01();
           break;
         case 2:
-          dist_info = s_row.dist_02();
+          dist_info = s_row.get_dist_02();
           break;
         case 3:
-          dist_info = s_row.dist_03();
+          dist_info = s_row.get_dist_03();
           break;
         case 4:
-          dist_info = s_row.dist_04();
+          dist_info = s_row.get_dist_04();
           break;
         case 5:
-          dist_info = s_row.dist_05();
+          dist_info = s_row.get_dist_05();
           break;
         case 6:
-          dist_info = s_row.dist_06();
+          dist_info = s_row.get_dist_06();
           break;
         case 7:
-          dist_info = s_row.dist_07();
+          dist_info = s_row.get_dist_07();
           break;
         case 8:
-          dist_info = s_row.dist_08();
+          dist_info = s_row.get_dist_08();
           break;
         case 9:
-          dist_info = s_row.dist_09();
+          dist_info = s_row.get_dist_09();
           break;
         case 10:
-          dist_info = s_row.dist_10();
+          dist_info = s_row.get_dist_10();
           break;
         default:
           NOT_REACHABLE();
@@ -209,7 +209,7 @@ transaction_status_t SQLNewOrder::Execute(SyncClient &client) {
             "(o_id, d_id, w_id, number, i_id, supply_w_id, delivery_d, quantity, amount, dist_info)\n"
             "VALUES ({}, {}, {}, {}, {}, {}, {}, {}, {}, '{}');", 
             o_id, d_id, w_id, ol_number, o_ol_i_ids[ol_number], o_ol_supply_w_ids[ol_number], 0,
-            o_ol_quantities[ol_number], o_ol_quantities[ol_number] * i_row.price(), dist_info);
+            o_ol_quantities[ol_number], o_ol_quantities[ol_number] * i_row.get_price(), dist_info);
       client.Write(statement, queryResult, timeout);
     }
   }

@@ -24,22 +24,24 @@
  * SOFTWARE.
  *
  **********************************************************************/
-#ifndef AUCTION_MARK_POST_AUCTION_H
-#define AUCTION_MARK_POST_AUCTION_H
+#ifndef AUCTION_MARK_GET_ITEM_H
+#define AUCTION_MARK_GET_ITEM_H
 
-#include "store/common/frontend/sync_transaction.h"
+#include "store/benchmark/async/sql/auctionmark/auctionmark_transaction.h"
 
 namespace auctionmark {
 
-class PostAuction : public SyncTransaction {
+class GetItem : public AuctionMarkTransaction {
  public:
-  PostAuction(uint32_t timeout, vector<uint64_t> i_ids, vector<uint64_t> seller_ids,
-   vector<uint64_t> buyer_ids, vector<uint64_t> ib_ids, std::mt19937 &gen);
-  virtual ~PostAuction();
+  GetItem(uint32_t timeout, uint64_t i_id, uint64_t i_u_id, std::mt19937 &gen);
+  virtual ~GetItem();
   virtual transaction_status_t Execute(SyncClient &client);
 
+ private:
+  uint64_t i_id;
+  uint64_t i_u_id;
 };
 
 } // namespace auctionmark
 
-#endif /* AUCTION_MARK_POST_AUCTION_H */
+#endif /* AUCTION_MARK_GET_ITEM_H */

@@ -69,7 +69,7 @@ namespace auctionmark
 
     private:
         std::string lastOp;
-        uint64_t n_users;
+        uint64_t N_USERS;
     };
 
 } // namespace auctionmark

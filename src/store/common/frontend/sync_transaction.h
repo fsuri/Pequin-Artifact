@@ -27,6 +27,7 @@
 #ifndef _SYNC_TRANSACTION_H_
 #define _SYNC_TRANSACTION_H_
 
+#include "store/common/frontend/sync_client.h"
 #include "store/common/frontend/client.h"
 #include "store/common/frontend/transaction_utils.h"
 
