@@ -191,7 +191,7 @@ transaction_status_t SQLFindFlights::Execute(SyncClient &client) {
         std::string arrive_ap = ai_row.ap_name;
         std::string arrive_city = ai_row.ap_city;
 
-        Debug("Flight %d / dep time %d / %s, %s to  %s, %s / arr time %d", f_id, depart_time, depart_ap, depart_city, arrive_ap, arrive_city, arrival_time);
+        Debug("Flight %ld / dep time %ld / %s, %s to  %s, %s / arr time %ld", f_id, depart_time, depart_ap, depart_city, arrive_ap, arrive_city, arrival_time);
     }
     Debug("COMMIT");
     return client.Commit(timeout);

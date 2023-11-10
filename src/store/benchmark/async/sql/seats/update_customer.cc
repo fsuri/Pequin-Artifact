@@ -187,7 +187,7 @@ transaction_status_t SQLUpdateCustomer::Execute(SyncClient &client) {
     client.Query(query, queryResult, timeout);
     GetCustomerResultRow cr_row = GetCustomerResultRow();
     if (queryResult->empty()) {
-        Debug("No customer record for customr id %d", c_id);
+        Debug("No customer record for customr id %ld", c_id);
         client.Abort(timeout);
         return ABORTED_USER;
     }
@@ -207,8 +207,8 @@ transaction_status_t SQLUpdateCustomer::Execute(SyncClient &client) {
         client.Query(query, queryResult, timeout);
         GetFrequentFlyersResultRow ffr_row = GetFrequentFlyersResultRow();
         std::unique_ptr<const query_result::QueryResult> queryResult2;
-        for (int i = 0; i < queryResult->size(); i++) {
-            deserialize(ffr_row, queryResult, i);
+        for (std::size_t i = 0; i < queryResult->size(); i++) {
+            deserialize(ffr_row, queryResult, (int) i);
             int64_t ff_al_id = ffr_row.ff_al_id;
             query = fmt::format("UPDATE {} SET FF_IATTR00 = {}, FF_IATTR01 = {} WHERE FF_C_ID = {} AND FF_AL_ID = {}", FREQUENT_FLYER_TABLE, attr0, attr1, c_id, ff_al_id);
             client.Write(query, queryResult2, timeout);

@@ -1,13 +1,16 @@
 #include "store/benchmark/async/sql/seats/find_open_seats.h"
 #include "store/benchmark/async/sql/seats/seats_constants.h"
+#include "store/benchmark/async/sql/seats/reservation.h"
 #include <fmt/core.h>
+#include <queue>
 
 
 namespace seats_sql {
 
-SQLFindOpenSeats::SQLFindOpenSeats(uint32_t timeout, std::mt19937_64 gen) : 
+SQLFindOpenSeats::SQLFindOpenSeats(uint32_t timeout, std::mt19937_64 gen, std::queue<SEATSReservation> &new_res_queue) : 
     SEATSSQLTransaction(timeout) {
         f_id = std::uniform_int_distribution<int64_t>(1, NUM_FLIGHTS)(gen);
+        q = &new_res_queue;
     }
 
 SQLFindOpenSeats::~SQLFindOpenSeats() {};
@@ -60,7 +63,7 @@ transaction_status_t SQLFindOpenSeats::Execute(SyncClient &client) {
     std::unique_ptr<const query_result::QueryResult> queryResult;
     std::string query;
 
-    Debug("FIND_OPEN_SEATS on flight %d", f_id);
+    Debug("FIND_OPEN_SEATS on flight %ld", f_id);
     client.Begin(timeout);
 
     GetFlightResultRow fr_row = GetFlightResultRow();
@@ -93,6 +96,7 @@ transaction_status_t SQLFindOpenSeats::Execute(SyncClient &client) {
     std::string open_seats_str = "Seats";
     for (int seat = 0; seat < TOTAL_SEATS_PER_FLIGHT; seat++) {
         if (unavailable_seats[seat] == 0) open_seats_str += fmt::format(" {},", seat);
+        q->push(SEATSReservation(NULL_ID, NULL_ID, f_id, seat));
     }
     open_seats_str += fmt::format(" are available on flight {}", f_id);
     Debug("%s", open_seats_str);

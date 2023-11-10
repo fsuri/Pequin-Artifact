@@ -56,6 +56,7 @@
 #include "store/benchmark/async/tpcc/sync/tpcc_client.h"
 #include "store/benchmark/async/tpcc/async/tpcc_client.h"
 #include "store/benchmark/async/sql/tpcc/tpcc_client.h"
+#include "store/benchmark/async/sql/seats/seats_client.h"
 #include "store/benchmark/async/smallbank/smallbank_client.h"
 #include "store/benchmark/async/toy/toy_client.h"
 #include "store/benchmark/async/rw-sql/rw-sql_client.h"
@@ -554,7 +555,8 @@ const std::string benchmark_args[] = {
   "tpcc-sync",
   "toy",
   "tpcc-sql",
-  "rw-sql"
+  "rw-sql",
+  "seats-sql"
 };
 const benchmode_t benchmodes[] {
   BENCH_RETWIS,

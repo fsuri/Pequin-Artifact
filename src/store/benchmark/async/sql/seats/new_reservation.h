@@ -2,12 +2,14 @@
 #define SEATS_SQL_NEW_RESERVATION_H 
 
 #include "store/benchmark/async/sql/seats/seats_transaction.h"
+#include "store/benchmark/async/sql/seats/reservation.h"
+#include <queue>
 
 namespace seats_sql {
 
 class SQLNewReservation:public SEATSSQLTransaction {
     public: 
-        SQLNewReservation(uint32_t timeout, std::mt19937_64 gen, int64_t r_id);
+        SQLNewReservation(uint32_t timeout, std::mt19937_64 gen, int64_t r_id, std::queue<SEATSReservation> &insert_res, std::queue<SEATSReservation> &existing_res);
         virtual ~SQLNewReservation();
         virtual transaction_status_t Execute(SyncClient &client);
     private:
@@ -18,6 +20,7 @@ class SQLNewReservation:public SEATSSQLTransaction {
         double price;
         std::vector<int64_t> attributes;
         std::time_t time;
+        std::queue<SEATSReservation> *q;
 };
 
 }

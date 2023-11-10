@@ -1,6 +1,9 @@
 #ifndef SQL_SEATS_CONSTANTS_H 
 #define SQL_SEATS_CONSTANTS_H
 
+#include <ctime>
+#include <string> 
+#include <limits>
 namespace seats_sql {
 
 const int TOTAL_SEATS_PER_FLIGHT = 150;
@@ -9,11 +12,14 @@ const int MAX_SEATS_RESERVED = (int) (TOTAL_SEATS_PER_FLIGHT * 0.8);
 
 const int NEW_RESERVATION_ATTRS_SIZE = 9;
 const std::time_t MIN_TS = 1697218894000;
-const std::time_t MAX_TS = MIN_TS + 86400000 * 50;
+const std::time_t MAX_TS = MIN_TS + ((int64_t) 86400000) * 50;
 const double MIN_RESERVATION_PRICE = 100;
 const double MAX_RESERVATION_PRICE = 1500;
 const int64_t NULL_ID = std::numeric_limits<int64_t>::min();
+const int64_t MAX_BIG_INT = std::numeric_limits<int64_t>::max() - 1;
+const double FLIGHT_TRAVEL_RATE = 570.0;
 
+const int64_t MS_IN_DAY = 86400000L;
 /** Frequency of Transaction in Benchmark Workload */
 
 const int FREQUENCY_DELETE_RESERVATION = 10;
@@ -22,6 +28,9 @@ const int FREQUENCY_FIND_OPEN_SEATS = 35;
 const int FREQUENCY_NEW_RESERVATION = 20;
 const int FREQUENCY_UPDATE_CUSTOMER = 10;
 const int FREQUENCY_UPDATE_RESERVATION = 15;
+
+
+const int PROB_REQUEUE_DELETED_RESERVATION = 90;
 
 /** Table Names */
 

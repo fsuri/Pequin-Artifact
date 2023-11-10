@@ -2,14 +2,32 @@
 #include "store/benchmark/async/sql/seats/seats_constants.h"
 
 #include <fmt/core.h>
+#include <queue>
 
 namespace seats_sql {
     
-SQLNewReservation::SQLNewReservation(uint32_t timeout, std::mt19937_64 gen, int64_t r_id) : 
-    SEATSSQLTransaction(timeout), r_id(r_id), price(price) {
-        c_id = std::uniform_int_distribution<int64_t>(1, NUM_CUSTOMERS)(gen);
-        f_id = std::uniform_int_distribution<int64_t>(1, NUM_FLIGHTS)(gen);
-        seatnum = std::uniform_int_distribution<int64_t>(1, TOTAL_SEATS_PER_FLIGHT)(gen);
+SQLNewReservation::SQLNewReservation(uint32_t timeout, std::mt19937_64 gen, int64_t r_id, std::queue<SEATSReservation> &insert_res, std::queue<SEATSReservation> &existing_res) : 
+    SEATSSQLTransaction(timeout), r_id(r_id) {
+        if (!insert_res.empty()) {
+            SEATSReservation res = insert_res.front();
+            f_id = res.f_id; 
+            seatnum = res.seat_num;
+            if (c_id != NULL_ID) 
+                c_id = res.c_id;
+            else
+                c_id = std::uniform_int_distribution<int64_t>(1, NUM_CUSTOMERS)(gen);
+            
+            if (seatnum != -1)
+                seatnum = seatnum;
+            else   
+                seatnum = std::uniform_int_distribution<int64_t>(1, TOTAL_SEATS_PER_FLIGHT)(gen);
+
+            insert_res.pop();
+        } else { 
+            f_id = std::uniform_int_distribution<int64_t>(1, NUM_FLIGHTS)(gen);
+            seatnum = std::uniform_int_distribution<int64_t>(1, TOTAL_SEATS_PER_FLIGHT)(gen);
+            c_id = std::uniform_int_distribution<int64_t>(1, NUM_CUSTOMERS)(gen);
+        }
         time = std::time(nullptr);
         attributes.reserve(NEW_RESERVATION_ATTRS_SIZE);
         auto attr_dist = std::uniform_int_distribution<int64_t>(1, 100000);
@@ -17,6 +35,7 @@ SQLNewReservation::SQLNewReservation(uint32_t timeout, std::mt19937_64 gen, int6
             attributes.push_back(attr_dist(gen));
         }
         price = std::uniform_real_distribution<double>(MIN_RESERVATION_PRICE, MAX_RESERVATION_PRICE)(gen);
+        q = &existing_res;
     }
 
 SQLNewReservation::~SQLNewReservation() {} 
@@ -31,7 +50,7 @@ transaction_status_t SQLNewReservation::Execute(SyncClient &client) {
 
     std::string query;
 
-    Debug("NEW_RESERVATION for customer %d", c_id);
+    Debug("NEW_RESERVATION for customer %ld", c_id);
     client.Begin(timeout);
 
     query = fmt::format("SELECT F_AL_ID, F_SEATS_LEFT, {}.* FROM {}, {} WHERE F_ID = {} AND F_AL_ID = AL_ID", AIRLINE_TABLE, FLIGHT_TABLE, AIRLINE_TABLE, f_id);
@@ -42,15 +61,15 @@ transaction_status_t SQLNewReservation::Execute(SyncClient &client) {
     client.Query(query, queryResult3, timeout);
 
     if (queryResult->empty()) {
-        Debug("Invalid Flight ID %d", f_id);
+        Debug("Invalid Flight ID %ld", f_id);
         client.Abort(timeout);
         return ABORTED_USER;
     } else if (!queryResult2->empty()) {
-        Debug("Seat %d on flight %d is already reserved", seatnum, f_id);
+        Debug("Seat %ld on flight %ld is already reserved", seatnum, f_id);
         client.Abort(timeout);
         return ABORTED_USER;
     } else if (!queryResult3->empty()) {
-        Debug("Customer %d already has a seat", c_id);
+        Debug("Customer %ld already has a seat", c_id);
         client.Abort(timeout);
         return ABORTED_USER;
     }
@@ -59,8 +78,8 @@ transaction_status_t SQLNewReservation::Execute(SyncClient &client) {
     int64_t seats_left; 
     queryResult->at(0)->get(0, &airline_id);
     queryResult->at(0)->get(1, &seats_left);
-    if (seats_left <= 0) {
-        Debug("No more seats left on flight %d", f_id);
+    if (seats_left == 0) {
+        Debug("No more seats left on flight %ld", f_id);
         client.Abort(timeout);
         return ABORTED_USER;
     }
@@ -69,7 +88,7 @@ transaction_status_t SQLNewReservation::Execute(SyncClient &client) {
         query = fmt::format("SELECT C_BASE_AP_ID, C_BALANCE, C_SATTR00, FROM {} WHERE C_ID = {}", CUSTOMER_TABLE, c_id);
         client.Query(query, queryResult, timeout);
         if (queryResult->empty()) {
-            Debug("No Customer with id %d", c_id);
+            Debug("No Customer with id %ld", c_id);
             client.Abort(timeout);
             return ABORTED_USER;
         }
@@ -97,7 +116,7 @@ transaction_status_t SQLNewReservation::Execute(SyncClient &client) {
         client.Abort(timeout);
         return ABORTED_USER;
     }
-
+    q->push(SEATSReservation(r_id, c_id, f_id, seatnum));
     return client.Commit(timeout);
 }       
 }

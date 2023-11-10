@@ -1,17 +1,28 @@
 #include "store/benchmark/async/sql/seats/update_reservation.h"
 #include "store/benchmark/async/sql/seats/seats_constants.h"
+#include "store/benchmark/async/sql/seats/reservation.h"
 #include <fmt/core.h>
 
 namespace seats_sql {
-SQLUpdateReservation::SQLUpdateReservation(uint32_t timeout, std::mt19937_64 gen)
+SQLUpdateReservation::SQLUpdateReservation(uint32_t timeout, std::mt19937_64 gen, std::queue<SEATSReservation> &existing_res)
     : SEATSSQLTransaction(timeout) {
-        c_id = std::uniform_int_distribution<int64_t>(1, NUM_CUSTOMERS)(gen);
-        // figure out how to get customer -- reserve id mapping in client
-        r_id = std::uniform_int_distribution<int64_t>(1, 1000000)(gen);
-        f_id = std::uniform_int_distribution<int64_t>(1, NUM_FLIGHTS)(gen);
-        seatnum = std::uniform_int_distribution<int64_t>(1, TOTAL_SEATS_PER_FLIGHT)(gen);
+        if (!existing_res.empty()) {
+            SEATSReservation r = existing_res.front();
+            c_id = r.c_id;
+            r_id = r.r_id;
+            f_id = r.f_id;
+            seatnum = r.seat_num;
+            existing_res.pop();
+        } else { 
+            // no reservations to update so make this transaction fail
+            c_id = NULL_ID;
+            r_id = NULL_ID;
+            f_id = NULL_ID;
+            seatnum = 0;
+        }
         attr_idx = std::uniform_int_distribution<int64_t>(0, 3)(gen);
         attr_val = std::uniform_int_distribution<int64_t>(1, 100000)(gen);
+        q = &existing_res;
     }
 
 SQLUpdateReservation::~SQLUpdateReservation() {}
@@ -29,12 +40,12 @@ transaction_status_t SQLUpdateReservation::Execute(SyncClient &client) {
     client.Query(query, queryResult2, timeout);
 
     if (!queryResult->empty()) {
-        Debug("Seat %d is already reserved on flight %d!", seatnum, f_id);
+        Debug("Seat %ld is already reserved on flight %ld!", seatnum, f_id);
         client.Abort(timeout);
         return ABORTED_USER;
     }
     if (queryResult2->empty()) {
-        Debug("Customer %d does not have an existing reservation flight %d", c_id, f_id);
+        Debug("Customer %ld does not have an existing reservation flight %ld", c_id, f_id);
         client.Abort(timeout);
         return ABORTED_USER;
     }
@@ -47,6 +58,8 @@ transaction_status_t SQLUpdateReservation::Execute(SyncClient &client) {
         client.Abort(timeout);
         return ABORTED_USER;
     }
+
+    q->push(SEATSReservation(r_id, c_id, f_id, seatnum));
 
     return client.Commit(timeout);
 }
