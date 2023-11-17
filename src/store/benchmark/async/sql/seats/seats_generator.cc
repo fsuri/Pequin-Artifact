@@ -437,7 +437,8 @@ std::vector<int> GenerateFlightTable(TableWriter &writer, std::vector<std::vecto
     const std::vector<uint32_t> primary_key_col_idx {0};
     std::string table_name = seats_sql::FLIGHT_TABLE;
     writer.add_table(table_name, column_names_and_types, primary_key_col_idx);
-
+    const std::vector<uint32_t> index {3};
+    writer.add_index(table_name, "f_depart_time_idx", index);
     // load histograms
     std::ifstream fa_hist (FLIGHTS_AIRPORT_HISTO_FN);
     histogram flight_airp_hist = createFPAHistogram(fa_hist);
@@ -549,8 +550,8 @@ int main(int argc, char *argv[]) {
     std::unordered_map<std::string, int64_t> ap_code_to_id;
     auto airport_coords = GenerateAirportTable(writer, co_code_to_id, ap_code_to_id);
     std::cerr << "Finished Airport" << std::endl;
-    //auto airport_dists = GenerateAirportDistanceTable(writer, airport_coords);
-    std::vector<std::vector<double>> airport_dists = std::vector<std::vector<double>>(seats_sql::NUM_AIRPORTS, std::vector<double>(seats_sql::NUM_AIRPORTS, 0.0));
+    auto airport_dists = GenerateAirportDistanceTable(writer, airport_coords);
+    //std::vector<std::vector<double>> airport_dists = std::vector<std::vector<double>>(seats_sql::NUM_AIRPORTS, std::vector<double>(seats_sql::NUM_AIRPORTS, 0.0));
     std::cerr << "Finished AD" << std::endl;
     std::vector<std::pair<int64_t, int64_t>> f_id_to_ap_conn;
     auto flight_reserves = GenerateFlightTable(writer, airport_dists, ap_code_to_id, f_id_to_ap_conn);
