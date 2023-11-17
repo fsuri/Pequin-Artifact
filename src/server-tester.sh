@@ -3,7 +3,7 @@
 F=1
 NUM_GROUPS=1
 CONFIG="0_local_test_outputs/configs/shard-r6.config"
-PROTOCOL="pequin"
+PROTOCOL="blackhole"
 STORE=${PROTOCOL}store
 ZIPF=0.0
 NUM_OPS_TX=2

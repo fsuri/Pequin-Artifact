@@ -16,8 +16,14 @@ SQLDeleteReservation::SQLDeleteReservation(uint32_t timeout, std::mt19937_64 gen
             c_id = std::uniform_int_distribution<int64_t>(1, NUM_CUSTOMERS)(gen);
             f_id = std::uniform_int_distribution<int64_t>(1, NUM_FLIGHTS)(gen);
         }
-        c_id_str = "";
+        if (std::uniform_int_distribution<int>(1, 100)(gen) < PROB_DELETE_WITH_CUSTOMER_ID_STR) {
+            c_id_str = std::to_string(c_id);
+            c_id = NULL_ID;
+        } else {
+            c_id_str = "";
+        }
         ff_c_id_str = "";
+
         q = &insert_res;
     }
 
@@ -105,7 +111,7 @@ transaction_status_t SQLDeleteReservation::Execute(SyncClient &client) {
     Debug("DELETE_RESERVATION");
     client.Begin(timeout);
 
-    query = fmt::format("SELECT F_AL_ID, F_SEATS_LEFT, F_IATTR00, F_IATTR01, F_IATTR02, F_IATTR03, F_IATTR04, F_IATTR05, F_IATTR06, F_IATTR07 FROM {} WHERE F_ID = {}", FLIGHT_TABLE, f_id);
+    query = fmt::format("SELECT f_al_id, f_seats_left, f_iattr00, f_iattr01, f_iattr02, f_iattr03, f_iattr04, f_iattr05, f_iattr06, f_iattr07 FROM {} WHERE f_id = {}", FLIGHT_TABLE, f_id);
     client.Query(query, queryResult, timeout);
     if (queryResult->empty()) {
         Debug("Flight id %ld not found in Flights Table", f_id);
@@ -118,9 +124,9 @@ transaction_status_t SQLDeleteReservation::Execute(SyncClient &client) {
     
     if (c_id == NULL_ID) {
         if (c_id_str.size() > 0) {
-            query = fmt::format("SELECT C_ID FROM {} WHERE C_ID_STR = {}", CUSTOMER_TABLE, c_id_str);
+            query = fmt::format("SELECT c_id FROM {} WHERE c_id_str = '{}'", CUSTOMER_TABLE, c_id_str);
         } else if (ff_c_id_str.size() > 0 && ff_al_id != NULL_ID) {
-            query = fmt::format("SELECT C_ID, FF_AL_ID FROM {}, {} WHERE FF_C_ID_STR = {} AND FF_C_ID = C_ID", CUSTOMER_TABLE, FREQUENT_FLYER_TABLE, ff_c_id_str);
+            query = fmt::format("SELECT c_id, ff_al_id FROM {}, {} WHERE ff_c_id_str = '{}' AND ff_c_id = c_id", CUSTOMER_TABLE, FREQUENT_FLYER_TABLE, ff_c_id_str);
         } else {
             Debug("No way to get Customer ID");
             client.Abort(timeout);
@@ -134,7 +140,7 @@ transaction_status_t SQLDeleteReservation::Execute(SyncClient &client) {
         }
         deserialize(c_id, queryResult, 0);
     }
-    query = fmt::format("SELECT C_SATTR00, C_SATTR02, C_SATTR04, C_IATTR00, C_IATTR02, C_IATTR04, C_IATTR06, F_SEATS_LEFT, R_ID, R_SEAT, R_PRICE, R_IATTR00 FROM {}, {}, {} WHERE C_ID = {} AND C_ID = R_C_ID AND F_ID = {} AND F_ID = R_F_ID", CUSTOMER_TABLE, FLIGHT_TABLE, RESERVATION_TABLE, c_id, f_id);
+    query = fmt::format("SELECT c_sattr00, c_sattr02, c_sattr04, c_iattr00, c_iattr02, c_iattr04, c_iattr06, f_seats_left, r_id, r_seat, r_price, r_iattr00 FROM {}, {}, {} WHERE c_id = {} AND c_id = r_c_id AND f_id = {} AND f_id = r_f_id", CUSTOMER_TABLE, FLIGHT_TABLE, RESERVATION_TABLE, c_id, f_id);
     client.Query(query, queryResult, timeout);
     if (queryResult->empty()) {
         Debug("No customer record with id %ld", c_id);
@@ -148,9 +154,9 @@ transaction_status_t SQLDeleteReservation::Execute(SyncClient &client) {
     int64_t r_id = cr_row.r_id;
     int64_t seat = cr_row.r_seat;
     double r_price = cr_row.r_price;
-    query = fmt::format("DELETE FROM {} WHERE R_ID = {} AND R_C_ID = {} AND R_F_ID = {}", RESERVATION_TABLE, r_id, c_id, f_id);
+    query = fmt::format("DELETE FROM {} WHERE r_id = {} AND r_c_id = {} AND r_f_id = {}", RESERVATION_TABLE, r_id, c_id, f_id);
     client.Write(query, queryResult, timeout);
-    if (queryResult->empty()) {
+    if (!queryResult->has_rows_affected()) {
         Debug("Failed to delete reservation");
         client.Abort(timeout);
         return ABORTED_USER;
@@ -161,26 +167,26 @@ transaction_status_t SQLDeleteReservation::Execute(SyncClient &client) {
     if (requeue <= PROB_REQUEUE_DELETED_RESERVATION) 
         q->push(SEATSReservation(NULL_ID, c_id, f_id, seat));
 
-    query = fmt::format("UPDATE {} SET F_SEATS_LEFT = F_SEATS_LEFT + 1 WHERE F_ID = {}", FLIGHT_TABLE, f_id);
+    query = fmt::format("UPDATE {} SET f_seats_left = f_seats_left + 1 WHERE f_id = {}", FLIGHT_TABLE, f_id);
     client.Write(query, queryResult, timeout);
-    if (queryResult->empty()) {
+    if (!queryResult->has_rows_affected()) {
         Debug("Failed to update number of seats left in flight");
         client.Abort(timeout);
         return ABORTED_USER;
     }
 
-    query = fmt::format("UPDATE {} SET C_BALANCE = C_BALANCE + {}, C_IATTR0 = {}, C_IATTR10 = C_IATTR10 - 1, C_IATTR11 = C_IATTR10 - 1 WHERE C_ID = {}", CUSTOMER_TABLE, -1 * r_price, c_iattr00, c_id);
+    query = fmt::format("UPDATE {} SET c_balance = c_balance + {}, c_iattr00 = {}, c_iattr10 = c_iattr10 - 1, c_iattr11 = c_iattr11 - 1 WHERE c_id = {}", CUSTOMER_TABLE, -1 * r_price, c_iattr00, c_id);
     client.Write(query, queryResult, timeout);
-    if (queryResult->empty()) {
+    if (!queryResult->has_rows_affected()) {
         Debug("Failed to update customer balance");
         client.Abort(timeout);
         return ABORTED_USER;
     }
 
     if (ff_al_id != NULL_ID) {
-        query = fmt::format("UPDATE {} SET FF_IATTR10 = FF_IATTR10 - 1 WHERE FF_C_ID = {} AND FF_AL_ID = {}", FREQUENT_FLYER_TABLE, c_id, ff_al_id);
+        query = fmt::format("UPDATE {} SET ff_iattr10 = ff_iattr10 - 1 WHERE ff_c_id = {} AND ff_al_id = {}", FREQUENT_FLYER_TABLE, c_id, ff_al_id);
         client.Write(query, queryResult, timeout);
-        if (queryResult->empty()) {
+        if (!queryResult->has_rows_affected()) {
             Debug("Failed to update frequent flyer info");
             client.Abort(timeout); 
             return ABORTED_USER;

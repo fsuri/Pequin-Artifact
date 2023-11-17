@@ -20,7 +20,7 @@ SEATSSQLClient::SEATSSQLClient(SyncClient &client, Transport &transport, uint64_
       SyncTransactionBenchClient(client, transport, id, numRequests,
         expDuration, delay, warmupSec, cooldownSec, tputInterval, abortBackoff,
         retryAborted, maxBackoff, maxAttempts, timeout, latencyFilename) {
-            gen.seed(time(nullptr));
+            gen.seed(id);
             num_res_made = 0;
             seats_id = id;
             started_workload = false;
@@ -40,22 +40,28 @@ SyncTransaction* SEATSSQLClient::GetNextTransaction() {
   int freq = 0;
   if (t_type <= (freq = FREQUENCY_DELETE_RESERVATION)) {
     last_op_ = "delete_reservation";
+    std::cerr << last_op_ << std::endl;
     return new SQLDeleteReservation(GetTimeout(), gen, existing_reservation, insert_reservations);
   } else if (t_type <= (freq += FREQUENCY_FIND_FLIGHTS)) {
     last_op_ = "find_flight";
+    std::cerr << last_op_ << std::endl;
     return new SQLFindFlights(GetTimeout(), gen);
   } else if (t_type <= (freq += FREQUENCY_FIND_OPEN_SEATS)) {
     last_op_ = "find_open_seats";
+    std::cerr << last_op_ << std::endl;
     return new SQLFindOpenSeats(GetTimeout(), gen, insert_reservations);
   } else if (t_type <= (freq += FREQUENCY_NEW_RESERVATION)) {
     last_op_ = "new_reservation";
+    std::cerr << last_op_ << std::endl;
     int64_t r_id = ((int64_t) seats_id | (num_res_made++) << 32);
     return new SQLNewReservation(GetTimeout(), gen, r_id, insert_reservations, existing_reservation);
   } else if (t_type <= (freq += FREQUENCY_UPDATE_CUSTOMER)) {
     last_op_ = "update_customer";
+    std::cerr << last_op_ << std::endl;
     return new SQLUpdateCustomer(GetTimeout(), gen);
   } else {
     last_op_ = "update_reservation";
+    std::cerr << last_op_ << std::endl;
     return new SQLUpdateReservation(GetTimeout(), gen, existing_reservation);
   }
 }

@@ -34,9 +34,9 @@ transaction_status_t SQLUpdateReservation::Execute(SyncClient &client) {
     Debug("UPDATE_RESERVATION");
     client.Begin(timeout);
 
-    query = fmt::format("SELECT R_ID FROM {} WHERE R_F_ID = {} AND R_SEAT = {}", RESERVATION_TABLE, f_id, seatnum);
+    query = fmt::format("SELECT r_id FROM {} WHERE r_f_id = {} AND r_seat = {}", RESERVATION_TABLE, f_id, seatnum);
     client.Query(query, queryResult, timeout);
-    query = fmt::format("SELECT R_ID FROM {} WHERE R_F_ID = {} AND R_C_ID = {}", RESERVATION_TABLE, f_id, c_id);
+    query = fmt::format("SELECT r_id FROM {} WHERE r_f_id = {} AND r_c_id = {}", RESERVATION_TABLE, f_id, c_id);
     client.Query(query, queryResult2, timeout);
 
     if (!queryResult->empty()) {
@@ -51,9 +51,9 @@ transaction_status_t SQLUpdateReservation::Execute(SyncClient &client) {
     }
     std::time_t update_time = std::time(nullptr);
 
-    query = fmt::format("UPDATE {} SET R_SEAT = {}, R_UPDATED = {}, {} = {} WHERE R_ID = {} AND R_C_ID = {} AND R_F_ID = {}", RESERVATION_TABLE, seatnum, (int64_t) update_time, reserve_seats[attr_idx], attr_val, r_id, c_id, f_id);
+    query = fmt::format("UPDATE {} SET r_seat = {}, r_updated = {}, {} = {} WHERE r_id = {} AND r_c_id = {} AND r_f_id = {}", RESERVATION_TABLE, seatnum, (int64_t) update_time, reserve_seats[attr_idx], attr_val, r_id, c_id, f_id);
     client.Write(query, queryResult, timeout);
-    if (queryResult->empty()) {
+    if (!queryResult->has_rows_affected()) {
         Debug("Failed to update reservation");
         client.Abort(timeout);
         return ABORTED_USER;

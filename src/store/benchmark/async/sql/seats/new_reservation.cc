@@ -12,7 +12,7 @@ SQLNewReservation::SQLNewReservation(uint32_t timeout, std::mt19937_64 gen, int6
             SEATSReservation res = insert_res.front();
             f_id = res.f_id; 
             seatnum = res.seat_num;
-            if (c_id != NULL_ID) 
+            if (res.c_id != NULL_ID) 
                 c_id = res.c_id;
             else
                 c_id = std::uniform_int_distribution<int64_t>(1, NUM_CUSTOMERS)(gen);
@@ -42,7 +42,7 @@ SQLNewReservation::~SQLNewReservation() {}
 
 transaction_status_t SQLNewReservation::Execute(SyncClient &client) {
     if (attributes.size() != NEW_RESERVATION_ATTRS_SIZE) 
-        Panic("Wrong number of attributes (%d) given in NewReservation Transaction", attributes.size());
+        Panic("Wrong number of attributes (%ld) given in NewReservation Transaction", attributes.size());
 
     std::unique_ptr<const query_result::QueryResult> queryResult;
     std::unique_ptr<const query_result::QueryResult> queryResult2;
@@ -53,11 +53,11 @@ transaction_status_t SQLNewReservation::Execute(SyncClient &client) {
     Debug("NEW_RESERVATION for customer %ld", c_id);
     client.Begin(timeout);
 
-    query = fmt::format("SELECT F_AL_ID, F_SEATS_LEFT, {}.* FROM {}, {} WHERE F_ID = {} AND F_AL_ID = AL_ID", AIRLINE_TABLE, FLIGHT_TABLE, AIRLINE_TABLE, f_id);
+    query = fmt::format("SELECT f_al_id, f_seats_left, {}.* FROM {}, {} WHERE f_id = {} AND f_al_id = al_id", AIRLINE_TABLE, FLIGHT_TABLE, AIRLINE_TABLE, f_id);
     client.Query(query, queryResult, timeout);
-    query = fmt::format("SELECT R_ID FROM {} WHERE R_F_ID = {} AND R_SEAT = {}", RESERVATION_TABLE, f_id, seatnum);
+    query = fmt::format("SELECT r_id FROM {} WHERE r_f_id = {} AND r_seat = {}", RESERVATION_TABLE, f_id, seatnum);
     client.Query(query, queryResult2, timeout);
-    query = fmt::format("SELECT R_ID FROM {} WHERE R_F_ID = {} AND R_C_ID = {}", RESERVATION_TABLE, f_id, c_id);
+    query = fmt::format("SELECT r_id FROM {} WHERE r_f_id = {} AND r_c_id = {}", RESERVATION_TABLE, f_id, c_id);
     client.Query(query, queryResult3, timeout);
 
     if (queryResult->empty()) {
@@ -76,6 +76,7 @@ transaction_status_t SQLNewReservation::Execute(SyncClient &client) {
 
     int64_t airline_id;
     int64_t seats_left; 
+
     queryResult->at(0)->get(0, &airline_id);
     queryResult->at(0)->get(1, &seats_left);
     if (seats_left == 0) {
@@ -85,7 +86,7 @@ transaction_status_t SQLNewReservation::Execute(SyncClient &client) {
     }
 
     if (c_id != NULL_ID) {
-        query = fmt::format("SELECT C_BASE_AP_ID, C_BALANCE, C_SATTR00, FROM {} WHERE C_ID = {}", CUSTOMER_TABLE, c_id);
+        query = fmt::format("SELECT c_base_ap_id, c_balance, c_sattr00 FROM {} WHERE c_id = {}", CUSTOMER_TABLE, c_id);
         client.Query(query, queryResult, timeout);
         if (queryResult->empty()) {
             Debug("No Customer with id %ld", c_id);
@@ -93,29 +94,31 @@ transaction_status_t SQLNewReservation::Execute(SyncClient &client) {
             return ABORTED_USER;
         }
     }
-
     bool updatedSuccessful = true;
-    query = fmt::format("INSERT INTO {} (R_ID, R_C_ID, R_F_ID, R_SEAT, R_PRICE, R_IATTR00, R_IATTR01, R_IATTR02, R_IATTR03, R_IATTR04, R_IATTR05, R_IATTR06, R_IATTR07, R_IATTR08, R_CREATED, R_UPDATED) VALUES ({}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}))",
+    query = fmt::format("INSERT INTO {} (r_id, r_c_id, r_f_id, r_seat, r_price, r_iattr00, r_iattr01, r_iattr02, r_iattr03, r_iattr04, r_iattr05, r_iattr06, r_iattr07, r_iattr08, r_created, r_updated) VALUES ({}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {})",
                             RESERVATION_TABLE, r_id, c_id, f_id, seatnum, price, attributes[0], attributes[1], attributes[2], attributes[3], attributes[4], attributes[5], attributes[6], attributes[7], attributes[8], time, time);
     client.Write(query, queryResult, timeout);
-    updatedSuccessful = updatedSuccessful && !queryResult->empty();
-    query = fmt::format("UPDATE {} SET F_SEATS_LEFT = F_SEATS_LEFT - 1 WHERE F_ID = {}", FLIGHT_TABLE, f_id);
+    updatedSuccessful = (updatedSuccessful && queryResult->has_rows_affected());
+
+    query = fmt::format("UPDATE {} SET f_seats_left = f_seats_left - 1 WHERE f_id = {}", FLIGHT_TABLE, f_id);
     client.Write(query, queryResult, timeout);
-    updatedSuccessful = updatedSuccessful && !queryResult->empty();
-    query = fmt::format("UPDATE {} SET C_IATTR10 = CIATTR10 + 1, C_IATTR11 = C_IATTR11 + 1, C_IATTR12 = {}, C_IATTR13 = {}, C_IATTR14 = {}, C_IATTR15 = {} WHERE C_ID = {}", 
+    updatedSuccessful = updatedSuccessful && queryResult->has_rows_affected();
+    query = fmt::format("UPDATE {} SET c_iattr10 = c_iattr10 + 1, c_iattr11 = c_iattr11 + 1, c_iattr12 = {}, c_iattr13 = {}, c_iattr14 = {}, c_iattr15 = {} WHERE c_id = {}", 
                         CUSTOMER_TABLE, attributes[0], attributes[1], attributes[2], attributes[3], c_id);
     client.Write(query, queryResult, timeout);
-    updatedSuccessful = updatedSuccessful && !queryResult->empty();
-    query = fmt::format("UPDATE {} SET F_IATTR10 = F_IATTR10 + 1, F_IATTR11 = {}, F_IATTR12 = {}, FF_IATTR13 = {}, FF_IATTR14 = {} WHERE FF_C_ID = {} AND FF_AL_ID = {}", 
+
+    updatedSuccessful = updatedSuccessful && queryResult->has_rows_affected();
+    query = fmt::format("UPDATE {} SET ff_iattr10 = ff_iattr10 + 1, ff_iattr11 = {}, ff_iattr12 = {}, ff_iattr13 = {}, ff_iattr14 = {} WHERE ff_c_id = {} AND ff_al_id = {}", 
                         FREQUENT_FLYER_TABLE, attributes[4], attributes[5], attributes[6], attributes[7], c_id, airline_id);
     client.Write(query, queryResult, timeout);
-    updatedSuccessful = updatedSuccessful && !queryResult->empty();
+    updatedSuccessful = updatedSuccessful && queryResult->has_rows_affected();
 
     if (!updatedSuccessful) {
         Debug("Updated failed for new reservation");
         client.Abort(timeout);
         return ABORTED_USER;
     }
+
     q->push(SEATSReservation(r_id, c_id, f_id, seatnum));
     return client.Commit(timeout);
 }       

@@ -64,11 +64,10 @@ transaction_status_t SQLFindOpenSeats::Execute(SyncClient &client) {
     std::string query;
 
     Debug("FIND_OPEN_SEATS on flight %ld", f_id);
-    std::cerr << f_id << std::endl;
     client.Begin(timeout);
 
     GetFlightResultRow fr_row = GetFlightResultRow();
-    query = fmt::format("SELECT F_ID, F_AL_ID, F_DEPART_AP_ID, F_DEPART_TIME, F_ARRIVE_AP_ID, F_ARRIVE_TIME, F_BASE_PRICE, F_SEATS_TOTAL, F_SEATS_LEFT, (F_BASE_PRICE + (F_BASE_PRICE * (1 - (F_SEATS_LEFT / F_SEATS_TOTAL)))) AS F_PRICE FROM {} WHERE F_ID = {}", FLIGHT_TABLE, f_id);
+    query = fmt::format("SELECT f_id, f_al_id, f_depart_ap_id, f_depart_time, f_arrive_ap_id, f_arrive_time, f_base_price, f_seats_total, f_seats_left, (f_base_price + (f_base_price * (1 - (f_seats_left / f_seats_total)))) AS f_price FROM {} WHERE f_id = {}", FLIGHT_TABLE, f_id);
     client.Query(query, queryResult, timeout);
     if (queryResult->empty()) { 
         Debug("no flight with that id exists");
@@ -80,7 +79,10 @@ transaction_status_t SQLFindOpenSeats::Execute(SyncClient &client) {
     int64_t seats_total = fr_row.f_seats_total;
     int64_t seats_left = fr_row.f_seats_left;
     double seat_price = fr_row.f_price;
-    query = fmt::format("SELECT R_ID, R_F_ID, R_SEAT FROM {} WHERE R_F_ID = {}", RESERVATION_TABLE, f_id);
+
+    double _seat_price = base_price + (base_price * (1.0 - (seats_left/((double)seats_total))));
+
+    query = fmt::format("SELECT r_id, r_f_id, r_seat FROM {} WHERE r_f_id = {}", RESERVATION_TABLE, f_id);
     client.Query(query, queryResult, timeout);
 
     int8_t unavailable_seats[TOTAL_SEATS_PER_FLIGHT];
@@ -88,7 +90,7 @@ transaction_status_t SQLFindOpenSeats::Execute(SyncClient &client) {
 
     GetSeatsResultRow sr_row = GetSeatsResultRow();
 
-    for (int i = 0; i < queryResult->size(); i++) {
+    for (std::size_t i = 0; i < queryResult->size(); i++) {
         deserialize(sr_row, queryResult, i);
         int seat = (int) sr_row.r_seat;
         unavailable_seats[seat] = (int8_t) 1;
@@ -99,7 +101,8 @@ transaction_status_t SQLFindOpenSeats::Execute(SyncClient &client) {
         if (unavailable_seats[seat] == 0) open_seats_str += fmt::format(" {},", seat);
         q->push(SEATSReservation(NULL_ID, NULL_ID, f_id, seat));
     }
-    open_seats_str += fmt::format(" are available on flight {}", f_id);
+
+    open_seats_str += fmt::format(" are available on flight {} for price %lf", f_id, _seat_price);
     Debug("%s", open_seats_str);
     Debug("COMMIT");
 

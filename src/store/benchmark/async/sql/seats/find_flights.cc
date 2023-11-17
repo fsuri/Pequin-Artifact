@@ -1,6 +1,5 @@
 #include "store/benchmark/async/sql/seats/find_flights.h"
 #include "store/benchmark/async/sql/seats/seats_constants.h"
-
 #include <fmt/core.h>
 #include <random>
 
@@ -9,12 +8,17 @@ namespace seats_sql {
 const int MAX_NUM_FLIGHTS = 10;
 
 SQLFindFlights::SQLFindFlights(uint32_t timeout, std::mt19937_64 gen) :
-    SEATSSQLTransaction(timeout), distance(distance)
+    SEATSSQLTransaction(timeout)
     {
         depart_aid = std::uniform_int_distribution<int64_t>(1, NUM_AIRPORTS)(gen);
         arrive_aid = std::uniform_int_distribution<int64_t>(1, NUM_AIRPORTS)(gen);
         start_time = std::uniform_int_distribution<std::time_t>(MIN_TS, MAX_TS)(gen);
         end_time = std::uniform_int_distribution<std::time_t>(start_time, MAX_TS)(gen);
+        if (std::uniform_int_distribution<int>(1, 100)(gen) < PROB_FIND_FLIGHTS_NEARBY_AIRPORT) {
+            distance = std::uniform_int_distribution<int>(6000, 9000)(gen);
+        } else {
+            distance = 0;
+        }
     }
 
 SQLFindFlights::~SQLFindFlights() {}
@@ -139,7 +143,7 @@ transaction_status_t SQLFindFlights::Execute(SyncClient &client) {
 
     if (distance > 0) {
         Debug("FIND_NEARBY_AIRPORT");
-        query = fmt::format("SELECT * FROM {} WHERE D_AP_ID0 = {} AND D_DISTANCE <= {} ORDER BY D_DISTANCE ASC", AIRPORT_DISTANCE_TABLE, depart_aid, distance); 
+        query = fmt::format("SELECT * FROM {} WHERE d_ap_id0 = {} AND d_distance <= {} ORDER BY d_distance ASC", AIRPORT_DISTANCE_TABLE, depart_aid, distance); 
         client.Query(query, queryResult, timeout);
 
         GetNearbyAirportsResultRow ad_row;
@@ -150,21 +154,21 @@ transaction_status_t SQLFindFlights::Execute(SyncClient &client) {
         }
     } 
 
-    if (nearby_airports.size() == 0) query = fmt::format("SELECT F_ID, F_AL_ID, F_DEPART_AP_ID, F_DEPART_TIME, F_ARRIVE_AP_ID, F_ARRIVE_TIME, AL_NAME, AL_IATTR00, AL_IATTR01 FROM {}, {} WHERE F_DEPART_AP_ID = {} AND F_DEPART_TIME >= {} AND F_DEPART_TIME <= {} AND F_AL_ID = AL_ID AND F_ARRIVE_AP_ID = {} LIMIT {}", 
-                                                            FLIGHT_TABLE, AIRPORT_TABLE, depart_aid, start_time, end_time, arrive_aid, MAX_NUM_FLIGHTS);
-    else if (nearby_airports.size() == 1) query = fmt::format("SELECT F_ID, F_AL_ID, F_DEPART_AP_ID, F_DEPART_TIME, F_ARRIVE_AP_ID, F_ARRIVE_TIME, AL_NAME, AL_IATTR00, AL_IATTR01 FROM {}, {} WHERE F_DEPART_AP_ID = {} AND F_DEPART_TIME >= {} AND F_DEPART_TIME <= {} AND F_AL_ID = AL_ID AND F_ARRIVE_AP_ID = {} OR F_ARRIVE_AP_ID = {} LIMIT {}", 
-                                                            FLIGHT_TABLE, AIRPORT_TABLE, depart_aid, start_time, end_time, arrive_aid, nearby_airports[0], MAX_NUM_FLIGHTS);
-    else query = fmt::format("SELECT F_ID, F_AL_ID, F_DEPART_AP_ID, F_DEPART_TIME, F_ARRIVE_AP_ID, F_ARRIVE_TIME, AL_NAME, AL_IATTR00, AL_IATTR01 FROM {}, {} WHERE F_DEPART_AP_ID = {} AND F_DEPART_TIME >= {} AND F_DEPART_TIME <= {} AND F_AL_ID = AL_ID AND F_ARRIVE_AP_ID = {} OR F_ARRIVE_AP_ID = {} OR F_ARRIVE_AP_ID = {} LIMIT {}", 
-                            FLIGHT_TABLE, AIRPORT_TABLE, depart_aid, start_time, end_time, arrive_aid, nearby_airports[0], nearby_airports[1], MAX_NUM_FLIGHTS);
+    if (nearby_airports.size() == 0) query = fmt::format("SELECT f_id, f_al_id, f_depart_ap_id, f_depart_time, f_arrive_ap_id, f_arrive_time, al_name, al_iattr00, al_iattr01 FROM {}, {} WHERE f_depart_ap_id = {} AND f_depart_time >= {} AND f_depart_time <= {} AND f_al_id = al_id AND f_arrive_ap_id = {} LIMIT {}", 
+                                                            FLIGHT_TABLE, AIRLINE_TABLE, depart_aid, start_time, end_time, arrive_aid, MAX_NUM_FLIGHTS);
+    else if (nearby_airports.size() == 1) query = fmt::format("SELECT f_id, f_al_id, f_depart_ap_id, f_depart_time, f_arrive_ap_id, f_arrive_time, al_name, al_iattr00, al_iattr01 FROM {}, {} WHERE f_depart_ap_id = {} AND f_depart_time >= {} AND f_depart_time <= {} AND f_al_id = al_id AND f_arrive_ap_id = {} OR f_arrive_ap_id = {} LIMIT {}", 
+                                                            FLIGHT_TABLE, AIRLINE_TABLE, depart_aid, start_time, end_time, arrive_aid, nearby_airports[0], MAX_NUM_FLIGHTS);
+    else query = fmt::format("SELECT f_id, f_al_id, f_depart_ap_id, f_depart_time, f_arrive_ap_id, f_arrive_time, al_name, al_iattr00, al_iattr01 FROM {}, {} WHERE f_depart_ap_id = {} AND f_depart_time >= {} AND f_depart_time <= {} AND f_al_id = al_id AND f_arrive_ap_id = {} OR f_arrive_ap_id = {} OR f_arrive_ap_id = {} LIMIT {}", 
+                            FLIGHT_TABLE, AIRLINE_TABLE, depart_aid, start_time, end_time, arrive_aid, nearby_airports[0], nearby_airports[1], MAX_NUM_FLIGHTS);
 
     client.Query(query, queryResult, timeout);
 
     GetFlightsResultRow flight_row = GetFlightsResultRow();
     std::unique_ptr<const query_result::QueryResult> queryResultAirportInfo;
-    std::string getAirportInfoQuery = "SELECT AP_CODE, AP_NAME, AP_CITY, AP_LONGITUDE, AP_LATITUDE, CO_ID, CO_NAME, CO_CODE_2, CO_CODE_3 FROM {}, {} WHERE AP_ID = {} AND AP_CO_ID = CO_ID";
+    std::string getAirportInfoQuery = "SELECT ap_code, ap_name, ap_city, ap_longitude, ap_latitude, co_id, co_name, co_code_2, co_code_3 FROM {}, {} WHERE ap_id = {} AND ap_co_id = co_id";
     std::vector<GetAirportInfoResultRow> airport_infos;
     // populate the infos of arriving / departing airports of flight
-    for (int i = 0; i < queryResult->size(); i++) {
+    for (std::size_t i = 0; i < queryResult->size(); i++) {
         deserialize(flight_row, queryResult, i);
         query = fmt::format(getAirportInfoQuery, AIRPORT_TABLE, COUNTRY_TABLE, flight_row.f_depart_ap_id);
         client.Query(query, queryResultAirportInfo, timeout);

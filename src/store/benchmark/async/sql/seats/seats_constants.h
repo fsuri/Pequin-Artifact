@@ -31,17 +31,21 @@ const int FREQUENCY_UPDATE_RESERVATION = 15;
 
 
 const int PROB_REQUEUE_DELETED_RESERVATION = 90;
+const int PROB_DELETE_WITH_CUSTOMER_ID_STR = 20;
+const int PROB_UPDATE_WITH_CUSTOMER_ID_STR = 20;
+const int PROB_UPDATE_FREQUENT_FLYER = 25;
+const int PROB_FIND_FLIGHTS_NEARBY_AIRPORT = 10;
 
 /** Table Names */
 
-const std::string COUNTRY_TABLE = "Country";
-const std::string AIRPORT_TABLE = "Airport";
-const std::string AIRPORT_DISTANCE_TABLE = "AirportDistance";
-const std::string AIRLINE_TABLE = "Airline";
-const std::string CUSTOMER_TABLE = "Customer";
-const std::string FREQUENT_FLYER_TABLE = "FrequentFlyer";
-const std::string FLIGHT_TABLE = "Flight";
-const std::string RESERVATION_TABLE = "Reservation";
+const std::string COUNTRY_TABLE = "country";
+const std::string AIRPORT_TABLE = "airport";
+const std::string AIRPORT_DISTANCE_TABLE = "airport_distance";
+const std::string AIRLINE_TABLE = "airline";
+const std::string CUSTOMER_TABLE = "customer";
+const std::string FREQUENT_FLYER_TABLE = "frequent_flyer";
+const std::string FLIGHT_TABLE = "flight";
+const std::string RESERVATION_TABLE = "reservation";
 
 /** Table Size Information */
 

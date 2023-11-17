@@ -8,6 +8,7 @@
 #include <fstream>
 #include <algorithm>
 #include <queue>
+#include <unordered_set>
 
 const char* FLIGHTS_AIRPORT_HISTO_FN = "./resources/histogram_flights_per_airport.json";
 const char* FLIGHTS_TIME_HISTO_FN = "./resources/histogram_flights_per_time.json";
@@ -112,7 +113,7 @@ void FillColumnNamesWithGenericAttr( std::vector<std::pair<std::string, std::str
     }
 }
 
-const char* ALPHA_NUMERIC = "0123456789abcdefghjijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
+const char ALPHA_NUMERIC[] = "0123456789abcdefghjijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
 
 /** Generate random alpha-numeric string of length [min_len, max_len] */
 std::string RandomANString(size_t min_len, size_t max_len, std::mt19937 &gen) {
@@ -120,7 +121,7 @@ std::string RandomANString(size_t min_len, size_t max_len, std::mt19937 &gen) {
   size_t length = std::uniform_int_distribution<size_t>(min_len,  max_len)(gen);
   for (size_t i = 0; i < length; ++i) {
     int j = std::uniform_int_distribution<size_t>(0, sizeof(ALPHA_NUMERIC) - 2)(gen);
-    s += ALPHA_NUMERIC[j];
+    s.push_back(ALPHA_NUMERIC[j]);
   }
   return s;
 }
@@ -150,10 +151,10 @@ std::string RandomNString(size_t min_len, size_t max_len, std::mt19937 &gen) {
 
 std::unordered_map<std::string, int64_t> GenerateCountryTable(TableWriter &writer) {
     std::vector<std::pair<std::string, std::string>> column_names_and_types;
-    column_names_and_types.push_back(std::make_pair("CO_ID", "BIGINT"));
-    column_names_and_types.push_back(std::make_pair("CO_NAME", "TEXT"));
-    column_names_and_types.push_back(std::make_pair("CO_CODE_2", "TEXT")); // len 2
-    column_names_and_types.push_back(std::make_pair("CO_CODE_3", "TEXT")); // len 3
+    column_names_and_types.push_back(std::make_pair("co_id", "BIGINT"));
+    column_names_and_types.push_back(std::make_pair("co_name", "TEXT"));
+    column_names_and_types.push_back(std::make_pair("co_code_3", "TEXT")); // len 2
+    column_names_and_types.push_back(std::make_pair("co_code_3", "TEXT")); // len 3
     const std::vector<uint32_t> primary_key_col_idx {0};
 
     std::string table_name = seats_sql::COUNTRY_TABLE;
@@ -180,17 +181,17 @@ std::unordered_map<std::string, int64_t> GenerateCountryTable(TableWriter &write
 
 std::vector<std::pair<double, double>> GenerateAirportTable(TableWriter &writer, std::unordered_map<std::string, int64_t> &co_code_to_id, std::unordered_map<std::string, int64_t> &ap_code_to_id) {
     std::vector<std::pair<std::string, std::string>> column_names_and_types;
-    column_names_and_types.push_back(std::make_pair("AP_ID", "BIGINT"));
-    column_names_and_types.push_back(std::make_pair("AP_CODE", "TEXT"));          // len 3
-    column_names_and_types.push_back(std::make_pair("AP_NAME", "TEXT"));
-    column_names_and_types.push_back(std::make_pair("AP_CITY", "TEXT"));
-    column_names_and_types.push_back(std::make_pair("AP_POSTAL_CODE", "TEXT"));   // len 12
-    column_names_and_types.push_back(std::make_pair("AP_CO_ID", "BIGINT"));
-    column_names_and_types.push_back(std::make_pair("AP_LONGITUDE", "FLOAT"));
-    column_names_and_types.push_back(std::make_pair("AP_LATITUDE", "FLOAT"));
-    column_names_and_types.push_back(std::make_pair("AP_GMT_OFFSET", "FLOAT"));
-    column_names_and_types.push_back(std::make_pair("AP_WAC", "BIGINT"));
-    FillColumnNamesWithGenericAttr(column_names_and_types, "AP_IATTR", "BIGINT", 16);
+    column_names_and_types.push_back(std::make_pair("ap_id", "BIGINT"));
+    column_names_and_types.push_back(std::make_pair("ap_code", "TEXT"));          // len 3
+    column_names_and_types.push_back(std::make_pair("ap_name", "TEXT"));
+    column_names_and_types.push_back(std::make_pair("ap_city", "TEXT"));
+    column_names_and_types.push_back(std::make_pair("ap_postal_code", "TEXT"));   // len 12
+    column_names_and_types.push_back(std::make_pair("ap_co_id", "BIGINT"));
+    column_names_and_types.push_back(std::make_pair("ap_longitude", "FLOAT"));
+    column_names_and_types.push_back(std::make_pair("ap_latitude", "FLOAT"));
+    column_names_and_types.push_back(std::make_pair("ap_gmt_offset", "FLOAT"));
+    column_names_and_types.push_back(std::make_pair("ap_wac", "BIGINT"));
+    FillColumnNamesWithGenericAttr(column_names_and_types, "ap_iattr", "BIGINT", 16);
 
     const std::vector<uint32_t> primary_key_col_idx {0};
     std::string table_name = seats_sql::AIRPORT_TABLE;
@@ -210,8 +211,9 @@ std::vector<std::pair<double, double>> GenerateAirportTable(TableWriter &writer,
       ap_code_to_id[csv[0]] = ap_id;
       values.push_back(csv[1]);                                      // ap_name
       values.push_back(csv[2]);                                      // ap_city
-      values.push_back(csv[3]);                                      // ap_postal_code
-      values.push_back(std::to_string(co_code_to_id[csv[4]]));    // ap_co_id
+      values.push_back(csv[3].substr(0, 8));                         // ap_postal_code
+      if (co_code_to_id[csv[4]] == 0) values.push_back(std::to_string(std::uniform_int_distribution<int>(1, seats_sql::NUM_COUNTRIES)(gen)));
+      else values.push_back(std::to_string(co_code_to_id[csv[4]]));    // ap_co_id
       std::string longitude = csv[5];
       std::string latitude = csv[6];
 
@@ -251,9 +253,9 @@ double calculateDistance(std::pair<double, double> ap_1, std::pair<double, doubl
 
 std::vector<std::vector<double>> GenerateAirportDistanceTable(TableWriter &writer, std::vector<std::pair<double, double>> &apid_long_lat) {
     std::vector<std::pair<std::string, std::string>> column_names_and_types;
-    column_names_and_types.push_back(std::make_pair("D_AP_ID0", "BIGINT"));
-    column_names_and_types.push_back(std::make_pair("D_AP_ID1", "BIGINT"));
-    column_names_and_types.push_back(std::make_pair("D_DISTANCE", "FLOAT"));
+    column_names_and_types.push_back(std::make_pair("d_ap_id0", "BIGINT"));
+    column_names_and_types.push_back(std::make_pair("d_ap_id1", "BIGINT"));
+    column_names_and_types.push_back(std::make_pair("d_distance", "FLOAT"));
     const std::vector<uint32_t> primary_key_col_idx {0, 1};
     std::string table_name = seats_sql::AIRPORT_DISTANCE_TABLE;
     writer.add_table(table_name, column_names_and_types, primary_key_col_idx);
@@ -281,13 +283,13 @@ std::vector<std::vector<double>> GenerateAirportDistanceTable(TableWriter &write
 
 void GenerateAirlineTable(TableWriter &writer, std::unordered_map<std::string, int64_t> &co_code_to_id) {
     std::vector<std::pair<std::string, std::string>> column_names_and_types; 
-    column_names_and_types.push_back(std::make_pair("AL_ID", "BIGINT"));
-    column_names_and_types.push_back(std::make_pair("AL_IATA_CODE", "TEXT"));
-    column_names_and_types.push_back(std::make_pair("AL_ICAO_CODE", "TEXT"));
-    column_names_and_types.push_back(std::make_pair("AL_CALL_SIGN", "TEXT"));
-    column_names_and_types.push_back(std::make_pair("AL_NAME", "TEXT"));
-    column_names_and_types.push_back(std::make_pair("AL_CO_ID", "BIGINT"));
-    FillColumnNamesWithGenericAttr(column_names_and_types, "AL_IATTR", "BIGINT", 16);
+    column_names_and_types.push_back(std::make_pair("al_id", "BIGINT"));
+    column_names_and_types.push_back(std::make_pair("al_iata_code", "TEXT"));
+    column_names_and_types.push_back(std::make_pair("al_icao_code", "TEXT"));
+    column_names_and_types.push_back(std::make_pair("al_call_sign", "TEXT"));
+    column_names_and_types.push_back(std::make_pair("al_name", "TEXT"));
+    column_names_and_types.push_back(std::make_pair("al_co_id", "BIGINT"));
+    FillColumnNamesWithGenericAttr(column_names_and_types, "al_iattr", "BIGINT", 16);
     const std::vector<uint32_t> primary_key_col_idx {0};
     std::string table_name = seats_sql::AIRLINE_TABLE;
     writer.add_table(table_name, column_names_and_types, primary_key_col_idx);
@@ -305,7 +307,8 @@ void GenerateAirlineTable(TableWriter &writer, std::unordered_map<std::string, i
       values.push_back(csv[1]);
       values.push_back(csv[2]);
       values.push_back(csv[3]); 
-      values.push_back(std::to_string(co_code_to_id[csv[4]]));
+      if (co_code_to_id[csv[4]] == 0) values.push_back(std::to_string(std::uniform_int_distribution<int>(1, seats_sql::NUM_COUNTRIES)(gen)));
+      else values.push_back(std::to_string(co_code_to_id[csv[4]]));    // al_co_id
       for (int iattr = 0; iattr < 16; iattr++) 
         values.push_back(std::to_string(std::uniform_int_distribution<int64_t>(1, std::numeric_limits<int64_t>::max())(gen)));
       
@@ -316,12 +319,12 @@ void GenerateAirlineTable(TableWriter &writer, std::unordered_map<std::string, i
 
 void GenerateCustomerTable(TableWriter &writer) {
     std::vector<std::pair<std::string, std::string>> column_names_and_types; 
-    column_names_and_types.push_back(std::make_pair("C_ID", "BIGINT"));
-    column_names_and_types.push_back(std::make_pair("C_ID_STR", "TEXT"));
-    column_names_and_types.push_back(std::make_pair("C_BASE_AP_ID", "BIGINT"));
-    column_names_and_types.push_back(std::make_pair("C_BALANCE", "FLOAT"));
-    FillColumnNamesWithGenericAttr(column_names_and_types, "C_SATTR", "TEXT", 20);
-    FillColumnNamesWithGenericAttr(column_names_and_types, "C_IATTR", "BIGINT", 20);
+    column_names_and_types.push_back(std::make_pair("c_id", "BIGINT"));
+    column_names_and_types.push_back(std::make_pair("c_id_str", "TEXT"));
+    column_names_and_types.push_back(std::make_pair("c_base_ap_id", "BIGINT"));
+    column_names_and_types.push_back(std::make_pair("c_balance", "FLOAT"));
+    FillColumnNamesWithGenericAttr(column_names_and_types, "c_sattr", "TEXT", 20);
+    FillColumnNamesWithGenericAttr(column_names_and_types, "c_iattr", "BIGINT", 20);
     const std::vector<uint32_t> primary_key_col_idx {0};
     std::string table_name = seats_sql::CUSTOMER_TABLE;
     writer.add_table(table_name, column_names_and_types, primary_key_col_idx);
@@ -330,30 +333,37 @@ void GenerateCustomerTable(TableWriter &writer) {
     // generate data
     for (int c_id = 1; c_id <= seats_sql::NUM_CUSTOMERS; c_id++) {
       std::vector<std::string> values; 
-      values.reserve(44);
+      //values.reserve(44);
       values.push_back(std::to_string(c_id));       // c_id
       values.push_back(std::to_string(c_id));       // c_id_str
       values.push_back(std::to_string(std::uniform_int_distribution<int>(1, seats_sql::NUM_AIRPORTS)(gen)));
       values.push_back(std::to_string(std::uniform_real_distribution<float>(1000, 10000)(gen)));
       
       for (int sattr = 0; sattr < 20; sattr++) {
-        values.push_back(RandomANString(3, 8, gen));
+        values.push_back(RandomANString(8, 8, gen));
       }
       for (int iattr = 0; iattr < 20; iattr++) {
-        values.push_back(std::to_string(std::uniform_int_distribution<int64_t>(1, std::numeric_limits<int64_t>::max())(gen)));
+        values.push_back(std::to_string(std::uniform_int_distribution<int64_t>(1, 100000000)(gen)));
       }
 
       writer.add_row(table_name, values);
     }
 }
 
+bool containsId(std::vector<int64_t> &ids, int64_t to_find) {
+  for (std::size_t i = 0; i < ids.size(); i++) {
+    if (ids[i] == to_find) return true;
+  }
+  return false;
+}
+
 void GenerateFrequentFlyerTable(TableWriter &writer) {
     std::vector<std::pair<std::string, std::string>> column_names_and_types; 
-    column_names_and_types.push_back(std::make_pair("FF_C_ID", "BIGINT"));
-    column_names_and_types.push_back(std::make_pair("FF_AL_ID", "BIGINT"));
-    column_names_and_types.push_back(std::make_pair("FF_C_ID_STR", "TEXT"));
-    FillColumnNamesWithGenericAttr(column_names_and_types, "FF_SATTR", "TEXT", 4);
-    FillColumnNamesWithGenericAttr(column_names_and_types, "FF_IATTR", "BIGINT", 16);
+    column_names_and_types.push_back(std::make_pair("ff_c_id", "BIGINT"));
+    column_names_and_types.push_back(std::make_pair("ff_al_id", "BIGINT"));
+    column_names_and_types.push_back(std::make_pair("ff_c_id_str", "TEXT"));
+    FillColumnNamesWithGenericAttr(column_names_and_types, "ff_sattr", "TEXT", 4);
+    FillColumnNamesWithGenericAttr(column_names_and_types, "ff_iattr", "BIGINT", 16);
     const std::vector<uint32_t> primary_key_col_idx {0, 1};
     std::string table_name = seats_sql::FREQUENT_FLYER_TABLE;
     writer.add_table(table_name, column_names_and_types, primary_key_col_idx);
@@ -361,8 +371,13 @@ void GenerateFrequentFlyerTable(TableWriter &writer) {
     std::mt19937 gen;
     // generate data
     for (int c_id = 1; c_id <= seats_sql::NUM_CUSTOMERS; c_id++) {
+      std::vector<int64_t> al_per_customer;
       for (int al_num = 1; al_num <= 5; al_num++) {
         int64_t al_id = std::uniform_int_distribution<int64_t>(1, seats_sql::NUM_AIRLINES)(gen);
+        while (containsId(al_per_customer, al_id)) {
+          al_id = std::uniform_int_distribution<int64_t>(1, seats_sql::NUM_AIRLINES)(gen);
+        }
+        al_per_customer.push_back(al_id);
         std::vector<std::string> values; 
         values.push_back(std::to_string(c_id));
         values.push_back(std::to_string(al_id));
@@ -371,7 +386,7 @@ void GenerateFrequentFlyerTable(TableWriter &writer) {
           values.push_back(RandomANString(8, 32, gen));
         }
         for (int iattr = 0; iattr < 16; iattr++) {
-          values.push_back(std::to_string(std::uniform_int_distribution<int64_t>(1, std::numeric_limits<int64_t>::max())(gen)));
+          values.push_back(std::to_string(std::uniform_int_distribution<int64_t>(1, 100000000)(gen)));
         }
 
         writer.add_row(table_name, values);
@@ -408,16 +423,17 @@ std::pair<std::string, std::string> convertAPConnToAirports(std::string apconn) 
 
 std::vector<int> GenerateFlightTable(TableWriter &writer, std::vector<std::vector<double>> &airport_distances, std::unordered_map<std::string, int64_t> ap_code_to_id, std::vector<std::pair<int64_t, int64_t>> &f_id_to_ap_conn) {
     std::vector<std::pair<std::string, std::string>> column_names_and_types; 
-    column_names_and_types.push_back(std::make_pair("F_ID", "BIGINT"));
-    column_names_and_types.push_back(std::make_pair("F_AL_ID", "BIGINT"));
-    column_names_and_types.push_back(std::make_pair("F_DEPART_AP_ID", "BIGINT"));
-    column_names_and_types.push_back(std::make_pair("F_DEPART_TIME", "TIMESTAMP"));
-    column_names_and_types.push_back(std::make_pair("F_ARRIVE_AP_ID", "BIGINT"));
-    column_names_and_types.push_back(std::make_pair("F_ARRIVE_TIME", "TIMESTAMP"));
-    column_names_and_types.push_back(std::make_pair("F_BASE_PRICE", "FLOAT"));
-    column_names_and_types.push_back(std::make_pair("F_SEATS_TOTAL", "BIGINT"));
-    column_names_and_types.push_back(std::make_pair("F_SEATS_LEFT", "BIGINT"));
-    FillColumnNamesWithGenericAttr(column_names_and_types, "F_IATTR", "BIGINT", 30);
+    column_names_and_types.push_back(std::make_pair("f_id", "BIGINT"));
+    column_names_and_types.push_back(std::make_pair("f_al_id", "BIGINT"));
+    column_names_and_types.push_back(std::make_pair("f_depart_ap_id", "BIGINT"));
+    column_names_and_types.push_back(std::make_pair("f_depart_time", "TIMESTAMP"));
+    column_names_and_types.push_back(std::make_pair("f_arrive_ap_id", "BIGINT"));
+    column_names_and_types.push_back(std::make_pair("f_arrive_time", "TIMESTAMP"));
+    column_names_and_types.push_back(std::make_pair("f_status", "BIGINT"));
+    column_names_and_types.push_back(std::make_pair("f_base_price", "FLOAT"));
+    column_names_and_types.push_back(std::make_pair("f_seats_total", "BIGINT"));
+    column_names_and_types.push_back(std::make_pair("f_seats_left", "BIGINT"));
+    FillColumnNamesWithGenericAttr(column_names_and_types, "f_iattr", "BIGINT", 30);
     const std::vector<uint32_t> primary_key_col_idx {0};
     std::string table_name = seats_sql::FLIGHT_TABLE;
     writer.add_table(table_name, column_names_and_types, primary_key_col_idx);
@@ -448,13 +464,14 @@ std::vector<int> GenerateFlightTable(TableWriter &writer, std::vector<std::vecto
       values.push_back(std::to_string(dep_time));
       values.push_back(std::to_string(arr_ap_id));
       values.push_back(std::to_string(dep_time + distToTime(airport_distances[dep_ap_id - 1][arr_ap_id - 1])));
+      values.push_back(std::to_string(std::uniform_int_distribution<int>(0, 1)(gen)));
       values.push_back(std::to_string(std::uniform_real_distribution<float>(100, 1000)(gen)));
       values.push_back(std::to_string(seats_sql::TOTAL_SEATS_PER_FLIGHT));
       auto seats_reserved = std::uniform_int_distribution<int>(seats_sql::MIN_SEATS_RESERVED, seats_sql::MAX_SEATS_RESERVED)(gen);
       values.push_back(std::to_string(seats_sql::TOTAL_SEATS_PER_FLIGHT - seats_reserved));
       flight_to_num_reserved.push_back(seats_reserved);
       for (int iattr = 0; iattr < 30; iattr++) {
-        values.push_back(std::to_string(std::uniform_int_distribution<int64_t>(1, std::numeric_limits<int64_t>::max())(gen)));
+        values.push_back(std::to_string(std::uniform_int_distribution<int64_t>(1, 100000000)(gen)));
       }
 
       writer.add_row(table_name, values);
@@ -464,14 +481,14 @@ std::vector<int> GenerateFlightTable(TableWriter &writer, std::vector<std::vecto
 
 void GenerateReservationTable(TableWriter &writer, std::vector<int> flight_to_num_reserved, std::vector<std::pair<int64_t, int64_t>> &fl_to_ap_conn) {
     std::vector<std::pair<std::string, std::string>> column_names_and_types; 
-    column_names_and_types.push_back(std::make_pair("R_ID", "BIGINT"));
-    column_names_and_types.push_back(std::make_pair("R_C_ID", "BIGINT"));
-    column_names_and_types.push_back(std::make_pair("R_F_ID", "BIGINT"));
-    column_names_and_types.push_back(std::make_pair("R_SEAT", "BIGINT"));
-    column_names_and_types.push_back(std::make_pair("R_PRICE", "FLOAT"));
-    FillColumnNamesWithGenericAttr(column_names_and_types, "R_IATTR", "BIGINT", 9);
-    column_names_and_types.push_back(std::make_pair("R_CREATED", "TIMESTAMP"));
-    column_names_and_types.push_back(std::make_pair("R_UPDATED", "TIMESTAMP"));
+    column_names_and_types.push_back(std::make_pair("r_id", "BIGINT"));
+    column_names_and_types.push_back(std::make_pair("r_c_id", "BIGINT"));
+    column_names_and_types.push_back(std::make_pair("r_f_id", "BIGINT"));
+    column_names_and_types.push_back(std::make_pair("r_seat", "BIGINT"));
+    column_names_and_types.push_back(std::make_pair("r_price", "FLOAT"));
+    FillColumnNamesWithGenericAttr(column_names_and_types, "r_iattr", "BIGINT", 9);
+    column_names_and_types.push_back(std::make_pair("r_created", "TIMESTAMP"));
+    column_names_and_types.push_back(std::make_pair("r_updated", "TIMESTAMP"));
     const std::vector<uint32_t> primary_key_col_idx {0};
     std::string table_name = seats_sql::RESERVATION_TABLE;
     writer.add_table(table_name, column_names_and_types, primary_key_col_idx);
@@ -483,6 +500,7 @@ void GenerateReservationTable(TableWriter &writer, std::vector<int> flight_to_nu
     std::vector<std::queue<int64_t>> outbound_customers_per_ap_id(seats_sql::NUM_AIRPORTS, std::queue<int64_t>());
 
     for (int f_id = 1; f_id <= seats_sql::NUM_FLIGHTS; f_id++) {
+      std::vector<int64_t> seat_ids;
       for (int r = 1; r <= flight_to_num_reserved[f_id]; r++) {
         std::vector<std::string> values; 
         values.push_back(std::to_string(r_id++));
@@ -499,10 +517,14 @@ void GenerateReservationTable(TableWriter &writer, std::vector<int> flight_to_nu
 
         values.push_back(std::to_string(c_id));
         values.push_back(std::to_string(f_id));
-        values.push_back(std::to_string(std::uniform_int_distribution<int>(1, seats_sql::TOTAL_SEATS_PER_FLIGHT)(gen)));
+        int64_t seat = std::uniform_int_distribution<int64_t>(1, seats_sql::TOTAL_SEATS_PER_FLIGHT)(gen);
+        while (containsId(seat_ids, seat))
+          seat = std::uniform_int_distribution<int64_t>(1, seats_sql::TOTAL_SEATS_PER_FLIGHT)(gen);
+        seat_ids.push_back(seat);
+        values.push_back(std::to_string(seat));
         values.push_back(std::to_string(std::uniform_int_distribution<int>(seats_sql::MIN_RESERVATION_PRICE, seats_sql::MAX_RESERVATION_PRICE)(gen)));
         for (int iattr = 0; iattr < 9; iattr++) {
-          values.push_back(std::to_string(std::uniform_int_distribution<int64_t>(1, std::numeric_limits<int64_t>::max())(gen)));
+          values.push_back(std::to_string(std::uniform_int_distribution<int64_t>(1, 100000000)(gen)));
         }
         values.push_back(std::to_string(time(0)));
         values.push_back(std::to_string(time(0)));
@@ -527,7 +549,8 @@ int main(int argc, char *argv[]) {
     std::unordered_map<std::string, int64_t> ap_code_to_id;
     auto airport_coords = GenerateAirportTable(writer, co_code_to_id, ap_code_to_id);
     std::cerr << "Finished Airport" << std::endl;
-    auto airport_dists = GenerateAirportDistanceTable(writer, airport_coords);
+    //auto airport_dists = GenerateAirportDistanceTable(writer, airport_coords);
+    std::vector<std::vector<double>> airport_dists = std::vector<std::vector<double>>(seats_sql::NUM_AIRPORTS, std::vector<double>(seats_sql::NUM_AIRPORTS, 0.0));
     std::cerr << "Finished AD" << std::endl;
     std::vector<std::pair<int64_t, int64_t>> f_id_to_ap_conn;
     auto flight_reserves = GenerateFlightTable(writer, airport_dists, ap_code_to_id, f_id_to_ap_conn);
