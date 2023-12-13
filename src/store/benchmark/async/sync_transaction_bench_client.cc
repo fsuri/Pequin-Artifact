@@ -79,8 +79,7 @@ void SyncTransactionBenchClient::SendNext(transaction_status_t *result) {
       uint64_t backoff = 0;
       if (abortBackoff > 0) {
         uint64_t exp = std::min(currTxnAttempts - 1UL, 56UL);
-        uint64_t upper = std::min((1UL << exp) * static_cast<uint64_t>(abortBackoff),
-            maxBackoff);
+        uint64_t upper = std::min((1UL << exp) * static_cast<uint64_t>(abortBackoff), maxBackoff);
         backoff = std::uniform_int_distribution<uint64_t>(upper >> 1, upper)(GetRand());
         stats.Increment(GetLastOp() + "_backoff", backoff);
         Debug("Backing off for %lums", backoff);

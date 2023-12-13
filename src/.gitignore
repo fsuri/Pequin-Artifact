@@ -70,6 +70,7 @@ store/pequinstore/tests/write_parser_test
 store/pequinstore/tests/sql_interpreter_test
 store/pequinstore/tests/table_store_interface_test
 store/pequinstore/tests/out_interface_test.txt
+store/pequinstore/querysync-server_old.cc
 
 store/pequinstore/tests/*/
 store/pequinstore/tests/*.json
