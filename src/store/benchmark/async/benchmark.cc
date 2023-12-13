@@ -56,6 +56,7 @@
 #include "store/benchmark/async/tpcc/sync/tpcc_client.h"
 #include "store/benchmark/async/tpcc/async/tpcc_client.h"
 #include "store/benchmark/async/sql/tpcc/tpcc_client.h"
+#include "store/benchmark/async/sql/seats/seats_client.h"
 #include "store/benchmark/async/smallbank/smallbank_client.h"
 #include "store/benchmark/async/toy/toy_client.h"
 #include "store/benchmark/async/rw-sql/rw-sql_client.h"
@@ -124,7 +125,8 @@ enum benchmode_t {
   BENCH_TPCC_SYNC,
   BENCH_TOY,
   BENCH_TPCC_SQL,
-  BENCH_RW_SQL
+  BENCH_RW_SQL, 
+  BENCH_SEATS_SQL
 };
 
 enum keysmode_t {
@@ -529,7 +531,8 @@ const strongstore::Mode strongmodes[] {
 	strongstore::Mode::MODE_UNKNOWN,
 	strongstore::Mode::MODE_UNKNOWN,
   strongstore::Mode::MODE_UNKNOWN,
-	strongstore::Mode::MODE_UNKNOWN
+	strongstore::Mode::MODE_UNKNOWN, 
+  strongstore::Mode::MODE_UNKNOWN
 };
 static bool ValidateProtocolMode(const char* flagname,
     const std::string &value) {
@@ -554,7 +557,8 @@ const std::string benchmark_args[] = {
   "tpcc-sync",
   "toy",
   "tpcc-sql",
-  "rw-sql"
+  "rw-sql",
+  "seats-sql"
 };
 const benchmode_t benchmodes[] {
   BENCH_RETWIS,
@@ -564,7 +568,8 @@ const benchmode_t benchmodes[] {
   BENCH_TPCC_SYNC,
   BENCH_TOY,
   BENCH_TPCC_SQL,
-  BENCH_RW_SQL
+  BENCH_RW_SQL,
+  BENCH_SEATS_SQL
 };
 static bool ValidateBenchmark(const char* flagname, const std::string &value) {
   int n = sizeof(benchmark_args);
@@ -1566,6 +1571,7 @@ int main(int argc, char **argv) {
       case BENCH_SMALLBANK_SYNC:
       case BENCH_TPCC_SYNC:
       case BENCH_TPCC_SQL:
+      case BENCH_SEATS_SQL:
         if (syncClient == nullptr) {
           UW_ASSERT(client != nullptr);
           syncClient = new SyncClient(client);
@@ -1664,6 +1670,13 @@ int main(int argc, char **argv) {
             FLAGS_abort_backoff, FLAGS_retry_aborted, FLAGS_max_backoff, FLAGS_max_attempts,
             FLAGS_timeout);
         break;
+    case BENCH_SEATS_SQL:
+        UW_ASSERT(syncClient != nullptr);
+        bench = new seats_sql::SEATSSQLClient( *syncClient, *tport,
+            seed, FLAGS_num_requests, FLAGS_exp_duration, FLAGS_delay,
+            FLAGS_warmup_secs, FLAGS_cooldown_secs, FLAGS_tput_interval,
+            FLAGS_abort_backoff, FLAGS_retry_aborted, FLAGS_max_backoff, FLAGS_max_attempts, FLAGS_message_timeout);
+        break;
 
       default:
         NOT_REACHABLE();
@@ -1678,6 +1691,7 @@ int main(int argc, char **argv) {
         break;
       case BENCH_RW_SQL:
       case BENCH_SMALLBANK_SYNC:
+      case BENCH_SEATS_SQL:
       case BENCH_TPCC_SQL:
       case BENCH_TPCC_SYNC: {
         SyncTransactionBenchClient *syncBench = dynamic_cast<SyncTransactionBenchClient *>(bench);

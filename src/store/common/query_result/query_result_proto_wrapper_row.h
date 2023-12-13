@@ -156,7 +156,7 @@ class Row : public query_result::Row {
       sql::Field *p = new sql::Field(*this, m_offset + column);
       return std::unique_ptr<query_result::Field>(p);
     } else {
-      throw std::runtime_error("Cannot get column index from null result");
+      //throw std::runtime_error("Cannot get column index from null result");
     }
   }
   

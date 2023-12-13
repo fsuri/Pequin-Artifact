@@ -106,7 +106,7 @@ inline void Client::Write(std::string &write_statement, write_callback wcb,
   auto result = transaction->execute(write_statement);
   const auto wrapped_result = new taopq_wrapper::TaoPQQueryResultWrapper(std::make_unique<tao::pq::result>(result));
   assert(wrapped_result->has_rows_affected());
-  wcb(0, (const query_result::QueryResult*) wrapped_result);
+  wcb(0, (query_result::QueryResult*) wrapped_result);
   // } catch (...) {
   //   Debug("Write failed!");
   //   wtcb(1);
