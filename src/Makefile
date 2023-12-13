@@ -202,8 +202,7 @@ include store/augustusstore/Rules.mk
 include store/bftsmartstore/Rules.mk
 include store/bftsmartstore_augustus/Rules.mk
 include store/bftsmartstore_stable/Rules.mk
-
-
+include store/postgresstore/Rules.mk
 
 include store/pequinstore/query-engine/Rules.mk
 
@@ -218,6 +217,8 @@ include store/benchmark/async/smallbank/Rules.mk
 include store/benchmark/async/tpcc/Rules.mk
 include store/benchmark/async/toy/Rules.mk
 include store/benchmark/async/rw-sql/Rules.mk
+include store/benchmark/async/sql/tpcc/Rules.mk
+include store/benchmark/async/sql/auctionmark/Rules.mk
 
 include store/benchmark/async/Rules.mk
 include lockserver/Rules.mk

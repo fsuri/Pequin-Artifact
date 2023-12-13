@@ -36,11 +36,13 @@
 #include "lib/message.h"
 #include "lib/transport.h"
 #include "store/common/transaction.h"
+#include "store/common/query_result/query_result.h"
 
 #include "store/common/query_result/query_result.h"
 
 #include <condition_variable>
 #include <mutex>
+#include <memory>
 
 class Promise
 {
@@ -50,7 +52,6 @@ private:
     int reply;
     Timestamp timestamp;
     std::string value;
-    //const query_result::QueryResult* result;
     std::unique_ptr<const query_result::QueryResult> result;
 
     std::mutex lock;
@@ -77,7 +78,6 @@ public:
     int GetReply();
     Timestamp GetTimestamp();
     std::string GetValue();
-    //const query_result::QueryResult* GetQueryResult();
     std::unique_ptr<const query_result::QueryResult> ReleaseQueryResult();
 };
 

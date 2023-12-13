@@ -193,7 +193,7 @@ void test_read_query() {
       std::cerr << "Read row " << j << " : " << std::endl;
       std::stringstream p_ss(std::ios::in | std::ios::out | std::ios::binary);
       for (int i = 0; i < p_queryResult->num_columns(); ++i) {
-        out = p_queryResult->get(j, i, &nbytes);
+        out = p_queryResult->get_bytes(j, i, &nbytes);
         std::string p_output(out, nbytes);
         p_ss << p_output;
         output_row;
@@ -262,7 +262,7 @@ void ReadFromStore(TableStore *table_store) {
       std::cerr << "Read row " << j << " : " << std::endl;
       std::stringstream p_ss(std::ios::in | std::ios::out | std::ios::binary);
       for (int i = 0; i < p_queryResult->num_columns(); ++i) {
-        out = p_queryResult->get(j, i, &nbytes);
+        out = p_queryResult->get_bytes(j, i, &nbytes);
         std::string p_output(out, nbytes);
         p_ss << p_output;
         output_row;
@@ -590,7 +590,7 @@ void test_read_predicate() {
       std::cerr << "Read row " << j << " : " << std::endl;
       std::stringstream p_ss(std::ios::in | std::ios::out | std::ios::binary);
       for (int i = 0; i < p_queryResult->num_columns(); ++i) {
-        out = p_queryResult->get(j, i, &nbytes);
+        out = p_queryResult->get_bytes(j, i, &nbytes);
         std::string p_output(out, nbytes);
         p_ss << p_output;
         output_row;

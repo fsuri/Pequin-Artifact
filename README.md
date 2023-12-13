@@ -138,7 +138,7 @@ The prototype implementations depend the following development libraries:
 - libfmt-dev
 
 You may install them directly using:
-- `sudo apt install libsodium-dev libgflags-dev libssl-dev libevent-dev libevent-openssl-2.1-7 libevent-pthreads-2.1-7 libboost-all-dev libuv1-dev libpq-dev postgresql-server-dev-all libfmt-dev libreadline-dev libeigen3-dev libboost-all-dev` 
+- `sudo apt install libsodium-dev libgflags-dev libssl-dev libevent-dev libevent-openssl-2.1-7 libevent-pthreads-2.1-7 libboost-all-dev libuv1-dev libpq-dev postgresql-server-dev-all libfmt-dev libreadline-dev libeigen3-dev` 
 
 - If using Ubuntu 18.04, use `sudo apt install libevent-openssl-2.1-6 libevent-pthreads-2.1-6` instead for openssl and pthreads.
 
@@ -165,6 +165,14 @@ We recommend organizing all installs in a dedicated folder:
 
 1. `mkdir dependencies`
 2. `cd dependencies`
+
+#### Installing fmt
+1. `git clone git@github.com:fmtlib/fmt.git`
+2. `cd fmt`
+3. `cmake .`
+4. `sudo make install`
+5. `sudo ldconfig`
+6. `cd ..`
 
 <!--- #### Installing Hoard Allocator
 1. `sudo apt-get install clang`
@@ -209,7 +217,7 @@ Alternatively, you may download and unzip from source:
 Next, build taopq:
 
 4. `sudo cmake .`
-5. `sudo cmake --build . -j $(nproc)`
+5. `sudo cmake --build . -j`
 6. `sudo make install`
 7. `sudo ldconfig`
 8. `cd ..`

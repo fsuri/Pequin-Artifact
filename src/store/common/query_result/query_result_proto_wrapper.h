@@ -44,12 +44,6 @@ namespace sql {
 
 class QueryResultProtoWrapper : public query_result::QueryResult {
   private:
-    // const SQLResultProto* proto_result;
-    // uint32_t n_rows_affected;
-    // std::vector<std::string> column_names;
-    //std::vector<std::vector<std::string>> result;
-    //auto create_from_proto(const SQLResultProto* proto_result) -> void;
-    //SQLResultProto* proto_result;
     std::unique_ptr<SQLResultProto> proto_result;
     auto check_has_result_set() const -> void;
 
@@ -74,20 +68,17 @@ class QueryResultProtoWrapper : public query_result::QueryResult {
         throw std::invalid_argument("Failed to parse QueryResultProtoWrapper from data");
       }
     }
-
-     // Delete copy constructor and assignment operator to enforce ownership of proto
-    //QueryResultProtoWrapper(const QueryResultProtoWrapper&) = delete;
-    //QueryResultProtoWrapper& operator=(const QueryResultProtoWrapper&) = delete;
+    
+    // Delete copy constructor and assignment operator to enforce ownership of proto
+    QueryResultProtoWrapper(const QueryResultProtoWrapper&) = delete;
+    QueryResultProtoWrapper& operator=(const QueryResultProtoWrapper&) = delete;
 
     // QueryResultProtoWrapper& operator=(const QueryResultProtoWrapper& old){
     //   this->proto_result.reset( new SQLResultProto(*old.proto_result));
     //   return *this;
     // }
-    
 
-    ~QueryResultProtoWrapper() {
-      //delete proto_result;
-    }
+    ~QueryResultProtoWrapper() {}
 
     inline void SetResult(SQLResultProto &result){
       proto_result = std::make_unique<SQLResultProto>(std::move(result));
@@ -167,7 +158,6 @@ class QueryResultProtoWrapper : public query_result::QueryResult {
 		auto name( const std::size_t column ) const -> std::string;
     auto column_index_by_name(const std::string &name) const -> std::size_t;
 
-
 		// size of the result set
 		bool empty() const;
 		auto size() const -> std::size_t;
@@ -186,15 +176,14 @@ class QueryResultProtoWrapper : public query_result::QueryResult {
     }
 		
     auto is_null( const std::size_t row, const std::size_t column ) const -> bool;
-		auto get( const std::size_t row, const std::size_t column, std::size_t* size ) const -> const char*;
-    auto get( const std::size_t row, const std::string& column, std::size_t* size ) const -> const char*;
+		auto get_bytes( const std::size_t row, const std::size_t column, std::size_t* size ) const -> const char*;
+		auto get_bytes( const std::size_t row, const std::string& column, std::size_t* size ) const -> const char*;
 
 		// access rows
     auto operator[]( const std::size_t row ) const -> std::unique_ptr<query_result::Row>;
     auto at( const std::size_t row ) const -> std::unique_ptr<query_result::Row>;
 
 		// update/insert result
-    //inline void set_rows_affected(const uint32_t _n_rows_affected) override { n_rows_affected = _n_rows_affected; } //Use to set n_rows for writes manually
     inline void set_rows_affected(const uint32_t n_rows_affected) override { proto_result->set_rows_affected(n_rows_affected); } //Use to set n_rows for writes manually
 
 		auto has_rows_affected() const noexcept -> bool;

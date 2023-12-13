@@ -690,7 +690,7 @@ void SQLTransformer::TransformDelete(size_t pos, std::string_view &write_stateme
     //Based on Syntax from: https://www.postgresqltutorial.com/postgresql-tutorial/postgresql-delete/ 
     
      //Case 3) DELETE FROM <table_name> WHERE <condition>
-         //-> Turn into read_statement: Result(column, column_value) SELECT FROM <table_name>(primary_columns) 
+         //-> Turn into read_statement: Result(column, column_value) SELECT * FROM <table_name>(primary_columns) 
          //             write_cont: for(row in result) create TableWrite with primary column encoded key, bool = delete (create new version with empty values/some meta data indicating delete)
          // TODO: Handle deleted versions: Create new version with special delete marker. NOTE: Read Sets of queries should include the empty version; but result computation should ignore it.
          // But how can one distinguish deleted versions from rows not yet created? Maybe one MUST have semantic CC to support new row inserts/row deletions.

@@ -51,11 +51,6 @@ class QueryResultProtoBuilder {
     result = std::make_unique<SQLResultProto>();
   }
 
-  // auto serialize(std::int32_t i) -> std::string;
-  // auto serialize(const std::string& s) -> std::string;
-  // auto serialize(std::uint64_t i) -> std::string;
-  // auto serialize(bool i) -> std::string;
-
   auto add_columns(const std::vector<std::string>& columns) -> void;
   auto add_column(const std::string& name) -> void;
   auto add_empty_row() -> void;
@@ -63,7 +58,7 @@ class QueryResultProtoBuilder {
   auto get_result() -> std::unique_ptr<SQLResultProto>;
 
   template<class Iterable>
-  void add_row(Iterable it, Iterable end)
+  void add_row_serialize(Iterable it, Iterable end)
   //Note: Only use this if entire row is of the same data type.
   {
     RowProto *row = result->add_rows();
@@ -75,61 +70,40 @@ class QueryResultProtoBuilder {
     }
   }
 
-  template<typename T>
-  auto serialize(T t) -> std::string {
-    // std::string s(static_cast<char*>(static_cast<void*>(&t)));
-    // return s;
-
-    std::stringstream ss(std::ios::out | std::ios::in | std::ios::binary);
-    {
-      cereal::BinaryOutputArchive oarchive(ss); // Create an output archive
-      oarchive(t); // Write the data to the archive
-
-    } // archive goes out of scope, ensuring all contents are flushed
-    return ss.str();
-  }
-
-  //Add new empty row
-  inline RowProto * new_row()
+  template< typename T >
+  void add_row( typename std::enable_if< std::is_same< typename T::value_type, std::string >::value, T >::type it, T end )
   {
-    return result->add_rows();
+    RowProto *row = result->add_rows();
+    while (it != end) {
+      FieldProto *field = row->add_fields();
+      field->set_data(*it);
+      it++;
+    }
   }
 
-
-  //Append field to given row
+  // Overwrites existing field
   template<typename T>
-  void AddToRow(RowProto *row, T &t){
-  //Appends field to a row
-    FieldProto *field = row->add_fields();
-    field->set_data(serialize(t));
-  }
-
-    //New interface:
-
-   //Updates specific column in a row
-   //Note: Requires fields to be allocated.
-  template<typename T>
-  auto update_field_in_row(std::size_t row, std::size_t column, T &t) -> void {
+  auto insert_field_to_row_serialize(std::size_t row, std::size_t column, T &t) -> void {
     FieldProto *field = result->mutable_rows(row)->mutable_fields(column);
     field->set_data(serialize(t));
   }
 
   // Overwrites existing field in last row
   template<typename T>
-  auto update_field_in_last_row(std::size_t column, T &t) -> void {
+  auto insert_field_to_last_row(std::size_t column, T &t) -> void {
     insert_field_to_row(result->rows_size() - 1, column, t);
   }
 
   // Adds new row with given field value in first column
   template<typename T>
-  auto add_field_to_new_row(T &t) -> void {
+  auto add_field_to_new_row_serialize(T &t) -> void {
     FieldProto *field = new_row()->add_fields();
     field->set_data(serialize(t));
   }
 
   // Adds new field to last row
   template<typename T>
-  auto add_field_to_last_row(T &t) -> void {
+  auto add_field_to_last_row_serialize(T &t) -> void {
     FieldProto *field = result->mutable_rows(result->rows_size() - 1)->add_fields();
     field->set_data(serialize(t));
   }
@@ -149,6 +123,62 @@ class QueryResultProtoBuilder {
       row->add_fields();
     }
     insert_field_to_last_row(column, t);
+  }
+
+  template<typename T>
+  auto serialize(T t) -> std::string {
+    std::stringstream ss(std::ios::out | std::ios::in | std::ios::binary);
+    {
+      cereal::BinaryOutputArchive oarchive(ss); // Create an output archive
+      oarchive(t); // Write the data to the archive
+
+    } // archive goes out of scope, ensuring all contents are flushed
+    return ss.str();
+  }
+
+  //Add new empty row
+  inline RowProto * new_row()
+  {
+    return result->add_rows();
+  }
+
+
+  //Append field to given row
+  template<typename T>
+  void AddToRowSerialize(RowProto *row, T &t){
+  //Appends field to a row
+    FieldProto *field = row->add_fields();
+    field->set_data(serialize(t));
+  }
+
+  //Append field to given row
+  template<typename T>
+  void AddToRow(RowProto *row, T &t){
+    //Appends field to a row
+    FieldProto *field = row->add_fields();
+    field->set_data(std::to_string(t));
+  }
+
+  inline void AddToRow(RowProto *row, std::string &t){
+    //Appends field to a row
+    FieldProto *field = row->add_fields();
+    field->set_data(t);
+  }
+
+    //New interface:
+
+   //Updates specific column in a row
+   //Note: Requires fields to be allocated.
+  template<typename T>
+  auto update_field_in_row(std::size_t row, std::size_t column, T &t) -> void {
+    FieldProto *field = result->mutable_rows(row)->mutable_fields(column);
+    field->set_data(serialize(t));
+  }
+
+  // Overwrites existing field in last row
+  template<typename T>
+  auto update_field_in_last_row(std::size_t column, T &t) -> void {
+    insert_field_to_row(result->rows_size() - 1, column, t);
   }
 
 };

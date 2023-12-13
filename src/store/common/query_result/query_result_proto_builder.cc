@@ -65,5 +65,5 @@ auto QueryResultProtoBuilder::add_empty_row() -> void {
   result->add_rows();
 }
 
-} //namespace sql
+}  // namespace sql
 

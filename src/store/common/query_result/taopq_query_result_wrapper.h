@@ -10,10 +10,10 @@
  * modify, merge, publish, distribute, sublicense, and/or sell copies
  * of the Software, and to permit persons to whom the Software is
  * furnished to do so, subject to the following conditions:
- * 
+ *
  * The above copyright notice and this permission notice shall be
  * included in all copies or substantial portions of the Software.
- * 
+ *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
  * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
  * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
@@ -33,9 +33,11 @@
 #include "store/common/query_result/query_result_row.h"
 #include "store/common/query_result/taopq_query_result_wrapper_row.h"
 
-namespace taopq_wrapper {
+namespace taopq_wrapper
+{
 
-class TaoPQQueryResultWrapper : public query_result::QueryResult {
+  class TaoPQQueryResultWrapper : public query_result::QueryResult
+  {
   private:
      std::unique_ptr<tao::pq::result> result;
 
@@ -47,29 +49,27 @@ class TaoPQQueryResultWrapper : public query_result::QueryResult {
     TaoPQQueryResultWrapper(const TaoPQQueryResultWrapper&) = delete;
     TaoPQQueryResultWrapper& operator=(const TaoPQQueryResultWrapper&) = delete;
 
-    ~TaoPQQueryResultWrapper() {
-      //delete result;
-    }
+    ~TaoPQQueryResultWrapper() {}
 
-		auto name( const std::size_t column ) const -> std::string;
+    auto name(const std::size_t column) const -> std::string;
 
-		// size of the result set
-		bool empty() const;
-		auto size() const -> std::size_t;
+    // size of the result set
+    bool empty() const;
+    auto size() const -> std::size_t;
     auto num_columns() const -> std::size_t;
 
-    auto is_null( const std::size_t row, const std::size_t column ) const -> bool;
-		auto get( const std::size_t row, const std::size_t column, std::size_t* size) const -> const char*;
-		
-		// access rows
-    auto operator[]( const std::size_t row ) const -> std::unique_ptr<query_result::Row>;
-    auto at( const std::size_t row ) const -> std::unique_ptr<query_result::Row>;
+    auto is_null(const std::size_t row, const std::size_t column) const -> bool;
+    auto get_bytes( const std::size_t row, const std::size_t column, std::size_t* size ) const -> const char*;
+   
+    // access rows
+    auto operator[](const std::size_t row) const -> std::unique_ptr<query_result::Row>;
+    auto at(const std::size_t row) const -> std::unique_ptr<query_result::Row>;
 
-		// update/insert result
-		auto has_rows_affected() const noexcept -> bool;
-		auto rows_affected() const -> std::size_t;
+    // update/insert result
+    auto has_rows_affected() const noexcept -> bool;
+    auto rows_affected() const -> std::size_t;
 
     inline void set_rows_affected(const uint32_t _n_rows_affected) { Panic("Warning: taopq does not support setting rows affected"); };
-};
+  };
 
 }

@@ -55,6 +55,7 @@
 #include "store/benchmark/async/rw/rw_client.h"
 #include "store/benchmark/async/tpcc/sync/tpcc_client.h"
 #include "store/benchmark/async/tpcc/async/tpcc_client.h"
+#include "store/benchmark/async/sql/tpcc/tpcc_client.h"
 #include "store/benchmark/async/smallbank/smallbank_client.h"
 #include "store/benchmark/async/toy/toy_client.h"
 #include "store/benchmark/async/rw-sql/rw-sql_client.h"
@@ -76,6 +77,8 @@
 // Augustus-BFTSmart
 #include "store/bftsmartstore_augustus/client.h"
 #include "store/bftsmartstore_stable/client.h"
+// Postgres
+#include "store/postgresstore/client.h"
 
 #include "store/common/frontend/one_shot_client.h"
 #include "store/common/frontend/async_one_shot_adapter_client.h"
@@ -101,14 +104,15 @@ enum protomode_t {
   PROTO_PEQUIN,
   PROTO_INDICUS,
 	PROTO_PBFT,
-    // HotStuff
-    PROTO_HOTSTUFF,
-    // Augustus-Hotstuff
-    PROTO_AUGUSTUS,
-    // Bftsmart
-    PROTO_BFTSMART,
-    // Augustus-Hotstuff
-		PROTO_AUGUSTUS_SMART
+  // HotStuff
+  PROTO_HOTSTUFF,
+  // Augustus-Hotstuff
+  PROTO_AUGUSTUS,
+  // Bftsmart
+  PROTO_BFTSMART,
+  // Augustus-Hotstuff
+  PROTO_AUGUSTUS_SMART,
+  PROTO_POSTGRES
 };
 
 enum benchmode_t {
@@ -119,6 +123,7 @@ enum benchmode_t {
   BENCH_RW,
   BENCH_TPCC_SYNC,
   BENCH_TOY,
+  BENCH_TPCC_SQL,
   BENCH_RW_SQL
 };
 
@@ -482,7 +487,8 @@ const std::string protocol_args[] = {
 // BFTSmart
   "bftsmart",
 // Augustus-BFTSmart
-	"augustus"
+	"augustus",
+  "postgres"
 };
 const protomode_t protomodes[] {
   PROTO_BLACKHOLE,
@@ -504,7 +510,8 @@ const protomode_t protomodes[] {
   // BFTSmart
   PROTO_BFTSMART,
   // Augustus-BFTSmart
-	PROTO_AUGUSTUS_SMART
+	PROTO_AUGUSTUS_SMART,
+  PROTO_POSTGRES
 };
 const strongstore::Mode strongmodes[] {
   strongstore::Mode::MODE_UNKNOWN,
@@ -546,6 +553,7 @@ const std::string benchmark_args[] = {
   "rw",
   "tpcc-sync",
   "toy",
+  "tpcc-sql",
   "rw-sql"
 };
 const benchmode_t benchmodes[] {
@@ -555,6 +563,7 @@ const benchmode_t benchmodes[] {
   BENCH_RW,
   BENCH_TPCC_SYNC,
   BENCH_TOY,
+  BENCH_TPCC_SQL,
   BENCH_RW_SQL
 };
 static bool ValidateBenchmark(const char* flagname, const std::string &value) {
@@ -631,6 +640,11 @@ DEFINE_bool(store_mode, true, "true => Runs Table-store + CC-store (SQL); false 
 */
 DEFINE_string(data_file_path, "", "path to file containing Table information to be loaded");
 DEFINE_bool(sql_bench, false, "Register Tables for SQL benchmarks. Input file is JSON Table args");
+
+/**
+ * Postgres settings
+*/
+DEFINE_string(connection_str, "postgres://postgres:password@localhost:5432/tpccdb", "connection string to postgres database");
 
 /**
  * Retwis settings.
@@ -775,7 +789,8 @@ int main(int argc, char **argv) {
   for (int i = 0; i < numProtoModes; ++i) {
     if (FLAGS_protocol_mode == protocol_args[i]) {
       mode = protomodes[i];
-      if(i < (sizeof(strongmodes)/sizeof(strongmode))) strongmode = strongmodes[i];
+      if(i < (sizeof(strongmodes)/sizeof(strongmode))) 
+        strongmode = strongmodes[i];
       break;
     }
   }
@@ -1514,6 +1529,11 @@ int main(int argc, char **argv) {
         break;
     }
 
+    case PROTO_POSTGRES: {
+      client = new postgresstore::Client(FLAGS_connection_str, clientId);
+      break;
+    }
+
     default:
         NOT_REACHABLE();
     }
@@ -1545,6 +1565,7 @@ int main(int argc, char **argv) {
       case BENCH_RW_SQL:
       case BENCH_SMALLBANK_SYNC:
       case BENCH_TPCC_SYNC:
+      case BENCH_TPCC_SQL:
         if (syncClient == nullptr) {
           UW_ASSERT(client != nullptr);
           syncClient = new SyncClient(client);
@@ -1581,6 +1602,19 @@ int main(int argc, char **argv) {
       case BENCH_TPCC_SYNC:
         UW_ASSERT(syncClient != nullptr);
         bench = new tpcc::SyncTPCCClient(*syncClient, *tport,
+            seed,
+            FLAGS_num_requests, FLAGS_exp_duration, FLAGS_delay,
+            FLAGS_warmup_secs, FLAGS_cooldown_secs, FLAGS_tput_interval,
+            FLAGS_tpcc_num_warehouses, FLAGS_tpcc_w_id, FLAGS_tpcc_C_c_id,
+            FLAGS_tpcc_C_c_last, FLAGS_tpcc_new_order_ratio,
+            FLAGS_tpcc_delivery_ratio, FLAGS_tpcc_payment_ratio,
+            FLAGS_tpcc_order_status_ratio, FLAGS_tpcc_stock_level_ratio,
+            FLAGS_static_w_id, FLAGS_abort_backoff,
+            FLAGS_retry_aborted, FLAGS_max_backoff, FLAGS_max_attempts, FLAGS_message_timeout);
+        break;
+      case BENCH_TPCC_SQL:
+        UW_ASSERT(syncClient != nullptr);
+        bench = new tpcc_sql::TPCCSQLClient(*syncClient, *tport,
             seed,
             FLAGS_num_requests, FLAGS_exp_duration, FLAGS_delay,
             FLAGS_warmup_secs, FLAGS_cooldown_secs, FLAGS_tput_interval,
@@ -1644,6 +1678,7 @@ int main(int argc, char **argv) {
         break;
       case BENCH_RW_SQL:
       case BENCH_SMALLBANK_SYNC:
+      case BENCH_TPCC_SQL:
       case BENCH_TPCC_SYNC: {
         SyncTransactionBenchClient *syncBench = dynamic_cast<SyncTransactionBenchClient *>(bench);
         UW_ASSERT(syncBench != nullptr);
