@@ -181,6 +181,7 @@ class Row : public query_result::Row {
   }
 
   auto get_bytes( const std::size_t column, std::size_t* size ) const -> const char*;
+  auto get(const std::size_t column) const -> const std::string;
 
   auto is_null( const std::size_t column ) const -> bool;
 

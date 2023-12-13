@@ -52,4 +52,9 @@ auto Field::get(std::size_t* size) const -> const char*
   return m_row->get_bytes( m_column, size );
 }
 
+auto Field::get() const -> const std::string
+{
+  return m_row->get( m_column);
+}
+
 }

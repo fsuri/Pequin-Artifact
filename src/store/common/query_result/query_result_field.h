@@ -44,6 +44,7 @@ namespace query_result
 
     virtual bool is_null() const = 0;
     virtual auto get(std::size_t *size) const -> const char * = 0;
+    virtual auto get() const -> const std::string = 0;
   };
 
 }

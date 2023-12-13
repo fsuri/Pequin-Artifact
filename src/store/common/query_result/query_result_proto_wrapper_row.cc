@@ -61,6 +61,11 @@ auto Row::get_bytes( const std::size_t column, std::size_t* size ) const -> cons
   return m_result->get_bytes( m_row, m_offset + column, size );
 }
 
+auto Row::get( const std::size_t column) const -> const std::string
+{
+  return m_result->get( m_row, m_offset + column);
+}
+
 auto Row::is_null( const std::size_t column ) const -> bool 
 {
   return m_result->is_null( m_row, m_offset + column );

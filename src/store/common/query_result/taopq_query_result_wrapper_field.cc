@@ -45,4 +45,8 @@ auto Field::get(std::size_t* size) const -> const char* {
     return field.get();
 }
 
+auto Field::get() const -> const std::string {
+    return field.get();
+}
+
 }
