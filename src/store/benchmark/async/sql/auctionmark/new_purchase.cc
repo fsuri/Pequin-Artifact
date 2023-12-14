@@ -29,9 +29,8 @@
 
 namespace auctionmark {
 
-NewPurchase::NewPurchase(uint32_t timeout, uint64_t ib_id, uint64_t i_id, uint64_t u_id,
-      uint64_t buyer_id, std::mt19937 &gen) : AuctionMarkTransaction(timeout),
-      ib_id(ib_id), i_id(i_id), u_id(u_id), buyer_id(buyer_id) {
+NewPurchase::NewPurchase(uint32_t timeout, std::mt19937_64 &gen) : AuctionMarkTransaction(timeout),
+      gen(gen) {
 }
 
 NewPurchase::~NewPurchase(){
@@ -43,30 +42,41 @@ transaction_status_t NewPurchase::Execute(SyncClient &client) {
   std::vector<std::unique_ptr<const query_result::QueryResult>> results;
 
   Debug("NEW PURCHASE");
-  Debug("Item Bid ID: %lu", ib_id);
-  Debug("Item ID: %lu", i_id);
-  Debug("Buyer ID: %lu", buyer_id);
 
   client.Begin(timeout);
+
+  // Choose a random item to purchase
+  statement = fmt::format("SELECT COUNT(*) AS cnt FROM ITEM WHERE i_status = 1;");
+  client.Query(statement, queryResult, timeout);
+  uint64_t items_cnt;
+  deserialize(items_cnt, queryResult);
+
+  uint64_t item_id = std::uniform_int_distribution<uint64_t>(0, items_cnt - 1)(gen);
+  statement = fmt::format("SELECT i_id, i_u_id FROM ITEM WHERE i_status = 1 LIMIT {}, 1;", item_id);
+  client.Query(statement, queryResult, timeout);
+  queryResult->at(0)->get(0, &i_id);
+  queryResult->at(0)->get(1, &u_id);
+
+  // Find max bid ID
 
   statement = fmt::format("SELECT imb_ib_id, imb_ib_i_id, imb_ib_u_id FROM ITEM_MAX_BID "
                           "WHERE imb_i_id = {} AND imb_u_id = {};",
                           i_id, u_id);
   client.Query(statement, queryResult, timeout);
-  uint64_t imb_ib_id, imb_ib_i_id, imb_ib_u_id;
-  queryResult->at(0)->get(0, &imb_ib_id);
+  uint64_t imb_ib_i_id, imb_ib_u_id;
+  queryResult->at(0)->get(0, &ib_id);
   queryResult->at(0)->get(1, &imb_ib_i_id);
   queryResult->at(0)->get(2, &imb_ib_u_id);
 
+  Debug("Item Bid ID: %lu", ib_id);
+  Debug("Item ID: %lu", i_id);
+  Debug("Buyer ID: %lu", buyer_id);
+
   statement = fmt::format("SELECT ib_buyer_id FROM ITEM_BID WHERE ib_id = {} "
                         "AND ib_i_id = {} AND ib_u_id = {};",
-                        imb_ib_id, imb_ib_i_id, imb_ib_u_id);
+                        ib_id, i_id, u_id);
   client.Query(statement, queryResult, timeout);
-  uint64_t ib_buyer_id;
-  queryResult->at(0)->get(0, &ib_buyer_id);
-
-  assert(ib_id == imb_ib_id);
-  assert(buyer_id == ib_buyer_id);
+  queryResult->at(0)->get(0, &buyer_id);
 
   statement = fmt::format("(SELECT MAX(ip_id) FROM ITEM_PURCHASE WHERE ip_ib_id = {} "
                           "AND ip_ib_i_id = {} AND ip_ib_u_id = {}) + 1;",

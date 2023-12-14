@@ -33,12 +33,13 @@ namespace auctionmark {
 
 class GetComment : public AuctionMarkTransaction {
  public:
-  GetComment(uint32_t timeout, uint64_t seller_id, std::mt19937 &gen);
+  GetComment(uint32_t timeout, std::mt19937_64 &gen);
   virtual ~GetComment();
   virtual transaction_status_t Execute(SyncClient &client);
 
  private:
   uint64_t seller_id;
+  std::mt19937_64 &gen;
 };
 
 } // namespace auctionmark

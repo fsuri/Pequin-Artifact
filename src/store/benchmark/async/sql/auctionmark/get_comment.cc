@@ -29,8 +29,8 @@
 
 namespace auctionmark {
 
-GetComment::GetComment(uint32_t timeout, uint64_t seller_id, std::mt19937 &gen) : 
-    AuctionMarkTransaction(timeout), seller_id(seller_id) {
+GetComment::GetComment(uint32_t timeout, std::mt19937_64 &gen) : 
+    AuctionMarkTransaction(timeout), gen(gen) {
 }
 
 GetComment::~GetComment(){
@@ -42,9 +42,21 @@ transaction_status_t GetComment::Execute(SyncClient &client) {
   std::vector<std::unique_ptr<const query_result::QueryResult>> results;
 
   Debug("GET COMMENT");
-  Debug("Comment Seller ID: %lu", seller_id);
 
   client.Begin(timeout);
+
+  // Choose a random puchased item
+  statement = fmt::format("SELECT COUNT(DISTINCT(ui_seller_id)) AS cnt FROM USER_ITEM;");
+  client.Query(statement, queryResult, timeout);
+  uint64_t sellers_cnt;
+  deserialize(sellers_cnt, queryResult);
+
+  uint64_t item_seller_id = std::uniform_int_distribution<uint64_t>(0, sellers_cnt - 1)(gen);
+  statement = fmt::format("SELECT DISTINCT(ui_seller_id) FROM USER_ITEM LIMIT {}, 1;", item_seller_id);
+  client.Query(statement, queryResult, timeout);
+  queryResult->at(0)->get(0, &seller_id);
+
+  Debug("Comment Seller ID: %lu", seller_id);
 
   statement = fmt::format("SELECT * FROM ITEM_COMMENT WHERE ic_u_id = {} AND "
                           "ic_response IS NULL;", seller_id);

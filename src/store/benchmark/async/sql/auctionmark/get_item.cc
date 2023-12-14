@@ -29,8 +29,8 @@
 
 namespace auctionmark {
 
-GetItem::GetItem(uint32_t timeout, uint64_t i_id, uint64_t i_u_id, std::mt19937 &gen) : 
-    AuctionMarkTransaction(timeout), i_id(i_id), i_u_id(i_u_id) {
+GetItem::GetItem(uint32_t timeout, uint64_t i_id, std::mt19937_64 &gen) : 
+    AuctionMarkTransaction(timeout), i_id(i_id) {
 }
 
 GetItem::~GetItem(){
@@ -43,19 +43,15 @@ transaction_status_t GetItem::Execute(SyncClient &client) {
 
   Debug("GET ITEM");
   Debug("Item ID: %lu", i_id);
-  Debug("User ID: %lu", i_u_id);
 
   client.Begin(timeout);
 
   statement = fmt::format("SELECT i_id, i_u_id, i_initial_price, i_current_price FROM "
-                          "ITEM WHERE i_id = {} AND i_u_id = {} AND i_status = 0;",
-                          i_id, i_u_id);
+                          "ITEM WHERE i_id = {} AND i_status = 0;", i_id);
   client.Query(statement, queryResult, timeout);
   uint64_t query_i_id, query_i_u_id;
   queryResult->at(0)->get(0, &query_i_id);
-  queryResult->at(0)->get(1, &query_i_u_id);
   assert(query_i_id == i_id);
-  assert(query_i_u_id == i_u_id);
   
   Debug("COMMIT");
   return client.Commit(timeout);

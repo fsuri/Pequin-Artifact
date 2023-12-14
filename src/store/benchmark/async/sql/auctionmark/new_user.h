@@ -33,13 +33,13 @@ namespace auctionmark {
 
 class NewUser : public AuctionMarkTransaction {
  public:
-  NewUser(uint32_t timeout, uint64_t u_id, uint64_t u_r_id,
-      const std::vector<std::string> &attributes, std::mt19937 &gen);
+  NewUser(uint32_t timeout, uint64_t &u_id, uint64_t u_r_id,
+      const std::vector<std::string> &attributes, std::mt19937_64 &gen);
   virtual ~NewUser();
   virtual transaction_status_t Execute(SyncClient &client);
 
  private:
-  uint64_t u_id;
+  uint64_t &u_id;
   uint64_t u_r_id;
   std::vector<std::string> attributes;
 };

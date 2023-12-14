@@ -75,22 +75,23 @@ SyncTransaction* TPCCSQLClient::GetNextTransaction() {
   uint32_t total = new_order_ratio + delivery_ratio + payment_ratio
       + order_status_ratio + stock_level_ratio;
   uint32_t ttype = std::uniform_int_distribution<uint32_t>(0, total - 1)(gen);
+  uint32_t freq = 0;
+
   if (static_w_id) {
     wid = w_id;
   } else {
     wid = std::uniform_int_distribution<uint32_t>(1, num_warehouses)(gen);
   }
-  if (ttype < new_order_ratio) {
+  if (ttype < (freq = new_order_ratio)) {
     lastOp = "new_order";
     return new SQLNewOrder(GetTimeout(), wid, C_c_id, num_warehouses, GetRand());
-  } else if (ttype < new_order_ratio + payment_ratio) {
+  } else if (ttype < (freq += new_order_ratio)) {
     lastOp = "payment";
     return new SQLPayment(GetTimeout(), wid, C_c_last, C_c_id, num_warehouses, GetRand());
-  } else if (ttype < new_order_ratio + payment_ratio + order_status_ratio) {
+  } else if (ttype < (freq += new_order_ratio)) {
     lastOp = "order_status";
     return new SQLOrderStatus(GetTimeout(), wid, C_c_last, C_c_id, GetRand());
-  } else if (ttype < new_order_ratio + payment_ratio + order_status_ratio
-      + stock_level_ratio) {
+  } else if (ttype < (freq += new_order_ratio)) {
     if (static_w_id) {
       did = stockLevelDId;
     } else {

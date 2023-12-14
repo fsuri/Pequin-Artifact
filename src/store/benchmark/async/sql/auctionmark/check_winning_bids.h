@@ -33,7 +33,7 @@ namespace auctionmark {
 
 class CheckWinningBids : public AuctionMarkTransaction {
  public:
-  CheckWinningBids(uint32_t timeout, uint64_t start_time, uint64_t end_time, std::mt19937 &gen);
+  CheckWinningBids(uint32_t timeout, uint64_t start_time, uint64_t end_time, std::mt19937_64 &gen);
   virtual ~CheckWinningBids();
   virtual transaction_status_t Execute(SyncClient &client);
 

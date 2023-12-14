@@ -29,16 +29,23 @@
 
 namespace auctionmark {
 
-NewItem::NewItem(uint32_t timeout, uint64_t i_id, uint64_t u_id, uint64_t c_id,
+// NewItem i_id not implemented according to spec. Implemented here
+// as a monotonically increasing id, so there may be contention when
+// reading the max i_id from the database. The spec says that i_id 
+// should be a composite key where the lower 48-bits of the number is 
+// the u_id and the upper 16-bits is the auction count for that user.
+// A monotonically increasing i_id allows for easier item selection
+// for other transactions.
+NewItem::NewItem(uint32_t timeout, uint64_t &i_id, uint64_t u_id,
       std::string name, std::string description, double initial_price,
       double reserve_price, double buy_now, const std::string attributes, 
       const std::vector<uint64_t> gag_ids, const std::vector<uint64_t> gav_ids, 
       const std::vector<std::string> images, uint64_t start_date, uint64_t end_date,
-      std::mt19937 &gen) : AuctionMarkTransaction(timeout), i_id(i_id), u_id(u_id), c_id(c_id),
+      std::mt19937_64 &gen) : AuctionMarkTransaction(timeout), i_id(i_id), u_id(u_id),
   name(name), description(description), initial_price(initial_price),
   reserve_price(reserve_price), buy_now(buy_now), attributes(attributes),
   gag_ids(gag_ids), gav_ids(gav_ids), images(images), start_date(start_date),
-  end_date(end_date) {
+  end_date(end_date), gen(gen) {
 }
 
 NewItem::~NewItem(){
@@ -50,11 +57,21 @@ transaction_status_t NewItem::Execute(SyncClient &client) {
   std::vector<std::unique_ptr<const query_result::QueryResult>> results;
 
   Debug("NEW ITEM");
-  Debug("Item ID: %lu", i_id);
   Debug("User ID: %lu", u_id);
-  Debug("Category ID: %lu", c_id);
 
   client.Begin(timeout);
+
+  statement = "SELECT MAX(i_id) FROM ITEM;";
+  client.Query(statement, queryResult, timeout);
+  deserialize(i_id, queryResult);
+  i_id += 1;
+  Debug("Item ID: %lu", i_id);
+
+  statement = "SELECT MAX(c_id) FROM CATEGORY;";
+  client.Query(statement, queryResult, timeout);
+  deserialize(c_id, queryResult);
+  c_id = std::uniform_int_distribution<uint64_t>(0, c_id)(gen);
+  Debug("Category ID: %lu", c_id);
 
   std::string description = "";
   std::string gag_name;

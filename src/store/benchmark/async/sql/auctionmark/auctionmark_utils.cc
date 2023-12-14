@@ -24,27 +24,22 @@
  * SOFTWARE.
  *
  **********************************************************************/
-#ifndef AUCTION_MARK_NEW_PURCHASE_H
-#define AUCTION_MARK_NEW_PURCHASE_H
-
-#include "store/benchmark/async/sql/auctionmark/auctionmark_transaction.h"
+#include "store/benchmark/async/sql/auctionmark/auctionmark_utils.h"
 
 namespace auctionmark {
 
-class NewPurchase : public AuctionMarkTransaction {
- public:
-  NewPurchase(uint32_t timeout, std::mt19937_64 &gen);
-  virtual ~NewPurchase();
-  virtual transaction_status_t Execute(SyncClient &client);
+const char ALPHA_NUMERIC[] = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
 
- private:
-  uint64_t ib_id;
-  uint64_t i_id;
-  uint64_t u_id;
-  uint64_t buyer_id;
-  std::mt19937_64 &gen;
-};
+std::string RandomAString(size_t x, size_t y, std::mt19937_64 &gen)
+{
+  std::string s;
+  size_t length = std::uniform_int_distribution<size_t>(x, y)(gen);
+  for (size_t i = 0; i < length; ++i)
+  {
+    int j = std::uniform_int_distribution<size_t>(0, sizeof(ALPHA_NUMERIC))(gen);
+    s += ALPHA_NUMERIC[j];
+  }
+  return s;
+}
 
-} // namespace auctionmark
-
-#endif /* AUCTION_MARK_NEW_PURCHASE_H */
+}
