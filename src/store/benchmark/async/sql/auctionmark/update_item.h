@@ -33,8 +33,7 @@ namespace auctionmark {
 
 class UpdateItem : public AuctionMarkTransaction {
  public:
-  UpdateItem(uint32_t timeout, uint64_t i_id, uint64_t i_u_id, std::string description,
-    std::mt19937 &gen);
+  UpdateItem(uint32_t timeout, std::string description, std::mt19937_64 &gen);
   virtual ~UpdateItem();
   virtual transaction_status_t Execute(SyncClient &client);
  
@@ -42,6 +41,7 @@ class UpdateItem : public AuctionMarkTransaction {
   uint64_t i_id;
   uint64_t i_u_id;
   std::string description;
+  std::mt19937_64 &gen;
 };
 
 } // namespace auctionmark

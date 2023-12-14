@@ -33,17 +33,17 @@ namespace auctionmark {
 
 class NewItem : public AuctionMarkTransaction {
  public:
-  NewItem(uint32_t timeout, uint64_t i_id, uint64_t u_id, uint64_t c_id,
+  NewItem(uint32_t timeout, uint64_t &i_id, uint64_t u_id,
       std::string name, std::string description, double initial_price,
       double reserve_price, double buy_now, const std::string attributes, 
       const std::vector<uint64_t> gag_ids, const std::vector<uint64_t> gav_ids, 
       const std::vector<std::string> images, uint64_t start_date, uint64_t end_date,
-      std::mt19937 &gen);
+      std::mt19937_64 &gen);
   virtual ~NewItem();
   virtual transaction_status_t Execute(SyncClient &client);
  
  private:
-  uint64_t i_id;
+  uint64_t &i_id;
   uint64_t u_id;
   uint64_t c_id;
   std::string name;
@@ -57,6 +57,7 @@ class NewItem : public AuctionMarkTransaction {
   const std::vector<std::string> images;
   uint64_t start_date;
   uint64_t end_date;
+  std::mt19937_64 &gen;
 };
 
 } // namespace auctionmark

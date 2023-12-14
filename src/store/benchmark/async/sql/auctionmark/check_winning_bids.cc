@@ -29,7 +29,7 @@
 
 namespace auctionmark {
 
-CheckWinningBids::CheckWinningBids(uint32_t timeout, uint64_t start_time, uint64_t end_time, std::mt19937 &gen) : 
+CheckWinningBids::CheckWinningBids(uint32_t timeout, uint64_t start_time, uint64_t end_time, std::mt19937_64 &gen) : 
     AuctionMarkTransaction(timeout), start_time(start_time), end_time(end_time) {
 }
 

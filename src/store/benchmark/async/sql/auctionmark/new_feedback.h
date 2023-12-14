@@ -33,8 +33,7 @@ namespace auctionmark {
 
 class NewFeedback : public AuctionMarkTransaction {
  public:
-  NewFeedback(uint32_t timeout, uint64_t i_id, uint64_t seller_id, uint64_t buyer_id,
-      uint64_t rating, std::string comment, std::mt19937 &gen);
+  NewFeedback(uint32_t timeout, uint64_t rating, std::string comment, std::mt19937_64 &gen);
   virtual ~NewFeedback();
   virtual transaction_status_t Execute(SyncClient &client);
 
@@ -44,6 +43,7 @@ class NewFeedback : public AuctionMarkTransaction {
   uint64_t buyer_id;
   uint64_t rating;
   std::string comment;
+  std::mt19937_64 &gen;
 };
 
 } // namespace auctionmark

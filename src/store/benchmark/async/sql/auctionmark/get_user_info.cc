@@ -29,10 +29,10 @@
 
 namespace auctionmark {
 
-GetUserInfo::GetUserInfo(uint32_t timeout, uint64_t u_id, uint64_t get_seller_items, 
-    uint64_t get_buyer_items, uint64_t get_feedback, std::mt19937 &gen) : 
-    AuctionMarkTransaction(timeout), u_id(u_id), get_seller_items(get_seller_items),
-    get_buyer_items(get_buyer_items), get_feedback(get_feedback) {
+GetUserInfo::GetUserInfo(uint32_t timeout, uint64_t get_seller_items, 
+    uint64_t get_buyer_items, uint64_t get_feedback, std::mt19937_64 &gen) : 
+    AuctionMarkTransaction(timeout), get_seller_items(get_seller_items),
+    get_buyer_items(get_buyer_items), get_feedback(get_feedback), gen(gen) {
 }
 
 GetUserInfo::~GetUserInfo(){
@@ -44,13 +44,25 @@ transaction_status_t GetUserInfo::Execute(SyncClient &client) {
   std::vector<std::unique_ptr<const query_result::QueryResult>> results;
 
   Debug("GET USER INFO");
-  Debug("User ID: %lu", u_id);
   Debug("Get Seller Items: %lu", get_seller_items);
   Debug("Get Buyer Items: %lu", get_buyer_items);
   Debug("Get Feedback: %lu", get_feedback);
 
 
   client.Begin(timeout);
+
+  // Choose a random open item
+  statement = fmt::format("SELECT COUNT(DISTINCT(i_u_id)) AS cnt FROM ITEM WHERE i_status = 0;");
+  client.Query(statement, queryResult, timeout);
+  uint64_t items_cnt;
+  deserialize(items_cnt, queryResult);
+
+  uint64_t item_id = std::uniform_int_distribution<uint64_t>(0, items_cnt - 1)(gen);
+  statement = fmt::format("SELECT DISTINCT(i_u_id) FROM ITEM WHERE i_status = 1 LIMIT {}, 1;", item_id);
+  client.Query(statement, queryResult, timeout);
+  queryResult->at(0)->get(0, &u_id);
+
+  Debug("User ID: %lu", u_id);
 
   statement = fmt::format("SELECT u_id, u_rating, u_balance, u_created, u_sattr0, "
                           "u_sattr1, u_sattr2, u_sattr3, u_sattr4, r_name FROM USER, "

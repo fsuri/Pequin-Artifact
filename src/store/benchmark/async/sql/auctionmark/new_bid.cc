@@ -29,8 +29,8 @@
 
 namespace auctionmark {
 
-NewBid::NewBid(uint32_t timeout, uint64_t i_id, uint64_t u_id, uint64_t i_buyer_id,
-      double bid, double max_bid, std::mt19937 &gen) : AuctionMarkTransaction(timeout), i_id(i_id), u_id(u_id),
+NewBid::NewBid(uint32_t timeout, uint64_t i_id, uint64_t i_buyer_id,
+      double bid, double max_bid, std::mt19937_64 &gen) : AuctionMarkTransaction(timeout), i_id(i_id),
       i_buyer_id(i_buyer_id), bid(bid), max_bid(max_bid) {
 }
 
@@ -44,10 +44,15 @@ transaction_status_t NewBid::Execute(SyncClient &client) {
 
   Debug("NEW BID");
   Debug("Item ID: %lu", i_id);
-  Debug("User ID: %lu", u_id);
   Debug("Bid: %f", bid);
 
   client.Begin(timeout);
+
+  statement = fmt::format("SELECT i_u_id FROM ITEM WHERE i_id = {};", i_id);
+  client.Query(statement, queryResult, timeout);
+  uint64_t u_id;
+  deserialize(u_id, queryResult);
+  Debug("User ID: %lu", u_id);
 
   statement = fmt::format("UPDATE ITEM SET i_num_bids = i_num_bids + 1 "
                           "WHERE i_id = {} AND i_u_id = {} AND i_status = 0;",

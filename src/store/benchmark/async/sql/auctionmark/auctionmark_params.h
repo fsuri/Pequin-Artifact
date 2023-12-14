@@ -30,11 +30,25 @@
 namespace auctionmark
 {
 
-    constexpr uint32_t N_REGIONS = 75;
-    constexpr uint32_t N_GAGS = 100;
-    constexpr uint32_t GAV_PER_GROUP = 10;
-    constexpr uint32_t N_USERS = 1000000;
+  constexpr uint32_t N_REGIONS = 75;
+  constexpr uint32_t N_GAGS = 100;
+  constexpr uint32_t GAV_PER_GROUP = 10;
+  constexpr uint32_t N_USERS = 1000000;
 
+  /* Transaction ratios, should add up to 100 */
+  constexpr uint32_t TXNS_TOTAL = 100;
+  constexpr uint32_t NEW_USER_RATIO = 5;
+  constexpr uint32_t NEW_ITEM_RATIO = 10;
+  constexpr uint32_t NEW_BID_RATIO = 18;
+  constexpr uint32_t NEW_COMMENT_RATIO = 2;
+  constexpr uint32_t NEW_COMMENT_RESPONSE_RATIO = 1;
+  constexpr uint32_t NEW_PURCHASE_RATIO = 2;
+  constexpr uint32_t NEW_FEEDBACK_RATIO = 3;
+  constexpr uint32_t GET_ITEM_RATIO = 40;
+  constexpr uint32_t UPDATE_ITEM_RATIO = 2;
+  constexpr uint32_t GET_COMMENT_RATIO = 2;
+  constexpr uint32_t GET_USER_INFO_RATIO = 10;
+  constexpr uint32_t GET_WATCHED_ITEMS_RATIO = 5;
 }
 
 #endif

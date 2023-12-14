@@ -33,8 +33,8 @@ namespace auctionmark {
 
 class GetUserInfo : public AuctionMarkTransaction {
  public:
-  GetUserInfo(uint32_t timeout, uint64_t u_id, uint64_t get_seller_items, 
-    uint64_t get_buyer_items, uint64_t get_feedback, std::mt19937 &gen);
+  GetUserInfo(uint32_t timeout, uint64_t get_seller_items, 
+    uint64_t get_buyer_items, uint64_t get_feedback, std::mt19937_64 &gen);
   virtual ~GetUserInfo();
   virtual transaction_status_t Execute(SyncClient &client);
 
@@ -43,6 +43,7 @@ class GetUserInfo : public AuctionMarkTransaction {
   uint64_t get_seller_items;
   uint64_t get_buyer_items;
   uint64_t get_feedback;
+  std::mt19937_64 &gen;
 };
 
 } // namespace auctionmark

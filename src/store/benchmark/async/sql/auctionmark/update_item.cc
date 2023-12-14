@@ -29,9 +29,8 @@
 
 namespace auctionmark {
 
-UpdateItem::UpdateItem(uint32_t timeout, uint64_t i_id, uint64_t i_u_id, 
-      string description, std::mt19937 &gen) : AuctionMarkTransaction(timeout), i_id(i_id), 
-      i_u_id(i_u_id), description(description) {
+UpdateItem::UpdateItem(uint32_t timeout, string description, std::mt19937_64 &gen) : 
+  AuctionMarkTransaction(timeout), description(description), gen(gen) {
 }
 
 UpdateItem::~UpdateItem(){
@@ -43,10 +42,23 @@ transaction_status_t UpdateItem::Execute(SyncClient &client) {
   std::vector<std::unique_ptr<const query_result::QueryResult>> results;
 
   Debug("UPDATE ITEM");
-  Debug("Item ID: %lu", i_id);
-  Debug("User ID: %lu", i_u_id);
 
   client.Begin(timeout);
+
+  // Choose a random open item
+  statement = fmt::format("SELECT COUNT(*) AS cnt FROM ITEM WHERE i_status = 0;");
+  client.Query(statement, queryResult, timeout);
+  uint64_t items_cnt;
+  deserialize(items_cnt, queryResult);
+
+  uint64_t item_id = std::uniform_int_distribution<uint64_t>(0, items_cnt - 1)(gen);
+  statement = fmt::format("SELECT i_id, i_u_id FROM ITEM WHERE i_status = 1 LIMIT {}, 1;", item_id);
+  client.Query(statement, queryResult, timeout);
+  queryResult->at(0)->get(0, &i_id);
+  queryResult->at(0)->get(1, &i_u_id);
+
+  Debug("Item ID: %lu", i_id);
+  Debug("User ID: %lu", i_u_id);
 
   statement = fmt::format("UPDATE ITEM SET i_description = {} WHERE i_id = {} AND i_u_id = {}",
                           description, i_id, i_u_id);

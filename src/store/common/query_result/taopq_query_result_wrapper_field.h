@@ -33,21 +33,30 @@ namespace taopq_wrapper {
 
 class Field : public query_result::Field {
  private:
-  tao::pq::field field;
+  tao::pq::field _field;
 
  public:
   Field() = default;
 
   Field( tao::pq::field in_field ) noexcept
-      : field(in_field)
+      : _field(in_field)
   {}
 
   auto name() const -> std::string;
   auto index() const -> std::size_t;
 
   bool is_null() const;
-  auto get(std::size_t* size) const -> const char*;
+ 
+  auto get_bytes(std::size_t* size) const -> const char*;
   auto get() const -> const std::string;
+
+  void get(bool *field) const;
+  void get(int32_t *field) const;
+  void get(int64_t *field) const;
+  void get(uint32_t *field) const;
+  void get(uint64_t *field) const;
+  void get(double *field) const;
+  void get(std::string *field) const;
 };
 
 }

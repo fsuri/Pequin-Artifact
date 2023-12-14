@@ -1,6 +1,6 @@
 /***********************************************************************
  *
- * Copyright 2021 Florian Suri-Payer <fsp@cs.cornell.edu>
+ * Copyright 2023 Florian Suri-Payer <fsp@cs.cornell.edu>
  *                Liam Arzola <lma77@cornell.edu>
  *
  * Permission is hereby granted, free of charge, to any person
@@ -24,27 +24,15 @@
  * SOFTWARE.
  *
  **********************************************************************/
-#ifndef AUCTION_MARK_NEW_PURCHASE_H
-#define AUCTION_MARK_NEW_PURCHASE_H
+#ifndef AUCTIONMARK_UTILS_H
+#define AUCTIONMARK_UTILS_H
 
-#include "store/benchmark/async/sql/auctionmark/auctionmark_transaction.h"
+#include <random>
 
 namespace auctionmark {
 
-class NewPurchase : public AuctionMarkTransaction {
- public:
-  NewPurchase(uint32_t timeout, std::mt19937_64 &gen);
-  virtual ~NewPurchase();
-  virtual transaction_status_t Execute(SyncClient &client);
-
- private:
-  uint64_t ib_id;
-  uint64_t i_id;
-  uint64_t u_id;
-  uint64_t buyer_id;
-  std::mt19937_64 &gen;
-};
+std::string RandomAString(size_t x, size_t y, std::mt19937_64 &gen);
 
 } // namespace auctionmark
 
-#endif /* AUCTION_MARK_NEW_PURCHASE_H */
+#endif /* AUCTIONMARK_UTILS_H */
