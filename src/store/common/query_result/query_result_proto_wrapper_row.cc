@@ -78,31 +78,31 @@ auto Row::slice( const std::size_t offset, const std::size_t in_columns ) const 
   return std::unique_ptr<query_result::Row>(new Row(m_result, this->m_row, m_offset + offset, in_columns ));
 }
 
-void Row::get(const std::size_t column, bool *field) const {
+void Row::get_serialized(const std::size_t column, bool *field) const {
   deserialize(column, *field);
 }
 
-void Row::get(const std::size_t column, int32_t *field) const {
+void Row::get_serialized(const std::size_t column, int32_t *field) const {
   deserialize(column, *field);
 }
 
-void Row::get(const std::size_t column, int64_t *field) const {
+void Row::get_serialized(const std::size_t column, int64_t *field) const {
   deserialize(column, *field);
 }
 
-void Row::get(const std::size_t column, uint32_t *field) const {
-  get(column, reinterpret_cast<int32_t*>(field));
+void Row::get_serialized(const std::size_t column, uint32_t *field) const {
+  get_serialized(column, reinterpret_cast<int32_t*>(field));
 }
 
-void Row::get(const std::size_t column, uint64_t *field) const {
-  get(column, reinterpret_cast<int64_t*>(field));
+void Row::get_serialized(const std::size_t column, uint64_t *field) const {
+  get_serialized(column, reinterpret_cast<int64_t*>(field));
 }
 
-void Row::get(const std::size_t column, double *field) const {
+void Row::get_serialized(const std::size_t column, double *field) const {
   deserialize(column, *field);
 }
 
-void Row::get(const std::size_t column, std::string *field) const {
+void Row::get_serialized(const std::size_t column, std::string *field) const {
   deserialize(column, *field);
 }
 

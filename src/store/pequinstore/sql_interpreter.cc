@@ -1389,7 +1389,7 @@ RowUpdates* SQLTransformer::AddTableWriteRow(TableWrite *table_write, const ColR
 
 std::variant<bool, int32_t, std::string> DecodeType(std::unique_ptr<query_result::Field> &field, const std::string &col_type){
     size_t nbytes;
-    const char* field_val_char = field->get(&nbytes);
+    const char* field_val_char = field->get_bytes(&nbytes);
     std::string field_val(field_val_char, nbytes);
     return DecodeType(field_val, col_type);
 }
