@@ -1470,6 +1470,7 @@ std::variant<bool, int64_t, std::string> DecodeType(const std::string &enc_value
     // }
     else if(col_type == "BOOL"){
 
+        bool dec; //FIXME: Peloton encodes everything as string currently. So must DeCerialize as string and only then convert.
         istringstream(enc_value) >> dec;
         type_variant = std::move(dec);
     }
