@@ -638,6 +638,7 @@ void ShardClient::HandleQueryResult(proto::QueryResultReply &queryResult){
         // Eager exec should send to at least queryMessages many (and designate for replies)
         // SyncReplicas() should not trigger early: => Probably no changes necessary? Result quorum is smaller than sync quorum? (f+1 out of 2f+1  VS 2f+1 out of 3f+1)
 
+        Debug("[group %i] Try to sync for Req %lu.\n", group, queryResult.req_id());
         if (params.validateProofs && params.signedMessages) {
             if(replica_result->local_ss().replica_id() !=  queryResult.signed_result().process_id()){
                         Debug("Replica %lu falsely claims to be replica %lu",  queryResult.signed_result().process_id(), replica_result->local_ss().replica_id());

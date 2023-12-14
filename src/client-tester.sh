@@ -4,17 +4,18 @@ CLIENTS=1
 F=1
 NUM_GROUPS=1
 CONFIG="0_local_test_outputs/configs/shard-r6.config"
-PROTOCOL="blackhole"
+PROTOCOL="pequin"
 STORE=${PROTOCOL}store
 DURATION=10
 ZIPF=0.0
 NUM_OPS_TX=1
 NUM_KEYS_IN_DB=1
 KEY_PATH="keys"
-BENCHMARK="seats-sql"
+BENCHMARK="rw-sql"
 
 SQL_BENCH="true"
-FILE_PATH="sql-seats-tables-schema.json"
+FILE_PATH="0_local_test_outputs/rw-sql/rw-sql.json"
+#FILE_PATH="sql-seats-tables-schema.json"
 #"0_local_test_outputs/seats-sql/seats-sql.json"
 #"0_local_test_outputs/kv_example/kv-tables-schema.json"
 

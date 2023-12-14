@@ -1481,6 +1481,7 @@ std::variant<bool, int64_t, std::string> DecodeType(const std::string &enc_value
         //Note: we don't seem to need Array type... --> Auctionmark only uses it for arguments.
     }
 
+    std::cerr << "Decoded type" << std::endl;
     return type_variant;  //Use decoding..
 }
 
