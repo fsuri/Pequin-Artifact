@@ -47,9 +47,37 @@ auto Field::is_null() const -> bool
   return m_row->is_null( m_column );
 }
 
-auto Field::get(std::size_t* size) const -> const char*
+auto Field::get_bytes(std::size_t* size) const -> const char*
 {
   return m_row->get_bytes( m_column, size );
+}
+
+void Field::get(bool *field) const {
+  m_row->get(m_column, field);
+}
+
+void Field::get(int32_t *field) const {
+  m_row->get(m_column, field);
+}
+
+void Field::get(int64_t *field) const {
+  m_row->get(m_column, field);
+}
+
+void Field::get(uint32_t *field) const {
+  m_row->get(m_column, field);
+}
+
+void Field::get(uint64_t *field) const {
+  m_row->get(m_column, field);
+}
+
+void Field::get(double *field) const {
+  m_row->get(m_column, field);
+}
+
+void Field::get(std::string *field) const {
+  m_row->get(m_column, field);
 }
 
 }

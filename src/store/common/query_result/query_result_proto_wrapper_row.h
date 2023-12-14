@@ -186,13 +186,47 @@ class Row : public query_result::Row {
 
   auto slice( const std::size_t offset, const std::size_t in_columns ) const -> std::unique_ptr<query_result::Row>;
 
-  void get(const std::size_t column, bool *field) const;
-  void get(const std::size_t column, int32_t *field) const;
-  void get(const std::size_t column, int64_t *field) const;
-  void get(const std::size_t column, uint32_t *field) const;
-  void get(const std::size_t column, uint64_t *field) const;
-  void get(const std::size_t column, double *field) const;
-  void get(const std::size_t column, std::string *field) const;
+  template<typename T> 
+  void get(const std::size_t column, T& field) const {
+    std::size_t n_bytes;
+    std::istringstream(this[column].get_bytes(column, &n_bytes)) >> *field;
+  }
+
+  inline void get(const std::size_t column, bool *field) const {
+    get(column, field);
+  }
+
+  inline void get(const std::size_t column, int32_t *field) const {
+    get(column, field);
+  }
+
+  inline void get(const std::size_t column, int64_t *field) const {
+    get(column, field);
+  }
+
+  inline void get(const std::size_t column, uint32_t *field) const {
+    get(column, field);
+  }
+
+  inline void get(const std::size_t column, uint64_t *field) const {
+    get(column, field);
+  }
+
+  inline void get(const std::size_t column, double *field) const {
+    get(column, field);
+  }
+
+  inline void get(const std::size_t column, std::string *field) const {
+    get(column, field);
+  }
+
+  void get_serialized(const std::size_t column, bool *field) const;
+  void get_serialized(const std::size_t column, int32_t *field) const;
+  void get_serialized(const std::size_t column, int64_t *field) const;
+  void get_serialized(const std::size_t column, uint32_t *field) const;
+  void get_serialized(const std::size_t column, uint64_t *field) const;
+  void get_serialized(const std::size_t column, double *field) const;
+  void get_serialized(const std::size_t column, std::string *field) const;
 };
 
 }

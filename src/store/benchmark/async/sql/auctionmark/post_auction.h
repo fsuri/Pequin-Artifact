@@ -34,7 +34,7 @@ namespace auctionmark {
 class PostAuction : public AuctionMarkTransaction {
  public:
   PostAuction(uint32_t timeout, std::vector<uint64_t> i_ids, std::vector<uint64_t> seller_ids,
-   std::vector<uint64_t> buyer_ids, std::vector<std::optional<uint64_t>> ib_ids, std::mt19937 &gen);
+   std::vector<uint64_t> buyer_ids, std::vector<std::optional<uint64_t>> ib_ids, std::mt19937_64 &gen);
   virtual ~PostAuction();
   virtual transaction_status_t Execute(SyncClient &client);
 

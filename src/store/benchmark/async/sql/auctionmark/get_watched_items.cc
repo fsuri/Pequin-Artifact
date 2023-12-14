@@ -29,7 +29,7 @@
 
 namespace auctionmark {
 
-GetWatchedItems::GetWatchedItems(uint32_t timeout, uint64_t u_id, std::mt19937 &gen) : 
+GetWatchedItems::GetWatchedItems(uint32_t timeout, uint64_t u_id, std::mt19937_64 &gen) : 
     AuctionMarkTransaction(timeout), u_id(u_id) {
 }
 

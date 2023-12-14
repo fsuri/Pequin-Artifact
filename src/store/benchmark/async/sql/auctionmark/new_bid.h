@@ -33,8 +33,8 @@ namespace auctionmark {
 
 class NewBid : public AuctionMarkTransaction {
  public:
-  NewBid(uint32_t timeout, uint64_t i_id, uint64_t u_id, uint64_t i_buyer_id,
-      double bid, double max_bid, std::mt19937 &gen);
+  NewBid(uint32_t timeout, uint64_t i_id, uint64_t i_buyer_id,
+      double bid, double max_bid, std::mt19937_64 &gen);
   virtual ~NewBid();
   virtual transaction_status_t Execute(SyncClient &client);
 

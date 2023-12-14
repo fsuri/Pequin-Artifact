@@ -33,8 +33,7 @@ namespace auctionmark {
 
 class NewComment : public AuctionMarkTransaction {
  public:
-  NewComment(uint32_t timeout, uint64_t i_id, uint64_t seller_id, uint64_t buyer_id,
-      std::string question, std::mt19937 &gen);
+  NewComment(uint32_t timeout, std::string question, std::mt19937_64 &gen);
   virtual ~NewComment();
   virtual transaction_status_t Execute(SyncClient &client);
 
@@ -43,6 +42,7 @@ class NewComment : public AuctionMarkTransaction {
   uint64_t seller_id;
   uint64_t buyer_id;
   std::string question;
+  std::mt19937_64 &gen;
 };
 
 } // namespace auctionmark

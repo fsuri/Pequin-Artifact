@@ -29,9 +29,8 @@
 
 namespace auctionmark {
 
-NewCommentResponse::NewCommentResponse(uint32_t timeout, uint64_t i_id, uint64_t i_c_id, uint64_t seller_id,
-      std::string response, std::mt19937 &gen) : AuctionMarkTransaction(timeout),
-      i_id(i_id), i_c_id(i_c_id), seller_id(seller_id), response(response) {
+NewCommentResponse::NewCommentResponse(uint32_t timeout, std::string response, std::mt19937_64 &gen) : AuctionMarkTransaction(timeout),
+      i_id(i_id), i_c_id(i_c_id), seller_id(seller_id), response(response), gen(gen) {
 }
 
 NewCommentResponse::~NewCommentResponse(){
@@ -43,11 +42,25 @@ transaction_status_t NewCommentResponse::Execute(SyncClient &client) {
   std::vector<std::unique_ptr<const query_result::QueryResult>> results;
 
   Debug("NEW COMMENT RESPONSE");
+
+  client.Begin(timeout);
+
+  // Choose a random comment
+  statement = fmt::format("SELECT COUNT(*) AS cnt FROM ITEM_COMMENT;");
+  client.Query(statement, queryResult, timeout);
+  uint64_t comments_cnt;
+  deserialize(comments_cnt, queryResult);
+
+  uint64_t comment_id = std::uniform_int_distribution<uint64_t>(0, comments_cnt - 1)(gen);
+  statement = fmt::format("SELECT ic_id, ic_i_id, ic_u_id FROM ITEM_COMMENT LIMIT {}, 1;", comment_id);
+  client.Query(statement, queryResult, timeout);
+  queryResult->at(0)->get(0, &i_c_id);
+  queryResult->at(0)->get(1, &i_id);
+  queryResult->at(0)->get(2, &seller_id);
+
   Debug("Item ID: %lu", i_id);
   Debug("Comment ID: %lu", i_c_id);
   Debug("Seller ID: %lu", seller_id);
-
-  client.Begin(timeout);
 
   statement = fmt::format("UPDATE ITEM_COMMENT SET ic_response = {} WHERE "
                           "ic_id = {} AND ic_i_id = {} AND ic_u_id = {}",

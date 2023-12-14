@@ -30,47 +30,51 @@
 #include <random>
 
 #include "store/benchmark/async/sync_transaction_bench_client.h"
+#include "store/benchmark/async/sql/auctionmark/auctionmark_params.h"
 
 namespace auctionmark
 {
 
-    enum AuctionMarkTransactionType
-    {
-        TXN_NEW_USER = 0,
-        TXN_NEW_ITEM,
-        TXN_NEW_BID,
-        TXN_NEW_COMMENT,
-        TXN_NEW_COMMENT_RESPONSE,
-        TXN_NEW_PURCHASE,
-        TXN_NEW_FEEDBACK,
-        TXN_GET_ITEM,
-        TXN_UPDATE_ITEM,
-        TXN_GET_COMMENT,
-        TXN_GET_USER_INFO,
-        TXN_GET_WATCHED_ITEM,
-        NUM_TXN_TYPES
-    };
+enum AuctionMarkTransactionType
+{
+  TXN_NEW_USER = 0,
+  TXN_NEW_ITEM,
+  TXN_NEW_BID,
+  TXN_NEW_COMMENT,
+  TXN_NEW_COMMENT_RESPONSE,
+  TXN_NEW_PURCHASE,
+  TXN_NEW_FEEDBACK,
+  TXN_GET_ITEM,
+  TXN_UPDATE_ITEM,
+  TXN_GET_COMMENT,
+  TXN_GET_USER_INFO,
+  TXN_GET_WATCHED_ITEM,
+  NUM_TXN_TYPES
+};
 
-    class AuctionMarkClient : public SyncTransactionBenchClient
-    {
-    public:
-        // TODO: Should transaction ratios be passed in as parameters or set through config/constants file?
-        AuctionMarkClient(SyncClient &client, Transport &transport, uint64_t id,
-                          int numRequests, int expDuration, uint64_t delay, int warmupSec,
-                          int cooldownSec, int tputInterval,
-                          uint32_t abortBackoff, bool retryAborted, uint32_t maxBackoff, uint32_t maxAttempts,
-                          uint32_t timeout,
-                          const std::string &latencyFilename = "");
+class AuctionMarkClient : public SyncTransactionBenchClient
+{
+ public:
+  AuctionMarkClient(SyncClient &client, Transport &transport, uint64_t id,
+                    int numRequests, int expDuration, uint64_t delay, int warmupSec,
+                    int cooldownSec, int tputInterval,
+                    uint32_t abortBackoff, bool retryAborted, uint32_t maxBackoff, uint32_t maxAttempts,
+                    uint32_t timeout,
+                    const std::string &latencyFilename = "");
 
-        virtual ~AuctionMarkClient();
+  virtual ~AuctionMarkClient();
 
-        virtual SyncTransaction *GetNextTransaction();
-        virtual std::string GetLastOp() const;
+  uint64_t max_u_id;
+  uint64_t max_i_id;
 
-    private:
-        std::string lastOp;
-        uint64_t N_USERS;
-    };
+ protected:
+  virtual SyncTransaction *GetNextTransaction();
+  virtual std::string GetLastOp() const;
+
+  std::string lastOp;
+  std::mt19937_64 gen;
+  std::chrono::steady_clock::time_point last_check_winning_bids;
+};
 
 } // namespace auctionmark
 

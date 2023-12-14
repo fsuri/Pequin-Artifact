@@ -33,7 +33,7 @@ namespace auctionmark {
 
 class GetWatchedItems : public AuctionMarkTransaction {
  public:
-  GetWatchedItems(uint32_t timeout, uint64_t u_id, std::mt19937 &gen);
+  GetWatchedItems(uint32_t timeout, uint64_t u_id, std::mt19937_64 &gen);
   virtual ~GetWatchedItems();
   virtual transaction_status_t Execute(SyncClient &client);
 

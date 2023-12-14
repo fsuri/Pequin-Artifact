@@ -29,9 +29,9 @@
 
 namespace auctionmark {
 
-NewComment::NewComment(uint32_t timeout, uint64_t i_id, uint64_t seller_id, uint64_t buyer_id,
-      std::string question, std::mt19937 &gen) : AuctionMarkTransaction(timeout),
-      i_id(i_id), seller_id(seller_id), buyer_id(buyer_id), question(question) {
+NewComment::NewComment(uint32_t timeout, std::string question, 
+      std::mt19937_64 &gen) : AuctionMarkTransaction(timeout), 
+      question(question), gen(gen) {
 }
 
 NewComment::~NewComment(){
@@ -43,12 +43,27 @@ transaction_status_t NewComment::Execute(SyncClient &client) {
   std::vector<std::unique_ptr<const query_result::QueryResult>> results;
 
   Debug("NEW COMMENT");
-  Debug("Item ID: %lu", i_id);
-  Debug("Seller ID: %lu", seller_id);
-  Debug("Buyer ID: %lu", buyer_id);
 
   client.Begin(timeout);
 
+  // Choose a random puchased item
+  statement = fmt::format("SELECT COUNT(*) AS cnt FROM USER_ITEM;");
+  client.Query(statement, queryResult, timeout);
+  uint64_t user_items_cnt;
+  deserialize(user_items_cnt, queryResult);
+
+  uint64_t user_item_id = std::uniform_int_distribution<uint64_t>(0, user_items_cnt - 1)(gen);
+  statement = fmt::format("SELECT ui_u_id, ui_i_id, ui_seller_id FROM USER_ITEM LIMIT {}, 1;", user_item_id);
+  client.Query(statement, queryResult, timeout);
+  queryResult->at(0)->get(0, &buyer_id);
+  queryResult->at(0)->get(1, &i_id);
+  queryResult->at(0)->get(2, &seller_id);
+
+  Debug("Item ID: %lu", i_id);
+  Debug("Buyer ID: %lu", buyer_id);
+  Debug("Seller ID: %lu", seller_id);
+
+  // Post comment on selected item
   statement = fmt::format("INSERT INTO ITEM_COMMENT (ic_id, ic_i_id, ic_u_id, "
                           "ic_buyer_id, ic_date, ic_question) VALUES (("
                           "SELECT MAX(ic_id) FROM ITEM_COMMENT WHERE ic_i_id = {} "
