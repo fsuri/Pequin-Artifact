@@ -26,6 +26,10 @@ message WriteMessage {
 
 }
 
+message QueryMessage {
+    required bytes query = 1;
+}
+
 message PingMessage {
   required uint64 salt = 1;
 }

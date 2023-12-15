@@ -51,11 +51,6 @@ class QueryResultProtoBuilder {
     result = std::make_unique<SQLResultProto>();
   }
 
-  // auto serialize(std::int32_t i) -> std::string;
-  // auto serialize(const std::string& s) -> std::string;
-  // auto serialize(std::uint64_t i) -> std::string;
-  // auto serialize(bool i) -> std::string;
-
   auto add_columns(const std::vector<std::string>& columns) -> void;
   auto add_column(const std::string& name) -> void;
   auto add_empty_row() -> void;
@@ -75,11 +70,21 @@ class QueryResultProtoBuilder {
     }
   }
 
+  // Overwrites existing field
+  template<typename T>
+  auto insert_field_to_row(std::size_t row, std::size_t column, T &t) -> void {
+    FieldProto *field = result->mutable_rows(row)->mutable_fields(column);
+    field->set_data(serialize(t));
+  }
+
+  // Overwrites existing field in last row
+  template<typename T>
+  auto insert_field_to_last_row(std::size_t column, T &t) -> void {
+    insert_field_to_row(result->rows_size() - 1, column, t);
+  }
+
   template<typename T>
   auto serialize(T t) -> std::string {
-    // std::string s(static_cast<char*>(static_cast<void*>(&t)));
-    // return s;
-
     std::stringstream ss(std::ios::out | std::ios::in | std::ios::binary);
     {
       cereal::BinaryOutputArchive oarchive(ss); // Create an output archive

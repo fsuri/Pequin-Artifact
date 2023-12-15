@@ -56,6 +56,9 @@
 // HotStuff
 #include "store/hotstuffstore/replica.h"
 #include "store/hotstuffstore/server.h"
+// HotStuffPG
+#include "store/hotstuffpgstore/replica.h"
+#include "store/hotstuffpgstore/server.h"
 // Augustus
 #include "store/augustusstore/replica.h"
 #include "store/augustusstore/server.h"
@@ -89,6 +92,8 @@ enum protocol_t {
 	PROTO_PBFT,
     // HotStuff
     PROTO_HOTSTUFF,
+    // HotStuffPG
+    PROTO_HOTSTUFF_PG,
     // Augustus-Hotstuff
     PROTO_AUGUSTUS,
     // BftSmart
@@ -136,6 +141,7 @@ const std::string protocol_args[] = {
   "indicus",
 	"pbft",
     "hotstuff",
+    "hotstuffpg",
     "augustus-hs", //not used currently by experiment scripts (deprecated)
   "bftsmart",
 	"augustus" //currently used as augustus version -- maps to BFTSmart Augustus implementation
@@ -148,6 +154,7 @@ const protocol_t protos[] {
   PROTO_INDICUS,
       PROTO_PBFT,
       PROTO_HOTSTUFF,
+      PROTO_HOTSTUFF_PG,
       PROTO_AUGUSTUS,
       PROTO_BFTSMART,
 			PROTO_AUGUSTUS_SMART
@@ -363,6 +370,8 @@ DEFINE_uint64(pbft_esig_batch_timeout, 10, "signature batch timeout ms"
 DEFINE_bool(pbft_order_commit, true, "order commit writebacks as well");
 DEFINE_bool(pbft_validate_abort, true, "validate abort writebacks as well");
 
+DEFINE_bool(async_server, false, "Determine if using a replica that does async server calls");
+
 const std::string occ_type_args[] = {
 	"tapir",
   "mvtso"
@@ -499,7 +508,7 @@ int main(int argc, char **argv) {
   }
 
   int threadpool_mode = 0; //default for Basil.
-  if(proto == PROTO_HOTSTUFF || proto == PROTO_AUGUSTUS) threadpool_mode = 1;
+  if(proto == PROTO_HOTSTUFF || proto == PROTO_HOTSTUFF_PG || proto == PROTO_AUGUSTUS) threadpool_mode = 1;
   if(proto == PROTO_BFTSMART || proto == PROTO_AUGUSTUS_SMART) threadpool_mode = 2;
 
   switch (trans) {
@@ -519,6 +528,7 @@ int main(int argc, char **argv) {
     default:
       NOT_REACHABLE();
   }
+  // Notice("Shir: debugging server 1\n");
 
   // parse protocol and mode
   partitioner_t partType = DEFAULT;
@@ -544,6 +554,7 @@ int main(int argc, char **argv) {
     default:
       NOT_REACHABLE();
   }
+  // Notice("Shir: debugging server 2\n");
 
   // parse occ type
   occ_type_t occ_type = OCC_TYPE_UNKNOWN;
@@ -572,6 +583,7 @@ int main(int argc, char **argv) {
     std::cerr << "Unknown read dep." << std::endl;
     return 1;
   }
+  // Notice("Shir: debugging server 3\n");
 
 	crypto::KeyType keyType;
   switch (FLAGS_indicus_key_type) {
@@ -633,6 +645,10 @@ int main(int argc, char **argv) {
   num_cpus /= FLAGS_indicus_total_processes;
   int protocol_cpu;
 
+  // Notice("Shir: debugging server proto: \n");
+  // std::cerr <<  "Shir:  Proto enum number is:  " << proto <<"\n";
+
+
   switch(proto){
       case PROTO_TAPIR:
       case PROTO_WEAK:
@@ -656,6 +672,9 @@ int main(int argc, char **argv) {
       case PROTO_PBFT:
         break;
       case PROTO_HOTSTUFF:
+          // Notice("Shir: debugging server 4\n");
+      case PROTO_HOTSTUFF_PG:
+          // Notice("Shir: debugging server 4 - proto hotstuff pg \n");
       case PROTO_BFTSMART:
       case PROTO_AUGUSTUS_SMART:
       case PROTO_AUGUSTUS:
@@ -826,6 +845,30 @@ int main(int argc, char **argv) {
                                        FLAGS_pbft_esig_batch, FLAGS_pbft_esig_batch_timeout,
                                        FLAGS_indicus_use_coordinator, FLAGS_indicus_request_tx,
 																			 protocol_cpu, FLAGS_num_shards, tport);
+
+      break;
+  }
+
+     // HotStuffPG
+  case PROTO_HOTSTUFF_PG: {
+      // std::cerr << "Shir: debugging server 5\n";
+      // Notice("Shir playing with HS");
+      std::cerr << "Shir: check FLAGS_replica_idx:    "<<  FLAGS_replica_idx <<"\n";
+
+      server = new hotstuffpgstore::Server(config, &keyManager,
+                                     FLAGS_group_idx, FLAGS_replica_idx, FLAGS_num_shards, FLAGS_num_groups,
+                                     FLAGS_indicus_sign_messages, FLAGS_indicus_validate_proofs,
+                                     FLAGS_indicus_watermark_time_delta, part, tport,
+                                                                                                                                           FLAGS_pbft_order_commit, FLAGS_pbft_validate_abort);
+
+      replica = new hotstuffpgstore::Replica(config, &keyManager,
+                                       dynamic_cast<hotstuffpgstore::App *>(server),
+                                       FLAGS_group_idx, FLAGS_replica_idx, FLAGS_indicus_sign_messages,
+                                       FLAGS_indicus_sig_batch, FLAGS_indicus_sig_batch_timeout,
+                                       FLAGS_pbft_esig_batch, FLAGS_pbft_esig_batch_timeout,
+                                       FLAGS_indicus_use_coordinator, FLAGS_indicus_request_tx,
+
+             protocol_cpu, FLAGS_num_shards, tport, FLAGS_async_server);
 
       break;
   }
@@ -1056,7 +1099,21 @@ int main(int argc, char **argv) {
   std::signal(SIGINT, Cleanup);
 
   CALLGRIND_START_INSTRUMENTATION;
-	
+	//SET THREAD AFFINITY if running multi_threading:
+	//if(FLAGS_indicus_multi_threading){
+	if((proto == PROTO_INDICUS || proto == PROTO_PBFT || proto == PROTO_HOTSTUFF || proto == PROTO_HOTSTUFF_PG || proto == PROTO_AUGUSTUS || proto == PROTO_BFTSMART || proto == PROTO_AUGUSTUS_SMART) && FLAGS_indicus_multi_threading){
+		cpu_set_t cpuset;
+		CPU_ZERO(&cpuset);
+		//bool hyperthreading = true;
+        int num_cpus = std::thread::hardware_concurrency();///(2-FLAGS_indicus_hyper_threading);
+		//CPU_SET(num_cpus-1, &cpuset); //last core is for main
+		num_cpus /= FLAGS_indicus_total_processes;
+        int offset = FLAGS_indicus_process_id * num_cpus;
+		//int offset = FLAGS_indicus_process_id;
+		CPU_SET(0 + offset, &cpuset); //first assigned core is for main
+		//pthread_setaffinity_np(pthread_self(),	sizeof(cpu_set_t), &cpuset);
+		Debug("MainThread running on CPU %d.", sched_getcpu());
+	}
 
 	//event_enable_debug_logging(EVENT_DBG_ALL);
 

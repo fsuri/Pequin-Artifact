@@ -1,12 +1,12 @@
 #!/bin/bash
 
 CLIENTS=1
-F=1
+F=0
 NUM_GROUPS=1
-CONFIG="0_local_test_outputs/configs/shard-r6.config"
-PROTOCOL="pequin"
+CONFIG="0_local_test_outputs/configs/shard-r4.config"
+PROTOCOL="hotstuffpg"
 STORE=${PROTOCOL}store
-DURATION=10
+DURATION=3
 ZIPF=0.0
 NUM_OPS_TX=1
 NUM_KEYS_IN_DB=1
@@ -32,17 +32,18 @@ b) BENCHMARK=${OPTARG};;
 esac;
 done
 
-N=$((5*$F+1))
+N=$((3*$F+1))
 
 echo '[1] Starting new clients'
-for i in `seq 1 $((CLIENTS-1))`; do
-  #valgrind
- DEBUG=store/$STORE/*client.cc store/benchmark/async/benchmark --config_path $CONFIG --num_groups $NUM_GROUPS \
-    --num_shards $NUM_GROUPS \
-    --protocol_mode $PROTOCOL --num_keys $NUM_KEYS_IN_DB --benchmark $BENCHMARK --sql_bench=$SQL_BENCH --data_file_path $FILE_PATH --num_ops_txn $NUM_OPS_TX \
-    --exp_duration $DURATION --client_id $i --num_client_hosts $CLIENTS --warmup_secs 0 --cooldown_secs 0 \
-    --key_selector zipf --zipf_coefficient $ZIPF --indicus_key_path $KEY_PATH &> ./0_local_test_outputs/client-$i.out &
-done;
+# Shir: I commented out, I don't think I need this at the moment...
+# for i in `seq 1 $((CLIENTS-1))`; do
+#   #valgrind
+#  DEBUG=store/$STORE/*client.cc store/benchmark/async/benchmark --config_path $CONFIG --num_groups $NUM_GROUPS \
+#     --num_shards $NUM_GROUPS \
+#     --protocol_mode $PROTOCOL --num_keys $NUM_KEYS_IN_DB --benchmark $BENCHMARK --num_ops_txn $NUM_OPS_TX \
+#     --exp_duration $DURATION --client_id $i --num_client_hosts $CLIENTS --warmup_secs 0 --cooldown_secs 0 \
+#     --key_selector zipf --zipf_coefficient $ZIPF --indicus_key_path $KEY_PATH &> ./0_local_test_outputs/client-$i.out &
+# done;
 
 #valgrind
 DEBUG=store/$STORE/*client.cc store/benchmark/async/benchmark --config_path $CONFIG --num_groups $NUM_GROUPS \

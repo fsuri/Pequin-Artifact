@@ -29,7 +29,7 @@
 
 #include "store/common/timestamp.h"
 #include "store/common/stats.h"
-
+#include "lib/message.h"
 #include <string>
 
 class Server {

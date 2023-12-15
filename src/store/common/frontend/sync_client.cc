@@ -25,6 +25,7 @@
  *
  **********************************************************************/
 #include "store/common/frontend/sync_client.h"
+#include "store/common/query_result/query_result_proto_wrapper.h"
 
 
 SyncClient::SyncClient(Client *client) : client(client) {
@@ -155,12 +156,15 @@ void SyncClient::Write(std::string &statement, uint32_t timeout) {
 
 void SyncClient::Query(const std::string &query, std::unique_ptr<const query_result::QueryResult> &result, uint32_t timeout) {
   Promise promise(timeout);
-  
+  // std::cerr<< "Shir: performing query transaction 11\n";
   client->Query(query, std::bind(&SyncClient::QueryCallback, this, &promise,
         std::placeholders::_1, std::placeholders::_2), 
         std::bind(&SyncClient::QueryTimeoutCallback, this,
         &promise, std::placeholders::_1), timeout);
+  // std::cerr<< "Shir: performing query transaction 22\n";
   result = promise.ReleaseQueryResult();
+  std::cerr<< "Shir: Query managed to get some result \n";
+
 }
 
 void SyncClient::Query(const std::string &query, uint32_t timeout) {

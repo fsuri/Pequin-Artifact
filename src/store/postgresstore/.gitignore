@@ -1,0 +1,12 @@
+CMakeFiles/
+cmake_install.cmake
+CMakeCache.txt
+cmake-build-debug/
+*.a
+*.o
+*.la
+*.lo
+*.so
+*.gch
+_deps/
+Makefile

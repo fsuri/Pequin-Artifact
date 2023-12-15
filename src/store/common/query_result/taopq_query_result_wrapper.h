@@ -10,10 +10,10 @@
  * modify, merge, publish, distribute, sublicense, and/or sell copies
  * of the Software, and to permit persons to whom the Software is
  * furnished to do so, subject to the following conditions:
- * 
+ *
  * The above copyright notice and this permission notice shall be
  * included in all copies or substantial portions of the Software.
- * 
+ *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
  * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
  * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
@@ -33,9 +33,11 @@
 #include "store/common/query_result/query_result_row.h"
 #include "store/common/query_result/taopq_query_result_wrapper_row.h"
 
-namespace taopq_wrapper {
+namespace taopq_wrapper
+{
 
-class TaoPQQueryResultWrapper : public query_result::QueryResult {
+  class TaoPQQueryResultWrapper : public query_result::QueryResult
+  {
   private:
      std::unique_ptr<tao::pq::result> result;
 

@@ -166,6 +166,8 @@ HotStuffApp::HotStuffApp(uint32_t blk_size,
     ec(ec),
     cn(req_ec, clinet_config),
     clisten_addr(clisten_addr) {
+    // std::cout << "Shir: HS 1" << std::endl;
+
     /* prepare the thread used for sending back confirmations */
     resp_tcall = new salticidae::ThreadCall(resp_ec);
     req_tcall = new salticidae::ThreadCall(req_ec);
@@ -175,6 +177,8 @@ HotStuffApp::HotStuffApp(uint32_t blk_size,
         {
             try {
                 cn.send_msg(MsgRespCmd(std::move(p.first)), p.second);
+                // std::cout << "Shir: HS 2" << std::endl;
+
             } catch (std::exception &err) {
                 HOTSTUFF_LOG_WARN("unable to send to the client: %s", err.what());
             }
@@ -189,6 +193,8 @@ HotStuffApp::HotStuffApp(uint32_t blk_size,
 }
 
 void HotStuffApp::client_request_cmd_handler(MsgReqCmd &&msg, const conn_t &conn) {
+    // std::cout << "Shir: HS 3" << std::endl;
+
     const NetAddr addr = conn->get_addr();
     auto cmd = parse_cmd(msg.serialized);
     const auto &cmd_hash = cmd->get_hash();
@@ -200,14 +206,17 @@ void HotStuffApp::client_request_cmd_handler(MsgReqCmd &&msg, const conn_t &conn
 
 
 void HotStuffApp::interface_propose(const string &hash,  std::function<void(const std::string&, uint32_t seqnum)> cb) {
-
+    std::cout << "interface propose reached" << std::endl;
     uint256_t cmd_hash((const uint8_t *)hash.c_str());
     exec_command(cmd_hash, [this, hash, cb](Finality fin) {
-            // std::cout << "height: " << fin.cmd_height << ", idx: " << fin.cmd_idx << std::endl;
+            std::cout << "height: " << fin.cmd_height << ", idx: " << fin.cmd_idx << std::endl;
             assert(fin.cmd_height >= 1);
             uint32_t seqnum = (fin.cmd_height - 1) * blk_size + fin.cmd_idx;
+            std::cout << seqnum << std::endl;
             cb(hash, seqnum);
     });
+    // std::cout << "Shir: interface propose exit" << std::endl;
+
 }
 
 
@@ -224,12 +233,17 @@ void HotStuffApp::start(const std::vector<std::tuple<NetAddr, bytearray_t, bytea
             get_pace_maker()->impeach();
         reset_imp_timer();
     });
+    // std::cout << "Shir: HS 4" << std::endl;
+
     impeach_timer.add(impeach_timeout);
     HOTSTUFF_LOG_INFO("** starting the system with parameters **");
     HOTSTUFF_LOG_INFO("blk_size = %lu", blk_size);
     HOTSTUFF_LOG_INFO("conns = %lu", HotStuff::size());
     HOTSTUFF_LOG_INFO("** starting the event loop...");
     HotStuff::start(reps);
+
+    // std::cout << "Shir: HS 5" << std::endl;
+
 }
 
 void HotStuffApp::interface_entry() {

@@ -55,6 +55,7 @@
 #include "store/benchmark/async/rw/rw_client.h"
 #include "store/benchmark/async/tpcc/sync/tpcc_client.h"
 #include "store/benchmark/async/tpcc/async/tpcc_client.h"
+#include "store/benchmark/async/sql/tpcc/tpcc_client.h"
 #include "store/benchmark/async/smallbank/smallbank_client.h"
 #include "store/benchmark/async/toy/toy_client.h"
 #include "store/benchmark/async/rw-sql/rw-sql_client.h"
@@ -69,6 +70,8 @@
 #include "store/pbftstore/client.h"
 // HotStuff
 #include "store/hotstuffstore/client.h"
+// HotStuffPostgres
+#include "store/hotstuffpgstore/client.h"
 // Augustus-Hotstuff
 #include "store/augustusstore/client.h"
 //BFTSmart
@@ -103,6 +106,8 @@ enum protomode_t {
 	PROTO_PBFT,
     // HotStuff
     PROTO_HOTSTUFF,
+    // HotStuffPG
+    PROTO_HOTSTUFF_PG,
     // Augustus-Hotstuff
     PROTO_AUGUSTUS,
     // Bftsmart
@@ -119,6 +124,7 @@ enum benchmode_t {
   BENCH_RW,
   BENCH_TPCC_SYNC,
   BENCH_TOY,
+  BENCH_TPCC_SQL,
   BENCH_RW_SQL
 };
 
@@ -245,7 +251,7 @@ static bool ValidateReadMessages(const char* flagname,
 DEFINE_string(indicus_read_messages, read_messages_args[0], "number of replicas"
     " to send messages for reads (for Indicus)");
 DEFINE_validator(indicus_read_messages, &ValidateReadMessages);
-DEFINE_bool(indicus_sign_messages, true, "add signatures to messages as"
+DEFINE_bool(indicus_sign_messages, true, "add signatures to messages as" // Changed for testing of hotstuffpg
     " necessary to prevent impersonation (for Indicus)");
 DEFINE_bool(indicus_validate_proofs, true, "send and validate proofs as"
     " necessary to check Byzantine behavior (for Indicus)");
@@ -291,6 +297,8 @@ DEFINE_string(bftsmart_codebase_dir, "", "path to directory containing bftsmart 
 DEFINE_bool(indicus_parallel_CCC, true, "sort read/write set for parallel CCC locking at server");
 
 DEFINE_bool(indicus_hyper_threading, true, "use hyperthreading");
+
+DEFINE_bool(deterministic, false, "Indicate if server is deterministic or not. If not, will return leader's results for consistency");
 
 //Indicus failure handling and injection
 DEFINE_bool(indicus_no_fallback, false, "turn off fallback protocol");
@@ -477,6 +485,8 @@ const std::string protocol_args[] = {
 	"pbft",
 // HotStuff
     "hotstuff",
+// HotStuff Postgres
+    "hotstuffpg",
 // Augustus-Hotstuff
     "augustus-hs",
 // BFTSmart
@@ -499,6 +509,8 @@ const protomode_t protomodes[] {
       PROTO_PBFT,
   // HotStuff
       PROTO_HOTSTUFF,
+  // HotStuff Postgres
+      PROTO_HOTSTUFF_PG,
   // Augustus-Hotstuff
       PROTO_AUGUSTUS,
   // BFTSmart
@@ -515,13 +527,13 @@ const strongstore::Mode strongmodes[] {
   strongstore::Mode::MODE_LOCK,
   strongstore::Mode::MODE_SPAN_OCC,
   strongstore::Mode::MODE_SPAN_LOCK,
-  //
   strongstore::Mode::MODE_UNKNOWN,
   strongstore::Mode::MODE_UNKNOWN,
   strongstore::Mode::MODE_UNKNOWN,
 	strongstore::Mode::MODE_UNKNOWN,
 	strongstore::Mode::MODE_UNKNOWN,
-  strongstore::Mode::MODE_UNKNOWN,
+	strongstore::Mode::MODE_UNKNOWN,
+	strongstore::Mode::MODE_UNKNOWN,
 	strongstore::Mode::MODE_UNKNOWN
 };
 static bool ValidateProtocolMode(const char* flagname,
@@ -555,6 +567,7 @@ const benchmode_t benchmodes[] {
   BENCH_RW,
   BENCH_TPCC_SYNC,
   BENCH_TOY,
+  BENCH_TPCC_SQL,
   BENCH_RW_SQL
 };
 static bool ValidateBenchmark(const char* flagname, const std::string &value) {
@@ -791,6 +804,9 @@ int main(int argc, char **argv) {
   for (int i = 0; i < numBenchs; ++i) {
     if (FLAGS_benchmark == benchmark_args[i]) {
       benchMode = benchmodes[i];
+      // std::cout << "Shir" << std::endl;
+      // std::cout << benchMode << std::endl;
+      // std::cout << "Shir2" << std::endl;
       break;
     }
   }
@@ -1315,6 +1331,7 @@ int main(int argc, char **argv) {
         break;
       case PROTO_PBFT:
       case PROTO_HOTSTUFF:
+      case PROTO_HOTSTUFF_PG:
       case PROTO_BFTSMART:
       case PROTO_AUGUSTUS_SMART:
       case PROTO_AUGUSTUS:
@@ -1474,6 +1491,18 @@ int main(int argc, char **argv) {
 																			 TrueTime(FLAGS_clock_skew, FLAGS_clock_error));
         break;
     }
+// HotStuff Postgres
+    case PROTO_HOTSTUFF_PG: {
+        client = new hotstuffpgstore::Client(*config, clientId, FLAGS_num_shards,
+                                       FLAGS_num_groups, closestReplicas,
+																			  tport, part,
+                                       readMessages, readQuorumSize,
+                                       FLAGS_indicus_sign_messages, FLAGS_indicus_validate_proofs,
+                                       keyManager,
+																			 FLAGS_pbft_order_commit, FLAGS_pbft_validate_abort,
+																			 TrueTime(FLAGS_clock_skew, FLAGS_clock_error), FLAGS_deterministic);
+        break;
+    }
 
 		// BFTSmart
 		    case PROTO_BFTSMART: {
@@ -1545,6 +1574,7 @@ int main(int argc, char **argv) {
       case BENCH_RW_SQL:
       case BENCH_SMALLBANK_SYNC:
       case BENCH_TPCC_SYNC:
+      case BENCH_TPCC_SQL:
         if (syncClient == nullptr) {
           UW_ASSERT(client != nullptr);
           syncClient = new SyncClient(client);
@@ -1591,6 +1621,19 @@ int main(int argc, char **argv) {
             FLAGS_static_w_id, FLAGS_abort_backoff,
             FLAGS_retry_aborted, FLAGS_max_backoff, FLAGS_max_attempts, FLAGS_message_timeout);
         break;
+      case BENCH_TPCC_SQL:
+        UW_ASSERT(syncClient != nullptr);
+        bench = new tpcc_sql::TPCCSQLClient(*syncClient, *tport,
+            seed,
+            FLAGS_num_requests, FLAGS_exp_duration, FLAGS_delay,
+            FLAGS_warmup_secs, FLAGS_cooldown_secs, FLAGS_tput_interval,
+            FLAGS_tpcc_num_warehouses, FLAGS_tpcc_w_id, FLAGS_tpcc_C_c_id,
+            FLAGS_tpcc_C_c_last, FLAGS_tpcc_new_order_ratio,
+            FLAGS_tpcc_delivery_ratio, FLAGS_tpcc_payment_ratio,
+            FLAGS_tpcc_order_status_ratio, FLAGS_tpcc_stock_level_ratio,
+            FLAGS_static_w_id, FLAGS_abort_backoff,
+            FLAGS_retry_aborted, FLAGS_max_backoff, FLAGS_max_attempts, FLAGS_message_timeout);
+        break;
       case BENCH_SMALLBANK_SYNC:
         UW_ASSERT(syncClient != nullptr);
         bench = new smallbank::SmallbankClient(*syncClient, *tport,
@@ -1614,6 +1657,7 @@ int main(int argc, char **argv) {
         break;
       case BENCH_TOY:
         UW_ASSERT(syncClient != nullptr);
+        std::cout << "Shir: toy mode" << std::endl;
         bench = new toy::ToyClient(*syncClient, *tport,
             seed,
             FLAGS_num_requests, FLAGS_exp_duration, FLAGS_delay,
@@ -1644,6 +1688,7 @@ int main(int argc, char **argv) {
         break;
       case BENCH_RW_SQL:
       case BENCH_SMALLBANK_SYNC:
+      case BENCH_TPCC_SQL:
       case BENCH_TPCC_SYNC: {
         SyncTransactionBenchClient *syncBench = dynamic_cast<SyncTransactionBenchClient *>(bench);
         UW_ASSERT(syncBench != nullptr);
@@ -1662,9 +1707,11 @@ int main(int argc, char **argv) {
       case BENCH_TOY: {
        SyncTransactionBenchClient *syncBench = dynamic_cast<SyncTransactionBenchClient *>(bench);
         toy::ToyClient *toyClient =  dynamic_cast<toy::ToyClient *>(syncBench);
+        // std::cout << "Shir: call execute toy1\n";
         threads.push_back(new std::thread([toyClient, bdcb](){
           //Simply calls whatever toy code is declared in ExecuteToy.
           //Could extend toyClient interface to declare toy code as explicit transaction, and run transaction multiple times.
+            // std::cout << "Shir: call execute toy2\n";
             toyClient->ExecuteToy();
             bdcb();
         }));

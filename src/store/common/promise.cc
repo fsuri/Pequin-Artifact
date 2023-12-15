@@ -135,16 +135,6 @@ Promise::GetValue()
     return value;
 }
 
-// const query_result::QueryResult*
-// Promise::GetQueryResult()
-// {
-//     unique_lock<mutex> l(lock);
-//     while(!done) {
-//         cv.wait(l);
-//     }
-//     return result;
-// }
-
 std::unique_ptr<const query_result::QueryResult>
 Promise::ReleaseQueryResult()
 {

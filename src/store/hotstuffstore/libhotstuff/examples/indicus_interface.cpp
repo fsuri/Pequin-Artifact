@@ -8,8 +8,9 @@ namespace hotstuff {
 namespace hotstuffstore {
 
     void IndicusInterface::propose(const std::string& hash, hotstuff_exec_callback execb) {
-        //std::cout << "############# HotStuff Interface #############" << std::endl;
+        std::cout << "############# Shir: HotStuff Interface #############" << std::endl;
         hotstuff_papp->interface_propose(hash, execb);
+        std::cout << "############# HotStuff Interface Proposed #############" << std::endl;
     }
 
     IndicusInterface::IndicusInterface(int shardId, int replicaId, int cpuId):
@@ -18,10 +19,11 @@ namespace hotstuffstore {
 
         hotstuff::hotstuff_core_offset = (cpuId + 4) % 8;
 
+
         string config_dir = config_dir_base + "shard" + std::to_string(shardId) + "/";
 
-        string config_file = config_dir + "hotstuff.gen.conf";
         string key_file = config_dir + "hotstuff.gen-sec" + std::to_string(replicaId) + ".conf";
+        string config_file = config_dir + "hotstuff.gen.conf";
 
         char* argv[4];
         char arg1[200];
@@ -35,7 +37,7 @@ namespace hotstuffstore {
         argv[2] = "--conf";
         argv[3] = arg3;
 
-        std::cout << std::endl << "############## HotStuff Config: " << config_file << "   " << key_file << std::endl << std::endl;
+        std::cout << std::endl << "############## Shir: HotStuff Config (hotstuffstore): " << config_file << "   " << key_file << std::endl << std::endl;
 
         initialize(4, argv);
     }
