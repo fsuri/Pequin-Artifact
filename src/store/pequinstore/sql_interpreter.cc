@@ -153,7 +153,10 @@ bool SQLTransformer::InterpretQueryRange(const std::string &_query, std::string 
     //If query tries to read from multiple tables --> Cannot be point read. E.g. "Select * FROM table1, table2 WHERE"
     if(size_t pos = table_name.find(","); pos != std::string::npos) return false;
    
-    std::string_view cond_statement = query_statement.substr(where_pos + where_hook.length());
+    std::string_view cond_statement = query_statement.substr(where_pos + where_hook.length()); // I.e. everything after WHERE
+
+    //Ensure that there is no LIMIT or ORDER BY or Group By or other stuff after the where. If there is, then it's safe to assume that it's not a point query.
+    if(size_t order_pos = cond_statement.find(order_hook); order_pos != std::string::npos) return false;
 
     //std::cerr << "checking col conds: " << cond_statement << std::endl;
     return CheckColConditions(cond_statement, table_name, p_col_values, relax); //TODO: Enable Relax
@@ -372,7 +375,13 @@ void SQLTransformer::TransformInsert(size_t pos, std::string_view &write_stateme
 
 
         
-        //Read genesis timestamp (0) for key ==> FIXME: THIS CURRENTLY DOES NOT WORK WITH EXISTING OCC CHECK.
+        //Read genesis timestamp (0) for key 
+        //==> FIXME: THIS IS CURRENTLY HANDLED FULLY CORRECTLY IN EXISTING OCC CHECK.
+            //If genesis EXISTS, then we should abort. But we won't currently because we read 0,0 as well.
+            //This is a rare semantic corner case (if we try to insert something that was loaded)
+            //FIX: In addition to giving this read genesis time, give it a bool "try_insert". 
+                        //If set => abort if the last Write is Genesis.
+                        //Ideally could set read time to -1, but it's an unsigned int...
         ReadMessage *read = txn->add_read_set();
         read->set_key(enc_key);
         read->mutable_readtime()->set_id(0);

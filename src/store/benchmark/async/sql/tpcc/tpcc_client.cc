@@ -85,13 +85,13 @@ SyncTransaction* TPCCSQLClient::GetNextTransaction() {
   if (ttype < (freq = new_order_ratio)) {
     lastOp = "new_order";
     return new SQLNewOrder(GetTimeout(), wid, C_c_id, num_warehouses, GetRand());
-  } else if (ttype < (freq += new_order_ratio)) {
+  } else if (ttype < (freq += payment_ratio)) {
     lastOp = "payment";
     return new SQLPayment(GetTimeout(), wid, C_c_last, C_c_id, num_warehouses, GetRand());
-  } else if (ttype < (freq += new_order_ratio)) {
+  } else if (ttype < (freq += order_status_ratio)) {
     lastOp = "order_status";
     return new SQLOrderStatus(GetTimeout(), wid, C_c_last, C_c_id, GetRand());
-  } else if (ttype < (freq += new_order_ratio)) {
+  } else if (ttype < (freq += stock_level_ratio)) {
     if (static_w_id) {
       did = stockLevelDId;
     } else {
