@@ -166,8 +166,11 @@ SyncTransaction *AuctionMarkClient::GetNextTransaction()
     lastOp = "get_watched_items";
     uint64_t u_id = std::binomial_distribution<uint64_t>(max_u_id, 0.5)(gen);
     return new GetWatchedItems(GetTimeout(), u_id, gen);
+  } else {
+    Panic("Invalid transaction type %d", ttype);
   }
 }
+
 std::string AuctionMarkClient::GetLastOp() const { return lastOp; }
 
 } // namespace auctionmark
