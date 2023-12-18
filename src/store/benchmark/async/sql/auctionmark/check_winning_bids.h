@@ -33,13 +33,19 @@ namespace auctionmark {
 
 class CheckWinningBids : public AuctionMarkTransaction {
  public:
-  CheckWinningBids(uint32_t timeout, uint64_t start_time, uint64_t end_time, std::mt19937_64 &gen);
+  CheckWinningBids(uint32_t timeout, uint64_t start_time, uint64_t end_time, std::vector<uint64_t> &i_ids, 
+    std::vector<uint64_t> &seller_ids, std::vector<std::optional<uint64_t>> &buyer_ids, 
+    std::vector<std::optional<uint64_t>> &ib_ids, std::mt19937_64 &gen);
   virtual ~CheckWinningBids();
   virtual transaction_status_t Execute(SyncClient &client);
 
  private:
   uint64_t start_time;
   uint64_t end_time;
+  std::vector<uint64_t> &i_ids;
+  std::vector<uint64_t> &seller_ids;
+  std::vector<std::optional<uint64_t>> &buyer_ids;
+  std::vector<std::optional<uint64_t>> &ib_ids;
 };
 
 } // namespace auctionmark

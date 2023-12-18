@@ -29,8 +29,8 @@
 
 namespace auctionmark {
 
-PostAuction::PostAuction(uint32_t timeout, std::vector<uint64_t> i_ids, std::vector<uint64_t> seller_ids,
-   std::vector<uint64_t> buyer_ids, std::vector<std::optional<uint64_t>> ib_ids, std::mt19937_64 &gen) : 
+PostAuction::PostAuction(uint32_t timeout, std::vector<uint64_t> &i_ids, std::vector<uint64_t> &seller_ids,
+   std::vector<std::optional<uint64_t>> &buyer_ids, std::vector<std::optional<uint64_t>> &ib_ids, std::mt19937_64 &gen) : 
     AuctionMarkTransaction(timeout), i_ids(i_ids), seller_ids(seller_ids), buyer_ids(buyer_ids), ib_ids(ib_ids) {
 }
 
@@ -50,9 +50,9 @@ transaction_status_t PostAuction::Execute(SyncClient &client) {
     std::optional<uint64_t> ib_id = ib_ids[i];
     uint64_t i_id = i_ids[i];
     uint64_t seller_id = seller_ids[i];
-    uint64_t buyer_id = buyer_ids[i];
+    std::optional<uint64_t> buyer_id = buyer_ids[i];
 
-    if (!ib_id.has_value()) {
+    if (!ib_id.has_value() || !buyer_id.has_value()) {
       statement = fmt::format("UPDATE ITEM SET i_status = 2 WHERE i_id = {} AND i_u_id = {};",
                               i_id, seller_id);
       client.Write(statement, queryResult, timeout);
@@ -65,7 +65,7 @@ transaction_status_t PostAuction::Execute(SyncClient &client) {
 
       statement = fmt::format("INSERT INTO USER_ITEM (ui_u_id, ui_i_id, ui_i_u_id, ui_created) "
                               "VALUES({}, {}, {}, {});", 
-                              buyer_id, i_id, seller_id, 0);
+                              buyer_id.value(), i_id, seller_id, 0);
       client.Write(statement, queryResult, timeout);
       assert(queryResult->has_rows_affected());
     }
