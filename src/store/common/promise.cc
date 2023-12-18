@@ -142,5 +142,8 @@ Promise::ReleaseQueryResult()
     while(!done) {
         cv.wait(l);
     }
+    if (reply) {
+        Panic("Promise::ReleaseQueryResult called on failed promise");
+    }
     return std::move(result);
 }

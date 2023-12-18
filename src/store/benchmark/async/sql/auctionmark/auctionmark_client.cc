@@ -74,10 +74,16 @@ SyncTransaction *AuctionMarkClient::GetNextTransaction()
   if (std::chrono::duration_cast<std::chrono::seconds>(now - last_check_winning_bids).count() >= 10) {
     lastOp = "check_winning_bids";
     last_check_winning_bids = now;
-    return new CheckWinningBids(GetTimeout(), 0, 1, gen);
+    post_auction_items = {};
+    post_auction_sellers = {};
+    post_auction_buyers = {};
+    post_auction_ib_ids = {};
+    return new CheckWinningBids(GetTimeout(), 0, 1, post_auction_items, post_auction_sellers, 
+      post_auction_buyers, post_auction_ib_ids, gen);
   } else if (lastOp == "check_winning_bids") {
     lastOp = "post_auction";
-    return new PostAuction(GetTimeout(), {}, {}, {}, {}, gen);
+    return new PostAuction(GetTimeout(), post_auction_items, post_auction_sellers, 
+      post_auction_buyers, post_auction_ib_ids, gen);
   } else if (ttype < (freq = NEW_USER_RATIO)) {
     lastOp = "new_user";
     uint64_t u_r_id = std::uniform_int_distribution<uint64_t>(1, N_REGIONS)(gen);
@@ -160,8 +166,11 @@ SyncTransaction *AuctionMarkClient::GetNextTransaction()
     lastOp = "get_watched_items";
     uint64_t u_id = std::binomial_distribution<uint64_t>(max_u_id, 0.5)(gen);
     return new GetWatchedItems(GetTimeout(), u_id, gen);
+  } else {
+    Panic("Invalid transaction type %d", ttype);
   }
 }
+
 std::string AuctionMarkClient::GetLastOp() const { return lastOp; }
 
 } // namespace auctionmark
