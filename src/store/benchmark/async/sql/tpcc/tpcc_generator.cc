@@ -308,6 +308,10 @@ void GenerateCustomerTable(uint32_t num_warehouses, uint32_t c_load_c_last,
   const std::vector<uint32_t> primary_key_col_idx {0, 1, 2};
   writer.add_table(table_name, column_names_and_types, primary_key_col_idx);
 
+  std::string index_name = "CustomerByName";
+  const std::vector<uint32_t> index_col_idx {1, 2, 5};
+  writer.add_index(table_name, index_name, index_col_idx);
+
   for (uint32_t w_id = 1; w_id <= num_warehouses; ++w_id) {
     for (uint32_t d_id = 1; d_id <= 10; ++d_id) {
       GenerateCustomerTableForWarehouseDistrict(w_id, d_id, time, c_load_c_last,
@@ -339,8 +343,8 @@ void GenerateHistoryTable(uint32_t num_warehouses,
       for (uint32_t c_id = 1; c_id <= 3000; ++c_id) {
         std::vector<std::string> values;
         values.push_back(std::to_string(c_id));
-        values.push_back(std::to_string(0));
-        values.push_back(std::to_string(0));
+        values.push_back(std::to_string(d_id));
+        values.push_back(std::to_string(w_id));
         values.push_back(std::to_string(d_id));
         values.push_back(std::to_string(w_id));
         values.push_back(std::to_string(std::time(0)));
@@ -418,6 +422,10 @@ void GenerateOrderTable(uint32_t num_warehouses, uint32_t c_load_ol_i_id,
   column_names_and_types.push_back(std::make_pair("all_local", "BOOLEAN"));
   std::vector<uint32_t> primary_key_col_idx {0, 1, 2};
   writer.add_table(table_name, column_names_and_types, primary_key_col_idx);
+
+  std::string index_name = "OrderByCustomer";
+  const std::vector<uint32_t> index_col_idx {1, 2, 3};
+  writer.add_index(table_name, index_name, index_col_idx);
 
   table_name = "OrderLine";
   column_names_and_types.clear();

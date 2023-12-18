@@ -55,6 +55,8 @@ transaction_status_t SQLOrderStatus::Execute(SyncClient &client) {
   std::unique_ptr<const query_result::QueryResult> queryResult;
   std::string query;
 
+  // Query the Status of a Customers last order   
+  // Type: Midweight read-only TX, low frequency. Uses non-primary key access to CUSTOMER table.
   Debug("ORDER_STATUS");
   Debug("Warehouse: %u", c_w_id);
   Debug("District: %u", c_d_id);
@@ -62,17 +64,23 @@ transaction_status_t SQLOrderStatus::Execute(SyncClient &client) {
 
   client.Begin(timeout);
 
+  // (1) Select customer (based on last name OR customer number)
   CustomerRow c_row;
   if (c_by_last_name) { // access customer by last name
     Debug("Customer: %s", c_last.c_str());
 
+    // (1. A) Retrieve a list of Customer that share the same Last Name (Secondary Key access; Scan Read). Select middle row.
     query = fmt::format("SELECT * FROM Customer WHERE d_id = {} AND w_id = {} AND last = '{}' ORDER BY first", c_d_id, c_w_id, c_last);
     client.Query(query, queryResult, timeout);
     int namecnt = queryResult->size();
-    deserialize(c_row, queryResult, namecnt / 2);
+    int idx = (namecnt + 1) / 2; //round up
+    if (idx == namecnt) idx = namecnt - 1;
+    deserialize(c_row, queryResult, idx);
     c_id = c_row.get_id();
     Debug("  ID: %u", c_id);
   } else {
+
+    // (1.B) Retrieve Customer based on unique Number (Primary Key access; Point Read)
     query = fmt::format("SELECT * FROM Customer WHERE id = {} AND d_id = {} AND w_id = {}", c_id, c_d_id, c_w_id);
     client.Query(query, queryResult, timeout);
     deserialize(c_row, queryResult);
@@ -82,13 +90,18 @@ transaction_status_t SQLOrderStatus::Execute(SyncClient &client) {
   Debug("  First: %s", c_row.get_first().c_str());
   Debug("  Last: %s", c_row.get_last().c_str());
 
-  query = fmt::format("SELECT MAX(id) FROM \"order\" WHERE d_id = {} AND w_id = {} AND c_id = {}", c_d_id, c_w_id, c_id);
-  client.Query(query, queryResult, timeout);
-  int o_id;
-  deserialize(o_id, queryResult);
-  Debug("Order: %u", o_id);
-  query = fmt::format("SELECT * FROM \"order\" WHERE id = {} AND d_id = {} AND w_id = {}", o_id, c_d_id, c_w_id);
-  Debug(query.c_str());
+  
+  // (2) Select row from Order (from respective client) with the highest ID. This is the most recent order by the client. Retrieve order_id, entry date, and carried id.
+  query = fmt::format("SELECT * FROM \"order\" WHERE d_id = {} AND w_id = {} AND c_id = {} ORDER BY id DESC LIMIT 1", c_d_id, c_w_id, c_id);
+  //FIXME: Why perform these two reads separately?? Instead issue: ONE read with ORDER BY DESC, and LIMIT to 1?
+  // query = fmt::format("SELECT MAX(id) FROM \"order\" WHERE d_id = {} AND w_id = {} AND c_id = {}", c_d_id, c_w_id, c_id);
+  // client.Query(query, queryResult, timeout);
+  // int o_id;
+  // deserialize(o_id, queryResult);
+  // Debug("Order: %u", o_id);
+  // 
+  // query = fmt::format("SELECT * FROM \"order\" WHERE id = {} AND d_id = {} AND w_id = {}", o_id, c_d_id, c_w_id);
+  // Debug(query.c_str());
   client.Query(query, queryResult, timeout);
   OrderRow o_row;
   if(queryResult->empty()) Panic("empty result for Order Row");
@@ -96,7 +109,9 @@ transaction_status_t SQLOrderStatus::Execute(SyncClient &client) {
   Debug("  Order Lines: %u", o_row.get_ol_cnt());
   Debug("  Entry Date: %u", o_row.get_entry_d());
   Debug("  Carrier ID: %u", o_row.get_carrier_id());
+  //TODO: Eventually clean these up and do a SELECT ol_cnt, entry_d, carrier_id instead
 
+  // (3) Select all rows from ORDER-LINE belonging to the respective order id. Retrieve OrderLine ID, Supply Warehouse id, OrderLine Quantity, OrderLine amount, and OrderLine Delivery date.
   query = fmt::format("SELECT * FROM OrderLine WHERE o_id = {} AND d_id = {} AND w_id = {} AND number < {}", o_id, c_d_id, c_w_id, o_row.get_ol_cnt());
   client.Query(query, queryResult, timeout);
   Debug("COMMIT");

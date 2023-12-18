@@ -47,6 +47,8 @@ transaction_status_t SQLStockLevel::Execute(SyncClient &client) {
   std::string query;
   std::vector<std::unique_ptr<const query_result::QueryResult>> results;
 
+  //Determine the number of recently sold items with stock below a given threshold
+  //Type: Heavy read-only Tx, low frequency
   Debug("STOCK_LEVEL");
   Debug("Warehouse: %u", w_id);
   Debug("District: %u", d_id);
@@ -54,16 +56,23 @@ transaction_status_t SQLStockLevel::Execute(SyncClient &client) {
 
   client.Begin(timeout);
 
+  // (1) Select the specified row from District and extract the Next Order Id
   query = fmt::format("SELECT next_o_id FROM District WHERE id = {} AND w_id = {}", d_id, w_id);
   client.Query(query, queryResult, timeout);
   uint32_t next_o_id;
   deserialize(next_o_id, queryResult);
   Debug("Orders: %u-%u", next_o_id - 20, next_o_id - 1);
 
-  query = fmt::format("SELECT COUNT(DISTINCT(OrderLine.i_id)) FROM OrderLine, Stock WHERE OrderLine.w_id = {} AND OrderLine.d_id = {} "
-                      "AND OrderLine.o_id < {} AND OrderLine.o_id >= {} AND Stock.w_id = {} AND Stock.i_id = OrderLine.i_id "
-                      "AND Stock.quantity < {}", w_id, d_id, next_o_id, 
-                      next_o_id - 20, w_id, min_quantity);
+  // (2) Select the 20 most recent orders from the district: Select the orders from OrderLine (from this district) with    next_o_id - 20 <= id < next_o_id
+  // (3) Count all rows in STOCK with distinct items whose quantity is below the min_quantity threshold.
+  query = fmt::format("SELECT COUNT(DISTINCT(Stock.i_id)) FROM OrderLine, Stock "
+                      "WHERE OrderLine.w_id = {} AND OrderLine.d_id = {} AND OrderLine.o_id < {} AND OrderLine.o_id >= {} "
+                      " AND Stock.w_id = {} AND Stock.i_id = OrderLine.i_id AND Stock.quantity < {}", w_id, d_id, next_o_id, next_o_id - 20, w_id, min_quantity);
+  //TODO: Write it as a an explicit JOIN somehow to more easily extract individual table predicates?
+  // query = fmt::format("SELECT COUNT(DISTINCT(Stock.i_id)) FROM (SELECT * FROM OrderLine WHERE w_id = {} AND d_id = {} AND o_id < {} AND o_id >= {}) "
+  //                     "LEFT JOIN (SELECT * FROM STOCK WHERE w_id = {} AND quantity < {}) " //This is super inefficient..
+  //                     "ON Stock.i_id = OrderLine.i_id;", w_id, d_id, next_o_id, next_o_id - 20, w_id, min_quantity);
+
   client.Query(query, queryResult, timeout);
   uint32_t stock_count;
   deserialize(stock_count, queryResult);
