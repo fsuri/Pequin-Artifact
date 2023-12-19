@@ -116,7 +116,7 @@ transaction_status_t SQLNewOrder::Execute(SyncClient &client) {
 
   results.clear();
 
-  // (3) Insert new row into NewOrder and Order to reflect the creation of the order. 
+  // (4) Insert new row into NewOrder and Order to reflect the creation of the order. 
   statement = fmt::format("INSERT INTO NewOrder (o_id, d_id, w_id) VALUES ({}, {}, {});", o_id, d_id, w_id);
   client.Write(statement, timeout, true);
 
@@ -125,7 +125,7 @@ transaction_status_t SQLNewOrder::Execute(SyncClient &client) {
           "VALUES ({}, {}, {}, {}, {}, {}, {}, {});", o_id, d_id, w_id, c_id, o_entry_d, 0, ol_cnt, all_local);
   client.Write(statement, timeout, true);
 
-  // (4) For each ol, select row from ITEM and retrieve: Price, Name, Data
+  // (5) For each ol, select row from ITEM and retrieve: Price, Name, Data
   for (size_t ol_number = 0; ol_number < ol_cnt; ++ol_number) {
     Debug("  Order Line %lu", ol_number);
     Debug("    Item: %u", o_ol_i_ids[ol_number]);
@@ -133,7 +133,7 @@ transaction_status_t SQLNewOrder::Execute(SyncClient &client) {
     client.Query(statement, timeout);
   }
 
-  // (5) For each ol, select row from STOCK and retrieve: Qunatity, District Number, Data
+  // (6) For each ol, select row from STOCK and retrieve: Qunatity, District Number, Data
   for (size_t ol_number = 0; ol_number < ol_cnt; ++ol_number) {
     Debug("  Order Line %lu", ol_number);
     Debug("    Supply Warehouse: %u", o_ol_supply_w_ids[ol_number]);
@@ -144,7 +144,7 @@ transaction_status_t SQLNewOrder::Execute(SyncClient &client) {
 
   client.Wait(results);
 
-  // (6) For each ol, increase Stock year to date by requested quantity, and increment stock order count. If order is remote, increment remote cnt.
+  // (7) For each ol, increase Stock year to date by requested quantity, and increment stock order count. If order is remote, increment remote cnt.
   //                  insert a new row into ORDER-LINE .
   for (size_t ol_number = 0; ol_number < ol_cnt; ++ol_number) {
     if (results[ol_number]->empty()) {  // (4.5) If not found codition -> Abort and rollback TX.
@@ -158,7 +158,7 @@ transaction_status_t SQLNewOrder::Execute(SyncClient &client) {
       StockRow s_row;
       deserialize(s_row, results[ol_number + ol_cnt]);
 
-      // (5.5) If available quantity exceeds requested quantity by more than 10, just reduce available quant by the requested amount.
+      // (6.5) If available quantity exceeds requested quantity by more than 10, just reduce available quant by the requested amount.
       // Otherwise, add 91 new items.
       if (s_row.get_quantity() - o_ol_quantities[ol_number] >= 10) {
         s_row.set_quantity(s_row.get_quantity() - o_ol_quantities[ol_number]);

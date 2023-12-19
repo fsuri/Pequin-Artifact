@@ -73,7 +73,7 @@ transaction_status_t SQLDelivery::Execute(SyncClient &client) {
   int no_o_id;
   deserialize(no_o_id, queryResult);
   statement = fmt::format("DELETE FROM NewOrder WHERE o_id = {} AND d_id = {} AND w_id = {};", no_o_id, d_id, w_id);
-  client.Write(statement, timeout); //This can be async. //TODO: THink through async Writes carefully. Note: Can also make reads async when appropriate.
+  client.Write(statement, timeout); //This can be async. 
 
   // (3) Select the corresponding row from ORDER and extract the customer id. Update the carrier id of the order.
   statement = fmt::format("SELECT c_id FROM \"order\" WHERE id = {} AND d_id = {} AND w_id = {};", no_o_id, d_id, w_id);
