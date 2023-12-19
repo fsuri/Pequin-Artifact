@@ -505,8 +505,11 @@ void Client::PointQueryResultCallback(PendingQuery *pendingQuery,
   
   Debug("Result size: %d. Result rows affected: %d", q_result->size(), q_result->rows_affected());
 
-  //Cache point read results.
-  point_read_cache[key] = result;
+  //Cache point read results. This can help optimize common point Select + point Update patterns.
+  if(!result.empty()){ //only cache if we did find a row.
+    //Only cache if we did a Select *, i.e. we have the full row, and thus it can be used by Update.
+    if(size_t pos = pendingQuery->queryMsg.query_cmd().find("SELECT *"); pos != std::string::npos) point_read_cache[key] = result;
+  } 
 
   stats.Increment("PointQuerySuccess", 1);
   pendingQuery->qcb(REPLY_OK, q_result); //callback to application (or write cont)
