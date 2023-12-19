@@ -149,7 +149,6 @@ transaction_status_t SQLPayment::Execute(SyncClient &client) {
   DistrictRow d_row;
   deserialize(d_row, results[1]);
   Debug("  YTD: %u", d_row.get_ytd());
-  //TODO: Warehouse and District Names can be known without reading?
 
   // (1.5) Retrieve WAREHOUSE row. Update year to date balance. 
   statement = fmt::format("UPDATE Warehouse SET ytd = {} WHERE id = {}", w_row.get_ytd() + h_amount, w_id);

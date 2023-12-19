@@ -428,6 +428,12 @@ void Client::Query(const std::string &query, query_callback qcb,
     
     if(pendingQuery->is_point){
       Debug("Encoded key: %s", EncodeTableRow(pendingQuery->table_name, pendingQuery->p_col_values).c_str()); 
+      std::string encoded_key = EncodeTableRow(pendingQuery->table_name, pendingQuery->p_col_values);
+      auto itr = point_read_cache.find(encoded_key);
+      if(itr != point_read_cache.end()){
+        auto res = new sql::QueryResultProtoWrapper(itr->second);
+        qcb(REPLY_OK, res);
+      }
     } 
     //Alternatively: Instead of storing the key, we could also let servers provide the keys and wait for f+1 matching keys. But then we'd have to wait for 2f+1 reads in total... ==> Client stores key
 
@@ -498,6 +504,9 @@ void Client::PointQueryResultCallback(PendingQuery *pendingQuery,
   query_result::QueryResult *q_result = new sql::QueryResultProtoWrapper(result);
   
   Debug("Result size: %d. Result rows affected: %d", q_result->size(), q_result->rows_affected());
+
+  //Cache point read results.
+  point_read_cache[key] = result;
 
   stats.Increment("PointQuerySuccess", 1);
   pendingQuery->qcb(REPLY_OK, q_result); //callback to application (or write cont)

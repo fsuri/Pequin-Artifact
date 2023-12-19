@@ -29,13 +29,10 @@
 
 namespace auctionmark {
 
-// NewItem i_id not implemented according to spec. Implemented here
-// as a monotonically increasing id, so there may be contention when
-// reading the max i_id from the database. The spec says that i_id 
-// should be a composite key where the lower 48-bits of the number is 
-// the u_id and the upper 16-bits is the auction count for that user.
-// A monotonically increasing i_id allows for easier item selection
-// for other transactions.
+// NewItem i_id not implemented according to spec. 
+// Implemented here as a monotonically increasing id, so there may be contention when reading the max i_id from the database. 
+// The spec says that i_id should be a composite key where the lower 48-bits of the number is the u_id and the upper 16-bits is the auction count for that user.
+// A monotonically increasing i_id allows for easier item selection for other transactions.
 NewItem::NewItem(uint32_t timeout, uint64_t &i_id, uint64_t u_id,
       std::string name, std::string description, double initial_price,
       double reserve_price, double buy_now, const std::string attributes, 
@@ -56,34 +53,36 @@ transaction_status_t NewItem::Execute(SyncClient &client) {
   std::string statement;
   std::vector<std::unique_ptr<const query_result::QueryResult>> results;
 
+  //Insert a new ITEM record for user.
   Debug("NEW ITEM");
   Debug("User ID: %lu", u_id);
 
   client.Begin(timeout);
 
-  statement = "SELECT MAX(i_id) FROM ITEM;";
+  statement = "SELECT MAX(i_id) FROM ITEM;";   //FIXME: Is this up to spec?   Maybe just partition the request space across clients, and let them pick new unique ones?
+                                                                            //Typically Insert on a primary key will create a new unique one. Autoincrement? S
+                                                                            //Define table to autoincrement, let Insert use DEFAULT for this col, and then use RETURNING primarykeyid
+                                                                            //Not sure how our system would handle this though. Would need to transform it into a select Max_id under the hood anyways...
   client.Query(statement, queryResult, timeout);
   deserialize(i_id, queryResult);
   i_id += 1;
   Debug("Item ID: %lu", i_id);
 
-  statement = "SELECT MAX(c_id) FROM CATEGORY;";
+  statement = "SELECT MAX(c_id) FROM CATEGORY;";    //FIXME: Is this up to spec? ==> TODO: Should read from category txt
   client.Query(statement, queryResult, timeout);
   deserialize(c_id, queryResult);
   c_id = std::uniform_int_distribution<uint64_t>(0, c_id)(gen);
   Debug("Category ID: %lu", c_id);
 
+  // (1) for all global attribute groups, construct a description
   std::string description = "";
   std::string gag_name;
   std::string gav_name;
   for(int i = 0; i < (int) gag_ids.size(); i++) {
-    statement = fmt::format("SELECT gag_name FROM GLOBAL_ATTRIBUTE_GROUP "
-                            "WHERE gag_id = {};",
-                            gag_ids[i]);
+    //FIXME: Why two separate reads? It does benefit us that both are point reads. (First is a classic point read, second one is a stricter point read, i.e. more conditions than primary key)
+    statement = fmt::format("SELECT gag_name FROM GLOBAL_ATTRIBUTE_GROUP WHERE gag_id = {};", gag_ids[i]);
     client.Query(statement, timeout);
-    statement = fmt::format("SELECT gav_name FROM GLOBAL_ATTRIBUTE_VALUE "
-                            "WHERE gav_id = {} AND gav_gag_id = {};",
-                            gav_ids[i], gag_ids[i]);
+    statement = fmt::format("SELECT gav_name FROM GLOBAL_ATTRIBUTE_VALUE WHERE gav_id = {} AND gav_gag_id = {};", gav_ids[i], gag_ids[i]);
     client.Query(statement, timeout);
 
     client.Wait(results);
@@ -92,23 +91,17 @@ transaction_status_t NewItem::Execute(SyncClient &client) {
     description += gag_name + " " + gav_name + " ";
   }
 
-  std::string query_values = fmt::format("VALUES ({}, {}, {}, {}, {}, "
-                                        "{}, {}, {}, {}, {}, {}, {});",
-                                        i_id, u_id, c_id, name, description,
-                                        attributes, initial_price, 0, images.size(),
-                                        gav_ids.size(), start_date, end_date);
-  statement = "INSERT INTO ITEM (i_id, i_u_id, i_c_id, i_name, i_description, "
-    "i_user_attributes, i_initial_price, i_num_bids, i_num_images, "
-    "i_num_global_attrs, i_start_date, i_end_date) " +
-    query_values;
+  // (2) Insert new item
+  std::string query_values = fmt::format("VALUES ({}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {});",
+                                        i_id, u_id, c_id, name, description, attributes, initial_price, 0, images.size(), gav_ids.size(), start_date, end_date);
+  statement = "INSERT INTO ITEM (i_id, i_u_id, i_c_id, i_name, i_description, i_user_attributes, i_initial_price, i_num_bids, i_num_images, i_num_global_attrs, i_start_date, i_end_date) " + query_values;
   client.Write(statement, queryResult, timeout);
   assert(queryResult->has_rows_affected());
 
+  // (3) Add item images
   for(uint32_t i = 0; i < (uint32_t) images.size(); i++) {
     uint64_t ii_id = (i << 60) | (i_id & 0x0FFFFFFFFFFFFFFF);
-    statement = fmt::format("INSERT INTO ITEM_IMAGE (ii_id, ii_i_id, ii_u_id, ii_path) "
-                "VALUES ({}, {}, {}, {});",
-                ii_id, i_id, u_id, images[i]);
+    statement = fmt::format("INSERT INTO ITEM_IMAGE (ii_id, ii_i_id, ii_u_id, ii_path) VALUES ({}, {}, {}, {});", ii_id, i_id, u_id, images[i]);
     client.Write(statement, timeout);
   }
 
@@ -118,6 +111,7 @@ transaction_status_t NewItem::Execute(SyncClient &client) {
     assert(results[i]->has_rows_affected());
   }
 
+  // (4) Decrement user balance
   statement = fmt::format("UPDATE USER SET u_balance = u_balance - 1 WHERE u_id = {}", u_id);
   client.Query(statement, queryResult, timeout);
   assert(queryResult->has_rows_affected());

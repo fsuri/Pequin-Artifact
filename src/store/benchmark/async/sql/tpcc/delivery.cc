@@ -76,7 +76,9 @@ transaction_status_t SQLDelivery::Execute(SyncClient &client) {
   client.Write(statement, timeout); //This can be async. 
 
   // (3) Select the corresponding row from ORDER and extract the customer id. Update the carrier id of the order.
-  statement = fmt::format("SELECT c_id FROM \"order\" WHERE id = {} AND d_id = {} AND w_id = {};", no_o_id, d_id, w_id);
+  //statement = fmt::format("SELECT c_id FROM \"order\" WHERE id = {} AND d_id = {} AND w_id = {};", no_o_id, d_id, w_id);
+  statement = fmt::format("SELECT * FROM \"order\" WHERE id = {} AND d_id = {} AND w_id = {};", no_o_id, d_id, w_id); //Turn into * to cache for the following point Update
+  
   client.Query(statement, queryResult, timeout);
 
   if (queryResult->empty()) {
@@ -84,10 +86,14 @@ transaction_status_t SQLDelivery::Execute(SyncClient &client) {
     client.Wait(results); //wait for the potentially async delete.
     return client.Commit(timeout);
   }
-  int c_id;
-  deserialize(c_id, queryResult);
+  // int c_id;
+  // deserialize(c_id, queryResult);
 
-      //Note: Pesto will turn this into a PointUpdate for which no read is required (TODO: Implement)
+  OrderRow o_row;
+  deserialize(o_row, queryResult);
+  int c_id = o_row.get_c_id();
+
+ 
   statement = fmt::format("UPDATE \"order\" SET carrier_id = {} WHERE id = {} AND d_id = {} AND w_id = {};", o_carrier_id, no_o_id, d_id, w_id);
   client.Write(statement, timeout); //This can be async.
   Debug("  Carrier ID: %u", o_carrier_id);
@@ -96,7 +102,7 @@ transaction_status_t SQLDelivery::Execute(SyncClient &client) {
   statement = fmt::format("UPDATE OrderLine SET delivery_d = {} WHERE o_id = {} AND d_id = {} AND w_id = {};", ol_delivery_d, no_o_id, d_id, w_id);
   client.Write(statement, timeout); //This can be async.
 
-      //Note: Ideally Pesto does not Scan twice, but Caches the result set to perform the update (TODO: Implement)
+      //Note: Ideally Pesto does not Scan twice, but Caches the result set to perform the update (TODO: To make use of that, we'd have to not do the 2 statements in parallel)
   statement = fmt::format("SELECT SUM(amount) FROM OrderLine WHERE o_id = {} AND d_id = {} AND w_id = {};", no_o_id, d_id, w_id);
   client.Query(statement, queryResult, timeout);
   int total_amount;

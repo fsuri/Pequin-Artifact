@@ -42,40 +42,40 @@ transaction_status_t NewBid::Execute(SyncClient &client) {
   std::string statement;
   std::vector<std::unique_ptr<const query_result::QueryResult>> results;
 
+  //Create a new Bid for an open item.
   Debug("NEW BID");
   Debug("Item ID: %lu", i_id);
   Debug("Bid: %f", bid);
 
   client.Begin(timeout);
 
+  // (0) Retrieve the sellers User Id  //FIXME: Shouldn't u_id be an input parameter that is randomly generated?
   statement = fmt::format("SELECT i_u_id FROM ITEM WHERE i_id = {};", i_id);
   client.Query(statement, queryResult, timeout);
   uint64_t u_id;
   deserialize(u_id, queryResult);
   Debug("User ID: %lu", u_id);
 
-  statement = fmt::format("UPDATE ITEM SET i_num_bids = i_num_bids + 1 "
-                          "WHERE i_id = {} AND i_u_id = {} AND i_status = 0;",
-                          i_id, u_id);
+  // (1) Increment the number of bids
+  statement = fmt::format("UPDATE ITEM SET i_num_bids = i_num_bids + 1 WHERE i_id = {} AND i_u_id = {} AND i_status = 0;", i_id, u_id);
   client.Write(statement, queryResult, timeout);
   assert(queryResult->has_rows_affected());
 
-  statement = fmt::format("SELECT MAX(ib_id) + 1 FROM ITEM_BID WHERE "
-                          "ib_i_id = {} AND ib_u_id = {};",
-                          i_id, u_id);
+  // (2) Find current bids
+  statement = fmt::format("SELECT MAX(ib_id) + 1 FROM ITEM_BID WHERE ib_i_id = {} AND ib_u_id = {};", i_id, u_id);
   client.Query(statement, queryResult, timeout);
   uint64_t ib_id;
   deserialize(ib_id, queryResult);
 
-  statement = fmt::format("SELECT imb_ib_id FROM ITEM_MAX_BID WHERE "
-                        "imb_i_id = {} AND imb_u_id = {};", i_id, u_id);
+  statement = fmt::format("SELECT imb_ib_id FROM ITEM_MAX_BID WHERE imb_i_id = {} AND imb_u_id = {};", i_id, u_id);
   client.Query(statement, queryResult, timeout);
-  if (!queryResult->empty()) {
+
+ 
+  if (!queryResult->empty()) { //There exists a max_bid
+     // (3.A) If there exists a current max_bid, figure out whether we are the newest highest bidder, or if the existing one just has it's max_bid bumped up.
     uint64_t imb_ib_id;
     deserialize(imb_ib_id, queryResult);
-    statement = fmt::format("SELECT ib_bid, ib_max_bid FROM ITEM_BID WHERE "
-                            "ib_id = {} AND ib_i_id = {} AND ib_u_id = {};",
-                            ib_id, i_id, u_id);
+    statement = fmt::format("SELECT ib_bid, ib_max_bid FROM ITEM_BID WHERE ib_id = {} AND ib_i_id = {} AND ib_u_id = {};", ib_id, i_id, u_id);
     client.Query(statement, queryResult, timeout);
 
     uint64_t current_bid, current_max_bid; 
@@ -84,38 +84,35 @@ transaction_status_t NewBid::Execute(SyncClient &client) {
 
     bool new_bid_win = false;
 
-    if (max_bid > current_max_bid) {
+    if (max_bid > current_max_bid) { 
       new_bid_win = true;
       if (bid < current_max_bid) {
         bid = current_max_bid;
       }
-    } else {
+    } 
+    else {
       if (bid > current_bid) {
-        statement = fmt::format("UPDATE ITEM_BID SET ib_bid = {} WHERE "
-                                "ib_id = {} AND ib_i_id = {} AND ib_u_id = {};",
-                                bid, imb_ib_id, i_id, u_id);
+        statement = fmt::format("UPDATE ITEM_BID SET ib_bid = {} WHERE ib_id = {} AND ib_i_id = {} AND ib_u_id = {};", bid, imb_ib_id, i_id, u_id);
         client.Write(statement, queryResult, timeout);
         assert(queryResult->has_rows_affected());
       }
     }
 
-    statement = fmt::format("INSERT INTO ITEM_BID (ib_id, ib_i_id, ib_u_id, "
-                            "ib_buyer_id, ib_bid, ib_max_bid, ib_created, ib_updated) "
-                            "VALUES ({}, {}, {}, {}, {}, {}, {}, {});",
-                            ib_id, i_id, u_id, i_buyer_id, bid, max_bid, 0, 0);
+
+    statement = fmt::format("INSERT INTO ITEM_BID (ib_id, ib_i_id, ib_u_id, ib_buyer_id, ib_bid, ib_max_bid, ib_created, ib_updated) "
+                            "VALUES ({}, {}, {}, {}, {}, {}, {}, {});", ib_id, i_id, u_id, i_buyer_id, bid, max_bid, 0, 0);
     client.Write(statement, queryResult, timeout);
     assert(queryResult->has_rows_affected());
 
     if (new_bid_win) {
-      statement = fmt::format("UPDATE ITEM_MAX_BID SET imb_ib_id = {}, "
-                              "imb_ib_i_id = {}, imb_ib_u_id = {}, "
-                              "imb_updated = {} WHERE imb_i_id = {} "
-                              "AND imb_u_id = {};",
-                              imb_ib_id, i_id, u_id, 0, i_id, u_id);
+      statement = fmt::format("UPDATE ITEM_MAX_BID SET imb_ib_id = {}, imb_ib_i_id = {}, imb_ib_u_id = {}, imb_updated = {} "
+                              "WHERE imb_i_id = {} AND imb_u_id = {};", imb_ib_id, i_id, u_id, 0, i_id, u_id);
       client.Write(statement, queryResult, timeout);
       assert(queryResult->has_rows_affected());
     }
-  } else {
+  } 
+  // (3.B) There is no existinc max bid record, therefore we can just insert ourselves.
+  else {
     statement = fmt::format("INSERT INTO ITEM_BID "
                             "(ib_id, ib_i_id, ib_u_id, ib_buyer_id, ib_bid, ib_max_bid, "
                             "ib_created, ib_updated) "
