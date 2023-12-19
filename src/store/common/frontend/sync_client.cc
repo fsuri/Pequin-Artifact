@@ -190,7 +190,7 @@ void SyncClient::Wait(std::vector<std::unique_ptr<const query_result::QueryResul
 
 void SyncClient::asyncWait() {
   for (auto promise : asyncPromises) {
-    if(!promise->GetReply()) 
+    promise->GetReply();
     delete promise;
   }
   asyncPromises.clear();
