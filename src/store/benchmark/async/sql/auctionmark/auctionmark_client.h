@@ -74,6 +74,10 @@ class AuctionMarkClient : public SyncTransactionBenchClient
   std::string lastOp;
   std::mt19937_64 gen;
   std::chrono::steady_clock::time_point last_check_winning_bids;
+  std::vector<uint64_t> post_auction_items;
+  std::vector<uint64_t> post_auction_sellers;
+  std::vector<std::optional<uint64_t>> post_auction_buyers;
+  std::vector<std::optional<uint64_t>> post_auction_ib_ids;
 };
 
 } // namespace auctionmark

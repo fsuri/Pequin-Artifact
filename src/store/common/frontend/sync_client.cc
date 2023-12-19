@@ -182,8 +182,7 @@ void SyncClient::Query(const std::string &query, uint32_t timeout) {
 
 void SyncClient::Wait(std::vector<std::unique_ptr<const query_result::QueryResult>> &values) {
   for (auto promise : queryPromises) {
-    if(!promise->GetReply()) 
-      values.push_back(promise->ReleaseQueryResult());
+    values.push_back(promise->ReleaseQueryResult());
     delete promise;
   }
   queryPromises.clear();

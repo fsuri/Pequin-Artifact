@@ -29,8 +29,12 @@
 
 namespace auctionmark {
 
-CheckWinningBids::CheckWinningBids(uint32_t timeout, uint64_t start_time, uint64_t end_time, std::mt19937_64 &gen) : 
-    AuctionMarkTransaction(timeout), start_time(start_time), end_time(end_time) {
+CheckWinningBids::CheckWinningBids(uint32_t timeout, uint64_t start_time, 
+  uint64_t end_time, std::vector<uint64_t> &i_ids, std::vector<uint64_t> &seller_ids,
+  std::vector<std::optional<uint64_t>> &buyer_ids, std::vector<std::optional<uint64_t>> &ib_ids, 
+  std::mt19937_64 &gen) : AuctionMarkTransaction(timeout), start_time(start_time), 
+  end_time(end_time), i_ids(i_ids), seller_ids(seller_ids), buyer_ids(buyer_ids), ib_ids(ib_ids)
+{
 }
 
 CheckWinningBids::~CheckWinningBids(){
@@ -75,8 +79,16 @@ transaction_status_t CheckWinningBids::Execute(SyncClient &client) {
                               max_bid_id, query_i_id, query_i_u_id);
       client.Query(statement, temp_result, timeout);
       temp_result->at(0)->get(0, &buyer_id);
+      i_ids.push_back(query_i_id);
+      seller_ids.push_back(query_i_u_id);
+      buyer_ids.push_back(buyer_id);
+      ib_ids.push_back(max_bid_id);
       Debug("Buyer Id: %lu", buyer_id);
     } else {
+      i_ids.push_back(query_i_id);
+      seller_ids.push_back(query_i_u_id);
+      buyer_ids.push_back(std::nullopt);
+      ib_ids.push_back(std::nullopt);
       Debug("Item Status: %lu", query_i_status);
     }
   }
