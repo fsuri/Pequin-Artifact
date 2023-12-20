@@ -15,50 +15,6 @@ SQLFindOpenSeats::SQLFindOpenSeats(uint32_t timeout, std::mt19937_64 gen, std::q
 
 SQLFindOpenSeats::~SQLFindOpenSeats() {};
 
-struct GetFlightResultRow {
-public: 
-    GetFlightResultRow() : f_id(0), f_al_id(0), f_depart_ap_id(0), f_depart_time(0), f_arrive_ap_id(0), f_arrive_time(0), f_base_price(0.0), f_seats_total(0), f_price(0.0) {}
-    ~GetFlightResultRow() {}
-    int64_t f_id;
-    int64_t f_al_id; 
-    int64_t f_depart_ap_id; 
-    int64_t f_depart_time; 
-    int64_t f_arrive_ap_id; 
-    int64_t f_arrive_time;
-    double f_base_price; 
-    int64_t f_seats_total; 
-    int64_t f_seats_left;
-    double f_price;
-};
-
-void inline load_row(GetFlightResultRow &store, std::unique_ptr<query_result::Row> row) {
-    row->get(0, &store.f_id);
-    row->get(1, &store.f_al_id);
-    row->get(2, &store.f_depart_ap_id);
-    row->get(3, &store.f_depart_time);
-    row->get(4, &store.f_arrive_ap_id);
-    row->get(5, &store.f_arrive_time);
-    row->get(6, &store.f_base_price);
-    row->get(7, &store.f_seats_total);
-    row->get(8, &store.f_seats_left);
-    row->get(9, &store.f_price);
-}
-
-struct GetSeatsResultRow {
-public: 
-    GetSeatsResultRow() : r_id(0), r_f_id(0), r_seat(0) {}
-    ~GetSeatsResultRow() {} 
-    int64_t r_id;
-    int64_t r_f_id;
-    int64_t r_seat;
-};
-
-void inline load_row(GetSeatsResultRow &store, std::unique_ptr<query_result::Row> row) {
-    row->get(0, &store.r_id);
-    row->get(1, &store.r_f_id);
-    row->get(2, &store.r_seat);
-}
-
 transaction_status_t SQLFindOpenSeats::Execute(SyncClient &client) {
     std::unique_ptr<const query_result::QueryResult> queryResult;
     std::string query;
@@ -67,7 +23,9 @@ transaction_status_t SQLFindOpenSeats::Execute(SyncClient &client) {
     client.Begin(timeout);
 
     GetFlightResultRow fr_row = GetFlightResultRow();
-    query = fmt::format("SELECT f_id, f_al_id, f_depart_ap_id, f_depart_time, f_arrive_ap_id, f_arrive_time, f_base_price, f_seats_total, f_seats_left, (f_base_price + (f_base_price * (1 - (f_seats_left / f_seats_total)))) AS f_price FROM {} WHERE f_id = {}", FLIGHT_TABLE, f_id);
+    //TODO: Does itmake more sense to just Select * and then parse out the fields we want?
+    query = fmt::format("SELECT f_id, f_al_id, f_depart_ap_id, f_depart_time, f_arrive_ap_id, f_arrive_time, f_base_price, f_seats_total, f_seats_left, "
+                        "(f_base_price + (f_base_price * (1 - (f_seats_left / f_seats_total)))) AS f_price FROM {} WHERE f_id = {}", FLIGHT_TABLE, f_id);
     client.Query(query, queryResult, timeout);
     if (queryResult->empty()) { 
         Debug("no flight with that id exists");

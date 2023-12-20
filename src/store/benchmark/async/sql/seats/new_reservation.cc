@@ -95,8 +95,9 @@ transaction_status_t SQLNewReservation::Execute(SyncClient &client) {
         }
     }
     bool updatedSuccessful = true;
-    query = fmt::format("INSERT INTO {} (r_id, r_c_id, r_f_id, r_seat, r_price, r_iattr00, r_iattr01, r_iattr02, r_iattr03, r_iattr04, r_iattr05, r_iattr06, r_iattr07, r_iattr08, r_created, r_updated) VALUES ({}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {})",
-                            RESERVATION_TABLE, r_id, c_id, f_id, seatnum, price, attributes[0], attributes[1], attributes[2], attributes[3], attributes[4], attributes[5], attributes[6], attributes[7], attributes[8], time, time);
+    query = fmt::format("INSERT INTO {} (r_id, r_c_id, r_f_id, r_seat, r_price, r_iattr00, r_iattr01, r_iattr02, r_iattr03, r_iattr04, r_iattr05, r_iattr06, r_iattr07, r_iattr08, r_created, r_updated) "
+                        "VALUES ({}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {})", RESERVATION_TABLE, r_id, c_id, f_id, seatnum, price, 
+                        attributes[0], attributes[1], attributes[2], attributes[3], attributes[4], attributes[5], attributes[6], attributes[7], attributes[8], time, time);
     client.Write(query, queryResult, timeout);
     updatedSuccessful = (updatedSuccessful && queryResult->has_rows_affected());
 
