@@ -13,6 +13,11 @@ void load_row(T& t, std::unique_ptr<query_result::Row> row) {
   row->get(0, &t);
 }
 
+template <class T>
+void load_row(T& t, std::unique_ptr<query_result::Row> row, const std::size_t col) {
+  row->get(col, &t);
+}
+
 template<class T>
 void deserialize(T& t, std::unique_ptr<const query_result::QueryResult>& queryResult, const std::size_t row) {
   load_row(t, queryResult->at(row));
@@ -21,6 +26,11 @@ void deserialize(T& t, std::unique_ptr<const query_result::QueryResult>& queryRe
 template<class T>
 void deserialize(T& t, std::unique_ptr<const query_result::QueryResult>& queryResult) {
   deserialize(t, queryResult, 0);
+}
+
+template<class T>
+void deserialize(T& t, std::unique_ptr<const query_result::QueryResult>& queryResult, const std::size_t row, const std::size_t col) {
+  load_row(t, queryResult->at(row));
 }
 
 class SEATSSQLTransaction : public SyncTransaction {

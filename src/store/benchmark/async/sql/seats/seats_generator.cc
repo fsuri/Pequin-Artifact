@@ -329,6 +329,10 @@ void GenerateCustomerTable(TableWriter &writer) {
     std::string table_name = seats_sql::CUSTOMER_TABLE;
     writer.add_table(table_name, column_names_and_types, primary_key_col_idx);
 
+     //Optional Index:
+    const std::vector<uint32_t> index {1};
+    writer.add_index(table_name, "customer_str_index", index);
+
     std::mt19937 gen;
     // generate data
     for (int c_id = 1; c_id <= seats_sql::NUM_CUSTOMERS; c_id++) {
@@ -367,6 +371,10 @@ void GenerateFrequentFlyerTable(TableWriter &writer) {
     const std::vector<uint32_t> primary_key_col_idx {0, 1};
     std::string table_name = seats_sql::FREQUENT_FLYER_TABLE;
     writer.add_table(table_name, column_names_and_types, primary_key_col_idx);
+
+    //Optional Index:
+    const std::vector<uint32_t> index {0};
+    writer.add_index(table_name, "ff_customer_index", index);
 
     std::mt19937 gen;
     // generate data
@@ -494,6 +502,10 @@ void GenerateReservationTable(TableWriter &writer, std::vector<int> flight_to_nu
     std::string table_name = seats_sql::RESERVATION_TABLE;
     writer.add_table(table_name, column_names_and_types, primary_key_col_idx);
 
+    //Optional Index:
+     const std::vector<uint32_t> index {2};
+    writer.add_index(table_name, "r_flight_index", index);
+    
     // generate data
     std::mt19937 gen;   
     int r_id = 1;

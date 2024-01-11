@@ -15,7 +15,7 @@ SQLFindFlights::SQLFindFlights(uint32_t timeout, std::mt19937_64 gen) :
         start_time = std::uniform_int_distribution<std::time_t>(MIN_TS, MAX_TS)(gen);
         end_time = std::uniform_int_distribution<std::time_t>(start_time, MAX_TS)(gen);
         if (std::uniform_int_distribution<int>(1, 100)(gen) < PROB_FIND_FLIGHTS_NEARBY_AIRPORT) {
-            distance = std::uniform_int_distribution<int>(6000, 9000)(gen);
+            distance = std::uniform_int_distribution<int>(6000, 9000)(gen);   //TODO: Where is this number coming from?
         } else {
             distance = 0;
         }
@@ -33,6 +33,7 @@ transaction_status_t SQLFindFlights::Execute(SyncClient &client) {
 
     if (distance > 0) {
         Debug("FIND_NEARBY_AIRPORT");
+        //GetNearbyAirports: Get the nearby airports for the departure and arrival cities
         query = fmt::format("SELECT * FROM {} WHERE d_ap_id0 = {} AND d_distance <= {} ORDER BY d_distance ASC", AIRPORT_DISTANCE_TABLE, depart_aid, distance); 
         client.Query(query, queryResult, timeout);
 
@@ -44,6 +45,7 @@ transaction_status_t SQLFindFlights::Execute(SyncClient &client) {
         }
     } 
 
+    //GetFlights - up to 2 nearby airports
     if (nearby_airports.size() == 0){
         query = fmt::format("SELECT f_id, f_al_id, f_depart_ap_id, f_depart_time, f_arrive_ap_id, f_arrive_time, al_name, al_iattr00, al_iattr01 FROM {}, {} " 
                             "WHERE f_depart_ap_id = {} AND f_depart_time >= {} AND f_depart_time <= {} AND f_al_id = al_id AND f_arrive_ap_id = {} LIMIT {}", 
@@ -51,38 +53,65 @@ transaction_status_t SQLFindFlights::Execute(SyncClient &client) {
     } 
     else if (nearby_airports.size() == 1){ 
         query = fmt::format("SELECT f_id, f_al_id, f_depart_ap_id, f_depart_time, f_arrive_ap_id, f_arrive_time, al_name, al_iattr00, al_iattr01 FROM {}, {} " 
-                            "WHERE f_depart_ap_id = {} AND f_depart_time >= {} AND f_depart_time <= {} AND f_al_id = al_id AND f_arrive_ap_id = {} OR f_arrive_ap_id = {} LIMIT {}", 
+                            "WHERE f_depart_ap_id = {} AND f_depart_time >= {} AND f_depart_time <= {} AND f_al_id = al_id AND (f_arrive_ap_id = {} OR f_arrive_ap_id = {}) LIMIT {}", 
                             FLIGHT_TABLE, AIRLINE_TABLE, depart_aid, start_time, end_time, arrive_aid, nearby_airports[0], MAX_NUM_FLIGHTS);
     }
     else{
         query = fmt::format("SELECT f_id, f_al_id, f_depart_ap_id, f_depart_time, f_arrive_ap_id, f_arrive_time, al_name, al_iattr00, al_iattr01 FROM {}, {} "
-                            "WHERE f_depart_ap_id = {} AND f_depart_time >= {} AND f_depart_time <= {} AND f_al_id = al_id AND f_arrive_ap_id = {} OR f_arrive_ap_id = {} OR f_arrive_ap_id = {} LIMIT {}", 
+                            "WHERE f_depart_ap_id = {} AND f_depart_time >= {} AND f_depart_time <= {} AND f_al_id = al_id AND (f_arrive_ap_id = {} OR f_arrive_ap_id = {} OR f_arrive_ap_id = {}) LIMIT {}", 
                             FLIGHT_TABLE, AIRLINE_TABLE, depart_aid, start_time, end_time, arrive_aid, nearby_airports[0], nearby_airports[1], MAX_NUM_FLIGHTS);
     }
 
     client.Query(query, queryResult, timeout);
 
-    GetFlightsResultRow flight_row = GetFlightsResultRow();
-    std::unique_ptr<const query_result::QueryResult> queryResultAirportInfo;
+    GetFlightsResultRow flight_row;
+    //GetAirportInfo
     std::string getAirportInfoQuery = "SELECT ap_code, ap_name, ap_city, ap_longitude, ap_latitude, co_id, co_name, co_code_2, co_code_3 FROM {}, {} WHERE ap_id = {} AND ap_co_id = co_id";
     std::vector<GetAirportInfoResultRow> airport_infos;
-    // populate the infos of arriving / departing airports of flight
+
+     // populate the infos of arriving / departing airports of flight
+
+    //Parallel Read version
+    std::vector<std::unique_ptr<const query_result::QueryResult>> results; 
     for (std::size_t i = 0; i < queryResult->size(); i++) {
         deserialize(flight_row, queryResult, i);
+
+        //Departure Airport
         query = fmt::format(getAirportInfoQuery, AIRPORT_TABLE, COUNTRY_TABLE, flight_row.f_depart_ap_id);
-        client.Query(query, queryResultAirportInfo, timeout);
-        GetAirportInfoResultRow ai_row = GetAirportInfoResultRow();
-        deserialize(ai_row, queryResultAirportInfo, 0);
-        airport_infos.push_back(ai_row);
-
+        client.Query(query, timeout);
+       
+        //Arrival Airport
         query = fmt::format(getAirportInfoQuery, AIRPORT_TABLE, COUNTRY_TABLE, flight_row.f_arrive_ap_id);
-        client.Query(query, queryResultAirportInfo, timeout);
-        ai_row = GetAirportInfoResultRow();
+        client.Query(query,timeout);
+    }
+    //Collect all info (FIFO)
+    client.Wait(results);
+    for(auto &queryResultAirportInfo: results){
+        GetAirportInfoResultRow ai_row;
         deserialize(ai_row, queryResultAirportInfo, 0);
         airport_infos.push_back(ai_row);
-
-        //TODO: Parallelize all of the reads in the loop
     }
+
+    //Sequential Read version
+    // std::unique_ptr<const query_result::QueryResult> queryResultAirportInfo;
+    // for (std::size_t i = 0; i < queryResult->size(); i++) {
+    //     deserialize(flight_row, queryResult, i);
+
+    //     //Departure Airport
+    //     query = fmt::format(getAirportInfoQuery, AIRPORT_TABLE, COUNTRY_TABLE, flight_row.f_depart_ap_id);
+    //     client.Query(query, queryResultAirportInfo, timeout);
+    //     GetAirportInfoResultRow ai_row = GetAirportInfoResultRow();
+    //     deserialize(ai_row, queryResultAirportInfo, 0);
+    //     airport_infos.push_back(ai_row);
+
+    //     //Arrival Airport
+    //     query = fmt::format(getAirportInfoQuery, AIRPORT_TABLE, COUNTRY_TABLE, flight_row.f_arrive_ap_id);
+    //     client.Query(query, queryResultAirportInfo, timeout);
+    //     ai_row = GetAirportInfoResultRow();
+    //     deserialize(ai_row, queryResultAirportInfo, 0);
+    //     airport_infos.push_back(ai_row);
+    // }
+
     // print info of flight
     for (int i = 0; i < queryResult->size(); i++) {
         deserialize(flight_row, queryResult, i);

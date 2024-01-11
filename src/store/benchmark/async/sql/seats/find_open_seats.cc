@@ -23,9 +23,11 @@ transaction_status_t SQLFindOpenSeats::Execute(SyncClient &client) {
     client.Begin(timeout);
 
     GetFlightResultRow fr_row = GetFlightResultRow();
-    //TODO: Does itmake more sense to just Select * and then parse out the fields we want?
-    query = fmt::format("SELECT f_id, f_al_id, f_depart_ap_id, f_depart_time, f_arrive_ap_id, f_arrive_time, f_base_price, f_seats_total, f_seats_left, "
-                        "(f_base_price + (f_base_price * (1 - (f_seats_left / f_seats_total)))) AS f_price FROM {} WHERE f_id = {}", FLIGHT_TABLE, f_id);
+    //GetFlight   //Doing computation in the Select statement is tricky for the point read validation to check. Thus we removed it from the query statement here and do the calculation ourselves.
+    // query = fmt::format("SELECT f_id, f_al_id, f_depart_ap_id, f_depart_time, f_arrive_ap_id, f_arrive_time, f_base_price, f_seats_total, f_seats_left, "
+    //                     "(f_base_price + (f_base_price * (1 - (f_seats_left / f_seats_total)))) AS f_price FROM {} WHERE f_id = {}", FLIGHT_TABLE, f_id);
+    query = fmt::format("SELECT f_id, f_al_id, f_depart_ap_id, f_depart_time, f_arrive_ap_id, f_arrive_time, f_base_price, f_seats_total, f_seats_left "
+                        "FROM {} WHERE f_id = {}", FLIGHT_TABLE, f_id);
     client.Query(query, queryResult, timeout);
     if (queryResult->empty()) { 
         Debug("no flight with that id exists");
@@ -36,8 +38,7 @@ transaction_status_t SQLFindOpenSeats::Execute(SyncClient &client) {
     double base_price = fr_row.f_base_price;
     int64_t seats_total = fr_row.f_seats_total;
     int64_t seats_left = fr_row.f_seats_left;
-    double seat_price = fr_row.f_price;
-
+    //double seat_price = fr_row.f_price;
     double _seat_price = base_price + (base_price * (1.0 - (seats_left/((double)seats_total))));
 
     query = fmt::format("SELECT r_id, r_f_id, r_seat FROM {} WHERE r_f_id = {}", RESERVATION_TABLE, f_id);
@@ -57,7 +58,8 @@ transaction_status_t SQLFindOpenSeats::Execute(SyncClient &client) {
     std::string open_seats_str = "Seats";
     for (int seat = 0; seat < TOTAL_SEATS_PER_FLIGHT; seat++) {
         if (unavailable_seats[seat] == 0) open_seats_str += fmt::format(" {},", seat);
-        q->push(SEATSReservation(NULL_ID, NULL_ID, f_id, seat));
+        q->push(SEATSReservation(NULL_ID, NULL_ID, f_id, seat));   //TODO: Why empty r_id and empty customer_id. Shouldn't it be a random CustomerID?
+        //TODO: Fill only up to CACHE_LIMIT_PENDING_INSERTS?
     }
 
     open_seats_str += fmt::format(" are available on flight {} for price %lf", f_id, _seat_price);

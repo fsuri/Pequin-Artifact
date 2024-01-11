@@ -9,9 +9,9 @@ public:
     SEATSReservation(int64_t r_id, int64_t c_id, int64_t f_id, int64_t seat_num);
     ~SEATSReservation();
 
-    int64_t r_id; 
-    int64_t c_id;
-    int64_t f_id;
+    int64_t r_id;   //reservation id
+    int64_t c_id;   //customer id
+    int64_t f_id;   //flight id
     int64_t seat_num;
 };
 }
