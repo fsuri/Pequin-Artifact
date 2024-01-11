@@ -17,7 +17,8 @@ SQL_BENCH="true"
 FILE_PATH="sql-tpcc-tables-schema.json"
 #"0_local_test_outputs/seats-sql/seats-sql.json"
 #"0_local_test_outputs/kv_example/kv-tables-schema.json"
-CONN_STR="postgres://tostitos:postgres@localhost:5432/tpcch"
+USR_NAME="tostitos"
+CONN_STR="postgres://$USR_NAME:postgres@localhost:5432/tpcch"
 
 while getopts c:f:g:cpath:p:d:z:num_ops:num_keys:b: option; do
 case "${option}" in
