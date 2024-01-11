@@ -41,6 +41,8 @@
 
 #include "store/benchmark/async/json_table_writer.h"
 
+//TODO: Date/Time should technically be BIGINT in order to last until at least 2100 as required by TPCC spec. With INT it will last only until 2038
+
 const char ALPHA_NUMERIC[] = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
 
 std::string RandomAString(size_t x, size_t y, std::mt19937 &gen) {

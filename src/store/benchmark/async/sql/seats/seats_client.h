@@ -17,7 +17,7 @@ class SEATSSQLClient : public SyncTransactionBenchClient {
       uint64_t timeout, const std::string &latencyFilename="");
   virtual ~SEATSSQLClient();
   std::queue<SEATSReservation> insert_reservations;        // queue of <f_id, seat> pairs that are thought to be reservable
-  std::queue<SEATSReservation> existing_reservation;
+  std::queue<SEATSReservation> existing_reservation;    //TODO: Shouldn't this distinguish between Delete and Updates (add to them randomly)
 
 
  protected:

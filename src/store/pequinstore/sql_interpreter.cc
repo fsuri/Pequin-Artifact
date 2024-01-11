@@ -155,8 +155,9 @@ bool SQLTransformer::InterpretQueryRange(const std::string &_query, std::string 
    
     std::string_view cond_statement = query_statement.substr(where_pos + where_hook.length()); // I.e. everything after WHERE
 
-    //Ensure that there is no LIMIT or ORDER BY or Group By or other stuff after the where. If there is, then it's safe to assume that it's not a point query.
+    //Ensure that there is no LIMIT or ORDER BY or GROUP BY or other stuff after the where. If there is, then it's safe to assume that it's not a point query.
     if(size_t order_pos = cond_statement.find(order_hook); order_pos != std::string::npos) return false;
+    if(size_t grp_pos = cond_statement.find(group_hook); grp_pos != std::string::npos) return false;
 
     //std::cerr << "checking col conds: " << cond_statement << std::endl;
     return CheckColConditions(cond_statement, table_name, p_col_values, relax); //TODO: Enable Relax
@@ -743,6 +744,8 @@ void SQLTransformer::TransformDelete(size_t pos, std::string_view &write_stateme
         // WriteMessage *table_ver = txn->add_write_set();
         // table_ver->set_key(table_name);
         // table_ver->set_value("");
+
+        //Note: Do not add to read set. Don't care if deletion doesn't work.
 
         //Add Delete also to Table Write : 
         TableWrite *table_write = AddTableWrite(table_name, col_registry);

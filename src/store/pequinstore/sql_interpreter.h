@@ -57,6 +57,7 @@ static std::string select_hook("SELECT ");
 static std::string from_hook(" FROM ");
 static std::string where_hook(" WHERE ");
 static std::string order_hook(" ORDER BY");
+static std::string group_hook(" GROUP BY");
 static std::string join_hook("JOIN");
 
 //Insert
