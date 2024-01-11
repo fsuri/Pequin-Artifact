@@ -174,6 +174,7 @@ void Client::Begin(begin_callback bcb, begin_timeout_callback btcb,
     txn.mutable_timestamp()->set_id(client_id);
 
     sql_interpreter.NewTx(&txn);
+    point_read_cache.clear();
 
     pendingQueries.clear(); //shouldn't be necessary to call, should be empty anyways
 
@@ -431,8 +432,10 @@ void Client::Query(const std::string &query, query_callback qcb,
       std::string encoded_key = EncodeTableRow(pendingQuery->table_name, pendingQuery->p_col_values);
       auto itr = point_read_cache.find(encoded_key);
       if(itr != point_read_cache.end()){
+        Debug("Supply point query result from cache!");
         auto res = new sql::QueryResultProtoWrapper(itr->second);
         qcb(REPLY_OK, res);
+        return;
       }
     } 
     //Alternatively: Instead of storing the key, we could also let servers provide the keys and wait for f+1 matching keys. But then we'd have to wait for 2f+1 reads in total... ==> Client stores key

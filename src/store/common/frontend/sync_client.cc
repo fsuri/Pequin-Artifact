@@ -183,7 +183,7 @@ void SyncClient::Query(const std::string &query, uint32_t timeout) {
 void SyncClient::Wait(std::vector<std::unique_ptr<const query_result::QueryResult>> &values) {
   for (auto promise : queryPromises) {
     values.push_back(promise->ReleaseQueryResult());
-    delete promise;
+    delete promise;  //TODO: This delete seems to be unsafe.
   }
   queryPromises.clear();
 }
