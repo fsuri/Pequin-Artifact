@@ -2,38 +2,38 @@
 
 namespace tpcch_sql {
 
-Q18::Q18(uint32_t timeout) : tpcc_sql::TPCCSQLTransaction(timeout) {}
+Q18::Q18(uint32_t timeout) : TPCCHSQLTransaction(timeout) {}
 
 Q18::~Q18() {}
 
 transaction_status_t Q18::Execute(SyncClient &client) {
     std::unique_ptr<const query_result::QueryResult> queryResult;
-    std::string query = "SELECT c_last, "
-                     "c_id, "
-                     "o_id, "
-                     "o_entry_d, "
-                     "o_ol_cnt, "
-                     "sum(ol_amount) AS amount_sum "
+    std::string query = "SELECT customer.last, "
+                     "customer.id, "
+                     "\"order\".id, "
+                     "\"order\".entry_d, "
+                     "\"order\".ol_cnt, "
+                     "sum(order_line.amount) AS amount_sum "
                      "FROM customer, "
-                     "oorder, "
+                     "\"order\", "
                      "order_line "
-                     "WHERE c_id = o_c_id "
-                     "AND c_w_id = o_w_id "
-                     "AND c_d_id = o_d_id "
-                     "AND ol_w_id = o_w_id "
-                     "AND ol_d_id = o_d_id "
-                     "AND ol_o_id = o_id "
-                     "GROUP BY o_id, "
-                     "o_w_id, "
-                     "o_d_id, "
-                     "c_id, "
-                     "c_last, "
-                     "o_entry_d, "
-                     "o_ol_cnt HAVING sum(ol_amount) > 200 "
-                     "ORDER BY amount_sum DESC, o_entry_d";
+                     "WHERE customer.id = \"order\".c_id "
+                     "AND customer.w_id = \"order\".w_id "
+                     "AND customer.d_id = \"order\".d_id "
+                     "AND order_line.w_id = \"order\".w_id "
+                     "AND order_line.d_id = \"order\".d_id "
+                     "AND order_line.o_id = \"order\".id "
+                     "GROUP BY \"order\".id, "
+                     "\"order\".w_id, "
+                     "\"order\".d_id, "
+                     "customer.id, "
+                     "customer.last, "
+                     "\"order\".entry_d, "
+                     "\"order\".ol_cnt HAVING sum(order_line.amount) > 200 "
+                     "ORDER BY amount_sum DESC, \"order\".entry_d";
 
     client.Begin(timeout);
-    client.SQLRequest(query, queryResult, timeout);
+    client.Query(query, queryResult, timeout);
     return client.Commit(timeout);
 }
 }

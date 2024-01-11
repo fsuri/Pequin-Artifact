@@ -1,50 +1,32 @@
 #ifndef TPCCH_SQL_CLIENT_H
 #define TPCCH_SQL_CLIENT_H
 
-#include <random>
-
 #include "store/benchmark/async/sync_transaction_bench_client.h"
+#include <random>
 
 namespace tpcch_sql {
 
 class TPCCHSQLClient : public SyncTransactionBenchClient {
  public:
   TPCCHSQLClient(SyncClient &client, Transport &transport, uint64_t id,
-      int numRequests, int expDuration, uint64_t delay, int warmupSec,
-      int cooldownSec, int tputInterval, uint32_t num_warehouses, uint32_t w_id,
-      uint32_t C_c_id, uint32_t C_c_last, uint32_t new_order_ratio,
-      uint32_t delivery_ratio, uint32_t payment_ratio, uint32_t order_status_ratio,
-      uint32_t stock_level_ratio, bool static_w_id,
-      uint32_t abortBackoff, bool retryAborted, uint32_t maxBackoff, uint32_t maxAttempts,
-      uint32_t timeout,
-      const std::string &latencyFilename = "");
+      uint64_t numRequests, uint64_t expDuration, uint64_t delay, uint64_t warmupSec,
+      uint64_t cooldownSec, uint64_t tputInterval, uint32_t abortBackoff, bool retryAborted, 
+      uint64_t maxBackoff, int64_t maxAttempts,
+      uint64_t timeout, const std::string &latencyFilename="");
 
   virtual ~TPCCHSQLClient();
 
  protected:
   virtual SyncTransaction *GetNextTransaction();
   virtual std::string GetLastOp() const;
-
-  uint32_t num_warehouses;
-  uint32_t w_id;
-  uint32_t C_c_id;
-  uint32_t C_c_last;
-  uint32_t new_order_ratio;
-  uint32_t delivery_ratio;
-  uint32_t payment_ratio;
-  uint32_t order_status_ratio;
-  uint32_t stock_level_ratio;
-  bool static_w_id;
-  uint32_t stockLevelDId;
   std::string lastOp;
+  std::vector<int> q_weights;
+  std::mt19937 gen;
 
- private:
-  bool delivery;
-  uint32_t deliveryWId;
-  uint32_t deliveryDId;
-
+private: 
+  SyncTransaction* ConvertTIDToTransaction(int t_id);
 };
 
-} //namespace tpcc_sql
+} 
 
-#endif /* TPCC_SQL_CLIENT_H */
+#endif

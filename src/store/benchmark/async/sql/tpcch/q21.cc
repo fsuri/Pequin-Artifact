@@ -2,7 +2,7 @@
 
 namespace tpcch_sql {
 
-Q21::Q21(uint32_t timeout) : tpcc_sql::TPCCSQLTransaction(timeout) {}
+Q21::Q21(uint32_t timeout) : TPCCHSQLTransaction(timeout) {}
 
 Q21::~Q21() {}
 
@@ -12,30 +12,30 @@ transaction_status_t Q21::Execute(SyncClient &client) {
                      "count(*) AS numwait "
                      "FROM supplier, "
                      "order_line l1, "
-                     "oorder, "
+                     "\"order\", "
                      "stock, "
                      "nation "
-                     "WHERE ol_o_id = o_id "
-                     "AND ol_w_id = o_w_id "
-                     "AND ol_d_id = o_d_id "
-                     "AND ol_w_id = s_w_id "
-                     "AND ol_i_id = s_i_id "
-                     "AND mod((s_w_id * s_i_id),10000) = su_suppkey "
-                     "AND l1.ol_delivery_d > o_entry_d "
+                     "WHERE l1.o_id = \"order\".id "
+                     "AND l1.w_id = \"order\".w_id "
+                     "AND l1.d_id = \"order\".d_id "
+                     "AND l1.w_id = stock.w_id "
+                     "AND l1.i_id = stock.i_id "
+                     "AND mod((stock.w_id * stock.i_id),10000) = su_suppkey "
+                     "AND l1.delivery_d > \"order\".entry_d "
                      "AND NOT EXISTS "
                      "(SELECT * "
                      "FROM order_line l2 "
-                     "WHERE l2.ol_o_id = l1.ol_o_id "
-                     "AND l2.ol_w_id = l1.ol_w_id "
-                     "AND l2.ol_d_id = l1.ol_d_id "
-                     "AND l2.ol_delivery_d > l1.ol_delivery_d) "
+                     "WHERE l2.o_id = l1.o_id "
+                     "AND l2.w_id = l1.w_id "
+                     "AND l2.d_id = l1.d_id "
+                     "AND l2.delivery_d > l1.delivery_d) "
                      "AND su_nationkey = n_nationkey "
                      "AND n_name = 'Germany' "
                      "GROUP BY su_name "
                      "ORDER BY numwait DESC, su_name";
 
     client.Begin(timeout);
-    client.SQLRequest(query, queryResult, timeout);
+    client.Query(query, queryResult, timeout);
     return client.Commit(timeout);
 }
 }

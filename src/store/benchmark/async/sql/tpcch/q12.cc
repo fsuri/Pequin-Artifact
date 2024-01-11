@@ -2,29 +2,29 @@
 
 namespace tpcch_sql {
 
-Q12::Q12(uint32_t timeout) : tpcc_sql::TPCCSQLTransaction(timeout) {}
+Q12::Q12(uint32_t timeout) : TPCCHSQLTransaction(timeout) {}
 
 Q12::~Q12() {}
 
 transaction_status_t Q12::Execute(SyncClient &client) {
     std::unique_ptr<const query_result::QueryResult> queryResult;
-    std::string query = "SELECT o_ol_cnt, "
-                     "sum(CASE WHEN o_carrier_id = 1 "
-                     "OR o_carrier_id = 2 THEN 1 ELSE 0 END) AS high_line_count, "
-                     "sum(CASE WHEN o_carrier_id <> 1 "
-                     "AND o_carrier_id <> 2 THEN 1 ELSE 0 END) AS low_line_count "
-                     "FROM oorder, "
+    std::string query = "SELECT \"order\".ol_cnt, "
+                     "sum(CASE WHEN \"order\".carrier_id = 1 "
+                     "OR \"order\".carrier_id = 2 THEN 1 ELSE 0 END) AS high_line_count, "
+                     "sum(CASE WHEN \"order\".carrier_id <> 1 "
+                     "AND \"order\".carrier_id <> 2 THEN 1 ELSE 0 END) AS low_line_count "
+                     "FROM \"order\", "
                      "order_line "
-                     "WHERE ol_w_id = o_w_id "
-                     "AND ol_d_id = o_d_id "
-                     "AND ol_o_id = o_id "
-                     "AND o_entry_d <= ol_delivery_d "
-                     "AND ol_delivery_d < '2020-01-01 00:00:00.000000' "
-                     "GROUP BY o_ol_cnt "
-                     "ORDER BY o_ol_cnt";
+                     "WHERE order_line.w_id = \"order\".w_id "
+                     "AND order_line.d_id = \"order\".d_id "
+                     "AND order_line.o_id = \"order\".id "
+                     "AND \"order\".entry_d <= order_line.delivery_d "
+                     "AND order_line.delivery_d < 1577854800"
+                     "GROUP BY \"order\".ol_cnt "
+                     "ORDER BY \"order\".ol_cnt";
 
     client.Begin(timeout);
-    client.SQLRequest(query, queryResult, timeout);
+    client.Query(query, queryResult, timeout);
     return client.Commit(timeout);
 }
 }

@@ -2,7 +2,7 @@
 
 namespace tpcch_sql {
 
-Q15::Q15(uint32_t timeout) : tpcc_sql::TPCCSQLTransaction(timeout) {}
+Q15::Q15(uint32_t timeout) : TPCCHSQLTransaction(timeout) {}
 
 Q15::~Q15() {}
 
@@ -11,17 +11,17 @@ transaction_status_t Q15::Execute(SyncClient &client) {
     client.Begin(timeout);
     std::string query = "CREATE view revenue0 (supplier_no, total_revenue) AS "
                     "SELECT "
-                    "mod((s_w_id * s_i_id),10000) as supplier_no, "
-                    "sum(ol_amount) as total_revenue "
+                    "mod((stock.w_id * stock.i_id),10000) as supplier_no, "
+                    "sum(order_line.amount) as total_revenue "
                     "FROM "
                     "order_line, stock "
                     "WHERE "
-                    "ol_i_id = s_i_id "
-                    "AND ol_supply_w_id = s_w_id "
-                    "AND ol_delivery_d >= '2007-01-02 00:00:00.000000' "
+                    "order_line.i_id = stock.i_id "
+                    "AND order_line.supply_w_id = stock.w_id "
+                    "AND order_line.delivery_d >= 1167714000 "
                     "GROUP BY "
                     "supplier_no";
-    client.SQLRequest(query, queryResult, timeout);
+    client.Query(query, queryResult, timeout);
     query = "SELECT su_suppkey, "
                     "su_name, "
                     "su_address, "
@@ -31,9 +31,9 @@ transaction_status_t Q15::Execute(SyncClient &client) {
                     "WHERE su_suppkey = supplier_no "
                     "AND total_revenue = (select max(total_revenue) from revenue0) "
                     "ORDER BY su_suppkey";
-    client.SQLRequest(query, queryResult, timeout);
+    client.Query(query, queryResult, timeout);
     query = "DROP VIEW revenue0";
-    client.SQLRequest(query, queryResult, timeout);
+    client.Query(query, queryResult, timeout);
     return client.Commit(timeout);
 }
 }

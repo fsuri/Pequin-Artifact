@@ -11,7 +11,7 @@ ZIPF=0.0
 NUM_OPS_TX=2
 NUM_KEYS_IN_DB=1
 KEY_PATH="keys"
-BENCHMARK="seats-sql"
+BENCHMARK="tpcch-sql"
 
 SQL_BENCH="true"
 FILE_PATH="sql-seats-tables-schema.json"
