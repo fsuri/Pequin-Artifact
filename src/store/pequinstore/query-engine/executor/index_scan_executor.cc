@@ -460,9 +460,10 @@ void IndexScanExecutor::CheckRow(ItemPointer tuple_location, concurrency::Transa
 }
 
 static bool USE_ACTIVE_READ_SET = true; //If true, then Must use Table_Col_Version
-static bool USE_ACTIVE_SNAPSHOT_SET = false; //Currently, our Snapshots are always Complete (non-Active)
+static bool USE_ACTIVE_SNAPSHOT_SET = false; //Currently, our Snapshots are always Complete (non-Active) "as they can be". Note: Index scan already makes the readable set somewhat Active
 
-
+//TODO: Re-factor so this is nicely "per mode" for better readability. Like in SeqScanExecutor.
+//TODO: Test SeqScan, and then adopt the changes here.
 bool IndexScanExecutor::FindRightRowVersion(const Timestamp &timestamp, std::shared_ptr<storage::TileGroup> tile_group, storage::TileGroupHeader *tile_group_header, ItemPointer tuple_location,
     size_t &num_iters, concurrency::TransactionContext *current_txn, 
     bool &read_curr_version, bool &found_committed, bool &found_prepared)
@@ -693,7 +694,7 @@ void IndexScanExecutor::ManageSnapshot(concurrency::TransactionContext *current_
   auto snapshot_mgr = current_txn->GetSnapshotMgr();
 
   snapshot_mgr->AddToLocalSnapshot(*txn_digest.get(), write_timestamp.getTimestamp(), write_timestamp.getID(), commit_or_prepare);
-  num_iters++; //currently only count "readable" ones towards snapshotK. This is so that we read at lest one committed if there is >= k unreadable prepared
+  num_iters++; //currently only count "readable" versions towards snapshotK. This is so that we read at lest one committed if there is >= k unreadable prepared
 }
 
 

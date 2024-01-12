@@ -62,8 +62,7 @@
 namespace pequinstore {
 
 
-static bool TEST_READ_SET = true;  //check toy read sets for queries
-static bool TEST_WRITE_SET = true; //check toy write sets for writes
+static bool TEST_READ_SET = true;  //print out read set
 
 static bool relax_point_cond = true;
 

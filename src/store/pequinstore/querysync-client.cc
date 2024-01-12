@@ -573,6 +573,7 @@ void ShardClient::HandleQueryResult(proto::QueryResultReply &queryResult){
     //4) if receive enough --> upcall;  At client: Add query identifier and result to Txn
 
     bool TEST_SYNC_PATH = TEST_EAGER_PLUS_SNAPSHOT && params.query_params.eagerPlusSnapshot && !pendingQuery->snapshot_mode;
+    if(TEST_SYNC_PATH) Debug("Forcing Sync path even though Eager might have matched.");
    
     Debug("[group %i] Req %lu. Matching_res %d. resultQuorum: %d \n", group, queryResult.req_id(), matching_res, params.query_params.resultQuorum);
         // Only need results from "result" shard (assuming simple migration scheme)
