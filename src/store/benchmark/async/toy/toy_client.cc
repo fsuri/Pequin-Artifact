@@ -109,8 +109,8 @@ void ToyClient::ExecuteToy(){
             // std::cerr << "Shir: execute toy transacion : after timeout\n";
 
           
-            // std::string query = "SELECT current_date";
-            std::string query = "SELECT * FROM users";
+            std::string query = "SELECT current_date";
+            // std::string query = "SELECT * FROM users";
 
             // Create users table before trying to execute the following
             // std::string query = "SELECT * FROM users"; //INSERT INTO users (name, age) VALUES ('Oliver5', 31)
@@ -146,29 +146,29 @@ void ToyClient::ExecuteToy(){
 
 
 
-            query = "SELECT * FROM users"; //INSERT INTO users (name, age) VALUES ('Oliver5', 31)
-            std::unique_ptr<const query_result::QueryResult> queryResult2;
-            client.Query(query, queryResult, timeout);  //--> Edit API in frontend sync_client.
-                                           //For real benchmarks: Also edit in sync_transaction_bench_client.
+            // query = "SELECT * FROM users"; //INSERT INTO users (name, age) VALUES ('Oliver5', 31)
+            // std::unique_ptr<const query_result::QueryResult> queryResult2;
+            // client.Query(query, queryResult, timeout);  //--> Edit API in frontend sync_client.
+            //                                //For real benchmarks: Also edit in sync_transaction_bench_client.
                               
-            // (*queryResult->at(0))[0] //TODO: parse the output...  data.length
-            std::cerr << "Got res" << std::endl;
-            UW_ASSERT(!queryResult2->empty());
-            std::cerr << "num cols: " <<  queryResult2->num_columns() << std::endl;
-            std::cerr << "num rows affected: " <<  queryResult2->rows_affected() << std::endl;
-            std::cerr << "Shir: Hello World3\n";
+            // // (*queryResult->at(0))[0] //TODO: parse the output...  data.length
+            // std::cerr << "Got res" << std::endl;
+            // UW_ASSERT(!queryResult2->empty());
+            // std::cerr << "num cols: " <<  queryResult2->num_columns() << std::endl;
+            // std::cerr << "num rows affected: " <<  queryResult2->rows_affected() << std::endl;
+            // std::cerr << "Shir: Hello World3\n";
 
-            std::stringstream ss2(std::ios::in | std::ios::out | std::ios::binary);
-            size_t nbytes2;
-            out = queryResult->get(0, 0, &nbytes2);
-            std::string output2(out, nbytes2);
-            ss2 << output2;
-            output_row;
-            {
-              cereal::BinaryInputArchive iarchive(ss2); // Create an input archive
-              iarchive(output_row); // Read the data from the archive
-            }
-             std::cerr << "Query 2 Done: " << output_row << std::endl << std::endl;
+            // std::stringstream ss2(std::ios::in | std::ios::out | std::ios::binary);
+            // size_t nbytes2;
+            // out = queryResult->get(0, 0, &nbytes2);
+            // std::string output2(out, nbytes2);
+            // ss2 << output2;
+            // output_row;
+            // {
+            //   cereal::BinaryInputArchive iarchive(ss2); // Create an input archive
+            //   iarchive(output_row); // Read the data from the archive
+            // }
+            //  std::cerr << "Query 2 Done: " << output_row << std::endl << std::endl;
 
 
             // std::string query2 = "INSERT INTO users (name, age) VALUES ('Oliver9', 35)";

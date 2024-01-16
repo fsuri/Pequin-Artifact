@@ -11,11 +11,12 @@ ZIPF=0.0
 NUM_OPS_TX=1
 NUM_KEYS_IN_DB=1
 KEY_PATH="keys"
-BENCHMARK="rw-sql"
+BENCHMARK="toy"
+# BENCHMARK="rw-sql"
 
 SQL_BENCH="true"
 FILE_PATH="0_local_test_outputs/rw-sql/rw-sql.json"
-#"0_local_test_outputs/kv_example/kv-tables-schema.json"
+# "0_local_test_outputs/kv_example/kv-tables-schema.json"
 
 while getopts c:f:g:cpath:p:d:z:num_ops:num_keys:b: option; do
 case "${option}" in

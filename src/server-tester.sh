@@ -43,7 +43,12 @@ echo '[2] Starting new servers'
 for j in `seq 0 $((NUM_GROUPS-1))`; do
 	#echo Starting Group $j
 	for i in `seq 0 $((N-1))`; do
-		#echo Starting Replica $(($i+$j*$N))
+		echo Starting Replica $(($i+$j*$N))
+		echo --group_idx $j
+		echo --num_groups $NUM_GROUPS
+		echo --num_shards $NUM_GROUPS
+		echo --replica_idx $i
+		echo server$(($i+$j*$N)).out 
 		#store/$STORE/*
 		DEBUG=store/$STORE/* store/server store/hotstuffstore/libhotstuff/examples/* --config_path $CONFIG --group_idx $j --num_groups $NUM_GROUPS --num_shards $NUM_GROUPS --replica_idx $i --protocol $PROTOCOL --num_keys $NUM_KEYS_IN_DB --debug_stats --indicus_key_path $KEY_PATH &> ./0_local_test_outputs/server$(($i+$j*$N)).out &
 	done;

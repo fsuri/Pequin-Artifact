@@ -1,6 +1,6 @@
 #!/bin/bash
 
-TARGET_DIR="/root/Pequin-Artifact/src/scripts/config/"
+TARGET_DIR="/home/sc3348/Pesto/Pequin-Artifact/src/scripts/config/"
 
 echo 'Update hotstuff header file local_config_dir.h as'
 echo '#define LOCAL_CONFIG_DIR "'$TARGET_DIR'"'

@@ -58,8 +58,8 @@ Server::Server(const transport::Configuration& config, KeyManager *keyManager,
 
   // Start the cluster before trying to connect:
   // version and cluster name should match the ones in Pequin-Artifact/pg_setup/postgres_service.sh script
-  const char* command = "sudo pg_ctlcluster 12 pgdata start";
-  system(command);
+  // const char* command = "sudo pg_ctlcluster 12 pgdata start";
+  // system(command);
 
   // Shir: get back to this at some point
   std::string db_name = "db" + std::to_string(1 + idx);
@@ -102,8 +102,8 @@ Server::Server(const transport::Configuration& config, KeyManager *keyManager,
 Server::~Server() {
   // Stopping the postgres cluster
   // version and cluster name should match the ones in Pequin-Artifact/pg_setup/postgres_service.sh script
-  const char* command = "sudo pg_ctlcluster 12 pgdata stop";
-  system(command);
+  // const char* command = "sudo pg_ctlcluster 12 pgdata stop";
+  // system(command);
 }
 
 bool Server::CCC2(const proto::Transaction& txn) {
