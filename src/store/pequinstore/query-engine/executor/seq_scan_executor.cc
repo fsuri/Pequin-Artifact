@@ -220,7 +220,7 @@ bool SeqScanExecutor::FindRightRowVersion(const Timestamp &txn_timestamp, std::s
 
   bool perform_read_on_snapshot = current_txn->GetSnapshotRead();
   auto snapshot_set = current_txn->GetSnapshotSet();
-  UW_ASSERT(!perform_read_on_snapshot || perform_read);
+  UW_ASSERT(!perform_read_on_snapshot || perform_read); //if read on snapshot, must be performing read.
 
   bool perform_find_snapshot = current_txn->GetHasSnapshotMgr();
   auto snapshot_mgr = current_txn->GetSnapshotMgr();
@@ -326,10 +326,12 @@ void SeqScanExecutor::PrepareResult(std::unordered_map<oid_t, std::vector<oid_t>
   }
 }
 
-//NOTE: PointReads always go through IndexScan
+
 void SeqScanExecutor::Scan() {
   concurrency::TransactionManager &transaction_manager = concurrency::TransactionManagerFactory::GetInstance();
   auto current_txn = executor_context_->GetTransaction();
+  UW_ASSERT(!current_txn->IsPointRead());//NOTE: PointReads should always go through IndexScan
+
   auto storage_manager = storage::StorageManager::GetInstance();
 
   auto const &current_txn_timestamp = current_txn->GetBasilTimestamp();

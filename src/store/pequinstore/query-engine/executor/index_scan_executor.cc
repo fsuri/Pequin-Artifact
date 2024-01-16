@@ -462,13 +462,132 @@ void IndexScanExecutor::CheckRow(ItemPointer tuple_location, concurrency::Transa
 static bool USE_ACTIVE_READ_SET = true; //If true, then Must use Table_Col_Version
 static bool USE_ACTIVE_SNAPSHOT_SET = false; //Currently, our Snapshots are always Complete (non-Active) "as they can be". Note: Index scan already makes the readable set somewhat Active
 
-//TODO: Re-factor so this is nicely "per mode" for better readability. Like in SeqScanExecutor.
-//TODO: Test SeqScan, and then adopt the changes here.
 bool IndexScanExecutor::FindRightRowVersion(const Timestamp &timestamp, std::shared_ptr<storage::TileGroup> tile_group, storage::TileGroupHeader *tile_group_header, ItemPointer tuple_location,
     size_t &num_iters, concurrency::TransactionContext *current_txn, 
     bool &read_curr_version, bool &found_committed, bool &found_prepared)
 {
     /////////////////////////////// PESTO MODIFIERS  -- these are just aliases for convenience  ///////////////////////////////////
+    bool perform_read = current_txn->GetHasReadSetMgr();
+
+    bool perform_find_snapshot = current_txn->GetHasSnapshotMgr();
+    auto snapshot_mgr = current_txn->GetSnapshotMgr();
+    //size_t k_prepared_versions = current_txn->GetKPreparedVersions();
+  
+    bool perform_read_on_snapshot = current_txn->GetSnapshotRead();
+    auto snapshot_set = current_txn->GetSnapshotSet();
+    UW_ASSERT(!perform_read_on_snapshot || perform_read); //if read on snapshot, must be performing read.
+  
+
+  Debug("Perform read? %d. Perform find snapshot? %d. Perform read_on_snapshot? %d", perform_read, perform_find_snapshot, perform_read_on_snapshot);
+   ///////////////////////////////////////////////////////////////////////////////////
+  UW_ASSERT(!(perform_find_snapshot && perform_read_on_snapshot)); //shouldn't do both simultaneously currently. Though we could support it in theory.
+
+  auto txn_digest = tile_group_header->GetTxnDig(tuple_location.offset);
+  bool done = false;
+
+  Debug("Tuple commit state: %d.", tile_group_header->GetCommitOrPrepare(tuple_location.offset));
+  bool init_mode = !perform_read && !perform_find_snapshot && !perform_read_on_snapshot;
+
+  // If reading.
+  if (perform_read || init_mode) {
+    // Three cases: Tuple is committed, or prepared. If prepared, it might have been forceMaterialized
+    
+    // If the tuple is committed read the version.    Try to read committed always -- whether it is eager or snapshot_read
+    if (tile_group_header->GetCommitOrPrepare(tuple_location.offset)) {
+      found_committed = true;
+      read_curr_version = true;
+      done = true;
+
+      Timestamp const &committed_timestamp = tile_group_header->GetBasilTimestamp(tuple_location.offset);
+      Debug("Read Committed Timestamp: [%lu:%lu]", committed_timestamp.getTimestamp(), committed_timestamp.getID());
+      if (current_txn->IsPointRead()) SetPointRead(current_txn, tile_group_header, tuple_location, committed_timestamp);
+    } 
+    else { //tuple is prepared
+      if (!perform_read_on_snapshot){   //if doing eager read
+         // Don't read materialized 
+        if(tile_group_header->GetMaterialize(tuple_location.offset)) {
+          Debug("Don't read force materialized, continue reading");
+          read_curr_version = false;
+          done = false;
+          return done;
+        }
+
+        auto const &read_prepared_pred = current_txn->GetReadPreparedPred();
+        Timestamp const &prepared_timestamp = tile_group_header->GetBasilTimestamp(tuple_location.offset);
+
+        // Only read prepared tuples if it satisfies the prepared predicate
+        if (num_iters == 0 && read_prepared_pred && read_prepared_pred(*txn_digest)) {
+          found_prepared = true;
+          //Only "read" the first prepared version as part of result
+          read_curr_version = true;
+
+          if (current_txn->IsPointRead()) SetPointRead(current_txn, tile_group_header, tuple_location, prepared_timestamp);
+        }
+        //if we are performing snapshot, continue scanning up to k versions
+        if(!perform_find_snapshot) done = true;
+      }
+    }
+  }
+
+  // If calling read from snapshot 
+  if (perform_read_on_snapshot) {
+    Debug("Performing read on snapshot. Trying to read prepared Txn");
+    //Note: Read committed already handled by normal read case above.
+    // Read regardless if it's prepared or force materialized as long as it's in the snapshot
+    bool should_read_from_snapshot = !found_committed && snapshot_set->find(*txn_digest.get()) != snapshot_set->end();
+
+    if (should_read_from_snapshot) {
+      Debug("TxnDig[%s] is part of snapshot. Read prepared tuple", pequinstore::BytesToHex(*txn_digest, 16).c_str());
+      found_prepared = true;
+      read_curr_version = true;
+      done = true;
+    }
+  }
+
+    // If calling find snapshot in table store interface
+  if (perform_find_snapshot) {
+    // Two cases: tuple is either prepared or committed
+    if (tile_group_header->GetCommitOrPrepare(tuple_location.offset)) {
+      found_committed = true;
+      //read_curr_version = true; should not be reading for result if in snapshot only mode (let read mode account for reading)
+
+      Timestamp const &committed_timestamp = tile_group_header->GetBasilTimestamp(tuple_location.offset);
+      ManageSnapshot(current_txn, tile_group_header, tuple_location, committed_timestamp, num_iters, true);
+      done = true;
+    } else {
+      auto const &read_prepared_pred = current_txn->GetReadPreparedPred();
+      Timestamp const &prepared_timestamp = tile_group_header->GetBasilTimestamp(tuple_location.offset);
+      // Add to snapshot if tuple satisfies read prepared predicate and haven't read more than k versions
+      bool should_add_to_snapshot = !found_committed && num_iters < current_txn->GetKPreparedVersions() && read_prepared_pred && read_prepared_pred(*txn_digest);
+
+      if (should_add_to_snapshot) {
+        //currently only count "readable" (meets predicate) versions towards snapshotK. This is so that we read at lest one committed if there is >= k unreadable prepared
+         ManageSnapshot(current_txn, tile_group_header, tuple_location, prepared_timestamp, num_iters, false);
+        //ManageSnapshot(tile_group_header, tuple_location, prepared_timestamp, snapshot_mgr);
+        //num_iters++;
+      }
+
+      // We are done if we read k prepared versions
+      done = num_iters >= current_txn->GetKPreparedVersions();
+    }
+  }
+
+  //Current tuple was not readable.
+    Debug("Found committed: %d. Found prepared: %d, Can Read Prepared: %d, GetCommitOrPrepare: %d, GetMaterialize: %d", found_committed, found_prepared, current_txn->CanReadPrepared(), 
+          tile_group_header->GetCommitOrPrepare(tuple_location.offset), tile_group_header->GetMaterialize(tuple_location.offset));
+
+  return done;
+
+}
+
+//TODO: Re-factor so this is nicely "per mode" for better readability. Like in SeqScanExecutor.
+bool IndexScanExecutor::FindRightRowVersion_Old(const Timestamp &timestamp, std::shared_ptr<storage::TileGroup> tile_group, storage::TileGroupHeader *tile_group_header, ItemPointer tuple_location,
+    size_t &num_iters, concurrency::TransactionContext *current_txn, 
+    bool &read_curr_version, bool &found_committed, bool &found_prepared)
+{
+    /////////////////////////////// PESTO MODIFIERS  -- these are just aliases for convenience  ///////////////////////////////////
+    bool perform_read = current_txn->GetHasReadSetMgr();
+    
     bool perform_find_snapshot = current_txn->GetHasSnapshotMgr();
     auto snapshot_mgr = current_txn->GetSnapshotMgr();
     //size_t k_prepared_versions = current_txn->GetKPreparedVersions();
@@ -476,7 +595,7 @@ bool IndexScanExecutor::FindRightRowVersion(const Timestamp &timestamp, std::sha
     bool perform_read_on_snapshot = current_txn->GetSnapshotRead();
     auto snapshot_set = current_txn->GetSnapshotSet();
 
-  Debug("Perform find snapshot? %d. Perform read_on_snapshot? %d", perform_find_snapshot, perform_read_on_snapshot);
+  Debug("Perform read? %d. Perform find snapshot? %d. Perform read_on_snapshot? %d", perform_read, perform_find_snapshot, perform_read_on_snapshot);
    ///////////////////////////////////////////////////////////////////////////////////
 
   UW_ASSERT(!(perform_find_snapshot && perform_read_on_snapshot)); //shouldn't do both simultaneously currently. Though we could support it in theory.
@@ -501,7 +620,7 @@ bool IndexScanExecutor::FindRightRowVersion(const Timestamp &timestamp, std::sha
       
       if (current_txn->IsPointRead()) SetPointRead(current_txn, tile_group_header, tuple_location, committed_timestamp);
   
-      return true; //  Since tuple is committed we can stop looking at the version chain
+      return true; // Since tuple is committed we can stop looking at the version chain
     }
 
     //CASE 2: Tuple is prepared (or forceMaterialized)
@@ -567,7 +686,7 @@ bool IndexScanExecutor::FindRightRowVersion(const Timestamp &timestamp, std::sha
           if(num_iters == 0) read_curr_version = true; //Only add the first read to the result
 
           // If it's not a point read query then don't need to read committed, unless it's find snapshot
-          if(current_txn->IsPointRead()){
+          if(num_iters == 0 && current_txn->IsPointRead()){
             SetPointRead(current_txn, tile_group_header, tuple_location, prepared_timestamp);
             Debug("PointQuery read prepared. Still try to read committed");
             return false; // Need to still try to read committed
