@@ -85,11 +85,11 @@ transaction_status_t SQLPayment::Execute(SyncClient &client) {
   client.Begin(timeout);
 
   // (1) Retrieve WAREHOUSE row. Update year to date balance. 
-  statement = fmt::format("SELECT * FROM Warehouse WHERE id = {}", w_id);
+  statement = fmt::format("SELECT * FROM {} WHERE id = {}", WAREHOUSE_TABLE, w_id);
   client.Query(statement, timeout);
   // (2) Retrieve DISTRICT row. Update year to date balance. 
   Debug("District: %u", d_id);
-  statement = fmt::format("SELECT * FROM District WHERE id = {} AND w_id = {}", d_id, d_w_id);
+  statement = fmt::format("SELECT * FROM {} WHERE id = {} AND w_id = {}", DISTRICT_TABLE, d_id, d_w_id);
   client.Query(statement, timeout);
  
   // // (1) Retrieve WAREHOUSE row. Update year to date balance. 
@@ -122,7 +122,7 @@ transaction_status_t SQLPayment::Execute(SyncClient &client) {
       c_last.c_str());
 
     // (3. A) Retrieve a list of Customer that share the same Last Name (Secondary Key access; Scan Read). Select middle row.
-    statement = fmt::format("SELECT * FROM Customer WHERE d_id = {} AND w_id = {} AND last = '{}' ORDER BY first", c_d_id, c_w_id, c_last);
+    statement = fmt::format("SELECT * FROM {} WHERE d_id = {} AND w_id = {} AND last = '{}' ORDER BY first", CUSTOMER_TABLE, c_d_id, c_w_id, c_last);
     client.Query(statement, timeout);
     client.Wait(results);
     int namecnt = results[2]->size();
@@ -133,7 +133,7 @@ transaction_status_t SQLPayment::Execute(SyncClient &client) {
     Debug("  ID: %u", c_id);
   } else {
     // (3.B) Retrieve Customer based on unique Number (Primary Key access; Point Read)
-    statement = fmt::format("SELECT * FROM Customer WHERE id = {} AND d_id = {} AND w_id = {}", c_id, c_d_id, c_w_id);
+    statement = fmt::format("SELECT * FROM {} WHERE id = {} AND d_id = {} AND w_id = {}", CUSTOMER_TABLE, c_id, c_d_id, c_w_id);
     client.Query(statement, timeout);
     client.Wait(results);
     deserialize(c_row, results[2]);
@@ -151,11 +151,11 @@ transaction_status_t SQLPayment::Execute(SyncClient &client) {
   Debug("  YTD: %u", d_row.get_ytd());
 
   // (1.5) Retrieve WAREHOUSE row. Update year to date balance. 
-  statement = fmt::format("UPDATE Warehouse SET ytd = {} WHERE id = {}", w_row.get_ytd() + h_amount, w_id);
+  statement = fmt::format("UPDATE {} SET ytd = {} WHERE id = {}", WAREHOUSE_TABLE, w_row.get_ytd() + h_amount, w_id);
   client.Write(statement, timeout);
 
   // (2.5) Retrieve DISTRICT row. Update year to date balance.
-  statement = fmt::format("UPDATE District SET ytd = {} WHERE id = {} AND w_id = {}", d_row.get_ytd() + h_amount, d_id, d_w_id);
+  statement = fmt::format("UPDATE {} SET ytd = {} WHERE id = {} AND w_id = {}", DISTRICT_TABLE, d_row.get_ytd() + h_amount, d_id, d_w_id);
   client.Write(statement, timeout);
 
   // (4) Decrease customer balance, increase year to date payment. Increment payment count.
@@ -174,15 +174,15 @@ transaction_status_t SQLPayment::Execute(SyncClient &client) {
     new_data = new_data.substr(std::min(new_data.size(), 500UL));
     c_row.set_data(new_data);
   }
-  statement = fmt::format("UPDATE Customer SET balance = {}, ytd_payment = {}, payment_cnt = {}, data = '{}' "
-            "WHERE id = {} AND d_id = {} AND w_id = {};", 
+  statement = fmt::format("UPDATE {} SET balance = {}, ytd_payment = {}, payment_cnt = {}, data = '{}' "
+            "WHERE id = {} AND d_id = {} AND w_id = {};", CUSTOMER_TABLE,
             c_row.get_balance(), c_row.get_ytd_payment(), c_row.get_payment_cnt(), c_row.get_data(), 
             c_row.get_id(), c_row.get_d_id(), c_row.get_w_id());
   client.Write(statement, timeout);  
 
   // (5) Create History entry.
-  statement = fmt::format("INSERT INTO History (c_id, c_d_id, c_w_id, d_id, w_id, date, amount, data) " 
-            "VALUES ({}, {}, {}, {}, {}, {}, {}, '{}');", c_id, c_d_id, c_w_id, d_id, w_id, h_date, h_amount, w_row.get_name() + "    " + d_row.get_name());
+  statement = fmt::format("INSERT INTO {} (c_id, c_d_id, c_w_id, d_id, w_id, date, amount, data) " 
+            "VALUES ({}, {}, {}, {}, {}, {}, {}, '{}');", HISTORY_TABLE, c_id, c_d_id, c_w_id, d_id, w_id, h_date, h_amount, w_row.get_name() + "    " + d_row.get_name());
   client.Write(statement, timeout);
 
   client.Wait(results);

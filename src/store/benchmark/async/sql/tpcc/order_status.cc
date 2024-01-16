@@ -92,7 +92,7 @@ transaction_status_t SQLOrderStatus::Execute(SyncClient &client) {
 
   
   // (2) Select row from Order (from respective client) with the highest ID. This is the most recent order by the client. Retrieve order_id, entry date, and carried id.
-  query = fmt::format("SELECT * FROM \"order\" WHERE d_id = {} AND w_id = {} AND c_id = {} ORDER BY id DESC LIMIT 1", c_d_id, c_w_id, c_id);
+  query = fmt::format("SELECT * FROM {} WHERE d_id = {} AND w_id = {} AND c_id = {} ORDER BY id DESC LIMIT 1", ORDER_TABLE, c_d_id, c_w_id, c_id);
   //FIXME: Why perform these two reads separately?? Instead issue: ONE read with ORDER BY DESC, and LIMIT to 1?
   // query = fmt::format("SELECT MAX(id) FROM \"order\" WHERE d_id = {} AND w_id = {} AND c_id = {}", c_d_id, c_w_id, c_id);
   // client.Query(query, queryResult, timeout);

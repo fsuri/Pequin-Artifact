@@ -59,7 +59,7 @@ transaction_status_t SQLDelivery::Execute(SyncClient &client) {
   // (1) Retrieve the row from NEW-ORDER with the lowest order id
   //     If none is found, skip delivery of an order for this district. 
 
-  statement = fmt::format("SELECT MIN(o_id) FROM NewOrder WHERE d_id = {} AND w_id = {};", d_id, w_id);
+  statement = fmt::format("SELECT MIN(o_id) FROM {} WHERE d_id = {} AND w_id = {};", NEW_ORDER_TABLE, d_id, w_id);
   //statement = fmt::format("SELECT o_id FROM NewOrder WHERE d_id = {} AND w_id = {} ORDER BY o_id ASC LIMIT 1;", d_id, w_id);
   client.Query(statement, queryResult, timeout);
 
@@ -72,12 +72,12 @@ transaction_status_t SQLDelivery::Execute(SyncClient &client) {
       // Note: Pesto will turn this into a PointDelete for which no read is required.
   int no_o_id;
   deserialize(no_o_id, queryResult);
-  statement = fmt::format("DELETE FROM NewOrder WHERE o_id = {} AND d_id = {} AND w_id = {};", no_o_id, d_id, w_id);
+  statement = fmt::format("DELETE FROM {} WHERE o_id = {} AND d_id = {} AND w_id = {};", NEW_ORDER_TABLE, no_o_id, d_id, w_id);
   client.Write(statement, timeout); //This can be async. 
 
   // (3) Select the corresponding row from ORDER and extract the customer id. Update the carrier id of the order.
   //statement = fmt::format("SELECT c_id FROM \"order\" WHERE id = {} AND d_id = {} AND w_id = {};", no_o_id, d_id, w_id);
-  statement = fmt::format("SELECT * FROM \"order\" WHERE id = {} AND d_id = {} AND w_id = {};", no_o_id, d_id, w_id); //Turn into * to cache for the following point Update
+  statement = fmt::format("SELECT * FROM {} WHERE id = {} AND d_id = {} AND w_id = {};", ORDER_TABLE, no_o_id, d_id, w_id); //Turn into * to cache for the following point Update
   
   client.Query(statement, queryResult, timeout);
 
@@ -94,16 +94,16 @@ transaction_status_t SQLDelivery::Execute(SyncClient &client) {
   int c_id = o_row.get_c_id();
 
  
-  statement = fmt::format("UPDATE \"order\" SET carrier_id = {} WHERE id = {} AND d_id = {} AND w_id = {};", o_carrier_id, no_o_id, d_id, w_id);
+  statement = fmt::format("UPDATE {} SET carrier_id = {} WHERE id = {} AND d_id = {} AND w_id = {};", ORDER_TABLE, o_carrier_id, no_o_id, d_id, w_id);
   client.Write(statement, timeout); //This can be async.
   Debug("  Carrier ID: %u", o_carrier_id);
 
   // (4) Select all rows in ORDER-LINE that match the order, and update delivery dates. Retrieve total amount (sum)
-  statement = fmt::format("UPDATE OrderLine SET delivery_d = {} WHERE o_id = {} AND d_id = {} AND w_id = {};", ol_delivery_d, no_o_id, d_id, w_id);
+  statement = fmt::format("UPDATE {} SET delivery_d = {} WHERE o_id = {} AND d_id = {} AND w_id = {};", ORDER_LINE_TABLE, ol_delivery_d, no_o_id, d_id, w_id);
   client.Write(statement, timeout); //This can be async.
 
       //Note: Ideally Pesto does not Scan twice, but Caches the result set to perform the update (TODO: To make use of that, we'd have to not do the 2 statements in parallel)
-  statement = fmt::format("SELECT SUM(amount) FROM OrderLine WHERE o_id = {} AND d_id = {} AND w_id = {};", no_o_id, d_id, w_id);
+  statement = fmt::format("SELECT SUM(amount) FROM {} WHERE o_id = {} AND d_id = {} AND w_id = {};", ORDER_LINE_TABLE, no_o_id, d_id, w_id);
   client.Query(statement, queryResult, timeout);
   int total_amount;
   deserialize(total_amount, queryResult);
@@ -111,7 +111,7 @@ transaction_status_t SQLDelivery::Execute(SyncClient &client) {
 
   // (5) Update the balance and delivery count of the respective customer (that issued the order)
   Debug("Customer: %u", c_id);
-  statement = fmt::format("UPDATE Customer SET balance = balance + {}, delivery_cnt = delivery_cnt + 1 WHERE id = {} AND d_id = {} AND w_id = {};", total_amount, c_id, d_id, w_id);
+  statement = fmt::format("UPDATE {} SET balance = balance + {}, delivery_cnt = delivery_cnt + 1 WHERE id = {} AND d_id = {} AND w_id = {};", CUSTOMER_TABLE, total_amount, c_id, d_id, w_id);
   client.Write(statement, queryResult, timeout);
 
   client.Wait(results);

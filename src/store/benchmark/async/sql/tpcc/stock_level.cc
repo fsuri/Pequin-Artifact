@@ -57,7 +57,7 @@ transaction_status_t SQLStockLevel::Execute(SyncClient &client) {
   client.Begin(timeout);
 
   // (1) Select the specified row from District and extract the Next Order Id
-  query = fmt::format("SELECT next_o_id FROM District WHERE id = {} AND w_id = {}", d_id, w_id);
+  query = fmt::format("SELECT next_o_id FROM {} WHERE id = {} AND w_id = {}", DISTRICT_TABLE, d_id, w_id);
   client.Query(query, queryResult, timeout);
   uint32_t next_o_id;
   deserialize(next_o_id, queryResult);
@@ -65,9 +65,9 @@ transaction_status_t SQLStockLevel::Execute(SyncClient &client) {
 
   // (2) Select the 20 most recent orders from the district: Select the orders from OrderLine (from this district) with    next_o_id - 20 <= id < next_o_id
   // (3) Count all rows in STOCK with distinct items whose quantity is below the min_quantity threshold.
-  query = fmt::format("SELECT COUNT(DISTINCT(Stock.i_id)) FROM OrderLine, Stock "
-                      "WHERE OrderLine.w_id = {} AND OrderLine.d_id = {} AND OrderLine.o_id < {} AND OrderLine.o_id >= {} "
-                      " AND Stock.w_id = {} AND Stock.i_id = OrderLine.i_id AND Stock.quantity < {}", w_id, d_id, next_o_id, next_o_id - 20, w_id, min_quantity);
+  query = fmt::format("SELECT COUNT(DISTINCT(stock.i_id)) FROM {}, {} "
+                      "WHERE order_line.w_id = {} AND order_line.d_id = {} AND order_line.o_id < {} AND order_line.o_id >= {} "
+                      " AND stock.w_id = {} AND stock.i_id = order_line.i_id AND stock.quantity < {}", ORDER_LINE_TABLE, STOCK_TABLE, w_id, d_id, next_o_id, next_o_id - 20, w_id, min_quantity);
   //TODO: Write it as a an explicit JOIN somehow to more easily extract individual table predicates?
   // query = fmt::format("SELECT COUNT(DISTINCT(Stock.i_id)) FROM (SELECT * FROM OrderLine WHERE w_id = {} AND d_id = {} AND o_id < {} AND o_id >= {}) "
   //                     "LEFT JOIN (SELECT * FROM STOCK WHERE w_id = {} AND quantity < {}) " //This is super inefficient..

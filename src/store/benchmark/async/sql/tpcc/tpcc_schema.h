@@ -31,6 +31,19 @@
 
 namespace tpcc_sql {
 
+//Table Names
+const std::string WAREHOUSE_TABLE = "warehouse";
+const std::string DISTRICT_TABLE = "district";
+const std::string CUSTOMER_TABLE = "customer";
+const std::string ITEM_TABLE = "item";
+const std::string STOCK_TABLE = "stock";
+const std::string ORDER_TABLE = "oorder";//"\"Order\"";
+const std::string HISTORY_TABLE = "history";
+const std::string ORDER_LINE_TABLE = "order_line";
+const std::string NEW_ORDER_TABLE = "new_order";
+
+//Row Types
+
 class WarehouseRow {
  private:
     uint32_t id;
