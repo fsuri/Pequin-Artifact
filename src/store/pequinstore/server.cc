@@ -461,7 +461,8 @@ void Server::CreateIndex(const std::string &table_name, const std::vector<std::p
   table_store->ExecRaw(sql_statement);
 }
 
-void Server::LoadTableData(const std::string &table_name, const std::string &table_data_path, const std::vector<uint32_t> &primary_key_col_idx){
+void Server::LoadTableData_SQL(const std::string &table_name, const std::string &table_data_path, const std::vector<uint32_t> &primary_key_col_idx){
+
   //Syntax based of: https://www.postgresqltutorial.com/postgresql-tutorial/import-csv-file-into-posgresql-table/ 
     std::string copy_table_statement = fmt::format("COPY {0} FROM {1} DELIMITER ',' CSV HEADER", table_name, table_data_path);
 
@@ -528,10 +529,57 @@ void Server::LoadTableData(const std::string &table_name, const std::string &tab
     }
 }
 
-void Server::LoadTableRows(const std::string &table_name, const std::vector<std::pair<std::string, std::string>> &column_data_types, const std::vector<std::vector<std::string>> &row_values, const std::vector<uint32_t> &primary_key_col_idx ){
-  
+void Server::LoadTableData(const std::string &table_name, const std::string &table_data_path, 
+    const std::vector<std::pair<std::string, std::string>> &column_names_and_types, const std::vector<uint32_t> &primary_key_col_idx)
+{
 
- 
+    //Call into TableStore with this statement.
+    std::cerr << "Load Table Data from: " << table_data_path << std::endl;
+
+    //Get Genesis TX.
+    auto committedItr = committed.find("");
+    UW_ASSERT(committedItr != committed.end());
+    
+    Timestamp genesis_ts(0,0);
+    proto::CommittedProof *genesis_proof = committedItr->second;
+    std::string genesis_txn_dig = TransactionDigest(genesis_proof->txn(), params.hashDigest); //("");
+    
+    //Read in CSV --> Transform into ApplyTableWrite
+    std::ifstream row_data(table_data_path);
+
+    //Skip header
+    std::string columns;
+    getline(row_data, columns); 
+
+    // std::cerr << "cols : " << columns << std::endl;
+
+    std::string row_line;
+    std::string value;
+
+    //NOTE: CSV Data is UNQUOTED always
+    //std::vector<bool> *col_quotes = table_store->GetRegistryColQuotes(table_name);
+
+    //Turn CSV into 2d String Vector
+    std::vector<std::vector<std::string>> table_rows;
+
+    while(getline(row_data, row_line)){
+      //std::cerr << "row_line: " << row_line;
+    
+      // used for breaking words
+      std::stringstream row(row_line);
+
+      table_rows.push_back({}); //Create new row
+      std::vector<std::string> &row_values = table_rows.back();
+      // read every column data of a row and store it
+      while (getline(row, value, ',')) {
+        row_values.push_back(std::move(value));
+      }
+    }
+
+    LoadTableRows(table_name, column_names_and_types, table_rows, primary_key_col_idx);
+}
+
+void Server::LoadTableRows(const std::string &table_name, const std::vector<std::pair<std::string, std::string>> &column_data_types, const std::vector<std::vector<std::string>> &row_values, const std::vector<uint32_t> &primary_key_col_idx ){
   
   //Call into TableStore with this statement.
   //table_store->ExecRaw(sql_statement);

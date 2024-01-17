@@ -490,9 +490,11 @@ DEFINE_int32(c_load_c_last, 0, "Run-time constant C used for generating C_LAST."
 //DEFINE_int32(c_load_c_id, 0, "Run-time constant C used for generating C_ID.");
 DEFINE_int32(c_load_ol_i_id, 0, "Run-time constant C used for generating OL_I_ID.");
 DEFINE_int32(num_warehouses, 1, "number of warehouses");
+
+//Usage: ./sql_tpcc_generator --num_warehouses=<N>
+//This will generate a JSON fill with the Table Schema, and a csv file per table with default data
 int main(int argc, char *argv[]) {
-  gflags::SetUsageMessage(
-           "generates a json file containing sql tables for TPC-C data\n");
+  gflags::SetUsageMessage("generates a json file containing sql tables for TPC-C data.\n");
 	gflags::ParseCommandLineFlags(&argc, &argv, true);
   std::string file_name = "sql-tpcc";
   TableWriter writer = TableWriter(file_name);
