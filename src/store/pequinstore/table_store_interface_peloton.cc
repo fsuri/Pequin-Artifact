@@ -152,14 +152,14 @@ std::shared_ptr<peloton::Statement>
 PelotonTableStore::ParseAndPrepare(const std::string &query_statement, peloton::tcop::TrafficCop *tcop) {
 
   UW_ASSERT(!query_statement.empty());
-  Debug("Beginning of parse and prepare: %s", query_statement.c_str());
+  Debug("Beginning of parse and prepare: %s", query_statement.substr(0, 1000).c_str());
   // prepareStatement
   auto &peloton_parser = peloton::parser::PostgresParser::GetInstance();
   auto sql_stmt_list = peloton_parser.BuildParseTree(query_statement);
   UW_ASSERT(sql_stmt_list);
   // PELOTON_ASSERT(sql_stmt_list);
   if (!sql_stmt_list->is_valid) {
-    Panic("SQL command not valid"); // return peloton::ResultType::FAILURE;
+    Panic("SQL command not valid: %s", query_statement.substr(0, 1000).c_str()); // return peloton::ResultType::FAILURE;
   }
 
   std::cout << "Parsed create table statement" << std::endl;
@@ -612,8 +612,6 @@ void PelotonTableStore::ApplyTableWrite(const std::string &table_name, const Tab
   std::vector<std::string> delete_statements;
   sql_interpreter.GenerateTableWriteStatement(write_statement, delete_statements, table_name, table_write);
 
-  std::cout << write_statement << std::endl;
-
   // Execute Writes and Deletes on Peloton
   std::vector<peloton::ResultValue> result;
 
@@ -622,13 +620,13 @@ void PelotonTableStore::ApplyTableWrite(const std::string &table_name, const Tab
   // Execute Write Statement
   if (!write_statement.empty()) {
 
-    Notice("Write statement: %s", write_statement.c_str());
+    //Notice("Write statement: %s", write_statement.substr(0, 1000).c_str());
 
-    Debug("Write statement: %s", write_statement.c_str());
+    Debug("Write statement: %s", write_statement.substr(0, 1000).c_str());
     Debug("Commit or prepare is %d", commit_or_prepare);
 
-    Notice("Txn %s is trying to %s with TS[%lu:%lu]", BytesToHex(txn_digest, 16).c_str(), commit_or_prepare? "commit" : "prepare" , ts.getTimestamp(), ts.getID());
-    Notice("Commit or prepare is %d", commit_or_prepare);
+    // Notice("Txn %s is trying to %s with TS[%lu:%lu]", BytesToHex(txn_digest, 16).c_str(), commit_or_prepare? "commit" : "prepare" , ts.getTimestamp(), ts.getID());
+    // Notice("Commit or prepare is %d", commit_or_prepare);
     
     // prepareStatement
     auto statement = ParseAndPrepare(write_statement, tcop);

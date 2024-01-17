@@ -520,6 +520,8 @@ const protomode_t protomodes[] {
 	PROTO_AUGUSTUS_SMART,
   PROTO_POSTGRES
 };
+
+//Note: this should match the size of protomodes
 const strongstore::Mode strongmodes[] {
   strongstore::Mode::MODE_UNKNOWN,
   strongstore::Mode::MODE_UNKNOWN,

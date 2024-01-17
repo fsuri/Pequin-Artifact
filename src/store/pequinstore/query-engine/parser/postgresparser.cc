@@ -2014,10 +2014,9 @@ PostgresParser &PostgresParser::GetInstance() {
 
 std::unique_ptr<parser::SQLStatementList> PostgresParser::BuildParseTree(
     const std::string &query_string) {
-  auto stmt = PostgresParser::ParseSQLString(query_string);
-
   // std::cerr << "Parsing SQL string: " << query_string << std::endl; //
-  // std::cerr << "Transform result: " << stmt->GetInfo() << std::endl;
+  auto stmt = PostgresParser::ParseSQLString(query_string);
+  //std::cerr << "Transform result: " << stmt->GetInfo() << std::endl;
 
   if (stmt) {
     LOG_TRACE("Number of statements: %lu", stmt->GetStatements().size());
