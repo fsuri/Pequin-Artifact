@@ -589,6 +589,7 @@ void Server::LoadTableData(const std::string &table_name, const std::string &tab
 
 void Server::LoadTableRows(const std::string &table_name, const std::vector<std::pair<std::string, std::string>> &column_data_types, const std::vector<std::vector<std::string>> &row_values, const std::vector<uint32_t> &primary_key_col_idx ){
   
+  Debug("Load Table: %s", table_name.c_str());
   //Call into TableStore with this statement.
   //table_store->ExecRaw(sql_statement);
   auto committedItr = committed.find("");
@@ -600,8 +601,8 @@ void Server::LoadTableRows(const std::string &table_name, const std::vector<std:
 
   std::string genesis_txn_dig = TransactionDigest(genesis_proof->txn(), params.hashDigest); //("");
 
-  int segment_size = 200000; // single segment for now
-  int row_segments = row_values.size() / segment_size;
+  int segment_size = row_values.size();//200000; // single segment for now
+  int row_segments = 1; //row_values.size() / segment_size;
 
   //1) try splitting into segments.
   //2) try parallelizing loading!
