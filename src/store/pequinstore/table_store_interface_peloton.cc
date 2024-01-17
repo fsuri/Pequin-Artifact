@@ -162,13 +162,12 @@ PelotonTableStore::ParseAndPrepare(const std::string &query_statement, peloton::
     Panic("SQL command not valid: %s", query_statement.substr(0, 1000).c_str()); // return peloton::ResultType::FAILURE;
   }
 
-  std::cout << "Parsed create table statement" << std::endl;
   auto statement = tcop->PrepareStatement(unnamed_statement, query_statement, std::move(sql_stmt_list));
   if (statement.get() == nullptr) {
     tcop->setRowsAffected(0);
-    Panic("SQL command not valid"); // return peloton::ResultType::FAILURE;
+    Panic("SQL command not valid: %s", query_statement.substr(0, 1000).c_str()); // return peloton::ResultType::FAILURE;
   }
-  std::cout << "After preparing the statement" << std::endl;
+  Debug("Finished preparing statement");
   return statement;
 }
 
