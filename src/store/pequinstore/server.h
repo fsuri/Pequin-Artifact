@@ -137,8 +137,6 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
   virtual void LoadTableRow(const std::string &table_name, const std::vector<std::pair<std::string, std::string>> &column_data_types, 
       const std::vector<std::string> &values, const std::vector<uint32_t> &primary_key_col_idx) override;
 
-  
-
   virtual inline Stats &GetStats() override { return stats; }
 
  private:

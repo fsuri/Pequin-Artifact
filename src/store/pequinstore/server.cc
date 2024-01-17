@@ -671,7 +671,6 @@ void Server::LoadTableRow(const std::string &table_name, const std::vector<std::
   Load(enc_key, "", Timestamp());
 }
 
-
 ///////////////////////////////////////////////////////////////////////
 
 //PROTOCOL REALM

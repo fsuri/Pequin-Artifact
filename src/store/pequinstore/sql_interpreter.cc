@@ -105,6 +105,8 @@ void SQLTransformer::RegisterTables(std::string &table_registry){ //TODO: This t
         
         //std::cerr << "   Register column " << col_name << " : " << col_type << std::endl;
         }
+        Debug(fmt::format("Registered Table {} with Column Names: [{}]", table_name, fmt::join(col_registry.col_names,"|")).c_str());
+
         //register primary key
         for(auto &p_idx: primary_key_col_idx){
             //col_registry.primary_key_cols_idx[column_names_and_types[p_idx].first] = p_idx;

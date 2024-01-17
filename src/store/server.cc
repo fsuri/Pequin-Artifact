@@ -999,7 +999,6 @@ int main(int argc, char **argv) {
           //   server->LoadTableRow(table_name, column_names_and_types, row, primary_key_col_idx);
           // }
        }
-      
   }
   else if (FLAGS_data_file_path.length() > 0 && FLAGS_keys_path.empty()) {
     Notice("Benchmark: TPCC/Smallbank");

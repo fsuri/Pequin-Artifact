@@ -54,7 +54,6 @@ class Server {
   //[[deprecated]]
   inline virtual void LoadTableRow(const std::string &table_name, const std::vector<std::pair<std::string, std::string>> &column_data_types, 
       const std::vector<std::string> &row_values, const std::vector<uint32_t> &primary_key_col_idx ){Panic("This store does not support SQL Table operations");}
-  
 
   virtual Stats &GetStats() = 0;
 };
