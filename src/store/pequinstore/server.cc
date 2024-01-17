@@ -595,34 +595,96 @@ void Server::LoadTableRows(const std::string &table_name, const std::vector<std:
   UW_ASSERT(committedItr != committed.end());
   //std::string genesis_tx_dig("");
   Timestamp genesis_ts(0,0);
-  proto::CommittedProof *genesis_proof = committedItr->second;
+  proto::CommittedProof *genesis_proof = new proto::CommittedProof(*committedItr->second); //NOTE: Different TX might have different pointer references 
+                                                                                            //I.e. there can be multiple genesis copies.
 
   std::string genesis_txn_dig = TransactionDigest(genesis_proof->txn(), params.hashDigest); //("");
 
-   //TODO: Instead of using the INSERT SQL statement, could generate a TableWrite and use the TableWrite API.
-  TableWrite &table_write = (*genesis_proof->mutable_txn()->mutable_table_writes())[table_name];
-  for(auto &row: row_values){
+  int segment_size = 200000; // single segment for now
+  int row_segments = row_values.size() / segment_size;
 
-    //Load it into CC-store
-    std::vector<const std::string*> primary_cols;
-    for(auto i: primary_key_col_idx){
-      primary_cols.push_back(&(row[i]));
+  //1) try splitting into segments.
+  //2) try parallelizing loading!
+      // Spin of LoadTableRows to a worker thread.  (one per segment)
+      // First no callback; simply check when all are done. (Spin off thread before reading in...?)
+      // Then add callback? Don't need one... Clients just need to wait long enough.
+      //pROBLEM: all use same genesis_txn pointer. Need to make a copy of it, with txn data...
+
+      //Bug: not properly starting all?
+
+  //3) don't need row_values to be const?? allow moving. Avoid as many copies as we can for loading. => Create a special GenerateWrite statement that consumes input (rather than copying)
+  for(int i=0; i<row_segments; ++i){
+    TableWrite &table_write = (*genesis_proof->mutable_txn()->mutable_table_writes())[table_name];
+    for(int j=0; j<segment_size; ++j){
+      const std::vector<std::string> &row = row_values[i*segment_size + j];
+
+      //Load it into CC-store
+      std::vector<const std::string*> primary_cols;
+      for(auto i: primary_key_col_idx){
+        primary_cols.push_back(&(row[i]));
+      }
+      std::string enc_key = EncodeTableRow(table_name, primary_cols);
+      Load(enc_key, "", Timestamp());
+
+      //Create Table-write
+      RowUpdates *new_row = table_write.add_rows();
+      for(auto &value: row){
+        new_row->add_column_values(std::move(value));
+      }
+      //*new_row = {row.begin(), row.end()}; //one-liner, but incurs copying
     }
-    std::string enc_key = EncodeTableRow(table_name, primary_cols);
-    Load(enc_key, "", Timestamp());
-
-    //Create Table-write
-    RowUpdates *new_row = table_write.add_rows();
-    for(auto &value: row){
-      new_row->add_column_values(std::move(value));
+    
+    Debug("Dispatch Table Loading for table: %s", table_name.c_str());
+    //Put this into dispatch: (pass gensiss proof)
+    auto f = [this, genesis_proof, genesis_ts, genesis_txn_dig, table_name](){
+      ApplyTableWrites(genesis_proof->txn(), genesis_ts, genesis_txn_dig, genesis_proof);
+      genesis_proof->mutable_txn()->clear_table_writes(); //don't need to keep storing them.   
+      Debug("Finished loading Table: %s", table_name.c_str());
+       return (void*) true;
+    };
+    // Call into ApplyTableWrites from different threads. On each Thread, it is a synchronous interface.
+    transport->DispatchTP_noCB(std::move(f));
     }
-    //*new_row = {row.begin(), row.end()}; //one-liner, but incurs copying
-  }
-  
-  ApplyTableWrites(genesis_proof->txn(), genesis_ts, genesis_txn_dig, genesis_proof);
-
-  genesis_proof->mutable_txn()->clear_table_writes(); //don't need to keep storing them. 
+  return;
 }
+
+// void Server::LoadTableRows(const std::string &table_name, const std::vector<std::pair<std::string, std::string>> &column_data_types, const std::vector<std::vector<std::string>> &row_values, const std::vector<uint32_t> &primary_key_col_idx ){
+  
+//   //Call into TableStore with this statement.
+//   //table_store->ExecRaw(sql_statement);
+//   auto committedItr = committed.find("");
+//   UW_ASSERT(committedItr != committed.end());
+//   //std::string genesis_tx_dig("");
+//   Timestamp genesis_ts(0,0);
+//   proto::CommittedProof *genesis_proof = committedItr->second;
+
+//   std::string genesis_txn_dig = TransactionDigest(genesis_proof->txn(), params.hashDigest); //("");
+
+//    //TODO: Instead of using the INSERT SQL statement, could generate a TableWrite and use the TableWrite API.
+//   TableWrite &table_write = (*genesis_proof->mutable_txn()->mutable_table_writes())[table_name];
+//   for(auto &row: row_values){
+
+//     //Load it into CC-store
+//     std::vector<const std::string*> primary_cols;
+//     for(auto i: primary_key_col_idx){
+//       primary_cols.push_back(&(row[i]));
+//     }
+//     std::string enc_key = EncodeTableRow(table_name, primary_cols);
+//     Load(enc_key, "", Timestamp());
+
+//     //Create Table-write
+//     RowUpdates *new_row = table_write.add_rows();
+//     for(auto &value: row){
+//       new_row->add_column_values(std::move(value));
+//     }
+//     //*new_row = {row.begin(), row.end()}; //one-liner, but incurs copying
+//   }
+  
+//   ApplyTableWrites(genesis_proof->txn(), genesis_ts, genesis_txn_dig, genesis_proof);
+
+//   genesis_proof->mutable_txn()->clear_table_writes(); //don't need to keep storing them. 
+// }
+
 //!!"Deprecated" (Unused)
 void Server::LoadTableRow(const std::string &table_name, const std::vector<std::pair<std::string, std::string>> &column_data_types, const std::vector<std::string> &values, const std::vector<uint32_t> &primary_key_col_idx ){
   

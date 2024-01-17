@@ -161,11 +161,12 @@ PelotonTableStore::ParseAndPrepare(const std::string &query_statement, peloton::
   if (!sql_stmt_list->is_valid) {
     Panic("SQL command not valid: %s", query_statement.substr(0, 1000).c_str()); // return peloton::ResultType::FAILURE;
   }
-
+  Debug("Parses successfully, beginning prepare");
   auto statement = tcop->PrepareStatement(unnamed_statement, query_statement, std::move(sql_stmt_list));
   if (statement.get() == nullptr) {
     tcop->setRowsAffected(0);
-    Panic("SQL command not valid: %s", query_statement.substr(0, 1000).c_str()); // return peloton::ResultType::FAILURE;
+    Panic("SQL command not valid: %s", query_statement.size() < 1000? query_statement.c_str() : 
+        (query_statement.substr(0, 500) + " ... " + query_statement.substr(query_statement.size()-500)).c_str()); // return peloton::ResultType::FAILURE;
   }
   Debug("Finished preparing statement");
   return statement;
@@ -616,6 +617,7 @@ void PelotonTableStore::ApplyTableWrite(const std::string &table_name, const Tab
 
   // Debug("Delete statements: %s", fmt::join(delete_statements, "|"));
 
+
   // Execute Write Statement
   if (!write_statement.empty()) {
 
@@ -638,6 +640,11 @@ void PelotonTableStore::ApplyTableWrite(const std::string &table_name, const Tab
 
     // counter_.store(1); // SetTrafficCopCounter();
     /*auto status = traffic_cop_.ExecuteWriteStatement(statement, param_values, unnamed, result_format, result, ts, txn_dig,commit_proof, commit_or_prepare, t_id);*/
+
+  //   //ONLY TESTING PARSE LATENCY!!!
+  // Debug("Finished ApplyTableWrite for table: %s", table_name.c_str());
+  // Latency_End(&writeLats[core]);
+  // return;
 
     counter->store(1);
     auto status = tcop->ExecuteWriteStatement(statement, param_values, unamed, result_format, result, ts, txn_dig, commit_proof, commit_or_prepare, forceMaterialize);
