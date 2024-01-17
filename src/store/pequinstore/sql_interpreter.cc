@@ -92,7 +92,7 @@ void SQLTransformer::RegisterTables(std::string &table_registry){ //TODO: This t
         const std::vector<uint32_t> &primary_key_col_idx = table_args["primary_key_col_idx"];
 
         ColRegistry &col_registry = TableRegistry[table_name];
-        //std::cerr << "Register table " << table_name << std::endl;
+        Debug("Registering Table: %s", table_name.c_str());
         
         //register column types
         uint32_t i = 0;
@@ -105,7 +105,8 @@ void SQLTransformer::RegisterTables(std::string &table_registry){ //TODO: This t
         
         //std::cerr << "   Register column " << col_name << " : " << col_type << std::endl;
         }
-        Debug(fmt::format("Registered Table {} with Column Names: [{}]", table_name, fmt::join(col_registry.col_names,"|")).c_str());
+        Debug(fmt::format("Column Names: [{}]", fmt::join(col_registry.col_names,"|")).c_str());
+        Debug(fmt::format("Column Names/Types: [{}]", fmt::join(col_registry.col_name_type,"|")).c_str());
 
         //register primary key
         for(auto &p_idx: primary_key_col_idx){
@@ -119,15 +120,17 @@ void SQLTransformer::RegisterTables(std::string &table_registry){ //TODO: This t
         }
         col_registry.primary_col_idx = primary_key_col_idx;
 
+        Debug(fmt::format("Primary key cols: [{}]", fmt::join(col_registry.primary_key_cols,"|")).c_str());
+
         //register secondary indexes
         for(auto &[index_name, index_col_idx]: table_args["indexes"].items()){
             std::vector<std::string> &index_cols = col_registry.secondary_key_cols[index_name];
-            //std::cerr << "  Register secondary index " << index_name << std::endl;
             for(auto &i_idx: index_col_idx){
-            index_cols.push_back(column_names_and_types[i_idx].first);
-            //std::cerr << "   Secondary key col " << column_names_and_types[i_idx].first << std::endl;
+                index_cols.push_back(column_names_and_types[i_idx].first);
+                //Record all cols that are part of any index
+                 col_registry.indexed_cols.insert(col_registry.col_names[i_idx]);
             }
-            col_registry.indexed_cols.insert(col_registry.col_names[index_col_idx]);
+            Debug(fmt::format("Secondary Index: {} with key cols: [{}]", index_name, fmt::join(index_cols,"|")).c_str());
         }
     }
 }
