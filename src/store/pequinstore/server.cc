@@ -366,6 +366,14 @@ void Server::ReceiveMessageInternal(const TransportAddress &remote, const std::s
   }
 }
 
+
+
+///////////////////////////////////////////////////////////////////////
+
+//DATA LOADING
+
+//////////////////////////////////////////////////////////////////////
+
 // Adds new key-value store entry
 // Used for initialization (loading) the key-value store contents at startup.
 // Debug("Stuck at line %d", __LINE__);
@@ -594,22 +602,26 @@ void Server::LoadTableRows(const std::string &table_name, const std::vector<std:
    //TODO: Instead of using the INSERT SQL statement, could generate a TableWrite and use the TableWrite API.
   TableWrite &table_write = (*genesis_proof->mutable_txn()->mutable_table_writes())[table_name];
   for(auto &row: row_values){
+
+    //Load it into CC-store
+    std::vector<const std::string*> primary_cols;
+    for(auto i: primary_key_col_idx){
+      primary_cols.push_back(&(row[i]));
+    }
+    std::string enc_key = EncodeTableRow(table_name, primary_cols);
+    Load(enc_key, "", Timestamp());
+
+    //Create Table-write
     RowUpdates *new_row = table_write.add_rows();
     for(auto &value: row){
-      new_row->add_column_values(value);
+      new_row->add_column_values(std::move(value));
     }
+    //*new_row = {row.begin(), row.end()}; //one-liner, but incurs copying
   }
   
   ApplyTableWrites(genesis_proof->txn(), genesis_ts, genesis_txn_dig, genesis_proof);
-  
-  genesis_proof->mutable_txn()->clear_table_writes(); //don't need to keep storing them. 
 
-  std::vector<const std::string*> primary_cols;
-  for(auto i: primary_key_col_idx){
-    primary_cols.push_back(&(column_data_types[i].first));
-  }
-  std::string enc_key = EncodeTableRow(table_name, primary_cols);
-  Load(enc_key, "", Timestamp());
+  genesis_proof->mutable_txn()->clear_table_writes(); //don't need to keep storing them. 
 }
 //!!"Deprecated" (Unused)
 void Server::LoadTableRow(const std::string &table_name, const std::vector<std::pair<std::string, std::string>> &column_data_types, const std::vector<std::string> &values, const std::vector<uint32_t> &primary_key_col_idx ){
@@ -653,11 +665,20 @@ void Server::LoadTableRow(const std::string &table_name, const std::vector<std::
 
   std::vector<const std::string*> primary_cols;
   for(auto i: primary_key_col_idx){
-    primary_cols.push_back(&(column_data_types[i].first));
+    primary_cols.push_back(&(values[i]));
   }
   std::string enc_key = EncodeTableRow(table_name, primary_cols);
   Load(enc_key, "", Timestamp());
 }
+
+
+///////////////////////////////////////////////////////////////////////
+
+//PROTOCOL REALM
+
+//////////////////////////////////////////////////////////////////////
+
+
 
 //Handle Read Message
 //Dispatches to reader thread if params.parallel_reads = true, and multithreading enabled
