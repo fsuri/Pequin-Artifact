@@ -980,8 +980,8 @@ bool ShardClient::ProcessRead(const uint64_t &reqId, PendingQuorumGet *req, read
             *read->mutable_key() = req->key;
             req->maxTs.serialize(read->mutable_readtime());
             
-            std::cerr << "MaxVAl: " << req->maxValue << std::endl;
-            std::cerr << "MaxTS: " << (req->maxTs.getTimestamp()) << ":" <<req->maxTs.getID() << std::endl;
+            Debug("MaxVAl: %s",BytesToHex(req->maxValue, 100).c_str());
+            Debug("MaxTS: [%lu:%lu]", req->maxTs.getTimestamp(), req->maxTs.getID());
             req->prcb(REPLY_OK, req->key, req->maxValue, req->maxTs, req->dep,req->hasDep, true);
         }
         else{ //TODO: Could optimize to do this right at the start of Handle Read to avoid any validation costs... -> Does mean all reads have to lookup twice though.
