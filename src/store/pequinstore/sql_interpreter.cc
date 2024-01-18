@@ -879,7 +879,7 @@ static bool fine_grained_quotes = true;  //false == add quotes to everything, tr
 //fine_grained_quotes requires use of TableRegistry now. However, it seems to work fine for Peloton to add quotes to everything indiscriminately. 
 
 //server calls: GenerateLoadStatement, into LoadTable (passing the statement)
-std::string SQLTransformer::GenerateLoadStatement(const std::string &table_name, const std::vector<std::vector<std::string>> &row_segment){
+std::string SQLTransformer::GenerateLoadStatement(const std::string &table_name, const std::vector<std::vector<std::string>> &row_segment, int segment_no){
 
     const ColRegistry &col_registry = TableRegistry.at(table_name);
     std::string load_statement = fmt::format("INSERT INTO {0} VALUES ", table_name);
@@ -903,6 +903,8 @@ std::string SQLTransformer::GenerateLoadStatement(const std::string &table_name,
     }
     load_statement.resize(load_statement.length()-2); //remove trailing ", "
     load_statement += ";";
+
+    Debug("Generate Load Statement for Table %s. Segment %d. Statement: %s", table_name.c_str(), segment_no, load_statement.substr(0, 1000).c_str());
 
     return load_statement;
 }

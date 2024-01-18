@@ -571,13 +571,14 @@ void Server::LoadTableData(const std::string &table_name, const std::string &tab
     //Turn CSV into Vector of Rows. Split Table into Segments for parallel loading
     //Each segment is allocated, so that we don't have to copy it when dispatching it to another thread for parallel loading.
 
-    int max_segment_size = INT_MAX; //currently set to 1 total segment
+    int max_segment_size = 50000;//INT_MAX; //currently set to 1 total segment
     std::vector<row_segment_t*> table_row_segments = {new row_segment_t};
 
 
     while(getline(row_data, row_line)){
       //std::cerr << "row_line: " << row_line;
 
+      if(table_row_segments.back()->size() >= max_segment_size) table_row_segments.push_back(new row_segment_t);
       auto row_segment = table_row_segments.back();
     
       // used for breaking words
@@ -589,8 +590,6 @@ void Server::LoadTableData(const std::string &table_name, const std::string &tab
       while (getline(row, value, ',')) {
         row_values.push_back(std::move(value));
       }
-
-      if(row_segment->size() >= max_segment_size) table_row_segments.push_back(new row_segment_t);
     }
 
     Debug("Dispatch Table Loading for table: %s. Number of Segments: %d", table_name.c_str(), table_row_segments.size());
@@ -627,16 +626,16 @@ void Server::LoadTableRows(const std::string &table_name, const std::vector<std:
       Load(enc_key, "", Timestamp());
     }
     
-    Debug("Dispatch Table Loading for table: %s. Segment [%d]", table_name.c_str(), segment_no);
+    Debug("Dispatch Table Loading for table: %s. Segment [%d] with %d rows", table_name.c_str(), segment_no, row_segment->size());
     //Put this into dispatch: (pass gensiss proof)
 
     //TODO: Pass a pointer to row segment instead of it... (TODO: Allocate row segment and then delete)
     auto f = [this, genesis_proof, genesis_ts, genesis_txn_dig, table_name, segment_no, row_segment](){
       Debug("Loading Table: %s [Segment: %d]. On core %d", table_name.c_str(), segment_no, sched_getcpu());
 
-      table_store->LoadTable(table_store->sql_interpreter.GenerateLoadStatement(table_name, *row_segment), genesis_txn_dig, genesis_ts, genesis_proof);
+      table_store->LoadTable(table_store->sql_interpreter.GenerateLoadStatement(table_name, *row_segment, segment_no), genesis_txn_dig, genesis_ts, genesis_proof);
       delete row_segment;
-      Debug("Finished loading Table: %s [Segment: %d]. On core %d", table_name.c_str(),segment_no, sched_getcpu());
+      Debug("Finished loading Table: %s [Segment: %d]. On core %d", table_name.c_str(), segment_no, sched_getcpu());
        return (void*) true;
     };
     // Call into ApplyTableWrites from different threads. On each Thread, it is a synchronous interface.

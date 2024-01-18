@@ -169,7 +169,7 @@ class SQLTransformer {
 
         bool InterpretQueryRange(const std::string &_query, std::string &table_name, std::vector<std::string> &p_col_values, bool relax = false);
 
-        std::string GenerateLoadStatement(const std::string &table_name, const std::vector<std::vector<std::string>> &row_segment)
+        std::string GenerateLoadStatement(const std::string &table_name, const std::vector<std::vector<std::string>> &row_segment, int segment_no = 1);
 ;        void GenerateTableWriteStatement(std::string &write_statement, std::string &delete_statement, const std::string &table_name, const TableWrite &table_write);
             void GenerateTableWriteStatement(std::string &write_statement, std::vector<std::string> &delete_statements, const std::string &table_name, const TableWrite &table_write);
         void GenerateTablePurgeStatement(std::string &purge_statement, const std::string &table_name, const TableWrite &table_write); 
