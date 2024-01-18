@@ -878,6 +878,36 @@ void SQLTransformer::TransformDelete(size_t pos, std::string_view &write_stateme
 static bool fine_grained_quotes = true;  //false == add quotes to everything, true == add quotes only to the fields that need it. (e.g. strings, bool; not int)
 //fine_grained_quotes requires use of TableRegistry now. However, it seems to work fine for Peloton to add quotes to everything indiscriminately. 
 
+//server calls: GenerateLoadStatement, into LoadTable (passing the statement)
+std::string SQLTransformer::GenerateLoadStatement(const std::string &table_name, const std::vector<std::vector<std::string>> &row_segment){
+
+    const ColRegistry &col_registry = TableRegistry.at(table_name);
+    std::string load_statement = fmt::format("INSERT INTO {0} VALUES ", table_name);
+
+    for(auto &row: row_segment){
+        load_statement += "(";
+        if(fine_grained_quotes){ // Use this to add fine grained quotes:
+            for(int i = 0; i < row.size(); ++i){
+                if(col_registry.col_quotes[i])  load_statement += "\'" + row[i]  + "\'" + ", ";
+                else load_statement += row[i] + ", ";
+            }
+        }
+        else{ //Otherwise, just add quotes to everything
+            for(auto &col_val: row){
+                load_statement += "\'" + col_val  + "\'" + ", ";
+            }
+        }
+    
+        load_statement.resize(load_statement.length()-2); //remove trailing ", "
+        load_statement += "), ";
+    }
+    load_statement.resize(load_statement.length()-2); //remove trailing ", "
+    load_statement += ";";
+
+    return load_statement;
+}
+
+
 //NOTE: Peloton does not support WHERE IN syntax for delete statements. => must use the generator version that creates separate delete statements.
 //TODO: Turn into a bunch of (x=4 OR x=5 OR x=7 OR) AND (y=a OR y=b OR) .. statements...
 

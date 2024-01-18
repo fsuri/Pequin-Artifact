@@ -291,9 +291,51 @@ void PelotonTableStore::ExecRaw(const std::string &sql_statement) {
     Debug("RawExec failure");
 }
 
+// void PelotonTableStore::LoadTable(const std::string &load_statement, const std::string &txn_digest, const Timestamp &ts, const proto::CommittedProof *committedProof) {
+//   // When calling the LoadStatement: We'll want to initialize all rows to be committed and have genesis proof (see server) Call statement (of type Copy
+//   // or Insert) and set meta data accordingly (bool commit = true, committedProof, txn_digest, ts)
+
+//   std::pair<peloton::tcop::TrafficCop *, std::atomic_int *> cop_pair = GetCop();
+
+//   std::atomic_int *counter = cop_pair.second;
+//   peloton::tcop::TrafficCop *tcop = cop_pair.first;
+//   bool unamed;
+
+//   std::shared_ptr<std::string> txn_dig(std::make_shared<std::string>( txn_digest)); // Turn txn_digest into a shared_ptr, write everywhere it is
+//                     // needed.
+
+//   // execute the query using tcop
+//   // prepareStatement
+//   auto statement = ParseAndPrepare(load_statement, tcop);
+
+//   // ExecuteStatment
+//   std::vector<peloton::type::Value> param_values;
+//   std::vector<int> result_format(statement->GetTupleDescriptor().size(), 0);
+//   std::vector<peloton::ResultValue> result;
+
+//   counter->store(1); // SetTrafficCopCounter();
+//   auto status = tcop->ExecuteStatement(statement, param_values, unamed, result_format, result);
+
+//   GetResult(status, tcop, counter);
+
+//   if (status == peloton::ResultType::SUCCESS)
+//     Debug("Load success");
+//   else
+//     Debug("RawExec failure");
+// }
+
 void PelotonTableStore::LoadTable(const std::string &load_statement, const std::string &txn_digest, const Timestamp &ts, const proto::CommittedProof *committedProof) {
   // When calling the LoadStatement: We'll want to initialize all rows to be committed and have genesis proof (see server) Call statement (of type Copy
   // or Insert) and set meta data accordingly (bool commit = true, committedProof, txn_digest, ts)
+
+   int core = sched_getcpu();
+  Debug("Begin writeLat on core: %d", core); //TODO: Change to Load Latency
+  Latency_Start(&writeLats[core]);
+
+  UW_ASSERT(ts == Timestamp(committedProof->txn().timestamp()));
+  UW_ASSERT(ts.getTimestamp() == 0 && ts.getID() == 0); //loading genesis TS
+
+  Debug("Load Table with genesis txn %s. TS [%lu:%lu]", BytesToHex(txn_digest, 16).c_str(), ts.getTimestamp(), ts.getID());
 
   std::pair<peloton::tcop::TrafficCop *, std::atomic_int *> cop_pair = GetCop();
 
@@ -301,27 +343,41 @@ void PelotonTableStore::LoadTable(const std::string &load_statement, const std::
   peloton::tcop::TrafficCop *tcop = cop_pair.first;
   bool unamed;
 
-  std::shared_ptr<std::string> txn_dig(std::make_shared<std::string>( txn_digest)); // Turn txn_digest into a shared_ptr, write everywhere it is
-                    // needed.
+  // Turn txn_digest into a shared_ptr, write everywhere it is needed.
+  std::shared_ptr<std::string> txn_dig(std::make_shared<std::string>(txn_digest));
 
-  // execute the query using tcop
+  // Execute Writes on Peloton
+  std::vector<peloton::ResultValue> result;
+
+ 
+  //Notice("Write statement: %s", write_statement.substr(0, 1000).c_str());
+
+  Debug("Load statement: %s", load_statement.substr(0, 1000).c_str());
+  
   // prepareStatement
   auto statement = ParseAndPrepare(load_statement, tcop);
 
   // ExecuteStatment
   std::vector<peloton::type::Value> param_values;
   std::vector<int> result_format(statement->GetTupleDescriptor().size(), 0);
-  std::vector<peloton::ResultValue> result;
 
-  counter->store(1); // SetTrafficCopCounter();
-  auto status = tcop->ExecuteStatement(statement, param_values, unamed, result_format, result);
+  counter->store(1);
+  auto status = tcop->ExecuteWriteStatement(statement, param_values, unamed, result_format, result, ts, txn_dig, committedProof, true, false);
 
+  // GetResult(status);
   GetResult(status, tcop, counter);
 
   if (status == peloton::ResultType::SUCCESS)
-    Debug("Load success");
+    Debug("Write successful");
   else
-    Debug("RawExec failure");
+    Panic("Write failure");
+  
+
+  Debug("End writeLat on core: %d", core);
+  // Debug("getCPU says on core: %d", sched_getcpu());
+  // UW_ASSERT(core == sched_getcpu());
+  Latency_End(&writeLats[core]);
+
 }
 
 // Execute a read query statement on the Table backend and return a query_result/proto (in serialized form) as well as a read set (managed by readSetMgr)
@@ -641,10 +697,6 @@ void PelotonTableStore::ApplyTableWrite(const std::string &table_name, const Tab
     // counter_.store(1); // SetTrafficCopCounter();
     /*auto status = traffic_cop_.ExecuteWriteStatement(statement, param_values, unnamed, result_format, result, ts, txn_dig,commit_proof, commit_or_prepare, t_id);*/
 
-  //   //ONLY TESTING PARSE LATENCY!!!
-  // Debug("Finished ApplyTableWrite for table: %s", table_name.c_str());
-  // Latency_End(&writeLats[core]);
-  // return;
 
     counter->store(1);
     auto status = tcop->ExecuteWriteStatement(statement, param_values, unamed, result_format, result, ts, txn_dig, commit_proof, commit_or_prepare, forceMaterialize);

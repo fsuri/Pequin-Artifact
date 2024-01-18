@@ -978,10 +978,11 @@ int main(int argc, char **argv) {
           }
 
           if(!table_args.contains("row_data_path")) { //RW-SQL ==> generate rows 
-            std::vector<std::vector<std::string>> values;
+            //std::vector<std::vector<std::string>> values;
+            row_segment_t *values = new row_segment_t();
             for(int j=0; j<FLAGS_num_keys_per_table; ++j){
                 //values.emplace_back(std::initializer_list<string>{"", ""};)
-                values.push_back({std::to_string(j), std::to_string(j+100)});
+                values->push_back({std::to_string(j), std::to_string(j+100)});
             }
             server->LoadTableRows(table_name, column_names_and_types, values, primary_key_col_idx);
 

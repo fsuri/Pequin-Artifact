@@ -537,6 +537,7 @@ void Server::LoadTableData_SQL(const std::string &table_name, const std::string 
     }
 }
 
+
 void Server::LoadTableData(const std::string &table_name, const std::string &table_data_path, 
     const std::vector<std::pair<std::string, std::string>> &column_names_and_types, const std::vector<uint32_t> &primary_key_col_idx)
 {
@@ -567,27 +568,89 @@ void Server::LoadTableData(const std::string &table_name, const std::string &tab
     //NOTE: CSV Data is UNQUOTED always
     //std::vector<bool> *col_quotes = table_store->GetRegistryColQuotes(table_name);
 
-    //Turn CSV into 2d String Vector
-    std::vector<std::vector<std::string>> table_rows;
+    //Turn CSV into Vector of Rows. Split Table into Segments for parallel loading
+    //Each segment is allocated, so that we don't have to copy it when dispatching it to another thread for parallel loading.
+
+    int max_segment_size = INT_MAX; //currently set to 1 total segment
+    std::vector<row_segment_t*> table_row_segments = {new row_segment_t};
+
 
     while(getline(row_data, row_line)){
       //std::cerr << "row_line: " << row_line;
+
+      auto row_segment = table_row_segments.back();
     
       // used for breaking words
       std::stringstream row(row_line);
 
-      table_rows.push_back({}); //Create new row
-      std::vector<std::string> &row_values = table_rows.back();
+      row_segment->push_back({}); //Create new row
+      std::vector<std::string> &row_values = row_segment->back();
       // read every column data of a row and store it
       while (getline(row, value, ',')) {
         row_values.push_back(std::move(value));
       }
+
+      if(row_segment->size() >= max_segment_size) table_row_segments.push_back(new row_segment_t);
     }
 
-    LoadTableRows(table_name, column_names_and_types, table_rows, primary_key_col_idx);
+    Debug("Dispatch Table Loading for table: %s. Number of Segments: %d", table_name.c_str(), table_row_segments.size());
+    int i = 0;
+    for(auto& row_segment: table_row_segments){
+      LoadTableRows(table_name, column_names_and_types, row_segment, primary_key_col_idx, ++i);
+    }
 }
 
-void Server::LoadTableRows(const std::string &table_name, const std::vector<std::pair<std::string, std::string>> &column_data_types, const std::vector<std::vector<std::string>> &row_values, const std::vector<uint32_t> &primary_key_col_idx ){
+void Server::LoadTableRows(const std::string &table_name, const std::vector<std::pair<std::string, std::string>> &column_data_types, 
+                           const row_segment_t *row_segment, const std::vector<uint32_t> &primary_key_col_idx, int segment_no){
+  
+    Debug("Load Table: %s [Segment: %d]", table_name.c_str(), segment_no);
+    //Call into TableStore with this statement.
+    //table_store->ExecRaw(sql_statement);
+    
+    //GENESIS TX
+    auto committedItr = committed.find("");
+    UW_ASSERT(committedItr != committed.end());
+    Timestamp genesis_ts(0,0);
+    proto::CommittedProof *genesis_proof = committedItr->second; 
+    std::string genesis_txn_dig = TransactionDigest(genesis_proof->txn(), params.hashDigest); //("");
+    //std::string genesis_tx_dig("");
+
+    //Load it into CC-Store //TODO: Do this while reading in already. Currently doing duplicate loops...
+    for(auto &row: *row_segment){
+    
+        //Load it into CC-store
+        std::vector<const std::string*> primary_cols;
+        for(auto i: primary_key_col_idx){
+          primary_cols.push_back(&(row[i]));
+        }
+      std::string enc_key = EncodeTableRow(table_name, primary_cols);
+      Load(enc_key, "", Timestamp());
+    }
+    
+    Debug("Dispatch Table Loading for table: %s. Segment [%d]", table_name.c_str(), segment_no);
+    //Put this into dispatch: (pass gensiss proof)
+
+    //TODO: Pass a pointer to row segment instead of it... (TODO: Allocate row segment and then delete)
+    auto f = [this, genesis_proof, genesis_ts, genesis_txn_dig, table_name, segment_no, row_segment](){
+      Debug("Loading Table: %s [Segment: %d]. On core %d", table_name.c_str(), segment_no, sched_getcpu());
+
+      table_store->LoadTable(table_store->sql_interpreter.GenerateLoadStatement(table_name, *row_segment), genesis_txn_dig, genesis_ts, genesis_proof);
+      delete row_segment;
+      Debug("Finished loading Table: %s [Segment: %d]. On core %d", table_name.c_str(),segment_no, sched_getcpu());
+       return (void*) true;
+    };
+    // Call into ApplyTableWrites from different threads. On each Thread, it is a synchronous interface.
+    transport->DispatchTP_noCB(std::move(f));
+
+  return;
+}
+
+//It should split segments.
+//Is it better to read in segments from data right away? or split after?
+ //Cleanest seems to be: Directly read into segments. Then for each segment call LoadTableRows.
+
+void Server::LoadTableRows_Old(const std::string &table_name, const std::vector<std::pair<std::string, std::string>> &column_data_types, 
+                           const std::vector<std::vector<std::string>> &row_values, const std::vector<uint32_t> &primary_key_col_idx, int segment_no){
   
   Debug("Load Table: %s", table_name.c_str());
   //Call into TableStore with this statement.
@@ -596,25 +659,29 @@ void Server::LoadTableRows(const std::string &table_name, const std::vector<std:
   UW_ASSERT(committedItr != committed.end());
   //std::string genesis_tx_dig("");
   Timestamp genesis_ts(0,0);
-  proto::CommittedProof *genesis_proof = new proto::CommittedProof(*committedItr->second); //NOTE: Different TX might have different pointer references 
-                                                                                            //I.e. there can be multiple genesis copies.
-
-  std::string genesis_txn_dig = TransactionDigest(genesis_proof->txn(), params.hashDigest); //("");
-
-  int segment_size = row_values.size();//200000; // single segment for now
+  
+  int segment_size = row_values.size(); // // single segment for now
   int row_segments = 1; //row_values.size() / segment_size;
+
+  // int segment_size = 20000; // single segment for now
+  // int row_segments = row_values.size() / segment_size;
+
 
   //1) try splitting into segments.
   //2) try parallelizing loading!
       // Spin of LoadTableRows to a worker thread.  (one per segment)
-      // First no callback; simply check when all are done. (Spin off thread before reading in...?)
-      // Then add callback? Don't need one... Clients just need to wait long enough.
-      //pROBLEM: all use same genesis_txn pointer. Need to make a copy of it, with txn data...
-
-      //Bug: not properly starting all?
+      // NOTE: Each segment must have it's own copy of genesis_proof. This is because we currently set the TXN data to read in inside Genesis_Proof
+      // TODO: Create a more direct interface for loading.
+     
 
   //3) don't need row_values to be const?? allow moving. Avoid as many copies as we can for loading. => Create a special GenerateWrite statement that consumes input (rather than copying)
   for(int i=0; i<row_segments; ++i){
+    proto::CommittedProof *genesis_proof = new proto::CommittedProof(*committedItr->second); //NOTE: Different TX might have different pointer references 
+                                                                                            //I.e. there can be multiple genesis copies.
+
+    std::string genesis_txn_dig = TransactionDigest(genesis_proof->txn(), params.hashDigest); //("");
+
+
     TableWrite &table_write = (*genesis_proof->mutable_txn()->mutable_table_writes())[table_name];
     for(int j=0; j<segment_size; ++j){
       const std::vector<std::string> &row = row_values[i*segment_size + j];
@@ -635,12 +702,15 @@ void Server::LoadTableRows(const std::string &table_name, const std::vector<std:
       //*new_row = {row.begin(), row.end()}; //one-liner, but incurs copying
     }
     
-    Debug("Dispatch Table Loading for table: %s", table_name.c_str());
+    Debug("Dispatch Table Loading for table: %s. Segment [%d/%d]", table_name.c_str(), i+1, row_segments);
     //Put this into dispatch: (pass gensiss proof)
-    auto f = [this, genesis_proof, genesis_ts, genesis_txn_dig, table_name](){
+    auto f = [this, genesis_proof, genesis_ts, genesis_txn_dig, table_name, i, row_segments](){
+      Debug("Loading Table: %s [Segment: %d/%d]. On core %d", table_name.c_str(), i+1, row_segments, sched_getcpu());
+
+      //TODO: Create a custom loader interface... This is needlessly slow. And no need for data to be inside the proof...
       ApplyTableWrites(genesis_proof->txn(), genesis_ts, genesis_txn_dig, genesis_proof);
       genesis_proof->mutable_txn()->clear_table_writes(); //don't need to keep storing them.   
-      Debug("Finished loading Table: %s", table_name.c_str());
+      Debug("Finished loading Table: %s [Segment: %d/%d]. On core %d", table_name.c_str(), i+1, row_segments, sched_getcpu());
        return (void*) true;
     };
     // Call into ApplyTableWrites from different threads. On each Thread, it is a synchronous interface.
