@@ -571,7 +571,7 @@ void Server::LoadTableData(const std::string &table_name, const std::string &tab
     //Turn CSV into Vector of Rows. Split Table into Segments for parallel loading
     //Each segment is allocated, so that we don't have to copy it when dispatching it to another thread for parallel loading.
 
-    int max_segment_size = 50000;//INT_MAX; //currently set to 1 total segment
+    int max_segment_size = 20000;//INT_MAX; //currently set to 1 total segment
     std::vector<row_segment_t*> table_row_segments = {new row_segment_t};
 
 

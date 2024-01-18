@@ -61,6 +61,7 @@ void SyncClient::Get(const std::string &key, uint32_t timeout) {
 }
 
 void SyncClient::Wait(std::vector<std::string> &values) {
+  //values.clear(); //TODO: Add this for safekeeping -- not sure if existing code cared about it.
   for (auto promise : getPromises) {
     values.push_back(promise->GetValue());
     delete promise;
@@ -181,6 +182,7 @@ void SyncClient::Query(const std::string &query, uint32_t timeout) {
 }
 
 void SyncClient::Wait(std::vector<std::unique_ptr<const query_result::QueryResult>> &values) {
+  values.clear();
   for (auto promise : queryPromises) {
     values.push_back(promise->ReleaseQueryResult());
     delete promise;  //TODO: This delete seems to be unsafe.

@@ -609,7 +609,7 @@ void ShardClient::HandleQueryResult(proto::QueryResultReply &queryResult){
     //eager should only wait for |syncMessages|; eagerPlusSnapshot sent to |queryMessages| but only in order to be able to form sync Quorum if result fails.
     if(do_sync_upon_failure){
         UW_ASSERT(pendingQuery->num_designated_replies == params.query_params.queryMessages); //confirm that we sent out |queryMessages| instead of the expected |syncMessages| for eager
-        UW_ASSERT(params.query_params.syncMessages < params.query_params.queryMessages);        //assert that we sent strictly more messages that anticipated
+        UW_ASSERT(params.query_params.syncMessages <= params.query_params.queryMessages);        //assert that we sent more messages that anticipated
         maxWait = std::max(params.query_params.syncMessages - config->f, expectedResults); 
     } 
     

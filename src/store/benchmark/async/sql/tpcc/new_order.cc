@@ -73,6 +73,7 @@ transaction_status_t SQLNewOrder::Execute(SyncClient &client) {
   //Create a new order.
   //Type: Mid-weight read-write TX, high frequency. Backbone of the workload.
   Debug("NEW_ORDER");
+  std::cerr << "NEW ORDER" << std::endl;
   Debug("Warehouse: %u", w_id);
 
   client.Begin(timeout);
@@ -85,6 +86,7 @@ transaction_status_t SQLNewOrder::Execute(SyncClient &client) {
   Debug("District: %u", d_id);
   statement = fmt::format("SELECT * FROM {} WHERE id = {} AND w_id = {}", DISTRICT_TABLE, d_id, w_id);
   client.Query(statement, timeout);
+
 
   // (3) Retrieve customer row from CUSTOMER, extract discount rate, last name, and credit status.
   Debug("Customer: %u", c_id);
@@ -103,11 +105,6 @@ transaction_status_t SQLNewOrder::Execute(SyncClient &client) {
   uint32_t o_id = d_row.get_next_o_id();
   Debug("  Order Number: %u", o_id);
 
-  // (2.5) Increment next available order number for District
-  d_row.set_next_o_id(d_row.get_next_o_id() + 1);
-  statement = fmt::format("UPDATE {} SET next_o_id = {} WHERE id = {} AND w_id = {}", DISTRICT_TABLE, d_row.get_next_o_id(), d_id, w_id);
-  client.Write(statement, timeout, true);
-
   CustomerRow c_row;
   deserialize(c_row, results[2]);
   Debug("  Discount: %i", c_row.get_discount());
@@ -115,6 +112,11 @@ transaction_status_t SQLNewOrder::Execute(SyncClient &client) {
   Debug("  Credit: %s", c_row.get_credit().c_str());
 
   results.clear();
+
+  // (2.5) Increment next available order number for District
+  d_row.set_next_o_id(d_row.get_next_o_id() + 1);
+  statement = fmt::format("UPDATE {} SET next_o_id = {} WHERE id = {} AND w_id = {}", DISTRICT_TABLE, d_row.get_next_o_id(), d_id, w_id);
+  client.Write(statement, timeout, true);
 
   // (4) Insert new row into NewOrder and Order to reflect the creation of the order. 
   statement = fmt::format("INSERT INTO {} (o_id, d_id, w_id) VALUES ({}, {}, {});", NEW_ORDER_TABLE, o_id, d_id, w_id);
