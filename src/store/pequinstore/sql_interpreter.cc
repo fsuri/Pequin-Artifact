@@ -245,7 +245,7 @@ void SQLTransformer::TransformInsert(size_t pos, std::string_view &write_stateme
     }
     else{
         //Extract table name
-        table_name = std::move(static_cast<std::string>(table_col_statement.substr(0, pos)));
+        table_name = std::move(static_cast<std::string>(table_col_statement.substr(0, pos-1)));
 
         //Remove "()"
         //NOTE: with col registry there is no longer a need to parse cols.
@@ -270,6 +270,7 @@ void SQLTransformer::TransformInsert(size_t pos, std::string_view &write_stateme
         // Done.
     }
 
+    Debug("Find TABLE: [%s] in Registry", table_name.c_str());
     auto itr = TableRegistry.find(table_name);
     UW_ASSERT(itr != TableRegistry.end()); //Panic if ColRegistry does not exist.
     const ColRegistry &col_registry = itr->second;//TableRegistry[table_name];
@@ -549,7 +550,7 @@ void SQLTransformer::TransformUpdate(size_t pos, std::string_view &write_stateme
     write_continuation = [this, wcb, table_name, col_updates](int status, query_result::QueryResult* result) mutable {
 
         //std::cerr << "TEST WRITE CONT" << std::endl;
-        Debug("Issuing write_continuation"); //FIXME: Debug doesnt seem to be registered
+        Debug("Performing write_continuation"); //FIXME: Debug doesnt seem to be registered
 
         if(result->empty()){
             Debug("No rows to update");
@@ -558,7 +559,7 @@ void SQLTransformer::TransformUpdate(size_t pos, std::string_view &write_stateme
             return;
         }
     
-
+        Debug("Find TABLE: [%s] in Registry", table_name.c_str());
         auto itr = TableRegistry.find(table_name);
         UW_ASSERT(itr != TableRegistry.end());
         ColRegistry &col_registry = itr->second; //TableRegistry[table_name];
@@ -575,6 +576,7 @@ void SQLTransformer::TransformUpdate(size_t pos, std::string_view &write_stateme
         
         //Write TableColVersions
         for(auto &[col, _]: col_updates){
+            std::cerr << "Trying to set Table Col Version for col: " << col << std::endl;
             if(!col_registry.indexed_cols.count(col)) continue; //only set col version for indexed columns
 
             WriteMessage *write = txn->add_write_set();   
@@ -625,6 +627,8 @@ void SQLTransformer::TransformUpdate(size_t pos, std::string_view &write_stateme
                 //(*write->mutable_rowupdates()->mutable_attribute_writes())[col] = std::move(GetUpdateValue(col, field_val, field, col_updates));
                 bool change_val = false;
                 std::string set_val = GetUpdateValue(col, field_val, field, col_updates, col_type, change_val);
+
+                if(change_val) std::cerr << "Updating col: " << col << " , new val: " << set_val << std::endl;
                 //TODO: return bool if set_val is changed. In that case, record which columsn changed. and add a CC-store write entry per column updated.
                
                 if(col_registry.primary_key_cols.count(col)){
@@ -642,7 +646,7 @@ void SQLTransformer::TransformUpdate(size_t pos, std::string_view &write_stateme
                         
                     } 
                 }
-
+    
                 (*row_update->mutable_column_values())[col_registry.col_name_index[col]] = std::move(set_val); //Realistically row columns will be in correct order. But in case they are not, must insert at the right position.
                
             }    
@@ -729,6 +733,7 @@ void SQLTransformer::TransformDelete(size_t pos, std::string_view &write_stateme
     size_t where_pos = pos + where_hook.length();
     where_cond = write_statement.substr(where_pos);
 
+    Debug("Find TABLE: [%s] in Registry", table_name.c_str());
     auto itr = TableRegistry.find(table_name);
     UW_ASSERT(itr != TableRegistry.end());
     ColRegistry &col_registry = itr->second; //TableRegistry[table_name]; 
@@ -1615,6 +1620,7 @@ bool set_in_map(std::map<std::string, std::string> const &lhs, std::set<std::str
 bool SQLTransformer::CheckColConditions(std::string_view &cond_statement, std::string &table_name, std::vector<std::string> &p_col_values, bool relax){
     //Using Syntax from: https://www.postgresqltutorial.com/postgresql-tutorial/postgresql-where/ ; https://www.postgresqltutorial.com/postgresql-tutorial/postgresql-order-by/ 
     
+    Debug("Find TABLE: [%s] in Registry", table_name.c_str());
     auto itr = TableRegistry.find(table_name);
     UW_ASSERT(itr != TableRegistry.end());
     const ColRegistry &col_registry = itr->second; //TableRegistry[table_name]; 

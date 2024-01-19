@@ -185,6 +185,7 @@ class Client : public ::Client {
   std::map<uint64_t, PendingQuery*> pendingQueries;
 
   SQLTransformer sql_interpreter;
+  std::vector<std::string> pendingWriteStatements; //Just a temp cache to keep Translated Write statements in scope during a TX.
   std::map<std::string, std::string> point_read_cache; // Cache the read results from point reads. 
                                                       // If we want to do a Point Update afterwards, then we can use the cache to skip straight to a put.
                                                       // Note: Only works if we did Select * in the first point read. (Can improve this if we make Updates Put deltas instead of full row client side)

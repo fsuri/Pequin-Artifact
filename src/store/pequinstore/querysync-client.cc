@@ -77,7 +77,8 @@ void ShardClient::Query(uint64_t client_seq_num, uint64_t query_seq_num, proto::
 void ShardClient::ClearQuery(uint64_t query_seq_num){
     auto itr_q = query_seq_num_mapping.find(query_seq_num);
     if(itr_q == query_seq_num_mapping.end()){
-        Panic("No reqId logged for query seq num");
+        Debug("Nothing to clear. No reqId logged for query seq num %d. Must've been cached.", query_seq_num); 
+        //Note: This should only ever be the case for a point read on something already cached.
         return;
     }
     auto itr = pendingQueries.find(itr_q->second);

@@ -246,7 +246,6 @@ inline void load_row(std::unique_ptr<query_result::Row> row,
   c.set_payment_cnt(payment_cnt);
   c.set_delivery_cnt(delivery_cnt);
   c.set_data(data);
-  Panic("stop here");
 }
  
 inline void load_row(std::unique_ptr<query_result::Row> row,

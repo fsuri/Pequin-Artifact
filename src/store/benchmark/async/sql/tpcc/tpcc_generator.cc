@@ -43,6 +43,7 @@
 #include "store/benchmark/async/json_table_writer.h"
 
 //TODO: Date/Time should technically be BIGINT in order to last until at least 2100 as required by TPCC spec. With INT it will last only until 2038
+// NOTE: We avoid storing decimals, and instead currently store values such as 10.00 (DOUBLE) as 1000 (INT)
 using namespace tpcc_sql;
 
 const char ALPHA_NUMERIC[] = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";

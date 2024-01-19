@@ -130,6 +130,9 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
   
   virtual void LoadTableData(const std::string &table_name, const std::string &table_data_path, 
       const std::vector<std::pair<std::string, std::string>> &column_names_and_types, const std::vector<uint32_t> &primary_key_col_idx) override;
+    //Helper function:
+    std::vector<row_segment_t*> ParseTableDataFromCSV(const std::string &table_name, const std::string &table_data_path, 
+    const std::vector<std::pair<std::string, std::string>> &column_names_and_types, const std::vector<uint32_t> &primary_key_col_idx);
 
   virtual void LoadTableRows(const std::string &table_name, const std::vector<std::pair<std::string, std::string>> &column_data_types, 
       const row_segment_t *row_segment, const std::vector<uint32_t> &primary_key_col_idx, int segment_no = 1, bool load_cc = true) override;

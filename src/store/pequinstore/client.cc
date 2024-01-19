@@ -174,6 +174,8 @@ void Client::Begin(begin_callback bcb, begin_timeout_callback btcb,
     txn.mutable_timestamp()->set_id(client_id);
 
     sql_interpreter.NewTx(&txn);
+
+    pendingWriteStatements.clear();
     point_read_cache.clear();
 
     pendingQueries.clear(); //shouldn't be necessary to call, should be empty anyways
@@ -293,7 +295,9 @@ void Client::Write(std::string &write_statement, write_callback wcb,
     std::function<void(int, query_result::QueryResult*)>  write_continuation;
     bool skip_query_interpretation = false;
 
-    sql_interpreter.TransformWriteStatement(write_statement, read_statement, write_continuation, wcb, skip_query_interpretation);
+    //Write must stay in scope until the TX is done (because the Transformation creates String Views on it that it needs). Discard upon finishing TX
+    pendingWriteStatements.push_back(write_statement);
+    sql_interpreter.TransformWriteStatement(pendingWriteStatements.back(), read_statement, write_continuation, wcb, skip_query_interpretation);
 
     Debug("Transformed Write into re-con read_statement: %s", read_statement.c_str());
     
@@ -381,7 +385,7 @@ void Client::Query(const std::string &query, query_callback qcb,
 
     query_seq_num++;
     txn.set_last_query_seq(query_seq_num);
-    Debug("\n Query[%lu:%lu:%lu] (client:tx-seq:query-seq): %s", client_id, client_seq_num, query_seq_num, query.c_str());
+    Debug("Query[%lu:%lu:%lu] (client:tx-seq:query-seq): %s", client_id, client_seq_num, query_seq_num, query.c_str());
 
  
     // Contact the appropriate shard to execute the query on.
@@ -432,7 +436,7 @@ void Client::Query(const std::string &query, query_callback qcb,
       std::string encoded_key = EncodeTableRow(pendingQuery->table_name, pendingQuery->p_col_values);
       auto itr = point_read_cache.find(encoded_key);
       if(itr != point_read_cache.end()){
-        Debug("Supply point query result from cache!");
+        Debug("Supply point query result from cache! (Query seq: %d)", query_seq_num);
         auto res = new sql::QueryResultProtoWrapper(itr->second);
         qcb(REPLY_OK, res);
         return;

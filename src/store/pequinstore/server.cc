@@ -552,7 +552,22 @@ void Server::LoadTableData(const std::string &table_name, const std::string &tab
     Timestamp genesis_ts(0,0);
     proto::CommittedProof *genesis_proof = committedItr->second;
     std::string genesis_txn_dig = TransactionDigest(genesis_proof->txn(), params.hashDigest); //("");
-    
+
+    auto f = [this, genesis_ts, genesis_proof, genesis_txn_dig, table_name, table_data_path, column_names_and_types, primary_key_col_idx](){
+      std::vector<row_segment_t*> table_row_segments = ParseTableDataFromCSV(table_name, table_data_path, column_names_and_types, primary_key_col_idx);
+
+      Debug("Dispatch Table Loading for table: %s. Number of Segments: %d", table_name.c_str(), table_row_segments.size());
+      int i = 0;
+      for(auto& row_segment: table_row_segments){
+        LoadTableRows(table_name, column_names_and_types, row_segment, primary_key_col_idx, ++i, false); //Already loaded into CC-store.
+      }
+      return (void*) true;
+    };
+    transport->DispatchTP_noCB(std::move(f)); //Dispatching this seems to add no perf
+}
+
+std::vector<row_segment_t*> Server::ParseTableDataFromCSV(const std::string &table_name, const std::string &table_data_path, 
+    const std::vector<std::pair<std::string, std::string>> &column_names_and_types, const std::vector<uint32_t> &primary_key_col_idx){
     //Read in CSV --> Transform into ApplyTableWrite
     std::ifstream row_data(table_data_path);
 
@@ -601,11 +616,7 @@ void Server::LoadTableData(const std::string &table_name, const std::string &tab
       Load(enc_key, "", Timestamp());
     }
 
-    Debug("Dispatch Table Loading for table: %s. Number of Segments: %d", table_name.c_str(), table_row_segments.size());
-    int i = 0;
-    for(auto& row_segment: table_row_segments){
-      LoadTableRows(table_name, column_names_and_types, row_segment, primary_key_col_idx, ++i, false); //Already loaded into CC-store.
-    }
+    return table_row_segments;
 }
 
 void Server::LoadTableRows(const std::string &table_name, const std::vector<std::pair<std::string, std::string>> &column_data_types, 
@@ -623,19 +634,6 @@ void Server::LoadTableRows(const std::string &table_name, const std::vector<std:
     std::string genesis_txn_dig = TransactionDigest(genesis_proof->txn(), params.hashDigest); //("");
     //std::string genesis_tx_dig("");
 
-    //Load it into CC-Store (Note: Only if we haven't already done it while reading from CSV)
-    if(load_cc){
-      for(auto &row: *row_segment){
-    
-        //Load it into CC-store
-        std::vector<const std::string*> primary_cols;
-        for(auto i: primary_key_col_idx){
-          primary_cols.push_back(&(row[i]));
-        }
-      std::string enc_key = EncodeTableRow(table_name, primary_cols);
-      Load(enc_key, "", Timestamp());
-    }
-    }
     
     Debug("Dispatch Table Loading for table: %s. Segment [%d] with %d rows", table_name.c_str(), segment_no, row_segment->size());
     //Put this into dispatch: (pass gensiss proof)
@@ -651,6 +649,20 @@ void Server::LoadTableRows(const std::string &table_name, const std::vector<std:
     };
     // Call into ApplyTableWrites from different threads. On each Thread, it is a synchronous interface.
     transport->DispatchTP_noCB(std::move(f));
+
+    //Load it into CC-Store (Note: Only if we haven't already done it while reading from CSV)
+    if(load_cc){
+      for(auto &row: *row_segment){
+    
+        //Load it into CC-store
+        std::vector<const std::string*> primary_cols;
+        for(auto i: primary_key_col_idx){
+          primary_cols.push_back(&(row[i]));
+        }
+        std::string enc_key = EncodeTableRow(table_name, primary_cols);
+        Load(enc_key, "", Timestamp());
+      }
+    }
 
   return;
 }
