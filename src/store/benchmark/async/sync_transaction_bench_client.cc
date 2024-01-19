@@ -57,7 +57,6 @@ void SyncTransactionBenchClient::SendNext(transaction_status_t *result) {
   *result = ABORTED_SYSTEM; // default to failure
   while (true) {
     *result = currTxn->Execute(client);
-    Panic("stop after first TX");
     stats.Increment(GetLastOp() + "_attempts", 1);
     ++currTxnAttempts;
     if (*result == COMMITTED || *result == ABORTED_USER

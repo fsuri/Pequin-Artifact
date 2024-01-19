@@ -590,18 +590,19 @@ void PelotonTableStore::TransformPointResult(proto::Write *write, Timestamp &com
     //NOTE: value == "e" 
     //if tuple_descriptor.empty() => could write value = "" (empty) => frontend will handle it
     row = queryResultBuilder.new_row();
+    Debug("Committed row has %lu cols", tuple_descriptor.size());
     for (unsigned int i = 0; i < tuple_descriptor.size(); i++) {
       std::string &column_name = std::get<0>(tuple_descriptor[i]);
       queryResultBuilder.add_column(column_name);
       size_t index = (rows - 1) * tuple_descriptor.size() + i;
-      Debug("Index in result array is %lu", index);
+      //Debug("Index in result array is %lu", index);
       queryResultBuilder.AddToRow(row, result[index]); // Note: rows-1 == last row == Committed
     }
 
     write->set_committed_value(queryResultBuilder.get_result()->SerializeAsString()); // Note: This "clears" the builder
     committed_timestamp.serialize(write->mutable_committed_timestamp());
 
-    Debug("PointRead Committed Val: %s", write->committed_value().c_str());
+    Debug("PointRead Committed Val: %s", BytesToHex(write->committed_value(), 100).c_str());
   }
   
   // Prepared

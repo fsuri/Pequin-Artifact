@@ -299,7 +299,7 @@ void Server::ProcessPointQuery(const uint64_t &reqId, proto::Query *query, const
 
     //1) Execute
     proto::Write *write = pointQueryReply->mutable_write();
-    const proto::CommittedProof *committedProof;
+    const proto::CommittedProof *committedProof = nullptr;
     std::string enc_primary_key;  //TODO: Replace with query->primary_enc_key()
 
    
@@ -315,7 +315,7 @@ void Server::ProcessPointQuery(const uint64_t &reqId, proto::Query *query, const
 
     if(write->has_committed_value()){
         UW_ASSERT(committedProof); //proof must exist
-        *pointQueryReply->mutable_proof() = *committedProof;
+        *pointQueryReply->mutable_proof() = *committedProof; //FIXME: Debug Seg here
     } 
 
     if(TEST_QUERY) TEST_QUERY_f(write, pointQueryReply);

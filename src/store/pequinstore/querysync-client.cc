@@ -866,7 +866,7 @@ bool ShardClient::ProcessRead(const uint64_t &reqId, PendingQuorumGet *req, read
         }
 
         Timestamp replyTs(write->committed_timestamp());
-        Debug("[group %i] PointQueryReply for %lu with committed %lu byte value and ts %lu.%lu.", group, reqId, write->committed_value().length(),replyTs.getTimestamp(), replyTs.getID());
+        Debug("[group %i] PointQueryReply for reqId %lu with committed %lu byte value and ts %lu.%lu.", group, reqId, write->committed_value().length(),replyTs.getTimestamp(), replyTs.getID());
 
         if (req->firstCommittedReply || req->maxTs < replyTs) {
             req->maxTs = replyTs;
