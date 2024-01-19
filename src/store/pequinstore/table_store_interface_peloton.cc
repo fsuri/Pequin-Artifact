@@ -620,9 +620,10 @@ void PelotonTableStore::TransformPointResult(proto::Write *write, Timestamp &com
     prepared_timestamp.serialize(write->mutable_prepared_timestamp());
     write->set_prepared_txn_digest(*txn_dig);
     
-    Debug("PointRead Prepared Val: %s", write->prepared_value().c_str());
+    Debug("PointRead Prepared Val: %s", BytesToHex(write->prepared_value(), 100).c_str());
   }
    
+  Debug("Read Committed? %d. read Prepared? %d", write->has_committed_value(), write->has_prepared_value());
   return;
 }
 
