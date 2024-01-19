@@ -132,7 +132,7 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
       const std::vector<std::pair<std::string, std::string>> &column_names_and_types, const std::vector<uint32_t> &primary_key_col_idx) override;
 
   virtual void LoadTableRows(const std::string &table_name, const std::vector<std::pair<std::string, std::string>> &column_data_types, 
-      const row_segment_t *row_segment, const std::vector<uint32_t> &primary_key_col_idx, int segment_no = 1) override;
+      const row_segment_t *row_segment, const std::vector<uint32_t> &primary_key_col_idx, int segment_no = 1, bool load_cc = true) override;
 
   void LoadTableRows_Old(const std::string &table_name, const std::vector<std::pair<std::string, std::string>> &column_data_types, 
       const std::vector<std::vector<std::string>> &row_values, const std::vector<uint32_t> &primary_key_col_idx, int segment_no = 1);

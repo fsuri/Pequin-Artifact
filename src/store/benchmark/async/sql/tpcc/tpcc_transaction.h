@@ -194,7 +194,16 @@ inline void load_row(std::unique_ptr<query_result::Row> row,
   uint32_t  payment_cnt;
   uint32_t  delivery_cnt;
   std::string data;
-  std::cerr << "trying to load customer row" << std::endl;
+
+  // std::cerr << "trying to load customer row. Num rows: " << row->num_columns() << std::endl;
+  //  for(int j=0; j<row->num_columns(); ++j){
+  //       const std::string &col = row->name(j);
+  //       std::unique_ptr<query_result::Field> field = (*row)[j];
+  //       std::cerr << "  Checking column: " << col << std::endl;
+  //       const std::string &field_val = field->get();
+  //       std::cerr << "  Has Value: " << field_val << std::endl;
+  //   }
+
   row->get(0, &id);
   row->get(1, &d_id);
   row->get(2, &w_id);
@@ -237,6 +246,7 @@ inline void load_row(std::unique_ptr<query_result::Row> row,
   c.set_payment_cnt(payment_cnt);
   c.set_delivery_cnt(delivery_cnt);
   c.set_data(data);
+  Panic("stop here");
 }
  
 inline void load_row(std::unique_ptr<query_result::Row> row,

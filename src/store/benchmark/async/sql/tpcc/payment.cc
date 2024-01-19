@@ -137,7 +137,6 @@ transaction_status_t SQLPayment::Execute(SyncClient &client) {
     statement = fmt::format("SELECT * FROM {} WHERE id = {} AND d_id = {} AND w_id = {}", CUSTOMER_TABLE, c_id, c_d_id, c_w_id);
     client.Query(statement, timeout);
     client.Wait(results);
-    std::cerr << "MAKING IT HERE FINE: " << results.size() << std::endl;
     deserialize(c_row, results[2]);
     Debug("Customer: %u", c_id);
   }
@@ -148,14 +147,9 @@ transaction_status_t SQLPayment::Execute(SyncClient &client) {
   deserialize(w_row, results[0]);
   Debug("  YTD: %u", w_row.get_ytd());
 
-   std::cerr << "MAKING IT HERE FINE2: " <<  std::endl;
-
   DistrictRow d_row;
   deserialize(d_row, results[1]);
   Debug("  YTD: %u", d_row.get_ytd());
-
-   std::cerr << "MAKING IT HERE FINE3: " << results.size() << std::endl;
-  Panic("stop here");
 
   // (1.5) Retrieve WAREHOUSE row. Update year to date balance. 
   statement = fmt::format("UPDATE {} SET ytd = {} WHERE id = {}", WAREHOUSE_TABLE, w_row.get_ytd() + h_amount, w_id);

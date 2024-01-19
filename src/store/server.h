@@ -52,7 +52,7 @@ class Server {
       const std::vector<std::pair<std::string, std::string>> &column_names_and_types, const std::vector<uint32_t> &primary_key_col_idx){Panic("This store does not support Loading Data from CSV");}
 
   inline virtual void LoadTableRows(const std::string &table_name, const std::vector<std::pair<std::string, std::string>> &column_data_types, 
-      const std::vector<row_t> *values, const std::vector<uint32_t> &primary_key_col_idx, int segment_no = 1){Panic("This store does not support loading Data from Rows");}
+      const std::vector<row_t> *values, const std::vector<uint32_t> &primary_key_col_idx, int segment_no = 1, bool load_cc = true){Panic("This store does not support loading Data from Rows");}
     
   //[[deprecated]]
   inline virtual void LoadTableRow(const std::string &table_name, const std::vector<std::pair<std::string, std::string>> &column_data_types, 

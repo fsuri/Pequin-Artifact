@@ -586,21 +586,30 @@ void Server::LoadTableData(const std::string &table_name, const std::string &tab
 
       row_segment->push_back({}); //Create new row
       std::vector<std::string> &row_values = row_segment->back();
+      
       // read every column data of a row and store it
       while (getline(row, value, ',')) {
         row_values.push_back(std::move(value));
       }
+
+      //Also Load row into CC-store
+      std::vector<const std::string*> primary_cols;
+      for(auto i: primary_key_col_idx){
+        primary_cols.push_back(&(row_values[i]));
+      }
+      std::string enc_key = EncodeTableRow(table_name, primary_cols);
+      Load(enc_key, "", Timestamp());
     }
 
     Debug("Dispatch Table Loading for table: %s. Number of Segments: %d", table_name.c_str(), table_row_segments.size());
     int i = 0;
     for(auto& row_segment: table_row_segments){
-      LoadTableRows(table_name, column_names_and_types, row_segment, primary_key_col_idx, ++i);
+      LoadTableRows(table_name, column_names_and_types, row_segment, primary_key_col_idx, ++i, false); //Already loaded into CC-store.
     }
 }
 
 void Server::LoadTableRows(const std::string &table_name, const std::vector<std::pair<std::string, std::string>> &column_data_types, 
-                           const row_segment_t *row_segment, const std::vector<uint32_t> &primary_key_col_idx, int segment_no){
+                           const row_segment_t *row_segment, const std::vector<uint32_t> &primary_key_col_idx, int segment_no, bool load_cc){
   
     Debug("Load Table: %s [Segment: %d]", table_name.c_str(), segment_no);
     //Call into TableStore with this statement.
@@ -614,8 +623,9 @@ void Server::LoadTableRows(const std::string &table_name, const std::vector<std:
     std::string genesis_txn_dig = TransactionDigest(genesis_proof->txn(), params.hashDigest); //("");
     //std::string genesis_tx_dig("");
 
-    //Load it into CC-Store //TODO: Do this while reading in already. Currently doing duplicate loops...
-    for(auto &row: *row_segment){
+    //Load it into CC-Store (Note: Only if we haven't already done it while reading from CSV)
+    if(load_cc){
+      for(auto &row: *row_segment){
     
         //Load it into CC-store
         std::vector<const std::string*> primary_cols;
@@ -624,6 +634,7 @@ void Server::LoadTableRows(const std::string &table_name, const std::vector<std:
         }
       std::string enc_key = EncodeTableRow(table_name, primary_cols);
       Load(enc_key, "", Timestamp());
+    }
     }
     
     Debug("Dispatch Table Loading for table: %s. Segment [%d] with %d rows", table_name.c_str(), segment_no, row_segment->size());

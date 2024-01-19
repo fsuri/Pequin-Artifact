@@ -508,19 +508,20 @@ void Client::PointQueryResultCallback(PendingQuery *pendingQuery,
   
   Debug("Result size: %d. Result rows affected: %d", q_result->size(), q_result->rows_affected());
 
-  //TRY TO READ RESULT:
-  for(int i = 0; i < q_result->size(); ++i){
-    std::unique_ptr<query_result::Row> row = (*q_result)[i]; 
-    Debug("Checking row: %d", i);
-    // For col in col_updates update the columns specified by update_cols. Set value to update_values
-    for(int j=0; j<row->num_columns(); ++j){
-        const std::string &col = row->name(j);
-        std::unique_ptr<query_result::Field> field = (*row)[j];
-        Debug("  Checking column: %s", col.c_str()); 
-        const std::string &field_val = field->get();
-        Debug("  Has Value: %s", field_val.c_str());
+  if(TEST_READ_SET){
+    for(int i = 0; i < q_result->size(); ++i){
+      std::unique_ptr<query_result::Row> row = (*q_result)[i]; 
+      Debug("Checking row at index: %d", i);
+      // For col in col_updates update the columns specified by update_cols. Set value to update_values
+      for(int j=0; j<row->num_columns(); ++j){
+          const std::string &col = row->name(j);
+          std::unique_ptr<query_result::Field> field = (*row)[j];
+          const std::string &field_val = field->get();
+          Debug("  %s:  %s", col.c_str(), field_val.c_str());
+      }
     }
   }
+  
 
   //Cache point read results. This can help optimize common point Select + point Update patterns.
   if(!result.empty()){ //only cache if we did find a row.
