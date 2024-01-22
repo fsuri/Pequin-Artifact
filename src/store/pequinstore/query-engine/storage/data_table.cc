@@ -477,6 +477,9 @@ ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple,
           std::cout << "Same columns is " << same_columns << std::endl;
           std::cout << "Timestamp is " << ts.getTimestamp() << ", " << ts.getID() << std::endl;
           std::cout << "Txn timestamp is " << transaction->GetBasilTimestamp().getTimestamp() << ", " << transaction->GetBasilTimestamp().getID() << std::endl;
+
+          std::cout << "Current tuple txn is: " << pequinstore::BytesToHex(*curr_tile_group_header->GetTxnDig(curr_pointer.offset),16) << std::endl;
+          std::cout << "Current txn is: " << pequinstore::BytesToHex(*transaction->GetTxnDig(),16) << std::endl;
           
              Debug("Duplicate access to tile-group-header:offset [%lu:%lu]", curr_pointer.block, curr_pointer.offset);
           if(curr_tile_group_header->GetCommitOrPrepare(curr_pointer.offset) == transaction->GetCommitOrPrepare() ) Panic("Tried to prepare twice or commit twice for same TX");

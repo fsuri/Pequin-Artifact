@@ -960,7 +960,6 @@ void SQLTransformer::GenerateTableWriteStatement(std::string &write_statement, s
             write_statement += "(";
             if(fine_grained_quotes){ // Use this to add fine grained quotes:
                 for(int i = 0; i < row.column_values_size(); ++i){
-                    if(row.column_values()[i] == "true") std::cerr << "TRYING TO WRITE BOOL TRUE" << std::endl;
                     if(col_registry.col_quotes[i])  write_statement += "\'" + row.column_values()[i]  + "\'" + ", ";
                     else write_statement += row.column_values()[i] + ", ";
                 }
@@ -1051,10 +1050,13 @@ void SQLTransformer::GenerateTableWriteStatement(std::string &write_statement, s
             delete_statement += ";";
         }
         else{
+            Debug("Table[%s]: insert row with pkey: ", table_name.c_str());
+           
             write_statement += "(";
             UW_ASSERT(row.column_values_size() == col_registry.col_names.size());
             if(fine_grained_quotes){ // Use this to add fine grained quotes:
                 for(int i = 0; i < row.column_values_size(); ++i){
+                     if(col_registry.primary_key_cols.count(col_registry.col_names[i])) Debug("Table[%s][%d]:  %s", table_name.c_str(), i, row.column_values()[i].c_str());
                     if(col_registry.col_quotes[i])  write_statement += "\'" + row.column_values()[i]  + "\'" + ", ";
                     else write_statement += row.column_values()[i] + ", ";
                 }

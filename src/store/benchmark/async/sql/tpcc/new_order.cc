@@ -35,6 +35,7 @@ namespace tpcc_sql {
 SQLNewOrder::SQLNewOrder(uint32_t timeout, uint32_t w_id, uint32_t C,
     uint32_t num_warehouses, std::mt19937 &gen) :
     TPCCSQLTransaction(timeout), w_id(w_id) {
+
   d_id = std::uniform_int_distribution<uint32_t>(1, 10)(gen); 
   c_id = tpcc_sql::NURand(static_cast<uint32_t>(1023), static_cast<uint32_t>(1), static_cast<uint32_t>(3000), C, gen);
   ol_cnt = std::uniform_int_distribution<uint8_t>(5, 15)(gen);
@@ -44,7 +45,21 @@ SQLNewOrder::SQLNewOrder(uint32_t timeout, uint32_t w_id, uint32_t C,
     if (rbk == 1 && i == ol_cnt - 1) {
       o_ol_i_ids.push_back(0);
     } else {
-      o_ol_i_ids.push_back(tpcc_sql::NURand(static_cast<uint32_t>(8191), static_cast<uint32_t>(1), static_cast<uint32_t>(100000), C, gen));
+      uint32_t i_id = tpcc_sql::NURand(static_cast<uint32_t>(8191), static_cast<uint32_t>(1), static_cast<uint32_t>(100000), C, gen); 
+      if(duplicates.insert(i_id).second){ //Avoid duplicates
+        o_ol_i_ids.push_back(i_id);
+        //std::cerr << "ITEM: " << i_id << std::endl;
+      }
+      else{
+        //std::cerr << "DUPE: " << i_id << std::endl;
+      }
+      //TODO: Since we avoid duplicates, should technically set value to account for it. Makes no difference for contention though.
+      //Alternatively: Pick new item if encounter duplicate.
+      // uint32_t i_id = 0;
+      // while(!duplicates.insert(i_id).second){
+      //  i_id = tpcc_sql::NURand(static_cast<uint32_t>(8191), static_cast<uint32_t>(1), static_cast<uint32_t>(100000), C, gen); 
+      // }
+      // o_ol_i_ids.push_back(i_id);
     }
     uint8_t x = std::uniform_int_distribution<uint8_t>(1, 100)(gen);
     if (x == 1 && num_warehouses > 1) { //For 1% of the TXs supply from remote warehouse
@@ -163,7 +178,7 @@ transaction_status_t SQLNewOrder::Execute(SyncClient &client) {
       // (6.5) If available quantity exceeds requested quantity by more than 10, just reduce available quant by the requested amount.
       // Otherwise, add 91 new items.
       if (s_row.get_quantity() - o_ol_quantities[ol_number] >= 10) {
-        s_row.set_quantity(s_row.get_quantity() - o_ol_quantities[ol_number]);
+        s_row.set_quantity(s_row.get_quantity() - o_ol_quantities[ol_number]); 
       } else {
         s_row.set_quantity(s_row.get_quantity() - o_ol_quantities[ol_number] + 91);
       }
