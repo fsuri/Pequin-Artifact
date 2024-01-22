@@ -344,12 +344,14 @@ ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple,
 
   ItemPointer check = CheckIfInIndex(tuple, transaction);
 
+  //If there is no version linked list for this row yet: Create a new one.
   if (check.block == 0 && check.offset == 0) {
 
     is_duplicate = false;
     ItemPointer location = GetEmptyTupleSlot(tuple);
     if (location.block == INVALID_OID) {
       LOG_TRACE("Failed to get tuple slot.");
+      Debug("Invalid write to tile-group-header:offset [%lu:%lu]", location.block, location.offset);
       return INVALID_ITEMPOINTER;
     }
 
@@ -364,8 +366,12 @@ ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple,
       exists = false;
       // return INVALID_ITEMPOINTER;
     }
+    //Debug("Wrote to tile-group-header:offset [%lu:%lu]", location.block, location.offset);
     return location; //*old_location;
-  } else {
+
+  }
+  //If there is a version linked list: Find right position to insert.
+  else {
     auto tile_group = this->GetTileGroupById(check.block);
     auto tile_group_header = tile_group->GetHeader();
 
@@ -376,80 +382,71 @@ ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple,
 
     /** NEW: for purge */
     while (ts > transaction->GetBasilTimestamp()) {
-      if (curr_tile_group_header->GetNextItemPointer(curr_pointer.offset)
-              .IsNull()) {
+      if (curr_tile_group_header->GetNextItemPointer(curr_pointer.offset).IsNull()) {
         break;
       }
-      curr_pointer =
-          curr_tile_group_header->GetNextItemPointer(curr_pointer.offset);
+      curr_pointer = curr_tile_group_header->GetNextItemPointer(curr_pointer.offset);
       curr_tile_group = this->GetTileGroupById(curr_pointer.block);
       curr_tile_group_header = curr_tile_group->GetHeader();
       ts = curr_tile_group_header->GetBasilTimestamp(curr_pointer.offset);
     }
+    //Debug("Trying to write to tile-group-header:offset [%lu:%lu]", curr_pointer.block, curr_pointer.offset);
 
+    //If TX tries to write to a tuple that it previously wrote itself (i.e. prepared)
+    //Distinguish whether we are trying to rollback a prepare, or upgrade it to commit.
     if (ts == transaction->GetBasilTimestamp()) {
       std::cout << "IN INSERT TUPLE Txn: " << pequinstore::BytesToHex(*transaction->GetTxnDig(), 16) << std::endl;
        std::cout << "IN INSERT TUPLE Txn: Commit Or Prepare:" << transaction->GetCommitOrPrepare() << std::endl;
      
       std::cout << "Duplicate" << std::endl;
       is_duplicate = true;
-      bool is_prepared =
-          !curr_tile_group_header->GetCommitOrPrepare(curr_pointer.offset);
+      bool is_prepared = !curr_tile_group_header->GetCommitOrPrepare(curr_pointer.offset);
 
       /** TODO: Add check to make sure it's prepared */
       if (transaction->GetUndoDelete() && is_prepared) {
         std::cout << "In undo delete for purge" << std::endl;
         // Purge this tuple
         // Set the linked list pointers
-        auto prev_loc =
-            curr_tile_group_header->GetPrevItemPointer(curr_pointer.offset);
-        auto next_loc =
-            curr_tile_group_header->GetNextItemPointer(curr_pointer.offset);
+        auto prev_loc = curr_tile_group_header->GetPrevItemPointer(curr_pointer.offset);
+        auto next_loc = curr_tile_group_header->GetNextItemPointer(curr_pointer.offset);
 
         if (!prev_loc.IsNull() && !next_loc.IsNull()) {
           std::cout << "Updating both pointers" << std::endl;
           auto prev_tgh = this->GetTileGroupById(prev_loc.block)->GetHeader();
           auto next_tgh = this->GetTileGroupById(next_loc.block)->GetHeader();
-          std::cout << "prev loc" << prev_loc.block << ", " << prev_loc.offset
-                    << std::endl;
-          std::cout << "next loc" << next_loc.block << ", " << next_loc.offset
-                    << std::endl;
+          std::cout << "prev loc" << prev_loc.block << ", " << prev_loc.offset << std::endl;
+          std::cout << "next loc" << next_loc.block << ", " << next_loc.offset << std::endl;
           prev_tgh->SetNextItemPointer(prev_loc.offset, next_loc);
           next_tgh->SetPrevItemPointer(next_loc.offset, prev_loc);
         } else if (prev_loc.IsNull() && !next_loc.IsNull()) {
           std::cout << "Updating head pointer" << std::endl;
           auto next_tgh = this->GetTileGroupById(next_loc.block)->GetHeader();
-          next_tgh->SetPrevItemPointer(next_loc.offset,
-                                       ItemPointer(INVALID_OID, INVALID_OID));
-          ItemPointer *index_entry_ptr =
-              next_tgh->GetIndirection(next_loc.offset);
+          next_tgh->SetPrevItemPointer(next_loc.offset, ItemPointer(INVALID_OID, INVALID_OID));
+          ItemPointer *index_entry_ptr = next_tgh->GetIndirection(next_loc.offset);
           COMPILER_MEMORY_FENCE;
 
           // Set the index header in an atomic way.
-          // We do it atomically because we don't want any one to see a
-          // half-done pointer. In case of contention, no one can update this
-          // pointer when we are updating it because we are holding the write
-          // lock. This update should success in its first trial.
-          UNUSED_ATTRIBUTE auto res =
-              AtomicUpdateItemPointer(index_entry_ptr, next_loc);
+          // We do it atomically because we don't want any one to see a half-done pointer. In case of contention, no one can update this
+          // pointer when we are updating it because we are holding the write lock. This update should success in its first trial.
+          UNUSED_ATTRIBUTE auto res = AtomicUpdateItemPointer(index_entry_ptr, next_loc);
           PELOTON_ASSERT(res == true);
 
         } else if (next_loc.IsNull() && !prev_loc.IsNull()) {
           std::cout << "Updating prev pointer" << std::endl;
           auto prev_tgh = this->GetTileGroupById(prev_loc.block)->GetHeader();
-          prev_tgh->SetNextItemPointer(prev_loc.offset,
-                                       ItemPointer(INVALID_OID, INVALID_OID));
+          prev_tgh->SetNextItemPointer(prev_loc.offset, ItemPointer(INVALID_OID, INVALID_OID));
         }
-      } else {
+      }
+      //Writing again. 
+      else {
 
         bool same_columns = true;
         bool should_upgrade = !curr_tile_group_header->GetCommitOrPrepare(curr_pointer.offset) && transaction->GetCommitOrPrepare(); //i.e. prev = prepare, curr tx = commit
-
         // NOTE: Check if we can upgrade a prepared tuple to committed
+
         // std::string encoded_key = target_table_->GetName();
         const auto *schema = curr_tile_group->GetAbstractTable()->GetSchema();
-        for (uint32_t col_idx = 0; col_idx < schema->GetColumnCount();
-             col_idx++) {
+        for (uint32_t col_idx = 0; col_idx < schema->GetColumnCount(); col_idx++) {
           auto val1 = curr_tile_group->GetValue(curr_pointer.offset, col_idx);
           auto val2 = tuple->GetValue(col_idx);
 
@@ -468,11 +465,9 @@ ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple,
         if (should_upgrade && same_columns) {
           std::cout << "Upgrading from prepared to committed" << std::endl;
           curr_tile_group_header->SetCommitOrPrepare(curr_pointer.offset, true);
-          const pequinstore::proto::CommittedProof *proof =
-              transaction->GetCommittedProof();
+          const pequinstore::proto::CommittedProof *proof =  transaction->GetCommittedProof();
           auto proof_ts = Timestamp(proof->txn().timestamp());
-          Debug("Proof ts is %lu, %lu", proof_ts.getTimestamp(),
-                proof_ts.getID());
+          Debug("Proof ts is %lu, %lu", proof_ts.getTimestamp(), proof_ts.getID());
           Debug("Current ts is %lu, %lu", ts.getTimestamp(), ts.getID());
           curr_tile_group_header->SetCommittedProof(curr_pointer.offset, proof);
         } else {
@@ -483,6 +478,7 @@ ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple,
           std::cout << "Timestamp is " << ts.getTimestamp() << ", " << ts.getID() << std::endl;
           std::cout << "Txn timestamp is " << transaction->GetBasilTimestamp().getTimestamp() << ", " << transaction->GetBasilTimestamp().getID() << std::endl;
           
+             Debug("Duplicate access to tile-group-header:offset [%lu:%lu]", curr_pointer.block, curr_pointer.offset);
           if(curr_tile_group_header->GetCommitOrPrepare(curr_pointer.offset) == transaction->GetCommitOrPrepare() ) Panic("Tried to prepare twice or commit twice for same TX");
         }
       }

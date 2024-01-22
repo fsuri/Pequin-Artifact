@@ -799,8 +799,8 @@ void IndexScanExecutor::SetPointRead(concurrency::TransactionContext *current_tx
     //Set the prepared digest
     auto prepared_txn_digest = current_txn->GetPreparedTxnDigest();
     *prepared_txn_digest = tile_group_header->GetTxnDig(tuple_location.offset);
-
-    Debug("PointRead PreparedTS:[%lu:%lu], dependency: %s", current_txn->GetPreparedTimestamp()->getTimestamp(), current_txn->GetPreparedTimestamp()->getID(), (*prepared_txn_digest)->c_str());
+  
+    Debug("PointRead PreparedTS:[%lu:%lu], dependency: %s", current_txn->GetPreparedTimestamp()->getTimestamp(), current_txn->GetPreparedTimestamp()->getID(), pequinstore::BytesToHex(**prepared_txn_digest, 16).c_str());
           
   }
 }         

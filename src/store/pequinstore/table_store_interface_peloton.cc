@@ -362,7 +362,7 @@ void PelotonTableStore::LoadTable(const std::string &load_statement, const std::
   std::vector<int> result_format(statement->GetTupleDescriptor().size(), 0);
 
   counter->store(1);
-  auto status = tcop->ExecuteWriteStatement(statement, param_values, unamed, result_format, result, ts, txn_dig, committedProof, true, false);
+  auto status = tcop->ExecuteWriteStatement(statement, param_values, unamed, result_format, result, ts, txn_dig, committedProof, true, false); //commit = true, materialize
 
   // GetResult(status);
   GetResult(status, tcop, counter);
@@ -626,8 +626,9 @@ void PelotonTableStore::TransformPointResult(proto::Write *write, Timestamp &com
     write->set_prepared_value(queryResultBuilder.get_result()->SerializeAsString()); // Note: This "clears" the builder
     prepared_timestamp.serialize(write->mutable_prepared_timestamp());
     write->set_prepared_txn_digest(*txn_dig);
-    
-    Debug("PointRead Prepared Val: %s", BytesToHex(write->prepared_value(), 100).c_str());
+    UW_ASSERT(!write->prepared_txn_digest().empty());
+ 
+    Debug("PointRead Prepared Val: %s. Dependency: %s", BytesToHex(write->prepared_value(), 20).c_str(), BytesToHex(write->prepared_txn_digest(), 16).c_str());
   }
   else{
     write->clear_prepared_value();

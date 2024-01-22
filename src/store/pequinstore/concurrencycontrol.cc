@@ -1417,7 +1417,7 @@ proto::ConcurrencyControl::Result Server::CheckDependencies(
     }
     if (committed.find(dep.write().prepared_txn_digest()) != committed.end()) {
       //Check if dependency still has smaller timestamp than reader: Could be violated if dependency re-tried with higher TS and committed -- Currently retries are not implemented.
-       Debug("Txn[%lu:%lu] dependency %s committed", txn.client_id(), txn.client_seq_num(), dep.write().prepared_txn_digest());
+       Debug("Txn[%lu:%lu] dependency %s committed", txn.client_id(), txn.client_seq_num(), BytesToHex(dep.write().prepared_txn_digest(),16).c_str());
       if (Timestamp(dep.write().prepared_timestamp()) > Timestamp(txn.timestamp())) {
         Debug("Txn[%lu:%lu] dependency %s committed with wrong TS. Abstain!", txn.client_id(), txn.client_seq_num(), BytesToHex(dep.write().prepared_txn_digest(), 16).c_str());
         stats.Increment("cc_aborts", 1);
