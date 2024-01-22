@@ -342,6 +342,8 @@ ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple,
                                    ItemPointer **index_entry_ptr,
                                    bool check_fk) {
 
+  if(transaction->GetCommitOrPrepare()) UW_ASSERT(transaction->GetCommittedProof());
+
   ItemPointer check = CheckIfInIndex(tuple, transaction);
 
   //If there is no version linked list for this row yet: Create a new one.

@@ -49,6 +49,7 @@ transaction_status_t SQLDelivery::Execute(SyncClient &client) {
 
   // Process a batch of 10 new (not yet delivered) orders. Each order delivery is it's own read/write TX.
   // Low frequency
+  std::cerr << "DELIVERY" << std::endl;
   Debug("DELIVERY");
   Debug("Warehouse: %u", w_id);
   Debug("District: %u", d_id);

@@ -777,6 +777,9 @@ void IndexScanExecutor::SetPointRead(concurrency::TransactionContext *current_tx
     Debug("Setting the commit proof");
     // Get the commit proof
     auto write_commit_proof = tile_group_header->GetCommittedProof(tuple_location.offset);
+    UW_ASSERT(write_commit_proof); //Every committed tuple must have a commit proof.
+
+    // Set the commit proof reference.
     const pequinstore::proto::CommittedProof **commit_proof_ref = current_txn->GetCommittedProofRef();
     *commit_proof_ref = write_commit_proof;
     auto commit_ts = current_txn->GetCommitTimestamp(); 
@@ -784,7 +787,7 @@ void IndexScanExecutor::SetPointRead(concurrency::TransactionContext *current_tx
     Debug("PointRead CommittedTS:[%lu:%lu]", current_txn->GetCommitTimestamp()->getTimestamp(), current_txn->GetCommitTimestamp()->getID());
     //current_txn->SetCommitTimestamp(&committed_timestamp); 
 
-    UW_ASSERT(write_commit_proof);
+
   }
   else{
     //mark prepare result as existent

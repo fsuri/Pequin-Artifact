@@ -615,7 +615,8 @@ void SQLTransformer::TransformUpdate(size_t pos, std::string_view &write_stateme
                  std::cerr << "Checking column: " << col << std::endl;
                 const std::string &col_type = col_registry.col_name_type.at(col);
                
-
+                //Currently we receive everything as plain-text string (as opposed to cereal). 
+                //TODO: Thus we should update this code to skip Decoding unless necessary to do computation.
                 auto field_val(DecodeType(field, col_type));
                 //std::string field_val(DecodeType(field, col_registry.col_name_type[col]));
 
@@ -1512,7 +1513,7 @@ std::variant<bool, int64_t, std::string> DecodeType(const std::string &enc_value
     //     DeCerealize(enc_value, dec_value);
     //     type_variant = std::move(dec_value);
     // }
-    else if(col_type == "INT" || col_type == "BIGINT" || col_type == "SMALLINT"){ // SMALLINT (2byteS) INT (4), BIGINT (8), DOUBLE () 
+    else if(col_type == "INTEGER" || col_type == "INT" || col_type == "BIGINT" || col_type == "SMALLINT"){ // SMALLINT (2byteS) INT (4), BIGINT (8), DOUBLE () 
         //int64_t dec_value;  //FIXME: Peloton encodes everything as string currently. So must DeCerialize as string and only then convert.
        
         int64_t dec = std::stoi(enc_value); 
@@ -1524,14 +1525,14 @@ std::variant<bool, int64_t, std::string> DecodeType(const std::string &enc_value
     //     DeCerealize(enc_value, dec_value);
     //     type_variant = std::move(dec_value);
     // }
-    else if(col_type == "BOOL"){
+    else if(col_type == "BOOL" || col_type == "BOOLEAN"){
 
         bool dec; //FIXME: Peloton encodes everything as string currently. So must DeCerialize as string and only then convert.
         istringstream(enc_value) >> dec;
         type_variant = std::move(dec);
     }
     else{
-        Panic("Types other than {VARCHAR, INT, BIGINT, SMALLINT, BOOL} Currently not supported");
+        Panic("Unsupported type: %s. Currently only supporting {VARCHAR, TEXT, INT/INTEGER, BIGINT, SMALLINT, BOOL/BOOLEAN}", col_type.c_str());
         //e.g. // TIMESTAMP (time and date) or Array []
 
         //Note: Array will never be primary key, so realistically any update to array won't need to be translated to string, but could be encoded as cereal.

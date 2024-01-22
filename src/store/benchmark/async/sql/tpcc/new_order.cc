@@ -46,14 +46,15 @@ SQLNewOrder::SQLNewOrder(uint32_t timeout, uint32_t w_id, uint32_t C,
       o_ol_i_ids.push_back(0);
     } else {
       uint32_t i_id = tpcc_sql::NURand(static_cast<uint32_t>(8191), static_cast<uint32_t>(1), static_cast<uint32_t>(100000), C, gen); 
-      if(duplicates.insert(i_id).second){ //Avoid duplicates
-        o_ol_i_ids.push_back(i_id);
-        //std::cerr << "ITEM: " << i_id << std::endl;
-      }
-      else{
-        //std::cerr << "DUPE: " << i_id << std::endl;
-      }
-      //TODO: Since we avoid duplicates, should technically set value to account for it. Makes no difference for contention though.
+      
+      //Avoid duplicates
+      //TODO: Since we avoid duplicates, should technically adjust quantity value to account for it. Makes no difference for contention though.
+      bool unique_item = unique_items.insert(i_id).second;
+      if(!unique_item) continue; 
+      
+      o_ol_i_ids.push_back(i_id);
+       
+      
       //Alternatively: Pick new item if encounter duplicate.
       // uint32_t i_id = 0;
       // while(!duplicates.insert(i_id).second){
@@ -75,6 +76,9 @@ SQLNewOrder::SQLNewOrder(uint32_t timeout, uint32_t w_id, uint32_t C,
     o_ol_quantities.push_back(std::uniform_int_distribution<uint8_t>(1, 10)(gen));
   }
   o_entry_d = std::time(0);
+
+  ol_cnt = o_ol_i_ids.size();
+  UW_ASSERT(ol_cnt == o_ol_supply_w_ids.size() && ol_cnt == o_ol_quantities.size());
 }
 
 SQLNewOrder::~SQLNewOrder() {
@@ -142,12 +146,18 @@ transaction_status_t SQLNewOrder::Execute(SyncClient &client) {
           "VALUES ({}, {}, {}, {}, {}, {}, {}, {});", ORDER_TABLE, o_id, d_id, w_id, c_id, o_entry_d, 0, ol_cnt, all_local);
   client.Write(statement, timeout, true);
 
+
+  //TESTING ONLY
+  client.Wait(results);
+  
+
   // (5) For each ol, select row from ITEM and retrieve: Price, Name, Data
   for (size_t ol_number = 0; ol_number < ol_cnt; ++ol_number) {
     Debug("  Order Line %lu", ol_number);
     Debug("    Item: %u", o_ol_i_ids[ol_number]);
     statement = fmt::format("SELECT * FROM {} WHERE id = {}", ITEM_TABLE, o_ol_i_ids[ol_number]);
-    client.Query(statement, timeout);
+    client.Query(statement, queryResult, timeout);
+    if(queryResult->empty()) Panic("stop testing");
   }
 
   // (6) For each ol, select row from STOCK and retrieve: Qunatity, District Number, Data
@@ -156,88 +166,88 @@ transaction_status_t SQLNewOrder::Execute(SyncClient &client) {
     Debug("    Supply Warehouse: %u", o_ol_supply_w_ids[ol_number]);
     statement = fmt::format("SELECT * FROM {} WHERE i_id = {} AND w_id = {}",
           STOCK_TABLE, o_ol_i_ids[ol_number], o_ol_supply_w_ids[ol_number]);
-    client.Query(statement, timeout);
+    client.Query(statement, queryResult, timeout);
   }
 
-  client.Wait(results);
+  // client.Wait(results);
 
-  // (7) For each ol, increase Stock year to date by requested quantity, and increment stock order count. If order is remote, increment remote cnt.
-  //                  insert a new row into ORDER-LINE .
-  for (size_t ol_number = 0; ol_number < ol_cnt; ++ol_number) {
-    if (results[ol_number]->empty()) {  // (4.5) If not found codition -> Abort and rollback TX.
-      client.Abort(timeout);
-      return ABORTED_USER;
-    } else {
-      ItemRow i_row;
-      deserialize(i_row, results[ol_number]);
-      Debug("    Item Name: %s", i_row.get_name().c_str());
+  // // (7) For each ol, increase Stock year to date by requested quantity, and increment stock order count. If order is remote, increment remote cnt.
+  // //                  insert a new row into ORDER-LINE .
+  // for (size_t ol_number = 0; ol_number < ol_cnt; ++ol_number) {
+  //   if (results[ol_number]->empty()) {  // (4.5) If not found codition -> Abort and rollback TX.
+  //     client.Abort(timeout);
+  //     return ABORTED_USER;
+  //   } else {
+  //     ItemRow i_row;
+  //     deserialize(i_row, results[ol_number]);
+  //     Debug("    Item Name: %s", i_row.get_name().c_str());
 
-      StockRow s_row;
-      deserialize(s_row, results[ol_number + ol_cnt]);
+  //     StockRow s_row;
+  //     deserialize(s_row, results[ol_number + ol_cnt]);
 
-      // (6.5) If available quantity exceeds requested quantity by more than 10, just reduce available quant by the requested amount.
-      // Otherwise, add 91 new items.
-      if (s_row.get_quantity() - o_ol_quantities[ol_number] >= 10) {
-        s_row.set_quantity(s_row.get_quantity() - o_ol_quantities[ol_number]); 
-      } else {
-        s_row.set_quantity(s_row.get_quantity() - o_ol_quantities[ol_number] + 91);
-      }
-      Debug("    Quantity: %u", o_ol_quantities[ol_number]);
-      s_row.set_ytd(s_row.get_ytd() + o_ol_quantities[ol_number]);
-      s_row.set_order_cnt(s_row.get_order_cnt() + 1);
-      Debug("    Remaining Quantity: %u", s_row.get_quantity());
-      Debug("    YTD: %u", s_row.get_ytd());
-      Debug("    Order Count: %u", s_row.get_order_cnt());
-      if (w_id != o_ol_supply_w_ids[ol_number]) {
-        s_row.set_remote_cnt(s_row.get_remote_cnt() + 1);
-      }
-      statement = fmt::format("UPDATE {} SET quantity = {}, ytd = {}, order_cnt = {}, remote_cnt = {} WHERE i_id = {} AND w_id = {}",
-          STOCK_TABLE, s_row.get_quantity(), s_row.get_ytd(), s_row.get_order_cnt(), s_row.get_remote_cnt(), o_ol_i_ids[ol_number], o_ol_supply_w_ids[ol_number]);
-      client.Write(statement, timeout, true); 
+  //     // (6.5) If available quantity exceeds requested quantity by more than 10, just reduce available quant by the requested amount.
+  //     // Otherwise, add 91 new items.
+  //     if (s_row.get_quantity() - o_ol_quantities[ol_number] >= 10) {
+  //       s_row.set_quantity(s_row.get_quantity() - o_ol_quantities[ol_number]); 
+  //     } else {
+  //       s_row.set_quantity(s_row.get_quantity() - o_ol_quantities[ol_number] + 91);
+  //     }
+  //     Debug("    Quantity: %u", o_ol_quantities[ol_number]);
+  //     s_row.set_ytd(s_row.get_ytd() + o_ol_quantities[ol_number]);
+  //     s_row.set_order_cnt(s_row.get_order_cnt() + 1);
+  //     Debug("    Remaining Quantity: %u", s_row.get_quantity());
+  //     Debug("    YTD: %u", s_row.get_ytd());
+  //     Debug("    Order Count: %u", s_row.get_order_cnt());
+  //     if (w_id != o_ol_supply_w_ids[ol_number]) {
+  //       s_row.set_remote_cnt(s_row.get_remote_cnt() + 1);
+  //     }
+  //     statement = fmt::format("UPDATE {} SET quantity = {}, ytd = {}, order_cnt = {}, remote_cnt = {} WHERE i_id = {} AND w_id = {}",
+  //         STOCK_TABLE, s_row.get_quantity(), s_row.get_ytd(), s_row.get_order_cnt(), s_row.get_remote_cnt(), o_ol_i_ids[ol_number], o_ol_supply_w_ids[ol_number]);
+  //     client.Write(statement, timeout, true); 
 
-      std::string dist_info;
-      switch (d_id) {
-        case 1:
-          dist_info = s_row.get_dist_01();
-          break;
-        case 2:
-          dist_info = s_row.get_dist_02();
-          break;
-        case 3:
-          dist_info = s_row.get_dist_03();
-          break;
-        case 4:
-          dist_info = s_row.get_dist_04();
-          break;
-        case 5:
-          dist_info = s_row.get_dist_05();
-          break;
-        case 6:
-          dist_info = s_row.get_dist_06();
-          break;
-        case 7:
-          dist_info = s_row.get_dist_07();
-          break;
-        case 8:
-          dist_info = s_row.get_dist_08();
-          break;
-        case 9:
-          dist_info = s_row.get_dist_09();
-          break;
-        case 10:
-          dist_info = s_row.get_dist_10();
-          break;
-        default:
-          NOT_REACHABLE();
-      }
-      statement = fmt::format("INSERT INTO {} (o_id, d_id, w_id, number, i_id, supply_w_id, delivery_d, quantity, amount, dist_info) "
-            "VALUES ({}, {}, {}, {}, {}, {}, {}, {}, {}, '{}');", 
-            ORDER_LINE_TABLE, o_id, d_id, w_id, ol_number, o_ol_i_ids[ol_number], o_ol_supply_w_ids[ol_number], 0, o_ol_quantities[ol_number], o_ol_quantities[ol_number] * i_row.get_price(), dist_info);
-      client.Write(statement, timeout, true);
-    }
-  }
+  //     std::string dist_info;
+  //     switch (d_id) {
+  //       case 1:
+  //         dist_info = s_row.get_dist_01();
+  //         break;
+  //       case 2:
+  //         dist_info = s_row.get_dist_02();
+  //         break;
+  //       case 3:
+  //         dist_info = s_row.get_dist_03();
+  //         break;
+  //       case 4:
+  //         dist_info = s_row.get_dist_04();
+  //         break;
+  //       case 5:
+  //         dist_info = s_row.get_dist_05();
+  //         break;
+  //       case 6:
+  //         dist_info = s_row.get_dist_06();
+  //         break;
+  //       case 7:
+  //         dist_info = s_row.get_dist_07();
+  //         break;
+  //       case 8:
+  //         dist_info = s_row.get_dist_08();
+  //         break;
+  //       case 9:
+  //         dist_info = s_row.get_dist_09();
+  //         break;
+  //       case 10:
+  //         dist_info = s_row.get_dist_10();
+  //         break;
+  //       default:
+  //         NOT_REACHABLE();
+  //     }
+  //     statement = fmt::format("INSERT INTO {} (o_id, d_id, w_id, number, i_id, supply_w_id, delivery_d, quantity, amount, dist_info) "
+  //           "VALUES ({}, {}, {}, {}, {}, {}, {}, {}, {}, '{}');", 
+  //           ORDER_LINE_TABLE, o_id, d_id, w_id, ol_number, o_ol_i_ids[ol_number], o_ol_supply_w_ids[ol_number], 0, o_ol_quantities[ol_number], o_ol_quantities[ol_number] * i_row.get_price(), dist_info);
+  //     client.Write(statement, timeout, true);
+  //   }
+  // }
 
-  client.asyncWait();
+  // client.asyncWait();
 
   Debug("COMMIT");
   return client.Commit(timeout);

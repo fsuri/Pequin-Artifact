@@ -46,7 +46,7 @@ class SQLNewOrder : public TPCCSQLTransaction {
   uint8_t ol_cnt;
   uint8_t rbk;
   std::vector<uint32_t> o_ol_i_ids;
-  std::set<uint32_t> duplicates;
+  std::set<uint32_t> unique_items;
   std::vector<uint32_t> o_ol_supply_w_ids;
   std::vector<uint8_t> o_ol_quantities;
   uint32_t o_entry_d;

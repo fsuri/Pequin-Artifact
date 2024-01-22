@@ -494,8 +494,9 @@ void PelotonTableStore::ExecPointRead(const std::string &query_statement, std::s
   // value = empty result) Client will have to check proof txn ==> lookup that  key exists in Writeset was marked as delete. Note: For Query reads that
   // would technically be the best too --> the coarse lock of the Table Version  helps simulate it.
 
-  // Note: Don't read TableVersion for PointReads -- they do not care about what
-  // other rows exist
+  // Note: Don't read TableVersion for PointReads -- they do not care about what other rows exist
+
+  Debug("ExecPointRead for query statement: %s with Timestamp[%lu:%lu]", query_statement.c_str(), ts.getTimestamp(), ts.getID());
 
   int core = sched_getcpu();
   Debug("Begin readLat on core: %d", core);
@@ -520,7 +521,6 @@ void PelotonTableStore::ExecPointRead(const std::string &query_statement, std::s
   Timestamp prepared_timestamp;         // TODO: Change into write subparts.
   std::shared_ptr<std::string> txn_dig; // prepared dependency
 
-  Debug("ExecPointRead for query statement: %s with Timestamp[%lu:%lu]", query_statement.c_str(), ts.getTimestamp(), ts.getID());
   // Execute PointQueryStatement on Peloton using traffic_cop args: query, Ts, this->can_read_prepared ; commit: (result1, timestamp1, proof), prepared: (result2, timestamp2, txn_digest), key (optional) 
   //Read latest committed (return committedProof) + Read latest prepared (if > committed)
   auto status = tcop->ExecutePointReadStatement(statement, param_values, unamed, result_format, result, ts,
@@ -563,7 +563,7 @@ void PelotonTableStore::TransformPointResult(proto::Write *write, Timestamp &com
   Debug("Transform PointResult");
   // Change Peloton result into query proto.
 
-  unsigned int rows = result.size() / tuple_descriptor.size();
+  unsigned int rows = result.empty()? 0 : result.size() / tuple_descriptor.size();
   UW_ASSERT(rows <= 2); // There should be at most 2 rows: One committed, and one prepared. The committed one always comes last. (if it exists)
 
   if (rows == 0){
@@ -660,6 +660,7 @@ void PelotonTableStore::ApplyTableWrite(const std::string &table_name, const Tab
   Latency_Start(&writeLats[core]);
 
   if (commit_or_prepare) {
+    UW_ASSERT(commit_proof);
     Debug("Before timestamp asserts for apply table write");
     UW_ASSERT(ts == Timestamp(commit_proof->txn().timestamp()));
   }

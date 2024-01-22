@@ -798,6 +798,10 @@ void Client::Commit(commit_callback ccb, commit_timeout_callback ctcb,
       }
     }
 
+    //TODO: Remove duplicate Writes and TableWrites 
+    //sort over TableWrite vector (by primary key), and erase duplicates (same primary key) (try to keep the latter.)
+
+
     //XXX flag to sort read/write sets for parallel OCC
     if(params.parallel_CCC || true){ //NOTE: FIXME: Currently always sorting: This way we can detect duplicate table versions early.
       try {
