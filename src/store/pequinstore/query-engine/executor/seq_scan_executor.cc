@@ -259,7 +259,7 @@ bool SeqScanExecutor::FindRightRowVersion(const Timestamp &txn_timestamp, std::s
           //Only "read" the first prepared version as part of result
           read_curr_version = true;
         }
-        //if we are performing snapshot, continue scanning up to k versions
+        //if we are performing snapshot, continue scanning up to k versions. Otherwise, return on first read.
         if(!perform_find_snapshot) done = true;
       }
     }

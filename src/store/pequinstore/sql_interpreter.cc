@@ -101,7 +101,7 @@ void SQLTransformer::RegisterTables(std::string &table_registry){ //TODO: This t
             //col_registry.col_name_index.emplace_back(col_name, i++);
             col_registry.col_name_index[col_name] = i++;
             col_registry.col_names.push_back(col_name);
-            (col_type == "TEXT" || col_type == "VARCHAR" || col_type == "BOOLEAN") ? col_registry.col_quotes.push_back(true) : col_registry.col_quotes.push_back(false);
+            (col_type == "TEXT" || col_type == "VARCHAR") ? col_registry.col_quotes.push_back(true) : col_registry.col_quotes.push_back(false);
         
         //std::cerr << "   Register column " << col_name << " : " << col_type << std::endl;
         }
@@ -960,6 +960,7 @@ void SQLTransformer::GenerateTableWriteStatement(std::string &write_statement, s
             write_statement += "(";
             if(fine_grained_quotes){ // Use this to add fine grained quotes:
                 for(int i = 0; i < row.column_values_size(); ++i){
+                    if(row.column_values()[i] == "true") std::cerr << "TRYING TO WRITE BOOL TRUE" << std::endl;
                     if(col_registry.col_quotes[i])  write_statement += "\'" + row.column_values()[i]  + "\'" + ", ";
                     else write_statement += row.column_values()[i] + ", ";
                 }

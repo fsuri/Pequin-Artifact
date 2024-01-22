@@ -410,7 +410,7 @@ void IndexScanExecutor::CheckRow(ItemPointer tuple_location, concurrency::Transa
     tile_group_header = head_tile_group_header;
     // auto curr_tuple_id = location.offset;
 
-    std::cout << "Head timestamp is " << tuple_timestamp.getTimestamp() << ", " << tuple_timestamp.getID() << std::endl;
+    //std::cout << "Head timestamp is " << tuple_timestamp.getTimestamp() << ", " << tuple_timestamp.getID() << std::endl;
 
     //Find the Right Row Version to read
     bool done = false;
@@ -468,6 +468,7 @@ bool IndexScanExecutor::FindRightRowVersion(const Timestamp &timestamp, std::sha
 {
     /////////////////////////////// PESTO MODIFIERS  -- these are just aliases for convenience  ///////////////////////////////////
     bool perform_read = current_txn->GetHasReadSetMgr();
+    bool perform_point_read = current_txn->IsPointRead();
 
     bool perform_find_snapshot = current_txn->GetHasSnapshotMgr();
     auto snapshot_mgr = current_txn->GetSnapshotMgr();
@@ -478,7 +479,7 @@ bool IndexScanExecutor::FindRightRowVersion(const Timestamp &timestamp, std::sha
     UW_ASSERT(!perform_read_on_snapshot || perform_read); //if read on snapshot, must be performing read.
   
 
-  Debug("Perform read? %d. Perform find snapshot? %d. Perform read_on_snapshot? %d", perform_read, perform_find_snapshot, perform_read_on_snapshot);
+  Debug("Perform read? %d. Point read? %d. Perform find snapshot? %d. Perform read_on_snapshot? %d", perform_read, perform_point_read, perform_find_snapshot, perform_read_on_snapshot);
    ///////////////////////////////////////////////////////////////////////////////////
   UW_ASSERT(!(perform_find_snapshot && perform_read_on_snapshot)); //shouldn't do both simultaneously currently. Though we could support it in theory.
 
@@ -489,7 +490,7 @@ bool IndexScanExecutor::FindRightRowVersion(const Timestamp &timestamp, std::sha
   bool init_mode = !perform_read && !perform_find_snapshot && !perform_read_on_snapshot;
 
   // If reading.
-  if (perform_read || init_mode) {
+  if (perform_read || perform_point_read || init_mode ) {
     // Three cases: Tuple is committed, or prepared. If prepared, it might have been forceMaterialized
     
     // If the tuple is committed read the version.    Try to read committed always -- whether it is eager or snapshot_read
@@ -500,7 +501,7 @@ bool IndexScanExecutor::FindRightRowVersion(const Timestamp &timestamp, std::sha
 
       Timestamp const &committed_timestamp = tile_group_header->GetBasilTimestamp(tuple_location.offset);
       Debug("Read Committed Timestamp: [%lu:%lu]", committed_timestamp.getTimestamp(), committed_timestamp.getID());
-      if (current_txn->IsPointRead()) SetPointRead(current_txn, tile_group_header, tuple_location, committed_timestamp);
+      if (perform_point_read) SetPointRead(current_txn, tile_group_header, tuple_location, committed_timestamp);
     } 
     else { //tuple is prepared
       if (!perform_read_on_snapshot){   //if doing eager read
@@ -520,11 +521,11 @@ bool IndexScanExecutor::FindRightRowVersion(const Timestamp &timestamp, std::sha
           found_prepared = true;
           //Only "read" the first prepared version as part of result
           read_curr_version = true;
-
-          if (current_txn->IsPointRead()) SetPointRead(current_txn, tile_group_header, tuple_location, prepared_timestamp);
+          Debug("Read Prepared Timestamp: [%lu:%lu]", prepared_timestamp.getTimestamp(), prepared_timestamp.getID());
+          if (perform_point_read) SetPointRead(current_txn, tile_group_header, tuple_location, prepared_timestamp);
         }
-        //if we are performing snapshot, continue scanning up to k versions
-        if(!perform_find_snapshot) done = true;
+        //if we are performing snapshot, continue scanning up to k versions. Otherwise, for normal read, stop reading. For PointRead, keep going until commit.
+        if(!perform_find_snapshot && !perform_point_read) done = true;
       }
     }
   }
@@ -799,7 +800,7 @@ void IndexScanExecutor::SetPointRead(concurrency::TransactionContext *current_tx
     auto prepared_txn_digest = current_txn->GetPreparedTxnDigest();
     *prepared_txn_digest = tile_group_header->GetTxnDig(tuple_location.offset);
 
-    Debug("PointRead PreparedTS:[%lu:%lu], dependency: %s", current_txn->GetPreparedTimestamp()->getTimestamp(), current_txn->GetPreparedTimestamp()->getID(), *prepared_txn_digest);
+    Debug("PointRead PreparedTS:[%lu:%lu], dependency: %s", current_txn->GetPreparedTimestamp()->getTimestamp(), current_txn->GetPreparedTimestamp()->getID(), (*prepared_txn_digest)->c_str());
           
   }
 }         
@@ -932,7 +933,6 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup_OLD() {
     tile_group_header = head_tile_group_header;
     // auto curr_tuple_id = location.offset;
 
-    std::cout << "Head timestamp is " << tuple_timestamp.getTimestamp() << ", " << tuple_timestamp.getID() << std::endl;
 
     ContainerTuple<storage::TileGroup> row_(tile_group.get(), tuple_location.offset);
 
@@ -951,7 +951,6 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup_OLD() {
       ++chain_length;
       auto tuple_timestamp = tile_group_header->GetBasilTimestamp(tuple_location.offset);
       Debug("Tuple TS: [%lu:%lu]", tuple_timestamp.getTimestamp(), tuple_timestamp.getID());
-      std::cout << "Tuple timestamp is " << tuple_timestamp.getTimestamp() << ", " << tuple_timestamp.getID() << std::endl;
 
       if (timestamp >= tuple_timestamp) {
         // Within range of timestamp

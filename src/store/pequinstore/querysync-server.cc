@@ -313,7 +313,7 @@ void Server::ProcessPointQuery(const uint64_t &reqId, proto::Query *query, const
     table_store->ExecPointRead(query->query_cmd(), enc_primary_key, ts, write, committedProof);
     delete query;
 
-    if(write->has_committed_value()){
+    if(write->has_committed_value()){ 
         UW_ASSERT(committedProof); //proof must exist
         *pointQueryReply->mutable_proof() = *committedProof; //FIXME: Debug Seg here
     } 

@@ -918,7 +918,7 @@ executor::ExecutionResult TrafficCop::ExecutePointReadHelper(
   // auto time = txn->GetCommitTimestamp();
   // time.setTimestamp(1024);
 
-  // Set the commit proof
+  // Set the commit proof pointer
   txn->SetCommittedProofRef(commit_proof);
   // commit_proof = txn->GetCommittedProof();
   //  Set the prepared timestamp
@@ -926,9 +926,10 @@ executor::ExecutionResult TrafficCop::ExecutePointReadHelper(
   // Set the prepared txn_dig
   txn->SetPreparedTxnDigest(txn_dig);
 
+  // Set the value references.
   txn->SetCommittedValue(write->mutable_committed_value());
   txn->SetPreparedValue(write->mutable_prepared_value());
-  //WARNING: Accessing mutable turns "has_committed/prepared_value" to true, even if they are empty!!
+  //WARNING: Accessing mutable turns "has_committed/prepared_value" to true, even if they are empty!! Clear them if empty!.
   
 
 
@@ -938,6 +939,8 @@ executor::ExecutionResult TrafficCop::ExecutePointReadHelper(
   txn->SetHasReadSetMgr(false);
   // Is a point read query
   txn->SetIsPointRead(true);
+
+   Debug("PointRead for: Basil Timestamp to [%lu:%lu]. IsPoint: %d", txn->GetBasilTimestamp().getTimestamp(), txn->GetBasilTimestamp().getID(), txn->IsPointRead());
 
   // skip if already aborted
   if (curr_state.second == ResultType::ABORTED) {
@@ -1069,10 +1072,12 @@ std::shared_ptr<Statement> TrafficCop::PrepareStatement(
       // note this transaction is not single-statement transaction
       LOG_TRACE("BEGIN");
       single_statement_txn_ = false;
+      Debug("Begin statement)");
     } else {
       // single statement
       LOG_TRACE("SINGLE TXN");
       single_statement_txn_ = true;
+      Debug("Single statement TXN. All queries should be this (since we don't use TX semantics inside Peloton)");
     }
     auto txn = txn_manager.BeginTransaction(thread_id);
     // this shouldn't happen

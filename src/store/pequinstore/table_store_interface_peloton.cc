@@ -168,7 +168,7 @@ PelotonTableStore::ParseAndPrepare(const std::string &query_statement, peloton::
     Panic("SQL command not valid: %s", query_statement.size() < 1000? query_statement.c_str() : 
         (query_statement.substr(0, 500) + " ... " + query_statement.substr(query_statement.size()-500)).c_str()); // return peloton::ResultType::FAILURE;
   }
-  Debug("Finished preparing statement");
+  Debug("Finished preparing statement: %s", query_statement.substr(0, 1000).c_str());
   return statement;
 }
 
@@ -480,7 +480,6 @@ std::string PelotonTableStore::ExecReadQuery(const std::string &query_statement,
 void PelotonTableStore::ExecPointRead(const std::string &query_statement, std::string &enc_primary_key, const Timestamp &ts,
       proto::Write *write, const proto::CommittedProof* &committedProof) {
   
-  Debug("ExecPointRead for query statement: %s with Timestamp[%lu:%lu]", query_statement.c_str(), ts.getTimestamp(), ts.getID());
   // Client sends query statement, and expects a Query Result for the given key, a timestamp, and a proof (if it was a committed value it read) Note:
   // Sending a query statement (even though it is a point request) allows us to handle complex Select operators (like Count, Max, or just some subset of
   // rows, etc) without additional parsing Since the CC-store holds no data, the server would have to generate a statement anyways --> so it's easiest to
@@ -521,6 +520,7 @@ void PelotonTableStore::ExecPointRead(const std::string &query_statement, std::s
   Timestamp prepared_timestamp;         // TODO: Change into write subparts.
   std::shared_ptr<std::string> txn_dig; // prepared dependency
 
+  Debug("ExecPointRead for query statement: %s with Timestamp[%lu:%lu]", query_statement.c_str(), ts.getTimestamp(), ts.getID());
   // Execute PointQueryStatement on Peloton using traffic_cop args: query, Ts, this->can_read_prepared ; commit: (result1, timestamp1, proof), prepared: (result2, timestamp2, txn_digest), key (optional) 
   //Read latest committed (return committedProof) + Read latest prepared (if > committed)
   auto status = tcop->ExecutePointReadStatement(statement, param_values, unamed, result_format, result, ts,
@@ -604,11 +604,18 @@ void PelotonTableStore::TransformPointResult(proto::Write *write, Timestamp &com
 
     Debug("PointRead Committed Val: %s", BytesToHex(write->committed_value(), 100).c_str());
   }
+  else{
+    write->clear_committed_value();
+    //WARNING: Accessing mutable_committed_value in traffic topturns "has_committed/prepared_value" to true, even if they are empty!! Clear them if empty!.
+  }
   
   // Prepared
   //if (rows < 2) return; // no prepared //FIX: Remove this line. We might read only a prepared row, and no committed one.
 
   if(!write->prepared_value().empty()){ //Indicate that the prepared version produced a result. If not, just return empty result
+
+    if(write->committed_value().empty()) Panic("In current test there should always be a committed value to read");
+
     row = queryResultBuilder.new_row();
     for (unsigned int i = 0; i < tuple_descriptor.size(); i++) {
       std::string &column_name = std::get<0>(tuple_descriptor[i]);
@@ -622,10 +629,15 @@ void PelotonTableStore::TransformPointResult(proto::Write *write, Timestamp &com
     
     Debug("PointRead Prepared Val: %s", BytesToHex(write->prepared_value(), 100).c_str());
   }
+  else{
+    write->clear_prepared_value();
+    //WARNING: Accessing mutable_prepared_value turns "has_committed/prepared_value" to true, even if they are empty!! Clear them if empty!.
+  }
    
   Debug("Read Committed? %d. read Prepared? %d", write->has_committed_value(), write->has_prepared_value());
   return;
 }
+
 
 //////////////////////// WRITE STATEMENTS
 

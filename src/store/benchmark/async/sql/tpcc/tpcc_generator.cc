@@ -386,7 +386,7 @@ void GenerateOrderTableForWarehouseDistrict(uint32_t w_id, uint32_t d_id,
     }
     uint32_t ol_cnt = std::uniform_int_distribution<uint32_t>(5, 15)(gen);
     values.push_back(std::to_string(ol_cnt));
-    values.push_back(std::to_string(true));
+    values.push_back("true");
     writer.add_row(table_name, values);
     values.clear();
     
