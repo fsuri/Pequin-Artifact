@@ -52,6 +52,9 @@ TableWriter::~TableWriter(){
 //--> How would these be enforced? DB engine would say an operation failed -> app should abort? (app abort, not system abort) 
 
 void TableWriter::add_table(const std::string &table_name, const std::vector<std::pair<std::string, std::string>>& column_names_and_types, const std::vector<uint32_t> primary_key_col_idx){
+
+    std::cout << "Shir: adding table " <<table_name <<std::endl;
+
     json &table = tables[table_name];
     table["table_name"] = table_name; //Not needed for parsing, but can make it easier to search for "table_name" if trying to read Json file.
     table["column_names_and_types"] = json(column_names_and_types);  //Note: data type length should be part of type. 

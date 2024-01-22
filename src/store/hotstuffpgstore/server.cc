@@ -30,6 +30,7 @@
 #include <iostream>
 #include <sys/time.h>
 #include <cstdlib>
+#include <fmt/core.h>
 
 namespace hotstuffpgstore {
 
@@ -58,6 +59,8 @@ Server::Server(const transport::Configuration& config, KeyManager *keyManager,
 
   // Start the cluster before trying to connect:
   // version and cluster name should match the ones in Pequin-Artifact/pg_setup/postgres_service.sh script
+  // const char* scriptName = "../pg_setup/postgres_service.sh -r";
+  // std::system(scriptName);
   // const char* command = "sudo pg_ctlcluster 12 pgdata start";
   // system(command);
 
@@ -68,6 +71,7 @@ Server::Server(const transport::Configuration& config, KeyManager *keyManager,
 
   // password should match the one created in Pequin-Artifact/pg_setup/postgres_service.sh script
   // port should match the one that appears when executing "pg_lsclusters -h"
+  // std::string connection_str = "host=localhost user=pequin_user password=123 dbname=" + db_name + " port=5433";
   std::string connection_str = "host=localhost user=pequin_user password=123 dbname=" + db_name + " port=5432";
 
   Debug("Shir: 33333333333333333333333333333333333333333333333333333333333");
@@ -906,6 +910,138 @@ void Server::Load(const string &key, const string &value,
 
       // }
 }
+
+
+// TODO: For hotstuffPG store --> let proxy call into PG
+void Server::CreateTable(const std::string &table_name, const std::vector<std::pair<std::string, std::string>> &column_data_types, const std::vector<uint32_t> &primary_key_col_idx){
+  // //Based on Syntax from: https://www.postgresqltutorial.com/postgresql-tutorial/postgresql-create-table/ 
+
+  Debug("Shir: Creating table!");
+
+  //NOTE: Assuming here we do not need special descriptors like foreign keys, column condidtions... (If so, it maybe easier to store the SQL statement in JSON directly)
+  UW_ASSERT(!column_data_types.empty());
+  UW_ASSERT(!primary_key_col_idx.empty());
+
+  std::string sql_statement("CREATE TABLE");
+  sql_statement += " " + table_name;
+  
+  sql_statement += " (";
+  for(auto &[col, type]: column_data_types){
+    std::string p_key = (primary_key_col_idx.size() == 1 && col == column_data_types[primary_key_col_idx[0]].first) ? " PRIMARY KEY": "";
+    sql_statement += col + " " + type + p_key + ", ";
+  }
+
+  sql_statement.resize(sql_statement.size() - 2); //remove trailing ", "
+
+  if(primary_key_col_idx.size() > 1){
+    sql_statement += ", PRIMARY_KEY ";
+    if(primary_key_col_idx.size() > 1) sql_statement += "(";
+
+    for(auto &p_idx: primary_key_col_idx){
+      sql_statement += column_data_types[p_idx].first + ", ";
+    }
+    sql_statement.resize(sql_statement.size() - 2); //remove trailing ", "
+
+    if(primary_key_col_idx.size() > 1) sql_statement += ")";
+  }
+  
+  
+  sql_statement +=");";
+
+  // std::cerr << "Create Table: " << sql_statement << std::endl;
+
+  this->exec_statement(sql_statement);
+
+  //Create TABLE version  -- just use table_name as key.  This version tracks updates to "table state" (as opposed to row state): I.e. new row insertions; row deletions;
+  //Note: It does currently not track table creation/deletion itself -- this is unsupported. If we do want to support it, either we need to make a separate version; 
+                                                                 //or we require inserts/updates to include the version in the ReadSet. 
+                                                                 //However, we don't want an insert to abort just because another row was inserted.
+  Load(table_name, "", Timestamp());
+
+  //Create TABLE_COL version -- use table_name + delim + col_name as key. This version tracks updates to "column state" (as opposed to table state): I.e. row Updates;
+  //Updates to column values change search meta data such as Indexes on a given Table. Scans that search on the column (using Active Reads) should conflict
+  for(auto &[col_name, _] : column_data_types){
+    Load(table_name + unique_delimiter + col_name, "", Timestamp());
+  }
+}
+
+void Server::CreateIndex(const std::string &table_name, const std::vector<std::pair<std::string, std::string>> &column_data_types, const std::string &index_name, const std::vector<uint32_t> &index_col_idx){
+  // Based on Syntax from: https://www.postgresqltutorial.com/postgresql-indexes/postgresql-create-index/ and  https://www.postgresqltutorial.com/postgresql-indexes/postgresql-multicolumn-indexes/
+  // CREATE INDEX index_name ON table_name(a,b,c,...);
+  Debug("Shir: Creating index!");
+
+  UW_ASSERT(!column_data_types.empty());
+  UW_ASSERT(!index_col_idx.empty());
+  UW_ASSERT(column_data_types.size() >= index_col_idx.size());
+
+  std::string sql_statement("CREATE INDEX");
+  sql_statement += " " + index_name;
+  sql_statement += " ON " + table_name;
+
+  sql_statement += "(";
+  for (auto &i_idx : index_col_idx) {
+    sql_statement += column_data_types[i_idx].first + ", ";
+  }
+  sql_statement.resize(sql_statement.size() - 2); // remove trailing ", "
+
+  sql_statement += ");";
+
+  this->exec_statement(sql_statement);
+}
+
+
+void Server::LoadTableData(const std::string &table_name, const std::string &table_data_path, const std::vector<uint32_t> &primary_key_col_idx){
+  Debug("Shir: Load Table data!");
+  std::string copy_table_statement = fmt::format("COPY {0} FROM {1} DELIMITER ',' CSV HEADER", table_name, table_data_path);
+}
+
+void Server::LoadTableRows(const std::string &table_name, const std::vector<std::pair<std::string, std::string>> &column_data_types, const std::vector<std::vector<std::string>> &row_values, const std::vector<uint32_t> &primary_key_col_idx ){
+  Debug("Shir: Load Table rows!");
+  //Shir: add logic
+  // auto committedItr = committed.find("");
+  // UW_ASSERT(committedItr != committed.end());
+  // //std::string genesis_tx_dig("");
+  // Timestamp genesis_ts(0,0);
+  // proto::CommittedProof *genesis_proof = committedItr->second;
+
+  // std::string genesis_txn_dig = TransactionDigest(genesis_proof->txn(), params.hashDigest); //("");
+
+  //  //TODO: Instead of using the INSERT SQL statement, could generate a TableWrite and use the TableWrite API.
+  // TableWrite &table_write = (*genesis_proof->mutable_txn()->mutable_table_writes())[table_name];
+  // for(auto &row: row_values){
+  //   RowUpdates *new_row = table_write.add_rows();
+  //   for(auto &value: row){
+  //     new_row->add_column_values(value);
+  //   }
+  // }
+  
+  // ApplyTableWrites(genesis_proof->txn(), genesis_ts, genesis_txn_dig, genesis_proof);
+  
+  // genesis_proof->mutable_txn()->clear_table_writes(); //don't need to keep storing them. 
+
+  // std::vector<const std::string*> primary_cols;
+  // for(auto i: primary_key_col_idx){
+  //   primary_cols.push_back(&(column_data_types[i].first));
+  // }
+  // std::string enc_key = EncodeTableRow(table_name, primary_cols);
+  // Load(enc_key, "", Timestamp());
+}
+
+
+//!!"Deprecated" (Unused)
+void Server::LoadTableRow(const std::string &table_name, const std::vector<std::pair<std::string, std::string>> &column_data_types, const std::vector<std::string> &values, const std::vector<uint32_t> &primary_key_col_idx ){
+    Debug("Shir: Load Table row!");
+}
+
+
+void Server::exec_statement(std::string sql_statement) {
+  Debug("Shir: executing the following sql statement in postgres: ");
+  std::cerr<< sql_statement << "\n";
+
+  auto connection = connectionPool->connection();
+  connection->execute(sql_statement);
+}
+
 
 Stats &Server::GetStats() {
   return stats;

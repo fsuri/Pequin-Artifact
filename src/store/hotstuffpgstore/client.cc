@@ -173,39 +173,52 @@ void Client::Abort(abort_callback acb, abort_timeout_callback atcb, uint32_t tim
   });
 }
 
+void Client::SQLRequest(std::string &statement, sql_callback scb, sql_timeout_callback stcb, uint32_t timeout){
+  transport->Timer(0, [this, statement, scb, stcb, timeout](){
 
-void Client::Query(const std::string &query, query_callback qcb, query_timeout_callback qtcb, uint32_t timeout, bool skip_query_interpretation) {
-  transport->Timer(0, [this, query, qcb, qtcb, timeout](){
-
-    std::cerr<< "Shir: performing query transaction 1\n";
-
+    std::cerr<< "Shir: performing SQLRequest transaction 1\n";
     Debug("Shir: step 30");
-
     Debug("Query called");
 
-    inquiry_callback icb = [qcb, query, this](int status, const std::string& sql_res) {
+    inquiry_callback icb = [scb, statement, this](int status, const std::string& sql_res) {
       // if(status == REPLY_OK) {
       //   // Take Query Result Proto serialization and transform it into a query result here
       // }
       // sql::QueryResultProtoWrapper query_obj(sql_res);
       Debug("Received query response");
       QueryMessage *query_msg = currentTxn.add_queryset();
-      query_msg->set_query(query);
+      query_msg->set_query(statement);
       query_result::QueryResult* query_res = new sql::QueryResultProtoWrapper(sql_res);
-      qcb(status, query_res);
+      scb(status, query_res);
       Debug("Shir: step 45");
 
     };
-    inquiry_timeout_callback itcb = qtcb;
+    inquiry_timeout_callback itcb = stcb;
+
     Debug("Shir: step 40");
+    std::cerr<< "Shir: performing SQLRequest transaction 2\n";
 
-    std::cerr<< "Shir: performing query transaction 2\n";
-
-
-    bclient[0]->Query(query, currentTxn.timestamp(), client_id, client_seq_num, icb, itcb, timeout);
+    bclient[0]->Query(statement, currentTxn.timestamp(), client_id, client_seq_num, icb, itcb, timeout);
     Debug("Shir: step 50");
 
   });
+}
+
+
+void Client::Query(const std::string &query, query_callback qcb, query_timeout_callback qtcb, uint32_t timeout, bool skip_query_interpretation) {
+    Debug("Processing Query Statement: %s", query.c_str());
+    std::string non_const_query = query;
+    this->SQLRequest(non_const_query,qcb,qtcb,timeout);
+    // Query(write_statement,wcb,wtcb,timeout,false);
+    // Shir: check that non_const thing is fine
+}
+
+
+void Client::Write(std::string &write_statement, write_callback wcb,
+      write_timeout_callback wtcb, uint32_t timeout){
+    Debug("Processing Write Statement: %s", write_statement.c_str());
+    Query(write_statement,wcb,wtcb,timeout,false);
+    this->SQLRequest(write_statement,wcb,wtcb,timeout);
 }
 
 bool Client::IsParticipant(int g) {

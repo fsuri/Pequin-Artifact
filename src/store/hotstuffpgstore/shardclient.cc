@@ -511,7 +511,7 @@ void ShardClient::HandleInquiryReply(const proto::InquiryReply& inquiryReply, co
     PendingInquiry* pendingInquiry = &pendingInquiries[reqId];
 
     pendingInquiry->numReceivedReplies++;
-    Debug("Shir: got an additional reply");
+    Debug("Shir: got an additional reply. request:  %lu now has  %lu replies.",reqId,pendingInquiry->numReceivedReplies);
     if(signMessages) { // May have to just take the second path?
       uint64_t replica_id = signedMsg.replica_id();
       if (replica_id / config.n != (uint64_t) group_idx) {

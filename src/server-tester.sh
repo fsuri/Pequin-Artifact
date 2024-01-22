@@ -50,6 +50,6 @@ for j in `seq 0 $((NUM_GROUPS-1))`; do
 		echo --replica_idx $i
 		echo server$(($i+$j*$N)).out 
 		#store/$STORE/*
-		DEBUG=store/$STORE/* store/server store/hotstuffstore/libhotstuff/examples/* --config_path $CONFIG --group_idx $j --num_groups $NUM_GROUPS --num_shards $NUM_GROUPS --replica_idx $i --protocol $PROTOCOL --num_keys $NUM_KEYS_IN_DB --debug_stats --indicus_key_path $KEY_PATH &> ./0_local_test_outputs/server$(($i+$j*$N)).out &
+		DEBUG=store/$STORE/* store/server store/hotstuffstore/libhotstuff/examples/* --config_path $CONFIG --group_idx $j --num_groups $NUM_GROUPS --num_shards $NUM_GROUPS --replica_idx $i --protocol $PROTOCOL --num_keys $NUM_KEYS_IN_DB  --sql_bench=$SQL_BENCH --data_file_path $FILE_PATH --debug_stats --indicus_key_path $KEY_PATH &> ./0_local_test_outputs/server$(($i+$j*$N)).out &
 	done;
 done;

@@ -435,7 +435,7 @@ DEFINE_uint64(num_keys, 0, "number of keys to generate");
 DEFINE_string(data_file_path, "", "path to file containing key-value pairs to be loaded");
 DEFINE_bool(sql_bench, false, "Load not just key-value pairs, but also Tables. Input file is JSON Tabe args");
 DEFINE_uint64(num_tables, 10, "number of tables to generate");
-DEFINE_uint64(num_keys_per_table, 100, "number of keys to generate per table");
+DEFINE_uint64(num_keys_per_table, 3, "number of keys to generate per table");
 
 Server *server = nullptr;
 TransportReceiver *replica = nullptr;
@@ -958,6 +958,9 @@ int main(int argc, char **argv) {
 
   //RW, Retwis
   if (FLAGS_data_file_path.empty() && FLAGS_keys_path.empty()) {
+
+    Notice("Shir: debugging server 1111111111\n");
+
     Notice("Benchmark: RW, Retwis");
     /*if (FLAGS_num_keys > 0) {
       for (size_t i = 0; i < FLAGS_num_keys; ++i) {
@@ -997,6 +1000,9 @@ int main(int argc, char **argv) {
   } 
   //SQL Benchmarks -- they all require a schema file!
   else if(FLAGS_sql_bench && FLAGS_data_file_path.length() > 0 && FLAGS_keys_path.empty()) {
+
+     Notice("Shir: debugging server 222222222222\n");
+
      Notice("Benchmark: SQL with Loaded Table Registry");
        std::ifstream generated_tables(FLAGS_data_file_path);
        json tables_to_load;
@@ -1044,6 +1050,11 @@ int main(int argc, char **argv) {
       
   }
   else if (FLAGS_data_file_path.length() > 0 && FLAGS_keys_path.empty()) {
+
+
+
+    Notice("Shir: debugging server 33333333333333\n");
+
     Notice("Benchmark: TPCC/Smallbank");
 
     std::ifstream in;
@@ -1076,6 +1087,8 @@ int main(int argc, char **argv) {
     // Debug("Stored %lu out of %lu key-value pairs from file %s.", stored,
     //     loaded, FLAGS_data_file_path.c_str());
   } else {
+    Notice("Shir: debugging server 444444444444\n");
+
     Notice("Benchmark: reading from keys");
     std::ifstream in;
     in.open(FLAGS_keys_path);

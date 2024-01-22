@@ -558,6 +558,7 @@ const std::string benchmark_args[] = {
   "rw",
   "tpcc-sync",
   "toy",
+  "tpcc-sql",
   "rw-sql"
 };
 const benchmode_t benchmodes[] {
@@ -804,9 +805,9 @@ int main(int argc, char **argv) {
   for (int i = 0; i < numBenchs; ++i) {
     if (FLAGS_benchmark == benchmark_args[i]) {
       benchMode = benchmodes[i];
-      // std::cout << "Shir" << std::endl;
-      // std::cout << benchMode << std::endl;
-      // std::cout << "Shir2" << std::endl;
+      std::cout << "Shir" << std::endl;
+      std::cout << benchMode << std::endl;
+      std::cout << "Shir2" << std::endl;
       break;
     }
   }
@@ -1667,6 +1668,7 @@ int main(int argc, char **argv) {
         break;
       case BENCH_RW_SQL:
         UW_ASSERT(syncClient != nullptr);
+        std::cout << "Shir: rw sql mode" << std::endl;
         bench = new rwsql::RWSQLClient(FLAGS_num_ops_txn, querySelector, FLAGS_rw_read_only,
             *syncClient, *tport, seed,
             FLAGS_num_requests, FLAGS_exp_duration, FLAGS_delay,

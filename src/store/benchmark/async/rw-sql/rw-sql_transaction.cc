@@ -28,6 +28,9 @@
 #include <fmt/core.h>
 #include "store/common/query_result/query_result.h"
 #include "rw-sql_transaction.h"
+#include "lib/cereal/archives/binary.hpp"
+#include "lib/cereal/types/string.hpp"
+
 
 namespace rwsql {
 
@@ -69,6 +72,8 @@ transaction_status_t RWSQLTransaction::Execute(SyncClient &client) {
   past_ranges.clear();
   statements.clear();
 
+  std::cerr << "Shir  33 + liveops= " << liveOps<< std::endl;
+
 
   Debug("Start next Transaction");
   //std::cerr << "Exec next TX" << std::endl;
@@ -81,16 +86,24 @@ transaction_status_t RWSQLTransaction::Execute(SyncClient &client) {
     std::cerr << "starts size: " << starts.size() << std::endl;
     //UW_ASSERT(liveOps <= (querySelector->numKeys)); //there should never be more ops than keys; those should've been cancelled. FIXME: new splits might only be cancelled later.
 
+    // std::cerr << "Shir  44" << std::endl;
+
+
     string table_name = "table_" + std::to_string(tables[i]);
     int left_bound = starts[i]; 
     int right_bound = ends[i];  //If right_bound < left_bound, wrap around and read >= left, and <= right. Turn statement into OR
     UW_ASSERT(left_bound < querySelector->numKeys && right_bound < querySelector->numKeys);
+
+    // std::cerr << "Shir  55" << std::endl;
 
     if(DISABLE_WRAP_AROUND && right_bound < left_bound){
       std::cerr << "DO NOT ALLOW WRAP AROUNDS. ADJUST QUERY TO LEFT = 0" << std::endl;
       left_bound = 0;
       //continue;
     }
+
+    // std::cerr << "Shir  66" << std::endl;
+
 
     if(AVOID_DUPLICATE_READS){
       //adjust bounds: shrink to not overlap. //if shrinkage makes bounds invert => cancel this read.
@@ -112,7 +125,9 @@ transaction_status_t RWSQLTransaction::Execute(SyncClient &client) {
     //Note: Updates will not conflict on TableVersion -- Because we are not changing primary key, which is the search condition.  
   }
 
+  Debug("Shir: getting results");
   GetResults(client);
+  Debug("Shir: got results");
  
 
     // client.Abort(timeout);
@@ -198,6 +213,22 @@ void RWSQLTransaction::GetResults(SyncClient &client){
     client.Wait(results);
 
     for(auto &queryResult: results){
+
+
+      //Shir: Adding the following section to debug
+      std::stringstream ss(std::ios::in | std::ios::out | std::ios::binary);
+      size_t nbytes;
+      const char* out = queryResult->get(0, 0, &nbytes);
+      std::string output(out, nbytes);
+      ss << output;
+      std::string output_row;
+      {
+        cereal::BinaryInputArchive iarchive(ss); // Create an input archive
+        iarchive(output_row); // Read the data from the archive
+      }
+        std::cerr << "Query Done: " << output_row << std::endl << std::endl;
+      //Shir: until here
+
       if(!readOnly) UW_ASSERT(queryResult->rows_affected());
       std::cerr << "Num rows affected: " << queryResult->rows_affected() << std::endl;
     }

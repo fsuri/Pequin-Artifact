@@ -78,9 +78,13 @@ class Client : public ::Client {
   virtual void Abort(abort_callback acb, abort_timeout_callback atcb,
       uint32_t timeout) override;
 
+  virtual void SQLRequest(std::string &statement, sql_callback scb, sql_timeout_callback stcb, uint32_t timeout) override;
+
   // Perform the given query.
   virtual void Query(const std::string &query, query_callback qcb,
       query_timeout_callback qtcb, uint32_t timeout, bool skip_query_interpretation = false) override;
+
+  virtual void Write(std::string &write_statement, write_callback wcb,write_timeout_callback wtcb, uint32_t timeout) override;
 
   // void Query_Commit(commit_callback ccb, commit_timeout_callback ctcb, uint32_t timeout);
 
