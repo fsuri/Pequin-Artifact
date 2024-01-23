@@ -777,6 +777,7 @@ void IndexScanExecutor::SetPointRead(concurrency::TransactionContext *current_tx
     Debug("Setting the commit proof");
     // Get the commit proof
     auto write_commit_proof = tile_group_header->GetCommittedProof(tuple_location.offset);
+    Debug("Getting Commit proof from tuple: [%lu:%lu]", tuple_location.block, tuple_location.offset);
     UW_ASSERT(write_commit_proof); //Every committed tuple must have a commit proof.
 
     // Set the commit proof reference.

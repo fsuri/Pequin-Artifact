@@ -103,7 +103,8 @@ struct StringVisitor {
         return std::to_string(i);
     }
     std::string operator()(bool &b) const { 
-        return std::to_string(b);
+        return b? "true" : "false";
+        //return std::to_string(b);
     }
     std::string operator()(std::string& s) const { 
         return s;
