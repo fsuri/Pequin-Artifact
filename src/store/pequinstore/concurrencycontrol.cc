@@ -57,6 +57,9 @@
 
 namespace pequinstore {
 
+  static bool PRINT_READ_SET = true;
+
+
 //TODO: Problem: FIXME: Probably not safe to modify transaction. -- must hold ongoing lock for entire duration of any tx uses? --> not possible..
 //Solution: Store elsewhere (don't override read-set) -- Refactor CC and Prepare to take read set pointer as argument -- in non-query case, let that read set point to normal readset.
 //Can we still edit read_set_merge field? If so, that is a good place to store it to re-use for Commit -- Test if that causes problems with sending out tx in parallel. (might result in corrupted protobuf messages)
@@ -411,6 +414,13 @@ proto::ConcurrencyControl::Result Server::mergeTxReadSets(const ReadSet *&readSe
   //attach base dep-set
   mergedReadSet->mutable_deps()->MergeFrom(txn.deps());
 
+  if(PRINT_READ_SET){
+    Debug("Read set post incremental merger");
+    for(auto &read: mergedReadSet->read_set()){
+      Debug("key: %s. version: [%lu:%lu]", read.key().c_str(), read.readtime().timestamp(), read.readtime().id());
+    }
+  }
+
 //TODO: STORE IN MERGED_READ_SET in its own data structure.
 //FIXME: It is not safe to handle a Tx over multiple threads if one of them is writing to it. However, it seems to work fine for txnDigest field? Do we need to fix that?
 
@@ -429,6 +439,7 @@ proto::ConcurrencyControl::Result Server::mergeTxReadSets(const ReadSet *&readSe
     catch(...) {
       //restoreTxn(txn); //TODO: Maybe don't delete merged set -- we do want to use it for Commit again. //TODO: Maybe we cannot store mergedSet inside read after all? What if another thread tries to use Tx in parallel mid modification..
       Debug("Merge indicates duplicate key with different version. Vote Abstain");
+      Panic("shouldn't happen for our choice of queries.");
       return proto::ConcurrencyControl::ABSTAIN;
     }
   }

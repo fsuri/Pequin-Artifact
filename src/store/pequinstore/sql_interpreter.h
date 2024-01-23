@@ -153,11 +153,15 @@ typedef struct ColRegistry {
 } ColRegistry;
 
 
+typedef std::map<std::string, ColRegistry> TableRegistry_t;
 class SQLTransformer {
     public:
         SQLTransformer(){}
         ~SQLTransformer(){}
         void RegisterTables(std::string &table_registry);
+        inline TableRegistry_t* GetTableRegistry(){
+            return &TableRegistry;
+        } 
         inline ColRegistry* GetColRegistry(const std::string &table_name){
             return &TableRegistry.at(table_name);
         }
@@ -183,7 +187,7 @@ class SQLTransformer {
         proto::Transaction *txn;
 
         //Table Schema
-        std::map<std::string, ColRegistry> TableRegistry;
+        TableRegistry_t TableRegistry;
        
         void TransformInsert(size_t pos, std::string_view &write_statement, 
             std::string &read_statement, std::function<void(int, query_result::QueryResult*)>  &write_continuation, write_callback &wcb);

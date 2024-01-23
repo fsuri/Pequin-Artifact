@@ -262,10 +262,17 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
     int num_tuples_examined = 0;
   #endif
 
+  std::cerr << "Number of rows to check " << tuple_location_ptrs.size() << std::endl;
+  int max_size = std::min((int)tuple_location_ptrs.size(), 50);
+  tuple_location_ptrs.resize(max_size);
+  tuple_location_ptrs.shrink_to_fit();
+  std::cerr << "Number of rows to check (bounded)" << tuple_location_ptrs.size() << std::endl;
   // for every tuple that is found in the index.
   for (auto tuple_location_ptr : tuple_location_ptrs) {
     CheckRow(*tuple_location_ptr, transaction_manager, current_txn, storage_manager, visible_tuple_locations, visible_tuple_set);
   }
+
+  std::cerr << "Number of checked rows " << tuple_location_ptrs.size() << std::endl;
 
   // std::cout << "Outside for loop" << std::endl;
   LOG_TRACE("Examined %d tuples from index %s", num_tuples_examined, index_->GetName().c_str());
@@ -358,11 +365,14 @@ void IndexScanExecutor::ManageReadSet(ItemPointer &tuple_location, std::shared_p
     ContainerTuple<storage::TileGroup> row(tile_group.get(), tuple_location.offset);
 
     std::vector<std::string> primary_key_cols;
-    for (auto const &col : primary_index_columns_) {
-      auto const &val = row.GetValue(col);
+    for (auto const &col_idx : current_txn->GetTableRegistry()->at(table_->GetName()).primary_col_idx) {
+    //for (auto const &col_idx : primary_index_columns_) { //These are not the right primary key cols. They may be secondary index cols...
+      auto const &val = row.GetValue(col_idx);
       primary_key_cols.push_back(val.ToString());
-      Debug("Read set value: %s", val.ToString().c_str());
+      Debug("Read set. Primary col %d has value: %s", col_idx, val.ToString().c_str());
+      std::cerr << "primary col: " << col_idx << std::endl;
     }
+
 
     const Timestamp &time = tile_group_header->GetBasilTimestamp(tuple_location.offset);
     std::string &&encoded = EncodeTableRow(table_->GetName(), primary_key_cols);
@@ -424,12 +434,14 @@ void IndexScanExecutor::CheckRow(ItemPointer tuple_location, concurrency::Transa
     size_t chain_length = 0;
     size_t num_iters = 0;
 
+    int max_num_reads = current_txn->IsPointRead()? 2 : 1;
+    int num_reads = 0;
+
     while(!done){
       ++chain_length;
 
       auto tuple_timestamp = tile_group_header->GetBasilTimestamp(tuple_location.offset);
       Debug("Tuple TS: [%lu:%lu]", tuple_timestamp.getTimestamp(), tuple_timestamp.getID());
-      std::cout << "Tuple timestamp is " << tuple_timestamp.getTimestamp() << ", " << tuple_timestamp.getID() << std::endl;
 
       if (timestamp >= tuple_timestamp) {
         // Within range of timestamp
@@ -438,6 +450,7 @@ void IndexScanExecutor::CheckRow(ItemPointer tuple_location, concurrency::Transa
 
         //Eval should be called on the latest readable version. Note: For point reads we will call this up to twice (for prepared & committed)
         if(read_curr_version && !snapshot_only_mode){
+          UW_ASSERT(++num_reads <= max_num_reads); //Assert we are not reading more than 1 for scans, and no more than 2 for point
           EvalRead(tile_group, tile_group_header, tuple_location, visible_tuple_locations, current_txn, use_secondary_index);  //TODO: might be more elegant to move this into FindRightRowVersion
         }
       }
@@ -571,6 +584,8 @@ bool IndexScanExecutor::FindRightRowVersion(const Timestamp &timestamp, std::sha
       // We are done if we read k prepared versions
       done = num_iters >= current_txn->GetKPreparedVersions();
     }
+    std::cerr << "Num_iters: " << num_iters << std::endl;
+    std::cerr << "Max_Prepared_versions: " << current_txn->GetKPreparedVersions() << std::endl;
   }
 
   //Current tuple was not readable.
@@ -812,6 +827,7 @@ void IndexScanExecutor::SetPointRead(concurrency::TransactionContext *current_tx
 
 void IndexScanExecutor::ManageSnapshot(concurrency::TransactionContext *current_txn, storage::TileGroupHeader *tile_group_header, ItemPointer tuple_location, const Timestamp &write_timestamp, size_t &num_iters, bool commit_or_prepare){
 
+  Debug("Manage Snapshot. Add TS [%lu:%lu]", write_timestamp.getTimestamp(), write_timestamp.getID());
   auto txn_digest = tile_group_header->GetTxnDig(tuple_location.offset);
   UW_ASSERT(txn_digest);
 
@@ -1595,8 +1611,9 @@ bool IndexScanExecutor::ExecSecondaryIndexLookup() {
     // Table column version : FIXME: Read version per Col, not composite key
     std::unordered_set<std::string> column_names;
     //std::vector<std::string> col_names;
-    GetColNames(predicate_, column_names);
+    GetColNames(predicate_, column_names); 
 
+    //Get the Versions of all Columns that are Indexed. I.e. all versions that impact what we end up reading.
     for (auto &col : column_names) {
       std::cout << "Col name is " << col << std::endl;
       current_txn->GetTableVersion()(EncodeTableCol(table_->GetName(), col), current_txn_timestamp, current_txn->GetHasReadSetMgr(), query_read_set_mgr, current_txn->GetHasSnapshotMgr(), current_txn->GetSnapshotMgr());

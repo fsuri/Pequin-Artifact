@@ -60,6 +60,8 @@ transaction_status_t SQLDelivery::Execute(SyncClient &client) {
   // (1) Retrieve the row from NEW-ORDER with the lowest order id
   //     If none is found, skip delivery of an order for this district. 
 
+  //TODO: Turn this into Point Read and Point Update on a separate EarliestNewOrder table.
+
   statement = fmt::format("SELECT MIN(o_id) FROM {} WHERE d_id = {} AND w_id = {};", NEW_ORDER_TABLE, d_id, w_id);
   //statement = fmt::format("SELECT o_id FROM NewOrder WHERE d_id = {} AND w_id = {} ORDER BY o_id ASC LIMIT 1;", d_id, w_id);
   client.Query(statement, queryResult, timeout);

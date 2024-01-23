@@ -424,7 +424,7 @@ std::string PelotonTableStore::ExecReadQuery(const std::string &query_statement,
   counter->store(1);
 
   // execute the query using tcop
-  auto status = tcop->ExecuteReadStatement(statement, param_values, unamed, result_format, result, 
+  auto status = tcop->ExecuteReadStatement(statement, param_values, unamed, result_format, result, sql_interpreter.GetTableRegistry(),
                                             ts, &this->record_table_version, &this->can_read_prepared, peloton::PequinMode::eagerRead, &readSetMgr);
   // auto status = tcop->ExecuteReadStatement(statement, param_values, unamed, result_format, result, ts, readSetMgr,
   //     this->record_table_version, this->can_read_prepared);
@@ -602,7 +602,8 @@ void PelotonTableStore::TransformPointResult(proto::Write *write, Timestamp &com
     write->set_committed_value(queryResultBuilder.get_result()->SerializeAsString()); // Note: This "clears" the builder
     committed_timestamp.serialize(write->mutable_committed_timestamp());
 
-    Debug("PointRead Committed Val: %s", BytesToHex(write->committed_value(), 100).c_str());
+    Debug("PointRead Committed Val: %s. Version:[%lu:%lu]", BytesToHex(write->committed_value(), 100).c_str(), committed_timestamp.getTimestamp(), committed_timestamp.getID());
+    std::cerr << "TS after serialization: " << write->committed_timestamp().timestamp() << std::endl;
   }
   else{
     write->clear_committed_value();
@@ -628,7 +629,8 @@ void PelotonTableStore::TransformPointResult(proto::Write *write, Timestamp &com
     write->set_prepared_txn_digest(*txn_dig);
     UW_ASSERT(!write->prepared_txn_digest().empty());
  
-    Debug("PointRead Prepared Val: %s. Dependency: %s", BytesToHex(write->prepared_value(), 20).c_str(), BytesToHex(write->prepared_txn_digest(), 16).c_str());
+    Debug("PointRead Prepared Val: %s. Version:[%lu:%lu]. Dependency: %s", BytesToHex(write->prepared_value(), 20).c_str(), 
+          prepared_timestamp.getTimestamp(), prepared_timestamp.getID(), BytesToHex(write->prepared_txn_digest(), 16).c_str());
   }
   else{
     write->clear_prepared_value();
@@ -863,7 +865,7 @@ void PelotonTableStore::FindSnapshot(const std::string &query_statement, const T
   counter->store(1);
   
   // execute the query using tcop
-  auto status = tcop->ExecuteReadStatement(statement, param_values, unamed, result_format, result, 
+  auto status = tcop->ExecuteReadStatement(statement, param_values, unamed, result_format, result, sql_interpreter.GetTableRegistry(),
                                             ts, &this->record_table_version, &this->can_read_prepared, peloton::PequinMode::findSnapshot, nullptr, &ssMgr, snapshot_prepared_k); //Read k latest prepared.
   // auto status = tcop->ExecuteFindSnapshotStatement(statement, param_values, unamed, result_format, result, ts, &ssMgr, k_prepared_versions,
   //     this->record_table_version, this->can_read_prepared);
@@ -904,7 +906,7 @@ std::string PelotonTableStore::EagerExecAndSnapshot(const std::string &query_sta
   counter->store(1);
 
   // execute the query using tcop
-  auto status = tcop->ExecuteReadStatement(statement, param_values, unamed, result_format, result, 
+  auto status = tcop->ExecuteReadStatement(statement, param_values, unamed, result_format, result, sql_interpreter.GetTableRegistry(),
                                             ts, &this->record_table_version, &this->can_read_prepared, peloton::PequinMode::eagerPlusSnapshot, &readSetMgr, &ssMgr, snapshot_prepared_k);
   // auto status = tcop->ExecuteEagerExecAndSnapshotStatement(statement, param_values, unamed, result_format, result, ts, readSetMgr, &ssMgr, k_prepared_versions,
   //     this->record_table_version, this->can_read_prepared);
@@ -951,7 +953,7 @@ std::string PelotonTableStore::ExecReadQueryOnMaterializedSnapshot(const std::st
   counter->store(1);
 
   // execute the query using tcop
-  auto status = tcop->ExecuteReadStatement(statement, param_values, unamed, result_format, result, 
+  auto status = tcop->ExecuteReadStatement(statement, param_values, unamed, result_format, result, sql_interpreter.GetTableRegistry(),
                                           ts, &this->record_table_version, &this->can_read_prepared, peloton::PequinMode::readMaterialized, &readSetMgr, nullptr, 1, &ss_txns);
   // auto status = tcop->ExecuteSnapshotReadStatement(statement, param_values, unamed, result_format, result, ts, readSetMgr, &ss_txns,
   //     this->record_table_version, this->can_read_prepared);

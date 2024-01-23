@@ -31,6 +31,7 @@
 #include "../parser/sql_statement.h"
 #include "../type/type.h"
 // #include "../../store/pequinstore/table_store_interface.h"
+#include "../../store/pequinstore/sql_interpreter.h"
 
 namespace peloton {
 
@@ -90,6 +91,7 @@ public:
     const std::vector<type::Value> &params, UNUSED_ATTRIBUTE bool unnamed,
     const std::vector<int> &result_format, std::vector<ResultValue> &result,
     //////////////////////// PEQUIN ARGS //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    const pequinstore::TableRegistry_t *table_reg,
     const Timestamp &basil_timestamp,
     pequinstore::find_table_version *find_table_version,
     pequinstore::read_prepared_pred *read_prepared_pred,
@@ -205,6 +207,7 @@ public:
   executor::ExecutionResult ExecuteReadHelper(
     std::shared_ptr<planner::AbstractPlan> plan, const std::vector<type::Value> &params, std::vector<ResultValue> &result, const std::vector<int> &result_format, 
     //////////////////////// PEQUIN ARGS ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    const pequinstore::TableRegistry_t *table_reg,
     const Timestamp &basil_timestamp,
     pequinstore::find_table_version *find_table_version,
     pequinstore::read_prepared_pred *read_prepared_pred,

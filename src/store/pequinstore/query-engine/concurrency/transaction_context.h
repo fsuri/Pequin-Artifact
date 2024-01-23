@@ -27,6 +27,7 @@
 #include "../common/item_pointer.h"
 #include "../common/printable.h"
 #include "store/pequinstore/pequin-proto.pb.h"
+#include "../../store/pequinstore/sql_interpreter.h"
 
 namespace peloton {
 
@@ -280,6 +281,12 @@ public:
    */
   void SetReadOnly() { read_only_ = true; }
 
+  const pequinstore::TableRegistry_t * GetTableRegistry() { return table_reg_;}
+   
+  void SetTableRegistry(const pequinstore::TableRegistry_t *table_reg){
+    table_reg_ = table_reg;
+  }
+
   Timestamp GetBasilTimestamp() { return basil_timestamp_; }
 
   void SetBasilTimestamp(const Timestamp &basil_timestamp) {
@@ -491,6 +498,9 @@ private:
 
   /** timestamp when the transaction began */
   uint64_t timestamp_;
+
+  // Reference to the TableRegistry
+  const pequinstore::TableRegistry_t *table_reg_;
 
   /** Basil timestamp */
   Timestamp basil_timestamp_;

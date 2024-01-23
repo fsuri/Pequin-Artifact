@@ -651,6 +651,22 @@ void Client::QueryResultCallback(PendingQuery *pendingQuery,
   else if(pendingQuery->version == 0 && params.query_params.eagerExec) stats.Increment("EagerExec_successes", 1);
   else stats.Increment("Sync_successes", 1);
 
+  Debug("Result size: %d. Result rows affected: %d", q_result->size(), q_result->rows_affected());
+
+  if(TEST_READ_SET){
+    for(int i = 0; i < q_result->size(); ++i){
+      std::unique_ptr<query_result::Row> row = (*q_result)[i]; 
+      Debug("Checking row at index: %d", i);
+      // For col in col_updates update the columns specified by update_cols. Set value to update_values
+      for(int j=0; j<row->num_columns(); ++j){
+          const std::string &col = row->name(j);
+          std::unique_ptr<query_result::Field> field = (*row)[j];
+          const std::string &field_val = field->get();
+          Debug("  %s:  %s", col.c_str(), field_val.c_str());
+      }
+    }
+  }
+
   pendingQuery->qcb(REPLY_OK, q_result); //callback to application 
   //clean pendingQuery and query_seq_num_mapping in all shards.
   //ClearQuery(pendingQuery); ==> now clearing all Queries together only upon Writeback
