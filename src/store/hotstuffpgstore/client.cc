@@ -176,9 +176,9 @@ void Client::Abort(abort_callback acb, abort_timeout_callback atcb, uint32_t tim
 void Client::SQLRequest(std::string &statement, sql_callback scb, sql_timeout_callback stcb, uint32_t timeout){
   transport->Timer(0, [this, statement, scb, stcb, timeout](){
 
-    std::cerr<< "Shir: performing SQLRequest transaction 1\n";
     Debug("Shir: step 30");
     Debug("Query called");
+    std::cerr << "Shir:  issue SQLRequest from client:     "<<statement << std::endl;
 
     inquiry_callback icb = [scb, statement, this](int status, const std::string& sql_res) {
       // if(status == REPLY_OK) {
@@ -196,7 +196,6 @@ void Client::SQLRequest(std::string &statement, sql_callback scb, sql_timeout_ca
     inquiry_timeout_callback itcb = stcb;
 
     Debug("Shir: step 40");
-    std::cerr<< "Shir: performing SQLRequest transaction 2\n";
 
     bclient[0]->Query(statement, currentTxn.timestamp(), client_id, client_seq_num, icb, itcb, timeout);
     Debug("Shir: step 50");

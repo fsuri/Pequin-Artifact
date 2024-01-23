@@ -54,6 +54,7 @@ class QueryResultProtoBuilder {
   auto add_columns(const std::vector<std::string>& columns) -> void;
   auto add_column(const std::string& name) -> void;
   auto add_empty_row() -> void;
+  auto set_rows_affected(const uint32_t n_rows_affected) -> void;
 
   auto get_result() -> std::unique_ptr<SQLResultProto>;
 

@@ -30,6 +30,21 @@ done
 
 N=$((3*$F+1))
 
+
+
+if [ "$PROTOCOL" = "hotstuffpg" ] ; then
+    echo "Setting up postgres enviorment with $N different databases"
+	../pg_setup/postgres_service.sh -r
+	../pg_setup/postgres_service.sh -n $N
+	pg_lsclusters -h
+
+fi
+
+
+
+
+
+
 echo '[1] Shutting down possibly open servers'
 for j in `seq 0 $((NUM_GROUPS-1))`; do
 	for i in `seq 0 $((N-1))`; do

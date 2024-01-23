@@ -71,7 +71,6 @@ Server::Server(const transport::Configuration& config, KeyManager *keyManager,
 
   // password should match the one created in Pequin-Artifact/pg_setup/postgres_service.sh script
   // port should match the one that appears when executing "pg_lsclusters -h"
-  // std::string connection_str = "host=localhost user=pequin_user password=123 dbname=" + db_name + " port=5433";
   std::string connection_str = "host=localhost user=pequin_user password=123 dbname=" + db_name + " port=5432";
 
   Debug("Shir: 33333333333333333333333333333333333333333333333333333333333");
@@ -509,9 +508,10 @@ std::vector<::google::protobuf::Message*> Server::HandleTransaction(const proto:
     Debug("Attempt query %s", inquiry.query());
     std::cout << inquiry.query() << std::endl;
 
-    // Debug("Shir is now handling Inquiry 3.50");
     const auto sql_res = tr->execute(inquiry.query());
-    // Debug("Shir is now handling Inquiry 3.51");
+    // tr->commit(); // Shir: do we want to commit here?
+    std::cerr<< "Shir: number of rows affected (according to server):   "<<sql_res.rows_affected() <<"\n";
+
 
     Debug("Query executed");
     sql::QueryResultProtoBuilder* res_builder = new sql::QueryResultProtoBuilder();
@@ -520,7 +520,7 @@ std::vector<::google::protobuf::Message*> Server::HandleTransaction(const proto:
 
   // Debug("Shir is now handling Inquiry 4");
 
-
+    res_builder->set_rows_affected(sql_res.rows_affected());
     if(sql_res.columns() == 0) {
       Debug("Had rows affected");
       res_builder->add_empty_row();
@@ -948,7 +948,7 @@ void Server::CreateTable(const std::string &table_name, const std::vector<std::p
   
   sql_statement +=");";
 
-  // std::cerr << "Create Table: " << sql_statement << std::endl;
+  std::cerr << "Create Table: " << sql_statement << std::endl;
 
   this->exec_statement(sql_statement);
 
@@ -997,34 +997,8 @@ void Server::LoadTableData(const std::string &table_name, const std::string &tab
 
 void Server::LoadTableRows(const std::string &table_name, const std::vector<std::pair<std::string, std::string>> &column_data_types, const std::vector<std::vector<std::string>> &row_values, const std::vector<uint32_t> &primary_key_col_idx ){
   Debug("Shir: Load Table rows!");
-  //Shir: add logic
-  // auto committedItr = committed.find("");
-  // UW_ASSERT(committedItr != committed.end());
-  // //std::string genesis_tx_dig("");
-  // Timestamp genesis_ts(0,0);
-  // proto::CommittedProof *genesis_proof = committedItr->second;
-
-  // std::string genesis_txn_dig = TransactionDigest(genesis_proof->txn(), params.hashDigest); //("");
-
-  //  //TODO: Instead of using the INSERT SQL statement, could generate a TableWrite and use the TableWrite API.
-  // TableWrite &table_write = (*genesis_proof->mutable_txn()->mutable_table_writes())[table_name];
-  // for(auto &row: row_values){
-  //   RowUpdates *new_row = table_write.add_rows();
-  //   for(auto &value: row){
-  //     new_row->add_column_values(value);
-  //   }
-  // }
-  
-  // ApplyTableWrites(genesis_proof->txn(), genesis_ts, genesis_txn_dig, genesis_proof);
-  
-  // genesis_proof->mutable_txn()->clear_table_writes(); //don't need to keep storing them. 
-
-  // std::vector<const std::string*> primary_cols;
-  // for(auto i: primary_key_col_idx){
-  //   primary_cols.push_back(&(column_data_types[i].first));
-  // }
-  // std::string enc_key = EncodeTableRow(table_name, primary_cols);
-  // Load(enc_key, "", Timestamp());
+  std::string sql_statement = this->GenerateLoadStatement(table_name,row_values,0);
+  this->exec_statement(sql_statement);
 }
 
 
@@ -1035,11 +1009,28 @@ void Server::LoadTableRow(const std::string &table_name, const std::vector<std::
 
 
 void Server::exec_statement(std::string sql_statement) {
-  Debug("Shir: executing the following sql statement in postgres: ");
-  std::cerr<< sql_statement << "\n";
+  // Debug("Shir: executing the following sql statement in postgres: ");
+  // std::cerr<< sql_statement << "\n";
 
   auto connection = connectionPool->connection();
   connection->execute(sql_statement);
+}
+
+
+std::string Server::GenerateLoadStatement(const std::string &table_name, const std::vector<std::vector<std::string>> &row_segment, int segment_no){
+  std::string load_statement = fmt::format("INSERT INTO {0} VALUES ", table_name);
+  for(auto &row: row_segment){
+        load_statement += "(";
+            for(int i = 0; i < row.size(); ++i){
+               load_statement += row[i] + ", ";
+            }
+        load_statement.resize(load_statement.length()-2); //remove trailing ", "
+        load_statement += "), ";
+    }
+    load_statement.resize(load_statement.length()-2); //remove trailing ", "
+    load_statement += ";";
+    Debug("Generate Load Statement for Table %s. Segment %d. Statement: %s", table_name.c_str(), segment_no, load_statement.substr(0, 1000).c_str());
+    return load_statement;
 }
 
 

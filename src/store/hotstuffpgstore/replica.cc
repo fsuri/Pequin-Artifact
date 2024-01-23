@@ -439,15 +439,15 @@ void Replica::HandleRequest(const TransportAddress &remote,
       hotstuffpg_interface.propose(digest_b2, execb_bubble2);
 
 
-      // std::string digest_b3("bubble3");     
-      // std::function<void(const std::string&, uint32_t seqnum)> execb_bubble3 =
-      //   [this, digest_b3](const std::string&, uint32_t seqnum){
-      //     stats->Increment("hotstuffpg_exec_bubble 3", 1);
-      //     std::cerr<<"Calling bubble dummt execute slots 3" << std::endl;
-      //     pendingExecutions[seqnum] = digest_b3;
-      //     executeSlots();
-      //   };
-      // hotstuffpg_interface.propose(digest_b3, execb_bubble3);
+      std::string digest_b3("bubble3");     
+      std::function<void(const std::string&, uint32_t seqnum)> execb_bubble3 =
+        [this, digest_b3](const std::string&, uint32_t seqnum){
+          stats->Increment("hotstuffpg_exec_bubble 3", 1);
+          std::cerr<<"Calling bubble dummt execute slots 3" << std::endl;
+          pendingExecutions[seqnum] = digest_b3;
+          executeSlots();
+        };
+      hotstuffpg_interface.propose(digest_b3, execb_bubble3);
 
       // std::string digest_b4("bubble4");     
       // std::function<void(const std::string&, uint32_t seqnum)> execb_bubble4 =

@@ -65,5 +65,9 @@ auto QueryResultProtoBuilder::add_empty_row() -> void {
   result->add_rows();
 }
 
+auto QueryResultProtoBuilder::set_rows_affected(const uint32_t n_rows_affected) -> void {
+  result->set_rows_affected(n_rows_affected);
+}
+
 } //namespace sql
 

@@ -123,6 +123,8 @@ private:
 
   void exec_statement(std::string sql_statement);
 
+  std::string GenerateLoadStatement(const std::string &table_name, const std::vector<std::vector<std::string>> &row_segment, int segment_no);
+
   std::vector<::google::protobuf::Message*> HandleTransaction(const proto::Transaction& transaction);
 
   ::google::protobuf::Message* HandleInquiry(const proto::Inquiry& inquiry);

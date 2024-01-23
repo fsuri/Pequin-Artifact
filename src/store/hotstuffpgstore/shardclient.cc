@@ -147,8 +147,7 @@ void ShardClient::ReceiveMessage(const TransportAddress &remote,
 
     } else if (pmsg.type() == inquiryReply.GetTypeName()) {
       Debug("Inquiry packed message");
-    crypto::PubKey* replicaPublicKey = keyManager->GetPublicKey(
-        signedMessage.replica_id());
+      crypto::PubKey* replicaPublicKey = keyManager->GetPublicKey(signedMessage.replica_id());
       if (!hotstuffpgBatchedSigs::verifyBatchedSignature(signedMessage.mutable_signature(), signedMessage.mutable_packed_msg(),
             replicaPublicKey)) {
              Debug("dec signature was invalid, inquiry reply");

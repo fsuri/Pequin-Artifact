@@ -38,7 +38,7 @@ namespace rwsql {
 RWSQLTransaction::RWSQLTransaction(QuerySelector *querySelector, uint64_t &numOps, std::mt19937 &rand, bool readOnly) 
     : SyncTransaction(10000), querySelector(querySelector), numOps(numOps), readOnly(readOnly), numKeys((int) querySelector->numKeys){
   
-  //std::cout << "New TX with numOps " << numOps << std::endl;
+  std::cout << "New TX with numOps " << numOps << std::endl;
   for (int i = 0; i < numOps; ++i) { //Issue at least numOps many Queries
     uint64_t table = querySelector->tableSelector->GetKey(rand);  //Choose which table to read from for query i
     tables.push_back(table);
@@ -125,7 +125,6 @@ transaction_status_t RWSQLTransaction::Execute(SyncClient &client) {
     //Note: Updates will not conflict on TableVersion -- Because we are not changing primary key, which is the search condition.  
   }
 
-  Debug("Shir: getting results");
   GetResults(client);
   Debug("Shir: got results");
  
@@ -136,6 +135,11 @@ transaction_status_t RWSQLTransaction::Execute(SyncClient &client) {
   
 
   transaction_status_t commitRes = client.Commit(timeout);
+
+  std::cerr << "Shir: passed commit !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"  << std::endl;
+
+
+
   std::cerr << "TXN COMMIT STATUS: " << commitRes << std::endl;
 
   //Panic("stop after one");
@@ -214,20 +218,6 @@ void RWSQLTransaction::GetResults(SyncClient &client){
 
     for(auto &queryResult: results){
 
-
-      //Shir: Adding the following section to debug
-      std::stringstream ss(std::ios::in | std::ios::out | std::ios::binary);
-      size_t nbytes;
-      const char* out = queryResult->get(0, 0, &nbytes);
-      std::string output(out, nbytes);
-      ss << output;
-      std::string output_row;
-      {
-        cereal::BinaryInputArchive iarchive(ss); // Create an input archive
-        iarchive(output_row); // Read the data from the archive
-      }
-        std::cerr << "Query Done: " << output_row << std::endl << std::endl;
-      //Shir: until here
 
       if(!readOnly) UW_ASSERT(queryResult->rows_affected());
       std::cerr << "Num rows affected: " << queryResult->rows_affected() << std::endl;

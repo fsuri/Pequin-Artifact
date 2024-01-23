@@ -43,15 +43,8 @@ while getopts 'urn:v' flag; do
         ;;
 
     r) 
-        read -r -p "Are you sure you want to drop the existing postgres cluster? This will delete all existing info [y/N] " response
-        case "$response" in
-            [yY][eE][sS]|[yY]) 
-                drop_postgres_cluster=true
-                ;;
-            *)
-                exit 1
-                ;;
-        esac
+        drop_postgres_cluster=true
+        echo "Dropping existing postgres clusters"
         ;;
     
     n)
@@ -132,7 +125,7 @@ else
     sudo mount -t tmpfs -o size=$SIZE,nr_inodes=10k,mode=0777 tmpfs $DATA
     
 
-    sudo pg_createcluster -u $USER -d $DATA/db $PGV $CLUSTERID -l $DATA/log --start-conf=manual -s $DATA/socket
+    sudo pg_createcluster -u $USER -d $DATA/db $PGV $CLUSTERID -l $DATA/log --start-conf=manual -s $DATA/socket -p 5432
     sudo rsync -avz $DATA/db/ $DATA/dbinit/
     sudo sed -i '89s/^/local   all             all                                     trust\n/' /etc/postgresql/12/pgdata/pg_hba.conf
 
