@@ -726,6 +726,8 @@ executor::ExecutionResult TrafficCop::ExecuteWriteHelper(
   txn->SetUndoDelete(false);
   // Set has read set mgr to false
   txn->SetHasReadSetMgr(false);
+  txn->SetIsPointRead(false);
+  txn->SetHasSnapshotMgr(false);
   // Set whether to force materialize
   txn->SetForceMaterialize(forceMaterialize);
 

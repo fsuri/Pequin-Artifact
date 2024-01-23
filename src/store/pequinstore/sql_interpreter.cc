@@ -590,6 +590,7 @@ void SQLTransformer::TransformUpdate(size_t pos, std::string_view &write_stateme
 
         //For each row in query result
         for(int i = 0; i < result->size(); ++i){
+            std::cerr << "Row: " << i << std::endl;
             std::unique_ptr<query_result::Row> row = (*result)[i]; 
 
             //Note: Enc key is based on pkey values, not col names!!!  -- if we want access to index; can store in primary key map too.

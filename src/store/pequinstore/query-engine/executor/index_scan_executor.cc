@@ -267,6 +267,7 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
   tuple_location_ptrs.resize(max_size);
   tuple_location_ptrs.shrink_to_fit();
   std::cerr << "Number of rows to check (bounded)" << tuple_location_ptrs.size() << std::endl;
+  if(current_txn->IsPointRead()) UW_ASSERT(tuple_location_ptrs.size() == 1);
   // for every tuple that is found in the index.
   for (auto tuple_location_ptr : tuple_location_ptrs) {
     CheckRow(*tuple_location_ptr, transaction_manager, current_txn, storage_manager, visible_tuple_locations, visible_tuple_set);
@@ -404,7 +405,7 @@ void IndexScanExecutor::CheckRow(ItemPointer tuple_location, concurrency::Transa
     // the following code traverses the version chain until a certain visible version is found. we should always find a visible version from a version chain.
     // NOTE: Similar read logic as seq_scan_executor
     auto const &timestamp = current_txn->GetBasilTimestamp();
-    Debug(" Txn TS: [%lu, %lu]", timestamp.getTimestamp(), timestamp.getID());
+    Debug("Current Txn TS: [%lu, %lu]", timestamp.getTimestamp(), timestamp.getID());
    
     // Get the head of the version chain (latest version)
     ItemPointer *head = tile_group_header->GetIndirection(tuple_location.offset);
@@ -441,7 +442,7 @@ void IndexScanExecutor::CheckRow(ItemPointer tuple_location, concurrency::Transa
       ++chain_length;
 
       auto tuple_timestamp = tile_group_header->GetBasilTimestamp(tuple_location.offset);
-      Debug("Tuple TS: [%lu:%lu]", tuple_timestamp.getTimestamp(), tuple_timestamp.getID());
+      Debug("Looking at Tuple at location [%lu:%lu] with TS: [%lu:%lu]", tuple_location.block, tuple_location.offset, tuple_timestamp.getTimestamp(), tuple_timestamp.getID());
 
       if (timestamp >= tuple_timestamp) {
         // Within range of timestamp
@@ -499,7 +500,7 @@ bool IndexScanExecutor::FindRightRowVersion(const Timestamp &timestamp, std::sha
   auto txn_digest = tile_group_header->GetTxnDig(tuple_location.offset);
   bool done = false;
 
-  Debug("Tuple commit state: %d.", tile_group_header->GetCommitOrPrepare(tuple_location.offset));
+  Debug("Tuple at location [%lu:%lu] with commit state: %d.", tuple_location.block, tuple_location.offset, tile_group_header->GetCommitOrPrepare(tuple_location.offset));
   bool init_mode = !perform_read && !perform_find_snapshot && !perform_read_on_snapshot;
 
   // If reading.
@@ -1682,6 +1683,13 @@ bool IndexScanExecutor::ExecSecondaryIndexLookup() {
   int num_blocks_reused = 0;
 #endif
   auto storage_manager = storage::StorageManager::GetInstance();
+
+  std::cerr << "Secondary Number of rows to check " << tuple_location_ptrs.size() << std::endl;
+  int max_size = std::min((int)tuple_location_ptrs.size(), INT_MAX);
+  tuple_location_ptrs.resize(max_size);
+  tuple_location_ptrs.shrink_to_fit();
+  std::cerr << "Number of rows to check (bounded)" << tuple_location_ptrs.size() << std::endl;
+  //if(current_txn->IsPointRead()) UW_ASSERT(tuple_location_ptrs.size() == 1);
 
   for (auto tuple_location_ptr : tuple_location_ptrs) {
     // ItemPointer tuple_location = *tuple_location_ptr;

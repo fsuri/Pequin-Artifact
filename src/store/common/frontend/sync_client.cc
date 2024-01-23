@@ -185,7 +185,7 @@ void SyncClient::Wait(std::vector<std::unique_ptr<const query_result::QueryResul
   values.clear();
   for (auto promise : queryPromises) {
     values.push_back(promise->ReleaseQueryResult());
-    delete promise;  //TODO: This delete seems to be unsafe.
+    delete promise;
   }
   queryPromises.clear();
 }

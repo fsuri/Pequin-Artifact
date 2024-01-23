@@ -101,6 +101,8 @@ transaction_status_t SQLDelivery::Execute(SyncClient &client) {
   client.Write(statement, timeout); //This can be async.
   Debug("  Carrier ID: %u", o_carrier_id);
 
+  //TODO: We already know the ORDER_Lines to touch from the order id? Could just loop over o_row.ol_cnt and do point accesses.
+
   // (4) Select all rows in ORDER-LINE that match the order, and update delivery dates. Retrieve total amount (sum)
   statement = fmt::format("UPDATE {} SET delivery_d = {} WHERE o_id = {} AND d_id = {} AND w_id = {};", ORDER_LINE_TABLE, ol_delivery_d, no_o_id, d_id, w_id);
   client.Write(statement, timeout); //This can be async.

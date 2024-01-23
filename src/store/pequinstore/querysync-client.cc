@@ -27,7 +27,7 @@
 
 namespace pequinstore {
 
-static bool TEST_EAGER_PLUS_SNAPSHOT = true; //Artificially cause eager exec to fail in order to trigger Sync path
+static bool TEST_EAGER_PLUS_SNAPSHOT = false; //Artificially cause eager exec to fail in order to trigger Sync path
 
 //TODO: Add: Handle Query Fail
 //-> Every shard (not just query_manager shard) should be able to send this if it observes a committed query was missed; or if the materialized snapshot frontier includes a prepare that aborted (or is guaranteed to, e.g. vote Abort)

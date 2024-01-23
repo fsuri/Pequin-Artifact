@@ -444,7 +444,7 @@ void GenerateOrderTable(uint32_t num_warehouses, uint32_t c_load_ol_i_id,
   column_names_and_types.push_back(std::make_pair("quantity", "INTEGER"));
   column_names_and_types.push_back(std::make_pair("amount", "INTEGER"));
   column_names_and_types.push_back(std::make_pair("dist_info", "TEXT"));
-  std::vector<uint32_t> primary_key_col_idx_order_line {0, 1, 2, 3};
+  std::vector<uint32_t> primary_key_col_idx_order_line {2, 1, 0, 3};
   writer.add_table(table_name, column_names_and_types, primary_key_col_idx_order_line);
 
   for (uint32_t w_id = 1; w_id <= num_warehouses; ++w_id) {
@@ -476,7 +476,7 @@ void GenerateNewOrderTable(uint32_t num_warehouses,
   column_names_and_types.push_back(std::make_pair("o_id", "INTEGER"));
   column_names_and_types.push_back(std::make_pair("d_id", "INTEGER"));
   column_names_and_types.push_back(std::make_pair("w_id", "INTEGER"));
-  const std::vector<uint32_t> primary_key_col_idx {0, 1, 2};
+  const std::vector<uint32_t> primary_key_col_idx {1, 2, 0};
   writer.add_table(table_name, column_names_and_types, primary_key_col_idx);
 
   for (uint32_t w_id = 1; w_id <= num_warehouses; ++w_id) {

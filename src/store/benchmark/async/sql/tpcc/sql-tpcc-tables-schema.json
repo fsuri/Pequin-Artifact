@@ -243,9 +243,9 @@
       ]
     ],
     "primary_key_col_idx": [
-      0,
       1,
-      2
+      2,
+      0
     ],
     "row_data_path": "sql-tpcc-data/new_order.csv",
     "table_name": "new_order"
@@ -344,9 +344,9 @@
       ]
     ],
     "primary_key_col_idx": [
-      0,
-      1,
       2,
+      1,
+      0,
       3
     ],
     "row_data_path": "sql-tpcc-data/order_line.csv",
