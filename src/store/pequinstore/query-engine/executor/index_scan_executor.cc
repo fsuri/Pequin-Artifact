@@ -1685,7 +1685,7 @@ bool IndexScanExecutor::ExecSecondaryIndexLookup() {
   auto storage_manager = storage::StorageManager::GetInstance();
 
   std::cerr << "Secondary Number of rows to check " << tuple_location_ptrs.size() << std::endl;
-  int max_size = std::min((int)tuple_location_ptrs.size(), INT_MAX);
+  int max_size = std::min((int)tuple_location_ptrs.size(), 50);
   tuple_location_ptrs.resize(max_size);
   tuple_location_ptrs.shrink_to_fit();
   std::cerr << "Number of rows to check (bounded)" << tuple_location_ptrs.size() << std::endl;

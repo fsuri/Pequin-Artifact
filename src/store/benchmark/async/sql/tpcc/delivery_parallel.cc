@@ -76,7 +76,7 @@ transaction_status_t SQLDelivery::Execute(SyncClient &client) {
   int no_o_id;
   deserialize(no_o_id, queryResult);
   statement = fmt::format("DELETE FROM {} WHERE o_id = {} AND d_id = {} AND w_id = {};", NEW_ORDER_TABLE, no_o_id, d_id, w_id);
-  client.Write(statement, queryResult, timeout); //This can be async. 
+  client.Write(statement, timeout); //This can be async. 
 
   // (3) Select the corresponding row from ORDER and extract the customer id. Update the carrier id of the order.
   //statement = fmt::format("SELECT c_id FROM \"order\" WHERE id = {} AND d_id = {} AND w_id = {};", no_o_id, d_id, w_id);
@@ -86,6 +86,7 @@ transaction_status_t SQLDelivery::Execute(SyncClient &client) {
 
   if (queryResult->empty()) {
     // already delivered all orders for this warehouse
+    client.Wait(results); //wait for the potentially async delete.
     return client.Commit(timeout);
   }
   // int c_id;
@@ -97,14 +98,14 @@ transaction_status_t SQLDelivery::Execute(SyncClient &client) {
 
  
   statement = fmt::format("UPDATE {} SET carrier_id = {} WHERE id = {} AND d_id = {} AND w_id = {};", ORDER_TABLE, o_carrier_id, no_o_id, d_id, w_id);
-  client.Write(statement, queryResult, timeout); //This can be async.
+  client.Write(statement, timeout); //This can be async.
   Debug("  Carrier ID: %u", o_carrier_id);
 
   //TODO: We already know the ORDER_Lines to touch from the order id? Could just loop over o_row.ol_cnt and do point accesses.
 
   // (4) Select all rows in ORDER-LINE that match the order, and update delivery dates. Retrieve total amount (sum)
   statement = fmt::format("UPDATE {} SET delivery_d = {} WHERE o_id = {} AND d_id = {} AND w_id = {};", ORDER_LINE_TABLE, ol_delivery_d, no_o_id, d_id, w_id);
-  client.Write(statement, queryResult, timeout); //This can be async.
+  client.Write(statement, timeout); //This can be async.
 
       //Note: Ideally Pesto does not Scan twice, but Caches the result set to perform the update (TODO: To make use of that, we'd have to not do the 2 statements in parallel)
   statement = fmt::format("SELECT SUM(amount) FROM {} WHERE o_id = {} AND d_id = {} AND w_id = {};", ORDER_LINE_TABLE, no_o_id, d_id, w_id);
@@ -118,6 +119,7 @@ transaction_status_t SQLDelivery::Execute(SyncClient &client) {
   statement = fmt::format("UPDATE {} SET balance = balance + {}, delivery_cnt = delivery_cnt + 1 WHERE id = {} AND d_id = {} AND w_id = {};", CUSTOMER_TABLE, total_amount, c_id, d_id, w_id);
   client.Write(statement, queryResult, timeout);
 
+  client.Wait(results);
 
   Debug("COMMIT");
   return client.Commit(timeout);
