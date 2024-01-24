@@ -70,7 +70,7 @@ transaction_status_t SQLOrderStatus::Execute(SyncClient &client) {
     Debug("Customer: %s", c_last.c_str());
 
     // (1. A) Retrieve a list of Customer that share the same Last Name (Secondary Key access; Scan Read). Select middle row.
-    query = fmt::format("SELECT * FROM Customer WHERE d_id = {} AND w_id = {} AND last = '{}' ORDER BY first", c_d_id, c_w_id, c_last);
+    query = fmt::format("SELECT * FROM Customer WHERE c_d_id = {} AND c_w_id = {} AND c_last = '{}' ORDER BY c_first", c_d_id, c_w_id, c_last);
     client.Query(query, queryResult, timeout);
     int namecnt = queryResult->size();
     int idx = (namecnt + 1) / 2; //round up
@@ -81,7 +81,7 @@ transaction_status_t SQLOrderStatus::Execute(SyncClient &client) {
   } else {
 
     // (1.B) Retrieve Customer based on unique Number (Primary Key access; Point Read)
-    query = fmt::format("SELECT * FROM Customer WHERE id = {} AND d_id = {} AND w_id = {}", c_id, c_d_id, c_w_id);
+    query = fmt::format("SELECT * FROM Customer WHERE c_id = {} AND c_d_id = {} AND c_w_id = {}", c_id, c_d_id, c_w_id);
     client.Query(query, queryResult, timeout);
     deserialize(c_row, queryResult);
     Debug("Customer: %u", c_id);
@@ -92,7 +92,7 @@ transaction_status_t SQLOrderStatus::Execute(SyncClient &client) {
 
   
   // (2) Select row from Order (from respective client) with the highest ID. This is the most recent order by the client. Retrieve order_id, entry date, and carried id.
-  query = fmt::format("SELECT * FROM {} WHERE d_id = {} AND w_id = {} AND c_id = {} ORDER BY id DESC LIMIT 1", ORDER_TABLE, c_d_id, c_w_id, c_id);
+  query = fmt::format("SELECT * FROM {} WHERE o_d_id = {} AND o_w_id = {} AND o_c_id = {} ORDER BY o_id DESC LIMIT 1", ORDER_TABLE, c_d_id, c_w_id, c_id);
   //FIXME: Why perform these two reads separately?? Instead issue: ONE read with ORDER BY DESC, and LIMIT to 1?
   // query = fmt::format("SELECT MAX(id) FROM \"order\" WHERE d_id = {} AND w_id = {} AND c_id = {}", c_d_id, c_w_id, c_id);
   // client.Query(query, queryResult, timeout);
@@ -112,7 +112,7 @@ transaction_status_t SQLOrderStatus::Execute(SyncClient &client) {
   //TODO: Eventually clean these up and do a SELECT ol_cnt, entry_d, carrier_id instead
 
   // (3) Select all rows from ORDER-LINE belonging to the respective order id. Retrieve OrderLine ID, Supply Warehouse id, OrderLine Quantity, OrderLine amount, and OrderLine Delivery date.
-  query = fmt::format("SELECT * FROM OrderLine WHERE o_id = {} AND d_id = {} AND w_id = {} AND number < {}", o_id, c_d_id, c_w_id, o_row.get_ol_cnt());
+  query = fmt::format("SELECT * FROM OrderLine WHERE ol_o_id = {} AND ol_d_id = {} AND ol_w_id = {} AND ol_number < {}", o_id, c_d_id, c_w_id, o_row.get_ol_cnt());
   client.Query(query, queryResult, timeout);
   Debug("COMMIT");
   return client.Commit(timeout);

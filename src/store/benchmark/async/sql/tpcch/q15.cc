@@ -11,14 +11,14 @@ transaction_status_t Q15::Execute(SyncClient &client) {
     client.Begin(timeout);
     std::string query = "CREATE view revenue0 (supplier_no, total_revenue) AS "
                     "SELECT "
-                    "mod((stock.w_id * stock.i_id),10000) as supplier_no, "
-                    "sum(order_line.amount) as total_revenue "
+                    "mod((s_w_id * s_i_id),10000) as supplier_no, "
+                    "sum(ol_amount) as total_revenue "
                     "FROM "
                     "order_line, stock "
                     "WHERE "
-                    "order_line.i_id = stock.i_id "
-                    "AND order_line.supply_w_id = stock.w_id "
-                    "AND order_line.delivery_d >= 1167714000 " //'2007-01-02 00:00:00.000000'
+                    "ol_i_id = s_i_id "
+                    "AND ol_supply_w_id = s_w_id "
+                    "AND ol_delivery_d >= 1167714000 " //'2007-01-02 00:00:00.000000'
                     "GROUP BY "
                     "supplier_no";
     client.Query(query, queryResult, timeout);

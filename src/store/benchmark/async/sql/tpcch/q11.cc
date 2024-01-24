@@ -8,20 +8,20 @@ Q11::~Q11() {}
 
 transaction_status_t Q11::Execute(SyncClient &client) {
     std::unique_ptr<const query_result::QueryResult> queryResult;
-    std::string query = "SELECT stock.i_id, "
-                     "sum(stock.order_cnt) AS ordercount "
+    std::string query = "SELECT s_i_id, "
+                     "sum(s_order_cnt) AS ordercount "
                      "FROM stock, "
                      "supplier, "
                      "nation "
-                     "WHERE mod((stock.w_id * stock.i_id), 10000) = su_suppkey "
+                     "WHERE mod((s_w_id * s_i_id), 10000) = su_suppkey "
                      "AND su_nationkey = n_nationkey "
                      "AND n_name = 'Germany' "
-                     "GROUP BY stock.i_id HAVING sum(stock.order_cnt) > "
-                     "(SELECT sum(stock.order_cnt) * .005 "
+                     "GROUP BY s_i_id HAVING sum(s_order_cnt) > "
+                     "(SELECT sum(s_order_cnt) * .005 "
                      "FROM stock, "
                      "supplier, "
                      "nation "
-                     "WHERE mod((stock.w_id * stock.i_id), 10000) = su_suppkey "
+                     "WHERE mod((s_w_id * s_i_id), 10000) = su_suppkey "
                      "AND su_nationkey = n_nationkey "
                      "AND n_name = 'Germany') "
                      "ORDER BY ordercount DESC";
