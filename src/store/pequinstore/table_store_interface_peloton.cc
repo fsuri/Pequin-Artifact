@@ -205,14 +205,36 @@ std::string PelotonTableStore::TransformResult(peloton::ResultType &status, std:
   // Add rows
   unsigned int rows = result.size() / tuple_descriptor.size();
   for (unsigned int i = 0; i < rows; i++) {
+    std::cerr << "Row[" << i << "]" << std::endl;
     RowProto *row = queryResultBuilder.new_row();
     for (unsigned int j = 0; j < tuple_descriptor.size(); j++) {
-      // TODO: Use interface addtorow, and pass in field to that row
-      queryResultBuilder.AddToRow(row, result[i * tuple_descriptor.size() + j]);
+      // Use interface addtorow, and pass in field to that row
       auto r = result[i * tuple_descriptor.size() + j];
-      std::cerr << "Col/Row" << j << " : " << r << std::endl;
+      queryResultBuilder.AddToRow(r);
+      std::cerr << "  Col [" << (std::get<0>(tuple_descriptor[j]))<< "] Value: " << r << std::endl;
     }
   }
+
+  ///
+  //sanity check.
+ 
+
+    // query_result::QueryResult *q_result = sql::QueryResultProtoWrapper(serialized_result);
+    //      Debug("Result size: %d. Result rows affected: %d", q_result->size(), q_result->rows_affected());
+
+    //     for(int i = 0; i < q_result->size(); ++i){
+    //     std::unique_ptr<query_result::Row> row = (*q_result)[i]; 
+    //     Debug("Checking row at index: %d", i);
+    //     // For col in col_updates update the columns specified by update_cols. Set value to update_values
+    //     for(int j=0; j<row->num_columns(); ++j){
+    //         const std::string &col = row->name(j);
+    //         std::unique_ptr<query_result::Field> field = (*row)[j];
+    //         const std::string &field_val = field->get();
+    //         Debug("  %s:  %s", col.c_str(), field_val.c_str());
+    //     }
+
+
+  ///
 
   return queryResultBuilder.get_result()->SerializeAsString();
 }

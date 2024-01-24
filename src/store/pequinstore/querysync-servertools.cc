@@ -184,6 +184,24 @@ std::string Server::ExecQuery(QueryReadSetMgr &queryReadSetMgr, QueryMetaData *q
 
     //Just for testing: Creating Dummy result 
     if(TEST_QUERY) return TEST_QUERY_f(query_md->query_seq_num);
+
+    if(true){
+        query_result::QueryResult *q_result = new sql::QueryResultProtoWrapper(serialized_result);
+         Debug("Result size: %d. Result rows affected: %d", q_result->size(), q_result->rows_affected());
+
+        for(int i = 0; i < q_result->size(); ++i){
+        std::unique_ptr<query_result::Row> row = (*q_result)[i]; 
+        Debug("Checking row at index: %d", i);
+        // For col in col_updates update the columns specified by update_cols. Set value to update_values
+        for(int j=0; j<row->num_columns(); ++j){
+            const std::string &col = row->name(j);
+            std::unique_ptr<query_result::Field> field = (*row)[j];
+            const std::string &field_val = field->get();
+            Debug("  %s:  %s", col.c_str(), field_val.c_str());
+        }
+    }
+  
+    }
    
     return serialized_result;
 }

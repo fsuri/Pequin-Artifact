@@ -91,9 +91,10 @@ bool ProjectionExecutor::DExecute() {
 
   else if (children_.size() == 1) {
     LOG_TRACE("Projection : child 1 ");
-
+    std::cerr << "Execute child" << std::endl;
     // Execute child
     auto status = children_[0]->Execute();
+    std::cerr << "FInished Execute child" << std::endl;
     if (false == status) return false;
 
     // Get input from child

@@ -55,6 +55,8 @@ auto QueryResultProtoBuilder::add_column(const std::string& name) -> void {
 }
 
 auto QueryResultProtoBuilder::get_result() -> std::unique_ptr<SQLResult> {
+  //Peloton may output different result orders at different servers. In order to match the result for equality easily we need them to be sorted.
+  //NOTE: If the Query statement has an ORDER BY clause, then don't sort again (that could violate the predicate order). Results will be consistent already.
   std::sort(result->mutable_rows()->begin(), result->mutable_rows()->end(), orderRowsbyCol);
   auto old_result = std::move(result);
   result = std::make_unique<SQLResult>();

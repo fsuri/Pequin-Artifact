@@ -496,8 +496,8 @@ void GenerateReservationTable(TableWriter &writer, std::vector<int> flight_to_nu
     column_names_and_types.push_back(std::make_pair("r_seat", "BIGINT"));
     column_names_and_types.push_back(std::make_pair("r_price", "FLOAT"));
     FillColumnNamesWithGenericAttr(column_names_and_types, "r_iattr", "BIGINT", 9);
-    column_names_and_types.push_back(std::make_pair("r_created", "TIMESTAMP"));
-    column_names_and_types.push_back(std::make_pair("r_updated", "TIMESTAMP"));
+    // column_names_and_types.push_back(std::make_pair("r_created", "TIMESTAMP"));
+    // column_names_and_types.push_back(std::make_pair("r_updated", "TIMESTAMP"));
     const std::vector<uint32_t> primary_key_col_idx {0};
     std::string table_name = seats_sql::RESERVATION_TABLE;
     writer.add_table(table_name, column_names_and_types, primary_key_col_idx);
