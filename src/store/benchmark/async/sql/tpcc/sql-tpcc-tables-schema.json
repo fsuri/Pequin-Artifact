@@ -2,87 +2,87 @@
   "customer": {
     "column_names_and_types": [
       [
-        "id",
+        "c_id",
         "INT"
       ],
       [
-        "d_id",
+        "c_d_id",
         "INT"
       ],
       [
-        "w_id",
+        "c_w_id",
         "INT"
       ],
       [
-        "first",
+        "c_first",
         "TEXT"
       ],
       [
-        "middle",
+        "c_middle",
         "TEXT"
       ],
       [
-        "last",
+        "c_last",
         "TEXT"
       ],
       [
-        "street_1",
+        "c_street_1",
         "TEXT"
       ],
       [
-        "street_2",
+        "c_street_2",
         "TEXT"
       ],
       [
-        "city",
+        "c_city",
         "TEXT"
       ],
       [
-        "state",
+        "c_state",
         "TEXT"
       ],
       [
-        "zip",
+        "c_zip",
         "TEXT"
       ],
       [
-        "phone",
+        "c_phone",
         "TEXT"
       ],
       [
-        "since",
+        "c_since",
         "INT"
       ],
       [
-        "credit",
+        "c_credit",
         "TEXT"
       ],
       [
-        "credit_lim",
+        "c_credit_lim",
         "INT"
       ],
       [
-        "discount",
+        "c_discount",
         "INT"
       ],
       [
-        "balance",
+        "c_balance",
         "INT"
       ],
       [
-        "ytd_payment",
+        "c_ytd_payment",
         "INT"
       ],
       [
-        "payment_cnt",
+        "c_payment_cnt",
         "INT"
       ],
       [
-        "delivery_cnt",
+        "c_delivery_cnt",
         "INT"
       ],
       [
-        "data",
+        "c_data",
         "TEXT"
       ]
     ],
@@ -104,47 +104,47 @@
   "district": {
     "column_names_and_types": [
       [
-        "id",
+        "d_id",
         "INT"
       ],
       [
-        "w_id",
+        "d_w_id",
         "INT"
       ],
       [
-        "name",
+        "d_name",
         "TEXT"
       ],
       [
-        "street_1",
+        "d_street_1",
         "TEXT"
       ],
       [
-        "street_2",
+        "d_street_2",
         "TEXT"
       ],
       [
-        "city",
+        "d_city",
         "TEXT"
       ],
       [
-        "state",
+        "d_state",
         "TEXT"
       ],
       [
-        "zip",
+        "d_zip",
         "TEXT"
       ],
       [
-        "tax",
+        "d_tax",
         "INT"
       ],
       [
-        "ytd",
+        "d_ytd",
         "INT"
       ],
       [
-        "next_o_id",
+        "d_next_o_id",
         "INT"
       ]
     ],
@@ -158,35 +158,35 @@
   "history": {
     "column_names_and_types": [
       [
-        "c_id",
+        "h_c_id",
         "INT"
       ],
       [
-        "c_d_id",
+        "h_c_d_id",
         "INT"
       ],
       [
-        "c_w_id",
+        "h_c_w_id",
         "INT"
       ],
       [
-        "d_id",
+        "h_d_id",
         "INT"
       ],
       [
-        "w_id",
+        "h_w_id",
         "INT"
       ],
       [
-        "date",
+        "h_date",
         "INT"
       ],
       [
-        "amount",
+        "h_amount",
         "INT"
       ],
       [
-        "data",
+        "h_data",
         "TEXT"
       ]
     ],
@@ -201,23 +201,23 @@
   "item": {
     "column_names_and_types": [
       [
-        "id",
+        "i_id",
         "INT"
       ],
       [
-        "im_id",
+        "i_im_id",
         "INT"
       ],
       [
-        "name",
+        "i_name",
         "TEXT"
       ],
       [
-        "price",
+        "i_price",
         "INT"
       ],
       [
-        "data",
+        "i_data",
         "TEXT"
       ]
     ],
@@ -230,15 +230,15 @@
   "new_order": {
     "column_names_and_types": [
       [
-        "o_id",
+        "no_o_id",
         "INTEGER"
       ],
       [
-        "d_id",
+        "no_d_id",
         "INTEGER"
       ],
       [
-        "w_id",
+        "no_w_id",
         "INTEGER"
       ]
     ],
@@ -253,35 +253,35 @@
   "oorder": {
     "column_names_and_types": [
       [
-        "id",
+        "o_id",
         "INTEGER"
       ],
       [
-        "d_id",
+        "o_d_id",
         "INTEGER"
       ],
       [
-        "w_id",
+        "o_w_id",
         "INTEGER"
       ],
       [
-        "c_id",
+        "o_c_id",
         "INTEGER"
       ],
       [
-        "entry_d",
+        "o_entry_d",
         "INTEGER"
       ],
       [
-        "carrier_id",
+        "o_carrier_id",
         "INTEGER"
       ],
       [
-        "ol_cnt",
+        "o_ol_cnt",
         "INTEGER"
       ],
       [
-        "all_local",
+        "o_all_local",
         "BOOLEAN"
       ]
     ],
@@ -303,43 +303,43 @@
   "order_line": {
     "column_names_and_types": [
       [
-        "o_id",
+        "ol_o_id",
         "INTEGER"
       ],
       [
-        "d_id",
+        "ol_d_id",
         "INTEGER"
       ],
       [
-        "w_id",
+        "ol_w_id",
         "INTEGER"
       ],
       [
-        "number",
+        "ol_number",
         "INTEGER"
       ],
       [
-        "i_id",
+        "ol_i_id",
         "INTEGER"
       ],
       [
-        "supply_w_id",
+        "ol_supply_w_id",
         "INTEGER"
       ],
       [
-        "delivery_d",
+        "ol_delivery_d",
         "INTEGER"
       ],
       [
-        "quantity",
+        "ol_quantity",
         "INTEGER"
       ],
       [
-        "amount",
+        "ol_amount",
         "INTEGER"
       ],
       [
-        "dist_info",
+        "ol_dist_info",
         "TEXT"
       ]
     ],
@@ -355,71 +355,71 @@
   "stock": {
     "column_names_and_types": [
       [
-        "i_id",
+        "s_i_id",
         "INT"
       ],
       [
-        "w_id",
+        "s_w_id",
         "INT"
       ],
       [
-        "quantity",
+        "s_quantity",
         "INT"
       ],
       [
-        "dist_01",
+        "s_dist_01",
         "TEXT"
       ],
       [
-        "dist_02",
+        "s_dist_02",
         "TEXT"
       ],
       [
-        "dist_03",
+        "s_dist_03",
         "TEXT"
       ],
       [
-        "dist_04",
+        "s_dist_04",
         "TEXT"
       ],
       [
-        "dist_05",
+        "s_dist_05",
         "TEXT"
       ],
       [
-        "dist_06",
+        "s_dist_06",
         "TEXT"
       ],
       [
-        "dist_07",
+        "s_dist_07",
         "TEXT"
       ],
       [
-        "dist_08",
+        "s_dist_08",
         "TEXT"
       ],
       [
-        "dist_09",
+        "s_dist_09",
         "TEXT"
       ],
       [
-        "dist_10",
+        "s_dist_10",
         "TEXT"
       ],
       [
-        "ytd",
+        "s_ytd",
         "INT"
       ],
       [
-        "order_cnt",
+        "s_order_cnt",
         "INT"
       ],
       [
-        "remote_cnt",
+        "s_remote_cnt",
         "INT"
       ],
       [
-        "data",
+        "s_data",
         "TEXT"
       ]
     ],
@@ -433,39 +433,39 @@
   "warehouse": {
     "column_names_and_types": [
       [
-        "id",
+        "w_id",
         "INT"
       ],
       [
-        "name",
+        "w_name",
         "TEXT"
       ],
       [
-        "street_1",
+        "w_street_1",
         "TEXT"
       ],
       [
-        "street_2",
+        "w_street_2",
         "TEXT"
       ],
       [
-        "city",
+        "w_city",
         "TEXT"
       ],
       [
-        "state",
+        "w_state",
         "TEXT"
       ],
       [
-        "zip",
+        "w_zip",
         "TEXT"
       ],
       [
-        "tax",
+        "w_tax",
         "INT"
       ],
       [
-        "ytd",
+        "w_ytd",
         "INT"
       ]
     ],

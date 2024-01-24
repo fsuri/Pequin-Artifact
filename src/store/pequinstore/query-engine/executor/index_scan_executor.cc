@@ -774,6 +774,9 @@ void IndexScanExecutor::EvalRead(std::shared_ptr<storage::TileGroup> tile_group,
 
     if(USE_ACTIVE_READ_SET) ManageReadSet(tuple_location, tile_group, tile_group_header, current_txn);
   }
+  //for point reads, mark as invalid.
+  if(current_txn->IsPointRead()) RefinePointRead(current_txn, tile_group_header, tuple_location, eval);
+  
 
   //FOR NOW ONLY PICK ACTIVE READ SET. USE THIS LINE FOR COMPLETE RS: 
   if(!USE_ACTIVE_READ_SET) ManageReadSet(tuple_location, tile_group, tile_group_header, current_txn); //Note: For primary index they'll always be the same.
@@ -781,14 +784,38 @@ void IndexScanExecutor::EvalRead(std::shared_ptr<storage::TileGroup> tile_group,
   //SetPointRead();
 }
 
+//Mark the PointRead value as having failed the predicate. Distinguish between it being a deletion and predicate failure.
+void IndexScanExecutor::RefinePointRead(concurrency::TransactionContext *current_txn, storage::TileGroupHeader *tile_group_header, ItemPointer tuple_location, bool eval){
+  std::string *res_val = tile_group_header->GetCommitOrPrepare(tuple_location.offset)? current_txn->GetCommittedValue() : current_txn->GetPreparedValue();
+  if(eval || *res_val == "r"){ //FIXME: The second cond is a hack to not change this value once it's set (for the bugged version that reads via SecondaryIndex) 
+    *res_val = "r"; //passed predicate, is "readable"
+  }
+  else{
+    *res_val = tile_group_header->IsDeleted(tuple_location.offset) ? "d" : "f"; 
+  }
+  //It is set to "d" if the row is deleted, and "f" if it exists, but failed the predicate
+
+  Debug("Set %s point read value to type: %s", tile_group_header->GetCommitOrPrepare(tuple_location.offset)? "commit" : "prepare", *res_val);
+  std::cerr << "Set PointRead value: " << *res_val << std::endl;
+  //commit_val being non_empty indicates that we found a committed version of the row. If the version does not meet the predicate, we must refine the value type.
+
+  //Note: This code accounts for the fact that a point read may fail in case the row version does not pass a predicate condition that is STRICTER than just the primary keys.
+  //In this case we also want to write an empty result (just like in the delete case). The different names (d/f) are just for debugging purposes.
+  
+  //Note that even though we should return an empty result row, we should still return the latest version and proof etc.
+}
+
 
 void IndexScanExecutor::SetPointRead(concurrency::TransactionContext *current_txn, storage::TileGroupHeader *tile_group_header, ItemPointer tuple_location, Timestamp const &write_timestamp){
   //Manage PointRead Result
   
   if(tile_group_header->GetCommitOrPrepare(tuple_location.offset)){
-    //mark commit result as existent
-    auto commit_val = current_txn->GetCommittedValue();
-    *commit_val = "e"; //e for exists
+    //mark commit result as existent  ==> New refactor: Only mark it after evaluating predicate.
+    // auto commit_val = current_txn->GetCommittedValue();
+    // std::cerr << "Trying to set PointRead committed. Current committed value: " << *commit_val << std::endl;
+    // *commit_val = "e";  //e for "exists"
+    //commit_val being non_empty indicates that we found a committed version of the row. If the version does not meet the predicate, we must refine the value type.
+    
 
     Debug("Setting the commit proof");
     // Get the commit proof
@@ -807,9 +834,10 @@ void IndexScanExecutor::SetPointRead(concurrency::TransactionContext *current_tx
 
   }
   else{
-    //mark prepare result as existent
-    auto prepare_val = current_txn->GetPreparedValue();
-    *prepare_val = "e";
+    //mark prepare result as existent ==> New refactor: Only mark it after evaluating predicate.
+    // auto prepare_val = current_txn->GetPreparedValue();
+    // *prepare_val = "e";
+    //prepare_val being non_empty indicates that we found a committed version of the row. If the version does not meet the predicate, we must refine the value type.
 
     // Set the prepared timestamp
     auto prepared_ts = current_txn->GetPreparedTimestamp(); 
@@ -1685,11 +1713,12 @@ bool IndexScanExecutor::ExecSecondaryIndexLookup() {
   auto storage_manager = storage::StorageManager::GetInstance();
 
   std::cerr << "Secondary Number of rows to check " << tuple_location_ptrs.size() << std::endl;
-  int max_size = std::min((int)tuple_location_ptrs.size(), 50);
+  int max_size = std::min((int)tuple_location_ptrs.size(), INT_MAX);
+  //if(current_txn->IsPointRead()) max_size = 1; //UW_ASSERT(tuple_location_ptrs.size() == 1);
   tuple_location_ptrs.resize(max_size);
   tuple_location_ptrs.shrink_to_fit();
   std::cerr << "Number of rows to check (bounded)" << tuple_location_ptrs.size() << std::endl;
-  //if(current_txn->IsPointRead()) UW_ASSERT(tuple_location_ptrs.size() == 1);
+  
 
   for (auto tuple_location_ptr : tuple_location_ptrs) {
     // ItemPointer tuple_location = *tuple_location_ptr;

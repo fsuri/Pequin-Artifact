@@ -838,6 +838,11 @@ bool ShardClient::ProcessRead(const uint64_t &reqId, PendingQuorumGet *req, read
                                                     //Note: However, winning Value could be prepared too. Would have to deser prepared values too, if winners
                                                     // ==> Would need to store QueryResult as maxValue instead of value string.
 
+    
+    std::cerr << "has committed val? " << write->has_committed_value() << std::endl;
+    std::cerr << "committed val: " << write->committed_value() << std::endl;
+    UW_ASSERT(write->has_committed_value());
+
     //check whether value and timestamp are valid
     req->numReplies++;
     if (write->has_committed_value() && write->has_committed_timestamp()) {
@@ -1001,18 +1006,40 @@ bool ShardClient::ValidateTransactionTableWrite(const proto::CommittedProof &pro
     const std::string &key, const std::string &value, const std::string &table_name, sql::QueryResultProtoWrapper *query_result)
 {
 
+
     Debug("[group %i] Trying to validate committed TableWrite.", group);
     
     //*query_result = std::move(sql::QueryResultProtoWrapper(value));
     SQLResultProto proto_result;
-    if(!value.empty()) proto_result.ParseFromString(value);
+
+    if(value.empty()){
+        //If the result is empty, then the TX must have written a row version that is either a) a delete, or b) does not fulfill the predicate
+        //iterate through write set, and check that key is found, 
+        for (const auto &write : proof.txn().write_set()) {
+            if (write.key() == key) {
+                if(!write.has_rowupdates() || !write.rowupdates().has_row_idx()) return false; // there is no associated TableWrite
+                
+                if(write.rowupdates().deletion()) return true;
+
+                //TODO: Else: check if the row indeed does not fulfill the predicate.
+                //For now just accepting it.
+                return true;
+                //return false;
+            }
+        }
+    }
+
+    else {
+        //there is a result. Try to see if it's valid.
+        proto_result.ParseFromString(value);
+    }
     query_result->SetResult(proto_result);
     
     //query_result = new sql::QueryResultProtoWrapper(value); //query_result takes ownership
     //turn value into Object //TODO: Can we avoid the redundant de-serialization in client.cc? ==> Modify prcb callback to take QueryResult as arg. 
                                 //Then need to change that gcb = prcb (no longer true)
 
-    //NOTE: Currently useless line of code: If empty ==> no Write ==> We would never even enter Validate Transaction branch  
+    //NOTE: Currently useless line of code: If empty ==> no Write ==> We would never even enter Validate Transaction branch  //FIXME: False statement. We can enter if res exists but is null
             //We don't send empty results, we just send nothing.
             //if we did send result: if query_result empty => return true. No proof needed, since replica is reporting that no value for the requested read exists (at the TS)
     if(query_result->empty()){

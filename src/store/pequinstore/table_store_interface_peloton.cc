@@ -566,13 +566,23 @@ void PelotonTableStore::TransformPointResult(proto::Write *write, Timestamp &com
   unsigned int rows = result.empty()? 0 : result.size() / tuple_descriptor.size();
   UW_ASSERT(rows <= 2); // There should be at most 2 rows: One committed, and one prepared. The committed one always comes last. (if it exists)
 
-  if (rows == 0){
-    Debug("Empty result: No tuple exists for the supplied Row-key");
-    UW_ASSERT(!write->has_committed_value()); 
-    UW_ASSERT(!write->has_prepared_value());
-    Panic("This should never happen in test");
-    return; // Empty result: No tuple exists for the supplied Row-key => Note: Client creates empty result in this case, nothing to do here.
-  }
+  //FIXME: 1: If we did read a committed/prepared value, but it doesn't hit the predicate, we should not fail!! We should still be sending the proof/version + //TODO: Set val to empty
+  //FIXME: 2: committed value will not be empty in this case, yet we shouldn't try to read the row!!!
+              //Problem: we cannot distinguish whether the row in result belongs to commit or prepare.
+  //TODO: Look into what client expects: If result is empty, will we still check proof? (We should.)
+
+  //TODO: Call SetPoint only after eval read? Or: Call it again, and modify only whether the val is "e-e" (exist, empty) or "e-r" (exist, read)
+                                                                                    //Currently val is "" (empty) if no version exists.
+
+  //TODO: re-factor this.
+  // if (rows == 0){
+  //   Debug("Empty result: No tuple exists for the supplied Row-key");
+  //   std::cerr << "committed val: " << write->committed_value() << std::endl;
+  //   UW_ASSERT(!write->has_committed_value()); //FIXME: 
+  //   UW_ASSERT(!write->has_prepared_value());
+  //   Panic("This should never happen in test");
+  //   return; // Empty result: No tuple exists for the supplied Row-key => Note: Client creates empty result in this case, nothing to do here.
+  // }
     
 
   sql::QueryResultProtoBuilder queryResultBuilder;
@@ -587,20 +597,28 @@ void PelotonTableStore::TransformPointResult(proto::Write *write, Timestamp &com
 
   // Committed
   if(!write->committed_value().empty()){ //Indicate that the committed version produced a result. If not, just return empty result
-    //NOTE: value == "e" 
+    //NOTE: value == "r" for readable, "d" for delete, "f" for failed pred
     //if tuple_descriptor.empty() => could write value = "" (empty) => frontend will handle it
-    row = queryResultBuilder.new_row();
-    Debug("Committed row has %lu cols", tuple_descriptor.size());
-    for (unsigned int i = 0; i < tuple_descriptor.size(); i++) {
-      std::string &column_name = std::get<0>(tuple_descriptor[i]);
-      queryResultBuilder.add_column(column_name);
-      size_t index = (rows - 1) * tuple_descriptor.size() + i;
-      //Debug("Index in result array is %lu", index);
-      queryResultBuilder.AddToRow(row, result[index]); // Note: rows-1 == last row == Committed
+    if(write->committed_value() == "r"){ //only consume a row if the row exists for this version (i.e. write nothing to result if version was delete)
+      row = queryResultBuilder.new_row();
+      Debug("Committed row has %lu cols", tuple_descriptor.size());
+      for (unsigned int i = 0; i < tuple_descriptor.size(); i++) {
+        std::string &column_name = std::get<0>(tuple_descriptor[i]);
+        queryResultBuilder.add_column(column_name);
+        size_t index = (rows - 1) * tuple_descriptor.size() + i;
+        //Debug("Index in result array is %lu", index);
+        queryResultBuilder.AddToRow(row, result[index]); // Note: rows-1 == last row == Committed
+      }
     }
 
+    std::cerr << "Committed val (pre): " << write->committed_value() << std::endl;
     write->set_committed_value(queryResultBuilder.get_result()->SerializeAsString()); // Note: This "clears" the builder
+    UW_ASSERT(write->has_committed_value()); // should be true EVEN if we write empty value.
+
+    std::cerr << "Committed val: " << write->committed_value() << ". size: " << write->committed_value().size() << std::endl;
+    
     committed_timestamp.serialize(write->mutable_committed_timestamp());
+    //NOTE: Committed proof is already set
 
     Debug("PointRead Committed Val: %s. Version:[%lu:%lu]", BytesToHex(write->committed_value(), 100).c_str(), committed_timestamp.getTimestamp(), committed_timestamp.getID());
     std::cerr << "TS after serialization: " << write->committed_timestamp().timestamp() << std::endl;
@@ -617,13 +635,15 @@ void PelotonTableStore::TransformPointResult(proto::Write *write, Timestamp &com
 
     if(write->committed_value().empty()) Panic("In current test there should always be a committed value to read");
 
-    row = queryResultBuilder.new_row();
-    for (unsigned int i = 0; i < tuple_descriptor.size(); i++) {
-      std::string &column_name = std::get<0>(tuple_descriptor[i]);
-      queryResultBuilder.add_column(column_name);
-      queryResultBuilder.AddToRow(row, result[0 * tuple_descriptor.size() + i]); // Note: first row == Prepared (if present)
+    if(write->committed_value() == "r"){ //only consume a row if the row exists for this version (i.e. write nothing to result if version was delete)
+      row = queryResultBuilder.new_row();
+      for (unsigned int i = 0; i < tuple_descriptor.size(); i++) {
+        std::string &column_name = std::get<0>(tuple_descriptor[i]);
+        queryResultBuilder.add_column(column_name);
+        size_t index = 0 * tuple_descriptor.size() + i;
+        queryResultBuilder.AddToRow(row, result[index]); // Note: first row == Prepared (if present)
+      }
     }
-
     write->set_prepared_value(queryResultBuilder.get_result()->SerializeAsString()); // Note: This "clears" the builder
     prepared_timestamp.serialize(write->mutable_prepared_timestamp());
     write->set_prepared_txn_digest(*txn_dig);
