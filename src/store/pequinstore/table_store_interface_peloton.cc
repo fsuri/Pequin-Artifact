@@ -191,10 +191,13 @@ std::string PelotonTableStore::TransformResult(peloton::ResultType &status, std:
   std::vector<peloton::FieldInfo> tuple_descriptor;
   if (status == peloton::ResultType::SUCCESS) {
     tuple_descriptor = statement->GetTupleDescriptor();
-    Debug("Query Read successful");
+    Debug("Query Read successful. ");
   } else {
-    Panic("Query read failure");
+    return ""; //return empty string. (empty result)
+    //Panic("Query read failure");
   }
+
+  //UW_ASSERT(result.size());
 
   sql::QueryResultProtoBuilder queryResultBuilder;
   // Add columns
@@ -375,7 +378,8 @@ void PelotonTableStore::LoadTable(const std::string &load_statement, const std::
   if (status == peloton::ResultType::SUCCESS)
     Debug("Write successful");
   else
-    Panic("Write failure");
+    Panic("Write failure"); //Our writes are "no questions asked". They do not respect Insert/Update/Delete semantics -- those are enforced by our CC layer.
+                            //Thus our writes should always succeed.
   
 
   Debug("End writeLat on core: %d", core);
@@ -563,6 +567,11 @@ void PelotonTableStore::TransformPointResult(proto::Write *write, Timestamp &com
   std::vector<peloton::FieldInfo> tuple_descriptor;
   if (status == peloton::ResultType::SUCCESS) {
     tuple_descriptor = statement->GetTupleDescriptor();
+  }
+  else{
+    write->Clear(); //wipe everything -- "has_committed"/has_prepared may be set, even if there is not actually a result (because we call _mutable in tcop)
+    Debug("Read Committed? %d. read Prepared? %d", write->has_committed_value(), write->has_prepared_value());
+    return; //empty read
   }
 
   Debug("Transform PointResult");
@@ -852,7 +861,8 @@ void PelotonTableStore::PurgeTableWrite(const std::string &table_name, const Tab
   if (status == peloton::ResultType::SUCCESS)
     Debug("Purge successful");
   else
-    Panic("Purge failure");
+    Debug("Purge failure/Nothing to purge");
+    //Panic("Purge failure");
   //}
 
   Debug("End writeLat on core: %d", core);

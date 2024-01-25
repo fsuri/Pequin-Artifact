@@ -49,7 +49,7 @@ transaction_status_t SQLDelivery::Execute(SyncClient &client) {
 
   // Process a batch of 10 new (not yet delivered) orders. Each order delivery is it's own read/write TX.
   // Low frequency
-  std::cerr << "DELIVERY" << std::endl;
+  std::cerr << "DELIVERY TX" << std::endl;
   Debug("DELIVERY");
   Debug("Warehouse: %u", w_id);
   Debug("District: %u", d_id);
@@ -60,7 +60,7 @@ transaction_status_t SQLDelivery::Execute(SyncClient &client) {
   // (1) Retrieve the row from NEW-ORDER with the lowest order id
   //     If none is found, skip delivery of an order for this district. 
 
-  //TODO: Turn this into Point Read and Point Update on a separate EarliestNewOrder table.
+  //TODO: Turn this into Point Read and Point Update on a separate EarliestNewOrder table. (then don't need the delete either technically...)
 
   statement = fmt::format("SELECT MIN(no_o_id) FROM {} WHERE no_d_id = {} AND no_w_id = {};", NEW_ORDER_TABLE, d_id, w_id);
   //statement = fmt::format("SELECT o_id FROM NewOrder WHERE d_id = {} AND w_id = {} ORDER BY o_id ASC LIMIT 1;", d_id, w_id);
@@ -75,8 +75,8 @@ transaction_status_t SQLDelivery::Execute(SyncClient &client) {
       // Note: Pesto will turn this into a PointDelete for which no read is required.
   int no_o_id;
   deserialize(no_o_id, queryResult);
-  statement = fmt::format("DELETE FROM {} WHERE no_o_id = {} AND no_d_id = {} AND no_w_id = {};", NEW_ORDER_TABLE, no_o_id, d_id, w_id);
-  client.Write(statement, queryResult, timeout); //This can be async. 
+  // statement = fmt::format("DELETE FROM {} WHERE no_o_id = {} AND no_d_id = {} AND no_w_id = {};", NEW_ORDER_TABLE, no_o_id, d_id, w_id);
+  // client.Write(statement, queryResult, timeout); //This can be async. 
 
   // (3) Select the corresponding row from ORDER and extract the customer id. Update the carrier id of the order.
   //statement = fmt::format("SELECT c_id FROM \"order\" WHERE id = {} AND d_id = {} AND w_id = {};", no_o_id, d_id, w_id);

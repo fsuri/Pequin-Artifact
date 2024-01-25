@@ -72,6 +72,14 @@ SyncTransaction* TPCCSQLClient::GetNextTransaction() {
     delivery = false;
   }
 
+  //USE even dist when testing...
+  // new_order_ratio = 0;
+  // payment_ratio = 0;
+  // order_status_ratio = 0;
+  // stock_level_ratio = 0;
+  //  delivery_ratio = 100;  //Only do delivery - to test the delete.
+  // fprintf(stderr, "freqs: %d, %d, %d, %d, %d\n", new_order_ratio, delivery_ratio, payment_ratio, order_status_ratio, stock_level_ratio);
+  
   uint32_t total = new_order_ratio + delivery_ratio + payment_ratio
       + order_status_ratio + stock_level_ratio;
   uint32_t ttype = std::uniform_int_distribution<uint32_t>(0, total - 1)(gen);

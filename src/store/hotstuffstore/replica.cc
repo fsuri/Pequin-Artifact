@@ -328,6 +328,7 @@ void Replica::HandleRequest(const TransportAddress &remote,
 
       TransportAddress* clientAddr = remote.clone();
       proto::PackedMessage packedMsg = request.packed_msg();
+      
       std::function<void(const std::string&, uint32_t seqnum)> execb = [this, digest, packedMsg, clientAddr](const std::string &digest_param, uint32_t seqnum) {
           if(numShards <= 6 || numShards == 12){
               auto f = [this, digest, packedMsg, clientAddr, digest_param, seqnum](){
@@ -344,7 +345,8 @@ void Replica::HandleRequest(const TransportAddress &remote,
                   (*batchedRequest.mutable_digests())[0] = digest_param;
                   string batchedDigest = BatchedDigest(batchedRequest);
                   batchedRequests[batchedDigest] = batchedRequest;
-                  pendingExecutions[seqnum] = batchedDigest;
+
+                  pendingExecutions[seqnum] = batchedDigest; // => change to digest_param.
 
                   executeSlots();
                   return (void*) true;

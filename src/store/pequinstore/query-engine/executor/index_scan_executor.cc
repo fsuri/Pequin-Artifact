@@ -263,7 +263,7 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
   #endif
 
   std::cerr << "Number of rows to check " << tuple_location_ptrs.size() << std::endl;
-  int max_size = std::min((int)tuple_location_ptrs.size(), 50);
+  int max_size = std::min((int)tuple_location_ptrs.size(), INT_MAX);
   tuple_location_ptrs.resize(max_size);
   tuple_location_ptrs.shrink_to_fit();
   std::cerr << "Number of rows to check (bounded)" << tuple_location_ptrs.size() << std::endl;
@@ -438,7 +438,7 @@ void IndexScanExecutor::CheckRow(ItemPointer tuple_location, concurrency::Transa
     int max_num_reads = current_txn->IsPointRead()? 2 : 1;
     int num_reads = 0;
 
-    //fprintf(stderr, "First tuple in row: Looking at Tuple at location [%lu:%lu] with TS: [%lu:%lu]", tuple_location.block, tuple_location.offset, tuple_timestamp.getTimestamp(), tuple_timestamp.getID());
+    //fprintf(stderr, "First tuple in row: Looking at Tuple at location [%lu:%lu] with TS: [%lu:%lu] \n", tuple_location.block, tuple_location.offset, tuple_timestamp.getTimestamp(), tuple_timestamp.getID());
       
 
     while(!done){
@@ -841,7 +841,7 @@ void IndexScanExecutor::SetPointRead(concurrency::TransactionContext *current_tx
     *commit_ts = write_timestamp; //Use either this line to copy TS, OR the SetCommitTs func below to set ref. Don't need both...  (can also get TS via: commit_proof->txn().timestamp())
     Debug("PointRead CommittedTS:[%lu:%lu]", current_txn->GetCommitTimestamp()->getTimestamp(), current_txn->GetCommitTimestamp()->getID());
 
-    fprintf(stderr,"PointRead CommittedTS:[%lu:%lu]", current_txn->GetCommitTimestamp()->getTimestamp(), current_txn->GetCommitTimestamp()->getID());
+    fprintf(stderr,"PointRead CommittedTS:[%lu:%lu] \n", current_txn->GetCommitTimestamp()->getTimestamp(), current_txn->GetCommitTimestamp()->getID());
     //current_txn->SetCommitTimestamp(&committed_timestamp); 
 
 
