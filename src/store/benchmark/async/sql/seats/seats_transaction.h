@@ -30,7 +30,7 @@ void deserialize(T& t, std::unique_ptr<const query_result::QueryResult>& queryRe
 
 template<class T>
 void deserialize(T& t, std::unique_ptr<const query_result::QueryResult>& queryResult, const std::size_t row, const std::size_t col) {
-  load_row(t, queryResult->at(row));
+  load_row(t, queryResult->at(row), col);
 }
 
 class SEATSSQLTransaction : public SyncTransaction {

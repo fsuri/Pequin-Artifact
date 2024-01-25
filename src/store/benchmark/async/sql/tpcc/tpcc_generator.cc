@@ -467,6 +467,8 @@ void GenerateNewOrderTableForWarehouseDistrict(uint32_t w_id, uint32_t d_id,
     writer.add_row(table_name, values);
     values.clear();
   }
+
+
 }
 
 void GenerateNewOrderTable(uint32_t num_warehouses,
@@ -485,6 +487,29 @@ void GenerateNewOrderTable(uint32_t num_warehouses,
     }
   }
 }
+
+void GenerateEarliestNewOrderTable(uint32_t num_warehouses, TableWriter &writer){
+  std::string table_name = EARLIEST_NEW_ORDER_TABLE;
+  std::vector<std::pair<std::string, std::string>> column_names_and_types;
+  column_names_and_types.push_back(std::make_pair("eno_o_id", "INTEGER"));
+  column_names_and_types.push_back(std::make_pair("eno_d_id", "INTEGER"));
+  column_names_and_types.push_back(std::make_pair("eno_w_id", "INTEGER"));
+  const std::vector<uint32_t> primary_key_col_idx {1, 2};
+  writer.add_table(table_name, column_names_and_types, primary_key_col_idx);
+
+  for (uint32_t w_id = 1; w_id <= num_warehouses; ++w_id) {
+     for (uint32_t d_id = 1; d_id <= 10; ++d_id) {
+      std::vector<std::string> values;
+      values.push_back(std::to_string(2101));
+      values.push_back(std::to_string(w_id));
+      values.push_back(std::to_string(d_id));
+      writer.add_row(table_name, values);
+    }
+  }
+}
+
+
+
 
 
 DEFINE_int32(c_load_c_last, 0, "Run-time constant C used for generating C_LAST.");
@@ -509,6 +534,9 @@ int main(int argc, char *argv[]) {
   GenerateHistoryTable(FLAGS_num_warehouses, writer);
   GenerateOrderTable(FLAGS_num_warehouses, FLAGS_c_load_ol_i_id, writer);
   GenerateNewOrderTable(FLAGS_num_warehouses, writer);
+
+  //Optional table to read Earliest New Order from (instead of looking for Min + Delete in Delivery)
+  GenerateEarliestNewOrderTable(FLAGS_num_warehouses, writer);
 
   writer.flush();
   std::cerr << "Wrote tables." << std::endl;

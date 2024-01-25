@@ -800,6 +800,7 @@ void IndexScanExecutor::RefinePointRead(concurrency::TransactionContext *current
   //It is set to "d" if the row is deleted, and "f" if it exists, but failed the predicate
 
   Debug("Set %s point read value to type: %s", tile_group_header->GetCommitOrPrepare(tuple_location.offset)? "commit" : "prepare", *res_val);
+   Debug("PointRead CommittedTS:[%lu:%lu]", current_txn->GetCommitTimestamp()->getTimestamp(), current_txn->GetCommitTimestamp()->getID());
   //std::cerr << "Set PointRead value: " << *res_val << std::endl;
   //commit_val being non_empty indicates that we found a committed version of the row. If the version does not meet the predicate, we must refine the value type.
 
@@ -839,9 +840,10 @@ void IndexScanExecutor::SetPointRead(concurrency::TransactionContext *current_tx
     *commit_proof_ref = write_commit_proof;
     auto commit_ts = current_txn->GetCommitTimestamp(); 
     *commit_ts = write_timestamp; //Use either this line to copy TS, OR the SetCommitTs func below to set ref. Don't need both...  (can also get TS via: commit_proof->txn().timestamp())
-    Debug("PointRead CommittedTS:[%lu:%lu]", current_txn->GetCommitTimestamp()->getTimestamp(), current_txn->GetCommitTimestamp()->getID());
-
-    fprintf(stderr,"PointRead CommittedTS:[%lu:%lu] \n", current_txn->GetCommitTimestamp()->getTimestamp(), current_txn->GetCommitTimestamp()->getID());
+   
+    //Debug("PointRead PreparedTS:[%lu:%lu], dependency: %s", current_txn->GetPreparedTimestamp()->getTimestamp(), current_txn->GetPreparedTimestamp()->getID(), pequinstore::BytesToHex(**prepared_txn_digest, 16).c_str());
+          
+    //fprintf(stderr,"PointRead CommittedTS:[%lu:%lu] \n", current_txn->GetCommitTimestamp()->getTimestamp(), current_txn->GetCommitTimestamp()->getID());
     //current_txn->SetCommitTimestamp(&committed_timestamp); 
 
 

@@ -59,24 +59,38 @@ transaction_status_t SQLDelivery::Execute(SyncClient &client) {
 
   // (1) Retrieve the row from NEW-ORDER with the lowest order id
   //     If none is found, skip delivery of an order for this district. 
-
-  //TODO: Turn this into Point Read and Point Update on a separate EarliestNewOrder table. (then don't need the delete either technically...)
-
-  statement = fmt::format("SELECT MIN(no_o_id) FROM {} WHERE no_d_id = {} AND no_w_id = {};", NEW_ORDER_TABLE, d_id, w_id);
-  //statement = fmt::format("SELECT o_id FROM NewOrder WHERE d_id = {} AND w_id = {} ORDER BY o_id ASC LIMIT 1;", d_id, w_id);
-  client.Query(statement, queryResult, timeout);
-
-  if (queryResult->empty()) {
-    // Note: technically we're supposed to check each district in this warehouse  ==>> We instead are doing a TX for each district sequentially (see tpcc_client.cc)
-    return client.Commit(timeout);
-  }
-
-  // (2) Delete the found NEW-ORDER row
-      // Note: Pesto will turn this into a PointDelete for which no read is required.
   int no_o_id;
-  deserialize(no_o_id, queryResult);
-  statement = fmt::format("DELETE FROM {} WHERE no_o_id = {} AND no_d_id = {} AND no_w_id = {};", NEW_ORDER_TABLE, no_o_id, d_id, w_id);
-  client.Write(statement, queryResult, timeout); //This can be async. 
+
+  bool use_earliest_new_order_table = false;
+
+  //Issue a Point Read and Point Update to EarliestNewOrder table. (this avoids needing to find Min and then delete it)
+  if(use_earliest_new_order_table){
+    statement = fmt::format("SELECT * FROM {} WHERE no_d_id = {} AND no_w_id = {};", EARLIEST_NEW_ORDER_TABLE, d_id, w_id);
+    client.Query(statement, queryResult, timeout);
+    deserialize(no_o_id, queryResult, 0, 0); //get first col of first row (there is only 1 row, this is a point read).
+
+    statement = fmt::format("UPDATE {} SET eno_o_id = eno_o_id + 1 WHERE no_d_id = {} AND no_w_id = {};", EARLIEST_NEW_ORDER_TABLE, d_id, w_id);
+    client.Query(statement, queryResult, timeout);
+  }
+  else{
+    statement = fmt::format("SELECT MIN(no_o_id) FROM {} WHERE no_d_id = {} AND no_w_id = {};", NEW_ORDER_TABLE, d_id, w_id);
+    //statement = fmt::format("SELECT o_id FROM NewOrder WHERE d_id = {} AND w_id = {} ORDER BY o_id ASC LIMIT 1;", d_id, w_id);
+    client.Query(statement, queryResult, timeout);
+
+    if (queryResult->empty()) {
+      // Note: technically we're supposed to check each district in this warehouse  ==>> We instead are doing a TX for each district sequentially (see tpcc_client.cc)
+      return client.Commit(timeout);
+    }
+
+    // (2) Delete the found NEW-ORDER row
+        // Note: Pesto will turn this into a PointDelete for which no read is required.
+    deserialize(no_o_id, queryResult);
+    //FIXME: Comment back in!!!
+    // statement = fmt::format("DELETE FROM {} WHERE no_o_id = {} AND no_d_id = {} AND no_w_id = {};", NEW_ORDER_TABLE, no_o_id, d_id, w_id);
+    // client.Write(statement, queryResult, timeout); //This can be async. 
+
+  }
+  
 
   // (3) Select the corresponding row from ORDER and extract the customer id. Update the carrier id of the order.
   //statement = fmt::format("SELECT c_id FROM \"order\" WHERE id = {} AND d_id = {} AND w_id = {};", no_o_id, d_id, w_id);

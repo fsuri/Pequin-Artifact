@@ -339,6 +339,11 @@ inline void load_row(std::unique_ptr<query_result::Row> row,
   new_o.set_w_id(w_id);
 }
 
+template <class T>
+void load_row(T& t, std::unique_ptr<query_result::Row> row, const std::size_t col) {
+  row->get(col, &t);
+}
+
 template<class T>
 void deserialize(T& t, std::unique_ptr<const query_result::QueryResult>& queryResult, const std::size_t row) {
   load_row(queryResult->at(row), t);
@@ -348,6 +353,12 @@ template<class T>
 void deserialize(T& t, std::unique_ptr<const query_result::QueryResult>& queryResult) {
   deserialize(t, queryResult, 0);
 }
+
+template<class T>
+void deserialize(T& t, std::unique_ptr<const query_result::QueryResult>& queryResult, const std::size_t row, const std::size_t col) {
+  load_row(t, queryResult->at(row), col);
+}
+
 
 class TPCCSQLTransaction : public SyncTransaction {
  public:

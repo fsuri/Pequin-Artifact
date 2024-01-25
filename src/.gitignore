@@ -34,6 +34,8 @@ store/benchmark/ping_server
 store/benchmark/async/benchmark
 store/benchmark/async/benchmark_oneshot
 store/benchmark/async/tpcc/tpcc_generator
+store/benchmark/async/sql/tpcc/sql_tpcc_generator
+store/benchmark/async/sql/tpcch/sql_tpcch_generator
 store/benchmark/async/sql/seats/sql_seats_generator
 store/benchmark/async/sql/auctionmark/auctionmark_generator
 store/benchmark/async/sql/tpcc/sql_tpcc_generator

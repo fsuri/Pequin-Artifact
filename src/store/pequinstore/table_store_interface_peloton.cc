@@ -569,6 +569,7 @@ void PelotonTableStore::TransformPointResult(proto::Write *write, Timestamp &com
     tuple_descriptor = statement->GetTupleDescriptor();
   }
   else{
+    Panic("no result for point read. We always expect a result for current workload");
     write->Clear(); //wipe everything -- "has_committed"/has_prepared may be set, even if there is not actually a result (because we call _mutable in tcop)
     Debug("Read Committed? %d. read Prepared? %d", write->has_committed_value(), write->has_prepared_value());
     return; //empty read

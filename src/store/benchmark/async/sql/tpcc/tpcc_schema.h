@@ -42,6 +42,8 @@ const std::string HISTORY_TABLE = "history";
 const std::string ORDER_LINE_TABLE = "order_line";
 const std::string NEW_ORDER_TABLE = "new_order";
 
+const std::string EARLIEST_NEW_ORDER_TABLE = "EarliestNewOrder";
+
 //Row Types
 
 class WarehouseRow {
