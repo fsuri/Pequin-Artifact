@@ -340,7 +340,7 @@ void GenerateHistoryTable(uint32_t num_warehouses,
   column_names_and_types.push_back(std::make_pair("h_amount", "INT"));
   column_names_and_types.push_back(std::make_pair("h_data", "TEXT"));
 
-  const std::vector<uint32_t> primary_key_col_idx {0, 1, 2};
+  const std::vector<uint32_t> primary_key_col_idx {};//{0, 1, 2, 5, 6};  //Technically History has no primary key. However, we just give it a unique one.
   writer.add_table(table_name, column_names_and_types, primary_key_col_idx);
 
   for (uint32_t w_id = 1; w_id <= num_warehouses; ++w_id) {

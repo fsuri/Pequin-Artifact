@@ -376,6 +376,9 @@ inline static bool sortReadSetByKey(const ReadMessage &lhs, const ReadMessage &r
              //Panic("duplicate read set key with different TS");
              throw std::runtime_error("Read set contains two reads of the same key with different timestamp");
         }
+        // if(lhs.readtime().timestamp() > 0 || rhs.readtime().timestamp() >0){
+        //     Debug("Read key %s twice with same version. V1:[%lu:%lu]. V2:[%lu:%lu]", lhs.key().c_str(), lhs.readtime().timestamp(), lhs.readtime().id(), rhs.readtime().timestamp(), rhs.readtime().id());
+        // }
         //return (lhs.readtime().timestamp() == rhs.readtime().timestamp()) ? lhs.readtime().id() < rhs.readtime().id() : lhs.readtime().timestamp() < rhs.readtime().timestamp(); 
     }
     return lhs.key() < rhs.key(); 

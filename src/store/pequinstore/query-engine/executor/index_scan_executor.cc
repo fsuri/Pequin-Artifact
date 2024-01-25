@@ -438,6 +438,9 @@ void IndexScanExecutor::CheckRow(ItemPointer tuple_location, concurrency::Transa
     int max_num_reads = current_txn->IsPointRead()? 2 : 1;
     int num_reads = 0;
 
+    //fprintf(stderr, "First tuple in row: Looking at Tuple at location [%lu:%lu] with TS: [%lu:%lu]", tuple_location.block, tuple_location.offset, tuple_timestamp.getTimestamp(), tuple_timestamp.getID());
+      
+
     while(!done){
       ++chain_length;
 
@@ -789,6 +792,7 @@ void IndexScanExecutor::RefinePointRead(concurrency::TransactionContext *current
   std::string *res_val = tile_group_header->GetCommitOrPrepare(tuple_location.offset)? current_txn->GetCommittedValue() : current_txn->GetPreparedValue();
   if(eval || *res_val == "r"){ //FIXME: The second cond is a hack to not change this value once it's set (for the bugged version that reads via SecondaryIndex) 
     *res_val = "r"; //passed predicate, is "readable"
+    if(eval) std::cerr << "hitting point read. Tuple: " << tuple_location.block << "," << tuple_location.offset << std::endl;
   }
   else{
     *res_val = tile_group_header->IsDeleted(tuple_location.offset) ? "d" : "f"; 
@@ -796,7 +800,7 @@ void IndexScanExecutor::RefinePointRead(concurrency::TransactionContext *current
   //It is set to "d" if the row is deleted, and "f" if it exists, but failed the predicate
 
   Debug("Set %s point read value to type: %s", tile_group_header->GetCommitOrPrepare(tuple_location.offset)? "commit" : "prepare", *res_val);
-  std::cerr << "Set PointRead value: " << *res_val << std::endl;
+  //std::cerr << "Set PointRead value: " << *res_val << std::endl;
   //commit_val being non_empty indicates that we found a committed version of the row. If the version does not meet the predicate, we must refine the value type.
 
   //Note: This code accounts for the fact that a point read may fail in case the row version does not pass a predicate condition that is STRICTER than just the primary keys.
@@ -816,6 +820,13 @@ void IndexScanExecutor::SetPointRead(concurrency::TransactionContext *current_tx
     // *commit_val = "e";  //e for "exists"
     //commit_val being non_empty indicates that we found a committed version of the row. If the version does not meet the predicate, we must refine the value type.
     
+    //HACK to avoid setting proof and TS again if we already hit. 
+    //TODO: THIS IS ONLY A HACK WHILE WE HAVE THE SECONDARY INDEX BUG. It is not technically correct!!!
+    if(*current_txn->GetCommittedValue() == "r"){
+      //Only set once!
+      return;
+    }
+
 
     Debug("Setting the commit proof");
     // Get the commit proof
@@ -829,11 +840,19 @@ void IndexScanExecutor::SetPointRead(concurrency::TransactionContext *current_tx
     auto commit_ts = current_txn->GetCommitTimestamp(); 
     *commit_ts = write_timestamp; //Use either this line to copy TS, OR the SetCommitTs func below to set ref. Don't need both...  (can also get TS via: commit_proof->txn().timestamp())
     Debug("PointRead CommittedTS:[%lu:%lu]", current_txn->GetCommitTimestamp()->getTimestamp(), current_txn->GetCommitTimestamp()->getID());
+
+    fprintf(stderr,"PointRead CommittedTS:[%lu:%lu]", current_txn->GetCommitTimestamp()->getTimestamp(), current_txn->GetCommitTimestamp()->getID());
     //current_txn->SetCommitTimestamp(&committed_timestamp); 
 
 
   }
   else{
+    //HACK to avoid setting proof and TS again if we already hit. 
+    //TODO: THIS IS ONLY A HACK WHILE WE HAVE THE SECONDARY INDEX BUG. It is not technically correct!!!
+    if(*current_txn->GetPreparedValue() == "r"){
+      //Only set once!
+      return;
+    }
     //mark prepare result as existent ==> New refactor: Only mark it after evaluating predicate.
     // auto prepare_val = current_txn->GetPreparedValue();
     // *prepare_val = "e";

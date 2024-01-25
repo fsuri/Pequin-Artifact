@@ -616,11 +616,10 @@ void PelotonTableStore::TransformPointResult(proto::Write *write, Timestamp &com
       }
     }
 
-    std::cerr << "Committed val (pre): " << write->committed_value() << std::endl;
+    //std::cerr << "Committed val (pre): " << write->committed_value() << std::endl;
     write->set_committed_value(queryResultBuilder.get_result()->SerializeAsString()); // Note: This "clears" the builder
     UW_ASSERT(write->has_committed_value()); // should be true EVEN if we write empty value.
-
-    std::cerr << "Committed val: " << write->committed_value() << ". size: " << write->committed_value().size() << std::endl;
+    //std::cerr << "Committed val: " << write->committed_value() << ". size: " << write->committed_value().size() << std::endl;
     
     committed_timestamp.serialize(write->mutable_committed_timestamp());
     //NOTE: Committed proof is already set

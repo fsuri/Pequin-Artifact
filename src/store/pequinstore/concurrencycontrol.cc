@@ -439,7 +439,7 @@ proto::ConcurrencyControl::Result Server::mergeTxReadSets(const ReadSet *&readSe
     catch(...) {
       //restoreTxn(txn); //TODO: Maybe don't delete merged set -- we do want to use it for Commit again. //TODO: Maybe we cannot store mergedSet inside read after all? What if another thread tries to use Tx in parallel mid modification..
       Debug("Merge indicates duplicate key with different version. Vote Abstain");
-      Panic("shouldn't happen for our choice of queries.");
+      Panic("shouldn't happen for our choice of queries? Maybe can happen for Delivery...");
       return proto::ConcurrencyControl::ABSTAIN;
     }
   }
@@ -610,12 +610,13 @@ proto::ConcurrencyControl::Result Server::DoMVTSOOCCCheck(
           }
           
           //std::cerr << "key: " << read.key() << std::endl;
-          Debug("[%lu:%lu][%s] ABORT wr conflict committed write for key %s:"
+          Debug("[%lu:%lu][%s] ABORT wr conflict committed write for key %s [plain:%s]:"
               " this txn's read ts %lu.%lu < committed ts %lu.%lu < this txn's ts %lu.%lu.",
               txn.client_id(),
               txn.client_seq_num(),
               BytesToHex(txnDigest, 16).c_str(),
               BytesToHex(read.key(), 16).c_str(),
+              read.key().c_str(),
               read.readtime().timestamp(),
               read.readtime().id(), committedWrite.first.getTimestamp(),
               committedWrite.first.getID(), ts.getTimestamp(), ts.getID());

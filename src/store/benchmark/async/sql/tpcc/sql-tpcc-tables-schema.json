@@ -190,11 +190,7 @@
         "TEXT"
       ]
     ],
-    "primary_key_col_idx": [
-      0,
-      1,
-      2
-    ],
+    "primary_key_col_idx": [],
     "row_data_path": "sql-tpcc-data/history.csv",
     "table_name": "history"
   },

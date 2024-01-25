@@ -362,6 +362,7 @@ void SQLTransformer::TransformInsert(size_t pos, std::string_view &write_stateme
 
     
     std::string enc_key = EncodeTableRow(table_name, primary_key_column_values);
+    bool is_blind_write = col_registry.primary_col_idx.empty(); //If there is no primary key, then uniqueness doesn't matter. Treat write as blind! (E.g. history table in TPC-C)
 
     //////// Create Write continuation:  
 
@@ -382,18 +383,20 @@ void SQLTransformer::TransformInsert(size_t pos, std::string_view &write_stateme
 
 
         
-        //Read genesis timestamp (0) for key 
-        //==> FIXME: THIS IS CURRENTLY HANDLED FULLY CORRECTLY IN EXISTING OCC CHECK.
+        //Read genesis timestamp (0) for key (if not a blind write)
+        //==> FIXME: THIS IS CURRENTLY NOT HANDLED FULLY CORRECTLY IN EXISTING OCC CHECK.
             //If genesis EXISTS, then we should abort. But we won't currently because we read 0,0 as well.
             //This is a rare semantic corner case (if we try to insert something that was loaded)
             //FIX: In addition to giving this read genesis time, give it a bool "try_insert". 
                         //If set => abort if the last Write is Genesis.
                         //Ideally could set read time to -1, but it's an unsigned int...
-        ReadMessage *read = txn->add_read_set();
-        read->set_key(enc_key);
-        read->mutable_readtime()->set_id(0);
-        read->mutable_readtime()->set_timestamp(0);
-
+        if(!is_blind_write){
+            ReadMessage *read = txn->add_read_set();
+            read->set_key(enc_key);
+            read->mutable_readtime()->set_id(0);
+            read->mutable_readtime()->set_timestamp(0);
+        }
+    
         //Create Table Write for key. Note: Enc_key encodes table_name + primary key column values.
         WriteMessage *write = txn->add_write_set();
         write->set_key(enc_key);

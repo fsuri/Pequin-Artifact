@@ -399,7 +399,7 @@ void Server::CreateTable(const std::string &table_name, const std::vector<std::p
 
   //NOTE: Assuming here we do not need special descriptors like foreign keys, column condidtions... (If so, it maybe easier to store the SQL statement in JSON directly)
   UW_ASSERT(!column_data_types.empty());
-  UW_ASSERT(!primary_key_col_idx.empty());
+  //UW_ASSERT(!primary_key_col_idx.empty());
 
   std::string sql_statement("CREATE TABLE");
   sql_statement += " " + table_name;
