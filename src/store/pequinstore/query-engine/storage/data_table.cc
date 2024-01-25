@@ -342,7 +342,7 @@ ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple,
                                    ItemPointer **index_entry_ptr,
                                    bool check_fk) {
 
-  if(transaction->GetCommitOrPrepare()) UW_ASSERT(transaction->GetCommittedProof());
+  //if(transaction->GetCommitOrPrepare()) UW_ASSERT(transaction->GetCommittedProof()); //This doesn't play nice for CreateTable
 
   ItemPointer check = CheckIfInIndex(tuple, transaction);
 

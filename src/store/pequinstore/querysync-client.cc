@@ -839,8 +839,8 @@ bool ShardClient::ProcessRead(const uint64_t &reqId, PendingQuorumGet *req, read
                                                     // ==> Would need to store QueryResult as maxValue instead of value string.
 
     
-    std::cerr << "has committed val? " << write->has_committed_value() << std::endl;
-    std::cerr << "committed val: " << write->committed_value() << std::endl;
+    // std::cerr << "has committed val? " << write->has_committed_value() << std::endl;
+    // std::cerr << "committed val: " << write->committed_value() << std::endl;
     UW_ASSERT(write->has_committed_value());
 
     //check whether value and timestamp are valid
