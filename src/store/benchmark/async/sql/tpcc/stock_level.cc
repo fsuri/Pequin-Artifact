@@ -67,7 +67,7 @@ transaction_status_t SQLStockLevel::Execute(SyncClient &client) {
   // (2) Select the 20 most recent orders from the district: Select the orders from OrderLine (from this district) with    next_o_id - 20 <= id < next_o_id
   // (3) Count all rows in STOCK with distinct items whose quantity is below the min_quantity threshold.
   query = fmt::format("SELECT COUNT(DISTINCT(s_i_id)) FROM {}, {} "
-                      "WHERE ol_w_id = {} AND ol__d_id = {} AND ol_o_id < {} AND ol_o_id >= {} "
+                      "WHERE ol_w_id = {} AND ol_d_id = {} AND ol_o_id < {} AND ol_o_id >= {} "
                       " AND s_w_id = {} AND s_i_id = ol_i_id AND s_quantity < {}", 
                       ORDER_LINE_TABLE, STOCK_TABLE, w_id, d_id, next_o_id, next_o_id - 20, w_id, min_quantity);
   //TODO: Write it as a an explicit JOIN somehow to more easily extract individual table predicates?
