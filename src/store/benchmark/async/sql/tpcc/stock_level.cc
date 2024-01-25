@@ -49,6 +49,7 @@ transaction_status_t SQLStockLevel::Execute(SyncClient &client) {
 
   //Determine the number of recently sold items with stock below a given threshold
   //Type: Heavy read-only Tx, low frequency
+  std::cerr << "STOCK_LEVEL" << std::endl;
   Debug("STOCK_LEVEL");
   Debug("Warehouse: %u", w_id);
   Debug("District: %u", d_id);

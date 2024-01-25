@@ -57,6 +57,7 @@ transaction_status_t SQLOrderStatus::Execute(SyncClient &client) {
 
   // Query the Status of a Customers last order   
   // Type: Midweight read-only TX, low frequency. Uses non-primary key access to CUSTOMER table.
+  std::cerr << "ORDER_STATUS" << std::endl;
   Debug("ORDER_STATUS");
   Debug("Warehouse: %u", c_w_id);
   Debug("District: %u", c_d_id);
