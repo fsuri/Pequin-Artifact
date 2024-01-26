@@ -500,6 +500,17 @@ ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple,
         return INVALID_ITEMPOINTER;
       }
 
+      //TEST VALUES WRITTEN
+      // std::cout << "Transaction is " << (transaction->GetCommitOrPrepare()? "committing" : "preparing") << std::endl;
+      // for (uint32_t col_idx = 0; col_idx < schema->GetColumnCount(); col_idx++) {
+      //     auto val = tuple->GetValue(col_idx);
+      //     Debug("Write col %d. Value: %s", col_idx, val.ToString().c_str());  
+      // }
+      Debug("Inserting %s Tuple at location [%lu:%lu] with TS: [%lu:%lu]",transaction->GetCommitOrPrepare()? "commit" : "prepare",
+          location.block, location.offset, transaction->GetBasilTimestamp().getTimestamp(), transaction->GetBasilTimestamp().getID());
+      
+      //TEST-END
+
       // ItemPointer *old_location;
       /*auto result = InsertTuple(tuple, location, transaction, old_location,
                                 index_entry_ptr, check_fk);*/

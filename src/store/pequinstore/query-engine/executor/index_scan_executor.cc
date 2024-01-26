@@ -291,6 +291,7 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
 
 
   for (auto &visible_tuple_location : visible_tuple_locations) {
+    Debug("Result contains location [%lu:%lu]", visible_tuple_location.block, visible_tuple_location.offset);
     if (current_tile_group_oid == INVALID_OID) {
       current_tile_group_oid = visible_tuple_location.block;
     }
@@ -438,7 +439,7 @@ void IndexScanExecutor::CheckRow(ItemPointer tuple_location, concurrency::Transa
     int max_num_reads = current_txn->IsPointRead()? 2 : 1;
     int num_reads = 0;
 
-    //fprintf(stderr, "First tuple in row: Looking at Tuple at location [%lu:%lu] with TS: [%lu:%lu] \n", tuple_location.block, tuple_location.offset, tuple_timestamp.getTimestamp(), tuple_timestamp.getID());
+    fprintf(stderr, "First tuple in row: Looking at Tuple at location [%lu:%lu] with TS: [%lu:%lu] \n", tuple_location.block, tuple_location.offset, tuple_timestamp.getTimestamp(), tuple_timestamp.getID());
       
 
     while(!done){
@@ -538,7 +539,7 @@ bool IndexScanExecutor::FindRightRowVersion(const Timestamp &timestamp, std::sha
           found_prepared = true;
           //Only "read" the first prepared version as part of result
           read_curr_version = true;
-          Debug("Read Prepared Timestamp: [%lu:%lu]", prepared_timestamp.getTimestamp(), prepared_timestamp.getID());
+          Debug("Read Prepared Timestamp: [%lu:%lu]. Dep: %s", prepared_timestamp.getTimestamp(), prepared_timestamp.getID(), pequinstore::BytesToHex(*txn_digest, 16).c_str());
           if (perform_point_read) SetPointRead(current_txn, tile_group_header, tuple_location, prepared_timestamp);
         }
         //if we are performing snapshot, continue scanning up to k versions. Otherwise, for normal read, stop reading. For PointRead, keep going until commit.
@@ -799,9 +800,11 @@ void IndexScanExecutor::RefinePointRead(concurrency::TransactionContext *current
   }
   //It is set to "d" if the row is deleted, and "f" if it exists, but failed the predicate
 
-  Debug("Set %s point read value to type: %s", tile_group_header->GetCommitOrPrepare(tuple_location.offset)? "commit" : "prepare", *res_val);
-   Debug("PointRead CommittedTS:[%lu:%lu]", current_txn->GetCommitTimestamp()->getTimestamp(), current_txn->GetCommitTimestamp()->getID());
-  //std::cerr << "Set PointRead value: " << *res_val << std::endl;
+  Debug("Set %s point read value to type: %s", tile_group_header->GetCommitOrPrepare(tuple_location.offset)? "commit" : "prepare", res_val->c_str());
+  Debug("PointRead prepare value: %s. PointRead commit value: %s", current_txn->GetPreparedValue()->c_str(), current_txn->GetCommittedValue()->c_str());
+
+
+   //Debug("PointRead CommittedTS:[%lu:%lu]", current_txn->GetCommitTimestamp()->getTimestamp(), current_txn->GetCommitTimestamp()->getID());
   //commit_val being non_empty indicates that we found a committed version of the row. If the version does not meet the predicate, we must refine the value type.
 
   //Note: This code accounts for the fact that a point read may fail in case the row version does not pass a predicate condition that is STRICTER than just the primary keys.
@@ -841,8 +844,8 @@ void IndexScanExecutor::SetPointRead(concurrency::TransactionContext *current_tx
     auto commit_ts = current_txn->GetCommitTimestamp(); 
     *commit_ts = write_timestamp; //Use either this line to copy TS, OR the SetCommitTs func below to set ref. Don't need both...  (can also get TS via: commit_proof->txn().timestamp())
    
-    //Debug("PointRead PreparedTS:[%lu:%lu], dependency: %s", current_txn->GetPreparedTimestamp()->getTimestamp(), current_txn->GetPreparedTimestamp()->getID(), pequinstore::BytesToHex(**prepared_txn_digest, 16).c_str());
-          
+     Debug("PointRead CommittedTS:[%lu:%lu]", current_txn->GetCommitTimestamp()->getTimestamp(), current_txn->GetCommitTimestamp()->getID());
+
     //fprintf(stderr,"PointRead CommittedTS:[%lu:%lu] \n", current_txn->GetCommitTimestamp()->getTimestamp(), current_txn->GetCommitTimestamp()->getID());
     //current_txn->SetCommitTimestamp(&committed_timestamp); 
 
@@ -870,8 +873,28 @@ void IndexScanExecutor::SetPointRead(concurrency::TransactionContext *current_tx
     *prepared_txn_digest = tile_group_header->GetTxnDig(tuple_location.offset);
   
     Debug("PointRead PreparedTS:[%lu:%lu], dependency: %s", current_txn->GetPreparedTimestamp()->getTimestamp(), current_txn->GetPreparedTimestamp()->getID(), pequinstore::BytesToHex(**prepared_txn_digest, 16).c_str());
-          
+      
+  
+    
+          //TODO: Is it possible that here we mark it as prepared, but by the time Refine is called it's already committed?
+          //TODO: Setting point read must be atomic...?
+                  //HOw to enforce this?
+
+          //NOTE: this does not seem to be the bug however.
   }
+
+  //Code to print result: TESTCODE
+  //  auto storage_manager = storage::StorageManager::GetInstance();
+  //   auto curr_tile_group = storage_manager->GetTileGroup(tuple_location.block);
+  //  const auto *schema = curr_tile_group->GetAbstractTable()->GetSchema();
+  //   oid_t current_tile_group_oid = tuple_location.block;
+    
+  //   auto tile_group = storage_manager->GetTileGroup(current_tile_group_oid);
+  //   ContainerTuple<storage::TileGroup> tuple(tile_group.get(), tuple_location.offset);     
+  //   for (uint32_t col_idx = 0; col_idx < schema->GetColumnCount(); col_idx++) {
+  //       auto val = tuple.GetValue(col_idx);
+  //       Debug("Read col %d. Value: %s", col_idx, val.ToString().c_str());  
+  //   }
 }         
 
 
@@ -1769,7 +1792,6 @@ bool IndexScanExecutor::ExecSecondaryIndexLookup() {
   // Add the tuple locations to the result vector in the order returned by the index scan. We might end up reading the same tile group multiple times. However, this is necessary to adhere to the ORDER BY clause
   oid_t current_tile_group_oid = INVALID_OID;
   std::vector<oid_t> tuples;
-
 
   for (auto &visible_tuple_location : visible_tuple_locations) {
     if (current_tile_group_oid == INVALID_OID) {

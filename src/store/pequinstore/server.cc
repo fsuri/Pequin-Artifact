@@ -2129,7 +2129,7 @@ void Server::CommitToStore(proto::CommittedProof *proof, proto::Transaction *txn
   //Apply TableWrites: //TODO: Apply also for Prepare: Mark TableWrites as prepared. TODO: add interface func to set prepared, and clean also.. commit should upgrade them. //FIXME: How does SQL update handle exising row
                             // alternatively: don't mark prepare/commit inside the table store, only in CC store. But that requires extra lookup for all keys in read set.
                             // + how do we remove prepared rows? Do we treat it as SQL delete (at ts)? row becomes invisible -- fully removed from CC store.
-   ApplyTableWrites(*txn, ts, txnDigest, proof);
+  ApplyTableWrites(*txn, ts, txnDigest, proof);
   // for (const auto &[table_name, table_write] : txn->table_writes()){
   //   ApplyTableWrites(table_name, table_write, ts, txnDigest, proof);
   //   //val.val = "";

@@ -598,7 +598,7 @@ void PelotonTableStore::TransformPointResult(proto::Write *write, Timestamp &com
   //   Panic("This should never happen in test");
   //   return; // Empty result: No tuple exists for the supplied Row-key => Note: Client creates empty result in this case, nothing to do here.
   // }
-    
+   
 
   sql::QueryResultProtoBuilder queryResultBuilder;
   RowProto *row;
@@ -634,8 +634,7 @@ void PelotonTableStore::TransformPointResult(proto::Write *write, Timestamp &com
     committed_timestamp.serialize(write->mutable_committed_timestamp());
     //NOTE: Committed proof is already set
 
-    Debug("PointRead Committed Val: %s. Version:[%lu:%lu]", BytesToHex(write->committed_value(), 100).c_str(), committed_timestamp.getTimestamp(), committed_timestamp.getID());
-    std::cerr << "TS after serialization: " << write->committed_timestamp().timestamp() << std::endl;
+    Debug("PointRead Committed Val: %s. Version:[%lu:%lu]", BytesToHex(write->committed_value(), 20).c_str(), committed_timestamp.getTimestamp(), committed_timestamp.getID());
   }
   else{
     write->clear_committed_value();
@@ -647,9 +646,11 @@ void PelotonTableStore::TransformPointResult(proto::Write *write, Timestamp &com
 
   if(!write->prepared_value().empty()){ //Indicate that the prepared version produced a result. If not, just return empty result
 
+    UW_ASSERT(rows == 2); //Assert that we always see a commit.
+
     if(write->committed_value().empty()) Panic("In current test there should always be a committed value to read");
 
-    if(write->committed_value() == "r"){ //only consume a row if the row exists for this version (i.e. write nothing to result if version was delete)
+    if(write->prepared_value() == "r"){ //only consume a row if the row exists for this version (i.e. write nothing to result if version was delete)
       row = queryResultBuilder.new_row();
       for (unsigned int i = 0; i < tuple_descriptor.size(); i++) {
         std::string &column_name = std::get<0>(tuple_descriptor[i]);
@@ -659,10 +660,12 @@ void PelotonTableStore::TransformPointResult(proto::Write *write, Timestamp &com
       }
     }
     write->set_prepared_value(queryResultBuilder.get_result()->SerializeAsString()); // Note: This "clears" the builder
+    UW_ASSERT(write->has_prepared_value()); // should be true EVEN if we write empty value.
+
     prepared_timestamp.serialize(write->mutable_prepared_timestamp());
     write->set_prepared_txn_digest(*txn_dig);
     UW_ASSERT(!write->prepared_txn_digest().empty());
- 
+
     Debug("PointRead Prepared Val: %s. Version:[%lu:%lu]. Dependency: %s", BytesToHex(write->prepared_value(), 20).c_str(), 
           prepared_timestamp.getTimestamp(), prepared_timestamp.getID(), BytesToHex(write->prepared_txn_digest(), 16).c_str());
   }
