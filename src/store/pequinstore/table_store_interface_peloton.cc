@@ -528,7 +528,7 @@ void PelotonTableStore::ExecPointRead(const std::string &query_statement, std::s
 
   Timestamp committed_timestamp;
   Timestamp prepared_timestamp;         // TODO: Change into write subparts.
-  std::shared_ptr<std::string> txn_dig; // prepared dependency
+  std::shared_ptr<std::string> txn_dig(nullptr); // prepared dependency
 
   // Execute PointQueryStatement on Peloton using traffic_cop args: query, Ts, this->can_read_prepared ; commit: (result1, timestamp1, proof), prepared: (result2, timestamp2, txn_digest), key (optional) 
   //Read latest committed (return committedProof) + Read latest prepared (if > committed)

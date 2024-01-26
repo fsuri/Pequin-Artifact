@@ -439,7 +439,7 @@ void IndexScanExecutor::CheckRow(ItemPointer tuple_location, concurrency::Transa
     int max_num_reads = current_txn->IsPointRead()? 2 : 1;
     int num_reads = 0;
 
-    fprintf(stderr, "First tuple in row: Looking at Tuple at location [%lu:%lu] with TS: [%lu:%lu] \n", tuple_location.block, tuple_location.offset, tuple_timestamp.getTimestamp(), tuple_timestamp.getID());
+    //fprintf(stderr, "First tuple in row: Looking at Tuple at location [%lu:%lu] with TS: [%lu:%lu] \n", tuple_location.block, tuple_location.offset, tuple_timestamp.getTimestamp(), tuple_timestamp.getID());
       
 
     while(!done){
@@ -790,7 +790,17 @@ void IndexScanExecutor::EvalRead(std::shared_ptr<storage::TileGroup> tile_group,
 
 //Mark the PointRead value as having failed the predicate. Distinguish between it being a deletion and predicate failure.
 void IndexScanExecutor::RefinePointRead(concurrency::TransactionContext *current_txn, storage::TileGroupHeader *tile_group_header, ItemPointer tuple_location, bool eval){
-  std::string *res_val = tile_group_header->GetCommitOrPrepare(tuple_location.offset)? current_txn->GetCommittedValue() : current_txn->GetPreparedValue();
+  
+  //if we called SetPointRead while the tuple was prepared, but by the time we call RefinePointRead the tuple is marked as Committed, then still treat it as prepare here.
+        //otherwise we could have a weird non-atomic state, in which we set commit_val, even though it shouldn't be; and we don't set prepared_val, even though it should be.
+  //To figure out whether the current tuple *was* prepared, we check whether a) the tuple is currently commit, b) whether or not we've previously set a txn_digest
+  //and c) whether we've previously set a prepared timestamp that matches this tuple (in SetPointRead) => in which case this tuple must be the prepared one.
+  bool has_prep_txn_digest = *current_txn->GetPreparedTxnDigest() != nullptr; //I.e. true if txn_digest was set to something.
+  bool concurrent_upgrade = tile_group_header->GetCommitOrPrepare(tuple_location.offset) && has_prep_txn_digest 
+                            && tile_group_header->GetBasilTimestamp(tuple_location.offset) == *current_txn->GetPreparedTimestamp(); 
+  
+  //if tuple is type commit (and it wasn't a conc upgrade) => pick commit val; otherwise, pick prepared val type.
+  std::string *res_val = tile_group_header->GetCommitOrPrepare(tuple_location.offset) && !concurrent_upgrade ? current_txn->GetCommittedValue() : current_txn->GetPreparedValue();
   if(eval || *res_val == "r"){ //FIXME: The second cond is a hack to not change this value once it's set (for the bugged version that reads via SecondaryIndex) 
     *res_val = "r"; //passed predicate, is "readable"
     if(eval) std::cerr << "hitting point read. Tuple: " << tuple_location.block << "," << tuple_location.offset << std::endl;
