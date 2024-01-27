@@ -26,6 +26,7 @@
  **********************************************************************/
 
 #include "store/benchmark/async/sql/auctionmark/auctionmark_client.h"
+#include "store/benchmark/async/sql/auctionmark/auctionmark_params.h"
 
 #include <random>
 
@@ -58,9 +59,10 @@ AuctionMarkClient::AuctionMarkClient(
 {
   lastOp = "";
   gen.seed(id);
+  need_close_auctions = CLOSE_AUCTIONS_ENABLE && id == 0;
   max_u_id = N_USERS;
   max_i_id = N_USERS * 10;
-  last_check_winning_bids = std::chrono::steady_clock::now();
+  last_close_auctions = std::chrono::steady_clock::now();
 }
 
 AuctionMarkClient::~AuctionMarkClient() {}
@@ -71,18 +73,14 @@ SyncTransaction *AuctionMarkClient::GetNextTransaction()
   uint32_t freq = 0;
   std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
 
-  if (std::chrono::duration_cast<std::chrono::seconds>(now - last_check_winning_bids).count() >= 10) {
+  if (need_close_auctions && std::chrono::duration_cast<std::chrono::seconds>(now - last_close_auctions).count() >= CLOSE_AUCTIONS_INTERVAL / TIME_SCALE_FACTOR) {
     lastOp = "check_winning_bids";
-    last_check_winning_bids = now;
+    last_close_auctions = now;
     post_auction_items = {};
     post_auction_sellers = {};
     post_auction_buyers = {};
     post_auction_ib_ids = {};
     return new CheckWinningBids(GetTimeout(), 0, 1, post_auction_items, post_auction_sellers, 
-      post_auction_buyers, post_auction_ib_ids, gen);
-  } else if (lastOp == "check_winning_bids") {
-    lastOp = "post_auction";
-    return new PostAuction(GetTimeout(), post_auction_items, post_auction_sellers, 
       post_auction_buyers, post_auction_ib_ids, gen);
   } else if (ttype < (freq = NEW_USER_RATIO)) {
     lastOp = "new_user";
