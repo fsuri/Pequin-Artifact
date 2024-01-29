@@ -505,10 +505,10 @@ bool IndexScanExecutor::FindRightRowVersion(const Timestamp &timestamp, std::sha
   bool done = false;
 
   Debug("Tuple at location [%lu:%lu] with commit state: %d.", tuple_location.block, tuple_location.offset, tile_group_header->GetCommitOrPrepare(tuple_location.offset));
-  bool init_mode = !perform_read && !perform_find_snapshot && !perform_read_on_snapshot;
+  bool write_mode = !perform_read && !perform_find_snapshot && !perform_read_on_snapshot; //If scanning as part of a write
 
   // If reading.
-  if (perform_read || perform_point_read || init_mode ) {
+  if (perform_read || perform_point_read || write_mode ) {
     // Three cases: Tuple is committed, or prepared. If prepared, it might have been forceMaterialized
     
     // If the tuple is committed read the version.    Try to read committed always -- whether it is eager or snapshot_read
@@ -521,11 +521,32 @@ bool IndexScanExecutor::FindRightRowVersion(const Timestamp &timestamp, std::sha
       Debug("Read Committed Timestamp: [%lu:%lu]", committed_timestamp.getTimestamp(), committed_timestamp.getID());
       if (perform_point_read) SetPointRead(current_txn, tile_group_header, tuple_location, committed_timestamp);
     } 
-    else { //tuple is prepared
-      if (!perform_read_on_snapshot){   //if doing eager read
+    else { //tuple is prepared                           Note: Technically in write mode always read the prepare. In practice, loader will never come here?
+  
+      if(write_mode && current_txn->IsDeletion()){ //Special handling to allow deletes to upgrade from prepare to commit; and to observe other delete rows.
+       //TODO: Just re-factor delete to also use Insert interface... (just write dummy values...) Then no scan is necessary.
+        Timestamp const &prepared_timestamp = tile_group_header->GetBasilTimestamp(tuple_location.offset);
+        bool tuple_is_delete = tile_group_header->IsDeleted(tuple_location.offset);
+        if(tuple_is_delete && prepared_timestamp == current_txn->GetBasilTimestamp() && current_txn->GetCommitOrPrepare()){  //upgrade case
+            Debug("Upgrade tuple[%lu:%lu], TS[%lu:%lu] from prepare to commit", tuple_location.block, tuple_location.offset, current_txn->GetBasilTimestamp().getTimestamp(), current_txn->GetBasilTimestamp().getID());
+            //this upgrades prepared version (with same TS) to commit, 
+            tile_group_header->SetCommitOrPrepare(tuple_location.offset, true);
+            tile_group_header->SetMaterialize(tuple_location.offset, false);
+             read_curr_version = false; //No need to read this. Won't pass Eval check anyways!
+        }
+        else{ //return as part of result (delete_executor will create new tuple version)
+          read_curr_version = true;
+        }
+        found_prepared = true;
+        //Only "read" the first prepared version as part of result
+        done = true;
+        return done;
+      }
+      else if (!perform_read_on_snapshot){   //if doing eager read
          // Don't read materialized 
         if(tile_group_header->GetMaterialize(tuple_location.offset)) {
           Debug("Don't read force materialized, continue reading");
+          //Panic("Nothing should be force Materialized in current test");
           read_curr_version = false;
           done = false;
           return done;
@@ -741,7 +762,8 @@ void IndexScanExecutor::EvalRead(std::shared_ptr<storage::TileGroup> tile_group,
 
   if (tile_group_header->IsDeleted(tuple_location.offset)) {
       Debug("Tuple is deleted so will not include in result");
-      eval = false;
+      if (current_txn->IsDeletion()) eval = true;  //Allow Deletions to read deleted rows. This is just for visibility... Technically, deletion should always work even if nothing exists.
+      else{ eval = false;}
   }
   else if (predicate_ != nullptr) { // if having predicate (WHERE clause), then perform evaluation.
       LOG_TRACE("perform predicate evaluate");

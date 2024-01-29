@@ -694,7 +694,7 @@ executor::ExecutionResult TrafficCop::ExecuteWriteHelper(
     const std::vector<int> &result_format, const Timestamp &basil_timestamp,
     std::shared_ptr<std::string> txn_dig,
     const pequinstore::proto::CommittedProof *commit_proof,
-    bool commit_or_prepare, bool forceMaterialize, size_t thread_id) {
+    bool commit_or_prepare, bool forceMaterialize, bool is_delete, size_t thread_id) {
   auto &curr_state = GetCurrentTxnState();
 
   concurrency::TransactionContext *txn;
@@ -722,6 +722,8 @@ executor::ExecutionResult TrafficCop::ExecuteWriteHelper(
   // txn->SetCommittedProofRef(commit_proof);
   //   Set commit or prepare
   txn->SetCommitOrPrepare(commit_or_prepare);
+
+  txn->SetDeletion(is_delete);
   // Set undo delete false
   txn->SetUndoDelete(false);
   // Set has read set mgr to false
@@ -1871,7 +1873,7 @@ ResultType TrafficCop::ExecuteWriteStatement(
     const std::vector<int> &result_format, std::vector<ResultValue> &result,
     const Timestamp &basil_timestamp, std::shared_ptr<std::string> txn_dig,
     const pequinstore::proto::CommittedProof *commit_proof,
-    bool commit_or_prepare, bool forceMaterialize, size_t thread_id) {
+    bool commit_or_prepare, bool forceMaterialize, bool is_delete, size_t thread_id) {
   // TODO(Tianyi) Further simplify this API
   /*if (static_cast<StatsType>(settings::SettingsManager::GetInt(
           settings::SettingId::stats_mode)) != StatsType::INVALID) {
@@ -1914,7 +1916,7 @@ ResultType TrafficCop::ExecuteWriteStatement(
 
       ExecuteWriteHelper(statement->GetPlanTree(), params, result,
                          result_format, basil_timestamp, txn_dig, commit_proof,
-                         commit_or_prepare, forceMaterialize, thread_id);
+                         commit_or_prepare, forceMaterialize, is_delete, thread_id);
       if (GetQueuing()) {
         return ResultType::QUEUING;
       } else {

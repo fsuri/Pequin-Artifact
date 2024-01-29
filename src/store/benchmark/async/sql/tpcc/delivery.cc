@@ -85,13 +85,11 @@ transaction_status_t SQLDelivery::Execute(SyncClient &client) {
     // (2) Delete the found NEW-ORDER row
         // Note: Pesto will turn this into a PointDelete for which no read is required.
     deserialize(no_o_id, queryResult);
-    //FIXME: Comment back in!!!
-    // statement = fmt::format("DELETE FROM {} WHERE no_o_id = {} AND no_d_id = {} AND no_w_id = {};", NEW_ORDER_TABLE, no_o_id, d_id, w_id);
-    // client.Write(statement, queryResult, timeout); //This can be async. 
+    statement = fmt::format("DELETE FROM {} WHERE no_o_id = {} AND no_d_id = {} AND no_w_id = {};", NEW_ORDER_TABLE, no_o_id, d_id, w_id);
+    client.Write(statement, queryResult, timeout); //This can be async. 
 
   }
   
-
   // (3) Select the corresponding row from ORDER and extract the customer id. Update the carrier id of the order.
   //statement = fmt::format("SELECT c_id FROM \"order\" WHERE id = {} AND d_id = {} AND w_id = {};", no_o_id, d_id, w_id);
   statement = fmt::format("SELECT * FROM {} WHERE o_id = {} AND o_d_id = {} AND o_w_id = {};", ORDER_TABLE, no_o_id, d_id, w_id); //Turn into * to cache for the following point Update

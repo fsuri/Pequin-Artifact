@@ -691,8 +691,10 @@ void PelotonTableStore::ApplyTableWrite(const std::string &table_name, const Tab
   // Note: These are "no questions asked writes", i.e. they should always succeed/be applied, because they don't care about any semantics
   //  TODO: can add boolean to allow a use of this function that DOES respect Insert/Update/Delete semantics -- however those can just go through ExecRaw (and wait for the result)
 
-  // Ensure that ApplyTableWrite is synchronous -- i.e. only returns after all writes are applied. => currently this is achieved by waiting for the Write
-  // Result If we don't want to wait for the Write Result, then must call SetTableVersion as callback from within Peloton once it is done to set the TableVersion 
+  //if(forceMaterialize) Panic("shouldn't try to force mat in testing");
+
+  // Ensure that ApplyTableWrite is synchronous -- i.e. only returns after all writes are applied. => currently this is achieved by waiting for the Write Result 
+  // If we don't want to wait for the Write Result, then must call SetTableVersion as callback from within Peloton once it is done to set the TableVersion 
   //(Currently, it is being set right after ApplyTableWrite() returns)
   int core = sched_getcpu();
   Debug("Begin writeLat on core: %d", core);
@@ -705,7 +707,7 @@ void PelotonTableStore::ApplyTableWrite(const std::string &table_name, const Tab
   }
 
   // UW_ASSERT(ts.getTimestamp() >= 0 && ts.getID() >= 0);
-  Debug("Apply TableWrite for txn %s. TS [%lu:%lu]", BytesToHex(txn_digest, 16).c_str(), ts.getTimestamp(), ts.getID());
+  Debug("Apply TableWrite[%s] for txn %s. TS [%lu:%lu]. Commit? %d. ForceMat? %d", table_name.c_str(), BytesToHex(txn_digest, 16).c_str(), ts.getTimestamp(), ts.getID(), commit_or_prepare, forceMaterialize);
 
   if (table_write.rows().empty()) return;
 
@@ -782,9 +784,10 @@ void PelotonTableStore::ApplyTableWrite(const std::string &table_name, const Tab
 
     std::vector<int> result_format(statement->GetTupleDescriptor().size(), 0);
 
+    counter->store(1);
     // counter_.store(1); // SetTrafficCopCounter();
     /*auto status = traffic_cop_.ExecuteWriteStatement( statement, param_values, unnamed, result_format, result, ts, txn_dig, commit_proof, commit_or_prepare);*/
-    auto status = tcop->ExecuteWriteStatement(statement, param_values, unamed, result_format, result, ts, txn_dig, commit_proof, commit_or_prepare, forceMaterialize);
+    auto status = tcop->ExecuteWriteStatement(statement, param_values, unamed, result_format, result, ts, txn_dig, commit_proof, commit_or_prepare, forceMaterialize, true); //is_delete
 
     // GetResult(status);
     GetResult(status, tcop, counter);

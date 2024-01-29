@@ -56,7 +56,7 @@ bool InsertExecutor::DInit() {
  * @return true on success, false otherwise.
  */
 bool InsertExecutor::DExecute() {
-  // std::cout << "Inside insert executor" << std::endl;
+  //std::cout << "Inside insert executor" << std::endl;
   if (done_)
     return false;
 
