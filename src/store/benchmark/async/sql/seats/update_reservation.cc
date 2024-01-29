@@ -4,15 +4,15 @@
 #include <fmt/core.h>
 
 namespace seats_sql {
-SQLUpdateReservation::SQLUpdateReservation(uint32_t timeout, std::mt19937_64 gen, std::queue<SEATSReservation> &existing_res)
+SQLUpdateReservation::SQLUpdateReservation(uint32_t timeout, std::mt19937_64 gen, std::queue<SEATSReservation> &update_res, std::queue<SEATSReservation> &delete_res)
     : SEATSSQLTransaction(timeout) {
-        if (!existing_res.empty()) {
-            SEATSReservation r = existing_res.front();
+        if (!update_res.empty()) {
+            SEATSReservation r = update_res.front();
             r_id = r.r_id;
             c_id = r.c_id;
             f_id = r.f_id;
-            seatnum = r.seat_num;
-            existing_res.pop();
+            seatnum = std::uniform_int_distribution<int>(1, TOTAL_SEATS_PER_FLIGHT)(gen);
+            update_res.pop();
         } else { 
             // no reservations to update so make this transaction fail
             c_id = NULL_ID;
@@ -22,7 +22,8 @@ SQLUpdateReservation::SQLUpdateReservation(uint32_t timeout, std::mt19937_64 gen
         }
         attr_idx = std::uniform_int_distribution<int64_t>(0, 3)(gen);
         attr_val = std::uniform_int_distribution<int64_t>(1, 100000)(gen);
-        q = &existing_res;
+        update_q = &update_res;
+        delete_q = &delete_res;
     }
 
 SQLUpdateReservation::~SQLUpdateReservation() {}
@@ -72,7 +73,11 @@ transaction_status_t SQLUpdateReservation::Execute(SyncClient &client) {
         return ABORTED_USER;
     }
 
-    q->push(SEATSReservation(r_id, c_id, f_id, seatnum));
+    std::mt19937 gen;
+    if (std::uniform_int_distribution<int>(1, 100)(gen) < PROB_Q_DELETE_RESERVATION)
+        delete_q->push(SEATSReservation(r_id, c_id, f_id, seatnum));
+    else 
+        update_q->push(SEATSReservation(r_id, c_id, f_id, seatnum));
 
     return client.Commit(timeout);
 }

@@ -539,8 +539,9 @@ void GenerateReservationTable(TableWriter &writer, std::vector<int> flight_to_nu
         for (int iattr = 0; iattr < 9; iattr++) {
           values.push_back(std::to_string(std::uniform_int_distribution<int64_t>(1, 100000000)(gen)));
         }
-        values.push_back(std::to_string(time(0)));
-        values.push_back(std::to_string(time(0)));
+        // for r_updated, r_created
+        //values.push_back(std::to_string(time(0)));
+        //values.push_back(std::to_string(time(0)));
 
         writer.add_row(table_name, values);
       }

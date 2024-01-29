@@ -6,7 +6,7 @@
 
 namespace seats_sql {
     
-SQLNewReservation::SQLNewReservation(uint32_t timeout, std::mt19937_64 gen, int64_t r_id, std::queue<SEATSReservation> &insert_res, std::queue<SEATSReservation> &existing_res) : 
+SQLNewReservation::SQLNewReservation(uint32_t timeout, std::mt19937_64 gen, int64_t r_id, std::queue<SEATSReservation> &insert_res, std::queue<SEATSReservation> &update_res, std::queue<SEATSReservation> &delete_res) : 
     SEATSSQLTransaction(timeout), r_id(r_id) {
         if (!insert_res.empty()) {
             SEATSReservation res = insert_res.front();
@@ -17,9 +17,7 @@ SQLNewReservation::SQLNewReservation(uint32_t timeout, std::mt19937_64 gen, int6
             else
                 c_id = std::uniform_int_distribution<int64_t>(1, NUM_CUSTOMERS)(gen);
             
-            if (seatnum != -1)
-                seatnum = seatnum;
-            else   
+            if (seatnum == -1)   
                 seatnum = std::uniform_int_distribution<int64_t>(1, TOTAL_SEATS_PER_FLIGHT)(gen);
 
             insert_res.pop();
@@ -35,7 +33,8 @@ SQLNewReservation::SQLNewReservation(uint32_t timeout, std::mt19937_64 gen, int6
             attributes.push_back(attr_dist(gen));
         }
         price = std::uniform_real_distribution<double>(MIN_RESERVATION_PRICE, MAX_RESERVATION_PRICE)(gen); //TODO: Should be 2x this?
-        q = &existing_res;
+        update_q = &update_res;
+        delete_q = &delete_res;
     }
 
 SQLNewReservation::~SQLNewReservation() {} 
@@ -146,8 +145,12 @@ transaction_status_t SQLNewReservation::Execute(SyncClient &client) {
     //     client.Abort(timeout);
     //     return ABORTED_USER;
     // }
+    std::mt19937 gen;
+    if (std::uniform_int_distribution<int>(1, 100)(gen) < PROB_Q_DELETE_RESERVATION)
+        delete_q->push(SEATSReservation(r_id, c_id, f_id, seatnum));
+    else
+        update_q->push(SEATSReservation(r_id, c_id, f_id, seatnum));
 
-    q->push(SEATSReservation(r_id, c_id, f_id, seatnum));
     return client.Commit(timeout);
 }       
 }
