@@ -111,13 +111,10 @@ public:
   void EsendBatchedPreprepare();
   std::unordered_map<uint64_t, std::string> EbStatNames;
   void sendEbatch();
-  void sendEbatch_internal();
   void delegateEbatch(std::vector<::google::protobuf::Message*> EpendingBatchedMessages_,
      std::vector<std::string> EpendingBatchedDigs_);
   std::vector<proto::SignedMessage*> EsignedMessages;
 
-  // map from batched digest to received batched requests
-  std::unordered_map<std::string, proto::BatchedRequest> batchedRequests;
   // map from digest to received requests
   std::unordered_map<std::string, proto::PackedMessage> requests;
 
@@ -127,30 +124,16 @@ public:
   // map from seqnum to the digest pending execution at that sequence number
   std::unordered_map<uint64_t, std::string> pendingExecutions;
 
-  // map from seqnum to timer ids. If the primary commits the sequence number
-  // before the timer expires, then it cancels the timer
-  std::unordered_map<uint64_t, int> seqnumCommitTimers;
-
   // map from tx digest to reply address
   //std::unordered_map<std::string, TransportAddress*> replyAddrs;
   tbb::concurrent_unordered_map<std::string, TransportAddress*> replyAddrs;
   //std::mutex replyAddrsMutex;
 
-
   void executeSlots();
-
-  void executeSlots_callback(std::vector<::google::protobuf::Message*> &replies, string batchDigest, string digest);
 
   std::mutex batchMutex;
 
   void handleMessage(const TransportAddress &remote, const string &type, const string &data);
-
-  // map from seqnum to view num to
-  std::unordered_map<uint64_t, std::unordered_map<uint64_t, std::unordered_map<std::string, int>>> actionTimers;
-
-  void startActionTimer(uint64_t seq_num, uint64_t viewnum, std::string digest);
-
-  void cancelActionTimer(uint64_t seq_num, uint64_t viewnum, std::string digest);
 
   Stats* stats;
 };
