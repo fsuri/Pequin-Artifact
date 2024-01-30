@@ -77,8 +77,8 @@ transaction_status_t SQLPayment::Execute(SyncClient &client) {
 
   //Update a customer's balance and reflect payment on district/warehouse sales statistics
   //Type: Light-weight read-write Tx, high frequency. (Uses Non-primar key access to CUSTOMER table)
-  Debug("PAYMENT");
-  std::cerr << "PAYMENT" << std::endl;
+  Debug("PAYMENT (parallel)");
+  std::cerr << "PAYMENT (parallel)" << std::endl;
   Debug("Amount: %u", h_amount);
   Debug("Warehouse: %u", w_id);
   //std::cerr << "warehouse: " << w_id << std::endl;
@@ -87,30 +87,33 @@ transaction_status_t SQLPayment::Execute(SyncClient &client) {
 
   // (1) Retrieve WAREHOUSE row. Update year to date balance. 
   statement = fmt::format("SELECT * FROM {} WHERE w_id = {}", WAREHOUSE_TABLE, w_id);
-  client.Query(statement, queryResult, timeout);
-
-  WarehouseRow w_row;
-  deserialize(w_row, queryResult);
-  Debug("  YTD: %u", w_row.get_ytd());
-
-  // (1.5) Retrieve WAREHOUSE row. Update year to date balance. 
-  statement = fmt::format("UPDATE {} SET w_ytd = {} WHERE w_id = {}", WAREHOUSE_TABLE, w_row.get_ytd() + h_amount, w_id);
-  client.Write(statement, queryResult, timeout);
-
-
+  client.Query(statement, timeout);
   // (2) Retrieve DISTRICT row. Update year to date balance. 
   Debug("District: %u", d_id);
   statement = fmt::format("SELECT * FROM {} WHERE d_id = {} AND d_w_id = {}", DISTRICT_TABLE, d_id, d_w_id);
-  client.Query(statement, queryResult, timeout);
+  client.Query(statement, timeout);
+ 
+  // // (1) Retrieve WAREHOUSE row. Update year to date balance. 
+  // statement = fmt::format("UPDATE Warehouse SET ytd = ytd + {} WHERE id = {}", h_amount, w_id);
+  // client.Write(statement, timeout);
 
-  DistrictRow d_row;
-  deserialize(d_row, queryResult);
-  Debug("  YTD: %u", d_row.get_ytd());
+  // // (2) Retrieve DISTRICT row. Update year to date balance. //TODO: This can be in parallel with Warehouse write?
+  // statement = fmt::format("UPDATE District SET ytd = ytd + {} WHERE id = {} AND w_id = {}", h_amount, d_id, d_w_id);
+  // client.Write(statement, timeout);
+  
+  // client.Wait(results);
+  // assert(results[0]->has_rows_affected());
+  // assert(results[1]->has_rows_affected());
 
-  // (2.5) Retrieve DISTRICT row. Update year to date balance.
-  statement = fmt::format("UPDATE {} SET d_ytd = {} WHERE d_id = {} AND d_w_id = {}", DISTRICT_TABLE, d_row.get_ytd() + h_amount, d_id, d_w_id);
-  client.Write(statement, queryResult, timeout);
-
+  // // Read the newly written YTD rate  //TODO: This seems like a wasteful duplicate read. Try to replace with Returning in Update? ==> Sql interpreter would need to handle that.
+  //                                     //Simulate Get/Put semantics
+  // statement = fmt::format("SELECT * FROM Warehouse WHERE id = {}", w_id);
+  // client.Query(statement, timeout);
+  // //TODO: Replace with Returning?
+  // Debug("District: %u", d_id);
+  // statement = fmt::format("SELECT * FROM District WHERE id = {} AND w_id = {}", d_id, d_w_id);
+  // client.Query(statement, timeout);
+  // //TODO: Add WAIT.  => Do both updates first, and then WAIT (just before Add to History row.). And then let Select retrieve from Cache.
 
   // (3) Select Customer (based on last name OR customer number)
   CustomerRow c_row;
@@ -121,25 +124,40 @@ transaction_status_t SQLPayment::Execute(SyncClient &client) {
 
     // (3. A) Retrieve a list of Customer that share the same Last Name (Secondary Key access; Scan Read). Select middle row.
     statement = fmt::format("SELECT * FROM {} WHERE c_d_id = {} AND c_w_id = {} AND c_last = '{}' ORDER BY c_first", CUSTOMER_TABLE, c_d_id, c_w_id, c_last);
-    client.Query(statement, queryResult, timeout);
-    int namecnt = queryResult->size();
+    client.Query(statement, timeout);
+    client.Wait(results);
+    int namecnt = results[2]->size();
     int idx = (namecnt + 1) / 2; //round up
     if (idx == namecnt) idx = namecnt - 1;
-    deserialize(c_row, queryResult, idx);
+    deserialize(c_row, results[2], idx);
     c_id = c_row.get_id();
     Debug("  ID: %u", c_id);
   } else {
     // (3.B) Retrieve Customer based on unique Number (Primary Key access; Point Read)
     statement = fmt::format("SELECT * FROM {} WHERE c_id = {} AND c_d_id = {} AND c_w_id = {}", CUSTOMER_TABLE, c_id, c_d_id, c_w_id);
-    client.Query(statement, queryResult, timeout);
-   
-    deserialize(c_row, queryResult);
+    client.Query(statement, timeout);
+    client.Wait(results);
+    deserialize(c_row, results[2]);
     Debug("Customer: %u", c_id);
   }
 
   ////////////Updates
 
+  WarehouseRow w_row;
+  deserialize(w_row, results[0]);
+  Debug("  YTD: %u", w_row.get_ytd());
 
+  DistrictRow d_row;
+  deserialize(d_row, results[1]);
+  Debug("  YTD: %u", d_row.get_ytd());
+
+  // (1.5) Retrieve WAREHOUSE row. Update year to date balance. 
+  statement = fmt::format("UPDATE {} SET w_ytd = {} WHERE w_id = {}", WAREHOUSE_TABLE, w_row.get_ytd() + h_amount, w_id);
+  client.Write(statement, timeout);
+
+  // (2.5) Retrieve DISTRICT row. Update year to date balance.
+  statement = fmt::format("UPDATE {} SET d_ytd = {} WHERE d_id = {} AND d_w_id = {}", DISTRICT_TABLE, d_row.get_ytd() + h_amount, d_id, d_w_id);
+  client.Write(statement, timeout);
 
   // (4) Decrease customer balance, increase year to date payment. Increment payment count.
   c_row.set_balance(c_row.get_balance() - h_amount);
@@ -151,7 +169,8 @@ transaction_status_t SQLPayment::Execute(SyncClient &client) {
   // (4.5) Additionally: If credit = BC: Retrieve customer data and modify it
   if (c_row.get_credit() == "BC") {
     std::stringstream ss;
-    ss << c_id << "," << c_d_id << "," << c_w_id << "," << d_id << "," << w_id << "," << h_amount;
+    ss << c_id << "," << c_d_id << "," << c_w_id << "," << d_id << ","
+             << w_id << "," << h_amount;
     std::string new_data = ss.str() +  c_row.get_data();
     new_data = new_data.substr(std::min(new_data.size(), 500UL));
     c_row.set_data(new_data);
@@ -160,15 +179,16 @@ transaction_status_t SQLPayment::Execute(SyncClient &client) {
             "WHERE c_id = {} AND c_d_id = {} AND c_w_id = {};", CUSTOMER_TABLE,
             c_row.get_balance(), c_row.get_ytd_payment(), c_row.get_payment_cnt(), c_row.get_data(), 
             c_row.get_id(), c_row.get_d_id(), c_row.get_w_id());
-  client.Write(statement, queryResult, timeout);  
-  assert(queryResult->has_rows_affected());
+  client.Write(statement, timeout);  
 
   // (5) Create History entry.
-  statement = fmt::format("INSERT INTO {} (h_c_id, h_c_d_id, h_c_w_id, h_d_id, h_w_id, h_date, h_amount, h_data) " 
+  statement = fmt::format("INSERT INTO {} (h_c_id, h_c_d_id, h_c_w_id, h_d_id, h_w_id, h_date, h_amount, h_data) "  
             "VALUES ({}, {}, {}, {}, {}, {}, {}, '{}');", HISTORY_TABLE, c_id, c_d_id, c_w_id, d_id, w_id, h_date, h_amount, w_row.get_name() + "    " + d_row.get_name());
-  client.Write(statement, queryResult, timeout);
-  assert(queryResult->has_rows_affected());
-  
+  client.Write(statement, timeout);
+
+  client.Wait(results);
+  assert(results[0]->has_rows_affected());
+  assert(results[1]->has_rows_affected());
 
   Debug("COMMIT");
   return client.Commit(timeout);

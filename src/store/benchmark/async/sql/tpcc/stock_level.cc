@@ -49,8 +49,8 @@ transaction_status_t SQLStockLevel::Execute(SyncClient &client) {
 
   //Determine the number of recently sold items with stock below a given threshold
   //Type: Heavy read-only Tx, low frequency
-  std::cerr << "STOCK_LEVEL" << std::endl;
-  Debug("STOCK_LEVEL");
+  std::cerr << "STOCK_LEVEL (parallel)" << std::endl;
+  Debug("STOCK_LEVEL (parallel)");
   Debug("Warehouse: %u", w_id);
   Debug("District: %u", d_id);
   //std::cerr << "warehouse: " << w_id << std::endl;
@@ -66,7 +66,7 @@ transaction_status_t SQLStockLevel::Execute(SyncClient &client) {
 
   // (2) Select the 20 most recent orders from the district: Select the orders from OrderLine (from this district) with    next_o_id - 20 <= id < next_o_id
   // (3) Count all rows in STOCK with distinct items whose quantity is below the min_quantity threshold.
-  query = fmt::format("SELECT COUNT(DISTINCT(s_i_id)) FROM {}, {} "
+   query = fmt::format("SELECT COUNT(DISTINCT(s_i_id)) FROM {}, {} "
                       "WHERE ol_w_id = {} AND ol_d_id = {} AND ol_o_id < {} AND ol_o_id >= {} "
                       " AND s_w_id = {} AND s_i_id = ol_i_id AND s_quantity < {}", 
                       ORDER_LINE_TABLE, STOCK_TABLE, w_id, d_id, next_o_id, next_o_id - 20, w_id, min_quantity);

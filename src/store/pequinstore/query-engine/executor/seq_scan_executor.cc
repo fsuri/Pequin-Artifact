@@ -240,7 +240,7 @@ bool SeqScanExecutor::FindRightRowVersion(const Timestamp &txn_timestamp, std::s
       read_curr_version = true;
       done = true;
     } 
-    else { //tuple is prepared
+    else if(!found_prepared)  { //tuple is prepared, and we haven't read a prepared one yet.
       if (!perform_read_on_snapshot){   //if doing eager read
          // Don't read materialized 
         if(tile_group_header->GetMaterialize(tuple_location.offset)) {
