@@ -646,8 +646,7 @@ void PelotonTableStore::TransformPointResult(proto::Write *write, Timestamp &com
 
   if(!write->prepared_value().empty()){ //Indicate that the prepared version produced a result. If not, just return empty result
 
-    UW_ASSERT(rows == 2); //Assert that we always see a commit.
-
+    if(rows != 2) Panic("current test should always see committed"); 
     if(write->committed_value().empty()) Panic("In current test there should always be a committed value to read");
 
     if(write->prepared_value() == "r"){ //only consume a row if the row exists for this version (i.e. write nothing to result if version was delete)
@@ -858,9 +857,7 @@ void PelotonTableStore::PurgeTableWrite(const std::string &table_name, const Tab
   std::vector<int> result_format(statement->GetTupleDescriptor().size(), 0);
 
   counter->store(1); // SetTrafficCopCounter();
-  auto status = tcop->ExecutePurgeStatement(
-      statement, param_values, unamed, result_format, result, ts, txn_dig,
-      true); //! purge_statements.empty());
+  auto status = tcop->ExecutePurgeStatement(statement, param_values, unamed, result_format, result, ts, txn_dig, true); //! purge_statements.empty());
 
   // GetResult(status);
   GetResult(status, tcop, counter);

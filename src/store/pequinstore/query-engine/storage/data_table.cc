@@ -303,8 +303,7 @@ bool DataTable::InstallVersion(const AbstractTuple *tuple,
   }
   // std::cout << "Past check constraints" << std::endl;
   //  Index checks and updates
-  if (InsertInSecondaryIndexes(tuple, targets_ptr, transaction,
-                               index_entry_ptr) == false) {
+  if (InsertInSecondaryIndexes(tuple, targets_ptr, transaction, index_entry_ptr) == false) {
     // std::cout << "Inside if insertinsecondaryindexes" << std::endl;
     LOG_TRACE("Index constraint violated");
     return false;
@@ -326,8 +325,7 @@ ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple,
 
   ItemPointer old_location = ItemPointer(0, 0);
 
-  auto result = InsertTuple(tuple, location, transaction, old_location,
-                            index_entry_ptr, check_fk);
+  auto result = InsertTuple(tuple, location, transaction, old_location, index_entry_ptr, check_fk);
   if (result == false) {
     // check_fk = false;
     return INVALID_ITEMPOINTER;

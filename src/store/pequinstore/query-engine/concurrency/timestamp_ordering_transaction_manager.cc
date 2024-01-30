@@ -374,20 +374,17 @@ void TimestampOrderingTransactionManager::PerformInsert(
   oid_t tuple_id = location.offset;
 
   auto storage_manager = storage::StorageManager::GetInstance();
-  auto tile_group_header =
-      storage_manager->GetTileGroup(tile_group_id)->GetHeader();
+  auto tile_group_header = storage_manager->GetTileGroup(tile_group_id)->GetHeader();
   auto transaction_id = current_txn->GetTransactionId();
 
   // check MVCC info
   // the tuple slot must be empty.
-  PELOTON_ASSERT(tile_group_header->GetTransactionId(tuple_id) ==
-                 INVALID_TXN_ID);
+  PELOTON_ASSERT(tile_group_header->GetTransactionId(tuple_id) == INVALID_TXN_ID);
   PELOTON_ASSERT(tile_group_header->GetBeginCommitId(tuple_id) == MAX_CID);
   PELOTON_ASSERT(tile_group_header->GetEndCommitId(tuple_id) == MAX_CID);
 
   tile_group_header->SetTransactionId(tuple_id, transaction_id);
-  tile_group_header->SetLastReaderCommitId(tuple_id,
-                                           current_txn->GetCommitId());
+  tile_group_header->SetLastReaderCommitId(tuple_id, current_txn->GetCommitId());
 
   // no need to set next item pointer.
 
@@ -399,17 +396,16 @@ void TimestampOrderingTransactionManager::PerformInsert(
   tile_group_header->SetTxnDig(tuple_id, current_txn->GetTxnDig());
 
   // NEW: set commit proof
-  const pequinstore::proto::CommittedProof *proof =
-      current_txn->GetCommittedProof();
+  const pequinstore::proto::CommittedProof *proof = current_txn->GetCommittedProof();
   if (current_txn->GetCommitOrPrepare() && proof != nullptr) {
     /*auto ts1 = Timestamp(proof->txn().timestamp());
-    Debug("The commit proof timestamp is %lu, %lu", ts1.getTimestamp(),
-          ts1.getID());*/
+    Debug("The commit proof timestamp is %lu, %lu", ts1.getTimestamp(), ts1.getID());*/
   }
   tile_group_header->SetCommittedProof(tuple_id, proof);
   // NEW: set commit or prepare
-  tile_group_header->SetCommitOrPrepare(tuple_id,
-                                        current_txn->GetCommitOrPrepare());
+  tile_group_header->SetCommitOrPrepare(tuple_id, current_txn->GetCommitOrPrepare());
+  //if(current_txn->GetForceMaterialize()) Panic("shouldn't be foreMat for current test");
+  tile_group_header->SetMaterialize(tuple_id, current_txn->GetForceMaterialize());
 
   // Add the new tuple into the insert set
   current_txn->RecordInsert(location);
@@ -417,181 +413,129 @@ void TimestampOrderingTransactionManager::PerformInsert(
 }
 
 void TimestampOrderingTransactionManager::PerformUpdate(
-    TransactionContext *const current_txn, const ItemPointer &location,
-    const ItemPointer &new_location) {
+    TransactionContext *const current_txn, const ItemPointer &location, const ItemPointer &new_location) {
   PELOTON_ASSERT(!current_txn->IsReadOnly());
   Debug("Perform Update");
 
   ItemPointer old_location = location;
 
-  LOG_TRACE("Performing Update old tuple %u %u", old_location.block,
-            old_location.offset);
-  LOG_TRACE("Performing Update new tuple %u %u", new_location.block,
-            new_location.offset);
+  LOG_TRACE("Performing Update old tuple %u %u", old_location.block, old_location.offset);
+  LOG_TRACE("Performing Update new tuple %u %u", new_location.block, new_location.offset);
 
   auto storage_manager = storage::StorageManager::GetInstance();
-  auto tile_group_header =
-      storage_manager->GetTileGroup(old_location.block)->GetHeader();
-  auto new_tile_group_header =
-      storage_manager->GetTileGroup(new_location.block)->GetHeader();
+  auto tile_group_header = storage_manager->GetTileGroup(old_location.block)->GetHeader();
+  auto new_tile_group_header =  storage_manager->GetTileGroup(new_location.block)->GetHeader();
 
   auto transaction_id = current_txn->GetTransactionId();
-  // if we can perform update, then we must have already locked the older
-  // version.
+  // if we can perform update, then we must have already locked the older version.
   /** NEW: Commented this assertion out for upsert */
-  /*PELOTON_ASSERT(tile_group_header->GetTransactionId(old_location.offset) ==
-                 transaction_id);*/
+  /*PELOTON_ASSERT(tile_group_header->GetTransactionId(old_location.offset) == transaction_id);*/
   /** NEW: Commented out because we can update in the middle of the linked list,
    * we don't assume we always update the head */
-  /*PELOTON_ASSERT(
-      tile_group_header->GetPrevItemPointer(old_location.offset).IsNull() ==
-      true);*/
+  /*PELOTON_ASSERT(tile_group_header->GetPrevItemPointer(old_location.offset).IsNull() == true);*/
 
   // check whether the new version is empty.
-  PELOTON_ASSERT(new_tile_group_header->GetTransactionId(new_location.offset) ==
-                 INVALID_TXN_ID);
-  PELOTON_ASSERT(new_tile_group_header->GetBeginCommitId(new_location.offset) ==
-                 MAX_CID);
-  PELOTON_ASSERT(new_tile_group_header->GetEndCommitId(new_location.offset) ==
-                 MAX_CID);
+  PELOTON_ASSERT(new_tile_group_header->GetTransactionId(new_location.offset) == INVALID_TXN_ID);
+  PELOTON_ASSERT(new_tile_group_header->GetBeginCommitId(new_location.offset) == MAX_CID);
+  PELOTON_ASSERT(new_tile_group_header->GetEndCommitId(new_location.offset) == MAX_CID);
 
   // if the executor doesn't call PerformUpdate after AcquireOwnership,
   // no one will possibly release the write lock acquired by this txn.
   auto ts = current_txn->GetBasilTimestamp();
   new_tile_group_header->SetBasilTimestamp(new_location.offset, ts);
 
-  new_tile_group_header->SetTxnDig(new_location.offset,
-                                   current_txn->GetTxnDig());
+  new_tile_group_header->SetTxnDig(new_location.offset, current_txn->GetTxnDig());
 
   // NEW: set commit proof
-  const pequinstore::proto::CommittedProof *proof =
-      current_txn->GetCommittedProof();
+  const pequinstore::proto::CommittedProof *proof = current_txn->GetCommittedProof();
   if (current_txn->GetCommitOrPrepare() && proof != nullptr) {
     auto ts1 = Timestamp(proof->txn().timestamp());
-    Debug("The commit proof timestamp is %lu, %lu", ts1.getTimestamp(),
-          ts1.getID());
+    Debug("The commit proof timestamp is %lu, %lu", ts1.getTimestamp(), ts1.getID());
   }
   new_tile_group_header->SetCommittedProof(new_location.offset, proof);
 
-  // NEW: set commit or prepare
-  new_tile_group_header->SetCommitOrPrepare(new_location.offset,
-                                            current_txn->GetCommitOrPrepare());
+  // NEW: set commit or prepare. Set Materialize
+  new_tile_group_header->SetCommitOrPrepare(new_location.offset, current_txn->GetCommitOrPrepare());
+  //if(current_txn->GetForceMaterialize()) Panic("shouldn't be foreMat for current test");
+  new_tile_group_header->SetMaterialize(new_location.offset, current_txn->GetForceMaterialize());
 
-  std::cout << "Setting new ts to " << ts.getTimestamp() << ", " << ts.getID()
-            << std::endl;
+  std::cout << "Setting new ts to " << ts.getTimestamp() << ", " << ts.getID() << std::endl;
 
-  ItemPointer *index_entry_ptr =
-      tile_group_header->GetIndirection(old_location.offset);
+  ItemPointer *index_entry_ptr = tile_group_header->GetIndirection(old_location.offset);
   if (index_entry_ptr != nullptr) {
-    auto index_tile_group_header =
-        storage_manager->GetTileGroup(index_entry_ptr->block)->GetHeader();
-    auto head_ts =
-        index_tile_group_header->GetBasilTimestamp(index_entry_ptr->offset);
+    auto index_tile_group_header = storage_manager->GetTileGroup(index_entry_ptr->block)->GetHeader();
+    auto head_ts = index_tile_group_header->GetBasilTimestamp(index_entry_ptr->offset);
     // std::cout << "index entry not null" << std::endl;
     ItemPointer curr_pointer = *index_entry_ptr;
-    auto curr_tile_group_header =
-        storage_manager->GetTileGroup(curr_pointer.block)->GetHeader();
+    auto curr_tile_group_header = storage_manager->GetTileGroup(curr_pointer.block)->GetHeader();
 
-    while (new_tile_group_header->GetBasilTimestamp(new_location.offset) <
-           curr_tile_group_header->GetBasilTimestamp(curr_pointer.offset)) {
+    while (new_tile_group_header->GetBasilTimestamp(new_location.offset) < curr_tile_group_header->GetBasilTimestamp(curr_pointer.offset)) {
       // Update current pointer and the associated header
       // std::cout << "Iterate through while loop" << std::endl;
-      if (curr_tile_group_header->GetNextItemPointer(curr_pointer.offset)
-              .IsNull()) {
+      if (curr_tile_group_header->GetNextItemPointer(curr_pointer.offset).IsNull()) {
         break;
       }
-      curr_pointer =
-          curr_tile_group_header->GetNextItemPointer(curr_pointer.offset);
-      curr_tile_group_header =
-          storage_manager->GetTileGroup(curr_pointer.block)->GetHeader();
+      curr_pointer = curr_tile_group_header->GetNextItemPointer(curr_pointer.offset);
+      curr_tile_group_header = storage_manager->GetTileGroup(curr_pointer.block)->GetHeader();
     }
 
-    auto curr_ts =
-        curr_tile_group_header->GetBasilTimestamp(curr_pointer.offset);
+    auto curr_ts = curr_tile_group_header->GetBasilTimestamp(curr_pointer.offset);
     auto new_ts = new_tile_group_header->GetBasilTimestamp(new_location.offset);
-    std::cout << "Curr ts is " << curr_ts.getTimestamp() << ", "
-              << curr_ts.getID() << std::endl;
-    std::cout << "new ts is " << new_ts.getTimestamp() << ", " << new_ts.getID()
-              << std::endl;
+    std::cout << "Curr ts is " << curr_ts.getTimestamp() << ", " << curr_ts.getID() << std::endl;
+    std::cout << "new ts is " << new_ts.getTimestamp() << ", " << new_ts.getID() << std::endl;
 
-    if (new_tile_group_header->GetBasilTimestamp(new_location.offset) >
-        curr_tile_group_header->GetBasilTimestamp(curr_pointer.offset)) {
+    if (new_tile_group_header->GetBasilTimestamp(new_location.offset) > curr_tile_group_header->GetBasilTimestamp(curr_pointer.offset)) {
 
       // NEW: For out of order inserts
-      if (!curr_tile_group_header->GetPrevItemPointer(curr_pointer.offset)
-               .IsNull()) {
+      if (!curr_tile_group_header->GetPrevItemPointer(curr_pointer.offset).IsNull()) {
         std::cout << "In the if case" << std::endl;
-        auto prev_loc =
-            curr_tile_group_header->GetPrevItemPointer(curr_pointer.offset);
-        auto prev_tile_group_header =
-            storage_manager->GetTileGroup(prev_loc.block)->GetHeader();
-        prev_tile_group_header->SetNextItemPointer(prev_loc.offset,
-                                                   new_location);
-        new_tile_group_header->SetPrevItemPointer(new_location.offset,
-                                                  prev_loc);
+        auto prev_loc = curr_tile_group_header->GetPrevItemPointer(curr_pointer.offset);
+        auto prev_tile_group_header = storage_manager->GetTileGroup(prev_loc.block)->GetHeader();
+        prev_tile_group_header->SetNextItemPointer(prev_loc.offset, new_location);
+        new_tile_group_header->SetPrevItemPointer(new_location.offset, prev_loc);
       }
 
       // std::cout << "If case" << std::endl;
-      curr_tile_group_header->SetPrevItemPointer(curr_pointer.offset,
-                                                 new_location);
-      new_tile_group_header->SetNextItemPointer(new_location.offset,
-                                                curr_pointer);
+      curr_tile_group_header->SetPrevItemPointer(curr_pointer.offset, new_location);
+      new_tile_group_header->SetNextItemPointer(new_location.offset, curr_pointer);
 
-      new_tile_group_header->SetTransactionId(new_location.offset,
-                                              transaction_id);
-      new_tile_group_header->SetLastReaderCommitId(new_location.offset,
-                                                   current_txn->GetCommitId());
+      new_tile_group_header->SetTransactionId(new_location.offset, transaction_id);
+      new_tile_group_header->SetLastReaderCommitId(new_location.offset, current_txn->GetCommitId());
     } else {
       std::cout << "In the else case" << std::endl;
       // NEW: For out of order inserts
-      if (!curr_tile_group_header->GetNextItemPointer(curr_pointer.offset)
-               .IsNull()) {
+      if (!curr_tile_group_header->GetNextItemPointer(curr_pointer.offset).IsNull()) {
 
-        auto next_loc =
-            curr_tile_group_header->GetNextItemPointer(curr_pointer.offset);
-        auto next_tile_group_header =
-            storage_manager->GetTileGroup(next_loc.block)->GetHeader();
-        next_tile_group_header->SetPrevItemPointer(next_loc.offset,
-                                                   new_location);
-        new_tile_group_header->SetNextItemPointer(new_location.offset,
-                                                  next_loc);
+        auto next_loc = curr_tile_group_header->GetNextItemPointer(curr_pointer.offset);
+        auto next_tile_group_header = storage_manager->GetTileGroup(next_loc.block)->GetHeader();
+        next_tile_group_header->SetPrevItemPointer(next_loc.offset, new_location);
+        new_tile_group_header->SetNextItemPointer(new_location.offset, next_loc);
       }
 
       // std::cout << "Else case" << std::endl;
-      curr_tile_group_header->SetNextItemPointer(curr_pointer.offset,
-                                                 new_location);
-      new_tile_group_header->SetPrevItemPointer(new_location.offset,
-                                                curr_pointer);
+      curr_tile_group_header->SetNextItemPointer(curr_pointer.offset, new_location);
+      new_tile_group_header->SetPrevItemPointer(new_location.offset, curr_pointer);
 
-      new_tile_group_header->SetTransactionId(new_location.offset,
-                                              transaction_id);
-      new_tile_group_header->SetLastReaderCommitId(new_location.offset,
-                                                   current_txn->GetCommitId());
+      new_tile_group_header->SetTransactionId(new_location.offset, transaction_id);
+      new_tile_group_header->SetLastReaderCommitId(new_location.offset, current_txn->GetCommitId());
     }
 
     COMPILER_MEMORY_FENCE;
     new_tile_group_header->SetIndirection(new_location.offset, index_entry_ptr);
-    curr_tile_group_header->SetIndirection(curr_pointer.offset,
-                                           index_entry_ptr);
-    // UNUSED_ATTRIBUTE auto res =
-    // AtomicUpdateItemPointer(index_entry_ptr, old_location);
+    curr_tile_group_header->SetIndirection(curr_pointer.offset, index_entry_ptr);
+    // UNUSED_ATTRIBUTE auto res = AtomicUpdateItemPointer(index_entry_ptr, old_location);
 
     std::cout << "Update for delete" << std::endl;
     // Update the index entry pointer if necessary
-    if (new_tile_group_header->GetBasilTimestamp(new_location.offset) >
-        head_ts) {
+    if (new_tile_group_header->GetBasilTimestamp(new_location.offset) >  head_ts) {
       std::cout << "Updating the head pointer of linked list" << std::endl;
       COMPILER_MEMORY_FENCE;
 
       // Set the index header in an atomic way.
-      // We do it atomically because we don't want any one to see a half-done
-      // pointer.
-      // In case of contention, no one can update this pointer when we are
-      // updating it
-      // because we are holding the write lock. This update should success in
-      // its first trial.
-      UNUSED_ATTRIBUTE auto res =
-          AtomicUpdateItemPointer(index_entry_ptr, new_location);
+      // We do it atomically because we don't want any one to see a half-done pointer.
+      // In case of contention, no one can update this pointer when we are updating it
+      // because we are holding the write lock. This update should success in its first trial.
+      UNUSED_ATTRIBUTE auto res = AtomicUpdateItemPointer(index_entry_ptr, new_location);
       PELOTON_ASSERT(res == true);
       current_txn->RecordUpdate(old_location);
     } else {
@@ -610,11 +554,9 @@ void TimestampOrderingTransactionManager::PerformUpdate(
   UNUSED_ATTRIBUTE oid_t tuple_id = location.offset;
 
   auto storage_manager = storage::StorageManager::GetInstance();
-  UNUSED_ATTRIBUTE auto tile_group_header =
-      storage_manager->GetTileGroup(tile_group_id)->GetHeader();
+  UNUSED_ATTRIBUTE auto tile_group_header = storage_manager->GetTileGroup(tile_group_id)->GetHeader();
 
-  PELOTON_ASSERT(tile_group_header->GetTransactionId(tuple_id) ==
-                 current_txn->GetTransactionId());
+  PELOTON_ASSERT(tile_group_header->GetTransactionId(tuple_id) == current_txn->GetTransactionId());
   PELOTON_ASSERT(tile_group_header->GetBeginCommitId(tuple_id) == MAX_CID);
   PELOTON_ASSERT(tile_group_header->GetEndCommitId(tuple_id) == MAX_CID);
 

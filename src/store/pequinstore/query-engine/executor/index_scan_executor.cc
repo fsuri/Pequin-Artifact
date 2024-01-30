@@ -1710,7 +1710,7 @@ bool IndexScanExecutor::ExecSecondaryIndexLookup() {
   auto const &current_txn_timestamp = current_txn->GetBasilTimestamp();
 
   if (!current_txn->IsPointRead() && current_txn->CheckPredicatesInitialized()){ 
-    std::cerr << "MAKE POINT 1" << std::endl;
+    std::cerr << "Read Table/Col versions" << std::endl;
     // Read table version and table col versions
     current_txn->GetTableVersion()(table_->GetName(), current_txn_timestamp, current_txn->GetHasReadSetMgr(), query_read_set_mgr, current_txn->GetHasSnapshotMgr(), current_txn->GetSnapshotMgr());
     // Table column version : FIXME: Read version per Col, not composite key
