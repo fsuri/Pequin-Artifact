@@ -135,11 +135,13 @@ bool IndexScanExecutor::DExecute() {
   if (!done_) {
     if (index_->GetIndexType() == IndexConstraintType::PRIMARY_KEY) {
       Debug("Doing a primary index scan");
+      std::cerr << "Doing a primary index scan for table " << table_->GetName() << std::endl;
       auto status = ExecPrimaryIndexLookup();
       if (status == false)
         return false;
     } else {
       Debug("Doing a secondary index scan");
+      std::cerr << "Doing a secondary index scan for table " << table_->GetName() << std::endl;
       auto status = ExecSecondaryIndexLookup();
       if (status == false)
         return false;

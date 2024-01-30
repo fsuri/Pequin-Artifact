@@ -375,6 +375,7 @@ void GetToIndexScan::Transform(
 
     // Find match index for the predicates
     auto index_objects = get->table->GetIndexCatalogEntries();
+    size_t max_num_matching_cols = 0;
     for (auto &index_id_object_pair : index_objects) {
       auto &index_id = index_id_object_pair.first;
       auto &index_object = index_id_object_pair.second;
@@ -392,15 +393,25 @@ void GetToIndexScan::Transform(
           index_value_list.push_back(value_list[offset]);
         }
       }
-      // Add transformed plan
-      if (!index_key_column_id_list.empty()) {
+      // NEW: Prioritize primary index scan
+      if (index_key_column_id_list.size() > max_num_matching_cols || index_object->GetIndexConstraint() == IndexConstraintType::PRIMARY_KEY) {
         auto index_scan_op = PhysicalIndexScan::make(
             get->get_id, get->table, get->table_alias, get->predicates,
             get->is_for_update, index_id, index_key_column_id_list,
             index_expr_type_list, index_value_list);
         transformed.push_back(
             std::make_shared<OperatorExpression>(index_scan_op));
+        max_num_matching_cols = index_key_column_id_list.size();
       }
+      // Add transformed plan
+      /*if (!index_key_column_id_list.empty()) {
+        auto index_scan_op = PhysicalIndexScan::make(
+            get->get_id, get->table, get->table_alias, get->predicates,
+            get->is_for_update, index_id, index_key_column_id_list,
+            index_expr_type_list, index_value_list);
+        transformed.push_back(
+            std::make_shared<OperatorExpression>(index_scan_op));
+      }*/
     }
   }
 }
