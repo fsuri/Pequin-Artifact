@@ -1001,53 +1001,55 @@ int main(int argc, char **argv) {
   //SQL Benchmarks -- they all require a schema file!
   else if(FLAGS_sql_bench && FLAGS_data_file_path.length() > 0 && FLAGS_keys_path.empty()) {
 
-     Notice("Shir: debugging server 222222222222\n");
+    Notice("Shir: debugging server 222222222222\n");
 
-     Notice("Benchmark: SQL with Loaded Table Registry");
-       std::ifstream generated_tables(FLAGS_data_file_path);
-       json tables_to_load;
-       try {
-          tables_to_load = json::parse(generated_tables);
-       }
-       catch (const std::exception &e) {
-         Panic("Failed to load Table JSON Schema");
-       }
-       
-       //Note: If RW-SQL, then currently already autogenerating a file further up. if(tables_to_load.empty()){ => Autogen. 
-     
-        //Load all tables. 
-       for(auto &[table_name, table_args]: tables_to_load.items()){ 
-          const std::vector<std::pair<std::string, std::string>> &column_names_and_types = table_args["column_names_and_types"];
-          const std::vector<uint32_t> &primary_key_col_idx = table_args["primary_key_col_idx"];
-          //Create Table
-          server->CreateTable(table_name, column_names_and_types, primary_key_col_idx); 
-          //Create Secondary Indices
-          for(auto &[index_name, index_col_idx]: table_args["indexes"].items()){
-            server->CreateIndex(table_name, column_names_and_types, index_name, index_col_idx);
-          }
+    Notice("Benchmark: SQL with Loaded Table Registry");
+    std::ifstream generated_tables(FLAGS_data_file_path);
+    json tables_to_load;
+    try {
+      tables_to_load = json::parse(generated_tables);
+    }
+    catch (const std::exception &e) {
+      Panic("Failed to load Table JSON Schema");
+    }
+    
+    //Note: If RW-SQL, then currently already autogenerating a file further up. if(tables_to_load.empty()){ => Autogen. 
+  
+    //Load all tables. 
+    for(auto &[table_name, table_args]: tables_to_load.items()){ 
+      const std::vector<std::pair<std::string, std::string>> &column_names_and_types = table_args["column_names_and_types"];
+      const std::vector<uint32_t> &primary_key_col_idx = table_args["primary_key_col_idx"];
+      //Create Table
+      server->CreateTable(table_name, column_names_and_types, primary_key_col_idx); 
+      //Create Secondary Indices
+      for(auto &[index_name, index_col_idx]: table_args["indexes"].items()){
+        server->CreateIndex(table_name, column_names_and_types, index_name, index_col_idx);
+      }
 
-          if(!table_args.contains("row_data_path")) { //RW-SQL ==> generate rows 
-            std::vector<std::vector<std::string>> values;
-            for(int j=0; j<FLAGS_num_keys_per_table; ++j){
-                //values.emplace_back(std::initializer_list<string>{"", ""};)
-                values.push_back({std::to_string(j), std::to_string(j+100)});
-            }
-            server->LoadTableRows(table_name, column_names_and_types, values, primary_key_col_idx);
+      if(!table_args.contains("row_data_path")) { //RW-SQL ==> generate rows 
+        std::vector<std::vector<std::string>> values;
+        for(int j=0; j<FLAGS_num_keys_per_table; ++j){
+            //values.emplace_back(std::initializer_list<string>{"", ""};)
+            values.push_back({std::to_string(j), std::to_string(j+100)});
+        }
+        server->LoadTableRows(table_name, column_names_and_types, values, primary_key_col_idx);
 
-            continue;
-          }
+        continue;
+      }
 
-          //If data path exists: Load full table data
-          //TODO: splice row_data path into Data_file_path.   //TODO: Add json file suffix to the file itself. (i.e. add filename)   ===> Test in table_write tester.
-          std::string row_data_path = std::filesystem::path(FLAGS_data_file_path).replace_filename(table_args["row_data_path"]); //https://en.cppreference.com/w/cpp/filesystem/path
-          server->LoadTableData(table_name, row_data_path, primary_key_col_idx);
-          // //Load Rows individually 
-          // for(auto &row: table_args["rows"]){
-          //   const std::vector<std::string> &values = row;
-          //   server->LoadTableRow(table_name, column_names_and_types, row, primary_key_col_idx);
-          // }
-       }
-      
+      //If data path exists: Load full table data
+      //TODO: splice row_data path into Data_file_path.   //TODO: Add json file suffix to the file itself. (i.e. add filename)   ===> Test in table_write tester.
+      std::string row_data_path = std::filesystem::path(FLAGS_data_file_path).replace_filename(table_args["row_data_path"]); //https://en.cppreference.com/w/cpp/filesystem/path
+      server->LoadTableData(table_name, row_data_path, primary_key_col_idx);
+      // //Load Rows individually 
+      // for(auto &row: table_args["rows"]){
+      //   const std::vector<std::string> &values = row;
+      //   server->LoadTableRow(table_name, column_names_and_types, row, primary_key_col_idx);
+      // }
+    }
+    Notice("Shir: done setting tables\n");
+
+
   }
   else if (FLAGS_data_file_path.length() > 0 && FLAGS_keys_path.empty()) {
 

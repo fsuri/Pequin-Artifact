@@ -294,6 +294,7 @@ bool Server::CCC(const proto::Transaction& txn) {
 }
 
 std::vector<::google::protobuf::Message*> Server::Execute(const string& type, const string& msg) {
+  std::cerr<<"Shir: recieved a message of type:    "<<type.c_str()<<"   and looking for the right handler\n";
   Debug("Execute: %s", type.c_str());
   //std::unique_lock lock(atomicMutex);
 
@@ -307,13 +308,15 @@ std::vector<::google::protobuf::Message*> Server::Execute(const string& type, co
 
     return HandleTransaction(transaction);
   } else if (type == inquiry.GetTypeName()) {
-    // Debug("Shir: executing inquiry here");
+    Debug("Shir: executing inquiry here");
 
     inquiry.ParseFromString(msg);
     std::vector<::google::protobuf::Message*> results;
     results.push_back(HandleInquiry(inquiry));
     return results;
   } else if (type == apply.GetTypeName()) {
+    Debug("Shir: executing commit (apply) here");
+
     apply.ParseFromString(msg);
     std::vector<::google::protobuf::Message*> results;
     results.push_back(HandleApply(apply));
@@ -477,9 +480,9 @@ std::vector<::google::protobuf::Message*> Server::HandleTransaction(const proto:
   client_seq_key.append("|");
   client_seq_key.append(std::to_string(inquiry.txn_seq_num()));
 
-  // std::cerr << "Shir:  "<< client_seq_key << "\n";
+  std::cerr << "Shir:  "<< client_seq_key << "\n";
   // client_seq_key prints 0|1
-  // Debug("Shir is now handling Inquiry 1");
+  Debug("Shir is now handling Inquiry 1");
 
   if(txnMap.find(client_seq_key) == txnMap.end()) {
     // Debug("Shir is now handling Inquiry 2");
@@ -623,6 +626,9 @@ std::vector<::google::protobuf::Message*> Server::HandleTransaction(const proto:
 
 
 ::google::protobuf::Message* Server::HandleMessage(const string& type, const string& msg) {
+
+  std::cerr<< "Shir: Got a message!!!!:   "<< type.c_str() <<"\n";
+
   Debug("Handle %s", type.c_str());
   //std::shared_lock lock(atomicMutex);
   //std::unique_lock lock(atomicMutex);
@@ -912,7 +918,6 @@ void Server::Load(const string &key, const string &value,
 }
 
 
-// TODO: For hotstuffPG store --> let proxy call into PG
 void Server::CreateTable(const std::string &table_name, const std::vector<std::pair<std::string, std::string>> &column_data_types, const std::vector<uint32_t> &primary_key_col_idx){
   // //Based on Syntax from: https://www.postgresqltutorial.com/postgresql-tutorial/postgresql-create-table/ 
 

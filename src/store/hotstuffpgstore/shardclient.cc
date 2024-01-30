@@ -182,6 +182,8 @@ void ShardClient::ReceiveMessage(const TransportAddress &remote,
     data = d;
   }
 
+  Debug("Shir: Type is   %s",type);
+
   proto::ReadReply readReply;
   // proto::InquiryReply inquiryReply;
   proto::GroupedDecisionAck groupedDecisionAck;
@@ -218,11 +220,13 @@ void ShardClient::ReceiveMessage(const TransportAddress &remote,
 
     HandleInquiryReply(inquiryReply, signedMessage);
   } else if (type == applyReply.GetTypeName()) {
+    Debug("Shir:     handle inquiry reply");
     applyReply.ParseFromString(data);
 
     if(signMessages && !recvSignedMessage) {
       return;
     }
+    Debug("Shir:     handle apply reply");
 
     HandleApplyReply(applyReply, signedMessage);
   }
@@ -526,22 +530,22 @@ void ShardClient::HandleInquiryReply(const proto::InquiryReply& inquiryReply, co
           Debug("Updating inquiry reply signed");
           // pendingInquiry->maxTs = its;
           pendingInquiry->status = REPLY_OK;
-          // Debug("Shir: 222");
+          Debug("Shir: 222");
 
         }
         if(!deterministic && signMessages) {
           pendingInquiry->receivedSuccesses.insert(replica_id);
-          // Debug("Shir: 333");
+          Debug("Shir: 333");
 
           // std::cerr<<"Shir: query result:     "<<inquiryReply.sql_res() <<"\n";
           if(replica_id == 0) {
-            // Debug("Shir: 444");
+            Debug("Shir: 444");
 
             pendingInquiry->leaderReply = inquiryReply.sql_res();
           }
         }
       } else {
-        // Debug("Shir: 555");
+        Debug("Shir: 555");
 
         pendingInquiry->receivedFails.insert(replica_id);
         if(!deterministic && signMessages && replica_id == 0) {
@@ -552,10 +556,10 @@ void ShardClient::HandleInquiryReply(const proto::InquiryReply& inquiryReply, co
 
 
     } else {
-      // Debug("Shir: 666");
+      Debug("Shir: 666");
 
       if(inquiryReply.status() == REPLY_OK) {
-        // Debug("Shir: 777");
+        Debug("Shir: 777");
 
         pendingInquiry->receivedReplies[inquiryReply.sql_res()].insert(pendingInquiry->numReceivedReplies);
         // Timestamp its(inquiryReply.value_timestamp());
@@ -570,11 +574,11 @@ void ShardClient::HandleInquiryReply(const proto::InquiryReply& inquiryReply, co
       }
     }
 
-    // Debug("Shir: 888");
-    // std::cerr <<"Shir: Is deterministic?:  "<< deterministic <<"\n";
-    // std::cerr <<"Shir: Is signed messages?:  "<< signMessages <<"\n";
+    Debug("Shir: 888");
+    std::cerr <<"Shir: Is deterministic?:  "<< deterministic <<"\n";
+    std::cerr <<"Shir: Is signed messages?:  "<< signMessages <<"\n";
     if(!signMessages || deterministic) { // This is for a fault tolerant system, curently we only look for the leader's opinion (only works in signed system)
-      // Debug("Shir: 999");
+      Debug("Shir: 999");
       if(pendingInquiry->receivedReplies[inquiryReply.sql_res()].size() 
           >= (uint64_t) config.f + 1) {
         InquiryReplyHelper(pendingInquiry, inquiryReply.sql_res(), reqId, pendingInquiry->status);
@@ -583,7 +587,7 @@ void ShardClient::HandleInquiryReply(const proto::InquiryReply& inquiryReply, co
         InquiryReplyHelper(pendingInquiry, inquiryReply.sql_res(), reqId, REPLY_FAIL);
       }
     } else {
-      // Debug("Shir: 101010");
+      Debug("Shir: 101010");
       if(pendingInquiry->receivedSuccesses.size() >= (uint64_t) config.f + 1 && 
           pendingInquiry->receivedSuccesses.find(0) != pendingInquiry->receivedSuccesses.end()) {
         InquiryReplyHelper(pendingInquiry, pendingInquiry->leaderReply, reqId, pendingInquiry->status);
@@ -1092,6 +1096,8 @@ void ShardClient::Query(const std::string &query,  const Timestamp &ts, uint64_t
 void ShardClient::Commit(const std::string& txn_digest, const Timestamp &ts, uint64_t client_id, int client_seq_num, 
   apply_callback acb, apply_timeout_callback atcb, uint32_t timeout) {
 
+
+  Debug("Shir: shardClient trying to commit the txn");
   proto::Apply apply;
 
   uint64_t reqId = applyReq++;
@@ -1101,13 +1107,21 @@ void ShardClient::Commit(const std::string& txn_digest, const Timestamp &ts, uin
   apply.set_client_id(client_id);
   apply.set_txn_seq_num(client_seq_num);
   ts.serialize(apply.mutable_timestamp());
+  Debug("Shir: a");
 
   proto::Request request;
   request.set_digest(txn_digest);
+  Debug("Shir: b");
+
   request.mutable_packed_msg()->set_msg(apply.SerializeAsString());
   request.mutable_packed_msg()->set_type(apply.GetTypeName());
+  
 
+  Debug("Shir: now going to send a message in order to do that");
   transport->SendMessageToGroup(this, group_idx, request);
+
+  Debug("Shir: trying to send the following message:");
+  std::cerr<< "To group:   "<<group_idx<<"   Send the request:  "<<apply.GetTypeName() <<"\n";
 
   // proto::Request request2;
   // request2.set_digest(txn_digest + "2");

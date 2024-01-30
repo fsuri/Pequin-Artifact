@@ -173,6 +173,7 @@ public:
 
   void executeSlots_internal();
   void executeSlots_internal_multi();
+  void executeSlots_shir();
 
   void executeSlots_callback(std::vector<::google::protobuf::Message*> &replies, string batchDigest, string digest);
 

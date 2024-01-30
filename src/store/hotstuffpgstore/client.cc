@@ -152,15 +152,18 @@ void Client::Put(const std::string &key, const std::string &value,
 void Client::Commit(commit_callback ccb, commit_timeout_callback ctcb, uint32_t timeout) {
   transport->Timer(0, [this, ccb, ctcb, timeout]() {
     apply_callback acb = [ccb, this](int status) {
+      Debug("Shir: executing apply callback");
 
       if(status == REPLY_OK) {
+        Debug("Shir: executing apply callback 111");
+
         ccb(COMMITTED);
       } else {
         ccb(ABORTED_SYSTEM);
       }
     };
     apply_timeout_callback atcb = ctcb;
-
+    Debug("Shir: Client trying to commit txn");
     bclient[0]->Commit(TransactionDigest(currentTxn),  currentTxn.timestamp(), client_id, client_seq_num, acb, atcb, timeout);
   });
 }

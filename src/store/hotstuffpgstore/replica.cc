@@ -325,181 +325,215 @@ void Replica::HandleRequest(const TransportAddress &remote,
   string digest = request.digest();
   DebugHash(digest);
 
-#ifdef USE_HOTSTUFF_STORE
-  Debug("Using HOTSTUFF_STORE");
-
+  // Shir: requests_dup is a map from string (digest) to an hotstuff msg
   if (requests_dup.find(digest) == requests_dup.end()) {
-      Debug("new request: %s", request.packed_msg().type().c_str());
-      stats->Increment("handle_new_count",1);
-
-      // This unordered map is only used here so read doesn't require locks.
-      requests_dup[digest] = request.packed_msg();
-
-      TransportAddress* clientAddr = remote.clone();
-      proto::PackedMessage packedMsg = request.packed_msg();
-      std::function<void(const std::string&, uint32_t seqnum)> execb = [this, digest, packedMsg, clientAddr](const std::string &digest_param, uint32_t seqnum) {
-          if(numShards <= 6 || numShards == 12){
-              // std::cerr<<"Shir: the OG execb" << std::endl;
-              Debug("Creating and sending callback");
-              auto f = [this, digest, packedMsg, clientAddr, digest_param, seqnum](){
-                  Debug("Callback: %d, %lu", idx, seqnum);
-                  stats->Increment("hotstuffpg_exec_callback",1);
-
-                  // prepare data structures for executeSlots()
-                  assert(digest == digest_param);
-                  requests[digest] = packedMsg;
-                  replyAddrs[digest] = clientAddr;
-
-                  //FIXME: For Hotstuff this code seems essentially useless: It just creates a mapping back to itself... (Seems to be a relic of PBFT code handling)
-                  proto::BatchedRequest batchedRequest;
-                  (*batchedRequest.mutable_digests())[0] = digest_param;
-                  string batchedDigest = BatchedDigest(batchedRequest);
-                  batchedRequests[batchedDigest] = batchedRequest;
-                  Debug("Adding to pending executions");
-                  pendingExecutions[seqnum] = batchedDigest;
-                  std::cout << batchedDigest << std::endl;
-                  Debug("Printing out pendingExecutions");
-                  for(auto& it: pendingExecutions) {
-                    std::cout << it.first << " " << it.second << std::endl;
-                  }
-                  Debug("Finished printing out pendingExecutions");
-                  executeSlots();
-                  return (void*) true;
-              };
-              Debug("Dispatching to main");
-              transport->DispatchTP_main(f);
-              //transport->DispatchTP_noCB(f);
-          } else {
-              // numShards should be 24
-              if (numShards != 24)
-                  Panic("Currently only support numShards == 6, 12 or 24");
-
-              // Debug("Callback: %d, %ld", idx, seqnum);
-              stats->Increment("hotstuffpg_exec_callback",1);
-
-              // prepare data structures for executeSlots()
-              assert(digest == digest_param);
-              requests[digest] = packedMsg;
-              replyAddrs[digest] = clientAddr;
-
-              proto::BatchedRequest batchedRequest;
-              (*batchedRequest.mutable_digests())[0] = digest_param;
-              string batchedDigest = BatchedDigest(batchedRequest);
-              batchedRequests[batchedDigest] = batchedRequest;
-              pendingExecutions[seqnum] = batchedDigest;
-              executeSlots();
-          }
-
-      };
-      Debug("Proposing execb");
-      hotstuffpg_interface.propose(digest, execb);
-      Debug("Execb proposed");
-
-      // digest[0] = 'b';
-      // digest[1] = 'u';
-      // digest[2] = 'b';
-      // digest[3] = 'b';
-      // digest[4] = 'l';
-      // digest[5] = 'e';
-
-
-// Shir: Pushing more commands down the pipeline
-      std::string digest_b("bubble");
-      std::function<void(const std::string&, uint32_t seqnum)> execb_bubble =
-        [this, digest_b](const std::string&, uint32_t seqnum){
-          stats->Increment("hotstuffpg_exec_bubble", 1);
-          std::cerr<<"Shir: Calling bubble dummy execute slots - first command to go down the pipe" << std::endl;
-          pendingExecutions[seqnum] = digest_b;
-          executeSlots();
-          // Shir: possibly remove the above command. it might break some things
-
-        };
-      hotstuffpg_interface.propose(digest_b, execb_bubble);
-
-
-      std::string digest_b1("bubble1");
-      std::function<void(const std::string&, uint32_t seqnum)> execb_bubble1 =
-        [this, digest_b1](const std::string&, uint32_t seqnum){
-          stats->Increment("hotstuffpg_exec_bubble 1", 1);
-          std::cerr<<"Calling bubble dummt execute slots 1" << std::endl;
-          pendingExecutions[seqnum] = digest_b1;
-          executeSlots();
-        };
-      hotstuffpg_interface.propose(digest_b1, execb_bubble1);
-
-
-      std::string digest_b2("bubble2");     
-      std::function<void(const std::string&, uint32_t seqnum)> execb_bubble2 =
-        [this, digest_b2](const std::string&, uint32_t seqnum){
-          stats->Increment("hotstuffpg_exec_bubble 2", 1);
-          std::cerr<<"Calling bubble dummt execute slots 2" << std::endl;
-          pendingExecutions[seqnum] = digest_b2;
-          executeSlots();
-        };
-      hotstuffpg_interface.propose(digest_b2, execb_bubble2);
-
-
-      std::string digest_b3("bubble3");     
-      std::function<void(const std::string&, uint32_t seqnum)> execb_bubble3 =
-        [this, digest_b3](const std::string&, uint32_t seqnum){
-          stats->Increment("hotstuffpg_exec_bubble 3", 1);
-          std::cerr<<"Calling bubble dummt execute slots 3" << std::endl;
-          pendingExecutions[seqnum] = digest_b3;
-          executeSlots();
-        };
-      hotstuffpg_interface.propose(digest_b3, execb_bubble3);
-
-      // std::string digest_b4("bubble4");     
-      // std::function<void(const std::string&, uint32_t seqnum)> execb_bubble4 =
-      //   [this, digest_b4](const std::string&, uint32_t seqnum){
-      //     stats->Increment("hotstuffpg_exec_bubble 4", 1);
-      //     std::cerr<<"Calling bubble dummt execute slots 4" << std::endl;
-      //     pendingExecutions[seqnum] = digest_b4;
-      //     executeSlots();
-      //   };
-      // hotstuffpg_interface.propose(digest_b4, execb_bubble4);
-
-
-  }
-
-#else // use PBFT store
-
-  if (requests.find(digest) == requests.end()) {
+  
+    // Shir: if we didn't find the request digest in the map. I.e this is the first time handling this request
     Debug("new request: %s", request.packed_msg().type().c_str());
+    Debug("Shir: the new requests digest is:       %s",digest);
+    DebugHash(digest);   // Shir
 
-    requests[digest] = request.packed_msg();
+    stats->Increment("handle_new_count",1);
+    // This unordered map is only used here so read doesn't require locks.
+    requests_dup[digest] = request.packed_msg();
 
-    // clone remote mapped to request for reply
-    //replyAddrsMutex.lock();
-    replyAddrs[digest] = remote.clone();
-    //replyAddrsMutex.unlock();
+    TransportAddress* clientAddr = remote.clone();
+    proto::PackedMessage packedMsg = request.packed_msg();
 
-    int currentPrimaryIdx = config.GetLeaderIndex(currentView);
-    if (currentPrimaryIdx == idx) {
-      stats->Increment("handle_request",1);
-      pendingBatchedDigests[nextBatchNum++] = digest;
-      if (pendingBatchedDigests.size() >= maxBatchSize) {
-        Debug("Batch is full, sending");
-        if (batchTimerRunning) {
-          transport->CancelTimer(batchTimerId);
-          batchTimerRunning = false;
+    std::function<void(const std::string&, uint32_t seqnum)> execb = [this, digest, packedMsg, clientAddr](const std::string &digest_param, uint32_t seqnum) {
+        if(numShards <= 6 || numShards == 12){
+            // Shir: check if i should ever be on the other condition. if not-- delete
+            Debug("Creating and sending callback");
+
+            // Shir: execb is a function that is probably being executed by hotstuff (should be verified).
+            // Shir: this function it self also creating the function f and dispatching it to main (who is main? need to check).
+            auto f = [this, digest, packedMsg, clientAddr, digest_param, seqnum](){
+
+                // Shir: f is probably also being executed by hotstuff
+                Debug("Callback: %d, %lu", idx, seqnum); 
+                stats->Increment("hotstuffpg_exec_callback",1);
+
+                // prepare data structures for executeSlots()
+                assert(digest == digest_param);
+                requests[digest] = packedMsg;
+                replyAddrs[digest] = clientAddr; // replyAddress is the address of the client wo sent this request, so we can answer him
+
+
+                //FIXME: For Hotstuff this code seems essentially useless: It just creates a mapping back to itself... (Seems to be a relic of PBFT code handling)
+
+//  later looking for    string batchDigest = pendingExecutions[execSeqNum];  batchDigest->digest
+// then: batchedRequests.find(batchDigest) 
+
+
+
+                proto::BatchedRequest batchedRequest;
+                (*batchedRequest.mutable_digests())[0] = digest_param;
+                string batchedDigest = BatchedDigest(batchedRequest);
+
+                // batchedRequests[batchedDigest] = batchedRequest;
+                batchedRequests[digest] = batchedRequest;
+
+
+                Debug("Shir: trying to debug the mapping situation. Digest:");
+                DebugHash(digest);
+                std::cerr<<"batchedDigest:    " <<"\n";
+                DebugHash(batchedDigest);
+
+                // std::cerr<<"batchedRequest:    "<<batchedRequest <<"\n";
+                // std::cerr<<"batchedRequest[0]:    "<<batchedRequest[0] <<"\n";
+                // std::cerr<<"batchedRequests[batchedDigest]:    "<<batchedRequests[batchedDigest] <<"\n";
+
+
+                // Shir: can we replace the last statement to:
+                // batchedRequests[batchedDigest] = digest;
+                //                string batchDigest = pendingExecutions[execSeqNum]; what we look for
+
+
+
+
+                // Shir: now we're listing all of the executions (execb) that weren't executed yet.
+                Debug("Adding to pending executions");
+                pendingExecutions[seqnum] = digest;
+                // pendingExecutions[seqnum] = batchedDigest;
+                
+                std::cout << batchedDigest << std::endl;
+                DebugHash(batchedDigest);
+
+                Debug("Printing out pendingExecutions");
+                for(auto& it: pendingExecutions) {
+                  std::cout << it.first << " " << it.second << std::endl;
+                  DebugHash(it.second);
+
+                  // std::cout << it.first << " " << it.second << std::endl;
+                }
+                Debug("Finished printing out pendingExecutions");
+
+                executeSlots();
+
+                return (void*) true;
+            };
+            
+            Debug("Dispatching to main");
+            transport->DispatchTP_main(f);
+        } else {
+            // numShards should be 24
+            if (numShards != 24)
+                Panic("Currently only support numShards == 6, 12 or 24");
+
+            // Debug("Callback: %d, %ld", idx, seqnum);
+            stats->Increment("hotstuffpg_exec_callback",1);
+
+            // prepare data structures for executeSlots()
+            assert(digest == digest_param);
+            requests[digest] = packedMsg;
+            replyAddrs[digest] = clientAddr;
+
+
+            // Shir: TODO fix here as well
+            proto::BatchedRequest batchedRequest;
+            (*batchedRequest.mutable_digests())[0] = digest_param;
+            string batchedDigest = BatchedDigest(batchedRequest);
+            batchedRequests[batchedDigest] = batchedRequest;
+            pendingExecutions[seqnum] = batchedDigest;
+            executeSlots();
         }
-        sendBatchedPreprepare();
-      } else if (!batchTimerRunning) {
-        batchTimerRunning = true;
-        Debug("Starting batch timer");
-        batchTimerId = transport->Timer(batchTimeoutMS, [this]() {
-          Debug("Batch timer expired, sending");
-          this->batchTimerRunning = false;
-          this->sendBatchedPreprepare();
-        });
-      }
-    }
 
-    // this could be the message that allows us to execute a slot
-    executeSlots();
+    };
+    Debug("Proposing execb");
+    hotstuffpg_interface.propose(digest, execb); // Shir: sending the execb to hotstuff
+    Debug("Execb proposed");
+
+    auto need_to_fill_pipeline=true;
+    if (need_to_fill_pipeline){
+
+      std::string digest_mb("mitz"+digest);
+      //                                                                         [values captured in the function](paramaters taken as input)
+      auto execb_bubblem = [this, digest_mb, packedMsg,clientAddr ](const std::string &digest_paramm, uint32_t seqnumm) {
+      auto f = [this, digest_mb, packedMsg,clientAddr, digest_paramm, seqnumm](){
+        requests[digest_mb] = packedMsg;
+        proto::BatchedRequest batchedRequest;
+        (*batchedRequest.mutable_digests())[0] = digest_paramm;
+        string batchedDigest = BatchedDigest(batchedRequest);
+        batchedRequests[digest_mb] = batchedRequest;
+        replyAddrs[digest_mb] = clientAddr; // replyAddress is the address of the client wo sent this request, so we can answer him
+
+        pendingExecutions[seqnumm] = digest_mb;
+
+
+        Debug("Shir: trying to debug the mapping situation. Digest:");
+        DebugHash(digest_mb);
+        std::cerr<<"batchedDigest:    " <<"\n";
+        DebugHash(batchedDigest);
+
+        // std::cout << batchedDigest << std::endl;
+        // DebugHash(batchedDigest);
+        return (void*) true;
+      };
+      transport->DispatchTP_main(f);
+      
+      };
+      hotstuffpg_interface.propose(digest_mb, execb_bubblem);
+
+
+      std::string digest_m1("shir"+digest);
+      auto execb_bubblem1 = [this, digest_m1, packedMsg,clientAddr ](const std::string &digest_paramm, uint32_t seqnumm) {
+      auto f = [this, digest_m1, packedMsg, clientAddr,digest_paramm, seqnumm](){
+        requests[digest_m1] = packedMsg;
+        proto::BatchedRequest batchedRequest;
+        (*batchedRequest.mutable_digests())[0] = digest_paramm;
+        string batchedDigest = BatchedDigest(batchedRequest);
+        batchedRequests[digest_m1] = batchedRequest;
+        replyAddrs[digest_m1] = clientAddr; // replyAddress is the address of the client wo sent this request, so we can answer him
+
+        pendingExecutions[seqnumm] = digest_m1;
+
+
+        Debug("Shir: trying to debug the mapping situation. Digest:");
+        DebugHash(digest_m1);
+        std::cerr<<"batchedDigest:    " <<"\n";
+        DebugHash(batchedDigest);
+
+        return (void*) true;
+      };
+      transport->DispatchTP_main(f);
+      };
+      hotstuffpg_interface.propose(digest_m1, execb_bubblem1);
+
+
+      std::string digest_m2("nosh"+digest);
+      auto execb_bubblem2 = [this, digest_m2, packedMsg,clientAddr ](const std::string &digest_paramm, uint32_t seqnumm) {
+      auto f = [this, digest_m2, packedMsg,clientAddr, digest_paramm, seqnumm](){
+        requests[digest_m2] = packedMsg;
+        proto::BatchedRequest batchedRequest;
+        (*batchedRequest.mutable_digests())[0] = digest_paramm;
+        string batchedDigest = BatchedDigest(batchedRequest);
+        batchedRequests[digest_m2] = batchedRequest;
+        replyAddrs[digest_m2] = clientAddr; // replyAddress is the address of the client wo sent this request, so we can answer him
+
+        pendingExecutions[seqnumm] = digest_m2;
+
+
+        Debug("Shir: trying to debug the mapping situation. Digest:");
+        DebugHash(digest_m2);
+        std::cerr<<"batchedDigest:    " <<"\n";
+        DebugHash(batchedDigest);
+
+        return (void*) true;
+      };
+      transport->DispatchTP_main(f);
+      };
+      hotstuffpg_interface.propose(digest_m2, execb_bubblem2);
+
+      Debug("Printing out pendingExecutions (after bubbles)");
+      for(auto& it: pendingExecutions) {
+        std::cout << it.first << " " << it.second << std::endl;
+        DebugHash(it.second);
+
+      }
+      Debug("Finished printing out pendingExecutions");
+    }
+  
   }
-#endif
 }
 
 void Replica::sendBatchedPreprepare() {
@@ -536,103 +570,7 @@ void Replica::SendPreprepare(uint64_t seqnum, const proto::Preprepare& preprepar
   });
 }
 
-void Replica::HandleBatchedRequest(const TransportAddress &remote,
-                               proto::BatchedRequest &request) {
-  Debug("Handling batched request message");
 
-  #ifdef USE_HOTSTUFF_STORE
-  // HotStuff should never use this function
-  assert(false);
-  #endif
-
-  string digest = BatchedDigest(request);
-  batchedRequests[digest] = request;
-
-  // this could be the message that allows us to execute a slot
-  executeSlots();
-}
-
-void Replica::HandlePreprepare(const TransportAddress &remote,
-                                  const proto::Preprepare &preprepare,
-                                const proto::SignedMessage& signedMsg) {
-  Debug("Handling preprepare message");
-
-
-  int primaryIdx = config.GetLeaderIndex(currentView);
-  int primaryId = groupIdx * config.n + primaryIdx;
-
-  if (signMessages) {
-    // make sure this message is from this shard
-    if (signedMsg.replica_id() / config.n != (uint64_t) groupIdx) {
-      stats->Increment("invalid_pp_group",1);
-      return;
-    }
-    // make sure id is good
-    if ((int) signedMsg.replica_id() != primaryId) {
-      return;
-    }
-    // make sure the primary isn't equivocating
-    if (!slots.setPreprepare(preprepare, signedMsg.replica_id(), signedMsg.signature())) {
-      stats->Increment("invalid_pp_hash",1);
-      return;
-    }
-  } else {
-    if (!slots.setPreprepare(preprepare)) {
-      return;
-    }
-  }
-
-  uint64_t seqnum = preprepare.seqnum();
-  Debug("PP (preprepare) seq num: %lu", seqnum);
-  uint64_t viewnum = preprepare.viewnum();
-  string digest = preprepare.digest();
-  startActionTimer(seqnum, viewnum, digest);
-
-  // if I am the primary, I shouldn't be sending a prepare
-  if (idx != primaryIdx) {
-    // Multicast prepare to everyone
-    proto::Prepare prepare;
-    prepare.set_seqnum(seqnum);
-    prepare.set_viewnum(viewnum);
-    prepare.set_digest(digest);
-
-    if (primaryCoordinator) {
-      sendMessageToPrimary(prepare);
-    } else {
-      sendMessageToAll(prepare);
-    }
-  }
-
-  testSlot(seqnum, viewnum, digest, true);
-}
-
-void Replica::HandlePrepare(const TransportAddress &remote,
-                               const proto::Prepare &prepare,
-                             const proto::SignedMessage& signedMsg) {
-  Debug("Handling prepare message");
-  if (signMessages) {
-    // make sure this message is from this shard
-    if (signedMsg.replica_id() / config.n != (uint64_t) groupIdx) {
-      stats->Increment("invalid_p_group",1);
-      return;
-    }
-    if (!slots.addPrepare(prepare, signedMsg.replica_id(), signedMsg.signature())) {
-      stats->Increment("invalid_pp_hash",1);
-      return;
-    }
-  } else {
-    if (!slots.addPrepare(prepare)) {
-      return;
-    }
-  }
-
-  uint64_t seqnum = prepare.seqnum();
-  Debug("prepare seq num: %lu", seqnum);
-  uint64_t viewnum = prepare.viewnum();
-  string digest = prepare.digest();
-
-  testSlot(seqnum, viewnum, digest, true);
-}
 
 void Replica::HandleCommit(const TransportAddress &remote,
                               const proto::Commit &commit,
@@ -791,133 +729,12 @@ void Replica::executeSlots(){
     executeSlots_internal_multi();
   }
   else{
-    executeSlots_internal();
+    executeSlots_shir();
+    // executeSlots_internal();
   }
 
 }
 
-void Replica::executeSlots_internal_multi() {
-  Debug("exec seq num: %lu", execSeqNum);
-  //std::unique_lock lock(batchMutex);
-  while(pendingExecutions.find(execSeqNum) != pendingExecutions.end()) {
-    // cancel the commit timer
-    if (seqnumCommitTimers.find(execSeqNum) != seqnumCommitTimers.end()) {
-      transport->CancelTimer(seqnumCommitTimers[execSeqNum]);
-      seqnumCommitTimers.erase(execSeqNum);
-    }
-
-    string batchDigest = pendingExecutions[execSeqNum];
-    // only execute when we have the batched request
-    if (batchedRequests.find(batchDigest) != batchedRequests.end()) {
-      string digest = (*batchedRequests[batchDigest].mutable_digests())[execBatchNum];
-      DebugHash(digest);
-      // only execute if we have the full request
-      if (requests.find(digest) != requests.end()) {
-        stats->Increment("exec_request",1);
-        Debug("executing seq num: %lu %lu", execSeqNum, execBatchNum);
-        proto::PackedMessage packedMsg = requests[digest];
-
-        ///DISPATCH EXECUTE TO TP
-        // auto f = [this, packedMsg, batchDigest, digest](){
-        //   std::vector<::google::protobuf::Message*> *replies = new std::vector<::google::protobuf::Message*>();
-        //   *replies = this->app->Execute(packedMsg.type(), packedMsg.msg());
-        //
-        //   auto cb = [this, batchDigest, digest, replies](void* arg){
-        //     std::cerr << "Calling Issued CB" << std::endl;
-        //     this->executeSlots_callback(replies, batchDigest, digest);
-        //     replies->clear();
-        //     delete replies;
-        //   };
-        //   std::cerr << "Issuing CB" << std::endl;
-        //   this->transport->IssueCB(cb, (void*) true);
-        // //
-        //   // this->transport->Timer(0, [this, batchDigest, digest, replies]() {
-        //   //   std::cerr << "Calling execSlots callback" << std::endl;
-        //   //   this->executeSlots_callback(replies, batchDigest, digest);
-        //   //   replies->clear();
-        //   //   delete replies;
-        //   // }
-        //   // );
-        //   return (void*) true;
-        // };
-        //  transport->DispatchTP_main(f);
-
-
-
-        //std::vector<::google::protobuf::Message*> *replies = new std::vector<::google::protobuf::Message*>();
-        //lock.unlock();
-        auto f = [this, packedMsg, batchDigest, digest](){
-
-          //std::cerr << "running on CPU: " << sched_getcpu() << std::endl;
-          std::vector<::google::protobuf::Message*> replies = this->app->Execute(packedMsg.type(), packedMsg.msg());
-          //std::unique_lock lock(this->atomicMutex);
-          this->executeSlots_callback(replies, batchDigest, digest);
-          //replies->clear();
-          //delete replies;
-
-          return (void*) true;
-        };
-        //
-        // // auto cb = [this, batchDigest, digest, replies](void* arg){
-        // //     this->executeSlots_callback(replies, batchDigest, digest);
-        // //     replies->clear();
-        // //     delete replies;
-        // //   };
-        // // transport->DispatchTP(f, cb);
-        transport->DispatchTP_main(f);
-
-        //std::unique_lock lock(batchMutex);
-        execBatchNum++;
-        if ((int) execBatchNum >= batchedRequests[batchDigest].digests_size()) {
-          Debug("Done executing batch");
-          execBatchNum = 0;
-          execSeqNum++;
-        }
-
-      } else {
-#ifdef USE_HOTSTUFF_STORE
-
-          stats->Increment("miss_hotstuffpg_req_txn",1);
-          // request resend not implemented for HotStuff
-          break;
-
-#else
-        Debug("request from batch %lu not yet received", execSeqNum);
-        if (requestTx) {
-          stats->Increment("req_txn",1);
-          proto::RequestRequest rr;
-          rr.set_digest(digest);
-          int primaryIdx = config.GetLeaderIndex(currentView);
-          if (primaryIdx == idx) {
-            stats->Increment("primary_req_txn",1);
-          }
-          transport->SendMessageToReplica(this, groupIdx, primaryIdx, rr);
-        }
-        break;
-#endif
-      }
-    } else {
-#ifdef USE_HOTSTUFF_STORE
-
-        stats->Increment("miss_hotstuffpg_req_batch",1);
-        // batch resend not implemented for HotStuff
-        break;
-
-#else
-
-      Debug("Batch request not yet received");
-      if (requestTx) {
-        stats->Increment("req_batch",1);
-        proto::RequestRequest rr;
-        rr.set_digest(batchDigest);
-        int primaryIdx = config.GetLeaderIndex(currentView);
-        transport->SendMessageToReplica(this, groupIdx, primaryIdx, rr);
-      }
-      break;
-#endif
-    }
-  }
-}
 
 
 void Replica::executeSlots_callback(std::vector<::google::protobuf::Message*> &replies,
@@ -969,6 +786,171 @@ void Replica::executeSlots_callback(std::vector<::google::protobuf::Message*> &r
 
 }
 
+
+void Replica::executeSlots_shir() {
+  Debug("Shir: trying to execute new slots");
+  Debug("exec seq num: %lu", execSeqNum);
+
+  Debug("Shir: this is the list of current pending executions:  ");
+  for(auto& it: pendingExecutions) {
+    std::cout << it.first << " " << it.second << std::endl;
+    Debug("Pending sequence number: %lu", it.first);
+  }
+
+  // Shir: looking for pending execution that matches the current exec seq num. This basically means that I can progress and execute the next slot (because hotstuff has already committed it)
+  while(pendingExecutions.find(execSeqNum) != pendingExecutions.end()) { 
+  
+    Debug("Pending execution exists");
+
+    // Shir: not sure what the timers are for, lets hide them for now
+    // if (seqnumCommitTimers.find(execSeqNum) != seqnumCommitTimers.end()) {
+    //   transport->CancelTimer(seqnumCommitTimers[execSeqNum]);
+    //   seqnumCommitTimers.erase(execSeqNum);
+    // }
+
+    string batchDigest = pendingExecutions[execSeqNum];
+
+    //Shir: assuming requests are batched, proceed to execution only if you find the entire batch ?
+    // only execute when we have the batched request
+
+    Debug("looking for the following batch digest:    ");
+    DebugHash(batchDigest);
+
+    if (batchedRequests.find(batchDigest) != batchedRequests.end()) {
+
+      // Shir: there should be one request per batch but we should verify that later
+
+
+      Debug("Batched request");
+      string digest = (*batchedRequests[batchDigest].mutable_digests())[execBatchNum];
+      Debug("this is the request digest:    ");
+      DebugHash(digest);
+
+
+      // only execute if we have the full request      
+      // Shir: "requests" is a map from digest to received requests
+      if (requests.find(digest) != requests.end()) {
+        // Shir: if i'm here it means that i've found the request (returned from hotstuff?), and i'm going to execute it
+        stats->Increment("exec_request",1);
+        Debug("executing seq num: %lu %lu", execSeqNum, execBatchNum);
+
+        // Shir: This is the messages recieved from hotstuff
+        proto::PackedMessage packedMsg = requests[digest];
+pa
+        if(asyncServer) {
+          // Shir: server is asynchronous (will deal with this scope later)
+
+          execBatchNum++;
+
+          if ((int) execBatchNum >= batchedRequests[batchDigest].digests_size()) {
+            Debug("Done executing batch");
+            execBatchNum = 0;
+            execSeqNum++;
+
+          }
+          transport->Timer(0, [this, digest, batchDigest, packedMsg](){
+            execute_callback ecb = [this, digest, batchDigest](std::vector<::google::protobuf::Message*> replies) {
+              for (const auto& reply : replies) {
+                if (reply != nullptr) {
+                  Debug("Sending reply");
+                  stats->Increment("execs_sent",1);
+                  EpendingBatchedMessages.push_back(reply);
+                  EpendingBatchedDigs.push_back(digest);
+                  if (EpendingBatchedMessages.size() >= EbatchSize) {
+                    Debug("EBatch is full, sending");
+
+
+                    sendEbatch();
+                  } else if (!EbatchTimerRunning) {
+                    EbatchTimerRunning = true;
+                    Debug("Starting ebatch timer");
+
+                  }
+                } else {
+                  Debug("Invalid execution");
+                }
+              }
+
+            };
+
+            app->Execute_Callback(packedMsg.type(), packedMsg.msg(), ecb);
+          });
+          
+        } else {
+          // Shir: server is synchronous (current situation)
+
+          // Shir: calling the server with the recieved message, and getting replies
+          std::vector<::google::protobuf::Message*> replies = app->Execute(packedMsg.type(), packedMsg.msg());
+
+
+          // Shir: dealing with the replies from the server
+          for (const auto& reply : replies) {
+            if (reply != nullptr) {
+              // Shir: for every reply returned frmo server, i need to send it. replies are batched together to batched of size "EbatchSize" before sending them (currently set to 1)
+              Debug("Sending reply");
+              stats->Increment("execs_sent",1);
+              EpendingBatchedMessages.push_back(reply);
+              EpendingBatchedDigs.push_back(digest);
+              if (EpendingBatchedMessages.size() >= EbatchSize) {
+                Debug("EBatch is full, sending");
+                sendEbatch();
+              } else if (!EbatchTimerRunning) {
+                EbatchTimerRunning = true;
+                Debug("Starting ebatch timer");
+              }
+            } else {
+              Debug("Invalid execution");
+            }
+          }
+
+
+          // Shir: after dealing with all the replies, we advance the batch seq number.
+          execBatchNum++;
+          // Debug("Shir: 555 advancing the exec batch num to %d",execBatchNum);  
+          // Debug("Shir: exec batch num is %d",execBatchNum);
+          // Debug("Shir:   %d",batchedRequests[batchDigest].digests_size());
+
+          // Shir: if the next batch num to execute is greater than _____: it means i'm done executing this batch
+          if ((int) execBatchNum >= batchedRequests[batchDigest].digests_size()) {
+            Debug("Done executing batch");
+            execBatchNum = 0;
+            // // SHIR: advancing in 8 because of the bubbles?
+            // execSeqNum=execSeqNum+8;
+            execSeqNum++;
+            // Debug("Shir: 666 advancing the exec seq num to %d",execSeqNum);  
+
+          }
+
+
+
+        }
+      
+
+
+      } else {
+        // Shir: i didn't find the request by its digest (I'm assuming it should get here but will leave this code for now for debug purposes)       
+        Debug("Outside of requests");
+        stats->Increment("miss_hotstuffpg_req_txn",1);
+        break;
+      }
+    
+    } else {
+      Debug("Shir: did not find it");
+      //Shir: if you got here it means that you didn't have the batch for the given request (I'm assuming it should get here but will leave this code for now for debug purposes)
+      Debug("Outside of batched");
+      stats->Increment("miss_hotstuffpg_req_batch",1);
+      break;
+    }
+  
+  
+  }
+  Debug("Out of while");
+
+}
+
+
+// Shir: ################################################################ PREVIOUS FUNC
+
 void Replica::executeSlots_internal() {
   Debug("exec seq num: %lu", execSeqNum);
   for(auto& it: pendingExecutions) {
@@ -978,7 +960,7 @@ void Replica::executeSlots_internal() {
   }
   while(pendingExecutions.find(execSeqNum) != pendingExecutions.end()) { //pendingExecutions.find(execSeqNum) != pendingExecutions.end()
     // cancel the commit timer
-    Debug("Pending execution exists");
+    Debug("Pending execution exists"); // count=3
     if (seqnumCommitTimers.find(execSeqNum) != seqnumCommitTimers.end()) {
       transport->CancelTimer(seqnumCommitTimers[execSeqNum]);
       seqnumCommitTimers.erase(execSeqNum);
@@ -993,11 +975,14 @@ void Replica::executeSlots_internal() {
     //   continue;
     // }
     // only execute when we have the batched request
+    Debug("Shir: count before if"); // count=3 (without execute in each bubble),count=15 (with execute in each bubble)
+
     if (batchedRequests.find(batchDigest) != batchedRequests.end()) {
       Debug("Batched request");
       string digest = (*batchedRequests[batchDigest].mutable_digests())[execBatchNum];
       DebugHash(digest);
       // only execute if we have the full request
+      Debug("Shir: count before looking for digest"); // count=1 (without execute in each bubble),count=2 (with execute in each bubble)
       if (requests.find(digest) != requests.end()) {
         stats->Increment("exec_request",1);
         Debug("executing seq num: %lu %lu", execSeqNum, execBatchNum);
@@ -1005,10 +990,14 @@ void Replica::executeSlots_internal() {
 
         if(asyncServer) {
           execBatchNum++;
+          Debug("Shir: 333 advancing the exec batch num to %d",execBatchNum);  
+
           if ((int) execBatchNum >= batchedRequests[batchDigest].digests_size()) {
             Debug("Done executing batch");
             execBatchNum = 0;
             execSeqNum++;
+            Debug("Shir: 444 advancing the exec seq num to %d",execSeqNum);
+
           }
           transport->Timer(0, [this, digest, batchDigest, packedMsg](){
 
@@ -1056,6 +1045,8 @@ void Replica::executeSlots_internal() {
           });
           
         } else {
+          std::cerr<<"Shir: 22222222\n";
+
           std::vector<::google::protobuf::Message*> replies = app->Execute(packedMsg.type(), packedMsg.msg());
 
           for (const auto& reply : replies) {
@@ -1088,60 +1079,69 @@ void Replica::executeSlots_internal() {
           }
 
           execBatchNum++;
+          Debug("Shir: 555 advancing the exec batch num to %d",execBatchNum);  
+
+          Debug("Shir: exec batch num is %d",execBatchNum);
+          Debug("Shir:   %d",batchedRequests[batchDigest].digests_size());
           if ((int) execBatchNum >= batchedRequests[batchDigest].digests_size()) {
             Debug("Done executing batch");
             execBatchNum = 0;
-            execSeqNum++;
+            // SHIR: advancing in 8 because of the bubbles?
+            execSeqNum=execSeqNum+8;
+            // execSeqNum++;
+            Debug("Shir: 666 advancing the exec seq num to %d",execSeqNum);  
+
           }
         }
       } else {
-#ifdef USE_HOTSTUFF_STORE
-        
-        Debug("Outside of requests");
+          #ifdef USE_HOTSTUFF_STORE
+                  
+                  Debug("Outside of requests");
 
-          stats->Increment("miss_hotstuffpg_req_txn",1);
-          // request resend not implemented for HotStuff
-          break;
+                    stats->Increment("miss_hotstuffpg_req_txn",1);
+                    // request resend not implemented for HotStuff
+                    break;
 
-#else
+          #else
 
-          Debug("request from batch %lu not yet received", execSeqNum);
-          if (requestTx) {
-              stats->Increment("req_txn",1);
-              proto::RequestRequest rr;
-              rr.set_digest(digest);
-              int primaryIdx = config.GetLeaderIndex(currentView);
-              if (primaryIdx == idx) {
-                  stats->Increment("primary_req_txn",1);
-              }
-              transport->SendMessageToReplica(this, groupIdx, primaryIdx, rr);
-          }
-          break;
-#endif
+                    Debug("request from batch %lu not yet received", execSeqNum);
+                    if (requestTx) {
+                        stats->Increment("req_txn",1);
+                        proto::RequestRequest rr;
+                        rr.set_digest(digest);
+                        int primaryIdx = config.GetLeaderIndex(currentView);
+                        if (primaryIdx == idx) {
+                            stats->Increment("primary_req_txn",1);
+                        }
+                        transport->SendMessageToReplica(this, groupIdx, primaryIdx, rr);
+                    }
+                    break;
+          #endif
       }
     } else {
-#ifdef USE_HOTSTUFF_STORE
-        Debug("Outside of batched");
+          #ifdef USE_HOTSTUFF_STORE
+                  Debug("Outside of batched");
 
-        stats->Increment("miss_hotstuffpg_req_batch",1);
-        // batch resend not implemented for HotStuff
-        break;
+                  stats->Increment("miss_hotstuffpg_req_batch",1);
+                  // batch resend not implemented for HotStuff
+                  break;
 
-#else
+          #else
 
-        Debug("Batch request not yet received");
-        if (requestTx) {
-            stats->Increment("req_batch",1);
-            proto::RequestRequest rr;
-            rr.set_digest(batchDigest);
-            int primaryIdx = config.GetLeaderIndex(currentView);
-            transport->SendMessageToReplica(this, groupIdx, primaryIdx, rr);
-        }
-        break;
-#endif
+                  Debug("Batch request not yet received");
+                  if (requestTx) {
+                      stats->Increment("req_batch",1);
+                      proto::RequestRequest rr;
+                      rr.set_digest(batchDigest);
+                      int primaryIdx = config.GetLeaderIndex(currentView);
+                      transport->SendMessageToReplica(this, groupIdx, primaryIdx, rr);
+                  }
+                  break;
+          #endif
     }
   }
   Debug("Out of while");
+
 }
 
 
@@ -1251,6 +1251,24 @@ void Replica::cancelActionTimer(uint64_t seq_num, uint64_t viewnum, std::string 
   //   actionTimers[seq_num][viewnum].erase(digest);
   // }
 }
+
+
+void Replica::HandleBatchedRequest(const TransportAddress &remote, proto::BatchedRequest &request) {
+  Panic("Shir:  HandleBatchedRequest");
+}
+
+void Replica::HandlePreprepare(const TransportAddress &remote,const proto::Preprepare &preprepare,const proto::SignedMessage& signedMsg) {
+  Panic("Shir:  HandlePreprepare");
+}
+
+void Replica::HandlePrepare(const TransportAddress &remote,const proto::Prepare &prepare, const proto::SignedMessage& signedMsg) {
+  Panic("Shir:  HandlePrepare");
+}
+
+void Replica::executeSlots_internal_multi() {
+    Panic("Shir:  executeSlots_internal_multi");
+}
+
 
 
 }  // namespace hotstuffpgstore
