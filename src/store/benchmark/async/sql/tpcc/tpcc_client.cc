@@ -73,8 +73,8 @@ SyncTransaction* TPCCSQLClient::GetNextTransaction() {
   }
 
   //USE even dist when testing...
-  new_order_ratio = 100;
-  payment_ratio = 0;
+  new_order_ratio = 0;
+  payment_ratio = 100;
   order_status_ratio = 0;
   stock_level_ratio = 0;
    delivery_ratio = 0;  //Only do delivery - to test the delete.
