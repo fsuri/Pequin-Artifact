@@ -441,7 +441,7 @@ void IndexScanExecutor::CheckRow(ItemPointer tuple_location, concurrency::Transa
     int max_num_reads = current_txn->IsPointRead()? 2 : 1;
     int num_reads = 0;
 
-    //fprintf(stderr, "First tuple in row: Looking at Tuple at location [%lu:%lu] with TS: [%lu:%lu] \n", tuple_location.block, tuple_location.offset, tuple_timestamp.getTimestamp(), tuple_timestamp.getID());
+    fprintf(stderr, "First tuple in row: Looking at Tuple at location [%lu:%lu] with TS: [%lu:%lu] \n", tuple_location.block, tuple_location.offset, tuple_timestamp.getTimestamp(), tuple_timestamp.getID());
       
 
     while(!done){
@@ -457,6 +457,7 @@ void IndexScanExecutor::CheckRow(ItemPointer tuple_location, concurrency::Transa
 
         //Eval should be called on the latest readable version. Note: For point reads we will call this up to twice (for prepared & committed)
         if(read_curr_version && !snapshot_only_mode){
+          //std::cerr << "num_reads: " << num_reads << std::endl;
           UW_ASSERT(++num_reads <= max_num_reads); //Assert we are not reading more than 1 for scans, and no more than 2 for point
           EvalRead(tile_group, tile_group_header, tuple_location, visible_tuple_locations, current_txn, use_secondary_index);  //TODO: might be more elegant to move this into FindRightRowVersion
         }
@@ -523,7 +524,7 @@ bool IndexScanExecutor::FindRightRowVersion(const Timestamp &timestamp, std::sha
       Debug("Read Committed Timestamp: [%lu:%lu]", committed_timestamp.getTimestamp(), committed_timestamp.getID());
       if (perform_point_read) SetPointRead(current_txn, tile_group_header, tuple_location, committed_timestamp);
     } 
-    else { //tuple is prepared                           Note: Technically in write mode always read the prepare. In practice, loader will never come here?
+    else if(!found_prepared) { //tuple is prepared (and we waven't read a prepared one yet)     Note: Technically in write mode always read the prepare. In practice, loader will never come here?
   
       if(write_mode && current_txn->IsDeletion()){ //Special handling to allow deletes to upgrade from prepare to commit; and to observe other delete rows.
        //TODO: Just re-factor delete to also use Insert interface... (just write dummy values...) Then no scan is necessary.
@@ -565,7 +566,7 @@ bool IndexScanExecutor::FindRightRowVersion(const Timestamp &timestamp, std::sha
           Debug("Read Prepared Timestamp: [%lu:%lu]. Dep: %s", prepared_timestamp.getTimestamp(), prepared_timestamp.getID(), pequinstore::BytesToHex(*txn_digest, 16).c_str());
           if (perform_point_read) SetPointRead(current_txn, tile_group_header, tuple_location, prepared_timestamp);
         }
-        //if we are performing snapshot, continue scanning up to k versions. Otherwise, for normal read, stop reading. For PointRead, keep going until commit.
+        //if we are performing snapshot, continue scanning up to k versions. Otherwise, for normal read, stop reading. For PointRead, keep going until commit. (but read at most one prepared)
         if(!perform_find_snapshot && !perform_point_read) done = true;
       }
     }
