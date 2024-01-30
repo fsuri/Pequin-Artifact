@@ -74,9 +74,9 @@ SyncTransaction* TPCCSQLClient::GetNextTransaction() {
 
   //USE even dist when testing...
   new_order_ratio = 0;
-  payment_ratio = 100;
+  payment_ratio = 0;
   order_status_ratio = 0;
-  stock_level_ratio = 0;
+  stock_level_ratio = 100;
    delivery_ratio = 0;  //Only do delivery - to test the delete.
   fprintf(stderr, "freqs: %d, %d, %d, %d, %d\n", new_order_ratio, delivery_ratio, payment_ratio, order_status_ratio, stock_level_ratio);
   
