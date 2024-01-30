@@ -48,7 +48,6 @@
 
 // use HotStuff library
 // comment out the below macro to switch back to pbftstore
-#define USE_HOTSTUFF_STORE
 #include "store/hotstuffstore/libhotstuff/examples/indicus_interface.h"
 
 namespace hotstuffpgstore {
@@ -66,25 +65,10 @@ public:
                       const std::string &data, void *meta_data);
   void HandleRequest(const TransportAddress &remote,
                            const proto::Request &msg);
-  void HandleBatchedRequest(const TransportAddress &remote,
-                           proto::BatchedRequest &msg);
-  void HandlePreprepare(const TransportAddress &remote,
-                              const proto::Preprepare &msg,
-                            const proto::SignedMessage& signedMsg);
-  void HandlePrepare(const TransportAddress &remote,
-                           const proto::Prepare &msg,
-                         const proto::SignedMessage& signedMsg);
-  void HandleCommit(const TransportAddress &remote,
-                          const proto::Commit &msg,
-                        const proto::SignedMessage& signedMsg);
-  void HandleGrouped(const TransportAddress &remote,
-                          const proto::GroupedSignedMessage &msg);
 
  private:
-#ifdef USE_HOTSTUFF_STORE
   hotstuffstore::IndicusInterface hotstuffpg_interface;
   std::unordered_map<std::string, proto::PackedMessage> requests_dup;
-#endif
 
   const transport::Configuration &config;
   KeyManager *keyManager;
@@ -106,19 +90,10 @@ public:
   bool asyncServer;
 
   // members to reduce alloc
-  proto::SignedMessage tmpsignedMessage;
   proto::Request recvrequest;
-  proto::Preprepare recvpreprepare;
-  proto::Prepare recvprepare;
-  proto::Commit recvcommit;
-  proto::BatchedRequest recvbatchedRequest;
-  proto::GroupedSignedMessage recvgrouped;
   proto::RequestRequest recvrr;
-  proto::ABRequest recvab;
 
   std::unordered_map<uint64_t, std::string> sessionKeys;
-  bool ValidateHMACedMessage(const proto::SignedMessage &signedMessage, std::string &data, std::string &type);
-  void CreateHMACedMessage(const ::google::protobuf::Message &msg, proto::SignedMessage& signedMessage);
 
   Slots slots;
 
@@ -127,7 +102,6 @@ public:
   int nextBatchNum;
   // the map from 0..(N-1) to pending digests
   std::unordered_map<uint64_t, std::string> pendingBatchedDigests;
-  void sendBatchedPreprepare();
   std::unordered_map<uint64_t, std::string> bStatNames;
 
   bool EbatchTimerRunning;
@@ -142,9 +116,6 @@ public:
      std::vector<std::string> EpendingBatchedDigs_);
   std::vector<proto::SignedMessage*> EsignedMessages;
 
-  bool sendMessageToAll(const ::google::protobuf::Message& msg);
-  bool sendMessageToPrimary(const ::google::protobuf::Message& msg);
-
   // map from batched digest to received batched requests
   std::unordered_map<std::string, proto::BatchedRequest> batchedRequests;
   // map from digest to received requests
@@ -156,7 +127,6 @@ public:
   // map from seqnum to the digest pending execution at that sequence number
   std::unordered_map<uint64_t, std::string> pendingExecutions;
 
-  void SendPreprepare(uint64_t seqnum, const proto::Preprepare& preprepare);
   // map from seqnum to timer ids. If the primary commits the sequence number
   // before the timer expires, then it cancels the timer
   std::unordered_map<uint64_t, int> seqnumCommitTimers;
@@ -166,14 +136,8 @@ public:
   tbb::concurrent_unordered_map<std::string, TransportAddress*> replyAddrs;
   //std::mutex replyAddrsMutex;
 
-  // tests to see if we are ready to send commit or executute the slot
-  void testSlot(uint64_t seqnum, uint64_t viewnum, std::string digest, bool gotPrepare);
 
   void executeSlots();
-
-  void executeSlots_internal();
-  void executeSlots_internal_multi();
-  void executeSlots_shir();
 
   void executeSlots_callback(std::vector<::google::protobuf::Message*> &replies, string batchDigest, string digest);
 
