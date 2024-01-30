@@ -136,7 +136,7 @@ transaction_status_t SQLNewOrder::Execute(SyncClient &client) {
 
   // (2.5) Increment next available order number for District
   d_row.set_next_o_id(d_row.get_next_o_id() + 1);
-  statement = fmt::format("UPDATE {} SET d_ext_o_id = {} WHERE d_id = {} AND d_w_id = {}", DISTRICT_TABLE, d_row.get_next_o_id(), d_id, w_id);
+  statement = fmt::format("UPDATE {} SET d_next_o_id = {} WHERE d_id = {} AND d_w_id = {}", DISTRICT_TABLE, d_row.get_next_o_id(), d_id, w_id);
   client.Write(statement, timeout, true);
 
   // (4) Insert new row into NewOrder and Order to reflect the creation of the order. 

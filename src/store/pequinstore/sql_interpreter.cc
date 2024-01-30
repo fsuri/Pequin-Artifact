@@ -506,6 +506,8 @@ void SQLTransformer::TransformUpdate(size_t pos, std::string_view &write_stateme
     UW_ASSERT(where_pos != std::string::npos); //TODO: Assuming here it has a Where hook. If not (i.e. update all rows), then ignore parsing it. (i.e. set where_pos to length of string, and skip where clause)
 
     std::string_view set_statement = write_statement.substr(0, where_pos);
+
+    //std::cerr << "set_statement: " << set_statement << std::endl;
     
     // split on ", " to identify the updates.
     // for each string split again on "=" and insert into column and value lists
@@ -539,6 +541,10 @@ void SQLTransformer::TransformUpdate(size_t pos, std::string_view &write_stateme
     where_cond = where_cond.substr(where_hook.length());
     read_statement = fmt::format("SELECT * FROM {0} WHERE {1}", table_name, std::move(where_cond));  //Note: Where cond ends with ";"
        
+    Debug("Transformed read statement: %s", read_statement.c_str());
+    // for(auto &col_up: col_updates){
+    //     std::cerr << "col: " << col_up.first << " val: " << col_up.second.l_value << std::endl;
+    // }
        
     //////// Create Write continuation:  
     //Note: Reading and copying all column values ("Select *"")
