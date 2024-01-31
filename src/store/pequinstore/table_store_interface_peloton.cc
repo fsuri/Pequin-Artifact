@@ -602,14 +602,14 @@ void PelotonTableStore::TransformPointResult(proto::Write *write, Timestamp &com
 
   //FIXME: REMOVE THIS ONCE SECONDARY INDEX BUG IS FIXED. THIS JUST A SHORT-TERM FIX TO IGNORE INVALID PREP READS
   // value should only be "f" if it does hit primary key, but the predicate is stronger than that... But secondary index scan violates this.
-  if(write->prepared_value() == "f"){
-    Notice("Reading a prepared value that doesn't hit predicate. False Positive.");
-    write->clear_prepared_value();
-  } 
-  if(write->committed_value() == "f"){
-    Notice("Reading a committed value that doesn't hit predicate. False Positive.");
-    write->clear_committed_value();
-  } 
+  // if(write->prepared_value() == "f"){
+  //   Notice("Reading a prepared value that doesn't hit predicate. False Positive.");
+  //   write->clear_prepared_value();
+  // } 
+  // if(write->committed_value() == "f"){
+  //   Notice("Reading a committed value that doesn't hit predicate. False Positive.");
+  //   write->clear_committed_value();
+  // } 
 
   sql::QueryResultProtoBuilder queryResultBuilder;
   RowProto *row;

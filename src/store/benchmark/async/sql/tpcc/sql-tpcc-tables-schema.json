@@ -1,8 +1,30 @@
 {
+  "EarliestNewOrder": {
+    "column_names_and_types": [
+      [
+        "eno_w_id",
+        "INTEGER"
+      ],
+      [
+        "eno_d_id",
+        "INTEGER"
+      ],
+      [
+        "eno_o_id",
+        "INTEGER"
+      ]
+    ],
+    "primary_key_col_idx": [
+      0,
+      1
+    ],
+    "row_data_path": "sql-tpcc-data/EarliestNewOrder.csv",
+    "table_name": "EarliestNewOrder"
+  },
   "customer": {
     "column_names_and_types": [
       [
-        "c_id",
+        "c_w_id",
         "INT"
       ],
       [
@@ -10,7 +32,7 @@
         "INT"
       ],
       [
-        "c_w_id",
+        "c_id",
         "INT"
       ],
       [
@@ -88,8 +110,8 @@
     ],
     "indexes": {
       "CustomerByName": [
+        0,
         1,
-        2,
         5
       ]
     },
@@ -104,11 +126,11 @@
   "district": {
     "column_names_and_types": [
       [
-        "d_id",
+        "d_w_id",
         "INT"
       ],
       [
-        "d_w_id",
+        "d_id",
         "INT"
       ],
       [
@@ -226,7 +248,7 @@
   "new_order": {
     "column_names_and_types": [
       [
-        "no_o_id",
+        "no_w_id",
         "INTEGER"
       ],
       [
@@ -234,14 +256,14 @@
         "INTEGER"
       ],
       [
-        "no_w_id",
+        "no_o_id",
         "INTEGER"
       ]
     ],
     "primary_key_col_idx": [
+      0,
       1,
-      2,
-      0
+      2
     ],
     "row_data_path": "sql-tpcc-data/new_order.csv",
     "table_name": "new_order"
@@ -249,7 +271,7 @@
   "oorder": {
     "column_names_and_types": [
       [
-        "o_id",
+        "o_w_id",
         "INTEGER"
       ],
       [
@@ -257,7 +279,7 @@
         "INTEGER"
       ],
       [
-        "o_w_id",
+        "o_id",
         "INTEGER"
       ],
       [
@@ -299,7 +321,7 @@
   "order_line": {
     "column_names_and_types": [
       [
-        "ol_o_id",
+        "ol_w_id",
         "INTEGER"
       ],
       [
@@ -307,7 +329,7 @@
         "INTEGER"
       ],
       [
-        "ol_w_id",
+        "ol_o_id",
         "INTEGER"
       ],
       [
@@ -340,9 +362,9 @@
       ]
     ],
     "primary_key_col_idx": [
-      2,
-      1,
       0,
+      1,
+      2,
       3
     ],
     "row_data_path": "sql-tpcc-data/order_line.csv",

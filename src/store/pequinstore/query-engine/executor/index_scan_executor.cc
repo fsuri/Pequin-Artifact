@@ -293,7 +293,7 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
 
 
   for (auto &visible_tuple_location : visible_tuple_locations) {
-    Debug("Result contains location [%lu:%lu]", visible_tuple_location.block, visible_tuple_location.offset);
+    //Debug("Result contains location [%lu:%lu]", visible_tuple_location.block, visible_tuple_location.offset);
     if (current_tile_group_oid == INVALID_OID) {
       current_tile_group_oid = visible_tuple_location.block;
     }
@@ -499,8 +499,10 @@ bool IndexScanExecutor::FindRightRowVersion(const Timestamp &timestamp, std::sha
     auto snapshot_set = current_txn->GetSnapshotSet();
     UW_ASSERT(!perform_read_on_snapshot || perform_read); //if read on snapshot, must be performing read.
   
+   bool write_mode = !perform_read && !perform_find_snapshot && !perform_read_on_snapshot; //If scanning as part of a write
 
-  Debug("Perform read? %d. Point read? %d. Perform find snapshot? %d. Perform read_on_snapshot? %d", perform_read, perform_point_read, perform_find_snapshot, perform_read_on_snapshot);
+  Debug("Perform read? %d. Point read? %d. Perform find snapshot? %d. Perform read_on_snapshot? %d. Write mode? %d", 
+          perform_read, perform_point_read, perform_find_snapshot, perform_read_on_snapshot, write_mode);
    ///////////////////////////////////////////////////////////////////////////////////
   UW_ASSERT(!(perform_find_snapshot && perform_read_on_snapshot)); //shouldn't do both simultaneously currently. Though we could support it in theory.
 
@@ -508,7 +510,6 @@ bool IndexScanExecutor::FindRightRowVersion(const Timestamp &timestamp, std::sha
   bool done = false;
 
   Debug("Tuple at location [%lu:%lu] with commit state: %d.", tuple_location.block, tuple_location.offset, tile_group_header->GetCommitOrPrepare(tuple_location.offset));
-  bool write_mode = !perform_read && !perform_find_snapshot && !perform_read_on_snapshot; //If scanning as part of a write
 
   // If reading.
   if (perform_read || perform_point_read || write_mode ) {
@@ -620,6 +621,22 @@ bool IndexScanExecutor::FindRightRowVersion(const Timestamp &timestamp, std::sha
   //Current tuple was not readable.
     Debug("Found committed: %d. Found prepared: %d, Can Read Prepared: %d, GetCommitOrPrepare: %d, GetMaterialize: %d", found_committed, found_prepared, current_txn->CanReadPrepared(), 
           tile_group_header->GetCommitOrPrepare(tuple_location.offset), tile_group_header->GetMaterialize(tuple_location.offset));
+
+  // if(found_committed){
+  //   std::cerr << "found committed SPECIAL PRINT" << std::endl;
+  //     //Code to print result: TESTCODE
+  //  auto storage_manager = storage::StorageManager::GetInstance();
+  //   auto curr_tile_group = storage_manager->GetTileGroup(tuple_location.block);
+  //  const auto *schema = curr_tile_group->GetAbstractTable()->GetSchema();
+  //   oid_t current_tile_group_oid = tuple_location.block;
+    
+  //   auto tile_group = storage_manager->GetTileGroup(current_tile_group_oid);
+  //   ContainerTuple<storage::TileGroup> tuple(tile_group.get(), tuple_location.offset);     
+  //   for (uint32_t col_idx = 0; col_idx < schema->GetColumnCount(); col_idx++) {
+  //       auto val = tuple.GetValue(col_idx);
+  //       Debug("Read col %d. Value: %s", col_idx, val.ToString().c_str());  
+  //   }
+  // }
 
   return done;
 
