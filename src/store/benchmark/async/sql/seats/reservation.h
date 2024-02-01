@@ -10,8 +10,8 @@ public:
     ~SEATSReservation();
 
     int64_t r_id;   //reservation id
-    int64_t c_id;   //customer id
-    int64_t f_id;   //flight id
+    int64_t c_id;   //customer id  //FIXME: CustomerID should be (id, depart_airport_id)
+    int64_t f_id;   //flight id    //FIXME: FlightID should be (airline_id, depart_airport_id, arrive_airport_id...)
     int64_t seat_num;
 };
 }

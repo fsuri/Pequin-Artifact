@@ -61,7 +61,7 @@ transaction_status_t SQLFindOpenSeats::Execute(SyncClient &client) {
         if (unavailable_seats[seat] == 0) open_seats_str += fmt::format(" {},", seat);
         if (q->size() < MAX_PENDING_INSERTS) {
             int64_t c_id = std::uniform_int_distribution<int64_t>(1, NUM_CUSTOMERS)(gen);
-            q->push(SEATSReservation(NULL_ID, c_id, f_id, seat));   //TODO: Why empty r_id and empty customer_id. Shouldn't it be a random CustomerID?
+            q->push(SEATSReservation(NULL_ID, c_id, f_id, seat));   //TODO: set the f_al_id too? FIXME: FlightID != single id.  //TODO: id should be the clients id.? No r_id?
             // r_id is empty because its set by the client
         }
         //TODO: Fill only up to CACHE_LIMIT_PENDING_INSERTS?

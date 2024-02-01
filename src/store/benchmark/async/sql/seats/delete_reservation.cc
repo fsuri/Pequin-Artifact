@@ -7,26 +7,33 @@ namespace seats_sql{
 
 SQLDeleteReservation::SQLDeleteReservation(uint32_t timeout, std::mt19937_64 gen, std::queue<SEATSReservation> &existing_res, std::queue<SEATSReservation> &insert_res) : 
     SEATSSQLTransaction(timeout) {
-        if (!existing_res.empty()) {
-            SEATSReservation r = existing_res.front();
-            c_id = r.c_id;
-            f_id = r.f_id;
-            existing_res.pop();
-        } else {
-            c_id = std::uniform_int_distribution<int64_t>(1, NUM_CUSTOMERS)(gen);
-            f_id = std::uniform_int_distribution<int64_t>(1, NUM_FLIGHTS)(gen);
-        }
+        UW_ASSERT(!existing_res.empty());
+        SEATSReservation r = existing_res.front();
+        existing_res.pop();
+
+        c_id = r.c_id;
+        f_id = r.f_id;
+        c_id_str = "";
+        ff_c_id_str = "";
+        ff_al_id = NULL_ID;
+       
+        int rand = std::uniform_int_distribution<int>(1, 100)(gen);
         //Delete with the Customer's id as a string
-        if (std::uniform_int_distribution<int>(1, 100)(gen) < PROB_DELETE_WITH_CUSTOMER_ID_STR) {
+        if (rand <= PROB_DELETE_WITH_CUSTOMER_ID_STR) {
             c_id_str = std::to_string(c_id);
             c_id = NULL_ID;
         }
+        //FIXME: Support this branch.
+        //Delete using FrequentFlyer information
+        // else if(rand <= PROB_DELETE_WITH_CUSTOMER_ID_STR + PROB_DELETE_WITH_FREQUENTFLYER_ID_STR){
+        //     ff_c_id_str = std::to_string(c_id);
+        //     ff_al_id = //FIXME: Get Airline ID.
+        // }
         //Delete using their CustomerId 
         else {
             c_id_str = "";
         }
-        ff_c_id_str = "";
-        ff_al_id = NULL_ID;
+      
 
         q = &insert_res;
     }

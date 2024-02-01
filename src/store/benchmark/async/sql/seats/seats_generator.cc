@@ -475,7 +475,7 @@ void GenerateFrequentFlyerTable(TableWriter &writer) {
     // generate data
     for (int c_id = 1; c_id <= seats_sql::NUM_CUSTOMERS; c_id++) {
       std::vector<int64_t> al_per_customer;
-      for (int al_num = 1; al_num <= 5; al_num++) {
+      for (int al_num = 1; al_num <= 5; al_num++) {  
         int64_t al_id = std::uniform_int_distribution<int64_t>(1, seats_sql::NUM_AIRLINES)(gen);
         while (containsId(al_per_customer, al_id)) {
           al_id = std::uniform_int_distribution<int64_t>(1, seats_sql::NUM_AIRLINES)(gen);
@@ -562,18 +562,23 @@ std::vector<int> GenerateFlightTable(TableWriter &writer, std::vector<std::vecto
       auto dep_ap_id = ap_code_to_id[arr_dep_ap.first];
       auto arr_ap_id = ap_code_to_id[arr_dep_ap.second];
       f_id_to_ap_conn.push_back(std::make_pair(dep_ap_id, arr_ap_id));
+
       auto dep_time =  std::binomial_distribution<std::time_t>(seats_sql::MIN_TS, seats_sql::MAX_TS - distToTime(airport_distances[dep_ap_id - 1][arr_ap_id - 1]))(gen);
       dep_time = (dep_time - (dep_time % seats_sql::MS_IN_DAY)) + convertStrToTime(getRandValFromHistogram(flight_time_hist, gen));
       values.push_back(std::to_string(dep_ap_id));
       values.push_back(std::to_string(dep_time));
       values.push_back(std::to_string(arr_ap_id));
       values.push_back(std::to_string(dep_time + distToTime(airport_distances[dep_ap_id - 1][arr_ap_id - 1])));
+
       values.push_back(std::to_string(std::uniform_int_distribution<int>(0, 1)(gen)));
       values.push_back(std::to_string(std::uniform_real_distribution<float>(100, 1000)(gen)));
       values.push_back(std::to_string(seats_sql::TOTAL_SEATS_PER_FLIGHT));
+
+      //number of reserved seats
       auto seats_reserved = std::uniform_int_distribution<int>(seats_sql::MIN_SEATS_RESERVED, seats_sql::MAX_SEATS_RESERVED)(gen);
       values.push_back(std::to_string(seats_sql::TOTAL_SEATS_PER_FLIGHT - seats_reserved));
       flight_to_num_reserved.push_back(seats_reserved);
+
       for (int iattr = 0; iattr < 30; iattr++) {
         values.push_back(std::to_string(std::uniform_int_distribution<int64_t>(1, 100000000)(gen)));
       }
@@ -646,20 +651,6 @@ void GenerateReservationTable(TableWriter &writer, std::vector<int> flight_to_nu
 }
 
 
-//TODO: bound max number of airports
-//TODO: pass flag that does not re-do distance table
-//TODO: set distance table index so we avoid a large scan. Expect at least 9k if index is (start, dest); change to (start, distance)
-    //We actually only need the lowest X. 
-
-    //TODO: Print if there are some very near airports.
-    // If so: in table generation, only keep those airports!!!
-        //Compute k nearest only
-        //Only add to airports if smaller than the last entry. (drop anything past the last)
-
-  //TODO: check how GenerateFlightTable is affected by distances.
-
-
-
 
 int main(int argc, char *argv[]) {
     gflags::SetUsageMessage(
@@ -687,8 +678,8 @@ int main(int argc, char *argv[]) {
     std::cerr << "Finished Reservation" << std::endl;
     GenerateCustomerTable(writer);
     std::cerr << "Finished Customer" << std::endl;
-    // GenerateFrequentFlyerTable(writer);
-    // std::cerr << "Finished FF" << std::endl;
+    GenerateFrequentFlyerTable(writer);
+    std::cerr << "Finished FrequentFlyer" << std::endl;
     writer.flush();
     auto end_time = std::time(0);
     std::cerr << "Finished SEATS Table Generation. Took " << (end_time - start_time) << "seconds" << std::endl;

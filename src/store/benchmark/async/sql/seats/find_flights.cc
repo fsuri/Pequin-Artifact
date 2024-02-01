@@ -16,8 +16,8 @@ SQLFindFlights::SQLFindFlights(uint32_t timeout, std::mt19937_64 gen) :
                     //Load some initially too. (LoadProfile) (Load flights from the CSV, up to a cache limit flight ids)
         depart_aid = std::uniform_int_distribution<int64_t>(1, NUM_AIRPORTS)(gen);
         arrive_aid = std::uniform_int_distribution<int64_t>(1, NUM_AIRPORTS)(gen);
-        start_time = std::uniform_int_distribution<std::time_t>(MIN_TS, MAX_TS)(gen);
-        end_time = std::uniform_int_distribution<std::time_t>(start_time, MAX_TS)(gen);
+        start_time = std::uniform_int_distribution<std::time_t>(MIN_TS, MAX_TS)(gen); //FIXME: Should be random upcoming Date? See SEATSProfile (Currently makes sense given Loaded flights)
+        end_time = std::uniform_int_distribution<std::time_t>(start_time, MAX_TS)(gen); //FIXME: Should be start_time + 2* MS_IN_DAY
         if (std::uniform_int_distribution<int>(1, 100)(gen) < PROB_FIND_FLIGHTS_NEARBY_AIRPORT) {
             distance = NEAR_DISTANCES[std::uniform_int_distribution<int>(1, NEAR_DISTANCES.size())(gen)];
         } else {
