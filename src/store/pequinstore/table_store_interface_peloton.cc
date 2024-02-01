@@ -266,7 +266,7 @@ void PelotonTableStore::ExecRaw(const std::string &sql_statement) {
   // Execute on Peloton  //Note -- this should be a synchronous call. I.e.
   // ExecRaw should not return before the call is done.
 
-  std::cout << "Beginning of exec raw" << std::endl;
+  std::cout << "Beginning of exec raw. Statement: " << sql_statement << std::endl;
   std::pair<peloton::tcop::TrafficCop *, std::atomic_int *> cop_pair = GetCop();
   std::cout << "Got the cop" << std::endl;
 
@@ -393,6 +393,9 @@ void PelotonTableStore::LoadTable(const std::string &load_statement, const std::
 std::string PelotonTableStore::ExecReadQuery(const std::string &query_statement, const Timestamp &ts, QueryReadSetMgr &readSetMgr) {
 
   // UW_ASSERT(ts.getTimestamp() >= 0 && ts.getID() >= 0);
+
+  // std::string stmt = "set enable_hashjoin = OFF";
+  // ExecRaw(stmt);
 
   Debug("Execute ReadQuery: %s. TS: [%lu:%lu]", query_statement.c_str(), ts.getTimestamp(), ts.getID());
 

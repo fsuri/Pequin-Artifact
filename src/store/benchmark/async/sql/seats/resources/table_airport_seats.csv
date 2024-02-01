@@ -9224,9 +9224,9 @@
 "ZYZ","Berchem Railway Stn.","Antwerp",,"BEL",4.4167,51.2167,,409
 "ZZU","Mzuzu","Mzuzu",,"MWI",34.0167,-11.45,-2,542
 "ZZV","Zanesville","Zanesville",43701,"USA",-81.8833,39.95,5,67
-"MVY","Martha's Vineyard Airport","Vineyard Haven",2568,"USA",41.3931,-70.6144,-5,
+"MVY","Martha's Vineyard Airport","Vineyard Haven",2568,"USA",41.3931,-70.6144,-5, 
 "5B2","Saratoga County Airport","Saratoga Springs",12020,"USA",43.0511,-73.8611,-5,67
-"UTM","Tunica Municipal Airport","Tunica",,"USA",34.6831,-90.3472,-6,
+"UTM","Tunica Municipal Airport","Tunica",,"USA",34.6831,-90.3472,-6, 
 "SDQ","Aeropuerto de las Américas","Santo Domingo",,"DOM",-69.6689,18.4297,-4,809
 "MSY","Louis Armstrong New Orléans International Airport","New Orleans",,"USA",-90.2581,29.9933,-6,67
 "CUN","Cancún International","Cancun",,"MEX",-86.8769,21.0367,-6,148
@@ -9243,19 +9243,19 @@
 "BJX","Del Bajío International","León",,"MEX",-101.4808,20.9933,-6,148
 "LAP","General Manuel Márquez De León International Airport","La Paz",,"MEX",-110.3167,24.1167,7,148
 "YQB","Québec","Québec City",,"CAN",-71.3933,46.7911,-5,906
-"CSG","Columbus Metropolitan","Columbus",,"USA",-84.9389,32.5164,-5,
+"CSG","Columbus Metropolitan","Columbus",,"USA",-84.9389,32.5164,-5, 
 "LYS","St-Exupéry","Lyon",,"FRA",5.0811,45.7256,1,427
 "BOD","Mérignac","Bordeaux",,"FRA",-0.7153,44.8286,1,427
 "TRD","Værnes","Trondheim",,"NOR",10.9361,63.4578,1,465
 "FMO","Münster Osnabrück International","Greven",,"DEU",7.6167,51.95,1,429
-"RYG","Moss","Rygge",,"NOR",10.7853,59.3789,1,
+"RYG","Moss","Rygge",,"NOR",10.7853,59.3789,1, 
 "FAE","Vagar","Sorvágur",,"FRO",-7.2769,62.0636,,419
-"IKA","Imam Khomeini Airport","Tehran",,"IRN",51.1522,35.4161,3.5,
+"IKA","Imam Khomeini Airport","Tehran",,"IRN",51.1522,35.4161,3.5, 
 "MPL","Montpellier Méditerranée","Montpellier",,"FRA",3.9667,43.5833,-1,427
 "BTS","M. R. &Scaron;tefánika","Bratislava",,"SVK",17.2167,48.1667,-1,483
 "VXO","Smaland Airport","Växjö",,"SWE",14.7281,56.9292,1,484
 "OSD","Åre Östersund Airport","Ostersund",,"SWE",14.5,63.1833,1,484
-"Y31","West Branch Community","West Branch",,"USA",-84.2981,44.3483,-5,
+"Y31","West Branch Community","West Branch",,"USA",-84.2981,44.3483,-5, 
 "OPO","Francisco Sá Carneiro","Porto",,"PRT",-8.6814,41.2481,,469
 "FMM","Memmingen-Allgäu","Memmingen",,"DEU",10.2394,47.9889,1,429
 "BSB","Presidente Juscelino Kubitschek","Brasília",,"BRA",-47.9186,-15.8711,-3,316

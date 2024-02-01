@@ -10,12 +10,16 @@ const int MAX_NUM_FLIGHTS = 10;
 SQLFindFlights::SQLFindFlights(uint32_t timeout, std::mt19937_64 gen) :
     SEATSSQLTransaction(timeout)
     {
+        //TODO: Implement FindRandomAirport ID vs getRandomFlightId (pick random flight from cached flights)
+        //TODO implement cached_flight_ids.  
+        //If we get a result > 1, try to cache the flights found.
+                    //Load some initially too. (LoadProfile) (Load flights from the CSV, up to a cache limit flight ids)
         depart_aid = std::uniform_int_distribution<int64_t>(1, NUM_AIRPORTS)(gen);
         arrive_aid = std::uniform_int_distribution<int64_t>(1, NUM_AIRPORTS)(gen);
         start_time = std::uniform_int_distribution<std::time_t>(MIN_TS, MAX_TS)(gen);
         end_time = std::uniform_int_distribution<std::time_t>(start_time, MAX_TS)(gen);
         if (std::uniform_int_distribution<int>(1, 100)(gen) < PROB_FIND_FLIGHTS_NEARBY_AIRPORT) {
-            distance = std::uniform_int_distribution<int>(6000, 9000)(gen);   //TODO: Where is this number coming from?
+            distance = NEAR_DISTANCES[std::uniform_int_distribution<int>(1, NEAR_DISTANCES.size())(gen)];
         } else {
             distance = 0;
         }

@@ -1357,8 +1357,8 @@ void SQLTransformer::ParseColUpdate(std::string_view col_update, std::map<std::s
         }
 }
 
-
-std::string SQLTransformer::GetUpdateValue(const std::string &col, std::variant<bool, int64_t, std::string> &field_val, std::unique_ptr<query_result::Field> &field, 
+//TODO: Support double too.
+std::string SQLTransformer::GetUpdateValue(const std::string &col, std::variant<bool, int64_t, double, std::string> &field_val, std::unique_ptr<query_result::Field> &field, 
     std::map<std::string_view, Col_Update> &col_updates, const std::string &col_type, bool &change_val){
 
      //Copy all column values (unless in col_updates)
@@ -1482,7 +1482,7 @@ RowUpdates* SQLTransformer::AddTableWriteRow(TableWrite *table_write, const ColR
     return row_update;
 }
 
-std::variant<bool, int64_t, std::string> DecodeType(std::unique_ptr<query_result::Field> &field, const std::string &col_type){
+std::variant<bool, int64_t, double, std::string> DecodeType(std::unique_ptr<query_result::Field> &field, const std::string &col_type){
     const std::string &field_val = field->get();
     return DecodeType(field_val, col_type);
 }
@@ -1506,13 +1506,13 @@ std::variant<bool, int64_t, std::string> DecodeType(std::unique_ptr<query_result
                 // std::cerr << "Query Result. Col " << i << ": " << output_row << std::endl;
 
 
-std::variant<bool, int64_t, std::string> DecodeType(const std::string &enc_value, const std::string &col_type){
+std::variant<bool, int64_t, double, std::string> DecodeType(const std::string &enc_value, const std::string &col_type){
     //Based on Syntax from: https://www.postgresqltutorial.com/postgresql-tutorial/postgresql-data-types/ && https://www.postgresql.org/docs/current/datatype-numeric.html 
     //Resource for std::variant: https://www.cppstories.com/2018/06/variant/ 
    
     //Note: currently the generated types are PostGresSQL types. We could however also input "normal types" and transform them into SQL types only for Peloton.
 
-    std::variant<bool, int64_t, std::string> type_variant;   //TODO: can pass variant to cereal? Then don't need all the redundant code
+    std::variant<bool, int64_t, double, std::string> type_variant;   //TODO: can pass variant to cereal? Then don't need all the redundant code
 
     //match on col_type
     if(col_type == "VARCHAR" || col_type == "TEXT"){ //FIXME: VARCHAR might actually look like "VARCHAR (n)"
@@ -1529,6 +1529,10 @@ std::variant<bool, int64_t, std::string> DecodeType(const std::string &enc_value
         int64_t dec = std::stoi(enc_value); 
         type_variant = std::move(dec);
 
+    }
+    else if (col_type == "FLOAT"){
+        int64_t dec = std::stod(enc_value); 
+        type_variant = std::move(dec);
     }
     // else if(col_type == "INT []" || col_type == "BIGINT []" || col_type == "SMALLINT []"){
     //     std::vector<int64_t> dec_value;
@@ -1554,13 +1558,13 @@ std::variant<bool, int64_t, std::string> DecodeType(const std::string &enc_value
 }
 
 //DEPRECATED: No longer using DeCerialize
-std::variant<bool, int64_t, std::string> DecodeType(std::string &enc_value, const std::string &col_type){
+std::variant<bool, int64_t, double, std::string> DecodeType(std::string &enc_value, const std::string &col_type){
     //Based on Syntax from: https://www.postgresqltutorial.com/postgresql-tutorial/postgresql-data-types/ && https://www.postgresql.org/docs/current/datatype-numeric.html 
     //Resource for std::variant: https://www.cppstories.com/2018/06/variant/ 
    
     //Note: currently the generated types are PostGresSQL types. We could however also input "normal types" and transform them into SQL types only for Peloton.
 
-    std::variant<bool, int64_t, std::string> type_variant;   //TODO: can pass variant to cereal? Then don't need all the redundant code
+    std::variant<bool, int64_t, double, std::string> type_variant;   //TODO: can pass variant to cereal? Then don't need all the redundant code
 
     //match on col_type
     if(col_type == "VARCHAR" || col_type == "TEXT"){ //FIXME: VARCHAR might actually look like "VARCHAR (n)"
@@ -1582,6 +1586,14 @@ std::variant<bool, int64_t, std::string> DecodeType(std::string &enc_value, cons
         int64_t dec = std::stoi(dec_value); 
         type_variant = std::move(dec);
 
+    }
+    else if (col_type == "FLOAT"){
+        std::string dec_value;
+        DeCerealize(enc_value, dec_value);
+        //std::cerr << "DEC VALUE: " << dec_value << std::endl; 
+
+        double dec = std::stod(dec_value); 
+        type_variant = std::move(dec);
     }
     // else if(col_type == "INT []" || col_type == "BIGINT []" || col_type == "SMALLINT []"){
     //     std::vector<int64_t> dec_value;

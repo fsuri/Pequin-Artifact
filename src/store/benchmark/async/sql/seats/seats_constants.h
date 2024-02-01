@@ -4,6 +4,7 @@
 #include <ctime>
 #include <string> 
 #include <limits>
+#include <vector>
 namespace seats_sql {
 
 const int TOTAL_SEATS_PER_FLIGHT = 150;
@@ -16,7 +17,7 @@ const int MAX_PENDING_DELETES = 5000;
 
 const int NEW_RESERVATION_ATTRS_SIZE = 9;
 const std::time_t MIN_TS = 1697218894000;
-const std::time_t MAX_TS = MIN_TS + ((int64_t) 86400000) * 50;
+const std::time_t MAX_TS = MIN_TS + ((int64_t) 86400000) * 50; //50 days in advance
 const double MIN_RESERVATION_PRICE = 100;
 const double MAX_RESERVATION_PRICE = 1000; //1500;
 const int64_t NULL_ID = std::numeric_limits<int64_t>::min();
@@ -38,7 +39,9 @@ const int PROB_REQUEUE_DELETED_RESERVATION = 90;
 const int PROB_DELETE_WITH_CUSTOMER_ID_STR = 20;
 const int PROB_UPDATE_WITH_CUSTOMER_ID_STR = 20;
 const int PROB_UPDATE_FREQUENT_FLYER = 25;
-const int PROB_FIND_FLIGHTS_NEARBY_AIRPORT = 10;  //FIXME: Should be 25?  TODO: Add RANDOM_AIRPORTS 10?
+const int PROB_FIND_FLIGHTS_NEARBY_AIRPORT = 25;  
+const int PROB_FIND_FLIGHTS_RANDOM_AIRPORTS = 10;
+const std::vector<int> NEAR_DISTANCES = {5, 10, 25, 50, 100};
 
 const int PROB_Q_DELETE_RESERVATION = 50;
 const int PROB_Q_UPDATE_RESERVATION = 100 - PROB_Q_DELETE_RESERVATION;
@@ -57,7 +60,7 @@ const std::string RESERVATION_TABLE = "reservation";
 
 /** Table Size Information */
 
-const int SCALE_FACTOR = 5;
+const int SCALE_FACTOR = 1; //5;
 const int NUM_CUSTOMERS = SCALE_FACTOR * 100000;
 const int NUM_FLIGHTS = SCALE_FACTOR * 10000;
 

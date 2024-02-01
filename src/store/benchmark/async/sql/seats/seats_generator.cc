@@ -10,12 +10,22 @@
 #include <queue>
 #include <unordered_set>
 
+DEFINE_int32(max_airports, -1, "number of airports (-1 == uncapped)");
+DEFINE_int32(k_nearest_airports, 10, "number of distances stored (nearest k)");
+
+
 const char* FLIGHTS_AIRPORT_HISTO_FN = "./resources/histogram_flights_per_airport.json";
 const char* FLIGHTS_TIME_HISTO_FN = "./resources/histogram_flights_per_time.json";
 const char* AIRLINE_SEATS_TABLE = "./resources/table_airline_seats.csv";
 const char* AIRPORT_SEATS_TABLE = "./resources/table_airport_seats.csv";
 const char* COUNTRY_SEATS_TABLE = "./resources/table_country_seats.csv";
 
+
+void skipCSVHeader(std::ifstream& iostr){
+  //Skip header
+  std::string columns;
+  getline(iostr, columns); 
+}
 std::vector<std::string> readCSVRow(std::ifstream& iostr) {
   std::vector<std::string> res;
 
@@ -24,9 +34,13 @@ std::vector<std::string> readCSVRow(std::ifstream& iostr) {
   std::stringstream lineStream(line);
   std::string cell; 
 
+  //std::cerr << std::endl << line << std::endl;
+
   while (std::getline(lineStream, cell, ',')) {
-    if (cell[0] == '"') cell = cell.substr(1);
-    if (cell[cell.size() - 1] == '"') cell = cell.substr(0, cell.size() - 1);
+    // if (cell[0] == '"') cell = cell.substr(1);
+    // if (cell[cell.size() - 1] == '"') cell = cell.substr(0, cell.size() - 1);
+    cell.erase(std::remove(cell.begin(), cell.end(), '\"' ),cell.end());
+    //std::cerr << cell << std::endl;
     res.push_back(cell);
   }
 
@@ -149,6 +163,9 @@ std::string RandomNString(size_t min_len, size_t max_len, std::mt19937 &gen) {
   return s;
 }
 
+
+//TABLE GENERATORS
+
 std::unordered_map<std::string, int64_t> GenerateCountryTable(TableWriter &writer) {
     std::vector<std::pair<std::string, std::string>> column_names_and_types;
     column_names_and_types.push_back(std::make_pair("co_id", "BIGINT"));
@@ -160,12 +177,13 @@ std::unordered_map<std::string, int64_t> GenerateCountryTable(TableWriter &write
     std::string table_name = seats_sql::COUNTRY_TABLE;
     writer.add_table(table_name, column_names_and_types, primary_key_col_idx);
     std::ifstream file (COUNTRY_SEATS_TABLE);
-    // skipped since first row is just column names
-    std::vector<std::string> csv = readCSVRow(file);
+   
     std::unordered_map<std::string, int64_t> ret;
+    skipCSVHeader(file);  // skipped first row since it is just column names
     for (int co_id = 1; co_id <= seats_sql::NUM_COUNTRIES; co_id++) {
+    
         std::vector<std::string> values; 
-        csv = readCSVRow(file);
+        std::vector<std::string> csv = readCSVRow(file);
 
         values.push_back(std::to_string(co_id));
         values.push_back(csv[0]);
@@ -187,9 +205,9 @@ std::vector<std::pair<double, double>> GenerateAirportTable(TableWriter &writer,
     column_names_and_types.push_back(std::make_pair("ap_city", "TEXT"));
     column_names_and_types.push_back(std::make_pair("ap_postal_code", "TEXT"));   // len 12
     column_names_and_types.push_back(std::make_pair("ap_co_id", "BIGINT"));
-    column_names_and_types.push_back(std::make_pair("ap_longitude", "FLOAT"));
-    column_names_and_types.push_back(std::make_pair("ap_latitude", "FLOAT"));
-    column_names_and_types.push_back(std::make_pair("ap_gmt_offset", "FLOAT"));
+    column_names_and_types.push_back(std::make_pair("ap_longitude", "FLOAT")); //TODO: Don't really need to support FLOAT for this.. INT will be fine.
+    column_names_and_types.push_back(std::make_pair("ap_latitude", "FLOAT"));  
+    column_names_and_types.push_back(std::make_pair("ap_gmt_offset", "FLOAT"));  
     column_names_and_types.push_back(std::make_pair("ap_wac", "BIGINT"));
     FillColumnNamesWithGenericAttr(column_names_and_types, "ap_iattr", "BIGINT", 16);
 
@@ -198,14 +216,22 @@ std::vector<std::pair<double, double>> GenerateAirportTable(TableWriter &writer,
     writer.add_table(table_name, column_names_and_types, primary_key_col_idx);
 
     std::ifstream file (AIRPORT_SEATS_TABLE);
-    std::vector<std::string> csv = readCSVRow(file);
+    
     std::mt19937 gen;
     std::vector<std::pair<double, double>> airport_long_lats; 
     airport_long_lats.reserve(seats_sql::NUM_AIRPORTS);
+
+    skipCSVHeader(file);  // skipped first row since it is just column names
     for (int ap_id = 1; ap_id <= seats_sql::NUM_AIRPORTS; ap_id++) {
+      //std::cerr << "row# " << ap_id << std::endl;
       std::vector<std::string> values; 
-      csv = readCSVRow(file);
-      values.reserve(26);
+      std::vector<std::string> csv = readCSVRow(file);
+    
+      if(csv.size() < 9){
+        csv.push_back("");
+      } 
+
+      //values.reserve(26);
       values.push_back(std::to_string(ap_id));
       values.push_back(csv[0]);                                      // ap_code
       ap_code_to_id[csv[0]] = ap_id;
@@ -247,15 +273,82 @@ double calculateDistance(std::pair<double, double> ap_1, std::pair<double, doubl
     auto dist = std::sin(deg2rad(ap_1.second)) * std::sin(deg2rad(ap_2.second)) + std::cos(deg2rad(ap_1.second)) * std::cos(deg2rad(ap_2.second)) * std::cos(deg2rad(ap_1.first - ap_1.second));
     dist = std::acos(dist);
     dist = rad2deg(dist);
+    //std::cerr << "distance: " << (dist * 60 * 1.1515) << std::endl;
     return (dist * 60 * 1.1515);
     //std::sqrt(std::pow(ap_1.first - ap_2.first, 2) + std::pow(ap_1.second - ap_2.second, 2))/6.0;
 }
 
+
+std::vector<std::vector<double>> GenerateAirportDistanceTableBounded(TableWriter &writer, std::vector<std::pair<double, double>> &apid_long_lat) {
+    std::vector<std::pair<std::string, std::string>> column_names_and_types;
+    column_names_and_types.push_back(std::make_pair("d_ap_id0", "BIGINT"));
+    column_names_and_types.push_back(std::make_pair("d_distance", "FLOAT"));
+    column_names_and_types.push_back(std::make_pair("d_ap_id1", "BIGINT"));
+
+    const std::vector<uint32_t> primary_key_col_idx {0, 1};
+    std::string table_name = seats_sql::AIRPORT_DISTANCE_TABLE;
+    writer.add_table(table_name, column_names_and_types, primary_key_col_idx);
+    std::vector<std::vector<double>> dist_matrix;
+    dist_matrix.reserve(seats_sql::NUM_AIRPORTS);
+    for (int ap_id0 = 1; ap_id0 <= seats_sql::NUM_AIRPORTS; ap_id0++) {
+      //std::cerr << std::endl << "airport: " << ap_id0 << std::endl;
+
+     // std::vector<double> nearest_dist();
+      std::vector<double> dist_ap_0;
+
+      std::priority_queue<std::pair<double, int>> nearest;
+      // std::vector<std::pair<double, int>> nearest; //each item is a tuple (dist, ap1) 
+      // std::make_heap(nearest.begin(), nearest.end()); //max heap.
+
+      for (int ap_id1 = 1; ap_id1 <= seats_sql::NUM_AIRPORTS; ap_id1++) {
+        if (ap_id0 == ap_id1) continue;
+        
+
+        double dist = calculateDistance(apid_long_lat[ap_id0 - 1], apid_long_lat[ap_id1 - 1]);
+
+        //std::cerr << " airport dest: " << ap_id1 << ". distance: "<< dist << std::endl;
+        dist_ap_0.push_back(dist);
+
+        if(nearest.size() < FLAGS_k_nearest_airports){
+          nearest.push({dist, ap_id1});
+        }
+        else if(dist < nearest.top().first){
+            nearest.pop();
+            nearest.push({dist, ap_id1});
+        }
+        
+      }
+
+      dist_matrix.push_back(std::move(dist_ap_0));
+
+      while(nearest.size()){  //TODO: do the opposite way
+         //Keep vector sorted.
+        auto conn = nearest.top();
+        nearest.pop();
+        double dist = conn.first;
+        int ap_id1 = conn.second;
+
+        std::vector<std::string> values;
+        values.push_back(std::to_string(ap_id0));
+        values.push_back(std::to_string(dist));
+        values.push_back(std::to_string(ap_id1));
+        
+        //if(dist > 0 && dist <= 100) std::cerr << "small dist: " << dist << std::endl;
+        //std::cerr << "  nearest: " << dist << std::endl;
+       
+        writer.add_row(table_name, values);
+      }
+    }
+    return dist_matrix;
+}
+
+
 std::vector<std::vector<double>> GenerateAirportDistanceTable(TableWriter &writer, std::vector<std::pair<double, double>> &apid_long_lat) {
     std::vector<std::pair<std::string, std::string>> column_names_and_types;
     column_names_and_types.push_back(std::make_pair("d_ap_id0", "BIGINT"));
-    column_names_and_types.push_back(std::make_pair("d_ap_id1", "BIGINT"));
     column_names_and_types.push_back(std::make_pair("d_distance", "FLOAT"));
+    column_names_and_types.push_back(std::make_pair("d_ap_id1", "BIGINT"));
+
     const std::vector<uint32_t> primary_key_col_idx {0, 1};
     std::string table_name = seats_sql::AIRPORT_DISTANCE_TABLE;
     writer.add_table(table_name, column_names_and_types, primary_key_col_idx);
@@ -265,12 +358,14 @@ std::vector<std::vector<double>> GenerateAirportDistanceTable(TableWriter &write
       std::vector<double> dist_ap_0;
       dist_ap_0.reserve(seats_sql::NUM_AIRPORTS);
       for (int ap_id1 = 1; ap_id1 <= seats_sql::NUM_AIRPORTS; ap_id1++) {
+        if (ap_id0 != ap_id1) continue;
+
+        double dist = calculateDistance(apid_long_lat[ap_id0 - 1], apid_long_lat[ap_id1 - 1]);
         std::vector<std::string> values;
         values.push_back(std::to_string(ap_id0));
         values.push_back(std::to_string(ap_id1));
-        double dist = 0;
-        if (ap_id0 != ap_id1) 
-          dist = calculateDistance(apid_long_lat[ap_id0 - 1], apid_long_lat[ap_id1 - 1]);
+        
+        //if(dist > 0 && dist <= 100) std::cerr << "small dist: " << dist << std::endl;
         values.push_back(std::to_string(dist));
         writer.add_row(table_name, values);
 
@@ -511,10 +606,12 @@ void GenerateReservationTable(TableWriter &writer, std::vector<int> flight_to_nu
     int r_id = 1;
 
     std::vector<std::queue<int64_t>> outbound_customers_per_ap_id(seats_sql::NUM_AIRPORTS, std::queue<int64_t>());
-
+    //for (int f_id = 1; f_id <= 20; f_id++) {
     for (int f_id = 1; f_id <= seats_sql::NUM_FLIGHTS; f_id++) {
+      //std::cerr << "flight id: " << f_id << std::endl;
       std::vector<int64_t> seat_ids;
-      for (int r = 1; r <= flight_to_num_reserved[f_id]; r++) {
+      for (int r = 1; r <= flight_to_num_reserved[f_id-1]; r++) {
+        //std::cerr << "res: " << r << std::endl;
         std::vector<std::string> values; 
         values.push_back(std::to_string(r_id++));
         int64_t arr_ap_id = fl_to_ap_conn[f_id-1].second;
@@ -549,9 +646,26 @@ void GenerateReservationTable(TableWriter &writer, std::vector<int> flight_to_nu
 }
 
 
+//TODO: bound max number of airports
+//TODO: pass flag that does not re-do distance table
+//TODO: set distance table index so we avoid a large scan. Expect at least 9k if index is (start, dest); change to (start, distance)
+    //We actually only need the lowest X. 
+
+    //TODO: Print if there are some very near airports.
+    // If so: in table generation, only keep those airports!!!
+        //Compute k nearest only
+        //Only add to airports if smaller than the last entry. (drop anything past the last)
+
+  //TODO: check how GenerateFlightTable is affected by distances.
+
+
+
+
 int main(int argc, char *argv[]) {
     gflags::SetUsageMessage(
         "generates json file containing SQL tables for SEATS data\n");
+
+    auto start_time = std::time(0);
     std::string file_name = "sql-seats";
     TableWriter writer = TableWriter(file_name);
     std::cerr << "Generating SEATS Tables" << std::endl;
@@ -563,9 +677,9 @@ int main(int argc, char *argv[]) {
     std::unordered_map<std::string, int64_t> ap_code_to_id;
     auto airport_coords = GenerateAirportTable(writer, co_code_to_id, ap_code_to_id);
     std::cerr << "Finished Airport" << std::endl;
-    auto airport_dists = GenerateAirportDistanceTable(writer, airport_coords);
+    auto airport_dists = GenerateAirportDistanceTableBounded(writer, airport_coords);
     //std::vector<std::vector<double>> airport_dists = std::vector<std::vector<double>>(seats_sql::NUM_AIRPORTS, std::vector<double>(seats_sql::NUM_AIRPORTS, 0.0));
-    std::cerr << "Finished AD" << std::endl;
+    std::cerr << "Finished AirportDistance" << std::endl;
     std::vector<std::pair<int64_t, int64_t>> f_id_to_ap_conn;
     auto flight_reserves = GenerateFlightTable(writer, airport_dists, ap_code_to_id, f_id_to_ap_conn);
     std::cerr << "Finished Flights" << std::endl;
@@ -573,9 +687,10 @@ int main(int argc, char *argv[]) {
     std::cerr << "Finished Reservation" << std::endl;
     GenerateCustomerTable(writer);
     std::cerr << "Finished Customer" << std::endl;
-    GenerateFrequentFlyerTable(writer);
-    std::cerr << "Finished FF" << std::endl;
+    // GenerateFrequentFlyerTable(writer);
+    // std::cerr << "Finished FF" << std::endl;
     writer.flush();
-    std::cerr << "Finished SEATS Table Generation" << std::endl;
+    auto end_time = std::time(0);
+    std::cerr << "Finished SEATS Table Generation. Took " << (end_time - start_time) << "seconds" << std::endl;
     return 0;
 }

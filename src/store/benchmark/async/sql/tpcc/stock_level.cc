@@ -94,6 +94,10 @@ transaction_status_t SQLStockLevel::Execute(SyncClient &client) {
                           "WHERE ol_w_id = {} AND ol_d_id = {} AND ol_o_id < {} AND ol_o_id >= {} "
                           " AND s_i_id = ol_i_id AND s_w_id = {} AND s_quantity < {}", 
                           ORDER_LINE_TABLE, STOCK_TABLE, w_id, d_id, next_o_id, next_o_id - 20, w_id, min_quantity);
+
+      // query = fmt::format("SELECT COUNT(DISTINCT(s_i_id)) FROM {} INNER JOIN {} ON s_i_id = ol_i_id "
+      //                   "WHERE ol_w_id = {} AND ol_d_id = {} AND ol_o_id < {} AND ol_o_id >= {} AND s_w_id = {} AND s_quantity < {}",
+      //                   ORDER_LINE_TABLE, STOCK_TABLE, w_id, d_id, next_o_id, next_o_id - 20, w_id, min_quantity);
       //TODO: Write it as a an explicit JOIN somehow to more easily extract individual table predicates?
       // query = fmt::format("SELECT COUNT(DISTINCT(Stock.i_id)) FROM (SELECT * FROM OrderLine WHERE w_id = {} AND d_id = {} AND o_id < {} AND o_id >= {}) "
       //                     "LEFT JOIN (SELECT * FROM STOCK WHERE w_id = {} AND quantity < {}) " //This is super inefficient..
