@@ -226,7 +226,8 @@
     ],
     "primary_key_col_idx": [
       0,
-      1
+      1,
+      2
     ],
     "row_data_path": "sql-seats-data/airport_distance.csv",
     "table_name": "airport_distance"
@@ -242,7 +243,7 @@
         "TEXT"
       ],
       [
-        "co_code_3",
+        "co_code_2",
         "TEXT"
       ],
       [
@@ -462,7 +463,7 @@
       ],
       [
         "f_depart_time",
-        "TIMESTAMP"
+        "BIGINT"
       ],
       [
         "f_arrive_ap_id",
@@ -470,7 +471,7 @@
       ],
       [
         "f_arrive_time",
-        "TIMESTAMP"
+        "BIGINT"
       ],
       [
         "f_status",

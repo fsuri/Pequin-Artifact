@@ -20,7 +20,7 @@ class SQLFindOpenSeats: public SEATSSQLTransaction {
 
 struct GetFlightResultRow {
 public: 
-    GetFlightResultRow() : f_id(0), f_al_id(0), f_depart_ap_id(0), f_depart_time(0), f_arrive_ap_id(0), f_arrive_time(0), f_base_price(0.0), f_seats_total(0), f_price(0.0) {}
+    GetFlightResultRow() : f_id(0), f_al_id(0), f_depart_ap_id(0), f_depart_time(0), f_arrive_ap_id(0), f_arrive_time(0), f_base_price(0.0), f_seats_total(0) {}
     ~GetFlightResultRow() {}
     int64_t f_id;
     int64_t f_al_id; 
@@ -31,7 +31,7 @@ public:
     double f_base_price; 
     int64_t f_seats_total; 
     int64_t f_seats_left;
-    double f_price;
+    //double f_price;
 };
 
 void inline load_row(GetFlightResultRow &store, std::unique_ptr<query_result::Row> row) {
@@ -44,7 +44,7 @@ void inline load_row(GetFlightResultRow &store, std::unique_ptr<query_result::Ro
     row->get(6, &store.f_base_price);
     row->get(7, &store.f_seats_total);
     row->get(8, &store.f_seats_left);
-    row->get(9, &store.f_price);
+    //row->get(9, &store.f_price);
 }
 
 struct GetSeatsResultRow {

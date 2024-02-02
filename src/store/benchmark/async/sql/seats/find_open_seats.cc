@@ -9,6 +9,8 @@ namespace seats_sql {
 
 SQLFindOpenSeats::SQLFindOpenSeats(uint32_t timeout, std::mt19937_64 gen, std::queue<SEATSReservation> &new_res_queue) : 
     SEATSSQLTransaction(timeout) {
+
+        //FIXME: Benchbase seems to pick this from the cache of flight ids as well?
         f_id = std::uniform_int_distribution<int64_t>(1, NUM_FLIGHTS)(gen);
         q = &new_res_queue;
     }
@@ -19,6 +21,7 @@ transaction_status_t SQLFindOpenSeats::Execute(SyncClient &client) {
     std::unique_ptr<const query_result::QueryResult> queryResult;
     std::string query;
 
+    fprintf(stderr, "FIND_OPEN_SEATS on flight %ld \n", f_id);
     Debug("FIND_OPEN_SEATS on flight %ld", f_id);
     client.Begin(timeout);
 
@@ -57,10 +60,10 @@ transaction_status_t SQLFindOpenSeats::Execute(SyncClient &client) {
 
     std::string open_seats_str = "Seats";
     std::mt19937 gen;
-    for (int seat = 0; seat < TOTAL_SEATS_PER_FLIGHT; seat++) {
+    for (int seat = 0; seat < TOTAL_SEATS_PER_FLIGHT; seat++) {   
         if (unavailable_seats[seat] == 0) open_seats_str += fmt::format(" {},", seat);
         if (q->size() < MAX_PENDING_INSERTS) {
-            int64_t c_id = std::uniform_int_distribution<int64_t>(1, NUM_CUSTOMERS)(gen);
+            int64_t c_id = std::uniform_int_distribution<int64_t>(1, NUM_CUSTOMERS)(gen);  //FIXME:  seems to be generated based on depart airport in benchbase?
             q->push(SEATSReservation(NULL_ID, c_id, f_id, seat));   //TODO: set the f_al_id too? FIXME: FlightID != single id.  //TODO: id should be the clients id.? No r_id?
             // r_id is empty because its set by the client
         }

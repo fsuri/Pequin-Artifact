@@ -22,6 +22,8 @@ transaction_status_t SQLUpdateCustomer::Execute(SyncClient &client) {
     std::unique_ptr<const query_result::QueryResult> queryResult;
     std::vector<std::unique_ptr<const query_result::QueryResult>> results; 
     std::string query;
+
+    std::cerr << "UPDATE CUSTOMER" << std::endl;
     Debug("UPDATE_CUSTOMER");
     client.Begin(timeout);
 

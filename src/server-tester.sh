@@ -12,7 +12,8 @@ KEY_PATH="keys"
 SQL_BENCH="true"
 
 #FILE_PATH="0_local_test_outputs/rw-sql/rw-sql.json"
-FILE_PATH="store/benchmark/async/sql/tpcc/sql-tpcc-tables-schema.json"
+#FILE_PATH="store/benchmark/async/sql/tpcc/sql-tpcc-tables-schema.json"
+FILE_PATH="store/benchmark/async/sql/seats/sql-seats-tables-schema.json"
 
 
 
@@ -44,6 +45,6 @@ for j in `seq 0 $((NUM_GROUPS-1))`; do
 	#echo Starting Group $j
 	for i in `seq 0 $((N-1))`; do
 		#echo Starting Replica $(($i+$j*$N))
-		DEBUG=* store/server --config_path $CONFIG --group_idx $j --num_groups $NUM_GROUPS --num_shards $NUM_GROUPS --replica_idx $i --protocol $PROTOCOL --num_keys $NUM_KEYS_IN_DB --sql_bench=$SQL_BENCH --data_file_path $FILE_PATH --debug_stats --indicus_key_path $KEY_PATH &> ./0_local_test_outputs/server$(($i+$j*$N)).out &
+		DEBUG=store/$STORE/* store/server --config_path $CONFIG --group_idx $j --num_groups $NUM_GROUPS --num_shards $NUM_GROUPS --replica_idx $i --protocol $PROTOCOL --num_keys $NUM_KEYS_IN_DB --sql_bench=$SQL_BENCH --data_file_path $FILE_PATH --debug_stats --indicus_key_path $KEY_PATH &> ./0_local_test_outputs/server$(($i+$j*$N)).out &
 	done;
 done;

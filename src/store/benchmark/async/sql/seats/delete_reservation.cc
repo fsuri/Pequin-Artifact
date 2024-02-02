@@ -45,6 +45,7 @@ transaction_status_t SQLDeleteReservation::Execute(SyncClient &client) {
     std::unique_ptr<const query_result::QueryResult> queryResult;
     std::string query;
 
+    std::cerr << "DELETE RESERVATION" << std::endl;
     Debug("DELETE_RESERVATION");
     client.Begin(timeout);
 

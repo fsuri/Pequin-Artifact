@@ -30,7 +30,7 @@ SEATSSQLClient::~SEATSSQLClient() {}
 
 SyncTransaction* SEATSSQLClient::GetNextTransaction() {
   // need to populate reservations first
-  std::cerr << "getting transactions" << std::endl;
+  std::cerr << "Select Next Transactions" << std::endl;
   if (!started_workload) {
     started_workload = true; 
     return new SQLFindOpenSeats(GetTimeout(), gen, insert_reservations);

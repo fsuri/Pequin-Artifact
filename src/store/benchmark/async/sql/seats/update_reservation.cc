@@ -37,6 +37,8 @@ transaction_status_t SQLUpdateReservation::Execute(SyncClient &client) {
 
     std::vector<std::unique_ptr<const query_result::QueryResult>> results; 
     std::string query;
+
+    std::cerr << "UPDATE RESERVATION" << std::endl;
     Debug("UPDATE_RESERVATION");
     client.Begin(timeout);
 

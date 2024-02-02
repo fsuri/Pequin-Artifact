@@ -35,13 +35,36 @@ std::vector<std::string> readCSVRow(std::ifstream& iostr) {
   std::string cell; 
 
   //std::cerr << std::endl << line << std::endl;
+  std::string combination_cell = "";
+
+  //TODO: Do not parse on entries that are of form "dallas, Texas". Those should be treated as one cell.
+        //TODO: If split cell, but cell has only open quotes, then it must be part of a second word. Don't push back cell, until we get next cell, and then combine them...
+      //Alternatively: Edit CSV to remove all such entries.
 
   while (std::getline(lineStream, cell, ',')) {
     // if (cell[0] == '"') cell = cell.substr(1);
     // if (cell[cell.size() - 1] == '"') cell = cell.substr(0, cell.size() - 1);
-    cell.erase(std::remove(cell.begin(), cell.end(), '\"' ),cell.end());
-    //std::cerr << cell << std::endl;
-    res.push_back(cell);
+    bool add_to_res = true;
+    if(cell.empty()){} //do nothing
+    else if(cell[0] == '"' && cell[cell.size() - 1] != '"'){
+      add_to_res = false;
+    }
+    else if(cell[0] != '"' && cell[cell.size() - 1] == '"'){
+      cell = combination_cell + ";" + cell;
+      combination_cell = "";
+      //std::cerr << "combined: " << cell << std::endl;
+    }
+
+    //std::cerr << "cell before erase: " << cell << std::endl;
+    cell.erase(std::remove(cell.begin(), cell.end(), '\"' ),cell.end()); //remove enclosing quotes
+    cell.erase(std::remove(cell.begin(), cell.end(), '\'' ),cell.end()); //remove any internal single quotes (TODO: if one wants them, then they must be doubled)
+    //std::cerr << "cell after erase: " << cell << std::endl;
+
+    if(add_to_res) res.push_back(cell);
+    else{
+      combination_cell += cell;
+     // std::cerr << "first part: " << combination_cell << std::endl;
+    }
   }
 
   return res;
@@ -170,7 +193,7 @@ std::unordered_map<std::string, int64_t> GenerateCountryTable(TableWriter &write
     std::vector<std::pair<std::string, std::string>> column_names_and_types;
     column_names_and_types.push_back(std::make_pair("co_id", "BIGINT"));
     column_names_and_types.push_back(std::make_pair("co_name", "TEXT"));
-    column_names_and_types.push_back(std::make_pair("co_code_3", "TEXT")); // len 2
+    column_names_and_types.push_back(std::make_pair("co_code_2", "TEXT")); // len 2
     column_names_and_types.push_back(std::make_pair("co_code_3", "TEXT")); // len 3
     const std::vector<uint32_t> primary_key_col_idx {0};
 
@@ -243,15 +266,20 @@ std::vector<std::pair<double, double>> GenerateAirportTable(TableWriter &writer,
       std::string longitude = csv[5];
       std::string latitude = csv[6];
 
-      if (isalpha(longitude[1])) {
-        longitude = csv[6];
-        latitude = csv[7];
-      }
+      // if (isalpha(longitude[1])) {
+      //   std::cerr << "THIS CODE SHOULD NEVER GET TRIGGERED. Longitude: " << longitude << std::endl; 
+      //   for(auto &val : csv){
+      //     std::cerr << val << ", " << std::endl;
+      //   }
+      //   longitude = csv[6];
+      //   latitude = csv[7];
+      // }
+
       airport_long_lats.push_back(std::make_pair(stod(longitude), stod(latitude)));
       values.push_back(longitude);                                          // ap_longitude
       values.push_back(latitude);                                           // ap_latitude
-      values.push_back(csv[7]);                                      // ap_gmt_offset
-      values.push_back(csv[8]);                                      // ap_wac
+      values.push_back(csv[7].empty() ? "0" : csv[7]);                                      // ap_gmt_offset
+      values.push_back(csv[8].empty() ? "0" : csv[8]);                                      // ap_wac
       for (int iattr = 0; iattr < 16; iattr++) 
         values.push_back(std::to_string(std::uniform_int_distribution<int64_t>(1, std::numeric_limits<int64_t>::max())(gen)));
       
@@ -285,7 +313,7 @@ std::vector<std::vector<double>> GenerateAirportDistanceTableBounded(TableWriter
     column_names_and_types.push_back(std::make_pair("d_distance", "FLOAT"));
     column_names_and_types.push_back(std::make_pair("d_ap_id1", "BIGINT"));
 
-    const std::vector<uint32_t> primary_key_col_idx {0, 1};
+    const std::vector<uint32_t> primary_key_col_idx {0, 1, 2};
     std::string table_name = seats_sql::AIRPORT_DISTANCE_TABLE;
     writer.add_table(table_name, column_names_and_types, primary_key_col_idx);
     std::vector<std::vector<double>> dist_matrix;
@@ -309,6 +337,7 @@ std::vector<std::vector<double>> GenerateAirportDistanceTableBounded(TableWriter
         //std::cerr << " airport dest: " << ap_id1 << ". distance: "<< dist << std::endl;
         dist_ap_0.push_back(dist);
 
+        //Only take the k nearest...
         if(nearest.size() < FLAGS_k_nearest_airports){
           nearest.push({dist, ap_id1});
         }
@@ -316,6 +345,11 @@ std::vector<std::vector<double>> GenerateAirportDistanceTableBounded(TableWriter
             nearest.pop();
             nearest.push({dist, ap_id1});
         }
+
+        //Alternatively: Only store the distances of airports under 100 //TODO: in this case, can make pkey only (id0, id1)
+        // if(dist <= seats_sql::MAX_NEAR_DISTANCE){
+        //   nearest.push({dist, ap_id1});
+        // }
         
       }
 
@@ -346,8 +380,8 @@ std::vector<std::vector<double>> GenerateAirportDistanceTableBounded(TableWriter
 std::vector<std::vector<double>> GenerateAirportDistanceTable(TableWriter &writer, std::vector<std::pair<double, double>> &apid_long_lat) {
     std::vector<std::pair<std::string, std::string>> column_names_and_types;
     column_names_and_types.push_back(std::make_pair("d_ap_id0", "BIGINT"));
-    column_names_and_types.push_back(std::make_pair("d_distance", "FLOAT"));
     column_names_and_types.push_back(std::make_pair("d_ap_id1", "BIGINT"));
+    column_names_and_types.push_back(std::make_pair("d_distance", "FLOAT"));
 
     const std::vector<uint32_t> primary_key_col_idx {0, 1};
     std::string table_name = seats_sql::AIRPORT_DISTANCE_TABLE;
@@ -529,9 +563,9 @@ std::vector<int> GenerateFlightTable(TableWriter &writer, std::vector<std::vecto
     column_names_and_types.push_back(std::make_pair("f_id", "BIGINT"));
     column_names_and_types.push_back(std::make_pair("f_al_id", "BIGINT"));
     column_names_and_types.push_back(std::make_pair("f_depart_ap_id", "BIGINT"));
-    column_names_and_types.push_back(std::make_pair("f_depart_time", "TIMESTAMP"));
+    column_names_and_types.push_back(std::make_pair("f_depart_time", "BIGINT"));
     column_names_and_types.push_back(std::make_pair("f_arrive_ap_id", "BIGINT"));
-    column_names_and_types.push_back(std::make_pair("f_arrive_time", "TIMESTAMP"));
+    column_names_and_types.push_back(std::make_pair("f_arrive_time", "BIGINT"));
     column_names_and_types.push_back(std::make_pair("f_status", "BIGINT"));
     column_names_and_types.push_back(std::make_pair("f_base_price", "FLOAT"));
     column_names_and_types.push_back(std::make_pair("f_seats_total", "BIGINT"));
@@ -563,12 +597,14 @@ std::vector<int> GenerateFlightTable(TableWriter &writer, std::vector<std::vecto
       auto arr_ap_id = ap_code_to_id[arr_dep_ap.second];
       f_id_to_ap_conn.push_back(std::make_pair(dep_ap_id, arr_ap_id));
 
-      auto dep_time =  std::binomial_distribution<std::time_t>(seats_sql::MIN_TS, seats_sql::MAX_TS - distToTime(airport_distances[dep_ap_id - 1][arr_ap_id - 1]))(gen);
+      //FIXME: Why binomial distribution?
+      uint64_t travel_time = distToTime(airport_distances[dep_ap_id - 1][arr_ap_id - 1]);
+      auto dep_time =  std::binomial_distribution<std::time_t>(seats_sql::MIN_TS, seats_sql::MAX_TS - travel_time)(gen);
       dep_time = (dep_time - (dep_time % seats_sql::MS_IN_DAY)) + convertStrToTime(getRandValFromHistogram(flight_time_hist, gen));
       values.push_back(std::to_string(dep_ap_id));
       values.push_back(std::to_string(dep_time));
       values.push_back(std::to_string(arr_ap_id));
-      values.push_back(std::to_string(dep_time + distToTime(airport_distances[dep_ap_id - 1][arr_ap_id - 1])));
+      values.push_back(std::to_string(dep_time + travel_time));
 
       values.push_back(std::to_string(std::uniform_int_distribution<int>(0, 1)(gen)));
       values.push_back(std::to_string(std::uniform_real_distribution<float>(100, 1000)(gen)));

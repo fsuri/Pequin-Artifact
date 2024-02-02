@@ -51,6 +51,7 @@ transaction_status_t SQLNewReservation::Execute(SyncClient &client) {
 
     std::string query;
 
+    fprintf(stderr,"NEW_RESERVATION for customer %ld \n", c_id);
     Debug("NEW_RESERVATION for customer %ld", c_id);
     client.Begin(timeout);
 

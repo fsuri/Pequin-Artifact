@@ -29,6 +29,7 @@ const int FREQUENCY_UPDATE_RESERVATION = 15;
 
 //The different distances that we can look-up for nearby airports. This is similar to the customer selecting a dropdown when looking for flights
 const std::vector<int> NEAR_DISTANCES = {5, 10, 25, 50, 100};
+const int MAX_NEAR_DISTANCE = NEAR_DISTANCES.back();
 
 const int NUM_FLIGHTS = SCALE_FACTOR * 10000; //FIXME: WHERE IS THIS FROM?
 
