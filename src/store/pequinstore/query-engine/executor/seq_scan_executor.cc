@@ -970,7 +970,7 @@ void SeqScanExecutor::OldScan() {
 bool SeqScanExecutor::DExecute() {
   // Scanning over a logical tile.
   std::unique_ptr<LogicalTile> logical_tile(LogicalTileFactory::GetTile());
-  std::cout << "Executing seq scan" << std::endl;
+  std::cout << "Executing seq scan for table: " << target_table_->GetName() << std::endl;
   if (children_.size() == 1 &&
       // There will be a child node on the create index scenario,
       // but we don't want to use this execution flow
