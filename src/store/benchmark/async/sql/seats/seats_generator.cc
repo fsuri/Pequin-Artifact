@@ -574,8 +574,11 @@ std::vector<int> GenerateFlightTable(TableWriter &writer, std::vector<std::vecto
     const std::vector<uint32_t> primary_key_col_idx {0};
     std::string table_name = seats_sql::FLIGHT_TABLE;
     writer.add_table(table_name, column_names_and_types, primary_key_col_idx);
-    const std::vector<uint32_t> index {3};
-    writer.add_index(table_name, "f_depart_time_idx", index);
+    
+    const std::vector<uint32_t> index {2, 3};
+    writer.add_index(table_name, "f_depart_airport_idx", index);
+
+
     // load histograms
     std::ifstream fa_hist (FLIGHTS_AIRPORT_HISTO_FN);
     histogram flight_airp_hist = createFPAHistogram(fa_hist);
