@@ -186,7 +186,7 @@ void SeqScanExecutor::ManageReadSet(concurrency::TransactionContext *current_txn
 
   // Don't create read set if query is executed in snapshot only mode
   if (current_txn->GetHasReadSetMgr()) {
-    auto &primary_index_columns = target_table_->GetIndex(0)->GetMetadata()->GetKeyAttrs();
+    auto &primary_index_columns = target_table_->GetIndex(0)->GetMetadata()->GetKeyAttrs();  //TODO- MAY WANT TO TAKE FROM TABLE REGISTRY INSTEAD
     auto query_read_set_mgr = current_txn->GetQueryReadSetMgr();
    
     ContainerTuple<storage::TileGroup> row(tile_group.get(), location.offset);
@@ -344,7 +344,9 @@ void SeqScanExecutor::Scan() {
   if (current_txn->CheckPredicatesInitialized()) {
     current_txn->GetTableVersion()(target_table_->GetName(), current_txn_timestamp, current_txn->GetHasReadSetMgr(), query_read_set_mgr, current_txn->GetHasSnapshotMgr(), current_txn->GetSnapshotMgr());
 
-    if(USE_ACTIVE_READ_SET){ //If Scanning, then don't need to include ColVersions in ActiveReadSet. Changes to index could not be affecting read.
+    //If Scanning (Non_active read set), then don't need to include ColVersions in ActiveReadSet. Changes to index could not be affecting the observed read set.
+    //If we use Active Read set, then the read_set is only the keys that hit the predicate. Thus we need the ColVersion to detect changes to col values that might be relevant to ActiveRS
+    if(USE_ACTIVE_READ_SET){ 
       std::unordered_set<std::string> column_names;
       GetColNames(predicate_, column_names);
 

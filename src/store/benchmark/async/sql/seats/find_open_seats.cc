@@ -72,8 +72,9 @@ transaction_status_t SQLFindOpenSeats::Execute(SyncClient &client) {
 
     open_seats_str += fmt::format(" are available on flight {} for price %lf", f_id, _seat_price);
     Debug("%s", open_seats_str);
-    Debug("COMMIT");
+    fprintf(stderr, "%s\n", open_seats_str);
 
+    Debug("COMMIT");
     return client.Commit(timeout);
 }
 }
