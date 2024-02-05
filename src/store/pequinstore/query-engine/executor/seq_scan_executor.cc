@@ -187,7 +187,9 @@ void SeqScanExecutor::ManageReadSet(concurrency::TransactionContext *current_txn
     ItemPointer location, pequinstore::QueryReadSetMgr *query_read_set_mgr) {
 
   // Don't create read set if query is executed in snapshot only mode
-  if (current_txn->GetHasReadSetMgr()) {
+  // Or if metadata table
+  bool is_metadata = target_table_->GetName().substr(0,3) == "pg_";
+  if (current_txn->GetHasReadSetMgr() && !is_metadata) {
     auto &primary_index_columns = target_table_->GetIndex(0)->GetMetadata()->GetKeyAttrs();  //TODO- MAY WANT TO TAKE FROM TABLE REGISTRY INSTEAD
     auto query_read_set_mgr = current_txn->GetQueryReadSetMgr();
    
