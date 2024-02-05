@@ -7,6 +7,7 @@
 #include <cmath>
 #include <fstream>
 #include <algorithm>
+#include <set>
 #include <queue>
 #include <unordered_set>
 
@@ -593,7 +594,9 @@ std::vector<int> GenerateFlightTable(TableWriter &writer, std::vector<std::vecto
     for (int f_id = 1; f_id <= seats_sql::NUM_FLIGHTS; f_id++) {
       std::vector<std::string> values; 
       values.push_back(std::to_string(f_id)); 
-      values.push_back(std::to_string(std::binomial_distribution<int>(1, seats_sql::NUM_AIRLINES)(gen)));
+      //FIXME: Why was this binomial?
+      values.push_back(std::to_string(std::uniform_int_distribution<int>(1, seats_sql::NUM_AIRLINES)(gen)));
+      //values.push_back(std::to_string(std::binomial_distribution<int>(seats_sql::NUM_AIRLINES, 0.5)(gen)));
       std::string ap_conn = getRandValFromHistogram(flight_airp_hist, gen);
       auto arr_dep_ap = convertAPConnToAirports(ap_conn);
       auto dep_ap_id = ap_code_to_id[arr_dep_ap.first];
@@ -602,7 +605,8 @@ std::vector<int> GenerateFlightTable(TableWriter &writer, std::vector<std::vecto
 
       //FIXME: Why binomial distribution?
       uint64_t travel_time = distToTime(airport_distances[dep_ap_id - 1][arr_ap_id - 1]);
-      auto dep_time =  std::binomial_distribution<std::time_t>(seats_sql::MIN_TS, seats_sql::MAX_TS - travel_time)(gen);
+      uint64_t dep_time_window = seats_sql::MAX_TS - seats_sql::MIN_TS - travel_time;
+      auto dep_time = seats_sql::MIN_TS + std::binomial_distribution<std::time_t>(dep_time_window, 0.5)(gen);
       dep_time = (dep_time - (dep_time % seats_sql::MS_IN_DAY)) + convertStrToTime(getRandValFromHistogram(flight_time_hist, gen));
       values.push_back(std::to_string(dep_ap_id));
       values.push_back(std::to_string(dep_time));
@@ -644,6 +648,9 @@ void GenerateReservationTable(TableWriter &writer, std::vector<int> flight_to_nu
     //Optional Index:
      const std::vector<uint32_t> index {2};
     writer.add_index(table_name, "r_flight_index", index);
+
+    //   const std::vector<uint32_t> index2 {3};
+    // writer.add_index(table_name, "r_seat_index", index2);  //TODO: Check that this is currently a scan? 
     
     // generate data
     std::mt19937 gen;   
@@ -653,7 +660,8 @@ void GenerateReservationTable(TableWriter &writer, std::vector<int> flight_to_nu
     //for (int f_id = 1; f_id <= 20; f_id++) {
     for (int f_id = 1; f_id <= seats_sql::NUM_FLIGHTS; f_id++) {
       //std::cerr << "flight id: " << f_id << std::endl;
-      std::vector<int64_t> seat_ids;
+      //std::vector<int64_t> seat_ids;
+      std::set<uint32_t> used_seat_ids = {0};
       for (int r = 1; r <= flight_to_num_reserved[f_id-1]; r++) {
         //std::cerr << "res: " << r << std::endl;
         std::vector<std::string> values; 
@@ -671,10 +679,17 @@ void GenerateReservationTable(TableWriter &writer, std::vector<int> flight_to_nu
 
         values.push_back(std::to_string(c_id));
         values.push_back(std::to_string(f_id));
-        int64_t seat = std::uniform_int_distribution<int64_t>(1, seats_sql::TOTAL_SEATS_PER_FLIGHT)(gen);
-        while (containsId(seat_ids, seat))
-          seat = std::uniform_int_distribution<int64_t>(1, seats_sql::TOTAL_SEATS_PER_FLIGHT)(gen);
-        seat_ids.push_back(seat);
+
+        uint32_t seat = 0;
+        while(!used_seat_ids.insert(seat).second){
+           seat = std::uniform_int_distribution<int64_t>(1, seats_sql::TOTAL_SEATS_PER_FLIGHT)(gen);
+        }
+        //assert(seat != 0);
+        // int64_t seat = std::uniform_int_distribution<int64_t>(1, seats_sql::TOTAL_SEATS_PER_FLIGHT)(gen);
+        // while (containsId(seat_ids, seat))
+        //   seat = std::uniform_int_distribution<int64_t>(1, seats_sql::TOTAL_SEATS_PER_FLIGHT)(gen);
+        // seat_ids.push_back(seat);
+
         values.push_back(std::to_string(seat));
         values.push_back(std::to_string(std::uniform_int_distribution<int>(seats_sql::MIN_RESERVATION_PRICE, seats_sql::MAX_RESERVATION_PRICE)(gen)));
         for (int iattr = 0; iattr < 9; iattr++) {

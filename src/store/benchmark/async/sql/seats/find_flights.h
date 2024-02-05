@@ -8,7 +8,7 @@ namespace seats_sql {
 
 class SQLFindFlights: public SEATSSQLTransaction {
     public: 
-        SQLFindFlights(uint32_t timeout, std::mt19937_64 gen);
+        SQLFindFlights(uint32_t timeout, std::mt19937 &gen);
         virtual ~SQLFindFlights();
         virtual transaction_status_t Execute(SyncClient &client);
     private:

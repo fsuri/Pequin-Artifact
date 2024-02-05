@@ -29,6 +29,7 @@ SEATSSQLClient::SEATSSQLClient(SyncClient &client, Transport &transport, uint64_
 SEATSSQLClient::~SEATSSQLClient() {}
 
 SyncTransaction* SEATSSQLClient::GetNextTransaction() {
+
   // need to populate reservations first
   std::cerr << "Select Next Transactions" << std::endl;
   if (!started_workload) {
@@ -41,6 +42,7 @@ SyncTransaction* SEATSSQLClient::GetNextTransaction() {
     int64_t t_type = std::uniform_int_distribution<int64_t>(1, 100)(gen);
     int freq = 0;
     if (t_type <= (freq = FREQUENCY_DELETE_RESERVATION)) {
+      std::cerr << "Try Delete_Res. Is empty? " << (delete_reservation.empty()) << std::endl; 
       if (delete_reservation.empty()) 
         continue;
       last_op_ = "delete_reservation";
@@ -66,7 +68,8 @@ SyncTransaction* SEATSSQLClient::GetNextTransaction() {
       return new SQLUpdateCustomer(GetTimeout(), gen);
     } 
     else {
-      if (update_reservation.empty())
+      std::cerr << "Try Update_Res. Is empty? " << (delete_reservation.empty()) << std::endl; 
+      if (update_reservation.empty()){}
         continue;
       last_op_ = "update_reservation";
       return new SQLUpdateReservation(GetTimeout(), gen, update_reservation, delete_reservation);

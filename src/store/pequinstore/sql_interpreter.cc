@@ -597,10 +597,11 @@ void SQLTransformer::TransformUpdate(size_t pos, std::string_view &write_stateme
 
         TableWrite *table_write = AddTableWrite(table_name, col_registry);
 
+        Debug("Checking %d rows.", result->size());
         //For each row in query result
         for(int i = 0; i < result->size(); ++i){
-            std::cerr << "Row: " << i << std::endl;
             std::unique_ptr<query_result::Row> row = (*result)[i]; 
+            Debug("Row: %d. Checking %d columns. ", i, row->num_columns());
 
             //Note: Enc key is based on pkey values, not col names!!!  -- if we want access to index; can store in primary key map too.
             std::vector<std::string> primary_key_column_values;
@@ -1526,7 +1527,7 @@ std::variant<bool, int64_t, double, std::string> DecodeType(const std::string &e
     else if(col_type == "INTEGER" || col_type == "INT" || col_type == "BIGINT" || col_type == "SMALLINT"){ // SMALLINT (2byteS) INT (4), BIGINT (8), DOUBLE () 
         //int64_t dec_value;  //FIXME: Peloton encodes everything as string currently. So must DeCerialize as string and only then convert.
        
-        int64_t dec = std::stoi(enc_value); 
+        int64_t dec = std::stol(enc_value); 
         type_variant = std::move(dec);
 
     }

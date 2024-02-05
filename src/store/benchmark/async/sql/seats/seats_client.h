@@ -25,7 +25,7 @@ class SEATSSQLClient : public SyncTransactionBenchClient {
   virtual std::string GetLastOp() const;
 
   std::string lastOp;
-  std::mt19937_64 gen;      
+  std::mt19937 gen;      
   uint64_t seats_id;              // need this for generating res id
   int64_t num_res_made;       // number of reservations made by client
   bool started_workload;      

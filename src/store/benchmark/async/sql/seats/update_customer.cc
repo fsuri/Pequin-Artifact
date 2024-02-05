@@ -4,7 +4,7 @@
 
 namespace seats_sql {
 
-SQLUpdateCustomer::SQLUpdateCustomer(uint32_t timeout, std::mt19937_64 gen) 
+SQLUpdateCustomer::SQLUpdateCustomer(uint32_t timeout, std::mt19937 &gen) 
     : SEATSSQLTransaction(timeout) {
         c_id = std::uniform_int_distribution<int64_t>(1, NUM_CUSTOMERS)(gen);
         if (std::uniform_int_distribution<int>(1, 100)(gen) < PROB_UPDATE_WITH_CUSTOMER_ID_STR) {
@@ -33,6 +33,7 @@ transaction_status_t SQLUpdateCustomer::Execute(SyncClient &client) {
         query = fmt::format("SELECT c_id FROM {} WHERE c_id_str = '{}'", CUSTOMER_TABLE, c_id_str);
         client.Query(query, queryResult, timeout);
         if (queryResult->empty()) {
+            Notice("No customer record found for customer id string %s", c_id_str);
             Debug("No customer record found for customer id string %s", c_id_str);
             client.Abort(timeout);
             return ABORTED_USER;
@@ -45,6 +46,7 @@ transaction_status_t SQLUpdateCustomer::Execute(SyncClient &client) {
     client.Query(query, queryResult, timeout);
     GetCustomerResultRow cr_row = GetCustomerResultRow();
     if (queryResult->empty()) {
+        Notice("No customer record for customr id %ld", c_id);
         Debug("No customer record for customr id %ld", c_id);
         client.Abort(timeout);
         return ABORTED_USER;
@@ -56,6 +58,7 @@ transaction_status_t SQLUpdateCustomer::Execute(SyncClient &client) {
     query = fmt::format("SELECT * FROM {}, {} WHERE ap_id = {} AND ap_co_id = co_id", AIRPORT_TABLE, COUNTRY_TABLE, base_airport);
     client.Query(query, queryResult, timeout);
     if (queryResult->empty()) {
+        Notice("No airport found for ap_id %d", base_airport);
         Debug("No airport found");
         client.Abort(timeout);
         return ABORTED_USER;
@@ -82,6 +85,7 @@ transaction_status_t SQLUpdateCustomer::Execute(SyncClient &client) {
     query = fmt::format("UPDATE {} SET c_iattr00 = {}, c_iattr01 = {} WHERE c_id = {}", CUSTOMER_TABLE, attr0, attr1, c_id);
     client.Write(query, queryResult, timeout);
     if (!queryResult->has_rows_affected()) {
+        Notice("Update Customer %d failed", c_id);
         Debug("Update Customer failed");
         client.Abort(timeout);
         return ABORTED_USER;

@@ -10,7 +10,7 @@ namespace seats_sql {
 
 class SQLDeleteReservation: public SEATSSQLTransaction {
     public: 
-        SQLDeleteReservation(uint32_t timeout, std::mt19937_64 gen, std::queue<SEATSReservation> &existing_res, std::queue<SEATSReservation> &insert_res);
+        SQLDeleteReservation(uint32_t timeout, std::mt19937 &gen, std::queue<SEATSReservation> &existing_res, std::queue<SEATSReservation> &insert_res);
         virtual ~SQLDeleteReservation();
         virtual transaction_status_t Execute(SyncClient &client);
     private:
@@ -20,6 +20,7 @@ class SQLDeleteReservation: public SEATSSQLTransaction {
         std::string ff_c_id_str;
         int64_t ff_al_id;
         std::queue<SEATSReservation> *q;            // insert reservation queue
+        std::mt19937 *gen_;
 };
 
 // struct GetFlightsResultRow_2 {

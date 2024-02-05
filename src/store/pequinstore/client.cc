@@ -654,7 +654,9 @@ void Client::QueryResultCallback(PendingQuery *pendingQuery,
   Debug("Result size: %d. Result rows affected: %d", q_result->size(), q_result->rows_affected());
 
   if(TEST_READ_SET){
-    for(int i = 0; i < q_result->size(); ++i){
+    int num_rows = std::min((int) q_result->size(), 10);
+    Debug("Printing first %d rows.", num_rows);
+    for(int i = 0; i < num_rows; ++i){
       std::unique_ptr<query_result::Row> row = (*q_result)[i]; 
       Debug("Checking row at index: %d", i);
       // For col in col_updates update the columns specified by update_cols. Set value to update_values

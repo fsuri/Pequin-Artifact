@@ -87,6 +87,8 @@ static bool USE_ACTIVE_READ_SET = true; //If true, then Must use Table_Col_Versi
 static bool USE_ACTIVE_SNAPSHOT_SET = false; //Currently, our Snapshots are always Complete (non-Active)
 
 void SeqScanExecutor::GetColNames(const expression::AbstractExpression * child_expr, std::unordered_set<std::string> &column_names) {
+  if(child_expr == nullptr) return;
+
   for (size_t i = 0; i < child_expr->GetChildrenSize(); i++) {
     auto child = child_expr->GetChild(i);
     if (dynamic_cast<const expression::TupleValueExpression*>(child) != nullptr) {

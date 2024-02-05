@@ -7,8 +7,8 @@
 
 namespace seats_sql {
 
-SQLFindOpenSeats::SQLFindOpenSeats(uint32_t timeout, std::mt19937_64 gen, std::queue<SEATSReservation> &new_res_queue) : 
-    SEATSSQLTransaction(timeout) {
+SQLFindOpenSeats::SQLFindOpenSeats(uint32_t timeout, std::mt19937 &gen, std::queue<SEATSReservation> &new_res_queue) : 
+    SEATSSQLTransaction(timeout), gen_(&gen) {
 
         //FIXME: Benchbase seems to pick this from the cache of flight ids as well?
         f_id = std::uniform_int_distribution<int64_t>(1, NUM_FLIGHTS)(gen);
@@ -33,6 +33,7 @@ transaction_status_t SQLFindOpenSeats::Execute(SyncClient &client) {
                         "FROM {} WHERE f_id = {}", FLIGHT_TABLE, f_id);
     client.Query(query, queryResult, timeout);
     if (queryResult->empty()) { 
+        Notice("No flight with id % exists.", f_id);
         Debug("no flight with that id exists");
         client.Abort(timeout);
         return ABORTED_USER;
@@ -54,25 +55,33 @@ transaction_status_t SQLFindOpenSeats::Execute(SyncClient &client) {
 
     for (std::size_t i = 0; i < queryResult->size(); i++) {
         deserialize(sr_row, queryResult, i);
-        int seat = (int) sr_row.r_seat;
+        int seat = (int) sr_row.r_seat - 1; //seats are numbered from 1 (not from 0)
         unavailable_seats[seat] = (int8_t) 1;
     }
 
     std::string open_seats_str = "Seats";
-    std::mt19937 gen;
-    for (int seat = 0; seat < TOTAL_SEATS_PER_FLIGHT; seat++) {   
-        if (unavailable_seats[seat] == 0) open_seats_str += fmt::format(" {},", seat);
-        if (q->size() < MAX_PENDING_INSERTS) {
-            int64_t c_id = std::uniform_int_distribution<int64_t>(1, NUM_CUSTOMERS)(gen);  //FIXME:  seems to be generated based on depart airport in benchbase?
-            q->push(SEATSReservation(NULL_ID, c_id, f_id, seat));   //TODO: set the f_al_id too? FIXME: FlightID != single id.  //TODO: id should be the clients id.? No r_id?
-            // r_id is empty because its set by the client
-        }
-        //TODO: Fill only up to CACHE_LIMIT_PENDING_INSERTS?
+  
+    std::deque<SEATSReservation> tmp;
+    for (int seat = 1; seat <= TOTAL_SEATS_PER_FLIGHT; seat++) {   
+        if (unavailable_seats[seat-1] == 0) open_seats_str += fmt::format(" {},", seat);
+
+         int64_t c_id = std::uniform_int_distribution<int64_t>(1, NUM_CUSTOMERS)(*gen_);  //FIXME:  seems to be generated based on depart airport in benchbase?
+         tmp.push_back(SEATSReservation(NULL_ID, c_id, f_id, seat));   //TODO: set the f_al_id too? FIXME: FlightID != single id.  //TODO: id should be the clients id.? No r_id?
+        
     }
 
-    open_seats_str += fmt::format(" are available on flight {} for price %lf", f_id, _seat_price);
+    //shuffle randomly and then push back a subset of the open seats for new reservations
+    //Note: We also push back some reservations for which seats already exist. This is intentional. Those will trigger rollbacks.
+    std::random_shuffle(tmp.begin(), tmp.end());
+
+    while(!tmp.empty() && q->size() < MAX_PENDING_INSERTS){
+        q->push(tmp.front());
+        tmp.pop_front();
+    }
+
+    open_seats_str += fmt::format(" are available on flight {} for price {}", f_id, _seat_price);
     Debug("%s", open_seats_str);
-    fprintf(stderr, "%s\n", open_seats_str);
+    fprintf(stderr, "%s\n", open_seats_str.c_str());
 
     Debug("COMMIT");
     return client.Commit(timeout);

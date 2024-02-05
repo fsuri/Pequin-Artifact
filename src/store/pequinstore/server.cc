@@ -467,6 +467,7 @@ void Server::CreateIndex(const std::string &table_name, const std::vector<std::p
 
   // Call into TableStore with this statement.
   table_store->ExecRaw(sql_statement);
+
 }
 
 void Server::LoadTableData_SQL(const std::string &table_name, const std::string &table_data_path, const std::vector<uint32_t> &primary_key_col_idx){
@@ -539,7 +540,7 @@ void Server::LoadTableData_SQL(const std::string &table_name, const std::string 
 
 
 static bool parallel_load = true;
-static int max_segment_size = 50000;//INT_MAX; //20000 seems to work well for TPC-C 1 warehouse
+static int max_segment_size = 20000;//INT_MAX; //20000 seems to work well for TPC-C 1 warehouse, 50000 works well for Seats
 
 void Server::LoadTableData(const std::string &table_name, const std::string &table_data_path, 
     const std::vector<std::pair<std::string, std::string>> &column_names_and_types, const std::vector<uint32_t> &primary_key_col_idx)
@@ -557,6 +558,7 @@ void Server::LoadTableData(const std::string &table_name, const std::string &tab
     std::string genesis_txn_dig = TransactionDigest(genesis_proof->txn(), params.hashDigest); //("");
 
     auto f = [this, genesis_ts, genesis_proof, genesis_txn_dig, table_name, table_data_path, column_names_and_types, primary_key_col_idx](){
+      Debug("Parsing Table on core %d", sched_getcpu());
       std::vector<row_segment_t*> table_row_segments = ParseTableDataFromCSV(table_name, table_data_path, column_names_and_types, primary_key_col_idx);
 
       Debug("Dispatch Table Loading for table: %s. Number of Segments: %d", table_name.c_str(), table_row_segments.size());
@@ -666,6 +668,7 @@ void Server::LoadTableRows(const std::string &table_name, const std::vector<std:
    
     //Load it into CC-Store (Note: Only if we haven't already done it while reading from CSV)
     if(load_cc){
+      Debug("Load segment %d of table %s", segment_no, table_name.c_str());
       for(auto &row: *row_segment){
     
         //Load it into CC-store

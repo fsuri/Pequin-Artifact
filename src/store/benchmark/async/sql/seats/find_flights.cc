@@ -7,7 +7,7 @@ namespace seats_sql {
 
 const int MAX_NUM_FLIGHTS = 10;
 
-SQLFindFlights::SQLFindFlights(uint32_t timeout, std::mt19937_64 gen) :
+SQLFindFlights::SQLFindFlights(uint32_t timeout, std::mt19937 &gen) :
     SEATSSQLTransaction(timeout)
     {
         //TODO: Implement FindRandomAirport ID vs getRandomFlightId (pick random flight from cached flights)
@@ -19,7 +19,7 @@ SQLFindFlights::SQLFindFlights(uint32_t timeout, std::mt19937_64 gen) :
         start_time = std::uniform_int_distribution<std::time_t>(MIN_TS, MAX_TS)(gen); //FIXME: Should be random upcoming Date? See SEATSProfile (Currently makes sense given Loaded flights)
         end_time = start_time, MAX_TS + MS_IN_DAY * 2; //up to 2 days from start_time.
         if (std::uniform_int_distribution<int>(1, 100)(gen) < PROB_FIND_FLIGHTS_NEARBY_AIRPORT) {
-            distance = NEAR_DISTANCES[std::uniform_int_distribution<int>(1, NEAR_DISTANCES.size())(gen)];
+            distance = NEAR_DISTANCES[std::uniform_int_distribution<int>(0, NEAR_DISTANCES.size()-1)(gen)];
         } else {
             distance = 0;
         }

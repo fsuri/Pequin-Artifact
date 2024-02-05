@@ -5,8 +5,8 @@
 
 namespace seats_sql{
 
-SQLDeleteReservation::SQLDeleteReservation(uint32_t timeout, std::mt19937_64 gen, std::queue<SEATSReservation> &existing_res, std::queue<SEATSReservation> &insert_res) : 
-    SEATSSQLTransaction(timeout) {
+SQLDeleteReservation::SQLDeleteReservation(uint32_t timeout, std::mt19937 &gen, std::queue<SEATSReservation> &existing_res, std::queue<SEATSReservation> &insert_res) : 
+    SEATSSQLTransaction(timeout), gen_(&gen) {
         UW_ASSERT(!existing_res.empty());
         SEATSReservation r = existing_res.front();
         existing_res.pop();
@@ -73,12 +73,14 @@ transaction_status_t SQLDeleteReservation::Execute(SyncClient &client) {
             has_al_id = true;
             query = fmt::format("SELECT c_id, ff_al_id FROM {}, {} WHERE ff_c_id_str = '{}' AND ff_c_id = c_id", CUSTOMER_TABLE, FREQUENT_FLYER_TABLE, ff_c_id_str);
         } else {
+            Notice("No way to get Customer ID");
             Debug("No way to get Customer ID");
             client.Abort(timeout);
             return ABORTED_USER;
         }
         client.Query(query, queryResult, timeout);
         if (queryResult->empty()) {
+            Notice("No customer record found");
             Debug("No customer record found");
             client.Abort(timeout);
             return ABORTED_USER;
@@ -93,6 +95,7 @@ transaction_status_t SQLDeleteReservation::Execute(SyncClient &client) {
     client.Query(query, queryResult, timeout);
     //If there is no valid customer record, throw an abort  //Note: supposedly happens 5% of the time.
     if (queryResult->empty()) {
+        Notice("No customer record with c_id: %d", c_id);
         Debug("No customer record with id %ld", c_id);
         client.Abort(timeout);
         return ABORTED_USER;
@@ -130,18 +133,17 @@ transaction_status_t SQLDeleteReservation::Execute(SyncClient &client) {
     //Debug
     UW_ASSERT(results.size() == 4);
     bool abort = false;
-    if(!results[0]->has_rows_affected()){ Debug("Failed to delete reservation"); abort = true;}
-    if(!results[1]->has_rows_affected()){ Debug("Failed to update number of seats left in flight"); abort = true;}
-    if(!results[2]->has_rows_affected()){ Debug("Failed to update customer balance"); abort = true;}
-    if(!results[3]->has_rows_affected()){ Debug("Failed to update frequent flyer info"); abort = true;}
+    if(!results[0]->has_rows_affected()){ Panic("Failed to delete reservation"); abort = true;}
+    if(!results[1]->has_rows_affected()){ Panic("Failed to update number of seats left in flight"); abort = true;}
+    if(!results[2]->has_rows_affected()){ Panic("Failed to update customer balance"); abort = true;}
+    if(!results[3]->has_rows_affected()){ Panic("Failed to update frequent flyer info");} //We don't care if we updated FrequentFlyer
     if(abort){
         client.Abort(timeout);
         return ABORTED_USER;
     }
 
     //Re-queue reservation
-    std::mt19937 gen; 
-    int requeue = std::uniform_int_distribution<int>(1, 100)(gen);
+    int requeue = std::uniform_int_distribution<int>(1, 100)(*gen_);
     if (requeue <= PROB_REQUEUE_DELETED_RESERVATION) q->push(SEATSReservation(NULL_ID, c_id, f_id, seat));
 
     Debug("Deleted reservation on flight %s for customer %s. [seatsLeft=%d]", f_id, c_id, seats_left + 1);
