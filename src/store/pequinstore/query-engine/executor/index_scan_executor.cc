@@ -346,7 +346,9 @@ void IndexScanExecutor::ManageReadSet(ItemPointer &visible_tuple_location, concu
     pequinstore::QueryReadSetMgr *query_read_set_mgr, storage::StorageManager *storage_manager) {
   
   //Don't create a read set if it's a point query, or the query is executed in snapshot only mode
-  if (current_txn->GetHasReadSetMgr()) {
+  // Or if it is on a metadata table
+  bool is_metadata = table_->GetName().substr(0,3) == "pg_";
+  if (current_txn->GetHasReadSetMgr() && !is_metadata) {
     auto const &primary_index_columns_ = index_->GetMetadata()->GetKeyAttrs();
     auto query_read_set_mgr = current_txn->GetQueryReadSetMgr();
 
