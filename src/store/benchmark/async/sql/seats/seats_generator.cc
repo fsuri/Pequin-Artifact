@@ -506,6 +506,10 @@ void GenerateFrequentFlyerTable(TableWriter &writer) {
     const std::vector<uint32_t> index {0};
     writer.add_index(table_name, "ff_customer_index", index);
 
+     //Optional Index:
+    const std::vector<uint32_t> index2 {2};
+    writer.add_index(table_name, "ff_customer_str_index", index2);
+
     std::mt19937 gen;
     // generate data
     for (int c_id = 1; c_id <= seats_sql::NUM_CUSTOMERS; c_id++) {
@@ -649,8 +653,8 @@ void GenerateReservationTable(TableWriter &writer, std::vector<int> flight_to_nu
      const std::vector<uint32_t> index {2};
     writer.add_index(table_name, "r_flight_index", index);
 
-    //   const std::vector<uint32_t> index2 {3};
-    // writer.add_index(table_name, "r_seat_index", index2);  //TODO: Check that this is currently a scan? 
+    //   const std::vector<uint32_t> index2 {2, 3};
+    // writer.add_index(table_name, "r_seat_index", index2);  //TODO: Check that this is currently a scan? //FIXME: This gets loader stuck?
     
     // generate data
     std::mt19937 gen;   

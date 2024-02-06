@@ -15,6 +15,7 @@ SQLUpdateReservation::SQLUpdateReservation(uint32_t timeout, std::mt19937 &gen, 
             update_res.pop();
         } else { 
             // no reservations to update so make this transaction fail
+            Panic("should not be triggered");
             c_id = NULL_ID;
             r_id = NULL_ID;
             f_id = NULL_ID;
@@ -38,7 +39,7 @@ transaction_status_t SQLUpdateReservation::Execute(SyncClient &client) {
     std::vector<std::unique_ptr<const query_result::QueryResult>> results; 
     std::string query;
 
-    std::cerr << "UPDATE RESERVATION" << std::endl;
+    std::cerr << "UPDATE_RESERVATION" << std::endl;
     Debug("UPDATE_RESERVATION");
     client.Begin(timeout);
 

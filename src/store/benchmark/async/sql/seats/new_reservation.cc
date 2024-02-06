@@ -60,14 +60,7 @@ transaction_status_t SQLNewReservation::Execute(SyncClient &client) {
     query = fmt::format("SELECT f_al_id, f_seats_left, al_iata_code, al_icao_code, al_call_sign, al_name, al_co_id FROM {}, {} WHERE f_id = {} AND f_al_id = al_id", FLIGHT_TABLE, AIRLINE_TABLE, f_id); 
     //Peloton does not support `.*` semantics. Replaced by just getting a couple (not all) airline fields.
     //query = fmt::format("SELECT f_al_id, f_seats_left, {}.* FROM {}, {} WHERE f_id = {} AND f_al_id = al_id", AIRLINE_TABLE, FLIGHT_TABLE, AIRLINE_TABLE, f_id); 
-    client.Query(query, queryResult, timeout); //FIXME: Change back to async
-
-    if (queryResult->empty()) {
-        Panic("Invalid Flight ID %ld", f_id);
-        Debug("Invalid Flight ID %ld", f_id);
-        client.Abort(timeout);
-        return ABORTED_USER;
-    } 
+    client.Query(query, timeout); 
 
     // (2) Check whether Seat is available  (CheckSeat)
     query = fmt::format("SELECT r_id FROM {} WHERE r_f_id = {} AND r_seat = {}", RESERVATION_TABLE, f_id, seatnum);
@@ -162,7 +155,6 @@ transaction_status_t SQLNewReservation::Execute(SyncClient &client) {
         return ABORTED_USER;
     }
 
-    Panic("Reaching end of new_res");
 
     if (std::uniform_int_distribution<int>(1, 100)(*gen_) < PROB_Q_DELETE_RESERVATION){
         std::cerr << "NEW_RES: PUSH TO DELETE Q" << std::endl;

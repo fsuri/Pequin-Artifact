@@ -720,6 +720,9 @@
     "indexes": {
       "ff_customer_index": [
         0
+      ],
+      "ff_customer_str_index": [
+        2
       ]
     },
     "primary_key_col_idx": [

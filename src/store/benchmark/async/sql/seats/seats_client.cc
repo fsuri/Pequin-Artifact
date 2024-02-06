@@ -68,8 +68,8 @@ SyncTransaction* SEATSSQLClient::GetNextTransaction() {
       return new SQLUpdateCustomer(GetTimeout(), gen);
     } 
     else {
-      std::cerr << "Try Update_Res. Is empty? " << (delete_reservation.empty()) << std::endl; 
-      if (update_reservation.empty()){}
+      std::cerr << "Try Update_Res. Is empty? " << (update_reservation.empty()) << std::endl; 
+      if (update_reservation.empty())
         continue;
       last_op_ = "update_reservation";
       return new SQLUpdateReservation(GetTimeout(), gen, update_reservation, delete_reservation);

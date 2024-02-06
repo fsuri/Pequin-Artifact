@@ -584,24 +584,10 @@ void PelotonTableStore::TransformPointResult(proto::Write *write, Timestamp &com
   unsigned int rows = result.empty()? 0 : result.size() / tuple_descriptor.size();
   UW_ASSERT(rows <= 2); // There should be at most 2 rows: One committed, and one prepared. The committed one always comes last. (if it exists)
 
-  //FIXME: 1: If we did read a committed/prepared value, but it doesn't hit the predicate, we should not fail!! We should still be sending the proof/version + //TODO: Set val to empty
-  //FIXME: 2: committed value will not be empty in this case, yet we shouldn't try to read the row!!!
-              //Problem: we cannot distinguish whether the row in result belongs to commit or prepare.
-  //TODO: Look into what client expects: If result is empty, will we still check proof? (We should.)
-
-  //TODO: Call SetPoint only after eval read? Or: Call it again, and modify only whether the val is "e-e" (exist, empty) or "e-r" (exist, read)
-                                                                                    //Currently val is "" (empty) if no version exists.
-
-  //TODO: re-factor this.
-  // if (rows == 0){
-  //   Debug("Empty result: No tuple exists for the supplied Row-key");
-  //   std::cerr << "committed val: " << write->committed_value() << std::endl;
-  //   UW_ASSERT(!write->has_committed_value()); //FIXME: 
-  //   UW_ASSERT(!write->has_prepared_value());
-  //   Panic("This should never happen in test");
-  //   return; // Empty result: No tuple exists for the supplied Row-key => Note: Client creates empty result in this case, nothing to do here.
-  // }
-   
+  //Notes on expected behavior.
+  //If we did read a committed/prepared value, but it doesn't hit the predicate, the result should be empty, but we should still be sending the proof/version 
+ 
+  
 
   //FIXME: REMOVE THIS ONCE SECONDARY INDEX BUG IS FIXED. THIS JUST A SHORT-TERM FIX TO IGNORE INVALID PREP READS
   // value should only be "f" if it does hit primary key, but the predicate is stronger than that... But secondary index scan violates this.
