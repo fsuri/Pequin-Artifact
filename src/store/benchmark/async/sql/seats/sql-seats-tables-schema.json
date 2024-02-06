@@ -611,8 +611,7 @@
       ]
     ],
     "indexes": {
-      "f_depart_airport_idx": [
-        2,
+      "f_depart_time_idx": [
         3
       ]
     },
@@ -718,9 +717,6 @@
       ]
     ],
     "indexes": {
-      "ff_customer_index": [
-        0
-      ],
       "ff_customer_str_index": [
         2
       ]
@@ -797,7 +793,9 @@
       ]
     },
     "primary_key_col_idx": [
-      0
+      0,
+      1,
+      2
     ],
     "row_data_path": "sql-seats-data/reservation.csv",
     "table_name": "reservation"

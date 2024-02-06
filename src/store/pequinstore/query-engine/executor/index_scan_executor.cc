@@ -269,6 +269,7 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
   tuple_location_ptrs.resize(max_size);
   tuple_location_ptrs.shrink_to_fit();
   std::cerr << "Number of rows to check (bounded)" << tuple_location_ptrs.size() << std::endl;
+  //if(tuple_location_ptrs.size() > 150) Panic("doing full scan");
   if(current_txn->IsPointRead()) UW_ASSERT(tuple_location_ptrs.size() == 1);
   // for every tuple that is found in the index.
   for (auto tuple_location_ptr : tuple_location_ptrs) {
@@ -1816,6 +1817,7 @@ bool IndexScanExecutor::ExecSecondaryIndexLookup() {
   tuple_location_ptrs.resize(max_size);
   tuple_location_ptrs.shrink_to_fit();
   std::cerr << "Number of rows to check (bounded)" << tuple_location_ptrs.size() << std::endl;
+  //if(tuple_location_ptrs.size() > 150) Panic("doing full scan");
   
 
   for (auto tuple_location_ptr : tuple_location_ptrs) {

@@ -52,7 +52,7 @@ transaction_status_t SQLNewReservation::Execute(SyncClient &client) {
 
     std::string query;
 
-    fprintf(stderr,"NEW_RESERVATION for customer %ld. Flight: %d. Seatnum: %d.  \n", c_id, f_id, seatnum);
+    fprintf(stderr,"NEW_RESERVATION %ld. for customer %ld. Flight: %d. Seatnum: %d.  \n", r_id, c_id, f_id, seatnum);
     Debug("NEW_RESERVATION for customer %ld", c_id);
     client.Begin(timeout);
 
@@ -98,6 +98,9 @@ transaction_status_t SQLNewReservation::Execute(SyncClient &client) {
     }
     //If requested seat is not available => abort
     if (!results[1]->empty()) {
+        // int r_id;
+        // deserialize(r_id, results[1], 0, 0);
+        //Panic("Seat should be empty? %d", r_id);
         Notice("Seat %ld on flight %ld is already reserved", seatnum, f_id);
         Debug("Seat %ld on flight %ld is already reserved", seatnum, f_id);
         client.Abort(timeout);

@@ -112,7 +112,9 @@ transaction_status_t SQLDeleteReservation::Execute(SyncClient &client) {
 
     // Now Delete Reservation
     query = fmt::format("DELETE FROM {} WHERE r_id = {} AND r_c_id = {} AND r_f_id = {}", RESERVATION_TABLE, r_id, c_id, f_id);
-    client.Write(query, timeout);
+    client.Write(query, queryResult, timeout);
+    if(!queryResult->has_rows_affected()){ Panic("Failed to update frequent flyer info");}
+
    
     // Update Flight
     query = fmt::format("UPDATE {} SET f_seats_left = f_seats_left + 1 WHERE f_id = {}", FLIGHT_TABLE, f_id);
@@ -131,16 +133,16 @@ transaction_status_t SQLDeleteReservation::Execute(SyncClient &client) {
 
     client.Wait(results);
     //Debug
-    UW_ASSERT(results.size() == 4 - !update_freq_flyer);
-    bool abort = false;
-    if(!results[0]->has_rows_affected()){ Panic("Failed to delete reservation"); abort = true;}
-    if(!results[1]->has_rows_affected()){ Panic("Failed to update number of seats left in flight"); abort = true;}
-    if(!results[2]->has_rows_affected()){ Panic("Failed to update customer balance"); abort = true;}
-    if(update_freq_flyer && !results[3]->has_rows_affected()){ Panic("Failed to update frequent flyer info");} //We don't care if we updated FrequentFlyer
-    if(abort){
-        client.Abort(timeout);
-        return ABORTED_USER;
-    }
+    // UW_ASSERT(results.size() == 4 - !update_freq_flyer);
+    // bool abort = false;
+    // if(!results[0]->has_rows_affected()){ Panic("Failed to delete reservation"); abort = true;}
+    // if(!results[1]->has_rows_affected()){ Panic("Failed to update number of seats left in flight"); abort = true;}
+    // if(!results[2]->has_rows_affected()){ Panic("Failed to update customer balance"); abort = true;}
+    // if(update_freq_flyer && !results[3]->has_rows_affected()){ Panic("Failed to update frequent flyer info");} //We don't care if we updated FrequentFlyer
+    // if(abort){
+    //     client.Abort(timeout);
+    //     return ABORTED_USER;
+    // }
 
     //Re-queue reservation
     int requeue = std::uniform_int_distribution<int>(1, 100)(*gen_);

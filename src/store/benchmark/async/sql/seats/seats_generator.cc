@@ -502,10 +502,6 @@ void GenerateFrequentFlyerTable(TableWriter &writer) {
     std::string table_name = seats_sql::FREQUENT_FLYER_TABLE;
     writer.add_table(table_name, column_names_and_types, primary_key_col_idx);
 
-    //Optional Index:
-    const std::vector<uint32_t> index {0};
-    writer.add_index(table_name, "ff_customer_index", index);
-
      //Optional Index:
     const std::vector<uint32_t> index2 {2};
     writer.add_index(table_name, "ff_customer_str_index", index2);
@@ -580,8 +576,12 @@ std::vector<int> GenerateFlightTable(TableWriter &writer, std::vector<std::vecto
     std::string table_name = seats_sql::FLIGHT_TABLE;
     writer.add_table(table_name, column_names_and_types, primary_key_col_idx);
     
-    const std::vector<uint32_t> index {2, 3};
-    writer.add_index(table_name, "f_depart_airport_idx", index);
+
+    const std::vector<uint32_t> index {3};
+    writer.add_index(table_name, "f_depart_time_idx", index);
+
+    // const std::vector<uint32_t> index {2, 3};
+    // writer.add_index(table_name, "f_depart_airport_idx", index);
 
 
     // load histograms
@@ -622,8 +622,9 @@ std::vector<int> GenerateFlightTable(TableWriter &writer, std::vector<std::vecto
       values.push_back(std::to_string(seats_sql::TOTAL_SEATS_PER_FLIGHT));
 
       //number of reserved seats
-      auto seats_reserved = std::uniform_int_distribution<int>(seats_sql::MIN_SEATS_RESERVED, seats_sql::MAX_SEATS_RESERVED)(gen);
-      values.push_back(std::to_string(seats_sql::TOTAL_SEATS_PER_FLIGHT - seats_reserved));
+      //auto seats_reserved = std::uniform_int_distribution<int>(seats_sql::MIN_SEATS_RESERVED, seats_sql::MAX_SEATS_RESERVED)(gen);
+      auto seats_reserved = std::binomial_distribution<int>(seats_sql::TOTAL_SEATS_PER_FLIGHT, 0.01 * seats_sql::PROB_SEAT_OCCUPIED)(gen);
+      values.push_back(std::to_string(seats_sql::TOTAL_SEATS_PER_FLIGHT - seats_reserved)); //seats remaining
       flight_to_num_reserved.push_back(seats_reserved);
 
       for (int iattr = 0; iattr < 30; iattr++) {
@@ -645,7 +646,7 @@ void GenerateReservationTable(TableWriter &writer, std::vector<int> flight_to_nu
     FillColumnNamesWithGenericAttr(column_names_and_types, "r_iattr", "BIGINT", 9);
     // column_names_and_types.push_back(std::make_pair("r_created", "TIMESTAMP"));
     // column_names_and_types.push_back(std::make_pair("r_updated", "TIMESTAMP"));
-    const std::vector<uint32_t> primary_key_col_idx {0};
+    const std::vector<uint32_t> primary_key_col_idx {0, 1, 2};
     std::string table_name = seats_sql::RESERVATION_TABLE;
     writer.add_table(table_name, column_names_and_types, primary_key_col_idx);
 

@@ -794,7 +794,7 @@ void SQLTransformer::TransformDelete(size_t pos, std::string_view &write_stateme
         
         //Create a QueryResult -- set rows affected to 1.
         write_continuation = [this, wcb](int status, query_result::QueryResult* result){
-            result->set_rows_affected(result->size()); 
+            result->set_rows_affected(1); 
             wcb(REPLY_OK, result);
         };
         return;

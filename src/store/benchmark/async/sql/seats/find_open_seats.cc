@@ -57,13 +57,16 @@ transaction_status_t SQLFindOpenSeats::Execute(SyncClient &client) {
         deserialize(sr_row, queryResult, i);
         int seat = (int) sr_row.r_seat - 1; //seats are numbered from 1 (not from 0)
         unavailable_seats[seat] = (int8_t) 1;
+        std::cerr << "SEAT: " << i << "is unavailable!" << std::endl;
     }
 
-    std::string open_seats_str = "Seats";
+    std::string open_seats_str = "Seats [";
+    std::string reserved_seats_str = "Seats [";
   
     std::deque<SEATSReservation> tmp;
     for (int seat = 1; seat <= TOTAL_SEATS_PER_FLIGHT; seat++) {   
         if (unavailable_seats[seat-1] == 0) open_seats_str += fmt::format(" {},", seat);
+        if (unavailable_seats[seat-1] == 1) reserved_seats_str += fmt::format(" {},", seat);
 
          int64_t c_id = std::uniform_int_distribution<int64_t>(1, NUM_CUSTOMERS)(*gen_);  //FIXME:  seems to be generated based on depart airport in benchbase?
          tmp.push_back(SEATSReservation(NULL_ID, c_id, f_id, seat));   //TODO: set the f_al_id too? FIXME: FlightID != single id.  //TODO: id should be the clients id.? No r_id?
@@ -79,9 +82,11 @@ transaction_status_t SQLFindOpenSeats::Execute(SyncClient &client) {
         tmp.pop_front();
     }
 
-    open_seats_str += fmt::format(" are available on flight {} for price {}", f_id, _seat_price);
+    open_seats_str += fmt::format("] are available on flight {} for price {}", f_id, _seat_price);
+    reserved_seats_str += fmt::format("] are unavailable on flight {}", f_id);
     Debug("%s", open_seats_str);
-    fprintf(stderr, "%s\n", open_seats_str.c_str());
+    fprintf(stderr, "Available: %s\n", open_seats_str.c_str());
+    fprintf(stderr, "Unavailable: %s\n", reserved_seats_str.c_str());
 
     Debug("COMMIT");
     return client.Commit(timeout);

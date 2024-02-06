@@ -95,7 +95,7 @@ const int PROB_UPDATE_WITH_CUSTOMER_ID_STR = 20;
 const int PROB_DELETE_WITH_FREQUENTFLYER_ID_STR = 20; //FIXME: Used for DeleteReservation
 
 /** Probability that is a seat is initially occupied (0% - 100%) */
-//TODO: PROB_SEAT_OCCUPIED = 1 //FIXME: Used in Loader
+const int PROB_SEAT_OCCUPIED = 1; //25 
 
 /** Probability that UpdateCustomer should update FrequentFlyer records */
 const int PROB_UPDATE_FREQUENT_FLYER = 25;
