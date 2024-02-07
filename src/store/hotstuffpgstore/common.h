@@ -97,19 +97,6 @@ std::string string_to_hex(const std::string& input);
 
 void DebugHash(const std::string& hash);
 
-// return true if the grouped decision is valid
-bool verifyGDecision(const proto::GroupedDecision& gdecision,
-  const proto::Transaction& txn, KeyManager* keyManager, bool signMessages, uint64_t f);
-
-bool verifyG_Abort_Decision(const proto::GroupedDecision& gdecision,
-  const proto::Transaction& txn, KeyManager* keyManager, bool signMessages, uint64_t f);
-
-bool verifyGDecision_parallel(const proto::GroupedDecision& gdecision,
-  const proto::Transaction& txn, KeyManager* keyManager, bool signMessages, uint64_t f, Transport* tp);
-
-bool verifyGDecision_Abort_parallel(const proto::GroupedDecision& gdecision,
-  const proto::Transaction& txn, KeyManager* keyManager, bool signMessages, uint64_t f, Transport* tp );
-
 } // namespace hotstuffpgstore
 
 #endif /* HOTSTUFF_PG_COMMON_H */

@@ -110,20 +110,20 @@ void Client::Put(const std::string &key, const std::string &value, put_callback 
 
 void Client::Commit(commit_callback ccb, commit_timeout_callback ctcb, uint32_t timeout) {
   transport->Timer(0, [this, ccb, ctcb, timeout]() {
-    apply_callback acb = [ccb, this](int status) {
-      Debug("Shir: executing apply callback");
+    try_commit_callback tccb = [ccb, this](int status) {
+      Debug("Shir: executing try_commit callback");
 
       if(status == REPLY_OK) {
-        Debug("Shir: executing apply callback 111");
+        Debug("Shir: executing try_commit callback 111");
 
         ccb(COMMITTED);
       } else {
         ccb(ABORTED_SYSTEM);
       }
     };
-    apply_timeout_callback atcb = ctcb;
+    try_commit_timeout_callback tctcb = ctcb;
     Debug("Shir: Client trying to commit txn");
-    bclient[0]->Commit(TransactionDigest(currentTxn),  currentTxn.timestamp(), client_id, client_seq_num, acb, atcb, timeout);
+    bclient[0]->Commit(TransactionDigest(currentTxn),  currentTxn.timestamp(), client_id, client_seq_num, tccb, tctcb, timeout);
   });
 }
 
@@ -142,7 +142,7 @@ void Client::SQLRequest(std::string &statement, sql_callback scb, sql_timeout_ca
     Debug("Query called");
     std::cerr << "Shir:  issue SQLRequest from client:     "<<statement << std::endl;
 
-    inquiry_callback icb = [scb, statement, this](int status, const std::string& sql_res) {
+    sql_rpc_callback srcb = [scb, statement, this](int status, const std::string& sql_res) {
       // if(status == REPLY_OK) {
       //   // Take Query Result Proto serialization and transform it into a query result here
       // }
@@ -155,11 +155,11 @@ void Client::SQLRequest(std::string &statement, sql_callback scb, sql_timeout_ca
       Debug("Shir: step 45");
 
     };
-    inquiry_timeout_callback itcb = stcb;
+    sql_rpc_timeout_callback srtcb = stcb;
 
     Debug("Shir: step 40");
 
-    bclient[0]->Query(statement, currentTxn.timestamp(), client_id, client_seq_num, icb, itcb, timeout);
+    bclient[0]->Query(statement, currentTxn.timestamp(), client_id, client_seq_num, srcb, srtcb, timeout);
     Debug("Shir: step 50");
 
   });

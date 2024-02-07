@@ -41,8 +41,8 @@ ShardClient::ShardClient(const transport::Configuration& config, Transport *tran
     deterministic(deterministic) {
   transport->Register(this, config, -1, -1);
   readReq = 0;
-  inquiryReq = 0;
-  applyReq = 0;
+  SQL_RPCReq = 0;
+  tryCommitReq = 0;
 
   if (closestReplicas_.size() == 0) {
     for  (int i = 0; i < config.n; ++i) {
@@ -64,8 +64,8 @@ void ShardClient::ReceiveMessage(const TransportAddress &remote, const std::stri
   proto::SignedMessage signedMessage;
   std::string type;
   std::string data;
-  proto::InquiryReply inquiryReply;
-  proto::ApplyReply applyReply;
+  proto::SQL_RPCReply sql_rpcReply;
+  proto::TryCommitReply tryCommitReply;
 
   bool recvSignedMessage = false;
   if (t == signedMessage.GetTypeName()) {
@@ -76,7 +76,7 @@ void ShardClient::ReceiveMessage(const TransportAddress &remote, const std::stri
     proto::PackedMessage pmsg;
     pmsg.ParseFromString(signedMessage.packed_msg());
     std::cout << "Inner type: " << pmsg.type() << std::endl;
-    if (pmsg.type() == inquiryReply.GetTypeName() || pmsg.type() == applyReply.GetTypeName() ) {
+    if (pmsg.type() == sql_rpcReply.GetTypeName() || pmsg.type() == tryCommitReply.GetTypeName() ) {
       crypto::PubKey* replicaPublicKey = keyManager->GetPublicKey(signedMessage.replica_id());
       if (!hotstuffpgBatchedSigs::verifyBatchedSignature(signedMessage.mutable_signature(), signedMessage.mutable_packed_msg(),
             replicaPublicKey)) {
@@ -97,19 +97,19 @@ void ShardClient::ReceiveMessage(const TransportAddress &remote, const std::stri
     data = d;
   }
 
-  if (type == inquiryReply.GetTypeName()) {
-    inquiryReply.ParseFromString(data);
+  if (type == sql_rpcReply.GetTypeName()) {
+    sql_rpcReply.ParseFromString(data);
     if(signMessages && !recvSignedMessage) {
       return;
     }
-    HandleInquiryReply(inquiryReply, signedMessage);
+    HandleSQL_RPCReply(sql_rpcReply, signedMessage);
 
-  } else if (type == applyReply.GetTypeName()) {
-    applyReply.ParseFromString(data);
+  } else if (type == tryCommitReply.GetTypeName()) {
+    tryCommitReply.ParseFromString(data);
     if(signMessages && !recvSignedMessage) {
       return;
     }
-    HandleApplyReply(applyReply, signedMessage);
+    HandleTryCommitReply(tryCommitReply, signedMessage);
   }
 }
 
@@ -117,52 +117,49 @@ void ShardClient::ReceiveMessage(const TransportAddress &remote, const std::stri
 // ======= MESSAGE HANDLERS =======
 // ================================
 
-void ShardClient::HandleInquiryReply(const proto::InquiryReply& inquiryReply, const proto::SignedMessage& signedMsg) {
-  Debug("Handling an inquiry reply");
+void ShardClient::HandleSQL_RPCReply(const proto::SQL_RPCReply& reply, const proto::SignedMessage& signedMsg) {
+  Debug("Handling a sql_rpc reply");
 
-  uint64_t reqId = inquiryReply.req_id();
-  Debug("Inquiry req id: %lu", reqId);
+  uint64_t reqId = reply.req_id();
+  Debug("sql_rpc req id: %lu", reqId);
 
-  if(pendingInquiries.find(reqId) != pendingInquiries.end()) {
-    PendingInquiry* pendingInquiry = &pendingInquiries[reqId];
+  if(pendingSQL_RPCs.find(reqId) != pendingSQL_RPCs.end()) {
+    PendingSQL_RPC* pendingSQL_RPC = &pendingSQL_RPCs[reqId];
 
-    pendingInquiry->numReceivedReplies++;
-    Debug("Shir: got an additional reply. request:  %lu now has  %lu replies.",reqId,pendingInquiry->numReceivedReplies);
+    pendingSQL_RPC->numReceivedReplies++;
+    Debug("Shir: got an additional reply. request:  %lu now has  %lu replies.",reqId,pendingSQL_RPC->numReceivedReplies);
     if(signMessages) { // May have to just take the second path?
       uint64_t replica_id = signedMsg.replica_id();
       if (replica_id / config.n != (uint64_t) group_idx) {
-        Debug("Inquiry Reply: replica not in group");
+        Debug("sql_rpc Reply: replica not in group");
         return;
       }
-      if(inquiryReply.status() == REPLY_OK) {
-        pendingInquiry->receivedReplies[inquiryReply.sql_res()].insert(replica_id);
+      if(reply.status() == REPLY_OK) {
+        pendingSQL_RPC->receivedReplies[reply.sql_res()].insert(replica_id);
         Debug("Shir: query reply was OK");
 
-        // Timestamp its(inquiryReply.value_timestamp());
-        if(pendingInquiry->status == REPLY_FAIL) {
-          Debug("Updating inquiry reply signed");
-          // pendingInquiry->maxTs = its;
-          pendingInquiry->status = REPLY_OK;
+        if(pendingSQL_RPC->status == REPLY_FAIL) {
+          Debug("Updating sql_rpc reply signed");
+          pendingSQL_RPC->status = REPLY_OK;
           Debug("Shir: 222");
 
         }
         if(!deterministic && signMessages) {
-          pendingInquiry->receivedSuccesses.insert(replica_id);
+          pendingSQL_RPC->receivedSuccesses.insert(replica_id);
           Debug("Shir: 333");
 
-          // std::cerr<<"Shir: query result:     "<<inquiryReply.sql_res() <<"\n";
           if(replica_id == 0) {
             Debug("Shir: 444");
 
-            pendingInquiry->leaderReply = inquiryReply.sql_res();
+            pendingSQL_RPC->leaderReply = reply.sql_res();
           }
         }
       } else {
         Debug("Shir: 555");
 
-        pendingInquiry->receivedFails.insert(replica_id);
+        pendingSQL_RPC->receivedFails.insert(replica_id);
         if(!deterministic && signMessages && replica_id == 0) {
-          InquiryReplyHelper(pendingInquiry, inquiryReply.sql_res(), reqId, REPLY_FAIL);
+          SQL_RPCReplyHelper(pendingSQL_RPC, reply.sql_res(), reqId, REPLY_FAIL);
         }
       }
 
@@ -171,19 +168,17 @@ void ShardClient::HandleInquiryReply(const proto::InquiryReply& inquiryReply, co
     } else {
       Debug("Shir: 666");
 
-      if(inquiryReply.status() == REPLY_OK) {
+      if(reply.status() == REPLY_OK) {
         Debug("Shir: 777");
 
-        pendingInquiry->receivedReplies[inquiryReply.sql_res()].insert(pendingInquiry->numReceivedReplies);
-        // Timestamp its(inquiryReply.value_timestamp());
-        if(pendingInquiry->status == REPLY_FAIL) {
-          Debug("Updating inquiry reply");
-          // pendingInquiry->maxTs = its;
-          pendingInquiry->status = REPLY_OK;
+        pendingSQL_RPC->receivedReplies[reply.sql_res()].insert(pendingSQL_RPC->numReceivedReplies);
+        if(pendingSQL_RPC->status == REPLY_FAIL) {
+          Debug("Updating sql_rpc reply");
+          pendingSQL_RPC->status = REPLY_OK;
         }
       
       } else {
-        pendingInquiry->receivedFails.insert(pendingInquiry->numReceivedReplies);
+        pendingSQL_RPC->receivedFails.insert(pendingSQL_RPC->numReceivedReplies);
       }
     }
 
@@ -192,87 +187,86 @@ void ShardClient::HandleInquiryReply(const proto::InquiryReply& inquiryReply, co
     std::cerr <<"Shir: Is signed messages?:  "<< signMessages <<"\n";
     if(!signMessages || deterministic) { // This is for a fault tolerant system, curently we only look for the leader's opinion (only works in signed system)
       Debug("Shir: 999");
-      if(pendingInquiry->receivedReplies[inquiryReply.sql_res()].size() 
+      if(pendingSQL_RPC->receivedReplies[reply.sql_res()].size() 
           >= (uint64_t) config.f + 1) {
-        InquiryReplyHelper(pendingInquiry, inquiryReply.sql_res(), reqId, pendingInquiry->status);
-      } else if(pendingInquiry->receivedReplies.size() + pendingInquiry->receivedFails.size() 
+        SQL_RPCReplyHelper(pendingSQL_RPC, reply.sql_res(), reqId, pendingSQL_RPC->status);
+      } else if(pendingSQL_RPC->receivedReplies.size() + pendingSQL_RPC->receivedFails.size() 
           >= (uint64_t) config.f + 1) {
-        InquiryReplyHelper(pendingInquiry, inquiryReply.sql_res(), reqId, REPLY_FAIL);
+        SQL_RPCReplyHelper(pendingSQL_RPC, reply.sql_res(), reqId, REPLY_FAIL);
       }
     } else {
       Debug("Shir: 101010");
-      if(pendingInquiry->receivedSuccesses.size() >= (uint64_t) config.f + 1 && 
-          pendingInquiry->receivedSuccesses.find(0) != pendingInquiry->receivedSuccesses.end()) {
-        InquiryReplyHelper(pendingInquiry, pendingInquiry->leaderReply, reqId, pendingInquiry->status);
+      if(pendingSQL_RPC->receivedSuccesses.size() >= (uint64_t) config.f + 1 && 
+          pendingSQL_RPC->receivedSuccesses.find(0) != pendingSQL_RPC->receivedSuccesses.end()) {
+        SQL_RPCReplyHelper(pendingSQL_RPC, pendingSQL_RPC->leaderReply, reqId, pendingSQL_RPC->status);
       }
     }
   }
 }
 
-void ShardClient::InquiryReplyHelper(PendingInquiry* pendingInquiry, const std::string inquiryRes, 
+void ShardClient::SQL_RPCReplyHelper(PendingSQL_RPC* pendingSQL_RPC, const std::string sql_rpcReply, 
     uint64_t reqId, uint64_t status) {
-  if(pendingInquiry->timeout != nullptr) {
-    pendingInquiry->timeout->Stop();
+  if(pendingSQL_RPC->timeout != nullptr) {
+    pendingSQL_RPC->timeout->Stop();
   }
-  inquiry_callback icb = pendingInquiry->icb;
-  pendingInquiries.erase(reqId);
-  icb(status, inquiryRes);
+  sql_rpc_callback srcb = pendingSQL_RPC->srcb;
+  pendingSQL_RPCs.erase(reqId);
+  srcb(status, sql_rpcReply);
 }
 
-void ShardClient::HandleApplyReply(const proto::ApplyReply& applyReply, const proto::SignedMessage& signedMsg) {
-  Debug("Handling an apply reply");
+void ShardClient::HandleTryCommitReply(const proto::TryCommitReply& reply, const proto::SignedMessage& signedMsg) {
+  Debug("Handling a tryCommit reply");
 
-  uint64_t reqId = applyReply.req_id();
-  Debug("Apply req id: %lu", reqId);
+  uint64_t reqId = reply.req_id();
+  Debug("tryCommit req id: %lu", reqId);
 
-  if(pendingApplies.find(reqId) != pendingApplies.end()) {
-    PendingApply* pendingApply = &pendingApplies[reqId];
+  if(pendingTryCommits.find(reqId) != pendingTryCommits.end()) {
+    PendingTryCommit* pendingTryCommit = &pendingTryCommits[reqId];
 
-    uint64_t replica_id = pendingApply->receivedAcks.size() + pendingApply->receivedFails.size();
+    uint64_t replica_id = pendingTryCommit->receivedAcks.size() + pendingTryCommit->receivedFails.size();
     if (signMessages) {
       replica_id = signedMsg.replica_id();
     }
     
-    if(applyReply.status() == REPLY_OK) {
-      pendingApply->receivedAcks.insert(replica_id);
-      // Timestamp its(inquiryReply.value_timestamp());
+    if(reply.status() == REPLY_OK) {
+      pendingTryCommit->receivedAcks.insert(replica_id);
     } else {
-      pendingApply->receivedFails.insert(replica_id);
+      pendingTryCommit->receivedFails.insert(replica_id);
       if(!deterministic && signMessages && replica_id == 0) {
-        if(pendingApply->timeout != nullptr) {
-          pendingApply->timeout->Stop();
+        if(pendingTryCommit->timeout != nullptr) {
+          pendingTryCommit->timeout->Stop();
         }
-        apply_callback acb = pendingApply->acb;
-        pendingApplies.erase(reqId);
-        acb(REPLY_FAIL);
+        try_commit_callback tccb = pendingTryCommit->tccb;
+        pendingTryCommits.erase(reqId);
+        tccb(REPLY_FAIL);
       }
     }
-
+    // Shir: clean code duplications...
     if(!signMessages || deterministic) {
-      if(pendingApply->receivedAcks.size() >= (uint64_t) config.f + 1) {
-        if(pendingApply->timeout != nullptr) {
-          pendingApply->timeout->Stop();
+      if(pendingTryCommit->receivedAcks.size() >= (uint64_t) config.f + 1) {
+        if(pendingTryCommit->timeout != nullptr) {
+          pendingTryCommit->timeout->Stop();
         }
-        apply_callback acb = pendingApply->acb;
-        pendingApplies.erase(reqId);
-        acb(REPLY_OK);
-      } else if(pendingApply->receivedFails.size() >= (uint64_t) config.f + 1) {
-        if(pendingApply->timeout != nullptr) {
-          pendingApply->timeout->Stop();
+        try_commit_callback tccb = pendingTryCommit->tccb;
+        pendingTryCommits.erase(reqId);
+        tccb(REPLY_OK);
+      } else if(pendingTryCommit->receivedFails.size() >= (uint64_t) config.f + 1) {
+        if(pendingTryCommit->timeout != nullptr) {
+          pendingTryCommit->timeout->Stop();
         }
-        apply_callback acb = pendingApply->acb;
-        pendingApplies.erase(reqId);
-        acb(REPLY_FAIL);
+        try_commit_callback tccb = pendingTryCommit->tccb;
+        pendingTryCommits.erase(reqId);
+        tccb(REPLY_FAIL);
       }
     } else {
-      if(pendingApply->receivedAcks.size() >= (uint64_t) config.f + 1 && 
-      pendingApply->receivedAcks.find(0) != pendingApply->receivedAcks.end()) {
-        if(pendingApply->timeout != nullptr) {
-          pendingApply->timeout->Stop();
+      if(pendingTryCommit->receivedAcks.size() >= (uint64_t) config.f + 1 && 
+      pendingTryCommit->receivedAcks.find(0) != pendingTryCommit->receivedAcks.end()) {
+        if(pendingTryCommit->timeout != nullptr) {
+          pendingTryCommit->timeout->Stop();
         }
-        apply_callback acb = pendingApply->acb;
-        pendingApplies.erase(reqId);
-        acb(REPLY_OK);
+        try_commit_callback tccb = pendingTryCommit->tccb;
+        pendingTryCommits.erase(reqId);
+        tccb(REPLY_OK);
       }
     }
   }
@@ -285,101 +279,100 @@ void ShardClient::HandleApplyReply(const proto::ApplyReply& applyReply, const pr
 
 // Currently assumes no duplicates, can add de-duping code later if needed
 void ShardClient::Query(const std::string &query,  const Timestamp &ts, uint64_t client_id, int client_seq_num, 
-      inquiry_callback icb, inquiry_timeout_callback itcb,  uint32_t timeout) {
+      sql_rpc_callback srcb, sql_rpc_timeout_callback srtcb,  uint32_t timeout) {
 
-  proto::Inquiry inquiry;
+  proto::SQL_RPC sql_rpc;
 
-  uint64_t reqId = inquiryReq++;
+  uint64_t reqId = SQL_RPCReq++;
   Debug("Query id: %lu", reqId);
 
-  inquiry.set_req_id(reqId);
-  inquiry.set_query(query);
-  inquiry.set_client_id(client_id);
-  inquiry.set_txn_seq_num(client_seq_num);
-  ts.serialize(inquiry.mutable_timestamp());
+  sql_rpc.set_req_id(reqId);
+  sql_rpc.set_query(query);
+  sql_rpc.set_client_id(client_id);
+  sql_rpc.set_txn_seq_num(client_seq_num);
+  ts.serialize(sql_rpc.mutable_timestamp());
 
   proto::Request request;
-  request.set_digest(crypto::Hash(inquiry.SerializeAsString()));
-  request.mutable_packed_msg()->set_msg(inquiry.SerializeAsString());
-  request.mutable_packed_msg()->set_type(inquiry.GetTypeName());
+  request.set_digest(crypto::Hash(sql_rpc.SerializeAsString()));
+  request.mutable_packed_msg()->set_msg(sql_rpc.SerializeAsString());
+  request.mutable_packed_msg()->set_type(sql_rpc.GetTypeName());
 
 
   Debug("Sending Query id: %lu", reqId);
 
   transport->SendMessageToGroup(this, group_idx, request);
 
-  PendingInquiry pi;
-  pi.icb = icb;
-  pi.status = REPLY_FAIL;
-  pi.numReceivedReplies = 0;
-  pi.leaderReply = "";
-  // pi.maxTs = Timestamp();
-  pi.timeout = new Timeout(transport, timeout, [this, reqId, itcb]() {
+  PendingSQL_RPC psr;
+  psr.srcb = srcb;
+  psr.status = REPLY_FAIL;
+  psr.numReceivedReplies = 0;
+  psr.leaderReply = "";
+  psr.timeout = new Timeout(transport, timeout, [this, reqId, srtcb]() {
     Debug("Query timeout called (but nothing was done)");
       stats->Increment("q_tout", 1);
       fprintf(stderr,"q_tout recv %lu\n",  (uint64_t) config.f + 1);
   });
-  pi.timeout->Start();
+  psr.timeout->Start();
 
-  pendingInquiries[reqId] = pi;
+  pendingSQL_RPCs[reqId] = psr;
 
 }
 
 void ShardClient::Commit(const std::string& txn_digest, const Timestamp &ts, uint64_t client_id, int client_seq_num, 
-  apply_callback acb, apply_timeout_callback atcb, uint32_t timeout) {
+  try_commit_callback tccb, try_commit_timeout_callback tctcb, uint32_t timeout) {
 
 
   Debug("Shir: shardClient trying to commit the txn");
-  proto::Apply apply;
+  proto::TryCommit try_commit;
 
-  uint64_t reqId = applyReq++;
+  uint64_t reqId = tryCommitReq++;
   Debug("Commit id: %lu", reqId);
 
-  apply.set_req_id(reqId);
-  apply.set_client_id(client_id);
-  apply.set_txn_seq_num(client_seq_num);
-  ts.serialize(apply.mutable_timestamp());
+  try_commit.set_req_id(reqId);
+  try_commit.set_client_id(client_id);
+  try_commit.set_txn_seq_num(client_seq_num);
+  ts.serialize(try_commit.mutable_timestamp());
   Debug("Shir: a");
 
   proto::Request request;
   request.set_digest(txn_digest);
   Debug("Shir: b");
 
-  request.mutable_packed_msg()->set_msg(apply.SerializeAsString());
-  request.mutable_packed_msg()->set_type(apply.GetTypeName());
+  request.mutable_packed_msg()->set_msg(try_commit.SerializeAsString());
+  request.mutable_packed_msg()->set_type(try_commit.GetTypeName());
   
 
   Debug("Shir: now going to send a message in order to do that");
   transport->SendMessageToGroup(this, group_idx, request);
 
   Debug("Shir: trying to send the following message:");
-  std::cerr<< "To group:   "<<group_idx<<"   Send the request:  "<<apply.GetTypeName() <<"\n";
+  std::cerr<< "To group:   "<<group_idx<<"   Send the request:  "<<try_commit.GetTypeName() <<"\n";
 
-  PendingApply pa;
-  pa.acb = acb;
-  pa.timeout = new Timeout(transport, timeout, [this, reqId, atcb](){
+  PendingTryCommit ptc;
+  ptc.tccb = tccb;
+  ptc.timeout = new Timeout(transport, timeout, [this, reqId, tctcb](){
     Debug("Commit timeout called (but nothing was done)");
       stats->Increment("c_tout", 1);
       fprintf(stderr,"c_tout recv %lu\n",  (uint64_t) config.f + 1);
   });
-  pa.timeout->Start();
+  ptc.timeout->Start();
 
-  pendingApplies[reqId] = pa;
+  pendingTryCommits[reqId] = ptc;
 }
 
 void ShardClient::Abort(const std::string& txn_digest,  uint64_t client_id, int client_seq_num) {
 
-  proto::Rollback rollback;
+  proto::UserAbort user_abort;
 
   Debug("Abort Triggered");
 
-  rollback.set_client_id(client_id);
-  rollback.set_txn_seq_num(client_seq_num);
+  user_abort.set_client_id(client_id);
+  user_abort.set_txn_seq_num(client_seq_num);
 
   proto::Request request;
   request.set_digest(txn_digest);
-  request.mutable_packed_msg()->set_msg(rollback.SerializeAsString());
-  request.mutable_packed_msg()->set_type(rollback.GetTypeName());
+  request.mutable_packed_msg()->set_msg(user_abort.SerializeAsString());
+  request.mutable_packed_msg()->set_type(user_abort.GetTypeName());
 
   transport->SendMessageToGroup(this, group_idx, request);
 }

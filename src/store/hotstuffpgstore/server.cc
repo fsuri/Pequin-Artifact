@@ -82,32 +82,10 @@ Server::Server(const transport::Configuration& config, KeyManager *keyManager,
 
   connectionPool = tao::pq::connection_pool::create(connection_str);
 
-
-
-  // auto connection = connectionPool->connection();
-  // std::shared_ptr<tao::pq::transaction> tr;
-  // tr = connection->transaction();
-  // try {
-  //   auto res = tr->execute("INSERT INTO users (name, age) VALUES ($1, $2)", "Oliver3", 27);
-  //   Debug("Has rows affected: %d", res.has_rows_affected());
-  //   auto res2 = tr->execute("INSERT INTO users (name, age) VALUES ('Oliver4', 28)");
-  //   Debug("Has rows affected: %d", res2.has_rows_affected());
-  //   tr->commit();
-  //   Debug("test insert done!");
-  // } catch(tao::pq::sql_error e) {
-  //   Debug("test insert fail!");
-  //   Debug(e.what());
-  // }
-
   Debug("PostgreSQL client created!", idx);
 }
 
-Server::~Server() {
-  // Stopping the postgres cluster
-  // version and cluster name should match the ones in Pequin-Artifact/pg_setup/postgres_service.sh script
-  // const char* command = "sudo pg_ctlcluster 12 pgdata stop";
-  // system(command);
-}
+Server::~Server() {}
 
 
 ::google::protobuf::Message* Server::returnMessage(::google::protobuf::Message* msg) {
@@ -129,29 +107,27 @@ std::vector<::google::protobuf::Message*> Server::Execute(const string& type, co
   Debug("Execute: %s", type.c_str());
   //std::unique_lock lock(atomicMutex);
 
-  proto::Transaction transaction;
-  proto::Inquiry inquiry;
-  proto::GroupedDecision gdecision;
-  proto::Apply apply;
-  proto::Rollback rollback;
-  if (type == inquiry.GetTypeName()) {
-    Debug("Shir: executing inquiry here");
+  proto::SQL_RPC sql_rpc;
+  proto::TryCommit try_commit;
+  proto::UserAbort user_abort;
+  if (type == sql_rpc.GetTypeName()) {
+    Debug("Shir: executing SQL_RPC here");
 
-    inquiry.ParseFromString(msg);
+    sql_rpc.ParseFromString(msg);
     std::vector<::google::protobuf::Message*> results;
-    results.push_back(HandleInquiry(inquiry));
+    results.push_back(HandleSQL_RPC(sql_rpc));
     return results;
-  } else if (type == apply.GetTypeName()) {
-    Debug("Shir: executing commit (apply) here");
+  } else if (type == try_commit.GetTypeName()) {
+    Debug("Shir: executing commit (tryCommit) here");
 
-    apply.ParseFromString(msg);
+    try_commit.ParseFromString(msg);
     std::vector<::google::protobuf::Message*> results;
-    results.push_back(HandleApply(apply));
+    results.push_back(HandleTryCommit(try_commit));
     return results;
-  } else if (type == rollback.GetTypeName()) {
-    rollback.ParseFromString(msg);
+  } else if (type == user_abort.GetTypeName()) {
+    user_abort.ParseFromString(msg);
     std::vector<::google::protobuf::Message*> results;
-    results.push_back(HandleRollback(rollback));
+    results.push_back(HandleUserAbort(user_abort));
     return results;
   }
   std::vector<::google::protobuf::Message*> results;
@@ -162,19 +138,19 @@ std::vector<::google::protobuf::Message*> Server::Execute(const string& type, co
 void Server::Execute_Callback(const string& type, const string& msg, const execute_callback ecb) {
   Debug("Execute with callback: %s", type.c_str());
 
-  proto::Inquiry inquiry;
-  proto::Apply apply;
-  proto::Rollback rollback;
+  proto::SQL_RPC sql_rpc;
+  proto::TryCommit try_commit;
+  proto::UserAbort user_abort;
   std::vector<::google::protobuf::Message*> results;
-  if (type == inquiry.GetTypeName()) {
-    inquiry.ParseFromString(msg);
-    results.push_back(HandleInquiry(inquiry));
-  } else if (type == apply.GetTypeName()) {
-    apply.ParseFromString(msg);
-    results.push_back(HandleApply(apply));
-  } else if (type == rollback.GetTypeName()) {
-    rollback.ParseFromString(msg);
-    results.push_back(HandleRollback(rollback));
+  if (type == sql_rpc.GetTypeName()) {
+    sql_rpc.ParseFromString(msg);
+    results.push_back(HandleSQL_RPC(sql_rpc));
+  } else if (type == try_commit.GetTypeName()) {
+    try_commit.ParseFromString(msg);
+    results.push_back(HandleTryCommit(try_commit));
+  } else if (type == user_abort.GetTypeName()) {
+    user_abort.ParseFromString(msg);
+    results.push_back(HandleUserAbort(user_abort));
   } else{
     results.push_back(nullptr);
     Panic("Only failed grouped decisions should be atomically broadcast");
@@ -182,31 +158,21 @@ void Server::Execute_Callback(const string& type, const string& msg, const execu
   ecb(results);
 }
 
-::google::protobuf::Message* Server::HandleInquiry(const proto::Inquiry& inquiry) {
-  Debug("Handling Inquiry");
-  proto::InquiryReply* reply = new proto::InquiryReply();
-  reply->set_req_id(inquiry.req_id());
+::google::protobuf::Message* Server::HandleSQL_RPC(const proto::SQL_RPC& sql_rpc) {
+  Debug("Handling SQL_RPC");
+  proto::SQL_RPCReply* reply = new proto::SQL_RPCReply();
+  reply->set_req_id(sql_rpc.req_id());
 
   std::shared_ptr<tao::pq::transaction> tr;
   std::string client_seq_key;
-  client_seq_key.append(std::to_string(inquiry.client_id()));
+  client_seq_key.append(std::to_string(sql_rpc.client_id()));
   client_seq_key.append("|");
-  client_seq_key.append(std::to_string(inquiry.txn_seq_num()));
-
-  std::cerr << "Shir:  "<< client_seq_key << "\n";
-  // client_seq_key prints 0|1
-  Debug("Shir is now handling Inquiry 1");
+  client_seq_key.append(std::to_string(sql_rpc.txn_seq_num()));
 
   if(txnMap.find(client_seq_key) == txnMap.end()) {
-    // Debug("Shir is now handling Inquiry 2");
 
     auto connection = connectionPool->connection();
-
-    // Debug("Shir is now handling Inquiry 2.1");
-
     tr = connection->transaction();
-
-    // Debug("Shir is now handling Inquiry 2.2");
 
     connectionMap[client_seq_key] = connection;
     txnMap[client_seq_key] = tr;
@@ -218,15 +184,12 @@ void Server::Execute_Callback(const string& type, const string& msg, const execu
     std::cout << client_seq_key << std::endl;
   }
 
-  // Debug("Shir is now handling Inquiry 3");
-
   try {
-    Debug("Attempt query %s", inquiry.query());
-    std::cout << inquiry.query() << std::endl;
+    Debug("Attempt query %s", sql_rpc.query());
+    std::cout << sql_rpc.query() << std::endl;
 
-    const auto sql_res = tr->execute(inquiry.query());
-    // tr->commit(); // Shir: do we want to commit here?
-    std::cerr<< "Shir: number of rows affected (according to server):   "<<sql_res.rows_affected() <<"\n";
+    const auto sql_res = tr->execute(sql_rpc.query());
+    // std::cerr<< "Shir: number of rows affected (according to server):   "<<sql_res.rows_affected() <<"\n";
 
 
     Debug("Query executed");
@@ -234,7 +197,6 @@ void Server::Execute_Callback(const string& type, const string& msg, const execu
     // Should extrapolate out into builder method
     // Start by looping over columns and adding column names
 
-  // Debug("Shir is now handling Inquiry 4");
 
     res_builder->set_rows_affected(sql_res.rows_affected());
     if(sql_res.columns() == 0) {
@@ -263,9 +225,6 @@ void Server::Execute_Callback(const string& type, const string& msg, const execu
       }
     }
 
-  // Debug("Shir is now handling Inquiry 5");
-
-
     reply->set_status(REPLY_OK);
     // std::string* res_string;
     // res_builder->get_result()->SerializeToString(res_string);
@@ -278,27 +237,27 @@ void Server::Execute_Callback(const string& type, const string& msg, const execu
   return returnMessage(reply);
 }
 
-::google::protobuf::Message* Server::HandleApply(const proto::Apply& apply) {
-  Debug("Applying(commiting) a txn");
-  proto::ApplyReply* reply = new proto::ApplyReply();
-  reply->set_req_id(apply.req_id());
+::google::protobuf::Message* Server::HandleTryCommit(const proto::TryCommit& try_commit) {
+  Debug("Trying to commit a txn");
+  proto::TryCommitReply* reply = new proto::TryCommitReply();
+  reply->set_req_id(try_commit.req_id());
 
   std::shared_ptr<tao::pq::transaction> tr;
   std::string client_seq_key;
-  client_seq_key.append(std::to_string(apply.client_id()));
+  client_seq_key.append(std::to_string(try_commit.client_id()));
   client_seq_key.append("|");
-  client_seq_key.append(std::to_string(apply.txn_seq_num()));
+  client_seq_key.append(std::to_string(try_commit.txn_seq_num()));
 
   if(txnMap.find(client_seq_key) == txnMap.end()) {
     auto connection = connectionPool->connection();
     tr = connection->transaction();
     connectionMap[client_seq_key] = connection;
     txnMap[client_seq_key] = tr;
-    Debug("Apply key: %s", client_seq_key);
+    Debug("TryCommit key: %s", client_seq_key);
     std::cout << client_seq_key << std::endl;
   } else {
     tr = txnMap[client_seq_key];
-    Debug("Apply key already in(should be): %s", client_seq_key);
+    Debug("TryCommit key already in(should be): %s", client_seq_key);
     std::cout << client_seq_key << std::endl;
   }
 
@@ -307,7 +266,7 @@ void Server::Execute_Callback(const string& type, const string& msg, const execu
     txnMap.erase(client_seq_key);
     connectionMap.erase(client_seq_key);
     reply->set_status(REPLY_OK);
-    Debug("Apply went through successfully");
+    Debug("TryCommit went through successfully");
   } catch(tao::pq::sql_error e) {
     reply->set_status(REPLY_FAIL);
   }
@@ -315,13 +274,13 @@ void Server::Execute_Callback(const string& type, const string& msg, const execu
   return returnMessage(reply);
 }
 
-::google::protobuf::Message* Server::HandleRollback(const proto::Rollback& rollback) {
+::google::protobuf::Message* Server::HandleUserAbort(const proto::UserAbort& user_abort) {
 
   std::shared_ptr<tao::pq::transaction> tr;
   std::string client_seq_key;
-  client_seq_key.append(std::to_string(rollback.client_id()));
+  client_seq_key.append(std::to_string(user_abort.client_id()));
   client_seq_key.append("|");
-  client_seq_key.append(std::to_string(rollback.txn_seq_num()));
+  client_seq_key.append(std::to_string(user_abort.txn_seq_num()));
 
   if(txnMap.find(client_seq_key) == txnMap.end()) {
     return nullptr;

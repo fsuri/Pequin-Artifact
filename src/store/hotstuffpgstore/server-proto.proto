@@ -6,13 +6,7 @@ import "store/hotstuffpgstore/pbft-proto.proto";
 
 package hotstuffpgstore.proto;
 
-message Read {
-  required uint64 req_id = 1;
-  required bytes key = 2;
-  required TimestampMessage timestamp = 3;
-}
-
-message Inquiry {
+message SQL_RPC {
   required uint64 req_id = 1;
   required bytes query = 2;
   required TimestampMessage timestamp = 3;
@@ -20,14 +14,14 @@ message Inquiry {
   required uint64 txn_seq_num = 5;
 }
 
-message Apply {
+message TryCommit {
   required uint64 req_id = 1;
   required TimestampMessage timestamp = 2;
   required uint64 client_id = 3;
   required uint64 txn_seq_num = 4;
 }
 
-message Rollback {
+message UserAbort {
   required uint64 client_id = 1;
   required uint64 txn_seq_num = 2;
 }
@@ -42,24 +36,13 @@ message CommitProof {
   required Transaction txn = 2;
 }
 
-message ReadReply {
-  required uint64 req_id = 1;
-  required int32 status = 2;
-  required bytes key = 3;
-  optional bytes value = 4;
-  // this is the timestamp at which the returned value was assigned to the key
-  optional TimestampMessage value_timestamp = 5;
-  // if validating reads, include a commit proof
-  optional CommitProof commit_proof = 6;
-}
-
-message InquiryReply {
+message SQL_RPCReply {
   required uint64 req_id = 1;
   required int32 status = 2;
   optional bytes sql_res = 3;
 }
 
-message ApplyReply {
+message TryCommitReply {
   required uint64 req_id = 1;
   required int32 status = 2;
 }
@@ -73,6 +56,14 @@ message Transaction {
   repeated uint64 participating_shards = 5;
 }
 
+message ShardSignedDecisions {
+  // Map from shard id to the shard decsion along with f+1 signatures for that decision
+  map<uint64, GroupedSignedMessage> grouped_decisions = 1;
+}
+
+
+// Possibly remove all from here down (after removing them from the used structs above):
+
 // This is the reply that a shard sends to the client after it finished its
 // CCC
 message TransactionDecision {
@@ -82,11 +73,6 @@ message TransactionDecision {
   required bytes txn_digest = 2;
   // the id of the shard that sent the request
   required uint64 shard_id = 3;
-}
-
-message ShardSignedDecisions {
-  // Map from shard id to the shard decsion along with f+1 signatures for that decision
-  map<uint64, GroupedSignedMessage> grouped_decisions = 1;
 }
 
 message ShardDecisions {
@@ -108,11 +94,3 @@ message GroupedDecision {
   required uint64 client_id = 5;
   required uint64 txn_seq_num = 6;
 }
-
-// shards can acknowledge the writeback proof
-message GroupedDecisionAck {
-  required int32 status = 1;
-  required bytes txn_digest = 2;
-}
-
-

@@ -121,11 +121,11 @@ private:
 
   std::string GenerateLoadStatement(const std::string &table_name, const std::vector<std::vector<std::string>> &row_segment, int segment_no);
 
-  ::google::protobuf::Message* HandleInquiry(const proto::Inquiry& inquiry);
+  ::google::protobuf::Message* HandleSQL_RPC(const proto::SQL_RPC& sql_rpc);
 
-  ::google::protobuf::Message* HandleApply(const proto::Apply& apply);
+  ::google::protobuf::Message* HandleTryCommit(const proto::TryCommit& try_commit);
 
-  ::google::protobuf::Message* HandleRollback(const proto::Rollback& rollback);
+  ::google::protobuf::Message* HandleUserAbort(const proto::UserAbort& user_abort);
 
   ::google::protobuf::Message* returnMessage(::google::protobuf::Message* msg);
 

@@ -49,14 +49,14 @@ namespace hotstuffpgstore {
 
 // status, key, value
 
-typedef std::function<void(int, const std::string&)> inquiry_callback;
-typedef std::function<void(int)> inquiry_timeout_callback;
+typedef std::function<void(int, const std::string&)> sql_rpc_callback;
+typedef std::function<void(int)> sql_rpc_timeout_callback;
 
-typedef std::function<void(int)> apply_callback;
-typedef std::function<void()> apply_timeout_callback;
+typedef std::function<void(int)> try_commit_callback;
+typedef std::function<void()> try_commit_timeout_callback;
 
-typedef std::function<void(int)> rollback_callback;
-typedef std::function<void()> rollback_timeout_callback;
+typedef std::function<void(int)> user_abort_callback;
+typedef std::function<void()> user_abort_timeout_callback;
 
 class ShardClient : public TransportReceiver {
  public:
@@ -73,10 +73,10 @@ class ShardClient : public TransportReceiver {
       void *meta_data);
 
   void Query(const std::string &query,  const Timestamp &ts, uint64_t client_id, int client_seq_num, 
-      inquiry_callback icb, inquiry_timeout_callback itcb,  uint32_t timeout);
+      sql_rpc_callback srcb, sql_rpc_timeout_callback srtcb,  uint32_t timeout);
 
   void Commit(const std::string& txn_digest, const Timestamp &ts, uint64_t client_id, int client_seq_num, 
-      apply_callback acb, apply_timeout_callback atcb, uint32_t timeout);
+      try_commit_callback tccb, try_commit_timeout_callback tctcb, uint32_t timeout);
 
   void Abort(const std::string& txn_digest, uint64_t client_id, int client_seq_num);
 
@@ -103,8 +103,8 @@ class ShardClient : public TransportReceiver {
   bool validate_abort = false;
 
   uint64_t readReq;
-  uint64_t inquiryReq;
-  uint64_t applyReq;
+  uint64_t SQL_RPCReq;
+  uint64_t tryCommitReq;
   std::vector<int> closestReplicas;
   inline size_t GetNthClosestReplica(size_t idx) const {
     return closestReplicas[idx];
@@ -126,7 +126,7 @@ class ShardClient : public TransportReceiver {
     Timeout* timeout;
   };
 
-  struct PendingInquiry {
+  struct PendingSQL_RPC {
     // the set of ids that we have received a read reply for
     std::unordered_map<std::string, std::unordered_set<uint64_t>> receivedReplies;
     std::unordered_set<uint64_t> receivedSuccesses;
@@ -137,13 +137,13 @@ class ShardClient : public TransportReceiver {
     // the current status of the reply (default to fail)
     uint64_t status;
 
-    inquiry_callback icb;
+    sql_rpc_callback srcb;
     uint64_t numReceivedReplies;
 
     Timeout* timeout;
   };
   
-  struct PendingApply {
+  struct PendingTryCommit {
     // the set of ids that we have received a read reply for
     std::unordered_set<uint64_t> receivedAcks;
     std::unordered_set<uint64_t> receivedFails;
@@ -152,20 +152,20 @@ class ShardClient : public TransportReceiver {
     // the current status of the reply (default to fail)
     uint64_t status;
 
-    apply_callback acb;
+    try_commit_callback tccb;
 
     Timeout* timeout;
   };
 
-  void HandleInquiryReply(const proto::InquiryReply& reply, const proto::SignedMessage& signedMsg);
-  void InquiryReplyHelper(PendingInquiry* pendingInquiry, const std::string inquiryReply, 
+  void HandleSQL_RPCReply(const proto::SQL_RPCReply& reply, const proto::SignedMessage& signedMsg);
+  void SQL_RPCReplyHelper(PendingSQL_RPC* PendingSQL_RPC, const std::string sql_rpcReply, 
     uint64_t reqId, uint64_t status);
 
-  void HandleApplyReply(const proto::ApplyReply& reply, const proto::SignedMessage& signedMsg);
+  void HandleTryCommitReply(const proto::TryCommitReply& reply, const proto::SignedMessage& signedMsg);
 
   // req id to (read)
-  std::unordered_map<uint64_t, PendingInquiry> pendingInquiries;
-  std::unordered_map<uint64_t, PendingApply> pendingApplies;
+  std::unordered_map<uint64_t, PendingSQL_RPC> pendingSQL_RPCs;
+  std::unordered_map<uint64_t, PendingTryCommit> pendingTryCommits;
 
   Stats* stats;
 };
