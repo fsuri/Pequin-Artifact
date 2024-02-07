@@ -98,55 +98,14 @@ void Client::Begin(begin_callback bcb, begin_timeout_callback btcb, uint32_t tim
   });
 }
 
-void Client::Get(const std::string &key, get_callback gcb,
-    get_timeout_callback gtcb, uint32_t timeout) {
-  transport->Timer(0, [this, key, gcb, gtcb, timeout]() {
-    Debug("GET [%s]", key.c_str());
-
-    // Contact the appropriate shard to get the value.
-    std::vector<int> txnGroups;
-    int i = (*part)(key, nshards, -1, txnGroups) % ngroups;
-
-    // If needed, add this shard to set of participants and send BEGIN.
-    if (!IsParticipant(i)) {
-      currentTxn.add_participating_shards(i);
-    }
-
-    read_callback rcb = [gcb, this](int status, const std::string &key,
-        const std::string &val, const Timestamp &ts) {
-      if (status == REPLY_OK) {
-        ReadMessage *read = currentTxn.add_readset();
-        read->set_key(key);
-        ts.serialize(read->mutable_readtime());
-      }
-      gcb(status, key, val, ts);
-    };
-    read_timeout_callback rtcb = gtcb;
-
-    // Send the GET operation to appropriate shard.
-    bclient[i]->Get(key, currentTxn.timestamp(), readMessages, readQuorumSize, rcb,
-        rtcb, timeout);
-  });
+// TODO: consider invoke SQLRequest with the given parameters and a default db
+void Client::Get(const std::string &key, get_callback gcb, get_timeout_callback gtcb, uint32_t timeout) {
+  Panic("Client GET is not supported.");
 }
 
-void Client::Put(const std::string &key, const std::string &value,
-    put_callback pcb, put_timeout_callback ptcb, uint32_t timeout) {
-  transport->Timer(0, [this, key, value, pcb, ptcb, timeout]() {
-    // Contact the appropriate shard to set the value.
-    std::vector<int> txnGroups;
-    int i = (*part)(key, nshards, -1, txnGroups) % ngroups;
-
-    // If needed, add this shard to set of participants and send BEGIN.
-    if (!IsParticipant(i)) {
-      currentTxn.add_participating_shards(i);
-    }
-
-    WriteMessage *write = currentTxn.add_writeset();
-    write->set_key(key);
-    write->set_value(value);
-    // Buffering, so no need to wait.
-    pcb(REPLY_OK, key, value);
-  });
+// TODO: consider invoke SQLRequest with the given parameters and a default db
+void Client::Put(const std::string &key, const std::string &value, put_callback pcb, put_timeout_callback ptcb, uint32_t timeout) {
+  Panic("Client PUT is not supported.");
 }
 
 void Client::Commit(commit_callback ccb, commit_timeout_callback ctcb, uint32_t timeout) {
@@ -211,8 +170,6 @@ void Client::Query(const std::string &query, query_callback qcb, query_timeout_c
     Debug("Processing Query Statement: %s", query.c_str());
     std::string non_const_query = query;
     this->SQLRequest(non_const_query,qcb,qtcb,timeout);
-    // Query(write_statement,wcb,wtcb,timeout,false);
-    // Shir: check that non_const thing is fine
 }
 
 

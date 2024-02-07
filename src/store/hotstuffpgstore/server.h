@@ -61,11 +61,8 @@ public:
   std::vector<::google::protobuf::Message*> Execute(const std::string& type, const std::string& msg);
   void Execute_Callback(const std::string& type, const std::string& msg, const execute_callback ecb);
 
-  ::google::protobuf::Message* HandleMessage(const std::string& type, const std::string& msg);
-
   void Load(const std::string &key, const std::string &value,
       const Timestamp timestamp);
-
 
   virtual void CreateTable(const std::string &table_name, const std::vector<std::pair<std::string, std::string>> &column_data_types, 
       const std::vector<uint32_t> &primary_key_col_idx) override;
@@ -88,7 +85,6 @@ public:
 
 private:
   std::shared_ptr<tao::pq::connection_pool> connectionPool;
-  // std::shared_ptr<tao::pq::connection> connection;
   std::map<std::string, std::shared_ptr< tao::pq::transaction >> txnMap;
   std::map<std::string, std::shared_ptr< tao::pq::connection >> connectionMap;
   Transport* tp;
@@ -125,42 +121,13 @@ private:
 
   std::string GenerateLoadStatement(const std::string &table_name, const std::vector<std::vector<std::string>> &row_segment, int segment_no);
 
-  std::vector<::google::protobuf::Message*> HandleTransaction(const proto::Transaction& transaction);
-
   ::google::protobuf::Message* HandleInquiry(const proto::Inquiry& inquiry);
 
   ::google::protobuf::Message* HandleApply(const proto::Apply& apply);
 
   ::google::protobuf::Message* HandleRollback(const proto::Rollback& rollback);
 
-  ::google::protobuf::Message* HandleRead(const proto::Read& read);
-
-  ::google::protobuf::Message* HandleGroupedCommitDecision(const proto::GroupedDecision& gdecision);
-
-  ::google::protobuf::Message* HandleGroupedAbortDecision(const proto::GroupedDecision& gdecision);
-
   ::google::protobuf::Message* returnMessage(::google::protobuf::Message* msg);
-
-  // map from tx digest to transaction
-  std::unordered_map<std::string, proto::Transaction> pendingTransactions;
-  // map from key to ordered map of prepared tx timestamps to read timestamps
-  std::unordered_map<std::string, std::map<Timestamp, Timestamp>> preparedReads;
-  // map from key to ordered set of prepared transaction timestamps that write the key
-  std::unordered_map<std::string, std::set<Timestamp>> preparedWrites;
-
-  // map from key to ordered map of committed timestamps to read timestamp
-  // so if a transaction with timestamp 5 reads version 3 of key A, we have A -> 5 -> 3
-  // we wont have key collisions for the map because there each transaction has at
-  // most 1 read for a key
-  std::unordered_map<std::string, std::map<Timestamp, Timestamp>> committedReads;
-
-  bool CCC(const proto::Transaction& txn);
-  bool CCC2(const proto::Transaction& txn);
-
-  void cleanupPendingTx(std::string digest);
-
-  std::unordered_map<std::string, proto::GroupedDecision> bufferedGDecs;
-  std::unordered_set<std::string> abortedTxs;
 
   // return true if this key is owned by this shard
   inline bool IsKeyOwned(const std::string &key) const {

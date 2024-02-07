@@ -134,7 +134,6 @@ void Replica::handleMessage(const TransportAddress &remote, const string &type, 
     transport->DispatchTP_noCB(f);
 }
 
-
 void Replica::HandleRequest(const TransportAddress &remote,
                                const proto::Request &request) {
   Debug("Handling request message");
@@ -253,7 +252,6 @@ void Replica::HandleRequest(const TransportAddress &remote,
   }
 }
 
-
 void Replica::executeSlots() {
   Debug("Shir: trying to execute new slots");
   Debug("exec seq num: %lu", execSeqNum);
@@ -350,9 +348,6 @@ void Replica::executeSlots() {
   Debug("Out of while");
 
 }
-
-
-
 
 void Replica::sendEbatch(){
   auto f = [this, EpendingBatchedMessages_ = EpendingBatchedMessages,
