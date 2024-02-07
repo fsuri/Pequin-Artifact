@@ -48,7 +48,8 @@ transaction_status_t SQLUpdateReservation::Execute(SyncClient &client) {
     client.Query(query,  timeout);
 
     // (2) Check that Customer already has a Seat (CheckCustomer)
-    query = fmt::format("SELECT r_id FROM {} WHERE r_f_id = {} AND r_c_id = {}", RESERVATION_TABLE, f_id, c_id);
+    //query = fmt::format("SELECT r_id FROM {} WHERE r_f_id = {} AND r_c_id = {}", RESERVATION_TABLE, f_id, c_id);
+    query = fmt::format("SELECT * FROM {} WHERE r_id = {} AND r_c_id = {} AND r_f_id = {}", RESERVATION_TABLE, r_id, c_id, f_id); //Do point lookup for caching
     client.Query(query, timeout);
 
     client.Wait(results); //execute the two reads in parallel

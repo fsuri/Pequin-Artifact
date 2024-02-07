@@ -7,17 +7,40 @@ namespace seats_sql {
 
 const int MAX_NUM_FLIGHTS = 10;
 
-SQLFindFlights::SQLFindFlights(uint32_t timeout, std::mt19937 &gen) :
+SQLFindFlights::SQLFindFlights(uint32_t timeout, std::mt19937 &gen, std::vector<CachedFlight> &cached_flight_ids) :
     SEATSSQLTransaction(timeout)
     {
         //TODO: Implement FindRandomAirport ID vs getRandomFlightId (pick random flight from cached flights)
         //TODO implement cached_flight_ids.  
         //If we get a result > 1, try to cache the flights found.
                     //Load some initially too. (LoadProfile) (Load flights from the CSV, up to a cache limit flight ids)
-        depart_aid = std::uniform_int_distribution<int64_t>(1, NUM_AIRPORTS)(gen);
-        arrive_aid = std::uniform_int_distribution<int64_t>(1, NUM_AIRPORTS)(gen);
-        start_time = std::uniform_int_distribution<std::time_t>(MIN_TS, MAX_TS)(gen); //FIXME: Should be random upcoming Date? See SEATSProfile (Currently makes sense given Loaded flights)
-        end_time = start_time, MAX_TS + MS_IN_DAY * 2; //up to 2 days from start_time.
+    
+        if (std::uniform_int_distribution<int>(1, 100)(gen) < PROB_FIND_FLIGHTS_RANDOM_AIRPORTS || cached_flight_ids.empty()) {
+            //Select two random airport ids. 
+            //Note: They might not actually fly to each other. In that case the query will return no flights.
+            depart_aid = std::uniform_int_distribution<int64_t>(1, NUM_AIRPORTS)(gen);
+            arrive_aid = std::uniform_int_distribution<int64_t>(1, NUM_AIRPORTS)(gen);
+            start_time = std::uniform_int_distribution<std::time_t>(MIN_TS, MAX_TS)(gen); //FIXME: Should be random upcoming Date? See SEATSProfile (Currently makes sense given Loaded flights)
+            start_time = start_time - (start_time % seats_sql::MS_IN_DAY); //normalize to start of day
+            end_time = start_time + MS_IN_DAY * 2; //up to 2 days from start_time.
+        }
+        else{
+            //Use an existing flight to guarantee to get back results.
+            //TODO: Client needs to load existing flights. And then pick random flight id.
+            //from the flight, we extract depart and arrive airport_id
+           
+            int64_t flight_index = std::uniform_int_distribution<int64_t>(1, cached_flight_ids.size())(gen) - 1;
+            CachedFlight &flight = cached_flight_ids[flight_index];
+            depart_aid = flight.depart_ap_id;
+            arrive_aid = flight.arrive_ap_id;
+            uint64_t range = seats_sql::MS_IN_DAY / 2;
+            start_time = flight.depart_time - range; //(flight.depart_time % seats_sql::MS_IN_DAY); //normalize to start of day
+            end_time = start_time + range; 
+
+            fprintf(stderr, "Select Flight From Cache. dep_ap: %d, arrive_ap: %d. Dep_time %lu. Sanity f_id: %lu\n", depart_aid, arrive_aid, start_time, flight.flight_id);
+
+        }
+       
         if (std::uniform_int_distribution<int>(1, 100)(gen) < PROB_FIND_FLIGHTS_NEARBY_AIRPORT) {
             distance = NEAR_DISTANCES[std::uniform_int_distribution<int>(0, NEAR_DISTANCES.size()-1)(gen)];
         } else {
@@ -93,6 +116,7 @@ transaction_status_t SQLFindFlights::Execute(SyncClient &client) {
     }
     //Collect all info (FIFO)
     client.Wait(results);
+   
     for(auto &queryResultAirportInfo: results){
         GetAirportInfoResultRow ai_row;
         deserialize(ai_row, queryResultAirportInfo, 0);

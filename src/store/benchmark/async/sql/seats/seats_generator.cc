@@ -11,181 +11,11 @@
 #include <queue>
 #include <unordered_set>
 
+#include "seats_util.h"
+
 DEFINE_int32(max_airports, -1, "number of airports (-1 == uncapped)");
 DEFINE_int32(k_nearest_airports, 10, "number of distances stored (nearest k)");
 
-
-const char* FLIGHTS_AIRPORT_HISTO_FN = "./resources/histogram_flights_per_airport.json";
-const char* FLIGHTS_TIME_HISTO_FN = "./resources/histogram_flights_per_time.json";
-const char* AIRLINE_SEATS_TABLE = "./resources/table_airline_seats.csv";
-const char* AIRPORT_SEATS_TABLE = "./resources/table_airport_seats.csv";
-const char* COUNTRY_SEATS_TABLE = "./resources/table_country_seats.csv";
-
-
-void skipCSVHeader(std::ifstream& iostr){
-  //Skip header
-  std::string columns;
-  getline(iostr, columns); 
-}
-std::vector<std::string> readCSVRow(std::ifstream& iostr) {
-  std::vector<std::string> res;
-
-  std::string line; 
-  std::getline(iostr, line);
-  std::stringstream lineStream(line);
-  std::string cell; 
-
-  //std::cerr << std::endl << line << std::endl;
-  std::string combination_cell = "";
-
-  //TODO: Do not parse on entries that are of form "dallas, Texas". Those should be treated as one cell.
-        //TODO: If split cell, but cell has only open quotes, then it must be part of a second word. Don't push back cell, until we get next cell, and then combine them...
-      //Alternatively: Edit CSV to remove all such entries.
-
-  while (std::getline(lineStream, cell, ',')) {
-    // if (cell[0] == '"') cell = cell.substr(1);
-    // if (cell[cell.size() - 1] == '"') cell = cell.substr(0, cell.size() - 1);
-    bool add_to_res = true;
-    if(cell.empty()){} //do nothing
-    else if(cell[0] == '"' && cell[cell.size() - 1] != '"'){
-      add_to_res = false;
-    }
-    else if(cell[0] != '"' && cell[cell.size() - 1] == '"'){
-      cell = combination_cell + ";" + cell;
-      combination_cell = "";
-      //std::cerr << "combined: " << cell << std::endl;
-    }
-
-    //std::cerr << "cell before erase: " << cell << std::endl;
-    cell.erase(std::remove(cell.begin(), cell.end(), '\"' ),cell.end()); //remove enclosing quotes
-    cell.erase(std::remove(cell.begin(), cell.end(), '\'' ),cell.end()); //remove any internal single quotes (TODO: if one wants them, then they must be doubled)
-    //std::cerr << "cell after erase: " << cell << std::endl;
-
-    if(add_to_res) res.push_back(cell);
-    else{
-      combination_cell += cell;
-     // std::cerr << "first part: " << combination_cell << std::endl;
-    }
-  }
-
-  return res;
-}
-
-using histogram = std::vector<std::pair<std::string, int>>;
-
-histogram createFPAHistogram(std::ifstream& iostr) {
-  std::vector<std::pair<std::string, int>> res; 
-  std::string line; 
-  // skip first few lines that aren't relevant data
-  for (int i = 0; i < 4; i++) 
-    std::getline(iostr, line); 
-
-  std::stringstream lineStream(line);
-  std::string cell; 
-  
-  while (std::getline(lineStream, cell, ':')) {
-    std::string key = cell; 
-    std::getline(lineStream, cell, ',');
-    std::string val = cell; 
-    int v = stoi(val);
-    if (!res.empty())
-      v = stoi(val) + res.back().second;
-    
-    res.push_back(std::make_pair(key, v));
-
-    // grab next line
-    std::getline(iostr, line); 
-    lineStream.str(line);
-  }
-  return res; 
-}
-
-histogram createFPTHistogram(std::ifstream& iostr) {
-    std::vector<std::pair<std::string, int>> res; 
-  std::string line; 
-  // skip first few lines that aren't relevant data
-  for (int i = 0; i < 4; i++) 
-    std::getline(iostr, line); 
-
-  std::stringstream lineStream(line);
-  std::string cell; 
-  
-  while (std::getline(lineStream, cell, ':')) {
-    std::string key = cell; 
-    std::getline(lineStream, cell, ':');
-    key += ":" + cell;
-    std::getline(lineStream, cell, ',');
-    std::string val = cell; 
-    int v = stoi(val);
-    if (!res.empty())
-      v = stoi(val) + res.back().second;
-    
-    res.push_back(std::make_pair(key, v));
-
-    // grab next line
-    std::getline(iostr, line); 
-    lineStream.str(line);
-  }
-  return res; 
-}
-
-bool inline compHist(const std::pair<std::string, int> &e1, const std::pair<std::string, int> &e2) {
-  return e1.second < e2.second;
-}
-
-std::string getRandValFromHistogram(const histogram &hist, std::mt19937 gen) {
-  int rand = std::uniform_int_distribution<int>(1, hist.back().second)(gen);
-  std::string ret = std::upper_bound(hist.begin(), hist.end(), std::make_pair("", rand), compHist)->first;
-
-  return ret;
-}
-
-void FillColumnNamesWithGenericAttr( std::vector<std::pair<std::string, std::string>> &column_names_and_types,
-    std::string generic_col_name, std::string generic_col_type, int num_cols) {
-    std::ostringstream ss;
-    for (int i = 0; i < num_cols; i++) {
-        ss << std::setw(2) << std::setfill('0') << i;
-        column_names_and_types.push_back(std::make_pair(generic_col_name + ss.str(), generic_col_type));
-        ss.str(std::string()); 
-        ss.clear();
-    }
-}
-
-const char ALPHA_NUMERIC[] = "0123456789abcdefghjijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
-
-/** Generate random alpha-numeric string of length [min_len, max_len] */
-std::string RandomANString(size_t min_len, size_t max_len, std::mt19937 &gen) {
-  std::string s;
-  size_t length = std::uniform_int_distribution<size_t>(min_len,  max_len)(gen);
-  for (size_t i = 0; i < length; ++i) {
-    int j = std::uniform_int_distribution<size_t>(0, sizeof(ALPHA_NUMERIC) - 2)(gen);
-    s.push_back(ALPHA_NUMERIC[j]);
-  }
-  return s;
-}
-
-/** Generate random alphabetical string of length [min_len, max_len]*/
-std::string RandomAString(size_t min_len, size_t max_len, std::mt19937 &gen) {
-  std::string s;
-  size_t length = std::uniform_int_distribution<size_t>(min_len,  max_len)(gen);
-  for (size_t i = 0; i < length; ++i) {
-    int j = std::uniform_int_distribution<size_t>(10, sizeof(ALPHA_NUMERIC) - 2)(gen);
-    s += ALPHA_NUMERIC[j];
-  }
-  return s;
-}
-
-
-/** Generate random numerical string of length [min_len, max_len] */
-std::string RandomNString(size_t min_len, size_t max_len, std::mt19937 &gen) {
-  std::string s;
-  size_t length = std::uniform_int_distribution<size_t>(min_len,  max_len)(gen);
-  for (size_t i = 0; i < length; ++i) {
-    int j = std::uniform_int_distribution<size_t>(0, 9)(gen);
-    s += ALPHA_NUMERIC[j];
-  }
-  return s;
-}
 
 
 //TABLE GENERATORS
@@ -330,13 +160,13 @@ std::vector<std::vector<double>> GenerateAirportDistanceTableBounded(TableWriter
       // std::make_heap(nearest.begin(), nearest.end()); //max heap.
 
       for (int ap_id1 = 1; ap_id1 <= seats_sql::NUM_AIRPORTS; ap_id1++) {
-        if (ap_id0 == ap_id1) continue;
         
-
         double dist = calculateDistance(apid_long_lat[ap_id0 - 1], apid_long_lat[ap_id1 - 1]);
-
+        assert(dist > 0);
+        
         //std::cerr << " airport dest: " << ap_id1 << ". distance: "<< dist << std::endl;
         dist_ap_0.push_back(dist);
+        if (ap_id0 == ap_id1) continue;
 
         //Only take the k nearest...
         if(nearest.size() < FLAGS_k_nearest_airports){
@@ -393,9 +223,12 @@ std::vector<std::vector<double>> GenerateAirportDistanceTable(TableWriter &write
       std::vector<double> dist_ap_0;
       dist_ap_0.reserve(seats_sql::NUM_AIRPORTS);
       for (int ap_id1 = 1; ap_id1 <= seats_sql::NUM_AIRPORTS; ap_id1++) {
+        
+        double dist = calculateDistance(apid_long_lat[ap_id0 - 1], apid_long_lat[ap_id1 - 1]);
+        dist_ap_0.push_back(dist);
+
         if (ap_id0 != ap_id1) continue;
 
-        double dist = calculateDistance(apid_long_lat[ap_id0 - 1], apid_long_lat[ap_id1 - 1]);
         std::vector<std::string> values;
         values.push_back(std::to_string(ap_id0));
         values.push_back(std::to_string(ap_id1));
@@ -404,7 +237,7 @@ std::vector<std::vector<double>> GenerateAirportDistanceTable(TableWriter &write
         values.push_back(std::to_string(dist));
         writer.add_row(table_name, values);
 
-        dist_ap_0.push_back(dist);
+      
       }
       dist_matrix.push_back(dist_ap_0);
     }
@@ -533,8 +366,12 @@ void GenerateFrequentFlyerTable(TableWriter &writer) {
 
 }
 
-inline int distToTime(double dist) {
-  return (dist/seats_sql::FLIGHT_TRAVEL_RATE) * 3600000000L;
+inline uint64_t distToTime(double dist) {
+  double flight_time_h = dist/seats_sql::FLIGHT_TRAVEL_RATE;
+  //std::cerr << "flight time_h: " << flight_time_h << std::endl;
+  uint64_t flight_time_ms = flight_time_h * 60 * 60 * 1000;
+  //std::cerr << "flight time_ms: " << flight_time_ms << std::endl;
+  return flight_time_ms;
 }
 
 time_t convertStrToTime(std::string time) {
@@ -559,7 +396,109 @@ std::pair<std::string, std::string> convertAPConnToAirports(std::string apconn) 
   return ret;
 }
 
-std::vector<int> GenerateFlightTable(TableWriter &writer, std::vector<std::vector<double>> &airport_distances, std::unordered_map<std::string, int64_t> ap_code_to_id, std::vector<std::pair<int64_t, int64_t>> &f_id_to_ap_conn) {
+
+std::vector<int> GenerateFlightTable(TableWriter &writer, std::vector<std::vector<double>> &airport_distances, std::unordered_map<std::string, int64_t> ap_code_to_id, 
+            std::vector<std::pair<int64_t, int64_t>> &f_id_to_ap_conn) {
+    std::vector<std::pair<std::string, std::string>> column_names_and_types; 
+    column_names_and_types.push_back(std::make_pair("f_id", "BIGINT"));
+    column_names_and_types.push_back(std::make_pair("f_al_id", "BIGINT"));
+    column_names_and_types.push_back(std::make_pair("f_depart_ap_id", "BIGINT"));
+    column_names_and_types.push_back(std::make_pair("f_depart_time", "BIGINT"));
+    column_names_and_types.push_back(std::make_pair("f_arrive_ap_id", "BIGINT"));
+    column_names_and_types.push_back(std::make_pair("f_arrive_time", "BIGINT"));
+    column_names_and_types.push_back(std::make_pair("f_status", "BIGINT"));
+    column_names_and_types.push_back(std::make_pair("f_base_price", "FLOAT"));
+    column_names_and_types.push_back(std::make_pair("f_seats_total", "BIGINT"));
+    column_names_and_types.push_back(std::make_pair("f_seats_left", "BIGINT"));
+    FillColumnNamesWithGenericAttr(column_names_and_types, "f_iattr", "BIGINT", 30);
+    const std::vector<uint32_t> primary_key_col_idx {0};
+    std::string table_name = seats_sql::FLIGHT_TABLE;
+    writer.add_table(table_name, column_names_and_types, primary_key_col_idx);
+    
+
+    const std::vector<uint32_t> index {3};
+    writer.add_index(table_name, "f_depart_time_idx", index);
+
+    // const std::vector<uint32_t> index {2, 3};
+    // writer.add_index(table_name, "f_depart_airport_idx", index);
+
+
+    // load histograms
+    std::ifstream fa_hist (FLIGHTS_AIRPORT_HISTO_FN);
+    histogram flight_airp_hist = createFPAHistogram(fa_hist);
+    fa_hist.close(); 
+    std::ifstream ft_hist (FLIGHTS_TIME_HISTO_FN);
+    histogram flight_time_hist = createFPTHistogram(ft_hist);
+    ft_hist.close();
+    // generate data
+    std::vector<int> flight_to_num_reserved;
+    std::mt19937 gen;
+    
+    GaussGenerator num_flight_generator(seats_sql::FLIGHTS_PER_DAY_MIN, seats_sql::FLIGHTS_PER_DAY_MAX);
+    GaussGenerator airline_generator(1, seats_sql::NUM_AIRLINES);
+
+    // //generate past days?
+    // for(uint64_t t = seats_sql::MIN_TS - (seats_sql::FLIGHTS_DAYS_PAST * seats_sql::MS_IN_DAY); t < seats_sql::MIN_TS; t+=seats_sql::MS_IN_DAY){
+    //   int num_flights = generator();
+    // }
+
+    int next_flight_id = 1;
+
+    //generate future days
+    for(uint64_t dep_time = seats_sql::MIN_TS; dep_time <= seats_sql::MAX_TS; dep_time+= seats_sql::MS_IN_DAY){
+      int num_flights = num_flight_generator();
+      for (int i = 0; i <= num_flights; ++i) {
+          int f_id = next_flight_id++;
+          int f_al_id = airline_generator();
+
+          std::vector<std::string> values; 
+          values.push_back(std::to_string(f_id)); 
+          values.push_back(std::to_string(f_al_id)); 
+
+          std::string ap_conn = getRandValFromHistogram(flight_airp_hist, gen);
+          auto arr_dep_ap = convertAPConnToAirports(ap_conn);
+          auto dep_ap_id = ap_code_to_id[arr_dep_ap.first];
+          auto arr_ap_id = ap_code_to_id[arr_dep_ap.second];
+          f_id_to_ap_conn.push_back(std::make_pair(dep_ap_id, arr_ap_id));
+
+      
+          uint64_t travel_time = distToTime(airport_distances[dep_ap_id - 1][arr_ap_id - 1]); 
+        
+          //normalize dep time to 00:00 and then set departure time based on histogram
+          dep_time = (dep_time - (dep_time % seats_sql::MS_IN_DAY)) + convertStrToTime(getRandValFromHistogram(flight_time_hist, gen));
+          uint64_t arrival_time = dep_time + travel_time;
+          assert(arrival_time > dep_time);
+        
+          values.push_back(std::to_string(dep_ap_id));
+          values.push_back(std::to_string(dep_time));
+          values.push_back(std::to_string(arr_ap_id));
+          values.push_back(std::to_string(arrival_time));
+
+          values.push_back(std::to_string(std::uniform_int_distribution<int>(0, 1)(gen)));
+          values.push_back(std::to_string(std::uniform_real_distribution<float>(100, 1000)(gen)));
+          values.push_back(std::to_string(seats_sql::TOTAL_SEATS_PER_FLIGHT));
+
+          //number of reserved seats
+          //auto seats_reserved = std::uniform_int_distribution<int>(seats_sql::MIN_SEATS_RESERVED, seats_sql::MAX_SEATS_RESERVED)(gen);
+          auto seats_reserved = std::binomial_distribution<int>(seats_sql::TOTAL_SEATS_PER_FLIGHT, 0.01 * seats_sql::PROB_SEAT_OCCUPIED)(gen);
+          values.push_back(std::to_string(seats_sql::TOTAL_SEATS_PER_FLIGHT - seats_reserved)); //seats remaining
+          flight_to_num_reserved.push_back(seats_reserved);
+
+          for (int iattr = 0; iattr < 30; iattr++) {
+            values.push_back(std::to_string(std::uniform_int_distribution<int64_t>(1, 100000000)(gen)));
+          }
+
+          writer.add_row(table_name, values);
+
+      }
+    }
+
+    //FIXME: Why does find flight pick same start and end time.
+    return flight_to_num_reserved;
+}
+
+std::vector<int> GenerateFlightTableOld(TableWriter &writer, std::vector<std::vector<double>> &airport_distances, std::unordered_map<std::string, int64_t> ap_code_to_id, 
+            std::vector<std::pair<int64_t, int64_t>> &f_id_to_ap_conn) {
     std::vector<std::pair<std::string, std::string>> column_names_and_types; 
     column_names_and_types.push_back(std::make_pair("f_id", "BIGINT"));
     column_names_and_types.push_back(std::make_pair("f_al_id", "BIGINT"));
@@ -598,24 +537,32 @@ std::vector<int> GenerateFlightTable(TableWriter &writer, std::vector<std::vecto
     for (int f_id = 1; f_id <= seats_sql::NUM_FLIGHTS; f_id++) {
       std::vector<std::string> values; 
       values.push_back(std::to_string(f_id)); 
-      //FIXME: Why was this binomial?
+      //FIXME: Why was this binomial? //Some airlines will never be picked... Need a gaussian with high standard deviation.
       values.push_back(std::to_string(std::uniform_int_distribution<int>(1, seats_sql::NUM_AIRLINES)(gen)));
       //values.push_back(std::to_string(std::binomial_distribution<int>(seats_sql::NUM_AIRLINES, 0.5)(gen)));
+
+
       std::string ap_conn = getRandValFromHistogram(flight_airp_hist, gen);
       auto arr_dep_ap = convertAPConnToAirports(ap_conn);
       auto dep_ap_id = ap_code_to_id[arr_dep_ap.first];
       auto arr_ap_id = ap_code_to_id[arr_dep_ap.second];
       f_id_to_ap_conn.push_back(std::make_pair(dep_ap_id, arr_ap_id));
 
-      //FIXME: Why binomial distribution?
-      uint64_t travel_time = distToTime(airport_distances[dep_ap_id - 1][arr_ap_id - 1]);
+   
+      uint64_t travel_time = distToTime(airport_distances[dep_ap_id - 1][arr_ap_id - 1]); 
       uint64_t dep_time_window = seats_sql::MAX_TS - seats_sql::MIN_TS - travel_time;
-      auto dep_time = seats_sql::MIN_TS + std::binomial_distribution<std::time_t>(dep_time_window, 0.5)(gen);
+      //auto dep_time = seats_sql::MIN_TS + std::binomial_distribution<std::time_t>(dep_time_window, 0.5)(gen);    //FIXME: Why binomial distribution?
+      auto dep_time = std::uniform_int_distribution<std::time_t>(seats_sql::MIN_TS, seats_sql::MAX_TS - travel_time)(gen);
+
+      //normalize dep time to 00:00 and then set departure time based on histogram
       dep_time = (dep_time - (dep_time % seats_sql::MS_IN_DAY)) + convertStrToTime(getRandValFromHistogram(flight_time_hist, gen));
+      uint64_t arrival_time = dep_time + travel_time;
+      assert(arrival_time > dep_time);
+    
       values.push_back(std::to_string(dep_ap_id));
       values.push_back(std::to_string(dep_time));
       values.push_back(std::to_string(arr_ap_id));
-      values.push_back(std::to_string(dep_time + travel_time));
+      values.push_back(std::to_string(arrival_time));
 
       values.push_back(std::to_string(std::uniform_int_distribution<int>(0, 1)(gen)));
       values.push_back(std::to_string(std::uniform_real_distribution<float>(100, 1000)(gen)));

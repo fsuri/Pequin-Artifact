@@ -245,6 +245,7 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
   if (tuple_location_ptrs.size() == 0) {
     // std::cout << "No tuples retrieved in the index" << std::endl;
     LOG_TRACE("no tuple is retrieved from index.");
+    std::cerr << " Found no matching rows in table: " << table_->GetName() << std::endl;
     return false;
   }
 
@@ -268,7 +269,7 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
   int max_size = std::min((int)tuple_location_ptrs.size(), INT_MAX);
   tuple_location_ptrs.resize(max_size);
   tuple_location_ptrs.shrink_to_fit();
-  std::cerr << "Number of rows to check (bounded)" << tuple_location_ptrs.size() << std::endl;
+  std::cerr << "Primary Index Scan on Table: " << table_->GetName()  << ". Number of rows to check (bounded): " << tuple_location_ptrs.size() << std::endl;
   //if(tuple_location_ptrs.size() > 150) Panic("doing full scan");
   if(current_txn->IsPointRead()) UW_ASSERT(tuple_location_ptrs.size() == 1);
   // for every tuple that is found in the index.
@@ -1787,6 +1788,7 @@ bool IndexScanExecutor::ExecSecondaryIndexLookup() {
 
   if (tuple_location_ptrs.size() == 0) {
     LOG_TRACE("no tuple is retrieved from index.");
+    std::cerr << " Found no matching rows in table: " << table_->GetName() << std::endl;
     return false;
   }
 
@@ -1816,7 +1818,8 @@ bool IndexScanExecutor::ExecSecondaryIndexLookup() {
   //if(current_txn->IsPointRead()) max_size = 1; //UW_ASSERT(tuple_location_ptrs.size() == 1);
   tuple_location_ptrs.resize(max_size);
   tuple_location_ptrs.shrink_to_fit();
-  std::cerr << "Number of rows to check (bounded)" << tuple_location_ptrs.size() << std::endl;
+   std::cerr << "Secondary Index Scan on Table: " << table_->GetName()  << ". Number of rows to check (bounded): " << tuple_location_ptrs.size() << std::endl;
+  
   //if(tuple_location_ptrs.size() > 150) Panic("doing full scan");
   
 

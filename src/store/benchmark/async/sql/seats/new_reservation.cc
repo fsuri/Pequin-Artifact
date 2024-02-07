@@ -57,7 +57,8 @@ transaction_status_t SQLNewReservation::Execute(SyncClient &client) {
     client.Begin(timeout);
 
     // (1) Get Flight information. (GetFlight)
-    query = fmt::format("SELECT f_al_id, f_seats_left, al_iata_code, al_icao_code, al_call_sign, al_name, al_co_id FROM {}, {} WHERE f_id = {} AND f_al_id = al_id", FLIGHT_TABLE, AIRLINE_TABLE, f_id); 
+    query = fmt::format("SELECT f_al_id, f_seats_left, al_iata_code, al_icao_code, al_call_sign, al_name, al_co_id FROM {}, {} WHERE f_id = {} AND f_al_id = al_id", 
+                        FLIGHT_TABLE, AIRLINE_TABLE, f_id); 
     //Peloton does not support `.*` semantics. Replaced by just getting a couple (not all) airline fields.
     //query = fmt::format("SELECT f_al_id, f_seats_left, {}.* FROM {}, {} WHERE f_id = {} AND f_al_id = al_id", AIRLINE_TABLE, FLIGHT_TABLE, AIRLINE_TABLE, f_id); 
     client.Query(query, timeout); 

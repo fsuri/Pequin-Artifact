@@ -623,7 +623,7 @@ void SQLTransformer::TransformUpdate(size_t pos, std::string_view &write_stateme
                 std::unique_ptr<query_result::Field> field = (*row)[j];
           
                 //Deserialize encoding to be a stringified type (e.g. whether it's int/bool/string store all as normal readable string)
-                 std::cerr << "Checking column: " << col << std::endl;
+                // std::cerr << "Checking column: " << col << std::endl;
                 const std::string &col_type = col_registry.col_name_type.at(col);
                
                 //Currently we receive everything as plain-text string (as opposed to cereal). 
@@ -632,7 +632,7 @@ void SQLTransformer::TransformUpdate(size_t pos, std::string_view &write_stateme
                 //std::string field_val(DecodeType(field, col_registry.col_name_type[col]));
 
 
-                std::cerr << "Checking column: " << col << " , with field " << std::visit(StringVisitor(), field_val) << std::endl;
+                //std::cerr << "Checking column: " << col << " , with field " << std::visit(StringVisitor(), field_val) << std::endl;
                 
                
                 //Replace value with col value if applicable. Then operate arithmetic by casting ops to uint64_t and then turning back to string.
@@ -640,7 +640,10 @@ void SQLTransformer::TransformUpdate(size_t pos, std::string_view &write_stateme
                 bool change_val = false;
                 std::string set_val = GetUpdateValue(col, field_val, field, col_updates, col_type, change_val);
 
-                if(change_val) std::cerr << "Updating col: " << col << " , new val: " << set_val << std::endl;
+                if(change_val){
+                     std::cerr << "Checking column: " << col << " , with field " << std::visit(StringVisitor(), field_val) << std::endl;
+                     std::cerr << "Updating col: " << col << " , new val: " << set_val << std::endl;
+                } 
                 //TODO: return bool if set_val is changed. In that case, record which columsn changed. and add a CC-store write entry per column updated.
                
                 if(col_registry.primary_key_cols.count(col)){
@@ -1554,7 +1557,7 @@ std::variant<bool, int64_t, double, std::string> DecodeType(const std::string &e
         //Note: we don't seem to need Array type... --> Auctionmark only uses it for arguments.
     }
 
-    std::cerr << "Decoded type" << std::endl;
+    //std::cerr << "Decoded type" << std::endl;
     return type_variant;  //Use decoding..
 }
 

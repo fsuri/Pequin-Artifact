@@ -90,7 +90,9 @@ transaction_status_t SQLDeleteReservation::Execute(SyncClient &client) {
     // query = fmt::format("SELECT c_sattr00, c_sattr02, c_sattr04, c_iattr00, c_iattr02, c_iattr04, c_iattr06, f_seats_left, r_id, r_seat, r_price, r_iattr00 FROM {}, {}, {} "
     //                     "WHERE c_id = {} AND c_id = r_c_id AND f_id = {} AND f_id = r_f_id", CUSTOMER_TABLE, FLIGHT_TABLE, RESERVATION_TABLE, c_id, f_id);
     query = fmt::format("SELECT c_sattr00, c_sattr02, c_sattr04, c_iattr00, c_iattr02, c_iattr04, c_iattr06, f_seats_left, r_id, r_seat, r_price, r_iattr00 FROM {}, {}, {} "
-                        "WHERE c_id = {} AND c_id = r_c_id AND f_id = {} AND f_id = r_f_id AND r_f_id = {}", CUSTOMER_TABLE, FLIGHT_TABLE, RESERVATION_TABLE, c_id, f_id, f_id);
+                        "WHERE c_id = {} AND c_id = r_c_id "
+                        "AND f_id = {} AND f_id = r_f_id "
+                        "AND r_f_id = {}", CUSTOMER_TABLE, FLIGHT_TABLE, RESERVATION_TABLE, c_id, f_id, f_id);
     client.Query(query, queryResult, timeout);
     //If there is no valid customer record, throw an abort  //Note: supposedly happens 5% of the time.
     if (queryResult->empty()) {
@@ -112,10 +114,9 @@ transaction_status_t SQLDeleteReservation::Execute(SyncClient &client) {
 
     // Now Delete Reservation
     query = fmt::format("DELETE FROM {} WHERE r_id = {} AND r_c_id = {} AND r_f_id = {}", RESERVATION_TABLE, r_id, c_id, f_id);
-    client.Write(query, queryResult, timeout);
-    if(!queryResult->has_rows_affected()){ Panic("Failed to update frequent flyer info");}
+    client.Write(query, timeout);
+    //if(!queryResult->has_rows_affected()){ Panic("Failed to update frequent flyer info");}
 
-   
     // Update Flight
     query = fmt::format("UPDATE {} SET f_seats_left = f_seats_left + 1 WHERE f_id = {}", FLIGHT_TABLE, f_id);
     client.Write(query, timeout);
@@ -133,16 +134,17 @@ transaction_status_t SQLDeleteReservation::Execute(SyncClient &client) {
 
     client.Wait(results);
     //Debug
-    // UW_ASSERT(results.size() == 4 - !update_freq_flyer);
-    // bool abort = false;
-    // if(!results[0]->has_rows_affected()){ Panic("Failed to delete reservation"); abort = true;}
-    // if(!results[1]->has_rows_affected()){ Panic("Failed to update number of seats left in flight"); abort = true;}
-    // if(!results[2]->has_rows_affected()){ Panic("Failed to update customer balance"); abort = true;}
-    // if(update_freq_flyer && !results[3]->has_rows_affected()){ Panic("Failed to update frequent flyer info");} //We don't care if we updated FrequentFlyer
-    // if(abort){
-    //     client.Abort(timeout);
-    //     return ABORTED_USER;
-    // }
+    std::cerr << "results size: " << results.size() << std::endl;
+    UW_ASSERT(results.size() == 4 - !update_freq_flyer);
+    bool abort = false;
+    if(!results[0]->has_rows_affected()){ Panic("Failed to delete reservation"); abort = true;}
+    if(!results[1]->has_rows_affected()){ Panic("Failed to update number of seats left in flight"); abort = true;}
+    if(!results[2]->has_rows_affected()){ Panic("Failed to update customer balance"); abort = true;}
+    if(update_freq_flyer && !results[3]->has_rows_affected()){ Panic("Failed to update frequent flyer info");} //We don't care if we updated FrequentFlyer
+    if(abort){
+        client.Abort(timeout);
+        return ABORTED_USER;
+    }
 
     //Re-queue reservation
     int requeue = std::uniform_int_distribution<int>(1, 100)(*gen_);

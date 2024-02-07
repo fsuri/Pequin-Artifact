@@ -390,8 +390,10 @@ void GetToIndexScan::Transform(
 
       //TODO: Try to count "distance" of params.
       //Trying to design a simple heuristic to favor primary vs secondary index.
+
+      bool is_primary_index = index_object->GetIndexConstraint() == IndexConstraintType::PRIMARY_KEY;
       
-      int min_distance = index_object->GetIndexConstraint() == IndexConstraintType::PRIMARY_KEY ? INT_MAX-1 : INT_MAX;
+      int min_distance = is_primary_index ? INT_MAX-1 : INT_MAX;
 
       for (size_t offset = 0; offset < key_column_id_list.size(); offset++) {
         auto col_id = key_column_id_list[offset];
@@ -405,7 +407,8 @@ void GetToIndexScan::Transform(
            }
         }
       }
-      if(index_key_column_id_list.size() == index_col_set.size()) min_distance = -1;
+      //If index fully covers the condition. //Give preference to primary key.
+      if(index_key_column_id_list.size() == index_col_set.size()) min_distance = is_primary_index? -2 : -1;
       
        if (min_distance < closest_index || (min_distance == closest_index && index_key_column_id_list.size() > max_num_matching_cols )){
         auto index_scan_op = PhysicalIndexScan::make(

@@ -23,31 +23,53 @@ transaction_status_t SQLUpdateCustomer::Execute(SyncClient &client) {
     std::vector<std::unique_ptr<const query_result::QueryResult>> results; 
     std::string query;
 
-    std::cerr << "UPDATE CUSTOMER" << std::endl;
+    std::cerr << "UPDATE_CUSTOMER" << std::endl;
     Debug("UPDATE_CUSTOMER");
     client.Begin(timeout);
 
+    // if (c_id == NULL_ID) {
+    //     if (c_id_str.size() == 0) Panic("no customer id nor customer id string given");
+    //     //GetCustomerIdStr  //TODO: If taking this path, optimize the GetCustomer query away. Simply Select * here, and parse out c_id and base_airport
+    //     query = fmt::format("SELECT c_id FROM {} WHERE c_id_str = '{}'", CUSTOMER_TABLE, c_id_str);
+    //     client.Query(query, queryResult, timeout);
+    //     if (queryResult->empty()) {
+    //         Notice("No customer record found for customer id string %s", c_id_str);
+    //         Debug("No customer record found for customer id string %s", c_id_str);
+    //         client.Abort(timeout);
+    //         return ABORTED_USER;
+    //     }
+    //     deserialize(c_id, queryResult, 0);
+    // }
+
+    // //GetCustomer
+    // query = fmt::format("SELECT * FROM {} WHERE c_id = {}", CUSTOMER_TABLE, c_id);
+    // client.Query(query, queryResult, timeout);
+    // GetCustomerResultRow cr_row = GetCustomerResultRow();
+    // if (queryResult->empty()) {
+    //     Notice("No customer record for customr id %ld", c_id);
+    //     Debug("No customer record for customr id %ld", c_id);
+    //     client.Abort(timeout);
+    //     return ABORTED_USER;
+    // }
+    // deserialize(cr_row, queryResult, 0);
+    // int64_t base_airport = cr_row.c_base_ap_id;
+
+    //Get Customer Info
     if (c_id == NULL_ID) {
         if (c_id_str.size() == 0) Panic("no customer id nor customer id string given");
         //GetCustomerIdStr  //TODO: If taking this path, optimize the GetCustomer query away. Simply Select * here, and parse out c_id and base_airport
-        query = fmt::format("SELECT c_id FROM {} WHERE c_id_str = '{}'", CUSTOMER_TABLE, c_id_str);
-        client.Query(query, queryResult, timeout);
-        if (queryResult->empty()) {
-            Notice("No customer record found for customer id string %s", c_id_str);
-            Debug("No customer record found for customer id string %s", c_id_str);
-            client.Abort(timeout);
-            return ABORTED_USER;
-        }
-        deserialize(c_id, queryResult, 0);
+        query = fmt::format("SELECT * FROM {} WHERE c_id_str = '{}'", CUSTOMER_TABLE, c_id_str);
     }
-
-    //GetCustomer
-    query = fmt::format("SELECT * FROM {} WHERE c_id = {}", CUSTOMER_TABLE, c_id);
+    else{  //GetCustomer via ID
+         query = fmt::format("SELECT * FROM {} WHERE c_id = {}", CUSTOMER_TABLE, c_id);
+    }
+   
     client.Query(query, queryResult, timeout);
     GetCustomerResultRow cr_row = GetCustomerResultRow();
     if (queryResult->empty()) {
-        Notice("No customer record for customr id %ld", c_id);
-        Debug("No customer record for customr id %ld", c_id);
+        if (c_id != NULL_ID) Notice("No customer record for customr id %ld", c_id);
+        //Debug("No customer record for customr id %ld", c_id);
+        if (c_id == NULL_ID) Notice("No customer record found for customer id string %s", c_id_str);
         client.Abort(timeout);
         return ABORTED_USER;
     }
@@ -74,7 +96,8 @@ transaction_status_t SQLUpdateCustomer::Execute(SyncClient &client) {
         for (std::size_t i = 0; i < queryResult->size(); i++) {
             deserialize(ffr_row, queryResult, (int) i);
             int64_t ff_al_id = ffr_row.ff_al_id;
-             //UpdateFrequentFlyers          //TODO: Technically the previous query has provided all we need to do a point read from cache here. Currently not yet supported since the Query is a scan.
+             //UpdateFrequentFlyers          
+             //TODO: Technically the previous query has provided all we need to do a point read from cache here. Currently not yet supported since the Query is a scan.
             query = fmt::format("UPDATE {} SET ff_iattr00 = {}, ff_iattr01 = {} WHERE ff_c_id = {} AND ff_al_id = {}", FREQUENT_FLYER_TABLE, attr0, attr1, c_id, ff_al_id);
             client.Write(query, timeout);
         }

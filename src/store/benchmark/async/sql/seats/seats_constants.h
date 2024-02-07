@@ -34,10 +34,10 @@ const int MAX_NEAR_DISTANCE = NEAR_DISTANCES.back();
 const int NUM_FLIGHTS = SCALE_FACTOR * 10000; //FIXME: WHERE IS THIS FROM?
 
 /** The number of days in the past and future that we will generate flight information for */
-//TODO: FLIGHTS_DAYS_PAST = 1;  //FIXME: Used by loader to generate flights
-//TODO: FLIGHTs_DAYS_FUTURES = 50;
-//TODO: FLIGHTS_PER_DAY_MIN = 1125; //FIXME: Used by loader to generate reservations
-//TODO: FLIGHTS_PER_DAY_MAX = 1875;
+const int FLIGHTS_DAYS_PAST = 1;  //FIXME: Used by loader to generate flights
+const int FLIGHTS_DAYS_FUTURES = 50;
+const int FLIGHTS_PER_DAY_MIN = 1125; //FIXME: Used by loader to generate reservations
+const int FLIGHTS_PER_DAY_MAX = 1875;
 
 //Number of seats available per flight 
 const int TOTAL_SEATS_PER_FLIGHT = 150;
@@ -111,7 +111,7 @@ const int PROB_REQUEUE_DELETED_RESERVATION = 90;
 const int PROB_FIND_FLIGHTS_NEARBY_AIRPORT = 25;  
 
 /** Probability that FindFlights will use two random airports as its input */
-//TODO: const int PROB_FIND_FLIGHTS_RANDOM_AIRPORTS = 10; //FIXME: Used for FindFlights
+const int PROB_FIND_FLIGHTS_RANDOM_AIRPORTS = 10; //FIXME: Used for FindFlights
 
 // ----------------------------------------------------------------
 // TIME CONSTANTS
@@ -120,16 +120,18 @@ const int PROB_FIND_FLIGHTS_NEARBY_AIRPORT = 25;
 /** Number of microseconds in a day */
 const int64_t MS_IN_DAY = 86400000L;
 
+const int64_t MS_IN_HOUR = MS_IN_DAY / 24;
+
 // Oldest time.
 const std::time_t MIN_TS = 1697218894000; //FIXME: This is Friday Oct 13th 2023... Arbitrary?
-const std::time_t MAX_TS = MIN_TS + ((int64_t) 86400000) * 50; //50 days in advance
+const std::time_t MAX_TS = MIN_TS + MS_IN_DAY * FLIGHTS_DAYS_FUTURES; //50 days in advance
 
 // ----------------------------------------------------------------
 // CACHE SIZES
 // ----------------------------------------------------------------
 
  /** The number of FlightIds we want to keep cached locally at a client */
-//TODO: CACHE_LIMIT_FLIGHT_IDS = 10000 //FIXME: Used for FindFlights
+const int CACHE_LIMIT_FLIGHT_IDS = 10000; //FIXME: Used for FindFlights
 
 const int MAX_PENDING_INSERTS = 10000;
 const int MAX_PENDING_UPDATES = 5000;
