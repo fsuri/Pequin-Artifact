@@ -35,6 +35,21 @@ namespace auctionmark
   constexpr uint32_t GAV_PER_GROUP = 10;
   constexpr uint32_t N_USERS = 1000000;
 
+  /** 1 sec in real time equals this value in the benchmark's virtual time in seconds */
+  constexpr uint32_t TIME_SCALE_FACTOR = 600L; // one hour
+  /**
+  * If the amount of time in seconds remaining for an item auction is less than this parameter,
+   * then it will be added to a special queue in the client. We will increase the likelihood that a
+   * users will bid on these items as it gets closer to their end times
+   */
+  constexpr uint32_t ITEM_ENDING_SOON = 36000L; // 10 hours
+
+  constexpr bool CLOSE_AUCTIONS_ENABLE = false;
+  /**
+   * How often to execute CLOSE_AUCTIONS in virtual seconds.
+   */
+  constexpr uint32_t CLOSE_AUCTIONS_INTERVAL = 12000L; // Every 20 seconds
+
   /* Transaction ratios, should add up to 100 */
   constexpr uint32_t TXNS_TOTAL = 100;
   constexpr uint32_t NEW_USER_RATIO = 5;

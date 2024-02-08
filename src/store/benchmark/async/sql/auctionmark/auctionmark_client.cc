@@ -26,6 +26,7 @@
  **********************************************************************/
 
 #include "store/benchmark/async/sql/auctionmark/auctionmark_client.h"
+#include "store/benchmark/async/sql/auctionmark/auctionmark_params.h"
 
 #include <random>
 
@@ -58,9 +59,10 @@ AuctionMarkClient::AuctionMarkClient(
 {
   lastOp = "";
   gen.seed(id);
+  need_close_auctions = CLOSE_AUCTIONS_ENABLE && id == 0;
   max_u_id = N_USERS;
   max_i_id = N_USERS * 10;
-  last_check_winning_bids = std::chrono::steady_clock::now();
+  last_close_auctions = std::chrono::steady_clock::now();
 }
 
 AuctionMarkClient::~AuctionMarkClient() {}
@@ -71,25 +73,16 @@ SyncTransaction *AuctionMarkClient::GetNextTransaction()
   uint32_t freq = 0;
   std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
 
-  //every 10 seconds issue Check-winning Bid
-  if (std::chrono::duration_cast<std::chrono::seconds>(now - last_check_winning_bids).count() >= 10) {
+  if (need_close_auctions && std::chrono::duration_cast<std::chrono::seconds>(now - last_close_auctions).count() >= CLOSE_AUCTIONS_INTERVAL / TIME_SCALE_FACTOR) {
     lastOp = "check_winning_bids";
-    last_check_winning_bids = now;
+    last_close_auctions = now;
     post_auction_items = {};
     post_auction_sellers = {};
     post_auction_buyers = {};
     post_auction_ib_ids = {};
     return new CheckWinningBids(GetTimeout(), 0, 1, post_auction_items, post_auction_sellers, 
       post_auction_buyers, post_auction_ib_ids, gen);
-  } 
-  //Issue Post_auction right after check winning bid
-  else if (lastOp == "check_winning_bids") {
-    lastOp = "post_auction";
-    return new PostAuction(GetTimeout(), post_auction_items, post_auction_sellers, 
-      post_auction_buyers, post_auction_ib_ids, gen);
-  } 
-  //Otherwise: Pick from the remaining transactions following the distribution specified in auctionmark_params.h
-  else if (ttype < (freq = NEW_USER_RATIO)) {
+  } else if (ttype < (freq = NEW_USER_RATIO)) {
     lastOp = "new_user";
     uint64_t u_r_id = std::uniform_int_distribution<uint64_t>(1, N_REGIONS)(gen);
     std::vector<std::string> attributes;
