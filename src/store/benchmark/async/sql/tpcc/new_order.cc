@@ -44,6 +44,7 @@ SQLNewOrder::SQLNewOrder(uint32_t timeout, uint32_t w_id, uint32_t C,
   for (uint8_t i = 0; i < ol_cnt; ++i) {
     if (rbk == 1 && i == ol_cnt - 1) {
       o_ol_i_ids.push_back(0);
+      Notice("NEXT NEW_ORDER TX is going to rollback! (Trying to access invalid item)");
     } else {
       uint32_t i_id = tpcc_sql::NURand(static_cast<uint32_t>(8191), static_cast<uint32_t>(1), static_cast<uint32_t>(100000), C, gen); 
       
