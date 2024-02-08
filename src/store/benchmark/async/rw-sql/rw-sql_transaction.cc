@@ -43,9 +43,17 @@ RWSQLTransaction::RWSQLTransaction(QuerySelector *querySelector, uint64_t &numOp
     uint64_t base = querySelector->baseSelector->GetKey(rand); //Choose which key to use as starting point for query i
     starts.push_back(base);
 
-    uint64_t range = querySelector->rangeSelector->GetKey(rand); //Choose the number of keys to read (in addition to base) for query i
-    uint64_t end = (base + range) % querySelector->numKeys; //calculate end point for range. Note: wrap around if > numKeys
-    ends.push_back(end);
+    bool is_point = std::uniform_int_distribution<uint64_t>(1, 100)(rand) <= querySelector->point_op_freq;
+
+    if(is_point){
+      ends.push_back(base);
+    }
+    else{ //do a scan
+      uint64_t range = querySelector->rangeSelector->GetKey(rand); //Choose the number of keys to read (in addition to base) for query i
+      uint64_t end = (base + range) % querySelector->numKeys; //calculate end point for range. Note: wrap around if > numKeys
+      ends.push_back(end);
+    }
+   
   }
 
   // starts.push_back(94);

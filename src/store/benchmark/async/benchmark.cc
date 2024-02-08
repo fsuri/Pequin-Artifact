@@ -707,6 +707,7 @@ DEFINE_bool(rw_read_only, false, "only do read operations");
 DEFINE_uint64(num_tables, 10, "number of tables for rw-sql");
 DEFINE_uint64(num_keys_per_table, 100, "number of keys per table for rw-sql");
 DEFINE_uint64(max_range, 10, "max amount of reads in a single scan for rw-sql");
+DEFINE_uint64(point_op_freq, 50, "percentage of times an operation is a point operation (the others are scan)");
 
 
 /**
@@ -1056,7 +1057,7 @@ int main(int argc, char **argv) {
         NOT_REACHABLE();
     }
 
-    querySelector = new QuerySelector(FLAGS_num_keys_per_table, tableSelector, baseSelector, rangeSelector);
+    querySelector = new QuerySelector(FLAGS_num_keys_per_table, tableSelector, baseSelector, rangeSelector, FLAGS_point_op_freq);
 
 
      //RW-SQL ==> auto-generate TableRegistry
