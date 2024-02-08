@@ -90,14 +90,14 @@ transaction_status_t SQLUpdateCustomer::Execute(SyncClient &client) {
     if (update_ff > 0) {
         //GetFrequentFlyers
         query = fmt::format("SELECT * FROM {} WHERE ff_c_id = {}", FREQUENT_FLYER_TABLE, c_id);
-        client.Query(query, queryResult, timeout);
+        client.Query(query, queryResult, timeout, true); //cache result 
         GetFrequentFlyersResultRow ffr_row = GetFrequentFlyersResultRow();
         std::unique_ptr<const query_result::QueryResult> queryResult2;
         for (std::size_t i = 0; i < queryResult->size(); i++) {
             deserialize(ffr_row, queryResult, (int) i);
             int64_t ff_al_id = ffr_row.ff_al_id;
              //UpdateFrequentFlyers          
-             //TODO: Technically the previous query has provided all we need to do a point read from cache here. Currently not yet supported since the Query is a scan.
+             //the previous query has provided all we need to do a point read from cache here.
             query = fmt::format("UPDATE {} SET ff_iattr00 = {}, ff_iattr01 = {} WHERE ff_c_id = {} AND ff_al_id = {}", FREQUENT_FLYER_TABLE, attr0, attr1, c_id, ff_al_id);
             client.Write(query, timeout);
         }

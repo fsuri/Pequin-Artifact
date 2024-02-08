@@ -165,6 +165,12 @@ class QueryResultProtoBuilder {
     field->set_data(t);
   }
 
+  inline void AddToRow_s(RowProto *row, const std::string &t){
+    //Appends field to a row
+    FieldProto *field = row->add_fields();
+    field->set_data(t);
+  }
+
     //New interface:
 
    //Updates specific column in a row

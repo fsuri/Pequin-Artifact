@@ -759,8 +759,7 @@ void SQLTransformer::TransformDelete(size_t pos, std::string_view &write_stateme
     //std::map<std::string, std::string> p_col_values;  
     std::vector<std::string> p_col_values;  
     bool is_point_delete = CheckColConditions(where_cond, col_registry, p_col_values); 
-    skip_query_interpretation = true;
-
+   
     if(is_point_delete){
         //Add to write set.
         std::cerr << "IS POINT DELETE" << std::endl;
@@ -805,6 +804,7 @@ void SQLTransformer::TransformDelete(size_t pos, std::string_view &write_stateme
     }
 
     //Else: Is Query Delete
+    skip_query_interpretation = true; //We already know we must do a scan. Do not Interpret Query again
 
     // read_statement = "SELECT * FROM ";  //Ideally select only primary column rows. To support this, need rows to allow access to columns by name (and not just index)
 
