@@ -1,172 +1,164 @@
-#include <iostream>
-#include <vector>
-#include <map>
-#include <algorithm>
-#include <iterator>
-#include "user_id.h"
-#include <boost/histogram.hpp>
-#include <optional>
+#include "store/benchmark/async/sql/auctionmark/utils/user_id_generator.h"
 
-class UserIdGenerator {
-public:
-  UserIdGenerator(const boost::histogram::histogram<long>& users_per_item_count, int numClients, int clientId = -1)
-    : numClients(numClients), clientId(clientId), usersPerItemCounts(), minItemCount(0), maxItemCount(0), totalUsers(0), _next(nullptr), currentItemCount(-1), currentOffset(0), currentPosition(0) {
+namespace auctionmark {
 
-    if (numClients <= 0) {
-      throw std::invalid_argument("numClients must be more than 0: " + std::to_string(numClients));
+UserIdGenerator::UserIdGenerator(const hist_t& users_per_item_count, int num_clients, int client_id)
+    : num_clients(num_clients), client_id(client_id), users_per_item_counts(), min_item_count(0), 
+    max_item_count(0), total_users(0), _next(std::nullopt), current_item_count(-1), current_offset(0), 
+    current_position(0) {
+
+    if (num_clients <= 0) {
+      throw std::invalid_argument("num_clients must be more than 0: " + std::to_string(num_clients));
     }
-    if (clientId != -1 && clientId < 0) {
-      throw std::invalid_argument("clientId must be more than or equal to 0: " + std::to_string(clientId));
+    if (client_id != -1 && client_id < 0) {
+      throw std::invalid_argument("client_id must be more than or equal to 0: " + std::to_string(client_id));
     }
 
-    maxItemCount = static_cast<int>(users_per_item_count.axis().upper(0));
-    usersPerItemCounts.resize(maxItemCount + 2);
-    for (int i = 0; i < usersPerItemCounts.size(); i++) {
-      usersPerItemCounts[i] = users_per_item_count.at(i);
+    // TODO: Validate that this is the correct axis
+    max_item_count = static_cast<int>(*users_per_item_count.axis(0).end());
+    users_per_item_counts.resize(max_item_count + 2);
+    for (int i = 0; i < users_per_item_counts.size(); i++) {
+      users_per_item_counts[i] = users_per_item_count.at(i);
     }
 
-    minItemCount = static_cast<int>(users_per_item_count.axis().lower(0));
+    // TODO: Validate that this is the correct axis
+    min_item_count = static_cast<int>(*users_per_item_count.axis(0).begin());
 
-    totalUsers = 0;
-    for (const auto& count : usersPerItemCounts) {
-      totalUsers += count;
+    total_users = 0;
+    for (const auto& count : users_per_item_counts) {
+      total_users += count;
     }
 
-    setCurrentItemCount(minItemCount);
-  }
+    set_current_item_count(min_item_count);
+}
 
-  long getTotalUsers() const {
-    return totalUsers;
-  }
+long UserIdGenerator::get_total_users() const {
+    return total_users;
+}
 
-  void setCurrentItemCount(int size) {
-    currentPosition = 0;
+void UserIdGenerator::set_current_item_count(int size) {
+    current_position = 0;
     for (int i = 0; i < size; i++) {
-      currentPosition += usersPerItemCounts[i];
+      current_position += users_per_item_counts[i];
     }
-    currentItemCount = size;
-    currentOffset = usersPerItemCounts[currentItemCount];
-  }
+    current_item_count = size;
+    current_offset = users_per_item_counts[current_item_count];
+}
 
-  int getCurrentPosition() const {
-    return currentPosition;
-  }
+int UserIdGenerator::get_current_position() const {
+    return current_position;
+}
 
-  std::optional<UserId> seekToPosition(int position) {
+std::optional<UserId> UserIdGenerator::seek_to_position(int position) {
     std::optional<UserId> user_id;
 
-    currentPosition = 0;
-    currentItemCount = 0;
+    current_position = 0;
+    current_item_count = 0;
     while (true) {
-      int num_users = usersPerItemCounts[currentItemCount];
+      int num_users = users_per_item_counts[current_item_count];
 
-      if (currentPosition + num_users > position) {
-        _next = nullptr;
-        currentOffset = num_users - (position - currentPosition);
-        currentPosition = position;
-        user_id = next();
+      if (current_position + num_users > position) {
+        _next = std::nullopt;
+        current_offset = num_users - (position - current_position);
+        current_position = position;
+        user_id = std::make_optional<UserId>(next());
         break;
       } else {
-        currentPosition += num_users;
+        current_position += num_users;
       }
-      currentItemCount++;
+      current_item_count++;
     }
-    return user_id;
-  }
+    return std::make_optional<UserId>(std::move(user_id.value()));
+}
 
-  bool checkClient(const UserId& user_id) const {
-    if (clientId == -1) {
+bool UserIdGenerator::check_client(const UserId& user_id) const {
+    if (client_id == -1) {
       return true;
     }
 
     int tmp_count = 0;
     int tmp_position = 0;
-    while (tmp_count <= maxItemCount) {
-      int num_users = usersPerItemCounts[tmp_count];
-      if (tmp_count == user_id.getItemCount()) {
-        tmp_position += (num_users - user_id.getOffset()) + 1;
+    while (tmp_count <= max_item_count) {
+      int num_users = users_per_item_counts[tmp_count];
+      if (tmp_count == user_id.get_item_count()) {
+        tmp_position += (num_users - user_id.get_offset()) + 1;
         break;
       }
       tmp_position += num_users;
       tmp_count++;
     }
-    return tmp_position % numClients == clientId;
-  }
+    return tmp_position % num_clients == client_id;
+}
 
-  bool hasNext() {
-    if (_next == nullptr) {
-      _next = findNextUserId();
+bool UserIdGenerator::has_next() {
+    if (!_next.has_value()) {
+      _next = find_next_user_id();
     }
-    return _next != nullptr;
-  }
+    return _next.has_value();
+}
 
-  UserId next() {
-    if (_next == nullptr) {
-      _next = findNextUserId();
+UserId UserIdGenerator::next() {
+    if (!_next.has_value()) {
+      _next = find_next_user_id();
     }
-    UserId ret = *_next;
-    _next = nullptr;
+    UserId ret = _next.value();
+    _next = std::nullopt;
     return ret;
-  }
+}
 
-  void remove() {
-    throw std::logic_error("Cannot call remove!!");
-  }
-
-  std::string toString() const {
+std::string UserIdGenerator::to_string() const {
     std::map<std::string, std::string> m;
-    m["numClients"] = std::to_string(numClients);
-    m["clientId"] = std::to_string(clientId);
-    m["minItemCount"] = std::to_string(minItemCount);
-    m["maxItemCount"] = std::to_string(maxItemCount);
-    m["totalUsers"] = std::to_string(totalUsers);
-    m["currentItemCount"] = std::to_string(currentItemCount);
-    m["currentOffset"] = std::to_string(currentOffset);
-    m["currentPosition"] = std::to_string(currentPosition);
-    m["_next"] = _next != nullptr ? "not null" : "null";
-    std::string usersPerItemCountStr = "[Length:" + std::to_string(usersPerItemCounts.size()) + "] => [";
-    for (const auto& count : usersPerItemCounts) {
-      usersPerItemCountStr += std::to_string(count) + ", ";
+    m["num_clients"] = std::to_string(num_clients);
+    m["client_id"] = std::to_string(client_id);
+    m["min_item_count"] = std::to_string(min_item_count);
+    m["max_item_count"] = std::to_string(max_item_count);
+    m["total_users"] = std::to_string(total_users);
+    m["current_item_count"] = std::to_string(current_item_count);
+    m["current_offset"] = std::to_string(current_offset);
+    m["current_position"] = std::to_string(current_position);
+    m["_next"] = _next.has_value() ? "not null" : "null";
+    std::string users_per_item_countstr = "[Length:" + std::to_string(users_per_item_counts.size()) + "] => [";
+    for (const auto& count : users_per_item_counts) {
+      users_per_item_countstr += std::to_string(count) + ", ";
     }
-    usersPerItemCountStr += "]";
-    m["users_per_item_count"] = usersPerItemCountStr;
+    users_per_item_countstr += "]";
+    m["users_per_item_count"] = users_per_item_countstr;
     std::string result;
     for (const auto& entry : m) {
       result += entry.first + ": " + entry.second + "\n";
     }
     return result;
-  }
+}
 
-private:
-  std::vector<int> usersPerItemCounts;
-  int numClients;
-  int clientId;
-  int minItemCount;
-  int maxItemCount;
-  long totalUsers;
-  std::vector<int>::iterator _next;
-  int currentItemCount;
-  int currentOffset;
-  int currentPosition;
+std::optional<UserId> UserIdGenerator::find_next_user_id() {
+    int found = -1;
+    while (current_item_count <= max_item_count) {
+      while (current_offset > 0) {
+        int next_ctr = current_offset--;
+        current_position++;
 
-  std::vector<int>::iterator findNextUserId() {
-    auto it = usersPerItemCounts.begin();
-    std::advance(it, currentItemCount);
-    while (it != usersPerItemCounts.end()) {
-      while (currentOffset > 0) {
-        int nextCtr = currentOffset--;
-        currentPosition++;
-
-        if (clientId == -1) {
-          return it;
-        } else if (currentPosition % numClients == clientId) {
-          return it;
+        // If we weren't given a client_id, then we'll generate UserIds
+        if (client_id  == -1) {
+            found = next_ctr;
+            break;
+        }
+        // Otherwise we have to spin through and find one for our client
+        else if (current_position % num_clients == client_id) {
+            found = next_ctr;
+            break;
         }
       }
-      it++;
-      currentItemCount++;
-      currentOffset = *it;
+      if (found != -1) {
+        break;
+      }
+      current_item_count++;
+      current_offset = users_per_item_counts[current_item_count];
     }
-    return usersPerItemCounts.end();
-  }
-};
+    if (found == -1) {
+      return std::nullopt;
+    }
+
+    return std::make_optional<UserId>(UserId(current_item_count, found));
+}
+
+} // namespace auctionmark

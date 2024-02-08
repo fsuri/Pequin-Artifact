@@ -1,91 +1,41 @@
+#ifndef AUCTIONMARK_USER_ID_H
+#define AUCTIONMARK_USER_ID_H
+
 #include <string>
 #include <sstream>
 #include <vector>
 #include <algorithm>
-#include "composite_id.h"
+#include "store/benchmark/async/sql/auctionmark/utils/composite_id.h"
+
+namespace auctionmark {
 
 class UserId : CompositeId
 {
 private:
-    static const int COMPOSITE_BITS[2];
-
-    int itemCount;
+    static const std::vector<int> COMPOSITE_BITS;
+    int item_count;
     int offset;
 
 public:
-    UserId(int itemCount, int offset) : itemCount(itemCount), offset(offset) {
-    }
+    static const int ID_LENGTH;
 
-    UserId(std::string composite_id)
-    {
-        decode(composite_id);
-    }
+    UserId(int item_count, int offset);
+    UserId(std::string composite_id);
+    UserId(const UserId& other);
+    UserId();
 
-    UserId(UserId& other) : itemCount(other.itemCount), offset(other.offset) {}
-    UserId() : itemCount(0), offset(0) {}
-
-    void initialize_composite_bits() {
-        COMPOSITE_BITS[0] = INT_MAX_DIGITS;
-        COMPOSITE_BITS[1] = INT_MAX_DIGITS;
-    }
-
-    std::string encode() const
-    {
-        const std::vector<int> composite_bits = {COMPOSITE_BITS[0], COMPOSITE_BITS[1]};
-        return CompositeId::encode(composite_bits);
-    }
-
-    void decode(const std::string& composite_id)
-    {
-        std::vector<int> composite_bits = {COMPOSITE_BITS[0], COMPOSITE_BITS[1]};
-        std::vector<std::string> decodedValues = CompositeId::decode(composite_id, composite_bits);
-        itemCount = std::stoi(decodedValues[0]);
-        offset = std::stoi(decodedValues[1]);
-    }
-
-    std::vector<std::string> to_array() const
-    {
-        return {std::to_string(itemCount), std::to_string(offset)};
-    }
-
-    int getItemCount() const
-    {
-        return itemCount;
-    }
-
-    int getOffset() const
-    {
-        return offset;
-    }
-
-    std::string toString() const
-    {
-        std::stringstream ss;
-        ss << "UserId<itemCount=" << itemCount << ", offset=" << offset << ", encoded=" << encode() << ">";
-        return ss.str();
-    }
-
-    static std::string toString(std::string userId)
-    {
-        return UserId(userId).toString();
-    }
-
-    bool operator==(const UserId &other) const
-    {
-        return itemCount == other.itemCount && offset == other.offset;
-    }
-
-    bool operator!=(const UserId &other) const
-    {
-        return !(*this == other);
-    }
-
-    bool operator<(const UserId &other) const
-    {
-        if (itemCount != other.itemCount)
-        {
-            return itemCount < other.itemCount;
-        }
-        return offset < other.offset;
-    }
+    std::string encode() const;
+    void decode(const std::string& composite_id);
+    std::vector<std::string> to_vec() const;
+    int get_item_count() const;
+    int get_offset() const;
+    std::string to_string() const;
+    static std::string to_string(std::string user_id);
+    bool operator==(const UserId &other) const;
+    bool operator!=(const UserId &other) const;
+    bool operator<(const UserId &other) const;
 };
+
+} // namespace auctionmark
+
+#endif // AUCTIONMARK_USER_ID_H

@@ -1,43 +1,52 @@
+#ifndef AUCTIONMARK_CATEGORY_H
+#define AUCTIONMARK_CATEGORY_H
+
 #include <string>
 #include <optional>
 
+namespace auctionmark {
+
 class Category {
 private:
-    int categoryID;
-    std::optional<int> parentCategoryID;
-    int itemCount;
+    int category_id;
+    std::optional<int> parent_category_id;
+    int item_count;
     std::string name;
-    bool isLeaf;
+    bool is_leaf;
 
 public:
-    Category(int categoryID, std::string name, std::optional<int> parentCategoryID, int itemCount, bool isLeaf)
-        : categoryID(categoryID), name(name), parentCategoryID(parentCategoryID), itemCount(itemCount), isLeaf(isLeaf) {}
+    inline Category(int category_id, std::string name, std::optional<int> parent_category_id, int item_count, bool is_leaf)
+        : category_id(category_id), name(name), parent_category_id(parent_category_id), item_count(item_count), is_leaf(is_leaf) {}
 
-    std::string getName() const {
+    inline std::string get_name() const {
         return this->name;
     }
 
-    int getCategoryID() const {
-        return this->categoryID;
+    inline int get_category_id() const {
+        return this->category_id;
     }
 
-    std::optional<int> getParentCategoryID() const {
-        return this->parentCategoryID;
+    inline std::optional<int> get_parent_category_id() const {
+        return this->parent_category_id;
     }
 
-    int getItemCount() const {
-        return this->itemCount;
+    inline int get_item_count() const {
+        return this->item_count;
     }
 
-    bool isLeaf() const {
-        return this->isLeaf;
+    inline bool is_leaf() const {
+        return this->is_leaf;
     }
 
-    bool operator==(const Category& other) const {
-        return categoryID == other.categoryID
-            && itemCount == other.itemCount
-            && isLeaf == other.isLeaf
-            && parentCategoryID == other.parentCategoryID
+    inline bool operator==(const Category& other) const {
+        return category_id == other.category_id
+            && item_count == other.item_count
+            && is_leaf == other.is_leaf
+            && parent_category_id == other.parent_category_id
             && name == other.name;
     }
 };
+
+} // namespace auctionmark
+
+#endif // AUIONMARK_CATEGORY_H

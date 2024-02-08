@@ -1,31 +1,40 @@
+#ifndef AUCTIONMARK_ITEM_COMMENT_RESPONSE_H
+#define AUCTIONMARK_ITEM_COMMENT_RESPONSE_H
+
 #include <string>
 #include <optional>
 
+namespace auctionmark {
+
 class ItemCommentResponse {
 private:
-    std::optional<long> commentId;
-    std::string itemId;
-    std::string sellerId;
+    long comment_id;
+    std::string item_id;
+    std::string seller_id;
 
 public:
-    ItemCommentResponse(std::optional<long> commentId, std::string itemId, std::string sellerId)
-        : commentId(commentId), itemId(itemId), sellerId(sellerId) {}
+    inline ItemCommentResponse(long comment_id, std::string item_id, std::string seller_id)
+        : comment_id(comment_id), item_id(item_id), seller_id(seller_id) {}
 
-    std::optional<long> getCommentId() const {
-        return this->commentId;
+    inline long get_comment_id() const {
+        return this->comment_id;
     }
 
-    std::string getItemId() const {
-        return this->itemId;
+    inline std::string get_item_id() const {
+        return this->item_id;
     }
 
-    std::string getSellerId() const {
-        return this->sellerId;
+    inline std::string get_seller_id() const {
+        return this->seller_id;
     }
 
-    bool operator==(const ItemCommentResponse& other) const {
-        return commentId == other.commentId
-            && itemId == other.itemId
-            && sellerId == other.sellerId;
+    inline bool operator==(const ItemCommentResponse& other) const {
+        return comment_id == other.comment_id
+            && item_id == other.item_id
+            && seller_id == other.seller_id;
     }
 };
+
+} // namespace auctionmark
+
+#endif // AUCTIONMARK_ITEM_COMMENT_RESPONSE_H
