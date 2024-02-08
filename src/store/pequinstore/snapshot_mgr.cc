@@ -75,7 +75,7 @@ void SnapshotManager::ResetLocalSnapshot(bool _useOptimisticTxId){
 
 uint64_t MergeTimestampId(const uint64_t &timestamp, const uint64_t &id){
    uint64_t time_mask = 0xFFF; //(1 << 12) - 1; //all bottom 12 bits = 1
-  Debug("Merging Timestamp: %lx, Id: %lx, Timemask: %lx, TS & Mask: %lx ", timestamp, id, time_mask, (timestamp & time_mask));
+  //Debug("Merging Timestamp: %lx, Id: %lx, Timemask: %lx, TS & Mask: %lx ", timestamp, id, time_mask, (timestamp & time_mask));
     
     //1) Check whether Id < 2^12
     //uint64_t id_mask = ~0UL - (time_mask);

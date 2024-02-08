@@ -61,10 +61,10 @@ transaction_status_t SQLUpdateCustomer::Execute(SyncClient &client) {
         query = fmt::format("SELECT * FROM {} WHERE c_id_str = '{}'", CUSTOMER_TABLE, c_id_str);
     }
     else{  //GetCustomer via ID
-         query = fmt::format("SELECT * FROM {} WHERE c_id = {}", CUSTOMER_TABLE, c_id);
+        query = fmt::format("SELECT * FROM {} WHERE c_id = {}", CUSTOMER_TABLE, c_id);
     }
    
-    client.Query(query, queryResult, timeout);
+    client.Query(query, queryResult, timeout, true); //cache result (in case we take the scan path (c_id_str)). Note: the c_id read is point and thus cached anyways
     GetCustomerResultRow cr_row = GetCustomerResultRow();
     if (queryResult->empty()) {
         if (c_id != NULL_ID) Notice("No customer record for customr id %ld", c_id);
@@ -74,6 +74,7 @@ transaction_status_t SQLUpdateCustomer::Execute(SyncClient &client) {
         return ABORTED_USER;
     }
     deserialize(cr_row, queryResult, 0);
+    if(c_id == NULL_ID) c_id = cr_row.c_id;
     int64_t base_airport = cr_row.c_base_ap_id;
 
     //GetBaseAirport

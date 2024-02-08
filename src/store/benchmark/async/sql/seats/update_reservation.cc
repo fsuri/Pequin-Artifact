@@ -45,7 +45,7 @@ transaction_status_t SQLUpdateReservation::Execute(SyncClient &client) {
 
     // (1) Check if Seat is taken (CheckSeat)
     query = fmt::format("SELECT r_id FROM {} WHERE r_f_id = {} AND r_seat = {}", RESERVATION_TABLE, f_id, seatnum);
-    client.Query(query,  timeout);
+    client.Query(query, timeout);
 
     // (2) Check that Customer already has a Seat (CheckCustomer)
     //query = fmt::format("SELECT r_id FROM {} WHERE r_f_id = {} AND r_c_id = {}", RESERVATION_TABLE, f_id, c_id);
@@ -66,10 +66,7 @@ transaction_status_t SQLUpdateReservation::Execute(SyncClient &client) {
         client.Abort(timeout);
         return ABORTED_USER;
     }
-    // std::time_t update_time = std::time(nullptr);
-    // query = fmt::format("UPDATE {} SET r_seat = {}, r_updated = {}, {} = {} WHERE r_id = {} AND r_c_id = {} AND r_f_id = {}", 
-    //                     RESERVATION_TABLE, seatnum, (int64_t) update_time, reserve_seats[attr_idx], attr_val, r_id, c_id, f_id);
-
+  
     query = fmt::format("UPDATE {} SET r_seat = {}, {} = {} WHERE r_id = {} AND r_c_id = {} AND r_f_id = {}", 
                         RESERVATION_TABLE, seatnum, reserve_seats[attr_idx], attr_val, r_id, c_id, f_id);
     client.Write(query, queryResult, timeout);

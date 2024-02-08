@@ -412,7 +412,7 @@ void IndexScanExecutor::CheckRow(ItemPointer tuple_location, concurrency::Transa
     // the following code traverses the version chain until a certain visible version is found. we should always find a visible version from a version chain.
     // NOTE: Similar read logic as seq_scan_executor
     auto const &timestamp = current_txn->GetBasilTimestamp();
-    Debug("Current Txn TS: [%lu, %lu]", timestamp.getTimestamp(), timestamp.getID());
+    Debug("Check next row. Current Txn TS: [%lu, %lu]", timestamp.getTimestamp(), timestamp.getID());
    
     // Get the head of the version chain (latest version)
     ItemPointer *head = tile_group_header->GetIndirection(tuple_location.offset);
@@ -471,14 +471,18 @@ void IndexScanExecutor::CheckRow(ItemPointer tuple_location, concurrency::Transa
 
       ItemPointer old_item = tuple_location;
       // std::cout << "Offset is " << old_item.offset << std::endl;
+      //fprintf(stderr, "Curr Tuple location [%lu:%lu]\n", tuple_location.block, tuple_location.offset);
       tuple_location = tile_group_header->GetNextItemPointer(old_item.offset);
+      //fprintf(stderr, "Next Tuple location [%lu:%lu]\n", tuple_location.block, tuple_location.offset);
+      if (tuple_location.IsNull()) {
+        //std::cout << "Tuple location is null" << std::endl;
+        done = true;
+        break;
+      }
       tile_group = storage_manager->GetTileGroup(tuple_location.block);
       tile_group_header = tile_group->GetHeader();
 
-      if (tuple_location.IsNull()) {
-        // std::cout << "Tuple location is null" << std::endl;
-        done = true;      
-      }
+      
     }
 
     LOG_TRACE("Traverse length: %d\n", (int)chain_length);

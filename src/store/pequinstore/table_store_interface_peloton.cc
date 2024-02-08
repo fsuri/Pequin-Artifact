@@ -649,8 +649,8 @@ void PelotonTableStore::TransformPointResult(proto::Write *write, Timestamp &com
 
     if(write->prepared_value() == "r"){ //only consume a row if the row exists for this version (i.e. write nothing to result if version was delete)
          
-        if(rows != 2) Panic("current test should always see committed. Statement: %s", statement->GetQueryString().c_str()); 
-        if(write->committed_value().empty()) Panic("In current test there should always be a committed value to read");
+        // if(rows != 2) Panic("current test should always see committed. Statement: %s", statement->GetQueryString().c_str()); 
+        // if(write->committed_value().empty()) Panic("In current test there should always be a committed value to read");
       
       row = queryResultBuilder.new_row();
       for (unsigned int i = 0; i < tuple_descriptor.size(); i++) {
