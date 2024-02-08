@@ -30,6 +30,33 @@
 namespace auctionmark
 {
 
+  //TABLE NAMES:
+
+  const std::string TABLE_ITEM = "item";
+  const std::string TABLE_ITEM_COLUMNS_STR = "item_columns_str";
+  const std::string TABLE_ITEM_COMMENT = "item_comment";
+  const std::string TABLE_ITEM_ATTR = "item_attr";
+  const std::string TABLE_ITEM_IMAGE = "item_image";
+  const std::string TABLE_ITEM_PURCHASE = "item_purchase";
+  const std::string TABLE_ITEM_BID = "item_bid";
+  const std::string TABLE_ITEM_MAX_BID = "item_max_bid";
+  const std::string TABLE_ITEM_BID = "item_bid";
+
+  const std::string TABLE_USER_ACCT = "user_acct";
+  const std::string TABLE_USER_ACCT_ITEM = "user_acct_item";
+  const std::string TABLE_USER_ACCT_FEEDBACK = "user_acct_feedback";
+  const std::string TABLE_USER_ACCT_WATCH = "user_acct_watch";
+
+  const std::string TABLE_REGION = "region";
+
+  const std::string TABLE_CATEGORY = "category";
+  const std::string TABLE_GLOBAL_ATTR_GROUP = "global_attr_group";
+  const std::string TABLE_GLOBAL_ATTR_VALUE = "global_attr_value";
+
+  const std::string ITEM_COLUMNS_STR = "i_id, i_u_id, i_name, i_current_price, i_num_bids, i_end_date, i_status";
+
+  ///////////////////
+
   constexpr uint32_t N_REGIONS = 75;
   constexpr uint32_t N_GAGS = 100;
   constexpr uint32_t GAV_PER_GROUP = 10;
@@ -52,18 +79,17 @@ namespace auctionmark
 
   /* Transaction ratios, should add up to 100 */
   constexpr uint32_t TXNS_TOTAL = 100;
-  constexpr uint32_t NEW_USER_RATIO = 5;
+  
+  constexpr uint32_t GET_ITEM_RATIO = 25;
+  constexpr uint32_t GET_USER_INFO_RATIO = 15;
+  constexpr uint32_t NEW_BID_RATIO = 20;
+  constexpr uint32_t NEW_COMMENT_RATIO = 5;
+  constexpr uint32_t NEW_COMMENT_RESPONSE_RATIO = 5;
+  constexpr uint32_t NEW_FEEDBACK_RATIO = 5;
   constexpr uint32_t NEW_ITEM_RATIO = 10;
-  constexpr uint32_t NEW_BID_RATIO = 18;
-  constexpr uint32_t NEW_COMMENT_RATIO = 2;
-  constexpr uint32_t NEW_COMMENT_RESPONSE_RATIO = 1;
-  constexpr uint32_t NEW_PURCHASE_RATIO = 2;
-  constexpr uint32_t NEW_FEEDBACK_RATIO = 3;
-  constexpr uint32_t GET_ITEM_RATIO = 40;
-  constexpr uint32_t UPDATE_ITEM_RATIO = 2;
-  constexpr uint32_t GET_COMMENT_RATIO = 2;
-  constexpr uint32_t GET_USER_INFO_RATIO = 10;
-  constexpr uint32_t GET_WATCHED_ITEMS_RATIO = 5;
+  constexpr uint32_t NEW_PURCHASE_RATIO = 5;
+  constexpr uint32_t UPDATE_ITEM_RATIO = 10;
+  
 }
 
 #endif

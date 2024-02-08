@@ -24,23 +24,42 @@
  * SOFTWARE.
  *
  **********************************************************************/
-#ifndef AUCTION_MARK_GET_ITEM_H
-#define AUCTION_MARK_GET_ITEM_H
-
-#include "store/benchmark/async/sql/auctionmark/auctionmark_transaction.h"
+#include "store/benchmark/async/sql/auctionmark/get_item.h"
+#include <fmt/core.h>
 
 namespace auctionmark {
 
-class GetItem : public AuctionMarkTransaction {
- public:
-  GetItem(uint32_t timeout, uint64_t i_id, std::mt19937_64 &gen);
-  virtual ~GetItem();
-  virtual transaction_status_t Execute(SyncClient &client);
+GetItem::GetItem(uint32_t timeout, std::string &item_id, std::string &seller_id, std::mt19937_64 &gen) : 
+    AuctionMarkTransaction(timeout), item_id(item_id), seller_id(seller_id) {
+}
 
- private:
-  uint64_t i_id;
-};
+GetItem::~GetItem(){
+}
+
+transaction_status_t GetItem::Execute(SyncClient &client) {
+  std::unique_ptr<const query_result::QueryResult> queryResult;
+  std::string statement;
+  std::vector<std::unique_ptr<const query_result::QueryResult>> results;
+
+  Debug("GET ITEM");
+  Debug("Item ID: %lu", i_id);
+
+  client.Begin(timeout);
+
+  statement = fmt::format("SELECT i_id, i_u_id, i_name, i_current_price, i_num_bids, i_end_date, i_status FROM "
+                          "ITEM WHERE i_id = {} AND i_u_id;", item_id, seller_id);
+  client.Query(statement, timeout);
+ 
+  statement = fmt::format("SELECT u_id, u_rating, u_created, u_sattr0, u_sattr1, u_sattr2, u_sattr3, u_sattr4, r_name "
+                         "FROM {}, {} WHERE u_id = {} AND u_r_id = r_id", TABLE_USER_ACCT, TABLE_REGION)
+  client.Query(statement, timeout);
+
+  client.Wait(results);
+
+  if(results[0].empty() || results[1].empty()) client.Abort(timeout);
+  
+  Debug("COMMIT");
+  return client.Commit(timeout);
+}
 
 } // namespace auctionmark
-
-#endif /* AUCTION_MARK_GET_ITEM_H */

@@ -24,37 +24,30 @@
  * SOFTWARE.
  *
  **********************************************************************/
-#include "store/benchmark/async/sql/auctionmark/get_item.h"
-#include <fmt/core.h>
+#ifndef AUCTION_MARK_CLOSE_AUCTIONS_H
+#define AUCTION_MARK_CLOSE_AUCTIONS_H
+
+#include "store/benchmark/async/sql/auctionmark/auctionmark_transaction.h"
 
 namespace auctionmark {
 
-GetItem::GetItem(uint32_t timeout, uint64_t i_id, std::mt19937_64 &gen) : 
-    AuctionMarkTransaction(timeout), i_id(i_id) {
-}
+class CloseAuctions : public AuctionMarkTransaction {
+ public:
+  CloseAuctions(uint32_t timeout, uint64_t start_time, uint64_t end_time, std::vector<uint64_t> &i_ids, 
+    std::vector<uint64_t> &seller_ids, std::vector<std::optional<uint64_t>> &buyer_ids, 
+    std::vector<std::optional<uint64_t>> &ib_ids, std::mt19937_64 &gen);
+  virtual ~CloseAuctions();
+  virtual transaction_status_t Execute(SyncClient &client);
 
-GetItem::~GetItem(){
-}
-
-transaction_status_t GetItem::Execute(SyncClient &client) {
-  std::unique_ptr<const query_result::QueryResult> queryResult;
-  std::string statement;
-  std::vector<std::unique_ptr<const query_result::QueryResult>> results;
-
-  Debug("GET ITEM");
-  Debug("Item ID: %lu", i_id);
-
-  client.Begin(timeout);
-
-  statement = fmt::format("SELECT i_id, i_u_id, i_initial_price, i_current_price FROM "
-                          "ITEM WHERE i_id = {} AND i_status = 0;", i_id);
-  client.Query(statement, queryResult, timeout);
-  uint64_t query_i_id, query_i_u_id;
-  queryResult->at(0)->get(0, &query_i_id);
-  assert(query_i_id == i_id);
-  
-  Debug("COMMIT");
-  return client.Commit(timeout);
-}
+ private:
+  uint64_t start_time;
+  uint64_t end_time;
+  std::vector<uint64_t> &i_ids;
+  std::vector<uint64_t> &seller_ids;
+  std::vector<std::optional<uint64_t>> &buyer_ids;
+  std::vector<std::optional<uint64_t>> &ib_ids;
+};
 
 } // namespace auctionmark
+
+#endif /* AUCTION_MARK_CLOSE_AUCTIONS_H */
