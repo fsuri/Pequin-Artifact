@@ -44,33 +44,39 @@ transaction_status_t NewComment::Execute(SyncClient &client) {
 
   Debug("NEW COMMENT");
 
+  //TODO: parameterize
+  std::string item_id;
+  std::string seller_id;
+  std::string buyer_id;
+  std::string question;
+
   client.Begin(timeout);
 
-  // Choose a random puchased item
-  statement = fmt::format("SELECT COUNT(*) AS cnt FROM USER_ITEM;");
+  //Set comment_id;
+  uint64_t ic_id = 0;
+  //getItemComments
+  statement = fmt::format("SELECT i_num_comments FROM {} WHERE i_id = {} AND i_u_id = {}", TABLE_ITEM, item_id, seller_id);
   client.Query(statement, queryResult, timeout);
-  uint64_t user_items_cnt;
-  deserialize(user_items_cnt, queryResult);
+  deserialize(ic_id, queryResult);
+  ++ic_id;
 
-  uint64_t user_item_id = std::uniform_int_distribution<uint64_t>(0, user_items_cnt - 1)(gen);
-  statement = fmt::format("SELECT ui_u_id, ui_i_id, ui_seller_id FROM USER_ITEM LIMIT {}, 1;", user_item_id);
-  client.Query(statement, queryResult, timeout);
-  queryResult->at(0)->get(0, &buyer_id);
-  queryResult->at(0)->get(1, &i_id);
-  queryResult->at(0)->get(2, &seller_id);
 
-  Debug("Item ID: %lu", i_id);
-  Debug("Buyer ID: %lu", buyer_id);
-  Debug("Seller ID: %lu", seller_id);
-
-  // Post comment on selected item
-  statement = fmt::format("INSERT INTO ITEM_COMMENT (ic_id, ic_i_id, ic_u_id, "
-                          "ic_buyer_id, ic_date, ic_question) VALUES (("
-                          "SELECT MAX(ic_id) FROM ITEM_COMMENT WHERE ic_i_id = {} "
-                          "AND ic_u_id = {}) + 1, {}, {}, {}, {}, {});",
-                          i_id, seller_id, i_id, seller_id, buyer_id, 0, question);
+  //insertItemComment
+  statement = fmt::format("INSERT INTO {} (ic_id, ic_i_id, ic_u_id, ic_buyer_id, ic_question, ic_created, ic_updated) "
+                        "VALUES ({}, {}, {}, {}, {}, {}, {})", TABLE_ITEM_COMMENT, ic_id, item_id, seller_id, buyer_id, question, std::time(0), std::time(0));
   client.Write(statement, queryResult, timeout);
-  assert(queryResult->has_rows_affected());
+  if(queryResult->rows_affected() == 0){
+    Debug("Item comment id %d already exists for item %s and seller %s", ic_id, item_id.c_str(), seller_id.c_str());
+    return client.Abort(timeout);
+  }
+
+   //updateItemComments
+  statement = fmt::format("UPDATE {} SET i_num_comments = i_num_comments + 1 WHERE i_id = {} AND i_u_id = {}", TABLE_ITEM, item_id, seller_id);
+  client.Write(statement, queryResult, timeout);
+
+  //updateUser
+  statement = fmt::format("UPDATE {} SET u_comments = u_comments + 1, u_updated = {} WHERE u_id = {}", TABLE_USER_ACCT, seller_id);
+  client.Write(statement, queryResult, timeout);
   
   Debug("COMMIT");
   return client.Commit(timeout);

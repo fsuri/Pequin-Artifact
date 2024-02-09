@@ -57,64 +57,93 @@ transaction_status_t NewItem::Execute(SyncClient &client) {
   Debug("NEW ITEM");
   Debug("User ID: %lu", u_id);
 
+  //TODO: parameterize:
+  std::string item_id;
+  std::string seller_id;
+  uint64_t category_id;
+  std::string name;
+  std::string description;
+  uint64_t duration,
+  double initial_price;
+  std::string attributes;
+  std::vector<std::string> gag_ids;
+  std::vector<std::string> gav_ids;
+  std::vector<std::string> imaged;
+
   client.Begin(timeout);
 
-  statement = "SELECT MAX(i_id) FROM ITEM;";   //FIXME: Is this up to spec?   Maybe just partition the request space across clients, and let them pick new unique ones?
-                                                                            //Typically Insert on a primary key will create a new unique one. Autoincrement? S
-                                                                            //Define table to autoincrement, let Insert use DEFAULT for this col, and then use RETURNING primarykeyid
-                                                                            //Not sure how our system would handle this though. Would need to transform it into a select Max_id under the hood anyways...
-  client.Query(statement, queryResult, timeout);
-  deserialize(i_id, queryResult);
-  i_id += 1;
-  Debug("Item ID: %lu", i_id);
+  std::uint64_t current_time = std::time(0);
+  std::uint64_t end_date = current_time + (duration * MILLISECONDS_IN_A_DAY);
 
-  statement = "SELECT MAX(c_id) FROM CATEGORY;";    //FIXME: Is this up to spec? ==> TODO: Should read from category txt
-  client.Query(statement, queryResult, timeout);
-  deserialize(c_id, queryResult);
-  c_id = std::uniform_int_distribution<uint64_t>(0, c_id)(gen);
-  Debug("Category ID: %lu", c_id);
+  //Get attribute names and category path and append them to the item description
 
-  // (1) for all global attribute groups, construct a description
-  std::string description = "";
-  std::string gag_name;
-  std::string gav_name;
-  for(int i = 0; i < (int) gag_ids.size(); i++) {
-    //FIXME: Why two separate reads? It does benefit us that both are point reads. (First is a classic point read, second one is a stricter point read, i.e. more conditions than primary key)
-    statement = fmt::format("SELECT gag_name FROM GLOBAL_ATTRIBUTE_GROUP WHERE gag_id = {};", gag_ids[i]);
-    client.Query(statement, timeout);
-    statement = fmt::format("SELECT gav_name FROM GLOBAL_ATTRIBUTE_VALUE WHERE gav_id = {} AND gav_gag_id = {};", gav_ids[i], gag_ids[i]);
-    client.Query(statement, timeout);
+  //ATTRIBUTES
+  description += "\nATTRIBUTES: ";
+  std::string getGlobablAttribute = fmt::format("SELECT gag_name, gav_name, gag_c_id FROM {}, {} WHERE gav_id = {} AND gav_gag_id = {} AND gav_gag_id = gag_id",
+                                                                                    TABLE_GLOBAL_ATTR_GROUP, TABLE_GLOBAL_ATTR_VALUE);    //TODO: add redundant input?
 
-    client.Wait(results);
-    deserialize(gag_name, results[0]);
-    deserialize(gav_name, results[1]);
-    description += gag_name + " " + gav_name + " ";
-  }
-
-  // (2) Insert new item
-  std::string query_values = fmt::format("VALUES ({}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {});",
-                                        i_id, u_id, c_id, name, description, attributes, initial_price, 0, images.size(), gav_ids.size(), start_date, end_date);
-  statement = "INSERT INTO ITEM (i_id, i_u_id, i_c_id, i_name, i_description, i_user_attributes, i_initial_price, i_num_bids, i_num_images, i_num_global_attrs, i_start_date, i_end_date) " + query_values;
-  client.Write(statement, queryResult, timeout);
-  assert(queryResult->has_rows_affected());
-
-  // (3) Add item images
-  for(uint32_t i = 0; i < (uint32_t) images.size(); i++) {
-    uint64_t ii_id = (i << 60) | (i_id & 0x0FFFFFFFFFFFFFFF);
-    statement = fmt::format("INSERT INTO ITEM_IMAGE (ii_id, ii_i_id, ii_u_id, ii_path) VALUES ({}, {}, {}, {});", ii_id, i_id, u_id, images[i]);
-    client.Write(statement, timeout);
-  }
-
+  for(int i = 0; i < gag_ids.size(); ++i){
+    std::string stmt = fmt::format(getGlobablAttribute, gav_ids[i], gag_ids[i]);
+    client.Query(stmt, timeout);
+  }                             
   client.Wait(results);
-  assert(results.size() == images.size());
-  for(int i = 0; i < (int) images.size(); i++) {
-    assert(results[i]->has_rows_affected());
+
+  for(auto res: results){
+    //TODO: deserialize
+    description += fmt::format(" * {} -> {}\n", res.gag_name, res. gav_name);
+  }                                             
+
+  //CATEGORY 
+  std::string getCategory = fmt::format("SELECT * FROM {} WHERE c_id = {}", TABLE_CATEGORY, category_id);
+  client.Query(getCategory, queryResult, timeout);
+  //TODO: deserialize.
+   std::string category_name = fmt::format("{}[{}]", field2, field1);
+
+  //CATEGORY PARENT
+  std::string getCategoryParent = fmt::format("SELECT * FROM {} WHERE c_parent_id = {}", TABLE_CATEGORY, category_id);
+  client.Query(getCategoryParent, queryResult, timeout);
+  std::string category_parent = "<ROOT>";
+  if(!queryResult.empty()){
+    //TODO: deserialize
+    category_parent = fmt::format("{}[{}]", field2, field1);
+  }
+  description += fmt::format("\nCATEGORY: {} >> {}", category_parent, category_name);
+
+  int sellerItemCount = 0;
+  std::string getSellerItemCount = fmt::format("SELECT COUNT(*) FROM {} WHERE i_u_id = {}", TABLE_ITEM, seller_id);
+  client.Query(getSellerItemCount, queryResult, timeout);
+  deserialize(sellerItemCount, queryResult);
+
+  //Insert a new ITEM tuple
+  std::string insertItem = fmt::format("INSERT INTO {} (i_id, i_u_id, i_c_id, i_name, i_description, i_user_attributes, i_initial_price, i_current_price, "
+                                                      "i_num_bids, i_num_images, i_num_global_attrs, i_start_date, i_end_date, i_status, i_created, i_updated, i_attr0) "
+                                        "VALUES ({}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {})", TABLE_ITEM,
+                                       item_id, seller_id, category_id, name, description, attributes, initial_price, initial_price, 0, 
+                                       images.size(), gav_ids.size(), current_time, end_date, ItemStatus::OPEN, current_time, current_time);
+  client.Write(insertItem, queryResult, timeout);             
+  if(!queryResult->has_rows_affected()){
+    return client.Abort(timeout);
+  }                              
+
+   //Insert ITEM_ATTRIBUTE tuples
+  std::string insertItemAttribute = fmt::format("INSERT INTO {} (ia_id, ia_i_id, ia_u_id, ia_gav_id, ia_gag_id) VALUES({}, {}, {}, {}, {})", TABLE_ITEM_ATTR);
+  for(int i = 0; i< gav_ids.size(); ++i){
+    std::string unique_elem_id = item_id + "" + std::stoi(i); //TODO: Revisit this  Original code breaks down item_id into seller_id and item_ctr; and then concats seller_id and i 
+    std::string stmt = fmt::format(insertItemAttribute, unique_elem_id, item_id, seller_id, gav_ids[i], gag_ids[i]);
+    client.Write(stmt, queryResult, timeout); //TODO: parallelize
   }
 
-  // (4) Decrement user balance
-  statement = fmt::format("UPDATE USER SET u_balance = u_balance - 1 WHERE u_id = {}", u_id);
-  client.Query(statement, queryResult, timeout);
-  assert(queryResult->has_rows_affected());
+  //Insert ITEM_IMAGE tuples         
+  std::string insertImage = fmt::format("INSERT INTO {} (ii_id, ii_i_id, ii_u_id, ii_sattr0) VALUES ({}, {}, {}, {})", TABLE_ITEM_IMAGE);                    
+  for(int i = 0; i<images.length; ++i){
+    std::string unique_elem_id = item_id + "" + std::stoi(i); //TODO: Revisit this  Original code breaks down item_id into seller_id and item_ctr; and then concats seller_id and i 
+    std::string stmt = fmt::format(insertImage, unique_elem_id, item_id, seller_id, images[i]);
+    client.Write(stmt, queryResult, timeout); //TODO: parallelize
+  }
+
+  std::string updateUserBalance = fmt::format("UPDATE {} SET u_balance = u_balance -1, u_updated = {} WHERE u_id = {}", TABLE_USER_ACCT, current_time, seller_id);
+  client.Write(updateUserBalance, queryResult, timeout);
+
   Debug("COMMIT");
   return client.Commit(timeout);
 

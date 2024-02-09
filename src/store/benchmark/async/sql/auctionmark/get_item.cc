@@ -51,7 +51,7 @@ transaction_status_t GetItem::Execute(SyncClient &client) {
   client.Query(statement, timeout);
  
   statement = fmt::format("SELECT u_id, u_rating, u_created, u_sattr0, u_sattr1, u_sattr2, u_sattr3, u_sattr4, r_name "
-                         "FROM {}, {} WHERE u_id = {} AND u_r_id = r_id", TABLE_USER_ACCT, TABLE_REGION)
+                         "FROM {}, {} WHERE u_id = {} AND u_r_id = r_id", TABLE_USER_ACCT, TABLE_REGION);
   client.Query(statement, timeout);
 
   client.Wait(results);

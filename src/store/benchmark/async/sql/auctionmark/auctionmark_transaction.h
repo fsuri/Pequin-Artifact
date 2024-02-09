@@ -303,6 +303,8 @@ void deserialize(T& t, std::unique_ptr<const query_result::QueryResult>& queryRe
   deserialize(t, queryResult, 0);
 }
 
+//TODO: ADD COL based deser.
+
 class AuctionMarkTransaction : public SyncTransaction {
  public:
   AuctionMarkTransaction(uint32_t timeout);

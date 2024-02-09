@@ -138,11 +138,13 @@ void SeqScanExecutor::CheckRow(ItemPointer head_tuple_location, concurrency::Tra
     //Move on to next oldest version.
     ItemPointer old_location = tuple_location;
     tuple_location = tile_group_header->GetNextItemPointer(old_location.offset);
-    
+    if (tuple_location.IsNull()){
+      done = true;
+      break;
+    }
+
     tile_group = storage_manager->GetTileGroup(tuple_location.block);
     tile_group_header = tile_group->GetHeader();
-
-    if (tuple_location.IsNull()) done = true;
   }
 }
 

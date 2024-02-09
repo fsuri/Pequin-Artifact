@@ -43,40 +43,30 @@ transaction_status_t NewFeedback::Execute(SyncClient &client) {
 
   Debug("NEW FEEDBACK");
 
+  //TODO: parameterize
+  std::string user_id;
+  std::string i_id;
+  std::string seller_id;
+  std::string from_id;
+  uint64_t rating;
+  std::string comment;
+
   client.Begin(timeout);
 
-  // Choose a random puchased item
-  statement = fmt::format("SELECT COUNT(*) AS cnt FROM USER_ITEM;");
+  statement = fmt::format("SELECT uf_i_id, uf_i_u_id, uf_from_id FROM {} WHERE uf_u_id = {} AND uf_i_id = {} AND uf_i_u_id = {} AND uf_from_id = {}", 
+                                                                  TABLE_USER_ACCT_FEEDBACK, user_id, i_id, seller_id, from_id);
   client.Query(statement, queryResult, timeout);
-  uint64_t user_items_cnt;
-  deserialize(user_items_cnt, queryResult);
+  if(!queryResult->empty()){
+    Debug("Trying to add feedback for item %s twice", i_id.c_str());
+    return client.Abort(timeout);
+  }
 
-  uint64_t user_item_id = std::uniform_int_distribution<uint64_t>(0, user_items_cnt - 1)(gen);
-  statement = fmt::format("SELECT ui_u_id, ui_i_id, ui_seller_id FROM USER_ITEM LIMIT {}, 1;", user_item_id);
-  client.Query(statement, queryResult, timeout);
-  queryResult->at(0)->get(0, &buyer_id);
-  queryResult->at(0)->get(1, &i_id);
-  queryResult->at(0)->get(2, &seller_id);
 
-  Debug("Item ID: %lu", i_id);
-  Debug("Seller ID: %lu", seller_id);
-  Debug("Buyer ID: %lu", buyer_id);
-
-  statement = fmt::format("(SELECT MAX(if_id) FROM ITEM_FEEDBACK WHERE "
-                          "if_i_id = {} AND if_u_id = {}) + 1;",
-                          i_id, seller_id);
-  client.Query(statement, queryResult, timeout);
-  uint64_t if_id;
-  queryResult->at(0)->get(0, &if_id);
-
-  statement = fmt::format("INSERT INTO ITEM_FEEDBACK (if_id, if_i_id, if_u_id, "
-                          "if_buyer_id, if_rating, if_date, if_comment) VALUES({}, "
-                          "{}, {}, {}, {}, {}, {});",
-                          if_id, i_id, seller_id, buyer_id, rating, 0, comment);
+  statement = fmt::format("INSERT INTO {} (uf_u_id, uf_i_id, uf_i_u_id, uf_from_id, uf_rating, uf_date, uf_sattr0) "
+                          "VALUES({}, {}, {}, {}, {}, {}, {})", TABLE_USER_ACCT_FEEDBACK, user_id, i_id, seller_id, from_id, rating, std::time(0), comment);
   client.Write(statement, queryResult, timeout);
-  assert(queryResult->has_rows_affected());
 
-  Debug("COMMIT");
+  Debug("COMMIT NEW_FEEDBACK");
   return client.Commit(timeout);
 }
 

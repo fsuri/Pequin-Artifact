@@ -30,6 +30,8 @@
 namespace auctionmark
 {
 
+  //FIXME: Copy this from AuctionMarkConstants
+
   //TABLE NAMES:
 
   const std::string TABLE_ITEM = "item";
@@ -54,6 +56,14 @@ namespace auctionmark
   const std::string TABLE_GLOBAL_ATTR_VALUE = "global_attr_value";
 
   const std::string ITEM_COLUMNS_STR = "i_id, i_u_id, i_name, i_current_price, i_num_bids, i_end_date, i_status";
+
+  const enum ItemStatus {
+    OPEN,
+    ENDING_SOON,
+    WAITING_FOR_PURCHASE,
+    CLOSED
+  };
+
 
   ///////////////////
 
@@ -89,6 +99,21 @@ namespace auctionmark
   constexpr uint32_t NEW_ITEM_RATIO = 10;
   constexpr uint32_t NEW_PURCHASE_RATIO = 5;
   constexpr uint32_t UPDATE_ITEM_RATIO = 10;
+
+
+    /** When an item receives a bid we will increase its price by this amount */
+  const double ITEM_BID_PERCENT_STEP = 0.025;
+
+
+  const uint64_t SECONDS_IN_A_DAY = 24 * 60 * 60;
+  const uint64_t MILLISECONDS_IN_A_SECOND = 1000;
+  const uint64_t MILLISECONDS_IN_A_DAY = SECONDS_IN_A_DAY * MILLISECONDS_IN_A_SECOND;
+
+
+  /** The number of update rounds in each invocation of CloseAuctions */
+  const int CLOSE_AUCTIONS_ROUNDS = 1;
+  /** The number of items to pull in for each update round in CloseAuctions */
+  const int CLOSE_AUCTIONS_ITEMS_PER_ROUND = 100;
   
 }
 

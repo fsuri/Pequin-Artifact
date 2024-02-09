@@ -45,55 +45,89 @@ transaction_status_t CloseAuctions::Execute(SyncClient &client) {
   std::string statement;
   std::vector<std::unique_ptr<const query_result::QueryResult>> results;
 
-  Debug("CHECK WINNING BIDS");
+  Debug("CLOSE AUCTION");
   Debug("Start Time: %lu", start_time);
   Debug("End Time: %lu", end_time);
 
+
+
   client.Begin(timeout);
 
-  statement = fmt::format("SELECT i_id, i_u_id, i_status FROM ITEM WHERE i_start_date "
-                          "BETWEEN {} AND {} AND i_status = 0 LIMIT 100;",
-                          start_time, end_time);
-  client.Query(statement, queryResult, timeout);
-  uint64_t query_i_id, query_i_u_id, query_i_status;
+  int closed_ctr = 0;
+  int waiting_ctr = 0;
+  int round = CLOSE_AUCTIONS_ROUNDS;
+  int col = -1;
 
-  for(std::size_t i = 0; i < queryResult->size(); i++) {
-    queryResult->at(i)->get(0, &query_i_id);
-    queryResult->at(i)->get(1, &query_i_u_id);
-    queryResult->at(i)->get(2, &query_i_status);
+  uint64_t current_time = std::time(0);
 
-    uint64_t max_bid_id;
-    statement = fmt::format("SELECT imb_ib_id FROM ITEM_MAX_BID WHERE imb_i_id = {} "
-                            "AND imb_u_id = {};",
-                            query_i_id, query_i_u_id);
-    std::unique_ptr<const query_result::QueryResult> temp_result;
-    client.Query(statement, temp_result, timeout);
 
-    Debug("Item Id: %lu", query_i_id);
-    Debug("Item User Id: %lu", query_i_u_id);
-    if (!temp_result->empty()) {
-      temp_result->at(0)->get(0, &max_bid_id);
-      uint64_t buyer_id;
-      statement = fmt::format("SELECT ib_buyer_id FROM ITEM_BID WHERE ib_id = {} AND "
-                              "ib_i_id = {} AND ib_u_id = {};",
-                              max_bid_id, query_i_id, query_i_u_id);
-      client.Query(statement, temp_result, timeout);
-      temp_result->at(0)->get(0, &buyer_id);
-      i_ids.push_back(query_i_id);
-      seller_ids.push_back(query_i_u_id);
-      buyer_ids.push_back(buyer_id);
-      ib_ids.push_back(max_bid_id);
-      Debug("Buyer Id: %lu", buyer_id);
-    } else {
-      i_ids.push_back(query_i_id);
-      seller_ids.push_back(query_i_u_id);
-      buyer_ids.push_back(std::nullopt);
-      ib_ids.push_back(std::nullopt);
-      Debug("Item Status: %lu", query_i_status);
+  std::string getDueItems = fmt::format("SELECT {} FROM {} WHERE i_start_date >= {} AND i_start_date <= {} AND i_status = {} "
+                                        "ORDER BY i_id ASC LIMIT {}", ITEM_COLUMNS_STR, TABLE_ITEM, CLOSE_AUCTIONS_ITEMS_PER_ROUND, start_time, end_time, ItemStatus::OPEN);
+
+  std::string getMaxBid = fmt::format("SELECT imb_ib_id, ib_buyer_id FROM {}, {} "
+                                        "WHERE imb_i_id = {} AND imb_u_id = {} AND ib_id = imb_ib_id AND ib_i_id = imb_i_id AND ib_u_id = imb_u_id ", 
+                                        TABLE_ITEM_MAX_BID, TABLE_ITEM_BID); //TODO: Add redundant inputs?
+
+  while(round-- > 0){
+    client.Query(getDueItems, queryResult, timeout);
+    //skip first row of result. If don't have any, break
+    if(queryResult->empty()) break;
+
+    //For row in result:
+    for(int i = 1; i<queryResult->size(); ++i){
+      std::unique_ptr<query_result::Row> row = (*q_result)[i]; 
+
+      //TODO: deserialize
+      std::string itemId;
+      std::string sellerId;
+      std::string i_name;
+      double currentPrice;
+      double numBids;
+      uint64_t endDate;
+      ItemStatus itemStatus;
+      uint64_t bidId = 0;
+      std::string buyerId = "";
+
+      Debug("Getting max bid for itemId=%s / sellerId=%s", itemId.c_str(), sellerId.c_str());
+
+      // Has bid on this item - set status to WAITING_FOR_PURCHASE
+      // We'll also insert a new USER_ITEM record as needed
+      // We have to do this extra step because H-Store doesn't have good support in the query optimizer for LEFT OUTER JOINs  //THIS IS A COMMENT FROM BENCHBASE
+
+      if(numBids > 0){
+        waiting_ctr++;
+        std::string getMaxBid_stmt = fmt::format(getMaxBid, itemId, sellerId);
+        client.Query(getMaxBid_stmt, queryResult, timeout);
+
+        //TODO: deserialize:
+        //bidId
+        //buyerId
+
+        std::string insertUserItem = fmt::format("INSERT INTO {} (ui_u_id, ui_i_id, ui_i_u_id, ui_created) "
+                                           "VALUES({}, {}, {}, {})", TABLE_USER_ACCT_ITEM, buyerId, itemId, sellerId, current_time);
+        client.Write(insertUserItem, queryResult, timeout);
+
+        itemStatus = ItemStatus::WAITING_FOR_PURCHASE;
+
+      }
+      // No bid on this item - set status to CLOSED
+      else{
+        closed_ctr++;
+        itemStatus = ItemStatus::CLOSED;
+      }
+
+
+      std::string updateItemStatus = fmt::format("UPDATE {} SET i_status = {}, i_updated = {} WHERE i_id = {} AND i_u_id = {}", TABLE_ITEM, itemStatus, current_time, itemId, sellerId);
+      client.Write(updateItemStatus, queryResult, timeout);
+
+
+
     }
   }
+
   
-  Debug("COMMIT");
+  
+  Debug("COMMIT CLOSE AUCTION");
   return client.Commit(timeout);
 }
 
