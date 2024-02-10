@@ -11,7 +11,7 @@
 #include "store/benchmark/async/sql/auctionmark/utils/user_id_generator.h"
 #include "store/benchmark/async/sql/auctionmark/utils/item_id.h"
 #include "store/benchmark/async/sql/auctionmark/utils/item_comment_response.h"
-#include "store/benchmark/async/common/zipf_key_selector.h"
+#include "store/benchmark/async/sql/auctionmark/utils/zipf.h"
 
 namespace auctionmark {
  
@@ -34,7 +34,8 @@ public:
     std::chrono::system_clock::time_point get_loader_stop_time();
     std::chrono::system_clock::time_point set_and_get_client_start_time();
     std::chrono::system_clock::time_point get_client_start_time();
-    std::chrono::system_clock::time_point has_client_start_time();
+    bool has_client_start_time();
+    std::chrono::system_clock::time_point update_and_get_last_close_auctions_time();
     std::chrono::system_clock::time_point get_last_close_auctions_time();
 
     /* General Methods */
@@ -55,6 +56,11 @@ public:
     ItemStatus add_item_to_proper_queue(ItemInfo &item_info, bool is_loader);
     ItemStatus add_item_to_proper_queue(ItemInfo &item_info, std::chrono::system_clock::time_point &base_time, std::vector<ItemInfo>::iterator &current_queue_iterator);
     ItemInfo get_random_item(std::vector<ItemInfo> item_set, bool need_current_price, bool need_future_end_date);
+    long get_random_num_images();
+    long get_random_num_attributes();
+    long get_random_purchase_duration();
+    long get_random_num_comments();
+    long get_random_initial_price();
 
     /* Available Items */
     ItemInfo get_random_available_item();
@@ -98,7 +104,7 @@ private:
     const int client_id;
     std::mt19937_64 gen;
     const int num_clients;
-    const double scale_factor;
+    double scale_factor;
     std::chrono::system_clock::time_point loader_start_time;
     std::chrono::system_clock::time_point loader_stop_time;
 
@@ -124,22 +130,22 @@ private:
 
     std::vector<GlobalAttributeGroupId> gag_ids;
 
-    UserIdGenerator user_id_generator;
+    std::optional<UserIdGenerator> user_id_generator;
 
-    std::bernoulli_distribution random_time_diff;
-    std::bernoulli_distribution random_duration;
-    ZipfKeySelector random_num_images;
-    ZipfKeySelector random_num_attributes;
-    ZipfKeySelector random_purchase_duration;
-    ZipfKeySelector random_num_comments;
-    ZipfKeySelector random_initial_price;
+    std::binomial_distribution<int> random_time_diff;
+    std::binomial_distribution<int> random_duration;
+    Zipf random_num_images;
+    Zipf random_num_attributes;
+    Zipf random_purchase_duration;
+    Zipf random_num_comments;
+    Zipf random_initial_price;
 
     std::uniform_int_distribution<int> random_category;
     std::uniform_int_distribution<int> random_item_count;
 
-    std::chrono::steady_clock::time_point last_close_auctions;
-    std::chrono::steady_clock::time_point client_start_time;
-    std::chrono::steady_clock::time_point current_time;
+    std::chrono::system_clock::time_point last_close_auctions_time;
+    std::chrono::system_clock::time_point client_start_time;
+    std::chrono::system_clock::time_point current_time;
 
     str_cat_hist_t seller_item_cnt;
 
@@ -148,7 +154,7 @@ private:
     // Temporary variables
     std::unordered_set<ItemInfo> tmp_seen_items;
     std::unordered_set<ItemInfo> tmp_user_id_set;
-    std::chrono::steady_clock::time_point tmp_now;
+    std::chrono::system_clock::time_point tmp_now;
 
     inline void initialize_user_id_generator(int client_id) {
         user_id_generator = UserIdGenerator(users_per_item_count, num_clients, client_id);
