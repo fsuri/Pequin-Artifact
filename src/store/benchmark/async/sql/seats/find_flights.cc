@@ -14,6 +14,7 @@ SQLFindFlights::SQLFindFlights(uint32_t timeout, std::mt19937_64 gen) :
         arrive_aid = std::uniform_int_distribution<int64_t>(1, NUM_AIRPORTS)(gen);
         start_time = std::uniform_int_distribution<std::time_t>(MIN_TS, MAX_TS)(gen);
         end_time = std::uniform_int_distribution<std::time_t>(start_time, MAX_TS)(gen);
+
         if (std::uniform_int_distribution<int>(1, 100)(gen) < PROB_FIND_FLIGHTS_NEARBY_AIRPORT) {
             distance = std::uniform_int_distribution<int>(6000, 9000)(gen);   //TODO: Where is this number coming from?
         } else {

@@ -192,7 +192,7 @@ std::vector<std::pair<double, double>> GenerateAirportTable(TableWriter &writer,
     column_names_and_types.push_back(std::make_pair("ap_gmt_offset", "FLOAT"));
     column_names_and_types.push_back(std::make_pair("ap_wac", "BIGINT"));
     FillColumnNamesWithGenericAttr(column_names_and_types, "ap_iattr", "BIGINT", 16);
-
+  
     const std::vector<uint32_t> primary_key_col_idx {0};
     std::string table_name = seats_sql::AIRPORT_TABLE;
     writer.add_table(table_name, column_names_and_types, primary_key_col_idx);
@@ -202,6 +202,7 @@ std::vector<std::pair<double, double>> GenerateAirportTable(TableWriter &writer,
     std::mt19937 gen;
     std::vector<std::pair<double, double>> airport_long_lats; 
     airport_long_lats.reserve(seats_sql::NUM_AIRPORTS);
+    std::cerr << "prepared table" << std::endl;
     for (int ap_id = 1; ap_id <= seats_sql::NUM_AIRPORTS; ap_id++) {
       std::vector<std::string> values; 
       csv = readCSVRow(file);
@@ -216,11 +217,12 @@ std::vector<std::pair<double, double>> GenerateAirportTable(TableWriter &writer,
       else values.push_back(std::to_string(co_code_to_id[csv[4]]));    // ap_co_id
       std::string longitude = csv[5];
       std::string latitude = csv[6];
-
+      std::cerr << "is alpha check" << std::endl;
       if (isalpha(longitude[1])) {
         longitude = csv[6];
         latitude = csv[7];
       }
+      std::cerr << "past that" << std::endl;
       airport_long_lats.push_back(std::make_pair(stod(longitude), stod(latitude)));
       values.push_back(longitude);                                          // ap_longitude
       values.push_back(latitude);                                           // ap_latitude
@@ -228,7 +230,7 @@ std::vector<std::pair<double, double>> GenerateAirportTable(TableWriter &writer,
       values.push_back(csv[8]);                                      // ap_wac
       for (int iattr = 0; iattr < 16; iattr++) 
         values.push_back(std::to_string(std::uniform_int_distribution<int64_t>(1, std::numeric_limits<int64_t>::max())(gen)));
-      
+      std::cerr << "finished that" << std::endl;
       writer.add_row(table_name, values);
     }
     file.close();

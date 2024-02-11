@@ -6,10 +6,20 @@
 #include <limits>
 namespace seats_sql {
 
+/** Frequency of Transaction in Benchmark Workload */
+const int FREQUENCY_DELETE_RESERVATION = 10;
+const int FREQUENCY_FIND_FLIGHTS = 10;
+const int FREQUENCY_FIND_OPEN_SEATS = 35;
+const int FREQUENCY_NEW_RESERVATION = 20;
+const int FREQUENCY_UPDATE_CUSTOMER = 10;
+const int FREQUENCY_UPDATE_RESERVATION = 15;
+
+/** Constants dealing with seats on flights */
 const int TOTAL_SEATS_PER_FLIGHT = 150;
 const int MIN_SEATS_RESERVED = (int) (TOTAL_SEATS_PER_FLIGHT * 0.6);
 const int MAX_SEATS_RESERVED = (int) (TOTAL_SEATS_PER_FLIGHT * 0.8);
 
+/** Constants dealing with transaction queues*/
 const int MAX_PENDING_INSERTS = 10000;
 const int MAX_PENDING_UPDATES = 5000;
 const int MAX_PENDING_DELETES = 5000;
@@ -25,20 +35,13 @@ const double FLIGHT_TRAVEL_RATE = 570.0;
 
 const int64_t MS_IN_DAY = 86400000L;
 
-/** Frequency of Transaction in Benchmark Workload */
-const int FREQUENCY_DELETE_RESERVATION = 10;
-const int FREQUENCY_FIND_FLIGHTS = 10;
-const int FREQUENCY_FIND_OPEN_SEATS = 35;
-const int FREQUENCY_NEW_RESERVATION = 20;
-const int FREQUENCY_UPDATE_CUSTOMER = 10;
-const int FREQUENCY_UPDATE_RESERVATION = 15;
-
 
 const int PROB_REQUEUE_DELETED_RESERVATION = 90;
 const int PROB_DELETE_WITH_CUSTOMER_ID_STR = 20;
 const int PROB_UPDATE_WITH_CUSTOMER_ID_STR = 20;
 const int PROB_UPDATE_FREQUENT_FLYER = 25;
-const int PROB_FIND_FLIGHTS_NEARBY_AIRPORT = 10;  //FIXME: Should be 25?  TODO: Add RANDOM_AIRPORTS 10?
+const int PROB_FIND_FLIGHTS_NEARBY_AIRPORT = 25;  //FIXME: Should be 25?  TODO: Add RANDOM_AIRPORTS 10?
+const int PROB_FIND_FLIGHTS_RANDOM_AIRPORTS = 10;
 
 const int PROB_Q_DELETE_RESERVATION = 50;
 const int PROB_Q_UPDATE_RESERVATION = 100 - PROB_Q_DELETE_RESERVATION;
