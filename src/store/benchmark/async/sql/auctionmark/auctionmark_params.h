@@ -212,6 +212,56 @@ namespace auctionmark
       TABLENAME_ITEM_MAX_BID,
       TABLENAME_ITEM_PURCHASE,
   };
+
+  /* Table Data Structures */
+  static constexpr const std::unordered_set<std::string> FIXED_TABLES = {
+    TABLENAME_REGION,
+    TABLENAME_GLOBAL_ATTRIBUTE_GROUP,
+    TABLENAME_GLOBAL_ATTRIBUTE_VALUE
+  };
+
+  static constexpr const std::unordered_set<std::string> DYNAMIC_TABLES = {
+    TABLENAME_USERACCT_ATTRIBUTES,
+    TABLENAME_ITEM_IMAGE,
+    TABLENAME_ITEM_ATTRIBUTE,
+    TABLENAME_ITEM_COMMENT,
+    TABLENAME_USERACCT_FEEDBACK,
+    TABLENAME_ITEM_BID,
+    TABLENAME_ITEM_MAX_BID,
+    TABLENAME_ITEM_PURCHASE,
+    TABLENAME_USERACCT_ITEM,
+    TABLENAME_USERACCT_WATCH
+  };
+
+  static constexpr const std::unordered_set<std::string> AuctionMarkConstants::DATAFILE_TABLES = {
+    TABLENAME_CATEGORY
+  };
+
+  /* Probabilities */
+
+  /** The probability that a buyer will leave feedback for the seller (1-100) */
+  static constexpr int PROB_PURCHASE_BUYER_LEAVES_FEEDBACK = 75;
+
+  /** The probability that a seller will leave feedback for the buyer (1-100) */
+  static constexpr int PROB_PURCHASE_SELLER_LEAVES_FEEDBACK = 80;
+
+  static constexpr int PROB_GETUSERINFO_INCLUDE_FEEDBACK = 25;
+  static constexpr int PROB_GETUSERINFO_INCLUDE_COMMENTS = 10;
+  static constexpr int PROB_GETUSERINFO_INCLUDE_SELLER_ITEMS = 10;
+  static constexpr int PROB_GETUSERINFO_INCLUDE_BUYER_ITEMS = 10;
+  static constexpr int PROB_GETUSERINFO_INCLUDE_WATCHED_ITEMS = 10;
+
+  static constexpr int PROB_UPDATEITEM_DELETE_ATTRIBUTE = 25;
+  static constexpr int PROB_UPDATEITEM_ADD_ATTRIBUTE = -1; // 25;
+
+  /** The probability that a buyer will not have enough money to purchase an item (1-100) */
+  static constexpr int PROB_NEWPURCHASE_NOT_ENOUGH_MONEY = 1;
+
+  /** The probability that the NewBid txn will try to bid on a closed item (1-100) */
+  static constexpr int PROB_NEWBID_CLOSED_ITEM = 5;
+
+  /** The probability that a NewBid txn will target an item whose auction is ending soon (1-100) */
+  static constexpr int PROB_NEWBID_ENDINGSOON_ITEM = 50;
 }
 
 #endif
