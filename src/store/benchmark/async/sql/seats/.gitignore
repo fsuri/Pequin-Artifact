@@ -1,1 +1,5 @@
 sql-seats-data/*
+sql-seats-data/airline.csv
+sql-seats-data/airport.csv
+sql-seats-data/country.csv
+
