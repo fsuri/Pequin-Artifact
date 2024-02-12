@@ -63,6 +63,7 @@ SEATSSQLClient::SEATSSQLClient(SyncClient &client, Transport &transport, uint64_
       skipCSVHeader(file);
       for (int i = 0; i < CACHE_LIMIT_FLIGHT_IDS; i++) {
         std::vector<std::string> row = readCSVRow(file);
+        if (row.size() < 5) break;
 
         CachedFlight cf;
         cf.flight_id = std::stoi(row[0]); 
