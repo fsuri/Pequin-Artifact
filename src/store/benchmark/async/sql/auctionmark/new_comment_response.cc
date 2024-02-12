@@ -52,11 +52,13 @@ transaction_status_t NewCommentResponse::Execute(SyncClient &client) {
 
   client.Begin(timeout);
 
+  uint64_t current_time = std::time(0);
+
    statement = fmt::format("UPDATE {} SET ic_response = {}, ic_updated = {} WHERE ic_id = {} AND ic_i_id = {} AND ic_u_id = {}", 
-                          TABLE_ITEM_COMMENT, response, std::time(0), comment_id, item_id, seller_id);
+                          TABLE_ITEM_COMMENT, response, current_time, comment_id, item_id, seller_id);
   client.Write(statement, timeout, true);
 
-   statement = fmt::format("UPDATE {} SET u_comments = u_comments - 1, u_updated = {} WHERE u_id = {}", TABLE_USER_ACCT, std::time(0), seller_id);
+   statement = fmt::format("UPDATE {} SET u_comments = u_comments - 1, u_updated = {} WHERE u_id = {}", TABLE_USER_ACCT, current_time, seller_id);
    client.Write(statement, timeout, true);
 
   client.asyncWait();
