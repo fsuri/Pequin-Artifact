@@ -6,7 +6,10 @@
 #include "store/benchmark/async/sync_transaction_bench_client.h"
 #include "store/benchmark/async/sql/seats/reservation.h"
 
+#include "cached_flight.h"
+
 namespace seats_sql {
+
 
 class SEATSSQLClient : public SyncTransactionBenchClient {
  public:
@@ -25,11 +28,13 @@ class SEATSSQLClient : public SyncTransactionBenchClient {
   virtual std::string GetLastOp() const;
 
   std::string lastOp;
-  std::mt19937_64 gen;      
+  std::mt19937 gen;      
   uint64_t seats_id;              // need this for generating res id
   int64_t num_res_made;       // number of reservations made by client
   bool started_workload;      
   std::string last_op_;
+
+  std::vector<CachedFlight> cached_flight_ids;
 };
 
 } //namespace seats_sql

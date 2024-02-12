@@ -102,6 +102,9 @@ struct StringVisitor {
     std::string operator()(int64_t &i) const { 
         return std::to_string(i);
     }
+    std::string operator()(double &d) const { 
+        return std::to_string(d);
+    }
     std::string operator()(bool &b) const { 
         return b? "true" : "false";
         //return std::to_string(b);
@@ -205,7 +208,7 @@ class SQLTransformer {
         } Col_Update;
 
         void ParseColUpdate(std::string_view col_update, std::map<std::string_view, Col_Update> &col_updates);
-        std::string GetUpdateValue(const std::string &col, std::variant<bool, int64_t, std::string> &field_val, std::unique_ptr<query_result::Field> &field, 
+        std::string GetUpdateValue(const std::string &col, std::variant<bool, int64_t, double, std::string> &field_val, std::unique_ptr<query_result::Field> &field, 
             std::map<std::string_view, Col_Update> &col_updates, const std::string &col_type, bool &change_val);
         TableWrite* AddTableWrite(const std::string &table_name, const ColRegistry &col_registry);
         RowUpdates* AddTableWriteRow(TableWrite *table_write, const ColRegistry &col_registry);
@@ -259,10 +262,10 @@ void DeCerealize(std::string &enc_value, T &dec_value){
     }
 }
 
-std::variant<bool, int64_t, std::string> DecodeType(std::unique_ptr<query_result::Field> &field, const std::string &col_type);
+std::variant<bool, int64_t, double, std::string> DecodeType(std::unique_ptr<query_result::Field> &field, const std::string &col_type);
 
-std::variant<bool, int64_t, std::string> DecodeType(const std::string &enc_value, const std::string &col_type);
-std::variant<bool, int64_t, std::string> DecodeType(std::string &enc_value, const std::string &col_type);
+std::variant<bool, int64_t, double, std::string> DecodeType(const std::string &enc_value, const std::string &col_type);
+std::variant<bool, int64_t, double, std::string> DecodeType(std::string &enc_value, const std::string &col_type);
 
 };
 

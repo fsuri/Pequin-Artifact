@@ -1,0 +1,42 @@
+#ifndef AUCTIONMARK_ITEM_INFO_H
+#define AUCTIONMARK_ITEM_INFO_H
+
+#include <string>
+#include <optional>
+#include <chrono>
+#include "store/benchmark/async/sql/auctionmark/utils/item_id.h"
+#include "store/benchmark/async/sql/auctionmark/utils/item_status.h"
+
+namespace auctionmark {
+
+class ItemInfo {
+private:
+    ItemId item_id;
+    std::optional<float> current_price;
+    std::optional<std::chrono::system_clock::time_point> end_date;
+    long num_bids;
+    std::optional<ItemStatus> status;
+
+public:
+    ItemInfo(ItemId id, std::optional<double> current_price, std::optional<std::chrono::system_clock::time_point> end_date, int num_bids);
+
+    ItemId get_item_id() const;
+    UserId get_seller_id() const;
+    bool has_current_price() const;
+    std::optional<float> get_current_price() const;
+    bool has_end_date() const;
+    std::optional<std::chrono::system_clock::time_point> get_end_date() const;
+    void set_item_id(ItemId item_id);
+    void set_current_price(std::optional<float> current_price);
+    void set_end_date(std::optional<std::chrono::system_clock::time_point> end_date);
+    long get_num_bids() const;
+    void set_num_bids(long num_bids);
+    std::optional<ItemStatus> get_status() const;
+    void set_status(std::optional<ItemStatus> status);
+    bool operator==(const ItemInfo& other) const;
+    bool operator<(const ItemInfo& other) const;
+};
+
+} // namespace auctionmark
+
+#endif // AUCTIONMARK_ITEM_INFO_H

@@ -322,7 +322,7 @@ void Client::Write(std::string &write_statement, write_callback wcb,
       //   return;
       // };
       Debug("Issuing re-con Query");
-      Query(read_statement, std::move(write_continuation), wtcb, timeout, skip_query_interpretation);
+      Query(read_statement, std::move(write_continuation), wtcb, timeout, false, skip_query_interpretation); //never cache results from write transformation
     }
     return;
   }
@@ -376,11 +376,11 @@ void Client::Write(std::string &write_statement, write_callback wcb,
 //Simulate Select * for now
 // TODO: --> Return all rows in the store.
 void Client::Query(const std::string &query, query_callback qcb,
-    query_timeout_callback qtcb, uint32_t timeout, bool skip_query_interpretation) {
+    query_timeout_callback qtcb, uint32_t timeout, bool cache_result, bool skip_query_interpretation) {
 
   UW_ASSERT(query.length() < ((uint64_t)1<<32)); //Protobuf cannot handle strings longer than 2^32 bytes --> cannot handle "arbitrarily" complex queries: If this is the case, we need to break down the query command.
 
-  transport->Timer(0, [this, query, qcb, qtcb, timeout]() mutable {
+  transport->Timer(0, [this, query, qcb, qtcb, timeout, cache_result, skip_query_interpretation]() mutable {
     // Latency_Start(&getLatency);
 
     query_seq_num++;
@@ -392,7 +392,7 @@ void Client::Query(const std::string &query, query_callback qcb,
     //TODO: Determine involved groups
     //Requires parsing the Query statement to extract tables touched? Might touch multiple shards...
     //Assume for now only touching one group. (single sharded system)
-    PendingQuery *pendingQuery = new PendingQuery(this, query_seq_num, query, qcb);
+    PendingQuery *pendingQuery = new PendingQuery(this, query_seq_num, query, qcb, cache_result);
     pendingQueries[query_seq_num] = pendingQuery;
 
     std::vector<uint64_t> involved_groups = {0};//{0UL, 1UL};
@@ -427,7 +427,7 @@ void Client::Query(const std::string &query, query_callback qcb,
   
     //TODO: Check col conditions. --> Switch between QueryResultCallback and PointQueryResultCallback
     
-    pendingQuery->is_point = sql_interpreter.InterpretQueryRange(query, pendingQuery->table_name, pendingQuery->p_col_values, relax_point_cond); 
+    pendingQuery->is_point = skip_query_interpretation? false : sql_interpreter.InterpretQueryRange(query, pendingQuery->table_name, pendingQuery->p_col_values, relax_point_cond); 
 
     Debug("Query [%d] is of type: %s ", query_seq_num, pendingQuery->is_point? "POINT" : "RANGE");
     
@@ -513,6 +513,7 @@ void Client::PointQueryResultCallback(PendingQuery *pendingQuery,
   Debug("Result size: %d. Result rows affected: %d", q_result->size(), q_result->rows_affected());
 
   if(TEST_READ_SET){
+    Debug("Print result for query: %s", pendingQuery->queryMsg.query_cmd().c_str());
     for(int i = 0; i < q_result->size(); ++i){
       std::unique_ptr<query_result::Row> row = (*q_result)[i]; 
       Debug("Checking row at index: %d", i);
@@ -654,7 +655,10 @@ void Client::QueryResultCallback(PendingQuery *pendingQuery,
   Debug("Result size: %d. Result rows affected: %d", q_result->size(), q_result->rows_affected());
 
   if(TEST_READ_SET){
-    for(int i = 0; i < q_result->size(); ++i){
+    int num_rows = std::min((int) q_result->size(), 10);
+    Debug("Print result for query: %s", pendingQuery->queryMsg.query_cmd().c_str());
+    Debug("Printing first %d rows.", num_rows);
+    for(int i = 0; i < num_rows; ++i){
       std::unique_ptr<query_result::Row> row = (*q_result)[i]; 
       Debug("Checking row at index: %d", i);
       // For col in col_updates update the columns specified by update_cols. Set value to update_values
@@ -665,6 +669,54 @@ void Client::QueryResultCallback(PendingQuery *pendingQuery,
           Debug("  %s:  %s", col.c_str(), field_val.c_str());
       }
     }
+  }
+
+  //Optional Result Caching... Turn the result into individual point results. 
+  //Cache result for future point updates. This can help optimize common point Select + point Update patterns.
+  if(!q_result->empty() && !pendingQuery->table_name.empty() && (pendingQuery->cache_result || FORCE_SCAN_CACHING)){ //only cache if we did find a row.
+      ColRegistry *col_registry;
+      try{
+        col_registry = &sql_interpreter.GetTableRegistry()->at(pendingQuery->table_name);
+        Debug("Try to cache result for Table: %s", pendingQuery->table_name.c_str());
+      }
+      catch(...){
+        Debug("Unsuitable Table string for caching: %s", pendingQuery->table_name.c_str());
+        pendingQuery->qcb(REPLY_OK, q_result); //callback to application 
+        return;
+      }
+
+        //Only cache if we did a Select *, i.e. we have the full row, and thus it can be used by Update.
+      if(size_t pos = pendingQuery->queryMsg.query_cmd().find("SELECT *"); pos != std::string::npos){
+
+          bool is_point_res = result.size() == 1; //TODO: In this case technically don't need to build new result.
+
+          for(int i = 0; i < q_result->size(); ++i){
+            
+            std::vector<std::string> p_col_values;
+
+            sql::QueryResultProtoBuilder queryResultBuilder;
+            RowProto *new_row = queryResultBuilder.new_row();
+
+            std::unique_ptr<query_result::Row> row = (*q_result)[i]; 
+            for(int j=0; j<row->num_columns(); ++j){
+              const std::string &col = row->name(j);
+              std::unique_ptr<query_result::Field> field = (*row)[j];
+              const std::string &field_val = field->get();
+
+              queryResultBuilder.add_column(col);
+              queryResultBuilder.AddToRow_s(new_row, field_val); 
+
+              if(col_registry->primary_key_cols.count(col)){
+                p_col_values.push_back(field_val);
+              }
+            }
+            
+            std::string key = EncodeTableRow(pendingQuery->table_name, p_col_values);
+            Debug("CACHING KEY: %s", key.c_str());
+            point_read_cache[key] = queryResultBuilder.get_result()->SerializeAsString(); 
+            
+          } 
+      }
   }
 
   pendingQuery->qcb(REPLY_OK, q_result); //callback to application 

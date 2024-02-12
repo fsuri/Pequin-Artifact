@@ -506,6 +506,8 @@ void SQLTransformer::TransformUpdate(size_t pos, std::string_view &write_stateme
     UW_ASSERT(where_pos != std::string::npos); //TODO: Assuming here it has a Where hook. If not (i.e. update all rows), then ignore parsing it. (i.e. set where_pos to length of string, and skip where clause)
 
     std::string_view set_statement = write_statement.substr(0, where_pos);
+
+    //std::cerr << "set_statement: " << set_statement << std::endl;
     
     // split on ", " to identify the updates.
     // for each string split again on "=" and insert into column and value lists
@@ -539,6 +541,10 @@ void SQLTransformer::TransformUpdate(size_t pos, std::string_view &write_stateme
     where_cond = where_cond.substr(where_hook.length());
     read_statement = fmt::format("SELECT * FROM {0} WHERE {1}", table_name, std::move(where_cond));  //Note: Where cond ends with ";"
        
+    Debug("Transformed read statement: %s", read_statement.c_str());
+    // for(auto &col_up: col_updates){
+    //     std::cerr << "col: " << col_up.first << " val: " << col_up.second.l_value << std::endl;
+    // }
        
     //////// Create Write continuation:  
     //Note: Reading and copying all column values ("Select *"")
@@ -591,10 +597,11 @@ void SQLTransformer::TransformUpdate(size_t pos, std::string_view &write_stateme
 
         TableWrite *table_write = AddTableWrite(table_name, col_registry);
 
+        Debug("Checking %d rows.", result->size());
         //For each row in query result
         for(int i = 0; i < result->size(); ++i){
-            std::cerr << "Row: " << i << std::endl;
             std::unique_ptr<query_result::Row> row = (*result)[i]; 
+            Debug("Row: %d. Checking %d columns. ", i, row->num_columns());
 
             //Note: Enc key is based on pkey values, not col names!!!  -- if we want access to index; can store in primary key map too.
             std::vector<std::string> primary_key_column_values;
@@ -616,7 +623,7 @@ void SQLTransformer::TransformUpdate(size_t pos, std::string_view &write_stateme
                 std::unique_ptr<query_result::Field> field = (*row)[j];
           
                 //Deserialize encoding to be a stringified type (e.g. whether it's int/bool/string store all as normal readable string)
-                 std::cerr << "Checking column: " << col << std::endl;
+                // std::cerr << "Checking column: " << col << std::endl;
                 const std::string &col_type = col_registry.col_name_type.at(col);
                
                 //Currently we receive everything as plain-text string (as opposed to cereal). 
@@ -625,7 +632,7 @@ void SQLTransformer::TransformUpdate(size_t pos, std::string_view &write_stateme
                 //std::string field_val(DecodeType(field, col_registry.col_name_type[col]));
 
 
-                std::cerr << "Checking column: " << col << " , with field " << std::visit(StringVisitor(), field_val) << std::endl;
+                //std::cerr << "Checking column: " << col << " , with field " << std::visit(StringVisitor(), field_val) << std::endl;
                 
                
                 //Replace value with col value if applicable. Then operate arithmetic by casting ops to uint64_t and then turning back to string.
@@ -633,7 +640,10 @@ void SQLTransformer::TransformUpdate(size_t pos, std::string_view &write_stateme
                 bool change_val = false;
                 std::string set_val = GetUpdateValue(col, field_val, field, col_updates, col_type, change_val);
 
-                if(change_val) std::cerr << "Updating col: " << col << " , new val: " << set_val << std::endl;
+                if(change_val){
+                     std::cerr << "Checking column: " << col << " , with field " << std::visit(StringVisitor(), field_val) << std::endl;
+                     std::cerr << "Updating col: " << col << " , new val: " << set_val << std::endl;
+                } 
                 //TODO: return bool if set_val is changed. In that case, record which columsn changed. and add a CC-store write entry per column updated.
                
                 if(col_registry.primary_key_cols.count(col)){
@@ -749,8 +759,7 @@ void SQLTransformer::TransformDelete(size_t pos, std::string_view &write_stateme
     //std::map<std::string, std::string> p_col_values;  
     std::vector<std::string> p_col_values;  
     bool is_point_delete = CheckColConditions(where_cond, col_registry, p_col_values); 
-    skip_query_interpretation = true;
-
+   
     if(is_point_delete){
         //Add to write set.
         std::cerr << "IS POINT DELETE" << std::endl;
@@ -787,7 +796,7 @@ void SQLTransformer::TransformDelete(size_t pos, std::string_view &write_stateme
         
         //Create a QueryResult -- set rows affected to 1.
         write_continuation = [this, wcb](int status, query_result::QueryResult* result){
-            result->set_rows_affected(result->size()); 
+            result->set_rows_affected(1); 
             wcb(REPLY_OK, result);
         };
         return;
@@ -795,6 +804,7 @@ void SQLTransformer::TransformDelete(size_t pos, std::string_view &write_stateme
     }
 
     //Else: Is Query Delete
+    skip_query_interpretation = true; //We already know we must do a scan. Do not Interpret Query again
 
     // read_statement = "SELECT * FROM ";  //Ideally select only primary column rows. To support this, need rows to allow access to columns by name (and not just index)
 
@@ -1351,8 +1361,8 @@ void SQLTransformer::ParseColUpdate(std::string_view col_update, std::map<std::s
         }
 }
 
-
-std::string SQLTransformer::GetUpdateValue(const std::string &col, std::variant<bool, int64_t, std::string> &field_val, std::unique_ptr<query_result::Field> &field, 
+//TODO: Support double too.
+std::string SQLTransformer::GetUpdateValue(const std::string &col, std::variant<bool, int64_t, double, std::string> &field_val, std::unique_ptr<query_result::Field> &field, 
     std::map<std::string_view, Col_Update> &col_updates, const std::string &col_type, bool &change_val){
 
      //Copy all column values (unless in col_updates)
@@ -1476,7 +1486,7 @@ RowUpdates* SQLTransformer::AddTableWriteRow(TableWrite *table_write, const ColR
     return row_update;
 }
 
-std::variant<bool, int64_t, std::string> DecodeType(std::unique_ptr<query_result::Field> &field, const std::string &col_type){
+std::variant<bool, int64_t, double, std::string> DecodeType(std::unique_ptr<query_result::Field> &field, const std::string &col_type){
     const std::string &field_val = field->get();
     return DecodeType(field_val, col_type);
 }
@@ -1500,13 +1510,13 @@ std::variant<bool, int64_t, std::string> DecodeType(std::unique_ptr<query_result
                 // std::cerr << "Query Result. Col " << i << ": " << output_row << std::endl;
 
 
-std::variant<bool, int64_t, std::string> DecodeType(const std::string &enc_value, const std::string &col_type){
+std::variant<bool, int64_t, double, std::string> DecodeType(const std::string &enc_value, const std::string &col_type){
     //Based on Syntax from: https://www.postgresqltutorial.com/postgresql-tutorial/postgresql-data-types/ && https://www.postgresql.org/docs/current/datatype-numeric.html 
     //Resource for std::variant: https://www.cppstories.com/2018/06/variant/ 
    
     //Note: currently the generated types are PostGresSQL types. We could however also input "normal types" and transform them into SQL types only for Peloton.
 
-    std::variant<bool, int64_t, std::string> type_variant;   //TODO: can pass variant to cereal? Then don't need all the redundant code
+    std::variant<bool, int64_t, double, std::string> type_variant;   //TODO: can pass variant to cereal? Then don't need all the redundant code
 
     //match on col_type
     if(col_type == "VARCHAR" || col_type == "TEXT"){ //FIXME: VARCHAR might actually look like "VARCHAR (n)"
@@ -1520,9 +1530,13 @@ std::variant<bool, int64_t, std::string> DecodeType(const std::string &enc_value
     else if(col_type == "INTEGER" || col_type == "INT" || col_type == "BIGINT" || col_type == "SMALLINT"){ // SMALLINT (2byteS) INT (4), BIGINT (8), DOUBLE () 
         //int64_t dec_value;  //FIXME: Peloton encodes everything as string currently. So must DeCerialize as string and only then convert.
        
-        int64_t dec = std::stoi(enc_value); 
+        int64_t dec = std::stol(enc_value); 
         type_variant = std::move(dec);
 
+    }
+    else if (col_type == "FLOAT"){
+        int64_t dec = std::stod(enc_value); 
+        type_variant = std::move(dec);
     }
     // else if(col_type == "INT []" || col_type == "BIGINT []" || col_type == "SMALLINT []"){
     //     std::vector<int64_t> dec_value;
@@ -1543,18 +1557,18 @@ std::variant<bool, int64_t, std::string> DecodeType(const std::string &enc_value
         //Note: we don't seem to need Array type... --> Auctionmark only uses it for arguments.
     }
 
-    std::cerr << "Decoded type" << std::endl;
+    //std::cerr << "Decoded type" << std::endl;
     return type_variant;  //Use decoding..
 }
 
 //DEPRECATED: No longer using DeCerialize
-std::variant<bool, int64_t, std::string> DecodeType(std::string &enc_value, const std::string &col_type){
+std::variant<bool, int64_t, double, std::string> DecodeType(std::string &enc_value, const std::string &col_type){
     //Based on Syntax from: https://www.postgresqltutorial.com/postgresql-tutorial/postgresql-data-types/ && https://www.postgresql.org/docs/current/datatype-numeric.html 
     //Resource for std::variant: https://www.cppstories.com/2018/06/variant/ 
    
     //Note: currently the generated types are PostGresSQL types. We could however also input "normal types" and transform them into SQL types only for Peloton.
 
-    std::variant<bool, int64_t, std::string> type_variant;   //TODO: can pass variant to cereal? Then don't need all the redundant code
+    std::variant<bool, int64_t, double, std::string> type_variant;   //TODO: can pass variant to cereal? Then don't need all the redundant code
 
     //match on col_type
     if(col_type == "VARCHAR" || col_type == "TEXT"){ //FIXME: VARCHAR might actually look like "VARCHAR (n)"
@@ -1576,6 +1590,14 @@ std::variant<bool, int64_t, std::string> DecodeType(std::string &enc_value, cons
         int64_t dec = std::stoi(dec_value); 
         type_variant = std::move(dec);
 
+    }
+    else if (col_type == "FLOAT"){
+        std::string dec_value;
+        DeCerealize(enc_value, dec_value);
+        //std::cerr << "DEC VALUE: " << dec_value << std::endl; 
+
+        double dec = std::stod(dec_value); 
+        type_variant = std::move(dec);
     }
     // else if(col_type == "INT []" || col_type == "BIGINT []" || col_type == "SMALLINT []"){
     //     std::vector<int64_t> dec_value;

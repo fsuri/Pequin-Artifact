@@ -43,32 +43,24 @@ transaction_status_t NewCommentResponse::Execute(SyncClient &client) {
 
   Debug("NEW COMMENT RESPONSE");
 
+
+//TODO: parameterize:
+  std::string item_id;
+  std::string seller_id;
+  uint64_t comment_id;
+  std::string response;
+
   client.Begin(timeout);
 
-  // Choose a random comment
-  statement = fmt::format("SELECT COUNT(*) AS cnt FROM ITEM_COMMENT;");
-  client.Query(statement, queryResult, timeout);
-  uint64_t comments_cnt;
-  deserialize(comments_cnt, queryResult);
+   statement = fmt::format("UPDATE {} SET ic_response = {}, ic_updated = {} WHERE ic_id = {} AND ic_i_id = {} AND ic_u_id = {}", 
+                          TABLE_ITEM_COMMENT, response, std::time(0), comment_id, item_id, seller_id);
+  client.Write(statement, timeout, true);
 
-  uint64_t comment_id = std::uniform_int_distribution<uint64_t>(0, comments_cnt - 1)(gen);
-  statement = fmt::format("SELECT ic_id, ic_i_id, ic_u_id FROM ITEM_COMMENT LIMIT {}, 1;", comment_id);
-  client.Query(statement, queryResult, timeout);
-  queryResult->at(0)->get(0, &i_c_id);
-  queryResult->at(0)->get(1, &i_id);
-  queryResult->at(0)->get(2, &seller_id);
+   statement = fmt::format("UPDATE {} SET u_comments = u_comments - 1, u_updated = {} WHERE u_id = {}", TABLE_USER_ACCT, std::time(0), seller_id);
+   client.Write(statement, timeout, true);
 
-  Debug("Item ID: %lu", i_id);
-  Debug("Comment ID: %lu", i_c_id);
-  Debug("Seller ID: %lu", seller_id);
+  client.asyncWait();
 
-  statement = fmt::format("UPDATE ITEM_COMMENT SET ic_response = {} WHERE "
-                          "ic_id = {} AND ic_i_id = {} AND ic_u_id = {}",
-                          response, i_c_id, i_id, seller_id);
-  client.Write(statement, queryResult, timeout);
-  assert(queryResult->has_rows_affected());
-  
-  Debug("COMMIT");
   return client.Commit(timeout);
 }
 

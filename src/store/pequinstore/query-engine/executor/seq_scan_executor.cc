@@ -87,6 +87,8 @@ static bool USE_ACTIVE_READ_SET = true; //If true, then Must use Table_Col_Versi
 static bool USE_ACTIVE_SNAPSHOT_SET = false; //Currently, our Snapshots are always Complete (non-Active)
 
 void SeqScanExecutor::GetColNames(const expression::AbstractExpression * child_expr, std::unordered_set<std::string> &column_names) {
+  if(child_expr == nullptr) return;
+
   for (size_t i = 0; i < child_expr->GetChildrenSize(); i++) {
     auto child = child_expr->GetChild(i);
     if (dynamic_cast<const expression::TupleValueExpression*>(child) != nullptr) {
@@ -136,11 +138,13 @@ void SeqScanExecutor::CheckRow(ItemPointer head_tuple_location, concurrency::Tra
     //Move on to next oldest version.
     ItemPointer old_location = tuple_location;
     tuple_location = tile_group_header->GetNextItemPointer(old_location.offset);
-    
+    if (tuple_location.IsNull()){
+      done = true;
+      break;
+    }
+
     tile_group = storage_manager->GetTileGroup(tuple_location.block);
     tile_group_header = tile_group->GetHeader();
-
-    if (tuple_location.IsNull()) done = true;
   }
 }
 
@@ -185,8 +189,10 @@ void SeqScanExecutor::ManageReadSet(concurrency::TransactionContext *current_txn
     ItemPointer location, pequinstore::QueryReadSetMgr *query_read_set_mgr) {
 
   // Don't create read set if query is executed in snapshot only mode
-  if (current_txn->GetHasReadSetMgr()) {
-    auto &primary_index_columns = target_table_->GetIndex(0)->GetMetadata()->GetKeyAttrs();
+  // Or if metadata table
+  bool is_metadata = target_table_->GetName().substr(0,3) == "pg_";
+  if (current_txn->GetHasReadSetMgr() && !is_metadata) {
+    auto &primary_index_columns = target_table_->GetIndex(0)->GetMetadata()->GetKeyAttrs();  //TODO- MAY WANT TO TAKE FROM TABLE REGISTRY INSTEAD
     auto query_read_set_mgr = current_txn->GetQueryReadSetMgr();
    
     ContainerTuple<storage::TileGroup> row(tile_group.get(), location.offset);
@@ -240,7 +246,7 @@ bool SeqScanExecutor::FindRightRowVersion(const Timestamp &txn_timestamp, std::s
       read_curr_version = true;
       done = true;
     } 
-    else { //tuple is prepared
+    else if(!found_prepared)  { //tuple is prepared, and we haven't read a prepared one yet.
       if (!perform_read_on_snapshot){   //if doing eager read
          // Don't read materialized 
         if(tile_group_header->GetMaterialize(tuple_location.offset)) {
@@ -344,7 +350,9 @@ void SeqScanExecutor::Scan() {
   if (current_txn->CheckPredicatesInitialized()) {
     current_txn->GetTableVersion()(target_table_->GetName(), current_txn_timestamp, current_txn->GetHasReadSetMgr(), query_read_set_mgr, current_txn->GetHasSnapshotMgr(), current_txn->GetSnapshotMgr());
 
-    if(USE_ACTIVE_READ_SET){ //If Scanning, then don't need to include ColVersions in ActiveReadSet. Changes to index could not be affecting read.
+    //If Scanning (Non_active read set), then don't need to include ColVersions in ActiveReadSet. Changes to index could not be affecting the observed read set.
+    //If we use Active Read set, then the read_set is only the keys that hit the predicate. Thus we need the ColVersion to detect changes to col values that might be relevant to ActiveRS
+    if(USE_ACTIVE_READ_SET){ 
       std::unordered_set<std::string> column_names;
       GetColNames(predicate_, column_names);
 
@@ -968,7 +976,7 @@ void SeqScanExecutor::OldScan() {
 bool SeqScanExecutor::DExecute() {
   // Scanning over a logical tile.
   std::unique_ptr<LogicalTile> logical_tile(LogicalTileFactory::GetTile());
-  std::cout << "Executing seq scan" << std::endl;
+  std::cout << "Executing seq scan for table: " << target_table_->GetName() << std::endl;
   if (children_.size() == 1 &&
       // There will be a child node on the create index scenario,
       // but we don't want to use this execution flow

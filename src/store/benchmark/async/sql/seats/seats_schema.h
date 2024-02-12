@@ -2,6 +2,8 @@
 #define SEATS_SQL_SCHEMA_H
 
 #include <stdint.h>
+#include <memory>
+#include "store/benchmark/async/sql/seats/seats_transaction.h"
 
 namespace seats_sql {
 
@@ -395,3 +397,4 @@ void inline load_row(GetFrequentFlyersResultRow &store, std::unique_ptr<query_re
 
 
 };
+#endif

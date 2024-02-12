@@ -43,27 +43,52 @@ transaction_status_t UpdateItem::Execute(SyncClient &client) {
 
   Debug("UPDATE ITEM");
 
+
+  
+   //TODO: parameterize
+  std::string item_id;
+  std::string seller_id;
+  std::string description;
+  bool delete_attribute;
+  std::vector<std::string> add_attribute;
+
   client.Begin(timeout);
 
-  // Choose a random open item
-  statement = fmt::format("SELECT COUNT(*) AS cnt FROM ITEM WHERE i_status = 0;");
-  client.Query(statement, queryResult, timeout);
-  uint64_t items_cnt;
-  deserialize(items_cnt, queryResult);
+  uint64_t current_time = std::time(0); //TODO: Revisit how original code handles
 
-  uint64_t item_id = std::uniform_int_distribution<uint64_t>(0, items_cnt - 1)(gen);
-  statement = fmt::format("SELECT i_id, i_u_id FROM ITEM WHERE i_status = 1 LIMIT {}, 1;", item_id);
-  client.Query(statement, queryResult, timeout);
-  queryResult->at(0)->get(0, &i_id);
-  queryResult->at(0)->get(1, &i_u_id);
+  std::string updateItem = fmt::format("UPDATE {} SET i_description = {}, i_updated = {} WHERE i_id = {} AND i_u_id = {}", TABLE_ITEM, description, current_time, item_id, seller_id);
+  client.Write(updateItem, queryResult, timeout);
+  if(queryResult->has_rows_affected()){
+    Debug("Unable to update closed auction");
+    return client.Abort(timeout);
+  }
 
-  Debug("Item ID: %lu", i_id);
-  Debug("User ID: %lu", i_u_id);
+  //DELETE ITEM_ATTRIBUTE
+  if(delete_attribute){
+    std::string ia_id = item_id + "0"; //TODO: Original code extracts seller_id from item_id and concats that with 0.
+    std::string deleteItemAttribute = fmt::format("DELETE FROM {} WHERE ia_id = {} AND ia_i_id = {} AND ia_u_id = {}", TABLE_ITEM_ATTR, ia_id, item_id, seller_id);
+    client.Write(deleteItemAttribute, queryResult, timeout);
+  }
 
-  statement = fmt::format("UPDATE ITEM SET i_description = {} WHERE i_id = {} AND i_u_id = {}",
-                          description, i_id, i_u_id);
-  client.Write(statement, queryResult, timeout);
-  assert(queryResult->has_rows_affected());
+  //ADD ITEM_ATTRIBUTE
+  if (add_attribute.size() > 0 && add_attribute[0] != "-1") {
+    std::string gag_id = add_attribute[0];
+    std::string gav_id = add_attribute[1];
+    std::string ia_id = "-1";
+
+    std::string getMaxItemAttributeId = fmt::format("SELECT MAX(ia_id) FROM {} WHERE ia_i_id = {} AND ia_u_id = {}", TABLE_ITEM_ATTR, item_id, seller_id);
+    client.Query(getMaxItemAttributeId, queryResult, timeout);
+    if(queryResult->empty()){
+      ia_id = item_id + "0"; //TODO: Original code extracts seller_id from item_id and concats that with 0.
+    }
+    else{
+      deserialize(ia_id, queryResult);
+    }
+
+    std::string insertItemAttribute = fmt::format("INSERT INTO {} (ia_id, ia_i_id, ia_u_id, ia_gav_id, ia_gag_id) "
+                                                  "VALUES ({}, {}, {}, {}, {})", TABLE_ITEM_ATTR, ia_id, item_id, seller_id, gag_id, gav_id);
+    client.Write(insertItemAttribute, queryResult, timeout);
+  }
   
   Debug("COMMIT");
   return client.Commit(timeout);

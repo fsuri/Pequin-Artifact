@@ -462,7 +462,9 @@ void Server::FindTableVersion(const std::string &key_name, const Timestamp &ts, 
   bool committed_exists = store.get(key_name, ts, tsVal);
   if(!committed_exists){
     //skip getting col version if the col is not an indexed one!!
-    Warning("NOTE: All Tables and Indexed Columns must have a genesis version. Key in question: %s", key_name.c_str());  //Note: CreateTable() writes the genesis version
+    Panic("NOTE: All Tables and Indexed Columns must have a genesis version. Key in question: %s", key_name.c_str());  
+    //Note: CreateTable() writes the genesis version for table and primary index. CreateIndex writes genesis version for Col Versions.
+
   }
 
   const proto::Transaction *mostRecentPrepared = nullptr;

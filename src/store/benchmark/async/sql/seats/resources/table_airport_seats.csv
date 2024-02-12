@@ -1311,7 +1311,7 @@
 "CHP","Circle Hot Springs","Circle Hot Springs",99730,"USA",-144.5833,65.4667,9,67
 "CHQ","Souda","Chania",,"GRC",24.1497,35.5317,2,433
 "CHR","Chateauroux","Chateauroux",,"FRA",1.7,46.8167,-1,427
-"CHS","Charleston,  AFB Municipal","Charleston",,"USA",-80.0406,32.8986,-5,67
+"CHS","Charleston, AFB Municipal","Charleston",,"USA",-80.0406,32.8986,-5,67
 "CHT","Karewa","Chatham Island",,"NZL",176.5,-43.9167,-12,851
 "CHU","Chuathbaluk","Chuathbaluk",99557,"USA",-159.25,61.6667,9,67
 "CHV","Chaves","Chaves",,"PRT",-7.4667,41.7333,,469
@@ -9261,4 +9261,4 @@
 "BSB","Presidente Juscelino Kubitschek","Brasília",,"BRA",-47.9186,-15.8711,-3,316
 "SLZ","Marechal Cunha Machado","São Luis",,"BRA",-44.2342,-2.5853,-3,316
 "LBC","Lübeck Blankensee","Lübeck",,"DEU",10.7167,53.8,1,429
-"TXK","Texarkana Regional Airport","Texarkana",71854,"USA",33.4536,-93.9911,5,67
+"TXK","Texarkana Regional Airport","Texarkana",71854,"USA",-93.9911,33.4536,5,67

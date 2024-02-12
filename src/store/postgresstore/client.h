@@ -62,7 +62,7 @@ class Client : public ::Client {
 
   // Get the result for a given query SQL statement
   inline virtual void Query(const std::string &query_statement, query_callback qcb,
-      query_timeout_callback qtcb, uint32_t timeout, bool skip_query_interpretation = false) override;   
+      query_timeout_callback qtcb, uint32_t timeout, bool cache_result = false, bool skip_query_interpretation = false) override;   
 
   // Get the result (rows affected) for a given write SQL statement
   inline virtual void Write(std::string &write_statement, write_callback wcb,

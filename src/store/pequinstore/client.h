@@ -64,6 +64,7 @@ namespace pequinstore {
 
 static bool TEST_READ_SET = true;  //print out read set
 
+static bool FORCE_SCAN_CACHING = false;
 static bool relax_point_cond = true;
 
 static uint64_t start_time = 0;
@@ -105,7 +106,7 @@ class Client : public ::Client {
       write_timeout_callback wtcb, uint32_t timeout) override;
 
   virtual void Query(const std::string &query, query_callback qcb,
-    query_timeout_callback qtcb, uint32_t timeout, bool skip_query_interpretation = false) override; //TODO: ::Client client class needs to expose Query interface too.. --> All other clients need to support the interface.
+    query_timeout_callback qtcb, uint32_t timeout, bool cache_result = false, bool skip_query_interpretation = false) override; //TODO: ::Client client class needs to expose Query interface too.. --> All other clients need to support the interface.
 
   // Commit all Get(s) and Put(s) since Begin().
   virtual void Commit(commit_callback ccb, commit_timeout_callback ctcb,
@@ -127,7 +128,7 @@ class Client : public ::Client {
   //Query protocol structures and functions
 
   struct PendingQuery {
-    PendingQuery(Client *client, uint64_t query_seq_num, const std::string &query_cmd, const query_callback &qcb) : version(0UL), group_replies(0UL), qcb(qcb){
+    PendingQuery(Client *client, uint64_t query_seq_num, const std::string &query_cmd, const query_callback &qcb, bool cache_result) : version(0UL), group_replies(0UL), qcb(qcb), cache_result(cache_result){
       queryMsg.Clear();
       queryMsg.set_client_id(client->client_id);
       queryMsg.set_query_seq_num(query_seq_num);
@@ -162,7 +163,7 @@ class Client : public ::Client {
       //     queryId =  "[" + std::to_string(queryMsg.query_seq_num()) + ":" + std::to_string(queryMsg.client_id()) + "]";
       // }
     }
-
+    bool cache_result;
     query_callback qcb;
 
     uint64_t version;

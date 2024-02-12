@@ -497,15 +497,15 @@ proto::ConcurrencyControl::Result Server::DoOCCCheck(
   //Note: if we wait, we might end up never garbage collecting TX from ongoing (and possibly from other replicas Prepare set - since the tx is blocked); Can garbage collect after some time if desired (since we didn't process, theres no impact on decisions)
   //If another client is interested, then it should start fallback and provide read set as well (forward SyncProposal with correct retry version)
     
-  Debug("TESTING MERGED READ"); //FIXME: Remove.
-  for(auto &read : *readSet){
-      Debug("[group Merged] Read key %s with version [%lu:%lu]", read.key().c_str(), read.readtime().timestamp(), read.readtime().id());
-  }
+  // Debug("TESTING MERGED READ"); //FIXME: Remove.
+  // for(auto &read : *readSet){
+  //     Debug("[group Merged] Read key %s with version [%lu:%lu]", read.key().c_str(), read.readtime().timestamp(), read.readtime().id());
+  // }
 
-  Debug("TESTING MERGED Deps"); //FIXME: Remove.
-  for(auto &dep : *depSet){
-      Debug("[group Merged] Dep %s", BytesToHex(dep.write().prepared_txn_digest(), 16).c_str());
-  }
+  // Debug("TESTING MERGED Deps"); //FIXME: Remove.
+  // for(auto &dep : *depSet){
+  //     Debug("[group Merged] Dep %s", BytesToHex(dep.write().prepared_txn_digest(), 16).c_str());
+  // }
 
 
   locks_t locks;

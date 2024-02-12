@@ -467,6 +467,7 @@ void Server::CreateIndex(const std::string &table_name, const std::vector<std::p
 
   // Call into TableStore with this statement.
   table_store->ExecRaw(sql_statement);
+
 }
 
 void Server::LoadTableData_SQL(const std::string &table_name, const std::string &table_data_path, const std::vector<uint32_t> &primary_key_col_idx){
@@ -538,6 +539,9 @@ void Server::LoadTableData_SQL(const std::string &table_name, const std::string 
 }
 
 
+static bool parallel_load = true;
+static int max_segment_size = 20000;//INT_MAX; //20000 seems to work well for TPC-C 1 warehouse, 50000 works well for Seats
+
 void Server::LoadTableData(const std::string &table_name, const std::string &table_data_path, 
     const std::vector<std::pair<std::string, std::string>> &column_names_and_types, const std::vector<uint32_t> &primary_key_col_idx)
 {
@@ -554,6 +558,7 @@ void Server::LoadTableData(const std::string &table_name, const std::string &tab
     std::string genesis_txn_dig = TransactionDigest(genesis_proof->txn(), params.hashDigest); //("");
 
     auto f = [this, genesis_ts, genesis_proof, genesis_txn_dig, table_name, table_data_path, column_names_and_types, primary_key_col_idx](){
+      Debug("Parsing Table on core %d", sched_getcpu());
       std::vector<row_segment_t*> table_row_segments = ParseTableDataFromCSV(table_name, table_data_path, column_names_and_types, primary_key_col_idx);
 
       Debug("Dispatch Table Loading for table: %s. Number of Segments: %d", table_name.c_str(), table_row_segments.size());
@@ -563,7 +568,12 @@ void Server::LoadTableData(const std::string &table_name, const std::string &tab
       }
       return (void*) true;
     };
-    transport->DispatchTP_noCB(std::move(f)); //Dispatching this seems to add no perf
+    if(parallel_load){
+       transport->DispatchTP_noCB(std::move(f)); //Dispatching this seems to add no perf
+    }
+    else{
+      f();
+    }
 }
 
 std::vector<row_segment_t*> Server::ParseTableDataFromCSV(const std::string &table_name, const std::string &table_data_path, 
@@ -586,7 +596,7 @@ std::vector<row_segment_t*> Server::ParseTableDataFromCSV(const std::string &tab
     //Turn CSV into Vector of Rows. Split Table into Segments for parallel loading
     //Each segment is allocated, so that we don't have to copy it when dispatching it to another thread for parallel loading.
 
-    int max_segment_size = 20000;//INT_MAX; //currently set to 1 total segment
+
     std::vector<row_segment_t*> table_row_segments = {new row_segment_t};
 
 
@@ -648,10 +658,17 @@ void Server::LoadTableRows(const std::string &table_name, const std::vector<std:
        return (void*) true;
     };
     // Call into ApplyTableWrites from different threads. On each Thread, it is a synchronous interface.
-    transport->DispatchTP_noCB(std::move(f));
 
+    if(parallel_load){
+       transport->DispatchTP_noCB(std::move(f)); 
+    }
+    else{
+      f();
+    }
+   
     //Load it into CC-Store (Note: Only if we haven't already done it while reading from CSV)
     if(load_cc){
+      Debug("Load segment %d of table %s", segment_no, table_name.c_str());
       for(auto &row: *row_segment){
     
         //Load it into CC-store

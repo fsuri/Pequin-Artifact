@@ -841,7 +841,7 @@ bool ShardClient::ProcessRead(const uint64_t &reqId, PendingQuorumGet *req, read
     
     // std::cerr << "has committed val? " << write->has_committed_value() << std::endl;
     // std::cerr << "committed val: " << write->committed_value() << std::endl;
-    UW_ASSERT(write->has_committed_value());
+    //UW_ASSERT(write->has_committed_value()); //FIXME: COMMENT THIS OUT, its purely for testing.
 
     //check whether value and timestamp are valid
     req->numReplies++;

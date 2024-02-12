@@ -31,8 +31,8 @@
 #include <boost/histogram.hpp>
 
 #include "store/benchmark/async/json_table_writer.h"
-#include "store/benchmark/async/sql/auctionmark/category_parser.h"
 #include "store/benchmark/async/sql/auctionmark/auctionmark_params.h"
+#include "store/benchmark/async/sql/auctionmark/category_parser.h"
 #include "store/benchmark/async/sql/auctionmark/auctionmark_utils.h"
 
 void GenerateRegionTable(TableWriter &writer, const uint32_t N_REGIONS)
@@ -67,25 +67,27 @@ int GenerateCategoryTable(TableWriter &writer)
 
   std::string table_name = "Category";
   writer.add_table(table_name, column_names_and_types, primary_key_col_idx);
-  auto category_parser = auctionmark::CategoryParser();
-  auto categories = category_parser.get_categories();
-  for (auto &[_, value] : categories)
-  {
-    std::vector<std::string> values;
-    values.push_back(std::to_string(value.get_category_id()));
-    values.push_back(value.get_name());
-    if (value.get_parent_category_id().has_value())
-    {
-      values.push_back(std::to_string(value.get_parent_category_id().value()));
-    }
-    else
-    {
-      values.push_back("NULL");
-    }
-    writer.add_row(table_name, values);
-  }
 
-  return categories.size();
+  return 5;
+  // auto category_parser = auctionmark::CategoryParser();
+  // auto categories = category_parser.get_categories();
+  // for (auto &[_, value] : categories)
+  // {
+  //   std::vector<std::string> values;
+  //   values.push_back(std::to_string(value.get_category_id()));
+  //   values.push_back(value.get_name());
+  //   if (value.get_parent_category_id().has_value())
+  //   {
+  //     values.push_back(std::to_string(value.get_parent_category_id().value()));
+  //   }
+  //   else
+  //   {
+  //     values.push_back("NULL");
+  //   }
+  //   writer.add_row(table_name, values);
+  // }
+
+  // return categories.size();
 }
 
 std::set<uint32_t> GenerateGlobalAttributeGroupTable(TableWriter &writer, int n_categories, int N_GAGS, int GAV_PER_GROUP)

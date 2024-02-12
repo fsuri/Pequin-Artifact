@@ -293,6 +293,9 @@ public:
     basil_timestamp_ = basil_timestamp;
   }
 
+  bool IsDeletion() { return is_deletion_;}
+  void SetDeletion(bool is_delete) {is_deletion_ = is_delete; }
+
   pequinstore::QueryReadSetMgr* GetQueryReadSetMgr() {
     return query_read_set_mgr_;
   }
@@ -504,6 +507,8 @@ private:
 
   /** Basil timestamp */
   Timestamp basil_timestamp_;
+
+  bool is_deletion_ = false; //whether or not this statement is a delete.
 
   /** Query read set manager */
   pequinstore::QueryReadSetMgr *query_read_set_mgr_ = nullptr;

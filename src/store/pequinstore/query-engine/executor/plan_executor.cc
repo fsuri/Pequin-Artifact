@@ -102,7 +102,7 @@ static void InterpretPlan(
   executor::ExecutionResult result;
   std::vector<ResultValue> values;
 
-  auto exec_context = new executor::ExecutorContext(txn, params);
+  auto exec_context = new executor::ExecutorContext(txn, params); //This line Segfaults when running with Delete..
   std::unique_ptr<executor::ExecutorContext> executor_context(exec_context);
 
   bool status;

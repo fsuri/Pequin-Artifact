@@ -35,6 +35,8 @@
 // TODO: make is so that all but the first core are used.
 ThreadPool::ThreadPool() {}
 
+static bool running_locally = true; //allow using more than 8 cores for local setup.
+
 void ThreadPool::start(int process_id, int total_processes, bool hyperthreading,
                        bool server, int mode) {
   // printf("starting threadpool \n");
@@ -51,12 +53,16 @@ void ThreadPool::start(int process_id, int total_processes, bool hyperthreading,
             total_processes);
     // TODO: add config param for hyperthreading
     // bool hyperthreading = true;
+
+    //int num_cpus = sysconf(_SC_NPROCESSORS_ONLN);
     int num_cpus = std::thread::hardware_concurrency(); ///(2-hyperthreading);
 
     fprintf(stderr, "Total Num_cpus on server: %d \n", num_cpus);
 
     bool put_all_threads_on_same_core = false;
-    if (num_cpus > 8) {
+
+    if (running_locally) num_cpus = 16;
+    if (num_cpus > 8 && !running_locally) {
       num_cpus = 8;
       fprintf(stderr, "Total Num_cpus on server downregulated to: %d \n",
               num_cpus);
@@ -104,7 +110,7 @@ void ThreadPool::start(int process_id, int total_processes, bool hyperthreading,
       cpu_set_t cpuset;
       CPU_ZERO(&cpuset);
       CPU_SET(i + offset, &cpuset);
-      if (i + offset > 7)
+      if (i + offset > 7 && !running_locally)
         return; // XXX This is a hack to support the non-crypto experiment that
                 // does not actually use multiple cores
 

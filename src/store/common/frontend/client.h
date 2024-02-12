@@ -89,7 +89,7 @@ class Client {
 
   // Get the result for a given query SQL statement
   inline virtual void Query(const std::string &query_statement, query_callback qcb,
-      query_timeout_callback qtcb, uint32_t timeout, bool skip_query_interpretation = false){Panic("This protocol store does not implement support for Query Statements"); };   
+      query_timeout_callback qtcb, uint32_t timeout, bool cache_result = false, bool skip_query_interpretation = false){Panic("This protocol store does not implement support for Query Statements"); };   
 
   //inline virtual void Wait(vector of results) { just do nothing unless overriden} ;; Wait will call getResult, which in turn will trigger the Query callbacks
 

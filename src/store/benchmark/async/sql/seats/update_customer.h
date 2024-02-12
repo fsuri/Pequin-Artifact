@@ -7,7 +7,7 @@ namespace seats_sql {
 
 class SQLUpdateCustomer:public SEATSSQLTransaction {
     public: 
-        SQLUpdateCustomer(uint32_t timeout, std::mt19937_64 gen);
+        SQLUpdateCustomer(uint32_t timeout, std::mt19937 &gen);
         virtual ~SQLUpdateCustomer();
         virtual transaction_status_t Execute(SyncClient &client);
     private:

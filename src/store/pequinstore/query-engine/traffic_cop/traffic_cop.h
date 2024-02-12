@@ -169,7 +169,7 @@ public:
       const std::vector<int> &result_format, std::vector<ResultValue> &result,
       const Timestamp &basil_timestamp, std::shared_ptr<std::string> txn_digest,
       const pequinstore::proto::CommittedProof *commit_proof,
-      bool commit_or_prepare, bool forceMaterialize, size_t thread_id = 0);
+      bool commit_or_prepare, bool forceMaterialize, bool is_delete = false, size_t thread_id = 0);
 
   // Execute a purge statement
   ResultType ExecutePurgeStatement(
@@ -272,7 +272,7 @@ public:
       const std::vector<int> &result_format, const Timestamp &basil_timestamp,
       std::shared_ptr<std::string> txn_digest,
       const pequinstore::proto::CommittedProof *commit_proof,
-      bool commit_or_prepare, bool forceMaterialize, size_t thread_id = 0);
+      bool commit_or_prepare, bool forceMaterialize, bool is_delete = false, size_t thread_id = 0);
 
   // Helper to handle txn-specifics for the plan-tree of a statement.
   executor::ExecutionResult ExecutePurgeHelper(

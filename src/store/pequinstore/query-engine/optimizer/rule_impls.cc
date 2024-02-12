@@ -375,6 +375,9 @@ void GetToIndexScan::Transform(
 
     // Find match index for the predicates
     auto index_objects = get->table->GetIndexCatalogEntries();
+    size_t max_num_matching_cols = 0;
+    int closest_index = INT_MAX;
+
     for (auto &index_id_object_pair : index_objects) {
       auto &index_id = index_id_object_pair.first;
       auto &index_object = index_id_object_pair.second;
@@ -384,23 +387,71 @@ void GetToIndexScan::Transform(
       std::unordered_set<oid_t> index_col_set(
           index_object->GetKeyAttrs().begin(),
           index_object->GetKeyAttrs().end());
+
+      //TODO: Try to count "distance" of params.
+      //Trying to design a simple heuristic to favor primary vs secondary index.
+
+      bool is_primary_index = index_object->GetIndexConstraint() == IndexConstraintType::PRIMARY_KEY;
+      
+      int min_distance = is_primary_index ? INT_MAX-1 : INT_MAX;
+
       for (size_t offset = 0; offset < key_column_id_list.size(); offset++) {
         auto col_id = key_column_id_list[offset];
-        if (index_col_set.find(col_id) != index_col_set.end()) {
-          index_key_column_id_list.push_back(col_id);
-          index_expr_type_list.push_back(expr_type_list[offset]);
-          index_value_list.push_back(value_list[offset]);
+        for (int i = 0; i < index_col_set.size(); ++ i){
+           if(index_object->GetKeyAttrs()[i] == col_id){
+            min_distance = std::min(min_distance, i);
+            index_key_column_id_list.push_back(col_id);
+            index_expr_type_list.push_back(expr_type_list[offset]);
+            index_value_list.push_back(value_list[offset]);
+            continue;
+           }
         }
       }
-      // Add transformed plan
-      if (!index_key_column_id_list.empty()) {
+      //If index fully covers the condition. //Give preference to primary key.
+      if(index_key_column_id_list.size() == index_col_set.size()) min_distance = is_primary_index? -2 : -1;
+      
+       if (min_distance < closest_index || (min_distance == closest_index && index_key_column_id_list.size() > max_num_matching_cols )){
         auto index_scan_op = PhysicalIndexScan::make(
             get->get_id, get->table, get->table_alias, get->predicates,
             get->is_for_update, index_id, index_key_column_id_list,
             index_expr_type_list, index_value_list);
         transformed.push_back(
             std::make_shared<OperatorExpression>(index_scan_op));
+        closest_index = min_distance;
+        max_num_matching_cols = index_key_column_id_list.size();
       }
+
+      // //OLD: Just check for presence.
+      // for (size_t offset = 0; offset < key_column_id_list.size(); offset++) {
+      //   auto col_id = key_column_id_list[offset];
+      //   if (index_col_set.find(col_id) != index_col_set.end()) {
+      //     index_key_column_id_list.push_back(col_id);
+      //     index_expr_type_list.push_back(expr_type_list[offset]);
+      //     index_value_list.push_back(value_list[offset]);
+      //   }
+      // }
+      
+
+      // //NEW: Prioritize primary index scan
+      // if (index_key_column_id_list.size() > max_num_matching_cols || index_object->GetIndexConstraint() == IndexConstraintType::PRIMARY_KEY) {
+      //   auto index_scan_op = PhysicalIndexScan::make(
+      //       get->get_id, get->table, get->table_alias, get->predicates,
+      //       get->is_for_update, index_id, index_key_column_id_list,
+      //       index_expr_type_list, index_value_list);
+      //   transformed.push_back(
+      //       std::make_shared<OperatorExpression>(index_scan_op));
+      //   max_num_matching_cols = index_key_column_id_list.size();
+      // }
+
+      // Add transformed plan
+      /*if (!index_key_column_id_list.empty()) {
+        auto index_scan_op = PhysicalIndexScan::make(
+            get->get_id, get->table, get->table_alias, get->predicates,
+            get->is_for_update, index_id, index_key_column_id_list,
+            index_expr_type_list, index_value_list);
+        transformed.push_back(
+            std::make_shared<OperatorExpression>(index_scan_op));
+      }*/
     }
   }
 }

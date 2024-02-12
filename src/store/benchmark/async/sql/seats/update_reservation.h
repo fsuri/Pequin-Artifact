@@ -9,7 +9,7 @@ namespace seats_sql {
 
 class SQLUpdateReservation:public SEATSSQLTransaction {
     public: 
-        SQLUpdateReservation(uint32_t timeout, std::mt19937_64 gen, std::queue<SEATSReservation> &update_res, std::queue<SEATSReservation> &delete_res);
+        SQLUpdateReservation(uint32_t timeout, std::mt19937 &gen, std::queue<SEATSReservation> &update_res, std::queue<SEATSReservation> &delete_res);
         virtual ~SQLUpdateReservation();
         virtual transaction_status_t Execute(SyncClient &client);
     private:
@@ -22,6 +22,7 @@ class SQLUpdateReservation:public SEATSSQLTransaction {
         std::vector<std::string> reserve_seats = {"R_IATTR00", "R_IATTR01", "R_IATTR02", "R_IATTR03"};
         std::queue<SEATSReservation> *update_q;
         std::queue<SEATSReservation> *delete_q;
+        std::mt19937 *gen_;
 };
 }
 
