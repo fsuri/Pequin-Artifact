@@ -7,11 +7,14 @@
 
 namespace seats_sql {
 
-SQLFindOpenSeats::SQLFindOpenSeats(uint32_t timeout, std::mt19937 &gen, std::queue<SEATSReservation> &new_res_queue) : 
+SQLFindOpenSeats::SQLFindOpenSeats(uint32_t timeout, std::mt19937 &gen, std::queue<SEATSReservation> &new_res_queue, std::vector<CachedFlight> &cached_flight_ids) : 
     SEATSSQLTransaction(timeout), gen_(&gen) {
 
         //FIXME: Benchbase seems to pick this from the cache of flight ids as well?
-        f_id = std::uniform_int_distribution<int64_t>(1, NUM_FLIGHTS)(gen);
+        int64_t flight_index = std::uniform_int_distribution<int64_t>(1, cached_flight_ids.size())(gen) - 1;
+        CachedFlight &flight = cached_flight_ids[flight_index];
+
+        f_id = flight;
         q = &new_res_queue;
     }
 
@@ -21,8 +24,8 @@ transaction_status_t SQLFindOpenSeats::Execute(SyncClient &client) {
     std::unique_ptr<const query_result::QueryResult> queryResult;
     std::string query;
 
-    fprintf(stderr, "FIND_OPEN_SEATS on flight %ld \n", f_id);
-    Debug("FIND_OPEN_SEATS on flight %ld", f_id);
+    fprintf(stderr, "FIND_OPEN_SEATS on flight %ld \n", f_id.flight_id);
+    Debug("FIND_OPEN_SEATS on flight %ld", f_id.flight_id);
     client.Begin(timeout);
 
     GetFlightResultRow fr_row = GetFlightResultRow();
@@ -30,10 +33,10 @@ transaction_status_t SQLFindOpenSeats::Execute(SyncClient &client) {
     // query = fmt::format("SELECT f_id, f_al_id, f_depart_ap_id, f_depart_time, f_arrive_ap_id, f_arrive_time, f_base_price, f_seats_total, f_seats_left, "
     //                     "(f_base_price + (f_base_price * (1 - (f_seats_left / f_seats_total)))) AS f_price FROM {} WHERE f_id = {}", FLIGHT_TABLE, f_id);
     query = fmt::format("SELECT f_id, f_al_id, f_depart_ap_id, f_depart_time, f_arrive_ap_id, f_arrive_time, f_base_price, f_seats_total, f_seats_left "
-                        "FROM {} WHERE f_id = {}", FLIGHT_TABLE, f_id);
+                        "FROM {} WHERE f_id = {}", FLIGHT_TABLE, f_id.flight_id);
     client.Query(query, queryResult, timeout);
     if (queryResult->empty()) { 
-        Notice("No flight with id % exists.", f_id);
+        Notice("No flight with id % exists.", f_id.flight_id);
         Debug("no flight with that id exists");
         client.Abort(timeout);
         return ABORTED_USER;
@@ -45,7 +48,7 @@ transaction_status_t SQLFindOpenSeats::Execute(SyncClient &client) {
     //double seat_price = fr_row.f_price;
     double _seat_price = base_price + (base_price * (1.0 - (seats_left/((double)seats_total))));
 
-    query = fmt::format("SELECT r_id, r_f_id, r_seat FROM {} WHERE r_f_id = {}", RESERVATION_TABLE, f_id);
+    query = fmt::format("SELECT r_id, r_f_id, r_seat FROM {} WHERE r_f_id = {}", RESERVATION_TABLE, f_id.flight_id);
     client.Query(query, queryResult, timeout);
 
     int8_t unavailable_seats[TOTAL_SEATS_PER_FLIGHT];
@@ -82,8 +85,8 @@ transaction_status_t SQLFindOpenSeats::Execute(SyncClient &client) {
         tmp.pop_front();
     }
 
-    open_seats_str += fmt::format("] are available on flight {} for price {}", f_id, _seat_price);
-    reserved_seats_str += fmt::format("] are unavailable on flight {}", f_id);
+    open_seats_str += fmt::format("] are available on flight {} for price {}", f_id.flight_id, _seat_price);
+    reserved_seats_str += fmt::format("] are unavailable on flight {}", f_id.flight_id);
     Debug("%s", open_seats_str);
     fprintf(stderr, "Available: %s\n", open_seats_str.c_str());
     fprintf(stderr, "Unavailable: %s\n", reserved_seats_str.c_str());

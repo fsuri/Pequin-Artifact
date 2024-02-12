@@ -2,6 +2,7 @@
 #define SEATS_SQL_UTILS_H
 
 #include "store/benchmark/async/sql/seats/seats_constants.h"
+#include "store/benchmark/async/sql/seats/cached_flight.h"
 #include <gflags/gflags.h>
 #include <random>
 #include <sstream>
@@ -19,7 +20,7 @@ const char* FLIGHTS_TIME_HISTO_FN = "./resources/histogram_flights_per_time.json
 const char* AIRLINE_SEATS_TABLE = "./resources/table_airline_seats.csv";
 const char* AIRPORT_SEATS_TABLE = "./resources/table_airport_seats.csv";
 const char* COUNTRY_SEATS_TABLE = "./resources/table_country_seats.csv";
-
+const char* PROFILE_LOC = "./profiles/cached_flights.csv";
 
 class GaussGenerator {
     std::default_random_engine generator;
@@ -44,12 +45,64 @@ public:
     }
 };
 
+class ZipfianGenerator {
+public: 
+    ZipfianGenerator(int min, int max, double sigma) {
+      zetan = zetastatic(0, max - min + 1, sigma, 0);
+      items = max - min + 1;
+      base = min;
+      zipfianconstant = sigma; 
+      theta = sigma;
+      zeta2theta = zetastatic(0, 2, theta, 0);
+      alpha = 1.0 / (1.0 - theta);
+      countforzeta = items; 
+      eta = compETA(items, theta, zeta2theta, zetan);
+    }
+    ~ZipfianGenerator() {};
+    int nextValue(std::mt19937 gen) {
+      if (items != countforzeta) {
+        if (items > countforzeta) {
+            zetan = zeta(countforzeta, items, theta, zetan);
+            eta = compETA(items, theta, zeta2theta, zetan);
+        } 
+      }
+      double u = std::uniform_real_distribution<double>(0, 1)(gen);
+      double uz = u * zetan;
+      if (uz < 1.0) return base;
+      if (uz < 1.0 + std::pow(0.5, theta)) return base + 1;
+      return base + static_cast<int>(items * std::pow(eta * u - eta + 1, alpha));
+    }
+private: 
+    double zetastatic(int st, int n, double theta, double initialsum) {
+      for (int i = st; i < n; i++) 
+        initialsum += 1 / std::pow(i+1, theta);
+      return initialsum;
+    }
+    double zeta(int st, int n, double theta, double initialsum) {
+      countforzeta = n;
+      return zetastatic(st, n, theta, initialsum);
+    }
+
+    double compETA(int items, double theta, double zeta2theta, double zetan) {
+      return (1 - std::pow(2.0 / items, 1 - theta)) / ( 1- zeta2theta / zetan);
+    } 
+    
+    int items;
+    int base;
+    double zipfianconstant;
+
+    double alpha, zetan, eta, theta, zeta2theta;
+
+    int countforzeta;
+};
+
 
 void skipCSVHeader(std::ifstream& iostr){
   //Skip header
   std::string columns;
   getline(iostr, columns); 
 }
+
 std::vector<std::string> readCSVRow(std::ifstream& iostr) {
   std::vector<std::string> res;
 
@@ -93,6 +146,19 @@ std::vector<std::string> readCSVRow(std::ifstream& iostr) {
 
   return res;
 }
+
+void writeCachedFlights(std::queue<seats_sql::CachedFlight> cf_q) {
+  std::ofstream profile;
+  profile.open(PROFILE_LOC);
+  profile << "Flight Id, Airline Id, Arrive AP Id, Depart AP Id, Depart Time\n";
+  while (!cf_q.empty()) {
+    seats_sql::CachedFlight cf = cf_q.front();
+    profile << cf.flight_id << "," << cf.airline_id << "," << cf.depart_ap_id << "," << cf.depart_time << "," << cf.arrive_ap_id << "\n";
+    cf_q.pop();
+  }
+  profile.close();
+}
+
 
 using histogram = std::vector<std::pair<std::string, int>>;
 

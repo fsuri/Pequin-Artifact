@@ -7,6 +7,7 @@
 #include "store/benchmark/async/sql/seats/update_reservation.h"
 #include "store/benchmark/async/sql/seats/seats_constants.h"
 #include "store/benchmark/async/sql/seats/reservation.h"
+#include "store/benchmark/async/sql/seats/seats_util.h"
 #include <cmath>
 #include <queue>
 
@@ -31,7 +32,7 @@ SEATSSQLClient::SEATSSQLClient(SyncClient &client, Transport &transport, uint64_
       //PLACEHOLDER CODE:
       //TODO: Make this cleaner. Pass in actual path. Apply Flight cache more broadly
       
-      std::string filename = "store/benchmark/async/sql/seats/sql-seats-data/flight.csv";
+      /* std::string filename = "store/benchmark/async/sql/seats/sql-seats-data/flight.csv";
       std::ifstream file (filename);
 
       std::string row_line;
@@ -57,6 +58,21 @@ SEATSSQLClient::SEATSSQLClient(SyncClient &client, Transport &transport, uint64_
 
         if(cached_flight_ids.size() == seats_sql::CACHE_LIMIT_FLIGHT_IDS) break;  
         //TODO: Instead of reading the first 10k at every client: Each client should cache a random different 10k
+      }*/
+      std::ifstream file (PROFILE_LOC);
+      skipCSVHeader(file);
+      for (int i = 0; i < CACHE_LIMIT_FLIGHT_IDS; i++) {
+        std::vector<std::string> row = readCSVRow(file);
+        if (row.size() < 5) break;
+
+        CachedFlight cf;
+        cf.flight_id = std::stoi(row[0]); 
+        cf.airline_id = std::stoi(row[1]); 
+        cf.depart_ap_id = std::stoi(row[2]);
+        cf.depart_time = std::stoi(row[3]);
+        cf.arrive_ap_id = std::stoi(row[4]);
+
+        cached_flight_ids.push_back(cf);
       }
 
       UW_ASSERT(!cached_flight_ids.empty());
@@ -71,7 +87,7 @@ SyncTransaction* SEATSSQLClient::GetNextTransaction() {
   std::cerr << "Select Next Transactions" << std::endl;
   if (!started_workload) {
     started_workload = true; 
-    return new SQLFindOpenSeats(GetTimeout(), gen, insert_reservations);
+    return new SQLFindOpenSeats(GetTimeout(), gen, insert_reservations, cached_flight_ids);
   }
 
   // keep going until we get a valid operation
@@ -91,7 +107,7 @@ SyncTransaction* SEATSSQLClient::GetNextTransaction() {
     } 
     else if (t_type <= (freq += FREQUENCY_FIND_OPEN_SEATS)) {
       last_op_ = "find_open_seats";
-      return new SQLFindOpenSeats(GetTimeout(), gen, insert_reservations);
+      return new SQLFindOpenSeats(GetTimeout(), gen, insert_reservations, cached_flight_ids);
     } 
     else if (t_type <= (freq += FREQUENCY_NEW_RESERVATION)) {
       if (insert_reservations.empty())

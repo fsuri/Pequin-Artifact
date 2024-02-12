@@ -3,6 +3,8 @@
 
 #include "store/benchmark/async/sql/seats/seats_transaction.h"
 #include "store/benchmark/async/sql/seats/reservation.h"
+#include "store/benchmark/async/sql/seats/cached_flight.h"
+
 #include <queue>
 
 namespace seats_sql {
@@ -16,6 +18,7 @@ class SQLNewReservation:public SEATSSQLTransaction {
         int64_t r_id;  // reservation id
         int64_t c_id; 
         int64_t f_id;
+        CachedFlight flight;
         int64_t seatnum; 
         double price;
         std::vector<int64_t> attributes;

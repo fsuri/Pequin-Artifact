@@ -1,5 +1,6 @@
 #include "store/benchmark/async/json_table_writer.h"
 #include "store/benchmark/async/sql/seats/seats_constants.h"
+#include "store/benchmark/async/sql/seats/cached_flight.h"
 #include <gflags/gflags.h>
 #include <random>
 #include <sstream>
@@ -64,7 +65,7 @@ std::vector<std::pair<double, double>> GenerateAirportTable(TableWriter &writer,
     column_names_and_types.push_back(std::make_pair("ap_gmt_offset", "FLOAT"));  
     column_names_and_types.push_back(std::make_pair("ap_wac", "BIGINT"));
     FillColumnNamesWithGenericAttr(column_names_and_types, "ap_iattr", "BIGINT", 16);
-
+  
     const std::vector<uint32_t> primary_key_col_idx {0};
     std::string table_name = seats_sql::AIRPORT_TABLE;
     writer.add_table(table_name, column_names_and_types, primary_key_col_idx);
@@ -113,7 +114,7 @@ std::vector<std::pair<double, double>> GenerateAirportTable(TableWriter &writer,
       values.push_back(csv[8].empty() ? "0" : csv[8]);                                      // ap_wac
       for (int iattr = 0; iattr < 16; iattr++) 
         values.push_back(std::to_string(std::uniform_int_distribution<int64_t>(1, std::numeric_limits<int64_t>::max())(gen)));
-      
+      std::cerr << "finished that" << std::endl;
       writer.add_row(table_name, values);
     }
     file.close();
@@ -340,15 +341,27 @@ void GenerateFrequentFlyerTable(TableWriter &writer) {
     writer.add_index(table_name, "ff_customer_str_index", index2);
 
     std::mt19937 gen;
+
+    // java equiv -- histogram.getValueCount() just returns the number of values, which is the number of keys, which is the number of airlines in this case
+    int max_per_customer = std::min(seats_sql::CUSTOMER_NUM_FREQUENTFLYERS_MAX * seats_sql::SCALE_FACTOR, seats_sql::NUM_AIRLINES);
+    ZipfianGenerator zipf = ZipfianGenerator(seats_sql::CUSTOMER_NUM_FREQUENTFLYERS_MIN, max_per_customer, seats_sql::CUSTOMER_NUM_FREQUENTFLYERS_SIGMA);
+    std::vector<int> ff_per_customer = std::vector<int>();
+    ff_per_customer.reserve(seats_sql::NUM_CUSTOMERS);
+    for (int i = 0; i < ff_per_customer.size(); i++) {
+      int val = std::min(zipf.nextValue(gen), max_per_customer);
+      ff_per_customer.push_back(val);
+    }
+
     // generate data
     for (int c_id = 1; c_id <= seats_sql::NUM_CUSTOMERS; c_id++) {
       std::vector<int64_t> al_per_customer;
-      for (int al_num = 1; al_num <= 5; al_num++) {  
+      for (int al_num = 0; al_num < ff_per_customer[c_id - 1]; al_num++) {  
         int64_t al_id = std::uniform_int_distribution<int64_t>(1, seats_sql::NUM_AIRLINES)(gen);
         while (containsId(al_per_customer, al_id)) {
           al_id = std::uniform_int_distribution<int64_t>(1, seats_sql::NUM_AIRLINES)(gen);
         }
         al_per_customer.push_back(al_id);
+
         std::vector<std::string> values; 
         values.push_back(std::to_string(c_id));
         values.push_back(std::to_string(al_id));
@@ -395,7 +408,6 @@ std::pair<std::string, std::string> convertAPConnToAirports(std::string apconn) 
 
   return ret;
 }
-
 
 std::vector<int> GenerateFlightTable(TableWriter &writer, std::vector<std::vector<double>> &airport_distances, std::unordered_map<std::string, int64_t> ap_code_to_id, 
             std::vector<std::pair<int64_t, int64_t>> &f_id_to_ap_conn) {
@@ -444,6 +456,8 @@ std::vector<int> GenerateFlightTable(TableWriter &writer, std::vector<std::vecto
 
     int next_flight_id = 1;
 
+    std::queue<seats_sql::CachedFlight> cached_flights;
+
     //generate future days
     for(uint64_t dep_time = seats_sql::MIN_TS; dep_time <= seats_sql::MAX_TS; dep_time+= seats_sql::MS_IN_DAY){
       int num_flights = num_flight_generator();
@@ -461,14 +475,20 @@ std::vector<int> GenerateFlightTable(TableWriter &writer, std::vector<std::vecto
           auto arr_ap_id = ap_code_to_id[arr_dep_ap.second];
           f_id_to_ap_conn.push_back(std::make_pair(dep_ap_id, arr_ap_id));
 
-      
           uint64_t travel_time = distToTime(airport_distances[dep_ap_id - 1][arr_ap_id - 1]); 
         
           //normalize dep time to 00:00 and then set departure time based on histogram
           dep_time = (dep_time - (dep_time % seats_sql::MS_IN_DAY)) + convertStrToTime(getRandValFromHistogram(flight_time_hist, gen));
           uint64_t arrival_time = dep_time + travel_time;
           assert(arrival_time > dep_time);
-        
+
+          // cached flights are the latest departing flights, capped at CACHE_LIMIT_FLIGHTS 
+          // https://github.com/cmu-db/benchbase/blob/main/src/main/java/com/oltpbenchmark/benchmarks/seats/procedures/LoadConfig.java#L55
+          seats_sql::CachedFlight cf = seats_sql::CachedFlight();
+          cf.flight_id = f_id; cf.airline_id = f_al_id; cf.depart_ap_id = dep_ap_id; cf.arrive_ap_id = arr_ap_id; cf.depart_time = dep_time;
+          if (cached_flights.size() == seats_sql::CACHE_LIMIT_FLIGHT_IDS) cached_flights.pop();
+          cached_flights.push(cf);
+
           values.push_back(std::to_string(dep_ap_id));
           values.push_back(std::to_string(dep_time));
           values.push_back(std::to_string(arr_ap_id));
@@ -493,6 +513,7 @@ std::vector<int> GenerateFlightTable(TableWriter &writer, std::vector<std::vecto
       }
     }
 
+    writeCachedFlights(cached_flights);
     //FIXME: Why does find flight pick same start and end time.
     return flight_to_num_reserved;
 }

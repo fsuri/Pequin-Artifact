@@ -46,6 +46,8 @@ SQLFindFlights::SQLFindFlights(uint32_t timeout, std::mt19937 &gen, std::vector<
         } else {
             distance = 0;
         }
+
+        cached_flights = &cached_flight_ids;
     }
 
 SQLFindFlights::~SQLFindFlights() {}
@@ -157,6 +159,14 @@ transaction_status_t SQLFindFlights::Execute(SyncClient &client) {
         std::string arrive_city = ai_row.ap_city;
 
         Debug("Flight %ld / dep time %ld / %s, %s to  %s, %s / arr time %ld", f_id, depart_time, depart_ap, depart_city, arrive_ap, arrive_city, arrival_time);
+
+        CachedFlight cf;
+        cf.flight_id = f_id; 
+        cf.airline_id = flight_row.f_al_id; 
+        cf.depart_ap_id = flight_row.f_depart_ap_id; 
+        cf.depart_time = depart_time;
+        cf.arrive_ap_id = flight_row.f_arrive_ap_id;
+        addFlightToCache(*cached_flights, cf);
     }
     Debug("COMMIT");
     return client.Commit(timeout);

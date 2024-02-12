@@ -79,6 +79,12 @@ const double MAX_RESERVATION_PRICE = 1000;
 //int MAX_OPEN_SEATS_PER_TXN = 100; //UNUSED in original.
 
 // ----------------------------------------------------------------
+// FREQUENT FLYER CONSTRAINTS
+// ----------------------------------------------------------------
+const int CUSTOMER_NUM_FREQUENTFLYERS_MIN = 0;
+const int CUSTOMER_NUM_FREQUENTFLYERS_MAX = 10;
+const double CUSTOMER_NUM_FREQUENTFLYERS_SIGMA = 2.0; 
+// ----------------------------------------------------------------
 // PROBABILITIES
 // ----------------------------------------------------------------
 

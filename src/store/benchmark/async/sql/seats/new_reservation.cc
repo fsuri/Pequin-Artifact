@@ -10,7 +10,8 @@ SQLNewReservation::SQLNewReservation(uint32_t timeout, std::mt19937 &gen, int64_
     SEATSSQLTransaction(timeout), r_id(r_id), gen_(&gen) {
         if (!insert_res.empty()) {
             SEATSReservation res = insert_res.front();
-            f_id = res.f_id; 
+            f_id = res.f_id.flight_id; 
+            flight = res.f_id;
             seatnum = res.seat_num;
             if (res.c_id != NULL_ID) 
                 c_id = res.c_id;
@@ -162,11 +163,11 @@ transaction_status_t SQLNewReservation::Execute(SyncClient &client) {
 
     if (std::uniform_int_distribution<int>(1, 100)(*gen_) < PROB_Q_DELETE_RESERVATION){
         std::cerr << "NEW_RES: PUSH TO DELETE Q" << std::endl;
-        delete_q->push(SEATSReservation(r_id, c_id, f_id, seatnum));
+        delete_q->push(SEATSReservation(r_id, c_id, flight, seatnum));
     }
     else{
          std::cerr << "NEW_RES: PUSH TO UPDATE Q" << std::endl;
-        update_q->push(SEATSReservation(r_id, c_id, f_id, seatnum));
+        update_q->push(SEATSReservation(r_id, c_id, flight, seatnum));
     }
 
     return client.Commit(timeout);
