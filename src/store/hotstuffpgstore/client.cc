@@ -27,6 +27,8 @@
 #include "store/hotstuffpgstore/client.h"
 
 #include "store/hotstuffpgstore/common.h"
+#include "lib/cereal/archives/binary.hpp"
+#include "lib/cereal/types/string.hpp"
 
 namespace hotstuffpgstore {
 
@@ -37,12 +39,10 @@ Client::Client(const transport::Configuration& config, uint64_t id, int nShards,
       Transport *transport, Partitioner *part,
       uint64_t readMessages, uint64_t readQuorumSize, bool signMessages,
       bool validateProofs, KeyManager *keyManager,
-      bool order_commit, bool validate_abort,
       TrueTime timeserver, bool deterministic) : config(config), nshards(nShards),
     ngroups(nGroups), transport(transport), part(part), readMessages(readMessages), readQuorumSize(readQuorumSize),
     signMessages(signMessages),
     validateProofs(validateProofs), keyManager(keyManager),
-    order_commit(order_commit), validate_abort(validate_abort),
     timeServer(timeserver), deterministic(deterministic) {
   // just an invariant for now for everything to work ok
   assert(nGroups == nShards);
@@ -65,7 +65,7 @@ Client::Client(const transport::Configuration& config, uint64_t id, int nShards,
   /* Start a client for each shard. */
   for (uint64_t i = 0; i < ngroups; i++) {
     bclient[i] = new ShardClient(config, transport, client_id, i, closestReplicas,
-        signMessages, validateProofs, keyManager, &stats, order_commit, validate_abort,
+        signMessages, validateProofs, keyManager, &stats,
         deterministic);
   }
 
@@ -138,9 +138,8 @@ void Client::Abort(abort_callback acb, abort_timeout_callback atcb, uint32_t tim
 void Client::SQLRequest(std::string &statement, sql_callback scb, sql_timeout_callback stcb, uint32_t timeout){
   transport->Timer(0, [this, statement, scb, stcb, timeout](){
 
-    Debug("Shir: step 30");
     Debug("Query called");
-    std::cerr << "Shir:  issue SQLRequest from client:     "<<statement << std::endl;
+    // std::cerr << "Shir:  issue SQLRequest from client:     "<<statement << std::endl;
 
     sql_rpc_callback srcb = [scb, statement, this](int status, const std::string& sql_res) {
       // if(status == REPLY_OK) {
@@ -152,15 +151,29 @@ void Client::SQLRequest(std::string &statement, sql_callback scb, sql_timeout_ca
       query_msg->set_query(statement);
       query_result::QueryResult* query_res = new sql::QueryResultProtoWrapper(sql_res);
       scb(status, query_res);
-      Debug("Shir: step 45");
+
+
+      std::stringstream ss(std::ios::in | std::ios::out | std::ios::binary);
+      size_t nbytes;
+      // Shir: the next line gets seg fault
+      // const char* out = query_res->get(0, 0, &nbytes);
+      // std::string output(out, nbytes);
+      // ss << output;
+      // std::string output_row;
+      // {
+      //   cereal::BinaryInputArchive iarchive(ss); // Create an input archive
+      //   iarchive(output_row); // Read the data from the archive
+      // }
+      //   std::cerr << "Query 1 Done: " << output_row << std::endl << std::endl;
+
+
+
 
     };
     sql_rpc_timeout_callback srtcb = stcb;
 
-    Debug("Shir: step 40");
 
     bclient[0]->Query(statement, currentTxn.timestamp(), client_id, client_seq_num, srcb, srtcb, timeout);
-    Debug("Shir: step 50");
 
   });
 }

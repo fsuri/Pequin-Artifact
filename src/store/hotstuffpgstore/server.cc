@@ -39,23 +39,11 @@ using namespace std;
 Server::Server(const transport::Configuration& config, KeyManager *keyManager,
   int groupIdx, int idx, int numShards, int numGroups, bool signMessages,
   bool validateProofs, uint64_t timeDelta, Partitioner *part, Transport* tp,
-  bool order_commit, bool validate_abort,
   TrueTime timeServer) : config(config), keyManager(keyManager),
   groupIdx(groupIdx), idx(idx), id(groupIdx * config.n + idx),
   numShards(numShards), numGroups(numGroups), signMessages(signMessages),
   validateProofs(validateProofs),  timeDelta(timeDelta), part(part), tp(tp),
-  order_commit(order_commit), validate_abort(validate_abort),
   timeServer(timeServer) {
-  dummyProof = std::make_shared<proto::CommitProof>();
-
-  dummyProof->mutable_writeback_message()->set_status(REPLY_OK);
-  dummyProof->mutable_writeback_message()->set_txn_digest("");
-  proto::ShardSignedDecisions dec;
-  *dummyProof->mutable_writeback_message()->mutable_signed_decisions() = dec;
-
-  dummyProof->mutable_txn()->mutable_timestamp()->set_timestamp(0);
-  dummyProof->mutable_txn()->mutable_timestamp()->set_id(0);
-
 
   // Start the cluster before trying to connect:
   // version and cluster name should match the ones in Pequin-Artifact/pg_setup/postgres_service.sh script
@@ -296,13 +284,6 @@ void Server::Execute_Callback(const string& type, const string& msg, const execu
   return nullptr;
 }
 
-void Server::Load(const string &key, const string &value, const Timestamp timestamp) {
-  ValueAndProof val;
-  val.value = value;
-  val.commitProof = dummyProof;
-  commitStore.put(key, val, timestamp);
-}
-
 void Server::CreateTable(const std::string &table_name, const std::vector<std::pair<std::string, std::string>> &column_data_types, const std::vector<uint32_t> &primary_key_col_idx){
   // //Based on Syntax from: https://www.postgresqltutorial.com/postgresql-tutorial/postgresql-create-table/ 
 
@@ -342,17 +323,7 @@ void Server::CreateTable(const std::string &table_name, const std::vector<std::p
 
   this->exec_statement(sql_statement);
 
-  //Create TABLE version  -- just use table_name as key.  This version tracks updates to "table state" (as opposed to row state): I.e. new row insertions; row deletions;
-  //Note: It does currently not track table creation/deletion itself -- this is unsupported. If we do want to support it, either we need to make a separate version; 
-                                                                 //or we require inserts/updates to include the version in the ReadSet. 
-                                                                 //However, we don't want an insert to abort just because another row was inserted.
-  Load(table_name, "", Timestamp());
 
-  //Create TABLE_COL version -- use table_name + delim + col_name as key. This version tracks updates to "column state" (as opposed to table state): I.e. row Updates;
-  //Updates to column values change search meta data such as Indexes on a given Table. Scans that search on the column (using Active Reads) should conflict
-  for(auto &[col_name, _] : column_data_types){
-    Load(table_name + unique_delimiter + col_name, "", Timestamp());
-  }
 }
 
 void Server::CreateIndex(const std::string &table_name, const std::vector<std::pair<std::string, std::string>> &column_data_types, const std::string &index_name, const std::vector<uint32_t> &index_col_idx){

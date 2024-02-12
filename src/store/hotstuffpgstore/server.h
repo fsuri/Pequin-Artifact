@@ -54,7 +54,6 @@ class Server : public App, public ::Server {
 public:
   Server(const transport::Configuration& config, KeyManager *keyManager, int groupIdx, int idx, int numShards,
     int numGroups, bool signMessages, bool validateProofs, uint64_t timeDelta, Partitioner *part, Transport* tp,
-    bool order_commit = false, bool validate_abort = false,
     TrueTime timeServer = TrueTime(0, 0));
   ~Server();
 
@@ -62,7 +61,7 @@ public:
   void Execute_Callback(const std::string& type, const std::string& msg, const execute_callback ecb);
 
   void Load(const std::string &key, const std::string &value,
-      const Timestamp timestamp);
+      const Timestamp timestamp){};
 
   virtual void CreateTable(const std::string &table_name, const std::vector<std::pair<std::string, std::string>> &column_data_types, 
       const std::vector<uint32_t> &primary_key_col_idx) override;
@@ -102,20 +101,8 @@ private:
   Partitioner *part;
   TrueTime timeServer;
 
-  //addtional knobs: 1) order commit, 2) validate abort
-  bool order_commit;
-  bool validate_abort;
 
   std::shared_mutex atomicMutex;
-
-  struct ValueAndProof {
-    std::string value;
-    std::shared_ptr<proto::CommitProof> commitProof;
-  };
-
-  std::shared_ptr<proto::CommitProof> dummyProof;
-
-  VersionedKVStore<Timestamp, ValueAndProof> commitStore;
 
   void exec_statement(std::string sql_statement);
 

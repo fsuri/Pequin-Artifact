@@ -129,46 +129,4 @@ std::string Slots::getSlotDigest(uint64_t seq_num, uint64_t view) {
   return slots[seq_num][view].preprepare.digest;
 }
 
-proto::GroupedSignedMessage Slots::getPrepareProof(uint64_t seq_num, uint64_t view, const std::string& digest) {
-  proto::Prepare prepare;
-  prepare.set_seqnum(seq_num);
-  prepare.set_viewnum(view);
-  prepare.set_digest(digest);
-
-  proto::PackedMessage packedMsg;
-  *packedMsg.mutable_msg() = prepare.SerializeAsString();
-  *packedMsg.mutable_type() = prepare.GetTypeName();
-  std::string msgData = packedMsg.SerializeAsString();
-
-  proto::GroupedSignedMessage proof;
-  proof.set_packed_msg(msgData);
-
-  for (const auto& pair : slots[seq_num][view].prepares[digest]) {
-    (*proof.mutable_signatures())[pair.first] = pair.second;
-  }
-
-  return proof;
-}
-
-proto::GroupedSignedMessage Slots::getCommitProof(uint64_t seq_num, uint64_t view, const std::string& digest) {
-  proto::Commit commit;
-  commit.set_seqnum(seq_num);
-  commit.set_viewnum(view);
-  commit.set_digest(digest);
-
-  proto::PackedMessage packedMsg;
-  *packedMsg.mutable_msg() = commit.SerializeAsString();
-  *packedMsg.mutable_type() = commit.GetTypeName();
-  std::string msgData = packedMsg.SerializeAsString();
-
-  proto::GroupedSignedMessage proof;
-  proof.set_packed_msg(msgData);
-
-  for (const auto& pair : slots[seq_num][view].commits[digest]) {
-    (*proof.mutable_signatures())[pair.first] = pair.second;
-  }
-
-  return proof;
-}
-
 }  // namespace hotstuffpgstore

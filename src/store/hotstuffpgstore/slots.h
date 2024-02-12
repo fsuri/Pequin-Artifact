@@ -62,10 +62,6 @@ class Slots {
 
   std::string getSlotDigest(uint64_t seq_num, uint64_t view);
 
-  proto::GroupedSignedMessage getPrepareProof(uint64_t seq_num, uint64_t view, const std::string& digest);
-
-  proto::GroupedSignedMessage getCommitProof(uint64_t seq_num, uint64_t view, const std::string& digest);
-
  private:
 
     struct digest_and_sig {

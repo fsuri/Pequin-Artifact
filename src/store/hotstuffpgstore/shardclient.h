@@ -64,7 +64,7 @@ class ShardClient : public TransportReceiver {
   ShardClient(const transport::Configuration& config, Transport *transport,
       uint64_t client_id, uint64_t group_idx, const std::vector<int> &closestReplicas_,
       bool signMessages, bool validateProofs,
-      KeyManager *keyManager, Stats* stats, bool order_commit = false, bool validate_abort = false,
+      KeyManager *keyManager, Stats* stats,
       bool deterministic = false);
   ~ShardClient();
 
@@ -98,11 +98,7 @@ class ShardClient : public TransportReceiver {
   // simple f + 1, returning the result of any replica's execution
   bool deterministic;
 
-  //addtional knobs: 1) order commit, 2) validate abort
-  bool order_commit = false;
-  bool validate_abort = false;
 
-  uint64_t readReq;
   uint64_t SQL_RPCReq;
   uint64_t tryCommitReq;
   std::vector<int> closestReplicas;
@@ -110,29 +106,12 @@ class ShardClient : public TransportReceiver {
     return closestReplicas[idx];
   }
 
-  struct PendingRead {
-    // the set of ids that we have received a read reply for
-    std::unordered_set<uint64_t> receivedReplies;
-    // the max read timestamp for a valid reply
-    Timestamp maxTs;
-    std::string maxValue;
-    proto::CommitProof maxCommitProof;
-
-    // the current status of the reply (default to fail)
-    uint64_t status;
-
-    uint64_t numResultsRequired;
-
-    Timeout* timeout;
-  };
-
   struct PendingSQL_RPC {
     // the set of ids that we have received a read reply for
     std::unordered_map<std::string, std::unordered_set<uint64_t>> receivedReplies;
     std::unordered_set<uint64_t> receivedSuccesses;
     std::string leaderReply;
     std::unordered_set<uint64_t> receivedFails;
-    proto::CommitProof maxCommitProof;
 
     // the current status of the reply (default to fail)
     uint64_t status;
@@ -147,7 +126,6 @@ class ShardClient : public TransportReceiver {
     // the set of ids that we have received a read reply for
     std::unordered_set<uint64_t> receivedAcks;
     std::unordered_set<uint64_t> receivedFails;
-    proto::CommitProof maxCommitProof;
 
     // the current status of the reply (default to fail)
     uint64_t status;

@@ -33,14 +33,13 @@ namespace hotstuffpgstore {
 ShardClient::ShardClient(const transport::Configuration& config, Transport *transport,
     uint64_t client_id, uint64_t group_idx, const std::vector<int> &closestReplicas_,
     bool signMessages, bool validateProofs,
-    KeyManager *keyManager, Stats* stats, bool order_commit, bool validate_abort, bool deterministic) :
+    KeyManager *keyManager, Stats* stats, bool deterministic) :
     config(config), transport(transport),
     group_idx(group_idx),
     signMessages(signMessages), validateProofs(validateProofs),
-    keyManager(keyManager), stats(stats), order_commit(order_commit), validate_abort(validate_abort),
+    keyManager(keyManager), stats(stats),
     deterministic(deterministic) {
   transport->Register(this, config, -1, -1);
-  readReq = 0;
   SQL_RPCReq = 0;
   tryCommitReq = 0;
 

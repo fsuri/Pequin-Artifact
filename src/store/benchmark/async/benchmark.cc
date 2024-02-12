@@ -689,7 +689,7 @@ DEFINE_bool(rw_read_only, false, "only do read operations");
 /**
  * RW-sql additional settings.
  */
-
+// Shir: this should match the flags in server.cc
 DEFINE_uint64(num_tables, 10, "number of tables for rw-sql");
 DEFINE_uint64(num_keys_per_table, 100, "number of keys per table for rw-sql");
 DEFINE_uint64(max_range, 10, "max amount of reads in a single scan for rw-sql");
@@ -1500,7 +1500,6 @@ int main(int argc, char **argv) {
                                        readMessages, readQuorumSize,
                                        FLAGS_indicus_sign_messages, FLAGS_indicus_validate_proofs,
                                        keyManager,
-																			 FLAGS_pbft_order_commit, FLAGS_pbft_validate_abort,
 																			 TrueTime(FLAGS_clock_skew, FLAGS_clock_error), FLAGS_deterministic);
         break;
     }

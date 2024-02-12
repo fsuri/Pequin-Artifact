@@ -53,7 +53,6 @@ class Client : public ::Client {
       Transport *transport, Partitioner *part,
       uint64_t readMessages, uint64_t readQuorumSize, bool signMessages,
       bool validateProofs, KeyManager *keyManager,
-      bool order_commit = false, bool validate_abort = false,
       TrueTime timeserver = TrueTime(0,0), bool deterministic = false);
   ~Client();
 
@@ -113,10 +112,6 @@ class Client : public ::Client {
   // leader's results to get consistent results. If it is, then it is based on a 
   // simple f + 1, returning the result of any replica's execution
   bool deterministic;
-
-  //addtional knobs: 1) order commit, 2) validate abort
-  bool order_commit = false;
-  bool validate_abort = false;
 
   // Current transaction.
   proto::Transaction currentTxn;

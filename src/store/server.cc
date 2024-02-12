@@ -851,15 +851,12 @@ int main(int argc, char **argv) {
 
      // HotStuffPG
   case PROTO_HOTSTUFF_PG: {
-      // std::cerr << "Shir: debugging server 5\n";
-      // Notice("Shir playing with HS");
       std::cerr << "Shir: check FLAGS_replica_idx:    "<<  FLAGS_replica_idx <<"\n";
 
       server = new hotstuffpgstore::Server(config, &keyManager,
                                      FLAGS_group_idx, FLAGS_replica_idx, FLAGS_num_shards, FLAGS_num_groups,
                                      FLAGS_indicus_sign_messages, FLAGS_indicus_validate_proofs,
-                                     FLAGS_indicus_watermark_time_delta, part, tport,
-                                                                                                                                           FLAGS_pbft_order_commit, FLAGS_pbft_validate_abort);
+                                     FLAGS_indicus_watermark_time_delta, part, tport);
 
       replica = new hotstuffpgstore::Replica(config, &keyManager,
                                        dynamic_cast<hotstuffpgstore::App *>(server),

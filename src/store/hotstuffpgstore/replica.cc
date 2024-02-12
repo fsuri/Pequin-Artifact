@@ -164,7 +164,7 @@ void Replica::HandleRequest(const TransportAddress &remote,
         auto f = [this, digest, packedMsg, clientAddr, digest_param, seqnum](){
 
             // Shir: f is probably also being executed by hotstuff
-            Debug("Callback: %d, %lu", idx, seqnum); 
+            Debug("Callback: %d, %lu", idx, seqnum);  // This is called once per server
             stats->Increment("hotstuffpg_exec_callback",1);
 
             // prepare data structures for executeSlots()
@@ -200,11 +200,13 @@ void Replica::HandleRequest(const TransportAddress &remote,
     auto need_to_fill_pipeline=true;
     if (need_to_fill_pipeline){
 
+      proto::PackedMessage bubblePackedMsg;
+
       std::string digest_mb("mitz"+digest);
       //                                                                         [values captured in the function](paramaters taken as input)
-      auto execb_bubblem = [this, digest_mb, packedMsg,clientAddr ](const std::string &digest_paramm, uint32_t seqnumm) {
-      auto f = [this, digest_mb, packedMsg,clientAddr, digest_paramm, seqnumm](){
-        requests[digest_mb] = packedMsg;
+      auto execb_bubblem = [this, digest_mb, bubblePackedMsg,clientAddr ](const std::string &digest_paramm, uint32_t seqnumm) {
+      auto f = [this, digest_mb, bubblePackedMsg,clientAddr, digest_paramm, seqnumm](){
+        requests[digest_mb] = bubblePackedMsg;
         replyAddrs[digest_mb] = clientAddr; // replyAddress is the address of the client wo sent this request, so we can answer him
         pendingExecutions[seqnumm] = digest_mb;
         return (void*) true;
@@ -216,9 +218,9 @@ void Replica::HandleRequest(const TransportAddress &remote,
 
 
       std::string digest_m1("shir"+digest);
-      auto execb_bubblem1 = [this, digest_m1, packedMsg,clientAddr ](const std::string &digest_paramm, uint32_t seqnumm) {
-      auto f = [this, digest_m1, packedMsg, clientAddr,digest_paramm, seqnumm](){
-        requests[digest_m1] = packedMsg;
+      auto execb_bubblem1 = [this, digest_m1, bubblePackedMsg,clientAddr ](const std::string &digest_paramm, uint32_t seqnumm) {
+      auto f = [this, digest_m1, bubblePackedMsg, clientAddr,digest_paramm, seqnumm](){
+        requests[digest_m1] = bubblePackedMsg;
         replyAddrs[digest_m1] = clientAddr; // replyAddress is the address of the client wo sent this request, so we can answer him
         pendingExecutions[seqnumm] = digest_m1;
         return (void*) true;
@@ -229,9 +231,9 @@ void Replica::HandleRequest(const TransportAddress &remote,
 
 
       std::string digest_m2("nosh"+digest);
-      auto execb_bubblem2 = [this, digest_m2, packedMsg,clientAddr ](const std::string &digest_paramm, uint32_t seqnumm) {
-      auto f = [this, digest_m2, packedMsg,clientAddr, digest_paramm, seqnumm](){
-        requests[digest_m2] = packedMsg;
+      auto execb_bubblem2 = [this, digest_m2, bubblePackedMsg,clientAddr ](const std::string &digest_paramm, uint32_t seqnumm) {
+      auto f = [this, digest_m2, bubblePackedMsg,clientAddr, digest_paramm, seqnumm](){
+        requests[digest_m2] = bubblePackedMsg;
         replyAddrs[digest_m2] = clientAddr; // replyAddress is the address of the client wo sent this request, so we can answer him
         pendingExecutions[seqnumm] = digest_m2;
         return (void*) true;
@@ -240,13 +242,6 @@ void Replica::HandleRequest(const TransportAddress &remote,
       };
       hotstuffpg_interface.propose(digest_m2, execb_bubblem2);
 
-      Debug("Printing out pendingExecutions (after bubbles)");
-      for(auto& it: pendingExecutions) {
-        std::cout << it.first << " " << it.second << std::endl;
-        DebugHash(it.second);
-
-      }
-      Debug("Finished printing out pendingExecutions");
     }
   
   }
