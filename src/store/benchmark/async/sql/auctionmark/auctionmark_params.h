@@ -28,6 +28,7 @@
 #define AUCTIONMARK_PARAMS_H
 
 #include <stdint.h>
+#include <unordered_set>
 
 namespace auctionmark
 {
@@ -214,13 +215,13 @@ namespace auctionmark
   };
 
   /* Table Data Structures */
-  static constexpr const std::unordered_set<std::string> FIXED_TABLES = {
+  static const std::unordered_set<std::string> FIXED_TABLES = {
     TABLENAME_REGION,
     TABLENAME_GLOBAL_ATTRIBUTE_GROUP,
     TABLENAME_GLOBAL_ATTRIBUTE_VALUE
   };
 
-  static constexpr const std::unordered_set<std::string> DYNAMIC_TABLES = {
+  static const std::unordered_set<std::string> DYNAMIC_TABLES = {
     TABLENAME_USERACCT_ATTRIBUTES,
     TABLENAME_ITEM_IMAGE,
     TABLENAME_ITEM_ATTRIBUTE,
@@ -233,7 +234,7 @@ namespace auctionmark
     TABLENAME_USERACCT_WATCH
   };
 
-  static constexpr const std::unordered_set<std::string> AuctionMarkConstants::DATAFILE_TABLES = {
+  static const std::unordered_set<std::string> DATAFILE_TABLES = {
     TABLENAME_CATEGORY
   };
 
