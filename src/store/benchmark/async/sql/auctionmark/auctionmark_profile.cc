@@ -1,0 +1,347 @@
+#include "store/benchmark/async/sql/auctionmark/auctionmark_profile.h"
+#include "store/benchmark/async/sql/auctionmark/auctionmark_params.h"
+#include "store/benchmark/async/sql/auctionmark/utils/auctionmark_utils.h"
+#include <algorithm>
+
+namespace auctionmark
+{
+
+  AuctionMarkProfile::AuctionMarkProfile(int client_id, double scale_factor, int num_clients, std::mt19937_64 gen) : client_id(client_id), scale_factor(scale_factor), num_clients(num_clients), gen(gen)
+  {
+    loader_start_time = std::chrono::system_clock::now();
+    user_id_generator = std::nullopt;
+
+    // TODO: Write getter methods to do the appropriate conversions for binomials
+    random_time_diff = std::binomial_distribution<int>((ITEM_DURATION_DAYS_MAX * 24 * 60 * 60) - (ITEM_PRESERVE_DAYS * 24 * 60 * 60 * -1), 0.5);
+    random_duration = std::binomial_distribution<int>(ITEM_DURATION_DAYS_MAX - ITEM_DURATION_DAYS_MIN, 0.5);
+
+    random_initial_price = Zipf(gen, ITEM_INITIAL_PRICE_MIN, ITEM_INITIAL_PRICE_MAX, ITEM_INITIAL_PRICE_SIGMA);
+    random_purchase_duration = Zipf(gen, ITEM_PURCHASE_DURATION_DAYS_MIN, ITEM_PURCHASE_DURATION_DAYS_MAX, ITEM_PURCHASE_DURATION_DAYS_SIGMA);
+    random_num_images = Zipf(gen, ITEM_NUM_IMAGES_MIN, ITEM_NUM_IMAGES_MAX, ITEM_NUM_IMAGES_SIGMA);
+    random_num_attributes = Zipf(gen, ITEM_NUM_GLOBAL_ATTRS_MIN, ITEM_NUM_GLOBAL_ATTRS_MAX, ITEM_NUM_GLOBAL_ATTRS_SIGMA);
+    random_num_comments = Zipf(gen, ITEM_NUM_COMMENTS_MIN, ITEM_NUM_COMMENTS_MAX, ITEM_NUM_COMMENTS_SIGMA);
+  }
+
+  // -----------------------------------------------------------------
+  // TIME METHODS
+  // -----------------------------------------------------------------
+
+  std::chrono::system_clock::time_point AuctionMarkProfile::get_scaled_current_timestamp(std::chrono::system_clock::time_point time)
+  {
+    tmp_now = std::chrono::system_clock::now();
+    std::chrono::milliseconds dur(GetScaledTimestamp(loader_start_time, client_start_time, tmp_now));
+    time = std::chrono::system_clock::time_point(dur);
+    return time;
+  }
+
+  std::chrono::system_clock::time_point AuctionMarkProfile::update_and_get_current_time()
+  {
+    current_time = get_scaled_current_timestamp(current_time);
+    return current_time;
+  }
+
+  std::chrono::system_clock::time_point AuctionMarkProfile::get_current_time()
+  {
+    return current_time;
+  }
+
+  std::chrono::system_clock::time_point AuctionMarkProfile::get_loader_start_time()
+  {
+    return loader_start_time;
+  }
+
+  std::chrono::system_clock::time_point AuctionMarkProfile::get_loader_stop_time()
+  {
+    return loader_stop_time;
+  }
+
+  std::chrono::system_clock::time_point AuctionMarkProfile::set_and_get_client_start_time()
+  {
+    client_start_time = std::chrono::system_clock::now();
+    return client_start_time;
+  }
+
+  std::chrono::system_clock::time_point AuctionMarkProfile::get_client_start_time()
+  {
+    return client_start_time;
+  }
+
+  bool AuctionMarkProfile::has_client_start_time()
+  {
+    return client_start_time.time_since_epoch().count() > 0;
+  }
+
+  std::chrono::system_clock::time_point AuctionMarkProfile::update_and_get_last_close_auctions_time()
+  {
+    last_close_auctions_time = get_scaled_current_timestamp(last_close_auctions_time);
+    return last_close_auctions_time;
+  }
+
+  std::chrono::system_clock::time_point AuctionMarkProfile::get_last_close_auctions_time()
+  {
+    return last_close_auctions_time;
+  }
+
+  // -----------------------------------------------------------------
+  // GENERAL METHODS
+  // -----------------------------------------------------------------
+
+  double AuctionMarkProfile::get_scale_factor()
+  {
+    return scale_factor;
+  }
+
+  void AuctionMarkProfile::set_scale_factor(double scale_factor)
+  {
+    this->scale_factor = scale_factor;
+  }
+
+  // ----------------------------------------------------------------
+  // USER METHODS
+  // ----------------------------------------------------------------
+
+  UserId AuctionMarkProfile::get_random_user_id(int min_item_count, int client_id, std::vector<UserId> &exclude)
+  {
+    if (!random_item_count.has_value())
+    {
+      auto hist = FlatHistogram<>(gen, users_per_item_count);
+      random_item_count.emplace(hist);
+    }
+    if (!user_id_generator.has_value()) {
+      initialize_user_id_generator(client_id);
+    }
+
+    std::optional<UserId> user_id = std::nullopt;
+    int tries = 1000;
+    int num_users = user_id_generator->get_total_users() - 1;
+    while (!user_id.has_value() && tries-- > 0) {
+      // We first need to figure out how many items our seller needs to have
+      int item_count = -1;
+      while (item_count < min_item_count) {
+        item_count = random_item_count->next_value();
+      }
+
+      // Set the current item count and then choose a random position
+      // between where the generator is currently at and where it ends
+      user_id_generator->set_current_item_count(item_count);
+      int cur_position = user_id_generator->get_current_position();
+      int new_position = std::uniform_int_distribution<>(cur_position, num_users)(gen);
+      user_id = user_id_generator->seek_to_position(new_position);
+      if (!user_id.has_value()) {
+        continue;
+      }
+
+      // Make sure that we didn't select the same UserId as the one we were
+      // told to exclude.
+      if (!exclude.empty()) {
+        for (UserId ex : exclude) {
+          if (ex == user_id.value()) {
+            user_id = std::nullopt;
+            break;
+          }
+        }
+        if (!user_id.has_value()) {
+          continue;
+        }
+      }
+
+      // If we don't care about skew, then we're done right here
+      break;
+    }
+
+    if (user_id.has_value()) {
+      throw std::runtime_error("Failed to find a user_id after 1000 tries");
+    }
+    return user_id.value();
+  }
+
+  UserId AuctionMarkProfile::get_random_buyer_id(std::vector<UserId> &exclude)
+  {
+    // We don't care about skewing the buyerIds at this point, so just get one from getRandomUserId
+    return get_random_user_id(0, -1, exclude);
+  }
+
+  UserId AuctionMarkProfile::get_random_buyer_id(str_cat_hist_t &previous_bidders, std::vector<UserId> &exclude) {
+    tmp_user_id_set.clear();
+    for (UserId ex : exclude) {
+      tmp_user_id_set.insert(ex);
+    }
+
+    std::map<int, std::string> hist;
+    for (auto&& x : indexed(previous_bidders)) {
+      if (*x > 0) {
+        hist[*x] = x.bin();
+      }
+    }
+    tmp_user_id_set.insert(get_random_buyer_id(exclude));
+
+    auto rand_h = FlatHistogram<boost::histogram::default_storage, std::string, boost::histogram::axis::category>(gen, hist);
+    return rand_h.next_value();
+  }
+
+  UserId AuctionMarkProfile::get_random_seller_id(int client) {
+    std::vector<UserId> exclude = {};
+    return get_random_user_id(1, client, exclude);
+  }
+
+  void AuctionMarkProfile::add_pending_item_comment_response(ItemCommentResponse &cr) {
+    if (client_id != -1) {
+      const UserId seller_id(cr.get_seller_id());
+      if (!user_id_generator->check_client(seller_id)) {
+        return;
+      }
+    }
+    pending_comment_responses.push_back(cr);
+  }
+
+  // ----------------------------------------------------------------
+  // ITEM METHODS
+  // ----------------------------------------------------------------
+
+  ItemId AuctionMarkProfile::get_next_item_id(UserId &seller_id) {
+    std::string composite_id;
+    seller_id.decode(composite_id);
+    int cat_idx = seller_item_cnt.axis(0).index(composite_id);
+    int cnt = 0;
+    try {
+      int cnt = seller_item_cnt.at(cat_idx);
+    } catch (std::out_of_range e) {}
+    if (cnt == 0) {
+      cnt = seller_id.get_item_count();
+      // TODO: Test that this actually works.
+      seller_item_cnt.at(cat_idx) = cnt;
+    }
+    return ItemId(seller_id, cnt);
+  }
+
+  bool AuctionMarkProfile::add_item(std::vector<ItemInfo> &items, ItemInfo &item_info) {
+    bool added = false;
+
+    auto it = std::find(items.begin(), items.end(), item_info);
+    if (it != items.end()) {
+      *it = ItemInfo(item_info);
+      return true;
+    }
+
+    if (item_info.has_current_price()) {
+      if (items.size() < ITEM_ID_CACHE_SIZE) {
+        items.push_back(item_info);
+        added = true;
+      } else if (std::uniform_int_distribution<>(0, 1)(gen)) {
+        items.erase(items.begin());
+        items.push_back(item_info);
+        added = true;
+      }
+    }
+    return added;
+  }
+
+  void AuctionMarkProfile::update_item_queues() {
+    auto current_time = update_and_get_current_time();
+
+    for (auto items : all_item_sets) {
+      if (items == items_completed) {
+        continue;
+      }
+
+      for (auto it = items.begin(); it != items.end(); it++) {
+        add_item_to_proper_queue(*it, current_time, it);
+      }
+    }
+  }
+
+  std::optional<ItemStatus> AuctionMarkProfile::add_item_to_proper_queue(ItemInfo &item_info, bool is_loader) {
+    std::chrono::system_clock::time_point base_time = is_loader ? get_loader_start_time() : get_current_time();
+    return add_item_to_proper_queue(item_info, base_time, std::nullopt);
+  }
+
+  std::optional<ItemStatus> AuctionMarkProfile::add_item_to_proper_queue(ItemInfo &item_info, std::chrono::system_clock::time_point &base_time, std::optional<std::pair<std::vector<ItemInfo>::iterator&, std::vector<ItemInfo>&>> current_queue_iterator) {
+    if (client_id != -1) {
+      if (user_id_generator == std::nullopt) {
+        initialize_user_id_generator(client_id);
+      }
+      const UserId item_seller = item_info.get_seller_id();
+      if (user_id_generator->check_client(item_seller)) {
+        return std::nullopt;
+      }
+    }
+
+    std::chrono::milliseconds remaining = std::chrono::duration_cast<std::chrono::milliseconds>(item_info.get_end_date().value() - base_time);
+    std::optional<ItemStatus> existing_status = item_info.get_status();
+    ItemStatus new_status = (existing_status.has_value() ? existing_status.value() : ItemStatus::OPEN);
+
+    if (remaining.count() <= 0) {
+      new_status = ItemStatus::CLOSED;
+    } else if (remaining.count() < ITEM_ENDING_SOON) {
+      new_status = ItemStatus::ENDING_SOON;
+    } else if (item_info.get_num_bids() > 0 && new_status != ItemStatus::CLOSED) {
+      new_status = ItemStatus::WAITING_FOR_PURCHASE;
+    }
+
+    if (!existing_status.has_value() || new_status != existing_status.value()) {
+      if (current_queue_iterator.has_value()) {
+        current_queue_iterator->second.erase(current_queue_iterator->first);
+      }
+
+      switch (new_status) {
+        case ItemStatus::OPEN:
+          add_item(items_available, item_info);
+          break;
+        case ItemStatus::ENDING_SOON:
+          add_item(items_ending_soon, item_info);
+          break;
+        case ItemStatus::WAITING_FOR_PURCHASE:
+          add_item(items_waiting_for_purchase, item_info);
+          break;
+        case ItemStatus::CLOSED:
+          add_item(items_completed, item_info);
+          break;
+      }
+      item_info.set_status(new_status);
+    }
+
+    return new_status;
+  }
+
+  std::optional<ItemInfo> AuctionMarkProfile::get_random_item(std::vector<ItemInfo> item_set, bool need_current_price, bool need_future_end_date) {
+    auto current_time = update_and_get_current_time();
+    int num_items = item_set.size();
+    int idx = -1;
+    std::optional<ItemInfo> item_info = std::nullopt;
+
+    int tries = 1000;
+    tmp_seen_items.clear();
+    while (num_items > 0 && tries-- > 0 && tmp_seen_items.size() < num_items) {
+      idx = std::uniform_int_distribution<>(0, num_items - 1)(gen);
+      ItemInfo temp = item_set[idx];
+
+      if (tmp_seen_items.contains(temp)) {
+        continue;
+      }
+      tmp_seen_items.insert(temp);
+
+      if (need_current_price && !temp.has_current_price()) {
+        continue;
+      }
+
+      if (need_future_end_date) {
+        auto temp_end_date = temp.get_end_date();
+        bool compare_to = temp_end_date.has_value() ? temp_end_date.value() < current_time : true;
+        if(compare_to) {
+          continue;
+        }
+      }
+
+      item_info = temp;
+      break;
+    }
+
+    if(item_info != std::nullopt) {
+      item_set.erase(item_set.begin() + idx);
+      item_set.insert(item_set.begin(), item_info.value());
+    }
+    return item_info;
+  }
+
+
+} // namespace auctionmark

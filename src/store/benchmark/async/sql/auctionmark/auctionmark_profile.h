@@ -2,6 +2,8 @@
 #include <string>
 #include <random>
 #include <chrono>
+#include <utility>
+#include <optional>
 #include <unordered_set>
 #include <boost/histogram.hpp>
 #include "store/common/frontend/sync_client.h"
@@ -12,19 +14,26 @@
 #include "store/benchmark/async/sql/auctionmark/utils/item_id.h"
 #include "store/benchmark/async/sql/auctionmark/utils/item_comment_response.h"
 #include "store/benchmark/async/sql/auctionmark/utils/zipf.h"
+#include "store/benchmark/async/sql/auctionmark/utils/flat_histogram.h"
 
-namespace auctionmark {
- 
-using str_cat_axes_t = std::tuple<
-    boost::histogram::axis::category<std::string>,
-    boost::histogram::axis::integer<>
->;
-using str_cat_hist_t = boost::histogram::histogram<str_cat_axes_t>;
-
-class AuctionMarkProfile
+namespace auctionmark
 {
-public:
+
+  class AuctionMarkProfile
+  {
+    using int_hist_t = boost::histogram::histogram<
+        std::tuple<
+            boost::histogram::axis::integer<>>>;
+    using str_cat_hist_t = boost::histogram::histogram<
+        std::tuple<
+            boost::histogram::axis::category<std::string>>>;
+
+  public:
     AuctionMarkProfile(int client_id, double scale_factor, int num_clients, std::mt19937_64 gen);
+    inline ~AuctionMarkProfile()
+    {
+      clear_cached_profile();
+    }
 
     /* Time methods */
     std::chrono::system_clock::time_point get_scaled_current_timestamp(std::chrono::system_clock::time_point time);
@@ -45,6 +54,7 @@ public:
     /* User Methods */
     UserId get_random_user_id(int min_item_count, int client_id, std::vector<UserId> &exclude);
     UserId get_random_buyer_id(std::vector<UserId> &exclude);
+
     UserId get_random_buyer_id(str_cat_hist_t &previous_bidders, std::vector<UserId> &exclude);
     UserId get_random_seller_id(int client);
     void add_pending_item_comment_response(ItemCommentResponse &cr);
@@ -53,9 +63,9 @@ public:
     ItemId get_next_item_id(UserId &seller_id);
     bool add_item(std::vector<ItemInfo> &items, ItemInfo &item_info);
     void update_item_queues();
-    ItemStatus add_item_to_proper_queue(ItemInfo &item_info, bool is_loader);
-    ItemStatus add_item_to_proper_queue(ItemInfo &item_info, std::chrono::system_clock::time_point &base_time, std::vector<ItemInfo>::iterator &current_queue_iterator);
-    ItemInfo get_random_item(std::vector<ItemInfo> item_set, bool need_current_price, bool need_future_end_date);
+    std::optional<ItemStatus> add_item_to_proper_queue(ItemInfo &item_info, bool is_loader);
+    std::optional<ItemStatus> add_item_to_proper_queue(ItemInfo &item_info, std::chrono::system_clock::time_point &base_time, std::optional<std::pair<std::vector<ItemInfo>::iterator&, std::vector<ItemInfo>&>> current_queue_iterator);
+    std::optional<ItemInfo> get_random_item(std::vector<ItemInfo> item_set, bool need_current_price, bool need_future_end_date);
     long get_random_num_images();
     long get_random_num_attributes();
     long get_random_purchase_duration();
@@ -92,14 +102,18 @@ public:
     void save_profile(SyncClient &client);
     void copy_profile(int client_id, AuctionMarkProfile &other);
 
-    static void clear_cached_profile() {
+    static void clear_cached_profile()
+    {
+      if (cached_profile != nullptr)
+      {
         delete cached_profile;
         cached_profile = nullptr;
+      }
     }
 
     void load_profile(int client_id);
-    
-private:
+
+  private:
     static AuctionMarkProfile *cached_profile;
     const int client_id;
     std::mt19937_64 gen;
@@ -108,13 +122,8 @@ private:
     std::chrono::system_clock::time_point loader_start_time;
     std::chrono::system_clock::time_point loader_stop_time;
 
-    using axes_t = std::tuple<
-        boost::histogram::axis::integer<>,
-        boost::histogram::axis::integer<>
-    >;
-    using hist_t = boost::histogram::histogram<axes_t>;
-    hist_t users_per_item_count;
-    hist_t items_per_category;
+    int_hist_t users_per_item_count;
+    int_hist_t items_per_category;
 
     std::vector<ItemInfo> items_available;
     std::vector<ItemInfo> items_ending_soon;
@@ -125,8 +134,7 @@ private:
         items_available,
         items_ending_soon,
         items_waiting_for_purchase,
-        items_completed
-    };
+        items_completed};
 
     std::vector<GlobalAttributeGroupId> gag_ids;
 
@@ -140,8 +148,8 @@ private:
     Zipf random_num_comments;
     Zipf random_initial_price;
 
-    std::uniform_int_distribution<int> random_category;
-    std::uniform_int_distribution<int> random_item_count;
+    std::optional<FlatHistogram<>> random_category;
+    std::optional<FlatHistogram<>> random_item_count;
 
     std::chrono::system_clock::time_point last_close_auctions_time;
     std::chrono::system_clock::time_point client_start_time;
@@ -153,12 +161,13 @@ private:
 
     // Temporary variables
     std::unordered_set<ItemInfo> tmp_seen_items;
-    std::unordered_set<ItemInfo> tmp_user_id_set;
+    std::unordered_set<UserId> tmp_user_id_set;
     std::chrono::system_clock::time_point tmp_now;
 
-    inline void initialize_user_id_generator(int client_id) {
-        user_id_generator = UserIdGenerator(users_per_item_count, num_clients, client_id);
+    inline void initialize_user_id_generator(int client_id)
+    {
+      user_id_generator = UserIdGenerator(users_per_item_count, num_clients, client_id);
     }
-};
+  };
 
 } // namespace auctionmark
