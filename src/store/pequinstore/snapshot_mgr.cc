@@ -75,7 +75,7 @@ void SnapshotManager::ResetLocalSnapshot(bool _useOptimisticTxId){
 
 uint64_t MergeTimestampId(const uint64_t &timestamp, const uint64_t &id){
    uint64_t time_mask = 0xFFF; //(1 << 12) - 1; //all bottom 12 bits = 1
-  Debug("Merging Timestamp: %lx, Id: %lx, Timemask: %lx, TS & Mask: %lx ", timestamp, id, time_mask, (timestamp & time_mask));
+  //Debug("Merging Timestamp: %lx, Id: %lx, Timemask: %lx, TS & Mask: %lx ", timestamp, id, time_mask, (timestamp & time_mask));
     
     //1) Check whether Id < 2^12
     //uint64_t id_mask = ~0UL - (time_mask);
@@ -103,15 +103,42 @@ void SnapshotManager::AddToLocalSnapshot(const std::string &txnDigest, const pro
   AddToLocalSnapshot(txnDigest, txn->timestamp().timestamp(), txn->timestamp().id(), committed_or_prepared);
 }
 
+void SnapshotManager::AddToLocalSnapshot(const proto::Transaction &txn, bool hash_param, bool committed_or_prepared){ //optimistTxId = params.query_params.optimisticTxId && retry_version == 0.
+
+  Debug("USE OPTIMISTIC? %d", useOptimisticTxId);
+  
+  if(!useOptimisticTxId){ //Add txnDigest to snapshot
+    //Just add txnDig to RepeatedPtr directly  //TODO: Make one general structure for prepared/committed.
+
+    Debug("Add txnDig(%s) to snapshot", BytesToHex(TransactionDigest(txn, hash_param), 16).c_str());
+    std::string &&txnDigest(TransactionDigest(txn, hash_param));
+    committed_or_prepared? local_ss->add_local_txns_committed(std::move(txnDigest)) : local_ss->add_local_txns_prepared(std::move(txnDigest));
+  }
+  else{ //Add (merged) Timestamp to snapshot
+    //ts_comp.AddToBucket(txn->timestamp()); //If we want to compute a delta manually first use this.
+    uint64_t const &timestamp = txn.timestamp().timestamp();
+    uint64_t const &id = txn.timestamp().id(); 
+    // merge ts and id into one 64 bit number and add to snapshot
+    Debug("Add mergedTS[%lu] (original: [%lu:%lu] to snapshot)", MergeTimestampId(timestamp, id), timestamp, id);
+    committed_or_prepared? local_ss->add_local_txns_committed_ts(MergeTimestampId(timestamp, id)) : local_ss->add_local_txns_prepared_ts(MergeTimestampId(timestamp, id));
+  
+  }
+  return;
+}
+
 void SnapshotManager::AddToLocalSnapshot(const std::string &txnDigest, const uint64_t &timestamp, const uint64_t &id, bool committed_or_prepared){ //optimistTxId = params.query_params.optimisticTxId && retry_version == 0.
+
+  Debug("USE OPTIMISTIC? %d", useOptimisticTxId);
 
   if(!useOptimisticTxId){ //Add txnDigest to snapshot
     //Just add txnDig to RepeatedPtr directly  //TODO: Make one general structure for prepared/committed.
+    Debug("Add txnDig(%s) to snapshot", BytesToHex(txnDigest, 16).c_str());
     committed_or_prepared? local_ss->add_local_txns_committed(txnDigest) : local_ss->add_local_txns_prepared(txnDigest);
   }
   else{ //Add (merged) Timestamp to snapshot
     //ts_comp.AddToBucket(txn->timestamp()); //If we want to compute a delta manually first use this.
 
+    Debug("Add mergedTS[%lu] (original: [%lu:%lu] to snapshot)", MergeTimestampId(timestamp, id), timestamp, id);
     // merge ts and id into one 64 bit number and add to snapshot
     committed_or_prepared? local_ss->add_local_txns_committed_ts(MergeTimestampId(timestamp, id)) : local_ss->add_local_txns_prepared_ts(MergeTimestampId(timestamp, id));
   
@@ -119,13 +146,19 @@ void SnapshotManager::AddToLocalSnapshot(const std::string &txnDigest, const uin
   return;
 }
 
-void SnapshotManager::SealLocalSnapshot(){
+//TODO: Maybe compute as set, and then move all to vector. 
+//Alternatiely Refactor LocalSnapshot to contain maps, not vectors (2 maps, let bool val be prep/commit), but then Compression becomes deprecated.
+void SnapshotManager::SealLocalSnapshot(){ 
    //Erase duplicates... Could have inserted duplicates if we read multiple keys from the same tx.   //NOTE: committed/prepared might have the same tx ids if we read from committed first, but prepared has not been cleaned yet. (Actions are not atomic)
   if(!useOptimisticTxId){
+    std::sort(local_ss->mutable_local_txns_committed()->begin(), local_ss->mutable_local_txns_committed()->end());
+    std::sort(local_ss->mutable_local_txns_prepared()->begin(), local_ss->mutable_local_txns_prepared()->end());
     local_ss->mutable_local_txns_committed()->erase(std::unique(local_ss->mutable_local_txns_committed()->begin(), local_ss->mutable_local_txns_committed()->end()), local_ss->mutable_local_txns_committed()->end()); 
     local_ss->mutable_local_txns_prepared()->erase(std::unique(local_ss->mutable_local_txns_prepared()->begin(), local_ss->mutable_local_txns_prepared()->end()), local_ss->mutable_local_txns_prepared()->end()); 
   }
   else{
+    std::sort(local_ss->mutable_local_txns_committed_ts()->begin(), local_ss->mutable_local_txns_committed_ts()->end());
+    std::sort(local_ss->mutable_local_txns_prepared_ts()->begin(), local_ss->mutable_local_txns_prepared_ts()->end());
     local_ss->mutable_local_txns_committed_ts()->erase(std::unique(local_ss->mutable_local_txns_committed_ts()->begin(), local_ss->mutable_local_txns_committed_ts()->end()), local_ss->mutable_local_txns_committed_ts()->end()); 
     local_ss->mutable_local_txns_prepared_ts()->erase(std::unique(local_ss->mutable_local_txns_prepared_ts()->begin(), local_ss->mutable_local_txns_prepared_ts()->end()), local_ss->mutable_local_txns_prepared_ts()->end()); 
       //ts_comp.CompressAll();
@@ -169,10 +202,11 @@ bool SnapshotManager::ProcessReplicaLocalSnapshot(proto::LocalSnapshot* local_ss
     OpenLocalSnapshot(local_ss); // decompresses if applicable.
 
     //2) Compute Merged Snapshot -- path for both tx-id and ts-id
+                                 //Note: Invariant: Replica only votes for a Txn as EITHER committed or aborted; not both.
     if(!useOptimisticTxId){
             //what if some replicas have it as committed, and some as prepared. If >=f+1 committed ==> count as committed, include only those replicas in list.. If mixed, count as prepared
         //DOES client need to consider at all whether a txn is committed/prepared? --> don't think so; replicas can determine dependency set at exec time (and either inform client, or cache locally)
-        //TODO: probably don't need separate lists! --> FIXME: Change back to single list in protobuf.
+        //don't need separate lists! 
 
         for(const std::string &txn_dig : local_ss->local_txns_committed()){
             proto::ReplicaList &replica_list = (*merged_ss->mutable_merged_txns())[txn_dig];
@@ -180,7 +214,7 @@ bool SnapshotManager::ProcessReplicaLocalSnapshot(proto::LocalSnapshot* local_ss
             replica_list.set_commit_count(replica_list.commit_count()+1);
         }
         for(const std::string &txn_dig : local_ss->local_txns_prepared()){
-            proto::ReplicaList &replica_list = (*merged_ss->mutable_merged_txns())[txn_dig];
+            proto::ReplicaList &replica_list = (*merged_ss->mutable_merged_txns())[txn_dig]; //TODO: If a byz sends BOTH commit and prepare shouldn't add to replica list twice.. Alt: filter out duplicates in prune
             replica_list.add_replicas(local_ss->replica_id());
         }
     }
@@ -193,7 +227,6 @@ bool SnapshotManager::ProcessReplicaLocalSnapshot(proto::LocalSnapshot* local_ss
         for(const uint64_t &ts : local_ss->local_txns_prepared_ts()){
             proto::ReplicaList &replica_list = (*merged_ss->mutable_merged_ts())[ts];
             replica_list.add_replicas(local_ss->replica_id());
-            replica_list.set_commit_count(replica_list.commit_count()+1);
         }
 
         //NOTE: TODO: If we are trying to compress the Timestamps --> cannot store this as map from ts -> replica_lists.
@@ -231,6 +264,7 @@ bool SnapshotManager::ProcessReplicaLocalSnapshot(proto::LocalSnapshot* local_ss
 // map<string, ReplicaList> merged_txns_prepared = 4; //dont think one needs to distinguish at this point.
 
 void SnapshotManager::SealMergedSnapshot(){
+  //Note: By design this will not have duplicates as it is a map, not a vector.
   if(!useOptimisticTxId){
      //remove all keys with insufficient replicas.
     for (auto it = merged_ss->mutable_merged_txns()->begin(), next_it = it; it != merged_ss->mutable_merged_txns()->end();  it = next_it){ /* not hoisted */; /* no increment */
@@ -298,9 +332,9 @@ void TimestampCompressor::CompressLocal(proto::LocalSnapshot *local_ss){
   
   //Use integer compression to further compress the snapshots. Note: Currenty code expects 64 bit TS  -- For 32 bit need to perform explicit delta compression (requires bucketing) 
 
-  //1) sort
-  std::sort(local_ss->mutable_local_txns_committed_ts()->begin(), local_ss->mutable_local_txns_committed_ts()->end());
-  std::sort(local_ss->mutable_local_txns_prepared_ts()->begin(), local_ss->mutable_local_txns_prepared_ts()->end());
+  //1) sort (already sorted in Seal)
+  // std::sort(local_ss->mutable_local_txns_committed_ts()->begin(), local_ss->mutable_local_txns_committed_ts()->end());
+  // std::sort(local_ss->mutable_local_txns_prepared_ts()->begin(), local_ss->mutable_local_txns_prepared_ts()->end());
 
   //2) compress
   //committed:

@@ -67,8 +67,10 @@ void test_snapshot_tx_id(){
                                   1*config_f + 1,    //  mergeThreshold,
                                   1*config_f + 1,    //  syncMessages,
                                   1*config_f + 1,    //  resultQuorum,
+                                  1,
                                   false,  // FLAGS_pequin_query_eager_exec,
                                   false, 
+                                  false,
                                   true,    //  FLAGS_pequin_query_read_prepared,
                                   false,    //  FLAGS_pequin_query_cache_read_set,
                                   false,    //  FLAGS_pequin_query_optimistic_txid,
@@ -107,7 +109,7 @@ void test_snapshot_tx_id(){
 
     bool finished_merge = snapshot_mgr.ProcessReplicaLocalSnapshot(&local_ss);
 
-    if(!finished_merge) std::cerr << "Error: Not done with merge" << std::endl;
+    if(!finished_merge) std::cerr << "Failure: Not done with merge" << std::endl;
 
     snapshot_mgr.OpenMergedSnapshot(&merged_ss);
 
@@ -127,8 +129,10 @@ void test_snapshot_optimistic_tx_id(bool compress){
                                   1*config_f + 1,    //  mergeThreshold,
                                   1*config_f + 1,    //  syncMessages,
                                   1*config_f + 1,    //  resultQuorum,
+                                  1, 
                                   false, // FLAGS_pequin_query_eager_exec,
                                   false, 
+                                  false,
                                   true,    //  FLAGS_pequin_query_read_prepared,
                                   false,    //  FLAGS_pequin_query_cache_read_set,
                                   true,    //  FLAGS_pequin_query_optimistic_txid,
@@ -166,7 +170,7 @@ void test_snapshot_optimistic_tx_id(bool compress){
 
     bool finished_merge = snapshot_mgr.ProcessReplicaLocalSnapshot(&local_ss);
 
-    if(!finished_merge) std:cerr << "Error: Not done with merge" << std::endl;
+    if(!finished_merge) std:cerr << "Failure: Not done with merge" << std::endl;
     
     snapshot_mgr.OpenMergedSnapshot(&merged_ss);
 

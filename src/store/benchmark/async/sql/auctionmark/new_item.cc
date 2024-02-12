@@ -1,0 +1,137 @@
+/***********************************************************************
+ *
+ * Copyright 2021 Florian Suri-Payer <fsp@cs.cornell.edu>
+ *                Liam Arzola <lma77@cornell.edu>
+ *
+ * Permission is hereby granted, free of charge, to any person
+ * obtaining a copy of this software and associated documentation
+ * files (the "Software"), to deal in the Software without
+ * restriction, including without limitation the rights to use, copy,
+ * modify, merge, publish, distribute, sublicense, and/or sell copies
+ * of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ * 
+ * The above copyright notice and this permission notice shall be
+ * included in all copies or substantial portions of the Software.
+ * 
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+ * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS
+ * BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
+ * ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+ * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ *
+ **********************************************************************/
+#include "store/benchmark/async/sql/auctionmark/new_item.h"
+#include <fmt/core.h>
+
+namespace auctionmark {
+
+
+NewItem::NewItem(uint32_t timeout, AuctionMarkProfile &profile, std::mt19937_64 &gen) : AuctionMarkTransaction(timeout), profile(profile), gen(gen) {
+  //TODO: Generate
+}
+
+NewItem::~NewItem(){
+}
+
+transaction_status_t NewItem::Execute(SyncClient &client) {
+  std::unique_ptr<const query_result::QueryResult> queryResult;
+  std::string statement;
+  std::vector<std::unique_ptr<const query_result::QueryResult>> results;
+
+  //Insert a new ITEM record for user.
+  Debug("NEW ITEM");
+  Debug("User ID: %lu", u_id);
+
+
+  client.Begin(timeout);
+
+  std::uint64_t current_time = std::time(0);
+  std::uint64_t end_date = current_time + (duration * MILLISECONDS_IN_A_DAY);
+
+  //Get attribute names and category path and append them to the item description
+
+  //ATTRIBUTES
+  description += "\nATTRIBUTES: ";
+  std::string getGlobablAttribute = fmt::format("SELECT gag_name, gav_name, gag_c_id FROM {}, {} WHERE gav_id = {} AND gav_gag_id = {} AND gav_gag_id = gag_id",
+                                                                                    TABLE_GLOBAL_ATTR_GROUP, TABLE_GLOBAL_ATTR_VALUE);    //TODO: add redundant input?
+
+  for(int i = 0; i < gag_ids.size(); ++i){
+    std::string stmt = fmt::format(getGlobablAttribute, gav_ids[i], gag_ids[i]);
+    client.Query(stmt, timeout);
+  }                             
+  client.Wait(results);
+
+  for(auto q_res : results){
+    std::string gag_name;
+    std::string gav_name;
+    deserialize(gag_name, q_res, 0, 0);
+    deserialize(gav_name, q_res, 0, 1);
+    description += fmt::format(" * {} -> {}\n", gag_name, gav_name);
+  }                                             
+
+  //CATEGORY 
+  std::string getCategory = fmt::format("SELECT * FROM {} WHERE c_id = {}", TABLE_CATEGORY, category_id);
+  client.Query(getCategory, queryResult, timeout);
+  assert(!queryResult->empty());
+    uint64_t category_p_id;
+    uint64_t category_c_id;
+    deserialize(category_id, queryResult, 0, 0);
+    deserialize(category_parent_id, queryResult, 0, 2);
+   std::string category_name = fmt::format("{}[{}]", category_p_id, category_c_id);
+
+  //CATEGORY PARENT
+  std::string getCategoryParent = fmt::format("SELECT * FROM {} WHERE c_parent_id = {}", TABLE_CATEGORY, category_id);
+  client.Query(getCategoryParent, queryResult, timeout);
+  std::string category_parent = "<ROOT>";
+  if(!queryResult.empty()){
+    deserialize(category_c_id, queryResult, 0, 0);
+    deserialize(category_p_id, queryResult, 0, 2);
+    category_parent = fmt::format("{}[{}]", category_p_id, category_c_id);
+  }
+  description += fmt::format("\nCATEGORY: {} >> {}", category_parent, category_name);
+
+  int sellerItemCount = 0;
+  std::string getSellerItemCount = fmt::format("SELECT COUNT(*) FROM {} WHERE i_u_id = {}", TABLE_ITEM, seller_id);
+  client.Query(getSellerItemCount, queryResult, timeout);
+  deserialize(sellerItemCount, queryResult);
+
+  //Insert a new ITEM tuple
+  std::string insertItem = fmt::format("INSERT INTO {} (i_id, i_u_id, i_c_id, i_name, i_description, i_user_attributes, i_initial_price, i_current_price, "
+                                                      "i_num_bids, i_num_images, i_num_global_attrs, i_start_date, i_end_date, i_status, i_created, i_updated, i_attr0) "
+                                        "VALUES ({}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {})", TABLE_ITEM,
+                                       item_id, seller_id, category_id, name, description, attributes, initial_price, initial_price, 0, 
+                                       images.size(), gav_ids.size(), current_time, end_date, ItemStatus::OPEN, current_time, current_time);
+  client.Write(insertItem, queryResult, timeout);             
+  if(!queryResult->has_rows_affected()){
+    return client.Abort(timeout);
+  }                              
+
+   //Insert ITEM_ATTRIBUTE tuples
+  std::string insertItemAttribute = fmt::format("INSERT INTO {} (ia_id, ia_i_id, ia_u_id, ia_gav_id, ia_gag_id) VALUES({}, {}, {}, {}, {})", TABLE_ITEM_ATTR);
+  for(int i = 0; i< gav_ids.size(); ++i){
+    std::string unique_elem_id = item_id + "" + std::stoi(i); //TODO: Revisit this  Original code breaks down item_id into seller_id and item_ctr; and then concats seller_id and i 
+    std::string stmt = fmt::format(insertItemAttribute, unique_elem_id, item_id, seller_id, gav_ids[i], gag_ids[i]);
+    client.Write(stmt, queryResult, timeout); //TODO: parallelize
+  }
+
+  //Insert ITEM_IMAGE tuples         
+  std::string insertImage = fmt::format("INSERT INTO {} (ii_id, ii_i_id, ii_u_id, ii_sattr0) VALUES ({}, {}, {}, {})", TABLE_ITEM_IMAGE);                    
+  for(int i = 0; i<images.length; ++i){
+    std::string unique_elem_id = item_id + "" + std::stoi(i); //TODO: Revisit this  Original code breaks down item_id into seller_id and item_ctr; and then concats seller_id and i 
+    std::string stmt = fmt::format(insertImage, unique_elem_id, item_id, seller_id, images[i]);
+    client.Write(stmt, queryResult, timeout); //TODO: parallelize
+  }
+
+  std::string updateUserBalance = fmt::format("UPDATE {} SET u_balance = u_balance -1, u_updated = {} WHERE u_id = {}", TABLE_USER_ACCT, current_time, seller_id);
+  client.Write(updateUserBalance, queryResult, timeout);
+
+  Debug("COMMIT");
+  return client.Commit(timeout);
+
+}
+
+} // namespace auctionmark

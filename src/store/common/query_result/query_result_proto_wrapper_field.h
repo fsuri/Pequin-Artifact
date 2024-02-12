@@ -59,6 +59,7 @@ class Field : public query_result::Field {
   auto is_null() const -> bool;
 
   auto get_bytes(std::size_t* size) const -> const char*;
+  auto get() const -> const std::string;
 
   void get(bool *field) const;
   void get(int32_t *field) const;

@@ -74,6 +74,7 @@ namespace auctionmark
    */
   static constexpr bool RESET_DATABASE_ENABLE = false;
 
+
   /* Transaction ratios, should add up to 100 */
   static constexpr int TXNS_TOTAL = 100;
   static constexpr int FREQUENCY_GET_ITEM = 25;
@@ -152,7 +153,7 @@ namespace auctionmark
   static constexpr int ITEM_USER_ATTRIBUTES_LENGTH_MIN = 20;
   static constexpr int ITEM_USER_ATTRIBUTES_LENGTH_MAX = 255;
 
-  static constexpr float ITEM_BID_PERCENT_STEP = 0.025f;
+  static constexpr float ITEM_BID_PERCENT_STEP = 0.025f;     /** When an item receives a bid we will increase its price by this amount */
 
   static constexpr int ITEM_PURCHASE_DURATION_DAYS_MIN = 0;
   static constexpr int ITEM_PURCHASE_DURATION_DAYS_MAX = 7;
@@ -167,7 +168,9 @@ namespace auctionmark
 
   static constexpr int ITEM_ID_CACHE_SIZE = 1000;
 
-  static constexpr int CLOSE_AUCTIONS_ROUNDS = 1;
+  const int CLOSE_AUCTIONS_ITEMS_PER_ROUND = 100;   /** The number of items to pull in for each update round in CloseAuctions */
+ 
+  static constexpr int CLOSE_AUCTIONS_ROUNDS = 1;  /** The number of update rounds in each invocation of CloseAuctions */
 
   static constexpr int CLOSE_AUCTIONS_ITEMS_PER_ROUND = 100;
 
@@ -177,41 +180,49 @@ namespace auctionmark
 
   static const std::string ITEM_COLUMNS_STR = "i_id, i_u_id, i_name, i_current_price, i_num_bids, i_end_date, i_status";
 
+  const enum ItemStatus {
+    OPEN,
+    ENDING_SOON,
+    WAITING_FOR_PURCHASE,
+    CLOSED
+  };
+
+
   /* Table Names */
-  static constexpr const char* TABLENAME_REGION = "region";
-  static constexpr const char* TABLENAME_USERACCT = "useracct";
-  static constexpr const char* TABLENAME_USERACCT_ATTRIBUTES = "useracct_attributes";
-  static constexpr const char* TABLENAME_USERACCT_ITEM = "useracct_item";
-  static constexpr const char* TABLENAME_USERACCT_WATCH = "useracct_watch";
-  static constexpr const char* TABLENAME_USERACCT_FEEDBACK = "useracct_feedback";
-  static constexpr const char* TABLENAME_CATEGORY = "category";
-  static constexpr const char* TABLENAME_GLOBAL_ATTRIBUTE_GROUP = "global_attribute_group";
-  static constexpr const char* TABLENAME_GLOBAL_ATTRIBUTE_VALUE = "global_attribute_value";
-  static constexpr const char* TABLENAME_ITEM = "item";
-  static constexpr const char* TABLENAME_ITEM_ATTRIBUTE = "item_attribute";
-  static constexpr const char* TABLENAME_ITEM_IMAGE = "item_image";
-  static constexpr const char* TABLENAME_ITEM_COMMENT = "item_comment";
-  static constexpr const char* TABLENAME_ITEM_BID = "item_bid";
-  static constexpr const char* TABLENAME_ITEM_MAX_BID = "item_max_bid";
-  static constexpr const char* TABLENAME_ITEM_PURCHASE = "item_purchase";
+  static constexpr const char* TABLE_REGION = "region";
+  static constexpr const char* TABLE_USERACCT = "useracct";
+  //static constexpr const char* TABLE_USERACCT_ATTRIBUTES = "useracct_attributes";
+  static constexpr const char* TABLE_USERACCT_ITEM = "useracct_item";
+  static constexpr const char* TABLE_USERACCT_WATCH = "useracct_watch";
+  static constexpr const char* TABLE_USERACCT_FEEDBACK = "useracct_feedback";
+  static constexpr const char* TABLE_CATEGORY = "category";
+  static constexpr const char* TABLE_GLOBAL_ATTR_GROUP = "global_attribute_group";
+  static constexpr const char* TABLE_GLOBAL_ATTR_VALUE = "global_attribute_value";
+  static constexpr const char* TABLE_ITEM = "item";
+  static constexpr const char* TABLE_ITEM_ATTR = "item_attribute";
+  static constexpr const char* TABLE_ITEM_IMAGE = "item_image";
+  static constexpr const char* TABLE_ITEM_COMMENT = "item_comment";
+  static constexpr const char* TABLE_ITEM_BID = "item_bid";
+  static constexpr const char* TABLE_ITEM_MAX_BID = "item_max_bid";
+  static constexpr const char* TABLE_ITEM_PURCHASE = "item_purchase";
 
   static constexpr const char* TABLENAMES[16] = {
-      TABLENAME_REGION,
-      TABLENAME_CATEGORY,
-      TABLENAME_GLOBAL_ATTRIBUTE_GROUP,
-      TABLENAME_GLOBAL_ATTRIBUTE_VALUE,
-      TABLENAME_USERACCT,
-      TABLENAME_USERACCT_ATTRIBUTES,
-      TABLENAME_USERACCT_ITEM,
-      TABLENAME_USERACCT_WATCH,
-      TABLENAME_USERACCT_FEEDBACK,
-      TABLENAME_ITEM,
-      TABLENAME_ITEM_ATTRIBUTE,
-      TABLENAME_ITEM_IMAGE,
-      TABLENAME_ITEM_COMMENT,
-      TABLENAME_ITEM_BID,
-      TABLENAME_ITEM_MAX_BID,
-      TABLENAME_ITEM_PURCHASE,
+      TABLE_REGION,
+      TABLE_CATEGORY,
+      TABLE_GLOBAL_ATTR_GROUP,
+      TABLE_GLOBAL_ATTR_VALUE,
+      TABLE_USERACCT,
+      //TABLE_USERACCT_ATTRIBUTES,
+      TABLE_USERACCT_ITEM,
+      TABLE_USERACCT_WATCH,
+      TABLE_USERACCT_FEEDBACK,
+      TABLE_ITEM,
+      TABLE_ITEM_ATTR,
+      TABLE_ITEM_IMAGE,
+      TABLE_ITEM_COMMENT,
+      TABLE_ITEM_BID,
+      TABLE_ITEM_MAX_BID,
+      TABLE_ITEM_PURCHASE,
   };
 
   /* Table Data Structures */
@@ -263,6 +274,7 @@ namespace auctionmark
 
   /** The probability that a NewBid txn will target an item whose auction is ending soon (1-100) */
   static constexpr int PROB_NEWBID_ENDINGSOON_ITEM = 50;
-}
+} 
+  
 
 #endif

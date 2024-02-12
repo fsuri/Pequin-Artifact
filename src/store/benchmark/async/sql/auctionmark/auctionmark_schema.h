@@ -32,6 +32,8 @@
 
 namespace auctionmark {
 
+   //TODO: Clear this file.
+
 class RegionRow {
  private:
     uint32_t r_id;
@@ -259,30 +261,29 @@ class ItemCommentRow {
     uint32_t ic_i_id;
     uint32_t ic_u_id;
     uint32_t ic_buyer_id;
-    uint32_t ic_date;
     std::string ic_question;
-    std::string ic_response;
+    uint64_t ic_created;
 
  public:
     ItemCommentRow() {}
-    ItemCommentRow(uint32_t ic_id, uint32_t ic_i_id, uint32_t ic_u_id, uint32_t ic_buyer_id, uint32_t ic_date, std::string ic_question, std::string ic_response) : ic_id(ic_id), ic_i_id(ic_i_id), ic_u_id(ic_u_id), ic_buyer_id(ic_buyer_id), ic_date(ic_date), ic_question(ic_question), ic_response(ic_response) {}
+    ItemCommentRow(uint32_t ic_id, uint32_t ic_i_id, uint32_t ic_u_id, uint32_t ic_buyer_id, std::string ic_question, uint64_t ic_created) : ic_id(ic_id), ic_i_id(ic_i_id), ic_u_id(ic_u_id), ic_buyer_id(ic_buyer_id), ic_date(ic_date), ic_question(ic_question), ic_response(ic_response) {}
 
     auto get_ic_id() -> uint32_t  { return ic_id; }
     auto get_ic_i_id() -> uint32_t  { return ic_i_id; }
     auto get_ic_u_id() -> uint32_t  { return ic_u_id; }
     auto get_ic_buyer_id() -> uint32_t  { return ic_buyer_id; }
-    auto get_ic_date() -> uint32_t  { return ic_date; }
+    auto get_ic_created() -> uint64_t  { return ic_created; }
     auto get_ic_question() -> std::string&  { return ic_question; }
-    auto get_ic_response() -> std::string&  { return ic_response; }
+    
 
     void set_ic_id(uint32_t ic_id) { this->ic_id = ic_id; }
     void set_ic_i_id(uint32_t ic_i_id) { this->ic_i_id = ic_i_id; }
     void set_ic_u_id(uint32_t ic_u_id) { this->ic_u_id = ic_u_id; }
     void set_ic_buyer_id(uint32_t ic_buyer_id) { this->ic_buyer_id = ic_buyer_id; }
-    void set_ic_date(uint32_t ic_date) { this->ic_date = ic_date; }
+    void set_ic_date(uint64_t ic_date) { this->ic_created = ic_date; }
     void set_ic_question(std::string ic_question) { this->ic_question = ic_question; }
-    void set_ic_response(std::string ic_response) { this->ic_response = ic_response; }
-};
+}
+   
 
 class ItemFeedbackRow {
  private:

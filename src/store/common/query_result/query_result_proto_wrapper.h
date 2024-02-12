@@ -31,6 +31,7 @@
 #include <string>
 #include <vector>
 #include <memory>
+
 #include "store/common/query_result/query_result.h"
 #include "store/common/query_result/query_result_row.h"
 #include "store/common/query_result/query-result-proto.pb.h"
@@ -59,6 +60,7 @@ class QueryResultProtoWrapper : public query_result::QueryResult {
       proto_result = std::make_unique<SQLResultProto>();
       if(data.empty()){ //default case
         //create_from_proto(&result);
+        //Just return empty result.
       }
       else if(proto_result->ParseFromString(data)) {
         //create_from_proto(&result);
@@ -176,6 +178,7 @@ class QueryResultProtoWrapper : public query_result::QueryResult {
     auto is_null( const std::size_t row, const std::size_t column ) const -> bool;
 		auto get_bytes( const std::size_t row, const std::size_t column, std::size_t* size ) const -> const char*;
 		auto get_bytes( const std::size_t row, const std::string& column, std::size_t* size ) const -> const char*;
+    auto get( const std::size_t row, const std::size_t column) const -> const std::string;
 
 		// access rows
     auto operator[]( const std::size_t row ) const -> std::unique_ptr<query_result::Row>;

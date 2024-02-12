@@ -38,6 +38,7 @@ class KeyManager {
   KeyManager(const std::string &keyPath, crypto::KeyType t, bool precompute, uint64_t num_replicas = 0, uint64_t num_clients = 0, uint64_t num_client_processes = 0);
   virtual ~KeyManager();
 
+  void Cleanup();
   crypto::PubKey* GetPublicKey(uint64_t id);
   crypto::PrivKey* GetPrivateKey(uint64_t id);
   void PreLoadPubKeys(bool isServer);

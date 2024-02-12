@@ -55,7 +55,7 @@ class QueryResultProtoBuilder {
   auto add_column(const std::string& name) -> void;
   auto add_empty_row() -> void;
 
-  auto get_result() -> std::unique_ptr<SQLResultProto>;
+  auto get_result(bool sort = true) -> std::unique_ptr<SQLResultProto>;
 
   template<class Iterable>
   void add_row_serialize(Iterable it, Iterable end)
@@ -160,6 +160,12 @@ class QueryResultProtoBuilder {
   }
 
   inline void AddToRow(RowProto *row, std::string &t){
+    //Appends field to a row
+    FieldProto *field = row->add_fields();
+    field->set_data(t);
+  }
+
+  inline void AddToRow_s(RowProto *row, const std::string &t){
     //Appends field to a row
     FieldProto *field = row->add_fields();
     field->set_data(t);

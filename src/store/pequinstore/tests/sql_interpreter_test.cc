@@ -82,7 +82,7 @@ void test_insert(){
   std::function<void(int, query_result::QueryResult*)>  write_continuation = [](int status, const query_result::QueryResult* res){
     std::cerr << "Issued write_continuation" << std::endl;
   };
-  std::function<void(int, const query_result::QueryResult*)> wcb = [](int status, const query_result::QueryResult* res){
+  std::function<void(int, query_result::QueryResult*)> wcb = [](int status, const query_result::QueryResult* res){
     std::cerr << "Completed WCB" << std::endl;
   };
 
@@ -138,7 +138,7 @@ void test_update(){
   std::function<void(int, query_result::QueryResult*)>  write_continuation = [](int status, const query_result::QueryResult* res){
     std::cerr << "Issued write_continuation" << std::endl;
   };
-  std::function<void(int, const query_result::QueryResult*)> wcb = [](int status, const query_result::QueryResult* res){
+  std::function<void(int, query_result::QueryResult*)> wcb = [](int status, const query_result::QueryResult* res){
     std::cerr << "Completed WCB" << std::endl;
   };
 
@@ -222,7 +222,7 @@ void test_delete(){
   std::function<void(int, query_result::QueryResult*)>  write_continuation = [](int status, const query_result::QueryResult* res){
     std::cerr << "Issued write_continuation" << std::endl;
   };
-  std::function<void(int, const query_result::QueryResult*)> wcb = [](int status, const query_result::QueryResult* res){
+  std::function<void(int, query_result::QueryResult*)> wcb = [](int status, const query_result::QueryResult* res){
     std::cerr << "Completed WCB" << std::endl;
   };
 

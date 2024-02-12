@@ -58,6 +58,8 @@
 #include <mutex>
 #include <shared_mutex>
 #include <atomic>
+#include <iostream>
+#include <random>
 
 #include "tbb/concurrent_unordered_map.h"
 #include "tbb/concurrent_hash_map.h"
@@ -80,9 +82,16 @@ enum OCCType {
 static bool TEST_QUERY = false; //true;   //create toy results for queries
 static bool TEST_SNAPSHOT = false; //true;  //create toy snapshots for queries
 static bool TEST_READ_SET = false; //true;  //create toy read sets for queries
+//set all above 3 to test sync protocol
 static bool TEST_FAIL_QUERY = false;  //create an artificial retry for queries
 static bool TEST_PREPARE_SYNC = false;  //Create artificial sync for queries that supplies prepares even though value is committed
 static bool TEST_SYNC = false;  //create an artificial sync for queries
+
+static bool TEST_MATERIALIZE = false; //artificially cause a wait on materialize.
+static bool TEST_MATERIALIZE_TS = false; //artificially cause a wait on materialize for a TS based sync
+static bool TEST_MATERIALIZE_FORCE = false; //artificially force a materialization.  //Note: TEST_MATERIALIZE or TEST_MATERIALIZE_TS must be set.
+static bool TEST_READ_FROM_SS = false; //artificially create a new prepared/committed TX in order to test whether or not read from SS ignores it. (currently creates prepared => should not be read; committed would be read)
+static bool TEST_READ_MATERIALIZED = false; //artificially create a new force materialized TX to confirm that read skips it, but if it's in ss then it reads it (currently not part of snapshot)
 
 static int fail_writeback = 0;
 typedef std::vector<std::unique_lock<std::mutex>> locks_t;
@@ -118,15 +127,23 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
   virtual void CreateIndex(const std::string &table_name, const std::vector<std::pair<std::string, std::string>> &column_data_types, 
       const std::string &index_name, const std::vector<uint32_t> &index_col_idx) override;
 
-  virtual void LoadTableData(const std::string &table_name, const std::string &table_data_path, const std::vector<uint32_t> &primary_key_col_idx) override;
+  //Deprecated
+  void LoadTableData_SQL(const std::string &table_name, const std::string &table_data_path, const std::vector<uint32_t> &primary_key_col_idx);
+  
+  virtual void LoadTableData(const std::string &table_name, const std::string &table_data_path, 
+      const std::vector<std::pair<std::string, std::string>> &column_names_and_types, const std::vector<uint32_t> &primary_key_col_idx) override;
+    //Helper function:
+    std::vector<row_segment_t*> ParseTableDataFromCSV(const std::string &table_name, const std::string &table_data_path, 
+    const std::vector<std::pair<std::string, std::string>> &column_names_and_types, const std::vector<uint32_t> &primary_key_col_idx);
 
   virtual void LoadTableRows(const std::string &table_name, const std::vector<std::pair<std::string, std::string>> &column_data_types, 
-      const std::vector<std::vector<std::string>> &row_values, const std::vector<uint32_t> &primary_key_col_idx ) override;
+      const row_segment_t *row_segment, const std::vector<uint32_t> &primary_key_col_idx, int segment_no = 1, bool load_cc = true) override;
+
+  void LoadTableRows_Old(const std::string &table_name, const std::vector<std::pair<std::string, std::string>> &column_data_types, 
+      const std::vector<std::vector<std::string>> &row_values, const std::vector<uint32_t> &primary_key_col_idx, int segment_no = 1);
       
   virtual void LoadTableRow(const std::string &table_name, const std::vector<std::pair<std::string, std::string>> &column_data_types, 
       const std::vector<std::string> &values, const std::vector<uint32_t> &primary_key_col_idx) override;
-
-  
 
   virtual inline Stats &GetStats() override { return stats; }
 
@@ -157,8 +174,8 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
   void HandlePhase1(const TransportAddress &remote,
       proto::Phase1 &msg);
   void HandlePhase1CB(uint64_t reqId, proto::ConcurrencyControl::Result result,
-        const proto::CommittedProof* &committedProof, std::string &txnDigest, const TransportAddress &remote,
-        const proto::Transaction *abstain_conflict, bool isGossip = false);
+        const proto::CommittedProof* &committedProof, std::string &txnDigest, proto::Transaction *txn, const TransportAddress &remote,
+        const proto::Transaction *abstain_conflict, bool isGossip = false, bool forceMaterialize = false);
   void SendPhase1Reply(uint64_t reqId, proto::ConcurrencyControl::Result result,
         const proto::CommittedProof *conflict, const std::string &txnDigest, const TransportAddress *remote,
         const proto::Transaction *abstain_conflict = nullptr);
@@ -241,20 +258,21 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
     //SnapshotMgr lives in Snapshot_mgr.cc
 
     struct QueryMetaData {
-      QueryMetaData(const std::string &query_cmd, const TimestampMessage &timestamp, const TransportAddress &remote, const uint64_t &req_id, 
-                    const uint64_t &query_seq_num, const uint64_t &client_id, const QueryParameters *query_params): 
-         failure(false), retry_version(0UL), has_query(true), waiting_sync(false), started_sync(false), has_result(false), 
-         query_cmd(query_cmd), ts(timestamp), original_client(remote.clone()), req_id(req_id), query_seq_num(query_seq_num), client_id(client_id), is_waiting(false),
-         snapshot_mgr(query_params), useOptimisticTxId(false), executed_query(false), merged_ss_msg(nullptr)
+      QueryMetaData(const std::string &_query_cmd, const TimestampMessage &timestamp, const TransportAddress &remote, const uint64_t &req_id, 
+                    const uint64_t &query_seq_num, const uint64_t &client_id, const QueryParameters *query_params, const uint64_t &retry_version): 
+         failure(false), retry_version(retry_version), waiting_sync(false), started_sync(false), has_result(false), 
+         query_cmd(_query_cmd), ts(timestamp), original_client(remote.clone()), req_id(req_id), query_seq_num(query_seq_num), client_id(client_id), is_waiting(false),
+         snapshot_mgr(query_params), useOptimisticTxId(false), executed_query(false), merged_ss_msg(nullptr), designated_for_reply(false)
       {
           //queryResult = new proto::QueryResult();
           queryResultReply = new proto::QueryResultReply(); //TODO: Replace with GetUnused.
+          has_query = !query_cmd.empty();
 
       }
        QueryMetaData(const uint64_t &query_seq_num, const uint64_t &client_id, const QueryParameters *query_params): 
           failure(false), retry_version(0UL), has_query(false), waiting_sync(false), started_sync(false), 
           has_result(false), query_seq_num(query_seq_num), client_id(client_id), is_waiting(false) ,
-          snapshot_mgr(query_params), useOptimisticTxId(false), executed_query(false), original_client(nullptr), merged_ss_msg(nullptr)
+          snapshot_mgr(query_params), useOptimisticTxId(false), executed_query(false), original_client(nullptr), merged_ss_msg(nullptr), designated_for_reply(false)
       {
           //queryResult = new proto::QueryResult();
           queryResultReply = new proto::QueryResultReply(); //TODO: Replace with GetUnused.
@@ -283,7 +301,7 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
         query_cmd = _query_cmd;
         ts = timestamp;
         if(original_client == nullptr) original_client = remote.clone();
-        req_id = _req_id;
+        req_id = std::max(req_id, _req_id); //if we already received a retry, keep it's req_id.
       }
       void RegisterWaitingSync(proto::MergedSnapshot *_merged_ss_msg, const TransportAddress &remote){
         waiting_sync = true;
@@ -308,14 +326,14 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
       bool executed_query; //whether already executed query for retry version.
 
       
-      proto::MergedSnapshot *merged_ss_msg; //TODO: check that ClearMetaData resets appropriate fields.
+      proto::MergedSnapshot *merged_ss_msg; //TODO: check that ClearMetaData resets appropriate fields.    //this contains map: merged_txns => this is the set of materialized txns.
       bool started_sync;  //whether already received/processed snapshot for given retry version.
       bool waiting_sync; //a waiting sync msg.
 
       SnapshotManager snapshot_mgr;
 
       std::unordered_set<std::string> local_ss;  //local snapshot   //DEPRECATED
-      std::unordered_set<std::string> merged_ss; //merged snapshot  //DEPRECATED
+      std::unordered_set<std::string> merged_ss; //merged snapshot  //DEPRECATED 
 
       bool useOptimisticTxId;  
      
@@ -414,49 +432,85 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
     waitingQueryTSMap waitingQueriesTS;
 
     //map from <query_id, retry_version> to list of missing txn (+ num supply replies received ).
-    struct MissingTxns {
+    struct MissingTxns {  
         std::unordered_map<std::string, uint64_t> missing_txns;
         std::unordered_map<uint64_t, uint64_t> missing_ts; // for optimistic id's use this
         std::string query_id;
         uint64_t retry_version;
     };
     typedef tbb::concurrent_hash_map<std::string, MissingTxns> queryMissingTxnsMap;  //std::unordered_set<std::string>
-    queryMissingTxnsMap queryMissingTxns; 
+    queryMissingTxnsMap queryMissingTxns;  //List of Transactions missing for a Query to materialize snapshot.
 
-    void FindTableVersion(const std::string &key_name, const Timestamp &ts, bool read_or_snapshot, QueryReadSetMgr *readSetMgr, SnapshotManager *snapshotMgr);
+    void FindTableVersion(const std::string &key_name, const Timestamp &ts, bool add_to_read_set, QueryReadSetMgr *readSetMgr, bool add_to_snapshot, SnapshotManager *snapshotMgr);
     const proto::Transaction* FindPreparedVersion(const std::string &key, const Timestamp &ts, bool committed_exists, std::pair<Timestamp, Server::Value> const &tsVal);
 
     void ProcessPointQuery(const uint64_t &reqId, proto::Query *query, const TransportAddress &remote);
     void ProcessQuery(queryMetaDataMap::accessor &q, const TransportAddress &remote, proto::Query *query, QueryMetaData *query_md);
     void FindSnapshot(QueryMetaData *query_md, proto::Query *query);
     void ProcessSync(queryMetaDataMap::accessor &q, const TransportAddress &remote, proto::MergedSnapshot *merged_ss, const std::string *queryId, QueryMetaData *query_md);
-    void SetWaiting(std::unordered_map<std::string, uint64_t> &missing_txns, const std::string &tx_id, const std::string *queryId, const std::string &query_retry_id,
-        const proto::ReplicaList &replica_list, std::map<uint64_t, proto::RequestMissingTxns> &replica_requests);
-    void SetWaitingTS(std::unordered_map<uint64_t, uint64_t> &missing_ts, const uint64_t &ts_id, const std::string *queryId, const std::string &query_retry_id,
-        const proto::ReplicaList &replica_list, std::map<uint64_t, proto::RequestMissingTxns> &replica_requests);
+
+    bool CheckPresence(const std::string &tx_id, const std::string &query_retry_id, QueryMetaData *query_md, 
+        std::map<uint64_t, proto::RequestMissingTxns> &replica_requests, const pequinstore::proto::ReplicaList &replica_list,
+        std::unordered_map<std::string, uint64_t> &missing_txns);
+    bool CheckPresence(const uint64_t &ts_id, const std::string &query_retry_id, QueryMetaData *query_md, 
+        std::map<uint64_t, proto::RequestMissingTxns> &replica_requests, const pequinstore::proto::ReplicaList &replica_list,
+        std::unordered_map<std::string, uint64_t> &missing_txns, std::unordered_map<uint64_t, uint64_t> &missing_ts);
+    void RequestMissing(const proto::ReplicaList &replica_list, std::map<uint64_t, proto::RequestMissingTxns> &replica_requests, const std::string &tx_id);
+    void RequestMissing(const proto::ReplicaList &replica_list, std::map<uint64_t, proto::RequestMissingTxns> &replica_requests, const uint64_t &ts_id);
+
+    // void SetWaiting(std::unordered_map<std::string, uint64_t> &missing_txns, const std::string &tx_id, const std::string *queryId, const std::string &query_retry_id,
+    //     const proto::ReplicaList &replica_list, std::map<uint64_t, proto::RequestMissingTxns> &replica_requests);
+    // void SetWaitingTS(std::unordered_map<uint64_t, uint64_t> &missing_ts, const uint64_t &ts_id, const std::string *queryId, const std::string &query_retry_id,
+    //     const proto::ReplicaList &replica_list, std::map<uint64_t, proto::RequestMissingTxns> &replica_requests);
+
     void CheckLocalAvailability(const std::string &txn_id, proto::TxnInfo &txn_info);
       //void CheckLocalAvailability(const std::string &txn_id, proto::SupplyMissingTxnsMessage &supply_txn, bool sync_on_ts = false);
 
-    std::string ExecQuery(QueryReadSetMgr &queryReadSetMgr, QueryMetaData *query_md, bool materialize = false);
+    std::string ExecQuery(QueryReadSetMgr &queryReadSetMgr, QueryMetaData *query_md, bool read_materialized = false, bool eager = false);
     void ExecQueryEagerly(queryMetaDataMap::accessor &q, QueryMetaData *query_md, const std::string &queryId);
     void HandleSyncCallback(queryMetaDataMap::accessor &q, QueryMetaData *query_md, const std::string &queryId);
     void SendQueryReply(QueryMetaData *query_md);
+    void CacheReadSet(QueryMetaData *query_md, proto::QueryResult *&result, proto::ReadSet *&query_read_set);
     void ProcessSuppliedTxn(const std::string &txn_id, proto::TxnInfo &txn_info, bool &stop);
-    void CheckWaitingQueries(const std::string &txnDigest, const TimestampMessage &ts, bool is_abort = false, bool non_blocking = false);
+
+   
+    void CheckWaitingQueries(const std::string &txnDigest, const uint64_t &ts, const uint64_t ts_id, bool is_abort = false, bool non_blocking = false, int tx_ts_mode = 0);
+
     void UpdateWaitingQueries(const std::string &txnDigest, bool is_abort = false);
     void UpdateWaitingQueriesTS(const uint64_t &txnTS, const std::string &txnDigest, bool is_abort = false);
+
     void FailWaitingQueries(const std::string &txnDigest);
     void FailQuery(QueryMetaData *query_md);
     bool VerifyClientQuery(proto::QueryRequest &msg, const proto::Query *query, std::string &queryId);
     bool VerifyClientSyncProposal(proto::SyncClientProposal &msg, const std::string &queryId);
     void CleanQueries(proto::Transaction *txn, bool is_commit = true);
 
-    // Fallback helper functions
+
+    //Materialization
+    void ApplyTableWrites(const proto::Transaction &txn, const Timestamp &ts,
+                const std::string &txn_digest, const proto::CommittedProof *commit_proof, bool commit_or_prepare = true, bool forceMaterialize = false);
+    // void ApplyTableWrites(const std::string &table_name, const TableWrite &table_write, const Timestamp &ts,
+    //             const std::string &txn_digest, const proto::CommittedProof *commit_proof, bool commit_or_prepare = true, bool forceMaterialize = false);
+    bool WaitForMaterialization(const std::string &tx_id, const std::string &query_retry_id, std::unordered_map<std::string, uint64_t> &missing_txns);
+    void WaitForTX(const uint64_t &ts_id, const std::string &query_retry_id, std::unordered_map<uint64_t, uint64_t> &missing_ts);
+      bool WaitForMaterialization(const uint64_t &ts_id, const std::string &query_retry_id, std::unordered_map<uint64_t, uint64_t> &missing_ts); //DEPRECATED
+
+    bool RegisterForceMaterialization(const std::string &txnDigest, const proto::Transaction *txn);
+    void ForceMaterialization(const proto::ConcurrencyControl::Result &result, const std::string &txnDigest, const proto::Transaction *txn);
+    typedef tbb::concurrent_hash_map<std::string, bool> materializedMap; //second argument is void: set of materialized txns.
+    materializedMap materialized;
+     typedef tbb::concurrent_hash_map<uint64_t, bool> materializedTSMap; //second argument is void: set of materialized txns.
+    materializedTSMap materializedTS;
+
+
+
+    ////////////////////////////////////// Fallback helper functions
+
     //FALLBACK helper datastructures
 
     struct P1MetaData {
-        P1MetaData(): conflict(nullptr), hasP1(false), sub_original(false), hasSignedP1(false), reqId(0), fallbacks_interested(false) {}
-        P1MetaData(proto::ConcurrencyControl::Result result): result(result), conflict(nullptr), hasP1(true), sub_original(false), hasSignedP1(false), reqId(0), fallbacks_interested(false) {}
+        P1MetaData(): conflict(nullptr), hasP1(false), sub_original(false), hasSignedP1(false), reqId(0), fallbacks_interested(false), forceMaterialize(false) {}
+        P1MetaData(proto::ConcurrencyControl::Result result): result(result), conflict(nullptr), hasP1(true), sub_original(false), hasSignedP1(false), reqId(0), fallbacks_interested(false), forceMaterialize(false) {}
         ~P1MetaData(){
           if(signed_txn != nullptr) delete signed_txn;
           if(original != nullptr) delete original;
@@ -487,6 +541,8 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
 
         bool fallbacks_interested;
         //could have a list of interested clients.
+
+        bool forceMaterialize;
       };
       typedef tbb::concurrent_hash_map<std::string, P1MetaData> p1MetaDataMap;
     p1MetaDataMap p1MetaData;
@@ -678,6 +734,7 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
       const proto::CommittedProof* &conflict, const proto::Transaction* &abstain_conflict,
       bool fallback_flow = false, bool isGossip = false);
 
+  void RegisterTxTS(const std::string &txnDigest, const proto::Transaction *txn);
   void AddOngoing(std::string &txnDigest, proto::Transaction* txn);
   void RemoveOngoing(std::string &txnDigest);
   void* CheckProposalValidity(::google::protobuf::Message &msg, const proto::Transaction *txn, std::string &txnDigest, bool fallback = false);
@@ -686,9 +743,9 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
       bool VerifyClientProposal(proto::Phase1 &msg, const proto::Transaction *txn, std::string &txnDigest);
       bool VerifyClientProposal(proto::Phase1FB &msg, const proto::Transaction *txn, std::string &txnDigest);
   void* TryPrepare(uint64_t reqId, const TransportAddress &remote, proto::Transaction *txn,
-                        std::string &txnDigest, bool isGossip); //,const proto::CommittedProof *committedProof,const proto::Transaction *abstain_conflict,proto::ConcurrencyControl::Result &result);
+                        std::string &txnDigest, bool isGossip = false, bool forceMaterialize = false); //,const proto::CommittedProof *committedProof,const proto::Transaction *abstain_conflict,proto::ConcurrencyControl::Result &result);
   void ProcessProposal(proto::Phase1 &msg, const TransportAddress &remote, proto::Transaction *txn,
-                        std::string &txnDigest, bool isGossip); //,const proto::CommittedProof *committedProof,const proto::Transaction *abstain_conflict,proto::ConcurrencyControl::Result &result);
+                        std::string &txnDigest, bool isGossip = false, bool forceMaterialize = false); //,const proto::CommittedProof *committedProof,const proto::Transaction *abstain_conflict,proto::ConcurrencyControl::Result &result);
 
   void CheckTxLocalPresence(const std::string &txn_id, proto::ConcurrencyControl::Result &res);
   void CheckDepLocalPresence(const proto::Transaction &txn, const DepSet &depSet, proto::ConcurrencyControl::Result &res);
@@ -730,10 +787,10 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
   proto::ConcurrencyControl::Result CheckDependencies(
     const proto::Transaction &txn, const DepSet &depSet);
   bool CheckHighWatermark(const Timestamp &ts);
-  bool BufferP1Result(proto::ConcurrencyControl::Result &result,
-    const proto::CommittedProof *conflict, const std::string &txnDigest, uint64_t &reqId, const TransportAddress *&remote, bool &wake_fallbacks, bool isGossip = false, int fb =0);
-  bool BufferP1Result(p1MetaDataMap::accessor &c, proto::ConcurrencyControl::Result &result,
-    const proto::CommittedProof *conflict, const std::string &txnDigest, uint64_t &reqId, const TransportAddress *&remote, bool &wake_fallbacks, bool isGossip = false, int fb = 0);
+  bool BufferP1Result(proto::ConcurrencyControl::Result &result, const proto::CommittedProof *conflict, const std::string &txnDigest, 
+      uint64_t &reqId, const TransportAddress *&remote, bool &wake_fallbacks, bool &forceMaterialize, bool isGossip = false, int fb =0);
+  bool BufferP1Result(p1MetaDataMap::accessor &c, proto::ConcurrencyControl::Result &result, const proto::CommittedProof *conflict, const std::string &txnDigest, 
+      uint64_t &reqId, const TransportAddress *&remote, bool &wake_fallbacks, bool &forceMaterialize, bool isGossip = false, int fb = 0);
   
   void Clean(const std::string &txnDigest, bool abort = false, bool hard = false);
   void CleanDependencies(const std::string &txnDigest);
@@ -935,6 +992,8 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
 // DATA STRUCTURES
   bool sql_bench;
   TableStore *table_store;
+  // void ApplyTableWrites(const std::string &table_name, const TableWrite &table_write, const Timestamp &ts,
+  //               const std::string &txn_digest, const proto::CommittedProof *commit_proof = nullptr, bool commit_or_prepare = true, bool forceMaterialize = false);
   //SQLTransformer sql_interpreter;
 
   VersionedKVStore<Timestamp, Value> store;
@@ -985,7 +1044,7 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
   //std::unordered_map<std::string, std::set<const proto::Transaction *>> preparedReads;
   tbb::concurrent_unordered_map<std::string, std::pair<std::shared_mutex, std::set<const proto::Transaction *>>> preparedReads;
   //std::unordered_map<std::string, std::map<Timestamp, const proto::Transaction *>> preparedWrites;
-  tbb::concurrent_unordered_map<std::string, std::pair<std::shared_mutex,std::map<Timestamp, const proto::Transaction *>>> preparedWrites;
+  tbb::concurrent_unordered_map<std::string, std::pair<std::shared_mutex,std::map<Timestamp, const proto::Transaction *>>> preparedWrites; //map from: key ->
 
   //XXX key locks for atomicity of OCC check
   tbb::concurrent_unordered_map<std::string, std::mutex> lock_keys;
@@ -1074,6 +1133,19 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
   //Note: 
   //dependents is a map from tx -> all tx that are waiting for it
   //waitingDependencies: map from waiting tx -> list of tx that are missing
+
+
+  //TEST FUNCTIONS:
+  std::string TEST_QUERY_f(uint64_t q_seq_no);
+  void TEST_QUERY_f(std::string &result);
+  void TEST_QUERY_f(proto::Write *write, proto::PointQueryResultReply *pointQueryReply);
+  void TEST_READ_SET_f(pequinstore::proto::QueryResult *result);
+  void TEST_SNAPSHOT_f(proto::Query *query, QueryMetaData *query_md);
+
+  void TEST_MATERIALIZE_f();
+  void TEST_MATERIALIZE_FORCE_f(const proto::Transaction *txn, const std::string &tx_id);
+  void TEST_READ_MATERIALIZED_f();
+  void TEST_READ_FROM_SS_f();
 
 };
 

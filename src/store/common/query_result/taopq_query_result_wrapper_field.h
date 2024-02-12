@@ -46,7 +46,9 @@ class Field : public query_result::Field {
   auto index() const -> std::size_t;
 
   bool is_null() const;
+ 
   auto get_bytes(std::size_t* size) const -> const char*;
+  auto get() const -> const std::string;
 
   void get(bool *field) const;
   void get(int32_t *field) const;

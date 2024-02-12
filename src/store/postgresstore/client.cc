@@ -89,7 +89,7 @@ void Client::Abort(abort_callback acb, abort_timeout_callback atcb,
 
 // Get the value corresponding to key.
 inline void Client::Query(const std::string &query_statement, query_callback qcb,
-    query_timeout_callback qtcb, uint32_t timeout, bool skip_query_interpretation) {
+    query_timeout_callback qtcb, uint32_t timeout, bool cache_result, bool skip_query_interpretation) {
   // try {
   auto result = transaction->execute(query_statement);
   auto wrapped_result = new taopq_wrapper::TaoPQQueryResultWrapper(std::make_unique<tao::pq::result>(result));
@@ -106,7 +106,7 @@ inline void Client::Write(std::string &write_statement, write_callback wcb,
   auto result = transaction->execute(write_statement);
   const auto wrapped_result = new taopq_wrapper::TaoPQQueryResultWrapper(std::make_unique<tao::pq::result>(result));
   assert(wrapped_result->has_rows_affected());
-  wcb(0, (const query_result::QueryResult*) wrapped_result);
+  wcb(0, (query_result::QueryResult*) wrapped_result);
   // } catch (...) {
   //   Debug("Write failed!");
   //   wtcb(1);

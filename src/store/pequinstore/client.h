@@ -62,9 +62,9 @@
 namespace pequinstore {
 
 
-static bool TEST_READ_SET = true;  //check toy read sets for queries
-static bool TEST_WRITE_SET = true; //check toy write sets for writes
+static bool TEST_READ_SET = true;  //print out read set
 
+static bool FORCE_SCAN_CACHING = false;
 static bool relax_point_cond = true;
 
 static uint64_t start_time = 0;
@@ -99,11 +99,14 @@ class Client : public ::Client {
       put_callback pcb, put_timeout_callback ptcb,
       uint32_t timeout = PUT_TIMEOUT) override;
 
+  virtual void SQLRequest(std::string &statement, sql_callback scb,
+    sql_timeout_callback stcb, uint32_t timeout) override;
+
   virtual void Write(std::string &write_statement, write_callback wcb,
       write_timeout_callback wtcb, uint32_t timeout) override;
 
   virtual void Query(const std::string &query, query_callback qcb,
-    query_timeout_callback qtcb, uint32_t timeout, bool skip_query_interpretation) override; //TODO: ::Client client class needs to expose Query interface too.. --> All other clients need to support the interface.
+    query_timeout_callback qtcb, uint32_t timeout, bool cache_result = false, bool skip_query_interpretation = false) override; //TODO: ::Client client class needs to expose Query interface too.. --> All other clients need to support the interface.
 
   // Commit all Get(s) and Put(s) since Begin().
   virtual void Commit(commit_callback ccb, commit_timeout_callback ctcb,
@@ -125,7 +128,7 @@ class Client : public ::Client {
   //Query protocol structures and functions
 
   struct PendingQuery {
-    PendingQuery(Client *client, uint64_t query_seq_num, const std::string &query_cmd, const query_callback &qcb) : version(0UL), group_replies(0UL), qcb(qcb){
+    PendingQuery(Client *client, uint64_t query_seq_num, const std::string &query_cmd, const query_callback &qcb, bool cache_result) : version(0UL), group_replies(0UL), qcb(qcb), cache_result(cache_result){
       queryMsg.Clear();
       queryMsg.set_client_id(client->client_id);
       queryMsg.set_query_seq_num(query_seq_num);
@@ -160,7 +163,7 @@ class Client : public ::Client {
       //     queryId =  "[" + std::to_string(queryMsg.query_seq_num()) + ":" + std::to_string(queryMsg.client_id()) + "]";
       // }
     }
-
+    bool cache_result;
     query_callback qcb;
 
     uint64_t version;
@@ -183,6 +186,10 @@ class Client : public ::Client {
   std::map<uint64_t, PendingQuery*> pendingQueries;
 
   SQLTransformer sql_interpreter;
+  std::vector<std::string> pendingWriteStatements; //Just a temp cache to keep Translated Write statements in scope during a TX.
+  std::map<std::string, std::string> point_read_cache; // Cache the read results from point reads. 
+                                                      // If we want to do a Point Update afterwards, then we can use the cache to skip straight to a put.
+                                                      // Note: Only works if we did Select * in the first point read. (Can improve this if we make Updates Put deltas instead of full row client side)
 
   void TestReadSet(PendingQuery *pendingQuery);
   void PointQueryResultCallback(PendingQuery *pendingQuery,  
@@ -196,7 +203,7 @@ class Client : public ::Client {
   // void RetryQuery(uint64_t query_seq_num, std::vector<uint64_t> &involved_groups);
 
 
-  //Commit protocol structures and functions
+  ///////////////   Commit protocol structures and functions
 
   struct PendingRequest {
     PendingRequest(uint64_t id, Client *client) : id(id), outstandingPhase1s(0),

@@ -49,7 +49,13 @@ auto Field::is_null() const -> bool
 
 auto Field::get_bytes(std::size_t* size) const -> const char*
 {
+  //std::cerr << "calling get bytes for field of col " << m_column << std::endl;
   return m_row->get_bytes( m_column, size );
+}
+
+auto Field::get() const -> const std::string
+{
+  return m_row->get( m_column);
 }
 
 void Field::get(bool *field) const {

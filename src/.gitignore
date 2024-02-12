@@ -13,7 +13,7 @@ null
 .vscode/settings.json
 
 0_local_test_outputs/rw-sql/rw-sql-gen*
-
+0_local_test_outputs/*.zip
 
 lib/crypto_bench
 lib/batched_sigs_test
@@ -34,6 +34,11 @@ store/benchmark/ping_server
 store/benchmark/async/benchmark
 store/benchmark/async/benchmark_oneshot
 store/benchmark/async/tpcc/tpcc_generator
+store/benchmark/async/sql/tpcc/sql_tpcc_generator
+store/benchmark/async/sql/tpcch/sql_tpcch_generator
+store/benchmark/async/sql/seats/sql_seats_generator
+store/benchmark/async/sql/auctionmark/auctionmark_generator
+store/benchmark/async/sql/tpcc/sql_tpcc_generator
 store/benchmark/async/smallbank/smallbank_generator_main
 store/benchmark/async/smallbank/smallbank_generator
 store/benchmark/async/smallbank/smallbank_client
@@ -70,6 +75,7 @@ store/pequinstore/tests/write_parser_test
 store/pequinstore/tests/sql_interpreter_test
 store/pequinstore/tests/table_store_interface_test
 store/pequinstore/tests/out_interface_test.txt
+store/pequinstore/querysync-server_old.cc
 
 store/pequinstore/tests/*/
 store/pequinstore/tests/*.json

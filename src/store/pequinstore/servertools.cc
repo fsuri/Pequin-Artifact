@@ -327,6 +327,7 @@ void Server::ManageDispatchQuery(const TransportAddress &remote, const std::stri
         return (void*) true;
       };
       if(params.query_params.parallel_queries){ 
+        Debug("Dispatching Query to worker");
         transport->DispatchTP_noCB(std::move(f));  //dispatch to worker
       }
       else{
@@ -449,16 +450,21 @@ void Server::ManageDispatchSupplyTx(const TransportAddress &remote, const std::s
 
 //////////////////////////////////////////////////////// Protocol Helper Functions
 
-void Server::FindTableVersion(const std::string &key_name, const Timestamp &ts, bool read_or_snapshot, QueryReadSetMgr *readSetMgr, SnapshotManager *snapshotMgr){
+void Server::FindTableVersion(const std::string &key_name, const Timestamp &ts, bool add_to_read_set, QueryReadSetMgr *readSetMgr, bool add_to_snapshot, SnapshotManager *snapshotMgr){
   //Read the current TableVersion or TableColVersion from CC-store  -- I.e. key_name = "table_name" OR "table_name + delim + column_name" 
   //Note: TableVersion is updated AFTER all TableWrites of a TX have been written. So the TableVersion from CC-store is a pessimistic version; if it is outdated we abort, but that is safe.
+
+  Debug("FindTableVersion for key %s. Called from TS[%lu:%lu]. AddToRead? %d. AddToSnap? %d", key_name.c_str(), ts.getTimestamp(), ts.getID(), add_to_read_set, add_to_snapshot);
 
   //Read committed
   std::pair<Timestamp, Server::Value> tsVal;
   //find committed write value to read from
   bool committed_exists = store.get(key_name, ts, tsVal);
   if(!committed_exists){
-    Panic("All Tables must have a genesis version");  //Note: CreateTable() writes the genesis version
+    //skip getting col version if the col is not an indexed one!!
+    Panic("NOTE: All Tables and Indexed Columns must have a genesis version. Key in question: %s", key_name.c_str());  
+    //Note: CreateTable() writes the genesis version for table and primary index. CreateIndex writes genesis version for Col Versions.
+
   }
 
   const proto::Transaction *mostRecentPrepared = nullptr;
@@ -469,7 +475,7 @@ void Server::FindTableVersion(const std::string &key_name, const Timestamp &ts, 
   }
 
 
-  if(read_or_snapshot){ //Creating ReadSet
+  if(add_to_read_set){ //Creating ReadSet
     UW_ASSERT(readSetMgr);
 
     if(mostRecentPrepared != nullptr){ //Read prepared
@@ -482,14 +488,15 @@ void Server::FindTableVersion(const std::string &key_name, const Timestamp &ts, 
       readSetMgr->AddToReadSet(key_name, tsm);
     }
   }
-  else{ //Creating Snapshot
+ if(add_to_snapshot){ //Creating Snapshot
     UW_ASSERT(snapshotMgr);
 
+    //TODO: Instead of hashing TXN, can we store the txn_digest somehwere such that we can just re-use it.
     if(mostRecentPrepared != nullptr){ //Read prepared
-      snapshotMgr->AddToLocalSnapshot(TransactionDigest(*mostRecentPrepared, params.hashDigest), mostRecentPrepared, false);
+      snapshotMgr->AddToLocalSnapshot(*mostRecentPrepared, params.hashDigest, false);
     }
     else{ //Read committed
-      snapshotMgr->AddToLocalSnapshot(TransactionDigest(*mostRecentPrepared, params.hashDigest), tsVal.first.getTimestamp(), tsVal.first.getID(), true);
+      snapshotMgr->AddToLocalSnapshot(tsVal.second.proof->txn(), params.hashDigest, true);
     }
   }
 
@@ -742,11 +749,12 @@ bool Server::VerifyClientProposal(proto::Phase1FB &msg, const proto::Transaction
 //Tries to Prepare a transaction by calling the OCC-Check and the Reply Handler afterwards
 //Dispatches the job to a worker thread if parallel_CCC = true
 void* Server::TryPrepare(uint64_t reqId, const TransportAddress &remote, proto::Transaction *txn,
-                        std::string &txnDigest, bool isGossip) //, const proto::CommittedProof *committedProof, const proto::Transaction *abstain_conflict, proto::ConcurrencyControl::Result &result)
+                        std::string &txnDigest, bool isGossip, bool forceMaterialize) //, const proto::CommittedProof *committedProof, const proto::Transaction *abstain_conflict, proto::ConcurrencyControl::Result &result)
   {
     Debug("Calling TryPrepare for txn[%s] on MainThread %d", BytesToHex(txnDigest, 16).c_str(), sched_getcpu());
 
-    CheckWaitingQueries(txnDigest, txn->timestamp(), false, true); //is_abort = false //Check for waiting queries in non-blocking fashion.
+    //New: Now waking after applyTablewrite
+    CheckWaitingQueries(txnDigest, txn->timestamp().timestamp(), txn->timestamp().id(), false, true, 1); //is_abort = false //non_blocking = true, only wake TS => Check for waiting queries in non-blocking fashion.
     //NOTE: If want to incorporate the result from prepare (in case it is abort), then need to move this after Occ Check.
 
     //current_views[txnDigest] = 0;
@@ -780,12 +788,12 @@ void* Server::TryPrepare(uint64_t reqId, const TransportAddress &remote, proto::
       result = DoOCCCheck(reqId, remote, txnDigest, *txn, retryTs,
             committedProof, abstain_conflict, false, isGossip); //forwarded messages dont need to be treated as original client.
       
-      HandlePhase1CB(reqId, result, committedProof, txnDigest, remote, abstain_conflict, isGossip);
+      HandlePhase1CB(reqId, result, committedProof, txnDigest, txn, remote, abstain_conflict, isGossip, forceMaterialize);
 
       return (void*) true;
     }
     else{ // if mainThreadDispatching && parallel OCC.
-      auto f = [this, reqId, remote_ptr = remote.clone(), txnDigest, txn, committedProof, abstain_conflict, isGossip]() mutable {
+      auto f = [this, reqId, remote_ptr = remote.clone(), txnDigest, txn, committedProof, abstain_conflict, isGossip, forceMaterialize]() mutable {
         Timestamp retryTs;
           //check if concurrently committed/aborted already, and if so return
           ongoingMap::const_accessor o;
@@ -813,8 +821,8 @@ void* Server::TryPrepare(uint64_t reqId, const TransportAddress &remote, proto::
         proto::ConcurrencyControl::Result *result = new proto::ConcurrencyControl::Result(this->DoOCCCheck(reqId,
         *remote_ptr, txnDigest, *txn, retryTs, committedProof, abstain_conflict, false, isGossip));
 
-        HandlePhase1CB(reqId, *result, committedProof, txnDigest, *remote_ptr, abstain_conflict, isGossip);
-      
+        HandlePhase1CB(reqId, *result, committedProof, txnDigest, txn, *remote_ptr, abstain_conflict, isGossip, forceMaterialize);
+
         delete result;
         delete remote_ptr;
         return (void*) true;
@@ -824,21 +832,35 @@ void* Server::TryPrepare(uint64_t reqId, const TransportAddress &remote, proto::
     }
   }
 
+  void Server::RegisterTxTS(const std::string &txnDigest, const proto::Transaction *txn){
+
+    if(!params.query_params.optimisticTxID){ 
+       return;
+    }
+
+    //If using optimisticTxID: Store ts to Tx mapping
+
+    ts_to_txMap::accessor t; 
+    Debug("TS_TO_TX insert TX[%s] with TS[%lu:%lu]. MergedTS:[%lu]", BytesToHex(txnDigest, 16).c_str(), txn->timestamp().timestamp(), txn->timestamp().id(),
+                                                                        MergeTimestampId(txn->timestamp().timestamp(), txn->timestamp().id()));
+    
+    bool first = ts_to_tx.insert(t, MergeTimestampId(txn->timestamp().timestamp(), txn->timestamp().id()));
+    if(!first && !TEST_PREPARE_SYNC && t->second != txnDigest){
+      Panic("Two different Transactions [%s:%s](old:new) have the same merged Timestamp[%lu] Original TS:[%lu:%lu]. Equivocation", 
+              BytesToHex(t->second, 16).c_str(), BytesToHex(txnDigest, 16).c_str(), 
+              MergeTimestampId(txn->timestamp().timestamp(), txn->timestamp().id()), 
+              txn->timestamp().timestamp(), txn->timestamp().id()); 
+              // Report issuing client (txn->client_id() = txn->timestamp.id()) 
+              //TODO: Hard Abort/Clean this TX & forward to other replicas so they can resolve TXs
+    } 
+    t->second = txnDigest;
+    t.release();
+    //Note: Timestamp mappings are not garbage collected during clean. They may only be deleted when garbage collecting < Low Watermark ==> because then we no longer need to access the Tx
+  }
+
   void Server::AddOngoing( std::string &txnDigest, proto::Transaction* txn){
 
-      if(params.query_params.optimisticTxID){ //If using optimisticTxID: Store ts to Tx mapping
-        ts_to_txMap::accessor t; 
-        Debug("TS_TO_TX insert TX[%s] with TS[%lu:%lu]", BytesToHex(txnDigest, 16).c_str(), txn->timestamp().timestamp(), txn->timestamp().id());
-        bool first = ts_to_tx.insert(t, MergeTimestampId(txn->timestamp().timestamp(), txn->timestamp().id()));
-        if(!first && !TEST_PREPARE_SYNC && t->second != txnDigest){
-          Panic("Two different Transactions [%s:%s] have the same Timestamp: [%lu:%lu]. Equivocation", t->second, txnDigest, txn->timestamp().timestamp(), txn->timestamp().id()); 
-                  // Report issuing client (txn->client_id() = txn->timestamp.id()) 
-                  //TODO: Hard Abort/Clean this TX & forward to other replicas so they can resolve TXs
-        } 
-        t->second = txnDigest;
-        t.release();
-        //Note: Timestamp mappings are not garbage collected during clean. They may only be deleted when garbage collecting < Low Watermark ==> because then we no longer need to access the Tx
-      }
+      RegisterTxTS(txnDigest, txn);
   
       ongoingMap::accessor o;
       //std::cerr << "ONGOING INSERT (Fallback): " << BytesToHex(txnDigest, 16).c_str() << " On CPU: " << sched_getcpu()<< std::endl;
@@ -867,7 +889,7 @@ void* Server::TryPrepare(uint64_t reqId, const TransportAddress &remote, proto::
 
 //TODO: Add remote.clone() for better style..
   void Server::ProcessProposal(proto::Phase1 &msg, const TransportAddress &remote, proto::Transaction *txn,
-                        std::string &txnDigest, bool isGossip)// ,const proto::CommittedProof *committedProof, const proto::Transaction *abstain_conflict,proto::ConcurrencyControl::Result &result)
+                        std::string &txnDigest, bool isGossip, bool forceMaterialize)// ,const proto::CommittedProof *committedProof, const proto::Transaction *abstain_conflict,proto::ConcurrencyControl::Result &result)
   {
 
     if(!params.signClientProposals) txn = msg.release_txn(); //Only release it here so that we can forward complete P1 message without making any wasteful copies
@@ -885,13 +907,13 @@ void* Server::TryPrepare(uint64_t reqId, const TransportAddress &remote, proto::
           return; 
         }
         
-        TryPrepare(msg.req_id(), remote, txn, txnDigest, isGossip); //, committedProof, abstain_conflict, result); //Includes call to HandlePhase1CB(..);
+        TryPrepare(msg.req_id(), remote, txn, txnDigest, isGossip, forceMaterialize); //, committedProof, abstain_conflict, result); //Includes call to HandlePhase1CB(..);
          //FREE MESSAGE HERE! --> Async TryPrepare only needs reqId.
         if((params.mainThreadDispatching && (!params.dispatchMessageReceive || params.parallel_CCC)) || (params.multiThreading && params.signClientProposals)) FreePhase1message(&msg);
     }
     else{ //multithreading && sign Client Proposal
         //Note: Ideally would clone remote
-        auto try_prep(std::bind(&Server::TryPrepare, this, msg.req_id(), std::ref(remote), txn, txnDigest, isGossip)); //,committedProof, abstain_conflict, result));
+        auto try_prep(std::bind(&Server::TryPrepare, this, msg.req_id(), std::ref(remote), txn, txnDigest, isGossip, forceMaterialize)); //,committedProof, abstain_conflict, result));
         auto f = [this, msg_ptr = &msg, txn, txnDigest, try_prep]() mutable {
             Debug("ProcessProposal for txn[%s] on WorkerThread %d", BytesToHex(txnDigest, 16).c_str(), sched_getcpu());
             if(!CheckProposalValidity(*msg_ptr, txn, txnDigest)){  //Check Proposal Validity already cleans up message in this case.
@@ -945,16 +967,18 @@ void* Server::TryPrepare(uint64_t reqId, const TransportAddress &remote, proto::
 //It is possible for multiple different (fallback) clients to execute OCC check -- but only one result should ever be used.
 //XXX if you *DONT* want to buffer Wait results then call BufferP1Result only inside SendPhase1Reply
 bool Server::BufferP1Result(proto::ConcurrencyControl::Result &result,
-  const proto::CommittedProof *conflict, const std::string &txnDigest, uint64_t &reqId, const TransportAddress *&remote, bool &wake_fallbacks, bool isGossip, int fb){  // fb = 0 => normal, fb = 1 => fallback, fb = 2 => dependency woke up
+  const proto::CommittedProof *conflict, const std::string &txnDigest, uint64_t &reqId, const TransportAddress *&remote, bool &wake_fallbacks, bool &forceMaterialize, bool isGossip, int fb){  
+                                                                                                                    // fb = 0 => normal, fb = 1 => fallback, fb = 2 => dependency woke up
 
     p1MetaDataMap::accessor c;
-    bool original_sub = BufferP1Result(c, result, conflict, txnDigest, reqId, remote, wake_fallbacks, isGossip, fb);
+    bool original_sub = BufferP1Result(c, result, conflict, txnDigest, reqId, remote, wake_fallbacks, forceMaterialize, isGossip, fb);
     c.release();
     return original_sub;
 }
 
+//TODO: Fix BufferP1 args in .h and wherever it is called
 bool Server::BufferP1Result(p1MetaDataMap::accessor &c, proto::ConcurrencyControl::Result &result,
-  const proto::CommittedProof *conflict, const std::string &txnDigest, uint64_t &reqId, const TransportAddress *&remote, bool &wake_fallbacks, bool isGossip, int fb){
+  const proto::CommittedProof *conflict, const std::string &txnDigest, uint64_t &reqId, const TransportAddress *&remote, bool &wake_fallbacks, bool &forceMaterialize, bool isGossip, int fb){
 
     //TODO: ideally buffer abstain_conflict too.
 
@@ -1019,6 +1043,11 @@ bool Server::BufferP1Result(p1MetaDataMap::accessor &c, proto::ConcurrencyContro
         wake_fallbacks = true;
         c->second.fallbacks_interested = false;
       }
+    }
+
+    if(!forceMaterialize) {
+      forceMaterialize = c->second.forceMaterialize;
+      c->second.forceMaterialize = false; // Only forceMat once.
     }
 
     return original_sub;

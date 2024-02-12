@@ -45,6 +45,10 @@ auto Field::get_bytes(std::size_t* size) const -> const char* {
     return _field.get();
 }
 
+auto Field::get() const -> const std::string {
+    return _field.get();
+}
+
 auto Field::get(bool *field) const -> void {
     *field = _field.as<bool>();
 }
@@ -72,5 +76,6 @@ auto Field::get(double *field) const -> void {
 auto Field::get(std::string *field) const -> void {
     *field = _field.as<std::string>();
 }
+
 
 }

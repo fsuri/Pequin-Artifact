@@ -49,10 +49,13 @@ class KeySelector {
 };
 
 struct QuerySelector{
-  QuerySelector(uint64_t numKeys, KeySelector *tableSelector, KeySelector *baseSelector, KeySelector *rangeSelector) : 
-     numKeys(numKeys), tableSelector(tableSelector), baseSelector(baseSelector), rangeSelector(rangeSelector) {}
-  ~QuerySelector(){ //TODO: Need to delete them in benchmark.cc
-  
+  QuerySelector() {}
+  QuerySelector(uint64_t numKeys, KeySelector *tableSelector, KeySelector *baseSelector, KeySelector *rangeSelector, uint64_t point_op_freq) : 
+     numKeys(numKeys), tableSelector(tableSelector), baseSelector(baseSelector), rangeSelector(rangeSelector), point_op_freq(point_op_freq) {}
+  ~QuerySelector(){ 
+    if(tableSelector != nullptr) delete tableSelector;
+    if(baseSelector != nullptr) delete baseSelector;
+    if(rangeSelector != nullptr) delete rangeSelector;
   }
   //uint64_t numTables;
   //uint64_t maxRange;
@@ -65,6 +68,8 @@ struct QuerySelector{
   KeySelector *baseSelector;  //pick which row to start scan from -- pick random starting point Idx (i.e. pick between 0 and numKeys-1)
   
   KeySelector *rangeSelector; //pick size of scan  -- pick random offset (i.e. pick between 0 and maxRange)
+
+  uint64_t point_op_freq;
 
 };
 

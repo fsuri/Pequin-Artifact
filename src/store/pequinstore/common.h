@@ -376,6 +376,9 @@ inline static bool sortReadSetByKey(const ReadMessage &lhs, const ReadMessage &r
              //Panic("duplicate read set key with different TS");
              throw std::runtime_error("Read set contains two reads of the same key with different timestamp");
         }
+        // if(lhs.readtime().timestamp() > 0 || rhs.readtime().timestamp() >0){
+        //     Debug("Read key %s twice with same version. V1:[%lu:%lu]. V2:[%lu:%lu]", lhs.key().c_str(), lhs.readtime().timestamp(), lhs.readtime().id(), rhs.readtime().timestamp(), rhs.readtime().id());
+        // }
         //return (lhs.readtime().timestamp() == rhs.readtime().timestamp()) ? lhs.readtime().id() < rhs.readtime().id() : lhs.readtime().timestamp() < rhs.readtime().timestamp(); 
     }
     return lhs.key() < rhs.key(); 
@@ -420,7 +423,9 @@ inline static bool compareReadSets (google::protobuf::RepeatedPtrField<ReadMessa
 
 struct QueryReadSetMgr {
         QueryReadSetMgr(){}
-        QueryReadSetMgr(proto::ReadSet *read_set, const uint64_t &groupIdx, const bool &useOptimisticId): read_set(read_set), groupIdx(groupIdx), useOptimisticId(useOptimisticId){}
+        QueryReadSetMgr(proto::ReadSet *read_set, const uint64_t &groupIdx, const bool &useOptimisticId): read_set(read_set), groupIdx(groupIdx), useOptimisticId(useOptimisticId){
+            read_set->Clear(); //Reset read set -- e.g. if we've already done eagerexec, and then we do snapshot read after
+        }
         ~QueryReadSetMgr(){}
 
         void AddToReadSet(const std::string &key, const TimestampMessage &readtime, bool is_table_col_ver = false){
@@ -503,8 +508,11 @@ typedef struct QueryParameters {
     const uint64_t syncMessages;    //number of sync messages sent to replicas to request result replies
     const uint64_t resultQuorum ;   //number of matching query replies necessary to return
     
+    const size_t snapshotPrepared_k; //number of prepared reads to include in the snapshot (before reaching first committed version)
+
     const bool eagerExec;   //Perform eager execution on Queries
     const bool eagerPointExec;  //Perform query style eager execution on point queries (instead of using proof)
+    const bool eagerPlusSnapshot; //Perform eager exec and snapshot simultaneously
     
     const bool readPrepared; //read only committed or also prepared values in query?
     const bool cacheReadSet; //return query read set to client, or cache it locally at servers?
@@ -520,12 +528,14 @@ typedef struct QueryParameters {
     //performance parameters
     const bool parallel_queries;
 
-    QueryParameters(bool sql_mode, uint64_t syncQuorum, uint64_t queryMessages, uint64_t mergeThreshold, uint64_t syncMessages, uint64_t resultQuorum, 
-        bool eagerExec, bool eagerPointExec, bool readPrepared, bool cacheReadSet, bool optimisticTxID, bool compressOptimisticTxIDs, bool mergeActiveAtClient, 
+    QueryParameters(bool sql_mode, uint64_t syncQuorum, uint64_t queryMessages, uint64_t mergeThreshold, uint64_t syncMessages, uint64_t resultQuorum, size_t snapshotPrepared_k,
+        bool eagerExec, bool eagerPointExec, bool eagerPlusSnapshot, bool readPrepared, bool cacheReadSet, bool optimisticTxID, bool compressOptimisticTxIDs, bool mergeActiveAtClient, 
         bool signClientQueries, bool signReplicaToReplicaSync, bool parallel_queries) : 
-        sql_mode(sql_mode), syncQuorum(syncQuorum), queryMessages(queryMessages), mergeThreshold(mergeThreshold), syncMessages(syncMessages), resultQuorum(resultQuorum),
-        eagerExec(eagerExec), eagerPointExec(eagerPointExec), readPrepared(readPrepared), cacheReadSet(cacheReadSet), optimisticTxID(optimisticTxID), compressOptimisticTxIDs(compressOptimisticTxIDs), mergeActiveAtClient(mergeActiveAtClient), 
-        signClientQueries(signClientQueries), signReplicaToReplicaSync(signReplicaToReplicaSync), parallel_queries(parallel_queries) {}
+        sql_mode(sql_mode), syncQuorum(syncQuorum), queryMessages(queryMessages), mergeThreshold(mergeThreshold), syncMessages(syncMessages), resultQuorum(resultQuorum), snapshotPrepared_k(snapshotPrepared_k),
+        eagerExec(eagerExec), eagerPointExec(eagerPointExec), eagerPlusSnapshot(eagerPlusSnapshot), readPrepared(readPrepared), cacheReadSet(cacheReadSet), optimisticTxID(optimisticTxID), compressOptimisticTxIDs(compressOptimisticTxIDs), mergeActiveAtClient(mergeActiveAtClient), 
+        signClientQueries(signClientQueries), signReplicaToReplicaSync(signReplicaToReplicaSync), parallel_queries(parallel_queries) {
+            if(eagerPlusSnapshot) UW_ASSERT(eagerExec); 
+        }
 
 } QueryParameters;
 
@@ -571,6 +581,7 @@ public:
   //Local Snapshot operations:
   void InitLocalSnapshot(proto::LocalSnapshot *local_ss, const uint64_t &query_seq_num, const uint64_t &client_id, const uint64_t &replica_id, bool useOptimisticTxId = false);
   void ResetLocalSnapshot(bool useOptimisticTxId = false);
+  void AddToLocalSnapshot(const proto::Transaction &txn, bool hash_param, bool committed_or_prepared);
   void AddToLocalSnapshot(const std::string &txnDigest, const proto::Transaction *txn, bool committed_or_prepared = true); //For local snapshot; //TODO: Define something similar for merged? Should merged be a separate class?
     void AddToLocalSnapshot(const std::string &txnDigest, const uint64_t &timestamp, const uint64_t &id, bool committed_or_prepared);
   void SealLocalSnapshot();
@@ -605,7 +616,7 @@ private:
     std::unordered_map<uint64_t, std::set<uint64_t>> ts_freq; //replicas that have txn committed.
 };
 
-typedef std::function<void(const std::string &, const Timestamp &, bool, QueryReadSetMgr *, SnapshotManager *)> find_table_version;
+typedef std::function<void(const std::string &, const Timestamp &, bool, QueryReadSetMgr *, bool, SnapshotManager *)> find_table_version;
 typedef std::function<bool(const std::string &)> read_prepared_pred; // This is a function that, given a txnDigest of a prepared tx, evals to true if it is readable, and false if not.
 
 
