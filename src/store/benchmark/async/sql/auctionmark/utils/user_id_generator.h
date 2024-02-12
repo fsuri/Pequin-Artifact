@@ -9,18 +9,18 @@
 #include "store/benchmark/async/sql/auctionmark/utils/user_id.h"
 #include <boost/histogram.hpp>
 #include <optional>
+#include <tuple>
 
-using axes_t = std::tuple<
-    boost::histogram::axis::integer<>,
-    boost::histogram::axis::integer<>
->;
-using hist_t = boost::histogram::histogram<axes_t>;
+using int_hist_t = boost::histogram::histogram<
+    std::tuple<
+        boost::histogram::axis::integer<>>>;
 
 namespace auctionmark {
 
 class UserIdGenerator {
 public:
-    UserIdGenerator(const hist_t& users_per_item_count, int num_clients, int client_id = -1);
+    UserIdGenerator(const int_hist_t& users_per_item_count, int num_clients, int client_id = -1);
+    ~UserIdGenerator() = default;
 
     long get_total_users() const;
     void set_current_item_count(int size);
