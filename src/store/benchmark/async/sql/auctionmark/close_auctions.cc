@@ -32,6 +32,9 @@ namespace auctionmark {
 CloseAuctions::CloseAuctions(uint32_t timeout, AuctionMarkProfile &profile, std::mt19937_64 &gen) : AuctionMarkTransaction(timeout), profile(profile)
 {
   //generate params
+  start_time = profile.get_last_close_auctions_time();
+  end_time = profile.update_and_get_last_close_auctions_time();
+  benchmarkTimes = {profile.get_loader_start_time(), profile.get_client_start_time()};
 }
 
 CloseAuctions::~CloseAuctions(){
@@ -54,7 +57,8 @@ transaction_status_t CloseAuctions::Execute(SyncClient &client) {
   int waiting_ctr = 0;
   int round = CLOSE_AUCTIONS_ROUNDS;
 
-  uint64_t current_time = std::time(0);
+  auto current_time = getProcTimestamp(benchmarkTimes);
+  uint64_t current_time = std::time(0); //TODO: FIXME: This should get some scaled timestamp?
 
 
   std::string getDueItems = fmt::format("SELECT {} FROM {} WHERE i_start_date >= {} AND i_start_date <= {} AND i_status = {} "
@@ -129,7 +133,6 @@ void CloseAuctions::UpdateProfile(){
 }
 
 std::string CloseAuctions::processItemRecord(ItemResult &item_res){
-  
     //TODO: What is supposed to happen in here ??
     // ItemInfo itemInfo(item_res.dir.itemId, item_res.dir.currentPrice, item_res.dir.endDate, item_res.dir.numBids);
     // itemInfo.set_status(item_res.dir.itemStatus);

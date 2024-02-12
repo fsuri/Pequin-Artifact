@@ -31,7 +31,13 @@ namespace auctionmark {
 
 NewComment::NewComment(uint32_t timeout, AuctionMarkProfile &profile, std::mt19937_64 &gen) : AuctionMarkTransaction(timeout), gen(gen) {
   //TODO: Generate params
+  auto itemInfo = profile.get_random_completed_item() //FIXME: function missing
+  UserId sellerId = itemInfo.get_seller_id();
+  UserId buyerId = profile.get_random_buyer_id(sellerId);
+  question = profile. //TODO: Random string //FIXME: generate random string of length between 
 }
+
+
 
 NewComment::~NewComment(){
 }
@@ -54,7 +60,7 @@ transaction_status_t NewComment::Execute(SyncClient &client) {
   deserialize(ic_id, queryResult);
   ++ic_id;
 
-  uint64_t current_time = std::time(0);
+  uint64_t current_time = std::time(0); //FIXME:
 
   //insertItemComment
   statement = fmt::format("INSERT INTO {} (ic_id, ic_i_id, ic_u_id, ic_buyer_id, ic_question, ic_created, ic_updated) "

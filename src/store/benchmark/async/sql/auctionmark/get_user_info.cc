@@ -33,6 +33,24 @@ namespace auctionmark {
 GetUserInfo::GetUserInfo(uint32_t timeout, AuctionMarkProfile &profile, std::mt19937_64 &gen) : 
     AuctionMarkTransaction(timeout), profile_(&profile), gen(gen) {
 
+    u_id = profile.get_random_buyer_id().encode();
+
+    uint32_t rand;
+    rand = std::uniform_int_distribution<uint32_t>(0, 100)(gen);
+    get_feedback = (rand <= PROB_GETUSERINFO_INCLUDE_FEEDBACK);
+
+    rand = std::uniform_int_distribution<uint32_t>(0, 100)(gen);
+    get_comments = (rand <= PROB_GETUSERINFO_INCLUDE_COMMENTS);
+
+    rand = std::uniform_int_distribution<uint32_t>(0, 100)(gen);
+    get_seller_items= (rand <= PROB_GETUSERINFO_INCLUDE_SELLER_ITEMS);
+
+    rand = std::uniform_int_distribution<uint32_t>(0, 100)(gen);
+    get_buyer_items = (rand <= PROB_GETUSERINFO_INCLUDE_BUYER_ITEMS);
+
+    rand = std::uniform_int_distribution<uint32_t>(0, 100)(gen);
+    get_watched_items = (rand <= PROB_GETUSERINFO_INCLUDE_WATCHED_ITEMS);
+
 
     
 }
