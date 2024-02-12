@@ -39,7 +39,6 @@
 
 #include "store/common/stats.h"
 #include "store/hotstuffpgstore/pbft-proto.pb.h"
-#include "store/hotstuffpgstore/slots.h"
 #include "store/hotstuffpgstore/app.h"
 #include "store/hotstuffpgstore/common.h"
 #include <mutex>
@@ -94,8 +93,6 @@ public:
   proto::RequestRequest recvrr;
 
   std::unordered_map<uint64_t, std::string> sessionKeys;
-
-  Slots slots;
 
   bool batchTimerRunning;
   int batchTimerId;
