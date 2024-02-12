@@ -56,9 +56,14 @@
 #include "store/benchmark/async/tpcc/sync/tpcc_client.h"
 #include "store/benchmark/async/tpcc/async/tpcc_client.h"
 #include "store/benchmark/async/sql/tpcc/tpcc_client.h"
+#include "store/benchmark/async/sql/seats/seats_client.h"
+#include "store/benchmark/async/sql/tpcch/tpcch_client.h"
 #include "store/benchmark/async/smallbank/smallbank_client.h"
 #include "store/benchmark/async/toy/toy_client.h"
 #include "store/benchmark/async/rw-sql/rw-sql_client.h"
+
+// probs for tpcch 
+#include "store/benchmark/async/sql/tpcch/tpcch_constants.h"
 
 //protocol clients
 //Blackhole test printer
@@ -124,7 +129,9 @@ enum benchmode_t {
   BENCH_TPCC_SYNC,
   BENCH_TOY,
   BENCH_TPCC_SQL,
-  BENCH_RW_SQL
+  BENCH_RW_SQL, 
+  BENCH_SEATS_SQL,
+  BENCH_TPCCH_SQL
 };
 
 enum keysmode_t {
@@ -342,18 +349,18 @@ enum query_sync_quorum_t {
   QUERY_SYNC_QUORUM_ALL_POSSIBLE // at least 4f+1 (all that one can expect to receive)
 };
 const std::string query_sync_quorum_args[] = {
-	"query-one",
-  "query-one-honest",
-  "query-majority-honest",
-  "query-super-majority-honest",
-  "query-all-possible"
+	"query-one",                   //1
+  "query-one-honest",            //f+1
+  "query-majority-honest",       //2f+1
+  "query-super-majority-honest", //3f+1
+  "query-all-possible"           //4f+1
 };
 const query_sync_quorum_t query_sync_quorums[] {
-  QUERY_SYNC_QUROUM_ONE,
+  QUERY_SYNC_QUROUM_ONE,         //1
   QUERY_SYNC_QUORUM_ONE_HONEST,  //at least f+1 --> 1 honest
   QUERY_SYNC_QUORUM_MAJORITY_HONEST, //at least 2f+1 --> f+1 honest
   QUERY_SYNC_QUORUM_MAJORITY, // at least 3f+1 --> 2f+1 honest (supermajority)
-  QUERY_SYNC_QUORUM_ALL_POSSIBLE // at least 4f+1 (all that one can expect to receive)
+  QUERY_SYNC_QUORUM_ALL_POSSIBLE // at least 4f+1 (all that one can expect to receive, i.e. n-f)
 };
 static bool ValidateQuerySyncQuorum(const char* flagname,
     const std::string &value) {
@@ -372,9 +379,9 @@ enum query_messages_t {
   QUERY_MESSAGES_ALL //send to all replicas
 };
 const std::string query_messages_args[] = {
-	"query-quorum",
-  "query-pessimistic-bonus",
-  "query-all"
+	"query-quorum",               //quorum+0
+  "query-pessimistic-bonus",    //quorum+f
+  "query-all"                   //n
 };
 const query_messages_t query_messagess[] {
   QUERY_MESSAGES_QUERY_QUORUM,
@@ -417,11 +424,15 @@ DEFINE_string(pequin_sync_messages, query_messages_args[0], "number of replicas 
 
 DEFINE_validator(pequin_sync_messages, &ValidateQueryMessages);
 
+DEFINE_uint32(pequin_snapshot_prepared_k, 1, "number of prepared reads to include in snapshot (before reaching first committed version)");
+
 DEFINE_bool(pequin_query_eager_exec, true, "skip query sync protocol and execute optimistically on local state");
 DEFINE_bool(pequin_query_point_eager_exec, false, "use eager query exec instead of proof based point read");
 
+DEFINE_bool(pequin_eager_plus_snapshot, true, "perform a snapshot and eager execution simultaneously; proceed with sync only if eager fails");
+
 DEFINE_bool(pequin_query_read_prepared, true, "allow query to read prepared values");
-DEFINE_bool(pequin_query_cache_read_set, false, "cache query read set at replicas"); // Send syncMessages to all if read set caching is enabled -- but still only sync_messages many replicas are tasked to execute and reply.
+DEFINE_bool(pequin_query_cache_read_set, true, "cache query read set at replicas"); // Send syncMessages to all if read set caching is enabled -- but still only sync_messages many replicas are tasked to execute and reply.
 
 DEFINE_bool(pequin_query_optimistic_txid, true, "use optimistic tx-id for sync protocol");
 DEFINE_bool(pequin_query_compress_optimistic_txid, false, "compress optimistic tx-id for sync protocol");
@@ -432,7 +443,8 @@ DEFINE_bool(pequin_query_merge_active_at_client, true, "merge active query read 
 DEFINE_bool(pequin_sign_client_queries, false, "sign query and sync messages"); //proves non-equivocation of query contents, and query snapshot respectively. 
 //DEFINE_bool(pequin_sign_replica_to_replica_sync, false, "sign inter replica sync messages with HMACs"); //proves authenticity of channels.
 //Note: Should not be necessary. Unique hash of query should suffice for non-equivocation; autheniticated channels would suffice for authentication. 
-DEFINE_bool(pequin_parallel_queries, false, "dispatch queries to parallel worker threads");
+
+//DEFINE_bool(pequin_parallel_queries, false, "dispatch queries to parallel worker threads"); -- only serverside arg
 
 
 ///////////////////////////////////////////////////////////
@@ -508,6 +520,8 @@ const protomode_t protomodes[] {
 	PROTO_AUGUSTUS_SMART,
   PROTO_POSTGRES
 };
+
+//Note: this should match the size of protomodes
 const strongstore::Mode strongmodes[] {
   strongstore::Mode::MODE_UNKNOWN,
   strongstore::Mode::MODE_UNKNOWN,
@@ -524,7 +538,8 @@ const strongstore::Mode strongmodes[] {
 	strongstore::Mode::MODE_UNKNOWN,
 	strongstore::Mode::MODE_UNKNOWN,
   strongstore::Mode::MODE_UNKNOWN,
-	strongstore::Mode::MODE_UNKNOWN
+	strongstore::Mode::MODE_UNKNOWN, 
+  strongstore::Mode::MODE_UNKNOWN
 };
 static bool ValidateProtocolMode(const char* flagname,
     const std::string &value) {
@@ -549,7 +564,9 @@ const std::string benchmark_args[] = {
   "tpcc-sync",
   "toy",
   "tpcc-sql",
-  "rw-sql"
+  "rw-sql",
+  "seats-sql",
+  "tpcch-sql"
 };
 const benchmode_t benchmodes[] {
   BENCH_RETWIS,
@@ -559,7 +576,9 @@ const benchmode_t benchmodes[] {
   BENCH_TPCC_SYNC,
   BENCH_TOY,
   BENCH_TPCC_SQL,
-  BENCH_RW_SQL
+  BENCH_RW_SQL,
+  BENCH_SEATS_SQL,
+  BENCH_TPCCH_SQL
 };
 static bool ValidateBenchmark(const char* flagname, const std::string &value) {
   int n = sizeof(benchmark_args);
@@ -685,9 +704,10 @@ DEFINE_bool(rw_read_only, false, "only do read operations");
  * RW-sql additional settings.
  */
 
-DEFINE_uint64(num_tables, 1, "number of tables for rw-sql");
-DEFINE_uint64(num_keys_per_table, 10, "number of keys per table for rw-sql");
-DEFINE_uint64(max_range, 3, "max amount of reads in a single scan for rw-sql");
+DEFINE_uint64(num_tables, 10, "number of tables for rw-sql");
+DEFINE_uint64(num_keys_per_table, 100, "number of keys per table for rw-sql");
+DEFINE_uint64(max_range, 10, "max amount of reads in a single scan for rw-sql");
+DEFINE_uint64(point_op_freq, 50, "percentage of times an operation is a point operation (the others are scan)");
 
 
 /**
@@ -716,6 +736,11 @@ DEFINE_int32(tpcc_payment_ratio, 43, "ratio of payment transactions to other"
 DEFINE_int32(tpcc_order_status_ratio, 4, "ratio of order_status transactions to other"
     " transaction types (for tpcc)");
 DEFINE_bool(static_w_id, false, "force clients to use same w_id for each treansaction");
+
+/**
+ * TPC-CH settings.
+ */
+DEFINE_double(ch_client_proportion, tpcch_sql::PROB_TPCCH_CLIENT, "proportion of CH clients (rest are TPC-C clients)");
 
 /**
  * Smallbank settings.
@@ -1032,7 +1057,7 @@ int main(int argc, char **argv) {
         NOT_REACHABLE();
     }
 
-    querySelector = new QuerySelector(FLAGS_num_keys_per_table, tableSelector, baseSelector, rangeSelector);
+    querySelector = new QuerySelector(FLAGS_num_keys_per_table, tableSelector, baseSelector, rangeSelector, FLAGS_point_op_freq);
 
 
      //RW-SQL ==> auto-generate TableRegistry
@@ -1246,7 +1271,7 @@ int main(int argc, char **argv) {
               NOT_REACHABLE();
           }
           if(syncQuorumSize > queryMessages) Panic("Query Quorum size cannot be larger than number of Query requests sent");
-          if(syncQuorumSize + config->f > queryMessages) std::cerr << "WARNING: Query Sync is not live in presence of byzantine replies witholding query sync replies (omission faults)" << std::endl;
+          if(syncQuorumSize + config->f > queryMessages) std::cerr << "WARNING: Under given Config Query Sync is not live in presence of byzantine replies witholding query sync replies (omission faults)" << std::endl;
          
          switch (sync_messages) {
           case QUERY_MESSAGES_QUERY_QUORUM:
@@ -1263,7 +1288,7 @@ int main(int argc, char **argv) {
           }
          
          // ==> Moved to client logic in order to account for retries.
-         //if(FLAGS_pequin_query_optimistic_txid) syncMessages = std::max((uint64_t) config->n, syncMessages + config->n); //If optimisticTxID enabled send to f additional replicas to guarantee result. 
+         //if(FLAGS_pequin_query_optimistic_txid) syncMessages = std::max((uint64_t) config->n, syncMessages + config->f); //If optimisticTxID enabled send to f additional replicas to guarantee result. 
          // if read_cache is True:--> send sync to all, but still only ask syncMessages many to execute.
 
         Debug("Configuring Pequin to send query messages to %lu replicas and wait for %lu replies. Merge Threshold is %lu. %lu Sync messages are being sent", queryMessages, syncQuorumSize, mergeThreshold, syncMessages);
@@ -1379,8 +1404,10 @@ int main(int argc, char **argv) {
                                                  mergeThreshold,
                                                  syncMessages,
                                                  resultQuorum,
+                                                 FLAGS_pequin_snapshot_prepared_k,
                                                  FLAGS_pequin_query_eager_exec,
                                                  FLAGS_pequin_query_point_eager_exec,
+                                                 FLAGS_pequin_eager_plus_snapshot,
                                                  FLAGS_pequin_query_read_prepared,
                                                  FLAGS_pequin_query_cache_read_set,
                                                  FLAGS_pequin_query_optimistic_txid,
@@ -1388,7 +1415,7 @@ int main(int argc, char **argv) {
                                                  FLAGS_pequin_query_merge_active_at_client,
                                                  FLAGS_pequin_sign_client_queries,
                                                  false,    // FLAGS_pequin_sign_replica_to_replica_sync,
-                                                 FLAGS_pequin_parallel_queries);
+                                                 false);   //FLAGS_pequin_parallel_queries);
 
         pequinstore::Parameters params(FLAGS_indicus_sign_messages,
                                         FLAGS_indicus_validate_proofs, FLAGS_indicus_hash_digest,
@@ -1559,6 +1586,8 @@ int main(int argc, char **argv) {
       case BENCH_SMALLBANK_SYNC:
       case BENCH_TPCC_SYNC:
       case BENCH_TPCC_SQL:
+      case BENCH_SEATS_SQL:
+      case BENCH_TPCCH_SQL:
         if (syncClient == nullptr) {
           UW_ASSERT(client != nullptr);
           syncClient = new SyncClient(client);
@@ -1570,6 +1599,7 @@ int main(int argc, char **argv) {
 
     uint32_t seed = (FLAGS_client_id << 4) | i;
 	  BenchmarkClient *bench;
+    
 	  switch (benchMode) {
       case BENCH_RETWIS:
         UW_ASSERT(asyncClient != nullptr);
@@ -1657,7 +1687,36 @@ int main(int argc, char **argv) {
             FLAGS_abort_backoff, FLAGS_retry_aborted, FLAGS_max_backoff, FLAGS_max_attempts,
             FLAGS_timeout);
         break;
-
+      case BENCH_SEATS_SQL:
+          UW_ASSERT(syncClient != nullptr);
+          bench = new seats_sql::SEATSSQLClient( *syncClient, *tport,
+              seed, FLAGS_num_requests, FLAGS_exp_duration, FLAGS_delay,
+              FLAGS_warmup_secs, FLAGS_cooldown_secs, FLAGS_tput_interval,
+              FLAGS_abort_backoff, FLAGS_retry_aborted, FLAGS_max_backoff, FLAGS_max_attempts, FLAGS_message_timeout);
+          break;
+      case BENCH_TPCCH_SQL: {
+          UW_ASSERT(syncClient != nullptr);
+          int id = FLAGS_num_client_hosts * i + FLAGS_client_id;
+          int num_tpcch_threads = std::max(static_cast<int>(FLAGS_ch_client_proportion * client_total), 0);
+          if (id < num_tpcch_threads) {
+            std::mt19937 gen_tpcch(seed); //Seems to be unused.
+            bench = new tpcch_sql::TPCCHSQLClient( *syncClient, *tport,
+                seed, FLAGS_num_requests, FLAGS_exp_duration, FLAGS_delay,
+                FLAGS_warmup_secs, FLAGS_cooldown_secs, FLAGS_tput_interval,
+                FLAGS_abort_backoff, FLAGS_retry_aborted, FLAGS_max_backoff, FLAGS_max_attempts, FLAGS_message_timeout);
+          } else {
+            bench = new tpcc_sql::TPCCSQLClient(*syncClient, *tport, seed,
+                FLAGS_num_requests, FLAGS_exp_duration, FLAGS_delay,
+                FLAGS_warmup_secs, FLAGS_cooldown_secs, FLAGS_tput_interval,
+                FLAGS_tpcc_num_warehouses, FLAGS_tpcc_w_id, FLAGS_tpcc_C_c_id,
+                FLAGS_tpcc_C_c_last, FLAGS_tpcc_new_order_ratio,
+                FLAGS_tpcc_delivery_ratio, FLAGS_tpcc_payment_ratio,
+                FLAGS_tpcc_order_status_ratio, FLAGS_tpcc_stock_level_ratio,
+                FLAGS_static_w_id, FLAGS_abort_backoff,
+                FLAGS_retry_aborted, FLAGS_max_backoff, FLAGS_max_attempts, FLAGS_message_timeout);
+          }
+          break;
+      }
       default:
         NOT_REACHABLE();
     }
@@ -1671,7 +1730,9 @@ int main(int argc, char **argv) {
         break;
       case BENCH_RW_SQL:
       case BENCH_SMALLBANK_SYNC:
+      case BENCH_SEATS_SQL:
       case BENCH_TPCC_SQL:
+      case BENCH_TPCCH_SQL:
       case BENCH_TPCC_SYNC: {
         SyncTransactionBenchClient *syncBench = dynamic_cast<SyncTransactionBenchClient *>(bench);
         UW_ASSERT(syncBench != nullptr);
@@ -1723,8 +1784,8 @@ int main(int argc, char **argv) {
 
   tport->Timer(FLAGS_exp_duration * 1000 - 1000, FlushStats);
 
-  std::signal(SIGKILL, Cleanup);
-  std::signal(SIGTERM, Cleanup);
+  std::signal(SIGKILL, Cleanup); //signal 9
+  std::signal(SIGTERM, Cleanup); //signal 15
   std::signal(SIGINT, Cleanup);
 
   tport->Run();
@@ -1735,9 +1796,11 @@ int main(int argc, char **argv) {
 }
 
 void Cleanup(int signal) {
+  Notice("clean up with signal %d", signal);
   FlushStats();
   delete config;
-  delete keyManager;
+  //keyManager->Cleanup();
+  delete keyManager; //somehow destructor is not being triggered
   delete keySelector;
 
   for (auto i : threads) {
@@ -1764,6 +1827,8 @@ void Cleanup(int signal) {
   delete part;
 
   if(FLAGS_sql_bench && querySelector != nullptr) delete querySelector;
+  Notice("Finished Cleanup. Exiting");
+  //exit(0); Allow segfault for duplicate config deletion to mask printing endless ASAN leaks that we can't fix...
 }
 
 void FlushStats() {

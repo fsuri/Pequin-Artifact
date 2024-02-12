@@ -27,6 +27,7 @@
 
 #include <string>
 #include <vector>
+#include "lib/message.h"
 #include "store/common/query_result/query_result.h"
 #include "store/common/query_result/query_result_row.h"
 #include "store/common/query_result/query-result-proto.pb.h"
@@ -105,6 +106,17 @@ auto QueryResultProtoWrapper::get_bytes( const std::size_t row, const std::strin
 {
   const std::size_t column_idx = column_index_by_name(column);
   return get_bytes(row, column_idx, size);
+}
+
+auto QueryResultProtoWrapper::get( const std::size_t row, const std::size_t column) const -> const std::string
+{
+  if(!is_null(row, column)) {
+    const std::string& r_bytes = proto_result->rows(row).fields(column).data(); // result.at(row).at(column);
+    return r_bytes;
+  } else {
+    Panic("illegal get; col/row does not exist");
+    return "";
+  }
 }
 
 auto QueryResultProtoWrapper::operator[]( const std::size_t row ) const -> std::unique_ptr<query_result::Row> {

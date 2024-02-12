@@ -138,7 +138,8 @@ The prototype implementations depend the following development libraries:
 - libfmt-dev
 
 You may install them directly using:
-- `sudo apt install libsodium-dev libgflags-dev libssl-dev libevent-dev libevent-openssl-2.1-7 libevent-pthreads-2.1-7 libboost-all-dev libuv1-dev libpq-dev postgresql-server-dev-all libfmt-dev libreadline-dev`
+- `sudo apt install libsodium-dev libgflags-dev libssl-dev libevent-dev libevent-openssl-2.1-7 libevent-pthreads-2.1-7 libboost-all-dev libuv1-dev libpq-dev postgresql-server-dev-all libfmt-dev libreadline-dev libeigen3-dev` 
+
 - If using Ubuntu 18.04, use `sudo apt install libevent-openssl-2.1-6 libevent-pthreads-2.1-6` instead for openssl and pthreads.
 
 In addition, you will need to install the following libraries from source (detailed instructions below):
@@ -290,13 +291,14 @@ Download and build the library:
 
 1. `git clone https://github.com/bitcoin-core/secp256k1.git`
 2. `cd secp256k1`
-3. `./autogen.sh`
-4. `./configure`
-5. `make -j $(nproc)`
-6. `make check -j $(nproc)`
-7. `sudo make install`
-8. `sudo ldconfig`
-9. `cd ..`
+3. `git checkout ac83be33` (our cloudlab images have version 0.0.0)
+4. `./autogen.sh`
+5. `./configure`
+6. `make -j $(nproc)`
+7. `make check -j $(nproc)`
+8. `sudo make install`
+9. `sudo ldconfig`
+10. `cd ..`
 
 
 #### Installing cryptopp

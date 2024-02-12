@@ -43,7 +43,9 @@ namespace query_result
     virtual auto index() const -> std::size_t = 0;
 
     virtual bool is_null() const = 0;
+  
     virtual auto get_bytes(std::size_t *size) const -> const char * = 0;
+    virtual auto get() const -> const std::string = 0;
 
     virtual void get(bool *field) const = 0;
     virtual void get(int32_t *field) const = 0;

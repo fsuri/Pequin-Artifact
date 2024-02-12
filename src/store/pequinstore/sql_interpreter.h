@@ -41,6 +41,7 @@
 #include <iostream>
 #include <sstream>
 #include <cstdint>
+#include <string_view>
 
 #include "store/common/query_result/query_result_proto_wrapper.h"
 #include "store/common/query_result/query_result_proto_builder.h"
@@ -56,6 +57,7 @@ static std::string select_hook("SELECT ");
 static std::string from_hook(" FROM ");
 static std::string where_hook(" WHERE ");
 static std::string order_hook(" ORDER BY");
+static std::string group_hook(" GROUP BY");
 static std::string join_hook("JOIN");
 
 //Insert
@@ -97,11 +99,15 @@ enum op_t {
 };
 
 struct StringVisitor {
-    std::string operator()(int32_t &i) const { 
+    std::string operator()(int64_t &i) const { 
         return std::to_string(i);
     }
+    std::string operator()(double &d) const { 
+        return std::to_string(d);
+    }
     std::string operator()(bool &b) const { 
-        return std::to_string(b);
+        return b? "true" : "false";
+        //return std::to_string(b);
     }
     std::string operator()(std::string& s) const { 
         return s;
@@ -144,15 +150,21 @@ typedef struct ColRegistry {
             std::vector<bool> p_col_quotes; //col_quotes in order
 
 
-            std::map<std::string, std::vector<std::string>> secondary_key_cols;
+            std::map<std::string, std::vector<std::string>> secondary_key_cols; //index name -> composite key vector
+
+            std::set<std::string_view> indexed_cols; //all column names that are part of some index (be it primary or secondary)
 } ColRegistry;
 
 
+typedef std::map<std::string, ColRegistry> TableRegistry_t;
 class SQLTransformer {
     public:
         SQLTransformer(){}
         ~SQLTransformer(){}
         void RegisterTables(std::string &table_registry);
+        inline TableRegistry_t* GetTableRegistry(){
+            return &TableRegistry;
+        } 
         inline ColRegistry* GetColRegistry(const std::string &table_name){
             return &TableRegistry.at(table_name);
         }
@@ -165,18 +177,20 @@ class SQLTransformer {
 
         bool InterpretQueryRange(const std::string &_query, std::string &table_name, std::vector<std::string> &p_col_values, bool relax = false);
 
-        void GenerateTableWriteStatement(std::string &write_statement, std::string &delete_statement, const std::string &table_name, const TableWrite &table_write);
+        std::string GenerateLoadStatement(const std::string &table_name, const std::vector<std::vector<std::string>> &row_segment, int segment_no = 1);
+;        void GenerateTableWriteStatement(std::string &write_statement, std::string &delete_statement, const std::string &table_name, const TableWrite &table_write);
             void GenerateTableWriteStatement(std::string &write_statement, std::vector<std::string> &delete_statements, const std::string &table_name, const TableWrite &table_write);
-        void GenerateTablePurgeStatement(std::string &purge_statement, const std::string &table_name, const TableWrite &table_write);
-            void GenerateTablePurgeStatement(std::vector<std::string> &purge_statements, const std::string &table_name, const TableWrite &table_write);
+        void GenerateTablePurgeStatement(std::string &purge_statement, const std::string &table_name, const TableWrite &table_write); 
+            void GenerateTablePurgeStatement_DEPRECATED(std::string &purge_statement, const std::string &table_name, const TableWrite &table_write);
+            void GenerateTablePurgeStatement_DEPRECATED(std::vector<std::string> &purge_statements, const std::string &table_name, const TableWrite &table_write);
 
-        void GenerateTablePurgeStatement_NEW(std::string &purge_statement, const std::string &table_name, const TableWrite &table_write); //FIXME: Clean up the old ones
+        
 
     private:
         proto::Transaction *txn;
 
         //Table Schema
-        std::map<std::string, ColRegistry> TableRegistry;
+        TableRegistry_t TableRegistry;
        
         void TransformInsert(size_t pos, std::string_view &write_statement, 
             std::string &read_statement, std::function<void(int, query_result::QueryResult*)>  &write_continuation, write_callback &wcb);
@@ -194,7 +208,7 @@ class SQLTransformer {
         } Col_Update;
 
         void ParseColUpdate(std::string_view col_update, std::map<std::string_view, Col_Update> &col_updates);
-        std::string GetUpdateValue(const std::string &col, std::variant<bool, int32_t, std::string> &field_val, std::unique_ptr<query_result::Field> &field, 
+        std::string GetUpdateValue(const std::string &col, std::variant<bool, int64_t, double, std::string> &field_val, std::unique_ptr<query_result::Field> &field, 
             std::map<std::string_view, Col_Update> &col_updates, const std::string &col_type, bool &change_val);
         TableWrite* AddTableWrite(const std::string &table_name, const ColRegistry &col_registry);
         RowUpdates* AddTableWriteRow(TableWrite *table_write, const ColRegistry &col_registry);
@@ -248,9 +262,10 @@ void DeCerealize(std::string &enc_value, T &dec_value){
     }
 }
 
-std::variant<bool, int32_t, std::string> DecodeType(std::unique_ptr<query_result::Field> &field, const std::string &col_type);
+std::variant<bool, int64_t, double, std::string> DecodeType(std::unique_ptr<query_result::Field> &field, const std::string &col_type);
 
-std::variant<bool, int32_t, std::string> DecodeType(std::string &enc_value, const std::string &col_type);
+std::variant<bool, int64_t, double, std::string> DecodeType(const std::string &enc_value, const std::string &col_type);
+std::variant<bool, int64_t, double, std::string> DecodeType(std::string &enc_value, const std::string &col_type);
 
 };
 

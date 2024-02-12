@@ -1864,16 +1864,30 @@ std::string TransactionDigest(const proto::Transaction &txn, bool hashDigest) {
         }
       }
     }
-    //Account for TableWrites too:
-    for (const auto &[table, table_write]: txn.table_writes()) {
-        blake3_hasher_update(&hasher, (unsigned char *) &table[0], table.length());
 
-        for(const auto &row: table_write.rows()){
-           if(row.has_deletion()) blake3_hasher_update(&hasher, (void *) row.deletion(), sizeof(row.deletion()));
-           for(const auto &val: row.column_values()){
-              blake3_hasher_update(&hasher, (unsigned char *) &val[0], val.length());
-           }
-        }
+  
+    //Account for TableWrites too: 
+    //Protobuf Map has undefined order; in particular, every INSTANCE of the object could have a different order 
+    //=> must sort to be deterministic. BLAKE3 hash is not commutative, the order matters
+
+     //TODO: Ideally sort map directly to avoid redundant loop.  //  std::sort(txn.mutable_table_writes()->begin(), txn.mutable_table_writes()->end());   
+     //However, this requires txn to not be const, which requires changes across the codebase. For simplicity: just sort a vector of references.
+    
+    std::vector<std::pair<const std::string*, const TableWrite*>> tt;
+    for (const auto &[table, table_write]: txn.table_writes()) {
+       tt.emplace_back(&table, &table_write);
+    }
+    std::sort(tt.begin(), tt.end(), [](auto l, auto r){ return (*l.first) < (*r.first); });
+
+    for (const auto &[table, table_write]: tt) {
+      blake3_hasher_update(&hasher, (unsigned char *) &(*table)[0], table->length());
+
+      for(const auto &row: table_write->rows()){
+          if(row.has_deletion()) blake3_hasher_update(&hasher, (void *) row.deletion(), sizeof(row.deletion()));
+          for(const auto &val: row.column_values()){
+            blake3_hasher_update(&hasher, (unsigned char *) &val[0], val.length());
+          }
+      }
     }
 
     blake3_hasher_finalize(&hasher, (unsigned char *) &digest[0], BLAKE3_OUT_LEN);

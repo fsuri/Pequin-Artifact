@@ -1,5 +1,6 @@
 .obj/
 
+.VSCodeCounter/
 .DS_Store
 
 lockserver/client-main

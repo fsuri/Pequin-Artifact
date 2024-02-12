@@ -207,7 +207,7 @@ void ShardClient::Put(uint64_t id, const std::string &key,
 void ShardClient::Phase1(uint64_t id, const proto::Transaction &transaction, const std::string &txnDigest,
   phase1_callback pcb, phase1_timeout_callback ptcb, relayP1_callback rcb, finishConflictCB fcb, uint32_t timeout) {
   uint64_t reqId = lastReqId++;
-  Debug("[group %i] Sending PHASE1 for id[%lu], reqId[%lu]", group, id, reqId);
+  Debug("[group %i] Sending PHASE1[%s] for id[%lu], reqId[%lu]", group, BytesToHex(txnDigest, 16).c_str(), id, reqId);
   client_seq_num_mapping[id].pendingP1_id = reqId;
   PendingPhase1 *pendingPhase1 = new PendingPhase1(reqId, group, transaction,
       txnDigest, config, keyManager, params, verifier, id);
@@ -995,23 +995,17 @@ void ShardClient::HandleReadReply(const proto::ReadReply &reply) {
         return;
       }
 
-      std::string committedTxnDigest = TransactionDigest(
-          reply.proof().txn(), params.hashDigest);
-      if (!ValidateTransactionWrite(reply.proof(), &committedTxnDigest,
-            req->key, write->committed_value(), write->committed_timestamp(),
-            config, params.signedMessages, keyManager, verifier)) {
-        Debug("[group %i] Failed to validate committed value for read %lu.",
-            group, reply.req_id());
-        // invalid replies can be treated as if we never received a reply from
-        //     a crashed replica
+      std::string committedTxnDigest = TransactionDigest(reply.proof().txn(), params.hashDigest);
+      if (!ValidateTransactionWrite(reply.proof(), &committedTxnDigest, req->key, write->committed_value(), write->committed_timestamp(), config, params.signedMessages, keyManager, verifier)) {
+        Debug("[group %i] Failed to validate committed value for read %lu.",group, reply.req_id());
+        // invalid replies can be treated as if we never received a reply from a crashed replica
         return;
       }
     }
 
     Timestamp replyTs(write->committed_timestamp());
-    Debug("[group %i] ReadReply for %lu with committed %lu byte value and ts"
-        " %lu.%lu.", group, reply.req_id(), write->committed_value().length(),
-        replyTs.getTimestamp(), replyTs.getID());
+    Debug("[group %i] ReadReply for %lu with committed %lu byte value and ts %lu.%lu.", 
+        group, reply.req_id(), write->committed_value().length(), replyTs.getTimestamp(), replyTs.getID());
     if (req->firstCommittedReply || req->maxTs < replyTs) {
       req->maxTs = replyTs;
       req->maxValue = write->committed_value();
@@ -1021,17 +1015,13 @@ void ShardClient::HandleReadReply(const proto::ReadReply &reply) {
 
   //TODO: change so client does not accept reads with depth > some t... (fine for now since
   // servers dont fail and use the same param setting)
-  if (params.maxDepDepth > -2 && write->has_prepared_value() &&
-      write->has_prepared_timestamp() &&
-      write->has_prepared_txn_digest()) {
+  if (params.maxDepDepth > -2 && write->has_prepared_value() && write->has_prepared_timestamp() && write->has_prepared_txn_digest()) {
     Timestamp preparedTs(write->prepared_timestamp());
-    Debug("[group %i] ReadReply for %lu with prepared %lu byte value and ts"
-        " %lu.%lu.", group, reply.req_id(), write->prepared_value().length(),
-        preparedTs.getTimestamp(), preparedTs.getID());
+    Debug("[group %i] ReadReply for %lu with prepared %lu byte value and ts %lu.%lu.", 
+        group, reply.req_id(), write->prepared_value().length(), preparedTs.getTimestamp(), preparedTs.getID());
     auto preparedItr = req->prepared.find(preparedTs);
     if (preparedItr == req->prepared.end()) {
-      req->prepared.insert(std::make_pair(preparedTs,
-            std::make_pair(*write, 1)));
+      req->prepared.insert(std::make_pair(preparedTs, std::make_pair(*write, 1)));
     } else if (preparedItr->second.first == *write) {
       //stats->Increment("prepare_equality", 1); 
       preparedItr->second.second += 1;
@@ -1122,11 +1112,9 @@ void ShardClient::ProcessP1R(proto::Phase1Reply &reply, bool FB_path, PendingFB 
 
   const proto::ConcurrencyControl *cc = nullptr;
   if (hasSigned) {
-    Debug("[group %i] Verifying signed_cc from server %lu with signatures bytes %lu"
-        " because has_cc %d and ccr %d.",
+    Debug("[group %i] Verifying signed_cc from server %lu with signatures bytes %lu because has_cc %d (i.e. is signed).",
         group, reply.signed_cc().process_id(), reply.signed_cc().signature().length(),
-        reply.has_cc(),
-        reply.cc().ccr());
+        reply.has_cc());
     if (!reply.has_signed_cc()) {
       return;
     }
@@ -1165,7 +1153,8 @@ void ShardClient::ProcessP1R(proto::Phase1Reply &reply, bool FB_path, PendingFB 
     cc = &reply.cc();
   }
 
-  Debug("[group %i][replica %lu] PHASE1R process ccr=%d", group, reply.signed_cc().process_id(), cc->ccr());
+  Debug("[group %i][replica %lu] PHASE1R[%s] process ccr=%d", group, reply.signed_cc().process_id(), 
+                                              BytesToHex(TransactionDigest(pendingPhase1->txn_ , params.hashDigest), 16).c_str() , cc->ccr());
 
   if (!pendingPhase1->p1Validator.ProcessMessage(*cc, (failureActive && !FB_path) )) {
     return;
@@ -1767,17 +1756,20 @@ void ShardClient::EraseRelay(const std::string &txnDigest){
 
 void ShardClient::HandlePhase1Relay(proto::RelayP1 &relayP1){
 
-  proto::Transaction *txn;
+  //proto::Transaction *txn;
   if(params.signClientProposals){
-    txn = new proto::Transaction();
-    UW_ASSERT(txn->ParseFromString(relayP1.p1().signed_txn().data()));
+    UW_ASSERT(relayP1.mutable_p1()->mutable_txn()->ParseFromString(relayP1.p1().signed_txn().data()));
+    // txn = new proto::Transaction();
+    // UW_ASSERT(txn->ParseFromString(relayP1.p1().signed_txn().data()));
   }
-  else{
-    txn = relayP1.mutable_p1()->mutable_txn();
-  }
-  std::string txnDigest(TransactionDigest(*txn, params.hashDigest));
+  // else{
+  //   txn = relayP1.mutable_p1()->mutable_txn();
+  // }
+ 
+  //std::string txnDigest(TransactionDigest(*txn, params.hashDigest));
+  std::string txnDigest(TransactionDigest(relayP1.p1().txn(), params.hashDigest));
   //if(params.signClientProposals) delete txn;
-  if(params.signClientProposals) relayP1.mutable_p1()->set_allocated_txn(txn);
+  //if(params.signClientProposals) relayP1.mutable_p1()->set_allocated_txn(txn);
 
   //only process the first relay for a txn.
   //if (!pendingRelays.insert(txnDigest).second) return; //USING this works? seemingly does not either.

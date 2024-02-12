@@ -235,6 +235,11 @@ void VersionedKVStore<T, V>::put(const std::string &key, const V &value,
   // Key does not exist. Create a list and an entry.
   typename storeMap::accessor a;
   store.insert(a, key);
+  // bool fresh = store.insert(a, key);
+  // if(!fresh){
+  //   std::cerr << "Inserting key " << key << " twice!" << std::endl;
+  //   Panic("Quit");
+  // }
   a->second.insert(VersionedKVStore<T, V>::VersionedValue(t, value));
 }
 

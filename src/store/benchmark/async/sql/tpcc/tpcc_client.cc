@@ -72,6 +72,14 @@ SyncTransaction* TPCCSQLClient::GetNextTransaction() {
     delivery = false;
   }
 
+  //USE even dist when testing...
+  // new_order_ratio = 0;
+  // payment_ratio = 0;
+  // order_status_ratio = 0;
+  // stock_level_ratio = 100;
+  //  delivery_ratio = 0;  //Only do delivery - to test the delete.
+  // fprintf(stderr, "freqs: %d, %d, %d, %d, %d\n", new_order_ratio, delivery_ratio, payment_ratio, order_status_ratio, stock_level_ratio);
+  
   uint32_t total = new_order_ratio + delivery_ratio + payment_ratio
       + order_status_ratio + stock_level_ratio;
   uint32_t ttype = std::uniform_int_distribution<uint32_t>(0, total - 1)(gen);
@@ -85,13 +93,13 @@ SyncTransaction* TPCCSQLClient::GetNextTransaction() {
   if (ttype < (freq = new_order_ratio)) {
     lastOp = "new_order";
     return new SQLNewOrder(GetTimeout(), wid, C_c_id, num_warehouses, GetRand());
-  } else if (ttype < (freq += new_order_ratio)) {
+  } else if (ttype < (freq += payment_ratio)) {
     lastOp = "payment";
     return new SQLPayment(GetTimeout(), wid, C_c_last, C_c_id, num_warehouses, GetRand());
-  } else if (ttype < (freq += new_order_ratio)) {
+  } else if (ttype < (freq += order_status_ratio)) {
     lastOp = "order_status";
     return new SQLOrderStatus(GetTimeout(), wid, C_c_last, C_c_id, GetRand());
-  } else if (ttype < (freq += new_order_ratio)) {
+  } else if (ttype < (freq += stock_level_ratio)) {
     if (static_w_id) {
       did = stockLevelDId;
     } else {

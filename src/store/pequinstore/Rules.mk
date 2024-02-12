@@ -1,9 +1,9 @@
 d := $(dir $(lastword $(MAKEFILE_LIST)))
 
-SRCS += $(addprefix $(d), client.cc shardclient.cc server.cc servertools.cc concurrencycontrol.cc store.cc common.cc \
+SRCS += $(addprefix $(d), client.cc shardclient.cc server.cc server_fallback.cc servertools.cc concurrencycontrol.cc store.cc common.cc \
 		phase1validator.cc localbatchsigner.cc sharedbatchsigner.cc \
 		basicverifier.cc localbatchverifier.cc sharedbatchverifier.cc \
-		querysync-server.cc querysync-client.cc queryexec.cc checkpointing.cc snapshot_mgr.cc sql_interpreter.cc ) # table_store_interface.cc)
+		querysync-server.cc querysync-servertools.cc querysync-tests.cc querysync-client.cc queryexec.cc checkpointing.cc snapshot_mgr.cc sql_interpreter.cc ) # table_store_interface.cc)
 
 PROTOS += $(addprefix $(d), pequin-proto.proto)
 PROTOS += $(addprefix $(d), query-proto.proto)
@@ -19,7 +19,7 @@ LIB-query-engine := $(LIB-binder) $(LIB-catalog) $(LIB-common) $(LIB-concurrency
 	$(LIB-type) $(LIB-trigger) $(LIB-util)
 
 
-LIB-pequin-store := $(o)server.o $(o)servertools.o $(o)querysync-server.o $(o)concurrencycontrol.o $(LIB-latency) \
+LIB-pequin-store := $(o)server.o $(o)server_fallback.o $(o)servertools.o $(o)querysync-server.o $(o)querysync-servertools.o $(o)querysync-tests.o $(o)concurrencycontrol.o $(LIB-latency) \
 	$(o)pequin-proto.o $(o)query-proto.o $(LIB-pequin-common) $(LIB-crypto) $(LIB-batched-sigs) $(LIB-bft-tapir-config) \
 	$(LIB-configuration) $(LIB-store-common) $(LIB-transport) $(o)phase1validator.o \
 	$(o)localbatchsigner.o $(o)sharedbatchsigner.o $(o)basicverifier.o $(o)localbatchverifier.o $(o)sharedbatchverifier.o \

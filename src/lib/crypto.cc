@@ -587,6 +587,63 @@ std::pair<PrivKey*, PubKey*> GenerateKeypair(KeyType t, bool precompute) {
       }
   }
   return std::pair<PrivKey*, PubKey*>(privKey, pubKey);
+  //TODO: Caller should free...
 }
+
+void FreePubKey(PubKey *pubKey, bool free_generated){
+ switch(pubKey->t) {
+      case RSA: {
+        delete pubKey->rsaKey;
+        break;
+      }
+      case ECDSA: {
+        delete pubKey->ecdsaKey;
+        break;
+      }
+      case ED25: 
+      case SECP: {
+        free(pubKey->ed25Key);
+        break;
+      }
+      case DONNA: {
+        if(!free_generated) free(pubKey->donnaKey); //don't free if it's just a ptr to the PrivKey.second
+        break;
+      }
+      default: {
+        Panic("unimplemented");
+      }
+    }
+    free(pubKey);
+}
+
+void FreePrivKey(PrivKey *privKey){
+ switch(privKey->t) {
+      case RSA: {
+        delete privKey->rsaKey;
+        break;
+      }
+      case ECDSA: {
+        delete privKey->ecdsaKey;
+        break;
+      }
+      case ED25: 
+      case SECP: {
+        free(privKey->ed25Key);
+        break;
+      }
+      case DONNA: {
+        free(privKey->donnaKey.first);
+        free(privKey->donnaKey.second);
+        break;
+      }
+      default: {
+        Panic("unimplemented");
+      }
+    }
+    free(privKey);
+  
+}
+
+
 
 }  // namespace crypto

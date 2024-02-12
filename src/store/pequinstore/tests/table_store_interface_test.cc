@@ -4,32 +4,32 @@
 #include <string>
 #include <unistd.h>
 // #include "common/harness.h"
-#include "../../query-engine/common/logger.h"
-#include "../../query-engine/common/macros.h"
-#include "../../query-engine/parser/drop_statement.h"
-#include "../../query-engine/parser/postgresparser.h"
+#include "../query-engine/common/logger.h"
+#include "../query-engine/common/macros.h"
+#include "../query-engine/parser/drop_statement.h"
+#include "../query-engine/parser/postgresparser.h"
 
-#include "../../query-engine/catalog/catalog.h"
-#include "../../query-engine/catalog/proc_catalog.h"
-#include "../../query-engine/catalog/system_catalogs.h"
+#include "../query-engine/catalog/catalog.h"
+#include "../query-engine/catalog/proc_catalog.h"
+#include "../query-engine/catalog/system_catalogs.h"
 
-#include "../../query-engine/concurrency/transaction_manager_factory.h"
+#include "../query-engine/concurrency/transaction_manager_factory.h"
 
-#include "../../query-engine/executor/create_executor.h"
-#include "../../query-engine/executor/create_function_executor.h"
-#include "../../query-engine/executor/executor_context.h"
+#include "../query-engine/executor/create_executor.h"
+#include "../query-engine/executor/create_function_executor.h"
+#include "../query-engine/executor/executor_context.h"
 
-#include "../../query-engine/planner/create_function_plan.h"
-#include "../../query-engine/planner/create_plan.h"
-#include "../../query-engine/storage/data_table.h"
+#include "../query-engine/planner/create_function_plan.h"
+#include "../query-engine/planner/create_plan.h"
+#include "../query-engine/storage/data_table.h"
 
-#include "../../query-engine/executor/insert_executor.h"
-#include "../../query-engine/expression/constant_value_expression.h"
-#include "../../query-engine/parser/insert_statement.h"
-#include "../../query-engine/planner/insert_plan.h"
-#include "../../query-engine/traffic_cop/traffic_cop.h"
-#include "../../query-engine/type/type.h"
-#include "../../query-engine/type/value_factory.h"
+#include "../query-engine/executor/insert_executor.h"
+#include "../query-engine/expression/constant_value_expression.h"
+#include "../query-engine/parser/insert_statement.h"
+#include "../query-engine/planner/insert_plan.h"
+#include "../query-engine/traffic_cop/traffic_cop.h"
+#include "../query-engine/type/type.h"
+#include "../query-engine/type/value_factory.h"
 
 #include "lib/assert.h"
 #include "store/common/timestamp.h"
@@ -171,7 +171,7 @@ void test_read_query() {
 
   // table_store->ExecReadQuery("SELECT * FROM test;", toy_ts_c,
   // query_read_set_mgr_one);
-  table_store->PurgeTableWrite("test", table_write3, toy_ts_c, "random");
+  // table_store->PurgeTableWrite("test", table_write3, toy_ts_c, "random");
   std::string result = table_store->ExecReadQuery("SELECT * FROM test;", five,
                                                   query_read_set_mgr_one);
 
@@ -220,8 +220,9 @@ void ReadFromStore(TableStore *table_store) {
   pequinstore::proto::ReadSet read_set_one;
   pequinstore::QueryReadSetMgr query_read_set_mgr_one(&read_set_one, 1, false);
 
-  std::string result = table_store->ExecReadQuery(
-      "SELECT * FROM test;", toy_ts_c_1, query_read_set_mgr_one);
+  std::string result =
+      table_store->ExecReadQuery("SELECT * FROM test WHERE a >= 8 OR a <= 0;",
+                                 toy_ts_c, query_read_set_mgr_one);
 
   sql::QueryResultProtoBuilder queryResultBuilder;
   queryResultBuilder.add_column("a");
@@ -707,31 +708,31 @@ void test_rw_sql() {
 
   WriteToTable(table_store1, timestamp1, 6, 7);
 
-  WriteToTable(table_store1, timestamp1, 0, 0);
+  WriteToTable(table_store1, timestamp2, 0, 0);
 
-  WriteToTable(table_store1, timestamp1, 8, 9);
+  WriteToTable(table_store1, timestamp3, 8, 9);
 
-  WriteToTable(table_store1, timestamp1, 8, 9);
+  WriteToTable(table_store1, timestamp4, 8, 9);
 
-  WriteToTable(table_store1, timestamp1, 3, 5);
+  WriteToTable(table_store1, timestamp5, 3, 5);
 
-  WriteToTable(table_store1, timestamp1, 8, 9);
+  WriteToTable(table_store1, timestamp6, 8, 9);
 
-  WriteToTable(table_store1, timestamp1, 5, 7);
+  WriteToTable(table_store1, timestamp7, 5, 7);
 
-  WriteToTable(table_store1, timestamp1, 5, 6);
+  WriteToTable(table_store1, timestamp8, 5, 6);
 
-  WriteToTable(table_store1, timestamp1, 1, 2);
+  WriteToTable(table_store1, timestamp9, 1, 2);
 
-  WriteToTable(table_store1, timestamp1, 7, 7);
+  WriteToTable(table_store1, timestamp10, 7, 7);
 
-  WriteToTable(table_store1, timestamp1, 3, 3);
+  WriteToTable(table_store1, timestamp11, 3, 3);
 
-  WriteToTable(table_store1, timestamp1, 3, 5);
+  WriteToTable(table_store1, timestamp12, 3, 5);
 
-  WriteToTable(table_store1, timestamp1, 6, 8);
+  WriteToTable(table_store1, timestamp13, 6, 8);
 
-  WriteToTable(table_store1, timestamp1, 9, 0);
+  WriteToTable(table_store1, timestamp14, 9, 0);
 
   /*WriteToTable(table_store1, timestamp1, 1, 2);
 
@@ -794,12 +795,11 @@ void test_rw_sql() {
 }
 
 int main() {
-  test_read_query(); // Adds 3 rows; deletes one; purges the delete;
-  // QueryRead for all 3
-  // FIXME: all 3 Segfault at the end.
-  // test_committed_table_write(); // 100 writes, 100 overwrites, Query Read for
-  // all
-  // test_read_predicate();
-  // test_rw_sql();
+  // test_read_query(); // Adds 3 rows; deletes one; purges the delete;
+  //   QueryRead for all 3
+  //   FIXME: all 3 Segfault at the end.
+  //   test_committed_table_write(); // 100 writes, 100 overwrites, Query Read
+  //   for all test_read_predicate();
+  test_rw_sql();
   return 0;
 }
