@@ -66,7 +66,7 @@ transaction_status_t NewPurchase::Execute(SyncClient &client) {
                                                   "VALUES ({}, {}, {}, {}, {}, {}, {})", TABLE_ITEM_MAX_BID, item_id, seller_id, bid_id, item_id, seller_id, current_time, current_time);
       client.Write(insertItemMaxBid, queryResult, timeout); //TODO: Make async. (doesn't matter, inserts are always buffered for us)
 
-      //TODO: We must cache this in order to be able to read from it.
+      //TODO: We must cache this in order to be able to read from it. //TODO: Try to re-structure this transaction to avoid this write.
   }
 
   // Get the ITEM_MAX_BID record so that we know what we need to process. At this point we should always have an ITEM_MAX_BID record

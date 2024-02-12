@@ -60,10 +60,11 @@ transaction_status_t NewComment::Execute(SyncClient &client) {
   deserialize(ic_id, queryResult);
   ++ic_id;
 
+  uint64_t current_time = std::time(0);
 
   //insertItemComment
   statement = fmt::format("INSERT INTO {} (ic_id, ic_i_id, ic_u_id, ic_buyer_id, ic_question, ic_created, ic_updated) "
-                        "VALUES ({}, {}, {}, {}, {}, {}, {})", TABLE_ITEM_COMMENT, ic_id, item_id, seller_id, buyer_id, question, std::time(0), std::time(0));
+                        "VALUES ({}, {}, {}, {}, {}, {}, {})", TABLE_ITEM_COMMENT, ic_id, item_id, seller_id, buyer_id, question, current_time, current_time);
   client.Write(statement, queryResult, timeout);
   if(queryResult->rows_affected() == 0){
     Debug("Item comment id %d already exists for item %s and seller %s", ic_id, item_id.c_str(), seller_id.c_str());

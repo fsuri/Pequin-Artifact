@@ -308,6 +308,13 @@ void Client::Write(std::string &write_statement, write_callback wcb,
       Debug("No read statement, immediately writing");
       sql::QueryResultProtoWrapper *write_result = new sql::QueryResultProtoWrapper(""); //TODO: replace with real result.
       write_continuation(REPLY_OK, write_result);
+
+      //TODO: Write a real result that we can cache => this will allow for read your own write semantics.
+          //     //Cache point read results. This can help optimize common point Select + point Update patterns.
+          // if(!result.empty()){ //only cache if we did find a row.
+          //   //Only cache if we did a Select *, i.e. we have the full row, and thus it can be used by Update.
+          //   if(size_t pos = pendingQuery->queryMsg.query_cmd().find("SELECT *"); pos != std::string::npos) point_read_cache[key] = result;
+          // } 
     }
     else{
       //  auto qcb = [this, write_continuation, wcb](int status, const query_result::QueryResult *result) mutable { 

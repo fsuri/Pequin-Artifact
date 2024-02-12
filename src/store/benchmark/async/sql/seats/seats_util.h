@@ -159,7 +159,7 @@ bool inline compHist(const std::pair<std::string, int> &e1, const std::pair<std:
 
 std::string getRandValFromHistogram(const histogram &hist, std::mt19937 gen) {
   int rand = std::uniform_int_distribution<int>(1, hist.back().second)(gen);
-  std::string ret = std::upper_bound(hist.begin(), hist.end(), std::make_pair("", rand), compHist)->first;
+  std::string ret = std::lower_bound(hist.begin(), hist.end(), std::make_pair("", rand), compHist)->first; //FIXME: Should be lower bound not upper bound
   return ret;
 }
 
