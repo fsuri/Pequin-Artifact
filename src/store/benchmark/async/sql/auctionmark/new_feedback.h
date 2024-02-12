@@ -28,21 +28,24 @@
 #define AUCTION_MARK_NEW_FEEDBACK_H
 
 #include "store/benchmark/async/sql/auctionmark/auctionmark_transaction.h"
+#include "store/benchmark/async/sql/auctionmark/auctionmark_profile.h"
 
 namespace auctionmark {
 
 class NewFeedback : public AuctionMarkTransaction {
  public:
-  NewFeedback(uint32_t timeout, uint64_t rating, std::string comment, std::mt19937_64 &gen);
+  NewFeedback(uint32_t timeout, AuctionMarkProfile &profile, std::mt19937_64 &gen);
   virtual ~NewFeedback();
   virtual transaction_status_t Execute(SyncClient &client);
 
  private:
-  uint64_t i_id;
-  uint64_t seller_id;
-  uint64_t buyer_id;
+  std::string user_id;
+  std::string i_id;
+  std::string seller_id;
+  std::string from_id;
   uint64_t rating;
   std::string comment;
+
   std::mt19937_64 &gen;
 };
 

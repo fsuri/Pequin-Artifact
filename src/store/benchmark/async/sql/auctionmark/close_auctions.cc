@@ -29,12 +29,9 @@
 
 namespace auctionmark {
 
-CloseAuctions::CloseAuctions(uint32_t timeout, uint64_t start_time, 
-  uint64_t end_time, std::vector<uint64_t> &i_ids, std::vector<uint64_t> &seller_ids,
-  std::vector<std::optional<uint64_t>> &buyer_ids, std::vector<std::optional<uint64_t>> &ib_ids, 
-  std::mt19937_64 &gen) : AuctionMarkTransaction(timeout), start_time(start_time), 
-  end_time(end_time), i_ids(i_ids), seller_ids(seller_ids), buyer_ids(buyer_ids), ib_ids(ib_ids)
+CloseAuctions::CloseAuctions(uint32_t timeout, AuctionMarkProfile &profile, std::mt19937_64 &gen) : AuctionMarkTransaction(timeout), profile(profile)
 {
+  //generate params
 }
 
 CloseAuctions::~CloseAuctions(){
@@ -56,7 +53,6 @@ transaction_status_t CloseAuctions::Execute(SyncClient &client) {
   int closed_ctr = 0;
   int waiting_ctr = 0;
   int round = CLOSE_AUCTIONS_ROUNDS;
-  int col = -1;
 
   uint64_t current_time = std::time(0);
 
@@ -75,36 +71,27 @@ transaction_status_t CloseAuctions::Execute(SyncClient &client) {
 
     //For row in result:
     for(int i = 1; i<queryResult->size(); ++i){
-      std::unique_ptr<query_result::Row> row = (*q_result)[i]; 
+      getDueItemRow dir;
+      deserialize(dir, queryResult, i);
 
-      //TODO: deserialize
-      std::string itemId;
-      std::string sellerId;
-      std::string i_name;
-      double currentPrice;
-      double numBids;
-      uint64_t endDate;
-      ItemStatus itemStatus;
-      uint64_t bidId = 0;
-      std::string buyerId = "";
+      Debug("Getting max bid for itemId=%s / sellerId=%s", dir.itemId.c_str(), dir.sellerId.c_str());
 
-      Debug("Getting max bid for itemId=%s / sellerId=%s", itemId.c_str(), sellerId.c_str());
+      ItemStatus itemStatus = dir.itemStatus;
 
       // Has bid on this item - set status to WAITING_FOR_PURCHASE
       // We'll also insert a new USER_ITEM record as needed
       // We have to do this extra step because H-Store doesn't have good support in the query optimizer for LEFT OUTER JOINs  //THIS IS A COMMENT FROM BENCHBASE
 
-      if(numBids > 0){
+      if(dir.numBids > 0){
         waiting_ctr++;
-        std::string getMaxBid_stmt = fmt::format(getMaxBid, itemId, sellerId);
+        std::string getMaxBid_stmt = fmt::format(getMaxBid, dir.itemId, dir.sellerId);
         client.Query(getMaxBid_stmt, queryResult, timeout);
 
-        //TODO: deserialize:
-        //bidId
-        //buyerId
+        getMaxBidRow mbr;
+        deserialize(mbr, queryResult);
 
         std::string insertUserItem = fmt::format("INSERT INTO {} (ui_u_id, ui_i_id, ui_i_u_id, ui_created) "
-                                           "VALUES({}, {}, {}, {})", TABLE_USER_ACCT_ITEM, buyerId, itemId, sellerId, current_time);
+                                           "VALUES({}, {}, {}, {})", TABLE_USERACCT_ITEM, mbr.buyerId, dir.itemId, dir.sellerId, current_time);
         client.Write(insertUserItem, queryResult, timeout);
 
         itemStatus = ItemStatus::WAITING_FOR_PURCHASE;
@@ -117,18 +104,39 @@ transaction_status_t CloseAuctions::Execute(SyncClient &client) {
       }
 
 
-      std::string updateItemStatus = fmt::format("UPDATE {} SET i_status = {}, i_updated = {} WHERE i_id = {} AND i_u_id = {}", TABLE_ITEM, itemStatus, current_time, itemId, sellerId);
+      std::string updateItemStatus = fmt::format("UPDATE {} SET i_status = {}, i_updated = {} WHERE i_id = {} AND i_u_id = {}", TABLE_ITEM, itemStatus, current_time, dir.itemId, dir.sellerId);
       client.Write(updateItemStatus, queryResult, timeout);
 
 
-
+      item_results.push_back(ItemResult(dir, mbr));
     }
   }
 
-  
+  UpdateProfile();
+ 
   
   Debug("COMMIT CLOSE AUCTION");
   return client.Commit(timeout);
+}
+
+void CloseAuctions::UpdateProfile(){
+  for(auto &item_res: item_results){
+    std::string itemId = processItemRecord(item_res);
+    assert(!itemId.empty());
+  }
+
+  profile.update_item_queues();
+}
+
+std::string CloseAuctions::processItemRecord(ItemResult &item_res){
+  
+    //TODO: What is supposed to happen in here ??
+    // ItemInfo itemInfo(item_res.dir.itemId, item_res.dir.currentPrice, item_res.dir.endDate, item_res.dir.numBids);
+    // itemInfo.set_status(item_res.dir.itemStatus);
+    
+    //profile.addItemToProperQueue(itemInfo, false);
+    return item_res.dir.itemId;
+
 }
 
 } // namespace auctionmark

@@ -28,12 +28,13 @@
 #define AUCTION_MARK_GET_ITEM_H
 
 #include "store/benchmark/async/sql/auctionmark/auctionmark_transaction.h"
+#include "store/benchmark/async/sql/auctionmark/auctionmark_profile.h"
 
 namespace auctionmark {
 
 class GetItem : public AuctionMarkTransaction {
  public:
-  GetItem(uint32_t timeout, std::string &item_id, std::string &seller_id, std::mt19937_64 &gen);
+  GetItem(uint32_t timeout, AuctionMarkProfile &profile, std::mt19937_64 &gen);
   virtual ~GetItem();
   virtual transaction_status_t Execute(SyncClient &client);
 

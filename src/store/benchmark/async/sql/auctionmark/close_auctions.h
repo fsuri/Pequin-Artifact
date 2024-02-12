@@ -28,16 +28,62 @@
 #define AUCTION_MARK_CLOSE_AUCTIONS_H
 
 #include "store/benchmark/async/sql/auctionmark/auctionmark_transaction.h"
+#include "store/benchmark/async/sql/auctionmark/auctionmark_profile.h"
 
 namespace auctionmark {
 
+
+class getDueItemRow {
+  public:
+    getDueItemRow(){}
+    std::string itemId;
+    std::string sellerId;
+    std::string i_name;
+    double currentPrice;
+    double numBids;
+    uint64_t endDate;
+    ItemStatus itemStatus;
+};
+
+inline void load_row(getDueItemRow& r, std::unique_ptr<query_result::Row> row)
+{
+  row->get(0, &r.itemId);
+  row->get(1, &r.sellerId);
+  row->get(2, &r.i_name);
+  row->get(3, &r.currentPrice);
+  row->get(4, &r.numBids);
+  row->get(5, &r.endDate);
+  row->get(6, &r.itemStatus);
+}
+
+class getMaxBidRow {
+  public:
+    getMaxBidRow(): bidId(0), buyerId(""){}
+    uint64_t bidId;
+    std::string buyerId;
+};
+
+inline void load_row(getMaxBidRow& r, std::unique_ptr<query_result::Row> row)
+{
+  row->get(0, &r.bidId);
+  row->get(1, &r.buyerId);
+}
+
+struct ItemResult
+{
+  ItemResult(getDueItemRow &dir, getMaxBidRow &mbr): dir(std::move(dir)), mbr(std::move(mbr)) {}
+  getDueItemRow dir;
+  getMaxBidRow mbr;
+};
+
+
 class CloseAuctions : public AuctionMarkTransaction {
  public:
-  CloseAuctions(uint32_t timeout, uint64_t start_time, uint64_t end_time, std::vector<uint64_t> &i_ids, 
-    std::vector<uint64_t> &seller_ids, std::vector<std::optional<uint64_t>> &buyer_ids, 
-    std::vector<std::optional<uint64_t>> &ib_ids, std::mt19937_64 &gen);
+  CloseAuctions(uint32_t timeout, AuctionMarkProfile &profile, std::mt19937_64 &gen);
   virtual ~CloseAuctions();
   virtual transaction_status_t Execute(SyncClient &client);
+  void UpdateProfile();
+  std::string processItemRecord(ItemResult &item_res);
 
  private:
   uint64_t start_time;
@@ -46,7 +92,13 @@ class CloseAuctions : public AuctionMarkTransaction {
   std::vector<uint64_t> &seller_ids;
   std::vector<std::optional<uint64_t>> &buyer_ids;
   std::vector<std::optional<uint64_t>> &ib_ids;
+
+  AuctionMarkProfile &profile;
+  std::vector<ItemResult> item_results;
 };
+
+
+
 
 } // namespace auctionmark
 

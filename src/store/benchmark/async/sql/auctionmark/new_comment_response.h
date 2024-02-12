@@ -28,20 +28,22 @@
 #define AUCTION_MARK_NEW_COMMENT_RESPONSE_H
 
 #include "store/benchmark/async/sql/auctionmark/auctionmark_transaction.h"
+#include "store/benchmark/async/sql/auctionmark/auctionmark_profile.h"
 
 namespace auctionmark {
 
 class NewCommentResponse : public AuctionMarkTransaction {
  public:
-  NewCommentResponse(uint32_t timeout, std::string response, std::mt19937_64 &gen);
+  NewCommentResponse(uint32_t timeout, AuctionMarkProfile &profile, std::mt19937_64 &gen);
   virtual ~NewCommentResponse();
   virtual transaction_status_t Execute(SyncClient &client);
 
  private:
-  uint64_t i_id;
-  uint64_t i_c_id;
-  uint64_t seller_id;
+  std::string item_id;
+  std::string seller_id;
+  uint64_t comment_id;
   std::string response;
+
   std::mt19937_64 &gen;
 };
 

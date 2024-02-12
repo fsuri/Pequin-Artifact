@@ -29,9 +29,8 @@
 
 namespace auctionmark {
 
-NewComment::NewComment(uint32_t timeout, std::string question, 
-      std::mt19937_64 &gen) : AuctionMarkTransaction(timeout), 
-      question(question), gen(gen) {
+NewComment::NewComment(uint32_t timeout, AuctionMarkProfile &profile, std::mt19937_64 &gen) : AuctionMarkTransaction(timeout), gen(gen) {
+  //TODO: Generate params
 }
 
 NewComment::~NewComment(){
@@ -44,11 +43,6 @@ transaction_status_t NewComment::Execute(SyncClient &client) {
 
   Debug("NEW COMMENT");
 
-  //TODO: parameterize
-  std::string item_id;
-  std::string seller_id;
-  std::string buyer_id;
-  std::string question;
 
   client.Begin(timeout);
 
@@ -76,7 +70,7 @@ transaction_status_t NewComment::Execute(SyncClient &client) {
   client.Write(statement, queryResult, timeout);
 
   //updateUser
-  statement = fmt::format("UPDATE {} SET u_comments = u_comments + 1, u_updated = {} WHERE u_id = {}", TABLE_USER_ACCT, seller_id);
+  statement = fmt::format("UPDATE {} SET u_comments = u_comments + 1, u_updated = {} WHERE u_id = {}", TABLE_USERACCT, seller_id);
   client.Write(statement, queryResult, timeout);
   
   Debug("COMMIT");

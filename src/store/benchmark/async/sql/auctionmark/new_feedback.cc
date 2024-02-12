@@ -29,8 +29,8 @@
 
 namespace auctionmark {
 
-NewFeedback::NewFeedback(uint32_t timeout, uint64_t rating, std::string comment, std::mt19937_64 &gen) : AuctionMarkTransaction(timeout),
-      rating(rating), comment(comment), gen(gen) {
+NewFeedback::NewFeedback(uint32_t timeout, AuctionMarkProfile &profile, std::mt19937_64 &gen) : AuctionMarkTransaction(timeout), gen(gen) {
+  //TODO: generate params
 }
 
 NewFeedback::~NewFeedback(){
@@ -43,18 +43,10 @@ transaction_status_t NewFeedback::Execute(SyncClient &client) {
 
   Debug("NEW FEEDBACK");
 
-  //TODO: parameterize
-  std::string user_id;
-  std::string i_id;
-  std::string seller_id;
-  std::string from_id;
-  uint64_t rating;
-  std::string comment;
-
   client.Begin(timeout);
 
   statement = fmt::format("SELECT uf_i_id, uf_i_u_id, uf_from_id FROM {} WHERE uf_u_id = {} AND uf_i_id = {} AND uf_i_u_id = {} AND uf_from_id = {}", 
-                                                                  TABLE_USER_ACCT_FEEDBACK, user_id, i_id, seller_id, from_id);
+                                                                  TABLE_USERACCT_FEEDBACK, user_id, i_id, seller_id, from_id);
   client.Query(statement, queryResult, timeout);
   if(!queryResult->empty()){
     Debug("Trying to add feedback for item %s twice", i_id.c_str());
@@ -63,7 +55,7 @@ transaction_status_t NewFeedback::Execute(SyncClient &client) {
 
 
   statement = fmt::format("INSERT INTO {} (uf_u_id, uf_i_id, uf_i_u_id, uf_from_id, uf_rating, uf_date, uf_sattr0) "
-                          "VALUES({}, {}, {}, {}, {}, {}, {})", TABLE_USER_ACCT_FEEDBACK, user_id, i_id, seller_id, from_id, rating, std::time(0), comment);
+                          "VALUES({}, {}, {}, {}, {}, {}, {})", TABLE_USERACCT_FEEDBACK, user_id, i_id, seller_id, from_id, rating, std::time(0), comment);
   client.Write(statement, queryResult, timeout);
 
   Debug("COMMIT NEW_FEEDBACK");

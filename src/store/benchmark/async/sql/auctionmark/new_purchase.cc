@@ -29,7 +29,7 @@
 
 namespace auctionmark {
 
-NewPurchase::NewPurchase(uint32_t timeout, std::mt19937_64 &gen) : AuctionMarkTransaction(timeout),
+NewPurchase::NewPurchase(uint32_t timeout, AuctionMarkProfile &profile, std::mt19937_64 &gen) : AuctionMarkTransaction(timeout),
       gen(gen) {
 }
 
@@ -42,12 +42,6 @@ transaction_status_t NewPurchase::Execute(SyncClient &client) {
   std::vector<std::unique_ptr<const query_result::QueryResult>> results;
 
   Debug("NEW PURCHASE");
-
-  //TODO: parameterize
-  std::string item_id;
-  std::string seller_id;
-  std::string ip_id;
-  double buyer_credit;
 
   client.Begin(timeout);
 
@@ -70,29 +64,25 @@ transaction_status_t NewPurchase::Execute(SyncClient &client) {
   }
 
   // Get the ITEM_MAX_BID record so that we know what we need to process. At this point we should always have an ITEM_MAX_BID record
-  uint64_t i_num_bids;
-  double i_current_price;
-  uint64_t i_end_date;
-  uint64_t i_status;
-  uint64_t ib_id;
-  uint64_t ib_buyer_id;
-  double u_balance;
+ 
  
   std::string getItemInfo = fmt::format("SELECT i_num_bids, i_current_price, i_end_date, ib_id, i_end_date, ib_id, ib_buyer_id, u_balance "
                                         "FROM {}, {}, {}, {} "
                                         "WHERE i_id = ? AND i_u_id = ? "
                                           "AND imb_i_id = i_id AND imb_u_id = i_u_id "
                                           "AND imb_ib_id = ib_id AND imb_ib_i_id = ib_i_id AND imb_ib_u_id = ib_u_id "
-                                          "AND ib_buyer_id = u_id", TABLE_ITEM, TABLE_ITEM_MAX_BID, TABLE_ITEM_BID, TABLE_USER_ACCT,
+                                          "AND ib_buyer_id = u_id", TABLE_ITEM, TABLE_ITEM_MAX_BID, TABLE_ITEM_BID, TABLE_USERACCT,
                                           item_id, seller_id);
   client.Query(getItemInfo, queryResult, timeout);
   if(queryResult.empty()){
     Debug("No ITEM_MAX_BID is available record for item")
     return client.Abort(timeout);
   }
-  //TODO: deserialize;
+  getItemInfoRow iir;
+  deserialize(iir, queryResult);
+  
 
-  if (i_current_price > (buyer_credit + u_balance)) {
+  if (iir.i_current_price > (buyer_credit + iir.u_balance)) {
     Debug("Not enough money to buy item");
     return client.Abort(timeout);
   }
@@ -102,33 +92,33 @@ transaction_status_t NewPurchase::Execute(SyncClient &client) {
 
   // Set item_purchase_id
   std::string insertPurchase = fmt::format("INSERT INTO {} (ip_id, ip_ib_id, ip_ib_i_id, ip_ib_u_id, ip_date) "
-                                            "VALUES ({}, {}, {}, {}, {}) ", TABLE_ITEM_PURCHASE, ip_id, ib_id, item_id, seller_id, current_time);
+                                            "VALUES ({}, {}, {}, {}, {}) ", TABLE_ITEM_PURCHASE, ip_id, iir.ib_id, item_id, seller_id, current_time);
   client.Write(insertPurchase, timeout, true);
 
   // Update item status to close
   std::string updateItem = fmt::format("UPDATE {} set i_status = {}, i_updated = {} WHERE i_id = {} AND i_u_id = {}", TABLE_ITEM, ItemStatus::CLOSED, current_time, item_id, seller_id);
    client.Write(insertPurchase, timeout, true);
 
-  std::string updateUserBalance = fmt::format("UPDATE {} SET u_balance = u_balance + {} WHERE u_id = {}", TABLE_USER_ACCT);
+  std::string updateUserBalance = fmt::format("UPDATE {} SET u_balance = u_balance + {} WHERE u_id = {}", TABLE_USERACCT);
 
    // Decrement the buyer's account
-  std::string updateBuyerBalance = fmt::format(updateUserBalance, -1 * (i_current_price) + buyer_credit, ib_buyer_id);
+  std::string updateBuyerBalance = fmt::format(updateUserBalance, -1 * (iir.i_current_price) + buyer_credit, iir.ib_buyer_id);
   client.Write(updateBuyerBalance, timeout, true);
 
   // And credit the seller's account
-  std::string updateSellerBalance = fmt::format(updateUserBalance, i_current_price, seller_id);
+  std::string updateSellerBalance = fmt::format(updateUserBalance, iir.i_current_price, seller_id);
   client.Write(updateSellerBalance, timeout, true);
 
   // And update this the USERACT_ITEM record to link it to the new ITEM_PURCHASE record
   // If we don't have a record to update, just go ahead and create it
   std::string updateUserItem = fmt::format("UPDATE {} SET ui_ip_id = {}, ui_ip_ib_id = {}, ui_ip_ib_i_id = {}, ui_ip_ib_u_id = {} "
-                                                    "WHERE ui_u_id = {} AND ui_i_id = {} AND ui_i_u_id = {}", TABLE_USER_ACCT_ITEM, 
-                                                    ip_id, ib_id, item_id, seller_id, ib_buyer_id, item_id, seller_id);
+                                                    "WHERE ui_u_id = {} AND ui_i_id = {} AND ui_i_u_id = {}", TABLE_USERACCT_ITEM, 
+                                                    ip_id, iir.ib_id, item_id, seller_id, iir.ib_buyer_id, item_id, seller_id);
   client.Write(updateUserItem, queryResult, timeout);
   if(queryResult->empty() || !queryResult->has_rows_affected()){
     std::string insertUserItem = fmt::format("INSERT INTO {} (ui_u_id, ui_i_id, ui_i_u_id, ui_ip_id, ui_ip_ib_id, ui_ip_ib_i_id, ui_ip_ib_u_id, ui_created) "
-                                             "VALUES ({}, {}, {}, {}, {}, {}, {}, {})", TABLE_USER_ACCT_ITEM,
-                                             ib_buyer_id, item_id, seller_id, ip_id, ib_id, item_id, seller_id);
+                                             "VALUES ({}, {}, {}, {}, {}, {}, {}, {})", TABLE_USERACCT_ITEM,
+                                             iir.ib_buyer_id, item_id, seller_id, ip_id, iir.ib_id, item_id, seller_id);
     client.Write(insertPurchase, timeout, true);
   }
 

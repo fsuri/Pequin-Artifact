@@ -28,10 +28,18 @@
 #define AUCTIONMARK_UTILS_H
 
 #include <random>
+#include <chrono>
+#include "store/benchmark/async/sql/auctionmark/auctionmark_params.h"
 
 namespace auctionmark {
 
 std::string RandomAString(size_t x, size_t y, std::mt19937_64 &gen);
+
+long GetScaledTimestamp(std::chrono::system_clock::time_point benchmark_start, std::chrono::system_clock::time_point client_start, std::chrono::system_clock::time_point current) {
+    auto offset = std::chrono::time_point_cast<std::chrono::milliseconds>(current) - (std::chrono::time_point_cast<std::chrono::milliseconds>(client_start) - std::chrono::time_point_cast<std::chrono::milliseconds>(benchmark_start));
+    auto elapsed = (offset - benchmark_start).count() * TIME_SCALE_FACTOR;
+    return std::chrono::time_point_cast<std::chrono::milliseconds>(benchmark_start).time_since_epoch().count() + elapsed;
+}
 
 } // namespace auctionmark
 

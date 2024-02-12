@@ -28,17 +28,19 @@
 #define AUCTION_MARK_GET_USER_INFO_H
 
 #include "store/benchmark/async/sql/auctionmark/auctionmark_transaction.h"
+#include "store/benchmark/async/sql/auctionmark/auctionmark_profile.h"
 
 namespace auctionmark {
 
 class GetUserInfo : public AuctionMarkTransaction {
  public:
-  GetUserInfo(uint32_t timeout, uint64_t get_seller_items, 
+  GetUserInfo(uint32_t timeout, AuctionmarkProfile &profile, uint64_t get_seller_items, 
     uint64_t get_buyer_items, uint64_t get_feedback, std::mt19937_64 &gen);
   virtual ~GetUserInfo();
   virtual transaction_status_t Execute(SyncClient &client);
 
  private:
+  AuctionMarkProfile *profile_;
   uint64_t u_id;
   uint64_t get_seller_items;
   uint64_t get_buyer_items;

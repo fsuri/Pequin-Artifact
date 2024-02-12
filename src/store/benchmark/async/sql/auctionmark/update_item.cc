@@ -29,8 +29,9 @@
 
 namespace auctionmark {
 
-UpdateItem::UpdateItem(uint32_t timeout, string description, std::mt19937_64 &gen) : 
-  AuctionMarkTransaction(timeout), description(description), gen(gen) {
+UpdateItem::UpdateItem(uint32_t timeout,  AuctionMarkProfile &profile, std::mt19937_64 &gen) : 
+  AuctionMarkTransaction(timeout), gen(gen) {
+    //TODO: generate params
 }
 
 UpdateItem::~UpdateItem(){
@@ -42,15 +43,6 @@ transaction_status_t UpdateItem::Execute(SyncClient &client) {
   std::vector<std::unique_ptr<const query_result::QueryResult>> results;
 
   Debug("UPDATE ITEM");
-
-
-  
-   //TODO: parameterize
-  std::string item_id;
-  std::string seller_id;
-  std::string description;
-  bool delete_attribute;
-  std::vector<std::string> add_attribute;
 
   client.Begin(timeout);
 

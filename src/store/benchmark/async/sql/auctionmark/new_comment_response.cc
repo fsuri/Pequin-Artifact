@@ -29,8 +29,8 @@
 
 namespace auctionmark {
 
-NewCommentResponse::NewCommentResponse(uint32_t timeout, std::string response, std::mt19937_64 &gen) : AuctionMarkTransaction(timeout),
-      i_id(i_id), i_c_id(i_c_id), seller_id(seller_id), response(response), gen(gen) {
+NewCommentResponse::NewCommentResponse(uint32_t timeout, AuctionMarkProfile &profile, std::mt19937_64 &gen) : AuctionMarkTransaction(timeout), gen(gen) {
+  //TODO: Parameter generation
 }
 
 NewCommentResponse::~NewCommentResponse(){
@@ -43,13 +43,6 @@ transaction_status_t NewCommentResponse::Execute(SyncClient &client) {
 
   Debug("NEW COMMENT RESPONSE");
 
-
-//TODO: parameterize:
-  std::string item_id;
-  std::string seller_id;
-  uint64_t comment_id;
-  std::string response;
-
   client.Begin(timeout);
 
   uint64_t current_time = std::time(0);
@@ -58,7 +51,7 @@ transaction_status_t NewCommentResponse::Execute(SyncClient &client) {
                           TABLE_ITEM_COMMENT, response, current_time, comment_id, item_id, seller_id);
   client.Write(statement, timeout, true);
 
-   statement = fmt::format("UPDATE {} SET u_comments = u_comments - 1, u_updated = {} WHERE u_id = {}", TABLE_USER_ACCT, current_time, seller_id);
+   statement = fmt::format("UPDATE {} SET u_comments = u_comments - 1, u_updated = {} WHERE u_id = {}", TABLE_USERACCT, current_time, seller_id);
    client.Write(statement, timeout, true);
 
   client.asyncWait();

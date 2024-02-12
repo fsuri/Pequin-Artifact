@@ -29,8 +29,9 @@
 
 namespace auctionmark {
 
-GetItem::GetItem(uint32_t timeout, std::string &item_id, std::string &seller_id, std::mt19937_64 &gen) : 
-    AuctionMarkTransaction(timeout), item_id(item_id), seller_id(seller_id) {
+GetItem::GetItem(uint32_t timeout, AuctionMarkProfile &profile, std::mt19937_64 &gen) : 
+    AuctionMarkTransaction(timeout) {
+      //TODO: Generate item_id and seller_id
 }
 
 GetItem::~GetItem(){
@@ -51,7 +52,7 @@ transaction_status_t GetItem::Execute(SyncClient &client) {
   client.Query(statement, timeout);
  
   statement = fmt::format("SELECT u_id, u_rating, u_created, u_sattr0, u_sattr1, u_sattr2, u_sattr3, u_sattr4, r_name "
-                         "FROM {}, {} WHERE u_id = {} AND u_r_id = r_id", TABLE_USER_ACCT, TABLE_REGION);
+                         "FROM {}, {} WHERE u_id = {} AND u_r_id = r_id", TABLE_USERACCT, TABLE_REGION);
   client.Query(statement, timeout);
 
   client.Wait(results);

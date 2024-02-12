@@ -29,20 +29,9 @@
 
 namespace auctionmark {
 
-// NewItem i_id not implemented according to spec. 
-// Implemented here as a monotonically increasing id, so there may be contention when reading the max i_id from the database. 
-// The spec says that i_id should be a composite key where the lower 48-bits of the number is the u_id and the upper 16-bits is the auction count for that user.
-// A monotonically increasing i_id allows for easier item selection for other transactions.
-NewItem::NewItem(uint32_t timeout, uint64_t &i_id, uint64_t u_id,
-      std::string name, std::string description, double initial_price,
-      double reserve_price, double buy_now, const std::string attributes, 
-      const std::vector<uint64_t> gag_ids, const std::vector<uint64_t> gav_ids, 
-      const std::vector<std::string> images, uint64_t start_date, uint64_t end_date,
-      std::mt19937_64 &gen) : AuctionMarkTransaction(timeout), i_id(i_id), u_id(u_id),
-  name(name), description(description), initial_price(initial_price),
-  reserve_price(reserve_price), buy_now(buy_now), attributes(attributes),
-  gag_ids(gag_ids), gav_ids(gav_ids), images(images), start_date(start_date),
-  end_date(end_date), gen(gen) {
+
+NewItem::NewItem(uint32_t timeout, AuctionMarkProfile &profile, std::mt19937_64 &gen) : AuctionMarkTransaction(timeout), profile(profile), gen(gen) {
+  //TODO: Generate
 }
 
 NewItem::~NewItem(){
@@ -57,18 +46,6 @@ transaction_status_t NewItem::Execute(SyncClient &client) {
   Debug("NEW ITEM");
   Debug("User ID: %lu", u_id);
 
-  //TODO: parameterize:
-  std::string item_id;
-  std::string seller_id;
-  uint64_t category_id;
-  std::string name;
-  std::string description;
-  uint64_t duration,
-  double initial_price;
-  std::string attributes;
-  std::vector<std::string> gag_ids;
-  std::vector<std::string> gav_ids;
-  std::vector<std::string> imaged;
 
   client.Begin(timeout);
 
@@ -88,24 +65,32 @@ transaction_status_t NewItem::Execute(SyncClient &client) {
   }                             
   client.Wait(results);
 
-  for(auto res: results){
-    //TODO: deserialize
-    description += fmt::format(" * {} -> {}\n", res.gag_name, res. gav_name);
+  for(auto q_res : results){
+    std::string gag_name;
+    std::string gav_name;
+    deserialize(gag_name, q_res, 0, 0);
+    deserialize(gav_name, q_res, 0, 1);
+    description += fmt::format(" * {} -> {}\n", gag_name, gav_name);
   }                                             
 
   //CATEGORY 
   std::string getCategory = fmt::format("SELECT * FROM {} WHERE c_id = {}", TABLE_CATEGORY, category_id);
   client.Query(getCategory, queryResult, timeout);
-  //TODO: deserialize.
-   std::string category_name = fmt::format("{}[{}]", field2, field1);
+  assert(!queryResult->empty());
+    uint64_t category_p_id;
+    uint64_t category_c_id;
+    deserialize(category_id, queryResult, 0, 0);
+    deserialize(category_parent_id, queryResult, 0, 2);
+   std::string category_name = fmt::format("{}[{}]", category_p_id, category_c_id);
 
   //CATEGORY PARENT
   std::string getCategoryParent = fmt::format("SELECT * FROM {} WHERE c_parent_id = {}", TABLE_CATEGORY, category_id);
   client.Query(getCategoryParent, queryResult, timeout);
   std::string category_parent = "<ROOT>";
   if(!queryResult.empty()){
-    //TODO: deserialize
-    category_parent = fmt::format("{}[{}]", field2, field1);
+    deserialize(category_c_id, queryResult, 0, 0);
+    deserialize(category_p_id, queryResult, 0, 2);
+    category_parent = fmt::format("{}[{}]", category_p_id, category_c_id);
   }
   description += fmt::format("\nCATEGORY: {} >> {}", category_parent, category_name);
 
