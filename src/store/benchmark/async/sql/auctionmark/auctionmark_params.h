@@ -28,6 +28,7 @@
 #define AUCTIONMARK_PARAMS_H
 
 #include <stdint.h>
+#include <unordered_set>
 
 namespace auctionmark
 {
@@ -225,27 +226,27 @@ namespace auctionmark
   };
 
   /* Table Data Structures */
-  static constexpr const std::unordered_set<std::string> FIXED_TABLES = {
-    TABLE_REGION,
-    TABLE_GLOBAL_ATTRIBUTE_GROUP,
-    TABLE_GLOBAL_ATTRIBUTE_VALUE
+  static const std::unordered_set<std::string> FIXED_TABLES = {
+    TABLENAME_REGION,
+    TABLENAME_GLOBAL_ATTRIBUTE_GROUP,
+    TABLENAME_GLOBAL_ATTRIBUTE_VALUE
   };
 
-  static constexpr const std::unordered_set<std::string> DYNAMIC_TABLES = {
-    //TABLE_USERACCT_ATTRIBUTES,
-    TABLE_ITEM_IMAGE,
-    TABLE_ITEM_ATTRIBUTE,
-    TABLE_ITEM_COMMENT,
-    TABLE_USERACCT_FEEDBACK,
-    TABLE_ITEM_BID,
-    TABLE_ITEM_MAX_BID,
-    TABLE_ITEM_PURCHASE,
-    TABLE_USERACCT_ITEM,
-    TABLE_USERACCT_WATCH
+  static const std::unordered_set<std::string> DYNAMIC_TABLES = {
+    TABLENAME_USERACCT_ATTRIBUTES,
+    TABLENAME_ITEM_IMAGE,
+    TABLENAME_ITEM_ATTRIBUTE,
+    TABLENAME_ITEM_COMMENT,
+    TABLENAME_USERACCT_FEEDBACK,
+    TABLENAME_ITEM_BID,
+    TABLENAME_ITEM_MAX_BID,
+    TABLENAME_ITEM_PURCHASE,
+    TABLENAME_USERACCT_ITEM,
+    TABLENAME_USERACCT_WATCH
   };
 
-  static constexpr const std::unordered_set<std::string> AuctionMarkConstants::DATAFILE_TABLES = {
-    TABLE_CATEGORY
+  static const std::unordered_set<std::string> DATAFILE_TABLES = {
+    TABLENAME_CATEGORY
   };
 
   /* Probabilities */
