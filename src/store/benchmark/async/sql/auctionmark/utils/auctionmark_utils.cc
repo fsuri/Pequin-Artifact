@@ -24,7 +24,9 @@
  * SOFTWARE.
  *
  **********************************************************************/
-#include "store/benchmark/async/sql/auctionmark/auctionmark_utils.h"
+#include "store/benchmark/async/sql/auctionmark/utils/auctionmark_utils.h"
+#include "store/benchmark/async/sql/auctionmark/utils/item_id.h"
+#include "store/benchmark/async/sql/auctionmark/utils/user_id.h"
 
 namespace auctionmark {
 
@@ -42,4 +44,28 @@ std::string RandomAString(size_t x, size_t y, std::mt19937_64 &gen)
   return s;
 }
 
+long GetScaledTimestamp(timestamp_t benchmark_start, timestamp_t client_start, timestamp_t current) {
+    auto offset = std::chrono::time_point_cast<std::chrono::milliseconds>(current) - (std::chrono::time_point_cast<std::chrono::milliseconds>(client_start) - std::chrono::time_point_cast<std::chrono::milliseconds>(benchmark_start));
+    auto elapsed = (offset - benchmark_start).count() * TIME_SCALE_FACTOR;
+    return std::chrono::time_point_cast<std::chrono::milliseconds>(benchmark_start).time_since_epoch().count() + elapsed;
+}
+
+std::string GetUniqueElementId(std::string item_id_, int idx) {
+    ItemId item_id = ItemId(item_id_);
+    UserId seller_id = item_id.get_seller_id();
+    return ItemId(seller_id, idx).encode();
+}
+
+timestamp_t GetProcTimestamp(timestamp_t benchmark_times[2]) {
+  timestamp_t tmp = std::chrono::system_clock::now();
+  long timestamp = GetScaledTimestamp(benchmark_times[0], benchmark_times[1], tmp);
+  
+  return timestamp_t(std::chrono::milliseconds(timestamp));
+}
+
+}
+
+int main() 
+{
+    return 0;
 }
