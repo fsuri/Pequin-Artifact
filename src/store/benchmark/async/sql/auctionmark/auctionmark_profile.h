@@ -46,6 +46,8 @@ namespace auctionmark
     bool has_client_start_time();
     std::chrono::system_clock::time_point update_and_get_last_close_auctions_time();
     std::chrono::system_clock::time_point get_last_close_auctions_time();
+    int get_random_time_diff();
+    int get_random_duration();
 
     /* General Methods */
     double get_scale_factor();
@@ -66,33 +68,28 @@ namespace auctionmark
     std::optional<ItemStatus> add_item_to_proper_queue(ItemInfo &item_info, bool is_loader);
     std::optional<ItemStatus> add_item_to_proper_queue(ItemInfo &item_info, std::chrono::system_clock::time_point &base_time, std::optional<std::pair<std::vector<ItemInfo>::iterator&, std::vector<ItemInfo>&>> current_queue_iterator);
     std::optional<ItemInfo> get_random_item(std::vector<ItemInfo> item_set, bool need_current_price, bool need_future_end_date);
-    long get_random_num_images();
-    long get_random_num_attributes();
-    long get_random_purchase_duration();
-    long get_random_num_comments();
-    long get_random_initial_price();
 
     /* Available Items */
-    ItemInfo get_random_available_item();
-    ItemInfo get_random_available_item(bool has_current_price);
+    std::optional<ItemInfo> get_random_available_item();
+    std::optional<ItemInfo> get_random_available_item(bool has_current_price);
     int get_available_items_count();
 
     /* Ending Soon Items */
-    ItemInfo get_random_ending_soon_item();
-    ItemInfo get_random_ending_soon_item(bool has_current_price);
+    std::optional<ItemInfo> get_random_ending_soon_item();
+    std::optional<ItemInfo> get_random_ending_soon_item(bool has_current_price);
     int get_ending_soon_items_count();
 
     /* Waiting For Purchase Items */
-    ItemInfo get_random_waiting_for_purchase_item();
+    std::optional<ItemInfo> get_random_waiting_for_purchase_item();
     int get_waiting_for_purchase_items_count();
 
     /* Completed Items */
-    ItemInfo get_random_completed_item();
+    std::optional<ItemInfo> get_random_completed_item();
     int get_completed_items_count();
 
     /* All Items */
     int get_all_items_count();
-    ItemInfo get_random_item();
+    std::optional<ItemInfo> get_random_item();
 
     /* Global Attribute Methods */
     GlobalAttributeValueId get_random_global_attribute_value();

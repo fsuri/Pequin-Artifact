@@ -13,7 +13,7 @@ namespace auctionmark {
                 value_rle[cumulative_frequency] = *x;
             }
         }
-        inner = std::uniform_int_distribution(0, cumulative_frequency);
+        inner = std::uniform_int_distribution(1, cumulative_frequency);
     }
 
     template <class Storage, typename T, template <typename, typename...> class Axes, typename... Args>
@@ -21,7 +21,7 @@ namespace auctionmark {
     {
         // Generate a random number between 0 and the maximum cumulative frequency.
         int max_cumulative_frequency = value_rle.rbegin()->first;
-        inner = std::uniform_int_distribution<>(0, max_cumulative_frequency);
+        inner = std::uniform_int_distribution<>(1, max_cumulative_frequency);
     }
 
     template <class Storage, typename T, template <typename, typename...> class Axes, typename... Args>
