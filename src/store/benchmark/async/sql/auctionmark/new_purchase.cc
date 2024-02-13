@@ -31,7 +31,7 @@
 namespace auctionmark {
 
 NewPurchase::NewPurchase(uint32_t timeout, AuctionMarkProfile &profile, std::mt19937_64 &gen) : AuctionMarkTransaction(timeout), profile(profile), gen(gen) {
-  ItemInfo itemInfo = profile.get_random_waiting_for_purchase_item();
+  ItemInfo itemInfo = *profile.get_random_waiting_for_purchase_item();
   item_id = itemInfo.get_item_id().encode();
   UserId sellerId = itemInfo.get_seller_id();
   seller_id = sellerId.encode();
@@ -46,9 +46,9 @@ NewPurchase::NewPurchase(uint32_t timeout, AuctionMarkProfile &profile, std::mt1
   // Whether the buyer will not have enough money
   if (itemInfo.has_current_price()) {
     if (std::uniform_int_distribution<int>(1, 100)(gen) <= PROB_NEWPURCHASE_NOT_ENOUGH_MONEY) {
-      buyer_credit = -1 * itemInfo.get_current_price();
+      buyer_credit = -1 * (*itemInfo.get_current_price());
     } else {
-      buyer_credit = itemInfo.get_current_price();
+      buyer_credit = *itemInfo.get_current_price();
       itemInfo.set_status(ItemStatus::CLOSED);
     }
   }
@@ -66,7 +66,7 @@ transaction_status_t NewPurchase::Execute(SyncClient &client) {
 
   client.Begin(timeout);
 
-  timestamp_t current_time = GetProcTimestamp({profile.get_loader_start_time(), profile.get_client_start_time()});
+  uint64_t current_time = get_ts(GetProcTimestamp({profile.get_loader_start_time(), profile.get_client_start_time()}));
 
   //HACK Check whether we have an ITEM_MAX_BID record. 
         //If not, we read via ITEM_BID only.
@@ -74,7 +74,7 @@ transaction_status_t NewPurchase::Execute(SyncClient &client) {
 
   std::string getItemMaxBid = fmt::format("SELECT * FROM {} WHERE imb_i_id = {} AND imb_u_id = {}", TABLE_ITEM_MAX_BID, item_id, seller_id);
   client.Query(getItemMaxBid, queryResult, timeout);
-  if(queryResult.empty()){
+  if(queryResult->empty()){
       Panic("This branch should not be taken?");
       std::string getMaxBid = fmt::format("SELECT ib_id FROM {} WHERE ib_i_id = {} AND ib_u_id = {} ORDER BY ib_bid DESC LIMIT 1", TABLE_ITEM_BID, item_id, seller_id);
       client.Query(getMaxBid, queryResult, timeout);
@@ -106,16 +106,18 @@ transaction_status_t NewPurchase::Execute(SyncClient &client) {
                                           item_id, seller_id);
     client.Query(getItemInfo, queryResult, timeout);
   }
-  if(queryResult.empty()){
-    Debug("No ITEM_MAX_BID is available record for item")
-    return client.Abort(timeout);
+  if(queryResult->empty()){
+    Debug("No ITEM_MAX_BID is available record for item");
+    client.Abort(timeout);
+    return ABORTED_USER;
   }
   getItemInfoRow iir;
   deserialize(iir, queryResult);
 
   if (iir.i_current_price > (buyer_credit + iir.u_balance)) {
     Debug("Not enough money to buy item");
-    return client.Abort(timeout);
+    client.Abort(timeout);
+    return ABORTED_USER;
   }
 
   //TODO: parallelize all these writes (make async)

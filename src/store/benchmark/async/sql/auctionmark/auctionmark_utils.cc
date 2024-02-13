@@ -56,7 +56,7 @@ std::string GetUniqueElementId(std::string item_id_, int idx) {
     return ItemId(seller_id, idx).encode();
 }
 
-timestamp_t GetProcTimestamp(timestamp_t benchmark_times[2]) {
+timestamp_t GetProcTimestamp(std::vector<timestamp_t> benchmark_times) {
   timestamp_t tmp = std::chrono::system_clock::now();
   long timestamp = GetScaledTimestamp(benchmark_times[0], benchmark_times[1], tmp);
   

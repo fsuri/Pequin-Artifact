@@ -29,7 +29,8 @@ namespace auctionmark
 
   std::chrono::system_clock::time_point AuctionMarkProfile::get_scaled_current_timestamp(std::chrono::system_clock::time_point time)
   {
-    tmp_now = std::chrono::system_clock::now();
+
+    std::chrono::system_clock::time_point tmp_now = std::chrono::system_clock::now();
     std::chrono::milliseconds dur(GetScaledTimestamp(loader_start_time, client_start_time, tmp_now));
     time = std::chrono::system_clock::time_point(dur);
     return time;
@@ -175,6 +176,19 @@ namespace auctionmark
     return user_id.value();
   }
 
+  UserId AuctionMarkProfile::get_random_buyer_id()
+  {
+    // We don't care about skewing the buyerIds at this point, so just get one from getRandomUserId
+    std::vector<UserId> exclude;
+    return get_random_user_id(0, -1, exclude);
+  }
+
+  UserId AuctionMarkProfile::get_random_buyer_id(UserId &exclude)
+  {
+    // We don't care about skewing the buyerIds at this point, so just get one from getRandomUserId
+    return get_random_user_id(0, -1, {exclude});
+  }
+
   UserId AuctionMarkProfile::get_random_buyer_id(std::vector<UserId> &exclude)
   {
     // We don't care about skewing the buyerIds at this point, so just get one from getRandomUserId
@@ -183,6 +197,9 @@ namespace auctionmark
 
   UserId AuctionMarkProfile::get_random_buyer_id(str_cat_hist_t &previous_bidders, std::vector<UserId> &exclude)
   {
+
+    std::set<UserId> tmp_user_id_set;
+
     tmp_user_id_set.clear();
     for (UserId ex : exclude)
     {
@@ -367,6 +384,8 @@ namespace auctionmark
     std::optional<ItemInfo> item_info = std::nullopt;
 
     int tries = 1000;
+
+    std::set<ItemInfo> tmp_seen_items;
     tmp_seen_items.clear();
     while (num_items > 0 && tries-- > 0 && tmp_seen_items.size() < num_items)
     {

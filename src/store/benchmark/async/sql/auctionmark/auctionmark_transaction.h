@@ -30,6 +30,7 @@
 //#include "store/benchmark/async/sql/auctionmark/auctionmark_schema.h"
 #include "store/benchmark/async/sql/auctionmark/auctionmark_params.h"
 #include "store/benchmark/async/sql/auctionmark/auctionmark_utils.h"
+#include "store/benchmark/async/sql/auctionmark/utils/item_status.h"
 #include "store/common/frontend/sync_transaction.h"
 
 namespace auctionmark {

@@ -426,7 +426,7 @@ int main(int argc, char *argv[])
   int n_categories = GenerateCategoryTable(writer);
   std::set<uint32_t> gag_ids = GenerateGlobalAttributeGroupTable(writer, n_categories, auctionmark::N_GAGS, auctionmark::GAV_PER_GROUP);
   GenerateGlobalAttributeValueTable(writer, auctionmark::GAV_PER_GROUP, gag_ids);
-  GenerateUserTable(writer, auctionmark::N_REGIONS, auctionmark::N_USERS);
+  GenerateUserAcctTable(writer, auctionmark::N_REGIONS, auctionmark::N_USERS);
   writer.flush();
   std::cerr << "Wrote tables." << std::endl;
   return 0;

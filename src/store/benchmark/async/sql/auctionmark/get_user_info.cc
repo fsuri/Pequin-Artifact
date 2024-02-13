@@ -31,9 +31,10 @@
 namespace auctionmark {
 
 GetUserInfo::GetUserInfo(uint32_t timeout, AuctionMarkProfile &profile, std::mt19937_64 &gen) : 
-    AuctionMarkTransaction(timeout), profile_(&profile), gen(gen) {
+    AuctionMarkTransaction(timeout), profile(profile), gen(gen) {
 
-    u_id = profile.get_random_buyer_id().encode();
+    UserId userId = profile.get_random_buyer_id();
+    u_id = userId.encode();
 
     uint32_t rand;
     rand = std::uniform_int_distribution<uint32_t>(0, 100)(gen);
@@ -103,7 +104,7 @@ transaction_status_t GetUserInfo::Execute(SyncClient &client) {
     client.Query(statement, queryResult, timeout);
     assert(!queryResult->empty());
 
-    for(int i = 0; i < q_result->size(); ++i){
+    for(int i = 0; i < queryResult->size(); ++i){
       std::string itemId;
       std::string sellerId;
       uint64_t commentId;
@@ -112,7 +113,7 @@ transaction_status_t GetUserInfo::Execute(SyncClient &client) {
       deserialize(commentId, queryResult, i, 7);
 
       ItemCommentResponse cr(commentId, itemId, sellerId);
-      profile_->add_pending_item_comment_response(cr);
+      profile.add_pending_item_comment_response(cr);
     }
    
   }
@@ -135,7 +136,7 @@ transaction_status_t GetUserInfo::Execute(SyncClient &client) {
   if(get_watched_items){
     //getWatchedItems
     statement = fmt::format("SLECT {}, uw_u_id, uw_created FROM {}, {} WHERE uw_u_id = {} AND uw_i_id = i_id AND uw_i_u_id = i_u_id ORDER BY i_end_date DESC LIMIT 25", 
-                 ITEM_COLUMNS_STR, TABLE_USERACCT_WATCH, TABLE_ITEM, ...); //TODO: make input redundant
+                 ITEM_COLUMNS_STR, TABLE_USERACCT_WATCH, TABLE_ITEM, user_id); //TODO: make input redundant
     client.Query(statement, queryResult, timeout);
     assert(!queryResult->empty());
   }

@@ -40,7 +40,12 @@ long GetScaledTimestamp(timestamp_t benchmark_start, timestamp_t client_start, t
 
 std::string GetUniqueElementId(std::string item_id_, int idx);
 
-timestamp_t GetProcTimestamp(timestamp_t benchmark_times[2]);
+timestamp_t GetProcTimestamp(std::vector<timestamp_t> benchmark_times);
+
+inline uint64_t get_ts(timestamp_t time){
+      //return std::chrono::duration_cast<milliseconds>(time.time_since_epoch()).count();
+      return time.time_since_epoch().count();
+}
 
 } // namespace auctionmark
 

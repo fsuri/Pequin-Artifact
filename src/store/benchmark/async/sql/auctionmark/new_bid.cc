@@ -38,7 +38,7 @@ NewBid::NewBid(uint32_t timeout, AuctionMarkProfile &profile, std::mt19937_64 &g
     // double max_bid = std::uniform_real_distribution<double>(bid, 2 * bid)(gen);
 
   benchmark_times = {profile.get_loader_start_time(), profile.get_client_start_time()};
-  std::optional<ItemInfo> itemInfo
+  std::optional<ItemInfo> itemInfo;
   UserId sellerId;
   UserId buyerId;
   double bid;
@@ -64,7 +64,7 @@ NewBid::NewBid(uint32_t timeout, AuctionMarkProfile &profile, std::mt19937_64 &g
       buyerId = profile.get_random_buyer_id(sellerId);
  
       // The bid/maxBid do not matter because they won't be able to actually update the auction
-      bid = std::uniform_real_distribution<double>(0, 1);
+      bid = std::uniform_real_distribution<double>(0, 1)(gen);
       maxBid = bid + 100;
     }
 
@@ -85,16 +85,16 @@ NewBid::NewBid(uint32_t timeout, AuctionMarkProfile &profile, std::mt19937_64 &g
       sellerId = itemInfo->get_seller_id();
       buyerId = profile.get_random_buyer_id(sellerId);
 
-      double currentPrice = itemInfo->get_current_price();
+      double currentPrice = *itemInfo->get_current_price();
       bid = round(std::uniform_real_distribution<double>(currentPrice, currentPrice * (1 + (ITEM_BID_PERCENT_STEP / 2)))(gen) * 100) /100; //round to 2 decimal places
-      maxBid = round(std::uniform_real_distribution<double>(bid, cbid * (1 + (ITEM_BID_PERCENT_STEP / 2)))(gen) * 100) /100; //round to 2 decimal places
+      maxBid = round(std::uniform_real_distribution<double>(bid, bid * (1 + (ITEM_BID_PERCENT_STEP / 2)))(gen) * 100) /100; //round to 2 decimal places
     }
 
-  item_id = itemInfo.get_item_id().encode();
+  item_id = itemInfo->get_item_id().encode();
   seller_id = sellerId.encode();
   buyer_id = buyerId.encode();
   newBid = maxBid;
-  timestamp_t estimatedEndDate = itemInfo.get_end_date();
+  timestamp_t estimatedEndDate = *itemInfo->get_end_date();
 
 }
 
@@ -113,7 +113,7 @@ transaction_status_t NewBid::Execute(SyncClient &client) {
 
   //TODO: parallelize queries (only after sequential debugged)
 
-  timestamp_t current_time = GetProcTimestamp(benchmark_times);
+  uint64_t current_time = get_ts(GetProcTimestamp(benchmark_times));
   double i_current_price;
 
   client.Begin(timeout);
@@ -121,9 +121,10 @@ transaction_status_t NewBid::Execute(SyncClient &client) {
   //getItem
   statement = fmt::format("SELECT i_initial_price, i_current_price, i_num_bids, i_end_date, i_status FROM {} WHERE i_id = {} AND i_u_id = {}", TABLE_ITEM, item_id, seller_id);
   client.Query(statement, queryResult, timeout);
-  if(queryResult.empty()){
+  if(queryResult->empty()){
     Debug("Invalid item: %s", item_id.c_str());
-    return client.Abort(timeout);
+    client.Abort(timeout);
+    return ABORTED_USER;
   }
   getItemRow ir;
   deserialize(ir, queryResult); //i_initial_price, i_current_price, i_num_bids, i_end_date, i_status
@@ -146,8 +147,8 @@ transaction_status_t NewBid::Execute(SyncClient &client) {
     // Get the current max bid record for this item
 
     //getItemMaxBid
-    statement = fmt::format("SELECT imb_ib_id, ib_bid, ib_max_bid, ib_buyer_id FROM {}, {} 
-        WHERE imb_i_id = {} AND imb_u_id = {} AND imb_ib_id = ib_id AND imb_ib_i_id = ib_i_id AND imb_ib_u_id = ib_u_id",
+    statement = fmt::format("SELECT imb_ib_id, ib_bid, ib_max_bid, ib_buyer_id FROM {}, {} "
+        "WHERE imb_i_id = {} AND imb_u_id = {} AND imb_ib_id = ib_id AND imb_ib_i_id = ib_i_id AND imb_ib_u_id = ib_u_id",
         TABLE_ITEM_MAX_BID, TABLE_ITEM_BID, item_id, seller_id);
     client.Query(statement, queryResult, timeout);
     getItemMaxBidRow imbr;
@@ -160,7 +161,8 @@ transaction_status_t NewBid::Execute(SyncClient &client) {
     if(buyer_id == imbr.currentBuyerId){
       if(newBid < imbr.currentBidMax){
         Debug("%s already the highest bidder for Item %s but is trying to set a new max bid %d that is less than current max bid %d", buyer_id, item_id, newBid, imbr.currentBidMax);
-        return client.Abort(timeout);
+        client.Abort(timeout);
+        return ABORTED_USER;
       }
 
        //updateBid

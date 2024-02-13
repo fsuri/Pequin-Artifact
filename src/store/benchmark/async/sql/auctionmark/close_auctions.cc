@@ -32,8 +32,8 @@ namespace auctionmark {
 CloseAuctions::CloseAuctions(uint32_t timeout, AuctionMarkProfile &profile, std::mt19937_64 &gen) : AuctionMarkTransaction(timeout), profile(profile)
 {
   //generate params
-  start_time = profile.get_last_close_auctions_time();
-  end_time = profile.update_and_get_last_close_auctions_time();
+  start_time = get_ts(profile.get_last_close_auctions_time());
+  end_time = get_ts(profile.update_and_get_last_close_auctions_time());
   benchmark_times = {profile.get_loader_start_time(), profile.get_client_start_time()};
 }
 
@@ -57,14 +57,14 @@ transaction_status_t CloseAuctions::Execute(SyncClient &client) {
   int waiting_ctr = 0;
   int round = CLOSE_AUCTIONS_ROUNDS;
 
-  auto current_time = GetProcTimestamp(benchmark_times);
+  uint64_t current_time = get_ts(GetProcTimestamp(benchmark_times));
   
   std::string getDueItems = fmt::format("SELECT {} FROM {} WHERE i_start_date >= {} AND i_start_date <= {} AND i_status = {} "
                                         "ORDER BY i_id ASC LIMIT {}", ITEM_COLUMNS_STR, TABLE_ITEM, CLOSE_AUCTIONS_ITEMS_PER_ROUND, start_time, end_time, ItemStatus::OPEN);
 
-  std::string getMaxBid = fmt::format("SELECT imb_ib_id, ib_buyer_id FROM {}, {} "
-                                        "WHERE imb_i_id = {} AND imb_u_id = {} AND ib_id = imb_ib_id AND ib_i_id = imb_i_id AND ib_u_id = imb_u_id ", 
-                                        TABLE_ITEM_MAX_BID, TABLE_ITEM_BID); //TODO: Add redundant inputs?
+  std::string getMaxBid = "SELECT imb_ib_id, ib_buyer_id FROM " + TABLE_ITEM_MAX_BID + ", " + TABLE_ITEM_BID + 
+                                        "WHERE imb_i_id = {} AND imb_u_id = {} AND ib_id = imb_ib_id AND ib_i_id = imb_i_id AND ib_u_id = imb_u_id ";
+                                       //TODO: Add redundant inputs?
 
   while(round-- > 0){
     client.Query(getDueItems, queryResult, timeout);

@@ -8,7 +8,7 @@ namespace seats_sql {
 const int MAX_NUM_FLIGHTS = 10;
 
 SQLFindFlights::SQLFindFlights(uint32_t timeout, std::mt19937 &gen, std::vector<CachedFlight> &cached_flight_ids) :
-    SEATSSQLTransaction(timeout)
+    SEATSSQLTransaction(timeout), gen(gen)
     {
         //TODO: Implement FindRandomAirport ID vs getRandomFlightId (pick random flight from cached flights)
         //TODO implement cached_flight_ids.  
@@ -166,7 +166,7 @@ transaction_status_t SQLFindFlights::Execute(SyncClient &client) {
         cf.depart_ap_id = flight_row.f_depart_ap_id; 
         cf.depart_time = depart_time;
         cf.arrive_ap_id = flight_row.f_arrive_ap_id;
-        addFlightToCache(*cached_flights, cf);
+        addFlightToCache(*cached_flights, cf, gen);
     }
     Debug("COMMIT");
     return client.Commit(timeout);

@@ -42,6 +42,7 @@ class getDueItemRow {
     double currentPrice;
     double numBids;
     uint64_t endDate;
+    int i_status;
     ItemStatus itemStatus;
 };
 
@@ -53,7 +54,8 @@ inline void load_row(getDueItemRow& r, std::unique_ptr<query_result::Row> row)
   row->get(3, &r.currentPrice);
   row->get(4, &r.numBids);
   row->get(5, &r.endDate);
-  row->get(6, &r.itemStatus);
+  row->get(6, &r.i_status);
+  r.itemStatus = static_cast<ItemStatus>(r.i_status);
 }
 
 class getMaxBidRow {
@@ -88,7 +90,7 @@ class CloseAuctions : public AuctionMarkTransaction {
  private:
   uint64_t start_time;
   uint64_t end_time;
-  timestamp_t benchmark_times[2];
+  std::vector<timestamp_t> benchmark_times;
 
   AuctionMarkProfile &profile;
   std::vector<ItemResult> item_results;

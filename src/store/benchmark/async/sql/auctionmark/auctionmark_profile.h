@@ -7,6 +7,7 @@
 #include <unordered_set>
 #include <boost/histogram.hpp>
 #include "store/common/frontend/sync_client.h"
+#include "store/benchmark/async/sql/auctionmark/auctionmark_utils.h"
 #include "store/benchmark/async/sql/auctionmark/utils/item_info.h"
 #include "store/benchmark/async/sql/auctionmark/utils/global_attribute_group_id.h"
 #include "store/benchmark/async/sql/auctionmark/utils/global_attribute_value_id.h"
@@ -21,12 +22,8 @@ namespace auctionmark
 
   class AuctionMarkProfile
   {
-    using int_hist_t = boost::histogram::histogram<
-        std::tuple<
-            boost::histogram::axis::integer<>>>;
-    using str_cat_hist_t = boost::histogram::histogram<
-        std::tuple<
-            boost::histogram::axis::category<std::string>>>;
+    using int_hist_t = boost::histogram::histogram<std::tuple<boost::histogram::axis::integer<>>>;
+    using str_cat_hist_t = boost::histogram::histogram<std::tuple<boost::histogram::axis::category<std::string>>>;
 
   public:
     AuctionMarkProfile(int client_id, double scale_factor, int num_clients, std::mt19937_64 gen);
@@ -55,6 +52,9 @@ namespace auctionmark
 
     /* User Methods */
     UserId get_random_user_id(int min_item_count, int client_id, std::vector<UserId> &exclude);
+
+    UserId get_random_buyer_id();
+    UserId get_random_buyer_id(UserId &exclude);
     UserId get_random_buyer_id(std::vector<UserId> &exclude);
 
     UserId get_random_buyer_id(str_cat_hist_t &previous_bidders, std::vector<UserId> &exclude);
@@ -110,7 +110,8 @@ namespace auctionmark
 
     void load_profile(int client_id);
 
-    inline int client_id(){
+
+    inline int get_client_id(){
       return client_id;
     }
 
@@ -164,12 +165,6 @@ namespace auctionmark
     std::chrono::system_clock::time_point current_time;
 
     str_cat_hist_t seller_item_cnt;
-
-
-    // Temporary variables
-    std::unordered_set<ItemInfo> tmp_seen_items;
-    std::unordered_set<UserId> tmp_user_id_set;
-    std::chrono::system_clock::time_point tmp_now;
 
     inline void initialize_user_id_generator(int client_id)
     {

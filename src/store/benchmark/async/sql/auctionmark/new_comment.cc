@@ -31,7 +31,7 @@ namespace auctionmark {
 
 NewComment::NewComment(uint32_t timeout, AuctionMarkProfile &profile, std::mt19937_64 &gen) : AuctionMarkTransaction(timeout), profile(profile), gen(gen) {
 
-  auto itemInfo = profile.get_random_completed_item();
+  ItemInfo itemInfo = *profile.get_random_completed_item();
   UserId sellerId = itemInfo.get_seller_id();
   UserId buyerId = profile.get_random_buyer_id(sellerId);
   question = RandomAString(ITEM_COMMENT_LENGTH_MIN, ITEM_COMMENT_LENGTH_MAX, gen); 
@@ -60,7 +60,7 @@ transaction_status_t NewComment::Execute(SyncClient &client) {
   deserialize(ic_id, queryResult);
   ++ic_id;
 
-  timestamp_t current_time = GetProcTimestamp({profile.get_loader_start_time(), profile.get_client_start_time()});
+  uint64_t current_time = get_ts(GetProcTimestamp({profile.get_loader_start_time(), profile.get_client_start_time()}));
 
   //insertItemComment
   statement = fmt::format("INSERT INTO {} (ic_id, ic_i_id, ic_u_id, ic_buyer_id, ic_question, ic_created, ic_updated) "
@@ -68,7 +68,8 @@ transaction_status_t NewComment::Execute(SyncClient &client) {
   client.Write(statement, queryResult, timeout);
   if(queryResult->rows_affected() == 0){
     Debug("Item comment id %d already exists for item %s and seller %s", ic_id, item_id.c_str(), seller_id.c_str());
-    return client.Abort(timeout);
+    client.Abort(timeout);
+    return ABORTED_USER;
   }
 
    //updateItemComments

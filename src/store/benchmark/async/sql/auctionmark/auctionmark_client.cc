@@ -51,17 +51,17 @@ AuctionMarkClient::AuctionMarkClient(
     : SyncTransactionBenchClient(client, transport, client_id, numRequests,
                                     expDuration, delay, warmupSec, cooldownSec,
                                     tputInterval, abortBackoff, retryAborted, maxBackoff, maxAttempts, timeout,
-                                    latencyFilename)
+                                    latencyFilename), profile(client_id, SCALE_FACTOR, num_clients, gen)
 {
   lastOp = "";
-  gen.seed(id);
-  need_close_auctions = CLOSE_AUCTIONS_ENABLE && id == 0;  //Close Auctions is only run from the first client
+  gen.seed(client_id);
+  need_close_auctions = CLOSE_AUCTIONS_ENABLE && client_id == 0;  //Close Auctions is only run from the first client
   max_u_id = N_USERS;
   max_i_id = N_USERS * 10;
   last_close_auctions = std::chrono::steady_clock::now();
 
   //TODO: Initialize/load Auctionmark Profile
-  profile = AuctionMarkProfile(client_id, SCALE_FACTOR, int num_clients, gen);
+  //profile = AuctionMarkProfile(client_id, SCALE_FACTOR, num_clients, gen);
 }
 
 AuctionMarkClient::~AuctionMarkClient() {}
@@ -84,40 +84,40 @@ SyncTransaction *AuctionMarkClient::GetNextTransaction()
     return new CloseAuctions(GetTimeout(), profile, gen);
   } 
   
-  else if (ttype <= (freq += GET_ITEM_RATIO)) {
+  else if (ttype <= (freq += FREQUENCY_GET_ITEM)) {
     lastOp = "get_item";
     return new GetItem(GetTimeout(), profile, gen);
   } 
-  else if (ttype <= (freq += GET_USER_INFO_RATIO)) {
+  else if (ttype <= (freq += FREQUENCY_GET_USER_INFO)) {
     lastOp = "get_user_info";
     return new GetUserInfo(GetTimeout(), profile, gen);
   } 
-  else if (ttype <= (freq += NEW_BID_RATIO)) {
+  else if (ttype <= (freq += FREQUENCY_NEW_BID)) {
     lastOp = "new_bid";
     return new NewBid(GetTimeout(), profile, gen);
   } 
-  else if (ttype <= (freq += NEW_COMMENT_RATIO)) {
+  else if (ttype <= (freq += FREQUENCY_NEW_COMMENT)) {
     lastOp = "new_comment";
     return new NewComment(GetTimeout(), profile, gen);
   } 
-  else if (ttype <= (freq += NEW_COMMENT_RESPONSE_RATIO)) {
+  else if (ttype <= (freq += FREQUENCY_NEW_COMMENT_RESPONSE)) {
     lastOp = "new_comment_response";
     return new NewCommentResponse(GetTimeout(), profile, gen);
   } 
   
-  else if (ttype <= (freq += NEW_FEEDBACK_RATIO)) {
+  else if (ttype <= (freq += FREQUENCY_NEW_FEEDBACK)) {
     lastOp = "new_feedback";
     return new NewFeedback(GetTimeout(), profile, gen);
   } 
-  else if (ttype <= (freq += NEW_ITEM_RATIO)) {
+  else if (ttype <= (freq += FREQUENCY_NEW_ITEM)) {
     lastOp = "new_item";
     return new NewItem(GetTimeout(), profile, gen);
   } 
-  else if (ttype <= (freq += NEW_PURCHASE_RATIO)) {
+  else if (ttype <= (freq += FREQUENCY_NEW_PURCHASE)) {
     lastOp = "new_purchase";
     return new NewPurchase(GetTimeout(), profile, gen);
   } 
-  else if (ttype <= (freq += UPDATE_ITEM_RATIO)) {
+  else if (ttype <= (freq += FREQUENCY_UPDATE_ITEM)) {
     lastOp = "update_item";
     return new UpdateItem(GetTimeout(), profile, gen);
   } 

@@ -34,11 +34,11 @@ namespace auctionmark {
 NewItem::NewItem(uint32_t timeout, AuctionMarkProfile &profile, std::mt19937_64 &gen) : AuctionMarkTransaction(timeout), profile(profile), gen(gen) {
   //TODO: Generate
 
-  UserId sellerId = profile.get_random_seller_id(profile.client_id());
+  UserId sellerId = profile.get_random_seller_id(profile.get_client_id());
   ItemId itemId = profile.get_next_item_id(sellerId);
 
   item_id = itemId.encode();
-  seller_id = seller_id.encode();
+  seller_id = sellerId.encode();
 
   name = RandomAString(6, 32, gen);
   description = RandomAString(50, 255, gen);
@@ -47,7 +47,7 @@ NewItem::NewItem(uint32_t timeout, AuctionMarkProfile &profile, std::mt19937_64 
   initial_price = std::uniform_real_distribution<double>(ITEM_INITIAL_PRICE_MIN, ITEM_INITIAL_PRICE_MAX)(gen); //FIXME: In original code this is zipf distributed (don't think it matters for contention..)
   attributes = RandomAString(50, 255, gen);
 
-  int numAttributes = std::uniform_real_distribution<int>(ITEM_NUM_GLOBAL_ATTRS_MIN, ITEM_NUM_GLOBAL_ATTRS_MAX)(gen); //FIXME: In original code this is zipf distributed (don't think it matters for contention..)
+  int numAttributes = std::uniform_int_distribution<int>(ITEM_NUM_GLOBAL_ATTRS_MIN, ITEM_NUM_GLOBAL_ATTRS_MAX)(gen); //FIXME: In original code this is zipf distributed (don't think it matters for contention..)
   std::vector<GlobalAttributeValueId> gavList;
   for (int i = 0; i < numAttributes; i++) {
     GlobalAttributeValueId gav_id = profile.get_random_global_attribute_value();
@@ -62,12 +62,12 @@ NewItem::NewItem(uint32_t timeout, AuctionMarkProfile &profile, std::mt19937_64 
     gav_ids[i] = gav_id.encode();
   }
 
-  int numImages = std::uniform_real_distribution<int>(ITEM_NUM_IMAGES_MIN, ITEM_NUM_IMAGES_MAX)(gen); //FIXME: In original code this is zipf distributed (don't think it matters for contention..)
+  int numImages = std::uniform_int_distribution<int>(ITEM_NUM_IMAGES_MIN, ITEM_NUM_IMAGES_MAX)(gen); //FIXME: In original code this is zipf distributed (don't think it matters for contention..)
   for (int i = 0; i < numImages; i++) {
     images[i] = RandomAString(20, 100, gen);
   }
 
-  duration = std::binomial_distribution<uint64_t>(ITEM_DURATION_DAYS_MAX-1, 0.5) + 1;  //gives a val between 1 (DAYS_MIN) and 10 (DAYS_MAX) with normal distribution
+  duration = std::binomial_distribution<uint64_t>(ITEM_DURATION_DAYS_MAX-1, 0.5)(gen) + 1;  //gives a val between 1 (DAYS_MIN) and 10 (DAYS_MAX) with normal distribution
 
 
 }
@@ -87,15 +87,17 @@ transaction_status_t NewItem::Execute(SyncClient &client) {
 
   client.Begin(timeout);
 
-  timestamp_t current_time = GetProcTimestamp({profile.get_loader_start_time(), profile.get_client_start_time()});
-  timestamp_t end_date = current_time + (duration * MILLISECONDS_IN_A_DAY);
+  uint64_t current_time = get_ts(GetProcTimestamp({profile.get_loader_start_time(), profile.get_client_start_time()}));
+  uint64_t end_date = current_time + (duration * MILLISECONDS_IN_A_DAY);
 
   //Get attribute names and category path and append them to the item description
 
   //ATTRIBUTES
   description += "\nATTRIBUTES: ";
-  std::string getGlobablAttribute = fmt::format("SELECT gag_name, gav_name, gag_c_id FROM {}, {} WHERE gav_id = {} AND gav_gag_id = {} AND gav_gag_id = gag_id",
-                                                                                    TABLE_GLOBAL_ATTR_GROUP, TABLE_GLOBAL_ATTR_VALUE);    //TODO: add redundant input?
+   std::string getGlobablAttribute = fmt::format("SELECT gag_name, gav_name, gag_c_id FROM {}, {}"
+                                    " WHERE gav_id = {} AND gav_gag_id = {} AND gav_gag_id = gag_id", TABLE_GLOBAL_ATTR_GROUP, TABLE_GLOBAL_ATTR_VALUE); //TODO: add redundant input?
+  // std::string getGlobablAttribute = "SELECT gag_name, gav_name, gag_c_id FROM " + TABLE_GLOBAL_ATTR_GROUP + ", " + TABLE_GLOBAL_ATTR_VALUE +
+  //                                   " WHERE gav_id = {} AND gav_gag_id = {} AND gav_gag_id = gag_id"; //TODO: add redundant input?
 
   for(int i = 0; i < gag_ids.size(); ++i){
     std::string stmt = fmt::format(getGlobablAttribute, gav_ids[i], gag_ids[i]);
@@ -103,11 +105,11 @@ transaction_status_t NewItem::Execute(SyncClient &client) {
   }                             
   client.Wait(results);
 
-  for(auto q_res : results){
+  for(int i = 0; i < results.size(); ++i){
     std::string gag_name;
     std::string gav_name;
-    deserialize(gag_name, q_res, 0, 0);
-    deserialize(gav_name, q_res, 0, 1);
+    deserialize(gag_name, results[i], 0, 0);
+    deserialize(gav_name, results[i], 0, 1);
     description += fmt::format(" * {} -> {}\n", gag_name, gav_name);
   }                                             
 
@@ -117,15 +119,15 @@ transaction_status_t NewItem::Execute(SyncClient &client) {
   assert(!queryResult->empty());
     uint64_t category_p_id;
     uint64_t category_c_id;
-    deserialize(category_id, queryResult, 0, 0);
-    deserialize(category_parent_id, queryResult, 0, 2);
+    deserialize(category_c_id, queryResult, 0, 0);
+    deserialize(category_p_id, queryResult, 0, 2);
    std::string category_name = fmt::format("{}[{}]", category_p_id, category_c_id);
 
   //CATEGORY PARENT
   std::string getCategoryParent = fmt::format("SELECT * FROM {} WHERE c_parent_id = {}", TABLE_CATEGORY, category_id);
   client.Query(getCategoryParent, queryResult, timeout);
   std::string category_parent = "<ROOT>";
-  if(!queryResult.empty()){
+  if(!queryResult->empty()){
     deserialize(category_c_id, queryResult, 0, 0);
     deserialize(category_p_id, queryResult, 0, 2);
     category_parent = fmt::format("{}[{}]", category_p_id, category_c_id);
@@ -145,10 +147,12 @@ transaction_status_t NewItem::Execute(SyncClient &client) {
                                        images.size(), gav_ids.size(), current_time, end_date, ItemStatus::OPEN, current_time, current_time);
   client.Write(insertItem, queryResult, timeout);             
   if(!queryResult->has_rows_affected()){
-    return client.Abort(timeout);
+    client.Abort(timeout);
+    return ABORTED_USER;
   }                              
 
    //Insert ITEM_ATTRIBUTE tuples
+  //std::string insertItemAttribute = "INSERT INTO " + TABLE_ITEM_ATTR + " (ia_id, ia_i_id, ia_u_id, ia_gav_id, ia_gag_id) VALUES({}, {}, {}, {}, {})";
   std::string insertItemAttribute = fmt::format("INSERT INTO {} (ia_id, ia_i_id, ia_u_id, ia_gav_id, ia_gag_id) VALUES({}, {}, {}, {}, {})", TABLE_ITEM_ATTR);
   for(int i = 0; i< gav_ids.size(); ++i){
     std::string unique_elem_id = GetUniqueElementId(item_id, i);
@@ -157,8 +161,9 @@ transaction_status_t NewItem::Execute(SyncClient &client) {
   }
 
   //Insert ITEM_IMAGE tuples         
-  std::string insertImage = fmt::format("INSERT INTO {} (ii_id, ii_i_id, ii_u_id, ii_sattr0) VALUES ({}, {}, {}, {})", TABLE_ITEM_IMAGE);                    
-  for(int i = 0; i<images.length; ++i){
+  //std::string insertImage = "INSERT INTO " + TABLE_ITEM_IMAGE + " (ii_id, ii_i_id, ii_u_id, ii_sattr0) VALUES ({}, {}, {}, {})";       
+  std::string insertImage = fmt::format("INSERT INTO {} (ii_id, ii_i_id, ii_u_id, ii_sattr0) VALUES ({}, {}, {}, {})", TABLE_ITEM_IMAGE);                     
+  for(int i = 0; i<images.size(); ++i){
     std::string unique_elem_id = GetUniqueElementId(item_id, i);
     std::string stmt = fmt::format(insertImage, unique_elem_id, item_id, seller_id, images[i]);
     client.Write(stmt, queryResult, timeout); //TODO: parallelize

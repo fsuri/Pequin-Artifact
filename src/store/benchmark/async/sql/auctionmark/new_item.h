@@ -44,7 +44,7 @@ class NewItem : public AuctionMarkTransaction {
   uint64_t category_id;
   std::string name;
   std::string description;
-  uint64_t duration,
+  uint64_t duration;
   double initial_price;
   std::string attributes;
   std::vector<std::string> gag_ids;

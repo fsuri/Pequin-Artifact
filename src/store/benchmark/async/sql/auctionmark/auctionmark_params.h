@@ -33,7 +33,7 @@
 namespace auctionmark
 {
 
-  const int SCALE_FACTOR = 1;
+  const double SCALE_FACTOR = 1;
 
   static constexpr uint32_t N_REGIONS = 75;
   static constexpr uint32_t N_GAGS = 100;
@@ -179,13 +179,6 @@ namespace auctionmark
     };
 
   static const std::string ITEM_COLUMNS_STR = "i_id, i_u_id, i_name, i_current_price, i_num_bids, i_end_date, i_status";
-
-  enum ItemStatus {
-    OPEN,
-    ENDING_SOON,
-    WAITING_FOR_PURCHASE,
-    CLOSED
-  };
 
   static constexpr const int ITEM_SETS_NUM = 4;
 

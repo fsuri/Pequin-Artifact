@@ -32,7 +32,7 @@ namespace auctionmark {
 GetItem::GetItem(uint32_t timeout, AuctionMarkProfile &profile, std::mt19937_64 &gen) : 
     AuctionMarkTransaction(timeout) {
    
-    ItemInfo itemInfo = profile.get_random_available_item();
+    ItemInfo itemInfo = *profile.get_random_available_item();
     item_id = itemInfo.get_item_id().encode();
     seller_id = itemInfo.get_seller_id().encode();
 
@@ -47,7 +47,7 @@ transaction_status_t GetItem::Execute(SyncClient &client) {
   std::vector<std::unique_ptr<const query_result::QueryResult>> results;
 
   Debug("GET ITEM");
-  Debug("Item ID: %lu", i_id);
+  Debug("Item ID: %s", item_id.c_str());
 
   client.Begin(timeout);
 
@@ -61,7 +61,10 @@ transaction_status_t GetItem::Execute(SyncClient &client) {
 
   client.Wait(results);
 
-  if(results[0].empty() || results[1].empty()) client.Abort(timeout);
+  if(results[0]->empty() || results[1]->empty()){
+    client.Abort(timeout);
+    return ABORTED_USER;
+  } 
   
   Debug("COMMIT");
   return client.Commit(timeout);

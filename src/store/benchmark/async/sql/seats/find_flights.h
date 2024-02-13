@@ -19,6 +19,7 @@ class SQLFindFlights: public SEATSSQLTransaction {
         int64_t end_time;    // unix timestamp of latest departure
         int64_t distance;    // max distance willing to travel
         std::vector<CachedFlight> *cached_flights;
+        std::mt19937 &gen;
 };
 
 struct GetNearbyAirportsResultRow {

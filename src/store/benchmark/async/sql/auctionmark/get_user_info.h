@@ -34,12 +34,12 @@ namespace auctionmark {
 
 class GetUserInfo : public AuctionMarkTransaction {
  public:
-  GetUserInfo(uint32_t timeout, AuctionmarkProfile &profile, std::mt19937_64 &gen);
+  GetUserInfo(uint32_t timeout, AuctionMarkProfile &profile, std::mt19937_64 &gen);
   virtual ~GetUserInfo();
   virtual transaction_status_t Execute(SyncClient &client);
 
  private:
-  AuctionMarkProfile *profile_;
+  AuctionMarkProfile &profile;
   uint64_t u_id;
   bool get_feedback;
   bool get_comments;

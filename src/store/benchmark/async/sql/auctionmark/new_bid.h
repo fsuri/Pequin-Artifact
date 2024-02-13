@@ -44,7 +44,7 @@ class NewBid : public AuctionMarkTransaction {
   std::string buyer_id;
   double newBid;
   timestamp_t estimatedEndDate;
-  timestamp_t benchmark_times[2];
+  std::vector<timestamp_t> benchmark_times;
 };
 
 //Row
@@ -56,6 +56,7 @@ public:
     uint64_t i_num_bids;
     uint64_t i_end_date;
     ItemStatus i_status;
+    int i_status_int;
 };
 
 //load
@@ -65,7 +66,8 @@ inline void load_row(getItemRow& r, std::unique_ptr<query_result::Row> row)
   row->get(1, &r.i_current_price);
   row->get(2, &r.i_num_bids);
   row->get(3, &r.i_end_date);
-  row->get(4, &r.i_status);
+  row->get(4, &r.i_status_int);;
+  r.i_status = static_cast<ItemStatus>(r.i_status_int);
 }
 
 class getItemMaxBidRow {
