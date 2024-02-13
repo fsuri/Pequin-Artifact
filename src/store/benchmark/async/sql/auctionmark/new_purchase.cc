@@ -25,6 +25,7 @@
  *
  **********************************************************************/
 #include "store/benchmark/async/sql/auctionmark/new_purchase.h"
+#include "store/benchmark/async/sql/auctionmark/auctionmark_utils.h"
 #include <fmt/core.h>
 
 namespace auctionmark {
@@ -38,7 +39,8 @@ NewPurchase::NewPurchase(uint32_t timeout, AuctionMarkProfile &profile, std::mt1
 
   int ip_id_cnt = profile.ip_id_cntrs[item_id];
   
-  ip_id = ItemId(sellerId, ip_id_cnt).encode();
+  //ip_id = ItemId(sellerId, ip_id_cnt).encode();
+  ip_id = GetUniqueElementId(item_id, ip_id_cnt);
   profile.ip_id_cntrs[item_id] = (ip_id_cnt < 127) ? ip_id_cnt + 1 : 0;
 
   // Whether the buyer will not have enough money
@@ -66,40 +68,50 @@ transaction_status_t NewPurchase::Execute(SyncClient &client) {
 
   timestamp_t current_time = GetProcTimestamp({profile.get_loader_start_time(), profile.get_client_start_time()});
 
-  //HACK Check whether we have an ITEM_MAX_BID record. If not, we'll insert one
+  //HACK Check whether we have an ITEM_MAX_BID record. 
+        //If not, we read via ITEM_BID only.
+        //Alternatively: If not, we'll insert one  //TODO: We must cache this in order to be able to read from it.
+
   std::string getItemMaxBid = fmt::format("SELECT * FROM {} WHERE imb_i_id = {} AND imb_u_id = {}", TABLE_ITEM_MAX_BID, item_id, seller_id);
   client.Query(getItemMaxBid, queryResult, timeout);
   if(queryResult.empty()){
-      std::string getMaxBid = fmt::format("SELECT * FROM {} WHERE imb_i_id = {} AND imb_u_id = {} ORDER BY ib_bid DESC LIMIT 1", TABLE_ITEM_BID, item_id, seller_id);
+      Panic("This branch should not be taken?");
+      std::string getMaxBid = fmt::format("SELECT ib_id FROM {} WHERE ib_i_id = {} AND ib_u_id = {} ORDER BY ib_bid DESC LIMIT 1", TABLE_ITEM_BID, item_id, seller_id);
       client.Query(getMaxBid, queryResult, timeout);
       uint64_t bid_id;
-      //TODO: deserialize:
+      deserialize(bid_id, queryResult);
 
       std::string insertItemMaxBid = fmt::format("INSERT INTO {} (imb_i_id, imb_u_id, imb_ib_id, imb_ib_i_id, imb_ib_u_id, imb_created, imb_updated) "
                                                   "VALUES ({}, {}, {}, {}, {}, {}, {})", TABLE_ITEM_MAX_BID, item_id, seller_id, bid_id, item_id, seller_id, current_time, current_time);
       client.Write(insertItemMaxBid, queryResult, timeout); //TODO: Make async. (doesn't matter, inserts are always buffered for us)
 
-      //TODO: We must cache this in order to be able to read from it. //TODO: Try to re-structure this transaction to avoid this write.
+    
+      //Read Without TABLE_ITEM_MAX_BID
+       std::string getItemInfo = fmt::format("SELECT i_num_bids, i_current_price, i_end_date, ib_id, i_end_date, ib_id, ib_buyer_id, u_balance "
+                                        "FROM {}, {}, {} "
+                                        "WHERE i_id = ? AND i_u_id = ? "
+                                          "AND ib_i_id = i_id AND ib_u_id = i_u_id "
+                                          "AND ib_buyer_id = u_id", TABLE_ITEM, TABLE_ITEM_BID, TABLE_USERACCT,
+                                          item_id, seller_id);
+      client.Query(getItemInfo, queryResult, timeout);
   }
-
-  // Get the ITEM_MAX_BID record so that we know what we need to process. At this point we should always have an ITEM_MAX_BID record
- 
- 
-  std::string getItemInfo = fmt::format("SELECT i_num_bids, i_current_price, i_end_date, ib_id, i_end_date, ib_id, ib_buyer_id, u_balance "
+  else{
+    // Get the ITEM_MAX_BID record so that we know what we need to process. At this point we should always have an ITEM_MAX_BID record
+    std::string getItemInfo = fmt::format("SELECT i_num_bids, i_current_price, i_end_date, ib_id, i_end_date, ib_id, ib_buyer_id, u_balance "
                                         "FROM {}, {}, {}, {} "
                                         "WHERE i_id = ? AND i_u_id = ? "
                                           "AND imb_i_id = i_id AND imb_u_id = i_u_id "
                                           "AND imb_ib_id = ib_id AND imb_ib_i_id = ib_i_id AND imb_ib_u_id = ib_u_id "
                                           "AND ib_buyer_id = u_id", TABLE_ITEM, TABLE_ITEM_MAX_BID, TABLE_ITEM_BID, TABLE_USERACCT,
                                           item_id, seller_id);
-  client.Query(getItemInfo, queryResult, timeout);
+    client.Query(getItemInfo, queryResult, timeout);
+  }
   if(queryResult.empty()){
     Debug("No ITEM_MAX_BID is available record for item")
     return client.Abort(timeout);
   }
   getItemInfoRow iir;
   deserialize(iir, queryResult);
-  
 
   if (iir.i_current_price > (buyer_credit + iir.u_balance)) {
     Debug("Not enough money to buy item");

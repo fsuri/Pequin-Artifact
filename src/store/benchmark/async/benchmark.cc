@@ -57,6 +57,7 @@
 #include "store/benchmark/async/tpcc/async/tpcc_client.h"
 #include "store/benchmark/async/sql/tpcc/tpcc_client.h"
 #include "store/benchmark/async/sql/seats/seats_client.h"
+#include "store/benchmark/async/sql/auctionmark/auctionmark_client.h"
 #include "store/benchmark/async/sql/tpcch/tpcch_client.h"
 #include "store/benchmark/async/smallbank/smallbank_client.h"
 #include "store/benchmark/async/toy/toy_client.h"
@@ -131,6 +132,7 @@ enum benchmode_t {
   BENCH_TPCC_SQL,
   BENCH_RW_SQL, 
   BENCH_SEATS_SQL,
+  BENCH_AUCTIONMARK_SQL,
   BENCH_TPCCH_SQL
 };
 
@@ -566,6 +568,7 @@ const std::string benchmark_args[] = {
   "tpcc-sql",
   "rw-sql",
   "seats-sql",
+  "auctionmark-sql"
   "tpcch-sql"
 };
 const benchmode_t benchmodes[] {
@@ -578,6 +581,7 @@ const benchmode_t benchmodes[] {
   BENCH_TPCC_SQL,
   BENCH_RW_SQL,
   BENCH_SEATS_SQL,
+  BENCH_AUCTIONMARK_SQL,
   BENCH_TPCCH_SQL
 };
 static bool ValidateBenchmark(const char* flagname, const std::string &value) {
@@ -1587,6 +1591,7 @@ int main(int argc, char **argv) {
       case BENCH_TPCC_SYNC:
       case BENCH_TPCC_SQL:
       case BENCH_SEATS_SQL:
+      case BENCH_AUCTIONMARK_SQL:
       case BENCH_TPCCH_SQL:
         if (syncClient == nullptr) {
           UW_ASSERT(client != nullptr);
@@ -1694,13 +1699,13 @@ int main(int argc, char **argv) {
               FLAGS_warmup_secs, FLAGS_cooldown_secs, FLAGS_tput_interval,
               FLAGS_abort_backoff, FLAGS_retry_aborted, FLAGS_max_backoff, FLAGS_max_attempts, FLAGS_message_timeout);
           break;
-      // case BENCH_AUCTIONMARK_SQL:
-      //     UW_ASSERT(syncClient != nullptr);
-      //     bench = new seats_sql::SEATSSQLClient( *syncClient, *tport,
-      //         seed, FLAGS_num_requests, FLAGS_exp_duration, FLAGS_delay,
-      //         FLAGS_warmup_secs, FLAGS_cooldown_secs, FLAGS_tput_interval,
-      //         FLAGS_abort_backoff, FLAGS_retry_aborted, FLAGS_max_backoff, FLAGS_max_attempts, FLAGS_message_timeout);
-      //     break;
+      case BENCH_AUCTIONMARK_SQL:
+          UW_ASSERT(syncClient != nullptr);
+          bench = new auctionmark::AuctionmarkClient( *syncClient, *tport,
+              seed, client_total, FLAGS_num_requests, FLAGS_exp_duration, FLAGS_delay,
+              FLAGS_warmup_secs, FLAGS_cooldown_secs, FLAGS_tput_interval,
+              FLAGS_abort_backoff, FLAGS_retry_aborted, FLAGS_max_backoff, FLAGS_max_attempts, FLAGS_message_timeout);
+          break;
       case BENCH_TPCCH_SQL: {
           UW_ASSERT(syncClient != nullptr);
           int id = FLAGS_num_client_hosts * i + FLAGS_client_id;
@@ -1738,6 +1743,7 @@ int main(int argc, char **argv) {
       case BENCH_RW_SQL:
       case BENCH_SMALLBANK_SYNC:
       case BENCH_SEATS_SQL:
+      case BENCH_AUCTIONMARK_SQL:
       case BENCH_TPCC_SQL:
       case BENCH_TPCCH_SQL:
       case BENCH_TPCC_SYNC: {

@@ -25,6 +25,7 @@
  *
  **********************************************************************/
 #include "store/benchmark/async/sql/auctionmark/new_item.h"
+#include "store/benchmark/async/sql/auctionmark/auctionmark_utils.h"
 #include <fmt/core.h>
 
 namespace auctionmark {
@@ -150,8 +151,7 @@ transaction_status_t NewItem::Execute(SyncClient &client) {
    //Insert ITEM_ATTRIBUTE tuples
   std::string insertItemAttribute = fmt::format("INSERT INTO {} (ia_id, ia_i_id, ia_u_id, ia_gav_id, ia_gag_id) VALUES({}, {}, {}, {}, {})", TABLE_ITEM_ATTR);
   for(int i = 0; i< gav_ids.size(); ++i){
-    UserId sellerId = ItemId(item_id).get_seller_id();
-    std::string unique_elem_id = ItemId(sellerId, i).encode();
+    std::string unique_elem_id = GetUniqueElementId(item_id, i);
     std::string stmt = fmt::format(insertItemAttribute, unique_elem_id, item_id, seller_id, gav_ids[i], gag_ids[i]);
     client.Write(stmt, queryResult, timeout); //TODO: parallelize
   }
@@ -159,8 +159,7 @@ transaction_status_t NewItem::Execute(SyncClient &client) {
   //Insert ITEM_IMAGE tuples         
   std::string insertImage = fmt::format("INSERT INTO {} (ii_id, ii_i_id, ii_u_id, ii_sattr0) VALUES ({}, {}, {}, {})", TABLE_ITEM_IMAGE);                    
   for(int i = 0; i<images.length; ++i){
-    UserId sellerId = ItemId(item_id).get_seller_id();
-    std::string unique_elem_id = ItemId(sellerId, i).encode();
+    std::string unique_elem_id = GetUniqueElementId(item_id, i);
     std::string stmt = fmt::format(insertImage, unique_elem_id, item_id, seller_id, images[i]);
     client.Write(stmt, queryResult, timeout); //TODO: parallelize
   }

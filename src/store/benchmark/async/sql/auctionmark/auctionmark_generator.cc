@@ -228,7 +228,7 @@ void GenerateUserAcctTable(TableWriter &writer, uint32_t N_REGIONS, uint32_t N_U
 //   writer.add_table(table_name, column_names_and_types, primary_key_col_idx);
 // }
 
-void GenerateUserAcctWatch(){
+void GenerateUserAcctWatch(TableWriter &writer){
    std::vector<std::pair<std::string, std::string>> column_names_and_types;
   column_names_and_types.push_back(std::make_pair("uw_u_id", "TEXT"));
   column_names_and_types.push_back(std::make_pair("uw_i_id", "TEXT"));
@@ -241,7 +241,7 @@ void GenerateUserAcctWatch(){
   writer.add_table(table_name, column_names_and_types, primary_key_col_idx);
 }
 
-void GenerateUserAcctFeedback(){
+void GenerateUserAcctFeedback(TableWriter &writer){
    std::vector<std::pair<std::string, std::string>> column_names_and_types;
   column_names_and_types.push_back(std::make_pair("uf_u_id", "TEXT"));
   column_names_and_types.push_back(std::make_pair("uf_i_id", "TEXT"));
@@ -257,7 +257,7 @@ void GenerateUserAcctFeedback(){
   writer.add_table(table_name, column_names_and_types, primary_key_col_idx);
 }
 
-void GenerateUserAcctItem(){
+void GenerateUserAcctItem(TableWriter &writer){
    std::vector<std::pair<std::string, std::string>> column_names_and_types;
   column_names_and_types.push_back(std::make_pair("ui_u_id", "TEXT"));
   column_names_and_types.push_back(std::make_pair("ui_i_id", "TEXT"));
@@ -278,7 +278,7 @@ void GenerateUserAcctItem(){
   writer.add_index(table_name, "idx_useracct_item_id", index);
 }
 
-void GenerateItem(){
+void GenerateItem(TableWriter &writer){
   std::vector<std::pair<std::string, std::string>> column_names_and_types;
   column_names_and_types.push_back(std::make_pair("i_id", "TEXT"));
   column_names_and_types.push_back(std::make_pair("i_u_id", "TEXT"));
@@ -317,7 +317,7 @@ void GenerateItem(){
   writer.add_index(table_name, "idx_item_seller", index);
 }
 
-void GenerateItemAttribute(){
+void GenerateItemAttribute(TableWriter &writer){
   std::vector<std::pair<std::string, std::string>> column_names_and_types;
   column_names_and_types.push_back(std::make_pair("ia_id", "TEXT"));
   column_names_and_types.push_back(std::make_pair("ia_i_id", "TEXT"));
@@ -332,7 +332,7 @@ void GenerateItemAttribute(){
   writer.add_table(table_name, column_names_and_types, primary_key_col_idx);
 }
 
-void GenerateItemImage(){
+void GenerateItemImage(TableWriter &writer){
   std::vector<std::pair<std::string, std::string>> column_names_and_types;
   column_names_and_types.push_back(std::make_pair("ii_id", "TEXT"));
   column_names_and_types.push_back(std::make_pair("ii_i_id", "TEXT"));
@@ -345,7 +345,7 @@ void GenerateItemImage(){
   writer.add_table(table_name, column_names_and_types, primary_key_col_idx);
 }
 
-void GenerateItemComment(){
+void GenerateItemComment(TableWriter &writer){
   std::vector<std::pair<std::string, std::string>> column_names_and_types;
   column_names_and_types.push_back(std::make_pair("ic_id", "BIGINT"));
   column_names_and_types.push_back(std::make_pair("ic_i_id", "TEXT"));
@@ -366,7 +366,7 @@ void GenerateItemComment(){
   writer.add_index(table_name, "idx_item_comment", index);
 }
 
-void GenerateItemBid(){
+void GenerateItemBid(TableWriter &writer){
   std::vector<std::pair<std::string, std::string>> column_names_and_types;
   column_names_and_types.push_back(std::make_pair("ib_id", "BIGINT"));
   column_names_and_types.push_back(std::make_pair("ib_i_id", "TEXT"));
@@ -383,7 +383,7 @@ void GenerateItemBid(){
   writer.add_table(table_name, column_names_and_types, primary_key_col_idx);
 }
 
-void GenerateItemMaxBid(){
+void GenerateItemMaxBid(TableWriter &writer){
    std::vector<std::pair<std::string, std::string>> column_names_and_types;
   column_names_and_types.push_back(std::make_pair("imb_id", "TEXT"));
   column_names_and_types.push_back(std::make_pair("imb_u_id", "TEXT"));
@@ -399,7 +399,7 @@ void GenerateItemMaxBid(){
   writer.add_table(table_name, column_names_and_types, primary_key_col_idx);
 }
 
-void GenerateItemPurchase(){
+void GenerateItemPurchase(TableWriter &writer){
    std::vector<std::pair<std::string, std::string>> column_names_and_types;
   column_names_and_types.push_back(std::make_pair("ip_id", "BIGINT"));
   column_names_and_types.push_back(std::make_pair("ip_ib_id", "BIGINT"));

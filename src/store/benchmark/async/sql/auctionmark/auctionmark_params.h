@@ -169,12 +169,10 @@ namespace auctionmark
   static constexpr int ITEM_LOADCONFIG_LIMIT = 5000;
 
   static constexpr int ITEM_ID_CACHE_SIZE = 1000;
-
-  const int CLOSE_AUCTIONS_ITEMS_PER_ROUND = 100;   /** The number of items to pull in for each update round in CloseAuctions */
  
   static constexpr int CLOSE_AUCTIONS_ROUNDS = 1;  /** The number of update rounds in each invocation of CloseAuctions */
 
-  static constexpr int CLOSE_AUCTIONS_ITEMS_PER_ROUND = 100;
+  static constexpr int CLOSE_AUCTIONS_ITEMS_PER_ROUND = 100;  /** The number of items to pull in for each update round in CloseAuctions */
 
   static constexpr const char* ITEM_COLUMNS[7] = {
         "i_id", "i_u_id", "i_name", "i_current_price", "i_num_bids", "i_end_date", "i_status"
@@ -182,7 +180,7 @@ namespace auctionmark
 
   static const std::string ITEM_COLUMNS_STR = "i_id, i_u_id, i_name, i_current_price, i_num_bids, i_end_date, i_status";
 
-  const enum ItemStatus {
+  enum ItemStatus {
     OPEN,
     ENDING_SOON,
     WAITING_FOR_PURCHASE,
@@ -230,26 +228,26 @@ namespace auctionmark
 
   /* Table Data Structures */
   static const std::unordered_set<std::string> FIXED_TABLES = {
-    TABLENAME_REGION,
-    TABLENAME_GLOBAL_ATTRIBUTE_GROUP,
-    TABLENAME_GLOBAL_ATTRIBUTE_VALUE
+    TABLE_REGION,
+    TABLE_GLOBAL_ATTR_GROUP,
+    TABLE_GLOBAL_ATTR_VALUE
   };
 
   static const std::unordered_set<std::string> DYNAMIC_TABLES = {
-    TABLENAME_USERACCT_ATTRIBUTES,
-    TABLENAME_ITEM_IMAGE,
-    TABLENAME_ITEM_ATTRIBUTE,
-    TABLENAME_ITEM_COMMENT,
-    TABLENAME_USERACCT_FEEDBACK,
-    TABLENAME_ITEM_BID,
-    TABLENAME_ITEM_MAX_BID,
-    TABLENAME_ITEM_PURCHASE,
-    TABLENAME_USERACCT_ITEM,
-    TABLENAME_USERACCT_WATCH
+    //TABLE_USERACCT_ATTRIBUTES,
+    TABLE_ITEM_IMAGE,
+    TABLE_ITEM_ATTR,
+    TABLE_ITEM_COMMENT,
+    TABLE_USERACCT_FEEDBACK,
+    TABLE_ITEM_BID,
+    TABLE_ITEM_MAX_BID,
+    TABLE_ITEM_PURCHASE,
+    TABLE_USERACCT_ITEM,
+    TABLE_USERACCT_WATCH
   };
 
   static const std::unordered_set<std::string> DATAFILE_TABLES = {
-    TABLENAME_CATEGORY
+    TABLE_CATEGORY
   };
 
   /* Probabilities */
