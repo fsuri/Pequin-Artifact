@@ -127,7 +127,7 @@ namespace auctionmark
     std::vector<ItemInfo> items_waiting_for_purchase;
     std::vector<ItemInfo> items_completed;
 
-    const std::vector<ItemInfo> all_item_sets[4] = {
+    const std::vector<ItemInfo> all_item_sets[ITEM_SETS_NUM] = {
         items_available,
         items_ending_soon,
         items_waiting_for_purchase,
