@@ -187,6 +187,7 @@ namespace auctionmark
     CLOSED
   };
 
+  static constexpr const int ITEM_SETS_NUM = 4;
 
   /* Table Names */
   static constexpr const char* TABLE_REGION = "region";
@@ -274,6 +275,10 @@ namespace auctionmark
 
   /** The probability that a NewBid txn will target an item whose auction is ending soon (1-100) */
   static constexpr int PROB_NEWBID_ENDINGSOON_ITEM = 50;
+
+  /* Profile */
+  static const std::string PROFILE_FILE_NAME = "auctionmark_profile.csv";
+  static const std::string PROFILE_HIST_SAVE_FILE_NAME = "auctionmark_profile_hist.csv";
 } 
   
 

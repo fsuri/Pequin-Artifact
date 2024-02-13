@@ -2,6 +2,7 @@
 #include "store/benchmark/async/sql/auctionmark/auctionmark_params.h"
 #include "store/benchmark/async/sql/auctionmark/utils/auctionmark_utils.h"
 #include <algorithm>
+#include <boost/histogram/serialization.hpp>
 
 namespace auctionmark
 {
@@ -507,11 +508,50 @@ namespace auctionmark
   // SERIALIZATION METHODS
   // -----------------------------------------------------------------
   void AuctionMarkProfile::save_profile(SyncClient &client) {
-    throw std::logic_error("Unimplemented");
+    std::ofstream profile_csv;
+    profile_csv.open(PROFILE_FILE_NAME);
+    profile_csv << "scale_factor,loader_start,loader_stop\n";
+    profile_csv << scale_factor << "," << loader_start_time.time_since_epoch().count() << "," << loader_stop_time.time_since_epoch().count() << "\n";
+
+    std::ofstream users_per_item_count_file;
+    {
+      users_per_item_count_file.open(PROFILE_HIST_SAVE_FILE_NAME);
+      boost::archive::text_oarchive oa(users_per_item_count_file);
+      oa << users_per_item_count;
+    }
+    users_per_item_count_file.close();
   }
 
   void AuctionMarkProfile::copy_profile(int client_id, AuctionMarkProfile &other) {
-    throw std::logic_error("Unimplemented");
+    this.client_id = client_id;
+    scale_factor = other.scale_factor;
+    loader_start_time = other.loader_start_time;
+    loader_stop_time = other.loader_stop_time;
+    users_per_item_count = other.users_per_item_count;
+    items_per_category = other.items_per_category;
+    gag_ids = other.gag_ids;
+
+    initialize_user_id_generator(client_id);
+
+    for (int i = 0; i < ITEM_SETS_NUM; i++) {
+      auto list = all_item_sets[i];
+      auto orig_list = other.all_item_sets[i];
+
+      for (ItemInfo& item_info : orig_list) {
+        UserId seller_id = item_info.get_seller_id();
+        if (user_id_generator->check_client(seller_id)) {
+          seller_item_cnt.at(seller_id.encode()) = seller_id.get_item_count();
+          list.push_back(item_info);
+        }
+      }
+    }
+
+    for (ItemCommentResponse cr : other.pending_comment_responses) {
+      UserId seller_id = UserId(cr.get_seller_id());
+      if (user_id_generator->check_client(seller_id)) {
+        pending_comment_responses.push_back(cr);
+      }
+    }
   }
 
   void AuctionMarkProfile::load_profile(int client_id) {
