@@ -29,7 +29,7 @@
 
 namespace auctionmark {
 
-NewBid::NewBid(uint32_t timeout, AuctionMarkProfile &profile, std::mt19937_64 &gen) : AuctionMarkTransaction(timeout) {
+NewBid::NewBid(uint32_t timeout, AuctionMarkProfile &profile, std::mt19937_64 &gen) : AuctionMarkTransaction(timeout), profile(profile) {
 
     // uint64_t i_id = std::binomial_distribution<uint64_t>(max_i_id, 0.5)(gen);
     // //FIXME: Should also randomly generate user id??
@@ -233,6 +233,10 @@ transaction_status_t NewBid::Execute(SyncClient &client) {
     client.Wait(results);
   }
  
+   
+  ItemRecord item_rec(item_id, seller_id, "", i_current_price, ir.i_num_bids + 1, ir.i_end_date, ir.i_status, newBidId, newBidMaxBuyerId);
+  ItemId itemId = profile.processItemRecord(item_rec);
+
   Debug("COMMIT");
   return client.Commit(timeout);
 }

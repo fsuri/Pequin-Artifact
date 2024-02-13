@@ -172,6 +172,10 @@ transaction_status_t NewItem::Execute(SyncClient &client) {
   std::string updateUserBalance = fmt::format("UPDATE {} SET u_balance = u_balance -1, u_updated = {} WHERE u_id = {}", TABLE_USERACCT, current_time, seller_id);
   client.Write(updateUserBalance, queryResult, timeout);
 
+
+  ItemRecord item_rec(item_id, seller_id, name, initial_price, 0, end_date, ItemStatus::OPEN);
+  ItemId itemId = profile.processItemRecord(item_rec);
+
   Debug("COMMIT");
   return client.Commit(timeout);
 

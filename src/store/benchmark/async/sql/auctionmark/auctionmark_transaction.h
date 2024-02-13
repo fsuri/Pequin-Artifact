@@ -69,6 +69,31 @@ void deserialize(T& t, std::unique_ptr<const query_result::QueryResult>& queryRe
   load_row(t, queryResult->at(row), col);
 }
 
+class ItemRow {
+  public:
+    ItemRow(){}
+    std::string itemId;
+    std::string sellerId;
+    std::string i_name;
+    double currentPrice;
+    double numBids;
+    uint64_t endDate;
+    int i_status;
+    ItemStatus itemStatus;
+};
+
+inline void load_row(ItemRow& r, std::unique_ptr<query_result::Row> row)
+{
+  row->get(0, &r.itemId);
+  row->get(1, &r.sellerId);
+  row->get(2, &r.i_name);
+  row->get(3, &r.currentPrice);
+  row->get(4, &r.numBids);
+  row->get(5, &r.endDate);
+  row->get(6, &r.i_status);
+  r.itemStatus = static_cast<ItemStatus>(r.i_status);
+}
+
 
 
 }

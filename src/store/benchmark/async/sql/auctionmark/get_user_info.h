@@ -40,7 +40,7 @@ class GetUserInfo : public AuctionMarkTransaction {
 
  private:
   AuctionMarkProfile &profile;
-  uint64_t u_id;
+  std::string user_id;
   bool get_feedback;
   bool get_comments;
   bool get_seller_items;

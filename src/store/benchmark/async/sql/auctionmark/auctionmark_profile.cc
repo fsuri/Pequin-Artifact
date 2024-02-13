@@ -209,8 +209,7 @@ namespace auctionmark
     std::map<int, std::string> hist;
     for (auto &&x : indexed(previous_bidders))
     {
-      if (*x > 0)
-      {
+      if (*x > 0){
         hist[*x] = x.bin();
       }
     }
@@ -425,6 +424,20 @@ namespace auctionmark
     return item_info;
   }
 
+
+  ItemId AuctionMarkProfile::processItemRecord(ItemRecord &row){
+    assert(!row.sellerId.empty());
+    if(row.itemStatus == ItemStatus::NULL_VAL){
+
+      ItemStatus i_status = IttemStatus::OPEN;
+      ItemInfo itemInfo(row.itemId, row.currentPrice, row.endDate, (int) row.numBids);
+      itemInfo.set_status(i_status);
+
+      profile.add_item_to_proper_queue(itemInfo, false);
+    }
+    return row.itemId;
+  }
+
   /**********************************************************************************************
    * AVAILABLE ITEMS
    **********************************************************************************************/
@@ -572,6 +585,7 @@ namespace auctionmark
       }
     }
   }
+
 
   void AuctionMarkProfile::load_profile(int client_id) {
     throw std::logic_error("Unimplemented");

@@ -20,6 +20,31 @@
 namespace auctionmark
 {
 
+  struct ItemRecord
+  {
+    ItemRecord() {}
+    ItemRecord(std::string itemId, std::string sellerId, std::string i_name, double currentPrice,
+              double numBids, uint64_t endDate, ItemStatus itemStatus)
+              : itemId(itemId), sellerId(sellerId), i_name(i_name), currentPrice(currentPrice),
+                 numBids(numBids), endDate(endDate), itemStatus(itemStatus)
+    {}
+    ItemRecord(std::string itemId, std::string sellerId, std::string i_name, double currentPrice,
+              double numBids, uint64_t endDate, ItemStatus itemStatus, uint64_t bidId, std::string buyerId)
+              : itemId(itemId), sellerId(sellerId), i_name(i_name), currentPrice(currentPrice),
+                 numBids(numBids), endDate(endDate), itemStatus(itemStatus), bidId(bidId), buyerId(buyerId)
+    {}
+    std::string itemId;
+    std::string sellerId;
+    std::string i_name;
+    double currentPrice;
+    double numBids;
+    uint64_t endDate;
+    ItemStatus itemStatus;
+    uint64_t bidId;
+    std::string buyerId;
+  };
+
+
   class AuctionMarkProfile
   {
     using int_hist_t = boost::histogram::histogram<std::tuple<boost::histogram::axis::integer<>>>;
@@ -94,6 +119,8 @@ namespace auctionmark
     /* Global Attribute Methods */
     GlobalAttributeValueId get_random_global_attribute_value();
     int get_random_category_id();
+
+    ItemId processItemRecord(ItemRecord &row);
 
     /* Serialization Methods */
     void save_profile(SyncClient &client);

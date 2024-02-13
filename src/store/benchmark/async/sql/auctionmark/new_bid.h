@@ -45,6 +45,8 @@ class NewBid : public AuctionMarkTransaction {
   double newBid;
   timestamp_t estimatedEndDate;
   std::vector<timestamp_t> benchmark_times;
+
+  AuctionMarkProfile &profile;
 };
 
 //Row

@@ -41,7 +41,9 @@ class GetItem : public AuctionMarkTransaction {
  private:
   std::string item_id;
   std::string seller_id;
+  AuctionMarkProfile &profile;
 };
+
 
 } // namespace auctionmark
 

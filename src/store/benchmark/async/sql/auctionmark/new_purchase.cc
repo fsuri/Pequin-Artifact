@@ -157,6 +157,10 @@ transaction_status_t NewPurchase::Execute(SyncClient &client) {
 
   client.asyncWait();
 
+  ItemStatus i_status = static_cast<ItemStatus>(iir.i_status);
+  ItemRecord item_rec(item_id, seller_id, "", iir.i_current_price, iir.i_num_bids, iir.i_end_date, i_status); // iir.ib_id, iir.ib_buyer_id, ip_id missing? Doesn't seem to be needed.
+  ItemId itemId = profile.processItemRecord(item_rec);
+
   Debug("COMMIT");
   return client.Commit(timeout);
 }

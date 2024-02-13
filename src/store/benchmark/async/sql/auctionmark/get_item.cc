@@ -30,7 +30,7 @@
 namespace auctionmark {
 
 GetItem::GetItem(uint32_t timeout, AuctionMarkProfile &profile, std::mt19937_64 &gen) : 
-    AuctionMarkTransaction(timeout) {
+    AuctionMarkTransaction(timeout), profile(profile) {
    
     ItemInfo itemInfo = *profile.get_random_available_item();
     item_id = itemInfo.get_item_id().encode();
@@ -65,7 +65,13 @@ transaction_status_t GetItem::Execute(SyncClient &client) {
     client.Abort(timeout);
     return ABORTED_USER;
   } 
+
+  ItemRow ir;
+  deserialize(ir, results[0]);
   
+  ItemRecord item_rec(ir.itemId, ir.sellerId, ir.i_name, ir.currentPrice, ir.numBids, ir.endDate, ir.itemStatus);
+  ItemId itemId = profile.processItemRecord(item_rec);
+
   Debug("COMMIT");
   return client.Commit(timeout);
 }

@@ -10,11 +10,12 @@ enum class ItemStatus {
     ENDING_SOON, // Only used internally
     WAITING_FOR_PURCHASE,
     CLOSED,
+    NULL_VAL, //Special NULL handling
 };
 
 class ItemStatusHelper {
 private:
-    static const bool internal_statuses[4];
+    static const bool internal_statuses[5];
 
 public:
     static bool is_internal(ItemStatus status) {
@@ -26,7 +27,7 @@ public:
     }
 };
 
-const bool ItemStatusHelper::internal_statuses[4] = {false, true, false, false};
+const bool ItemStatusHelper::internal_statuses[5] = {false, true, false, false, false};
 
 } // namespace auctionmark
 

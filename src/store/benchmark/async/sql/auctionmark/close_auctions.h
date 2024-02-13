@@ -32,6 +32,21 @@
 
 namespace auctionmark {
 
+class CloseAuctions : public AuctionMarkTransaction {
+ public:
+  CloseAuctions(uint32_t timeout, AuctionMarkProfile &profile, std::mt19937_64 &gen);
+  virtual ~CloseAuctions();
+  virtual transaction_status_t Execute(SyncClient &client);
+  void UpdateProfile();
+
+ private:
+  uint64_t start_time;
+  uint64_t end_time;
+  std::vector<timestamp_t> benchmark_times;
+
+  AuctionMarkProfile &profile;
+  std::vector<ItemRecord> item_records;
+};
 
 class getDueItemRow {
   public:
@@ -70,33 +85,6 @@ inline void load_row(getMaxBidRow& r, std::unique_ptr<query_result::Row> row)
   row->get(0, &r.bidId);
   row->get(1, &r.buyerId);
 }
-
-struct ItemResult
-{
-  ItemResult(getDueItemRow &dir, getMaxBidRow &mbr): dir(std::move(dir)), mbr(std::move(mbr)) {}
-  getDueItemRow dir;
-  getMaxBidRow mbr;
-};
-
-
-class CloseAuctions : public AuctionMarkTransaction {
- public:
-  CloseAuctions(uint32_t timeout, AuctionMarkProfile &profile, std::mt19937_64 &gen);
-  virtual ~CloseAuctions();
-  virtual transaction_status_t Execute(SyncClient &client);
-  void UpdateProfile();
-  std::string processItemRecord(ItemResult &item_res);
-
- private:
-  uint64_t start_time;
-  uint64_t end_time;
-  std::vector<timestamp_t> benchmark_times;
-
-  AuctionMarkProfile &profile;
-  std::vector<ItemResult> item_results;
-};
-
-
 
 
 } // namespace auctionmark

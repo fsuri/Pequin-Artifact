@@ -34,7 +34,7 @@ GetUserInfo::GetUserInfo(uint32_t timeout, AuctionMarkProfile &profile, std::mt1
     AuctionMarkTransaction(timeout), profile(profile), gen(gen) {
 
     UserId userId = profile.get_random_buyer_id();
-    u_id = userId.encode();
+    user_id = userId.encode();
 
     uint32_t rand;
     rand = std::uniform_int_distribution<uint32_t>(0, 100)(gen);
@@ -69,13 +69,6 @@ transaction_status_t GetUserInfo::Execute(SyncClient &client) {
   Debug("Get Buyer Items: %lu", get_buyer_items);
   Debug("Get Feedback: %lu", get_feedback);
 
-  //TODO: parameterize
-  std::string user_id;
-  bool get_feedback;
-  bool get_comments;
-  bool get_seller_items;
-  bool get_buyer_items;
-  bool get_watched_items;
 
   client.Begin(timeout);
 
@@ -123,6 +116,14 @@ transaction_status_t GetUserInfo::Execute(SyncClient &client) {
     statement = fmt::format("SELECT {} FROM {} WHERE i_u_id = {} ORDER BY i_end_date DESC LIMIT 25", ITEM_COLUMNS_STR, TABLE_ITEM, user_id);
     client.Query(statement, queryResult, timeout);
     assert(!queryResult->empty());
+    for(int i=0; queryResult->size(); ++i){
+       ItemRow ir;
+      deserialize(ir, queryResult, i);
+      
+      ItemRecord item_rec(ir.itemId, ir.sellerId, ir.i_name, ir.currentPrice, ir.numBids, ir.endDate, ir.itemStatus);
+      ItemId itemId = profile.processItemRecord(item_rec);
+    }
+   
   }
               
   if(get_buyer_items){
@@ -131,6 +132,14 @@ transaction_status_t GetUserInfo::Execute(SyncClient &client) {
                         ITEM_COLUMNS_STR, TABLE_USERACCT_ITEM, TABLE_ITEM, user_id); //TODO: make input redundant
     client.Query(statement, queryResult, timeout);
     assert(!queryResult->empty());
+     for(int i=0; queryResult->size(); ++i){
+       ItemRow ir;
+      deserialize(ir, queryResult, i);
+      
+      ItemRecord item_rec(ir.itemId, ir.sellerId, ir.i_name, ir.currentPrice, ir.numBids, ir.endDate, ir.itemStatus);
+      ItemId itemId = profile.processItemRecord(item_rec);
+    }
+
   }
 
   if(get_watched_items){
@@ -139,6 +148,13 @@ transaction_status_t GetUserInfo::Execute(SyncClient &client) {
                  ITEM_COLUMNS_STR, TABLE_USERACCT_WATCH, TABLE_ITEM, user_id); //TODO: make input redundant
     client.Query(statement, queryResult, timeout);
     assert(!queryResult->empty());
+     for(int i=0; queryResult->size(); ++i){
+       ItemRow ir;
+      deserialize(ir, queryResult, i);
+      
+      ItemRecord item_rec(ir.itemId, ir.sellerId, ir.i_name, ir.currentPrice, ir.numBids, ir.endDate, ir.itemStatus);
+      ItemId itemId = profile.processItemRecord(item_rec);
+    }
   }
   
   //TODO: processItemRecords?
