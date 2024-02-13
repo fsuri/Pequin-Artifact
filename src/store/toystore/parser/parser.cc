@@ -2,15 +2,13 @@
 // Must do syntax checking and generate a query tree.
 extern "C"
 {
-#include "libpg_query/pg_query.h"
+#include "pg_query.h"
 }
-
-#include <stdio.h>
 
 int main(int argc, char *argv[])
 {
     auto ctx = pg_query_parse_init();
-    auto result = pg_query_parse("SELECT 1;");
+    auto result = pg_query_parse("SELECT col1, COUNT(*) from tableA where col2 >= 3 limit 20;");
 
     if (result.error)
     {
