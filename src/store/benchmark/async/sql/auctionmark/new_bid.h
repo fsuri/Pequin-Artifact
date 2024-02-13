@@ -43,7 +43,8 @@ class NewBid : public AuctionMarkTransaction {
   std::string seller_id;
   std::string buyer_id;
   double newBid;
-  uint64_t estimatedEndDate;
+  timestamp_t estimatedEndDate;
+  timestamp_t benchmark_times[2];
 };
 
 //Row

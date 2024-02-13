@@ -45,6 +45,7 @@ class NewComment : public AuctionMarkTransaction {
   std::string question;
 
   std::mt19937_64 &gen;
+  AuctionMarkProfile &profile;
 };
 
 } // namespace auctionmark

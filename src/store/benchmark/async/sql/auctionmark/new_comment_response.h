@@ -45,6 +45,7 @@ class NewCommentResponse : public AuctionMarkTransaction {
   std::string response;
 
   std::mt19937_64 &gen;
+  AuctionMarkProfile &profile;
 };
 
 } // namespace auctionmark

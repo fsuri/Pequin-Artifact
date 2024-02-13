@@ -31,6 +31,7 @@
 
 #include "store/benchmark/async/sync_transaction_bench_client.h"
 #include "store/benchmark/async/sql/auctionmark/auctionmark_params.h"
+#include "store/benchmark/async/sql/auctionmark/auctionmark_profile.h"
 
 namespace auctionmark
 {
@@ -55,7 +56,7 @@ enum AuctionMarkTransactionType
 class AuctionMarkClient : public SyncTransactionBenchClient
 {
  public:
-  AuctionMarkClient(SyncClient &client, Transport &transport, uint64_t id,
+  AuctionMarkClient(SyncClient &client, Transport &transport, uint64_t client_id, uint64_t num_clients,
                     int numRequests, int expDuration, uint64_t delay, int warmupSec,
                     int cooldownSec, int tputInterval,
                     uint32_t abortBackoff, bool retryAborted, uint32_t maxBackoff, uint32_t maxAttempts,
@@ -70,6 +71,8 @@ class AuctionMarkClient : public SyncTransactionBenchClient
  protected:
   virtual SyncTransaction *GetNextTransaction();
   virtual std::string GetLastOp() const;
+
+  AuctionMarkProfile profile;
 
   std::string lastOp;
   std::mt19937_64 gen;

@@ -32,6 +32,43 @@ namespace auctionmark {
 
 NewItem::NewItem(uint32_t timeout, AuctionMarkProfile &profile, std::mt19937_64 &gen) : AuctionMarkTransaction(timeout), profile(profile), gen(gen) {
   //TODO: Generate
+
+  UserId sellerId = profile.get_random_seller_id(profile.client_id());
+  ItemId itemId = profile.get_next_item_id(sellerId);
+
+  item_id = itemId.encode();
+  seller_id = seller_id.encode();
+
+  name = RandomAString(6, 32, gen);
+  description = RandomAString(50, 255, gen);
+  category_id = profile.get_random_category_id();
+
+  initial_price = std::uniform_real_distribution<double>(ITEM_INITIAL_PRICE_MIN, ITEM_INITIAL_PRICE_MAX)(gen); //FIXME: In original code this is zipf distributed (don't think it matters for contention..)
+  attributes = RandomAString(50, 255, gen);
+
+  int numAttributes = std::uniform_real_distribution<int>(ITEM_NUM_GLOBAL_ATTRS_MIN, ITEM_NUM_GLOBAL_ATTRS_MAX)(gen); //FIXME: In original code this is zipf distributed (don't think it matters for contention..)
+  std::vector<GlobalAttributeValueId> gavList;
+  for (int i = 0; i < numAttributes; i++) {
+    GlobalAttributeValueId gav_id = profile.get_random_global_attribute_value();
+    if (std::find(gavList.begin(), gavList.end(), gav_id) != gavList.end()) {
+      gavList.push_back(gav_id);
+    }
+  }
+
+  for (int i = 0, cnt = gavList.size(); i < cnt; i++) {
+    GlobalAttributeValueId gav_id = gavList[i];
+    gag_ids[i] = gav_id.get_global_attribute_group().encode();
+    gav_ids[i] = gav_id.encode();
+  }
+
+  int numImages = std::uniform_real_distribution<int>(ITEM_NUM_IMAGES_MIN, ITEM_NUM_IMAGES_MAX)(gen); //FIXME: In original code this is zipf distributed (don't think it matters for contention..)
+  for (int i = 0; i < numImages; i++) {
+    images[i] = RandomAString(20, 100, gen);
+  }
+
+  duration = std::binomial_distribution<uint64_t>(ITEM_DURATION_DAYS_MAX-1, 0.5) + 1;  //gives a val between 1 (DAYS_MIN) and 10 (DAYS_MAX) with normal distribution
+
+
 }
 
 NewItem::~NewItem(){
@@ -44,13 +81,13 @@ transaction_status_t NewItem::Execute(SyncClient &client) {
 
   //Insert a new ITEM record for user.
   Debug("NEW ITEM");
-  Debug("User ID: %lu", u_id);
+  Debug("ItemID: %s", item_id.c_str());
 
 
   client.Begin(timeout);
 
-  std::uint64_t current_time = std::time(0);
-  std::uint64_t end_date = current_time + (duration * MILLISECONDS_IN_A_DAY);
+  timestamp_t current_time = GetProcTimestamp({profile.get_loader_start_time(), profile.get_client_start_time()});
+  timestamp_t end_date = current_time + (duration * MILLISECONDS_IN_A_DAY);
 
   //Get attribute names and category path and append them to the item description
 
@@ -113,7 +150,8 @@ transaction_status_t NewItem::Execute(SyncClient &client) {
    //Insert ITEM_ATTRIBUTE tuples
   std::string insertItemAttribute = fmt::format("INSERT INTO {} (ia_id, ia_i_id, ia_u_id, ia_gav_id, ia_gag_id) VALUES({}, {}, {}, {}, {})", TABLE_ITEM_ATTR);
   for(int i = 0; i< gav_ids.size(); ++i){
-    std::string unique_elem_id = item_id + "" + std::stoi(i); //TODO: Revisit this  Original code breaks down item_id into seller_id and item_ctr; and then concats seller_id and i 
+    UserId sellerId = ItemId(item_id).get_seller_id();
+    std::string unique_elem_id = ItemId(sellerId, i).encode();
     std::string stmt = fmt::format(insertItemAttribute, unique_elem_id, item_id, seller_id, gav_ids[i], gag_ids[i]);
     client.Write(stmt, queryResult, timeout); //TODO: parallelize
   }
@@ -121,12 +159,13 @@ transaction_status_t NewItem::Execute(SyncClient &client) {
   //Insert ITEM_IMAGE tuples         
   std::string insertImage = fmt::format("INSERT INTO {} (ii_id, ii_i_id, ii_u_id, ii_sattr0) VALUES ({}, {}, {}, {})", TABLE_ITEM_IMAGE);                    
   for(int i = 0; i<images.length; ++i){
-    std::string unique_elem_id = item_id + "" + std::stoi(i); //TODO: Revisit this  Original code breaks down item_id into seller_id and item_ctr; and then concats seller_id and i 
+    UserId sellerId = ItemId(item_id).get_seller_id();
+    std::string unique_elem_id = ItemId(sellerId, i).encode();
     std::string stmt = fmt::format(insertImage, unique_elem_id, item_id, seller_id, images[i]);
     client.Write(stmt, queryResult, timeout); //TODO: parallelize
   }
 
-  std::string updateUserBalance = fmt::format("UPDATE {} SET u_balance = u_balance -1, u_updated = {} WHERE u_id = {}", TABLE_USER_ACCT, current_time, seller_id);
+  std::string updateUserBalance = fmt::format("UPDATE {} SET u_balance = u_balance -1, u_updated = {} WHERE u_id = {}", TABLE_USERACCT, current_time, seller_id);
   client.Write(updateUserBalance, queryResult, timeout);
 
   Debug("COMMIT");

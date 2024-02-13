@@ -34,7 +34,7 @@ CloseAuctions::CloseAuctions(uint32_t timeout, AuctionMarkProfile &profile, std:
   //generate params
   start_time = profile.get_last_close_auctions_time();
   end_time = profile.update_and_get_last_close_auctions_time();
-  benchmarkTimes = {profile.get_loader_start_time(), profile.get_client_start_time()};
+  benchmark_times = {profile.get_loader_start_time(), profile.get_client_start_time()};
 }
 
 CloseAuctions::~CloseAuctions(){
@@ -57,10 +57,8 @@ transaction_status_t CloseAuctions::Execute(SyncClient &client) {
   int waiting_ctr = 0;
   int round = CLOSE_AUCTIONS_ROUNDS;
 
-  auto current_time = getProcTimestamp(benchmarkTimes);
-  uint64_t current_time = std::time(0); //TODO: FIXME: This should get some scaled timestamp?
-
-
+  auto current_time = GetProcTimestamp(benchmark_times);
+  
   std::string getDueItems = fmt::format("SELECT {} FROM {} WHERE i_start_date >= {} AND i_start_date <= {} AND i_status = {} "
                                         "ORDER BY i_id ASC LIMIT {}", ITEM_COLUMNS_STR, TABLE_ITEM, CLOSE_AUCTIONS_ITEMS_PER_ROUND, start_time, end_time, ItemStatus::OPEN);
 
@@ -86,12 +84,13 @@ transaction_status_t CloseAuctions::Execute(SyncClient &client) {
       // We'll also insert a new USER_ITEM record as needed
       // We have to do this extra step because H-Store doesn't have good support in the query optimizer for LEFT OUTER JOINs  //THIS IS A COMMENT FROM BENCHBASE
 
+      getMaxBidRow mbr;
       if(dir.numBids > 0){
         waiting_ctr++;
         std::string getMaxBid_stmt = fmt::format(getMaxBid, dir.itemId, dir.sellerId);
         client.Query(getMaxBid_stmt, queryResult, timeout);
 
-        getMaxBidRow mbr;
+  
         deserialize(mbr, queryResult);
 
         std::string insertUserItem = fmt::format("INSERT INTO {} (ui_u_id, ui_i_id, ui_i_u_id, ui_created) "

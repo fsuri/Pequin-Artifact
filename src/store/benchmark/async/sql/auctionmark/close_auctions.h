@@ -88,7 +88,7 @@ class CloseAuctions : public AuctionMarkTransaction {
  private:
   uint64_t start_time;
   uint64_t end_time;
-  std::vector<uint64_t> benchmarkTimes;
+  timestamp_t benchmark_times[2];
 
   AuctionMarkProfile &profile;
   std::vector<ItemResult> item_results;

@@ -140,6 +140,7 @@ transaction_status_t GetUserInfo::Execute(SyncClient &client) {
     assert(!queryResult->empty());
   }
   
+  //TODO: processItemRecords?
 
   Debug("COMMIT");
   return client.Commit(timeout);

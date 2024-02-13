@@ -45,6 +45,7 @@ class NewPurchase : public AuctionMarkTransaction {
   double buyer_credit;
 
   std::mt19937_64 &gen;
+  AuctionMarkProfile &profile;
 };
 
 class getItemInfoRow {

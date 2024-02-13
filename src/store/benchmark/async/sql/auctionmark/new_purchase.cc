@@ -29,8 +29,27 @@
 
 namespace auctionmark {
 
-NewPurchase::NewPurchase(uint32_t timeout, AuctionMarkProfile &profile, std::mt19937_64 &gen) : AuctionMarkTransaction(timeout),
-      gen(gen) {
+NewPurchase::NewPurchase(uint32_t timeout, AuctionMarkProfile &profile, std::mt19937_64 &gen) : AuctionMarkTransaction(timeout), profile(profile), gen(gen) {
+  ItemInfo itemInfo = profile.get_random_waiting_for_purchase_item();
+  item_id = itemInfo.get_item_id().encode();
+  UserId sellerId = itemInfo.get_seller_id();
+  seller_id = sellerId.encode();
+  buyer_credit = 0;
+
+  int ip_id_cnt = profile.ip_id_cntrs[item_id];
+  
+  ip_id = ItemId(sellerId, ip_id_cnt).encode();
+  profile.ip_id_cntrs[item_id] = (ip_id_cnt < 127) ? ip_id_cnt + 1 : 0;
+
+  // Whether the buyer will not have enough money
+  if (itemInfo.has_current_price()) {
+    if (std::uniform_int_distribution<int>(1, 100)(gen) <= PROB_NEWPURCHASE_NOT_ENOUGH_MONEY) {
+      buyer_credit = -1 * itemInfo.get_current_price();
+    } else {
+      buyer_credit = itemInfo.get_current_price();
+      itemInfo.set_status(ItemStatus::CLOSED);
+    }
+  }
 }
 
 NewPurchase::~NewPurchase(){
@@ -45,7 +64,7 @@ transaction_status_t NewPurchase::Execute(SyncClient &client) {
 
   client.Begin(timeout);
 
-  uint64_t current_time = std::time(0); //TODO: Revisit this?
+  timestamp_t current_time = GetProcTimestamp({profile.get_loader_start_time(), profile.get_client_start_time()});
 
   //HACK Check whether we have an ITEM_MAX_BID record. If not, we'll insert one
   std::string getItemMaxBid = fmt::format("SELECT * FROM {} WHERE imb_i_id = {} AND imb_u_id = {}", TABLE_ITEM_MAX_BID, item_id, seller_id);

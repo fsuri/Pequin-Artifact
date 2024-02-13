@@ -29,8 +29,25 @@
 
 namespace auctionmark {
 
-NewFeedback::NewFeedback(uint32_t timeout, AuctionMarkProfile &profile, std::mt19937_64 &gen) : AuctionMarkTransaction(timeout), gen(gen) {
-  //TODO: generate params
+NewFeedback::NewFeedback(uint32_t timeout, AuctionMarkProfile &profile, std::mt19937_64 &gen) : AuctionMarkTransaction(timeout), profile(profile), gen(gen) {
+  
+  ItemInfo itemInfo = *profile.get_random_completed_item();
+  UserId sellerId = itemInfo.get_seller_id();
+  UserId buyerId = profile.get_random_buyer_id(sellerId);
+  rating = std::uniform_int_distribution<int>(-1, 1)(gen);
+  feedback = RandomAString(10, 80, gen);
+
+  if(std::uniform_int_distribution<int>(0, 1)(gen)){
+    user_id = sellerId.encode();
+    from_id = buyerId.encode();
+  }
+  else{
+    user_id = buyerId.encode();
+    from_id = sellerId.encode();
+  }
+
+  i_id = itemInfo.get_item_id().encode();
+  seller_id = sellerId.encode();
 }
 
 NewFeedback::~NewFeedback(){
@@ -42,6 +59,8 @@ transaction_status_t NewFeedback::Execute(SyncClient &client) {
   std::vector<std::unique_ptr<const query_result::QueryResult>> results;
 
   Debug("NEW FEEDBACK");
+
+   timestamp_t current_time = GetProcTimestamp({profile.get_loader_start_time(), profile.get_client_start_time()});
 
   client.Begin(timeout);
 
@@ -55,7 +74,7 @@ transaction_status_t NewFeedback::Execute(SyncClient &client) {
 
 
   statement = fmt::format("INSERT INTO {} (uf_u_id, uf_i_id, uf_i_u_id, uf_from_id, uf_rating, uf_date, uf_sattr0) "
-                          "VALUES({}, {}, {}, {}, {}, {}, {})", TABLE_USERACCT_FEEDBACK, user_id, i_id, seller_id, from_id, rating, std::time(0), comment);
+                          "VALUES({}, {}, {}, {}, {}, {}, {})", TABLE_USERACCT_FEEDBACK, user_id, i_id, seller_id, from_id, rating, current_time, feedback);
   client.Write(statement, queryResult, timeout);
 
   Debug("COMMIT NEW_FEEDBACK");

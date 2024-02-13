@@ -43,10 +43,11 @@ class NewFeedback : public AuctionMarkTransaction {
   std::string i_id;
   std::string seller_id;
   std::string from_id;
-  uint64_t rating;
-  std::string comment;
+  int rating;
+  std::string feedback;
 
   std::mt19937_64 &gen;
+  AuctionMarkProfile &profile;
 };
 
 } // namespace auctionmark

@@ -30,12 +30,72 @@
 namespace auctionmark {
 
 NewBid::NewBid(uint32_t timeout, AuctionMarkProfile &profile, std::mt19937_64 &gen) : AuctionMarkTransaction(timeout) {
-  //TODO: Initialize params from profile;
-  item_id = "";
-  seller_id = "";
-  buyer_id = "";
-  newBid = 0;
-  uint64_t estimatedEndDate = 0;
+
+    // uint64_t i_id = std::binomial_distribution<uint64_t>(max_i_id, 0.5)(gen);
+    // //FIXME: Should also randomly generate user id??
+    // uint64_t i_buyer_id = std::binomial_distribution<uint64_t>(max_u_id, 0.5)(gen);
+    // double bid = std::uniform_real_distribution<double>(0.0, 1000.0)(gen);
+    // double max_bid = std::uniform_real_distribution<double>(bid, 2 * bid)(gen);
+
+  benchmark_times = {profile.get_loader_start_time(), profile.get_client_start_time()};
+  std::optional<ItemInfo> itemInfo
+  UserId sellerId;
+  UserId buyerId;
+  double bid;
+  double maxBid;
+  
+
+
+  bool has_available = profile.get_available_items_count() > 0;
+  bool has_ending = profile.get_ending_soon_items_count() > 0;
+  bool has_waiting = profile.get_waiting_for_purchase_items_count() > 0;
+  bool has_completed = profile.get_completed_items_count() > 0;
+
+  // Some NewBids will be for items that have already ended. This will simulate somebody trying to bid at the very end but failing
+  int rand = std::uniform_int_distribution<int>(1, 100)(gen);
+  if ((has_waiting || has_completed) && (rand <= PROB_NEWBID_CLOSED_ITEM || !has_available)) {
+      if (has_waiting) {
+        itemInfo = profile.get_random_waiting_for_purchase_item();
+    
+      } else {
+        itemInfo = profile.get_random_completed_item();
+      }
+      sellerId = itemInfo->get_seller_id();
+      buyerId = profile.get_random_buyer_id(sellerId);
+ 
+      // The bid/maxBid do not matter because they won't be able to actually update the auction
+      bid = std::uniform_real_distribution<double>(0, 1);
+      maxBid = bid + 100;
+    }
+
+    // Otherwise we want to generate information for a real bid
+    else {
+      rand = std::uniform_int_distribution<int>(1, 100)(gen);
+      // 50% of NewBids will be for items that are ending soon
+      if ((has_ending && rand <= PROB_NEWBID_CLOSED_ITEM) || !has_available) {
+        itemInfo = profile.get_random_ending_soon_item(true); 
+      }
+      if (!itemInfo.has_value()) {
+        itemInfo = profile.get_random_available_item(true);
+      }
+      if (!itemInfo.has_value()) {
+        itemInfo = profile.get_random_item();
+      }
+
+      sellerId = itemInfo->get_seller_id();
+      buyerId = profile.get_random_buyer_id(sellerId);
+
+      double currentPrice = itemInfo->get_current_price();
+      bid = round(std::uniform_real_distribution<double>(currentPrice, currentPrice * (1 + (ITEM_BID_PERCENT_STEP / 2)))(gen) * 100) /100; //round to 2 decimal places
+      maxBid = round(std::uniform_real_distribution<double>(bid, cbid * (1 + (ITEM_BID_PERCENT_STEP / 2)))(gen) * 100) /100; //round to 2 decimal places
+    }
+
+  item_id = itemInfo.get_item_id().encode();
+  seller_id = sellerId.encode();
+  buyer_id = buyerId.encode();
+  newBid = maxBid;
+  timestamp_t estimatedEndDate = itemInfo.get_end_date();
+
 }
 
 NewBid::~NewBid(){
@@ -53,7 +113,7 @@ transaction_status_t NewBid::Execute(SyncClient &client) {
 
   //TODO: parallelize queries (only after sequential debugged)
 
-  uint64_t current_time = std::time(0);
+  timestamp_t current_time = GetProcTimestamp(benchmark_times);
   double i_current_price;
 
   client.Begin(timeout);

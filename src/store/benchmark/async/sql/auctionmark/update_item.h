@@ -46,6 +46,7 @@ class UpdateItem : public AuctionMarkTransaction {
   std::vector<std::string> add_attribute;
 
   std::mt19937_64 &gen;
+  AuctionMarkProfile &profile;
 };
 
 } // namespace auctionmark

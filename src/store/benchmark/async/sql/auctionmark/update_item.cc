@@ -29,9 +29,27 @@
 
 namespace auctionmark {
 
-UpdateItem::UpdateItem(uint32_t timeout,  AuctionMarkProfile &profile, std::mt19937_64 &gen) : 
-  AuctionMarkTransaction(timeout), gen(gen) {
-    //TODO: generate params
+UpdateItem::UpdateItem(uint32_t timeout,  AuctionMarkProfile &profile, std::mt19937_64 &gen) : AuctionMarkTransaction(timeout), profile(profile), gen(gen) {
+  ItemInfo itemInfo = *profile.get_random_available_item();
+  UserId sellerId = itemInfo.get_seller_id();
+  description = RandomAString(50, 255, gen);
+
+  delete_attribute = false;
+  add_attribute = {"-1", "-1"};
+
+  // Delete ITEM_ATTRIBUTE
+  if (std::uniform_int_distribution<int>(1, 100)(gen) <= PROB_UPDATEITEM_DELETE_ATTRIBUTE) {
+    delete_attribute = true;
+  }
+  // Add ITEM_ATTRIBUTE
+  else if (std::uniform_int_distribution<int>(1, 100)(gen) <= PROB_UPDATEITEM_ADD_ATTRIBUTE) {
+    GlobalAttributeValueId gav_id = profile.get_random_global_attribute_value();
+    add_attribute[0] = gav_id.get_global_attribute_group().encode();
+    add_attribute[1] = gav_id.encode();
+  }
+
+  item_id = itemInfo.get_item_id().encode();
+  seller_id = sellerId.encode();
 }
 
 UpdateItem::~UpdateItem(){
@@ -46,7 +64,7 @@ transaction_status_t UpdateItem::Execute(SyncClient &client) {
 
   client.Begin(timeout);
 
-  uint64_t current_time = std::time(0); //TODO: Revisit how original code handles
+  timestamp_t current_time = GetProcTimestamp({profile.get_loader_start_time(), profile.get_client_start_time()});
 
   std::string updateItem = fmt::format("UPDATE {} SET i_description = {}, i_updated = {} WHERE i_id = {} AND i_u_id = {}", TABLE_ITEM, description, current_time, item_id, seller_id);
   client.Write(updateItem, queryResult, timeout);

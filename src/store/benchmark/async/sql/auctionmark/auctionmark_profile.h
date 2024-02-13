@@ -110,6 +110,17 @@ namespace auctionmark
 
     void load_profile(int client_id);
 
+    inline int client_id(){
+      return client_id;
+    }
+
+    inline int num_pending_comment_responses(){
+      return pending_comment_responses.size();
+    }
+    std::vector<ItemCommentResponse> pending_comment_responses;
+
+    std::map<std::string, int> ip_id_cntrs;
+
   private:
     static AuctionMarkProfile *cached_profile;
     const int client_id;
@@ -154,7 +165,6 @@ namespace auctionmark
 
     str_cat_hist_t seller_item_cnt;
 
-    std::vector<ItemCommentResponse> pending_comment_responses;
 
     // Temporary variables
     std::unordered_set<ItemInfo> tmp_seen_items;

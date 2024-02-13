@@ -31,8 +31,7 @@ namespace auctionmark {
 
 GetItem::GetItem(uint32_t timeout, AuctionMarkProfile &profile, std::mt19937_64 &gen) : 
     AuctionMarkTransaction(timeout) {
-      //TODO: Generate item_id and seller_id
-
+   
     ItemInfo itemInfo = profile.get_random_available_item();
     item_id = itemInfo.get_item_id().encode();
     seller_id = itemInfo.get_seller_id().encode();

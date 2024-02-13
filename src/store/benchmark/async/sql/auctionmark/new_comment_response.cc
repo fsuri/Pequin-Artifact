@@ -29,8 +29,21 @@
 
 namespace auctionmark {
 
-NewCommentResponse::NewCommentResponse(uint32_t timeout, AuctionMarkProfile &profile, std::mt19937_64 &gen) : AuctionMarkTransaction(timeout), gen(gen) {
-  //TODO: Parameter generation
+NewCommentResponse::NewCommentResponse(uint32_t timeout, AuctionMarkProfile &profile, std::mt19937_64 &gen) : AuctionMarkTransaction(timeout), profile(profile), gen(gen) {
+
+  int idx = std::uniform_int_distribution<int>(1, profile.num_pending_comment_responses())(gen) - 1;
+  ItemCommentResponse cr = profile.pending_comment_responses[idx];
+  //remove this id. (swap with back, and pop the now duplicated back)
+  profile.pending_comment_responses[idx] = profile.pending_comment_responses.back();
+  profile.pending_comment_responses.pop_back();
+
+  comment_id = cr.get_comment_id();
+  ItemId itemId = ItemId(cr.get_item_id());
+  item_id = itemId.encode();
+  seller_id = itemId.get_seller_id().encode();
+  
+  response = RandomAString(ITEM_COMMENT_LENGTH_MIN, ITEM_COMMENT_LENGTH_MAX, gen);
+
 }
 
 NewCommentResponse::~NewCommentResponse(){
@@ -45,7 +58,7 @@ transaction_status_t NewCommentResponse::Execute(SyncClient &client) {
 
   client.Begin(timeout);
 
-  uint64_t current_time = std::time(0);
+  timestamp_t current_time = GetProcTimestamp({profile.get_loader_start_time(), profile.get_client_start_time()});
 
    statement = fmt::format("UPDATE {} SET ic_response = {}, ic_updated = {} WHERE ic_id = {} AND ic_i_id = {} AND ic_u_id = {}", 
                           TABLE_ITEM_COMMENT, response, current_time, comment_id, item_id, seller_id);
