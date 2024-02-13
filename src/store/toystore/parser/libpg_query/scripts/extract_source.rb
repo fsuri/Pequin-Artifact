@@ -51,15 +51,15 @@ class Runner
     @include_files_to_output = []
     @unresolved = []
 
-    @blocklist = []
+    @blacklist = []
     @mock = {}
 
     @basepath = File.absolute_path(ARGV[0]) + '/'
     @out_path = File.absolute_path(ARGV[1]) + '/'
   end
 
-  def blocklist(symbol)
-    @blocklist << symbol
+  def blacklist(symbol)
+    @blacklist << symbol
   end
 
   def mock(symbol, code)
@@ -73,13 +73,13 @@ class Runner
     Dir.glob(@basepath + 'src/timezone/**/*.c') +
     Dir.glob(@basepath + 'src/pl/plpgsql/src/*.c') +
     Dir.glob(@basepath + 'contrib/pgcrypto/*.c') -
-    [ # blocklist
+    [ # Blacklist
       @basepath + 'src/backend/libpq/be-secure-openssl.c', # OpenSSL include error
       @basepath + 'src/backend/utils/adt/levenshtein.c', # Built through varlena.c
       @basepath + 'src/backend/utils/adt/like_match.c', # Built through like.c
-      @basepath + 'src/backend/utils/adt/jsonpath_scan.c', # Built through jsonpath.c
       @basepath + 'src/backend/utils/misc/guc-file.c', # Built through guc.c
       @basepath + 'src/backend/utils/sort/qsort_tuple.c', # Built through tuplesort.c
+      @basepath + 'src/backend/parser/scan.c', # Built through gram.c
       @basepath + 'src/backend/bootstrap/bootscanner.c', # Built through bootparse.c
       @basepath + 'src/backend/regex/regc_color.c', # Built through regcomp.c
       @basepath + 'src/backend/regex/regc_cvec.c', # Built through regcomp.c
@@ -89,40 +89,24 @@ class Runner
       @basepath + 'src/backend/regex/regc_nfa.c', # Built through regcomp.c
       @basepath + 'src/backend/regex/rege_dfa.c', # Built through regexec.c
       @basepath + 'src/backend/replication/repl_scanner.c', # Built through repl_gram.c
-      @basepath + 'src/backend/replication/libpqwalreceiver/libpqwalreceiver.c', # Dynamic module
-      @basepath + 'src/backend/replication/syncrep_scanner.c', # Built through syncrep.c
       @basepath + 'src/backend/port/posix_sema.c', # Linux only
       @basepath + 'src/common/fe_memutils.c', # This file is not expected to be compiled for backend code
       @basepath + 'src/common/restricted_token.c', # This file is not expected to be compiled for backend code
-      @basepath + 'src/common/unicode/norm_test.c', # This file is not expected to be compiled for backend code
-      @basepath + 'src/backend/utils/mb/win866.c', # Win32 only
-      @basepath + 'src/backend/utils/mb/win1251.c', # Win32 only
-      @basepath + 'src/backend/utils/mb/iso.c', # Win32 only
       @basepath + 'src/port/dirent.c', # Win32 only
-      @basepath + 'src/port/win32error.c', # Win32 only
-      @basepath + 'src/port/win32env.c', # Win32 only
-      @basepath + 'src/port/win32security.c', # Win32 only
+      @basepath + 'src/port/getaddrinfo.c', # Win32 only
+      @basepath + 'src/port/getrusage.c', # Win32 only
       @basepath + 'src/port/gettimeofday.c', # Win32 only
-      @basepath + 'src/port/strnlen.c', # Not needed and conflicts with available function
-      @basepath + 'src/port/strlcat.c', # Not needed and conflicts with available function
-      @basepath + 'src/port/unsetenv.c', # Not needed and conflicts with available function
-      @basepath + 'src/port/getaddrinfo.c', # Not needed and conflicts with available function
-      @basepath + 'src/port/getrusage.c', # Not needed and conflicts with available function
-      @basepath + 'src/port/pg_crc32c_armv8.c', # Can't be parsed outside of ARMv8 compatible environments
-      @basepath + 'src/port/pg_crc32c_armv8_choose.c', # Can't be parsed outside of ARMv8 compatible environments
-      @basepath + 'src/backend/jit/llvm/llvmjit_expr.c', # Requires LLVM-C library (which we don't want to require)
-      @basepath + 'src/backend/jit/llvm/llvmjit_deform.c', # Requires LLVM-C library (which we don't want to require)
-      @basepath + 'src/backend/jit/llvm/llvmjit.c', # Requires LLVM-C library (which we don't want to require)
-      @basepath + 'src/backend/libpq/be-gssapi-common.c', # Requires GSSAPI (which we don't want to require)
-      @basepath + 'src/backend/libpq/be-secure-gssapi.c', # Requires GSSAPI (which we don't want to require)
-      @basepath + 'src/common/protocol_openssl.c', # Requires OpenSSL (which we don't want to require)
+      @basepath + 'src/port/strerror.c', # Win32 only
+      @basepath + 'src/port/strerror.c', # Win32 only
+      @basepath + 'src/port/strlcat.c', # Win32 only
+      @basepath + 'src/port/strlcpy.c', # Win32 only
+      @basepath + 'src/port/unsetenv.c', # Win32 only
+      @basepath + 'src/port/win32error.c', # Win32 only
     ] -
     Dir.glob(@basepath + 'src/backend/port/dynloader/*.c') -
     Dir.glob(@basepath + 'src/backend/port/win32/*.c') -
     Dir.glob(@basepath + 'src/backend/port/win32_*.c') -
-    Dir.glob(@basepath + 'src/backend/snowball/**/*.c') -
-    Dir.glob(@basepath + 'src/backend/nodes/*.switch.c') -
-    Dir.glob(@basepath + 'src/backend/nodes/*.funcs.c')
+    Dir.glob(@basepath + 'src/backend/snowball/**/*.c')
 
     #files = [@basepath + 'src/backend/parser/keywords.c']
 
@@ -214,33 +198,7 @@ class Runner
 
   def analyze_file(file)
     index = FFI::Clang::Index.new(true, true)
-    flags = [
-      '-I', @basepath + 'src/include',
-      '-I', '/usr/local/opt/openssl/include',
-      '-I', `xcrun --sdk macosx --show-sdk-path`.strip + '/usr/include',
-      '-DDLSUFFIX=".bundle"',
-      '-g',
-      '-ferror-limit=0',
-      '-DUSE_ASSERT_CHECKING',
-      # EXEC_BACKEND is used on Windows, and can always be safely set during code analysis
-      '-DEXEC_BACKEND',
-    ]
-
-    # For certain files, use WIN32 define - we can't always do this since it pulls unnecessary code in other cases
-    if file == @basepath + 'src/backend/utils/error/elog.c' || file == @basepath + 'src/backend/utils/mb/mbutils.c'
-      flags << '-DWIN32'
-      flags << '-D__CYGWIN__' # Avoid pulling in win32_port.h (which includes a bunch of system headers we don't actually have)
-    end
-
-    # To override built-ins, we must avoid pulling in any system headers, so pretend we already defined c.h
-    if file == @basepath + 'src/port/strlcpy.c'
-      flags << '-DC_H'
-      flags << '-DHAVE_DECL_STRLCPY=0'
-      flags << '-Dsize_t=unsigned'
-    end
-
-    translation_unit = index.parse_translation_unit(file, flags)
-
+    translation_unit = index.parse_translation_unit(file, ['-I', @basepath + 'src/include', '-DDLSUFFIX=".bundle"', '-msse4.2', '-g'])
     cursor = translation_unit.cursor
 
     func_cursor = nil
@@ -272,9 +230,7 @@ class Runner
             end_offset = cursor.extent.end.offset
             end_offset += 1 if cursor.kind == :cursor_variable # The ";" isn't counted correctly by clang
 
-            if cursor.kind == :cursor_variable && (cursor.linkage == :external || cursor.linkage == :internal) &&
-              !cursor.type.const_qualified? && !cursor.type.array_element_type.const_qualified? &&
-              cursor.type.pointee.kind != :type_function_proto
+            if cursor.kind == :cursor_variable && cursor.linkage == :external && !cursor.type.const_qualified? && !cursor.type.array_element_type.const_qualified?
               analysis.external_variables << cursor.spelling
             end
 
@@ -282,15 +238,10 @@ class Runner
             analysis.file_to_symbol_positions[cursor.location.file][cursor.spelling] = [start_offset, end_offset]
 
             cursor.visit_children do |child_cursor, parent|
-              # There seems to be a bug here on modern Clang versions where the
-              # cursor kind gets modified once we call "child_cursor.definition"
-              # - thus we make a copy ahead of calling that, for later use
-              child_cursor_kind = child_cursor.kind
-
               # Ignore variable definitions from the local scope
               next :recurse if child_cursor.definition.semantic_parent == cursor
 
-              if child_cursor_kind == :cursor_decl_ref_expr || child_cursor_kind == :cursor_call_expr
+              if child_cursor.kind == :cursor_decl_ref_expr || child_cursor.kind == :cursor_call_expr
                 analysis.references[cursor.spelling] ||= []
                 (analysis.references[cursor.spelling] << child_cursor.spelling).uniq!
               end
@@ -310,8 +261,8 @@ class Runner
   RESOLVE_MAX_DEPTH = 100
 
   def deep_resolve(method_name, depth: 0, trail: [], global_resolved_by_parent: [], static_resolved_by_parent: [], static_base_filename: nil)
-    if @blocklist.include?(method_name)
-      puts 'ERROR: Hit blocklist entry ' + method_name
+    if @blacklist.include?(method_name)
+      puts 'ERROR: Hit blacklist entry ' + method_name
       puts 'Trail: ' + trail.inspect
       exit 1
     end
@@ -382,7 +333,7 @@ class Runner
   end
 
   def special_include_file?(filename)
-    filename[/\/(reg(c|e)_[\w_]+|guc-file|qsort_tuple|repl_scanner|levenshtein|bootscanner|like_match)\.c$/] || filename[/\/[\w_]+\.funcs.c$/] || filename[/\/[\w_]+_impl.h$/]
+    filename[/\/(reg(c|e)_[\w_]+|scan|guc-file|qsort_tuple|repl_scanner|levenshtein|bootscanner|like_match)\.c$/] || filename[/\/[\w_]+_impl.h$/]
   end
 
   def write_out
@@ -425,15 +376,11 @@ class Runner
           str += "\n" + @mock[symbol] + "\n"
         elsif @external_variables.include?(symbol) && symbols.include?(symbol)
           file_thread_local_variables << symbol
-          if skipped_code.include?('static')
-            str += "\n" + skipped_code.strip.gsub('static', 'static __thread') + "\n"
-          else
-            str += "\n__thread " + skipped_code.strip + "\n"
-          end
+          str += "\n__thread " + skipped_code.strip + "\n"
         else
           # In the off chance that part of a macro is before a symbol (e.g. ifdef),
           # but the closing part is inside (e.g. endif) we need to output all macros inside skipped parts
-          str += "\n" + skipped_code.scan(/^(#\s*(?:define|undef|if|ifdef|ifndef|else|endif))((?:[^\n]*\\\s*\n)*)([^\n]*)$/m).map { |m| m.compact.join }.join("\n")
+          str += "\n" + skipped_code.scan(/^(#\s*(?:include|define|undef|if|ifdef|ifndef|else|endif))((?:[^\n]*\\\s*\n)*)([^\n]*)$/m).map { |m| m.compact.join }.join("\n")
         end
 
         next_start_pos = pos[1]
@@ -446,22 +393,18 @@ class Runner
       end
       all_thread_local_variables += file_thread_local_variables
 
-      unless special_include_file?(filename)
+      if special_include_file?(filename)
+        out_name = File.basename(filename)
+      else
         out_name = filename.gsub(%r{^#{@basepath}}, '').gsub('/', '_')
-        File.write(@out_path + out_name, str)
       end
+
+      File.write(@out_path + out_name, str)
     end
 
-    #return
+    @include_files_to_output.each do |include_file|
+      next if special_include_file?(include_file)
 
-    additional_includes = Dir.glob(@basepath + 'src/include/storage/dsm_impl.h') +
-      Dir.glob(@basepath + 'src/include/port/atomics/**/*.h') +
-      Dir.glob(@basepath + 'src/include/port/win32/**/*.h') +
-      Dir.glob(@basepath + 'src/include/port/win32_msvc/**/*.h') +
-      Dir.glob(@basepath + 'src/include/port/win32.h') +
-      Dir.glob(@basepath + 'src/include/port/win32_port.h')
-
-    (@include_files_to_output + additional_includes).each do |include_file|
       if include_file.start_with?(@basepath + 'src/include')
         out_file = @out_path + include_file.gsub(%r{^#{@basepath}src/}, '')
       else
@@ -470,7 +413,7 @@ class Runner
 
       code = File.read(include_file)
       all_thread_local_variables.each do |variable|
-        code.gsub!(/(extern\s+)(PGDLLIMPORT\s+)?(const\s+)?(volatile\s+)?(\w+)\s+(\*{0,2})#{variable}(\[\])?;/, "\\1\\2__thread \\3\\4\\5 \\6#{variable}\\7;")
+        code.gsub!(/(PGDLLIMPORT|extern)\s+(const|volatile)?\s*(\w+)\s+(\*{0,2})#{variable}(\[\])?;/, "\\1 __thread \\2 \\3 \\4#{variable}\\5;")
       end
 
       FileUtils.mkdir_p File.dirname(out_file)
@@ -482,42 +425,20 @@ end
 runner = Runner.new
 runner.run
 
-runner.blocklist('SearchSysCache')
-runner.blocklist('heap_open')
-runner.blocklist('relation_open')
-runner.blocklist('RelnameGetRelid')
-runner.blocklist('ProcessClientWriteInterrupt')
-runner.blocklist('typeStringToTypeName')
-runner.blocklist('LWLockAcquire')
-runner.blocklist('SPI_freeplan')
-runner.blocklist('get_ps_display')
-runner.blocklist('pq_beginmessage')
-
-# We have to mock this as it calls `hash_search`, which eventually makes
-# calls down to `pgstat_report_wait_start` and `pgstat_report_wait_end`.
-# These functions depend on the existence of a global variable
-# `my_wait_event_info`.
-#
-# The problem here is we can't reasonably compile the source file
-# `backend/utils/activity/wait_event.c` which provides this symbol, as it
-# initializes the value by-default to a reference to another global.
-# Normally this is fine, but we transform both of these globals so that they
-# are thread local via `__thread`, and it is not valid to initialize one thread
-# local with the address of another.
-#
-# Instead of tackling this directly, we just return `NULL` in the mock below,
-# observing that we do not need to support the registration of custom nodes.
-runner.mock('GetExtensibleNodeMethods', %(
-const ExtensibleNodeMethods *
-GetExtensibleNodeMethods(const char *extnodename, bool missing_ok)
-{
-	return NULL;
-}
-))
+runner.blacklist('SearchSysCache')
+runner.blacklist('heap_open')
+runner.blacklist('relation_open')
+runner.blacklist('RelnameGetRelid')
+runner.blacklist('ProcessClientWriteInterrupt')
+runner.blacklist('typeStringToTypeName')
+runner.blacklist('LWLockAcquire')
+runner.blacklist('SPI_freeplan')
+runner.blacklist('get_ps_display')
+runner.blacklist('pq_beginmessage')
 
 # Mocks REQUIRED for basic operations (error handling, memory management)
 runner.mock('ProcessInterrupts', 'void ProcessInterrupts(void) {}') # Required by errfinish
-runner.mock('PqCommMethods', 'const PQcommMethods *PqCommMethods = NULL;') # Required by errfinish
+runner.mock('PqCommMethods', 'PQcommMethods *PqCommMethods = NULL;') # Required by errfinish
 runner.mock('proc_exit', 'void proc_exit(int code) { printf("Terminating process due to FATAL error\n"); exit(1); }') # Required by errfinish (we use PG_TRY/PG_CATCH, so this should never be reached in practice)
 runner.mock('send_message_to_server_log', 'static void send_message_to_server_log(ErrorData *edata) {}')
 runner.mock('send_message_to_frontend', 'static void send_message_to_frontend(ErrorData *edata) {}')
@@ -525,8 +446,8 @@ runner.mock('send_message_to_frontend', 'static void send_message_to_frontend(Er
 # Mocks REQUIRED for PL/pgSQL parsing
 runner.mock('format_type_be', 'char * format_type_be(Oid type_oid) { return pstrdup("-"); }')
 runner.mock('build_row_from_class', 'static PLpgSQL_row *build_row_from_class(Oid classOid) { return NULL; }')
-runner.mock('plpgsql_build_datatype', 'PLpgSQL_type * plpgsql_build_datatype(Oid typeOid, int32 typmod, Oid collation, TypeName *origtypname) { PLpgSQL_type *typ; typ = (PLpgSQL_type *) palloc0(sizeof(PLpgSQL_type)); typ->typname = pstrdup("UNKNOWN"); typ->ttype = PLPGSQL_TTYPE_SCALAR; return typ; }')
-runner.mock('parse_datatype', 'static PLpgSQL_type * parse_datatype(const char *string, int location) { PLpgSQL_type *typ; typ = (PLpgSQL_type *) palloc0(sizeof(PLpgSQL_type)); typ->typname = pstrdup(string); typ->ttype = strcmp(string, "RECORD") == 0 ? PLPGSQL_TTYPE_REC : PLPGSQL_TTYPE_SCALAR; return typ; }')
+runner.mock('plpgsql_build_datatype', 'PLpgSQL_type * plpgsql_build_datatype(Oid typeOid, int32 typmod, Oid collation) { PLpgSQL_type *typ; typ = (PLpgSQL_type *) palloc0(sizeof(PLpgSQL_type)); typ->typname = pstrdup("UNKNOWN"); typ->ttype = PLPGSQL_TTYPE_SCALAR; return typ; }')
+runner.mock('parse_datatype', 'static PLpgSQL_type * parse_datatype(const char *string, int location) { PLpgSQL_type *typ; typ = (PLpgSQL_type *) palloc0(sizeof(PLpgSQL_type)); typ->typname = pstrdup(string); typ->ttype = PLPGSQL_TTYPE_SCALAR; return typ; }')
 runner.mock('get_collation_oid', 'Oid get_collation_oid(List *name, bool missing_ok) { return -1; }')
 runner.mock('plpgsql_parse_wordtype', 'PLpgSQL_type * plpgsql_parse_wordtype(char *ident) { return NULL; }')
 runner.mock('plpgsql_parse_wordrowtype', 'PLpgSQL_type * plpgsql_parse_wordrowtype(char *ident) { return NULL; }')
@@ -560,20 +481,6 @@ make_return_stmt(int location)
 }
 )) # We're always working with fn_rettype = VOIDOID, due to our use of plpgsql_compile_inline
 
-# Mocks REQUIRED for Windows support
-runner.mock('write_stderr', %(
-void
-write_stderr(const char *fmt,...)
-{
-	va_list	ap;
-	va_start(ap, fmt);
-	vfprintf(stderr, fmt, ap);
-	fflush(stderr);
-	va_end(ap);
-}
-)) # Avoid pulling in write_console/write_eventlog, and instead always output to stderr (like on POSIX)
-runner.mock('should_output_to_client', 'static inline bool should_output_to_client(int elevel) { return false; }') # Avoid pulling in postmaster.c, which has a bunch of Windows-specific code hidden behind a define
-
 ## ---
 
 # SQL Parsing
@@ -592,7 +499,6 @@ runner.deep_resolve('AllocSetContextCreate')
 runner.deep_resolve('MemoryContextSwitchTo')
 runner.deep_resolve('CurrentMemoryContext')
 runner.deep_resolve('MemoryContextDelete')
-runner.deep_resolve('AllocSetDeleteFreeList')
 runner.deep_resolve('palloc0')
 
 # Error handling needed to call parser
@@ -602,41 +508,15 @@ runner.deep_resolve('FlushErrorState')
 # Needed for output funcs
 runner.deep_resolve('bms_first_member')
 runner.deep_resolve('bms_free')
-runner.deep_resolve('bms_next_member')
-runner.deep_resolve('bms_num_members')
-runner.deep_resolve('makeBitString')
-
-# Needed for deparse
-runner.deep_resolve('pg_toupper')
 
 # Needed for normalize
 runner.deep_resolve('pg_qsort')
-runner.deep_resolve('pg_qsort_strcmp')
-runner.deep_resolve('raw_expression_tree_walker_impl')
+runner.deep_resolve('raw_expression_tree_walker')
 
-# Needed to work with simplehash (in fingerprinting logic)
-runner.deep_resolve('hash_bytes')
-runner.deep_resolve('MemoryContextAllocExtended')
-
-# Other required functions
-runner.deep_resolve('pg_printf')
-
-# Retain these functions for optional 32-bit support
-# (see BITS_PER_BITMAPWORD checks in bitmapset.c)
-runner.deep_resolve('pg_leftmost_one_pos32')
-runner.deep_resolve('pg_rightmost_one_pos32')
-runner.deep_resolve('pg_popcount32')
-
-# Required for Windows support
-runner.deep_resolve('newNodeMacroHolder')
-runner.deep_resolve('pg_leftmost_one_pos')
-runner.deep_resolve('pg_rightmost_one_pos')
-runner.deep_resolve('pg_number_of_ones')
-runner.deep_resolve('GetMessageEncoding')
-runner.deep_resolve('strlcpy')
-runner.deep_resolve('pg_signal_queue')
-runner.deep_resolve('pg_signal_mask')
-runner.deep_resolve('pgwin32_dispatch_queued_signals')
+# SHA1 needed for fingerprinting
+runner.deep_resolve('sha1_result')
+runner.deep_resolve('sha1_init')
+runner.deep_resolve('sha1_loop')
 
 runner.write_out
 

@@ -4,7 +4,7 @@
  *	  POSTGRES shared cache invalidation communication definitions.
  *
  *
- * Portions Copyright (c) 1996-2023, PostgreSQL Global Development Group
+ * Portions Copyright (c) 1996-2015, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  * src/include/storage/sinval.h
@@ -16,14 +16,13 @@
 
 #include <signal.h>
 
-#include "storage/relfilelocator.h"
+#include "storage/relfilenode.h"
 
 /*
  * We support several types of shared-invalidation messages:
  *	* invalidate a specific tuple in a specific catcache
  *	* invalidate all catcache entries from a given system catalog
  *	* invalidate a relcache entry for a specific logical relation
- *	* invalidate all relcache entries
  *	* invalidate an smgr cache entry for a specific physical relation
  *	* invalidate the mapped-relation mapping for a given database
  *	* invalidate any saved snapshot that might be used to scan a given relation
@@ -79,7 +78,7 @@ typedef struct
 {
 	int8		id;				/* type field --- must be first */
 	Oid			dbId;			/* database ID, or 0 if a shared relation */
-	Oid			relId;			/* relation ID, or 0 if whole relcache */
+	Oid			relId;			/* relation ID */
 } SharedInvalRelcacheMsg;
 
 #define SHAREDINVALSMGR_ID		(-3)
@@ -90,7 +89,7 @@ typedef struct
 	int8		id;				/* type field --- must be first */
 	int8		backend_hi;		/* high bits of backend ID, if temprel */
 	uint16		backend_lo;		/* low bits of backend ID, if temprel */
-	RelFileLocator rlocator;	/* spcOid, dbOid, relNumber */
+	RelFileNode rnode;			/* spcNode, dbNode, relNode */
 } SharedInvalSmgrMsg;
 
 #define SHAREDINVALRELMAP_ID	(-4)
@@ -123,14 +122,15 @@ typedef union
 
 
 /* Counter of messages processed; don't worry about overflow. */
-extern PGDLLIMPORT uint64 SharedInvalidMessageCounter;
+extern uint64 SharedInvalidMessageCounter;
 
-extern PGDLLIMPORT volatile sig_atomic_t catchupInterruptPending;
+extern volatile sig_atomic_t catchupInterruptPending;
 
 extern void SendSharedInvalidMessages(const SharedInvalidationMessage *msgs,
-									  int n);
-extern void ReceiveSharedInvalidMessages(void (*invalFunction) (SharedInvalidationMessage *msg),
-										 void (*resetFunction) (void));
+						  int n);
+extern void ReceiveSharedInvalidMessages(
+					  void (*invalFunction) (SharedInvalidationMessage *msg),
+							 void (*resetFunction) (void));
 
 /* signal handler for catchup events (PROCSIG_CATCHUP_INTERRUPT) */
 extern void HandleCatchupInterrupt(void);
@@ -142,12 +142,12 @@ extern void HandleCatchupInterrupt(void);
  */
 extern void ProcessCatchupInterrupt(void);
 
-extern int	xactGetCommittedInvalidationMessages(SharedInvalidationMessage **msgs,
-												 bool *RelcacheInitFileInval);
+extern int xactGetCommittedInvalidationMessages(SharedInvalidationMessage **msgs,
+									 bool *RelcacheInitFileInval);
 extern void ProcessCommittedInvalidationMessages(SharedInvalidationMessage *msgs,
-												 int nmsgs, bool RelcacheInitFileInval,
-												 Oid dbid, Oid tsid);
+									 int nmsgs, bool RelcacheInitFileInval,
+									 Oid dbid, Oid tsid);
 
 extern void LocalExecuteInvalidationMessage(SharedInvalidationMessage *msg);
 
-#endif							/* SINVAL_H */
+#endif   /* SINVAL_H */

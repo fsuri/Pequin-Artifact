@@ -3,12 +3,11 @@
  * stringinfo.h
  *	  Declarations/definitions for "StringInfo" functions.
  *
- * StringInfo provides an extensible string data type (currently limited to a
- * length of 1GB).  It can be used to buffer either ordinary C strings
- * (null-terminated text) or arbitrary binary data.  All storage is allocated
- * with palloc() (falling back to malloc in frontend code).
+ * StringInfo provides an indefinitely-extensible string data type.
+ * It can be used to buffer either ordinary C strings (null-terminated text)
+ * or arbitrary binary data.  All storage is allocated with palloc().
  *
- * Portions Copyright (c) 1996-2023, PostgreSQL Global Development Group
+ * Portions Copyright (c) 1996-2015, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  * src/include/lib/stringinfo.h
@@ -142,15 +141,7 @@ extern void appendStringInfoSpaces(StringInfo str, int count);
  * if necessary.
  */
 extern void appendBinaryStringInfo(StringInfo str,
-								   const void *data, int datalen);
-
-/*------------------------
- * appendBinaryStringInfoNT
- * Append arbitrary binary data to a StringInfo, allocating more space
- * if necessary. Does not ensure a trailing null-byte exists.
- */
-extern void appendBinaryStringInfoNT(StringInfo str,
-									 const void *data, int datalen);
+					   const char *data, int datalen);
 
 /*------------------------
  * enlargeStringInfo
@@ -158,4 +149,4 @@ extern void appendBinaryStringInfoNT(StringInfo str,
  */
 extern void enlargeStringInfo(StringInfo str, int needed);
 
-#endif							/* STRINGINFO_H */
+#endif   /* STRINGINFO_H */

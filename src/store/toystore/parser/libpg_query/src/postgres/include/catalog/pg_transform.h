@@ -1,17 +1,14 @@
 /*-------------------------------------------------------------------------
  *
  * pg_transform.h
- *	  definition of the "transform" system catalog (pg_transform)
  *
- *
- * Portions Copyright (c) 1996-2023, PostgreSQL Global Development Group
- * Portions Copyright (c) 1994, Regents of the University of California
+ * Copyright (c) 2012-2015, PostgreSQL Global Development Group
  *
  * src/include/catalog/pg_transform.h
  *
  * NOTES
- *	  The Catalog.pm module reads this file and derives schema
- *	  information.
+ *	  the genbki.pl script reads this file and generates .bki
+ *	  information from the DATA() statements.
  *
  *-------------------------------------------------------------------------
  */
@@ -19,30 +16,32 @@
 #define PG_TRANSFORM_H
 
 #include "catalog/genbki.h"
-#include "catalog/pg_transform_d.h"
 
 /* ----------------
  *		pg_transform definition.  cpp turns this into
  *		typedef struct FormData_pg_transform
  * ----------------
  */
-CATALOG(pg_transform,3576,TransformRelationId)
+#define TransformRelationId 3576
+
+CATALOG(pg_transform,3576)
 {
-	Oid			oid;			/* oid */
-	Oid			trftype BKI_LOOKUP(pg_type);
-	Oid			trflang BKI_LOOKUP(pg_language);
-	regproc		trffromsql BKI_LOOKUP_OPT(pg_proc);
-	regproc		trftosql BKI_LOOKUP_OPT(pg_proc);
+	Oid			trftype;
+	Oid			trflang;
+	regproc		trffromsql;
+	regproc		trftosql;
 } FormData_pg_transform;
 
-/* ----------------
- *		Form_pg_transform corresponds to a pointer to a tuple with
- *		the format of pg_transform relation.
- * ----------------
- */
 typedef FormData_pg_transform *Form_pg_transform;
 
-DECLARE_UNIQUE_INDEX_PKEY(pg_transform_oid_index, 3574, TransformOidIndexId, on pg_transform using btree(oid oid_ops));
-DECLARE_UNIQUE_INDEX(pg_transform_type_lang_index, 3575, TransformTypeLangIndexId, on pg_transform using btree(trftype oid_ops, trflang oid_ops));
+/* ----------------
+ *		compiler constants for pg_transform
+ * ----------------
+ */
+#define Natts_pg_transform			4
+#define Anum_pg_transform_trftype	1
+#define Anum_pg_transform_trflang	2
+#define Anum_pg_transform_trffromsql	3
+#define Anum_pg_transform_trftosql	4
 
-#endif							/* PG_TRANSFORM_H */
+#endif   /* PG_TRANSFORM_H */

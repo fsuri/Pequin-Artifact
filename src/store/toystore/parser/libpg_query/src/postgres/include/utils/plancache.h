@@ -5,7 +5,7 @@
  *
  * See plancache.c for comments.
  *
- * Portions Copyright (c) 1996-2023, PostgreSQL Global Development Group
+ * Portions Copyright (c) 1996-2015, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  * src/include/utils/plancache.h
@@ -16,30 +16,10 @@
 #define PLANCACHE_H
 
 #include "access/tupdesc.h"
-#include "lib/ilist.h"
 #include "nodes/params.h"
-#include "tcop/cmdtag.h"
-#include "utils/queryenvironment.h"
-#include "utils/resowner.h"
-
-
-/* Forward declaration, to avoid including parsenodes.h here */
-struct RawStmt;
-
-/* possible values for plan_cache_mode */
-typedef enum
-{
-	PLAN_CACHE_MODE_AUTO,
-	PLAN_CACHE_MODE_FORCE_GENERIC_PLAN,
-	PLAN_CACHE_MODE_FORCE_CUSTOM_PLAN
-}			PlanCacheMode;
-
-/* GUC parameter */
-extern PGDLLIMPORT int plan_cache_mode;
 
 #define CACHEDPLANSOURCE_MAGIC		195726186
 #define CACHEDPLAN_MAGIC			953717834
-#define CACHEDEXPR_MAGIC			838275847
 
 /*
  * CachedPlanSource (which might better have been called CachedQuery)
@@ -96,9 +76,9 @@ extern PGDLLIMPORT int plan_cache_mode;
 typedef struct CachedPlanSource
 {
 	int			magic;			/* should equal CACHEDPLANSOURCE_MAGIC */
-	struct RawStmt *raw_parse_tree; /* output of raw_parser(), or NULL */
+	Node	   *raw_parse_tree; /* output of raw_parser(), or NULL */
 	const char *query_string;	/* source text of query */
-	CommandTag	commandTag;		/* 'nuff said */
+	const char *commandTag;		/* command tag (a constant!), or NULL */
 	Oid		   *param_types;	/* array of parameter type OIDs, or NULL */
 	int			num_params;		/* length of param_types array */
 	ParserSetupHook parserSetup;	/* alternative parameter spec method */
@@ -111,12 +91,10 @@ typedef struct CachedPlanSource
 	List	   *query_list;		/* list of Query nodes, or NIL if not valid */
 	List	   *relationOids;	/* OIDs of relations the queries depend on */
 	List	   *invalItems;		/* other dependencies, as PlanInvalItems */
-	struct OverrideSearchPath *search_path; /* search_path used for parsing
-											 * and planning */
+	struct OverrideSearchPath *search_path;		/* search_path used for
+												 * parsing and planning */
+	Oid			planUserId;		/* User-id that the plan depends on */
 	MemoryContext query_context;	/* context holding the above, or NULL */
-	Oid			rewriteRoleId;	/* Role ID we did rewriting for */
-	bool		rewriteRowSecurity; /* row_security used during rewrite */
-	bool		dependsOnRLS;	/* is rewritten query specific to the above? */
 	/* If we have a generic plan, this is a reference-counted link to it: */
 	struct CachedPlan *gplan;	/* generic plan, or NULL if not valid */
 	/* Some state flags: */
@@ -126,12 +104,13 @@ typedef struct CachedPlanSource
 	bool		is_valid;		/* is the query_list currently valid? */
 	int			generation;		/* increments each time we create a plan */
 	/* If CachedPlanSource has been saved, it is a member of a global list */
-	dlist_node	node;			/* list link, if is_saved */
+	struct CachedPlanSource *next_saved;		/* list link, if so */
 	/* State kept to help decide whether to use custom or generic plans: */
 	double		generic_cost;	/* cost of generic plan, or -1 if not known */
-	double		total_custom_cost;	/* total cost of custom plans so far */
-	int64		num_custom_plans;	/* # of custom plans included in total */
-	int64		num_generic_plans;	/* # of generic plans */
+	double		total_custom_cost;		/* total cost of custom plans so far */
+	int			num_custom_plans;		/* number of plans included in total */
+	bool		hasRowSecurity; /* planned with row security? */
+	bool		row_security_env;		/* row security setting when planned */
 } CachedPlanSource;
 
 /*
@@ -147,12 +126,11 @@ typedef struct CachedPlanSource
 typedef struct CachedPlan
 {
 	int			magic;			/* should equal CACHEDPLAN_MAGIC */
-	List	   *stmt_list;		/* list of PlannedStmts */
+	List	   *stmt_list;		/* list of statement nodes (PlannedStmts and
+								 * bare utility statements) */
 	bool		is_oneshot;		/* is it a "oneshot" plan? */
 	bool		is_saved;		/* is CachedPlan in a long-lived context? */
 	bool		is_valid;		/* is the stmt_list currently valid? */
-	Oid			planRoleId;		/* Role ID the plan was created for */
-	bool		dependsOnRole;	/* is plan specific to that role? */
 	TransactionId saved_xmin;	/* if valid, replan when TransactionXmin
 								 * changes from this value */
 	int			generation;		/* parent's generation number for this plan */
@@ -160,77 +138,41 @@ typedef struct CachedPlan
 	MemoryContext context;		/* context containing this CachedPlan */
 } CachedPlan;
 
-/*
- * CachedExpression is a low-overhead mechanism for caching the planned form
- * of standalone scalar expressions.  While such expressions are not usually
- * subject to cache invalidation events, that can happen, for example because
- * of replacement of a SQL function that was inlined into the expression.
- * The plancache takes care of storing the expression tree and marking it
- * invalid if a cache invalidation occurs, but the caller must notice the
- * !is_valid status and discard the obsolete expression without reusing it.
- * We do not store the original parse tree, only the planned expression;
- * this is an optimization based on the assumption that we usually will not
- * need to replan for the life of the session.
- */
-typedef struct CachedExpression
-{
-	int			magic;			/* should equal CACHEDEXPR_MAGIC */
-	Node	   *expr;			/* planned form of expression */
-	bool		is_valid;		/* is the expression still valid? */
-	/* remaining fields should be treated as private to plancache.c: */
-	List	   *relationOids;	/* OIDs of relations the expr depends on */
-	List	   *invalItems;		/* other dependencies, as PlanInvalItems */
-	MemoryContext context;		/* context containing this CachedExpression */
-	dlist_node	node;			/* link in global list of CachedExpressions */
-} CachedExpression;
-
 
 extern void InitPlanCache(void);
 extern void ResetPlanCache(void);
 
-extern CachedPlanSource *CreateCachedPlan(struct RawStmt *raw_parse_tree,
-										  const char *query_string,
-										  CommandTag commandTag);
-extern CachedPlanSource *CreateOneShotCachedPlan(struct RawStmt *raw_parse_tree,
-												 const char *query_string,
-												 CommandTag commandTag);
+extern CachedPlanSource *CreateCachedPlan(Node *raw_parse_tree,
+				 const char *query_string,
+				 const char *commandTag);
+extern CachedPlanSource *CreateOneShotCachedPlan(Node *raw_parse_tree,
+						const char *query_string,
+						const char *commandTag);
 extern void CompleteCachedPlan(CachedPlanSource *plansource,
-							   List *querytree_list,
-							   MemoryContext querytree_context,
-							   Oid *param_types,
-							   int num_params,
-							   ParserSetupHook parserSetup,
-							   void *parserSetupArg,
-							   int cursor_options,
-							   bool fixed_result);
+				   List *querytree_list,
+				   MemoryContext querytree_context,
+				   Oid *param_types,
+				   int num_params,
+				   ParserSetupHook parserSetup,
+				   void *parserSetupArg,
+				   int cursor_options,
+				   bool fixed_result);
 
 extern void SaveCachedPlan(CachedPlanSource *plansource);
 extern void DropCachedPlan(CachedPlanSource *plansource);
 
 extern void CachedPlanSetParentContext(CachedPlanSource *plansource,
-									   MemoryContext newcontext);
+						   MemoryContext newcontext);
 
 extern CachedPlanSource *CopyCachedPlan(CachedPlanSource *plansource);
 
 extern bool CachedPlanIsValid(CachedPlanSource *plansource);
 
-extern List *CachedPlanGetTargetList(CachedPlanSource *plansource,
-									 QueryEnvironment *queryEnv);
+extern List *CachedPlanGetTargetList(CachedPlanSource *plansource);
 
 extern CachedPlan *GetCachedPlan(CachedPlanSource *plansource,
-								 ParamListInfo boundParams,
-								 ResourceOwner owner,
-								 QueryEnvironment *queryEnv);
-extern void ReleaseCachedPlan(CachedPlan *plan, ResourceOwner owner);
+			  ParamListInfo boundParams,
+			  bool useResOwner);
+extern void ReleaseCachedPlan(CachedPlan *plan, bool useResOwner);
 
-extern bool CachedPlanAllowsSimpleValidityCheck(CachedPlanSource *plansource,
-												CachedPlan *plan,
-												ResourceOwner owner);
-extern bool CachedPlanIsSimplyValid(CachedPlanSource *plansource,
-									CachedPlan *plan,
-									ResourceOwner owner);
-
-extern CachedExpression *GetCachedExpression(Node *expr);
-extern void FreeCachedExpression(CachedExpression *cexpr);
-
-#endif							/* PLANCACHE_H */
+#endif   /* PLANCACHE_H */

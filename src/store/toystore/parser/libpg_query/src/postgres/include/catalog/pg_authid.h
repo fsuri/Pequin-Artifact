@@ -1,19 +1,20 @@
 /*-------------------------------------------------------------------------
  *
  * pg_authid.h
- *	  definition of the "authorization identifier" system catalog (pg_authid)
+ *	  definition of the system "authorization identifier" relation (pg_authid)
+ *	  along with the relation's initial contents.
  *
  *	  pg_shadow and pg_group are now publicly accessible views on pg_authid.
  *
  *
- * Portions Copyright (c) 1996-2023, PostgreSQL Global Development Group
+ * Portions Copyright (c) 1996-2015, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  * src/include/catalog/pg_authid.h
  *
  * NOTES
- *	  The Catalog.pm module reads this file and derives schema
- *	  information.
+ *	  the genbki.pl script reads this file and generates .bki
+ *	  information from the DATA() statements.
  *
  *-------------------------------------------------------------------------
  */
@@ -21,16 +22,28 @@
 #define PG_AUTHID_H
 
 #include "catalog/genbki.h"
-#include "catalog/pg_authid_d.h"
+
+/*
+ * The CATALOG definition has to refer to the type of rolvaliduntil as
+ * "timestamptz" (lower case) so that bootstrap mode recognizes it.  But
+ * the C header files define this type as TimestampTz.  Since the field is
+ * potentially-null and therefore can't be accessed directly from C code,
+ * there is no particular need for the C struct definition to show the
+ * field type as TimestampTz --- instead we just make it int.
+ */
+#define timestamptz int
+
 
 /* ----------------
  *		pg_authid definition.  cpp turns this into
  *		typedef struct FormData_pg_authid
  * ----------------
  */
-CATALOG(pg_authid,1260,AuthIdRelationId) BKI_SHARED_RELATION BKI_ROWTYPE_OID(2842,AuthIdRelation_Rowtype_Id) BKI_SCHEMA_MACRO
+#define AuthIdRelationId	1260
+#define AuthIdRelation_Rowtype_Id	2842
+
+CATALOG(pg_authid,1260) BKI_SHARED_RELATION BKI_ROWTYPE_OID(2842) BKI_SCHEMA_MACRO
 {
-	Oid			oid;			/* oid */
 	NameData	rolname;		/* name of role */
 	bool		rolsuper;		/* read this field via superuser() only! */
 	bool		rolinherit;		/* inherit privileges from other roles? */
@@ -38,7 +51,7 @@ CATALOG(pg_authid,1260,AuthIdRelationId) BKI_SHARED_RELATION BKI_ROWTYPE_OID(284
 	bool		rolcreatedb;	/* allowed to create databases? */
 	bool		rolcanlogin;	/* allowed to log in as session user? */
 	bool		rolreplication; /* role used for streaming replication */
-	bool		rolbypassrls;	/* bypasses row-level security? */
+	bool		rolbypassrls;	/* bypasses row level security? */
 	int32		rolconnlimit;	/* max connections allowed (-1=no limit) */
 
 	/* remaining fields may be null; use heap_getattr to read them! */
@@ -48,6 +61,9 @@ CATALOG(pg_authid,1260,AuthIdRelationId) BKI_SHARED_RELATION BKI_ROWTYPE_OID(284
 #endif
 } FormData_pg_authid;
 
+#undef timestamptz
+
+
 /* ----------------
  *		Form_pg_authid corresponds to a pointer to a tuple with
  *		the format of pg_authid relation.
@@ -55,9 +71,32 @@ CATALOG(pg_authid,1260,AuthIdRelationId) BKI_SHARED_RELATION BKI_ROWTYPE_OID(284
  */
 typedef FormData_pg_authid *Form_pg_authid;
 
-DECLARE_TOAST_WITH_MACRO(pg_authid, 4175, 4176, PgAuthidToastTable, PgAuthidToastIndex);
+/* ----------------
+ *		compiler constants for pg_authid
+ * ----------------
+ */
+#define Natts_pg_authid					11
+#define Anum_pg_authid_rolname			1
+#define Anum_pg_authid_rolsuper			2
+#define Anum_pg_authid_rolinherit		3
+#define Anum_pg_authid_rolcreaterole	4
+#define Anum_pg_authid_rolcreatedb		5
+#define Anum_pg_authid_rolcanlogin		6
+#define Anum_pg_authid_rolreplication	7
+#define Anum_pg_authid_rolbypassrls		8
+#define Anum_pg_authid_rolconnlimit		9
+#define Anum_pg_authid_rolpassword		10
+#define Anum_pg_authid_rolvaliduntil	11
 
-DECLARE_UNIQUE_INDEX(pg_authid_rolname_index, 2676, AuthIdRolnameIndexId, on pg_authid using btree(rolname name_ops));
-DECLARE_UNIQUE_INDEX_PKEY(pg_authid_oid_index, 2677, AuthIdOidIndexId, on pg_authid using btree(oid oid_ops));
+/* ----------------
+ *		initial contents of pg_authid
+ *
+ * The uppercase quantities will be replaced at initdb time with
+ * user choices.
+ * ----------------
+ */
+DATA(insert OID = 10 ( "POSTGRES" t t t t t t t -1 _null_ _null_));
 
-#endif							/* PG_AUTHID_H */
+#define BOOTSTRAP_SUPERUSERID 10
+
+#endif   /* PG_AUTHID_H */

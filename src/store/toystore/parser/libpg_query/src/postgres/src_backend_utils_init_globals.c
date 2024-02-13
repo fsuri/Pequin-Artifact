@@ -4,6 +4,7 @@
  * - ExitOnAnyError
  * - InterruptHoldoffCount
  * - QueryCancelHoldoffCount
+ * - IsPostmasterEnvironment
  * - InterruptPending
  *--------------------------------------------------------------------
  */
@@ -13,7 +14,7 @@
  * globals.c
  *	  global variable declarations
  *
- * Portions Copyright (c) 1996-2023, PostgreSQL Global Development Group
+ * Portions Copyright (c) 1996-2015, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  *
@@ -28,7 +29,6 @@
  */
 #include "postgres.h"
 
-#include "common/file_perm.h"
 #include "libpq/libpq-be.h"
 #include "libpq/pqcomm.h"
 #include "miscadmin.h"
@@ -37,13 +37,7 @@
 
 
 
-__thread volatile sig_atomic_t InterruptPending = false;
-
-
-
-
-
-
+__thread volatile bool InterruptPending = false;
 
 
 
@@ -53,7 +47,6 @@ __thread volatile uint32 InterruptHoldoffCount = 0;
 __thread volatile uint32 QueryCancelHoldoffCount = 0;
 
 __thread volatile uint32 CritSectionCount = 0;
-
 
 
 
@@ -79,24 +72,16 @@ __thread volatile uint32 CritSectionCount = 0;
  */
 
 
-/*
- * Mode of the data directory.  The default is 0700 but it may be changed in
- * checkDataDir() to 0750 if the data directory actually has that mode.
- */
-
-
 	/* debugging output file */
 
 	/* full path to my executable */
- /* full path to lib directory */
+		/* full path to lib directory */
 
 #ifdef EXEC_BACKEND
-	/* full path to backend */
+char		postgres_exec_path[MAXPGPATH];		/* full path to backend */
 
 /* note: currently this is not valid in backend processes */
 #endif
-
-
 
 
 
@@ -123,14 +108,13 @@ __thread volatile uint32 CritSectionCount = 0;
  *
  * These are initialized for the bootstrap/standalone case.
  */
+__thread bool		IsPostmasterEnvironment = false;
 
 
 
 
 
 __thread bool		ExitOnAnyError = false;
-
-
 
 
 
@@ -153,9 +137,7 @@ __thread bool		ExitOnAnyError = false;
 
 
 
-
-/* GUC parameters for vacuum */
-
+		/* GUC parameters for vacuum */
 
 
 
@@ -165,7 +147,5 @@ __thread bool		ExitOnAnyError = false;
 
 
 
-
-
-	/* working state for vacuum */
+		/* working state for vacuum */
 

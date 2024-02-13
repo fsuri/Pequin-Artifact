@@ -3,16 +3,16 @@
  * generic-gcc.h
  *	  Atomic operations, implemented using gcc (or compatible) intrinsics.
  *
- * Portions Copyright (c) 1996-2023, PostgreSQL Global Development Group
+ * Portions Copyright (c) 1996-2015, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  * NOTES:
  *
  * Documentation:
  * * Legacy __sync Built-in Functions for Atomic Memory Access
- *   https://gcc.gnu.org/onlinedocs/gcc-4.8.2/gcc/_005f_005fsync-Builtins.html
+ *   http://gcc.gnu.org/onlinedocs/gcc-4.8.2/gcc/_005f_005fsync-Builtins.html
  * * Built-in functions for memory model aware atomic operations
- *   https://gcc.gnu.org/onlinedocs/gcc-4.8.2/gcc/_005f_005fatomic-Builtins.html
+ *   http://gcc.gnu.org/onlinedocs/gcc-4.8.2/gcc/_005f_005fatomic-Builtins.html
  *
  * src/include/port/atomics/generic-gcc.h
  *
@@ -25,9 +25,14 @@
 #endif
 
 /*
- * An empty asm block should be a sufficient compiler barrier.
+ * icc provides all the same intrinsics but doesn't understand gcc's inline asm
  */
+#if defined(__INTEL_COMPILER)
+/* NB: Yes, __memory_barrier() is actually just a compiler barrier */
+#define pg_compiler_barrier_impl()	__memory_barrier()
+#else
 #define pg_compiler_barrier_impl()	__asm__ __volatile__("" ::: "memory")
+#endif
 
 /*
  * If we're on GCC 4.1.0 or higher, we should be able to get a memory barrier
@@ -52,7 +57,6 @@
 #		define pg_write_barrier_impl()		__atomic_thread_fence(__ATOMIC_RELEASE)
 #endif
 
-
 #ifdef HAVE_ATOMICS
 
 /* generic gcc based atomic flag implementation */
@@ -62,15 +66,12 @@
 #define PG_HAVE_ATOMIC_FLAG_SUPPORT
 typedef struct pg_atomic_flag
 {
-	/*
-	 * If we have a choice, use int-width TAS, because that is more efficient
-	 * and/or more reliably implemented on most non-Intel platforms.  (Note
-	 * that this code isn't used on x86[_64]; see arch-x86.h for that.)
-	 */
-#ifdef HAVE_GCC__SYNC_INT32_TAS
-	volatile int value;
-#else
+	/* some platforms only have a 8 bit wide TAS */
+#ifdef HAVE_GCC__SYNC_CHAR_TAS
 	volatile char value;
+#else
+	/* but an int works on more platforms */
+	volatile int value;
 #endif
 } pg_atomic_flag;
 
@@ -101,6 +102,11 @@ typedef struct pg_atomic_uint64
 } pg_atomic_uint64;
 
 #endif /* defined(HAVE_GCC__ATOMIC_INT64_CAS) || defined(HAVE_GCC__SYNC_INT64_CAS) */
+
+/*
+ * Implementation follows. Inlined or directly included from atomics.c
+ */
+#if defined(PG_USE_INLINE) || defined(ATOMICS_INCLUDE_DEFINITIONS)
 
 #ifdef PG_HAVE_ATOMIC_FLAG_SUPPORT
 
@@ -176,41 +182,12 @@ pg_atomic_compare_exchange_u32_impl(volatile pg_atomic_uint32 *ptr,
 }
 #endif
 
-/* if we have 32-bit __sync_val_compare_and_swap, assume we have these too: */
-
 #if !defined(PG_HAVE_ATOMIC_FETCH_ADD_U32) && defined(HAVE_GCC__SYNC_INT32_CAS)
 #define PG_HAVE_ATOMIC_FETCH_ADD_U32
 static inline uint32
 pg_atomic_fetch_add_u32_impl(volatile pg_atomic_uint32 *ptr, int32 add_)
 {
 	return __sync_fetch_and_add(&ptr->value, add_);
-}
-#endif
-
-#if !defined(PG_HAVE_ATOMIC_FETCH_SUB_U32) && defined(HAVE_GCC__SYNC_INT32_CAS)
-#define PG_HAVE_ATOMIC_FETCH_SUB_U32
-static inline uint32
-pg_atomic_fetch_sub_u32_impl(volatile pg_atomic_uint32 *ptr, int32 sub_)
-{
-	return __sync_fetch_and_sub(&ptr->value, sub_);
-}
-#endif
-
-#if !defined(PG_HAVE_ATOMIC_FETCH_AND_U32) && defined(HAVE_GCC__SYNC_INT32_CAS)
-#define PG_HAVE_ATOMIC_FETCH_AND_U32
-static inline uint32
-pg_atomic_fetch_and_u32_impl(volatile pg_atomic_uint32 *ptr, uint32 and_)
-{
-	return __sync_fetch_and_and(&ptr->value, and_);
-}
-#endif
-
-#if !defined(PG_HAVE_ATOMIC_FETCH_OR_U32) && defined(HAVE_GCC__SYNC_INT32_CAS)
-#define PG_HAVE_ATOMIC_FETCH_OR_U32
-static inline uint32
-pg_atomic_fetch_or_u32_impl(volatile pg_atomic_uint32 *ptr, uint32 or_)
-{
-	return __sync_fetch_and_or(&ptr->value, or_);
 }
 #endif
 
@@ -243,8 +220,6 @@ pg_atomic_compare_exchange_u64_impl(volatile pg_atomic_uint64 *ptr,
 }
 #endif
 
-/* if we have 64-bit __sync_val_compare_and_swap, assume we have these too: */
-
 #if !defined(PG_HAVE_ATOMIC_FETCH_ADD_U64) && defined(HAVE_GCC__SYNC_INT64_CAS)
 #define PG_HAVE_ATOMIC_FETCH_ADD_U64
 static inline uint64
@@ -254,33 +229,8 @@ pg_atomic_fetch_add_u64_impl(volatile pg_atomic_uint64 *ptr, int64 add_)
 }
 #endif
 
-#if !defined(PG_HAVE_ATOMIC_FETCH_SUB_U64) && defined(HAVE_GCC__SYNC_INT64_CAS)
-#define PG_HAVE_ATOMIC_FETCH_SUB_U64
-static inline uint64
-pg_atomic_fetch_sub_u64_impl(volatile pg_atomic_uint64 *ptr, int64 sub_)
-{
-	return __sync_fetch_and_sub(&ptr->value, sub_);
-}
-#endif
-
-#if !defined(PG_HAVE_ATOMIC_FETCH_AND_U64) && defined(HAVE_GCC__SYNC_INT64_CAS)
-#define PG_HAVE_ATOMIC_FETCH_AND_U64
-static inline uint64
-pg_atomic_fetch_and_u64_impl(volatile pg_atomic_uint64 *ptr, uint64 and_)
-{
-	return __sync_fetch_and_and(&ptr->value, and_);
-}
-#endif
-
-#if !defined(PG_HAVE_ATOMIC_FETCH_OR_U64) && defined(HAVE_GCC__SYNC_INT64_CAS)
-#define PG_HAVE_ATOMIC_FETCH_OR_U64
-static inline uint64
-pg_atomic_fetch_or_u64_impl(volatile pg_atomic_uint64 *ptr, uint64 or_)
-{
-	return __sync_fetch_and_or(&ptr->value, or_);
-}
-#endif
-
 #endif /* !defined(PG_DISABLE_64_BIT_ATOMICS) */
+
+#endif /* defined(PG_USE_INLINE) || defined(ATOMICS_INCLUDE_DEFINITIONS) */
 
 #endif /* defined(HAVE_ATOMICS) */

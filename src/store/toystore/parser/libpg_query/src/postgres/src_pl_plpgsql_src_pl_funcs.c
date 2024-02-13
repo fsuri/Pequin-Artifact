@@ -9,7 +9,6 @@
  * - plpgsql_ns_top
  * - plpgsql_getdiag_kindname
  * - plpgsql_ns_lookup_label
- * - plpgsql_ns_find_nearest_loop
  * - plpgsql_free_function_memory
  * - free_expr
  * - free_block
@@ -38,9 +37,6 @@
  * - free_fetch
  * - free_close
  * - free_perform
- * - free_call
- * - free_commit
- * - free_rollback
  *--------------------------------------------------------------------
  */
 
@@ -49,7 +45,7 @@
  * pl_funcs.c		- Misc functions for the PL/pgSQL
  *			  procedural language
  *
- * Portions Copyright (c) 1996-2023, PostgreSQL Global Development Group
+ * Portions Copyright (c) 1996-2015, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  *
@@ -59,10 +55,10 @@
  *-------------------------------------------------------------------------
  */
 
-#include "postgres.h"
-
 #include "plpgsql.h"
+
 #include "utils/memutils.h"
+
 
 /* ----------
  * Local variables for namespace handling
@@ -78,8 +74,7 @@
  * items.
  * ----------
  */
-static __thread PLpgSQL_nsitem *ns_top = NULL;
-
+static PLpgSQL_nsitem *ns_top = NULL;
 
 
 /* ----------
@@ -98,11 +93,11 @@ plpgsql_ns_init(void)
  * ----------
  */
 void
-plpgsql_ns_push(const char *label, PLpgSQL_label_type label_type)
+plpgsql_ns_push(const char *label)
 {
 	if (label == NULL)
 		label = "";
-	plpgsql_ns_additem(PLPGSQL_NSTYPE_LABEL, (int) label_type, label);
+	plpgsql_ns_additem(PLPGSQL_NSTYPE_LABEL, 0, label);
 }
 
 
@@ -136,7 +131,7 @@ plpgsql_ns_top(void)
  * ----------
  */
 void
-plpgsql_ns_additem(PLpgSQL_nsitem_type itemtype, int itemno, const char *name)
+plpgsql_ns_additem(int itemtype, int itemno, const char *name)
 {
 	PLpgSQL_nsitem *nse;
 
@@ -144,7 +139,7 @@ plpgsql_ns_additem(PLpgSQL_nsitem_type itemtype, int itemno, const char *name)
 	/* first item added must be a label */
 	Assert(ns_top != NULL || itemtype == PLPGSQL_NSTYPE_LABEL);
 
-	nse = palloc(offsetof(PLpgSQL_nsitem, name) + strlen(name) + 1);
+	nse = palloc(offsetof(PLpgSQL_nsitem, name) +strlen(name) + 1);
 	nse->itemtype = itemtype;
 	nse->itemno = itemno;
 	nse->prev = ns_top;
@@ -158,7 +153,7 @@ plpgsql_ns_additem(PLpgSQL_nsitem_type itemtype, int itemno, const char *name)
  *
  * Note that this only searches for variables, not labels.
  *
- * If localmode is true, only the topmost block level is searched.
+ * If localmode is TRUE, only the topmost block level is searched.
  *
  * name1 must be non-NULL.  Pass NULL for name2 and/or name3 if parsing a name
  * with fewer than three components.
@@ -253,25 +248,6 @@ plpgsql_ns_lookup_label(PLpgSQL_nsitem *ns_cur, const char *name)
 }
 
 
-/* ----------
- * plpgsql_ns_find_nearest_loop		Find innermost loop label in namespace chain
- * ----------
- */
-PLpgSQL_nsitem *
-plpgsql_ns_find_nearest_loop(PLpgSQL_nsitem *ns_cur)
-{
-	while (ns_cur != NULL)
-	{
-		if (ns_cur->itemtype == PLPGSQL_NSTYPE_LABEL &&
-			ns_cur->itemno == PLPGSQL_LABEL_LOOP)
-			return ns_cur;
-		ns_cur = ns_cur->prev;
-	}
-
-	return NULL;				/* no loop found */
-}
-
-
 /*
  * Statement type as a string, for use in error messages etc.
  */
@@ -281,14 +257,14 @@ plpgsql_ns_find_nearest_loop(PLpgSQL_nsitem *ns_cur)
  * GET DIAGNOSTICS item name as a string, for use in error messages etc.
  */
 const char *
-plpgsql_getdiag_kindname(PLpgSQL_getdiag_kind kind)
+plpgsql_getdiag_kindname(int kind)
 {
 	switch (kind)
 	{
 		case PLPGSQL_GETDIAG_ROW_COUNT:
 			return "ROW_COUNT";
-		case PLPGSQL_GETDIAG_ROUTINE_OID:
-			return "PG_ROUTINE_OID";
+		case PLPGSQL_GETDIAG_RESULT_OID:
+			return "RESULT_OID";
 		case PLPGSQL_GETDIAG_CONTEXT:
 			return "PG_CONTEXT";
 		case PLPGSQL_GETDIAG_ERROR_CONTEXT:
@@ -351,16 +327,13 @@ static void free_open(PLpgSQL_stmt_open *stmt);
 static void free_fetch(PLpgSQL_stmt_fetch *stmt);
 static void free_close(PLpgSQL_stmt_close *stmt);
 static void free_perform(PLpgSQL_stmt_perform *stmt);
-static void free_call(PLpgSQL_stmt_call *stmt);
-static void free_commit(PLpgSQL_stmt_commit *stmt);
-static void free_rollback(PLpgSQL_stmt_rollback *stmt);
 static void free_expr(PLpgSQL_expr *expr);
 
 
 static void
 free_stmt(PLpgSQL_stmt *stmt)
 {
-	switch (stmt->cmd_type)
+	switch ((enum PLpgSQL_stmt_types) stmt->cmd_type)
 	{
 		case PLPGSQL_STMT_BLOCK:
 			free_block((PLpgSQL_stmt_block *) stmt);
@@ -433,15 +406,6 @@ free_stmt(PLpgSQL_stmt *stmt)
 			break;
 		case PLPGSQL_STMT_PERFORM:
 			free_perform((PLpgSQL_stmt_perform *) stmt);
-			break;
-		case PLPGSQL_STMT_CALL:
-			free_call((PLpgSQL_stmt_call *) stmt);
-			break;
-		case PLPGSQL_STMT_COMMIT:
-			free_commit((PLpgSQL_stmt_commit *) stmt);
-			break;
-		case PLPGSQL_STMT_ROLLBACK:
-			free_rollback((PLpgSQL_stmt_rollback *) stmt);
 			break;
 		default:
 			elog(ERROR, "unrecognized cmd_type: %d", stmt->cmd_type);
@@ -591,22 +555,6 @@ free_perform(PLpgSQL_stmt_perform *stmt)
 }
 
 static void
-free_call(PLpgSQL_stmt_call *stmt)
-{
-	free_expr(stmt->expr);
-}
-
-static void
-free_commit(PLpgSQL_stmt_commit *stmt)
-{
-}
-
-static void
-free_rollback(PLpgSQL_stmt_rollback *stmt)
-{
-}
-
-static void
 free_exit(PLpgSQL_stmt_exit *stmt)
 {
 	free_expr(stmt->cond);
@@ -716,7 +664,6 @@ plpgsql_free_function_memory(PLpgSQL_function *func)
 		switch (d->dtype)
 		{
 			case PLPGSQL_DTYPE_VAR:
-			case PLPGSQL_DTYPE_PROMISE:
 				{
 					PLpgSQL_var *var = (PLpgSQL_var *) d;
 
@@ -727,13 +674,11 @@ plpgsql_free_function_memory(PLpgSQL_function *func)
 			case PLPGSQL_DTYPE_ROW:
 				break;
 			case PLPGSQL_DTYPE_REC:
-				{
-					PLpgSQL_rec *rec = (PLpgSQL_rec *) d;
-
-					free_expr(rec->default_val);
-				}
 				break;
 			case PLPGSQL_DTYPE_RECFIELD:
+				break;
+			case PLPGSQL_DTYPE_ARRAYELEM:
+				free_expr(((PLpgSQL_arrayelem *) d)->subscript);
 				break;
 			default:
 				elog(ERROR, "unrecognized data type: %d", d->dtype);
@@ -789,16 +734,7 @@ static void dump_fetch(PLpgSQL_stmt_fetch *stmt);
 static void dump_cursor_direction(PLpgSQL_stmt_fetch *stmt);
 static void dump_close(PLpgSQL_stmt_close *stmt);
 static void dump_perform(PLpgSQL_stmt_perform *stmt);
-static void dump_call(PLpgSQL_stmt_call *stmt);
-static void dump_commit(PLpgSQL_stmt_commit *stmt);
-static void dump_rollback(PLpgSQL_stmt_rollback *stmt);
 static void dump_expr(PLpgSQL_expr *expr);
-
-
-
-
-
-
 
 
 

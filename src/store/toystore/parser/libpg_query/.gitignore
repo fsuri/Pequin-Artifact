@@ -3,8 +3,6 @@ postgres.tar.bz2
 
 *.o
 *.a
-*.obj
-pg_query.lib
 
 examples/*
 !examples/*.c
@@ -13,11 +11,6 @@ test/*
 !test/*.c
 !test/*.sql
 !test/*.expected.json
-!test/valgrind.supp
-!test/**/
-test/*.dSYM
 
 tmp/*
 !tmp/.gitkeep
-
-.vs/*

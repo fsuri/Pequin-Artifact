@@ -11,7 +11,7 @@
  * datum.c
  *	  POSTGRES Datum (abstract data type) manipulation routines.
  *
- * Portions Copyright (c) 1996-2023, PostgreSQL Global Development Group
+ * Portions Copyright (c) 1996-2015, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  *
@@ -50,11 +50,6 @@
 
 #include "postgres.h"
 
-#include "access/detoast.h"
-#include "catalog/pg_type_d.h"
-#include "common/hashfn.h"
-#include "fmgr.h"
-#include "utils/builtins.h"
 #include "utils/datum.h"
 #include "utils/expandeddatum.h"
 
@@ -213,10 +208,6 @@ datumCopy(Datum value, bool typByVal, int typLen)
  * of say the representation of zero in one's complement arithmetic).
  * Also, it will probably not give the answer you want if either
  * datum has been "toasted".
- *
- * Do not try to make this any smarter than it currently is with respect
- * to "toasted" datums, because some of the callers could be working in the
- * context of an aborted transaction.
  *-------------------------------------------------------------------------
  */
 bool
@@ -254,83 +245,3 @@ datumIsEqual(Datum value1, Datum value2, bool typByVal, int typLen)
 	}
 	return res;
 }
-
-/*-------------------------------------------------------------------------
- * datum_image_eq
- *
- * Compares two datums for identical contents, based on byte images.  Return
- * true if the two datums are equal, false otherwise.
- *-------------------------------------------------------------------------
- */
-
-
-/*-------------------------------------------------------------------------
- * datum_image_hash
- *
- * Generate a hash value based on the binary representation of 'value'.  Most
- * use cases will want to use the hash function specific to the Datum's type,
- * however, some corner cases require generating a hash value based on the
- * actual bits rather than the logical value.
- *-------------------------------------------------------------------------
- */
-
-
-/*-------------------------------------------------------------------------
- * btequalimage
- *
- * Generic "equalimage" support function.
- *
- * B-Tree operator classes whose equality function could safely be replaced by
- * datum_image_eq() in all cases can use this as their "equalimage" support
- * function.
- *
- * Earlier minor releases erroneously associated this function with
- * interval_ops.  Detect that case to rescind deduplication support, without
- * requiring initdb.
- *-------------------------------------------------------------------------
- */
-
-
-/*-------------------------------------------------------------------------
- * datumEstimateSpace
- *
- * Compute the amount of space that datumSerialize will require for a
- * particular Datum.
- *-------------------------------------------------------------------------
- */
-
-
-/*-------------------------------------------------------------------------
- * datumSerialize
- *
- * Serialize a possibly-NULL datum into caller-provided storage.
- *
- * Note: "expanded" objects are flattened so as to produce a self-contained
- * representation, but other sorts of toast pointers are transferred as-is.
- * This is because the intended use of this function is to pass the value
- * to another process within the same database server.  The other process
- * could not access an "expanded" object within this process's memory, but
- * we assume it can dereference the same TOAST pointers this one can.
- *
- * The format is as follows: first, we write a 4-byte header word, which
- * is either the length of a pass-by-reference datum, -1 for a
- * pass-by-value datum, or -2 for a NULL.  If the value is NULL, nothing
- * further is written.  If it is pass-by-value, sizeof(Datum) bytes
- * follow.  Otherwise, the number of bytes indicated by the header word
- * follow.  The caller is responsible for ensuring that there is enough
- * storage to store the number of bytes that will be written; use
- * datumEstimateSpace() to find out how many will be needed.
- * *start_address is updated to point to the byte immediately following
- * those written.
- *-------------------------------------------------------------------------
- */
-
-
-/*-------------------------------------------------------------------------
- * datumRestore
- *
- * Restore a possibly-NULL datum previously serialized by datumSerialize.
- * *start_address is updated according to the number of bytes consumed.
- *-------------------------------------------------------------------------
- */
-

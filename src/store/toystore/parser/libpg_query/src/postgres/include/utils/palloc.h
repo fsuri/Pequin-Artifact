@@ -18,7 +18,7 @@
  * everything that should be freed.  See utils/mmgr/README for more info.
  *
  *
- * Portions Copyright (c) 1996-2023, PostgreSQL Global Development Group
+ * Portions Copyright (c) 1996-2015, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  * src/include/utils/palloc.h
@@ -56,7 +56,7 @@ typedef struct MemoryContextCallback
  * Avoid accessing it directly!  Instead, use MemoryContextSwitchTo()
  * to change the setting.
  */
-extern PGDLLIMPORT __thread MemoryContext CurrentMemoryContext;
+extern PGDLLIMPORT __thread  MemoryContext CurrentMemoryContext;
 
 /*
  * Flags for MemoryContextAllocExtended.
@@ -72,42 +72,13 @@ extern void *MemoryContextAlloc(MemoryContext context, Size size);
 extern void *MemoryContextAllocZero(MemoryContext context, Size size);
 extern void *MemoryContextAllocZeroAligned(MemoryContext context, Size size);
 extern void *MemoryContextAllocExtended(MemoryContext context,
-										Size size, int flags);
-extern void *MemoryContextAllocAligned(MemoryContext context,
-									   Size size, Size alignto, int flags);
+						   Size size, int flags);
 
 extern void *palloc(Size size);
 extern void *palloc0(Size size);
 extern void *palloc_extended(Size size, int flags);
-extern void *palloc_aligned(Size size, Size alignto, int flags);
-extern pg_nodiscard void *repalloc(void *pointer, Size size);
-extern pg_nodiscard void *repalloc_extended(void *pointer,
-											Size size, int flags);
-extern pg_nodiscard void *repalloc0(void *pointer, Size oldsize, Size size);
+extern void *repalloc(void *pointer, Size size);
 extern void pfree(void *pointer);
-
-/*
- * Variants with easier notation and more type safety
- */
-
-/*
- * Allocate space for one object of type "type"
- */
-#define palloc_object(type) ((type *) palloc(sizeof(type)))
-#define palloc0_object(type) ((type *) palloc0(sizeof(type)))
-
-/*
- * Allocate space for "count" objects of type "type"
- */
-#define palloc_array(type, count) ((type *) palloc(sizeof(type) * (count)))
-#define palloc0_array(type, count) ((type *) palloc0(sizeof(type) * (count)))
-
-/*
- * Change size of allocation pointed to by "pointer" to have space for "count"
- * objects of type "type"
- */
-#define repalloc_array(pointer, type, count) ((type *) repalloc(pointer, sizeof(type) * (count)))
-#define repalloc0_array(pointer, type, oldcount, count) ((type *) repalloc0(pointer, sizeof(type) * (oldcount), sizeof(type) * (count)))
 
 /*
  * The result of palloc() is always word-aligned, so we can skip testing
@@ -124,9 +95,13 @@ extern void pfree(void *pointer);
 
 /* Higher-limit allocators. */
 extern void *MemoryContextAllocHuge(MemoryContext context, Size size);
-extern pg_nodiscard void *repalloc_huge(void *pointer, Size size);
+extern void *repalloc_huge(void *pointer, Size size);
 
 /*
+ * MemoryContextSwitchTo can't be a macro in standard C compilers.
+ * But we can make it an inline function if the compiler supports it.
+ * See STATIC_IF_INLINE in c.h.
+ *
  * Although this header file is nominally backend-only, certain frontend
  * programs like pg_controldata include it via postgres.h.  For some compilers
  * it's necessary to hide the inline definition of MemoryContextSwitchTo in
@@ -134,7 +109,11 @@ extern pg_nodiscard void *repalloc_huge(void *pointer, Size size);
  */
 
 #ifndef FRONTEND
-static inline MemoryContext
+#ifndef PG_USE_INLINE
+extern MemoryContext MemoryContextSwitchTo(MemoryContext context);
+#endif   /* !PG_USE_INLINE */
+#if defined(PG_USE_INLINE) || defined(MCXT_INCLUDE_DEFINITIONS)
+STATIC_IF_INLINE MemoryContext
 MemoryContextSwitchTo(MemoryContext context)
 {
 	MemoryContext old = CurrentMemoryContext;
@@ -142,11 +121,12 @@ MemoryContextSwitchTo(MemoryContext context)
 	CurrentMemoryContext = context;
 	return old;
 }
-#endif							/* FRONTEND */
+#endif   /* PG_USE_INLINE || MCXT_INCLUDE_DEFINITIONS */
+#endif   /* FRONTEND */
 
 /* Registration of memory context reset/delete callbacks */
 extern void MemoryContextRegisterResetCallback(MemoryContext context,
-											   MemoryContextCallback *cb);
+								   MemoryContextCallback *cb);
 
 /*
  * These are like standard strdup() except the copied string is
@@ -156,10 +136,8 @@ extern char *MemoryContextStrdup(MemoryContext context, const char *string);
 extern char *pstrdup(const char *in);
 extern char *pnstrdup(const char *in, Size len);
 
-extern char *pchomp(const char *in);
-
 /* sprintf into a palloc'd buffer --- these are in psprintf.c */
 extern char *psprintf(const char *fmt,...) pg_attribute_printf(1, 2);
 extern size_t pvsnprintf(char *buf, size_t len, const char *fmt, va_list args) pg_attribute_printf(3, 0);
 
-#endif							/* PALLOC_H */
+#endif   /* PALLOC_H */

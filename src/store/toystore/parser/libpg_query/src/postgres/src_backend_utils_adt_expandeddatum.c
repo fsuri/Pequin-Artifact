@@ -11,7 +11,7 @@
  * expandeddatum.c
  *	  Support functions for "expanded" value representations.
  *
- * Portions Copyright (c) 1996-2023, PostgreSQL Global Development Group
+ * Portions Copyright (c) 1996-2015, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  *
@@ -64,22 +64,24 @@ DatumGetEOHP(Datum d)
 Size
 EOH_get_flat_size(ExpandedObjectHeader *eohptr)
 {
-	return eohptr->eoh_methods->get_flat_size(eohptr);
+	return (*eohptr->eoh_methods->get_flat_size) (eohptr);
 }
 
 void
 EOH_flatten_into(ExpandedObjectHeader *eohptr,
 				 void *result, Size allocated_size)
 {
-	eohptr->eoh_methods->flatten_into(eohptr, result, allocated_size);
+	(*eohptr->eoh_methods->flatten_into) (eohptr, result, allocated_size);
 }
+
+/*
+ * Does the Datum represent a writable expanded object?
+ */
+
 
 /*
  * If the Datum represents a R/W expanded object, change it to R/O.
  * Otherwise return the original Datum.
- *
- * Caller must ensure that the datum is a non-null varlena value.  Typically
- * this is invoked via MakeExpandedObjectReadOnly(), which checks that.
  */
 
 

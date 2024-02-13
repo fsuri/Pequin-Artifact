@@ -33,19 +33,23 @@ class Extractor
     inside = false
     @nodetypes = []
 
-    lines = File.read(File.join(@pgdir, '/src/include/nodes/nodetags.h'))
+    lines = File.read(File.join(@pgdir, '/src/include/nodes/nodes.h'))
     lines.each_line do |line|
-      if !line.start_with? /\/?\ *\*/
-        if line[/T_([A-z_]+)(\s+=\s+\d+)?,/]
-          @nodetypes << $1
+      if inside
+        if line[/([A-z_]+)(\s+=\s+\d+)?,/]
+          @nodetypes << $1[2..-1] # Without T_ prefix
+        elsif line == "} NodeTag;\n"
+          inside = false
         end
+      elsif line == "typedef enum NodeTag\n"
+        inside = true
       end
     end
   end
 
   IGNORE_LIST = [
-    'Node', 'varlena', 'IntArray', 'nameData', 'bool',
-    'sig_atomic_t', 'size_t', 'varatt_indirect', 'A_Const',
+    'Node', 'NodeTag', 'varlena', 'IntArray', 'nameData', 'bool',
+    'sig_atomic_t', 'size_t', 'varatt_indirect',
   ]
 
   def generate_defs!
@@ -59,7 +63,7 @@ class Extractor
 
     ['nodes/parsenodes', 'nodes/primnodes', 'nodes/lockoptions',
      'nodes/nodes', 'nodes/params', 'access/attnum', 'c', 'postgres', 'postgres_ext',
-     'commands/vacuum', 'storage/block', 'access/sdir', 'mb/pg_wchar', '../backend/parser/gram', '../backend/parser/gramparse'].each do |group|
+     'storage/block', 'access/sdir'].each do |group|
       @target_group = group
       @struct_defs[@target_group] = {}
       @enum_defs[@target_group] = {}
@@ -71,13 +75,13 @@ class Extractor
           handle_struct(line)
         elsif !@current_enum_def.nil?
           handle_enum(line)
-        elsif line[/^(?:typedef )?struct ([A-z]+)\s*(\/\*.+)?$/]
+        elsif line[/^typedef struct ([A-z]+)\s*(\/\*.+)?$/]
           next if IGNORE_LIST.include?($1)
-          @current_struct_def = { name: $1, fields: [], comment: @open_comment_text }
+          @current_struct_def = { fields: [], comment: @open_comment_text }
           @open_comment_text = nil
-        elsif line[/^\s*(?:typedef )?enum\s*([A-z]+)?\s*(\/\*.+)?(?: {)?$/]
+        elsif line[/^typedef enum( [A-z]+)?\s*(\/\*.+)?$/]
           next if IGNORE_LIST.include?($1)
-          @current_enum_def = { name: $1, values: [], comment: @open_comment_text }
+          @current_enum_def = { values: [], comment: @open_comment_text }
           @open_comment_text = nil
         elsif line[/^typedef( struct)? ([A-z0-9\s_]+) \*?([A-z]+);/]
           next if IGNORE_LIST.include?($2) || IGNORE_LIST.include?($3)
@@ -96,7 +100,7 @@ class Extractor
   end
 
   def handle_struct(line)
-    if line[/^\s+(struct |const )?([A-z0-9]+)\s+(\*){0,2}([A-z_]+)(?:\s+pg_node_attr\(\w+\))?;\s*(\/\*.+)?/]
+    if line[/^\s+(struct |const )?([A-z0-9]+)\s+(\*){0,2}([A-z_]+);\s*(\/\*.+)?/]
       name = $4
       c_type = $2 + $3.to_s
       comment = $5
@@ -104,9 +108,8 @@ class Extractor
       @current_struct_def[:fields] << { name: name, c_type: c_type, comment: comment }
 
       @open_comment = line.include?('/*') && !line.include?('*/')
-    elsif line[/^\}(\s+([A-z]+))?;/]
-      name = @current_struct_def.delete(:name)
-      @struct_defs[@target_group][name] = @current_struct_def
+    elsif line[/^\}\s+([A-z]+);/]
+      @struct_defs[@target_group][$1] = @current_struct_def
       @current_struct_def = nil
     elsif line.strip.start_with?('/*')
       @current_struct_def[:fields] << { comment: line }
@@ -121,36 +124,18 @@ class Extractor
   end
 
   def handle_enum(line)
-    if line[/^\s+([A-z0-9_]+)(?: = (?:(\d+)(?: << (\d+))?|(PG_INT32_MAX)|(?:'(\w)')))?,?\s*((?:[A-z0-9_]+,?\s*)+)?(\/\*.+)?/]
-      primary_value = { name: $1 }
-      previous_line_values = @current_enum_def[:values].map {|v| v[:value] }.compact
-      primary_value[:value] = if $2
-                                ($3 ? ($2.to_i << $3.to_i) : $2.to_i)
-                              elsif $4 == 'PG_INT32_MAX'
-                                0x7FFFFFFF
-                              elsif $5
-                                $5.ord
-                              elsif previous_line_values.size > 0
-                                previous_line_values[-1] + 1
-                              else
-                                0
-                              end
-      primary_value[:comment] = $7 if $7
-      @current_enum_def[:values] << primary_value
+    if line[/^\s+([A-z0-9_]+),?\s*([A-z0-9_]+)?(\/\*.+)?/]
+      name = $1
+      other_name = $2
+      comment = $3
 
-      if $6
-        $6.split(',').map(&:strip).each do |name|
-          secondary_value = { name: name }
-          secondary_value[:comment] = $7 if $7
-          @current_enum_def[:values] << secondary_value
-        end
-      end
+      @current_enum_def[:values] << { name: name, comment: comment }
+      @current_enum_def[:values] << { name: other_name } if other_name
 
       @open_comment = line.include?('/*') && !line.include?('*/')
-    elsif line[/^\s*\}\s*([A-z]+)?;/]
-      name = @current_enum_def.delete(:name) || $1
-      @all_known_enums << name
-      @enum_defs[@target_group][name] = @current_enum_def
+    elsif line[/^\}\s+([A-z]+);/]
+      @all_known_enums << $1
+      @enum_defs[@target_group][$1] = @current_enum_def
       @current_enum_def = nil
     elsif line.strip.start_with?('/*')
       @current_enum_def[:values] << { comment: line }
@@ -179,6 +164,7 @@ class Extractor
       'GrantStmt' => 'GrantTargetType',
       'RangeTblEntry' => 'RTEKind',
       'TransactionStmt' => 'TransactionStmtKind',
+      'VacuumStmt' => 'VacuumOption',
       'ViewStmt' => 'ViewCheckOption',
     },
     'nodes/primnodes' => {
@@ -231,19 +217,13 @@ class Extractor
     generate_defs!
     transform_toplevel_comments!
 
-    # Fixup node tags, as they are included from a different auto-generated file: `nodes/nodetags.h`.
-    @nodetypes.each_with_index do |name, i|
-      @enum_defs['nodes/nodes']['NodeTag'][:values] << { name: "T_#{name}", value: i + 1 }
-    end
-
     @struct_defs['nodes/value'] = {}
     @struct_defs['nodes/value']['Integer'] = { fields: [{ name: 'ival', c_type: 'long' }] }
-    @struct_defs['nodes/value']['Float'] = { fields: [{ name: 'fval', c_type: 'char*' }] }
-    @struct_defs['nodes/value']['Boolean'] = { fields: [{ name: 'boolval', c_type: 'bool' }] }
-    @struct_defs['nodes/value']['String'] = { fields: [{ name: 'sval', c_type: 'char*' }] }
-    @struct_defs['nodes/value']['BitString'] = { fields: [{ name: 'bsval', c_type: 'char*' }] }
-    @struct_defs['nodes/value']['A_Const'] = { fields: [{ name: 'isnull', c_type: 'bool' }, { name:'val', c_type: 'Node' }] }
+    @struct_defs['nodes/value']['Float'] = { fields: [{ name: 'str', c_type: 'char*' }] }
+    @struct_defs['nodes/value']['String'] = { fields: [{ name: 'str', c_type: 'char*' }] }
+    @struct_defs['nodes/value']['BitString'] = { fields: [{ name: 'str', c_type: 'char*' }] }
     @struct_defs['nodes/pg_list'] = { 'List' => { fields: [{ name: 'items', c_type: '[]Node' }] } }
+    @struct_defs['nodes/value']['Null'] = { fields: [] }
     @struct_defs['nodes/params']['ParamListInfoData'][:fields].reject! { |f| f[:c_type] == 'ParamExternData' }
 
     File.write('./srcdata/nodetypes.json', JSON.pretty_generate(@nodetypes))
@@ -252,11 +232,6 @@ class Extractor
     File.write('./srcdata/enum_defs.json', JSON.pretty_generate(@enum_defs))
     File.write('./srcdata/typedefs.json', JSON.pretty_generate(@typedefs))
   end
-end
-
-if !ARGV[0]
-  puts 'ERROR: You need to specify Postgres source directory as the first argument'
-  return
 end
 
 Extractor.new(ARGV[0]).extract!

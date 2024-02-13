@@ -57,7 +57,7 @@
  * calls in portal and cursor manipulations.
  *
  *
- * Portions Copyright (c) 1996-2023, PostgreSQL Global Development Group
+ * Portions Copyright (c) 1996-2015, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  * src/include/tcop/dest.h
@@ -68,9 +68,10 @@
 #define DEST_H
 
 #include "executor/tuptable.h"
-#include "tcop/cmdtag.h"
 
 
+/* buffer size to use for command completion tags */
+#define COMPLETION_TAG_BUFSIZE	64
 
 
 /* ----------------
@@ -88,14 +89,12 @@ typedef enum
 	DestDebug,					/* results go to debugging output */
 	DestRemote,					/* results sent to frontend process */
 	DestRemoteExecute,			/* sent to frontend, in Execute command */
-	DestRemoteSimple,			/* sent to frontend, w/no catalog access */
 	DestSPI,					/* results sent to SPI manager */
 	DestTuplestore,				/* results sent to Tuplestore */
 	DestIntoRel,				/* results sent to relation (SELECT INTO) */
 	DestCopyOut,				/* results sent to COPY TO code */
 	DestSQLFunction,			/* results sent to SQL-language func mgr */
-	DestTransientRel,			/* results sent to transient relation */
-	DestTupleQueue				/* results sent to tuple queue */
+	DestTransientRel			/* results sent to transient relation */
 } CommandDest;
 
 /* ----------------
@@ -104,9 +103,7 @@ typedef enum
  *		pointers that the executor must call.
  *
  * Note: the receiveSlot routine must be passed a slot containing a TupleDesc
- * identical to the one given to the rStartup routine.  It returns bool where
- * a "true" value means "continue processing" and a "false" value means
- * "stop early, just as if we'd reached the end of the scan".
+ * identical to the one given to the rStartup routine.
  * ----------------
  */
 typedef struct _DestReceiver DestReceiver;
@@ -114,12 +111,12 @@ typedef struct _DestReceiver DestReceiver;
 struct _DestReceiver
 {
 	/* Called for each tuple to be output: */
-	bool		(*receiveSlot) (TupleTableSlot *slot,
-								DestReceiver *self);
+	void		(*receiveSlot) (TupleTableSlot *slot,
+											DestReceiver *self);
 	/* Per-executor-run initialization and shutdown: */
 	void		(*rStartup) (DestReceiver *self,
-							 int operation,
-							 TupleDesc typeinfo);
+										 int operation,
+										 TupleDesc typeinfo);
 	void		(*rShutdown) (DestReceiver *self);
 	/* Destroy the receiver object itself (if dynamically allocated) */
 	void		(*rDestroy) (DestReceiver *self);
@@ -128,20 +125,17 @@ struct _DestReceiver
 	/* Private fields might appear beyond this point... */
 };
 
-extern PGDLLIMPORT DestReceiver *None_Receiver; /* permanent receiver for
-												 * DestNone */
+extern DestReceiver *None_Receiver;		/* permanent receiver for DestNone */
 
 /* The primary destination management functions */
 
-extern void BeginCommand(CommandTag commandTag, CommandDest dest);
+extern void BeginCommand(const char *commandTag, CommandDest dest);
 extern DestReceiver *CreateDestReceiver(CommandDest dest);
-extern void EndCommand(const QueryCompletion *qc, CommandDest dest,
-					   bool force_undecorated_output);
-extern void EndReplicationCommand(const char *commandTag);
+extern void EndCommand(const char *commandTag, CommandDest dest);
 
 /* Additional functions that go with destination management, more or less. */
 
 extern void NullCommand(CommandDest dest);
 extern void ReadyForQuery(CommandDest dest);
 
-#endif							/* DEST_H */
+#endif   /* DEST_H */

@@ -1,17 +1,18 @@
 /*-------------------------------------------------------------------------
  *
  * pg_namespace.h
- *	  definition of the "namespace" system catalog (pg_namespace)
+ *	  definition of the system "namespace" relation (pg_namespace)
+ *	  along with the relation's initial contents.
  *
  *
- * Portions Copyright (c) 1996-2023, PostgreSQL Global Development Group
+ * Portions Copyright (c) 1996-2015, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  * src/include/catalog/pg_namespace.h
  *
  * NOTES
- *	  The Catalog.pm module reads this file and derives schema
- *	  information.
+ *	  the genbki.pl script reads this file and generates .bki
+ *	  information from the DATA() statements.
  *
  *-------------------------------------------------------------------------
  */
@@ -19,8 +20,6 @@
 #define PG_NAMESPACE_H
 
 #include "catalog/genbki.h"
-#include "catalog/pg_namespace_d.h"
-#include "utils/acl.h"
 
 /* ----------------------------------------------------------------
  *		pg_namespace definition.
@@ -32,12 +31,12 @@
  *	nspacl				access privilege list
  * ----------------------------------------------------------------
  */
-CATALOG(pg_namespace,2615,NamespaceRelationId)
-{
-	Oid			oid;			/* oid */
+#define NamespaceRelationId  2615
 
+CATALOG(pg_namespace,2615)
+{
 	NameData	nspname;
-	Oid			nspowner BKI_DEFAULT(POSTGRES) BKI_LOOKUP(pg_authid);
+	Oid			nspowner;
 
 #ifdef CATALOG_VARLEN			/* variable-length fields start here */
 	aclitem		nspacl[1];
@@ -51,14 +50,36 @@ CATALOG(pg_namespace,2615,NamespaceRelationId)
  */
 typedef FormData_pg_namespace *Form_pg_namespace;
 
-DECLARE_TOAST(pg_namespace, 4163, 4164);
+/* ----------------
+ *		compiler constants for pg_namespace
+ * ----------------
+ */
 
-DECLARE_UNIQUE_INDEX(pg_namespace_nspname_index, 2684, NamespaceNameIndexId, on pg_namespace using btree(nspname name_ops));
-DECLARE_UNIQUE_INDEX_PKEY(pg_namespace_oid_index, 2685, NamespaceOidIndexId, on pg_namespace using btree(oid oid_ops));
+#define Natts_pg_namespace				3
+#define Anum_pg_namespace_nspname		1
+#define Anum_pg_namespace_nspowner		2
+#define Anum_pg_namespace_nspacl		3
+
+
+/* ----------------
+ * initial contents of pg_namespace
+ * ---------------
+ */
+
+DATA(insert OID = 11 ( "pg_catalog" PGUID _null_ ));
+DESCR("system catalog schema");
+#define PG_CATALOG_NAMESPACE 11
+DATA(insert OID = 99 ( "pg_toast" PGUID _null_ ));
+DESCR("reserved schema for TOAST tables");
+#define PG_TOAST_NAMESPACE 99
+DATA(insert OID = 2200 ( "public" PGUID _null_ ));
+DESCR("standard public schema");
+#define PG_PUBLIC_NAMESPACE 2200
+
 
 /*
  * prototypes for functions in pg_namespace.c
  */
 extern Oid	NamespaceCreate(const char *nspName, Oid ownerId, bool isTemp);
 
-#endif							/* PG_NAMESPACE_H */
+#endif   /* PG_NAMESPACE_H */

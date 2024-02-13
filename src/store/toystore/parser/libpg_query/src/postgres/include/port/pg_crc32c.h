@@ -23,7 +23,7 @@
  * EQ_CRC32C(c1, c2)
  *		Check for equality of two CRCs.
  *
- * Portions Copyright (c) 1996-2023, PostgreSQL Global Development Group
+ * Portions Copyright (c) 1996-2015, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  * src/include/port/pg_crc32c.h
@@ -33,8 +33,6 @@
 #ifndef PG_CRC32C_H
 #define PG_CRC32C_H
 
-#include "port/pg_bswap.h"
-
 typedef uint32 pg_crc32c;
 
 /* The INIT and EQ macros are the same for all implementations. */
@@ -42,41 +40,25 @@ typedef uint32 pg_crc32c;
 #define EQ_CRC32C(c1, c2) ((c1) == (c2))
 
 #if defined(USE_SSE42_CRC32C)
-/* Use Intel SSE4.2 instructions. */
+/* Use SSE4.2 instructions. */
 #define COMP_CRC32C(crc, data, len) \
 	((crc) = pg_comp_crc32c_sse42((crc), (data), (len)))
 #define FIN_CRC32C(crc) ((crc) ^= 0xFFFFFFFF)
 
 extern pg_crc32c pg_comp_crc32c_sse42(pg_crc32c crc, const void *data, size_t len);
 
-#elif defined(USE_ARMV8_CRC32C)
-/* Use ARMv8 CRC Extension instructions. */
-
-#define COMP_CRC32C(crc, data, len)							\
-	((crc) = pg_comp_crc32c_armv8((crc), (data), (len)))
-#define FIN_CRC32C(crc) ((crc) ^= 0xFFFFFFFF)
-
-extern pg_crc32c pg_comp_crc32c_armv8(pg_crc32c crc, const void *data, size_t len);
-
-#elif defined(USE_SSE42_CRC32C_WITH_RUNTIME_CHECK) || defined(USE_ARMV8_CRC32C_WITH_RUNTIME_CHECK)
-
+#elif defined(USE_SSE42_CRC32C_WITH_RUNTIME_CHECK)
 /*
- * Use Intel SSE 4.2 or ARMv8 instructions, but perform a runtime check first
- * to check that they are available.
+ * Use SSE4.2 instructions, but perform a runtime check first to check that
+ * they are available.
  */
 #define COMP_CRC32C(crc, data, len) \
 	((crc) = pg_comp_crc32c((crc), (data), (len)))
 #define FIN_CRC32C(crc) ((crc) ^= 0xFFFFFFFF)
 
+extern pg_crc32c pg_comp_crc32c_sse42(pg_crc32c crc, const void *data, size_t len);
 extern pg_crc32c pg_comp_crc32c_sb8(pg_crc32c crc, const void *data, size_t len);
 extern pg_crc32c (*pg_comp_crc32c) (pg_crc32c crc, const void *data, size_t len);
-
-#ifdef USE_SSE42_CRC32C_WITH_RUNTIME_CHECK
-extern pg_crc32c pg_comp_crc32c_sse42(pg_crc32c crc, const void *data, size_t len);
-#endif
-#ifdef USE_ARMV8_CRC32C_WITH_RUNTIME_CHECK
-extern pg_crc32c pg_comp_crc32c_armv8(pg_crc32c crc, const void *data, size_t len);
-#endif
 
 #else
 /*
@@ -89,7 +71,17 @@ extern pg_crc32c pg_comp_crc32c_armv8(pg_crc32c crc, const void *data, size_t le
 #define COMP_CRC32C(crc, data, len) \
 	((crc) = pg_comp_crc32c_sb8((crc), (data), (len)))
 #ifdef WORDS_BIGENDIAN
-#define FIN_CRC32C(crc) ((crc) = pg_bswap32(crc) ^ 0xFFFFFFFF)
+
+#ifdef HAVE__BUILTIN_BSWAP32
+#define BSWAP32(x) __builtin_bswap32(x)
+#else
+#define BSWAP32(x) (((x << 24) & 0xff000000) | \
+					((x << 8) & 0x00ff0000) | \
+					((x >> 8) & 0x0000ff00) | \
+					((x >> 24) & 0x000000ff))
+#endif
+
+#define FIN_CRC32C(crc) ((crc) = BSWAP32(crc) ^ 0xFFFFFFFF)
 #else
 #define FIN_CRC32C(crc) ((crc) ^= 0xFFFFFFFF)
 #endif
@@ -98,4 +90,4 @@ extern pg_crc32c pg_comp_crc32c_sb8(pg_crc32c crc, const void *data, size_t len)
 
 #endif
 
-#endif							/* PG_CRC32C_H */
+#endif   /* PG_CRC32C_H */

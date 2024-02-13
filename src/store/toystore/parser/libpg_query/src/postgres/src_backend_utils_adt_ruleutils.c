@@ -11,7 +11,7 @@
  *	  Functions to convert stored expressions/querytrees back to
  *	  source text
  *
- * Portions Copyright (c) 1996-2023, PostgreSQL Global Development Group
+ * Portions Copyright (c) 1996-2015, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  *
@@ -26,13 +26,11 @@
 #include <unistd.h>
 #include <fcntl.h>
 
-#include "access/amapi.h"
 #include "access/htup_details.h"
-#include "access/relation.h"
 #include "access/sysattr.h"
-#include "access/table.h"
+#include "catalog/dependency.h"
+#include "catalog/indexing.h"
 #include "catalog/pg_aggregate.h"
-#include "catalog/pg_am.h"
 #include "catalog/pg_authid.h"
 #include "catalog/pg_collation.h"
 #include "catalog/pg_constraint.h"
@@ -40,27 +38,23 @@
 #include "catalog/pg_language.h"
 #include "catalog/pg_opclass.h"
 #include "catalog/pg_operator.h"
-#include "catalog/pg_partitioned_table.h"
 #include "catalog/pg_proc.h"
-#include "catalog/pg_statistic_ext.h"
 #include "catalog/pg_trigger.h"
 #include "catalog/pg_type.h"
 #include "commands/defrem.h"
 #include "commands/tablespace.h"
-#include "common/keywords.h"
 #include "executor/spi.h"
 #include "funcapi.h"
 #include "mb/pg_wchar.h"
 #include "miscadmin.h"
 #include "nodes/makefuncs.h"
 #include "nodes/nodeFuncs.h"
-#include "nodes/pathnodes.h"
-#include "optimizer/optimizer.h"
+#include "optimizer/tlist.h"
+#include "parser/keywords.h"
+#include "parser/parse_node.h"
 #include "parser/parse_agg.h"
 #include "parser/parse_func.h"
-#include "parser/parse_node.h"
 #include "parser/parse_oper.h"
-#include "parser/parse_relation.h"
 #include "parser/parser.h"
 #include "parser/parsetree.h"
 #include "rewrite/rewriteHandler.h"
@@ -69,17 +63,16 @@
 #include "utils/array.h"
 #include "utils/builtins.h"
 #include "utils/fmgroids.h"
-#include "utils/guc.h"
 #include "utils/hsearch.h"
 #include "utils/lsyscache.h"
-#include "utils/partcache.h"
 #include "utils/rel.h"
 #include "utils/ruleutils.h"
 #include "utils/snapmgr.h"
 #include "utils/syscache.h"
+#include "utils/tqual.h"
 #include "utils/typcache.h"
-#include "utils/varlena.h"
 #include "utils/xml.h"
+
 
 /* ----------
  * Pretty formatting constants
@@ -91,25 +84,18 @@
 #define PRETTYINDENT_JOIN		4
 #define PRETTYINDENT_VAR		4
 
-#define PRETTYINDENT_LIMIT		40	/* wrap limit */
+#define PRETTYINDENT_LIMIT		40		/* wrap limit */
 
 /* Pretty flags */
-#define PRETTYFLAG_PAREN		0x0001
-#define PRETTYFLAG_INDENT		0x0002
-#define PRETTYFLAG_SCHEMA		0x0004
-
-/* Standard conversion of a "bool pretty" option to detailed flags */
-#define GET_PRETTY_FLAGS(pretty) \
-	((pretty) ? (PRETTYFLAG_PAREN | PRETTYFLAG_INDENT | PRETTYFLAG_SCHEMA) \
-	 : PRETTYFLAG_INDENT)
+#define PRETTYFLAG_PAREN		1
+#define PRETTYFLAG_INDENT		2
 
 /* Default line length for pretty-print wrapping: 0 means wrap always */
 #define WRAP_COLUMN_DEFAULT		0
 
-/* macros to test if pretty action needed */
+/* macro to test if pretty action needed */
 #define PRETTY_PAREN(context)	((context)->prettyFlags & PRETTYFLAG_PAREN)
 #define PRETTY_INDENT(context)	((context)->prettyFlags & PRETTYFLAG_INDENT)
-#define PRETTY_SCHEMA(context)	((context)->prettyFlags & PRETTYFLAG_SCHEMA)
 
 
 /* ----------
@@ -126,12 +112,10 @@ typedef struct
 	List	   *windowTList;	/* targetlist for resolving WINDOW clause */
 	int			prettyFlags;	/* enabling of pretty-print functions */
 	int			wrapColumn;		/* max line length, or -1 for no limit */
-	int			indentLevel;	/* current indent level for pretty-print */
-	bool		varprefix;		/* true to print prefixes on Vars */
-	ParseExprKind special_exprkind; /* set only for exprkinds needing special
-									 * handling */
-	Bitmapset  *appendparents;	/* if not null, map child Vars of these relids
-								 * back to the parent rel */
+	int			indentLevel;	/* current indent level for prettyprint */
+	bool		varprefix;		/* TRUE to print prefixes on Vars */
+	ParseExprKind special_exprkind;		/* set only for exprkinds needing
+										 * special handling */
 } deparse_context;
 
 /*
@@ -139,56 +123,45 @@ typedef struct
  * A Var having varlevelsup=N refers to the N'th item (counting from 0) in
  * the current context's namespaces list.
  *
- * rtable is the list of actual RTEs from the Query or PlannedStmt.
+ * The rangetable is the list of actual RTEs from the query tree, and the
+ * cte list is the list of actual CTEs.
+ *
  * rtable_names holds the alias name to be used for each RTE (either a C
  * string, or NULL for nameless RTEs such as unnamed joins).
  * rtable_columns holds the column alias names to be used for each RTE.
  *
- * subplans is a list of Plan trees for SubPlans and CTEs (it's only used
- * in the PlannedStmt case).
- * ctes is a list of CommonTableExpr nodes (only used in the Query case).
- * appendrels, if not null (it's only used in the PlannedStmt case), is an
- * array of AppendRelInfo nodes, indexed by child relid.  We use that to map
- * child-table Vars to their inheritance parents.
- *
  * In some cases we need to make names of merged JOIN USING columns unique
- * across the whole query, not only per-RTE.  If so, unique_using is true
+ * across the whole query, not only per-RTE.  If so, unique_using is TRUE
  * and using_names is a list of C strings representing names already assigned
  * to USING columns.
  *
  * When deparsing plan trees, there is always just a single item in the
  * deparse_namespace list (since a plan tree never contains Vars with
- * varlevelsup > 0).  We store the Plan node that is the immediate
+ * varlevelsup > 0).  We store the PlanState node that is the immediate
  * parent of the expression to be deparsed, as well as a list of that
- * Plan's ancestors.  In addition, we store its outer and inner subplan nodes,
- * as well as their targetlists, and the index tlist if the current plan node
- * might contain INDEX_VAR Vars.  (These fields could be derived on-the-fly
- * from the current Plan node, but it seems notationally clearer to set them
- * up as separate fields.)
+ * PlanState's ancestors.  In addition, we store its outer and inner subplan
+ * state nodes, as well as their plan nodes' targetlists, and the index tlist
+ * if the current plan node might contain INDEX_VAR Vars.  (These fields could
+ * be derived on-the-fly from the current PlanState, but it seems notationally
+ * clearer to set them up as separate fields.)
  */
 typedef struct
 {
 	List	   *rtable;			/* List of RangeTblEntry nodes */
 	List	   *rtable_names;	/* Parallel list of names for RTEs */
 	List	   *rtable_columns; /* Parallel list of deparse_columns structs */
-	List	   *subplans;		/* List of Plan trees for SubPlans */
 	List	   *ctes;			/* List of CommonTableExpr nodes */
-	AppendRelInfo **appendrels; /* Array of AppendRelInfo nodes, or NULL */
 	/* Workspace for column alias assignment: */
 	bool		unique_using;	/* Are we making USING names globally unique */
 	List	   *using_names;	/* List of assigned names for USING columns */
 	/* Remaining fields are used only when deparsing a Plan tree: */
-	Plan	   *plan;			/* immediate parent of current expression */
-	List	   *ancestors;		/* ancestors of plan */
-	Plan	   *outer_plan;		/* outer subnode, or NULL if none */
-	Plan	   *inner_plan;		/* inner subnode, or NULL if none */
+	PlanState  *planstate;		/* immediate parent of current expression */
+	List	   *ancestors;		/* ancestors of planstate */
+	PlanState  *outer_planstate;	/* outer subplan state, or NULL if none */
+	PlanState  *inner_planstate;	/* inner subplan state, or NULL if none */
 	List	   *outer_tlist;	/* referent for OUTER_VAR Vars */
 	List	   *inner_tlist;	/* referent for INNER_VAR Vars */
 	List	   *index_tlist;	/* referent for INDEX_VAR Vars */
-	/* Special namespace representing a function signature: */
-	char	   *funcname;
-	int			numargs;
-	char	  **argnames;
 } deparse_namespace;
 
 /*
@@ -286,8 +259,7 @@ typedef struct
 	 * child RTE's attno and rightattnos[i] is zero; and conversely for a
 	 * column of the right child.  But for merged columns produced by JOIN
 	 * USING/NATURAL JOIN, both leftattnos[i] and rightattnos[i] are nonzero.
-	 * Note that a simple reference might be to a child RTE column that's been
-	 * dropped; but that's OK since the column could not be used in the query.
+	 * Also, if the column has been dropped, both are zero.
 	 *
 	 * If it's a JOIN USING, usingNames holds the alias names selected for the
 	 * merged columns (these might be different from the original USING list,
@@ -309,13 +281,9 @@ typedef struct
  */
 typedef struct
 {
-	char		name[NAMEDATALEN];	/* Hash key --- must be first */
+	char		name[NAMEDATALEN];		/* Hash key --- must be first */
 	int			counter;		/* Largest addition used so far for name */
 } NameHashEntry;
-
-/* Callback signature for resolve_special_varno() */
-typedef void (*rsv_callback) (Node *node, deparse_context *context,
-							  void *callback_arg);
 
 
 /* ----------
@@ -341,197 +309,152 @@ __thread bool		quote_all_identifiers = false;
  * ----------
  */
 static char *deparse_expression_pretty(Node *expr, List *dpcontext,
-									   bool forceprefix, bool showimplicit,
-									   int prettyFlags, int startIndent);
+						  bool forceprefix, bool showimplicit,
+						  int prettyFlags, int startIndent);
 static char *pg_get_viewdef_worker(Oid viewoid,
-								   int prettyFlags, int wrapColumn);
+					  int prettyFlags, int wrapColumn);
 static char *pg_get_triggerdef_worker(Oid trigid, bool pretty);
-static int	decompile_column_index_array(Datum column_index_array, Oid relId,
-										 StringInfo buf);
+static void decompile_column_index_array(Datum column_index_array, Oid relId,
+							 StringInfo buf);
 static char *pg_get_ruledef_worker(Oid ruleoid, int prettyFlags);
 static char *pg_get_indexdef_worker(Oid indexrelid, int colno,
-									const Oid *excludeOps,
-									bool attrsOnly, bool keysOnly,
-									bool showTblSpc, bool inherits,
-									int prettyFlags, bool missing_ok);
-static char *pg_get_statisticsobj_worker(Oid statextid, bool columns_only,
-										 bool missing_ok);
-static char *pg_get_partkeydef_worker(Oid relid, int prettyFlags,
-									  bool attrsOnly, bool missing_ok);
+					   const Oid *excludeOps,
+					   bool attrsOnly, bool showTblSpc,
+					   int prettyFlags);
 static char *pg_get_constraintdef_worker(Oid constraintId, bool fullCommand,
-										 int prettyFlags, bool missing_ok);
+							int prettyFlags);
 static text *pg_get_expr_worker(text *expr, Oid relid, const char *relname,
-								int prettyFlags);
-static int	print_function_arguments(StringInfo buf, HeapTuple proctup,
-									 bool print_table_args, bool print_defaults);
+				   int prettyFlags);
+static int print_function_arguments(StringInfo buf, HeapTuple proctup,
+						 bool print_table_args, bool print_defaults);
 static void print_function_rettype(StringInfo buf, HeapTuple proctup);
 static void print_function_trftypes(StringInfo buf, HeapTuple proctup);
-static void print_function_sqlbody(StringInfo buf, HeapTuple proctup);
 static void set_rtable_names(deparse_namespace *dpns, List *parent_namespaces,
-							 Bitmapset *rels_used);
+				 Bitmapset *rels_used);
 static void set_deparse_for_query(deparse_namespace *dpns, Query *query,
-								  List *parent_namespaces);
+					  List *parent_namespaces);
 static void set_simple_column_names(deparse_namespace *dpns);
 static bool has_dangerous_join_using(deparse_namespace *dpns, Node *jtnode);
 static void set_using_names(deparse_namespace *dpns, Node *jtnode,
-							List *parentUsing);
+				List *parentUsing);
 static void set_relation_column_names(deparse_namespace *dpns,
-									  RangeTblEntry *rte,
-									  deparse_columns *colinfo);
+						  RangeTblEntry *rte,
+						  deparse_columns *colinfo);
 static void set_join_column_names(deparse_namespace *dpns, RangeTblEntry *rte,
-								  deparse_columns *colinfo);
-static bool colname_is_unique(const char *colname, deparse_namespace *dpns,
-							  deparse_columns *colinfo);
+					  deparse_columns *colinfo);
+static bool colname_is_unique(char *colname, deparse_namespace *dpns,
+				  deparse_columns *colinfo);
 static char *make_colname_unique(char *colname, deparse_namespace *dpns,
-								 deparse_columns *colinfo);
+					deparse_columns *colinfo);
 static void expand_colnames_array_to(deparse_columns *colinfo, int n);
 static void identify_join_columns(JoinExpr *j, RangeTblEntry *jrte,
-								  deparse_columns *colinfo);
+					  deparse_columns *colinfo);
+static void flatten_join_using_qual(Node *qual,
+						List **leftvars, List **rightvars);
 static char *get_rtable_name(int rtindex, deparse_context *context);
-static void set_deparse_plan(deparse_namespace *dpns, Plan *plan);
-static Plan *find_recursive_union(deparse_namespace *dpns,
-								  WorkTableScan *wtscan);
-static void push_child_plan(deparse_namespace *dpns, Plan *plan,
-							deparse_namespace *save_dpns);
+static void set_deparse_planstate(deparse_namespace *dpns, PlanState *ps);
+static void push_child_plan(deparse_namespace *dpns, PlanState *ps,
+				deparse_namespace *save_dpns);
 static void pop_child_plan(deparse_namespace *dpns,
-						   deparse_namespace *save_dpns);
+			   deparse_namespace *save_dpns);
 static void push_ancestor_plan(deparse_namespace *dpns, ListCell *ancestor_cell,
-							   deparse_namespace *save_dpns);
+				   deparse_namespace *save_dpns);
 static void pop_ancestor_plan(deparse_namespace *dpns,
-							  deparse_namespace *save_dpns);
+				  deparse_namespace *save_dpns);
 static void make_ruledef(StringInfo buf, HeapTuple ruletup, TupleDesc rulettc,
-						 int prettyFlags);
+			 int prettyFlags);
 static void make_viewdef(StringInfo buf, HeapTuple ruletup, TupleDesc rulettc,
-						 int prettyFlags, int wrapColumn);
+			 int prettyFlags, int wrapColumn);
 static void get_query_def(Query *query, StringInfo buf, List *parentnamespace,
-						  TupleDesc resultDesc, bool colNamesVisible,
-						  int prettyFlags, int wrapColumn, int startIndent);
+			  TupleDesc resultDesc,
+			  int prettyFlags, int wrapColumn, int startIndent);
 static void get_values_def(List *values_lists, deparse_context *context);
 static void get_with_clause(Query *query, deparse_context *context);
 static void get_select_query_def(Query *query, deparse_context *context,
-								 TupleDesc resultDesc, bool colNamesVisible);
-static void get_insert_query_def(Query *query, deparse_context *context,
-								 bool colNamesVisible);
-static void get_update_query_def(Query *query, deparse_context *context,
-								 bool colNamesVisible);
+					 TupleDesc resultDesc);
+static void get_insert_query_def(Query *query, deparse_context *context);
+static void get_update_query_def(Query *query, deparse_context *context);
 static void get_update_query_targetlist_def(Query *query, List *targetList,
-											deparse_context *context,
-											RangeTblEntry *rte);
-static void get_delete_query_def(Query *query, deparse_context *context,
-								 bool colNamesVisible);
-static void get_merge_query_def(Query *query, deparse_context *context,
-								bool colNamesVisible);
+								deparse_context *context,
+								RangeTblEntry *rte);
+static void get_delete_query_def(Query *query, deparse_context *context);
 static void get_utility_query_def(Query *query, deparse_context *context);
 static void get_basic_select_query(Query *query, deparse_context *context,
-								   TupleDesc resultDesc, bool colNamesVisible);
+					   TupleDesc resultDesc);
 static void get_target_list(List *targetList, deparse_context *context,
-							TupleDesc resultDesc, bool colNamesVisible);
+				TupleDesc resultDesc);
 static void get_setop_query(Node *setOp, Query *query,
-							deparse_context *context,
-							TupleDesc resultDesc, bool colNamesVisible);
+				deparse_context *context,
+				TupleDesc resultDesc);
 static Node *get_rule_sortgroupclause(Index ref, List *tlist,
-									  bool force_colno,
-									  deparse_context *context);
+						 bool force_colno,
+						 deparse_context *context);
 static void get_rule_groupingset(GroupingSet *gset, List *targetlist,
-								 bool omit_parens, deparse_context *context);
+					 bool omit_parens, deparse_context *context);
 static void get_rule_orderby(List *orderList, List *targetList,
-							 bool force_colno, deparse_context *context);
+				 bool force_colno, deparse_context *context);
 static void get_rule_windowclause(Query *query, deparse_context *context);
 static void get_rule_windowspec(WindowClause *wc, List *targetList,
-								deparse_context *context);
+					deparse_context *context);
 static char *get_variable(Var *var, int levelsup, bool istoplevel,
-						  deparse_context *context);
-static void get_special_variable(Node *node, deparse_context *context,
-								 void *callback_arg);
-static void resolve_special_varno(Node *node, deparse_context *context,
-								  rsv_callback callback, void *callback_arg);
+			 deparse_context *context);
 static Node *find_param_referent(Param *param, deparse_context *context,
-								 deparse_namespace **dpns_p, ListCell **ancestor_cell_p);
+					deparse_namespace **dpns_p, ListCell **ancestor_cell_p);
 static void get_parameter(Param *param, deparse_context *context);
 static const char *get_simple_binary_op_name(OpExpr *expr);
 static bool isSimpleNode(Node *node, Node *parentNode, int prettyFlags);
 static void appendContextKeyword(deparse_context *context, const char *str,
-								 int indentBefore, int indentAfter, int indentPlus);
+					 int indentBefore, int indentAfter, int indentPlus);
 static void removeStringInfoSpaces(StringInfo str);
 static void get_rule_expr(Node *node, deparse_context *context,
-						  bool showimplicit);
+			  bool showimplicit);
 static void get_rule_expr_toplevel(Node *node, deparse_context *context,
-								   bool showimplicit);
-static void get_rule_list_toplevel(List *lst, deparse_context *context,
-								   bool showimplicit);
-static void get_rule_expr_funccall(Node *node, deparse_context *context,
-								   bool showimplicit);
-static bool looks_like_function(Node *node);
+					   bool showimplicit);
 static void get_oper_expr(OpExpr *expr, deparse_context *context);
 static void get_func_expr(FuncExpr *expr, deparse_context *context,
-						  bool showimplicit);
-static void get_agg_expr(Aggref *aggref, deparse_context *context,
-						 Aggref *original_aggref);
-static void get_agg_expr_helper(Aggref *aggref, deparse_context *context,
-								Aggref *original_aggref, const char *funcname,
-								const char *options, bool is_json_objectagg);
-static void get_agg_combine_expr(Node *node, deparse_context *context,
-								 void *callback_arg);
+			  bool showimplicit);
+static void get_agg_expr(Aggref *aggref, deparse_context *context);
 static void get_windowfunc_expr(WindowFunc *wfunc, deparse_context *context);
-static void get_windowfunc_expr_helper(WindowFunc *wfunc, deparse_context *context,
-									   const char *funcname, const char *options,
-									   bool is_json_objectagg);
-static bool get_func_sql_syntax(FuncExpr *expr, deparse_context *context);
 static void get_coercion_expr(Node *arg, deparse_context *context,
-							  Oid resulttype, int32 resulttypmod,
-							  Node *parentNode);
+				  Oid resulttype, int32 resulttypmod,
+				  Node *parentNode);
 static void get_const_expr(Const *constval, deparse_context *context,
-						   int showtype);
+			   int showtype);
 static void get_const_collation(Const *constval, deparse_context *context);
-static void get_json_format(JsonFormat *format, StringInfo buf);
-static void get_json_constructor(JsonConstructorExpr *ctor,
-								 deparse_context *context, bool showimplicit);
-static void get_json_constructor_options(JsonConstructorExpr *ctor,
-										 StringInfo buf);
-static void get_json_agg_constructor(JsonConstructorExpr *ctor,
-									 deparse_context *context,
-									 const char *funcname,
-									 bool is_json_objectagg);
 static void simple_quote_literal(StringInfo buf, const char *val);
 static void get_sublink_expr(SubLink *sublink, deparse_context *context);
-static void get_tablefunc(TableFunc *tf, deparse_context *context,
-						  bool showimplicit);
 static void get_from_clause(Query *query, const char *prefix,
-							deparse_context *context);
+				deparse_context *context);
 static void get_from_clause_item(Node *jtnode, Query *query,
-								 deparse_context *context);
-static void get_rte_alias(RangeTblEntry *rte, int varno, bool use_as,
-						  deparse_context *context);
+					 deparse_context *context);
 static void get_column_alias_list(deparse_columns *colinfo,
-								  deparse_context *context);
+					  deparse_context *context);
 static void get_from_clause_coldeflist(RangeTblFunction *rtfunc,
-									   deparse_columns *colinfo,
-									   deparse_context *context);
+						   deparse_columns *colinfo,
+						   deparse_context *context);
 static void get_tablesample_def(TableSampleClause *tablesample,
-								deparse_context *context);
+					deparse_context *context);
 static void get_opclass_name(Oid opclass, Oid actual_datatype,
-							 StringInfo buf);
-static Node *processIndirection(Node *node, deparse_context *context);
-static void printSubscripts(SubscriptingRef *sbsref, deparse_context *context);
+				 StringInfo buf);
+static Node *processIndirection(Node *node, deparse_context *context,
+				   bool printit);
+static void printSubscripts(ArrayRef *aref, deparse_context *context);
 static char *get_relation_name(Oid relid);
 static char *generate_relation_name(Oid relid, List *namespaces);
 static char *generate_qualified_relation_name(Oid relid);
 static char *generate_function_name(Oid funcid, int nargs,
-									List *argnames, Oid *argtypes,
-									bool has_variadic, bool *use_variadic_p,
-									ParseExprKind special_exprkind);
+					   List *argnames, Oid *argtypes,
+					   bool has_variadic, bool *use_variadic_p,
+					   ParseExprKind special_exprkind);
 static char *generate_operator_name(Oid operid, Oid arg1, Oid arg2);
-static void add_cast_to(StringInfo buf, Oid typid);
-static char *generate_qualified_type_name(Oid typid);
 static text *string_to_text(char *str);
 static char *flatten_reloptions(Oid relid);
-static void get_reloptions(StringInfo buf, Datum reloptions);
 
 #define only_marker(rte)  ((rte)->inh ? "" : "ONLY ")
 
 
 /* ----------
- * pg_get_ruledef		- Do it all and return a text
+ * get_ruledef			- Do it all and return a text
  *				  that could be used as a statement
  *				  to recreate the rule
  * ----------
@@ -546,7 +469,7 @@ static void get_reloptions(StringInfo buf, Datum reloptions);
 
 
 /* ----------
- * pg_get_viewdef		- Mainly the same thing, but we
+ * get_viewdef			- Mainly the same thing, but we
  *				  only return the SELECT part of a view
  * ----------
  */
@@ -568,7 +491,7 @@ static void get_reloptions(StringInfo buf, Datum reloptions);
 
 
 /* ----------
- * pg_get_triggerdef		- Get the definition of a trigger
+ * get_triggerdef			- Get the definition of a trigger
  * ----------
  */
 
@@ -578,7 +501,7 @@ static void get_reloptions(StringInfo buf, Datum reloptions);
 
 
 /* ----------
- * pg_get_indexdef			- Get the definition of an index
+ * get_indexdef			- Get the definition of an index
  *
  * In the extended version, there is a colno argument as well as pretty bool.
  *	if colno == 0, we want a complete index definition.
@@ -586,24 +509,17 @@ static void get_reloptions(StringInfo buf, Datum reloptions);
  *
  * Note that the SQL-function versions of this omit any info about the
  * index tablespace; this is intentional because pg_dump wants it that way.
- * However pg_get_indexdef_string() includes the index tablespace.
+ * However pg_get_indexdef_string() includes index tablespace if not default.
  * ----------
  */
 
 
 
 
-/*
- * Internal version for use by ALTER TABLE.
- * Includes a tablespace clause in the result.
- * Returns a palloc'd C string; no pretty-printing.
- */
+/* Internal version that returns a palloc'd C string; no pretty-printing */
 
 
-/* Internal version that just reports the key-column definitions */
-
-
-/* Internal version, extensible with flags to control its behavior */
+/* Internal version that just reports the column definitions */
 
 
 /*
@@ -613,77 +529,6 @@ static void get_reloptions(StringInfo buf, Datum reloptions);
  * NULL then it points to an array of exclusion operator OIDs.
  */
 
-
-/* ----------
- * pg_get_querydef
- *
- * Public entry point to deparse one query parsetree.
- * The pretty flags are determined by GET_PRETTY_FLAGS(pretty).
- *
- * The result is a palloc'd C string.
- * ----------
- */
-
-
-/*
- * pg_get_statisticsobjdef
- *		Get the definition of an extended statistics object
- */
-
-
-/*
- * Internal version for use by ALTER TABLE.
- * Includes a tablespace clause in the result.
- * Returns a palloc'd C string; no pretty-printing.
- */
-
-
-/*
- * pg_get_statisticsobjdef_columns
- *		Get columns and expressions for an extended statistics object
- */
-
-
-/*
- * Internal workhorse to decompile an extended statistics object.
- */
-
-
-/*
- * Generate text array of expressions for statistics object.
- */
-
-
-/*
- * pg_get_partkeydef
- *
- * Returns the partition key specification, ie, the following:
- *
- * { RANGE | LIST | HASH } (column opt_collation opt_opclass [, ...])
- */
-
-
-/* Internal version that just reports the column definitions */
-
-
-/*
- * Internal workhorse to decompile a partition key definition.
- */
-
-
-/*
- * pg_get_partition_constraintdef
- *
- * Returns partition constraint expression as a string for the input relation
- */
-
-
-/*
- * pg_get_partconstrdef_string
- *
- * Returns the partition constraint as a C-string for the input relation, with
- * the given alias.  No pretty-printing.
- */
 
 
 /*
@@ -709,14 +554,13 @@ static void get_reloptions(StringInfo buf, Datum reloptions);
 
 /*
  * Convert an int16[] Datum into a comma-separated list of column names
- * for the indicated relation; append the list to buf.  Returns the number
- * of keys.
+ * for the indicated relation; append the list to buf.
  */
 
 
 
 /* ----------
- * pg_get_expr			- Decompile an expression tree
+ * get_expr			- Decompile an expression tree
  *
  * Input: an expression tree in nodeToString form, and a relation OID
  *
@@ -726,12 +570,6 @@ static void get_reloptions(StringInfo buf, Datum reloptions);
  * the one specified by the second parameter.  This is sufficient for
  * partial indexes, column default expressions, etc.  We also support
  * Var-free expressions, for which the OID can be InvalidOid.
- *
- * We expect this function to work, or throw a reasonably clean error,
- * for any node tree that can appear in a catalog pg_node_tree column.
- * Query trees, such as those appearing in pg_rewrite.ev_action, are
- * not supported.  Nor are expressions in more than one relation, which
- * can appear in places like pg_rewrite.ev_qual.
  * ----------
  */
 
@@ -742,7 +580,7 @@ static void get_reloptions(StringInfo buf, Datum reloptions);
 
 
 /* ----------
- * pg_get_userbyid		- Get a user name by roleid and
+ * get_userbyid			- Get a user name by roleid and
  *				  fallback to 'unknown (OID=n)'
  * ----------
  */
@@ -751,7 +589,7 @@ static void get_reloptions(StringInfo buf, Datum reloptions);
 
 /*
  * pg_get_serial_sequence
- *		Get the name of the sequence used by an identity or serial column,
+ *		Get the name of the sequence used by a serial column,
  *		formatted suitably for passing to setval, nextval or currval.
  *		First parameter is not treated as double-quoted, second parameter
  *		is --- see documentation for reason.
@@ -766,8 +604,8 @@ static void get_reloptions(StringInfo buf, Datum reloptions);
  *
  * Note: if you change the output format of this function, be careful not
  * to break psql's rules (in \ef and \sf) for identifying the start of the
- * function body.  To wit: the function body starts on a line that begins with
- * "AS ", "BEGIN ", or "RETURN ", and no preceding line will look like that.
+ * function body.  To wit: the function body starts on a line that begins
+ * with "AS ", and no preceding line will look like that.
  */
 
 
@@ -812,7 +650,7 @@ static void get_reloptions(StringInfo buf, Datum reloptions);
 
 
 /*
- * Append used transformed types to specified buffer
+ * Append used transformated types to specified buffer
  */
 
 
@@ -822,10 +660,6 @@ static void get_reloptions(StringInfo buf, Datum reloptions);
  * (i.e. proallargtypes, *not* proargtypes), starting with 1, because that's
  * how information_schema.sql uses it.
  */
-
-
-
-
 
 
 
@@ -846,9 +680,9 @@ static void get_reloptions(StringInfo buf, Datum reloptions);
  * for interpreting Vars in the node tree.  It can be NIL if no Vars are
  * expected.
  *
- * forceprefix is true to force all Vars to be prefixed with their table names.
+ * forceprefix is TRUE to force all Vars to be prefixed with their table names.
  *
- * showimplicit is true to force all implicit casts to be shown explicitly.
+ * showimplicit is TRUE to force all implicit casts to be shown explicitly.
  *
  * Tries to pretty up the output according to prettyFlags and startIndent.
  *
@@ -868,26 +702,26 @@ static void get_reloptions(StringInfo buf, Datum reloptions);
 
 
 /*
- * deparse_context_for_plan_tree - Build deparse context for a Plan tree
+ * deparse_context_for_plan_rtable - Build deparse context for a plan's rtable
  *
  * When deparsing an expression in a Plan tree, we use the plan's rangetable
  * to resolve names of simple Vars.  The initialization of column names for
  * this is rather expensive if the rangetable is large, and it'll be the same
  * for every expression in the Plan tree; so we do it just once and re-use
  * the result of this function for each expression.  (Note that the result
- * is not usable until set_deparse_context_plan() is applied to it.)
+ * is not usable until set_deparse_context_planstate() is applied to it.)
  *
- * In addition to the PlannedStmt, pass the per-RTE alias names
+ * In addition to the plan's rangetable list, pass the per-RTE alias names
  * assigned by a previous call to select_rtable_names_for_explain.
  */
 
 
 /*
- * set_deparse_context_plan - Specify Plan node containing expression
+ * set_deparse_context_planstate	- Specify Plan node containing expression
  *
  * When deparsing an expression in a Plan tree, we might have to resolve
  * OUTER_VAR, INNER_VAR, or INDEX_VAR references.  To do this, the caller must
- * provide the parent Plan node.  Then OUTER_VAR and INNER_VAR references
+ * provide the parent PlanState node.  Then OUTER_VAR and INNER_VAR references
  * can be resolved by drilling down into the left and right child plans.
  * Similarly, INDEX_VAR references can be resolved by reference to the
  * indextlist given in a parent IndexOnlyScan node, or to the scan tlist in
@@ -896,12 +730,15 @@ static void get_reloptions(StringInfo buf, Datum reloptions);
  * for those, we can only deparse the indexqualorig fields, which won't
  * contain INDEX_VAR Vars.)
  *
- * The ancestors list is a list of the Plan's parent Plan and SubPlan nodes,
- * the most-closely-nested first.  This is needed to resolve PARAM_EXEC
- * Params.  Note we assume that all the Plan nodes share the same rtable.
+ * Note: planstate really ought to be declared as "PlanState *", but we use
+ * "Node *" to avoid having to include execnodes.h in ruleutils.h.
+ *
+ * The ancestors list is a list of the PlanState's parent PlanStates, the
+ * most-closely-nested first.  This is needed to resolve PARAM_EXEC Params.
+ * Note we assume that all the PlanStates share the same rtable.
  *
  * Once this function has been called, deparse_expression() can be called on
- * subsidiary expression(s) of the specified Plan node.  To deparse
+ * subsidiary expression(s) of the specified PlanState node.  To deparse
  * expressions of a different Plan node in the same Plan tree, re-call this
  * function to identify the new parent Plan node.
  *
@@ -1037,6 +874,17 @@ static void get_reloptions(StringInfo buf, Datum reloptions);
 
 
 /*
+ * flatten_join_using_qual: extract Vars being joined from a JOIN/USING qual
+ *
+ * We assume that transformJoinUsingClause won't have produced anything except
+ * AND nodes, equality operator nodes, and possibly implicit coercions, and
+ * that the AND node inputs match left-to-right with the original USING list.
+ *
+ * Caller must initialize the result lists to NIL.
+ */
+
+
+/*
  * get_rtable_name: convenience function to get a previously assigned RTE alias
  *
  * The RTE must belong to the topmost namespace level in "context".
@@ -1044,21 +892,14 @@ static void get_reloptions(StringInfo buf, Datum reloptions);
 
 
 /*
- * set_deparse_plan: set up deparse_namespace to parse subexpressions
- * of a given Plan node
+ * set_deparse_planstate: set up deparse_namespace to parse subexpressions
+ * of a given PlanState node
  *
- * This sets the plan, outer_plan, inner_plan, outer_tlist, inner_tlist,
- * and index_tlist fields.  Caller must already have adjusted the ancestors
- * list if necessary.  Note that the rtable, subplans, and ctes fields do
+ * This sets the planstate, outer_planstate, inner_planstate, outer_tlist,
+ * inner_tlist, and index_tlist fields.  Caller is responsible for adjusting
+ * the ancestors list if necessary.  Note that the rtable and ctes fields do
  * not need to change when shifting attention to different plan nodes in a
  * single plan tree.
- */
-
-
-/*
- * Locate the ancestor plan node that is the RecursiveUnion generating
- * the WorkTableScan's work table.  We can match on wtParam, since that
- * should be unique within the plan tree.
  */
 
 
@@ -1123,18 +964,8 @@ static void get_reloptions(StringInfo buf, Datum reloptions);
 /* ----------
  * get_query_def			- Parse back one query parsetree
  *
- * query: parsetree to be displayed
- * buf: output text is appended to buf
- * parentnamespace: list (initially empty) of outer-level deparse_namespace's
- * resultDesc: if not NULL, the output tuple descriptor for the view
- *		represented by a SELECT query.  We use the column names from it
- *		to label SELECT output columns, in preference to names in the query
- * colNamesVisible: true if the surrounding context cares about the output
- *		column names at all (as, for example, an EXISTS() context does not);
- *		when false, we can suppress dummy column labels such as "?column?"
- * prettyFlags: bitmask of PRETTYFLAG_XXX options
- * wrapColumn: maximum line length, or -1 to disable wrapping
- * startIndent: initial indentation amount
+ * If resultDesc is not NULL, then it is the output tuple descriptor for
+ * the view represented by a SELECT query.
  * ----------
  */
 
@@ -1158,9 +989,8 @@ static void get_reloptions(StringInfo buf, Datum reloptions);
 
 
 /*
- * Detect whether query looks like SELECT ... FROM VALUES(),
- * with no need to rename the output columns of the VALUES RTE.
- * If so, return the VALUES RTE.  Otherwise return NULL.
+ * Detect whether query looks like SELECT ... FROM VALUES();
+ * if so, return the VALUES RTE.  Otherwise return NULL.
  */
 
 
@@ -1170,8 +1000,6 @@ static void get_reloptions(StringInfo buf, Datum reloptions);
  * get_target_list			- Parse back a SELECT target list
  *
  * This is also used for RETURNING lists in INSERT/UPDATE/DELETE.
- *
- * resultDesc and colNamesVisible are as for get_query_def()
  * ----------
  */
 
@@ -1237,16 +1065,10 @@ static void get_reloptions(StringInfo buf, Datum reloptions);
 
 
 /* ----------
- * get_merge_query_def				- Parse back a MERGE parsetree
- * ----------
- */
-
-
-
-/* ----------
  * get_utility_query_def			- Parse back a UTILITY parsetree
  * ----------
  */
+
 
 
 /*
@@ -1256,7 +1078,7 @@ static void get_reloptions(StringInfo buf, Datum reloptions);
  * the Var's varlevelsup has to be interpreted with respect to a context
  * above the current one; levelsup indicates the offset.
  *
- * If istoplevel is true, the Var is at the top level of a SELECT's
+ * If istoplevel is TRUE, the Var is at the top level of a SELECT's
  * targetlist, which means we need special treatment of whole-row Vars.
  * Instead of the normal "tab.*", we'll print "tab.*::typename", which is a
  * dirty hack to prevent "tab.*" from being expanded into multiple columns.
@@ -1269,21 +1091,6 @@ static void get_reloptions(StringInfo buf, Datum reloptions);
  * it is a whole-row Var or a subplan output reference).
  */
 
-
-/*
- * Deparse a Var which references OUTER_VAR, INNER_VAR, or INDEX_VAR.  This
- * routine is actually a callback for resolve_special_varno, which handles
- * finding the correct TargetEntry.  We get the expression contained in that
- * TargetEntry and just need to deparse it, a job we can throw back on
- * get_rule_expr.
- */
-
-
-/*
- * Chase through plan references to special varnos (OUTER_VAR, INNER_VAR,
- * INDEX_VAR) until we find a real Var or some kind of non-Var node; then,
- * invoke the callback provided.
- */
 
 
 /*
@@ -1396,36 +1203,6 @@ static void get_reloptions(StringInfo buf, Datum reloptions);
  */
 
 
-/*
- * get_rule_list_toplevel		- Parse back a list of toplevel expressions
- *
- * Apply get_rule_expr_toplevel() to each element of a List.
- *
- * This adds commas between the expressions, but caller is responsible
- * for printing surrounding decoration.
- */
-
-
-/*
- * get_rule_expr_funccall		- Parse back a function-call expression
- *
- * Same as get_rule_expr(), except that we guarantee that the output will
- * look like a function call, or like one of the things the grammar treats as
- * equivalent to a function call (see the func_expr_windowless production).
- * This is needed in places where the grammar uses func_expr_windowless and
- * you can't substitute a parenthesized a_expr.  If what we have isn't going
- * to look like a function call, wrap it in a dummy CAST() expression, which
- * will satisfy the grammar --- and, indeed, is likely what the user wrote to
- * produce such a thing.
- */
-
-
-/*
- * Helper function to identify node types that satisfy func_expr_windowless.
- * If in doubt, "false" is always a safe answer.
- */
-
-
 
 /*
  * get_oper_expr			- Parse back an OpExpr node
@@ -1443,35 +1220,7 @@ static void get_reloptions(StringInfo buf, Datum reloptions);
 
 
 /*
- * get_agg_expr_helper		- subroutine for get_agg_expr and
- *							get_json_agg_constructor
- */
-
-
-/*
- * This is a helper function for get_agg_expr().  It's used when we deparse
- * a combining Aggref; resolve_special_varno locates the corresponding partial
- * Aggref and then calls this.
- */
-
-
-/*
  * get_windowfunc_expr	- Parse back a WindowFunc node
- */
-
-
-
-/*
- * get_windowfunc_expr_helper	- subroutine for get_windowfunc_expr and
- *								get_json_agg_constructor
- */
-
-
-/*
- * get_func_sql_syntax		- Parse back a SQL-syntax function call
- *
- * Returns true if we successfully deparsed, false if we did not
- * recognize the function.
  */
 
 
@@ -1506,31 +1255,6 @@ static void get_reloptions(StringInfo buf, Datum reloptions);
 
 
 /*
- * get_json_format			- Parse back a JsonFormat node
- */
-
-
-/*
- * get_json_returning		- Parse back a JsonReturning structure
- */
-
-
-/*
- * get_json_constructor		- Parse back a JsonConstructorExpr node
- */
-
-
-/*
- * Append options, if any, to the JSON constructor being deparsed
- */
-
-
-/*
- * get_json_agg_constructor - Parse back an aggregate JsonConstructorExpr node
- */
-
-
-/*
  * simple_quote_literal - Format a string as a SQL literal, append to buf
  */
 
@@ -1544,12 +1268,6 @@ static void get_reloptions(StringInfo buf, Datum reloptions);
 
 
 /* ----------
- * get_tablefunc			- Parse back a table function
- * ----------
- */
-
-
-/* ----------
  * get_from_clause			- Parse back a FROM clause
  *
  * "prefix" is the keyword that denotes the start of the list of FROM
@@ -1559,13 +1277,6 @@ static void get_reloptions(StringInfo buf, Datum reloptions);
  */
 
 
-
-
-/*
- * get_rte_alias - print the relation's alias, if needed
- *
- * If printed, the alias is preceded by a space, or by " AS " if use_as is true.
- */
 
 
 /*
@@ -1606,23 +1317,12 @@ static void get_reloptions(StringInfo buf, Datum reloptions);
 
 
 /*
- * generate_opclass_name
- *		Compute the name to display for an opclass specified by OID
- *
- * The result includes all necessary quoting and schema-prefixing.
- */
-
-
-/*
  * processIndirection - take care of array and subfield assignment
  *
- * We strip any top-level FieldStore or assignment SubscriptingRef nodes that
- * appear in the input, printing them as decoration for the base column
- * name (which we assume the caller just printed).  We might also need to
- * strip CoerceToDomain nodes, but only ones that appear above assignment
- * nodes.
- *
- * Returns the subexpression that's to be assigned.
+ * We strip any top-level FieldStore or assignment ArrayRef nodes that
+ * appear in the input, and return the subexpression that's to be assigned.
+ * If printit is true, we also print out the appropriate decoration for the
+ * base column name (that the caller just printed).
  */
 
 
@@ -1685,9 +1385,11 @@ quote_identifier(const char *ident)
 		 * Note: ScanKeywordLookup() does case-insensitive comparison, but
 		 * that's fine, since we already know we have all-lower-case.
 		 */
-		int			kwnum = ScanKeywordLookup(ident, &ScanKeywords);
+		const ScanKeyword *keyword = ScanKeywordLookup(ident,
+													   ScanKeywords,
+													   NumScanKeywords);
 
-		if (kwnum >= 0 && ScanKeywordCategories[kwnum] != UNRESERVED_KEYWORD)
+		if (keyword != NULL && keyword->category != UNRESERVED_KEYWORD)
 			safe = false;
 	}
 
@@ -1759,7 +1461,7 @@ quote_identifier(const char *ident)
  * means a FuncExpr or Aggref, not some other way of calling a function), then
  * has_variadic must specify whether variadic arguments have been merged,
  * and *use_variadic_p will be set to indicate whether to print VARIADIC in
- * the output.  For non-FuncExpr cases, has_variadic should be false and
+ * the output.  For non-FuncExpr cases, has_variadic should be FALSE and
  * use_variadic_p can be NULL.
  *
  * The result includes all necessary quoting and schema-prefixing.
@@ -1780,46 +1482,6 @@ quote_identifier(const char *ident)
 
 
 /*
- * generate_operator_clause --- generate a binary-operator WHERE clause
- *
- * This is used for internally-generated-and-executed SQL queries, where
- * precision is essential and readability is secondary.  The basic
- * requirement is to append "leftop op rightop" to buf, where leftop and
- * rightop are given as strings and are assumed to yield types leftoptype
- * and rightoptype; the operator is identified by OID.  The complexity
- * comes from needing to be sure that the parser will select the desired
- * operator when the query is parsed.  We always name the operator using
- * OPERATOR(schema.op) syntax, so as to avoid search-path uncertainties.
- * We have to emit casts too, if either input isn't already the input type
- * of the operator; else we are at the mercy of the parser's heuristics for
- * ambiguous-operator resolution.  The caller must ensure that leftop and
- * rightop are suitable arguments for a cast operation; it's best to insert
- * parentheses if they aren't just variables or parameters.
- */
-
-
-/*
- * Add a cast specification to buf.  We spell out the type name the hard way,
- * intentionally not using format_type_be().  This is to avoid corner cases
- * for CHARACTER, BIT, and perhaps other types, where specifying the type
- * using SQL-standard syntax results in undesirable data truncation.  By
- * doing it this way we can be certain that the cast will have default (-1)
- * target typmod.
- */
-
-
-/*
- * generate_qualified_type_name
- *		Compute the name to display for a type specified by OID
- *
- * This is different from format_type_be() in that we unconditionally
- * schema-qualify the name.  That also means no special syntax for
- * SQL-standard type names ... although in current usage, this should
- * only get used for domains, so such cases wouldn't occur anyway.
- */
-
-
-/*
  * generate_collation_name
  *		Compute the name to display for a collation specified by OID
  *
@@ -1835,17 +1497,6 @@ quote_identifier(const char *ident)
 
 
 /*
- * Generate a C string representing a relation options from text[] datum.
- */
-
-
-/*
  * Generate a C string representing a relation's reloptions, or NULL if none.
- */
-
-
-/*
- * get_range_partbound_string
- *		A C string representation of one range partition bound
  */
 

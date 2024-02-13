@@ -24,7 +24,7 @@
  * function will have a shim set up by sort support automatically.  However,
  * opclasses that support the optional additional abbreviated key capability
  * must always provide an authoritative comparator used to tie-break
- * inconclusive abbreviated comparisons and also used when aborting
+ * inconclusive abbreviated comparisons and also used  when aborting
  * abbreviation.  Furthermore, a converter and abort/costing function must be
  * provided.
  *
@@ -42,7 +42,7 @@
  * function for such cases, but probably not any other acceleration method.
  *
  *
- * Portions Copyright (c) 1996-2023, PostgreSQL Global Development Group
+ * Portions Copyright (c) 1996-2015, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  * src/include/utils/sortsupport.h
@@ -72,7 +72,7 @@ typedef struct SortSupportData
 	 * sort support functions.
 	 */
 	bool		ssup_reverse;	/* descending-order sort? */
-	bool		ssup_nulls_first;	/* sort nulls first? */
+	bool		ssup_nulls_first;		/* sort nulls first? */
 
 	/*
 	 * These fields are workspace for callers, and should not be touched by
@@ -96,7 +96,8 @@ typedef struct SortSupportData
 	 * Comparator function has the same API as the traditional btree
 	 * comparison function, ie, return <0, 0, or >0 according as x is less
 	 * than, equal to, or greater than y.  Note that x and y are guaranteed
-	 * not null, and there is no way to return null either.
+	 * not null, and there is no way to return null either.  Do not return
+	 * INT_MIN, as callers are allowed to negate the result before using it.
 	 *
 	 * This may be either the authoritative comparator, or the abbreviated
 	 * comparator.  Core code may switch this over the initial preference of
@@ -184,8 +185,8 @@ typedef struct SortSupportData
 	/*
 	 * Full, authoritative comparator for key that an abbreviated
 	 * representation was generated for, used when an abbreviated comparison
-	 * was inconclusive (by calling ApplySortAbbrevFullComparator()), or used
-	 * to replace "comparator" when core system ultimately decides against
+	 * was inconclusive (by calling ApplySortComparatorFull()), or used to
+	 * replace "comparator" when core system ultimately decides against
 	 * abbreviation.
 	 */
 	int			(*abbrev_full_comparator) (Datum x, Datum y, SortSupport ssup);
@@ -193,10 +194,23 @@ typedef struct SortSupportData
 
 
 /*
+ * ApplySortComparator should be inlined if possible.  See STATIC_IF_INLINE
+ * in c.h.
+ */
+#ifndef PG_USE_INLINE
+extern int ApplySortComparator(Datum datum1, bool isNull1,
+					Datum datum2, bool isNull2,
+					SortSupport ssup);
+extern int ApplySortAbbrevFullComparator(Datum datum1, bool isNull1,
+							  Datum datum2, bool isNull2,
+							  SortSupport ssup);
+#endif   /* !PG_USE_INLINE */
+#if defined(PG_USE_INLINE) || defined(SORTSUPPORT_INCLUDE_DEFINITIONS)
+/*
  * Apply a sort comparator function and return a 3-way comparison result.
  * This takes care of handling reverse-sort and NULLs-ordering properly.
  */
-static inline int
+STATIC_IF_INLINE int
 ApplySortComparator(Datum datum1, bool isNull1,
 					Datum datum2, bool isNull2,
 					SortSupport ssup)
@@ -221,112 +235,9 @@ ApplySortComparator(Datum datum1, bool isNull1,
 	}
 	else
 	{
-		compare = ssup->comparator(datum1, datum2, ssup);
+		compare = (*ssup->comparator) (datum1, datum2, ssup);
 		if (ssup->ssup_reverse)
-			INVERT_COMPARE_RESULT(compare);
-	}
-
-	return compare;
-}
-
-static inline int
-ApplyUnsignedSortComparator(Datum datum1, bool isNull1,
-							Datum datum2, bool isNull2,
-							SortSupport ssup)
-{
-	int			compare;
-
-	if (isNull1)
-	{
-		if (isNull2)
-			compare = 0;		/* NULL "=" NULL */
-		else if (ssup->ssup_nulls_first)
-			compare = -1;		/* NULL "<" NOT_NULL */
-		else
-			compare = 1;		/* NULL ">" NOT_NULL */
-	}
-	else if (isNull2)
-	{
-		if (ssup->ssup_nulls_first)
-			compare = 1;		/* NOT_NULL ">" NULL */
-		else
-			compare = -1;		/* NOT_NULL "<" NULL */
-	}
-	else
-	{
-		compare = datum1 < datum2 ? -1 : datum1 > datum2 ? 1 : 0;
-		if (ssup->ssup_reverse)
-			INVERT_COMPARE_RESULT(compare);
-	}
-
-	return compare;
-}
-
-#if SIZEOF_DATUM >= 8
-static inline int
-ApplySignedSortComparator(Datum datum1, bool isNull1,
-						  Datum datum2, bool isNull2,
-						  SortSupport ssup)
-{
-	int			compare;
-
-	if (isNull1)
-	{
-		if (isNull2)
-			compare = 0;		/* NULL "=" NULL */
-		else if (ssup->ssup_nulls_first)
-			compare = -1;		/* NULL "<" NOT_NULL */
-		else
-			compare = 1;		/* NULL ">" NOT_NULL */
-	}
-	else if (isNull2)
-	{
-		if (ssup->ssup_nulls_first)
-			compare = 1;		/* NOT_NULL ">" NULL */
-		else
-			compare = -1;		/* NOT_NULL "<" NULL */
-	}
-	else
-	{
-		compare = DatumGetInt64(datum1) < DatumGetInt64(datum2) ? -1 :
-			DatumGetInt64(datum1) > DatumGetInt64(datum2) ? 1 : 0;
-		if (ssup->ssup_reverse)
-			INVERT_COMPARE_RESULT(compare);
-	}
-
-	return compare;
-}
-#endif
-
-static inline int
-ApplyInt32SortComparator(Datum datum1, bool isNull1,
-						 Datum datum2, bool isNull2,
-						 SortSupport ssup)
-{
-	int			compare;
-
-	if (isNull1)
-	{
-		if (isNull2)
-			compare = 0;		/* NULL "=" NULL */
-		else if (ssup->ssup_nulls_first)
-			compare = -1;		/* NULL "<" NOT_NULL */
-		else
-			compare = 1;		/* NULL ">" NOT_NULL */
-	}
-	else if (isNull2)
-	{
-		if (ssup->ssup_nulls_first)
-			compare = 1;		/* NOT_NULL ">" NULL */
-		else
-			compare = -1;		/* NOT_NULL "<" NULL */
-	}
-	else
-	{
-		compare = DatumGetInt32(datum1) < DatumGetInt32(datum2) ? -1 :
-			DatumGetInt32(datum1) > DatumGetInt32(datum2) ? 1 : 0;
-		if (ssup->ssup_reverse)
-			INVERT_COMPARE_RESULT(compare);
+			compare = -compare;
 	}
 
 	return compare;
@@ -337,7 +248,7 @@ ApplyInt32SortComparator(Datum datum1, bool isNull1,
  * authoritative comparator.  This takes care of handling reverse-sort and
  * NULLs-ordering properly.
  */
-static inline int
+STATIC_IF_INLINE int
 ApplySortAbbrevFullComparator(Datum datum1, bool isNull1,
 							  Datum datum2, bool isNull2,
 							  SortSupport ssup)
@@ -362,30 +273,19 @@ ApplySortAbbrevFullComparator(Datum datum1, bool isNull1,
 	}
 	else
 	{
-		compare = ssup->abbrev_full_comparator(datum1, datum2, ssup);
+		compare = (*ssup->abbrev_full_comparator) (datum1, datum2, ssup);
 		if (ssup->ssup_reverse)
-			INVERT_COMPARE_RESULT(compare);
+			compare = -compare;
 	}
 
 	return compare;
 }
-
-/*
- * Datum comparison functions that we have specialized sort routines for.
- * Datatypes that install these as their comparator or abbreviated comparator
- * are eligible for faster sorting.
- */
-extern int	ssup_datum_unsigned_cmp(Datum x, Datum y, SortSupport ssup);
-#if SIZEOF_DATUM >= 8
-extern int	ssup_datum_signed_cmp(Datum x, Datum y, SortSupport ssup);
-#endif
-extern int	ssup_datum_int32_cmp(Datum x, Datum y, SortSupport ssup);
+#endif   /*-- PG_USE_INLINE || SORTSUPPORT_INCLUDE_DEFINITIONS */
 
 /* Other functions in utils/sort/sortsupport.c */
 extern void PrepareSortSupportComparisonShim(Oid cmpFunc, SortSupport ssup);
 extern void PrepareSortSupportFromOrderingOp(Oid orderingOp, SortSupport ssup);
 extern void PrepareSortSupportFromIndexRel(Relation indexRel, int16 strategy,
-										   SortSupport ssup);
-extern void PrepareSortSupportFromGistIndexRel(Relation indexRel, SortSupport ssup);
+							   SortSupport ssup);
 
-#endif							/* SORTSUPPORT_H */
+#endif   /* SORTSUPPORT_H */

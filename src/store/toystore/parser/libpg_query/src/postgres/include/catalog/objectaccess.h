@@ -3,7 +3,7 @@
  *
  *		Object access hooks.
  *
- * Portions Copyright (c) 1996-2023, PostgreSQL Global Development Group
+ * Portions Copyright (c) 1996-2015, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  */
 
@@ -17,9 +17,7 @@
  *
  * OAT_POST_CREATE should be invoked just after the object is created.
  * Typically, this is done after inserting the primary catalog records and
- * associated dependencies. The command counter may or may not be incremented
- * at the time the hook is invoked; if not, the extension can use SnapshotSelf
- * to get the new version of the tuple.
+ * associated dependencies.
  *
  * OAT_DROP should be invoked just before deletion of objects; typically
  * deleteOneObject(). Its arguments are packed within ObjectAccessDrop.
@@ -39,10 +37,6 @@
  * creation or altering, because OAT_POST_CREATE or OAT_POST_ALTER are
  * sufficient for extensions to track these kind of checks.
  *
- * OAT_TRUNCATE should be invoked just before truncation of objects. This
- * event is equivalent to truncate permission on a relation under the
- * default access control mechanism.
- *
  * Other types may be added in the future.
  */
 typedef enum ObjectAccessType
@@ -51,8 +45,7 @@ typedef enum ObjectAccessType
 	OAT_DROP,
 	OAT_POST_ALTER,
 	OAT_NAMESPACE_SEARCH,
-	OAT_FUNCTION_EXECUTE,
-	OAT_TRUNCATE
+	OAT_FUNCTION_EXECUTE
 } ObjectAccessType;
 
 /*
@@ -123,46 +116,25 @@ typedef struct
 	bool		result;
 } ObjectAccessNamespaceSearch;
 
-/* Plugin provides a hook function matching one or both of these signatures. */
+/* Plugin provides a hook function matching this signature. */
 typedef void (*object_access_hook_type) (ObjectAccessType access,
-										 Oid classId,
-										 Oid objectId,
-										 int subId,
-										 void *arg);
-
-typedef void (*object_access_hook_type_str) (ObjectAccessType access,
-											 Oid classId,
-											 const char *objectStr,
-											 int subId,
-											 void *arg);
+													 Oid classId,
+													 Oid objectId,
+													 int subId,
+													 void *arg);
 
 /* Plugin sets this variable to a suitable hook function. */
 extern PGDLLIMPORT object_access_hook_type object_access_hook;
-extern PGDLLIMPORT object_access_hook_type_str object_access_hook_str;
-
 
 /* Core code uses these functions to call the hook (see macros below). */
 extern void RunObjectPostCreateHook(Oid classId, Oid objectId, int subId,
-									bool is_internal);
+						bool is_internal);
 extern void RunObjectDropHook(Oid classId, Oid objectId, int subId,
-							  int dropflags);
-extern void RunObjectTruncateHook(Oid objectId);
+				  int dropflags);
 extern void RunObjectPostAlterHook(Oid classId, Oid objectId, int subId,
-								   Oid auxiliaryId, bool is_internal);
-extern bool RunNamespaceSearchHook(Oid objectId, bool ereport_on_violation);
+					   Oid auxiliaryId, bool is_internal);
+extern bool RunNamespaceSearchHook(Oid objectId, bool ereport_on_volation);
 extern void RunFunctionExecuteHook(Oid objectId);
-
-/* String versions */
-extern void RunObjectPostCreateHookStr(Oid classId, const char *objectName, int subId,
-									   bool is_internal);
-extern void RunObjectDropHookStr(Oid classId, const char *objectName, int subId,
-								 int dropflags);
-extern void RunObjectTruncateHookStr(const char *objectName);
-extern void RunObjectPostAlterHookStr(Oid classId, const char *objectName, int subId,
-									  Oid auxiliaryId, bool is_internal);
-extern bool RunNamespaceSearchHookStr(const char *objectName, bool ereport_on_violation);
-extern void RunFunctionExecuteHookStr(const char *objectName);
-
 
 /*
  * The following macros are wrappers around the functions above; these should
@@ -188,12 +160,6 @@ extern void RunFunctionExecuteHookStr(const char *objectName);
 							  (dropflags));							\
 	} while(0)
 
-#define InvokeObjectTruncateHook(objectId)							\
-	do {															\
-		if (object_access_hook)										\
-			RunObjectTruncateHook(objectId);						\
-	} while(0)
-
 #define InvokeObjectPostAlterHook(classId,objectId,subId)			\
 	InvokeObjectPostAlterHookArg((classId),(objectId),(subId),		\
 								 InvalidOid,false)
@@ -216,52 +182,4 @@ extern void RunFunctionExecuteHookStr(const char *objectName);
 			RunFunctionExecuteHook(objectId);	\
 	} while(0)
 
-
-#define InvokeObjectPostCreateHookStr(classId,objectName,subId)			\
-	InvokeObjectPostCreateHookArgStr((classId),(objectName),(subId),false)
-#define InvokeObjectPostCreateHookArgStr(classId,objectName,subId,is_internal) \
-	do {															\
-		if (object_access_hook_str)										\
-			RunObjectPostCreateHookStr((classId),(objectName),(subId),	\
-									(is_internal));					\
-	} while(0)
-
-#define InvokeObjectDropHookStr(classId,objectName,subId)				\
-	InvokeObjectDropHookArgStr((classId),(objectName),(subId),0)
-#define InvokeObjectDropHookArgStr(classId,objectName,subId,dropflags)	\
-	do {															\
-		if (object_access_hook_str)										\
-			RunObjectDropHookStr((classId),(objectName),(subId),			\
-							  (dropflags));							\
-	} while(0)
-
-#define InvokeObjectTruncateHookStr(objectName)							\
-	do {															\
-		if (object_access_hook_str)										\
-			RunObjectTruncateHookStr(objectName);						\
-	} while(0)
-
-#define InvokeObjectPostAlterHookStr(classId,objectName,subId)			\
-	InvokeObjectPostAlterHookArgStr((classId),(objectName),(subId),		\
-								 InvalidOid,false)
-#define InvokeObjectPostAlterHookArgStr(classId,objectName,subId,		\
-									 auxiliaryId,is_internal)		\
-	do {															\
-		if (object_access_hook_str)										\
-			RunObjectPostAlterHookStr((classId),(objectName),(subId),	\
-								   (auxiliaryId),(is_internal));	\
-	} while(0)
-
-#define InvokeNamespaceSearchHookStr(objectName, ereport_on_violation)	\
-	(!object_access_hook_str										\
-	 ? true															\
-	 : RunNamespaceSearchHookStr((objectName), (ereport_on_violation)))
-
-#define InvokeFunctionExecuteHookStr(objectName)		\
-	do {										\
-		if (object_access_hook_str)					\
-			RunFunctionExecuteHookStr(objectName);	\
-	} while(0)
-
-
-#endif							/* OBJECTACCESS_H */
+#endif   /* OBJECTACCESS_H */

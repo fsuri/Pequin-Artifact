@@ -1,33 +1,33 @@
 /*-------------------------------------------------------------------------
  *
  * pg_replication_origin.h
- *	  definition of the "replication origin" system catalog
- *	  (pg_replication_origin)
+ *	  Persistent replication origin registry
  *
- * Portions Copyright (c) 1996-2023, PostgreSQL Global Development Group
+ * Portions Copyright (c) 1996-2015, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  * src/include/catalog/pg_replication_origin.h
  *
  * NOTES
- *	  The Catalog.pm module reads this file and derives schema
- *	  information.
+ *	  the genbki.pl script reads this file and generates .bki
+ *	  information from the DATA() statements.
  *
  *-------------------------------------------------------------------------
  */
 #ifndef PG_REPLICATION_ORIGIN_H
 #define PG_REPLICATION_ORIGIN_H
 
-#include "access/xlogdefs.h"
 #include "catalog/genbki.h"
-#include "catalog/pg_replication_origin_d.h"
+#include "access/xlogdefs.h"
 
 /* ----------------
  *		pg_replication_origin.  cpp turns this into
  *		typedef struct FormData_pg_replication_origin
  * ----------------
  */
-CATALOG(pg_replication_origin,6000,ReplicationOriginRelationId) BKI_SHARED_RELATION
+#define ReplicationOriginRelationId 6000
+
+CATALOG(pg_replication_origin,6000) BKI_SHARED_RELATION BKI_WITHOUT_OIDS
 {
 	/*
 	 * Locally known id that get included into WAL.
@@ -46,7 +46,7 @@ CATALOG(pg_replication_origin,6000,ReplicationOriginRelationId) BKI_SHARED_RELAT
 	 */
 
 	/* external, free-format, name */
-	text		roname BKI_FORCE_NOT_NULL;
+	text roname BKI_FORCE_NOT_NULL;
 
 #ifdef CATALOG_VARLEN			/* further variable-length fields */
 #endif
@@ -54,9 +54,17 @@ CATALOG(pg_replication_origin,6000,ReplicationOriginRelationId) BKI_SHARED_RELAT
 
 typedef FormData_pg_replication_origin *Form_pg_replication_origin;
 
-DECLARE_TOAST_WITH_MACRO(pg_replication_origin, 4181, 4182, PgReplicationOriginToastTable, PgReplicationOriginToastIndex);
+/* ----------------
+ *		compiler constants for pg_replication_origin
+ * ----------------
+ */
+#define Natts_pg_replication_origin					2
+#define Anum_pg_replication_origin_roident			1
+#define Anum_pg_replication_origin_roname			2
 
-DECLARE_UNIQUE_INDEX_PKEY(pg_replication_origin_roiident_index, 6001, ReplicationOriginIdentIndex, on pg_replication_origin using btree(roident oid_ops));
-DECLARE_UNIQUE_INDEX(pg_replication_origin_roname_index, 6002, ReplicationOriginNameIndex, on pg_replication_origin using btree(roname text_ops));
+/* ----------------
+ *		pg_replication_origin has no initial contents
+ * ----------------
+ */
 
-#endif							/* PG_REPLICATION_ORIGIN_H */
+#endif   /* PG_REPLICATION_ORIGIN_H */

@@ -5,7 +5,7 @@
  *	  However, we define it here so that the format is documented.
  *
  *
- * Portions Copyright (c) 1996-2023, PostgreSQL Global Development Group
+ * Portions Copyright (c) 1996-2015, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  * src/include/catalog/pg_control.h
@@ -15,17 +15,13 @@
 #ifndef PG_CONTROL_H
 #define PG_CONTROL_H
 
-#include "access/transam.h"
 #include "access/xlogdefs.h"
 #include "pgtime.h"				/* for pg_time_t */
 #include "port/pg_crc32c.h"
 
 
 /* Version identifier for this pg_control format */
-#define PG_CONTROL_VERSION	1300
-
-/* Nonce key length, see below */
-#define MOCK_AUTH_NONCE_LEN		32
+#define PG_CONTROL_VERSION	942
 
 /*
  * Body of CheckPoint XLOG records.  This is declared here because we keep
@@ -40,7 +36,8 @@ typedef struct CheckPoint
 	TimeLineID	PrevTimeLineID; /* previous TLI, if this record begins a new
 								 * timeline (equals ThisTimeLineID otherwise) */
 	bool		fullPageWrites; /* current full_page_writes */
-	FullTransactionId nextXid;	/* next free transaction ID */
+	uint32		nextXidEpoch;	/* higher-order bits of nextXid */
+	TransactionId nextXid;		/* next free XID */
 	Oid			nextOid;		/* next free OID */
 	MultiXactId nextMulti;		/* next free MultiXactId */
 	MultiXactOffset nextMultiOffset;	/* next free MultiXact offset */
@@ -57,8 +54,8 @@ typedef struct CheckPoint
 	/*
 	 * Oldest XID still running. This is only needed to initialize hot standby
 	 * mode from an online checkpoint, so we only bother calculating this for
-	 * online checkpoints and only when wal_level is replica. Otherwise it's
-	 * set to InvalidTransactionId.
+	 * online checkpoints and only when wal_level is hot_standby. Otherwise
+	 * it's set to InvalidTransactionId.
 	 */
 	TransactionId oldestActiveXid;
 } CheckPoint;
@@ -76,8 +73,6 @@ typedef struct CheckPoint
 #define XLOG_END_OF_RECOVERY			0x90
 #define XLOG_FPI_FOR_HINT				0xA0
 #define XLOG_FPI						0xB0
-/* 0xC0 is used in Postgres 9.5-11 */
-#define XLOG_OVERWRITE_CONTRECORD		0xD0
 
 
 /*
@@ -97,6 +92,10 @@ typedef enum DBState
 
 /*
  * Contents of pg_control.
+ *
+ * NOTE: try to keep this under 512 bytes so that it will fit on one physical
+ * sector of typical disk drives.  This reduces the odds of corruption due to
+ * power failure midway through a write.
  */
 
 typedef struct ControlFileData
@@ -120,8 +119,8 @@ typedef struct ControlFileData
 	 * example, WAL logs contain per-page magic numbers that can serve as
 	 * version cues for the WAL log.
 	 */
-	uint32		pg_control_version; /* PG_CONTROL_VERSION */
-	uint32		catalog_version_no; /* see catversion.h */
+	uint32		pg_control_version;		/* PG_CONTROL_VERSION */
+	uint32		catalog_version_no;		/* see catversion.h */
 
 	/*
 	 * System status data
@@ -129,6 +128,7 @@ typedef struct ControlFileData
 	DBState		state;			/* see enum above */
 	pg_time_t	time;			/* time stamp of last pg_control update */
 	XLogRecPtr	checkPoint;		/* last check point record ptr */
+	XLogRecPtr	prevCheckPoint; /* previous check point record ptr */
 
 	CheckPoint	checkPointCopy; /* copy of last check point record */
 
@@ -161,7 +161,9 @@ typedef struct ControlFileData
 	 *
 	 * If backupEndRequired is true, we know for sure that we're restoring
 	 * from a backup, and must see a backup-end record before we can safely
-	 * start up.
+	 * start up. If it's false, but backupStartPoint is set, a backup_label
+	 * file was found at startup but it may have been a leftover from a stray
+	 * pg_start_backup() call, not accompanied by pg_stop_backup().
 	 */
 	XLogRecPtr	minRecoveryPoint;
 	TimeLineID	minRecoveryPointTLI;
@@ -177,7 +179,6 @@ typedef struct ControlFileData
 	bool		wal_log_hints;
 	int			MaxConnections;
 	int			max_worker_processes;
-	int			max_wal_senders;
 	int			max_prepared_xacts;
 	int			max_locks_per_xact;
 	bool		track_commit_timestamp;
@@ -214,29 +215,19 @@ typedef struct ControlFileData
 	uint32		toast_max_chunk_size;	/* chunk size in TOAST tables */
 	uint32		loblksize;		/* chunk size in pg_largeobject */
 
+	/* flag indicating internal format of timestamp, interval, time */
+	bool		enableIntTimes; /* int64 storage enabled? */
+
+	/* flags indicating pass-by-value status of various types */
+	bool		float4ByVal;	/* float4 pass-by-value? */
 	bool		float8ByVal;	/* float8, int8, etc pass-by-value? */
 
 	/* Are data pages protected by checksums? Zero if no checksum version */
 	uint32		data_checksum_version;
 
-	/*
-	 * Random nonce, used in authentication requests that need to proceed
-	 * based on values that are cluster-unique, like a SASL exchange that
-	 * failed at an early stage.
-	 */
-	char		mock_authentication_nonce[MOCK_AUTH_NONCE_LEN];
-
 	/* CRC of all above ... MUST BE LAST! */
 	pg_crc32c	crc;
 } ControlFileData;
-
-/*
- * Maximum safe value of sizeof(ControlFileData).  For reliability's sake,
- * it's critical that pg_control updates be atomic writes.  That generally
- * means the active data can't be more than one disk sector, which is 512
- * bytes on common hardware.  Be very careful about raising this limit.
- */
-#define PG_CONTROL_MAX_SAFE_SIZE	512
 
 /*
  * Physical size of the pg_control file.  Note that this is considerably
@@ -245,14 +236,6 @@ typedef struct ControlFileData
  * changes, so that ReadControlFile will deliver a suitable wrong-version
  * message instead of a read error if it's looking at an incompatible file.
  */
-#define PG_CONTROL_FILE_SIZE		8192
+#define PG_CONTROL_SIZE		8192
 
-/*
- * Ensure that the size of the pg_control data structure is sane.
- */
-StaticAssertDecl(sizeof(ControlFileData) <= PG_CONTROL_MAX_SAFE_SIZE,
-				 "pg_control is too large for atomic disk writes");
-StaticAssertDecl(sizeof(ControlFileData) <= PG_CONTROL_FILE_SIZE,
-				 "sizeof(ControlFileData) exceeds PG_CONTROL_FILE_SIZE");
-
-#endif							/* PG_CONTROL_H */
+#endif   /* PG_CONTROL_H */

@@ -3,12 +3,12 @@
  * scanner.h
  *		API for the core scanner (flex machine)
  *
- * The core scanner is also used by PL/pgSQL, so we provide a public API
+ * The core scanner is also used by PL/pgsql, so we provide a public API
  * for it.  However, the rest of the backend is only expected to use the
  * higher-level API provided by parser.h.
  *
  *
- * Portions Copyright (c) 1996-2023, PostgreSQL Global Development Group
+ * Portions Copyright (c) 1996-2015, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  * src/include/parser/scanner.h
@@ -19,7 +19,7 @@
 #ifndef SCANNER_H
 #define SCANNER_H
 
-#include "common/keywords.h"
+#include "parser/keywords.h"
 
 /*
  * The scanner returns extra data about scanned tokens in this union type.
@@ -48,7 +48,7 @@ typedef union core_YYSTYPE
  * However, those are not defined in this file, because bison insists on
  * defining them for itself.  The token codes used by the core scanner are
  * the ASCII characters plus these:
- *	%token <str>	IDENT UIDENT FCONST SCONST USCONST BCONST XCONST Op
+ *	%token <str>	IDENT FCONST SCONST BCONST XCONST Op
  *	%token <ival>	ICONST PARAM
  *	%token			TYPECAST DOT_DOT COLON_EQUALS EQUALS_GREATER
  *	%token			LESS_EQUALS GREATER_EQUALS NOT_EQUALS
@@ -73,10 +73,10 @@ typedef struct core_yy_extra_type
 	Size		scanbuflen;
 
 	/*
-	 * The keyword list to use, and the associated grammar token codes.
+	 * The keyword list to use.
 	 */
-	const ScanKeywordList *keywordlist;
-	const uint16 *keyword_tokens;
+	const ScanKeyword *keywords;
+	int			num_keywords;
 
 	/*
 	 * Scanner settings to use.  These are initialized from the corresponding
@@ -99,13 +99,8 @@ typedef struct core_yy_extra_type
 	int			literallen;		/* actual current string length */
 	int			literalalloc;	/* current allocated buffer size */
 
-	/*
-	 * Random assorted scanner state.
-	 */
-	int			state_before_str_stop;	/* start cond. before end quote */
 	int			xcdepth;		/* depth of nesting in slash-star comments */
 	char	   *dolqstart;		/* current $foo$ quote start string */
-	YYLTYPE		save_yylloc;	/* one-element stack for PUSH_YYLLOC() */
 
 	/* first part of UTF16 surrogate pair for Unicode escapes */
 	int32		utf16_first_part;
@@ -113,8 +108,6 @@ typedef struct core_yy_extra_type
 	/* state variables for literal-lexing warnings */
 	bool		warn_on_first_escape;
 	bool		saw_non_ascii;
-
-	int yyllocend;
 } core_yy_extra_type;
 
 /*
@@ -122,31 +115,16 @@ typedef struct core_yy_extra_type
  */
 typedef void *core_yyscan_t;
 
-/* Support for scanner_errposition_callback function */
-typedef struct ScannerCallbackState
-{
-	core_yyscan_t yyscanner;
-	int			location;
-	ErrorContextCallback errcallback;
-} ScannerCallbackState;
-
-
-/* Constant data exported from parser/scan.l */
-extern PGDLLIMPORT const uint16 ScanKeywordTokens[];
 
 /* Entry points in parser/scan.l */
 extern core_yyscan_t scanner_init(const char *str,
-								  core_yy_extra_type *yyext,
-								  const ScanKeywordList *keywordlist,
-								  const uint16 *keyword_tokens);
+			 core_yy_extra_type *yyext,
+			 const ScanKeyword *keywords,
+			 int num_keywords);
 extern void scanner_finish(core_yyscan_t yyscanner);
-extern int	core_yylex(core_YYSTYPE *yylval_param, YYLTYPE *yylloc_param,
-					   core_yyscan_t yyscanner);
+extern int core_yylex(core_YYSTYPE *lvalp, YYLTYPE *llocp,
+		   core_yyscan_t yyscanner);
 extern int	scanner_errposition(int location, core_yyscan_t yyscanner);
-extern void setup_scanner_errposition_callback(ScannerCallbackState *scbstate,
-											   core_yyscan_t yyscanner,
-											   int location);
-extern void cancel_scanner_errposition_callback(ScannerCallbackState *scbstate);
 extern void scanner_yyerror(const char *message, core_yyscan_t yyscanner) pg_attribute_noreturn();
 
-#endif							/* SCANNER_H */
+#endif   /* SCANNER_H */

@@ -1,17 +1,18 @@
 /*-------------------------------------------------------------------------
  *
  * pg_event_trigger.h
- *	  definition of the "event trigger" system catalog (pg_event_trigger)
+ *	  definition of the system "event trigger" relation (pg_event_trigger)
+ *	  along with the relation's initial contents.
  *
  *
- * Portions Copyright (c) 1996-2023, PostgreSQL Global Development Group
+ * Portions Copyright (c) 1996-2015, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  * src/include/catalog/pg_event_trigger.h
  *
  * NOTES
- *	  The Catalog.pm module reads this file and derives schema
- *	  information.
+ *	  the genbki.pl script reads this file and generates .bki
+ *	  information from the DATA() statements.
  *
  *-------------------------------------------------------------------------
  */
@@ -19,21 +20,20 @@
 #define PG_EVENT_TRIGGER_H
 
 #include "catalog/genbki.h"
-#include "catalog/pg_event_trigger_d.h"
 
 /* ----------------
  *		pg_event_trigger definition.    cpp turns this into
  *		typedef struct FormData_pg_event_trigger
  * ----------------
  */
-CATALOG(pg_event_trigger,3466,EventTriggerRelationId)
+#define EventTriggerRelationId	3466
+
+CATALOG(pg_event_trigger,3466)
 {
-	Oid			oid;			/* oid */
 	NameData	evtname;		/* trigger's name */
 	NameData	evtevent;		/* trigger's event */
-	Oid			evtowner BKI_LOOKUP(pg_authid); /* trigger's owner */
-	Oid			evtfoid BKI_LOOKUP(pg_proc);	/* OID of function to be
-												 * called */
+	Oid			evtowner;		/* trigger's owner */
+	Oid			evtfoid;		/* OID of function to be called */
 	char		evtenabled;		/* trigger's firing configuration WRT
 								 * session_replication_role */
 
@@ -49,9 +49,16 @@ CATALOG(pg_event_trigger,3466,EventTriggerRelationId)
  */
 typedef FormData_pg_event_trigger *Form_pg_event_trigger;
 
-DECLARE_TOAST(pg_event_trigger, 4145, 4146);
+/* ----------------
+ *		compiler constants for pg_event_trigger
+ * ----------------
+ */
+#define Natts_pg_event_trigger					6
+#define Anum_pg_event_trigger_evtname			1
+#define Anum_pg_event_trigger_evtevent			2
+#define Anum_pg_event_trigger_evtowner			3
+#define Anum_pg_event_trigger_evtfoid			4
+#define Anum_pg_event_trigger_evtenabled		5
+#define Anum_pg_event_trigger_evttags			6
 
-DECLARE_UNIQUE_INDEX(pg_event_trigger_evtname_index, 3467, EventTriggerNameIndexId, on pg_event_trigger using btree(evtname name_ops));
-DECLARE_UNIQUE_INDEX_PKEY(pg_event_trigger_oid_index, 3468, EventTriggerOidIndexId, on pg_event_trigger using btree(oid oid_ops));
-
-#endif							/* PG_EVENT_TRIGGER_H */
+#endif   /* PG_EVENT_TRIGGER_H */

@@ -1,24 +1,11 @@
 #include "pg_query.h"
 #include "pg_query_internal.h"
-
 #include <mb/pg_wchar.h>
-#include <utils/memutils.h>
-#include <utils/memdebug.h>
-
-#ifdef HAVE_PTHREAD
-#include <pthread.h>
-#endif
-
 #include <signal.h>
 
 const char* progname = "pg_query";
 
 __thread sig_atomic_t pg_query_initialized = 0;
-
-#ifdef HAVE_PTHREAD
-static pthread_key_t pg_query_thread_exit_key;
-static void pg_query_thread_exit(void *key);
-#endif
 
 void pg_query_init(void)
 {
@@ -27,64 +14,19 @@ void pg_query_init(void)
 
 	MemoryContextInit();
 	SetDatabaseEncoding(PG_UTF8);
-
-#ifdef HAVE_PTHREAD
-	pthread_key_create(&pg_query_thread_exit_key, pg_query_thread_exit);
-	pthread_setspecific(pg_query_thread_exit_key, TopMemoryContext);
-#endif
 }
 
-void pg_query_free_top_memory_context(MemoryContext context)
-{
-	Assert(MemoryContextIsValid(context));
-
-	/*
-	 * After this, no memory contexts are valid anymore, so ensure that
-	 * the current context is the top-level context.
-	 */
-	Assert(TopMemoryContext == CurrentMemoryContext);
-
-	MemoryContextDeleteChildren(context);
-
-	/* Clean up the aset.c freelist, to leave no unused context behind */
-	AllocSetDeleteFreeList(context);
-
-	context->methods->delete_context(context);
-
-	VALGRIND_DESTROY_MEMPOOL(context);
-
-	/* Without this, Valgrind will complain */
-	free(context);
-
-	/* Reset pointers */
-	TopMemoryContext = NULL;
-	CurrentMemoryContext = NULL;
-	ErrorContext = NULL;
-}
-
-#ifdef HAVE_PTHREAD
-static void pg_query_thread_exit(void *key)
-{
-	MemoryContext context = (MemoryContext) key;
-	pg_query_free_top_memory_context(context);
-}
-#endif
-
-void pg_query_exit(void)
-{
-	pg_query_free_top_memory_context(TopMemoryContext);
-}
-
-MemoryContext pg_query_enter_memory_context()
+MemoryContext pg_query_enter_memory_context(const char* ctx_name)
 {
 	MemoryContext ctx = NULL;
 
 	pg_query_init();
 
-	Assert(CurrentMemoryContext == TopMemoryContext);
 	ctx = AllocSetContextCreate(TopMemoryContext,
-								"pg_query",
-								ALLOCSET_DEFAULT_SIZES);
+								ctx_name,
+								ALLOCSET_DEFAULT_MINSIZE,
+								ALLOCSET_DEFAULT_INITSIZE,
+								ALLOCSET_DEFAULT_MAXSIZE);
 	MemoryContextSwitchTo(ctx);
 
 	return ctx;
@@ -96,7 +38,19 @@ void pg_query_exit_memory_context(MemoryContext ctx)
 	MemoryContextSwitchTo(TopMemoryContext);
 
 	MemoryContextDelete(ctx);
-	ctx = NULL;
+
+    MemoryContext error_ctx = ErrorContext;
+    MemoryContext top_ctx = TopMemoryContext;
+
+//    TopMemoryContext = NULL;
+//    ErrorContext = NULL;
+//
+//	if (error_ctx != NULL)
+//    	MemoryContextDelete(error_ctx);
+//    if (top_ctx != NULL)
+//		MemoryContextDelete(top_ctx);
+
+
 }
 
 void pg_query_free_error(PgQueryError *error)

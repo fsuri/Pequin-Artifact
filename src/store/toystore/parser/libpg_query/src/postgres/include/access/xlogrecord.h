@@ -3,7 +3,7 @@
  *
  * Definitions for the WAL record format.
  *
- * Portions Copyright (c) 1996-2023, PostgreSQL Global Development Group
+ * Portions Copyright (c) 1996-2015, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  * src/include/access/xlogrecord.h
@@ -15,7 +15,7 @@
 #include "access/xlogdefs.h"
 #include "port/pg_crc32c.h"
 #include "storage/block.h"
-#include "storage/relfilelocator.h"
+#include "storage/relfilenode.h"
 
 /*
  * The overall layout of an XLOG record is:
@@ -56,22 +56,11 @@ typedef struct XLogRecord
 
 /*
  * The high 4 bits in xl_info may be used freely by rmgr. The
- * XLR_SPECIAL_REL_UPDATE and XLR_CHECK_CONSISTENCY bits can be passed by
- * XLogInsert caller. The rest are set internally by XLogInsert.
+ * XLR_SPECIAL_REL_UPDATE bit can be passed by XLogInsert caller. The rest
+ * are set internally by XLogInsert.
  */
 #define XLR_INFO_MASK			0x0F
 #define XLR_RMGR_INFO_MASK		0xF0
-
-/*
- * XLogReader needs to allocate all the data of a WAL record in a single
- * chunk.  This means that a single XLogRecord cannot exceed MaxAllocSize
- * in length if we ignore any allocation overhead of the XLogReader.
- *
- * To accommodate some overhead, this value allows for 4M of allocation
- * overhead, that should be plenty enough for what
- * DecodeXLogRecordRequiredSpace() expects as extra.
- */
-#define XLogRecordMaxSize	(1020 * 1024 * 1024)
 
 /*
  * If a WAL record modifies any relation files, in ways not covered by the
@@ -80,15 +69,6 @@ typedef struct XLogRecord
  * track of modified blocks to recognize such special record types.
  */
 #define XLR_SPECIAL_REL_UPDATE	0x01
-
-/*
- * Enforces consistency checks of replayed WAL at recovery. If enabled,
- * each record will log a full-page write for each block modified by the
- * record and will reuse it afterwards for consistency checks. The caller
- * of XLogInsert can use this value if necessary, but if
- * wal_consistency_checking is enabled for a rmgr this is set unconditionally.
- */
-#define XLR_CHECK_CONSISTENCY	0x02
 
 /*
  * Header info for block data appended to an XLOG record.
@@ -108,7 +88,7 @@ typedef struct XLogRecordBlockHeader
 								 * image) */
 
 	/* If BKPBLOCK_HAS_IMAGE, an XLogRecordBlockImageHeader struct follows */
-	/* If BKPBLOCK_SAME_REL is not set, a RelFileLocator follows */
+	/* If BKPBLOCK_SAME_REL is not set, a RelFileNode follows */
 	/* BlockNumber follows */
 } XLogRecordBlockHeader;
 
@@ -118,15 +98,16 @@ typedef struct XLogRecordBlockHeader
  * Additional header information when a full-page image is included
  * (i.e. when BKPBLOCK_HAS_IMAGE is set).
  *
- * The XLOG code is aware that PG data pages usually contain an unused "hole"
- * in the middle, which contains only zero bytes.  Since we know that the
- * "hole" is all zeros, we remove it from the stored data (and it's not counted
- * in the XLOG record's CRC, either).  Hence, the amount of block data actually
- * present is (BLCKSZ - <length of "hole" bytes>).
+ * As a trivial form of data compression, the XLOG code is aware that
+ * PG data pages usually contain an unused "hole" in the middle, which
+ * contains only zero bytes.  If the length of "hole" > 0 then we have removed
+ * such a "hole" from the stored data (and it's not counted in the
+ * XLOG record's CRC, either).  Hence, the amount of block data actually
+ * present is BLCKSZ - the length of "hole" bytes.
  *
- * Additionally, when wal_compression is enabled, we will try to compress full
- * page images using one of the supported algorithms, after removing the
- * "hole". This can reduce the WAL volume, but at some extra cost of CPU spent
+ * When wal_compression is enabled, a full page image which "hole" was
+ * removed is additionally compressed using PGLZ compression algorithm.
+ * This can reduce the WAL volume, but at some extra cost of CPU spent
  * on the compression during WAL logging. In this case, since the "hole"
  * length cannot be calculated by subtracting the number of page image bytes
  * from BLCKSZ, basically it needs to be stored as an extra information.
@@ -145,7 +126,7 @@ typedef struct XLogRecordBlockImageHeader
 	uint8		bimg_info;		/* flag bits, see below */
 
 	/*
-	 * If BKPIMAGE_HAS_HOLE and BKPIMAGE_COMPRESSED(), an
+	 * If BKPIMAGE_HAS_HOLE and BKPIMAGE_IS_COMPRESSED, an
 	 * XLogRecordBlockCompressHeader struct follows.
 	 */
 } XLogRecordBlockImageHeader;
@@ -155,16 +136,7 @@ typedef struct XLogRecordBlockImageHeader
 
 /* Information stored in bimg_info */
 #define BKPIMAGE_HAS_HOLE		0x01	/* page image has "hole" */
-#define BKPIMAGE_APPLY			0x02	/* page image should be restored
-										 * during replay */
-/* compression methods supported */
-#define BKPIMAGE_COMPRESS_PGLZ	0x04
-#define BKPIMAGE_COMPRESS_LZ4	0x08
-#define BKPIMAGE_COMPRESS_ZSTD	0x10
-
-#define	BKPIMAGE_COMPRESSED(info) \
-	((info & (BKPIMAGE_COMPRESS_PGLZ | BKPIMAGE_COMPRESS_LZ4 | \
-			  BKPIMAGE_COMPRESS_ZSTD)) != 0)
+#define BKPIMAGE_IS_COMPRESSED		0x02		/* page image is compressed */
 
 /*
  * Extra header information used when page image has "hole" and
@@ -186,7 +158,7 @@ typedef struct XLogRecordBlockCompressHeader
 	(SizeOfXLogRecordBlockHeader + \
 	 SizeOfXLogRecordBlockImageHeader + \
 	 SizeOfXLogRecordBlockCompressHeader + \
-	 sizeof(RelFileLocator) + \
+	 sizeof(RelFileNode) + \
 	 sizeof(BlockNumber))
 
 /*
@@ -198,8 +170,7 @@ typedef struct XLogRecordBlockCompressHeader
 #define BKPBLOCK_HAS_IMAGE	0x10	/* block data is an XLogRecordBlockImage */
 #define BKPBLOCK_HAS_DATA	0x20
 #define BKPBLOCK_WILL_INIT	0x40	/* redo will re-init the page */
-#define BKPBLOCK_SAME_REL	0x80	/* RelFileLocator omitted, same as
-									 * previous */
+#define BKPBLOCK_SAME_REL	0x80	/* RelFileNode omitted, same as previous */
 
 /*
  * XLogRecordDataHeaderShort/Long are used for the "main data" portion of
@@ -214,7 +185,7 @@ typedef struct XLogRecordDataHeaderShort
 {
 	uint8		id;				/* XLR_BLOCK_ID_DATA_SHORT */
 	uint8		data_length;	/* number of payload bytes */
-}			XLogRecordDataHeaderShort;
+}	XLogRecordDataHeaderShort;
 
 #define SizeOfXLogRecordDataHeaderShort (sizeof(uint8) * 2)
 
@@ -222,7 +193,7 @@ typedef struct XLogRecordDataHeaderLong
 {
 	uint8		id;				/* XLR_BLOCK_ID_DATA_LONG */
 	/* followed by uint32 data_length, unaligned */
-}			XLogRecordDataHeaderLong;
+}	XLogRecordDataHeaderLong;
 
 #define SizeOfXLogRecordDataHeaderLong (sizeof(uint8) + sizeof(uint32))
 
@@ -230,9 +201,8 @@ typedef struct XLogRecordDataHeaderLong
  * Block IDs used to distinguish different kinds of record fragments. Block
  * references are numbered from 0 to XLR_MAX_BLOCK_ID. A rmgr is free to use
  * any ID number in that range (although you should stick to small numbers,
- * because the WAL machinery is optimized for that case). A few ID
- * numbers are reserved to denote the "main" data portion of the record,
- * as well as replication-supporting transaction metadata.
+ * because the WAL machinery is optimized for that case). A couple of ID
+ * numbers are reserved to denote the "main" data portion of the record.
  *
  * The maximum is currently set at 32, quite arbitrarily. Most records only
  * need a handful of block references, but there are a few exceptions that
@@ -243,6 +213,5 @@ typedef struct XLogRecordDataHeaderLong
 #define XLR_BLOCK_ID_DATA_SHORT		255
 #define XLR_BLOCK_ID_DATA_LONG		254
 #define XLR_BLOCK_ID_ORIGIN			253
-#define XLR_BLOCK_ID_TOPLEVEL_XID	252
 
-#endif							/* XLOGRECORD_H */
+#endif   /* XLOGRECORD_H */

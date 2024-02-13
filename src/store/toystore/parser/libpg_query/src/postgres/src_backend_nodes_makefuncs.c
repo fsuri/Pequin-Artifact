@@ -1,21 +1,15 @@
 /*--------------------------------------------------------------------
  * Symbols referenced in this file:
+ * - makeDefElemExtended
  * - makeDefElem
  * - makeTypeNameFromNameList
- * - makeDefElemExtended
- * - makeRangeVar
- * - makeVacuumRelation
  * - makeAlias
- * - makeSimpleA_Expr
  * - makeGroupingSet
  * - makeTypeName
  * - makeFuncCall
+ * - makeSimpleA_Expr
  * - makeA_Expr
- * - makeJsonFormat
- * - makeJsonIsPredicate
- * - makeJsonValueExpr
- * - makeJsonEncoding
- * - makeJsonKeyValue
+ * - makeRangeVar
  * - makeBoolExpr
  *--------------------------------------------------------------------
  */
@@ -23,10 +17,10 @@
 /*-------------------------------------------------------------------------
  *
  * makefuncs.c
- *	  creator functions for various nodes. The functions here are for the
- *	  most frequently created nodes.
+ *	  creator functions for primitive nodes. The functions here are for
+ *	  the most frequently created nodes.
  *
- * Portions Copyright (c) 1996-2023, PostgreSQL Global Development Group
+ * Portions Copyright (c) 1996-2015, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  *
@@ -39,9 +33,9 @@
 
 #include "catalog/pg_class.h"
 #include "catalog/pg_type.h"
+#include "fmgr.h"
 #include "nodes/makefuncs.h"
 #include "nodes/nodeFuncs.h"
-#include "utils/errcodes.h"
 #include "utils/lsyscache.h"
 
 
@@ -102,10 +96,8 @@ makeSimpleA_Expr(A_Expr_Kind kind, char *name,
  * table entry, and varattno == 0 to signal that it references the whole
  * tuple.  (Use of zero here is unclean, since it could easily be confused
  * with error cases, but it's not worth changing now.)  The vartype indicates
- * a rowtype; either a named composite type, or a domain over a named
- * composite type (only possible if the RTE is a function returning that),
- * or RECORD.  This function encapsulates the logic for determining the
- * correct rowtype OID to use.
+ * a rowtype; either a named composite type, or RECORD.  This function
+ * encapsulates the logic for determining the correct rowtype OID to use.
  *
  * If allowScalar is true, then for the case where the RTE is a single function
  * returning a non-composite result type, we produce a normal Var referencing
@@ -207,7 +199,7 @@ makeRangeVar(char *schemaname, char *relname, int location)
 	r->catalogname = NULL;
 	r->schemaname = schemaname;
 	r->relname = relname;
-	r->inh = true;
+	r->inhOpt = INH_DEFAULT;
 	r->relpersistence = RELPERSISTENCE_PERMANENT;
 	r->alias = NULL;
 	r->location = location;
@@ -252,15 +244,6 @@ makeTypeNameFromNameList(List *names)
 
 
 /*
- * makeColumnDef -
- *	build a ColumnDef node to represent a simple column definition.
- *
- * Type and collation are specified by OID.
- * Other properties are all basic to start with.
- */
-
-
-/*
  * makeFuncExpr -
  *	build an expression tree representing a function call.
  *
@@ -276,7 +259,7 @@ makeTypeNameFromNameList(List *names)
  * and no special action.
  */
 DefElem *
-makeDefElem(char *name, Node *arg, int location)
+makeDefElem(char *name, Node *arg)
 {
 	DefElem    *res = makeNode(DefElem);
 
@@ -284,7 +267,7 @@ makeDefElem(char *name, Node *arg, int location)
 	res->defname = name;
 	res->arg = arg;
 	res->defaction = DEFELEM_UNSPEC;
-	res->location = location;
+	res->location = -1;
 
 	return res;
 }
@@ -315,7 +298,7 @@ makeDefElemExtended(char *nameSpace, char *name, Node *arg,
  * supply.  Any non-default parameters have to be inserted by the caller.
  */
 FuncCall *
-makeFuncCall(List *name, List *args, CoercionForm funcformat, int location)
+makeFuncCall(List *name, List *args, int location)
 {
 	FuncCall   *n = makeNode(FuncCall);
 
@@ -323,75 +306,14 @@ makeFuncCall(List *name, List *args, CoercionForm funcformat, int location)
 	n->args = args;
 	n->agg_order = NIL;
 	n->agg_filter = NULL;
-	n->over = NULL;
 	n->agg_within_group = false;
 	n->agg_star = false;
 	n->agg_distinct = false;
 	n->func_variadic = false;
-	n->funcformat = funcformat;
+	n->over = NULL;
 	n->location = location;
 	return n;
 }
-
-/*
- * make_opclause
- *	  Creates an operator clause given its operator info, left operand
- *	  and right operand (pass NULL to create single-operand clause),
- *	  and collation info.
- */
-
-
-/*
- * make_andclause
- *
- * Creates an 'and' clause given a list of its subclauses.
- */
-
-
-/*
- * make_orclause
- *
- * Creates an 'or' clause given a list of its subclauses.
- */
-
-
-/*
- * make_notclause
- *
- * Create a 'not' clause given the expression to be negated.
- */
-
-
-/*
- * make_and_qual
- *
- * Variant of make_andclause for ANDing two qual conditions together.
- * Qual conditions have the property that a NULL nodetree is interpreted
- * as 'true'.
- *
- * NB: this makes no attempt to preserve AND/OR flatness; so it should not
- * be used on a qual that has already been run through prepqual.c.
- */
-
-
-/*
- * The planner and executor usually represent qualification expressions
- * as lists of boolean expressions with implicit AND semantics.
- *
- * These functions convert between an AND-semantics expression list and the
- * ordinary representation of a boolean expression.
- *
- * Note that an empty list is considered equivalent to TRUE.
- */
-
-
-
-
-/*
- * makeIndexInfo
- *	  create an IndexInfo node
- */
-
 
 /*
  * makeGroupingSet
@@ -406,107 +328,4 @@ makeGroupingSet(GroupingSetKind kind, List *content, int location)
 	n->content = content;
 	n->location = location;
 	return n;
-}
-
-/*
- * makeVacuumRelation -
- *	  create a VacuumRelation node
- */
-VacuumRelation *
-makeVacuumRelation(RangeVar *relation, Oid oid, List *va_cols)
-{
-	VacuumRelation *v = makeNode(VacuumRelation);
-
-	v->relation = relation;
-	v->oid = oid;
-	v->va_cols = va_cols;
-	return v;
-}
-
-/*
- * makeJsonFormat -
- *	  creates a JsonFormat node
- */
-JsonFormat *
-makeJsonFormat(JsonFormatType type, JsonEncoding encoding, int location)
-{
-	JsonFormat *jf = makeNode(JsonFormat);
-
-	jf->format_type = type;
-	jf->encoding = encoding;
-	jf->location = location;
-
-	return jf;
-}
-
-/*
- * makeJsonValueExpr -
- *	  creates a JsonValueExpr node
- */
-JsonValueExpr *
-makeJsonValueExpr(Expr *raw_expr, Expr *formatted_expr,
-				  JsonFormat *format)
-{
-	JsonValueExpr *jve = makeNode(JsonValueExpr);
-
-	jve->raw_expr = raw_expr;
-	jve->formatted_expr = formatted_expr;
-	jve->format = format;
-
-	return jve;
-}
-
-/*
- * makeJsonEncoding -
- *	  converts JSON encoding name to enum JsonEncoding
- */
-JsonEncoding
-makeJsonEncoding(char *name)
-{
-	if (!pg_strcasecmp(name, "utf8"))
-		return JS_ENC_UTF8;
-	if (!pg_strcasecmp(name, "utf16"))
-		return JS_ENC_UTF16;
-	if (!pg_strcasecmp(name, "utf32"))
-		return JS_ENC_UTF32;
-
-	ereport(ERROR,
-			errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-			errmsg("unrecognized JSON encoding: %s", name));
-
-	return JS_ENC_DEFAULT;
-}
-
-/*
- * makeJsonKeyValue -
- *	  creates a JsonKeyValue node
- */
-Node *
-makeJsonKeyValue(Node *key, Node *value)
-{
-	JsonKeyValue *n = makeNode(JsonKeyValue);
-
-	n->key = (Expr *) key;
-	n->value = castNode(JsonValueExpr, value);
-
-	return (Node *) n;
-}
-
-/*
- * makeJsonIsPredicate -
- *	  creates a JsonIsPredicate node
- */
-Node *
-makeJsonIsPredicate(Node *expr, JsonFormat *format, JsonValueType item_type,
-					bool unique_keys, int location)
-{
-	JsonIsPredicate *n = makeNode(JsonIsPredicate);
-
-	n->expr = expr;
-	n->format = format;
-	n->item_type = item_type;
-	n->unique_keys = unique_keys;
-	n->location = location;
-
-	return (Node *) n;
 }

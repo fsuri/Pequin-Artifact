@@ -1,6 +1,6 @@
 /*--------------------------------------------------------------------
  * Symbols referenced in this file:
- * - defGetInt32
+ * - defWithOids
  *--------------------------------------------------------------------
  */
 
@@ -10,7 +10,7 @@
  *	  Support routines for various kinds of object creation.
  *
  *
- * Portions Copyright (c) 1996-2023, PostgreSQL Global Development Group
+ * Portions Copyright (c) 1996-2015, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  *
@@ -46,7 +46,7 @@
 #include "nodes/makefuncs.h"
 #include "parser/parse_type.h"
 #include "parser/scansup.h"
-#include "utils/builtins.h"
+#include "utils/int8.h"
 
 /*
  * Extract a string value (otherwise uninterpreted) from a DefElem.
@@ -66,34 +66,10 @@
 /*
  * Extract an int32 value from a DefElem.
  */
-int32
-defGetInt32(DefElem *def)
-{
-	if (def->arg == NULL)
-		ereport(ERROR,
-				(errcode(ERRCODE_SYNTAX_ERROR),
-				 errmsg("%s requires an integer value",
-						def->defname)));
-	switch (nodeTag(def->arg))
-	{
-		case T_Integer:
-			return (int32) intVal(def->arg);
-		default:
-			ereport(ERROR,
-					(errcode(ERRCODE_SYNTAX_ERROR),
-					 errmsg("%s requires an integer value",
-							def->defname)));
-	}
-	return 0;					/* keep compiler quiet */
-}
+
 
 /*
  * Extract an int64 value from a DefElem.
- */
-
-
-/*
- * Extract an OID value from a DefElem.
  */
 
 
@@ -117,11 +93,10 @@ defGetInt32(DefElem *def)
 
 
 /*
- * Extract a list of string values (otherwise uninterpreted) from a DefElem.
+ * Create a DefElem setting "oids" to the specified value.
  */
-
-
-/*
- * Raise an error about a conflicting DefElem.
- */
-
+DefElem *
+defWithOids(bool value)
+{
+	return makeDefElem("oids", (Node *) makeInteger(value));
+}

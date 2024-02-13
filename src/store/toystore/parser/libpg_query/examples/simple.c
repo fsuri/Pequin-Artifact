@@ -1,18 +1,19 @@
 // Welcome to the easiest way to parse an SQL query :-)
 // Compile the file like this:
 //
-// cc -I../ -L../ simple.c -lpg_query
+// cc -I../ -L../ -lpg_query simple.c
 
 #include <pg_query.h>
 #include <stdio.h>
 #include <stdlib.h>
 
-size_t testCount = 6;
+size_t testCount = 7;
 const char* tests[] = {
   "SELECT 1",
   "SELECT * FROM x WHERE z = 2",
   "SELECT 5.41414",
   "SELECT $1",
+  "SELECT ?",
   "SELECT 999999999999999999999::numeric/1000000000000000000000",
   "SELECT 4790999999999999999999999999999999999999999999999999999999999999999999999999999999999999 * 9999999999999999999999999999999999999999999999999999999999999999999999999999999999999999"
 };
@@ -32,9 +33,6 @@ int main() {
 
     pg_query_free_parse_result(result);
   }
-
-  // Optional, this ensures all memory is freed upon program exit (useful when running Valgrind)
-  pg_query_exit();
 
   return 0;
 }

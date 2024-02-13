@@ -14,7 +14,7 @@
  * only one ID number.
  *
  *
- * Portions Copyright (c) 1996-2023, PostgreSQL Global Development Group
+ * Portions Copyright (c) 1996-2015, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  * src/include/storage/pg_shmem.h
@@ -30,7 +30,7 @@ typedef struct PGShmemHeader	/* standard header for all Postgres shmem */
 {
 	int32		magic;			/* magic # to identify Postgres segments */
 #define PGShmemMagic  679834894
-	pid_t		creatorPID;		/* PID of creating process (set but unread) */
+	pid_t		creatorPID;		/* PID of creating process */
 	Size		totalsize;		/* total size of segment */
 	Size		freeoffset;		/* offset to first free space */
 	dsm_handle	dsm_control;	/* ID of dynamic shared memory control seg */
@@ -41,10 +41,8 @@ typedef struct PGShmemHeader	/* standard header for all Postgres shmem */
 #endif
 } PGShmemHeader;
 
-/* GUC variables */
-extern PGDLLIMPORT int shared_memory_type;
-extern PGDLLIMPORT int huge_pages;
-extern PGDLLIMPORT int huge_page_size;
+/* GUC variable */
+extern int	huge_pages;
 
 /* Possible values for huge_pages */
 typedef enum
@@ -52,41 +50,23 @@ typedef enum
 	HUGE_PAGES_OFF,
 	HUGE_PAGES_ON,
 	HUGE_PAGES_TRY
-}			HugePagesType;
-
-/* Possible values for shared_memory_type */
-typedef enum
-{
-	SHMEM_TYPE_WINDOWS,
-	SHMEM_TYPE_SYSV,
-	SHMEM_TYPE_MMAP
-}			PGShmemType;
+}	HugePagesType;
 
 #ifndef WIN32
-extern PGDLLIMPORT unsigned long UsedShmemSegID;
+extern unsigned long UsedShmemSegID;
 #else
-extern PGDLLIMPORT HANDLE UsedShmemSegID;
-extern PGDLLIMPORT void *ShmemProtectiveRegion;
+extern HANDLE UsedShmemSegID;
 #endif
-extern PGDLLIMPORT void *UsedShmemSegAddr;
-
-#if !defined(WIN32) && !defined(EXEC_BACKEND)
-#define DEFAULT_SHARED_MEMORY_TYPE SHMEM_TYPE_MMAP
-#elif !defined(WIN32)
-#define DEFAULT_SHARED_MEMORY_TYPE SHMEM_TYPE_SYSV
-#else
-#define DEFAULT_SHARED_MEMORY_TYPE SHMEM_TYPE_WINDOWS
-#endif
+extern void *UsedShmemSegAddr;
 
 #ifdef EXEC_BACKEND
 extern void PGSharedMemoryReAttach(void);
 extern void PGSharedMemoryNoReAttach(void);
 #endif
 
-extern PGShmemHeader *PGSharedMemoryCreate(Size size,
-										   PGShmemHeader **shim);
+extern PGShmemHeader *PGSharedMemoryCreate(Size size, bool makePrivate,
+					 int port, PGShmemHeader **shim);
 extern bool PGSharedMemoryIsInUse(unsigned long id1, unsigned long id2);
 extern void PGSharedMemoryDetach(void);
-extern void GetHugePageSize(Size *hugepagesize, int *mmap_flags);
 
-#endif							/* PG_SHMEM_H */
+#endif   /* PG_SHMEM_H */

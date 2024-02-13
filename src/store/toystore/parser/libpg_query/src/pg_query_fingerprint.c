@@ -1,11 +1,9 @@
-#include <stdio.h>
-
+#include "postgres.h"
 #include "pg_query.h"
 #include "pg_query_internal.h"
 #include "pg_query_fingerprint.h"
 
-#include "postgres.h"
-#include "xxhash/xxhash.h"
+#include "sha1.h"
 #include "lib/ilist.h"
 
 #include "parser/parser.h"
@@ -15,8 +13,6 @@
 #include "nodes/parsenodes.h"
 #include "nodes/value.h"
 
-#include "common/hashfn.h"
-
 #include <unistd.h>
 #include <fcntl.h>
 
@@ -24,43 +20,9 @@
 
 typedef struct FingerprintContext
 {
-	XXH3_state_t *xxh_state;
-
-	struct listsort_cache_hash *listsort_cache;
-
-	bool write_tokens;
 	dlist_head tokens;
+	SHA1_CTX *sha1; // If this is NULL we write tokens, otherwise we write the sha1sum directly
 } FingerprintContext;
-
-typedef struct FingerprintListsortItem
-{
-	XXH64_hash_t hash;
-	size_t list_pos;
-} FingerprintListsortItem;
-
-typedef struct FingerprintListsortItemCacheEntry
-{
-	/* List node this cache entry is for */
-	uintptr_t node;
-
-	/* Hashes of all list items -- this is expensive to calculate */
-	FingerprintListsortItem **listsort_items;
-	size_t listsort_items_size;
-
-	/* hash entry status */
-	char status;
-} FingerprintListsortItemCacheEntry;
-
-#define SH_PREFIX listsort_cache
-#define SH_ELEMENT_TYPE FingerprintListsortItemCacheEntry
-#define SH_KEY_TYPE uintptr_t
-#define SH_KEY node
-#define SH_HASH_KEY(tb, key) hash_bytes((const unsigned char *) &key, sizeof(uintptr_t))
-#define SH_EQUAL(tb, a, b) a == b
-#define SH_SCOPE static inline
-#define SH_DEFINE
-#define SH_DECLARE
-#include "lib/simplehash.h"
 
 typedef struct FingerprintToken
 {
@@ -69,21 +31,19 @@ typedef struct FingerprintToken
 } FingerprintToken;
 
 static void _fingerprintNode(FingerprintContext *ctx, const void *obj, const void *parent, char *parent_field_name, unsigned int depth);
-static void _fingerprintInitContext(FingerprintContext *ctx, FingerprintContext *parent, bool write_tokens);
-static void _fingerprintFreeContext(FingerprintContext *ctx);
+static void _fingerprintInitForTokens(FingerprintContext *ctx);
+static void _fingerprintCopyTokens(FingerprintContext *source, FingerprintContext *target, char *field_name);
 
-#define PG_QUERY_FINGERPRINT_VERSION 3
+#define PG_QUERY_FINGERPRINT_VERSION 1
 
 // Implementations
 
 static void
 _fingerprintString(FingerprintContext *ctx, const char *str)
 {
-	if (ctx->xxh_state != NULL) {
-		XXH3_64bits_update(ctx->xxh_state, str, strlen(str));
-	}
-
-	if (ctx->write_tokens) {
+	if (ctx->sha1 != NULL) {
+		SHA1Update(ctx->sha1, (uint8*) str, strlen(str));
+	} else {
 		FingerprintToken *token = palloc0(sizeof(FingerprintToken));
 		token->str = pstrdup(str);
 		dlist_push_tail(&ctx->tokens, &token->list_node);
@@ -91,173 +51,144 @@ _fingerprintString(FingerprintContext *ctx, const char *str)
 }
 
 static void
-_fingerprintInteger(FingerprintContext *ctx, const union ValUnion *value)
+_fingerprintInteger(FingerprintContext *ctx, const Value *node)
 {
-	if (value->ival.ival != 0) {
+	if (node->val.ival != 0) {
 		_fingerprintString(ctx, "Integer");
 		_fingerprintString(ctx, "ival");
 		char buffer[50];
-		sprintf(buffer, "%d", value->ival.ival);
+		sprintf(buffer, "%ld", node->val.ival);
 		_fingerprintString(ctx, buffer);
 	}
 }
 
 static void
-_fingerprintFloat(FingerprintContext *ctx, const union ValUnion *value)
+_fingerprintFloat(FingerprintContext *ctx, const Value *node)
 {
-	if (value->fval.fval != NULL) {
-		// NB: We output `str` here intentionally, to match the output format from libpg_query 14
-		// and below. This results in stable fingerprints, despite the field name being changed in
-		// PG15 to `fval`.
+	if (node->val.str != NULL) {
 		_fingerprintString(ctx, "Float");
 		_fingerprintString(ctx, "str");
-		_fingerprintString(ctx, value->fval.fval);
+		_fingerprintString(ctx, node->val.str);
 	}
 }
 
 static void
-_fingerprintBoolean(FingerprintContext *ctx, const union ValUnion *value)
+_fingerprintBitString(FingerprintContext *ctx, const Value *node)
 {
-	_fingerprintString(ctx, "Boolean");
-	_fingerprintString(ctx, "boolval");
-	_fingerprintString(ctx, value->boolval.boolval ? "true" : "false");
-}
-
-static void
-_fingerprintBitString(FingerprintContext *ctx, const union ValUnion *value)
-{
-	if (value->bsval.bsval != NULL) {
-		// NB: We output `str` here intentionally, to match the output format from libpg_query 14
-		// and below. This results in stable fingerprints, despite the field name being changed in
-		// PG15 to `bsval`.
+	if (node->val.str != NULL) {
 		_fingerprintString(ctx, "BitString");
 		_fingerprintString(ctx, "str");
-		_fingerprintString(ctx, value->bsval.bsval);
+		_fingerprintString(ctx, node->val.str);
 	}
 }
 
-static int compareFingerprintListsortItem(const void *a, const void *b)
+#define FINGERPRINT_CMP_STRBUF 1024
+
+static int compareFingerprintContext(const void *a, const void *b)
 {
-	FingerprintListsortItem *ca = *(FingerprintListsortItem**) a;
-	FingerprintListsortItem *cb = *(FingerprintListsortItem**) b;
-	if (ca->hash > cb->hash)
-		return 1;
-	else if (ca->hash < cb->hash)
-		return -1;
-	return 0;
+	FingerprintContext *ca = *(FingerprintContext**) a;
+	FingerprintContext *cb = *(FingerprintContext**) b;
+
+	char strBufA[FINGERPRINT_CMP_STRBUF + 1] = {'\0'};
+	char strBufB[FINGERPRINT_CMP_STRBUF + 1] = {'\0'};
+
+	dlist_iter iterA;
+	dlist_iter iterB;
+
+	dlist_foreach(iterA, &ca->tokens)
+	{
+		FingerprintToken *token = dlist_container(FingerprintToken, list_node, iterA.cur);
+
+		strncat(strBufA, token->str, FINGERPRINT_CMP_STRBUF - strlen(strBufA));
+	}
+
+	dlist_foreach(iterB, &cb->tokens)
+	{
+		FingerprintToken *token = dlist_container(FingerprintToken, list_node, iterB.cur);
+
+		strncat(strBufB, token->str, FINGERPRINT_CMP_STRBUF - strlen(strBufB));
+	}
+
+	//printf("COMP %s <=> %s = %d\n", strBufA, strBufB, strcmp(strBufA, strBufB));
+
+	return strcmp(strBufA, strBufB);
 }
 
 static void
 _fingerprintList(FingerprintContext *ctx, const List *node, const void *parent, char *field_name, unsigned int depth)
 {
 	if (field_name != NULL && (strcmp(field_name, "fromClause") == 0 || strcmp(field_name, "targetList") == 0 ||
-		strcmp(field_name, "cols") == 0 || strcmp(field_name, "rexpr") == 0 || strcmp(field_name, "valuesLists") == 0 ||
-		strcmp(field_name, "args") == 0))
-	{
-		/*
-		 * Check for cached values for the hashes of subnodes
-		 *
-		 * Note this cache is important so we avoid exponential runtime behavior,
-		 * which would be the case if we fingerprinted each node twice, which
-		 * then would also again have to fingerprint each of its subnodes twice,
-		 * etc., leading to deep nodes to be fingerprinted many many times over.
-		 *
-		 * We have seen real-world problems with this logic here without
-		 * a cache in place.
-		 */
-		FingerprintListsortItem** listsort_items = NULL;
-		size_t listsort_items_size = 0;
-		FingerprintListsortItemCacheEntry *entry = listsort_cache_lookup(ctx->listsort_cache, (uintptr_t) node);
-		if (entry != NULL)
+			strcmp(field_name, "cols") == 0 || strcmp(field_name, "rexpr") == 0)) {
+
+		FingerprintContext** subCtxArr = palloc0(node->length * sizeof(FingerprintContext*));
+		size_t subCtxCount = 0;
+		size_t i;
+		const ListCell *lc;
+
+		foreach(lc, node)
 		{
-			listsort_items = entry->listsort_items;
-			listsort_items_size = entry->listsort_items_size;
-		}
-		else
-		{
-			listsort_items = palloc0(node->length * sizeof(FingerprintListsortItem*));
-			listsort_items_size = 0;
-			ListCell *lc;
-			bool found;
+			FingerprintContext* subCtx = palloc0(sizeof(FingerprintContext));
 
-			foreach(lc, node)
-			{
-				FingerprintContext fctx;
-				FingerprintListsortItem* lctx = palloc0(sizeof(FingerprintListsortItem));
+			_fingerprintInitForTokens(subCtx);
+			_fingerprintNode(subCtx, lfirst(lc), parent, field_name, depth + 1);
 
-				_fingerprintInitContext(&fctx, ctx, false);
-				_fingerprintNode(&fctx, lfirst(lc), parent, field_name, depth + 1);
-				lctx->hash = XXH3_64bits_digest(fctx.xxh_state);
-				lctx->list_pos = listsort_items_size;
-				_fingerprintFreeContext(&fctx);
-
-				listsort_items[listsort_items_size] = lctx;
-				listsort_items_size += 1;
+			bool exists = false;
+			for (i = 0; i < subCtxCount; i++) {
+				if (compareFingerprintContext(&subCtxArr[i], &subCtx) == 0) {
+					exists = true;
+					break;
+				}
 			}
 
-			pg_qsort(listsort_items, listsort_items_size, sizeof(FingerprintListsortItem*), compareFingerprintListsortItem);
+			if (!exists) {
+				subCtxArr[subCtxCount] = subCtx;
+				subCtxCount += 1;
+			}
 
-			FingerprintListsortItemCacheEntry *entry = listsort_cache_insert(ctx->listsort_cache, (uintptr_t) node, &found);
-			Assert(!found);
-
-			entry->listsort_items = listsort_items;
-			entry->listsort_items_size = listsort_items_size;
+			lnext(lc);
 		}
 
-		for (size_t i = 0; i < listsort_items_size; i++)
-		{
-			if (i > 0 && listsort_items[i - 1]->hash == listsort_items[i]->hash)
-				continue; // Ignore duplicates
+		pg_qsort(subCtxArr, subCtxCount, sizeof(FingerprintContext*), compareFingerprintContext);
 
-			_fingerprintNode(ctx, lfirst(list_nth_cell(node, listsort_items[i]->list_pos)), parent, field_name, depth + 1);
+		for (i = 0; i < subCtxCount; i++) {
+			_fingerprintCopyTokens(subCtxArr[i], ctx, NULL);
 		}
-	}
-	else
-	{
+	} else {
 		const ListCell *lc;
 
 		foreach(lc, node)
 		{
 			_fingerprintNode(ctx, lfirst(lc), parent, field_name, depth + 1);
 
-			lnext(node, lc);
+			lnext(lc);
 		}
 	}
 }
 
 static void
-_fingerprintInitContext(FingerprintContext *ctx, FingerprintContext *parent, bool write_tokens)
-{
-	ctx->xxh_state = XXH3_createState();
-	if (ctx->xxh_state == NULL) abort();
-	if (XXH3_64bits_reset_withSeed(ctx->xxh_state, PG_QUERY_FINGERPRINT_VERSION) == XXH_ERROR) abort();
-
-	if (parent != NULL)
-	{
-		ctx->listsort_cache = parent->listsort_cache;
-	}
-	else
-	{
-		ctx->listsort_cache = listsort_cache_create(CurrentMemoryContext, 128, NULL);
-	}
-
-	if (write_tokens)
-	{
-		ctx->write_tokens = true;
-		dlist_init(&ctx->tokens);
-	}
-	else
-	{
-		ctx->write_tokens = false;
-	}
+_fingerprintInitForTokens(FingerprintContext *ctx) {
+	ctx->sha1 = NULL;
+	dlist_init(&ctx->tokens);
 }
 
 static void
-_fingerprintFreeContext(FingerprintContext *ctx) {
-	XXH3_freeState(ctx->xxh_state);
+_fingerprintCopyTokens(FingerprintContext *source, FingerprintContext *target, char *field_name) {
+	dlist_iter iter;
+
+	if (dlist_is_empty(&source->tokens)) return;
+
+	if (field_name != NULL) {
+		_fingerprintString(target, field_name);
+	}
+
+	dlist_foreach(iter, &source->tokens)
+	{
+		FingerprintToken *token = dlist_container(FingerprintToken, list_node, iter.cur);
+
+		_fingerprintString(target, token->str);
+	}
 }
 
-#include "pg_query_enum_defs.c"
 #include "pg_query_fingerprint_defs.c"
 
 void
@@ -273,66 +204,49 @@ _fingerprintNode(FingerprintContext *ctx, const void *obj, const void *parent, c
 		return; // Ignore
 	}
 
-	switch (nodeTag(obj))
+	if (IsA(obj, List))
 	{
-		case T_List:
-			_fingerprintList(ctx, obj, parent, field_name, depth);
-			break;
-		case T_Integer:
-			_fingerprintInteger(ctx, obj);
-			break;
-		case T_Float:
-			_fingerprintFloat(ctx, obj);
-			break;
-		case T_Boolean:
-			_fingerprintBoolean(ctx, obj);
-			break;
-		case T_String:
-			// NB: We output `str` here intentionally, to match the output format from libpg_query
-			// 14 and below. This results in stable fingerprints, despite the field name being
-			// changed in PG15 to `sval`.
-			_fingerprintString(ctx, "String");
-			_fingerprintString(ctx, "str");
-			_fingerprintString(ctx, ((union ValUnion*) obj)->sval.sval);
-			break;
-		case T_BitString:
-			_fingerprintBitString(ctx, obj);
-			break;
+		_fingerprintList(ctx, obj, parent, field_name, depth);
+	}
+	else
+	{
+		switch (nodeTag(obj))
+		{
+			case T_Integer:
+				_fingerprintInteger(ctx, obj);
+				break;
+			case T_Float:
+				_fingerprintFloat(ctx, obj);
+				break;
+			case T_String:
+				_fingerprintString(ctx, "String");
+				_fingerprintString(ctx, "str");
+				_fingerprintString(ctx, ((Value*) obj)->val.str);
+				break;
+			case T_BitString:
+				_fingerprintBitString(ctx, obj);
+				break;
 
-		#include "pg_query_fingerprint_conds.c"
+			#include "pg_query_fingerprint_conds.c"
 
-		default:
-			elog(WARNING, "could not fingerprint unrecognized node type: %d",
-					(int) nodeTag(obj));
+			default:
+				elog(WARNING, "could not fingerprint unrecognized node type: %d",
+					 (int) nodeTag(obj));
 
-			return;
+				return;
+		}
 	}
 }
 
-uint64_t pg_query_fingerprint_node(const void *node)
-{
-	FingerprintContext ctx;
-	uint64 result;
-
-	_fingerprintInitContext(&ctx, NULL, false);
-	_fingerprintNode(&ctx, node, NULL, NULL, 0);
-
-	result = XXH3_64bits_digest(ctx.xxh_state);
-
-	_fingerprintFreeContext(&ctx);
-
-	return result;
-}
-
-PgQueryFingerprintResult pg_query_fingerprint_with_opts(const char* input, int parser_options, bool printTokens)
+PgQueryFingerprintResult pg_query_fingerprint_with_opts(const char* input, bool printTokens)
 {
 	MemoryContext ctx = NULL;
 	PgQueryInternalParsetreeAndError parsetree_and_error;
 	PgQueryFingerprintResult result = {0};
 
-	ctx = pg_query_enter_memory_context();
+	ctx = pg_query_enter_memory_context("pg_query_fingerprint");
 
-	parsetree_and_error = pg_query_raw_parse(input, parser_options);
+	parsetree_and_error = pg_query_raw_parse(input);
 
 	// These are all malloc-ed and will survive exiting the memory context, the caller is responsible to free them now
 	result.stderr_buffer = parsetree_and_error.stderr_buffer;
@@ -340,41 +254,44 @@ PgQueryFingerprintResult pg_query_fingerprint_with_opts(const char* input, int p
 
 	if (parsetree_and_error.tree != NULL || result.error == NULL) {
 		FingerprintContext ctx;
-		XXH64_canonical_t chash;
+		int i;
+		uint8 sha1result[SHA1_RESULTLEN];
 
-		_fingerprintInitContext(&ctx, NULL, printTokens);
+		ctx.sha1 = palloc0(sizeof(SHA1_CTX));
+		SHA1Init(ctx.sha1);
 
 		if (parsetree_and_error.tree != NULL) {
 			_fingerprintNode(&ctx, parsetree_and_error.tree, NULL, NULL, 0);
 		}
 
+		SHA1Final(sha1result, ctx.sha1);
+
+		// This is intentionally malloc-ed and will survive exiting the memory context
+		result.hexdigest = calloc((1 + SHA1_RESULTLEN) * 2 + 1, sizeof(char));
+
+		sprintf(result.hexdigest, "%02x", PG_QUERY_FINGERPRINT_VERSION);
+
+		for (i = 0; i < SHA1_RESULTLEN; i++) {
+			sprintf(result.hexdigest + (1 + i) * 2, "%02x", sha1result[i]);
+		}
+
 		if (printTokens) {
+			FingerprintContext debugCtx;
 			dlist_iter iter;
+
+			_fingerprintInitForTokens(&debugCtx);
+			_fingerprintNode(&debugCtx, parsetree_and_error.tree, NULL, NULL, 0);
 
 			printf("[");
 
-			dlist_foreach(iter, &ctx.tokens)
+			dlist_foreach(iter, &debugCtx.tokens)
 			{
 				FingerprintToken *token = dlist_container(FingerprintToken, list_node, iter.cur);
 
-				printf("\"%s\", ", token->str);
+				printf("%s, ", token->str);
 			}
 
 			printf("]\n");
-		}
-
-		result.fingerprint = XXH3_64bits_digest(ctx.xxh_state);
-		_fingerprintFreeContext(&ctx);
-
-		XXH64_canonicalFromHash(&chash, result.fingerprint);
-		result.fingerprint_str = malloc(17 * sizeof(char));
-		int n = snprintf(result.fingerprint_str, 17, "%02x%02x%02x%02x%02x%02x%02x%02x",
-						   chash.digest[0], chash.digest[1], chash.digest[2], chash.digest[3],
-						   chash.digest[4], chash.digest[5], chash.digest[6], chash.digest[7]);
-		if (n < 0 || n >= 17) {
-			PgQueryError* error = malloc(sizeof(PgQueryError));
-			error->message = strdup("Failed to output fingerprint string due to snprintf failure");
-			result.error = error;
 		}
 	}
 
@@ -385,12 +302,7 @@ PgQueryFingerprintResult pg_query_fingerprint_with_opts(const char* input, int p
 
 PgQueryFingerprintResult pg_query_fingerprint(const char* input)
 {
-	return pg_query_fingerprint_with_opts(input, PG_QUERY_PARSE_DEFAULT, false);
-}
-
-PgQueryFingerprintResult pg_query_fingerprint_opts(const char* input, int parser_options)
-{
-	return pg_query_fingerprint_with_opts(input, parser_options, false);
+	return pg_query_fingerprint_with_opts(input, false);
 }
 
 void pg_query_free_fingerprint_result(PgQueryFingerprintResult result)
@@ -398,10 +310,9 @@ void pg_query_free_fingerprint_result(PgQueryFingerprintResult result)
 	if (result.error) {
 		free(result.error->message);
 		free(result.error->filename);
-		free(result.error->funcname);
 		free(result.error);
 	}
 
-	free(result.fingerprint_str);
+	free(result.hexdigest);
 	free(result.stderr_buffer);
 }

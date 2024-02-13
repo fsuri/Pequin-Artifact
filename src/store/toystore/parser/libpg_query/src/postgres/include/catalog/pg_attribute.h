@@ -1,21 +1,18 @@
 /*-------------------------------------------------------------------------
  *
  * pg_attribute.h
- *	  definition of the "attribute" system catalog (pg_attribute)
- *
- * The initial contents of pg_attribute are generated at compile time by
- * genbki.pl, so there is no pg_attribute.dat file.  Only "bootstrapped"
- * relations need be included.
+ *	  definition of the system "attribute" relation (pg_attribute)
+ *	  along with the relation's initial contents.
  *
  *
- * Portions Copyright (c) 1996-2023, PostgreSQL Global Development Group
+ * Portions Copyright (c) 1996-2015, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  * src/include/catalog/pg_attribute.h
  *
  * NOTES
- *	  The Catalog.pm module reads this file and derives schema
- *	  information.
+ *	  the genbki.pl script reads this file and generates .bki
+ *	  information from the DATA() statements.
  *
  *-------------------------------------------------------------------------
  */
@@ -23,7 +20,6 @@
 #define PG_ATTRIBUTE_H
 
 #include "catalog/genbki.h"
-#include "catalog/pg_attribute_d.h"
 
 /* ----------------
  *		pg_attribute definition.  cpp turns this into
@@ -34,10 +30,12 @@
  *		You may need to change catalog/genbki.pl as well.
  * ----------------
  */
-CATALOG(pg_attribute,1249,AttributeRelationId) BKI_BOOTSTRAP BKI_ROWTYPE_OID(75,AttributeRelation_Rowtype_Id) BKI_SCHEMA_MACRO
+#define AttributeRelationId  1249
+#define AttributeRelation_Rowtype_Id  75
+
+CATALOG(pg_attribute,1249) BKI_BOOTSTRAP BKI_WITHOUT_OIDS BKI_ROWTYPE_OID(75) BKI_SCHEMA_MACRO
 {
-	Oid			attrelid BKI_LOOKUP(pg_class);	/* OID of relation containing
-												 * this attribute */
+	Oid			attrelid;		/* OID of relation containing this attribute */
 	NameData	attname;		/* name of attribute */
 
 	/*
@@ -45,12 +43,18 @@ CATALOG(pg_attribute,1249,AttributeRelationId) BKI_BOOTSTRAP BKI_ROWTYPE_OID(75,
 	 * defines the data type of this attribute (e.g. int4).  Information in
 	 * that instance is redundant with the attlen, attbyval, and attalign
 	 * attributes of this instance, so they had better match or Postgres will
-	 * fail.  In an entry for a dropped column, this field is set to zero
-	 * since the pg_type entry may no longer exist; but we rely on attlen,
-	 * attbyval, and attalign to still tell us how large the values in the
-	 * table are.
+	 * fail.
 	 */
-	Oid			atttypid BKI_LOOKUP_OPT(pg_type);
+	Oid			atttypid;
+
+	/*
+	 * attstattarget is the target number of statistics datapoints to collect
+	 * during VACUUM ANALYZE of this column.  A zero here indicates that we do
+	 * not wish to collect any stats about this column. A "-1" here indicates
+	 * that no value has been explicitly set for this column, so ANALYZE
+	 * should use the default setting.
+	 */
+	int32		attstattarget;
 
 	/*
 	 * attlen is a copy of the typlen field from pg_type for this attribute.
@@ -74,13 +78,19 @@ CATALOG(pg_attribute,1249,AttributeRelationId) BKI_BOOTSTRAP BKI_ROWTYPE_OID(75,
 	int16		attnum;
 
 	/*
+	 * attndims is the declared number of dimensions, if an array type,
+	 * otherwise zero.
+	 */
+	int32		attndims;
+
+	/*
 	 * fastgetattr() uses attcacheoff to cache byte offsets of attributes in
 	 * heap tuples.  The value actually stored in pg_attribute (-1) indicates
 	 * no cached value.  But when we copy these tuples into a tuple
 	 * descriptor, we may then update attcacheoff in the copies. This speeds
 	 * up the attribute walking process.
 	 */
-	int32		attcacheoff BKI_DEFAULT(-1);
+	int32		attcacheoff;
 
 	/*
 	 * atttypmod records type-specific data supplied at table creation time
@@ -88,13 +98,7 @@ CATALOG(pg_attribute,1249,AttributeRelationId) BKI_BOOTSTRAP BKI_ROWTYPE_OID(75,
 	 * type-specific input and output functions as the third argument. The
 	 * value will generally be -1 for types that do not need typmod.
 	 */
-	int32		atttypmod BKI_DEFAULT(-1);
-
-	/*
-	 * attndims is the declared number of dimensions, if an array type,
-	 * otherwise zero.
-	 */
-	int16		attndims;
+	int32		atttypmod;
 
 	/*
 	 * attbyval is a copy of the typbyval field from pg_type for this
@@ -102,47 +106,35 @@ CATALOG(pg_attribute,1249,AttributeRelationId) BKI_BOOTSTRAP BKI_ROWTYPE_OID(75,
 	 */
 	bool		attbyval;
 
+	/*----------
+	 * attstorage tells for VARLENA attributes, what the heap access
+	 * methods can do to it if a given tuple doesn't fit into a page.
+	 * Possible values are
+	 *		'p': Value must be stored plain always
+	 *		'e': Value can be stored in "secondary" relation (if relation
+	 *			 has one, see pg_class.reltoastrelid)
+	 *		'm': Value can be stored compressed inline
+	 *		'x': Value can be stored compressed inline or in "secondary"
+	 * Note that 'm' fields can also be moved out to secondary storage,
+	 * but only as a last resort ('e' and 'x' fields are moved first).
+	 *----------
+	 */
+	char		attstorage;
+
 	/*
 	 * attalign is a copy of the typalign field from pg_type for this
 	 * attribute.  See atttypid comments above.
 	 */
 	char		attalign;
 
-	/*----------
-	 * attstorage tells for VARLENA attributes, what the heap access
-	 * methods can do to it if a given tuple doesn't fit into a page.
-	 * Possible values are as for pg_type.typstorage (see TYPSTORAGE macros).
-	 *----------
-	 */
-	char		attstorage;
-
-	/*
-	 * attcompression sets the current compression method of the attribute.
-	 * Typically this is InvalidCompressionMethod ('\0') to specify use of the
-	 * current default setting (see default_toast_compression).  Otherwise,
-	 * 'p' selects pglz compression, while 'l' selects LZ4 compression.
-	 * However, this field is ignored whenever attstorage does not allow
-	 * compression.
-	 */
-	char		attcompression BKI_DEFAULT('\0');
-
 	/* This flag represents the "NOT NULL" constraint */
 	bool		attnotnull;
 
 	/* Has DEFAULT value or not */
-	bool		atthasdef BKI_DEFAULT(f);
-
-	/* Has a missing value or not */
-	bool		atthasmissing BKI_DEFAULT(f);
-
-	/* One of the ATTRIBUTE_IDENTITY_* constants below, or '\0' */
-	char		attidentity BKI_DEFAULT('\0');
-
-	/* One of the ATTRIBUTE_GENERATED_* constants below, or '\0' */
-	char		attgenerated BKI_DEFAULT('\0');
+	bool		atthasdef;
 
 	/* Is dropped (ie, logically invisible) or not */
-	bool		attisdropped BKI_DEFAULT(f);
+	bool		attisdropped;
 
 	/*
 	 * This flag specifies whether this column has ever had a local
@@ -153,42 +145,25 @@ CATALOG(pg_attribute,1249,AttributeRelationId) BKI_BOOTSTRAP BKI_ROWTYPE_OID(75,
 	 * not dropped by a parent's DROP COLUMN even if this causes the column's
 	 * attinhcount to become zero.
 	 */
-	bool		attislocal BKI_DEFAULT(t);
+	bool		attislocal;
 
 	/* Number of times inherited from direct parent relation(s) */
-	int16		attinhcount BKI_DEFAULT(0);
+	int32		attinhcount;
 
-	/*
-	 * attstattarget is the target number of statistics datapoints to collect
-	 * during VACUUM ANALYZE of this column.  A zero here indicates that we do
-	 * not wish to collect any stats about this column. A "-1" here indicates
-	 * that no value has been explicitly set for this column, so ANALYZE
-	 * should use the default setting.
-	 *
-	 * int16 is sufficient because the max value is currently 10000.
-	 */
-	int16		attstattarget BKI_DEFAULT(-1);
-
-	/* attribute's collation, if any */
-	Oid			attcollation BKI_LOOKUP_OPT(pg_collation);
+	/* attribute's collation */
+	Oid			attcollation;
 
 #ifdef CATALOG_VARLEN			/* variable-length fields start here */
 	/* NOTE: The following fields are not present in tuple descriptors. */
 
 	/* Column-level access permissions */
-	aclitem		attacl[1] BKI_DEFAULT(_null_);
+	aclitem		attacl[1];
 
 	/* Column-level options */
-	text		attoptions[1] BKI_DEFAULT(_null_);
+	text		attoptions[1];
 
 	/* Column-level FDW options */
-	text		attfdwoptions[1] BKI_DEFAULT(_null_);
-
-	/*
-	 * Missing value for added columns. This is a one element array which lets
-	 * us store a value of the attribute type here.
-	 */
-	anyarray	attmissingval BKI_DEFAULT(_null_);
+	text		attfdwoptions[1];
 #endif
 } FormData_pg_attribute;
 
@@ -196,7 +171,7 @@ CATALOG(pg_attribute,1249,AttributeRelationId) BKI_BOOTSTRAP BKI_ROWTYPE_OID(75,
  * ATTRIBUTE_FIXED_PART_SIZE is the size of the fixed-layout,
  * guaranteed-not-null part of a pg_attribute row.  This is in fact as much
  * of the row as gets copied into tuple descriptors, so don't expect you
- * can access the variable-length fields except in a real tuple!
+ * can access fields beyond attcollation except in a real tuple!
  */
 #define ATTRIBUTE_FIXED_PART_SIZE \
 	(offsetof(FormData_pg_attribute,attcollation) + sizeof(Oid))
@@ -208,16 +183,41 @@ CATALOG(pg_attribute,1249,AttributeRelationId) BKI_BOOTSTRAP BKI_ROWTYPE_OID(75,
  */
 typedef FormData_pg_attribute *Form_pg_attribute;
 
-DECLARE_UNIQUE_INDEX(pg_attribute_relid_attnam_index, 2658, AttributeRelidNameIndexId, on pg_attribute using btree(attrelid oid_ops, attname name_ops));
-DECLARE_UNIQUE_INDEX_PKEY(pg_attribute_relid_attnum_index, 2659, AttributeRelidNumIndexId, on pg_attribute using btree(attrelid oid_ops, attnum int2_ops));
+/* ----------------
+ *		compiler constants for pg_attribute
+ * ----------------
+ */
 
-#ifdef EXPOSE_TO_CLIENT_CODE
+#define Natts_pg_attribute				21
+#define Anum_pg_attribute_attrelid		1
+#define Anum_pg_attribute_attname		2
+#define Anum_pg_attribute_atttypid		3
+#define Anum_pg_attribute_attstattarget 4
+#define Anum_pg_attribute_attlen		5
+#define Anum_pg_attribute_attnum		6
+#define Anum_pg_attribute_attndims		7
+#define Anum_pg_attribute_attcacheoff	8
+#define Anum_pg_attribute_atttypmod		9
+#define Anum_pg_attribute_attbyval		10
+#define Anum_pg_attribute_attstorage	11
+#define Anum_pg_attribute_attalign		12
+#define Anum_pg_attribute_attnotnull	13
+#define Anum_pg_attribute_atthasdef		14
+#define Anum_pg_attribute_attisdropped	15
+#define Anum_pg_attribute_attislocal	16
+#define Anum_pg_attribute_attinhcount	17
+#define Anum_pg_attribute_attcollation	18
+#define Anum_pg_attribute_attacl		19
+#define Anum_pg_attribute_attoptions	20
+#define Anum_pg_attribute_attfdwoptions 21
 
-#define		  ATTRIBUTE_IDENTITY_ALWAYS		'a'
-#define		  ATTRIBUTE_IDENTITY_BY_DEFAULT 'd'
 
-#define		  ATTRIBUTE_GENERATED_STORED	's'
+/* ----------------
+ *		initial contents of pg_attribute
+ *
+ * The initial contents of pg_attribute are generated at compile time by
+ * genbki.pl.  Only "bootstrapped" relations need be included.
+ * ----------------
+ */
 
-#endif							/* EXPOSE_TO_CLIENT_CODE */
-
-#endif							/* PG_ATTRIBUTE_H */
+#endif   /* PG_ATTRIBUTE_H */

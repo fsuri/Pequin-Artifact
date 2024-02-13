@@ -34,7 +34,7 @@
  * value if they fail partway through.
  *
  *
- * Portions Copyright (c) 1996-2023, PostgreSQL Global Development Group
+ * Portions Copyright (c) 1996-2015, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  * src/include/utils/expandeddatum.h
@@ -43,8 +43,6 @@
  */
 #ifndef EXPANDEDDATUM_H
 #define EXPANDEDDATUM_H
-
-#include "varatt.h"
 
 /* Size of an EXTERNAL datum that contains a pointer to an expanded object */
 #define EXPANDED_POINTER_SIZE (VARHDRSZ_EXTERNAL + sizeof(varatt_expanded))
@@ -68,7 +66,7 @@
  */
 typedef Size (*EOM_get_flat_size_method) (ExpandedObjectHeader *eohptr);
 typedef void (*EOM_flatten_into_method) (ExpandedObjectHeader *eohptr,
-										 void *result, Size allocated_size);
+										  void *result, Size allocated_size);
 
 /* Struct of function pointers for an expanded object's methods */
 typedef struct ExpandedObjectMethods
@@ -128,43 +126,26 @@ struct ExpandedObjectHeader
  */
 #define EOH_HEADER_MAGIC (-1)
 #define VARATT_IS_EXPANDED_HEADER(PTR) \
-	(((varattrib_4b *) (PTR))->va_4byte.va_header == (uint32) EOH_HEADER_MAGIC)
+	(((ExpandedObjectHeader *) (PTR))->vl_len_ == EOH_HEADER_MAGIC)
 
 /*
  * Generic support functions for expanded objects.
  * (More of these might be worth inlining later.)
  */
 
-static inline Datum
-EOHPGetRWDatum(const struct ExpandedObjectHeader *eohptr)
-{
-	return PointerGetDatum(eohptr->eoh_rw_ptr);
-}
-
-static inline Datum
-EOHPGetRODatum(const struct ExpandedObjectHeader *eohptr)
-{
-	return PointerGetDatum(eohptr->eoh_ro_ptr);
-}
-
-/* Does the Datum represent a writable expanded object? */
-#define DatumIsReadWriteExpandedObject(d, isnull, typlen) \
-	(((isnull) || (typlen) != -1) ? false : \
-	 VARATT_IS_EXTERNAL_EXPANDED_RW(DatumGetPointer(d)))
-
-#define MakeExpandedObjectReadOnly(d, isnull, typlen) \
-	(((isnull) || (typlen) != -1) ? (d) : \
-	 MakeExpandedObjectReadOnlyInternal(d))
+#define EOHPGetRWDatum(eohptr)	PointerGetDatum((eohptr)->eoh_rw_ptr)
+#define EOHPGetRODatum(eohptr)	PointerGetDatum((eohptr)->eoh_ro_ptr)
 
 extern ExpandedObjectHeader *DatumGetEOHP(Datum d);
 extern void EOH_init_header(ExpandedObjectHeader *eohptr,
-							const ExpandedObjectMethods *methods,
-							MemoryContext obj_context);
+				const ExpandedObjectMethods *methods,
+				MemoryContext obj_context);
 extern Size EOH_get_flat_size(ExpandedObjectHeader *eohptr);
 extern void EOH_flatten_into(ExpandedObjectHeader *eohptr,
-							 void *result, Size allocated_size);
-extern Datum MakeExpandedObjectReadOnlyInternal(Datum d);
+				 void *result, Size allocated_size);
+extern bool DatumIsReadWriteExpandedObject(Datum d, bool isnull, int16 typlen);
+extern Datum MakeExpandedObjectReadOnly(Datum d, bool isnull, int16 typlen);
 extern Datum TransferExpandedObject(Datum d, MemoryContext new_parent);
 extern void DeleteExpandedObject(Datum d);
 
-#endif							/* EXPANDEDDATUM_H */
+#endif   /* EXPANDEDDATUM_H */

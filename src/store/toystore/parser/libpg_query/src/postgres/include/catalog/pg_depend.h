@@ -1,30 +1,18 @@
 /*-------------------------------------------------------------------------
  *
  * pg_depend.h
- *	  definition of the "dependency" system catalog (pg_depend)
- *
- * pg_depend has no preloaded contents, so there is no pg_depend.dat
- * file; dependencies for system-defined objects are loaded into it
- * on-the-fly during initdb.  Most built-in objects are pinned anyway,
- * and hence need no explicit entries in pg_depend.
- *
- * NOTE: we do not represent all possible dependency pairs in pg_depend;
- * for example, there's not much value in creating an explicit dependency
- * from an attribute to its relation.  Usually we make a dependency for
- * cases where the relationship is conditional rather than essential
- * (for example, not all triggers are dependent on constraints, but all
- * attributes are dependent on relations) or where the dependency is not
- * convenient to find from the contents of other catalogs.
+ *	  definition of the system "dependency" relation (pg_depend)
+ *	  along with the relation's initial contents.
  *
  *
- * Portions Copyright (c) 1996-2023, PostgreSQL Global Development Group
+ * Portions Copyright (c) 1996-2015, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  * src/include/catalog/pg_depend.h
  *
  * NOTES
- *	  The Catalog.pm module reads this file and derives schema
- *	  information.
+ *	  the genbki.pl script reads this file and generates .bki
+ *	  information from the DATA() statements.
  *
  *-------------------------------------------------------------------------
  */
@@ -32,28 +20,29 @@
 #define PG_DEPEND_H
 
 #include "catalog/genbki.h"
-#include "catalog/pg_depend_d.h"
 
 /* ----------------
  *		pg_depend definition.  cpp turns this into
  *		typedef struct FormData_pg_depend
  * ----------------
  */
-CATALOG(pg_depend,2608,DependRelationId)
+#define DependRelationId  2608
+
+CATALOG(pg_depend,2608) BKI_WITHOUT_OIDS
 {
 	/*
 	 * Identification of the dependent (referencing) object.
+	 *
+	 * These fields are all zeroes for a DEPENDENCY_PIN entry.
 	 */
-	Oid			classid BKI_LOOKUP(pg_class);	/* OID of table containing
-												 * object */
+	Oid			classid;		/* OID of table containing object */
 	Oid			objid;			/* OID of object itself */
 	int32		objsubid;		/* column number, or 0 if not used */
 
 	/*
 	 * Identification of the independent (referenced) object.
 	 */
-	Oid			refclassid BKI_LOOKUP(pg_class);	/* OID of table containing
-													 * object */
+	Oid			refclassid;		/* OID of table containing object */
 	Oid			refobjid;		/* OID of object itself */
 	int32		refobjsubid;	/* column number, or 0 if not used */
 
@@ -71,7 +60,31 @@ CATALOG(pg_depend,2608,DependRelationId)
  */
 typedef FormData_pg_depend *Form_pg_depend;
 
-DECLARE_INDEX(pg_depend_depender_index, 2673, DependDependerIndexId, on pg_depend using btree(classid oid_ops, objid oid_ops, objsubid int4_ops));
-DECLARE_INDEX(pg_depend_reference_index, 2674, DependReferenceIndexId, on pg_depend using btree(refclassid oid_ops, refobjid oid_ops, refobjsubid int4_ops));
+/* ----------------
+ *		compiler constants for pg_depend
+ * ----------------
+ */
+#define Natts_pg_depend				7
+#define Anum_pg_depend_classid		1
+#define Anum_pg_depend_objid		2
+#define Anum_pg_depend_objsubid		3
+#define Anum_pg_depend_refclassid	4
+#define Anum_pg_depend_refobjid		5
+#define Anum_pg_depend_refobjsubid	6
+#define Anum_pg_depend_deptype		7
 
-#endif							/* PG_DEPEND_H */
+
+/*
+ * pg_depend has no preloaded contents; system-defined dependencies are
+ * loaded into it during a late stage of the initdb process.
+ *
+ * NOTE: we do not represent all possible dependency pairs in pg_depend;
+ * for example, there's not much value in creating an explicit dependency
+ * from an attribute to its relation.  Usually we make a dependency for
+ * cases where the relationship is conditional rather than essential
+ * (for example, not all triggers are dependent on constraints, but all
+ * attributes are dependent on relations) or where the dependency is not
+ * convenient to find from the contents of other catalogs.
+ */
+
+#endif   /* PG_DEPEND_H */

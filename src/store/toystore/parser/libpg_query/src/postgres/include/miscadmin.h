@@ -10,7 +10,7 @@
  *	  Over time, this has also become the preferred place for widely known
  *	  resource-limitation stuff, such as work_mem and check_stack_depth().
  *
- * Portions Copyright (c) 1996-2023, PostgreSQL Global Development Group
+ * Portions Copyright (c) 1996-2015, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  * src/include/miscadmin.h
@@ -23,11 +23,10 @@
 #ifndef MISCADMIN_H
 #define MISCADMIN_H
 
-#include <signal.h>
-
-#include "datatype/timestamp.h" /* for TimestampTz */
 #include "pgtime.h"				/* for pg_time_t */
 
+
+#define PG_BACKEND_VERSIONSTR "postgres (PostgreSQL) " PG_VERSION "\n"
 
 #define InvalidPid				(-1)
 
@@ -57,15 +56,6 @@
  * allowing die interrupts: HOLD_CANCEL_INTERRUPTS() and
  * RESUME_CANCEL_INTERRUPTS().
  *
- * Note that ProcessInterrupts() has also acquired a number of tasks that
- * do not necessarily cause a query-cancel-or-die response.  Hence, it's
- * possible that it will just clear InterruptPending and return.
- *
- * INTERRUPTS_PENDING_CONDITION() can be checked to see whether an
- * interrupt needs to be serviced, without trying to do so immediately.
- * Some callers are also interested in INTERRUPTS_CAN_BE_PROCESSED(),
- * which tells whether ProcessInterrupts is sure to clear the interrupt.
- *
  * Special mechanisms are used to let an interrupt be accepted when we are
  * waiting for a lock or when we are waiting for command input (but, of
  * course, only if the interrupt holdoff counter is zero).  See the
@@ -87,17 +77,11 @@
 
 /* in globals.c */
 /* these are marked volatile because they are set by signal handlers: */
-extern PGDLLIMPORT __thread volatile sig_atomic_t InterruptPending;
-extern PGDLLIMPORT volatile sig_atomic_t QueryCancelPending;
-extern PGDLLIMPORT volatile sig_atomic_t ProcDiePending;
-extern PGDLLIMPORT volatile sig_atomic_t IdleInTransactionSessionTimeoutPending;
-extern PGDLLIMPORT volatile sig_atomic_t IdleSessionTimeoutPending;
-extern PGDLLIMPORT volatile sig_atomic_t ProcSignalBarrierPending;
-extern PGDLLIMPORT volatile sig_atomic_t LogMemoryContextPending;
-extern PGDLLIMPORT volatile sig_atomic_t IdleStatsUpdateTimeoutPending;
+extern PGDLLIMPORT __thread volatile bool InterruptPending;
+extern PGDLLIMPORT volatile bool QueryCancelPending;
+extern PGDLLIMPORT volatile bool ProcDiePending;
 
-extern PGDLLIMPORT volatile sig_atomic_t CheckClientConnectionPending;
-extern PGDLLIMPORT volatile sig_atomic_t ClientConnectionLost;
+extern volatile bool ClientConnectionLost;
 
 /* these are marked volatile because they are examined by signal handlers: */
 extern PGDLLIMPORT __thread volatile uint32 InterruptHoldoffCount;
@@ -107,27 +91,24 @@ extern PGDLLIMPORT __thread volatile uint32 CritSectionCount;
 /* in tcop/postgres.c */
 extern void ProcessInterrupts(void);
 
-/* Test whether an interrupt is pending */
 #ifndef WIN32
-#define INTERRUPTS_PENDING_CONDITION() \
-	(unlikely(InterruptPending))
-#else
-#define INTERRUPTS_PENDING_CONDITION() \
-	(unlikely(UNBLOCKED_SIGNAL_QUEUE()) ? pgwin32_dispatch_queued_signals() : 0, \
-	 unlikely(InterruptPending))
-#endif
 
-/* Service interrupt, if one is pending and it's safe to service it now */
 #define CHECK_FOR_INTERRUPTS() \
 do { \
-	if (INTERRUPTS_PENDING_CONDITION()) \
+	if (InterruptPending) \
 		ProcessInterrupts(); \
 } while(0)
+#else							/* WIN32 */
 
-/* Is ProcessInterrupts() guaranteed to clear InterruptPending? */
-#define INTERRUPTS_CAN_BE_PROCESSED() \
-	(InterruptHoldoffCount == 0 && CritSectionCount == 0 && \
-	 QueryCancelHoldoffCount == 0)
+#define CHECK_FOR_INTERRUPTS() \
+do { \
+	if (UNBLOCKED_SIGNAL_QUEUE()) \
+		pgwin32_dispatch_queued_signals(); \
+	if (InterruptPending) \
+		ProcessInterrupts(); \
+} while(0)
+#endif   /* WIN32 */
+
 
 #define HOLD_INTERRUPTS()  (InterruptHoldoffCount++)
 
@@ -161,37 +142,34 @@ do { \
 /*
  * from utils/init/globals.c
  */
-extern PGDLLIMPORT pid_t PostmasterPid;
-extern PGDLLIMPORT bool IsPostmasterEnvironment;
+extern pid_t PostmasterPid;
+extern __thread  bool IsPostmasterEnvironment;
 extern PGDLLIMPORT bool IsUnderPostmaster;
-extern PGDLLIMPORT bool IsBackgroundWorker;
+extern bool IsBackgroundWorker;
 extern PGDLLIMPORT bool IsBinaryUpgrade;
 
-extern PGDLLIMPORT __thread bool ExitOnAnyError;
+extern __thread  bool ExitOnAnyError;
 
 extern PGDLLIMPORT char *DataDir;
-extern PGDLLIMPORT int data_directory_mode;
 
 extern PGDLLIMPORT int NBuffers;
-extern PGDLLIMPORT int MaxBackends;
-extern PGDLLIMPORT int MaxConnections;
-extern PGDLLIMPORT int max_worker_processes;
-extern PGDLLIMPORT int max_parallel_workers;
+extern int	MaxBackends;
+extern int	MaxConnections;
+extern int	max_worker_processes;
 
 extern PGDLLIMPORT int MyProcPid;
 extern PGDLLIMPORT pg_time_t MyStartTime;
-extern PGDLLIMPORT TimestampTz MyStartTimestamp;
 extern PGDLLIMPORT struct Port *MyProcPort;
 extern PGDLLIMPORT struct Latch *MyLatch;
-extern PGDLLIMPORT int32 MyCancelKey;
-extern PGDLLIMPORT int MyPMChildSlot;
+extern long MyCancelKey;
+extern int	MyPMChildSlot;
 
-extern PGDLLIMPORT char OutputFileName[];
+extern char OutputFileName[];
 extern PGDLLIMPORT char my_exec_path[];
-extern PGDLLIMPORT char pkglib_path[];
+extern char pkglib_path[];
 
 #ifdef EXEC_BACKEND
-extern PGDLLIMPORT char postgres_exec_path[];
+extern char postgres_exec_path[];
 #endif
 
 /*
@@ -256,39 +234,36 @@ extern PGDLLIMPORT int IntervalStyle;
 
 #define MAXTZLEN		10		/* max TZ name len, not counting tr. null */
 
-extern PGDLLIMPORT bool enableFsync;
-extern PGDLLIMPORT bool allowSystemTableMods;
+extern bool enableFsync;
+extern bool allowSystemTableMods;
 extern PGDLLIMPORT int work_mem;
-extern PGDLLIMPORT double hash_mem_multiplier;
 extern PGDLLIMPORT int maintenance_work_mem;
-extern PGDLLIMPORT int max_parallel_maintenance_workers;
 
-/*
- * Upper and lower hard limits for the buffer access strategy ring size
- * specified by the VacuumBufferUsageLimit GUC and BUFFER_USAGE_LIMIT option
- * to VACUUM and ANALYZE.
- */
-#define MIN_BAS_VAC_RING_SIZE_KB 128
-#define MAX_BAS_VAC_RING_SIZE_KB (16 * 1024 * 1024)
+extern int	VacuumCostPageHit;
+extern int	VacuumCostPageMiss;
+extern int	VacuumCostPageDirty;
+extern int	VacuumCostLimit;
+extern int	VacuumCostDelay;
 
-extern PGDLLIMPORT int VacuumBufferUsageLimit;
-extern PGDLLIMPORT int VacuumCostPageHit;
-extern PGDLLIMPORT int VacuumCostPageMiss;
-extern PGDLLIMPORT int VacuumCostPageDirty;
-extern PGDLLIMPORT int VacuumCostLimit;
-extern PGDLLIMPORT double VacuumCostDelay;
+extern int	VacuumPageHit;
+extern int	VacuumPageMiss;
+extern int	VacuumPageDirty;
 
-extern PGDLLIMPORT int64 VacuumPageHit;
-extern PGDLLIMPORT int64 VacuumPageMiss;
-extern PGDLLIMPORT int64 VacuumPageDirty;
-
-extern PGDLLIMPORT int VacuumCostBalance;
-extern PGDLLIMPORT bool VacuumCostActive;
+extern int	VacuumCostBalance;
+extern bool VacuumCostActive;
 
 
 /* in tcop/postgres.c */
 
+#if defined(__ia64__) || defined(__ia64)
+typedef struct
+{
+	char	   *stack_base_ptr;
+	char	   *register_stack_base_ptr;
+} pg_stack_base_t;
+#else
 typedef char *pg_stack_base_t;
+#endif
 
 extern pg_stack_base_t set_stack_base(void);
 extern void restore_stack_base(pg_stack_base_t base);
@@ -300,8 +275,8 @@ extern void PreventCommandIfReadOnly(const char *cmdname);
 extern void PreventCommandIfParallelMode(const char *cmdname);
 extern void PreventCommandDuringRecovery(const char *cmdname);
 
-/* in utils/misc/guc_tables.c */
-extern PGDLLIMPORT int trace_recovery_messages;
+/* in utils/misc/guc.c */
+extern int	trace_recovery_messages;
 extern int	trace_recovery(int trace_level);
 
 /*****************************************************************************
@@ -314,43 +289,13 @@ extern int	trace_recovery(int trace_level);
 #define SECURITY_RESTRICTED_OPERATION	0x0002
 #define SECURITY_NOFORCE_RLS			0x0004
 
-extern PGDLLIMPORT char *DatabasePath;
+extern char *DatabasePath;
 
 /* now in utils/init/miscinit.c */
 extern void InitPostmasterChild(void);
 extern void InitStandaloneProcess(const char *argv0);
-extern void InitProcessLocalLatch(void);
-extern void SwitchToSharedLatch(void);
-extern void SwitchBackToLocalLatch(void);
-
-typedef enum BackendType
-{
-	B_INVALID = 0,
-	B_ARCHIVER,
-	B_AUTOVAC_LAUNCHER,
-	B_AUTOVAC_WORKER,
-	B_BACKEND,
-	B_BG_WORKER,
-	B_BG_WRITER,
-	B_CHECKPOINTER,
-	B_LOGGER,
-	B_STANDALONE_BACKEND,
-	B_STARTUP,
-	B_WAL_RECEIVER,
-	B_WAL_SENDER,
-	B_WAL_WRITER,
-} BackendType;
-
-#define BACKEND_NUM_TYPES (B_WAL_WRITER + 1)
-
-extern PGDLLIMPORT BackendType MyBackendType;
-
-extern const char *GetBackendTypeDesc(BackendType backendType);
 
 extern void SetDatabasePath(const char *path);
-extern void checkDataDir(void);
-extern void SetDataDir(const char *dir);
-extern void ChangeToDataDir(void);
 
 extern char *GetUserNameFromId(Oid roleid, bool noerr);
 extern Oid	GetUserId(void);
@@ -364,14 +309,17 @@ extern bool InSecurityRestrictedOperation(void);
 extern bool InNoForceRLSOperation(void);
 extern void GetUserIdAndContext(Oid *userid, bool *sec_def_context);
 extern void SetUserIdAndContext(Oid userid, bool sec_def_context);
-extern void InitializeSessionUserId(const char *rolename, Oid roleid);
+extern void InitializeSessionUserId(const char *rolename, Oid useroid);
 extern void InitializeSessionUserIdStandalone(void);
 extern void SetSessionAuthorization(Oid userid, bool is_superuser);
 extern Oid	GetCurrentRoleId(void);
 extern void SetCurrentRoleId(Oid roleid, bool is_superuser);
-extern void InitializeSystemUser(const char *authn_id,
-								 const char *auth_method);
-extern const char *GetSystemUser(void);
+
+extern void SetDataDir(const char *dir);
+extern void ChangeToDataDir(void);
+
+extern void SwitchToSharedLatch(void);
+extern void SwitchBackToLocalLatch(void);
 
 /* in utils/misc/superuser.c */
 extern bool superuser(void);	/* current user is superuser */
@@ -409,7 +357,7 @@ typedef enum ProcessingMode
 	NormalProcessing			/* normal processing */
 } ProcessingMode;
 
-extern PGDLLIMPORT ProcessingMode Mode;
+extern ProcessingMode Mode;
 
 #define IsBootstrapProcessingMode() (Mode == BootstrapProcessing)
 #define IsInitProcessingMode()		(Mode == InitProcessing)
@@ -419,7 +367,7 @@ extern PGDLLIMPORT ProcessingMode Mode;
 
 #define SetProcessingMode(mode) \
 	do { \
-		Assert((mode) == BootstrapProcessing || \
+		AssertArg((mode) == BootstrapProcessing || \
 				  (mode) == InitProcessing || \
 				  (mode) == NormalProcessing); \
 		Mode = (mode); \
@@ -429,17 +377,16 @@ extern PGDLLIMPORT ProcessingMode Mode;
 /*
  * Auxiliary-process type identifiers.  These used to be in bootstrap.h
  * but it seems saner to have them here, with the ProcessingMode stuff.
- * The MyAuxProcType global is defined and set in auxprocess.c.
- *
- * Make sure to list in the glossary any items you add here.
+ * The MyAuxProcType global is defined and set in bootstrap.c.
  */
 
 typedef enum
 {
 	NotAnAuxProcess = -1,
-	StartupProcess = 0,
+	CheckerProcess = 0,
+	BootstrapProcess,
+	StartupProcess,
 	BgWriterProcess,
-	ArchiverProcess,
 	CheckpointerProcess,
 	WalWriterProcess,
 	WalReceiverProcess,
@@ -447,11 +394,11 @@ typedef enum
 	NUM_AUXPROCTYPES			/* Must be last! */
 } AuxProcType;
 
-extern PGDLLIMPORT AuxProcType MyAuxProcType;
+extern AuxProcType MyAuxProcType;
 
+#define AmBootstrapProcess()		(MyAuxProcType == BootstrapProcess)
 #define AmStartupProcess()			(MyAuxProcType == StartupProcess)
 #define AmBackgroundWriterProcess() (MyAuxProcType == BgWriterProcess)
-#define AmArchiverProcess()			(MyAuxProcType == ArchiverProcess)
 #define AmCheckpointerProcess()		(MyAuxProcType == CheckpointerProcess)
 #define AmWalWriterProcess()		(MyAuxProcType == WalWriterProcess)
 #define AmWalReceiverProcess()		(MyAuxProcType == WalReceiverProcess)
@@ -465,43 +412,56 @@ extern PGDLLIMPORT AuxProcType MyAuxProcType;
 /* in utils/init/postinit.c */
 extern void pg_split_opts(char **argv, int *argcp, const char *optstr);
 extern void InitializeMaxBackends(void);
-extern void InitPostgres(const char *in_dbname, Oid dboid,
-						 const char *username, Oid useroid,
-						 bool load_session_libraries,
-						 bool override_allow_connections,
-						 char *out_dbname);
+extern void InitPostgres(const char *in_dbname, Oid dboid, const char *username,
+			 Oid useroid, char *out_dbname);
 extern void BaseInit(void);
 
 /* in utils/init/miscinit.c */
-extern PGDLLIMPORT bool IgnoreSystemIndexes;
+extern bool IgnoreSystemIndexes;
 extern PGDLLIMPORT bool process_shared_preload_libraries_in_progress;
-extern PGDLLIMPORT bool process_shared_preload_libraries_done;
-extern PGDLLIMPORT bool process_shmem_requests_in_progress;
-extern PGDLLIMPORT char *session_preload_libraries_string;
-extern PGDLLIMPORT char *shared_preload_libraries_string;
-extern PGDLLIMPORT char *local_preload_libraries_string;
+extern char *session_preload_libraries_string;
+extern char *shared_preload_libraries_string;
+extern char *local_preload_libraries_string;
+
+/*
+ * As of 9.1, the contents of the data-directory lock file are:
+ *
+ * line #
+ *		1	postmaster PID (or negative of a standalone backend's PID)
+ *		2	data directory path
+ *		3	postmaster start timestamp (time_t representation)
+ *		4	port number
+ *		5	first Unix socket directory path (empty if none)
+ *		6	first listen_address (IP address or "*"; empty if no TCP port)
+ *		7	shared memory key (not present on Windows)
+ *
+ * Lines 6 and up are added via AddToDataDirLockFile() after initial file
+ * creation.
+ *
+ * The socket lock file, if used, has the same contents as lines 1-5.
+ */
+#define LOCK_FILE_LINE_PID			1
+#define LOCK_FILE_LINE_DATA_DIR		2
+#define LOCK_FILE_LINE_START_TIME	3
+#define LOCK_FILE_LINE_PORT			4
+#define LOCK_FILE_LINE_SOCKET_DIR	5
+#define LOCK_FILE_LINE_LISTEN_ADDR	6
+#define LOCK_FILE_LINE_SHMEM_KEY	7
 
 extern void CreateDataDirLockFile(bool amPostmaster);
 extern void CreateSocketLockFile(const char *socketfile, bool amPostmaster,
-								 const char *socketDir);
+					 const char *socketDir);
 extern void TouchSocketLockFiles(void);
 extern void AddToDataDirLockFile(int target_line, const char *str);
 extern bool RecheckDataDirLockFile(void);
 extern void ValidatePgVersion(const char *path);
 extern void process_shared_preload_libraries(void);
 extern void process_session_preload_libraries(void);
-extern void process_shmem_requests(void);
 extern void pg_bindtextdomain(const char *domain);
 extern bool has_rolreplication(Oid roleid);
 
-typedef void (*shmem_request_hook_type) (void);
-extern PGDLLIMPORT shmem_request_hook_type shmem_request_hook;
+/* in access/transam/xlog.c */
+extern bool BackupInProgress(void);
+extern void CancelBackup(void);
 
-extern Size EstimateClientConnectionInfoSpace(void);
-extern void SerializeClientConnectionInfo(Size maxsize, char *start_address);
-extern void RestoreClientConnectionInfo(char *conninfo);
-
-/* in executor/nodeHash.c */
-extern size_t get_hash_memory_limit(void);
-
-#endif							/* MISCADMIN_H */
+#endif   /* MISCADMIN_H */

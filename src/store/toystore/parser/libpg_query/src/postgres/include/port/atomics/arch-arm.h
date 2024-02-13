@@ -29,4 +29,4 @@
  * general purpose register is atomic.
  */
 #define PG_HAVE_8BYTE_SINGLE_COPY_ATOMICITY
-#endif  /* __aarch64__ */
+#endif /* __aarch64__ */

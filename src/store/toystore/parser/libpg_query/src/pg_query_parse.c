@@ -1,6 +1,6 @@
 #include "pg_query.h"
 #include "pg_query_internal.h"
-#include "pg_query_outfuncs.h"
+#include "pg_query_json.h"
 
 #include "parser/parser.h"
 #include "parser/scanner.h"
@@ -9,7 +9,7 @@
 #include <unistd.h>
 #include <fcntl.h>
 
-PgQueryInternalParsetreeAndError pg_query_raw_parse(const char* input, int parser_options)
+PgQueryInternalParsetreeAndError pg_query_raw_parse(const char* input)
 {
 	PgQueryInternalParsetreeAndError result = {0};
 	MemoryContext parse_context = CurrentMemoryContext;
@@ -42,39 +42,7 @@ PgQueryInternalParsetreeAndError pg_query_raw_parse(const char* input, int parse
 
 	PG_TRY();
 	{
-		RawParseMode rawParseMode = RAW_PARSE_DEFAULT;
-		switch (parser_options & PG_QUERY_PARSE_MODE_BITMASK)
-		{
-			case PG_QUERY_PARSE_TYPE_NAME:
-				rawParseMode = RAW_PARSE_TYPE_NAME;
-				break;
-			case PG_QUERY_PARSE_PLPGSQL_EXPR:
-				rawParseMode = RAW_PARSE_PLPGSQL_EXPR;
-				break;
-			case PG_QUERY_PARSE_PLPGSQL_ASSIGN1:
-				rawParseMode = RAW_PARSE_PLPGSQL_ASSIGN1;
-				break;
-			case PG_QUERY_PARSE_PLPGSQL_ASSIGN2:
-				rawParseMode = RAW_PARSE_PLPGSQL_ASSIGN2;
-				break;
-			case PG_QUERY_PARSE_PLPGSQL_ASSIGN3:
-				rawParseMode = RAW_PARSE_PLPGSQL_ASSIGN3;
-				break;
-		}
-
-		if ((parser_options & PG_QUERY_DISABLE_BACKSLASH_QUOTE) == PG_QUERY_DISABLE_BACKSLASH_QUOTE) {
-			backslash_quote = BACKSLASH_QUOTE_OFF;
-		} else {
-			backslash_quote = BACKSLASH_QUOTE_SAFE_ENCODING;
-		}
-		standard_conforming_strings = !((parser_options & PG_QUERY_DISABLE_STANDARD_CONFORMING_STRINGS) == PG_QUERY_DISABLE_STANDARD_CONFORMING_STRINGS);
-		escape_string_warning = !((parser_options & PG_QUERY_DISABLE_ESCAPE_STRING_WARNING) == PG_QUERY_DISABLE_ESCAPE_STRING_WARNING);
-
-		result.tree = raw_parser(input, rawParseMode);
-
-		backslash_quote = BACKSLASH_QUOTE_SAFE_ENCODING;
-		standard_conforming_strings = true;
-		escape_string_warning = true;
+		result.tree = raw_parser(input);
 
 #ifndef DEBUG
 		// Save stderr for result
@@ -115,76 +83,32 @@ PgQueryInternalParsetreeAndError pg_query_raw_parse(const char* input, int parse
 	return result;
 }
 
-PgQueryParseResult pg_query_parse(const char* input)
-{
-	return pg_query_parse_opts(input, PG_QUERY_PARSE_DEFAULT);
+// This should be called before pg_query_parse
+void* pg_query_parse_init() {
+  return pg_query_enter_memory_context("pg_query_parse");
 }
 
-PgQueryParseResult pg_query_parse_opts(const char* input, int parser_options)
+PgQueryInternalParsetreeAndError pg_query_parse(const char* input)
 {
-	MemoryContext ctx = NULL;
-	PgQueryInternalParsetreeAndError parsetree_and_error;
-	PgQueryParseResult result = {0};
-	char *tree_json = NULL;
-
-	ctx = pg_query_enter_memory_context();
-
-	parsetree_and_error = pg_query_raw_parse(input, parser_options);
-
-	// These are all malloc-ed and will survive exiting the memory context, the caller is responsible to free them now
-	result.stderr_buffer = parsetree_and_error.stderr_buffer;
-	result.error = parsetree_and_error.error;
-
-	tree_json = pg_query_nodes_to_json(parsetree_and_error.tree);
-	result.parse_tree = strdup(tree_json);
-	pfree(tree_json);
-
-	pg_query_exit_memory_context(ctx);
-
-	return result;
+	return pg_query_raw_parse(input);
 }
 
-PgQueryProtobufParseResult pg_query_parse_protobuf(const char* input)
-{
-	return pg_query_parse_protobuf_opts(input, PG_QUERY_PARSE_DEFAULT);
+// DEBUG: print the json representation of parse tree
+void print_pg_parse_tree(List* tree) {
+  char* tree_json = pg_query_nodes_to_json(tree);
+  printf("%s\n", tree_json);
+  pfree(tree_json);
 }
 
-PgQueryProtobufParseResult pg_query_parse_protobuf_opts(const char* input, int parser_options)
-{
-	MemoryContext ctx = NULL;
-	PgQueryInternalParsetreeAndError parsetree_and_error;
-	PgQueryProtobufParseResult result = {0};
-
-	ctx = pg_query_enter_memory_context();
-
-	parsetree_and_error = pg_query_raw_parse(input, parser_options);
-
-	// These are all malloc-ed and will survive exiting the memory context, the caller is responsible to free them now
-	result.stderr_buffer = parsetree_and_error.stderr_buffer;
-	result.error = parsetree_and_error.error;
-	result.parse_tree = pg_query_nodes_to_protobuf(parsetree_and_error.tree);
-
-	pg_query_exit_memory_context(ctx);
-
-	return result;
+// This should be called after pg_query_parse
+void pg_query_parse_finish(void* ctx) {
+  pg_query_exit_memory_context((MemoryContext)ctx);
 }
 
-void pg_query_free_parse_result(PgQueryParseResult result)
+void pg_query_free_parse_result(PgQueryInternalParsetreeAndError result)
 {
-	if (result.error) {
+  if (result.error) {
 		pg_query_free_error(result.error);
-	}
-
-	free(result.parse_tree);
-	free(result.stderr_buffer);
-}
-
-void pg_query_free_protobuf_parse_result(PgQueryProtobufParseResult result)
-{
-	if (result.error) {
-		pg_query_free_error(result.error);
-	}
-
-	free(result.parse_tree.data);
-	free(result.stderr_buffer);
+  }
+  free(result.stderr_buffer);
 }
