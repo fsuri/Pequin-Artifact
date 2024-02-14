@@ -156,7 +156,8 @@ namespace auctionmark
     std::chrono::system_clock::time_point loader_start_time;
     std::chrono::system_clock::time_point loader_stop_time;
 
-    std::vector<int> users_per_item_count;
+    std::vector<int> users_per_item_count;  //A histogram for the number of users that have the number of items listed ItemCount -> # of Users
+    //std::map<int, int> users_per_item_count;
     histogram_int items_per_category;
 
     std::vector<ItemInfo> items_available;

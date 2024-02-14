@@ -185,7 +185,7 @@ namespace auctionmark
   /* Table Names */
   static constexpr const char* TABLE_REGION = "region";
   static constexpr const char* TABLE_USERACCT = "useracct";
-  //static constexpr const char* TABLE_USERACCT_ATTRIBUTES = "useracct_attributes";
+  //static constexpr const char* TABLE_USERACCT_ATTRIBUTES = "useracct_attributes";  //NO TX USES THIS
   static constexpr const char* TABLE_USERACCT_ITEM = "useracct_item";
   static constexpr const char* TABLE_USERACCT_WATCH = "useracct_watch";
   static constexpr const char* TABLE_USERACCT_FEEDBACK = "useracct_feedback";
