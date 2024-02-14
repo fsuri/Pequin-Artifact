@@ -10,7 +10,6 @@ namespace seats_sql {
 SQLFindOpenSeats::SQLFindOpenSeats(uint32_t timeout, std::mt19937 &gen, std::queue<SEATSReservation> &new_res_queue, std::vector<CachedFlight> &cached_flight_ids) : 
     SEATSSQLTransaction(timeout), gen_(&gen) {
 
-        //FIXME: Benchbase seems to pick this from the cache of flight ids as well?
         int64_t flight_index = std::uniform_int_distribution<int64_t>(1, cached_flight_ids.size())(gen) - 1;
         CachedFlight &flight = cached_flight_ids[flight_index];
 

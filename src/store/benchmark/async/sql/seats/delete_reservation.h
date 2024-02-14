@@ -14,7 +14,8 @@ class SQLDeleteReservation: public SEATSSQLTransaction {
         virtual ~SQLDeleteReservation();
         virtual transaction_status_t Execute(SyncClient &client);
     private:
-        CachedFlight f_id;
+        CachedFlight flight;
+        int64_t f_id;
         int64_t c_id;
         std::string c_id_str;
         std::string ff_c_id_str;

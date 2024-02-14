@@ -22,9 +22,11 @@ LIB-auctionmark-transactions := $(OBJ-auctionmark-transaction) \
 LIB-auctionmark :=  $(LIB-auctionmark-utils) $(LIB-auctionmark-profile)  $(LIB-auctionmark-transactions) $(OBJ-auctionmark-client) 
 
 
-# $(d)auctionmark_generator: $(LIB-io-utils) $(o)auctionmark_generator.o $(LIB-auctionmark-utils) $(LIB-auctionmark-profile)
+$(d)auctionmark_generator: $(LIB-io-utils) $(LIB-auctionmark-utils) $(LIB-auctionmark-profile) $(o)auctionmark_generator.o
 
-# BINS += $(d)auctionmark_generator
+BINS += $(d)auctionmark_generator
+
+
 
 # cd := $(d)
 # include $(cd)utils/Rules.mk

@@ -15,9 +15,9 @@ namespace auctionmark
 
   class FlatHistogram_Int {
   public:
-    FlatHistogram_Int(std::mt19937_64 &gen, histogram_int value_rle) : gen(gen)  {
+    FlatHistogram_Int(std::mt19937_64 &gen, std::map<int, int> value_rle) : gen(gen)  {
       cumulative_frequency = 0;
-      for (auto& [freq, val] : value_rle)
+      for (auto& [val, freq] : value_rle)
       {
           cumulative_frequency += freq;
           hist[cumulative_frequency] = val;
@@ -48,9 +48,9 @@ namespace auctionmark
 
   class FlatHistogram_Str {
   public:
-    FlatHistogram_Str(std::mt19937_64 &gen, histogram_str value_rle) : gen(gen)  {
+    FlatHistogram_Str(std::mt19937_64 &gen, std::map<std::string, int> value_rle) : gen(gen)  {
       cumulative_frequency = 0;
-      for (auto& [freq, val] : value_rle)
+      for (auto& [val, freq] : value_rle)
       {
           cumulative_frequency += freq;
           hist[cumulative_frequency] = val;

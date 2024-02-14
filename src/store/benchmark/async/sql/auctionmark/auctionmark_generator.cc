@@ -28,12 +28,13 @@
 #include <random>
 #include <gflags/gflags.h>
 #include <set>
-#include <boost/histogram.hpp>
+// #include <boost/histogram.hpp>
 
 #include "store/benchmark/async/json_table_writer.h"
 #include "store/benchmark/async/sql/auctionmark/auctionmark_params.h"
 #include "store/benchmark/async/sql/auctionmark/utils/category_parser.h"
 #include "store/benchmark/async/sql/auctionmark/utils/auctionmark_utils.h"
+#include "store/benchmark/async/sql/auctionmark/utils/flat_histogram.h"
 
 namespace auctionmark {
 //Read only tables
@@ -102,8 +103,9 @@ int GenerateCategoryTable(TableWriter &writer)
 
 std::set<uint32_t> GenerateGlobalAttributeGroupTable(TableWriter &writer, int n_categories, int N_GAGS, int GAV_PER_GROUP)
 {
-  using namespace boost::histogram;
-  auto h = make_histogram(axis::integer<>(0, n_categories - 1));
+  //using namespace boost::histogram;
+  //auto h = make_histogram(axis::integer<>(0, n_categories - 1));
+  std::vector<int> h(n_categories);
   std::mt19937_64 gen;
   std::set<uint32_t> gag_ids;
 
@@ -116,13 +118,13 @@ std::set<uint32_t> GenerateGlobalAttributeGroupTable(TableWriter &writer, int n_
   std::string table_name = TABLE_GLOBAL_ATTR_GROUP;
   writer.add_table(table_name, column_names_and_types, primary_key_col_idx);
 
-  //FIXME: Is this still current?
   for (int i = 0; i < N_GAGS; i++)
   {
     std::vector<std::string> values;
     uint32_t category_id = std::uniform_int_distribution<uint32_t>(0, n_categories - 1)(gen);
-    h(category_id);
-    uint32_t id = h.at(category_id);
+    // h(category_id);
+    // uint32_t id = h.at(category_id);
+    uint32_t id = 0; //FIXME: UPDATE THIS
     uint32_t gag_id = ((category_id << 22) >> 22) | ((id << 22) >> 12) | (GAV_PER_GROUP << 22) >> 2;
     gag_ids.insert(gag_id);
     values.push_back(std::to_string(gag_id));
@@ -413,9 +415,10 @@ void GenerateItemPurchase(TableWriter &writer){
   writer.add_table(table_name, column_names_and_types, primary_key_col_idx);
 }
  
- 
+}
 
 int main(int argc, char *argv[]) {
+  int x = 4;
   // gflags::SetUsageMessage(
   //     "generates a json file containing sql tables for AuctionMark data\n");
   // std::string file_name = "auctionmark";
@@ -431,4 +434,3 @@ int main(int argc, char *argv[]) {
   return 0;
 }
 
-}
