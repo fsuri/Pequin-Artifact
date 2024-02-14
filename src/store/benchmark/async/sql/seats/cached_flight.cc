@@ -1,4 +1,4 @@
-#include "store/benchmark/async/sql/seats/cached_flights.h"
+#include "store/benchmark/async/sql/seats/cached_flight.h"
 
 namespace seats_sql {
 
