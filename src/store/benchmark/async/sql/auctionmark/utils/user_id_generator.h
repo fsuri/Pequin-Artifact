@@ -7,19 +7,20 @@
 #include <algorithm>
 #include <iterator>
 #include "store/benchmark/async/sql/auctionmark/utils/user_id.h"
-#include <boost/histogram.hpp>
+//#include <boost/histogram.hpp>
 #include <optional>
 #include <tuple>
+#include "store/benchmark/async/sql/auctionmark/utils/flat_histogram.h"
 
-using int_hist_t = boost::histogram::histogram<
-    std::tuple<
-        boost::histogram::axis::integer<>>>;
+// using int_hist_t = boost::histogram::histogram<
+//     std::tuple<
+//         boost::histogram::axis::integer<>>>;
 
 namespace auctionmark {
 
 class UserIdGenerator {
 public:
-    UserIdGenerator(const int_hist_t& users_per_item_count, int num_clients, int client_id = -1);
+    UserIdGenerator(const std::vector<int> &users_per_item_count, int num_clients, int client_id = -1);
     ~UserIdGenerator() = default;
 
     long get_total_users() const;

@@ -12,18 +12,19 @@ LIB-auctionmark-profile := $(o)auctionmark_profile.o
 
 OBJ-auctionmark-client := $(o)auctionmark_client.o
 
-OBJ-auctionmark-transaction := $(LIB-store-frontend) $(o)auctionmark_transaction.o
+OBJ-auctionmark-transaction := $(LIB-store-frontend) $(LIB-auctionmark-utils) $(o)auctionmark_transaction.o
 
 LIB-auctionmark-transactions := $(OBJ-auctionmark-transaction) \
 					$(o)close_auctions.o $(o)get_item.o $(o)get_user_info.o $(o)new_bid.o \
 					$(o)new_comment.o $(o)new_comment_response.o $(o)new_feedback.o $(o)new_item.o \
 					$(o)new_purchase.o $(o)update_item.o
 
-LIB-auctionmark := $(OBJ-auctionmark-client) $(LIB-auctionmark-transactions) $(LIB-auctionmark-profile) $(LIB-auctionmark-utils)
+LIB-auctionmark :=  $(LIB-auctionmark-utils) $(LIB-auctionmark-profile)  $(LIB-auctionmark-transactions) $(OBJ-auctionmark-client) 
+
 
 # $(d)auctionmark_generator: $(LIB-io-utils) $(o)auctionmark_generator.o $(LIB-auctionmark-utils) $(LIB-auctionmark-profile)
 
 # BINS += $(d)auctionmark_generator
 
-cd := $(d)
-include $(cd)utils/Rules.mk
+# cd := $(d)
+# include $(cd)utils/Rules.mk

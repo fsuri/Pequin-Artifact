@@ -2,9 +2,9 @@
 #include "store/benchmark/async/sql/auctionmark/auctionmark_params.h"
 #include "store/benchmark/async/sql/auctionmark/utils/auctionmark_utils.h"
 #include <algorithm>
-#include <boost/histogram/serialization.hpp>
-#include <boost/archive/text_oarchive.hpp>
-#include <boost/archive/text_iarchive.hpp>
+// #include <boost/histogram/serialization.hpp>
+// #include <boost/archive/text_oarchive.hpp>
+// #include <boost/archive/text_iarchive.hpp>
 
 namespace auctionmark
 {
@@ -127,7 +127,9 @@ namespace auctionmark
   {
     if (!random_item_count.has_value())
     {
-      auto hist = FlatHistogram<>(gen, users_per_item_count);
+      // auto hist = FlatHistogram<>(gen, users_per_item_count);
+      // random_item_count.emplace(gen, users_per_item_count);
+      auto hist = FlatHistogram_Int(gen, users_per_item_count);
       random_item_count.emplace(hist);
     }
     if (!user_id_generator.has_value())
@@ -207,29 +209,30 @@ namespace auctionmark
     return get_random_user_id(0, -1, exclude);
   }
 
-  UserId AuctionMarkProfile::get_random_buyer_id(str_cat_hist_t &previous_bidders, std::vector<UserId> &exclude)
-  {
 
-    std::set<UserId> tmp_user_id_set;
+  // UserId AuctionMarkProfile::get_random_buyer_id(str_cat_hist_t &previous_bidders, std::vector<UserId> &exclude)
+  // {
 
-    tmp_user_id_set.clear();
-    for (UserId ex : exclude)
-    {
-      tmp_user_id_set.insert(ex);
-    }
+  //   std::set<UserId> tmp_user_id_set;
 
-    std::map<int, std::string> hist;
-    for (auto &&x : indexed(previous_bidders))
-    {
-      if (*x > 0){
-        hist[*x] = x.bin();
-      }
-    }
-    tmp_user_id_set.insert(get_random_buyer_id(exclude));
+  //   tmp_user_id_set.clear();
+  //   for (UserId ex : exclude)
+  //   {
+  //     tmp_user_id_set.insert(ex);
+  //   }
 
-    auto rand_h = FlatHistogram<boost::histogram::default_storage, std::string, boost::histogram::axis::category>(gen, hist);
-    return rand_h.next_value();
-  }
+  //   std::map<int, std::string> hist;
+  //   for (auto &&x : indexed(previous_bidders))
+  //   {
+  //     if (*x > 0){
+  //       hist[*x] = x.bin();
+  //     }
+  //   }
+  //   tmp_user_id_set.insert(get_random_buyer_id(exclude));
+
+  //   auto rand_h = FlatHistogram<boost::histogram::default_storage, std::string, boost::histogram::axis::category>(gen, hist);
+  //   return rand_h.next_value();
+  // }
 
   UserId AuctionMarkProfile::get_random_seller_id(int client)
   {
@@ -254,26 +257,41 @@ namespace auctionmark
   // ITEM METHODS
   // ----------------------------------------------------------------
 
-  ItemId AuctionMarkProfile::get_next_item_id(UserId &seller_id)
+    ItemId AuctionMarkProfile::get_next_item_id(UserId &seller_id)
   {
     std::string composite_id = seller_id.encode();
-    int cat_idx = seller_item_cnt.axis(0).index(composite_id);
-    int cnt = 0;
-    try
-    {
-      int cnt = seller_item_cnt.at(cat_idx);
-    }
-    catch (std::out_of_range e)
-    {
-    }
+   
+    int cnt = seller_item_cnt[composite_id];
+    
     if (cnt == 0)
     {
       cnt = seller_id.get_item_count();
       // TODO: Test that this actually works.
-      seller_item_cnt.at(cat_idx) = cnt;
+      seller_item_cnt[composite_id] = cnt;
     }
     return ItemId(seller_id, cnt);
   }
+
+  // ItemId AuctionMarkProfile::get_next_item_id(UserId &seller_id)
+  // {
+  //   std::string composite_id = seller_id.encode();
+  //   int cat_idx = seller_item_cnt.axis(0).index(composite_id);
+  //   int cnt = 0;
+  //   try
+  //   {
+  //     int cnt = seller_item_cnt.at(cat_idx);
+  //   }
+  //   catch (std::out_of_range e)
+  //   {
+  //   }
+  //   if (cnt == 0)
+  //   {
+  //     cnt = seller_id.get_item_count();
+  //     // TODO: Test that this actually works.
+  //     seller_item_cnt.at(cat_idx) = cnt;
+  //   }
+  //   return ItemId(seller_id, cnt);
+  // }
 
   bool AuctionMarkProfile::add_item(std::vector<ItemInfo> &items, ItemInfo &item_info)
   {
@@ -546,7 +564,8 @@ namespace auctionmark
 
   int AuctionMarkProfile::get_random_category_id() {
     if (!random_category.has_value()) {
-      random_category.emplace<>(gen, items_per_category);
+      //FlatHistogram_Int hist(gen, items_per_category);
+      random_category.emplace(gen, items_per_category);
     }
     return random_category->next_value();
   }
@@ -561,11 +580,12 @@ namespace auctionmark
     profile_csv << scale_factor << "," << loader_start_time.time_since_epoch().count() << "," << loader_stop_time.time_since_epoch().count() << "\n";
 
     std::ofstream users_per_item_count_file;
-    {
-      users_per_item_count_file.open(PROFILE_HIST_SAVE_FILE_NAME);
-      boost::archive::text_oarchive oa(users_per_item_count_file);
-      oa << users_per_item_count;
-    }
+    //FIXME: SAVE PROFILE
+    // {
+    //   users_per_item_count_file.open(PROFILE_HIST_SAVE_FILE_NAME);
+    //   boost::archive::text_oarchive oa(users_per_item_count_file);
+    //   oa << users_per_item_count;
+    // }
     users_per_item_count_file.close();
   }
 
@@ -632,11 +652,12 @@ namespace auctionmark
       AuctionMarkProfile::cached_profile->set_loader_stop_time(loader_stop_time);
 
       std::ifstream users_per_item_count_file;
-      {
-        users_per_item_count_file.open(PROFILE_HIST_SAVE_FILE_NAME);
-        boost::archive::text_iarchive ia(users_per_item_count_file);
-        ia >> AuctionMarkProfile::cached_profile->users_per_item_count;
-      }
+      //FIXME: LOAD input hist.
+      // {
+      //   users_per_item_count_file.open(PROFILE_HIST_SAVE_FILE_NAME);
+      //   boost::archive::text_iarchive ia(users_per_item_count_file);
+      //   ia >> AuctionMarkProfile::cached_profile->users_per_item_count;
+      // }
 
       AuctionMarkProfile::cached_profile->set_and_get_client_start_time();
       AuctionMarkProfile::cached_profile->update_and_get_current_time();

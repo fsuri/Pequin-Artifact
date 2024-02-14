@@ -48,8 +48,8 @@ namespace auctionmark
 
   class AuctionMarkProfile
   {
-    using int_hist_t = boost::histogram::histogram<std::tuple<boost::histogram::axis::integer<>>>;
-    using str_cat_hist_t = boost::histogram::histogram<std::tuple<boost::histogram::axis::category<std::string>>>;
+    // using int_hist_t = boost::histogram::histogram<std::tuple<boost::histogram::axis::integer<>>>;
+    // using str_cat_hist_t = boost::histogram::histogram<std::tuple<boost::histogram::axis::category<std::string>>>;
 
   public:
     AuctionMarkProfile(int client_id, int num_clients, double scale_factor, std::mt19937_64 gen);
@@ -85,7 +85,8 @@ namespace auctionmark
     UserId get_random_buyer_id(UserId &exclude);
     UserId get_random_buyer_id(std::vector<UserId> &exclude);
 
-    UserId get_random_buyer_id(str_cat_hist_t &previous_bidders, std::vector<UserId> &exclude);
+    //UserId get_random_buyer_id(str_cat_hist_t &previous_bidders, std::vector<UserId> &exclude);
+    //UserId get_random_buyer_id(histogram_str &previous_bidders, std::vector<UserId> &exclude);
     UserId get_random_seller_id(int client);
     void add_pending_item_comment_response(ItemCommentResponse &cr);
 
@@ -155,8 +156,8 @@ namespace auctionmark
     std::chrono::system_clock::time_point loader_start_time;
     std::chrono::system_clock::time_point loader_stop_time;
 
-    int_hist_t users_per_item_count;
-    int_hist_t items_per_category;
+    std::vector<int> users_per_item_count;
+    histogram_int items_per_category;
 
     std::vector<ItemInfo> items_available;
     std::vector<ItemInfo> items_ending_soon;
@@ -181,14 +182,17 @@ namespace auctionmark
     Zipf random_num_comments;
     Zipf random_initial_price;
 
-    std::optional<FlatHistogram<>> random_category;
-    std::optional<FlatHistogram<>> random_item_count;
+    std::optional<FlatHistogram_Int> random_category;
+    std::optional<FlatHistogram_Int> random_item_count;
+    // FlatHistogram_Int random_category;
+    // FlatHistogram_Int random_item_count;
 
     std::chrono::system_clock::time_point last_close_auctions_time;
     std::chrono::system_clock::time_point client_start_time;
     std::chrono::system_clock::time_point current_time;
 
-    str_cat_hist_t seller_item_cnt;
+    //str_cat_hist_t seller_item_cnt;
+    std::map<std::string, int> seller_item_cnt;
 
     inline void initialize_user_id_generator(int client_id)
     {

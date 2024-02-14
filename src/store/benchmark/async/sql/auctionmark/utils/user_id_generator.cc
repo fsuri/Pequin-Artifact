@@ -2,10 +2,10 @@
 
 namespace auctionmark {
 
-UserIdGenerator::UserIdGenerator(const int_hist_t& users_per_item_count, int num_clients, int client_id)
-    : num_clients(num_clients), client_id(client_id), users_per_item_counts(), min_item_count(0), 
+UserIdGenerator::UserIdGenerator(const std::vector<int> &users_per_item_count, int num_clients, int client_id)
+    : num_clients(num_clients), client_id(client_id), min_item_count(0), 
     max_item_count(0), total_users(0), _next(std::nullopt), current_item_count(-1), current_offset(0), 
-    current_position(0) {
+    current_position(0), users_per_item_counts(users_per_item_count) {
 
     if (num_clients <= 0) {
       throw std::invalid_argument("num_clients must be more than 0: " + std::to_string(num_clients));
@@ -14,15 +14,15 @@ UserIdGenerator::UserIdGenerator(const int_hist_t& users_per_item_count, int num
       throw std::invalid_argument("client_id must be more than or equal to 0: " + std::to_string(client_id));
     }
 
-    // TODO: Validate that this is the correct axis
-    max_item_count = static_cast<int>(*users_per_item_count.axis(0).end());
-    users_per_item_counts.resize(max_item_count + 2);
-    for (int i = 0; i < users_per_item_counts.size(); i++) {
-      users_per_item_counts[i] = users_per_item_count.at(i);
-    }
+    // // TODO: Validate that this is the correct axis
+    // max_item_count =     //static_cast<int>(*users_per_item_count.axis(0).end());
+    // users_per_item_counts.resize(max_item_count + 2);
+    // for (int i = 0; i < users_per_item_counts.size(); i++) {
+    //   users_per_item_counts[i] = users_per_item_count.at(i);
+    // }
 
-    // TODO: Validate that this is the correct axis
-    min_item_count = static_cast<int>(*users_per_item_count.axis(0).begin());
+    // // TODO: Validate that this is the correct axis
+    // min_item_count = static_cast<int>(*users_per_item_count.axis(0).begin());
 
     total_users = 0;
     for (const auto& count : users_per_item_counts) {
