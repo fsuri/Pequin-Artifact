@@ -465,7 +465,7 @@ void GenerateItemImage(TableWriter &writer, std::vector<LoaderItemInfo> &items){
   for(auto &item: items){
     for(int count = 0; count < item.numImages; ++count){
       std::vector<std::string> values;
-      values.push_back(std::to_string(count)); //ii_id
+      values.push_back(std::to_string(count)); //ii_id   //FIXME: Unclear if this is the correct use of count
       values.push_back(item.get_item_id().encode()); //ii_i_id
       values.push_back(item.get_seller_id().encode()); //ii_u_id
       writer.add_row(table_name, values);
@@ -492,7 +492,7 @@ void GenerateItemAttribute(TableWriter &writer, std::vector<LoaderItemInfo> &ite
   for(auto &item: items){
     for(int count = 0; count < item.numAttributes; ++count){
       std::vector<std::string> values;
-      values.push_back(std::to_string(count)); //ia_id
+      values.push_back(std::to_string(count)); //ia_id  //FIXME: Unclear if this is the correct use of count
       values.push_back(item.get_item_id().encode()); //ia_i_id
       values.push_back(item.get_seller_id().encode()); //ia_u_id
     
@@ -529,9 +529,9 @@ void GenerateItemComment(TableWriter &writer, std::vector<LoaderItemInfo> &items
   //DATA GENERATION
   for(auto &item: items){
     int total = itemInfo.purchaseDate > 0 ? itemInfo.numComments : 0;
-    for(int count = 0; count < totals; ++count){
+    for(int count = 0; count < total; ++count){
       std::vector<std::string> values;
-      values.push_back(std::to_string(count)); //ic_id
+      values.push_back(std::to_string(count)); //ic_id     //FIXME: Unclear if this is the correct use of count
       values.push_back(item.get_item_id().encode()); //ic_i_id
       values.push_back(item.get_seller_id().encode()); //ic_u_id
       values.push_back(item.lastBidderId.encode()); //ic_buyer_id
@@ -549,7 +549,7 @@ void GenerateItemComment(TableWriter &writer, std::vector<LoaderItemInfo> &items
   }
 }
 
-void GenerateItemBid(TableWriter &writer){
+void GenerateItemBid(TableWriter &writer, std::vector<LoaderItemInfo> &items){
   std::vector<std::pair<std::string, std::string>> column_names_and_types;
   column_names_and_types.push_back(std::make_pair("ib_id", "BIGINT"));
   column_names_and_types.push_back(std::make_pair("ib_i_id", "TEXT"));
@@ -564,6 +564,18 @@ void GenerateItemBid(TableWriter &writer){
 
   std::string table_name = TABLE_ITEM_BID;
   writer.add_table(table_name, column_names_and_types, primary_key_col_idx);
+
+   //DATA GENERATION
+  for(auto &itemInfo: items){
+    int total = itemInfo.purchaseDate > 0 ? itemInfo.numComments : 0;
+    for(int count = 0; count < totals; ++count){
+      std::vector<std::string> values;
+      values.push_back(std::to_string(count)); //ic_id
+    
+
+      writer.add_row(table_name, values);
+    }
+  }
 }
 
 void GenerateItemMaxBid(TableWriter &writer, std::vector<LoaderItemInfo> &items){
@@ -580,6 +592,40 @@ void GenerateItemMaxBid(TableWriter &writer, std::vector<LoaderItemInfo> &items)
 
   std::string table_name = TABLE_ITEM_MAX_BID;
   writer.add_table(table_name, column_names_and_types, primary_key_col_idx);
+
+   //DATA GENERATION
+   //FIXME: UNCLEAR HOW THIS IS MEANT TO BE HANDLED
+  for(auto &itemInfo: items){
+    bool has_max_bid = itemInfo.bids.size() > 0 ? 1 : 0;
+    if(has_max_bid){
+      Bid &bid = itemInfo.bids.back();
+
+      std::vector<std::string> values;
+     
+       // IMB_I_ID
+      values.push_back(itemInfo.get_item_id().encode());
+      
+      // IMB_U_ID
+      values.push_back(itemInfo.get_seller_id().encode());
+    
+      // IMB_IB_ID
+      values.push_back(std::to_string(bid.id));
+      
+      // IMB_IB_I_ID
+      values.push_back(itemInfo.get_item_id().encode());
+     
+      // IMB_IB_U_ID
+       values.push_back(itemInfo.get_seller_id().encode());
+
+      // IMB_CREATED
+      values.push_back(std::to_string(get_ts(bid.createDate)));
+     
+      // IMB_UPDATED
+      values.push_back(std::to_string(get_ts(bid.updateDate)));
+     
+      writer.add_row(table_name, values);
+    }
+  }
 }
 
 void GenerateItemPurchase(TableWriter &writer, std::vector<LoaderItemInfo> &items){
@@ -594,24 +640,53 @@ void GenerateItemPurchase(TableWriter &writer, std::vector<LoaderItemInfo> &item
 
   std::string table_name = TABLE_ITEM_MAX_BID;
   writer.add_table(table_name, column_names_and_types, primary_key_col_idx);
+
+   //DATA GENERATION
+  for(auto &itemInfo: items){  
+    //FIXME: UNCLEAR HOW THIS IS MEANT TO BE HANDLED
+    bool has_purchase = itemInfo.bids.size() > 0 && itemInfo.purchaseDate > 0 ? 1 : 0;
+    if(has_purchase){
+      Bid &bid = itemInfo.bids.back();
+
+      std::vector<std::string> values;
+     
+       // IP_ID
+      values.push_back(std::to_string(0)); // //FIXME: Unclear if this is the correct use of count
+      
+    
+      // IP_IB_ID
+      values.push_back(std::to_string(bid.id));
+      
+      // IP_IB_I_ID
+      values.push_back(itemInfo.get_item_id().encode());
+     
+      // IP_IB_U_ID
+       values.push_back(itemInfo.get_seller_id().encode());
+
+      // IP_DATE
+      values.push_back(std::to_string(itemInfo.purchaseDate));
+     
+      // IMB_UPDATED
+      values.push_back(std::to_string(get_ts(bid.updateDate)));
+     
+      writer.add_row(table_name, values);
+
+      if(std::uniform_int_distribution<int>(1, 100) <= PROB_PURCHASE_BUYER_LEAVES_FEEDBACK){
+        bid.buyer_feedback = true;
+      }
+      if(std::uniform_int_distribution<int>(1, 100) <= PROB_PURCHASE_SELLER_LEAVES_FEEDBACK){
+        bid.seller_feedback = true;
+      }
+
+      //TODO: subtableGen?
+    }
+  }
 }
 
 //////////////////
 
-void GenerateUserAcctWatch(TableWriter &writer){
-   std::vector<std::pair<std::string, std::string>> column_names_and_types;
-  column_names_and_types.push_back(std::make_pair("uw_u_id", "TEXT"));
-  column_names_and_types.push_back(std::make_pair("uw_i_id", "TEXT"));
-  column_names_and_types.push_back(std::make_pair("uw_i_u_id", "TEXT"));
-  column_names_and_types.push_back(std::make_pair("uw_created", "BIGINT"));
 
-  const std::vector<uint32_t> primary_key_col_idx{0, 1, 2};
-
-  std::string table_name = TABLE_USERACCT_WATCH;
-  writer.add_table(table_name, column_names_and_types, primary_key_col_idx);
-}
-
-void GenerateUserAcctFeedback(TableWriter &writer){
+void GenerateUserFeedback(TableWriter &writer, std::vector<LoaderItemInfo> &items){
   //SCHEMA
    std::vector<std::pair<std::string, std::string>> column_names_and_types;
   column_names_and_types.push_back(std::make_pair("uf_u_id", "TEXT"));
@@ -630,7 +705,7 @@ void GenerateUserAcctFeedback(TableWriter &writer){
   //DATA
 }
 
-void GenerateUserAcctItem(TableWriter &writer){
+void GenerateUserItem(TableWriter &writer, std::vector<LoaderItemInfo> &items){
    std::vector<std::pair<std::string, std::string>> column_names_and_types;
   column_names_and_types.push_back(std::make_pair("ui_u_id", "TEXT"));
   column_names_and_types.push_back(std::make_pair("ui_i_id", "TEXT"));
@@ -649,6 +724,19 @@ void GenerateUserAcctItem(TableWriter &writer){
   //Optional Index
    const std::vector<uint32_t> index {1};
   writer.add_index(table_name, "idx_useracct_item_id", index);
+}
+
+void GenerateUserWatch(TableWriter &writer, std::vector<LoaderItemInfo> &items){
+   std::vector<std::pair<std::string, std::string>> column_names_and_types;
+  column_names_and_types.push_back(std::make_pair("uw_u_id", "TEXT"));
+  column_names_and_types.push_back(std::make_pair("uw_i_id", "TEXT"));
+  column_names_and_types.push_back(std::make_pair("uw_i_u_id", "TEXT"));
+  column_names_and_types.push_back(std::make_pair("uw_created", "BIGINT"));
+
+  const std::vector<uint32_t> primary_key_col_idx{0, 1, 2};
+
+  std::string table_name = TABLE_USERACCT_WATCH;
+  writer.add_table(table_name, column_names_and_types, primary_key_col_idx);
 }
  
 } //namespace auctionmark
