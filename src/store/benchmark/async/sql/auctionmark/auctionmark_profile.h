@@ -1,3 +1,6 @@
+#ifndef AUCTIONMARK_PROFILE_H
+#define AUCTIONMARK_PROFILE_H
+
 #include <vector>
 #include <string>
 #include <random>
@@ -7,7 +10,7 @@
 #include <unordered_set>
 #include <boost/histogram.hpp>
 #include "store/common/frontend/sync_client.h"
-#include "store/benchmark/async/sql/auctionmark/auctionmark_utils.h"
+#include "store/benchmark/async/sql/auctionmark/utils/auctionmark_utils.h"
 #include "store/benchmark/async/sql/auctionmark/utils/item_info.h"
 #include "store/benchmark/async/sql/auctionmark/utils/global_attribute_group_id.h"
 #include "store/benchmark/async/sql/auctionmark/utils/global_attribute_value_id.h"
@@ -200,3 +203,5 @@ namespace auctionmark
   };
 
 } // namespace auctionmark
+
+#endif //AUCTIONMARK_PROFILE_H

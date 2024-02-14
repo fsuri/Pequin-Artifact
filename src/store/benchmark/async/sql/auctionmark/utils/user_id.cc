@@ -61,4 +61,6 @@ bool UserId::operator<(const UserId &other) const {
     return offset < other.offset;
 }
 
+
+size_t UserId::HashFunction::operator()(const UserId &point) const;
 } // namespace auctionmark

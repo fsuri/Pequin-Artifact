@@ -1,3 +1,6 @@
+#ifndef AUCTIONMARK_ZIPF_H
+#define AUCTIONMARK_ZIPF_H
+
 #include <vector>
 #include <random>
 #include <algorithm>
@@ -20,3 +23,5 @@ public:
 
     long next_long();
 };
+
+#endif //AUCTIONMARK_ZIPF_H

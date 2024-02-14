@@ -25,7 +25,7 @@
  *
  **********************************************************************/
 #include "store/benchmark/async/sql/auctionmark/new_purchase.h"
-#include "store/benchmark/async/sql/auctionmark/auctionmark_utils.h"
+#include "store/benchmark/async/sql/auctionmark/utils/auctionmark_utils.h"
 #include <fmt/core.h>
 
 namespace auctionmark {

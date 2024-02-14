@@ -25,7 +25,7 @@
  *
  **********************************************************************/
 
-#include "store/benchmark/async/sql/auctionmark/category_parser.h"
+#include "store/benchmark/async/sql/auctionmark/utils/category_parser.h"
 #include <vector>
 #include <fstream>
 #include <boost/algorithm/string.hpp>

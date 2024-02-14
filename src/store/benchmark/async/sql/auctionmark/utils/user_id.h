@@ -7,25 +7,26 @@
 #include <algorithm>
 #include "store/benchmark/async/sql/auctionmark/utils/composite_id.h"
 
-namespace auctionmark {
-
-class UserId : CompositeId
+namespace auctionmark
 {
-private:
+
+  class UserId : CompositeId
+  {
+  private:
     static const std::vector<int> COMPOSITE_BITS;
     int item_count;
     int offset;
 
-public:
+  public:
     static const int ID_LENGTH;
 
     UserId(int item_count, int offset);
     UserId(std::string composite_id);
-    UserId(const UserId& other);
+    UserId(const UserId &other);
     UserId();
 
     std::string encode() const;
-    void decode(const std::string& composite_id);
+    void decode(const std::string &composite_id);
     std::vector<std::string> to_vec() const;
     int get_item_count() const;
     int get_offset() const;
@@ -34,7 +35,12 @@ public:
     bool operator==(const UserId &other) const;
     bool operator!=(const UserId &other) const;
     bool operator<(const UserId &other) const;
-};
+
+    struct HashFunction
+    {
+      size_t operator()(const UserId &point) const;
+    };
+  };
 
 } // namespace auctionmark
 

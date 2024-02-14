@@ -24,7 +24,7 @@
  * SOFTWARE.
  *
  **********************************************************************/
-#include "store/benchmark/async/sql/auctionmark/auctionmark_utils.h"
+#include "store/benchmark/async/sql/auctionmark/utils/auctionmark_utils.h"
 #include "store/benchmark/async/sql/auctionmark/utils/item_id.h"
 #include "store/benchmark/async/sql/auctionmark/utils/user_id.h"
 

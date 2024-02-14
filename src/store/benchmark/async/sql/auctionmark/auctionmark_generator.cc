@@ -32,8 +32,8 @@
 
 #include "store/benchmark/async/json_table_writer.h"
 #include "store/benchmark/async/sql/auctionmark/auctionmark_params.h"
-#include "store/benchmark/async/sql/auctionmark/category_parser.h"
-#include "store/benchmark/async/sql/auctionmark/auctionmark_utils.h"
+#include "store/benchmark/async/sql/auctionmark/utils/category_parser.h"
+#include "store/benchmark/async/sql/auctionmark/utils/auctionmark_utils.h"
 
 namespace auctionmark {
 //Read only tables
