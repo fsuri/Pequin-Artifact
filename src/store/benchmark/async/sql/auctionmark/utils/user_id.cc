@@ -61,4 +61,11 @@ bool UserId::operator<(const UserId &other) const {
     return offset < other.offset;
 }
 
+std::size_t UserId::hash_value(auctionmark::UserId const& user_id) {
+  std::size_t seed = 0;
+  boost::hash_combine(seed, user_id.get_item_count());
+  boost::hash_combine(seed, user_id.get_offset());
+  return seed;
+}
+
 } // namespace auctionmark

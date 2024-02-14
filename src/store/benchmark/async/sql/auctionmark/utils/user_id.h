@@ -5,27 +5,29 @@
 #include <sstream>
 #include <vector>
 #include <algorithm>
+#include <boost/container_hash/hash.hpp>
 #include "store/benchmark/async/sql/auctionmark/utils/composite_id.h"
 
-namespace auctionmark {
-
-class UserId : CompositeId
+namespace auctionmark
 {
-private:
+
+  class UserId : CompositeId
+  {
+  private:
     static const std::vector<int> COMPOSITE_BITS;
     int item_count;
     int offset;
 
-public:
+  public:
     static const int ID_LENGTH;
 
     UserId(int item_count, int offset);
     UserId(std::string composite_id);
-    UserId(const UserId& other);
+    UserId(const UserId &other);
     UserId();
 
     std::string encode() const;
-    void decode(const std::string& composite_id);
+    void decode(const std::string &composite_id);
     std::vector<std::string> to_vec() const;
     int get_item_count() const;
     int get_offset() const;
@@ -34,8 +36,21 @@ public:
     bool operator==(const UserId &other) const;
     bool operator!=(const UserId &other) const;
     bool operator<(const UserId &other) const;
-};
+    std::size_t hash_value(UserId const& user_id);
+  };
 
 } // namespace auctionmark
+
+// template <>
+// struct std::hash<auctionmark::UserId>
+// {
+//   std::size_t operator()(const auctionmark::UserId& user_id) const
+//   {
+//     std::size_t seed = 0;
+//     boost::hash_combine(seed, user_id.get_item_count());
+//     boost::hash_combine(seed, user_id.get_offset());
+//     return seed;
+//   }
+// };
 
 #endif // AUCTIONMARK_USER_ID_H

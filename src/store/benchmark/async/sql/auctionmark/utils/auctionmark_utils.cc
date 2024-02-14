@@ -24,7 +24,7 @@
  * SOFTWARE.
  *
  **********************************************************************/
-#include "store/benchmark/async/sql/auctionmark/auctionmark_utils.h"
+#include "store/benchmark/async/sql/auctionmark/utils/auctionmark_utils.h"
 #include "store/benchmark/async/sql/auctionmark/utils/item_id.h"
 #include "store/benchmark/async/sql/auctionmark/utils/user_id.h"
 
@@ -63,9 +63,4 @@ timestamp_t GetProcTimestamp(std::vector<timestamp_t> benchmark_times) {
   return timestamp_t(std::chrono::milliseconds(timestamp));
 }
 
-}
-
-int main() 
-{
-    return 0;
 }

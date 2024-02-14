@@ -10,6 +10,10 @@ ItemInfo::ItemInfo(ItemId id, std::optional<double> current_price, std::optional
     this->end_date = end_date;
 }
 
+ItemInfo::ItemInfo(std::string id, double current_price, uint64_t end_date, int num_bids) : item_id(ItemId(id)), current_price(current_price), num_bids(num_bids) {
+    this->end_date = std::chrono::system_clock::from_time_t(end_date);
+}
+
 ItemId ItemInfo::get_item_id() const {
     return item_id;
 }

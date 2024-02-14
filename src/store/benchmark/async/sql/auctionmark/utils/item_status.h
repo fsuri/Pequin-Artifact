@@ -27,8 +27,6 @@ public:
     }
 };
 
-const bool ItemStatusHelper::internal_statuses[5] = {false, true, false, false, false};
-
 } // namespace auctionmark
 
 #endif // AUCTIONMARK_ITEM_STATUS_H
