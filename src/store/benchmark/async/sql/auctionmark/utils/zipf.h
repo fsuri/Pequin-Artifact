@@ -7,7 +7,16 @@
 #include <cmath>
 #include <stdexcept>
 
+namespace auctionmark {
+
 class Zipf {
+public:
+    Zipf(std::mt19937_64 r, long min, long max, double sigma);
+    Zipf(std::mt19937_64 r, long min, long max, double sigma, double epsilon);
+    Zipf();
+
+    long next_long();
+
 private:
     static constexpr double DEFAULT_EPSILON = 0.001;
     std::vector<long> k;
@@ -15,13 +24,8 @@ private:
     std::mt19937_64 random;
     long min;
     long max;
-
-public:
-    Zipf(std::mt19937_64 r, long min, long max, double sigma);
-
-    Zipf(std::mt19937_64 r, long min, long max, double sigma, double epsilon);
-
-    long next_long();
 };
+
+}
 
 #endif //AUCTIONMARK_ZIPF_H

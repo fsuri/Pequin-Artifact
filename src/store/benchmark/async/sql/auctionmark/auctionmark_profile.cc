@@ -3,12 +3,15 @@
 #include "store/benchmark/async/sql/auctionmark/utils/auctionmark_utils.h"
 #include <algorithm>
 #include <boost/histogram/serialization.hpp>
+#include <boost/archive/text_oarchive.hpp>
+#include <boost/archive/text_iarchive.hpp>
 
 namespace auctionmark
 {
 
-  AuctionMarkProfile::AuctionMarkProfile(int client_id, double scale_factor, int num_clients, std::mt19937_64 gen) : client_id(client_id), scale_factor(scale_factor), num_clients(num_clients), gen(gen)
-  {
+  AuctionMarkProfile *AuctionMarkProfile::cached_profile = nullptr;
+
+  AuctionMarkProfile::AuctionMarkProfile(int client_id, int num_clients, double scale_factor, std::mt19937_64 gen) : client_id(client_id), num_clients(num_clients), scale_factor(scale_factor), gen(gen) {
     loader_start_time = std::chrono::system_clock::now();
     user_id_generator = std::nullopt;
 
@@ -52,9 +55,17 @@ namespace auctionmark
     return loader_start_time;
   }
 
+  void AuctionMarkProfile::set_loader_start_time(std::chrono::system_clock::time_point start_time) {
+    loader_start_time = start_time;
+  }
+
   std::chrono::system_clock::time_point AuctionMarkProfile::get_loader_stop_time()
   {
     return loader_stop_time;
+  }
+
+  void AuctionMarkProfile::set_loader_stop_time(std::chrono::system_clock::time_point stop_time) {
+    loader_stop_time = stop_time;
   }
 
   std::chrono::system_clock::time_point AuctionMarkProfile::set_and_get_client_start_time()
@@ -186,7 +197,8 @@ namespace auctionmark
   UserId AuctionMarkProfile::get_random_buyer_id(UserId &exclude)
   {
     // We don't care about skewing the buyerIds at this point, so just get one from getRandomUserId
-    return get_random_user_id(0, -1, {exclude});
+    std::vector<UserId> exclude_vec = {exclude};
+    return get_random_user_id(0, -1, exclude_vec);
   }
 
   UserId AuctionMarkProfile::get_random_buyer_id(std::vector<UserId> &exclude)
@@ -295,16 +307,19 @@ namespace auctionmark
   {
     auto current_time = update_and_get_current_time();
 
-    for (auto items : all_item_sets)
+    for (auto& items : all_item_sets)
     {
       if (items == items_completed)
       {
         continue;
       }
 
-      for (auto it = items.begin(); it != items.end(); it++)
+      for (std::vector<ItemInfo>::iterator it = items.begin(); it != items.end(); it++)
       {
-        add_item_to_proper_queue(*it, current_time, it);
+        std::pair p { it, items };
+        auto current_queue_iterator = std::make_optional(p);
+        ItemInfo item_info = *it;
+        add_item_to_proper_queue(item_info, current_time, current_queue_iterator);
       }
     }
   }
@@ -315,7 +330,7 @@ namespace auctionmark
     return add_item_to_proper_queue(item_info, base_time, std::nullopt);
   }
 
-  std::optional<ItemStatus> AuctionMarkProfile::add_item_to_proper_queue(ItemInfo &item_info, std::chrono::system_clock::time_point &base_time, std::optional<std::pair<std::vector<ItemInfo>::iterator &, std::vector<ItemInfo> &>> current_queue_iterator)
+  std::optional<ItemStatus> AuctionMarkProfile::add_item_to_proper_queue(ItemInfo &item_info, std::chrono::system_clock::time_point &base_time, std::optional<std::pair<std::vector<ItemInfo>::iterator, std::vector<ItemInfo>>> current_queue_iterator)
   {
     if (client_id != -1)
     {
@@ -391,7 +406,7 @@ namespace auctionmark
       idx = std::uniform_int_distribution<>(0, num_items - 1)(gen);
       ItemInfo temp = item_set[idx];
 
-      if (tmp_seen_items.contains(temp))
+      if (tmp_seen_items.count(temp))
       {
         continue;
       }
@@ -429,11 +444,11 @@ namespace auctionmark
     assert(!row.sellerId.empty());
     if(row.itemStatus == ItemStatus::NULL_VAL){
 
-      ItemStatus i_status = IttemStatus::OPEN;
+      ItemStatus i_status = ItemStatus::OPEN;
       ItemInfo itemInfo(row.itemId, row.currentPrice, row.endDate, (int) row.numBids);
       itemInfo.set_status(i_status);
 
-      profile.add_item_to_proper_queue(itemInfo, false);
+      add_item_to_proper_queue(itemInfo, false);
     }
     return row.itemId;
   }
@@ -555,7 +570,7 @@ namespace auctionmark
   }
 
   void AuctionMarkProfile::copy_profile(int client_id, AuctionMarkProfile &other) {
-    this.client_id = client_id;
+    this->client_id = client_id;
     scale_factor = other.scale_factor;
     loader_start_time = other.loader_start_time;
     loader_stop_time = other.loader_stop_time;
@@ -586,8 +601,54 @@ namespace auctionmark
     }
   }
 
-
   void AuctionMarkProfile::load_profile(int client_id) {
-    throw std::logic_error("Unimplemented");
+    if (AuctionMarkProfile::cached_profile == nullptr) {
+      std::ifstream profile_csv;
+      profile_csv.open(PROFILE_FILE_NAME);
+      std::string line;
+      std::getline(profile_csv, line);
+      std::string delimiter = ",";
+      std::string token = line.substr(0, line.find(delimiter));
+      assert(token == "scale_factor");
+      line.erase(0, line.find(delimiter) + delimiter.length());
+      token = line.substr(0, line.find(delimiter));
+      assert(token == "loader_start");
+      line.erase(0, line.find(delimiter) + delimiter.length());
+      token = line.substr(0, line.find(delimiter));
+      assert(token == "loader_stop");
+
+      std::getline(profile_csv, line);
+      token = line.substr(0, line.find(delimiter));
+      scale_factor = std::stod(token);
+      line.erase(0, line.find(delimiter) + delimiter.length());
+      token = line.substr(0, line.find(delimiter));
+      loader_start_time = std::chrono::system_clock::from_time_t(std::stoull(token));
+      line.erase(0, line.find(delimiter) + delimiter.length());
+      token = line.substr(0, line.find(delimiter));
+      loader_stop_time = std::chrono::system_clock::from_time_t(std::stoull(token));
+
+      AuctionMarkProfile::cached_profile = new AuctionMarkProfile(client_id, num_clients, scale_factor, gen);
+      AuctionMarkProfile::cached_profile->set_loader_start_time(loader_start_time);
+      AuctionMarkProfile::cached_profile->set_loader_stop_time(loader_stop_time);
+
+      std::ifstream users_per_item_count_file;
+      {
+        users_per_item_count_file.open(PROFILE_HIST_SAVE_FILE_NAME);
+        boost::archive::text_iarchive ia(users_per_item_count_file);
+        ia >> AuctionMarkProfile::cached_profile->users_per_item_count;
+      }
+
+      AuctionMarkProfile::cached_profile->set_and_get_client_start_time();
+      AuctionMarkProfile::cached_profile->update_and_get_current_time();
+    }
+  }
+
+  void AuctionMarkProfile::clear_cached_profile()
+  {
+    if (AuctionMarkProfile::cached_profile != nullptr)
+    {
+      delete AuctionMarkProfile::cached_profile;
+      AuctionMarkProfile::cached_profile = nullptr;
+    }
   }
 } // namespace auctionmark

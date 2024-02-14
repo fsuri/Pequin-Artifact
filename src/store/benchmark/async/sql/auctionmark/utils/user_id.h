@@ -5,6 +5,7 @@
 #include <sstream>
 #include <vector>
 #include <algorithm>
+#include <boost/container_hash/hash.hpp>
 #include "store/benchmark/async/sql/auctionmark/utils/composite_id.h"
 
 namespace auctionmark
@@ -35,13 +36,21 @@ namespace auctionmark
     bool operator==(const UserId &other) const;
     bool operator!=(const UserId &other) const;
     bool operator<(const UserId &other) const;
-
-    struct HashFunction
-    {
-      size_t operator()(const UserId &point) const;
-    };
+    std::size_t hash_value(UserId const& user_id);
   };
 
 } // namespace auctionmark
+
+// template <>
+// struct std::hash<auctionmark::UserId>
+// {
+//   std::size_t operator()(const auctionmark::UserId& user_id) const
+//   {
+//     std::size_t seed = 0;
+//     boost::hash_combine(seed, user_id.get_item_count());
+//     boost::hash_combine(seed, user_id.get_offset());
+//     return seed;
+//   }
+// };
 
 #endif // AUCTIONMARK_USER_ID_H

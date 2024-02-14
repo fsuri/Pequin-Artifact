@@ -12,10 +12,8 @@
 #include "store/common/frontend/sync_client.h"
 #include "store/benchmark/async/sql/auctionmark/utils/auctionmark_utils.h"
 #include "store/benchmark/async/sql/auctionmark/utils/item_info.h"
-#include "store/benchmark/async/sql/auctionmark/utils/global_attribute_group_id.h"
 #include "store/benchmark/async/sql/auctionmark/utils/global_attribute_value_id.h"
 #include "store/benchmark/async/sql/auctionmark/utils/user_id_generator.h"
-#include "store/benchmark/async/sql/auctionmark/utils/item_id.h"
 #include "store/benchmark/async/sql/auctionmark/utils/item_comment_response.h"
 #include "store/benchmark/async/sql/auctionmark/utils/zipf.h"
 #include "store/benchmark/async/sql/auctionmark/utils/flat_histogram.h"
@@ -54,7 +52,7 @@ namespace auctionmark
     using str_cat_hist_t = boost::histogram::histogram<std::tuple<boost::histogram::axis::category<std::string>>>;
 
   public:
-    AuctionMarkProfile(int client_id, double scale_factor, int num_clients, std::mt19937_64 gen);
+    AuctionMarkProfile(int client_id, int num_clients, double scale_factor, std::mt19937_64 gen);
     inline ~AuctionMarkProfile()
     {
       clear_cached_profile();
@@ -65,7 +63,9 @@ namespace auctionmark
     std::chrono::system_clock::time_point update_and_get_current_time();
     std::chrono::system_clock::time_point get_current_time();
     std::chrono::system_clock::time_point get_loader_start_time();
+    void set_loader_start_time(std::chrono::system_clock::time_point start_time);
     std::chrono::system_clock::time_point get_loader_stop_time();
+    void set_loader_stop_time(std::chrono::system_clock::time_point stop_time);
     std::chrono::system_clock::time_point set_and_get_client_start_time();
     std::chrono::system_clock::time_point get_client_start_time();
     bool has_client_start_time();
@@ -94,7 +94,7 @@ namespace auctionmark
     bool add_item(std::vector<ItemInfo> &items, ItemInfo &item_info);
     void update_item_queues();
     std::optional<ItemStatus> add_item_to_proper_queue(ItemInfo &item_info, bool is_loader);
-    std::optional<ItemStatus> add_item_to_proper_queue(ItemInfo &item_info, std::chrono::system_clock::time_point &base_time, std::optional<std::pair<std::vector<ItemInfo>::iterator&, std::vector<ItemInfo>&>> current_queue_iterator);
+    std::optional<ItemStatus> add_item_to_proper_queue(ItemInfo &item_info, std::chrono::system_clock::time_point &base_time, std::optional<std::pair<std::vector<ItemInfo>::iterator, std::vector<ItemInfo>>> current_queue_iterator);
     std::optional<ItemInfo> get_random_item(std::vector<ItemInfo> item_set, bool need_current_price, bool need_future_end_date);
 
     /* Available Items */
@@ -129,14 +129,7 @@ namespace auctionmark
     void save_profile(SyncClient &client);
     void copy_profile(int client_id, AuctionMarkProfile &other);
 
-    static void clear_cached_profile()
-    {
-      if (cached_profile != nullptr)
-      {
-        delete cached_profile;
-        cached_profile = nullptr;
-      }
-    }
+    static void clear_cached_profile();
 
     void load_profile(int client_id);
 
@@ -148,16 +141,17 @@ namespace auctionmark
     inline int num_pending_comment_responses(){
       return pending_comment_responses.size();
     }
+
     std::vector<ItemCommentResponse> pending_comment_responses;
 
     std::map<std::string, int> ip_id_cntrs;
 
   private:
     static AuctionMarkProfile *cached_profile;
-    const int client_id;
-    std::mt19937_64 gen;
+    int client_id;
     const int num_clients;
     double scale_factor;
+    std::mt19937_64 gen;
     std::chrono::system_clock::time_point loader_start_time;
     std::chrono::system_clock::time_point loader_stop_time;
 
@@ -169,7 +163,7 @@ namespace auctionmark
     std::vector<ItemInfo> items_waiting_for_purchase;
     std::vector<ItemInfo> items_completed;
 
-    const std::vector<ItemInfo> all_item_sets[ITEM_SETS_NUM] = {
+    std::vector<ItemInfo> all_item_sets[ITEM_SETS_NUM] = {
         items_available,
         items_ending_soon,
         items_waiting_for_purchase,

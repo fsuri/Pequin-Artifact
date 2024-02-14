@@ -3,7 +3,7 @@
 namespace auctionmark {
 
 const std::vector<int> GlobalAttributeGroupId::COMPOSITE_BITS = { INT_MAX_DIGITS, INT_MAX_DIGITS, INT_MAX_DIGITS };
-const int ID_LENGTH = INT_MAX_DIGITS * 3;
+const int GlobalAttributeGroupId::ID_LENGTH = INT_MAX_DIGITS * 3;
 
 GlobalAttributeGroupId::GlobalAttributeGroupId(int category_id, int id, int count)
     : category_id(category_id), id(id), count(count) {}

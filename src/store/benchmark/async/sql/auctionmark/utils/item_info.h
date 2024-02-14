@@ -12,13 +12,14 @@ namespace auctionmark {
 class ItemInfo {
 private:
     ItemId item_id;
-    std::optional<float> current_price;
+    std::optional<double> current_price;
     std::optional<std::chrono::system_clock::time_point> end_date;
     long num_bids;
     std::optional<ItemStatus> status;
 
 public:
     ItemInfo(ItemId id, std::optional<double> current_price, std::optional<std::chrono::system_clock::time_point> end_date, int num_bids);
+    ItemInfo(std::string id, double current_price, uint64_t end_date, int num_bids);
 
     ItemId get_item_id() const;
     UserId get_seller_id() const;

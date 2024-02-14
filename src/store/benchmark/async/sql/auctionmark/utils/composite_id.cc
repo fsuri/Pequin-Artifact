@@ -2,6 +2,8 @@
 
 namespace auctionmark {
 
+const std::string CompositeId::PAD_STRING = "0";
+
 std::string CompositeId::encode(const std::vector<int>& offset_bits) const {
     std::stringstream compositeBuilder;
 

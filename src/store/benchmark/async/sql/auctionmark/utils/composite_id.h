@@ -23,8 +23,6 @@ public:
     virtual std::vector<std::string> to_vec() const = 0;
 };
 
-const std::string CompositeId::PAD_STRING = "0";
-
 } // namespace auctionmark
 
 #endif // AUCTIONMARK_COMPOSITE_ID_H

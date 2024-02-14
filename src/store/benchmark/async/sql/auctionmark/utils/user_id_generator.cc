@@ -2,7 +2,7 @@
 
 namespace auctionmark {
 
-UserIdGenerator::UserIdGenerator(const hist_t& users_per_item_count, int num_clients, int client_id)
+UserIdGenerator::UserIdGenerator(const int_hist_t& users_per_item_count, int num_clients, int client_id)
     : num_clients(num_clients), client_id(client_id), users_per_item_counts(), min_item_count(0), 
     max_item_count(0), total_users(0), _next(std::nullopt), current_item_count(-1), current_offset(0), 
     current_position(0) {

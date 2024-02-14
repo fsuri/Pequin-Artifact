@@ -57,7 +57,7 @@ void GenerateRegionTable(TableWriter &writer, const uint32_t N_REGIONS)
   {
     std::vector<std::string> values;
     values.push_back(std::to_string(r_id));
-    values.push_back(auctionmark::RandomAString(min_region_name_length, max_region_name_length, gen));
+    // values.push_back(auctionmark::RandomAString(min_region_name_length, max_region_name_length, gen));
     writer.add_row(table_name, values);
   }
 }
@@ -127,7 +127,7 @@ std::set<uint32_t> GenerateGlobalAttributeGroupTable(TableWriter &writer, int n_
     gag_ids.insert(gag_id);
     values.push_back(std::to_string(gag_id));
     values.push_back(std::to_string(category_id));
-    values.push_back(auctionmark::RandomAString(6, 32, gen));
+    // values.push_back(auctionmark::RandomAString(6, 32, gen));
     writer.add_row(table_name, values);
   }
 
@@ -156,7 +156,7 @@ void GenerateGlobalAttributeValueTable(TableWriter &writer, int GAV_PER_GROUP, s
       uint64_t gav_id = (gag_id << 34) >> 34 | j << 30;
       values.push_back(std::to_string(gav_id));
       values.push_back(std::to_string(gag_id));
-      values.push_back(auctionmark::RandomAString(6, 32, gen));
+      // values.push_back(auctionmark::RandomAString(6, 32, gen));
       writer.add_row(table_name, values);
     }
   }
@@ -415,20 +415,19 @@ void GenerateItemPurchase(TableWriter &writer){
  
  
 
-int main(int argc, char *argv[])
-{
-  gflags::SetUsageMessage(
-      "generates a json file containing sql tables for AuctionMark data\n");
-  std::string file_name = "auctionmark";
-  TableWriter writer = TableWriter(file_name);
+int main(int argc, char *argv[]) {
+  // gflags::SetUsageMessage(
+  //     "generates a json file containing sql tables for AuctionMark data\n");
+  // std::string file_name = "auctionmark";
+  // TableWriter writer = TableWriter(file_name);
 
-  GenerateRegionTable(writer, auctionmark::N_REGIONS);
-  int n_categories = GenerateCategoryTable(writer);
-  std::set<uint32_t> gag_ids = GenerateGlobalAttributeGroupTable(writer, n_categories, auctionmark::N_GAGS, auctionmark::GAV_PER_GROUP);
-  GenerateGlobalAttributeValueTable(writer, auctionmark::GAV_PER_GROUP, gag_ids);
-  GenerateUserAcctTable(writer, auctionmark::N_REGIONS, auctionmark::N_USERS);
-  writer.flush();
-  std::cerr << "Wrote tables." << std::endl;
+  // GenerateRegionTable(writer, auctionmark::N_REGIONS);
+  // int n_categories = GenerateCategoryTable(writer);
+  // std::set<uint32_t> gag_ids = GenerateGlobalAttributeGroupTable(writer, n_categories, auctionmark::N_GAGS, auctionmark::GAV_PER_GROUP);
+  // GenerateGlobalAttributeValueTable(writer, auctionmark::GAV_PER_GROUP, gag_ids);
+  // GenerateUserAcctTable(writer, auctionmark::N_REGIONS, auctionmark::N_USERS);
+  // writer.flush();
+  // std::cerr << "Wrote tables." << std::endl;
   return 0;
 }
 

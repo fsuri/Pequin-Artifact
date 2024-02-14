@@ -64,8 +64,3 @@ timestamp_t GetProcTimestamp(std::vector<timestamp_t> benchmark_times) {
 }
 
 }
-
-int main() 
-{
-    return 0;
-}
