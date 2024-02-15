@@ -118,7 +118,7 @@ namespace auctionmark
   /* Item parameters */
   static constexpr uint32_t ITEM_INITIAL_PRICE_MIN = 1;
   static constexpr uint32_t ITEM_INITIAL_PRICE_MAX = 1000;
-  static constexpr uint32_t ITEM_INITIAL_PRICE_SIGMA = 1.25;
+  static constexpr double ITEM_INITIAL_PRICE_SIGMA = 1.25;
   static constexpr int ITEM_ITEMS_PER_SELLER_MIN = 0;
   static constexpr int ITEM_ITEMS_PER_SELLER_MAX = 1000;
   static constexpr double ITEM_ITEMS_PER_SELLER_SIGMA = 2.0;

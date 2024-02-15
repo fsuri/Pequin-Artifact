@@ -35,10 +35,11 @@
 
 
 DEFINE_int32(client_total, 100, "number of clients");
- //FIXME: THIS IS A PROBLEM. NOT REALLY COMPATIBLE WITH OUR EXPERIMENTAL FRAMEWORK
-                          //HOW DOES client id impact contention?
+ //FIXME: THIS IS A PROBLEM. NOT REALLY COMPATIBLE WITH OUR EXPERIMENTAL FRAMEWORK since num_clients isn't known at Data generation Time
+                          //HOW DOES client id impact contention? => Could we just generate a larger amount of clients, and then not use them?
 //TODO: Instead of static loading, write a script that calls the generator on demand
 //TODO: Could multithread the generation...
+DEFINE_double(scale_factor, 1.0, "scaling factor");
 
 
 namespace auctionmark {
@@ -917,37 +918,52 @@ int main(int argc, char *argv[]) {
   auto start_time = std::time(0);
   
   gflags::SetUsageMessage("generates a json file containing sql tables for AuctionMark data\n");
-  std::string file_name = "auctionmark";
+  gflags::ParseCommandLineFlags(&argc, &argv, true);
+
+  std::string file_name = "sql-auctionmark";
   TableWriter writer = TableWriter(file_name);
 
+  std::cerr << "Starting AUCTIONMARK Table Generation. Num Clients: " << FLAGS_client_total << ". Scale Factor: " << FLAGS_scale_factor << std::endl;
+
   std::mt19937_64 gen;
-  auctionmark::AuctionMarkProfile profile(-1, FLAGS_client_total, 1.0, gen);
-  profile.set_loader_start_time(std::chrono::system_clock::now());
+  int client_id = 0;
+  int total = 0;
+  double scale = 1.0;
+  auctionmark::AuctionMarkProfile profile(client_id, total, scale);
+
+  //auctionmark::AuctionMarkProfile profile(-1, FLAGS_client_total, FLAGS_scale_factor, gen);
+  //profile.set_loader_start_time(std::chrono::system_clock::now());
   
+  // auctionmark::GenerateRegionTable(writer);
+  // int n_categories = auctionmark::GenerateCategoryTable(writer);
+  // int n_gags = auctionmark::GenerateGlobalAttributeGroupTable(writer, n_categories, profile);
+  // auctionmark::GenerateGlobalAttributeValueTable(writer, profile, n_gags);
 
-  auctionmark::GenerateRegionTable(writer);
-  int n_categories = auctionmark::GenerateCategoryTable(writer);
-  int n_gags = auctionmark::GenerateGlobalAttributeGroupTable(writer, n_categories, profile);
-  auctionmark::GenerateGlobalAttributeValueTable(writer, profile, n_gags);
+  // std::cerr << "Finished General Tables" << std::endl;
 
-  //Generate UserTables
-  std::vector<auctionmark::UserId> users = auctionmark::GenerateUserAcctTable(writer, profile);
+  // //Generate UserTables
+  // std::vector<auctionmark::UserId> users = auctionmark::GenerateUserAcctTable(writer, profile);
+  // std::cerr << "Finished UserAcct Table" << std::endl;
 
-  std::vector<auctionmark::LoaderItemInfo> items = auctionmark::GenerateItemTable(writer, profile, users);
+  // std::vector<auctionmark::LoaderItemInfo> items = auctionmark::GenerateItemTable(writer, profile, users);
+  // std::cerr << "Finished Item Table" << std::endl;
 
-  auctionmark::GenerateItemImage(writer, items);
-  auctionmark::GenerateItemAttribute(writer, profile, items);
-  auctionmark::GenerateItemComment(writer, items);
-  auctionmark::GenerateItemBid(writer, profile, items);
-  auctionmark::GenerateItemMaxBid(writer, items);
-  auctionmark::GenerateItemPurchase(writer, items);
+  // auctionmark::GenerateItemImage(writer, items);
+  // auctionmark::GenerateItemAttribute(writer, profile, items);
+  // auctionmark::GenerateItemComment(writer, items);
+  // auctionmark::GenerateItemBid(writer, profile, items);
+  // auctionmark::GenerateItemMaxBid(writer, items);
+  // auctionmark::GenerateItemPurchase(writer, items);
 
-  auctionmark::GenerateUserFeedback(writer, profile, items);
-  auctionmark::GenerateUserItem(writer, items);
-  auctionmark::GenerateUserWatch(writer, profile, items);
+  // std::cerr << "Finished Item* Tables" << std::endl;
 
-  //TODO: Serialize profile.
-   profile.set_loader_stop_time(std::chrono::system_clock::now());
+  // auctionmark::GenerateUserFeedback(writer, profile, items);
+  // auctionmark::GenerateUserItem(writer, items);
+  // auctionmark::GenerateUserWatch(writer, profile, items);
+  // std::cerr << "Finished User* Tables" << std::endl;
+
+  // //TODO: Serialize profile.
+  //  profile.set_loader_stop_time(std::chrono::system_clock::now());
 
   writer.flush();
   // std::cerr << "Wrote tables." << std::endl;

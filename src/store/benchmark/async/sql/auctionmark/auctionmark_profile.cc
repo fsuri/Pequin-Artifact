@@ -15,11 +15,13 @@ namespace auctionmark
 
   AuctionMarkProfile *AuctionMarkProfile::cached_profile = nullptr;
 
-  AuctionMarkProfile::AuctionMarkProfile(int client_id, int num_clients, double scale_factor, std::mt19937_64 gen) : client_id(client_id), num_clients(num_clients), scale_factor(scale_factor), gen(gen) {
+  AuctionMarkProfile::AuctionMarkProfile(int client_id, int num_clients, double scale_factor) 
+    : client_id(client_id), num_clients(num_clients), scale_factor(scale_factor)
+  {
+    std::cerr << "Constructing AuctionMarkProfile" << std::endl;
     loader_start_time = std::chrono::system_clock::now();
     user_id_generator = std::nullopt;
 
-    // TODO: Write getter methods to do the appropriate conversions for binomials
     random_time_diff = std::binomial_distribution<int>((ITEM_DURATION_DAYS_MAX * 24 * 60 * 60) - (ITEM_PRESERVE_DAYS * 24 * 60 * 60 * -1), 0.5);
     random_duration = std::binomial_distribution<int>(ITEM_DURATION_DAYS_MAX - ITEM_DURATION_DAYS_MIN, 0.5);
 
@@ -638,7 +640,7 @@ namespace auctionmark
       }
       profile_save_file.close();
 
-      AuctionMarkProfile::cached_profile = new AuctionMarkProfile(client_id, num_clients, scale_factor, gen);
+      AuctionMarkProfile::cached_profile = new AuctionMarkProfile(client_id, num_clients, scale_factor);
       AuctionMarkProfile::cached_profile->copy_profile(client_id, *this);
       AuctionMarkProfile::cached_profile->set_and_get_client_start_time();
       AuctionMarkProfile::cached_profile->update_and_get_current_time();
