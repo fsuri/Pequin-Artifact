@@ -52,7 +52,7 @@ namespace auctionmark
     // using str_cat_hist_t = boost::histogram::histogram<std::tuple<boost::histogram::axis::category<std::string>>>;
 
   public:
-    AuctionMarkProfile(int client_id, int num_clients, double scale_factor, std::mt19937_64 gen);
+    AuctionMarkProfile(int client_id, int num_clients, double scale_factor);
     inline ~AuctionMarkProfile()
     {
       clear_cached_profile();

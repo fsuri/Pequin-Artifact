@@ -51,7 +51,7 @@ AuctionMarkClient::AuctionMarkClient(
     : SyncTransactionBenchClient(client, transport, client_id, numRequests,
                                     expDuration, delay, warmupSec, cooldownSec,
                                     tputInterval, abortBackoff, retryAborted, maxBackoff, maxAttempts, timeout,
-                                    latencyFilename), profile(client_id, SCALE_FACTOR, num_clients, gen)
+                                    latencyFilename), profile(client_id, SCALE_FACTOR, num_clients)
 {
   lastOp = "";
   gen.seed(client_id);

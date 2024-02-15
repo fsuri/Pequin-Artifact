@@ -680,8 +680,8 @@ void GenerateReservationTable(TableWriter &writer, std::vector<int> flight_to_nu
 
 
 int main(int argc, char *argv[]) {
-    gflags::SetUsageMessage(
-        "generates json file containing SQL tables for SEATS data\n");
+    gflags::SetUsageMessage("generates json file containing SQL tables for SEATS data\n");
+    gflags::ParseCommandLineFlags(&argc, &argv, true);
 
     auto start_time = std::time(0);
     std::string file_name = "sql-seats";
