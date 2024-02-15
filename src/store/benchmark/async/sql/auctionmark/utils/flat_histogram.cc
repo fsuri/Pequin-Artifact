@@ -1,48 +1,53 @@
 #include "store/benchmark/async/sql/auctionmark/utils/flat_histogram.h"
 
 namespace auctionmark {
-    template <class Storage, typename T, template <typename, typename...> class Axes, typename... Args>
-    FlatHistogram<Storage, T, Axes, Args...>::FlatHistogram(std::mt19937_64& gen, boost::histogram::histogram<std::tuple<Axes<T, Args...>>, Storage>& hist): gen(gen)
-    {
-        // Assuming that the histogram is already filled, we will generate a map where the key is the cumulative frequency and the value is the corresponding histogram bin.
-        int cumulative_frequency = 0;
-        for (auto&& x : indexed(hist))
-        {
-            if (*x > 0) {
-                cumulative_frequency += *x;
-                value_rle[cumulative_frequency] = *x;
-            }
-        }
-        inner = std::uniform_int_distribution(1, cumulative_frequency);
-    }
+    
+   
+  }
 
-    template <class Storage, typename T, template <typename, typename...> class Axes, typename... Args>
-    FlatHistogram<Storage, T, Axes, Args...>::FlatHistogram(std::mt19937_64 &gen, std::map<int, T> value_rle) : gen(gen), value_rle(value_rle)
-    {
-        // Generate a random number between 0 and the maximum cumulative frequency.
-        int max_cumulative_frequency = value_rle.rbegin()->first;
-        inner = std::uniform_int_distribution<>(1, max_cumulative_frequency);
-    }
 
-    template <class Storage, typename T, template <typename, typename...> class Axes, typename... Args>
-    T FlatHistogram<Storage, T, Axes, Args...>::next_value()
-    {
-        // Generate a random number between 0 and the maximum cumulative frequency.
-        int random_number = inner(gen);
+    // template <class Storage, typename T, template <typename, typename...> class Axes, typename... Args>
+    // FlatHistogram<Storage, T, Axes, Args...>::FlatHistogram(std::mt19937_64& gen, boost::histogram::histogram<std::tuple<Axes<T, Args...>>, Storage>& hist): gen(gen)
+    // {
+    //     // Assuming that the histogram is already filled, we will generate a map where the key is the cumulative frequency and the value is the corresponding histogram bin.
+    //     int cumulative_frequency = 0;
+    //     for (auto&& x : indexed(hist))
+    //     {
+    //         if (*x > 0) {
+    //             cumulative_frequency += *x;
+    //             value_rle[cumulative_frequency] = *x;
+    //         }
+    //     }
+    //     inner = std::uniform_int_distribution(1, cumulative_frequency);
+    // }
 
-        // Find the first element in the map that has a key greater than or equal to the random number.
-        auto it = value_rle.lower_bound(random_number);
+    // template <class Storage, typename T, template <typename, typename...> class Axes, typename... Args>
+    // FlatHistogram<Storage, T, Axes, Args...>::FlatHistogram(std::mt19937_64 &gen, std::map<int, T> value_rle) : gen(gen), value_rle(value_rle)
+    // {
+    //     // Generate a random number between 0 and the maximum cumulative frequency.
+    //     int max_cumulative_frequency = value_rle.rbegin()->first;
+    //     inner = std::uniform_int_distribution<>(1, max_cumulative_frequency);
+    // }
 
-        // If such an element is found, return its value. Otherwise, return the value of the last element in the map.
-        if (it != value_rle.end())
-        {
-            return it->second;
-        }
-        else
-        {
-            throw std::runtime_error("FlatHistogram: next_value: no value found");
-        }
-    }
+    // template <class Storage, typename T, template <typename, typename...> class Axes, typename... Args>
+    // T FlatHistogram<Storage, T, Axes, Args...>::next_value()
+    // {
+    //     // Generate a random number between 0 and the maximum cumulative frequency.
+    //     int random_number = inner(gen);
+
+    //     // Find the first element in the map that has a key greater than or equal to the random number.
+    //     auto it = value_rle.lower_bound(random_number);
+
+    //     // If such an element is found, return its value. Otherwise, return the value of the last element in the map.
+    //     if (it != value_rle.end())
+    //     {
+    //         return it->second;
+    //     }
+    //     else
+    //     {
+    //         throw std::runtime_error("FlatHistogram: next_value: no value found");
+    //     }
+    // }
 }
 
 // #include <iostream>

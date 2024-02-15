@@ -12,7 +12,8 @@ SQLDeleteReservation::SQLDeleteReservation(uint32_t timeout, std::mt19937 &gen, 
         existing_res.pop();
 
         c_id = r.c_id;
-        f_id = r.f_id;
+        flight = r.flight;
+        f_id = flight.flight_id;
         c_id_str = "";
         ff_c_id_str = "";
         ff_al_id = NULL_ID;
@@ -27,7 +28,7 @@ SQLDeleteReservation::SQLDeleteReservation(uint32_t timeout, std::mt19937 &gen, 
         else if(rand <= PROB_DELETE_WITH_CUSTOMER_ID_STR + PROB_DELETE_WITH_FREQUENTFLYER_ID_STR){
             ff_c_id_str = std::to_string(c_id);
             c_id = NULL_ID;
-            ff_al_id = f_id.airline_id; //TODO: Replace this with the airline ID belonging to the reservation...
+            ff_al_id = flight.airline_id; //TODO: Replace this with the airline ID belonging to the reservation...
         }
         //Default: Delete using their CustomerId 
         
@@ -92,7 +93,7 @@ transaction_status_t SQLDeleteReservation::Execute(SyncClient &client) {
     query = fmt::format("SELECT c_sattr00, c_sattr02, c_sattr04, c_iattr00, c_iattr02, c_iattr04, c_iattr06, f_seats_left, r_id, r_seat, r_price, r_iattr00 FROM {}, {}, {} "
                         "WHERE c_id = {} AND c_id = r_c_id "
                         "AND f_id = {} AND f_id = r_f_id "
-                        "AND r_f_id = {}", CUSTOMER_TABLE, FLIGHT_TABLE, RESERVATION_TABLE, c_id, f_id.flight_id, f_id.flight_id);
+                        "AND r_f_id = {}", CUSTOMER_TABLE, FLIGHT_TABLE, RESERVATION_TABLE, c_id, f_id, f_id);
     client.Query(query, queryResult, timeout);
     //If there is no valid customer record, throw an abort  //Note: supposedly happens 5% of the time.
     if (queryResult->empty()) {
@@ -113,12 +114,12 @@ transaction_status_t SQLDeleteReservation::Execute(SyncClient &client) {
     std::vector<std::unique_ptr<const query_result::QueryResult>> results;
 
     // Now Delete Reservation
-    query = fmt::format("DELETE FROM {} WHERE r_id = {} AND r_c_id = {} AND r_f_id = {}", RESERVATION_TABLE, r_id, c_id, f_id.flight_id);
+    query = fmt::format("DELETE FROM {} WHERE r_id = {} AND r_c_id = {} AND r_f_id = {}", RESERVATION_TABLE, r_id, c_id, f_id);
     client.Write(query, timeout);
     //if(!queryResult->has_rows_affected()){ Panic("Failed to update frequent flyer info");}
 
     // Update Flight
-    query = fmt::format("UPDATE {} SET f_seats_left = f_seats_left + 1 WHERE f_id = {}", FLIGHT_TABLE, f_id.flight_id);
+    query = fmt::format("UPDATE {} SET f_seats_left = f_seats_left + 1 WHERE f_id = {}", FLIGHT_TABLE, f_id);
     client.Write(query, timeout);
   
     //Update Customer
@@ -148,9 +149,9 @@ transaction_status_t SQLDeleteReservation::Execute(SyncClient &client) {
 
     //Re-queue reservation
     int requeue = std::uniform_int_distribution<int>(1, 100)(*gen_);
-    if (requeue <= PROB_REQUEUE_DELETED_RESERVATION) q->push(SEATSReservation(NULL_ID, c_id, f_id, seat));
+    if (requeue <= PROB_REQUEUE_DELETED_RESERVATION) q->push(SEATSReservation(NULL_ID, c_id, flight, seat));
 
-    Debug("Deleted reservation on flight %s for customer %s. [seatsLeft=%d]", f_id.flight_id, c_id, seats_left + 1);
+    Debug("Deleted reservation on flight %s for customer %s. [seatsLeft=%d]", f_id, c_id, seats_left + 1);
     return client.Commit(timeout);
 }
 }

@@ -15,7 +15,9 @@ class SQLUpdateReservation:public SEATSSQLTransaction {
     private:
         int64_t r_id;       // current reservation on flight
         int64_t c_id;       // customer id
-        CachedFlight f_id;       // flight id that customer has a reservation on
+        CachedFlight flight;  // flight  that customer has a reservation on
+        int64_t f_id;
+
         int64_t seatnum;    // seat that the customer has a reservation on
         int64_t attr_idx;   // idx to index into reserve_seats; determine what attribute to update
         int64_t attr_val;   // value that attribute is updated to 

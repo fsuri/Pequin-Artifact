@@ -10,8 +10,8 @@ SQLNewReservation::SQLNewReservation(uint32_t timeout, std::mt19937 &gen, int64_
     SEATSSQLTransaction(timeout), r_id(r_id), gen_(&gen) {
         if (!insert_res.empty()) {
             SEATSReservation res = insert_res.front();
-            f_id = res.f_id.flight_id; 
-            flight = res.f_id;
+            f_id = res.flight.flight_id; 
+            flight = res.flight;
             seatnum = res.seat_num;
             if (res.c_id != NULL_ID) 
                 c_id = res.c_id;

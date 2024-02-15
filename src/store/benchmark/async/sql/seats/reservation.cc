@@ -3,8 +3,8 @@
 
 namespace seats_sql {
 
-SEATSReservation::SEATSReservation(int64_t r_id, int64_t c_id, CachedFlight f_id, int64_t seat_num) 
-    : r_id(r_id), c_id(c_id), f_id(f_id), seat_num(seat_num) {}
+SEATSReservation::SEATSReservation(int64_t r_id, int64_t c_id, CachedFlight flight, int64_t seat_num) 
+    : r_id(r_id), c_id(c_id), flight(flight), seat_num(seat_num) {}
 
 SEATSReservation::~SEATSReservation() {}
 

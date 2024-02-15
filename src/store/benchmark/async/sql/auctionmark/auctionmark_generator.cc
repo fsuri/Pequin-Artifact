@@ -28,17 +28,32 @@
 #include <random>
 #include <gflags/gflags.h>
 #include <set>
-#include <boost/histogram.hpp>
+// #include <boost/histogram.hpp>
 
 #include "store/benchmark/async/json_table_writer.h"
 #include "store/benchmark/async/sql/auctionmark/auctionmark_params.h"
+#include "store/benchmark/async/sql/auctionmark/auctionmark_profile.h"
+
 #include "store/benchmark/async/sql/auctionmark/utils/category_parser.h"
 #include "store/benchmark/async/sql/auctionmark/utils/auctionmark_utils.h"
+#include "store/benchmark/async/sql/auctionmark/utils/flat_histogram.h"
+
+#include "store/benchmark/async/sql/auctionmark/utils/global_attribute_group_id.h"
+#include "store/benchmark/async/sql/auctionmark/utils/global_attribute_value_id.h"
+#include "store/benchmark/async/sql/auctionmark/auctionmark_generator.h"
+
+
+DEFINE_int32(client_total, 100, "number of clients");
+ //FIXME: THIS IS A PROBLEM. NOT REALLY COMPATIBLE WITH OUR EXPERIMENTAL FRAMEWORK
+                          //HOW DOES client id impact contention?
+//TODO: Instead of static loading, write a script that calls the generator on demand
+//TODO: Could multithread the generation...
+
 
 namespace auctionmark {
 //Read only tables
 
-void GenerateRegionTable(TableWriter &writer, const uint32_t N_REGIONS)
+void GenerateRegionTable(TableWriter &writer)
 {
   const size_t min_region_name_length = 6;
   const size_t max_region_name_length = 32;
@@ -53,11 +68,11 @@ void GenerateRegionTable(TableWriter &writer, const uint32_t N_REGIONS)
   std::string table_name = TABLE_REGION;
   writer.add_table(table_name, column_names_and_types, primary_key_col_idx);
   std::mt19937_64 gen;
-  for (uint32_t r_id = 1; r_id <= N_REGIONS; ++r_id)
+  for (uint32_t r_id = 1; r_id <= TABLESIZE_REGION; ++r_id)
   {
     std::vector<std::string> values;
     values.push_back(std::to_string(r_id));
-    // values.push_back(auctionmark::RandomAString(min_region_name_length, max_region_name_length, gen));
+    values.push_back(RandomAString(min_region_name_length, max_region_name_length, gen));
     writer.add_row(table_name, values);
   }
 }
@@ -78,34 +93,31 @@ int GenerateCategoryTable(TableWriter &writer)
   const std::vector<uint32_t> index {2};
   writer.add_index(table_name, "idx_category_parent", index);
 
-  return 5;
-  // auto category_parser = auctionmark::CategoryParser();
-  // auto categories = category_parser.get_categories();
-  // for (auto &[_, value] : categories)
-  // {
-  //   std::vector<std::string> values;
-  //   values.push_back(std::to_string(value.get_category_id()));
-  //   values.push_back(value.get_name());
-  //   if (value.get_parent_category_id().has_value())
-  //   {
-  //     values.push_back(std::to_string(value.get_parent_category_id().value()));
-  //   }
-  //   else
-  //   {
-  //     values.push_back("NULL");
-  //   }
-  //   writer.add_row(table_name, values);
-  // }
+  auto category_parser = auctionmark::CategoryParser();
+  auto categories = category_parser.get_categories();
+  for (auto &[_, value] : categories)
+  {
+    std::vector<std::string> values;
+    values.push_back(std::to_string(value.get_category_id()));
+    values.push_back(value.get_name());
+    if (value.get_parent_category_id().has_value())
+    {
+      values.push_back(std::to_string(value.get_parent_category_id().value()));
+    }
+    else
+    {
+      values.push_back("NULL");
+    }
+    writer.add_row(table_name, values);
+  }
 
-  // return categories.size();
+  return categories.size();
 }
 
-std::set<uint32_t> GenerateGlobalAttributeGroupTable(TableWriter &writer, int n_categories, int N_GAGS, int GAV_PER_GROUP)
+int GenerateGlobalAttributeGroupTable(TableWriter &writer, int n_categories, AuctionMarkProfile &profile)
 {
-  using namespace boost::histogram;
-  auto h = make_histogram(axis::integer<>(0, n_categories - 1));
-  std::mt19937_64 gen;
-  std::set<uint32_t> gag_ids;
+
+  //SCHEMA
 
   std::vector<std::pair<std::string, std::string>> column_names_and_types;
   column_names_and_types.push_back(std::make_pair("gag_id", "TEXT"));
@@ -116,28 +128,42 @@ std::set<uint32_t> GenerateGlobalAttributeGroupTable(TableWriter &writer, int n_
   std::string table_name = TABLE_GLOBAL_ATTR_GROUP;
   writer.add_table(table_name, column_names_and_types, primary_key_col_idx);
 
-  //FIXME: Is this still current?
-  for (int i = 0; i < N_GAGS; i++)
-  {
-    std::vector<std::string> values;
+  //DATA GEN
+
+  //using namespace boost::histogram;
+  //auto h = make_histogram(axis::integer<>(0, n_categories - 1));
+  std::vector<int> category_groups(n_categories);
+  std::mt19937_64 gen;
+  //std::vector<> gag_ids;
+
+  int total_count;
+
+  for (int i = 0; i < TABLESIZE_GLOBAL_ATTRIBUTE_GROUP; i++){
     uint32_t category_id = std::uniform_int_distribution<uint32_t>(0, n_categories - 1)(gen);
-    h(category_id);
-    uint32_t id = h.at(category_id);
-    uint32_t gag_id = ((category_id << 22) >> 22) | ((id << 22) >> 12) | (GAV_PER_GROUP << 22) >> 2;
-    gag_ids.insert(gag_id);
-    values.push_back(std::to_string(gag_id));
-    values.push_back(std::to_string(category_id));
-    // values.push_back(auctionmark::RandomAString(6, 32, gen));
+    int id = ++category_groups[category_id];
+    int count = std::uniform_int_distribution<int>(1, TABLESIZE_GLOBAL_ATTRIBUTE_VALUE_PER_GROUP)(gen);
+
+    total_count += count;
+    GlobalAttributeGroupId gag_id(category_id, id, count);
+
+    profile.gag_ids.push_back(gag_id);
+
+  }
+
+  for (auto &gag_id: profile.gag_ids){
+    std::vector<std::string> values;
+    values.push_back(gag_id.encode());
+    values.push_back(gag_id.get_category_id());
+    values.push_back(RandomAString(6, 32, gen));
     writer.add_row(table_name, values);
   }
 
-  return gag_ids;
+  return total_count;
 }
 
-void GenerateGlobalAttributeValueTable(TableWriter &writer, int GAV_PER_GROUP, std::set<uint32_t> gag_ids)
+void GenerateGlobalAttributeValueTable(TableWriter &writer, AuctionMarkProfile &profile, int GAV_size) //GAV_size == total_count of gag
 {
-  std::mt19937_64 gen;
-
+  //SCHEMA
   std::vector<std::pair<std::string, std::string>> column_names_and_types;
   column_names_and_types.push_back(std::make_pair("gav_id", "TEXT"));
   column_names_and_types.push_back(std::make_pair("gav_gag_id", "TEXT"));
@@ -147,32 +173,31 @@ void GenerateGlobalAttributeValueTable(TableWriter &writer, int GAV_PER_GROUP, s
   std::string table_name = TABLE_GLOBAL_ATTR_VALUE;
   writer.add_table(table_name, column_names_and_types, primary_key_col_idx);
 
-  //FIXME: Is this still current?
-  for (uint32_t gag_id : gag_ids)
-  {
-    for (int j = 0; j < GAV_PER_GROUP; j++)
-    {
+  //DATA GEN
+  std::mt19937_64 gen;
+
+  int tableSize = GAV_size;
+
+  for (auto & gag_id: profile.gag_ids){
+    for(int gav_counter = 0; gav_counter < gag_id.get_count(); ++gav_counter){
+      GlobalAttributeValueId gav_id(gag_id.encode(), gav_counter);
+
       std::vector<std::string> values;
-      uint64_t gav_id = (gag_id << 34) >> 34 | j << 30;
-      values.push_back(std::to_string(gav_id));
-      values.push_back(std::to_string(gag_id));
-      // values.push_back(auctionmark::RandomAString(6, 32, gen));
+      values.push_back(gav_id.encode());
+      values.push_back(gag_id.encode());
+      values.push_back(RandomAString(6, 32, gen));
       writer.add_row(table_name, values);
     }
   }
 }
 
 
-//Read/Write Tables
 
-void GenerateUserAcctTable(TableWriter &writer, uint32_t N_REGIONS, uint32_t N_USERS)
+
+std::vector<UserId> GenerateUserAcctTable(TableWriter &writer, AuctionMarkProfile &profile,) 
 {
-  std::mt19937_64 gen;
-  const uint32_t user_min_rating = 0;
-  const uint32_t user_max_rating = 10000;
-  const uint32_t user_min_balance = 1000;
-  const uint32_t user_max_balance = 100000;
-
+ 
+  //SCHEMA
   std::vector<std::pair<std::string, std::string>> column_names_and_types;
   column_names_and_types.push_back(std::make_pair("u_id", "TEXT"));
   column_names_and_types.push_back(std::make_pair("u_rating", "BIGINT"));
@@ -202,18 +227,68 @@ void GenerateUserAcctTable(TableWriter &writer, uint32_t N_REGIONS, uint32_t N_U
   std::string table_name = TABLE_USERACCT;
   writer.add_table(table_name, column_names_and_types, primary_key_col_idx);
 
- 
   const std::vector<uint32_t> index {0, 4};
   writer.add_index(table_name, "idx_useracct_region", index);
 
-  for (int i = 0; i < N_USERS; i++)
-  {
-    std::vector<std::string> values;
-    values.push_back(std::to_string(i));
-    // values.push_back(std::to_string(std::zipf_distribution<uint32_t>(user_min_rating, user_max_rating)(gen)));
-  }
-}
+  //DATA GEN
 
+   std::mt19937_64 gen;
+  
+  Zipf randomRating(gen, USER_MIN_RATING, USER_MAX_RATING, 1.0001);
+  Zipf randomBalance(gen, USER_MIN_BALANCE, USER_MAX_BALANCE, 1.001);
+
+  int max_items = max(1, ceil(ITEM_ITEMS_PER_SELLER_MAX * SCALE_FACTOR));
+  Zipf randomNumItems(gen, ITEM_ITEMS_PER_SELLER_MIN, max_items, ITEM_ITEMS_PER_SELLER_SIGMA);
+
+   //A histogram for the number of users that have the number of items listed ItemCount -> # of Users
+  profile.users_per_item_count = std::vector<int>(max_items);
+
+  for (int i = 0; i < TABLESIZE_USERACCT; i++){
+    int num_items = (int) randomNumItems.next_long();
+    profile.users_per_item_count[num_items]++;   //increment value freq by 1 count.
+  }
+
+  UserIdGenerator idGenerator(profile.users_per_item_count, FLAGS_client_total);
+
+  std::vector<UserId> user_ids;
+
+  for (int i = 0; i < TABLESIZE_USERACCT; i++)
+  {
+    UserId u_id = idGenerator.next();
+    user_ids.push_back(u_id);
+
+    std::vector<std::string> values;
+    values.push_back(u_id.encode()); //u_id
+    Zipf zipf;
+    values.push_back(std::to_string(randomRating.next_long())); //u_rating
+    double bal = randomBalance.next_long()/10.0;
+    values.push_back(std::to_string(bal)); //u_balance
+    values.push_back(std::to_string(0)); //u_comments
+    values.push_back(std::to_string(std::uniform_int_distribution<int>(0, TABLESIZE_REGION)(gen))); //u_r_id
+    uint64_t curr_time = get_ts(timestamp_t::clock().now());
+    values.push_back(std::to_string(curr_time)); //u_created
+    values.push_back(std::to_string(curr_time)); //u_updated
+    
+    /** Any column with the name XX_SATTR## will automatically be filled with a random string with length between 0 (empty) and ?)  */
+    int max_size = 128; //sattr is VARCHAR(128)
+    for(int i = 0; i<8; ++i){
+      int min_size = std::uniform_int_distribution<int>(0, max_size-1)(gen);
+      values.push_back(RandomAString(min_size, max_size, gen));
+    }
+    /** Any column with the name XX_IATTR## will automatically be filled with a random integer between (0, 1 << 30)*/
+    for(int i = 0; i<8; ++i){
+      values.push_back(std::uniform_int_distribution<int>(0, 1 <<30)(gen));
+    }
+
+
+     writer.add_row(table_name, values);
+    // values.push_back(std::to_string(std::zipf_distribution<uint32_t>(user_min_rating, user_max_rating)(gen)));
+
+    //TODO: Generate all sub-tables (Probably easier to just store the UserId in a vector and call it separately)
+  }
+  return user_ids;
+}
+//THIS TABLE SEEMS UNECESSARY: NO TX USES IT.
 // void GenerateUserAcctAttributes(){
 //    std::vector<std::pair<std::string, std::string>> column_names_and_types;
 //   column_names_and_types.push_back(std::make_pair("ua_id", "BIGINT"));
@@ -228,57 +303,8 @@ void GenerateUserAcctTable(TableWriter &writer, uint32_t N_REGIONS, uint32_t N_U
 //   writer.add_table(table_name, column_names_and_types, primary_key_col_idx);
 // }
 
-void GenerateUserAcctWatch(TableWriter &writer){
-   std::vector<std::pair<std::string, std::string>> column_names_and_types;
-  column_names_and_types.push_back(std::make_pair("uw_u_id", "TEXT"));
-  column_names_and_types.push_back(std::make_pair("uw_i_id", "TEXT"));
-  column_names_and_types.push_back(std::make_pair("uw_i_u_id", "TEXT"));
-  column_names_and_types.push_back(std::make_pair("uw_created", "BIGINT"));
 
-  const std::vector<uint32_t> primary_key_col_idx{0, 1, 2};
-
-  std::string table_name = TABLE_USERACCT_WATCH;
-  writer.add_table(table_name, column_names_and_types, primary_key_col_idx);
-}
-
-void GenerateUserAcctFeedback(TableWriter &writer){
-   std::vector<std::pair<std::string, std::string>> column_names_and_types;
-  column_names_and_types.push_back(std::make_pair("uf_u_id", "TEXT"));
-  column_names_and_types.push_back(std::make_pair("uf_i_id", "TEXT"));
-  column_names_and_types.push_back(std::make_pair("uf_i_u_id", "TEXT"));
-  column_names_and_types.push_back(std::make_pair("uf_from_id", "TEXT"));
-  column_names_and_types.push_back(std::make_pair("uf_rating", "INT"));
-  column_names_and_types.push_back(std::make_pair("uf_date", "BIGINT"));
-  column_names_and_types.push_back(std::make_pair("uf_sattr0", "TEXT"));
- 
-  const std::vector<uint32_t> primary_key_col_idx{0, 1, 2, 3};
-
-  std::string table_name = TABLE_USERACCT_FEEDBACK;
-  writer.add_table(table_name, column_names_and_types, primary_key_col_idx);
-}
-
-void GenerateUserAcctItem(TableWriter &writer){
-   std::vector<std::pair<std::string, std::string>> column_names_and_types;
-  column_names_and_types.push_back(std::make_pair("ui_u_id", "TEXT"));
-  column_names_and_types.push_back(std::make_pair("ui_i_id", "TEXT"));
-  column_names_and_types.push_back(std::make_pair("ui_i_u_id", "TEXT"));
-  column_names_and_types.push_back(std::make_pair("ui_ip_id", "BIGINT"));
-  column_names_and_types.push_back(std::make_pair("ui_ip_ib_id", "BIGINT"));
-  column_names_and_types.push_back(std::make_pair("ui_ip_ib_i_id", "TEXT"));
-  column_names_and_types.push_back(std::make_pair("ui_ip_ib_u_id", "TEXT"));
-  column_names_and_types.push_back(std::make_pair("ui_created", "BIGINT"));
- 
-  const std::vector<uint32_t> primary_key_col_idx{0, 1, 2};
-
-  std::string table_name = TABLE_USERACCT_ITEM;
-  writer.add_table(table_name, column_names_and_types, primary_key_col_idx);
-
-  //Optional Index
-   const std::vector<uint32_t> index {1};
-  writer.add_index(table_name, "idx_useracct_item_id", index);
-}
-
-void GenerateItem(TableWriter &writer){
+void ItemTable(TableWriter &writer){
   std::vector<std::pair<std::string, std::string>> column_names_and_types;
   column_names_and_types.push_back(std::make_pair("i_id", "TEXT"));
   column_names_and_types.push_back(std::make_pair("i_u_id", "TEXT"));
@@ -315,9 +341,140 @@ void GenerateItem(TableWriter &writer){
 
   const std::vector<uint32_t> index {1};
   writer.add_index(table_name, "idx_item_seller", index);
+
+  //DATA GEN
 }
 
-void GenerateItemAttribute(TableWriter &writer){
+
+std::vector<LoaderItemInfo> GenerateItemTable(TableWriter &writer, AuctionMarkProfile &profile, std::vector<UserId> user_ids){
+
+  std::vector<LoaderItemInfo> items;
+
+  int tableSize = 0;
+  for(int i = 0; i < profile.users_per_item_count.size(); ++i){
+    tableSize += i * profile.users_per_item_count[i];
+  }
+  
+  int remaining = tableSize; 
+
+  for(auto &seller_id: user_ids){
+    ItemId itemId(seller_id, remaining);
+    if(--remaining == 0) break;
+
+    
+    timestamp_t endDate = 0; //TODO:
+    timestamp_t startDate = 0; //TODO:
+
+    uint64_t bidDurationDay = get_ts(endDate - startDate) / MILLISECONDS_IN_A_DAY;
+
+    std::pair<Zipf, Zipf> p;
+    try {
+      p = item_bid_watch_zipfs.at(bidDurationDay);
+    }
+    catch(...){
+      Zipf randomNumBids(gen, ITEM_BIDS_PER_DAY_MIN * bidDurationDay, ITEM_BIDS_PER_DAY_MAX * bidDurationDay, ITEM_BIDS_PER_DAY_SIGMA);
+      Zipf randomNumWatches(gen, ITEM_WATCHES_PER_DAY_MIN * bidDurationDay, ITEM_WATCHES_PER_DAY_MAX * bidDurationDay, ITEM_WATCHES_PER_DAY_SIGMA);
+      p = std::make_pair(randomNumBids, randomNumWatches);
+      item_bid_watch_zipfs[bidDurationDay] = p;
+    }
+
+     // Calculate the number of bids and watches for this item
+    int numBids = p.first.next_long();
+    int numWatches = p.first.next_long();
+
+    // Create the ItemInfo object that we will use to cache the local data
+
+    // tables are done with it.
+    LoaderItemInfo itemInfo(itemId, endDate, numBids);
+    itemInfo.startDate = get_ts(startDate);
+    itemInfo.initialPrice = profile.random_initial_price.next_long();
+    itemInfo.numImages = profile.random_num_images.next_long();
+    itemInfo.numAttributes = profile.random_num_attributes.next_long();
+    itemInfo.numBids = numBids;
+    itemInfo.numWatches = numWatches;
+
+     // The auction for this item has already closed
+    if(itemInfo.endDate <= profile.get_loader_start_time()){
+      // Somebody won a bid and bought the item
+      if (itemInfo.get_num_bids() > 0) {
+        itemInfo.lastBidderId = profile.get_random_buyer_id(itemInfo.get_seller_id());
+        itemInfo.purchaseDate = getRandomPurchaseTimestamp(get_ts(endDate), profile);
+        itemInfo.numComments = profile.random_num_comments.next_long();
+      }
+      itemInfo.set_status(ItemStatus::CLOSED);
+    }
+    // Item is still available
+    else if (itemInfo.get_num_bids > 0) {
+      itemInfo.lastBidderId = profile.get_random_buyer_id(itemInfo.get_seller_id());
+    }
+    profile.add_item_to_proper_queue(itemInfo, true);
+
+    //CREATE ROW
+    std::vector<std::string> values;
+    values.push_back(itemInfo.get_item_id().encode());// I_ID
+    values.push_back(itemInfo.get_seller_id().encode());// I_U_ID
+    values.push_back(std::to_string(profile.get_random_category_id()));// I_C_ID
+    values.push_back(RandomAString(ITEM_NAME_LENGTH_MIN, ITEM_NAME_LENGTH_MAX, gen)); // I_NAME
+    values.push_back(RandomAString(ITEM_DESCRIPTION_LENGTH_MIN, ITEM_DESCRIPTION_LENGTH_MAX, gen));// I_DESCRIPTION
+    values.push_back(RandomAString(ITEM_USER_ATTRIBUTES_LENGTH_MIN, ITEM_USER_ATTRIBUTES_LENGTH_MAX, gen));  // I_USER_ATTRIBUTES
+    values.push_back(std::to_string(itemInfo.initialPrice));// I_INITIAL_PRICE
+    // I_CURRENT_PRICE
+    if (itemInfo.get_num_bids() > 0) {
+      itemInfo.set_current_price(itemInfo.initialPrice + (itemInfo.get_num_bids() * itemInfo.initialPrice * ITEM_BID_PERCENT_STEP));
+     values.push_back(std::to_string(*itemInfo.get_current_price()));
+    } else {
+      values.push_back(std::to_string(itemInfo.initialPrice));
+    }
+   
+    values.push_back(std::to_string(itemInfo.get_num_bids()));// I_NUM_BIDS
+    values.push_back(std::to_string(itemInfo.numImages));// I_NUM_IMAGES
+    values.push_back(std::to_string(itemInfo.numAttributes));// I_NUM_GLOBAL_ATTRS
+    values.push_back(std::to_string(itemInfo.numAttributes));// I_NUM_COMMENTS
+ 
+    values.push_back(std::to_string(itemInfo.startDate));// I_START_DATE
+  
+    values.push_back(std::to_string(get_ts(endDate)));// I_END_DATE
+  
+    values.push_back(std::to_string(*itemInfo.get_status()));// I_STATUS
+  
+    uint64_t start_time = get_ts(profile.get_loader_start_time());
+    values.push_back(std::to_string(start_time));// I_CREATED
+  
+    values.push_back(std::to_string(itemInfo.startDate));// I_UPDATED
+  
+    writer.add_row(TABLE_ITEM, values);
+
+    items.push_back(itemInfo);
+  }
+  return items;
+}
+
+void GenerateItemImage(TableWriter &writer, std::vector<LoaderItemInfo> &items){
+  std::vector<std::pair<std::string, std::string>> column_names_and_types;
+  column_names_and_types.push_back(std::make_pair("ii_id", "TEXT"));
+  column_names_and_types.push_back(std::make_pair("ii_i_id", "TEXT"));
+  column_names_and_types.push_back(std::make_pair("ii_u_id", "TEXT"));
+  column_names_and_types.push_back(std::make_pair("ia_sattr0", "TEXT"));
+ 
+  const std::vector<uint32_t> primary_key_col_idx{0, 1, 2};
+
+  std::string table_name = TABLE_ITEM_IMAGE;
+  writer.add_table(table_name, column_names_and_types, primary_key_col_idx);
+
+  //DATA GEN
+  for(auto &item: items){
+    for(int count = 0; count < item.numImages; ++count){
+      std::vector<std::string> values;
+      values.push_back(std::to_string(count)); //ii_id   //FIXME: Unclear if this is the correct use of count
+      values.push_back(item.get_item_id().encode()); //ii_i_id
+      values.push_back(item.get_seller_id().encode()); //ii_u_id
+      writer.add_row(table_name, values);
+    }
+  }
+}
+
+void GenerateItemAttribute(TableWriter &writer, std::vector<LoaderItemInfo> &items){
+  //SCHEMA
   std::vector<std::pair<std::string, std::string>> column_names_and_types;
   column_names_and_types.push_back(std::make_pair("ia_id", "TEXT"));
   column_names_and_types.push_back(std::make_pair("ia_i_id", "TEXT"));
@@ -330,22 +487,26 @@ void GenerateItemAttribute(TableWriter &writer){
 
   std::string table_name = TABLE_ITEM_ATTR;
   writer.add_table(table_name, column_names_and_types, primary_key_col_idx);
+
+  //DATA GENERATION
+  for(auto &item: items){
+    for(int count = 0; count < item.numAttributes; ++count){
+      std::vector<std::string> values;
+      values.push_back(std::to_string(count)); //ia_id  //FIXME: Unclear if this is the correct use of count
+      values.push_back(item.get_item_id().encode()); //ia_i_id
+      values.push_back(item.get_seller_id().encode()); //ia_u_id
+    
+      GlobalAttributeValueId gav_id = profile.get_random_global_attribute_value();
+      values.push_back(gav_id.encode()); //ia_gav_id
+      values.push_back(gav_id.get_global_attribute_group().encode()); //ia_gag_id
+      writer.add_row(table_name, values);
+    }
+  }
 }
 
-void GenerateItemImage(TableWriter &writer){
-  std::vector<std::pair<std::string, std::string>> column_names_and_types;
-  column_names_and_types.push_back(std::make_pair("ii_id", "TEXT"));
-  column_names_and_types.push_back(std::make_pair("ii_i_id", "TEXT"));
-  column_names_and_types.push_back(std::make_pair("ii_u_id", "TEXT"));
-  column_names_and_types.push_back(std::make_pair("ia_sattr0", "TEXT"));
- 
-  const std::vector<uint32_t> primary_key_col_idx{0, 1, 2};
 
-  std::string table_name = TABLE_ITEM_IMAGE;
-  writer.add_table(table_name, column_names_and_types, primary_key_col_idx);
-}
 
-void GenerateItemComment(TableWriter &writer){
+void GenerateItemComment(TableWriter &writer, std::vector<LoaderItemInfo> &items){
   std::vector<std::pair<std::string, std::string>> column_names_and_types;
   column_names_and_types.push_back(std::make_pair("ic_id", "BIGINT"));
   column_names_and_types.push_back(std::make_pair("ic_i_id", "TEXT"));
@@ -364,9 +525,31 @@ void GenerateItemComment(TableWriter &writer){
    //Optional Index:
   const std::vector<uint32_t> index {1, 2};
   writer.add_index(table_name, "idx_item_comment", index);
+
+  //DATA GENERATION
+  for(auto &item: items){
+    int total = itemInfo.purchaseDate > 0 ? itemInfo.numComments : 0;
+    for(int count = 0; count < total; ++count){
+      std::vector<std::string> values;
+      values.push_back(std::to_string(count)); //ic_id     //FIXME: Unclear if this is the correct use of count
+      values.push_back(item.get_item_id().encode()); //ic_i_id
+      values.push_back(item.get_seller_id().encode()); //ic_u_id
+      values.push_back(item.lastBidderId.encode()); //ic_buyer_id
+
+      values.push_back(RandomAString(ITEM_COMMENT_LENGTH_MIN, ITEM_COMMENT_LENGTH_MAX, gen));//ic_question
+
+      values.push_back(RandomAString(ITEM_COMMENT_LENGTH_MIN, ITEM_COMMENT_LENGTH_MAX, gen));//ic_response
+      
+      uint64_t t = getRandomCommentDate(itemInfo.startDate, get_ts(*itemInfo.get_end_date()));
+      values.push_back(std::to_string(t));//ic_created
+      values.push_back(std::to_string(t));//ic_updated
+
+      writer.add_row(table_name, values);
+    }
+  }
 }
 
-void GenerateItemBid(TableWriter &writer){
+void GenerateItemBid(TableWriter &writer, std::vector<LoaderItemInfo> &items){
   std::vector<std::pair<std::string, std::string>> column_names_and_types;
   column_names_and_types.push_back(std::make_pair("ib_id", "BIGINT"));
   column_names_and_types.push_back(std::make_pair("ib_i_id", "TEXT"));
@@ -381,9 +564,21 @@ void GenerateItemBid(TableWriter &writer){
 
   std::string table_name = TABLE_ITEM_BID;
   writer.add_table(table_name, column_names_and_types, primary_key_col_idx);
+
+   //DATA GENERATION
+  for(auto &itemInfo: items){
+    int total = itemInfo.purchaseDate > 0 ? itemInfo.numComments : 0;
+    for(int count = 0; count < totals; ++count){
+      std::vector<std::string> values;
+      values.push_back(std::to_string(count)); //ic_id
+    
+
+      writer.add_row(table_name, values);
+    }
+  }
 }
 
-void GenerateItemMaxBid(TableWriter &writer){
+void GenerateItemMaxBid(TableWriter &writer, std::vector<LoaderItemInfo> &items){
    std::vector<std::pair<std::string, std::string>> column_names_and_types;
   column_names_and_types.push_back(std::make_pair("imb_id", "TEXT"));
   column_names_and_types.push_back(std::make_pair("imb_u_id", "TEXT"));
@@ -397,9 +592,43 @@ void GenerateItemMaxBid(TableWriter &writer){
 
   std::string table_name = TABLE_ITEM_MAX_BID;
   writer.add_table(table_name, column_names_and_types, primary_key_col_idx);
+
+   //DATA GENERATION
+   //FIXME: UNCLEAR HOW THIS IS MEANT TO BE HANDLED
+  for(auto &itemInfo: items){
+    bool has_max_bid = itemInfo.bids.size() > 0 ? 1 : 0;
+    if(has_max_bid){
+      Bid &bid = itemInfo.bids.back();
+
+      std::vector<std::string> values;
+     
+       // IMB_I_ID
+      values.push_back(itemInfo.get_item_id().encode());
+      
+      // IMB_U_ID
+      values.push_back(itemInfo.get_seller_id().encode());
+    
+      // IMB_IB_ID
+      values.push_back(std::to_string(bid.id));
+      
+      // IMB_IB_I_ID
+      values.push_back(itemInfo.get_item_id().encode());
+     
+      // IMB_IB_U_ID
+       values.push_back(itemInfo.get_seller_id().encode());
+
+      // IMB_CREATED
+      values.push_back(std::to_string(get_ts(bid.createDate)));
+     
+      // IMB_UPDATED
+      values.push_back(std::to_string(get_ts(bid.updateDate)));
+     
+      writer.add_row(table_name, values);
+    }
+  }
 }
 
-void GenerateItemPurchase(TableWriter &writer){
+void GenerateItemPurchase(TableWriter &writer, std::vector<LoaderItemInfo> &items){
    std::vector<std::pair<std::string, std::string>> column_names_and_types;
   column_names_and_types.push_back(std::make_pair("ip_id", "BIGINT"));
   column_names_and_types.push_back(std::make_pair("ip_ib_id", "BIGINT"));
@@ -411,22 +640,126 @@ void GenerateItemPurchase(TableWriter &writer){
 
   std::string table_name = TABLE_ITEM_MAX_BID;
   writer.add_table(table_name, column_names_and_types, primary_key_col_idx);
+
+   //DATA GENERATION
+  for(auto &itemInfo: items){  
+    //FIXME: UNCLEAR HOW THIS IS MEANT TO BE HANDLED
+    bool has_purchase = itemInfo.bids.size() > 0 && itemInfo.purchaseDate > 0 ? 1 : 0;
+    if(has_purchase){
+      Bid &bid = itemInfo.bids.back();
+
+      std::vector<std::string> values;
+     
+       // IP_ID
+      values.push_back(std::to_string(0)); // //FIXME: Unclear if this is the correct use of count
+      
+    
+      // IP_IB_ID
+      values.push_back(std::to_string(bid.id));
+      
+      // IP_IB_I_ID
+      values.push_back(itemInfo.get_item_id().encode());
+     
+      // IP_IB_U_ID
+       values.push_back(itemInfo.get_seller_id().encode());
+
+      // IP_DATE
+      values.push_back(std::to_string(itemInfo.purchaseDate));
+     
+      // IMB_UPDATED
+      values.push_back(std::to_string(get_ts(bid.updateDate)));
+     
+      writer.add_row(table_name, values);
+
+      if(std::uniform_int_distribution<int>(1, 100) <= PROB_PURCHASE_BUYER_LEAVES_FEEDBACK){
+        bid.buyer_feedback = true;
+      }
+      if(std::uniform_int_distribution<int>(1, 100) <= PROB_PURCHASE_SELLER_LEAVES_FEEDBACK){
+        bid.seller_feedback = true;
+      }
+
+      //TODO: subtableGen?
+    }
+  }
 }
 
+//////////////////
+
+
+void GenerateUserFeedback(TableWriter &writer, std::vector<LoaderItemInfo> &items){
+  //SCHEMA
+   std::vector<std::pair<std::string, std::string>> column_names_and_types;
+  column_names_and_types.push_back(std::make_pair("uf_u_id", "TEXT"));
+  column_names_and_types.push_back(std::make_pair("uf_i_id", "TEXT"));
+  column_names_and_types.push_back(std::make_pair("uf_i_u_id", "TEXT"));
+  column_names_and_types.push_back(std::make_pair("uf_from_id", "TEXT"));
+  column_names_and_types.push_back(std::make_pair("uf_rating", "INT"));
+  column_names_and_types.push_back(std::make_pair("uf_date", "BIGINT"));
+  column_names_and_types.push_back(std::make_pair("uf_sattr0", "TEXT"));
+ 
+  const std::vector<uint32_t> primary_key_col_idx{0, 1, 2, 3};
+
+  std::string table_name = TABLE_USERACCT_FEEDBACK;
+  writer.add_table(table_name, column_names_and_types, primary_key_col_idx);
+
+  //DATA
 }
+
+void GenerateUserItem(TableWriter &writer, std::vector<LoaderItemInfo> &items){
+   std::vector<std::pair<std::string, std::string>> column_names_and_types;
+  column_names_and_types.push_back(std::make_pair("ui_u_id", "TEXT"));
+  column_names_and_types.push_back(std::make_pair("ui_i_id", "TEXT"));
+  column_names_and_types.push_back(std::make_pair("ui_i_u_id", "TEXT"));
+  column_names_and_types.push_back(std::make_pair("ui_ip_id", "BIGINT"));
+  column_names_and_types.push_back(std::make_pair("ui_ip_ib_id", "BIGINT"));
+  column_names_and_types.push_back(std::make_pair("ui_ip_ib_i_id", "TEXT"));
+  column_names_and_types.push_back(std::make_pair("ui_ip_ib_u_id", "TEXT"));
+  column_names_and_types.push_back(std::make_pair("ui_created", "BIGINT"));
+ 
+  const std::vector<uint32_t> primary_key_col_idx{0, 1, 2};
+
+  std::string table_name = TABLE_USERACCT_ITEM;
+  writer.add_table(table_name, column_names_and_types, primary_key_col_idx);
+
+  //Optional Index
+   const std::vector<uint32_t> index {1};
+  writer.add_index(table_name, "idx_useracct_item_id", index);
+}
+
+void GenerateUserWatch(TableWriter &writer, std::vector<LoaderItemInfo> &items){
+   std::vector<std::pair<std::string, std::string>> column_names_and_types;
+  column_names_and_types.push_back(std::make_pair("uw_u_id", "TEXT"));
+  column_names_and_types.push_back(std::make_pair("uw_i_id", "TEXT"));
+  column_names_and_types.push_back(std::make_pair("uw_i_u_id", "TEXT"));
+  column_names_and_types.push_back(std::make_pair("uw_created", "BIGINT"));
+
+  const std::vector<uint32_t> primary_key_col_idx{0, 1, 2};
+
+  std::string table_name = TABLE_USERACCT_WATCH;
+  writer.add_table(table_name, column_names_and_types, primary_key_col_idx);
+}
+ 
+} //namespace auctionmark
+
+
 
 int main(int argc, char *argv[]) {
-  gflags::SetUsageMessage(
-      "generates a json file containing sql tables for AuctionMark data\n");
-  std::string file_name = "auctionmark";
-  TableWriter writer = TableWriter(file_name);
 
-  auctionmark::GenerateRegionTable(writer, auctionmark::N_REGIONS);
-  int n_categories = auctionmark::GenerateCategoryTable(writer);
-  std::set<uint32_t> gag_ids = auctionmark::GenerateGlobalAttributeGroupTable(writer, n_categories, auctionmark::N_GAGS, auctionmark::GAV_PER_GROUP);
-  auctionmark::GenerateGlobalAttributeValueTable(writer, auctionmark::GAV_PER_GROUP, gag_ids);
-  auctionmark::GenerateUserAcctTable(writer, auctionmark::N_REGIONS, auctionmark::N_USERS);
+  AuctionMarkProfile profile;
+  profile.set_loader_time();
+  int x = 4;
+  // gflags::SetUsageMessage(
+  //     "generates a json file containing sql tables for AuctionMark data\n");
+  // std::string file_name = "auctionmark";
+  // TableWriter writer = TableWriter(file_name);
+
+  // GenerateRegionTable(writer, auctionmark::N_REGIONS);
+  // int n_categories = GenerateCategoryTable(writer);
+  // std::set<uint32_t> gag_ids = GenerateGlobalAttributeGroupTable(writer, n_categories, auctionmark::N_GAGS, auctionmark::GAV_PER_GROUP);
+  // GenerateGlobalAttributeValueTable(writer, auctionmark::GAV_PER_GROUP, gag_ids);
+  // GenerateUserAcctTable(writer, auctionmark::N_REGIONS, auctionmark::N_USERS);
   writer.flush();
-  std::cerr << "Wrote tables." << std::endl;
+  // std::cerr << "Wrote tables." << std::endl;
   return 0;
 }
+

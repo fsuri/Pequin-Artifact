@@ -19,7 +19,7 @@ SQLFindFlights::SQLFindFlights(uint32_t timeout, std::mt19937 &gen, std::vector<
             //Select two random airport ids. 
             //Note: They might not actually fly to each other. In that case the query will return no flights.
             depart_aid = std::uniform_int_distribution<int64_t>(1, NUM_AIRPORTS)(gen);
-            arrive_aid = std::uniform_int_distribution<int64_t>(1, NUM_AIRPORTS)(gen);
+            arrive_aid = std::uniform_int_distribution<int64_t>(1, NUM_AIRPORTS)(gen); //FIXME: Should pick randomOtherAiport (based on depart_aid)
             start_time = std::uniform_int_distribution<std::time_t>(MIN_TS, MAX_TS)(gen); //FIXME: Should be random upcoming Date? See SEATSProfile (Currently makes sense given Loaded flights)
             start_time = start_time - (start_time % seats_sql::MS_IN_DAY); //normalize to start of day
             end_time = start_time + MS_IN_DAY * 2; //up to 2 days from start_time.
