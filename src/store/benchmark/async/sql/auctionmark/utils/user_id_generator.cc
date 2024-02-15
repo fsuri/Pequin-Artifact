@@ -2,10 +2,11 @@
 
 namespace auctionmark {
 
-UserIdGenerator::UserIdGenerator(const std::vector<int> &users_per_item_count, int num_clients, int client_id)
+//UserIdGenerator::UserIdGenerator(const std::vector<int> &users_per_item_count, int num_clients, int client_id)
+UserIdGenerator::UserIdGenerator(const std::map<int, int> &users_per_item_count, int num_clients, int client_id)
     : num_clients(num_clients), client_id(client_id), min_item_count(0), 
     max_item_count(0), total_users(0), _next(std::nullopt), current_item_count(-1), current_offset(0), 
-    current_position(0), users_per_item_counts(users_per_item_count) {
+    current_position(0) { //, users_per_item_counts(users_per_item_count) {
 
     if (num_clients <= 0) {
       throw std::invalid_argument("num_clients must be more than 0: " + std::to_string(num_clients));
@@ -15,14 +16,20 @@ UserIdGenerator::UserIdGenerator(const std::vector<int> &users_per_item_count, i
     }
 
     // // TODO: Validate that this is the correct axis
-    // max_item_count =     //static_cast<int>(*users_per_item_count.axis(0).end());
-    // users_per_item_counts.resize(max_item_count + 2);
-    // for (int i = 0; i < users_per_item_counts.size(); i++) {
-    //   users_per_item_counts[i] = users_per_item_count.at(i);
-    // }
+    max_item_count = users_per_item_count.rbegin()->first;    //static_cast<int>(*users_per_item_count.axis(0).end());
+    users_per_item_counts.resize(max_item_count + 2);
+    for (int i = 0; i < users_per_item_counts.size(); i++) {
+      try {
+        users_per_item_counts[i] = users_per_item_count.at(i);
+      }
+      catch(...){
+        users_per_item_counts[i] = 0;
+      }
+      
+    }
 
-    // // TODO: Validate that this is the correct axis
-    // min_item_count = static_cast<int>(*users_per_item_count.axis(0).begin());
+    // TODO: Validate that this is the correct axis
+    min_item_count = users_per_item_count.begin()->first;//static_cast<int>(*users_per_item_count.axis(0).begin());
 
     total_users = 0;
     for (const auto& count : users_per_item_counts) {
@@ -132,8 +139,11 @@ std::string UserIdGenerator::to_string() const {
 
 std::optional<UserId> UserIdGenerator::find_next_user_id() {
     int found = -1;
+    //std::cerr << "find next user. curr_item_cnt: " << current_item_count << ". max_item count: " << max_item_count << std::endl; 
     while (current_item_count <= max_item_count) {
+      //std::cerr << "curr_item_cnt: " << current_item_count << std::endl;
       while (current_offset > 0) {
+        //std::cerr << "curr_offset " << current_offset << std::endl;
         int next_ctr = current_offset--;
         current_position++;
 
@@ -153,8 +163,11 @@ std::optional<UserId> UserIdGenerator::find_next_user_id() {
       }
       current_item_count++;
       current_offset = users_per_item_counts[current_item_count];
+      // std::cerr << "new item: " << current_item_count << std::endl;
+      // std::cerr << "new offset: " << current_offset << std::endl;
     }
     if (found == -1) {
+      assert(client_id != -1); //should never happen for generation
       return std::nullopt;
     }
 

@@ -19,16 +19,18 @@ namespace auctionmark
       cumulative_frequency = 0;
       for (auto& [val, freq] : value_rle)
       {
+          if(freq == 0) continue;
           cumulative_frequency += freq;
           hist[cumulative_frequency] = val;
       }
     }
-    FlatHistogram_Int(std::mt19937_64 &gen, std::vector<int> value_rle) : gen(gen)  {
+    FlatHistogram_Int(std::mt19937_64 &gen, std::vector<int> freq) : gen(gen)  {
       cumulative_frequency = 0;
-      for (int i = 0; i < value_rle.size(); ++i)
+      for (int i = 0; i < freq.size(); ++i)
       {
-          cumulative_frequency += i;
-          hist[cumulative_frequency] = value_rle[i];
+          if(freq[i] == 0) continue;
+          cumulative_frequency += freq[i];
+          hist[cumulative_frequency] = i;
       }
     }
     //FlatHistogram(const FlatHistogram &other) : value_rle(other.value_rle), inner(other.inner), gen(other.gen) {}
@@ -52,6 +54,7 @@ namespace auctionmark
       cumulative_frequency = 0;
       for (auto& [val, freq] : value_rle)
       {
+          if(freq == 0) continue;
           cumulative_frequency += freq;
           hist[cumulative_frequency] = val;
       }
@@ -77,6 +80,7 @@ namespace auctionmark
       cumulative_frequency = 0;
       for (auto& [val, freq] : value_rle)
       {
+          if(freq == 0) continue;
           cumulative_frequency += freq;
           hist[cumulative_frequency] = val;
       }

@@ -27,6 +27,7 @@
 #include "store/benchmark/async/sql/auctionmark/utils/auctionmark_utils.h"
 #include "store/benchmark/async/sql/auctionmark/utils/item_id.h"
 #include "store/benchmark/async/sql/auctionmark/utils/user_id.h"
+#include <iostream>
 
 namespace auctionmark {
 
@@ -38,11 +39,12 @@ std::string RandomAString(size_t x, size_t y, std::mt19937_64 &gen)
   size_t length = std::uniform_int_distribution<size_t>(x, y)(gen);
   for (size_t i = 0; i < length; ++i)
   {
-    int j = std::uniform_int_distribution<size_t>(0, sizeof(ALPHA_NUMERIC))(gen);
+    int j = std::uniform_int_distribution<size_t>(10, sizeof(ALPHA_NUMERIC) -2)(gen);
     s += ALPHA_NUMERIC[j];
   }
   return s;
 }
+
 
 long GetScaledTimestamp(timestamp_t benchmark_start, timestamp_t client_start, timestamp_t current) {
     auto offset = std::chrono::time_point_cast<std::chrono::milliseconds>(current) - (std::chrono::time_point_cast<std::chrono::milliseconds>(client_start) - std::chrono::time_point_cast<std::chrono::milliseconds>(benchmark_start));

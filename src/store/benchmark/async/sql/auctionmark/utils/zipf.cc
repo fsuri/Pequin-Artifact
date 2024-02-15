@@ -3,7 +3,7 @@
 
 namespace auctionmark {
 
-Zipf::Zipf(std::mt19937_64 r, long min, long max, double sigma) : Zipf(r, min, max, sigma, DEFAULT_EPSILON) {
+Zipf::Zipf(std::mt19937_64 r, long min, long max, double sigma) : Zipf(r, min, max, sigma, DEFAULT_EPSILON)  {
 }
 
 Zipf::Zipf(std::mt19937_64 r, long min, long max, double sigma, double epsilon) 
@@ -36,8 +36,7 @@ Zipf::Zipf(std::mt19937_64 r, long min, long max, double sigma, double epsilon)
     }
 }
 
-Zipf::Zipf() : Zipf(std::mt19937_64(0), 0, 1, 1.1) {
-}
+Zipf::Zipf() : Zipf(std::mt19937_64(), 0, 1, 1.1) {}
 
 long Zipf::next_long() {
     std::uniform_real_distribution<> dis(0.0, 1.0);
