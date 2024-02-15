@@ -20,7 +20,8 @@ namespace auctionmark {
 
 class UserIdGenerator {
 public:
-    UserIdGenerator(const std::vector<int> &users_per_item_count, int num_clients, int client_id = -1);
+    UserIdGenerator(const std::map<int, int> &users_per_item_count, int num_clients, int client_id = -1);
+    //UserIdGenerator(const std::vector<int> &users_per_item_count, int num_clients, int client_id = -1);
     ~UserIdGenerator() = default;
 
     long get_total_users() const;

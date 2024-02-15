@@ -67,7 +67,8 @@ NewItem::NewItem(uint32_t timeout, AuctionMarkProfile &profile, std::mt19937_64 
     images[i] = RandomAString(20, 100, gen);
   }
 
-  duration = std::binomial_distribution<uint64_t>(ITEM_DURATION_DAYS_MAX-1, 0.5)(gen) + 1;  //gives a val between 1 (DAYS_MIN) and 10 (DAYS_MAX) with normal distribution
+  duration = profile.get_random_duration();
+  //std::binomial_distribution<uint64_t>(ITEM_DURATION_DAYS_MAX-1, 0.5)(gen) + 1;  //gives a val between 1 (DAYS_MIN) and 10 (DAYS_MAX) with normal distribution
 
 
 }
@@ -87,7 +88,7 @@ transaction_status_t NewItem::Execute(SyncClient &client) {
 
   client.Begin(timeout);
 
-  uint64_t current_time = get_ts(GetProcTimestamp({profile.get_loader_start_time(), profile.get_client_start_time()}));
+  uint64_t current_time = GetProcTimestamp({profile.get_loader_start_time(), profile.get_client_start_time()});
   uint64_t end_date = current_time + (duration * MILLISECONDS_IN_A_DAY);
 
   //Get attribute names and category path and append them to the item description

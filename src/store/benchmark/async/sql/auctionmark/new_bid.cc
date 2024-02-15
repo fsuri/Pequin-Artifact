@@ -94,7 +94,7 @@ NewBid::NewBid(uint32_t timeout, AuctionMarkProfile &profile, std::mt19937_64 &g
   seller_id = sellerId.encode();
   buyer_id = buyerId.encode();
   newBid = maxBid;
-  timestamp_t estimatedEndDate = *itemInfo->get_end_date();
+  uint64_t estimatedEndDate = *itemInfo->get_end_date();
 
 }
 
@@ -113,7 +113,7 @@ transaction_status_t NewBid::Execute(SyncClient &client) {
 
   //TODO: parallelize queries (only after sequential debugged)
 
-  uint64_t current_time = get_ts(GetProcTimestamp(benchmark_times));
+  uint64_t current_time = GetProcTimestamp(benchmark_times);
   double i_current_price;
 
   client.Begin(timeout);

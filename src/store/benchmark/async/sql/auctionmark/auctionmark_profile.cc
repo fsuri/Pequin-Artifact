@@ -15,15 +15,27 @@ namespace auctionmark
 
   AuctionMarkProfile *AuctionMarkProfile::cached_profile = nullptr;
 
+  // AuctionMarkProfile::AuctionMarkProfile(){
+  //    std::cerr << "Constructing empty AuctionMarkProfile. Don't use this" << std::endl;
+  // }
+
   AuctionMarkProfile::AuctionMarkProfile(int client_id, int num_clients, double scale_factor) 
-    : client_id(client_id), num_clients(num_clients), scale_factor(scale_factor)
+    : client_id(client_id), num_clients(num_clients), scale_factor(scale_factor), 
+      random_time_diff(gen, ITEM_PRESERVE_DAYS*24*60*60*-1, ITEM_DURATION_DAYS_MAX * 24 *60 *60), 
+      random_duration(gen, ITEM_DURATION_DAYS_MIN, ITEM_DURATION_DAYS_MAX)
   {
     std::cerr << "Constructing AuctionMarkProfile" << std::endl;
-    loader_start_time = std::chrono::system_clock::now();
+    struct timeval time;
+    gettimeofday(&time, NULL);
+    loader_start_time = get_ts(time);
     user_id_generator = std::nullopt;
 
-    random_time_diff = std::binomial_distribution<int>((ITEM_DURATION_DAYS_MAX * 24 * 60 * 60) - (ITEM_PRESERVE_DAYS * 24 * 60 * 60 * -1), 0.5);
-    random_duration = std::binomial_distribution<int>(ITEM_DURATION_DAYS_MAX - ITEM_DURATION_DAYS_MIN, 0.5);
+    // TODO: Write getter methods to do the appropriate conversions for binomials
+    //FIXME: Replace by gaussian...
+    //random_time_diff = std::binomial_distribution<int>((ITEM_DURATION_DAYS_MAX * 24 * 60 * 60) - (ITEM_PRESERVE_DAYS * 24 * 60 * 60 * -1), 0.5);
+    //random_time_diff = GaussGenerator(gen, ITEM_PRESERVE_DAYS*24*60*60*-1, ITEM_DURATION_DAYS_MAX * 24 *60 *60);
+    //random_duration = std::binomial_distribution<int>(ITEM_DURATION_DAYS_MAX - ITEM_DURATION_DAYS_MIN, 0.5);
+    //random_duration = GaussGenerator(gen, ITEM_DURATION_DAYS_MIN, ITEM_DURATION_DAYS_MAX);
 
     random_initial_price = Zipf(gen, ITEM_INITIAL_PRICE_MIN, ITEM_INITIAL_PRICE_MAX, ITEM_INITIAL_PRICE_SIGMA);
     random_purchase_duration = Zipf(gen, ITEM_PURCHASE_DURATION_DAYS_MIN, ITEM_PURCHASE_DURATION_DAYS_MAX, ITEM_PURCHASE_DURATION_DAYS_SIGMA);
@@ -36,79 +48,83 @@ namespace auctionmark
   // TIME METHODS
   // -----------------------------------------------------------------
 
-  std::chrono::system_clock::time_point AuctionMarkProfile::get_scaled_current_timestamp(std::chrono::system_clock::time_point time)
+  uint64_t AuctionMarkProfile::get_scaled_current_timestamp(uint64_t& time)
   {
-
-    std::chrono::system_clock::time_point tmp_now = std::chrono::system_clock::now();
-    std::chrono::milliseconds dur(GetScaledTimestamp(loader_start_time, client_start_time, tmp_now));
-    time = std::chrono::system_clock::time_point(dur);
+    struct timeval time_v;
+    gettimeofday(&time_v, NULL);
+    uint64_t tmp_now = get_ts(time_v);
+    time = GetScaledTimestamp(loader_start_time, client_start_time, tmp_now);
     return time;
   }
 
-  std::chrono::system_clock::time_point AuctionMarkProfile::update_and_get_current_time()
+  uint64_t AuctionMarkProfile::update_and_get_current_time()
   {
     current_time = get_scaled_current_timestamp(current_time);
     return current_time;
   }
 
-  std::chrono::system_clock::time_point AuctionMarkProfile::get_current_time()
+  uint64_t AuctionMarkProfile::get_current_time()
   {
     return current_time;
   }
 
-  std::chrono::system_clock::time_point AuctionMarkProfile::get_loader_start_time()
+  uint64_t AuctionMarkProfile::get_loader_start_time()
   {
     return loader_start_time;
   }
 
-  void AuctionMarkProfile::set_loader_start_time(std::chrono::system_clock::time_point start_time) {
+  void AuctionMarkProfile::set_loader_start_time(uint64_t start_time) {
     loader_start_time = start_time;
   }
 
-  std::chrono::system_clock::time_point AuctionMarkProfile::get_loader_stop_time()
+  uint64_t AuctionMarkProfile::get_loader_stop_time()
   {
     return loader_stop_time;
   }
 
-  void AuctionMarkProfile::set_loader_stop_time(std::chrono::system_clock::time_point stop_time) {
+  void AuctionMarkProfile::set_loader_stop_time(uint64_t stop_time) {
     loader_stop_time = stop_time;
   }
 
-  std::chrono::system_clock::time_point AuctionMarkProfile::set_and_get_client_start_time()
+  uint64_t AuctionMarkProfile::set_and_get_client_start_time()
   {
-    client_start_time = std::chrono::system_clock::now();
+    struct timeval time;
+    gettimeofday(&time, NULL);
+    client_start_time = get_ts(time);
     return client_start_time;
   }
 
-  std::chrono::system_clock::time_point AuctionMarkProfile::get_client_start_time()
+  uint64_t AuctionMarkProfile::get_client_start_time()
   {
     return client_start_time;
   }
 
   bool AuctionMarkProfile::has_client_start_time()
   {
-    return client_start_time.time_since_epoch().count() > 0;
+    return client_start_time > 0;
   }
 
-  std::chrono::system_clock::time_point AuctionMarkProfile::update_and_get_last_close_auctions_time()
+  uint64_t AuctionMarkProfile::update_and_get_last_close_auctions_time()
   {
     last_close_auctions_time = get_scaled_current_timestamp(last_close_auctions_time);
     return last_close_auctions_time;
   }
 
-  std::chrono::system_clock::time_point AuctionMarkProfile::get_last_close_auctions_time()
+  uint64_t AuctionMarkProfile::get_last_close_auctions_time()
   {
     return last_close_auctions_time;
   }
 
   int AuctionMarkProfile::get_random_time_diff()
   {
-    return random_time_diff(gen) + (ITEM_PRESERVE_DAYS * 24 * 60 * 60 * -1);
+    //return random_time_diff(gen) + (ITEM_PRESERVE_DAYS * 24 * 60 * 60 * -1);
+    return random_time_diff.next_val() * MILLISECONDS_IN_A_SECOND; 
   }
 
   int AuctionMarkProfile::get_random_duration()
   {
-    return random_duration(gen) + ITEM_DURATION_DAYS_MIN;
+    //return random_duration(gen) + ITEM_DURATION_DAYS_MIN;
+    return random_duration.next_val(); 
   }
 
   // -----------------------------------------------------------------
@@ -133,19 +149,22 @@ namespace auctionmark
   {
     if (!random_item_count.has_value())
     {
-      // auto hist = FlatHistogram<>(gen, users_per_item_count);
-      // random_item_count.emplace(gen, users_per_item_count);
-      auto hist = FlatHistogram_Int(gen, users_per_item_count);
+       //most users will have 0 items (between 0 and 1000, heavily skewed towards 0)
+      // for(auto &[item, users]: users_per_item_count){
+      //   std::cerr << "item_cnt: " << item << " --> " << users << std::endl;
+      // }
+      auto hist = FlatHistogram_Int(gen, users_per_item_count);  
       random_item_count.emplace(hist);
     }
-    if (!user_id_generator.has_value())
-    {
+    if (!user_id_generator.has_value()){
       initialize_user_id_generator(client_id);
     }
 
     std::optional<UserId> user_id = std::nullopt;
     int tries = 1000;
     int num_users = user_id_generator->get_total_users() - 1;
+
+
     while (!user_id.has_value() && tries-- > 0)
     {
       // We first need to figure out how many items our seller needs to have
@@ -155,32 +174,29 @@ namespace auctionmark
         auto hist = random_item_count.value();
         item_count = hist.next_value();
       }
-
-      // Set the current item count and then choose a random position
-      // between where the generator is currently at and where it ends
+     
+      // Set the current item count and then choose a random position between where the generator is currently at and where it ends
       user_id_generator->set_current_item_count(item_count);
       int cur_position = user_id_generator->get_current_position();
       int new_position = std::uniform_int_distribution<>(cur_position, num_users)(gen);
       user_id = user_id_generator->seek_to_position(new_position);
       if (!user_id.has_value())
       {
+        //std::cerr << "didn't find val" << std::endl;
         continue;
       }
 
       // Make sure that we didn't select the same UserId as the one we were
       // told to exclude.
-      if (!exclude.empty())
-      {
-        for (UserId ex : exclude)
-        {
-          if (ex == user_id.value())
-          {
+      if (!exclude.empty()) {
+        for (UserId ex : exclude) {
+          if (ex == user_id.value()){
+            //std::cerr << "val is meant to be excluded. skipping" << std::endl;
             user_id = std::nullopt;
             break;
           }
         }
-        if (!user_id.has_value())
-        {
+        if (!user_id.has_value()){
           continue;
         }
       }
@@ -189,10 +205,8 @@ namespace auctionmark
       break;
     }
 
-    if (user_id.has_value())
-    {
-      throw std::runtime_error("Failed to find a user_id after 1000 tries");
-    }
+    if (!user_id.has_value()) throw std::runtime_error("Failed to find a user_id after 1000 tries");
+    
     return user_id.value();
   }
 
@@ -217,7 +231,7 @@ namespace auctionmark
   }
 
 
-  UserId AuctionMarkProfile::get_random_buyer_id(std::map<UserId, uint64_t>  &previous_bidders, std::vector<UserId> exclude)
+  UserId AuctionMarkProfile::get_random_buyer_id(std::map<UserId, uint64_t> &previous_bidders, std::vector<UserId> exclude)
   {
     // This is very inefficient, but it's probably good enough for now
     
@@ -341,11 +355,11 @@ namespace auctionmark
 
   std::optional<ItemStatus> AuctionMarkProfile::add_item_to_proper_queue(ItemInfo &item_info, bool is_loader)
   {
-    std::chrono::system_clock::time_point base_time = is_loader ? get_loader_start_time() : get_current_time();
+    uint64_t base_time = is_loader ? get_loader_start_time() : get_current_time();
     return add_item_to_proper_queue(item_info, base_time, std::nullopt);
   }
 
-  std::optional<ItemStatus> AuctionMarkProfile::add_item_to_proper_queue(ItemInfo &item_info, std::chrono::system_clock::time_point &base_time, std::optional<std::pair<std::vector<ItemInfo>::iterator, std::vector<ItemInfo>>> current_queue_iterator)
+  std::optional<ItemStatus> AuctionMarkProfile::add_item_to_proper_queue(ItemInfo &item_info, uint64_t &base_time, std::optional<std::pair<std::vector<ItemInfo>::iterator, std::vector<ItemInfo>>> current_queue_iterator)
   {
     if (client_id != -1)
     {
@@ -360,15 +374,15 @@ namespace auctionmark
       }
     }
 
-    std::chrono::milliseconds remaining = std::chrono::duration_cast<std::chrono::milliseconds>(item_info.get_end_date().value() - base_time);
+    uint64_t remaining = item_info.get_end_date().value() - base_time;
     std::optional<ItemStatus> existing_status = item_info.get_status();
     ItemStatus new_status = (existing_status.has_value() ? existing_status.value() : ItemStatus::OPEN);
 
-    if (remaining.count() <= 0)
+    if (remaining <= 0)
     {
       new_status = ItemStatus::CLOSED;
     }
-    else if (remaining.count() < ITEM_ENDING_SOON)
+    else if (remaining < ITEM_ENDING_SOON)
     {
       new_status = ItemStatus::ENDING_SOON;
     }

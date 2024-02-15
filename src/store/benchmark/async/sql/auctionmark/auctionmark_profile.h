@@ -4,11 +4,11 @@
 #include <vector>
 #include <string>
 #include <random>
-#include <chrono>
 #include <utility>
 #include <optional>
 #include <unordered_set>
 #include <boost/histogram.hpp>
+#include <sys/time.h>
 #include "store/common/frontend/sync_client.h"
 #include "store/benchmark/async/sql/auctionmark/utils/auctionmark_utils.h"
 #include "store/benchmark/async/sql/auctionmark/utils/item_info.h"
@@ -52,6 +52,7 @@ namespace auctionmark
     // using str_cat_hist_t = boost::histogram::histogram<std::tuple<boost::histogram::axis::category<std::string>>>;
 
   public:
+    //AuctionMarkProfile();
     AuctionMarkProfile(int client_id, int num_clients, double scale_factor);
     inline ~AuctionMarkProfile()
     {
@@ -59,18 +60,18 @@ namespace auctionmark
     }
 
     /* Time methods */
-    std::chrono::system_clock::time_point get_scaled_current_timestamp(std::chrono::system_clock::time_point time);
-    std::chrono::system_clock::time_point update_and_get_current_time();
-    std::chrono::system_clock::time_point get_current_time();
-    std::chrono::system_clock::time_point get_loader_start_time();
-    void set_loader_start_time(std::chrono::system_clock::time_point start_time);
-    std::chrono::system_clock::time_point get_loader_stop_time();
-    void set_loader_stop_time(std::chrono::system_clock::time_point stop_time);
-    std::chrono::system_clock::time_point set_and_get_client_start_time();
-    std::chrono::system_clock::time_point get_client_start_time();
+    uint64_t get_scaled_current_timestamp(uint64_t& time);
+    uint64_t update_and_get_current_time();
+    uint64_t get_current_time();
+    uint64_t get_loader_start_time();
+    void set_loader_start_time(uint64_t start_time);
+    uint64_t get_loader_stop_time();
+    void set_loader_stop_time(uint64_t stop_time);
+    uint64_t set_and_get_client_start_time();
+    uint64_t get_client_start_time();
     bool has_client_start_time();
-    std::chrono::system_clock::time_point update_and_get_last_close_auctions_time();
-    std::chrono::system_clock::time_point get_last_close_auctions_time();
+    uint64_t update_and_get_last_close_auctions_time();
+    uint64_t get_last_close_auctions_time();
     int get_random_time_diff();
     int get_random_duration();
 
@@ -96,7 +97,7 @@ namespace auctionmark
     bool add_item(std::vector<ItemInfo> &items, ItemInfo &item_info);
     void update_item_queues();
     std::optional<ItemStatus> add_item_to_proper_queue(ItemInfo &item_info, bool is_loader);
-    std::optional<ItemStatus> add_item_to_proper_queue(ItemInfo &item_info, std::chrono::system_clock::time_point &base_time, std::optional<std::pair<std::vector<ItemInfo>::iterator, std::vector<ItemInfo>>> current_queue_iterator);
+    std::optional<ItemStatus> add_item_to_proper_queue(ItemInfo &item_info, uint64_t &base_time, std::optional<std::pair<std::vector<ItemInfo>::iterator, std::vector<ItemInfo>>> current_queue_iterator);
     std::optional<ItemInfo> get_random_item(std::vector<ItemInfo> item_set, bool need_current_price, bool need_future_end_date);
 
     /* Available Items */
@@ -152,16 +153,18 @@ namespace auctionmark
 
     std::vector<GlobalAttributeGroupId> gag_ids;
 
-    std::binomial_distribution<int> random_time_diff;
-    std::binomial_distribution<int> random_duration;
+    //std::binomial_distribution<int> random_time_diff;
+    GaussGenerator random_time_diff;
+    //std::binomial_distribution<int> random_duration;
+    GaussGenerator random_duration;
     Zipf random_num_images;
     Zipf random_num_attributes;
     Zipf random_purchase_duration;
     Zipf random_num_comments;
     Zipf random_initial_price;
 
-     std::vector<int> users_per_item_count;  //A histogram for the number of users that have the number of items listed ItemCount -> # of Users
-    //std::map<int, int> users_per_item_count;
+    //std::vector<int> users_per_item_count;  //A histogram for the number of users that have the number of items listed ItemCount -> # of Users
+    std::map<int, int> users_per_item_count;
 
   private:
     static AuctionMarkProfile *cached_profile;
@@ -169,8 +172,8 @@ namespace auctionmark
     int num_clients;
     double scale_factor;
     std::mt19937_64 gen;
-    std::chrono::system_clock::time_point loader_start_time;
-    std::chrono::system_clock::time_point loader_stop_time;
+    uint64_t loader_start_time;
+    uint64_t loader_stop_time;
 
    
     histogram_int items_per_category;
@@ -195,9 +198,9 @@ namespace auctionmark
     // FlatHistogram_Int random_category;
     // FlatHistogram_Int random_item_count;
 
-    std::chrono::system_clock::time_point last_close_auctions_time;
-    std::chrono::system_clock::time_point client_start_time;
-    std::chrono::system_clock::time_point current_time;
+    uint64_t last_close_auctions_time;
+    uint64_t client_start_time;
+    uint64_t current_time;
 
     //str_cat_hist_t seller_item_cnt;
     std::map<std::string, int> seller_item_cnt;

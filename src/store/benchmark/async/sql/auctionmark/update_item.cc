@@ -64,7 +64,7 @@ transaction_status_t UpdateItem::Execute(SyncClient &client) {
 
   client.Begin(timeout);
 
-  uint64_t current_time = get_ts(GetProcTimestamp({profile.get_loader_start_time(), profile.get_client_start_time()}));
+  uint64_t current_time = GetProcTimestamp({profile.get_loader_start_time(), profile.get_client_start_time()});
 
   std::string updateItem = fmt::format("UPDATE {} SET i_description = {}, i_updated = {} WHERE i_id = {} AND i_u_id = {}", TABLE_ITEM, description, current_time, item_id, seller_id);
   client.Write(updateItem, queryResult, timeout);

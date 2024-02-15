@@ -58,7 +58,9 @@ AuctionMarkClient::AuctionMarkClient(
   need_close_auctions = CLOSE_AUCTIONS_ENABLE && client_id == 0;  //Close Auctions is only run from the first client
   max_u_id = N_USERS;
   max_i_id = N_USERS * 10;
-  last_close_auctions = std::chrono::steady_clock::now();
+  struct timeval time;
+  gettimeofday(&time, NULL);
+  last_close_auctions = get_ts(time);
 
   //TODO: Initialize/load Auctionmark Profile
   //profile = AuctionMarkProfile(client_id, SCALE_FACTOR, num_clients, gen);
@@ -75,10 +77,12 @@ SyncTransaction *AuctionMarkClient::GetNextTransaction()
 
   uint32_t ttype = std::uniform_int_distribution<uint32_t>(1, TXNS_TOTAL)(gen);
   uint32_t freq = 0;
-  std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
+  struct timeval time;
+  gettimeofday(&time, NULL);
+  uint64_t now = get_ts(time);
 
   //Close Auctions runs periodically (only on the first client)
-  if (need_close_auctions && std::chrono::duration_cast<std::chrono::seconds>(now - last_close_auctions).count() >= CLOSE_AUCTIONS_INTERVAL / TIME_SCALE_FACTOR) {
+  if (need_close_auctions && now - last_close_auctions >= CLOSE_AUCTIONS_INTERVAL / TIME_SCALE_FACTOR) {
     lastOp = "close_auctions";
     last_close_auctions = now;
     return new CloseAuctions(GetTimeout(), profile, gen);

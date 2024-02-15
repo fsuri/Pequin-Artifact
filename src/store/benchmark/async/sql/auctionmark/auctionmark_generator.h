@@ -61,7 +61,7 @@ class Bid {
 
 class LoaderItemInfo : public ItemInfo {
   public:
-    LoaderItemInfo(ItemId itemId, timestamp_t endDate, uint64_t numBids) : ItemInfo(itemId, std::nullopt, endDate, numBids) {}
+    LoaderItemInfo(ItemId itemId, uint64_t endDate, uint64_t numBids) : ItemInfo(itemId, std::nullopt, endDate, numBids) {}
     ~LoaderItemInfo(){}
     std::vector<Bid> bids;
     std::map<UserId, uint64_t> bidderHistogram;
@@ -96,8 +96,9 @@ uint64_t getRandomStartTimestamp(uint64_t endDate, AuctionMarkProfile &profile) 
 }
 
 uint64_t getRandomEndTimestamp(AuctionMarkProfile &profile) {
-  uint64_t timeDiff =  profile.get_random_time_diff();
-  uint64_t EndTimestamp = get_ts(profile.get_loader_start_time()) + timeDiff * MILLISECONDS_IN_A_SECOND; 
+  int timeDiff =  profile.get_random_time_diff();
+  uint64_t EndTimestamp = profile.get_loader_start_time() + timeDiff; 
+  assert(EndTimestamp > 0);
   return EndTimestamp;
 }
 

@@ -66,7 +66,7 @@ transaction_status_t NewPurchase::Execute(SyncClient &client) {
 
   client.Begin(timeout);
 
-  uint64_t current_time = get_ts(GetProcTimestamp({profile.get_loader_start_time(), profile.get_client_start_time()}));
+  uint64_t current_time = GetProcTimestamp({profile.get_loader_start_time(), profile.get_client_start_time()});
 
   //HACK Check whether we have an ITEM_MAX_BID record. 
         //If not, we read via ITEM_BID only.

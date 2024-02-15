@@ -32,8 +32,8 @@ namespace auctionmark {
 CloseAuctions::CloseAuctions(uint32_t timeout, AuctionMarkProfile &profile, std::mt19937_64 &gen) : AuctionMarkTransaction(timeout), profile(profile)
 {
   //generate params
-  start_time = get_ts(profile.get_last_close_auctions_time());
-  end_time = get_ts(profile.update_and_get_last_close_auctions_time());
+  start_time = profile.get_last_close_auctions_time();
+  end_time = profile.update_and_get_last_close_auctions_time();
   benchmark_times = {profile.get_loader_start_time(), profile.get_client_start_time()};
 }
 
@@ -57,7 +57,7 @@ transaction_status_t CloseAuctions::Execute(SyncClient &client) {
   int waiting_ctr = 0;
   int round = CLOSE_AUCTIONS_ROUNDS;
 
-  uint64_t current_time = get_ts(GetProcTimestamp(benchmark_times));
+  uint64_t current_time = GetProcTimestamp(benchmark_times);
   
   std::string getDueItems = fmt::format("SELECT {} FROM {} WHERE i_start_date >= {} AND i_start_date <= {} AND i_status = {} "
                                         "ORDER BY i_id ASC LIMIT {}", ITEM_COLUMNS_STR, TABLE_ITEM, CLOSE_AUCTIONS_ITEMS_PER_ROUND, start_time, end_time, ItemStatus::OPEN);

@@ -27,6 +27,7 @@
 #include "store/benchmark/async/sql/auctionmark/utils/auctionmark_utils.h"
 #include "store/benchmark/async/sql/auctionmark/utils/item_id.h"
 #include "store/benchmark/async/sql/auctionmark/utils/user_id.h"
+#include <iostream>
 
 namespace auctionmark {
 
@@ -38,16 +39,17 @@ std::string RandomAString(size_t x, size_t y, std::mt19937_64 &gen)
   size_t length = std::uniform_int_distribution<size_t>(x, y)(gen);
   for (size_t i = 0; i < length; ++i)
   {
-    int j = std::uniform_int_distribution<size_t>(0, sizeof(ALPHA_NUMERIC))(gen);
+    int j = std::uniform_int_distribution<size_t>(10, sizeof(ALPHA_NUMERIC) -2)(gen);
     s += ALPHA_NUMERIC[j];
   }
   return s;
 }
 
-long GetScaledTimestamp(timestamp_t benchmark_start, timestamp_t client_start, timestamp_t current) {
-    auto offset = std::chrono::time_point_cast<std::chrono::milliseconds>(current) - (std::chrono::time_point_cast<std::chrono::milliseconds>(client_start) - std::chrono::time_point_cast<std::chrono::milliseconds>(benchmark_start));
-    auto elapsed = (offset - benchmark_start).count() * TIME_SCALE_FACTOR;
-    return std::chrono::time_point_cast<std::chrono::milliseconds>(benchmark_start).time_since_epoch().count() + elapsed;
+
+uint64_t GetScaledTimestamp(uint64_t benchmark_start, uint64_t client_start, uint64_t current) {
+    auto offset = current - (client_start - benchmark_start);
+    auto elapsed = (offset - benchmark_start) * TIME_SCALE_FACTOR;
+    return benchmark_start + elapsed;
 }
 
 std::string GetUniqueElementId(std::string item_id_, int idx) {
@@ -56,11 +58,13 @@ std::string GetUniqueElementId(std::string item_id_, int idx) {
     return ItemId(seller_id, idx).encode();
 }
 
-timestamp_t GetProcTimestamp(std::vector<timestamp_t> benchmark_times) {
-  timestamp_t tmp = std::chrono::system_clock::now();
-  long timestamp = GetScaledTimestamp(benchmark_times[0], benchmark_times[1], tmp);
+uint64_t GetProcTimestamp(std::vector<uint64_t> benchmark_times) {
+  struct timeval time;
+  gettimeofday(&time, NULL);
+  uint64_t tmp = get_ts(time);
+  uint64_t timestamp = GetScaledTimestamp(benchmark_times[0], benchmark_times[1], tmp);
   
-  return timestamp_t(std::chrono::milliseconds(timestamp));
+  return timestamp;
 }
 
 }
