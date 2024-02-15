@@ -15,7 +15,7 @@ private:
     std::optional<double> current_price;
     std::optional<std::chrono::system_clock::time_point> end_date;
     long num_bids;
-    std::optional<ItemStatus> status;
+    ItemStatus status;
 
 public:
     ItemInfo(ItemId id, std::optional<double> current_price, std::optional<std::chrono::system_clock::time_point> end_date, int num_bids);
@@ -32,8 +32,8 @@ public:
     void set_end_date(std::optional<std::chrono::system_clock::time_point> end_date);
     long get_num_bids() const;
     void set_num_bids(long num_bids);
-    std::optional<ItemStatus> get_status() const;
-    void set_status(std::optional<ItemStatus> status);
+    ItemStatus get_status() const;
+    void set_status(ItemStatus status);
     bool operator==(const ItemInfo& other) const;
     bool operator<(const ItemInfo& other) const;
 };

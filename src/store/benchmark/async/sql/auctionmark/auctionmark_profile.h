@@ -82,8 +82,9 @@ namespace auctionmark
     UserId get_random_user_id(int min_item_count, int client_id, std::vector<UserId> &exclude);
 
     UserId get_random_buyer_id();
-    UserId get_random_buyer_id(UserId &exclude);
-    UserId get_random_buyer_id(std::vector<UserId> &exclude);
+    UserId get_random_buyer_id(UserId exclude);
+    UserId get_random_buyer_id(std::vector<UserId> exclude);
+    UserId get_random_buyer_id(std::map<UserId, uint64_t>  &previous_bidders, std::vector<UserId> exclude);
 
     //UserId get_random_buyer_id(str_cat_hist_t &previous_bidders, std::vector<UserId> &exclude);
     //UserId get_random_buyer_id(histogram_str &previous_bidders, std::vector<UserId> &exclude);
@@ -147,6 +148,21 @@ namespace auctionmark
 
     std::map<std::string, int> ip_id_cntrs;
 
+    std::optional<UserIdGenerator> user_id_generator;
+
+    std::vector<GlobalAttributeGroupId> gag_ids;
+
+    std::binomial_distribution<int> random_time_diff;
+    std::binomial_distribution<int> random_duration;
+    Zipf random_num_images;
+    Zipf random_num_attributes;
+    Zipf random_purchase_duration;
+    Zipf random_num_comments;
+    Zipf random_initial_price;
+
+     std::vector<int> users_per_item_count;  //A histogram for the number of users that have the number of items listed ItemCount -> # of Users
+    //std::map<int, int> users_per_item_count;
+
   private:
     static AuctionMarkProfile *cached_profile;
     int client_id;
@@ -156,8 +172,7 @@ namespace auctionmark
     std::chrono::system_clock::time_point loader_start_time;
     std::chrono::system_clock::time_point loader_stop_time;
 
-    std::vector<int> users_per_item_count;  //A histogram for the number of users that have the number of items listed ItemCount -> # of Users
-    //std::map<int, int> users_per_item_count;
+   
     histogram_int items_per_category;
 
     std::vector<ItemInfo> items_available;
@@ -171,17 +186,9 @@ namespace auctionmark
         items_waiting_for_purchase,
         items_completed};
 
-    std::vector<GlobalAttributeGroupId> gag_ids;
+    
 
-    std::optional<UserIdGenerator> user_id_generator;
-
-    std::binomial_distribution<int> random_time_diff;
-    std::binomial_distribution<int> random_duration;
-    Zipf random_num_images;
-    Zipf random_num_attributes;
-    Zipf random_purchase_duration;
-    Zipf random_num_comments;
-    Zipf random_initial_price;
+  
 
     std::optional<FlatHistogram_Int> random_category;
     std::optional<FlatHistogram_Int> random_item_count;

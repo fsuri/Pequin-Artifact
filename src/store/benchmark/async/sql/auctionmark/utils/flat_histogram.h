@@ -71,6 +71,32 @@ namespace auctionmark
     std::mt19937_64 &gen;
   };
 
+  template <typename T> class FlatHistogram {
+  public:
+    FlatHistogram(std::mt19937_64 &gen, std::map<T, uint64_t> value_rle) : gen(gen)  {
+      cumulative_frequency = 0;
+      for (auto& [val, freq] : value_rle)
+      {
+          cumulative_frequency += freq;
+          hist[cumulative_frequency] = val;
+      }
+    }
+    //FlatHistogram(const FlatHistogram &other) : value_rle(other.value_rle), inner(other.inner), gen(other.gen) {}
+    ~FlatHistogram() = default;
+
+    T next_value(){
+        int rand = std::uniform_int_distribution<int>(1, cumulative_frequency)(gen) - 1;
+        T ret = hist.upper_bound(rand)->second; 
+        return ret;
+    }
+
+  private:
+
+    std::map<uint64_t, T> hist;
+    int cumulative_frequency;
+    std::mt19937_64 &gen;
+  };
+
   // template <class Storage = boost::histogram::default_storage, typename T = int, template <typename, typename...> class Axes = boost::histogram::axis::integer, typename... Args>
   // class FlatHistogram
   // {

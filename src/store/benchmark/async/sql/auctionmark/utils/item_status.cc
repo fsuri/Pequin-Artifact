@@ -2,6 +2,6 @@
 
 namespace auctionmark {
 
-const bool ItemStatusHelper::internal_statuses[5] = {false, true, false, false, false};
+const bool ItemStatusHelper::internal_statuses[4] = {false, true, false, false};
 
 } // namespace auctionmark

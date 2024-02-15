@@ -196,43 +196,33 @@ namespace auctionmark
     return get_random_user_id(0, -1, exclude);
   }
 
-  UserId AuctionMarkProfile::get_random_buyer_id(UserId &exclude)
+  UserId AuctionMarkProfile::get_random_buyer_id(UserId exclude)
   {
     // We don't care about skewing the buyerIds at this point, so just get one from getRandomUserId
     std::vector<UserId> exclude_vec = {exclude};
     return get_random_user_id(0, -1, exclude_vec);
   }
 
-  UserId AuctionMarkProfile::get_random_buyer_id(std::vector<UserId> &exclude)
+  UserId AuctionMarkProfile::get_random_buyer_id(std::vector<UserId> exclude)
   {
     // We don't care about skewing the buyerIds at this point, so just get one from getRandomUserId
     return get_random_user_id(0, -1, exclude);
   }
 
 
-  // UserId AuctionMarkProfile::get_random_buyer_id(str_cat_hist_t &previous_bidders, std::vector<UserId> &exclude)
-  // {
+  UserId AuctionMarkProfile::get_random_buyer_id(std::map<UserId, uint64_t>  &previous_bidders, std::vector<UserId> exclude)
+  {
+    // This is very inefficient, but it's probably good enough for now
+    
+    std::map<UserId, uint64_t> tmp_hist = previous_bidders;
+    for(auto &user: exclude){
+      tmp_hist.erase(user);
+    } 
+    tmp_hist[get_random_buyer_id(exclude)]++;
 
-  //   std::set<UserId> tmp_user_id_set;
-
-  //   tmp_user_id_set.clear();
-  //   for (UserId ex : exclude)
-  //   {
-  //     tmp_user_id_set.insert(ex);
-  //   }
-
-  //   std::map<int, std::string> hist;
-  //   for (auto &&x : indexed(previous_bidders))
-  //   {
-  //     if (*x > 0){
-  //       hist[*x] = x.bin();
-  //     }
-  //   }
-  //   tmp_user_id_set.insert(get_random_buyer_id(exclude));
-
-  //   auto rand_h = FlatHistogram<boost::histogram::default_storage, std::string, boost::histogram::axis::category>(gen, hist);
-  //   return rand_h.next_value();
-  // }
+    auto rand_h = FlatHistogram<UserId>(gen, tmp_hist);
+    return rand_h.next_value();
+  }
 
   UserId AuctionMarkProfile::get_random_seller_id(int client)
   {
@@ -460,7 +450,7 @@ namespace auctionmark
 
   ItemId AuctionMarkProfile::processItemRecord(ItemRecord &row){
     assert(!row.sellerId.empty());
-    if(row.itemStatus == ItemStatus::NULL_VAL){
+    if(row.itemStatus == ItemStatus::OPEN){
 
       ItemStatus i_status = ItemStatus::OPEN;
       ItemInfo itemInfo(row.itemId, row.currentPrice, row.endDate, (int) row.numBids);

@@ -31,15 +31,6 @@
 // #include <boost/histogram.hpp>
 
 #include "store/benchmark/async/json_table_writer.h"
-#include "store/benchmark/async/sql/auctionmark/auctionmark_params.h"
-#include "store/benchmark/async/sql/auctionmark/auctionmark_profile.h"
-
-#include "store/benchmark/async/sql/auctionmark/utils/category_parser.h"
-#include "store/benchmark/async/sql/auctionmark/utils/auctionmark_utils.h"
-#include "store/benchmark/async/sql/auctionmark/utils/flat_histogram.h"
-
-#include "store/benchmark/async/sql/auctionmark/utils/global_attribute_group_id.h"
-#include "store/benchmark/async/sql/auctionmark/utils/global_attribute_value_id.h"
 #include "store/benchmark/async/sql/auctionmark/auctionmark_generator.h"
 
 
@@ -153,7 +144,7 @@ int GenerateGlobalAttributeGroupTable(TableWriter &writer, int n_categories, Auc
   for (auto &gag_id: profile.gag_ids){
     std::vector<std::string> values;
     values.push_back(gag_id.encode());
-    values.push_back(gag_id.get_category_id());
+    values.push_back(std::to_string(gag_id.get_category_id()));
     values.push_back(RandomAString(6, 32, gen));
     writer.add_row(table_name, values);
   }
@@ -194,7 +185,7 @@ void GenerateGlobalAttributeValueTable(TableWriter &writer, AuctionMarkProfile &
 
 
 
-std::vector<UserId> GenerateUserAcctTable(TableWriter &writer, AuctionMarkProfile &profile,) 
+std::vector<UserId> GenerateUserAcctTable(TableWriter &writer, AuctionMarkProfile &profile) 
 {
  
   //SCHEMA
@@ -237,7 +228,7 @@ std::vector<UserId> GenerateUserAcctTable(TableWriter &writer, AuctionMarkProfil
   Zipf randomRating(gen, USER_MIN_RATING, USER_MAX_RATING, 1.0001);
   Zipf randomBalance(gen, USER_MIN_BALANCE, USER_MAX_BALANCE, 1.001);
 
-  int max_items = max(1, ceil(ITEM_ITEMS_PER_SELLER_MAX * SCALE_FACTOR));
+  int max_items = std::max(1, (int) ceil(ITEM_ITEMS_PER_SELLER_MAX * SCALE_FACTOR));
   Zipf randomNumItems(gen, ITEM_ITEMS_PER_SELLER_MIN, max_items, ITEM_ITEMS_PER_SELLER_SIGMA);
 
    //A histogram for the number of users that have the number of items listed ItemCount -> # of Users
@@ -277,7 +268,7 @@ std::vector<UserId> GenerateUserAcctTable(TableWriter &writer, AuctionMarkProfil
     }
     /** Any column with the name XX_IATTR## will automatically be filled with a random integer between (0, 1 << 30)*/
     for(int i = 0; i<8; ++i){
-      values.push_back(std::uniform_int_distribution<int>(0, 1 <<30)(gen));
+      values.push_back(std::to_string(std::uniform_int_distribution<int>(0, 1 <<30)(gen)));
     }
 
 
@@ -304,7 +295,121 @@ std::vector<UserId> GenerateUserAcctTable(TableWriter &writer, AuctionMarkProfil
 // }
 
 
-void ItemTable(TableWriter &writer){
+
+
+std::vector<LoaderItemInfo> GenerateItemTableData(TableWriter &writer, AuctionMarkProfile &profile, std::vector<UserId> &user_ids){
+
+  std::vector<LoaderItemInfo> items;
+
+  int tableSize = 0;
+  for(int i = 0; i < profile.users_per_item_count.size(); ++i){
+    tableSize += i * profile.users_per_item_count[i];
+  }
+  
+  int remaining = tableSize; 
+
+  std::mt19937_64 gen;
+
+  for(auto &seller_id: user_ids){
+    ItemId itemId(seller_id, remaining);
+    if(--remaining == 0) break;
+
+    
+    uint64_t endDate_ = getRandomEndTimestamp(profile);
+    uint64_t startDate = getRandomStartTimestamp(endDate_, profile);
+
+    std::chrono::milliseconds dur(endDate_);
+    timestamp_t endDate = std::chrono::system_clock::time_point(dur);
+
+    uint64_t bidDurationDay = (endDate_ - startDate) / MILLISECONDS_IN_A_DAY;
+
+    std::pair<Zipf, Zipf> p;
+    try {
+      p = item_bid_watch_zipfs.at(bidDurationDay);
+    }
+    catch(...){
+      Zipf randomNumBids(gen, ITEM_BIDS_PER_DAY_MIN * bidDurationDay, ITEM_BIDS_PER_DAY_MAX * bidDurationDay, ITEM_BIDS_PER_DAY_SIGMA);
+      Zipf randomNumWatches(gen, ITEM_WATCHES_PER_DAY_MIN * bidDurationDay, ITEM_WATCHES_PER_DAY_MAX * bidDurationDay, ITEM_WATCHES_PER_DAY_SIGMA);
+      p = std::make_pair(randomNumBids, randomNumWatches);
+      item_bid_watch_zipfs[bidDurationDay] = p;
+    }
+
+     // Calculate the number of bids and watches for this item
+    uint64_t numBids = p.first.next_long();
+    uint64_t numWatches = p.first.next_long();
+
+    // Create the ItemInfo object that we will use to cache the local data
+
+    // tables are done with it.
+    LoaderItemInfo itemInfo(itemId, endDate, numBids);
+    itemInfo.startDate = startDate;
+    itemInfo.initialPrice = profile.random_initial_price.next_long();
+    itemInfo.numImages = profile.random_num_images.next_long();
+    itemInfo.numAttributes = profile.random_num_attributes.next_long();
+    //itemInfo.numBids = numBids;
+    itemInfo.numWatches = numWatches;
+
+     // The auction for this item has already closed
+    if(*itemInfo.get_end_date() <= profile.get_loader_start_time()){
+      // Somebody won a bid and bought the item
+      if (itemInfo.get_num_bids() > 0) {
+        auto sellerId = itemInfo.get_seller_id();
+        itemInfo.lastBidderId = profile.get_random_buyer_id(sellerId);
+        itemInfo.purchaseDate = getRandomPurchaseTimestamp(get_ts(endDate), profile);
+        itemInfo.numComments = profile.random_num_comments.next_long();
+      }
+      itemInfo.set_status(ItemStatus::CLOSED);
+    }
+    // Item is still available
+    else if (itemInfo.get_num_bids() > 0) {
+      auto sellerId = itemInfo.get_seller_id();
+      itemInfo.lastBidderId = profile.get_random_buyer_id(sellerId);
+    }
+    profile.add_item_to_proper_queue(itemInfo, true);
+
+    //CREATE ROW
+    std::vector<std::string> values;
+    values.push_back(itemInfo.get_item_id().encode());// I_ID
+    values.push_back(itemInfo.get_seller_id().encode());// I_U_ID
+    values.push_back(std::to_string(profile.get_random_category_id()));// I_C_ID
+    values.push_back(RandomAString(ITEM_NAME_LENGTH_MIN, ITEM_NAME_LENGTH_MAX, gen)); // I_NAME
+    values.push_back(RandomAString(ITEM_DESCRIPTION_LENGTH_MIN, ITEM_DESCRIPTION_LENGTH_MAX, gen));// I_DESCRIPTION
+    values.push_back(RandomAString(ITEM_USER_ATTRIBUTES_LENGTH_MIN, ITEM_USER_ATTRIBUTES_LENGTH_MAX, gen));  // I_USER_ATTRIBUTES
+    values.push_back(std::to_string(itemInfo.initialPrice));// I_INITIAL_PRICE
+    // I_CURRENT_PRICE
+    if (itemInfo.get_num_bids() > 0) {
+      itemInfo.set_current_price(itemInfo.initialPrice + (itemInfo.get_num_bids() * itemInfo.initialPrice * ITEM_BID_PERCENT_STEP));
+     values.push_back(std::to_string(*itemInfo.get_current_price()));
+    } else {
+      values.push_back(std::to_string(itemInfo.initialPrice));
+    }
+   
+    values.push_back(std::to_string(itemInfo.get_num_bids()));// I_NUM_BIDS
+    values.push_back(std::to_string(itemInfo.numImages));// I_NUM_IMAGES
+    values.push_back(std::to_string(itemInfo.numAttributes));// I_NUM_GLOBAL_ATTRS
+    values.push_back(std::to_string(itemInfo.numAttributes));// I_NUM_COMMENTS
+ 
+    values.push_back(std::to_string(itemInfo.startDate));// I_START_DATE
+  
+    values.push_back(std::to_string(get_ts(endDate)));// I_END_DATE
+  
+    //int status = itemInfo.get_status() == ItemStatus::OPEN? 0 : 3;
+    int status = (int) itemInfo.get_status();
+    values.push_back(std::to_string(status));// I_STATUS
+  
+    uint64_t start_time = get_ts(profile.get_loader_start_time());
+    values.push_back(std::to_string(start_time));// I_CREATED
+  
+    values.push_back(std::to_string(itemInfo.startDate));// I_UPDATED
+  
+    writer.add_row(TABLE_ITEM, values);
+
+    items.push_back(itemInfo);
+  }
+  return items;
+}
+
+std::vector<LoaderItemInfo> GenerateItemTable(TableWriter &writer, AuctionMarkProfile &profile, std::vector<UserId> &user_ids){
   std::vector<std::pair<std::string, std::string>> column_names_and_types;
   column_names_and_types.push_back(std::make_pair("i_id", "TEXT"));
   column_names_and_types.push_back(std::make_pair("i_u_id", "TEXT"));
@@ -343,110 +448,7 @@ void ItemTable(TableWriter &writer){
   writer.add_index(table_name, "idx_item_seller", index);
 
   //DATA GEN
-}
-
-
-std::vector<LoaderItemInfo> GenerateItemTable(TableWriter &writer, AuctionMarkProfile &profile, std::vector<UserId> user_ids){
-
-  std::vector<LoaderItemInfo> items;
-
-  int tableSize = 0;
-  for(int i = 0; i < profile.users_per_item_count.size(); ++i){
-    tableSize += i * profile.users_per_item_count[i];
-  }
-  
-  int remaining = tableSize; 
-
-  for(auto &seller_id: user_ids){
-    ItemId itemId(seller_id, remaining);
-    if(--remaining == 0) break;
-
-    
-    timestamp_t endDate = 0; //TODO:
-    timestamp_t startDate = 0; //TODO:
-
-    uint64_t bidDurationDay = get_ts(endDate - startDate) / MILLISECONDS_IN_A_DAY;
-
-    std::pair<Zipf, Zipf> p;
-    try {
-      p = item_bid_watch_zipfs.at(bidDurationDay);
-    }
-    catch(...){
-      Zipf randomNumBids(gen, ITEM_BIDS_PER_DAY_MIN * bidDurationDay, ITEM_BIDS_PER_DAY_MAX * bidDurationDay, ITEM_BIDS_PER_DAY_SIGMA);
-      Zipf randomNumWatches(gen, ITEM_WATCHES_PER_DAY_MIN * bidDurationDay, ITEM_WATCHES_PER_DAY_MAX * bidDurationDay, ITEM_WATCHES_PER_DAY_SIGMA);
-      p = std::make_pair(randomNumBids, randomNumWatches);
-      item_bid_watch_zipfs[bidDurationDay] = p;
-    }
-
-     // Calculate the number of bids and watches for this item
-    int numBids = p.first.next_long();
-    int numWatches = p.first.next_long();
-
-    // Create the ItemInfo object that we will use to cache the local data
-
-    // tables are done with it.
-    LoaderItemInfo itemInfo(itemId, endDate, numBids);
-    itemInfo.startDate = get_ts(startDate);
-    itemInfo.initialPrice = profile.random_initial_price.next_long();
-    itemInfo.numImages = profile.random_num_images.next_long();
-    itemInfo.numAttributes = profile.random_num_attributes.next_long();
-    itemInfo.numBids = numBids;
-    itemInfo.numWatches = numWatches;
-
-     // The auction for this item has already closed
-    if(itemInfo.endDate <= profile.get_loader_start_time()){
-      // Somebody won a bid and bought the item
-      if (itemInfo.get_num_bids() > 0) {
-        itemInfo.lastBidderId = profile.get_random_buyer_id(itemInfo.get_seller_id());
-        itemInfo.purchaseDate = getRandomPurchaseTimestamp(get_ts(endDate), profile);
-        itemInfo.numComments = profile.random_num_comments.next_long();
-      }
-      itemInfo.set_status(ItemStatus::CLOSED);
-    }
-    // Item is still available
-    else if (itemInfo.get_num_bids > 0) {
-      itemInfo.lastBidderId = profile.get_random_buyer_id(itemInfo.get_seller_id());
-    }
-    profile.add_item_to_proper_queue(itemInfo, true);
-
-    //CREATE ROW
-    std::vector<std::string> values;
-    values.push_back(itemInfo.get_item_id().encode());// I_ID
-    values.push_back(itemInfo.get_seller_id().encode());// I_U_ID
-    values.push_back(std::to_string(profile.get_random_category_id()));// I_C_ID
-    values.push_back(RandomAString(ITEM_NAME_LENGTH_MIN, ITEM_NAME_LENGTH_MAX, gen)); // I_NAME
-    values.push_back(RandomAString(ITEM_DESCRIPTION_LENGTH_MIN, ITEM_DESCRIPTION_LENGTH_MAX, gen));// I_DESCRIPTION
-    values.push_back(RandomAString(ITEM_USER_ATTRIBUTES_LENGTH_MIN, ITEM_USER_ATTRIBUTES_LENGTH_MAX, gen));  // I_USER_ATTRIBUTES
-    values.push_back(std::to_string(itemInfo.initialPrice));// I_INITIAL_PRICE
-    // I_CURRENT_PRICE
-    if (itemInfo.get_num_bids() > 0) {
-      itemInfo.set_current_price(itemInfo.initialPrice + (itemInfo.get_num_bids() * itemInfo.initialPrice * ITEM_BID_PERCENT_STEP));
-     values.push_back(std::to_string(*itemInfo.get_current_price()));
-    } else {
-      values.push_back(std::to_string(itemInfo.initialPrice));
-    }
-   
-    values.push_back(std::to_string(itemInfo.get_num_bids()));// I_NUM_BIDS
-    values.push_back(std::to_string(itemInfo.numImages));// I_NUM_IMAGES
-    values.push_back(std::to_string(itemInfo.numAttributes));// I_NUM_GLOBAL_ATTRS
-    values.push_back(std::to_string(itemInfo.numAttributes));// I_NUM_COMMENTS
- 
-    values.push_back(std::to_string(itemInfo.startDate));// I_START_DATE
-  
-    values.push_back(std::to_string(get_ts(endDate)));// I_END_DATE
-  
-    values.push_back(std::to_string(*itemInfo.get_status()));// I_STATUS
-  
-    uint64_t start_time = get_ts(profile.get_loader_start_time());
-    values.push_back(std::to_string(start_time));// I_CREATED
-  
-    values.push_back(std::to_string(itemInfo.startDate));// I_UPDATED
-  
-    writer.add_row(TABLE_ITEM, values);
-
-    items.push_back(itemInfo);
-  }
-  return items;
+  return GenerateItemTableData(writer, profile, user_ids);
 }
 
 void GenerateItemImage(TableWriter &writer, std::vector<LoaderItemInfo> &items){
@@ -473,7 +475,7 @@ void GenerateItemImage(TableWriter &writer, std::vector<LoaderItemInfo> &items){
   }
 }
 
-void GenerateItemAttribute(TableWriter &writer, std::vector<LoaderItemInfo> &items){
+void GenerateItemAttribute(TableWriter &writer, AuctionMarkProfile &profile, std::vector<LoaderItemInfo> &items){
   //SCHEMA
   std::vector<std::pair<std::string, std::string>> column_names_and_types;
   column_names_and_types.push_back(std::make_pair("ia_id", "TEXT"));
@@ -527,20 +529,22 @@ void GenerateItemComment(TableWriter &writer, std::vector<LoaderItemInfo> &items
   writer.add_index(table_name, "idx_item_comment", index);
 
   //DATA GENERATION
-  for(auto &item: items){
+  std::mt19937_64 gen;
+
+  for(auto &itemInfo: items){
     int total = itemInfo.purchaseDate > 0 ? itemInfo.numComments : 0;
     for(int count = 0; count < total; ++count){
       std::vector<std::string> values;
       values.push_back(std::to_string(count)); //ic_id     //FIXME: Unclear if this is the correct use of count
-      values.push_back(item.get_item_id().encode()); //ic_i_id
-      values.push_back(item.get_seller_id().encode()); //ic_u_id
-      values.push_back(item.lastBidderId.encode()); //ic_buyer_id
+      values.push_back(itemInfo.get_item_id().encode()); //ic_i_id
+      values.push_back(itemInfo.get_seller_id().encode()); //ic_u_id
+      values.push_back(itemInfo.lastBidderId.encode()); //ic_buyer_id
 
       values.push_back(RandomAString(ITEM_COMMENT_LENGTH_MIN, ITEM_COMMENT_LENGTH_MAX, gen));//ic_question
 
       values.push_back(RandomAString(ITEM_COMMENT_LENGTH_MIN, ITEM_COMMENT_LENGTH_MAX, gen));//ic_response
       
-      uint64_t t = getRandomCommentDate(itemInfo.startDate, get_ts(*itemInfo.get_end_date()));
+      uint64_t t = getRandomCommentDate(itemInfo.startDate, get_ts(*itemInfo.get_end_date()), gen);
       values.push_back(std::to_string(t));//ic_created
       values.push_back(std::to_string(t));//ic_updated
 
@@ -549,7 +553,7 @@ void GenerateItemComment(TableWriter &writer, std::vector<LoaderItemInfo> &items
   }
 }
 
-void GenerateItemBid(TableWriter &writer, std::vector<LoaderItemInfo> &items){
+void GenerateItemBid(TableWriter &writer, AuctionMarkProfile &profile, std::vector<LoaderItemInfo> &items){
   std::vector<std::pair<std::string, std::string>> column_names_and_types;
   column_names_and_types.push_back(std::make_pair("ib_id", "BIGINT"));
   column_names_and_types.push_back(std::make_pair("ib_i_id", "TEXT"));
@@ -567,12 +571,79 @@ void GenerateItemBid(TableWriter &writer, std::vector<LoaderItemInfo> &items){
 
    //DATA GENERATION
   for(auto &itemInfo: items){
-    int total = itemInfo.purchaseDate > 0 ? itemInfo.numComments : 0;
-    for(int count = 0; count < totals; ++count){
-      std::vector<std::string> values;
-      values.push_back(std::to_string(count)); //ic_id
-    
+    Bid bid;
+    bool new_item = true;
+    //TODO: Should these three not reset between items?
+    float currentPrice;
+    float currentBidPriceAdvanceStep;
+    uint64_t currentCreateDateAdvanceStep;
 
+    int total = itemInfo.get_num_bids();
+    for(int count = 0; count < total; ++count){
+      int remaining = total - count - 1;
+
+      UserId bidderId;
+      // Figure out the UserId for the person bidding on this item now
+
+      if(new_item) {
+        // If this is a new item and there is more than one bid, then  we'll choose the bidder's UserId at random.
+        // If there is only one bid, then it will have to be the last bidder
+        bidderId = itemInfo.get_num_bids() == 1 ? itemInfo.lastBidderId : profile.get_random_buyer_id(itemInfo.get_seller_id());
+        timestamp_t endDate;
+        if(itemInfo.get_status() == ItemStatus::OPEN){
+          endDate = profile.get_loader_start_time();
+        }
+        else{
+          endDate = *itemInfo.get_end_date();
+        }
+        currentCreateDateAdvanceStep = (get_ts(endDate) - itemInfo.startDate) / (remaining + 1);
+        currentBidPriceAdvanceStep = itemInfo.initialPrice * ITEM_BID_PERCENT_STEP;
+        currentPrice = itemInfo.initialPrice;
+      }
+      else if(count == total){
+         // The last bid must always be the item's lastBidderId
+         bidderId = itemInfo.lastBidderId;
+         currentPrice = *itemInfo.get_current_price();
+      }
+      else if(total == 2){
+         // The first bid for a two-bid item must always be different than the lastBidderId
+        bidderId = profile.get_random_buyer_id({itemInfo.lastBidderId, itemInfo.get_seller_id()});
+      }
+      else{
+         // Since there are multiple bids, we want randomly select one based on the previous bidders
+        // We will get the histogram of bidders so that we are more likely to select an existing bidder rather than a completely random one
+        auto &bidderHistogram = itemInfo.bidderHistogram;
+        bidderId = profile.get_random_buyer_id(bidderHistogram, {bid.bidderId, itemInfo.get_seller_id()});
+        currentPrice += currentBidPriceAdvanceStep;
+      }
+
+      //Update bid info
+      float last_bid = new_item? itemInfo.initialPrice : bid.maxBid;
+      bid = itemInfo.getNextBid(count, bidderId);
+      bid.createDate = itemInfo.startDate + currentCreateDateAdvanceStep;
+      bid.updateDate = bid.createDate;
+
+      if(remaining == 0){
+        bid.maxBid = *itemInfo.get_current_price();
+      }
+      else{
+        bid.maxBid = last_bid + currentBidPriceAdvanceStep;
+      }
+
+
+      //ROW generation
+      std::vector<std::string> values;
+
+      values.push_back(std::to_string(bid.id)); //ib_id
+      values.push_back(itemInfo.get_item_id().encode()); //ib_i_id
+      values.push_back(itemInfo.get_seller_id().encode()); //ib_u_id
+      values.push_back(bid.bidderId.encode()); //ib_buyer_id
+      float price = bid.maxBid - (remaining > 0 ? currentBidPriceAdvanceStep / 2.0 : 0);
+      values.push_back(std::to_string(price)); //ib_bid
+      values.push_back(std::to_string(bid.maxBid)); //ib_max_bid
+      values.push_back(std::to_string(bid.createDate)); //ib_created
+      values.push_back(std::to_string(bid.updateDate)); //ib_updated
+    
       writer.add_row(table_name, values);
     }
   }
@@ -594,11 +665,10 @@ void GenerateItemMaxBid(TableWriter &writer, std::vector<LoaderItemInfo> &items)
   writer.add_table(table_name, column_names_and_types, primary_key_col_idx);
 
    //DATA GENERATION
-   //FIXME: UNCLEAR HOW THIS IS MEANT TO BE HANDLED
   for(auto &itemInfo: items){
     bool has_max_bid = itemInfo.bids.size() > 0 ? 1 : 0;
     if(has_max_bid){
-      Bid &bid = itemInfo.bids.back();
+      Bid const &bid = itemInfo.getLastBid();
 
       std::vector<std::string> values;
      
@@ -618,17 +688,17 @@ void GenerateItemMaxBid(TableWriter &writer, std::vector<LoaderItemInfo> &items)
        values.push_back(itemInfo.get_seller_id().encode());
 
       // IMB_CREATED
-      values.push_back(std::to_string(get_ts(bid.createDate)));
+      values.push_back(std::to_string(bid.createDate));
      
       // IMB_UPDATED
-      values.push_back(std::to_string(get_ts(bid.updateDate)));
+      values.push_back(std::to_string(bid.updateDate));
      
       writer.add_row(table_name, values);
     }
   }
 }
 
-void GenerateItemPurchase(TableWriter &writer, std::vector<LoaderItemInfo> &items){
+ void GenerateItemPurchase(TableWriter &writer, std::vector<LoaderItemInfo> &items){
    std::vector<std::pair<std::string, std::string>> column_names_and_types;
   column_names_and_types.push_back(std::make_pair("ip_id", "BIGINT"));
   column_names_and_types.push_back(std::make_pair("ip_ib_id", "BIGINT"));
@@ -641,12 +711,14 @@ void GenerateItemPurchase(TableWriter &writer, std::vector<LoaderItemInfo> &item
   std::string table_name = TABLE_ITEM_MAX_BID;
   writer.add_table(table_name, column_names_and_types, primary_key_col_idx);
 
+
    //DATA GENERATION
+  std::mt19937_64 gen;
+
   for(auto &itemInfo: items){  
-    //FIXME: UNCLEAR HOW THIS IS MEANT TO BE HANDLED
     bool has_purchase = itemInfo.bids.size() > 0 && itemInfo.purchaseDate > 0 ? 1 : 0;
     if(has_purchase){
-      Bid &bid = itemInfo.bids.back();
+      Bid &bid = itemInfo.getLastBid();
 
       std::vector<std::string> values;
      
@@ -667,18 +739,17 @@ void GenerateItemPurchase(TableWriter &writer, std::vector<LoaderItemInfo> &item
       values.push_back(std::to_string(itemInfo.purchaseDate));
      
       // IMB_UPDATED
-      values.push_back(std::to_string(get_ts(bid.updateDate)));
+      values.push_back(std::to_string(bid.updateDate));
      
       writer.add_row(table_name, values);
 
-      if(std::uniform_int_distribution<int>(1, 100) <= PROB_PURCHASE_BUYER_LEAVES_FEEDBACK){
+      if(std::uniform_int_distribution<int>(1, 100)(gen) <= PROB_PURCHASE_BUYER_LEAVES_FEEDBACK){
         bid.buyer_feedback = true;
       }
-      if(std::uniform_int_distribution<int>(1, 100) <= PROB_PURCHASE_SELLER_LEAVES_FEEDBACK){
+      if(std::uniform_int_distribution<int>(1, 100)(gen) <= PROB_PURCHASE_SELLER_LEAVES_FEEDBACK){
         bid.seller_feedback = true;
       }
 
-      //TODO: subtableGen?
     }
   }
 }
@@ -686,7 +757,7 @@ void GenerateItemPurchase(TableWriter &writer, std::vector<LoaderItemInfo> &item
 //////////////////
 
 
-void GenerateUserFeedback(TableWriter &writer, std::vector<LoaderItemInfo> &items){
+void GenerateUserFeedback(TableWriter &writer, AuctionMarkProfile &profile, std::vector<LoaderItemInfo> &items){
   //SCHEMA
    std::vector<std::pair<std::string, std::string>> column_names_and_types;
   column_names_and_types.push_back(std::make_pair("uf_u_id", "TEXT"));
@@ -702,7 +773,39 @@ void GenerateUserFeedback(TableWriter &writer, std::vector<LoaderItemInfo> &item
   std::string table_name = TABLE_USERACCT_FEEDBACK;
   writer.add_table(table_name, column_names_and_types, primary_key_col_idx);
 
-  //DATA
+  //DATA GEN
+  for(auto &itemInfo: items){  
+    bool was_sold = itemInfo.bids.size() > 0 && itemInfo.purchaseDate > 0 ? 1 : 0;
+    if(!was_sold) continue;
+
+    Bid const &bid = itemInfo.getLastBid();
+
+    if(bid.buyer_feedback){
+      std::vector<std::string> values;
+     
+      values.push_back(bid.bidderId.encode()); // uf_u_id
+      values.push_back(itemInfo.get_item_id().encode()); //uf_i_id
+      values.push_back(itemInfo.get_seller_id().encode()); //uf_i_u_id
+      values.push_back(itemInfo.get_seller_id().encode()); //uf_from_id
+      values.push_back(std::to_string(1)); //uf_rating
+      values.push_back(std::to_string(get_ts(profile.get_loader_start_time()))); //uf_date
+      
+      writer.add_row(table_name, values);
+    }
+
+    if(bid.seller_feedback){
+      std::vector<std::string> values;
+     
+      values.push_back(itemInfo.get_seller_id().encode()); // uf_u_id
+      values.push_back(itemInfo.get_item_id().encode()); //uf_i_id
+      values.push_back(itemInfo.get_seller_id().encode()); //uf_i_u_id
+      values.push_back(bid.bidderId.encode()); //uf_from_id
+      values.push_back(std::to_string(1)); //uf_rating
+      values.push_back(std::to_string(get_ts(profile.get_loader_start_time()))); //uf_date
+      
+      writer.add_row(table_name, values);
+    }
+  }
 }
 
 void GenerateUserItem(TableWriter &writer, std::vector<LoaderItemInfo> &items){
@@ -724,9 +827,31 @@ void GenerateUserItem(TableWriter &writer, std::vector<LoaderItemInfo> &items){
   //Optional Index
    const std::vector<uint32_t> index {1};
   writer.add_index(table_name, "idx_useracct_item_id", index);
+
+  //DATA GEN
+  for(auto &itemInfo: items){  
+    bool was_sold = itemInfo.bids.size() > 0 && itemInfo.purchaseDate > 0 ? 1 : 0;
+    if(!was_sold) continue;
+
+    Bid const &bid = itemInfo.getLastBid();
+
+    std::vector<std::string> values;
+    
+    values.push_back(bid.bidderId.encode()); // ui_u_id
+    values.push_back(itemInfo.get_item_id().encode()); //ui_i_id
+    values.push_back(itemInfo.get_seller_id().encode()); //ui_i_u_id
+    //TODO: Technically these are all "null"
+    values.push_back(std::to_string(-1)); //ui_ip_id
+    values.push_back(std::to_string(-1)); //ui_ip_ib_id
+    values.push_back(""); //ui_ip_ib_i_id
+    values.push_back("");//ui_ip_ib_u_id
+    values.push_back(std::to_string(get_ts(*itemInfo.get_end_date())));//ui_created
+    
+    writer.add_row(table_name, values);
+  }
 }
 
-void GenerateUserWatch(TableWriter &writer, std::vector<LoaderItemInfo> &items){
+void GenerateUserWatch(TableWriter &writer, AuctionMarkProfile &profile, std::vector<LoaderItemInfo> &items){
    std::vector<std::pair<std::string, std::string>> column_names_and_types;
   column_names_and_types.push_back(std::make_pair("uw_u_id", "TEXT"));
   column_names_and_types.push_back(std::make_pair("uw_i_id", "TEXT"));
@@ -737,6 +862,50 @@ void GenerateUserWatch(TableWriter &writer, std::vector<LoaderItemInfo> &items){
 
   std::string table_name = TABLE_USERACCT_WATCH;
   writer.add_table(table_name, column_names_and_types, primary_key_col_idx);
+
+  //DATA GEN
+  std::mt19937_64 gen;
+
+  for(auto &itemInfo: items){  
+    
+    std::set<UserId> watchers; 
+
+    for(int i = 0; i < itemInfo.numWatches; ++i){
+      auto &bidderHistogram = itemInfo.bidderHistogram;
+      UserId buyerId;
+      bool use_random = itemInfo.numWatches == bidderHistogram.size();
+      uint64_t num_watchers = watchers.size();
+      uint64_t num_users = TABLESIZE_USERACCT;
+
+      int tries = 1000; //find new watcher
+      while(num_watchers < num_users && tries-- > 0){
+        if(use_random){
+          buyerId = profile.get_random_buyer_id();
+        }
+        else{
+          buyerId = profile.get_random_buyer_id(bidderHistogram, {itemInfo.get_seller_id()});
+        }
+        if(watchers.insert(buyerId).second) break;
+        buyerId = UserId();
+
+         // If for some reason we unable to find a buyer from our bidderHistogram, then just give up and get a random one
+        if(!use_random && tries == 0){
+          use_random = true;
+          tries = 500;
+        }
+      }
+
+      //Generate row
+      std::vector<std::string> values;
+    
+      values.push_back(buyerId.encode()); // uw_u_id
+      values.push_back(itemInfo.get_item_id().encode()); //uw_i_id
+      values.push_back(itemInfo.get_seller_id().encode()); //uw_i_u_id
+      values.push_back(std::to_string(getRandomDate(itemInfo.startDate, get_ts(*itemInfo.get_end_date()), gen)));//uw_created
+      
+      writer.add_row(table_name, values);
+    }
+  }
 }
  
 } //namespace auctionmark
@@ -745,21 +914,46 @@ void GenerateUserWatch(TableWriter &writer, std::vector<LoaderItemInfo> &items){
 
 int main(int argc, char *argv[]) {
 
-  AuctionMarkProfile profile;
-  profile.set_loader_time();
-  int x = 4;
-  // gflags::SetUsageMessage(
-  //     "generates a json file containing sql tables for AuctionMark data\n");
-  // std::string file_name = "auctionmark";
-  // TableWriter writer = TableWriter(file_name);
+  auto start_time = std::time(0);
+  
+  gflags::SetUsageMessage("generates a json file containing sql tables for AuctionMark data\n");
+  std::string file_name = "auctionmark";
+  TableWriter writer = TableWriter(file_name);
 
-  // GenerateRegionTable(writer, auctionmark::N_REGIONS);
-  // int n_categories = GenerateCategoryTable(writer);
-  // std::set<uint32_t> gag_ids = GenerateGlobalAttributeGroupTable(writer, n_categories, auctionmark::N_GAGS, auctionmark::GAV_PER_GROUP);
-  // GenerateGlobalAttributeValueTable(writer, auctionmark::GAV_PER_GROUP, gag_ids);
-  // GenerateUserAcctTable(writer, auctionmark::N_REGIONS, auctionmark::N_USERS);
+  std::mt19937_64 gen;
+  auctionmark::AuctionMarkProfile profile(-1, FLAGS_client_total, 1.0, gen);
+  profile.set_loader_start_time(std::chrono::system_clock::now());
+  
+
+  auctionmark::GenerateRegionTable(writer);
+  int n_categories = auctionmark::GenerateCategoryTable(writer);
+  int n_gags = auctionmark::GenerateGlobalAttributeGroupTable(writer, n_categories, profile);
+  auctionmark::GenerateGlobalAttributeValueTable(writer, profile, n_gags);
+
+  //Generate UserTables
+  std::vector<auctionmark::UserId> users = auctionmark::GenerateUserAcctTable(writer, profile);
+
+  std::vector<auctionmark::LoaderItemInfo> items = auctionmark::GenerateItemTable(writer, profile, users);
+
+  auctionmark::GenerateItemImage(writer, items);
+  auctionmark::GenerateItemAttribute(writer, profile, items);
+  auctionmark::GenerateItemComment(writer, items);
+  auctionmark::GenerateItemBid(writer, profile, items);
+  auctionmark::GenerateItemMaxBid(writer, items);
+  auctionmark::GenerateItemPurchase(writer, items);
+
+  auctionmark::GenerateUserFeedback(writer, profile, items);
+  auctionmark::GenerateUserItem(writer, items);
+  auctionmark::GenerateUserWatch(writer, profile, items);
+
+  //TODO: Serialize profile.
+   profile.set_loader_stop_time(std::chrono::system_clock::now());
+
   writer.flush();
   // std::cerr << "Wrote tables." << std::endl;
+
+   auto end_time = std::time(0);
+    std::cerr << "Finished AUCTIONMARK Table Generation. Took " << (end_time - start_time) << "seconds" << std::endl;
   return 0;
 }
 
