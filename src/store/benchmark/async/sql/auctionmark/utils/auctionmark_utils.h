@@ -29,24 +29,23 @@
 
 #include <random>
 #include <chrono>
+#include <sys/time.h>
 #include "store/benchmark/async/sql/auctionmark/auctionmark_params.h"
 
 namespace auctionmark
 {
-  using timestamp_t = std::chrono::system_clock::time_point;
-
   std::string RandomAString(size_t x, size_t y, std::mt19937_64 &gen);
 
-  long GetScaledTimestamp(timestamp_t benchmark_start, timestamp_t client_start, timestamp_t current);
+  uint64_t GetScaledTimestamp(uint64_t benchmark_start, uint64_t client_start, uint64_t current);
 
   std::string GetUniqueElementId(std::string item_id_, int idx);
 
-  timestamp_t GetProcTimestamp(std::vector<timestamp_t> benchmark_times);
+  uint64_t GetProcTimestamp(std::vector<uint64_t> benchmark_times);
 
-  inline uint64_t get_ts(timestamp_t time)
+  inline uint64_t get_ts(struct timeval& time)
   {
     // return std::chrono::duration_cast<milliseconds>(time.time_since_epoch()).count();
-    return time.time_since_epoch().count();
+    return (time.tv_sec * 1000) + (time.tv_usec / 1000);
   }
 
 } // namespace auctionmark
@@ -55,7 +54,6 @@ namespace boost
 {
   namespace serialization
   {
-
     template <class Archive, class T>
     void serialize(Archive &ar, std::optional<T> &opt, const unsigned int version)
     {
@@ -67,14 +65,6 @@ namespace boost
         ar & value;
         opt.emplace(value);
       }
-    }
-
-    template <class Archive>
-    void serialize(Archive &ar, std::chrono::system_clock::time_point &time, const unsigned int version)
-    {
-      uint64_t millis = time.time_since_epoch().count();
-      ar & millis;
-      time = std::chrono::system_clock::time_point(std::chrono::milliseconds(millis));
     }
   } // namespace serialization
 } // namespace boost

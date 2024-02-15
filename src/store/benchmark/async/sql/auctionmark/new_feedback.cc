@@ -60,7 +60,7 @@ transaction_status_t NewFeedback::Execute(SyncClient &client) {
 
   Debug("NEW FEEDBACK");
 
-  uint64_t current_time = get_ts(GetProcTimestamp({profile.get_loader_start_time(), profile.get_client_start_time()}));
+  uint64_t current_time = GetProcTimestamp({profile.get_loader_start_time(), profile.get_client_start_time()});
 
   client.Begin(timeout);
 

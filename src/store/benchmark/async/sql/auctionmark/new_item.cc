@@ -87,7 +87,7 @@ transaction_status_t NewItem::Execute(SyncClient &client) {
 
   client.Begin(timeout);
 
-  uint64_t current_time = get_ts(GetProcTimestamp({profile.get_loader_start_time(), profile.get_client_start_time()}));
+  uint64_t current_time = GetProcTimestamp({profile.get_loader_start_time(), profile.get_client_start_time()});
   uint64_t end_date = current_time + (duration * MILLISECONDS_IN_A_DAY);
 
   //Get attribute names and category path and append them to the item description

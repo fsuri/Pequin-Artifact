@@ -2,7 +2,7 @@
 
 namespace auctionmark {
 
-ItemInfo::ItemInfo(ItemId id, std::optional<double> current_price, std::optional<std::chrono::system_clock::time_point> end_date, int num_bids)
+ItemInfo::ItemInfo(ItemId id, std::optional<double> current_price, std::optional<uint64_t> end_date, int num_bids)
     : item_id(id), num_bids(num_bids) {
     if (current_price.has_value()) {
         this->current_price = static_cast<float>(current_price.value());
@@ -10,14 +10,13 @@ ItemInfo::ItemInfo(ItemId id, std::optional<double> current_price, std::optional
     this->end_date = end_date;
 }
 
-ItemInfo::ItemInfo(std::string id, double current_price, uint64_t end_date, int num_bids) : item_id(ItemId(id)), current_price(current_price), num_bids(num_bids) {
-    this->end_date = std::chrono::system_clock::from_time_t(end_date);
+ItemInfo::ItemInfo(std::string id, double current_price, uint64_t end_date, int num_bids) : item_id(ItemId(id)), current_price(current_price), end_date(end_date), num_bids(num_bids) {
 }
 
 ItemInfo::ItemInfo() {
     item_id = ItemId();
     std::optional<double> current_price = std::nullopt;
-    std::optional<std::chrono::system_clock::time_point> end_date = std::nullopt;
+    std::optional<uint64_t> end_date = std::nullopt;
     long num_bids = 0;
     std::optional<ItemStatus> status = std::nullopt;
 }
@@ -42,7 +41,7 @@ bool ItemInfo::has_end_date() const {
     return end_date.has_value();
 }
 
-std::optional<std::chrono::system_clock::time_point> ItemInfo::get_end_date() const {
+std::optional<uint64_t> ItemInfo::get_end_date() const {
     return end_date;
 }
 
@@ -54,7 +53,7 @@ void ItemInfo::set_current_price(std::optional<float> current_price) {
     this->current_price = current_price;
 }
 
-void ItemInfo::set_end_date(std::optional<std::chrono::system_clock::time_point> end_date) {
+void ItemInfo::set_end_date(std::optional<uint64_t> end_date) {
     this->end_date = end_date;
 }
 

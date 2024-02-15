@@ -58,7 +58,7 @@ transaction_status_t NewCommentResponse::Execute(SyncClient &client) {
 
   client.Begin(timeout);
 
-  uint64_t current_time = get_ts(GetProcTimestamp({profile.get_loader_start_time(), profile.get_client_start_time()}));
+  uint64_t current_time = GetProcTimestamp({profile.get_loader_start_time(), profile.get_client_start_time()});
 
    statement = fmt::format("UPDATE {} SET ic_response = {}, ic_updated = {} WHERE ic_id = {} AND ic_i_id = {} AND ic_u_id = {}", 
                           TABLE_ITEM_COMMENT, response, current_time, comment_id, item_id, seller_id);

@@ -43,8 +43,8 @@ class NewBid : public AuctionMarkTransaction {
   std::string seller_id;
   std::string buyer_id;
   double newBid;
-  timestamp_t estimatedEndDate;
-  std::vector<timestamp_t> benchmark_times;
+  uint64_t estimatedEndDate;
+  std::vector<uint64_t> benchmark_times;
 
   AuctionMarkProfile &profile;
 };

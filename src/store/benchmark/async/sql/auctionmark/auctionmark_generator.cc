@@ -28,6 +28,7 @@
 #include <random>
 #include <gflags/gflags.h>
 #include <set>
+#include <sys/time.h>
 // #include <boost/histogram.hpp>
 
 #include "store/benchmark/async/json_table_writer.h"
@@ -263,7 +264,9 @@ std::vector<UserId> GenerateUserAcctTable(TableWriter &writer, AuctionMarkProfil
     values.push_back(std::to_string(bal)); //u_balance
     values.push_back(std::to_string(0)); //u_comments
     values.push_back(std::to_string(std::uniform_int_distribution<int>(0, TABLESIZE_REGION)(gen))); //u_r_id
-    uint64_t curr_time = get_ts(timestamp_t::clock().now());
+    struct timeval time;
+    gettimeofday(&time, NULL);
+    uint64_t curr_time = get_ts(time);
     values.push_back(std::to_string(curr_time)); //u_created
     values.push_back(std::to_string(curr_time)); //u_updated
 
@@ -324,13 +327,10 @@ std::vector<LoaderItemInfo> GenerateItemTableData(TableWriter &writer, AuctionMa
     if(--remaining == 0) break;
 
     
-    uint64_t endDate_ = getRandomEndTimestamp(profile);
-    uint64_t startDate = getRandomStartTimestamp(endDate_, profile);
+    uint64_t endDate = getRandomEndTimestamp(profile);
+    uint64_t startDate = getRandomStartTimestamp(endDate, profile);
 
-    std::chrono::milliseconds dur(endDate_);
-    timestamp_t endDate = std::chrono::system_clock::time_point(dur);
-
-    uint64_t bidDurationDay = (endDate_ - startDate) / MILLISECONDS_IN_A_DAY;
+    uint64_t bidDurationDay = (endDate - startDate) / MILLISECONDS_IN_A_DAY;
 
     std::pair<Zipf, Zipf> p;
     try {
@@ -364,7 +364,7 @@ std::vector<LoaderItemInfo> GenerateItemTableData(TableWriter &writer, AuctionMa
       if (itemInfo.get_num_bids() > 0) {
         auto sellerId = itemInfo.get_seller_id();
         itemInfo.lastBidderId = profile.get_random_buyer_id(sellerId);
-        itemInfo.purchaseDate = getRandomPurchaseTimestamp(get_ts(endDate), profile);
+        itemInfo.purchaseDate = getRandomPurchaseTimestamp(endDate, profile);
         itemInfo.numComments = profile.random_num_comments.next_long();
       }
       itemInfo.set_status(ItemStatus::CLOSED);
@@ -400,13 +400,13 @@ std::vector<LoaderItemInfo> GenerateItemTableData(TableWriter &writer, AuctionMa
  
     values.push_back(std::to_string(itemInfo.startDate));// I_START_DATE
   
-    values.push_back(std::to_string(get_ts(endDate)));// I_END_DATE
+    values.push_back(std::to_string(endDate));// I_END_DATE
   
     //int status = itemInfo.get_status() == ItemStatus::OPEN? 0 : 3;
     int status = (int) itemInfo.get_status();
     values.push_back(std::to_string(status));// I_STATUS
   
-    uint64_t start_time = get_ts(profile.get_loader_start_time());
+    uint64_t start_time = profile.get_loader_start_time();
     values.push_back(std::to_string(start_time));// I_CREATED
   
     values.push_back(std::to_string(itemInfo.startDate));// I_UPDATED
@@ -553,7 +553,7 @@ void GenerateItemComment(TableWriter &writer, std::vector<LoaderItemInfo> &items
 
       values.push_back(RandomAString(ITEM_COMMENT_LENGTH_MIN, ITEM_COMMENT_LENGTH_MAX, gen));//ic_response
       
-      uint64_t t = getRandomCommentDate(itemInfo.startDate, get_ts(*itemInfo.get_end_date()), gen);
+      uint64_t t = getRandomCommentDate(itemInfo.startDate, *itemInfo.get_end_date(), gen);
       values.push_back(std::to_string(t));//ic_created
       values.push_back(std::to_string(t));//ic_updated
 
@@ -598,14 +598,14 @@ void GenerateItemBid(TableWriter &writer, AuctionMarkProfile &profile, std::vect
         // If this is a new item and there is more than one bid, then  we'll choose the bidder's UserId at random.
         // If there is only one bid, then it will have to be the last bidder
         bidderId = itemInfo.get_num_bids() == 1 ? itemInfo.lastBidderId : profile.get_random_buyer_id(itemInfo.get_seller_id());
-        timestamp_t endDate;
+        uint64_t endDate;
         if(itemInfo.get_status() == ItemStatus::OPEN){
           endDate = profile.get_loader_start_time();
         }
         else{
           endDate = *itemInfo.get_end_date();
         }
-        currentCreateDateAdvanceStep = (get_ts(endDate) - itemInfo.startDate) / (remaining + 1);
+        currentCreateDateAdvanceStep = (endDate - itemInfo.startDate) / (remaining + 1);
         currentBidPriceAdvanceStep = itemInfo.initialPrice * ITEM_BID_PERCENT_STEP;
         currentPrice = itemInfo.initialPrice;
       }
@@ -797,7 +797,7 @@ void GenerateUserFeedback(TableWriter &writer, AuctionMarkProfile &profile, std:
       values.push_back(itemInfo.get_seller_id().encode()); //uf_i_u_id
       values.push_back(itemInfo.get_seller_id().encode()); //uf_from_id
       values.push_back(std::to_string(1)); //uf_rating
-      values.push_back(std::to_string(get_ts(profile.get_loader_start_time()))); //uf_date
+      values.push_back(std::to_string(profile.get_loader_start_time())); //uf_date
       
       writer.add_row(table_name, values);
     }
@@ -810,7 +810,7 @@ void GenerateUserFeedback(TableWriter &writer, AuctionMarkProfile &profile, std:
       values.push_back(itemInfo.get_seller_id().encode()); //uf_i_u_id
       values.push_back(bid.bidderId.encode()); //uf_from_id
       values.push_back(std::to_string(1)); //uf_rating
-      values.push_back(std::to_string(get_ts(profile.get_loader_start_time()))); //uf_date
+      values.push_back(std::to_string(profile.get_loader_start_time())); //uf_date
       
       writer.add_row(table_name, values);
     }
@@ -854,7 +854,7 @@ void GenerateUserItem(TableWriter &writer, std::vector<LoaderItemInfo> &items){
     values.push_back(std::to_string(-1)); //ui_ip_ib_id
     values.push_back(""); //ui_ip_ib_i_id
     values.push_back("");//ui_ip_ib_u_id
-    values.push_back(std::to_string(get_ts(*itemInfo.get_end_date())));//ui_created
+    values.push_back(std::to_string(*itemInfo.get_end_date()));//ui_created
     
     writer.add_row(table_name, values);
   }
@@ -910,7 +910,7 @@ void GenerateUserWatch(TableWriter &writer, AuctionMarkProfile &profile, std::ve
       values.push_back(buyerId.encode()); // uw_u_id
       values.push_back(itemInfo.get_item_id().encode()); //uw_i_id
       values.push_back(itemInfo.get_seller_id().encode()); //uw_i_u_id
-      values.push_back(std::to_string(getRandomDate(itemInfo.startDate, get_ts(*itemInfo.get_end_date()), gen)));//uw_created
+      values.push_back(std::to_string(getRandomDate(itemInfo.startDate, *itemInfo.get_end_date(), gen)));//uw_created
       
       writer.add_row(table_name, values);
     }
@@ -936,7 +936,9 @@ int main(int argc, char *argv[]) {
   std::mt19937_64 gen;
  
   auctionmark::AuctionMarkProfile profile(-1, FLAGS_client_total, FLAGS_scale_factor);
-  profile.set_loader_start_time(std::chrono::system_clock::now());
+  struct timeval time;
+  gettimeofday(&time, NULL);
+  profile.set_loader_start_time(auctionmark::get_ts(time));
   
   auctionmark::GenerateRegionTable(writer);
   int n_categories = auctionmark::GenerateCategoryTable(writer);
