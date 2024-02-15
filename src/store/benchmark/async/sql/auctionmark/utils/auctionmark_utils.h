@@ -28,12 +28,34 @@
 #define AUCTIONMARK_UTILS_H
 
 #include <random>
-#include <chrono>
 #include <sys/time.h>
 #include "store/benchmark/async/sql/auctionmark/auctionmark_params.h"
 
 namespace auctionmark
 {
+  class GaussGenerator {
+    std::mt19937_64 &gen;
+    std::normal_distribution<double> distribution;
+    int min;
+    int max;
+public:
+    GaussGenerator(std::mt19937_64 &gen, double mean, double stddev, int min, int max):
+        gen(gen), distribution(mean, stddev), min(min), max(max)
+    {}
+
+    GaussGenerator(std::mt19937_64 &gen, int min, int max):
+        gen(gen), distribution((min + max) / 2, (max - min) / 6), min(min), max(max)
+    {}
+
+    int next_val() {
+        while (true) {
+            int number = (int) this->distribution(gen);
+            if (number >= this->min && number <= this->max)
+                return number;
+        }
+    }
+};
+
   std::string RandomAString(size_t x, size_t y, std::mt19937_64 &gen);
 
   uint64_t GetScaledTimestamp(uint64_t benchmark_start, uint64_t client_start, uint64_t current);

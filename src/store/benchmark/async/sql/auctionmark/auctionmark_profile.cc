@@ -20,7 +20,9 @@ namespace auctionmark
   // }
 
   AuctionMarkProfile::AuctionMarkProfile(int client_id, int num_clients, double scale_factor) 
-    : client_id(client_id), num_clients(num_clients), scale_factor(scale_factor)
+    : client_id(client_id), num_clients(num_clients), scale_factor(scale_factor), 
+      random_time_diff(gen, ITEM_PRESERVE_DAYS*24*60*60*-1, ITEM_DURATION_DAYS_MAX * 24 *60 *60), 
+      random_duration(gen, ITEM_DURATION_DAYS_MIN, ITEM_DURATION_DAYS_MAX)
   {
     std::cerr << "Constructing AuctionMarkProfile" << std::endl;
     struct timeval time;
@@ -28,8 +30,12 @@ namespace auctionmark
     loader_start_time = get_ts(time);
     user_id_generator = std::nullopt;
 
-    random_time_diff = std::binomial_distribution<int>((ITEM_DURATION_DAYS_MAX * 24 * 60 * 60) - (ITEM_PRESERVE_DAYS * 24 * 60 * 60 * -1), 0.5);
-    random_duration = std::binomial_distribution<int>(ITEM_DURATION_DAYS_MAX - ITEM_DURATION_DAYS_MIN, 0.5);
+    // TODO: Write getter methods to do the appropriate conversions for binomials
+    //FIXME: Replace by gaussian...
+    //random_time_diff = std::binomial_distribution<int>((ITEM_DURATION_DAYS_MAX * 24 * 60 * 60) - (ITEM_PRESERVE_DAYS * 24 * 60 * 60 * -1), 0.5);
+    //random_time_diff = GaussGenerator(gen, ITEM_PRESERVE_DAYS*24*60*60*-1, ITEM_DURATION_DAYS_MAX * 24 *60 *60);
+    //random_duration = std::binomial_distribution<int>(ITEM_DURATION_DAYS_MAX - ITEM_DURATION_DAYS_MIN, 0.5);
+    //random_duration = GaussGenerator(gen, ITEM_DURATION_DAYS_MIN, ITEM_DURATION_DAYS_MAX);
 
     random_initial_price = Zipf(gen, ITEM_INITIAL_PRICE_MIN, ITEM_INITIAL_PRICE_MAX, ITEM_INITIAL_PRICE_SIGMA);
     random_purchase_duration = Zipf(gen, ITEM_PURCHASE_DURATION_DAYS_MIN, ITEM_PURCHASE_DURATION_DAYS_MAX, ITEM_PURCHASE_DURATION_DAYS_SIGMA);
@@ -111,12 +117,14 @@ namespace auctionmark
 
   int AuctionMarkProfile::get_random_time_diff()
   {
-    return random_time_diff(gen) + (ITEM_PRESERVE_DAYS * 24 * 60 * 60 * -1);
+    //return random_time_diff(gen) + (ITEM_PRESERVE_DAYS * 24 * 60 * 60 * -1);
+    return random_time_diff.next_val() * MILLISECONDS_IN_A_SECOND; 
   }
 
   int AuctionMarkProfile::get_random_duration()
   {
-    return random_duration(gen) + ITEM_DURATION_DAYS_MIN;
+    //return random_duration(gen) + ITEM_DURATION_DAYS_MIN;
+    return random_duration.next_val(); 
   }
 
   // -----------------------------------------------------------------
@@ -141,19 +149,22 @@ namespace auctionmark
   {
     if (!random_item_count.has_value())
     {
-      // auto hist = FlatHistogram<>(gen, users_per_item_count);
-      // random_item_count.emplace(gen, users_per_item_count);
-      auto hist = FlatHistogram_Int(gen, users_per_item_count);
+       //most users will have 0 items (between 0 and 1000, heavily skewed towards 0)
+      // for(auto &[item, users]: users_per_item_count){
+      //   std::cerr << "item_cnt: " << item << " --> " << users << std::endl;
+      // }
+      auto hist = FlatHistogram_Int(gen, users_per_item_count);  
       random_item_count.emplace(hist);
     }
-    if (!user_id_generator.has_value())
-    {
+    if (!user_id_generator.has_value()){
       initialize_user_id_generator(client_id);
     }
 
     std::optional<UserId> user_id = std::nullopt;
     int tries = 1000;
     int num_users = user_id_generator->get_total_users() - 1;
+
+
     while (!user_id.has_value() && tries-- > 0)
     {
       // We first need to figure out how many items our seller needs to have
@@ -163,32 +174,29 @@ namespace auctionmark
         auto hist = random_item_count.value();
         item_count = hist.next_value();
       }
-
-      // Set the current item count and then choose a random position
-      // between where the generator is currently at and where it ends
+     
+      // Set the current item count and then choose a random position between where the generator is currently at and where it ends
       user_id_generator->set_current_item_count(item_count);
       int cur_position = user_id_generator->get_current_position();
       int new_position = std::uniform_int_distribution<>(cur_position, num_users)(gen);
       user_id = user_id_generator->seek_to_position(new_position);
       if (!user_id.has_value())
       {
+        //std::cerr << "didn't find val" << std::endl;
         continue;
       }
 
       // Make sure that we didn't select the same UserId as the one we were
       // told to exclude.
-      if (!exclude.empty())
-      {
-        for (UserId ex : exclude)
-        {
-          if (ex == user_id.value())
-          {
+      if (!exclude.empty()) {
+        for (UserId ex : exclude) {
+          if (ex == user_id.value()){
+            //std::cerr << "val is meant to be excluded. skipping" << std::endl;
             user_id = std::nullopt;
             break;
           }
         }
-        if (!user_id.has_value())
-        {
+        if (!user_id.has_value()){
           continue;
         }
       }
@@ -197,10 +205,8 @@ namespace auctionmark
       break;
     }
 
-    if (user_id.has_value())
-    {
-      throw std::runtime_error("Failed to find a user_id after 1000 tries");
-    }
+    if (!user_id.has_value()) throw std::runtime_error("Failed to find a user_id after 1000 tries");
+    
     return user_id.value();
   }
 
@@ -225,7 +231,7 @@ namespace auctionmark
   }
 
 
-  UserId AuctionMarkProfile::get_random_buyer_id(std::map<UserId, uint64_t>  &previous_bidders, std::vector<UserId> exclude)
+  UserId AuctionMarkProfile::get_random_buyer_id(std::map<UserId, uint64_t> &previous_bidders, std::vector<UserId> exclude)
   {
     // This is very inefficient, but it's probably good enough for now
     

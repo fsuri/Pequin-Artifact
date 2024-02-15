@@ -314,10 +314,13 @@ std::vector<LoaderItemInfo> GenerateItemTableData(TableWriter &writer, AuctionMa
   std::vector<LoaderItemInfo> items;
 
   int tableSize = 0;
-  for(int i = 0; i < profile.users_per_item_count.size(); ++i){
-    tableSize += i * profile.users_per_item_count[i];
+  // for(int i = 0; i < profile.users_per_item_count.size(); ++i){
+  //   tableSize += i * profile.users_per_item_count[i];
+  // }
+  for(auto &[item_cnt, users]: profile.users_per_item_count){
+    tableSize += item_cnt * users;
   }
-  
+
   int remaining = tableSize; 
 
   std::mt19937_64 gen;
@@ -342,7 +345,6 @@ std::vector<LoaderItemInfo> GenerateItemTableData(TableWriter &writer, AuctionMa
       p = std::make_pair(randomNumBids, randomNumWatches);
       item_bid_watch_zipfs[bidDurationDay] = p;
     }
-
      // Calculate the number of bids and watches for this item
     uint64_t numBids = p.first.next_long();
     uint64_t numWatches = p.first.next_long();
@@ -358,6 +360,11 @@ std::vector<LoaderItemInfo> GenerateItemTableData(TableWriter &writer, AuctionMa
     //itemInfo.numBids = numBids;
     itemInfo.numWatches = numWatches;
 
+   
+    // std::cerr << "end date:  " << get_ts(*itemInfo.get_end_date()) << std::endl;
+    //   std::cerr << "end date_: " << endDate_ << std::endl;
+    //   std::cerr << "loadstart: " << get_ts(profile.get_loader_start_time()) << std::endl;
+
      // The auction for this item has already closed
     if(*itemInfo.get_end_date() <= profile.get_loader_start_time()){
       // Somebody won a bid and bought the item
@@ -366,6 +373,7 @@ std::vector<LoaderItemInfo> GenerateItemTableData(TableWriter &writer, AuctionMa
         itemInfo.lastBidderId = profile.get_random_buyer_id(sellerId);
         itemInfo.purchaseDate = getRandomPurchaseTimestamp(endDate, profile);
         itemInfo.numComments = profile.random_num_comments.next_long();
+        std::cerr << "start6A" << std::endl;
       }
       itemInfo.set_status(ItemStatus::CLOSED);
     }
@@ -373,8 +381,11 @@ std::vector<LoaderItemInfo> GenerateItemTableData(TableWriter &writer, AuctionMa
     else if (itemInfo.get_num_bids() > 0) {
       auto sellerId = itemInfo.get_seller_id();
       itemInfo.lastBidderId = profile.get_random_buyer_id(sellerId);
+       std::cerr << "start6b" << std::endl;
     }
     profile.add_item_to_proper_queue(itemInfo, true);
+
+   
 
     //CREATE ROW
     std::vector<std::string> values;
@@ -939,6 +950,7 @@ int main(int argc, char *argv[]) {
   struct timeval time;
   gettimeofday(&time, NULL);
   profile.set_loader_start_time(auctionmark::get_ts(time));
+
   
   auctionmark::GenerateRegionTable(writer);
   int n_categories = auctionmark::GenerateCategoryTable(writer);
@@ -951,8 +963,8 @@ int main(int argc, char *argv[]) {
   std::vector<auctionmark::UserId> users = auctionmark::GenerateUserAcctTable(writer, profile);
   std::cerr << "Finished UserAcct Table" << std::endl;
 
-  // std::vector<auctionmark::LoaderItemInfo> items = auctionmark::GenerateItemTable(writer, profile, users);
-  // std::cerr << "Finished Item Table" << std::endl;
+  std::vector<auctionmark::LoaderItemInfo> items = auctionmark::GenerateItemTable(writer, profile, users);
+  std::cerr << "Finished Item Table" << std::endl;
 
   // auctionmark::GenerateItemImage(writer, items);
   // auctionmark::GenerateItemAttribute(writer, profile, items);

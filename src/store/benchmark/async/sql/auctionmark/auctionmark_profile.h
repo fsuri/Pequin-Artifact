@@ -153,8 +153,10 @@ namespace auctionmark
 
     std::vector<GlobalAttributeGroupId> gag_ids;
 
-    std::binomial_distribution<int> random_time_diff;
-    std::binomial_distribution<int> random_duration;
+    //std::binomial_distribution<int> random_time_diff;
+    GaussGenerator random_time_diff;
+    //std::binomial_distribution<int> random_duration;
+    GaussGenerator random_duration;
     Zipf random_num_images;
     Zipf random_num_attributes;
     Zipf random_purchase_duration;
