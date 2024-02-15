@@ -22,7 +22,7 @@ namespace auctionmark
     std::optional<double> current_price;
     std::optional<std::chrono::system_clock::time_point> end_date;
     long num_bids;
-    std::optional<ItemStatus> status;
+    ItemStatus status;
 
     friend class boost::serialization::access;
     // When the class Archive corresponds to an output archive, the
@@ -55,11 +55,11 @@ namespace auctionmark
     void set_end_date(std::optional<std::chrono::system_clock::time_point> end_date);
     long get_num_bids() const;
     void set_num_bids(long num_bids);
-    std::optional<ItemStatus> get_status() const;
-    void set_status(std::optional<ItemStatus> status);
-    bool operator==(const ItemInfo &other) const;
-    bool operator<(const ItemInfo &other) const;
-  };
+    ItemStatus get_status() const;
+    void set_status(ItemStatus status);
+    bool operator==(const ItemInfo& other) const;
+    bool operator<(const ItemInfo& other) const;
+};
 
 } // namespace auctionmark
 

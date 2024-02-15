@@ -66,11 +66,11 @@ void ItemInfo::set_num_bids(long num_bids) {
     this->num_bids = num_bids;
 }
 
-std::optional<ItemStatus> ItemInfo::get_status() const {
+ItemStatus ItemInfo::get_status() const {
     return status;
 }
 
-void ItemInfo::set_status(std::optional<ItemStatus> status) {
+void ItemInfo::set_status(ItemStatus status) {
     this->status = status;
 }
 

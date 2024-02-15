@@ -200,7 +200,7 @@ namespace auctionmark
   static constexpr const char* TABLE_ITEM_MAX_BID = "item_max_bid";
   static constexpr const char* TABLE_ITEM_PURCHASE = "item_purchase";
 
-  static constexpr const char* TABLENAMES[16] = {
+  static constexpr const char* TABLENAMES[15] = {
       TABLE_REGION,
       TABLE_CATEGORY,
       TABLE_GLOBAL_ATTR_GROUP,
