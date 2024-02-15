@@ -270,8 +270,7 @@ namespace auctionmark
   static constexpr int PROB_NEWBID_ENDINGSOON_ITEM = 50;
 
   /* Profile */
-  static const std::string PROFILE_FILE_NAME = "auctionmark_profile.csv";
-  static const std::string PROFILE_HIST_SAVE_FILE_NAME = "auctionmark_profile_hist.csv";
+  static const std::string PROFILE_FILE_NAME = "auctionmark_profile";
 } 
   
 

@@ -2,9 +2,13 @@
 #include "store/benchmark/async/sql/auctionmark/auctionmark_params.h"
 #include "store/benchmark/async/sql/auctionmark/utils/auctionmark_utils.h"
 #include <algorithm>
-// #include <boost/histogram/serialization.hpp>
-// #include <boost/archive/text_oarchive.hpp>
-// #include <boost/archive/text_iarchive.hpp>
+#include <boost/serialization/vector.hpp>
+#include <boost/serialization/map.hpp>
+#include <boost/serialization/optional.hpp>
+#include <boost/serialization/utility.hpp>
+#include <boost/serialization/string.hpp>
+#include <boost/archive/text_oarchive.hpp>
+#include <boost/archive/text_iarchive.hpp>
 
 namespace auctionmark
 {
@@ -146,7 +150,8 @@ namespace auctionmark
       int item_count = -1;
       while (item_count < min_item_count)
       {
-        item_count = random_item_count->next_value();
+        auto hist = random_item_count.value();
+        item_count = hist.next_value();
       }
 
       // Set the current item count and then choose a random position
@@ -564,22 +569,25 @@ namespace auctionmark
   // SERIALIZATION METHODS
   // -----------------------------------------------------------------
   void AuctionMarkProfile::save_profile(SyncClient &client) {
-    std::ofstream profile_csv;
-    profile_csv.open(PROFILE_FILE_NAME);
-    profile_csv << "scale_factor,loader_start,loader_stop\n";
-    profile_csv << scale_factor << "," << loader_start_time.time_since_epoch().count() << "," << loader_stop_time.time_since_epoch().count() << "\n";
-
-    std::ofstream users_per_item_count_file;
-    //FIXME: SAVE PROFILE
-    // {
-    //   users_per_item_count_file.open(PROFILE_HIST_SAVE_FILE_NAME);
-    //   boost::archive::text_oarchive oa(users_per_item_count_file);
-    //   oa << users_per_item_count;
-    // }
-    users_per_item_count_file.close();
+    std::ofstream profile_save_file;
+    profile_save_file.open(PROFILE_FILE_NAME);
+    {
+      boost::archive::text_oarchive oa(profile_save_file);
+      oa << scale_factor;
+      oa << loader_start_time;
+      oa << loader_stop_time;
+      oa << users_per_item_count;
+      oa << items_per_category;
+      oa << gag_ids;
+      oa << pending_comment_responses;
+      oa << items_available;
+      oa << items_waiting_for_purchase;
+      oa << items_completed;
+    }
+    profile_save_file.close();
   }
 
-  void AuctionMarkProfile::copy_profile(int client_id, AuctionMarkProfile &other) {
+  void AuctionMarkProfile::copy_profile(int client_id, const AuctionMarkProfile &other) {
     this->client_id = client_id;
     scale_factor = other.scale_factor;
     loader_start_time = other.loader_start_time;
@@ -613,44 +621,29 @@ namespace auctionmark
 
   void AuctionMarkProfile::load_profile(int client_id) {
     if (AuctionMarkProfile::cached_profile == nullptr) {
-      std::ifstream profile_csv;
-      profile_csv.open(PROFILE_FILE_NAME);
-      std::string line;
-      std::getline(profile_csv, line);
-      std::string delimiter = ",";
-      std::string token = line.substr(0, line.find(delimiter));
-      assert(token == "scale_factor");
-      line.erase(0, line.find(delimiter) + delimiter.length());
-      token = line.substr(0, line.find(delimiter));
-      assert(token == "loader_start");
-      line.erase(0, line.find(delimiter) + delimiter.length());
-      token = line.substr(0, line.find(delimiter));
-      assert(token == "loader_stop");
-
-      std::getline(profile_csv, line);
-      token = line.substr(0, line.find(delimiter));
-      scale_factor = std::stod(token);
-      line.erase(0, line.find(delimiter) + delimiter.length());
-      token = line.substr(0, line.find(delimiter));
-      loader_start_time = std::chrono::system_clock::from_time_t(std::stoull(token));
-      line.erase(0, line.find(delimiter) + delimiter.length());
-      token = line.substr(0, line.find(delimiter));
-      loader_stop_time = std::chrono::system_clock::from_time_t(std::stoull(token));
+      std::ifstream profile_save_file;
+      profile_save_file.open(PROFILE_FILE_NAME);
+      {
+        boost::archive::text_iarchive ia(profile_save_file);
+        ia >> scale_factor;
+        ia >> loader_start_time;
+        ia >> loader_stop_time;
+        ia >> users_per_item_count;
+        ia >> items_per_category;
+        ia >> gag_ids;
+        ia >> pending_comment_responses;
+        ia >> items_available;
+        ia >> items_waiting_for_purchase;
+        ia >> items_completed;
+      }
+      profile_save_file.close();
 
       AuctionMarkProfile::cached_profile = new AuctionMarkProfile(client_id, num_clients, scale_factor, gen);
-      AuctionMarkProfile::cached_profile->set_loader_start_time(loader_start_time);
-      AuctionMarkProfile::cached_profile->set_loader_stop_time(loader_stop_time);
-
-      std::ifstream users_per_item_count_file;
-      //FIXME: LOAD input hist.
-      // {
-      //   users_per_item_count_file.open(PROFILE_HIST_SAVE_FILE_NAME);
-      //   boost::archive::text_iarchive ia(users_per_item_count_file);
-      //   ia >> AuctionMarkProfile::cached_profile->users_per_item_count;
-      // }
-
+      AuctionMarkProfile::cached_profile->copy_profile(client_id, *this);
       AuctionMarkProfile::cached_profile->set_and_get_client_start_time();
       AuctionMarkProfile::cached_profile->update_and_get_current_time();
+    } else {
+      copy_profile(client_id, *AuctionMarkProfile::cached_profile);
     }
   }
 

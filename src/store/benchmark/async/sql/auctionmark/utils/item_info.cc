@@ -14,6 +14,14 @@ ItemInfo::ItemInfo(std::string id, double current_price, uint64_t end_date, int 
     this->end_date = std::chrono::system_clock::from_time_t(end_date);
 }
 
+ItemInfo::ItemInfo() {
+    item_id = ItemId();
+    std::optional<double> current_price = std::nullopt;
+    std::optional<std::chrono::system_clock::time_point> end_date = std::nullopt;
+    long num_bids = 0;
+    std::optional<ItemStatus> status = std::nullopt;
+}
+
 ItemId ItemInfo::get_item_id() const {
     return item_id;
 }
