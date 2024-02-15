@@ -127,7 +127,7 @@ namespace auctionmark
 
     /* Serialization Methods */
     void save_profile(SyncClient &client);
-    void copy_profile(int client_id, AuctionMarkProfile &other);
+    void copy_profile(int client_id, const AuctionMarkProfile &other);
 
     static void clear_cached_profile();
 

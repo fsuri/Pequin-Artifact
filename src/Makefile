@@ -59,7 +59,8 @@ CFLAGS += -I/usr/include/postgresql
 LDFLAGS += -ltaopq
 LDFLAGS += -lpq
 # boost
-LDFLAGS += -lboost_thread -lboost_filesystem #-lboost_system -lboost_iostreams -lboost_serialization -lboost_thread -lboost_regex -lboost_container
+LDFLAGS += -L/usr/lib/boost
+LDFLAGS += -lboost_thread -lboost_filesystem -lboost_serialization #-lboost_system -lboost_iostreams  -lboost_thread -lboost_regex -lboost_container
 # readline
 LDFLAGS += -lreadline
 # libpg_query
@@ -220,6 +221,7 @@ include store/benchmark/async/rw-sql/Rules.mk
 include store/benchmark/async/sql/tpcc/Rules.mk
 include store/benchmark/async/sql/seats/Rules.mk
 include store/benchmark/async/sql/tpcch/Rules.mk
+include store/benchmark/async/sql/auctionmark/utils/Rules.mk
 include store/benchmark/async/sql/auctionmark/Rules.mk
 
 include store/benchmark/async/Rules.mk

@@ -26,6 +26,9 @@ namespace auctionmark
     std::mt19937_64 &gen;
   };
 
+  template class FlatHistogram<boost::histogram::default_storage, std::string, boost::histogram::axis::category>;
+  template class FlatHistogram<boost::histogram::unlimited_storage<std::allocator<char>>, int, boost::histogram::axis::integer>;
+
 } // namespace auctionmark
 
 #endif // AUCTIONMARK_FLAT_HISTOGRAM_H
