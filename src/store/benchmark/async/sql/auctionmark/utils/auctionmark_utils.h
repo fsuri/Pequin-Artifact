@@ -35,6 +35,29 @@ namespace auctionmark
 {
   using timestamp_t = std::chrono::system_clock::time_point;
 
+  class GaussGenerator {
+    std::mt19937_64 &gen;
+    std::normal_distribution<double> distribution;
+    int min;
+    int max;
+public:
+    GaussGenerator(std::mt19937_64 &gen, double mean, double stddev, int min, int max):
+        gen(gen), distribution(mean, stddev), min(min), max(max)
+    {}
+
+    GaussGenerator(std::mt19937_64 &gen, int min, int max):
+        gen(gen), distribution((min + max) / 2, (max - min) / 6), min(min), max(max)
+    {}
+
+    int next_val() {
+        while (true) {
+            int number = (int) this->distribution(gen);
+            if (number >= this->min && number <= this->max)
+                return number;
+        }
+    }
+};
+
   std::string RandomAString(size_t x, size_t y, std::mt19937_64 &gen);
 
   long GetScaledTimestamp(timestamp_t benchmark_start, timestamp_t client_start, timestamp_t current);

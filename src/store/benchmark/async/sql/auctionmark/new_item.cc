@@ -67,7 +67,8 @@ NewItem::NewItem(uint32_t timeout, AuctionMarkProfile &profile, std::mt19937_64 
     images[i] = RandomAString(20, 100, gen);
   }
 
-  duration = std::binomial_distribution<uint64_t>(ITEM_DURATION_DAYS_MAX-1, 0.5)(gen) + 1;  //gives a val between 1 (DAYS_MIN) and 10 (DAYS_MAX) with normal distribution
+  duration = profile.get_random_duration();
+  //std::binomial_distribution<uint64_t>(ITEM_DURATION_DAYS_MAX-1, 0.5)(gen) + 1;  //gives a val between 1 (DAYS_MIN) and 10 (DAYS_MAX) with normal distribution
 
 
 }

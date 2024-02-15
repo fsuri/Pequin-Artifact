@@ -96,9 +96,13 @@ uint64_t getRandomStartTimestamp(uint64_t endDate, AuctionMarkProfile &profile) 
 }
 
 uint64_t getRandomEndTimestamp(AuctionMarkProfile &profile) {
-  uint64_t timeDiff =  profile.get_random_time_diff();
-  uint64_t EndTimestamp = get_ts(profile.get_loader_start_time()) + timeDiff * MILLISECONDS_IN_A_SECOND; 
-  return EndTimestamp;
+  int timeDiff =  profile.get_random_time_diff();
+  //std::cerr << "timeDiff: " << timeDiff << std::endl;
+  int EndTimestamp = (int) get_ts(profile.get_loader_start_time()) + timeDiff * MILLISECONDS_IN_A_SECOND; 
+  //FIXME: normalize all of this to miliseconds...
+  //std::cerr << "timeDiff: " << timeDiff << std::endl;
+  assert(EndTimestamp > 0);
+  return (uint64_t) EndTimestamp;
 }
 
 uint64_t getRandomPurchaseTimestamp(uint64_t endDate, AuctionMarkProfile &profile) {
