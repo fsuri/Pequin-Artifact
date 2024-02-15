@@ -15,6 +15,10 @@ namespace auctionmark
 
   AuctionMarkProfile *AuctionMarkProfile::cached_profile = nullptr;
 
+  // AuctionMarkProfile::AuctionMarkProfile(){
+  //    std::cerr << "Constructing empty AuctionMarkProfile. Don't use this" << std::endl;
+  // }
+
   AuctionMarkProfile::AuctionMarkProfile(int client_id, int num_clients, double scale_factor) 
     : client_id(client_id), num_clients(num_clients), scale_factor(scale_factor)
   {

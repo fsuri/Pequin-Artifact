@@ -52,6 +52,7 @@ namespace auctionmark
     // using str_cat_hist_t = boost::histogram::histogram<std::tuple<boost::histogram::axis::category<std::string>>>;
 
   public:
+    //AuctionMarkProfile();
     AuctionMarkProfile(int client_id, int num_clients, double scale_factor);
     inline ~AuctionMarkProfile()
     {
@@ -160,13 +161,13 @@ namespace auctionmark
     Zipf random_num_comments;
     Zipf random_initial_price;
 
-     std::vector<int> users_per_item_count;  //A histogram for the number of users that have the number of items listed ItemCount -> # of Users
-    //std::map<int, int> users_per_item_count;
+    //std::vector<int> users_per_item_count;  //A histogram for the number of users that have the number of items listed ItemCount -> # of Users
+    std::map<int, int> users_per_item_count;
 
   private:
     static AuctionMarkProfile *cached_profile;
     int client_id;
-    const int num_clients;
+    int num_clients;
     double scale_factor;
     std::mt19937_64 gen;
     std::chrono::system_clock::time_point loader_start_time;

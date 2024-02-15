@@ -233,12 +233,16 @@ std::vector<UserId> GenerateUserAcctTable(TableWriter &writer, AuctionMarkProfil
   Zipf randomNumItems(gen, ITEM_ITEMS_PER_SELLER_MIN, max_items, ITEM_ITEMS_PER_SELLER_SIGMA);
 
    //A histogram for the number of users that have the number of items listed ItemCount -> # of Users
-  profile.users_per_item_count = std::vector<int>(max_items);
+  //profile.users_per_item_count = std::vector<int>(max_items+1); //In vector form, there may be many itemCounts that have 0 users. => Easier to use map.
 
   for (int i = 0; i < TABLESIZE_USERACCT; i++){
     int num_items = (int) randomNumItems.next_long();
     profile.users_per_item_count[num_items]++;   //increment value freq by 1 count.
   }
+
+  // for(auto &[item, users]: profile.users_per_item_count){
+  //   std::cerr << "item_cnt: " << item << " --> " << users << std::endl;
+  // }
 
   UserIdGenerator idGenerator(profile.users_per_item_count, FLAGS_client_total);
 
@@ -246,6 +250,7 @@ std::vector<UserId> GenerateUserAcctTable(TableWriter &writer, AuctionMarkProfil
 
   for (int i = 0; i < TABLESIZE_USERACCT; i++)
   {
+   
     UserId u_id = idGenerator.next();
     user_ids.push_back(u_id);
 
@@ -254,12 +259,15 @@ std::vector<UserId> GenerateUserAcctTable(TableWriter &writer, AuctionMarkProfil
     Zipf zipf;
     values.push_back(std::to_string(randomRating.next_long())); //u_rating
     double bal = randomBalance.next_long()/10.0;
+
     values.push_back(std::to_string(bal)); //u_balance
     values.push_back(std::to_string(0)); //u_comments
     values.push_back(std::to_string(std::uniform_int_distribution<int>(0, TABLESIZE_REGION)(gen))); //u_r_id
     uint64_t curr_time = get_ts(timestamp_t::clock().now());
     values.push_back(std::to_string(curr_time)); //u_created
     values.push_back(std::to_string(curr_time)); //u_updated
+
+
     
     /** Any column with the name XX_SATTR## will automatically be filled with a random string with length between 0 (empty) and ?)  */
     int max_size = 128; //sattr is VARCHAR(128)
@@ -926,28 +934,20 @@ int main(int argc, char *argv[]) {
   std::cerr << "Starting AUCTIONMARK Table Generation. Num Clients: " << FLAGS_client_total << ". Scale Factor: " << FLAGS_scale_factor << std::endl;
 
   std::mt19937_64 gen;
-  try{
-      int client_id = 0;
-      int total = 0;
-      double scale = 1.0;
-  auctionmark::AuctionMarkProfile profile(client_id, total, scale);
-  }
-  catch (std::invalid_argument iaex) {
-        std::cout << "Caught an error!" << std::endl;
-    }
-  //auctionmark::AuctionMarkProfile profile(-1, FLAGS_client_total, FLAGS_scale_factor, gen);
-  //profile.set_loader_start_time(std::chrono::system_clock::now());
+ 
+  auctionmark::AuctionMarkProfile profile(-1, FLAGS_client_total, FLAGS_scale_factor);
+  profile.set_loader_start_time(std::chrono::system_clock::now());
   
-  // auctionmark::GenerateRegionTable(writer);
-  // int n_categories = auctionmark::GenerateCategoryTable(writer);
-  // int n_gags = auctionmark::GenerateGlobalAttributeGroupTable(writer, n_categories, profile);
-  // auctionmark::GenerateGlobalAttributeValueTable(writer, profile, n_gags);
+  auctionmark::GenerateRegionTable(writer);
+  int n_categories = auctionmark::GenerateCategoryTable(writer);
+  int n_gags = auctionmark::GenerateGlobalAttributeGroupTable(writer, n_categories, profile);
+  auctionmark::GenerateGlobalAttributeValueTable(writer, profile, n_gags);
 
-  // std::cerr << "Finished General Tables" << std::endl;
+  std::cerr << "Finished General Tables" << std::endl;
 
-  // //Generate UserTables
-  // std::vector<auctionmark::UserId> users = auctionmark::GenerateUserAcctTable(writer, profile);
-  // std::cerr << "Finished UserAcct Table" << std::endl;
+  //Generate UserTables
+  std::vector<auctionmark::UserId> users = auctionmark::GenerateUserAcctTable(writer, profile);
+  std::cerr << "Finished UserAcct Table" << std::endl;
 
   // std::vector<auctionmark::LoaderItemInfo> items = auctionmark::GenerateItemTable(writer, profile, users);
   // std::cerr << "Finished Item Table" << std::endl;

@@ -1,15 +1,16 @@
+#include <iostream>
 #include "store/benchmark/async/sql/auctionmark/utils/zipf.h"
 
 namespace auctionmark {
 
-Zipf::Zipf(std::mt19937_64 r, long min, long max, double sigma) {
-    Zipf(r, min, max, sigma, DEFAULT_EPSILON);
+Zipf::Zipf(std::mt19937_64 r, long min, long max, double sigma) : Zipf(r, min, max, sigma, DEFAULT_EPSILON)  {
 }
 
 Zipf::Zipf(std::mt19937_64 r, long min, long max, double sigma, double epsilon) 
         : random(r), min(min), max(max) {
     if ((max <= min) || (sigma <= 1) || (epsilon <= 0) || (epsilon >= 0.5)) {
-        throw std::invalid_argument("Invalid arguments");
+        std::cerr << "Max: " << max << " Min: " << min << " Sigma: " << sigma << " Epsilon: " << epsilon << std::endl;
+        throw std::invalid_argument("Zipf: Invalid arguments");
     }
 
     double sum = 0;
@@ -35,7 +36,7 @@ Zipf::Zipf(std::mt19937_64 r, long min, long max, double sigma, double epsilon)
     }
 }
 
-Zipf::Zipf() : Zipf(std::mt19937_64(), 0, 0, 0) {}
+Zipf::Zipf() : Zipf(std::mt19937_64(), 0, 1, 1.1) {}
 
 long Zipf::next_long() {
     std::uniform_real_distribution<> dis(0.0, 1.0);

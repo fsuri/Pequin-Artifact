@@ -73,7 +73,7 @@ size_t CategoryHash::operator()(const Category& c) const {
 CategoryParser::CategoryParser() {
   next_category_id = 0;
   categories = std::unordered_map<std::string, Category>();
-  const std::string path = "store/benchmark/async/sql/auctionmark/categories.txt";
+  const std::string path = "./utils/categories.txt";
   std::ifstream file(path);
   std::string line;
   if(file.is_open()) {
