@@ -926,15 +926,11 @@ int main(int argc, char *argv[]) {
   std::cerr << "Starting AUCTIONMARK Table Generation. Num Clients: " << FLAGS_client_total << ". Scale Factor: " << FLAGS_scale_factor << std::endl;
 
   std::mt19937_64 gen;
-  try{
-      int client_id = 0;
-      int total = 0;
-      double scale = 1.0;
+  int client_id = 0;
+  int total = 0;
+  double scale = 1.0;
   auctionmark::AuctionMarkProfile profile(client_id, total, scale);
-  }
-  catch (std::invalid_argument iaex) {
-        std::cout << "Caught an error!" << std::endl;
-    }
+
   //auctionmark::AuctionMarkProfile profile(-1, FLAGS_client_total, FLAGS_scale_factor, gen);
   //profile.set_loader_start_time(std::chrono::system_clock::now());
   

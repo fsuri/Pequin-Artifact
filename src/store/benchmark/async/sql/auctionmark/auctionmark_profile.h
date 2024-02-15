@@ -166,7 +166,7 @@ namespace auctionmark
   private:
     static AuctionMarkProfile *cached_profile;
     int client_id;
-    const int num_clients;
+    int num_clients;
     double scale_factor;
     std::mt19937_64 gen;
     std::chrono::system_clock::time_point loader_start_time;

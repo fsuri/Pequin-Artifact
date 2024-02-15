@@ -22,7 +22,6 @@ namespace auctionmark
     loader_start_time = std::chrono::system_clock::now();
     user_id_generator = std::nullopt;
 
-    // TODO: Write getter methods to do the appropriate conversions for binomials
     random_time_diff = std::binomial_distribution<int>((ITEM_DURATION_DAYS_MAX * 24 * 60 * 60) - (ITEM_PRESERVE_DAYS * 24 * 60 * 60 * -1), 0.5);
     random_duration = std::binomial_distribution<int>(ITEM_DURATION_DAYS_MAX - ITEM_DURATION_DAYS_MIN, 0.5);
 
