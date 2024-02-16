@@ -6,7 +6,7 @@
 namespace auctionmark {
 
 enum class ItemStatus {
-    OPEN,
+    OPEN = 0,
     ENDING_SOON, // Only used internally
     WAITING_FOR_PURCHASE,
     CLOSED,

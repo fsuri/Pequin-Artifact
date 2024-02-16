@@ -414,7 +414,7 @@ LoaderItemInfo GenerateItemTableRow(TableWriter &writer, AuctionMarkProfile &pro
   }
   profile.add_item_to_proper_queue(itemInfo, true);
 
-  
+
 
   //CREATE ROW
   std::vector<std::string> values;
@@ -444,6 +444,7 @@ LoaderItemInfo GenerateItemTableRow(TableWriter &writer, AuctionMarkProfile &pro
 
   //int status = itemInfo.get_status() == ItemStatus::OPEN? 0 : 3;
   int status = (int) itemInfo.get_status();
+  if (status == 1) status = 0;
   values.push_back(std::to_string(status));// I_STATUS
 
   uint64_t start_time = profile.get_loader_start_time();
