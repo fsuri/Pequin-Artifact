@@ -18,9 +18,9 @@ namespace auctionmark
   {
   private:
     ItemId item_id;
-    std::optional<double> current_price;
-    std::optional<uint64_t> end_date;
-    long num_bids;
+    double current_price;
+    uint64_t end_date;
+    uint64_t num_bids;
     ItemStatus status;
 
     friend class boost::serialization::access;
@@ -38,22 +38,22 @@ namespace auctionmark
     }
 
   public:
-    ItemInfo(ItemId id, std::optional<double> current_price, std::optional<uint64_t> end_date, int num_bids);
-    ItemInfo(std::string id, double current_price, uint64_t end_date, int num_bids);
+    ItemInfo(ItemId id, double current_price, uint64_t end_date, uint64_t num_bids);
+    ItemInfo(std::string id, double current_price, uint64_t end_date, uint64_t num_bids);
     ItemInfo();
     ~ItemInfo() = default;
 
     ItemId get_item_id() const;
     UserId get_seller_id() const;
     bool has_current_price() const;
-    std::optional<float> get_current_price() const;
+    float get_current_price() const;
     bool has_end_date() const;
-    std::optional<uint64_t> get_end_date() const;
+    uint64_t get_end_date() const;
     void set_item_id(ItemId item_id);
-    void set_current_price(std::optional<float> current_price);
-    void set_end_date(std::optional<uint64_t> end_date);
-    long get_num_bids() const;
-    void set_num_bids(long num_bids);
+    void set_current_price(float current_price);
+    void set_end_date(uint64_t end_date);
+    uint64_t get_num_bids() const;
+    void set_num_bids(uint64_t num_bids);
     ItemStatus get_status() const;
     void set_status(ItemStatus status);
     bool operator==(const ItemInfo& other) const;
