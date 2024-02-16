@@ -97,7 +97,7 @@ namespace auctionmark
     bool add_item(std::vector<ItemInfo> &items, ItemInfo &item_info);
     void update_item_queues();
     std::optional<ItemStatus> add_item_to_proper_queue(ItemInfo &item_info, bool is_loader);
-    std::optional<ItemStatus> add_item_to_proper_queue(ItemInfo &item_info, uint64_t &base_time, std::optional<std::pair<std::vector<ItemInfo>::iterator, std::vector<ItemInfo>>> current_queue_iterator);
+    std::optional<ItemStatus> add_item_to_proper_queue(ItemInfo &item_info, uint64_t &base_time, std::optional<std::pair<std::vector<ItemInfo>::iterator, std::vector<ItemInfo>>> current_queue_iterator, bool is_loader = false);
     std::optional<ItemInfo> get_random_item(std::vector<ItemInfo> item_set, bool need_current_price, bool need_future_end_date);
 
     /* Available Items */

@@ -92,7 +92,18 @@ class LoaderItemInfo : public ItemInfo {
 };
 
 
-LoaderItemInfo GenerateItemTableRow(TableWriter &writer, AuctionMarkProfile &profile, std::mt19937_64 &gen, UserId &seller_id, int remaining);
+LoaderItemInfo GenerateItemTableRow(TableWriter &writer, AuctionMarkProfile &profile, std::mt19937_64 &gen, const UserId &seller_id, int remaining);
+
+void GenerateSubTableRows(TableWriter &writer, AuctionMarkProfile &profile, std::mt19937_64 &gen, LoaderItemInfo &itemInfo);
+void GenerateItemImageRow(TableWriter &writer, LoaderItemInfo &itemInfo);
+void GenerateItemAttributeRow(TableWriter &writer, AuctionMarkProfile &profile, LoaderItemInfo &itemInfo);
+void GenerateItemCommentRow(TableWriter &writer, LoaderItemInfo &itemInfo, std::mt19937_64 &gen);
+void GenerateItemBidRow(TableWriter &writer, AuctionMarkProfile &profile, LoaderItemInfo &itemInfo);
+void GenerateItemMaxBidRow(TableWriter &writer, LoaderItemInfo &itemInfo);
+void GenerateItemPurchaseRow(TableWriter &writer, LoaderItemInfo &itemInfo, std::mt19937_64 &gen);
+void GenerateUserFeedbackRow(TableWriter &writer, AuctionMarkProfile &profile, LoaderItemInfo &itemInfo);
+void GenerateUserItemRow(TableWriter &writer, LoaderItemInfo &itemInfo);
+void GenerateUserWatchRow(TableWriter &writer, AuctionMarkProfile &profile, LoaderItemInfo &itemInfo, std::mt19937_64 &gen);
 
 uint64_t getRandomStartTimestamp(uint64_t endDate, AuctionMarkProfile &profile) {
   uint64_t duration =  ((uint64_t) profile.get_random_duration()) * MILLISECONDS_IN_A_DAY;
@@ -102,7 +113,7 @@ uint64_t getRandomStartTimestamp(uint64_t endDate, AuctionMarkProfile &profile) 
 
 
 uint64_t getRandomEndTimestamp(AuctionMarkProfile &profile) {
-  int timeDiff =  profile.get_random_time_diff();
+  int timeDiff =  profile.get_random_time_diff() * MILLISECONDS_IN_A_SECOND;
   uint64_t EndTimestamp = profile.get_loader_start_time() + timeDiff; 
 
   // std::cerr << "time diff: " <<  timeDiff << std::endl;

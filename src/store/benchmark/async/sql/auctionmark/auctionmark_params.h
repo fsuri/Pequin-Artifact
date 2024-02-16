@@ -52,7 +52,7 @@ namespace auctionmark
    * then it will be added to a special queue in the client. We will increase the likelihood that a
    * users will bid on these items as it gets closer to their end times
    */
-  static constexpr uint32_t ITEM_ENDING_SOON = 36000L; // 10 hours
+  static constexpr uint32_t ITEM_ENDING_SOON = 36000; // 10 hours
   static constexpr int ITEM_ALREADY_ENDED = 100000;
 
   /* Execution Configuration */
