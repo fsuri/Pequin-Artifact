@@ -46,9 +46,9 @@ NewPurchase::NewPurchase(uint32_t timeout, AuctionMarkProfile &profile, std::mt1
   // Whether the buyer will not have enough money
   if (itemInfo.has_current_price()) {
     if (std::uniform_int_distribution<int>(1, 100)(gen) <= PROB_NEWPURCHASE_NOT_ENOUGH_MONEY) {
-      buyer_credit = -1 * (*itemInfo.get_current_price());
+      buyer_credit = -1 * (itemInfo.get_current_price());
     } else {
-      buyer_credit = *itemInfo.get_current_price();
+      buyer_credit = itemInfo.get_current_price();
       itemInfo.set_status(ItemStatus::CLOSED);
     }
   }

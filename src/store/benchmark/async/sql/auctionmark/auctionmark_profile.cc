@@ -115,10 +115,25 @@ namespace auctionmark
     return last_close_auctions_time;
   }
 
+//TESTER variables
+// static int s = 0;
+// static int cnt = 0;
+// static int tot = 10000;
+ 
   int AuctionMarkProfile::get_random_time_diff()
   {
+    
     //return random_time_diff(gen) + (ITEM_PRESERVE_DAYS * 24 * 60 * 60 * -1);
-    return random_time_diff.next_val() * MILLISECONDS_IN_A_SECOND; 
+    int next = random_time_diff.next_val();
+    //std::cerr << "chosen: " << next << std::endl;
+    // s += next;
+    // if(++cnt == tot){
+    //   std::cerr << "sum: " << s << std::endl;
+    //   std::cerr << "avg: " << (s/tot) << std::endl;
+    // }
+
+
+    return next * MILLISECONDS_IN_A_SECOND; 
   }
 
   int AuctionMarkProfile::get_random_duration()
@@ -374,7 +389,7 @@ namespace auctionmark
       }
     }
 
-    uint64_t remaining = item_info.get_end_date().value() - base_time;
+    uint64_t remaining = item_info.get_end_date() - base_time;
     std::optional<ItemStatus> existing_status = item_info.get_status();
     ItemStatus new_status = (existing_status.has_value() ? existing_status.value() : ItemStatus::OPEN);
 
@@ -448,8 +463,8 @@ namespace auctionmark
 
       if (need_future_end_date)
       {
-        auto temp_end_date = temp.get_end_date();
-        bool compare_to = temp_end_date.has_value() ? temp_end_date.value() < current_time : true;
+        //auto temp_end_date = temp.get_end_date();
+        bool compare_to = temp.has_end_date() ? temp.get_end_date() < current_time : true;
         if (compare_to)
         {
           continue;

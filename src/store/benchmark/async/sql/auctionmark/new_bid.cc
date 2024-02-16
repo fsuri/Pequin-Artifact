@@ -85,7 +85,7 @@ NewBid::NewBid(uint32_t timeout, AuctionMarkProfile &profile, std::mt19937_64 &g
       sellerId = itemInfo->get_seller_id();
       buyerId = profile.get_random_buyer_id(sellerId);
 
-      double currentPrice = *itemInfo->get_current_price();
+      double currentPrice = itemInfo->get_current_price();
       bid = round(std::uniform_real_distribution<double>(currentPrice, currentPrice * (1 + (ITEM_BID_PERCENT_STEP / 2)))(gen) * 100) /100; //round to 2 decimal places
       maxBid = round(std::uniform_real_distribution<double>(bid, bid * (1 + (ITEM_BID_PERCENT_STEP / 2)))(gen) * 100) /100; //round to 2 decimal places
     }
@@ -94,7 +94,7 @@ NewBid::NewBid(uint32_t timeout, AuctionMarkProfile &profile, std::mt19937_64 &g
   seller_id = sellerId.encode();
   buyer_id = buyerId.encode();
   newBid = maxBid;
-  uint64_t estimatedEndDate = *itemInfo->get_end_date();
+  uint64_t estimatedEndDate = itemInfo->get_end_date();
 
 }
 

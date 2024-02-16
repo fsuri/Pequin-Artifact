@@ -45,6 +45,8 @@ namespace auctionmark{
   static std::map<uint64_t, std::pair<Zipf, Zipf>> item_bid_watch_zipfs;
 
 
+
+
 class Bid {
   public: 
     Bid() {}
@@ -61,7 +63,7 @@ class Bid {
 
 class LoaderItemInfo : public ItemInfo {
   public:
-    LoaderItemInfo(ItemId itemId, uint64_t endDate, uint64_t numBids) : ItemInfo(itemId, std::nullopt, endDate, numBids) {}
+    LoaderItemInfo(ItemId itemId, uint64_t endDate, uint64_t numBids) : ItemInfo(itemId, 0.0, endDate, numBids) {}
     ~LoaderItemInfo(){}
     std::vector<Bid> bids;
     std::map<UserId, uint64_t> bidderHistogram;
@@ -89,15 +91,23 @@ class LoaderItemInfo : public ItemInfo {
     }
 };
 
+
+LoaderItemInfo GenerateItemTableRow(TableWriter &writer, AuctionMarkProfile &profile, std::mt19937_64 &gen, UserId &seller_id, int remaining);
+
 uint64_t getRandomStartTimestamp(uint64_t endDate, AuctionMarkProfile &profile) {
   uint64_t duration =  ((uint64_t) profile.get_random_duration()) * MILLISECONDS_IN_A_DAY;
   uint64_t lStartTimestamp = endDate- duration;
   return lStartTimestamp;
 }
 
+
 uint64_t getRandomEndTimestamp(AuctionMarkProfile &profile) {
   int timeDiff =  profile.get_random_time_diff();
   uint64_t EndTimestamp = profile.get_loader_start_time() + timeDiff; 
+
+  // std::cerr << "time diff: " <<  timeDiff << std::endl;
+  // std::cerr << "end date:  " <<  EndTimestamp << std::endl;
+  // std::cerr << "loadstart: " << profile.get_loader_start_time() << std::endl;
   assert(EndTimestamp > 0);
   return EndTimestamp;
 }
