@@ -2,14 +2,17 @@
 
 namespace auctionmark {
 
-ItemInfo::ItemInfo(ItemId id, double current_price, uint64_t end_date, uint64_t num_bids) : item_id(item_id), current_price(current_price), end_date(end_date), num_bids(num_bids) {
+ItemInfo::ItemInfo(ItemId id, double current_price, uint64_t end_date, uint64_t num_bids) 
+    : item_id(item_id), current_price(current_price), end_date(end_date), num_bids(num_bids), status(ItemStatus::OPEN) {
 }
 
-ItemInfo::ItemInfo(std::string id, double current_price, uint64_t end_date, uint64_t num_bids) : item_id(ItemId(id)), current_price(current_price), end_date(end_date), num_bids(num_bids) {
+ItemInfo::ItemInfo(std::string id, double current_price, uint64_t end_date, uint64_t num_bids) 
+    : item_id(ItemId(id)), current_price(current_price), end_date(end_date), num_bids(num_bids), status(ItemStatus::OPEN) {
 }
 
 ItemInfo::ItemInfo() {
     item_id = ItemId();
+    status = ItemStatus::OPEN;
     // std::optional<double> current_price = std::nullopt;
     // std::optional<uint64_t> end_date = std::nullopt;
     // long num_bids = 0;

@@ -392,8 +392,9 @@ LoaderItemInfo GenerateItemTableRow(TableWriter &writer, AuctionMarkProfile &pro
   itemInfo.numAttributes = profile.random_num_attributes.next_long();
   //itemInfo.numBids = numBids;
   itemInfo.numWatches = numWatches;
+  itemInfo.set_status(ItemStatus::OPEN);
 
-  num_open_items++;
+  //num_open_items++;
     // The auction for this item has already closed
   if(itemInfo.get_end_date() <= profile.get_loader_start_time()){
     // Somebody won a bid and bought the item
@@ -403,8 +404,8 @@ LoaderItemInfo GenerateItemTableRow(TableWriter &writer, AuctionMarkProfile &pro
       itemInfo.purchaseDate = getRandomPurchaseTimestamp(endDate, profile);
       itemInfo.numComments = profile.random_num_comments.next_long();
     }
-    num_closed_items++;
-    num_open_items--;
+    // num_closed_items++;
+    // num_open_items--;
     itemInfo.set_status(ItemStatus::CLOSED);
   }
   // Item is still available
@@ -414,6 +415,9 @@ LoaderItemInfo GenerateItemTableRow(TableWriter &writer, AuctionMarkProfile &pro
   }
   profile.add_item_to_proper_queue(itemInfo, true);
 
+  if(itemInfo.get_status() == ItemStatus::OPEN) num_open_items++;
+  if(itemInfo.get_status() == ItemStatus::CLOSED) num_closed_items++;
+  assert(itemInfo.get_status() == ItemStatus::OPEN || itemInfo.get_status() == ItemStatus::CLOSED);
   
 
   //CREATE ROW
