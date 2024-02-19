@@ -567,6 +567,8 @@ std::vector<LoaderItemInfo> GenerateItemTableData(TableWriter &writer, AuctionMa
 
       //for this user, create #itemCount many items
       int remaining = itemCount;
+      //profile.seller_item_cnt[seller_id.encode()] = itemCount;
+      
       while(remaining-- > 0){
         //Create item.
         items.push_back(GenerateItemTableRow(writer, profile, gen, seller_id, remaining));
@@ -574,7 +576,6 @@ std::vector<LoaderItemInfo> GenerateItemTableData(TableWriter &writer, AuctionMa
       }
     }
   }
-
 //FIXME: This is not the correct item generation procedure style...
 //int remaining = tableSize; 
   // for(auto &seller_id: user_ids){

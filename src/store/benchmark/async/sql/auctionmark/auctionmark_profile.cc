@@ -607,6 +607,7 @@ static int tot = 30000;
   // -----------------------------------------------------------------
   void AuctionMarkProfile::save_profile() {
     std::cerr << "items_per_cat.size: " << items_per_category.size() << std::endl;
+    std::cerr << "seller cnt: " << seller_item_cnt.size() << std::endl;
     std::ofstream profile_save_file;
     profile_save_file.open(PROFILE_FILE_NAME);
     {
@@ -643,7 +644,7 @@ static int tot = 30000;
       for (ItemInfo& item_info : orig_list) {
         UserId seller_id = item_info.get_seller_id();
         if (user_id_generator->check_client(seller_id)) {
-          seller_item_cnt.at(seller_id.encode()) = seller_id.get_item_count();
+          seller_item_cnt[seller_id.encode()] = seller_id.get_item_count();
           list.push_back(item_info);
         }
       }
@@ -679,8 +680,8 @@ static int tot = 30000;
 
       AuctionMarkProfile::cached_profile = new AuctionMarkProfile(client_id, num_clients, scale_factor);
       AuctionMarkProfile::cached_profile->copy_profile(client_id, *this);
-      AuctionMarkProfile::cached_profile->set_and_get_client_start_time();
-      AuctionMarkProfile::cached_profile->update_and_get_current_time();
+      // AuctionMarkProfile::cached_profile->set_and_get_client_start_time();
+      // AuctionMarkProfile::cached_profile->update_and_get_current_time();
     } else {
       copy_profile(client_id, *AuctionMarkProfile::cached_profile);
     }

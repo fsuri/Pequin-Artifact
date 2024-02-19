@@ -166,6 +166,8 @@ namespace auctionmark
     //std::vector<int> users_per_item_count;  //A histogram for the number of users that have the number of items listed ItemCount -> # of Users
     std::map<int, int> users_per_item_count;
     std::map<int, int> items_per_category;
+    //str_cat_hist_t seller_item_cnt;
+    std::map<std::string, int> seller_item_cnt;
 
   private:
     static AuctionMarkProfile *cached_profile;
@@ -189,9 +191,6 @@ namespace auctionmark
         &items_completed};
 
     
-
-  
-
     std::optional<FlatHistogram_Int> random_category;
     std::optional<FlatHistogram_Int> random_item_count;
     // FlatHistogram_Int random_category;
@@ -200,9 +199,6 @@ namespace auctionmark
     uint64_t last_close_auctions_time;
     uint64_t client_start_time;
     uint64_t current_time;
-
-    //str_cat_hist_t seller_item_cnt;
-    std::map<std::string, int> seller_item_cnt;
 
     inline void initialize_user_id_generator(int client_id)
     {
