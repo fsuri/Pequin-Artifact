@@ -599,7 +599,7 @@ namespace auctionmark
   // -----------------------------------------------------------------
   // SERIALIZATION METHODS
   // -----------------------------------------------------------------
-  void AuctionMarkProfile::save_profile(SyncClient &client) {
+  void AuctionMarkProfile::save_profile() {
     std::ofstream profile_save_file;
     profile_save_file.open(PROFILE_FILE_NAME);
     {
