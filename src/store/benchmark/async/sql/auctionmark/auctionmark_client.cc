@@ -64,6 +64,7 @@ AuctionMarkClient::AuctionMarkClient(
 
   //TODO: Initialize/load Auctionmark Profile
   //profile = AuctionMarkProfile(client_id, SCALE_FACTOR, num_clients, gen);
+  profile.load_profile(client_id);
 }
 
 AuctionMarkClient::~AuctionMarkClient() {}

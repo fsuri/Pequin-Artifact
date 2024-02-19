@@ -129,7 +129,7 @@ namespace auctionmark
     ItemId processItemRecord(ItemRecord &row);
 
     /* Serialization Methods */
-    void save_profile(SyncClient &client);
+    void save_profile();
     void copy_profile(int client_id, const AuctionMarkProfile &other);
 
     static void clear_cached_profile();

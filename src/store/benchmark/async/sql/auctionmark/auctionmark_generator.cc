@@ -1014,6 +1014,7 @@ int main(int argc, char *argv[]) {
   //  profile.set_loader_stop_time(std::chrono::system_clock::now());
 
   writer.flush();
+  profile.save_profile();
   // std::cerr << "Wrote tables." << std::endl;
 
    auto end_time = std::time(0);
