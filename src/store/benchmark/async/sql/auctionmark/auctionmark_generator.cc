@@ -469,6 +469,8 @@ std::vector<UserId> GenerateUserAcctTable(TableWriter &writer, AuctionMarkProfil
     UserId u_id = idGenerator.next();
     user_ids.push_back(u_id);
 
+    //if(i==0) std::cerr << "first user: " << u_id.to_string() << std::endl;
+    
     std::vector<std::string> values;
     values.push_back(u_id.encode()); //u_id
     Zipf zipf;
@@ -578,9 +580,11 @@ std::vector<LoaderItemInfo> GenerateItemTableData(TableWriter &writer, AuctionMa
   return items;
 }
 
+static bool once = true;
 LoaderItemInfo GenerateItemTableRow(TableWriter &writer, AuctionMarkProfile &profile, std::mt19937_64 &gen, const UserId &seller_id, int remaining){
 
   ItemId itemId(seller_id, remaining);
+  //std::cerr << "first item user: " << itemId.get_seller_id().to_string() << std::endl;
     //if(--remaining == 0) break;
 
     
@@ -1113,11 +1117,13 @@ int main(int argc, char *argv[]) {
 
    std::cerr << "Finished all User* Tables" << std::endl;
 
-  // //TODO: Serialize profile.
-  //  profile.set_loader_stop_time(std::chrono::system_clock::now());
-
   writer.flush();
-  // std::cerr << "Wrote tables." << std::endl;
+
+  //Serialize profile.
+  gettimeofday(&time, NULL);
+  profile.set_loader_stop_time(auctionmark::get_ts(time));
+  profile.save_profile();
+  std::cerr << "Saved profile." << std::endl;
 
    auto end_time = std::time(0);
     std::cerr << "Finished AUCTIONMARK Table Generation. Took " << (end_time - start_time) << "seconds" << std::endl;
@@ -1473,7 +1479,69 @@ void GenerateUserWatch(TableWriter &writer, AuctionMarkProfile &profile, std::ve
     }
   }
 }
+ 
+} //namespace auctionmark
 
 
 
+int main(int argc, char *argv[]) {
+
+  auto start_time = std::time(0);
+  
+  gflags::SetUsageMessage("generates a json file containing sql tables for AuctionMark data\n");
+  gflags::ParseCommandLineFlags(&argc, &argv, true);
+
+  std::string file_name = "sql-auctionmark";
+  TableWriter writer = TableWriter(file_name);
+
+  std::cerr << "Starting AUCTIONMARK Table Generation. Num Clients: " << FLAGS_client_total << ". Scale Factor: " << FLAGS_scale_factor << std::endl;
+
+  std::mt19937_64 gen;
+ 
+  auctionmark::AuctionMarkProfile profile(-1, FLAGS_client_total, FLAGS_scale_factor);
+  struct timeval time;
+  gettimeofday(&time, NULL);
+  profile.set_loader_start_time(auctionmark::get_ts(time));
+
+  std::cerr << "loader_start_time: " << profile.get_loader_start_time() << std::endl;
+
+  
+  auctionmark::GenerateRegionTable(writer);
+  int n_categories = auctionmark::GenerateCategoryTable(writer);
+  int n_gags = auctionmark::GenerateGlobalAttributeGroupTable(writer, n_categories, profile);
+  auctionmark::GenerateGlobalAttributeValueTable(writer, profile, n_gags);
+
+  std::cerr << "Finished General Tables" << std::endl;
+
+  //Generate UserTables
+  std::vector<auctionmark::UserId> users = auctionmark::GenerateUserAcctTable(writer, profile);
+  std::cerr << "Finished UserAcct Table" << std::endl;
+
+  std::vector<auctionmark::LoaderItemInfo> items = auctionmark::GenerateItemTable(writer, profile, users);
+  std::cerr << "Finished Item Table" << std::endl;
+
+  // auctionmark::GenerateItemImage(writer, items);
+  // auctionmark::GenerateItemAttribute(writer, profile, items);
+  // auctionmark::GenerateItemComment(writer, items);
+  // auctionmark::GenerateItemBid(writer, profile, items);
+  // auctionmark::GenerateItemMaxBid(writer, items);
+  // auctionmark::GenerateItemPurchase(writer, items);
+
+  // std::cerr << "Finished Item* Tables" << std::endl;
+
+  // auctionmark::GenerateUserFeedback(writer, profile, items);
+  // auctionmark::GenerateUserItem(writer, items);
+  // auctionmark::GenerateUserWatch(writer, profile, items);
+  // std::cerr << "Finished User* Tables" << std::endl;
+
+  // //TODO: Serialize profile.
+  //  profile.set_loader_stop_time(std::chrono::system_clock::now());
+
+  writer.flush();
+  // std::cerr << "Wrote tables." << std::endl;
+
+   auto end_time = std::time(0);
+    std::cerr << "Finished AUCTIONMARK Table Generation. Took " << (end_time - start_time) << "seconds" << std::endl;
+  return 0;
+}
 */
