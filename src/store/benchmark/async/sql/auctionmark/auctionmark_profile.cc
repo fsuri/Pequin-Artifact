@@ -25,7 +25,7 @@ namespace auctionmark
       random_duration(gen, ITEM_DURATION_DAYS_MIN, ITEM_DURATION_DAYS_MAX)
   {
     gen.seed(client_id);
-    std::cerr << "Constructing AuctionMarkProfile" << std::endl;
+    //std::cerr << "Constructing AuctionMarkProfile" << std::endl;
     struct timeval time;
     gettimeofday(&time, NULL);
     loader_start_time = get_ts(time);
@@ -653,10 +653,10 @@ static int tot = 30000;
     }
   }
 
-  void AuctionMarkProfile::load_profile(int client_id) {
+  void AuctionMarkProfile::load_profile(const std::string &profile_file_path, int client_id) {
     if (AuctionMarkProfile::cached_profile == nullptr) {
       std::ifstream profile_save_file;
-      profile_save_file.open(PROFILE_FILE_NAME);
+      profile_save_file.open(profile_file_path);
       {
         boost::archive::text_iarchive ia(profile_save_file);
         ia >> scale_factor;

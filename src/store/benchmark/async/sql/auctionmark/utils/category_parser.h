@@ -69,6 +69,7 @@ class CategoryParser {
   virtual ~CategoryParser();
 
   std::unordered_map<std::string, Category> get_categories() const;
+  void normalize_name(std::string &s);
 
  private:
   auto add_new_category(std::string full_category_name, int item_cnt, bool is_leaf) -> Category;

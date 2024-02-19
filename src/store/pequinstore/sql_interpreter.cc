@@ -901,6 +901,8 @@ static bool fine_grained_quotes = true;  //false == add quotes to everything, tr
 //server calls: GenerateLoadStatement, into LoadTable (passing the statement)
 std::string SQLTransformer::GenerateLoadStatement(const std::string &table_name, const std::vector<std::vector<std::string>> &row_segment, int segment_no){
 
+    //std::cerr << "row_segment, size: " << row_segment.size() << std::endl;
+
     const ColRegistry &col_registry = TableRegistry.at(table_name);
     std::string load_statement = fmt::format("INSERT INTO {0} VALUES ", table_name);
 

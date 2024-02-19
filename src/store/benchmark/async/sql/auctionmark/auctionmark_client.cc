@@ -44,7 +44,7 @@
 namespace auctionmark
 {
 AuctionMarkClient::AuctionMarkClient(
-    SyncClient &client, Transport &transport, uint64_t client_id, uint64_t num_clients,
+    SyncClient &client, Transport &transport, std::string profile_file_path, uint64_t client_id, uint64_t num_clients,
     int numRequests, int expDuration, uint64_t delay, int warmupSec,
     int cooldownSec, int tputInterval, uint32_t abortBackoff, bool retryAborted,
     uint32_t maxBackoff, uint32_t maxAttempts, const uint32_t timeout, const std::string &latencyFilename)
@@ -64,7 +64,7 @@ AuctionMarkClient::AuctionMarkClient(
 
   //TODO: Initialize/load Auctionmark Profile
   //profile = AuctionMarkProfile(client_id, SCALE_FACTOR, num_clients, gen);
-  profile.load_profile(client_id);
+  profile.load_profile(profile_file_path, client_id); 
 }
 
 AuctionMarkClient::~AuctionMarkClient() {}
@@ -81,6 +81,8 @@ SyncTransaction *AuctionMarkClient::GetNextTransaction()
   struct timeval time;
   gettimeofday(&time, NULL);
   uint64_t now = get_ts(time);
+
+  Panic("stop before TX");
 
   //Close Auctions runs periodically (only on the first client)
   if (need_close_auctions && now - last_close_auctions >= CLOSE_AUCTIONS_INTERVAL / TIME_SCALE_FACTOR) {

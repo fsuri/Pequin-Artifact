@@ -969,6 +969,7 @@ int main(int argc, char **argv) {
      
         //Load all tables. 
        for(auto &[table_name, table_args]: tables_to_load.items()){ 
+          //if(table_name != "item_purchase") continue;
           const std::vector<std::pair<std::string, std::string>> &column_names_and_types = table_args["column_names_and_types"];
           const std::vector<uint32_t> &primary_key_col_idx = table_args["primary_key_col_idx"];
           //Create Table

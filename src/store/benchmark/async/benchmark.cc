@@ -568,7 +568,7 @@ const std::string benchmark_args[] = {
   "tpcc-sql",
   "rw-sql",
   "seats-sql",
-  "auctionmark-sql"
+  "auctionmark-sql",
   "tpcch-sql"
 };
 const benchmode_t benchmodes[] {
@@ -1700,12 +1700,15 @@ int main(int argc, char **argv) {
               FLAGS_abort_backoff, FLAGS_retry_aborted, FLAGS_max_backoff, FLAGS_max_attempts, FLAGS_message_timeout);
           break;
       case BENCH_AUCTIONMARK_SQL:
-          UW_ASSERT(syncClient != nullptr); //FIXME: FILL IN LATER
-          // bench = new auctionmark::AuctionmarkClient( *syncClient, *tport,
-          //     seed, client_total, FLAGS_num_requests, FLAGS_exp_duration, FLAGS_delay,
-          //     FLAGS_warmup_secs, FLAGS_cooldown_secs, FLAGS_tput_interval,
-          //     FLAGS_abort_backoff, FLAGS_retry_aborted, FLAGS_max_backoff, FLAGS_max_attempts, FLAGS_message_timeout);
+        {
+          UW_ASSERT(syncClient != nullptr);
+          std::string profile_file_path = std::filesystem::path(FLAGS_data_file_path).replace_filename(auctionmark::PROFILE_FILE_NAME);
+          bench = new auctionmark::AuctionMarkClient( *syncClient, *tport, profile_file_path,
+              seed, client_total, FLAGS_num_requests, FLAGS_exp_duration, FLAGS_delay,
+              FLAGS_warmup_secs, FLAGS_cooldown_secs, FLAGS_tput_interval,
+              FLAGS_abort_backoff, FLAGS_retry_aborted, FLAGS_max_backoff, FLAGS_max_attempts, FLAGS_message_timeout);
           break;
+        }
       case BENCH_TPCCH_SQL: {
           UW_ASSERT(syncClient != nullptr);
           int id = FLAGS_num_client_hosts * i + FLAGS_client_id;

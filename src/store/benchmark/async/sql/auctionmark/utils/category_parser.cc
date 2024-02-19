@@ -29,6 +29,7 @@
 #include <vector>
 #include <fstream>
 #include <boost/algorithm/string.hpp>
+#include <iostream>
 
 namespace auctionmark {
 
@@ -78,6 +79,7 @@ CategoryParser::CategoryParser() {
   std::string line;
   if(file.is_open()) {
     while(getline(file, line)) {
+      // std::cerr << "next line: " << line << std::endl;
       extract_category(line);
     }
     file.close();
@@ -113,6 +115,40 @@ void CategoryParser::extract_category(std::string s) {
   add_new_category(category, item_cnt, true);
 }
 
+void CategoryParser::normalize_name(std::string &s) {
+  //Normalize name
+  
+  // 1) turn commas into semicolon,
+  std::string delimiter = ",";
+  std::vector<std::string> tokens;
+  boost::split(tokens, s, boost::is_any_of(delimiter));
+
+  s = "";
+  for(auto &token: tokens) {
+   s += token + ";";
+  }
+  if(s.length() > 0) {
+    s.pop_back(); //Commas will never be at the very end.
+  }
+  //2) Turn single quotes into 2 single quotes...
+  delimiter = "'";
+  tokens.clear();
+  boost::split(tokens, s, boost::is_any_of(delimiter));
+
+  s = "";
+  for(auto &token: tokens) {
+   s += token + "''";
+  }
+  if(s.length() > 0) { //single colons will never be at the end..
+    s.pop_back();
+    s.pop_back();
+  }
+
+  //3) turn double quotes into 2 single quotes? Is this needed?
+  //Note: Double quotes might be at the end.
+
+}
+
 Category CategoryParser::add_new_category(std::string full_category_name, int item_cnt, bool is_leaf) {
   std::optional<Category> parent_category;
 
@@ -120,11 +156,17 @@ Category CategoryParser::add_new_category(std::string full_category_name, int it
   std::string parent_category_name = "";
   std::optional<uint32_t> parent_category_id = 0;
 
+  //std::cerr << "full_category_name: " << full_category_name << std::endl;
+  normalize_name(full_category_name);  
+
   if(full_category_name.find("/") != full_category_name.npos) {
     int serparator_index = full_category_name.find_last_of("/");
     parent_category_name = full_category_name.substr(0, serparator_index);
     category_name = full_category_name.substr(serparator_index + 1);
   }
+
+  //  std::cerr << "category_name: " << category_name << std::endl;
+  //  std::cerr << "parent category_name: " << parent_category_name << std::endl;
 
   if(categories.count(parent_category_name)) {
     parent_category = categories[parent_category_name];

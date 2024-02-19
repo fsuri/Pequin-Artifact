@@ -134,7 +134,7 @@ namespace auctionmark
 
     static void clear_cached_profile();
 
-    void load_profile(int client_id);
+    void load_profile(const std::string &profile_file_path, int client_id);
 
 
     inline int get_client_id(){
