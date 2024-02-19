@@ -642,6 +642,7 @@ static int tot = 30000;
           list.push_back(item_info);
         }
       }
+      std::shuffle(list.begin(), list.end(), gen);
     }
 
     for (ItemCommentResponse cr : other.pending_comment_responses) {
