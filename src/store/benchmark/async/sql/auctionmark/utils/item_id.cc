@@ -4,6 +4,8 @@ namespace auctionmark {
 
 const std::vector<int> ItemId::COMPOSITE_BITS = { UserId::ID_LENGTH, INT_MAX_DIGITS };
 
+ItemId::ItemId(): seller_id(), item_ctr(0){}
+
 ItemId::ItemId(const std::string& seller_id, int item_ctr)
     : seller_id(seller_id), item_ctr(item_ctr) {}
 

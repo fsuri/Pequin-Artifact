@@ -320,7 +320,7 @@ static int tot = 30000;
   //   return ItemId(seller_id, cnt);
   // }
 
-  bool AuctionMarkProfile::add_item(std::vector<ItemInfo> &items, ItemInfo &item_info)
+  bool AuctionMarkProfile::add_item(std::vector<ItemInfo> &items, ItemInfo &item_info, bool is_loader)
   {
     bool added = false;
 
@@ -331,11 +331,13 @@ static int tot = 30000;
       return true;
     }
 
+   
     if (item_info.has_current_price())
     {
       if (items.size() < ITEM_ID_CACHE_SIZE)
       {
         items.push_back(item_info);
+
         added = true;
       }
       else if (std::uniform_int_distribution<>(0, 1)(gen))
@@ -345,6 +347,7 @@ static int tot = 30000;
         added = true;
       }
     }
+   
     return added;
   }
 
@@ -354,12 +357,12 @@ static int tot = 30000;
 
     for (auto& items : all_item_sets)
     {
-      if (items == items_completed)
+      if (*items == items_completed)
       {
         continue;
       }
 
-      for (std::vector<ItemInfo>::iterator it = items.begin(); it != items.end(); it++)
+      for (std::vector<ItemInfo>::iterator it = items->begin(); it != items->end(); it++)
       {
         std::pair p { it, items };
         auto current_queue_iterator = std::make_optional(p);
@@ -375,7 +378,7 @@ static int tot = 30000;
     return add_item_to_proper_queue(item_info, base_time, std::nullopt, is_loader);
   }
 
-  std::optional<ItemStatus> AuctionMarkProfile::add_item_to_proper_queue(ItemInfo &item_info, uint64_t &base_time, std::optional<std::pair<std::vector<ItemInfo>::iterator, std::vector<ItemInfo>>> current_queue_iterator,  bool is_loader)
+  std::optional<ItemStatus> AuctionMarkProfile::add_item_to_proper_queue(ItemInfo &item_info, uint64_t &base_time, std::optional<std::pair<std::vector<ItemInfo>::iterator, std::vector<ItemInfo>*>> current_queue_iterator,  bool is_loader)
   {
     if (client_id != -1)
     {
@@ -412,7 +415,7 @@ static int tot = 30000;
     {
       if (current_queue_iterator.has_value())
       {
-        current_queue_iterator->second.erase(current_queue_iterator->first);
+        current_queue_iterator->second->erase(current_queue_iterator->first);
       }
 
       switch (new_status)
@@ -436,7 +439,7 @@ static int tot = 30000;
     return new_status;
   }
 
-  std::optional<ItemInfo> AuctionMarkProfile::get_random_item(std::vector<ItemInfo> item_set, bool need_current_price, bool need_future_end_date)
+  std::optional<ItemInfo> AuctionMarkProfile::get_random_item(std::vector<ItemInfo> &item_set, bool need_current_price, bool need_future_end_date)
   {
     auto current_time = update_and_get_current_time();
     int num_items = item_set.size();
@@ -504,6 +507,7 @@ static int tot = 30000;
    **********************************************************************************************/
   std::optional<ItemInfo> AuctionMarkProfile::get_random_available_item()
   {
+    std::cerr << "items available: " << items_available.size() << std::endl;
     return get_random_item(items_available, false, false);
   }
 
@@ -567,11 +571,11 @@ static int tot = 30000;
   std::optional<ItemInfo> AuctionMarkProfile::get_random_item()
   {
     int idx = -1;
-    while (idx == -1 || all_item_sets[idx].empty())
+    while (idx == -1 || all_item_sets[idx]->empty())
     {
       idx = std::uniform_int_distribution<>(0, 3)(gen);
     }
-    return get_random_item(all_item_sets[idx], false, false);
+    return get_random_item(*all_item_sets[idx], false, false);
   }
 
   int AuctionMarkProfile::get_all_items_count()
@@ -602,6 +606,7 @@ static int tot = 30000;
   // SERIALIZATION METHODS
   // -----------------------------------------------------------------
   void AuctionMarkProfile::save_profile() {
+    std::cerr << "items_per_cat.size: " << items_per_category.size() << std::endl;
     std::ofstream profile_save_file;
     profile_save_file.open(PROFILE_FILE_NAME);
     {
@@ -632,8 +637,8 @@ static int tot = 30000;
     initialize_user_id_generator(client_id);
 
     for (int i = 0; i < ITEM_SETS_NUM; i++) {
-      auto list = all_item_sets[i];
-      auto orig_list = other.all_item_sets[i];
+      auto &list = *all_item_sets[i];
+      auto &orig_list = *other.all_item_sets[i];
 
       for (ItemInfo& item_info : orig_list) {
         UserId seller_id = item_info.get_seller_id();

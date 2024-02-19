@@ -94,11 +94,11 @@ namespace auctionmark
 
     /* Item Methods */
     ItemId get_next_item_id(UserId &seller_id);
-    bool add_item(std::vector<ItemInfo> &items, ItemInfo &item_info);
+    bool add_item(std::vector<ItemInfo> &items, ItemInfo &item_info, bool is_loader = false);
     void update_item_queues();
     std::optional<ItemStatus> add_item_to_proper_queue(ItemInfo &item_info, bool is_loader);
-    std::optional<ItemStatus> add_item_to_proper_queue(ItemInfo &item_info, uint64_t &base_time, std::optional<std::pair<std::vector<ItemInfo>::iterator, std::vector<ItemInfo>>> current_queue_iterator, bool is_loader = false);
-    std::optional<ItemInfo> get_random_item(std::vector<ItemInfo> item_set, bool need_current_price, bool need_future_end_date);
+    std::optional<ItemStatus> add_item_to_proper_queue(ItemInfo &item_info, uint64_t &base_time, std::optional<std::pair<std::vector<ItemInfo>::iterator, std::vector<ItemInfo>*>> current_queue_iterator, bool is_loader = false);
+    std::optional<ItemInfo> get_random_item(std::vector<ItemInfo> &item_set, bool need_current_price, bool need_future_end_date);
 
     /* Available Items */
     std::optional<ItemInfo> get_random_available_item();
@@ -165,6 +165,7 @@ namespace auctionmark
 
     //std::vector<int> users_per_item_count;  //A histogram for the number of users that have the number of items listed ItemCount -> # of Users
     std::map<int, int> users_per_item_count;
+    std::map<int, int> items_per_category;
 
   private:
     static AuctionMarkProfile *cached_profile;
@@ -176,18 +177,16 @@ namespace auctionmark
     uint64_t loader_stop_time;
 
    
-    histogram_int items_per_category;
-
     std::vector<ItemInfo> items_available;
     std::vector<ItemInfo> items_ending_soon;
     std::vector<ItemInfo> items_waiting_for_purchase;
     std::vector<ItemInfo> items_completed;
 
-    std::vector<ItemInfo> all_item_sets[ITEM_SETS_NUM] = {
-        items_available,
-        items_ending_soon,
-        items_waiting_for_purchase,
-        items_completed};
+    std::vector<ItemInfo>* all_item_sets[ITEM_SETS_NUM] = {
+        &items_available,
+        &items_ending_soon,
+        &items_waiting_for_purchase,
+        &items_completed};
 
     
 

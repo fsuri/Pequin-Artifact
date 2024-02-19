@@ -97,7 +97,7 @@ LoaderItemInfo GenerateItemTableRow(TableWriter &writer, AuctionMarkProfile &pro
 void GenerateSubTableRows(TableWriter &writer, AuctionMarkProfile &profile, std::mt19937_64 &gen, LoaderItemInfo &itemInfo);
 void GenerateItemImageRow(TableWriter &writer, LoaderItemInfo &itemInfo);
 void GenerateItemAttributeRow(TableWriter &writer, AuctionMarkProfile &profile, LoaderItemInfo &itemInfo);
-void GenerateItemCommentRow(TableWriter &writer, LoaderItemInfo &itemInfo, std::mt19937_64 &gen);
+void GenerateItemCommentRow(TableWriter &writer, AuctionMarkProfile &profile, LoaderItemInfo &itemInfo, std::mt19937_64 &gen);
 void GenerateItemBidRow(TableWriter &writer, AuctionMarkProfile &profile, LoaderItemInfo &itemInfo);
 void GenerateItemMaxBidRow(TableWriter &writer, LoaderItemInfo &itemInfo);
 void GenerateItemPurchaseRow(TableWriter &writer, LoaderItemInfo &itemInfo, std::mt19937_64 &gen);

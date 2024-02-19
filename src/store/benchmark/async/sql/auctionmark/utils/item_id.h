@@ -39,7 +39,7 @@ namespace auctionmark
     ItemId(const UserId &seller_id, int item_ctr);
     ItemId(const std::string &composite_id);
     ItemId(const ItemId &other);
-    ItemId() = default;
+    ItemId();
     ~ItemId() = default;
 
     std::string encode() const;

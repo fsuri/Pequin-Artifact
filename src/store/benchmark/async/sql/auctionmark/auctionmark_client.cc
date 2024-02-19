@@ -82,8 +82,6 @@ SyncTransaction *AuctionMarkClient::GetNextTransaction()
   gettimeofday(&time, NULL);
   uint64_t now = get_ts(time);
 
-  Panic("stop before TX");
-
   //Close Auctions runs periodically (only on the first client)
   if (need_close_auctions && now - last_close_auctions >= CLOSE_AUCTIONS_INTERVAL / TIME_SCALE_FACTOR) {
     lastOp = "close_auctions";

@@ -352,20 +352,24 @@ void GenerateRegionTable(TableWriter &writer)
 }
 
 
-int GenerateCategoryTable(TableWriter &writer)
+int GenerateCategoryTable(TableWriter &writer, AuctionMarkProfile &profile)
 {
   std::string table_name = TABLE_CATEGORY;
 
   auto category_parser = auctionmark::CategoryParser();
   auto categories = category_parser.get_categories();
-  for (auto &[_, value] : categories)
+  for (auto &[_, category] : categories)
   {
+    if(category.is_leaf()){
+      profile.items_per_category[category.get_category_id()] = category.get_item_cnt();
+    }
+
     std::vector<std::string> values;
-    values.push_back(std::to_string(value.get_category_id()));
-    values.push_back(value.get_name());
-    if (value.get_parent_category_id().has_value())
+    values.push_back(std::to_string(category.get_category_id()));
+    values.push_back(category.get_name());
+    if (category.get_parent_category_id().has_value())
     {
-      values.push_back(std::to_string(value.get_parent_category_id().value()));
+      values.push_back(std::to_string(category.get_parent_category_id().value()));
     }
     else
     {
@@ -642,6 +646,14 @@ LoaderItemInfo GenerateItemTableRow(TableWriter &writer, AuctionMarkProfile &pro
     itemInfo.lastBidderId = profile.get_random_buyer_id(sellerId);
   }
   
+   // I_CURRENT_PRICE
+  if (itemInfo.get_num_bids() > 0) {
+    itemInfo.set_current_price(itemInfo.initialPrice + (itemInfo.get_num_bids() * itemInfo.initialPrice * ITEM_BID_PERCENT_STEP));
+  }
+  else{
+    itemInfo.set_current_price(itemInfo.initialPrice);
+  }
+  
   assert(itemInfo.get_status() == ItemStatus::OPEN || itemInfo.get_status() == ItemStatus::CLOSED);
   profile.add_item_to_proper_queue(itemInfo, true);
 
@@ -661,13 +673,7 @@ LoaderItemInfo GenerateItemTableRow(TableWriter &writer, AuctionMarkProfile &pro
   values.push_back(RandomAString(ITEM_DESCRIPTION_LENGTH_MIN, ITEM_DESCRIPTION_LENGTH_MAX, gen));// I_DESCRIPTION
   values.push_back(RandomAString(ITEM_USER_ATTRIBUTES_LENGTH_MIN, ITEM_USER_ATTRIBUTES_LENGTH_MAX, gen));  // I_USER_ATTRIBUTES
   values.push_back(std::to_string(itemInfo.initialPrice));// I_INITIAL_PRICE
-  // I_CURRENT_PRICE
-  if (itemInfo.get_num_bids() > 0) {
-    itemInfo.set_current_price(itemInfo.initialPrice + (itemInfo.get_num_bids() * itemInfo.initialPrice * ITEM_BID_PERCENT_STEP));
-    values.push_back(std::to_string(itemInfo.get_current_price()));
-  } else {
-    values.push_back(std::to_string(itemInfo.initialPrice));
-  }
+  values.push_back(std::to_string(itemInfo.get_current_price()));  // I_CURRENT_PRICE
   
   values.push_back(std::to_string(itemInfo.get_num_bids()));// I_NUM_BIDS
   values.push_back(std::to_string(itemInfo.numImages));// I_NUM_IMAGES
@@ -680,6 +686,7 @@ LoaderItemInfo GenerateItemTableRow(TableWriter &writer, AuctionMarkProfile &pro
 
   //int status = itemInfo.get_status() == ItemStatus::OPEN? 0 : 3;
   int status = (int) itemInfo.get_status();
+  if(status == 1) status = 0;
   values.push_back(std::to_string(status));// I_STATUS
 
   uint64_t start_time = profile.get_loader_start_time();
@@ -698,7 +705,7 @@ void GenerateSubTableRows(TableWriter &writer, AuctionMarkProfile &profile, std:
   
   GenerateItemAttributeRow(writer, profile, itemInfo);
  
-  GenerateItemCommentRow(writer, itemInfo, gen);
+  GenerateItemCommentRow(writer, profile, itemInfo, gen);
 
   GenerateItemBidRow(writer, profile, itemInfo);
  
@@ -743,7 +750,7 @@ void GenerateItemAttributeRow(TableWriter &writer, AuctionMarkProfile &profile, 
 }
 
 
-void GenerateItemCommentRow(TableWriter &writer, LoaderItemInfo &itemInfo, std::mt19937_64 &gen){
+void GenerateItemCommentRow(TableWriter &writer, AuctionMarkProfile &profile, LoaderItemInfo &itemInfo, std::mt19937_64 &gen){
   
   //DATA GENERATION
   
@@ -764,6 +771,10 @@ void GenerateItemCommentRow(TableWriter &writer, LoaderItemInfo &itemInfo, std::
     values.push_back(std::to_string(t));//ic_updated
 
     writer.add_row(TABLE_ITEM_COMMENT, values);
+
+    //only if response = empty
+    //profile.pending_comment_responses.push_back(ItemCommentResponse(count, itemInfo.get_item_id().encode(), itemInfo.get_seller_id().encode()));
+
   }
   
 }
@@ -1083,7 +1094,7 @@ int main(int argc, char *argv[]) {
   //return 0;
   std::cerr << "Start Generating Data" << std::endl;
   auctionmark::GenerateRegionTable(writer);
-  int n_categories = auctionmark::GenerateCategoryTable(writer);
+  int n_categories = auctionmark::GenerateCategoryTable(writer, profile);
 
   int n_gags = auctionmark::GenerateGlobalAttributeGroupTable(writer, n_categories, profile);
   auctionmark::GenerateGlobalAttributeValueTable(writer, profile, n_gags);

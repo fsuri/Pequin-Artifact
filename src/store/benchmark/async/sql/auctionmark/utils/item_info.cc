@@ -11,7 +11,7 @@ ItemInfo::ItemInfo(std::string id, double current_price, uint64_t end_date, uint
     : item_id(ItemId(id)), current_price(current_price), end_date(end_date), num_bids(num_bids), status(ItemStatus::OPEN) {
 }
 
-ItemInfo::ItemInfo() {
+ItemInfo::ItemInfo(): current_price(0), end_date(0), num_bids(0) {
     item_id = ItemId();
     status = ItemStatus::OPEN;
     // std::optional<double> current_price = std::nullopt;
