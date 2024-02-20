@@ -540,7 +540,7 @@ void Server::LoadTableData_SQL(const std::string &table_name, const std::string 
 
 
 static bool parallel_load = true;
-static int max_segment_size = 20000;//INT_MAX; //20000 seems to work well for TPC-C 1 warehouse, 50000 works well for Seats
+static int max_segment_size = 20000;//INT_MAX; //20000 seems to work well for TPC-C 1 warehouse and for Seats
 
 void Server::LoadTableData(const std::string &table_name, const std::string &table_data_path, 
     const std::vector<std::pair<std::string, std::string>> &column_names_and_types, const std::vector<uint32_t> &primary_key_col_idx)

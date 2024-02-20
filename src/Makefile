@@ -222,6 +222,7 @@ include store/benchmark/async/sql/tpcc/Rules.mk
 include store/benchmark/async/sql/seats/Rules.mk
 include store/benchmark/async/sql/tpcch/Rules.mk
 include store/benchmark/async/sql/auctionmark/utils/Rules.mk
+include store/benchmark/async/sql/auctionmark/transactions/Rules.mk
 include store/benchmark/async/sql/auctionmark/Rules.mk
 
 include store/benchmark/async/Rules.mk

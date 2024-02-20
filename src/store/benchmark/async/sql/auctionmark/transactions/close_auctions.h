@@ -24,54 +24,69 @@
  * SOFTWARE.
  *
  **********************************************************************/
-#ifndef AUCTION_MARK_NEW_PURCHASE_H
-#define AUCTION_MARK_NEW_PURCHASE_H
+#ifndef AUCTION_MARK_CLOSE_AUCTIONS_H
+#define AUCTION_MARK_CLOSE_AUCTIONS_H
 
-#include "store/benchmark/async/sql/auctionmark/auctionmark_transaction.h"
+#include "store/benchmark/async/sql/auctionmark/transactions/auctionmark_transaction.h"
 #include "store/benchmark/async/sql/auctionmark/auctionmark_profile.h"
 
 namespace auctionmark {
 
-class NewPurchase : public AuctionMarkTransaction {
+class CloseAuctions : public AuctionMarkTransaction {
  public:
-  NewPurchase(uint32_t timeout, AuctionMarkProfile &profile, std::mt19937_64 &gen);
-  virtual ~NewPurchase();
+  CloseAuctions(uint32_t timeout, AuctionMarkProfile &profile, std::mt19937_64 &gen);
+  virtual ~CloseAuctions();
   virtual transaction_status_t Execute(SyncClient &client);
+  void UpdateProfile();
 
  private:
-  std::string item_id;
-  std::string seller_id;
-  std::string ip_id;
-  float buyer_credit;
+  uint64_t start_time;
+  uint64_t end_time;
+  std::vector<uint64_t> benchmark_times;
 
-  std::mt19937_64 &gen;
   AuctionMarkProfile &profile;
+  std::vector<ItemRecord> item_records;
 };
 
-class getItemInfoRow {
+class getDueItemRow {
   public:
-    getItemInfoRow() {}
-     uint64_t i_num_bids;
-    double i_current_price;
-    uint64_t i_end_date;
-    uint64_t i_status;
-    uint64_t ib_id;
-    uint64_t ib_buyer_id;
-    double u_balance;
-    
+    getDueItemRow(){}
+    std::string itemId;
+    std::string sellerId;
+    std::string i_name;
+    double currentPrice;
+    double numBids;
+    uint64_t endDate;
+    int i_status;
+    ItemStatus itemStatus;
 };
 
-inline void load_row(getItemInfoRow& r, std::unique_ptr<query_result::Row> row)
+inline void load_row(getDueItemRow& r, std::unique_ptr<query_result::Row> row)
 {
-  row->get(0, &r.i_num_bids);
-  row->get(1, &r.i_current_price);
-  row->get(2, &r.i_end_date);
-  row->get(3, &r.i_status);
-  row->get(4, &r.ib_id);
-  row->get(5, &r.ib_buyer_id);
-  row->get(6, &r.u_balance);
+  row->get(0, &r.itemId);
+  row->get(1, &r.sellerId);
+  row->get(2, &r.i_name);
+  row->get(3, &r.currentPrice);
+  row->get(4, &r.numBids);
+  row->get(5, &r.endDate);
+  row->get(6, &r.i_status);
+  r.itemStatus = static_cast<ItemStatus>(r.i_status);
 }
+
+class getMaxBidRow {
+  public:
+    getMaxBidRow(): bidId(0), buyerId(""){}
+    uint64_t bidId;
+    std::string buyerId;
+};
+
+inline void load_row(getMaxBidRow& r, std::unique_ptr<query_result::Row> row)
+{
+  row->get(0, &r.bidId);
+  row->get(1, &r.buyerId);
+}
+
 
 } // namespace auctionmark
 
-#endif /* AUCTION_MARK_NEW_PURCHASE_H */
+#endif /* AUCTION_MARK_CLOSE_AUCTIONS_H */

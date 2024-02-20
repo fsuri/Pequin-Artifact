@@ -30,21 +30,21 @@
 
 #include <random>
 
-#include "store/benchmark/async/sql/auctionmark/close_auctions.h"
-#include "store/benchmark/async/sql/auctionmark/get_item.h"
-#include "store/benchmark/async/sql/auctionmark/get_user_info.h"
-#include "store/benchmark/async/sql/auctionmark/new_bid.h"
-#include "store/benchmark/async/sql/auctionmark/new_comment_response.h"
-#include "store/benchmark/async/sql/auctionmark/new_comment.h"
-#include "store/benchmark/async/sql/auctionmark/new_feedback.h"
-#include "store/benchmark/async/sql/auctionmark/new_item.h"
-#include "store/benchmark/async/sql/auctionmark/new_purchase.h"
-#include "store/benchmark/async/sql/auctionmark/update_item.h"
+#include "store/benchmark/async/sql/auctionmark/transactions/close_auctions.h"
+#include "store/benchmark/async/sql/auctionmark/transactions/get_item.h"
+#include "store/benchmark/async/sql/auctionmark/transactions/get_user_info.h"
+#include "store/benchmark/async/sql/auctionmark/transactions/new_bid.h"
+#include "store/benchmark/async/sql/auctionmark/transactions/new_comment_response.h"
+#include "store/benchmark/async/sql/auctionmark/transactions/new_comment.h"
+#include "store/benchmark/async/sql/auctionmark/transactions/new_feedback.h"
+#include "store/benchmark/async/sql/auctionmark/transactions/new_item.h"
+#include "store/benchmark/async/sql/auctionmark/transactions/new_purchase.h"
+#include "store/benchmark/async/sql/auctionmark/transactions/update_item.h"
 
 namespace auctionmark
 {
 AuctionMarkClient::AuctionMarkClient(
-    SyncClient &client, Transport &transport, uint64_t client_id, uint64_t num_clients,
+    SyncClient &client, Transport &transport, std::string profile_file_path, uint64_t client_id, uint64_t num_clients,
     int numRequests, int expDuration, uint64_t delay, int warmupSec,
     int cooldownSec, int tputInterval, uint32_t abortBackoff, bool retryAborted,
     uint32_t maxBackoff, uint32_t maxAttempts, const uint32_t timeout, const std::string &latencyFilename)
@@ -64,7 +64,8 @@ AuctionMarkClient::AuctionMarkClient(
 
   //TODO: Initialize/load Auctionmark Profile
   //profile = AuctionMarkProfile(client_id, SCALE_FACTOR, num_clients, gen);
-  profile.load_profile(client_id);
+  profile.load_profile(profile_file_path, client_id); 
+  Panic("at one");
 }
 
 AuctionMarkClient::~AuctionMarkClient() {}

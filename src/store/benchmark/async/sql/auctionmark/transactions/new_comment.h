@@ -24,69 +24,30 @@
  * SOFTWARE.
  *
  **********************************************************************/
-#ifndef AUCTION_MARK_CLOSE_AUCTIONS_H
-#define AUCTION_MARK_CLOSE_AUCTIONS_H
+#ifndef AUCTION_MARK_NEW_COMMENT_H
+#define AUCTION_MARK_NEW_COMMENT_H
 
-#include "store/benchmark/async/sql/auctionmark/auctionmark_transaction.h"
+#include "store/benchmark/async/sql/auctionmark/transactions/auctionmark_transaction.h"
 #include "store/benchmark/async/sql/auctionmark/auctionmark_profile.h"
 
 namespace auctionmark {
 
-class CloseAuctions : public AuctionMarkTransaction {
+class NewComment : public AuctionMarkTransaction {
  public:
-  CloseAuctions(uint32_t timeout, AuctionMarkProfile &profile, std::mt19937_64 &gen);
-  virtual ~CloseAuctions();
+  NewComment(uint32_t timeout, AuctionMarkProfile &profile, std::mt19937_64 &gen);
+  virtual ~NewComment();
   virtual transaction_status_t Execute(SyncClient &client);
-  void UpdateProfile();
 
  private:
-  uint64_t start_time;
-  uint64_t end_time;
-  std::vector<uint64_t> benchmark_times;
+  std::string item_id;
+  std::string seller_id;
+  std::string buyer_id;
+  std::string question;
 
+  std::mt19937_64 &gen;
   AuctionMarkProfile &profile;
-  std::vector<ItemRecord> item_records;
 };
-
-class getDueItemRow {
-  public:
-    getDueItemRow(){}
-    std::string itemId;
-    std::string sellerId;
-    std::string i_name;
-    double currentPrice;
-    double numBids;
-    uint64_t endDate;
-    int i_status;
-    ItemStatus itemStatus;
-};
-
-inline void load_row(getDueItemRow& r, std::unique_ptr<query_result::Row> row)
-{
-  row->get(0, &r.itemId);
-  row->get(1, &r.sellerId);
-  row->get(2, &r.i_name);
-  row->get(3, &r.currentPrice);
-  row->get(4, &r.numBids);
-  row->get(5, &r.endDate);
-  row->get(6, &r.i_status);
-  r.itemStatus = static_cast<ItemStatus>(r.i_status);
-}
-
-class getMaxBidRow {
-  public:
-    getMaxBidRow(): bidId(0), buyerId(""){}
-    uint64_t bidId;
-    std::string buyerId;
-};
-
-inline void load_row(getMaxBidRow& r, std::unique_ptr<query_result::Row> row)
-{
-  row->get(0, &r.bidId);
-  row->get(1, &r.buyerId);
-}
-
 
 } // namespace auctionmark
 
-#endif /* AUCTION_MARK_CLOSE_AUCTIONS_H */
+#endif /* AUCTION_MARK_NEW_COMMENT_H */

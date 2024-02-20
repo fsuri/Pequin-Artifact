@@ -24,73 +24,31 @@
  * SOFTWARE.
  *
  **********************************************************************/
-#ifndef AUCTION_MARK_NEW_BID_H
-#define AUCTION_MARK_NEW_BID_H
+#ifndef AUCTION_MARK_UPDATE_ITEM_H
+#define AUCTION_MARK_UPDATE_ITEM_H
 
-#include "store/benchmark/async/sql/auctionmark/auctionmark_transaction.h"
+#include "store/benchmark/async/sql/auctionmark/transactions/auctionmark_transaction.h"
 #include "store/benchmark/async/sql/auctionmark/auctionmark_profile.h"
 
 namespace auctionmark {
 
-class NewBid : public AuctionMarkTransaction {
+class UpdateItem : public AuctionMarkTransaction {
  public:
-  NewBid(uint32_t timeout, AuctionMarkProfile &profile, std::mt19937_64 &gen);
-  virtual ~NewBid();
+  UpdateItem(uint32_t timeout, AuctionMarkProfile &profile, std::mt19937_64 &gen);
+  virtual ~UpdateItem();
   virtual transaction_status_t Execute(SyncClient &client);
-
+ 
  private:
   std::string item_id;
   std::string seller_id;
-  std::string buyer_id;
-  double newBid;
-  uint64_t estimatedEndDate;
-  std::vector<uint64_t> benchmark_times;
+  std::string description;
+  bool delete_attribute;
+  std::vector<std::string> add_attribute;
 
+  std::mt19937_64 &gen;
   AuctionMarkProfile &profile;
 };
 
-//Row
-class getItemRow {
-public:
-    getItemRow() {}
-    double i_initial_price;
-    double i_current_price;
-    uint64_t i_num_bids;
-    uint64_t i_end_date;
-    ItemStatus i_status;
-    int i_status_int;
-};
-
-//load
-inline void load_row(getItemRow& r, std::unique_ptr<query_result::Row> row)
-{
-  row->get(0, &r.i_initial_price);
-  row->get(1, &r.i_current_price);
-  row->get(2, &r.i_num_bids);
-  row->get(3, &r.i_end_date);
-  row->get(4, &r.i_status_int);;
-  r.i_status = static_cast<ItemStatus>(r.i_status_int);
-}
-
-class getItemMaxBidRow {
-public:
-    getItemMaxBidRow() {}
-    uint64_t currentBidId;
-    double currentBidAmount;
-    double currentBidMax;
-    std::string currentBuyerId;
-};
-
-//load
-inline void load_row(getItemMaxBidRow& r, std::unique_ptr<query_result::Row> row)
-{
-  row->get(0, &r.currentBidId);
-  row->get(1, &r.currentBidAmount);
-  row->get(2, &r.currentBidMax);
-  row->get(3, &r.currentBuyerId);
-}
-
-
 } // namespace auctionmark
 
-#endif /* AUCTION_MARK_NEW_BID_H */
+#endif /* AUCTION_MARK_UPDATE_ITEM_H */

@@ -24,30 +24,73 @@
  * SOFTWARE.
  *
  **********************************************************************/
-#ifndef AUCTION_MARK_NEW_COMMENT_RESPONSE_H
-#define AUCTION_MARK_NEW_COMMENT_RESPONSE_H
+#ifndef AUCTION_MARK_NEW_BID_H
+#define AUCTION_MARK_NEW_BID_H
 
-#include "store/benchmark/async/sql/auctionmark/auctionmark_transaction.h"
+#include "store/benchmark/async/sql/auctionmark/transactions/auctionmark_transaction.h"
 #include "store/benchmark/async/sql/auctionmark/auctionmark_profile.h"
 
 namespace auctionmark {
 
-class NewCommentResponse : public AuctionMarkTransaction {
+class NewBid : public AuctionMarkTransaction {
  public:
-  NewCommentResponse(uint32_t timeout, AuctionMarkProfile &profile, std::mt19937_64 &gen);
-  virtual ~NewCommentResponse();
+  NewBid(uint32_t timeout, AuctionMarkProfile &profile, std::mt19937_64 &gen);
+  virtual ~NewBid();
   virtual transaction_status_t Execute(SyncClient &client);
 
  private:
   std::string item_id;
   std::string seller_id;
-  uint64_t comment_id;
-  std::string response;
+  std::string buyer_id;
+  double newBid;
+  uint64_t estimatedEndDate;
+  std::vector<uint64_t> benchmark_times;
 
-  std::mt19937_64 &gen;
   AuctionMarkProfile &profile;
 };
 
+//Row
+class getItemRow {
+public:
+    getItemRow() {}
+    double i_initial_price;
+    double i_current_price;
+    uint64_t i_num_bids;
+    uint64_t i_end_date;
+    ItemStatus i_status;
+    int i_status_int;
+};
+
+//load
+inline void load_row(getItemRow& r, std::unique_ptr<query_result::Row> row)
+{
+  row->get(0, &r.i_initial_price);
+  row->get(1, &r.i_current_price);
+  row->get(2, &r.i_num_bids);
+  row->get(3, &r.i_end_date);
+  row->get(4, &r.i_status_int);;
+  r.i_status = static_cast<ItemStatus>(r.i_status_int);
+}
+
+class getItemMaxBidRow {
+public:
+    getItemMaxBidRow() {}
+    uint64_t currentBidId;
+    double currentBidAmount;
+    double currentBidMax;
+    std::string currentBuyerId;
+};
+
+//load
+inline void load_row(getItemMaxBidRow& r, std::unique_ptr<query_result::Row> row)
+{
+  row->get(0, &r.currentBidId);
+  row->get(1, &r.currentBidAmount);
+  row->get(2, &r.currentBidMax);
+  row->get(3, &r.currentBuyerId);
+}
+
+
 } // namespace auctionmark
 
-#endif /* AUCTION_MARK_NEW_COMMENT_RESPONSE_H */
+#endif /* AUCTION_MARK_NEW_BID_H */

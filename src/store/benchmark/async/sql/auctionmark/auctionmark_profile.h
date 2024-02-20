@@ -94,11 +94,11 @@ namespace auctionmark
 
     /* Item Methods */
     ItemId get_next_item_id(UserId &seller_id);
-    bool add_item(std::vector<ItemInfo> &items, ItemInfo &item_info);
+    bool add_item(std::vector<ItemInfo> &items, ItemInfo &item_info, bool is_loader = false);
     void update_item_queues();
     std::optional<ItemStatus> add_item_to_proper_queue(ItemInfo &item_info, bool is_loader);
-    std::optional<ItemStatus> add_item_to_proper_queue(ItemInfo &item_info, uint64_t &base_time, std::optional<std::pair<std::vector<ItemInfo>::iterator, std::vector<ItemInfo>>> current_queue_iterator);
-    std::optional<ItemInfo> get_random_item(std::vector<ItemInfo> item_set, bool need_current_price, bool need_future_end_date);
+    std::optional<ItemStatus> add_item_to_proper_queue(ItemInfo &item_info, uint64_t &base_time, std::optional<std::pair<std::vector<ItemInfo>::iterator, std::vector<ItemInfo>*>> current_queue_iterator, bool is_loader = false);
+    std::optional<ItemInfo> get_random_item(std::vector<ItemInfo> &item_set, bool need_current_price, bool need_future_end_date);
 
     /* Available Items */
     std::optional<ItemInfo> get_random_available_item();
@@ -134,7 +134,7 @@ namespace auctionmark
 
     static void clear_cached_profile();
 
-    void load_profile(int client_id);
+    void load_profile(const std::string &profile_file_path, int client_id);
 
 
     inline int get_client_id(){
@@ -165,6 +165,9 @@ namespace auctionmark
 
     //std::vector<int> users_per_item_count;  //A histogram for the number of users that have the number of items listed ItemCount -> # of Users
     std::map<int, int> users_per_item_count;
+    std::map<int, int> items_per_category;
+    //str_cat_hist_t seller_item_cnt;
+    std::map<std::string, int> seller_item_cnt;
 
   private:
     static AuctionMarkProfile *cached_profile;
@@ -176,23 +179,18 @@ namespace auctionmark
     uint64_t loader_stop_time;
 
    
-    histogram_int items_per_category;
-
     std::vector<ItemInfo> items_available;
     std::vector<ItemInfo> items_ending_soon;
     std::vector<ItemInfo> items_waiting_for_purchase;
     std::vector<ItemInfo> items_completed;
 
-    std::vector<ItemInfo> all_item_sets[ITEM_SETS_NUM] = {
-        items_available,
-        items_ending_soon,
-        items_waiting_for_purchase,
-        items_completed};
+    std::vector<ItemInfo>* all_item_sets[ITEM_SETS_NUM] = {
+        &items_available,
+        &items_ending_soon,
+        &items_waiting_for_purchase,
+        &items_completed};
 
     
-
-  
-
     std::optional<FlatHistogram_Int> random_category;
     std::optional<FlatHistogram_Int> random_item_count;
     // FlatHistogram_Int random_category;
@@ -201,9 +199,6 @@ namespace auctionmark
     uint64_t last_close_auctions_time;
     uint64_t client_start_time;
     uint64_t current_time;
-
-    //str_cat_hist_t seller_item_cnt;
-    std::map<std::string, int> seller_item_cnt;
 
     inline void initialize_user_id_generator(int client_id)
     {

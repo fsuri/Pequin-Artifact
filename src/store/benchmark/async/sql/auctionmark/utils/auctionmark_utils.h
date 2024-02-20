@@ -28,33 +28,94 @@
 #define AUCTIONMARK_UTILS_H
 
 #include <random>
+#include <iostream>
 #include <sys/time.h>
 #include "store/benchmark/async/sql/auctionmark/auctionmark_params.h"
 
 namespace auctionmark
 {
+//   class GaussGenerator {
+//     std::mt19937_64 &gen;
+//     std::default_random_engine rand; //seed
+//     std::normal_distribution<double> distribution;
+//     int min;
+//     int max;
+// public:
+//     GaussGenerator(std::mt19937_64 &gen, double mean, double stddev, int min, int max):
+//         gen(gen), distribution(mean, stddev), min(min), max(max), rand(time(0))
+//     {}
+
+//     GaussGenerator(std::mt19937_64 &gen, int min, int max):
+//         gen(gen), distribution((max + min + 1) / 2, (max - min + 1) / 6), min(min), max(max), rand(time(0))
+//     {
+//       std::cerr << "gauss: Min " << min << std::endl;
+//       std::cerr << "gauss: Max " << max << std::endl;
+//       std::cerr << "gauss: Mean " << (min+max)/2 << std::endl;
+//       std::cerr << "gauss: stddev " << (max-min)/6 << std::endl;
+//     }
+
+//     int next_val() {
+//         while (true) {
+//             int number = (int) this->distribution(rand);
+//             if (number >= this->min && number <= this->max)
+//                 return number;
+//         }
+//     }
+//   };
+
   class GaussGenerator {
     std::mt19937_64 &gen;
+    std::default_random_engine rand; //seed
     std::normal_distribution<double> distribution;
     int min;
     int max;
+    int range_size;
+    double mean;
+    bool cached;
+    double cached_res;
 public:
-    GaussGenerator(std::mt19937_64 &gen, double mean, double stddev, int min, int max):
-        gen(gen), distribution(mean, stddev), min(min), max(max)
-    {}
-
+   
     GaussGenerator(std::mt19937_64 &gen, int min, int max):
-        gen(gen), distribution((min + max) / 2, (max - min) / 6), min(min), max(max)
-    {}
+        gen(gen), min(min), max(max), cached(false)
+    {
+    
+      range_size = (max - min) + 1;
+      mean = range_size /2.0;
+    }
+
+    double nextGaussian(){
+      if(cached){
+        cached = false;
+        return cached_res;
+      }
+
+      double v1;
+      double v2;
+      double s;
+      do {
+        do {
+          v1 = 2.0 * std::uniform_real_distribution<double>(0.0, 1.0)(gen) - 1.0;
+          v2 = 2.0 * std::uniform_real_distribution<double>(0.0, 1.0)(gen) - 1.0;
+          s = v1 * v2 + v2 * v2;
+        } while(s >= 1.0);
+      } while(s == 0.0);
+
+      double multiplier = sqrt(-2.0 * log(s) / s);
+      cached_res = v2 * multiplier;
+      cached = true;
+      return v1 * multiplier;
+
+    }
 
     int next_val() {
-        while (true) {
-            int number = (int) this->distribution(gen);
-            if (number >= this->min && number <= this->max)
-                return number;
+        int value = -1;
+        while(value < 0 || value >= this->range_size){
+          double gaussian = (nextGaussian() + 2.0) / 4.0;
+          value = (int) round(gaussian * this->range_size);
         }
+        return (value + this->min);
     }
-};
+  };
 
   std::string RandomAString(size_t x, size_t y, std::mt19937_64 &gen);
 

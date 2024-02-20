@@ -24,7 +24,7 @@
  * SOFTWARE.
  *
  **********************************************************************/
-#include "store/benchmark/async/sql/auctionmark/get_item.h"
+#include "store/benchmark/async/sql/auctionmark/transactions/get_item.h"
 #include <fmt/core.h>
 
 namespace auctionmark {
@@ -32,7 +32,12 @@ namespace auctionmark {
 GetItem::GetItem(uint32_t timeout, AuctionMarkProfile &profile, std::mt19937_64 &gen) : 
     AuctionMarkTransaction(timeout), profile(profile) {
    
+    //std::cerr << "ItemInfo: " << ItemInfo().get_item_id().to_string() << std::endl;
+    auto itemInfo_opt = profile.get_random_available_item();
+    UW_ASSERT(itemInfo_opt.has_value());
+
     ItemInfo itemInfo = *profile.get_random_available_item();
+    std::cerr << "ItemInfo: " << itemInfo.get_item_id().to_string() << std::endl;
     item_id = itemInfo.get_item_id().encode();
     seller_id = itemInfo.get_seller_id().encode();
 
@@ -46,6 +51,7 @@ transaction_status_t GetItem::Execute(SyncClient &client) {
   std::string statement;
   std::vector<std::unique_ptr<const query_result::QueryResult>> results;
 
+  std::cerr << "GET ITEM" << std::endl;
   Debug("GET ITEM");
   Debug("Item ID: %s", item_id.c_str());
 
@@ -53,6 +59,7 @@ transaction_status_t GetItem::Execute(SyncClient &client) {
 
   statement = fmt::format("SELECT i_id, i_u_id, i_name, i_current_price, i_num_bids, i_end_date, i_status FROM "
                           "ITEM WHERE i_id = {} AND i_u_id;", item_id, seller_id);
+                          Panic("stop here");
   client.Query(statement, timeout);
  
   statement = fmt::format("SELECT u_id, u_rating, u_created, u_sattr0, u_sattr1, u_sattr2, u_sattr3, u_sattr4, r_name "

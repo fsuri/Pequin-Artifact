@@ -21,10 +21,11 @@ namespace auctionmark
 
   AuctionMarkProfile::AuctionMarkProfile(int client_id, int num_clients, double scale_factor) 
     : client_id(client_id), num_clients(num_clients), scale_factor(scale_factor), 
-      random_time_diff(gen, ITEM_PRESERVE_DAYS*24*60*60*-1, ITEM_DURATION_DAYS_MAX * 24 *60 *60), 
+      random_time_diff(gen, 0, ITEM_DURATION_DAYS_MAX * 24 *60 *60 + ITEM_PRESERVE_DAYS*24*60*60), 
       random_duration(gen, ITEM_DURATION_DAYS_MIN, ITEM_DURATION_DAYS_MAX)
   {
-    std::cerr << "Constructing AuctionMarkProfile" << std::endl;
+    gen.seed(client_id);
+    //std::cerr << "Constructing AuctionMarkProfile" << std::endl;
     struct timeval time;
     gettimeofday(&time, NULL);
     loader_start_time = get_ts(time);
@@ -116,21 +117,21 @@ namespace auctionmark
   }
 
 //TESTER variables
-// static int s = 0;
-// static int cnt = 0;
-// static int tot = 10000;
+static int s = 0;
+static int cnt = 0;
+static int tot = 30000;
  
   int AuctionMarkProfile::get_random_time_diff()
   {
     
     //return random_time_diff(gen) + (ITEM_PRESERVE_DAYS * 24 * 60 * 60 * -1);
-    int next = random_time_diff.next_val();
+    int next = random_time_diff.next_val() + (ITEM_PRESERVE_DAYS*24*60*60*-1);
     //std::cerr << "chosen: " << next << std::endl;
-    // s += next;
-    // if(++cnt == tot){
-    //   std::cerr << "sum: " << s << std::endl;
-    //   std::cerr << "avg: " << (s/tot) << std::endl;
-    // }
+    s += next;
+    if(++cnt == tot){
+      std::cerr << "sum: " << s << std::endl;
+      std::cerr << "avg: " << (s/tot) << std::endl;
+    }
 
 
     return next * MILLISECONDS_IN_A_SECOND; 
@@ -319,7 +320,7 @@ namespace auctionmark
   //   return ItemId(seller_id, cnt);
   // }
 
-  bool AuctionMarkProfile::add_item(std::vector<ItemInfo> &items, ItemInfo &item_info)
+  bool AuctionMarkProfile::add_item(std::vector<ItemInfo> &items, ItemInfo &item_info, bool is_loader)
   {
     bool added = false;
 
@@ -330,11 +331,13 @@ namespace auctionmark
       return true;
     }
 
+   
     if (item_info.has_current_price())
     {
       if (items.size() < ITEM_ID_CACHE_SIZE)
       {
         items.push_back(item_info);
+
         added = true;
       }
       else if (std::uniform_int_distribution<>(0, 1)(gen))
@@ -344,6 +347,7 @@ namespace auctionmark
         added = true;
       }
     }
+   
     return added;
   }
 
@@ -353,12 +357,12 @@ namespace auctionmark
 
     for (auto& items : all_item_sets)
     {
-      if (items == items_completed)
+      if (*items == items_completed)
       {
         continue;
       }
 
-      for (std::vector<ItemInfo>::iterator it = items.begin(); it != items.end(); it++)
+      for (std::vector<ItemInfo>::iterator it = items->begin(); it != items->end(); it++)
       {
         std::pair p { it, items };
         auto current_queue_iterator = std::make_optional(p);
@@ -371,10 +375,10 @@ namespace auctionmark
   std::optional<ItemStatus> AuctionMarkProfile::add_item_to_proper_queue(ItemInfo &item_info, bool is_loader)
   {
     uint64_t base_time = is_loader ? get_loader_start_time() : get_current_time();
-    return add_item_to_proper_queue(item_info, base_time, std::nullopt);
+    return add_item_to_proper_queue(item_info, base_time, std::nullopt, is_loader);
   }
 
-  std::optional<ItemStatus> AuctionMarkProfile::add_item_to_proper_queue(ItemInfo &item_info, uint64_t &base_time, std::optional<std::pair<std::vector<ItemInfo>::iterator, std::vector<ItemInfo>>> current_queue_iterator)
+  std::optional<ItemStatus> AuctionMarkProfile::add_item_to_proper_queue(ItemInfo &item_info, uint64_t &base_time, std::optional<std::pair<std::vector<ItemInfo>::iterator, std::vector<ItemInfo>*>> current_queue_iterator,  bool is_loader)
   {
     if (client_id != -1)
     {
@@ -390,14 +394,14 @@ namespace auctionmark
     }
 
     uint64_t remaining = item_info.get_end_date() - base_time;
-    std::optional<ItemStatus> existing_status = item_info.get_status();
-    ItemStatus new_status = (existing_status.has_value() ? existing_status.value() : ItemStatus::OPEN);
+    //std::optional<ItemStatus> existing_status = item_info.get_status();
+    ItemStatus new_status = item_info.get_status(); //(existing_status.has_value() ? existing_status.value() : ItemStatus::OPEN); //OPEN is now default.
 
     if (remaining <= 0)
     {
       new_status = ItemStatus::CLOSED;
     }
-    else if (remaining < ITEM_ENDING_SOON)
+    else if (remaining < (ITEM_ENDING_SOON * MILLISECONDS_IN_A_SECOND))
     {
       new_status = ItemStatus::ENDING_SOON;
     }
@@ -406,11 +410,12 @@ namespace auctionmark
       new_status = ItemStatus::WAITING_FOR_PURCHASE;
     }
 
-    if (!existing_status.has_value() || new_status != existing_status.value())
+    if (new_status != item_info.get_status() || is_loader)
+    //if (!existing_status.has_value() || new_status != existing_status.value())
     {
       if (current_queue_iterator.has_value())
       {
-        current_queue_iterator->second.erase(current_queue_iterator->first);
+        current_queue_iterator->second->erase(current_queue_iterator->first);
       }
 
       switch (new_status)
@@ -434,7 +439,7 @@ namespace auctionmark
     return new_status;
   }
 
-  std::optional<ItemInfo> AuctionMarkProfile::get_random_item(std::vector<ItemInfo> item_set, bool need_current_price, bool need_future_end_date)
+  std::optional<ItemInfo> AuctionMarkProfile::get_random_item(std::vector<ItemInfo> &item_set, bool need_current_price, bool need_future_end_date)
   {
     auto current_time = update_and_get_current_time();
     int num_items = item_set.size();
@@ -502,6 +507,7 @@ namespace auctionmark
    **********************************************************************************************/
   std::optional<ItemInfo> AuctionMarkProfile::get_random_available_item()
   {
+    std::cerr << "items available: " << items_available.size() << std::endl;
     return get_random_item(items_available, false, false);
   }
 
@@ -565,11 +571,11 @@ namespace auctionmark
   std::optional<ItemInfo> AuctionMarkProfile::get_random_item()
   {
     int idx = -1;
-    while (idx == -1 || all_item_sets[idx].empty())
+    while (idx == -1 || all_item_sets[idx]->empty())
     {
       idx = std::uniform_int_distribution<>(0, 3)(gen);
     }
-    return get_random_item(all_item_sets[idx], false, false);
+    return get_random_item(*all_item_sets[idx], false, false);
   }
 
   int AuctionMarkProfile::get_all_items_count()
@@ -600,6 +606,8 @@ namespace auctionmark
   // SERIALIZATION METHODS
   // -----------------------------------------------------------------
   void AuctionMarkProfile::save_profile() {
+    std::cerr << "items_per_cat.size: " << items_per_category.size() << std::endl;
+    std::cerr << "seller cnt: " << seller_item_cnt.size() << std::endl;
     std::ofstream profile_save_file;
     profile_save_file.open(PROFILE_FILE_NAME);
     {
@@ -630,13 +638,13 @@ namespace auctionmark
     initialize_user_id_generator(client_id);
 
     for (int i = 0; i < ITEM_SETS_NUM; i++) {
-      auto list = all_item_sets[i];
-      auto orig_list = other.all_item_sets[i];
+      auto &list = *all_item_sets[i];
+      auto &orig_list = *other.all_item_sets[i];
 
       for (ItemInfo& item_info : orig_list) {
         UserId seller_id = item_info.get_seller_id();
         if (user_id_generator->check_client(seller_id)) {
-          seller_item_cnt.at(seller_id.encode()) = seller_id.get_item_count();
+          seller_item_cnt[seller_id.encode()] = seller_id.get_item_count();
           list.push_back(item_info);
         }
       }
@@ -651,10 +659,10 @@ namespace auctionmark
     }
   }
 
-  void AuctionMarkProfile::load_profile(int client_id) {
+  void AuctionMarkProfile::load_profile(const std::string &profile_file_path, int client_id) {
     if (AuctionMarkProfile::cached_profile == nullptr) {
       std::ifstream profile_save_file;
-      profile_save_file.open(PROFILE_FILE_NAME);
+      profile_save_file.open(profile_file_path);
       {
         boost::archive::text_iarchive ia(profile_save_file);
         ia >> scale_factor;
@@ -672,8 +680,8 @@ namespace auctionmark
 
       AuctionMarkProfile::cached_profile = new AuctionMarkProfile(client_id, num_clients, scale_factor);
       AuctionMarkProfile::cached_profile->copy_profile(client_id, *this);
-      AuctionMarkProfile::cached_profile->set_and_get_client_start_time();
-      AuctionMarkProfile::cached_profile->update_and_get_current_time();
+      // AuctionMarkProfile::cached_profile->set_and_get_client_start_time();
+      // AuctionMarkProfile::cached_profile->update_and_get_current_time();
     } else {
       copy_profile(client_id, *AuctionMarkProfile::cached_profile);
     }

@@ -78,6 +78,7 @@ std::optional<UserId> UserIdGenerator::seek_to_position(int position) {
     return std::make_optional<UserId>(std::move(user_id.value()));
 }
 
+//returns true if the given UserID should be processed by the given client id
 bool UserIdGenerator::check_client(const UserId& user_id) const {
     if (client_id == -1) {
       return true;

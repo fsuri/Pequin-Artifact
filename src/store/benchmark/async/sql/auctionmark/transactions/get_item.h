@@ -1,6 +1,6 @@
 /***********************************************************************
  *
- * Copyright 2023 Florian Suri-Payer <fsp@cs.cornell.edu>
+ * Copyright 2021 Florian Suri-Payer <fsp@cs.cornell.edu>
  *                Liam Arzola <lma77@cornell.edu>
  *
  * Permission is hereby granted, free of charge, to any person
@@ -24,14 +24,27 @@
  * SOFTWARE.
  *
  **********************************************************************/
-#include "store/benchmark/async/sql/auctionmark/auctionmark_transaction.h"
+#ifndef AUCTION_MARK_GET_ITEM_H
+#define AUCTION_MARK_GET_ITEM_H
+
+#include "store/benchmark/async/sql/auctionmark/transactions/auctionmark_transaction.h"
+#include "store/benchmark/async/sql/auctionmark/auctionmark_profile.h"
 
 namespace auctionmark {
 
-AuctionMarkTransaction::AuctionMarkTransaction(uint32_t timeout) : SyncTransaction(timeout) {
-}
+class GetItem : public AuctionMarkTransaction {
+ public:
+  GetItem(uint32_t timeout, AuctionMarkProfile &profile, std::mt19937_64 &gen);
+  virtual ~GetItem();
+  virtual transaction_status_t Execute(SyncClient &client);
 
-AuctionMarkTransaction::~AuctionMarkTransaction() {
-}
+ private:
+  std::string item_id;
+  std::string seller_id;
+  AuctionMarkProfile &profile;
+};
+
 
 } // namespace auctionmark
+
+#endif /* AUCTION_MARK_GET_ITEM_H */

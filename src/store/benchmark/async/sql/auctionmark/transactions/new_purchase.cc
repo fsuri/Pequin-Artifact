@@ -24,7 +24,7 @@
  * SOFTWARE.
  *
  **********************************************************************/
-#include "store/benchmark/async/sql/auctionmark/new_purchase.h"
+#include "store/benchmark/async/sql/auctionmark/transactions/new_purchase.h"
 #include "store/benchmark/async/sql/auctionmark/utils/auctionmark_utils.h"
 #include <fmt/core.h>
 

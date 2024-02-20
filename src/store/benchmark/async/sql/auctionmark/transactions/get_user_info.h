@@ -24,32 +24,31 @@
  * SOFTWARE.
  *
  **********************************************************************/
-#ifndef AUCTION_MARK_NEW_FEEDBACK_H
-#define AUCTION_MARK_NEW_FEEDBACK_H
+#ifndef AUCTION_MARK_GET_USER_INFO_H
+#define AUCTION_MARK_GET_USER_INFO_H
 
-#include "store/benchmark/async/sql/auctionmark/auctionmark_transaction.h"
+#include "store/benchmark/async/sql/auctionmark/transactions/auctionmark_transaction.h"
 #include "store/benchmark/async/sql/auctionmark/auctionmark_profile.h"
 
 namespace auctionmark {
 
-class NewFeedback : public AuctionMarkTransaction {
+class GetUserInfo : public AuctionMarkTransaction {
  public:
-  NewFeedback(uint32_t timeout, AuctionMarkProfile &profile, std::mt19937_64 &gen);
-  virtual ~NewFeedback();
+  GetUserInfo(uint32_t timeout, AuctionMarkProfile &profile, std::mt19937_64 &gen);
+  virtual ~GetUserInfo();
   virtual transaction_status_t Execute(SyncClient &client);
 
  private:
-  std::string user_id;
-  std::string i_id;
-  std::string seller_id;
-  std::string from_id;
-  int rating;
-  std::string feedback;
-
-  std::mt19937_64 &gen;
   AuctionMarkProfile &profile;
+  std::string user_id;
+  bool get_feedback;
+  bool get_comments;
+  bool get_seller_items;
+  bool get_buyer_items;
+  bool get_watched_items;
+  std::mt19937_64 &gen;
 };
 
 } // namespace auctionmark
 
-#endif /* AUCTION_MARK_NEW_FEEDBACK_H */
+#endif /* AUCTION_MARK_GET_USER_INFO_H */
