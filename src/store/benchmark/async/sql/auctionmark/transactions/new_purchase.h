@@ -54,9 +54,8 @@ class getItemInfoRow {
      uint64_t i_num_bids;
     double i_current_price;
     uint64_t i_end_date;
-    uint64_t i_status;
     uint64_t ib_id;
-    uint64_t ib_buyer_id;
+    std::string ib_buyer_id;
     double u_balance;
     
 };
@@ -66,10 +65,9 @@ inline void load_row(getItemInfoRow& r, std::unique_ptr<query_result::Row> row)
   row->get(0, &r.i_num_bids);
   row->get(1, &r.i_current_price);
   row->get(2, &r.i_end_date);
-  row->get(3, &r.i_status);
-  row->get(4, &r.ib_id);
-  row->get(5, &r.ib_buyer_id);
-  row->get(6, &r.u_balance);
+  row->get(3, &r.ib_id);
+  row->get(4, &r.ib_buyer_id);
+  row->get(5, &r.u_balance);
 }
 
 } // namespace auctionmark

@@ -340,7 +340,7 @@
   "item_max_bid": {
     "column_names_and_types": [
       [
-        "imb_id",
+        "imb_i_id",
         "TEXT"
       ],
       [

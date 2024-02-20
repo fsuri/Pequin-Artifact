@@ -65,6 +65,7 @@ transaction_status_t NewFeedback::Execute(SyncClient &client) {
 
   client.Begin(timeout);
 
+  //checkUserFeedback
   statement = fmt::format("SELECT uf_i_id, uf_i_u_id, uf_from_id FROM {} WHERE uf_u_id = '{}' AND uf_i_id = '{}' AND uf_i_u_id = '{}' AND uf_from_id = '{}'", 
                                                                   TABLE_USERACCT_FEEDBACK, user_id, i_id, seller_id, from_id);
   client.Query(statement, queryResult, timeout);
@@ -75,9 +76,15 @@ transaction_status_t NewFeedback::Execute(SyncClient &client) {
   }
 
 
-  statement = fmt::format("INSERT INTO {} (uf_u_id, uf_i_id, uf_i_u_id, uf_from_id, uf_rating, uf_date, uf_sattr0) "
-                          "VALUES('{}', '{}', '{}', '{}', {}, {}, '{}')", TABLE_USERACCT_FEEDBACK, user_id, i_id, seller_id, from_id, rating, current_time, feedback);
-  client.Write(statement, queryResult, timeout);
+  std::string insertFeedback = fmt::format("INSERT INTO {} (uf_u_id, uf_i_id, uf_i_u_id, uf_from_id, uf_rating, uf_date, uf_sattr0) "
+                          "VALUES ('{}', '{}', '{}', '{}', {}, {}, '{}')", TABLE_USERACCT_FEEDBACK, user_id, i_id, seller_id, from_id, rating, current_time, feedback);
+  client.Write(insertFeedback, timeout);
+
+
+  std::string updateUser = fmt::format("UPDATE {} SET u_rating = u_rating + {} WHERE u_id = '{}'", TABLE_USERACCT, rating, current_time, user_id);
+  client.Write(updateUser, timeout);
+
+  client.Wait(results);
 
   Debug("COMMIT NEW_FEEDBACK");
   return client.Commit(timeout);

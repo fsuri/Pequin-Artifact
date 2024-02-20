@@ -248,7 +248,7 @@ void ItemBidTableSchema(TableWriter &writer){
 void ItemMaxBidTableSchema(TableWriter &writer){
   std::string table_name = TABLE_ITEM_MAX_BID;
    std::vector<std::pair<std::string, std::string>> column_names_and_types;
-  column_names_and_types.push_back(std::make_pair("imb_id", "TEXT"));
+  column_names_and_types.push_back(std::make_pair("imb_i_id", "TEXT"));
   column_names_and_types.push_back(std::make_pair("imb_u_id", "TEXT"));
   column_names_and_types.push_back(std::make_pair("imb_ib_id", "BIGINT"));
   column_names_and_types.push_back(std::make_pair("imb_ib_i_id", "TEXT"));

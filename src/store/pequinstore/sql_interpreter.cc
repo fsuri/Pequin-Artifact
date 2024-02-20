@@ -1696,8 +1696,8 @@ bool SQLTransformer::CheckColConditions(std::string_view &cond_statement, const 
 
     //Else: Transform map into p_col_values only (in correct order); extract just the primary key cols.
     for(auto &[col_name, idx]: col_registry.primary_key_cols_idx){
+        std::cerr << "extracted p_ cols: " << col_name << std::endl;
         p_col_values.push_back(std::move(p_col_value.at(col_name)));
-        //std::cerr << "extracted p_ cols: " << col_name << std::endl;
     }
    
 

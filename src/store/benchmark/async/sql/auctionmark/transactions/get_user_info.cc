@@ -85,6 +85,7 @@ transaction_status_t GetUserInfo::Execute(SyncClient &client) {
 
   if(get_feedback){
      //getUserFeedback
+      std::cerr << "getUserFeedback" << std::endl;
     statement = fmt::format("SELECT u_id, u_rating, u_sattr0, u_sattr1, uf_rating, uf_date, uf_sattr0 "
                           "FROM {}, {} WHERE u_id = '{}' AND uf_u_id = u_id ORDER BY uf_date DESC LIMIT 25", TABLE_USERACCT, TABLE_USERACCT_FEEDBACK, user_id);
     client.Query(statement, queryResult, timeout);
@@ -92,6 +93,7 @@ transaction_status_t GetUserInfo::Execute(SyncClient &client) {
  
   if(get_comments){
     //getItemComments    //ITEM_COL_STR: "i_id, i_u_id, i_name, i_current_price, i_num_bids, i_end_date, i_status";
+     std::cerr << "getItemComments" << std::endl;
     statement = fmt::format("SELECT {}, ic_id, ic_i_id, ic_u_id, ic_buyer_id, ic_question, ic_created "
               "FROM {}, {} WHERE i_u_id = '{}' AND i_status = {} AND i_id = ic_i_id AND i_u_id = ic_u_id AND ic_response IS NULL "
               "ORDER BY ic_created DESC LIMIT 25", ITEM_COLUMNS_STR, TABLE_ITEM, TABLE_ITEM_COMMENT, user_id, ItemStatus::OPEN);
@@ -113,10 +115,10 @@ transaction_status_t GetUserInfo::Execute(SyncClient &client) {
 
   if(get_seller_items){
     //getSellerItems
-    std::cerr << "GET SELLER ITEMS" << std::endl;
+    std::cerr << "getSellerItems" << std::endl;
     statement = fmt::format("SELECT {} FROM {} WHERE i_u_id = '{}' ORDER BY i_end_date DESC LIMIT 25", ITEM_COLUMNS_STR, TABLE_ITEM, user_id);
     client.Query(statement, queryResult, timeout);
-    for(int i=0; queryResult->size(); ++i){
+    for(int i=0; i < queryResult->size(); ++i){
        ItemRow ir;
       deserialize(ir, queryResult, i);
       
@@ -128,11 +130,12 @@ transaction_status_t GetUserInfo::Execute(SyncClient &client) {
               
   if(get_buyer_items){
      //getBuyerItems
+    std::cerr << "getBuyerItems" << std::endl;
     statement = fmt::format("SELECT {} FROM {}, {} WHERE ui_u_id = '{}' AND ui_i_id = i_id AND ui_i_u_id = i_u_id ORDER BY i_end_date DESC LIMIT 25", 
                         ITEM_COLUMNS_STR, TABLE_USERACCT_ITEM, TABLE_ITEM, user_id); //TODO: make input redundant
     client.Query(statement, queryResult, timeout);
   
-     for(int i=0; queryResult->size(); ++i){
+     for(int i=0; i < queryResult->size(); ++i){
        ItemRow ir;
       deserialize(ir, queryResult, i);
       
@@ -144,11 +147,12 @@ transaction_status_t GetUserInfo::Execute(SyncClient &client) {
 
   if(get_watched_items){
     //getWatchedItems
+     std::cerr << "geWatchedItems" << std::endl;
     statement = fmt::format("SLECT {}, uw_u_id, uw_created FROM {}, {} WHERE uw_u_id = '{}' AND uw_i_id = i_id AND uw_i_u_id = i_u_id ORDER BY i_end_date DESC LIMIT 25", 
                  ITEM_COLUMNS_STR, TABLE_USERACCT_WATCH, TABLE_ITEM, user_id); //TODO: make input redundant
     client.Query(statement, queryResult, timeout);
     UW_ASSERT(!queryResult->empty());
-     for(int i=0; queryResult->size(); ++i){
+     for(int i=0; i < queryResult->size(); ++i){
        ItemRow ir;
       deserialize(ir, queryResult, i);
       
