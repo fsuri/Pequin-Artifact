@@ -31,6 +31,8 @@ namespace auctionmark {
 
 NewCommentResponse::NewCommentResponse(uint32_t timeout, AuctionMarkProfile &profile, std::mt19937_64 &gen) : AuctionMarkTransaction(timeout), profile(profile), gen(gen) {
 
+  std::cerr << std::endl << "NEW COMMENT RESPONSE" << std::endl;
+
   int idx = std::uniform_int_distribution<int>(1, profile.num_pending_comment_responses())(gen) - 1;
   ItemCommentResponse cr = profile.pending_comment_responses[idx];
   //remove this id. (swap with back, and pop the now duplicated back)
@@ -60,11 +62,11 @@ transaction_status_t NewCommentResponse::Execute(SyncClient &client) {
 
   uint64_t current_time = GetProcTimestamp({profile.get_loader_start_time(), profile.get_client_start_time()});
 
-   statement = fmt::format("UPDATE {} SET ic_response = {}, ic_updated = {} WHERE ic_id = {} AND ic_i_id = {} AND ic_u_id = {}", 
+   statement = fmt::format("UPDATE {} SET ic_response = '{}', ic_updated = {} WHERE ic_id = {} AND ic_i_id = '{}' AND ic_u_id = '{}'", 
                           TABLE_ITEM_COMMENT, response, current_time, comment_id, item_id, seller_id);
   client.Write(statement, timeout, true);
 
-   statement = fmt::format("UPDATE {} SET u_comments = u_comments - 1, u_updated = {} WHERE u_id = {}", TABLE_USERACCT, current_time, seller_id);
+   statement = fmt::format("UPDATE {} SET u_comments = u_comments - 1, u_updated = {} WHERE u_id = '{}'", TABLE_USERACCT, current_time, seller_id);
    client.Write(statement, timeout, true);
 
   client.asyncWait();

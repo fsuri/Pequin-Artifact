@@ -61,14 +61,25 @@ public:
     int i_status_int;
 };
 
-//load
+// //load for ItemStr version
+// inline void load_row(getItemRow& r, std::unique_ptr<query_result::Row> row)
+// {
+//   row->get(0, &r.i_initial_price);
+//   row->get(1, &r.i_current_price);
+//   row->get(2, &r.i_num_bids);
+//   row->get(3, &r.i_end_date);
+//   row->get(4, &r.i_status_int);
+//   r.i_status = static_cast<ItemStatus>(r.i_status_int);
+// }
+
+//load for Select * version
 inline void load_row(getItemRow& r, std::unique_ptr<query_result::Row> row)
 {
-  row->get(0, &r.i_initial_price);
-  row->get(1, &r.i_current_price);
-  row->get(2, &r.i_num_bids);
-  row->get(3, &r.i_end_date);
-  row->get(4, &r.i_status_int);;
+  row->get(6, &r.i_initial_price);
+  row->get(7, &r.i_current_price);
+  row->get(8, &r.i_num_bids);
+  row->get(13, &r.i_end_date);
+  row->get(14, &r.i_status_int);
   r.i_status = static_cast<ItemStatus>(r.i_status_int);
 }
 

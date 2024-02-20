@@ -32,7 +32,8 @@ namespace auctionmark {
 
 
 NewItem::NewItem(uint32_t timeout, AuctionMarkProfile &profile, std::mt19937_64 &gen) : AuctionMarkTransaction(timeout), profile(profile), gen(gen) {
-  //TODO: Generate
+  
+  std::cerr << std::endl << "NEW ITEM" << std::endl;
 
   UserId sellerId = profile.get_random_seller_id(profile.get_client_id());
   ItemId itemId = profile.get_next_item_id(sellerId);
@@ -96,7 +97,7 @@ transaction_status_t NewItem::Execute(SyncClient &client) {
   //ATTRIBUTES
   description += "\nATTRIBUTES: ";
    std::string getGlobablAttribute = fmt::format("SELECT gag_name, gav_name, gag_c_id FROM {}, {}"
-                                    " WHERE gav_id = {} AND gav_gag_id = {} AND gav_gag_id = gag_id", TABLE_GLOBAL_ATTR_GROUP, TABLE_GLOBAL_ATTR_VALUE); //TODO: add redundant input?
+                                    " WHERE gav_id = '{}' AND gav_gag_id = '{}' AND gav_gag_id = gag_id", TABLE_GLOBAL_ATTR_GROUP, TABLE_GLOBAL_ATTR_VALUE); //TODO: add redundant input?
   // std::string getGlobablAttribute = "SELECT gag_name, gav_name, gag_c_id FROM " + TABLE_GLOBAL_ATTR_GROUP + ", " + TABLE_GLOBAL_ATTR_VALUE +
   //                                   " WHERE gav_id = {} AND gav_gag_id = {} AND gav_gag_id = gag_id"; //TODO: add redundant input?
 
@@ -136,16 +137,18 @@ transaction_status_t NewItem::Execute(SyncClient &client) {
   description += fmt::format("\nCATEGORY: {} >> {}", category_parent, category_name);
 
   int sellerItemCount = 0;
-  std::string getSellerItemCount = fmt::format("SELECT COUNT(*) FROM {} WHERE i_u_id = {}", TABLE_ITEM, seller_id);
+  std::string getSellerItemCount = fmt::format("SELECT COUNT(*) FROM {} WHERE i_u_id = '{}'", TABLE_ITEM, seller_id);
   client.Query(getSellerItemCount, queryResult, timeout);
   deserialize(sellerItemCount, queryResult);
 
   //Insert a new ITEM tuple
   std::string insertItem = fmt::format("INSERT INTO {} (i_id, i_u_id, i_c_id, i_name, i_description, i_user_attributes, i_initial_price, i_current_price, "
-                                                      "i_num_bids, i_num_images, i_num_global_attrs, i_start_date, i_end_date, i_status, i_created, i_updated, i_attr0) "
-                                        "VALUES ({}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {})", TABLE_ITEM,
-                                       item_id, seller_id, category_id, name, description, attributes, initial_price, initial_price, 0, 
-                                       images.size(), gav_ids.size(), current_time, end_date, ItemStatus::OPEN, current_time, current_time);
+                                                      "i_num_bids, i_num_images, i_num_global_attrs, i_start_date, i_end_date, i_status, i_created, i_updated, "
+                                                      "i_attr0, i_attr1, i_attr2, i_attr3, i_attr4, i_attr5, i_attr6, i_attr7) "
+                                        "VALUES ('{}', '{}', {}, '{}', '{}', '{}', {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, 0, 0, 0, 0, 0, 0, 0, 0)", 
+                                        TABLE_ITEM,
+                                        item_id, seller_id, category_id, name, description, attributes, initial_price, initial_price, 0, 
+                                        images.size(), gav_ids.size(), current_time, end_date, ItemStatus::OPEN, current_time, current_time);
   client.Write(insertItem, queryResult, timeout);             
   if(!queryResult->has_rows_affected()){
     client.Abort(timeout);
@@ -154,7 +157,7 @@ transaction_status_t NewItem::Execute(SyncClient &client) {
 
    //Insert ITEM_ATTRIBUTE tuples
   //std::string insertItemAttribute = "INSERT INTO " + TABLE_ITEM_ATTR + " (ia_id, ia_i_id, ia_u_id, ia_gav_id, ia_gag_id) VALUES({}, {}, {}, {}, {})";
-  std::string insertItemAttribute = fmt::format("INSERT INTO {} (ia_id, ia_i_id, ia_u_id, ia_gav_id, ia_gag_id) VALUES({}, {}, {}, {}, {})", TABLE_ITEM_ATTR);
+  std::string insertItemAttribute = fmt::format("INSERT INTO {} (ia_id, ia_i_id, ia_u_id, ia_gav_id, ia_gag_id, ia_sattr0) VALUES('{}', '{}', '{}', '{}', '{}', \"\")", TABLE_ITEM_ATTR);
   for(int i = 0; i< gav_ids.size(); ++i){
     std::string unique_elem_id = GetUniqueElementId(item_id, i);
     std::string stmt = fmt::format(insertItemAttribute, unique_elem_id, item_id, seller_id, gav_ids[i], gag_ids[i]);
@@ -163,14 +166,14 @@ transaction_status_t NewItem::Execute(SyncClient &client) {
 
   //Insert ITEM_IMAGE tuples         
   //std::string insertImage = "INSERT INTO " + TABLE_ITEM_IMAGE + " (ii_id, ii_i_id, ii_u_id, ii_sattr0) VALUES ({}, {}, {}, {})";       
-  std::string insertImage = fmt::format("INSERT INTO {} (ii_id, ii_i_id, ii_u_id, ii_sattr0) VALUES ({}, {}, {}, {})", TABLE_ITEM_IMAGE);                     
+  std::string insertImage = fmt::format("INSERT INTO {} (ii_id, ii_i_id, ii_u_id, ii_sattr0) VALUES ('{}', '{}', '{}', '{}')", TABLE_ITEM_IMAGE);                     
   for(int i = 0; i<images.size(); ++i){
     std::string unique_elem_id = GetUniqueElementId(item_id, i);
     std::string stmt = fmt::format(insertImage, unique_elem_id, item_id, seller_id, images[i]);
     client.Write(stmt, queryResult, timeout); //TODO: parallelize
   }
 
-  std::string updateUserBalance = fmt::format("UPDATE {} SET u_balance = u_balance -1, u_updated = {} WHERE u_id = {}", TABLE_USERACCT, current_time, seller_id);
+  std::string updateUserBalance = fmt::format("UPDATE {} SET u_balance = u_balance -1, u_updated = {} WHERE u_id = '{}'", TABLE_USERACCT, current_time, seller_id);
   client.Write(updateUserBalance, queryResult, timeout);
 
 

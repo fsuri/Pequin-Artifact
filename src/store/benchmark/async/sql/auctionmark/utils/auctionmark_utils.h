@@ -94,8 +94,8 @@ public:
       double s;
       do {
         do {
-          v1 = 2.0 * std::uniform_real_distribution<double>(0.0, 1.0)(gen) - 1.0;
-          v2 = 2.0 * std::uniform_real_distribution<double>(0.0, 1.0)(gen) - 1.0;
+          v1 = 2.0 * std::uniform_real_distribution<double>(0.0, 1.0)(rand) - 1.0;
+          v2 = 2.0 * std::uniform_real_distribution<double>(0.0, 1.0)(rand) - 1.0;
           s = v1 * v2 + v2 * v2;
         } while(s >= 1.0);
       } while(s == 0.0);

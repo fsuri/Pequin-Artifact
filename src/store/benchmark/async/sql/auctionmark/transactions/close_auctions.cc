@@ -31,6 +31,7 @@ namespace auctionmark {
 
 CloseAuctions::CloseAuctions(uint32_t timeout, AuctionMarkProfile &profile, std::mt19937_64 &gen) : AuctionMarkTransaction(timeout), profile(profile)
 {
+  std::cerr << std::endl << "CLOSE AUCTION" << std::endl;
   //generate params
   start_time = profile.get_last_close_auctions_time();
   end_time = profile.update_and_get_last_close_auctions_time();
@@ -64,8 +65,8 @@ transaction_status_t CloseAuctions::Execute(SyncClient &client) {
 
   // std::string getMaxBid = "SELECT imb_ib_id, ib_buyer_id FROM " + TABLE_ITEM_MAX_BID + ", " + TABLE_ITEM_BID + 
   //                                       "WHERE imb_i_id = {} AND imb_u_id = {} AND ib_id = imb_ib_id AND ib_i_id = imb_i_id AND ib_u_id = imb_u_id ";
-  std::string getMaxBid = fmt::format("SELECT imb_ib_id, ib_buyer_id FROM {}, {} WHERE imb_i_id = {} AND imb_u_id = {} AND ib_id = imb_ib_id AND ib_i_id = imb_i_id AND ib_u_id = imb_u_id",
-                                                                TABLE_ITEM_MAX_BID, TABLE_ITEM_BID);
+  std::string getMaxBid = fmt::format("SELECT imb_ib_id, ib_buyer_id FROM {}, {} WHERE imb_i_id = '{}' AND imb_u_id = '{}' "
+                                      "AND ib_id = imb_ib_id AND ib_i_id = imb_i_id AND ib_u_id = imb_u_id", TABLE_ITEM_MAX_BID, TABLE_ITEM_BID);
                                        //TODO: Add redundant inputs?
 
   while(round-- > 0){
@@ -96,7 +97,7 @@ transaction_status_t CloseAuctions::Execute(SyncClient &client) {
         deserialize(mbr, queryResult);
 
         std::string insertUserItem = fmt::format("INSERT INTO {} (ui_u_id, ui_i_id, ui_i_u_id, ui_created) "
-                                           "VALUES({}, {}, {}, {})", TABLE_USERACCT_ITEM, mbr.buyerId, dir.itemId, dir.sellerId, current_time);
+                                           "VALUES('{}', '{}', '{}', {})", TABLE_USERACCT_ITEM, mbr.buyerId, dir.itemId, dir.sellerId, current_time);
         client.Write(insertUserItem, queryResult, timeout);
 
         itemStatus = ItemStatus::WAITING_FOR_PURCHASE;
@@ -109,7 +110,7 @@ transaction_status_t CloseAuctions::Execute(SyncClient &client) {
       }
 
 
-      std::string updateItemStatus = fmt::format("UPDATE {} SET i_status = {}, i_updated = {} WHERE i_id = {} AND i_u_id = {}", TABLE_ITEM, itemStatus, current_time, dir.itemId, dir.sellerId);
+      std::string updateItemStatus = fmt::format("UPDATE {} SET i_status = {}, i_updated = {} WHERE i_id = '{}' AND i_u_id = '{}'", TABLE_ITEM, itemStatus, current_time, dir.itemId, dir.sellerId);
       client.Write(updateItemStatus, queryResult, timeout);
 
 

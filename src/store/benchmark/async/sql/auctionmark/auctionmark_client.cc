@@ -62,10 +62,8 @@ AuctionMarkClient::AuctionMarkClient(
   gettimeofday(&time, NULL);
   last_close_auctions = get_ts(time);
 
-  //TODO: Initialize/load Auctionmark Profile
-  //profile = AuctionMarkProfile(client_id, SCALE_FACTOR, num_clients, gen);
+  //Initialize/load Auctionmark Profile
   profile.load_profile(profile_file_path, client_id); 
-  Panic("at one");
 }
 
 AuctionMarkClient::~AuctionMarkClient() {}

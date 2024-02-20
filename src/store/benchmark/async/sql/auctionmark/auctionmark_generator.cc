@@ -440,8 +440,6 @@ void GenerateGlobalAttributeValueTable(TableWriter &writer, AuctionMarkProfile &
 }
 
 
-
-
 std::vector<UserId> GenerateUserAcctTable(TableWriter &writer, AuctionMarkProfile &profile) 
 {
  
@@ -487,7 +485,7 @@ std::vector<UserId> GenerateUserAcctTable(TableWriter &writer, AuctionMarkProfil
 
     values.push_back(std::to_string(bal)); //u_balance
     values.push_back(std::to_string(0)); //u_comments
-    values.push_back(std::to_string(std::uniform_int_distribution<int>(0, TABLESIZE_REGION)(gen))); //u_r_id
+    values.push_back(std::to_string(std::uniform_int_distribution<int>(0, TABLESIZE_REGION)(gen) + 1)); //u_r_id
     struct timeval time;
     gettimeofday(&time, NULL);
     uint64_t curr_time = get_ts(time);
@@ -496,11 +494,10 @@ std::vector<UserId> GenerateUserAcctTable(TableWriter &writer, AuctionMarkProfil
 
 
     
-    /** Any column with the name XX_SATTR## will automatically be filled with a random string with length between 0 (empty) and ?)  */
-    int max_size = 128; //sattr is VARCHAR(128)
+    /** Any column with the name XX_SATTR## will automatically be filled with a random string with length between 0 (empty) and 64)  */
     for(int i = 0; i<8; ++i){
-      int min_size = std::uniform_int_distribution<int>(0, max_size-1)(gen);
-      values.push_back(RandomAString(min_size, max_size, gen));
+      int min_size = std::uniform_int_distribution<int>(0, 64-1)(gen);
+      values.push_back(RandomAString(min_size, 64, gen));
     }
     /** Any column with the name XX_IATTR## will automatically be filled with a random integer between (0, 1 << 30)*/
     for(int i = 0; i<8; ++i){
@@ -695,6 +692,13 @@ LoaderItemInfo GenerateItemTableRow(TableWriter &writer, AuctionMarkProfile &pro
 
   values.push_back(std::to_string(itemInfo.startDate));// I_UPDATED
 
+  /** Any column with the name XX_IATTR## will automatically be filled with a random integer between (0, 1 << 30)*/
+   for(int i = 0; i<8; ++i){
+    uint64_t max = 1 << 30;
+    uint64_t random_iattr = std::uniform_int_distribution<uint64_t>(0, max)(gen);
+    values.push_back(std::to_string(random_iattr));
+   }
+
   writer.add_row(TABLE_ITEM, values);
 
   return itemInfo;
@@ -702,9 +706,9 @@ LoaderItemInfo GenerateItemTableRow(TableWriter &writer, AuctionMarkProfile &pro
 
 void GenerateSubTableRows(TableWriter &writer, AuctionMarkProfile &profile, std::mt19937_64 &gen, LoaderItemInfo &itemInfo){
 
-  GenerateItemImageRow(writer, itemInfo);
+  GenerateItemImageRow(writer, itemInfo, gen);
   
-  GenerateItemAttributeRow(writer, profile, itemInfo);
+  GenerateItemAttributeRow(writer, profile, itemInfo, gen);
  
   GenerateItemCommentRow(writer, profile, itemInfo, gen);
 
@@ -714,7 +718,7 @@ void GenerateSubTableRows(TableWriter &writer, AuctionMarkProfile &profile, std:
  
   GenerateItemPurchaseRow(writer, itemInfo, gen);
  
-  GenerateUserFeedbackRow(writer, profile, itemInfo);
+  GenerateUserFeedbackRow(writer, profile, itemInfo, gen);
  
   GenerateUserItemRow(writer, itemInfo);
  
@@ -724,18 +728,20 @@ void GenerateSubTableRows(TableWriter &writer, AuctionMarkProfile &profile, std:
 
 //ITEM SUB ROW GENERATION
 
-void GenerateItemImageRow(TableWriter &writer, LoaderItemInfo &itemInfo){
+void GenerateItemImageRow(TableWriter &writer, LoaderItemInfo &itemInfo, std::mt19937_64 &gen){
   //DATA GEN
   for(int count = 0; count < itemInfo.numImages; ++count){
     std::vector<std::string> values;
     values.push_back(std::to_string(count)); //ii_id   //FIXME: Unclear if this is the correct use of count
     values.push_back(itemInfo.get_item_id().encode()); //ii_i_id
     values.push_back(itemInfo.get_seller_id().encode()); //ii_u_id
+    int min_size = 1; //std::uniform_int_distribution<int>(0, 128-1)(gen);
+    values.push_back(RandomAString(min_size, 128, gen)); //ia_sattr0
     writer.add_row(TABLE_ITEM_IMAGE, values);
   }
 }
 
-void GenerateItemAttributeRow(TableWriter &writer, AuctionMarkProfile &profile,  LoaderItemInfo &itemInfo){
+void GenerateItemAttributeRow(TableWriter &writer, AuctionMarkProfile &profile,  LoaderItemInfo &itemInfo, std::mt19937_64 &gen){
   //DATA GENERATION
   for(int count = 0; count < itemInfo.numAttributes; ++count){
     std::vector<std::string> values;
@@ -746,6 +752,11 @@ void GenerateItemAttributeRow(TableWriter &writer, AuctionMarkProfile &profile, 
     GlobalAttributeValueId gav_id = profile.get_random_global_attribute_value();
     values.push_back(gav_id.encode()); //ia_gav_id
     values.push_back(gav_id.get_global_attribute_group().encode()); //ia_gag_id
+
+    int min_size = 1; //std::uniform_int_distribution<int>(0, 64-1)(gen);
+    values.push_back(RandomAString(min_size, 64, gen)); //ia_sattr0
+
+
     writer.add_row(TABLE_ITEM_ATTR, values);
   }
 }
@@ -937,7 +948,7 @@ void GenerateItemMaxBidRow(TableWriter &writer, LoaderItemInfo &itemInfo){
 //////////////////
 
 
-void GenerateUserFeedbackRow(TableWriter &writer, AuctionMarkProfile &profile, LoaderItemInfo &itemInfo){
+void GenerateUserFeedbackRow(TableWriter &writer, AuctionMarkProfile &profile, LoaderItemInfo &itemInfo, std::mt19937_64 &gen){
   
   //DATA GEN
 
@@ -955,6 +966,8 @@ void GenerateUserFeedbackRow(TableWriter &writer, AuctionMarkProfile &profile, L
     values.push_back(itemInfo.get_seller_id().encode()); //uf_from_id
     values.push_back(std::to_string(1)); //uf_rating
     values.push_back(std::to_string(profile.get_loader_start_time())); //uf_date
+    int min_size = 1; //std::uniform_int_distribution<int>(0, 80-1)(gen);
+    values.push_back(RandomAString(min_size, 80, gen)); //ia_sattr0
     
     writer.add_row(TABLE_USERACCT_FEEDBACK, values);
   }

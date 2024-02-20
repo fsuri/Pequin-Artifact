@@ -507,7 +507,7 @@ static int tot = 30000;
    **********************************************************************************************/
   std::optional<ItemInfo> AuctionMarkProfile::get_random_available_item()
   {
-    std::cerr << "items available: " << items_available.size() << std::endl;
+    //std::cerr << "items available: " << items_available.size() << std::endl;
     return get_random_item(items_available, false, false);
   }
 

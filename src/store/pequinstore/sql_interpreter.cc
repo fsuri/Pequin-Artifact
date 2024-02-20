@@ -540,6 +540,10 @@ void SQLTransformer::TransformUpdate(size_t pos, std::string_view &write_stateme
 
     where_cond = where_cond.substr(where_hook.length());
     read_statement = fmt::format("SELECT * FROM {0} WHERE {1}", table_name, std::move(where_cond));  //Note: Where cond ends with ";"
+    //TODO: Currently TransformUpdate always does SELECT * in order to be able to copy the entire row
+            //Eventually re-factor to only request the values that are being updated, and only write a delta
+            //Store Tx-id/TS of the row that was read, and fetch it on demand serverside. Copy it and apply delta
+            //Note: Need to ensure that row reference still exists. This is always the case currently, since we don't GC yet.
        
     Debug("Transformed read statement: %s", read_statement.c_str());
     // for(auto &col_up: col_updates){
@@ -623,7 +627,7 @@ void SQLTransformer::TransformUpdate(size_t pos, std::string_view &write_stateme
                 std::unique_ptr<query_result::Field> field = (*row)[j];
           
                 //Deserialize encoding to be a stringified type (e.g. whether it's int/bool/string store all as normal readable string)
-                // std::cerr << "Checking column: " << col << std::endl;
+                //std::cerr << "Checking column: " << col << std::endl;
                 const std::string &col_type = col_registry.col_name_type.at(col);
                
                 //Currently we receive everything as plain-text string (as opposed to cereal). 
@@ -632,7 +636,7 @@ void SQLTransformer::TransformUpdate(size_t pos, std::string_view &write_stateme
                 //std::string field_val(DecodeType(field, col_registry.col_name_type[col]));
 
 
-                //std::cerr << "Checking column: " << col << " , with field " << std::visit(StringVisitor(), field_val) << std::endl;
+                std::cerr << "Checking column: " << col << " , with field " << std::visit(StringVisitor(), field_val) << std::endl;
                 
                
                 //Replace value with col value if applicable. Then operate arithmetic by casting ops to uint64_t and then turning back to string.
@@ -641,7 +645,7 @@ void SQLTransformer::TransformUpdate(size_t pos, std::string_view &write_stateme
                 std::string set_val = GetUpdateValue(col, field_val, field, col_updates, col_type, change_val);
 
                 if(change_val){
-                     std::cerr << "Checking column: " << col << " , with field " << std::visit(StringVisitor(), field_val) << std::endl;
+                     //std::cerr << "Checking column: " << col << " , with field " << std::visit(StringVisitor(), field_val) << std::endl;
                      std::cerr << "Updating col: " << col << " , new val: " << set_val << std::endl;
                 } 
                 //TODO: return bool if set_val is changed. In that case, record which columsn changed. and add a CC-store write entry per column updated.
@@ -1686,8 +1690,8 @@ bool SQLTransformer::CheckColConditions(std::string_view &cond_statement, const 
     std::map<std::string, std::string> p_col_value;
     if(!CheckColConditions(end, cond_statement, col_registry, p_col_value, terminate_early, relax)) return false;
 
-    // for(auto &[key, _]: p_col_value){
-    //     std::cerr << "extracted cols: " << key << std::endl;
+    // for(auto &[key, val]: p_col_value){
+    //     std::cerr << "extracted cols: " << key << ". val: " << val << std::endl;
     // }
 
     //Else: Transform map into p_col_values only (in correct order); extract just the primary key cols.
@@ -1726,6 +1730,8 @@ bool SQLTransformer::CheckColConditions(std::string_view &cond_statement, const 
 //Note: Don't pass cond_statement by reference inside recursion.
 bool SQLTransformer::CheckColConditions(size_t &end, std::string_view cond_statement, const ColRegistry &col_registry, std::map<std::string, std::string> &p_col_value, bool &terminate_early, bool relax){
     //Note: If relax = true ==> primary_key_compare checks for subset, if false ==> checks for equality.
+
+    //std::cerr << "view cond statement: " << cond_statement << std::endl;
 
     std::map<std::string, std::string> &left_p_col_value = p_col_value;
     std::map<std::string, std::string> right_p_col_value;
@@ -1837,7 +1843,7 @@ bool SQLTransformer::CheckColConditions(size_t &end, std::string_view cond_state
 void SQLTransformer::ExtractColCondition(std::string_view cond_statement, const ColRegistry &col_registry, std::map<std::string, std::string> &p_col_value){
     //Note: Expecting all conditions to be of form "col_name = X"
     //Do not currently support boolean conditions, like "col_name";
-
+    //std::cerr << "extract: cond statement: " << cond_statement << std::endl;
     size_t pos = cond_statement.find(" = ");
     if(pos == std::string::npos) return;
 
@@ -1849,6 +1855,9 @@ void SQLTransformer::ExtractColCondition(std::string_view cond_statement, const 
         const std::string &type = col_registry.col_name_type.at(left_str);
         p_col_value[left_str] = TrimValueByType(right, type);
     //}
+    // std::cerr << "right val: " << right << std::endl;
+    // std::cerr << "trim val: " << TrimValueByType(right, type) << std::endl;
+
     return;
 }
 

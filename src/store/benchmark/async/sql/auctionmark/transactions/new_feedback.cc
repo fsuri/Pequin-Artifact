@@ -31,6 +31,7 @@ namespace auctionmark {
 
 NewFeedback::NewFeedback(uint32_t timeout, AuctionMarkProfile &profile, std::mt19937_64 &gen) : AuctionMarkTransaction(timeout), profile(profile), gen(gen) {
   
+  std::cerr << std::endl << "NEW FEEDBACK" << std::endl;
   ItemInfo itemInfo = *profile.get_random_completed_item();
   UserId sellerId = itemInfo.get_seller_id();
   UserId buyerId = profile.get_random_buyer_id(sellerId);
@@ -64,7 +65,7 @@ transaction_status_t NewFeedback::Execute(SyncClient &client) {
 
   client.Begin(timeout);
 
-  statement = fmt::format("SELECT uf_i_id, uf_i_u_id, uf_from_id FROM {} WHERE uf_u_id = {} AND uf_i_id = {} AND uf_i_u_id = {} AND uf_from_id = {}", 
+  statement = fmt::format("SELECT uf_i_id, uf_i_u_id, uf_from_id FROM {} WHERE uf_u_id = '{}' AND uf_i_id = '{}' AND uf_i_u_id = '{}' AND uf_from_id = '{}'", 
                                                                   TABLE_USERACCT_FEEDBACK, user_id, i_id, seller_id, from_id);
   client.Query(statement, queryResult, timeout);
   if(!queryResult->empty()){
@@ -75,7 +76,7 @@ transaction_status_t NewFeedback::Execute(SyncClient &client) {
 
 
   statement = fmt::format("INSERT INTO {} (uf_u_id, uf_i_id, uf_i_u_id, uf_from_id, uf_rating, uf_date, uf_sattr0) "
-                          "VALUES({}, {}, {}, {}, {}, {}, {})", TABLE_USERACCT_FEEDBACK, user_id, i_id, seller_id, from_id, rating, current_time, feedback);
+                          "VALUES('{}', '{}', '{}', '{}', {}, {}, '{}')", TABLE_USERACCT_FEEDBACK, user_id, i_id, seller_id, from_id, rating, current_time, feedback);
   client.Write(statement, queryResult, timeout);
 
   Debug("COMMIT NEW_FEEDBACK");

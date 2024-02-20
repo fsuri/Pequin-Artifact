@@ -31,10 +31,15 @@ namespace auctionmark {
 
 NewComment::NewComment(uint32_t timeout, AuctionMarkProfile &profile, std::mt19937_64 &gen) : AuctionMarkTransaction(timeout), profile(profile), gen(gen) {
 
+  std::cerr << std::endl << "NEW COMMENT" << std::endl;
   ItemInfo itemInfo = *profile.get_random_completed_item();
   UserId sellerId = itemInfo.get_seller_id();
   UserId buyerId = profile.get_random_buyer_id(sellerId);
   question = RandomAString(ITEM_COMMENT_LENGTH_MIN, ITEM_COMMENT_LENGTH_MAX, gen); 
+
+  item_id = itemInfo.get_item_id().encode();
+  seller_id = sellerId.encode();
+  buyer_id = buyerId.encode();
 }
 
 
@@ -55,7 +60,7 @@ transaction_status_t NewComment::Execute(SyncClient &client) {
   //Set comment_id;
   uint64_t ic_id = 0;
   //getItemComments
-  statement = fmt::format("SELECT i_num_comments FROM {} WHERE i_id = {} AND i_u_id = {}", TABLE_ITEM, item_id, seller_id);
+  statement = fmt::format("SELECT i_num_comments FROM {} WHERE i_id = '{}' AND i_u_id = '{}'", TABLE_ITEM, item_id, seller_id);
   client.Query(statement, queryResult, timeout);
   deserialize(ic_id, queryResult);
   ++ic_id;
@@ -63,8 +68,8 @@ transaction_status_t NewComment::Execute(SyncClient &client) {
   uint64_t current_time = GetProcTimestamp({profile.get_loader_start_time(), profile.get_client_start_time()});
 
   //insertItemComment
-  statement = fmt::format("INSERT INTO {} (ic_id, ic_i_id, ic_u_id, ic_buyer_id, ic_question, ic_created, ic_updated) "
-                        "VALUES ({}, {}, {}, {}, {}, {}, {})", TABLE_ITEM_COMMENT, ic_id, item_id, seller_id, buyer_id, question, current_time, current_time);
+  statement = fmt::format("INSERT INTO {} (ic_id, ic_i_id, ic_u_id, ic_buyer_id, ic_question, ic_response, ic_created, ic_updated) "
+                        "VALUES ({}, '{}', '{}', '{}', '{}', '\"\"', {}, {})", TABLE_ITEM_COMMENT, ic_id, item_id, seller_id, buyer_id, question, current_time, current_time);
   client.Write(statement, queryResult, timeout);
   if(queryResult->rows_affected() == 0){
     Debug("Item comment id %d already exists for item %s and seller %s", ic_id, item_id.c_str(), seller_id.c_str());
@@ -73,11 +78,11 @@ transaction_status_t NewComment::Execute(SyncClient &client) {
   }
 
    //updateItemComments
-  statement = fmt::format("UPDATE {} SET i_num_comments = i_num_comments + 1 WHERE i_id = {} AND i_u_id = {}", TABLE_ITEM, item_id, seller_id);
+  statement = fmt::format("UPDATE {} SET i_num_comments = i_num_comments + 1 WHERE i_id = '{}' AND i_u_id = '{}'", TABLE_ITEM, item_id, seller_id);
   client.Write(statement, queryResult, timeout);
 
   //updateUser
-  statement = fmt::format("UPDATE {} SET u_comments = u_comments + 1, u_updated = {} WHERE u_id = {}", TABLE_USERACCT, seller_id);
+  statement = fmt::format("UPDATE {} SET u_comments = u_comments + 1, u_updated = {} WHERE u_id = '{}'", TABLE_USERACCT, current_time, seller_id);
   client.Write(statement, queryResult, timeout);
   
   ItemCommentResponse icr(ic_id, item_id, seller_id);

@@ -95,13 +95,13 @@ class LoaderItemInfo : public ItemInfo {
 LoaderItemInfo GenerateItemTableRow(TableWriter &writer, AuctionMarkProfile &profile, std::mt19937_64 &gen, const UserId &seller_id, int remaining);
 
 void GenerateSubTableRows(TableWriter &writer, AuctionMarkProfile &profile, std::mt19937_64 &gen, LoaderItemInfo &itemInfo);
-void GenerateItemImageRow(TableWriter &writer, LoaderItemInfo &itemInfo);
-void GenerateItemAttributeRow(TableWriter &writer, AuctionMarkProfile &profile, LoaderItemInfo &itemInfo);
+void GenerateItemImageRow(TableWriter &writer, LoaderItemInfo &itemInfo, std::mt19937_64 &gen);
+void GenerateItemAttributeRow(TableWriter &writer, AuctionMarkProfile &profile, LoaderItemInfo &itemInfo, std::mt19937_64 &gen);
 void GenerateItemCommentRow(TableWriter &writer, AuctionMarkProfile &profile, LoaderItemInfo &itemInfo, std::mt19937_64 &gen);
 void GenerateItemBidRow(TableWriter &writer, AuctionMarkProfile &profile, LoaderItemInfo &itemInfo);
 void GenerateItemMaxBidRow(TableWriter &writer, LoaderItemInfo &itemInfo);
 void GenerateItemPurchaseRow(TableWriter &writer, LoaderItemInfo &itemInfo, std::mt19937_64 &gen);
-void GenerateUserFeedbackRow(TableWriter &writer, AuctionMarkProfile &profile, LoaderItemInfo &itemInfo);
+void GenerateUserFeedbackRow(TableWriter &writer, AuctionMarkProfile &profile, LoaderItemInfo &itemInfo, std::mt19937_64 &gen);
 void GenerateUserItemRow(TableWriter &writer, LoaderItemInfo &itemInfo);
 void GenerateUserWatchRow(TableWriter &writer, AuctionMarkProfile &profile, LoaderItemInfo &itemInfo, std::mt19937_64 &gen);
 
