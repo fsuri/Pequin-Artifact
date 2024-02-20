@@ -24,7 +24,7 @@
  * SOFTWARE.
  *
  **********************************************************************/
-#include "store/benchmark/async/sql/auctionmark/get_item.h"
+#include "store/benchmark/async/sql/auctionmark/transactions/get_item.h"
 #include <fmt/core.h>
 
 namespace auctionmark {

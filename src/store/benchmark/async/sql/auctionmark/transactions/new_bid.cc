@@ -24,7 +24,7 @@
  * SOFTWARE.
  *
  **********************************************************************/
-#include "store/benchmark/async/sql/auctionmark/new_bid.h"
+#include "store/benchmark/async/sql/auctionmark/transactions/new_bid.h"
 #include <fmt/core.h>
 
 namespace auctionmark {

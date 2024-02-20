@@ -1,6 +1,6 @@
 /***********************************************************************
  *
- * Copyright 2021 Florian Suri-Payer <fsp@cs.cornell.edu>
+ * Copyright 2023 Florian Suri-Payer <fsp@cs.cornell.edu>
  *                Liam Arzola <lma77@cornell.edu>
  *
  * Permission is hereby granted, free of charge, to any person
@@ -24,31 +24,14 @@
  * SOFTWARE.
  *
  **********************************************************************/
-#ifndef AUCTION_MARK_UPDATE_ITEM_H
-#define AUCTION_MARK_UPDATE_ITEM_H
-
-#include "store/benchmark/async/sql/auctionmark/auctionmark_transaction.h"
-#include "store/benchmark/async/sql/auctionmark/auctionmark_profile.h"
+#include "store/benchmark/async/sql/auctionmark/transactions/auctionmark_transaction.h"
 
 namespace auctionmark {
 
-class UpdateItem : public AuctionMarkTransaction {
- public:
-  UpdateItem(uint32_t timeout, AuctionMarkProfile &profile, std::mt19937_64 &gen);
-  virtual ~UpdateItem();
-  virtual transaction_status_t Execute(SyncClient &client);
- 
- private:
-  std::string item_id;
-  std::string seller_id;
-  std::string description;
-  bool delete_attribute;
-  std::vector<std::string> add_attribute;
+AuctionMarkTransaction::AuctionMarkTransaction(uint32_t timeout) : SyncTransaction(timeout) {
+}
 
-  std::mt19937_64 &gen;
-  AuctionMarkProfile &profile;
-};
+AuctionMarkTransaction::~AuctionMarkTransaction() {
+}
 
 } // namespace auctionmark
-
-#endif /* AUCTION_MARK_UPDATE_ITEM_H */

@@ -30,16 +30,16 @@
 
 #include <random>
 
-#include "store/benchmark/async/sql/auctionmark/close_auctions.h"
-#include "store/benchmark/async/sql/auctionmark/get_item.h"
-#include "store/benchmark/async/sql/auctionmark/get_user_info.h"
-#include "store/benchmark/async/sql/auctionmark/new_bid.h"
-#include "store/benchmark/async/sql/auctionmark/new_comment_response.h"
-#include "store/benchmark/async/sql/auctionmark/new_comment.h"
-#include "store/benchmark/async/sql/auctionmark/new_feedback.h"
-#include "store/benchmark/async/sql/auctionmark/new_item.h"
-#include "store/benchmark/async/sql/auctionmark/new_purchase.h"
-#include "store/benchmark/async/sql/auctionmark/update_item.h"
+#include "store/benchmark/async/sql/auctionmark/transactions/close_auctions.h"
+#include "store/benchmark/async/sql/auctionmark/transactions/get_item.h"
+#include "store/benchmark/async/sql/auctionmark/transactions/get_user_info.h"
+#include "store/benchmark/async/sql/auctionmark/transactions/new_bid.h"
+#include "store/benchmark/async/sql/auctionmark/transactions/new_comment_response.h"
+#include "store/benchmark/async/sql/auctionmark/transactions/new_comment.h"
+#include "store/benchmark/async/sql/auctionmark/transactions/new_feedback.h"
+#include "store/benchmark/async/sql/auctionmark/transactions/new_item.h"
+#include "store/benchmark/async/sql/auctionmark/transactions/new_purchase.h"
+#include "store/benchmark/async/sql/auctionmark/transactions/update_item.h"
 
 namespace auctionmark
 {

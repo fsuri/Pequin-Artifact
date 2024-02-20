@@ -24,7 +24,7 @@
  * SOFTWARE.
  *
  **********************************************************************/
-#include "store/benchmark/async/sql/auctionmark/get_user_info.h"
+#include "store/benchmark/async/sql/auctionmark/transactions/get_user_info.h"
 
 #include <fmt/core.h>
 

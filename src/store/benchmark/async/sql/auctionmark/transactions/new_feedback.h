@@ -24,25 +24,27 @@
  * SOFTWARE.
  *
  **********************************************************************/
-#ifndef AUCTION_MARK_NEW_COMMENT_H
-#define AUCTION_MARK_NEW_COMMENT_H
+#ifndef AUCTION_MARK_NEW_FEEDBACK_H
+#define AUCTION_MARK_NEW_FEEDBACK_H
 
-#include "store/benchmark/async/sql/auctionmark/auctionmark_transaction.h"
+#include "store/benchmark/async/sql/auctionmark/transactions/auctionmark_transaction.h"
 #include "store/benchmark/async/sql/auctionmark/auctionmark_profile.h"
 
 namespace auctionmark {
 
-class NewComment : public AuctionMarkTransaction {
+class NewFeedback : public AuctionMarkTransaction {
  public:
-  NewComment(uint32_t timeout, AuctionMarkProfile &profile, std::mt19937_64 &gen);
-  virtual ~NewComment();
+  NewFeedback(uint32_t timeout, AuctionMarkProfile &profile, std::mt19937_64 &gen);
+  virtual ~NewFeedback();
   virtual transaction_status_t Execute(SyncClient &client);
 
  private:
-  std::string item_id;
+  std::string user_id;
+  std::string i_id;
   std::string seller_id;
-  std::string buyer_id;
-  std::string question;
+  std::string from_id;
+  int rating;
+  std::string feedback;
 
   std::mt19937_64 &gen;
   AuctionMarkProfile &profile;
@@ -50,4 +52,4 @@ class NewComment : public AuctionMarkTransaction {
 
 } // namespace auctionmark
 
-#endif /* AUCTION_MARK_NEW_COMMENT_H */
+#endif /* AUCTION_MARK_NEW_FEEDBACK_H */

@@ -24,37 +24,30 @@
  * SOFTWARE.
  *
  **********************************************************************/
-#ifndef AUCTION_MARK_NEW_ITEM_H
-#define AUCTION_MARK_NEW_ITEM_H
+#ifndef AUCTION_MARK_NEW_COMMENT_RESPONSE_H
+#define AUCTION_MARK_NEW_COMMENT_RESPONSE_H
 
-#include "store/benchmark/async/sql/auctionmark/auctionmark_transaction.h"
+#include "store/benchmark/async/sql/auctionmark/transactions/auctionmark_transaction.h"
 #include "store/benchmark/async/sql/auctionmark/auctionmark_profile.h"
 
 namespace auctionmark {
 
-class NewItem : public AuctionMarkTransaction {
+class NewCommentResponse : public AuctionMarkTransaction {
  public:
-  NewItem(uint32_t timeout, AuctionMarkProfile &profile, std::mt19937_64 &gen);
-  virtual ~NewItem();
+  NewCommentResponse(uint32_t timeout, AuctionMarkProfile &profile, std::mt19937_64 &gen);
+  virtual ~NewCommentResponse();
   virtual transaction_status_t Execute(SyncClient &client);
- 
+
  private:
   std::string item_id;
   std::string seller_id;
-  uint64_t category_id;
-  std::string name;
-  std::string description;
-  uint64_t duration;
-  double initial_price;
-  std::string attributes;
-  std::vector<std::string> gag_ids;
-  std::vector<std::string> gav_ids;
-  std::vector<std::string> images;
+  uint64_t comment_id;
+  std::string response;
 
-  AuctionMarkProfile &profile;
   std::mt19937_64 &gen;
+  AuctionMarkProfile &profile;
 };
 
 } // namespace auctionmark
 
-#endif /* AUCTION_MARK_NEW_ITEM_H */
+#endif /* AUCTION_MARK_NEW_COMMENT_RESPONSE_H */

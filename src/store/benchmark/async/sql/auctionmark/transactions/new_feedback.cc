@@ -24,7 +24,7 @@
  * SOFTWARE.
  *
  **********************************************************************/
-#include "store/benchmark/async/sql/auctionmark/new_feedback.h"
+#include "store/benchmark/async/sql/auctionmark/transactions/new_feedback.h"
 #include <fmt/core.h>
 
 namespace auctionmark {
