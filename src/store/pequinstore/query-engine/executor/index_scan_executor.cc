@@ -138,7 +138,8 @@ bool IndexScanExecutor::DExecute() {
     if(is_metadata_table_){
        Debug("Doing a META DATA secondary index scan");
       std::cerr << "Doing a secondary index scan for table " << table_->GetName() << std::endl;
-      auto status = ExecSecondaryIndexLookup_OLD();
+      //auto status = ExecSecondaryIndexLookup_OLD();
+      auto status = ExecSecondaryIndexLookup();
       if (status == false)
         return false;
     }
@@ -198,7 +199,7 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
   auto const &current_txn_timestamp = current_txn->GetBasilTimestamp();
 
    bool is_metadata_table_ = table_->GetName().substr(0,3) == "pg_"; //don't do any of the Pequin features for meta data tables..
-  UW_ASSERT(!is_metadata_table_);
+  //UW_ASSERT(!is_metadata_table_);
   if (!current_txn->IsPointRead() && current_txn->CheckPredicatesInitialized() && !is_metadata_table_) {
     // Read table version and table col versions
     current_txn->GetTableVersion()(table_->GetName(), current_txn_timestamp, current_txn->GetHasReadSetMgr(), query_read_set_mgr, current_txn->GetHasSnapshotMgr(), current_txn->GetSnapshotMgr());
@@ -361,7 +362,7 @@ void IndexScanExecutor::ManageReadSet(ItemPointer &visible_tuple_location, concu
   //Don't create a read set if it's a point query, or the query is executed in snapshot only mode
   // Or if it is on a metadata table
    bool is_metadata_table_ = table_->GetName().substr(0,3) == "pg_"; //don't do any of the Pequin features for meta data tables..
-   UW_ASSERT(!is_metadata_table_);
+   //UW_ASSERT(!is_metadata_table_);
   if (current_txn->GetHasReadSetMgr() && !is_metadata_table_) {
     auto const &primary_index_columns_ = index_->GetMetadata()->GetKeyAttrs();
     auto query_read_set_mgr = current_txn->GetQueryReadSetMgr();
@@ -889,7 +890,7 @@ void IndexScanExecutor::RefinePointRead(concurrency::TransactionContext *current
 void IndexScanExecutor::SetPointRead(concurrency::TransactionContext *current_txn, storage::TileGroupHeader *tile_group_header, ItemPointer tuple_location, Timestamp const &write_timestamp){
   //Manage PointRead Result
    bool is_metadata_table_ = table_->GetName().substr(0,3) == "pg_"; //don't do any of the Pequin features for meta data tables..
-  UW_ASSERT(!is_metadata_table_);
+  //UW_ASSERT(!is_metadata_table_);
   if(is_metadata_table_) return;
   
   if(tile_group_header->GetCommitOrPrepare(tuple_location.offset)){
@@ -976,7 +977,7 @@ void IndexScanExecutor::SetPointRead(concurrency::TransactionContext *current_tx
 void IndexScanExecutor::ManageSnapshot(concurrency::TransactionContext *current_txn, storage::TileGroupHeader *tile_group_header, ItemPointer tuple_location, const Timestamp &write_timestamp, size_t &num_iters, bool commit_or_prepare){
 
    bool is_metadata_table_ = table_->GetName().substr(0,3) == "pg_"; //don't do any of the Pequin features for meta data tables..
-   UW_ASSERT(!is_metadata_table_);
+   //UW_ASSERT(!is_metadata_table_);
   if(is_metadata_table_) return;
 
   Debug("Manage Snapshot. Add TS [%lu:%lu]", write_timestamp.getTimestamp(), write_timestamp.getID());
@@ -1757,7 +1758,7 @@ bool IndexScanExecutor::ExecSecondaryIndexLookup() {
   auto const &current_txn_timestamp = current_txn->GetBasilTimestamp();
 
    bool is_metadata_table_ = table_->GetName().substr(0,3) == "pg_"; //don't do any of the Pequin features for meta data tables..
-   UW_ASSERT(!is_metadata_table_);
+   //UW_ASSERT(!is_metadata_table_);
   if (!current_txn->IsPointRead() && current_txn->CheckPredicatesInitialized() && !is_metadata_table_){ 
     std::cerr << "Read Table/Col versions" << std::endl;
     // Read table version and table col versions
