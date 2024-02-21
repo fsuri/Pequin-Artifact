@@ -146,8 +146,10 @@ transaction_status_t NewBid::Execute(SyncClient &client) {
 
     //getItemMaxBid
     statement = fmt::format("SELECT imb_ib_id, ib_bid, ib_max_bid, ib_buyer_id FROM {}, {} "
-        "WHERE imb_i_id = '{}' AND imb_u_id = '{}' AND imb_ib_id = ib_id AND imb_ib_i_id = ib_i_id AND imb_ib_u_id = ib_u_id",
-        TABLE_ITEM_MAX_BID, TABLE_ITEM_BID, item_id, seller_id); // add redundancy.
+        "WHERE imb_i_id = '{}' AND imb_u_id = '{}' " 
+        "AND imb_ib_id = ib_id AND ib_i_id = '{}' AND ib_u_id = '{}'", //because imb_i_id == imb_ib_i_id and imb_u_id == imb_ib_u_id
+        //"AND imb_ib_id = ib_id AND imb_ib_i_id = ib_i_id AND imb_ib_u_id = ib_u_id",
+        TABLE_ITEM_MAX_BID, TABLE_ITEM_BID, item_id, seller_id, item_id, seller_id); // add redundancy.
     client.Query(statement, queryResult, timeout);
     getItemMaxBidRow imbr;
     deserialize(imbr, queryResult);

@@ -196,9 +196,9 @@ namespace auctionmark
     // FlatHistogram_Int random_category;
     // FlatHistogram_Int random_item_count;
 
-    uint64_t last_close_auctions_time;
-    uint64_t client_start_time;
-    uint64_t current_time;
+    uint64_t last_close_auctions_time = 0;
+    uint64_t client_start_time = 0;
+    uint64_t current_time = 0;
 
     inline void initialize_user_id_generator(int client_id)
     {

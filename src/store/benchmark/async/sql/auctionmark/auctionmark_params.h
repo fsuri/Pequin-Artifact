@@ -56,7 +56,7 @@ namespace auctionmark
   static constexpr int ITEM_ALREADY_ENDED = 100000;
 
   /* Execution Configuration */
-  static constexpr bool CLOSE_AUCTIONS_ENABLE = false;
+  static constexpr bool CLOSE_AUCTIONS_ENABLE = true;
 
   /**
    * How often to execute CLOSE_AUCTIONS in virtual seconds.

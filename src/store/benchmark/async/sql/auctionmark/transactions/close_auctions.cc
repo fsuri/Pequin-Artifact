@@ -59,9 +59,12 @@ transaction_status_t CloseAuctions::Execute(SyncClient &client) {
   int round = CLOSE_AUCTIONS_ROUNDS;
 
   uint64_t current_time = GetProcTimestamp(benchmark_times);
+  std::cerr << "last auction: " << start_time << std::endl;
+  std::cerr << "this auction: " << end_time << std::endl;
+  std::cerr << "current time: " << current_time << std::endl;
   
   std::string getDueItems = fmt::format("SELECT {} FROM {} WHERE i_start_date >= {} AND i_start_date <= {} AND i_status = {} "
-                                        "ORDER BY i_id ASC LIMIT {}", ITEM_COLUMNS_STR, TABLE_ITEM, CLOSE_AUCTIONS_ITEMS_PER_ROUND, start_time, end_time, ItemStatus::OPEN);
+                                        "ORDER BY i_id ASC LIMIT {}", ITEM_COLUMNS_STR, TABLE_ITEM, start_time, end_time, ItemStatus::OPEN, CLOSE_AUCTIONS_ITEMS_PER_ROUND);
 
   std::string getMaxBid = "SELECT imb_ib_id, ib_buyer_id FROM " + std::string(TABLE_ITEM_MAX_BID) + ", " + std::string(TABLE_ITEM_BID) + 
                                         "WHERE imb_i_id = '{}' AND imb_u_id = '{}' AND ib_id = imb_ib_id AND ib_i_id = imb_i_id AND ib_u_id = imb_u_id ";

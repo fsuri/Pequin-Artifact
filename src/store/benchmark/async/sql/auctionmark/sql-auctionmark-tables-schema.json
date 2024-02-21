@@ -519,6 +519,12 @@
         "BIGINT"
       ]
     ],
+    "indexes": {
+      "idx_useracct_region": [
+        0,
+        4
+      ]
+    },
     "primary_key_col_idx": [
       0
     ],

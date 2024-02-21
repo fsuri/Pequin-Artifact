@@ -113,7 +113,7 @@ uint64_t getRandomStartTimestamp(uint64_t endDate, AuctionMarkProfile &profile) 
 
 
 uint64_t getRandomEndTimestamp(AuctionMarkProfile &profile) {
-  int timeDiff =  profile.get_random_time_diff() * MILLISECONDS_IN_A_SECOND;
+  int64_t timeDiff =  profile.get_random_time_diff() * MILLISECONDS_IN_A_SECOND;
   uint64_t EndTimestamp = profile.get_loader_start_time() + timeDiff; 
 
   // std::cerr << "time diff: " <<  timeDiff << std::endl;

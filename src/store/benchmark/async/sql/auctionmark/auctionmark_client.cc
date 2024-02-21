@@ -63,7 +63,6 @@ AuctionMarkClient::AuctionMarkClient(
   profile.load_profile(profile_file_path, client_id); 
   profile.set_and_get_client_start_time();
   profile.update_and_get_current_time();
-  profile.update_and_get_last_close_auctions_time();
 
   std::cerr << "loader start time (scaled):" << profile.get_loader_start_time() << std::endl;
   std::cerr << "client start time (scaled):" << profile.get_client_start_time() << std::endl; //FIXME: This has not been scaled!

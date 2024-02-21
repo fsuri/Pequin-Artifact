@@ -107,24 +107,13 @@ namespace auctionmark
     return last_close_auctions_time;
   }
 
-//TESTER variables
-static int s = 0;
-static int cnt = 0;
-static int tot = 30000;
- 
   int AuctionMarkProfile::get_random_time_diff()
   {
     
     //return random_time_diff(gen) + (ITEM_PRESERVE_DAYS * 24 * 60 * 60 * -1);
-    int next = random_time_diff.next_val() + (ITEM_PRESERVE_DAYS*24*60*60*-1);
-    //std::cerr << "chosen: " << next << std::endl;
-    s += next;
-    if(++cnt == tot){
-      std::cerr << "sum: " << s << std::endl;
-      std::cerr << "avg: " << (s/tot) << std::endl;
-    }
-
-
+    int64_t next = random_time_diff.next_val() + (ITEM_PRESERVE_DAYS*24*60*60*-1);
+    assert(next >= ITEM_PRESERVE_DAYS*24*60*60*-1);
+   
     return next * MILLISECONDS_IN_A_SECOND; 
   }
 

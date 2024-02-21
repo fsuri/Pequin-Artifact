@@ -659,7 +659,13 @@ LoaderItemInfo GenerateItemTableRow(TableWriter &writer, AuctionMarkProfile &pro
    if(itemInfo.get_status() == ItemStatus::ENDING_SOON) num_ending_soon_items++;
     if(itemInfo.get_status() == ItemStatus::WAITING_FOR_PURCHASE) num_waiting_for_purchase_items++;
   if(itemInfo.get_status() == ItemStatus::CLOSED) num_closed_items++;
-  //assert(itemInfo.get_status() == ItemStatus::OPEN || itemInfo.get_status() == ItemStatus::CLOSED);
+
+  //   if(itemInfo.get_status() == ItemStatus::WAITING_FOR_PURCHASE){
+  //    std::cerr << "numBids for OPEN items: " << numBids << std::endl;
+  // }
+  
+  //NOTE: All items that are still OPEN will have zero num_bids! (proper queue changes them to WAITING)
+  //TODO: Should waiting_for_purchase be added to availableItems?
   
 
   //CREATE ROW
@@ -695,7 +701,10 @@ LoaderItemInfo GenerateItemTableRow(TableWriter &writer, AuctionMarkProfile &pro
   /** Any column with the name XX_IATTR## will automatically be filled with a random integer between (0, 1 << 30)*/
    for(int i = 0; i<8; ++i){
     uint64_t max = 1 << 30;
-    uint64_t random_iattr = std::uniform_int_distribution<uint64_t>(0, max)(gen);
+    //std::random_device rand;
+    std::mt19937_64 gen2(remaining);
+    uint64_t random_iattr = std::uniform_int_distribution<uint64_t>(0, max)(gen2); //For some reason using the existing gen is super slow...
+    //uint64_t random_iattr = 100;
     values.push_back(std::to_string(random_iattr));
    }
 
