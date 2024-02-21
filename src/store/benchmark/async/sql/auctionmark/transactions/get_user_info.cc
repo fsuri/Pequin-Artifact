@@ -148,7 +148,7 @@ transaction_status_t GetUserInfo::Execute(SyncClient &client) {
   if(get_watched_items){
     //getWatchedItems
      std::cerr << "geWatchedItems" << std::endl;
-    statement = fmt::format("SLECT {}, uw_u_id, uw_created FROM {}, {} WHERE uw_u_id = '{}' AND uw_i_id = i_id AND uw_i_u_id = i_u_id ORDER BY i_end_date DESC LIMIT 25", 
+    statement = fmt::format("SELECT {}, uw_u_id, uw_created FROM {}, {} WHERE uw_u_id = '{}' AND uw_i_id = i_id AND uw_i_u_id = i_u_id ORDER BY i_end_date DESC LIMIT 25", 
                  ITEM_COLUMNS_STR, TABLE_USERACCT_WATCH, TABLE_ITEM, user_id); //TODO: make input redundant
     client.Query(statement, queryResult, timeout);
     UW_ASSERT(!queryResult->empty());

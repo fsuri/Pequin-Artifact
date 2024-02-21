@@ -26,17 +26,8 @@ namespace auctionmark
   {
     gen.seed(client_id);
     //std::cerr << "Constructing AuctionMarkProfile" << std::endl;
-    struct timeval time;
-    gettimeofday(&time, NULL);
-    loader_start_time = get_ts(time);
-    user_id_generator = std::nullopt;
 
-    // TODO: Write getter methods to do the appropriate conversions for binomials
-    //FIXME: Replace by gaussian...
-    //random_time_diff = std::binomial_distribution<int>((ITEM_DURATION_DAYS_MAX * 24 * 60 * 60) - (ITEM_PRESERVE_DAYS * 24 * 60 * 60 * -1), 0.5);
-    //random_time_diff = GaussGenerator(gen, ITEM_PRESERVE_DAYS*24*60*60*-1, ITEM_DURATION_DAYS_MAX * 24 *60 *60);
-    //random_duration = std::binomial_distribution<int>(ITEM_DURATION_DAYS_MAX - ITEM_DURATION_DAYS_MIN, 0.5);
-    //random_duration = GaussGenerator(gen, ITEM_DURATION_DAYS_MIN, ITEM_DURATION_DAYS_MAX);
+    user_id_generator = std::nullopt;
 
     random_initial_price = Zipf(gen, ITEM_INITIAL_PRICE_MIN, ITEM_INITIAL_PRICE_MAX, ITEM_INITIAL_PRICE_SIGMA);
     random_purchase_duration = Zipf(gen, ITEM_PURCHASE_DURATION_DAYS_MIN, ITEM_PURCHASE_DURATION_DAYS_MAX, ITEM_PURCHASE_DURATION_DAYS_SIGMA);

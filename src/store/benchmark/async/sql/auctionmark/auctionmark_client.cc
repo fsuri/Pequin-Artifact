@@ -58,75 +58,87 @@ AuctionMarkClient::AuctionMarkClient(
   need_close_auctions = CLOSE_AUCTIONS_ENABLE && client_id == 0;  //Close Auctions is only run from the first client
   max_u_id = N_USERS;
   max_i_id = N_USERS * 10;
-  struct timeval time;
-  gettimeofday(&time, NULL);
-  last_close_auctions = get_ts(time);
-
+ 
   //Initialize/load Auctionmark Profile
   profile.load_profile(profile_file_path, client_id); 
+  profile.set_and_get_client_start_time();
+  profile.update_and_get_current_time();
+  profile.update_and_get_last_close_auctions_time();
+
+  std::cerr << "loader start time (scaled):" << profile.get_loader_start_time() << std::endl;
+  std::cerr << "client start time (scaled):" << profile.get_client_start_time() << std::endl; //FIXME: This has not been scaled!
+
+  std::cerr << "pending comment size at start: " << profile.num_pending_comment_responses() << std::endl;
+  std::cerr << "available items start: " << profile.get_available_items_count() << std::endl;
+  std::cerr << "items waiting for purchase at start: " << profile.get_waiting_for_purchase_items_count() << std::endl;
+  std::cerr << "completed items at start: " << profile.get_completed_items_count() << std::endl;
 }
 
-AuctionMarkClient::~AuctionMarkClient() {}
+AuctionMarkClient::~AuctionMarkClient() {
+   profile.clear_cached_profile();
+}
 
 SyncTransaction *AuctionMarkClient::GetNextTransaction()
 {
   if(!profile.has_client_start_time()){
     profile.set_and_get_client_start_time();
   }
-  profile.update_and_get_current_time();
+  uint64_t now = profile.update_and_get_current_time();
 
   uint32_t ttype = std::uniform_int_distribution<uint32_t>(1, TXNS_TOTAL)(gen);
   uint32_t freq = 0;
-  struct timeval time;
-  gettimeofday(&time, NULL);
-  uint64_t now = get_ts(time);
-
-  //Close Auctions runs periodically (only on the first client)
-  if (need_close_auctions && now - last_close_auctions >= CLOSE_AUCTIONS_INTERVAL / TIME_SCALE_FACTOR) {
-    lastOp = "close_auctions";
-    last_close_auctions = now;
-    return new CloseAuctions(GetTimeout(), profile, gen);
-  } 
-  
-  else if (ttype <= (freq += FREQUENCY_GET_ITEM)) {
-    lastOp = "get_item";
-    return new GetItem(GetTimeout(), profile, gen);
-  } 
-  else if (ttype <= (freq += FREQUENCY_GET_USER_INFO)) {
-    lastOp = "get_user_info";
-    return new GetUserInfo(GetTimeout(), profile, gen);
-  } 
-  else if (ttype <= (freq += FREQUENCY_NEW_BID)) {
-    lastOp = "new_bid";
-    return new NewBid(GetTimeout(), profile, gen);
-  } 
-  else if (ttype <= (freq += FREQUENCY_NEW_COMMENT)) {
-    lastOp = "new_comment";
-    return new NewComment(GetTimeout(), profile, gen);
-  } 
-  else if (ttype <= (freq += FREQUENCY_NEW_COMMENT_RESPONSE)) {
-    lastOp = "new_comment_response";
-    return new NewCommentResponse(GetTimeout(), profile, gen);
-  } 
-  
-  else if (ttype <= (freq += FREQUENCY_NEW_FEEDBACK)) {
-    lastOp = "new_feedback";
-    return new NewFeedback(GetTimeout(), profile, gen);
-  } 
-  else if (ttype <= (freq += FREQUENCY_NEW_ITEM)) {
-    lastOp = "new_item";
-    return new NewItem(GetTimeout(), profile, gen);
-  } 
-  else if (ttype <= (freq += FREQUENCY_NEW_PURCHASE)) {
-    lastOp = "new_purchase";
-    return new NewPurchase(GetTimeout(), profile, gen);
-  } 
-  else if (ttype <= (freq += FREQUENCY_UPDATE_ITEM)) {
-    lastOp = "update_item";
-    return new UpdateItem(GetTimeout(), profile, gen);
-  } 
-  else {
-    Panic("Invalid transaction type %d", ttype);
+ 
+  while(true){
+    //Close Auctions runs periodically (only on the first client)
+    int real_time_seconds = CLOSE_AUCTIONS_INTERVAL / TIME_SCALE_FACTOR;
+    if (need_close_auctions && now - profile.get_last_close_auctions_time() >= real_time_seconds * MILLISECONDS_IN_A_SECOND) {
+      std::cerr << "last close auction time (scaled):" << profile.get_last_close_auctions_time() << std::endl;
+     std::cerr << "current time (scaled):" << now << std::endl;
+      lastOp = "close_auctions";
+      return new CloseAuctions(GetTimeout(), profile, gen);
+    } 
+    
+    else if (ttype <= (freq += FREQUENCY_GET_ITEM)) {
+      lastOp = "get_item";
+      return new GetItem(GetTimeout(), profile, gen);
+    } 
+    else if (ttype <= (freq += FREQUENCY_GET_USER_INFO)) {
+      lastOp = "get_user_info";
+      return new GetUserInfo(GetTimeout(), profile, gen);
+    } 
+    else if (ttype <= (freq += FREQUENCY_NEW_BID)) {
+      lastOp = "new_bid";
+      return new NewBid(GetTimeout(), profile, gen);
+    } 
+    else if (ttype <= (freq += FREQUENCY_NEW_COMMENT)) {
+      lastOp = "new_comment";
+      return new NewComment(GetTimeout(), profile, gen);
+    } 
+    else if (ttype <= (freq += FREQUENCY_NEW_COMMENT_RESPONSE)) {
+      if(profile.num_pending_comment_responses() == 0) continue;
+      lastOp = "new_comment_response";
+      return new NewCommentResponse(GetTimeout(), profile, gen);
+    } 
+    
+    else if (ttype <= (freq += FREQUENCY_NEW_FEEDBACK)) {
+      lastOp = "new_feedback";
+      return new NewFeedback(GetTimeout(), profile, gen);
+    } 
+    else if (ttype <= (freq += FREQUENCY_NEW_ITEM)) {
+      lastOp = "new_item";
+      return new NewItem(GetTimeout(), profile, gen);
+    } 
+    else if (ttype <= (freq += FREQUENCY_NEW_PURCHASE)) {
+      lastOp = "new_purchase";
+      return new NewPurchase(GetTimeout(), profile, gen);
+    } 
+    else if (ttype <= (freq += FREQUENCY_UPDATE_ITEM)) {
+      lastOp = "update_item";
+      return new UpdateItem(GetTimeout(), profile, gen);
+    } 
+    else {
+      Panic("Invalid transaction type %d", ttype);
+    }
   }
 }
 

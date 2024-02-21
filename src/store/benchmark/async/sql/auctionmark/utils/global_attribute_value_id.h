@@ -29,6 +29,7 @@ public:
     int get_id() const;
 
     bool operator==(const GlobalAttributeValueId& other) const;
+    bool operator<(const GlobalAttributeValueId& other) const;
 };
 
 } // namespace auctionmark

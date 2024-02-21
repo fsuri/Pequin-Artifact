@@ -41,7 +41,8 @@ class NewPurchase : public AuctionMarkTransaction {
  private:
   std::string item_id;
   std::string seller_id;
-  std::string ip_id;
+  //std::string ip_id;
+  uint64_t ip_id;
   float buyer_credit;
 
   std::mt19937_64 &gen;

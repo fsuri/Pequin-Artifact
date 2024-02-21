@@ -36,4 +36,13 @@ bool GlobalAttributeValueId::operator==(const GlobalAttributeValueId& other) con
     return group_attribute_id == other.group_attribute_id && id == other.id;
 }
 
+bool GlobalAttributeValueId::operator<(const GlobalAttributeValueId& other) const {
+    if(group_attribute_id != other.group_attribute_id){
+        return group_attribute_id < other.group_attribute_id;
+    }
+    else{
+        return id < other.id;
+    } 
+}
+
 } // namespace auctionmark

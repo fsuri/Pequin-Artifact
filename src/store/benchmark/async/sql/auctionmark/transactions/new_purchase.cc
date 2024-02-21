@@ -42,7 +42,8 @@ NewPurchase::NewPurchase(uint32_t timeout, AuctionMarkProfile &profile, std::mt1
   int ip_id_cnt = profile.ip_id_cntrs[item_id];
   
   //ip_id = ItemId(sellerId, ip_id_cnt).encode();
-  ip_id = GetUniqueElementId(item_id, ip_id_cnt);
+  //ip_id = GetUniqueElementId(item_id, ip_id_cnt);  //FIXME: THIS DOESN'T MAKE SENSE? How can ip_id of type BIG_INT be this huge string?
+  ip_id = ip_id_cnt;
   profile.ip_id_cntrs[item_id] = (ip_id_cnt < 127) ? ip_id_cnt + 1 : 0;
 
   // Whether the buyer will not have enough money
@@ -152,21 +153,25 @@ transaction_status_t NewPurchase::Execute(SyncClient &client) {
   std::string updateSellerBalance = fmt::format(updateUserBalance, iir.i_current_price, seller_id);
   client.Write(updateSellerBalance, timeout, true);
 
+  client.asyncWait();
+
   // And update this the USERACT_ITEM record to link it to the new ITEM_PURCHASE record
   // If we don't have a record to update, just go ahead and create it
+  std::cerr << "Inserting UserAcct_ITEM" << std::endl;
   std::string updateUserItem = fmt::format("UPDATE {} SET ui_ip_id = {}, ui_ip_ib_id = {}, ui_ip_ib_i_id = '{}', ui_ip_ib_u_id = '{}' "
                                                     "WHERE ui_u_id = '{}' AND ui_i_id = '{}' AND ui_i_u_id = '{}'", TABLE_USERACCT_ITEM, 
                                                     ip_id, iir.ib_id, item_id, seller_id, iir.ib_buyer_id, item_id, seller_id);
   client.Write(updateUserItem, queryResult, timeout);
 
   if(!queryResult->has_rows_affected()){
+    UW_ASSERT(current_time <= INT64_MAX);
     std::string insertUserItem = fmt::format("INSERT INTO {} (ui_u_id, ui_i_id, ui_i_u_id, ui_ip_id, ui_ip_ib_id, ui_ip_ib_i_id, ui_ip_ib_u_id, ui_created) "
                                              "VALUES ('{}', '{}', '{}', {}, {}, '{}', '{}', {})", TABLE_USERACCT_ITEM,
                                              iir.ib_buyer_id, item_id, seller_id, ip_id, iir.ib_id, item_id, seller_id, current_time);
     client.Write(insertUserItem, timeout, true);
   }
 
-  client.asyncWait();
+  //client.asyncWait();
 
   ItemRecord item_rec(item_id, seller_id, "", iir.i_current_price, iir.i_num_bids, iir.i_end_date, ItemStatus::CLOSED); // iir.ib_id, iir.ib_buyer_id, ip_id missing? Doesn't seem to be needed.
   ItemId itemId = profile.processItemRecord(item_rec);

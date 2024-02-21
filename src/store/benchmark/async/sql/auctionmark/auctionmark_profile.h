@@ -56,7 +56,7 @@ namespace auctionmark
     AuctionMarkProfile(int client_id, int num_clients, double scale_factor);
     inline ~AuctionMarkProfile()
     {
-      clear_cached_profile();
+      //clear_cached_profile();
     }
 
     /* Time methods */
@@ -145,13 +145,13 @@ namespace auctionmark
       return pending_comment_responses.size();
     }
 
-    std::vector<ItemCommentResponse> pending_comment_responses;
+    std::vector<ItemCommentResponse> pending_comment_responses = {};
 
     std::map<std::string, int> ip_id_cntrs;
 
     std::optional<UserIdGenerator> user_id_generator;
 
-    std::vector<GlobalAttributeGroupId> gag_ids;
+    std::vector<GlobalAttributeGroupId> gag_ids = {};
 
     //std::binomial_distribution<int> random_time_diff;
     GaussGenerator random_time_diff;

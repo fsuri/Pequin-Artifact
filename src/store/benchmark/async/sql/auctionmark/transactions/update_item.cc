@@ -99,7 +99,7 @@ transaction_status_t UpdateItem::Execute(SyncClient &client) {
     }
 
     std::string insertItemAttribute = fmt::format("INSERT INTO {} (ia_id, ia_i_id, ia_u_id, ia_gav_id, ia_gag_id, ia_sattr0) "
-                                                  "VALUES ('{}', '{}', '{}', '{}', '{}', '\"\"')", TABLE_ITEM_ATTR, ia_id, item_id, seller_id, gag_id, gav_id);
+                                                  "VALUES ('{}', '{}', '{}', '{}', '{}', '')", TABLE_ITEM_ATTR, ia_id, item_id, seller_id, gag_id, gav_id);
     client.Write(insertItemAttribute, queryResult, timeout);
   }
   

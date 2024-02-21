@@ -64,7 +64,7 @@ transaction_status_t CloseAuctions::Execute(SyncClient &client) {
                                         "ORDER BY i_id ASC LIMIT {}", ITEM_COLUMNS_STR, TABLE_ITEM, CLOSE_AUCTIONS_ITEMS_PER_ROUND, start_time, end_time, ItemStatus::OPEN);
 
   std::string getMaxBid = "SELECT imb_ib_id, ib_buyer_id FROM " + std::string(TABLE_ITEM_MAX_BID) + ", " + std::string(TABLE_ITEM_BID) + 
-                                        "WHERE imb_i_id = {} AND imb_u_id = {} AND ib_id = imb_ib_id AND ib_i_id = imb_i_id AND ib_u_id = imb_u_id ";
+                                        "WHERE imb_i_id = '{}' AND imb_u_id = '{}' AND ib_id = imb_ib_id AND ib_i_id = imb_i_id AND ib_u_id = imb_u_id ";
   // std::string getMaxBid = fmt::format("SELECT imb_ib_id, ib_buyer_id FROM {}, {} WHERE imb_i_id = '{}' AND imb_u_id = '{}' "
   //                                     "AND ib_id = imb_ib_id AND ib_i_id = imb_i_id AND ib_u_id = imb_u_id", TABLE_ITEM_MAX_BID, TABLE_ITEM_BID);
                                        //TODO: Add redundant inputs?
