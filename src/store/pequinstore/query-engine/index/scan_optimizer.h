@@ -273,17 +273,15 @@ class ConjunctionScanPredicate {
       UNUSED_ATTRIBUTE oid_t bind_ret;
 
       // Always bind the value to low key
-      // It should return INVALID_OID since we do not have any
-      // late binding here
-      bind_ret = BindValueToIndexKey(index_p, new_value_list[i], low_key_p_,
-                                     index_column);
+      // It should return INVALID_OID since we do not have any late binding here
+      bind_ret = BindValueToIndexKey(index_p, new_value_list[i], low_key_p_, index_column);
       PELOTON_ASSERT(bind_ret == INVALID_OID);
 
       // is_point_query_ is only determined by expression type
       // Also if not point query then also bind to high key
-      if (is_point_query_ == true) {
-        bind_ret = BindValueToIndexKey(index_p, new_value_list[i], high_key_p_,
-                                       index_column);
+      bool BIND_ALSO_FOR_RANGE_QUERY = true;
+      if (is_point_query_ != true) {
+        bind_ret = BindValueToIndexKey(index_p, new_value_list[i], high_key_p_, index_column);
         PELOTON_ASSERT(bind_ret == INVALID_OID);
       }
 

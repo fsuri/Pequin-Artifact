@@ -81,6 +81,8 @@ bool NestedLoopJoinExecutor::DExecute() {
   LOG_TRACE("********** Nested Loop %s Join executor :: 2 children ",
             GetJoinTypeString());
 
+   std::cerr << "NestedLoop Join executor is running" << std::endl;
+
   // Grab info from plan node and check it
   const planner::NestedLoopJoinPlan &node =
       GetPlanNode<planner::NestedLoopJoinPlan>();

@@ -351,13 +351,16 @@ void SeqScanExecutor::Scan() {
     current_txn->GetTableVersion()(target_table_->GetName(), current_txn_timestamp, current_txn->GetHasReadSetMgr(), query_read_set_mgr, current_txn->GetHasSnapshotMgr(), current_txn->GetSnapshotMgr());
 
     //If Scanning (Non_active read set), then don't need to include ColVersions in ActiveReadSet. Changes to index could not be affecting the observed read set.
-    //If we use Active Read set, then the read_set is only the keys that hit the predicate. Thus we need the ColVersion to detect changes to col values that might be relevant to ActiveRS
+    //However, if we use Active Read set, then the read_set is only the keys that hit the predicate. 
+    //Thus we need the ColVersion to detect changes to col values that might be relevant to ActiveRS (i.e. include ColVersion for all Col in search predicate)
     if(USE_ACTIVE_READ_SET){ 
       std::unordered_set<std::string> column_names;
       GetColNames(predicate_, column_names);
+      if(predicate_ != nullptr) std::cerr << "pred: " << predicate_->GetInfo() << std::endl;
 
       for (auto &col : column_names) {
-        current_txn->GetTableVersion()(EncodeTableCol(target_table_->GetName(), col), current_txn_timestamp, current_txn->GetHasReadSetMgr(), query_read_set_mgr, current_txn->GetHasSnapshotMgr(), current_txn->GetSnapshotMgr());
+        std::cerr << "extracted col: " << std::endl;
+        //current_txn->GetTableVersion()(EncodeTableCol(target_table_->GetName(), col), current_txn_timestamp, current_txn->GetHasReadSetMgr(), query_read_set_mgr, current_txn->GetHasSnapshotMgr(), current_txn->GetSnapshotMgr());
       }
     }
   }

@@ -75,7 +75,8 @@ class TrivialCostModel : public AbstractCostModel {
     if (left_child_rows == 1) {
       output_cost_ = 0.f;
     } else {
-      output_cost_ = 2.f;
+      output_cost_ = 0.f; //Make Nested Join default Join
+      //output_cost_ = 2.f;
     }
   }
 
