@@ -690,8 +690,8 @@ DEFINE_bool(rw_read_only, false, "only do read operations");
  * RW-sql additional settings.
  */
 // Shir: this should match the flags in server.cc
-DEFINE_uint64(num_tables, 10, "number of tables for rw-sql");
-DEFINE_uint64(num_keys_per_table, 100, "number of keys per table for rw-sql");
+DEFINE_uint64(num_tables, 1, "number of tables for rw-sql");
+DEFINE_uint64(num_keys_per_table, 3, "number of keys per table for rw-sql");
 DEFINE_uint64(max_range, 10, "max amount of reads in a single scan for rw-sql");
 
 
@@ -1698,6 +1698,7 @@ int main(int argc, char **argv) {
             while (!syncBench->IsFullyDone()) {
               syncBench->StartLatency();
               transaction_status_t result;
+              std::cout << "Shir: Sending next txn from benchmark" << std::endl;
               syncBench->SendNext(&result);
               syncBench->IncrementSent(result);
             }

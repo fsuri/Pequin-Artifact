@@ -57,6 +57,7 @@ void SyncTransactionBenchClient::SendNext(transaction_status_t *result) {
   *result = ABORTED_SYSTEM; // default to failure
   while (true) {
     *result = currTxn->Execute(client);
+    std::cerr<<"Shir:  Executed a txn, result was:     "<<*result<<"\n";
     stats.Increment(GetLastOp() + "_attempts", 1);
     ++currTxnAttempts;
     if (*result == COMMITTED || *result == ABORTED_USER
@@ -83,8 +84,10 @@ void SyncTransactionBenchClient::SendNext(transaction_status_t *result) {
         backoff = std::uniform_int_distribution<uint64_t>(upper >> 1, upper)(GetRand());
         stats.Increment(GetLastOp() + "_backoff", backoff);
         Debug("Backing off for %lums", backoff);
+        std::cerr<<"Shir:  Backing off for "<<backoff<<"ms\n";
       }
       Notice("TXN was aborted. Need to retry. First backoff for milisecs: %d", backoff);
+      std::cerr<<"Shir:  TXN was aborted. Need to retry. First backoff for milisecs: "<<backoff<<"\n";
       std::this_thread::sleep_for(std::chrono::milliseconds(backoff));
       //std::cerr << "Woke up, continue!" << std::endl;
     }

@@ -194,6 +194,8 @@ void Replica::HandleRequest(const TransportAddress &remote,
 
     };
     Debug("Proposing execb");
+    Debug("Shir:   hopefully with this digest:");
+    DebugHash(digest);
     hotstuffpg_interface.propose(digest, execb); // Shir: sending the execb to hotstuff
     Debug("Execb proposed");
 
@@ -236,6 +238,7 @@ void Replica::HandleRequest(const TransportAddress &remote,
         requests[digest_m2] = bubblePackedMsg;
         replyAddrs[digest_m2] = clientAddr; // replyAddress is the address of the client wo sent this request, so we can answer him
         pendingExecutions[seqnumm] = digest_m2;
+        std::cout << "Shir: executing f of the third bubble! "<< digest_m2 << std::endl;
         return (void*) true;
       };
       transport->DispatchTP_main(f);
@@ -254,7 +257,8 @@ void Replica::executeSlots() {
   Debug("Shir: this is the list of current pending executions:  ");
   for(auto& it: pendingExecutions) {
     std::cout << it.first << " " << it.second << std::endl;
-    Debug("Pending sequence number: %lu", it.first);
+    // Debug("Pending sequence number: %lu", it.first);
+    DebugHash(it.second);
   }
 
   // Shir: looking for pending execution that matches the current exec seq num. This basically means that I can progress and execute the next slot (because hotstuff has already committed it)
@@ -273,12 +277,16 @@ void Replica::executeSlots() {
         // Shir: This is the messages recieved from hotstuff
         proto::PackedMessage packedMsg = requests[digest];
         if(asyncServer) {
+          // Debug("Shir: async server");
+
           // Shir: server is asynchronous (will deal with this scope later)
 
+          // It's important that this line appears before dispatching the job
           execSeqNum++;
 
-          transport->Timer(0, [this, digest, packedMsg](){
-            execute_callback ecb = [this, digest](std::vector<::google::protobuf::Message*> replies) {
+          auto f = [this, digest, packedMsg](){
+            std::vector<::google::protobuf::Message*> replies = app->Execute(packedMsg.type(), packedMsg.msg());
+            transport->Timer(0, [this, digest, packedMsg,replies](){
               for (const auto& reply : replies) {
                 if (reply != nullptr) {
                   Debug("Sending reply");
@@ -298,12 +306,11 @@ void Replica::executeSlots() {
                   Debug("Invalid execution");
                 }
               }
+            });
+            return (void*) true;
+          };
+          transport->DispatchTP_noCB(f);
 
-            };
-
-            app->Execute_Callback(packedMsg.type(), packedMsg.msg(), ecb);
-          });
-          
         } else {
           // Shir: server is synchronous (current situation)
           // Shir: calling the server with the recieved message, and getting replies
