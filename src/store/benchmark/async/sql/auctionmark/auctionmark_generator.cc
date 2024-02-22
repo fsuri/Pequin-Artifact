@@ -744,7 +744,7 @@ void GenerateItemImageRow(TableWriter &writer, LoaderItemInfo &itemInfo, std::mt
     values.push_back(std::to_string(count)); //ii_id   //FIXME: Unclear if this is the correct use of count
     values.push_back(itemInfo.get_item_id().encode()); //ii_i_id
     values.push_back(itemInfo.get_seller_id().encode()); //ii_u_id
-    int min_size = 1; //std::uniform_int_distribution<int>(0, 128-1)(gen);
+    int min_size = 1; //std::uniform_int_distribution<int>(0, 128-1)(gen);  //FIXME: USING GEN HERE COMPLETELY FUCKS THINGS UP
     values.push_back(RandomAString(min_size, 128, gen)); //ia_sattr0
     writer.add_row(TABLE_ITEM_IMAGE, values);
   }
@@ -762,7 +762,7 @@ void GenerateItemAttributeRow(TableWriter &writer, AuctionMarkProfile &profile, 
     values.push_back(gav_id.encode()); //ia_gav_id
     values.push_back(gav_id.get_global_attribute_group().encode()); //ia_gag_id
 
-    int min_size = 1; //std::uniform_int_distribution<int>(0, 64-1)(gen);
+    int min_size = 1; //std::uniform_int_distribution<int>(0, 64-1)(gen); //FIXME: USING GEN HERE COMPLETELY FUCKS THINGS UP
     values.push_back(RandomAString(min_size, 64, gen)); //ia_sattr0
 
 
@@ -975,7 +975,7 @@ void GenerateUserFeedbackRow(TableWriter &writer, AuctionMarkProfile &profile, L
     values.push_back(itemInfo.get_seller_id().encode()); //uf_from_id
     values.push_back(std::to_string(1)); //uf_rating
     values.push_back(std::to_string(profile.get_loader_start_time())); //uf_date
-    int min_size = 1; //std::uniform_int_distribution<int>(0, 80-1)(gen);
+    int min_size = 1; //std::uniform_int_distribution<int>(0, 80-1)(gen); //FIXME: USING GEN HERE COMPLETELY FUCKS THINGS UP
     values.push_back(RandomAString(min_size, 80, gen)); //ia_sattr0
     
     writer.add_row(TABLE_USERACCT_FEEDBACK, values);
