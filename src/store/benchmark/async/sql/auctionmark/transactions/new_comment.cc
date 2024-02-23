@@ -79,11 +79,13 @@ transaction_status_t NewComment::Execute(SyncClient &client) {
 
    //updateItemComments
   statement = fmt::format("UPDATE {} SET i_num_comments = i_num_comments + 1 WHERE i_id = '{}' AND i_u_id = '{}'", TABLE_ITEM, item_id, seller_id);
-  client.Write(statement, queryResult, timeout);
+  client.Write(statement, timeout, true);
 
   //updateUser
   statement = fmt::format("UPDATE {} SET u_comments = u_comments + 1, u_updated = {} WHERE u_id = '{}'", TABLE_USERACCT, current_time, seller_id);
-  client.Write(statement, queryResult, timeout);
+  client.Write(statement, timeout, true);
+
+  client.asyncWait();
   
   ItemCommentResponse icr(ic_id, item_id, seller_id);
   profile.add_pending_item_comment_response(icr);

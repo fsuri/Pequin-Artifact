@@ -219,6 +219,8 @@ void GetToSeqScan::Transform(
     UNUSED_ATTRIBUTE OptimizeContext *context) const {
   const LogicalGet *get = input->Op().As<LogicalGet>();
 
+  std::cerr << "TRANSFORM: Get to Seq Scan" << std::endl;
+
   auto result_plan = std::make_shared<OperatorExpression>(
       PhysicalSeqScan::make(get->get_id, get->table, get->table_alias,
                             get->predicates, get->is_for_update));
@@ -240,8 +242,7 @@ GetToIndexScan::GetToIndexScan() {
 
 bool GetToIndexScan::Check(std::shared_ptr<OperatorExpression> plan,
                            OptimizeContext *context) const {
-  // If there is a index for the table, return true,
-  // else return false
+  // If there is a index for the table, return true, else return false
   (void)context;
   const LogicalGet *get = plan->Op().As<LogicalGet>();
   bool index_exist = false;
@@ -256,9 +257,11 @@ void GetToIndexScan::Transform(
     std::shared_ptr<OperatorExpression> input,
     std::vector<std::shared_ptr<OperatorExpression>> &transformed,
     UNUSED_ATTRIBUTE OptimizeContext *context) const {
-  UNUSED_ATTRIBUTE std::vector<std::shared_ptr<OperatorExpression>> children =
-      input->Children();
+  UNUSED_ATTRIBUTE std::vector<std::shared_ptr<OperatorExpression>> children = input->Children();
   PELOTON_ASSERT(children.size() == 0);
+
+   std::cerr << "TRANSFORM: Get to Index Scan" << std::endl;
+    std::cerr << "input: " << input->GetInfo() << std::endl;
 
   const LogicalGet *get = input->Op().As<LogicalGet>();
 
@@ -270,13 +273,11 @@ void GetToIndexScan::Transform(
     bool sort_by_asc_base_column = true;
     for (size_t i = 0; i < sort_prop->GetSortColumnSize(); i++) {
       auto expr = sort_prop->GetSortColumn(i);
-      if (!sort_prop->GetSortAscending(i) ||
-          expr->GetExpressionType() != ExpressionType::VALUE_TUPLE) {
+      if (!sort_prop->GetSortAscending(i) || expr->GetExpressionType() != ExpressionType::VALUE_TUPLE) {
         sort_by_asc_base_column = false;
         break;
       }
-      auto bound_oids = reinterpret_cast<expression::TupleValueExpression *>(
-                            expr)->GetBoundOid();
+      auto bound_oids = reinterpret_cast<expression::TupleValueExpression *>(expr)->GetBoundOid();
       sort_col_ids.push_back(std::get<2>(bound_oids));
     }
     // Check whether any index can fulfill sort property
@@ -300,18 +301,19 @@ void GetToIndexScan::Transform(
         }
         // Add transformed plan if found
         if (index_matched) {
-          auto index_scan_op = PhysicalIndexScan::make(
-              get->get_id, get->table, get->table_alias, get->predicates,
-              get->is_for_update, index_id, {}, {}, {});
-          transformed.push_back(
-              std::make_shared<OperatorExpression>(index_scan_op));
+          auto index_scan_op = PhysicalIndexScan::make(get->get_id, get->table, get->table_alias, get->predicates, get->is_for_update, index_id, {}, {}, {});
+          transformed.push_back(std::make_shared<OperatorExpression>(index_scan_op));
         }
       }
     }
   }
 
+  if (get->predicates.empty()) {
+     std::cerr << "USE SEQ SCAN FOR THIS KIND OF PRED" << std::endl;
+  }
   // Check whether any index can fulfill predicate predicate evaluation
   if (!get->predicates.empty()) {
+    std::cerr << "USE INDEX FOR THIS KIND OF PRED" << std::endl;
     std::vector<oid_t> key_column_id_list;
     std::vector<ExpressionType> expr_type_list;
     std::vector<type::Value> value_list;
@@ -323,29 +325,22 @@ void GetToIndexScan::Transform(
       expression::AbstractExpression *value_expr = nullptr;
 
       // Fetch column reference and value
-      if (expr->GetChild(0)->GetExpressionType() ==
-          ExpressionType::VALUE_TUPLE) {
+      if (expr->GetChild(0)->GetExpressionType() == ExpressionType::VALUE_TUPLE) {
         auto r_type = expr->GetChild(1)->GetExpressionType();
-        if (r_type == ExpressionType::VALUE_CONSTANT ||
-            r_type == ExpressionType::VALUE_PARAMETER) {
+        if (r_type == ExpressionType::VALUE_CONSTANT || r_type == ExpressionType::VALUE_PARAMETER) {
           tv_expr = expr->GetModifiableChild(0);
           value_expr = expr->GetModifiableChild(1);
         }
-      } else if (expr->GetChild(1)->GetExpressionType() ==
-                 ExpressionType::VALUE_TUPLE) {
+      } else if (expr->GetChild(1)->GetExpressionType() == ExpressionType::VALUE_TUPLE) {
         auto l_type = expr->GetChild(0)->GetExpressionType();
-        if (l_type == ExpressionType::VALUE_CONSTANT ||
-            l_type == ExpressionType::VALUE_PARAMETER) {
+        if (l_type == ExpressionType::VALUE_CONSTANT || l_type == ExpressionType::VALUE_PARAMETER) {
           tv_expr = expr->GetModifiableChild(1);
           value_expr = expr->GetModifiableChild(0);
-          expr_type =
-              expression::ExpressionUtil::ReverseComparisonExpressionType(
-                  expr_type);
+          expr_type = expression::ExpressionUtil::ReverseComparisonExpressionType(expr_type);
         }
       }
 
-      // If found valid tv_expr and value_expr, update col_id_list,
-      // expr_type_list and val_list
+      // If found valid tv_expr and value_expr, update col_id_list, expr_type_list and val_list
       if (tv_expr != nullptr) {
         auto column_ref = (expression::TupleValueExpression *)tv_expr;
         std::string col_name(column_ref->GetColumnName());
@@ -355,20 +350,11 @@ void GetToIndexScan::Transform(
         expr_type_list.push_back(expr_type);
 
         if (value_expr->GetExpressionType() == ExpressionType::VALUE_CONSTANT) {
-          value_list.push_back(
-              reinterpret_cast<expression::ConstantValueExpression *>(
-                  value_expr)->GetValue());
-          LOG_TRACE("Value Type: %d",
-                    static_cast<int>(
-                        reinterpret_cast<expression::ConstantValueExpression *>(
-                            expr->GetModifiableChild(1))->GetValueType()));
+          value_list.push_back(reinterpret_cast<expression::ConstantValueExpression *>(value_expr)->GetValue());
+          LOG_TRACE("Value Type: %d",static_cast<int>(reinterpret_cast<expression::ConstantValueExpression *>(expr->GetModifiableChild(1))->GetValueType()));
         } else {
-          value_list.push_back(
-              type::ValueFactory::GetParameterOffsetValue(
-                  reinterpret_cast<expression::ParameterValueExpression *>(
-                      value_expr)->GetValueIdx()).Copy());
-          LOG_TRACE("Parameter offset: %s",
-                    (*value_list.rbegin()).GetInfo().c_str());
+          value_list.push_back( type::ValueFactory::GetParameterOffsetValue(reinterpret_cast<expression::ParameterValueExpression *>(value_expr)->GetValueIdx()).Copy());
+          LOG_TRACE("Parameter offset: %s", (*value_list.rbegin()).GetInfo().c_str());
         }
       }
     }  // Loop predicates end
@@ -395,6 +381,7 @@ void GetToIndexScan::Transform(
       
       int min_distance = is_primary_index ? INT_MAX-1 : INT_MAX;
 
+      //figure out which keys of the statement are present in this index
       for (size_t offset = 0; offset < key_column_id_list.size(); offset++) {
         auto col_id = key_column_id_list[offset];
         for (int i = 0; i < index_col_set.size(); ++ i){
@@ -412,7 +399,7 @@ void GetToIndexScan::Transform(
       //If index fully covers the condition. //Give preference to primary key.
       if(index_key_column_id_list.size() == index_col_set.size()) min_distance = is_primary_index? -2 : -1;
       std::cerr << "is primary? " << is_primary_index << ". min_distance (if match): " << min_distance << std::endl;
-      
+  
        if (min_distance < closest_index || (min_distance == closest_index && index_key_column_id_list.size() > max_num_matching_cols )){
         auto index_scan_op = PhysicalIndexScan::make(
             get->get_id, get->table, get->table_alias, get->predicates,
@@ -720,6 +707,8 @@ void InnerJoinToInnerNLJoin::Transform(
     UNUSED_ATTRIBUTE OptimizeContext *context) const {
   // first build an expression representing hash join
   const LogicalInnerJoin *inner_join = input->Op().As<LogicalInnerJoin>();
+
+  std::cerr << "TRANSFORM: INNER JOIN TO NL"<< std::endl;
 
   auto children = input->Children();
   PELOTON_ASSERT(children.size() == 2);

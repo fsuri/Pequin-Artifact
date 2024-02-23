@@ -707,7 +707,6 @@ DEFINE_bool(rw_read_only, false, "only do read operations");
 /**
  * RW-sql additional settings.
  */
-
 DEFINE_uint64(num_tables, 10, "number of tables for rw-sql");
 DEFINE_uint64(num_keys_per_table, 100, "number of keys per table for rw-sql");
 DEFINE_uint64(max_range, 10, "max amount of reads in a single scan for rw-sql");

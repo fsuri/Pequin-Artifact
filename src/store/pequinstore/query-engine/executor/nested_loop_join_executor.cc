@@ -57,8 +57,8 @@ bool NestedLoopJoinExecutor::DInit() {
  * join predicate.
  * @return true on success, false otherwise.
  *
- * ExecutorContext is set when executing IN+NestLoop. For example:
- * select * from Foo1 where age IN (select id from Foo2 where name='mike');
+ * ExecutorContext is set when executing IN+NestLoop. 
+ * For example: select * from Foo1 where age IN (select id from Foo2 where name='mike');
  * Here:
  * "select id from Foo2 where name='mike'" is transformed as left child.
  * "select * from Foo1 where age " is the right child.
@@ -85,6 +85,10 @@ bool NestedLoopJoinExecutor::DExecute() {
 
   // Grab info from plan node and check it
   const planner::NestedLoopJoinPlan &node = GetPlanNode<planner::NestedLoopJoinPlan>();
+  std::cerr << "plan: " << node.GetInfo() << std::endl;
+  for(auto &child: node.GetChildren()){
+    std::cerr << child->GetInfo() << std::endl;
+  }
 
   // Pick out the left and right columns
   const std::vector<oid_t> &join_column_ids_left = node.GetJoinColumnsLeft();
@@ -107,6 +111,7 @@ bool NestedLoopJoinExecutor::DExecute() {
 
     // If left tile result is not done, continue the left tuples
     if (!left_tile_done_) {
+      std::cerr << "NEXT RIGHT TILE" << std::endl;
       // Tuple result
       ContainerTuple<executor::LogicalTile> left_tuple(left_tile_.get(), left_tile_row_itr_);
 

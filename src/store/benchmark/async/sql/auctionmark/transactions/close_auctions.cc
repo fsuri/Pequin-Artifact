@@ -101,7 +101,7 @@ transaction_status_t CloseAuctions::Execute(SyncClient &client) {
 
         std::string insertUserItem = fmt::format("INSERT INTO {} (ui_u_id, ui_i_id, ui_i_u_id, ui_created) "
                                            "VALUES('{}', '{}', '{}', {})", TABLE_USERACCT_ITEM, mbr.buyerId, dir.itemId, dir.sellerId, current_time);
-        client.Write(insertUserItem, queryResult, timeout);
+        client.Write(insertUserItem, timeout, true);
 
         itemStatus = ItemStatus::WAITING_FOR_PURCHASE;
 
@@ -114,11 +114,12 @@ transaction_status_t CloseAuctions::Execute(SyncClient &client) {
 
 
       std::string updateItemStatus = fmt::format("UPDATE {} SET i_status = {}, i_updated = {} WHERE i_id = '{}' AND i_u_id = '{}'", TABLE_ITEM, itemStatus, current_time, dir.itemId, dir.sellerId);
-      client.Write(updateItemStatus, queryResult, timeout);
+      client.Write(updateItemStatus, timeout, true);
 
 
       item_records.push_back(ItemRecord(dir.itemId, dir.sellerId, dir.i_name, dir.currentPrice, dir.numBids, dir.endDate, dir.itemStatus, mbr.bidId, mbr.buyerId));
     }
+    client.asyncWait();
   }
 
   UpdateProfile();

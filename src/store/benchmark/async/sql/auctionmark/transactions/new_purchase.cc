@@ -87,7 +87,7 @@ transaction_status_t NewPurchase::Execute(SyncClient &client) {
 
       std::string insertItemMaxBid = fmt::format("INSERT INTO {} (imb_i_id, imb_u_id, imb_ib_id, imb_ib_i_id, imb_ib_u_id, imb_created, imb_updated) "
                                                   "VALUES ('{}', '{}', {}, '{}', '{}', {}, {})", TABLE_ITEM_MAX_BID, item_id, seller_id, bid_id, item_id, seller_id, current_time, current_time);
-      client.Write(insertItemMaxBid, queryResult, timeout); //TODO: Make async. (doesn't matter, inserts are always buffered for us)
+      client.Write(insertItemMaxBid, timeout, true); 
 
     
       //Read Without TABLE_ITEM_MAX_BID
@@ -130,7 +130,6 @@ transaction_status_t NewPurchase::Execute(SyncClient &client) {
     return ABORTED_USER;
   }
 
-  //TODO: parallelize all these writes (make async)
   //std::string getBuyerInfo = fmt::format("SELECT u_id, u_balance FROM {} WHERE u_id = {}", TABLE_USER_ACCT, seller_id);
 
   // Set item_purchase_id
@@ -153,8 +152,6 @@ transaction_status_t NewPurchase::Execute(SyncClient &client) {
   std::string updateSellerBalance = fmt::format(updateUserBalance, iir.i_current_price, seller_id);
   client.Write(updateSellerBalance, timeout, true);
 
-  client.asyncWait();
-
   // And update this the USERACT_ITEM record to link it to the new ITEM_PURCHASE record
   // If we don't have a record to update, just go ahead and create it
   std::cerr << "Inserting UserAcct_ITEM" << std::endl;
@@ -171,7 +168,7 @@ transaction_status_t NewPurchase::Execute(SyncClient &client) {
     client.Write(insertUserItem, timeout, true);
   }
 
-  //client.asyncWait();
+  client.asyncWait();
 
   ItemRecord item_rec(item_id, seller_id, "", iir.i_current_price, iir.i_num_bids, iir.i_end_date, ItemStatus::CLOSED); // iir.ib_id, iir.ib_buyer_id, ip_id missing? Doesn't seem to be needed.
   ItemId itemId = profile.processItemRecord(item_rec);

@@ -78,13 +78,13 @@ transaction_status_t NewFeedback::Execute(SyncClient &client) {
 
   std::string insertFeedback = fmt::format("INSERT INTO {} (uf_u_id, uf_i_id, uf_i_u_id, uf_from_id, uf_rating, uf_date, uf_sattr0) "
                           "VALUES ('{}', '{}', '{}', '{}', {}, {}, '{}')", TABLE_USERACCT_FEEDBACK, user_id, i_id, seller_id, from_id, rating, current_time, feedback);
-  client.Write(insertFeedback, timeout);
+  client.Write(insertFeedback, timeout, true);
 
 
   std::string updateUser = fmt::format("UPDATE {} SET u_rating = u_rating + {} WHERE u_id = '{}'", TABLE_USERACCT, rating, current_time, user_id);
-  client.Write(updateUser, timeout);
+  client.Write(updateUser, timeout, true);
 
-  client.Wait(results);
+  client.asyncWait();
 
   Debug("COMMIT NEW_FEEDBACK");
   return client.Commit(timeout);

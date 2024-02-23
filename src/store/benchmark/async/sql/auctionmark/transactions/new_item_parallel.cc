@@ -107,57 +107,75 @@ transaction_status_t NewItem::Execute(SyncClient &client) {
     std::string stmt = fmt::format(getGlobablAttribute, gav_ids[i], gag_ids[i], gag_ids[i]);
     client.Query(stmt, timeout);
   }                             
-  client.Wait(results);
-  std::cerr << "expected results: " << gag_ids.size() << std::endl;
-  std::cerr << "actual results: " << results.size() << std::endl;
-
-
-  for(int i = 0; i < results.size(); ++i){
-    if(results[i]->empty()) continue;
-    std::cerr << "i: " << i << std::endl;
-    std::string gag_name;
-    std::string gav_name;
-    auto &res = results[i];
-    std::cerr << "res size: " << res->size() << std::endl;
-    deserialize(gag_name, results[i], 0, 0);
-    std::cerr <<"gagname: " << gag_name << std::endl;
-    deserialize(gav_name, results[i], 0, 1);
-     std::cerr <<"gavname: " << gav_name << std::endl;
-    description += fmt::format(" * {} -> {}\n", gag_name, gav_name);
-  }                                             
-
-
+                                
   //CATEGORY 
   std::string getCategory = fmt::format("SELECT * FROM {} WHERE c_id = {}", TABLE_CATEGORY, category_id);
-  client.Query(getCategory, queryResult, timeout);
-  UW_ASSERT(!queryResult->empty());
-  std::cerr <<"try deser cat" << std::endl;
+  client.Query(getCategory, timeout);
  
-    uint64_t category_p_id;
-    uint64_t category_c_id;
-    deserialize(category_c_id, queryResult, 0, 0);
-    deserialize(category_p_id, queryResult, 0, 2);
-   std::string category_name = fmt::format("{}[{}]", category_p_id, category_c_id);
 
   //CATEGORY PARENT
   std::string getCategoryParent = fmt::format("SELECT * FROM {} WHERE c_parent_id = {}", TABLE_CATEGORY, category_id);
-  client.Query(getCategoryParent, queryResult, timeout);
+  client.Query(getCategoryParent, timeout);
+ 
+  //ITEM SELLER COUNT
+  int sellerItemCount = 0;
+  std::string getSellerItemCount = fmt::format("SELECT COUNT(*) FROM {} WHERE i_u_id = '{}'", TABLE_ITEM, seller_id);
+  client.Query(getSellerItemCount, timeout);
+  
+
+  client.Wait(results);
+
+  //DESERIALIZE ALL RESULTS
+  int offset = 0;
+
+  //ATTRIBUTES
+  for(int i = 0; i < gag_ids.size(); ++i){
+    
+    if(results[offset]->empty()) continue;
+    std::cerr << "i: " << i << std::endl;
+    std::string gag_name;
+    std::string gav_name;
+    auto &res = results[offset];
+    std::cerr << "res size: " << res->size() << std::endl;
+    deserialize(gag_name, results[offset], 0, 0);
+    std::cerr <<"gagname: " << gag_name << std::endl;
+    deserialize(gav_name, results[offset], 0, 1);
+     std::cerr <<"gavname: " << gav_name << std::endl;
+    description += fmt::format(" * {} -> {}\n", gag_name, gav_name);
+
+    offset++;
+  }      
+
+  //CATEGORY
+  queryResult = std::move(results[offset]);
+  UW_ASSERT(!queryResult->empty());
+  std::cerr <<"try deser cat" << std::endl;
+ 
+  uint64_t category_p_id;
+  uint64_t category_c_id;
+  deserialize(category_c_id, queryResult, 0, 0);
+  deserialize(category_p_id, queryResult, 0, 2);
+  std::string category_name = fmt::format("{}[{}]", category_p_id, category_c_id);
+
+  offset++; 
+
+  //CATEGORY PARENT       
+  queryResult = std::move(results[offset]);
   std::string category_parent = "<ROOT>";
-   std::cerr <<"try deser cat" << std::endl;
+  std::cerr <<"try deser cat" << std::endl;
   if(!queryResult->empty()){
     deserialize(category_c_id, queryResult, 0, 0);
     deserialize(category_p_id, queryResult, 0, 2);
     category_parent = fmt::format("{}[{}]", category_p_id, category_c_id);
   }
   description += fmt::format("\nCATEGORY: {} >> {}", category_parent, category_name);
+  offset++;
 
-  int sellerItemCount = 0;
-  std::string getSellerItemCount = fmt::format("SELECT COUNT(*) FROM {} WHERE i_u_id = '{}'", TABLE_ITEM, seller_id);
-  client.Query(getSellerItemCount, queryResult, timeout);
+  //ITEM SELLER COUNT
+   queryResult = std::move(results[offset]);
   deserialize(sellerItemCount, queryResult);
 
-   //TODO: could parallelize all Reads above.
-   //client.Wait(results) 
+  ////////////////// INSERT NEW ROWS/UPDATE
 
   //Insert a new ITEM tuple
   std::string insertItem = fmt::format("INSERT INTO {} (i_id, i_u_id, i_c_id, i_name, i_description, i_user_attributes, i_initial_price, i_current_price, "

@@ -60,12 +60,16 @@ transaction_status_t GetItem::Execute(SyncClient &client) {
   statement = fmt::format("SELECT i_id, i_u_id, i_name, i_current_price, i_num_bids, i_end_date, i_status FROM "
                           "{} WHERE i_id = '{}' AND i_u_id = '{}'", TABLE_ITEM, item_id, seller_id);
   client.Query(statement, timeout);
+
+  //client.Wait(results); //FIXME: REMOVE THIS. JUST FOR TESTING
  
   statement = fmt::format("SELECT u_id, u_rating, u_created, u_sattr0, u_sattr1, u_sattr2, u_sattr3, u_sattr4, r_name "
                          "FROM {}, {} WHERE u_id = '{}' AND u_r_id = r_id", TABLE_USERACCT, TABLE_REGION, seller_id);
   client.Query(statement, timeout);
 
   client.Wait(results);
+
+  //Panic("stop after first get_item");
 
   if(results[0]->empty() || results[1]->empty()){
     client.Abort(timeout);
