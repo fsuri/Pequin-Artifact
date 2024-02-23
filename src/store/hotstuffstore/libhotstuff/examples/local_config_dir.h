@@ -1,1 +1,1 @@
-#define LOCAL_CONFIG_DIR "/home/sc3348/Pesto/Pequin-Artifact/src/scripts/config/"
+#define LOCAL_CONFIG_DIR "./scripts/config/"

@@ -1,1 +1,1 @@
-#define REMOTE_CONFIG_DIR "/users/fs435/config1/"
+#define REMOTE_CONFIG_DIR "/users/shir/config/"
