@@ -84,6 +84,9 @@ bool IndexScanExecutor::DInit() {
   predicate_ = node.GetPredicate();
   old_predicate_ = predicate_;
 
+  updated_column_ids.clear();
+  already_added_table_col_versions = false;
+
   left_open_ = node.GetLeftOpen();
   right_open_ = node.GetRightOpen();
 
@@ -183,7 +186,9 @@ bool IndexScanExecutor::DExecute() {
   return false;
 }
 
-void IndexScanExecutor::GetColNames(const expression::AbstractExpression * child_expr, std::unordered_set<std::string> &column_names) {
+
+
+void IndexScanExecutor::GetColNames(const expression::AbstractExpression * child_expr, std::unordered_set<std::string> &column_names, bool use_updated) {
   //Get all Column Names in the WHERE clause. 
   for (size_t i = 0; i < child_expr->GetChildrenSize(); i++) {
     auto child = child_expr->GetChild(i);
@@ -191,8 +196,44 @@ void IndexScanExecutor::GetColNames(const expression::AbstractExpression * child
       auto tv_expr = dynamic_cast<const expression::TupleValueExpression*>(child);
       column_names.insert(tv_expr->GetColumnName());
     }
-    GetColNames(child, column_names);
+    GetColNames(child, column_names, false);
   }
+
+  if(use_updated){
+    std::cerr << "get N updated cols: " << updated_column_ids.size() << std::endl;
+    for(auto &col_id : updated_column_ids){
+      std::cerr << "colID: " << col_id << std::endl;
+      column_names.insert(table_->GetSchema()->GetColumn(col_id).GetName());
+    }
+  }
+}
+
+void IndexScanExecutor::SetTableColVersions(concurrency::TransactionContext *current_txn, pequinstore::QueryReadSetMgr *query_read_set_mgr, const Timestamp &current_txn_timestamp){
+  if(!already_added_table_col_versions){
+      bool is_metadata_table_ = table_->GetName().substr(0,3) == "pg_"; //don't do any of the Pequin features for meta data tables..
+    //UW_ASSERT(!is_metadata_table_);
+    if (!current_txn->IsPointRead() && current_txn->CheckPredicatesInitialized() && !is_metadata_table_) {
+      std::cerr << "Read Table/Col versions" << std::endl;
+      // Read table version and table col versions
+      current_txn->GetTableVersion()(table_->GetName(), current_txn_timestamp, current_txn->GetHasReadSetMgr(), query_read_set_mgr, current_txn->GetHasSnapshotMgr(), current_txn->GetSnapshotMgr());
+      // Table column version : FIXME: Read version per Col, not composite key
+      std::unordered_set<std::string> column_names;
+      //std::vector<std::string> col_names;
+      GetColNames(predicate_, column_names);
+      if(predicate_ != nullptr) std::cerr << "pred: " << predicate_->GetInfo() << std::endl;
+
+      for (auto &col : column_names) {
+        std::cout << "Col name is " << col << std::endl;
+        current_txn->GetTableVersion()(EncodeTableCol(table_->GetName(), col), current_txn_timestamp, current_txn->GetHasReadSetMgr(), query_read_set_mgr, current_txn->GetHasSnapshotMgr(), current_txn->GetSnapshotMgr());
+        //col_names.push_back(col);
+      }
+
+      // std::string encoded_key = EncodeTableRow(table_->GetName(), col_names);
+      // std::cout << "Encoded key is " << encoded_key << std::endl;
+      // current_txn->GetTableVersion()(encoded_key, current_txn_timestamp, true, query_read_set_mgr, nullptr);
+    }
+  }
+  already_added_table_col_versions = true;
 }
 
 bool IndexScanExecutor::ExecPrimaryIndexLookup() {    
@@ -205,27 +246,7 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
   auto query_read_set_mgr = current_txn->GetQueryReadSetMgr();
   auto const &current_txn_timestamp = current_txn->GetBasilTimestamp();
 
-   bool is_metadata_table_ = table_->GetName().substr(0,3) == "pg_"; //don't do any of the Pequin features for meta data tables..
-  //UW_ASSERT(!is_metadata_table_);
-  if (!current_txn->IsPointRead() && current_txn->CheckPredicatesInitialized() && !is_metadata_table_) {
-    // Read table version and table col versions
-    current_txn->GetTableVersion()(table_->GetName(), current_txn_timestamp, current_txn->GetHasReadSetMgr(), query_read_set_mgr, current_txn->GetHasSnapshotMgr(), current_txn->GetSnapshotMgr());
-    // Table column version : FIXME: Read version per Col, not composite key
-    std::unordered_set<std::string> column_names;
-    //std::vector<std::string> col_names;
-    GetColNames(predicate_, column_names);
-    if(predicate_ != nullptr) std::cerr << "pred: " << predicate_->GetInfo() << std::endl;
-
-    for (auto &col : column_names) {
-      std::cout << "Col name is " << col << std::endl;
-      current_txn->GetTableVersion()(EncodeTableCol(table_->GetName(), col), current_txn_timestamp, current_txn->GetHasReadSetMgr(), query_read_set_mgr, current_txn->GetHasSnapshotMgr(), current_txn->GetSnapshotMgr());
-      //col_names.push_back(col);
-    }
-
-    // std::string encoded_key = EncodeTableRow(table_->GetName(), col_names);
-    // std::cout << "Encoded key is " << encoded_key << std::endl;
-    // current_txn->GetTableVersion()(encoded_key, current_txn_timestamp, true, query_read_set_mgr, nullptr);
-  }
+  SetTableColVersions(current_txn, query_read_set_mgr, current_txn_timestamp);
   ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
   std::vector<ItemPointer *> tuple_location_ptrs;
@@ -293,7 +314,9 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
   //if(tuple_location_ptrs.size() > 150) Panic("doing full scan");
   if(current_txn->IsPointRead()) UW_ASSERT(tuple_location_ptrs.size() == 1);
   // for every tuple that is found in the index.
+  //int cnt= 0;
   for (auto tuple_location_ptr : tuple_location_ptrs) {
+    //std::cerr << "check row: " << cnt++ << std::endl;
     CheckRow(*tuple_location_ptr, transaction_manager, current_txn, storage_manager, visible_tuple_locations, visible_tuple_set);
   }
 
@@ -808,7 +831,6 @@ void IndexScanExecutor::EvalRead(std::shared_ptr<storage::TileGroup> tile_group,
     std::vector<ItemPointer> &visible_tuple_locations, concurrency::TransactionContext *current_txn, bool use_secondary_index){
     //Eval should be called on the latest readable version. Note: For point reads we will call this up to twice (for prepared & committed)
   
-
   bool eval = true;
 
   if (tile_group_header->IsDeleted(tuple_location.offset)) {
@@ -1770,28 +1792,7 @@ bool IndexScanExecutor::ExecSecondaryIndexLookup() {
   auto query_read_set_mgr = current_txn->GetQueryReadSetMgr();
   auto const &current_txn_timestamp = current_txn->GetBasilTimestamp();
 
-   bool is_metadata_table_ = table_->GetName().substr(0,3) == "pg_"; //don't do any of the Pequin features for meta data tables..
-   //UW_ASSERT(!is_metadata_table_);
-  if (!current_txn->IsPointRead() && current_txn->CheckPredicatesInitialized() && !is_metadata_table_){ 
-    std::cerr << "Read Table/Col versions" << std::endl;
-    // Read table version and table col versions
-    current_txn->GetTableVersion()(table_->GetName(), current_txn_timestamp, current_txn->GetHasReadSetMgr(), query_read_set_mgr, current_txn->GetHasSnapshotMgr(), current_txn->GetSnapshotMgr());
-    // Table column version : FIXME: Read version per Col, not composite key
-    std::unordered_set<std::string> column_names;
-    //std::vector<std::string> col_names;
-    GetColNames(predicate_, column_names); 
-
-    //Get the Versions of all Columns that are Indexed. I.e. all versions that impact what we end up reading.
-    for (auto &col : column_names) {
-      std::cout << "Col name is " << col << std::endl;
-      current_txn->GetTableVersion()(EncodeTableCol(table_->GetName(), col), current_txn_timestamp, current_txn->GetHasReadSetMgr(), query_read_set_mgr, current_txn->GetHasSnapshotMgr(), current_txn->GetSnapshotMgr());
-      //col_names.push_back(col);
-    }
-
-    // std::string encoded_key = EncodeTableRow(table_->GetName(), col_names);
-    // std::cout << "Encoded key is " << encoded_key << std::endl;
-    // current_txn->GetTableVersion()(encoded_key, current_txn_timestamp, true, query_read_set_mgr, nullptr);
-  }
+  SetTableColVersions(current_txn, query_read_set_mgr, current_txn_timestamp);
   ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 
@@ -2069,6 +2070,7 @@ void IndexScanExecutor::UpdatePredicate(
   std::vector<oid_t> key_column_ids;
 
   std::cerr << "UPDATING INDEX SCAN PREDICATE" << std::endl;
+  
 
   PELOTON_ASSERT(column_ids.size() <= column_ids_.size());
   // Get the real physical ids
@@ -2077,6 +2079,8 @@ void IndexScanExecutor::UpdatePredicate(
 
     LOG_TRACE("Output id is %d---physical column id is %d", column_id, column_ids_[column_id]);
   }
+
+  updated_column_ids = key_column_ids;
 
   // Update values in index plan node
   PELOTON_ASSERT(key_column_ids.size() == values.size());
