@@ -176,7 +176,10 @@ void Server::Execute_Callback(const string& type, const string& msg, const execu
     Debug("Attempt query %s", sql_rpc.query());
     std::cout << sql_rpc.query() << std::endl;
 
+    std::cerr<< "Shir: Before executing tr->execute (2)\n";
     const auto sql_res = tr->execute(sql_rpc.query());
+    std::cerr<< "Shir: After executing tr->execute (2)\n";
+
     // std::cerr<< "Shir: number of rows affected (according to server):   "<<sql_res.rows_affected() <<"\n";
 
 

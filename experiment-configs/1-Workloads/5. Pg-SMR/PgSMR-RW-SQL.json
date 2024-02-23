@@ -15,12 +15,18 @@
 
   "server_load_time": 10,
   "client_num_keys": 10000000,
+  "benchmark_type": "sql_bench", 
   "benchmark_name": "rw-sql",
   "client_zipf_coefficient": 0.75,   
   "client_key_selector": "zipf",
   "rw_num_ops_txn": 2,
   "sql_bench": true,
-  "data_file_path": "0_local_test_outputs/rw-sql/rw-sql.json",
+  "benchmark_schema_file_path": "/usr/local/etc/rw-sql.json",
+  "num_tables": 1,
+  "num_keys_per_table": 10,
+  "max_range": 3,
+  "read_only": "false",
+
 
 
   "client_abort_backoff": 2,
@@ -71,7 +77,7 @@
   ],
 
   "client_total": [
-    [ 85]
+    [ 2]
   ],
   "client_processes_per_client_node": [
     [8]

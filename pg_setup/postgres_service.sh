@@ -141,6 +141,7 @@ else
         su - $USER -c "echo \"SELECT 'CREATE DATABASE db$i' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'db$i')\gexec\" | psql"
         su - $USER -c "echo \"GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO pequin_user\" | psql -d db$i"
         su - $USER -c "echo \"alter default privileges in schema public grant all on tables to pequin_user; alter default privileges in schema public grant all on sequences to pequin_user;\" | psql -d db$i"
+        su - $USER -c "echo \"ALTER DATABASE db$i SET DEFAULT_TRANSACTION_ISOLATION TO SERIALIZABLE ;\" | psql -d db$i"
     done
 
 fi

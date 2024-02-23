@@ -13,12 +13,16 @@ namespace hotstuffstore {
         std::cout << "############# HotStuff Interface Proposed #############" << std::endl;
     }
 
-    IndicusInterface::IndicusInterface(int shardId, int replicaId, int cpuId):
-        shardId(shardId), replicaId(replicaId), cpuId(cpuId)
+    IndicusInterface::IndicusInterface(int shardId, int replicaId, int cpuId, bool local_config):
+        shardId(shardId), replicaId(replicaId), cpuId(cpuId), local_config(local_config)
     {
 
         hotstuff::hotstuff_core_offset = (cpuId + 4) % 8;
 
+        string config_dir_base = REMOTE_CONFIG_DIR;
+        if (local_config){
+            config_dir_base = LOCAL_CONFIG_DIR;
+        }
 
         string config_dir = config_dir_base + "shard" + std::to_string(shardId) + "/";
 

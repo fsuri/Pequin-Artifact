@@ -186,6 +186,7 @@ void ShardClient::HandleSQL_RPCReply(const proto::SQL_RPCReply& reply, const pro
     std::cerr <<"Shir: Is signed messages?:  "<< signMessages <<"\n";
     if(!signMessages || deterministic) { // This is for a fault tolerant system, curently we only look for the leader's opinion (only works in signed system)
       Debug("Shir: 999");
+      Panic("Deterministic solution is currently not supported because of postgres blocking queries");
       if(pendingSQL_RPC->receivedReplies[reply.sql_res()].size() 
           >= (uint64_t) config.f + 1) {
         SQL_RPCReplyHelper(pendingSQL_RPC, reply.sql_res(), reqId, pendingSQL_RPC->status);
@@ -194,7 +195,7 @@ void ShardClient::HandleSQL_RPCReply(const proto::SQL_RPCReply& reply, const pro
         SQL_RPCReplyHelper(pendingSQL_RPC, reply.sql_res(), reqId, REPLY_FAIL);
       }
     } else {
-      Debug("Shir: 101010");
+      Debug("Shir: 101010"); // not deterministic
       if(pendingSQL_RPC->receivedSuccesses.size() >= (uint64_t) config.f + 1 && 
           pendingSQL_RPC->receivedSuccesses.find(0) != pendingSQL_RPC->receivedSuccesses.end()) {
         SQL_RPCReplyHelper(pendingSQL_RPC, pendingSQL_RPC->leaderReply, reqId, pendingSQL_RPC->status);

@@ -427,6 +427,8 @@ DEFINE_string(stats_file, "", "path to file for server stats");
 
 DEFINE_bool(store_mode, true, "true => Runs Table-store + CC-store (SQL); false => Runs pure KV-store");
 
+DEFINE_bool(local_config, true, "this flag determinse whether to use local or remote config directory");
+
 /**
  * Benchmark settings.
  */
@@ -865,7 +867,7 @@ int main(int argc, char **argv) {
                                        FLAGS_pbft_esig_batch, FLAGS_pbft_esig_batch_timeout,
                                        FLAGS_indicus_use_coordinator, FLAGS_indicus_request_tx,
 
-             protocol_cpu, FLAGS_num_shards, tport, FLAGS_async_server);
+             protocol_cpu, FLAGS_local_config, FLAGS_num_shards, tport, FLAGS_async_server);
 
       break;
   }
