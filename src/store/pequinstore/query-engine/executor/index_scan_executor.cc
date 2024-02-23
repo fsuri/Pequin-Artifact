@@ -22,6 +22,11 @@
 #include "../executor/logical_tile.h"
 #include "../executor/logical_tile_factory.h"
 #include "../expression/abstract_expression.h"
+
+#include "../expression/comparison_expression.h"
+#include "../expression/conjunction_expression.h"
+#include "../expression/constant_value_expression.h"
+
 #include "../expression/tuple_value_expression.h"
 #include "../index/index.h"
 #include "../planner/index_scan_plan.h"
@@ -77,6 +82,8 @@ bool IndexScanExecutor::DInit() {
   values_ = node.GetValues();
   runtime_keys_ = node.GetRunTimeKeys();
   predicate_ = node.GetPredicate();
+  old_predicate_ = predicate_;
+
   left_open_ = node.GetLeftOpen();
   right_open_ = node.GetRightOpen();
 
@@ -207,6 +214,7 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
     std::unordered_set<std::string> column_names;
     //std::vector<std::string> col_names;
     GetColNames(predicate_, column_names);
+    if(predicate_ != nullptr) std::cerr << "pred: " << predicate_->GetInfo() << std::endl;
 
     for (auto &col : column_names) {
       std::cout << "Col name is " << col << std::endl;
@@ -460,6 +468,7 @@ void IndexScanExecutor::CheckRow(ItemPointer tuple_location, concurrency::Transa
 
     //fprintf(stderr, "First tuple in row: Looking at Tuple at location [%lu:%lu] with TS: [%lu:%lu] \n", tuple_location.block, tuple_location.offset, tuple_timestamp.getTimestamp(), tuple_timestamp.getID());
       
+    bool is_metadata_table_ = table_->GetName().substr(0,3) == "pg_"; //don't do any of the Pequin features for meta data tables..
 
     while(!done){
       ++chain_length;
@@ -467,13 +476,14 @@ void IndexScanExecutor::CheckRow(ItemPointer tuple_location, concurrency::Transa
       auto tuple_timestamp = tile_group_header->GetBasilTimestamp(tuple_location.offset);
       Debug("Looking at Tuple at location [%lu:%lu] with TS: [%lu:%lu]", tuple_location.block, tuple_location.offset, tuple_timestamp.getTimestamp(), tuple_timestamp.getID());
 
-      if (timestamp >= tuple_timestamp) {
+      if (timestamp >= tuple_timestamp || is_metadata_table_) {
         // Within range of timestamp
         bool read_curr_version = false;
         done = FindRightRowVersion(timestamp, tile_group, tile_group_header, tuple_location, num_iters, current_txn, read_curr_version, found_committed, found_prepared); 
 
+        UW_ASSERT(!is_metadata_table_ || read_curr_version);
         //Eval should be called on the latest readable version. Note: For point reads we will call this up to twice (for prepared & committed)
-        if(read_curr_version && !snapshot_only_mode){
+        if(read_curr_version && (!snapshot_only_mode || is_metadata_table_)){
           //std::cerr << "num_reads: " << num_reads << std::endl;
           UW_ASSERT(++num_reads <= max_num_reads); //Assert we are not reading more than 1 for scans, and no more than 2 for point
           EvalRead(tile_group, tile_group_header, tuple_location, visible_tuple_locations, current_txn, use_secondary_index);  //TODO: might be more elegant to move this into FindRightRowVersion
@@ -854,6 +864,9 @@ void IndexScanExecutor::EvalRead(std::shared_ptr<storage::TileGroup> tile_group,
 //Mark the PointRead value as having failed the predicate. Distinguish between it being a deletion and predicate failure.
 void IndexScanExecutor::RefinePointRead(concurrency::TransactionContext *current_txn, storage::TileGroupHeader *tile_group_header, ItemPointer tuple_location, bool eval){
   
+   bool is_metadata_table_ = table_->GetName().substr(0,3) == "pg_"; //don't do any of the Pequin features for meta data tables..
+   if(is_metadata_table_) return;
+
   //if we called SetPointRead while the tuple was prepared, but by the time we call RefinePointRead the tuple is marked as Committed, then still treat it as prepare here.
         //otherwise we could have a weird non-atomic state, in which we set commit_val, even though it shouldn't be; and we don't set prepared_val, even though it should be.
   //To figure out whether the current tuple *was* prepared, we check whether a) the tuple is currently commit, b) whether or not we've previously set a txn_digest
@@ -2045,10 +2058,8 @@ bool IndexScanExecutor::CheckKeyConditions(const ItemPointer &tuple_location) {
   return true;
 }
 
-// column_ids is the right predicate column id. For example,
-// i_id = s_id, then s_id is column_ids
-// But the passing value is the result (output) id. We need to transform it to
-// physical id
+// column_ids is the right predicate column id. For example, i_id = s_id, then s_id is column_ids
+// But the passing value is the result (output) id. We need to transform it to physical id
 void IndexScanExecutor::UpdatePredicate(
     const std::vector<oid_t> &column_ids,
     const std::vector<type::Value> &values) {
@@ -2057,13 +2068,14 @@ void IndexScanExecutor::UpdatePredicate(
 
   std::vector<oid_t> key_column_ids;
 
+  std::cerr << "UPDATING INDEX SCAN PREDICATE" << std::endl;
+
   PELOTON_ASSERT(column_ids.size() <= column_ids_.size());
   // Get the real physical ids
   for (auto column_id : column_ids) {
     key_column_ids.push_back(column_ids_[column_id]);
 
-    LOG_TRACE("Output id is %d---physical column id is %d", column_id,
-              column_ids_[column_id]);
+    LOG_TRACE("Output id is %d---physical column id is %d", column_id, column_ids_[column_id]);
   }
 
   // Update values in index plan node
@@ -2075,29 +2087,24 @@ void IndexScanExecutor::UpdatePredicate(
     unsigned int current_idx = 0;
     for (; current_idx < values_.size(); current_idx++) {
       if (key_column_ids[new_idx] == key_column_ids_[current_idx]) {
-        LOG_TRACE("Orignial is %d:%s", key_column_ids[new_idx],
-                  values_[current_idx].GetInfo().c_str());
-        LOG_TRACE("Changed to %d:%s", key_column_ids[new_idx],
-                  values[new_idx].GetInfo().c_str());
+      
+         fprintf(stderr, "Orignial is %d:%s", key_column_ids[new_idx], values_[current_idx].GetInfo().c_str());
+          fprintf(stderr, "Changed to %d:%s", key_column_ids[new_idx], values[new_idx].GetInfo().c_str());
+        LOG_TRACE("Orignial is %d:%s", key_column_ids[new_idx], values_[current_idx].GetInfo().c_str());
+        LOG_TRACE("Changed to %d:%s", key_column_ids[new_idx], values[new_idx].GetInfo().c_str());
         values_[current_idx] = values[new_idx];
 
-        // There should not be two same columns. So when we find a column, we
-        // should break the loop
+        // There should not be two same columns. So when we find a column, we should break the loop
         break;
       }
     }
 
     // If new value doesn't exist in current value list, add it.
-    // For the current simple optimizer, since all the key column ids must be
-    // initiated when creating index_scan_plan, we don't need to examine
-    // whether
-    // the passing column and value exist or not (they definitely exist). But
-    // for the future optimizer, we probably change the logic. So we still
-    // keep
-    // the examine code here.
+    // For the current simple optimizer, since all the key column ids must be initiated when creating index_scan_plan, 
+    // we don't need to examine whether the passing column and value exist or not (they definitely exist). 
+    //But for the future optimizer, we probably change the logic. So we still keep the examine code here.
     if (current_idx == values_.size()) {
-      LOG_TRACE("Add new column for index predicate:%u-%s",
-                key_column_ids[new_idx], values[new_idx].GetInfo().c_str());
+      LOG_TRACE("Add new column for index predicate:%u-%s", key_column_ids[new_idx], values[new_idx].GetInfo().c_str());
 
       // Add value
       values_.push_back(values[new_idx]);
@@ -2111,9 +2118,64 @@ void IndexScanExecutor::UpdatePredicate(
     }
   }
 
+  for(int i = 0; i<key_column_ids.size(); ++i){
+     std::cerr << "col name: " << table_->GetSchema()->GetColumn(key_column_ids[i]).GetName()  << ". val: " << values[i] << std::endl;
+  }
+
+  //index_predicate_.GetConjunctionListToSetup()[0].
   // Update the new value
-  index_predicate_.GetConjunctionListToSetup()[0].SetTupleColumnValue(
-      index_.get(), key_column_ids, values);
+  index_predicate_.GetConjunctionListToSetup()[0].SetTupleColumnValue(index_.get(), key_column_ids, values);
+
+
+  // expression::AbstractExpression *new_predicate = values.size() != 0 ? ColumnsValuesToExpr(column_ids, values, 0) : nullptr;
+
+  //   // combine with original predicate
+  // if (old_predicate_ != nullptr) {
+  //   expression::AbstractExpression *lexpr = new_predicate, *rexpr = old_predicate_->Copy();
+
+  //   new_predicate = new expression::ConjunctionExpression(ExpressionType::CONJUNCTION_AND, lexpr, rexpr);
+  // }
+
+  // // Currently a hack that prevent memory leak we should eventually make prediate_ a unique_ptr
+  // new_predicate_.reset(new_predicate);
+  // predicate_ = new_predicate;
+
+  // std::cerr << "new pred: " << new_predicate->GetInfo() << std::endl;
+
+
+}
+
+
+// Transfer a list of equality predicate to a expression tree
+expression::AbstractExpression *IndexScanExecutor::ColumnsValuesToExpr(
+    const std::vector<oid_t> &predicate_column_ids,
+    const std::vector<type::Value> &values, size_t idx) 
+{
+  if (idx + 1 == predicate_column_ids.size())
+    return ColumnValueToCmpExpr(predicate_column_ids[idx], values[idx]);
+
+  // recursively build the expression tree
+  expression::AbstractExpression *lexpr = ColumnValueToCmpExpr(predicate_column_ids[idx], values[idx]),
+                                 *rexpr = ColumnsValuesToExpr(predicate_column_ids, values, idx + 1);
+
+  expression::AbstractExpression *root_expr = new expression::ConjunctionExpression(ExpressionType::CONJUNCTION_AND, lexpr, rexpr);
+
+  root_expr->DeduceExpressionType();
+  return root_expr;
+}
+
+expression::AbstractExpression * IndexScanExecutor::ColumnValueToCmpExpr(const oid_t column_id, const type::Value &value) {
+  expression::AbstractExpression *lexpr = new expression::TupleValueExpression("");
+  reinterpret_cast<expression::TupleValueExpression *>(lexpr)->SetValueType(table_->GetSchema()->GetColumn(column_id).GetType());
+  reinterpret_cast<expression::TupleValueExpression *>(lexpr)->SetValueIdx(column_id);
+  reinterpret_cast<expression::TupleValueExpression *>(lexpr)->SetColName(table_->GetSchema()->GetColumn(column_id).GetName());
+
+  expression::AbstractExpression *rexpr = new expression::ConstantValueExpression(value);
+
+  expression::AbstractExpression *root_expr = new expression::ComparisonExpression(ExpressionType::COMPARE_EQUAL, lexpr, rexpr);
+
+  root_expr->DeduceExpressionType();
+  return root_expr;
 }
 
 void IndexScanExecutor::ResetState() {

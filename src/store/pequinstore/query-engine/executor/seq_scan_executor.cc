@@ -359,8 +359,8 @@ void SeqScanExecutor::Scan() {
       if(predicate_ != nullptr) std::cerr << "pred: " << predicate_->GetInfo() << std::endl;
 
       for (auto &col : column_names) {
-        std::cerr << "extracted col: " << std::endl;
-        //current_txn->GetTableVersion()(EncodeTableCol(target_table_->GetName(), col), current_txn_timestamp, current_txn->GetHasReadSetMgr(), query_read_set_mgr, current_txn->GetHasSnapshotMgr(), current_txn->GetSnapshotMgr());
+        std::cerr << "extracted col: " << col <<  std::endl;
+        current_txn->GetTableVersion()(EncodeTableCol(target_table_->GetName(), col), current_txn_timestamp, current_txn->GetHasReadSetMgr(), query_read_set_mgr, current_txn->GetHasSnapshotMgr(), current_txn->GetSnapshotMgr());
       }
     }
   }
@@ -1068,79 +1068,59 @@ bool SeqScanExecutor::DExecute() {
   return false;
 }
 
-// Update Predicate expression
-// this is used in the NLJoin executor
+// Update Predicate expression this is used in the NLJoin executor
 void SeqScanExecutor::UpdatePredicate(const std::vector<oid_t> &column_ids,
                                       const std::vector<type::Value> &values) {
   std::vector<oid_t> predicate_column_ids;
 
   PELOTON_ASSERT(column_ids.size() <= column_ids_.size());
 
-  // columns_ids is the column id
-  // in the join executor, should
-  // convert to the column id in the
-  // seq scan executor
+  // columns_ids is the column id in the join executor, should convert to the column id in the seq scan executor
   for (auto column_id : column_ids) {
     predicate_column_ids.push_back(column_ids_[column_id]);
   }
 
-  expression::AbstractExpression *new_predicate =
-      values.size() != 0 ? ColumnsValuesToExpr(predicate_column_ids, values, 0)
-                         : nullptr;
+  expression::AbstractExpression *new_predicate = values.size() != 0 ? ColumnsValuesToExpr(predicate_column_ids, values, 0) : nullptr;
 
   // combine with original predicate
   if (old_predicate_ != nullptr) {
-    expression::AbstractExpression *lexpr = new_predicate,
-                                   *rexpr = old_predicate_->Copy();
+    expression::AbstractExpression *lexpr = new_predicate, *rexpr = old_predicate_->Copy();
 
-    new_predicate = new expression::ConjunctionExpression(
-        ExpressionType::CONJUNCTION_AND, lexpr, rexpr);
+    new_predicate = new expression::ConjunctionExpression(ExpressionType::CONJUNCTION_AND, lexpr, rexpr);
   }
 
-  // Currently a hack that prevent memory leak
-  // we should eventually make prediate_ a unique_ptr
+  // Currently a hack that prevent memory leak we should eventually make prediate_ a unique_ptr
   new_predicate_.reset(new_predicate);
   predicate_ = new_predicate;
 }
 
-// Transfer a list of equality predicate
-// to a expression tree
+// Transfer a list of equality predicate to a expression tree
 expression::AbstractExpression *SeqScanExecutor::ColumnsValuesToExpr(
     const std::vector<oid_t> &predicate_column_ids,
-    const std::vector<type::Value> &values, size_t idx) {
+    const std::vector<type::Value> &values, size_t idx) 
+{
   if (idx + 1 == predicate_column_ids.size())
     return ColumnValueToCmpExpr(predicate_column_ids[idx], values[idx]);
 
   // recursively build the expression tree
-  expression::AbstractExpression *lexpr = ColumnValueToCmpExpr(
-                                     predicate_column_ids[idx], values[idx]),
-                                 *rexpr = ColumnsValuesToExpr(
-                                     predicate_column_ids, values, idx + 1);
+  expression::AbstractExpression *lexpr = ColumnValueToCmpExpr(predicate_column_ids[idx], values[idx]),
+                                 *rexpr = ColumnsValuesToExpr(predicate_column_ids, values, idx + 1);
 
-  expression::AbstractExpression *root_expr =
-      new expression::ConjunctionExpression(ExpressionType::CONJUNCTION_AND,
-                                            lexpr, rexpr);
+  expression::AbstractExpression *root_expr = new expression::ConjunctionExpression(ExpressionType::CONJUNCTION_AND, lexpr, rexpr);
 
   root_expr->DeduceExpressionType();
   return root_expr;
 }
 
-expression::AbstractExpression *
-SeqScanExecutor::ColumnValueToCmpExpr(const oid_t column_id,
-                                      const type::Value &value) {
-  expression::AbstractExpression *lexpr =
-      new expression::TupleValueExpression("");
-  reinterpret_cast<expression::TupleValueExpression *>(lexpr)->SetValueType(
-      target_table_->GetSchema()->GetColumn(column_id).GetType());
-  reinterpret_cast<expression::TupleValueExpression *>(lexpr)->SetValueIdx(
-      column_id);
+expression::AbstractExpression * SeqScanExecutor::ColumnValueToCmpExpr(const oid_t column_id, const type::Value &value) {
+  expression::AbstractExpression *lexpr = new expression::TupleValueExpression("");
+  reinterpret_cast<expression::TupleValueExpression *>(lexpr)->SetValueType(target_table_->GetSchema()->GetColumn(column_id).GetType());
+  reinterpret_cast<expression::TupleValueExpression *>(lexpr)->SetValueIdx(column_id);
+  reinterpret_cast<expression::TupleValueExpression *>(lexpr)->SetColName(target_table_->GetSchema()->GetColumn(column_id).GetName());
 
-  expression::AbstractExpression *rexpr =
-      new expression::ConstantValueExpression(value);
+  expression::AbstractExpression *rexpr = new expression::ConstantValueExpression(value);
 
-  expression::AbstractExpression *root_expr =
-      new expression::ComparisonExpression(ExpressionType::COMPARE_EQUAL, lexpr,
-                                           rexpr);
+  expression::AbstractExpression *root_expr = new expression::ComparisonExpression(ExpressionType::COMPARE_EQUAL, lexpr, rexpr);
 
   root_expr->DeduceExpressionType();
   return root_expr;

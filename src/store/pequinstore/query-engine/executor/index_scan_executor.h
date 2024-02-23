@@ -60,6 +60,17 @@ class IndexScanExecutor : public AbstractScanExecutor {
   void GetColNames(const expression::AbstractExpression * child_expr, std::unordered_set<std::string> &column_names);
 
  private:
+    //===--------------------------------------------------------------------===//
+  // Helper Functions
+  //===--------------------------------------------------------------------===//
+
+  expression::AbstractExpression *
+  ColumnsValuesToExpr(const std::vector<oid_t> &predicate_column_ids,
+                      const std::vector<type::Value> &values, size_t idx);
+
+  expression::AbstractExpression *
+  ColumnValueToCmpExpr(const oid_t column_id, const type::Value &value);
+    
   //===--------------------------------------------------------------------===//
   // Helper
   //===--------------------------------------------------------------------===//
@@ -119,6 +130,14 @@ class IndexScanExecutor : public AbstractScanExecutor {
 
   // the underlying table that the index is for
   storage::DataTable *table_ = nullptr;
+
+  // TODO make predicate_ a unique_ptr
+  // this is a hack that prevents memory leak
+  std::unique_ptr<expression::AbstractExpression> new_predicate_ = nullptr;
+
+   // The original predicate, if it's not nullptr
+  // we need to combine it with the undated predicate
+  const expression::AbstractExpression *old_predicate_;
 
   // columns to be returned as results
   std::vector<oid_t> column_ids_;

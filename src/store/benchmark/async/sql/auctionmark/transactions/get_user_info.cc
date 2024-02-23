@@ -92,11 +92,11 @@ transaction_status_t GetUserInfo::Execute(SyncClient &client) {
     client.Query(statement, queryResult, timeout);
   }
  
-  if(get_comments){
+  if(true || get_comments){
     //getItemComments    //ITEM_COL_STR: "i_id, i_u_id, i_name, i_current_price, i_num_bids, i_end_date, i_status";
      std::cerr << "getItemComments" << std::endl;
     statement = fmt::format("SELECT {}, ic_id, ic_i_id, ic_u_id, ic_buyer_id, ic_question, ic_created FROM {}, {} "
-                            "WHERE i_u_id = '{}' AND i_status = {} AND i_id = ic_i_id AND i_u_id = ic_u_id AND ic_response IS NULL " 
+                            "WHERE i_u_id = '{}' AND i_status = {} AND i_id = ic_i_id AND i_u_id = ic_u_id AND ic_response != '' " 
                             "ORDER BY ic_created DESC LIMIT 25", 
                             ITEM_COLUMNS_STR, TABLE_ITEM, TABLE_ITEM_COMMENT, user_id, ItemStatus::OPEN);
     client.Query(statement, queryResult, timeout);
@@ -112,7 +112,7 @@ transaction_status_t GetUserInfo::Execute(SyncClient &client) {
       ItemCommentResponse cr(commentId, itemId, sellerId);
       profile.add_pending_item_comment_response(cr);
     }
-   
+   Panic("stop after sell");
   }
 
   if(get_seller_items){

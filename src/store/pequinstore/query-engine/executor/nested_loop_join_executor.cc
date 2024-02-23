@@ -84,8 +84,7 @@ bool NestedLoopJoinExecutor::DExecute() {
    std::cerr << "NestedLoop Join executor is running" << std::endl;
 
   // Grab info from plan node and check it
-  const planner::NestedLoopJoinPlan &node =
-      GetPlanNode<planner::NestedLoopJoinPlan>();
+  const planner::NestedLoopJoinPlan &node = GetPlanNode<planner::NestedLoopJoinPlan>();
 
   // Pick out the left and right columns
   const std::vector<oid_t> &join_column_ids_left = node.GetJoinColumnsLeft();
@@ -109,8 +108,7 @@ bool NestedLoopJoinExecutor::DExecute() {
     // If left tile result is not done, continue the left tuples
     if (!left_tile_done_) {
       // Tuple result
-      ContainerTuple<executor::LogicalTile> left_tuple(left_tile_.get(),
-                                                       left_tile_row_itr_);
+      ContainerTuple<executor::LogicalTile> left_tuple(left_tile_.get(), left_tile_row_itr_);
 
       // Grab the values
       if (!join_column_ids_left.empty() && !join_column_ids_right.empty()) {
@@ -133,12 +131,10 @@ bool NestedLoopJoinExecutor::DExecute() {
         PELOTON_ASSERT(right_tile != nullptr);
 
         // Construct output result
-        auto output_tile =
-            BuildOutputLogicalTile(left_tile_.get(), right_tile.get());
+        auto output_tile = BuildOutputLogicalTile(left_tile_.get(), right_tile.get());
 
         // Build position list
-        LogicalTile::PositionListsBuilder pos_lists_builder(left_tile_.get(),
-                                                            right_tile.get());
+        LogicalTile::PositionListsBuilder pos_lists_builder(left_tile_.get(), right_tile.get());
 
         // Go over every pair of tuples in left and right logical tiles
         for (auto right_tile_row_itr : *right_tile) {

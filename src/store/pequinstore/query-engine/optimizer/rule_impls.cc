@@ -407,8 +407,11 @@ void GetToIndexScan::Transform(
            }
         }
       }
+
+      std::cerr << "is primary? " << is_primary_index << ". min_distance: " << min_distance << std::endl;
       //If index fully covers the condition. //Give preference to primary key.
       if(index_key_column_id_list.size() == index_col_set.size()) min_distance = is_primary_index? -2 : -1;
+      std::cerr << "is primary? " << is_primary_index << ". min_distance (if match): " << min_distance << std::endl;
       
        if (min_distance < closest_index || (min_distance == closest_index && index_key_column_id_list.size() > max_num_matching_cols )){
         auto index_scan_op = PhysicalIndexScan::make(
