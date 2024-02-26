@@ -136,24 +136,27 @@ transaction_status_t NewBid::Execute(SyncClient &client) {
 
      //getMaxBidId:  // Get the next ITEM_BID id for this item
     statement = fmt::format("SELECT MAX(ib_id) FROM {} WHERE ib_i_id = '{}' AND ib_u_id = '{}'", TABLE_ITEM_BID, item_id, seller_id);
-    client.Query(statement, queryResult, timeout);
+    client.Query(statement, timeout);
 
-    deserialize(newBidId, queryResult);
-    ++newBidId;
 
     // Get the current max bid record for this item
 
     //getItemMaxBid
-    statement = fmt::format("SELECT imb_ib_id, ib_bid, ib_max_bid, ib_buyer_id FROM {}, {} "
+     statement = fmt::format("SELECT imb_ib_id, ib_bid, ib_max_bid, ib_buyer_id FROM {}, {} "
         "WHERE imb_i_id = '{}' AND imb_u_id = '{}' " 
         "AND imb_ib_id = ib_id AND ib_i_id = '{}' AND ib_u_id = '{}' " //because imb_i_id == imb_ib_i_id and imb_u_id == imb_ib_u_id
         //"AND imb_ib_id = ib_id AND imb_ib_i_id = ib_i_id AND imb_ib_u_id = ib_u_id",
         "AND ib_id = ib_id", //ADDED REFLEXIVE ARG FOR PELOTON PARSING. TODO: AUTOMATE THIS IN SQL_INTERPRETER 
         TABLE_ITEM_MAX_BID, TABLE_ITEM_BID, item_id, seller_id, item_id, seller_id); // add redundancy.
-    client.Query(statement, queryResult, timeout);
+    client.Query(statement, timeout);
+   
+    client.Wait(results);
+
+    deserialize(newBidId, results[0]);
+    ++newBidId;
 
     getItemMaxBidRow imbr;
-    deserialize(imbr, queryResult);
+    deserialize(imbr, results[1]);
 
     bool updateMaxBid = false;
     // Check whether this bidder is already the max bidder
@@ -168,7 +171,7 @@ transaction_status_t NewBid::Execute(SyncClient &client) {
        //updateBid
       statement = fmt::format("UPDATE {} SET ib_bid = {}, ib_max_bid = {}, ib_updated = {} "
                               " WHERE ib_id = {} AND ib_i_id = '{}' AND ib_u_id = '{}'", TABLE_ITEM_BID, i_current_price, newBid, current_time, imbr.currentBidId, item_id, seller_id);
-      client.Write(statement, queryResult, timeout);
+      client.Write(statement, timeout);
 
       Debug("Increasing the max bid the highest bidder %s from %d to %d for Item %s", buyer_id, imbr.currentBidMax, newBid, item_id);
     }
@@ -190,16 +193,16 @@ transaction_status_t NewBid::Execute(SyncClient &client) {
             //updateBid
             statement = fmt::format("UPDATE {} SET ib_bid = {}, ib_max_bid = {}, ib_updated = {} "
                                     " WHERE ib_id = {} AND ib_i_id = '{}' AND ib_u_id = '{}'", TABLE_ITEM_BID, i_current_price, i_current_price, current_time, imbr.currentBidId, item_id, seller_id);
-            client.Write(statement, queryResult, timeout);
+            client.Write(statement, timeout);
             Debug("Keeping the existing highest bidder of Item %s as %s but updating current price from %d to %d", item_id, buyer_id, imbr.currentBidAmount, i_current_price);
         }
 
         // Always insert an new ITEM_BID record even if BuyerId doesn't become the new highest bidder. 
         // We also want to insert a new record even if the BuyerId already has ITEM_BID record, because we want to maintain the history of all the bid attempts
         //insertItemBid
-        statement = fmt::format("INSERT INTO {} (ib_i_id, ib_u_id, ib_id, ib_buyer_id, ib_bid, ib_max_bid, ib_created, ib_updated) "
+         statement = fmt::format("INSERT INTO {} (ib_i_id, ib_u_id, ib_id, ib_buyer_id, ib_bid, ib_max_bid, ib_created, ib_updated) "
                 "VALUES ('{}', '{}', {}, '{}', {}, {}, {}, {})", TABLE_ITEM_BID, item_id, seller_id, newBidId, buyer_id, i_current_price, newBid, current_time, current_time);
-        client.Write(statement, queryResult, timeout);
+        client.Write(statement, timeout);
 
         if(updateMaxBid){
             //updateItemMaxBid
@@ -208,26 +211,28 @@ transaction_status_t NewBid::Execute(SyncClient &client) {
                   "       imb_ib_u_id = {}, "
                   "       imb_updated = {} "
                   " WHERE imb_i_id = '{}' AND imb_u_id = '{}'", TABLE_ITEM_MAX_BID, newBidId, item_id, seller_id, current_time, item_id, seller_id);
-          client.Write(statement, queryResult, timeout);
+          client.Write(statement, timeout);
         }
     }
+    client.Wait(results);
   }
   else{ // There is no existing max bid record, therefore we can just insert ourselves
       //insertItemBid
-    statement = fmt::format("INSERT INTO {} (ib_i_id, ib_u_id, ib_id, ib_buyer_id, ib_bid, ib_max_bid, ib_created, ib_updated) "
+     statement = fmt::format("INSERT INTO {} (ib_i_id, ib_u_id, ib_id, ib_buyer_id, ib_bid, ib_max_bid, ib_created, ib_updated) "
             "VALUES ('{}', '{}', {}, '{}', {}, {}, {}, {})", TABLE_ITEM_BID, item_id, seller_id, newBidId, buyer_id, ir.i_initial_price, newBid, current_time, current_time);
-    client.Write(statement, queryResult, timeout);
+    client.Write(statement,  timeout);
 
     //insertItemMaxBid
     statement = fmt::format("INSERT INTO {} (imb_i_id, imb_u_id, imb_ib_id, imb_ib_i_id, imb_ib_u_id, imb_created, imb_updated) "
             "VALUES ('{}', '{}', {}, '{}', '{}', {}, {})", TABLE_ITEM_MAX_BID, item_id, seller_id, newBidId, item_id, seller_id, current_time, current_time);
-    client.Write(statement, queryResult, timeout);
+    client.Write(statement, timeout);
 
      //updateItem
     statement = fmt::format("UPDATE {} SET i_num_bids = i_num_bids + 1, i_current_price = {}, i_updated = {} WHERE i_id = '{}' AND i_u_id = '{}'", 
                               TABLE_ITEM, i_current_price, current_time, item_id, seller_id);
-    client.Write(statement, queryResult, timeout);
+    client.Write(statement, timeout); 
 
+    client.Wait(results); 
   }
  
    
