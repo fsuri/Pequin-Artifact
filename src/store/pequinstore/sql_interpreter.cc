@@ -156,7 +156,10 @@ bool SQLTransformer::InterpretQueryRange(const std::string &_query, std::string 
     
     table_name = std::move(static_cast<std::string>(query_statement.substr(0, where_pos)));
     //If query tries to read from multiple tables --> Cannot be point read. It is an implicit join. E.g. "Select * FROM table1, table2 WHERE"
-    if(size_t pos = table_name.find(","); pos != std::string::npos) return false;
+    if(size_t pos = table_name.find(","); pos != std::string::npos){
+        //TODO: Automatically add reflexive conditions.
+        return false;
+    } 
    
     std::string_view cond_statement = query_statement.substr(where_pos + where_hook.length()); // I.e. everything after WHERE
 

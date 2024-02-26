@@ -261,7 +261,7 @@ void GetToIndexScan::Transform(
   PELOTON_ASSERT(children.size() == 0);
 
    std::cerr << "TRANSFORM: Get to Index Scan" << std::endl;
-    std::cerr << "input: " << input->GetInfo() << std::endl;
+    //std::cerr << "input: " << input->GetInfo() << std::endl;
 
   const LogicalGet *get = input->Op().As<LogicalGet>();
 
@@ -324,12 +324,24 @@ void GetToIndexScan::Transform(
       expression::AbstractExpression *tv_expr = nullptr;
       expression::AbstractExpression *value_expr = nullptr;
 
+      //std::cerr <<"loop iteration" << std::endl;
       // Fetch column reference and value
       if (expr->GetChild(0)->GetExpressionType() == ExpressionType::VALUE_TUPLE) {
         auto r_type = expr->GetChild(1)->GetExpressionType();
         if (r_type == ExpressionType::VALUE_CONSTANT || r_type == ExpressionType::VALUE_PARAMETER) {
           tv_expr = expr->GetModifiableChild(0);
           value_expr = expr->GetModifiableChild(1);
+        }
+        else{ //NOTE: FIXME: THIS IS A HACK TO BE ABLE TO CONSIDER REFLEXIVE COLUMN NAMES FOR THE HEURISTIC
+          auto column_ref = (expression::TupleValueExpression *) expr->GetChild(1);
+          std::string col_name(column_ref->GetColumnName());
+          std::cerr << "reflexive: " << col_name << std::endl;
+          auto column_id = get->table->GetColumnCatalogEntry(col_name)->GetColumnId();
+        
+          key_column_id_list.push_back(column_id);
+          expr_type_list.push_back(expr_type);
+          value_expr = expr->GetModifiableChild(1);
+          value_list.push_back(type::ValueFactory::GetParameterOffsetValue(reinterpret_cast<expression::ParameterValueExpression *>(value_expr)->GetValueIdx()).Copy());
         }
       } else if (expr->GetChild(1)->GetExpressionType() == ExpressionType::VALUE_TUPLE) {
         auto l_type = expr->GetChild(0)->GetExpressionType();
@@ -339,6 +351,7 @@ void GetToIndexScan::Transform(
           expr_type = expression::ExpressionUtil::ReverseComparisonExpressionType(expr_type);
         }
       }
+     
 
       // If found valid tv_expr and value_expr, update col_id_list, expr_type_list and val_list
       if (tv_expr != nullptr) {
@@ -346,6 +359,7 @@ void GetToIndexScan::Transform(
         std::string col_name(column_ref->GetColumnName());
         LOG_TRACE("Column name: %s", col_name.c_str());
         auto column_id = get->table->GetColumnCatalogEntry(col_name)->GetColumnId();
+        //std::cerr << "looping cols: " << col_name << std::endl;
         key_column_id_list.push_back(column_id);
         expr_type_list.push_back(expr_type);
 
@@ -378,8 +392,19 @@ void GetToIndexScan::Transform(
       //Trying to design a simple heuristic to favor primary vs secondary index.
 
       bool is_primary_index = index_object->GetIndexConstraint() == IndexConstraintType::PRIMARY_KEY;
+      std::cerr << "Table: " << get->table->GetTableName() << ". Compute weight for index type: " << is_primary_index << std::endl;
+      // for(auto &col: index_col_set){
+      //   std::cerr << "col: " << col << std::endl;
+      // }
       
       int min_distance = is_primary_index ? INT_MAX-1 : INT_MAX;
+
+    
+      // std::cerr << "max loops: " << key_column_id_list.size() << std::endl;
+      // for(auto &col: key_column_id_list){
+      //   std::cerr << "extracted col: " << col << std::endl;
+      // }
+
 
       //figure out which keys of the statement are present in this index
       for (size_t offset = 0; offset < key_column_id_list.size(); offset++) {
@@ -390,17 +415,21 @@ void GetToIndexScan::Transform(
             index_key_column_id_list.push_back(col_id);
             index_expr_type_list.push_back(expr_type_list[offset]);
             index_value_list.push_back(value_list[offset]);
+            //heuristic_id_list.push_back(col_id);
             continue;
            }
         }
       }
-
+     
       std::cerr << "is primary? " << is_primary_index << ". min_distance: " << min_distance << std::endl;
       //If index fully covers the condition. //Give preference to primary key.
       if(index_key_column_id_list.size() == index_col_set.size()) min_distance = is_primary_index? -2 : -1;
+     
       std::cerr << "is primary? " << is_primary_index << ". min_distance (if match): " << min_distance << std::endl;
-  
-       if (min_distance < closest_index || (min_distance == closest_index && index_key_column_id_list.size() > max_num_matching_cols )){
+
+      
+      if (min_distance < closest_index || (min_distance == closest_index && index_key_column_id_list.size() > max_num_matching_cols )){
+        std::cout << "Adding index plan for table " << get->table->GetTableName() << std::endl;
         auto index_scan_op = PhysicalIndexScan::make(
             get->get_id, get->table, get->table_alias, get->predicates,
             get->is_for_update, index_id, index_key_column_id_list,

@@ -336,6 +336,9 @@ void SeqScanExecutor::PrepareResult(std::unordered_map<oid_t, std::vector<oid_t>
 void SeqScanExecutor::Scan() {
   concurrency::TransactionManager &transaction_manager = concurrency::TransactionManagerFactory::GetInstance();
   auto current_txn = executor_context_->GetTransaction();
+  if (current_txn->IsPointRead()) {
+    Panic("Point Reads should always go through Index Scan! Table: %s", target_table_->GetName().c_str());
+  }
   UW_ASSERT(!current_txn->IsPointRead());//NOTE: PointReads should always go through IndexScan
 
   auto storage_manager = storage::StorageManager::GetInstance();

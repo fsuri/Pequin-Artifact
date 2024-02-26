@@ -85,10 +85,10 @@ bool NestedLoopJoinExecutor::DExecute() {
 
   // Grab info from plan node and check it
   const planner::NestedLoopJoinPlan &node = GetPlanNode<planner::NestedLoopJoinPlan>();
-  std::cerr << "plan: " << node.GetInfo() << std::endl;
-  for(auto &child: node.GetChildren()){
-    std::cerr << child->GetInfo() << std::endl;
-  }
+  // std::cerr << "plan: " << node.GetInfo() << std::endl;
+  // for(auto &child: node.GetChildren()){
+  //   std::cerr << child->GetInfo() << std::endl;
+  // }
 
   // Pick out the left and right columns
   const std::vector<oid_t> &join_column_ids_left = node.GetJoinColumnsLeft();

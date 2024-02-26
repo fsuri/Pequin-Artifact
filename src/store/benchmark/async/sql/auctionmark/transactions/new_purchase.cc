@@ -109,7 +109,9 @@ transaction_status_t NewPurchase::Execute(SyncClient &client) {
                                         "AND imb_ib_id = ib_id "
                                         "AND ib_i_id = '{}' AND ib_u_id = '{}' "  // because imb_ib_i_id == imb_i_d and imb_ib_u_id = imb_u_id.
                                         //"AND imb_ib_i_id = ib_i_id AND imb_ib_u_id = ib_u_id "
-                                        "AND ib_buyer_id = u_id", TABLE_ITEM, TABLE_ITEM_MAX_BID, TABLE_ITEM_BID, TABLE_USERACCT,
+                                        "AND ib_buyer_id = u_id "
+                                        "AND u_id = u_id", //ADDED REFLEXIVE ARG FOR PELOTON PARSING. TODO: AUTOMATE THIS IN SQL_INTERPRETER 
+                                        TABLE_ITEM, TABLE_ITEM_MAX_BID, TABLE_ITEM_BID, TABLE_USERACCT,
                                         item_id, seller_id, item_id, seller_id, item_id, seller_id);
                                         //This query should do Primary index scan for Item, ItemMaxBid
                                         //After that, it should be able to do primary index scan on ItemBid and UserAcct via NestedLoop join

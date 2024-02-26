@@ -146,10 +146,12 @@ transaction_status_t NewBid::Execute(SyncClient &client) {
     //getItemMaxBid
     statement = fmt::format("SELECT imb_ib_id, ib_bid, ib_max_bid, ib_buyer_id FROM {}, {} "
         "WHERE imb_i_id = '{}' AND imb_u_id = '{}' " 
-        "AND imb_ib_id = ib_id AND ib_i_id = '{}' AND ib_u_id = '{}'", //because imb_i_id == imb_ib_i_id and imb_u_id == imb_ib_u_id
+        "AND imb_ib_id = ib_id AND ib_i_id = '{}' AND ib_u_id = '{}' " //because imb_i_id == imb_ib_i_id and imb_u_id == imb_ib_u_id
         //"AND imb_ib_id = ib_id AND imb_ib_i_id = ib_i_id AND imb_ib_u_id = ib_u_id",
+        "AND ib_id = ib_id", //ADDED REFLEXIVE ARG FOR PELOTON PARSING. TODO: AUTOMATE THIS IN SQL_INTERPRETER 
         TABLE_ITEM_MAX_BID, TABLE_ITEM_BID, item_id, seller_id, item_id, seller_id); // add redundancy.
     client.Query(statement, queryResult, timeout);
+
     getItemMaxBidRow imbr;
     deserialize(imbr, queryResult);
 
@@ -165,7 +167,7 @@ transaction_status_t NewBid::Execute(SyncClient &client) {
 
        //updateBid
       statement = fmt::format("UPDATE {} SET ib_bid = {}, ib_max_bid = {}, ib_updated = {} "
-                              " WHERE ib_id = {} AND ib_i_id = '{}' AND ib_u_id = '{}'", TABLE_ITEM, i_current_price, newBid, current_time, imbr.currentBidId, item_id, seller_id);
+                              " WHERE ib_id = {} AND ib_i_id = '{}' AND ib_u_id = '{}'", TABLE_ITEM_BID, i_current_price, newBid, current_time, imbr.currentBidId, item_id, seller_id);
       client.Write(statement, queryResult, timeout);
 
       Debug("Increasing the max bid the highest bidder %s from %d to %d for Item %s", buyer_id, imbr.currentBidMax, newBid, item_id);
@@ -187,7 +189,7 @@ transaction_status_t NewBid::Execute(SyncClient &client) {
 
             //updateBid
             statement = fmt::format("UPDATE {} SET ib_bid = {}, ib_max_bid = {}, ib_updated = {} "
-                                    " WHERE ib_id = {} AND ib_i_id = '{}' AND ib_u_id = '{}'", TABLE_ITEM, i_current_price, i_current_price, current_time, imbr.currentBidId, item_id, seller_id);
+                                    " WHERE ib_id = {} AND ib_i_id = '{}' AND ib_u_id = '{}'", TABLE_ITEM_BID, i_current_price, i_current_price, current_time, imbr.currentBidId, item_id, seller_id);
             client.Write(statement, queryResult, timeout);
             Debug("Keeping the existing highest bidder of Item %s as %s but updating current price from %d to %d", item_id, buyer_id, imbr.currentBidAmount, i_current_price);
         }

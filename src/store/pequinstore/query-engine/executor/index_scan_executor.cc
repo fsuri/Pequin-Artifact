@@ -239,6 +239,7 @@ void IndexScanExecutor::SetTableColVersions(concurrency::TransactionContext *cur
 bool IndexScanExecutor::ExecPrimaryIndexLookup() {    
   PELOTON_ASSERT(!done_);
   Debug("Inside Index Scan Executor"); // std::cout << "Inside index scan executor" << std::endl;
+  //std::cerr << "Index predicate: " << index_predicate_.GetConjunctionList()[0].GetLowKey()->GetInfo() << std::endl;
 
   auto current_txn = executor_context_->GetTransaction();
 
@@ -408,6 +409,10 @@ void IndexScanExecutor::ManageReadSet(ItemPointer &visible_tuple_location, concu
 void IndexScanExecutor::ManageReadSet(ItemPointer &tuple_location, std::shared_ptr<storage::TileGroup> tile_group, storage::TileGroupHeader *tile_group_header, 
     concurrency::TransactionContext *current_txn) {
   
+  bool is_metadata_table_ = table_->GetName().substr(0,3) == "pg_";
+  //Don't create a read set if it's a point query, or the query is executed in snapshot only mode
+  if (is_metadata_table_) return;
+
   //Don't create a read set if it's a point query, or the query is executed in snapshot only mode
   if (current_txn->GetHasReadSetMgr()) {
 

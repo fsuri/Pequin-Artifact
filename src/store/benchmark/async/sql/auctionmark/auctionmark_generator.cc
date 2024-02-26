@@ -243,6 +243,10 @@ void ItemBidTableSchema(TableWriter &writer){
   const std::vector<uint32_t> primary_key_col_idx{0, 1, 2};
 
   writer.add_table(table_name, column_names_and_types, primary_key_col_idx);
+
+    //Optional Index:
+  const std::vector<uint32_t> index {1, 2};
+  writer.add_index(table_name, "idx_item_bid", index);
 }
 
 void ItemMaxBidTableSchema(TableWriter &writer){
@@ -316,9 +320,9 @@ void UserItemTableSchema(TableWriter &writer){
 
 void UserWatchTableSchema(TableWriter &writer){
   std::vector<std::pair<std::string, std::string>> column_names_and_types;
-  column_names_and_types.push_back(std::make_pair("uw_u_id", "TEXT"));
-  column_names_and_types.push_back(std::make_pair("uw_i_id", "TEXT"));
-  column_names_and_types.push_back(std::make_pair("uw_i_u_id", "TEXT"));
+  column_names_and_types.push_back(std::make_pair("uw_u_id", "TEXT"));  //buyer
+  column_names_and_types.push_back(std::make_pair("uw_i_id", "TEXT"));   //item
+  column_names_and_types.push_back(std::make_pair("uw_i_u_id", "TEXT")); //seller
   column_names_and_types.push_back(std::make_pair("uw_created", "BIGINT"));
 
   const std::vector<uint32_t> primary_key_col_idx{0, 1, 2};
@@ -884,6 +888,7 @@ void GenerateItemBidRow(TableWriter &writer, AuctionMarkProfile &profile, Loader
   
 }
 
+//static bool test = true;
 void GenerateItemMaxBidRow(TableWriter &writer, LoaderItemInfo &itemInfo){
   
    //DATA GENERATION
@@ -916,6 +921,47 @@ void GenerateItemMaxBidRow(TableWriter &writer, LoaderItemInfo &itemInfo){
     
     writer.add_row(TABLE_ITEM_MAX_BID, values);
   }
+
+  // if(test){
+  //   test = false;
+  //   std::vector<std::string> values;
+    
+  //     // IMB_I_ID
+  //   values.push_back("000000030100000000010000000236");
+    
+  //   // IMB_U_ID
+  //   values.push_back("00000003010000000001");
+  
+  //   // IMB_IB_ID
+  //   values.push_back(std::to_string(0));
+    
+  //   // IMB_IB_I_ID
+  //   values.push_back("000000030100000000010000000236");
+    
+  //   // IMB_IB_U_ID
+  //     values.push_back("00000003010000000001");
+
+  //   // IMB_CREATED
+  //   values.push_back(std::to_string(0));
+    
+  //   // IMB_UPDATED
+  //   values.push_back(std::to_string(0));
+    
+  //   writer.add_row(TABLE_ITEM_MAX_BID, values);
+
+  //   values.clear();
+  //   values.push_back(std::to_string(0)); //ib_id
+  //   values.push_back("000000030100000000010000000236"); //ib_i_id
+  //   values.push_back("00000003010000000001"); //ib_u_id
+  //   values.push_back("abc"); //ib_buyer_id
+   
+  //   values.push_back(std::to_string(0)); //ib_bid
+  //   values.push_back(std::to_string(5)); //ib_max_bid
+  //   values.push_back(std::to_string(2)); //ib_created
+  //   values.push_back(std::to_string(3)); //ib_updated
+  
+  //   writer.add_row(TABLE_ITEM_BID, values);
+  // }
 }
 
  void GenerateItemPurchaseRow(TableWriter &writer, LoaderItemInfo &itemInfo, std::mt19937_64 &gen){

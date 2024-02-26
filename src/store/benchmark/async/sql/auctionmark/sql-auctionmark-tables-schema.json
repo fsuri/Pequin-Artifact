@@ -253,6 +253,12 @@
         "BIGINT"
       ]
     ],
+    "indexes": {
+      "idx_item_bid": [
+        1,
+        2
+      ]
+    },
     "primary_key_col_idx": [
       0,
       1,

@@ -269,7 +269,10 @@ class ConjunctionScanPredicate {
       // This function guarantees the return value must be valid one
       oid_t index_column = index_p->TupleColumnToKeyColumn(tuple_column);
 
-      std::cerr << "Setting Value for Column: " << index_p->GetKeySchema()->GetColumn(tuple_column).GetName() << std::endl;
+      std::cerr << "Setting Value for Column: " << tuple_column << std::endl; 
+      std::cerr << "Is point query? " << is_point_query_ << std::endl;
+      //std::cerr << "Setting Value for Column: " << index_p->GetKeySchema()->GetColumn(tuple_column).GetName() << std::endl; 
+      //FIXME: this doesn't work right? It thinks the given tuple_col is for a different index?
 
       UNUSED_ATTRIBUTE oid_t bind_ret;
 
