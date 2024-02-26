@@ -276,6 +276,7 @@ namespace auctionmark
       // TODO: Test that this actually works.
       seller_item_cnt[composite_id] = cnt;
     }
+    seller_item_cnt[composite_id]++;
     return ItemId(seller_id, cnt);
   }
 

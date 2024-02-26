@@ -94,9 +94,13 @@ transaction_status_t NewPurchase::Execute(SyncClient &client) {
        std::string getItemInfo = fmt::format("SELECT i_num_bids, i_current_price, i_end_date, ib_id, ib_buyer_id, u_balance "
                                         "FROM {}, {}, {} "
                                         "WHERE i_id = '{}' AND i_u_id = '{}' "
+                                          "AND ib_i_id = '{}' AND ib_u_id = '{}' "  // because imb_ib_i_id == imb_i_d and imb_ib_u_id = imb_u_id.
                                           "AND ib_i_id = i_id AND ib_u_id = i_u_id "
-                                          "AND ib_buyer_id = u_id", TABLE_ITEM, TABLE_ITEM_BID, TABLE_USERACCT,
-                                          item_id, seller_id);
+                                          "AND ib_buyer_id = u_id "
+                                          "AND ib_id = ib_id "
+                                          "AND u_id = u_id",  //ADDED REFLEXIVE ARG FOR PELOTON PARSING. TODO: AUTOMATE THIS IN SQL_INTERPRETER 
+                                          TABLE_ITEM, TABLE_ITEM_BID, TABLE_USERACCT,
+                                          item_id, seller_id, item_id, seller_id);
       client.Query(getItemInfo, queryResult, timeout);
   }
   else{
@@ -110,6 +114,7 @@ transaction_status_t NewPurchase::Execute(SyncClient &client) {
                                         "AND ib_i_id = '{}' AND ib_u_id = '{}' "  // because imb_ib_i_id == imb_i_d and imb_ib_u_id = imb_u_id.
                                         //"AND imb_ib_i_id = ib_i_id AND imb_ib_u_id = ib_u_id "
                                         "AND ib_buyer_id = u_id "
+                                        "AND ib_id = ib_id "
                                         "AND u_id = u_id", //ADDED REFLEXIVE ARG FOR PELOTON PARSING. TODO: AUTOMATE THIS IN SQL_INTERPRETER 
                                         TABLE_ITEM, TABLE_ITEM_MAX_BID, TABLE_ITEM_BID, TABLE_USERACCT,
                                         item_id, seller_id, item_id, seller_id, item_id, seller_id);

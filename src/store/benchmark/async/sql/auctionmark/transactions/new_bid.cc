@@ -197,8 +197,8 @@ transaction_status_t NewBid::Execute(SyncClient &client) {
         // Always insert an new ITEM_BID record even if BuyerId doesn't become the new highest bidder. 
         // We also want to insert a new record even if the BuyerId already has ITEM_BID record, because we want to maintain the history of all the bid attempts
         //insertItemBid
-        statement = fmt::format("INSERT INTO {} (ib_id, ib_i_id, ib_u_id, ib_buyer_id, ib_bid, ib_max_bid, ib_created, ib_updated) "
-                "VALUES ({}, '{}', '{}', '{}', {}, {}, {}, {})", TABLE_ITEM_BID, newBidId, item_id, seller_id, buyer_id, i_current_price, newBid, current_time, current_time);
+        statement = fmt::format("INSERT INTO {} (ib_i_id, ib_u_id, ib_id, ib_buyer_id, ib_bid, ib_max_bid, ib_created, ib_updated) "
+                "VALUES ('{}', '{}', {}, '{}', {}, {}, {}, {})", TABLE_ITEM_BID, item_id, seller_id, newBidId, buyer_id, i_current_price, newBid, current_time, current_time);
         client.Write(statement, queryResult, timeout);
 
         if(updateMaxBid){
@@ -214,8 +214,8 @@ transaction_status_t NewBid::Execute(SyncClient &client) {
   }
   else{ // There is no existing max bid record, therefore we can just insert ourselves
       //insertItemBid
-    statement = fmt::format("INSERT INTO {} (ib_id, ib_i_id, ib_u_id, ib_buyer_id, ib_bid, ib_max_bid, ib_created, ib_updated) "
-            "VALUES ({}, '{}', '{}', '{}', {}, {}, {}, {})", TABLE_ITEM_BID, newBidId, item_id, seller_id, buyer_id, ir.i_initial_price, newBid, current_time, current_time);
+    statement = fmt::format("INSERT INTO {} (ib_i_id, ib_u_id, ib_id, ib_buyer_id, ib_bid, ib_max_bid, ib_created, ib_updated) "
+            "VALUES ('{}', '{}', {}, '{}', {}, {}, {}, {})", TABLE_ITEM_BID, item_id, seller_id, newBidId, buyer_id, ir.i_initial_price, newBid, current_time, current_time);
     client.Write(statement, queryResult, timeout);
 
     //insertItemMaxBid

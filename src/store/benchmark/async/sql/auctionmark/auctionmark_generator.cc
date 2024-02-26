@@ -231,9 +231,10 @@ void ItemCommentTableSchema(TableWriter &writer){
 void ItemBidTableSchema(TableWriter &writer){
    std::string table_name = TABLE_ITEM_BID;
   std::vector<std::pair<std::string, std::string>> column_names_and_types;
-  column_names_and_types.push_back(std::make_pair("ib_id", "BIGINT"));
+  // column_names_and_types.push_back(std::make_pair("ib_id", "BIGINT"));
   column_names_and_types.push_back(std::make_pair("ib_i_id", "TEXT"));
   column_names_and_types.push_back(std::make_pair("ib_u_id", "TEXT"));
+  column_names_and_types.push_back(std::make_pair("ib_id", "BIGINT"));
   column_names_and_types.push_back(std::make_pair("ib_buyer_id", "TEXT"));
   column_names_and_types.push_back(std::make_pair("ib_bid", "FLOAT"));
   column_names_and_types.push_back(std::make_pair("ib_max_bid", "FLOAT"));
@@ -244,9 +245,8 @@ void ItemBidTableSchema(TableWriter &writer){
 
   writer.add_table(table_name, column_names_and_types, primary_key_col_idx);
 
-    //Optional Index:
-  const std::vector<uint32_t> index {1, 2};
-  writer.add_index(table_name, "idx_item_bid", index);
+    //Optional Index: //FIXME: This somehow breaks things
+  //writer.add_index(table_name, "idx_item_bid", index);
 }
 
 void ItemMaxBidTableSchema(TableWriter &writer){
@@ -873,9 +873,11 @@ void GenerateItemBidRow(TableWriter &writer, AuctionMarkProfile &profile, Loader
     //ROW generation
     std::vector<std::string> values;
 
-    values.push_back(std::to_string(bid.id)); //ib_id
+    // values.push_back(std::to_string(bid.id)); //ib_id
     values.push_back(itemInfo.get_item_id().encode()); //ib_i_id
     values.push_back(itemInfo.get_seller_id().encode()); //ib_u_id
+    values.push_back(std::to_string(bid.id)); //ib_id
+
     values.push_back(bid.bidderId.encode()); //ib_buyer_id
     float price = bid.maxBid - (remaining > 0 ? currentBidPriceAdvanceStep / 2.0 : 0);
     values.push_back(std::to_string(price)); //ib_bid

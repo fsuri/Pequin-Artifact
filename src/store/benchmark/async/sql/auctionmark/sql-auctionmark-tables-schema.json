@@ -221,16 +221,16 @@
   "item_bid": {
     "column_names_and_types": [
       [
-        "ib_id",
-        "BIGINT"
-      ],
-      [
         "ib_i_id",
         "TEXT"
       ],
       [
         "ib_u_id",
         "TEXT"
+      ],
+      [
+        "ib_id",
+        "BIGINT"
       ],
       [
         "ib_buyer_id",
@@ -253,12 +253,6 @@
         "BIGINT"
       ]
     ],
-    "indexes": {
-      "idx_item_bid": [
-        1,
-        2
-      ]
-    },
     "primary_key_col_idx": [
       0,
       1,
