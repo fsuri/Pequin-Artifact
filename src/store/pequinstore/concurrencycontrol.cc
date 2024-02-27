@@ -651,12 +651,13 @@ proto::ConcurrencyControl::Result Server::DoMVTSOOCCCheck(
                 }
             } 
 
-            Debug("[%lu:%lu][%s] ABSTAIN wr conflict prepared write for key %s:"
+            Debug("[%lu:%lu][%s] ABSTAIN wr conflict prepared write for key %s [plain:%s]:"
               " this txn's read ts %lu.%lu < prepared ts %lu.%lu < this txn's ts %lu.%lu.",
                 txn.client_id(),
                 txn.client_seq_num(),
                 BytesToHex(txnDigest, 16).c_str(),
                 BytesToHex(read.key(), 16).c_str(),
+                read.key().c_str(),
                 read.readtime().timestamp(),
                 read.readtime().id(), preparedTs.getTimestamp(),
                 preparedTs.getID(), ts.getTimestamp(), ts.getID());
@@ -709,12 +710,13 @@ proto::ConcurrencyControl::Result Server::DoMVTSOOCCCheck(
               if (params.validateProofs) {
                 conflict = std::get<2>(*ritr);
               }
-              Debug("[%lu:%lu][%s] ABORT rw conflict committed read for key %s: committed"
+              Debug("[%lu:%lu][%s] ABORT rw conflict committed read for key %s [plain:%s]: committed"
                   " read ts %lu.%lu < this txn's ts %lu.%lu < committed ts %lu.%lu.",
                   txn.client_id(),
                   txn.client_seq_num(),
                   BytesToHex(txnDigest, 16).c_str(),
                   BytesToHex(write.key(), 16).c_str(),
+                  write.key().c_str(),
                   std::get<1>(*ritr).getTimestamp(),
                   std::get<1>(*ritr).getID(), ts.getTimestamp(),
                   ts.getID(), std::get<0>(*ritr).getTimestamp(),
@@ -797,12 +799,13 @@ proto::ConcurrencyControl::Result Server::DoMVTSOOCCCheck(
                 continue; 
             } 
 
-            Debug("[%lu:%lu][%s] ABSTAIN rw conflict prepared read for key %s: prepared"
+            Debug("[%lu:%lu][%s] ABSTAIN rw conflict prepared read for key %s [plain:%s]: prepared"
                 " read ts %lu.%lu < this txn's ts %lu.%lu < committed ts %lu.%lu.",
                 txn.client_id(),
                 txn.client_seq_num(),
                 BytesToHex(txnDigest, 16).c_str(),
                 BytesToHex(write.key(), 16).c_str(),
+                write.key().c_str(),
                 readTs.getTimestamp(),
                 readTs.getID(), ts.getTimestamp(),
                 ts.getID(), preparedReadTxn->timestamp().timestamp(),

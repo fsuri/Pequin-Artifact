@@ -236,6 +236,7 @@ bool ValidateCommittedConflict(const proto::CommittedProof &proof,
 
 
   if (!TransactionsConflict(proof.txn(), *txn)) {
+    Panic("invalid conflict");
     Debug("Committed txn [%lu:%lu][%s] does not conflict with this txn [%lu:%lu][%s].",
         proof.txn().client_id(), proof.txn().client_seq_num(),
         BytesToHex(*committedTxnDigest, 16).c_str(),
@@ -2068,9 +2069,10 @@ std::string BytesToHex(const std::string &bytes, size_t maxLength) {
   return hex;
 }
 
-bool TransactionsConflict(const proto::Transaction &a,
-    const proto::Transaction &b) {
+//FIXME: This Function is not taking into account the Timestamps. TODO: Add the timestamp checks (like in concurrencycontrol.cc)
+bool TransactionsConflict(const proto::Transaction &a, const proto::Transaction &b) {
   for (const auto &ra : a.read_set()) {
+    std::cerr << "a key: " << ra.key() << std::endl;
     for (const auto &wb : b.write_set()) {
       if (ra.key() == wb.key()) {
         return true;
@@ -2078,19 +2080,29 @@ bool TransactionsConflict(const proto::Transaction &a,
     }
   }
   for (const auto &rb : b.read_set()) {
+    std::cerr << "b key: " << rb.key() << std::endl;
     for (const auto &wa : a.write_set()) {
       if (rb.key() == wa.key()) {
         return true;
       }
     }
   }
-  for (const auto &wa : a.write_set()) {
-    for (const auto &wb : b.write_set()) {
-      if (wa.key() == wb.key()) {
-        return true;
-      }
-    }
-  }
+
+  //TODO: FIXME: Add support for Conflict detection when using Cached Read Set
+                //Need to compare the full merged read sets (I.e. merged_rs_a vs write set b, and vice versa)
+                //TODO: Need so somehow authenticate merged read set correctness. Need to map it back to the hashes.
+                //Note: CC check compares against locally stored prepared/committed read sets (which are the merged sets)
+      
+  if(a.merged_read_set().read_set_size() > a.read_set_size()) return true; //JUST A HACK TO ACKNOWLEDGE THAT CONFLICT "MIGHT" BE VALID
+
+  //Note: There should be no write/write conflicts
+  // for (const auto &wa : a.write_set()) {
+  //   for (const auto &wb : b.write_set()) {
+  //     if (wa.key() == wb.key()) {
+  //       return true;
+  //     }
+  //   }
+  // }
   return false;
 }
 
