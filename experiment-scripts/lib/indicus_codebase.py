@@ -512,8 +512,8 @@ class IndicusCodebase(ExperimentCodebase):
             replica_command += ' --num_keys_per_table %d' % config['num_keys_per_table']
         
         
-       
-           
+        if 'local_config' in config:
+            replica_command += ' --local_config %s' % config['local_config']
 
 
         if 'partitioner' in config:

@@ -172,6 +172,7 @@ void Server::Execute_Callback(const string& type, const string& msg, const execu
     std::cout << client_seq_key << std::endl;
   }
 
+  sql::QueryResultProtoBuilder* res_builder = new sql::QueryResultProtoBuilder();
   try {
     Debug("Attempt query %s", sql_rpc.query());
     std::cout << sql_rpc.query() << std::endl;
@@ -180,11 +181,11 @@ void Server::Execute_Callback(const string& type, const string& msg, const execu
     const auto sql_res = tr->execute(sql_rpc.query());
     std::cerr<< "Shir: After executing tr->execute (2)\n";
 
-    // std::cerr<< "Shir: number of rows affected (according to server):   "<<sql_res.rows_affected() <<"\n";
+    std::cerr<< "Shir: number of rows affected (according to server):   "<<sql_res.rows_affected() <<"\n";
+    std::cerr<< "Shir: this is for txn by client id:   "<<std::to_string(sql_rpc.client_id()) <<"\n";
 
 
     Debug("Query executed");
-    sql::QueryResultProtoBuilder* res_builder = new sql::QueryResultProtoBuilder();
     // Should extrapolate out into builder method
     // Start by looping over columns and adding column names
 
@@ -222,7 +223,11 @@ void Server::Execute_Callback(const string& type, const string& msg, const execu
     // reply->set_sql_res(*res_string); //&
     reply->set_sql_res(res_builder->get_result()->SerializeAsString());
   } catch(tao::pq::sql_error e) {
+    Debug("An exception caugth while using postgres.");
     reply->set_status(REPLY_FAIL);
+    res_builder->set_was_aborted();
+    reply->set_sql_res(res_builder->get_result()->SerializeAsString());
+    CleanTxnMap(client_seq_key);
   }
 
   return returnMessage(reply);
@@ -254,13 +259,13 @@ void Server::Execute_Callback(const string& type, const string& msg, const execu
 
   try {
     tr->commit();
-    txnMap.erase(client_seq_key);
-    connectionMap.erase(client_seq_key);
+    Debug("TryCommit went through successfully.");
     reply->set_status(REPLY_OK);
-    Debug("TryCommit went through successfully");
   } catch(tao::pq::sql_error e) {
+    Debug("An exception caugth while using postgres.");
     reply->set_status(REPLY_FAIL);
   }
+  CleanTxnMap(client_seq_key);
 
   return returnMessage(reply);
 }
@@ -281,10 +286,15 @@ void Server::Execute_Callback(const string& type, const string& msg, const execu
 
   tr->rollback();
 
-  txnMap.erase(client_seq_key);
-  connectionMap.erase(client_seq_key);
+  CleanTxnMap(client_seq_key);
+  // add a field to query result that is true is txn was aborted
 
   return nullptr;
+}
+
+void Server::CleanTxnMap(std::string client_seq_key){
+  txnMap.erase(client_seq_key);
+  connectionMap.erase(client_seq_key);
 }
 
 void Server::CreateTable(const std::string &table_name, const std::vector<std::pair<std::string, std::string>> &column_data_types, const std::vector<uint32_t> &primary_key_col_idx){

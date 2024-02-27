@@ -303,7 +303,7 @@ void Replica::executeSlots() {
 
                   }
                 } else {
-                  Debug("Invalid execution");
+                  Debug("Invalid execution for the following:       %s", digest.c_str());
                 }
               }
             });

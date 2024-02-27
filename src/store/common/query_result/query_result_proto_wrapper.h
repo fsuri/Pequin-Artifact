@@ -200,6 +200,8 @@ class QueryResultProtoWrapper : public query_result::QueryResult {
 		auto has_rows_affected() const noexcept -> bool;
 		auto rows_affected() const -> std::size_t;
 
+    auto was_aborted() const -> bool;
+
     auto serialize(std::string *output) const -> bool;
 };
 

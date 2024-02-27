@@ -33,12 +33,12 @@ namespace hotstuffpgstore {
 ShardClient::ShardClient(const transport::Configuration& config, Transport *transport,
     uint64_t client_id, uint64_t group_idx, const std::vector<int> &closestReplicas_,
     bool signMessages, bool validateProofs,
-    KeyManager *keyManager, Stats* stats, bool deterministic) :
+    KeyManager *keyManager, Stats* stats, bool async_server) :
     config(config), transport(transport),
     group_idx(group_idx),
     signMessages(signMessages), validateProofs(validateProofs),
     keyManager(keyManager), stats(stats),
-    deterministic(deterministic) {
+    async_server(async_server) {
   transport->Register(this, config, -1, -1);
   SQL_RPCReq = 0;
   tryCommitReq = 0;
@@ -143,7 +143,7 @@ void ShardClient::HandleSQL_RPCReply(const proto::SQL_RPCReply& reply, const pro
           Debug("Shir: 222");
 
         }
-        if(!deterministic && signMessages) {
+        if(!async_server && signMessages) {
           pendingSQL_RPC->receivedSuccesses.insert(replica_id);
           Debug("Shir: 333");
 
@@ -154,10 +154,15 @@ void ShardClient::HandleSQL_RPCReply(const proto::SQL_RPCReply& reply, const pro
           }
         }
       } else {
+        Debug("Shir: query reply was FAIL");
+
         Debug("Shir: 555");
 
         pendingSQL_RPC->receivedFails.insert(replica_id);
-        if(!deterministic && signMessages && replica_id == 0) {
+        if(!async_server && signMessages && replica_id == 0) {
+          SQL_RPCReplyHelper(pendingSQL_RPC, reply.sql_res(), reqId, REPLY_FAIL);
+        } else{
+          // ??? Shir
           SQL_RPCReplyHelper(pendingSQL_RPC, reply.sql_res(), reqId, REPLY_FAIL);
         }
       }
@@ -182,9 +187,9 @@ void ShardClient::HandleSQL_RPCReply(const proto::SQL_RPCReply& reply, const pro
     }
 
     Debug("Shir: 888");
-    std::cerr <<"Shir: Is deterministic?:  "<< deterministic <<"\n";
+    std::cerr <<"Shir: Is deterministic?:  "<< async_server <<"\n";
     std::cerr <<"Shir: Is signed messages?:  "<< signMessages <<"\n";
-    if(!signMessages || deterministic) { // This is for a fault tolerant system, curently we only look for the leader's opinion (only works in signed system)
+    if(!signMessages || async_server) { // This is for a fault tolerant system, curently we only look for the leader's opinion (only works in signed system)
       Debug("Shir: 999");
       Panic("Deterministic solution is currently not supported because of postgres blocking queries");
       if(pendingSQL_RPC->receivedReplies[reply.sql_res()].size() 
@@ -232,7 +237,7 @@ void ShardClient::HandleTryCommitReply(const proto::TryCommitReply& reply, const
       pendingTryCommit->receivedAcks.insert(replica_id);
     } else {
       pendingTryCommit->receivedFails.insert(replica_id);
-      if(!deterministic && signMessages && replica_id == 0) {
+      if(!async_server && signMessages && replica_id == 0) {
         if(pendingTryCommit->timeout != nullptr) {
           pendingTryCommit->timeout->Stop();
         }
@@ -242,7 +247,7 @@ void ShardClient::HandleTryCommitReply(const proto::TryCommitReply& reply, const
       }
     }
     // Shir: clean code duplications...
-    if(!signMessages || deterministic) {
+    if(!signMessages || async_server) {
       if(pendingTryCommit->receivedAcks.size() >= (uint64_t) config.f + 1) {
         if(pendingTryCommit->timeout != nullptr) {
           pendingTryCommit->timeout->Stop();

@@ -148,11 +148,11 @@ transaction_status_t RWSQLTransaction::Execute(SyncClient &client) {
   return commitRes;
 }
 
-// auto seq=0;
+auto seq=0;
 std::string RWSQLTransaction::GenerateStatement(const std::string &table_name, int &left_bound, int &right_bound){
   // if (seq==0){
-  //   seq++;
-  //   return  fmt::format("UPDATE {0} SET value = value + 1 WHERE key = 1;", table_name);
+    // seq++;
+    return  fmt::format("UPDATE {0} SET value = value + 1 WHERE key = 1;", table_name);
   // }else{
   //   seq++;
   //   return fmt::format("SELECT * FROM {0} WHERE key >= 1 OR key <= 2;", table_name);
@@ -226,7 +226,7 @@ void RWSQLTransaction::GetResults(SyncClient &client){
     for(auto &queryResult: results){
 
 
-      if(!readOnly) UW_ASSERT(queryResult->rows_affected());
+      // if(!readOnly) UW_ASSERT(queryResult->rows_affected());
       std::cerr << "Num rows affected: " << queryResult->rows_affected() << std::endl;
     }
   }

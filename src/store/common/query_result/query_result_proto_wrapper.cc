@@ -154,6 +154,10 @@ auto QueryResultProtoWrapper::rows_affected() const -> std::size_t {
   return proto_result->rows_affected();
 }
 
+auto QueryResultProtoWrapper::was_aborted() const -> bool {
+  return proto_result->was_aborted();
+}
+
 auto QueryResultProtoWrapper::serialize(std::string *output) const -> bool {
   return proto_result->SerializeToString(output);
 }

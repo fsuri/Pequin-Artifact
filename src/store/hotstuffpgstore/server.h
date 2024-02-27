@@ -106,6 +106,8 @@ private:
 
   void exec_statement(std::string sql_statement);
 
+  void CleanTxnMap(std::string client_seq_key);
+
   std::string GenerateLoadStatement(const std::string &table_name, const std::vector<std::vector<std::string>> &row_segment, int segment_no);
 
   ::google::protobuf::Message* HandleSQL_RPC(const proto::SQL_RPC& sql_rpc);

@@ -65,7 +65,7 @@ class ShardClient : public TransportReceiver {
       uint64_t client_id, uint64_t group_idx, const std::vector<int> &closestReplicas_,
       bool signMessages, bool validateProofs,
       KeyManager *keyManager, Stats* stats,
-      bool deterministic = false);
+      bool async_server = false);
   ~ShardClient();
 
   void ReceiveMessage(const TransportAddress &remote,
@@ -96,7 +96,7 @@ class ShardClient : public TransportReceiver {
   // If this is false, then results are returned based on f + 1 including the
   // leader's results to get consistent results. If it is, then it is based on a 
   // simple f + 1, returning the result of any replica's execution
-  bool deterministic;
+  bool async_server;
 
 
   uint64_t SQL_RPCReq;

@@ -53,7 +53,7 @@ class Client : public ::Client {
       Transport *transport, Partitioner *part,
       uint64_t readMessages, uint64_t readQuorumSize, bool signMessages,
       bool validateProofs, KeyManager *keyManager,
-      TrueTime timeserver = TrueTime(0,0), bool deterministic = false);
+      TrueTime timeserver = TrueTime(0,0), bool async_server = false);
   ~Client();
 
   // Begin a transaction.
@@ -111,7 +111,7 @@ class Client : public ::Client {
   // If this is false, then results are returned based on f + 1 including the
   // leader's results to get consistent results. If it is, then it is based on a 
   // simple f + 1, returning the result of any replica's execution
-  bool deterministic;
+  bool async_server;
 
   // Current transaction.
   proto::Transaction currentTxn;

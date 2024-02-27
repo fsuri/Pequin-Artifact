@@ -39,11 +39,11 @@ Client::Client(const transport::Configuration& config, uint64_t id, int nShards,
       Transport *transport, Partitioner *part,
       uint64_t readMessages, uint64_t readQuorumSize, bool signMessages,
       bool validateProofs, KeyManager *keyManager,
-      TrueTime timeserver, bool deterministic) : config(config), nshards(nShards),
+      TrueTime timeserver, bool async_server) : config(config), nshards(nShards),
     ngroups(nGroups), transport(transport), part(part), readMessages(readMessages), readQuorumSize(readQuorumSize),
     signMessages(signMessages),
     validateProofs(validateProofs), keyManager(keyManager),
-    timeServer(timeserver), deterministic(deterministic) {
+    timeServer(timeserver), async_server(async_server) {
   // just an invariant for now for everything to work ok
   assert(nGroups == nShards);
 
@@ -66,7 +66,7 @@ Client::Client(const transport::Configuration& config, uint64_t id, int nShards,
   for (uint64_t i = 0; i < ngroups; i++) {
     bclient[i] = new ShardClient(config, transport, client_id, i, closestReplicas,
         signMessages, validateProofs, keyManager, &stats,
-        deterministic);
+        async_server);
   }
 
   Debug("HotStuff Postgres client [%lu] created! %lu %lu", client_id, ngroups,
@@ -142,32 +142,16 @@ void Client::SQLRequest(std::string &statement, sql_callback scb, sql_timeout_ca
     // std::cerr << "Shir:  issue SQLRequest from client:     "<<statement << std::endl;
 
     sql_rpc_callback srcb = [scb, statement, this](int status, const std::string& sql_res) {
-      // if(status == REPLY_OK) {
-      //   // Take Query Result Proto serialization and transform it into a query result here
-      // }
-      // sql::QueryResultProtoWrapper query_obj(sql_res);
       Debug("Received query response");
       QueryMessage *query_msg = currentTxn.add_queryset();
       query_msg->set_query(statement);
       query_result::QueryResult* query_res = new sql::QueryResultProtoWrapper(sql_res);
+
+      std::cerr << "Shir: For the following statement:     "<<statement << std::endl;
+      std::cerr << "Shir: rows affected is:     "<<query_res->rows_affected() << std::endl;
+
+
       scb(status, query_res);
-
-
-      std::stringstream ss(std::ios::in | std::ios::out | std::ios::binary);
-      size_t nbytes;
-      // Shir: the next line gets seg fault
-      // const char* out = query_res->get(0, 0, &nbytes);
-      // std::string output(out, nbytes);
-      // ss << output;
-      // std::string output_row;
-      // {
-      //   cereal::BinaryInputArchive iarchive(ss); // Create an input archive
-      //   iarchive(output_row); // Read the data from the archive
-      // }
-      //   std::cerr << "Query 1 Done: " << output_row << std::endl << std::endl;
-
-
-
 
     };
     sql_rpc_timeout_callback srtcb = stcb;
