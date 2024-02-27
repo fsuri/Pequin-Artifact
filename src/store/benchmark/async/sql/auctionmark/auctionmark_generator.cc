@@ -133,8 +133,8 @@ void UserAcctTableSchema(TableWriter &writer){
 
   writer.add_table(table_name, column_names_and_types, primary_key_col_idx);
 
-  const std::vector<uint32_t> index {0, 4};
-  writer.add_index(table_name, "idx_useracct_region", index);
+  // const std::vector<uint32_t> index {0, 4};
+  // writer.add_index(table_name, "idx_useracct_region", index);
 }
 
 void ItemTableSchema(TableWriter &writer){

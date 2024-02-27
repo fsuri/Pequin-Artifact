@@ -40,6 +40,7 @@ NewItem::NewItem(uint32_t timeout, AuctionMarkProfile &profile, std::mt19937_64 
   item_id = itemId.encode();
   seller_id = sellerId.encode();
   std::cerr << std::endl << "NEW ITEM: " << item_id << ", seller: " << seller_id << std::endl;
+  std::cerr << "client id: " << profile.get_client_id() << std::endl;
 
 
   name = RandomAString(6, 32, gen);
@@ -82,11 +83,13 @@ NewItem::~NewItem(){
 transaction_status_t NewItem::Execute(SyncClient &client) {
   std::unique_ptr<const query_result::QueryResult> queryResult;
   std::string statement;
-  std::vector<std::unique_ptr<const query_result::QueryResult>> results;
+  std::vector<std::unique_ptr<const query_result::QueryResult>> results = {};
 
   //Insert a new ITEM record for user.
   Debug("NEW ITEM");
   Debug("ItemID: %s", item_id.c_str());
+
+  std::cerr << "results size: " << results.size() << std::endl;
 
 
   client.Begin(timeout);
@@ -120,37 +123,36 @@ transaction_status_t NewItem::Execute(SyncClient &client) {
  
   //ITEM SELLER COUNT
   int sellerItemCount = 0;
-  std::string getSellerItemCount = fmt::format("SELECT COUNT(*) FROM {} WHERE i_u_id = '{}'", TABLE_ITEM, seller_id);
+  //std::string getSellerItemCount = fmt::format("SELECT COUNT(*) FROM {} WHERE i_u_id = '{}'", TABLE_ITEM, seller_id);
+  std::string getSellerItemCount = fmt::format("SELECT i_id FROM {} WHERE i_u_id = '{}'", TABLE_ITEM, seller_id);
   client.Query(getSellerItemCount, timeout);
   
-
   client.Wait(results);
 
   //DESERIALIZE ALL RESULTS
+  std::cerr << "results size: " << results.size() << ". gag id size: " << gag_ids.size() << std::endl;
   int offset = 0;
+
+  
 
   //ATTRIBUTES
   for(int i = 0; i < gag_ids.size(); ++i){
     
-    if(results[offset]->empty()){
-      offset++;
-      continue;
-    }
-
     std::cerr << "i: " << i << std::endl;
+    if(results[i]->empty()) continue;
     std::string gag_name;
     std::string gav_name;
-    auto &res = results[offset];
-    std::cerr << "res size: " << res->size() << std::endl;
-    deserialize(gag_name, results[offset], 0, 0);
+    queryResult = std::move(results[i]);
+    // std::cerr << "res size: " << res->size() << std::endl;
+    deserialize(gag_name, queryResult, 0, 0);
     std::cerr <<"gagname: " << gag_name << std::endl;
-    deserialize(gav_name, results[offset], 0, 1);
+    deserialize(gav_name, queryResult, 0, 1);
      std::cerr <<"gavname: " << gav_name << std::endl;
     description += fmt::format(" * {} -> {}\n", gag_name, gav_name);
-
-    offset++;
   }      
+  offset += gag_ids.size();
 
+  std::cerr << "OFFSET BEFORE CATEGORY " << offset << std::endl;
   //CATEGORY
   queryResult = std::move(results[offset]);
   UW_ASSERT(!queryResult->empty());
@@ -177,8 +179,24 @@ transaction_status_t NewItem::Execute(SyncClient &client) {
   description += fmt::format("\nCATEGORY: {} >> {}", category_parent, category_name);
 
   //ITEM SELLER COUNT
-   queryResult = std::move(results[offset]);
-  deserialize(sellerItemCount, queryResult);
+  queryResult = std::move(results[offset]);
+  //deserialize(sellerItemCount, queryResult);
+
+  // NOTE: The chosen item_id might cause a duplicate Insert because client's internal count of the number of items that this seller already has is wrong. 
+  // We'll just catch up the cache state and abort the TX.
+  for(int i=0; i<queryResult->size(); ++i){
+    std::string i_id;
+    deserialize(i_id, queryResult, i);
+    if(i_id == item_id){
+      //Update Cache
+      ItemRecord item_rec(item_id, seller_id, name, initial_price, 0, end_date, ItemStatus::OPEN);
+      ItemId itemId = profile.processItemRecord(item_rec);
+      //Abort TX
+      client.Abort(timeout);
+      return ABORTED_USER;
+    }
+  }
+  sellerItemCount = queryResult->size();
 
   ////////////////// INSERT NEW ROWS/UPDATE
 
@@ -190,12 +208,8 @@ transaction_status_t NewItem::Execute(SyncClient &client) {
                                         TABLE_ITEM,
                                         item_id, seller_id, category_id, name, description, attributes, initial_price, initial_price, 0, 
                                         images.size(), gav_ids.size(), 0, current_time, end_date, ItemStatus::OPEN, current_time, current_time);
-  client.Write(insertItem, queryResult, timeout);          
-  if(!queryResult->has_rows_affected()){
-    client.Abort(timeout);
-    return ABORTED_USER;
-  }                              
-
+  client.Write(insertItem, timeout);          
+                     
    //Insert ITEM_ATTRIBUTE tuples
   std::string insertItemAttribute = "INSERT INTO " + std::string(TABLE_ITEM_ATTR) + " (ia_id, ia_i_id, ia_u_id, ia_gav_id, ia_gag_id) VALUES ('{}', '{}', '{}', '{}', '{}', '')";
   //std::string insertItemAttribute = fmt::format("INSERT INTO {} (ia_id, ia_i_id, ia_u_id, ia_gav_id, ia_gag_id, ia_sattr0) VALUES('{}', '{}', '{}', '{}', '{}', '')", TABLE_ITEM_ATTR);

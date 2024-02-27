@@ -374,6 +374,7 @@ inline static bool sortReadSetByKey(const ReadMessage &lhs, const ReadMessage &r
         //Note: What about an app corner case in which you want to read your own write? Such reads don't have to be added to Read Set -- they are valid by default.
         //Note: See ShardClient "BufferGet" -- we either read our own write, or read previously read value => thus it is impossible to read 2 different TS. We don't add such reads to ReadSet
              //Panic("duplicate read set key with different TS");
+             Debug("Read key %s twice with same version. V1:[%lu:%lu]. V2:[%lu:%lu]", lhs.key().c_str(), lhs.readtime().timestamp(), lhs.readtime().id(), rhs.readtime().timestamp(), rhs.readtime().id());
              throw std::runtime_error("Read set contains two reads of the same key with different timestamp");
         }
         // if(lhs.readtime().timestamp() > 0 || rhs.readtime().timestamp() >0){

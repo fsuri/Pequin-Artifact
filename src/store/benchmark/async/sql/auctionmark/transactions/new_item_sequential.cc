@@ -155,12 +155,26 @@ transaction_status_t NewItem::Execute(SyncClient &client) {
   description += fmt::format("\nCATEGORY: {} >> {}", category_parent, category_name);
 
   int sellerItemCount = 0;
-  std::string getSellerItemCount = fmt::format("SELECT COUNT(*) FROM {} WHERE i_u_id = '{}'", TABLE_ITEM, seller_id);
+  //std::string getSellerItemCount = fmt::format("SELECT COUNT(*) FROM {} WHERE i_u_id = '{}'", TABLE_ITEM, seller_id);
+  std::string getSellerItemCount = fmt::format("SELECT i_id FROM {} WHERE i_u_id = '{}'", TABLE_ITEM, seller_id);
   client.Query(getSellerItemCount, queryResult, timeout);
-  deserialize(sellerItemCount, queryResult);
+  //deserialize(sellerItemCount, queryResult);
 
-   //TODO: could parallelize all Reads above.
-   //client.Wait(results) 
+  // NOTE: The chosen item_id might cause a duplicate Insert because client's internal count of the number of items that this seller already has is wrong. 
+  // We'll just catch up the cache state and abort the TX.
+  for(int i=0; i<queryResult->size(); ++i){
+    std::string i_id;
+    deserialize(i_id, queryResult, i);
+    if(i_id == item_id){
+      //Update Cache
+      ItemRecord item_rec(item_id, seller_id, name, initial_price, 0, end_date, ItemStatus::OPEN);
+      ItemId itemId = profile.processItemRecord(item_rec);
+      //Abort TX
+      client.Abort(timeout);
+      return ABORTED_USER;
+    }
+  }
+  sellerItemCount = queryResult->size(); 
 
   //Insert a new ITEM tuple
     // NOTE: This may fail with a duplicate entry exception because the client's internal count of the number of items that this seller already has is wrong. 

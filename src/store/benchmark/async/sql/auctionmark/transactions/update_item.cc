@@ -92,7 +92,7 @@ transaction_status_t UpdateItem::Execute(SyncClient &client) {
     std::string getMaxItemAttributeId = fmt::format("SELECT MAX(ia_id) FROM {} WHERE ia_i_id = '{}' AND ia_u_id = '{}'", TABLE_ITEM_ATTR, item_id, seller_id);
     client.Query(getMaxItemAttributeId, queryResult, timeout);
     if(queryResult->empty()){
-      ia_id = item_id + "0"; //TODO: Original code extracts seller_id from item_id and concats that with 0.
+      ia_id = GetUniqueElementId(item_id, 0);
     }
     else{
       deserialize(ia_id, queryResult);

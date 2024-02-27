@@ -71,6 +71,9 @@ AuctionMarkClient::AuctionMarkClient(
   std::cerr << "available items start: " << profile.get_available_items_count() << std::endl;
   std::cerr << "items waiting for purchase at start: " << profile.get_waiting_for_purchase_items_count() << std::endl;
   std::cerr << "completed items at start: " << profile.get_completed_items_count() << std::endl;
+
+  std::cerr << "total: " << num_clients << std::endl;
+  std::cerr << "client id: " << client_id << std::endl;
 }
 
 AuctionMarkClient::~AuctionMarkClient() {
