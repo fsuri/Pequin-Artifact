@@ -97,6 +97,9 @@ transaction_status_t NewItem::Execute(SyncClient &client) {
   uint64_t current_time = GetProcTimestamp({profile.get_loader_start_time(), profile.get_client_start_time()});
   uint64_t end_date = current_time + (duration * MILLISECONDS_IN_A_DAY);
 
+  std::string updateUserBalance = fmt::format("UPDATE {} SET u_balance = u_balance -1, u_updated = {} WHERE u_id = '{}'", TABLE_USERACCT, current_time, seller_id);
+  client.Write(updateUserBalance, timeout, true);
+
   //Get attribute names and category path and append them to the item description
 
   //ATTRIBUTES
@@ -133,7 +136,7 @@ transaction_status_t NewItem::Execute(SyncClient &client) {
   std::cerr << "results size: " << results.size() << ". gag id size: " << gag_ids.size() << std::endl;
   int offset = 0;
 
-  
+
 
   //ATTRIBUTES
   for(int i = 0; i < gag_ids.size(); ++i){
@@ -192,6 +195,7 @@ transaction_status_t NewItem::Execute(SyncClient &client) {
       ItemRecord item_rec(item_id, seller_id, name, initial_price, 0, end_date, ItemStatus::OPEN);
       ItemId itemId = profile.processItemRecord(item_rec);
       //Abort TX
+       client.asyncWait();
       client.Abort(timeout);
       return ABORTED_USER;
     }
@@ -208,7 +212,7 @@ transaction_status_t NewItem::Execute(SyncClient &client) {
                                         TABLE_ITEM,
                                         item_id, seller_id, category_id, name, description, attributes, initial_price, initial_price, 0, 
                                         images.size(), gav_ids.size(), 0, current_time, end_date, ItemStatus::OPEN, current_time, current_time);
-  client.Write(insertItem, timeout);          
+  client.Write(insertItem, timeout, true);          
                      
    //Insert ITEM_ATTRIBUTE tuples
   std::string insertItemAttribute = "INSERT INTO " + std::string(TABLE_ITEM_ATTR) + " (ia_id, ia_i_id, ia_u_id, ia_gav_id, ia_gag_id) VALUES ('{}', '{}', '{}', '{}', '{}', '')";
@@ -228,8 +232,6 @@ transaction_status_t NewItem::Execute(SyncClient &client) {
     client.Write(stmt, timeout, true);
   }
 
-  std::string updateUserBalance = fmt::format("UPDATE {} SET u_balance = u_balance -1, u_updated = {} WHERE u_id = '{}'", TABLE_USERACCT, current_time, seller_id);
-  client.Write(updateUserBalance, timeout, true);
 
   client.asyncWait();
 

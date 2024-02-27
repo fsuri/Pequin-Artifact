@@ -151,7 +151,7 @@ void SyncClient::Write(std::string &statement, uint32_t timeout, bool async) {
     asyncPromises.push_back(promise);
   }
   else {
-    queryPromises.emplace_back(promise);
+    queryPromises.push_back(promise);
   }
   
   client->Write(statement, std::bind(&SyncClient::WriteCallback, this, promise,
@@ -174,7 +174,7 @@ void SyncClient::Query(const std::string &query, std::unique_ptr<const query_res
 
 void SyncClient::Query(const std::string &query, uint32_t timeout, bool cache_result) {
   Promise *promise = new Promise(timeout);
-  queryPromises.emplace_back(promise);
+  queryPromises.push_back(promise);
   client->Query(query, std::bind(&SyncClient::QueryCallback, this, promise,
         std::placeholders::_1, std::placeholders::_2), 
         std::bind(&SyncClient::QueryTimeoutCallback, this,
@@ -188,11 +188,14 @@ void SyncClient::Wait(std::vector<std::unique_ptr<const query_result::QueryResul
   values.clear();
   bool aborted = false;
   
+  std::cerr << "start new" << std::endl;
   for (auto &promise : queryPromises) {
     try{
       values.push_back(promise->ReleaseQueryResult());
+       std::cerr << "NEW VALUE" << std::endl;
     }
     catch(...){
+      std::cerr << "CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE" << std::endl;
       aborted = true;
     }
     delete promise;
