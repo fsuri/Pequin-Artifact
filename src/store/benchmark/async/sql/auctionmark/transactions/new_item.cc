@@ -89,9 +89,6 @@ transaction_status_t NewItem::Execute(SyncClient &client) {
   Debug("NEW ITEM");
   Debug("ItemID: %s", item_id.c_str());
 
-  std::cerr << "results size: " << results.size() << std::endl;
-
-
   client.Begin(timeout);
 
   uint64_t current_time = GetProcTimestamp({profile.get_loader_start_time(), profile.get_client_start_time()});
@@ -133,15 +130,12 @@ transaction_status_t NewItem::Execute(SyncClient &client) {
   client.Wait(results);
 
   //DESERIALIZE ALL RESULTS
-  std::cerr << "results size: " << results.size() << ". gag id size: " << gag_ids.size() << std::endl;
   int offset = 0;
 
 
 
   //ATTRIBUTES
   for(int i = 0; i < gag_ids.size(); ++i){
-    
-    std::cerr << "i: " << i << std::endl;
     if(results[i]->empty()) continue;
     std::string gag_name;
     std::string gav_name;
@@ -155,12 +149,10 @@ transaction_status_t NewItem::Execute(SyncClient &client) {
   }      
   offset += gag_ids.size();
 
-  std::cerr << "OFFSET BEFORE CATEGORY " << offset << std::endl;
   //CATEGORY
   queryResult = std::move(results[offset]);
   UW_ASSERT(!queryResult->empty());
-  std::cerr <<"try deser cat" << std::endl;
- 
+
   uint64_t category_p_id;
   uint64_t category_c_id;
   deserialize(category_c_id, queryResult, 0, 0);
@@ -172,7 +164,7 @@ transaction_status_t NewItem::Execute(SyncClient &client) {
   //CATEGORY PARENT       
   queryResult = std::move(results[offset]);
   std::string category_parent = "<ROOT>";
-  std::cerr <<"try deser cat" << std::endl;
+ 
   if(!queryResult->empty()){
     deserialize(category_c_id, queryResult, 0, 0);
     deserialize(category_p_id, queryResult, 0, 2);

@@ -187,12 +187,10 @@ void SyncClient::Query(const std::string &query, uint32_t timeout, bool cache_re
 void SyncClient::Wait(std::vector<std::unique_ptr<const query_result::QueryResult>> &values) {
   values.clear();
   bool aborted = false;
-  
-  std::cerr << "start new" << std::endl;
+ 
   for (auto &promise : queryPromises) {
     try{
       values.push_back(promise->ReleaseQueryResult());
-       std::cerr << "NEW VALUE" << std::endl;
     }
     catch(...){
       std::cerr << "CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE" << std::endl;

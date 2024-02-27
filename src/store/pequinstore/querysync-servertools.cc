@@ -117,7 +117,7 @@ std::string Server::ExecQuery(QueryReadSetMgr &queryReadSetMgr, QueryMetaData *q
         Debug("Read key %s with version [%lu:%lu]", read.key().c_str(), read.readtime().timestamp(), read.readtime().id());
     }
     for(auto &dep : queryReadSetMgr.read_set->deps()){
-        Debug("Dependency on Txn: %s", dep.write().prepared_txn_digest().c_str());
+        Debug("Dependency on Txn: %s", BytesToHex(dep.write().prepared_txn_digest(), 16).c_str());
     }
 
 
