@@ -121,6 +121,7 @@ class SyncClient {
 
   std::vector<Promise *> getPromises;
   std::vector<Promise *> queryPromises;
+  //std::vector<std::unique_ptr<Promise>> queryPromises;
   std::vector<Promise *> asyncPromises;
 
   Client *client;

@@ -143,7 +143,8 @@ Promise::ReleaseQueryResult()
         cv.wait(l);
     }
     if (reply > 0) {
-        Panic("Promise::ReleaseQueryResult called on failed promise");
+        throw std::exception(); //If we receive REPLY_FAIL throw an exception. The syncBenchClient will catch it and return ABORT_SYSTEM
+        //Panic("Promise::ReleaseQueryResult called on failed promise");
     }
     return std::move(result);
 }

@@ -64,6 +64,8 @@ public:
     Promise(int timeoutMS); // timeout in milliseconds
     ~Promise();
 
+    bool invalid = false;
+
     // reply to this promise and unblock any waiting threads
     void Reply(int r);
     void Reply(int r, Timestamp t);

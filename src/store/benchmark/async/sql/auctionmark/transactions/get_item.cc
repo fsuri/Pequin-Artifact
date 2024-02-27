@@ -61,8 +61,6 @@ transaction_status_t GetItem::Execute(SyncClient &client) {
                           "{} WHERE i_id = '{}' AND i_u_id = '{}'", TABLE_ITEM, item_id, seller_id);
   client.Query(statement, timeout);
 
-  //client.Wait(results); //FIXME: REMOVE THIS. JUST FOR TESTING
- 
   statement = fmt::format("SELECT u_id, u_rating, u_created, u_sattr0, u_sattr1, u_sattr2, u_sattr3, u_sattr4, r_name "
                          "FROM {}, {} WHERE u_id = '{}' AND u_r_id = r_id "
                          "AND r_id = r_id", //ADDED REFLEXIVE ARG FOR PELOTON PARSING. TODO: AUTOMATE THIS IN SQL_INTERPRETER 
