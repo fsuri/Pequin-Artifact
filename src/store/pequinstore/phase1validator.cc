@@ -70,15 +70,12 @@ bool Phase1Validator::ProcessMessage(const proto::ConcurrencyControl &cc, bool f
   switch(cc.ccr()) {
 
     case proto::ConcurrencyControl::ABORT: {
+      //TODO: This is not set up to handle proofs in case of ReadSet Caching
 
-      std::string committedTxnDigest = TransactionDigest(
-          cc.committed_conflict().txn(), params.hashDigest);
-      //TODO: RECOMMENT, just testing
+      std::string committedTxnDigest = TransactionDigest(cc.committed_conflict().txn(), params.hashDigest);
       if (params.validateProofs && !ValidateCommittedConflict(cc.committed_conflict(),
-            &committedTxnDigest, txn, txnDigest, params.signedMessages,
-            keyManager, config, verifier)) {
-        Debug("[group %d] Invalid committed_conflict for Phase1Reply.",
-            group);
+            &committedTxnDigest, txn, txnDigest, params.signedMessages, keyManager, config, verifier)) {
+        Debug("[group %d] Invalid committed_conflict for Phase1Reply.",group);
         return false;
       } else {
         state = FAST_ABORT;

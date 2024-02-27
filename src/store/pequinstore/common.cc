@@ -2091,9 +2091,14 @@ bool TransactionsConflict(const proto::Transaction &a, const proto::Transaction 
   //TODO: FIXME: Add support for Conflict detection when using Cached Read Set
                 //Need to compare the full merged read sets (I.e. merged_rs_a vs write set b, and vice versa)
                 //TODO: Need so somehow authenticate merged read set correctness. Need to map it back to the hashes.
-                //Note: CC check compares against locally stored prepared/committed read sets (which are the merged sets)
+                  //Note: CC check compares against locally stored prepared/committed read sets (which are the merged sets)
+  //Problem: For our own TX we don't have the read set either... 3 options
+      //1: Wait for f+1 ABORT votes, not just singular one. 2: Conflict must include our MergedTX as well, 3: ZK proof that TX conflict.
       
-  if(a.merged_read_set().read_set_size() > a.read_set_size()) return true; //JUST A HACK TO ACKNOWLEDGE THAT CONFLICT "MIGHT" BE VALID
+  //JUST A HACK TO ACKNOWLEDGE THAT CONFLICT "MIGHT" BE VALID TODO: Make it proper
+  if(a.merged_read_set().read_set_size() > a.read_set_size()) return true; //If the conflict TX has a merged read set that we aren't checking
+  if(b.query_set().size() > 0) return true; //Or our TX has some query read set that may be cached and not accessible...
+            //TODO: We cannot accept a singular replica Abort Vote when caching read set. We must wait for f+1...
 
   //Note: There should be no write/write conflicts
   // for (const auto &wa : a.write_set()) {
