@@ -362,6 +362,8 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
     typedef tbb::concurrent_hash_map<std::string, QueryMetaData*> queryMetaDataMap; //map from query_id -> QueryMetaData
     queryMetaDataMap queryMetaData;
 
+    tbb::concurrent_unordered_set<std::string> alreadyDeleted; //FIXME: JUST FOR TESTING
+
     //tbb::concurrent_unordered_map<uint64_t, uint64_t> clientQueryWatermark; //map from client_id to timestamp of last committed Tx. Ignore all queries below.
     typedef tbb::concurrent_hash_map<uint64_t, uint64_t> clientQueryWatermarkMap; //map from client_id to highest committed query_seq. Ignore all queries below.
     clientQueryWatermarkMap clientQueryWatermark;

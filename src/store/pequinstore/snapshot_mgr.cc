@@ -105,6 +105,8 @@ void SnapshotManager::AddToLocalSnapshot(const std::string &txnDigest, const pro
 
 void SnapshotManager::AddToLocalSnapshot(const proto::Transaction &txn, bool hash_param, bool committed_or_prepared){ //optimistTxId = params.query_params.optimisticTxId && retry_version == 0.
 
+  UW_ASSERT(local_ss);
+  Debug("Add to snapshot of Query [%d:%d]", local_ss->query_seq_num(), local_ss->client_id());
   Debug("USE OPTIMISTIC? %d", useOptimisticTxId);
   
   if(!useOptimisticTxId){ //Add txnDigest to snapshot

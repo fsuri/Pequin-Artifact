@@ -557,6 +557,7 @@ bool IndexScanExecutor::FindRightRowVersion(const Timestamp &timestamp, std::sha
     bool perform_read_on_snapshot = current_txn->GetSnapshotRead();
     auto snapshot_set = current_txn->GetSnapshotSet();
     UW_ASSERT(!perform_read_on_snapshot || perform_read); //if read on snapshot, must be performing read.
+    UW_ASSERT(!perform_find_snapshot || !current_txn->IsPointRead()); //if finding snapshot, cant be a point read.
   
    bool write_mode = !perform_read && !perform_find_snapshot && !perform_read_on_snapshot; //If scanning as part of a write
 
