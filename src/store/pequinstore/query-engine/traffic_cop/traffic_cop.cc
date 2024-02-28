@@ -812,11 +812,13 @@ executor::ExecutionResult TrafficCop::ExecutePurgeHelper(
   txn->SetUndoDelete(undo_delete);
 
   Debug("Purge helper: undo_delete %d, txn->GetUndoDelete() %d", undo_delete,
-        txn->GetUndoDelete());
+  txn->GetUndoDelete());
   // std::cout << "Undo delete in execute purge helper is " << undo_delete <<
   // std::endl; std::cout << "Txn get undo delete in execute purge helper is "
   // << txn->GetUndoDelete() << std::endl; No read set manager for purge
   txn->SetHasReadSetMgr(false);
+  txn->SetIsPointRead(false);
+  txn->SetHasSnapshotMgr(false);
 
   // skip if already aborted
   if (curr_state.second == ResultType::ABORTED) {
@@ -946,8 +948,13 @@ executor::ExecutionResult TrafficCop::ExecutePointReadHelper(
   txn->SetUndoDelete(false);
   // No read set manager
   txn->SetHasReadSetMgr(false);
+  // No snapshot manager
+  txn->SetHasSnapshotMgr(false);
+
   // Is a point read query
   txn->SetIsPointRead(true);
+  
+
 
    Debug("PointRead for: Basil Timestamp to [%lu:%lu]. IsPoint: %d", txn->GetBasilTimestamp().getTimestamp(), txn->GetBasilTimestamp().getID(), txn->IsPointRead());
 

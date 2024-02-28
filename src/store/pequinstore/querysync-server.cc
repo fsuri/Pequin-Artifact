@@ -1309,8 +1309,9 @@ void Server::CleanQueries(proto::Transaction *txn, bool is_commit){
         Debug("Deleting all QueryMD for queryId: %s (bytes)", BytesToHex(tx_query_md.query_id(), 16).c_str());
         QueryMetaData *local_query_md = q->second; //Local query_md
 
-        auto [_, first_deletion] = alreadyDeleted.insert(tx_query_md.query_id());
-        if(!first_deletion) Panic("duplicate delete");
+        //THIS IS JUST TEST/DEBUG CODE
+        // auto [_, first_deletion] = alreadyDeleted.insert(tx_query_md.query_id());
+        // if(!first_deletion) Panic("duplicate delete");
 
         //Move read set if caching. Note: Don't need to move read_set_hash -> tx already stores it. 
         if(is_commit && params.query_params.cacheReadSet){
