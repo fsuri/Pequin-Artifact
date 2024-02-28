@@ -651,7 +651,7 @@ executor::ExecutionResult TrafficCop::ExecuteEagerExecAndSnapshotHelper(
                                      std::vector<ResultValue> &&values) {
     // std::cout << "Made it to on complete" << std::endl;
     this->p_status_ = p_status;
-    // std::cout << "The status is " << p_status.m_error_message << std::endl;
+    //std::cout << "The status is " << p_status.m_error_message << std::endl;
     //  TODO (Tianyi) I would make a decision on keeping one of p_status or
     //  error_message in my next PR
     this->error_message_ = std::move(p_status.m_error_message);
@@ -754,10 +754,11 @@ executor::ExecutionResult TrafficCop::ExecuteWriteHelper(
   auto on_complete = [&result, this](executor::ExecutionResult p_status, std::vector<ResultValue> &&values) {
     // std::cout << "Made it to on complete" << std::endl;
     this->p_status_ = p_status;
-    // std::cout << "The status is " << p_status.m_error_message << std::endl;
+    //std::cout << "The status is " << p_status.m_error_message << std::endl;
     //  TODO (Tianyi) I would make a decision on keeping one of p_status or
     //  error_message in my next PR
     this->error_message_ = std::move(p_status.m_error_message);
+    if(!this->error_message_.empty()) Panic("got error: %s", this->error_message_.c_str());
     result = std::move(values);
     Debug("Calling Task callback");
     task_callback_(task_callback_arg_);

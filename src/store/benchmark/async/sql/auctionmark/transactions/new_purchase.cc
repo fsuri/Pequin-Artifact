@@ -75,8 +75,15 @@ transaction_status_t NewPurchase::Execute(SyncClient &client) {
         //If not, we read via ITEM_BID only.
         //Alternatively: If not, we'll insert one  //TODO: We must cache this in order to be able to read from it.
 
-  std::string getItemMaxBid = fmt::format("SELECT * FROM {} WHERE imb_i_id = '{}' AND imb_u_id = '{}'", TABLE_ITEM_MAX_BID, item_id, seller_id);
+  std::string getItemMaxBid = fmt::format("SELECT imb_ib_id FROM {} WHERE imb_i_id = '{}' AND imb_u_id = '{}'", TABLE_ITEM_MAX_BID, item_id, seller_id);
   client.Query(getItemMaxBid, queryResult, timeout);
+  int max_bid;
+  deserialize(max_bid, queryResult);
+
+  //Check whether the item is already purchased? In that case we don't want to retry the TX...
+  std::string getItemPurchase = fmt::format("SELECT Count(*) FROM {} WHERE ip_id = {} AND ip_ib_id = {} AND ip_ib_i_id = '{}' AND ip_ib_u_id = '{}'", 
+                                          TABLE_ITEM_PURCHASE, ip_id, max_bid, item_id, seller_id);
+  client.Query(getItemPurchase, timeout);
 
   if(queryResult->empty()){
       Panic("This branch should not be taken?");
@@ -140,6 +147,19 @@ transaction_status_t NewPurchase::Execute(SyncClient &client) {
   //std::string getBuyerInfo = fmt::format("SELECT u_id, u_balance FROM {} WHERE u_id = {}", TABLE_USER_ACCT, seller_id);
 
   // Set item_purchase_id
+
+  client.Wait(results);
+  //NOTE: THIS MAY FAIL BECAUSE CLIENTS CACHE OUT OF SYNC (ANOTHER CLIENT MIGHT HAVE DONE IT.) In this case: update cache and pick a different TX.
+  if(!results[0]->empty()){
+    Debug("Item has already been purchased");
+    //Update the cache
+    ItemRecord item_rec(item_id, seller_id, "", iir.i_current_price, iir.i_num_bids, iir.i_end_date, ItemStatus::CLOSED); // iir.ib_id, iir.ib_buyer_id, ip_id missing? Doesn't seem to be needed.
+    ItemId itemId = profile.processItemRecord(item_rec);
+
+    client.Abort(timeout);
+    return ABORTED_USER;
+  }
+
   std::string insertPurchase = fmt::format("INSERT INTO {} (ip_id, ip_ib_id, ip_ib_i_id, ip_ib_u_id, ip_date) "
                                             "VALUES ({}, {}, '{}', '{}', {}) ", TABLE_ITEM_PURCHASE, ip_id, iir.ib_id, item_id, seller_id, current_time);
   client.Write(insertPurchase, timeout, true);

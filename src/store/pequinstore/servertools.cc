@@ -450,6 +450,8 @@ void Server::ManageDispatchSupplyTx(const TransportAddress &remote, const std::s
 
 //////////////////////////////////////////////////////// Protocol Helper Functions
 
+//TODO: FIXME: Add snapshot set as input, and read only the version supplied in the snapshot set (instead of the latest)
+// google::protobuf::Map<std::string, pequinstore::proto::ReplicaList> *snapshot_set
 void Server::FindTableVersion(const std::string &key_name, const Timestamp &ts, bool add_to_read_set, QueryReadSetMgr *readSetMgr, bool add_to_snapshot, SnapshotManager *snapshotMgr){
   //Read the current TableVersion or TableColVersion from CC-store  -- I.e. key_name = "table_name" OR "table_name + delim + column_name" 
   //Note: TableVersion is updated AFTER all TableWrites of a TX have been written. So the TableVersion from CC-store is a pessimistic version; if it is outdated we abort, but that is safe.
@@ -491,7 +493,7 @@ void Server::FindTableVersion(const std::string &key_name, const Timestamp &ts, 
  if(add_to_snapshot){ //Creating Snapshot
     UW_ASSERT(snapshotMgr);
 
-    //TODO: Instead of hashing TXN, can we store the txn_digest somehwere such that we can just re-use it.
+    //TODO: Instead of hashing TXN on demand, can we store the txn_digest somehwere such that we can just re-use it.
     if(mostRecentPrepared != nullptr){ //Read prepared
       snapshotMgr->AddToLocalSnapshot(*mostRecentPrepared, params.hashDigest, false);
     }

@@ -391,15 +391,14 @@ ResultType Catalog::CreateTable(concurrency::TransactionContext *txn,
                            " to create table");
 
   // get table oid from pg_table
-  auto table_object =
-      database_object->GetTableCatalogEntry(table_name, schema_name);
-  if (table_object != nullptr)
-    throw CatalogException("Table: " + schema_name + "." + table_name +
-                           " already exists");
+  auto table_object = database_object->GetTableCatalogEntry(table_name, schema_name);
+  if (table_object != nullptr){
+    fprintf(stderr, "Table: %s.%s already exists", schema_name.c_str(), table_name.c_str());
+    throw CatalogException("Table: " + schema_name + "." + table_name + " already exists");
+  }
 
   auto storage_manager = storage::StorageManager::GetInstance();
-  auto database =
-      storage_manager->GetDatabaseWithOid(database_object->GetDatabaseOid());
+  auto database = storage_manager->GetDatabaseWithOid(database_object->GetDatabaseOid());
 
   // Check duplicate column names
   std::set<std::string> column_names;
@@ -408,8 +407,7 @@ ResultType Catalog::CreateTable(concurrency::TransactionContext *txn,
   for (auto column : columns) {
     auto column_name = column.GetName();
     if (column_names.count(column_name) == 1)
-      throw CatalogException("Can't create table " + table_name +
-                             " with duplicate column name");
+      throw CatalogException("Can't create table " + table_name + " with duplicate column name");
     column_names.insert(column_name);
   }
 
