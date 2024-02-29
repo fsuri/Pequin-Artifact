@@ -74,10 +74,12 @@ transaction_status_t CloseAuctions::Execute(SyncClient &client) {
                                        //TODO: Add redundant inputs?
 
   while(round-- > 0){
+    std::cerr << "round: " << (CLOSE_AUCTIONS_ROUNDS - round) << std::endl;
     client.Query(getDueItems, queryResult, timeout);
     //skip first row of result. If don't have any, break
     if(queryResult->empty()) break;
 
+    std::cerr << "PROCESSING #items: " << queryResult->size() << std::endl;
     //For row in result:
     for(int i = 1; i<queryResult->size(); ++i){
       getDueItemRow dir;

@@ -177,6 +177,12 @@ void ItemTableSchema(TableWriter &writer){
 
   const std::vector<uint32_t> index {1};
   writer.add_index(table_name, "idx_item_seller", index);
+
+  if(CLOSE_AUCTIONS_ENABLE){
+    const std::vector<uint32_t> index2 {12, 13};
+    writer.add_index(table_name, "idx_close_time", index2);
+  }
+  
 }
 
 void ItemImageTableSchema(TableWriter &writer){

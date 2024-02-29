@@ -63,18 +63,18 @@ namespace auctionmark
    */
   static constexpr uint32_t CLOSE_AUCTIONS_INTERVAL = 12000L; // Every 20 seconds
 
-  /**
-   * If set to true, the CloseAuctions transactions will be a executed in a separate thread. If set
-   * to false, then these txns will be executed whenever the interval interrupt occurs on the first
-   * worker thread
-   */
-  static constexpr bool CLOSE_AUCTIONS_SEPARATE_THREAD = false;
+  // /**
+  //  * If set to true, the CloseAuctions transactions will be a executed in a separate thread. If set
+  //  * to false, then these txns will be executed whenever the interval interrupt occurs on the first
+  //  * worker thread
+  //  */
+  // static constexpr bool CLOSE_AUCTIONS_SEPARATE_THREAD = false;
 
-  /**
-   * If set to true, then the first client will attempt to reset the database before starting the
-   * benchmark execution
-   */
-  static constexpr bool RESET_DATABASE_ENABLE = false;
+  // /**
+  //  * If set to true, then the first client will attempt to reset the database before starting the
+  //  * benchmark execution
+  //  */
+  // static constexpr bool RESET_DATABASE_ENABLE = false;
 
 
   /* Transaction ratios, should add up to 100 */
