@@ -153,22 +153,7 @@ void Server::Execute_Callback(const string& type, const string& msg, const execu
 
   std::string client_seq_key = createClientSeqKey(sql_rpc.client_id(),sql_rpc.txn_seq_num());
   txnStatusMap::accessor t;
-  std::shared_ptr<tao::pq::transaction> tr;
-  // std::shared_ptr<tao::pq::transaction> tr = getPgTransaction(t)
-
-  if(!txnMap.find(t,client_seq_key)) {
-    auto connection = connectionPool->connection();
-    tr = connection->transaction();
-    auto txn_status =std::make_tuple(connection, tr, false);
-    txnMap.insert(t, client_seq_key);
-    t->second=txn_status;
-    Debug("Query key: %s", client_seq_key);
-    std::cout << client_seq_key << std::endl;
-  } else {
-    tr = get<1>(t->second);
-    Debug("Query key already in: %s", client_seq_key);
-    std::cout << client_seq_key << std::endl;
-  }
+  std::shared_ptr<tao::pq::transaction> tr = getPgTransaction(t, client_seq_key);
 
   try {
     Debug("Attempt query %s", sql_rpc.query());
@@ -234,23 +219,9 @@ void Server::Execute_Callback(const string& type, const string& msg, const execu
   proto::TryCommitReply* reply = new proto::TryCommitReply();
   reply->set_req_id(try_commit.req_id());
 
-  std::shared_ptr<tao::pq::transaction> tr;
   std::string client_seq_key = createClientSeqKey(try_commit.client_id(),try_commit.txn_seq_num());
   txnStatusMap::accessor t;
-
-  if(!txnMap.find(t, client_seq_key)) {
-    auto connection = connectionPool->connection();
-    tr = connection->transaction();
-    auto txn_status =std::make_tuple(connection, tr, false);
-    txnMap.insert(t, client_seq_key);
-    t->second=txn_status;
-    Debug("TryCommit key: %s", client_seq_key);
-    std::cout << client_seq_key << std::endl;
-  } else {
-    tr = get<1>(t->second);
-    Debug("TryCommit key already in(should be): %s", client_seq_key);
-    std::cout << client_seq_key << std::endl;
-  }
+  std::shared_ptr<tao::pq::transaction> tr = getPgTransaction(t, client_seq_key);
 
   try {
     tr->commit();
@@ -282,7 +253,7 @@ void Server::Execute_Callback(const string& type, const string& msg, const execu
   return nullptr;
 }
 
-std::string Server::createClientSeqKey(uint64 cid, uint64 tid){
+std::string Server::createClientSeqKey(uint64_t cid, uint64_t tid){
   std::string client_seq_key;
   client_seq_key.append(std::to_string(cid));
   client_seq_key.append("|");
@@ -290,7 +261,26 @@ std::string Server::createClientSeqKey(uint64 cid, uint64 tid){
   return client_seq_key;
 }
 
-void Server::CleanTxnMap(std::string client_seq_key){
+std::shared_ptr<tao::pq::transaction> Server::getPgTransaction(txnStatusMap::accessor &t, const std::string &key){
+  std::shared_ptr<tao::pq::transaction> tr;
+  Debug("Client transaction key: %s", key);
+  std::cout << key << std::endl;
+
+  if(!txnMap.find(t,key)) {
+      Debug("Key was not found, creating a new connection");
+      auto connection = connectionPool->connection();
+      tr = connection->transaction();
+      auto txn_status =std::make_tuple(connection, tr, false);
+      txnMap.insert(t, key);
+      t->second=txn_status;
+    } else {
+      tr = get<1>(t->second);
+      Debug("Key already exists");
+  }
+  return tr;
+}
+
+void Server::CleanTxnMap(const std::string &client_seq_key){
   txnMap.erase(client_seq_key);
 }
 

@@ -109,9 +109,11 @@ private:
 
   void exec_statement(std::string sql_statement);
 
-  std::string createClientSeqKey(uint64 cid, uint64 tid);
+  std::string createClientSeqKey(uint64_t cid, uint64_t tid);
+  
+  std::shared_ptr<tao::pq::transaction> getPgTransaction(txnStatusMap::accessor &t, const std::string &key);
 
-  void CleanTxnMap(std::string client_seq_key);
+  void CleanTxnMap(const std::string &client_seq_key);
 
   std::string GenerateLoadStatement(const std::string &table_name, const std::vector<std::vector<std::string>> &row_segment, int segment_no);
 
