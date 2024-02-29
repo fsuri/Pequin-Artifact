@@ -378,20 +378,20 @@
   "item_purchase": {
     "column_names_and_types": [
       [
-        "ip_id",
-        "BIGINT"
-      ],
-      [
-        "ip_ib_id",
-        "BIGINT"
-      ],
-      [
         "ip_ib_i_id",
         "TEXT"
       ],
       [
         "ip_ib_u_id",
         "TEXT"
+      ],
+      [
+        "ip_id",
+        "BIGINT"
+      ],
+      [
+        "ip_ib_id",
+        "BIGINT"
       ],
       [
         "ip_date",

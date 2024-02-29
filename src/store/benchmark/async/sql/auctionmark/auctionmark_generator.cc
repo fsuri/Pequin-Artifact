@@ -270,10 +270,10 @@ void ItemMaxBidTableSchema(TableWriter &writer){
 void ItemPurchaseTableSchema(TableWriter &writer){
   std::string table_name = TABLE_ITEM_PURCHASE;
    std::vector<std::pair<std::string, std::string>> column_names_and_types;
-  column_names_and_types.push_back(std::make_pair("ip_id", "BIGINT"));
-  column_names_and_types.push_back(std::make_pair("ip_ib_id", "BIGINT"));
   column_names_and_types.push_back(std::make_pair("ip_ib_i_id", "TEXT"));
   column_names_and_types.push_back(std::make_pair("ip_ib_u_id", "TEXT"));
+  column_names_and_types.push_back(std::make_pair("ip_id", "BIGINT"));
+  column_names_and_types.push_back(std::make_pair("ip_ib_id", "BIGINT"));
   column_names_and_types.push_back(std::make_pair("ip_date", "BIGINT"));
 
   const std::vector<uint32_t> primary_key_col_idx{0, 1, 2, 3};
@@ -976,18 +976,18 @@ void GenerateItemMaxBidRow(TableWriter &writer, LoaderItemInfo &itemInfo){
     Bid &bid = itemInfo.getLastBid();
 
     std::vector<std::string> values;
-    
-      // IP_ID
-    values.push_back(std::to_string(0)); // //FIXME: Unclear if this is the correct use of count
-    
-    // IP_IB_ID
-    values.push_back(std::to_string(bid.id));
-    
+        
     // IP_IB_I_ID
     values.push_back(itemInfo.get_item_id().encode());
     
     // IP_IB_U_ID
       values.push_back(itemInfo.get_seller_id().encode());
+
+    // IP_ID
+    values.push_back(std::to_string(0)); // //FIXME: Unclear if this is the correct use of count
+    
+    // IP_IB_ID
+    values.push_back(std::to_string(bid.id));
 
     // IP_DATE
     values.push_back(std::to_string(itemInfo.purchaseDate));

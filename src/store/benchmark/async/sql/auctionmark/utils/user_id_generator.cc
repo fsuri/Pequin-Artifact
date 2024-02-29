@@ -51,7 +51,7 @@ void UserIdGenerator::set_current_item_count(int size) {
    
     current_item_count = size;
     current_offset = users_per_item_counts[current_item_count];
-     std::cerr << "current position: " << current_position << ". curr item_count: " << current_item_count << std::endl;
+    //std::cerr << "current position: " << current_position << ". curr item_count: " << current_item_count << std::endl;
 }
 
 int UserIdGenerator::get_current_position() const {
@@ -59,19 +59,7 @@ int UserIdGenerator::get_current_position() const {
 }
 
 std::optional<UserId> UserIdGenerator::seek_to_position(int position) {
-    if(position == 9999){
-      std::cerr << "print whole hist" << std::endl;
-      std::cerr << "size: " << users_per_item_counts.size() << std::endl;
-      int sum = 0;
-      for(int i =0; i < users_per_item_counts.size(); ++i){
-        if(users_per_item_counts[i] > 0) std::cerr << (users_per_item_counts[i]) << " users have " << i << " items" << std::endl;
-        if(i <= 511) sum += users_per_item_counts[i];
-        
-      }
-      std::cerr << "sum: " << sum << std::endl;
-    }
-
-
+    
     std::optional<UserId> user_id;
 
     current_position = 0;
@@ -83,10 +71,10 @@ std::optional<UserId> UserIdGenerator::seek_to_position(int position) {
       if (current_position + num_users > position) {
         _next = std::nullopt;
         current_offset = num_users - (position - current_position);
-        std::cerr << "num users: " << num_users << std::endl;
-        std::cerr << "position: " << position << std::endl;
-        std::cerr << "current_position: " << current_position << std::endl;
-        std::cerr << "current_offset " << current_offset << std::endl;
+        // std::cerr << "num users: " << num_users << std::endl;
+        // std::cerr << "position: " << position << std::endl;
+        // std::cerr << "current_position: " << current_position << std::endl;
+        // std::cerr << "current_offset " << current_offset << std::endl;
         current_position = position;
         user_id = next();
         break;
@@ -127,12 +115,9 @@ bool UserIdGenerator::has_next() {
 
 std::optional<UserId> UserIdGenerator::next() {
     if (!_next.has_value()) {
-      std::cerr << "try set" << std::endl;
       _next = find_next_user_id();
     }
-    std::cerr << "here" << std::endl;
     auto ret = _next;
-    std::cerr << "here2" << std::endl;
     _next = std::nullopt;
     return ret;
 }
@@ -163,7 +148,7 @@ std::string UserIdGenerator::to_string() const {
 
 std::optional<UserId> UserIdGenerator::find_next_user_id() {
     int found = -1;
-    std::cerr << "find next user. curr_item_cnt: " << current_item_count << ". max_item count: " << max_item_count << std::endl; 
+    //std::cerr << "find next user. curr_item_cnt: " << current_item_count << ". max_item count: " << max_item_count << std::endl; 
     
     while (current_item_count <= max_item_count) {
       //std::cerr << "curr_item_cnt: " << current_item_count << std::endl;
@@ -172,7 +157,7 @@ std::optional<UserId> UserIdGenerator::find_next_user_id() {
         int next_ctr = current_offset--;
         current_position++;
 
-         std::cerr << "curr pos: " << current_position << ". num_clients: " << num_clients << " . client id: " << client_id <<std::endl;
+         //std::cerr << "curr pos: " << current_position << ". num_clients: " << num_clients << " . client id: " << client_id <<std::endl;
 
         // If we weren't given a client_id, then we'll generate UserIds
         if (client_id  == -1) {
@@ -194,8 +179,8 @@ std::optional<UserId> UserIdGenerator::find_next_user_id() {
       // std::cerr << "new offset: " << current_offset << std::endl;
     }
 
-    std::cerr << "current_item_count: " <<current_item_count << std::endl;
-    std::cerr << "found: " << found << std::endl;
+    // std::cerr << "current_item_count: " <<current_item_count << std::endl;
+    // std::cerr << "found: " << found << std::endl;
     if (found == -1) {
       assert(client_id != -1); //should never happen for generation
       return std::nullopt;

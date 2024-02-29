@@ -63,7 +63,7 @@ class Bid {
 
 class LoaderItemInfo : public ItemInfo {
   public:
-    LoaderItemInfo(ItemId itemId, uint64_t endDate, uint64_t numBids) : ItemInfo(itemId, 0.0, endDate, numBids) {}
+    LoaderItemInfo(ItemId itemId, uint64_t endDate, uint64_t numBids) : ItemInfo(itemId, 0.0, endDate, numBids), purchaseDate(0) {}
     ~LoaderItemInfo(){}
     std::vector<Bid> bids;
     std::map<UserId, uint64_t> bidderHistogram;

@@ -163,8 +163,8 @@ UW_ASSERT(iir.ib_id == max_bid);
     return ABORTED_USER;
   }
 
-  std::string insertPurchase = fmt::format("INSERT INTO {} (ip_id, ip_ib_id, ip_ib_i_id, ip_ib_u_id, ip_date) "
-                                            "VALUES ({}, {}, '{}', '{}', {}) ", TABLE_ITEM_PURCHASE, ip_id, iir.ib_id, item_id, seller_id, current_time);
+  std::string insertPurchase = fmt::format("INSERT INTO {} (ip_ib_i_id, ip_ib_u_id, ip_id, ip_ib_id, ip_date) "
+                                            "VALUES ('{}', '{}', {}, {}, {}) ", TABLE_ITEM_PURCHASE, item_id, seller_id, ip_id, iir.ib_id, current_time);
   client.Write(insertPurchase, timeout, true);
 
   // Update item status to close

@@ -156,7 +156,6 @@ namespace auctionmark
       initialize_user_id_generator(client_id);
     }
 
-    std::cerr << "s1" << std::endl;
 
     std::optional<UserId> user_id = std::nullopt;
     int tries = 1000;
@@ -173,20 +172,14 @@ namespace auctionmark
         item_count = hist.next_value();
       }
 
-      std::cerr << "b1" << std::endl;
-
-      std::cerr << "item count: " << item_count << std::endl;
+      //std::cerr << "item count: " << item_count << std::endl;
       // Set the current item count and then choose a random position between where the generator is currently at and where it ends
       user_id_generator->set_current_item_count(item_count);
-      std::cerr << "b2" << std::endl;
       int cur_position = user_id_generator->get_current_position();
-      std::cerr << "b3" << std::endl;
       int new_position = std::uniform_int_distribution<>(cur_position, num_users)(gen);
-      std::cerr << "new position: " << new_position << std::endl;
       user_id = user_id_generator->seek_to_position(new_position);
-      std::cerr << "b4" << std::endl;
+     
     
-
       if (!user_id.has_value()){
         //std::cerr << "didn't find val" << std::endl;
         continue;
@@ -195,7 +188,6 @@ namespace auctionmark
       // Make sure that we didn't select the same UserId as the one we were
       // told to exclude.
       if (!exclude.empty()) {
-         std::cerr << "s2" << std::endl;
         for (UserId ex : exclude) {
           if (ex == user_id.value()){
             //std::cerr << "val is meant to be excluded. skipping" << std::endl;
@@ -203,7 +195,6 @@ namespace auctionmark
             break;
           }
         }
-        std::cerr << "s3" << std::endl;
         if (!user_id.has_value()){
           continue;
         }
