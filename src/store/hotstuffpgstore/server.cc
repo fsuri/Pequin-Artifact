@@ -155,61 +155,30 @@ void Server::Execute_Callback(const string& type, const string& msg, const execu
   txnStatusMap::accessor t;
   std::shared_ptr<tao::pq::transaction> tr = getPgTransaction(t, client_seq_key);
 
-  try {
-    Debug("Attempt query %s", sql_rpc.query());
-    std::cout << sql_rpc.query() << std::endl;
+  if (tr){
+    // this means tr is not a null pointer. it would be a null pointer if this txn was alerady aborted
+    try {
+      Debug("Attempt query %s", sql_rpc.query());
+      std::cout << sql_rpc.query() << std::endl;
 
-    std::cerr<< "Shir: Before executing tr->execute (2)\n";
-    const auto sql_res = tr->execute(sql_rpc.query());
-    std::cerr<< "Shir: After executing tr->execute (2)\n";
+      std::cerr<< "Shir: Before executing tr->execute (2)\n";
+      const tao::pq::result sql_res = tr->execute(sql_rpc.query());
+      t.release();
+      std::cerr<< "Shir: After executing tr->execute (2)\n";
 
-    std::cerr<< "Shir: number of rows affected (according to server):   "<<sql_res.rows_affected() <<"\n";
-    std::cerr<< "Shir: this is for txn by client id:   "<<std::to_string(sql_rpc.client_id()) <<"\n";
+      // std::cerr<< "Shir: number of rows affected (according to server):   "<<sql_res.rows_affected() <<"\n";
+      // std::cerr<< "Shir: this is for txn by client id:   "<<std::to_string(sql_rpc.client_id()) <<"\n";
 
-
-    Debug("Query executed");
-    // Should extrapolate out into builder method
-    // Start by looping over columns and adding column names
-
-    sql::QueryResultProtoBuilder* res_builder = new sql::QueryResultProtoBuilder();
-    res_builder->set_rows_affected(sql_res.rows_affected());
-    if(sql_res.columns() == 0) {
-      Debug("Had rows affected");
-      res_builder->add_empty_row();
-    } else {
-      Debug("No rows affected");
-      for(int i = 0; i < sql_res.columns(); i++) {
-        res_builder->add_column(sql_res.name(i));
-        std::cout << sql_res.name(i) << std::endl;
-      }
-      // After loop over rows and add them using add_row method
-      // for(const auto& row : sql_res) {
-      //   res_builder->add_row(std::begin(row), std::end(row));
-      // }
-      // for(auto it = std::begin(sql_res); it != std::end(sql_res); ++it) {
-        
-      // }
-      for( const auto& row : sql_res ) {
-        res_builder->add_empty_row();
-        for( const auto& field : row ) {
-          std::string field_str = field.as<std::string>();
-          res_builder->add_field_to_last_row(field_str);
-          std::cout << field_str << std::endl;
-        }
-      }
+      Debug("Query executed");
+      sql::QueryResultProtoBuilder* res_builder = createResult(sql_res);
+      reply->set_status(REPLY_OK);
+      reply->set_sql_res(res_builder->get_result()->SerializeAsString());
+    } catch(tao::pq::sql_error e) {
+      markTxnTerminated(t);
+      t.release();
+      Debug("An exception caugth while using postgres.");
+      reply->set_status(REPLY_FAIL);
     }
-
-    reply->set_status(REPLY_OK);
-    // std::string* res_string;
-    // res_builder->get_result()->SerializeToString(res_string);
-    // reply->set_sql_res(*res_string); //&
-    reply->set_sql_res(res_builder->get_result()->SerializeAsString());
-    t.release();
-  } catch(tao::pq::sql_error e) {
-    Debug("An exception caugth while using postgres.");
-    reply->set_status(REPLY_FAIL);
-    t.release();
-    CleanTxnMap(client_seq_key);
   }
   return returnMessage(reply);
 }
@@ -223,17 +192,20 @@ void Server::Execute_Callback(const string& type, const string& msg, const execu
   txnStatusMap::accessor t;
   std::shared_ptr<tao::pq::transaction> tr = getPgTransaction(t, client_seq_key);
 
-  try {
-    tr->commit();
-    Debug("TryCommit went through successfully.");
-    reply->set_status(REPLY_OK);
-  } catch(tao::pq::sql_error e) {
-    Debug("An exception caugth while using postgres.");
-    reply->set_status(REPLY_FAIL);
+  if (tr){
+    // this means tr is not a null pointer. it would be a null pointer if this txn was alerady aborted
+    try {
+      tr->commit();
+      t.release();
+      Debug("TryCommit went through successfully.");
+      reply->set_status(REPLY_OK);
+    } catch(tao::pq::sql_error e) {
+      Debug("An exception caugth while using postgres.");
+      reply->set_status(REPLY_FAIL);
+    }
+    markTxnTerminated(t);
+    return returnMessage(reply);
   }
-  t.release();
-  CleanTxnMap(client_seq_key);
-  return returnMessage(reply);
 }
 
 ::google::protobuf::Message* Server::HandleUserAbort(const proto::UserAbort& user_abort) {
@@ -242,14 +214,13 @@ void Server::Execute_Callback(const string& type, const string& msg, const execu
   txnStatusMap::accessor t;
 
   if(!txnMap.find(t,client_seq_key)) {
-    t.release();
+    // t.release();
     return nullptr;
   } else {
     tr = get<1>(t->second);
   }
   tr->rollback();
-  t.release();
-  CleanTxnMap(client_seq_key);
+  markTxnTerminated(t);
   return nullptr;
 }
 
@@ -280,8 +251,48 @@ std::shared_ptr<tao::pq::transaction> Server::getPgTransaction(txnStatusMap::acc
   return tr;
 }
 
-void Server::CleanTxnMap(const std::string &client_seq_key){
-  txnMap.erase(client_seq_key);
+void Server::markTxnTerminated(txnStatusMap::accessor &t){
+  // get<0>(t->second) = nullptr;
+  // get<1>(t->second) = nullptr;
+  // get<2>(t->second) = true;
+}
+
+// bool Server::isTerminatedTxn(txnStatusMap::accessor &t){
+//   return get<2>(t->second);
+// }
+
+sql::QueryResultProtoBuilder* Server::createResult(const tao::pq::result &sql_res){
+  // Should extrapolate out into builder method
+  // Start by looping over columns and adding column names
+
+  sql::QueryResultProtoBuilder* res_builder = new sql::QueryResultProtoBuilder();
+  res_builder->set_rows_affected(sql_res.rows_affected());
+  if(sql_res.columns() == 0) {
+    Debug("Had rows affected");
+    res_builder->add_empty_row();
+  } else {
+    Debug("No rows affected");
+    for(int i = 0; i < sql_res.columns(); i++) {
+      res_builder->add_column(sql_res.name(i));
+      std::cout << sql_res.name(i) << std::endl;
+    }
+    // After loop over rows and add them using add_row method
+    // for(const auto& row : sql_res) {
+    //   res_builder->add_row(std::begin(row), std::end(row));
+    // }
+    // for(auto it = std::begin(sql_res); it != std::end(sql_res); ++it) {
+      
+    // }
+    for( const auto& row : sql_res ) {
+      res_builder->add_empty_row();
+      for( const auto& field : row ) {
+        std::string field_str = field.as<std::string>();
+        res_builder->add_field_to_last_row(field_str);
+        std::cout << field_str << std::endl;
+      }
+    }
+  }
+  return res_builder;
 }
 
 void Server::CreateTable(const std::string &table_name, const std::vector<std::pair<std::string, std::string>> &column_data_types, const std::vector<uint32_t> &primary_key_col_idx){
@@ -368,10 +379,7 @@ void Server::LoadTableRow(const std::string &table_name, const std::vector<std::
 }
 
 
-void Server::exec_statement(std::string sql_statement) {
-  // Debug("Shir: executing the following sql statement in postgres: ");
-  // std::cerr<< sql_statement << "\n";
-
+void Server::exec_statement(const std::string &sql_statement) {
   auto connection = connectionPool->connection();
   connection->execute(sql_statement);
 }
