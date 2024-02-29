@@ -174,7 +174,7 @@ void Server::Execute_Callback(const string& type, const string& msg, const execu
       reply->set_status(REPLY_OK);
       reply->set_sql_res(res_builder->get_result()->SerializeAsString());
     } catch(tao::pq::sql_error e) {
-      markTxnTerminated(t);
+            markTxnTerminated(t);
       t.release();
       Debug("An exception caugth while using postgres.");
       reply->set_status(REPLY_FAIL);
@@ -196,14 +196,13 @@ void Server::Execute_Callback(const string& type, const string& msg, const execu
     // this means tr is not a null pointer. it would be a null pointer if this txn was alerady aborted
     try {
       tr->commit();
-      t.release();
       Debug("TryCommit went through successfully.");
       reply->set_status(REPLY_OK);
     } catch(tao::pq::sql_error e) {
       Debug("An exception caugth while using postgres.");
       reply->set_status(REPLY_FAIL);
     }
-    markTxnTerminated(t);
+        markTxnTerminated(t);
     return returnMessage(reply);
   }
 }
@@ -252,9 +251,10 @@ std::shared_ptr<tao::pq::transaction> Server::getPgTransaction(txnStatusMap::acc
 }
 
 void Server::markTxnTerminated(txnStatusMap::accessor &t){
-  // get<0>(t->second) = nullptr;
-  // get<1>(t->second) = nullptr;
-  // get<2>(t->second) = true;
+  Debug("Shir: terminating txn");
+  get<0>(t->second) = nullptr;
+  get<1>(t->second) = nullptr;
+  get<2>(t->second) = true;
 }
 
 // bool Server::isTerminatedTxn(txnStatusMap::accessor &t){
