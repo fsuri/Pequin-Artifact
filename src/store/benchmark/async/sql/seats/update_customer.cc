@@ -78,7 +78,9 @@ transaction_status_t SQLUpdateCustomer::Execute(SyncClient &client) {
     int64_t base_airport = cr_row.c_base_ap_id;
 
     //GetBaseAirport
-    query = fmt::format("SELECT * FROM {}, {} WHERE ap_id = {} AND ap_co_id = co_id", AIRPORT_TABLE, COUNTRY_TABLE, base_airport);
+    query = fmt::format("SELECT * FROM {}, {} WHERE ap_id = {} AND ap_co_id = co_id "
+                        "AND co_id = co_id", //REFLEXIVE ARG FOR DUMB PELOTON PLANNER
+                        AIRPORT_TABLE, COUNTRY_TABLE, base_airport);
     client.Query(query, queryResult, timeout);
     if (queryResult->empty()) {
         Notice("No airport found for ap_id %d", base_airport);

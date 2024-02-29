@@ -13,7 +13,7 @@ namespace seats_sql {
 
 class SEATSSQLClient : public SyncTransactionBenchClient {
  public:
-  SEATSSQLClient(SyncClient &client, Transport &transport, uint64_t id,
+  SEATSSQLClient(SyncClient &client, Transport &transport, const std::string &profile_file_path, uint64_t id,
       uint64_t numRequests, uint64_t expDuration, uint64_t delay, uint64_t warmupSec,
       uint64_t cooldownSec, uint64_t tputInterval, uint32_t abortBackoff, bool retryAborted, 
       uint64_t maxBackoff, int64_t maxAttempts,

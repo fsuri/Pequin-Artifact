@@ -611,7 +611,8 @@
       ]
     ],
     "indexes": {
-      "f_depart_time_idx": [
+      "f_departures_idx": [
+        2,
         3
       ]
     },

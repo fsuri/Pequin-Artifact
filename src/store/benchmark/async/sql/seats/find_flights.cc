@@ -34,8 +34,8 @@ SQLFindFlights::SQLFindFlights(uint32_t timeout, std::mt19937 &gen, std::vector<
             depart_aid = flight.depart_ap_id;
             arrive_aid = flight.arrive_ap_id;
             uint64_t range = seats_sql::MS_IN_DAY / 2;
-            start_time = flight.depart_time - range; //(flight.depart_time % seats_sql::MS_IN_DAY); //normalize to start of day
-            end_time = start_time + range; 
+            start_time = flight.depart_time - range; 
+            end_time = flight.depart_time + range; 
 
             fprintf(stderr, "Select Flight From Cache. dep_ap: %d, arrive_ap: %d. Dep_time %lu. Sanity f_id: %lu\n", depart_aid, arrive_aid, start_time, flight.flight_id);
 
@@ -47,6 +47,7 @@ SQLFindFlights::SQLFindFlights(uint32_t timeout, std::mt19937 &gen, std::vector<
             distance = 0;
         }
 
+        UW_ASSERT(start_time < end_time);
         cached_flights = &cached_flight_ids;
     }
 
@@ -78,18 +79,22 @@ transaction_status_t SQLFindFlights::Execute(SyncClient &client) {
     //GetFlights - up to 2 nearby airports
     if (nearby_airports.size() == 0){
         query = fmt::format("SELECT f_id, f_al_id, f_depart_ap_id, f_depart_time, f_arrive_ap_id, f_arrive_time, al_name, al_iattr00, al_iattr01 FROM {}, {} " 
-                            "WHERE f_depart_ap_id = {} AND f_depart_time >= {} AND f_depart_time <= {} AND f_al_id = al_id AND f_arrive_ap_id = {} LIMIT {}", 
+                            "WHERE f_depart_ap_id = {} AND f_depart_time >= {} AND f_depart_time <= {} AND f_al_id = al_id AND f_arrive_ap_id = {} "
+                            "AND al_id = al_id " //REFLEXIVE ARG FOR DUMB PELOTON PLANNER
+                            "LIMIT {} ",
                             FLIGHT_TABLE, AIRLINE_TABLE, depart_aid, start_time, end_time, arrive_aid, MAX_NUM_FLIGHTS);
     } 
     else if (nearby_airports.size() == 1){ 
         query = fmt::format("SELECT f_id, f_al_id, f_depart_ap_id, f_depart_time, f_arrive_ap_id, f_arrive_time, al_name, al_iattr00, al_iattr01 FROM {}, {} " 
                             "WHERE f_depart_ap_id = {} AND f_depart_time >= {} AND f_depart_time <= {} AND f_al_id = al_id " 
+                            "AND al_id = al_id ", //REFLEXIVE ARG FOR DUMB PELOTON PLANNER
                             "AND (f_arrive_ap_id = {} OR f_arrive_ap_id = {}) LIMIT {}", 
                             FLIGHT_TABLE, AIRLINE_TABLE, depart_aid, start_time, end_time, arrive_aid, nearby_airports[0], MAX_NUM_FLIGHTS);
     }
     else{
         query = fmt::format("SELECT f_id, f_al_id, f_depart_ap_id, f_depart_time, f_arrive_ap_id, f_arrive_time, al_name, al_iattr00, al_iattr01 FROM {}, {} "
                             "WHERE f_depart_ap_id = {} AND f_depart_time >= {} AND f_depart_time <= {} AND f_al_id = al_id "
+                            "AND al_id = al_id ", //REFLEXIVE ARG FOR DUMB PELOTON PLANNER
                             "AND (f_arrive_ap_id = {} OR f_arrive_ap_id = {} OR f_arrive_ap_id = {}) LIMIT {}", 
                             FLIGHT_TABLE, AIRLINE_TABLE, depart_aid, start_time, end_time, arrive_aid, nearby_airports[0], nearby_airports[1], MAX_NUM_FLIGHTS);
     }
@@ -98,7 +103,10 @@ transaction_status_t SQLFindFlights::Execute(SyncClient &client) {
 
     GetFlightsResultRow flight_row;
     //GetAirportInfo
-    std::string getAirportInfoQuery = "SELECT ap_code, ap_name, ap_city, ap_longitude, ap_latitude, co_id, co_name, co_code_2, co_code_3 FROM {}, {} WHERE ap_id = {} AND ap_co_id = co_id";
+    std::string getAirportInfoQuery = "SELECT ap_code, ap_name, ap_city, ap_longitude, ap_latitude, co_id, co_name, co_code_2, co_code_3 "
+                                      "FROM {}, {} "
+                                      "WHERE ap_id = {} AND ap_co_id = co_id "
+                                      "AND co_id = co_id"; //REFLEXIVE ARG FOR DUMB PELOTON PLANNER
     std::vector<GetAirportInfoResultRow> airport_infos;
 
      // populate the infos of arriving / departing airports of flight

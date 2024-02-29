@@ -9,6 +9,8 @@ namespace seats_sql {
 
 const int SCALE_FACTOR = 1; //5;
 
+static const std::string PROFILE_FILE_NAME = "sql-seats-data/cached_flights.csv";
+
 const int64_t NULL_ID = std::numeric_limits<int64_t>::min();
 const int64_t MAX_BIG_INT = std::numeric_limits<int64_t>::max() - 1;
 

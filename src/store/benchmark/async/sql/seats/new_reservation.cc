@@ -58,7 +58,8 @@ transaction_status_t SQLNewReservation::Execute(SyncClient &client) {
     client.Begin(timeout);
 
     // (1) Get Flight information. (GetFlight)
-    query = fmt::format("SELECT f_al_id, f_seats_left, al_iata_code, al_icao_code, al_call_sign, al_name, al_co_id FROM {}, {} WHERE f_id = {} AND f_al_id = al_id", 
+    query = fmt::format("SELECT f_al_id, f_seats_left, al_iata_code, al_icao_code, al_call_sign, al_name, al_co_id FROM {}, {} WHERE f_id = {} AND f_al_id = al_id "
+                        "AND al_id = al_id", //REFLEXIVE ARG FOR DUMB PELOTON PLANNER 
                         FLIGHT_TABLE, AIRLINE_TABLE, f_id); 
     //Peloton does not support `.*` semantics. Replaced by just getting a couple (not all) airline fields.
     //query = fmt::format("SELECT f_al_id, f_seats_left, {}.* FROM {}, {} WHERE f_id = {} AND f_al_id = al_id", AIRLINE_TABLE, FLIGHT_TABLE, AIRLINE_TABLE, f_id); 
@@ -162,11 +163,11 @@ transaction_status_t SQLNewReservation::Execute(SyncClient &client) {
 
 
     if (std::uniform_int_distribution<int>(1, 100)(*gen_) < PROB_Q_DELETE_RESERVATION){
-        std::cerr << "NEW_RES: PUSH TO DELETE Q" << std::endl;
+        std::cerr << "NEW_RES: PUSH TO DELETE Q. r_id: " << r_id <<". c_id: " << c_id << ". flight_id: " << flight.flight_id << std::endl;
         delete_q->push(SEATSReservation(r_id, c_id, flight, seatnum));
     }
     else{
-         std::cerr << "NEW_RES: PUSH TO UPDATE Q" << std::endl;
+         std::cerr << "NEW_RES: PUSH TO UPDATE Q. r_id: " << r_id <<". c_id: " << c_id << ". flight_id: " << flight.flight_id << std::endl;
         update_q->push(SEATSReservation(r_id, c_id, flight, seatnum));
     }
 

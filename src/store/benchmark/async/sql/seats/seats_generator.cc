@@ -427,8 +427,8 @@ std::vector<int> GenerateFlightTable(TableWriter &writer, std::vector<std::vecto
     writer.add_table(table_name, column_names_and_types, primary_key_col_idx);
     
 
-    const std::vector<uint32_t> index {3};
-    writer.add_index(table_name, "f_depart_time_idx", index);
+    const std::vector<uint32_t> index {2, 3};
+    writer.add_index(table_name, "f_departures_idx", index);
 
     // const std::vector<uint32_t> index {2, 3};
     // writer.add_index(table_name, "f_depart_airport_idx", index);

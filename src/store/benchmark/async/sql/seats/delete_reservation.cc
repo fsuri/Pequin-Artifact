@@ -7,10 +7,14 @@ namespace seats_sql{
 
 SQLDeleteReservation::SQLDeleteReservation(uint32_t timeout, std::mt19937 &gen, std::queue<SEATSReservation> &existing_res, std::queue<SEATSReservation> &insert_res) : 
     SEATSSQLTransaction(timeout), gen_(&gen) {
+         std::cerr << "DELETE_RESERVATION" << std::endl;
+    Debug("DELETE_RESERVATION");
+
         UW_ASSERT(!existing_res.empty());
         SEATSReservation r = existing_res.front();
         existing_res.pop();
 
+        std::cerr << "r_id: " << r.r_id << std::endl; 
         c_id = r.c_id;
         flight = r.flight;
         f_id = flight.flight_id;
@@ -43,8 +47,6 @@ transaction_status_t SQLDeleteReservation::Execute(SyncClient &client) {
     std::unique_ptr<const query_result::QueryResult> queryResult;
     std::string query;
 
-    std::cerr << "DELETE_RESERVATION" << std::endl;
-    Debug("DELETE_RESERVATION");
     client.Begin(timeout);
 
     // //Get Flight attributes from Flight Id
@@ -69,7 +71,9 @@ transaction_status_t SQLDeleteReservation::Execute(SyncClient &client) {
         } else if (ff_c_id_str.size() > 0){ // && ff_al_id != NULL_ID) {
             //(B) Get Customer ID by Frequent Flyer Number
             has_al_id = true;
-            query = fmt::format("SELECT c_id, ff_al_id FROM {}, {} WHERE ff_c_id_str = '{}' AND c_id_str = '{}' AND ff_c_id = c_id", FREQUENT_FLYER_TABLE, CUSTOMER_TABLE, ff_c_id_str, ff_c_id_str);
+            query = fmt::format("SELECT c_id, ff_al_id FROM {}, {} WHERE ff_c_id_str = '{}' AND ff_c_id = c_id "
+            "AND c_id = c_id", //REFLEXIVE ARGS TO SATISFY DUMB PELOTON PLANNER
+                                FREQUENT_FLYER_TABLE, CUSTOMER_TABLE, ff_c_id_str, ff_c_id_str);
         } else {
             Notice("No way to get Customer ID");
             Debug("No way to get Customer ID");
@@ -93,11 +97,14 @@ transaction_status_t SQLDeleteReservation::Execute(SyncClient &client) {
     query = fmt::format("SELECT c_sattr00, c_sattr02, c_sattr04, c_iattr00, c_iattr02, c_iattr04, c_iattr06, f_seats_left, r_id, r_seat, r_price, r_iattr00 FROM {}, {}, {} "
                         "WHERE c_id = {} AND c_id = r_c_id "
                         "AND f_id = {} AND f_id = r_f_id "
-                        "AND r_f_id = {}", CUSTOMER_TABLE, FLIGHT_TABLE, RESERVATION_TABLE, c_id, f_id, f_id);
+                        "AND r_f_id = {} "
+                        "AND r_c_id = r_c_id AND r_f_id = r_f_id", //REFLEXIVE ARGS TO SATISFY DUMB PELOTON PLANNER
+                        CUSTOMER_TABLE, FLIGHT_TABLE, RESERVATION_TABLE, c_id, f_id, f_id);
+                   
     client.Query(query, queryResult, timeout);
     //If there is no valid customer record, throw an abort  //Note: supposedly happens 5% of the time.
     if (queryResult->empty()) {
-        Notice("No customer record with c_id: %d", c_id);
+        Notice("No customer record with c_id: %d.", c_id);
         Debug("No customer record with id %ld", c_id);
         client.Abort(timeout);
         return ABORTED_USER;

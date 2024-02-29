@@ -20,7 +20,7 @@ const char* FLIGHTS_TIME_HISTO_FN = "./resources/histogram_flights_per_time.json
 const char* AIRLINE_SEATS_TABLE = "./resources/table_airline_seats.csv";
 const char* AIRPORT_SEATS_TABLE = "./resources/table_airport_seats.csv";
 const char* COUNTRY_SEATS_TABLE = "./resources/table_country_seats.csv";
-const char* PROFILE_LOC = "./profiles/cached_flights.csv";
+
 
 class GaussGenerator {
     std::default_random_engine generator;
@@ -149,7 +149,7 @@ std::vector<std::string> readCSVRow(std::ifstream& iostr) {
 
 void writeCachedFlights(std::queue<seats_sql::CachedFlight> cf_q) {
   std::ofstream profile;
-  profile.open(PROFILE_LOC);
+  profile.open(seats_sql::PROFILE_FILE_NAME);
   profile << "Flight Id, Airline Id, Arrive AP Id, Depart AP Id, Depart Time\n";
   while (!cf_q.empty()) {
     seats_sql::CachedFlight cf = cf_q.front();
