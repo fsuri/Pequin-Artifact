@@ -44,6 +44,7 @@
 #include "lib/transport.h"
 #include <tao/pq.hpp>
 #include "store/common/query_result/query_result_proto_builder.h"
+#include "tbb/concurrent_hash_map.h"
 
 namespace hotstuffpgstore {
 
@@ -84,8 +85,10 @@ public:
 
 private:
   std::shared_ptr<tao::pq::connection_pool> connectionPool;
-  std::map<std::string, std::shared_ptr< tao::pq::transaction >> txnMap;
-  std::map<std::string, std::shared_ptr< tao::pq::connection >> connectionMap;
+  // map from txn id (client_seq_key= client_id | txn_seq_num) to a pair of <postgres connection, postgres txn, terminated>
+  typedef tbb::concurrent_hash_map<std::string,std::tuple<std::shared_ptr< tao::pq::connection >, std::shared_ptr< tao::pq::transaction >, bool>> txnStatusMap; 
+  txnStatusMap txnMap;
+
   Transport* tp;
   Stats stats;
   transport::Configuration config;
@@ -105,6 +108,8 @@ private:
   std::shared_mutex atomicMutex;
 
   void exec_statement(std::string sql_statement);
+
+  std::string createClientSeqKey(uint64 cid, uint64 tid);
 
   void CleanTxnMap(std::string client_seq_key);
 

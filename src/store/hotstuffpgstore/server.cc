@@ -151,23 +151,21 @@ void Server::Execute_Callback(const string& type, const string& msg, const execu
   proto::SQL_RPCReply* reply = new proto::SQL_RPCReply();
   reply->set_req_id(sql_rpc.req_id());
 
+  std::string client_seq_key = createClientSeqKey(sql_rpc.client_id(),sql_rpc.txn_seq_num());
+  txnStatusMap::accessor t;
   std::shared_ptr<tao::pq::transaction> tr;
-  std::string client_seq_key;
-  client_seq_key.append(std::to_string(sql_rpc.client_id()));
-  client_seq_key.append("|");
-  client_seq_key.append(std::to_string(sql_rpc.txn_seq_num()));
+  // std::shared_ptr<tao::pq::transaction> tr = getPgTransaction(t)
 
-  if(txnMap.find(client_seq_key) == txnMap.end()) {
-
+  if(!txnMap.find(t,client_seq_key)) {
     auto connection = connectionPool->connection();
     tr = connection->transaction();
-
-    connectionMap[client_seq_key] = connection;
-    txnMap[client_seq_key] = tr;
+    auto txn_status =std::make_tuple(connection, tr, false);
+    txnMap.insert(t, client_seq_key);
+    t->second=txn_status;
     Debug("Query key: %s", client_seq_key);
     std::cout << client_seq_key << std::endl;
   } else {
-    tr = txnMap[client_seq_key];
+    tr = get<1>(t->second);
     Debug("Query key already in: %s", client_seq_key);
     std::cout << client_seq_key << std::endl;
   }
@@ -221,12 +219,13 @@ void Server::Execute_Callback(const string& type, const string& msg, const execu
     // res_builder->get_result()->SerializeToString(res_string);
     // reply->set_sql_res(*res_string); //&
     reply->set_sql_res(res_builder->get_result()->SerializeAsString());
+    t.release();
   } catch(tao::pq::sql_error e) {
     Debug("An exception caugth while using postgres.");
     reply->set_status(REPLY_FAIL);
+    t.release();
     CleanTxnMap(client_seq_key);
   }
-
   return returnMessage(reply);
 }
 
@@ -236,20 +235,19 @@ void Server::Execute_Callback(const string& type, const string& msg, const execu
   reply->set_req_id(try_commit.req_id());
 
   std::shared_ptr<tao::pq::transaction> tr;
-  std::string client_seq_key;
-  client_seq_key.append(std::to_string(try_commit.client_id()));
-  client_seq_key.append("|");
-  client_seq_key.append(std::to_string(try_commit.txn_seq_num()));
+  std::string client_seq_key = createClientSeqKey(try_commit.client_id(),try_commit.txn_seq_num());
+  txnStatusMap::accessor t;
 
-  if(txnMap.find(client_seq_key) == txnMap.end()) {
+  if(!txnMap.find(t, client_seq_key)) {
     auto connection = connectionPool->connection();
     tr = connection->transaction();
-    connectionMap[client_seq_key] = connection;
-    txnMap[client_seq_key] = tr;
+    auto txn_status =std::make_tuple(connection, tr, false);
+    txnMap.insert(t, client_seq_key);
+    t->second=txn_status;
     Debug("TryCommit key: %s", client_seq_key);
     std::cout << client_seq_key << std::endl;
   } else {
-    tr = txnMap[client_seq_key];
+    tr = get<1>(t->second);
     Debug("TryCommit key already in(should be): %s", client_seq_key);
     std::cout << client_seq_key << std::endl;
   }
@@ -262,36 +260,38 @@ void Server::Execute_Callback(const string& type, const string& msg, const execu
     Debug("An exception caugth while using postgres.");
     reply->set_status(REPLY_FAIL);
   }
+  t.release();
   CleanTxnMap(client_seq_key);
-
   return returnMessage(reply);
 }
 
 ::google::protobuf::Message* Server::HandleUserAbort(const proto::UserAbort& user_abort) {
-
   std::shared_ptr<tao::pq::transaction> tr;
-  std::string client_seq_key;
-  client_seq_key.append(std::to_string(user_abort.client_id()));
-  client_seq_key.append("|");
-  client_seq_key.append(std::to_string(user_abort.txn_seq_num()));
+  std::string client_seq_key = createClientSeqKey(user_abort.client_id(),user_abort.txn_seq_num());
+  txnStatusMap::accessor t;
 
-  if(txnMap.find(client_seq_key) == txnMap.end()) {
+  if(!txnMap.find(t,client_seq_key)) {
+    t.release();
     return nullptr;
   } else {
-    tr = txnMap[client_seq_key];
+    tr = get<1>(t->second);
   }
-
   tr->rollback();
-
+  t.release();
   CleanTxnMap(client_seq_key);
-  // add a field to query result that is true is txn was aborted
-
   return nullptr;
+}
+
+std::string Server::createClientSeqKey(uint64 cid, uint64 tid){
+  std::string client_seq_key;
+  client_seq_key.append(std::to_string(cid));
+  client_seq_key.append("|");
+  client_seq_key.append(std::to_string(tid));
+  return client_seq_key;
 }
 
 void Server::CleanTxnMap(std::string client_seq_key){
   txnMap.erase(client_seq_key);
-  connectionMap.erase(client_seq_key);
 }
 
 void Server::CreateTable(const std::string &table_name, const std::vector<std::pair<std::string, std::string>> &column_data_types, const std::vector<uint32_t> &primary_key_col_idx){
