@@ -1,3 +1,5 @@
+#include <filesystem>
+
 #include "indicus_interface.h"
 #include "hotstuff_app.cpp"
 
@@ -21,7 +23,17 @@ namespace hotstuffstore {
 
         string config_dir_base = REMOTE_CONFIG_DIR;
         if (local_config){
-            config_dir_base = LOCAL_CONFIG_DIR;
+            // config_dir_base = LOCAL_CONFIG_DIR;
+            auto curr_path=std::filesystem::current_path();
+            auto target_dir="src";
+            while (!curr_path.empty()) {
+                // Check if the current path contains the "target_dir" directory
+                if (std::filesystem::is_directory(curr_path / target_dir)) {
+                    break; // Found 'src', no need to continue searching
+                }
+                curr_path = curr_path.parent_path();
+            }
+            config_dir_base=std::filesystem::path(curr_path / target_dir/"scripts/config/");
         }
 
         string config_dir = config_dir_base + "shard" + std::to_string(shardId) + "/";

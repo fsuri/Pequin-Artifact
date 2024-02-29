@@ -69,9 +69,5 @@ auto QueryResultProtoBuilder::set_rows_affected(const uint32_t n_rows_affected) 
   result->set_rows_affected(n_rows_affected);
 }
 
-auto QueryResultProtoBuilder::set_was_aborted() -> void {
-  result->set_was_aborted(true);
-}
-
 } //namespace sql
 

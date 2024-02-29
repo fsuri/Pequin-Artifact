@@ -109,9 +109,8 @@ class ShardClient : public TransportReceiver {
   struct PendingSQL_RPC {
     // the set of ids that we have received a read reply for
     std::unordered_map<std::string, std::unordered_set<uint64_t>> receivedReplies;
-    std::unordered_set<uint64_t> receivedSuccesses;
     std::string leaderReply;
-    std::unordered_set<uint64_t> receivedFails;
+    bool hasLeaderReply;
 
     // the current status of the reply (default to fail)
     uint64_t status;

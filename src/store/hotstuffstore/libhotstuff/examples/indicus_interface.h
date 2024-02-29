@@ -3,6 +3,8 @@
 
 #include <string>
 #include <functional>
+#include <filesystem>
+
 #include "local_config_dir.h"
 #include "remote_config_dir.h"
 using std::string;

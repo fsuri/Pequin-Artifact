@@ -145,13 +145,24 @@ void Client::SQLRequest(std::string &statement, sql_callback scb, sql_timeout_ca
       Debug("Received query response");
       QueryMessage *query_msg = currentTxn.add_queryset();
       query_msg->set_query(statement);
-      query_result::QueryResult* query_res = new sql::QueryResultProtoWrapper(sql_res);
+      query_result::QueryResult* query_res;
+      if(status == REPLY_OK) {
+        Debug("Shir: executing SQL_rpc callback with successful result");
+        query_res = new sql::QueryResultProtoWrapper(sql_res);
+      } else {
+        Debug("Shir: executing SQL_rpc callback after aborting");
+        query_res = new sql::QueryResultProtoWrapper();
+      }
 
       std::cerr << "Shir: For the following statement:     "<<statement << std::endl;
       std::cerr << "Shir: rows affected is:     "<<query_res->rows_affected() << std::endl;
-
-
+      // std::cerr << "Shir: WAS IT ABORTED?:     "<<query_res->rows_affected() << std::endl;
+      std::cerr << "Shir: status is:     "<<status << std::endl;
+    
       scb(status, query_res);
+
+      std::cerr << "Shir: does it get here?" << std::endl;
+
 
     };
     sql_rpc_timeout_callback srtcb = stcb;

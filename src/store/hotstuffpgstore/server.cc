@@ -172,7 +172,6 @@ void Server::Execute_Callback(const string& type, const string& msg, const execu
     std::cout << client_seq_key << std::endl;
   }
 
-  sql::QueryResultProtoBuilder* res_builder = new sql::QueryResultProtoBuilder();
   try {
     Debug("Attempt query %s", sql_rpc.query());
     std::cout << sql_rpc.query() << std::endl;
@@ -189,7 +188,7 @@ void Server::Execute_Callback(const string& type, const string& msg, const execu
     // Should extrapolate out into builder method
     // Start by looping over columns and adding column names
 
-
+    sql::QueryResultProtoBuilder* res_builder = new sql::QueryResultProtoBuilder();
     res_builder->set_rows_affected(sql_res.rows_affected());
     if(sql_res.columns() == 0) {
       Debug("Had rows affected");
@@ -225,8 +224,6 @@ void Server::Execute_Callback(const string& type, const string& msg, const execu
   } catch(tao::pq::sql_error e) {
     Debug("An exception caugth while using postgres.");
     reply->set_status(REPLY_FAIL);
-    res_builder->set_was_aborted();
-    reply->set_sql_res(res_builder->get_result()->SerializeAsString());
     CleanTxnMap(client_seq_key);
   }
 

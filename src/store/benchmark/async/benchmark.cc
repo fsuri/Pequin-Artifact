@@ -298,7 +298,7 @@ DEFINE_bool(indicus_parallel_CCC, true, "sort read/write set for parallel CCC lo
 
 DEFINE_bool(indicus_hyper_threading, true, "use hyperthreading");
 
-DEFINE_bool(async_server, false, "Indicate if server is deterministic or not. If not, will return leader's results for consistency");
+DEFINE_bool(async_server, true, "Indicate if server is asynchronous or not. If so, will return leader's results for consistency");
 
 //Indicus failure handling and injection
 DEFINE_bool(indicus_no_fallback, false, "turn off fallback protocol");

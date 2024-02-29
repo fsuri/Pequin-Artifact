@@ -55,8 +55,7 @@ class QueryResultProtoBuilder {
   auto add_column(const std::string& name) -> void;
   auto add_empty_row() -> void;
   auto set_rows_affected(const uint32_t n_rows_affected) -> void;
-  auto set_was_aborted() -> void;
-
+  
   auto get_result() -> std::unique_ptr<SQLResultProto>;
 
   template<class Iterable>
