@@ -114,7 +114,7 @@ std::vector<std::pair<double, double>> GenerateAirportTable(TableWriter &writer,
       values.push_back(csv[8].empty() ? "0" : csv[8]);                                      // ap_wac
       for (int iattr = 0; iattr < 16; iattr++) 
         values.push_back(std::to_string(std::uniform_int_distribution<int64_t>(1, std::numeric_limits<int64_t>::max())(gen)));
-      std::cerr << "finished that" << std::endl;
+
       writer.add_row(table_name, values);
     }
     file.close();
@@ -342,25 +342,24 @@ void GenerateFrequentFlyerTable(TableWriter &writer) {
 
     std::mt19937 gen;
 
-    // java equiv -- histogram.getValueCount() just returns the number of values, which is the number of keys, which is the number of airlines in this case
     int max_per_customer = std::min(seats_sql::CUSTOMER_NUM_FREQUENTFLYERS_MAX * seats_sql::SCALE_FACTOR, seats_sql::NUM_AIRLINES);
     ZipfianGenerator zipf = ZipfianGenerator(seats_sql::CUSTOMER_NUM_FREQUENTFLYERS_MIN, max_per_customer, seats_sql::CUSTOMER_NUM_FREQUENTFLYERS_SIGMA);
-    std::vector<int> ff_per_customer = std::vector<int>();
-    ff_per_customer.reserve(seats_sql::NUM_CUSTOMERS);
-    for (int i = 0; i < ff_per_customer.size(); i++) {
+    std::vector<int> ff_per_customer;
+    for (int i = 0; i < seats_sql::NUM_CUSTOMERS; i++) {
       int val = std::min(zipf.nextValue(gen), max_per_customer);
       ff_per_customer.push_back(val);
     }
 
     // generate data
     for (int c_id = 1; c_id <= seats_sql::NUM_CUSTOMERS; c_id++) {
-      std::vector<int64_t> al_per_customer;
+      std::set<int64_t> al_per_customer;
       for (int al_num = 0; al_num < ff_per_customer[c_id - 1]; al_num++) {  
+        //benchbase uses a flat histogram == uniform distribution
         int64_t al_id = std::uniform_int_distribution<int64_t>(1, seats_sql::NUM_AIRLINES)(gen);
-        while (containsId(al_per_customer, al_id)) {
+        while (!al_per_customer.insert(al_id).second) {
           al_id = std::uniform_int_distribution<int64_t>(1, seats_sql::NUM_AIRLINES)(gen);
         }
-        al_per_customer.push_back(al_id);
+      
 
         std::vector<std::string> values; 
         values.push_back(std::to_string(c_id));
@@ -454,6 +453,8 @@ std::vector<int> GenerateFlightTable(TableWriter &writer, std::vector<std::vecto
     //   int num_flights = generator();
     // }
 
+    //std::map<uint64_t, uint64_t> flights_per_airline;
+
     int next_flight_id = 1;
 
     std::queue<seats_sql::CachedFlight> cached_flights;
@@ -468,6 +469,7 @@ std::vector<int> GenerateFlightTable(TableWriter &writer, std::vector<std::vecto
           std::vector<std::string> values; 
           values.push_back(std::to_string(f_id)); 
           values.push_back(std::to_string(f_al_id)); 
+          //flights_per_airline[f_al_id]++;
 
           std::string ap_conn = getRandValFromHistogram(flight_airp_hist, gen);
           auto arr_dep_ap = convertAPConnToAirports(ap_conn);
@@ -558,10 +560,8 @@ std::vector<int> GenerateFlightTableOld(TableWriter &writer, std::vector<std::ve
     for (int f_id = 1; f_id <= seats_sql::NUM_FLIGHTS; f_id++) {
       std::vector<std::string> values; 
       values.push_back(std::to_string(f_id)); 
-      //FIXME: Why was this binomial? //Some airlines will never be picked... Need a gaussian with high standard deviation.
       values.push_back(std::to_string(std::uniform_int_distribution<int>(1, seats_sql::NUM_AIRLINES)(gen)));
-      //values.push_back(std::to_string(std::binomial_distribution<int>(seats_sql::NUM_AIRLINES, 0.5)(gen)));
-
+    
 
       std::string ap_conn = getRandValFromHistogram(flight_airp_hist, gen);
       auto arr_dep_ap = convertAPConnToAirports(ap_conn);

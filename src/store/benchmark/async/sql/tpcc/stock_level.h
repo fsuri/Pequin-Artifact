@@ -32,7 +32,7 @@
 
 namespace tpcc_sql {
 
-static bool join_free_version = true;
+static bool join_free_version = false;
 
 class SQLStockLevel : public TPCCSQLTransaction {
  public:

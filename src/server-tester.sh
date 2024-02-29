@@ -13,8 +13,8 @@ SQL_BENCH="true"
 
 #FILE_PATH="0_local_test_outputs/rw-sql/rw-sql.json"
 #FILE_PATH="store/benchmark/async/sql/tpcc/sql-tpcc-tables-schema.json"
-#FILE_PATH="store/benchmark/async/sql/seats/sql-seats-tables-schema.json"
-FILE_PATH="store/benchmark/async/sql/auctionmark/sql-auctionmark-tables-schema.json"
+FILE_PATH="store/benchmark/async/sql/seats/sql-seats-tables-schema.json"
+#FILE_PATH="store/benchmark/async/sql/auctionmark/sql-auctionmark-tables-schema.json"
 
 
 

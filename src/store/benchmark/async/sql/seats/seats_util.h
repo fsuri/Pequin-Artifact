@@ -59,7 +59,7 @@ public:
       eta = compETA(items, theta, zeta2theta, zetan);
     }
     ~ZipfianGenerator() {};
-    int nextValue(std::mt19937 gen) {
+    int nextValue(std::mt19937 &gen) {
       if (items != countforzeta) {
         if (items > countforzeta) {
             zetan = zeta(countforzeta, items, theta, zetan);

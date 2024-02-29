@@ -92,7 +92,8 @@ transaction_status_t SQLStockLevel::Execute(SyncClient &client) {
       // // (3) Count all rows in STOCK with distinct items whose quantity is below the min_quantity threshold.
       query = fmt::format("SELECT COUNT(DISTINCT(s_i_id)) FROM {}, {} "
                           "WHERE ol_w_id = {} AND ol_d_id = {} AND ol_o_id < {} AND ol_o_id >= {} "
-                          " AND s_i_id = ol_i_id AND s_w_id = {} AND s_quantity < {}", 
+                          " AND s_i_id = ol_i_id AND s_w_id = {} AND s_quantity < {} "
+                          "AND s_i_id = s_i_id", //REFLEXIVE TO TRICK PELOTONS DUMB JOIN PLANNER 
                           ORDER_LINE_TABLE, STOCK_TABLE, w_id, d_id, next_o_id, next_o_id - 20, w_id, min_quantity);
 
       // query = fmt::format("SELECT COUNT(DISTINCT(s_i_id)) FROM {} INNER JOIN {} ON s_i_id = ol_i_id "
