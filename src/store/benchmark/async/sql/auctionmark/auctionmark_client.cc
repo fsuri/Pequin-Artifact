@@ -51,7 +51,7 @@ AuctionMarkClient::AuctionMarkClient(
     : SyncTransactionBenchClient(client, transport, client_id, numRequests,
                                     expDuration, delay, warmupSec, cooldownSec,
                                     tputInterval, abortBackoff, retryAborted, maxBackoff, maxAttempts, timeout,
-                                    latencyFilename), profile(client_id, SCALE_FACTOR, num_clients)
+                                    latencyFilename), profile(client_id, num_clients, SCALE_FACTOR)
 {
   lastOp = "";
   gen.seed(client_id);
@@ -72,8 +72,8 @@ AuctionMarkClient::AuctionMarkClient(
   std::cerr << "items waiting for purchase at start: " << profile.get_waiting_for_purchase_items_count() << std::endl;
   std::cerr << "completed items at start: " << profile.get_completed_items_count() << std::endl;
 
-  std::cerr << "total: " << num_clients << std::endl;
-  std::cerr << "client id: " << client_id << std::endl;
+  // std::cerr << "total: " << num_clients << std::endl;
+  // std::cerr << "client id: " << client_id << std::endl;
 }
 
 AuctionMarkClient::~AuctionMarkClient() {

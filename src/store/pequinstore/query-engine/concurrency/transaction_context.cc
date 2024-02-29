@@ -95,6 +95,22 @@ void TransactionContext::Init(const size_t thread_id,
   gc_object_set_ = std::make_shared<GCObjectSet>();
 
   //on_commit_triggers_.reset();
+
+  //Default values:
+ commit_or_prepare_ = true;
+ force_materialize_ = false;
+ snapshot_read_ = false;
+ snapshot_set_ = nullptr;
+ predicates_initialized = false;
+ read_prepared_pred_ = &default_read_prepared_pred;
+ table_version_ = &default_find_table_version;
+ can_read_prepared_ = false;
+ undo_delete_ = false;
+ has_read_set_mgr_ = false;
+ has_snapshot_mgr_ = false;
+ snapshot_mgr_ = nullptr;
+ k_prepared_versions_ = 1;
+ is_point_read_ = false;
 }
 
 RWType TransactionContext::GetRWType(const ItemPointer &location) {

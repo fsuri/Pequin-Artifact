@@ -134,6 +134,7 @@ namespace auctionmark
 
     static void clear_cached_profile();
 
+    void configure_initial(int client_id);
     void load_profile(const std::string &profile_file_path, int client_id);
 
 
@@ -202,6 +203,9 @@ namespace auctionmark
 
     inline void initialize_user_id_generator(int client_id)
     {
+      std::cerr << "call init" << std::endl;
+      std::cerr << "num clients: " << num_clients << std::endl;
+      std::cerr << "client id: " << client_id << std::endl;
       user_id_generator = UserIdGenerator(users_per_item_count, num_clients, client_id);
     }
   };

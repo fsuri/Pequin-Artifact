@@ -81,7 +81,7 @@ transaction_status_t NewPurchase::Execute(SyncClient &client) {
   deserialize(max_bid, queryResult);
 
   //Check whether the item is already purchased? In that case we don't want to retry the TX...
-  std::string getItemPurchase = fmt::format("SELECT Count(*) FROM {} WHERE ip_id = {} AND ip_ib_id = {} AND ip_ib_i_id = '{}' AND ip_ib_u_id = '{}'", 
+  std::string getItemPurchase = fmt::format("SELECT * FROM {} WHERE ip_id = {} AND ip_ib_id = {} AND ip_ib_i_id = '{}' AND ip_ib_u_id = '{}'", 
                                           TABLE_ITEM_PURCHASE, ip_id, max_bid, item_id, seller_id);
   client.Query(getItemPurchase, timeout);
 
@@ -131,6 +131,7 @@ transaction_status_t NewPurchase::Execute(SyncClient &client) {
     client.Query(getItemInfo, queryResult, timeout);
   }
   if(queryResult->empty()){
+    std::cerr << "NO MAX BID" << std::endl;
     Debug("No ITEM_MAX_BID is available record for item");
     client.Abort(timeout);
     return ABORTED_USER;
@@ -144,6 +145,7 @@ transaction_status_t NewPurchase::Execute(SyncClient &client) {
     return ABORTED_USER;
   }
 
+UW_ASSERT(iir.ib_id == max_bid);
   //std::string getBuyerInfo = fmt::format("SELECT u_id, u_balance FROM {} WHERE u_id = {}", TABLE_USER_ACCT, seller_id);
 
   // Set item_purchase_id
@@ -151,6 +153,7 @@ transaction_status_t NewPurchase::Execute(SyncClient &client) {
   client.Wait(results);
   //NOTE: THIS MAY FAIL BECAUSE CLIENTS CACHE OUT OF SYNC (ANOTHER CLIENT MIGHT HAVE DONE IT.) In this case: update cache and pick a different TX.
   if(!results[0]->empty()){
+    std::cerr << "ALREADY PURCHASED" << std::endl;
     Debug("Item has already been purchased");
     //Update the cache
     ItemRecord item_rec(item_id, seller_id, "", iir.i_current_price, iir.i_num_bids, iir.i_end_date, ItemStatus::CLOSED); // iir.ib_id, iir.ib_buyer_id, ip_id missing? Doesn't seem to be needed.

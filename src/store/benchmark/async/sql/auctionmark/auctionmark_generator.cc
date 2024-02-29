@@ -44,6 +44,8 @@ DEFINE_int32(client_total, 100, "number of clients");
       //I.e. client is responsible for all users:  user_id % num_clients == client_id
       //If num_clients < actual number of clients, then some clients will be responsible for 0 users.
 
+//NOTE: I don't think this number actually matters at all. We set it again in the profile during runtime!
+
 DEFINE_double(scale_factor, 1.0, "scaling factor"); //MUST SET IN THE CONSTANTS
 
 
@@ -475,8 +477,7 @@ std::vector<UserId> GenerateUserAcctTable(TableWriter &writer, AuctionMarkProfil
 
   for (int i = 0; i < TABLESIZE_USERACCT; i++)
   {
-   
-    UserId u_id = idGenerator.next();
+    UserId u_id = *idGenerator.next(); //Gen will never fail for client id = -1
     user_ids.push_back(u_id);
 
     //if(i==0) std::cerr << "first user: " << u_id.to_string() << std::endl;

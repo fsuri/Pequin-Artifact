@@ -183,6 +183,7 @@ transaction_status_t NewItem::Execute(SyncClient &client) {
     std::string i_id;
     deserialize(i_id, queryResult, i);
     if(i_id == item_id){
+      std::cerr << "ITEM ALREADY EXISTS" << std::endl;
       //Update Cache
       ItemRecord item_rec(item_id, seller_id, name, initial_price, 0, end_date, ItemStatus::OPEN);
       ItemId itemId = profile.processItemRecord(item_rec);

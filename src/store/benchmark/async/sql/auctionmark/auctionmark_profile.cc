@@ -156,6 +156,8 @@ namespace auctionmark
       initialize_user_id_generator(client_id);
     }
 
+    std::cerr << "s1" << std::endl;
+
     std::optional<UserId> user_id = std::nullopt;
     int tries = 1000;
     int num_users = user_id_generator->get_total_users() - 1;
@@ -170,14 +172,22 @@ namespace auctionmark
         auto hist = random_item_count.value();
         item_count = hist.next_value();
       }
-     
+
+      std::cerr << "b1" << std::endl;
+
+      std::cerr << "item count: " << item_count << std::endl;
       // Set the current item count and then choose a random position between where the generator is currently at and where it ends
       user_id_generator->set_current_item_count(item_count);
+      std::cerr << "b2" << std::endl;
       int cur_position = user_id_generator->get_current_position();
+      std::cerr << "b3" << std::endl;
       int new_position = std::uniform_int_distribution<>(cur_position, num_users)(gen);
+      std::cerr << "new position: " << new_position << std::endl;
       user_id = user_id_generator->seek_to_position(new_position);
-      if (!user_id.has_value())
-      {
+      std::cerr << "b4" << std::endl;
+    
+
+      if (!user_id.has_value()){
         //std::cerr << "didn't find val" << std::endl;
         continue;
       }
@@ -185,6 +195,7 @@ namespace auctionmark
       // Make sure that we didn't select the same UserId as the one we were
       // told to exclude.
       if (!exclude.empty()) {
+         std::cerr << "s2" << std::endl;
         for (UserId ex : exclude) {
           if (ex == user_id.value()){
             //std::cerr << "val is meant to be excluded. skipping" << std::endl;
@@ -192,6 +203,7 @@ namespace auctionmark
             break;
           }
         }
+        std::cerr << "s3" << std::endl;
         if (!user_id.has_value()){
           continue;
         }
@@ -608,6 +620,7 @@ namespace auctionmark
   }
 
   void AuctionMarkProfile::copy_profile(int client_id, const AuctionMarkProfile &other) {
+    std::cerr << "copy profile. id: " << client_id << std::endl;
     this->client_id = client_id;
     scale_factor = other.scale_factor;
     loader_start_time = other.loader_start_time;
@@ -638,6 +651,16 @@ namespace auctionmark
         pending_comment_responses.push_back(cr);
       }
     }
+
+    std::cerr << "finish copy profile. id: " << client_id << std::endl;
+  }
+
+  void AuctionMarkProfile::configure_initial(int client_id){
+      initialize_user_id_generator(client_id);
+      for (int i = 0; i < ITEM_SETS_NUM; i++) {
+        auto &list = *all_item_sets[i];
+        std::shuffle(list.begin(), list.end(), gen);
+    }
   }
 
   void AuctionMarkProfile::load_profile(const std::string &profile_file_path, int client_id) {
@@ -661,6 +684,7 @@ namespace auctionmark
 
       AuctionMarkProfile::cached_profile = new AuctionMarkProfile(client_id, num_clients, scale_factor);
       AuctionMarkProfile::cached_profile->copy_profile(client_id, *this);
+      configure_initial(client_id);
       // AuctionMarkProfile::cached_profile->set_and_get_client_start_time();
       // AuctionMarkProfile::cached_profile->update_and_get_current_time();
     } else {

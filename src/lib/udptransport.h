@@ -94,6 +94,10 @@ public:
     virtual void DispatchTP_main(std::function<void*()> f) override;
     virtual void IssueCB(std::function<void(void*)> cb, void* arg) override;
     virtual void IssueCB_main(std::function<void(void*)> cb, void* arg) override;
+    //Indexed Threadpool
+    virtual void AddIndexedThreads(int num_threads) override; 
+    virtual void DispatchIndexedTP(uint64_t id, std::function<void *()> f, std::function<void(void *)> cb) override;
+    virtual void DispatchIndexedTP_noCB(uint64_t id, std::function<void *()> f) override; 
 
 private:
     int TimerInternal(struct timeval &tv, timer_callback_t cb);

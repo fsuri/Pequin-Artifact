@@ -30,7 +30,7 @@ public:
     std::optional<UserId> seek_to_position(int position);
     bool check_client(const UserId& user_id) const;
     bool has_next();
-    UserId next();
+    std::optional<UserId> next();
     std::string to_string() const;
 
 private:

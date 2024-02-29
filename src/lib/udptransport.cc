@@ -1012,6 +1012,15 @@ void UDPTransport::IssueCB(std::function<void(void*)> cb, void* arg){
 void UDPTransport::IssueCB_main(std::function<void(void*)> cb, void* arg){
   tp.issueMainThreadCallback(std::move(cb), arg);
 }
+void UDPTransport::AddIndexedThreads(int num_threads){
+  tp.add_n_indexed(num_threads);
+}
+void UDPTransport::DispatchIndexedTP(uint64_t id, std::function<void *()> f, std::function<void(void *)> cb){
+  tp.dispatch_indexed(id, std::move(f), std::move(cb), libeventBase);
+}
+void UDPTransport::DispatchIndexedTP_noCB(uint64_t id, std::function<void *()> f){
+  tp.detatch_indexed(id, std::move(f));
+}
 
 
 void

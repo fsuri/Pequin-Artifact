@@ -39,6 +39,8 @@
 #include "concurrentqueue/concurrentqueue.h"
 #include "concurrentqueue/blockingconcurrentqueue.h"
 //#include "tbb/concurrent_queue.h"
+#include "tbb/concurrent_unordered_map.h"
+#include "tbb/concurrent_hash_map.h"
 
 //using namespace tbb;
 
@@ -51,7 +53,7 @@ public:
   // copy constructor panics
   ThreadPool(const ThreadPool& tp) { Panic("Unimplemented"); }
 
-  void start(int process_id=0, int total_processes=1, bool hyperthreading =  true, bool server = true, int mode = 0);  // 0 = Indicus, 1 = Hotstuff, 2 = BFTSmart
+  void start(int process_id = 0, int total_processes = 1, bool hyperthreading = true, bool server = true, int mode = 0);  // 0 = Indicus, 1 = Hotstuff, 2 = BFTSmart
   void stop();
 
   void dispatch(std::function<void*()> f, std::function<void(void*)> cb, event_base* libeventBase);
@@ -61,6 +63,11 @@ public:
   void detatch_main(std::function<void*()> f);
   void issueCallback(std::function<void(void*)> cb, void* arg, event_base* libeventBase);
   void issueMainThreadCallback(std::function<void(void*)> cb, void* arg);
+
+  //Indexed threadpool
+  void add_n_indexed(int num_threads); 
+  void dispatch_indexed(uint64_t id, std::function<void *()> f, std::function<void(void *)> cb, event_base *libeventBase);
+  void detatch_indexed(uint64_t id, std::function<void *()> f); 
 
 private:
 
@@ -93,6 +100,11 @@ private:
 
   moodycamel::BlockingConcurrentQueue<std::pair<std::function<void*()>, EventInfo*>> worker_thread_request_list;
   moodycamel::BlockingConcurrentQueue<std::function<void*()>> main_thread_request_list;
+
+  //For indexed threadpool
+  std::atomic_uint64_t total_indexed_workers;
+  typedef tbb::concurrent_hash_map<uint64_t, moodycamel::BlockingConcurrentQueue<std::pair<std::function<void*()>, EventInfo*>>> IndexWorkerMap;
+  IndexWorkerMap indexed_worker_thread_request_list;
 
 };
 

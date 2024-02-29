@@ -1703,7 +1703,7 @@ int main(int argc, char **argv) {
           UW_ASSERT(syncClient != nullptr);
           std::string profile_file_path = std::filesystem::path(FLAGS_data_file_path).replace_filename(auctionmark::PROFILE_FILE_NAME);
           bench = new auctionmark::AuctionMarkClient( *syncClient, *tport, profile_file_path,
-              seed, client_total, FLAGS_num_requests, FLAGS_exp_duration, FLAGS_delay,
+              clientId, client_total, FLAGS_num_requests, FLAGS_exp_duration, FLAGS_delay,
               FLAGS_warmup_secs, FLAGS_cooldown_secs, FLAGS_tput_interval,
               FLAGS_abort_backoff, FLAGS_retry_aborted, FLAGS_max_backoff, FLAGS_max_attempts, FLAGS_message_timeout);
           break;

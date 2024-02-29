@@ -691,6 +691,17 @@ void TCPTransport::IssueCB(std::function<void(void*)> cb, void* arg){
 void TCPTransport::IssueCB_main(std::function<void(void*)> cb, void* arg){
   tp.issueMainThreadCallback(std::move(cb), arg);
 }
+void TCPTransport::AddIndexedThreads(int num_threads){
+  tp.add_n_indexed(num_threads);
+}
+void TCPTransport::DispatchIndexedTP(uint64_t id, std::function<void *()> f, std::function<void(void *)> cb){
+  tp.dispatch_indexed(id, std::move(f), std::move(cb), libeventBase);
+}
+void TCPTransport::DispatchIndexedTP_noCB(uint64_t id, std::function<void *()> f){
+  tp.detatch_indexed(id, std::move(f));
+}
+
+
 
 void
 TCPTransport::LogCallback(int severity, const char *msg)
