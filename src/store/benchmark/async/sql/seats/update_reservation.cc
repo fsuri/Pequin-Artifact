@@ -13,6 +13,7 @@ SQLUpdateReservation::SQLUpdateReservation(uint32_t timeout, std::mt19937 &gen, 
             flight = r.flight;
             f_id = flight.flight_id;
             seatnum = std::uniform_int_distribution<int>(1, TOTAL_SEATS_PER_FLIGHT)(gen);
+            while(seatnum == r.seat_num) std::uniform_int_distribution<int>(1, TOTAL_SEATS_PER_FLIGHT)(gen);
             update_res.pop();
         } else { 
             // no reservations to update so make this transaction fail
@@ -27,6 +28,10 @@ SQLUpdateReservation::SQLUpdateReservation(uint32_t timeout, std::mt19937 &gen, 
         attr_val = std::uniform_int_distribution<int64_t>(1, 100000)(gen);
         update_q = &update_res;
         delete_q = &delete_res;
+
+        std::cerr << "UPDATE_RESERVATION: " << r_id << ". Flight:" << f_id << ". New seat: " << seatnum << std::endl;
+        Debug("UPDATE_RESERVATION");
+
     }
 
 SQLUpdateReservation::~SQLUpdateReservation() {}
@@ -41,8 +46,6 @@ transaction_status_t SQLUpdateReservation::Execute(SyncClient &client) {
     std::vector<std::unique_ptr<const query_result::QueryResult>> results; 
     std::string query;
 
-    std::cerr << "UPDATE_RESERVATION: " << r_id << ". Flight:" << f_id << ". New seat: " << seatnum << std::endl;
-    Debug("UPDATE_RESERVATION");
     client.Begin(timeout);
 
     // (1) Check if Seat is taken (CheckSeat)

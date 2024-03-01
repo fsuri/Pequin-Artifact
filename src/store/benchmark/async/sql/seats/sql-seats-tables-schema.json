@@ -790,7 +790,8 @@
     ],
     "indexes": {
       "r_flight_index": [
-        2
+        2,
+        1
       ]
     },
     "primary_key_col_idx": [

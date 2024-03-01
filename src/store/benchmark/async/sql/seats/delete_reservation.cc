@@ -7,14 +7,14 @@ namespace seats_sql{
 
 SQLDeleteReservation::SQLDeleteReservation(uint32_t timeout, std::mt19937 &gen, std::queue<SEATSReservation> &existing_res, std::queue<SEATSReservation> &insert_res) : 
     SEATSSQLTransaction(timeout), gen_(&gen) {
-         std::cerr << "DELETE_RESERVATION" << std::endl;
-    Debug("DELETE_RESERVATION");
+        
 
         UW_ASSERT(!existing_res.empty());
         SEATSReservation r = existing_res.front();
         existing_res.pop();
 
-        std::cerr << "r_id: " << r.r_id << std::endl; 
+        std::cerr << "DELETE_RESERVATION: " << r.r_id  << std::endl;
+        Debug("DELETE_RESERVATION");
         c_id = r.c_id;
         flight = r.flight;
         f_id = flight.flight_id;
@@ -32,11 +32,10 @@ SQLDeleteReservation::SQLDeleteReservation(uint32_t timeout, std::mt19937 &gen, 
         else if(rand <= PROB_DELETE_WITH_CUSTOMER_ID_STR + PROB_DELETE_WITH_FREQUENTFLYER_ID_STR){
             ff_c_id_str = std::to_string(c_id);
             c_id = NULL_ID;
-            ff_al_id = flight.airline_id; //TODO: Replace this with the airline ID belonging to the reservation...
+            ff_al_id = flight.airline_id; 
         }
         //Default: Delete using their CustomerId 
         
-
         q = &insert_res;
     }
 
@@ -94,14 +93,8 @@ transaction_status_t SQLDeleteReservation::Execute(SyncClient &client) {
     //Next, get the reservation information of the Customer (GetCustomerReservation)
     // query = fmt::format("SELECT c_sattr00, c_sattr02, c_sattr04, c_iattr00, c_iattr02, c_iattr04, c_iattr06, f_seats_left, r_id, r_seat, r_price, r_iattr00 FROM {}, {}, {} "
     //                     "WHERE c_id = {} AND c_id = r_c_id AND f_id = {} AND f_id = r_f_id", CUSTOMER_TABLE, FLIGHT_TABLE, RESERVATION_TABLE, c_id, f_id);
+   
     query = fmt::format("SELECT c_sattr00, c_sattr02, c_sattr04, c_iattr00, c_iattr02, c_iattr04, c_iattr06, f_seats_left, r_id, r_seat, r_price, r_iattr00 FROM {}, {}, {} "
-                        "WHERE c_id = {} "//AND c_id = r_c_id "
-                        "AND f_id = {} " //AND f_id = r_f_id "
-                        "AND r_f_id = {} AND r_c_id = {}",
-                        //"AND r_f_id = r_f_id", //REFLEXIVE ARGS TO SATISFY DUMB PELOTON PLANNER
-                        CUSTOMER_TABLE, FLIGHT_TABLE, RESERVATION_TABLE, c_id, f_id, f_id, c_id);
-    
-      query = fmt::format("SELECT c_sattr00, c_sattr02, c_sattr04, c_iattr00, c_iattr02, c_iattr04, c_iattr06, f_seats_left, r_id, r_seat, r_price, r_iattr00 FROM {}, {}, {} "
                         "WHERE c_id = {} AND c_id = r_c_id "
                         "AND f_id = {} AND f_id = r_f_id "
                         "AND r_f_id = r_f_id", //REFLEXIVE ARGS TO SATISFY DUMB PELOTON PLANNER

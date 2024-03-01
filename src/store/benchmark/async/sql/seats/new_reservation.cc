@@ -37,6 +37,9 @@ SQLNewReservation::SQLNewReservation(uint32_t timeout, std::mt19937 &gen, int64_
         price = std::uniform_real_distribution<double>(MIN_RESERVATION_PRICE, MAX_RESERVATION_PRICE)(gen); //TODO: Should be 2x this?
         update_q = &update_res;
         delete_q = &delete_res;
+
+         fprintf(stderr,"NEW_RESERVATION %ld. for customer %ld. Flight: %d. Seatnum: %d.  \n", r_id, c_id, f_id, seatnum);
+     Debug("NEW_RESERVATION for customer %ld", c_id);
     }
 
 SQLNewReservation::~SQLNewReservation() {} 
@@ -53,8 +56,6 @@ transaction_status_t SQLNewReservation::Execute(SyncClient &client) {
 
     std::string query;
 
-    fprintf(stderr,"NEW_RESERVATION %ld. for customer %ld. Flight: %d. Seatnum: %d.  \n", r_id, c_id, f_id, seatnum);
-    Debug("NEW_RESERVATION for customer %ld", c_id);
     client.Begin(timeout);
 
     // (1) Get Flight information. (GetFlight)

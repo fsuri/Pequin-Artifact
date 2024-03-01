@@ -344,16 +344,18 @@ void GenerateFrequentFlyerTable(TableWriter &writer) {
 
     int max_per_customer = std::min(seats_sql::CUSTOMER_NUM_FREQUENTFLYERS_MAX * seats_sql::SCALE_FACTOR, seats_sql::NUM_AIRLINES);
     ZipfianGenerator zipf = ZipfianGenerator(seats_sql::CUSTOMER_NUM_FREQUENTFLYERS_MIN, max_per_customer, seats_sql::CUSTOMER_NUM_FREQUENTFLYERS_SIGMA);
-    std::vector<int> ff_per_customer;
-    for (int i = 0; i < seats_sql::NUM_CUSTOMERS; i++) {
-      int val = std::min(zipf.nextValue(gen), max_per_customer);
-      ff_per_customer.push_back(val);
-    }
+    // std::vector<int> ff_per_customer;
+    // for (int i = 0; i < seats_sql::NUM_CUSTOMERS; i++) {
+    //   int val = std::min(zipf.nextValue(gen), max_per_customer);
+    //   ff_per_customer.push_back(val);
+    // }
 
     // generate data
     for (int c_id = 1; c_id <= seats_sql::NUM_CUSTOMERS; c_id++) {
+      uint32_t num_ff = std::min(zipf.nextValue(gen), max_per_customer);
       std::set<int64_t> al_per_customer;
-      for (int al_num = 0; al_num < ff_per_customer[c_id - 1]; al_num++) {  
+      //for (int al_num = 0; al_num < ff_per_customer[c_id - 1]; al_num++) {  
+      for (int al_num = 0; al_num < num_ff; al_num++) {  
         //benchbase uses a flat histogram == uniform distribution
         int64_t al_id = std::uniform_int_distribution<int64_t>(1, seats_sql::NUM_AIRLINES)(gen);
         while (!al_per_customer.insert(al_id).second) {
@@ -619,7 +621,7 @@ void GenerateReservationTable(TableWriter &writer, std::vector<int> flight_to_nu
     writer.add_table(table_name, column_names_and_types, primary_key_col_idx);
 
     //Optional Index:
-     const std::vector<uint32_t> index {2};
+     const std::vector<uint32_t> index {2, 1}; 
     writer.add_index(table_name, "r_flight_index", index);
 
     //   const std::vector<uint32_t> index2 {2, 3};
@@ -631,10 +633,11 @@ void GenerateReservationTable(TableWriter &writer, std::vector<int> flight_to_nu
 
     std::vector<std::queue<int64_t>> outbound_customers_per_ap_id(seats_sql::NUM_AIRPORTS, std::queue<int64_t>());
     //for (int f_id = 1; f_id <= 20; f_id++) {
-    for (int f_id = 1; f_id <= seats_sql::NUM_FLIGHTS; f_id++) {
+    for (int f_id = 1; f_id <= flight_to_num_reserved.size(); f_id++) {
       //std::cerr << "flight id: " << f_id << std::endl;
       //std::vector<int64_t> seat_ids;
       std::set<uint32_t> used_seat_ids = {0};
+      //if(f_id == 68273) std::cerr << "RESERVED SEATS ON FLIGHT: " << flight_to_num_reserved[f_id-1] << std::endl;
       for (int r = 1; r <= flight_to_num_reserved[f_id-1]; r++) {
         //std::cerr << "res: " << r << std::endl;
         std::vector<std::string> values; 

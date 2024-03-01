@@ -59,7 +59,7 @@ transaction_status_t SQLFindOpenSeats::Execute(SyncClient &client) {
         deserialize(sr_row, queryResult, i);
         int seat = (int) sr_row.r_seat - 1; //seats are numbered from 1 (not from 0)
         unavailable_seats[seat] = (int8_t) 1;
-        std::cerr << "SEAT: " << i << "is unavailable!" << std::endl;
+        //std::cerr << "SEAT: " << i << "is unavailable!" << std::endl;
     }
 
     std::string open_seats_str = "Seats [";
@@ -67,16 +67,18 @@ transaction_status_t SQLFindOpenSeats::Execute(SyncClient &client) {
   
     std::deque<SEATSReservation> tmp;
     for (int seat = 1; seat <= TOTAL_SEATS_PER_FLIGHT; seat++) {   
-        if (unavailable_seats[seat-1] == 0) open_seats_str += fmt::format(" {},", seat);
         if (unavailable_seats[seat-1] == 1) reserved_seats_str += fmt::format(" {},", seat);
 
-         int64_t c_id = std::uniform_int_distribution<int64_t>(1, NUM_CUSTOMERS)(*gen_);  //FIXME:  seems to be generated based on depart airport in benchbase?
-         tmp.push_back(SEATSReservation(NULL_ID, c_id, f_id, seat));   //TODO: set the f_al_id too? FIXME: FlightID != single id.  //TODO: id should be the clients id.? No r_id?
-        
+        if (unavailable_seats[seat-1] == 0) {
+            open_seats_str += fmt::format(" {},", seat);
+            //TODO:? Benchbase also returns a price (that is higher for first class seats) -- but it seems to be unused.
+            int64_t c_id = std::uniform_int_distribution<int64_t>(1, NUM_CUSTOMERS)(*gen_);  //FIXME:  seems to be generated based on depart airport in benchbase?
+            //std::cerr << "FIND OPEN SEAT: PUSH TO INSERT Q. c_id: " << c_id << ". f_id: " << f_id.flight_id << ". seat: " << seat << std::endl;
+            tmp.push_back(SEATSReservation(NULL_ID, c_id, f_id, seat));   //TODO: set the f_al_id too? FIXME: FlightID != single id.  //TODO: id should be the clients id.? No r_id?
+        }
     }
 
     //shuffle randomly and then push back a subset of the open seats for new reservations
-    //Note: We also push back some reservations for which seats already exist. This is intentional. Those will trigger rollbacks.
     std::random_shuffle(tmp.begin(), tmp.end());
 
     while(!tmp.empty() && q->size() < MAX_PENDING_INSERTS){
