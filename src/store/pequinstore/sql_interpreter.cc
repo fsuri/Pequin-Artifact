@@ -690,7 +690,7 @@ void SQLTransformer::TransformDelete(size_t pos, std::string_view &write_stateme
     //Based on Syntax from: https://www.postgresqltutorial.com/postgresql-tutorial/postgresql-delete/ 
     
      //Case 3) DELETE FROM <table_name> WHERE <condition>
-         //-> Turn into read_statement: Result(column, column_value) SELECT FROM <table_name>(primary_columns) 
+         //-> Turn into read_statement: Result(column, column_value) SELECT * FROM <table_name>(primary_columns) 
          //             write_cont: for(row in result) create TableWrite with primary column encoded key, bool = delete (create new version with empty values/some meta data indicating delete)
          // TODO: Handle deleted versions: Create new version with special delete marker. NOTE: Read Sets of queries should include the empty version; but result computation should ignore it.
          // But how can one distinguish deleted versions from rows not yet created? Maybe one MUST have semantic CC to support new row inserts/row deletions.
@@ -1415,11 +1415,16 @@ RowUpdates* SQLTransformer::AddTableWriteRow(TableWrite *table_write, const ColR
 }
 
 std::variant<bool, int64_t, std::string> DecodeType(std::unique_ptr<query_result::Field> &field, const std::string &col_type){
-    size_t nbytes;
-    const char* field_val_char = field->get(&nbytes);
-    std::string field_val(field_val_char, nbytes);
+    const std::string &field_val = field->get();
     return DecodeType(field_val, col_type);
 }
+
+// std::variant<bool, int64_t, std::string> DecodeType(std::unique_ptr<query_result::Field> &field, const std::string &col_type){
+//     size_t nbytes;
+//     const char* field_val_char = field->get(&nbytes);
+//     std::string field_val(field_val_char, nbytes);
+//     return DecodeType(field_val, col_type);
+// }
 
  //  out = field->get(&nbytes);
                 // std::string p_output(out, nbytes);
@@ -1432,6 +1437,55 @@ std::variant<bool, int64_t, std::string> DecodeType(std::unique_ptr<query_result
                 // }
                 // std::cerr << "Query Result. Col " << i << ": " << output_row << std::endl;
 
+
+std::variant<bool, int64_t, std::string> DecodeType(const std::string &enc_value, const std::string &col_type){
+    //Based on Syntax from: https://www.postgresqltutorial.com/postgresql-tutorial/postgresql-data-types/ && https://www.postgresql.org/docs/current/datatype-numeric.html 
+    //Resource for std::variant: https://www.cppstories.com/2018/06/variant/ 
+   
+    //Note: currently the generated types are PostGresSQL types. We could however also input "normal types" and transform them into SQL types only for Peloton.
+
+    std::variant<bool, int64_t, std::string> type_variant;   //TODO: can pass variant to cereal? Then don't need all the redundant code
+
+    //match on col_type
+    if(col_type == "VARCHAR" || col_type == "TEXT"){ //FIXME: VARCHAR might actually look like "VARCHAR (n)"
+        type_variant = enc_value;
+    }
+    // else if(col_type == "TEXT []"){
+    //     std::vector<std::string> dec_value;
+    //     DeCerealize(enc_value, dec_value);
+    //     type_variant = std::move(dec_value);
+    // }
+    else if(col_type == "INT" || col_type == "BIGINT" || col_type == "SMALLINT"){ // SMALLINT (2byteS) INT (4), BIGINT (8), DOUBLE () 
+        //int64_t dec_value;  //FIXME: Peloton encodes everything as string currently. So must DeCerialize as string and only then convert.
+       
+        int64_t dec = std::stoi(enc_value); 
+        type_variant = std::move(dec);
+
+    }
+    // else if(col_type == "INT []" || col_type == "BIGINT []" || col_type == "SMALLINT []"){
+    //     std::vector<int64_t> dec_value;
+    //     DeCerealize(enc_value, dec_value);
+    //     type_variant = std::move(dec_value);
+    // }
+    else if(col_type == "BOOL"){
+
+        bool dec; //FIXME: Peloton encodes everything as string currently. So must DeCerialize as string and only then convert.
+        istringstream(enc_value) >> dec;
+        type_variant = std::move(dec);
+    }
+    else{
+        Panic("Types other than {VARCHAR, INT, BIGINT, SMALLINT, BOOL} Currently not supported");
+        //e.g. // TIMESTAMP (time and date) or Array []
+
+        //Note: Array will never be primary key, so realistically any update to array won't need to be translated to string, but could be encoded as cereal.
+        //Note: we don't seem to need Array type... --> Auctionmark only uses it for arguments.
+    }
+
+    std::cerr << "Decoded type" << std::endl;
+    return type_variant;  //Use decoding..
+}
+
+//DEPRECATED: No longer using DeCerialize
 std::variant<bool, int64_t, std::string> DecodeType(std::string &enc_value, const std::string &col_type){
     //Based on Syntax from: https://www.postgresqltutorial.com/postgresql-tutorial/postgresql-data-types/ && https://www.postgresql.org/docs/current/datatype-numeric.html 
     //Resource for std::variant: https://www.cppstories.com/2018/06/variant/ 

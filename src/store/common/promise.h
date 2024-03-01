@@ -52,7 +52,6 @@ private:
     int reply;
     Timestamp timestamp;
     std::string value;
-    //const query_result::QueryResult* result;
     std::unique_ptr<const query_result::QueryResult> result;
 
     std::mutex lock;
@@ -79,7 +78,6 @@ public:
     int GetReply();
     Timestamp GetTimestamp();
     std::string GetValue();
-    //const query_result::QueryResult* GetQueryResult();
     std::unique_ptr<const query_result::QueryResult> ReleaseQueryResult();
 };
 

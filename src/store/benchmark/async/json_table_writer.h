@@ -21,6 +21,10 @@
 
 using json = nlohmann::json;
 
+std::string firstElement( const std::pair<std::string, std::string> &p ) {
+    return p.first;
+}
+
 class TableWriter {
     public:
         TableWriter(const std::string &file_name, bool add_data = true);
@@ -63,10 +67,12 @@ void TableWriter::add_table(const std::string &table_name, const std::vector<std
 
     if(!add_data) return;
     // Create a new stream to a CSV file. 
-    std::string file_path(file_name + "-data"+ "/" + table_name + "-data.csv");
+    std::string file_path(file_name + "-data"+ "/" + table_name + ".csv");
     table_rows[table_name].open(file_path, std::ios::trunc);
     table["row_data_path"] = file_path;
     //Optional: Add header with column names: --> If so, Copy/Insert INTO must account for the header.
+    // std::vector<std::string> column_names;
+    // std::transform( column_names_and_types.begin(), column_names_and_types.end(), std::back_inserter( column_names ), firstElement);
     table_rows[table_name] << fmt::format("{}\n", fmt::join(column_names_and_types, ","));
 }
 

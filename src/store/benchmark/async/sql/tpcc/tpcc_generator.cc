@@ -46,9 +46,11 @@ const char ALPHA_NUMERIC[] = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMN
 std::string RandomAString(size_t x, size_t y, std::mt19937 &gen) {
   std::string s;
   size_t length = std::uniform_int_distribution<size_t>(x,  y)(gen);
+  assert(length >= x);
   for (size_t i = 0; i < length; ++i) {
-    int j = std::uniform_int_distribution<size_t>(0, sizeof(ALPHA_NUMERIC))(gen);
+    int j = std::uniform_int_distribution<size_t>(0, sizeof(ALPHA_NUMERIC) - 2)(gen);
     s += ALPHA_NUMERIC[j];
+    assert(ALPHA_NUMERIC[j] != '\0');
   }
   return s;
 }
@@ -278,6 +280,34 @@ void GenerateCustomerTableForWarehouseDistrict(uint32_t w_id, uint32_t d_id,
 void GenerateCustomerTable(uint32_t num_warehouses, uint32_t c_load_c_last,
     uint32_t time, TableWriter &writer) {
   std::mt19937 gen;
+  std::string table_name = "Customer";
+  std::vector<std::pair<std::string, std::string>> column_names_and_types;
+
+  column_names_and_types.push_back(std::make_pair("id", "INT"));
+  column_names_and_types.push_back(std::make_pair("d_id", "INT"));
+  column_names_and_types.push_back(std::make_pair("w_id", "INT"));
+  column_names_and_types.push_back(std::make_pair("first", "TEXT"));
+  column_names_and_types.push_back(std::make_pair("middle", "TEXT"));
+  column_names_and_types.push_back(std::make_pair("last", "TEXT"));
+  column_names_and_types.push_back(std::make_pair("street_1", "TEXT"));
+  column_names_and_types.push_back(std::make_pair("street_2", "TEXT"));
+  column_names_and_types.push_back(std::make_pair("city", "TEXT"));
+  column_names_and_types.push_back(std::make_pair("state", "TEXT"));
+  column_names_and_types.push_back(std::make_pair("zip", "TEXT"));
+  column_names_and_types.push_back(std::make_pair("phone", "TEXT"));
+  column_names_and_types.push_back(std::make_pair("since", "INT"));
+  column_names_and_types.push_back(std::make_pair("credit", "TEXT"));
+  column_names_and_types.push_back(std::make_pair("credit_lim", "INT"));
+  column_names_and_types.push_back(std::make_pair("discount", "INT"));
+  column_names_and_types.push_back(std::make_pair("balance", "INT"));
+  column_names_and_types.push_back(std::make_pair("ytd_payment", "INT"));
+  column_names_and_types.push_back(std::make_pair("payment_cnt", "INT"));
+  column_names_and_types.push_back(std::make_pair("delivery_cnt", "INT"));
+  column_names_and_types.push_back(std::make_pair("data", "TEXT"));
+
+  const std::vector<uint32_t> primary_key_col_idx {0, 1, 2};
+  writer.add_table(table_name, column_names_and_types, primary_key_col_idx);
+
   for (uint32_t w_id = 1; w_id <= num_warehouses; ++w_id) {
     for (uint32_t d_id = 1; d_id <= 10; ++d_id) {
       GenerateCustomerTableForWarehouseDistrict(w_id, d_id, time, c_load_c_last,
@@ -400,7 +430,7 @@ void GenerateOrderTable(uint32_t num_warehouses, uint32_t c_load_ol_i_id,
   column_names_and_types.push_back(std::make_pair("delivery_d", "INTEGER"));
   column_names_and_types.push_back(std::make_pair("quantity", "INTEGER"));
   column_names_and_types.push_back(std::make_pair("amount", "INTEGER"));
-  column_names_and_types.push_back(std::make_pair("dist_info", "VARCHAR(24)"));
+  column_names_and_types.push_back(std::make_pair("dist_info", "TEXT"));
   std::vector<uint32_t> primary_key_col_idx_order_line {0, 1, 2, 3};
   writer.add_table(table_name, column_names_and_types, primary_key_col_idx_order_line);
 

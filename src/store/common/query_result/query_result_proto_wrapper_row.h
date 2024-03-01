@@ -34,6 +34,8 @@
 #include "store/common/query_result/query_result_row.h"
 #include "store/common/query_result/query_result_field.h"
 #include "store/common/query_result/query_result_proto_wrapper_field.h"
+#include "lib/cereal/archives/binary.hpp"
+#include "lib/cereal/types/string.hpp"
 
 namespace sql {
 
@@ -56,6 +58,18 @@ class Row : public query_result::Row {
         m_offset( in_offset ),
         m_columns( in_columns )
   {}
+
+ private:
+  template<typename T> 
+  void deserialize(const std::size_t column, T& field) const {
+    std::stringstream ss(std::ios::in | std::ios::out | std::ios::binary);
+    std::size_t n_bytes = 0;
+    const char* r_chars = this->get_bytes(column, &n_bytes);
+    std::string r = std::string(r_chars, n_bytes);
+    ss << r;
+    cereal::BinaryInputArchive iarchive(ss); // Create an input archive
+    iarchive(field); // Read the data from the archive
+  }
 
  public:
   class const_iterator : sql::Field {
@@ -142,7 +156,7 @@ class Row : public query_result::Row {
       sql::Field *p = new sql::Field(*this, m_offset + column);
       return std::unique_ptr<query_result::Field>(p);
     } else {
-      throw std::runtime_error("Cannot get column index from null result");
+      //throw std::runtime_error("Cannot get column index from null result");
     }
   }
   
@@ -166,11 +180,54 @@ class Row : public query_result::Row {
     return end();
   }
 
-  auto get( const std::size_t column, std::size_t* size ) const -> const char*;
+  auto get_bytes( const std::size_t column, std::size_t* size ) const -> const char*;
+  auto get(const std::size_t column) const -> const std::string;
 
   auto is_null( const std::size_t column ) const -> bool;
 
   auto slice( const std::size_t offset, const std::size_t in_columns ) const -> std::unique_ptr<query_result::Row>;
+
+  template<typename T> 
+  void get(const std::size_t column, T& field) const {
+    std::size_t n_bytes;
+    std::istringstream(this[column].get_bytes(column, &n_bytes)) >> *field;
+  }
+
+  inline void get(const std::size_t column, bool *field) const {
+    get(column, field);
+  }
+
+  inline void get(const std::size_t column, int32_t *field) const {
+    get(column, field);
+  }
+
+  inline void get(const std::size_t column, int64_t *field) const {
+    get(column, field);
+  }
+
+  inline void get(const std::size_t column, uint32_t *field) const {
+    get(column, field);
+  }
+
+  inline void get(const std::size_t column, uint64_t *field) const {
+    get(column, field);
+  }
+
+  inline void get(const std::size_t column, double *field) const {
+    get(column, field);
+  }
+
+  inline void get(const std::size_t column, std::string *field) const {
+    get(column, field);
+  }
+
+  void get_serialized(const std::size_t column, bool *field) const;
+  void get_serialized(const std::size_t column, int32_t *field) const;
+  void get_serialized(const std::size_t column, int64_t *field) const;
+  void get_serialized(const std::size_t column, uint32_t *field) const;
+  void get_serialized(const std::size_t column, uint64_t *field) const;
+  void get_serialized(const std::size_t column, double *field) const;
+  void get_serialized(const std::size_t column, std::string *field) const;
 };
 
 }

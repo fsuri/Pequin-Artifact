@@ -27,6 +27,7 @@
 
 #include <string>
 #include <vector>
+#include "lib/message.h"
 #include "store/common/query_result/query_result.h"
 #include "store/common/query_result/query_result_row.h"
 #include "store/common/query_result/query-result-proto.pb.h"
@@ -38,24 +39,6 @@ typedef Field FieldProto;
 
 namespace sql {
 
-// auto QueryResultProtoWrapper::create_from_proto(const SQLResultProto* proto_result) -> void
-// {
-//   this->proto_result = proto_result;
-//   n_rows_affected = proto_result->rows_affected();
-//   column_names = std::vector<std::string>(proto_result->column_names().begin(), proto_result->column_names().end());
-  
-//   // result = std::vector<std::vector<std::string>>();
-//   // for(int i = 0; i < proto_result->rows_size(); i++) {
-//   //   RowProto row = proto_result->rows(i);
-//   //   auto fields_vector = std::vector<FieldProto>(row.fields().begin(), row.fields().end());
-//   //   auto data_vector = std::vector<std::string>();
-//   //   for (auto field : fields_vector) {
-//   //     data_vector.push_back(std::move(field.data()));
-//   //   }
-//   //   result.push_back(data_vector);
-//   // }
-// }
-
 auto QueryResultProtoWrapper::check_has_result_set() const -> void
 {
   if(proto_result->column_names_size() == 0) {
@@ -63,16 +46,12 @@ auto QueryResultProtoWrapper::check_has_result_set() const -> void
   }
 }
 
-
 auto QueryResultProtoWrapper::name( const std::size_t column ) const -> std::string
 {
-  //return column_names[column];
   return proto_result->column_names(column);
 }
 
 auto QueryResultProtoWrapper::column_index_by_name(const std::string &name) const -> std::size_t {
-  // for (std::size_t i = 0; i < column_names.size(); i++) {
-  //   if (column_names[i] == name) {
   for (int i = 0; i < proto_result->column_names_size(); i++) {
     if (proto_result->column_names(i) == name) {
       return i;
@@ -83,41 +62,35 @@ auto QueryResultProtoWrapper::column_index_by_name(const std::string &name) cons
 
 bool QueryResultProtoWrapper::empty() const
 {
-  //return result.empty();
   return proto_result->rows_size() == 0;
 }
 
 auto QueryResultProtoWrapper::size() const -> std::size_t
 {
-   // return result.size();
   return proto_result->rows_size();
 }
 
 auto QueryResultProtoWrapper::num_columns() const -> std::size_t
 {
-  // return column_names.size();
   return proto_result->column_names_size();
 }
 
 auto QueryResultProtoWrapper::begin() const -> std::unique_ptr<const_iterator>
 {
   check_has_result_set();
-  //return std::unique_ptr<const_iterator>(new const_iterator( Row(this, 0, 0, column_names.size())));
   return std::unique_ptr<const_iterator>(new const_iterator( Row(this, 0, 0, num_columns())));
 }
 
 auto QueryResultProtoWrapper::end() const -> std::unique_ptr<const_iterator>
 {
-  //return std::unique_ptr<const_iterator>(new const_iterator( Row(this, size(), 0, column_names.size() ) ));
-   return std::unique_ptr<const_iterator>(new const_iterator( Row(this, size(), 0, num_columns() ) ));
+  return std::unique_ptr<const_iterator>(new const_iterator( Row(this, size(), 0, num_columns() ) ));
 }
 
 auto QueryResultProtoWrapper::is_null( const std::size_t row, const std::size_t column ) const -> bool {
-  // return result.at(row).at(column) == "";
   return !proto_result->rows(row).fields(column).has_data();
 }
 
-auto QueryResultProtoWrapper::get( const std::size_t row, const std::size_t column, std::size_t* size ) const -> const char* 
+auto QueryResultProtoWrapper::get_bytes( const std::size_t row, const std::size_t column, std::size_t* size ) const -> const char* 
 {
   if(!is_null(row, column)) {
     const std::string& r_bytes = proto_result->rows(row).fields(column).data(); // result.at(row).at(column);
@@ -129,10 +102,21 @@ auto QueryResultProtoWrapper::get( const std::size_t row, const std::size_t colu
   }
 }
 
-auto QueryResultProtoWrapper::get( const std::size_t row, const std::string& column, std::size_t* size ) const -> const char* 
+auto QueryResultProtoWrapper::get_bytes( const std::size_t row, const std::string& column, std::size_t* size ) const -> const char* 
 {
   const std::size_t column_idx = column_index_by_name(column);
-  return get(row, column_idx, size);
+  return get_bytes(row, column_idx, size);
+}
+
+auto QueryResultProtoWrapper::get( const std::size_t row, const std::size_t column) const -> const std::string
+{
+  if(!is_null(row, column)) {
+    const std::string& r_bytes = proto_result->rows(row).fields(column).data(); // result.at(row).at(column);
+    return r_bytes;
+  } else {
+    Panic("illegal get; col/row does not exist");
+    return "";
+  }
 }
 
 auto QueryResultProtoWrapper::operator[]( const std::size_t row ) const -> std::unique_ptr<query_result::Row> {
@@ -145,12 +129,10 @@ auto QueryResultProtoWrapper::at( const std::size_t row ) const -> std::unique_p
 }
 
 auto QueryResultProtoWrapper::has_rows_affected() const noexcept -> bool {
-  //return n_rows_affected > 0;
   return proto_result->rows_affected() > 0;
 }
 
 auto QueryResultProtoWrapper::rows_affected() const -> std::size_t {
-  //return n_rows_affected;
   return proto_result->rows_affected();
 }
 

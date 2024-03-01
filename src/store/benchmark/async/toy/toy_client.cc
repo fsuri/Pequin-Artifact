@@ -127,7 +127,7 @@ void ToyClient::ExecuteToy(){
 
              std::stringstream ss(std::ios::in | std::ios::out | std::ios::binary);
             size_t nbytes;
-            const char* out = queryResult->get(0, 0, &nbytes);
+            const char* out = queryResult->get_bytes(0, 0, &nbytes);
             std::string output(out, nbytes);
             ss << output;
             std::string output_row;

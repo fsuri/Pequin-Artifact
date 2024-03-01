@@ -30,19 +30,52 @@
 namespace taopq_wrapper {
 
 auto Field::name() const -> std::string {
-    return field.name();
+    return _field.name();
 }
 
 auto Field::index() const -> std::size_t {
-    return field.index();
+    return _field.index();
 }
 
 bool Field::is_null() const {
-    return field.is_null();
+    return _field.is_null();
 }
 
-auto Field::get(std::size_t* size) const -> const char* {
-    return field.get();
+auto Field::get_bytes(std::size_t* size) const -> const char* {
+    return _field.get();
 }
+
+auto Field::get() const -> const std::string {
+    return _field.get();
+}
+
+auto Field::get(bool *field) const -> void {
+    *field = _field.as<bool>();
+}
+
+auto Field::get(int32_t *field) const -> void {
+    *field = _field.as<int32_t>();
+}
+
+auto Field::get(int64_t *field) const -> void {
+    *field = _field.as<int64_t>();
+}
+
+auto Field::get(uint32_t *field) const -> void {
+    *field = _field.as<uint32_t>();
+}
+
+auto Field::get(uint64_t *field) const -> void {
+    *field = _field.as<uint64_t>();
+}
+
+auto Field::get(double *field) const -> void {
+    *field = _field.as<double>();
+}
+
+auto Field::get(std::string *field) const -> void {
+    *field = _field.as<std::string>();
+}
+
 
 }
