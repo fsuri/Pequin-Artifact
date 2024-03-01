@@ -316,7 +316,7 @@ void Server::CreateTable(const std::string &table_name, const std::vector<std::p
   sql_statement.resize(sql_statement.size() - 2); //remove trailing ", "
 
   if(primary_key_col_idx.size() > 1){
-    sql_statement += ", PRIMARY_KEY ";
+    sql_statement += ", PRIMARY KEY ";
     if(primary_key_col_idx.size() > 1) sql_statement += "(";
 
     for(auto &p_idx: primary_key_col_idx){
