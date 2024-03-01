@@ -1,0 +1,643 @@
+{
+  "category": {
+    "column_names_and_types": [
+      [
+        "c_id",
+        "BIGINT"
+      ],
+      [
+        "c_name",
+        "TEXT"
+      ],
+      [
+        "c_parent_id",
+        "BIGINT"
+      ]
+    ],
+    "indexes": {
+      "idx_category_parent": [
+        2
+      ]
+    },
+    "primary_key_col_idx": [
+      0
+    ],
+    "row_data_path": "sql-auctionmark-data/category.csv",
+    "table_name": "category"
+  },
+  "global_attribute_group": {
+    "column_names_and_types": [
+      [
+        "gag_id",
+        "TEXT"
+      ],
+      [
+        "gag_c_id",
+        "BIGINT"
+      ],
+      [
+        "gag_name",
+        "TEXT"
+      ]
+    ],
+    "primary_key_col_idx": [
+      0
+    ],
+    "row_data_path": "sql-auctionmark-data/global_attribute_group.csv",
+    "table_name": "global_attribute_group"
+  },
+  "global_attribute_value": {
+    "column_names_and_types": [
+      [
+        "gav_id",
+        "TEXT"
+      ],
+      [
+        "gav_gag_id",
+        "TEXT"
+      ],
+      [
+        "gav_name",
+        "TEXT"
+      ]
+    ],
+    "primary_key_col_idx": [
+      0,
+      1
+    ],
+    "row_data_path": "sql-auctionmark-data/global_attribute_value.csv",
+    "table_name": "global_attribute_value"
+  },
+  "item": {
+    "column_names_and_types": [
+      [
+        "i_id",
+        "TEXT"
+      ],
+      [
+        "i_u_id",
+        "TEXT"
+      ],
+      [
+        "i_c_id",
+        "BIGINT"
+      ],
+      [
+        "i_name",
+        "TEXT"
+      ],
+      [
+        "i_description",
+        "TEXT"
+      ],
+      [
+        "i_user_attributes",
+        "TEXT"
+      ],
+      [
+        "i_initial_price",
+        "FLOAT"
+      ],
+      [
+        "i_current_price",
+        "FLOAT"
+      ],
+      [
+        "i_num_bids",
+        "BIGINT"
+      ],
+      [
+        "i_num_images",
+        "BIGINT"
+      ],
+      [
+        "i_num_global_attrs",
+        "BIGINT"
+      ],
+      [
+        "i_num_comments",
+        "BIGINT"
+      ],
+      [
+        "i_start_date",
+        "BIGINT"
+      ],
+      [
+        "i_end_date",
+        "BIGINT"
+      ],
+      [
+        "i_status",
+        "INT"
+      ],
+      [
+        "i_created",
+        "BIGINT"
+      ],
+      [
+        "i_updated",
+        "BIGINT"
+      ],
+      [
+        "i_iattr0",
+        "BIGINT"
+      ],
+      [
+        "i_iattr1",
+        "BIGINT"
+      ],
+      [
+        "i_iattr2",
+        "BIGINT"
+      ],
+      [
+        "i_iattr3",
+        "BIGINT"
+      ],
+      [
+        "i_iattr4",
+        "BIGINT"
+      ],
+      [
+        "i_iattr5",
+        "BIGINT"
+      ],
+      [
+        "i_iattr6",
+        "BIGINT"
+      ],
+      [
+        "i_iattr7",
+        "BIGINT"
+      ]
+    ],
+    "indexes": {
+      "idx_item_seller": [
+        1
+      ]
+    },
+    "primary_key_col_idx": [
+      0,
+      1
+    ],
+    "row_data_path": "sql-auctionmark-data/item.csv",
+    "table_name": "item"
+  },
+  "item_attribute": {
+    "column_names_and_types": [
+      [
+        "ia_id",
+        "TEXT"
+      ],
+      [
+        "ia_i_id",
+        "TEXT"
+      ],
+      [
+        "ia_u_id",
+        "TEXT"
+      ],
+      [
+        "ia_gav_id",
+        "TEXT"
+      ],
+      [
+        "ia_gag_id",
+        "TEXT"
+      ],
+      [
+        "ia_sattr0",
+        "TEXT"
+      ]
+    ],
+    "primary_key_col_idx": [
+      0,
+      1,
+      2
+    ],
+    "row_data_path": "sql-auctionmark-data/item_attribute.csv",
+    "table_name": "item_attribute"
+  },
+  "item_bid": {
+    "column_names_and_types": [
+      [
+        "ib_i_id",
+        "TEXT"
+      ],
+      [
+        "ib_u_id",
+        "TEXT"
+      ],
+      [
+        "ib_id",
+        "BIGINT"
+      ],
+      [
+        "ib_buyer_id",
+        "TEXT"
+      ],
+      [
+        "ib_bid",
+        "FLOAT"
+      ],
+      [
+        "ib_max_bid",
+        "FLOAT"
+      ],
+      [
+        "ib_created",
+        "BIGINT"
+      ],
+      [
+        "ib_updated",
+        "BIGINT"
+      ]
+    ],
+    "primary_key_col_idx": [
+      0,
+      1,
+      2
+    ],
+    "row_data_path": "sql-auctionmark-data/item_bid.csv",
+    "table_name": "item_bid"
+  },
+  "item_comment": {
+    "column_names_and_types": [
+      [
+        "ic_id",
+        "BIGINT"
+      ],
+      [
+        "ic_i_id",
+        "TEXT"
+      ],
+      [
+        "ic_u_id",
+        "TEXT"
+      ],
+      [
+        "ic_buyer_id",
+        "TEXT"
+      ],
+      [
+        "ic_question",
+        "TEXT"
+      ],
+      [
+        "ic_response",
+        "TEXT"
+      ],
+      [
+        "ic_created",
+        "BIGINT"
+      ],
+      [
+        "ic_updated",
+        "BIGINT"
+      ]
+    ],
+    "indexes": {
+      "idx_item_comment": [
+        1,
+        2
+      ]
+    },
+    "primary_key_col_idx": [
+      0,
+      1,
+      2
+    ],
+    "row_data_path": "sql-auctionmark-data/item_comment.csv",
+    "table_name": "item_comment"
+  },
+  "item_image": {
+    "column_names_and_types": [
+      [
+        "ii_id",
+        "TEXT"
+      ],
+      [
+        "ii_i_id",
+        "TEXT"
+      ],
+      [
+        "ii_u_id",
+        "TEXT"
+      ],
+      [
+        "ia_sattr0",
+        "TEXT"
+      ]
+    ],
+    "primary_key_col_idx": [
+      0,
+      1,
+      2
+    ],
+    "row_data_path": "sql-auctionmark-data/item_image.csv",
+    "table_name": "item_image"
+  },
+  "item_max_bid": {
+    "column_names_and_types": [
+      [
+        "imb_i_id",
+        "TEXT"
+      ],
+      [
+        "imb_u_id",
+        "TEXT"
+      ],
+      [
+        "imb_ib_id",
+        "BIGINT"
+      ],
+      [
+        "imb_ib_i_id",
+        "TEXT"
+      ],
+      [
+        "imb_ib_u_id",
+        "TEXT"
+      ],
+      [
+        "imb_created",
+        "BIGINT"
+      ],
+      [
+        "imb_updated",
+        "BIGINT"
+      ]
+    ],
+    "primary_key_col_idx": [
+      0,
+      1
+    ],
+    "row_data_path": "sql-auctionmark-data/item_max_bid.csv",
+    "table_name": "item_max_bid"
+  },
+  "item_purchase": {
+    "column_names_and_types": [
+      [
+        "ip_ib_i_id",
+        "TEXT"
+      ],
+      [
+        "ip_ib_u_id",
+        "TEXT"
+      ],
+      [
+        "ip_id",
+        "BIGINT"
+      ],
+      [
+        "ip_ib_id",
+        "BIGINT"
+      ],
+      [
+        "ip_date",
+        "BIGINT"
+      ]
+    ],
+    "primary_key_col_idx": [
+      0,
+      1,
+      2,
+      3
+    ],
+    "row_data_path": "sql-auctionmark-data/item_purchase.csv",
+    "table_name": "item_purchase"
+  },
+  "region": {
+    "column_names_and_types": [
+      [
+        "r_id",
+        "BIGINT"
+      ],
+      [
+        "r_name",
+        "TEXT"
+      ]
+    ],
+    "primary_key_col_idx": [
+      0
+    ],
+    "row_data_path": "sql-auctionmark-data/region.csv",
+    "table_name": "region"
+  },
+  "useracct": {
+    "column_names_and_types": [
+      [
+        "u_id",
+        "TEXT"
+      ],
+      [
+        "u_rating",
+        "BIGINT"
+      ],
+      [
+        "u_balance",
+        "FLOAT"
+      ],
+      [
+        "u_comments",
+        "INT"
+      ],
+      [
+        "u_r_id",
+        "BIGINT"
+      ],
+      [
+        "u_created",
+        "BIGINT"
+      ],
+      [
+        "u_updated",
+        "BIGINT"
+      ],
+      [
+        "u_sattr0",
+        "TEXT"
+      ],
+      [
+        "u_sattr1",
+        "TEXT"
+      ],
+      [
+        "u_sattr2",
+        "TEXT"
+      ],
+      [
+        "u_sattr3",
+        "TEXT"
+      ],
+      [
+        "u_sattr4",
+        "TEXT"
+      ],
+      [
+        "u_sattr5",
+        "TEXT"
+      ],
+      [
+        "u_sattr6",
+        "TEXT"
+      ],
+      [
+        "u_sattr7",
+        "TEXT"
+      ],
+      [
+        "u_iattr0",
+        "BIGINT"
+      ],
+      [
+        "u_iattr1",
+        "BIGINT"
+      ],
+      [
+        "u_iattr2",
+        "BIGINT"
+      ],
+      [
+        "u_iattr3",
+        "BIGINT"
+      ],
+      [
+        "u_iattr4",
+        "BIGINT"
+      ],
+      [
+        "u_iattr5",
+        "BIGINT"
+      ],
+      [
+        "u_iattr6",
+        "BIGINT"
+      ],
+      [
+        "u_iattr7",
+        "BIGINT"
+      ]
+    ],
+    "primary_key_col_idx": [
+      0
+    ],
+    "row_data_path": "sql-auctionmark-data/useracct.csv",
+    "table_name": "useracct"
+  },
+  "useracct_feedback": {
+    "column_names_and_types": [
+      [
+        "uf_u_id",
+        "TEXT"
+      ],
+      [
+        "uf_i_id",
+        "TEXT"
+      ],
+      [
+        "uf_i_u_id",
+        "TEXT"
+      ],
+      [
+        "uf_from_id",
+        "TEXT"
+      ],
+      [
+        "uf_rating",
+        "INT"
+      ],
+      [
+        "uf_date",
+        "BIGINT"
+      ],
+      [
+        "uf_sattr0",
+        "TEXT"
+      ]
+    ],
+    "primary_key_col_idx": [
+      0,
+      1,
+      2,
+      3
+    ],
+    "row_data_path": "sql-auctionmark-data/useracct_feedback.csv",
+    "table_name": "useracct_feedback"
+  },
+  "useracct_item": {
+    "column_names_and_types": [
+      [
+        "ui_u_id",
+        "TEXT"
+      ],
+      [
+        "ui_i_id",
+        "TEXT"
+      ],
+      [
+        "ui_i_u_id",
+        "TEXT"
+      ],
+      [
+        "ui_ip_id",
+        "BIGINT"
+      ],
+      [
+        "ui_ip_ib_id",
+        "BIGINT"
+      ],
+      [
+        "ui_ip_ib_i_id",
+        "TEXT"
+      ],
+      [
+        "ui_ip_ib_u_id",
+        "TEXT"
+      ],
+      [
+        "ui_created",
+        "BIGINT"
+      ]
+    ],
+    "indexes": {
+      "idx_useracct_item_id": [
+        1
+      ]
+    },
+    "primary_key_col_idx": [
+      0,
+      1,
+      2
+    ],
+    "row_data_path": "sql-auctionmark-data/useracct_item.csv",
+    "table_name": "useracct_item"
+  },
+  "useracct_watch": {
+    "column_names_and_types": [
+      [
+        "uw_u_id",
+        "TEXT"
+      ],
+      [
+        "uw_i_id",
+        "TEXT"
+      ],
+      [
+        "uw_i_u_id",
+        "TEXT"
+      ],
+      [
+        "uw_created",
+        "BIGINT"
+      ]
+    ],
+    "primary_key_col_idx": [
+      0,
+      1,
+      2
+    ],
+    "row_data_path": "sql-auctionmark-data/useracct_watch.csv",
+    "table_name": "useracct_watch"
+  }
+}

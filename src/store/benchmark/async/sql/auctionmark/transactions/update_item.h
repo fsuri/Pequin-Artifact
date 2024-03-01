@@ -27,21 +27,26 @@
 #ifndef AUCTION_MARK_UPDATE_ITEM_H
 #define AUCTION_MARK_UPDATE_ITEM_H
 
-#include "store/common/frontend/sync_transaction.h"
+#include "store/benchmark/async/sql/auctionmark/transactions/auctionmark_transaction.h"
+#include "store/benchmark/async/sql/auctionmark/auctionmark_profile.h"
 
 namespace auctionmark {
 
-class UpdateItem : public SyncTransaction {
+class UpdateItem : public AuctionMarkTransaction {
  public:
-  UpdateItem(uint32_t timeout, uint64_t i_id, uint64_t i_u_id, 
-  string description, std::mt19937 &gen);
+  UpdateItem(uint32_t timeout, AuctionMarkProfile &profile, std::mt19937_64 &gen);
   virtual ~UpdateItem();
   virtual transaction_status_t Execute(SyncClient &client);
  
  private:
-  uint64_t i_id;
-  uint64_t i_u_id;
-  string description;
+  std::string item_id;
+  std::string seller_id;
+  std::string description;
+  bool delete_attribute;
+  std::vector<std::string> add_attribute;
+
+  std::mt19937_64 &gen;
+  AuctionMarkProfile &profile;
 };
 
 } // namespace auctionmark

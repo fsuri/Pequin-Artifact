@@ -47,28 +47,69 @@ transaction_status_t SQLStockLevel::Execute(SyncClient &client) {
   std::string query;
   std::vector<std::unique_ptr<const query_result::QueryResult>> results;
 
-  Debug("STOCK_LEVEL");
+  //Determine the number of recently sold items with stock below a given threshold
+  //Type: Heavy read-only Tx, low frequency
+  std::cerr << "STOCK_LEVEL (parallel)" << std::endl;
+  Debug("STOCK_LEVEL (parallel)");
   Debug("Warehouse: %u", w_id);
   Debug("District: %u", d_id);
   //std::cerr << "warehouse: " << w_id << std::endl;
 
   client.Begin(timeout);
 
-  query = fmt::format("SELECT next_o_id FROM District WHERE id = {} AND w_id = {}", d_id, w_id);
+  // (1) Select the specified row from District and extract the Next Order Id
+  query = fmt::format("SELECT d_next_o_id FROM {} WHERE d_id = {} AND d_w_id = {}", DISTRICT_TABLE, d_id, w_id);
   client.Query(query, queryResult, timeout);
   uint32_t next_o_id;
   deserialize(next_o_id, queryResult);
   Debug("Orders: %u-%u", next_o_id - 20, next_o_id - 1);
 
-  query = fmt::format("SELECT COUNT(DISTINCT(OrderLine.i_id)) FROM OrderLine, Stock WHERE OrderLine.w_id = {} AND OrderLine.d_id = {} "
-                      "AND OrderLine.o_id < {} AND OrderLine.o_id >= {} AND Stock.w_id = {} AND Stock.i_id = OrderLine.i_id "
-                      "AND Stock.quantity < {}", w_id, d_id, next_o_id, 
-                      next_o_id - 20, w_id, min_quantity);
-  client.Query(query, queryResult, timeout);
-  uint32_t stock_count;
-  deserialize(stock_count, queryResult);
 
-  Debug("Stock Count: %u", stock_count);
+  if(join_free_version){
+      query = fmt::format("SELECT ol_i_id FROM {} WHERE ol_w_id = {} AND ol_d_id = {} AND ol_o_id < {} AND ol_o_id >= {} ", ORDER_LINE_TABLE, w_id, d_id, next_o_id, next_o_id - 20);
+      client.Query(query, queryResult, timeout);  
+      std::cerr << "result size: " << queryResult->size() << std::endl;
+
+      //For each unique item.
+      std::set<uint32_t> stockItems;
+      size_t strsIdx = 0;
+      for (int i = 0; i < queryResult->size(); ++i) {
+        uint32_t i_id;
+        deserialize(i_id, queryResult, i);
+        Debug("Item %d", i_id);
+
+        //Check all distinct items.
+        if (stockItems.insert(i_id).second) {  //ca 200 point reads...
+            query = fmt::format("SELECT s_i_id FROM {} WHERE s_w_id = {} AND s_i_id = {} AND s_quantity < {}", STOCK_TABLE, w_id, i_id, min_quantity);
+            client.Query(query, timeout);  
+          } 
+      }
+      client.Wait(results);
+      // Num distinct stocks with quant < min_quant == Number of results that are non-empty.
+  }
+  else{
+      // // (2) Select the 20 most recent orders from the district: Select the orders from OrderLine (from this district) with    next_o_id - 20 <= id < next_o_id
+      // // (3) Count all rows in STOCK with distinct items whose quantity is below the min_quantity threshold.
+      query = fmt::format("SELECT COUNT(DISTINCT(s_i_id)) FROM {}, {} "
+                          "WHERE ol_w_id = {} AND ol_d_id = {} AND ol_o_id < {} AND ol_o_id >= {} "
+                          " AND s_i_id = ol_i_id AND s_w_id = {} AND s_quantity < {} "
+                          "AND s_i_id = s_i_id", //REFLEXIVE TO TRICK PELOTONS DUMB JOIN PLANNER 
+                          ORDER_LINE_TABLE, STOCK_TABLE, w_id, d_id, next_o_id, next_o_id - 20, w_id, min_quantity);
+
+      // query = fmt::format("SELECT COUNT(DISTINCT(s_i_id)) FROM {} INNER JOIN {} ON s_i_id = ol_i_id "
+      //                   "WHERE ol_w_id = {} AND ol_d_id = {} AND ol_o_id < {} AND ol_o_id >= {} AND s_w_id = {} AND s_quantity < {}",
+      //                   ORDER_LINE_TABLE, STOCK_TABLE, w_id, d_id, next_o_id, next_o_id - 20, w_id, min_quantity);
+      //TODO: Write it as a an explicit JOIN somehow to more easily extract individual table predicates?
+      // query = fmt::format("SELECT COUNT(DISTINCT(Stock.i_id)) FROM (SELECT * FROM OrderLine WHERE w_id = {} AND d_id = {} AND o_id < {} AND o_id >= {}) "
+      //                     "LEFT JOIN (SELECT * FROM STOCK WHERE w_id = {} AND quantity < {}) " //This is super inefficient..
+      //                     "ON Stock.i_id = OrderLine.i_id;", w_id, d_id, next_o_id, next_o_id - 20, w_id, min_quantity);
+
+      client.Query(query, queryResult, timeout);
+      uint32_t stock_count;
+      deserialize(stock_count, queryResult);
+      Debug("Stock Count: %u", stock_count);
+  }
+
   Debug("COMMIT");
   return client.Commit(timeout);
 }

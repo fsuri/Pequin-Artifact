@@ -450,6 +450,8 @@ void Server::ManageDispatchSupplyTx(const TransportAddress &remote, const std::s
 
 //////////////////////////////////////////////////////// Protocol Helper Functions
 
+//TODO: FIXME: Add snapshot set as input, and read only the version supplied in the snapshot set (instead of the latest)
+// google::protobuf::Map<std::string, pequinstore::proto::ReplicaList> *snapshot_set
 void Server::FindTableVersion(const std::string &key_name, const Timestamp &ts, bool add_to_read_set, QueryReadSetMgr *readSetMgr, bool add_to_snapshot, SnapshotManager *snapshotMgr){
   //Read the current TableVersion or TableColVersion from CC-store  -- I.e. key_name = "table_name" OR "table_name + delim + column_name" 
   //Note: TableVersion is updated AFTER all TableWrites of a TX have been written. So the TableVersion from CC-store is a pessimistic version; if it is outdated we abort, but that is safe.
@@ -461,7 +463,10 @@ void Server::FindTableVersion(const std::string &key_name, const Timestamp &ts, 
   //find committed write value to read from
   bool committed_exists = store.get(key_name, ts, tsVal);
   if(!committed_exists){
-    Panic("All Tables must have a genesis version");  //Note: CreateTable() writes the genesis version
+    //skip getting col version if the col is not an indexed one!!
+    Panic("NOTE: All Tables and Indexed Columns must have a genesis version. Key in question: %s", key_name.c_str());  
+    //Note: CreateTable() writes the genesis version for table and primary index. CreateIndex writes genesis version for Col Versions.
+
   }
 
   const proto::Transaction *mostRecentPrepared = nullptr;
@@ -488,7 +493,7 @@ void Server::FindTableVersion(const std::string &key_name, const Timestamp &ts, 
  if(add_to_snapshot){ //Creating Snapshot
     UW_ASSERT(snapshotMgr);
 
-    //TODO: Instead of hashing TXN, can we store the txn_digest somehwere such that we can just re-use it.
+    //TODO: Instead of hashing TXN on demand, can we store the txn_digest somehwere such that we can just re-use it.
     if(mostRecentPrepared != nullptr){ //Read prepared
       snapshotMgr->AddToLocalSnapshot(*mostRecentPrepared, params.hashDigest, false);
     }

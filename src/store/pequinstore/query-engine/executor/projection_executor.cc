@@ -55,7 +55,9 @@ bool ProjectionExecutor::DInit() {
  * @return true on success, false otherwise.
  */
 bool ProjectionExecutor::DExecute() {
-  Debug("Projection executor is running"); //std::cout << "Projection executor is running" << std::endl;
+  Debug("Projection executor is running"); 
+  std::cerr << "Projection executor is running" << std::endl;
+  //Panic("Projection Executor is unimplemented");
   PELOTON_ASSERT(project_info_);
   PELOTON_ASSERT(schema_);
   // NOTE: We only handle 1 child or no child for now
@@ -89,9 +91,10 @@ bool ProjectionExecutor::DExecute() {
 
   else if (children_.size() == 1) {
     LOG_TRACE("Projection : child 1 ");
-
+    std::cerr << "Execute child" << std::endl;
     // Execute child
     auto status = children_[0]->Execute();
+    std::cerr << "FInished Execute child" << std::endl;
     if (false == status) return false;
 
     // Get input from child

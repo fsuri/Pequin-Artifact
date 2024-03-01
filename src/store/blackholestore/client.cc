@@ -94,7 +94,7 @@ void Client::Abort(abort_callback acb, abort_timeout_callback atcb,
 
 // Get the result for a given query SQL statement
 void Client::Query(const std::string &query_statement, query_callback qcb,
-    query_timeout_callback qtcb, uint32_t timeout, bool skip_query_interpretation){
+    query_timeout_callback qtcb, uint32_t timeout, bool cache_result, bool skip_query_interpretation){
 
     Debug("Invoked Txn[%d] Query statement %s", seq_no, query_statement.c_str());
      

@@ -75,7 +75,7 @@ void SnapshotManager::ResetLocalSnapshot(bool _useOptimisticTxId){
 
 uint64_t MergeTimestampId(const uint64_t &timestamp, const uint64_t &id){
    uint64_t time_mask = 0xFFF; //(1 << 12) - 1; //all bottom 12 bits = 1
-  Debug("Merging Timestamp: %lx, Id: %lx, Timemask: %lx, TS & Mask: %lx ", timestamp, id, time_mask, (timestamp & time_mask));
+  //Debug("Merging Timestamp: %lx, Id: %lx, Timemask: %lx, TS & Mask: %lx ", timestamp, id, time_mask, (timestamp & time_mask));
     
     //1) Check whether Id < 2^12
     //uint64_t id_mask = ~0UL - (time_mask);
@@ -105,6 +105,8 @@ void SnapshotManager::AddToLocalSnapshot(const std::string &txnDigest, const pro
 
 void SnapshotManager::AddToLocalSnapshot(const proto::Transaction &txn, bool hash_param, bool committed_or_prepared){ //optimistTxId = params.query_params.optimisticTxId && retry_version == 0.
 
+  UW_ASSERT(local_ss);
+  Debug("Add to snapshot of Query [%d:%d]", local_ss->query_seq_num(), local_ss->client_id());
   Debug("USE OPTIMISTIC? %d", useOptimisticTxId);
   
   if(!useOptimisticTxId){ //Add txnDigest to snapshot
@@ -146,13 +148,19 @@ void SnapshotManager::AddToLocalSnapshot(const std::string &txnDigest, const uin
   return;
 }
 
-void SnapshotManager::SealLocalSnapshot(){
+//TODO: Maybe compute as set, and then move all to vector. 
+//Alternatiely Refactor LocalSnapshot to contain maps, not vectors (2 maps, let bool val be prep/commit), but then Compression becomes deprecated.
+void SnapshotManager::SealLocalSnapshot(){ 
    //Erase duplicates... Could have inserted duplicates if we read multiple keys from the same tx.   //NOTE: committed/prepared might have the same tx ids if we read from committed first, but prepared has not been cleaned yet. (Actions are not atomic)
   if(!useOptimisticTxId){
+    std::sort(local_ss->mutable_local_txns_committed()->begin(), local_ss->mutable_local_txns_committed()->end());
+    std::sort(local_ss->mutable_local_txns_prepared()->begin(), local_ss->mutable_local_txns_prepared()->end());
     local_ss->mutable_local_txns_committed()->erase(std::unique(local_ss->mutable_local_txns_committed()->begin(), local_ss->mutable_local_txns_committed()->end()), local_ss->mutable_local_txns_committed()->end()); 
     local_ss->mutable_local_txns_prepared()->erase(std::unique(local_ss->mutable_local_txns_prepared()->begin(), local_ss->mutable_local_txns_prepared()->end()), local_ss->mutable_local_txns_prepared()->end()); 
   }
   else{
+    std::sort(local_ss->mutable_local_txns_committed_ts()->begin(), local_ss->mutable_local_txns_committed_ts()->end());
+    std::sort(local_ss->mutable_local_txns_prepared_ts()->begin(), local_ss->mutable_local_txns_prepared_ts()->end());
     local_ss->mutable_local_txns_committed_ts()->erase(std::unique(local_ss->mutable_local_txns_committed_ts()->begin(), local_ss->mutable_local_txns_committed_ts()->end()), local_ss->mutable_local_txns_committed_ts()->end()); 
     local_ss->mutable_local_txns_prepared_ts()->erase(std::unique(local_ss->mutable_local_txns_prepared_ts()->begin(), local_ss->mutable_local_txns_prepared_ts()->end()), local_ss->mutable_local_txns_prepared_ts()->end()); 
       //ts_comp.CompressAll();
@@ -258,6 +266,7 @@ bool SnapshotManager::ProcessReplicaLocalSnapshot(proto::LocalSnapshot* local_ss
 // map<string, ReplicaList> merged_txns_prepared = 4; //dont think one needs to distinguish at this point.
 
 void SnapshotManager::SealMergedSnapshot(){
+  //Note: By design this will not have duplicates as it is a map, not a vector.
   if(!useOptimisticTxId){
      //remove all keys with insufficient replicas.
     for (auto it = merged_ss->mutable_merged_txns()->begin(), next_it = it; it != merged_ss->mutable_merged_txns()->end();  it = next_it){ /* not hoisted */; /* no increment */
@@ -325,9 +334,9 @@ void TimestampCompressor::CompressLocal(proto::LocalSnapshot *local_ss){
   
   //Use integer compression to further compress the snapshots. Note: Currenty code expects 64 bit TS  -- For 32 bit need to perform explicit delta compression (requires bucketing) 
 
-  //1) sort
-  std::sort(local_ss->mutable_local_txns_committed_ts()->begin(), local_ss->mutable_local_txns_committed_ts()->end());
-  std::sort(local_ss->mutable_local_txns_prepared_ts()->begin(), local_ss->mutable_local_txns_prepared_ts()->end());
+  //1) sort (already sorted in Seal)
+  // std::sort(local_ss->mutable_local_txns_committed_ts()->begin(), local_ss->mutable_local_txns_committed_ts()->end());
+  // std::sort(local_ss->mutable_local_txns_prepared_ts()->begin(), local_ss->mutable_local_txns_prepared_ts()->end());
 
   //2) compress
   //committed:

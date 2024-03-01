@@ -27,7 +27,7 @@
 
 namespace pequinstore {
 
-static bool TEST_EAGER_PLUS_SNAPSHOT = true; //Artificially cause eager exec to fail in order to trigger Sync path
+static bool TEST_EAGER_PLUS_SNAPSHOT = false; //Artificially cause eager exec to fail in order to trigger Sync path
 
 //TODO: Add: Handle Query Fail
 //-> Every shard (not just query_manager shard) should be able to send this if it observes a committed query was missed; or if the materialized snapshot frontier includes a prepare that aborted (or is guaranteed to, e.g. vote Abort)
@@ -77,7 +77,8 @@ void ShardClient::Query(uint64_t client_seq_num, uint64_t query_seq_num, proto::
 void ShardClient::ClearQuery(uint64_t query_seq_num){
     auto itr_q = query_seq_num_mapping.find(query_seq_num);
     if(itr_q == query_seq_num_mapping.end()){
-        Panic("No reqId logged for query seq num");
+        Debug("Nothing to clear. No reqId logged for query seq num %d. Must've been cached.", query_seq_num); 
+        //Note: This should only ever be the case for a point read on something already cached.
         return;
     }
     auto itr = pendingQueries.find(itr_q->second);
@@ -573,6 +574,7 @@ void ShardClient::HandleQueryResult(proto::QueryResultReply &queryResult){
     //4) if receive enough --> upcall;  At client: Add query identifier and result to Txn
 
     bool TEST_SYNC_PATH = TEST_EAGER_PLUS_SNAPSHOT && params.query_params.eagerPlusSnapshot && !pendingQuery->snapshot_mode;
+    if(TEST_SYNC_PATH) Debug("Forcing Sync path even though Eager might have matched.");
    
     Debug("[group %i] Req %lu. Matching_res %d. resultQuorum: %d \n", group, queryResult.req_id(), matching_res, params.query_params.resultQuorum);
         // Only need results from "result" shard (assuming simple migration scheme)
@@ -608,7 +610,7 @@ void ShardClient::HandleQueryResult(proto::QueryResultReply &queryResult){
     //eager should only wait for |syncMessages|; eagerPlusSnapshot sent to |queryMessages| but only in order to be able to form sync Quorum if result fails.
     if(do_sync_upon_failure){
         UW_ASSERT(pendingQuery->num_designated_replies == params.query_params.queryMessages); //confirm that we sent out |queryMessages| instead of the expected |syncMessages| for eager
-        UW_ASSERT(params.query_params.syncMessages < params.query_params.queryMessages);        //assert that we sent strictly more messages that anticipated
+        UW_ASSERT(params.query_params.syncMessages <= params.query_params.queryMessages);        //assert that we sent more messages that anticipated
         maxWait = std::max(params.query_params.syncMessages - config->f, expectedResults); 
     } 
     
@@ -836,6 +838,11 @@ bool ShardClient::ProcessRead(const uint64_t &reqId, PendingQuorumGet *req, read
                                                     //Note: However, winning Value could be prepared too. Would have to deser prepared values too, if winners
                                                     // ==> Would need to store QueryResult as maxValue instead of value string.
 
+    
+    // std::cerr << "has committed val? " << write->has_committed_value() << std::endl;
+    // std::cerr << "committed val: " << write->committed_value() << std::endl;
+    //UW_ASSERT(write->has_committed_value()); //FIXME: COMMENT THIS OUT, its purely for testing.
+
     //check whether value and timestamp are valid
     req->numReplies++;
     if (write->has_committed_value() && write->has_committed_timestamp()) {
@@ -864,7 +871,7 @@ bool ShardClient::ProcessRead(const uint64_t &reqId, PendingQuorumGet *req, read
         }
 
         Timestamp replyTs(write->committed_timestamp());
-        Debug("[group %i] PointQueryReply for %lu with committed %lu byte value and ts %lu.%lu.", group, reqId, write->committed_value().length(),replyTs.getTimestamp(), replyTs.getID());
+        Debug("[group %i] PointQueryReply for reqId %lu with committed %lu byte value and ts %lu.%lu.", group, reqId, write->committed_value().length(),replyTs.getTimestamp(), replyTs.getID());
 
         if (req->firstCommittedReply || req->maxTs < replyTs) {
             req->maxTs = replyTs;
@@ -967,8 +974,9 @@ bool ShardClient::ProcessRead(const uint64_t &reqId, PendingQuorumGet *req, read
                 }
             }
         }
-        //Only read once.
-        const auto [it, first_read] = readValues.emplace(req->key, req->maxValue); // readValues.insert(std::make_pair(req->key, req->maxValue));
+        //Only read once. FIXME: NOTE: REMOVED THIS FOR QUERIES. NOT APPLICABLE CURRENTLY FOR QUERIES
+        bool first_read = true;
+        //const auto [it, first_read] = readValues.emplace(req->key, req->maxValue); // readValues.insert(std::make_pair(req->key, req->maxValue));
 
         // std::cerr << "Key: " << req->key << std::endl;
         //  std::cerr << "MaxValue: " << req->maxValue << std::endl;
@@ -979,16 +987,17 @@ bool ShardClient::ProcessRead(const uint64_t &reqId, PendingQuorumGet *req, read
             *read->mutable_key() = req->key;
             req->maxTs.serialize(read->mutable_readtime());
             
-            std::cerr << "MaxVAl: " << req->maxValue << std::endl;
-            std::cerr << "MaxTS: " << (req->maxTs.getTimestamp()) << ":" <<req->maxTs.getID() << std::endl;
+            Debug("MaxVAl: %s",BytesToHex(req->maxValue, 100).c_str());
+            Debug("MaxTS: [%lu:%lu]", req->maxTs.getTimestamp(), req->maxTs.getID());
             req->prcb(REPLY_OK, req->key, req->maxValue, req->maxTs, req->dep,req->hasDep, true);
         }
-        else{ //TODO: Could optimize to do this right at the start of Handle Read to avoid any validation costs... -> Does mean all reads have to lookup twice though.
-            std::string &prev_read = it->second;
-            req->maxTs = Timestamp();
-            req->prcb(REPLY_OK, req->key, prev_read, req->maxTs, req->dep, false, false); //Don't add to read set.
+        // else{ //TODO: Could optimize to do this right at the start of Handle Read to avoid any validation costs... -> Does mean all reads have to lookup twice though.
+        //     Notice("Duplicate Point read to key %s", req->key.c_str());
+        //     std::string &prev_read = it->second;
+        //     req->maxTs = Timestamp();
+        //     req->prcb(REPLY_OK, req->key, prev_read, req->maxTs, req->dep, false, false); //Don't add to read set.
 
-        } 
+        // } 
         return true;
   }
     
@@ -999,18 +1008,40 @@ bool ShardClient::ValidateTransactionTableWrite(const proto::CommittedProof &pro
     const std::string &key, const std::string &value, const std::string &table_name, sql::QueryResultProtoWrapper *query_result)
 {
 
+
     Debug("[group %i] Trying to validate committed TableWrite.", group);
     
     //*query_result = std::move(sql::QueryResultProtoWrapper(value));
     SQLResultProto proto_result;
-    if(!value.empty()) proto_result.ParseFromString(value);
+
+    if(value.empty()){
+        //If the result is empty, then the TX must have written a row version that is either a) a delete, or b) does not fulfill the predicate
+        //iterate through write set, and check that key is found, 
+        for (const auto &write : proof.txn().write_set()) {
+            if (write.key() == key) {
+                if(!write.has_rowupdates() || !write.rowupdates().has_row_idx()) return false; // there is no associated TableWrite
+                
+                if(write.rowupdates().deletion()) return true;
+
+                //TODO: Else: check if the row indeed does not fulfill the predicate.
+                //For now just accepting it.
+                return true;
+                //return false;
+            }
+        }
+    }
+
+    else {
+        //there is a result. Try to see if it's valid.
+        proto_result.ParseFromString(value);
+    }
     query_result->SetResult(proto_result);
     
     //query_result = new sql::QueryResultProtoWrapper(value); //query_result takes ownership
     //turn value into Object //TODO: Can we avoid the redundant de-serialization in client.cc? ==> Modify prcb callback to take QueryResult as arg. 
                                 //Then need to change that gcb = prcb (no longer true)
 
-    //NOTE: Currently useless line of code: If empty ==> no Write ==> We would never even enter Validate Transaction branch  
+    //NOTE: Currently useless line of code: If empty ==> no Write ==> We would never even enter Validate Transaction branch  //FIXME: False statement. We can enter if res exists but is null
             //We don't send empty results, we just send nothing.
             //if we did send result: if query_result empty => return true. No proof needed, since replica is reporting that no value for the requested read exists (at the TS)
     if(query_result->empty()){

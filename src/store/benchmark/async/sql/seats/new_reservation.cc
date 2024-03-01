@@ -6,24 +6,24 @@
 
 namespace seats_sql {
     
-SQLNewReservation::SQLNewReservation(uint32_t timeout, std::mt19937_64 gen, int64_t r_id, std::queue<SEATSReservation> &insert_res, std::queue<SEATSReservation> &existing_res) : 
-    SEATSSQLTransaction(timeout), r_id(r_id) {
+SQLNewReservation::SQLNewReservation(uint32_t timeout, std::mt19937 &gen, int64_t r_id, std::queue<SEATSReservation> &insert_res, std::queue<SEATSReservation> &update_res, std::queue<SEATSReservation> &delete_res) : 
+    SEATSSQLTransaction(timeout), r_id(r_id), gen_(&gen) {
         if (!insert_res.empty()) {
             SEATSReservation res = insert_res.front();
-            f_id = res.f_id; 
+            f_id = res.flight.flight_id; 
+            flight = res.flight;
             seatnum = res.seat_num;
             if (res.c_id != NULL_ID) 
                 c_id = res.c_id;
             else
                 c_id = std::uniform_int_distribution<int64_t>(1, NUM_CUSTOMERS)(gen);
             
-            if (seatnum != -1)
-                seatnum = seatnum;
-            else   
+            if (seatnum == -1)   
                 seatnum = std::uniform_int_distribution<int64_t>(1, TOTAL_SEATS_PER_FLIGHT)(gen);
 
             insert_res.pop();
         } else { 
+            Panic("should not be triggered");
             f_id = std::uniform_int_distribution<int64_t>(1, NUM_FLIGHTS)(gen);
             seatnum = std::uniform_int_distribution<int64_t>(1, TOTAL_SEATS_PER_FLIGHT)(gen);
             c_id = std::uniform_int_distribution<int64_t>(1, NUM_CUSTOMERS)(gen);
@@ -34,8 +34,9 @@ SQLNewReservation::SQLNewReservation(uint32_t timeout, std::mt19937_64 gen, int6
         for (int i = 0; i < NEW_RESERVATION_ATTRS_SIZE; i++) {
             attributes.push_back(attr_dist(gen));
         }
-        price = std::uniform_real_distribution<double>(MIN_RESERVATION_PRICE, MAX_RESERVATION_PRICE)(gen);
-        q = &existing_res;
+        price = std::uniform_real_distribution<double>(MIN_RESERVATION_PRICE, MAX_RESERVATION_PRICE)(gen); //TODO: Should be 2x this?
+        update_q = &update_res;
+        delete_q = &delete_res;
     }
 
 SQLNewReservation::~SQLNewReservation() {} 
@@ -48,78 +49,128 @@ transaction_status_t SQLNewReservation::Execute(SyncClient &client) {
     std::unique_ptr<const query_result::QueryResult> queryResult2;
     std::unique_ptr<const query_result::QueryResult> queryResult3;
 
+    std::vector<std::unique_ptr<const query_result::QueryResult>> results; 
+
     std::string query;
 
+    fprintf(stderr,"NEW_RESERVATION %ld. for customer %ld. Flight: %d. Seatnum: %d.  \n", r_id, c_id, f_id, seatnum);
     Debug("NEW_RESERVATION for customer %ld", c_id);
     client.Begin(timeout);
 
-    query = fmt::format("SELECT f_al_id, f_seats_left, {}.* FROM {}, {} WHERE f_id = {} AND f_al_id = al_id", AIRLINE_TABLE, FLIGHT_TABLE, AIRLINE_TABLE, f_id);
-    client.Query(query, queryResult, timeout);
-    query = fmt::format("SELECT r_id FROM {} WHERE r_f_id = {} AND r_seat = {}", RESERVATION_TABLE, f_id, seatnum);
-    client.Query(query, queryResult2, timeout);
-    query = fmt::format("SELECT r_id FROM {} WHERE r_f_id = {} AND r_c_id = {}", RESERVATION_TABLE, f_id, c_id);
-    client.Query(query, queryResult3, timeout);
+    // (1) Get Flight information. (GetFlight)
+    query = fmt::format("SELECT f_al_id, f_seats_left, al_iata_code, al_icao_code, al_call_sign, al_name, al_co_id FROM {}, {} WHERE f_id = {} AND f_al_id = al_id "
+                        "AND al_id = al_id", //REFLEXIVE ARG FOR DUMB PELOTON PLANNER 
+                        FLIGHT_TABLE, AIRLINE_TABLE, f_id); 
+    //Peloton does not support `.*` semantics. Replaced by just getting a couple (not all) airline fields.
+    //query = fmt::format("SELECT f_al_id, f_seats_left, {}.* FROM {}, {} WHERE f_id = {} AND f_al_id = al_id", AIRLINE_TABLE, FLIGHT_TABLE, AIRLINE_TABLE, f_id); 
+    client.Query(query, timeout); 
 
-    if (queryResult->empty()) {
+    // (2) Check whether Seat is available  (CheckSeat)
+    query = fmt::format("SELECT r_id FROM {} WHERE r_f_id = {} AND r_seat = {}", RESERVATION_TABLE, f_id, seatnum);
+    client.Query(query, timeout);
+    // (3) Check whether Customer already has a seat  (CheckCustomer)
+    query = fmt::format("SELECT r_id FROM {} WHERE r_f_id = {} AND r_c_id = {}", RESERVATION_TABLE, f_id, c_id);
+      //todo? replace with single query? query = fmt::format("SELECT r_id FROM {} WHERE r_f_id = {} AND (r_c_id = {} OR r_seat = {}) ", RESERVATION_TABLE, f_id, c_id, seatnum);
+    client.Query(query, timeout);
+
+    // GetCustomer
+    //query = fmt::format("SELECT c_base_ap_id, c_balance, c_sattr00 FROM {} WHERE c_id = {}", CUSTOMER_TABLE, c_id);
+    query = fmt::format("SELECT * FROM {} WHERE c_id = {}", CUSTOMER_TABLE, c_id); //Use Select * to allow the point UPDATE to Customer to be processed from cache
+    client.Query(query, timeout);
+   
+    client.Wait(results); //Execute the 4 reads in parallel
+    
+    int64_t airline_id;
+    int64_t seats_left; 
+    //If flight info not found => Abort
+    if (results[0]->empty()) {
+        Notice("Invalid Flight ID %ld", f_id);
         Debug("Invalid Flight ID %ld", f_id);
         client.Abort(timeout);
         return ABORTED_USER;
-    } else if (!queryResult2->empty()) {
+    } 
+    else{
+        results[0]->at(0)->get(0, &airline_id);
+        results[0]->at(0)->get(1, &seats_left);
+        if (seats_left <= 0) {
+            Notice("No more seats left on flight %ld", f_id);
+            Debug("No more seats left on flight %ld", f_id);
+            client.Abort(timeout);
+            return ABORTED_USER;
+    }
+    }
+    //If requested seat is not available => abort
+    if (!results[1]->empty()) {
+        // int r_id;
+        // deserialize(r_id, results[1], 0, 0);
+        //Panic("Seat should be empty? %d", r_id);
+        Notice("Seat %ld on flight %ld is already reserved", seatnum, f_id);
         Debug("Seat %ld on flight %ld is already reserved", seatnum, f_id);
         client.Abort(timeout);
         return ABORTED_USER;
-    } else if (!queryResult3->empty()) {
+    } 
+    //If customer already has a seat => abort
+    if (!results[2]->empty()) {
+        Notice("Customer %ld already has a seat", c_id);
         Debug("Customer %ld already has a seat", c_id);
         client.Abort(timeout);
         return ABORTED_USER;
     }
-
-    int64_t airline_id;
-    int64_t seats_left; 
-
-    queryResult->at(0)->get(0, &airline_id);
-    queryResult->at(0)->get(1, &seats_left);
-    if (seats_left == 0) {
-        Debug("No more seats left on flight %ld", f_id);
+    if (results[3]->empty()) {
+        Notice("No Customer with id %ld", c_id);
+        Debug("No Customer with id %ld", c_id);
         client.Abort(timeout);
         return ABORTED_USER;
     }
-
-    if (c_id != NULL_ID) {
-        query = fmt::format("SELECT c_base_ap_id, c_balance, c_sattr00 FROM {} WHERE c_id = {}", CUSTOMER_TABLE, c_id);
-        client.Query(query, queryResult, timeout);
-        if (queryResult->empty()) {
-            Debug("No Customer with id %ld", c_id);
-            client.Abort(timeout);
-            return ABORTED_USER;
-        }
-    }
+    
     bool updatedSuccessful = true;
-    query = fmt::format("INSERT INTO {} (r_id, r_c_id, r_f_id, r_seat, r_price, r_iattr00, r_iattr01, r_iattr02, r_iattr03, r_iattr04, r_iattr05, r_iattr06, r_iattr07, r_iattr08, r_created, r_updated) VALUES ({}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {})",
-                            RESERVATION_TABLE, r_id, c_id, f_id, seatnum, price, attributes[0], attributes[1], attributes[2], attributes[3], attributes[4], attributes[5], attributes[6], attributes[7], attributes[8], time, time);
-    client.Write(query, queryResult, timeout);
-    updatedSuccessful = (updatedSuccessful && queryResult->has_rows_affected());
+    //InsertReservation
+    query = fmt::format("INSERT INTO {} (r_id, r_c_id, r_f_id, r_seat, r_price, r_iattr00, r_iattr01, r_iattr02, r_iattr03, r_iattr04, r_iattr05, r_iattr06, r_iattr07, r_iattr08) "
+                        "VALUES ({}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {})", RESERVATION_TABLE, r_id, c_id, f_id, seatnum, price, 
+                        attributes[0], attributes[1], attributes[2], attributes[3], attributes[4], attributes[5], attributes[6], attributes[7], attributes[8]); 
+    client.Write(query, timeout);
+    //updatedSuccessful = (updatedSuccessful && queryResult->has_rows_affected());
 
+    //Update Flight
     query = fmt::format("UPDATE {} SET f_seats_left = f_seats_left - 1 WHERE f_id = {}", FLIGHT_TABLE, f_id);
-    client.Write(query, queryResult, timeout);
-    updatedSuccessful = updatedSuccessful && queryResult->has_rows_affected();
+    client.Write(query, timeout);
+    //updatedSuccessful = updatedSuccessful && queryResult->has_rows_affected();
+
+    //UpdateCustomer
     query = fmt::format("UPDATE {} SET c_iattr10 = c_iattr10 + 1, c_iattr11 = c_iattr11 + 1, c_iattr12 = {}, c_iattr13 = {}, c_iattr14 = {}, c_iattr15 = {} WHERE c_id = {}", 
                         CUSTOMER_TABLE, attributes[0], attributes[1], attributes[2], attributes[3], c_id);
-    client.Write(query, queryResult, timeout);
+    client.Write(query, timeout);
+    //updatedSuccessful = updatedSuccessful && queryResult->has_rows_affected();
 
-    updatedSuccessful = updatedSuccessful && queryResult->has_rows_affected();
+    //UpdateFrequentFlyer
     query = fmt::format("UPDATE {} SET ff_iattr10 = ff_iattr10 + 1, ff_iattr11 = {}, ff_iattr12 = {}, ff_iattr13 = {}, ff_iattr14 = {} WHERE ff_c_id = {} AND ff_al_id = {}", 
                         FREQUENT_FLYER_TABLE, attributes[4], attributes[5], attributes[6], attributes[7], c_id, airline_id);
-    client.Write(query, queryResult, timeout);
-    updatedSuccessful = updatedSuccessful && queryResult->has_rows_affected();
+    client.Write(query, timeout);
+    //updatedSuccessful = updatedSuccessful && queryResult->has_rows_affected();
 
-    if (!updatedSuccessful) {
-        Debug("Updated failed for new reservation");
+    client.Wait(results);
+
+     UW_ASSERT(results.size() == 4);
+    bool abort = false;
+    if(!results[0]->has_rows_affected()){ Panic("Failed to insert Reservation"); abort = true;}
+    if(!results[1]->has_rows_affected()){ Panic("Failed to update number of seats left in flight"); abort = true;}
+    if(!results[2]->has_rows_affected()){ Panic("Failed to update customer attributes"); abort = true;}
+    if(!results[3]->has_rows_affected()){ Debug("Failed to update frequent flyer info.");} //We don't care if we updated FrequentFlyer
+    if(abort){
         client.Abort(timeout);
         return ABORTED_USER;
     }
 
-    q->push(SEATSReservation(r_id, c_id, f_id, seatnum));
+
+    if (std::uniform_int_distribution<int>(1, 100)(*gen_) < PROB_Q_DELETE_RESERVATION){
+        std::cerr << "NEW_RES: PUSH TO DELETE Q. r_id: " << r_id <<". c_id: " << c_id << ". flight_id: " << flight.flight_id << std::endl;
+        delete_q->push(SEATSReservation(r_id, c_id, flight, seatnum));
+    }
+    else{
+         std::cerr << "NEW_RES: PUSH TO UPDATE Q. r_id: " << r_id <<". c_id: " << c_id << ". flight_id: " << flight.flight_id << std::endl;
+        update_q->push(SEATSReservation(r_id, c_id, flight, seatnum));
+    }
+
     return client.Commit(timeout);
 }       
 }

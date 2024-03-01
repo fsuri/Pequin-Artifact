@@ -27,17 +27,25 @@
 #ifndef AUCTION_MARK_NEW_COMMENT_H
 #define AUCTION_MARK_NEW_COMMENT_H
 
-#include "store/common/frontend/sync_transaction.h"
+#include "store/benchmark/async/sql/auctionmark/transactions/auctionmark_transaction.h"
+#include "store/benchmark/async/sql/auctionmark/auctionmark_profile.h"
 
 namespace auctionmark {
 
-class NewComment : public SyncTransaction {
+class NewComment : public AuctionMarkTransaction {
  public:
-  NewComment(uint32_t timeout, uint64_t i_id, uint64_t seller_id, uint64_t buyer_id,
-      string question, std::mt19937 &gen);
+  NewComment(uint32_t timeout, AuctionMarkProfile &profile, std::mt19937_64 &gen);
   virtual ~NewComment();
   virtual transaction_status_t Execute(SyncClient &client);
 
+ private:
+  std::string item_id;
+  std::string seller_id;
+  std::string buyer_id;
+  std::string question;
+
+  std::mt19937_64 &gen;
+  AuctionMarkProfile &profile;
 };
 
 } // namespace auctionmark

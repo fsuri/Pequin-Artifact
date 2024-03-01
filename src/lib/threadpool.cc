@@ -32,8 +32,11 @@
 #include <thread>
 #include <utility>
 
-// TODO: make is so that all but the first core are used.
+
 ThreadPool::ThreadPool() {}
+
+//TODO: Make this an input param.
+static bool running_locally = true; //allow using more than 8 cores for local setup.
 
 void ThreadPool::start(int process_id, int total_processes, bool hyperthreading,
                        bool server, int mode) {
@@ -47,16 +50,19 @@ void ThreadPool::start(int process_id, int total_processes, bool hyperthreading,
   // could pre-allocate some Events and EventInfos for a Hotstart
   if (server) {
     fprintf(stderr, "starting server threadpool\n");
-    fprintf(stderr, "process_id: %d, total_processes: %d \n", process_id,
-            total_processes);
+    fprintf(stderr, "process_id: %d, total_processes: %d \n", process_id, total_processes);
     // TODO: add config param for hyperthreading
     // bool hyperthreading = true;
+
+    //int num_cpus = sysconf(_SC_NPROCESSORS_ONLN);
     int num_cpus = std::thread::hardware_concurrency(); ///(2-hyperthreading);
 
     fprintf(stderr, "Total Num_cpus on server: %d \n", num_cpus);
 
     bool put_all_threads_on_same_core = false;
-    if (num_cpus > 8) {
+
+    if (running_locally) num_cpus = 8;
+    if (num_cpus > 8 && !running_locally) {
       num_cpus = 8;
       fprintf(stderr, "Total Num_cpus on server downregulated to: %d \n",
               num_cpus);
@@ -104,11 +110,10 @@ void ThreadPool::start(int process_id, int total_processes, bool hyperthreading,
       cpu_set_t cpuset;
       CPU_ZERO(&cpuset);
       CPU_SET(i + offset, &cpuset);
-      if (i + offset > 7)
-        return; // XXX This is a hack to support the non-crypto experiment that
-                // does not actually use multiple cores
+      if (i + offset > 7 && !running_locally)
+        return; // XXX This is a hack to support the non-crypto experiment that does not actually use multiple cores
 
-      // Mainthread
+      // Mainthread   -- this is ONE thread on which any workload that must be sequential should be run.
       if (i == start) { // if run with >=3 cores then start == 1; If cores < 3,
                         // start == 0 -->run main_thread on first core.
         t = new std::thread([this, i] {
@@ -133,11 +138,9 @@ void ThreadPool::start(int process_id, int total_processes, bool hyperthreading,
         threads.push_back(t);
         t->detach();
       }
-      // Cryptothread
+      // Worker Thread -- these threads are best used to perform asynchronous jobs (e.g. Reads or Crypto)
       if ((i + put_all_threads_on_same_core) > start) { // if run with >=3 cores: start==1 &
-                   // put_all_threads_on_same_core == 0 --> workers start on
-                   // cores 2+; if < 3 cores: start == 0, put_all = 1
-        // else{
+          // put_all_threads_on_same_core == 0 --> workers start on cores 2+; if < 3 cores: start == 0, put_all = 1
         t = new std::thread([this, i] {
           while (true) {
             std::pair<std::function<void *()>, EventInfo *> job;
@@ -169,10 +172,8 @@ void ThreadPool::start(int process_id, int total_processes, bool hyperthreading,
         t->detach();
       }
 
-      // std::cerr << "THREADPOOL SETUP: Trying to pin thread to core: " << i <<
-      // " + " << offset << std::endl; int rc =
-      // pthread_setaffinity_np(t->native_handle(),
-      //                                 sizeof(cpu_set_t), &cpuset);
+      // std::cerr << "THREADPOOL SETUP: Trying to pin thread to core: " << i << " + " << offset << std::endl; 
+      // int rc = pthread_setaffinity_np(t->native_handle(), sizeof(cpu_set_t), &cpuset);
       // if (rc != 0) {
       //     Panic("Error calling pthread_setaffinity_np: %d", rc);
       // }
@@ -180,20 +181,20 @@ void ThreadPool::start(int process_id, int total_processes, bool hyperthreading,
       // t->detach();
       Notice("Finished server-side threadpool configurations");
     }
-    //}
-  } else {
+    
+  }
+  //CLIENT THREADPOOL 
+  else {
     fprintf(stderr, "starting client threadpool\n");
     int num_cpus = std::thread::hardware_concurrency(); ///(2-hyperthreading);
     fprintf(stderr, "Num_cpus: %d \n", num_cpus);
     if (num_cpus > 8) {
       num_cpus = 8;
-      fprintf(stderr, "Total Num_cpus on client downregulated to: %d \n",
-              num_cpus);
+      fprintf(stderr, "Total Num_cpus on client downregulated to: %d \n", num_cpus);
     }
-    // Note: Each client uses all 8 cores for additional workers. (However, by
-    // default we run with client_multithreading off though, so they are
-    // unused.) num_cpus /= total_processes;   //Note: Use this if one wants to
-    // dedicate a certain number of threads per client.
+    // Note: Each client uses all 8 cores for additional workers. 
+    // (However, by default we run with client_multithreading off though, so they are unused.) num_cpus /= total_processes;   
+    // Note: Use this if one wants to dedicate a certain number of threads per client.
 
     Debug("num cpus per process: %d", num_cpus);
     uint32_t num_threads = (uint32_t)std::max(1, num_cpus);
@@ -254,6 +255,7 @@ void ThreadPool::EventCallback(evutil_socket_t fd, short what, void *arg) {
   info->tp->FreeEventInfo(info);
 }
 
+//Dispatch a job f to the worker threads. Once complete, we will issue a callback cb on the process eventBase
 void ThreadPool::dispatch(std::function<void *()> f,
                           std::function<void(void *)> cb,
                           event_base *libeventBase) {
@@ -272,6 +274,7 @@ void *ThreadPool::combiner(std::function<void *()> f,
   return nullptr;
 }
 
+//Dispatch a job f to the worker threads. Once complete, the worker thread itself will locally call a followup callback cb
 void ThreadPool::dispatch_local(std::function<void *()> f,
                                 std::function<void(void *)> cb) {
   EventInfo *info = nullptr;
@@ -280,22 +283,24 @@ void ThreadPool::dispatch_local(std::function<void *()> f,
     return nullptr;
   };
 
-  worker_thread_request_list.enqueue(
-      std::make_pair(std::move(combination), info));
+  worker_thread_request_list.enqueue(std::make_pair(std::move(combination), info));
 }
 
+//Dispatch a job f to the worker thread, without any callback.
 void ThreadPool::detatch(std::function<void *()> f) {
   EventInfo *info = nullptr;
 
   worker_thread_request_list.enqueue(std::make_pair(std::move(f), info));
 }
 
+//Dispatch a job f to the worker thread, without any callback. Take f as pointer
 void ThreadPool::detatch_ptr(std::function<void *()> *f) {
   EventInfo *info = nullptr;
 
   worker_thread_request_list.enqueue(std::make_pair(std::move(*f), info));
 }
 
+//Dispatch a job f to the main (serial) thread, without any callback.
 void ThreadPool::detatch_main(std::function<void *()> f) {
   EventInfo *info = nullptr;
 
@@ -310,8 +315,9 @@ void ThreadPool::detatch_main(std::function<void *()> f) {
 // could make f purely void, if I refactored a bunch
 // lazy solution:
 //  transport->Timer(0, [](){f(new bool(true));})
-void ThreadPool::issueCallback(std::function<void(void *)> cb, void *arg,
-                               event_base *libeventBase) {
+
+//Callback into the main process eventBase (i.e. re-queue event and return control to process)
+void ThreadPool::issueCallback(std::function<void(void *)> cb, void *arg, event_base *libeventBase) {
   EventInfo *info = GetUnusedEventInfo(); // new EventInfo(this);
   info->cb = std::move(cb);
   info->r = arg;
@@ -321,8 +327,8 @@ void ThreadPool::issueCallback(std::function<void(void *)> cb, void *arg,
   event_active(info->ev, 0, 0);
 }
 
-void ThreadPool::issueMainThreadCallback(std::function<void(void *)> cb,
-                                         void *arg) {
+//Callback into the main (serial) thread
+void ThreadPool::issueMainThreadCallback(std::function<void(void *)> cb, void *arg) {
 
   auto f = [cb, arg]() {
     cb(arg);
@@ -367,4 +373,96 @@ void ThreadPool::FreeEvent(event *event) {
   std::unique_lock<std::mutex> lock(EventMutex);
   event_del(event);
   events.push_back(event);
+}
+
+//INDEXED THREADPOOL
+
+//Dispatch a job f to a worker thread of choice (with id), when done issue callback on main process (i.e. return control to eventBase)
+void ThreadPool::dispatch_indexed(uint64_t id, std::function<void *()> f, std::function<void(void *)> cb, event_base *libeventBase) { 
+
+  EventInfo *info = GetUnusedEventInfo();
+  info->cb = std::move(cb);
+  info->ev = GetUnusedEvent(libeventBase, info);
+  event_add(info->ev, NULL);
+
+  auto worker_id = id % total_indexed_workers;
+
+  IndexWorkerMap::accessor w;
+  indexed_worker_thread_request_list.find(w, worker_id);
+  w->second.enqueue(std::make_pair(std::move(f), info));
+  //indexed_worker_thread_request_list[worker_id].enqueue(std::make_pair(std::move(f), info)); //Non-threadsafe option.
+}
+//Dispatch a job f to a worker thread of choice (with id), without any callback.
+void ThreadPool::detatch_indexed(uint64_t id, std::function<void *()> f) {
+  EventInfo *info = nullptr;
+
+  auto worker_id = id % total_indexed_workers;
+
+  IndexWorkerMap::accessor w;
+  indexed_worker_thread_request_list.find(w, worker_id);
+  w->second.enqueue(std::make_pair(std::move(f), info));
+}
+
+
+void ThreadPool::add_n_indexed(int num_threads) {
+  
+  cpu_set_t cpuset;
+  sched_getaffinity(0, sizeof(cpuset), &cpuset);
+  fprintf(stderr, "cpu_count  %d \n", CPU_COUNT(&cpuset));
+  fprintf(stderr, "get_nprocs  %d \n", get_nprocs());
+
+  fprintf(stderr, "Add %d new threads to indexed threadpool\n", num_threads);
+  int num_cpus = std::thread::hardware_concurrency(); ///(2-hyperthreading);
+  fprintf(stderr, "Num_cpus: %d \n", num_cpus);
+  if (num_cpus > 8) {
+    num_cpus = 8;
+    fprintf(stderr, "Total Num_cpus on client downregulated to: %d \n", num_cpus);
+  }
+ 
+  running = true;
+  for (uint32_t i = 0; i < num_threads; i++) {
+    uint64_t worker_id = total_indexed_workers + i;
+
+    IndexWorkerMap::accessor w;
+    indexed_worker_thread_request_list.insert(w, worker_id);
+    w.release();
+
+    std::thread *t;
+    t = new std::thread([this, worker_id] {
+      while (true) {
+        std::pair<std::function<void *()>, EventInfo *> job;
+
+        IndexWorkerMap::accessor w;
+        indexed_worker_thread_request_list.find(w, worker_id);
+        w->second.wait_dequeue(job);
+        w.release();
+
+        if (!running) {
+          break;
+        }
+
+        if (job.second) {
+          job.second->r = job.first();
+          event_active(job.second->ev, 0, 0);
+        } else {
+          job.first();
+        }
+      }
+    });
+
+    uint32_t cpu_placement = worker_id % num_cpus;
+    cpu_set_t cpuset;
+    CPU_ZERO(&cpuset);
+    CPU_SET(i, &cpuset);
+    int rc = pthread_setaffinity_np(t->native_handle(), sizeof(cpu_set_t), &cpuset);
+    if (rc != 0) {
+      Panic("Error calling pthread_setaffinity_np: %d", rc);
+    }
+    Debug("MainThread running on CPU %d.", sched_getcpu());
+
+    threads.push_back(t);
+    t->detach();
+  }
+  
+  total_indexed_workers += num_threads;
 }

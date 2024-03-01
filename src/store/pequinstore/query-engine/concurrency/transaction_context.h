@@ -27,6 +27,7 @@
 #include "../common/item_pointer.h"
 #include "../common/printable.h"
 #include "store/pequinstore/pequin-proto.pb.h"
+#include "../../store/pequinstore/sql_interpreter.h"
 
 namespace peloton {
 
@@ -280,11 +281,20 @@ public:
    */
   void SetReadOnly() { read_only_ = true; }
 
+  const pequinstore::TableRegistry_t * GetTableRegistry() { return table_reg_;}
+   
+  void SetTableRegistry(const pequinstore::TableRegistry_t *table_reg){
+    table_reg_ = table_reg;
+  }
+
   Timestamp GetBasilTimestamp() { return basil_timestamp_; }
 
   void SetBasilTimestamp(const Timestamp &basil_timestamp) {
     basil_timestamp_ = basil_timestamp;
   }
+
+  bool IsDeletion() { return is_deletion_;}
+  void SetDeletion(bool is_delete) {is_deletion_ = is_delete; }
 
   pequinstore::QueryReadSetMgr* GetQueryReadSetMgr() {
     return query_read_set_mgr_;
@@ -492,8 +502,13 @@ private:
   /** timestamp when the transaction began */
   uint64_t timestamp_;
 
+  // Reference to the TableRegistry
+  const pequinstore::TableRegistry_t *table_reg_;
+
   /** Basil timestamp */
   Timestamp basil_timestamp_;
+
+  bool is_deletion_ = false; //whether or not this statement is a delete.
 
   /** Query read set manager */
   pequinstore::QueryReadSetMgr *query_read_set_mgr_ = nullptr;

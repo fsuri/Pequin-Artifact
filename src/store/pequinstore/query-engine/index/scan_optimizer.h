@@ -244,12 +244,10 @@ class ConjunctionScanPredicate {
    *                         both low key and high key
    *
    * This function behaves in a way like this:
-   *   1. For non-point query the same key field in both low key and high key
-   *      is set
+   *   1. For non-point query the same key field in both low key and high key is set
    *   2. For point query the low key will be updated
    *   3. This function does not deal with range queries - it knows no semantics
-   *      of range query and the expression type for each index key column
-   *      so use this at your own risk
+   *      of range query and the expression type for each index key column so use this at your own risk
    *   4. column_id is the column ID inside table rather than inside index key
    *   5. The index must be the same as the index passed into the constructor
    *
@@ -262,6 +260,7 @@ class ConjunctionScanPredicate {
                            const std::vector<type::Value> &new_value_list) {
     // They are one to one
     PELOTON_ASSERT(new_value_list.size() == column_id_list.size());
+   
 
     // This is used to address new_value_list
     int i = 0;
@@ -270,22 +269,32 @@ class ConjunctionScanPredicate {
       // This function guarantees the return value must be valid one
       oid_t index_column = index_p->TupleColumnToKeyColumn(tuple_column);
 
+      std::cerr << "Setting Value for Column: " << tuple_column << std::endl; 
+      std::cerr << "Is point query? " << is_point_query_ << std::endl;
+      //std::cerr << "Setting Value for Column: " << index_p->GetKeySchema()->GetColumn(tuple_column).GetName() << std::endl; 
+      //FIXME: this doesn't work right? It thinks the given tuple_col is for a different index?
+
       UNUSED_ATTRIBUTE oid_t bind_ret;
 
       // Always bind the value to low key
-      // It should return INVALID_OID since we do not have any
-      // late binding here
-      bind_ret = BindValueToIndexKey(index_p, new_value_list[i], low_key_p_,
-                                     index_column);
+      // It should return INVALID_OID since we do not have any late binding here
+      bind_ret = BindValueToIndexKey(index_p, new_value_list[i], low_key_p_, index_column);
       PELOTON_ASSERT(bind_ret == INVALID_OID);
+
 
       // is_point_query_ is only determined by expression type
       // Also if not point query then also bind to high key
-      if (is_point_query_ == true) {
-        bind_ret = BindValueToIndexKey(index_p, new_value_list[i], high_key_p_,
-                                       index_column);
+      bool BIND_ALSO_FOR_RANGE_QUERY = true;
+      if (is_point_query_ != true) {
+        bind_ret = BindValueToIndexKey(index_p, new_value_list[i], high_key_p_, index_column);
         PELOTON_ASSERT(bind_ret == INVALID_OID);
       }
+
+      std::cerr << "index_p: " << index_p->GetInfo() << std::endl;
+      std::cerr << "new_val: " << new_value_list[i].ToString() << std::endl;
+      std::cerr << "low_key_p:" << low_key_p_->GetInfo() << std::endl;
+      std::cerr << "high_key_p: " << high_key_p_->GetInfo() << std::endl;
+      std::cerr << "index_col: " << index_column << std::endl;
 
       i++;
     }
@@ -321,18 +330,13 @@ class ConjunctionScanPredicate {
   /*
    * BindValueToIndexKey() - Bind the value to a column of a given tuple
    *
-   * This function binds the given value to the given column of a given key,
-   * if the value is not a placeholder for late binding. If it is, then
-   * it does not bind actual value, but instead return the index of the
-   * value object for future binding.
+   * This function binds the given value to the given column of a given key, if the value is not a placeholder for late binding. 
+   * If it is, then it does not bind actual value, but instead return the index of the value object for future binding.
    *
-   * If this function is called for late binding then caller is responsible
-   * for checking return value not being INVALID_OID, since during late
-   *binding
-   * stage all values must be valid
+   * If this function is called for late binding then caller is responsiblefor checking return value not being INVALID_OID, 
+   * since during late binding stage all values must be valid
    *
-   * NOTE: This function is made static to reflact the fact that it does not
-   * require any data member
+   * NOTE: This function is made static to reflact the fact that it does not require any data member
    */
   static oid_t BindValueToIndexKey(Index *index_p, const type::Value &value,
                                    storage::Tuple *index_key_p, oid_t index) {

@@ -57,9 +57,14 @@
 #include "store/benchmark/async/tpcc/async/tpcc_client.h"
 #include "store/benchmark/async/sql/tpcc/tpcc_client.h"
 #include "store/benchmark/async/sql/seats/seats_client.h"
+#include "store/benchmark/async/sql/auctionmark/auctionmark_client.h"
+#include "store/benchmark/async/sql/tpcch/tpcch_client.h"
 #include "store/benchmark/async/smallbank/smallbank_client.h"
 #include "store/benchmark/async/toy/toy_client.h"
 #include "store/benchmark/async/rw-sql/rw-sql_client.h"
+
+// probs for tpcch 
+#include "store/benchmark/async/sql/tpcch/tpcch_constants.h"
 
 //protocol clients
 //Blackhole test printer
@@ -130,7 +135,9 @@ enum benchmode_t {
   BENCH_TOY,
   BENCH_TPCC_SQL,
   BENCH_RW_SQL, 
-  BENCH_SEATS_SQL
+  BENCH_SEATS_SQL,
+  BENCH_AUCTIONMARK_SQL,
+  BENCH_TPCCH_SQL
 };
 
 enum keysmode_t {
@@ -525,6 +532,8 @@ const protomode_t protomodes[] {
 	PROTO_AUGUSTUS_SMART,
   PROTO_POSTGRES
 };
+
+//Note: this should match the size of protomodes
 const strongstore::Mode strongmodes[] {
   strongstore::Mode::MODE_UNKNOWN,
   strongstore::Mode::MODE_UNKNOWN,
@@ -568,7 +577,9 @@ const std::string benchmark_args[] = {
   "toy",
   "tpcc-sql",
   "rw-sql",
-  "seats-sql"
+  "seats-sql",
+  "auctionmark-sql",
+  "tpcch-sql"
 };
 const benchmode_t benchmodes[] {
   BENCH_RETWIS,
@@ -579,7 +590,9 @@ const benchmode_t benchmodes[] {
   BENCH_TOY,
   BENCH_TPCC_SQL,
   BENCH_RW_SQL,
-  BENCH_SEATS_SQL
+  BENCH_SEATS_SQL,
+  BENCH_AUCTIONMARK_SQL,
+  BENCH_TPCCH_SQL
 };
 static bool ValidateBenchmark(const char* flagname, const std::string &value) {
   int n = sizeof(benchmark_args);
@@ -708,6 +721,7 @@ DEFINE_bool(rw_read_only, false, "only do read operations");
 DEFINE_uint64(num_tables, 1, "number of tables for rw-sql");
 DEFINE_uint64(num_keys_per_table, 3, "number of keys per table for rw-sql");
 DEFINE_uint64(max_range, 10, "max amount of reads in a single scan for rw-sql");
+DEFINE_uint64(point_op_freq, 50, "percentage of times an operation is a point operation (the others are scan)");
 
 
 /**
@@ -736,6 +750,11 @@ DEFINE_int32(tpcc_payment_ratio, 43, "ratio of payment transactions to other"
 DEFINE_int32(tpcc_order_status_ratio, 4, "ratio of order_status transactions to other"
     " transaction types (for tpcc)");
 DEFINE_bool(static_w_id, false, "force clients to use same w_id for each treansaction");
+
+/**
+ * TPC-CH settings.
+ */
+DEFINE_double(ch_client_proportion, tpcch_sql::PROB_TPCCH_CLIENT, "proportion of CH clients (rest are TPC-C clients)");
 
 /**
  * Smallbank settings.
@@ -1055,7 +1074,7 @@ int main(int argc, char **argv) {
         NOT_REACHABLE();
     }
 
-    querySelector = new QuerySelector(FLAGS_num_keys_per_table, tableSelector, baseSelector, rangeSelector);
+    querySelector = new QuerySelector(FLAGS_num_keys_per_table, tableSelector, baseSelector, rangeSelector, FLAGS_point_op_freq);
 
 
      //RW-SQL ==> auto-generate TableRegistry
@@ -1597,6 +1616,8 @@ int main(int argc, char **argv) {
       case BENCH_TPCC_SYNC:
       case BENCH_TPCC_SQL:
       case BENCH_SEATS_SQL:
+      case BENCH_AUCTIONMARK_SQL:
+      case BENCH_TPCCH_SQL:
         if (syncClient == nullptr) {
           UW_ASSERT(client != nullptr);
           syncClient = new SyncClient(client);
@@ -1608,6 +1629,7 @@ int main(int argc, char **argv) {
 
     uint32_t seed = (FLAGS_client_id << 4) | i;
 	  BenchmarkClient *bench;
+    
 	  switch (benchMode) {
       case BENCH_RETWIS:
         UW_ASSERT(asyncClient != nullptr);
@@ -1697,14 +1719,49 @@ int main(int argc, char **argv) {
             FLAGS_abort_backoff, FLAGS_retry_aborted, FLAGS_max_backoff, FLAGS_max_attempts,
             FLAGS_timeout);
         break;
-    case BENCH_SEATS_SQL:
-        UW_ASSERT(syncClient != nullptr);
-        bench = new seats_sql::SEATSSQLClient( *syncClient, *tport,
-            seed, FLAGS_num_requests, FLAGS_exp_duration, FLAGS_delay,
-            FLAGS_warmup_secs, FLAGS_cooldown_secs, FLAGS_tput_interval,
-            FLAGS_abort_backoff, FLAGS_retry_aborted, FLAGS_max_backoff, FLAGS_max_attempts, FLAGS_message_timeout);
-        break;
-
+      case BENCH_SEATS_SQL:
+        {
+          UW_ASSERT(syncClient != nullptr);
+          std::string profile_file_path = std::filesystem::path(FLAGS_data_file_path).replace_filename(seats_sql::PROFILE_FILE_NAME);
+          bench = new seats_sql::SEATSSQLClient( *syncClient, *tport, profile_file_path,
+              seed, FLAGS_num_requests, FLAGS_exp_duration, FLAGS_delay,
+              FLAGS_warmup_secs, FLAGS_cooldown_secs, FLAGS_tput_interval,
+              FLAGS_abort_backoff, FLAGS_retry_aborted, FLAGS_max_backoff, FLAGS_max_attempts, FLAGS_message_timeout);
+          break;
+        }
+      case BENCH_AUCTIONMARK_SQL:
+        {
+          UW_ASSERT(syncClient != nullptr);
+          std::string profile_file_path = std::filesystem::path(FLAGS_data_file_path).replace_filename(auctionmark::PROFILE_FILE_NAME);
+          bench = new auctionmark::AuctionMarkClient( *syncClient, *tport, profile_file_path,
+              clientId, client_total, FLAGS_num_requests, FLAGS_exp_duration, FLAGS_delay,
+              FLAGS_warmup_secs, FLAGS_cooldown_secs, FLAGS_tput_interval,
+              FLAGS_abort_backoff, FLAGS_retry_aborted, FLAGS_max_backoff, FLAGS_max_attempts, FLAGS_message_timeout);
+          break;
+        }
+      case BENCH_TPCCH_SQL: {
+          UW_ASSERT(syncClient != nullptr);
+          int id = FLAGS_num_client_hosts * i + FLAGS_client_id;
+          int num_tpcch_threads = std::max(static_cast<int>(FLAGS_ch_client_proportion * client_total), 0);
+          if (id < num_tpcch_threads) {
+            std::mt19937 gen_tpcch(seed); //Seems to be unused.
+            bench = new tpcch_sql::TPCCHSQLClient( *syncClient, *tport,
+                seed, FLAGS_num_requests, FLAGS_exp_duration, FLAGS_delay,
+                FLAGS_warmup_secs, FLAGS_cooldown_secs, FLAGS_tput_interval,
+                FLAGS_abort_backoff, FLAGS_retry_aborted, FLAGS_max_backoff, FLAGS_max_attempts, FLAGS_message_timeout);
+          } else {
+            bench = new tpcc_sql::TPCCSQLClient(*syncClient, *tport, seed,
+                FLAGS_num_requests, FLAGS_exp_duration, FLAGS_delay,
+                FLAGS_warmup_secs, FLAGS_cooldown_secs, FLAGS_tput_interval,
+                FLAGS_tpcc_num_warehouses, FLAGS_tpcc_w_id, FLAGS_tpcc_C_c_id,
+                FLAGS_tpcc_C_c_last, FLAGS_tpcc_new_order_ratio,
+                FLAGS_tpcc_delivery_ratio, FLAGS_tpcc_payment_ratio,
+                FLAGS_tpcc_order_status_ratio, FLAGS_tpcc_stock_level_ratio,
+                FLAGS_static_w_id, FLAGS_abort_backoff,
+                FLAGS_retry_aborted, FLAGS_max_backoff, FLAGS_max_attempts, FLAGS_message_timeout);
+          }
+          break;
+      }
       default:
         NOT_REACHABLE();
     }
@@ -1719,7 +1776,9 @@ int main(int argc, char **argv) {
       case BENCH_RW_SQL:
       case BENCH_SMALLBANK_SYNC:
       case BENCH_SEATS_SQL:
+      case BENCH_AUCTIONMARK_SQL:
       case BENCH_TPCC_SQL:
+      case BENCH_TPCCH_SQL:
       case BENCH_TPCC_SYNC: {
         SyncTransactionBenchClient *syncBench = dynamic_cast<SyncTransactionBenchClient *>(bench);
         UW_ASSERT(syncBench != nullptr);

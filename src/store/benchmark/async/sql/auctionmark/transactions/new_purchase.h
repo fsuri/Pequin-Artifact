@@ -27,18 +27,49 @@
 #ifndef AUCTION_MARK_NEW_PURCHASE_H
 #define AUCTION_MARK_NEW_PURCHASE_H
 
-#include "store/common/frontend/sync_transaction.h"
+#include "store/benchmark/async/sql/auctionmark/transactions/auctionmark_transaction.h"
+#include "store/benchmark/async/sql/auctionmark/auctionmark_profile.h"
 
 namespace auctionmark {
 
-class NewPurchase : public SyncTransaction {
+class NewPurchase : public AuctionMarkTransaction {
  public:
-  NewPurchase(uint32_t timeout, uint64_t ib_id, uint64_t i_id, uint64_t u_id,
-      uint32_t buyer_id, std::mt19937 &gen);
+  NewPurchase(uint32_t timeout, AuctionMarkProfile &profile, std::mt19937_64 &gen);
   virtual ~NewPurchase();
   virtual transaction_status_t Execute(SyncClient &client);
 
+ private:
+  std::string item_id;
+  std::string seller_id;
+  //std::string ip_id;
+  uint64_t ip_id;
+  float buyer_credit;
+
+  std::mt19937_64 &gen;
+  AuctionMarkProfile &profile;
 };
+
+class getItemInfoRow {
+  public:
+    getItemInfoRow() {}
+     uint64_t i_num_bids;
+    double i_current_price;
+    uint64_t i_end_date;
+    uint64_t ib_id;
+    std::string ib_buyer_id;
+    double u_balance;
+    
+};
+
+inline void load_row(getItemInfoRow& r, std::unique_ptr<query_result::Row> row)
+{
+  row->get(0, &r.i_num_bids);
+  row->get(1, &r.i_current_price);
+  row->get(2, &r.i_end_date);
+  row->get(3, &r.ib_id);
+  row->get(4, &r.ib_buyer_id);
+  row->get(5, &r.u_balance);
+}
 
 } // namespace auctionmark
 

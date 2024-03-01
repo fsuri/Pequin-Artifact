@@ -1,21 +1,30 @@
 d := $(dir $(lastword $(MAKEFILE_LIST)))
 
-SRCS += $(addprefix $(d), auctionmark_client.cc auctionmark_transaction.cc new_user.cc \
-		new_item.cc new_bid.cc new_comment.cc new_comment_response.cc  new_purchase.cc \
-		new_feedback.cc get_item.cc update_item.cc check_winning_bids.cc post_auction.cc \
-		get_comment.cc get_user_info.cc get_watched_items.cc category_parser.cc \
-		auctionmark_generator.cc auctionmark_utils.cc)
+SRCS += $(addprefix $(d), auctionmark_client.cc auctionmark_generator.cc auctionmark_profile.cc)
 
-OBJ-auctionmark-transaction := $(LIB-store-frontend) $(o)auctionmark_transaction.o
+# $(info $$d is [${d}])
+# $(info $$SRCS is [${SRCS}])
+
+# SRCS += $(addprefix $(d), close_auctions.cc get_item.cc get_user_info.cc new_bid.cc new_comment_response.cc \
+# 						 new_comment.cc new_feedback.cc new_item.cc new_purchase.cc update_item.cc )
+
+LIB-auctionmark-profile := $(o)auctionmark_profile.o
 
 OBJ-auctionmark-client := $(o)auctionmark_client.o
 
-LIB-auctionmark := $(OBJ-auctionmark-client) $(OBJ-auctionmark-transaction) $(o)new_user.o \
-					$(o)new_item.o $(o)new_bid.o $(o)new_comment.o $(o)new_comment_response.o \
-					$(o)new_purchase.o $(o)new_feedback.o $(o)get_item.o $(o)update_item.o \
-					$(o)check_winning_bids.o $(o)post_auction.o $(o)get_comment.o $(o)get_user_info.o \
-					$(o)get_watched_items.o $(o)category_parser.o $(o)auctionmark_utils.o
+# LIB-auctionmark-transactions := $(OBJ-auctionmark-transaction) \
+# 					$(o)close_auctions.o $(o)get_item.o $(o)get_user_info.o $(o)new_bid.o \
+# 					$(o)new_comment.o $(o)new_comment_response.o $(o)new_feedback.o $(o)new_item.o \
+# 					$(o)new_purchase.o $(o)update_item.o
 
-$(d)auctionmark_generator: $(LIB-io-utils) $(o)auctionmark_generator.o $(o)category_parser.o $(o)auctionmark_utils.o
+LIB-auctionmark :=  $(LIB-auctionmark-profile)  $(LIB-auctionmark-transactions) $(OBJ-auctionmark-client) 
+
+
+$(d)auctionmark_generator: $(LIB-io-utils) $(LIB-auctionmark-utils) $(LIB-auctionmark-profile) $(o)auctionmark_generator.o
 
 BINS += $(d)auctionmark_generator
+
+
+
+# cd := $(d)
+# include $(cd)utils/Rules.mk

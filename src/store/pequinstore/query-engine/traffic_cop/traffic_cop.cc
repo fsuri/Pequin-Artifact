@@ -218,6 +218,7 @@ executor::ExecutionResult TrafficCop::ExecuteHelper(
 executor::ExecutionResult TrafficCop::ExecuteReadHelper(
     std::shared_ptr<planner::AbstractPlan> plan, const std::vector<type::Value> &params, std::vector<ResultValue> &result, const std::vector<int> &result_format, 
     //////////////////////// PEQUIN ARGS ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    const pequinstore::TableRegistry_t *table_reg,
     const Timestamp &basil_timestamp,
     pequinstore::find_table_version *find_table_version,
     pequinstore::read_prepared_pred *read_prepared_pred,
@@ -251,6 +252,9 @@ executor::ExecutionResult TrafficCop::ExecuteReadHelper(
   }
 
   /////////////////////// SET PEQUIN TXN ARGS //////////////////////////////////////
+  // Set TableRegistry pointer
+  txn->SetTableRegistry(table_reg);
+
   // Set the Basil timestamp
   txn->SetBasilTimestamp(basil_timestamp);
 
@@ -647,7 +651,7 @@ executor::ExecutionResult TrafficCop::ExecuteEagerExecAndSnapshotHelper(
                                      std::vector<ResultValue> &&values) {
     // std::cout << "Made it to on complete" << std::endl;
     this->p_status_ = p_status;
-    // std::cout << "The status is " << p_status.m_error_message << std::endl;
+    //std::cout << "The status is " << p_status.m_error_message << std::endl;
     //  TODO (Tianyi) I would make a decision on keeping one of p_status or
     //  error_message in my next PR
     this->error_message_ = std::move(p_status.m_error_message);
@@ -690,7 +694,7 @@ executor::ExecutionResult TrafficCop::ExecuteWriteHelper(
     const std::vector<int> &result_format, const Timestamp &basil_timestamp,
     std::shared_ptr<std::string> txn_dig,
     const pequinstore::proto::CommittedProof *commit_proof,
-    bool commit_or_prepare, bool forceMaterialize, size_t thread_id) {
+    bool commit_or_prepare, bool forceMaterialize, bool is_delete, size_t thread_id) {
   auto &curr_state = GetCurrentTxnState();
 
   concurrency::TransactionContext *txn;
@@ -718,10 +722,14 @@ executor::ExecutionResult TrafficCop::ExecuteWriteHelper(
   // txn->SetCommittedProofRef(commit_proof);
   //   Set commit or prepare
   txn->SetCommitOrPrepare(commit_or_prepare);
+
+  txn->SetDeletion(is_delete);
   // Set undo delete false
   txn->SetUndoDelete(false);
   // Set has read set mgr to false
   txn->SetHasReadSetMgr(false);
+  txn->SetIsPointRead(false);
+  txn->SetHasSnapshotMgr(false);
   // Set whether to force materialize
   txn->SetForceMaterialize(forceMaterialize);
 
@@ -746,10 +754,11 @@ executor::ExecutionResult TrafficCop::ExecuteWriteHelper(
   auto on_complete = [&result, this](executor::ExecutionResult p_status, std::vector<ResultValue> &&values) {
     // std::cout << "Made it to on complete" << std::endl;
     this->p_status_ = p_status;
-    // std::cout << "The status is " << p_status.m_error_message << std::endl;
+    //std::cout << "The status is " << p_status.m_error_message << std::endl;
     //  TODO (Tianyi) I would make a decision on keeping one of p_status or
     //  error_message in my next PR
     this->error_message_ = std::move(p_status.m_error_message);
+    if(!this->error_message_.empty()) Panic("got error: %s", this->error_message_.c_str());
     result = std::move(values);
     Debug("Calling Task callback");
     task_callback_(task_callback_arg_);
@@ -803,11 +812,13 @@ executor::ExecutionResult TrafficCop::ExecutePurgeHelper(
   txn->SetUndoDelete(undo_delete);
 
   Debug("Purge helper: undo_delete %d, txn->GetUndoDelete() %d", undo_delete,
-        txn->GetUndoDelete());
+  txn->GetUndoDelete());
   // std::cout << "Undo delete in execute purge helper is " << undo_delete <<
   // std::endl; std::cout << "Txn get undo delete in execute purge helper is "
   // << txn->GetUndoDelete() << std::endl; No read set manager for purge
   txn->SetHasReadSetMgr(false);
+  txn->SetIsPointRead(false);
+  txn->SetHasSnapshotMgr(false);
 
   // skip if already aborted
   if (curr_state.second == ResultType::ABORTED) {
@@ -918,7 +929,7 @@ executor::ExecutionResult TrafficCop::ExecutePointReadHelper(
   // auto time = txn->GetCommitTimestamp();
   // time.setTimestamp(1024);
 
-  // Set the commit proof
+  // Set the commit proof pointer
   txn->SetCommittedProofRef(commit_proof);
   // commit_proof = txn->GetCommittedProof();
   //  Set the prepared timestamp
@@ -926,9 +937,10 @@ executor::ExecutionResult TrafficCop::ExecutePointReadHelper(
   // Set the prepared txn_dig
   txn->SetPreparedTxnDigest(txn_dig);
 
+  // Set the value references.
   txn->SetCommittedValue(write->mutable_committed_value());
   txn->SetPreparedValue(write->mutable_prepared_value());
-  //WARNING: Accessing mutable turns "has_committed/prepared_value" to true, even if they are empty!!
+  //WARNING: Accessing mutable turns "has_committed/prepared_value" to true, even if they are empty!! Clear them if empty!.
   
 
 
@@ -936,8 +948,15 @@ executor::ExecutionResult TrafficCop::ExecutePointReadHelper(
   txn->SetUndoDelete(false);
   // No read set manager
   txn->SetHasReadSetMgr(false);
+  // No snapshot manager
+  txn->SetHasSnapshotMgr(false);
+
   // Is a point read query
   txn->SetIsPointRead(true);
+  
+
+
+   Debug("PointRead for: Basil Timestamp to [%lu:%lu]. IsPoint: %d", txn->GetBasilTimestamp().getTimestamp(), txn->GetBasilTimestamp().getID(), txn->IsPointRead());
 
   // skip if already aborted
   if (curr_state.second == ResultType::ABORTED) {
@@ -1069,10 +1088,12 @@ std::shared_ptr<Statement> TrafficCop::PrepareStatement(
       // note this transaction is not single-statement transaction
       LOG_TRACE("BEGIN");
       single_statement_txn_ = false;
+      Debug("Begin statement)");
     } else {
       // single statement
       LOG_TRACE("SINGLE TXN");
       single_statement_txn_ = true;
+      Debug("Single statement TXN. All queries should be this (since we don't use TX semantics inside Peloton)");
     }
     auto txn = txn_manager.BeginTransaction(thread_id);
     // this shouldn't happen
@@ -1404,6 +1425,7 @@ ResultType TrafficCop::ExecuteReadStatement(
     const std::vector<type::Value> &params, UNUSED_ATTRIBUTE bool unnamed,
     const std::vector<int> &result_format, std::vector<ResultValue> &result,
     //////////////////////// PEQUIN ARGS //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    const pequinstore::TableRegistry_t *table_reg,
     const Timestamp &basil_timestamp,
     pequinstore::find_table_version *find_table_version,
     pequinstore::read_prepared_pred *read_prepared_pred,
@@ -1452,7 +1474,7 @@ ResultType TrafficCop::ExecuteReadStatement(
         statement->SetNeedsReplan(true);
       }
 
-      ExecuteReadHelper(statement->GetPlanTree(), params, result, result_format,
+      ExecuteReadHelper(statement->GetPlanTree(), params, result, result_format, table_reg,
                         basil_timestamp, find_table_version, read_prepared_pred, 
                         mode,
                         query_read_set_mgr,
@@ -1859,7 +1881,7 @@ ResultType TrafficCop::ExecuteWriteStatement(
     const std::vector<int> &result_format, std::vector<ResultValue> &result,
     const Timestamp &basil_timestamp, std::shared_ptr<std::string> txn_dig,
     const pequinstore::proto::CommittedProof *commit_proof,
-    bool commit_or_prepare, bool forceMaterialize, size_t thread_id) {
+    bool commit_or_prepare, bool forceMaterialize, bool is_delete, size_t thread_id) {
   // TODO(Tianyi) Further simplify this API
   /*if (static_cast<StatsType>(settings::SettingsManager::GetInt(
           settings::SettingId::stats_mode)) != StatsType::INVALID) {
@@ -1902,7 +1924,7 @@ ResultType TrafficCop::ExecuteWriteStatement(
 
       ExecuteWriteHelper(statement->GetPlanTree(), params, result,
                          result_format, basil_timestamp, txn_dig, commit_proof,
-                         commit_or_prepare, forceMaterialize, thread_id);
+                         commit_or_prepare, forceMaterialize, is_delete, thread_id);
       if (GetQueuing()) {
         return ResultType::QUEUING;
       } else {

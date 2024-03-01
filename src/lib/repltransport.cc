@@ -148,6 +148,15 @@ void ReplTransport::IssueCB(std::function<void(void*)> cb, void* arg){
 void ReplTransport::IssueCB_main(std::function<void(void*)> cb, void* arg){
   Panic("unimplemented");
 }
+void ReplTransport::AddIndexedThreads(int num_threads){
+  Panic("unimplemented");
+}
+void ReplTransport::DispatchIndexedTP(uint64_t id, std::function<void *()> f, std::function<void(void *)> cb){
+  Panic("unimplemented");
+}
+void ReplTransport::DispatchIndexedTP_noCB(uint64_t id, std::function<void *()> f){
+  Panic("unimplemented");
+}
 
 bool ReplTransport::DeliverMessage(const ReplTransportAddress &addr,
                                    int index) {

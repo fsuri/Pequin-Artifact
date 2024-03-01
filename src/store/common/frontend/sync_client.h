@@ -84,15 +84,18 @@ class SyncClient {
   //Issue write Sql statement, wait for computation result
   virtual void Write(std::string &statement, std::unique_ptr<const query_result::QueryResult> &result, uint32_t timeout);
   //Write without in-built waiting -- e.g. for parallel writes.
-  void Write(std::string &statement,  uint32_t timeout);
+  void Write(std::string &statement,  uint32_t timeout, bool async = false);
 
   //Issue query Sql statement, wait for computation result. 
-  virtual void Query(const std::string &query, std::unique_ptr<const query_result::QueryResult> &result, uint32_t timeout);
+  virtual void Query(const std::string &query, std::unique_ptr<const query_result::QueryResult> &result, uint32_t timeout, bool cache_result = false);
   // Query without in-built waiting -- e.g. for parallel queries.
-  void Query(const std::string &query, uint32_t timeout);
+  void Query(const std::string &query, uint32_t timeout, bool cache_result = false);
 
   // Wait for all outstanding Queries/Writes to finish in FIFO order.
   void Wait(std::vector<std::unique_ptr<const query_result::QueryResult>> &values);
+
+  // Wait for all outstanding Queries/Writes to finish in FIFO order -- but do not consume any results (Use this for async Updates/Deletes that have no future dependents)
+  void asyncWait();
 
  private:
   void GetCallback(Promise *promise, int status, const std::string &key, const std::string &value,
@@ -118,6 +121,8 @@ class SyncClient {
 
   std::vector<Promise *> getPromises;
   std::vector<Promise *> queryPromises;
+  //std::vector<std::unique_ptr<Promise>> queryPromises;
+  std::vector<Promise *> asyncPromises;
 
   Client *client;
 };

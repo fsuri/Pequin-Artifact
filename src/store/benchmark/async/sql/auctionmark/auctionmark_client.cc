@@ -26,142 +26,124 @@
  **********************************************************************/
 
 #include "store/benchmark/async/sql/auctionmark/auctionmark_client.h"
+#include "store/benchmark/async/sql/auctionmark/auctionmark_params.h"
 
 #include <random>
 
-#include "store/benchmark/async/sql/auctionmark/check_winning_bids.h"
-#include "store/benchmark/async/sql/auctionmark/get_comment.h"
-#include "store/benchmark/async/sql/auctionmark/get_item.h"
-#include "store/benchmark/async/sql/auctionmark/get_user_info.h"
-#include "store/benchmark/async/sql/auctionmark/get_watched_items.h"
-#include "store/benchmark/async/sql/auctionmark/new_bid.h"
-#include "store/benchmark/async/sql/auctionmark/new_comment_response.h"
-#include "store/benchmark/async/sql/auctionmark/new_comment.h"
-#include "store/benchmark/async/sql/auctionmark/new_feedback.h"
-#include "store/benchmark/async/sql/auctionmark/new_item.h"
-#include "store/benchmark/async/sql/auctionmark/new_purchase.h"
-#include "store/benchmark/async/sql/auctionmark/new_user.h"
-#include "store/benchmark/async/sql/auctionmark/post_auction.h"
-#include "store/benchmark/async/sql/auctionmark/update_item.h"
+#include "store/benchmark/async/sql/auctionmark/transactions/close_auctions.h"
+#include "store/benchmark/async/sql/auctionmark/transactions/get_item.h"
+#include "store/benchmark/async/sql/auctionmark/transactions/get_user_info.h"
+#include "store/benchmark/async/sql/auctionmark/transactions/new_bid.h"
+#include "store/benchmark/async/sql/auctionmark/transactions/new_comment_response.h"
+#include "store/benchmark/async/sql/auctionmark/transactions/new_comment.h"
+#include "store/benchmark/async/sql/auctionmark/transactions/new_feedback.h"
+#include "store/benchmark/async/sql/auctionmark/transactions/new_item.h"
+#include "store/benchmark/async/sql/auctionmark/transactions/new_purchase.h"
+#include "store/benchmark/async/sql/auctionmark/transactions/update_item.h"
 
 namespace auctionmark
 {
 AuctionMarkClient::AuctionMarkClient(
-    SyncClient &client, Transport &transport, uint64_t id,
+    SyncClient &client, Transport &transport, const std::string &profile_file_path, uint64_t client_id, uint64_t num_clients,
     int numRequests, int expDuration, uint64_t delay, int warmupSec,
     int cooldownSec, int tputInterval, uint32_t abortBackoff, bool retryAborted,
     uint32_t maxBackoff, uint32_t maxAttempts, const uint32_t timeout, const std::string &latencyFilename)
-    : SyncTransactionBenchClient(client, transport, id, numRequests,
+    : SyncTransactionBenchClient(client, transport, client_id, numRequests,
                                     expDuration, delay, warmupSec, cooldownSec,
                                     tputInterval, abortBackoff, retryAborted, maxBackoff, maxAttempts, timeout,
-                                    latencyFilename)
+                                    latencyFilename), profile(client_id, num_clients, SCALE_FACTOR)
 {
   lastOp = "";
-  gen.seed(id);
+  gen.seed(client_id);
+  need_close_auctions = CLOSE_AUCTIONS_ENABLE && client_id == 0;  //Close Auctions is only run from the first client
   max_u_id = N_USERS;
   max_i_id = N_USERS * 10;
-  last_check_winning_bids = std::chrono::steady_clock::now();
+ 
+  //Initialize/load Auctionmark Profile
+  profile.load_profile(profile_file_path, client_id); 
+  profile.set_and_get_client_start_time();
+  profile.update_and_get_current_time();
+
+  std::cerr << "loader start time (scaled):" << profile.get_loader_start_time() << std::endl;
+  std::cerr << "client start time (scaled):" << profile.get_client_start_time() << std::endl; //FIXME: This has not been scaled!
+
+  std::cerr << "pending comment size at start: " << profile.num_pending_comment_responses() << std::endl;
+  std::cerr << "available items start: " << profile.get_available_items_count() << std::endl;
+  std::cerr << "items waiting for purchase at start: " << profile.get_waiting_for_purchase_items_count() << std::endl;
+  std::cerr << "completed items at start: " << profile.get_completed_items_count() << std::endl;
+
+  // std::cerr << "total: " << num_clients << std::endl;
+  // std::cerr << "client id: " << client_id << std::endl;
 }
 
-AuctionMarkClient::~AuctionMarkClient() {}
+AuctionMarkClient::~AuctionMarkClient() {
+   profile.clear_cached_profile();
+}
 
 SyncTransaction *AuctionMarkClient::GetNextTransaction()
 {
-  uint32_t ttype = std::uniform_int_distribution<uint32_t>(0, TXNS_TOTAL - 1)(gen);
+  if(!profile.has_client_start_time()){
+    profile.set_and_get_client_start_time();
+  }
+  uint64_t now = profile.update_and_get_current_time();
+
+  uint32_t ttype = std::uniform_int_distribution<uint32_t>(1, TXNS_TOTAL)(gen);
   uint32_t freq = 0;
-  std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
-
-  if (std::chrono::duration_cast<std::chrono::seconds>(now - last_check_winning_bids).count() >= 10) {
-    lastOp = "check_winning_bids";
-    last_check_winning_bids = now;
-    return new CheckWinningBids(GetTimeout(), 0, 1, gen);
-  } else if (lastOp == "check_winning_bids") {
-    lastOp = "post_auction";
-    return new PostAuction(GetTimeout(), {}, {}, {}, {}, gen);
-  } else if (ttype < (freq = NEW_USER_RATIO)) {
-    lastOp = "new_user";
-    uint64_t u_r_id = std::uniform_int_distribution<uint64_t>(1, N_REGIONS)(gen);
-    std::vector<std::string> attributes;
-    for(int i = 0; i < 8; i++) {
-      attributes.push_back(auctionmark::RandomAString(12, 64, gen));
-    }
-
-    return new NewUser(GetTimeout(), max_u_id, u_r_id, attributes, gen);
-  } else if (ttype < (freq += NEW_ITEM_RATIO)) {
-    lastOp = "new_item";
-    uint64_t u_id = std::binomial_distribution<uint64_t>(max_u_id, 0.5)(gen);
-    std::string name = auctionmark::RandomAString(6, 31, gen);
-    std::string description = auctionmark::RandomAString(12, 254, gen);
-    std::string attributes = auctionmark::RandomAString(20, 254, gen);
-
-    double initial_price = std::uniform_real_distribution<double>(0.0, 1000.0)(gen);
-    double reserve_price = std::uniform_real_distribution<double>(0.0, initial_price)(gen);
-    double buy_now = std::uniform_real_distribution<double>(initial_price, initial_price + 1000)(gen);
-
-    std::vector<uint64_t> gag_ids; 
-    for (int i = 0; i < 3; i++) {
-      gag_ids.push_back(std::uniform_int_distribution<uint64_t>(0, N_GAGS)(gen));
-    }
-    std::vector<uint64_t> gav_ids;
-    for (int i = 0; i < gag_ids.size(); i++) {
-      gav_ids.push_back(std::uniform_int_distribution<uint64_t>(0, GAV_PER_GROUP)(gen));
-    }
-
-    int n_images = std::uniform_int_distribution(0, 16)(gen);
-    std::vector<std::string> images;
-    for (int i = 0; i < n_images; i++) {
-      images.push_back(auctionmark::RandomAString(32, 128, gen));
-    }
+ 
+  while(true){
+    //Close Auctions runs periodically (only on the first client)
+    int real_time_seconds = CLOSE_AUCTIONS_INTERVAL / TIME_SCALE_FACTOR;
+    if (need_close_auctions && now - profile.get_last_close_auctions_time() >= real_time_seconds * MILLISECONDS_IN_A_SECOND) {
+      std::cerr << "last close auction time (scaled):" << profile.get_last_close_auctions_time() << std::endl;
+     std::cerr << "current time (scaled):" << now << std::endl;
+      lastOp = "close_auctions";
+      return new CloseAuctions(GetTimeout(), profile, gen);
+    } 
     
-    return new NewItem(GetTimeout(), max_i_id, u_id, name, description, initial_price, 
-            reserve_price, buy_now, attributes, gag_ids, gav_ids, images, 0, 0, gen);
-  } else if (ttype < (freq += NEW_BID_RATIO)) {
-    lastOp = "new_bid";
-    uint64_t i_id = std::binomial_distribution<uint64_t>(max_i_id, 0.5)(gen);
-    uint64_t i_buyer_id = std::binomial_distribution<uint64_t>(max_u_id, 0.5)(gen);
-    double bid = std::uniform_real_distribution<double>(0.0, 1000.0)(gen);
-    double max_bid = std::uniform_real_distribution<double>(bid, 2 * bid)(gen);
-    return new NewBid(GetTimeout(), i_id, i_buyer_id, bid, max_bid, gen);
-  } else if (ttype < (freq += NEW_COMMENT_RATIO)) {
-    lastOp = "new_comment";
-    uint64_t i_buyer_id = std::binomial_distribution<uint64_t>(max_u_id, 0.5)(gen);
-    std::string question = auctionmark::RandomAString(12, 127, gen);
-    return new NewComment(GetTimeout(), question, gen);
-  } else if (ttype < (freq += NEW_COMMENT_RESPONSE_RATIO)) {
-    lastOp = "new_comment_response";
-    std::string response = auctionmark::RandomAString(12, 127, gen);
-    return new NewCommentResponse(GetTimeout(), "", gen);
-  } else if (ttype < (freq += NEW_PURCHASE_RATIO)) {
-    lastOp = "new_purchase";
-    return new NewPurchase(GetTimeout(), gen);
-  } else if (ttype < (freq += NEW_FEEDBACK_RATIO)) {
-    lastOp = "new_feedback";
-    uint64_t rating = std::uniform_int_distribution<uint64_t>(-1, 1)(gen);
-    std::string comment = auctionmark::RandomAString(12, 127, gen);
-    return new NewFeedback(GetTimeout(), rating, comment, gen);
-  } else if (ttype < (freq += GET_ITEM_RATIO)) {
-    lastOp = "get_item";
-    uint64_t i_id = std::uniform_int_distribution<uint64_t>(0, max_i_id)(gen);
-    return new GetItem(GetTimeout(), i_id, gen);
-  } else if (ttype < (freq += UPDATE_ITEM_RATIO)) {
-    lastOp = "update_item";
-    std::string description = auctionmark::RandomAString(50, 254, gen);
-    return new UpdateItem(GetTimeout(), description, gen);
-  } else if (ttype < (freq += GET_COMMENT_RATIO)) {
-    lastOp = "get_comment";
-    return new GetComment(GetTimeout(), gen);
-  } else if (ttype < (freq += GET_USER_INFO_RATIO)) {
-    lastOp = "get_user_info";
-    uint64_t get_seller_items = std::uniform_int_distribution<uint64_t>(0, 1)(gen);
-    uint64_t get_buyer_items = std::uniform_int_distribution<uint64_t>(0, 1)(gen);
-    uint64_t get_feedback = std::uniform_int_distribution<uint64_t>(0, 1)(gen);
-    return new GetUserInfo(GetTimeout(), get_seller_items, get_buyer_items, get_feedback, gen);
-  } else if (ttype < (freq += GET_WATCHED_ITEMS_RATIO)) {
-    lastOp = "get_watched_items";
-    uint64_t u_id = std::binomial_distribution<uint64_t>(max_u_id, 0.5)(gen);
-    return new GetWatchedItems(GetTimeout(), u_id, gen);
+    else if (ttype <= (freq += FREQUENCY_GET_ITEM)) {
+      lastOp = "get_item";
+      return new GetItem(GetTimeout(), profile, gen);
+    } 
+    else if (ttype <= (freq += FREQUENCY_GET_USER_INFO)) {
+      lastOp = "get_user_info";
+      return new GetUserInfo(GetTimeout(), profile, gen);
+    } 
+    else if (ttype <= (freq += FREQUENCY_NEW_BID)) {
+      lastOp = "new_bid";
+      return new NewBid(GetTimeout(), profile, gen);
+    } 
+    else if (ttype <= (freq += FREQUENCY_NEW_COMMENT)) {
+      lastOp = "new_comment";
+      return new NewComment(GetTimeout(), profile, gen);
+    } 
+    else if (ttype <= (freq += FREQUENCY_NEW_COMMENT_RESPONSE)) {
+      if(profile.num_pending_comment_responses() == 0) continue;
+      lastOp = "new_comment_response";
+      return new NewCommentResponse(GetTimeout(), profile, gen);
+    } 
+    
+    else if (ttype <= (freq += FREQUENCY_NEW_FEEDBACK)) {
+      lastOp = "new_feedback";
+      return new NewFeedback(GetTimeout(), profile, gen);
+    } 
+    else if (ttype <= (freq += FREQUENCY_NEW_ITEM)) {
+      lastOp = "new_item";
+      return new NewItem(GetTimeout(), profile, gen);
+    } 
+    else if (ttype <= (freq += FREQUENCY_NEW_PURCHASE)) {
+      lastOp = "new_purchase";
+      return new NewPurchase(GetTimeout(), profile, gen);
+    } 
+    else if (ttype <= (freq += FREQUENCY_UPDATE_ITEM)) {
+      lastOp = "update_item";
+      return new UpdateItem(GetTimeout(), profile, gen);
+    } 
+    else {
+      Panic("Invalid transaction type %d", ttype);
+    }
   }
 }
+
 std::string AuctionMarkClient::GetLastOp() const { return lastOp; }
 
 } // namespace auctionmark

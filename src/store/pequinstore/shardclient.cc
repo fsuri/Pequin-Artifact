@@ -1160,6 +1160,8 @@ void ShardClient::ProcessP1R(proto::Phase1Reply &reply, bool FB_path, PendingFB 
     return;
   }
 
+  Debug("Finished process message");
+
   if (hasSigned) {
     proto::Signature *sig = pendingPhase1->p1ReplySigs[cc->ccr()].add_sigs();
     sig->set_process_id(reply.signed_cc().process_id());
@@ -1364,6 +1366,8 @@ void ShardClient::ProcessP1R(proto::Phase1Reply &reply, bool FB_path, PendingFB 
     default:
       break;
   }
+
+   Debug("Finished ProcessP1R");
 }
 
 //WARNING: This version does not implement handling for receiving P2 Replies in views > 0. It expects view = 0. Only use for microbenchmark of signature costs (with fallback off)

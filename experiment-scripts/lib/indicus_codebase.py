@@ -236,6 +236,7 @@ class IndicusCodebase(ExperimentCodebase):
                 client_command += ' --num_tables %d' % config['num_tables']
                 client_command += ' --num_keys_per_table %d' % config['num_keys_per_table']
                 client_command += ' --max_range %d' % config['max_range']
+                client_command += ' --point_op_feq %d' % config['point_op_freq']
 
         elif config['benchmark_name'] == 'tpcc' or config['benchmark_name'] == 'tpcc-sync':
             client_command += ' --tpcc_num_warehouses %d' % config['tpcc_num_warehouses']

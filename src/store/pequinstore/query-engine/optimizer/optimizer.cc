@@ -120,7 +120,7 @@ shared_ptr<planner::AbstractPlan> Optimizer::BuildPelotonPlanTree(
   }
   // TODO: support multi-statement queries
   auto parse_tree = parse_tree_list->GetStatement(0);
-  Debug("Parse Tree: %s ", parse_tree->GetInfo().c_str());
+  //Debug("Parse Tree: %s ... (First 1000 char)", parse_tree->GetInfo().substr(0, 1000).c_str());
 
   unique_ptr<planner::AbstractPlan> child_plan = nullptr;
 

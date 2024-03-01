@@ -156,6 +156,7 @@ class Row : public query_result::Row {
       sql::Field *p = new sql::Field(*this, m_offset + column);
       return std::unique_ptr<query_result::Field>(p);
     } else {
+      std::cerr << "ProtoRowWrapper: Cannot get column index from null result" << std::endl;
       //throw std::runtime_error("Cannot get column index from null result");
     }
   }
@@ -188,37 +189,37 @@ class Row : public query_result::Row {
   auto slice( const std::size_t offset, const std::size_t in_columns ) const -> std::unique_ptr<query_result::Row>;
 
   template<typename T> 
-  void get(const std::size_t column, T& field) const {
+  void get_as_type(const std::size_t column, T& field) const { //FIXME: Why does the explicit get call even need to exist at all? Just make this the top level interface
     std::size_t n_bytes;
-    std::istringstream(this[column].get_bytes(column, &n_bytes)) >> *field;
+    std::istringstream(get_bytes(column, &n_bytes)) >> *field; 
   }
 
   inline void get(const std::size_t column, bool *field) const {
-    get(column, field);
+    get_as_type(column, field);
   }
 
   inline void get(const std::size_t column, int32_t *field) const {
-    get(column, field);
+    get_as_type(column, field);
   }
 
   inline void get(const std::size_t column, int64_t *field) const {
-    get(column, field);
+    get_as_type(column, field);
   }
 
   inline void get(const std::size_t column, uint32_t *field) const {
-    get(column, field);
+    get_as_type(column, field);
   }
 
   inline void get(const std::size_t column, uint64_t *field) const {
-    get(column, field);
+    get_as_type(column, field);
   }
 
   inline void get(const std::size_t column, double *field) const {
-    get(column, field);
+    get_as_type(column, field);
   }
 
   inline void get(const std::size_t column, std::string *field) const {
-    get(column, field);
+    get_as_type(column, field);
   }
 
   void get_serialized(const std::size_t column, bool *field) const;

@@ -315,6 +315,15 @@ void SimulatedTransport::IssueCB(std::function<void(void*)> cb, void* arg){
 void SimulatedTransport::IssueCB_main(std::function<void(void*)> cb, void* arg){
   Panic("unimplemented");
 }
+void SimulatedTransport::AddIndexedThreads(int num_threads){
+  Panic("unimplemented");
+}
+void SimulatedTransport::DispatchIndexedTP(uint64_t id, std::function<void *()> f, std::function<void(void *)> cb){
+  Panic("unimplemented");
+}
+void SimulatedTransport::DispatchIndexedTP_noCB(uint64_t id, std::function<void *()> f){
+  Panic("unimplemented");
+}
 
 const SimulatedTransportAddress *
 SimulatedTransport::LookupFCAddress(const transport::Configuration *cfg)

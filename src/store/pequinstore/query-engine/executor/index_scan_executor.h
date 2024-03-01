@@ -57,9 +57,22 @@ class IndexScanExecutor : public AbstractScanExecutor {
 
   bool DExecute();
 
-  void GetColNames(const expression::AbstractExpression * child_expr, std::unordered_set<std::string> &column_names);
+  void SetTableColVersions(concurrency::TransactionContext *current_txn, pequinstore::QueryReadSetMgr *query_read_set_mgr, const Timestamp &current_txn_timestamp);
+  void GetColNames(const expression::AbstractExpression * child_expr, std::unordered_set<std::string> &column_names, bool use_updated = true);
+
 
  private:
+    //===--------------------------------------------------------------------===//
+  // Helper Functions
+  //===--------------------------------------------------------------------===//
+
+  expression::AbstractExpression *
+  ColumnsValuesToExpr(const std::vector<oid_t> &predicate_column_ids,
+                      const std::vector<type::Value> &values, size_t idx);
+
+  expression::AbstractExpression *
+  ColumnValueToCmpExpr(const oid_t column_id, const type::Value &value);
+    
   //===--------------------------------------------------------------------===//
   // Helper
   //===--------------------------------------------------------------------===//
@@ -70,9 +83,12 @@ class IndexScanExecutor : public AbstractScanExecutor {
           bool use_secondary_index = false);
     bool FindRightRowVersion(const Timestamp &timestamp, std::shared_ptr<storage::TileGroup> tile_group, storage::TileGroupHeader *tile_group_header, ItemPointer tuple_location,
         size_t &num_iters, concurrency::TransactionContext *current_txn, bool &read_curr_version, bool &found_committed, bool &found_prepared);
+    bool FindRightRowVersion_Old(const Timestamp &timestamp, std::shared_ptr<storage::TileGroup> tile_group, storage::TileGroupHeader *tile_group_header, ItemPointer tuple_location,
+        size_t &num_iters, concurrency::TransactionContext *current_txn, bool &read_curr_version, bool &found_committed, bool &found_prepared);
     void EvalRead(std::shared_ptr<storage::TileGroup> tile_group, storage::TileGroupHeader *tile_group_header, ItemPointer tuple_location,
         std::vector<ItemPointer> &visible_tuple_locations, concurrency::TransactionContext *current_txn, bool use_secondary_index = false);
     void SetPointRead(concurrency::TransactionContext *current_txn, storage::TileGroupHeader *tile_group_header, ItemPointer tuple_location, Timestamp const &write_timestamp);
+    void RefinePointRead(concurrency::TransactionContext *current_txn, storage::TileGroupHeader *tile_group_header, ItemPointer tuple_location, bool eval);
     void ManageSnapshot(concurrency::TransactionContext *current_txn, storage::TileGroupHeader *tile_group_header, ItemPointer tuple_location, const Timestamp &write_timestamp, 
             size_t &num_iters, bool commit_or_prepare);
     void PrepareResult(std::vector<oid_t> &tuples, std::shared_ptr<storage::TileGroup> tile_group);
@@ -116,6 +132,17 @@ class IndexScanExecutor : public AbstractScanExecutor {
 
   // the underlying table that the index is for
   storage::DataTable *table_ = nullptr;
+
+  std::vector<oid_t> updated_column_ids;
+  bool already_added_table_col_versions;
+
+  // TODO make predicate_ a unique_ptr
+  // this is a hack that prevents memory leak
+  std::unique_ptr<expression::AbstractExpression> new_predicate_ = nullptr;
+
+   // The original predicate, if it's not nullptr
+  // we need to combine it with the undated predicate
+  const expression::AbstractExpression *old_predicate_;
 
   // columns to be returned as results
   std::vector<oid_t> column_ids_;

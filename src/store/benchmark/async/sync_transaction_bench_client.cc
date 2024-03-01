@@ -51,13 +51,22 @@ void SyncTransactionBenchClient::SendNext() {
   SendNext(&result);
 }
 
+static int tries = 0;
 void SyncTransactionBenchClient::SendNext(transaction_status_t *result) {
   currTxn = GetNextTransaction();
   currTxnAttempts = 0;
   *result = ABORTED_SYSTEM; // default to failure
   while (true) {
-    *result = currTxn->Execute(client);
-    std::cerr<<"Shir:  Executed a txn, result was:     "<<*result<<"\n";
+    try {
+      *result = currTxn->Execute(client);
+    }
+    catch(...){
+      std::cerr <<"catch abort" << std::endl;
+      *result = ABORTED_SYSTEM;
+    }
+    // usleep(10000); //sleep 10 miliseconds
+    // Panic("stop after one");
+    //if(++tries==2) Panic("stop after two");
     stats.Increment(GetLastOp() + "_attempts", 1);
     ++currTxnAttempts;
     if (*result == COMMITTED || *result == ABORTED_USER

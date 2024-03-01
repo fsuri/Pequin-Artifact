@@ -32,6 +32,8 @@
 
 namespace tpcc_sql {
 
+static bool use_earliest_new_order_table = false;
+
 class SQLDelivery : public TPCCSQLTransaction {
  public:
   SQLDelivery(uint32_t timeout, uint32_t w_id, uint32_t d_id,

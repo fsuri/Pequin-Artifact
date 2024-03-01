@@ -512,6 +512,7 @@ int main(int argc, char **argv) {
   int threadpool_mode = 0; //default for Basil.
   if(proto == PROTO_HOTSTUFF || proto == PROTO_HOTSTUFF_PG || proto == PROTO_AUGUSTUS) threadpool_mode = 1;
   if(proto == PROTO_BFTSMART || proto == PROTO_AUGUSTUS_SMART) threadpool_mode = 2;
+  if(proto == PROTO_PEQUIN && FLAGS_sql_bench) threadpool_mode = 2;
 
   switch (trans) {
     case TRANS_TCP:
@@ -935,6 +936,7 @@ int main(int argc, char **argv) {
   //SET THREAD AFFINITY if running multi_threading:
 	//if(FLAGS_indicus_multi_threading){
   bool pinned_protocol = proto == PROTO_PEQUIN || proto == PROTO_INDICUS || proto == PROTO_PBFT;
+  if(proto == PROTO_PEQUIN && FLAGS_sql_bench) pinned_protocol = false; //Only pin in KV-mode. In SQL mode don't pin so peloton can go wherever. (in this case, pick threadpool_mode = 2)
      // || proto == PROTO_HOTSTUFF || proto == PROTO_AUGUSTUS || proto == PROTO_BFTSMART || proto == PROTO_AUGUSTUS_SMART;   
      //For Hotstuff and Augustus store it's likely best to not pin the main Process in order to allow their internal threadpools to use more cores
 	if(FLAGS_indicus_multi_threading && pinned_protocol){
@@ -1025,29 +1027,30 @@ int main(int argc, char **argv) {
         server->CreateIndex(table_name, column_names_and_types, index_name, index_col_idx);
       }
 
-      if(!table_args.contains("row_data_path")) { //RW-SQL ==> generate rows 
-        std::vector<std::vector<std::string>> values;
-        for(int j=0; j<FLAGS_num_keys_per_table; ++j){
-            //values.emplace_back(std::initializer_list<string>{"", ""};)
-            values.push_back({std::to_string(j), std::to_string(j+100)});
-        }
-        server->LoadTableRows(table_name, column_names_and_types, values, primary_key_col_idx);
+          if(!table_args.contains("row_data_path")) { //RW-SQL ==> generate rows 
+            //std::vector<std::vector<std::string>> values;
+            row_segment_t *values = new row_segment_t();
+            for(int j=0; j<FLAGS_num_keys_per_table; ++j){
+                //values.emplace_back(std::initializer_list<string>{"", ""};)
+                values->push_back({std::to_string(j), std::to_string(j+100)});
+            }
+            server->LoadTableRows(table_name, column_names_and_types, values, primary_key_col_idx);
 
         continue;
       }
 
-      //If data path exists: Load full table data
-      //TODO: splice row_data path into Data_file_path.   //TODO: Add json file suffix to the file itself. (i.e. add filename)   ===> Test in table_write tester.
-      std::string row_data_path = std::filesystem::path(FLAGS_data_file_path).replace_filename(table_args["row_data_path"]); //https://en.cppreference.com/w/cpp/filesystem/path
-      server->LoadTableData(table_name, row_data_path, primary_key_col_idx);
-      // //Load Rows individually 
-      // for(auto &row: table_args["rows"]){
-      //   const std::vector<std::string> &values = row;
-      //   server->LoadTableRow(table_name, column_names_and_types, row, primary_key_col_idx);
-      // }
-    }
-    Notice("Shir: done setting tables\n");
+          //If data path exists: Load full table data directly from CSV.
 
+          //TODO: splice row_data path into Data_file_path.   //TODO: Add json file suffix to the file itself. (i.e. add filename)   ===> Test in table_write tester.
+          std::string row_data_path = std::filesystem::path(FLAGS_data_file_path).replace_filename(table_args["row_data_path"]); //https://en.cppreference.com/w/cpp/filesystem/path
+          server->LoadTableData(table_name, row_data_path, column_names_and_types, primary_key_col_idx);
+          // //Load Rows individually 
+          // for(auto &row: table_args["rows"]){
+          //   const std::vector<std::string> &values = row;
+          //   server->LoadTableRow(table_name, column_names_and_types, row, primary_key_col_idx);
+          // }
+       }
+       Notice("Shir: done setting tables\n");
 
   }
   else if (FLAGS_data_file_path.length() > 0 && FLAGS_keys_path.empty()) {

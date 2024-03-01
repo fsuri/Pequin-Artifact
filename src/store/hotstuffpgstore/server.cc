@@ -70,7 +70,7 @@ Server::Server(const transport::Configuration& config, KeyManager *keyManager,
 
   connectionPool = tao::pq::connection_pool::create(connection_str);
 
-  Debug("PostgreSQL client created!", idx);
+  Debug("PostgreSQL client created! Id: %d", idx);
 }
 
 Server::~Server() {}
@@ -158,7 +158,7 @@ void Server::Execute_Callback(const string& type, const string& msg, const execu
   if (tr){
     // this means tr is not a null pointer. it would be a null pointer if this txn was alerady aborted
     try {
-      Debug("Attempt query %s", sql_rpc.query());
+      Debug("Attempt query %s", sql_rpc.query().c_str());
       std::cout << sql_rpc.query() << std::endl;
 
       std::cerr<< "Shir: Before executing tr->execute (2)\n";
@@ -202,9 +202,9 @@ void Server::Execute_Callback(const string& type, const string& msg, const execu
       Debug("An exception caugth while using postgres.");
       reply->set_status(REPLY_FAIL);
     }
-        markTxnTerminated(t);
-    return returnMessage(reply);
+    markTxnTerminated(t);
   }
+  return returnMessage(reply);
 }
 
 ::google::protobuf::Message* Server::HandleUserAbort(const proto::UserAbort& user_abort) {
@@ -233,7 +233,7 @@ std::string Server::createClientSeqKey(uint64_t cid, uint64_t tid){
 
 std::shared_ptr<tao::pq::transaction> Server::getPgTransaction(txnStatusMap::accessor &t, const std::string &key){
   std::shared_ptr<tao::pq::transaction> tr;
-  Debug("Client transaction key: %s", key);
+  Debug("Client transaction key: %s", key.c_str());
   std::cout << key << std::endl;
 
   if(!txnMap.find(t,key)) {
@@ -361,15 +361,15 @@ void Server::CreateIndex(const std::string &table_name, const std::vector<std::p
   this->exec_statement(sql_statement);
 }
 
-
-void Server::LoadTableData(const std::string &table_name, const std::string &table_data_path, const std::vector<uint32_t> &primary_key_col_idx){
+void Server::LoadTableData(const std::string &table_name, const std::string &table_data_path, 
+    const std::vector<std::pair<std::string, std::string>> &column_names_and_types, const std::vector<uint32_t> &primary_key_col_idx){
   Debug("Shir: Load Table data!");
   std::string copy_table_statement = fmt::format("COPY {0} FROM {1} DELIMITER ',' CSV HEADER", table_name, table_data_path);
 }
 
-void Server::LoadTableRows(const std::string &table_name, const std::vector<std::pair<std::string, std::string>> &column_data_types, const std::vector<std::vector<std::string>> &row_values, const std::vector<uint32_t> &primary_key_col_idx ){
+void Server::LoadTableRows(const std::string &table_name, const std::vector<std::pair<std::string, std::string>> &column_data_types, const row_segment_t *row_segment, const std::vector<uint32_t> &primary_key_col_idx, int segment_no, bool load_cc){
   Debug("Shir: Load Table rows!");
-  std::string sql_statement = this->GenerateLoadStatement(table_name,row_values,0);
+  std::string sql_statement = this->GenerateLoadStatement(table_name,*row_segment,0);
   this->exec_statement(sql_statement);
 }
 

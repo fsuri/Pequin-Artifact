@@ -27,36 +27,32 @@
 #ifndef AUCTION_MARK_NEW_ITEM_H
 #define AUCTION_MARK_NEW_ITEM_H
 
-#include "store/common/frontend/sync_transaction.h"
+#include "store/benchmark/async/sql/auctionmark/transactions/auctionmark_transaction.h"
+#include "store/benchmark/async/sql/auctionmark/auctionmark_profile.h"
 
 namespace auctionmark {
 
-class NewItem : public SyncTransaction {
+class NewItem : public AuctionMarkTransaction {
  public:
-  NewItem(uint32_t timeout, uint64_t i_id, uint64_t u_id, uint64_t c_id,
-      string_view name, string_view description, double initial_price,
-      double reserve_price, double buy_now, const vector<string_view>& attributes, 
-      const vector<uint64_t>& gag_ids, const vector<uint64_t>& gav_ids, 
-      const vector<string_view>& images, uint64_t start_date, uint64_t end_date,
-      std::mt19937 &gen);
+  NewItem(uint32_t timeout, AuctionMarkProfile &profile, std::mt19937_64 &gen);
   virtual ~NewItem();
   virtual transaction_status_t Execute(SyncClient &client);
  
  private:
-  uint64_t i_id;
-  uint64_t u_id;
-  uint64_t c_id;
-  string_view name;
-  string_view description;
+  std::string item_id;
+  std::string seller_id;
+  uint64_t category_id;
+  std::string name;
+  std::string description;
+  uint64_t duration;
   double initial_price;
-  double reserve_price;
-  double buy_now;
-  const vector<string_view>& attributes;
-  const vector<uint64_t>& gag_ids;
-  const vector<uint64_t>& gav_ids;
-  const vector<string_view>& images;
-  uint64_t start_date;
-  uint64_t end_date;
+  std::string attributes;
+  std::vector<std::string> gag_ids;
+  std::vector<std::string> gav_ids;
+  std::vector<std::string> images;
+
+  AuctionMarkProfile &profile;
+  std::mt19937_64 &gen;
 };
 
 } // namespace auctionmark

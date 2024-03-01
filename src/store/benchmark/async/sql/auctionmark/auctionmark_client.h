@@ -31,6 +31,7 @@
 
 #include "store/benchmark/async/sync_transaction_bench_client.h"
 #include "store/benchmark/async/sql/auctionmark/auctionmark_params.h"
+#include "store/benchmark/async/sql/auctionmark/auctionmark_profile.h"
 
 namespace auctionmark
 {
@@ -55,7 +56,7 @@ enum AuctionMarkTransactionType
 class AuctionMarkClient : public SyncTransactionBenchClient
 {
  public:
-  AuctionMarkClient(SyncClient &client, Transport &transport, uint64_t id,
+  AuctionMarkClient(SyncClient &client, Transport &transport, const std::string &profile_file_path, uint64_t client_id, uint64_t num_clients,
                     int numRequests, int expDuration, uint64_t delay, int warmupSec,
                     int cooldownSec, int tputInterval,
                     uint32_t abortBackoff, bool retryAborted, uint32_t maxBackoff, uint32_t maxAttempts,
@@ -71,9 +72,16 @@ class AuctionMarkClient : public SyncTransactionBenchClient
   virtual SyncTransaction *GetNextTransaction();
   virtual std::string GetLastOp() const;
 
+  AuctionMarkProfile profile;
+
   std::string lastOp;
   std::mt19937_64 gen;
-  std::chrono::steady_clock::time_point last_check_winning_bids;
+  bool need_close_auctions;
+  uint64_t last_close_auctions;
+  std::vector<uint64_t> post_auction_items;
+  std::vector<uint64_t> post_auction_sellers;
+  std::vector<std::optional<uint64_t>> post_auction_buyers;
+  std::vector<std::optional<uint64_t>> post_auction_ib_ids;
 };
 
 } // namespace auctionmark

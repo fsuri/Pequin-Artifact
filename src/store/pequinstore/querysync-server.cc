@@ -78,8 +78,9 @@ void Server::HandleQuery(const TransportAddress &remote, proto::QueryRequest &ms
     qw.release();
 
      // 2) Compute unique hash ID 
-    std::string queryId = QueryDigest(*query, (params.query_params.signClientQueries && params.query_params.cacheReadSet && params.hashDigest)); 
-    
+    bool hash_query_id = params.query_params.signClientQueries && params.query_params.cacheReadSet && params.hashDigest;
+    std::string queryId = QueryDigest(*query, hash_query_id); 
+
     // std::string queryId;
     // if(params.query_params.signClientQueries && params.query_params.cacheReadSet){ //TODO: when to use hash id? always?
     //     queryId = QueryDigest(*query, params.hashDigest); 
@@ -87,7 +88,8 @@ void Server::HandleQuery(const TransportAddress &remote, proto::QueryRequest &ms
     // else{
     //     queryId =  "[" + std::to_string(query->query_seq_num()) + ":" + std::to_string(query->client_id()) + "]";
     // }
-     Debug("\n Received Query Request Query[%lu:%lu:%d] (seq:client:ver), queryId: %s", query->query_seq_num(), query->client_id(), query->retry_version(), BytesToHex(queryId, 16).c_str());
+     Debug("\n Received Query Request Query[%lu:%lu:%d] (seq:client:ver), queryId: %s (bytes)", 
+            query->query_seq_num(), query->client_id(), query->retry_version(), BytesToHex(queryId, 16).c_str());
    
     //TODO: Ideally check whether already have result or retry version is outdated Before VerifyClientQuery.
 
@@ -299,7 +301,7 @@ void Server::ProcessPointQuery(const uint64_t &reqId, proto::Query *query, const
 
     //1) Execute
     proto::Write *write = pointQueryReply->mutable_write();
-    const proto::CommittedProof *committedProof;
+    const proto::CommittedProof *committedProof = nullptr;
     std::string enc_primary_key;  //TODO: Replace with query->primary_enc_key()
 
    
@@ -313,9 +315,9 @@ void Server::ProcessPointQuery(const uint64_t &reqId, proto::Query *query, const
     table_store->ExecPointRead(query->query_cmd(), enc_primary_key, ts, write, committedProof);
     delete query;
 
-    if(write->has_committed_value()){
+    if(write->has_committed_value()){ 
         UW_ASSERT(committedProof); //proof must exist
-        *pointQueryReply->mutable_proof() = *committedProof;
+        *pointQueryReply->mutable_proof() = *committedProof; //FIXME: Debug Seg here
     } 
 
     if(TEST_QUERY) TEST_QUERY_f(write, pointQueryReply);
@@ -1283,7 +1285,6 @@ void Server::FailQuery(QueryMetaData *query_md){
 
 //////////////////////////////// CLEAN UP / GARBAGE COLLECTION ///////////////////////////////////////////////
 
-//TODO: Compile CleanQueries. 
 
 //TODO: Clean Query as part of HandleAbort
 // -> handle abort should specify list of query_ids to just be deleted. (erase fully)
@@ -1292,7 +1293,7 @@ void Server::CleanQueries(proto::Transaction *txn, bool is_commit){
   //Move read sets into txn + Remove QueryMd completely. Store a map: <client-id, timestamp> disallowing clients to issue requests to the past (this way old/late queries won't be accepted anymore.)
     
   if(!txn->has_last_query_seq()) return;
-  Debug("Clean all Query Md associated with txn");
+  Debug("Clean all Query Md associated with txn: %s", BytesToHex(TransactionDigest(*txn, params.hashDigest), 16).c_str());
 
   clientQueryWatermarkMap::accessor qw;
   clientQueryWatermark.insert(qw, txn->client_id());
@@ -1305,35 +1306,40 @@ void Server::CleanQueries(proto::Transaction *txn, bool is_commit){
     queryMetaDataMap::accessor q;
     bool hasQuery = queryMetaData.find(q, tx_query_md.query_id());
     if(hasQuery){
-    QueryMetaData *local_query_md = q->second; //Local query_md
+        Debug("Deleting all QueryMD for queryId: %s (bytes)", BytesToHex(tx_query_md.query_id(), 16).c_str());
+        QueryMetaData *local_query_md = q->second; //Local query_md
 
-    //Move read set if caching. Note: Don't need to move read_set_hash -> tx already stores it. 
-    if(is_commit && params.query_params.cacheReadSet){
-        proto::QueryGroupMeta &query_group_meta = (*tx_query_md.mutable_group_meta())[groupIdx];
-        //Note: only move if read_set hash matches. It might not. But at least 2f+1 correct replicas do have it matching.
-        if(query_group_meta.read_set_hash() == local_query_md->queryResultReply->result().query_result_hash()){
-            proto::ReadSet *read_set = local_query_md->queryResultReply->mutable_result()->release_query_read_set();
-            query_group_meta.set_allocated_query_read_set(read_set);
+        //THIS IS JUST TEST/DEBUG CODE
+        // auto [_, first_deletion] = alreadyDeleted.insert(tx_query_md.query_id());
+        // if(!first_deletion) Panic("duplicate delete");
+
+        //Move read set if caching. Note: Don't need to move read_set_hash -> tx already stores it. 
+        if(is_commit && params.query_params.cacheReadSet){
+            proto::QueryGroupMeta &query_group_meta = (*tx_query_md.mutable_group_meta())[groupIdx];
+            //Note: only move if read_set hash matches. It might not. But at least 2f+1 correct replicas do have it matching.
+            if(query_group_meta.read_set_hash() == local_query_md->queryResultReply->result().query_result_hash()){
+                proto::ReadSet *read_set = local_query_md->queryResultReply->mutable_result()->release_query_read_set();
+                query_group_meta.set_allocated_query_read_set(read_set);
+            }
+            //Try to clear RTS in case it was moved:  //TODO: For commit: Could optimize RTS GC to remove all RTS >= committed TS (see CommitToStore) 
+            ClearRTS(query_group_meta.query_read_set().read_set(), local_query_md->ts);
         }
-         //Try to clear RTS in case it was moved:  //TODO: For commit: Could optimize RTS GC to remove all RTS >= committed TS (see CommitToStore) 
-        ClearRTS(query_group_meta.query_read_set().read_set(), local_query_md->ts);
-    }
-    else if(params.query_params.cacheReadSet){ //Try to clear RTS in case it was cached 
-        ClearRTS(local_query_md->queryResultReply->result().query_read_set().read_set(), local_query_md->ts);
-    }   
-    else{  //Try to clear RTS in case tx had it all along: 
-        proto::QueryGroupMeta &query_group_meta = (*tx_query_md.mutable_group_meta())[groupIdx];
-        ClearRTS(query_group_meta.query_read_set().read_set(), local_query_md->ts);
-    }
+        else if(params.query_params.cacheReadSet){ //Try to clear RTS in case it was cached 
+            ClearRTS(local_query_md->queryResultReply->result().query_read_set().read_set(), local_query_md->ts);
+        }   
+        else{  //Try to clear RTS in case tx had it all along: 
+            proto::QueryGroupMeta &query_group_meta = (*tx_query_md.mutable_group_meta())[groupIdx];
+            ClearRTS(query_group_meta.query_read_set().read_set(), local_query_md->ts);
+        }
 
-    //erase current retry version from missing (Note: all previous ones must have been deleted via ClearMetaData)
-    queryMissingTxns.erase(QueryRetryId(tx_query_md.query_id(), q->second->retry_version, (params.query_params.signClientQueries && params.query_params.cacheReadSet && params.hashDigest)));
+        //erase current retry version from missing (Note: all previous ones must have been deleted via ClearMetaData)
+        queryMissingTxns.erase(QueryRetryId(tx_query_md.query_id(), q->second->retry_version, (params.query_params.signClientQueries && params.query_params.cacheReadSet && params.hashDigest)));
 
-   
+    
 
-    if(local_query_md != nullptr) delete local_query_md;
-    //local_query_md = nullptr;
-    queryMetaData.erase(q); 
+        if(local_query_md != nullptr) delete local_query_md;
+        //local_query_md = nullptr;
+        queryMetaData.erase(q); 
     }
     //Don't erase Md entry --> Keeping it disallows future queries. ==> Improve by adding the client TS map forcing monotonic queries. (Map size O(clients) instead of O(queries))
     //queryMetaData.erase(tx_query_md.query_id())

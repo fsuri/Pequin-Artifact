@@ -50,6 +50,7 @@ bool HashJoinExecutor::DInit() {
  */
 bool HashJoinExecutor::DExecute() {
   LOG_TRACE("********** Hash Join executor :: 2 children \n");
+  std::cerr << "Hash Join executor is running" << std::endl;
 
   // Loop until we have non-empty result tile or exit
   for (;;) {

@@ -174,7 +174,7 @@ void Client::SQLRequest(std::string &statement, sql_callback scb, sql_timeout_ca
 }
 
 
-void Client::Query(const std::string &query, query_callback qcb, query_timeout_callback qtcb, uint32_t timeout, bool skip_query_interpretation) {
+void Client::Query(const std::string &query, query_callback qcb, query_timeout_callback qtcb, uint32_t timeout,bool cache_result, bool skip_query_interpretation) {
     Debug("Processing Query Statement: %s", query.c_str());
     std::string non_const_query = query;
     this->SQLRequest(non_const_query,qcb,qtcb,timeout);

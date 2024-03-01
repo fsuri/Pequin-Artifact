@@ -57,6 +57,9 @@
 
 namespace pequinstore {
 
+  static bool PRINT_READ_SET = true;
+
+
 //TODO: Problem: FIXME: Probably not safe to modify transaction. -- must hold ongoing lock for entire duration of any tx uses? --> not possible..
 //Solution: Store elsewhere (don't override read-set) -- Refactor CC and Prepare to take read set pointer as argument -- in non-query case, let that read set point to normal readset.
 //Can we still edit read_set_merge field? If so, that is a good place to store it to re-use for Commit -- Test if that causes problems with sending out tx in parallel. (might result in corrupted protobuf messages)
@@ -411,6 +414,13 @@ proto::ConcurrencyControl::Result Server::mergeTxReadSets(const ReadSet *&readSe
   //attach base dep-set
   mergedReadSet->mutable_deps()->MergeFrom(txn.deps());
 
+  if(PRINT_READ_SET){
+    Debug("Read set post incremental merger");
+    for(auto &read: mergedReadSet->read_set()){
+      Debug("key: %s. version: [%lu:%lu]", read.key().c_str(), read.readtime().timestamp(), read.readtime().id());
+    }
+  }
+
 //TODO: STORE IN MERGED_READ_SET in its own data structure.
 //FIXME: It is not safe to handle a Tx over multiple threads if one of them is writing to it. However, it seems to work fine for txnDigest field? Do we need to fix that?
 
@@ -429,6 +439,7 @@ proto::ConcurrencyControl::Result Server::mergeTxReadSets(const ReadSet *&readSe
     catch(...) {
       //restoreTxn(txn); //TODO: Maybe don't delete merged set -- we do want to use it for Commit again. //TODO: Maybe we cannot store mergedSet inside read after all? What if another thread tries to use Tx in parallel mid modification..
       Debug("Merge indicates duplicate key with different version. Vote Abstain");
+      Panic("shouldn't happen for our choice of queries? Maybe can happen for Delivery...");
       return proto::ConcurrencyControl::ABSTAIN;
     }
   }
@@ -486,15 +497,15 @@ proto::ConcurrencyControl::Result Server::DoOCCCheck(
   //Note: if we wait, we might end up never garbage collecting TX from ongoing (and possibly from other replicas Prepare set - since the tx is blocked); Can garbage collect after some time if desired (since we didn't process, theres no impact on decisions)
   //If another client is interested, then it should start fallback and provide read set as well (forward SyncProposal with correct retry version)
     
-  Debug("TESTING MERGED READ"); //FIXME: Remove.
-  for(auto &read : *readSet){
-      Debug("[group Merged] Read key %s with version [%lu:%lu]", read.key().c_str(), read.readtime().timestamp(), read.readtime().id());
-  }
+  // Debug("TESTING MERGED READ"); //FIXME: Remove.
+  // for(auto &read : *readSet){
+  //     Debug("[group Merged] Read key %s with version [%lu:%lu]", read.key().c_str(), read.readtime().timestamp(), read.readtime().id());
+  // }
 
-  Debug("TESTING MERGED Deps"); //FIXME: Remove.
-  for(auto &dep : *depSet){
-      Debug("[group Merged] Dep %s", BytesToHex(dep.write().prepared_txn_digest(), 16).c_str());
-  }
+  // Debug("TESTING MERGED Deps"); //FIXME: Remove.
+  // for(auto &dep : *depSet){
+  //     Debug("[group Merged] Dep %s", BytesToHex(dep.write().prepared_txn_digest(), 16).c_str());
+  // }
 
 
   locks_t locks;
@@ -599,12 +610,13 @@ proto::ConcurrencyControl::Result Server::DoMVTSOOCCCheck(
           }
           
           //std::cerr << "key: " << read.key() << std::endl;
-          Debug("[%lu:%lu][%s] ABORT wr conflict committed write for key %s:"
+          Debug("[%lu:%lu][%s] ABORT wr conflict committed write for key %s [plain:%s]:"
               " this txn's read ts %lu.%lu < committed ts %lu.%lu < this txn's ts %lu.%lu.",
               txn.client_id(),
               txn.client_seq_num(),
               BytesToHex(txnDigest, 16).c_str(),
               BytesToHex(read.key(), 16).c_str(),
+              read.key().c_str(),
               read.readtime().timestamp(),
               read.readtime().id(), committedWrite.first.getTimestamp(),
               committedWrite.first.getID(), ts.getTimestamp(), ts.getID());
@@ -639,12 +651,13 @@ proto::ConcurrencyControl::Result Server::DoMVTSOOCCCheck(
                 }
             } 
 
-            Debug("[%lu:%lu][%s] ABSTAIN wr conflict prepared write for key %s:"
+            Debug("[%lu:%lu][%s] ABSTAIN wr conflict prepared write for key %s [plain:%s]:"
               " this txn's read ts %lu.%lu < prepared ts %lu.%lu < this txn's ts %lu.%lu.",
                 txn.client_id(),
                 txn.client_seq_num(),
                 BytesToHex(txnDigest, 16).c_str(),
                 BytesToHex(read.key(), 16).c_str(),
+                read.key().c_str(),
                 read.readtime().timestamp(),
                 read.readtime().id(), preparedTs.getTimestamp(),
                 preparedTs.getID(), ts.getTimestamp(), ts.getID());
@@ -697,12 +710,13 @@ proto::ConcurrencyControl::Result Server::DoMVTSOOCCCheck(
               if (params.validateProofs) {
                 conflict = std::get<2>(*ritr);
               }
-              Debug("[%lu:%lu][%s] ABORT rw conflict committed read for key %s: committed"
+              Debug("[%lu:%lu][%s] ABORT rw conflict committed read for key %s [plain:%s]: committed"
                   " read ts %lu.%lu < this txn's ts %lu.%lu < committed ts %lu.%lu.",
                   txn.client_id(),
                   txn.client_seq_num(),
                   BytesToHex(txnDigest, 16).c_str(),
                   BytesToHex(write.key(), 16).c_str(),
+                  write.key().c_str(),
                   std::get<1>(*ritr).getTimestamp(),
                   std::get<1>(*ritr).getID(), ts.getTimestamp(),
                   ts.getID(), std::get<0>(*ritr).getTimestamp(),
@@ -785,12 +799,13 @@ proto::ConcurrencyControl::Result Server::DoMVTSOOCCCheck(
                 continue; 
             } 
 
-            Debug("[%lu:%lu][%s] ABSTAIN rw conflict prepared read for key %s: prepared"
+            Debug("[%lu:%lu][%s] ABSTAIN rw conflict prepared read for key %s [plain:%s]: prepared"
                 " read ts %lu.%lu < this txn's ts %lu.%lu < committed ts %lu.%lu.",
                 txn.client_id(),
                 txn.client_seq_num(),
                 BytesToHex(txnDigest, 16).c_str(),
                 BytesToHex(write.key(), 16).c_str(),
+                write.key().c_str(),
                 readTs.getTimestamp(),
                 readTs.getID(), ts.getTimestamp(),
                 ts.getID(), preparedReadTxn->timestamp().timestamp(),
@@ -1417,7 +1432,7 @@ proto::ConcurrencyControl::Result Server::CheckDependencies(
     }
     if (committed.find(dep.write().prepared_txn_digest()) != committed.end()) {
       //Check if dependency still has smaller timestamp than reader: Could be violated if dependency re-tried with higher TS and committed -- Currently retries are not implemented.
-       Debug("Txn[%lu:%lu] dependency %s committed", txn.client_id(), txn.client_seq_num(), dep.write().prepared_txn_digest());
+       Debug("Txn[%lu:%lu] dependency %s committed", txn.client_id(), txn.client_seq_num(), BytesToHex(dep.write().prepared_txn_digest(),16).c_str());
       if (Timestamp(dep.write().prepared_timestamp()) > Timestamp(txn.timestamp())) {
         Debug("Txn[%lu:%lu] dependency %s committed with wrong TS. Abstain!", txn.client_id(), txn.client_seq_num(), BytesToHex(dep.write().prepared_txn_digest(), 16).c_str());
         stats.Increment("cc_aborts", 1);

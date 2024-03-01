@@ -76,6 +76,13 @@ std::string Server::ExecQuery(QueryReadSetMgr &queryReadSetMgr, QueryMetaData *q
             std::cerr << "USE OPT???? " << query_md->useOptimisticTxId << std::endl;
             serialized_result = table_store->EagerExecAndSnapshot(query_md->query_cmd, query_md->ts, query_md->snapshot_mgr, queryReadSetMgr, params.query_params.snapshotPrepared_k);
             query_md->snapshot_mgr.SealLocalSnapshot(); 
+             Debug("Number of Txn in snapshot (post seal): [com:%d; prep:%d]. Number of TS in snapshot: [com:%d; prep:%d]", local_ss->local_txns_committed_size(), local_ss->local_txns_prepared_size(), local_ss->local_txns_committed_ts_size(), local_ss->local_txns_prepared_ts_size());
+            for(auto &ts: local_ss->local_txns_committed_ts()){
+                Debug("Snapshot Txn TS (commit): %lu", ts);
+            }
+            for(auto &ts: local_ss->local_txns_prepared_ts()){
+                Debug("Snapshot Txn TS (prep): %lu", ts);
+            }
         } 
         else{
             serialized_result = table_store->ExecReadQuery(query_md->query_cmd, query_md->ts, queryReadSetMgr);
@@ -110,7 +117,7 @@ std::string Server::ExecQuery(QueryReadSetMgr &queryReadSetMgr, QueryMetaData *q
         Debug("Read key %s with version [%lu:%lu]", read.key().c_str(), read.readtime().timestamp(), read.readtime().id());
     }
     for(auto &dep : queryReadSetMgr.read_set->deps()){
-        Debug("Dependency on Txn: %s", dep.write().prepared_txn_digest().c_str());
+        Debug("Dependency on Txn: %s", BytesToHex(dep.write().prepared_txn_digest(), 16).c_str());
     }
 
 
@@ -177,6 +184,24 @@ std::string Server::ExecQuery(QueryReadSetMgr &queryReadSetMgr, QueryMetaData *q
 
     //Just for testing: Creating Dummy result 
     if(TEST_QUERY) return TEST_QUERY_f(query_md->query_seq_num);
+
+    if(true){
+        query_result::QueryResult *q_result = new sql::QueryResultProtoWrapper(serialized_result);
+         Debug("Result size: %d. Result rows affected: %d", q_result->size(), q_result->rows_affected());
+
+        for(int i = 0; i < q_result->size(); ++i){
+        std::unique_ptr<query_result::Row> row = (*q_result)[i]; 
+        Debug("Checking row at index: %d", i);
+        // For col in col_updates update the columns specified by update_cols. Set value to update_values
+        for(int j=0; j<row->num_columns(); ++j){
+            const std::string &col = row->name(j);
+            std::unique_ptr<query_result::Field> field = (*row)[j];
+            const std::string &field_val = field->get();
+            Debug("  %s:  %s", col.c_str(), field_val.c_str());
+        }
+    }
+  
+    }
    
     return serialized_result;
 }
