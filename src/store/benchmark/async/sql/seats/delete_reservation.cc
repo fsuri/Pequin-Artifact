@@ -94,12 +94,17 @@ transaction_status_t SQLDeleteReservation::Execute(SyncClient &client) {
     //Next, get the reservation information of the Customer (GetCustomerReservation)
     // query = fmt::format("SELECT c_sattr00, c_sattr02, c_sattr04, c_iattr00, c_iattr02, c_iattr04, c_iattr06, f_seats_left, r_id, r_seat, r_price, r_iattr00 FROM {}, {}, {} "
     //                     "WHERE c_id = {} AND c_id = r_c_id AND f_id = {} AND f_id = r_f_id", CUSTOMER_TABLE, FLIGHT_TABLE, RESERVATION_TABLE, c_id, f_id);
-    query = fmt::format("SELECT c_sattr00, c_sattr02, c_sattr04, c_iattr00, c_iattr02, c_iattr04, c_iattr06, f_seats_left, r_id, r_seat, r_price, r_iattr00 FROM {}, {}, {} "
+    /*query = fmt::format("SELECT c_sattr00, c_sattr02, c_sattr04, c_iattr00, c_iattr02, c_iattr04, c_iattr06, f_seats_left, r_id, r_seat, r_price, r_iattr00 FROM {}, {}, {} "
                         "WHERE c_id = {} AND c_id = r_c_id "
                         "AND f_id = {} AND f_id = r_f_id "
                         "AND r_f_id = {} "
                         "AND r_c_id = r_c_id AND r_f_id = r_f_id", //REFLEXIVE ARGS TO SATISFY DUMB PELOTON PLANNER
-                        CUSTOMER_TABLE, FLIGHT_TABLE, RESERVATION_TABLE, c_id, f_id, f_id);
+                        CUSTOMER_TABLE, FLIGHT_TABLE, RESERVATION_TABLE, c_id, f_id, f_id);*/
+    query = fmt::format("SELECT c_sattr00, c_sattr02, c_sattr04, c_iattr00, c_iattr02, c_iattr04, c_iattr06, f_seats_left, r_id, r_seat, r_price, r_iattr00 FROM {}, {}, {} "
+                        "WHERE c_id = {} AND c_id = r_c_id "
+                        "AND f_id = {} AND f_id = r_f_id "
+                        "AND r_c_id = r_c_id AND r_f_id = r_f_id", //REFLEXIVE ARGS TO SATISFY DUMB PELOTON PLANNER
+                        CUSTOMER_TABLE, FLIGHT_TABLE, RESERVATION_TABLE, c_id, f_id);
                    
     client.Query(query, queryResult, timeout);
     //If there is no valid customer record, throw an abort  //Note: supposedly happens 5% of the time.

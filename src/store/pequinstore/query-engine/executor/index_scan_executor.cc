@@ -2074,22 +2074,42 @@ void IndexScanExecutor::UpdatePredicate(
   LOG_TRACE("values_ size %lu", values_.size());
 
   std::vector<oid_t> key_column_ids;
+  // The non index column ids
+  std::vector<oid_t> non_index_column_ids;
+  // The values of indexed columns
+  std::vector<type::Value> indexed_values;
+  // The values of non-indexed columns
+  std::vector<type::Value> non_indexed_values;
+  int value_idx = 0;
 
   std::cerr << "UPDATING INDEX SCAN PREDICATE" << std::endl;
+  // Get the column ids which are in the index
+  auto indexed_cols = index_->GetKeySchema()->GetIndexedColumns();
+  std::set<oid_t> index_col_set(indexed_cols.begin(), indexed_cols.end());
   
-
   PELOTON_ASSERT(column_ids.size() <= column_ids_.size());
   // Get the real physical ids
   for (auto column_id : column_ids) {
-    key_column_ids.push_back(column_ids_[column_id]);
-
+    // If the index contains column id then add to key column id list
+    if (index_col_set.find(column_ids_[column_id]) != index_col_set.end()) {
+      key_column_ids.push_back(column_ids_[column_id]);
+      // Add corresponding value of column to indexed values
+      indexed_values.push_back(values[value_idx]);
+    } else {
+      // Column not in index remove from indexed, add to non-indexed values
+      std::cout << "The col id is " << column_ids_[column_id] << std::endl;
+      non_index_column_ids.push_back(column_ids_[column_id]);
+      non_indexed_values.push_back(values[value_idx]);
+    }
+    value_idx++;
+    
     LOG_TRACE("Output id is %d---physical column id is %d", column_id, column_ids_[column_id]);
   }
 
   updated_column_ids = key_column_ids;
 
   // Update values in index plan node
-  PELOTON_ASSERT(key_column_ids.size() == values.size());
+  PELOTON_ASSERT(key_column_ids.size() == indexed_values.size());
   PELOTON_ASSERT(key_column_ids_.size() == values_.size());
 
   // Find out the position (offset) where is key_column_id
@@ -2099,10 +2119,10 @@ void IndexScanExecutor::UpdatePredicate(
       if (key_column_ids[new_idx] == key_column_ids_[current_idx]) {
       
          fprintf(stderr, "Orignial is %d:%s", key_column_ids[new_idx], values_[current_idx].GetInfo().c_str());
-          fprintf(stderr, "Changed to %d:%s", key_column_ids[new_idx], values[new_idx].GetInfo().c_str());
+          fprintf(stderr, "Changed to %d:%s\n", key_column_ids[new_idx], indexed_values[new_idx].GetInfo().c_str());
         LOG_TRACE("Orignial is %d:%s", key_column_ids[new_idx], values_[current_idx].GetInfo().c_str());
         LOG_TRACE("Changed to %d:%s", key_column_ids[new_idx], values[new_idx].GetInfo().c_str());
-        values_[current_idx] = values[new_idx];
+        values_[current_idx] = indexed_values[new_idx];
 
         // There should not be two same columns. So when we find a column, we should break the loop
         break;
@@ -2117,7 +2137,7 @@ void IndexScanExecutor::UpdatePredicate(
       LOG_TRACE("Add new column for index predicate:%u-%s", key_column_ids[new_idx], values[new_idx].GetInfo().c_str());
 
       // Add value
-      values_.push_back(values[new_idx]);
+      values_.push_back(indexed_values[new_idx]);
 
       // Add column id
       key_column_ids_.push_back(key_column_ids[new_idx]);
@@ -2129,28 +2149,30 @@ void IndexScanExecutor::UpdatePredicate(
   }
 
   for(int i = 0; i<key_column_ids.size(); ++i){
-     std::cerr << "col name: " << table_->GetSchema()->GetColumn(key_column_ids[i]).GetName()  << ". val: " << values[i] << std::endl;
+     std::cerr << "col name: " << table_->GetSchema()->GetColumn(key_column_ids[i]).GetName()  << ". val: " << indexed_values[i] << std::endl;
   }
 
   //index_predicate_.GetConjunctionListToSetup()[0].
   // Update the new value
-  index_predicate_.GetConjunctionListToSetup()[0].SetTupleColumnValue(index_.get(), key_column_ids, values);
+  index_predicate_.GetConjunctionListToSetup()[0].SetTupleColumnValue(index_.get(), key_column_ids, indexed_values);
 
 
-  // expression::AbstractExpression *new_predicate = values.size() != 0 ? ColumnsValuesToExpr(column_ids, values, 0) : nullptr;
+  expression::AbstractExpression *new_predicate = non_indexed_values.size() != 0 ? ColumnsValuesToExpr(non_index_column_ids, non_indexed_values, 0) : nullptr;
 
-  //   // combine with original predicate
-  // if (old_predicate_ != nullptr) {
-  //   expression::AbstractExpression *lexpr = new_predicate, *rexpr = old_predicate_->Copy();
+  if (new_predicate == nullptr) return;
 
-  //   new_predicate = new expression::ConjunctionExpression(ExpressionType::CONJUNCTION_AND, lexpr, rexpr);
-  // }
+     // combine with original predicate
+  if (old_predicate_ != nullptr) {
+     expression::AbstractExpression *lexpr = new_predicate, *rexpr = old_predicate_->Copy();
 
-  // // Currently a hack that prevent memory leak we should eventually make prediate_ a unique_ptr
-  // new_predicate_.reset(new_predicate);
-  // predicate_ = new_predicate;
+     new_predicate = new expression::ConjunctionExpression(ExpressionType::CONJUNCTION_AND, lexpr, rexpr);
+  }
 
-  // std::cerr << "new pred: " << new_predicate->GetInfo() << std::endl;
+  // Currently a hack that prevent memory leak we should eventually make prediate_ a unique_ptr
+  new_predicate_.reset(new_predicate);
+  predicate_ = new_predicate;
+
+  std::cerr << "new pred: " << new_predicate->GetInfo() << std::endl;
 
 
 }
