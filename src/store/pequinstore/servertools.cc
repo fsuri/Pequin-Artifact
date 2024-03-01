@@ -493,12 +493,15 @@ void Server::FindTableVersion(const std::string &key_name, const Timestamp &ts, 
  if(add_to_snapshot){ //Creating Snapshot
     UW_ASSERT(snapshotMgr);
 
-    //TODO: Instead of hashing TXN on demand, can we store the txn_digest somehwere such that we can just re-use it.
+    //Use txnDigest from cache
     if(mostRecentPrepared != nullptr){ //Read prepared
-      snapshotMgr->AddToLocalSnapshot(*mostRecentPrepared, params.hashDigest, false);
+      UW_ASSERT(mostRecentPrepared->has_txndigest());
+      snapshotMgr->AddToLocalSnapshot(mostRecentPrepared->txndigest(), mostRecentPrepared, false);
     }
     else{ //Read committed
-      snapshotMgr->AddToLocalSnapshot(tsVal.second.proof->txn(), params.hashDigest, true);
+      const proto::Transaction &txn = tsVal.second.proof->txn();
+      UW_ASSERT(txn.has_txndigest());
+      snapshotMgr->AddToLocalSnapshot(txn.txndigest(), &txn, true);
     }
   }
 

@@ -144,6 +144,7 @@ Server::Server(const transport::Configuration &config, int groupIdx, int idx,
 
   //Add real genesis digest   --  Might be needed when we add TableVersions to snapshot and need to sync on them
   std::string genesis_txn_dig = TransactionDigest(proof->txn(), params.hashDigest);
+  *proof->mutable_txn()->mutable_txndigest() = genesis_txn_dig;
   committed.insert(std::make_pair(genesis_txn_dig, proof));
   ts_to_tx.insert(std::make_pair(MergeTimestampId(0, 0), genesis_txn_dig));
   materializedMap::accessor mat;
@@ -1133,8 +1134,8 @@ void Server::HandlePhase1(const TransportAddress &remote, proto::Phase1 &msg) {
   
   std::string txnDigest = TransactionDigest(*txn, params.hashDigest); //could parallelize it too hypothetically
   Debug("Received Phase1 message for txn id: %s", BytesToHex(txnDigest, 16).c_str());
-  if(params.signClientProposals) *txn->mutable_txndigest() = txnDigest; //Hack to have access to txnDigest inside TXN later (used for abstain conflict)
-  
+  //if(params.signClientProposals) *txn->mutable_txndigest() = txnDigest; //Hack to have access to txnDigest inside TXN later (used for abstain conflict)
+  *txn->mutable_txndigest() = txnDigest; //Hack to have access to txnDigest inside TXN later (used for abstain conflict, and for FindTableVersion)
 
   Debug("PHASE1[%lu:%lu][%s] with ts %lu.", txn->client_id(),
       txn->client_seq_num(), BytesToHex(txnDigest, 16).c_str(),
@@ -1884,8 +1885,11 @@ void Server::Prepare(const std::string &txnDigest,const proto::Transaction &txn,
     Debug("Already concurrently Committed/Aborted txn[%s]", BytesToHex(txnDigest, 16).c_str());
     return;
   }
-  const proto::Transaction *ongoingTxn = o->second.txn;
+  proto::Transaction *ongoingTxn = o->second.txn; //const
   //const proto::Transaction *ongoingTxn = ongoing.at(txnDigest);
+
+  UW_ASSERT(ongoingTxn->has_txndigest());
+  if(!ongoingTxn->has_txndigest()) *ongoingTxn->mutable_txndigest() = txnDigest; //Hack to have access to txnDigest inside TXN later (used for abstain conflict, and for FindTableVersion)
 
   preparedMap::accessor a;
   bool first_prepare = prepared.insert(a, std::make_pair(txnDigest, std::make_pair(ts, ongoingTxn)));
@@ -2117,6 +2121,9 @@ void Server::CommitToStore(proto::CommittedProof *proof, proto::Transaction *txn
     //   table_and_col_versions.push_back(&write.key());
     //   continue;
     // }
+
+    UW_ASSERT(txn->has_txndigest());
+    if(!txn->has_txndigest()) *txn->mutable_txndigest() = txnDigest;
 
     store.put(write.key(), val, ts);
 

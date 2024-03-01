@@ -641,8 +641,7 @@ TableCatalog::GetTableCatalogEntry(concurrency::TransactionContext *txn,
     throw CatalogException("Transaction is invalid!");
   }
   // try get from cache
-  auto table_object =
-      txn->catalog_cache.GetCachedTableObject(database_oid_, table_oid);
+  auto table_object = txn->catalog_cache.GetCachedTableObject(database_oid_, table_oid);
   if (table_object)
     return table_object;
 
@@ -693,8 +692,7 @@ TableCatalog::GetTableCatalogEntry(concurrency::TransactionContext *txn,
   // try get from cache
   auto database_object = txn->catalog_cache.GetDatabaseObject(database_oid_);
   if (database_object) {
-    auto table_object =
-        database_object->GetTableCatalogEntry(table_name, schema_name, true);
+    auto table_object = database_object->GetTableCatalogEntry(table_name, schema_name, true);
     if (table_object)
       return table_object;
   }

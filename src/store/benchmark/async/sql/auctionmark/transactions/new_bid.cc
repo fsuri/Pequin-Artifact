@@ -50,7 +50,6 @@ NewBid::NewBid(uint32_t timeout, AuctionMarkProfile &profile, std::mt19937_64 &g
   // Some NewBids will be for items that have already ended. This will simulate somebody trying to bid at the very end but failing
   int rand = std::uniform_int_distribution<int>(1, 100)(gen);
   if ((has_waiting || has_completed) && (rand <= PROB_NEWBID_CLOSED_ITEM || !has_available)) {
-    std::cerr << "pass1" << std::endl;
       if (has_waiting) {
         itemInfo = profile.get_random_waiting_for_purchase_item();
     
@@ -58,7 +57,6 @@ NewBid::NewBid(uint32_t timeout, AuctionMarkProfile &profile, std::mt19937_64 &g
         itemInfo = profile.get_random_completed_item();
       }
       sellerId = itemInfo->get_seller_id();
-      std::cerr << "pass2" << std::endl;
       buyerId = profile.get_random_buyer_id(sellerId);
  
       // The bid/maxBid do not matter because they won't be able to actually update the auction
@@ -68,7 +66,7 @@ NewBid::NewBid(uint32_t timeout, AuctionMarkProfile &profile, std::mt19937_64 &g
 
     // Otherwise we want to generate information for a real bid
     else {
-      std::cerr << "pass1b" << std::endl;
+    
       rand = std::uniform_int_distribution<int>(1, 100)(gen);
       // 50% of NewBids will be for items that are ending soon
       if ((has_ending && rand <= PROB_NEWBID_CLOSED_ITEM) || !has_available) {
@@ -82,24 +80,18 @@ NewBid::NewBid(uint32_t timeout, AuctionMarkProfile &profile, std::mt19937_64 &g
       }
 
       sellerId = itemInfo->get_seller_id();
-      std::cerr << "pass2b" << std::endl;
       buyerId = profile.get_random_buyer_id(sellerId);
-       std::cerr << "pass2c" << std::endl;
-
+     
       double currentPrice = itemInfo->get_current_price();
-       std::cerr << "pass3b" << std::endl;
       bid = round(std::uniform_real_distribution<double>(currentPrice, currentPrice * (1 + (ITEM_BID_PERCENT_STEP / 2)))(gen) * 100) /100; //round to 2 decimal places
       maxBid = round(std::uniform_real_distribution<double>(bid, bid * (1 + (ITEM_BID_PERCENT_STEP / 2)))(gen) * 100) /100; //round to 2 decimal places
     }
 
   item_id = itemInfo->get_item_id().encode();
-   std::cerr << "pass4" << std::endl;
   seller_id = sellerId.encode();
   buyer_id = buyerId.encode();
   newBid = maxBid;
   uint64_t estimatedEndDate = itemInfo->get_end_date();
-
-   std::cerr << "pass5" << std::endl;
 
 }
 
