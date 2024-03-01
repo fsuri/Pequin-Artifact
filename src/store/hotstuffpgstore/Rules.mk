@@ -10,7 +10,7 @@ LIB-hotstuff-pg-interface := store/hotstuffstore/libhotstuff/examples/libindicus
 
 LIB-pbft-batched-sigs := $(LIB-crypto) $(o)pbft_batched_sigs.o 
 
-LIB-hotstuff-pg-store := $(o)common.o $(o)slots.o $(o)replica.o $(o)server.o \
+LIB-hotstuff-pg-store := $(o)common.o $(o)replica.o $(o)server.o \
 	$(o)pbft-proto.o $(o)server-proto.o $(o)app.o $(o)shardclient.o \
 	$(o)client.o $(LIB-crypto) $(LIB-pbft-batched-sigs) $(LIB-configuration) $(LIB-store-common) \
 	$(LIB-transport) $(LIB-store-backend) $(LIB-hotstuff-pg-interface)

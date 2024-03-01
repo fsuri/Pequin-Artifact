@@ -287,7 +287,7 @@ sql::QueryResultProtoBuilder* Server::createResult(const tao::pq::result &sql_re
       res_builder->add_empty_row();
       for( const auto& field : row ) {
         std::string field_str = field.as<std::string>();
-        res_builder->add_field_to_last_row(field_str);
+        res_builder->add_field_to_last_row_serialize(field_str);
         std::cout << field_str << std::endl;
       }
     }
