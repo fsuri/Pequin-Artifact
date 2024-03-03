@@ -59,7 +59,9 @@ void QueryExecutor<T, V>::insert(VersionedKVStore<T, V> &store, const std::strin
     std::string base table_to_key[table_name];
     for (auto v : vals) {
         std::string key = base + std::to_string(std::get<0>(v));
-        store.put(key, std::get<2>(v), std::get<1>(v));
+        V vl = std::get<2>(v);
+        T t = std::get<1>(v);
+        store.put(key, vl, t);
     }
 }
 }
