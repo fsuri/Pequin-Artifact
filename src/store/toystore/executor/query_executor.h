@@ -6,6 +6,7 @@
 #include <vector> 
 #include <string>
 #include <unordered_map>
+#include <tuple> 
 
 namespace toystore {
 namespace executor {
@@ -57,8 +58,8 @@ template<class T, class V>
 void QueryExecutor<T, V>::insert(VersionedKVStore<T, V> &store, const std::string &table_name, std::vector<QueryExecutor<T, V>::Write> &vals) {
     std::string base table_to_key[table_name];
     for (auto v : vals) {
-        std::string key = base + std::to_string(v[0]);
-        store.put(key, v[1], v[2]);
+        std::string key = base + std::to_string(std::get<0>(v));
+        store.put(key, std::get<2>(v), std::get<1>(v));
     }
 }
 }
