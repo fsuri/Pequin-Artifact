@@ -4,7 +4,8 @@ package toystore.proto;
 
 message QueryMessage {
     required uint64 clientid = 1;
-    required string query = 2;
+    required uint64 reqid = 2;
+    required string query = 3;
 }
 
 message QueryReplyMessage {
@@ -14,7 +15,8 @@ message QueryReplyMessage {
      // -3 = abstain/no reply
      // -4 = network timeout
     required int32 status = 1;
-    required string result = 2;
+    required uint64 reqid = 2;
+    required string result = 3;
 }
 
 // message ReplyMessage {

@@ -4,7 +4,7 @@
  * store/toystore/client.cc:
  *   Client to toystore database.
  *
- * Copyright 2022 Gaurav Bhatnagar <gbhatnagar@berkeley.edu>
+ * Copyright 2024 Gaurav Bhatnagar <gbhatnagar@berkeley.edu>
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -32,85 +32,53 @@
 
 namespace toystore {
 
-Client::Client() {
-//   Debug("Initializing PostgreSQL client with id [%lu]", client_id);
-//   connection = tao::pq::connection::create(connection_str);
-//   txn_id = 0;
-//   Debug("PostgreSQL client [%lu] created!", client_id);
+using namespace proto;
+
+Client::Client(transport::Configuration config, uint64_t id, int groupIdx,
+               Transport *transport)
+    : configuration(config),
+      transport(transport),
+      groupIdx(groupIdx),
+      client_id(id) {
+  //   Debug("Initializing PostgreSQL client with id [%lu]", client_id);
+  //   connection = tao::pq::connection::create(connection_str);
+  //   txn_id = 0;
+  //   Debug("PostgreSQL client [%lu] created!", client_id);
+  transport->Register(this, configuration, groupIdx, client_id);
   Debug("Toystore client created!");
-
 }
 
-Client::~Client()
-{
-}
-
-/* Begins a transaction. All subsequent operations before a commit() or
- * abort() are part of this transaction.
- */
-// void Client::Begin(begin_callback bcb, begin_timeout_callback btcb,
-//     uint32_t timeout, bool retry) {
-//   transaction = connection->transaction();
-//   txn_id++;
-//   bcb(txn_id);
-// }
-
-// void Client::Get(const std::string &key, get_callback gcb,
-//     get_timeout_callback gtcb, uint32_t timeout) {
-//   auto result = transaction->execute("SELECT $1 FROM kv", key);
-//   const std::string result_str = result[0][0].as<std::string>();
-//   gcb(0, key, result_str, Timestamp(0));
-// }
-
-// void Client::Put(const std::string &key, const std::string &value,
-//     put_callback pcb, put_timeout_callback ptcb, uint32_t timeout) {
-//   auto result = transaction->execute("INSERT INTO kv VALUES ($1, $2)", key, value);
-//   pcb(REPLY_OK, key, value);
-// }
-
-// void Client::Commit(commit_callback ccb, commit_timeout_callback ctcb,
-//     uint32_t timeout) {
-//   try { 
-//     transaction->commit();
-//     ccb(transaction_status_t::COMMITTED);
-//   } catch (...) {
-//     ccb(transaction_status_t::ABORTED_SYSTEM);
-//   }
-// }
-
-// void Client::Abort(abort_callback acb, abort_timeout_callback atcb,
-//     uint32_t timeout) {
-//   try {
-//     transaction->rollback();
-//     acb();
-//   } catch (...) {
-//     atcb();
-//   }
-// }
+Client::~Client() {}
 
 // Get the value corresponding to key.
-inline void Client::Query(const std::string &query_statement, query_callback qcb,
-    query_timeout_callback qtcb, uint32_t timeout, bool skip_query_interpretation) {
+inline void Client::Query(const std::string &query_statement,
+                          query_callback qcb, query_timeout_callback qtcb,
+                          uint32_t timeout, bool skip_query_interpretation) {
   // try {
-  auto result = transaction->execute(query_statement);
-  auto wrapped_result = new taopq_wrapper::TaoPQQueryResultWrapper(std::make_unique<tao::pq::result>(result));
-  qcb(0, wrapped_result);
+  //   auto result = transaction->execute(query_statement);
+  //   auto wrapped_result = new taopq_wrapper::TaoPQQueryResultWrapper(
+  //       std::make_unique<tao::pq::result>(result));
+  //   qcb(0, wrapped_result);
   // } catch (...) {
   //   qtcb(1);
   // }
+  QueryMessage query;
+  query.set_clientid(client_id);
+  auto reqid = 100 * client_id + (curr_query_num++);
+  pending_queries[reqid] = qcb;
+  query.set_reqid(reqid);
+  query.set_query(query_statement);
+  transport->SendMessageToGroup(this, groupIdx, query);
+}
+
+void HandleQueryResult(const QueryReplyMessage &reply) {
+  auto qcb = pending_queries[reply.reqid()];
+  qcb(reply.status(), reply.result());
 }
 
 // Execute the write operation and return the result.
-// inline void Client::Write(std::string &write_statement, write_callback wcb,
-//       write_timeout_callback wtcb, uint32_t timeout) {
-//   // try {
-//   auto result = transaction->execute(write_statement);
-//   const auto wrapped_result = new taopq_wrapper::TaoPQQueryResultWrapper(std::make_unique<tao::pq::result>(result));
-//   assert(wrapped_result->has_rows_affected());
-//   wcb(0, (query_result::QueryResult*) wrapped_result);
-//   // } catch (...) {
-//   //   Debug("Write failed!");
-//   //   wtcb(1);
-//   // }
-// }
-} // namespace postgresqlstore
+inline void Client::Write(std::string &write_statement, write_callback wcb,
+                          write_timeout_callback wtcb, uint32_t timeout) {
+  Client::Query(write_statement, wcb, wtcb, timeout, false);
+}
+}  // namespace toystore

@@ -1,10 +1,10 @@
 // -*- mode: c++; c-file-style: "k&r"; c-basic-offset: 4 -*-
 /***********************************************************************
  *
- * store/weakstore/server.cc:
- *   Weak consistency storage server executable. Mostly dispatch code.
+ * store/toystore/server.cc
+ *   Referencing store/weakstore/server.cc
  *
- * Copyright 2015 Irene Zhang <iyzhang@cs.washington.edu>
+ * Copyright 2024 Gaurav Bhatnagar <gbhatnagar@berkeley.edu>
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -35,105 +35,74 @@ namespace toystore {
 using namespace proto;
 
 Server::Server(const transport::Configuration &configuration, int groupIdx,
-    int myIdx, Transport *transport)
-    : configuration(configuration), transport(transport)
-{
-    transport->Register(this, configuration, groupIdx, myIdx);
+               int myIdx, Transport *transport)
+    : configuration(configuration), transport(transport) {
+  transport->Register(this, configuration, groupIdx, myIdx);
+  executor = QueryExecutor();
+  store = VersionedKVStore();
+  executor.addTable("table_a", "col1");  // for now just assume this
 }
 
-Server::~Server() { 
-}
+Server::~Server() {}
 
-void
-Server::ReceiveMessage(const TransportAddress &remote,
-                       const string &type, const string &data,
-                       void *meta_data)
-{
-    // HandleMessage(remote, type, data);
-    QueryMessage query;
-    if (type != query.GetTypeName()) {
-        Panic("Received unexpected message type in OR proto: %s",
-              type.c_str());
-    }
-    query.ParseFromString(data);
-    QueryReplyMessage reply;
+void Server::ReceiveMessage(const TransportAddress &remote, const string &type,
+                            const string &data, void *meta_data) {
+  QueryMessage query;
+  if (type != query.GetTypeName()) {
+    Panic("Received unexpected message type in proto: %s", type.c_str());
+  }
+  query.ParseFromString(data);
+  QueryReplyMessage reply;
+  reply.set_reqid(query.reqid());
 
-    // do parsing
-    auto ctx = pg_query_parse_init();
-    auto result = pg_query_parse(query.query().c_str());
-    // auto result = pg_query_parse("SELECT col1, COUNT(*) from tableA where col2 >= 3 limit 20;");
+  // do parsing
+  auto ctx = pg_query_parse_init();
+  auto result = pg_query_parse(query.query().c_str());
 
-    if (result.error)
-    {
-        reply.set_status(-1);
-        reply.set_result("Error parsing query");
-        transport->SendMessage(this, remote, reply);
-        return;
-    }
-
-
-    auto tree_json = pg_parse_tree_json(result.tree);
-    json query = json::parse(tree_json);
-
-    // print_pg_parse_tree(result.tree);
-
-
-    pg_query_parse_finish(ctx);
-    pg_query_free_parse_result(result);
+  if (result.error) {
+    reply.set_status(-1);
+    reply.set_result("Error parsing query");
     transport->SendMessage(this, remote, reply);
     return;
+  }
+
+  auto tree_json = pg_parse_tree_json(result.tree);
+  json query = json::parse(tree_json);
+
+  // print_pg_parse_tree(result.tree);
+  if (query[0].contains("SelectStmt")) {
+    auto stmt = query[0]["SelectStmt"];
+    // ignore any parsing at first and just return a reasonable set of values.
+    auto rows = executor.scan(store, "table_a", 0, 100);
+    std::string result;
+    for (const auto &s : rows) {
+      result += s + "\n";
+    }
+    reply.set_status(0);
+    reply.set_result(result);
+  } else if (query[0].contains("InsertStmt")) {
+    auto stmt = query[0]["InsertStmt"];
+    // we assume that they're all for the same table, and the first value is an
+    // integer key.
+    auto rows = stmt["selectStmt"]["SelectStmt"]["valuesLists"];
+    std::vector<QueryExecutor::Write> rows_contents;
+    for (auto &row : rows) {
+      Write row_tuple = std::make_tuple(
+          row[0]["A_Const"]["val"]["Integer"]["ival"], 0, row.dump());
+      rows_contents.push_back(row_tuple);
+    }
+    executor.insert(store, "table_a", rows_contents);
+    reply.set_status(0);
+    reply.set_result("Inserted");
+  } else {
+    reply.set_status(-1);
+    reply.set_result("Unsupported query type");
+  }
+
+  pg_parse_tree_json_free(tree_json);
+  pg_query_parse_finish(ctx);
+  pg_query_free_parse_result(result);
+  transport->SendMessage(this, remote, reply);
+  return;
 }
-
-// void
-// Server::HandleMessage(const TransportAddress &remote,
-//                       const string &type, const string &data)
-// {
-//     GetMessage get;
-//     PutMessage put;
-    
-//     if (type == get.GetTypeName()) {
-//         get.ParseFromString(data);
-//         HandleGet(remote, get);
-//     } else if (type == put.GetTypeName()) {
-//         put.ParseFromString(data);
-//         HandlePut(remote, put);
-//     } else {
-//         Panic("Received unexpected message type in OR proto: %s",
-//               type.c_str());
-//     }
-// }
-
-// void
-// Server::HandleGet(const TransportAddress &remote,
-//                   const GetMessage &msg)
-// {
-//     int status;
-//     string value;
-    
-//     status = store.Get(msg.clientid(), msg.key(), value);
-
-//     GetReplyMessage reply;
-//     reply.set_status(status);
-//     reply.set_value(value);
-    
-//     transport->SendMessage(this, remote, reply);
-// }
-
-// void
-// Server::HandlePut(const TransportAddress &remote,
-//                   const PutMessage &msg)
-// {
-//     int status = store.Put(msg.clientid(), msg.key(), msg.value());
-//     PutReplyMessage reply;
-//     reply.set_status(status);
-    
-//     transport->SendMessage(this, remote, reply);
-// }
-
-// void
-// Server::Load(const string &key, const string &value, Timestamp timestamp)
-// {
-//     store.Load(key, value);
-// }
-
-} // namespace toystore
+}  // namespace toystore

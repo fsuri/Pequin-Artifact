@@ -32,36 +32,39 @@
 #define _TOY_SERVER_H_
 
 #include "lib/assert.h"
+#include "lib/configuration.h"
 #include "lib/message.h"
 #include "lib/udptransport.h"
-#include "lib/configuration.h"
+#include "store/common/backend/versionstore_safe.h"
 #include "store/server.h"
+#include "store/toystore/executor/query_executor.h"
 
 namespace toystore {
 
 class Server : TransportReceiver, public ::Server {
-private:
-    // Underlying single node transactional key-value store.
-    Store store;
+ private:
+  // Backing store
+  VersionedKVStore store;
 
-    // Configuration of replicas.
-    transport::Configuration configuration;
+  // Executor on the store
+  QueryExecutor executor;
 
-    // Index of 'this' replica, and handle to transport layer.
-    Transport *transport;
+  // Configuration of replicas.
+  transport::Configuration configuration;
 
-public:
-    Server(const transport::Configuration &configuration, int groupIdx, int myIdx,
-           Transport *transport);
-    ~Server();
+  // Index of 'this' replica, and handle to transport layer.
+  Transport *transport;
 
-    virtual void ReceiveMessage(const TransportAddress &remote,
-                        const std::string &type, const std::string &data,
-                        void *meta_data) override;
+ public:
+  Server(const transport::Configuration &configuration, int groupIdx, int myIdx,
+         Transport *transport);
+  ~Server();
 
+  virtual void ReceiveMessage(const TransportAddress &remote,
+                              const std::string &type, const std::string &data,
+                              void *meta_data) override;
 };
 
-
-} // namespace toystore
+}  // namespace toystore
 
 #endif /* _TOY_SERVER_H_ */
