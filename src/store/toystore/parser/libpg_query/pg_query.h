@@ -45,6 +45,8 @@ extern "C" {
 #endif
 
 void print_pg_parse_tree(List* node);
+char* pg_parse_tree_json(List* tree);
+void pg_parse_tree_json_free(char* tree_json);
 void* pg_query_parse_init();
 void pg_query_parse_finish(void* ctx);
 PgQueryNormalizeResult pg_query_normalize(const char* input);

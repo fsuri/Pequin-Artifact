@@ -100,6 +100,15 @@ void print_pg_parse_tree(List* tree) {
   pfree(tree_json);
 }
 
+char* pg_parse_tree_json(List* tree) {
+	char* tree_json = pg_query_nodes_to_json(tree);
+	return tree_json;
+}
+
+void pg_parse_tree_json_free(char* tree_json) {
+	pfree(tree_json);
+}
+
 // This should be called after pg_query_parse
 void pg_query_parse_finish(void* ctx) {
   pg_query_exit_memory_context((MemoryContext)ctx);
