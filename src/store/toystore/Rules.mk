@@ -8,6 +8,6 @@ OBJS-toy-client := $(LIB-message) $(LIB-udptransport) $(LIB-request) $(LIB-store
 									$(o)toy-proto.o $(o)client.o 
 
 LIB-toy-store := $(LIB-message) $(LIB-udptransport) $(LIB-request) \
-									$(LIB-store-common) $(LIB-store-backend) \
+									$(LIB-store-common) $(LIB-store-backend) $(LIB-toystore-executor) \
 									$(o)toy-proto.o $(o)server.o
 
