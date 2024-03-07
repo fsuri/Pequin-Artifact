@@ -204,7 +204,6 @@ bool Server::CheckReadPred(const Timestamp &txn_ts, const proto::ReadPredicate &
     TableWrite &txn_table_write = txn->table_writes()[pred.table_name()];
     //Go to this Txns TableWrite for this table
     for(auto &row: txn_table_write.rows()){
-      //TODO: FIXME: set write_set_idx in sql_interpreter
       UW_ASSERT(txn->write_set().size() > row.write_set_idx());
       const std::string &write_key = txn->write_set()[row.write_set_idx()].key();
 
@@ -259,11 +258,37 @@ bool Server::CheckTableWrite(const Timestamp &txn_ts, RowUpdates &row, const std
   if(!has_preds) return true;
   auto &curr_table_preds = tp->second;
 
-     //TODO: Check against all read preds with read.TS >= write.TS (and write.TS + grace > read.TableVersion)
-      upper_bound
+  //Check if there are any prepared/committed Read TX with higher TS that this write could be in conflict with
+  for(auto itr = curr_table_preds.upper_bound(txn_ts); itr != curr_table_preds.end(); ++itr){  //Check against all read preds (on this table) with read.TS >= write.TS
+    auto &[txn, commit_or_prepare] = itr->second;
+
+  //TODO: check if txn read set already has this write key (, and with a higher version). If so, skip
+        //NOTE: checking just for key presence is enough! normal CC check will already cover the higher version part.
+    if(std::find(txn_read_set.begin(), txn_read_set.end(), [write_key](const ReadMessage &read){return read.key()==write_key()}) != txn_read_set.end()){
+            continue; //skip eval this key. It's already in our read set (or dynamically active read set)
+      }
+
+    //Loop through all the query preds
+  
+      //only check if this write is still relevant to the Reader. Note: This case should never happen, such writes should not be able to be admitted
+      if(txn_ts.getTimestamp() + clock_skew_grace < pred.table_version().timestamp()){
+        Panic("write should never be admitted"); 
+        //NOTE: Not quite true locally. This replica might not have seen a TableVersion high enough to cause this TX to be rejected; meanwhile, the read might have read the TableVersion elsewhere
+        //-- but as a whole, a quorum of replicas should be rejecting this tx.
+        continue;
+      } 
+
+      //For each pred, insantiate all, and evaluate.
 
 
-  tp.release();
+  
+
+  }
+    
+      
+
+
+  
    
 
     

@@ -2171,7 +2171,7 @@ void IndexScanExecutor::UpdatePredicate(
   // Currently a hack that prevent memory leak we should eventually make prediate_ a unique_ptr
   new_predicate_.reset(new_predicate);
   predicate_ = new_predicate;
-
+  
   std::cerr << "new pred: " << new_predicate->GetInfo() << std::endl;
 
 

@@ -58,16 +58,16 @@ public:
 
   void dispatch(std::function<void*()> f, std::function<void(void*)> cb, event_base* libeventBase);
   void dispatch_local(std::function<void*()> f, std::function<void(void*)> cb);
-  void detatch(std::function<void*()> f);
-  void detatch_ptr(std::function<void*()> *f);
-  void detatch_main(std::function<void*()> f);
+  void detach(std::function<void*()> f);
+  void detach_ptr(std::function<void*()> *f);
+  void detach_main(std::function<void*()> f);
   void issueCallback(std::function<void(void*)> cb, void* arg, event_base* libeventBase);
   void issueMainThreadCallback(std::function<void(void*)> cb, void* arg);
 
   //Indexed threadpool
   void add_n_indexed(int num_threads); 
   void dispatch_indexed(uint64_t id, std::function<void *()> f, std::function<void(void *)> cb, event_base *libeventBase);
-  void detatch_indexed(uint64_t id, std::function<void *()> f); 
+  void detach_indexed(uint64_t id, std::function<void *()> f); 
 
 private:
 
@@ -103,7 +103,8 @@ private:
 
   //For indexed threadpool
   std::atomic_uint64_t total_indexed_workers;
-  typedef tbb::concurrent_hash_map<uint64_t, moodycamel::BlockingConcurrentQueue<std::pair<std::function<void*()>, EventInfo*>>> IndexWorkerMap;
+  //typedef tbb::concurrent_hash_map<uint64_t, moodycamel::BlockingConcurrentQueue<std::pair<std::function<void*()>, EventInfo*>>> IndexWorkerMap;
+  typedef tbb::concurrent_unordered_map<uint64_t, moodycamel::BlockingConcurrentQueue<std::pair<std::function<void*()>, EventInfo*>>> IndexWorkerMap;
   IndexWorkerMap indexed_worker_thread_request_list;
 
 };

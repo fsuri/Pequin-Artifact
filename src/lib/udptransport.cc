@@ -998,13 +998,13 @@ void UDPTransport::DispatchTP_local(std::function<void*()> f, std::function<void
   tp.dispatch_local(std::move(f), std::move(cb));
 }
 void UDPTransport::DispatchTP_noCB(std::function<void*()> f) {
-  tp.detatch(std::move(f));
+  tp.detach(std::move(f));
 }
 void UDPTransport::DispatchTP_noCB_ptr(std::function<void*()> *f) {
-  tp.detatch_ptr(f);
+  tp.detach_ptr(f);
 }
 void UDPTransport::DispatchTP_main(std::function<void*()> f) {
-  tp.detatch_main(std::move(f));
+  tp.detach_main(std::move(f));
 }
 void UDPTransport::IssueCB(std::function<void(void*)> cb, void* arg){
   tp.issueCallback(std::move(cb), arg, libeventBase);
@@ -1019,7 +1019,7 @@ void UDPTransport::DispatchIndexedTP(uint64_t id, std::function<void *()> f, std
   tp.dispatch_indexed(id, std::move(f), std::move(cb), libeventBase);
 }
 void UDPTransport::DispatchIndexedTP_noCB(uint64_t id, std::function<void *()> f){
-  tp.detatch_indexed(id, std::move(f));
+  tp.detach_indexed(id, std::move(f));
 }
 
 

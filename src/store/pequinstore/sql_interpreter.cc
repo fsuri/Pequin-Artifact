@@ -417,6 +417,7 @@ void SQLTransformer::TransformInsert(size_t pos, std::string_view &write_stateme
 
         RowUpdates *row_update = table_write->add_rows();
         *row_update->mutable_column_values() = {value_list.begin(), value_list.end()};
+        row_update->set_write_set_idx(txn->write_set_size()-1);
         // for(auto &[col_name, col_idx]: col_registry_ptr->col_name_index){
         //     std::string *col_val = row_update->add_column_values();
         //     *col_val = std::move(value_list[col_idx]);
@@ -617,6 +618,7 @@ void SQLTransformer::TransformUpdate(size_t pos, std::string_view &write_stateme
             write->mutable_rowupdates()->set_row_idx(table_write->rows().size()); //set row_idx for proof reference
             
             RowUpdates *row_update = AddTableWriteRow(table_write, col_registry); //row_update->mutable_column_values()->Resize(col_registry.col_names.size(), ""); Resize seems to not work for strings
+            row_update->set_write_set_idx(txn->write_set_size()-1);
             //std::cerr << "Row size: " <<  row_update->mutable_column_values()->size() << std::endl;
           
             //TODO: Do this for UPDATE and DELETE too. //TODO: For Delete: Set all columns. Set values only for the columns we care about.
@@ -786,6 +788,7 @@ void SQLTransformer::TransformDelete(size_t pos, std::string_view &write_stateme
         write->mutable_rowupdates()->set_row_idx(table_write->rows().size()); //set row_idx for proof reference
 
         RowUpdates *row_update = AddTableWriteRow(table_write, col_registry);
+        row_update->set_write_set_idx(txn->write_set_size()-1);
         row_update->set_deletion(true);
 
         std::string enc_key = EncodeTableRow(table_name, p_col_values);
@@ -861,6 +864,7 @@ void SQLTransformer::TransformDelete(size_t pos, std::string_view &write_stateme
             WriteMessage *write = txn->add_write_set();
             write->mutable_rowupdates()->set_row_idx(table_write->rows().size()); //set row_idx for proof reference
             RowUpdates *row_update = AddTableWriteRow(table_write, *col_registry_ptr);
+            row_update->set_write_set_idx(txn->write_set_size()-1);
             row_update->set_deletion(true);
 
             std::vector<const std::string*> primary_key_column_values;
