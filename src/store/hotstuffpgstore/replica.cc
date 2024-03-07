@@ -280,10 +280,17 @@ void Replica::executeSlots() {
         // Shir: make some order here
         // auto msg= unpackMsg(packedMsg.type(), packedMsg.msg());
         // Debug("Id is: %d   txn id:   %d ",msg.client_id(),msg.txn_seq_num());
-        Debug("Shirrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr");
-        std::hash<std::string> hasher;  
-        auto id = hasher(packedMsg.type())%8;
-        std::cerr<<"Id for dispatching is:     "<<id<<"\n";
+        // std::hash<std::string> hasher;  
+        // auto id = hasher(packedMsg.type())%8;
+
+
+        // auto id = getTxnId(packedMsg.type(), packedMsg.msg());
+        auto res = deserializeMsgAndObtainID(packedMsg.type(), packedMsg.msg());
+        ::google::protobuf::Message* deserialized_msg = res.first;
+        uint64_t thread_id = res.second % 8;
+        std::cerr<<"Id for dispatching is:     "<<thread_id<<"\n";
+
+
         if(asyncServer) {
           // Debug("Shir: async server");
 
@@ -317,8 +324,8 @@ void Replica::executeSlots() {
             });
             return (void*) true;
           };
-          // transport->DispatchIndexedTP_noCB(id,f);
-          transport->DispatchTP_noCB(f);
+          transport->DispatchIndexedTP_noCB(thread_id,f);
+          // transport->DispatchTP_noCB(f);
 
         } else {
           // Shir: server is synchronous (current situation)
@@ -408,23 +415,48 @@ void Replica::delegateEbatch(std::vector<::google::protobuf::Message*> EpendingB
 
 }
 
-
-// ::hotstuffpgstore::proto::Message* Replica::unpackMsg(const string& type, const string& msg){
+// uint64_t Replica::getTxnId(const string& type, const string& msg){
 //   proto::SQL_RPC sql_rpc;
 //   proto::TryCommit try_commit;
 //   proto::UserAbort user_abort;
+//   uint64_t txnid =0 ;
 
 //   if (type == sql_rpc.GetTypeName()) {
 //     sql_rpc.ParseFromString(msg);
-//     return sql_rpc;
+//     txnid = sql_rpc.client_id() + sql_rpc.txn_seq_num();
 //   } else if (type == try_commit.GetTypeName()) {
 //     try_commit.ParseFromString(msg);
-//     return try_commit;
+//     txnid = try_commit.client_id() + try_commit.txn_seq_num();
 //   } else if (type == user_abort.GetTypeName()) {
 //     user_abort.ParseFromString(msg);
-//     return user_abort;
+//     txnid = user_abort.client_id() + user_abort.txn_seq_num();
 //   }
-//   return nullptr;
+//   return txnid%8;
 // }
+
+
+
+std::pair<::google::protobuf::Message*,uint64_t> Replica::deserializeMsgAndObtainID(const string& type, const string& msg){
+  proto::SQL_RPC sql_rpc;
+  proto::TryCommit try_commit;
+  proto::UserAbort user_abort;
+  uint64_t txnid =0 ;
+  ::google::protobuf::Message* reply=nullptr;
+
+  if (type == sql_rpc.GetTypeName()) {
+    sql_rpc.ParseFromString(msg);
+    txnid = sql_rpc.client_id() + sql_rpc.txn_seq_num();
+    reply=&sql_rpc;
+  } else if (type == try_commit.GetTypeName()) {
+    try_commit.ParseFromString(msg);
+    txnid = try_commit.client_id() + try_commit.txn_seq_num();
+    reply=&try_commit;
+  } else if (type == user_abort.GetTypeName()) {
+    user_abort.ParseFromString(msg);
+    txnid = user_abort.client_id() + user_abort.txn_seq_num();
+    reply=&user_abort;
+  }
+  return std::make_pair(reply, txnid); 
+}
 
 }  // namespace hotstuffpgstore

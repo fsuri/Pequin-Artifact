@@ -134,8 +134,8 @@ public:
 
   Stats* stats;
 
-  // Shir: remove if this doesn't work out 
-  // ::hotstuffpgstore::proto::Message* unpackMsg(const string& type, const string& msg);
+  std::pair<::google::protobuf::Message*,uint64_t> deserializeMsgAndObtainID(const string& type, const string& msg);
+  // uint64_t getTxnId(const string& type, const string& msg);
 
 };
 

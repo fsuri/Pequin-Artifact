@@ -676,13 +676,13 @@ void TCPTransport::DispatchTP_local(std::function<void*()> f, std::function<void
 }
 
 void TCPTransport::DispatchTP_noCB(std::function<void*()> f) {
-  tp.detatch(std::move(f));
+  tp.detach(std::move(f));
 }
 void TCPTransport::DispatchTP_noCB_ptr(std::function<void*()> *f) {
-  tp.detatch_ptr(f);
+  tp.detach_ptr(f);
 }
 void TCPTransport::DispatchTP_main(std::function<void*()> f) {
-  tp.detatch_main(std::move(f));
+  tp.detach_main(std::move(f));
 }
 void TCPTransport::IssueCB(std::function<void(void*)> cb, void* arg){
   //std::lock_guard<std::mutex> lck(mtx);
@@ -698,7 +698,7 @@ void TCPTransport::DispatchIndexedTP(uint64_t id, std::function<void *()> f, std
   tp.dispatch_indexed(id, std::move(f), std::move(cb), libeventBase);
 }
 void TCPTransport::DispatchIndexedTP_noCB(uint64_t id, std::function<void *()> f){
-  tp.detatch_indexed(id, std::move(f));
+  tp.detach_indexed(id, std::move(f));
 }
 
 

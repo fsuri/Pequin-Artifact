@@ -160,10 +160,10 @@ auto seq=0;
 std::string RWSQLTransaction::GenerateStatement(const std::string &table_name, int &left_bound, int &right_bound){
   // // if (seq==0){
   // //   seq++;
-  //   return  fmt::format("UPDATE {0} SET value = value + 1 WHERE key = 1;", table_name);
+    return  fmt::format("UPDATE {0} SET value = value + 1 WHERE key = 1;", table_name);
   // // }else{
   // //   seq++;
-  return fmt::format("SELECT * FROM {0};", table_name);
+  // return fmt::format("SELECT * FROM {0};", table_name);
   // // }
 
   if(readOnly){
