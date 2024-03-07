@@ -474,6 +474,30 @@ struct QueryReadSetMgr {
             }
         }
 
+        //Call this once per executor
+        void AddPredicate(const std::string &table_name, std::string where_clause){
+
+            proto::ReadPredicate *new_pred = read_set->add_read_predicates();
+            new_pred->set_table_name(table_name);
+
+            //TODO: Replace pred values with placeholders.
+            new_pred->set_where_clause(std::move(where_clause));
+           
+
+        }
+        void SetPredicateTableVersion(const TimestampMessage &table_version){
+            //Set TableVersion
+            int last_idx = read_set->read_predicates_size() - 1;
+            proto::ReadPredicate &current_pred = (*read_set->mutable_read_predicates())[last_idx]; //get last pred
+            *current_pred.mutable_table_version() = table_version;
+        }
+
+        //Call this every time the executor runs. Fill in new col values.
+        void ExtendPredicate(){
+            //TODO: replace values in where clause with vector... //TODO: do this by default already!!
+            //add col_names/versions
+        }
+
       proto::ReadSet *read_set;
       uint64_t groupIdx;
       bool useOptimisticId;

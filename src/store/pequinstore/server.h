@@ -443,6 +443,10 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
     typedef tbb::concurrent_hash_map<std::string, MissingTxns> queryMissingTxnsMap;  //std::unordered_set<std::string>
     queryMissingTxnsMap queryMissingTxns;  //List of Transactions missing for a Query to materialize snapshot.
 
+    void FindTableVersion2(const std::string &key_name, const Timestamp &ts, 
+                              bool add_to_read_set, QueryReadSetMgr *readSetMgr, 
+                              bool add_to_snapshot, SnapshotManager *snapshotMgr,
+                              bool materialize_from_snapshot, ::google::protobuf::Map<std::string, proto::ReplicaList> *ss_txns);
     void FindTableVersion(const std::string &key_name, const Timestamp &ts, bool add_to_read_set, QueryReadSetMgr *readSetMgr, bool add_to_snapshot, SnapshotManager *snapshotMgr);
     const proto::Transaction* FindPreparedVersion(const std::string &key, const Timestamp &ts, bool committed_exists, std::pair<Timestamp, Server::Value> const &tsVal);
 

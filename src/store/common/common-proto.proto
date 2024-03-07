@@ -40,7 +40,7 @@ message TransactionMessage {
 
 //Table Writes.  -- Alternatively -- add optional RowUpdates field
 message RowUpdates {
-    //Version 1
+    //Version 1 (DEPRECATED)
     map<string, bytes> attribute_writes = 1; //map from attribute name to new value (in bytes for general encoding) //TODO: Maybe re-factor this to hold column id instead of name -- or to be in order
     optional TimestampMessage readtime = 2; //version of the row that was read (optional: for ReadModWrites) in order to fetch remaining row values (in case an update only updates some columns)
     
@@ -48,11 +48,13 @@ message RowUpdates {
     optional bool deletion = 3;
     repeated bytes column_values = 4;
 
-    optional int32 row_idx = 5; //Idx of the RowUpdate (used to find correct row update from WriteMessage for proof)
+    optional int32 row_idx = 5; //Idx of the RowUpdate (stored by writeset) (used to find correct row update from WriteMessage for proof)
 
+    optional int32 write_set_idx = 6; //Idx of the write set entry == encoded key (stored by TableWrites)
 }
+
 message TableWrite {
-    //Version 1
+    //Version 1 (DEPRECATED)
     map<string, RowUpdates> row_updates = 1; //map from row-name to all attribute writes
 
     //Version 2: Use only this:

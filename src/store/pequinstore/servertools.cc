@@ -450,6 +450,108 @@ void Server::ManageDispatchSupplyTx(const TransportAddress &remote, const std::s
 
 //////////////////////////////////////////////////////// Protocol Helper Functions
 
+//TODO: New version:
+// Add TableVersion to predicate, not to read set.
+// Snapshot stays the same
+// materialize from snapshot!
+
+void Server::FindTableVersion2(const std::string &key_name, const Timestamp &ts, 
+                              bool add_to_read_set, QueryReadSetMgr *readSetMgr, 
+                              bool add_to_snapshot, SnapshotManager *snapshotMgr,
+                              bool materialize_from_snapshot, ::google::protobuf::Map<std::string, proto::ReplicaList> *ss_txns){
+  
+  Debug("FindTableVersion for key %s. Called from TS[%lu:%lu]. AddToRead? %d. AddToSnap? %d", key_name.c_str(), ts.getTimestamp(), ts.getID(), add_to_read_set, add_to_snapshot);
+
+  //Read committed
+  std::pair<Timestamp, Server::Value> tsVal;
+
+  //Find the latest committed version (that, if materializing, is in the snapshot) 
+  bool committed_exists = store.get(key_name, ts, tsVal);
+  if(!committed_exists){ //skip getting col version if the col is not an indexed one!!
+    Panic("NOTE: All Tables and Indexed Columns must have a genesis version. Key in question: %s", key_name.c_str());  
+    //Note: CreateTable() writes the genesis version for table and primary index. CreateIndex writes genesis version for Col Versions.
+  }
+  if(materialize_from_snapshot){
+    //if we are materializing from snapshot, then the table version we are using should be the one in the snapshot, not the latest current.
+    while(committed_exists){ //not yet found in ss
+      const proto::Transaction &txn = tsVal.second.proof->txn();
+      UW_ASSERT(txn.has_txndigest());
+      if(ss_txns->count(txn.txndigest())){
+        break; //found
+      }
+      //find next older version
+      committed_exists = store.get(key_name, tsVal.first, tsVal);
+
+    }
+  }
+
+  //NOTE: Don't really need to check prepareds: Since TableVersion is just used to bound the number of comparisons...
+
+  //Find the latest prepared version that is greater than the committed version (that, if materializing, is in the snapshot) 
+  //NOTE: If we want to use this, then we need to keep the prepared dependency also.
+        //Why? Because if this TableVersion aborts, then it cannot be guaranteed to enforce the monotonicity requirement. Thus it is not safe to bound at this version.
+  const proto::Transaction *mostRecentPrepared = nullptr;
+
+  //Read prepared
+  if(occType == MVTSO && params.maxDepDepth > -2){    //TODO: possibly set RTS too here. Note: currently being set for whole Query ReadSet after exec. 
+      mostRecentPrepared = FindPreparedVersion(key_name, ts, committed_exists, tsVal);
+  }
+
+  if(materialize_from_snapshot){
+    //if we are materializing from snapshot, then the table version we are using should be the one in the snapshot, not the latest current.
+    //TODO: Can definitely do this more efficiently (currently each loop here, loops through all preparedWrites -- though this is small)
+    while(mostRecentPrepared){ //not yet found in ss
+      UW_ASSERT(mostRecentPrepared->has_txndigest());
+      if(ss_txns->count(mostRecentPrepared->txndigest())){
+        break; //found
+      }
+      //find next older version
+      mostRecentPrepared = FindPreparedVersion(key_name, Timestamp(mostRecentPrepared->timestamp()), committed_exists, tsVal);
+
+    }
+  }
+
+
+  //Once we have found the latest version to read from: 
+  // Add to read pred set / snapshot
+
+  if(add_to_read_set){ //Creating ReadSet
+    UW_ASSERT(readSetMgr);
+
+    if(mostRecentPrepared != nullptr){ //Read prepared
+      readSetMgr->SetPredicateTableVersion(mostRecentPrepared->timestamp()); //Add to current pred
+      readSetMgr->AddToDepSet(TransactionDigest(*mostRecentPrepared, params.hashDigest), mostRecentPrepared->timestamp());
+    
+    }
+    else{ //Read committed
+      TimestampMessage tsm;
+      tsVal.first.serialize(&tsm);
+      readSetMgr->SetPredicateTableVersion(tsm); //Add to current pred
+  
+    }
+  }
+
+ if(add_to_snapshot){ //Creating Snapshot
+    UW_ASSERT(snapshotMgr);
+
+    //Use txnDigest from cache
+    if(mostRecentPrepared != nullptr){ //Read prepared
+      UW_ASSERT(mostRecentPrepared->has_txndigest());
+      snapshotMgr->AddToLocalSnapshot(mostRecentPrepared->txndigest(), mostRecentPrepared, false);
+    }
+    else{ //Read committed
+      const proto::Transaction &txn = tsVal.second.proof->txn();
+      UW_ASSERT(txn.has_txndigest());
+      snapshotMgr->AddToLocalSnapshot(txn.txndigest(), &txn, true);
+    }
+  }
+
+  return;
+
+
+}
+
+
 //TODO: FIXME: Add snapshot set as input, and read only the version supplied in the snapshot set (instead of the latest)
 // google::protobuf::Map<std::string, pequinstore::proto::ReplicaList> *snapshot_set
 void Server::FindTableVersion(const std::string &key_name, const Timestamp &ts, bool add_to_read_set, QueryReadSetMgr *readSetMgr, bool add_to_snapshot, SnapshotManager *snapshotMgr){

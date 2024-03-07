@@ -1,0 +1,380 @@
+/***********************************************************************
+ *
+ * Copyright 2021 Florian Suri-Payer <fsp@cs.cornell.edu>
+ *                Matthew Burke <matthelb@cs.cornell.edu>
+ *
+ * Permission is hereby granted, free of charge, to any person
+ * obtaining a copy of this software and associated documentation
+ * files (the "Software"), to deal in the Software without
+ * restriction, including without limitation the rights to use, copy,
+ * modify, merge, publish, distribute, sublicense, and/or sell copies
+ * of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ * 
+ * The above copyright notice and this permission notice shall be
+ * included in all copies or substantial portions of the Software.
+ * 
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+ * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS
+ * BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
+ * ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+ * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ *
+ **********************************************************************/
+
+
+#include <cryptopp/sha.h>
+#include <cryptopp/blake2.h>
+
+
+#include "store/pequinstore/server.h"
+
+#include <bitset>
+#include <queue>
+#include <ctime>
+#include <chrono>
+#include <sys/time.h>
+#include <sstream>
+#include <list>
+#include <utility>
+
+#include "lib/assert.h"
+#include "lib/tcptransport.h"
+#include "store/common/timestamp.h"
+#include "store/common/transaction.h"
+#include "store/pequinstore/common.h"
+#include "store/pequinstore/phase1validator.h"
+#include "store/pequinstore/localbatchsigner.h"
+#include "store/pequinstore/sharedbatchsigner.h"
+#include "store/pequinstore/basicverifier.h"
+#include "store/pequinstore/localbatchverifier.h"
+#include "store/pequinstore/sharedbatchverifier.h"
+#include "lib/batched_sigs.h"
+#include <valgrind/memcheck.h>
+
+namespace pequinstore {
+
+// The Predicate that we store locally.
+struct ReadPredicate {
+  std::string table_name;
+  Timestamp table_version;
+  //TODO: Start out without col version. Only add as potential refinement/optimization (reduce number of comparisons..)
+  std::vector<std::string> col_names;
+  std::vector<Timestamp> col_versions;
+  std::string where_clause;   //TODO: If we ever move to delta encoding for TableWrites, then we must create "placeholder values for remaining cols of tuple when evaluating"
+  
+  //For nested join: We might not want to store 100 predicates if there are 100 right loop iterations. => store where_clause with some placeholders {} (just use fmt::format to fill in)
+  //std::vector<std::vector<<std::string> fill_values (e.g. 5) - one vector per loop iteration, and in each loop iteration, one entry per col that needs replacement.
+  
+
+  //Some reference to owner TX? Maybe TS sufficces?
+  Timestamp txn_ts; //Might not even be needed here if we store a map: name -> map<TS, pred> 
+  // proto::Transaction *txn;
+  // std::string txn_digest;
+        
+  bool commit_or_prepare; //1 if commit, 0 if prepare
+};
+
+//typedef tbb::concurrent_hash_map<std::string, std::map<Timestamp, ReadPredicate>> TablePredicateMap; //table_name => map(TS, Read Pred)   //TODO: Use same map for column versions
+typedef tbb::concurrent_hash_map<std::string, std::map<Timestamp, std::pair<proto::Transaction*, bool>> TablePredicateMap; //table_name => map(TS, <Tx*, commit_or_prepare>)   //TODO: Use same map for column versions
+TablePredicateMap tablePredicates;
+
+typedef tbb::concurrent_hash_map<std::string, std::map<Timestamp, std::pair<proto::Transaction*, bool>> TableWriteMap; //table_name => map(TS, <Tx*, commit_or_prepare>)   //TODO: Use same map for column versions
+TableWriteMap tableWrites;
+
+//TODO: Should we copy the preds? Or have a reference to the pred of a Tx? (need to be mindful to only erase Tx ref after)
+//Or the TX as a whole? (then have to loop through all preds.. -> though should be few)
+//Where should we store "on demand Read set?"
+
+
+//TODO: Remove Table/Col Versions from Read and Write Set
+// Read set => move to predicate set
+                //TODO: Once we have predicate up and running as part of TX => Cache them too. (During CC merge them (or just loop through all of them..))
+                //How do we store as part of TX? Need to reply with Predicates too..
+                //If we cache: Different replica may have different predicates (for nested joins) (Note: for flat queries will always be the same)
+                              // Include hash, and vote abort if different form hash. (Note: With Snapshot mode all will have same pred (bar committed overrides of materialized ss).)
+
+// Write set => just make implicit? (TODO: Also want to mark which col versions are being updated.)
+                //TODO: Extend TableWrite with set of columns touched + mark each row as (insert/update/delete)
+
+//TODO: Technically need to verify whether client includes all Col Versions that it should. To do so, must either include Query, or check that only those cols are being updated
+      //This is much easier to enforce if TableWrites only include deltas for the updated cols.
+
+//Where should it be stored in Server? in the kv-store? or in it's own map.
+
+static uint32_t clock_skew_grace = 0; //timeDelta
+bool Server::CheckMonotonicTableColVersions(const std::string &name, const proto::Transaction &txn) {
+  //TODO: Get last TS
+  TableWriteMap::const_accessor tw;
+  if(!tableWrites.find(tw, name)) return true;
+  if(tw->second.rbegin() == tw->second.rend()) return true;
+  TimestampedMessage highTS = tw->second.rbegin()->first; // == last TX TS
+  
+  //NOTE: only comparing on the real time component currently.
+  if(txn.timestamp().timestamp() + clock_skew_grace <= highTS.timestamp()){
+    Panic("Non monotonic Table/Col Write. Table/Col name: %s. txnTS: %lx, highTS: %lx, grace: %lx", name.c_str(), txn.timestamp().timestamp(), highTS.timestamp(), clock_skew_grace);
+    return false;
+  } 
+  return true;
+}
+
+//NOTE: This must be called before waiting for dependencies. The pred check might dynamically add some deps...
+//TODO: don't add these deps to txn. add them somewhere else to check...? Then it's tricky how to wake up. 
+//Easiest is to add them to the TXN. But then the TXN doesn't fulfill Hash anymore...
+    //Need to store them to some extra merged_set, and include them on demand for dep checks (and wakeup dep checks)
+proto::ConcurrencyControl::Result Server::CheckPredicates(const proto::Transaction &txn, const ReadSet &txn_read_set){ 
+  //TODO: Support also passing via Hashing? (Either find ReadPredicates on demand here, or in advance)
+        //Should be enough to do it on demand here, since we don't need them to lock if we add them to the read set?
+    const Timestamp txn_ts(txn.timestamp());
+    std::set<std::string> dynamically_active_dependencies; //TODO: FIXME: PASS THESE UP. WE NEED TO CHECK THAT THEY FINISH.
+     //optional todo?  Optimization: if a pred causes us to add it, but for this pred we still see a committed version that doesn't conflict (and no other conflicting inbetween), 
+                                    //we can remove the dep again. (Con: redundant evals)
+
+    //For all Read predicates
+    for(auto &query_md : txn.query_set()){
+      const proto::QueryGroupMeta &group_meta = query_md.group_meta()[groupIdx]; //only need to look at the pred for partitions this group is responsible for (Note: we don't support partitions currently)
+
+      const proto::ReadSet &read_set = group_meta.query_read_set();
+      //TODO: If cached: get read predicates.
+      for(auto &pred: read_set.read_predicates()){
+           // => Check whether they are invalidated by any recent write to the Table
+          bool conflict = !CheckReadPred(txn_ts, pred, txn_read_set, dynamically_active_dependencies); //0 = no conflict, 1 = conflict with commit, 2 = conflict with prepared.
+          if(conflict){
+            return proto::ConcurrencyControl::ABSTAIN; 
+            //TODO: Return ABORT if conflict is with committed (in this case, must pass a CommitProof too) (Note: we don't currently support verification of these at client)
+          } 
+      }
+    }
+   
+     
+    //For all (Table) Writes 
+    for(auto &[table_name, table_write]: txn.table_writes()){
+      for(auto &row: table_write.rows()){
+           // => Check whether they are invalidated by any recently prepared/committed read predicate on the Table
+          bool conflict = !CheckTableWrite(txn_ts, row, table_name); //0 = no conflict, 1 = conflict with commit, 2 = conflict with prepared.
+          if(conflict){
+            return proto::ConcurrencyControl::ABSTAIN; 
+            //TODO: Return ABORT if conflict is with committed (in this case, must pass a CommitProof too) (Note: we don't currently support verification of these at client)
+          } 
+      }
+    }
+  
+    return proto::ConcurrencyControl::COMMIT;
+}
+
+
+
+bool Server::CheckReadPred(const Timestamp &txn_ts, const proto::ReadPredicate &pred, const ReadSet &txn_read_set, std::set<std::string> &dynamically_active_dependencies){
+  //TODO: Instead of looping and doing the same work for each instance:
+          //Create all instantiation preds.
+          //Then loop over all Tx (ONCE); for each TX, check the read set stuff.
+  std::vector<std::string> instantiated_preds;
+  for(auto &instance: pred.instantiations()){
+    instantiated_preds.push_back(pred.where_clause()); //TODO: FIXME: fill in all the {} entries... Seems like this is not straightforward with fmt::format() (requires all args at once)
+  } 
+
+  std::set<std::string> dynamically_active_keys; //this is local to each pred
+ 
+
+  //Currently checking all conflict types on TableVersion 
+  //TODO: Optimization  //Check TableVersion for INSERT conflicts && Check ColVersions (of the pred) for UPDATE/DELETE conflicts
+  TableWriteMap::const_accessor tw;
+  bool has_table = tableWrites.find(tw, pred.table_name());
+  if(!has_table) Panic("all tables must have a tableWrite entry.");
+  auto &curr_table_writes = tw->second;
+
+  Timestamp read_table_version(pred.table_version());
+
+  for(auto itr = curr_table_writes.lower_bound(txn_ts) - 1; itr != curr_table_writes.begin(); --itr){
+
+//for(auto itr = curr_table_writes.rbegin(); itr != curr_table_writes.rend(); ++itr){
+
+    Timestamp &curr_ts = itr->first;
+     //if(curr_ts > txn_ts) continue;
+   
+    //Bound how far we need to check by the READ Table/Col Version - grace. I.e. look at all writes s.t. read.TS >= write.TS write.TS > read.TableVersion - grace
+    if(curr_ts + clock_skew_grace < read_table_version) break;  //bound iterations until read table version
+
+    auto &[txn, commit_or_prepare] = itr->second;
+    UW_ASSERT(txn->has_txndigest());
+
+    TableWrite &txn_table_write = txn->table_writes()[pred.table_name()];
+    //Go to this Txns TableWrite for this table
+    for(auto &row: txn_table_write.rows()){
+      //TODO: FIXME: set write_set_idx in sql_interpreter
+      UW_ASSERT(txn->write_set().size() > row.write_set_idx());
+      const std::string &write_key = txn->write_set()[row.write_set_idx()].key();
+
+      if(dynamically_active_keys.count(write_key) || 
+          std::find(txn_read_set.begin(), txn_read_set.end(), [write_key](const ReadMessage &read){return read.key()==write_key()}) != txn_read_set.end()){
+            continue; //skip eval this key. It's already in our read set (or dynamically active read set)
+      }
+
+      bool conflict = false;
+      for(auto &pred_instance: instantiated_preds){
+         conflict = EvaluatePred(pred_instance, row);
+         if(conflict) return false; //TODO: RETURN ABORT/ABSTAIN
+      }
+
+      //add key to dynamic read set (and dynamic dependencies)
+      //Note: TODO: We have to wait for dynamic dependencies to commit. 
+      //Note: We do not need to check the dynamically active keys. If there *was* a conflict, then we would've already checked against a new Tx. This is purely to minimize evaluations.
+      dynamically_active_keys.insert(write_key);  
+      if(!commit_or_prepare) dynamically_active_dependencies.insert(txn->txndigest());
+    }
+    //Iterate through the RowUpdates
+      //check whether already in read set or bonus structure.
+  }
+  
+
+          //Simpler: Put both in a map, mark a flag (prep/commit), and either upgrade prepare to commit, or remove prepares again?
+        //Bound how far we need to check by the READ Table/Col Version - grace. I.e. look at all writes s.t. read.TS >= write.TS write.TS > read.TableVersion - grace
+
+
+            //Pairwise TX check
+                // - check whether that Tx produced a write that we should have read (i.e. fulfills read predicate). 
+                //     - If yes, abort
+                //         - Note: If the written row (primary key) is already part of read set (or we have a newer version for this rows primary key), don’t do anything
+                //     - If no, continue (includes deletion)
+                //         - If the primary key is not part of the read set already, add it to the read set (or some “bonus” structure) → this is to avoid aborting if there is older versions of the row that DO trigger the predicate
+                //             - If the write was prepared only (i.e. not committed), then add a dynamic dependency to it (dynamic Active Negative Read Set). Wait for this TX to commit/abort before deciding
+
+  tw.release();
+  return true;
+}
+
+//TODO: Call this each time we loop throug write set! => simply go find the row via the index. (that way we don't have to loop twice.)
+bool Server::CheckTableWrite(const Timestamp &txn_ts, RowUpdates &row, const std::string &table_name){
+  //TODO: When looping through TableWrite row => also want the idx in read set? (Currently write set has index of the belonging TableWrite row; but may want to store the opposite too.)
+
+  //Currently always checking against TableVersion
+  //TODO: optimization:  //TODO: Need to mark rows with write type?
+        //If INSERT:check against Table predicates && add to TableVersion
+        //If UPDATE/DELETE: check against respective col predicates && add to ColVersions. 
+  TablePredicateMap::const_accessor tp;
+  bool has_preds = tablePredicates.find(tp, table_name);
+  if(!has_preds) return true;
+  auto &curr_table_preds = tp->second;
+
+     //TODO: Check against all read preds with read.TS >= write.TS (and write.TS + grace > read.TableVersion)
+      upper_bound
+
+
+  tp.release();
+   
+
+    
+  // - for each written table/col version:
+  //         - Note: For an insert, this TX must be writing a new table version. For an update, it must be writing certain Col Versions:
+  //     - Check all stored read preds P such that: P.readTS - grace < write.TS and write.TS < P.origin.TS. For each such pred:
+  //         - Check whether (row.primaryKey, write.TS) is in pred.originTX.read-set (i.e. whether already active)
+  //         - If not: Check whether P(row) = true. If so, abort.
+
+  //Optimize: save dynamically active read set to avoid more evals? but then would need to store version also, to compare whether this current write is relevant or not.
+
+}
+
+//Note: We are assuming TS are unique to a TX here. Duplicates should already have been filtered out (it should not be possible that 2 TX with same TS commit)
+void Server::RecordReadPredicatesAndWrites(const proto::Transaction &txn, bool commit_or_prepare){
+   Timestamp ts(txn.timestamp()); //TODO: Pass in directly
+  //TODO: FIXME: Ensure that no new Txn can be admitted that should see these reads/writes.
+  //FIXME: Sanity check GC correctness. Currently just placeholder code.
+  
+
+    //Store a reference to the Read predicates (prepared/committed)
+
+    //Store a reference to the writes (simply write this Txn's Table/Col Versions) => find TXN via the proof / prepared reference
+
+
+    //TODO: When adding a new pred: Garbage collect preds older than some time (past grace)
+    //At that point, do not allow any reads with TableVersions that are below GC watermark
+   int gc_delta = 10000; //ms
+  Timestamp lowWatermark(timeServer.GetTime() - gc_delta);
+
+  std::string name; //Fill with Table/Col Name
+
+  TablePredicateMap::accessor tp;
+  tablePredicates.find(tp, name);
+  auto &preds = tp->second;
+  preds[ts] = std::make_pair<&txn, commit_or_prepare>; //Add new pred (or overwrite existing one)
+  //TODO: Erase everything below the GC watermark. 
+  // for (auto it = m.cbegin(); it != m.cend(); ){ // no "++"!
+  //   if (it->first < lowWatermark) m.erase(it++);
+  //   else break;
+  // }
+  
+  tp.release();
+
+   TableWriteMap::accessor tw;
+  tableWrites.find(tw, name);
+  auto &write = tw->second;
+  write[ts] = std::make_pair<&txn, commit_or_prepare>; //Add new write (or overwrite existing one)
+  //NOTE: Can't simply GC writes below the TS we are admitting. A pred that comes in might have seen an old table version, thus the writes need to be present
+          //We would have to abort TX that have preds with too low TableVersion (below lowWatermark) => then we can GC writes.
+  
+  // for (auto it = m.cbegin(); it != m.cend(); ){ // no "++"!
+  //   if (it->first < lowWatermark) m.erase(it++);
+  //   else break;
+  // }
+  
+  tw.release();
+
+}
+
+void Server::RecordTableWrites(const proto::Transaction &txn, bool commit_or_prepare){
+
+    //Store a reference to the Read predicates (prepared/committed)
+
+    //Store a reference to the writes (simply write this Txn's Table/Col Versions) => find TXN via the proof / prepared reference
+
+
+    //TODO: When adding a new pred: Garbage collect preds older than some time (past grace)
+    //At that point, do not allow any reads with TableVersions that are below GC watermark
+   int gc_delta = 10000; //ms
+  Timestamp lowWatermark(timeServer.GetTime() - gc_delta);
+
+  std::string name; //Fill with Table/Col Name
+
+ 
+}
+
+void Server::ClearPredicateAndWrites(const proto::Transaction &txn){
+  Timestamp ts(txn.timestamp()); //TODO: pass in directly
+
+  TablePredicateMap::accessor tp;
+  tablePredicates.find(tp, name);
+  auto &preds = tp->second;
+  preds.erase(ts);
+ 
+  TableWriteMap::accessor tw;
+  tableWrites.find(tw, name);
+  auto &writes = tw->second;
+  writes.erase(ts);
+}
+
+//NOTE: if we store preds inside TX, then we need to GC all record of TXN if we intend to clear up space...
+
+//TODO: Garbage collect 
+    // committed Reads ==> Don't allow new reads below GC watermark. GC all below watermark.
+    // committed Writes ==> Don't allow new writes below GC watermark. GC all but the last value < GC watermark. (so that any read > watermark still has a write to read)
+          //TODO: Would need to GC inside Peloton too.
+    // prepared read/writes (transient anyways, not high priority)
+    // prepared/committed readPredicates ==> Don't allow new preds below GC watermark. GC all read preds below GC.
+bool Server::CheckGCWatermark(const Timestamp &ts) {
+  int gc_delta = 10000; //ms
+  Timestamp lowWatermark(timeServer.GetTime() - gc_delta);
+  Debug("GC low watermark: %lu.", lowWatermark.getTimestamp());
+  if(ts < lowWatermark){
+   Panic("ts: %lx below GC threshold. lowWatermark: %lx", ts.getTimestamp(), lowWatermark.getTimestamp());
+   return false;
+  }
+  return true;
+}
+
+
+
+
+}
