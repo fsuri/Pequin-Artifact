@@ -84,6 +84,8 @@
 #include "store/bftsmartstore_stable/client.h"
 // Postgres
 #include "store/postgresstore/client.h"
+// Toystore
+#include "store/toystore/client.h"
 
 #include "store/common/frontend/one_shot_client.h"
 #include "store/common/frontend/async_one_shot_adapter_client.h"
@@ -118,6 +120,7 @@ enum protomode_t {
   // Augustus-Hotstuff
   PROTO_AUGUSTUS_SMART,
   PROTO_POSTGRES
+  PROTO_TOYSTORE
 };
 
 enum benchmode_t {
@@ -519,6 +522,7 @@ const protomode_t protomodes[] {
   // Augustus-BFTSmart
 	PROTO_AUGUSTUS_SMART,
   PROTO_POSTGRES
+  PROTO_TOYSTORE
 };
 const strongstore::Mode strongmodes[] {
   strongstore::Mode::MODE_UNKNOWN,
@@ -1548,6 +1552,11 @@ int main(int argc, char **argv) {
 
     case PROTO_POSTGRES: {
       client = new postgresstore::Client(FLAGS_connection_str, clientId);
+      break;
+    }
+
+    case PROTO_TOYSTORE: {  
+      client = new toystore::Client(config, clientId, 0, tport);
       break;
     }
 
