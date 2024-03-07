@@ -96,9 +96,8 @@ void SyncTransactionBenchClient::SendNext(transaction_status_t *result) {
         std::cerr<<"Shir:  Backing off for "<<backoff<<"ms\n";
       }
       Notice("TXN was aborted. Need to retry. First backoff for milisecs: %d", backoff);
-      std::cerr<<"Shir:  TXN was aborted. Need to retry. First backoff for milisecs: "<<backoff<<"\n";
       std::this_thread::sleep_for(std::chrono::milliseconds(backoff));
-      //std::cerr << "Woke up, continue!" << std::endl;
+      std::cerr << "Woke up, continue!" << std::endl;
     }
   }
   Debug("Transaction finished with result %d.", *result);

@@ -45,6 +45,9 @@ Server::Server(const transport::Configuration& config, KeyManager *keyManager,
   validateProofs(validateProofs),  timeDelta(timeDelta), part(part), tp(tp),
   timeServer(timeServer) {
 
+  // Shir: pick the right number
+  tp->AddIndexedThreads(8);
+
   // Start the cluster before trying to connect:
   // version and cluster name should match the ones in Pequin-Artifact/pg_setup/postgres_service.sh script
   // const char* scriptName = "../pg_setup/postgres_service.sh -r";
@@ -93,32 +96,28 @@ Server::~Server() {}
 std::vector<::google::protobuf::Message*> Server::Execute(const string& type, const string& msg) {
   std::cerr<<"Shir: recieved a message of type:    "<<type.c_str()<<"   and looking for the right handler\n";
   Debug("Execute: %s", type.c_str());
-  //std::unique_lock lock(atomicMutex);
-
   proto::SQL_RPC sql_rpc;
   proto::TryCommit try_commit;
   proto::UserAbort user_abort;
+  std::vector<::google::protobuf::Message*> results;
+
   if (type == sql_rpc.GetTypeName()) {
     Debug("Shir: executing SQL_RPC here");
 
     sql_rpc.ParseFromString(msg);
-    std::vector<::google::protobuf::Message*> results;
     results.push_back(HandleSQL_RPC(sql_rpc));
     return results;
   } else if (type == try_commit.GetTypeName()) {
     Debug("Shir: executing commit (tryCommit) here");
 
     try_commit.ParseFromString(msg);
-    std::vector<::google::protobuf::Message*> results;
     results.push_back(HandleTryCommit(try_commit));
     return results;
   } else if (type == user_abort.GetTypeName()) {
     user_abort.ParseFromString(msg);
-    std::vector<::google::protobuf::Message*> results;
     results.push_back(HandleUserAbort(user_abort));
     return results;
   }
-  std::vector<::google::protobuf::Message*> results;
   results.push_back(nullptr);
   return results;
 }
@@ -154,6 +153,8 @@ void Server::Execute_Callback(const string& type, const string& msg, const execu
   std::string client_seq_key = createClientSeqKey(sql_rpc.client_id(),sql_rpc.txn_seq_num());
   txnStatusMap::accessor t;
   std::shared_ptr<tao::pq::transaction> tr = getPgTransaction(t, client_seq_key);
+  std::cerr<<"Shir: returned tr pointer fro get PGTXN is  :     "<< tr <<"\n";
+
 
   if (tr){
     // this means tr is not a null pointer. it would be a null pointer if this txn was alerady aborted
@@ -161,10 +162,10 @@ void Server::Execute_Callback(const string& type, const string& msg, const execu
       Debug("Attempt query %s", sql_rpc.query().c_str());
       std::cout << sql_rpc.query() << std::endl;
 
-      std::cerr<< "Shir: Before executing tr->execute (2)\n";
+      std::cerr<< "Shir: Before executing tr->execute with the following tr addr:  "<< tr <<"\n";
       const tao::pq::result sql_res = tr->execute(sql_rpc.query());
-      t.release();
-      std::cerr<< "Shir: After executing tr->execute (2)\n";
+      // t.release();
+      std::cerr<< "Shir: After executing tr->execute \n";
 
       // std::cerr<< "Shir: number of rows affected (according to server):   "<<sql_res.rows_affected() <<"\n";
       // std::cerr<< "Shir: this is for txn by client id:   "<<std::to_string(sql_rpc.client_id()) <<"\n";
@@ -172,14 +173,16 @@ void Server::Execute_Callback(const string& type, const string& msg, const execu
       Debug("Query executed");
       sql::QueryResultProtoBuilder* res_builder = createResult(sql_res);
       reply->set_status(REPLY_OK);
-      reply->set_sql_res(res_builder->get_result()->SerializeAsString());
+            reply->set_sql_res(res_builder->get_result()->SerializeAsString());
     } catch(tao::pq::sql_error e) {
-            markTxnTerminated(t);
+      markTxnTerminated(t);
       t.release();
       Debug("An exception caugth while using postgres.");
-      reply->set_status(REPLY_FAIL);
+            reply->set_status(REPLY_FAIL);
     }
   }
+  Debug("Shir: only now I should release t that points to:   ");
+  std::cerr<<tr<<"\n";
   return returnMessage(reply);
 }
 
@@ -191,16 +194,16 @@ void Server::Execute_Callback(const string& type, const string& msg, const execu
   std::string client_seq_key = createClientSeqKey(try_commit.client_id(),try_commit.txn_seq_num());
   txnStatusMap::accessor t;
   std::shared_ptr<tao::pq::transaction> tr = getPgTransaction(t, client_seq_key);
-
+  
   if (tr){
     // this means tr is not a null pointer. it would be a null pointer if this txn was alerady aborted
     try {
       tr->commit();
       Debug("TryCommit went through successfully.");
-      reply->set_status(REPLY_OK);
+            reply->set_status(REPLY_OK);
     } catch(tao::pq::sql_error e) {
       Debug("An exception caugth while using postgres.");
-      reply->set_status(REPLY_FAIL);
+            reply->set_status(REPLY_FAIL);
     }
     markTxnTerminated(t);
   }
@@ -212,14 +215,11 @@ void Server::Execute_Callback(const string& type, const string& msg, const execu
   std::string client_seq_key = createClientSeqKey(user_abort.client_id(),user_abort.txn_seq_num());
   txnStatusMap::accessor t;
 
-  if(!txnMap.find(t,client_seq_key)) {
-    // t.release();
-    return nullptr;
-  } else {
+  if(txnMap.find(t,client_seq_key)) {
     tr = get<1>(t->second);
-  }
-  tr->rollback();
-  markTxnTerminated(t);
+    tr->rollback();
+    markTxnTerminated(t);
+  } 
   return nullptr;
 }
 
@@ -236,18 +236,19 @@ std::shared_ptr<tao::pq::transaction> Server::getPgTransaction(txnStatusMap::acc
   Debug("Client transaction key: %s", key.c_str());
   std::cout << key << std::endl;
 
-  if(!txnMap.find(t,key)) {
+  if(txnMap.insert(t,key)) {
       Debug("Key was not found, creating a new connection");
       auto connection = connectionPool->connection();
       tr = connection->transaction();
+      std::cerr<<"Shir: new tr pointer is :     "<< tr <<"\n";
       auto txn_status =std::make_tuple(connection, tr, false);
-      txnMap.insert(t, key);
+      // txnMap.insert(t, key);
       t->second=txn_status;
     } else {
-      tr = get<1>(t->second);
       Debug("Key already exists");
+      tr = get<1>(t->second);
   }
-  return tr;
+    return tr;
 }
 
 void Server::markTxnTerminated(txnStatusMap::accessor &t){

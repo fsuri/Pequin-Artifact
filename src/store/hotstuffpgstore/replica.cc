@@ -276,6 +276,14 @@ void Replica::executeSlots() {
 
         // Shir: This is the messages recieved from hotstuff
         proto::PackedMessage packedMsg = requests[digest];
+
+        // Shir: make some order here
+        // auto msg= unpackMsg(packedMsg.type(), packedMsg.msg());
+        // Debug("Id is: %d   txn id:   %d ",msg.client_id(),msg.txn_seq_num());
+        Debug("Shirrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr");
+        std::hash<std::string> hasher;  
+        auto id = hasher(packedMsg.type())%8;
+        std::cerr<<"Id for dispatching is:     "<<id<<"\n";
         if(asyncServer) {
           // Debug("Shir: async server");
 
@@ -309,6 +317,7 @@ void Replica::executeSlots() {
             });
             return (void*) true;
           };
+          // transport->DispatchIndexedTP_noCB(id,f);
           transport->DispatchTP_noCB(f);
 
         } else {
@@ -399,5 +408,23 @@ void Replica::delegateEbatch(std::vector<::google::protobuf::Message*> EpendingB
 
 }
 
+
+// ::hotstuffpgstore::proto::Message* Replica::unpackMsg(const string& type, const string& msg){
+//   proto::SQL_RPC sql_rpc;
+//   proto::TryCommit try_commit;
+//   proto::UserAbort user_abort;
+
+//   if (type == sql_rpc.GetTypeName()) {
+//     sql_rpc.ParseFromString(msg);
+//     return sql_rpc;
+//   } else if (type == try_commit.GetTypeName()) {
+//     try_commit.ParseFromString(msg);
+//     return try_commit;
+//   } else if (type == user_abort.GetTypeName()) {
+//     user_abort.ParseFromString(msg);
+//     return user_abort;
+//   }
+//   return nullptr;
+// }
 
 }  // namespace hotstuffpgstore

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-F=0
+F=1
 NUM_GROUPS=1
 CONFIG="0_local_test_outputs/configs/shard-r4.config"
 PROTOCOL="hotstuffpg"
@@ -16,9 +16,9 @@ FILE_PATH="0_local_test_outputs/rw-sql/rw-sql.json"
 ASYNC_SERVER="true"
 
 FILE_PATH="0_local_test_outputs/rw-sql/rw-sql.json"
-#FILE_PATH="store/benchmark/async/sql/tpcc/sql-tpcc-tables-schema.json"
 # FILE_PATH="store/benchmark/async/sql/seats/sql-seats-tables-schema.json"
 #FILE_PATH="store/benchmark/async/sql/auctionmark/sql-auctionmark-tables-schema.json"
+#FILE_PATH="store/benchmark/async/sql/tpcc/sql-tpcc-tables-schema.json"
 
 
 

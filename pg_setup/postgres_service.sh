@@ -142,11 +142,13 @@ else
         su - $USER -c "echo \"GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO pequin_user\" | psql -d db$i"
         su - $USER -c "echo \"alter default privileges in schema public grant all on tables to pequin_user; alter default privileges in schema public grant all on sequences to pequin_user;\" | psql -d db$i"
         su - $USER -c "echo \"ALTER DATABASE db$i SET DEFAULT_TRANSACTION_ISOLATION TO SERIALIZABLE ;\" | psql -d db$i"
+        su - $USER -c "echo \"ALTER DATABASE db$i SET ENABLE_MERGEJOIN TO FALSE ;\" | psql -d db$i"
+        su - $USER -c "echo \"ALTER DATABASE db$i SET ENABLE_HASHJOIN TO FALSE ;\" | psql -d db$i"
+        su - $USER -c "echo \"ALTER DATABASE db$i SET ENABLE_NESTLOOP TO TRUE ;\" | psql -d db$i"
+        su - $USER -c "echo \"ALTER DATABASE db$i SET lock_timeout = 100 ;\" | psql -d db$i"
     done
 
 fi
-
-
 
 
 #state where to run this scrit from

@@ -121,6 +121,13 @@ void ShardClient::HandleSQL_RPCReply(const proto::SQL_RPCReply& reply, const pro
 
   uint64_t reqId = reply.req_id();
   Debug("sql_rpc req id: %lu", reqId);
+  Debug("Shir: sql_rpc req status: %lu", reply.status());
+
+// OLD CODE FLOW:
+//  if(signMessages) { 
+//       if(reply.status() == REPLY_OK) {
+//         if(pendingSQL_RPC->status == REPLY_FAIL) {
+//              pendingSQL_RPC->status = REPLY_OK;
 
   if(pendingSQL_RPCs.find(reqId) != pendingSQL_RPCs.end()) {
     PendingSQL_RPC* pendingSQL_RPC = &pendingSQL_RPCs[reqId];
@@ -128,7 +135,12 @@ void ShardClient::HandleSQL_RPCReply(const proto::SQL_RPCReply& reply, const pro
     pendingSQL_RPC->numReceivedReplies++;
     std::cerr <<"Shir: (1) For SQL_rpc req id: "<<reqId<<" There are "<<pendingSQL_RPC->numReceivedReplies<<" replies \n";
     Debug("Shir: got an additional reply. request:  %lu now has  %lu replies.",reqId,pendingSQL_RPC->numReceivedReplies);
-    
+    // Debug("Shir: the current reply status is %lu",reply.status());
+
+    if(reply.status() == REPLY_OK && pendingSQL_RPC->status == REPLY_FAIL) {
+      pendingSQL_RPC->status = REPLY_OK;
+    }
+
     // Updating a previously failed sql_rpc-- only for deterministic mode
     if(!async_server && reply.status() == REPLY_OK) {
       Debug("Shir: query reply was OK");
@@ -151,7 +163,7 @@ void ShardClient::HandleSQL_RPCReply(const proto::SQL_RPCReply& reply, const pro
         pendingSQL_RPC->hasLeaderReply=true;
         pendingSQL_RPC->leaderReply = reply.sql_res();
       }
-      std::cerr <<"Shir: (2) For SQL_rpc req id: "<<reqId<<" There are "<<pendingSQL_RPC->numReceivedReplies<<" replies \n";
+            std::cerr <<"Shir: (2) For SQL_rpc req id: "<<reqId<<" There are "<<pendingSQL_RPC->numReceivedReplies<<" replies \n";
     } 
     else {
       pendingSQL_RPC->receivedReplies[reply.sql_res()].insert(pendingSQL_RPC->numReceivedReplies);
@@ -167,9 +179,9 @@ void ShardClient::HandleSQL_RPCReply(const proto::SQL_RPCReply& reply, const pro
       Panic("Deterministic solution is currently not supported because of postgres blocking queries");
       if(pendingSQL_RPC->receivedReplies[reply.sql_res()].size() 
           >= (uint64_t) config.f + 1) {
-        SQL_RPCReplyHelper(pendingSQL_RPC, reply.sql_res(), reqId, pendingSQL_RPC->status);
+                SQL_RPCReplyHelper(pendingSQL_RPC, reply.sql_res(), reqId, pendingSQL_RPC->status);
       } else if(pendingSQL_RPC->numReceivedReplies  >= (uint64_t) config.f + 1) {
-        SQL_RPCReplyHelper(pendingSQL_RPC, reply.sql_res(), reqId, REPLY_FAIL);
+                SQL_RPCReplyHelper(pendingSQL_RPC, reply.sql_res(), reqId, REPLY_FAIL);
       }
     } else{
       Debug("Shir: 101010"); // not deterministic
@@ -178,12 +190,11 @@ void ShardClient::HandleSQL_RPCReply(const proto::SQL_RPCReply& reply, const pro
       std::cerr <<"Shir: will it crash?: "<<pendingSQL_RPC->numReceivedReplies<<" \n";
       std::cerr <<"Shir: leader reply is :   "<<pendingSQL_RPC->leaderReply<<" \n";
       std::cerr <<"Shir: has the leader replied :   "<<pendingSQL_RPC->hasLeaderReply<<" \n";
-
+      
       if(pendingSQL_RPC->numReceivedReplies >= (uint64_t) config.f + 1 && pendingSQL_RPC->hasLeaderReply) {
         std::cerr <<"Shir: (5) For SQL_rpc req id: "<<reqId<<" There are "<<pendingSQL_RPC->numReceivedReplies<<" replies. which is why i'm here \n";
         SQL_RPCReplyHelper(pendingSQL_RPC, pendingSQL_RPC->leaderReply, reqId, pendingSQL_RPC->status);
       }
-      std::cerr <<"Shir: it didn't crash \n";
 
     }
   }
@@ -227,7 +238,7 @@ void ShardClient::HandleTryCommitReply(const proto::TryCommitReply& reply, const
         }
         try_commit_callback tccb = pendingTryCommit->tccb;
         pendingTryCommits.erase(reqId);
-        tccb(REPLY_FAIL);
+                tccb(REPLY_FAIL);
       }
     }
     // Shir: clean code duplications...
@@ -245,7 +256,7 @@ void ShardClient::HandleTryCommitReply(const proto::TryCommitReply& reply, const
         }
         try_commit_callback tccb = pendingTryCommit->tccb;
         pendingTryCommits.erase(reqId);
-        tccb(REPLY_FAIL);
+                tccb(REPLY_FAIL);
       }
     } else {
       if(pendingTryCommit->receivedAcks.size() >= (uint64_t) config.f + 1 && 
@@ -294,7 +305,7 @@ void ShardClient::Query(const std::string &query,  const Timestamp &ts, uint64_t
   PendingSQL_RPC psr;
   psr.srcb = srcb;
   psr.status = REPLY_FAIL;
-  psr.numReceivedReplies = 0;
+    psr.numReceivedReplies = 0;
   psr.leaderReply = "";
   psr.hasLeaderReply=false;
   psr.timeout = new Timeout(transport, timeout, [this, reqId, srtcb]() {

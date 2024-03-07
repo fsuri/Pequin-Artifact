@@ -133,6 +133,10 @@ public:
   void handleMessage(const TransportAddress &remote, const string &type, const string &data);
 
   Stats* stats;
+
+  // Shir: remove if this doesn't work out 
+  // ::hotstuffpgstore::proto::Message* unpackMsg(const string& type, const string& msg);
+
 };
 
 } // namespace hotstuffpgstore
