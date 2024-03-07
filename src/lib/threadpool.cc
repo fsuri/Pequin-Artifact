@@ -387,13 +387,7 @@ void ThreadPool::dispatch_indexed(uint64_t id, std::function<void *()> f, std::f
 
   auto worker_id = id % total_indexed_workers;
 
-  // IndexWorkerMap::accessor w;
-  // UW_ASSERT(indexed_worker_thread_request_list.find(w, worker_id));
-  auto w = indexed_worker_thread_request_list.find(worker_id);
-  UW_ASSERT(w != indexed_worker_thread_request_list.end());
-
-  w->second.enqueue(std::make_pair(std::move(f), info));
-  //indexed_worker_thread_request_list[worker_id].enqueue(std::make_pair(std::move(f), info)); //Non-threadsafe option.
+  indexed_worker_thread_request_list[worker_id].enqueue(std::make_pair(std::move(f), info));
 }
 //Dispatch a job f to a worker thread of choice (with id), without any callback.
 void ThreadPool::detach_indexed(uint64_t id, std::function<void *()> f) {
@@ -401,12 +395,7 @@ void ThreadPool::detach_indexed(uint64_t id, std::function<void *()> f) {
 
   auto worker_id = id % total_indexed_workers;
 
-  // IndexWorkerMap::accessor w;
-  // UW_ASSERT(indexed_worker_thread_request_list.find(w, worker_id));
-  auto w = indexed_worker_thread_request_list.find(worker_id);
-  UW_ASSERT(w != indexed_worker_thread_request_list.end());
-
-  w->second.enqueue(std::make_pair(std::move(f), info));
+  indexed_worker_thread_request_list[worker_id].enqueue(std::make_pair(std::move(f), info));
 }
 
 
@@ -439,15 +428,8 @@ void ThreadPool::add_n_indexed(int num_threads) {
       while (true) {
         std::pair<std::function<void *()>, EventInfo *> job;
 
-        // IndexWorkerMap::accessor w;
-        // UW_ASSERT(indexed_worker_thread_request_list.find(w, worker_id));
-        // w->second.wait_dequeue(job);
-        // w.release();
-
-        auto w = indexed_worker_thread_request_list.find(worker_id);
-        UW_ASSERT(w != indexed_worker_thread_request_list.end());
-        w->second.wait_dequeue(job);
-
+        indexed_worker_thread_request_list[worker_id].wait_dequeue(job);
+        
         if (!running) {
           break;
         }
