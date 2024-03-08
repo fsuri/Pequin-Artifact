@@ -78,7 +78,8 @@ void test_snapshot_tx_id(){
                                   false,    //  FLAGS_pequin_query_merge_active_at_client,
                                   false,    //  FLAGS_pequin_sign_client_queries,
                                   false,
-                                  false    //  FLAGS_pequin_parallel_queries
+                                  false,    //  FLAGS_pequin_parallel_queries
+                                  false    //  FLAGS_pequin_use_semantic_cc
                                   );
 
     proto::LocalSnapshot local_ss;
@@ -140,7 +141,8 @@ void test_snapshot_optimistic_tx_id(bool compress){
                                   false,    //  FLAGS_pequin_query_merge_active_at_client,
                                   false,    //  FLAGS_pequin_sign_client_queries,
                                   false, // FLAGS_pequin_sign_replica_to_replica
-                                  false    //  FLAGS_pequin_parallel_queries
+                                   false,    //  FLAGS_pequin_parallel_queries
+                                  false    //  FLAGS_pequin_use_semantic_cc
                                   );
     
     proto::LocalSnapshot local_ss;

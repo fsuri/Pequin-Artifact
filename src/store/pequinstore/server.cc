@@ -1870,7 +1870,7 @@ void Server::HandleAbort(const TransportAddress &remote,
  
 /////////////////////////////////////// PREPARE, COMMIT AND ABORT LOGIC  + Cleanup
 
-void Server::Prepare(const std::string &txnDigest,const proto::Transaction &txn, const ReadSet &readSet) {
+void Server::Prepare(const std::string &txnDigest, const proto::Transaction &txn, const ReadSet &readSet) {
   Debug("PREPARE[%s] agreed to commit with ts %lu.%lu.",BytesToHex(txnDigest, 16).c_str(), txn.timestamp().timestamp(), txn.timestamp().id());
 
   Timestamp ts = Timestamp(txn.timestamp());
@@ -1902,7 +1902,8 @@ void Server::Prepare(const std::string &txnDigest,const proto::Transaction &txn,
 
 
   for (const auto &read : readSet) {
-    if (IsKeyOwned(read.key())) {
+    bool table_v = read.has_is_table_col_version() && read.is_table_col_version();
+    if (IsKeyOwned(read.key()) && !table_v) {
       //preparedReads[read.key()].insert(p.first->second.second);
       //preparedReads[read.key()].insert(a->second.second);
 
@@ -1931,7 +1932,7 @@ void Server::Prepare(const std::string &txnDigest,const proto::Transaction &txn,
 
        //Skip applying TableVersion until after TableWrites have been applied; Same for TableColVersions. Currenty those are both marked as delay.
        //Note: Delay flag set by client is not BFT robust -- server has to infer on it's own. Ok for current prototype. //TODO: turn into parsing at some point
-      if((write.has_delay() && write.delay()) || txn.table_writes().find(write.key()) != txn.table_writes().end() ){
+      if(write.has_is_table_col_version() && write.is_table_col_version()){
         table_and_col_versions.push_back(&write.key());
         continue;
       }   
@@ -1966,7 +1967,11 @@ void Server::Prepare(const std::string &txnDigest,const proto::Transaction &txn,
   //   // x.second.insert(pWrite);
   // }
 
-  //Apply TableVersion and TableColVersion
+  if(params.query_params.useSemanticCC){
+    RecordReadPredicatesAndWrites(txn, false);
+  }
+
+  //Apply TableVersion and TableColVersion 
   //TODO: for max efficiency (minimal wait time to update): Set_change table in table_write, and write TableVersion as soon as TableWrite has been applied
                                                             //Do the same for Table_Col_Version. TODO: this requires parsing out the table_name however.
   for(auto table_or_col_version: table_and_col_versions){   
@@ -2071,7 +2076,8 @@ void Server::UpdateCommittedReads(proto::Transaction *txn, const std::string &tx
   // }
 
   for (const auto &read : *readSet) {
-    if (!IsKeyOwned(read.key())) {
+     bool table_v = read.has_is_table_col_version() && read.is_table_col_version();
+    if (!IsKeyOwned(read.key()) || table_v) {
       continue;
     }
     // store.commitGet(read.key(), read.readtime(), ts);   //SEEMINGLY NEVER
@@ -2110,7 +2116,7 @@ void Server::CommitToStore(proto::CommittedProof *proof, proto::Transaction *txn
     
     //Skip applying TableVersion until after TableWrites have been applied; Same for TableColVersions. Currenty those are both marked as delay.
     //Note: Delay flag set by client is not BFT robust -- server has to infer on it's own. Ok for current prototype. //TODO: turn into parsing at some point
-    if((write.has_delay() && write.delay()) || txn->table_writes().find(write.key()) != txn->table_writes().end() ){
+    if(write.has_is_table_col_version() && write.is_table_col_version()){
       table_and_col_versions.push_back(&write.key());
       continue;
     }   
@@ -2162,11 +2168,18 @@ void Server::CommitToStore(proto::CommittedProof *proof, proto::Transaction *txn
   //   //Note: Should be safe to apply TableVersion table by table (i.e. don't need to wait for all TableWrites to finish before applying TableVersions)
 
     
+   if(params.query_params.useSemanticCC){
+    RecordReadPredicatesAndWrites(*txn, true);
+  }
+  
   //   //Note: Does one have to do special handling for Abort? No ==> All prepared versions just produce unecessary conflicts & dependencies, so there is no safety concern.
   // }
   //Apply TableVersion and TableColVersion
   //TODO: for max efficiency (minimal wait time to update): Set_change table in table_write, and write TableVersion as soon as TableWrite has been applied
                                                             //Do the same for Table_Col_Version. TODO: this requires parsing out the table_name however.
+  //NOTE: Applying table versions last is necessary for correctness:
+          //It guarantees that a reader cannot see a table version without having seen a snapshot that includes *all* the table version txn's writes.
+          //Consequently, if we see a snapshot that is incomplete, then the CC check will still check for conflict against this write txn in question.
   for(auto table_or_col_version: table_and_col_versions){   
      Debug("Commit TableVersion or TableColVersion: %s with TS: [%lu:%lu]", (*table_or_col_version).c_str(), ts.getTimestamp(), ts.getID());
     val.val = ""; 
@@ -2187,6 +2200,10 @@ void Server::Abort(const std::string &txnDigest, proto::Transaction *txn) {
   ClearRTS(txn->read_set(), txn->timestamp());
 
   CleanQueries(txn, false);
+
+   if(params.query_params.useSemanticCC){
+    ClearPredicateAndWrites(*txn);
+  }
 
   materializedMap::accessor mat;
   bool first_mat = materialized.insert(mat, txnDigest); //NOTE: Even though abort does not "write anything", we still mark the data structure to indicate it has been materialized

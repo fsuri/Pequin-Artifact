@@ -761,24 +761,17 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
   bool ManageDependencies(const DepSet &depSet, const std::string &txnDigest, const proto::Transaction &txn, const TransportAddress &remote, const uint64_t &reqId, bool fallback_flow = false, bool isGossip = false);
       bool ManageDependencies_WithMutex(const std::string &txnDigest, const proto::Transaction &txn, const TransportAddress &remote, uint64_t reqId, bool fallback_flow = false, bool isGossip = false);
   
-  void GetWriteTimestamps(
-      std::unordered_map<std::string, std::set<Timestamp>> &writes);
-  void GetWrites(
-      std::unordered_map<std::string, std::vector<const proto::Transaction *>> &writes);
-  void GetPreparedReadTimestamps(
-      std::unordered_map<std::string, std::set<Timestamp>> &reads);
-  void GetPreparedReads(
-      std::unordered_map<std::string, std::vector<const proto::Transaction *>> &reads);
+  void GetWriteTimestamps(std::unordered_map<std::string, std::set<Timestamp>> &writes);
+  void GetWrites(std::unordered_map<std::string, std::vector<const proto::Transaction *>> &writes);
+  void GetPreparedReadTimestamps(std::unordered_map<std::string, std::set<Timestamp>> &reads);
+  void GetPreparedReads(std::unordered_map<std::string, std::vector<const proto::Transaction *>> &reads);
   void Prepare(const std::string &txnDigest, const proto::Transaction &txn, const ReadSet &readSet);
-  void GetCommittedWrites(const std::string &key, const Timestamp &ts,
-      std::vector<std::pair<Timestamp, Value>> &writes);
-  bool GetPreceedingCommittedWrite(const std::string &key, const Timestamp &ts,
-    std::pair<Timestamp, Server::Value> &write);
+  void GetCommittedWrites(const std::string &key, const Timestamp &ts, std::vector<std::pair<Timestamp, Value>> &writes);
+  bool GetPreceedingCommittedWrite(const std::string &key, const Timestamp &ts, std::pair<Timestamp, Server::Value> &write);
   void GetPreceedingPreparedWrite(const std::map<Timestamp, const proto::Transaction *> &preparedKeyWrites, const Timestamp &ts,
     std::vector<std::pair<Timestamp, const proto::Transaction *>> &writes);
 
-  void Commit(const std::string &txnDigest, proto::Transaction *txn,
-      proto::GroupedSignatures *groupedSigs, bool p1Sigs, uint64_t view);
+  void Commit(const std::string &txnDigest, proto::Transaction *txn, proto::GroupedSignatures *groupedSigs, bool p1Sigs, uint64_t view);
   void CommitWithProof(const std::string &txnDigest,  proto::CommittedProof *proof);
   void UpdateCommittedReads(proto::Transaction *txn, const std::string &txnDigest, Timestamp &ts, proto::CommittedProof *proof);
   void CommitToStore(proto::CommittedProof *proof, proto::Transaction *txn, const std::string &txnDigest, Timestamp &ts, Value &val);
@@ -786,12 +779,9 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
   void Abort(const std::string &txnDigest, proto::Transaction *txn);
   void CheckDependents(const std::string &txnDigest);
       void CheckDependents_WithMutex(const std::string &txnDigest);
-  proto::ConcurrencyControl::Result CheckDependencies(
-      const std::string &txnDigest);
-  proto::ConcurrencyControl::Result CheckDependencies(
-      const proto::Transaction &txn);
-  proto::ConcurrencyControl::Result CheckDependencies(
-    const proto::Transaction &txn, const DepSet &depSet);
+  proto::ConcurrencyControl::Result CheckDependencies(const std::string &txnDigest);
+  proto::ConcurrencyControl::Result CheckDependencies(const proto::Transaction &txn);
+  proto::ConcurrencyControl::Result CheckDependencies(const proto::Transaction &txn, const DepSet &depSet);
   bool CheckHighWatermark(const Timestamp &ts);
   bool BufferP1Result(proto::ConcurrencyControl::Result &result, const proto::CommittedProof *conflict, const std::string &txnDigest, 
       uint64_t &reqId, const TransportAddress *&remote, bool &wake_fallbacks, bool &forceMaterialize, bool isGossip = false, int fb =0);
@@ -811,6 +801,18 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
   void MessageToSign(::google::protobuf::Message* msg,
       proto::SignedMessage *signedMessage, signedCallback cb);
   void SignSendReadReply(proto::Write *write, proto::SignedMessage *signed_write, const std::function<void()> &sendCB);
+
+  /* BEGIN Semantic CC functions */ 
+  bool CheckMonotonicTableColVersions(const proto::Transaction &txn); 
+  proto::ConcurrencyControl::Result CheckPredicates(const proto::Transaction &txn, const ReadSet &txn_read_set, std::set<std::string> &dynamically_active_dependencies); 
+  proto::ConcurrencyControl::Result CheckReadPred(const Timestamp &txn_ts, const proto::ReadPredicate &pred, const ReadSet &txn_read_set, std::set<std::string> &dynamically_active_dependencies);
+  proto::ConcurrencyControl::Result CheckTableWrites(const proto::Transaction &txn, const Timestamp &txn_ts, const std::string &table_name, const TableWrite &table_write);
+  void RecordReadPredicatesAndWrites(const proto::Transaction &txn, bool commit_or_prepare);
+  void ClearPredicateAndWrites(const proto::Transaction &txn);
+  bool CheckGCWatermark(const Timestamp &ts); 
+  bool EvaluatePred(const std::string &pred, const RowUpdates &row);
+
+  /* END Semantic CC functions */
 
   //main protocol messages
   proto::ReadReply *GetUnusedReadReply();
@@ -1051,6 +1053,15 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
   tbb::concurrent_unordered_map<std::string, std::pair<std::shared_mutex, std::set<const proto::Transaction *>>> preparedReads;
   //std::unordered_map<std::string, std::map<Timestamp, const proto::Transaction *>> preparedWrites;
   tbb::concurrent_unordered_map<std::string, std::pair<std::shared_mutex,std::map<Timestamp, const proto::Transaction *>>> preparedWrites; //map from: key ->
+
+  /* MAPS FOR SEMANTIC CC */
+  //typedef tbb::concurrent_hash_map<std::string, std::map<Timestamp, ReadPredicate>> TablePredicateMap; //table_name => map(TS, Read Pred)  
+  typedef tbb::concurrent_hash_map<std::string, std::map<Timestamp, std::pair<const proto::Transaction*, bool>>> TablePredicateMap; //table_name => map(TS, <Tx*, commit_or_prepare>)  
+  TablePredicateMap tablePredicates;
+
+  typedef tbb::concurrent_hash_map<std::string, std::map<Timestamp, std::pair<const proto::Transaction*, bool>>> TableWriteMap; //table_name => map(TS, <Tx*, commit_or_prepare>)  
+  TableWriteMap tableWrites;
+  /* END MAPS FOR SEMANTIC CC*/
 
   //XXX key locks for atomicity of OCC check
   tbb::concurrent_unordered_map<std::string, std::mutex> lock_keys;

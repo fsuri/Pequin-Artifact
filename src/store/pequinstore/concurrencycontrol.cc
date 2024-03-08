@@ -567,9 +567,12 @@ proto::ConcurrencyControl::Result Server::DoMVTSOOCCCheck(
 
 
   preparedMap::const_accessor a;
-  bool preparedItr = prepared.find(a, txnDigest);
+  bool already_prepared = prepared.find(a, txnDigest);
   //if (preparedItr == prepared.end()) {
-  if(!preparedItr){
+  if(already_prepared){
+    a.release();
+  }
+  else{
     a.release();
     //1) Reject Transactions with TS above Watermark
     if (CheckHighWatermark(ts)) {
@@ -580,11 +583,25 @@ proto::ConcurrencyControl::Result Server::DoMVTSOOCCCheck(
       //TODO: instead of aborting TXs, we could schedule all TXs with TS > local time to only be executed once we reach the local time. I.e. start a timer for (TS-local_time) and then re-execute
     }
 
+    //1.5 Reject TX that write non-monotonic Table Version
+    if(params.query_params.useSemanticCC){
+      if(!CheckMonotonicTableColVersions(txn)){
+        Debug("[%lu:%lu][%s] ABSTAIN ts %lu below low Table Version threshold.", txn.client_id(), txn.client_seq_num(), BytesToHex(txnDigest, 16).c_str(), ts.getTimestamp());
+        stats.Increment("cc_abstains", 1);
+        stats.Increment("cc_abstains_monotonic", 1);
+        return proto::ConcurrencyControl::ABSTAIN;  
+      }
+    }
+
     //2) Validate read set conflicts.
     for (const auto &read : readSet){//txn.read_set()) {
       // TODO: remove this check when txns only contain read set/write set for the
       //   shards stored at this replica
       if (!IsKeyOwned(read.key())) {
+        continue;
+      }
+
+      if(read.is_table_col_version()){   //Don't do the OCC check for table_versions (//TODO: Also skip column versions. Note: Currently just disabled col versions)
         continue;
       }
 
@@ -687,6 +704,10 @@ proto::ConcurrencyControl::Result Server::DoMVTSOOCCCheck(
       if (!IsKeyOwned(write.key())) { //Only do OCC check for keys in this group.
         continue;
       }
+      if(write.is_table_col_version()){   //Don't do the OCC check for table_versions (//TODO: Also skip column versions. Note: Currently just disabled col versions)
+        continue;
+      }
+
       // Check for conflicts against committed reads.
       auto committedReadsItr = committedReads.find(write.key());
 
@@ -724,7 +745,7 @@ proto::ConcurrencyControl::Result Server::DoMVTSOOCCCheck(
               stats.Increment("cc_aborts", 1);
               stats.Increment("cc_aborts_rw_conflict", 1);
 
-              if(write.delay()){
+              if(write.is_table_col_version()){
                 stats.Increment("table_col_version_write_abort", 1);
                 stats.Increment("table_col_version_write_abort_" + write.key(), 1);
               }
@@ -813,7 +834,7 @@ proto::ConcurrencyControl::Result Server::DoMVTSOOCCCheck(
             stats.Increment("cc_abstains", 1);
             stats.Increment("cc_abstains_rw_conflict", 1);
 
-            if(write.delay()){
+            if(write.is_table_col_version()){
                 stats.Increment("table_col_version_write_abort", 1);
                 stats.Increment("table_col_version_write_abort_" + write.key(), 1);
               }
@@ -885,12 +906,21 @@ proto::ConcurrencyControl::Result Server::DoMVTSOOCCCheck(
       if(res != proto::ConcurrencyControl::COMMIT) return res;
     
     }
+
+    //5.5) Check Semantic Conflicts
+    if(params.query_params.useSemanticCC){
+      std::set<std::string> dynamically_active_dependencies;
+      auto res = CheckPredicates(txn, readSet, dynamically_active_dependencies);
+       if(res != proto::ConcurrencyControl::COMMIT) return res;
+      
+       //TODO: FIXME: Add dynamic deps to dep set too. Remove duplicates(?) maybe it's not necessary?
+    }
+
+
     //6) Prepare Transaction: No conflicts, No dependencies aborted --> Make writes visible.
     Prepare(txnDigest, txn, readSet);
   }
-  else{
-     a.release();
-  }
+  
 
   //7) Check whether all outstanding dependencies have committed
     // If not, wait.
@@ -1278,8 +1308,7 @@ void Server::CheckDependents_WithMutex(const std::string &txnDigest) {
         Debug("Dependencies of %s have all committed or aborted.",
             BytesToHex(dependent, 16).c_str());
 
-        proto::ConcurrencyControl::Result result = CheckDependencies(
-            dependent);
+        proto::ConcurrencyControl::Result result = CheckDependencies(dependent);
         UW_ASSERT(result != proto::ConcurrencyControl::ABORT);
         //Debug("print remote: %p", f->second.remote);
         //waitingDependencies.erase(dependent);
@@ -1343,8 +1372,7 @@ void Server::CheckDependents(const std::string &txnDigest) {
         Debug("Dependencies of %s have all committed or aborted.",
             BytesToHex(dependent, 16).c_str());
 
-        proto::ConcurrencyControl::Result result = CheckDependencies(
-            dependent);
+        proto::ConcurrencyControl::Result result = CheckDependencies(dependent);
         UW_ASSERT(result != proto::ConcurrencyControl::ABORT);
       
        //Note: When waking up from dependency commit/abort -> cannot have any conflict or abstain_conflict for dependent

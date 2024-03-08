@@ -434,9 +434,16 @@ struct QueryReadSetMgr {
           ReadMessage *read = read_set->add_read_set();
           //ReadMessage *read = query_md->queryResult->mutable_query_read_set()->add_read_set();
           read->set_key(key);
-          *read->mutable_readtime() = readtime;
 
-          if(is_table_col_ver) read->set_is_table_col_version(true);
+          if(is_table_col_ver){
+            read->set_is_table_col_version(true);
+            //TS doesnt matter. Not used for CC, just for locking
+            read->mutable_readtime()->set_id(0); 
+            read->mutable_readtime()->set_timestamp(0);
+          }
+          else{
+             *read->mutable_readtime() = readtime;
+          }
         }
 
         void AddToReadSet(std::string &&key, const Timestamp &readtime){
@@ -544,7 +551,6 @@ typedef struct QueryParameters {
     const bool optimisticTxID; //use unique hash tx ids (normal ids), or optimistically use timestamp as identifier?
     const bool compressOptimisticTxIDs; //compress the ts Ids using integer compression.
    
-
     const bool mergeActiveAtClient; //When not caching read sets, merge query read sets at client
 
     const bool signClientQueries;
@@ -553,12 +559,14 @@ typedef struct QueryParameters {
     //performance parameters
     const bool parallel_queries;
 
+    const bool useSemanticCC;
+
     QueryParameters(bool sql_mode, uint64_t syncQuorum, uint64_t queryMessages, uint64_t mergeThreshold, uint64_t syncMessages, uint64_t resultQuorum, size_t snapshotPrepared_k,
         bool eagerExec, bool eagerPointExec, bool eagerPlusSnapshot, bool readPrepared, bool cacheReadSet, bool optimisticTxID, bool compressOptimisticTxIDs, bool mergeActiveAtClient, 
-        bool signClientQueries, bool signReplicaToReplicaSync, bool parallel_queries) : 
+        bool signClientQueries, bool signReplicaToReplicaSync, bool parallel_queries, bool useSemanticCC) : 
         sql_mode(sql_mode), syncQuorum(syncQuorum), queryMessages(queryMessages), mergeThreshold(mergeThreshold), syncMessages(syncMessages), resultQuorum(resultQuorum), snapshotPrepared_k(snapshotPrepared_k),
         eagerExec(eagerExec), eagerPointExec(eagerPointExec), eagerPlusSnapshot(eagerPlusSnapshot), readPrepared(readPrepared), cacheReadSet(cacheReadSet), optimisticTxID(optimisticTxID), compressOptimisticTxIDs(compressOptimisticTxIDs), mergeActiveAtClient(mergeActiveAtClient), 
-        signClientQueries(signClientQueries), signReplicaToReplicaSync(signReplicaToReplicaSync), parallel_queries(parallel_queries) {
+        signClientQueries(signClientQueries), signReplicaToReplicaSync(signReplicaToReplicaSync), parallel_queries(parallel_queries), useSemanticCC(useSemanticCC) {
             if(eagerPlusSnapshot) UW_ASSERT(eagerExec); 
         }
 

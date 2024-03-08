@@ -870,7 +870,7 @@ void Client::Commit(commit_callback ccb, commit_timeout_callback ctcb,
           WriteMessage *table_ver = txn.add_write_set();
           table_ver->set_key(table_name);
           table_ver->set_value("");
-          //table_ver->set_delay(true);
+          table_ver->set_is_table_col_version(true);
       }
     }
 

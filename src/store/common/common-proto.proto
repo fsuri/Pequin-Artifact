@@ -7,9 +7,8 @@ message TimestampMessage {
 
 message ReadMessage {
     required bytes key = 1;
-    //optional bool is_table_col_version = 2;  //only for stat-keeping purposes
-    optional TimestampMessage readtime = 3;
-    optional bool is_table_col_version = 4;  //only for stat-keeping purposes
+    optional TimestampMessage readtime = 2;
+    optional bool is_table_col_version = 3;  //exclude this key from CC. only for locking and stat-keeping purposes
     
 }
 
@@ -22,8 +21,9 @@ message WriteMessage {
     
     optional RowUpdates rowupdates = 3;  //Table name and primary key cols are included in key encoding. //NOTE: WriteMessage is just using row_idx field currently
     //}
-    optional bool delay = 4; //only to skip CC-store application of Table/Col versions until after writes are applied
-
+  
+    //exclude this key from CC. used for locking and stat-keeping purposes, and to skip CC-store application of Table/Col versions until after writes are applied
+    optional bool is_table_col_version = 4; 
 }
 
 message PingMessage {

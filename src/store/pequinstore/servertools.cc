@@ -529,6 +529,8 @@ void Server::FindTableVersion2(const std::string &key_name, const Timestamp &ts,
       readSetMgr->SetPredicateTableVersion(tsm); //Add to current pred
   
     }
+    //Add Table to Read Set. Note: This is PURELY to have a read key in order to lock mutex for CC check. The TS does not matter.
+    readSetMgr->AddToReadSet(key_name, mostRecentPrepared->timestamp(), true);
   }
 
  if(add_to_snapshot){ //Creating Snapshot
