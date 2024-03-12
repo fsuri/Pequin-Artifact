@@ -99,6 +99,7 @@ message DepTs {
 
 message ColValues {
   repeated bytes col_values = 1;
+  repeated uint32 col_types = 2;
 }
 message ReadPredicate {
   required bytes table_name = 1;

@@ -73,6 +73,10 @@ class AbstractExecutor {
   // Used to reset the state. For now it's overloaded by index scan executor
   virtual void ResetState() {}
 
+  virtual expression::AbstractExpression *GetPredicate() {}
+
+  virtual std::string GetTableName() {}
+
   Timestamp GetBasilTimestamp() {
     return basil_timestamp_;
   }

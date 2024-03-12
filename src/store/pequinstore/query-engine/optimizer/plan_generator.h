@@ -97,6 +97,21 @@ class PlanGenerator : public OperatorVisitor {
 
   void Visit(const PhysicalExportExternalFile *) override;
 
+  /**
+   * @brief Generate a predicate expression for scan plans
+   *
+   * @param predicate_expr the original expression
+   * @param alias the table alias
+   * @param table the table object
+   *
+   * @return a predicate that is already evaluated, which could be used to
+   *  generate a scan plan i.e. all tuple idx are set
+   */
+  std::unique_ptr<expression::AbstractExpression> GeneratePredicateForScan(
+      const std::shared_ptr<expression::AbstractExpression> predicate_expr,
+      const std::string &alias,
+      std::shared_ptr<catalog::TableCatalogEntry> table);
+
  private:
   /**
    * @brief Generate all tuple value expressions of a base table
@@ -119,20 +134,7 @@ class PlanGenerator : public OperatorVisitor {
    */
   std::vector<oid_t> GenerateColumnsForScan();
 
-  /**
-   * @brief Generate a predicate expression for scan plans
-   *
-   * @param predicate_expr the original expression
-   * @param alias the table alias
-   * @param table the table object
-   *
-   * @return a predicate that is already evaluated, which could be used to
-   *  generate a scan plan i.e. all tuple idx are set
-   */
-  std::unique_ptr<expression::AbstractExpression> GeneratePredicateForScan(
-      const std::shared_ptr<expression::AbstractExpression> predicate_expr,
-      const std::string &alias,
-      std::shared_ptr<catalog::TableCatalogEntry> table);
+  
 
   /**
    * @brief Generate projection info and projection schema for join

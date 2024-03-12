@@ -500,9 +500,22 @@ struct QueryReadSetMgr {
         }
 
         //Call this every time the executor runs. Fill in new col values.
-        void ExtendPredicate(){
+        void ExtendPredicate(std::vector<uint32_t> join_ids, std::vector<char *> join_values){
             //TODO: replace values in where clause with vector... //TODO: do this by default already!!
             //add col_names/versions
+            int last_idx = read_set->read_predicates_size() - 1;
+            proto::ReadPredicate &current_pred = (*read_set->mutable_read_predicates())[last_idx]; //get last pred
+            
+            proto::ColValues *column_values = current_pred.add_instantiations();
+            for (int i = 0; i < join_values.size(); i++) {
+                std::string *col_val = column_values->add_col_values();
+                *col_val = std::string(join_values[i]);
+
+                column_values->add_col_types(join_ids[i]);
+            }
+
+            proto::ColValues *col_value = current_pred.mutable_instantiations()->Add();
+            col_value = column_values;
         }
 
       proto::ReadSet *read_set;

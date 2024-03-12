@@ -52,6 +52,7 @@
 #include "store/pequinstore/basicverifier.h"
 #include "store/pequinstore/localbatchverifier.h"
 #include "store/pequinstore/sharedbatchverifier.h"
+#include "store/pequinstore/query-engine/optimizer/plan_generator.h"
 #include "lib/batched_sigs.h"
 #include <valgrind/memcheck.h>
 
@@ -418,6 +419,30 @@ bool Server::CheckGCWatermark(const Timestamp &ts) {
 
  bool Server::EvaluatePred(const std::string &pred, const RowUpdates &row){
   //TODO: FILL IN
+  // Call the PostgresParser
+  auto parser = peloton::parser::PostgresParser::GetInstance();
+  std::unique_ptr<peloton::parser::SQLStatementList> stmt_list(
+        parser.BuildParseTree(pred).release());
+  if (!stmt_list->is_valid) {
+    std::cout << "Parsing failed" << std::endl;
+  }
+
+  auto sql_stmt = stmt_list->GetStatement(0);
+
+  // Only process select statements
+  if (sql_stmt->GetType() != peloton::StatementType::SELECT)
+    return;
+  auto select_stmt = (peloton::parser::SelectStatement *)sql_stmt;
+
+  auto where_clause = select_stmt->where_clause->Copy();
+  std::shared_ptr<peloton::expression::AbstractExpression> sptr(where_clause);
+  peloton::optimizer::PlanGenerator plan_generator;
+  auto predicate = plan_generator.GeneratePredicateForScan(sptr, "", emp);
+
+  std::cout << "The predicate is " << predicate->GetInfo() << std::endl;
+  auto result = predicate->Evaluate(tuple.get(), nullptr, nullptr);
+
+  std::cout << "Result from evaluating predicate is " << result.ToString() << std::endl;
   return true;
  }
 

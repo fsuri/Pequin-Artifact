@@ -94,6 +94,9 @@ bool NestedLoopJoinExecutor::DExecute() {
   const std::vector<oid_t> &join_column_ids_left = node.GetJoinColumnsLeft();
   const std::vector<oid_t> &join_column_ids_right = node.GetJoinColumnsRight();
 
+  bool first_update_predicate = true;
+  auto current_txn = executor_context_->GetTransaction();
+
   // We should first deal with the current result. Otherwise we will cache a lot
   // data which is not good to utilize memory. After that we call child execute.
   // Since is the high level idea, each time we get tile from left, we should
@@ -118,14 +121,40 @@ bool NestedLoopJoinExecutor::DExecute() {
       // Grab the values
       if (!join_column_ids_left.empty() && !join_column_ids_right.empty()) {
         std::vector<type::Value> join_values;
+        std::vector<char *> join_values_serialized;
         for (auto column_id : join_column_ids_left) {
           type::Value predicate_value = left_tuple.GetValue(column_id);
+          char *buffer = new char[predicate_value.GetLength()];
+          predicate_value.SerializeTo(buffer, true, nullptr);
           join_values.push_back(predicate_value);
         }
 
         // Pass the columns and values to right executor
         LOG_TRACE("Update the new value for index predicate");
         children_[1]->UpdatePredicate(join_column_ids_right, join_values);
+        
+        // Time to add predicates to read set manager
+        if (current_txn->GetHasReadSetMgr()) {
+          auto read_set_mgr = current_txn->GetQueryReadSetMgr();
+          if (first_update_predicate) {
+            // Add the left side predicate to read set manager
+            if (children_[0]->GetPredicate() != nullptr) {
+              children_[0]->GetPredicate()->DeduceExpressionName();
+              read_set_mgr->AddPredicate(children_[0]->GetTableName(), children_[0]->GetPredicate()->expr_name_);
+            }
+
+            // Add the right side predicate to read set manager
+            if (children_[1]->GetPredicate() != nullptr) {
+              children_[1]->GetPredicate()->DeduceExpressionName();
+              read_set_mgr->AddPredicate(children_[1]->GetTableName(), children_[1]->GetPredicate()->expr_name_);
+            }
+            
+            first_update_predicate = false;
+          }
+
+          read_set_mgr->ExtendPredicate(join_column_ids_right, join_values_serialized);
+          
+        }
       }
 
       // Execute the right child to get the right tile
