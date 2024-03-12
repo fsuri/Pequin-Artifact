@@ -794,7 +794,7 @@ void Server::CacheReadSet(QueryMetaData *query_md, proto::QueryResult *&result, 
     
     //Note: Sorts by key to ensure all replicas create the same hash. (Note: Not necessary if using ordered map)
     result->set_query_result_hash(generateReadSetSingleHash(result->query_read_set()));
-    //Temporarily release read-set and deps: This way we don't send it. Afterwards, re-allocate it. This avoid copying.
+    //Temporarily release read-set and deps: This way we don't send it. Afterwards, re-allocate it. This trick avoid copying.
     if(query_md->designated_for_reply)  query_read_set = result->release_query_read_set();
     //query_local_deps = result->release_query_local_deps();
     Debug("Read-set hash: %s", BytesToHex(result->query_result_hash(), 16).c_str());

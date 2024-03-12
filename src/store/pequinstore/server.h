@@ -713,14 +713,20 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
   typedef google::protobuf::RepeatedPtrField<ReadMessage> ReadSet;
   typedef google::protobuf::RepeatedPtrField<WriteMessage> WriteSet;
   typedef google::protobuf::RepeatedPtrField<proto::Dependency> DepSet;
+  //typedef std::vector<proto::ReadPredicate*> PredSet;
+  typedef google::protobuf::RepeatedPtrField<proto::ReadPredicate> PredSet;
+  
   void subscribeTxOnMissingQuery(const std::string &query_id, const std::string &txnDigest);
   void wakeSubscribedTx(const std::string query_id, const uint64_t &retry_version);
   void restoreTxn(proto::Transaction &txn);
   proto::ConcurrencyControl::Result fetchReadSet(const proto::QueryResultMetaData &query_md, const proto::ReadSet *&query_rs, const std::string &txnDigest, const proto::Transaction &txn);
-  proto::ConcurrencyControl::Result mergeTxReadSets(const ReadSet *&readSet, const DepSet *&depSet, proto::Transaction &txn, const std::string &txnDigest, uint64_t req_id, const TransportAddress &remote, bool isGossip);
-  proto::ConcurrencyControl::Result mergeTxReadSets(const ReadSet *&readSet, const DepSet *&depSet, proto::Transaction &txn, const std::string &txnDigest, proto::CommittedProof *proof); // proto::GroupedSignatures *groupedSigs, bool p1Sigs, uint64_t view);
-  proto::ConcurrencyControl::Result mergeTxReadSets(const ReadSet *&readSet, const DepSet *&depSet, proto::Transaction &txn, const std::string &txnDigest, uint8_t prepare_or_commit,
-     uint64_t req_id, const TransportAddress *remote, bool isGossip,      //Args for Prepare
+  proto::ConcurrencyControl::Result mergeTxReadSets(const ReadSet *&readSet, const DepSet *&depSet, const PredSet *&predSet, proto::Transaction &txn, 
+                                                    const std::string &txnDigest, uint64_t req_id, const TransportAddress &remote, bool isGossip);
+  proto::ConcurrencyControl::Result mergeTxReadSets(const ReadSet *&readSet, const DepSet *&depSet, const PredSet *&predSet, proto::Transaction &txn, 
+                                                    const std::string &txnDigest, proto::CommittedProof *proof); // proto::GroupedSignatures *groupedSigs, bool p1Sigs, uint64_t view);
+  proto::ConcurrencyControl::Result mergeTxReadSets(const ReadSet *&readSet, const DepSet *&depSet, const PredSet *&predSet, proto::Transaction &txn, 
+                                                          const std::string &txnDigest, uint8_t prepare_or_commit,
+                                                          uint64_t req_id, const TransportAddress *remote, bool isGossip,      //Args for Prepare
      proto::CommittedProof *proof); //Args for commit  //proto::GroupedSignatures *groupedSigs, bool p1Sigs, uint64_t view);
   
   
@@ -736,7 +742,7 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
       Timestamp &retryTs);
   proto::ConcurrencyControl::Result DoMVTSOOCCCheck(
       uint64_t reqId, const TransportAddress &remote,
-      const std::string &txnDigest, const proto::Transaction &txn, const ReadSet &readSet, const DepSet &depSet,
+      const std::string &txnDigest, const proto::Transaction &txn, const ReadSet &readSet, const DepSet &depSet, const PredSet &predSet,
       const proto::CommittedProof* &conflict, const proto::Transaction* &abstain_conflict,
       bool fallback_flow = false, bool isGossip = false);
 
@@ -804,6 +810,7 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
 
   /* BEGIN Semantic CC functions */ 
   bool CheckMonotonicTableColVersions(const proto::Transaction &txn); 
+  proto::ConcurrencyControl::Result CheckPredicates(const proto::Transaction &txn, const ReadSet &txn_read_set, const PredSet &pred_set, std::set<std::string> &dynamically_active_dependencies);
   proto::ConcurrencyControl::Result CheckPredicates(const proto::Transaction &txn, const ReadSet &txn_read_set, std::set<std::string> &dynamically_active_dependencies); 
   proto::ConcurrencyControl::Result CheckReadPred(const Timestamp &txn_ts, const proto::ReadPredicate &pred, const ReadSet &txn_read_set, std::set<std::string> &dynamically_active_dependencies);
   proto::ConcurrencyControl::Result CheckTableWrites(const proto::Transaction &txn, const Timestamp &txn_ts, const std::string &table_name, const TableWrite &table_write);

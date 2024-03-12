@@ -639,6 +639,11 @@ void Client::QueryResultCallback(PendingQuery *pendingQuery,
         //   *add_dep->mutable_write()->prepared_txn_digest() = std::move(dep_id);
         // }
 
+         for(auto &pred: *query_read_set->mutable_read_predicates()){
+            proto::ReadPredicate *add_pred = txn.add_read_predicates();
+            *add_pred = std::move(pred);
+         }
+
         delete query_read_set;
       }
       else{

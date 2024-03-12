@@ -2058,8 +2058,9 @@ void Server::UpdateCommittedReads(proto::Transaction *txn, const std::string &tx
   Debug("Update Committed Reads for txn %s", BytesToHex(txnDigest, 16).c_str());
   const ReadSet *readSet = &txn->read_set(); // DEFAULT
   const DepSet *depSet = &txn->deps();       // DEFAULT
+  const PredSet *predSet = &txn->read_predicates(); //DEFAULT
 
-  proto::ConcurrencyControl::Result res = mergeTxReadSets(readSet, depSet, *txn, txnDigest, proof);
+  proto::ConcurrencyControl::Result res = mergeTxReadSets(readSet, depSet, predSet, *txn, txnDigest, proof);
   Debug("was able to pull read set from cache? res: %d", res);
   // Note: use whatever readSet is returned -- if query read sets are not correct/present just use base (it's safe: another replica would've had all)
   // I.e.: If the TX got enough commit votes (3f+1), then at least 2f+1 correct replicas must have had the correct readSet. Those suffice for safety

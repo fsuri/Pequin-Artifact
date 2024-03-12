@@ -183,11 +183,13 @@ proto::ConcurrencyControl::Result Server::fetchReadSet(const proto::QueryResultM
       query_rs = nullptr;
       return proto::ConcurrencyControl::COMMIT; //return empty readset; ideally don't return anything... -- could make this a void function, and pass return field as argument pointer.
     }
+
     if(query_group_md->has_query_read_set()){
       Debug("Merging Query[%s] Read Set from Transaction[%s]", BytesToHex(query_md.query_id(), 16).c_str(), BytesToHex(txnDigest, 16).c_str());
        //TODO:: In this case, could avoid copies by letting client put all active read sets into the main read set. 
                                                         // --> Client should apply sort function -> will find invalid duplicates and abort early!
       query_rs = &query_group_md->query_read_set();
+      //query_rs = query_group_md->mutable_query_read_set(); //WARNING: SHOULD NEVER MUTATE TX CORE FIELDS
     }
     else{ //else go to cache (via query_id) and check if query_result hash matches. if so, use read set.
       Debug("Try to merge Query[%s] Read Set from Cache", BytesToHex(query_md.query_id(), 16).c_str());
@@ -247,7 +249,10 @@ proto::ConcurrencyControl::Result Server::fetchReadSet(const proto::QueryResultM
         subscribeTxOnMissingQuery(query_md.query_id(), txnDigest);
         return proto::ConcurrencyControl::WAIT; //Checks whether result or signed result is set. Must contain un-signed result
       }
-      const proto::QueryResult &cached_queryResult = cached_queryResultReply->result();
+      
+      //const proto::QueryResult &cached_queryResult = cached_queryResultReply->result();
+      proto::QueryResult &cached_queryResult = *cached_queryResultReply->mutable_result(); //TODO: FIXME: TEST WHETHER IT's OK TO MUTATE THIS
+
 
       if(!cached_queryResult.has_query_read_set()){
         Debug("Cached QueryFailure for current query version;");
@@ -266,7 +271,8 @@ proto::ConcurrencyControl::Result Server::fetchReadSet(const proto::QueryResultM
       } 
      
       //5) Use Read set.
-      query_rs = &cached_queryResult.query_read_set();
+      //query_rs = &cached_queryResult.query_read_set();
+       query_rs = cached_queryResult.mutable_query_read_set();
       Debug("Merged Cached Read set for Query[%s] successfully", BytesToHex(query_md.query_id(), 16).c_str());
   
       q.release();
@@ -289,17 +295,19 @@ void Server::restoreTxn(proto::Transaction &txn){
 
 //NOTE: If storing mergedReadSet inside tx is threadsafe, then technically don't need to pass readSet/depSet as function args, but can just pull from txn.
 
-proto::ConcurrencyControl::Result Server::mergeTxReadSets(const ReadSet *&readSet, const DepSet *&depSet, proto::Transaction &txn, const std::string &txnDigest, 
+proto::ConcurrencyControl::Result Server::mergeTxReadSets(const ReadSet *&readSet, const DepSet *&depSet, const PredSet *&predSet, proto::Transaction &txn, const std::string &txnDigest, 
                                                           uint64_t req_id, const TransportAddress &remote, bool isGossip){
-  return mergeTxReadSets(readSet, depSet, txn, txnDigest, 0, req_id, &remote, isGossip, nullptr);
+  return mergeTxReadSets(readSet, depSet, predSet, txn, txnDigest, 0, req_id, &remote, isGossip, nullptr);
 }
-proto::ConcurrencyControl::Result Server::mergeTxReadSets(const ReadSet *&readSet, const DepSet *&depSet, proto::Transaction &txn, const std::string &txnDigest, proto::CommittedProof *proof){ //, proto::GroupedSignatures *groupedSigs, bool p1Sigs, uint64_t view){
-  return mergeTxReadSets(readSet, depSet, txn, txnDigest, 1, 0, nullptr, false, proof); //, groupedSigs, p1Sigs, view);
+proto::ConcurrencyControl::Result Server::mergeTxReadSets(const ReadSet *&readSet, const DepSet *&depSet, const PredSet *&predSet, proto::Transaction &txn, const std::string &txnDigest, 
+                                                          proto::CommittedProof *proof){ //, proto::GroupedSignatures *groupedSigs, bool p1Sigs, uint64_t view){
+  return mergeTxReadSets(readSet, depSet, predSet, txn, txnDigest, 1, 0, nullptr, false, proof); //, groupedSigs, p1Sigs, view);
 } //TODO: In Commit: Call mergeTxReadSets -- if result != Commit, return (implies it's buffered -- commit itself implies that decision cannot be ignore/abort/abstain )
 
 // Call this function before locking keys (only call if query set non empty.) ==> need to lock in this order; need to perform CC on this. 
 // ==> Add the read set as a field to the txn. //FIXME: Txn can't be const in order to do that...  //Return value should be Result, in order to abort early if merge fails (due to incompatible duplicate)
-proto::ConcurrencyControl::Result Server::mergeTxReadSets(const ReadSet *&readSet, const DepSet *&depSet, proto::Transaction &txn, const std::string &txnDigest, uint8_t prepare_or_commit,
+proto::ConcurrencyControl::Result Server::mergeTxReadSets(const ReadSet *&readSet, const DepSet *&depSet, const PredSet *&predSet,
+     proto::Transaction &txn, const std::string &txnDigest, uint8_t prepare_or_commit,
      uint64_t req_id, const TransportAddress *remote, bool isGossip,    //Args for Prepare
      proto::CommittedProof *proof)//, proto::GroupedSignatures *groupedSigs, bool p1Sigs, uint64_t view){  //Args for Commit
   {
@@ -328,6 +336,7 @@ proto::ConcurrencyControl::Result Server::mergeTxReadSets(const ReadSet *&readSe
     Debug("Already cached a merged read set. Re-using.");
     readSet = &txn.merged_read_set().read_set();
     depSet = &txn.merged_read_set().deps();
+    predSet = &txn.merged_read_set().read_predicates();
     return proto::ConcurrencyControl::COMMIT;
   }
 
@@ -371,14 +380,28 @@ proto::ConcurrencyControl::Result Server::mergeTxReadSets(const ReadSet *&readSe
     }
     if(query_rs != nullptr && missing_queries.empty()){ //If we are waiting on queries, don't need to build mergedSet.
        //mergedReatSet.extend(query_rs);
-        mergedReadSet->mutable_read_set()->MergeFrom(query_rs->read_set()); //Merge from copies; If we don't want that, can loop through fetchedRead set and move 1 by 1.
+        mergedReadSet->mutable_read_set()->MergeFrom(query_rs->read_set()); //Merge from copies; TODO: If we don't want that, can loop through fetchedRead set and move 1 by 1.
         //mergedReadSet add readSet
         //Merge Query Dependency sets. (If empty, this merge does nothing.)
         mergedReadSet->mutable_deps()->MergeFrom(query_rs->deps());
         //mergedReadSet->mutable_dep_ids()->MergeFrom(query_rs->dep_ids());
         //mergedReadSet->mutable_dep_ts_ids()->MergeFrom(query_rs->dep_ts_ids());
 
-        //TODO: Also need to account for dep_ts
+        if(!params.query_params.cacheReadSet){
+            mergedReadSet->mutable_read_predicates()->MergeFrom(query_rs->read_predicates());
+        }
+        else{ // If Cached, don't copy, just move.
+          //FIXME: TEST WHETHER THIS WORKS OR IT'S ILLEGAL: 
+            //Note: It's undefined behavior if the thing that it points to is const. 
+            //But if it's called on something that is non const (mutable_read_pred) that is just marked const then it should work
+          proto::ReadSet *query_rs_mut = const_cast<proto::ReadSet*>(query_rs);
+          int n = query_rs_mut->read_predicates_size(); 
+          for(int i = 0; i < n; ++i){
+            auto next_pred = query_rs_mut->mutable_read_predicates()->ReleaseLast();
+            mergedReadSet->mutable_read_predicates()->AddAllocated(next_pred);
+          }
+        }
+        
     }
   }
 
@@ -452,6 +475,7 @@ proto::ConcurrencyControl::Result Server::mergeTxReadSets(const ReadSet *&readSe
   txn.set_allocated_merged_read_set(mergedReadSet.release());
   readSet = &txn.merged_read_set().read_set();
   depSet = &txn.merged_read_set().deps();
+  predSet = &txn.merged_read_set().read_predicates();
 
   //TODO: Add depSet handling here: Merge in original dep set; erase duplicates; when merging //FIXME: Turn into a dep. (ReadSet must store Deps then too.. ==> Re-factor this to be deps directly: That way Optimistic TS also can just include the TS in Write!)
   //TODO: At client: mergedSet only works on strings; would need to feed in the equality function for uniqueness.  Instantiate merged_list with KeyEqual. (could store pointers and make euqlity on deref pointers -> no copies made!)
@@ -477,6 +501,7 @@ proto::ConcurrencyControl::Result Server::DoOCCCheck(
   //Default -- merge does nothing if there are no queries
   const ReadSet *readSet = &txn.read_set(); 
   const DepSet *depSet = &txn.deps(); 
+  const PredSet *predSet = &txn.read_predicates();
 
   Debug("BASE READ SET");
   for(auto &read : *readSet){
@@ -488,7 +513,7 @@ proto::ConcurrencyControl::Result Server::DoOCCCheck(
   }
 
   //Merge query read sets -- returs immediately if there are no queries 
-  result = mergeTxReadSets(readSet, depSet, txn, txnDigest, reqId, remote, isGossip);
+  result = mergeTxReadSets(readSet, depSet, predSet, txn, txnDigest, reqId, remote, isGossip);
   //If we have an early abstain or Wait (due to invalid request) then return early.
   if(result != proto::ConcurrencyControl::COMMIT){  //query either invalid (Ignore), doomed to fail (abstain/abort), or queries not ready (Wait)
     Debug("Returning. Merge indicated query read sets are not ready or invalid. result = %d", result);
@@ -525,7 +550,7 @@ proto::ConcurrencyControl::Result Server::DoOCCCheck(
   
   switch (occType) {
     case MVTSO:
-      result = DoMVTSOOCCCheck(reqId, remote, txnDigest, txn, *readSet, *depSet, conflict, abstain_conflict, fallback_flow, isGossip);
+      result = DoMVTSOOCCCheck(reqId, remote, txnDigest, txn, *readSet, *depSet, *predSet, conflict, abstain_conflict, fallback_flow, isGossip);
       break;
     case TAPIR:
       result = DoTAPIROCCCheck(txnDigest, txn, retryTs);
@@ -552,11 +577,10 @@ proto::ConcurrencyControl::Result Server::DoOCCCheck(
   return result;
 }
 
-//TODO: Create argument: const ReadSet &readSet
 //TODO: Abort by default if we receive a Timestamp that already exists for a key (duplicate version) -- byz client might do this, but would get immediately reported.
 proto::ConcurrencyControl::Result Server::DoMVTSOOCCCheck(
     uint64_t reqId, const TransportAddress &remote,
-    const std::string &txnDigest, const proto::Transaction &txn, const ReadSet &readSet, const DepSet &depSet,
+    const std::string &txnDigest, const proto::Transaction &txn, const ReadSet &readSet, const DepSet &depSet, const PredSet &predSet,
     const proto::CommittedProof* &conflict, const proto::Transaction* &abstain_conflict,
     bool fallback_flow, bool isGossip) {
   Debug("DoMVTSOCheck[%lu:%lu][%s] with ts %lu.%lu.",
@@ -910,10 +934,30 @@ proto::ConcurrencyControl::Result Server::DoMVTSOOCCCheck(
     //5.5) Check Semantic Conflicts
     if(params.query_params.useSemanticCC){
       std::set<std::string> dynamically_active_dependencies;
-      auto res = CheckPredicates(txn, readSet, dynamically_active_dependencies);
+      auto res = CheckPredicates(txn, readSet, predSet, dynamically_active_dependencies);
        if(res != proto::ConcurrencyControl::COMMIT) return res;
       
-       //TODO: FIXME: Add dynamic deps to dep set too. Remove duplicates(?) maybe it's not necessary?
+      if(!dynamically_active_dependencies.empty()){
+       
+        //remove duplicates
+        for(const auto &dep: depSet){
+          dynamically_active_dependencies.erase(dep.write().prepared_txn_digest());
+        }
+        //if it is still non-empty after duplicate erasure
+        if(!dynamically_active_dependencies.empty()){
+           //Simply add all deps to the merged_dep set! That way the dep management functions will look at all deps.
+          //HACKY: briefly const cast TX to non-const so we can edit it.(alternatively, we can pass it in as non-const.)
+          proto::Transaction &txn_mut = const_cast<proto::Transaction&>(txn);
+          if(!txn_mut.has_merged_read_set()) txn_mut.mutable_merged_read_set()->mutable_deps()->MergeFrom(txn.deps()); //move all deps into merged set.
+
+          //add the new relevant dynamic deps
+          for(auto &dep: dynamically_active_dependencies){
+            auto new_dep = txn_mut.mutable_merged_read_set()->add_deps();
+            new_dep->mutable_write()->set_prepared_txn_digest(std::move(dep));
+            new_dep->set_involved_group(groupIdx);
+          }
+        }
+      }
     }
 
 

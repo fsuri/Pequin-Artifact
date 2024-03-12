@@ -1859,14 +1859,38 @@ std::string TransactionDigest(const proto::Transaction &txn, bool hashDigest) {
               blake3_hasher_update(&hasher, (unsigned char *) &readtimeTs, sizeof(readtimeTs));
           }
           for (const auto &dep : group_md.query_read_set().deps()) {
-              blake3_hasher_update(&hasher, (unsigned char *) &dep.write().prepared_txn_digest()[0],
-                dep.write().prepared_txn_digest().length());
+              blake3_hasher_update(&hasher, (unsigned char *) &dep.write().prepared_txn_digest()[0], dep.write().prepared_txn_digest().length());
+          }
+          for(const auto &pred: group_md.query_read_set().read_predicates()){
+              blake3_hasher_update(&hasher, (unsigned char *) &pred.table_name()[0], pred.table_name().length()); 
+              uint64_t readtimeId = pred.table_version().id();
+              uint64_t readtimeTs = pred.table_version().timestamp();
+              blake3_hasher_update(&hasher, (unsigned char *) &readtimeId, sizeof(readtimeId));
+              blake3_hasher_update(&hasher, (unsigned char *) &readtimeTs, sizeof(readtimeTs));
+              for(auto const &instance: pred.instantiations()){
+                for(auto const &col_value: instance.col_values()){
+                  blake3_hasher_update(&hasher, (unsigned char *) &col_value[0], col_value.length());
+                }  
+              }
           }
         }
       }
     }
+    //Hash read_predicates directly (in case was merged by client already)
+    for(const auto &pred: txn.read_predicates()){
+      blake3_hasher_update(&hasher, (unsigned char *) &pred.table_name()[0], pred.table_name().length()); 
+      uint64_t readtimeId = pred.table_version().id();
+      uint64_t readtimeTs = pred.table_version().timestamp();
+      blake3_hasher_update(&hasher, (unsigned char *) &readtimeId, sizeof(readtimeId));
+      blake3_hasher_update(&hasher, (unsigned char *) &readtimeTs, sizeof(readtimeTs));
+      for(auto const &instance: pred.instantiations()){
+        for(auto const &col_value: instance.col_values()){
+          blake3_hasher_update(&hasher, (unsigned char *) &col_value[0], col_value.length());
+        }  
+      }
+    }
 
-  
+
     //Account for TableWrites too: 
     //Protobuf Map has undefined order; in particular, every INSTANCE of the object could have a different order 
     //=> must sort to be deterministic. BLAKE3 hash is not commutative, the order matters
@@ -1969,11 +1993,26 @@ std::string generateReadSetSingleHash(const proto::ReadSet &query_read_set) {
       blake3_hasher_update(&hasher, (unsigned char *) &readtimeId, sizeof(read.readtime().id()));
       blake3_hasher_update(&hasher, (unsigned char *) &readtimeTs, sizeof(read.readtime().timestamp()));
   }
+
+  //Note: Dependencies do not need to be hashed
+
+  //hash the read_predicates
+  for (auto const &pred: query_read_set.read_predicates()){
+    //Note: Table Version need not match.
+     //Note: Technicaly don't need to hash instantiations either. 
+      //If there is more than 1 then it is a right join clause. In that case, the result/read-set already uniquely captures this pred set, and the client could set it himself...
+      for(auto const &instance: pred.instantiations()){
+        for(auto const &col_value: instance.col_values()){
+          blake3_hasher_update(&hasher, (unsigned char *) &col_value[0], col_value.length());
+        }  
+      }
+    //Everything else in the predicate (table name, where clause is nothing the replica computed -- the client input it so it already knows it.)
+  }
+
    // copy the digest into the output array
   blake3_hasher_finalize(&hasher, (unsigned char *) &hash_chain[0], BLAKE3_OUT_LEN);
   return hash_chain;
 }
-
 
 std::string generateReadSetSingleHash(const std::map<std::string, TimestampMessage> &read_set) { 
 

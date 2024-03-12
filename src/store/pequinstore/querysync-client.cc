@@ -533,13 +533,43 @@ void ShardClient::HandleQueryResult(proto::QueryResultReply &queryResult){
         Result_mgr &result_mgr = pendingQuery->result_freq[validated_result_hash][replica_result->query_result()]; //[validated_result_hash];  //Could flatten this into 2D structure if make result part of result_hash... But we need access to result
         matching_res = ++result_mgr.freq; //map should be default initialized to 0.
 
+        //In eager mode, account for the fact that table versions might differ (even though the result & read set are the same) because it is too coarse => select the min for safety
+        if(!pendingQuery->snapshot_mode){
+            int idx = 0;
+            for(auto &pred: *replica_result->mutable_query_read_set()->mutable_read_predicates()){
+                //TODO: For efficiency, also enforce that pred.table_version() must be > bound. 
+                //If not, we should treat this reply as byzantine, and ignore it! (quit any more processing)
+                //this means we'd have to decrement freq again. If we don't get enough results because of this => fail query and retry.
+                if(!result_mgr.min_table_versions.count(idx)) result_mgr.min_table_versions[idx] = Timestamp(pred.table_version());
+                else {
+                    auto &curr_min = result_mgr.min_table_versions[idx];
+                    if(Timestamp(pred.table_version()) < curr_min){
+                    
+                        curr_min = Timestamp(pred.table_version());
+                    }
+                } 
+
+                //Set final value to min (this is the pred that is going to be included in the TXN)
+                if(matching_res == params.query_params.resultQuorum){
+                    auto &curr_min = result_mgr.min_table_versions[idx];
+                    pred.mutable_table_version()->set_id(curr_min.getID());
+                    pred.mutable_table_version()->set_id(curr_min.getTimestamp());
+                 }
+                idx++;  
+            }
+        }
+       
+    
         if(pendingQuery->result_freq[validated_result_hash].size() > 1) Panic("Two different results with the same read hash...");
 
         //if(pendingQuery->result_freq[replica_result->query_result()].size() > 1) Panic("When testing without optimistic id's all hashes should be the same."); //Switched the order
 
 
         //Record the dependencies.
-       
+        //if using eager exec: TODO:/FIXME: not yet implemented
+            //3 options: 1) only allow running with caching; 2) accept only f+1 deps (may be unreasonable); 3) run with eager+snapshot, and check on demand whether it is in f+1 snapshot msg 
+
+        //If using Snapshot: Accept a single replicas dependency vote if the txn is in the merged snapshot (and thus f+1 replicas HAVE the tx)
         for(auto dep: *replica_result->mutable_query_read_set()->mutable_deps()){ //For normal Tx-id
             Debug("TESTING: Received Dep: %s", BytesToHex(dep.write().prepared_txn_digest(), 16).c_str());
             if(dep.write().has_prepared_timestamp()){ //I.e. using optimisticTxID
