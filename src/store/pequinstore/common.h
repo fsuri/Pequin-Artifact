@@ -649,7 +649,9 @@ private:
     std::unordered_map<uint64_t, std::set<uint64_t>> ts_freq; //replicas that have txn committed.
 };
 
-typedef std::function<void(const std::string &, const Timestamp &, bool, QueryReadSetMgr *, bool, SnapshotManager *)> find_table_version;
+typedef ::google::protobuf::Map<std::string, proto::ReplicaList> snapshot;
+typedef std::function<void(const std::string &, const Timestamp &, bool, QueryReadSetMgr *, bool, SnapshotManager *, bool, const snapshot*)> find_table_version;
+//typedef std::function<void(const std::string &, const Timestamp &, bool, QueryReadSetMgr *, bool, SnapshotManager *)> find_table_version;
 typedef std::function<bool(const std::string &)> read_prepared_pred; // This is a function that, given a txnDigest of a prepared tx, evals to true if it is readable, and false if not.
 
 

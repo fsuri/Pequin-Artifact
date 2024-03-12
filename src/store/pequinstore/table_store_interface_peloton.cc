@@ -970,7 +970,7 @@ std::string PelotonTableStore::EagerExecAndSnapshot(const std::string &query_sta
 
 
 std::string PelotonTableStore::ExecReadQueryOnMaterializedSnapshot(const std::string &query_statement, const Timestamp &ts, QueryReadSetMgr &readSetMgr,
-            const ::google::protobuf::Map<std::string, proto::ReplicaList> &ss_txns)
+            const snapshot &ss_txns) //::google::protobuf::Map<std::string, proto::ReplicaList> == snapshot
 {
   //Perform a read on a materialized snapshot
   

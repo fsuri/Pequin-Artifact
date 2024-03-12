@@ -394,6 +394,7 @@ proto::ConcurrencyControl::Result Server::mergeTxReadSets(const ReadSet *&readSe
           //FIXME: TEST WHETHER THIS WORKS OR IT'S ILLEGAL: 
             //Note: It's undefined behavior if the thing that it points to is const. 
             //But if it's called on something that is non const (mutable_read_pred) that is just marked const then it should work
+            //TODO: Could pass two arguments (one const, one non-const to avoid this casting hack)
           proto::ReadSet *query_rs_mut = const_cast<proto::ReadSet*>(query_rs);
           int n = query_rs_mut->read_predicates_size(); 
           for(int i = 0; i < n; ++i){
@@ -937,6 +938,7 @@ proto::ConcurrencyControl::Result Server::DoMVTSOOCCCheck(
       auto res = CheckPredicates(txn, readSet, predSet, dynamically_active_dependencies);
        if(res != proto::ConcurrencyControl::COMMIT) return res;
       
+      //Add relevant dynamic deps to the dependency set
       if(!dynamically_active_dependencies.empty()){
        
         //remove duplicates

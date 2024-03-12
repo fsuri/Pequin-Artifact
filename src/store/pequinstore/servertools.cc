@@ -455,10 +455,10 @@ void Server::ManageDispatchSupplyTx(const TransportAddress &remote, const std::s
 // Snapshot stays the same
 // materialize from snapshot!
 
-void Server::FindTableVersion2(const std::string &key_name, const Timestamp &ts, 
+void Server::FindTableVersion(const std::string &key_name, const Timestamp &ts, 
                               bool add_to_read_set, QueryReadSetMgr *readSetMgr, 
                               bool add_to_snapshot, SnapshotManager *snapshotMgr,
-                              bool materialize_from_snapshot, ::google::protobuf::Map<std::string, proto::ReplicaList> *ss_txns){
+                              bool materialize_from_snapshot, const snapshot *ss_txns){
   
   Debug("FindTableVersion for key %s. Called from TS[%lu:%lu]. AddToRead? %d. AddToSnap? %d", key_name.c_str(), ts.getTimestamp(), ts.getID(), add_to_read_set, add_to_snapshot);
 
@@ -556,7 +556,7 @@ void Server::FindTableVersion2(const std::string &key_name, const Timestamp &ts,
 
 //TODO: FIXME: Add snapshot set as input, and read only the version supplied in the snapshot set (instead of the latest)
 // google::protobuf::Map<std::string, pequinstore::proto::ReplicaList> *snapshot_set
-void Server::FindTableVersion(const std::string &key_name, const Timestamp &ts, bool add_to_read_set, QueryReadSetMgr *readSetMgr, bool add_to_snapshot, SnapshotManager *snapshotMgr){
+void Server::FindTableVersionOld(const std::string &key_name, const Timestamp &ts, bool add_to_read_set, QueryReadSetMgr *readSetMgr, bool add_to_snapshot, SnapshotManager *snapshotMgr){
   //Read the current TableVersion or TableColVersion from CC-store  -- I.e. key_name = "table_name" OR "table_name + delim + column_name" 
   //Note: TableVersion is updated AFTER all TableWrites of a TX have been written. So the TableVersion from CC-store is a pessimistic version; if it is outdated we abort, but that is safe.
 

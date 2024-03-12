@@ -214,8 +214,16 @@ void IndexScanExecutor::SetTableColVersions(concurrency::TransactionContext *cur
     //UW_ASSERT(!is_metadata_table_);
     if (!current_txn->IsPointRead() && current_txn->CheckPredicatesInitialized() && !is_metadata_table_) {
       std::cerr << "Read Table/Col versions" << std::endl;
+
+      //shorthands
+      bool get_read_set = current_txn->GetHasReadSetMgr();
+      bool find_snapshot = current_txn->GetHasSnapshotMgr();
+      auto ss_mgr = current_txn->GetSnapshotMgr();
+      bool perform_read_on_snapshot = current_txn->GetSnapshotRead();
+      auto snapshot_set = current_txn->GetSnapshotSet();
+
       // Read table version and table col versions
-      current_txn->GetTableVersion()(table_->GetName(), current_txn_timestamp, current_txn->GetHasReadSetMgr(), query_read_set_mgr, current_txn->GetHasSnapshotMgr(), current_txn->GetSnapshotMgr());
+      current_txn->GetTableVersion()(table_->GetName(), current_txn_timestamp, get_read_set, query_read_set_mgr, find_snapshot, ss_mgr, perform_read_on_snapshot, snapshot_set);
       // Table column version : FIXME: Read version per Col, not composite key
       std::unordered_set<std::string> column_names;
       //std::vector<std::string> col_names;
@@ -224,7 +232,7 @@ void IndexScanExecutor::SetTableColVersions(concurrency::TransactionContext *cur
 
       for (auto &col : column_names) {
         std::cout << "Col name is " << col << std::endl;
-        current_txn->GetTableVersion()(EncodeTableCol(table_->GetName(), col), current_txn_timestamp, current_txn->GetHasReadSetMgr(), query_read_set_mgr, current_txn->GetHasSnapshotMgr(), current_txn->GetSnapshotMgr());
+        current_txn->GetTableVersion()(EncodeTableCol(table_->GetName(), col), current_txn_timestamp, get_read_set, query_read_set_mgr, find_snapshot, ss_mgr, perform_read_on_snapshot, snapshot_set);
         //col_names.push_back(col);
       }
 
@@ -1417,16 +1425,22 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup_OLD() {
 
   if (!current_txn->IsPointRead()) {
     Debug("Get Table and Col Versions");
+    // Read table version and table col versions bool get_read_set = current_txn->GetHasReadSetMgr();
+    bool get_read_set = current_txn->GetHasReadSetMgr();
+    bool find_snapshot = current_txn->GetHasSnapshotMgr();
+    auto ss_mgr = current_txn->GetSnapshotMgr();
+    bool perform_read_on_snapshot = current_txn->GetSnapshotRead();
+    auto snapshot_set = current_txn->GetSnapshotSet();
+
     // Read table version and table col versions
-    current_txn->GetTableVersion()(table_->GetName(), current_txn_timestamp, current_txn->GetHasReadSetMgr(), query_read_set_mgr, current_txn->GetHasSnapshotMgr(), current_txn->GetSnapshotMgr());
-    // Table column version : FIXME: Read version per Col, not composite key
+    current_txn->GetTableVersion()(table_->GetName(), current_txn_timestamp, get_read_set, query_read_set_mgr, find_snapshot, ss_mgr, perform_read_on_snapshot, snapshot_set);
     std::unordered_set<std::string> column_names;
     //std::vector<std::string> col_names;
     GetColNames(predicate_, column_names);
 
     for (auto &col : column_names) {
       std::cout << "Col name is " << col << std::endl;
-      current_txn->GetTableVersion()(EncodeTableCol(table_->GetName(), col), current_txn_timestamp, current_txn->GetHasReadSetMgr(), query_read_set_mgr, current_txn->GetHasSnapshotMgr(), current_txn->GetSnapshotMgr());
+      current_txn->GetTableVersion()(EncodeTableCol(table_->GetName(), col),  current_txn_timestamp, get_read_set, query_read_set_mgr, find_snapshot, ss_mgr, perform_read_on_snapshot, snapshot_set);
       //col_names.push_back(col);
     }
 

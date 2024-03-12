@@ -352,8 +352,15 @@ void SeqScanExecutor::Scan() {
 
   // Get TableVersion and TableColVersions
   if (current_txn->CheckPredicatesInitialized()) {
-    current_txn->GetTableVersion()(target_table_->GetName(), current_txn_timestamp, current_txn->GetHasReadSetMgr(), query_read_set_mgr, current_txn->GetHasSnapshotMgr(), current_txn->GetSnapshotMgr());
+     bool get_read_set = current_txn->GetHasReadSetMgr();
+    bool find_snapshot = current_txn->GetHasSnapshotMgr();
+    auto ss_mgr = current_txn->GetSnapshotMgr();
+    bool perform_read_on_snapshot = current_txn->GetSnapshotRead();
+    auto snapshot_set = current_txn->GetSnapshotSet();
 
+    // Read table version and table col versions
+    current_txn->GetTableVersion()(target_table_->GetName(), current_txn_timestamp, get_read_set, query_read_set_mgr, find_snapshot, ss_mgr, perform_read_on_snapshot, snapshot_set);
+    
     //If Scanning (Non_active read set), then don't need to include ColVersions in ActiveReadSet. Changes to index could not be affecting the observed read set.
     //However, if we use Active Read set, then the read_set is only the keys that hit the predicate. 
     //Thus we need the ColVersion to detect changes to col values that might be relevant to ActiveRS (i.e. include ColVersion for all Col in search predicate)
@@ -364,7 +371,7 @@ void SeqScanExecutor::Scan() {
 
       for (auto &col : column_names) {
         std::cerr << "extracted col: " << col <<  std::endl;
-        current_txn->GetTableVersion()(EncodeTableCol(target_table_->GetName(), col), current_txn_timestamp, current_txn->GetHasReadSetMgr(), query_read_set_mgr, current_txn->GetHasSnapshotMgr(), current_txn->GetSnapshotMgr());
+        current_txn->GetTableVersion()(EncodeTableCol(target_table_->GetName(), col), current_txn_timestamp, get_read_set, query_read_set_mgr, find_snapshot, ss_mgr, perform_read_on_snapshot, snapshot_set);
       }
     }
   }
@@ -419,7 +426,10 @@ void SeqScanExecutor::OldScan() {
   ////////////////////////////////////  TAKE TABLE VERSION / TABLE-COL VERSION/////////////////////////////////////////////////////////////////
 
   // Read table version and table col versions
-  current_txn->GetTableVersion()(target_table_->GetName(), timestamp, has_read_set_mgr, query_read_set_mgr, perform_find_snapshot, snapshot_mgr);
+ 
+  current_txn->GetTableVersion()(target_table_->GetName(), timestamp, has_read_set_mgr, query_read_set_mgr, perform_find_snapshot, snapshot_mgr, perform_read_on_snapshot, snapshot_set);
+
+  //NOTE: Don't need TableColVersion when doing seq_scan  //TODO: Need them to safe guar
 
   //NOTE: Don't need TableColVersion when doing seq_scan  //TODO: Need them to safe guard Active Reads if we don't have SemanticCC
     // // Table column version 

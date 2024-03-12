@@ -227,7 +227,7 @@ executor::ExecutionResult TrafficCop::ExecuteReadHelper(
     pequinstore::QueryReadSetMgr *query_read_set_mgr, 
     pequinstore::SnapshotManager *snapshot_mgr,
     size_t k_prepared_versions,
-    const ::google::protobuf::Map<std::string, pequinstore::proto::ReplicaList> *ss_txns,
+    const pequinstore::snapshot *ss_txns,
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     size_t thread_id) {
 
@@ -1434,7 +1434,7 @@ ResultType TrafficCop::ExecuteReadStatement(
     pequinstore::QueryReadSetMgr *query_read_set_mgr, //TODO: change to ptr
     pequinstore::SnapshotManager *snapshot_mgr,
     size_t k_prepared_versions,
-    const ::google::protobuf::Map<std::string, pequinstore::proto::ReplicaList> *ss_txns,
+    const pequinstore::snapshot *ss_txns,
      ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     size_t thread_id)   
 {

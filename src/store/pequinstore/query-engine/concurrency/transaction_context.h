@@ -37,7 +37,7 @@ class TriggerData;
 }  // namespace trigger*/
 
 static pequinstore::read_prepared_pred default_read_prepared_pred = [](const std::string &s){Debug("Initializer call, do nothing"); return true;};
-static pequinstore::find_table_version default_find_table_version = [](const std::string &s, const Timestamp &t, bool b, pequinstore::QueryReadSetMgr *q, bool b2, pequinstore::SnapshotManager *sm){Debug("Initializer call, do nothing");};
+static pequinstore::find_table_version default_find_table_version = [](const std::string &s, const Timestamp &t, bool b, pequinstore::QueryReadSetMgr *q, bool b2, pequinstore::SnapshotManager *sm, bool b3, const pequinstore::snapshot *ss){Debug("Initializer call, do nothing");};
 
 
 namespace concurrency {
@@ -423,11 +423,11 @@ public:
     snapshot_read_ = snapshot_read;
   }
 
-  const ::google::protobuf::Map<std::string, pequinstore::proto::ReplicaList> *GetSnapshotSet() {
+  const pequinstore::snapshot *GetSnapshotSet() {
     return snapshot_set_;
   }
 
-  void SetSnapshotSet(const ::google::protobuf::Map<std::string, pequinstore::proto::ReplicaList> *snapshot_set) {
+  void SetSnapshotSet(const pequinstore::snapshot *snapshot_set) {
     snapshot_set_ = snapshot_set;
   }
 
@@ -546,7 +546,7 @@ private:
   bool snapshot_read_ = false;
 
   /** Snapshot set */
-  const ::google::protobuf::Map<std::string, pequinstore::proto::ReplicaList> *snapshot_set_ = nullptr;
+  const pequinstore::snapshot *snapshot_set_ = nullptr;
 
   bool predicates_initialized = false;
   /** Read prepared predicate */
