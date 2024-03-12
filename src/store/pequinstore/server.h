@@ -811,6 +811,8 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
   void ClearPredicateAndWrites(const proto::Transaction &txn);
   bool CheckGCWatermark(const Timestamp &ts); 
   bool EvaluatePred(const std::string &pred, const RowUpdates &row);
+  bool Eval(peloton::expression::AbstractExpression *predicate, const RowUpdates row, peloton::catalog::Schema *schema);
+  peloton::catalog::Schema* ConvertColRegistryToSchema(ColRegistry *col_registry);
 
   /* END Semantic CC functions */
 

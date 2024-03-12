@@ -52,10 +52,6 @@ class IndexScanExecutor : public AbstractScanExecutor {
 
   void ResetState();
 
-  // the underlying table that the index is for
-  storage::DataTable *table_ = nullptr;
-
-
  protected:
   bool DInit();
 
@@ -134,7 +130,9 @@ class IndexScanExecutor : public AbstractScanExecutor {
   /** @brief index associated with index scan. */
   std::shared_ptr<index::Index> index_;
 
-  
+  // the underlying table that the index is for
+  storage::DataTable *table_ = nullptr;
+
   std::vector<oid_t> updated_column_ids;
   bool already_added_table_col_versions;
 

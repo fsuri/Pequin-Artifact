@@ -13,6 +13,7 @@
 #pragma once
 
 #include "../optimizer/operator_visitor.h"
+#include "store/pequinstore/sql_interpreter.h"
 
 namespace peloton {
 
@@ -112,6 +113,21 @@ class PlanGenerator : public OperatorVisitor {
       const std::string &alias,
       std::shared_ptr<catalog::TableCatalogEntry> table);
 
+     /**
+   * @brief Generate a predicate expression for scan plans
+   *
+   * @param predicate_expr the original expression
+   * @param alias the table alias
+   * @param table the table object
+   *
+   * @return a predicate that is already evaluated, which could be used to
+   *  generate a scan plan i.e. all tuple idx are set
+   */
+  std::unique_ptr<expression::AbstractExpression> GeneratePredicateForScanColRegistry(
+      const std::shared_ptr<expression::AbstractExpression> predicate_expr,
+      const std::string &alias,
+      pequinstore::ColRegistry *col_registry); 
+
  private:
   /**
    * @brief Generate all tuple value expressions of a base table
@@ -126,6 +142,20 @@ class PlanGenerator : public OperatorVisitor {
   std::vector<std::unique_ptr<expression::AbstractExpression>>
   GenerateTableTVExprs(const std::string &alias,
                        std::shared_ptr<catalog::TableCatalogEntry> table);
+
+  /**
+   * @brief Generate all tuple value expressions of a base table
+   *
+   * @param alias Table alias, we used it to construct the tuple value
+   *  expression
+   * @param table The table object
+   *
+   * @return a vector of tuple value expression representing column name to
+   *  table column id mapping
+   */
+  std::vector<std::unique_ptr<expression::AbstractExpression>>
+  GenerateTableTVExprsColRegistry(const std::string &alias,
+                       pequinstore::ColRegistry *col_registry);
 
   /**
    * @brief Generate the column oids vector for a scan plan

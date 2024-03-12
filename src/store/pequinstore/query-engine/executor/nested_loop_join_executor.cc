@@ -94,8 +94,8 @@ bool NestedLoopJoinExecutor::DExecute() {
   const std::vector<oid_t> &join_column_ids_left = node.GetJoinColumnsLeft();
   const std::vector<oid_t> &join_column_ids_right = node.GetJoinColumnsRight();
 
-  bool first_update_predicate = true;
-  auto current_txn = executor_context_->GetTransaction();
+  //bool first_update_predicate = true;
+  //auto current_txn = executor_context_->GetTransaction();
 
   // We should first deal with the current result. Otherwise we will cache a lot
   // data which is not good to utilize memory. After that we call child execute.
@@ -134,7 +134,7 @@ bool NestedLoopJoinExecutor::DExecute() {
         children_[1]->UpdatePredicate(join_column_ids_right, join_values);
         
         // Time to add predicates to read set manager
-        if (current_txn->GetHasReadSetMgr()) {
+        /*if (current_txn->GetHasReadSetMgr()) {
           auto read_set_mgr = current_txn->GetQueryReadSetMgr();
           if (first_update_predicate) {
             // Add the left side predicate to read set manager
@@ -154,7 +154,7 @@ bool NestedLoopJoinExecutor::DExecute() {
 
           read_set_mgr->ExtendPredicate(join_column_ids_right, join_values_serialized);
           
-        }
+        }*/
       }
 
       // Execute the right child to get the right tile

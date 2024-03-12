@@ -228,6 +228,28 @@ void IndexScanExecutor::SetTableColVersions(concurrency::TransactionContext *cur
         //col_names.push_back(col);
       }
 
+      /* Set the initial predicate for readset manager */
+      // Index predicate in string form
+      /*std::string index_pred = "";
+      for (int i = 0; i < values_.size(); i++) {
+        std::string col_name = table_->GetSchema()->GetColumn(key_column_ids_[i]).GetName();
+        std::string op = ExpressionTypeToString(expr_types_[i], true);
+        std::string val = values_[i].ToString();
+
+        index_pred = col_name + op + val + " AND ";
+      }*/
+      auto pred_copy = predicate_->Copy();
+      pred_copy->DeduceExpressionName();
+      
+      std::string full_pred = "SELECT * FROM " + table_->GetName() + " WHERE " + pred_copy->expr_name_;
+      // Truncate the last AND
+      /*if (pred_copy->expr_name_.length() == 0) {
+        full_pred = full_pred.substr(0, full_pred.length()-5);
+      }*/
+      
+      query_read_set_mgr->ExtendPredicate(full_pred);
+      std::cout << "The readset predicate is " << full_pred << std::endl;
+
       // std::string encoded_key = EncodeTableRow(table_->GetName(), col_names);
       // std::cout << "Encoded key is " << encoded_key << std::endl;
       // current_txn->GetTableVersion()(encoded_key, current_txn_timestamp, true, query_read_set_mgr, nullptr);
@@ -2174,7 +2196,15 @@ void IndexScanExecutor::UpdatePredicate(
   
   std::cerr << "new pred: " << new_predicate->GetInfo() << std::endl;
 
-
+  auto current_txn = executor_context_->GetTransaction();
+  if (current_txn->GetHasReadSetMgr()) {
+    pequinstore::QueryReadSetMgr *query_read_set_mgr = current_txn->GetQueryReadSetMgr();
+    auto pred_copy = predicate_->Copy();
+    pred_copy->DeduceExpressionName();
+        
+    std::string full_pred = "SELECT * FROM " + table_->GetName() + " WHERE " + pred_copy->expr_name_;
+    query_read_set_mgr->ExtendPredicate(full_pred);
+  }
 }
 
 

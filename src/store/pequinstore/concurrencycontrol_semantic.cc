@@ -53,6 +53,8 @@
 #include "store/pequinstore/localbatchverifier.h"
 #include "store/pequinstore/sharedbatchverifier.h"
 #include "store/pequinstore/query-engine/optimizer/plan_generator.h"
+#include "store/pequinstore/query-engine/type/type.h"
+#include "store/pequinstore/query-engine/type/value.h"
 #include "lib/batched_sigs.h"
 #include <valgrind/memcheck.h>
 
@@ -431,20 +433,53 @@ bool Server::CheckGCWatermark(const Timestamp &ts) {
 
   // Only process select statements
   if (sql_stmt->GetType() != peloton::StatementType::SELECT)
-    return;
+    return false;
   auto select_stmt = (peloton::parser::SelectStatement *)sql_stmt;
 
   auto where_clause = select_stmt->where_clause->Copy();
   std::shared_ptr<peloton::expression::AbstractExpression> sptr(where_clause);
   peloton::optimizer::PlanGenerator plan_generator;
-  auto predicate = plan_generator.GeneratePredicateForScan(sptr, "", emp);
+  ColRegistry *col_registry;
+  auto predicate = plan_generator.GeneratePredicateForScanColRegistry(sptr, "", col_registry);
 
   std::cout << "The predicate is " << predicate->GetInfo() << std::endl;
-  auto result = predicate->Evaluate(tuple.get(), nullptr, nullptr);
-
-  std::cout << "Result from evaluating predicate is " << result.ToString() << std::endl;
-  return true;
+  peloton::catalog::Schema *schema = ConvertColRegistryToSchema(col_registry);
+  
+  auto result = Eval(predicate.get(), row, schema);
+  return result;
  }
+
+ bool Server::Eval(peloton::expression::AbstractExpression *predicate, const RowUpdates row, peloton::catalog::Schema *schema) { 
+  std::unique_ptr<peloton::storage::Tuple> tuple(new peloton::storage::Tuple(schema, true));
+
+  // TODO: Make comprehensive with all types
+  for(int i = 0; i < row.column_values_size(); ++i){
+    if (schema->GetColumn(i).GetType() == peloton::type::TypeId::INTEGER) {
+      int32_t val = std::stoi(row.column_values()[i]);
+      tuple->SetValue(i, peloton::type::Value(peloton::type::TypeId::INTEGER, val));
+    } else if (schema->GetColumn(i).GetType() == peloton::type::TypeId::VARCHAR) {
+      tuple->SetValue(i, peloton::type::Value(peloton::type::TypeId::VARCHAR, row.column_values()[i]));
+    }    
+  }
+
+  auto result = predicate->Evaluate(tuple.get(), nullptr, nullptr);
+  return result.IsTrue();
+}
+
+peloton::catalog::Schema* Server::ConvertColRegistryToSchema(ColRegistry *col_registry) {
+  std::vector<peloton::catalog::Column> columns;
+  for (int i = 0; i < col_registry->col_names.size(); i++) {
+    auto name = col_registry->col_names[i];
+    auto type = col_registry->col_name_type.at(name);
+
+    auto type_id = peloton::StringToTypeId(type);
+    auto column = peloton::catalog::Column(type_id, peloton::type::Type::GetTypeSize(type_id), name, true);
+    columns.push_back(column);
+  }
+
+  peloton::catalog::Schema *schema = new peloton::catalog::Schema(columns);
+  return schema;
+}
 
 
 

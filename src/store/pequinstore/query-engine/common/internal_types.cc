@@ -912,10 +912,10 @@ std::string ExpressionTypeToString(ExpressionType type, bool short_str) {
       return ("COMPARE_DISTINCT_FROM");
     }
     case ExpressionType::CONJUNCTION_AND: {
-      return ("CONJUNCTION_AND");
+      return short_str ? "AND" : ("CONJUNCTION_AND");
     }
     case ExpressionType::CONJUNCTION_OR: {
-      return ("CONJUNCTION_OR");
+      return short_str ? "OR" : ("CONJUNCTION_OR");
     }
     case ExpressionType::VALUE_CONSTANT: {
       return ("VALUE_CONSTANT");

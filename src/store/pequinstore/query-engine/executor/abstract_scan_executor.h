@@ -45,10 +45,6 @@ class AbstractScanExecutor : public AbstractExecutor {
 
   virtual void ResetState() {}
 
-  virtual expression::AbstractExpression *GetPredicate() {}
-
-  virtual std::string GetTableName() {}
-
  protected:
   bool DInit();
 
