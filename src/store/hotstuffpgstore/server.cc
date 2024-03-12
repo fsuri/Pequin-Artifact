@@ -102,25 +102,43 @@ std::vector<::google::protobuf::Message*> Server::Execute(const string& type, co
   proto::TryCommit try_commit;
   proto::UserAbort user_abort;
   std::vector<::google::protobuf::Message*> results;
-  // Shir: make order here
-  // if (type == sql_rpc.GetTypeName()) {
-  //   Debug("Shir: executing SQL_RPC here");
+  std::string client_seq_key ;
+  if (type == sql_rpc.GetTypeName()) {
+    sql_rpc.ParseFromString(msg);
+    client_seq_key = createClientSeqKey(sql_rpc.client_id(),sql_rpc.txn_seq_num());
+  } else if (type == try_commit.GetTypeName()) {
+    try_commit.ParseFromString(msg);
+    client_seq_key = createClientSeqKey(try_commit.client_id(),try_commit.txn_seq_num());
+  } else if (type == user_abort.GetTypeName()) {
+    user_abort.ParseFromString(msg);
+    client_seq_key = createClientSeqKey(user_abort.client_id(),user_abort.txn_seq_num());
+  }
 
-  //   sql_rpc.ParseFromString(msg);
-  //   results.push_back(HandleSQL_RPC(sql_rpc));
-  //   return results;
-  // } else if (type == try_commit.GetTypeName()) {
-  //   Debug("Shir: executing commit (tryCommit) here");
+  txnStatusMap::accessor t;
+  auto [tr, is_aborted] = getPgTransaction(t, client_seq_key);
+  if (tr){
+    // this means tr is not a null pointer. it would be a null pointer if this txn was alerady aborted. handle this case later
 
-  //   try_commit.ParseFromString(msg);
-  //   results.push_back(HandleTryCommit(try_commit));
-  //   return results;
-  // } else if (type == user_abort.GetTypeName()) {
-  //   user_abort.ParseFromString(msg);
-  //   results.push_back(HandleUserAbort(user_abort));
-  //   return results;
-  // }
-  results.push_back(nullptr);
+    if (type == sql_rpc.GetTypeName()) {
+      results.push_back(HandleSQL_RPC(t,tr,sql_rpc.req_id(),sql_rpc.query()));
+    } else if (type == try_commit.GetTypeName()) {
+      results.push_back(HandleTryCommit(t,tr,try_commit.req_id()));
+    } else if (type == user_abort.GetTypeName()) {
+      results.push_back(HandleUserAbort(t,tr));
+    }
+
+  }else{
+    if (type == sql_rpc.GetTypeName()) {
+      UW_ASSERT(is_aborted);
+      proto::SQL_RPCReply* reply = new proto::SQL_RPCReply();
+      reply->set_req_id(sql_rpc.req_id());
+      reply->set_status(REPLY_FAIL);
+      results.push_back(returnMessage(reply));
+    }else{
+      Panic("Should not try to issue parallel operations that aren't sql_query");
+    }
+  }
+
   return results;
 }
 
@@ -156,14 +174,8 @@ void Server::Execute_Callback(const string& type, const string& msg, std::functi
     std::vector<::google::protobuf::Message*> results;
     txnStatusMap::accessor t;
     auto [tr, is_aborted] = getPgTransaction(t, client_seq_key);
-    if(is_aborted){
-      std::cerr<<" txn with id:  "<< client_seq_key<<" and tr:  "<<tr<<"   was aborted\n";
-
-    }
     if (tr){
-
-      // this means tr is not a null pointer. it would be a null pointer if this txn was alerady aborted. handle this case later
-
+      // this means tr is not a null pointer. it would be a null pointer if this txn was alerady aborted. 
       if (type == sql_rpc_template.GetTypeName()) {
         std::cerr<<sql_rpc.query()<<"\n";
         results.push_back(HandleSQL_RPC(t,tr,sql_rpc.req_id(),sql_rpc.query()));
@@ -172,23 +184,20 @@ void Server::Execute_Callback(const string& type, const string& msg, std::functi
       } else if (type == user_abort_template.GetTypeName()) {
         results.push_back(HandleUserAbort(t,tr));
       }
-
     }else{
-      std::cerr<<" txn with id:  "<< client_seq_key<<" got here because aborted\n";
-
-      UW_ASSERT(is_aborted);
-
-      // shir: create abort reply?
-      proto::SQL_RPCReply* reply = new proto::SQL_RPCReply();
-      reply->set_req_id(sql_rpc.req_id());
-      reply->set_status(REPLY_FAIL);
-      auto x= returnMessage(reply);
-
-      results.push_back(x);
+      if (type == sql_rpc_template.GetTypeName()) {
+        UW_ASSERT(is_aborted);
+        proto::SQL_RPCReply* reply = new proto::SQL_RPCReply();
+        reply->set_req_id(sql_rpc.req_id());
+        reply->set_status(REPLY_FAIL);
+        results.push_back(returnMessage(reply));
+      }else{
+        Panic("Should not try to issue parallel operations that aren't sql_query");
+      }
     }
 
     tp->Timer(0, std::bind(ecb,results));
-    
+  
     return (void*) true;
   };
 
