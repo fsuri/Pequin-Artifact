@@ -48,7 +48,7 @@
 
 namespace hotstuffpgstore {
 
-typedef std::function<void(std::vector<::google::protobuf::Message*>)> execute_callback;
+typedef std::function<void(std::vector<google::protobuf::Message*>&)> execute_callback;
 // typedef std::function<void()> execute_timeout_callback;
 
 class Server : public App, public ::Server {
@@ -112,7 +112,9 @@ private:
 
   std::string createClientSeqKey(uint64_t cid, uint64_t tid);
   
-  std::shared_ptr<tao::pq::transaction> getPgTransaction(txnStatusMap::accessor &t, const std::string &key);
+  std::pair<std::shared_ptr<tao::pq::transaction>, bool> getPgTransaction(txnStatusMap::accessor &t, const std::string &key);
+
+  uint64_t getThreadID(const std::string &key);
 
   // void CleanTxnMap(const std::string &client_seq_key);
 
@@ -120,15 +122,16 @@ private:
 
   void markTxnTerminated(txnStatusMap::accessor &t);
 
-  // bool Server::isTerminatedTxn(txnStatusMap::accessor &t);
-
   std::string GenerateLoadStatement(const std::string &table_name, const std::vector<std::vector<std::string>> &row_segment, int segment_no);
 
-  ::google::protobuf::Message* HandleSQL_RPC(const proto::SQL_RPC& sql_rpc);
+  // ::google::protobuf::Message* HandleSQL_RPC(const proto::SQL_RPC& sql_rpc);
+  ::google::protobuf::Message* HandleSQL_RPC(txnStatusMap::accessor &t, std::shared_ptr<tao::pq::transaction> tr, uint64_t req_id,std::string query);
 
-  ::google::protobuf::Message* HandleTryCommit(const proto::TryCommit& try_commit);
+  // ::google::protobuf::Message* HandleTryCommit(const proto::TryCommit& try_commit);
+  ::google::protobuf::Message* HandleTryCommit(txnStatusMap::accessor &t, std::shared_ptr<tao::pq::transaction> tr, uint64_t req_id);
 
-  ::google::protobuf::Message* HandleUserAbort(const proto::UserAbort& user_abort);
+  // ::google::protobuf::Message* HandleUserAbort(const proto::UserAbort& user_abort);
+  ::google::protobuf::Message* HandleUserAbort(txnStatusMap::accessor &t, std::shared_ptr<tao::pq::transaction> tr) ;
 
   ::google::protobuf::Message* returnMessage(::google::protobuf::Message* msg);
 

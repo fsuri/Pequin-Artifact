@@ -34,6 +34,9 @@
 
 namespace hotstuffpgstore {
 
+// Shir: pick the right number
+const uint64_t number_of_threads=8;
+
 using namespace std;
 
 Server::Server(const transport::Configuration& config, KeyManager *keyManager,
@@ -45,8 +48,7 @@ Server::Server(const transport::Configuration& config, KeyManager *keyManager,
   validateProofs(validateProofs),  timeDelta(timeDelta), part(part), tp(tp),
   timeServer(timeServer) {
 
-  // Shir: pick the right number
-  tp->AddIndexedThreads(8);
+  tp->AddIndexedThreads(number_of_threads);
 
   // Start the cluster before trying to connect:
   // version and cluster name should match the ones in Pequin-Artifact/pg_setup/postgres_service.sh script
@@ -100,126 +102,142 @@ std::vector<::google::protobuf::Message*> Server::Execute(const string& type, co
   proto::TryCommit try_commit;
   proto::UserAbort user_abort;
   std::vector<::google::protobuf::Message*> results;
+  // Shir: make order here
+  // if (type == sql_rpc.GetTypeName()) {
+  //   Debug("Shir: executing SQL_RPC here");
 
-  if (type == sql_rpc.GetTypeName()) {
-    Debug("Shir: executing SQL_RPC here");
+  //   sql_rpc.ParseFromString(msg);
+  //   results.push_back(HandleSQL_RPC(sql_rpc));
+  //   return results;
+  // } else if (type == try_commit.GetTypeName()) {
+  //   Debug("Shir: executing commit (tryCommit) here");
 
-    sql_rpc.ParseFromString(msg);
-    results.push_back(HandleSQL_RPC(sql_rpc));
-    return results;
-  } else if (type == try_commit.GetTypeName()) {
-    Debug("Shir: executing commit (tryCommit) here");
-
-    try_commit.ParseFromString(msg);
-    results.push_back(HandleTryCommit(try_commit));
-    return results;
-  } else if (type == user_abort.GetTypeName()) {
-    user_abort.ParseFromString(msg);
-    results.push_back(HandleUserAbort(user_abort));
-    return results;
-  }
+  //   try_commit.ParseFromString(msg);
+  //   results.push_back(HandleTryCommit(try_commit));
+  //   return results;
+  // } else if (type == user_abort.GetTypeName()) {
+  //   user_abort.ParseFromString(msg);
+  //   results.push_back(HandleUserAbort(user_abort));
+  //   return results;
+  // }
   results.push_back(nullptr);
   return results;
 }
 
-void Server::Execute_Callback(const string& type, const string& msg, const execute_callback ecb) {
+
+void Server::Execute_Callback(const string& type, const string& msg, std::function<void(std::vector<google::protobuf::Message*>& )> ecb) {
+
   Debug("Execute with callback: %s", type.c_str());
 
   proto::SQL_RPC sql_rpc;
   proto::TryCommit try_commit;
   proto::UserAbort user_abort;
   std::vector<::google::protobuf::Message*> results;
+  std::string client_seq_key ;
   if (type == sql_rpc.GetTypeName()) {
     sql_rpc.ParseFromString(msg);
-    results.push_back(HandleSQL_RPC(sql_rpc));
+    client_seq_key = createClientSeqKey(sql_rpc.client_id(),sql_rpc.txn_seq_num());
   } else if (type == try_commit.GetTypeName()) {
     try_commit.ParseFromString(msg);
-    results.push_back(HandleTryCommit(try_commit));
+    client_seq_key = createClientSeqKey(try_commit.client_id(),try_commit.txn_seq_num());
   } else if (type == user_abort.GetTypeName()) {
     user_abort.ParseFromString(msg);
-    results.push_back(HandleUserAbort(user_abort));
-  } else{
-    results.push_back(nullptr);
-    Panic("Only failed grouped decisions should be atomically broadcast");
+    client_seq_key = createClientSeqKey(user_abort.client_id(),user_abort.txn_seq_num());
   }
-  ecb(results);
+
+  auto thread_id = getThreadID(client_seq_key);
+  Debug("Thread id for key %s is: %d",client_seq_key.c_str(), thread_id);
+
+
+  auto f = [this, type, client_seq_key, sql_rpc, try_commit, user_abort, ecb](){
+    proto::SQL_RPC sql_rpc_template;
+    proto::TryCommit try_commit_template;
+    proto::UserAbort user_abort_template;
+    std::vector<::google::protobuf::Message*> results;
+    txnStatusMap::accessor t;
+    auto [tr, is_aborted] = getPgTransaction(t, client_seq_key);
+    if(is_aborted){
+      std::cerr<<" txn with id:  "<< client_seq_key<<" and tr:  "<<tr<<"   was aborted\n";
+
+    }
+    if (tr){
+
+      // this means tr is not a null pointer. it would be a null pointer if this txn was alerady aborted. handle this case later
+
+      if (type == sql_rpc_template.GetTypeName()) {
+        std::cerr<<sql_rpc.query()<<"\n";
+        results.push_back(HandleSQL_RPC(t,tr,sql_rpc.req_id(),sql_rpc.query()));
+      } else if (type == try_commit_template.GetTypeName()) {
+        results.push_back(HandleTryCommit(t,tr,try_commit.req_id()));
+      } else if (type == user_abort_template.GetTypeName()) {
+        results.push_back(HandleUserAbort(t,tr));
+      }
+
+    }else{
+      std::cerr<<" txn with id:  "<< client_seq_key<<" got here because aborted\n";
+
+      UW_ASSERT(is_aborted);
+
+      // shir: create abort reply?
+      proto::SQL_RPCReply* reply = new proto::SQL_RPCReply();
+      reply->set_req_id(sql_rpc.req_id());
+      reply->set_status(REPLY_FAIL);
+      auto x= returnMessage(reply);
+
+      results.push_back(x);
+    }
+
+    tp->Timer(0, std::bind(ecb,results));
+    
+    return (void*) true;
+  };
+
+  tp->DispatchIndexedTP_noCB(thread_id,f);
 }
 
-::google::protobuf::Message* Server::HandleSQL_RPC(const proto::SQL_RPC& sql_rpc) {
+::google::protobuf::Message* Server::HandleSQL_RPC(txnStatusMap::accessor &t, std::shared_ptr<tao::pq::transaction> tr, uint64_t req_id,std::string query) {
   Debug("Handling SQL_RPC");
   proto::SQL_RPCReply* reply = new proto::SQL_RPCReply();
-  reply->set_req_id(sql_rpc.req_id());
+  reply->set_req_id(req_id);
 
-  std::string client_seq_key = createClientSeqKey(sql_rpc.client_id(),sql_rpc.txn_seq_num());
-  txnStatusMap::accessor t;
-  std::shared_ptr<tao::pq::transaction> tr = getPgTransaction(t, client_seq_key);
-  std::cerr<<"Shir: returned tr pointer fro get PGTXN is  :     "<< tr <<"\n";
+  try {
+    Debug("Attempt query %s", query.c_str());
+    // std::cerr<< "Shir: Before executing tr->execute with the following tr addr:  "<< tr <<"\n";
+    const tao::pq::result sql_res = tr->execute(query);
+    // std::cerr<< "Shir: After executing tr->execute \n";
+    Debug("Query executed");
+    sql::QueryResultProtoBuilder* res_builder = createResult(sql_res);
+    reply->set_status(REPLY_OK);
+    reply->set_sql_res(res_builder->get_result()->SerializeAsString());
+  } catch(tao::pq::sql_error e) {
+    markTxnTerminated(t);
+    t.release();
+    Debug("An exception caugth while using postgres.");
+    reply->set_status(REPLY_FAIL);
+  }  
 
-
-  if (tr){
-    // this means tr is not a null pointer. it would be a null pointer if this txn was alerady aborted
-    try {
-      Debug("Attempt query %s", sql_rpc.query().c_str());
-      std::cout << sql_rpc.query() << std::endl;
-
-      std::cerr<< "Shir: Before executing tr->execute with the following tr addr:  "<< tr <<"\n";
-      const tao::pq::result sql_res = tr->execute(sql_rpc.query());
-      // t.release();
-      std::cerr<< "Shir: After executing tr->execute \n";
-
-      // std::cerr<< "Shir: number of rows affected (according to server):   "<<sql_res.rows_affected() <<"\n";
-      // std::cerr<< "Shir: this is for txn by client id:   "<<std::to_string(sql_rpc.client_id()) <<"\n";
-
-      Debug("Query executed");
-      sql::QueryResultProtoBuilder* res_builder = createResult(sql_res);
-      reply->set_status(REPLY_OK);
-            reply->set_sql_res(res_builder->get_result()->SerializeAsString());
-    } catch(tao::pq::sql_error e) {
-      markTxnTerminated(t);
-      t.release();
-      Debug("An exception caugth while using postgres.");
-            reply->set_status(REPLY_FAIL);
-    }
-  }
-  Debug("Shir: only now I should release t that points to:   ");
-  std::cerr<<tr<<"\n";
   return returnMessage(reply);
 }
 
-::google::protobuf::Message* Server::HandleTryCommit(const proto::TryCommit& try_commit) {
+::google::protobuf::Message* Server::HandleTryCommit(txnStatusMap::accessor &t, std::shared_ptr<tao::pq::transaction> tr, uint64_t req_id) {
   Debug("Trying to commit a txn");
   proto::TryCommitReply* reply = new proto::TryCommitReply();
-  reply->set_req_id(try_commit.req_id());
-
-  std::string client_seq_key = createClientSeqKey(try_commit.client_id(),try_commit.txn_seq_num());
-  txnStatusMap::accessor t;
-  std::shared_ptr<tao::pq::transaction> tr = getPgTransaction(t, client_seq_key);
-  
-  if (tr){
-    // this means tr is not a null pointer. it would be a null pointer if this txn was alerady aborted
-    try {
-      tr->commit();
-      Debug("TryCommit went through successfully.");
-            reply->set_status(REPLY_OK);
-    } catch(tao::pq::sql_error e) {
-      Debug("An exception caugth while using postgres.");
-            reply->set_status(REPLY_FAIL);
-    }
-    markTxnTerminated(t);
+  reply->set_req_id(req_id);
+  try {
+    tr->commit();
+    Debug("TryCommit went through successfully.");
+    reply->set_status(REPLY_OK);
+  } catch(tao::pq::sql_error e) {
+    Debug("An exception caugth while using postgres.");
+    reply->set_status(REPLY_FAIL);
   }
+  markTxnTerminated(t);
   return returnMessage(reply);
 }
 
-::google::protobuf::Message* Server::HandleUserAbort(const proto::UserAbort& user_abort) {
-  std::shared_ptr<tao::pq::transaction> tr;
-  std::string client_seq_key = createClientSeqKey(user_abort.client_id(),user_abort.txn_seq_num());
-  txnStatusMap::accessor t;
-
-  if(txnMap.find(t,client_seq_key)) {
-    tr = get<1>(t->second);
-    tr->rollback();
-    markTxnTerminated(t);
-  } 
+::google::protobuf::Message* Server::HandleUserAbort(txnStatusMap::accessor &t, std::shared_ptr<tao::pq::transaction> tr) {
+  tr->rollback();
+  markTxnTerminated(t);
   return nullptr;
 }
 
@@ -231,10 +249,11 @@ std::string Server::createClientSeqKey(uint64_t cid, uint64_t tid){
   return client_seq_key;
 }
 
-std::shared_ptr<tao::pq::transaction> Server::getPgTransaction(txnStatusMap::accessor &t, const std::string &key){
+std::pair<std::shared_ptr<tao::pq::transaction>, bool> Server::getPgTransaction(txnStatusMap::accessor &t, const std::string &key){
   std::shared_ptr<tao::pq::transaction> tr;
   Debug("Client transaction key: %s", key.c_str());
   std::cout << key << std::endl;
+  bool is_aborted=false;
 
   if(txnMap.insert(t,key)) {
       Debug("Key was not found, creating a new connection");
@@ -247,20 +266,25 @@ std::shared_ptr<tao::pq::transaction> Server::getPgTransaction(txnStatusMap::acc
     } else {
       Debug("Key already exists");
       tr = get<1>(t->second);
+      std::cerr<<"Shir: for key:  "<< key.c_str() <<"  existing tr pointer is :     "<< tr <<"\n";
+      is_aborted=get<2>(t->second);
   }
-    return tr;
+    return std::make_pair(tr,is_aborted);
 }
 
+uint64_t Server::getThreadID(const std::string &key){
+  std::hash<std::string> hasher;  
+  uint64_t id = hasher(key) % number_of_threads;
+  return id;
+}
+
+// fields are < connection, transaction tr, bool was_aborted>
 void Server::markTxnTerminated(txnStatusMap::accessor &t){
   Debug("Shir: terminating txn");
   get<0>(t->second) = nullptr;
   get<1>(t->second) = nullptr;
   get<2>(t->second) = true;
 }
-
-// bool Server::isTerminatedTxn(txnStatusMap::accessor &t){
-//   return get<2>(t->second);
-// }
 
 sql::QueryResultProtoBuilder* Server::createResult(const tao::pq::result &sql_res){
   // Should extrapolate out into builder method

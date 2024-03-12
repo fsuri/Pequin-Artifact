@@ -273,59 +273,45 @@ void Replica::executeSlots() {
         // Shir: if i'm here it means that i've found the request (returned from hotstuff?), and i'm going to execute it
         stats->Increment("exec_request",1);
         Debug("executing seq num: %lu ", execSeqNum);
+        execSeqNum++;
+
 
         // Shir: This is the messages recieved from hotstuff
         proto::PackedMessage packedMsg = requests[digest];
 
-        // Shir: make some order here
-        // auto msg= unpackMsg(packedMsg.type(), packedMsg.msg());
-        // Debug("Id is: %d   txn id:   %d ",msg.client_id(),msg.txn_seq_num());
-        // std::hash<std::string> hasher;  
-        // auto id = hasher(packedMsg.type())%8;
-
-
-        // auto id = getTxnId(packedMsg.type(), packedMsg.msg());
-        auto res = deserializeMsgAndObtainID(packedMsg.type(), packedMsg.msg());
-        ::google::protobuf::Message* deserialized_msg = res.first;
-        uint64_t thread_id = res.second % 8;
-        std::cerr<<"Id for dispatching is:     "<<thread_id<<"\n";
+        if (packedMsg.type()==""){
+          Debug("Skip bubble execution");
+          continue;
+        }
 
 
         if(asyncServer) {
-          // Debug("Shir: async server");
 
-          // Shir: server is asynchronous (will deal with this scope later)
+          auto cb= [this, digest, packedMsg](const std::vector<::google::protobuf::Message*> &replies){
+            for (const auto& reply : replies) {
+              if (reply != nullptr) {
+                Debug("Sending reply");
+                stats->Increment("execs_sent",1);
+                EpendingBatchedMessages.push_back(reply);
+                EpendingBatchedDigs.push_back(digest);
+                if (EpendingBatchedMessages.size() >= EbatchSize) {
+                  Debug("EBatch is full, sending");
 
-          // It's important that this line appears before dispatching the job
-          execSeqNum++;
+                  sendEbatch();
+                } else if (!EbatchTimerRunning) {
+                  EbatchTimerRunning = true;
+                  Debug("Starting ebatch timer");
 
-          auto f = [this, digest, packedMsg](){
-            std::vector<::google::protobuf::Message*> replies = app->Execute(packedMsg.type(), packedMsg.msg());
-            transport->Timer(0, [this, digest, packedMsg,replies](){
-              for (const auto& reply : replies) {
-                if (reply != nullptr) {
-                  Debug("Sending reply");
-                  stats->Increment("execs_sent",1);
-                  EpendingBatchedMessages.push_back(reply);
-                  EpendingBatchedDigs.push_back(digest);
-                  if (EpendingBatchedMessages.size() >= EbatchSize) {
-                    Debug("EBatch is full, sending");
-
-                    sendEbatch();
-                  } else if (!EbatchTimerRunning) {
-                    EbatchTimerRunning = true;
-                    Debug("Starting ebatch timer");
-
-                  }
-                } else {
-                  Debug("Invalid execution for the following:       %s", digest.c_str());
                 }
+              } else {
+                Debug("Invalid execution for the following:       %s", digest.c_str());
               }
-            });
-            return (void*) true;
+            }
           };
-          transport->DispatchIndexedTP_noCB(thread_id,f);
-          // transport->DispatchTP_noCB(f);
+          
+
+   
+          app->Execute_Callback(packedMsg.type(), packedMsg.msg(),cb);
 
         } else {
           // Shir: server is synchronous (current situation)
@@ -352,7 +338,6 @@ void Replica::executeSlots() {
             }
           }
 
-          execSeqNum++;
         }
     
       } else {
@@ -414,26 +399,6 @@ void Replica::delegateEbatch(std::vector<::google::protobuf::Message*> EpendingB
     }
 
 }
-
-// uint64_t Replica::getTxnId(const string& type, const string& msg){
-//   proto::SQL_RPC sql_rpc;
-//   proto::TryCommit try_commit;
-//   proto::UserAbort user_abort;
-//   uint64_t txnid =0 ;
-
-//   if (type == sql_rpc.GetTypeName()) {
-//     sql_rpc.ParseFromString(msg);
-//     txnid = sql_rpc.client_id() + sql_rpc.txn_seq_num();
-//   } else if (type == try_commit.GetTypeName()) {
-//     try_commit.ParseFromString(msg);
-//     txnid = try_commit.client_id() + try_commit.txn_seq_num();
-//   } else if (type == user_abort.GetTypeName()) {
-//     user_abort.ParseFromString(msg);
-//     txnid = user_abort.client_id() + user_abort.txn_seq_num();
-//   }
-//   return txnid%8;
-// }
-
 
 
 std::pair<::google::protobuf::Message*,uint64_t> Replica::deserializeMsgAndObtainID(const string& type, const string& msg){
