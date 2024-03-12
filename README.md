@@ -143,13 +143,13 @@ You may install them directly using:
 - If using Ubuntu 18.04, use `sudo apt install libevent-openssl-2.1-6 libevent-pthreads-2.1-6` instead for openssl and pthreads.
 
 - (not carefully vetted) To build on Ubuntu 22.04 or later:
-   ```
    Add these to the end of your `/etc/apt/sources.list`:
-
+   ```
    deb     http://archive.ubuntu.com/ubuntu/ focal main
    deb-src http://archive.ubuntu.com/ubuntu/ focal main
-  
+   ```
    Run:
+   ```
    sudo apt update
    sudo apt install cpp=4:9.3.0-1ubuntu2
    sudo apt install gcc=4:9.3.0-1ubuntu2
@@ -157,6 +157,7 @@ You may install them directly using:
    ```
    Download `libfmt-dev` version 4:9.3.0-1ubuntu2 at:
    http://mirrors.kernel.org/ubuntu/pool/main/g/gcc-defaults/g++_9.3.0-1ubuntu2_amd64.deb
+   
    Run from folder where downloaded:
    ```
    sudo apt install libfmt-dev_6.1.2+ds-2_amd64.deb
