@@ -519,18 +519,20 @@ void Server::FindTableVersion(const std::string &key_name, const Timestamp &ts,
     UW_ASSERT(readSetMgr);
 
     if(mostRecentPrepared != nullptr){ //Read prepared
-      readSetMgr->SetPredicateTableVersion(mostRecentPrepared->timestamp()); //Add to current pred
+      if(params.query_params.useSemanticCC) readSetMgr->SetPredicateTableVersion(mostRecentPrepared->timestamp()); //Add to current pred
       readSetMgr->AddToDepSet(TransactionDigest(*mostRecentPrepared, params.hashDigest), mostRecentPrepared->timestamp());
-    
+
+       //Add Table to Read Set. Note: This is PURELY to have a read key in order to lock mutex for CC check. The TS does not matter.
+      readSetMgr->AddToReadSet(key_name, mostRecentPrepared->timestamp(), true);
     }
     else{ //Read committed
       TimestampMessage tsm;
       tsVal.first.serialize(&tsm);
-      readSetMgr->SetPredicateTableVersion(tsm); //Add to current pred
-  
+      if(params.query_params.useSemanticCC) readSetMgr->SetPredicateTableVersion(tsm); //Add to current pred
+
+       //Add Table to Read Set. Note: This is PURELY to have a read key in order to lock mutex for CC check. The TS does not matter.
+      readSetMgr->AddToReadSet(key_name, tsm, false);
     }
-    //Add Table to Read Set. Note: This is PURELY to have a read key in order to lock mutex for CC check. The TS does not matter.
-    readSetMgr->AddToReadSet(key_name, mostRecentPrepared->timestamp(), true);
   }
 
  if(add_to_snapshot){ //Creating Snapshot

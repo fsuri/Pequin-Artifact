@@ -189,7 +189,7 @@ bool IndexScanExecutor::DExecute() {
 
 
 void IndexScanExecutor::GetColNames(const expression::AbstractExpression * child_expr, std::unordered_set<std::string> &column_names, bool use_updated) {
-  //Get all Column Names in the WHERE clause. 
+  //Get all Column Names in the WHERE clause. (both the already visible ones, and the replaced ones..)
   for (size_t i = 0; i < child_expr->GetChildrenSize(); i++) {
     auto child = child_expr->GetChild(i);
     if (dynamic_cast<const expression::TupleValueExpression*>(child) != nullptr) {
@@ -208,6 +208,7 @@ void IndexScanExecutor::GetColNames(const expression::AbstractExpression * child
   }
 }
 
+static bool use_col_versions = false; //TODO: PARAMTERERIZE
 void IndexScanExecutor::SetTableColVersions(concurrency::TransactionContext *current_txn, pequinstore::QueryReadSetMgr *query_read_set_mgr, const Timestamp &current_txn_timestamp){
   if(!already_added_table_col_versions){
       bool is_metadata_table_ = table_->GetName().substr(0,3) == "pg_"; //don't do any of the Pequin features for meta data tables..
@@ -224,21 +225,24 @@ void IndexScanExecutor::SetTableColVersions(concurrency::TransactionContext *cur
 
       // Read table version and table col versions
       current_txn->GetTableVersion()(table_->GetName(), current_txn_timestamp, get_read_set, query_read_set_mgr, find_snapshot, ss_mgr, perform_read_on_snapshot, snapshot_set);
-      // Table column version : FIXME: Read version per Col, not composite key
-      std::unordered_set<std::string> column_names;
-      //std::vector<std::string> col_names;
-      GetColNames(predicate_, column_names);
-      if(predicate_ != nullptr) std::cerr << "pred: " << predicate_->GetInfo() << std::endl;
+      
+      if(use_col_versions){
+        // Table column version : FIXME: Read version per Col, not composite key
+        std::unordered_set<std::string> column_names;
+        //std::vector<std::string> col_names;
+        GetColNames(predicate_, column_names);
+        if(predicate_ != nullptr) std::cerr << "pred: " << predicate_->GetInfo() << std::endl;
 
-      for (auto &col : column_names) {
-        std::cout << "Col name is " << col << std::endl;
-        current_txn->GetTableVersion()(EncodeTableCol(table_->GetName(), col), current_txn_timestamp, get_read_set, query_read_set_mgr, find_snapshot, ss_mgr, perform_read_on_snapshot, snapshot_set);
-        //col_names.push_back(col);
+        for (auto &col : column_names) {
+          std::cout << "Col name is " << col << std::endl;
+          current_txn->GetTableVersion()(EncodeTableCol(table_->GetName(), col), current_txn_timestamp, get_read_set, query_read_set_mgr, find_snapshot, ss_mgr, perform_read_on_snapshot, snapshot_set);
+          //col_names.push_back(col);
+        }
+
+        // std::string encoded_key = EncodeTableRow(table_->GetName(), col_names);
+        // std::cout << "Encoded key is " << encoded_key << std::endl;
+        // current_txn->GetTableVersion()(encoded_key, current_txn_timestamp, true, query_read_set_mgr, nullptr);
       }
-
-      // std::string encoded_key = EncodeTableRow(table_->GetName(), col_names);
-      // std::cout << "Encoded key is " << encoded_key << std::endl;
-      // current_txn->GetTableVersion()(encoded_key, current_txn_timestamp, true, query_read_set_mgr, nullptr);
     }
   }
   already_added_table_col_versions = true;
@@ -1434,19 +1438,22 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup_OLD() {
 
     // Read table version and table col versions
     current_txn->GetTableVersion()(table_->GetName(), current_txn_timestamp, get_read_set, query_read_set_mgr, find_snapshot, ss_mgr, perform_read_on_snapshot, snapshot_set);
-    std::unordered_set<std::string> column_names;
-    //std::vector<std::string> col_names;
-    GetColNames(predicate_, column_names);
+    
+    if(use_col_versions){
+      std::unordered_set<std::string> column_names;
+      //std::vector<std::string> col_names;
+      GetColNames(predicate_, column_names); //Note: These are *all* columns in the where clause, not just the ones covered by the predicate
 
-    for (auto &col : column_names) {
-      std::cout << "Col name is " << col << std::endl;
-      current_txn->GetTableVersion()(EncodeTableCol(table_->GetName(), col),  current_txn_timestamp, get_read_set, query_read_set_mgr, find_snapshot, ss_mgr, perform_read_on_snapshot, snapshot_set);
-      //col_names.push_back(col);
+      for (auto &col : column_names) {
+        std::cout << "Col name is " << col << std::endl;
+        current_txn->GetTableVersion()(EncodeTableCol(table_->GetName(), col),  current_txn_timestamp, get_read_set, query_read_set_mgr, find_snapshot, ss_mgr, perform_read_on_snapshot, snapshot_set);
+        //col_names.push_back(col);
+      }
+
+      // std::string encoded_key = EncodeTableRow(table_->GetName(), col_names);
+      // std::cout << "Encoded key is " << encoded_key << std::endl;
+      // current_txn->GetTableVersion()(encoded_key, current_txn_timestamp, true, query_read_set_mgr, nullptr);
     }
-
-    // std::string encoded_key = EncodeTableRow(table_->GetName(), col_names);
-    // std::cout << "Encoded key is " << encoded_key << std::endl;
-    // current_txn->GetTableVersion()(encoded_key, current_txn_timestamp, true, query_read_set_mgr, nullptr);
   }
 
   for (auto &visible_tuple_location : visible_tuple_locations) {

@@ -107,6 +107,8 @@ message ReadPredicate {
   repeated bytes col_names = 4; //UNUSED
   repeated TimestampMessage col_versions = 5; //UNUSED
   repeated ColValues instantiations = 6; // the col values for each predicate instantiation.
+
+  repeated bytes pred_instance = 7;
 }
 
 message ReadSet {

@@ -590,17 +590,28 @@ void SQLTransformer::TransformUpdate(size_t pos, std::string_view &write_stateme
         // table_ver->set_value("");
         bool changed_table = false; // false //FOR NOW ALWAYS SETTING TO TRUE due to UPDATE INDEX issue (see above comment) TODO: Implement TableColumnVersion optimization
 
-        
+        bool use_active_read_set = true; //FIXME: TODO: PARAMETERIZE
+        bool use_col_versions = false; //FIXME: TODO: PARAMETERIZE
+        if(!use_col_versions) changed_table = true;   //Note: If not using col versions, must include table version
         //Write TableColVersions
-        for(auto &[col, _]: col_updates){
-            std::cerr << "Trying to set Table Col Version for col: " << col << std::endl;
-            if(!col_registry.indexed_cols.count(col)) continue; //only set col version for indexed columns
+        
+        if(use_col_versions){ //DEPRECATED  
+            for(auto &[col, _]: col_updates){
+                std::cerr << "Trying to set Table Col Version for col: " << col << std::endl;
+                if(!use_active_read_set && !col_registry.indexed_cols.count(col)) continue; 
+                //If using Active Set: Must use all columns we update; if not, then only set the col version for indexed columns
+                
+                //col version is necessary to figure out whether or not there is an update to a table that could have affected whether index sees it
+                //if we are only updating non-index cols => index will have seen complete picture
+                //however, the predicate evaluation might still change. So if we are using an active read set, then we must include the table version even if we update non-index cols
 
-            WriteMessage *write = txn->add_write_set();   
-            write->set_key(table_name + unique_delimiter + std::string(col));  
-            write->set_is_table_col_version(true);
-             //If a TX has multiple Queries with the same Col updates there will be duplicates. Does that matter? //Writes are sorted to avoid deadlock.
-             //TODO: to avoid duplicates: store the idx of the cols accessed and write Version only later.
+                WriteMessage *write = txn->add_write_set();   
+                write->set_key(table_name + unique_delimiter + std::string(col));  
+                write->set_value("");
+                write->set_is_table_col_version(true);
+                //If a TX has multiple Queries with the same Col updates there will be duplicates. Does that matter? //Writes are sorted to avoid deadlock.
+                //TODO: to avoid duplicates: store the idx of the cols accessed and write Version only later.
+            }
         }
 
         TableWrite *table_write = AddTableWrite(table_name, col_registry);

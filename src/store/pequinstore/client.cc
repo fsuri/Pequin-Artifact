@@ -879,6 +879,11 @@ void Client::Commit(commit_callback ccb, commit_timeout_callback ctcb,
       }
     }
 
+    Debug("PRINT WRITE SET"); //FIXME: REMOVE THIS. JUST FOR TESTING
+    for(auto &write: txn.write_set()){
+      Debug("key: %s. table_v? %d", write.key().c_str(), write.is_table_col_version());
+    }
+
     //TODO: Remove duplicate Writes and TableWrites 
     //sort over TableWrite vector (by primary key), and erase duplicates (same primary key) (try to keep the latter.)
 

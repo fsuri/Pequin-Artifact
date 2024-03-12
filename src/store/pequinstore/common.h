@@ -494,6 +494,10 @@ struct QueryReadSetMgr {
         }
         void SetPredicateTableVersion(const TimestampMessage &table_version){
             //Set TableVersion
+            if(read_set->read_predicates().empty()){
+                Debug("No predicate available to set Table Version");
+                return;
+            }
             int last_idx = read_set->read_predicates_size() - 1;
             proto::ReadPredicate &current_pred = (*read_set->mutable_read_predicates())[last_idx]; //get last pred
             *current_pred.mutable_table_version() = table_version;

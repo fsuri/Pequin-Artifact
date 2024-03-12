@@ -13,7 +13,7 @@ SQLUpdateReservation::SQLUpdateReservation(uint32_t timeout, std::mt19937 &gen, 
             flight = r.flight;
             f_id = flight.flight_id;
             seatnum = std::uniform_int_distribution<int>(1, TOTAL_SEATS_PER_FLIGHT)(gen);
-            while(seatnum == r.seat_num) std::uniform_int_distribution<int>(1, TOTAL_SEATS_PER_FLIGHT)(gen);
+            while(seatnum == r.seat_num) seatnum = std::uniform_int_distribution<int>(1, TOTAL_SEATS_PER_FLIGHT)(gen); //pick a new seat
             update_res.pop();
         } else { 
             // no reservations to update so make this transaction fail

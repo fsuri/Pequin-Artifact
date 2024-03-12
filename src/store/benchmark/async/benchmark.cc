@@ -448,7 +448,7 @@ DEFINE_bool(pequin_sign_client_queries, false, "sign query and sync messages"); 
 
 //DEFINE_bool(pequin_parallel_queries, false, "dispatch queries to parallel worker threads"); -- only serverside arg
 
-DEFINE_bool(pequin_use_semantic_cc, false, "use SemanticCC");
+DEFINE_bool(pequin_use_semantic_cc, true, "use SemanticCC"); //Non-semantic mode is deprecated.
 
 
 ///////////////////////////////////////////////////////////

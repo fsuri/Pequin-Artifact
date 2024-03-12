@@ -304,11 +304,22 @@ proto::ConcurrencyControl::Result Server::CheckTableWrites(const proto::Transact
         //If INSERT:check against Table predicates && add to TableVersion
         //If UPDATE/DELETE: check against respective col predicates && add to ColVersions. 
   TablePredicateMap::const_accessor tp;
+   tablePredicates.insert(tp, table_name);
+
   bool has_preds = tablePredicates.find(tp, table_name);
-  if(!has_preds) return proto::ConcurrencyControl::COMMIT;
+  if(!has_preds) { 
+    Panic("no preds");
+    return proto::ConcurrencyControl::COMMIT;
+  }
   auto &curr_table_preds = tp->second;
 
-  
+  //
+  Debug("PRINT WRITE SET");
+  for(auto &write: txn.write_set()){
+    Debug("key: %s. table_v? %d Write TS: [%lu:%lu]", write.key().c_str(), write.is_table_col_version(), txn_ts.getTimestamp(), txn_ts.getID());
+  }
+
+  Panic("checking writes");
   // For each TableWrite: Check if there are any prepared/committed Read TX with higher TS that this TableWrite could be in conflict with
   for(auto itr = curr_table_preds.upper_bound(txn_ts); itr != curr_table_preds.end(); ++itr){  //Check against all read preds (on this table) with read.TS >= write.TS
     auto &[read_txn, commit_or_prepare] = itr->second;

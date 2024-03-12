@@ -352,7 +352,10 @@ DEFINE_bool(pequin_sign_replica_to_replica_sync, false, "sign inter replica sync
 
 DEFINE_bool(pequin_parallel_queries, true, "dispatch queries to parallel worker threads");
 
-DEFINE_bool(pequin_use_semantic_cc, false, "use SemanticCC");
+DEFINE_bool(pequin_use_semantic_cc, true, "use SemanticCC"); //Non-semantic mode is deprecated.
+DEFINE_bool(pequin_use_col_versions, false, "use col versions for updates instead of table version"); //TODO: Don't ever use this with SemanticCC, not useful.
+//TODO: Active read set: true
+//TODO: Active Snapshot set (optional), false
 
 //Baseline settings
 DEFINE_string(bftsmart_codebase_dir, "", "path to directory containing bftsmart configurations");
