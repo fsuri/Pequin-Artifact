@@ -121,11 +121,11 @@ bool NestedLoopJoinExecutor::DExecute() {
       // Grab the values
       if (!join_column_ids_left.empty() && !join_column_ids_right.empty()) {
         std::vector<type::Value> join_values;
-        std::vector<char *> join_values_serialized;
+        //std::vector<char *> join_values_serialized;
         for (auto column_id : join_column_ids_left) {
           type::Value predicate_value = left_tuple.GetValue(column_id);
-          char *buffer = new char[predicate_value.GetLength()];
-          predicate_value.SerializeTo(buffer, true, nullptr);
+          // char *buffer = new char[predicate_value.GetLength()];
+          // predicate_value.SerializeTo(buffer, true, nullptr);
           join_values.push_back(predicate_value);
         }
 

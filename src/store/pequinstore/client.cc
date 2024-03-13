@@ -501,7 +501,7 @@ void Client::PointQueryResultCallback(PendingQuery *pendingQuery,
 { 
   
   if (addReadSet) { 
-    //Note: We add to read set even if result = empty (i.e. there was no write). In that case, mutable_read time will be empty.
+    //Note: We must add to read set even if result = empty (i.e. there was no write). In that case, mutable_read time will be empty. (default = 0)
     Debug("Adding key %s read set with readtime [%lu:%lu]", key.c_str(), read_time.getTimestamp(), read_time.getID());
     ReadMessage *read = txn.add_read_set();
     read->set_key(key);

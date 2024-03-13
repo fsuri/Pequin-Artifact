@@ -9,7 +9,7 @@
 // Copyright (c) 2015-17, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
-
+#include <string_view>
 #include "../executor/index_scan_executor.h"
 
 #include "../catalog/catalog.h"
@@ -40,6 +40,7 @@
 #include "store/pequinstore/query-engine/common/item_pointer.h"
 #include "store/common/backend/sql_engine/table_kv_encoder.h"
 #include "store/pequinstore/pequin-proto.pb.h"
+
 
 namespace peloton {
 namespace executor {
@@ -85,8 +86,10 @@ bool IndexScanExecutor::DInit() {
   old_predicate_ = predicate_;
 
   updated_column_ids.clear();
+
   already_added_table_col_versions = false;
   first_execution = true;
+  is_implicit_point_read_ = false;
 
   left_open_ = node.GetLeftOpen();
   right_open_ = node.GetRightOpen();
@@ -114,6 +117,8 @@ bool IndexScanExecutor::DInit() {
   }
 
   table_ = node.GetTable();
+
+  is_metadata_table_ = table_->GetName().substr(0,3) == "pg_";
 
   // PAVLO (2017-01-05): This seems unnecessary and a waste of time
   if (table_ != nullptr) {
@@ -145,7 +150,7 @@ bool IndexScanExecutor::DExecute() {
   LOG_TRACE("Index Scan executor :: 0 child");
 
   if (!done_) {
-    bool is_metadata_table_ = table_->GetName().substr(0,3) == "pg_"; //don't do any of the Pequin features for meta data tables..
+    //bool is_metadata_table_ = table_->GetName().substr(0,3) == "pg_"; //don't do any of the Pequin features for meta data tables..
     if(is_metadata_table_){
        Debug("Doing a META DATA secondary index scan");
       std::cerr << "Doing a secondary index scan for table " << table_->GetName() << std::endl;
@@ -196,6 +201,7 @@ void IndexScanExecutor::GetColNames(const expression::AbstractExpression * child
     if (dynamic_cast<const expression::TupleValueExpression*>(child) != nullptr) {
       auto tv_expr = dynamic_cast<const expression::TupleValueExpression*>(child);
       column_names.insert(tv_expr->GetColumnName());
+      //std::cerr << "getting col info: " << tv_expr->GetInfo() << std::endl;
     }
     GetColNames(child, column_names, false);
   }
@@ -212,7 +218,7 @@ void IndexScanExecutor::GetColNames(const expression::AbstractExpression * child
 static bool use_col_versions = false; //TODO: PARAMTERERIZE
 void IndexScanExecutor::SetTableColVersions(concurrency::TransactionContext *current_txn, pequinstore::QueryReadSetMgr *query_read_set_mgr, const Timestamp &current_txn_timestamp){
   if(!already_added_table_col_versions){
-      bool is_metadata_table_ = table_->GetName().substr(0,3) == "pg_"; //don't do any of the Pequin features for meta data tables..
+    //bool is_metadata_table_ = table_->GetName().substr(0,3) == "pg_"; //don't do any of the Pequin features for meta data tables..
     //UW_ASSERT(!is_metadata_table_);
     if (!current_txn->IsPointRead() && current_txn->CheckPredicatesInitialized() && !is_metadata_table_) {
       std::cerr << "Read Table/Col versions" << std::endl;
@@ -245,22 +251,99 @@ void IndexScanExecutor::SetTableColVersions(concurrency::TransactionContext *cur
   already_added_table_col_versions = true;
 }
 
+bool IndexScanExecutor::IsImplicitPointRead(concurrency::TransactionContext *current_txn){
+
+  // Figure out on demand whether the predicate is essentially a point read (i.e. we are using primary index scan + fully subsumed)
+      // In this case: don't add predicate, but add to read set (regardless of active or not)
+      // Note: Must add to read set also if index scan finds nothing (.e.g. empty read)
+      // Note: If index scan does find something, avoid duplicate inserts into read set.
+      // Simply do the following: Set a bool to indicate read set must be recorded. 
+      //         If index scan finds no row => insert into read set with TS 0
+      //         If it does, but eval goes to false => insert into read set anyways (implicitly active)
+
+
+  if(current_txn->IsPointRead()) return false; //Don't need to do this for explicit point reads.
+
+  auto sql_interpreter = current_txn->GetSqlInterpreter();
+
+  is_implicit_point_read_ = sql_interpreter->IsPoint(predicate_->expr_name_, table_->GetName(), true);
+  //std::string_view cond_statement(predicate_->expr_name_);
+  // std::vector<std::string> p_col_values; //TODO: Sanity check that this is the same as values_
+  // is_implicit_point_read_ = sql_interpreter->CheckColConditions(cond_statement, table_, p_col_values, true);
+
+  // bool terminate_early = false;
+  // size_t end = 0;
+  // bool relax = true;
+
+  // UW_ASSERT(sql_interpreter->GetTableRegistry_const()->count(table_->GetName()));
+  // const auto &col_registry = sql_interpreter->GetTableRegistry_const()->at(table_->GetName());
+
+  // std::map<std::string, std::string> p_col_value; //TODO: Sanity check that this is the same as values_
+  // is_implicit_point_read_ = sql_interpreter->CheckColConditions(end, cond_statement, col_registry, p_col_value, terminate_early, relax);
+  //Note: CheckColConditions is adjusted to handle/ignore reflexive preds 
+  //TODO: Test that this works fine...
+ 
+    //Alternatively: Manual check
+    //a) are all primary columns present
+        // std::unordered_set<std::string> column_names;
+        // GetColNames(predicate_, column_names);
+
+        // auto tableReg = current_txn->GetTableRegistry()->at(table_->GetName());
+
+        // //Check if current predicate is fully subsumed by primary key
+        // for(auto &pcol : tableReg.primary_key_cols){
+        //   if(!column_names.count(pcol)){
+        //     return;
+        //   }
+        // }
+
+    //b) TODO: Check if all are conjuctors... //Check if ==..
+
+
+  return is_implicit_point_read_;
+}
+
+void IndexScanExecutor::TryForceReadSetAddition(concurrency::TransactionContext *current_txn, pequinstore::QueryReadSetMgr *query_read_set_mgr, const Timestamp &time){
+  //timestamp = 0 if not in index
+  //timestamp = whatever curr if eval false.
+
+  if(!is_implicit_point_read_) return;
+
+  //Construct primary key encoding on demand. //Note: This function will only be called if predicate is an implicit point read.
+                                              //E.g. a join causes us to call a primary index scan on a single row.
+  std::vector<std::string> primary_key_cols;
+  for(auto &val: values_){ //Note: values_ holds all values of the index_predicate (i.e. subset primary key ones)
+    UW_ASSERT(val.GetTypeId() != type::TypeId::DECIMAL);
+    primary_key_cols.push_back(val.ToString());
+  }
+  std::string &&encoded = EncodeTableRow(table_->GetName(), primary_key_cols);
+  Debug("encoded read set key is: %s. Version: [%lu: %lu]", encoded.c_str(), time.getTimestamp(), time.getID());
+  query_read_set_mgr->AddToReadSet(std::move(encoded), time);
+}
+
 void IndexScanExecutor::SetPredicate(concurrency::TransactionContext *current_txn, pequinstore::QueryReadSetMgr *query_read_set_mgr){
 
   if(!current_txn->GetHasReadSetMgr()) return;
 
-  bool is_metadata_table_ = table_->GetName().substr(0,3) == "pg_"; //don't do any of the Pequin features for meta data tables..
+  //bool is_metadata_table_ = table_->GetName().substr(0,3) == "pg_"; //don't do any of the Pequin features for meta data tables..
    
   if (current_txn->IsPointRead() || !current_txn->CheckPredicatesInitialized() || is_metadata_table_) return;
 
+  //Don't set predicates if it is an implicit point read. In that case, try to add force read set addition
+  if(is_implicit_point_read_) return;
+
   if(first_execution){
+     if(IsImplicitPointRead(current_txn)) return;
+
      /* Reserve a new predicate in the readset manager */
     query_read_set_mgr->AddPredicate(table_->GetName());
     first_execution = false;
   }
 
-  //FIXME: Must copy?
-  //predicate_->DeduceExpressionName(); //FIXME: Call Deduce inside UpdatePredicate?
+  //FIXME: Must copy because const... //Instead of deduce expression name here: do it much earlier?
+    //  auto pred_copy = predicate_->Copy();
+    // pred_copy->DeduceExpressionName();
+  const_cast<peloton::expression::AbstractExpression *>(predicate_)->DeduceExpressionName();
   auto &pred = predicate_->expr_name_;
   query_read_set_mgr->ExtendPredicate(pred);
   std::cout << "Adding new read set predicate instance: " << pred << std::endl;
@@ -298,8 +381,8 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
   auto query_read_set_mgr = current_txn->GetQueryReadSetMgr();
   auto const &current_txn_timestamp = current_txn->GetBasilTimestamp();
 
-  //One FIRST executor iteration: Set TableVersion and Set Predicate
-  SetPredicate(current_txn, query_read_set_mgr);
+  //On FIRST executor iteration: Set TableVersion and Set Predicate
+  SetPredicate(current_txn, query_read_set_mgr); // NOTE: MUST add predicate before index scan component; in case index scan doesn't find anything, we still need pred.
   SetTableColVersions(current_txn, query_read_set_mgr, current_txn_timestamp);
 
 
@@ -343,6 +426,8 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
     // std::cout << "No tuples retrieved in the index" << std::endl;
     LOG_TRACE("no tuple is retrieved from index.");
     std::cerr << " Found no matching rows in table: " << table_->GetName() << std::endl;
+
+    if(is_implicit_point_read_) TryForceReadSetAddition(current_txn, query_read_set_mgr, Timestamp(0));
     return false;
   }
 
@@ -448,7 +533,7 @@ void IndexScanExecutor::ManageReadSet(ItemPointer &visible_tuple_location, concu
   
   //Don't create a read set if it's a point query, or the query is executed in snapshot only mode
   // Or if it is on a metadata table
-   bool is_metadata_table_ = table_->GetName().substr(0,3) == "pg_"; //don't do any of the Pequin features for meta data tables..
+   //bool is_metadata_table_ = table_->GetName().substr(0,3) == "pg_"; //don't do any of the Pequin features for meta data tables..
    //UW_ASSERT(!is_metadata_table_);
   if (current_txn->GetHasReadSetMgr() && !is_metadata_table_) {
     auto const &primary_index_columns_ = index_->GetMetadata()->GetKeyAttrs();
@@ -464,7 +549,7 @@ void IndexScanExecutor::ManageReadSet(ItemPointer &visible_tuple_location, concu
 void IndexScanExecutor::ManageReadSet(ItemPointer &tuple_location, std::shared_ptr<storage::TileGroup> tile_group, storage::TileGroupHeader *tile_group_header, 
     concurrency::TransactionContext *current_txn) {
   
-  bool is_metadata_table_ = table_->GetName().substr(0,3) == "pg_";
+  //bool is_metadata_table_ = table_->GetName().substr(0,3) == "pg_";
   //Don't create a read set if it's a point query, or the query is executed in snapshot only mode
   if (is_metadata_table_) return;
 
@@ -480,6 +565,7 @@ void IndexScanExecutor::ManageReadSet(ItemPointer &tuple_location, std::shared_p
     for (auto const &col_idx : current_txn->GetTableRegistry()->at(table_->GetName()).primary_col_idx) {
     //for (auto const &col_idx : primary_index_columns_) { //These are not the right primary key cols. They may be secondary index cols...
       auto const &val = row.GetValue(col_idx);
+      UW_ASSERT(val.GetTypeId() != type::TypeId::DECIMAL); //FIXME: We need to get a non-decimal encoding. Results like 1.3e+12 are not useable by us. (or client needs to do this as well)
       primary_key_cols.push_back(val.ToString());
       Debug("Read set. Primary col %d has value: %s", col_idx, val.ToString().c_str());
       std::cerr << "primary col: " << col_idx << std::endl;
@@ -551,7 +637,7 @@ void IndexScanExecutor::CheckRow(ItemPointer tuple_location, concurrency::Transa
 
     //fprintf(stderr, "First tuple in row: Looking at Tuple at location [%lu:%lu] with TS: [%lu:%lu] \n", tuple_location.block, tuple_location.offset, tuple_timestamp.getTimestamp(), tuple_timestamp.getID());
       
-    bool is_metadata_table_ = table_->GetName().substr(0,3) == "pg_"; //don't do any of the Pequin features for meta data tables..
+    //bool is_metadata_table_ = table_->GetName().substr(0,3) == "pg_"; //don't do any of the Pequin features for meta data tables..
 
     while(!done){
       ++chain_length;
@@ -932,7 +1018,7 @@ void IndexScanExecutor::EvalRead(std::shared_ptr<storage::TileGroup> tile_group,
     visible_tuple_locations.push_back(tuple_location);
     //visible_tuple_set.insert(tuple_location);
 
-    if(USE_ACTIVE_READ_SET) ManageReadSet(tuple_location, tile_group, tile_group_header, current_txn);
+    if(USE_ACTIVE_READ_SET || is_implicit_point_read_) ManageReadSet(tuple_location, tile_group, tile_group_header, current_txn);
   }
   //for point reads, mark as invalid.
   if(current_txn->IsPointRead()) RefinePointRead(current_txn, tile_group_header, tuple_location, eval);
@@ -947,7 +1033,7 @@ void IndexScanExecutor::EvalRead(std::shared_ptr<storage::TileGroup> tile_group,
 //Mark the PointRead value as having failed the predicate. Distinguish between it being a deletion and predicate failure.
 void IndexScanExecutor::RefinePointRead(concurrency::TransactionContext *current_txn, storage::TileGroupHeader *tile_group_header, ItemPointer tuple_location, bool eval){
   
-   bool is_metadata_table_ = table_->GetName().substr(0,3) == "pg_"; //don't do any of the Pequin features for meta data tables..
+  // bool is_metadata_table_ = table_->GetName().substr(0,3) == "pg_"; //don't do any of the Pequin features for meta data tables..
    if(is_metadata_table_) return;
 
   //if we called SetPointRead while the tuple was prepared, but by the time we call RefinePointRead the tuple is marked as Committed, then still treat it as prepare here.
@@ -985,7 +1071,7 @@ void IndexScanExecutor::RefinePointRead(concurrency::TransactionContext *current
 
 void IndexScanExecutor::SetPointRead(concurrency::TransactionContext *current_txn, storage::TileGroupHeader *tile_group_header, ItemPointer tuple_location, Timestamp const &write_timestamp){
   //Manage PointRead Result
-   bool is_metadata_table_ = table_->GetName().substr(0,3) == "pg_"; //don't do any of the Pequin features for meta data tables..
+  // bool is_metadata_table_ = table_->GetName().substr(0,3) == "pg_"; //don't do any of the Pequin features for meta data tables..
   //UW_ASSERT(!is_metadata_table_);
   if(is_metadata_table_) return;
   
@@ -1072,7 +1158,7 @@ void IndexScanExecutor::SetPointRead(concurrency::TransactionContext *current_tx
 
 void IndexScanExecutor::ManageSnapshot(concurrency::TransactionContext *current_txn, storage::TileGroupHeader *tile_group_header, ItemPointer tuple_location, const Timestamp &write_timestamp, size_t &num_iters, bool commit_or_prepare){
 
-   bool is_metadata_table_ = table_->GetName().substr(0,3) == "pg_"; //don't do any of the Pequin features for meta data tables..
+   //bool is_metadata_table_ = table_->GetName().substr(0,3) == "pg_"; //don't do any of the Pequin features for meta data tables..
    //UW_ASSERT(!is_metadata_table_);
   if(is_metadata_table_) return;
 
@@ -2221,8 +2307,13 @@ void IndexScanExecutor::UpdatePredicate(
   // Update the new value
   index_predicate_.GetConjunctionListToSetup()[0].SetTupleColumnValue(index_.get(), key_column_ids, indexed_values);
 
-
-  expression::AbstractExpression *new_predicate = non_indexed_values.size() != 0 ? ColumnsValuesToExpr(non_index_column_ids, non_indexed_values, 0) : nullptr;
+  //Update predicate to fill in all values
+  //Note: This is necessary to have the full predicate for SemanticCC
+  //The executor itself technically only needs to fill in the non_indexed_column_ids.
+  std::move(non_index_column_ids.begin(), non_index_column_ids.end(), std::back_inserter(key_column_ids));
+  std::move(non_indexed_values.begin(), non_indexed_values.end(), std::back_inserter(indexed_values));
+  expression::AbstractExpression *new_predicate = ColumnsValuesToExpr(key_column_ids, indexed_values, 0);
+  //expression::AbstractExpression *new_predicate = non_indexed_values.size() != 0 ? ColumnsValuesToExpr(non_index_column_ids, non_indexed_values, 0) : nullptr;
 
   if (new_predicate == nullptr) return;
 

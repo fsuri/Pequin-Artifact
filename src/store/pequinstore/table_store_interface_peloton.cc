@@ -436,7 +436,7 @@ std::string PelotonTableStore::ExecReadQuery(const std::string &query_statement,
   counter->store(1);
 
   // execute the query using tcop
-  auto status = tcop->ExecuteReadStatement(statement, param_values, unamed, result_format, result, sql_interpreter.GetTableRegistry(),
+  auto status = tcop->ExecuteReadStatement(statement, param_values, unamed, result_format, result, &sql_interpreter, //sql_interpreter.GetTableRegistry(),
                                             ts, &this->record_table_version, &this->can_read_prepared, peloton::PequinMode::eagerRead, &readSetMgr);
   // auto status = tcop->ExecuteReadStatement(statement, param_values, unamed, result_format, result, ts, readSetMgr,
   //     this->record_table_version, this->can_read_prepared);
@@ -909,7 +909,7 @@ void PelotonTableStore::FindSnapshot(const std::string &query_statement, const T
   counter->store(1);
   
   // execute the query using tcop
-  auto status = tcop->ExecuteReadStatement(statement, param_values, unamed, result_format, result, sql_interpreter.GetTableRegistry(),
+  auto status = tcop->ExecuteReadStatement(statement, param_values, unamed, result_format, result, &sql_interpreter, //sql_interpreter.GetTableRegistry(),
                                             ts, &this->record_table_version, &this->can_read_prepared, peloton::PequinMode::findSnapshot, nullptr, &ssMgr, snapshot_prepared_k); //Read k latest prepared.
   // auto status = tcop->ExecuteFindSnapshotStatement(statement, param_values, unamed, result_format, result, ts, &ssMgr, k_prepared_versions,
   //     this->record_table_version, this->can_read_prepared);
@@ -950,7 +950,7 @@ std::string PelotonTableStore::EagerExecAndSnapshot(const std::string &query_sta
   counter->store(1);
 
   // execute the query using tcop
-  auto status = tcop->ExecuteReadStatement(statement, param_values, unamed, result_format, result, sql_interpreter.GetTableRegistry(),
+  auto status = tcop->ExecuteReadStatement(statement, param_values, unamed, result_format, result, &sql_interpreter, //sql_interpreter.GetTableRegistry(),
                                             ts, &this->record_table_version, &this->can_read_prepared, peloton::PequinMode::eagerPlusSnapshot, &readSetMgr, &ssMgr, snapshot_prepared_k);
   // auto status = tcop->ExecuteEagerExecAndSnapshotStatement(statement, param_values, unamed, result_format, result, ts, readSetMgr, &ssMgr, k_prepared_versions,
   //     this->record_table_version, this->can_read_prepared);
@@ -997,7 +997,7 @@ std::string PelotonTableStore::ExecReadQueryOnMaterializedSnapshot(const std::st
   counter->store(1);
 
   // execute the query using tcop
-  auto status = tcop->ExecuteReadStatement(statement, param_values, unamed, result_format, result, sql_interpreter.GetTableRegistry(),
+  auto status = tcop->ExecuteReadStatement(statement, param_values, unamed, result_format, result, &sql_interpreter, //sql_interpreter.GetTableRegistry(),
                                           ts, &this->record_table_version, &this->can_read_prepared, peloton::PequinMode::readMaterialized, &readSetMgr, nullptr, 1, &ss_txns);
   // auto status = tcop->ExecuteSnapshotReadStatement(statement, param_values, unamed, result_format, result, ts, readSetMgr, &ss_txns,
   //     this->record_table_version, this->can_read_prepared);

@@ -162,6 +162,9 @@ class SQLTransformer {
         SQLTransformer(){}
         ~SQLTransformer(){}
         void RegisterTables(std::string &table_registry);
+        inline const TableRegistry_t* GetTableRegistry_const() const {
+            return &TableRegistry;
+        } 
         inline TableRegistry_t* GetTableRegistry(){
             return &TableRegistry;
         } 
@@ -176,6 +179,7 @@ class SQLTransformer {
              std::string &read_statement, std::function<void(int, query_result::QueryResult*)>  &write_continuation, write_callback &wcb, bool skip_query_interpretation = false);
 
         bool InterpretQueryRange(const std::string &_query, std::string &table_name, std::vector<std::string> &p_col_values, bool relax = false);
+        bool IsPoint(const std::string &_query, const std::string &table_name, bool relax = false) const; //Use this if we don't need the p_col_values.
 
         std::string GenerateLoadStatement(const std::string &table_name, const std::vector<std::vector<std::string>> &row_segment, int segment_no = 1);
 ;        void GenerateTableWriteStatement(std::string &write_statement, std::string &delete_statement, const std::string &table_name, const TableWrite &table_write);
@@ -218,10 +222,11 @@ class SQLTransformer {
         bool CheckColConditions(std::string_view &cond_statement, std::string &table_name, std::vector<std::string> &p_col_values, bool relax = false);
         bool CheckColConditions(std::string_view &cond_statement, const ColRegistry &col_registry, std::vector<std::string> &p_col_values, bool relax = false);
 
-        bool CheckColConditions(size_t &end, std::string_view cond_statement, const ColRegistry &col_registry, std::map<std::string, std::string> &p_col_value, bool &terminate_early, bool relax = false);
-            void ExtractColCondition(std::string_view cond_statement, const ColRegistry &col_registry, std::map<std::string, std::string> &p_col_value);
-            void GetNextOperator(std::string_view &cond_statement, size_t &op_pos, size_t &op_pos_post, op_t &op_type);
-            bool MergeColConditions(op_t &op_type, std::map<std::string, std::string> &l_p_col_value, std::map<std::string, std::string> &r_p_col_value);
+        bool CheckColConditions(size_t &end, std::string_view cond_statement, const ColRegistry &col_registry, std::map<std::string, std::string> &p_col_value, 
+                        bool &terminate_early, bool relax = false) const;
+            void ExtractColCondition(std::string_view cond_statement, const ColRegistry &col_registry, std::map<std::string, std::string> &p_col_value) const ;
+            void GetNextOperator(std::string_view &cond_statement, size_t &op_pos, size_t &op_pos_post, op_t &op_type) const;
+            bool MergeColConditions(op_t &op_type, std::map<std::string, std::string> &l_p_col_value, std::map<std::string, std::string> &r_p_col_value) const;
         bool CheckColConditionsDumb(std::string_view &cond_statement, const ColRegistry &col_registry, std::map<std::string, std::string> &p_col_value);
         
 };

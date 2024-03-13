@@ -218,7 +218,8 @@ executor::ExecutionResult TrafficCop::ExecuteHelper(
 executor::ExecutionResult TrafficCop::ExecuteReadHelper(
     std::shared_ptr<planner::AbstractPlan> plan, const std::vector<type::Value> &params, std::vector<ResultValue> &result, const std::vector<int> &result_format, 
     //////////////////////// PEQUIN ARGS ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    const pequinstore::TableRegistry_t *table_reg,
+    const pequinstore::SQLTransformer *sql_interpreter,
+    //const pequinstore::TableRegistry_t *table_reg,
     const Timestamp &basil_timestamp,
     pequinstore::find_table_version *find_table_version,
     pequinstore::read_prepared_pred *read_prepared_pred,
@@ -252,8 +253,9 @@ executor::ExecutionResult TrafficCop::ExecuteReadHelper(
   }
 
   /////////////////////// SET PEQUIN TXN ARGS //////////////////////////////////////
+  txn->SetSqlInterpreter(sql_interpreter);
   // Set TableRegistry pointer
-  txn->SetTableRegistry(table_reg);
+  //txn->SetTableRegistry(table_reg);
 
   // Set the Basil timestamp
   txn->SetBasilTimestamp(basil_timestamp);
@@ -1425,7 +1427,8 @@ ResultType TrafficCop::ExecuteReadStatement(
     const std::vector<type::Value> &params, UNUSED_ATTRIBUTE bool unnamed,
     const std::vector<int> &result_format, std::vector<ResultValue> &result,
     //////////////////////// PEQUIN ARGS //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    const pequinstore::TableRegistry_t *table_reg,
+    const pequinstore::SQLTransformer *sql_interpreter,
+    //const pequinstore::TableRegistry_t *table_reg,
     const Timestamp &basil_timestamp,
     pequinstore::find_table_version *find_table_version,
     pequinstore::read_prepared_pred *read_prepared_pred,
@@ -1474,7 +1477,7 @@ ResultType TrafficCop::ExecuteReadStatement(
         statement->SetNeedsReplan(true);
       }
 
-      ExecuteReadHelper(statement->GetPlanTree(), params, result, result_format, table_reg,
+      ExecuteReadHelper(statement->GetPlanTree(), params, result, result_format, sql_interpreter, //table_reg,
                         basil_timestamp, find_table_version, read_prepared_pred, 
                         mode,
                         query_read_set_mgr,

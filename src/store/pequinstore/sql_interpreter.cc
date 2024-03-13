@@ -1743,10 +1743,24 @@ bool SQLTransformer::CheckColConditions(std::string_view &cond_statement, const 
 }
 
 
+bool SQLTransformer::IsPoint(const std::string &_query, const std::string &table_name, bool relax) const {
+  std::string_view cond_statement(_query);
+
+  UW_ASSERT(TableRegistry.count(table_name));
+  const auto &col_registry = TableRegistry.at(table_name);
+
+  std::map<std::string, std::string> p_col_value; 
+  bool terminate_early = false;
+  size_t end = 0;
+
+  return CheckColConditions(end, cond_statement, col_registry, p_col_value, terminate_early, relax);
+}
+
 //TODO: check that column type is primitive: If its array or Timestamp --> defer it to query engine.
 
 //Note: Don't pass cond_statement by reference inside recursion.
-bool SQLTransformer::CheckColConditions(size_t &end, std::string_view cond_statement, const ColRegistry &col_registry, std::map<std::string, std::string> &p_col_value, bool &terminate_early, bool relax){
+bool SQLTransformer::CheckColConditions(size_t &end, std::string_view cond_statement, const ColRegistry &col_registry, std::map<std::string, std::string> &p_col_value, 
+        bool &terminate_early, bool relax) const {
     //Note: If relax = true ==> primary_key_compare checks for subset, if false ==> checks for equality.
 
     //std::cerr << "view cond statement: " << cond_statement << std::endl;
@@ -1858,7 +1872,7 @@ bool SQLTransformer::CheckColConditions(size_t &end, std::string_view cond_state
     }
 }
 
-void SQLTransformer::ExtractColCondition(std::string_view cond_statement, const ColRegistry &col_registry, std::map<std::string, std::string> &p_col_value){
+void SQLTransformer::ExtractColCondition(std::string_view cond_statement, const ColRegistry &col_registry, std::map<std::string, std::string> &p_col_value) const{
     //Note: Expecting all conditions to be of form "col_name = X"
     //Do not currently support boolean conditions, like "col_name";
     //std::cerr << "extract: cond statement: " << cond_statement << std::endl;
@@ -1870,6 +1884,10 @@ void SQLTransformer::ExtractColCondition(std::string_view cond_statement, const 
     const std::string &left_str = static_cast<std::string>(left);
     //if(col_registry.primary_key_cols.count(left_str)){ //if primary key and equality --> add value to map so we can compute enc_key for point read/write
         std::string_view right = cond_statement.substr(pos + 3);
+
+        //Ignore reflexive args:
+        if(left == right) return;
+
         const std::string &type = col_registry.col_name_type.at(left_str);
         p_col_value[left_str] = TrimValueByType(right, type);
     //}
@@ -1879,7 +1897,7 @@ void SQLTransformer::ExtractColCondition(std::string_view cond_statement, const 
     return;
 }
 
-void SQLTransformer::GetNextOperator(std::string_view &cond_statement, size_t &op_pos, size_t &op_pos_post, op_t &op_type){
+void SQLTransformer::GetNextOperator(std::string_view &cond_statement, size_t &op_pos, size_t &op_pos_post, op_t &op_type) const {
     
     if((op_pos = cond_statement.find(and_hook)) != std::string::npos){ //if AND exists.
         op_type = SQL_AND;
@@ -1905,7 +1923,7 @@ void SQLTransformer::GetNextOperator(std::string_view &cond_statement, size_t &o
         
 }
 
-bool SQLTransformer::MergeColConditions(op_t &op_type, std::map<std::string, std::string> &l_p_col_value, std::map<std::string, std::string> &r_p_col_value)
+bool SQLTransformer::MergeColConditions(op_t &op_type, std::map<std::string, std::string> &l_p_col_value, std::map<std::string, std::string> &r_p_col_value) const
 {
     switch (op_type) {
         case SQL_NONE:

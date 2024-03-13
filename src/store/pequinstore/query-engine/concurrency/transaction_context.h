@@ -281,10 +281,21 @@ public:
    */
   void SetReadOnly() { read_only_ = true; }
 
-  const pequinstore::TableRegistry_t * GetTableRegistry() { return table_reg_;}
+  const pequinstore::TableRegistry_t* GetTableRegistry() { 
+    //return table_reg_;
+    UW_ASSERT(sql_interpreter_);
+    return sql_interpreter_->GetTableRegistry_const();
+  }
    
-  void SetTableRegistry(const pequinstore::TableRegistry_t *table_reg){
-    table_reg_ = table_reg;
+  // void SetTableRegistry(const pequinstore::TableRegistry_t *table_reg){
+  //   table_reg_ = table_reg;
+  // }
+
+  void SetSqlInterpreter(const pequinstore::SQLTransformer *sql_interpreter){
+    sql_interpreter_ = sql_interpreter;
+  }
+  const pequinstore::SQLTransformer * GetSqlInterpreter(){
+    return sql_interpreter_;
   }
 
   Timestamp GetBasilTimestamp() { return basil_timestamp_; }
@@ -502,6 +513,7 @@ private:
   /** timestamp when the transaction began */
   uint64_t timestamp_;
 
+  const pequinstore::SQLTransformer *sql_interpreter_;
   // Reference to the TableRegistry
   const pequinstore::TableRegistry_t *table_reg_;
 

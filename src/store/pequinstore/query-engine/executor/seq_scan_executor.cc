@@ -74,6 +74,9 @@ bool SeqScanExecutor::DInit() {
   already_added_table_col_versions = false;
   first_execution = true;
 
+  bool is_metadata_table_ = target_table_->GetName().substr(0,3) == "pg_"; //Note: seq_scan never used for meta data tables.
+  UW_ASSERT(!is_metadata_table_);
+
   if (target_table_ != nullptr) {
     table_tile_group_count_ = target_table_->GetTileGroupCount();
 
@@ -338,9 +341,9 @@ void SeqScanExecutor::PrepareResult(std::unordered_map<oid_t, std::vector<oid_t>
 
 void SeqScanExecutor::SetTableColVersions(concurrency::TransactionContext *current_txn, pequinstore::QueryReadSetMgr *query_read_set_mgr, const Timestamp &current_txn_timestamp){
   if(!already_added_table_col_versions){
-      bool is_metadata_table_ = target_table_->GetName().substr(0,3) == "pg_"; //don't do any of the Pequin features for meta data tables..
+     
     //UW_ASSERT(!is_metadata_table_);
-    if (current_txn->CheckPredicatesInitialized() && !is_metadata_table_) {
+    if (current_txn->CheckPredicatesInitialized()) {
       std::cerr << "Read Table/Col versions" << std::endl;
 
       //shorthands
@@ -378,9 +381,7 @@ void SeqScanExecutor::SetPredicate(concurrency::TransactionContext *current_txn,
 
   if(!current_txn->GetHasReadSetMgr()) return;
 
-  bool is_metadata_table_ = target_table_->GetName().substr(0,3) == "pg_"; //don't do any of the Pequin features for meta data tables..
-   
-  if (!current_txn->CheckPredicatesInitialized() || is_metadata_table_) return;
+  if (!current_txn->CheckPredicatesInitialized()) return;
 
   if(first_execution){
      /* Reserve a new predicate in the readset manager */
@@ -389,8 +390,10 @@ void SeqScanExecutor::SetPredicate(concurrency::TransactionContext *current_txn,
   }
 
   //FIXME: must copy?  //   auto pred_copy = predicate_->Copy();
-  //predicate_->DeduceExpressionName();
- auto &pred = predicate_->expr_name_;
+    //  auto pred_copy = predicate_->Copy();
+    // pred_copy->DeduceExpressionName();
+  const_cast<peloton::expression::AbstractExpression *>(predicate_)->DeduceExpressionName();
+  auto &pred = predicate_->expr_name_;
   query_read_set_mgr->ExtendPredicate(pred);
   std::cout << "Adding new read set predicate instance: " << pred << std::endl;
 
