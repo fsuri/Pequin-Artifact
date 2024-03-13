@@ -86,6 +86,7 @@ bool IndexScanExecutor::DInit() {
 
   updated_column_ids.clear();
   already_added_table_col_versions = false;
+  first_execution = true;
 
   left_open_ = node.GetLeftOpen();
   right_open_ = node.GetRightOpen();
@@ -238,14 +239,52 @@ void IndexScanExecutor::SetTableColVersions(concurrency::TransactionContext *cur
           current_txn->GetTableVersion()(EncodeTableCol(table_->GetName(), col), current_txn_timestamp, get_read_set, query_read_set_mgr, find_snapshot, ss_mgr, perform_read_on_snapshot, snapshot_set);
           //col_names.push_back(col);
         }
-
-        // std::string encoded_key = EncodeTableRow(table_->GetName(), col_names);
-        // std::cout << "Encoded key is " << encoded_key << std::endl;
-        // current_txn->GetTableVersion()(encoded_key, current_txn_timestamp, true, query_read_set_mgr, nullptr);
       }
     }
   }
   already_added_table_col_versions = true;
+}
+
+void IndexScanExecutor::SetPredicate(concurrency::TransactionContext *current_txn, pequinstore::QueryReadSetMgr *query_read_set_mgr){
+
+  if(!current_txn->GetHasReadSetMgr()) return;
+
+  bool is_metadata_table_ = table_->GetName().substr(0,3) == "pg_"; //don't do any of the Pequin features for meta data tables..
+   
+  if (current_txn->IsPointRead() || !current_txn->CheckPredicatesInitialized() || is_metadata_table_) return;
+
+  if(first_execution){
+     /* Reserve a new predicate in the readset manager */
+    query_read_set_mgr->AddPredicate(table_->GetName());
+    first_execution = false;
+  }
+
+  //FIXME: Must copy?
+  //predicate_->DeduceExpressionName(); //FIXME: Call Deduce inside UpdatePredicate?
+  auto &pred = predicate_->expr_name_;
+  query_read_set_mgr->ExtendPredicate(pred);
+  std::cout << "Adding new read set predicate instance: " << pred << std::endl;
+
+  // // // Index predicate in string form
+  //     /*std::string index_pred = "";
+  //     for (int i = 0; i < values_.size(); i++) {
+  //       std::string col_name = table_->GetSchema()->GetColumn(key_column_ids_[i]).GetName();
+  //       std::string op = ExpressionTypeToString(expr_types_[i], true);
+  //       std::string val = values_[i].ToString();
+
+  //       index_pred = col_name + op + val + " AND ";
+  //     }*/
+  //   auto pred_copy = predicate_->Copy();
+  //   pred_copy->DeduceExpressionName();
+    
+  //   std::string full_pred = "SELECT * FROM " + table_->GetName() + " WHERE " + pred_copy->expr_name_;
+  //   // Truncate the last AND
+  //   /*if (pred_copy->expr_name_.length() == 0) {
+  //     full_pred = full_pred.substr(0, full_pred.length()-5);
+  //   }*/
+    
+  //   query_read_set_mgr->ExtendPredicate(full_pred);
+  //     std::cout << "The readset predicate is " << full_pred << std::endl;
 }
 
 bool IndexScanExecutor::ExecPrimaryIndexLookup() {    
@@ -259,7 +298,11 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
   auto query_read_set_mgr = current_txn->GetQueryReadSetMgr();
   auto const &current_txn_timestamp = current_txn->GetBasilTimestamp();
 
+  //One FIRST executor iteration: Set TableVersion and Set Predicate
+  SetPredicate(current_txn, query_read_set_mgr);
   SetTableColVersions(current_txn, query_read_set_mgr, current_txn_timestamp);
+
+
   ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
   std::vector<ItemPointer *> tuple_location_ptrs;
@@ -1819,6 +1862,7 @@ bool IndexScanExecutor::ExecSecondaryIndexLookup() {
   auto query_read_set_mgr = current_txn->GetQueryReadSetMgr();
   auto const &current_txn_timestamp = current_txn->GetBasilTimestamp();
 
+  SetPredicate(current_txn, query_read_set_mgr);
   SetTableColVersions(current_txn, query_read_set_mgr, current_txn_timestamp);
   ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -2195,7 +2239,15 @@ void IndexScanExecutor::UpdatePredicate(
   
   std::cerr << "new pred: " << new_predicate->GetInfo() << std::endl;
 
-
+  auto current_txn = executor_context_->GetTransaction();
+  if (current_txn->GetHasReadSetMgr()) {
+    pequinstore::QueryReadSetMgr *query_read_set_mgr = current_txn->GetQueryReadSetMgr();
+    auto pred_copy = predicate_->Copy();
+    pred_copy->DeduceExpressionName();
+        
+    std::string full_pred = "SELECT * FROM " + table_->GetName() + " WHERE " + pred_copy->expr_name_;
+    query_read_set_mgr->ExtendPredicate(full_pred);
+  }
 }
 
 

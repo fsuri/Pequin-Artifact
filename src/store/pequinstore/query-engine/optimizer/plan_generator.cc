@@ -446,6 +446,33 @@ PlanGenerator::GenerateTableTVExprs(
   return exprs;
 }
 
+vector<unique_ptr<expression::AbstractExpression>>
+PlanGenerator::GenerateTableTVExprsColRegistry(
+    const std::string &alias, pequinstore::ColRegistry *col_registry) {
+  // TODO(boweic): we seems to provide all columns here, in case where there are
+  // a lot of attributes and we're only visiting a few this is not efficient
+  /*oid_t db_id = table->GetDatabaseOid();
+  oid_t table_id = table->GetTableOid();
+  auto column_objects = table->GetColumnCatalogEntries();*/
+
+  vector<unique_ptr<expression::AbstractExpression>> exprs(
+      col_registry->col_names.size());
+  int col_id = 0;
+  for (auto &col_name : col_registry->col_names) {
+    expression::TupleValueExpression *col_expr =
+        new expression::TupleValueExpression(
+            col_name.c_str(), alias.c_str());
+
+    auto col_type = col_registry->col_name_type.at(col_name);
+    col_expr->SetValueType(peloton::StringToTypeId(col_type));
+    
+    //col_expr->SetBoundOid(db_id, table_id, col_id);
+    exprs[col_id].reset(col_expr);
+    col_id++;
+  }
+  return exprs;
+}
+
 // Generate columns for scan plan
 vector<oid_t> PlanGenerator::GenerateColumnsForScan() {
   vector<oid_t> column_ids;
@@ -473,6 +500,25 @@ PlanGenerator::GeneratePredicateForScan(
     return nullptr;
   }
   auto exprs = GenerateTableTVExprs(alias, table);
+  ExprMap table_expr_map;
+  for (oid_t idx = 0; idx < exprs.size(); ++idx) {
+    table_expr_map[exprs[idx].get()] = idx;
+  }
+  unique_ptr<expression::AbstractExpression> predicate =
+      std::unique_ptr<expression::AbstractExpression>(predicate_expr->Copy());
+  expression::ExpressionUtil::EvaluateExpression({table_expr_map},
+                                                 predicate.get());
+  return predicate;
+}
+
+std::unique_ptr<expression::AbstractExpression>
+PlanGenerator::GeneratePredicateForScanColRegistry(
+    const std::shared_ptr<expression::AbstractExpression> predicate_expr,
+    const std::string &alias, pequinstore::ColRegistry *col_registry) {
+  if (predicate_expr == nullptr) {
+    return nullptr;
+  }
+  auto exprs = GenerateTableTVExprsColRegistry(alias, col_registry);
   ExprMap table_expr_map;
   for (oid_t idx = 0; idx < exprs.size(); ++idx) {
     table_expr_map[exprs[idx].get()] = idx;

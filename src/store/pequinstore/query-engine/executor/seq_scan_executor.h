@@ -56,6 +56,8 @@ protected:
   void OldScan();
 
   void GetColNames(const expression::AbstractExpression * child_expr, std::unordered_set<std::string> &column_names);
+  void SetPredicate(concurrency::TransactionContext *current_txn, pequinstore::QueryReadSetMgr *query_read_set_mgr);
+  void SetTableColVersions(concurrency::TransactionContext *current_txn, pequinstore::QueryReadSetMgr *query_read_set_mgr, const Timestamp &current_txn_timestamp);
 
   void CheckRow(ItemPointer head_tuple_location, concurrency::TransactionManager &transaction_manager, concurrency::TransactionContext *current_txn, 
     storage::StorageManager *storage_manager, std::unordered_map<oid_t, std::vector<oid_t>> &position_map);
@@ -119,6 +121,9 @@ private:
   // The original predicate, if it's not nullptr
   // we need to combine it with the undated predicate
   const expression::AbstractExpression *old_predicate_;
+
+  bool already_added_table_col_versions;
+  bool first_execution;
 };
 
 } // namespace executor

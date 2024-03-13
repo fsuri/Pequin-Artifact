@@ -71,6 +71,9 @@ bool SeqScanExecutor::DInit() {
 
   old_predicate_ = predicate_;
 
+  already_added_table_col_versions = false;
+  first_execution = true;
+
   if (target_table_ != nullptr) {
     table_tile_group_count_ = target_table_->GetTileGroupCount();
 
@@ -333,6 +336,86 @@ void SeqScanExecutor::PrepareResult(std::unordered_map<oid_t, std::vector<oid_t>
 }
 
 
+void SeqScanExecutor::SetTableColVersions(concurrency::TransactionContext *current_txn, pequinstore::QueryReadSetMgr *query_read_set_mgr, const Timestamp &current_txn_timestamp){
+  if(!already_added_table_col_versions){
+      bool is_metadata_table_ = target_table_->GetName().substr(0,3) == "pg_"; //don't do any of the Pequin features for meta data tables..
+    //UW_ASSERT(!is_metadata_table_);
+    if (current_txn->CheckPredicatesInitialized() && !is_metadata_table_) {
+      std::cerr << "Read Table/Col versions" << std::endl;
+
+      //shorthands
+      bool get_read_set = current_txn->GetHasReadSetMgr();
+      bool find_snapshot = current_txn->GetHasSnapshotMgr();
+      auto ss_mgr = current_txn->GetSnapshotMgr();
+      bool perform_read_on_snapshot = current_txn->GetSnapshotRead();
+      auto snapshot_set = current_txn->GetSnapshotSet();
+
+      // Read table version and table col versions
+      current_txn->GetTableVersion()(target_table_->GetName(), current_txn_timestamp, get_read_set, query_read_set_mgr, find_snapshot, ss_mgr, perform_read_on_snapshot, snapshot_set);
+      
+       //If Scanning (Non_active read set), then don't need to include ColVersions in ActiveReadSet. Changes to index could not be affecting the observed read set.
+      //However, if we use Active Read set, then the read_set is only the keys that hit the predicate. 
+      //Thus we need the ColVersion to detect changes to col values that might be relevant to ActiveRS (i.e. include ColVersion for all Col in search predicate)
+      if(USE_ACTIVE_READ_SET){ 
+        // Table column version : FIXME: Read version per Col, not composite key
+        std::unordered_set<std::string> column_names;
+        //std::vector<std::string> col_names;
+        GetColNames(predicate_, column_names);
+        if(predicate_ != nullptr) std::cerr << "pred: " << predicate_->GetInfo() << std::endl;
+
+        for (auto &col : column_names) {
+          std::cout << "Col name is " << col << std::endl;
+          current_txn->GetTableVersion()(EncodeTableCol(target_table_->GetName(), col), current_txn_timestamp, get_read_set, query_read_set_mgr, find_snapshot, ss_mgr, perform_read_on_snapshot, snapshot_set);
+          //col_names.push_back(col);
+        }
+      }
+    }
+  }
+  already_added_table_col_versions = true;
+}
+
+void SeqScanExecutor::SetPredicate(concurrency::TransactionContext *current_txn, pequinstore::QueryReadSetMgr *query_read_set_mgr){
+
+  if(!current_txn->GetHasReadSetMgr()) return;
+
+  bool is_metadata_table_ = target_table_->GetName().substr(0,3) == "pg_"; //don't do any of the Pequin features for meta data tables..
+   
+  if (!current_txn->CheckPredicatesInitialized() || is_metadata_table_) return;
+
+  if(first_execution){
+     /* Reserve a new predicate in the readset manager */
+    query_read_set_mgr->AddPredicate(target_table_->GetName());
+    first_execution = false;
+  }
+
+  //FIXME: must copy?  //   auto pred_copy = predicate_->Copy();
+  //predicate_->DeduceExpressionName();
+ auto &pred = predicate_->expr_name_;
+  query_read_set_mgr->ExtendPredicate(pred);
+  std::cout << "Adding new read set predicate instance: " << pred << std::endl;
+
+  // // // Index predicate in string form
+  //     /*std::string index_pred = "";
+  //     for (int i = 0; i < values_.size(); i++) {
+  //       std::string col_name = table_->GetSchema()->GetColumn(key_column_ids_[i]).GetName();
+  //       std::string op = ExpressionTypeToString(expr_types_[i], true);
+  //       std::string val = values_[i].ToString();
+
+  //       index_pred = col_name + op + val + " AND ";
+  //     }*/
+  //   auto pred_copy = predicate_->Copy();
+  //   pred_copy->DeduceExpressionName();
+    
+  //   std::string full_pred = "SELECT * FROM " + table_->GetName() + " WHERE " + pred_copy->expr_name_;
+  //   // Truncate the last AND
+  //   /*if (pred_copy->expr_name_.length() == 0) {
+  //     full_pred = full_pred.substr(0, full_pred.length()-5);
+  //   }*/
+    
+  //   query_read_set_mgr->ExtendPredicate(full_pred);
+  //     std::cout << "The readset predicate is " << full_pred << std::endl;
+}
+
 void SeqScanExecutor::Scan() {
   concurrency::TransactionManager &transaction_manager = concurrency::TransactionManagerFactory::GetInstance();
   auto current_txn = executor_context_->GetTransaction();
@@ -349,32 +432,9 @@ void SeqScanExecutor::Scan() {
 
   std::unordered_map<oid_t, std::vector<oid_t>> position_map;
 
+  SetPredicate(current_txn, query_read_set_mgr);
+  SetTableColVersions(current_txn, query_read_set_mgr, current_txn_timestamp);
 
-  // Get TableVersion and TableColVersions
-  if (current_txn->CheckPredicatesInitialized()) {
-     bool get_read_set = current_txn->GetHasReadSetMgr();
-    bool find_snapshot = current_txn->GetHasSnapshotMgr();
-    auto ss_mgr = current_txn->GetSnapshotMgr();
-    bool perform_read_on_snapshot = current_txn->GetSnapshotRead();
-    auto snapshot_set = current_txn->GetSnapshotSet();
-
-    // Read table version and table col versions
-    current_txn->GetTableVersion()(target_table_->GetName(), current_txn_timestamp, get_read_set, query_read_set_mgr, find_snapshot, ss_mgr, perform_read_on_snapshot, snapshot_set);
-    
-    //If Scanning (Non_active read set), then don't need to include ColVersions in ActiveReadSet. Changes to index could not be affecting the observed read set.
-    //However, if we use Active Read set, then the read_set is only the keys that hit the predicate. 
-    //Thus we need the ColVersion to detect changes to col values that might be relevant to ActiveRS (i.e. include ColVersion for all Col in search predicate)
-    if(USE_ACTIVE_READ_SET){ 
-      std::unordered_set<std::string> column_names;
-      GetColNames(predicate_, column_names);
-      if(predicate_ != nullptr) std::cerr << "pred: " << predicate_->GetInfo() << std::endl;
-
-      for (auto &col : column_names) {
-        std::cerr << "extracted col: " << col <<  std::endl;
-        current_txn->GetTableVersion()(EncodeTableCol(target_table_->GetName(), col), current_txn_timestamp, get_read_set, query_read_set_mgr, find_snapshot, ss_mgr, perform_read_on_snapshot, snapshot_set);
-      }
-    }
-  }
 
   // Iterate through each linked list per row
   for (auto indirection_array : target_table_->active_indirection_arrays_) {
@@ -1106,6 +1166,17 @@ void SeqScanExecutor::UpdatePredicate(const std::vector<oid_t> &column_ids,
   // Currently a hack that prevent memory leak we should eventually make prediate_ a unique_ptr
   new_predicate_.reset(new_predicate);
   predicate_ = new_predicate;
+
+  // Set the readset manager predicate
+  auto current_txn = executor_context_->GetTransaction();
+  if (current_txn->GetHasReadSetMgr()) {
+    pequinstore::QueryReadSetMgr *query_read_set_mgr = current_txn->GetQueryReadSetMgr();
+    auto pred_copy = predicate_->Copy();
+    pred_copy->DeduceExpressionName();
+        
+    std::string full_pred = "SELECT * FROM " + target_table_->GetName() + " WHERE " + pred_copy->expr_name_;
+    query_read_set_mgr->ExtendPredicate(full_pred);
+  }
 }
 
 // Transfer a list of equality predicate to a expression tree

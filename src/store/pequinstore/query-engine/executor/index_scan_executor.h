@@ -57,6 +57,7 @@ class IndexScanExecutor : public AbstractScanExecutor {
 
   bool DExecute();
 
+  void SetPredicate(concurrency::TransactionContext *current_txn, pequinstore::QueryReadSetMgr *query_read_set_mgr);
   void SetTableColVersions(concurrency::TransactionContext *current_txn, pequinstore::QueryReadSetMgr *query_read_set_mgr, const Timestamp &current_txn_timestamp);
   void GetColNames(const expression::AbstractExpression * child_expr, std::unordered_set<std::string> &column_names, bool use_updated = true);
 
@@ -135,6 +136,7 @@ class IndexScanExecutor : public AbstractScanExecutor {
 
   std::vector<oid_t> updated_column_ids;
   bool already_added_table_col_versions;
+  bool first_execution;
 
   // TODO make predicate_ a unique_ptr
   // this is a hack that prevents memory leak
