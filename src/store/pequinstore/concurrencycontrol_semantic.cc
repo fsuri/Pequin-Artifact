@@ -128,9 +128,6 @@ bool Server::CheckMonotonicTableColVersions(const proto::Transaction &txn) {
 
 proto::ConcurrencyControl::Result Server::CheckPredicates(const proto::Transaction &txn, const ReadSet &txn_read_set, const PredSet &pred_set, std::set<std::string> &dynamically_active_dependencies){ 
   
-    //FIXME: ENABLE CHECK
-    return proto::ConcurrencyControl::COMMIT;
-
     const Timestamp txn_ts(txn.timestamp());
    
     //For all Read predicates     
@@ -207,7 +204,7 @@ proto::ConcurrencyControl::Result Server::CheckReadPred(const Timestamp &txn_ts,
   //TODO: Optimization  //Check TableVersion for INSERT conflicts && Check ColVersions (of the pred) for UPDATE/DELETE conflicts
   TableWriteMap::const_accessor tw;
   bool has_table = tableWrites.find(tw, pred.table_name());
-  if(!has_table) Panic("all tables must have a tableWrite entry.");
+  if(!has_table) return proto::ConcurrencyControl::COMMIT; // Panic("all tables must have a tableWrite entry.");
   auto &curr_table_writes = tw->second;
 
 
@@ -455,8 +452,8 @@ void Server::RecordReadPredicatesAndWrites(const proto::Transaction &txn, bool c
   Timestamp ts(txn.timestamp()); //TODO: pass in directly
 
   //Record all ReadPredicates   //Store a reference: table_name -> txn
-  const PredSet &predSet = txn.read_predicates();
-  if(!txn.query_set().empty() && (params.query_params.cacheReadSet || params.query_params.mergeActiveAtClient)){
+  const PredSet &predSet = txn.read_predicates(); //If we are not caching, and clientMerges => then they all preds must be here
+  if(!txn.query_set().empty() && (params.query_params.cacheReadSet || !params.query_params.mergeActiveAtClient)){
       UW_ASSERT(txn.has_merged_read_set());
     auto predSet = txn.merged_read_set().read_predicates();
   }
@@ -518,7 +515,7 @@ void Server::ClearPredicateAndWrites(const proto::Transaction &txn){
 
   //Clear all ReadPredicates   
   const PredSet &predSet = txn.read_predicates();
-  if(!txn.query_set().empty() && (params.query_params.cacheReadSet || params.query_params.mergeActiveAtClient)){
+  if(!txn.query_set().empty() && (params.query_params.cacheReadSet || !params.query_params.mergeActiveAtClient)){
     UW_ASSERT(txn.has_merged_read_set());
     auto predSet = txn.merged_read_set().read_predicates();
   }
