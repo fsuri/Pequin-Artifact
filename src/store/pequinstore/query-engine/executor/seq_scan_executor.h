@@ -119,6 +119,8 @@ private:
   // The original predicate, if it's not nullptr
   // we need to combine it with the undated predicate
   const expression::AbstractExpression *old_predicate_;
+
+  bool already_added_predicate;
 };
 
 } // namespace executor

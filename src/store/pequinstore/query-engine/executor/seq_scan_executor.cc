@@ -71,6 +71,8 @@ bool SeqScanExecutor::DInit() {
 
   old_predicate_ = predicate_;
 
+  already_added_predicate = false;
+
   if (target_table_ != nullptr) {
     table_tile_group_count_ = target_table_->GetTileGroupCount();
 
@@ -349,6 +351,17 @@ void SeqScanExecutor::Scan() {
 
   std::unordered_map<oid_t, std::vector<oid_t>> position_map;
 
+  // Set the readset manager predicate
+  if (!already_added_predicate && current_txn->GetHasReadSetMgr()) {
+    pequinstore::QueryReadSetMgr *query_read_set_mgr = current_txn->GetQueryReadSetMgr();
+    auto pred_copy = predicate_->Copy();
+    pred_copy->DeduceExpressionName();
+        
+    std::string full_pred = "SELECT * FROM " + target_table_->GetName() + " WHERE " + pred_copy->expr_name_;
+    query_read_set_mgr->ExtendPredicate(full_pred);
+
+    already_added_predicate = true;
+  }
 
   // Get TableVersion and TableColVersions
   if (current_txn->CheckPredicatesInitialized()) {
@@ -1096,6 +1109,17 @@ void SeqScanExecutor::UpdatePredicate(const std::vector<oid_t> &column_ids,
   // Currently a hack that prevent memory leak we should eventually make prediate_ a unique_ptr
   new_predicate_.reset(new_predicate);
   predicate_ = new_predicate;
+
+  // Set the readset manager predicate
+  auto current_txn = executor_context_->GetTransaction();
+  if (current_txn->GetHasReadSetMgr()) {
+    pequinstore::QueryReadSetMgr *query_read_set_mgr = current_txn->GetQueryReadSetMgr();
+    auto pred_copy = predicate_->Copy();
+    pred_copy->DeduceExpressionName();
+        
+    std::string full_pred = "SELECT * FROM " + target_table_->GetName() + " WHERE " + pred_copy->expr_name_;
+    query_read_set_mgr->ExtendPredicate(full_pred);
+  }
 }
 
 // Transfer a list of equality predicate to a expression tree

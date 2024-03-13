@@ -162,8 +162,8 @@ proto::ConcurrencyControl::Result Server::CheckReadPred(const Timestamp &txn_ts,
           //Create all instantiation preds.
           //Then loop over all Tx (ONCE); for each TX, check the read set stuff.
   std::vector<std::string> instantiated_preds;
-  for(auto &instance: pred.instantiations()){ //NOTE: there will be an iteration for each instantiation of a NestedLoop execution (right table)
-    instantiated_preds.push_back(pred.where_clause()); //TODO: FIXME: fill in all the {} entries... Seems like this is not straightforward with fmt::format() (requires all args at once)
+  for(auto &instance: pred.pred_instance()){ //NOTE: there will be an iteration for each instantiation of a NestedLoop execution (right table)
+    instantiated_preds.push_back(instance); //TODO: FIXME: fill in all the {} entries... Seems like this is not straightforward with fmt::format() (requires all args at once)
   } 
 
   std::set<std::string> dynamically_active_keys; //this is local to each pred, and purely used to avoid unecessary evals.
@@ -439,7 +439,8 @@ bool Server::CheckGCWatermark(const Timestamp &ts) {
   auto where_clause = select_stmt->where_clause->Copy();
   std::shared_ptr<peloton::expression::AbstractExpression> sptr(where_clause);
   peloton::optimizer::PlanGenerator plan_generator;
-  ColRegistry *col_registry;
+  
+  ColRegistry *col_registry = table_store->sql_interpreter.GetColRegistry(select_stmt->from_table->GetTableName());
   auto predicate = plan_generator.GeneratePredicateForScanColRegistry(sptr, "", col_registry);
 
   std::cout << "The predicate is " << predicate->GetInfo() << std::endl;
