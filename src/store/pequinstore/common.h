@@ -495,8 +495,14 @@ struct QueryReadSetMgr {
                 return;
             }
             int last_idx = read_set->read_predicates_size() - 1;
-            proto::ReadPredicate &current_pred = (*read_set->mutable_read_predicates())[last_idx]; //get last pred
-            *current_pred.mutable_table_version() = table_version;
+            try{
+                proto::ReadPredicate &current_pred = (*read_set->mutable_read_predicates())[last_idx]; //get last pred
+                  *current_pred.mutable_table_version() = table_version;
+            }
+            catch(...){
+                Panic("fail set");
+            }
+          
         }
 
         //Call this every time the executor runs. Fill in new col values.
@@ -505,9 +511,16 @@ struct QueryReadSetMgr {
             //Instead of storing whole where clause for each instance: store where clause once, and extract only the values that need to be instantiated.
            
             int last_idx = read_set->read_predicates_size() - 1;
-            proto::ReadPredicate &current_pred = (*read_set->mutable_read_predicates())[last_idx]; //get last pred
+          
+             try{
+                  proto::ReadPredicate &current_pred = (*read_set->mutable_read_predicates())[last_idx]; //get last pred
+                    current_pred.add_pred_instances(predicate);
+            }
+            catch(...){
+                Panic("fail extend");
+            }
             
-            current_pred.add_pred_instances(predicate);
+          
         }
 
       proto::ReadSet *read_set;

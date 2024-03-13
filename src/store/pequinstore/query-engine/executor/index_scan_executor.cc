@@ -87,6 +87,7 @@ bool IndexScanExecutor::DInit() {
 
   updated_column_ids.clear();
 
+  is_primary_index = false;
   already_added_table_col_versions = false;
   first_execution = true;
   is_implicit_point_read_ = false;
@@ -162,6 +163,7 @@ bool IndexScanExecutor::DExecute() {
     else if (index_->GetIndexType() == IndexConstraintType::PRIMARY_KEY) {
       Debug("Doing a primary index scan");
       std::cerr << "Doing a primary index scan for table " << table_->GetName() << std::endl;
+      is_primary_index = true;
       auto status = ExecPrimaryIndexLookup();
       if (status == false)
         return false;
@@ -217,7 +219,11 @@ void IndexScanExecutor::GetColNames(const expression::AbstractExpression * child
 
 static bool use_col_versions = false; //TODO: PARAMTERERIZE
 void IndexScanExecutor::SetTableColVersions(concurrency::TransactionContext *current_txn, pequinstore::QueryReadSetMgr *query_read_set_mgr, const Timestamp &current_txn_timestamp){
-  if(!already_added_table_col_versions){
+
+  if(is_implicit_point_read_) return;
+  if(already_added_table_col_versions) return;
+
+  
     //bool is_metadata_table_ = table_->GetName().substr(0,3) == "pg_"; //don't do any of the Pequin features for meta data tables..
     //UW_ASSERT(!is_metadata_table_);
     if (!current_txn->IsPointRead() && current_txn->CheckPredicatesInitialized() && !is_metadata_table_) {
@@ -247,9 +253,11 @@ void IndexScanExecutor::SetTableColVersions(concurrency::TransactionContext *cur
         }
       }
     }
-  }
+  
   already_added_table_col_versions = true;
 }
+
+//TODO: Only call this in primary index key..
 
 bool IndexScanExecutor::IsImplicitPointRead(concurrency::TransactionContext *current_txn){
 
@@ -261,10 +269,13 @@ bool IndexScanExecutor::IsImplicitPointRead(concurrency::TransactionContext *cur
       //         If index scan finds no row => insert into read set with TS 0
       //         If it does, but eval goes to false => insert into read set anyways (implicitly active)
 
+  if(!is_primary_index) return false;
 
   if(current_txn->IsPointRead()) return false; //Don't need to do this for explicit point reads.
 
   auto sql_interpreter = current_txn->GetSqlInterpreter();
+
+  std::cerr << "check Is point: " << predicate_->expr_name_ << std::endl;
 
   is_implicit_point_read_ = sql_interpreter->IsPoint(predicate_->expr_name_, table_->GetName(), true);
   //std::string_view cond_statement(predicate_->expr_name_);
@@ -299,7 +310,14 @@ bool IndexScanExecutor::IsImplicitPointRead(concurrency::TransactionContext *cur
 
     //b) TODO: Check if all are conjuctors... //Check if ==..
 
+  std::cerr << predicate_->expr_name_ << " -> IS IMPLICIT POINT READ: " << is_implicit_point_read_ << std::endl;
 
+  for(auto &val: values_){ //Note: values_ holds all values of the index_predicate (i.e. subset primary key ones)
+    UW_ASSERT(val.GetTypeId() != type::TypeId::DECIMAL);
+    std::cerr << "VALUE POINT: " << val.ToString() << std::endl;
+  }
+  std::cerr << "here" << std::endl;
+  
   return is_implicit_point_read_;
 }
 
@@ -317,7 +335,7 @@ void IndexScanExecutor::TryForceReadSetAddition(concurrency::TransactionContext 
     primary_key_cols.push_back(val.ToString());
   }
   std::string &&encoded = EncodeTableRow(table_->GetName(), primary_key_cols);
-  Debug("encoded read set key is: %s. Version: [%lu: %lu]", encoded.c_str(), time.getTimestamp(), time.getID());
+  Debug("Force Read Set addition for encoded read set key: %s. Version: [%lu: %lu]", encoded.c_str(), time.getTimestamp(), time.getID());
   query_read_set_mgr->AddToReadSet(std::move(encoded), time);
 }
 
@@ -332,6 +350,8 @@ void IndexScanExecutor::SetPredicate(concurrency::TransactionContext *current_tx
   //Don't set predicates if it is an implicit point read. In that case, try to add force read set addition
   if(is_implicit_point_read_) return;
 
+  const_cast<peloton::expression::AbstractExpression *>(predicate_)->DeduceExpressionName(); //Note: must deduce before checking IsImplicitPoint
+
   if(first_execution){
      if(IsImplicitPointRead(current_txn)) return;
 
@@ -343,7 +363,7 @@ void IndexScanExecutor::SetPredicate(concurrency::TransactionContext *current_tx
   //FIXME: Must copy because const... //Instead of deduce expression name here: do it much earlier?
     //  auto pred_copy = predicate_->Copy();
     // pred_copy->DeduceExpressionName();
-  const_cast<peloton::expression::AbstractExpression *>(predicate_)->DeduceExpressionName();
+  //const_cast<peloton::expression::AbstractExpression *>(predicate_)->DeduceExpressionName();
   auto &pred = predicate_->expr_name_;
   query_read_set_mgr->ExtendPredicate(pred);
   std::cout << "Adding new read set predicate instance: " << pred << std::endl;
@@ -385,7 +405,7 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
   SetPredicate(current_txn, query_read_set_mgr); // NOTE: MUST add predicate before index scan component; in case index scan doesn't find anything, we still need pred.
   SetTableColVersions(current_txn, query_read_set_mgr, current_txn_timestamp);
 
-
+  std::cerr << "MAKING IT HERE" << std::endl;
   ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
   std::vector<ItemPointer *> tuple_location_ptrs;

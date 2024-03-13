@@ -140,6 +140,7 @@ class IndexScanExecutor : public AbstractScanExecutor {
   std::vector<oid_t> updated_column_ids;
 
   bool is_metadata_table_;
+  bool is_primary_index;
   bool already_added_table_col_versions;
   bool first_execution;
   bool is_implicit_point_read_;
