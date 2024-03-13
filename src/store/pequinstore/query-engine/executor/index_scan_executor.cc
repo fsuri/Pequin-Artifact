@@ -2350,15 +2350,15 @@ void IndexScanExecutor::UpdatePredicate(
   
   std::cerr << "new pred: " << new_predicate->GetInfo() << std::endl;
 
-  auto current_txn = executor_context_->GetTransaction();
-  if (current_txn->GetHasReadSetMgr()) {
-    pequinstore::QueryReadSetMgr *query_read_set_mgr = current_txn->GetQueryReadSetMgr();
-    auto pred_copy = predicate_->Copy();
-    pred_copy->DeduceExpressionName();
+  // auto current_txn = executor_context_->GetTransaction();
+  // if (current_txn->GetHasReadSetMgr()) {
+  //   pequinstore::QueryReadSetMgr *query_read_set_mgr = current_txn->GetQueryReadSetMgr();
+  //   auto pred_copy = predicate_->Copy();
+  //   pred_copy->DeduceExpressionName();
         
-    std::string full_pred = "SELECT * FROM " + table_->GetName() + " WHERE " + pred_copy->expr_name_;
-    query_read_set_mgr->ExtendPredicate(full_pred);
-  }
+  //   std::string full_pred = "SELECT * FROM " + table_->GetName() + " WHERE " + pred_copy->expr_name_;
+  //   query_read_set_mgr->ExtendPredicate(full_pred);
+  // }
 }
 
 

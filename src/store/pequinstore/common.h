@@ -497,10 +497,10 @@ struct QueryReadSetMgr {
             int last_idx = read_set->read_predicates_size() - 1;
             try{
                 proto::ReadPredicate &current_pred = (*read_set->mutable_read_predicates())[last_idx]; //get last pred
-                  *current_pred.mutable_table_version() = table_version;
+                *current_pred.mutable_table_version() = table_version;
             }
             catch(...){
-                Panic("fail set");
+                Panic("Predicate has not been reserved");
             }
           
         }
@@ -513,11 +513,11 @@ struct QueryReadSetMgr {
             int last_idx = read_set->read_predicates_size() - 1;
           
              try{
-                  proto::ReadPredicate &current_pred = (*read_set->mutable_read_predicates())[last_idx]; //get last pred
-                    current_pred.add_pred_instances(predicate);
+                proto::ReadPredicate &current_pred = (*read_set->mutable_read_predicates())[last_idx]; //get last pred
+                current_pred.add_pred_instances(predicate);
             }
             catch(...){
-                Panic("fail extend");
+                Panic("Predicate has not been reserved");
             }
             
           
