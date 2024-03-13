@@ -103,7 +103,7 @@ message ColValues {
 message ReadPredicate {
   required bytes table_name = 1;
   required TimestampMessage table_version = 2;
-  required bytes where_clause = 3; //UNUSED
+  optional bytes where_clause = 3; //UNUSED
   repeated bytes col_names = 4; //UNUSED
   repeated TimestampMessage col_versions = 5; //UNUSED
   repeated ColValues instantiations = 6; // the col values for each predicate instantiation. //UNUSED
