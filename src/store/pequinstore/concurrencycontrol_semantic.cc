@@ -439,7 +439,7 @@ proto::ConcurrencyControl::Result Server::CheckTableWrites(const proto::Transact
 
 //Note: We are assuming TS are unique to a TX here. Duplicates should already have been filtered out (it should not be possible that 2 TX with same TS commit)
 void Server::RecordReadPredicatesAndWrites(const proto::Transaction &txn, bool commit_or_prepare){
-    return;
+  
   //NOTE: 
     //Throughout the CC process we are holding a lock on a given table name
     //This ensure that no new Txn can be admitted without seeing these reads/writes.
@@ -514,7 +514,6 @@ void Server::RecordReadPredicatesAndWrites(const proto::Transaction &txn, bool c
 
 
 void Server::ClearPredicateAndWrites(const proto::Transaction &txn){
-  return;
   Timestamp ts(txn.timestamp()); //TODO: pass in directly
 
   //Clear all ReadPredicates   
