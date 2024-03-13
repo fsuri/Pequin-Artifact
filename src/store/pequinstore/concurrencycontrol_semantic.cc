@@ -190,10 +190,10 @@ proto::ConcurrencyControl::Result Server::CheckReadPred(const Timestamp &txn_ts,
   //It is considered "active" if there is another prepared/committed write beneath this prepared write that **does** triger a conflict
 
   
-  std::vector<std::string> instantiated_preds;
-  for(auto &instance: pred.instantiations()){ //NOTE: there will be an iteration for each instantiation of a NestedLoop execution (right table)
-    instantiated_preds.push_back(pred.where_clause()); //TODO: FIXME: fill in all the {} entries... Seems like this is not straightforward with fmt::format() (requires all args at once)
-  } 
+  // std::vector<std::string> instantiated_preds;
+  // for(auto &instance: pred.instantiations()){ //NOTE: there will be an iteration for each instantiation of a NestedLoop execution (right table)
+  //   instantiated_preds.push_back(pred.where_clause()); //TODO: FIXME: fill in all the {} entries... Seems like this is not straightforward with fmt::format() (requires all args at once)
+  // } 
 
   std::set<std::string> dynamically_active_keys; //this is local to each pred, and purely used to avoid unecessary evals.
  
@@ -248,7 +248,9 @@ proto::ConcurrencyControl::Result Server::CheckReadPred(const Timestamp &txn_ts,
       }
 
       bool conflict = false;
-      for(auto &pred_instance: instantiated_preds){
+      //for(auto &pred_instance: instantiated_preds){
+  
+      for(auto &pred_instance: pred.pred_instances()){
          conflict = EvaluatePred(pred_instance, row);
          if(!lazy_check && dynamic_dep_candidates.count(write_key)){
             dynamic_dep_candidates[write_key].first = true;
@@ -304,22 +306,34 @@ proto::ConcurrencyControl::Result Server::CheckTableWrites(const proto::Transact
         //If INSERT:check against Table predicates && add to TableVersion
         //If UPDATE/DELETE: check against respective col predicates && add to ColVersions. 
   TablePredicateMap::const_accessor tp;
-   tablePredicates.insert(tp, table_name);
+   
+  // //FIXME: REMOVE TEST CODE
+  //  tablePredicates.insert(tp, table_name); 
+  //  //Insert dummy TX with low TS and with high TS. No preds
+  //  proto::Transaction *dummy_tx = new proto::Transaction();
+  //  auto dummy_pred = dummy_tx->mutable_merged_read_set()->add_read_predicates();
+  //  dummy_pred->set_table_name("flight");
+  //  dummy_pred->mutable_table_version()->set_id(0);
+  //  dummy_pred->mutable_table_version()->set_timestamp(0);
+  //  dummy_pred->add_pred_instances("test");
+  //  //TODO: insert with TS:
+  //  //tp->second[]
+
 
   bool has_preds = tablePredicates.find(tp, table_name);
   if(!has_preds) { 
-    Panic("no preds");
+    
     return proto::ConcurrencyControl::COMMIT;
   }
   auto &curr_table_preds = tp->second;
 
   //
-  Debug("PRINT WRITE SET");
-  for(auto &write: txn.write_set()){
-    Debug("key: %s. table_v? %d Write TS: [%lu:%lu]", write.key().c_str(), write.is_table_col_version(), txn_ts.getTimestamp(), txn_ts.getID());
-  }
+  // Debug("PRINT WRITE SET");
+  // for(auto &write: txn.write_set()){
+  //   Debug("key: %s. table_v? %d Write TS: [%lu:%lu]", write.key().c_str(), write.is_table_col_version(), txn_ts.getTimestamp(), txn_ts.getID());
+  // }
 
-  Panic("checking writes");
+  
   // For each TableWrite: Check if there are any prepared/committed Read TX with higher TS that this TableWrite could be in conflict with
   for(auto itr = curr_table_preds.upper_bound(txn_ts); itr != curr_table_preds.end(); ++itr){  //Check against all read preds (on this table) with read.TS >= write.TS
     auto &[read_txn, commit_or_prepare] = itr->second;
@@ -361,9 +375,10 @@ proto::ConcurrencyControl::Result Server::CheckTableWrites(const proto::Transact
         } 
 
         //For each pred, insantiate all, and evaluate.
-        for(auto &instance: pred.instantiations()){
-          std::string pred_instance = pred.where_clause(); //TODO: FIXME: fill in all the {} entries... Seems like this is not straightforward with fmt::format() (requires all args at once)
-          
+        // for(auto &instance: pred.instantiations()){
+        //   std::string pred_instance = pred.where_clause(); //TODO: FIXME: fill in all the {} entries... Seems like this is not straightforward with fmt::format() (requires all args at once)
+        for(auto &pred_instance: pred.pred_instances()){
+
           bool conflict = EvaluatePred(pred_instance, row);
           if(conflict) return proto::ConcurrencyControl::ABSTAIN; 
           //if(conflict) return commit_or_prepare ? proto::ConcurrencyControl::ABSTAIN: proto::ConcurrencyControl::ABSTAIN; 
@@ -403,7 +418,8 @@ proto::ConcurrencyControl::Result Server::CheckTableWrites(const proto::Transact
       // }
     }
   }
-   
+  
+  Panic("checked writes");
 
   // - for each written table/col version:
   //         - Note: For an insert, this TX must be writing a new table version. For an update, it must be writing certain Col Versions:
@@ -484,7 +500,7 @@ void Server::RecordReadPredicatesAndWrites(const proto::Transaction &txn, bool c
     //   if (it->first < lowWatermark) m.erase(it++);
     //   else break;
     // }
-    
+    Debug("Insert TableWrite for table: %s. Write TS [%lu:%lu]", table_name.c_str(), ts.getTimestamp(), ts.getID());
     tw.release();
   }
 }

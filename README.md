@@ -142,7 +142,8 @@ You may install them directly using:
 
 - If using Ubuntu 18.04, use `sudo apt install libevent-openssl-2.1-6 libevent-pthreads-2.1-6` instead for openssl and pthreads.
 
-- (not carefully vetted) To build on Ubuntu 22.04 or later:
+- To build on Ubuntu 22.04 or later (not carefully vetted):
+
    Add these to the end of your `/etc/apt/sources.list`:
    ```
    deb     http://archive.ubuntu.com/ubuntu/ focal main

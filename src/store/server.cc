@@ -353,8 +353,10 @@ DEFINE_bool(pequin_sign_replica_to_replica_sync, false, "sign inter replica sync
 DEFINE_bool(pequin_parallel_queries, true, "dispatch queries to parallel worker threads");
 
 DEFINE_bool(pequin_use_semantic_cc, true, "use SemanticCC"); //Non-semantic mode is deprecated.
+//TODO: parameterize these.
+DEFINE_uint64(pequin_monotonicity_grace, 10, "(ms) graceperiod for writes that arrive out of order (to account for clock skew)");
 DEFINE_bool(pequin_use_col_versions, false, "use col versions for updates instead of table version"); //TODO: Don't ever use this with SemanticCC, not useful.
-//TODO: Active read set: true
+DEFINE_bool(pequin_use_active_read_set, true, "store only keys that are Active w.r.t. to query predicate");
 //TODO: Active Snapshot set (optional), false
 
 //Baseline settings
