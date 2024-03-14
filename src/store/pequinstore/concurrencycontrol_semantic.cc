@@ -129,6 +129,8 @@ bool Server::CheckMonotonicTableColVersions(const proto::Transaction &txn) {
 proto::ConcurrencyControl::Result Server::CheckPredicates(const proto::Transaction &txn, const ReadSet &txn_read_set, const PredSet &pred_set, std::set<std::string> &dynamically_active_dependencies){ 
   
     const Timestamp txn_ts(txn.timestamp());
+
+    Debug("Checking for Semantic Conflicts. TX_ts: [%lu:%lu]. Num preds: %d. Num TableWrites: %d", txn_ts.getTimestamp(), txn_ts.getID(), pred_set.size(), txn.table_writes().size());
    
     //For all Read predicates     
    
@@ -151,10 +153,12 @@ proto::ConcurrencyControl::Result Server::CheckPredicates(const proto::Transacti
     return proto::ConcurrencyControl::COMMIT;
 }
 
+//DEPRECATED
 proto::ConcurrencyControl::Result Server::CheckPredicates(const proto::Transaction &txn, const ReadSet &txn_read_set, std::set<std::string> &dynamically_active_dependencies){ 
   //TODO: Support also passing via Hashing? (Either find ReadPredicates on demand here, or in advance)
         //Should be enough to do it on demand here, since we don't need them to lock if we add them to the read set?
     const Timestamp txn_ts(txn.timestamp());
+
    
     //For all Read predicates               //TODO: Ideally, organize read predicates by Table as well, so we don't loop over all tables in bounded history each time?
     for(auto &query_md : txn.query_set()){
@@ -184,6 +188,23 @@ proto::ConcurrencyControl::Result Server::CheckPredicates(const proto::Transacti
 }
 
 
+std::string Server::GetEncodedRow(const proto::Transaction &txn, const RowUpdates &row, const std::string &table_name){
+
+  if(params.parallel_CCC){
+     //We cannot keep track of correct write set idx because we will sort the write set (+ we insert table versions) => Must encode it on the spot
+    std::vector<const std::string*> primary_cols;
+    for(auto &idx: table_store->sql_interpreter.GetTableRegistry_const()->at(table_name).primary_col_idx){
+      primary_cols.push_back(&row.column_values()[idx]);
+    }
+    return EncodeTableRow(table_name, primary_cols);;
+  }
+  else{ //can look up via write_set_idx
+    UW_ASSERT(txn.write_set().size() > row.write_set_idx());
+    return txn.write_set()[row.write_set_idx()].key();
+  }
+ 
+}
+
 
 proto::ConcurrencyControl::Result Server::CheckReadPred(const Timestamp &txn_ts, const proto::ReadPredicate &pred, const ReadSet &txn_read_set, std::set<std::string> &dynamically_active_dependencies){
   
@@ -199,15 +220,21 @@ proto::ConcurrencyControl::Result Server::CheckReadPred(const Timestamp &txn_ts,
   // } 
  
   std::set<std::string> dynamically_active_keys; //this is local to each pred, and purely used to avoid unecessary evals.
- 
+  UW_ASSERT(!pred.pred_instances().empty());
+  Debug("TX_ts: [%lu:%lu]. Pred: [%s]: %s (instance 1)", txn_ts.getTimestamp(), txn_ts.getID(), pred.table_name().c_str(), pred.pred_instances()[0].c_str());
+
   //Currently checking all conflict types on TableVersion 
   //TODO: Optimization  //Check TableVersion for INSERT conflicts && Check ColVersions (of the pred) for UPDATE/DELETE conflicts
   TableWriteMap::const_accessor tw;
   bool has_table = tableWrites.find(tw, pred.table_name());
-  if(!has_table) return proto::ConcurrencyControl::COMMIT; // Panic("all tables must have a tableWrite entry.");
+  if(!has_table){
+    Debug("No table writes for table [%s]", pred.table_name().c_str());
+    return proto::ConcurrencyControl::COMMIT; // Panic("all tables must have a tableWrite entry.");
+  } 
   auto &curr_table_writes = tw->second;
 
 
+  Debug("TX_ts: [%lu:%lu]. Pred: [%s]. Check against all TX down to TS[%lu]. ", txn_ts.getTimestamp(), txn_ts.getID(), pred.table_name().c_str(), pred.table_version().timestamp() - clock_skew_grace);
   for(auto itr = --curr_table_writes.lower_bound(txn_ts); itr != curr_table_writes.begin(); --itr){
 
 //for(auto itr = curr_table_writes.rbegin(); itr != curr_table_writes.rend(); ++itr){
@@ -215,17 +242,47 @@ proto::ConcurrencyControl::Result Server::CheckReadPred(const Timestamp &txn_ts,
     const Timestamp &curr_ts = itr->first;
      //if(curr_ts > txn_ts) continue;
    
+    //Skip comparing against table version itself. We've already seen it, it cannot possibly be a new write.
+    if(curr_ts.getTimestamp() == pred.table_version().timestamp() && curr_ts.getID() == pred.table_version().id()) continue;
+
     //Bound how far we need to check by the READ Table/Col Version - grace. I.e. look at all writes s.t. read.TS >= write.TS write.TS > read.TableVersion - grace
     if(curr_ts.getTimestamp() + clock_skew_grace < pred.table_version().timestamp()) break;  //bound iterations until read table version
 
+    Debug("TX_ts: [%lu:%lu]. Pred: [%s]: compare vs write TS[%lu:%lu]", txn_ts.getTimestamp(), txn_ts.getID(), pred.table_name().c_str(), itr->first.getTimestamp(), itr->first.getID());
     auto &[write_txn, commit_or_prepare] = itr->second;
     UW_ASSERT(write_txn->has_txndigest());
 
     const TableWrite &txn_table_write = write_txn->table_writes().at(pred.table_name());
     //Go to this Txns TableWrite for this table
     for(auto &row: txn_table_write.rows()){
-      UW_ASSERT(write_txn->write_set().size() > row.write_set_idx());
-      const std::string &write_key = write_txn->write_set()[row.write_set_idx()].key();
+      
+      const std::string &write_key = GetEncodedRow(*write_txn, row, pred.table_name());
+   
+
+      Debug("TX_ts: [%lu:%lu]. Pred: [%s]: compare vs write key [%s]", txn_ts.getTimestamp(), txn_ts.getID(), pred.table_name().c_str(), write_key.c_str());
+
+      /* DEBUG PRINTS FOR WRITE TXN. PRINT TABLE ROWS AND WRITE SET*/
+      // int idx = 0;
+      // for(auto &write: write_txn->write_set()){
+      //   Debug("idx: %d. key: %s. row idx: %d", idx, write.key().c_str(), write.rowupdates().row_idx());
+      //   idx++;
+      // }
+
+      // for(auto &[name, tbl_write]: write_txn->table_writes()){
+      //   for(auto &row: tbl_write.rows()){
+      //     Debug("[%s]. write idx: %d", name.c_str(), row.write_set_idx());
+      //     int max = 3;
+      //     std::cerr << "             vals: ";
+      //     for(auto &val: row.column_values()){
+      //       std::cerr << val << " # ";
+      //       if(--max == 0) break;
+      //     }
+      //     std::cerr << std::endl;
+      //   }
+      // }
+      //TEST CODE FIXME: REMOVE
+
+      Panic("stop testing here");
 
       bool force_recheck = false;
       if(dynamic_dep_candidates.count(write_key)){ //if there is already a dep candidate for this key
@@ -322,6 +379,7 @@ proto::ConcurrencyControl::Result Server::CheckTableWrites(const proto::Transact
   //  //TODO: insert with TS:
   //  //tp->second[]
 
+  Debug("TX_ts: [%lu:%lu]. TableWrites: [%s]: ", txn_ts.getTimestamp(), txn_ts.getID(), table_name.c_str());
 
   bool has_preds = tablePredicates.find(tp, table_name);
   if(!has_preds) { 
@@ -339,6 +397,7 @@ proto::ConcurrencyControl::Result Server::CheckTableWrites(const proto::Transact
   
   // For each TableWrite: Check if there are any prepared/committed Read TX with higher TS that this TableWrite could be in conflict with
   for(auto itr = curr_table_preds.upper_bound(txn_ts); itr != curr_table_preds.end(); ++itr){  //Check against all read preds (on this table) with read.TS >= write.TS
+    Debug("TX_ts: [%lu:%lu]. TableWrites: [%s]. Compare vs Read with TS[%lu:%lu]", txn_ts.getTimestamp(), txn_ts.getID(), table_name.c_str(), itr->first.getTimestamp(), itr->first.getID());
     auto &[read_txn, commit_or_prepare] = itr->second;
 
     //TODO: Find a way to organize Predicates by Table...
@@ -354,7 +413,9 @@ proto::ConcurrencyControl::Result Server::CheckTableWrites(const proto::Transact
     for(auto &row: table_write.rows()){
       //check if read_txn read set already has this write key. If so, skip (we've already done normal CC on it)
           //NOTE: checking just for key presence is enough! If it is present, then Normal CC check will already have handled conflicts.
-      const std::string &write_key = txn.write_set()[row.write_set_idx()].key();
+      
+      const std::string &write_key = GetEncodedRow(txn, row, table_name);
+
       const ReadSet &txn_read_set = read_txn->has_merged_read_set() ? read_txn->read_set() : read_txn->merged_read_set().read_set();
       if(std::find_if(txn_read_set.begin(), txn_read_set.end(), [write_key](const ReadMessage &read){return read.key()==write_key;}) != txn_read_set.end()){
               continue; //skip eval this key. It's already in the predicate txns' read set 
@@ -369,9 +430,13 @@ proto::ConcurrencyControl::Result Server::CheckTableWrites(const proto::Transact
  
       for(auto &pred: *predSet){
         if(table_name != pred.table_name()) continue;
+
+         //Skip comparing against table version itself. The reader must've already seen it, it cannot possibly be a new write.
+        if(txn_ts.getTimestamp() == pred.table_version().timestamp() && txn_ts.getID() == pred.table_version().id()) continue;
+
         //only check if this write is still relevant to the Reader. Note: This case should never happen, such writes should not be able to be admitted
         if(txn_ts.getTimestamp() + clock_skew_grace < pred.table_version().timestamp()){
-          Panic("write should never be admitted"); 
+          Panic("non-monotinic write should never be admitted"); 
           //NOTE: Not quite true locally. This replica might not have seen a TableVersion high enough to cause this TX to be rejected; meanwhile, the read might have read the TableVersion elsewhere
           //-- but as a whole, a quorum of replicas should be rejecting this tx.
           continue;

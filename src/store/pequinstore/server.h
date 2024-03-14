@@ -809,6 +809,7 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
   void SignSendReadReply(proto::Write *write, proto::SignedMessage *signed_write, const std::function<void()> &sendCB);
 
   /* BEGIN Semantic CC functions */ 
+  std::string GetEncodedRow(const proto::Transaction &txn, const RowUpdates &row, const std::string &table_name);
   bool CheckMonotonicTableColVersions(const proto::Transaction &txn); 
   proto::ConcurrencyControl::Result CheckPredicates(const proto::Transaction &txn, const ReadSet &txn_read_set, const PredSet &pred_set, std::set<std::string> &dynamically_active_dependencies);
   proto::ConcurrencyControl::Result CheckPredicates(const proto::Transaction &txn, const ReadSet &txn_read_set, std::set<std::string> &dynamically_active_dependencies); 

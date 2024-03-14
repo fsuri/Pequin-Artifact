@@ -49,8 +49,9 @@ message RowUpdates {
     repeated bytes column_values = 4;
 
     //This is super hacky, but these just allows us to easily lookup the row from a write key, and vice versa
-    optional int32 row_idx = 5; //Idx of the RowUpdate (stored by writeset) (used to find correct row update from WriteMessage for proof)
-    optional int32 write_set_idx = 6; //Idx of the write set entry == encoded key (stored by TableWrites)
+    optional int32 row_idx = 5; //Idx of the RowUpdate (stored by writeset) (used to find correct row update from WriteMessage for proof
+    //Note: This only works if we are NOT sorting the write set. If we are, then the assigned index may be wrong. 
+    optional int32 write_set_idx = 6; //Idx of the write set entry == encoded key (stored by TableWrites) //
 }
 
 message TableWrite {

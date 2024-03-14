@@ -432,10 +432,15 @@ proto::ConcurrencyControl::Result Server::mergeTxReadSets(const ReadSet *&readSe
 
   mq.release();
 
-  //If queries had no active read sets ==> return default
+  bool new_reads = true;
+  //If queries had no active read sets ==> return default   
   if(mergedReadSet->read_set().empty()){
     Debug("Tx has no queries with active read sets.");
-    return proto::ConcurrencyControl::COMMIT;
+    new_reads = false; //No new reads -> don't need to sort
+    if(mergedReadSet->read_predicates().empty()){ //NEW: Also try to include merged read preds. Note: If there is a pred -> there will be a read key for TableVersion anyways...
+      return proto::ConcurrencyControl::COMMIT;
+    }
+    //return proto::ConcurrencyControl::COMMIT;
   } 
 
    //attach base read-set 
@@ -460,7 +465,7 @@ proto::ConcurrencyControl::Result Server::mergeTxReadSets(const ReadSet *&readSe
     //Define sort function
     //In sort function: If we detect duplicate -> abort
     //Implement by throwing an error inside sort, and wrapping it with a catch block.
-  if(params.parallel_CCC){
+  if(params.parallel_CCC && new_reads){
     try {
       std::sort(mergedReadSet->mutable_read_set()->begin(), mergedReadSet->mutable_read_set()->end(), sortReadSetByKey);
       mergedReadSet->mutable_read_set()->erase(std::unique(mergedReadSet->mutable_read_set()->begin(), mergedReadSet->mutable_read_set()->end(), equalReadMsg), mergedReadSet->mutable_read_set()->end()); //Erase duplicates...
@@ -472,18 +477,19 @@ proto::ConcurrencyControl::Result Server::mergeTxReadSets(const ReadSet *&readSe
       return proto::ConcurrencyControl::ABSTAIN;
     }
   }
-  //Sort mergedDepSet in order to erase duplicates. //Note: If not unique, then ManageDeps might try to lock the same dep twice -- potentially causing a lock-order inversion deadlock with CheckDependents.
-  std::sort(mergedReadSet->mutable_deps()->begin(), mergedReadSet->mutable_deps()->end(), sortDepSet);
-  mergedReadSet->mutable_deps()->erase(std::unique(mergedReadSet->mutable_deps()->begin(), mergedReadSet->mutable_deps()->end(), equalDep), mergedReadSet->mutable_deps()->end()); //Erase duplicates...
-  
+  if(new_reads){
+     //Sort mergedDepSet in order to erase duplicates. //Note: If not unique, then ManageDeps might try to lock the same dep twice -- potentially causing a lock-order inversion deadlock with CheckDependents.
+    std::sort(mergedReadSet->mutable_deps()->begin(), mergedReadSet->mutable_deps()->end(), sortDepSet);
+    mergedReadSet->mutable_deps()->erase(std::unique(mergedReadSet->mutable_deps()->begin(), mergedReadSet->mutable_deps()->end(), equalDep), mergedReadSet->mutable_deps()->end()); //Erase duplicates...
+  }
+ 
    //add mergedreadSet to tx - return success
   if(txn.has_merged_read_set()) Panic("Thread unsafe interaction");
   txn.set_allocated_merged_read_set(mergedReadSet.release());
   readSet = &txn.merged_read_set().read_set();
   depSet = &txn.merged_read_set().deps();
   predSet = &txn.merged_read_set().read_predicates();
-   Debug("merged predSet has [%d] read preds", txn.merged_read_set().read_predicates_size());
-     Debug("predSet has [%d] read preds", predSet->size());
+  Debug("predSet has [%d] read preds", predSet->size());
 
   //TODO: Add depSet handling here: Merge in original dep set; erase duplicates; when merging //FIXME: Turn into a dep. (ReadSet must store Deps then too.. ==> Re-factor this to be deps directly: That way Optimistic TS also can just include the TS in Write!)
   //TODO: At client: mergedSet only works on strings; would need to feed in the equality function for uniqueness.  Instantiate merged_list with KeyEqual. (could store pointers and make euqlity on deref pointers -> no copies made!)

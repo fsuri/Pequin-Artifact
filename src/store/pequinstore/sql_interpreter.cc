@@ -418,6 +418,7 @@ void SQLTransformer::TransformInsert(size_t pos, std::string_view &write_stateme
         RowUpdates *row_update = table_write->add_rows();
         *row_update->mutable_column_values() = {value_list.begin(), value_list.end()};
         row_update->set_write_set_idx(txn->write_set_size()-1);
+        
         // for(auto &[col_name, col_idx]: col_registry_ptr->col_name_index){
         //     std::string *col_val = row_update->add_column_values();
         //     *col_val = std::move(value_list[col_idx]);

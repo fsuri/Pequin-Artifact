@@ -1102,7 +1102,7 @@ bool ShardClient::ValidateTransactionTableWrite(const proto::CommittedProof &pro
         return false;
     }
 
-    uint32_t row_idx;
+    int32_t row_idx;
     //Check that write set of proof contains key.
     bool keyInWriteSet = false;
     for (const auto &write : proof.txn().write_set()) {

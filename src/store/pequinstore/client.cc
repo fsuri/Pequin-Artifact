@@ -876,6 +876,7 @@ void Client::Commit(commit_callback ccb, commit_timeout_callback ctcb,
           table_ver->set_key(table_name);
           table_ver->set_value("");
           table_ver->set_is_table_col_version(true);
+          table_ver->mutable_rowupdates()->set_row_idx(-1); 
       }
     }
 
@@ -889,7 +890,9 @@ void Client::Commit(commit_callback ccb, commit_timeout_callback ctcb,
 
 
     //XXX flag to sort read/write sets for parallel OCC
-    if(params.parallel_CCC || true){ //NOTE: FIXME: Currently always sorting: This way we can detect duplicate table versions early.
+    //if(params.parallel_CCC || true){ //NOTE: FIXME: Currently always sorting: This way we can detect duplicate table versions early. 
+                                        //=> Ignore: TableVersion in ReadSet now always 0 (purely for locking convenience, it has no meaning)
+    if(params.parallel_CCC){
       try {
         std::sort(txn.mutable_read_set()->begin(), txn.mutable_read_set()->end(), sortReadSetByKey);
         std::sort(txn.mutable_write_set()->begin(), txn.mutable_write_set()->end(), sortWriteSetByKey);
