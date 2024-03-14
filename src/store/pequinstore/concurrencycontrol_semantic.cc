@@ -114,7 +114,7 @@ bool Server::CheckMonotonicTableColVersions(const proto::Transaction &txn) {
     
     //NOTE: only comparing on the real time component currently.
     if(txn.timestamp().timestamp() + clock_skew_grace <= highTS.getTimestamp()){
-      Panic("Non monotonic Table/Col Write. Table/Col name: %s. txnTS: %lx, highTS: %lx, grace: %lx", table_name.c_str(), txn.timestamp().timestamp(), highTS.getTimestamp(), clock_skew_grace);
+      //Panic("Non monotonic Table/Col Write. Table/Col name: %s. txnTS: %lx, highTS: %lx, grace: %lx", table_name.c_str(), txn.timestamp().timestamp(), highTS.getTimestamp(), clock_skew_grace);
       return false;
     } 
   }
@@ -282,7 +282,7 @@ proto::ConcurrencyControl::Result Server::CheckReadPred(const Timestamp &txn_ts,
       // }
       //TEST CODE FIXME: REMOVE
 
-      Panic("stop testing here");
+      //Panic("stop testing here");
 
       bool force_recheck = false;
       if(dynamic_dep_candidates.count(write_key)){ //if there is already a dep candidate for this key
@@ -311,7 +311,7 @@ proto::ConcurrencyControl::Result Server::CheckReadPred(const Timestamp &txn_ts,
       //for(auto &pred_instance: instantiated_preds){
   
       for(auto &pred_instance: pred.pred_instances()){
-         conflict = EvaluatePred(pred_instance, row);
+         conflict = EvaluatePred(pred_instance, row, pred.table_name());
          if(!lazy_check && dynamic_dep_candidates.count(write_key)){
             dynamic_dep_candidates[write_key].first = true;
             continue; //No conflict because we saw prepared version that doesn't conflict. In this case MUST wait for that prepared version (active candidate)
@@ -447,7 +447,7 @@ proto::ConcurrencyControl::Result Server::CheckTableWrites(const proto::Transact
         //   std::string pred_instance = pred.where_clause(); //TODO: FIXME: fill in all the {} entries... Seems like this is not straightforward with fmt::format() (requires all args at once)
         for(auto &pred_instance: pred.pred_instances()){
 
-          bool conflict = EvaluatePred(pred_instance, row);
+          bool conflict = EvaluatePred(pred_instance, row, pred.table_name());
           if(conflict) return proto::ConcurrencyControl::ABSTAIN; 
           //if(conflict) return commit_or_prepare ? proto::ConcurrencyControl::ABSTAIN: proto::ConcurrencyControl::ABSTAIN; 
                                 //TODO: Replace with ABORT: FIXME: To do this, need to access a commit proof, and not just the TXN.
@@ -648,13 +648,15 @@ bool Server::CheckGCWatermark(const Timestamp &ts) {
 // Use col registry to infer type.
 // Then perform the comparator operations?
 
- bool Server::EvaluatePred(const std::string &pred, const RowUpdates &row){
-  return false; //FIXME: REMOVE
-
+ bool Server::EvaluatePred(const std::string &pred, const RowUpdates &row, const std::string &table_name){
+  //return false; //FIXME: REMOVE
+  std::cout << "Inside EvalPred in semantic CC" << std::endl;
+  std::cout << "The predicate evalpred is " << pred << std::endl;
+  std::string full_predicate = "SELECT * FROM " + table_name + " WHERE " + pred;
   //TODO: FILL IN
   // Call the PostgresParser
   auto parser = peloton::parser::PostgresParser::GetInstance();
-  std::unique_ptr<peloton::parser::SQLStatementList> stmt_list(parser.BuildParseTree(pred).release());
+  std::unique_ptr<peloton::parser::SQLStatementList> stmt_list(parser.BuildParseTree(full_predicate).release());
   if (!stmt_list->is_valid) {
     std::cout << "Parsing failed" << std::endl;
   }
@@ -667,16 +669,20 @@ bool Server::CheckGCWatermark(const Timestamp &ts) {
   auto select_stmt = (peloton::parser::SelectStatement *)sql_stmt;
 
   auto where_clause = select_stmt->where_clause->Copy();
+  std::cout << "The parsed where clause evalpred is " << where_clause->GetInfo() << std::endl;
   std::shared_ptr<peloton::expression::AbstractExpression> sptr(where_clause);
   peloton::optimizer::PlanGenerator plan_generator;
   
-  ColRegistry *col_registry = table_store->sql_interpreter.GetColRegistry(select_stmt->from_table->GetTableName());
+  ColRegistry *col_registry = table_store->sql_interpreter.GetColRegistry(table_name);
+  std::cout << "Before generating predicate from col registry" << std::endl;
   auto predicate = plan_generator.GeneratePredicateForScanColRegistry(sptr, "", col_registry);
 
-  std::cout << "The predicate is " << predicate->GetInfo() << std::endl;
+  std::cout << "The parsed predicate evalpred is " << predicate->GetInfo() << std::endl;
   peloton::catalog::Schema *schema = ConvertColRegistryToSchema(col_registry);
+  std::cout << "Past convert col registry to schema" << std::endl;
   
   auto result = Eval(predicate.get(), row, schema);
+  std::cout << "Result from eval pred is " << result << std::endl;
   return result;
  }
 
@@ -684,15 +690,28 @@ bool Server::CheckGCWatermark(const Timestamp &ts) {
   std::unique_ptr<peloton::storage::Tuple> tuple(new peloton::storage::Tuple(schema, true));
 
   // TODO: Make comprehensive with all types
-  for(int i = 0; i < row.column_values_size(); ++i){
+  for(int i = 0; i < row.column_values().size(); ++i){
     if (schema->GetColumn(i).GetType() == peloton::type::TypeId::INTEGER) {
       int32_t val = std::stoi(row.column_values()[i]);
       tuple->SetValue(i, peloton::type::Value(peloton::type::TypeId::INTEGER, val));
     } else if (schema->GetColumn(i).GetType() == peloton::type::TypeId::VARCHAR) {
       tuple->SetValue(i, peloton::type::Value(peloton::type::TypeId::VARCHAR, row.column_values()[i]));
-    }    
+    } else if (schema->GetColumn(i).GetType() == peloton::type::TypeId::DECIMAL) {
+      double val = atof(row.column_values()[i].c_str());
+      tuple->SetValue(i, peloton::type::Value(peloton::type::TypeId::DECIMAL, val));
+    } else if (schema->GetColumn(i).GetType() == peloton::type::TypeId::BIGINT) {
+      int64_t val = std::atoll(row.column_values()[i].c_str());
+      tuple->SetValue(i, peloton::type::Value(peloton::type::TypeId::BIGINT, val));
+    }   
   }
 
+  std::cout << "Tuple values are" << std::endl;
+
+  for (int i = 0; i < row.column_values().size(); ++i) {
+    std::cout << "Tuple col " << schema->GetColumn(i).GetName() << " is " << tuple.get()->GetValue(i).ToString() << std::endl;
+  }
+
+  //std::cout << "Tuple is " << tuple.get()->GetInfo() << std::endl;
   auto result = predicate->Evaluate(tuple.get(), nullptr, nullptr);
   return result.IsTrue();
 }
@@ -703,6 +722,7 @@ peloton::catalog::Schema* Server::ConvertColRegistryToSchema(ColRegistry *col_re
     auto name = col_registry->col_names[i];
     auto type = col_registry->col_name_type.at(name);
 
+    if (type == "FLOAT") type = "DECIMAL";
     auto type_id = peloton::StringToTypeId(type);
     auto column = peloton::catalog::Column(type_id, peloton::type::Type::GetTypeSize(type_id), name, true);
     columns.push_back(column);
