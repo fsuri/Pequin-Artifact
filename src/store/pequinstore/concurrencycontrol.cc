@@ -387,6 +387,8 @@ proto::ConcurrencyControl::Result Server::mergeTxReadSets(const ReadSet *&readSe
         //mergedReadSet->mutable_dep_ids()->MergeFrom(query_rs->dep_ids());
         //mergedReadSet->mutable_dep_ts_ids()->MergeFrom(query_rs->dep_ts_ids());
 
+        Debug("Merging Query with [%d] read preds", query_rs->read_predicates_size());
+        
         if(!params.query_params.cacheReadSet){
             mergedReadSet->mutable_read_predicates()->MergeFrom(query_rs->read_predicates());
         }
@@ -399,8 +401,11 @@ proto::ConcurrencyControl::Result Server::mergeTxReadSets(const ReadSet *&readSe
           int n = query_rs_mut->read_predicates_size(); 
           for(int i = 0; i < n; ++i){
             auto next_pred = query_rs_mut->mutable_read_predicates()->ReleaseLast();
+            Debug("Merge read pred: [%s]: %s", next_pred->table_name().c_str(), next_pred->pred_instances()[0].c_str());
             mergedReadSet->mutable_read_predicates()->AddAllocated(next_pred);
           }
+
+           Debug("Merged Query has [%d] read preds", mergedReadSet->read_predicates_size());
         }
         
     }
@@ -477,6 +482,8 @@ proto::ConcurrencyControl::Result Server::mergeTxReadSets(const ReadSet *&readSe
   readSet = &txn.merged_read_set().read_set();
   depSet = &txn.merged_read_set().deps();
   predSet = &txn.merged_read_set().read_predicates();
+   Debug("merged predSet has [%d] read preds", txn.merged_read_set().read_predicates_size());
+     Debug("predSet has [%d] read preds", predSet->size());
 
   //TODO: Add depSet handling here: Merge in original dep set; erase duplicates; when merging //FIXME: Turn into a dep. (ReadSet must store Deps then too.. ==> Re-factor this to be deps directly: That way Optimistic TS also can just include the TS in Write!)
   //TODO: At client: mergedSet only works on strings; would need to feed in the equality function for uniqueness.  Instantiate merged_list with KeyEqual. (could store pointers and make euqlity on deref pointers -> no copies made!)

@@ -340,7 +340,7 @@ void IndexScanExecutor::TryForceReadSetAddition(concurrency::TransactionContext 
 }
 
 void IndexScanExecutor::SetPredicate(concurrency::TransactionContext *current_txn, pequinstore::QueryReadSetMgr *query_read_set_mgr){
-
+  
   if(!current_txn->GetHasReadSetMgr()) return;
 
   //bool is_metadata_table_ = table_->GetName().substr(0,3) == "pg_"; //don't do any of the Pequin features for meta data tables..
@@ -366,7 +366,9 @@ void IndexScanExecutor::SetPredicate(concurrency::TransactionContext *current_tx
   //const_cast<peloton::expression::AbstractExpression *>(predicate_)->DeduceExpressionName();
   auto &pred = predicate_->expr_name_;
   query_read_set_mgr->ExtendPredicate(pred);
-  std::cout << "Adding new read set predicate instance: " << pred << std::endl;
+  std::cerr << "Adding new read set predicate instance: " << pred << std::endl;
+
+  std::cerr << "Num preds: " << query_read_set_mgr->read_set->read_predicates_size() << std::endl;
 
   // // // Index predicate in string form
   //     /*std::string index_pred = "";

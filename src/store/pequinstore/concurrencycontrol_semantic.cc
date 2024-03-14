@@ -325,7 +325,7 @@ proto::ConcurrencyControl::Result Server::CheckTableWrites(const proto::Transact
 
   bool has_preds = tablePredicates.find(tp, table_name);
   if(!has_preds) { 
-    
+    Debug("No preds for table [%s]. Return", table_name.c_str());
     return proto::ConcurrencyControl::COMMIT;
   }
   auto &curr_table_preds = tp->second;
@@ -361,13 +361,13 @@ proto::ConcurrencyControl::Result Server::CheckTableWrites(const proto::Transact
       }
 
       UW_ASSERT(!read_txn->query_set().empty()); //if txn didn't have a query set it wouldnt be in the pred list!
-      const PredSet &predSet = read_txn->read_predicates();
-      if(params.query_params.cacheReadSet || params.query_params.mergeActiveAtClient){
+      const PredSet *predSet = &read_txn->read_predicates();
+      if(params.query_params.cacheReadSet || !params.query_params.mergeActiveAtClient){
           UW_ASSERT(read_txn->has_merged_read_set());
-          auto predSet = read_txn->merged_read_set().read_predicates();
+          predSet = &read_txn->merged_read_set().read_predicates();
       }
  
-      for(auto &pred: predSet){
+      for(auto &pred: *predSet){
         if(table_name != pred.table_name()) continue;
         //only check if this write is still relevant to the Reader. Note: This case should never happen, such writes should not be able to be admitted
         if(txn_ts.getTimestamp() + clock_skew_grace < pred.table_version().timestamp()){
@@ -421,9 +421,6 @@ proto::ConcurrencyControl::Result Server::CheckTableWrites(const proto::Transact
       // }
     }
   }
-  
-  Panic("checked writes");
-
   // - for each written table/col version:
   //         - Note: For an insert, this TX must be writing a new table version. For an update, it must be writing certain Col Versions:
   //     - Check all stored read preds P such that: P.readTS - grace < write.TS and write.TS < P.origin.TS. For each such pred:
@@ -437,6 +434,8 @@ proto::ConcurrencyControl::Result Server::CheckTableWrites(const proto::Transact
 //Note: We are assuming TS are unique to a TX here. Duplicates should already have been filtered out (it should not be possible that 2 TX with same TS commit)
 void Server::RecordReadPredicatesAndWrites(const proto::Transaction &txn, bool commit_or_prepare){
   
+  Debug("RECORDING READ PRED AND WRITE");
+ 
   //NOTE: 
     //Throughout the CC process we are holding a lock on a given table name
     //This ensure that no new Txn can be admitted without seeing these reads/writes.
@@ -452,13 +451,17 @@ void Server::RecordReadPredicatesAndWrites(const proto::Transaction &txn, bool c
   Timestamp ts(txn.timestamp()); //TODO: pass in directly
 
   //Record all ReadPredicates   //Store a reference: table_name -> txn
-  const PredSet &predSet = txn.read_predicates(); //If we are not caching, and clientMerges => then they all preds must be here
+  const PredSet *predSet = &txn.read_predicates(); //If we are not caching, and clientMerges => then they all preds must be in read_predicates(). Otherwise, we must've merged
   if(!txn.query_set().empty() && (params.query_params.cacheReadSet || !params.query_params.mergeActiveAtClient)){
+   
       UW_ASSERT(txn.has_merged_read_set());
-    auto predSet = txn.merged_read_set().read_predicates();
+    predSet = &txn.merged_read_set().read_predicates();
   }
+  Debug("Prepare: predSet has [%d] read preds", predSet->size());
  
-  for(auto &pred: predSet){
+
+  for(auto &pred: *predSet){
+    std::cerr << "Record pred: " << pred.pred_instances()[0] << std::endl;
     TablePredicateMap::accessor tp;
     tablePredicates.insert(tp, pred.table_name());
     auto &preds = tp->second;
@@ -469,6 +472,7 @@ void Server::RecordReadPredicatesAndWrites(const proto::Transaction &txn, bool c
       //   else break;
       // }
     tp.release();
+    Debug("Insert ReadPred for table: %s. Read TS [%lu:%lu]", pred.table_name().c_str(), ts.getTimestamp(), ts.getID());
   }
   
    // for(auto &query_md : txn.query_set()){
@@ -493,6 +497,7 @@ void Server::RecordReadPredicatesAndWrites(const proto::Transaction &txn, bool c
 
   //Record all TableWrites  //Store a reference: table_name -> txn
   for(auto &[table_name, _]: txn.table_writes()){
+     std::cerr << "Record Table Write: " << table_name << std::endl;
     TableWriteMap::accessor tw;
     tableWrites.insert(tw, table_name);
     auto &write = tw->second;
@@ -504,8 +509,8 @@ void Server::RecordReadPredicatesAndWrites(const proto::Transaction &txn, bool c
     //   if (it->first < lowWatermark) m.erase(it++);
     //   else break;
     // }
-    Debug("Insert TableWrite for table: %s. Write TS [%lu:%lu]", table_name.c_str(), ts.getTimestamp(), ts.getID());
     tw.release();
+    Debug("Insert TableWrite for table: %s. Write TS [%lu:%lu]", table_name.c_str(), ts.getTimestamp(), ts.getID());
   }
 }
 
@@ -514,13 +519,13 @@ void Server::ClearPredicateAndWrites(const proto::Transaction &txn){
   Timestamp ts(txn.timestamp()); //TODO: pass in directly
 
   //Clear all ReadPredicates   
-  const PredSet &predSet = txn.read_predicates();
+  const PredSet *predSet = &txn.read_predicates();
   if(!txn.query_set().empty() && (params.query_params.cacheReadSet || !params.query_params.mergeActiveAtClient)){
     UW_ASSERT(txn.has_merged_read_set());
-    auto predSet = txn.merged_read_set().read_predicates();
+    predSet = &txn.merged_read_set().read_predicates();
   }
  
-  for(auto &pred: predSet){
+  for(auto &pred: *predSet){
     TablePredicateMap::accessor tp;
     tablePredicates.find(tp, pred.table_name());
     auto &preds = tp->second;

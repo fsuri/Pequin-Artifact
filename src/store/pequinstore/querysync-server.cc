@@ -791,6 +791,8 @@ void Server::CacheReadSet(QueryMetaData *query_md, proto::QueryResult *&result, 
     catch(...) {
         Panic("Trying to send QueryReply with two different reads for the same key");
     }
+
+    Debug("Query[%lu:%lu:%lu] has %d read preds: ", query_md->query_seq_num, query_md->client_id, query_md->retry_version, result->query_read_set().read_predicates_size());
     
     //Note: Sorts by key to ensure all replicas create the same hash. (Note: Not necessary if using ordered map)
     result->set_query_result_hash(generateReadSetSingleHash(result->query_read_set()));
