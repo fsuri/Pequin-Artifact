@@ -177,11 +177,11 @@ void SeqScanExecutor::EvalRead(std::shared_ptr<storage::TileGroup> tile_group, s
 
   
     // If active read set then add to read
-    if(peloton::catalog::Catalog::GetInstance()->GetQueryParams()->useActiveReadSet) ManageReadSet(current_txn, tile_group, tile_group_header, tuple_location, current_txn->GetQueryReadSetMgr());
+    if(catalog::Catalog::GetInstance()->GetQueryParams()->useActiveReadSet) ManageReadSet(current_txn, tile_group, tile_group_header, tuple_location, current_txn->GetQueryReadSetMgr());
     //if (USE_ACTIVE_READ_SET) ManageReadSet(current_txn, tile_group, tile_group_header, tuple_location, current_txn->GetQueryReadSetMgr());
   }
   // If not using active read set, always add to read set
-  if(!peloton::catalog::Catalog::GetInstance()->GetQueryParams()->useActiveReadSet) ManageReadSet(current_txn, tile_group, tile_group_header, tuple_location, current_txn->GetQueryReadSetMgr());
+  if(!catalog::Catalog::GetInstance()->GetQueryParams()->useActiveReadSet) ManageReadSet(current_txn, tile_group, tile_group_header, tuple_location, current_txn->GetQueryReadSetMgr());
   //if (!USE_ACTIVE_READ_SET) ManageReadSet(current_txn, tile_group, tile_group_header, tuple_location, current_txn->GetQueryReadSetMgr());
 }
 
@@ -365,7 +365,7 @@ void SeqScanExecutor::SetTableColVersions(concurrency::TransactionContext *curre
       //Thus we need the ColVersion to detect changes to col values that might be relevant to ActiveRS (i.e. include ColVersion for all Col in search predicate)
       
       //if(USE_ACTIVE_READ_SET){ 
-      if(peloton::catalog::Catalog::GetInstance()->GetQueryParams()->useActiveReadSet){
+      if(catalog::Catalog::GetInstance()->GetQueryParams()->useActiveReadSet){
         // Table column version : FIXME: Read version per Col, not composite key
         std::unordered_set<std::string> column_names;
         //std::vector<std::string> col_names;

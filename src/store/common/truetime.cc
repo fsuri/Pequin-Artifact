@@ -7,6 +7,7 @@
  **********************************************************************/
 
 #include "store/common/truetime.h"
+#include<iostream>
 
 TrueTime::TrueTime() {
     simError = 0;
@@ -75,7 +76,9 @@ TrueTime::GetTimeAndError(uint64_t &time, uint64_t &error)
 
 uint64_t TrueTime::MsToTS(const uint64_t &time_milis){
     uint64_t second_comp = time_milis / 1000;
-    uint64_t milisecond_comp = time_milis % 1000;
-    uint64_t ts = second_comp << 32 + milisecond_comp << 32;
+    uint64_t milisecond_remain = time_milis % 1000;
+    uint64_t microsecond_comp =  milisecond_remain * 1000;
+  
+    uint64_t ts = (second_comp << 32) | (microsecond_comp << 12);
     return ts;
 }

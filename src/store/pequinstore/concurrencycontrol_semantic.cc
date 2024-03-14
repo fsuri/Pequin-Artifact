@@ -111,7 +111,7 @@ bool Server::CheckMonotonicTableColVersions(const proto::Transaction &txn) {
     
     //NOTE: only comparing on the real time component currently.
     if(txn.timestamp().timestamp() + clock_skew_grace <= highTS.getTimestamp()){
-      Panic("Non monotonic Table/Col Write. Table/Col name: %s. txnTS: %lx, highTS: %lx, grace: %lx", table_name.c_str(), txn.timestamp().timestamp(), highTS.getTimestamp(), clock_skew_grace);
+      Panic("Non monotonic Table/Col Write. Table/Col name: %s. txnTS: %lu, highTS: %lu, grace: %lu", table_name.c_str(), txn.timestamp().timestamp(), highTS.getTimestamp(), clock_skew_grace);
       return false;
     } 
   }

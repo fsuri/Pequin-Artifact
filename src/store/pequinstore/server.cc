@@ -153,6 +153,7 @@ Server::Server(const transport::Configuration &config, int groupIdx, int idx,
 
   //Compute clock_skew_grace 
   clock_skew_grace = timeServer.MsToTS(params.query_params.monotonicityGrace);
+  std::cerr << "clock skew grace: " << clock_skew_grace << std::endl;
 
   if (sql_bench) {
 
