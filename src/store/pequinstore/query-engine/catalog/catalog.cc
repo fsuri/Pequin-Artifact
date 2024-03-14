@@ -257,8 +257,12 @@ void Catalog::Bootstrap() {
 // CREATE FUNCTIONS
 //===----------------------------------------------------------------------===//
 
-void Catalog::SetQueryParams(const pequinstore::QueryParameters *query_params){
-  query_params = query_params;
+const pequinstore::QueryParameters * Catalog::GetQueryParams(){
+  return query_params;
+}
+
+void Catalog::SetQueryParams(const pequinstore::QueryParameters *query_param){
+  query_params = query_param;
 }
 
 ResultType Catalog::CreateDatabase(concurrency::TransactionContext *txn,

@@ -125,9 +125,8 @@ void PelotonTableStore::Init(int num_threads) {
   txn_manager.CommitTransaction(txn);
   // traffic_cop_ = peloton::tcop::TrafficCop(UtilTestTaskCallback, &counter_);
 
-  std::cerr << "test: " << query_params->useActiveReadSet << std::endl;
   peloton::catalog::Catalog::GetInstance()->SetQueryParams(query_params);
-  //if(peloton::catalog::Catalog::GetInstance()->query_params->useActiveReadSet) Panic("params work!");
+
 
   if (num_threads > 0) {
     is_recycled_version_ = false;

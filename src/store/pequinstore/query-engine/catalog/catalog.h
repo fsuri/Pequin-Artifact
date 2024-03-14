@@ -80,7 +80,8 @@ struct FunctionData {
 
 class Catalog {
  public:
-  const pequinstore::QueryParameters *query_params;
+  const pequinstore::QueryParameters *query_params = nullptr;
+  const pequinstore::QueryParameters * GetQueryParams();
   void SetQueryParams(const pequinstore::QueryParameters *query_params);
 
   // Global Singleton

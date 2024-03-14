@@ -217,7 +217,7 @@ void IndexScanExecutor::GetColNames(const expression::AbstractExpression * child
   }
 }
 
-static bool use_col_versions = false; //TODO: PARAMTERERIZE
+
 void IndexScanExecutor::SetTableColVersions(concurrency::TransactionContext *current_txn, pequinstore::QueryReadSetMgr *query_read_set_mgr, const Timestamp &current_txn_timestamp){
 
   if(is_implicit_point_read_) return;
@@ -239,8 +239,9 @@ void IndexScanExecutor::SetTableColVersions(concurrency::TransactionContext *cur
       // Read table version and table col versions
       current_txn->GetTableVersion()(table_->GetName(), current_txn_timestamp, get_read_set, query_read_set_mgr, find_snapshot, ss_mgr, perform_read_on_snapshot, snapshot_set);
       
-      if(use_col_versions){
-        // Table column version : FIXME: Read version per Col, not composite key
+      //if(use_col_versions){
+      if(catalog::Catalog::GetInstance()->GetQueryParams()->useColVersions){
+        // Table column version. Note: Read version per Col, not composite key
         std::unordered_set<std::string> column_names;
         //std::vector<std::string> col_names;
         GetColNames(predicate_, column_names);
@@ -702,7 +703,7 @@ void IndexScanExecutor::CheckRow(ItemPointer tuple_location, concurrency::Transa
     LOG_TRACE("Traverse length: %d\n", (int)chain_length);
 }
 
-static bool USE_ACTIVE_READ_SET = true; //If true, then Must use Table_Col_Version
+//static bool USE_ACTIVE_READ_SET = true; //If true, then Must use Table_Col_Version
 static bool USE_ACTIVE_SNAPSHOT_SET = false; //Currently, our Snapshots are always Complete (non-Active) "as they can be". Note: Index scan already makes the readable set somewhat Active
 
 bool IndexScanExecutor::FindRightRowVersion(const Timestamp &timestamp, std::shared_ptr<storage::TileGroup> tile_group, storage::TileGroupHeader *tile_group_header, ItemPointer tuple_location,
@@ -1040,15 +1041,17 @@ void IndexScanExecutor::EvalRead(std::shared_ptr<storage::TileGroup> tile_group,
     visible_tuple_locations.push_back(tuple_location);
     //visible_tuple_set.insert(tuple_location);
 
-   if(catalog::Catalog::GetInstance()->query_params->useActiveReadSet) Panic("params work!");
-    if(USE_ACTIVE_READ_SET || is_implicit_point_read_) ManageReadSet(tuple_location, tile_group, tile_group_header, current_txn);
+   
+   if(catalog::Catalog::GetInstance()->GetQueryParams()->useActiveReadSet || is_implicit_point_read_) ManageReadSet(tuple_location, tile_group, tile_group_header, current_txn);
+   //if(USE_ACTIVE_READ_SET || is_implicit_point_read_) ManageReadSet(tuple_location, tile_group, tile_group_header, current_txn);
   }
   //for point reads, mark as invalid.
   if(current_txn->IsPointRead()) RefinePointRead(current_txn, tile_group_header, tuple_location, eval);
   
 
   //FOR NOW ONLY PICK ACTIVE READ SET. USE THIS LINE FOR COMPLETE RS: 
-  if(!USE_ACTIVE_READ_SET) ManageReadSet(tuple_location, tile_group, tile_group_header, current_txn); //Note: For primary index they'll always be the same.
+  if(!catalog::Catalog::GetInstance()->GetQueryParams()->useActiveReadSet) ManageReadSet(tuple_location, tile_group, tile_group_header, current_txn); //Note: For primary index they'll always be the same.
+  //if(!USE_ACTIVE_READ_SET) ManageReadSet(tuple_location, tile_group, tile_group_header, current_txn); //Note: For primary index they'll always be the same.
 
   //SetPointRead();
 }
@@ -1591,7 +1594,8 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup_OLD() {
     // Read table version and table col versions
     current_txn->GetTableVersion()(table_->GetName(), current_txn_timestamp, get_read_set, query_read_set_mgr, find_snapshot, ss_mgr, perform_read_on_snapshot, snapshot_set);
     
-    if(use_col_versions){
+    //if(use_col_versions){
+    if(catalog::Catalog::GetInstance()->GetQueryParams()->useColVersions){
       std::unordered_set<std::string> column_names;
       //std::vector<std::string> col_names;
       GetColNames(predicate_, column_names); //Note: These are *all* columns in the where clause, not just the ones covered by the predicate
