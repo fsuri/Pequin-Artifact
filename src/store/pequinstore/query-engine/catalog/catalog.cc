@@ -257,6 +257,14 @@ void Catalog::Bootstrap() {
 // CREATE FUNCTIONS
 //===----------------------------------------------------------------------===//
 
+const pequinstore::QueryParameters * Catalog::GetQueryParams(){
+  return query_params;
+}
+
+void Catalog::SetQueryParams(const pequinstore::QueryParameters *query_param){
+  query_params = query_param;
+}
+
 ResultType Catalog::CreateDatabase(concurrency::TransactionContext *txn,
                                    const std::string &database_name) {
   Debug("Reached create database");

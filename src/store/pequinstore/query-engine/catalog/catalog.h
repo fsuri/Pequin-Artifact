@@ -16,6 +16,7 @@
 
 #include "../catalog/catalog_defaults.h"
 #include "../function/functions.h"
+#include "store/pequinstore/common.h"
 
 namespace peloton {
 
@@ -79,6 +80,10 @@ struct FunctionData {
 
 class Catalog {
  public:
+  const pequinstore::QueryParameters *query_params = nullptr;
+  const pequinstore::QueryParameters * GetQueryParams();
+  void SetQueryParams(const pequinstore::QueryParameters *query_params);
+
   // Global Singleton
   static Catalog *GetInstance();
 

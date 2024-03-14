@@ -948,7 +948,7 @@ proto::ConcurrencyControl::Result Server::DoMVTSOOCCCheck(
     //5.5) Check Semantic Conflicts
     if(params.query_params.useSemanticCC){
       std::set<std::string> dynamically_active_dependencies;
-      auto res = CheckPredicates(txn, readSet, predSet, dynamically_active_dependencies);
+      auto res = CheckPredicates(txn, ts, readSet, predSet, dynamically_active_dependencies);
        if(res != proto::ConcurrencyControl::COMMIT) return res;
       
       //Add relevant dynamic deps to the dependency set

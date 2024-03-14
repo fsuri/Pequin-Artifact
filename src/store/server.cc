@@ -354,7 +354,7 @@ DEFINE_bool(pequin_parallel_queries, true, "dispatch queries to parallel worker 
 
 DEFINE_bool(pequin_use_semantic_cc, true, "use SemanticCC"); //Non-semantic mode is deprecated.
 //TODO: parameterize these.
-DEFINE_uint64(pequin_monotonicity_grace, 10, "(ms) graceperiod for writes that arrive out of order (to account for clock skew)");
+DEFINE_uint64(pequin_monotonicity_grace, 1, "(ms) graceperiod for writes that arrive out of order (to account for clock skew)");
 DEFINE_bool(pequin_use_col_versions, false, "use col versions for updates instead of table version"); //TODO: Don't ever use this with SemanticCC, not useful.
 DEFINE_bool(pequin_use_active_read_set, true, "store only keys that are Active w.r.t. to query predicate");
 //TODO: Active Snapshot set (optional), false
@@ -734,7 +734,9 @@ int main(int argc, char **argv) {
                                                  FLAGS_pequin_sign_client_queries,
                                                  FLAGS_pequin_sign_replica_to_replica_sync,
                                                  FLAGS_pequin_parallel_queries,
-                                                 FLAGS_pequin_use_semantic_cc);
+                                                 FLAGS_pequin_use_semantic_cc,
+                                                 FLAGS_pequin_use_active_read_set,
+                                                 FLAGS_pequin_monotonicity_grace);
 
       pequinstore::Parameters params(FLAGS_indicus_sign_messages,
                                       FLAGS_indicus_validate_proofs, FLAGS_indicus_hash_digest,

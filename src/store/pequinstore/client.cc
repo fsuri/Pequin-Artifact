@@ -60,7 +60,8 @@ Client::Client(transport::Configuration *config, uint64_t id, int nShards,
     timeServer(timeServer), first(true), startedPings(false),
     query_seq_num(0UL), client_seq_num(0UL), lastReqId(0UL), getIdx(0UL),
     failureEnabled(false), failureActive(false), faulty_counter(0UL),
-    consecutiveMax(consecutiveMax) {
+    consecutiveMax(consecutiveMax),
+    sql_interpreter(&params.query_params) {
 
   Notice("Pequinstore currently does not support Read-your-own-Write semantics for Queries. Adjust application accordingly!!");
 
@@ -851,7 +852,22 @@ void Client::RetryQuery(PendingQuery *pendingQuery){
 //                                                             // If replica instead sends full read set to client, then client can look at read sets to figure out divergence: 
 //                                                                           // Find mismatched keys, or keys with different versions. Send to replicas request for tx for (key, version) --> replica replies with txn-digest.
 // }
+void Client::AddWriteSetIdx(proto::Transaction &txn){
+  if(!params.query_params.sql_mode) return; //only for sql_mode. NOT correct behavior for non-sql mode (in that mode there are no TableWrites)
 
+  //Correct the write_set_idx according to the position of the write_key *after* sorting.
+  const std::string *curr_table;
+  for(int i=0; i<txn.write_set_size();++i){
+    auto &write = txn.write_set()[i];
+    if(write.is_table_col_version()){
+      curr_table = &write.key(); //Note: This works because we've inserted write keys for all of our Tablewrites.
+      UW_ASSERT(txn.table_writes().count(*curr_table));
+    }
+    else{
+      (*txn.mutable_table_writes()->at(*curr_table).mutable_rows())[write.rowupdates().row_idx()].set_write_set_idx(i);
+    }
+  }
+}
 
 void Client::Commit(commit_callback ccb, commit_timeout_callback ctcb,
     uint32_t timeout) {
@@ -893,9 +909,12 @@ void Client::Commit(commit_callback ccb, commit_timeout_callback ctcb,
     //if(params.parallel_CCC || true){ //NOTE: FIXME: Currently always sorting: This way we can detect duplicate table versions early. 
                                         //=> Ignore: TableVersion in ReadSet now always 0 (purely for locking convenience, it has no meaning)
     if(params.parallel_CCC){
+      //NOTE: Relying on client to provide sorted inputs is technically not byz robust. 
+      //However, this is convenient for the prototype. A truly robust version should sort server side before locking.
       try {
         std::sort(txn.mutable_read_set()->begin(), txn.mutable_read_set()->end(), sortReadSetByKey);
         std::sort(txn.mutable_write_set()->begin(), txn.mutable_write_set()->end(), sortWriteSetByKey);
+        if(params.query_params.sql_mode) AddWriteSetIdx(txn);
         //Note: Use stable_sort to guarantee order respects duplicates; Altnernatively: Can try to delete from write sets to save redundant size.
 
         //If write set can contain duplicates use the following: Reverse + sort --> "latest" put is first. Erase all but first entry. 

@@ -38,6 +38,33 @@
 using namespace pequinstore;
 
 static std::string file_name = "sql_interpreter_test_registry";
+
+
+static uint64_t config_f = 0;
+static QueryParameters query_params(true,
+                                  2*config_f + 1, //syncQuorumSize,
+                                  2*config_f + 1,    //  queryMessages,
+                                  1*config_f + 1,    //  mergeThreshold,
+                                  1*config_f + 1,    //  syncMessages,
+                                  1*config_f + 1,    //  resultQuorum,
+                                  1, 
+                                  false, // FLAGS_pequin_query_eager_exec,
+                                  false, 
+                                  false,
+                                  true,    //  FLAGS_pequin_query_read_prepared,
+                                  false,    //  FLAGS_pequin_query_cache_read_set,
+                                  true,    //  FLAGS_pequin_query_optimistic_txid,
+                                  compress,    //  FLAGS_pequin_query_compress_optimistic_txid, 
+                                  false,    //  FLAGS_pequin_query_merge_active_at_client,
+                                  false,    //  FLAGS_pequin_sign_client_queries,
+                                  false, // FLAGS_pequin_sign_replica_to_replica
+                                   false,    //  FLAGS_pequin_parallel_queries
+                                  false,    //  FLAGS_pequin_use_semantic_cc
+                                   false,    // FLAGS_pequin_use_active_read_set
+                                  0UL       // FLAGS_pequin_monotonicity_grace
+                                  );
+
+
 void test_registry(){
   std::cerr << std::endl << "Test Registry" << std::endl;
 
@@ -60,7 +87,7 @@ void test_registry(){
   //Write Tables to JSON
   table_writer.flush();
 
-  SQLTransformer sql_interpreter;
+  SQLTransformer sql_interpreter(&query_params);
   std::string table_registry = file_name + "-tables-schema.json";
   sql_interpreter.RegisterTables(table_registry);
 }
@@ -69,7 +96,7 @@ void test_insert(){
 
   std::cerr << std::endl << "Test Insert" << std::endl;
   
-  SQLTransformer sql_interpreter;
+  SQLTransformer sql_interpreter(&query_params);
   std::string table_registry = file_name + "-tables-schema.json";
   sql_interpreter.RegisterTables(table_registry);
   proto::Transaction txn;
@@ -127,7 +154,7 @@ void test_insert(){
 void test_update(){
   std::cerr << std::endl << "Test Update" << std::endl;
 
-  SQLTransformer sql_interpreter;
+  SQLTransformer sql_interpreter(&query_params);
   std::string table_registry = file_name + "-tables-schema.json";
   sql_interpreter.RegisterTables(table_registry);
   proto::Transaction txn;
@@ -208,7 +235,7 @@ void test_update(){
 
 void test_delete(){
   std::cerr << std::endl << "Test Delete" << std::endl;
-  SQLTransformer sql_interpreter;
+  SQLTransformer sql_interpreter(&query_params);
   std::string table_registry = file_name + "-tables-schema.json";
   sql_interpreter.RegisterTables(table_registry);
   proto::Transaction txn;
@@ -321,7 +348,7 @@ void test_delete(){
 
 void test_cond(){
   std::cerr << std::endl << "Test Cond" << std::endl;
-  SQLTransformer sql_interpreter;
+  SQLTransformer sql_interpreter(&query_params);
   std::string table_registry = file_name + "-tables-schema.json";
   sql_interpreter.RegisterTables(table_registry);
   proto::Transaction txn;
@@ -454,7 +481,7 @@ void test_write(){
 
    std::cerr << "Test Write Generation:" << std::endl;
 
-   SQLTransformer sql_interpreter;
+   SQLTransformer sql_interpreter(&query_params);
   std::string table_registry = file_name + "-tables-schema.json";
   sql_interpreter.RegisterTables(table_registry);
   proto::Transaction txn;

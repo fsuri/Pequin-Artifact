@@ -591,15 +591,13 @@ void SQLTransformer::TransformUpdate(size_t pos, std::string_view &write_stateme
         // table_ver->set_value("");
         bool changed_table = false; // false //FOR NOW ALWAYS SETTING TO TRUE due to UPDATE INDEX issue (see above comment) TODO: Implement TableColumnVersion optimization
 
-        bool use_active_read_set = true; //FIXME: TODO: PARAMETERIZE
-        bool use_col_versions = false; //FIXME: TODO: PARAMETERIZE
-        if(!use_col_versions) changed_table = true;   //Note: If not using col versions, must include table version
+        if(!query_params->useColVersions) changed_table = true;   //Note: If not using col versions, must include table version
         //Write TableColVersions
         
-        if(use_col_versions){ //DEPRECATED  
+        if(query_params->useColVersions){ //useColVersions is currently DEPRECATED  
             for(auto &[col, _]: col_updates){
                 std::cerr << "Trying to set Table Col Version for col: " << col << std::endl;
-                if(!use_active_read_set && !col_registry.indexed_cols.count(col)) continue; 
+                if(!query_params->useActiveReadSet && !col_registry.indexed_cols.count(col)) continue; 
                 //If using Active Set: Must use all columns we update; if not, then only set the col version for indexed columns
                 
                 //col version is necessary to figure out whether or not there is an update to a table that could have affected whether index sees it

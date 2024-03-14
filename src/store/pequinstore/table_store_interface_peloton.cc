@@ -59,11 +59,11 @@ PelotonTableStore::PelotonTableStore(int num_threads) : unnamed_statement("unnam
   Init(num_threads);
 }
 
-PelotonTableStore::PelotonTableStore(std::string &table_registry_path,
+PelotonTableStore::PelotonTableStore(const QueryParameters *query_params, std::string &table_registry_path,
                                      find_table_version &&find_table_version,
                                      read_prepared_pred &&read_prepared_pred,
                                      int num_threads)
-    : TableStore(table_registry_path, std::move(find_table_version), std::move(read_prepared_pred)), unnamed_statement("unnamed"), unnamed_variable(false) {
+    : TableStore(query_params, table_registry_path, std::move(find_table_version), std::move(read_prepared_pred)), unnamed_statement("unnamed"), unnamed_variable(false) {
   // Init Peloton default DB
   Init(num_threads);
 }
@@ -124,6 +124,9 @@ void PelotonTableStore::Init(int num_threads) {
   peloton::catalog::Catalog::GetInstance()->CreateDatabase(txn, DEFAULT_DB_NAME);
   txn_manager.CommitTransaction(txn);
   // traffic_cop_ = peloton::tcop::TrafficCop(UtilTestTaskCallback, &counter_);
+
+  peloton::catalog::Catalog::GetInstance()->SetQueryParams(query_params);
+
 
   if (num_threads > 0) {
     is_recycled_version_ = false;

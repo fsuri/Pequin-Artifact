@@ -12,6 +12,7 @@
 
 #include "../executor/seq_scan_executor.h"
 
+#include "../catalog/catalog.h"
 #include "../../store/common/backend/sql_engine/table_kv_encoder.h"
 #include "../common/container_tuple.h"
 #include "../common/internal_types.h"
@@ -89,7 +90,7 @@ bool SeqScanExecutor::DInit() {
   return true;
 }
 
-static bool USE_ACTIVE_READ_SET = true; //If true, then Must use Table_Col_Version
+//static bool USE_ACTIVE_READ_SET = true; //If true, then Must use Table_Col_Version
 static bool USE_ACTIVE_SNAPSHOT_SET = false; //Currently, our Snapshots are always Complete (non-Active)
 
 void SeqScanExecutor::GetColNames(const expression::AbstractExpression * child_expr, std::unordered_set<std::string> &column_names) {
@@ -174,11 +175,14 @@ void SeqScanExecutor::EvalRead(std::shared_ptr<storage::TileGroup> tile_group, s
     }
     position_map[tuple_location.block].push_back(tuple_location.offset); 
 
+  
     // If active read set then add to read
-    if (USE_ACTIVE_READ_SET) ManageReadSet(current_txn, tile_group, tile_group_header, tuple_location, current_txn->GetQueryReadSetMgr());
+    if(catalog::Catalog::GetInstance()->GetQueryParams()->useActiveReadSet) ManageReadSet(current_txn, tile_group, tile_group_header, tuple_location, current_txn->GetQueryReadSetMgr());
+    //if (USE_ACTIVE_READ_SET) ManageReadSet(current_txn, tile_group, tile_group_header, tuple_location, current_txn->GetQueryReadSetMgr());
   }
   // If not using active read set, always add to read set
-  if (!USE_ACTIVE_READ_SET) ManageReadSet(current_txn, tile_group, tile_group_header, tuple_location, current_txn->GetQueryReadSetMgr());
+  if(!catalog::Catalog::GetInstance()->GetQueryParams()->useActiveReadSet) ManageReadSet(current_txn, tile_group, tile_group_header, tuple_location, current_txn->GetQueryReadSetMgr());
+  //if (!USE_ACTIVE_READ_SET) ManageReadSet(current_txn, tile_group, tile_group_header, tuple_location, current_txn->GetQueryReadSetMgr());
 }
 
 void SeqScanExecutor::ManageSnapshot(storage::TileGroupHeader *tile_group_header, ItemPointer tuple_location, Timestamp const &timestamp, 
@@ -359,7 +363,9 @@ void SeqScanExecutor::SetTableColVersions(concurrency::TransactionContext *curre
        //If Scanning (Non_active read set), then don't need to include ColVersions in ActiveReadSet. Changes to index could not be affecting the observed read set.
       //However, if we use Active Read set, then the read_set is only the keys that hit the predicate. 
       //Thus we need the ColVersion to detect changes to col values that might be relevant to ActiveRS (i.e. include ColVersion for all Col in search predicate)
-      if(USE_ACTIVE_READ_SET){ 
+      
+      //if(USE_ACTIVE_READ_SET){ 
+      if(catalog::Catalog::GetInstance()->GetQueryParams()->useActiveReadSet){
         // Table column version : FIXME: Read version per Col, not composite key
         std::unordered_set<std::string> column_names;
         //std::vector<std::string> col_names;

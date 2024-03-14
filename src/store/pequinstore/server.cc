@@ -151,6 +151,9 @@ Server::Server(const transport::Configuration &config, int groupIdx, int idx,
   materialized.insert(mat, genesis_txn_dig);
   mat.release();
 
+  //Compute clock_skew_grace 
+  clock_skew_grace = timeServer.MsToTS(params.query_params.monotonicityGrace);
+  std::cerr << "clock skew grace: " << clock_skew_grace << std::endl;
 
   if (sql_bench) {
 
@@ -166,7 +169,7 @@ Server::Server(const transport::Configuration &config, int groupIdx, int idx,
     } else {
       // TODO: Configure with num Threads == 8
       int num_threads = std::thread::hardware_concurrency();
-      table_store = new PelotonTableStore(table_registry_path,
+      table_store = new PelotonTableStore(&params.query_params, table_registry_path,
           std::bind(&Server::FindTableVersion, this, 
                         std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4, 
                         std::placeholders::_5, std::placeholders::_6, std::placeholders::_7, std::placeholders::_8),
@@ -1970,7 +1973,7 @@ void Server::Prepare(const std::string &txnDigest, const proto::Transaction &txn
   // }
 
   if(params.query_params.useSemanticCC){
-    RecordReadPredicatesAndWrites(txn, false);
+    RecordReadPredicatesAndWrites(txn, ts, false);
   }
 
   //Apply TableVersion and TableColVersion 
@@ -2172,7 +2175,7 @@ void Server::CommitToStore(proto::CommittedProof *proof, proto::Transaction *txn
 
     
    if(params.query_params.useSemanticCC){
-    RecordReadPredicatesAndWrites(*txn, true);
+    RecordReadPredicatesAndWrites(*txn, ts, true);
   }
   
   //   //Note: Does one have to do special handling for Abort? No ==> All prepared versions just produce unecessary conflicts & dependencies, so there is no safety concern.
