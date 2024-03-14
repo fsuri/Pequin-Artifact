@@ -72,3 +72,10 @@ TrueTime::GetTimeAndError(uint64_t &time, uint64_t &error)
    time = GetTime();
    error = simError;
 }
+
+uint64_t TrueTime::MsToTS(const uint64_t &time_milis){
+    uint64_t second_comp = time_milis / 1000;
+    uint64_t milisecond_comp = time_milis % 1000;
+    uint64_t ts = second_comp << 32 + milisecond_comp << 32;
+    return ts;
+}

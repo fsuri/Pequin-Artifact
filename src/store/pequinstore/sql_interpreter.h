@@ -159,7 +159,7 @@ typedef struct ColRegistry {
 typedef std::map<std::string, ColRegistry> TableRegistry_t;
 class SQLTransformer {
     public:
-        SQLTransformer(){}
+        SQLTransformer(const QueryParameters *query_params): query_params(query_params){}
         ~SQLTransformer(){}
         void RegisterTables(std::string &table_registry);
         inline const TableRegistry_t* GetTableRegistry_const() const {
@@ -191,6 +191,8 @@ class SQLTransformer {
         
 
     private:
+        const QueryParameters *query_params;
+
         proto::Transaction *txn;
 
         //Table Schema

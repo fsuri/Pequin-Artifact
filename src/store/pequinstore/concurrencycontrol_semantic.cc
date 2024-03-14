@@ -98,9 +98,6 @@ static bool lazy_check = true; //TURN TO FALSE TO ENABLE RECHECK FOR MORE PRECIS
       //This is much easier to enforce if TableWrites only include deltas for the updated cols.
 
 
-//TODO: Parameterize. 
-static uint32_t clock_skew_grace = 0; //timeDelta
-
 //Enforce that we can ony issue monotonic writes
 ////TODO: Alternatively: Could enforce that we can't see any writes older than the newest table version observed in a prepared/committed pred. 
           //To check this would need a third map storing the high read TableVersion.
@@ -126,10 +123,8 @@ bool Server::CheckMonotonicTableColVersions(const proto::Transaction &txn) {
 //Easiest is to add them to the TXN. But then the TXN doesn't fulfill Hash anymore...
     //Need to store them to some extra merged_set, and include them on demand for dep checks (and wakeup dep checks)
 
-proto::ConcurrencyControl::Result Server::CheckPredicates(const proto::Transaction &txn, const ReadSet &txn_read_set, const PredSet &pred_set, std::set<std::string> &dynamically_active_dependencies){ 
+proto::ConcurrencyControl::Result Server::CheckPredicates(const proto::Transaction &txn, const Timestamp &txn_ts, const ReadSet &txn_read_set, const PredSet &pred_set, std::set<std::string> &dynamically_active_dependencies){ 
   
-    const Timestamp txn_ts(txn.timestamp());
-
     Debug("Checking for Semantic Conflicts. TX_ts: [%lu:%lu]. Num preds: %d. Num TableWrites: %d", txn_ts.getTimestamp(), txn_ts.getID(), pred_set.size(), txn.table_writes().size());
    
     //For all Read predicates     
@@ -507,7 +502,7 @@ proto::ConcurrencyControl::Result Server::CheckTableWrites(const proto::Transact
 }
 
 //Note: We are assuming TS are unique to a TX here. Duplicates should already have been filtered out (it should not be possible that 2 TX with same TS commit)
-void Server::RecordReadPredicatesAndWrites(const proto::Transaction &txn, bool commit_or_prepare){
+void Server::RecordReadPredicatesAndWrites(const proto::Transaction &txn, const Timestamp &ts, bool commit_or_prepare){
   
   Debug("RECORDING READ PRED AND WRITE");
  
@@ -523,7 +518,6 @@ void Server::RecordReadPredicatesAndWrites(const proto::Transaction &txn, bool c
   int gc_delta = 10000; //ms
   Timestamp lowWatermark(timeServer.GetTime() - gc_delta);
 
-  Timestamp ts(txn.timestamp()); //TODO: pass in directly
 
   //Record all ReadPredicates   //Store a reference: table_name -> txn
   const PredSet *predSet = &txn.read_predicates(); //If we are not caching, and clientMerges => then they all preds must be in read_predicates(). Otherwise, we must've merged
@@ -591,7 +585,7 @@ void Server::RecordReadPredicatesAndWrites(const proto::Transaction &txn, bool c
 
 
 void Server::ClearPredicateAndWrites(const proto::Transaction &txn){
-  Timestamp ts(txn.timestamp()); //TODO: pass in directly
+  Timestamp ts(txn.timestamp()); 
 
   //Clear all ReadPredicates   
   const PredSet *predSet = &txn.read_predicates();

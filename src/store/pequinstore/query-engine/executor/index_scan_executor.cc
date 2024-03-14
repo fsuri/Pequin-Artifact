@@ -1040,6 +1040,7 @@ void IndexScanExecutor::EvalRead(std::shared_ptr<storage::TileGroup> tile_group,
     visible_tuple_locations.push_back(tuple_location);
     //visible_tuple_set.insert(tuple_location);
 
+   if(catalog::Catalog::GetInstance()->query_params->useActiveReadSet) Panic("params work!");
     if(USE_ACTIVE_READ_SET || is_implicit_point_read_) ManageReadSet(tuple_location, tile_group, tile_group_header, current_txn);
   }
   //for point reads, mark as invalid.

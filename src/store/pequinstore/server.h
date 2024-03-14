@@ -809,13 +809,16 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
   void SignSendReadReply(proto::Write *write, proto::SignedMessage *signed_write, const std::function<void()> &sendCB);
 
   /* BEGIN Semantic CC functions */ 
+
+//TODO: Parameterize. 
+  uint64_t clock_skew_grace;
   std::string GetEncodedRow(const proto::Transaction &txn, const RowUpdates &row, const std::string &table_name);
   bool CheckMonotonicTableColVersions(const proto::Transaction &txn); 
-  proto::ConcurrencyControl::Result CheckPredicates(const proto::Transaction &txn, const ReadSet &txn_read_set, const PredSet &pred_set, std::set<std::string> &dynamically_active_dependencies);
+  proto::ConcurrencyControl::Result CheckPredicates(const proto::Transaction &txn, const Timestamp &txn_ts, const ReadSet &txn_read_set, const PredSet &pred_set, std::set<std::string> &dynamically_active_dependencies);
   proto::ConcurrencyControl::Result CheckPredicates(const proto::Transaction &txn, const ReadSet &txn_read_set, std::set<std::string> &dynamically_active_dependencies); 
   proto::ConcurrencyControl::Result CheckReadPred(const Timestamp &txn_ts, const proto::ReadPredicate &pred, const ReadSet &txn_read_set, std::set<std::string> &dynamically_active_dependencies);
   proto::ConcurrencyControl::Result CheckTableWrites(const proto::Transaction &txn, const Timestamp &txn_ts, const std::string &table_name, const TableWrite &table_write);
-  void RecordReadPredicatesAndWrites(const proto::Transaction &txn, bool commit_or_prepare);
+  void RecordReadPredicatesAndWrites(const proto::Transaction &txn, const Timestamp &ts, bool commit_or_prepare);
   void ClearPredicateAndWrites(const proto::Transaction &txn);
   bool CheckGCWatermark(const Timestamp &ts); 
   bool EvaluatePred(const std::string &pred, const RowUpdates &row);

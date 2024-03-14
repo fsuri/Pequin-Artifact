@@ -449,6 +449,7 @@ DEFINE_bool(pequin_sign_client_queries, false, "sign query and sync messages"); 
 //DEFINE_bool(pequin_parallel_queries, false, "dispatch queries to parallel worker threads"); -- only serverside arg
 
 DEFINE_bool(pequin_use_semantic_cc, true, "use SemanticCC"); //Non-semantic mode is deprecated.
+DEFINE_bool(pequin_use_active_read_set, true, "store only keys that are Active w.r.t. to query predicate");
 
 
 ///////////////////////////////////////////////////////////
@@ -1421,7 +1422,9 @@ int main(int argc, char **argv) {
                                                  FLAGS_pequin_sign_client_queries,
                                                  false,    // FLAGS_pequin_sign_replica_to_replica_sync,
                                                  false,   //FLAGS_pequin_parallel_queries);
-                                                 FLAGS_pequin_use_semantic_cc);
+                                                 FLAGS_pequin_use_semantic_cc,
+                                                 FLAGS_pequin_use_active_read_set,
+                                                 0UL);
 
         pequinstore::Parameters params(FLAGS_indicus_sign_messages,
                                         FLAGS_indicus_validate_proofs, FLAGS_indicus_hash_digest,
