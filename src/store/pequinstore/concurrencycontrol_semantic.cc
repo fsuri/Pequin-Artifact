@@ -190,6 +190,16 @@ proto::ConcurrencyControl::Result Server::CheckPredicates(const proto::Transacti
 
 std::string Server::GetEncodedRow(const proto::Transaction &txn, const RowUpdates &row, const std::string &table_name){
 
+  //ALTERNATIVELY:
+  //Instead of looping over table rows and getting the encoded write key, we could also loop over the write keys directly, and get the row via the index
+  //Note: We'd still somehow need access to the table in question (for CheckRead preds its easy, we already have it passed, but for CheckWrites it's annoying)
+
+   //NOTE: We now Correct the write set idx in case of sorting! So the on demand encoding is never needed.
+   UW_ASSERT(txn.write_set().size() > row.write_set_idx());
+  return txn.write_set()[row.write_set_idx()].key();
+
+ 
+
   if(params.parallel_CCC){
      //We cannot keep track of correct write set idx because we will sort the write set (+ we insert table versions) => Must encode it on the spot
     std::vector<const std::string*> primary_cols;
@@ -261,7 +271,7 @@ proto::ConcurrencyControl::Result Server::CheckReadPred(const Timestamp &txn_ts,
 
       Debug("TX_ts: [%lu:%lu]. Pred: [%s]: compare vs write key [%s]", txn_ts.getTimestamp(), txn_ts.getID(), pred.table_name().c_str(), write_key.c_str());
 
-      /* DEBUG PRINTS FOR WRITE TXN. PRINT TABLE ROWS AND WRITE SET*/
+      // /* DEBUG PRINTS FOR WRITE TXN. PRINT TABLE ROWS AND WRITE SET*/
       // int idx = 0;
       // for(auto &write: write_txn->write_set()){
       //   Debug("idx: %d. key: %s. row idx: %d", idx, write.key().c_str(), write.rowupdates().row_idx());
@@ -280,10 +290,10 @@ proto::ConcurrencyControl::Result Server::CheckReadPred(const Timestamp &txn_ts,
       //     std::cerr << std::endl;
       //   }
       // }
-      //TEST CODE FIXME: REMOVE
+      //  Panic("stop testing here");
+      // //TEST CODE FIXME: REMOVE
 
-      Panic("stop testing here");
-
+     
       bool force_recheck = false;
       if(dynamic_dep_candidates.count(write_key)){ //if there is already a dep candidate for this key
         if(dynamic_dep_candidates[write_key].first) continue; //if the dep is active already => do nothing, can skip

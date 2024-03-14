@@ -203,6 +203,7 @@ class Client : public ::Client {
   // void ClearQuery(uint64_t query_seq_num, std::vector<uint64_t> &involved_groups);
   // void RetryQuery(uint64_t query_seq_num, std::vector<uint64_t> &involved_groups);
 
+  void AddWriteSetIdx(proto::Transaction &txn);
 
   ///////////////   Commit protocol structures and functions
 

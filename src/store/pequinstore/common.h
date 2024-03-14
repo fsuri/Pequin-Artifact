@@ -584,8 +584,9 @@ typedef struct QueryParameters {
         bool signClientQueries, bool signReplicaToReplicaSync, bool parallel_queries, bool useSemanticCC) : 
         sql_mode(sql_mode), syncQuorum(syncQuorum), queryMessages(queryMessages), mergeThreshold(mergeThreshold), syncMessages(syncMessages), resultQuorum(resultQuorum), snapshotPrepared_k(snapshotPrepared_k),
         eagerExec(eagerExec), eagerPointExec(eagerPointExec), eagerPlusSnapshot(eagerPlusSnapshot), readPrepared(readPrepared), cacheReadSet(cacheReadSet), optimisticTxID(optimisticTxID), compressOptimisticTxIDs(compressOptimisticTxIDs), mergeActiveAtClient(mergeActiveAtClient), 
-        signClientQueries(signClientQueries), signReplicaToReplicaSync(signReplicaToReplicaSync), parallel_queries(parallel_queries), useSemanticCC(useSemanticCC) {
+        signClientQueries(signClientQueries), signReplicaToReplicaSync(signReplicaToReplicaSync), parallel_queries(parallel_queries), useSemanticCC(useSemanticCC && sql_mode) {
             if(eagerPlusSnapshot) UW_ASSERT(eagerExec); 
+            if(useSemanticCC) UW_ASSERT(sql_mode);
         }
 
 } QueryParameters;
