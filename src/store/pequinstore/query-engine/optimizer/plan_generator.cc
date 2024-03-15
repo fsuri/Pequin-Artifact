@@ -466,6 +466,7 @@ PlanGenerator::GenerateTableTVExprsColRegistry(
 
     auto col_type = col_registry->col_name_type.at(col_name);
     if (col_type == "FLOAT") col_type = "DECIMAL";
+    if (col_type == "TEXT") col_type = "VARCHAR";
     col_expr->SetValueType(peloton::StringToTypeId(col_type));
     std::cout << "Col type for " << col_name << " is " << col_type << std::endl;
     

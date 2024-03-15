@@ -654,6 +654,20 @@ bool Server::CheckGCWatermark(const Timestamp &ts) {
 // Use col registry to infer type.
 // Then perform the comparator operations?
 
+
+// bool Server::EvaluatePred_direct(const std::string &pred, const RowUpdates &row, const std::string &table_name){
+
+// }
+
+// //Re-use the sql_interpreter 
+
+// //Recursively break 
+
+// JoinOnClause
+
+
+
+//PELOTON BASED EVALUATOR
  bool Server::EvaluatePred(const std::string &pred, const RowUpdates &row, const std::string &table_name){
   //return false; //FIXME: REMOVE
   std::cout << "Inside EvalPred in semantic CC" << std::endl;
@@ -723,17 +737,21 @@ bool Server::CheckGCWatermark(const Timestamp &ts) {
 }
 
 peloton::catalog::Schema* Server::ConvertColRegistryToSchema(ColRegistry *col_registry) {
+  std::cerr << "trying to parse" << std::endl;
   std::vector<peloton::catalog::Column> columns;
   for (int i = 0; i < col_registry->col_names.size(); i++) {
     auto name = col_registry->col_names[i];
     auto type = col_registry->col_name_type.at(name);
 
     if (type == "FLOAT") type = "DECIMAL";
+    if (type == "TEXT") type = "VARCHAR";
+    std::cerr << "TYPE: " << type << std::endl;
     auto type_id = peloton::StringToTypeId(type);
     auto column = peloton::catalog::Column(type_id, peloton::type::Type::GetTypeSize(type_id), name, true);
     columns.push_back(column);
   }
 
+  std::cerr << "finished id col" << std::endl;
   peloton::catalog::Schema *schema = new peloton::catalog::Schema(columns);
   return schema;
 }

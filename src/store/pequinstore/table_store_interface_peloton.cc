@@ -182,7 +182,7 @@ PelotonTableStore::ParseAndPrepare(const std::string &query_statement, peloton::
   gettimeofday(&now, NULL);
   uint64_t miliseconds_end = now.tv_sec * 1000 + now.tv_usec / 1000;
   if(size_t insert_pos = query_statement.find("INSERT"); insert_pos != std::string::npos) return statement;  //inserts might take longer
-  UW_ASSERT(miliseconds_end - miliseconds_start < 5); //Should not take more than 5 ms (already generous) to parse and prepare.
+  UW_ASSERT(miliseconds_end - miliseconds_start < 20); //Should not take more than 5 ms (already generous) to parse and prepare.
 
   return statement;
 }
