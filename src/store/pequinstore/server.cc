@@ -151,9 +151,9 @@ Server::Server(const transport::Configuration &config, int groupIdx, int idx,
   materialized.insert(mat, genesis_txn_dig);
   mat.release();
 
-  //Compute clock_skew_grace 
-  clock_skew_grace = timeServer.MsToTS(params.query_params.monotonicityGrace);
-  std::cerr << "clock skew grace: " << clock_skew_grace << std::endl;
+  //Compute write_monotonicity_grac 
+  write_monotonicity_grace = timeServer.MsToTS(params.query_params.monotonicityGrace);
+  std::cerr << "write_monotonicity_grace: " << write_monotonicity_grace << std::endl;
 
   if (sql_bench) {
 

@@ -110,8 +110,8 @@ bool Server::CheckMonotonicTableColVersions(const proto::Transaction &txn) {
     const Timestamp &highTS = tw->second.rbegin()->first; // == last TX TS
     
     //NOTE: only comparing on the real time component currently.
-    if(txn.timestamp().timestamp() + clock_skew_grace <= highTS.getTimestamp()){
-      Panic("Non monotonic Table/Col Write. Table/Col name: %s. txnTS: %lu, highTS: %lu, grace: %lu", table_name.c_str(), txn.timestamp().timestamp(), highTS.getTimestamp(), clock_skew_grace);
+    if(txn.timestamp().timestamp() + write_monotonicity_grace <= highTS.getTimestamp()){
+      Panic("Non monotonic Table/Col Write. Table/Col name: %s. txnTS: %lu, highTS: %lu, grace: %lu", table_name.c_str(), txn.timestamp().timestamp(), highTS.getTimestamp(), write_monotonicity_grace);
       return false;
     } 
   }
@@ -239,7 +239,7 @@ proto::ConcurrencyControl::Result Server::CheckReadPred(const Timestamp &txn_ts,
   auto &curr_table_writes = tw->second;
 
 
-  Debug("TX_ts: [%lu:%lu]. Pred: [%s]. Check against all TX down to TS[%lu]. ", txn_ts.getTimestamp(), txn_ts.getID(), pred.table_name().c_str(), pred.table_version().timestamp() - clock_skew_grace);
+  Debug("TX_ts: [%lu:%lu]. Pred: [%s]. Check against all TX down to TS[%lu]. ", txn_ts.getTimestamp(), txn_ts.getID(), pred.table_name().c_str(), pred.table_version().timestamp() - write_monotonicity_grace);
   for(auto itr = --curr_table_writes.lower_bound(txn_ts); itr != curr_table_writes.begin(); --itr){
 
 //for(auto itr = curr_table_writes.rbegin(); itr != curr_table_writes.rend(); ++itr){
@@ -251,7 +251,7 @@ proto::ConcurrencyControl::Result Server::CheckReadPred(const Timestamp &txn_ts,
     if(curr_ts.getTimestamp() == pred.table_version().timestamp() && curr_ts.getID() == pred.table_version().id()) continue;
 
     //Bound how far we need to check by the READ Table/Col Version - grace. I.e. look at all writes s.t. read.TS >= write.TS write.TS > read.TableVersion - grace
-    if(curr_ts.getTimestamp() + clock_skew_grace < pred.table_version().timestamp()) break;  //bound iterations until read table version
+    if(curr_ts.getTimestamp() + write_monotonicity_grace < pred.table_version().timestamp()) break;  //bound iterations until read table version
 
     Debug("TX_ts: [%lu:%lu]. Pred: [%s]: compare vs write TS[%lu:%lu]", txn_ts.getTimestamp(), txn_ts.getID(), pred.table_name().c_str(), itr->first.getTimestamp(), itr->first.getID());
     auto &[write_txn, commit_or_prepare] = itr->second;
@@ -440,7 +440,7 @@ proto::ConcurrencyControl::Result Server::CheckTableWrites(const proto::Transact
         if(txn_ts.getTimestamp() == pred.table_version().timestamp() && txn_ts.getID() == pred.table_version().id()) continue;
 
         //only check if this write is still relevant to the Reader. Note: This case should never happen, such writes should not be able to be admitted
-        if(txn_ts.getTimestamp() + clock_skew_grace < pred.table_version().timestamp()){
+        if(txn_ts.getTimestamp() + write_monotonicity_grace < pred.table_version().timestamp()){
           Panic("non-monotinic write should never be admitted"); 
           //NOTE: Not quite true locally. This replica might not have seen a TableVersion high enough to cause this TX to be rejected; meanwhile, the read might have read the TableVersion elsewhere
           //-- but as a whole, a quorum of replicas should be rejecting this tx.
@@ -470,7 +470,7 @@ proto::ConcurrencyControl::Result Server::CheckTableWrites(const proto::Transact
       //   for(auto &pred: read_set.read_predicates()){
       //     if(table_name != pred.table_name()) continue;
       //     //only check if this write is still relevant to the Reader. Note: This case should never happen, such writes should not be able to be admitted
-      //     if(txn_ts.getTimestamp() + clock_skew_grace < pred.table_version().timestamp()){
+      //     if(txn_ts.getTimestamp() + write_monotonicity_grace < pred.table_version().timestamp()){
       //       Panic("write should never be admitted"); 
       //       //NOTE: Not quite true locally. This replica might not have seen a TableVersion high enough to cause this TX to be rejected; meanwhile, the read might have read the TableVersion elsewhere
       //       //-- but as a whole, a quorum of replicas should be rejecting this tx.
@@ -596,9 +596,10 @@ void Server::ClearPredicateAndWrites(const proto::Transaction &txn){
  
   for(auto &pred: *predSet){
     TablePredicateMap::accessor tp;
-    tablePredicates.find(tp, pred.table_name());
-    auto &preds = tp->second;
-    preds.erase(ts);
+    if(tablePredicates.find(tp, pred.table_name())){
+      auto &preds = tp->second;
+      preds.erase(ts);
+    }
     tp.release();
   }
 
@@ -620,9 +621,10 @@ void Server::ClearPredicateAndWrites(const proto::Transaction &txn){
   //Clear all TableWrites
   for(auto &[table_name, _]: txn.table_writes()){
     TableWriteMap::accessor tw;
-    tableWrites.find(tw, table_name);
-    auto &writes = tw->second;
-    writes.erase(ts);
+    if(tableWrites.find(tw, table_name)){
+      auto &writes = tw->second;
+      writes.erase(ts);
+    }
     tw.release();
   }
 }

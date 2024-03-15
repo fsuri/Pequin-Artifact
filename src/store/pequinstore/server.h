@@ -811,7 +811,7 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
   /* BEGIN Semantic CC functions */ 
 
 //TODO: Parameterize. 
-  uint64_t clock_skew_grace;
+  uint64_t write_monotonicity_grace;
   std::string GetEncodedRow(const proto::Transaction &txn, const RowUpdates &row, const std::string &table_name);
   bool CheckMonotonicTableColVersions(const proto::Transaction &txn); 
   proto::ConcurrencyControl::Result CheckPredicates(const proto::Transaction &txn, const Timestamp &txn_ts, const ReadSet &txn_read_set, const PredSet &pred_set, std::set<std::string> &dynamically_active_dependencies);

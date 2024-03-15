@@ -97,6 +97,7 @@ SyncTransaction* SEATSSQLClient::GetNextTransaction() {
   // keep going until we get a valid operation
   while (true) {
     int64_t t_type = std::uniform_int_distribution<int64_t>(1, 100)(gen);
+    std::cerr << "NEXT T_TYPE: " << t_type << std::endl;
     int freq = 0;
     if (t_type <= (freq = FREQUENCY_DELETE_RESERVATION)) {
       std::cerr << "Try Delete_Res. Is empty? " << (delete_reservation.empty()) << std::endl; 
