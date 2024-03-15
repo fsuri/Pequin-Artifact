@@ -154,6 +154,11 @@ void PelotonTableStore::Init(int num_threads) {
 std::shared_ptr<peloton::Statement>
 PelotonTableStore::ParseAndPrepare(const std::string &query_statement, peloton::tcop::TrafficCop *tcop) {
 
+  //TESTING HOW LONG THIS TAKES: FIXME: REMOVE 
+  struct timeval now;
+  gettimeofday(&now, NULL);
+  uint64_t miliseconds_start = now.tv_sec * 1000 + now.tv_usec / 1000;
+
   UW_ASSERT(!query_statement.empty());
   Debug("Beginning of parse and prepare: %s", query_statement.substr(0, 1000).c_str());
   // prepareStatement
@@ -164,7 +169,7 @@ PelotonTableStore::ParseAndPrepare(const std::string &query_statement, peloton::
   if (!sql_stmt_list->is_valid) {
     Panic("SQL command not valid: %s", query_statement.substr(0, 1000).c_str()); // return peloton::ResultType::FAILURE;
   }
-  Debug("Parses successfully, beginning prepare");
+  Debug("Parsed statement successfully, beginning prepare. [%s]", query_statement.substr(0, 1000).c_str());
   auto statement = tcop->PrepareStatement(unnamed_statement, query_statement, std::move(sql_stmt_list));
   if (statement.get() == nullptr) {
     tcop->setRowsAffected(0);
@@ -172,6 +177,13 @@ PelotonTableStore::ParseAndPrepare(const std::string &query_statement, peloton::
         (query_statement.substr(0, 500) + " ... " + query_statement.substr(query_statement.size()-500)).c_str()); // return peloton::ResultType::FAILURE;
   }
   Debug("Finished preparing statement: %s", query_statement.substr(0, 1000).c_str());
+
+  //TESTING HOW LONG THIS TAKES: FIXME: REMOVE 
+  gettimeofday(&now, NULL);
+  uint64_t miliseconds_end = now.tv_sec * 1000 + now.tv_usec / 1000;
+  if(size_t insert_pos = query_statement.find("INSERT"); insert_pos != std::string::npos) return statement;  //inserts might take longer
+  UW_ASSERT(miliseconds_end - miliseconds_start < 5); //Should not take more than 5 ms (already generous) to parse and prepare.
+
   return statement;
 }
 
