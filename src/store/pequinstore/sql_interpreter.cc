@@ -2106,8 +2106,7 @@ bool SQLTransformer::EvalCond(size_t &end, std::string_view cond_statement, cons
     pos = cond_statement.find_first_of("()");
 
     bool curr_cond = false;
-    bool other_cond = true;
-
+   
     //Base case:  Either a) no () exist, or b) the first ( is to the right of some clause. e.g. x=5 AND (...)
     if(pos == std::string_view::npos || (pos > 0 && cond_statement.substr(pos, 1) == "(")){   
         //split on operators if existent. --> apply col merge left to right. //Note: Multi statements without () are left binding by default.
@@ -2125,19 +2124,20 @@ bool SQLTransformer::EvalCond(size_t &end, std::string_view cond_statement, cons
                 Panic("We cannot eval special ops");
             } 
 
+             bool next_cond = true;
             //std::cerr << "pos"
              //Check if operator > pos. if so this is first op inside a >. Ignore setting it (just break while loop). Call recursion for right hand side.
             if(op_pos > pos){
                 next_op_type = SQL_NONE; // equivalent to break;
                 size_t dummy = 0;
-                other_cond = EvalCond(dummy, cond_statement.substr(pos), col_registry, row);
+                next_cond = EvalCond(dummy, cond_statement.substr(pos), col_registry, row);
             }
             else{
-                curr_cond = EvalColCondition(cond_statement.substr(0, op_pos), col_registry, row);
-                std::cerr << "curr_cond: " << curr_cond << std::endl;
+                next_cond = EvalColCondition(cond_statement.substr(0, op_pos), col_registry, row);
+                std::cerr << "next_cond: " << next_cond << std::endl;
             }
           
-            curr_cond = Combine(op_type, curr_cond, other_cond);
+            curr_cond = Combine(op_type, curr_cond, next_cond);
             
             op_type = next_op_type;
         }
@@ -2288,7 +2288,7 @@ bool SQLTransformer::Combine(op_t &op_type, bool left, bool right) const
             break;
         case SQL_START:
         {
-            return left;
+            return right;
         }   
             break;
         case SQL_AND: 

@@ -649,10 +649,14 @@ bool Server::CheckGCWatermark(const Timestamp &ts) {
   return true;
 }
 
+bool Server::EvaluatePred(const std::string &pred, const RowUpdates &row, const std::string &table_name){
+  return table_store->sql_interpreter.EvalPred(pred, table_name, row);
+}
 
 
 //PELOTON BASED EVALUATOR
- bool Server::EvaluatePred(const std::string &pred, const RowUpdates &row, const std::string &table_name){
+ bool Server::EvaluatePred_peloton(const std::string &pred, const RowUpdates &row, const std::string &table_name){
+
   //return false; //FIXME: REMOVE
   std::cout << "Inside EvalPred in semantic CC" << std::endl;
   std::cout << "The predicate evalpred is " << pred << std::endl;
@@ -739,26 +743,6 @@ peloton::catalog::Schema* Server::ConvertColRegistryToSchema(ColRegistry *col_re
   peloton::catalog::Schema *schema = new peloton::catalog::Schema(columns);
   return schema;
 }
-
-
-//TODO: Can we just write a simple evaluator ourselves?
-// Use sql_interpreter to break down WHERE clause.
-// Use col registry to infer type.
-// Then perform the comparator operations?
-
-
-// bool Server::EvaluatePred_direct(const std::string &pred, const RowUpdates &row, const std::string &table_name){
-
-// }
-
-// //Re-use the sql_interpreter 
-
-// //Recursively break 
-
-// JoinOnClause
-
-//TODO: Return true if row fulfills col pred.
-
 
 
 }
