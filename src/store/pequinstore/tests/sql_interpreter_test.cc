@@ -522,11 +522,71 @@ void test_write(){
 
 }
 
+void test_predicates(){
+
+   std::cerr << "Test Predicte eval:" << std::endl;
+
+   SQLTransformer sql_interpreter(&query_params);
+  std::string table_registry = file_name + "-tables-schema.json";
+  sql_interpreter.RegisterTables(table_registry);
+  proto::Transaction txn;
+  sql_interpreter.NewTx(&txn);
+
+  std::string table_name = "user";
+  
+  TableWrite table_write;
+
+  std::vector<std::string> col_names = {"age", "name", "color"};
+  std::vector<uint32_t> p_col_idx = {0, 2};
+  *table_write.mutable_column_names() = {col_names.begin(), col_names.end()};
+  *table_write.mutable_col_primary_idx() = {p_col_idx.begin(), p_col_idx.end()};
+
+  std::vector<std::string> val1 = {"5", "flo", "brown"};
+  std::vector<std::string> val2 = {"6", "neil", "black"};
+  RowUpdates *row1 = table_write.add_rows();
+  *row1->mutable_column_values() = {val1.begin(), val1.end()};
+   RowUpdates *row2 = table_write.add_rows();
+  *row2->mutable_column_values() = {val2.begin(), val2.end()};
+
+  //
+  std::string pred = "col1 = 5";
+  std::cerr << std::endl << "TESTING PRED: " << pred << std::endl;
+  
+   std::cerr << std::endl << "row1: " << std::endl;
+  bool r1 = sql_interpreter.EvalPred(pred, table_name, *row1);
+  UW_ASSERT(r1);
+    std::cerr << std::endl << "row2: " << std::endl;
+  bool r2 = sql_interpreter.EvalPred(pred, table_name, *row2);
+  UW_ASSERT(!r2);
+
+  pred = "col1 >= 5 AND col2 = 'neil'";
+  std::cerr << std::endl << "TESTING PRED: " << pred << std::endl;
+
+    std::cerr << std::endl << "row1: " << std::endl;
+  r1 = sql_interpreter.EvalPred(pred, table_name, *row1);
+  UW_ASSERT(!r1);
+
+    std::cerr << std::endl << "row2: " << std::endl;
+  r2 = sql_interpreter.EvalPred(pred, table_name, *row2);
+  UW_ASSERT(r2);
+
+  pred = "col1 >= 5 AND (col2 = 'neil' OR col3 = 'brown')";
+  std::cerr << std::endl << "TESTING PRED: " << pred << std::endl;
+    std::cerr << std::endl << "row1: " << std::endl;
+  r1 = sql_interpreter.EvalPred(pred, table_name, *row1);
+  UW_ASSERT(r1);
+    std::cerr << std::endl << "row2: " << std::endl;
+  r2 = sql_interpreter.EvalPred(pred, table_name, *row2);
+  UW_ASSERT(r2);
+}
+
 int main() {
   
-  std::cerr<< "Testing Write Parser" << std::endl;
+  std::cerr<< "Testing Write Parser (DEPRECATED TESTS -- PROBABLY WON'T WORK FOR ALL OLD TESTS)" << std::endl;
 
   test_registry();
+  test_predicates();
+  return 0;
 
   test_insert();
 

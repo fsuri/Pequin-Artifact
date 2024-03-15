@@ -188,7 +188,7 @@ class SQLTransformer {
             void GenerateTablePurgeStatement_DEPRECATED(std::string &purge_statement, const std::string &table_name, const TableWrite &table_write);
             void GenerateTablePurgeStatement_DEPRECATED(std::vector<std::string> &purge_statements, const std::string &table_name, const TableWrite &table_write);
 
-        
+        bool EvalPred(const std::string &pred, const std::string &table_name, const RowUpdates &row) const;
 
     private:
         const QueryParameters *query_params;
@@ -230,6 +230,11 @@ class SQLTransformer {
             void GetNextOperator(std::string_view &cond_statement, size_t &op_pos, size_t &op_pos_post, op_t &op_type) const;
             bool MergeColConditions(op_t &op_type, std::map<std::string, std::string> &l_p_col_value, std::map<std::string, std::string> &r_p_col_value) const;
         bool CheckColConditionsDumb(std::string_view &cond_statement, const ColRegistry &col_registry, std::map<std::string, std::string> &p_col_value);
+
+        //Pred evaluator
+        bool EvalCond(size_t &end, std::string_view cond_statement, const ColRegistry &col_registry, const RowUpdates &row) const ;
+        bool EvalColCondition(std::string_view cond_statement, const ColRegistry &col_registry, const RowUpdates &row) const;
+        bool Combine(op_t &op_type, bool left, bool right) const;
         
 };
 

@@ -2085,5 +2085,233 @@ bool SQLTransformer::CheckColConditionsDumb(std::string_view &cond_statement, co
 // }
 
 
+/////////////////////////// CUSTOM EVAL PRED CODE ///////////////////////////////////////////
+bool SQLTransformer::EvalPred(const std::string &pred, const std::string &table_name, const RowUpdates &row) const {
+  std::string_view cond_statement(pred);
+
+  UW_ASSERT(TableRegistry.count(table_name));
+  const auto &col_registry = TableRegistry.at(table_name);
+
+  size_t end = 0;
+
+  return EvalCond(end, cond_statement, col_registry, row);
+}
+
+
+//Note: Don't pass cond_statement by reference inside recursion.
+bool SQLTransformer::EvalCond(size_t &end, std::string_view cond_statement, const ColRegistry &col_registry, const RowUpdates &row) const {
+    //Note: If relax = true ==> primary_key_compare checks for subset, if false ==> checks for equality.
+
+    size_t pos = 0;
+    pos = cond_statement.find_first_of("()");
+
+    bool curr_cond = false;
+    bool other_cond = true;
+
+    //Base case:  Either a) no () exist, or b) the first ( is to the right of some clause. e.g. x=5 AND (...)
+    if(pos == std::string_view::npos || (pos > 0 && cond_statement.substr(pos, 1) == "(")){   
+        //split on operators if existent. --> apply col merge left to right. //Note: Multi statements without () are left binding by default.
+        op_t op_type(SQL_START);
+        op_t next_op_type;
+        size_t op_pos; 
+        size_t op_pos_post = 0; 
+
+        while(op_type != SQL_NONE){
+            cond_statement = cond_statement.substr(op_pos_post);
+            pos -= op_pos_post; //adjust pos accordingly;
+
+            GetNextOperator(cond_statement, op_pos, op_pos_post, next_op_type); //returns SQL_NONE && op_pos = length if no more operators.
+            if(next_op_type == SQL_SPECIAL){
+                Panic("We cannot eval special ops");
+            } 
+
+            //std::cerr << "pos"
+             //Check if operator > pos. if so this is first op inside a >. Ignore setting it (just break while loop). Call recursion for right hand side.
+            if(op_pos > pos){
+                next_op_type = SQL_NONE; // equivalent to break;
+                size_t dummy = 0;
+                other_cond = EvalCond(dummy, cond_statement.substr(pos), col_registry, row);
+            }
+            else{
+                curr_cond = EvalColCondition(cond_statement.substr(0, op_pos), col_registry, row);
+                std::cerr << "curr_cond: " << curr_cond << std::endl;
+            }
+          
+            curr_cond = Combine(op_type, curr_cond, other_cond);
+            
+            op_type = next_op_type;
+        }
+
+        std::cerr << "return curr_cond: " << curr_cond << std::endl;
+        return curr_cond;
+    }
+
+    // Recurse on opening (
+    // Return on closing )  ==> This is left value
+    // find operator, then find opening ( (if any) ==> Recurse on it, return closing ). ==> This is right value
+    // Apply merge. Return
+    if(cond_statement.substr(pos, 1) == "("){ //Start recursion
+        cond_statement.remove_prefix(pos+1);
+
+        //Recurse --> Returns result inside ")"  
+        bool cond = EvalCond(end, cond_statement, col_registry, row);   //End = pos after ) that matches opening (  (or base case no bracket.)
+      
+        if(end == std::string::npos || cond_statement.substr(end, 1) == ")"){ //this is the right side of a statement -> return.
+            return cond;
+        }
+       
+        //else: this is the left side of a statement. ==> there must be at least one operator to the right.
+
+        //FIND AND/OR. (search after end)
+        cond_statement = cond_statement.substr(end); //Note, this does not modify the callers view.
+
+        op_t next_op_type;
+        size_t op_pos; 
+        size_t op_pos_post = 0; 
+        
+        GetNextOperator(cond_statement, op_pos, op_pos_post, next_op_type); //returns SQL_NONE && op_pos = length if no more operators.
+        if(next_op_type == SQL_SPECIAL){
+           Panic("don't support eval for special ops");
+        } 
+        if(next_op_type == SQL_NONE){
+            return cond;
+        }
+
+        //After that recurse on right cond.
+        bool right_cond = EvalCond(end, cond_statement.substr(op_pos_post), col_registry, row);
+
+        //Merge left and right side of operator
+        return Combine(next_op_type, cond, right_cond);
+    }
+
+    //Recursive cases:
+    if(cond_statement.substr(pos, 1) == ")"){ //End recursion.
+        std::string_view sub_cond = cond_statement.substr(0, pos);
+      
+        //Note: Anything between 0 and ) must be normal statement.
+        // Recurse to use base case and return result.
+        size_t dummy;
+
+        return EvalCond(dummy, sub_cond, col_registry, row); 
+        end = pos+1; //Next level receives and end 
+    }
+}
+
+bool SQLTransformer::EvalColCondition(std::string_view cond_statement, const ColRegistry &col_registry, const RowUpdates &row) const{
+  
+    //Input statement like: "al_id = 50" or "depart_time <= 5000000"  //TODO: Figure out if strings have quotes.
+    //Eval to true, if row has a col_value that fulfills this pred
+
+    std::cerr << "cond: " << cond_statement << std::endl;
+              
+    
+    //TODO: Check with operand: =, !=, >=, <=  (note, the latter only apply to numerics)
+    size_t pos = cond_statement.find_first_of("=!<>");
+    if(pos == std::string::npos) Panic("must have an operator");
+    auto op_statement = cond_statement.substr(pos); // e.g. "= 50"
+
+     std::cerr << "op stmt: [" << op_statement << std::endl;
+
+      size_t end_op_pos = op_statement.find(" ");
+    auto op = op_statement.substr(0, end_op_pos); //e.g. "=" or ">="
+
+     std::cerr << "op: [" << op << std::endl;
+    
+
+    //Extract left and right side
+    std::string_view left = cond_statement.substr(0, pos-1); //e.g. "al_id"
+
+    std::string_view right = op_statement.substr(end_op_pos +1); //e.g. 50
+
+    std::cerr << "left: [" << left << std::endl;
+    std::cerr << "right: [" << right << std::endl;
+
+    //reflexive args: //e.g. al_id = al_id
+    if(left == right) return true;
+
+
+    //TODO: Check if row is a conflict.
+    // I.e. check if col value of row == right value. (look up via left val)
+    const std::string &left_str = static_cast<std::string>(left);
+    try{
+       auto &idx = col_registry.col_name_index.at(left_str);
+       auto &row_col_val = row.column_values()[idx];
+       std::cerr << "row_col_val: [" << row_col_val << std::endl;
+
+       TrimValue(right, col_registry.col_quotes[idx]); //trim if type str.
+       const std::string &right_str = static_cast<std::string>(right);
+       
+       if(op == "="){
+        std::cerr << "=" << std::endl;
+     
+        return right_str == row_col_val;
+       }
+       else if(op == "!="){
+        std::cerr << "!=" << std::endl;
+        return right_str != row_col_val;
+       }
+      else if(op == "<"){
+        std::cerr << "<=" << std::endl;
+        return std::stol(row_col_val) < std::stol(right_str);
+       }
+       else if(op == ">"){
+        std::cerr << ">=" << std::endl;
+         return std::stol(row_col_val) > std::stol(right_str);
+       }
+       else if(op == "<="){
+        std::cerr << "<=" << std::endl;
+        return std::stol(row_col_val) <= std::stol(right_str);
+       }
+       else if(op == ">="){
+        std::cerr << ">=" << std::endl;
+         return std::stol(row_col_val) >= std::stol(right_str);
+       }
+       else{
+        Panic("invalid operand: %s", static_cast<std::string>(op).c_str());
+       }
+
+    }
+    catch(...){
+      Panic("invalid col name: %s", left_str.c_str());
+      return false;
+    }
+
+ return false;  
+}
+
+
+bool SQLTransformer::Combine(op_t &op_type, bool left, bool right) const
+{
+    switch (op_type) {
+        case SQL_NONE:
+            Panic("Should never be Merging Conditions on None");
+            break;
+        case SQL_START:
+        {
+            return left;
+        }   
+            break;
+        case SQL_AND: 
+        {
+            return left & right;
+        }
+            break;
+        case SQL_OR: 
+        { 
+          return left || right;
+        }    
+            break;
+        
+        default:   
+            NOT_REACHABLE();
+
+    }
+
+    
+    return true;
+  
+}
+
+
 
 };
