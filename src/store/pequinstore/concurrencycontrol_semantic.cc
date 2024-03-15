@@ -315,8 +315,9 @@ proto::ConcurrencyControl::Result Server::CheckReadPred(const Timestamp &txn_ts,
 
       bool conflict = false;
       //for(auto &pred_instance: instantiated_preds){
-  
-      for(auto &pred_instance: pred.pred_instances()){
+
+      if(!row.deletion()){ //Note: Deletion by default Eval to false.
+        for(auto &pred_instance: pred.pred_instances()){
          conflict = EvaluatePred(pred_instance, row, pred.table_name());
          if(!lazy_check && dynamic_dep_candidates.count(write_key)){
             dynamic_dep_candidates[write_key].first = true;
@@ -325,7 +326,10 @@ proto::ConcurrencyControl::Result Server::CheckReadPred(const Timestamp &txn_ts,
          if(conflict) return proto::ConcurrencyControl::ABSTAIN; 
          //if(conflict) return (commit_or_prepare ? proto::ConcurrencyControl::ABORT : proto::ConcurrencyControl::ABSTAIN); 
            //TODO: Replace with ABORT: FIXME: To do this, need to store commit proof, and not just the TXN.
+        }
       }
+  
+      
 
 
 
@@ -417,6 +421,11 @@ proto::ConcurrencyControl::Result Server::CheckTableWrites(const proto::Transact
 
     //Check whether the Read Txn conflicts with any of this TableWrites row
     for(auto &row: table_write.rows()){
+
+      if(row.deletion()) continue;
+      //If TX has it is read set -> cc would've handled it.
+      //If it doesn't, then don't need to check -> deletion evals to false!.
+     
       //check if read_txn read set already has this write key. If so, skip (we've already done normal CC on it)
           //NOTE: checking just for key presence is enough! If it is present, then Normal CC check will already have handled conflicts.
       
@@ -426,6 +435,8 @@ proto::ConcurrencyControl::Result Server::CheckTableWrites(const proto::Transact
       if(std::find_if(txn_read_set.begin(), txn_read_set.end(), [write_key](const ReadMessage &read){return read.key()==write_key;}) != txn_read_set.end()){
               continue; //skip eval this key. It's already in the predicate txns' read set 
       }
+
+  
 
       UW_ASSERT(!read_txn->query_set().empty()); //if txn didn't have a query set it wouldnt be in the pred list!
       const PredSet *predSet = &read_txn->read_predicates();

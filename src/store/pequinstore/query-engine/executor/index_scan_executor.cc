@@ -279,6 +279,13 @@ bool IndexScanExecutor::IsImplicitPointRead(concurrency::TransactionContext *cur
   std::cerr << "check Is point: " << predicate_->expr_name_ << std::endl;
 
   is_implicit_point_read_ = sql_interpreter->IsPoint(predicate_->expr_name_, table_->GetName(), true);
+  //Note: We are currently using the relaxed = true argument
+  //In this mode, we treat the predicate as a point read even if it is stronger than just the primary keys. E.g. say x is pkey, but predicate is x=5 AND name='xyz'
+  //This means that we are giving up on incorporating the additional semantics of name=`xyz` for CC. The ActiveReadSet will throw a conflict if *anything* about the row changes
+  //If instead we used the non-relaxed mode, then we would not treat the above stricter predicate as a point read, and would instead add it to the predicate set (for semanticCC)
+
+
+
   //std::string_view cond_statement(predicate_->expr_name_);
   // std::vector<std::string> p_col_values; //TODO: Sanity check that this is the same as values_
   // is_implicit_point_read_ = sql_interpreter->CheckColConditions(cond_statement, table_, p_col_values, true);

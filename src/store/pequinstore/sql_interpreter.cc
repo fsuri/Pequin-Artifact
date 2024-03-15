@@ -2240,36 +2240,61 @@ bool SQLTransformer::EvalColCondition(std::string_view cond_statement, const Col
 
        TrimValue(right, col_registry.col_quotes[idx]); //trim if type str.
        const std::string &right_str = static_cast<std::string>(right);
-       
-       if(op == "="){
-        std::cerr << "=" << std::endl;
-     
-        return right_str == row_col_val;
-       }
-       else if(op == "!="){
-        std::cerr << "!=" << std::endl;
-        return right_str != row_col_val;
-       }
-      else if(op == "<"){
-        std::cerr << "<=" << std::endl;
-        return std::stol(row_col_val) < std::stol(right_str);
-       }
-       else if(op == ">"){
-        std::cerr << ">=" << std::endl;
-         return std::stol(row_col_val) > std::stol(right_str);
-       }
-       else if(op == "<="){
-        std::cerr << "<=" << std::endl;
-        return std::stol(row_col_val) <= std::stol(right_str);
-       }
-       else if(op == ">="){
-        std::cerr << ">=" << std::endl;
-         return std::stol(row_col_val) >= std::stol(right_str);
-       }
-       else{
-        Panic("invalid operand: %s", static_cast<std::string>(op).c_str());
-       }
 
+    //    for(auto &[name, type] : col_registry.col_name_type){
+    //     std::cerr << name << ":" << type << std::endl;
+    //    }
+
+       auto &type = col_registry.col_name_type.at(left_str);
+       
+       if(type == "TEXT" || type == "VARCHAR"){
+            if(op == "="){
+                std::cerr << "=" << std::endl;
+            
+                return right_str == row_col_val;
+            }
+            else if(op == "!="){
+                std::cerr << "!=" << std::endl;
+                return right_str != row_col_val;
+            }
+            else{
+                  Panic("invalid string operand: %s", static_cast<std::string>(op).c_str());
+            }
+       }
+       else{ //must be numeric.
+
+        //FIXME: Stod is not safe for MAX_UINT64 //TODO: cast to INT, LONG, FLOAT depending on col type.
+        auto row_val = std::stod(row_col_val);
+        auto pred_val = std::stod(right_str);
+          
+        if(op == "="){
+            std::cerr << "=" << std::endl;
+            return row_val == pred_val;
+        }
+        else if(op == "!="){
+            std::cerr << "!=" << std::endl;
+            return row_val != pred_val;
+        }
+        else if(op == "<"){
+            std::cerr << "<=" << std::endl;
+            return row_val < pred_val;
+        }
+        else if(op == ">"){
+            std::cerr << ">=" << std::endl;
+            return row_val > pred_val;
+        }
+        else if(op == "<="){
+            std::cerr << "<=" << std::endl;
+            return row_val <= pred_val;
+        }
+        else if(op == ">="){
+            std::cerr << ">=" << std::endl;
+            return row_val >= pred_val;
+        }
+        else{
+            Panic("invalid operand: %s", static_cast<std::string>(op).c_str());
+        }
+      }
     }
     catch(...){
       Panic("invalid col name: %s", left_str.c_str());
