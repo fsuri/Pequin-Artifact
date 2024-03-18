@@ -763,8 +763,12 @@ bool IndexScanExecutor::FindRightRowVersion(const Timestamp &timestamp, std::sha
         Timestamp const &prepared_timestamp = tile_group_header->GetBasilTimestamp(tuple_location.offset);
         bool tuple_is_delete = tile_group_header->IsDeleted(tuple_location.offset);
         if(tuple_is_delete && prepared_timestamp == current_txn->GetBasilTimestamp() && current_txn->GetCommitOrPrepare()){  //upgrade case
+            //fprintf(stderr, "Upgrade tuple[%lu:%lu], TS[%lu:%lu] from prepare to commit", tuple_location.block, tuple_location.offset, current_txn->GetBasilTimestamp().getTimestamp(), current_txn->GetBasilTimestamp().getID());
             Debug("Upgrade tuple[%lu:%lu], TS[%lu:%lu] from prepare to commit", tuple_location.block, tuple_location.offset, current_txn->GetBasilTimestamp().getTimestamp(), current_txn->GetBasilTimestamp().getID());
             //this upgrades prepared version (with same TS) to commit, 
+            const pequinstore::proto::CommittedProof *proof =  current_txn->GetCommittedProof();
+            UW_ASSERT(proof);
+            tile_group_header->SetCommittedProof(tuple_location.offset, proof);
             tile_group_header->SetCommitOrPrepare(tuple_location.offset, true);
             tile_group_header->SetMaterialize(tuple_location.offset, false);
              read_curr_version = false; //No need to read this. Won't pass Eval check anyways!
