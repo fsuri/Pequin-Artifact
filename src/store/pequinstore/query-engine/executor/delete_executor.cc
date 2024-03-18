@@ -191,6 +191,7 @@ bool DeleteExecutor::DExecute() {
           return false;
         }
 
+        if(current_txn->GetCommitOrPrepare()) Panic("reaching");
 
         //THIS IF-BLOCK IS DEPRECATED. PURGE (UNDO-DELETE) IS NOW HANDLED THROUGH insert_executor.cc
         if(current_txn->GetUndoDelete()) Panic("UndoDelete in delete_executor.cc is deprecated");
@@ -253,7 +254,7 @@ bool DeleteExecutor::DExecute() {
         /**transaction_manager.PerformDelete(current_txn, old_location,new_location);*/
 
         // Create special "Delete Tuple". Note: Technically only needs the primary key values. The rest can be dummy/empty
-        std::cout << "Delete executor performing delete. Commit: " << current_txn->GetCommitOrPrepare() << ". ForceMat? " << current_txn->GetForceMaterialize() << std::endl;
+        std::cerr << "Delete executor performing delete. Commit: " << current_txn->GetCommitOrPrepare() << ". ForceMat? " << current_txn->GetForceMaterialize() << std::endl;
 
        
         auto new_tile_group_header = target_table_->GetTileGroupById(new_location.block)->GetHeader();

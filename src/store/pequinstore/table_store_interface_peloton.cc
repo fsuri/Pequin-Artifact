@@ -186,8 +186,9 @@ PelotonTableStore::ParseAndPrepare(const std::string &query_statement, peloton::
   //Should not take more than 5 ms (already generous) to parse and prepare.
   auto duration = miliseconds_end - miliseconds_start;
   if(duration > 5){
-    if(size_t insert_pos = query_statement.find("INSERT"); insert_pos != std::string::npos) Warning("ParseAndPrepare exceeded 5ms (INSERT): %d", duration);
+    if(size_t insert_pos = query_statement.find("INSERT"); insert_pos != std::string::npos) ;//Warning("ParseAndPrepare exceeded 5ms (INSERT): %d", duration);
     else Warning("ParseAndPrepare exceeded 5ms (SELECT): %d", duration);
+
   }
   /////////////
 
@@ -802,7 +803,8 @@ void PelotonTableStore::ApplyTableWrite(const std::string &table_name, const Tab
   // if (!delete_statement.empty()) {
   for (auto &delete_statement : delete_statements) { // TODO: Find a way to parallelize these statement calls (they don't conflict)
     Notice("Delete statement: %s", delete_statement.c_str());
-    Debug("Delete statement: %s", delete_statement.c_str());
+    Debug("Delete statement: %s. Commit/Prepare: %d", delete_statement.c_str(), commit_or_prepare);
+    if(commit_or_prepare) UW_ASSERT(commit_proof);
     
     // prepare Statement
     auto statement = ParseAndPrepare(delete_statement, tcop);

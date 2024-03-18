@@ -2176,6 +2176,9 @@ void Server::CommitToStore(proto::CommittedProof *proof, proto::Transaction *txn
     
    if(params.query_params.useSemanticCC){
     RecordReadPredicatesAndWrites(*txn, ts, true);
+    //Note on safety: We are not holding a lock on TableVersion while committing. This means the server-local writes are not guaranteed to be observed by concurrent read predicates
+    //This is fine globally, because reaching Commit locally, implies that a Quorum of servers have prepared already. 
+    //Since that prepare DID hold locks, safety is already enforced.
   }
   
   //   //Note: Does one have to do special handling for Abort? No ==> All prepared versions just produce unecessary conflicts & dependencies, so there is no safety concern.

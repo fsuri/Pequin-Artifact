@@ -1124,6 +1124,12 @@ void IndexScanExecutor::SetPointRead(concurrency::TransactionContext *current_tx
       return;
     }
 
+    auto commit_ts = current_txn->GetCommitTimestamp(); 
+    *commit_ts = write_timestamp; //Use either this line to copy TS, OR the SetCommitTs func below to set ref. Don't need both...  (can also get TS via: commit_proof->txn().timestamp())
+  
+    Debug("PointRead CommittedTS:[%lu:%lu]", current_txn->GetCommitTimestamp()->getTimestamp(), current_txn->GetCommitTimestamp()->getID());
+    fprintf(stderr,"PointRead CommittedTS:[%lu:%lu] \n", current_txn->GetCommitTimestamp()->getTimestamp(), current_txn->GetCommitTimestamp()->getID());
+    //current_txn->SetCommitTimestamp(&committed_timestamp); 
 
     Debug("Setting the commit proof");
     // Get the commit proof
@@ -1134,13 +1140,9 @@ void IndexScanExecutor::SetPointRead(concurrency::TransactionContext *current_tx
     // Set the commit proof reference.
     const pequinstore::proto::CommittedProof **commit_proof_ref = current_txn->GetCommittedProofRef();
     *commit_proof_ref = write_commit_proof;
-    auto commit_ts = current_txn->GetCommitTimestamp(); 
-    *commit_ts = write_timestamp; //Use either this line to copy TS, OR the SetCommitTs func below to set ref. Don't need both...  (can also get TS via: commit_proof->txn().timestamp())
    
-     Debug("PointRead CommittedTS:[%lu:%lu]", current_txn->GetCommitTimestamp()->getTimestamp(), current_txn->GetCommitTimestamp()->getID());
 
-    //fprintf(stderr,"PointRead CommittedTS:[%lu:%lu] \n", current_txn->GetCommitTimestamp()->getTimestamp(), current_txn->GetCommitTimestamp()->getID());
-    //current_txn->SetCommitTimestamp(&committed_timestamp); 
+    
 
 
   }
