@@ -1107,6 +1107,8 @@ void IndexScanExecutor::SetPointRead(concurrency::TransactionContext *current_tx
   // bool is_metadata_table_ = table_->GetName().substr(0,3) == "pg_"; //don't do any of the Pequin features for meta data tables..
   //UW_ASSERT(!is_metadata_table_);
   if(is_metadata_table_) return;
+
+  UW_ASSERT(is_primary_index);
   
   if(tile_group_header->GetCommitOrPrepare(tuple_location.offset)){
     //mark commit result as existent  ==> New refactor: Only mark it after evaluating predicate.

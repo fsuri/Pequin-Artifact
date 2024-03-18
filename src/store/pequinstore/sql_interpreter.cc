@@ -2263,7 +2263,7 @@ bool SQLTransformer::EvalColCondition(std::string_view cond_statement, const Col
        }
        else{ //must be numeric.
 
-        //FIXME: Stod is not safe for MAX_UINT64 //TODO: cast to INT, LONG, FLOAT depending on col type.
+        //FIXME: Stod is not safe for MAX_UINT64 //TODO: cast depending on col type. Use `std::stoull(row_col_val)` for BIGINT
         auto row_val = std::stod(row_col_val);
         auto pred_val = std::stod(right_str);
           

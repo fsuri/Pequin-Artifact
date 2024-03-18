@@ -158,6 +158,7 @@ PelotonTableStore::ParseAndPrepare(const std::string &query_statement, peloton::
   struct timeval now;
   gettimeofday(&now, NULL);
   uint64_t miliseconds_start = now.tv_sec * 1000 + now.tv_usec / 1000;
+  ///////////
 
   UW_ASSERT(!query_statement.empty());
   Debug("Beginning of parse and prepare: %s", query_statement.substr(0, 1000).c_str());
@@ -181,8 +182,14 @@ PelotonTableStore::ParseAndPrepare(const std::string &query_statement, peloton::
   //TESTING HOW LONG THIS TAKES: FIXME: REMOVE 
   gettimeofday(&now, NULL);
   uint64_t miliseconds_end = now.tv_sec * 1000 + now.tv_usec / 1000;
-  if(size_t insert_pos = query_statement.find("INSERT"); insert_pos != std::string::npos) return statement;  //inserts might take longer
-  UW_ASSERT(miliseconds_end - miliseconds_start < 20); //Should not take more than 5 ms (already generous) to parse and prepare.
+ 
+  //Should not take more than 5 ms (already generous) to parse and prepare.
+  auto duration = miliseconds_end - miliseconds_start;
+  if(duration > 5){
+    if(size_t insert_pos = query_statement.find("INSERT"); insert_pos != std::string::npos) Warning("ParseAndPrepare exceeded 5ms (INSERT): %d", duration);
+    else Warning("ParseAndPrepare exceeded 5ms (SELECT): %d", duration);
+  }
+  /////////////
 
   return statement;
 }
