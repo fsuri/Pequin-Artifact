@@ -29,6 +29,7 @@ SEATSSQLClient::SEATSSQLClient(SyncClient &client, Transport &transport, const s
             seats_id = id;
             started_workload = false;
 
+
       //PLACEHOLDER CODE:
       //TODO: Make this cleaner. Pass in actual path. Apply Flight cache more broadly
       

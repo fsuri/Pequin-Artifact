@@ -62,6 +62,13 @@ transaction_status_t SQLFindOpenSeats::Execute(SyncClient &client) {
         //std::cerr << "SEAT: " << i << "is unavailable!" << std::endl;
     }
 
+    Debug("COMMIT");
+    auto result = client.Commit(timeout);
+    if(result != transaction_status_t::COMMITTED) return result;
+
+
+    //////////////// UPDATE PROFILE /////////////////////
+
     std::string open_seats_str = "Seats [";
     std::string reserved_seats_str = "Seats [";
   
@@ -92,7 +99,6 @@ transaction_status_t SQLFindOpenSeats::Execute(SyncClient &client) {
     fprintf(stderr, "Available: %s\n", open_seats_str.c_str());
     fprintf(stderr, "Unavailable: %s\n", reserved_seats_str.c_str());
 
-    Debug("COMMIT");
-    return client.Commit(timeout);
+    return result;
 }
 }

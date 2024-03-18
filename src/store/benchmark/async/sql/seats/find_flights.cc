@@ -153,6 +153,13 @@ transaction_status_t SQLFindFlights::Execute(SyncClient &client) {
     //     airport_infos.push_back(ai_row);
     // }
 
+
+    Debug("COMMIT");
+    auto result = client.Commit(timeout);
+    if(result != transaction_status_t::COMMITTED) return result;
+
+     //////////////// UPDATE PROFILE /////////////////////
+        
     // print info of flight
     for (int i = 0; i < queryResult->size(); i++) {
         deserialize(flight_row, queryResult, i);
@@ -176,8 +183,8 @@ transaction_status_t SQLFindFlights::Execute(SyncClient &client) {
         cf.arrive_ap_id = flight_row.f_arrive_ap_id;
         addFlightToCache(*cached_flights, cf, gen);
     }
-    Debug("COMMIT");
-    return client.Commit(timeout);
+    
+    return result;
 
 }
 }

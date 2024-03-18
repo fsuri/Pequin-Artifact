@@ -163,6 +163,12 @@ transaction_status_t SQLNewReservation::Execute(SyncClient &client) {
     }
 
 
+    Debug("COMMIT");
+    auto result = client.Commit(timeout);
+    if(result != transaction_status_t::COMMITTED) return result;
+
+     //////////////// UPDATE PROFILE /////////////////////
+
     if (std::uniform_int_distribution<int>(1, 100)(*gen_) < PROB_Q_DELETE_RESERVATION){
         std::cerr << "NEW_RES: PUSH TO DELETE Q. r_id: " << r_id <<". c_id: " << c_id << ". flight_id: " << flight.flight_id << std::endl;
         delete_q->push(SEATSReservation(r_id, c_id, flight, seatnum));
@@ -172,6 +178,6 @@ transaction_status_t SQLNewReservation::Execute(SyncClient &client) {
         update_q->push(SEATSReservation(r_id, c_id, flight, seatnum));
     }
 
-    return client.Commit(timeout);
+    return result;
 }       
 }

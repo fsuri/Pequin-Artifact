@@ -153,11 +153,19 @@ transaction_status_t SQLDeleteReservation::Execute(SyncClient &client) {
         return ABORTED_USER;
     }
 
+    auto result = client.Commit(timeout);
+    if(result != transaction_status_t::COMMITTED) return result;
+
+
+     //////////////// UPDATE PROFILE /////////////////////
+
     //Re-queue reservation
     int requeue = std::uniform_int_distribution<int>(1, 100)(*gen_);
     if (requeue <= PROB_REQUEUE_DELETED_RESERVATION) q->push(SEATSReservation(NULL_ID, c_id, flight, seat));
 
     Debug("Deleted reservation on flight %s for customer %s. [seatsLeft=%d]", f_id, c_id, seats_left + 1);
-    return client.Commit(timeout);
+    
+
+    return result;
 }
 }

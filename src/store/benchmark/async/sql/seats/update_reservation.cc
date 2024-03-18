@@ -72,6 +72,7 @@ transaction_status_t SQLUpdateReservation::Execute(SyncClient &client) {
         return ABORTED_USER;
     }
   
+    //Note: We will read from cache
     query = fmt::format("UPDATE {} SET r_seat = {}, {} = {} WHERE r_id = {} AND r_c_id = {} AND r_f_id = {}", 
                         RESERVATION_TABLE, seatnum, reserve_seats[attr_idx], attr_val, r_id, c_id, f_id);
     client.Write(query, queryResult, timeout);
@@ -81,16 +82,22 @@ transaction_status_t SQLUpdateReservation::Execute(SyncClient &client) {
         return ABORTED_USER;
     }
 
+     Debug("COMMIT");
+    auto result = client.Commit(timeout);
+    if(result != transaction_status_t::COMMITTED) return result;
+
+     //////////////// UPDATE PROFILE /////////////////////
+
     if (std::uniform_int_distribution<int>(1, 100)(*gen_) < PROB_Q_DELETE_RESERVATION){
-        std::cerr << "Update_RES: PUSH TO DELETE Q" << std::endl;
+         std::cerr << "UPDATE_RES: PUSH TO DELETE Q. r_id: " << r_id <<". c_id: " << c_id << ". flight_id: " << flight.flight_id << std::endl;
         delete_q->push(SEATSReservation(r_id, c_id, flight, seatnum));
     }
     else{
-         std::cerr << "Update_RES: PUSH TO UPDATE Q" << std::endl;
+         std::cerr << "UPDATE_RES: PUSH TO UPDATE Q. r_id: " << r_id <<". c_id: " << c_id << ". flight_id: " << flight.flight_id << std::endl;
         update_q->push(SEATSReservation(r_id, c_id, flight, seatnum));
     }
 
-    return client.Commit(timeout);
+    return result;
 }
 }
 
