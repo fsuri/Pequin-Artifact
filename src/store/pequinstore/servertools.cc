@@ -523,7 +523,7 @@ void Server::FindTableVersion(const std::string &key_name, const Timestamp &ts,
       readSetMgr->AddToDepSet(TransactionDigest(*mostRecentPrepared, params.hashDigest), mostRecentPrepared->timestamp());
 
        //Add Table to Read Set. Note: This is PURELY to have a read key in order to lock mutex for CC check. The TS does not matter.
-      readSetMgr->AddToReadSet(key_name, mostRecentPrepared->timestamp(), true);
+      readSetMgr->AddToReadSet(key_name, mostRecentPrepared->timestamp(), true); //is_table_col_version
     }
     else{ //Read committed
       TimestampMessage tsm;
@@ -531,7 +531,7 @@ void Server::FindTableVersion(const std::string &key_name, const Timestamp &ts,
       if(params.query_params.useSemanticCC) readSetMgr->SetPredicateTableVersion(tsm); //Add to current pred
 
        //Add Table to Read Set. Note: This is PURELY to have a read key in order to lock mutex for CC check. The TS does not matter.
-      readSetMgr->AddToReadSet(key_name, tsm, false);
+      readSetMgr->AddToReadSet(key_name, tsm, true); // is_table_col_version
     }
   }
 

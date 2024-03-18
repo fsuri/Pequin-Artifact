@@ -639,6 +639,9 @@ proto::ConcurrencyControl::Result Server::DoMVTSOOCCCheck(
         continue;
       }
 
+        //FIXME: We added read version to read set, but it's not marked as col_version?
+        //Likewise, write should not be marked?
+        //TODO: Prepare/Commit should not be writing these keys.
       if(read.is_table_col_version()){   //Don't do the OCC check for table_versions (//TODO: Also skip column versions. Note: Currently just disabled col versions)
         continue;
       }
