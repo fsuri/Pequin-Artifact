@@ -228,12 +228,16 @@ transaction_status_t NewItem::Execute(SyncClient &client) {
 
   client.asyncWait();
 
+  Debug("COMMIT");
+  auto tx_result = client.Commit(timeout);
+  if(tx_result != transaction_status_t::COMMITTED) return tx_result;
+   
+  //////////////// UPDATE PROFILE /////////////////////
   ItemRecord item_rec(item_id, seller_id, name, initial_price, 0, end_date, ItemStatus::OPEN);
   ItemId itemId = profile.processItemRecord(item_rec);
 
 
-  Debug("COMMIT");
-  return client.Commit(timeout);
+  return tx_result;
 
 }
 

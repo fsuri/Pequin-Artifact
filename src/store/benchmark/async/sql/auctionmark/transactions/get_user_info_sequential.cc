@@ -71,6 +71,9 @@ transaction_status_t GetUserInfo::Execute(SyncClient &client) {
   Debug("Get Buyer Items: %lu", get_buyer_items);
   Debug("Get Feedback: %lu", get_feedback);
 
+  std::vector<ItemRecord> item_comment_responses;
+  std::vector<ItemRecord> item_records;
+
 
   client.Begin(timeout);
 
@@ -115,8 +118,7 @@ transaction_status_t GetUserInfo::Execute(SyncClient &client) {
       deserialize(sellerId, queryResult, i, 1);
       deserialize(commentId, queryResult, i, 7);
 
-      ItemCommentResponse cr(commentId, itemId, sellerId);
-      profile.add_pending_item_comment_response(cr);
+      item_comment_responses.push_back(ItemCommentResponse(commentId, itemId, sellerId));
     }
    //Panic("stop after comment");
   }
@@ -130,8 +132,7 @@ transaction_status_t GetUserInfo::Execute(SyncClient &client) {
        ItemRow ir;
       deserialize(ir, queryResult, i);
       
-      ItemRecord item_rec(ir.itemId, ir.sellerId, ir.i_name, ir.currentPrice, ir.numBids, ir.endDate, ir.itemStatus);
-      ItemId itemId = profile.processItemRecord(item_rec);
+      item_records.push_back(ItemRecord(ir.itemId, ir.sellerId, ir.i_name, ir.currentPrice, ir.numBids, ir.endDate, ir.itemStatus));
     }
    
   }
@@ -150,8 +151,7 @@ transaction_status_t GetUserInfo::Execute(SyncClient &client) {
        ItemRow ir;
       deserialize(ir, queryResult, i);
       
-      ItemRecord item_rec(ir.itemId, ir.sellerId, ir.i_name, ir.currentPrice, ir.numBids, ir.endDate, ir.itemStatus);
-      ItemId itemId = profile.processItemRecord(item_rec);
+      item_records.push_back(ItemRecord(ir.itemId, ir.sellerId, ir.i_name, ir.currentPrice, ir.numBids, ir.endDate, ir.itemStatus));
     }
 
   }
@@ -169,14 +169,25 @@ transaction_status_t GetUserInfo::Execute(SyncClient &client) {
        ItemRow ir;
       deserialize(ir, queryResult, i);
       
-      ItemRecord item_rec(ir.itemId, ir.sellerId, ir.i_name, ir.currentPrice, ir.numBids, ir.endDate, ir.itemStatus);
-      ItemId itemId = profile.processItemRecord(item_rec);
+      item_records.push_back(ItemRecord(ir.itemId, ir.sellerId, ir.i_name, ir.currentPrice, ir.numBids, ir.endDate, ir.itemStatus));
     }
   }
 
-
+  
   Debug("COMMIT");
-  return client.Commit(timeout);
+  auto tx_result = client.Commit(timeout);
+  if(tx_result != transaction_status_t::COMMITTED) return tx_result;
+   
+   //////////////// UPDATE PROFILE /////////////////////
+  for(auto &item_cr: item_comment_responses){
+     profile.add_pending_item_comment_response(item_cr);
+  }
+  for(auto &item_rec: item_records){
+    ItemId itemId = profile.processItemRecord(item_rec);
+  }
+
+
+ return tx_result;
 }
 
 } // namespace auctionmark

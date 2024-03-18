@@ -230,12 +230,15 @@ transaction_status_t NewBid::Execute(SyncClient &client) {
 
   }
  
+   Debug("COMMIT");
+  auto tx_result = client.Commit(timeout);
+  if(tx_result != transaction_status_t::COMMITTED) return tx_result;
    
+   //////////////// UPDATE PROFILE /////////////////////
   ItemRecord item_rec(item_id, seller_id, "", i_current_price, ir.i_num_bids + 1, ir.i_end_date, ir.i_status, newBidId, newBidMaxBuyerId);
   ItemId itemId = profile.processItemRecord(item_rec);
 
-  Debug("COMMIT");
-  return client.Commit(timeout);
+  return tx_result;
 }
 
 } // namespace auctionmark

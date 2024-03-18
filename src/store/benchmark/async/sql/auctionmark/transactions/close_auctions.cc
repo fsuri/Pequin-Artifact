@@ -125,11 +125,14 @@ transaction_status_t CloseAuctions::Execute(SyncClient &client) {
     client.asyncWait();
   }
 
+  Debug("COMMIT CLOSE AUCTION");
+  auto tx_result = client.Commit(timeout);
+  if(tx_result != transaction_status_t::COMMITTED) return tx_result;
+
+   //////////////// UPDATE PROFILE /////////////////////
   UpdateProfile();
  
-  
-  Debug("COMMIT CLOSE AUCTION");
-  return client.Commit(timeout);
+  return tx_result;
 }
 
 void CloseAuctions::UpdateProfile(){

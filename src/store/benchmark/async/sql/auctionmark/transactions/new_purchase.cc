@@ -200,12 +200,16 @@ UW_ASSERT(iir.ib_id == max_bid);
 
   client.asyncWait();
 
+
+  Debug("COMMIT");
+  auto tx_result = client.Commit(timeout);
+  if(tx_result != transaction_status_t::COMMITTED) return tx_result;
+   
+   //////////////// UPDATE PROFILE /////////////////////
   ItemRecord item_rec(item_id, seller_id, "", iir.i_current_price, iir.i_num_bids, iir.i_end_date, ItemStatus::CLOSED); // iir.ib_id, iir.ib_buyer_id, ip_id missing? Doesn't seem to be needed.
   ItemId itemId = profile.processItemRecord(item_rec);
 
-  Debug("COMMIT");
-  
-  return client.Commit(timeout);
+  return tx_result;
 }
 
 } // namespace auctionmark

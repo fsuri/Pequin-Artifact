@@ -797,7 +797,7 @@ void SQLTransformer::TransformDelete(size_t pos, std::string_view &write_stateme
         WriteMessage *write = txn->add_write_set();
         write->mutable_rowupdates()->set_row_idx(table_write->rows().size()); //set row_idx for proof reference
 
-        RowUpdates *row_update = AddTableWriteRow(table_write, col_registry);
+        RowUpdates *row_update = AddTableWriteRow(table_write, col_registry); //Note: This reserves value entries for the entire row
         row_update->set_write_set_idx(txn->write_set_size()-1);
         row_update->set_deletion(true);
 
@@ -813,7 +813,12 @@ void SQLTransformer::TransformDelete(size_t pos, std::string_view &write_stateme
             std::string &col_value = (*row_update->mutable_column_values())[col_registry.col_name_index[col_name]];
             col_value = std::move(p_col_values.at(col_idx++));
         }
-        
+    
+        /*TEST CODE ONLY*/
+        // std::string test_purge_statement;
+        // GenerateTablePurgeStatement(test_purge_statement, table_name, *table_write);
+        // std::cerr << "test purge dummy statement: " << test_purge_statement << std::endl;
+      
         //Create a QueryResult -- set rows affected to 1.
         write_continuation = [this, wcb](int status, query_result::QueryResult* result){
             result->set_rows_affected(1); 

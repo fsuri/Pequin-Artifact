@@ -81,12 +81,16 @@ transaction_status_t GetItem::Execute(SyncClient &client) {
 
   ItemRow ir;
   deserialize(ir, results[0]);
-  
+
+  Debug("COMMIT");
+  auto tx_result = client.Commit(timeout);
+  if(tx_result != transaction_status_t::COMMITTED) return tx_result;
+
+  //////////////// UPDATE PROFILE /////////////////////
   ItemRecord item_rec(ir.itemId, ir.sellerId, ir.i_name, ir.currentPrice, ir.numBids, ir.endDate, ir.itemStatus);
   ItemId itemId = profile.processItemRecord(item_rec);
 
-  Debug("COMMIT");
-  return client.Commit(timeout);
+  return tx_result;
 }
 
 } // namespace auctionmark

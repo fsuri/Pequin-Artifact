@@ -129,7 +129,6 @@ transaction_status_t NewItem::Execute(SyncClient &client) {
     description += fmt::format(" * {} -> {}\n", gag_name, gav_name);
   }                                             
 
-
   //CATEGORY 
   std::string getCategory = fmt::format("SELECT * FROM {} WHERE c_id = {}", TABLE_CATEGORY, category_id);
   client.Query(getCategory, queryResult, timeout);
@@ -210,15 +209,18 @@ transaction_status_t NewItem::Execute(SyncClient &client) {
     client.Write(stmt, timeout, true);
   }
 
-
   client.asyncWait();
 
+  Debug("COMMIT");
+  auto tx_result = client.Commit(timeout);
+  if(tx_result != transaction_status_t::COMMITTED) return tx_result;
+   
+   //////////////// UPDATE PROFILE /////////////////////
   ItemRecord item_rec(item_id, seller_id, name, initial_price, 0, end_date, ItemStatus::OPEN);
   ItemId itemId = profile.processItemRecord(item_rec);
 
 
-  Debug("COMMIT");
-  return client.Commit(timeout);
+  return tx_result;
 
 }
 
