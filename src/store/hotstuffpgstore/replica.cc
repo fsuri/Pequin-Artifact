@@ -238,7 +238,6 @@ void Replica::HandleRequest(const TransportAddress &remote,
         requests[digest_m2] = bubblePackedMsg;
         replyAddrs[digest_m2] = clientAddr; // replyAddress is the address of the client wo sent this request, so we can answer him
         pendingExecutions[seqnumm] = digest_m2;
-        std::cout << "Shir: executing f of the third bubble! "<< digest_m2 << std::endl;
         return (void*) true;
       };
       transport->DispatchTP_main(f);

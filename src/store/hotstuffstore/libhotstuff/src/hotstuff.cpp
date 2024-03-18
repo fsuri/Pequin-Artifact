@@ -113,7 +113,6 @@ void MsgConsensusRespCmd::postponed_parse() {
 
 // TODO: improve this function
 void HotStuffBase::exec_command(uint256_t cmd_hash, commit_cb_t callback) {
-    // std::cout << "Shir: executing command?  "<< std::endl;
     cmd_pending.enqueue(std::make_pair(cmd_hash, callback));
 }
 
@@ -540,7 +539,6 @@ void HotStuffBase::start(
         std::vector<std::tuple<NetAddr, pubkey_bt, uint256_t>> &&replicas,
         bool ec_loop) {
     std::cout << "HSBase started" << std::endl;
-    std::cout << "Shir: number of replicas:  "<< replicas.size() << std::endl;
     for (size_t i = 0; i < replicas.size(); i++)
     {
         auto &addr = std::get<0>(replicas[i]);
@@ -646,8 +644,6 @@ void HotStuffBase::start(
              return false;
      });
 
-    // std::cout << "Shir: debugging hotstuff 1" << std::endl;
-
 
     exec_pending.reg_handler(ec, [this](exec_queue_t &q) {
         std::pair<commit_cb_t, Finality> e;
@@ -659,13 +655,10 @@ void HotStuffBase::start(
         return false;
     });
 
-    // std::cout << "Shir: debugging hotstuff 2" << std::endl;
-
     cmd_pending.reg_handler(ec, [this](cmd_queue_t &q) {
         std::pair<uint256_t, commit_cb_t> e;
         while (q.try_dequeue(e))
         {
-            // std::cout << "Shir: in while 1" << std::endl;
 
             ReplicaID proposer = pmaker->get_proposer();
             const auto &cmd_hash = e.first;
@@ -679,14 +672,11 @@ void HotStuffBase::start(
                 continue;
             }
 
-            // std::cout << "Shir: in while 2" << std::endl;
-
             
             auto it = decision_waiting.find(cmd_hash);
 
             if (it == decision_waiting.end())
             {
-                // std::cout << "Shir: in while 3" << std::endl;
                 it = decision_waiting.insert(std::make_pair(cmd_hash, e.second)).first;
 
             }
@@ -695,13 +685,10 @@ void HotStuffBase::start(
             
                 exec_pending.enqueue(std::make_pair(e.second, Finality(id, 0, 0, 0, cmd_hash, uint256_t())));
                 
-            // std::cout << "Shir: in while 4" << std::endl;
-
             if (proposer != get_id()) continue;
             cmd_pending_buffer.push(cmd_hash);
             if (cmd_pending_buffer.size() >= blk_size)
             {
-                // std::cout << "Shir: in while 5" << std::endl;
                 std::vector<uint256_t> cmds;
                 for (uint32_t i = 0; i < blk_size; i++)
                 {
@@ -713,7 +700,6 @@ void HotStuffBase::start(
                     if (proposer == get_id())
                         on_propose(cmds, pmaker->get_parents());
                 });
-                // std::cout << "Shir: in while 6" << std::endl;
 
                 return true;
             }
@@ -721,8 +707,6 @@ void HotStuffBase::start(
         }
         return false;
     });
-
-    // std::cout << "Shir: debugging hotstuff 3" << std::endl;
 
      ordering1.reg_handler(ec, [this](ordering1_queue_t &q) {
          std::pair<uint256_t, ordering1_cb_t> e;
@@ -751,8 +735,6 @@ void HotStuffBase::start(
          }
          return false;
     });
-
-    // std::cout << "Shir: debugging hotstuff 4" << std::endl;
 
      ordering2.reg_handler(ec, [this](ordering2_queue_t &q) {
          std::pair<uint256_t, ordering2_cb_t> e;
@@ -793,8 +775,6 @@ void HotStuffBase::start(
          }
          return false;
     });
-
-    // std::cout << "Shir: debugging hotstuff 5" << std::endl;
 
 
 }

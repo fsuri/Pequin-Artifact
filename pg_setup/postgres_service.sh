@@ -94,7 +94,7 @@ fi
 if dpkg -l | grep postgresql -q ; then
     echo "Postgres is installed already..."
 else
-    display_banner "Postgres is not yet installed, installeing it now..."
+    display_banner "Postgres is not yet installed, installing it now..."
     sudo echo "ssl-cert:x:115" >> /etc/group
     sudo apt install postgresql
     sudo sed -i '$ d' /etc/group

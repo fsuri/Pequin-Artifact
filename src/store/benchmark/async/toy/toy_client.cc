@@ -75,7 +75,6 @@ ToyClient::ToyClient(
                                  expDuration, delay, warmupSec, cooldownSec,
                                  tputInterval, abortBackoff, retryAborted, maxBackoff, maxAttempts, timeout,
                                  latencyFilename){
-  // std::cout << "Shir: toy client constructor" << std::endl;
 }
 
 ToyClient::~ToyClient() {}

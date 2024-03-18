@@ -8,16 +8,16 @@
     ["client_total", "client_processes_per_client_node",
       "client_threads_per_process"]
   ],
-  "replication_protocol": ["hotstuff"],
-  "client_protocol_mode": ["hotstuff"],
-  "num_shards": [3],
-  "num_groups": [3],
+  "replication_protocol": ["hotstuffpg"],
+  "client_protocol_mode": ["hotstuffpg"],
+  "num_shards": [1],
+  "num_groups": [1],
 
   "server_load_time": 10,
   "client_num_keys": 10000000,
   "benchmark_type": "sql_bench", 
   "benchmark_name": "rw-sql",
-  "client_zipf_coefficient": 0.75,   
+  "client_zipf_coefficient": 0.0,   
   "client_key_selector": "zipf",
   "rw_num_ops_txn": 2,
   "sql_bench": true,
@@ -25,6 +25,7 @@
   "num_tables": 1,
   "num_keys_per_table": 10,
   "max_range": 3,
+  "point_op_freq": 50,
   "read_only": "false",
 
 
@@ -83,7 +84,7 @@
     [8]
   ],
   "client_threads_per_process": [
-    [3]
+    [1]
   ],
   "client_nodes_per_server": 1,
   "pin_server_processes": [0, 1, 2, 3, 4, 5, 6, 7],
@@ -226,7 +227,7 @@
   "output_latency_scale": 1000,
   "_src_commit_hash": "2f1df20be73ae7f0036268c18ac3ce984eb711e5",
   "stats_file_name": "stats.json",
-  "base_local_exp_directory":  "/home/sc3348/Pesto/Pequin-Artifact/output",
+  "base_local_exp_directory":  "/home/sc3348/Pesto/tests_output",
   "base_mounted_fs_path": "/mnt/extra",
   "base_remote_bin_directory_nfs": "/users/shir/indicus",
   "base_remote_exp_directory": "/mnt/extra/experiments",
