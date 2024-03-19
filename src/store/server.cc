@@ -333,7 +333,7 @@ DEFINE_bool(indicus_replica_gossip, false, "use gossip between replicas to excha
 */
 DEFINE_uint32(pequin_snapshot_prepared_k, 1, "number of prepared reads to include in snapshot (before reaching first committed version)");
 
-DEFINE_bool(pequin_query_eager_exec, true, "skip query sync protocol and execute optimistically on local state");
+DEFINE_bool(pequin_query_eager_exec, false, "skip query sync protocol and execute optimistically on local state");
 DEFINE_bool(pequin_query_point_eager_exec, false, "use eager query exec instead of proof based point read");
 
 DEFINE_bool(pequin_eager_plus_snapshot, true, "perform a snapshot and eager execution simultaneously; proceed with sync only if eager fails");
@@ -715,7 +715,7 @@ int main(int argc, char **argv) {
       default:
           NOT_REACHABLE();
       }
-    
+
       pequinstore::QueryParameters query_params(FLAGS_store_mode,
                                                  0,
                                                  0,
@@ -995,7 +995,7 @@ int main(int argc, char **argv) {
         for(auto &[table_name, table_args]: tables_to_load.items()){ 
           const std::vector<std::pair<std::string, std::string>> &column_names_and_types = table_args["column_names_and_types"];
           const std::vector<uint32_t> &primary_key_col_idx = table_args["primary_key_col_idx"];
-          
+
           if(!table_args.contains("row_data_path")) { //RW-SQL ==> generate rows 
             //std::vector<std::vector<std::string>> values;
             row_segment_t *values = new row_segment_t();

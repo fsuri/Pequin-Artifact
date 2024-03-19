@@ -583,12 +583,13 @@ typedef struct QueryParameters {
     const uint64_t monotonicityGrace;
 
     QueryParameters(bool sql_mode, uint64_t syncQuorum, uint64_t queryMessages, uint64_t mergeThreshold, uint64_t syncMessages, uint64_t resultQuorum, size_t snapshotPrepared_k,
-        bool eagerExec, bool eagerPointExec, bool eagerPlusSnapshot, bool readPrepared, bool cacheReadSet, bool optimisticTxID, bool compressOptimisticTxIDs, bool mergeActiveAtClient, 
+        bool eagerExec_, bool eagerPointExec, bool eagerPlusSnapshot_, bool readPrepared, bool cacheReadSet, bool optimisticTxID, bool compressOptimisticTxIDs, bool mergeActiveAtClient, 
         bool signClientQueries, bool signReplicaToReplicaSync, bool parallel_queries, bool useSemanticCC, bool useActiveReadSet, uint64_t monotonicityGrace) : 
         sql_mode(sql_mode), syncQuorum(syncQuorum), queryMessages(queryMessages), mergeThreshold(mergeThreshold), syncMessages(syncMessages), resultQuorum(resultQuorum), snapshotPrepared_k(snapshotPrepared_k),
-        eagerExec(eagerExec), eagerPointExec(eagerPointExec), eagerPlusSnapshot(eagerPlusSnapshot), readPrepared(readPrepared), cacheReadSet(cacheReadSet), optimisticTxID(optimisticTxID), compressOptimisticTxIDs(compressOptimisticTxIDs), mergeActiveAtClient(mergeActiveAtClient), 
+        eagerExec(eagerExec_), eagerPointExec(eagerPointExec), eagerPlusSnapshot((eagerExec_ && eagerPlusSnapshot_)), readPrepared(readPrepared), cacheReadSet(cacheReadSet), optimisticTxID(optimisticTxID), compressOptimisticTxIDs(compressOptimisticTxIDs), mergeActiveAtClient(mergeActiveAtClient), 
         signClientQueries(signClientQueries), signReplicaToReplicaSync(signReplicaToReplicaSync), parallel_queries(parallel_queries), 
-        useSemanticCC(useSemanticCC && sql_mode), useActiveReadSet(useActiveReadSet), useColVersions(false), monotonicityGrace(monotonicityGrace) {
+        useSemanticCC((useSemanticCC && sql_mode)), useActiveReadSet(useActiveReadSet), useColVersions(false), monotonicityGrace(monotonicityGrace) {
+            //std::cerr << "eagerPlusSnapshot: " 
             if(eagerPlusSnapshot) UW_ASSERT(eagerExec); 
             if(useSemanticCC) UW_ASSERT(sql_mode);
             if(useActiveReadSet) UW_ASSERT(useSemanticCC);
