@@ -466,7 +466,7 @@ Then, create a directory to store the external libraries. Copy the libararies to
 For any Troubleshooting consult: https://www.cockroachlabs.com/docs/stable/install-cockroachdb-linux.html
 
 ### Building binaries:
-> :warning: Make sure to have configured all environment variables: source the TBB `setvars.sh` and the helper script `set_env.sh` to make sure TBB, java, and jemalloc environment variables are set.
+> :warning: Make sure to have configured all environment variables: source the TBB `/opt/intel/oneapi/setvars.sh` and the helper script `helper-scripts/set_env.sh` to make sure TBB, java, and jemalloc environment variables are set.
 
    
 Finally, you can build the binaries:

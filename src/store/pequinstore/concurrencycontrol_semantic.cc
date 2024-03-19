@@ -102,7 +102,7 @@ static bool lazy_check = true; //TURN TO FALSE TO ENABLE RECHECK FOR MORE PRECIS
 //Enforce that we can ony issue monotonic writes
 ////TODO: Alternatively: Could enforce that we can't see any writes older than the newest table version observed in a prepared/committed pred. 
           //To check this would need a third map storing the high read TableVersion.
-bool Server::CheckMonotonicTableColVersions(const proto::Transaction &txn) {
+bool Server::CheckMonotonicTableColVersions(const std::string &txn_digest, const proto::Transaction &txn) {
   for(auto &[table_name, _]: txn.table_writes()){
      //Get Last version on this table                      
     TableWriteMap::const_accessor tw;
@@ -112,7 +112,12 @@ bool Server::CheckMonotonicTableColVersions(const proto::Transaction &txn) {
     
     //NOTE: only comparing on the real time component currently.
     if(txn.timestamp().timestamp() + write_monotonicity_grace <= highTS.getTimestamp()){
-      Panic("Non monotonic Table/Col Write. Table/Col name: %s. txnTS: %lu, highTS: %lu, grace: %lu", table_name.c_str(), txn.timestamp().timestamp(), highTS.getTimestamp(), write_monotonicity_grace);
+      Warning("Aborting txn: %s. Non monotonic Table/Col Write to [%s]! ms_diff: %lu [ts_diff: %lu]. ms_grace: %lu [ts_grace: %lu]. writeTxnTS: %lu < highTS: %lu", 
+          BytesToHex(txn_digest, 16).c_str(), table_name.c_str(), 
+          timeServer.TStoMS(highTS.getTimestamp() - txn.timestamp().timestamp()), highTS.getTimestamp() - txn.timestamp().timestamp(), //diffs
+          params.query_params.monotonicityGrace,  write_monotonicity_grace,  //grace
+          txn.timestamp().timestamp(), highTS.getTimestamp());
+
       return false;
     } 
   }
@@ -246,6 +251,7 @@ proto::ConcurrencyControl::Result Server::CheckReadPred(const Timestamp &txn_ts,
 //for(auto itr = curr_table_writes.rbegin(); itr != curr_table_writes.rend(); ++itr){
 
     const Timestamp &curr_ts = itr->first;
+     Debug("TX_ts: [%lu:%lu]. Check vs Write_Ts [%lu:%lu]", txn_ts.getTimestamp(), txn_ts.getID(), curr_ts.getTimestamp(), curr_ts.getID());
      //if(curr_ts > txn_ts) continue;
    
     //Skip comparing against table version itself. We've already seen it, it cannot possibly be a new write.
@@ -256,6 +262,7 @@ proto::ConcurrencyControl::Result Server::CheckReadPred(const Timestamp &txn_ts,
 
     Debug("TX_ts: [%lu:%lu]. Pred: [%s]: compare vs write TS[%lu:%lu]", txn_ts.getTimestamp(), txn_ts.getID(), pred.table_name().c_str(), itr->first.getTimestamp(), itr->first.getID());
     auto &[write_txn, commit_or_prepare] = itr->second;
+    UW_ASSERT(write_txn); 
     UW_ASSERT(write_txn->has_txndigest());
 
     const TableWrite &txn_table_write = write_txn->table_writes().at(pred.table_name());
@@ -310,6 +317,7 @@ proto::ConcurrencyControl::Result Server::CheckReadPred(const Timestamp &txn_ts,
 
       if((!force_recheck && dynamically_active_keys.count(write_key)) || 
           std::find_if(txn_read_set.begin(), txn_read_set.end(), [&write_key](const ReadMessage &read){return read.key() == write_key;}) != txn_read_set.end()){
+            Debug("TX_ts: [%lu:%lu]. Can skip compare vs write key [%s]. Already in active or dynamic read set", txn_ts.getTimestamp(), txn_ts.getID(), write_key.c_str());
             continue; //skip eval this key. It's already in our read set (or dynamically active read set)
       }
 
@@ -319,11 +327,15 @@ proto::ConcurrencyControl::Result Server::CheckReadPred(const Timestamp &txn_ts,
       if(!row.deletion()){ //Note: Deletion by default Eval to false.
         for(auto &pred_instance: pred.pred_instances()){
          conflict = EvaluatePred(pred_instance, row, pred.table_name());
+        
          if(!lazy_check && dynamic_dep_candidates.count(write_key)){
             dynamic_dep_candidates[write_key].first = true;
             continue; //No conflict because we saw prepared version that doesn't conflict. In this case MUST wait for that prepared version (active candidate)
          }
-         if(conflict) return proto::ConcurrencyControl::ABSTAIN; 
+          Debug("TX_ts: [%lu:%lu]. Eval pred [%s] vs write key [%s]. Has conflict? %d", txn_ts.getTimestamp(), txn_ts.getID(), pred_instance.c_str(), write_key.c_str(), conflict);
+         if(conflict) {
+          return proto::ConcurrencyControl::ABSTAIN; 
+         }
          //if(conflict) return (commit_or_prepare ? proto::ConcurrencyControl::ABORT : proto::ConcurrencyControl::ABSTAIN); 
            //TODO: Replace with ABORT: FIXME: To do this, need to store commit proof, and not just the TXN.
         }
@@ -433,6 +445,7 @@ proto::ConcurrencyControl::Result Server::CheckTableWrites(const proto::Transact
 
       const ReadSet &txn_read_set = read_txn->has_merged_read_set() ? read_txn->read_set() : read_txn->merged_read_set().read_set();
       if(std::find_if(txn_read_set.begin(), txn_read_set.end(), [write_key](const ReadMessage &read){return read.key()==write_key;}) != txn_read_set.end()){
+          Debug("TX_ts: [%lu:%lu]. Can skip compare write key [%s] vs pred. Read Txn already has it in active read set", txn_ts.getTimestamp(), txn_ts.getID(), write_key.c_str());
               continue; //skip eval this key. It's already in the predicate txns' read set 
       }
 
@@ -465,6 +478,7 @@ proto::ConcurrencyControl::Result Server::CheckTableWrites(const proto::Transact
         for(auto &pred_instance: pred.pred_instances()){
 
           bool conflict = EvaluatePred(pred_instance, row, pred.table_name());
+          Debug("TX_ts: [%lu:%lu]. Eval write key [%s] vs read pred [%s]. Has conflict? %d", txn_ts.getTimestamp(), txn_ts.getID(), write_key.c_str(), pred_instance.c_str(), conflict);
           if(conflict) return proto::ConcurrencyControl::ABSTAIN; 
           //if(conflict) return commit_or_prepare ? proto::ConcurrencyControl::ABSTAIN: proto::ConcurrencyControl::ABSTAIN; 
                                 //TODO: Replace with ABORT: FIXME: To do this, need to access a commit proof, and not just the TXN.

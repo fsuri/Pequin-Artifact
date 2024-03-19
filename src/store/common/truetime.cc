@@ -74,11 +74,20 @@ TrueTime::GetTimeAndError(uint64_t &time, uint64_t &error)
    error = simError;
 }
 
-uint64_t TrueTime::MsToTS(const uint64_t &time_milis){
+uint64_t TrueTime::MStoTS(const uint64_t &time_milis){
     uint64_t second_comp = time_milis / 1000;
     uint64_t milisecond_remain = time_milis % 1000;
     uint64_t microsecond_comp =  milisecond_remain * 1000;
   
     uint64_t ts = (second_comp << 32) | (microsecond_comp << 12);
     return ts;
+}
+
+uint64_t TrueTime::TStoMS(const uint64_t &time_stamp)
+{
+    uint64_t second_comp = time_stamp >> 32;
+    uint64_t microsecond_comp = (time_stamp - (second_comp << 32)) >> 12;
+
+    uint64_t ms = second_comp * 1000 + microsecond_comp / 1000;
+    return ms;
 }

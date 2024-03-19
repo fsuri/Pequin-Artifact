@@ -1,6 +1,6 @@
 #!/bin/bash
 
-CLIENTS=2
+CLIENTS=5
 F=0
 NUM_GROUPS=1
 CONFIG="0_local_test_outputs/configs/shard-r1.config"

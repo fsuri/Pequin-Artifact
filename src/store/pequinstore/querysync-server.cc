@@ -1183,7 +1183,8 @@ void Server::ProcessSuppliedTxn(const std::string &txn_id, proto::TxnInfo &txn_i
             // (Can early abort query to not waste exec since sync might fail- or optimistically execute and hope for best) --> won't happen in simulation (unless testing failures)
     
         auto f = [this, p1, txn, txn_dig = txn_id]() mutable {
-            if(params.signClientProposals) *txn->mutable_txndigest() = txn_dig; //Hack to have access to txnDigest inside TXN later (used for abstain conflict)
+            //if(params.signClientProposals) *txn->mutable_txndigest() = txn_dig; //Hack to have access to txnDigest inside TXN later (used for abstain conflict)
+            *txn->mutable_txndigest() = txn_dig; //Hack to have access to txnDigest inside TXN later (used for abstain conflict, and for FindTableVersion)
 
             const TCPTransportAddress *dummy_remote = new TCPTransportAddress(sockaddr_in()); //must allocate because ProcessProposal binds ref...
             ProcessProposal(*p1, *dummy_remote, txn, txn_dig, true, true); //Set gossip to true ==> No reply; set forceMaterialize to true   (Shouldn't be necessary anymore with the RegisterForce logic)                    

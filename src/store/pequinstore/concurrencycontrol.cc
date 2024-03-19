@@ -623,7 +623,7 @@ proto::ConcurrencyControl::Result Server::DoMVTSOOCCCheck(
 
     //1.5 Reject TX that write non-monotonic Table Version
     if(params.query_params.useSemanticCC){
-      if(!CheckMonotonicTableColVersions(txn)){
+      if(!CheckMonotonicTableColVersions(txnDigest, txn)){
         Debug("[%lu:%lu][%s] ABSTAIN ts %lu below low Table Version threshold.", txn.client_id(), txn.client_seq_num(), BytesToHex(txnDigest, 16).c_str(), ts.getTimestamp());
         stats.Increment("cc_abstains", 1);
         stats.Increment("cc_abstains_monotonic", 1);

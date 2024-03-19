@@ -152,8 +152,10 @@ Server::Server(const transport::Configuration &config, int groupIdx, int idx,
   mat.release();
 
   //Compute write_monotonicity_grac 
-  write_monotonicity_grace = timeServer.MsToTS(params.query_params.monotonicityGrace);
+  write_monotonicity_grace = timeServer.MStoTS(params.query_params.monotonicityGrace);
   std::cerr << "write_monotonicity_grace: " << write_monotonicity_grace << std::endl;
+  //std::cerr << "Reverse: " << timeServer.TStoMS(write_monotonicity_grace) << std::endl;
+  UW_ASSERT(timeServer.TStoMS(write_monotonicity_grace) == params.query_params.monotonicityGrace);
 
   if (sql_bench) {
 
