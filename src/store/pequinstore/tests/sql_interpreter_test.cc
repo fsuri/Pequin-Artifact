@@ -578,6 +578,14 @@ void test_predicates(){
     std::cerr << std::endl << "row2: " << std::endl;
   r2 = sql_interpreter.EvalPred(pred, table_name, *row2);
   UW_ASSERT(r2);
+
+
+   pred = "col1 >= 5 AND col2 = 'neil' AND col3 = 'brown'";
+  std::cerr << std::endl << "TESTING PRED: " << pred << std::endl;
+    std::cerr << std::endl << "row1: " << std::endl;
+  r1 = sql_interpreter.EvalPred(pred, table_name, *row1);
+  UW_ASSERT(!r1);
+ 
 }
 
 int main() {

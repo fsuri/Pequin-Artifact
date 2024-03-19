@@ -1912,10 +1912,14 @@ void SQLTransformer::GetNextOperator(std::string_view &cond_statement, size_t &o
          op_pos_post = op_pos + or_hook.length();
     }
     else if((op_pos = cond_statement.find(in_hook)) != std::string::npos){ //if IN exists.
+        // std::cerr << "SPECIAL COND: " << cond_statement << std::endl;
+        // Panic("stop");
          op_type = SQL_SPECIAL;
          op_pos_post = op_pos + in_hook.length();
     }
     else if((op_pos = cond_statement.find(between_hook)) != std::string::npos){ //if BETWEEN exists.
+        // std::cerr << "SPECIAL COND: " << cond_statement << std::endl;
+        // Panic("stop");
          op_type = SQL_SPECIAL;
          op_pos_post = op_pos + between_hook.length();
     }

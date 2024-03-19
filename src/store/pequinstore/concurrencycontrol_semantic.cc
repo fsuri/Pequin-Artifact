@@ -476,7 +476,7 @@ proto::ConcurrencyControl::Result Server::CheckTableWrites(const proto::Transact
         // for(auto &instance: pred.instantiations()){
         //   std::string pred_instance = pred.where_clause(); //TODO: FIXME: fill in all the {} entries... Seems like this is not straightforward with fmt::format() (requires all args at once)
         for(auto &pred_instance: pred.pred_instances()){
-
+          Debug("TX_ts: [%lu:%lu]. Eval write key [%s] vs read pred [%s].", txn_ts.getTimestamp(), txn_ts.getID(), write_key.c_str(), pred_instance.c_str());
           bool conflict = EvaluatePred(pred_instance, row, pred.table_name());
           Debug("TX_ts: [%lu:%lu]. Eval write key [%s] vs read pred [%s]. Has conflict? %d", txn_ts.getTimestamp(), txn_ts.getID(), write_key.c_str(), pred_instance.c_str(), conflict);
           if(conflict) return proto::ConcurrencyControl::ABSTAIN; 

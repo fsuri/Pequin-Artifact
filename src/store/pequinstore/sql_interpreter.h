@@ -74,8 +74,8 @@ static std::string delete_hook("DELETE FROM ");
 //Condition operators
 static std::string and_hook(" AND ");
 static std::string or_hook(" OR ");
-static std::string in_hook("IN");
-static std::string between_hook("BETWEEN");
+static std::string in_hook(" IN ");
+static std::string between_hook(" BETWEEN ");
 
 enum col_t { //Could store col_t instead of String data type.
     BOOL,
