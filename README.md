@@ -466,6 +466,8 @@ Then, create a directory to store the external libraries. Copy the libararies to
 For any Troubleshooting consult: https://www.cockroachlabs.com/docs/stable/install-cockroachdb-linux.html
 
 ### Building binaries:
+> :warning: Make sure to have configured all environment variables: source the TBB `setvars.sh` and the helper script `set_env.sh` to make sure TBB, java, and jemalloc environment variables are set.
+
    
 Finally, you can build the binaries:
 Navigate to `Pequin-Artifact/src` and build:
@@ -636,7 +638,7 @@ Additionally, you will have to install the following requisites:
 
 4. **Helper scripts**: 
 
-    Navigate to Pequin-Artifact/helper-scripts. Copy all three scripts (with the exact name) and place them in `/usr/local/etc` on the Cloudlab machine. Add execution permissions: `chmod +x disable_HT.sh; chmod +x turn_off_turbo.sh; chmod +x set_env.sh` The scripts are used at runtime by the experiments to disable hyperthreading and turbo respectively, as well as to set environment variables for Hoard and Java (for BFTSmart).
+    Navigate to Pequin-Artifact/helper-scripts. Copy all three scripts (with the exact name) and place them in `/usr/local/etc` on the Cloudlab machine. Add execution permissions: `chmod +x disable_HT.sh; chmod +x turn_off_turbo.sh; chmod +x set_env.sh` The scripts are used at runtime by the experiments to disable hyperthreading and turbo respectively, as well as to set environment variables for jemalloc and Java (for BFTSmart).
     
 5. **Pre-Troubleshooting**:
 
