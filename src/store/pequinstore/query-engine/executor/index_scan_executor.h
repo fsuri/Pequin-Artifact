@@ -16,6 +16,7 @@
 
 #include "../executor/abstract_scan_executor.h"
 #include "../index/scan_optimizer.h"
+#include "../storage/data_table.h"
 #include "../storage/tile_group_header.h"
 #include "../storage/storage_manager.h"
 #include "../concurrency/transaction_manager.h"
@@ -65,9 +66,9 @@ class IndexScanExecutor : public AbstractScanExecutor {
   void GetColNames(const expression::AbstractExpression * child_expr, std::unordered_set<std::string> &column_names, bool use_updated = true);
 
 
-  // inline const std::string&& GetTableName() override {
-  //  return table_->GetName();
-  // }
+  inline const std::string&& GetTableName() override {
+    return table_->GetName();
+  }
 
 
 
