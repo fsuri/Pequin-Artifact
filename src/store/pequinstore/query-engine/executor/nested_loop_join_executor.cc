@@ -89,9 +89,9 @@ bool NestedLoopJoinExecutor::DExecute() {
   //Either store in a map inside the txn context
   //Or update in tx_context each time.
   //Set TableVersions
-  // for(auto &child: children_){
-  //   child->GetTableName();
-  // }
+  for(auto &child: children_){
+     child->GetTableName();
+  }
   
 
   // Grab info from plan node and check it
