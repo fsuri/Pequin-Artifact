@@ -140,6 +140,18 @@ bool NestedLoopJoinExecutor::DExecute() {
           join_values.push_back(predicate_value);
         }
 
+        // NOTE: Here is check for empty result
+        if (join_values.size() == 0) {
+          // Empty result
+          if(current_txn->GetHasSnapshotMgr()){
+            auto table_name = children_[1]->GetTableName();
+            auto current_txn_timestamp = current_txn->GetBasilTimestamp();
+            auto ss_mgr = current_txn->GetSnapshotMgr();
+            auto find_snapshot = current_txn->GetSnapshotRead();
+            current_txn->GetTableVersion()(table_name, current_txn_timestamp, false, nullptr, find_snapshot, ss_mgr, false, nullptr);
+          }
+        }
+
         // Pass the columns and values to right executor
         LOG_TRACE("Update the new value for index predicate");
         children_[1]->UpdatePredicate(join_column_ids_right, join_values);
