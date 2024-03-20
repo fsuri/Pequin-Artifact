@@ -60,6 +60,8 @@ class AbstractScanExecutor : public AbstractExecutor {
 
   /** @brief Columns from tile group to be added to logical tile output. */
   std::vector<oid_t> column_ids_;
+
+  virtual const std::string&& GetTableName() {}
 };
 
 }  // namespace executor

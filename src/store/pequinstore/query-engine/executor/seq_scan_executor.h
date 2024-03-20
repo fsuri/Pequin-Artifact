@@ -76,6 +76,10 @@ protected:
 
   void PrepareResult(std::unordered_map<oid_t, std::vector<oid_t>> &position_map);
 
+//  inline const std::string* GetTableName() override {
+//    return target_table_->GetName();
+//   }
+
 private:
   //===--------------------------------------------------------------------===//
   // Helper Functions

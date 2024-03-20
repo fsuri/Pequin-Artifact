@@ -52,6 +52,7 @@ bool NestedLoopJoinExecutor::DInit() {
   return true;
 }
 
+
 /**
  * @brief Creates logical tiles from the two input logical tiles after applying
  * join predicate.
@@ -82,6 +83,16 @@ bool NestedLoopJoinExecutor::DExecute() {
             GetJoinTypeString());
 
    std::cerr << "NestedLoop Join executor is running" << std::endl;
+   auto current_txn = executor_context_->GetTransaction();
+
+  //TODO: FindTableVersions and tentatively store them. Leave it up to the Index_executor to decide to use or not use the version!
+  //Either store in a map inside the txn context
+  //Or update in tx_context each time.
+  //Set TableVersions
+  // for(auto &child: children_){
+  //   child->GetTableName();
+  // }
+  
 
   // Grab info from plan node and check it
   const planner::NestedLoopJoinPlan &node = GetPlanNode<planner::NestedLoopJoinPlan>();

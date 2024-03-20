@@ -462,6 +462,9 @@ public:
 
   void SetIsPointRead(bool is_point_read) { is_point_read_ = is_point_read; }
 
+  bool IsNLJoin() {return is_nl_join_;}
+  void SetIsNLJoin(bool is_nl_join){ is_nl_join_ = is_nl_join;}
+
   /**
    * @brief      Gets the isolation level.
    *
@@ -587,6 +590,8 @@ private:
 
   /** Whether this is a point read query */
   bool is_point_read_ = false;
+
+  bool is_nl_join_ = false;
 
   ReadWriteSet rw_set_;
   CreateDropSet rw_object_set_;

@@ -127,9 +127,9 @@ void SeqScanExecutor::CheckRow(ItemPointer head_tuple_location, concurrency::Tra
   bool found_prepared = false;
 
  
-  //If in snapshot only mode don't need to produce a result. Note: if doing pointQuery DO want the result => FIXME: UNTRUE: FOR NESTED LOOP JOIN WE NEED RESULT.
-  bool snapshot_only_mode = false; 
-  //bool snapshot_only_mode = !current_txn->GetHasReadSetMgr() && current_txn->GetHasSnapshotMgr(); 
+  //If in snapshot only mode don't need to produce a result. Note: if doing pointQuery DO want the result => FOR NESTED LOOP JOIN WE NEED RESULT.
+  //bool snapshot_only_mode = false; 
+  bool snapshot_only_mode = !current_txn->GetHasReadSetMgr() && current_txn->GetHasSnapshotMgr() && !current_txn->IsNLJoin(); 
  
 
 
@@ -243,7 +243,7 @@ bool SeqScanExecutor::FindRightRowVersion(const Timestamp &txn_timestamp, std::s
   auto snapshot_mgr = current_txn->GetSnapshotMgr();
 
   //Note: For find snapshot only mode we also want to read and produce a result (necessary for nested joins), but we will not record a readset
-  bool perform_read = current_txn->GetHasReadSetMgr() || perform_find_snapshot; 
+  bool perform_read = current_txn->GetHasReadSetMgr() || (perform_find_snapshot && !current_txn->IsNLJoin()); 
  
   bool perform_read_on_snapshot = current_txn->GetSnapshotRead();
   auto snapshot_set = current_txn->GetSnapshotSet();
@@ -321,7 +321,7 @@ bool SeqScanExecutor::FindRightRowVersion(const Timestamp &txn_timestamp, std::s
           Debug("Don't add force materialized to snapshot, continue reading"); //Panic("Nothing should be force Materialized in current test");
           return done;
       }
-      
+
       auto const &read_prepared_pred = current_txn->GetReadPreparedPred();
       Timestamp const &prepared_timestamp = tile_group_header->GetBasilTimestamp(tuple_location.offset);
       // Add to snapshot if tuple satisfies read prepared predicate and haven't read more than k versions

@@ -656,9 +656,9 @@ void IndexScanExecutor::CheckRow(ItemPointer tuple_location, concurrency::Transa
     bool found_committed = false;
     bool found_prepared = false;
 
-    //If in snapshot only mode don't need to produce a result. Note: if doing pointQuery DO want the result => FIXME: UNTRUE: FOR NESTED LOOP JOIN WE NEED RESULT.
-    bool snapshot_only_mode = false; 
-    //bool snapshot_only_mode = !current_txn->GetHasReadSetMgr() && current_txn->GetHasSnapshotMgr(); 
+    //If in snapshot only mode don't need to produce a result. Note: if doing pointQuery DO want the result => FOR NESTED LOOP JOIN WE NEED RESULT
+    //bool snapshot_only_mode = false; 
+    bool snapshot_only_mode = !current_txn->GetHasReadSetMgr() && current_txn->GetHasSnapshotMgr() && !current_txn->IsNLJoin(); 
   
        
     //Iterate through linked list, from newest to oldest version   
@@ -726,7 +726,7 @@ bool IndexScanExecutor::FindRightRowVersion(const Timestamp &timestamp, std::sha
     //size_t k_prepared_versions = current_txn->GetKPreparedVersions();
 
     //Note: For find snapshot only mode we also want to read and produce a result (necessary for nested joins), but we will not record a readset
-    bool perform_read = current_txn->GetHasReadSetMgr() || perform_find_snapshot; 
+    bool perform_read = current_txn->GetHasReadSetMgr() || (perform_find_snapshot && !current_txn->IsNLJoin()); 
     bool perform_point_read = current_txn->IsPointRead();
   
     bool perform_read_on_snapshot = current_txn->GetSnapshotRead();
