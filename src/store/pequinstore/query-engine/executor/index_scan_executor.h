@@ -66,7 +66,7 @@ class IndexScanExecutor : public AbstractScanExecutor {
   void GetColNames(const expression::AbstractExpression * child_expr, std::unordered_set<std::string> &column_names, bool use_updated = true);
 
 
-  inline const std::string&& GetTableName() override {
+  inline const std::string GetTableName() override {
     return table_->GetName();
   }
 
