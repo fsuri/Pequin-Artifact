@@ -434,8 +434,7 @@ void GetToIndexScan::Transform(
             get->get_id, get->table, get->table_alias, get->predicates,
             get->is_for_update, index_id, index_key_column_id_list,
             index_expr_type_list, index_value_list);
-        transformed.push_back(
-            std::make_shared<OperatorExpression>(index_scan_op));
+        transformed.push_back(std::make_shared<OperatorExpression>(index_scan_op));
         closest_index = min_distance;
         max_num_matching_cols = index_key_column_id_list.size();
       }

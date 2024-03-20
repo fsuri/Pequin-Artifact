@@ -454,6 +454,7 @@ void Server::ManageDispatchSupplyTx(const TransportAddress &remote, const std::s
 // Add TableVersion to predicate, not to read set (read set addition is purely for locking purposes)
 // Snapshot stays the same
 // materialize from snapshot!
+  //TODO: FIXME: If there is none in snapshot => don't pick genesis version: pick greatest.
 
 void Server::FindTableVersion(const std::string &key_name, const Timestamp &ts, 
                               bool add_to_read_set, QueryReadSetMgr *readSetMgr, 
@@ -473,6 +474,7 @@ void Server::FindTableVersion(const std::string &key_name, const Timestamp &ts,
     //Note: CreateTable() writes the genesis version for table and primary index. CreateIndex writes genesis version for Col Versions.
   }
   if(materialize_from_snapshot){
+    
 
     Debug("try to materialize committed TableVersion from ss");
     //if we are materializing from snapshot, then the table version we are using should be the one in the snapshot, not the latest current.
@@ -480,8 +482,12 @@ void Server::FindTableVersion(const std::string &key_name, const Timestamp &ts,
     while(committed_exists){ //not yet found in ss
       const proto::Transaction &txn = tsVal.second.proof->txn();
       UW_ASSERT(txn.has_txndigest());
-      if(ss_txns->count(txn.txndigest()) || tsVal.first.getTimestamp() == 0UL){
-        break; //found (or stop at genesis)
+      if(ss_txns->count(txn.txndigest())){
+        break; //found 
+      }
+      if(tsVal.first.getTimestamp() == 0UL){ //stop at genesis
+        store.get(key_name, ts, tsVal); //simply pick highTS if there is nothing in snapshot.
+        break;
       }
       //find next older version
       //Note: get fetches the last version <=, but we want stricly < TS. thus we search for tsVal.first-1 //TODO: Change get to use lower_bound?
@@ -490,6 +496,7 @@ void Server::FindTableVersion(const std::string &key_name, const Timestamp &ts,
     }
   }
 
+  //if(key_name == "useracct_feedback") Panic("test stop");
   //NOTE: Don't really need to check prepareds: Since TableVersion is just used to bound the number of comparisons...
 
   //Find the latest prepared version that is greater than the committed version (that, if materializing, is in the snapshot) 
@@ -505,7 +512,7 @@ void Server::FindTableVersion(const std::string &key_name, const Timestamp &ts,
   if(materialize_from_snapshot){
     //if we are materializing from snapshot, then the table version we are using should be the one in the snapshot, not the latest current.
     //TODO: Can definitely do this more efficiently (currently each loop here, loops through all preparedWrites -- though this is small)
-    while(mostRecentPrepared){ //not yet found in ss
+    while(mostRecentPrepared){ //not yet found in ss, and still greater than committed version
       UW_ASSERT(mostRecentPrepared->has_txndigest());
       if(ss_txns->count(mostRecentPrepared->txndigest())){
         break; //found
