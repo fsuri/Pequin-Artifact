@@ -117,14 +117,20 @@ void SeqScanExecutor::CheckRow(ItemPointer head_tuple_location, concurrency::Tra
 
   // Pointer to current version in linked list
   ItemPointer tuple_location = head_tuple_location;
+
+   size_t num_iters = 0;
+
   // Find the right version to read
   bool done = false;
 
   bool found_committed = false;
   bool found_prepared = false;
 
-  bool snapshot_only_mode = !current_txn->GetHasReadSetMgr() && current_txn->GetHasSnapshotMgr(); //In Snapshot only mode to not need to evaluate reads
-  size_t num_iters = 0;
+ 
+  //If in snapshot only mode don't need to produce a result. Note: if doing pointQuery DO want the result => FIXME: UNTRUE: FOR NESTED LOOP JOIN WE NEED RESULT.
+  bool snapshot_only_mode = false; 
+  //bool snapshot_only_mode = !current_txn->GetHasReadSetMgr() && current_txn->GetHasSnapshotMgr(); 
+ 
 
 
   while(!done) {
@@ -232,14 +238,18 @@ bool SeqScanExecutor::FindRightRowVersion(const Timestamp &txn_timestamp, std::s
     ItemPointer tuple_location, size_t &num_iters, concurrency::TransactionContext *current_txn, bool &read_curr_version, bool &found_committed, bool &found_prepared) {
 
   // Shorthand for table store interface functions
-  bool perform_read = current_txn->GetHasReadSetMgr();
 
+  bool perform_find_snapshot = current_txn->GetHasSnapshotMgr();
+  auto snapshot_mgr = current_txn->GetSnapshotMgr();
+
+  //Note: For find snapshot only mode we also want to read and produce a result (necessary for nested joins), but we will not record a readset
+  bool perform_read = current_txn->GetHasReadSetMgr() || perform_find_snapshot; 
+ 
   bool perform_read_on_snapshot = current_txn->GetSnapshotRead();
   auto snapshot_set = current_txn->GetSnapshotSet();
   UW_ASSERT(!perform_read_on_snapshot || perform_read); //if read on snapshot, must be performing read.
 
-  bool perform_find_snapshot = current_txn->GetHasSnapshotMgr();
-  auto snapshot_mgr = current_txn->GetSnapshotMgr();
+ 
   UW_ASSERT(!(perform_read_on_snapshot && perform_find_snapshot)); //shouldn't do both simultaneously currently
 
   auto txn_digest = tile_group_header->GetTxnDig(tuple_location.offset);
@@ -305,6 +315,13 @@ bool SeqScanExecutor::FindRightRowVersion(const Timestamp &txn_timestamp, std::s
       ManageSnapshot(tile_group_header, tuple_location, committed_timestamp, snapshot_mgr);
       done = true;
     } else {
+
+      //Note: this check is technically redundant: FindSnapshot currently also always causes PerformRead to be triggered.
+      if(tile_group_header->GetMaterialize(tuple_location.offset)) {
+          Debug("Don't add force materialized to snapshot, continue reading"); //Panic("Nothing should be force Materialized in current test");
+          return done;
+      }
+      
       auto const &read_prepared_pred = current_txn->GetReadPreparedPred();
       Timestamp const &prepared_timestamp = tile_group_header->GetBasilTimestamp(tuple_location.offset);
       // Add to snapshot if tuple satisfies read prepared predicate and haven't read more than k versions

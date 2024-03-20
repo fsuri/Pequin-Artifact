@@ -1909,8 +1909,8 @@ void Server::Prepare(const std::string &txnDigest, const proto::Transaction &txn
 
 
   for (const auto &read : readSet) {
-    bool table_v = read.has_is_table_col_version() && read.is_table_col_version();
-    if (IsKeyOwned(read.key()) && !table_v) {
+    bool table_v = read.has_is_table_col_version() && read.is_table_col_version(); //don't need to record reads to TableVersion (not checked for normal cc)
+    if (IsKeyOwned(read.key()) && !table_v) { 
       //preparedReads[read.key()].insert(p.first->second.second);
       //preparedReads[read.key()].insert(a->second.second);
 
@@ -2084,7 +2084,7 @@ void Server::UpdateCommittedReads(proto::Transaction *txn, const std::string &tx
   // }
 
   for (const auto &read : *readSet) {
-     bool table_v = read.has_is_table_col_version() && read.is_table_col_version();
+     bool table_v = read.has_is_table_col_version() && read.is_table_col_version(); //Don't need to record read table versions, not checked by normal cc
     if (!IsKeyOwned(read.key()) || table_v) {
       continue;
     }

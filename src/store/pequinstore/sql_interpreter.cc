@@ -2247,7 +2247,7 @@ bool SQLTransformer::EvalColCondition(std::string_view cond_statement, const Col
        auto &row_col_val = row.column_values()[idx];
        std::cerr << "row_col_val: [" << row_col_val << std::endl;
 
-       TrimValue(right, col_registry.col_quotes[idx]); //trim if type str.
+       //TrimValue(right, col_registry.col_quotes[idx]); //trim if type str. //NOTE: Don't need to trim. Peloton preds come without quotes
        const std::string &right_str = static_cast<std::string>(right);
 
     //    for(auto &[name, type] : col_registry.col_name_type){

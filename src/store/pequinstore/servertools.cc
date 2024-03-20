@@ -450,8 +450,8 @@ void Server::ManageDispatchSupplyTx(const TransportAddress &remote, const std::s
 
 //////////////////////////////////////////////////////// Protocol Helper Functions
 
-//TODO: New version:
-// Add TableVersion to predicate, not to read set.
+// New version:
+// Add TableVersion to predicate, not to read set (read set addition is purely for locking purposes)
 // Snapshot stays the same
 // materialize from snapshot!
 
@@ -460,7 +460,8 @@ void Server::FindTableVersion(const std::string &key_name, const Timestamp &ts,
                               bool add_to_snapshot, SnapshotManager *snapshotMgr,
                               bool materialize_from_snapshot, const snapshot *ss_txns){
   
-  Debug("FindTableVersion for key %s. Called from TS[%lu:%lu]. AddToRead? %d. AddToSnap? %d", key_name.c_str(), ts.getTimestamp(), ts.getID(), add_to_read_set, add_to_snapshot);
+  Debug("FindTableVersion for key %s. Called from TS[%lu:%lu]. AddToRead? %d. AddToSnap? %d. Read Materialized? %d",
+         key_name.c_str(), ts.getTimestamp(), ts.getID(), add_to_read_set, add_to_snapshot, materialize_from_snapshot);
 
   //Read committed
   std::pair<Timestamp, Server::Value> tsVal;
@@ -472,16 +473,20 @@ void Server::FindTableVersion(const std::string &key_name, const Timestamp &ts,
     //Note: CreateTable() writes the genesis version for table and primary index. CreateIndex writes genesis version for Col Versions.
   }
   if(materialize_from_snapshot){
+
+    Debug("try to materialize committed TableVersion from ss");
     //if we are materializing from snapshot, then the table version we are using should be the one in the snapshot, not the latest current.
+    
     while(committed_exists){ //not yet found in ss
       const proto::Transaction &txn = tsVal.second.proof->txn();
       UW_ASSERT(txn.has_txndigest());
-      if(ss_txns->count(txn.txndigest())){
-        break; //found
+      if(ss_txns->count(txn.txndigest()) || tsVal.first.getTimestamp() == 0UL){
+        break; //found (or stop at genesis)
       }
       //find next older version
+      //Note: get fetches the last version <=, but we want stricly < TS. thus we search for tsVal.first-1 //TODO: Change get to use lower_bound?
+      tsVal.first.setTimestamp(tsVal.first.getTimestamp()-1);
       committed_exists = store.get(key_name, tsVal.first, tsVal);
-
     }
   }
 
@@ -506,7 +511,9 @@ void Server::FindTableVersion(const std::string &key_name, const Timestamp &ts,
         break; //found
       }
       //find next older version
-      mostRecentPrepared = FindPreparedVersion(key_name, Timestamp(mostRecentPrepared->timestamp()), committed_exists, tsVal);
+      //Note: FindPreparedVersion fetches the last version <= TS, but we want stricly < TS. thus we search for timestamp()-1 //TODO: Change FindPreparedVersion to use lower_bound?
+      
+      mostRecentPrepared = FindPreparedVersion(key_name, Timestamp(mostRecentPrepared->timestamp().timestamp()-1, mostRecentPrepared->timestamp().id()), committed_exists, tsVal);
 
     }
   }
@@ -522,16 +529,16 @@ void Server::FindTableVersion(const std::string &key_name, const Timestamp &ts,
       if(params.query_params.useSemanticCC) readSetMgr->SetPredicateTableVersion(mostRecentPrepared->timestamp()); //Add to current pred
       readSetMgr->AddToDepSet(TransactionDigest(*mostRecentPrepared, params.hashDigest), mostRecentPrepared->timestamp());
 
-       //Add Table to Read Set. Note: This is PURELY to have a read key in order to lock mutex for CC check. The TS does not matter.
-      readSetMgr->AddToReadSet(key_name, mostRecentPrepared->timestamp(), true); //is_table_col_version
+       //Add Table to Read Set. Note: This is PURELY to have a read key in order to lock mutex for parallel CC check. The TS does not matter.
+      if(params.parallel_CCC) readSetMgr->AddToReadSet(key_name, mostRecentPrepared->timestamp(), true); //is_table_col_version = true
     }
     else{ //Read committed
       TimestampMessage tsm;
       tsVal.first.serialize(&tsm);
       if(params.query_params.useSemanticCC) readSetMgr->SetPredicateTableVersion(tsm); //Add to current pred
 
-       //Add Table to Read Set. Note: This is PURELY to have a read key in order to lock mutex for CC check. The TS does not matter.
-      readSetMgr->AddToReadSet(key_name, tsm, true); // is_table_col_version
+       //Add Table to Read Set. Note: This is PURELY to have a read key in order to lock mutex for parellel CC check. The TS does not matter.
+      if(params.parallel_CCC) readSetMgr->AddToReadSet(key_name, tsm, true); // is_table_col_version = true
     }
   }
 

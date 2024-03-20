@@ -656,7 +656,10 @@ void IndexScanExecutor::CheckRow(ItemPointer tuple_location, concurrency::Transa
     bool found_committed = false;
     bool found_prepared = false;
 
-    bool snapshot_only_mode = !current_txn->GetHasReadSetMgr() && current_txn->GetHasSnapshotMgr(); //If in snapshot only mode don't need to produce a result. Note: if doing pointQuery DO want the result
+    //If in snapshot only mode don't need to produce a result. Note: if doing pointQuery DO want the result => FIXME: UNTRUE: FOR NESTED LOOP JOIN WE NEED RESULT.
+    bool snapshot_only_mode = false; 
+    //bool snapshot_only_mode = !current_txn->GetHasReadSetMgr() && current_txn->GetHasSnapshotMgr(); 
+  
        
     //Iterate through linked list, from newest to oldest version   
     size_t chain_length = 0;
@@ -718,12 +721,13 @@ bool IndexScanExecutor::FindRightRowVersion(const Timestamp &timestamp, std::sha
     bool &read_curr_version, bool &found_committed, bool &found_prepared)
 {
     /////////////////////////////// PESTO MODIFIERS  -- these are just aliases for convenience  ///////////////////////////////////
-    bool perform_read = current_txn->GetHasReadSetMgr();
-    bool perform_point_read = current_txn->IsPointRead();
-
     bool perform_find_snapshot = current_txn->GetHasSnapshotMgr();
     auto snapshot_mgr = current_txn->GetSnapshotMgr();
     //size_t k_prepared_versions = current_txn->GetKPreparedVersions();
+
+    //Note: For find snapshot only mode we also want to read and produce a result (necessary for nested joins), but we will not record a readset
+    bool perform_read = current_txn->GetHasReadSetMgr() || perform_find_snapshot; 
+    bool perform_point_read = current_txn->IsPointRead();
   
     bool perform_read_on_snapshot = current_txn->GetSnapshotRead();
     auto snapshot_set = current_txn->GetSnapshotSet();
@@ -834,6 +838,12 @@ bool IndexScanExecutor::FindRightRowVersion(const Timestamp &timestamp, std::sha
       ManageSnapshot(current_txn, tile_group_header, tuple_location, committed_timestamp, num_iters, true);
       done = true;
     } else {
+      //Note: this check is technically redundant: FindSnapshot currently also always causes PerformRead to be triggered.
+      if(tile_group_header->GetMaterialize(tuple_location.offset)) { //Ignore
+          Debug("Don't add force materialized to snapshot, continue reading"); //Panic("Nothing should be force Materialized in current test");
+          return done;
+      }
+
       auto const &read_prepared_pred = current_txn->GetReadPreparedPred();
       Timestamp const &prepared_timestamp = tile_group_header->GetBasilTimestamp(tuple_location.offset);
       // Add to snapshot if tuple satisfies read prepared predicate and haven't read more than k versions
