@@ -459,7 +459,7 @@ PlanGenerator::GenerateTableTVExprsColRegistry(
       col_registry->col_names.size());
   int col_id = 0;
   for (auto &col_name : col_registry->col_names) {
-    std::cout << "Col name is " << col_name << std::endl;
+    std::cerr << "Col name is " << col_name << std::endl;
     expression::TupleValueExpression *col_expr =
         new expression::TupleValueExpression(
             col_name.c_str(), alias.c_str());
@@ -468,7 +468,7 @@ PlanGenerator::GenerateTableTVExprsColRegistry(
     if (col_type == "FLOAT") col_type = "DECIMAL";
     if (col_type == "TEXT") col_type = "VARCHAR";
     col_expr->SetValueType(peloton::StringToTypeId(col_type));
-    std::cout << "Col type for " << col_name << " is " << col_type << std::endl;
+    std::cerr << "Col type for " << col_name << " is " << col_type << std::endl;
     
     //col_expr->SetBoundOid(db_id, table_id, col_id);
     exprs[col_id].reset(col_expr);

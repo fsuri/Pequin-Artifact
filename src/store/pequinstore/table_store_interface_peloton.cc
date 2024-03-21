@@ -251,7 +251,7 @@ std::string PelotonTableStore::TransformResult(peloton::ResultType &status, std:
 std::pair<peloton::tcop::TrafficCop *, std::atomic_int *> PelotonTableStore::GetCop() {
   if (!is_recycled_version_) {
     int t_id = sched_getcpu();
-    // std::cout << "Thread id is " << t_id << std::endl;
+    // std::cerr << "Thread id is " << t_id << std::endl;
     if (t_id >= traffic_cops_.size()) {
       Panic("Not enough traffic cops allocated for the number of cores");
     }
@@ -289,16 +289,16 @@ void PelotonTableStore::ExecRaw(const std::string &sql_statement) {
   // Execute on Peloton  //Note -- this should be a synchronous call. I.e.
   // ExecRaw should not return before the call is done.
 
-  std::cout << "Beginning of exec raw. Statement: " << sql_statement << std::endl;
+  std::cerr << "Beginning of exec raw. Statement: " << sql_statement << std::endl;
   std::pair<peloton::tcop::TrafficCop *, std::atomic_int *> cop_pair = GetCop();
-  std::cout << "Got the cop" << std::endl;
+  std::cerr << "Got the cop" << std::endl;
 
   std::atomic_int *counter = cop_pair.second;
   peloton::tcop::TrafficCop *tcop = cop_pair.first;
   bool unamed;
 
   // prepareStatement
-  std::cout << "Before parse and prepare" << std::endl;
+  std::cerr << "Before parse and prepare" << std::endl;
   auto statement = ParseAndPrepare(sql_statement, tcop);
 
   // ExecuteStatment
@@ -441,10 +441,10 @@ std::string PelotonTableStore::ExecReadQuery(const std::string &query_statement,
 
   // TRY TO SET A THREAD ID
   // size_t t_id = std::hash<std::thread::id>{}(std::this_thread::get_id()); //
-  // % 4; std::cout << "################################# STARTING ExecReadQuery
+  // % 4; std::cerr << "################################# STARTING ExecReadQuery
   // ############################## on Thread: " < t_id << std::endl;
 
-  // std::cout << query_statement << std::endl;
+  // std::cerr << query_statement << std::endl;
 
   // prepareStatement
   auto statement = ParseAndPrepare(query_statement, tcop);
@@ -881,7 +881,7 @@ void PelotonTableStore::PurgeTableWrite(const std::string &table_name, const Tab
   // for (auto &purge_statement : purge_statements) {
   //  prepareStatement
   auto statement = ParseAndPrepare(purge_statement, tcop);
-  std::cout << purge_statement << std::endl;
+  std::cerr << purge_statement << std::endl;
 
   std::vector<peloton::type::Value> param_values; // param_values.clear();
   std::vector<int> result_format(statement->GetTupleDescriptor().size(), 0);

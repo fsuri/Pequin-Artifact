@@ -160,7 +160,7 @@ class PelotonTableStore : public TableStore {
 //     }
 
 //     // write->set_committed_value()
-//     std::cout << "Commit proof client id: "
+//     std::cerr << "Commit proof client id: "
 //                 << traffic_cop_.commit_proof_->txn().client_id()
 //                 << " : sequence number: "
 //                 << traffic_cop_.commit_proof_->txn().client_seq_num()
@@ -170,15 +170,15 @@ class PelotonTableStore : public TableStore {
 //     sql::QueryResultProtoBuilder queryResultBuilder;
 //     // queryResultBuilder.add_column("result");
 //     // queryResultBuilder.add_row(result_row.begin(), result_row.end());
-//     std::cout << "Before adding columns" << std::endl;
+//     std::cerr << "Before adding columns" << std::endl;
 //     // Add columns
 //     for (unsigned int i = 0; i < tuple_descriptor.size(); i++) {
 //         std::string column_name = std::get<0>(tuple_descriptor[i]);
 //         queryResultBuilder.add_column(column_name);
 //     }
 
-//     // std::cout << "Before adding rows" << std::endl;
-//     // std::cout << "Tuple descriptor size is " << tuple_descriptor.size()
+//     // std::cerr << "Before adding rows" << std::endl;
+//     // std::cerr << "Tuple descriptor size is " << tuple_descriptor.size()
 //     //<< std::endl;
 //     bool read_prepared = false;
 //     bool already_read_prepared = false;
@@ -187,7 +187,7 @@ class PelotonTableStore : public TableStore {
 //     unsigned int rows = result.size() / tuple_descriptor.size();
 //     for (unsigned int i = 0; i < rows; i++) {
 //         // std::string row_string = "Row " + std::to_string(i) + ": ";
-//         // std::cout << "Row index is " << i << std::endl;
+//         // std::cerr << "Row index is " << i << std::endl;
 //         // queryResultBuilder.add_empty_row();
 //         RowProto *row = queryResultBuilder.new_row();
 //         std::string row_string = "";
@@ -196,7 +196,7 @@ class PelotonTableStore : public TableStore {
 //         for (unsigned int j = 0; j < tuple_descriptor.size(); j++) {
 //         // queryResultBuilder.AddToRow(row,
 //         result[i*tuple_descriptor.size()+j]);
-//         // std::cout << "Get field value" << std::endl;
+//         // std::cerr << "Get field value" << std::endl;
 //         // FieldProto *field = row->add_fields();
 //         // std::string field_value = GetResultValueAsString(result, i *
 //         // tuple_descriptor.size() + j);
@@ -204,28 +204,28 @@ class PelotonTableStore : public TableStore {
 //         j]);
 //         // field->set_data(queryResultBuilder.serialize(field_value));
 //         // field->set_data(result[i*tuple_descriptor.size()+j]);
-//         // std::cout << "After" << std::endl;
+//         // std::cerr << "After" << std::endl;
 //         // row_string += field_value + " ";
 
 //         // queryResultBuilder.update_field_in_row(i, j, field_value);
 //         // row_string += GetResultValueAsString(result, i *
 //         // tuple_descriptor.size() + j);
 
-//         // std::cout << "Inside j loop" << std::endl;
-//         // std::cout << GetResultValueAsString(result, i *
+//         // std::cerr << "Inside j loop" << std::endl;
+//         // std::cerr << GetResultValueAsString(result, i *
 //         tuple_descriptor.size()
 //         // + j) << std::endl;
 //         }
 //         if (read_prepared && !already_read_prepared) {
 //         write->set_prepared_value(row_string);
-//         std::cout << "Prepared value is " << row_string << std::endl;
+//         std::cerr << "Prepared value is " << row_string << std::endl;
 //         write->set_prepared_txn_digest(*txn_dig.get());
-//         std::cout << "Prepared txn digest is " << *txn_dig.get() <<
+//         std::cerr << "Prepared txn digest is " << *txn_dig.get() <<
 //         std::endl;
 //         //
 //         write->set_allocated_prepared_timestamp(TimestampMessage{prepared_timestamp.getID(),
 //         // prepared_timestamp.getTimestamp()});
-//         std::cout << "Prepared timestamp is " <<
+//         std::cerr << "Prepared timestamp is " <<
 //         prepared_timestamp.getTimestamp()
 //                     << ", " << prepared_timestamp.getID() << std::endl;
 
@@ -233,18 +233,18 @@ class PelotonTableStore : public TableStore {
 //         }
 
 //         write->set_committed_value(row_string);
-//         std::cout << "Committed value is " << row_string << std::endl;
+//         std::cerr << "Committed value is " << row_string << std::endl;
 //         //
 //         write->set_allocated_committed_timestamp(TimestampMessage(committed_timestamp));
-//         std::cout << "Commit timestamp is " <<
+//         std::cerr << "Commit timestamp is " <<
 //         committed_timestamp.getTimestamp()
 //                 << ", " << committed_timestamp.getID() << std::endl;
 //     }
 //     //
 //     write->set_allocated_proof(traffic_cop_.commit_proof_->SerializeAsString());
 
-//     std::cout << "Result from query result builder is " << std::endl;
-//     std::cout << queryResultBuilder.get_result()->SerializeAsString()
+//     std::cerr << "Result from query result builder is " << std::endl;
+//     std::cerr << queryResultBuilder.get_result()->SerializeAsString()
 //                 << std::endl;
 
 //     // return queryResultBuilder.get_result()->SerializeAsString();

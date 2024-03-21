@@ -310,7 +310,7 @@ void test_committed_table_write() {
   // peloton::catalog::Catalog::GetInstance()->CreateDatabase(txn,
   //                                                          DEFAULT_DB_NAME);
   // txn_manager.CommitTransaction(txn);
-  // std::cout << "After the creation of default database" << std::endl;
+  // std::cerr << "After the creation of default database" << std::endl;
 
   Timestamp pesto_timestamp(4, 6);
   // pequinstore::proto::ReadSet read_set_one;
@@ -347,9 +347,9 @@ void test_committed_table_write() {
   pequinstore::proto::Write write;
   pequinstore::proto::CommittedProof committed_proof;
   std::string table_registry = file_name + "-tables-schema.json";
-  std::cout << "Pre register" << std::endl;
+  std::cerr << "Pre register" << std::endl;
   // table_store->RegisterTableSchema(table_registry);
-  std::cout << "Post register" << std::endl;
+  std::cerr << "Post register" << std::endl;
   // table_store->ExecRaw("CREATE TABLE test(a INT, b INT, PRIMARY KEY(a));");
   //   sleep(5);
 
@@ -376,7 +376,7 @@ void test_committed_table_write() {
                                  real_proof, true);
   }*/
 
-  std::cout << "num cores is " << std::thread::hardware_concurrency()
+  std::cerr << "num cores is " << std::thread::hardware_concurrency()
             << std::endl;
 
   pequinstore::TableStore *table_store1 =
@@ -562,7 +562,7 @@ void test_read_predicate() {
   // table_store->ExecRaw("INSERT INTO test VALUES (24, 256)");
   // table_store->ExecRaw("INSERT INTO test VALUES (26, 870)");
   // table_store->ExecRaw("DELETE FROM test WHERE a=24;");
-  std::cout << "End of queryexec test" << std::endl;
+  std::cerr << "End of queryexec test" << std::endl;
   // table_store->ExecPointRead("SELECT * FROM test WHERE a=34;",
   // enc_primary_key, toy_ts_c, &write, &committed_proof);
 
@@ -611,7 +611,7 @@ void test_rw_sql() {
   // peloton::catalog::Catalog::GetInstance()->CreateDatabase(txn,
   //                                                          DEFAULT_DB_NAME);
   // txn_manager.CommitTransaction(txn);
-  // std::cout << "After the creation of default database" << std::endl;
+  // std::cerr << "After the creation of default database" << std::endl;
 
   Timestamp pesto_timestamp(4, 6);
   // pequinstore::proto::ReadSet read_set_one;
@@ -648,9 +648,9 @@ void test_rw_sql() {
   pequinstore::proto::Write write;
   pequinstore::proto::CommittedProof committed_proof;
   std::string table_registry = file_name + "-tables-schema.json";
-  std::cout << "Pre register" << std::endl;
+  std::cerr << "Pre register" << std::endl;
   // table_store->RegisterTableSchema(table_registry);
-  std::cout << "Post register" << std::endl;
+  std::cerr << "Post register" << std::endl;
   // table_store->ExecRaw("CREATE TABLE test(a INT, b INT, PRIMARY KEY(a));");
   //   sleep(5);
 
@@ -677,7 +677,7 @@ void test_rw_sql() {
                                  real_proof, true);
   }*/
 
-  std::cout << "num cores is " << std::thread::hardware_concurrency()
+  std::cerr << "num cores is " << std::thread::hardware_concurrency()
             << std::endl;
 
   pequinstore::TableStore *table_store1 =

@@ -56,7 +56,7 @@ bool InsertExecutor::DInit() {
  * @return true on success, false otherwise.
  */
 bool InsertExecutor::DExecute() {
-  //std::cout << "Inside insert executor" << std::endl;
+  //std::cerr << "Inside insert executor" << std::endl;
   if (done_)
     return false;
 
@@ -64,7 +64,7 @@ bool InsertExecutor::DExecute() {
   PELOTON_ASSERT(executor_context_ != nullptr);
 
   const planner::InsertPlan &node = GetPlanNode<planner::InsertPlan>();
-  // std::cout << "Inside insert executor 1" << std::endl;
+  // std::cerr << "Inside insert executor 1" << std::endl;
   storage::DataTable *target_table = node.GetTable();
   oid_t bulk_insert_count = node.GetBulkInsertCount();
 
@@ -91,7 +91,7 @@ bool InsertExecutor::DExecute() {
 
   // Inserting a logical tile.
   if (children_.size() == 1) {
-    std::cout << "Inside insert executor, One child" << std::endl;
+    std::cerr << "Inside insert executor, One child" << std::endl;
     if (!children_[0]->Execute()) {
       return false;
     }
@@ -121,7 +121,7 @@ bool InsertExecutor::DExecute() {
 
       // insert tuple into the table.
       ItemPointer *index_entry_ptr = nullptr;
-      std::cout << "Checking insertion for id " << tuple_id << std::endl;
+      std::cerr << "Checking insertion for id " << tuple_id << std::endl;
       peloton::ItemPointer location = target_table->InsertTuple(tuple.get(), current_txn, &index_entry_ptr);
 
       // it is possible that some concurrent transactions have inserted the same tuple.
@@ -161,7 +161,7 @@ bool InsertExecutor::DExecute() {
     // Extract expressions from plan node and construct the tuple.
     // For now we just handle a single tuple
 
-    //std::cout << "Inside insert executor No Children" << std::endl;
+    //std::cerr << "Inside insert executor No Children" << std::endl;
     auto schema = target_table->GetSchema();
     auto project_info = node.GetProjectInfo();
     auto tuple = node.GetTuple(0);
@@ -228,7 +228,7 @@ bool InsertExecutor::DExecute() {
 
       // Carry out insertion
       ItemPointer *index_entry_ptr = nullptr;
-      // std::cout << "Insert executor before insertion in else if statement" << std::endl;
+      // std::cerr << "Insert executor before insertion in else if statement" << std::endl;
       bool result = true;
       bool is_duplicate = false;
 
@@ -255,17 +255,17 @@ bool InsertExecutor::DExecute() {
       //If inserting a NEW row version. (if there is already a row version exists yet)
       if (!result && !is_duplicate && !is_purge) {
       
-        // std::cout << "Tried to insert row with same primary key, so will do an update"  << std::endl;
+        // std::cerr << "Tried to insert row with same primary key, so will do an update"  << std::endl;
         Debug("Trying to insert with existing primary key -- doing update instead");
         // ItemPointer new_location = target_table->AcquireVersion();
         ItemPointer new_location = location;
-        // std::cout << "New location is (" << new_location.block << ", " << new_location.offset << ")" << std::endl;
+        // std::cerr << "New location is (" << new_location.block << ", " << new_location.offset << ")" << std::endl;
         auto storage_manager = storage::StorageManager::GetInstance();
 
         if (old_location.IsNull()) {
-          // std::cout << "Old location is null" << std::endl;
+          // std::cerr << "Old location is null" << std::endl;
         } else {
-          // std::cout << "old location is (" << old_location.block << ", "  << old_location.offset << ")" << std::endl;
+          // std::cerr << "old location is (" << old_location.block << ", "  << old_location.offset << ")" << std::endl;
         }
 
         auto tile_group = storage_manager->GetTileGroup(old_location.block);
@@ -287,14 +287,14 @@ bool InsertExecutor::DExecute() {
         /*bool should_upgrade = !tile_group_header->GetCommitOrPrepare(old_location.offset) && new_tile_group->GetHeader()->GetCommitOrPrepare(new_location.offset);
         // NOTE: Check if we can upgrade a prepared tuple to committed
         if (should_upgrade) {
-          std::cout << "trying to upgrade from prepared to committed" << std::endl;
+          std::cerr << "trying to upgrade from prepared to committed" << std::endl;
           // std::string encoded_key = target_table_->GetName();
           const auto *schema = tile_group->GetAbstractTable()->GetSchema();
           for (uint32_t col_idx = 0; col_idx < schema->GetColumnCount(); col_idx++) {
             auto val1 = tile_group->GetValue(old_location.offset, col_idx);
             auto val2 = new_tile_group->GetValue(new_location.offset, col_idx);
-            //std::cout << "Val 1 is " << val1.ToString() << std::endl;
-            //std::cout << "Val 2 is " << val2.ToString() << std::endl;
+            //std::cerr << "Val 1 is " << val1.ToString() << std::endl;
+            //std::cerr << "Val 2 is " << val2.ToString() << std::endl;
             if (val1.ToString() != val2.ToString()) {
               same_columns = false;
               break;
@@ -302,7 +302,7 @@ bool InsertExecutor::DExecute() {
           }
 
           if (same_columns) {
-            //std::cout << "Upgrading from prepared to committed" << std::endl;
+            //std::cerr << "Upgrading from prepared to committed" << std::endl;
             tile_group_header->SetCommitOrPrepare(old_location.offset, true);
             ItemPointer *indirection = tile_group_header->GetIndirection(old_location.offset);
 
@@ -313,15 +313,15 @@ bool InsertExecutor::DExecute() {
 
         bool same_txn = tile_group_header->GetBasilTimestamp(old_location.offset) == new_tile_group->GetHeader()->GetBasilTimestamp(new_location.offset);
         if (same_txn) {
-          std::cout << "Same txn so going to change the value" << std::endl;
+          std::cerr << "Same txn so going to change the value" << std::endl;
           const auto *schema = tile_group->GetAbstractTable()->GetSchema();
           for (uint32_t col_idx = 0; col_idx < schema->GetColumnCount(); col_idx++) {
             auto val1 = tile_group->GetValue(old_location.offset, col_idx);
             auto val2 = new_tile_group->GetValue(new_location.offset, col_idx);
             tile_group->SetValue(val2, old_location.offset, col_idx);
 
-            // std::cout << "Val 1 is " << val1.ToString() << std::endl;
-            // std::cout << "Val 2 is " << val2.ToString() << std::endl;
+            // std::cerr << "Val 1 is " << val1.ToString() << std::endl;
+            // std::cerr << "Val 2 is " << val2.ToString() << std::endl;
           }
           ItemPointer *indirection = tile_group_header->GetIndirection(old_location.offset);
 
@@ -333,11 +333,11 @@ bool InsertExecutor::DExecute() {
         // project_info->Evaluate(&new_tuple_one, &old_tuple_one, nullptr, executor_context_);
 
         // get indirection.
-        // std::cout << "Before getting indirection" << std::endl;
+        // std::cerr << "Before getting indirection" << std::endl;
         ItemPointer *indirection = tile_group_header->GetIndirection(old_location.offset);
-        // std::cout << "After getting indirection" << std::endl;
+        // std::cerr << "After getting indirection" << std::endl;
         if (indirection == nullptr) {
-          // std::cout << "Indirection pointer is null" << std::endl;
+          // std::cerr << "Indirection pointer is null" << std::endl;
         }
         // finally install new version into the table
         target_table->InstallVersion(&new_tuple_one, &(project_info->GetTargetList()), current_txn, indirection);
@@ -346,7 +346,7 @@ bool InsertExecutor::DExecute() {
         Timestamp time = current_txn->GetBasilTimestamp();
         new_tile_group->GetHeader()->SetBasilTimestamp(new_location.offset, time);
 
-        // std::cout << "After installing version" << std::endl;
+        // std::cerr << "After installing version" << std::endl;
 
         // PerformUpdate() will not be executed if the insertion failed.
         // There is a write lock acquired, but since it is not in the write set,
@@ -360,7 +360,7 @@ bool InsertExecutor::DExecute() {
             transaction_manager.YieldOwnership(current_txn, tile_group_header, physical_tuple_id);
           }
           transaction_manager.SetTransactionResult(current_txn, ResultType::FAILURE);
-          std::cout << "Fourth false" << std::endl;
+          std::cerr << "Fourth false" << std::endl;
           return false;
         }*/
 

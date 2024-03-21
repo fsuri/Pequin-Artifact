@@ -119,19 +119,19 @@ void SeqScanExecutor::Scan() {
   GetColNames(predicate_, column_names);
 
   for (auto &col : column_names) {
-    std::cout << "Col name is " << col << std::endl;
+    std::cerr << "Col name is " << col << std::endl;
     col_names.push_back(col);
   }
 
   std::string encoded_key = EncodeTableRow(target_table_->GetName(), col_names);
-  std::cout << "Encoded key is " << encoded_key << std::endl;
+  std::cerr << "Encoded key is " << encoded_key << std::endl;
   current_txn->GetTableVersion()(encoded_key, timestamp, true, query_read_set_mgr, nullptr);
 
   ItemPointer location_copy;
   for (auto indirection_array : target_table_->active_indirection_arrays_) {
     int indirection_counter = indirection_array->indirection_counter_;
     for (int offset = 0; offset < indirection_counter; offset++) {
-      std::cout << "Offset is " << offset << std::endl;
+      std::cerr << "Offset is " << offset << std::endl;
       ItemPointer *head = indirection_array->GetIndirectionByOffset(offset);
       if (head == nullptr) {
         // return false;
@@ -159,7 +159,7 @@ void SeqScanExecutor::Scan() {
 
         // Get the associated tile group header so we can find the timestamp
         if (new_location.IsNull()) {
-          // std::cout << "New location is null" << std::endl;
+          // std::cerr << "New location is null" << std::endl;
           break;
         }
 
@@ -177,9 +177,9 @@ void SeqScanExecutor::Scan() {
           "location timestamp is: [%lu:%lu]",
           tile_group_header->GetBasilTimestamp(location.offset).getTimestamp(),
           tile_group_header->GetBasilTimestamp(location.offset).getID());
-      // std::cout << "Location timestamp is " <<
+      // std::cerr << "Location timestamp is " <<
       // tile_group_header->GetBasilTimestamp(location.offset).getTimestamp()
-      // << std::endl; std::cout << "Current tuple id is " << curr_tuple_id <<
+      // << std::endl; std::cerr << "Current tuple id is " << curr_tuple_id <<
       // std::endl;
       //
 
@@ -211,7 +211,7 @@ void SeqScanExecutor::Scan() {
             // encoded_key = encoded_key + "///" + val.ToString();
             primary_key_cols.push_back(val.ToString());
             // primary_key_cols.push_back(val.GetAs<const char*>());
-            // std::cout << "read set value is " << val.ToString()
+            // std::cerr << "read set value is " << val.ToString()
             //           << std::endl;
           }
 
@@ -273,7 +273,7 @@ void SeqScanExecutor::Scan() {
               // encoded_key = encoded_key + "///" + val.ToString();
               primary_key_cols.push_back(val.ToString());
               // Debug("Read set value: %s", val.ToString().c_str());
-              //  std::cout << "read set value is " << val.ToString() <<
+              //  std::cerr << "read set value is " << val.ToString() <<
               //  std::endl;
             }
             const Timestamp &time = tile_group_header->GetBasilTimestamp(
@@ -281,14 +281,14 @@ void SeqScanExecutor::Scan() {
             // logical_tile->AddToReadSet(std::tie(encoded_key, time));
 
             // for (unsigned int i = 0; i < primary_key_cols.size(); i++) {
-            //   std::cout << "Primary key columns are " <<
+            //   std::cerr << "Primary key columns are " <<
             //   primary_key_cols[i] << std::endl;
             // }
             std::string &&encoded =
                 EncodeTableRow(target_table_->GetName(), primary_key_cols);
             Debug("encoded read set key is: %s. Version: [%lu: %lu]",
                   encoded.c_str(), time.getTimestamp(), time.getID());
-            // std::cout << "Encoded key from read set is " << encoded <<
+            // std::cerr << "Encoded key from read set is " << encoded <<
             // std::endl;
             // TimestampMessage ts_message = TimestampMessage();
             // ts_message.set_id(time.getID());
@@ -323,15 +323,15 @@ void SeqScanExecutor::Scan() {
       }
 
       /*if (position_list.size() > 0) {
-        std::cout << "Adding to position list" << std::endl;
+        std::cerr << "Adding to position list" << std::endl;
         std::unique_ptr<LogicalTile> logical_tile(
             LogicalTileFactory::GetTile());
         logical_tile->AddColumns(tile_group, column_ids_);
         logical_tile->AddPositionList(std::move(position_list));
         LOG_TRACE("Information %s", logical_tile->GetInfo().c_str());
-        std::cout << "Before release" << std::endl;
+        std::cerr << "Before release" << std::endl;
         SetOutput(logical_tile.release());
-        std::cout << "After release" << std::endl;
+        std::cerr << "After release" << std::endl;
         // return true;
       }*/
 
@@ -373,7 +373,7 @@ void SeqScanExecutor::Scan() {
 bool SeqScanExecutor::DExecute() {
   // Scanning over a logical tile.
   std::unique_ptr<LogicalTile> logical_tile(LogicalTileFactory::GetTile());
-  std::cout << "Executing seq scan" << std::endl;
+  std::cerr << "Executing seq scan" << std::endl;
   if (children_.size() == 1 &&
       // There will be a child node on the create index scenario,
       // but we don't want to use this execution flow
@@ -446,11 +446,11 @@ bool SeqScanExecutor::DExecute() {
 
     while (result_itr_ < result_.size()) { // Avoid returning empty tiles
       if (result_[result_itr_]->GetTupleCount() == 0) {
-        std::cout << "No tuples in tile" << std::endl;
+        std::cerr << "No tuples in tile" << std::endl;
         result_itr_++;
         continue;
       } else {
-        std::cout << "Output here for tile " << result_itr_ << std::endl;
+        std::cerr << "Output here for tile " << result_itr_ << std::endl;
         LOG_TRACE("Information %s", result_[result_itr_]->GetInfo().c_str());
         SetOutput(result_[result_itr_]);
         result_itr_++;

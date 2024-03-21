@@ -183,15 +183,15 @@ executor::ExecutionResult TrafficCop::ExecuteHelper(
 
   auto on_complete = [&result, this](executor::ExecutionResult p_status,
                                      std::vector<ResultValue> &&values) {
-    // std::cout << "Made it to on complete execute helper" << std::endl;
+    // std::cerr << "Made it to on complete execute helper" << std::endl;
     this->p_status_ = p_status;
-    // std::cout << "The status is " << p_status.m_error_message << std::endl;
+    // std::cerr << "The status is " << p_status.m_error_message << std::endl;
     //  TODO (Tianyi) I would make a decision on keeping one of p_status or
     //  error_message in my next PR
     this->error_message_ = std::move(p_status.m_error_message);
     result = std::move(values);
     task_callback_(task_callback_arg_);
-    // std::cout << "After task callback execute helper" << std::endl;
+    // std::cerr << "After task callback execute helper" << std::endl;
     Debug("Completed Task Callback Execute helper");
   };
 
@@ -239,10 +239,10 @@ executor::ExecutionResult TrafficCop::ExecuteReadHelper(
 
   concurrency::TransactionContext *txn;
   if (!tcop_txn_state_.empty()) {
-    // std::cout << "Read helper use existing txn" << std::endl;
+    // std::cerr << "Read helper use existing txn" << std::endl;
     txn = curr_state.first;
   } else {
-    // std::cout << "Read helper create txn" << std::endl;
+    // std::cerr << "Read helper create txn" << std::endl;
     //  No active txn, single-statement txn
     auto &txn_manager = concurrency::TransactionManagerFactory::GetInstance();
     // new txn, reset result status
@@ -339,10 +339,10 @@ executor::ExecutionResult TrafficCop::ExecuteReadHelper(
 
   concurrency::TransactionContext *txn;
   if (!tcop_txn_state_.empty()) {
-    // std::cout << "Read helper use existing txn" << std::endl;
+    // std::cerr << "Read helper use existing txn" << std::endl;
     txn = curr_state.first;
   } else {
-    // std::cout << "Read helper create txn" << std::endl;
+    // std::cerr << "Read helper create txn" << std::endl;
     //  No active txn, single-statement txn
     auto &txn_manager = concurrency::TransactionManagerFactory::GetInstance();
     // new txn, reset result status
@@ -379,9 +379,9 @@ executor::ExecutionResult TrafficCop::ExecuteReadHelper(
 
   auto on_complete = [&result, this](executor::ExecutionResult p_status,
                                      std::vector<ResultValue> &&values) {
-    // std::cout << "Made it to on complete" << std::endl;
+    // std::cerr << "Made it to on complete" << std::endl;
     this->p_status_ = p_status;
-    // std::cout << "The status is " << p_status.m_error_message << std::endl;
+    // std::cerr << "The status is " << p_status.m_error_message << std::endl;
     //  TODO (Tianyi) I would make a decision on keeping one of p_status or
     //  error_message in my next PR
     this->error_message_ = std::move(p_status.m_error_message);
@@ -428,10 +428,10 @@ executor::ExecutionResult TrafficCop::ExecuteSnapshotReadHelper(
 
   concurrency::TransactionContext *txn;
   if (!tcop_txn_state_.empty()) {
-    // std::cout << "Read helper use existing txn" << std::endl;
+    // std::cerr << "Read helper use existing txn" << std::endl;
     txn = curr_state.first;
   } else {
-    // std::cout << "Read helper create txn" << std::endl;
+    // std::cerr << "Read helper create txn" << std::endl;
     //  No active txn, single-statement txn
     auto &txn_manager = concurrency::TransactionManagerFactory::GetInstance();
     // new txn, reset result status
@@ -471,9 +471,9 @@ executor::ExecutionResult TrafficCop::ExecuteSnapshotReadHelper(
 
   auto on_complete = [&result, this](executor::ExecutionResult p_status,
                                      std::vector<ResultValue> &&values) {
-    // std::cout << "Made it to on complete" << std::endl;
+    // std::cerr << "Made it to on complete" << std::endl;
     this->p_status_ = p_status;
-    // std::cout << "The status is " << p_status.m_error_message << std::endl;
+    // std::cerr << "The status is " << p_status.m_error_message << std::endl;
     //  TODO (Tianyi) I would make a decision on keeping one of p_status or
     //  error_message in my next PR
     this->error_message_ = std::move(p_status.m_error_message);
@@ -522,10 +522,10 @@ executor::ExecutionResult TrafficCop::ExecuteFindSnapshotHelper(
 
   concurrency::TransactionContext *txn;
   if (!tcop_txn_state_.empty()) {
-    // std::cout << "Read helper use existing txn" << std::endl;
+    // std::cerr << "Read helper use existing txn" << std::endl;
     txn = curr_state.first;
   } else {
-    // std::cout << "Read helper create txn" << std::endl;
+    // std::cerr << "Read helper create txn" << std::endl;
     //  No active txn, single-statement txn
     auto &txn_manager = concurrency::TransactionManagerFactory::GetInstance();
     // new txn, reset result status
@@ -565,9 +565,9 @@ executor::ExecutionResult TrafficCop::ExecuteFindSnapshotHelper(
 
   auto on_complete = [&result, this](executor::ExecutionResult p_status,
                                      std::vector<ResultValue> &&values) {
-    // std::cout << "Made it to on complete" << std::endl;
+    // std::cerr << "Made it to on complete" << std::endl;
     this->p_status_ = p_status;
-    // std::cout << "The status is " << p_status.m_error_message << std::endl;
+    // std::cerr << "The status is " << p_status.m_error_message << std::endl;
     //  TODO (Tianyi) I would make a decision on keeping one of p_status or
     //  error_message in my next PR
     this->error_message_ = std::move(p_status.m_error_message);
@@ -606,10 +606,10 @@ executor::ExecutionResult TrafficCop::ExecuteEagerExecAndSnapshotHelper(
 
   concurrency::TransactionContext *txn;
   if (!tcop_txn_state_.empty()) {
-    // std::cout << "Read helper use existing txn" << std::endl;
+    // std::cerr << "Read helper use existing txn" << std::endl;
     txn = curr_state.first;
   } else {
-    // std::cout << "Read helper create txn" << std::endl;
+    // std::cerr << "Read helper create txn" << std::endl;
     //  No active txn, single-statement txn
     auto &txn_manager = concurrency::TransactionManagerFactory::GetInstance();
     // new txn, reset result status
@@ -651,9 +651,9 @@ executor::ExecutionResult TrafficCop::ExecuteEagerExecAndSnapshotHelper(
 
   auto on_complete = [&result, this](executor::ExecutionResult p_status,
                                      std::vector<ResultValue> &&values) {
-    // std::cout << "Made it to on complete" << std::endl;
+    // std::cerr << "Made it to on complete" << std::endl;
     this->p_status_ = p_status;
-    //std::cout << "The status is " << p_status.m_error_message << std::endl;
+    //std::cerr << "The status is " << p_status.m_error_message << std::endl;
     //  TODO (Tianyi) I would make a decision on keeping one of p_status or
     //  error_message in my next PR
     this->error_message_ = std::move(p_status.m_error_message);
@@ -701,10 +701,10 @@ executor::ExecutionResult TrafficCop::ExecuteWriteHelper(
 
   concurrency::TransactionContext *txn;
   if (!tcop_txn_state_.empty()) {
-    // std::cout << "Write helper use of existing txn" << std::endl;
+    // std::cerr << "Write helper use of existing txn" << std::endl;
     txn = curr_state.first;
   } else {
-    // std::cout << "Write helper create new txn" << std::endl;
+    // std::cerr << "Write helper create new txn" << std::endl;
     //  No active txn, single-statement txn
     auto &txn_manager = concurrency::TransactionManagerFactory::GetInstance();
     // new txn, reset result status
@@ -739,8 +739,8 @@ executor::ExecutionResult TrafficCop::ExecuteWriteHelper(
   Notice("Commit or prepare is %d", txn->GetCommitOrPrepare());
   Notice("Commit or prepare is %d", commit_or_prepare);
 
-  std::cout << "Commit Or Prepare:" << commit_or_prepare << std::endl;
-  std::cout << "Txn: Commit Or Prepare:" << txn->GetCommitOrPrepare() << std::endl;
+  std::cerr << "Commit Or Prepare:" << commit_or_prepare << std::endl;
+  std::cerr << "Txn: Commit Or Prepare:" << txn->GetCommitOrPrepare() << std::endl;
   // skip if already aborted
   if (curr_state.second == ResultType::ABORTED) {
     // If the transaction state is ABORTED, the transaction should be aborted
@@ -754,9 +754,9 @@ executor::ExecutionResult TrafficCop::ExecuteWriteHelper(
   }
 
   auto on_complete = [&result, this](executor::ExecutionResult p_status, std::vector<ResultValue> &&values) {
-    // std::cout << "Made it to on complete" << std::endl;
+    // std::cerr << "Made it to on complete" << std::endl;
     this->p_status_ = p_status;
-    //std::cout << "The status is " << p_status.m_error_message << std::endl;
+    //std::cerr << "The status is " << p_status.m_error_message << std::endl;
     //  TODO (Tianyi) I would make a decision on keeping one of p_status or
     //  error_message in my next PR
     this->error_message_ = std::move(p_status.m_error_message);
@@ -815,8 +815,8 @@ executor::ExecutionResult TrafficCop::ExecutePurgeHelper(
 
   Debug("Purge helper: undo_delete %d, txn->GetUndoDelete() %d", undo_delete,
   txn->GetUndoDelete());
-  // std::cout << "Undo delete in execute purge helper is " << undo_delete <<
-  // std::endl; std::cout << "Txn get undo delete in execute purge helper is "
+  // std::cerr << "Undo delete in execute purge helper is " << undo_delete <<
+  // std::endl; std::cerr << "Txn get undo delete in execute purge helper is "
   // << txn->GetUndoDelete() << std::endl; No read set manager for purge
   txn->SetHasReadSetMgr(false);
   txn->SetIsPointRead(false);
@@ -836,9 +836,9 @@ executor::ExecutionResult TrafficCop::ExecutePurgeHelper(
 
   auto on_complete = [&result, this](executor::ExecutionResult p_status,
                                      std::vector<ResultValue> &&values) {
-    // std::cout << "Made it to on complete" << std::endl;
+    // std::cerr << "Made it to on complete" << std::endl;
     this->p_status_ = p_status;
-    // std::cout << "The status is " << p_status.m_error_message << std::endl;
+    // std::cerr << "The status is " << p_status.m_error_message << std::endl;
     //  TODO (Tianyi) I would make a decision on keeping one of p_status or
     //  error_message in my next PR
     this->error_message_ = std::move(p_status.m_error_message);
@@ -974,9 +974,9 @@ executor::ExecutionResult TrafficCop::ExecutePointReadHelper(
 
   auto on_complete = [&result, this](executor::ExecutionResult p_status,
                                      std::vector<ResultValue> &&values) {
-    // std::cout << "Made it to on complete" << std::endl;
+    // std::cerr << "Made it to on complete" << std::endl;
     this->p_status_ = p_status;
-    // std::cout << "The status is for point read " << p_status.m_error_message
+    // std::cerr << "The status is for point read " << p_status.m_error_message
     // << std::endl;
     //  TODO (Tianyi) I would make a decision on keeping one of p_status or
     //  error_message in my next PR
@@ -984,7 +984,7 @@ executor::ExecutionResult TrafficCop::ExecutePointReadHelper(
     result = std::move(values);
     task_callback_(task_callback_arg_);
     Debug("calling task callback");
-    // std::cout << "End of on complete" << std::endl;
+    // std::cerr << "End of on complete" << std::endl;
   };
 
   auto &pool = threadpool::MonoQueuePool::GetInstance();
@@ -1859,7 +1859,7 @@ ResultType TrafficCop::ExecutePurgeStatement(
         statement->SetNeedsReplan(true);
       }
       Debug("Purge statement. undo_delete: %d", undo_delete);
-      // std::cout << "Undo delete in execute purge statement is " <<
+      // std::cerr << "Undo delete in execute purge statement is " <<
       // undo_delete << std::endl;
       ExecutePurgeHelper(statement->GetPlanTree(), params, result,
                          result_format, basil_timestamp, txn_dig, undo_delete,

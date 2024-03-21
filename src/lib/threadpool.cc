@@ -36,7 +36,7 @@
 ThreadPool::ThreadPool() {}
 
 //TODO: Make this an input param.
-static bool running_locally = true; //allow using more than 8 cores for local setup.
+static bool running_locally = false; //allow using more than 8 cores for local testing.
 
 void ThreadPool::start(int process_id, int total_processes, bool hyperthreading,
                        bool server, int mode) {

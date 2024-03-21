@@ -140,16 +140,16 @@ bool NestedLoopJoinExecutor::DExecute() {
           join_values.push_back(predicate_value);
         }
 
-        std::cout << "MADE IT HERE, join values size is " << join_values.size() << std::endl;
-        std::cout << "Has snapshot manager is " << current_txn->GetHasSnapshotMgr() << std::endl;
+        std::cerr << "MADE IT HERE, join values size is " << join_values.size() << std::endl;
+        std::cerr << "Has snapshot manager is " << current_txn->GetHasSnapshotMgr() << std::endl;
         //join_values.clear();
 
         // NOTE: Here is check for empty result
         if (join_values.size() == 0) {
           // Empty result
-          std::cout << "Empty result" << std::endl;
+          std::cerr << "Empty result" << std::endl;
           if(current_txn->GetHasSnapshotMgr()){
-            std::cout << "Setting the table verison NL join" << std::endl;
+            std::cerr << "Setting the table verison NL join" << std::endl;
             auto table_name = children_[1]->GetTableName();
             auto current_txn_timestamp = current_txn->GetBasilTimestamp();
             auto ss_mgr = current_txn->GetSnapshotMgr();

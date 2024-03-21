@@ -1965,7 +1965,7 @@ void Server::Prepare(const std::string &txnDigest, const proto::Transaction &txn
   }
   o.release(); //Relase only at the end, so that Prepare and Clean in parallel for the same TX are atomic.
 
-  ApplyTableWrites(txn, ts, txnDigest, nullptr, false);
+  ApplyTableWrites(*ongoingTxn, ts, txnDigest, nullptr, false);
   // for (const auto &[table_name, table_write] : txn.table_writes()){
   //   ApplyTableWrites(table_name, table_write, ts, txnDigest, nullptr, false);
   //   //Apply TableVersion  ==> currently moved below
@@ -1975,7 +1975,7 @@ void Server::Prepare(const std::string &txnDigest, const proto::Transaction &txn
   // }
 
   if(params.query_params.useSemanticCC){
-    RecordReadPredicatesAndWrites(txn, ts, false);
+    RecordReadPredicatesAndWrites(*ongoingTxn, ts, false);
   }
 
   //Apply TableVersion and TableColVersion 

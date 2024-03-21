@@ -95,7 +95,7 @@ peloton::ResultType ExecuteSQLQuery(const std::string query, peloton::tcop::Traf
     tuple_descriptor = statement->GetTupleDescriptor();
   }
 
-  //std::cout << "Result 1st value is " << GetResultValueAsString(result, 0) << std::endl;
+  //std::cerr << "Result 1st value is " << GetResultValueAsString(result, 0) << std::endl;
   /*LOG_TRACE("Statement executed. Result: %s",
            ResultTypeToString(status).c_str());*/
   return status;
@@ -112,15 +112,15 @@ std::string ConvertTableWriteToUpdate(std::string encoded_key, std::vector<std::
 }
 
 int main(int argc, char *argv[]) {
-  std::cout << "Beginning of query exec test" << std::endl;
+  std::cerr << "Beginning of query exec test" << std::endl;
   auto &txn_manager = peloton::concurrency::TransactionManagerFactory::GetInstance();
-  std::cout << "query exec test second" << std::endl;
+  std::cerr << "query exec test second" << std::endl;
   auto txn = txn_manager.BeginTransaction();
-  std::cout << "query exec test third" << std::endl;
+  std::cerr << "query exec test third" << std::endl;
   peloton::catalog::Catalog::GetInstance()->CreateDatabase(txn, DEFAULT_DB_NAME);
-  std::cout << "query exec test fourth" << std::endl;
+  std::cerr << "query exec test fourth" << std::endl;
   txn_manager.CommitTransaction(txn);
-  std::cout << "query exec test fifth" << std::endl;
+  std::cerr << "query exec test fifth" << std::endl;
 
 	Timestamp pesto_timestamp(4, 6);
 	pequinstore::proto::ReadSet read_set_one;
@@ -152,24 +152,24 @@ int main(int argc, char *argv[]) {
   pequinstore::QueryReadSetMgr query_read_set_mgr_six(&read_set_six, 6, false);
   pequinstore::QueryReadSetMgr query_read_set_mgr_seven(&read_set_seven, 7, false);
 
-  std::cout << "Before first query" << std::endl;
+  std::cerr << "Before first query" << std::endl;
   ExecuteSQLQuery("CREATE TABLE test(a INT, b INT, PRIMARY KEY(a));", traffic_cop, counter_, result, tuple_descriptor, pesto_timestamp, query_read_set_mgr_one);
-  std::cout << "After first query" << std::endl;
+  std::cerr << "After first query" << std::endl;
   ExecuteSQLQuery("INSERT INTO test VALUES (99, 999);", traffic_cop, counter_, result, tuple_descriptor, pesto_timestamp, query_read_set_mgr_two);
-  std::cout << "After second query" << std::endl;
+  std::cerr << "After second query" << std::endl;
   ExecuteSQLQuery("INSERT INTO test VALUES (1001, 10001);", traffic_cop, counter_, result, tuple_descriptor, pesto_timestamp, query_read_set_mgr_three);
-  std::cout << "After third query" << std::endl;
+  std::cerr << "After third query" << std::endl;
   ExecuteSQLQuery("UPDATE test SET b=72 WHERE a=99;", traffic_cop, counter_, result, tuple_descriptor, basil_timestamp, query_read_set_mgr_four);
-  std::cout << "After fourth query" << std::endl;
+  std::cerr << "After fourth query" << std::endl;
   ExecuteSQLQuery("UPDATE test SET b=855 WHERE a=99;", traffic_cop, counter_, result, tuple_descriptor, five, query_read_set_mgr_five);
-  std::cout << "After fifth query" << std::endl;
+  std::cerr << "After fifth query" << std::endl;
   ExecuteSQLQuery("UPDATE test SET b=16 WHERE a=99;", traffic_cop, counter_, result, tuple_descriptor, read_timestamp, query_read_set_mgr_six);
-  std::cout << "After sixth query" << std::endl;
+  std::cerr << "After sixth query" << std::endl;
   ExecuteSQLQuery("INSERT INTO test VALUES (1001, 542);", traffic_cop, counter_, result, tuple_descriptor, pesto_timestamp, query_read_set_mgr_three);
   ExecuteSQLQuery("SELECT * FROM test;", traffic_cop, counter_, result, tuple_descriptor, pesto_timestamp, query_read_set_mgr_seven);
 
-  std::cout << "Result is" << std::endl;
-  std::cout << "---------------------------------------------------------" << std::endl;
+  std::cerr << "Result is" << std::endl;
+  std::cerr << "---------------------------------------------------------" << std::endl;
 
   unsigned int rows = result.size() / tuple_descriptor.size();
   for (unsigned int i = 0; i < rows; i++) {
@@ -181,18 +181,18 @@ int main(int argc, char *argv[]) {
       }
     }
 
-    std::cout << row_string << std::endl;
+    std::cerr << row_string << std::endl;
   }
 
-  std::cout << "---------------------------------------------------------" << std::endl;
-  std::cout << "Read Set is not" << std::endl;
+  std::cerr << "---------------------------------------------------------" << std::endl;
+  std::cerr << "Read Set is not" << std::endl;
 
   if (query_read_set_mgr_seven.read_set->mutable_read_set() != nullptr) {
-    std::cout << "Query read set is not null" << std::endl;
+    std::cerr << "Query read set is not null" << std::endl;
   }
 
   for(auto &read_msg : *(query_read_set_mgr_seven.read_set->mutable_read_set())){
-      std::cout << "Encoded key: " << read_msg.key() << ". Timestamp: (" << read_msg.readtime().timestamp() << ", " << read_msg.readtime().id() << ")" << std::endl;
+      std::cerr << "Encoded key: " << read_msg.key() << ". Timestamp: (" << read_msg.readtime().timestamp() << ", " << read_msg.readtime().id() << ")" << std::endl;
   }*/
 
   Timestamp toy_ts_c(10, 12);
@@ -249,11 +249,11 @@ int main(int argc, char *argv[]) {
 	//table_store.ExecRaw("INSERT INTO test VALUES (35, 26);");
 	//table_store.ExecRaw("INSERT INTO test VALUES (190, 999);");
   table_store.ApplyTableWrite("test", table_write, toy_ts_c, "random", real_proof, true);
-  std::cout << "New change 10" << std::endl;
+  std::cerr << "New change 10" << std::endl;
   //table_store.ApplyTableWrite("test", table_write_1, toy_ts_c, "random", real_proof, true);
   std::string enc_primary_key = "test//24";
   //table_store.ExecRaw("DELETE FROM test WHERE a=24;");
-  std::cout << "End of queryexec test" << std::endl;
+  std::cerr << "End of queryexec test" << std::endl;
   //table_store.ExecPointRead("SELECT * FROM test WHERE a=34;", enc_primary_key, toy_ts_c, &write, &committed_proof);
 
 	table_store.ExecReadQuery("SELECT * FROM test;", toy_ts_c, query_read_set_mgr_one);

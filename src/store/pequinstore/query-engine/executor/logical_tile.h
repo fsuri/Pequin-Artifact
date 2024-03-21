@@ -141,14 +141,14 @@ public:
   }
 
   void AddEntryReadSet(std::string &key, Timestamp &version) {
-    std::cout << "Before constructing ts_message" << std::endl;
+    std::cerr << "Before constructing ts_message" << std::endl;
     TimestampMessage ts_message  = TimestampMessage();
-    std::cout << "After constructing ts_message" << std::endl;
+    std::cerr << "After constructing ts_message" << std::endl;
     ts_message.set_id(version.getID());
     ts_message.set_timestamp(version.getTimestamp());
     //query_read_set_mgr->AddToReadSet(key, ts_message);
     query_read_set_mgr->AddToReadSet(key, ts_message);
-    std::cout << "After adding to read set" << std::endl;
+    std::cerr << "After adding to read set" << std::endl;
   }
 
   pequinstore::QueryReadSetMgr* GetReadSetMgr() {

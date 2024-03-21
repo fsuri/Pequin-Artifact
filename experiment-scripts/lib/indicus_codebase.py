@@ -140,6 +140,7 @@ class IndicusCodebase(ExperimentCodebase):
                 client_command += ' --indicus_all_to_all_fb=%s' % str(config['replication_protocol_settings']['all_to_all_fb']).lower()
 
         if config['replication_protocol'] == 'pequin':
+            ##Sync protocol settings
             if 'query_sync_quorum' in config['replication_protocol_settings']:
                 client_command += " --pequin_query_sync_quorum=%s" % str(config['replication_protocol_settings']['query_sync_quorum']).lower()
             if 'query_messages' in config['replication_protocol_settings']:
@@ -151,8 +152,15 @@ class IndicusCodebase(ExperimentCodebase):
             if 'sync_messages' in config['replication_protocol_settings']:
                 client_command += " --pequin_sync_messages=%s" % str(config['replication_protocol_settings']['sync_messages']).lower()
 
+            ##Eager exec settings
             if 'query_eager_exec' in config['replication_protocol_settings']:
                 client_command += " --pequin_query_eager_exec=%s" % str(config['replication_protocol_settings']['query_eager_exec']).lower()
+            if 'query_point_eager_exec' in config['replication_protocol_settings']:
+                client_command += " --pequin_query_point_eager_exec=%s" % str(config['replication_protocol_settings']['query_point_eager_exec']).lower()
+            if 'eager_plus_snapshot' in config['replication_protocol_settings']:
+                client_command += " --pequin_eager_plus_snapshot=%s" % str(config['replication_protocol_settings']['eager_plus_snapshot']).lower()
+
+            ## Read protocol settings
             if 'query_read_prepared' in config['replication_protocol_settings']:
                 client_command += " --pequin_query_read_prepared=%s" % str(config['replication_protocol_settings']['query_read_prepared']).lower()
             if 'query_cache_read_set' in config['replication_protocol_settings']:
@@ -163,8 +171,20 @@ class IndicusCodebase(ExperimentCodebase):
                 client_command += " --pequin_query_compress_optimistic_txid=%s" % str(config['replication_protocol_settings']['query_compress_optimistic_txid']).lower()
             if 'query_merge_active_at_client' in config['replication_protocol_settings']:
                 client_command += " --pequin_query_merge_active_at_client=%s" % str(config['replication_protocol_settings']['query_merge_active_at_client']).lower()
+            
+              ## SemanticCC settings
+            if 'use_semantic_cc' in config['replication_protocol_settings']:
+                client_command += " --pequin_use_semantic_cc=%s" % str(config['replication_protocol_settings']['use_semantic_cc']).lower()
+            if 'use_active_read_set' in config['replication_protocol_settings']:
+                client_command += " --pequin_use_active_read_set=%s" % str(config['replication_protocol_settings']['use_active_read_set']).lower()
+
+            ## Authentication settings
             if 'sign_client_queries' in config['replication_protocol_settings']:
                 client_command += " --pequin_sign_client_queries=%s" % str(config['replication_protocol_settings']['sign_client_queries']).lower()
+
+
+         
+        
 
         if config['replication_protocol'] == 'pbft' or config['replication_protocol'] == 'hotstuff' or config['replication_protocol'] == 'bftsmart' or config['replication_protocol'] == 'augustus':
             #TxSMR options
@@ -236,9 +256,9 @@ class IndicusCodebase(ExperimentCodebase):
                 client_command += ' --num_tables %d' % config['num_tables']
                 client_command += ' --num_keys_per_table %d' % config['num_keys_per_table']
                 client_command += ' --max_range %d' % config['max_range']
-                client_command += ' --point_op_feq %d' % config['point_op_freq']
+                client_command += ' --point_op_freq %d' % config['point_op_freq']
 
-        elif config['benchmark_name'] == 'tpcc' or config['benchmark_name'] == 'tpcc-sync':
+        elif config['benchmark_name'] == 'tpcc' or config['benchmark_name'] == 'tpcc-sync' or config['benchmark_name'] == 'tpcc-sql':
             client_command += ' --tpcc_num_warehouses %d' % config['tpcc_num_warehouses']
             client_command += ' --tpcc_w_id %d' % (client_id % config['tpcc_num_warehouses'] + 1)
             client_command += ' --tpcc_C_c_id %d' % config['tpcc_c_c_id']
@@ -258,6 +278,8 @@ class IndicusCodebase(ExperimentCodebase):
             client_command += ' --num_customers %d' % config['smallbank_num_customers']
             client_command += ' --hotspot_probability %f' % config['smallbank_hotspot_probability']
             client_command += ' --customer_name_file_path %s' % config['smallbank_customer_name_file_path']
+
+     #TODO: ADD AUCTIONMARK + SEATS Arguments/Scale factor?
 
 
         if 'client_wrap_command' in config and len(config['client_wrap_command']) > 0:
@@ -457,8 +479,17 @@ class IndicusCodebase(ExperimentCodebase):
         #    replica_command += ' --rw_or_retwis=%s' % str(config['rw_or_retwis']).lower()
 
         if config['replication_protocol'] == 'pequin':
+            ## Snapshot settings
+            if 'snapshot_prepared_k' in config['replication_protocol_settings']:
+                replica_command += " --pequin_snapshot_prepared_k %d" % config['replication_protocol_settings']['snapshot_prepared_k']
+            ## Eager exec settings
             if 'query_eager_exec' in config['replication_protocol_settings']:
                 replica_command += " --pequin_query_eager_exec=%s" % str(config['replication_protocol_settings']['query_eager_exec']).lower()
+            if 'query_point_eager_exec' in config['replication_protocol_settings']:
+                replica_command += " --pequin_query_point_eager_exec=%s" % str(config['replication_protocol_settings']['query_point_eager_exec']).lower()
+            if 'eager_plus_snapshot' in config['replication_protocol_settings']:
+                replica_command += " --pequin_eager_plus_snapshot=%s" % str(config['replication_protocol_settings']['eager_plus_snapshot']).lower()
+            ## Read protocol settings
             if 'query_read_prepared' in config['replication_protocol_settings']:
                 replica_command += " --pequin_query_read_prepared=%s" % str(config['replication_protocol_settings']['query_read_prepared']).lower()
             if 'query_cache_read_set' in config['replication_protocol_settings']:
@@ -469,10 +500,20 @@ class IndicusCodebase(ExperimentCodebase):
                 replica_command += " --pequin_query_compress_optimistic_txid=%s" % str(config['replication_protocol_settings']['query_compress_optimistic_txid']).lower()
             if 'query_merge_active_at_client' in config['replication_protocol_settings']:
                 replica_command += " --pequin_query_merge_active_at_client=%s" % str(config['replication_protocol_settings']['query_merge_active_at_client']).lower()
+            ## SemanticCC settings
+            if 'use_semantic_cc' in config['replication_protocol_settings']:
+                replica_command += " --pequin_use_semantic_cc=%s" % str(config['replication_protocol_settings']['use_semantic_cc']).lower()
+            if 'monotonicity_grace' in config['replication_protocol_settings']:
+                replica_command += " --pequin_monotonicity_grace %d" % config['replication_protocol_settings']['monotonicity_grace']
+            if 'use_active_read_set' in config['replication_protocol_settings']:
+                replica_command += " --pequin_use_active_read_set=%s" % str(config['replication_protocol_settings']['use_active_read_set']).lower()
+            
+            ##Authentication settings
             if 'sign_client_queries' in config['replication_protocol_settings']:
                 replica_command += " --pequin_sign_client_queries=%s" % str(config['replication_protocol_settings']['sign_client_queries']).lower()
             if 'sign_replica_to_replica_sync' in config['replication_protocol_settings']:
                 replica_command += " --pequin_sign_replica_to_replica_sync=%s" % str(config['replication_protocol_settings']['sign_replica_to_replica_sync']).lower()
+            ## Multi-threading for queries
             if 'parallel_queries' in config['replication_protocol_settings']:
                 replica_command += " --pequin_parallel_queries=%s" % str(config['replication_protocol_settings']['parallel_queries']).lower()
     

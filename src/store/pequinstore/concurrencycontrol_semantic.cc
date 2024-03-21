@@ -683,15 +683,15 @@ bool Server::EvaluatePred(const std::string &pred, const RowUpdates &row, const 
  bool Server::EvaluatePred_peloton(const std::string &pred, const RowUpdates &row, const std::string &table_name){
 
   //return false; //FIXME: REMOVE
-  std::cout << "Inside EvalPred in semantic CC" << std::endl;
-  std::cout << "The predicate evalpred is " << pred << std::endl;
+  std::cerr << "Inside EvalPred in semantic CC" << std::endl;
+  std::cerr << "The predicate evalpred is " << pred << std::endl;
   std::string full_predicate = "SELECT * FROM " + table_name + " WHERE " + pred;
   //TODO: FILL IN
   // Call the PostgresParser
   auto parser = peloton::parser::PostgresParser::GetInstance();
   std::unique_ptr<peloton::parser::SQLStatementList> stmt_list(parser.BuildParseTree(full_predicate).release());
   if (!stmt_list->is_valid) {
-    std::cout << "Parsing failed" << std::endl;
+    std::cerr << "Parsing failed" << std::endl;
   }
 
   auto sql_stmt = stmt_list->GetStatement(0);
@@ -702,20 +702,20 @@ bool Server::EvaluatePred(const std::string &pred, const RowUpdates &row, const 
   auto select_stmt = (peloton::parser::SelectStatement *)sql_stmt;
 
   auto where_clause = select_stmt->where_clause->Copy();
-  std::cout << "The parsed where clause evalpred is " << where_clause->GetInfo() << std::endl;
+  std::cerr << "The parsed where clause evalpred is " << where_clause->GetInfo() << std::endl;
   std::shared_ptr<peloton::expression::AbstractExpression> sptr(where_clause);
   peloton::optimizer::PlanGenerator plan_generator;
   
   ColRegistry *col_registry = table_store->sql_interpreter.GetColRegistry(table_name);
-  std::cout << "Before generating predicate from col registry" << std::endl;
+  std::cerr << "Before generating predicate from col registry" << std::endl;
   auto predicate = plan_generator.GeneratePredicateForScanColRegistry(sptr, "", col_registry);
 
-  std::cout << "The parsed predicate evalpred is " << predicate->GetInfo() << std::endl;
+  std::cerr << "The parsed predicate evalpred is " << predicate->GetInfo() << std::endl;
   peloton::catalog::Schema *schema = ConvertColRegistryToSchema(col_registry);
-  std::cout << "Past convert col registry to schema" << std::endl;
+  std::cerr << "Past convert col registry to schema" << std::endl;
   
   auto result = Eval(predicate.get(), row, schema);
-  std::cout << "Result from eval pred is " << result << std::endl;
+  std::cerr << "Result from eval pred is " << result << std::endl;
   return result;
  }
 
@@ -738,13 +738,13 @@ bool Server::EvaluatePred(const std::string &pred, const RowUpdates &row, const 
     }   
   }
 
-  std::cout << "Tuple values are" << std::endl;
+  std::cerr << "Tuple values are" << std::endl;
 
   for (int i = 0; i < row.column_values().size(); ++i) {
-    std::cout << "Tuple col " << schema->GetColumn(i).GetName() << " is " << tuple.get()->GetValue(i).ToString() << std::endl;
+    std::cerr << "Tuple col " << schema->GetColumn(i).GetName() << " is " << tuple.get()->GetValue(i).ToString() << std::endl;
   }
 
-  //std::cout << "Tuple is " << tuple.get()->GetInfo() << std::endl;
+  //std::cerr << "Tuple is " << tuple.get()->GetInfo() << std::endl;
   auto result = predicate->Evaluate(tuple.get(), nullptr, nullptr);
   return result.IsTrue();
 }

@@ -717,7 +717,7 @@ TableCatalog::GetTableCatalogEntry(concurrency::TransactionContext *txn,
         DatabaseCatalog::GetInstance(nullptr, nullptr, nullptr)
             ->GetDatabaseCatalogEntry(txn, database_oid_);
     PELOTON_ASSERT(database_object);
-    //std::cout << "The table name for catalog get table catalog entry is " << table_name << std::endl;
+    //std::cerr << "The table name for catalog get table catalog entry is " << table_name << std::endl;
     Debug("GetCatalog for table name: %s", table_name.c_str());
     bool success = database_object->InsertTableCatalogEntry(table_object);
     PELOTON_ASSERT(success == true);

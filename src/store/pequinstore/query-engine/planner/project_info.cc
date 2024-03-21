@@ -49,7 +49,7 @@ bool ProjectInfo::Evaluate(storage::Tuple *dest, const AbstractTuple *tuple1,
                            const AbstractTuple *tuple2,
                            executor::ExecutorContext *econtext) const {
                             
-  //Debug("evaluate 1");//std::cout << "In evalute 1" << std::endl;
+  //Debug("evaluate 1");//std::cerr << "In evalute 1" << std::endl;
   // Get varlen pool
   type::AbstractPool *pool = nullptr;
   if (econtext != nullptr)
@@ -86,7 +86,7 @@ bool ProjectInfo::Evaluate(storage::Tuple *dest, const AbstractTuple *tuple1,
 bool ProjectInfo::Evaluate(AbstractTuple *dest, const AbstractTuple *tuple1,
                            const AbstractTuple *tuple2,
                            executor::ExecutorContext *econtext) const {
-  //Debug("evaluate 2"); //std::cout << "In evaluate 2" << std::endl;
+  //Debug("evaluate 2"); //std::cerr << "In evaluate 2" << std::endl;
   // (A) Execute target list
   for (auto target : target_list_) {
     auto col_id = target.first;
