@@ -82,7 +82,7 @@ class AbstractExecutor {
     basil_timestamp_ = basil_timestamp;
   }
 
-  virtual const std::string&& GetTableName() {}
+  virtual const std::string GetTableName() {}
 
 
  protected:
