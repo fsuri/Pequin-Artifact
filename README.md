@@ -119,7 +119,7 @@ Then, install the following tools:
 
 3. `sudo apt install python3-pip`
 4. `sudo -H pip3 install numpy`
-5. `sudo apt-get install autoconf automake libtool curl make g++ unzip valgrind cmake gnuplot pkg-config ant`
+5. `sudo apt-get install autoconf automake libtool curl make g++ unzip valgrind cmake gnuplot pkg-config ant parallel`
 
 
 ### Development library dependencies
