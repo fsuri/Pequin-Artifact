@@ -56,7 +56,7 @@ def kill_servers(config, executor, kill_args=' -9'):
     futures = []
     if config['replication_protocol'] == 'indicus' or config['replication_protocol'] == 'pequin':
         n = 5 * config['fault_tolerance'] + 1
-    elif config['replication_protocol'] == 'pbft' or config['replication_protocol'] == 'hotstuff' or config['replication_protocol'] == 'bftsmart' or config['replication_protocol'] == 'augustus':
+    elif config['replication_protocol'] == 'pbft' or config['replication_protocol'] == 'hotstuff' or config['replication_protocol'] == 'hotstuffpg' or config['replication_protocol'] == 'bftsmart' or config['replication_protocol'] == 'augustus':
         n = 3 * config['fault_tolerance'] + 1
     else:
         n = 2 * config['fault_tolerance'] + 1
@@ -225,7 +225,7 @@ def start_servers(config, local_exp_directory, remote_exp_directory, run):
     server_threads = []
     if config['replication_protocol'] == 'indicus' or config['replication_protocol'] == 'pequin':
         n = 5 * config['fault_tolerance'] + 1
-    elif config['replication_protocol'] == 'pbft' or config['replication_protocol'] == 'hotstuff' or config['replication_protocol'] == 'bftsmart' or config['replication_protocol'] == 'augustus':
+    elif config['replication_protocol'] == 'pbft' or config['replication_protocol'] == 'hotstuff' or config['replication_protocol'] == 'hotstuffpg' or config['replication_protocol'] == 'bftsmart' or config['replication_protocol'] == 'augustus':
         n = 3 * config['fault_tolerance'] + 1
     else:
         n = 2 * config['fault_tolerance'] + 1
@@ -278,6 +278,16 @@ def start_servers(config, local_exp_directory, remote_exp_directory, run):
             server_threads.append(subprocess.Popen(cmd, shell=True))
         time.sleep(0.1)
     time.sleep(1)
+
+    ## set-up dbs for pg-smr
+    if config['replication_protocol'] == 'hotstuffpg':
+        # Dropping old pg cluster (if exists)
+        cmd7 = 'sudo /usr/local/etc/postgres_service.sh -r'
+        run_remote_command_async(cmd7, config['emulab_user'], server_host)
+        # Creating a single db per machine
+        cmd8 = 'sudo /usr/local/etc/postgres_service.sh -n 1'
+        run_remote_command_async(cmd8, config['emulab_user'], server_host)
+
     return server_threads
 
 def start_master(config, local_exp_directory, remote_exp_directory, run):

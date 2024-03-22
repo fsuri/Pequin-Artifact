@@ -67,6 +67,7 @@ if [ "$unistall_flag" = true ] ; then
     sudo apt-get remove --purge postgresql\* postgres\*
     sudo apt-get autoremove
     sudo apt-get autoclean
+    sudo apt update
     exit 1
 fi
 
@@ -98,6 +99,7 @@ else
     sudo echo "ssl-cert:x:115" >> /etc/group
     sudo apt install postgresql
     sudo sed -i '$ d' /etc/group
+    sudo apt install postgresql-common
 
     # Removing the main cluster, if it wascreated during the installation (it prevents from connecting to our designated one later)
     sudo pg_dropcluster --stop $PGV main
@@ -109,8 +111,8 @@ fi
 display_banner "Initializing Postgres Cluster" 
 
 # Creating postgres user to use the postgres service
-sudo useradd -m postgres || true
-sudo passwd -d postgres
+sudo useradd -m $USER || true
+sudo passwd -d $USER
 
 
 # Verifying that no clusters exist at this point
@@ -121,7 +123,7 @@ if [[ -n $output ]] ; then
 else
     echo "No cluster exists, moving on to creating pgdata cluster"
     # creating a PostgreSQL cluster in a ramdisk (in order to run experiments that are not bias by slow disk memory)
-    mkdir -p $DATA/db $DATA/log || true
+    sudo mkdir -p $DATA/db $DATA/log || true
     sudo mount -t tmpfs -o size=$SIZE,nr_inodes=10k,mode=0777 tmpfs $DATA
     
 

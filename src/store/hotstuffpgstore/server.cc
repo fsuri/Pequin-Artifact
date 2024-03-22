@@ -41,12 +41,11 @@ using namespace std;
 
 Server::Server(const transport::Configuration& config, KeyManager *keyManager,
   int groupIdx, int idx, int numShards, int numGroups, bool signMessages,
-  bool validateProofs, uint64_t timeDelta, Partitioner *part, Transport* tp,
+  bool validateProofs, uint64_t timeDelta, Partitioner *part, Transport* tp, bool localConfig,
   TrueTime timeServer) : config(config), keyManager(keyManager),
   groupIdx(groupIdx), idx(idx), id(groupIdx * config.n + idx),
   numShards(numShards), numGroups(numGroups), signMessages(signMessages),
-  validateProofs(validateProofs),  timeDelta(timeDelta), part(part), tp(tp),
-  timeServer(timeServer) {
+  validateProofs(validateProofs),  timeDelta(timeDelta), part(part), tp(tp), localConfig(localConfig), timeServer(timeServer) {
 
   tp->AddIndexedThreads(number_of_threads);
 
@@ -56,11 +55,13 @@ Server::Server(const transport::Configuration& config, KeyManager *keyManager,
   // std::system(scriptName);
   // const char* command = "sudo pg_ctlcluster 12 pgdata start";
   // system(command);
-
-  // Shir: get back to this at some point
-  std::string db_name = "db" + std::to_string(1 + idx);
-  // std::string db_name = "db1"; // Use this code if every server is run on a 
+  std::string db_name = "db1";
+  if (localConfig){
+    Debug("Shir: 55555555555555");
+    db_name = "db" + std::to_string(1 + idx);
+  }
   //separate host, otherwise use the above so they all reference a different database
+  // std::string db_name = "db" + std::to_string(1 + idx);
 
   // password should match the one created in Pequin-Artifact/pg_setup/postgres_service.sh script
   // port should match the one that appears when executing "pg_lsclusters -h"
