@@ -12,9 +12,10 @@
 #include <algorithm>
 #include <iostream>
 #include <typeinfo>
+#include <memory>
 
-#include "store/common/query_result.h"
-#include "store/common/taopq_query_result_wrapper.h"
+#include "store/common/query_result/query_result.h"
+#include "store/common/query_result/taopq_query_result_wrapper.h"
 
 // Reply types
 #define REPLY_OK 0
@@ -75,7 +76,11 @@ Client::Client(const transport::Configuration &config, uint64_t id, int nShards,
    
     // remove site
     std::string site(host_name);
-    site = site.substr(site.find("."));
+    try {
+      site = site.substr(site.find("."));
+    } catch (std::out_of_range &e) {
+      site = "";
+    }
     Notice("Site %s \n", site.c_str());
     string addr = gateway0.host + site + ":" + gateway0.port;
     string url = "postgresql://root@" + addr + "/defaultdb?sslmode=disable";
@@ -136,6 +141,7 @@ Client::~Client() {}
 // Begin a transaction.
 void Client::Begin(begin_callback bcb, begin_timeout_callback btcb,
                    uint32_t timeout, bool retry) {
+  Notice("Begin Transaction");
   try {
     // Create a new Tx
     tr = conn->transaction(tao::pq::isolation_level::serializable,
@@ -144,8 +150,8 @@ void Client::Begin(begin_callback bcb, begin_timeout_callback btcb,
     // std::cout << "begin " << '\n';
     bcb(420);
   } catch (const std::exception &e) {
-    //std::cerr << "Tx begin Failed" << '\n';
-    //std::cerr << e.what() << '\n';
+    std::cerr << "Tx begin Failed" << '\n';
+    std::cerr << e.what() << '\n';
   }
 }
 
@@ -214,24 +220,47 @@ void Client::Put(const std::string &key, const std::string &value,
 }
 
 // Execute query.
-void Client::Query(const std::string &query, query_callback qcb,
-                   query_timeout_callback qtcb, uint32_t timeout) {
+void Client::Query(const std::string &query_statement, query_callback qcb,
+      query_timeout_callback qtcb, uint32_t timeout, bool cache_result, bool skip_query_interpretation) {
   try {
-    tao::pq::result result = [this, &query]() {
+      tao::pq::result result = [this, &query_statement]() {
       // If part of a Tx, use Tx->exec, else use connection->exec
       if (tr != nullptr)
-        return tr->execute(query);
+        return tr->execute(query_statement);
       else
-        return conn->execute(query);
+        return conn->execute(query_statement);
     }();
      stats.Increment("queries_issued", 1);
     // TODO handle qcb
     taopq_wrapper::TaoPQQueryResultWrapper *tao_res =
-        new taopq_wrapper::TaoPQQueryResultWrapper(&result);
+        new taopq_wrapper::TaoPQQueryResultWrapper(std::make_unique<tao::pq::result>(std::move(result)));
     qcb(REPLY_OK, tao_res);
   } catch (const std::exception &e) {
-    //std::cerr << "Tx query failed" << '\n';
-    //std::cerr << e.what() << '\n';
+    std::cerr << "Tx query failed" << '\n';
+    std::cerr << e.what() << '\n';
+    qtcb(REPLY_FAIL);
+  }
+}
+
+void Client::Write(std::string &write_statement, write_callback wcb, 
+  write_timeout_callback wtcb, uint32_t timeout) {
+  try {
+      tao::pq::result result = [this, &write_statement]() {
+      // If part of a Tx, use Tx->exec, else use connection->exec
+      if (tr != nullptr)
+        return tr->execute(write_statement);
+      else
+        return conn->execute(write_statement);
+    }();
+     stats.Increment("writes_issued", 1);
+    // TODO handle qcb
+    taopq_wrapper::TaoPQQueryResultWrapper *tao_res =
+        new taopq_wrapper::TaoPQQueryResultWrapper(std::make_unique<tao::pq::result>(std::move(result)));
+    wcb(REPLY_OK, tao_res);
+  } catch (const std::exception &e) {
+    std::cerr << "Tx write failed" << '\n';
+    std::cerr << e.what() << '\n';
+    wtcb(REPLY_FAIL);
   }
 }
 

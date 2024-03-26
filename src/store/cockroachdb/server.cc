@@ -9,6 +9,7 @@
 
 #include "store/cockroachdb/server.h"
 
+#include "lib/assert.h"
 #include <fmt/core.h>
 #include <unistd.h>
 
@@ -41,6 +42,7 @@ Server::Server(const transport::Configuration &config, KeyManager *keyManager,
   Notice("Starting Replica: g: %d, idx: %d, id: %d", groupIdx, idx, id);
   zone = config.replica(groupIdx, idx).host;
   port = config.replica(groupIdx, idx).port;
+  Notice("Finished starting replica");
   int status = 0;
   char host_name[HOST_NAME_MAX];
   int result;
@@ -52,7 +54,11 @@ Server::Server(const transport::Configuration &config, KeyManager *keyManager,
   //  remove site
   std::string site(host_name);
 
-  site = site.substr(site.find('.'));
+  try {
+    site = site.substr(site.find('.'));
+  } catch (std::out_of_range &e) {
+    site = "";
+  }
   host = std::string(host_name);
   system("pkill -9 -f \"cockroach start\"");
 
@@ -127,6 +133,19 @@ Server::Server(const transport::Configuration &config, KeyManager *keyManager,
   Notice("Cockroach node %d started. Listening %s:%s", id, host.c_str(),
          port.c_str());
 
+  // If happens to be the last one, init server
+  if (id == numGroups * config.n - 1) {
+    std::string init_cmd =
+        "cockroach init --insecure --host=" + host + ":" + port;
+    Notice("Invoke init script: %s", init_cmd.c_str());
+    status = system(init_cmd.c_str());
+    Notice("Cluster initliazed by node %d. Listening %s:%s", id, host.c_str(),
+           port.c_str());
+
+    Server::exec_sql(
+        "CREATE TABLE IF NOT EXISTS datastore ( key_ TEXT PRIMARY KEY, val_ "
+        "TEXT NOT NULL)");
+  }
   if (idx == numShards - 1) {
     // If node is the last one in the group, serve as load balancer
     std::string proxy_cmd =
@@ -135,19 +154,6 @@ Server::Server(const transport::Configuration &config, KeyManager *keyManager,
 
     Notice("Invoke proxy script: %s", proxy_cmd.c_str());
     status = system(proxy_cmd.c_str());
-  }
-  // If happens to be the last one, init server
-  if (id == numGroups * config.n - 1) {
-    std::string init_cmd =
-        "cockroach init --insecure --host=" + host + ":" + port;
-
-    status = system(init_cmd.c_str());
-    Notice("Cluster initliazed by node %d. Listening %s:%s", id, host.c_str(),
-           port.c_str());
-
-    Server::exec_sql(
-        "CREATE TABLE IF NOT EXISTS datastore ( key_ TEXT PRIMARY KEY, val_ "
-        "TEXT NOT NULL)");
   }
 }
 
@@ -162,10 +168,8 @@ void Server::Load(const string &key, const string &value,
   stats.Increment("num_keys_loaded", 1);
 }
 
-void Server::CreateTable(
-    const std::string &table_name,
-    const std::vector<std::pair<std::string, std::string>> &column_data_types,
-    const std::vector<uint32_t> primary_key_col_idx) {
+void Server::CreateTable(const std::string &table_name, const std::vector<std::pair<std::string, std::string>> &column_data_types, 
+      const std::vector<uint32_t> &primary_key_col_idx) {
 
    
   std::string sql_statement("CREATE TABLE IF NOT EXISTS");
@@ -174,11 +178,7 @@ void Server::CreateTable(
   UW_ASSERT(!primary_key_col_idx.empty());
   sql_statement += " (";
   for (auto &[col, type] : column_data_types) {
-    std::string p_key = (primary_key_col_idx.size() == 1 &&
-                         col == column_data_types[primary_key_col_idx[0]].first)
-                            ? " PRIMARY KEY"
-                            : "";
-    sql_statement += col + " " + type + p_key + ", ";
+    sql_statement += col + " " + type + ", ";
   }
   sql_statement += "PRIMARY KEY ";
   sql_statement += "(";
@@ -192,14 +192,13 @@ void Server::CreateTable(
   Server::exec_sql(sql_statement);
 }
 
-void Server::LoadTableData(
-    const std::string &table_name, const std::string &table_data_path,
-    const std::vector<std::pair<std::string, std::string>> &column_data_types) {
+void Server::LoadTableData(const std::string &table_name, const std::string &table_data_path, 
+      const std::vector<std::pair<std::string, std::string>> &column_names_and_types, const std::vector<uint32_t> &primary_key_col_idx) {
   // Syntax based on: https://www.cockroachlabs.com/docs/stable/import-into.html
   // https://www.cockroachlabs.com/docs/v22.2/use-a-local-file-server
   // data path should be a url
   std::string table_column_name;
-  for (auto &[col, type] : column_data_types) {
+  for (auto &[col, type] : column_names_and_types) {
     table_column_name += "" + col + ",";
   }
   table_column_name.pop_back();
@@ -208,7 +207,7 @@ void Server::LoadTableData(
 
   std::string copy_table_statement_crdb = fmt::format(
       "IMPORT INTO {0} ({1}) CSV DATA "
-      "(\'http://localhost:3000/indicus/bin/{2}\') "
+      "(\'http://localhost:3000/{2}\') "
       "WITH skip = \'1\'",
       table_name, table_column_name,
       table_data_path);  // FIXME: does one need to specify column names?
@@ -249,16 +248,13 @@ void Server::CreateIndex(
   exec_sql(sql_statement);
 }
 
-void Server::LoadTableRow(
-    const std::string &table_name,
-    const std::vector<std::pair<std::string, std::string>> &column_data_types,
-    const std::vector<std::string> &values,
-    const std::vector<uint32_t> primary_key_col_idx) {
+void Server::LoadTableRows(const std::string &table_name, const std::vector<std::pair<std::string, std::string>> &column_data_types, 
+      const std::vector<row_t> *values, const std::vector<uint32_t> &primary_key_col_idx, int segment_no, bool load_cc) {
   std::string sql_statement("INSERT INTO");
   sql_statement += " " + table_name;
-  UW_ASSERT(!values.empty());  // Need to insert some values...
+  UW_ASSERT(!values->empty());  // Need to insert some values...
   UW_ASSERT(column_data_types.size() ==
-            values.size());  // Need to specify all columns to insert into
+            values->size());  // Need to specify all columns to insert into
   sql_statement += " (";
   for (auto &[col, _] : column_data_types) {
     sql_statement += col + ", ";
@@ -266,11 +262,16 @@ void Server::LoadTableRow(
   sql_statement.resize(sql_statement.size() - 2);  // remove trailing ", "
   sql_statement += ")";
   sql_statement += " VALUES (";
-  for (auto &val : values) {
-    sql_statement += "\'" + val + "\', ";
+  for (auto &val : *values) {
+    for (auto &col : val) {
+      sql_statement += "\'" + col + "\', ";
+    }
+    break;
   }
   sql_statement.resize(sql_statement.size() - 2);  // remove trailing ", "
   sql_statement += ");";
+  Notice("Load Table Rows for table: %s", table_name.c_str());
+  Notice("SQL Statement: %s", sql_statement.c_str());
   Server::exec_sql(sql_statement);
 }
 

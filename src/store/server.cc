@@ -63,6 +63,10 @@
 #include "store/bftsmartstore/replica.h"
 #include "store/bftsmartstore/server.h"
 // Augustus-BftSmart
+
+// CockroachDb
+#include "store/cockroachdb/server.h"
+
 #include <gflags/gflags.h>
 
 #include <thread>
@@ -89,14 +93,15 @@ enum protocol_t {
   PROTO_PEQUIN,
   PROTO_INDICUS,
 	PROTO_PBFT,
-    // HotStuff
-    PROTO_HOTSTUFF,
-    // Augustus-Hotstuff
-    PROTO_AUGUSTUS,
-    // BftSmart
-    PROTO_BFTSMART,
-    // Augustus-BFTSmart
-		PROTO_AUGUSTUS_SMART
+  // HotStuff
+  PROTO_HOTSTUFF,
+  // Augustus-Hotstuff
+  PROTO_AUGUSTUS,
+  // BftSmart
+  PROTO_BFTSMART,
+  // Augustus-BFTSmart
+  PROTO_AUGUSTUS_SMART,
+  PROTO_CRDB
 };
 
 enum transmode_t {
@@ -137,10 +142,11 @@ const std::string protocol_args[] = {
   "pequin",
   "indicus",
 	"pbft",
-    "hotstuff",
-    "augustus-hs", //not used currently by experiment scripts (deprecated)
+  "hotstuff",
+  "augustus-hs", //not used currently by experiment scripts (deprecated)
   "bftsmart",
-	"augustus" //currently used as augustus version -- maps to BFTSmart Augustus implementation
+	"augustus", //currently used as augustus version -- maps to BFTSmart Augustus implementation
+  "crdb"
 };
 const protocol_t protos[] {
   PROTO_TAPIR,
@@ -148,11 +154,12 @@ const protocol_t protos[] {
   PROTO_STRONG,
   PROTO_PEQUIN,
   PROTO_INDICUS,
-      PROTO_PBFT,
-      PROTO_HOTSTUFF,
-      PROTO_AUGUSTUS,
-      PROTO_BFTSMART,
-			PROTO_AUGUSTUS_SMART
+  PROTO_PBFT,
+  PROTO_HOTSTUFF,
+  PROTO_AUGUSTUS,
+  PROTO_BFTSMART,
+  PROTO_AUGUSTUS_SMART,
+  PROTO_CRDB
 };
 static bool ValidateProtocol(const char* flagname,
     const std::string &value) {
@@ -667,6 +674,7 @@ int main(int argc, char **argv) {
         timeDelta = timeDelta | (((FLAGS_indicus_watermark_time_delta % 1000) * 1000) << 12 );     //Milliseconds. (Shift 12 --> see truetime.cc)
         break;
       case PROTO_PBFT:
+      case PROTO_CRDB:
         break;
       case PROTO_HOTSTUFF:
       case PROTO_BFTSMART:
@@ -900,6 +908,15 @@ int main(int argc, char **argv) {
 
 		break;
 	}
+
+  case PROTO_CRDB: {
+    Notice("Starting CRDB Server Object");
+    server = new cockroachdb::Server(config, &keyManager, FLAGS_group_idx,
+                                      FLAGS_replica_idx, FLAGS_num_shards,
+                                      FLAGS_num_groups);
+    Notice("Finished creating CRDB Server Object");
+    break;
+  }
 
   default: {
       NOT_REACHABLE();

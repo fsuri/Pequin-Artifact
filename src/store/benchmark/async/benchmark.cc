@@ -85,6 +85,9 @@
 #include "store/bftsmartstore_stable/client.h"
 // Postgres
 #include "store/postgresstore/client.h"
+// CRDB
+#include "store/cockroachdb/client.h"
+
 
 #include "store/common/frontend/one_shot_client.h"
 #include "store/common/frontend/async_one_shot_adapter_client.h"
@@ -1366,6 +1369,7 @@ int main(int argc, char **argv) {
       case PROTO_HOTSTUFF:
       case PROTO_BFTSMART:
       case PROTO_AUGUSTUS_SMART:
+      case PROTO_CRDB:
       case PROTO_AUGUSTUS:
         switch (read_quorum) {
           case READ_QUORUM_ONE:
@@ -1569,6 +1573,14 @@ int main(int argc, char **argv) {
     case PROTO_POSTGRES: {
       client = new postgresstore::Client(FLAGS_connection_str, clientId);
       break;
+    }
+
+    case PROTO_CRDB: {
+      client = new cockroachdb::Client(
+            *config, clientId, FLAGS_num_shards, FLAGS_num_groups, tport,
+            FLAGS_indicus_phase1_decision_timeout,
+            TrueTime(FLAGS_clock_skew, FLAGS_clock_error));
+        break;
     }
 
     default:
