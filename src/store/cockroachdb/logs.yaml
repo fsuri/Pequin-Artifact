@@ -1,0 +1,40 @@
+file-defaults:
+  max-file-size: 10MiB
+  max-group-size: 100MiB
+  file-permissions: 644
+  buffered-writes: true
+  filter: ERROR
+  format: crdb-v2
+  redact: false
+  redactable: true
+  exit-on-error: true
+  auditable: false
+fluent-defaults:
+  filter: ERROR
+  format: json-fluent-compact
+  redact: false
+  redactable: true
+  exit-on-error: false
+  auditable: false
+http-defaults:
+  method: POST
+  unsafe-tls: false
+  timeout: 0s
+  disable-keep-alives: false
+  filter: ERROR
+  format: json-compact
+  redact: false
+  redactable: true
+  exit-on-error: false
+  auditable: false
+sinks:
+  file-groups:
+    default:
+      channels:
+        ERROR: [ALL]
+  stderr:
+    channels: [ALL]
+    filter: ERROR
+capture-stray-errors:
+  enable: false
+  max-group-size: 100MiB

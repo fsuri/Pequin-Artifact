@@ -41,7 +41,6 @@ GetItem::GetItem(uint32_t timeout, AuctionMarkProfile &profile, std::mt19937_64 
     std::cerr << "ItemInfo: " << itemInfo.get_item_id().to_string() << std::endl;
     item_id = itemInfo.get_item_id().encode();
     seller_id = itemInfo.get_seller_id().encode();
-
 }
 
 GetItem::~GetItem(){
@@ -67,7 +66,7 @@ transaction_status_t GetItem::Execute(SyncClient &client) {
                          TABLE_USERACCT, TABLE_REGION, seller_id);
 
   // statement = fmt::format("SELECT u_id, u_rating, u_created, u_sattr0, u_sattr1, u_sattr2, u_sattr3, u_sattr4, r_name "
-  //                         "FROM {} INNER JOIN {} ON u_r_id = r_id WHERE u_id = '{}' AND r_id = r_id",  TABLE_USERACCT, TABLE_REGION, seller_id);                
+  //                         "FROM {} INNER JOIN {} ON u_r_id = r_id WHERE u_id = '{}' AND r_id = r_id",  TABLE_USERACCT, TABLE_REGION, seller_id);
   client.Query(statement, timeout);
 
   client.Wait(results);
