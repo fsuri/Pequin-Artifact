@@ -16,7 +16,7 @@
   "benchmark_type": "sql_bench",  
   
   "benchmark_name": "auctionmark-sql",
-  "benchmark_schema_file_path": "/users/liam0215/benchmark_data/sql-auctionmark-tables-schema.json",
+  "benchmark_schema_file_path": "/mnt/extra/benchmark_data/sql-auctionmark-tables-schema.json",
   
    "server_load_time": 30,
   
@@ -134,7 +134,7 @@
     [8]
   ],
   "client_threads_per_process": [
-    [5]
+    [2]
   ],
 
   "client_nodes_per_server": 1,
@@ -164,7 +164,6 @@
    
     ["us-east-1-0", "us-east-1-1", "us-east-1-2", "eu-west-1-0",
     "eu-west-1-1", "eu-west-1-2"] 
-	
   ],
 
   "server_regions": [
@@ -288,9 +287,9 @@
   "output_latency_scale": 1000,
   "_src_commit_hash": "threadpool_test",
   "stats_file_name": "stats.json",
-  "base_local_exp_directory":  "/users/liam0215/Pequin-Artifact/output",
+  "base_local_exp_directory":  "/mnt/extra/Pequin-Artifact/output",
   "base_mounted_fs_path": "/mnt/extra",
-  "base_remote_bin_directory_nfs": "/users/liam0215/indicus",
+  "base_remote_bin_directory_nfs": "/mnt/extra/indicus",
   "base_remote_exp_directory": "/mnt/extra/experiments",
   "bin_directory_name": "bin",
   "client_bin_name": "benchmark",
@@ -303,7 +302,7 @@
   "out_directory_name": "out",
   "server_bin_name": "server",
   "server_port": 7087,
-  "src_directory": "/users/liam0215/Pequin-Artifact/src",
+  "src_directory": "/mnt/extra/Pequin-Artifact/src",
   "make_collect_bins": [
     "store/benchmark/async/benchmark",
     "store/server"

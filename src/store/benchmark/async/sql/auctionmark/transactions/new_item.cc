@@ -151,7 +151,11 @@ transaction_status_t NewItem::Execute(SyncClient &client) {
 
   //CATEGORY
   queryResult = std::move(results[offset]);
-  UW_ASSERT(!queryResult->empty());
+  if (queryResult->empty()) {
+    std::cerr << "category not found: " << category_id << std::endl;
+    client.Abort(timeout);
+    return ABORTED_USER;
+  }
 
   uint64_t category_p_id;
   uint64_t category_c_id;
@@ -188,9 +192,9 @@ transaction_status_t NewItem::Execute(SyncClient &client) {
       ItemRecord item_rec(item_id, seller_id, name, initial_price, 0, end_date, ItemStatus::OPEN);
       ItemId itemId = profile.processItemRecord(item_rec);
       //Abort TX
-    
-      client.asyncWait();
-     
+      try {
+        client.asyncWait();
+      } catch (...) {}
       client.Abort(timeout);
       return ABORTED_USER;
     }
@@ -227,8 +231,13 @@ transaction_status_t NewItem::Execute(SyncClient &client) {
     client.Write(stmt, timeout, true);
   }
 
-  client.asyncWait();
- 
+  try {
+    client.asyncWait();
+  } catch (...) {
+    client.Abort(timeout);
+    return ABORTED_USER;
+  }
+
   Debug("COMMIT");
   auto tx_result = client.Commit(timeout);
   if(tx_result != transaction_status_t::COMMITTED) return tx_result;

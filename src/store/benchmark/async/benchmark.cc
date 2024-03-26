@@ -1747,7 +1747,9 @@ int main(int argc, char **argv) {
     }
 
     case PROTO_CRDB: {
-      client = new cockroachdb::Client(*config, clientId, FLAGS_num_shards, FLAGS_num_groups, tport, TrueTime(FLAGS_clock_skew, FLAGS_clock_error));
+      client = new cockroachdb::Client(
+            *config, clientId, FLAGS_num_shards, FLAGS_num_groups, tport,
+            TrueTime(FLAGS_clock_skew, FLAGS_clock_error));
         break;
     }
 

@@ -168,7 +168,7 @@ namespace auctionmark
 
   static constexpr int ITEM_LOADCONFIG_LIMIT = 5000;
 
-  static constexpr int ITEM_ID_CACHE_SIZE = 1000;
+  static constexpr int ITEM_ID_CACHE_SIZE = 2000;
  
   static constexpr int CLOSE_AUCTIONS_ROUNDS = 1;  /** The number of update rounds in each invocation of CloseAuctions */
 

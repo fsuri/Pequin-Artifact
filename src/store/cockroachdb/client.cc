@@ -54,11 +54,12 @@ Client::Client(const transport::Configuration &config, uint64_t id, int nShards,
     std::vector<transport::ReplicaAddress> gateways;
     // Last shard group serves as gateways. Can tolerate f failure
     // A gate way serves as a shard master
-    for (int i = 0; i < nGroups; i++) {
-      gateways.push_back(config.replica(nGroups - 1, i));
-    }
+    // for (int i = 0; i < nGroups; i++) {
+    //  gateways.push_back(config.replica(nGroups - 1, i));
+    // }
     // Takes the last server as gateway
-    transport::ReplicaAddress gateway0 = gateways.back();
+    // transport::ReplicaAddress gateway0 = gateways.back();
+    transport::ReplicaAddress gateway0 = config.replica(nGroups - 1, id % config.n);
 
     char host_name[HOST_NAME_MAX];
     int result;
@@ -83,7 +84,7 @@ Client::Client(const transport::Configuration &config, uint64_t id, int nShards,
     Notice("Site %s \n", site.c_str());
     string addr = gateway0.host + site + ":" + gateway0.port;
     string url = "postgresql://root@" + addr + "/defaultdb?sslmode=disable";
-
+//    string url = "postgresql://liam:yj_Po83GRg-P-ikM-Hg3_w@jade-tern-11712.6wr.aws-us-west-2.cockroachlabs.cloud:26257/defaultdb?sslmode=verify-full";
     Notice("Connecting to gateway %s", url.c_str());
     // Establish connection
 
@@ -210,7 +211,6 @@ void Client::Put(const std::string &key, const std::string &value,
 // Execute query.
 void Client::Query(const std::string &query_statement, query_callback qcb,
       query_timeout_callback qtcb, uint32_t timeout, bool cache_result, bool skip_query_interpretation) {
-  std::cerr << "In Query" << std::endl;
   try {
     if (tr == nullptr) {
       qcb(REPLY_FAIL, nullptr);

@@ -160,7 +160,6 @@ std::unique_ptr<const query_result::QueryResult> SyncClient::SafeRelease(Promise
   }
 }
 
-
 void SyncClient::SQLRequest(std::string &statement, std::unique_ptr<const query_result::QueryResult> &result, uint32_t timeout) {
   Promise promise(timeout);
   
@@ -168,7 +167,6 @@ void SyncClient::SQLRequest(std::string &statement, std::unique_ptr<const query_
         std::placeholders::_1, std::placeholders::_2), 
         std::bind(&SyncClient::SQLTimeoutCallback, this,
         &promise, std::placeholders::_1), timeout);
-
   //result = promise.ReleaseQueryResult(); 
   result = SafeRelease(promise);
 }
@@ -192,7 +190,6 @@ void SyncClient::Write(std::string &statement, std::unique_ptr<const query_resul
         std::bind(&SyncClient::WriteTimeoutCallback, this,
         &promise, std::placeholders::_1), timeout, blind_write);
   result.reset();
-  //result = promise.ReleaseQueryResult(); 
   result = SafeRelease(promise);
 }
 
@@ -220,8 +217,6 @@ void SyncClient::Query(const std::string &query, std::unique_ptr<const query_res
         &promise, std::placeholders::_1), timeout, cache_result);
 
   result.reset();
-
-  //result = promise.ReleaseQueryResult(); 
   result = SafeRelease(promise);
 }
 
@@ -255,6 +250,7 @@ void SyncClient::Wait(std::vector<std::unique_ptr<const query_result::QueryResul
   queryPromises.clear();
 
   if(aborted){
+    asyncWait();
     values.clear();
     asyncWait(); //wait for any possibly outstanding requests to return before throwing exception.
     throw std::exception(); //Propagate Abort exception
@@ -274,7 +270,7 @@ void SyncClient::asyncWait() {
 
   if(aborted) {
     std::vector<std::unique_ptr<const query_result::QueryResult>> throw_away_values;
-    Wait(throw_away_values); //wait for any possibly outstanding requests to return before throwing exception.
+    Wait(throw_away_values);
     throw std::exception(); //Propagate Abort exception
   }
 }

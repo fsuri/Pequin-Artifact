@@ -73,6 +73,8 @@ def kill_servers(config, executor, kill_args=' -9'):
     elif config['replication_protocol'] == 'pbft' or config['replication_protocol'] == 'hotstuff' or config['replication_protocol'] == 'pg-smr' or \
         config['replication_protocol'] == 'peloton-smr' or config['replication_protocol'] == 'bftsmart' or config['replication_protocol'] == 'augustus':
         n = 3 * config['fault_tolerance'] + 1
+    elif config['replication_protocol'] == 'crdb':
+        n = config['fault_tolerance']
     else:
         n = 2 * config['fault_tolerance'] + 1
 
@@ -261,6 +263,8 @@ def start_servers(config, local_exp_directory, remote_exp_directory, run):
     elif config['replication_protocol'] == 'pbft' or config['replication_protocol'] == 'hotstuff' or config['replication_protocol'] == 'pg-smr' or \
         config['replication_protocol'] == 'peloton-smr' or config['replication_protocol'] == 'bftsmart' or config['replication_protocol'] == 'augustus':
         n = 3 * config['fault_tolerance'] + 1
+    elif config['replication_protocol'] == 'crdb':
+        n = config['fault_tolerance']
     else:
         n = 2 * config['fault_tolerance'] + 1
     

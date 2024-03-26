@@ -76,14 +76,16 @@
 #include "store/bftsmartstore/replica.h"
 #include "store/bftsmartstore/server.h"
 // Augustus-BftSmart
-
-// CockroachDb
-#include "store/cockroachdb/server.h"
-
 #include "store/bftsmartstore_augustus/replica.h"
 #include "store/bftsmartstore_augustus/server.h"
 #include "store/bftsmartstore_stable/replica.h"
 #include "store/bftsmartstore_stable/server.h"
+
+#include <gflags/gflags.h>
+
+// CockroachDb
+#include "store/cockroachdb/server.h"
+
 // Postgres store
 #include "store/postgresstore/server.h"
 
@@ -110,13 +112,15 @@ enum protocol_t {
     // BftSmart
     PROTO_BFTSMART,
     // Augustus-BFTSmart
-		PROTO_AUGUSTUS_SMART,
+    PROTO_AUGUSTUS_SMART,
     // Postgres
     PROTO_PG,
      // PG-SMR
     PROTO_PG_SMR,
     // Peloton-SMR
-    PROTO_PELOTON_SMR
+    PROTO_PELOTON_SMR,
+    // CockroachDB
+    PROTO_CRDB
 };
 
 enum transmode_t {
@@ -153,19 +157,21 @@ DEFINE_uint64(server_load_time, 0, "time servers spend loading before clients st
 
 DEFINE_bool(rw_or_retwis, true, "true for rw, false for retwis");
 const std::string protocol_args[] = {
-	"tapir",
+  "tapir",
   "weak",
   "strong",
   "pequin",
   "indicus",
-	"pbft",
-    "hotstuff",
-    "augustus-hs", //not used currently by experiment scripts (deprecated)
+  "pbft",
+  "hotstuff",
+  "hotstuffpg",
+  "augustus-hs", //not used currently by experiment scripts (deprecated)
   "bftsmart",
-	"augustus", //currently used as augustus version -- maps to BFTSmart Augustus implementation
+  "augustus", //currently used as augustus version -- maps to BFTSmart Augustus implementation
   "pg",
   "pg-smr",
   "peloton-smr"
+  "crdb"
 };
 const protocol_t protos[] {
   PROTO_TAPIR,
@@ -180,7 +186,8 @@ const protocol_t protos[] {
   PROTO_AUGUSTUS_SMART,
   PROTO_PG,
   PROTO_PG_SMR,
-  PROTO_PELOTON_SMR
+  PROTO_PELOTON_SMR,
+  PROTO_CRDB
 };
 static bool ValidateProtocol(const char* flagname,
     const std::string &value) {
@@ -757,6 +764,8 @@ int main(int argc, char **argv) {
         timeDelta = timeDelta | (((FLAGS_indicus_watermark_time_delta % 1000) * 1000) << 12 );     //Milliseconds. (Shift 12 --> see truetime.cc)
         break;
       case PROTO_PBFT:
+      case PROTO_CRDB:
+        break;
       case PROTO_HOTSTUFF:
       case PROTO_PG_SMR:
       case PROTO_PELOTON_SMR:
@@ -1043,6 +1052,14 @@ int main(int argc, char **argv) {
 
   case PROTO_PG: {
     server = new postgresstore::Server(tport);
+    break;
+  }
+  case PROTO_CRDB: {
+    Notice("Starting CRDB Server Object");
+    server = new cockroachdb::Server(config, &keyManager, FLAGS_group_idx,
+                                      FLAGS_replica_idx, FLAGS_num_shards,
+                                      FLAGS_num_groups, FLAGS_data_file_path);
+    Notice("Finished creating CRDB Server Object");
     break;
   }
 
