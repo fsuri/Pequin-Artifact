@@ -709,13 +709,158 @@ void PelotonTableStore::TransformPointResult(proto::Write *write, Timestamp &com
 
 //////////////////////// WRITE STATEMENTS
 
-// void ExecWrite(std::string &write_statement, const Timestamp &ts, const
-// std::string &txn_digest,
-//     const proto::CommittedProof *commit_proof, bool commit_or_prepare)
+//TODO:
+//Parallel ApplyTableWrites. //for each have a cop.
+//TODO: how many cops do we support currently?
+//Note: this only works if we use the dynamic cop version. Cannot use this if we are using cop from core..
+//I.e. must check that `is_recycled_version_ == true`
+
+//TODO: How many peloton threads are running currently? What is the implication of making more cops than threads?
+/*  Starter code to parallelize TableWrites within one TX. TODO: Need to actually dispatch the ParseAndPrepare portion to different threads as well (this seems the bottleneck right now)
+void PelotonTableStore::ApplyTableWrites(const proto::Transaction &txn, const Timestamp &ts, const std::string &txn_digest,
+                                  const proto::CommittedProof *commit_proof, bool commit_or_prepare, bool forceMaterialize)
+{
+  int core = sched_getcpu();
+  Debug("Begin writeLat on core: %d", core);
+  Latency_Start(&writeLats[core]);
+
+  if (commit_or_prepare) {
+    UW_ASSERT(commit_proof);
+    Debug("Before timestamp asserts for apply table write");
+    UW_ASSERT(ts == Timestamp(commit_proof->txn().timestamp()));
+  }
+
+   // Turn txn_digest into a shared_ptr, write everywhere it is needed.
+  std::shared_ptr<std::string> txn_dig(std::make_shared<std::string>(txn_digest));
+
+  std::vector<std::pair<peloton::tcop::TrafficCop *, std::atomic_int *>> cop_pairs;
+
+  for(auto &[table_name, table_write]: txn.table_writes()){
+    // UW_ASSERT(ts.getTimestamp() >= 0 && ts.getID() >= 0);
+    Debug("Apply TableWrite[%s] for txn %s. TS [%lu:%lu]. Commit? %d. ForceMat? %d", table_name.c_str(), BytesToHex(txn_digest, 16).c_str(), ts.getTimestamp(), ts.getID(), commit_or_prepare, forceMaterialize);
+
+    if (table_write.rows().empty()) continue;
+
+    //TODO: Would have to dispatch this? Otherwise prepare is still sequential...
+    ExecuteTableWrite(table_name, table_write); // in here: push back to cop_pairs.
+    //Problem: Within one table write, might do several events...
+
+  }
+  //sync barrier. Wait for all to be done.
+  for(auto &[tcop, counter]: cop_pairs){
+    auto status = peloton::ResultType::SUCCESS; //
+    GetResult(status, tcop, counter);
+  }
+
+  Debug("End writeLat on core: %d", core);
+  // Debug("getCPU says on core: %d", sched_getcpu());
+  // UW_ASSERT(core == sched_getcpu());
+  Latency_End(&writeLats[core]);
+
+  return;
+}
+*/
+
+// void PelotonTableStore::ExecuteTableWrite(const std::string &table_name, const TableWrite &table_write, const Timestamp &ts, const std::string &txn_digest,
+//                                         const proto::CommittedProof *commit_proof, bool commit_or_prepare, bool forceMaterialize, 
+//                                         std::vector<std::pair<peloton::tcop::TrafficCop *, std::atomic_int *>> &cop_pairs){
+
+
+//   /////
+
+//   std::string write_statement; // empty if no writes
+//   //  std::string delete_statement; //empty if no deletes
+//   std::vector<std::string> delete_statements;
+//   sql_interpreter.GenerateTableWriteStatement(write_statement, delete_statements, table_name, table_write);
+
+//   // Execute Writes and Deletes on Peloton
+//   std::vector<peloton::ResultValue> result;
+
+//   // Debug("Delete statements: %s", fmt::join(delete_statements, "|"));
+
+//   // Execute Write Statement
+//   if (!write_statement.empty()) {
+
+//     //Notice("Write statement: %s", write_statement.substr(0, 1000).c_str());
+
+//     Debug("Write statement: %s", write_statement.substr(0, 1000).c_str());
+//     Debug("Commit or prepare is %d", commit_or_prepare);
+
+//     // Notice("Txn %s is trying to %s with TS[%lu:%lu]", BytesToHex(txn_digest, 16).c_str(), commit_or_prepare? "commit" : "prepare" , ts.getTimestamp(), ts.getID());
+//     // Notice("Commit or prepare is %d", commit_or_prepare);
+
+//     //Traffic Cop                                
+//     std::pair<peloton::tcop::TrafficCop *, std::atomic_int *> cop_pair = GetCop();
+//     cop_pairs.push_back(GetCop());
+
+//     peloton::tcop::TrafficCop *tcop = cop_pairs.back().first;
+//     auto counter = cop_pairs.back().second;
+//     bool unamed;
+    
+//     // prepareStatement
+//     auto statement = ParseAndPrepare(write_statement, tcop);
+
+//     // ExecuteStatment
+//     std::vector<peloton::type::Value> param_values;
+//     //size_t t_id = 0; // std::hash<std::thread::id>{}(std::this_thread::get_id());
+
+//     std::vector<int> result_format(statement->GetTupleDescriptor().size(), 0);
+
+//     // counter_.store(1); // SetTrafficCopCounter();
+//     /*auto status = traffic_cop_.ExecuteWriteStatement(statement, param_values, unnamed, result_format, result, ts, txn_dig,commit_proof, commit_or_prepare, t_id);*/
+
+//     counter->store(1);
+//     auto status = tcop->ExecuteWriteStatement(statement, param_values, unamed, result_format, result, ts, txn_dig, commit_proof, commit_or_prepare, forceMaterialize);
+
+//     // GetResult(status);
+//     GetResult(status, tcop, counter);
+
+//     if (status == peloton::ResultType::SUCCESS)
+//       Debug("Write successful");
+//     else
+//       Panic("Write failure");
+//   }
+
+//   // Execute Delete Statement
+//   // Note: Peloton does not support WHERE IN syntax in Delete statements. Thus
+//   // we have to represent multi deletes as indidivdual statements -- which is
+//   // quite inefficient
+
+//   // if (!delete_statement.empty()) {
+//   for (auto &delete_statement : delete_statements) { // TODO: Find a way to parallelize these statement calls (they don't conflict)
+//     Notice("Delete statement: %s", delete_statement.c_str());
+//     Debug("Delete statement: %s. Commit/Prepare: %d", delete_statement.c_str(), commit_or_prepare);
+//     if(commit_or_prepare) UW_ASSERT(commit_proof);
+    
+//     // prepare Statement
+//     auto statement = ParseAndPrepare(delete_statement, tcop);
+//     // ExecuteStatment
+//     std::vector<peloton::type::Value> param_values; // param_values.clear();
+
+//     std::vector<int> result_format(statement->GetTupleDescriptor().size(), 0);
+
+//     counter->store(1);
+//     // counter_.store(1); // SetTrafficCopCounter();
+//     /*auto status = traffic_cop_.ExecuteWriteStatement( statement, param_values, unnamed, result_format, result, ts, txn_dig, commit_proof, commit_or_prepare);*/
+//     auto status = tcop->ExecuteWriteStatement(statement, param_values, unamed, result_format, result, ts, txn_dig, commit_proof, commit_or_prepare, forceMaterialize, true); //is_delete
+
+//     // GetResult(status);
+//     GetResult(status, tcop, counter);
+
+//     if (status == peloton::ResultType::SUCCESS)
+//       Debug("Delete successful");
+//     else
+//       Panic("Delete failure");
+//   }
+// }
+
 
 // Apply a set of Table Writes (versioned row creations) to the Table backend
 void PelotonTableStore::ApplyTableWrite(const std::string &table_name, const TableWrite &table_write, const Timestamp &ts, const std::string &txn_digest,
-    const proto::CommittedProof *commit_proof, bool commit_or_prepare, bool forceMaterialize) {
+                                        const proto::CommittedProof *commit_proof, bool commit_or_prepare, bool forceMaterialize) {
+
+  //return; //FIXME: REMOVE. Currently testing how much isolated impact this has.
+                                        
   // Note: These are "no questions asked writes", i.e. they should always succeed/be applied, because they don't care about any semantics
   //  TODO: can add boolean to allow a use of this function that DOES respect Insert/Update/Delete semantics -- however those can just go through ExecRaw (and wait for the result)
 

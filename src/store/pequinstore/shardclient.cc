@@ -1234,6 +1234,7 @@ void ShardClient::ProcessP1R(proto::Phase1Reply &reply, bool FB_path, PendingFB 
                   if (itr == pendingPhase1s.end()) {
                     return;
                   }
+                  Debug("P1Validator STATE: SLOW_COMMIT_TENTATIVE - Execute TIMER");
                   itr->second->decision = proto::COMMIT;
                   itr->second->fast = false;
                   Phase1Decision(itr);

@@ -1908,7 +1908,11 @@ std::string TransactionDigest(const proto::Transaction &txn, bool hashDigest) {
       blake3_hasher_update(&hasher, (unsigned char *) &(*table)[0], table->length());
 
       for(const auto &row: table_write->rows()){
-          if(row.has_deletion()) blake3_hasher_update(&hasher, (void *) row.deletion(), sizeof(row.deletion()));
+          if(row.has_deletion()){
+            // bool del = row.deletion();
+            // blake3_hasher_update(&hasher, (unsigned char *) &del, sizeof(del));
+            blake3_hasher_update(&hasher, &(const unsigned char &) row.deletion(), sizeof(row.deletion()));
+          }
           for(const auto &val: row.column_values()){
             blake3_hasher_update(&hasher, (unsigned char *) &val[0], val.length());
           }

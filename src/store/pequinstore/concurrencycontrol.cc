@@ -316,6 +316,7 @@ proto::ConcurrencyControl::Result Server::mergeTxReadSets(const ReadSet *&readSe
   
   if(!params.query_params.cacheReadSet && params.query_params.mergeActiveAtClient){
     Debug("Query Read Sets are already merged into main read Set by client."); 
+    std::cerr << "case 1" << std::endl;
     return proto::ConcurrencyControl::COMMIT;
   }
 
@@ -323,6 +324,7 @@ proto::ConcurrencyControl::Result Server::mergeTxReadSets(const ReadSet *&readSe
   
   if(txn.query_set().empty()){
     Debug("Txn has no queries. ReadSet = base ReadSet");
+     std::cerr << "case 2" << std::endl;
     return proto::ConcurrencyControl::COMMIT;
   } 
 
@@ -333,12 +335,14 @@ proto::ConcurrencyControl::Result Server::mergeTxReadSets(const ReadSet *&readSe
 
    //If tx already has mergedReadSet -> just return that, no need in re-doing the work.
   if(txn.has_merged_read_set()){
+     std::cerr << "case 3" << std::endl;
     Debug("Already cached a merged read set. Re-using.");
     readSet = &txn.merged_read_set().read_set();
     depSet = &txn.merged_read_set().deps();
     predSet = &txn.merged_read_set().read_predicates();
     return proto::ConcurrencyControl::COMMIT;
   }
+  
 
   //Else: Try to generate a new mergedReadSet
   std::unique_ptr<proto::ReadSet> mergedReadSet(new proto::ReadSet()); //if this doesn't work, just create a local proto::ReadSet
@@ -352,6 +356,7 @@ proto::ConcurrencyControl::Result Server::mergeTxReadSets(const ReadSet *&readSe
   bool already_subscribed = !TxnMissingQueries.insert(mq, txnDigest); //Note: Reading should still take a write lock. (If not, can insert here, and erase at the end if empty.)
 
   if(already_subscribed){
+     std::cerr << "case 4" << std::endl;
     UW_ASSERT(mq->second); //Must exist if we are subscribed. If it doesn't exist, we shou'dve erased from TxnMissingQueries again
     if(prepare_or_commit==1) mq->second->setToCommit(proof); //groupedSigs, p1Sigs, view, 1); //Upgrade subscription to commit.
     return proto::ConcurrencyControl::WAIT; //The txn is missing queries and is already subscribed.
@@ -374,6 +379,7 @@ proto::ConcurrencyControl::Result Server::mergeTxReadSets(const ReadSet *&readSe
       //has_missing = true;
     }
     else if(res != proto::ConcurrencyControl::COMMIT){ //No need to continue CC check.
+     std::cerr << "case 5" << std::endl;
       Debug("Query[%s] invalid or doomed to abort. Stopping Merge. res: %d", BytesToHex(query_md.query_id(), 16).c_str(), res);
       TxnMissingQueries.erase(mq); //Erase if we added the data structure for no reason.
       return res;  //Note: Might have already subscribed some queries on a tx. If they wake up and there is no waiting tx object thats fine -- nothing happens
@@ -424,6 +430,7 @@ proto::ConcurrencyControl::Result Server::mergeTxReadSets(const ReadSet *&readSe
       }
     //mq.release(); Implicit
     Debug("Subscribed Txn on missing queries. Stopping Merge");
+     std::cerr << "case 6" << std::endl;
     return proto::ConcurrencyControl::WAIT;
   }
   else{
@@ -438,6 +445,7 @@ proto::ConcurrencyControl::Result Server::mergeTxReadSets(const ReadSet *&readSe
     Debug("Tx has no queries with active read sets.");
     new_reads = false; //No new reads -> don't need to sort
     if(mergedReadSet->read_predicates().empty()){ //NEW: Also try to include merged read preds. Note: If there is a pred -> there will be a read key for TableVersion anyways...
+     std::cerr << "case 7" << std::endl;
       return proto::ConcurrencyControl::COMMIT;
     }
     //return proto::ConcurrencyControl::COMMIT;
@@ -484,8 +492,14 @@ proto::ConcurrencyControl::Result Server::mergeTxReadSets(const ReadSet *&readSe
   }
  
    //add mergedreadSet to tx - return success
-  if(txn.has_merged_read_set()) Panic("Thread unsafe interaction");
-  txn.set_allocated_merged_read_set(mergedReadSet.release());
+  if(txn.has_merged_read_set()){
+    //Panic("Thread unsafe interaction");
+    Warning("Potentially Thread unsafe interaction. Investigate!"); 
+    //Note: This seems to happen when a server does P1 and Commit basically concurrently. (This can happen if other replicas reached Quorum on P1 without this replica!)
+  } 
+  else{
+      txn.set_allocated_merged_read_set(mergedReadSet.release());
+  }
   readSet = &txn.merged_read_set().read_set();
   depSet = &txn.merged_read_set().deps();
   predSet = &txn.merged_read_set().read_predicates();
@@ -533,6 +547,8 @@ proto::ConcurrencyControl::Result Server::DoOCCCheck(
     Debug("Returning. Merge indicated query read sets are not ready or invalid. result = %d", result);
     return result;  //NOTE: Could optimize and turn Abstains into full Abort if we used duplicate reads as proof. (would have to distinguish from the abstains caused by cached mismatch)
   }
+
+
   //Note: if we wait, we might end up never garbage collecting TX from ongoing (and possibly from other replicas Prepare set - since the tx is blocked); Can garbage collect after some time if desired (since we didn't process, theres no impact on decisions)
   //If another client is interested, then it should start fallback and provide read set as well (forward SyncProposal with correct retry version)
     
@@ -980,7 +996,7 @@ proto::ConcurrencyControl::Result Server::DoMVTSOOCCCheck(
 
 
     //6) Prepare Transaction: No conflicts, No dependencies aborted --> Make writes visible.
-    Prepare(txnDigest, txn, readSet);
+    Prepare(txnDigest, txn, readSet); 
   }
   
 

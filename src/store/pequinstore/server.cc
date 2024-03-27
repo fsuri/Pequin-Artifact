@@ -1963,7 +1963,28 @@ void Server::Prepare(const std::string &txnDigest, const proto::Transaction &txn
       //TODO: Insert into table as well.
     }
   }
+
+  if(params.query_params.useSemanticCC){
+    RecordReadPredicatesAndWrites(*ongoingTxn, ts, false);
+  }
+
   o.release(); //Relase only at the end, so that Prepare and Clean in parallel for the same TX are atomic.
+
+  
+
+  //TODO: If this is slow -> dispatch it to be async...
+  // auto f = [this, ongoingTxn, ts, txnDigest, table_and_col_versions](){   //not very safe: Need to rely on fact that ongoingTxn won't be deleted
+  //   ApplyTableWrites(*ongoingTxn, ts, txnDigest, nullptr, false);
+   
+  //   //Apply TableVersion and TableColVersion 
+  //   for(auto table_or_col_version: table_and_col_versions){   
+  //     Debug("Preparing TableVersion or TableColVersion: %s with TS: [%lu:%lu]", (*table_or_col_version).c_str(), ts.getTimestamp(), ts.getID());
+  //     std::pair<std::shared_mutex,std::map<Timestamp, const proto::Transaction *>> &x = preparedWrites[*table_or_col_version];
+  //     std::unique_lock lock(x.first);
+  //     x.second.insert(pWrite);
+  //   }
+  // };
+  // transport->DispatchTP_noCB(std::move(f));
 
   ApplyTableWrites(*ongoingTxn, ts, txnDigest, nullptr, false);
   // for (const auto &[table_name, table_write] : txn.table_writes()){
@@ -1974,10 +1995,7 @@ void Server::Prepare(const std::string &txnDigest, const proto::Transaction &txn
   //   // x.second.insert(pWrite);
   // }
 
-  if(params.query_params.useSemanticCC){
-    RecordReadPredicatesAndWrites(*ongoingTxn, ts, false);
-  }
-
+ 
   //Apply TableVersion and TableColVersion 
   //TODO: for max efficiency (minimal wait time to update): Set_change table in table_write, and write TableVersion as soon as TableWrite has been applied
                                                             //Do the same for Table_Col_Version. TODO: this requires parsing out the table_name however.
@@ -2068,6 +2086,7 @@ void Server::UpdateCommittedReads(proto::Transaction *txn, const std::string &tx
   const PredSet *predSet = &txn->read_predicates(); //DEFAULT
 
   proto::ConcurrencyControl::Result res = mergeTxReadSets(readSet, depSet, predSet, *txn, txnDigest, proof);
+  
   Debug("was able to pull read set from cache? res: %d", res);
   // Note: use whatever readSet is returned -- if query read sets are not correct/present just use base (it's safe: another replica would've had all)
   // I.e.: If the TX got enough commit votes (3f+1), then at least 2f+1 correct replicas must have had the correct readSet. Those suffice for safety
@@ -2180,7 +2199,7 @@ void Server::CommitToStore(proto::CommittedProof *proof, proto::Transaction *txn
     RecordReadPredicatesAndWrites(*txn, ts, true);
     //Note on safety: We are not holding a lock on TableVersion while committing. This means the server-local writes are not guaranteed to be observed by concurrent read predicates
     //This is fine globally, because reaching Commit locally, implies that a Quorum of servers have prepared already. 
-    //Since that prepare DID hold locks, safety is already enforced.
+    //Since that prepare DID hold locks, safety is already enforced. Recording them here simply upgrades them to commit status.
   }
   
   //   //Note: Does one have to do special handling for Abort? No ==> All prepared versions just produce unecessary conflicts & dependencies, so there is no safety concern.

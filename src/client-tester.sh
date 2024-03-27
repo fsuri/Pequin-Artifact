@@ -1,9 +1,9 @@
 #!/bin/bash
 
 CLIENTS=1
-F=1
+F=0
 NUM_GROUPS=1
-CONFIG="0_local_test_outputs/configs/shard-r6.config"
+CONFIG="0_local_test_outputs/configs/shard-r1.config"
 PROTOCOL="pequin"
 STORE=${PROTOCOL}store
 DURATION=10
@@ -14,11 +14,11 @@ KEY_PATH="keys"
 
 SQL_BENCH="true"
 
-BENCHMARK="rw-sql"
-FILE_PATH="0_local_test_outputs/rw-sql/rw-sql.json"
+#BENCHMARK="rw-sql"
+#FILE_PATH="0_local_test_outputs/rw-sql/rw-sql.json"
 
-#BENCHMARK="tpcc-sql"
-#FILE_PATH="store/benchmark/async/sql/tpcc/sql-tpcc-tables-schema.json"
+BENCHMARK="tpcc-sql"
+FILE_PATH="store/benchmark/async/sql/tpcc/sql-tpcc-tables-schema.json"
 
 #BENCHMARK="seats-sql"
 #FILE_PATH="store/benchmark/async/sql/seats/sql-seats-tables-schema.json"

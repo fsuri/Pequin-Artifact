@@ -191,8 +191,6 @@ bool DeleteExecutor::DExecute() {
           return false;
         }
 
-        if(current_txn->GetCommitOrPrepare()) Panic("reaching");
-
         //THIS IF-BLOCK IS DEPRECATED. PURGE (UNDO-DELETE) IS NOW HANDLED THROUGH insert_executor.cc
         if(current_txn->GetUndoDelete()) Panic("UndoDelete in delete_executor.cc is deprecated");
               //std::cerr << "Undo delete is " << current_txn->GetUndoDelete() << std::endl;

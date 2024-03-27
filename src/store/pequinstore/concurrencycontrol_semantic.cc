@@ -454,8 +454,10 @@ proto::ConcurrencyControl::Result Server::CheckTableWrites(const proto::Transact
       UW_ASSERT(!read_txn->query_set().empty()); //if txn didn't have a query set it wouldnt be in the pred list!
       const PredSet *predSet = &read_txn->read_predicates();
       if(params.query_params.cacheReadSet || !params.query_params.mergeActiveAtClient){
-          UW_ASSERT(read_txn->has_merged_read_set());
-          predSet = &read_txn->merged_read_set().read_predicates();
+          if(read_txn->has_merged_read_set()){
+              predSet = &read_txn->merged_read_set().read_predicates();
+          }
+          //Note: It may be that this replica does not locally have the correct merged read set and hence it is empty. This is safe (see UpdateCommittedReads comments)
       }
  
       for(auto &pred: *predSet){
@@ -546,11 +548,19 @@ void Server::RecordReadPredicatesAndWrites(const proto::Transaction &txn, const 
 
 
   //Record all ReadPredicates   //Store a reference: table_name -> txn
-  const PredSet *predSet = &txn.read_predicates(); //If we are not caching, and clientMerges => then they all preds must be in read_predicates(). Otherwise, we must've merged
+  const PredSet *predSet = &txn.read_predicates(); //If we are not caching, and clientMerges => then all preds must be in read_predicates(). Otherwise, we must've merged
   if(!txn.query_set().empty() && (params.query_params.cacheReadSet || !params.query_params.mergeActiveAtClient)){
    
-      UW_ASSERT(txn.has_merged_read_set());
-    predSet = &txn.merged_read_set().read_predicates();
+    if(txn.has_merged_read_set()){
+       predSet = &txn.merged_read_set().read_predicates();
+    }
+    else{
+      // Note: if txn doesn't have merged read set, even though it seems like it should, then it is because it locally cached a different read set
+      // In this case, we can just skip locally applying the read predicates/read set (it's safe: sufficiently many other replicas WILL do it correctly)
+      // I.e.: If the TX got enough commit votes (3f+1), then at least 2f+1 correct replicas must have had the correct readSet. Those suffice for safety
+      // conflicts. this replica will STILL apply the TableWrites, so visibility isn't impeded.
+    }
+   
   }
   Debug("Prepare: predSet has [%d] read preds", predSet->size());
  
@@ -616,8 +626,9 @@ void Server::ClearPredicateAndWrites(const proto::Transaction &txn){
   //Clear all ReadPredicates   
   const PredSet *predSet = &txn.read_predicates();
   if(!txn.query_set().empty() && (params.query_params.cacheReadSet || !params.query_params.mergeActiveAtClient)){
-    UW_ASSERT(txn.has_merged_read_set());
-    predSet = &txn.merged_read_set().read_predicates();
+    if(txn.has_merged_read_set()){
+      predSet = &txn.merged_read_set().read_predicates();
+    }
   }
  
   for(auto &pred: *predSet){
