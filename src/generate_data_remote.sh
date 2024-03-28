@@ -31,6 +31,9 @@ k_nearest_airports) K_NEAREST_AIRPORTS=${OPTARG};;
 esac;
 done
 
+echo "DEPRECATED-DO NOT USE. Generating data separately at servers may result in different local data views"
+exit 1
+
 #Upload schemas to clients //TODO: make sure generator has been run locally so this file exists.
 parallel "rsync -v -r -e ssh ./store/benchmark/async/sql/${BENCHMARK_NAME}/sql-${BENCHMARK_NAME}-tables-schema.json ${USER}@{}.pequin.pequin-pg0.utah.cloudlab.us:/users/${USER}/benchmark_data/" ::: ${arr_clients[@]} 
 

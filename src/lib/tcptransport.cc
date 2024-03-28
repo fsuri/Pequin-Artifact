@@ -425,6 +425,7 @@ TCPTransport::SendMessageInternal(TransportReceiver *src,
         m.GetTypeName().c_str(), inet_ntoa(dst.addr.sin_addr),
         htons(dst.addr.sin_port));
     auto dstSrc = std::make_pair(dst, src);
+
     mtx.lock();
     auto kv = tcpOutgoing.find(dstSrc);
     // See if we have a connection open
@@ -488,6 +489,7 @@ TCPTransport::SendMessageInternal(TransportReceiver *src,
     }
     //evbuffer_unlock(ev);
     //mtx.unlock();
+  
 
     /*Latency_Start(&sockWriteLat);
     if (write(ev->ev_write.ev_fd, buf, totalLen) < 0) {

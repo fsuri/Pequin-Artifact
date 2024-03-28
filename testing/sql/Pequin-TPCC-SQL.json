@@ -18,7 +18,7 @@
   "benchmark_name": "tpcc-sql",
   "benchmark_schema_file_path": "/users/fs435/benchmark_data/sql-tpcc-tables-schema.json",
   
-   "server_load_time": 12,
+   "server_load_time": 13,
   
   "_TPCC_SQL_ARGS_" :0,
   	  "_note: parititoner is unused currently": 0,

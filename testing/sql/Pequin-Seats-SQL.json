@@ -18,7 +18,7 @@
   "benchmark_name": "seats-sql",
   "benchmark_schema_file_path": "/users/fs435/benchmark_data/sql-seats-tables-schema.json",
   
-   "server_load_time": 5,
+   "server_load_time": 16,
   
   "_SEATS_SQL_ARGS_" :0,
   	  "_TODO: SCALE FACTOR; max_airports, k_nearest?": 0,
@@ -143,7 +143,7 @@
   "_client_debug_output": false,
   "client_debug_output": "store/pequinstore/*",
   "_server_debug_output": false, 
-  "server_debug_output": "store/pequinstore/*",
+  "server_debug_output": "*",
   "server_debug_stats": false,
   "client_debug_stats": false,
   "client_experiment_length": 30,

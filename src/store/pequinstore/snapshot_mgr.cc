@@ -132,6 +132,8 @@ void SnapshotManager::AddToLocalSnapshot(const std::string &txnDigest, const uin
 
   Debug("USE OPTIMISTIC? %d", useOptimisticTxId);
 
+  if(timestamp == 0 && id == 0) return; // don't need to include genesis TX in snapshot...
+
   if(!useOptimisticTxId){ //Add txnDigest to snapshot
     //Just add txnDig to RepeatedPtr directly  //TODO: Make one general structure for prepared/committed.
     Debug("Add txnDig(%s) to snapshot", BytesToHex(txnDigest, 16).c_str());

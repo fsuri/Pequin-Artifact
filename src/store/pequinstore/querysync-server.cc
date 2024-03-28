@@ -261,7 +261,9 @@ void Server::HandleQuery(const TransportAddress &remote, proto::QueryRequest &ms
         //Note: If eager exec on && caching read set --> all must execute.
         Debug("ExecQueryEagerly. QueryId[%s]. Designated for reply? %d", BytesToHex(queryId, 16).c_str(), msg.designated_for_reply());
         ExecQueryEagerly(q, query_md, queryId);
+         Debug("Finish ExecQueryEagerly. QueryId[%s]. Designated for reply? %d", BytesToHex(queryId, 16).c_str(), msg.designated_for_reply());
         if(params.mainThreadDispatching && (!params.dispatchMessageReceive || params.query_params.parallel_queries)) FreeQueryRequestMessage(&msg);
+
         return;
     }
 
@@ -714,6 +716,8 @@ void Server::SendQueryReply(QueryMetaData *query_md){
         Debug("Sign Query Result Reply for Query[%lu:%lu]", result->query_seq_num(), result->client_id());
 
         result = queryResultReply->release_result();   //Temporarily release result in order to sign.
+
+        //TODO: FIXME: If want to be able to dispatch it again, need to somehow keep lock longer...
         if(false) { //params.queryReplyBatch){
             TransportAddress *remoteCopy = query_md->original_client->clone();
             auto sendCB = [this, remoteCopy, queryResultReply]() {
@@ -750,8 +754,9 @@ void Server::SendQueryReply(QueryMetaData *query_md){
                 smsgs.push_back(queryResultReply->mutable_signed_result());
                 SignMessages(msgs, keyManager->GetPrivateKey(id), id, smsgs, params.merkleBranchFactor);
             }
-            
+            std::cerr << "about to send to: " << query_md->original_client << std::endl;
             this->transport->SendMessage(this, *query_md->original_client, *queryResultReply);
+             std::cerr << "managed to send" << std::endl;
              Debug("Sent Signed Query Result for Query[%lu:%lu]", result->query_seq_num(), result->client_id());
             //delete queryResultReply;
             
@@ -765,7 +770,7 @@ void Server::SendQueryReply(QueryMetaData *query_md){
     }
     else{
         this->transport->SendMessage(this, *query_md->original_client, *queryResultReply);
-        Debug("Sent Signed Query Result (no sigs) for Query[%lu:%lu]", result->query_seq_num(), result->client_id());
+        Debug("Sent Query Result (no sigs) for Query[%lu:%lu]", result->query_seq_num(), result->client_id());
         //Note: In this branch result is still part of queryResultReply; thus it suffices to only allocate back to result.
         if(params.query_params.cacheReadSet){ //Restore read set and deps to be cached
             result->set_allocated_query_read_set(query_read_set);

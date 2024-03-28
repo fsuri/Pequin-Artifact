@@ -18,7 +18,7 @@
   "benchmark_name": "auctionmark-sql",
   "benchmark_schema_file_path": "/users/fs435/benchmark_data/sql-auctionmark-tables-schema.json",
   
-   "server_load_time": 5,
+   "server_load_time": 17,
   
   "_AUCTIONMARK_SQL_ARGS_" :0,
   	  "_TODO: SCALE FACTOR?": 0,

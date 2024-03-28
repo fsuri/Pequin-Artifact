@@ -17,16 +17,15 @@ FILE_PATH="store/benchmark/async/sql/tpcc/sql-tpcc-tables-schema.json"
 #FILE_PATH="store/benchmark/async/sql/auctionmark/sql-auctionmark-tables-schema.json"
 
 
-
-while getopts f:g:cpath:p:z:num_ops:num_keys: option; do
+while getopts f:g:p:s:z:o:k: option; do
 case "${option}" in
 f) F=${OPTARG};;
 g) NUM_GROUPS=${OPTARG};;
-cpath) CONFIG=${OPTARG};;
-p) PROTOCOL=${OPTARG};;
+p) CONFIG=${OPTARG};;
+s) PROTOCOL=${OPTARG};;
 z) ZIPF=${OPTARG};;
-num_ops) NUM_OPS_TX=${OPTARG};;
-num_keys) NUM_KEYS_IN_DB=${OPTARG};;
+o) NUM_OPS_TX=${OPTARG};;
+k) NUM_KEYS_IN_DB=${OPTARG};;
 esac;
 done
 

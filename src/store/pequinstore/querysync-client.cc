@@ -786,7 +786,7 @@ void ShardClient::HandlePointQueryResult(proto::PointQueryResultReply &queryResu
     PendingQuery *pendingQuery = itr->second;
     if(pendingQuery->done) return; //this is a stale request; (Query finished, but Txn not yet)
     
-    Debug("[group %i] Received PointQueryResult Reply for req-id [%lu]", group, queryResult.req_id());
+    Debug("[group %i] Received PointQueryResult Reply for req-id [%lu] from replica: %d", group, queryResult.req_id(), queryResult.replica_id());
 
     //1) authenticate reply & parse contents
     proto::Write *write;
@@ -1030,6 +1030,8 @@ bool ShardClient::ProcessRead(const uint64_t &reqId, PendingQuorumGet *req, read
         // } 
         return true;
   }
+
+  std::cerr << "finish process read" << std::endl;
     
   return false;
 }
