@@ -1892,8 +1892,13 @@ void SQLTransformer::ExtractColCondition(std::string_view cond_statement, const 
         //Ignore reflexive args:
         if(left == right) return;
 
-        const std::string &type = col_registry.col_name_type.at(left_str);
-        p_col_value[left_str] = TrimValueByType(right, type);
+        try{
+            const std::string &type = col_registry.col_name_type.at(left_str);
+            p_col_value[left_str] = TrimValueByType(right, type);
+        }
+        catch(...){
+            Panic("Col registry does not have this col: %s", left_str.c_str());
+        }
     //}
     // std::cerr << "right val: " << right << std::endl;
     // std::cerr << "trim val: " << TrimValueByType(right, type) << std::endl;

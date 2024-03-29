@@ -140,7 +140,7 @@
   "codebase_name": "indicus",
 
   "client_total": [
-    [1]
+    [8]
   ],
   "client_processes_per_client_node": [
     [8]
@@ -158,8 +158,8 @@
   "server_debug_output": "store/pequinstore/*",
   "server_debug_stats": false,
   "client_debug_stats": false,
-  "client_experiment_length": 30,
-  "client_ramp_down": 5,
+  "client_experiment_length": 20,
+  "client_ramp_down": 2,
   "client_ramp_up": 5,
   "default_remote_shell": "bash",
   "server_host_format_str": "%s.%s.%s.utah.cloudlab.us",
