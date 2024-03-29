@@ -1632,20 +1632,56 @@ void Client::FinishConflict(uint64_t reqId, const std::string &txnDigest, proto:
 }
 
 bool Client::isDep(const std::string &txnDigest, proto::Transaction &Req_txn, const proto::Transaction* txn){
+  //TODO:FIXME: This function is not rigorously protecting against Byz replica ddos. It has some best effort defenses right now.
+    //Caching ReadSet/Predicates makes it difficult to assert whether or not TXs actually conflict or cause dependencies
 
-      //TODO: if TXN not yet preparing => cannot be a relevant dep.
-  //If we are caching: Check whether dependency is part of snapshot; If eager, make an exception and accept dep
-  if(params.query_params.cacheReadSet){
-    for(auto &[query_seq_num, pendingQuery]: pendingQueries){ 
-      for(auto &group: pendingQuery->involved_groups){  
-        if(bclient[group]->isValidQueryDep(query_seq_num, txnDigest, txn)) return true; 
+  //Check if received relayTx is in the dep set of current Tx.
+  for(auto & dep: Req_txn.deps()){
+   if(dep.write().prepared_txn_digest() == txnDigest){ return true;}
+  }
+
+  if(!params.query_params.sql_mode) return false; //Deps must be part of dep set.
+
+  //For Txns with Queries:
+
+  //TODO: if we are not caching, but we didn't merge at client. => Check Query deps
+  if(!params.query_params.cacheReadSet){
+    if(params.query_params.mergeActiveAtClient) return false; //Deps must have been part of dep set.
+
+    for(auto &query_md: Req_txn.query_set()){
+      for(auto &[group, group_md]: query_md.group_meta()){
+        UW_ASSERT(group_md.has_query_read_set()); //since we are not caching
+        for(auto &dep: group_md.query_read_set().deps()){
+           if(dep.write().prepared_txn_digest() == txnDigest){ return true;}
+        }
       }
     }
   }
 
-  for(auto & dep: Req_txn.deps()){
-   if(dep.write().prepared_txn_digest() == txnDigest){ return true;}
+        //TODO: if TXN not yet preparing => cannot be a relevant dep.
+  //If we are caching: Check whether dependency is part of snapshot; If eager, make an exception and accept dep
+  if(params.query_params.cacheReadSet){
+ 
+    //If this is our current Txn: Check for all of it's queries whether or not it could be part of its deps
+    if(Req_txn.client_seq_num() == txn->client_seq_num() && Req_txn.client_id() == txn->client_id()){
+      for(auto &[query_seq_num, pendingQuery]: pendingQueries){ 
+        for(auto &group: pendingQuery->involved_groups){  
+          if(bclient[group]->isValidQueryDep(query_seq_num, txnDigest, txn)) return true; 
+        }
+      }
+    }
+    else{ //Relay Tx is a "deeper dep", i.e. a dep of a fallback TX => then we are currently unable to check the cached deps.
+          //The Tx in question might be a non-local Tx (for which we have no read set/snapshot); or an old Tx of this client (shouldn't happen for honest) for which QueryMD has been deleted already
+      Warning("Cannot check cached deps on deeper deps");  //TODO: Would need to get access to deps cached set
+      return true;
+    }
   }
+
+
+  if(params.query_params.sql_mode && params.query_params.useSemanticCC) return true; 
+  //If dep could be dynamic dep, simply accept for now. //TODO: Be smarter about this. 
+  // Check if Tx relevant to predicate of some query. (To do this, must have predicate local, not cached)
+  
   Panic("Don't expect to receive non-relevant Relay's in simulation");
   return false;
 }

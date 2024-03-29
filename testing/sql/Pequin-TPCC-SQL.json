@@ -127,7 +127,7 @@
 		  "query_merge_active_at_client": true,
 		  
 		  "use_semantic_cc": true,
-		  "monotonicity_grace": 10,
+		  "monotonicity_grace": 30,
 		  "use_active_read_set": true,
 		  
 		  "sign_client_queries": false,

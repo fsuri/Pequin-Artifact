@@ -183,11 +183,11 @@ PelotonTableStore::ParseAndPrepare(const std::string &query_statement, peloton::
   gettimeofday(&now, NULL);
   uint64_t miliseconds_end = now.tv_sec * 1000 + now.tv_usec / 1000;
  
-  //Should not take more than 5 ms (already generous) to parse and prepare.
+  //Should not take more than 1 ms (already generous) to parse and prepare.
   auto duration = miliseconds_end - miliseconds_start;
-  if(duration > 5){
+  if(duration > 1){
     if(size_t insert_pos = query_statement.find("INSERT"); insert_pos != std::string::npos) ;//Warning("ParseAndPrepare exceeded 5ms (INSERT): %d", duration);
-    else Warning("ParseAndPrepare exceeded 5ms (SELECT): %d", duration);
+    else Warning("ParseAndPrepare exceeded 1ms (SELECT): %d", duration);
 
   }
   /////////////
@@ -514,6 +514,10 @@ std::string PelotonTableStore::ExecReadQuery(const std::string &query_statement,
 // serialized form) as well as a commitProof (note, the read set is implicit)
 void PelotonTableStore::ExecPointRead(const std::string &query_statement, std::string &enc_primary_key, const Timestamp &ts,
       proto::Write *write, const proto::CommittedProof* &committedProof) {
+
+   struct timeval now;
+  gettimeofday(&now, NULL);
+  uint64_t miliseconds_start = now.tv_sec * 1000 + now.tv_usec / 1000;
   
   // Client sends query statement, and expects a Query Result for the given key, a timestamp, and a proof (if it was a committed value it read) Note:
   // Sending a query statement (even though it is a point request) allows us to handle complex Select operators (like Count, Max, or just some subset of
@@ -581,6 +585,16 @@ void PelotonTableStore::ExecPointRead(const std::string &query_statement, std::s
 
   Debug("End readLat on core: %d", core);
   Latency_End(&readLats[core]);
+
+  //TESTING HOW LONG THIS TAKES: FIXME: REMOVE 
+  gettimeofday(&now, NULL);
+  uint64_t miliseconds_end = now.tv_sec * 1000 + now.tv_usec / 1000;
+ 
+  //Should not take more than 1 ms (already generous) to parse and prepare.
+  auto duration = miliseconds_end - miliseconds_start;
+  if(duration > 1){
+    Warning("PointRead exceeded 1ms: %d", duration);
+  }
 
   return;
 }
@@ -1094,6 +1108,11 @@ void PelotonTableStore::FindSnapshot(const std::string &query_statement, const T
 }
 
 std::string PelotonTableStore::EagerExecAndSnapshot(const std::string &query_statement, const Timestamp &ts, SnapshotManager &ssMgr, QueryReadSetMgr &readSetMgr, size_t snapshot_prepared_k) {
+   //TESTING HOW LONG THIS TAKES: FIXME: REMOVE 
+  struct timeval now;
+  gettimeofday(&now, NULL);
+  uint64_t miliseconds_start = now.tv_sec * 1000 + now.tv_usec / 1000;
+  
   //Perform EagerRead + FindSnapshot in one go
   Debug("Execute EagerExecAndSnapshot: %s. TS: [%lu:%lu]", query_statement.c_str(), ts.getTimestamp(), ts.getID());
 
@@ -1132,6 +1151,18 @@ std::string PelotonTableStore::EagerExecAndSnapshot(const std::string &query_sta
   Debug("End readLat and snapshotLat on core: %d", core);
   Latency_End(&readLats[core]);
   Latency_End(&snapshotLats[core]);
+
+
+    //TESTING HOW LONG THIS TAKES: FIXME: REMOVE 
+  gettimeofday(&now, NULL);
+  uint64_t miliseconds_end = now.tv_sec * 1000 + now.tv_usec / 1000;
+ 
+  //Should not take more than 1 ms (already generous) to parse and prepare.
+  auto duration = miliseconds_end - miliseconds_start;
+  if(duration > 1){
+    Warning("ScanRead exceeded 1ms: %d", duration); 
+  }
+
 
   return std::move(res);
 }
