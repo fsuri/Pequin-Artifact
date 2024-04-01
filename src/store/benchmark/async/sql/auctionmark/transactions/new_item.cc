@@ -200,7 +200,7 @@ transaction_status_t NewItem::Execute(SyncClient &client) {
   //Insert a new ITEM tuple
   std::string insertItem = fmt::format("INSERT INTO {} (i_id, i_u_id, i_c_id, i_name, i_description, i_user_attributes, i_initial_price, i_current_price, "
                                                       "i_num_bids, i_num_images, i_num_global_attrs, i_num_comments, i_start_date, i_end_date, i_status, i_created, i_updated, "
-                                                      "i_attr0, i_attr1, i_attr2, i_attr3, i_attr4, i_attr5, i_attr6, i_attr7) "
+                                                      "i_iattr0, i_iattr1, i_iattr2, i_iattr3, i_iattr4, i_iattr5, i_iattr6, i_iattr7) "
                                         "VALUES ('{}', '{}', {}, '{}', '{}', '{}', {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, 0, 0, 0, 0, 0, 0, 0, 0)", 
                                         TABLE_ITEM,
                                         item_id, seller_id, category_id, name, description, attributes, initial_price, initial_price, 0, 
@@ -208,7 +208,7 @@ transaction_status_t NewItem::Execute(SyncClient &client) {
   client.Write(insertItem, timeout, true);          
                      
    //Insert ITEM_ATTRIBUTE tuples
-  std::string insertItemAttribute = "INSERT INTO " + std::string(TABLE_ITEM_ATTR) + " (ia_id, ia_i_id, ia_u_id, ia_gav_id, ia_gag_id) VALUES ('{}', '{}', '{}', '{}', '{}', '')";
+  std::string insertItemAttribute = "INSERT INTO " + std::string(TABLE_ITEM_ATTR) + " (ia_id, ia_i_id, ia_u_id, ia_gav_id, ia_gag_id, ia_sattr0) VALUES ('{}', '{}', '{}', '{}', '{}', '', '')";
   //std::string insertItemAttribute = fmt::format("INSERT INTO {} (ia_id, ia_i_id, ia_u_id, ia_gav_id, ia_gag_id, ia_sattr0) VALUES('{}', '{}', '{}', '{}', '{}', '')", TABLE_ITEM_ATTR);
   for(int i = 0; i< gav_ids.size(); ++i){
     std::string unique_elem_id = GetUniqueElementId(item_id, i);

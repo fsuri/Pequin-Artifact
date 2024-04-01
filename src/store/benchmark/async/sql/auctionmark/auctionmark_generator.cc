@@ -191,7 +191,7 @@ void ItemImageTableSchema(TableWriter &writer){
   column_names_and_types.push_back(std::make_pair("ii_id", "TEXT"));
   column_names_and_types.push_back(std::make_pair("ii_i_id", "TEXT"));
   column_names_and_types.push_back(std::make_pair("ii_u_id", "TEXT"));
-  column_names_and_types.push_back(std::make_pair("ia_sattr0", "TEXT"));
+  column_names_and_types.push_back(std::make_pair("ii_sattr0", "TEXT"));
  
   const std::vector<uint32_t> primary_key_col_idx{0, 1, 2};
 

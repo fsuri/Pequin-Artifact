@@ -1,7 +1,7 @@
 #!/bin/bash
 
 BENCHMARK_NAME="tpcc"
-GENERATOR_NAME=sql_${BENCHMARK_NAME}_generator
+
 SCALE_FACTOR=1 
 NUM_WAREHOUSES=1
 
@@ -18,6 +18,8 @@ a) MAX_AIRPORTS=${OPTARG};;
 k) K_NEAREST_AIRPORTS=${OPTARG};;
 esac;
 done
+
+GENERATOR_NAME=sql_${BENCHMARK_NAME}_generator
 
 cd store/benchmark/async/sql/$BENCHMARK_NAME
 
