@@ -48,6 +48,8 @@ class OptimizerTaskStack : public OptimizerTaskPool {
 
   virtual bool Empty() { return task_stack_.empty(); }
 
+   virtual int Size() { return task_stack_.size(); }
+
  private:
   std::stack<std::unique_ptr<OptimizerTask>> task_stack_;
 };

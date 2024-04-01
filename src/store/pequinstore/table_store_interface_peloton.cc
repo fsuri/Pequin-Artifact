@@ -132,11 +132,13 @@ void PelotonTableStore::Init(int num_threads) {
     is_recycled_version_ = false;
     for (int i = 0; i < num_threads; i++) {
       std::atomic_int *counter = new std::atomic_int();
+      std::cerr << "create tcop: " << i << std::endl;
       peloton::tcop::TrafficCop *new_cop = new peloton::tcop::TrafficCop(UtilTestTaskCallback, counter);
       traffic_cops_.push_back({new_cop, counter});
     }
   }
 
+ std::cerr << "traffic_cops sizE: " << traffic_cops_.size() << std::endl;
   for (int i = 0; i < num_threads; ++i) {
     Latency_t readLat;
     Latency_t writeLat;
@@ -157,7 +159,7 @@ PelotonTableStore::ParseAndPrepare(const std::string &query_statement, peloton::
   //TESTING HOW LONG THIS TAKES: FIXME: REMOVE 
   struct timeval now;
   gettimeofday(&now, NULL);
-  uint64_t miliseconds_start = now.tv_sec * 1000 + now.tv_usec / 1000;
+  uint64_t microseconds_start = now.tv_sec * 1000 * 1000 + now.tv_usec;
   ///////////
 
   UW_ASSERT(!query_statement.empty());
@@ -181,13 +183,13 @@ PelotonTableStore::ParseAndPrepare(const std::string &query_statement, peloton::
 
   //TESTING HOW LONG THIS TAKES: FIXME: REMOVE 
   gettimeofday(&now, NULL);
-  uint64_t miliseconds_end = now.tv_sec * 1000 + now.tv_usec / 1000;
+  uint64_t microseconds_end = now.tv_sec * 1000 * 1000 + now.tv_usec ;
  
   //Should not take more than 1 ms (already generous) to parse and prepare.
-  auto duration = miliseconds_end - miliseconds_start;
-  if(duration > 1){
-    if(size_t insert_pos = query_statement.find("INSERT"); insert_pos != std::string::npos) ;//Warning("ParseAndPrepare exceeded 5ms (INSERT): %d", duration);
-    else Warning("ParseAndPrepare exceeded 1ms (SELECT): %d", duration);
+  auto duration = microseconds_end - microseconds_start;
+  if(duration > 500){
+    if(size_t insert_pos = query_statement.find("INSERT"); insert_pos != std::string::npos) Warning("ParseAndPrepare exceeded 500us (INSERT): %d", duration);
+    else Warning("ParseAndPrepare exceeded 500us (SELECT): %d", duration);
 
   }
   /////////////
@@ -253,7 +255,7 @@ std::pair<peloton::tcop::TrafficCop *, std::atomic_int *> PelotonTableStore::Get
     int t_id = sched_getcpu();
     // std::cerr << "Thread id is " << t_id << std::endl;
     if (t_id >= traffic_cops_.size()) {
-      Panic("Not enough traffic cops allocated for the number of cores");
+      Panic("Not enough traffic cops allocated for the number of cores: %d, requested: %d", traffic_cops_.size(), t_id);
     }
     Debug("Using Traffic Cop: %d", t_id);
     return traffic_cops_.at(t_id);
@@ -514,10 +516,6 @@ std::string PelotonTableStore::ExecReadQuery(const std::string &query_statement,
 // serialized form) as well as a commitProof (note, the read set is implicit)
 void PelotonTableStore::ExecPointRead(const std::string &query_statement, std::string &enc_primary_key, const Timestamp &ts,
       proto::Write *write, const proto::CommittedProof* &committedProof) {
-
-   struct timeval now;
-  gettimeofday(&now, NULL);
-  uint64_t miliseconds_start = now.tv_sec * 1000 + now.tv_usec / 1000;
   
   // Client sends query statement, and expects a Query Result for the given key, a timestamp, and a proof (if it was a committed value it read) Note:
   // Sending a query statement (even though it is a point request) allows us to handle complex Select operators (like Count, Max, or just some subset of
@@ -548,6 +546,11 @@ void PelotonTableStore::ExecPointRead(const std::string &query_statement, std::s
 
   // prepareStatement
   auto statement = ParseAndPrepare(query_statement, tcop);
+
+  //FIXME: REMOVE: JUST FOR TESTING
+   struct timeval now;
+  gettimeofday(&now, NULL);
+  uint64_t microseconds_start = now.tv_sec * 1000 * 1000 + now.tv_usec;
 
   // ExecuteStatment
   std::vector<peloton::type::Value> param_values;
@@ -588,12 +591,12 @@ void PelotonTableStore::ExecPointRead(const std::string &query_statement, std::s
 
   //TESTING HOW LONG THIS TAKES: FIXME: REMOVE 
   gettimeofday(&now, NULL);
-  uint64_t miliseconds_end = now.tv_sec * 1000 + now.tv_usec / 1000;
+  uint64_t microseconds_end = now.tv_sec * 1000 * 1000 + now.tv_usec;
  
   //Should not take more than 1 ms (already generous) to parse and prepare.
-  auto duration = miliseconds_end - miliseconds_start;
-  if(duration > 1){
-    Warning("PointRead exceeded 1ms: %d", duration);
+  auto duration = microseconds_end - microseconds_start;
+  if(duration > 500){
+    Warning("PointRead exceeded 500us: %d", duration);
   }
 
   return;
@@ -932,6 +935,11 @@ void PelotonTableStore::ApplyTableWrite(const std::string &table_name, const Tab
     // prepareStatement
     auto statement = ParseAndPrepare(write_statement, tcop);
 
+     //FIXME: REMOVE: JUST FOR TESTING
+   struct timeval now;
+  gettimeofday(&now, NULL);
+  uint64_t miliseconds_start = now.tv_sec * 1000 + now.tv_usec / 1000;
+
     // ExecuteStatment
     std::vector<peloton::type::Value> param_values;
     //size_t t_id = 0; // std::hash<std::thread::id>{}(std::this_thread::get_id());
@@ -952,6 +960,15 @@ void PelotonTableStore::ApplyTableWrite(const std::string &table_name, const Tab
       Debug("Write successful");
     else
       Panic("Write failure");
+
+      gettimeofday(&now, NULL);
+  uint64_t miliseconds_end = now.tv_sec * 1000 + now.tv_usec / 1000;
+ 
+  //Should not take more than 1 ms (already generous) to parse and prepare.
+  auto duration = miliseconds_end - miliseconds_start;
+  if(duration > 1){
+    Warning("ApplyTableWrite exceeded 1ms: %d", duration); 
+  }
   }
 
   // Execute Delete Statement
@@ -1108,10 +1125,6 @@ void PelotonTableStore::FindSnapshot(const std::string &query_statement, const T
 }
 
 std::string PelotonTableStore::EagerExecAndSnapshot(const std::string &query_statement, const Timestamp &ts, SnapshotManager &ssMgr, QueryReadSetMgr &readSetMgr, size_t snapshot_prepared_k) {
-   //TESTING HOW LONG THIS TAKES: FIXME: REMOVE 
-  struct timeval now;
-  gettimeofday(&now, NULL);
-  uint64_t miliseconds_start = now.tv_sec * 1000 + now.tv_usec / 1000;
   
   //Perform EagerRead + FindSnapshot in one go
   Debug("Execute EagerExecAndSnapshot: %s. TS: [%lu:%lu]", query_statement.c_str(), ts.getTimestamp(), ts.getID());
@@ -1129,6 +1142,11 @@ std::string PelotonTableStore::EagerExecAndSnapshot(const std::string &query_sta
 
   // prepareStatement
   auto statement = ParseAndPrepare(query_statement, tcop);
+
+     //TESTING HOW LONG THIS TAKES: FIXME: REMOVE 
+  struct timeval now;
+  gettimeofday(&now, NULL);
+  uint64_t miliseconds_start = now.tv_sec * 1000 + now.tv_usec / 1000;
 
   // ExecuteStatment
   std::vector<peloton::type::Value> param_values;

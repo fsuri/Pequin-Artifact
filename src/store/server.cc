@@ -432,8 +432,8 @@ DEFINE_string(keys_path, "", "path to file containing keys in the system");
 DEFINE_uint64(num_keys, 0, "number of keys to generate");
 DEFINE_string(data_file_path, "", "path to file containing key-value pairs to be loaded");
 DEFINE_bool(sql_bench, false, "Load not just key-value pairs, but also Tables. Input file is JSON Tabe args");
-DEFINE_uint64(num_tables, 10, "number of tables to generate");
-DEFINE_uint64(num_keys_per_table, 100, "number of keys to generate per table");
+DEFINE_uint64(num_tables, 1, "number of tables to generate");
+DEFINE_uint64(num_keys_per_table, 10, "number of keys to generate per table");
 
 Server *server = nullptr;
 TransportReceiver *replica = nullptr;

@@ -174,6 +174,13 @@ bool BinderContext::CheckNestedTableColumn(
 
 void BinderContext::GenerateAllColumnExpressions(
     std::vector<std::unique_ptr<expression::AbstractExpression>> &exprs) {
+
+      //TESTING HOW LONG THIS TAKES: FIXME: REMOVE 
+  struct timeval now;
+    gettimeofday(&now, NULL);
+   uint64_t microseconds_start2 = now.tv_sec * 1000*1000 + now.tv_usec;
+   
+
   for (auto &entry : regular_table_alias_map_) {
     auto &table_obj = entry.second;
     auto col_cnt = table_obj->GetColumnCatalogEntries().size();
@@ -203,6 +210,16 @@ void BinderContext::GenerateAllColumnExpressions(
       exprs.emplace_back(tv_expr);
     }
   }
+
+     gettimeofday(&now, NULL);
+      uint64_t microseconds_end2 = now.tv_sec * 1000 *1000 + now.tv_usec;
+ 
+  //Should not take more than 1 ms (already generous) to parse and prepare.
+   auto duration2 = microseconds_end2 - microseconds_start2;
+  if(duration2 > 50){
+    Warning("GenerateAllColumnExpressions exceeded 50us: %d", duration2);
+  }
+
 }
 
 }  // namespace binder

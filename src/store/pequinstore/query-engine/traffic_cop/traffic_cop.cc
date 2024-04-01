@@ -31,14 +31,15 @@ namespace tcop {
 TrafficCop::TrafficCop()
     : is_queuing_(false), rows_affected_(0),
       optimizer_(new optimizer::Optimizer(optimizer::CostModels::TRIVIAL)),
-      single_statement_txn_(true) {}
+      single_statement_txn_(true) { std::cerr << "create tcop" << std::endl;}
 
 TrafficCop::TrafficCop(void (*task_callback)(void *), void *task_callback_arg)
     : optimizer_(new optimizer::Optimizer(optimizer::CostModels::TRIVIAL)),
       single_statement_txn_(true), task_callback_(task_callback),
-      task_callback_arg_(task_callback_arg) {}
+      task_callback_arg_(task_callback_arg) {std::cerr << "create tcop2" << std::endl;}
 
 void TrafficCop::Reset() {
+  std::cerr << "reset tcop" << std::endl;
   std::stack<TcopTxnState> new_tcop_txn_state;
   // clear out the stack
   swap(tcop_txn_state_, new_tcop_txn_state);
@@ -1051,21 +1052,16 @@ std::shared_ptr<Statement> TrafficCop::PrepareStatement(
 
   // Empty statement
   // TODO (Tianyi) Read through the parser code to see if this is appropriate
-  if (sql_stmt_list.get() == nullptr ||
-      sql_stmt_list->GetNumStatements() == 0) {
+  if (sql_stmt_list.get() == nullptr || sql_stmt_list->GetNumStatements() == 0) {
     // TODO (Tianyi) Do we need another query type called QUERY_EMPTY?
-    std::shared_ptr<Statement> statement =
-        std::make_shared<Statement>(stmt_name, QueryType::QUERY_INVALID,
-                                    query_string, std::move(sql_stmt_list));
+    std::shared_ptr<Statement> statement = std::make_shared<Statement>(stmt_name, QueryType::QUERY_INVALID, query_string, std::move(sql_stmt_list));
     return statement;
   }
 
   StatementType stmt_type = sql_stmt_list->GetStatement(0)->GetType();
-  QueryType query_type =
-      StatementTypeToQueryType(stmt_type, sql_stmt_list->GetStatement(0));
+  QueryType query_type = StatementTypeToQueryType(stmt_type, sql_stmt_list->GetStatement(0));
 
-  std::shared_ptr<Statement> statement = std::make_shared<Statement>(
-      stmt_name, query_type, query_string, std::move(sql_stmt_list));
+  std::shared_ptr<Statement> statement = std::make_shared<Statement>(stmt_name, query_type, query_string, std::move(sql_stmt_list));
 
   // We can learn transaction's states, BEGIN, COMMIT, ABORT, or ROLLBACK from
   // member variables, tcop_txn_state_. We can also get single-statement txn or
@@ -1085,8 +1081,7 @@ std::shared_ptr<Statement> TrafficCop::PrepareStatement(
   } else {
     // Begin new transaction when received single-statement query or "BEGIN"
     // from multi-statement query
-    if (statement->GetQueryType() ==
-        QueryType::QUERY_BEGIN) { // only begin a new transaction
+    if (statement->GetQueryType() == QueryType::QUERY_BEGIN) { // only begin a new transaction
       // note this transaction is not single-statement transaction
       LOG_TRACE("BEGIN");
       single_statement_txn_ = false;
@@ -1110,26 +1105,20 @@ std::shared_ptr<Statement> TrafficCop::PrepareStatement(
     tcop_txn_state_.top().first->AddQueryString(query_string.c_str());
   }
 
-  // TODO(Tianyi) Move Statement Planing into Statement's method
-  // to increase coherence
+  // TODO(Tianyi) Move Statement Planing into Statement's method to increase coherence
   try {
-    // Run binder
-    auto bind_node_visitor = binder::BindNodeVisitor(
-        tcop_txn_state_.top().first, default_database_name_);
-    bind_node_visitor.BindNameToNode(
-        statement->GetStmtParseTreeList()->GetStatement(0));
-    auto plan = optimizer_->BuildPelotonPlanTree(
-        statement->GetStmtParseTreeList(), tcop_txn_state_.top().first);
+    // Run binder 
+    auto bind_node_visitor = binder::BindNodeVisitor(tcop_txn_state_.top().first, default_database_name_);  //FIXME: TODO: FS: This seems to be expensive. Can we change this?
+    bind_node_visitor.BindNameToNode(statement->GetStmtParseTreeList()->GetStatement(0));
+    auto plan = optimizer_->BuildPelotonPlanTree(statement->GetStmtParseTreeList(), tcop_txn_state_.top().first);  //FIXME: TODO: FS: This seems to be expensive. Can we change this?
     statement->SetPlanTree(plan);
     // Get the tables that our plan references so that we know how to
     // invalidate it at a later point when the catalog changes
-    const std::set<oid_t> table_oids =
-        planner::PlanUtil::GetTablesReferenced(plan.get());
+    const std::set<oid_t> table_oids = planner::PlanUtil::GetTablesReferenced(plan.get());
     statement->SetReferencedTables(table_oids);
 
     if (query_type == QueryType::QUERY_SELECT) {
-      auto tuple_descriptor = GenerateTupleDescriptor(
-          statement->GetStmtParseTreeList()->GetStatement(0));
+      auto tuple_descriptor = GenerateTupleDescriptor(statement->GetStmtParseTreeList()->GetStatement(0));
 
       statement->SetTupleDescriptor(tuple_descriptor);
       LOG_TRACE("select query, finish setting");

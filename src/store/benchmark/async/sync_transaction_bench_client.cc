@@ -62,9 +62,9 @@ void SyncTransactionBenchClient::SendNext(transaction_status_t *result) {
     }
     catch(...){
       std::cerr <<"catch abort" << std::endl;
-      *result = ABORTED_SYSTEM;
+      *result = ABORTED_SYSTEM; //ABORTED_USER;
     }
-    // usleep(10000); //sleep 10 miliseconds
+    //usleep(10000); //sleep 10 miliseconds
     // Panic("stop after one");
     //if(++tries==2) Panic("stop after two");
     stats.Increment(GetLastOp() + "_attempts", 1);

@@ -65,6 +65,7 @@ Optimizer::Optimizer(const CostModels cost_model) : metadata_(nullptr) {
 
   switch (cost_model) {
     case CostModels::DEFAULT: {
+      std::cerr << "default" << std::endl;
       metadata_ = OptimizerMetadata(std::unique_ptr<AbstractCostModel>(new DefaultCostModel));
       break;
     }
@@ -73,6 +74,7 @@ Optimizer::Optimizer(const CostModels cost_model) : metadata_(nullptr) {
       break;
     }
     case CostModels::TRIVIAL: {
+       std::cerr << "trivial" << std::endl;
       metadata_ = OptimizerMetadata(std::unique_ptr<AbstractCostModel>(new TrivialCostModel));
       break;
     }
@@ -81,37 +83,30 @@ Optimizer::Optimizer(const CostModels cost_model) : metadata_(nullptr) {
   }
 }
 
-void Optimizer::OptimizeLoop(int root_group_id,
-                             std::shared_ptr<PropertySet> required_props) {
-  std::shared_ptr<OptimizeContext> root_context =
-      std::make_shared<OptimizeContext>(&metadata_, required_props);
-  auto task_stack =
-      std::unique_ptr<OptimizerTaskStack>(new OptimizerTaskStack());
+void Optimizer::OptimizeLoop(int root_group_id, std::shared_ptr<PropertySet> required_props) {
+  std::shared_ptr<OptimizeContext> root_context = std::make_shared<OptimizeContext>(&metadata_, required_props);
+  auto task_stack = std::unique_ptr<OptimizerTaskStack>(new OptimizerTaskStack());
   metadata_.SetTaskPool(task_stack.get());
 
   // Perform rewrite first
-  task_stack->Push(new TopDownRewrite(root_group_id, root_context,
-                                      RewriteRuleSetName::PREDICATE_PUSH_DOWN));
+  task_stack->Push(new TopDownRewrite(root_group_id, root_context, RewriteRuleSetName::PREDICATE_PUSH_DOWN));
 
-  task_stack->Push(new BottomUpRewrite(
-      root_group_id, root_context, RewriteRuleSetName::UNNEST_SUBQUERY, false));
+  task_stack->Push(new BottomUpRewrite(root_group_id, root_context, RewriteRuleSetName::UNNEST_SUBQUERY, false));
 
-  ExecuteTaskStack(*task_stack, root_group_id, root_context);
+  std::cerr << "ExecTaskStack. " << std::endl;
+  ExecuteTaskStack(*task_stack, root_group_id, root_context);  //FIXME: TODO: FS: This seems to be expensive. Can we change this?
 
   // Perform optimization after the rewrite
-  task_stack->Push(new OptimizeGroup(metadata_.memo.GetGroupByID(root_group_id),
-                                     root_context));
+  task_stack->Push(new OptimizeGroup(metadata_.memo.GetGroupByID(root_group_id), root_context));
 
   // Derive stats for the only one logical expression before optimizing
-  task_stack->Push(new DeriveStats(
-      metadata_.memo.GetGroupByID(root_group_id)->GetLogicalExpression(),
-      ExprSet{}, root_context));
+  task_stack->Push(new DeriveStats(metadata_.memo.GetGroupByID(root_group_id)->GetLogicalExpression(), ExprSet{}, root_context));
 
-  ExecuteTaskStack(*task_stack, root_group_id, root_context);
+  std::cerr << "ExecTaskStack2. " << std::endl;
+  ExecuteTaskStack(*task_stack, root_group_id, root_context);  //FIXME: TODO: FS: This seems to be expensive. Can we change this?
 }
 
-shared_ptr<planner::AbstractPlan> Optimizer::BuildPelotonPlanTree(
-    const std::unique_ptr<parser::SQLStatementList> &parse_tree_list,
+shared_ptr<planner::AbstractPlan> Optimizer::BuildPelotonPlanTree(const std::unique_ptr<parser::SQLStatementList> &parse_tree_list,
     concurrency::TransactionContext *txn) {
   if (parse_tree_list->GetStatements().empty()) {
     // TODO: create optimizer exception
@@ -133,13 +128,13 @@ shared_ptr<planner::AbstractPlan> Optimizer::BuildPelotonPlanTree(
 
   metadata_.txn = txn;
   // Generate initial operator tree from query tree
-  shared_ptr<GroupExpression> gexpr = InsertQueryTree(parse_tree, txn);
+  shared_ptr<GroupExpression> gexpr = InsertQueryTree(parse_tree, txn);  //FIXME: TODO: FS: This seems to be expensive. Can we change this?
   GroupID root_id = gexpr->GetGroupID();
   // Get the physical properties the final plan must output
   auto query_info = GetQueryInfo(parse_tree);
 
   try {
-    OptimizeLoop(root_id, query_info.physical_props);
+    OptimizeLoop(root_id, query_info.physical_props);  //FIXME: TODO: FS: This seems to be expensive. Can we change this?
   } catch (OptimizerException &e) {
     LOG_WARN("Optimize Loop ended prematurely: %s", e.what());
   }
@@ -158,7 +153,7 @@ shared_ptr<planner::AbstractPlan> Optimizer::BuildPelotonPlanTree(
 }
 
 void Optimizer::Reset() {
-  metadata_ = OptimizerMetadata(std::move(metadata_.cost_model));
+  metadata_ = OptimizerMetadata(std::move(metadata_.cost_model));  //FIXME: TODO: FS: This seems to be expensive. Can we change this?
 }
 
 unique_ptr<planner::AbstractPlan> Optimizer::HandleDDLStatement(
@@ -402,24 +397,53 @@ void Optimizer::ExecuteTaskStack(
   const auto timeout_limit = metadata_.timeout_limit;
   const auto &required_props = root_context->required_prop;
 
-  if (timer.GetInvocations() == 0) {
-    timer.Start();
-  }
+
+   //TESTING HOW LONG THIS TAKES: FIXME: REMOVE 
+  struct timeval now;
+  gettimeofday(&now, NULL);
+  uint64_t microseconds_start = now.tv_sec * 1000 * 1000 + now.tv_usec;
+
+  //FIXME: FS: Timer seems unecessary?
+  // if (timer.GetInvocations() == 0) {
+  //   timer.Start();
+  // }
   // Iterate through the task stack
-  while (!task_stack.Empty()) {
-    // Check to see if we have at least one plan, and if we have exceeded our
-    // timeout limit
-    if (timer.GetDuration() >= timeout_limit &&
-        root_group->HasExpressions(required_props)) {
-      throw OptimizerException("Optimizer task execution duration " +
-                               std::to_string(timer.GetDuration()) +
-                               " exceeds timeout limit " +
-                               std::to_string(timeout_limit));
-    }
-    timer.Reset();
+  std::cerr << "task stack size: " << task_stack.Size() << std::endl;
+  while (!task_stack.Empty() && !root_group->HasExpressions(required_props)) {
+    std::cerr << "loop invocation" << std::endl;
+    // Check to see if we have at least one plan, and if we have exceeded our timeout limit
+    // if (timer.GetDuration() >= timeout_limit && root_group->HasExpressions(required_props)) {
+    //   throw OptimizerException("Optimizer task execution duration " + std::to_string(timer.GetDuration()) + " exceeds timeout limit " + std::to_string(timeout_limit));
+    // }
+    // timer.Reset();
     auto task = task_stack.Pop();
+    std::cerr << "task stack size remaining: " << task_stack.Size() << std::endl;
+    
+    gettimeofday(&now, NULL);
+    uint64_t miliseconds_start2 = now.tv_sec * 1000 * 1000 + now.tv_usec;
     task->execute();
-    timer.Stop();
+
+     gettimeofday(&now, NULL);
+    uint64_t miliseconds_end2 = now.tv_sec * 1000 * 1000 + now.tv_usec;
+ 
+  //Should not take more than 1 ms (already generous) to parse and prepare.
+  auto duration2 = miliseconds_end2 - miliseconds_start2;
+  if(duration2 > 50){
+    Warning("TaskExecute exceeded 50us: %d", duration2);
+  }
+
+    std::cerr << "task stack size remaining (post execute): " << task_stack.Size() << std::endl;
+    //timer.Stop();
+  }
+
+
+   gettimeofday(&now, NULL);
+  uint64_t microseconds_end = now.tv_sec * 1000 * 1000  + now.tv_usec;
+ 
+  //Should not take more than 1 ms (already generous) to parse and prepare.
+  auto duration = microseconds_end - microseconds_start;
+  if(duration > 200){
+    Warning("ExecuteTaskStack exceeded 200us: %d", duration);
   }
 }
 

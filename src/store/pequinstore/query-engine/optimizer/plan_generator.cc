@@ -115,21 +115,31 @@ void PlanGenerator::Visit(const PhysicalSeqScan *op) {
 }
 
 void PlanGenerator::Visit(const PhysicalIndexScan *op) {
+
+       //TESTING HOW LONG THIS TAKES: FIXME: REMOVE 
+  struct timeval now;
+    gettimeofday(&now, NULL);
+  uint64_t microseconds_start2 = now.tv_sec * 1000 * 1000+ now.tv_usec;
+
   vector<oid_t> column_ids = GenerateColumnsForScan();
-  auto predicate = GeneratePredicateForScan(
-      expression::ExpressionUtil::JoinAnnotatedExprs(op->predicates),
-      op->table_alias, op->table_);
+  auto predicate = GeneratePredicateForScan(expression::ExpressionUtil::JoinAnnotatedExprs(op->predicates), op->table_alias, op->table_);
 
   vector<expression::AbstractExpression *> runtime_keys;
 
   // Create index scan desc
-  planner::IndexScanPlan::IndexScanDesc index_scan_desc(
-      op->index_id, op->key_column_id_list, op->expr_type_list, op->value_list,
-      runtime_keys);
+  planner::IndexScanPlan::IndexScanDesc index_scan_desc(op->index_id, op->key_column_id_list, op->expr_type_list, op->value_list, runtime_keys);
   output_plan_.reset(new planner::IndexScanPlan(
-      storage::StorageManager::GetInstance()->GetTableWithOid(
-          op->table_->GetDatabaseOid(), op->table_->GetTableOid()),
+      storage::StorageManager::GetInstance()->GetTableWithOid(op->table_->GetDatabaseOid(), op->table_->GetTableOid()),
       predicate.release(), column_ids, index_scan_desc, false));
+
+      gettimeofday(&now, NULL);
+    uint64_t microseconds_end2 = now.tv_sec * 1000 * 1000 + now.tv_usec;
+ 
+  //Should not take more than 1 ms (already generous) to parse and prepare.
+  auto duration2 = microseconds_end2 - microseconds_start2;
+  if(duration2 > 50){
+    Warning("Visit(Index) exceeded 50us: %d", duration2);
+  }
 }
 
 void PlanGenerator::Visit(const ExternalFileScan *op) {

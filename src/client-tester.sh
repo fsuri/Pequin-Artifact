@@ -6,9 +6,9 @@ NUM_GROUPS=1
 CONFIG="0_local_test_outputs/configs/shard-r1.config"
 PROTOCOL="pequin"
 STORE=${PROTOCOL}store
-DURATION=20
+DURATION=10
 ZIPF=0.0
-NUM_OPS_TX=2
+NUM_OPS_TX=1
 NUM_KEYS_IN_DB=1
 KEY_PATH="keys"
 
@@ -65,5 +65,6 @@ DEBUG=store/$STORE/* store/benchmark/async/benchmark --config_path $CONFIG --num
 sleep $((DURATION+4))
 echo '[2] Shutting down possibly open servers and clients'
 killall store/benchmark/async/benchmark
+#callgrind_control --dump
 killall store/server
 
