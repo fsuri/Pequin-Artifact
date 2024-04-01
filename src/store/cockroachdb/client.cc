@@ -143,6 +143,9 @@ void Client::Begin(begin_callback bcb, begin_timeout_callback btcb,
                    uint32_t timeout, bool retry) {
   Notice("Begin Transaction");
   try {
+    if (tr != nullptr) {
+      tr->rollback();
+    }
     // Create a new Tx
     tr = conn->transaction(tao::pq::isolation_level::serializable,
                            tao::pq::access_mode::read_write);
@@ -225,12 +228,13 @@ void Client::Query(const std::string &query_statement, query_callback qcb,
   try {
       tao::pq::result result = [this, &query_statement]() {
       // If part of a Tx, use Tx->exec, else use connection->exec
+      // TODO: Get rid of the else branch, instead call callback with failure
       if (tr != nullptr)
         return tr->execute(query_statement);
       else
         return conn->execute(query_statement);
     }();
-     stats.Increment("queries_issued", 1);
+    stats.Increment("queries_issued", 1);
     // TODO handle qcb
     taopq_wrapper::TaoPQQueryResultWrapper *tao_res =
         new taopq_wrapper::TaoPQQueryResultWrapper(std::make_unique<tao::pq::result>(std::move(result)));
@@ -238,7 +242,7 @@ void Client::Query(const std::string &query_statement, query_callback qcb,
   } catch (const std::exception &e) {
     std::cerr << "Tx query failed" << '\n';
     std::cerr << e.what() << '\n';
-    qtcb(REPLY_FAIL);
+    qcb(REPLY_FAIL, nullptr);
   }
 }
 
@@ -257,10 +261,15 @@ void Client::Write(std::string &write_statement, write_callback wcb,
     taopq_wrapper::TaoPQQueryResultWrapper *tao_res =
         new taopq_wrapper::TaoPQQueryResultWrapper(std::make_unique<tao::pq::result>(std::move(result)));
     wcb(REPLY_OK, tao_res);
+  } catch (const tao::pq::integrity_constraint_violation &e) {
+    auto result = new taopq_wrapper::TaoPQQueryResultWrapper();
+    wcb(REPLY_OK, result);
+  } catch (const tao::pq::transaction_rollback &e) {
+    wcb(REPLY_FAIL, nullptr);
   } catch (const std::exception &e) {
     std::cerr << "Tx write failed" << '\n';
     std::cerr << e.what() << '\n';
-    wtcb(REPLY_FAIL);
+    Panic("Tx write failed");
   }
 }
 

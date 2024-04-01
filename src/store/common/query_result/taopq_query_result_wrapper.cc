@@ -66,10 +66,16 @@ auto TaoPQQueryResultWrapper::at( const std::size_t row ) const -> std::unique_p
 }
 
 auto TaoPQQueryResultWrapper::has_rows_affected() const noexcept -> bool {
+  if (result == nullptr) {
+    return false;
+  }
   return result->has_rows_affected();
 }
 
 auto TaoPQQueryResultWrapper::rows_affected() const -> std::size_t {
+  if (result == nullptr) {
+    return 0;
+  }
   return result->rows_affected();
 }
 }
