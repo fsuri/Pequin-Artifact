@@ -310,8 +310,8 @@ TableCatalogEntry::GetColumnCatalogEntriesByName(bool cached_only) {
  */
 std::shared_ptr<ColumnCatalogEntry>
 TableCatalogEntry::GetColumnCatalogEntry(oid_t column_id, bool cached_only) {
-  GetColumnCatalogEntries(
-      cached_only); // fetch column objects in case we have not
+  //GetColumnCatalogEntries(
+  //    cached_only); // fetch column objects in case we have not
   auto it = column_catalog_entries_.find(column_id);
   if (it != column_catalog_entries_.end()) {
     return it->second;
