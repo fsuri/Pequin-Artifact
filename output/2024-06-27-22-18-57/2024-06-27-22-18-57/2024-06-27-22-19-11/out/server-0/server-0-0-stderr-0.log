@@ -1,0 +1,77 @@
+20240527-221915-9361 99758 * main            (server.cc:464):    Starting server.
+20240527-221915-9365 99758 * main            (server.cc:527):    process_id flag = 0
+20240527-221915-9365 99758 * main            (server.cc:528):    total_processes flag = 1
+cpu_count  8 
+get_nprocs  8 
+starting server threadpool
+process_id: 0, total_processes: 1 
+Total Num_cpus on server: 8 
+Num_cpus used for replica #0: 8 
+Threadpool threads: start 1, end 8 
+THREADPOOL SETUP: Trying to pin thread to core: 1 + 0
+20240527-221915-9370 99758 * start           (threadpool.cc:182): Finished server-side threadpool configurations
+THREADPOOL SETUP: Trying to pin thread to core: 2 + 0
+20240527-221915-9373 99758 * start           (threadpool.cc:182): Finished server-side threadpool configurations
+THREADPOOL SETUP: Trying to pin thread to core: 3 + 0
+20240527-221915-9376 99758 * start           (threadpool.cc:182): Finished server-side threadpool configurations
+THREADPOOL SETUP: Trying to pin thread to core: 4 + 0
+20240527-221915-9378 99758 * start           (threadpool.cc:182): Finished server-side threadpool configurations
+THREADPOOL SETUP: Trying to pin thread to core: 5 + 0
+20240527-221915-9381 99758 * start           (threadpool.cc:182): Finished server-side threadpool configurations
+THREADPOOL SETUP: Trying to pin thread to core: 6 + 0
+20240527-221915-9383 99758 * start           (threadpool.cc:182): Finished server-side threadpool configurations
+THREADPOOL SETUP: Trying to pin thread to core: 7 + 0
+20240527-221915-9385 99758 * start           (threadpool.cc:182): Finished server-side threadpool configurations
+20240527-221915-9387 99758 * main            (server.cc:619):    Sql bench? 1, file path: /mnt/extra/benchmark_data/sql-tpcc-tables-schema.json
+20240527-221915-9393 99758 * main            (server.cc:913):    Starting CRDB Server Object
+20240527-221915-9394 99758 * Server          (server.cc:43):     Starting Replica: g: 0, idx: 0, id: 0
+20240527-221915-9394 99758 * Server          (server.cc:46):     Finished starting replica
+20240527-221915-9822 99758 * Server          (server.cc:129):    Debug start initalizing
+20240527-221915-9823 99758 * Server          (server.cc:131):    Invoke start script: cockroach start --join=us-east-1-0.liamcrdb.pequin-pg0.utah.cloudlab.us:7087,us-east-1-1.liamcrdb.pequin-pg0.utah.cloudlab.us:7087,us-east-1-2.liamcrdb.pequin-pg0.utah.cloudlab.us:7087 --insecure --listen-addr=us-east-1-0.liamcrdb.pequin-pg0.utah.cloudlab.us:7087 --advertise-sql-addr=us-east-1-0.liamcrdb.pequin-pg0.utah.cloudlab.us:7087 --http-addr=us-east-1-0.liamcrdb.pequin-pg0.utah.cloudlab.us:8069 --log="sinks: {file-groups: {ops: {channels: [OPS, HEALTH, SQL_SCHEMA], filter: ERROR}}, stderr: {filter: NONE}}" --store=type=mem,size=90% --locality=region=0,zone=us-east-1-0 --background 
+20240527-221915-9846 99758 * Server          (server.cc:134):    Cockroach node 0 started. Listening us-east-1-0.liamcrdb.pequin-pg0.utah.cloudlab.us:7087
+20240527-221915-9847 99758 * Server          (server.cc:162):    Invoke proxy script: cockroach gen haproxy --insecure --host=us-east-1-0.liamcrdb.pequin-pg0.utah.cloudlab.us:7087 --locality=region=0
+ERROR: cannot dial server.
+Is the server running?
+If the server is running, check --host client-side and --advertise server-side.
+
+failed to connect to the node: initial connection heartbeat failed: rpc error: code = Unavailable desc = connection error: desc = "transport: Error while dialing dial tcp 128.110.217.29:7087: connect: connection refused"
+Failed running "gen haproxy"
+20240527-221916-6186 99758 * Server          (server.cc:173):    File server started on port 3000 at path: /mnt/extra/benchmark_data/
+20240527-221916-6187 99758 * main            (server.cc:917):    Finished creating CRDB Server Object
+20240527-221916-6187 99758 * main            (server.cc:991):    Benchmark: SQL with Loaded Table Registry
+20240527-221916-6207 99758 * operator()      (server.cc:1112):   Server Woken.
+*
+* WARNING: ALL SECURITY CONTROLS HAVE BEEN DISABLED!
+* 
+* This mode is intended for non-production testing only.
+* 
+* In this mode:
+* - Your cluster is open to any client that can access us-east-1-0.liamcrdb.pequin-pg0.utah.cloudlab.us.
+* - Intruders with access to your machine or network can observe client-server traffic.
+* - Intruders can log in without password and read or write any data in the cluster.
+* - Intruders can consume all your server's resources and cause unavailability.
+*
+*
+* INFO: To start a secure server without mandating TLS for clients,
+* consider --accept-sql-without-tls instead. For other options, see:
+* 
+* - https://go.crdb.dev/issue-v/53404/v22.2
+* - https://www.cockroachlabs.com/docs/v22.2/secure-a-cluster.html
+*
+*
+* WARNING: Running a server without --sql-addr, with a combined RPC/SQL listener, is deprecated.
+* This feature will be removed in the next version of CockroachDB.
+*
+*
+* INFO: initial startup completed.
+* Node will now attempt to join a running cluster, or wait for `cockroach init`.
+* Client connections will be accepted after this completes successfully.
+* Check the log file(s) for progress. 
+*
+20240527-222017-5590 99758 * Cleanup         (server.cc:1123):   Freeing server.
+20240527-222017-5830 99758 * Cleanup         (server.cc:1129):   Freeing replica.
+20240527-222017-5831 99758 * Cleanup         (server.cc:1134):   Freeing transport.
+Inserted events:
+  0x617000000280 [fd  7] Read Persist Internal
+Active events:
+20240527-222017-5833 99758 * Cleanup         (server.cc:1140):   Exiting.

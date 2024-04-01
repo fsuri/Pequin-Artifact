@@ -1,0 +1,791 @@
+cpu_count  1 
+get_nprocs  8 
+starting client threadpool
+Num_cpus: 8 
+num hosts=24; num_threads=1
+20240525-003117-7934 65487 * Client          (client.cc:84):     Site .liamcrdb.pequin-pg0.utah.cloudlab.us 
+
+20240525-003117-7936 65487 * Client          (client.cc:88):     Connecting to gateway postgresql://root@us-east-1-0.liamcrdb.pequin-pg0.utah.cloudlab.us:7087/defaultdb?sslmode=disable
+20240525-003117-7986 65487 * Client          (client.cc:112):    Connected successfully after 1 tries
+20240525-003117-7987 65487 * Client          (client.cc:115):    Established TaoPQ connection to backend
+20240525-003117-7987 65487 * Client          (client.cc:121):    Client successfully started
+20240525-003117-7988 65487 * BenchmarkClient (bench_client.cc:56): Delay between requests: 2 ms
+NEW ORDER (parallel)
+20240525-003117-8073 65487 * Begin           (client.cc:130):    Begin Transaction
+NEW ORDER (parallel)
+20240525-003117-9399 65487 * Begin           (client.cc:130):    Begin Transaction
+NEW ORDER (parallel)
+20240525-003118-0489 65487 * Begin           (client.cc:130):    Begin Transaction
+NEW ORDER (parallel)
+20240525-003118-1449 65487 * Begin           (client.cc:130):    Begin Transaction
+NEW ORDER (parallel)
+20240525-003118-2494 65487 * Begin           (client.cc:130):    Begin Transaction
+Tx write transaction rollback
+ERROR:  restart transaction: TransactionRetryWithProtoRefreshError: WriteTooOldError: write for key /Table/112/1/73728/3/0 at timestamp 1719297078.249347414,0 too old; wrote at 1719297078.252891331,1: "sql txn" meta={id=59c09aac key=/Table/106/1/3/1/0 pri=0.00338363 epo=0 ts=1719297078.252891331,1 min=1719297078.249347414,0 seq=24} lock=true stat=PENDING rts=1719297078.249347414,0 wto=false gul=1719297078.749347414,0
+HINT:  See: https://www.cockroachlabs.com/docs/v22.2/transaction-retry-error-reference.html
+
+catch abort
+20240525-003118-3793 65487 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 1
+NEW ORDER (parallel)
+20240525-003118-3805 65487 * Begin           (client.cc:130):    Begin Transaction
+PAYMENT (parallel)
+20240525-003118-4717 65487 * Begin           (client.cc:130):    Begin Transaction
+PAYMENT (parallel)
+20240525-003118-4974 65487 * Begin           (client.cc:130):    Begin Transaction
+Tx write transaction rollback
+ERROR:  restart transaction: TransactionRetryWithProtoRefreshError: WriteTooOldError: write for key /Table/113/1/2/0 at timestamp 1719297078.496790754,0 too old; wrote at 1719297078.496790754,2: "sql txn" meta={id=0b1ae00e key=/Table/113/1/2/0 pri=0.02320828 epo=0 ts=1719297078.496790754,2 min=1719297078.496790754,0 seq=0} lock=true stat=PENDING rts=1719297078.496790754,0 wto=false gul=1719297078.996790754,0
+HINT:  See: https://www.cockroachlabs.com/docs/v22.2/transaction-retry-error-reference.html
+
+CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE
+CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE
+CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE
+CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE
+catch abort
+20240525-003118-5303 65487 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 2
+PAYMENT (parallel)
+20240525-003118-5325 65487 * Begin           (client.cc:130):    Begin Transaction
+Tx write transaction rollback
+ERROR:  restart transaction: TransactionRetryWithProtoRefreshError: WriteTooOldError: write for key /Table/113/1/2/0 at timestamp 1719297078.531934065,0 too old; wrote at 1719297078.531934065,2: "sql txn" meta={id=7e25d9c0 key=/Table/113/1/2/0 pri=0.01952644 epo=0 ts=1719297078.531934065,2 min=1719297078.531934065,0 seq=0} lock=true stat=PENDING rts=1719297078.531934065,0 wto=false gul=1719297079.031934065,0
+HINT:  See: https://www.cockroachlabs.com/docs/v22.2/transaction-retry-error-reference.html
+
+CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE
+CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE
+CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE
+CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE
+catch abort
+20240525-003118-5714 65487 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 2
+PAYMENT (parallel)
+20240525-003118-5737 65487 * Begin           (client.cc:130):    Begin Transaction
+NEW ORDER (parallel)
+20240525-003118-6333 65487 * Begin           (client.cc:130):    Begin Transaction
+20240525-003118-7066 65487 * SQLNewOrder     (new_order.cc:47):  NEXT NEW_ORDER TX is going to rollback! (Trying to access invalid item)
+NEW ORDER (parallel)
+20240525-003118-7066 65487 * Begin           (client.cc:130):    Begin Transaction
+PAYMENT (parallel)
+20240525-003118-7911 65487 * Begin           (client.cc:130):    Begin Transaction
+NEW ORDER (parallel)
+20240525-003118-8158 65487 * Begin           (client.cc:130):    Begin Transaction
+PAYMENT (parallel)
+20240525-003118-9411 65487 * Begin           (client.cc:130):    Begin Transaction
+Tx write transaction rollback
+ERROR:  restart transaction: TransactionRetryWithProtoRefreshError: WriteTooOldError: write for key /Table/113/1/3/0 at timestamp 1719297078.940516476,0 too old; wrote at 1719297078.940516476,2: "sql txn" meta={id=f8a4cae6 key=/Table/113/1/3/0 pri=0.01856345 epo=0 ts=1719297078.940516476,2 min=1719297078.940516476,0 seq=0} lock=true stat=PENDING rts=1719297078.940516476,0 wto=false gul=1719297079.440516476,0
+HINT:  See: https://www.cockroachlabs.com/docs/v22.2/transaction-retry-error-reference.html
+
+CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE
+CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE
+CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE
+CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE
+catch abort
+20240525-003118-9699 65487 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 1
+PAYMENT (parallel)
+20240525-003118-9711 65487 * Begin           (client.cc:130):    Begin Transaction
+NEW ORDER (parallel)
+20240525-003119-0060 65487 * Begin           (client.cc:130):    Begin Transaction
+NEW ORDER (parallel)
+20240525-003119-1108 65487 * Begin           (client.cc:130):    Begin Transaction
+PAYMENT (parallel)
+20240525-003119-2516 65487 * Begin           (client.cc:130):    Begin Transaction
+PAYMENT (parallel)
+20240525-003119-2865 65487 * Begin           (client.cc:130):    Begin Transaction
+NEW ORDER (parallel)
+20240525-003119-3196 65487 * Begin           (client.cc:130):    Begin Transaction
+PAYMENT (parallel)
+20240525-003119-4225 65487 * Begin           (client.cc:130):    Begin Transaction
+PAYMENT (parallel)
+20240525-003119-4560 65487 * Begin           (client.cc:130):    Begin Transaction
+PAYMENT (parallel)
+20240525-003119-5356 65487 * Begin           (client.cc:130):    Begin Transaction
+PAYMENT (parallel)
+20240525-003119-5938 65487 * Begin           (client.cc:130):    Begin Transaction
+PAYMENT (parallel)
+20240525-003119-6243 65487 * Begin           (client.cc:130):    Begin Transaction
+Tx write transaction rollback
+ERROR:  restart transaction: TransactionRetryWithProtoRefreshError: WriteTooOldError: write for key /Table/113/1/3/0 at timestamp 1719297079.623702738,0 too old; wrote at 1719297079.633149202,1: "sql txn" meta={id=2e123b1a key=/Table/113/1/3/0 pri=0.02025720 epo=0 ts=1719297079.633149202,1 min=1719297079.623702738,0 seq=0} lock=true stat=PENDING rts=1719297079.623702738,0 wto=false gul=1719297080.123702738,0
+HINT:  See: https://www.cockroachlabs.com/docs/v22.2/transaction-retry-error-reference.html
+
+CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE
+CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE
+CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE
+CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE
+catch abort
+20240525-003119-6770 65487 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 2
+PAYMENT (parallel)
+20240525-003119-6792 65487 * Begin           (client.cc:130):    Begin Transaction
+STOCK_LEVEL (parallel)
+20240525-003119-7241 65487 * Begin           (client.cc:130):    Begin Transaction
+PAYMENT (parallel)
+20240525-003119-7451 65487 * Begin           (client.cc:130):    Begin Transaction
+PAYMENT (parallel)
+20240525-003119-7690 65487 * Begin           (client.cc:130):    Begin Transaction
+NEW ORDER (parallel)
+20240525-003119-8131 65487 * Begin           (client.cc:130):    Begin Transaction
+STOCK_LEVEL (parallel)
+20240525-003119-8940 65487 * Begin           (client.cc:130):    Begin Transaction
+NEW ORDER (parallel)
+20240525-003119-9147 65487 * Begin           (client.cc:130):    Begin Transaction
+NEW ORDER (parallel)
+20240525-003120-0024 65487 * Begin           (client.cc:130):    Begin Transaction
+Tx write transaction rollback
+ERROR:  restart transaction: TransactionRetryWithProtoRefreshError: WriteTooOldError: write for key /Table/112/1/89022/2/0 at timestamp 1719297080.002041986,0 too old; wrote at 1719297080.004856864,1: "sql txn" meta={id=3faf5fe7 key=/Table/106/1/2/3/0 pri=0.00450709 epo=0 ts=1719297080.004856864,1 min=1719297080.002041986,0 seq=12} lock=true stat=PENDING rts=1719297080.002041986,0 wto=false gul=1719297080.502041986,0
+HINT:  See: https://www.cockroachlabs.com/docs/v22.2/transaction-retry-error-reference.html
+
+catch abort
+20240525-003120-0841 65487 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 2
+NEW ORDER (parallel)
+20240525-003120-0863 65487 * Begin           (client.cc:130):    Begin Transaction
+PAYMENT (parallel)
+20240525-003120-2607 65487 * Begin           (client.cc:130):    Begin Transaction
+Tx write transaction rollback
+ERROR:  restart transaction: TransactionRetryWithProtoRefreshError: WriteTooOldError: write for key /Table/113/1/1/0 at timestamp 1719297080.260236846,0 too old; wrote at 1719297080.260236846,2: "sql txn" meta={id=a8bd0741 key=/Table/113/1/1/0 pri=0.02977839 epo=0 ts=1719297080.260236846,2 min=1719297080.260236846,0 seq=0} lock=true stat=PENDING rts=1719297080.260236846,0 wto=false gul=1719297080.760236846,0
+HINT:  See: https://www.cockroachlabs.com/docs/v22.2/transaction-retry-error-reference.html
+
+CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE
+CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE
+CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE
+CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE
+catch abort
+20240525-003120-2907 65487 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 1
+PAYMENT (parallel)
+20240525-003120-2919 65487 * Begin           (client.cc:130):    Begin Transaction
+NEW ORDER (parallel)
+20240525-003120-3247 65487 * Begin           (client.cc:130):    Begin Transaction
+PAYMENT (parallel)
+20240525-003120-3979 65487 * Begin           (client.cc:130):    Begin Transaction
+ORDER_STATUS
+20240525-003120-4217 65487 * Begin           (client.cc:130):    Begin Transaction
+PAYMENT (parallel)
+20240525-003120-4392 65487 * Begin           (client.cc:130):    Begin Transaction
+NEW ORDER (parallel)
+20240525-003120-4633 65487 * Begin           (client.cc:130):    Begin Transaction
+NEW ORDER (parallel)
+20240525-003120-5562 65487 * Begin           (client.cc:130):    Begin Transaction
+ORDER_STATUS
+20240525-003120-6732 65487 * Begin           (client.cc:130):    Begin Transaction
+NEW ORDER (parallel)
+20240525-003120-6907 65487 * Begin           (client.cc:130):    Begin Transaction
+STOCK_LEVEL (parallel)
+20240525-003120-7640 65487 * Begin           (client.cc:130):    Begin Transaction
+DELIVERY (parallel)
+20240525-003120-7835 65487 * Begin           (client.cc:130):    Begin Transaction
+DELIVERY (parallel)
+20240525-003120-8119 65487 * Begin           (client.cc:130):    Begin Transaction
+DELIVERY (parallel)
+20240525-003120-8407 65487 * Begin           (client.cc:130):    Begin Transaction
+DELIVERY (parallel)
+20240525-003120-8814 65487 * Begin           (client.cc:130):    Begin Transaction
+DELIVERY (parallel)
+20240525-003120-9156 65487 * Begin           (client.cc:130):    Begin Transaction
+DELIVERY (parallel)
+20240525-003120-9465 65487 * Begin           (client.cc:130):    Begin Transaction
+DELIVERY (parallel)
+20240525-003120-9718 65487 * Begin           (client.cc:130):    Begin Transaction
+DELIVERY (parallel)
+20240525-003120-9988 65487 * Begin           (client.cc:130):    Begin Transaction
+DELIVERY (parallel)
+20240525-003121-0313 65487 * Begin           (client.cc:130):    Begin Transaction
+DELIVERY (parallel)
+20240525-003121-0609 65487 * Begin           (client.cc:130):    Begin Transaction
+PAYMENT (parallel)
+20240525-003121-0893 65487 * Begin           (client.cc:130):    Begin Transaction
+PAYMENT (parallel)
+20240525-003121-1276 65487 * Begin           (client.cc:130):    Begin Transaction
+Tx write transaction rollback
+ERROR:  restart transaction: TransactionRetryWithProtoRefreshError: WriteTooOldError: write for key /Table/113/1/2/0 at timestamp 1719297081.127115582,0 too old; wrote at 1719297081.128258939,1: "sql txn" meta={id=2a6d29db key=/Table/113/1/2/0 pri=0.00733044 epo=0 ts=1719297081.128258939,1 min=1719297081.127115582,0 seq=0} lock=true stat=PENDING rts=1719297081.127115582,0 wto=false gul=1719297081.627115582,0
+HINT:  See: https://www.cockroachlabs.com/docs/v22.2/transaction-retry-error-reference.html
+
+CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE
+CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE
+CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE
+CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE
+catch abort
+20240525-003121-1618 65487 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 1
+PAYMENT (parallel)
+20240525-003121-1630 65487 * Begin           (client.cc:130):    Begin Transaction
+PAYMENT (parallel)
+20240525-003121-1952 65487 * Begin           (client.cc:130):    Begin Transaction
+NEW ORDER (parallel)
+20240525-003121-2391 65487 * Begin           (client.cc:130):    Begin Transaction
+PAYMENT (parallel)
+20240525-003121-3486 65487 * Begin           (client.cc:130):    Begin Transaction
+PAYMENT (parallel)
+20240525-003121-3733 65487 * Begin           (client.cc:130):    Begin Transaction
+PAYMENT (parallel)
+20240525-003121-4004 65487 * Begin           (client.cc:130):    Begin Transaction
+PAYMENT (parallel)
+20240525-003121-4310 65487 * Begin           (client.cc:130):    Begin Transaction
+NEW ORDER (parallel)
+20240525-003121-4679 65487 * Begin           (client.cc:130):    Begin Transaction
+PAYMENT (parallel)
+20240525-003121-5358 65487 * Begin           (client.cc:130):    Begin Transaction
+PAYMENT (parallel)
+20240525-003121-5800 65487 * Begin           (client.cc:130):    Begin Transaction
+Tx write transaction rollback
+ERROR:  restart transaction: TransactionRetryWithProtoRefreshError: WriteTooOldError: write for key /Table/113/1/5/0 at timestamp 1719297081.579424386,0 too old; wrote at 1719297081.591475010,1: "sql txn" meta={id=c5a8e674 key=/Table/113/1/5/0 pri=0.00263010 epo=0 ts=1719297081.591475010,1 min=1719297081.579424386,0 seq=0} lock=true stat=PENDING rts=1719297081.579424386,0 wto=false gul=1719297082.079424386,0
+HINT:  See: https://www.cockroachlabs.com/docs/v22.2/transaction-retry-error-reference.html
+
+CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE
+CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE
+CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE
+CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE
+catch abort
+20240525-003121-6260 65487 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 1
+PAYMENT (parallel)
+20240525-003121-6272 65487 * Begin           (client.cc:130):    Begin Transaction
+ORDER_STATUS
+20240525-003121-6635 65487 * Begin           (client.cc:130):    Begin Transaction
+ORDER_STATUS
+20240525-003121-6822 65487 * Begin           (client.cc:130):    Begin Transaction
+PAYMENT (parallel)
+20240525-003121-6990 65487 * Begin           (client.cc:130):    Begin Transaction
+NEW ORDER (parallel)
+20240525-003121-7342 65487 * Begin           (client.cc:130):    Begin Transaction
+NEW ORDER (parallel)
+20240525-003121-8086 65487 * Begin           (client.cc:130):    Begin Transaction
+PAYMENT (parallel)
+20240525-003121-9159 65487 * Begin           (client.cc:130):    Begin Transaction
+PAYMENT (parallel)
+20240525-003121-9499 65487 * Begin           (client.cc:130):    Begin Transaction
+NEW ORDER (parallel)
+20240525-003121-9743 65487 * Begin           (client.cc:130):    Begin Transaction
+NEW ORDER (parallel)
+20240525-003122-0245 65487 * Begin           (client.cc:130):    Begin Transaction
+NEW ORDER (parallel)
+20240525-003122-0793 65487 * Begin           (client.cc:130):    Begin Transaction
+NEW ORDER (parallel)
+20240525-003122-1740 65487 * Begin           (client.cc:130):    Begin Transaction
+PAYMENT (parallel)
+20240525-003122-3361 65487 * Begin           (client.cc:130):    Begin Transaction
+NEW ORDER (parallel)
+20240525-003122-3707 65487 * Begin           (client.cc:130):    Begin Transaction
+PAYMENT (parallel)
+20240525-003122-4874 65487 * Begin           (client.cc:130):    Begin Transaction
+PAYMENT (parallel)
+20240525-003122-5243 65487 * Begin           (client.cc:130):    Begin Transaction
+PAYMENT (parallel)
+20240525-003122-5488 65487 * Begin           (client.cc:130):    Begin Transaction
+PAYMENT (parallel)
+20240525-003122-5823 65487 * Begin           (client.cc:130):    Begin Transaction
+PAYMENT (parallel)
+20240525-003122-6064 65487 * Begin           (client.cc:130):    Begin Transaction
+PAYMENT (parallel)
+20240525-003122-6421 65487 * Begin           (client.cc:130):    Begin Transaction
+Tx write transaction rollback
+ERROR:  restart transaction: TransactionRetryWithProtoRefreshError: WriteTooOldError: write for key /Table/113/1/3/0 at timestamp 1719297082.641595239,0 too old; wrote at 1719297082.685214162,2: "sql txn" meta={id=26fdcfda key=/Table/113/1/3/0 pri=0.01399638 epo=0 ts=1719297082.685214162,2 min=1719297082.641595239,0 seq=0} lock=true stat=PENDING rts=1719297082.641595239,0 wto=false gul=1719297083.141595239,0
+HINT:  See: https://www.cockroachlabs.com/docs/v22.2/transaction-retry-error-reference.html
+
+CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE
+CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE
+CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE
+CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE
+catch abort
+20240525-003122-7459 65487 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 1
+PAYMENT (parallel)
+20240525-003122-7471 65487 * Begin           (client.cc:130):    Begin Transaction
+STOCK_LEVEL (parallel)
+20240525-003122-7808 65487 * Begin           (client.cc:130):    Begin Transaction
+PAYMENT (parallel)
+20240525-003122-8012 65487 * Begin           (client.cc:130):    Begin Transaction
+20240525-003122-8078 65487 * WarmupDone      (bench_client.cc:106): Completed warmup period of 5 seconds with 79 requests
+20240525-003122-8348 65487 * IncrementSent   (bench_client.cc:204): Not done after 5 seconds.
+PAYMENT (parallel)
+20240525-003122-8349 65487 * Begin           (client.cc:130):    Begin Transaction
+Tx write transaction rollback
+ERROR:  restart transaction: TransactionRetryWithProtoRefreshError: WriteTooOldError: write for key /Table/113/1/2/0 at timestamp 1719297082.834265546,0 too old; wrote at 1719297082.837188632,1: "sql txn" meta={id=2b264eef key=/Table/113/1/2/0 pri=0.05500033 epo=0 ts=1719297082.837188632,1 min=1719297082.834265546,0 seq=0} lock=true stat=PENDING rts=1719297082.834265546,0 wto=false gul=1719297083.334265546,0
+HINT:  See: https://www.cockroachlabs.com/docs/v22.2/transaction-retry-error-reference.html
+
+CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE
+CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE
+CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE
+CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE
+catch abort
+20240525-003122-8682 65487 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 1
+PAYMENT (parallel)
+20240525-003122-8694 65487 * Begin           (client.cc:130):    Begin Transaction
+20240525-003122-9026 65487 * IncrementSent   (bench_client.cc:204): Not done after 5 seconds.
+NEW ORDER (parallel)
+20240525-003122-9028 65487 * Begin           (client.cc:130):    Begin Transaction
+20240525-003122-9640 65487 * IncrementSent   (bench_client.cc:204): Not done after 5 seconds.
+PAYMENT (parallel)
+20240525-003122-9641 65487 * Begin           (client.cc:130):    Begin Transaction
+20240525-003122-9925 65487 * IncrementSent   (bench_client.cc:204): Not done after 5 seconds.
+NEW ORDER (parallel)
+20240525-003122-9926 65487 * Begin           (client.cc:130):    Begin Transaction
+Tx commit failed
+ERROR:  restart transaction: TransactionRetryWithProtoRefreshError: TransactionRetryError: retry txn (RETRY_SERIALIZABLE - failed preemptive refresh due to a conflict: committed value on key /Table/113/1/3/0): "sql txn" meta={id=3c103816 key=/Table/106/1/3/1/0 pri=0.00541937 epo=0 ts=1719297083.284220281,1 min=1719297082.992041631,0 seq=14} lock=true stat=PENDING rts=1719297082.992041631,0 wto=false gul=1719297083.492041631,0
+HINT:  See: https://www.cockroachlabs.com/docs/v22.2/transaction-retry-error-reference.html#retry_serializable
+
+20240525-003123-3765 65487 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 2
+NEW ORDER (parallel)
+20240525-003123-3787 65487 * Begin           (client.cc:130):    Begin Transaction
+Tx commit failed
+ERROR:  restart transaction: TransactionRetryWithProtoRefreshError: TransactionRetryError: retry txn (RETRY_SERIALIZABLE - failed preemptive refresh due to a conflict: committed value on key /Table/113/1/3/0): "sql txn" meta={id=f9a6422b key=/Table/106/1/3/1/0 pri=0.02140445 epo=0 ts=1719297083.901830601,1 min=1719297083.378185868,0 seq=14} lock=true stat=PENDING rts=1719297083.378185868,0 wto=false gul=1719297083.878185868,0
+HINT:  See: https://www.cockroachlabs.com/docs/v22.2/transaction-retry-error-reference.html#retry_serializable
+
+20240525-003123-9984 65487 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 3
+NEW ORDER (parallel)
+20240525-003124-0017 65487 * Begin           (client.cc:130):    Begin Transaction
+Tx commit failed
+ERROR:  restart transaction: TransactionRetryWithProtoRefreshError: TransactionRetryError: retry txn (RETRY_SERIALIZABLE - failed preemptive refresh due to a conflict: committed value on key /Table/113/1/3/0): "sql txn" meta={id=8acfabda key=/Table/106/1/3/1/0 pri=0.01104753 epo=0 ts=1719297084.629361584,1 min=1719297084.001069583,0 seq=14} lock=true stat=PENDING rts=1719297084.001069583,0 wto=false gul=1719297084.501069583,0
+HINT:  See: https://www.cockroachlabs.com/docs/v22.2/transaction-retry-error-reference.html#retry_serializable
+
+20240525-003124-6796 65487 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 6
+NEW ORDER (parallel)
+20240525-003124-6859 65487 * Begin           (client.cc:130):    Begin Transaction
+Tx commit failed
+ERROR:  restart transaction: TransactionRetryWithProtoRefreshError: TransactionRetryError: retry txn (RETRY_SERIALIZABLE - failed preemptive refresh due to a conflict: committed value on key /Table/113/1/3/0): "sql txn" meta={id=22183086 key=/Table/106/1/3/1/0 pri=0.00974257 epo=0 ts=1719297085.245992020,1 min=1719297084.685306559,0 seq=14} lock=true stat=PENDING rts=1719297084.685306559,0 wto=false gul=1719297085.185306559,0
+HINT:  See: https://www.cockroachlabs.com/docs/v22.2/transaction-retry-error-reference.html#retry_serializable
+
+20240525-003125-3593 65487 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 9
+NEW ORDER (parallel)
+20240525-003125-3685 65487 * Begin           (client.cc:130):    Begin Transaction
+Tx commit failed
+ERROR:  restart transaction: TransactionRetryWithProtoRefreshError: TransactionRetryError: retry txn (RETRY_SERIALIZABLE - failed preemptive refresh due to a conflict: committed value on key /Table/113/1/3/0): "sql txn" meta={id=3b62f397 key=/Table/106/1/3/1/0 pri=0.00043469 epo=0 ts=1719297086.140663716,1 min=1719297085.367934616,0 seq=14} lock=true stat=PENDING rts=1719297085.367934616,0 wto=false gul=1719297085.867934616,0
+HINT:  See: https://www.cockroachlabs.com/docs/v22.2/transaction-retry-error-reference.html#retry_serializable
+
+20240525-003126-2851 65487 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 26
+NEW ORDER (parallel)
+20240525-003126-3114 65487 * Begin           (client.cc:130):    Begin Transaction
+Tx commit failed
+ERROR:  restart transaction: TransactionRetryWithProtoRefreshError: TransactionRetryError: retry txn (RETRY_SERIALIZABLE - failed preemptive refresh due to a conflict: committed value on key /Table/113/1/3/0): "sql txn" meta={id=119ed256 key=/Table/106/1/3/1/0 pri=0.00460343 epo=0 ts=1719297087.294812653,1 min=1719297086.310903628,0 seq=14} lock=true stat=PENDING rts=1719297086.310903628,0 wto=false gul=1719297086.810903628,0
+HINT:  See: https://www.cockroachlabs.com/docs/v22.2/transaction-retry-error-reference.html#retry_serializable
+
+20240525-003127-4156 65487 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 33
+NEW ORDER (parallel)
+20240525-003127-4489 65487 * Begin           (client.cc:130):    Begin Transaction
+Tx commit failed
+ERROR:  restart transaction: TransactionRetryWithProtoRefreshError: TransactionRetryError: retry txn (RETRY_SERIALIZABLE - failed preemptive refresh due to a conflict: committed value on key /Table/113/1/3/0): "sql txn" meta={id=3bcab9c1 key=/Table/106/1/3/1/0 pri=0.01138742 epo=0 ts=1719297088.713954766,2 min=1719297087.448340995,0 seq=14} lock=true stat=PENDING rts=1719297087.448340995,0 wto=false gul=1719297087.948340995,0
+HINT:  See: https://www.cockroachlabs.com/docs/v22.2/transaction-retry-error-reference.html#retry_serializable
+
+20240525-003128-9831 65487 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 99
+NEW ORDER (parallel)
+20240525-003129-0824 65487 * Begin           (client.cc:130):    Begin Transaction
+Tx commit failed
+ERROR:  restart transaction: TransactionRetryWithProtoRefreshError: TransactionRetryError: retry txn (RETRY_SERIALIZABLE - failed preemptive refresh due to a conflict: committed value on key /Table/113/1/3/0): "sql txn" meta={id=9861384c key=/Table/106/1/3/1/0 pri=0.01785466 epo=0 ts=1719297090.965178754,1 min=1719297089.081917669,0 seq=14} lock=true stat=PENDING rts=1719297089.081917669,0 wto=false gul=1719297089.581917669,0
+HINT:  See: https://www.cockroachlabs.com/docs/v22.2/transaction-retry-error-reference.html#retry_serializable
+
+20240525-003131-0521 65487 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 194
+NEW ORDER (parallel)
+20240525-003131-2463 65487 * Begin           (client.cc:130):    Begin Transaction
+Tx commit failed
+ERROR:  restart transaction: TransactionRetryWithProtoRefreshError: TransactionRetryError: retry txn (RETRY_SERIALIZABLE - failed preemptive refresh due to a conflict: committed value on key /Table/113/1/3/0): "sql txn" meta={id=bc9aab85 key=/Table/106/1/3/1/0 pri=0.00049411 epo=0 ts=1719297093.107332678,1 min=1719297091.245866659,0 seq=14} lock=true stat=PENDING rts=1719297091.245866659,0 wto=false gul=1719297091.745866659,0
+HINT:  See: https://www.cockroachlabs.com/docs/v22.2/transaction-retry-error-reference.html#retry_serializable
+
+20240525-003133-2319 65487 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 231
+NEW ORDER (parallel)
+20240525-003133-4632 65487 * Begin           (client.cc:130):    Begin Transaction
+Tx commit failed
+ERROR:  restart transaction: TransactionRetryWithProtoRefreshError: TransactionRetryError: retry txn (RETRY_SERIALIZABLE - failed preemptive refresh due to a conflict: committed value on key /Table/113/1/3/0): "sql txn" meta={id=5ebe3256 key=/Table/106/1/3/1/0 pri=0.00452944 epo=0 ts=1719297095.194232970,1 min=1719297093.462959973,0 seq=14} lock=true stat=PENDING rts=1719297093.462959973,0 wto=false gul=1719297093.962959973,0
+HINT:  See: https://www.cockroachlabs.com/docs/v22.2/transaction-retry-error-reference.html#retry_serializable
+
+20240525-003135-3302 65487 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 171
+NEW ORDER (parallel)
+20240525-003135-5014 65487 * Begin           (client.cc:130):    Begin Transaction
+Tx commit failed
+ERROR:  restart transaction: TransactionRetryWithProtoRefreshError: TransactionRetryError: retry txn (RETRY_SERIALIZABLE - failed preemptive refresh due to a conflict: committed value on key /Table/113/1/3/0): "sql txn" meta={id=97875d9c key=/Table/106/1/3/1/0 pri=0.03037215 epo=0 ts=1719297097.720678773,2 min=1719297095.500986682,0 seq=14} lock=true stat=PENDING rts=1719297095.500986682,0 wto=false gul=1719297096.000986682,0
+HINT:  See: https://www.cockroachlabs.com/docs/v22.2/transaction-retry-error-reference.html#retry_serializable
+
+20240525-003137-9014 65487 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 181
+NEW ORDER (parallel)
+20240525-003138-0826 65487 * Begin           (client.cc:130):    Begin Transaction
+Tx commit failed
+ERROR:  restart transaction: TransactionRetryWithProtoRefreshError: TransactionRetryError: retry txn (RETRY_SERIALIZABLE - failed preemptive refresh due to a conflict: committed value on key /Table/113/1/3/0): "sql txn" meta={id=55076f32 key=/Table/106/1/3/1/0 pri=0.00395551 epo=0 ts=1719297100.115275792,3 min=1719297098.082146550,0 seq=14} lock=true stat=PENDING rts=1719297098.082146550,0 wto=false gul=1719297098.582146550,0
+HINT:  See: https://www.cockroachlabs.com/docs/v22.2/transaction-retry-error-reference.html#retry_serializable
+
+20240525-003140-4238 65487 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 209
+NEW ORDER (parallel)
+20240525-003140-6331 65487 * Begin           (client.cc:130):    Begin Transaction
+Tx write transaction rollback
+ERROR:  restart transaction: TransactionRetryWithProtoRefreshError: WriteTooOldError: write for key /Table/106/1/3/1/0 at timestamp 1719297100.632563929,0 too old; wrote at 1719297101.019513238,3: "sql txn" meta={id=ce8032df key=/Table/106/1/3/1/0 pri=0.03753700 epo=0 ts=1719297101.019513238,3 min=1719297100.632563929,0 seq=0} lock=true stat=PENDING rts=1719297100.632563929,0 wto=false gul=1719297101.132563929,0
+HINT:  See: https://www.cockroachlabs.com/docs/v22.2/transaction-retry-error-reference.html
+
+CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE
+CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE
+CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE
+CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE
+CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE
+CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE
+CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE
+CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE
+CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE
+CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE
+catch abort
+20240525-003141-3564 65487 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 197
+NEW ORDER (parallel)
+20240525-003141-5537 65487 * Begin           (client.cc:130):    Begin Transaction
+20240525-003141-6487 65487 * IncrementSent   (bench_client.cc:204): Not done after 23 seconds.
+NEW ORDER (parallel)
+20240525-003141-6488 65487 * Begin           (client.cc:130):    Begin Transaction
+20240525-003141-7130 65487 * IncrementSent   (bench_client.cc:204): Not done after 23 seconds.
+PAYMENT (parallel)
+20240525-003141-7131 65487 * Begin           (client.cc:130):    Begin Transaction
+20240525-003141-7524 65487 * IncrementSent   (bench_client.cc:204): Not done after 23 seconds.
+NEW ORDER (parallel)
+20240525-003141-7526 65487 * Begin           (client.cc:130):    Begin Transaction
+20240525-003141-8920 65487 * IncrementSent   (bench_client.cc:204): Not done after 24 seconds.
+PAYMENT (parallel)
+20240525-003141-8921 65487 * Begin           (client.cc:130):    Begin Transaction
+20240525-003141-9324 65487 * IncrementSent   (bench_client.cc:204): Not done after 24 seconds.
+PAYMENT (parallel)
+20240525-003141-9325 65487 * Begin           (client.cc:130):    Begin Transaction
+Tx write transaction rollback
+ERROR:  restart transaction: TransactionRetryWithProtoRefreshError: WriteTooOldError: write for key /Table/113/1/2/0 at timestamp 1719297101.931938825,0 too old; wrote at 1719297101.931938825,2: "sql txn" meta={id=c68ef0ee key=/Table/113/1/2/0 pri=0.05668467 epo=0 ts=1719297101.931938825,2 min=1719297101.931938825,0 seq=0} lock=true stat=PENDING rts=1719297101.931938825,0 wto=false gul=1719297102.431938825,0
+HINT:  See: https://www.cockroachlabs.com/docs/v22.2/transaction-retry-error-reference.html
+
+CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE
+CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE
+CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE
+CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE
+catch abort
+20240525-003141-9845 65487 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 1
+PAYMENT (parallel)
+20240525-003141-9857 65487 * Begin           (client.cc:130):    Begin Transaction
+20240525-003142-0283 65487 * IncrementSent   (bench_client.cc:204): Not done after 24 seconds.
+PAYMENT (parallel)
+20240525-003142-0285 65487 * Begin           (client.cc:130):    Begin Transaction
+20240525-003142-0580 65487 * IncrementSent   (bench_client.cc:204): Not done after 24 seconds.
+NEW ORDER (parallel)
+20240525-003142-0582 65487 * Begin           (client.cc:130):    Begin Transaction
+20240525-003142-1402 65487 * IncrementSent   (bench_client.cc:204): Not done after 24 seconds.
+PAYMENT (parallel)
+20240525-003142-1403 65487 * Begin           (client.cc:130):    Begin Transaction
+Tx write transaction rollback
+ERROR:  restart transaction: TransactionRetryWithProtoRefreshError: WriteTooOldError: write for key /Table/113/1/3/0 at timestamp 1719297102.139702697,0 too old; wrote at 1719297102.139702697,2: "sql txn" meta={id=a243f986 key=/Table/113/1/3/0 pri=0.01716167 epo=0 ts=1719297102.139702697,2 min=1719297102.139702697,0 seq=0} lock=true stat=PENDING rts=1719297102.139702697,0 wto=false gul=1719297102.639702697,0
+HINT:  See: https://www.cockroachlabs.com/docs/v22.2/transaction-retry-error-reference.html
+
+CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE
+CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE
+CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE
+CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE
+catch abort
+20240525-003142-1799 65487 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 2
+PAYMENT (parallel)
+20240525-003142-1821 65487 * Begin           (client.cc:130):    Begin Transaction
+20240525-003142-2245 65487 * IncrementSent   (bench_client.cc:204): Not done after 24 seconds.
+PAYMENT (parallel)
+20240525-003142-2246 65487 * Begin           (client.cc:130):    Begin Transaction
+20240525-003142-2529 65487 * IncrementSent   (bench_client.cc:204): Not done after 24 seconds.
+NEW ORDER (parallel)
+20240525-003142-2530 65487 * Begin           (client.cc:130):    Begin Transaction
+20240525-003142-3454 65487 * IncrementSent   (bench_client.cc:204): Not done after 24 seconds.
+PAYMENT (parallel)
+20240525-003142-3455 65487 * Begin           (client.cc:130):    Begin Transaction
+20240525-003142-3762 65487 * IncrementSent   (bench_client.cc:204): Not done after 24 seconds.
+NEW ORDER (parallel)
+20240525-003142-3764 65487 * Begin           (client.cc:130):    Begin Transaction
+20240525-003142-5110 65487 * IncrementSent   (bench_client.cc:204): Not done after 24 seconds.
+NEW ORDER (parallel)
+20240525-003142-5112 65487 * Begin           (client.cc:130):    Begin Transaction
+20240525-003142-6411 65487 * IncrementSent   (bench_client.cc:204): Not done after 24 seconds.
+NEW ORDER (parallel)
+20240525-003142-6413 65487 * Begin           (client.cc:130):    Begin Transaction
+20240525-003142-7482 65487 * IncrementSent   (bench_client.cc:204): Not done after 24 seconds.
+NEW ORDER (parallel)
+20240525-003142-7483 65487 * Begin           (client.cc:130):    Begin Transaction
+20240525-003142-8167 65487 * IncrementSent   (bench_client.cc:204): Not done after 25 seconds.
+STOCK_LEVEL (parallel)
+20240525-003142-8168 65487 * Begin           (client.cc:130):    Begin Transaction
+20240525-003142-8427 65487 * IncrementSent   (bench_client.cc:204): Not done after 25 seconds.
+DELIVERY (parallel)
+20240525-003142-8428 65487 * Begin           (client.cc:130):    Begin Transaction
+20240525-003142-8778 65487 * IncrementSent   (bench_client.cc:204): Not done after 25 seconds.
+DELIVERY (parallel)
+20240525-003142-8779 65487 * Begin           (client.cc:130):    Begin Transaction
+20240525-003142-9119 65487 * IncrementSent   (bench_client.cc:204): Not done after 25 seconds.
+DELIVERY (parallel)
+20240525-003142-9120 65487 * Begin           (client.cc:130):    Begin Transaction
+20240525-003142-9461 65487 * IncrementSent   (bench_client.cc:204): Not done after 25 seconds.
+DELIVERY (parallel)
+20240525-003142-9463 65487 * Begin           (client.cc:130):    Begin Transaction
+20240525-003142-9806 65487 * IncrementSent   (bench_client.cc:204): Not done after 25 seconds.
+DELIVERY (parallel)
+20240525-003142-9807 65487 * Begin           (client.cc:130):    Begin Transaction
+20240525-003143-0157 65487 * IncrementSent   (bench_client.cc:204): Not done after 25 seconds.
+DELIVERY (parallel)
+20240525-003143-0158 65487 * Begin           (client.cc:130):    Begin Transaction
+20240525-003143-0513 65487 * IncrementSent   (bench_client.cc:204): Not done after 25 seconds.
+DELIVERY (parallel)
+20240525-003143-0514 65487 * Begin           (client.cc:130):    Begin Transaction
+20240525-003143-0860 65487 * IncrementSent   (bench_client.cc:204): Not done after 25 seconds.
+DELIVERY (parallel)
+20240525-003143-0861 65487 * Begin           (client.cc:130):    Begin Transaction
+20240525-003143-1225 65487 * IncrementSent   (bench_client.cc:204): Not done after 25 seconds.
+DELIVERY (parallel)
+20240525-003143-1226 65487 * Begin           (client.cc:130):    Begin Transaction
+20240525-003143-1619 65487 * IncrementSent   (bench_client.cc:204): Not done after 25 seconds.
+DELIVERY (parallel)
+20240525-003143-1620 65487 * Begin           (client.cc:130):    Begin Transaction
+20240525-003143-1969 65487 * IncrementSent   (bench_client.cc:204): Not done after 25 seconds.
+NEW ORDER (parallel)
+20240525-003143-1970 65487 * Begin           (client.cc:130):    Begin Transaction
+20240525-003143-2659 65487 * IncrementSent   (bench_client.cc:204): Not done after 25 seconds.
+DELIVERY (parallel)
+20240525-003143-2660 65487 * Begin           (client.cc:130):    Begin Transaction
+20240525-003143-3018 65487 * IncrementSent   (bench_client.cc:204): Not done after 25 seconds.
+DELIVERY (parallel)
+20240525-003143-3019 65487 * Begin           (client.cc:130):    Begin Transaction
+20240525-003143-3388 65487 * IncrementSent   (bench_client.cc:204): Not done after 25 seconds.
+DELIVERY (parallel)
+20240525-003143-3389 65487 * Begin           (client.cc:130):    Begin Transaction
+20240525-003143-3758 65487 * IncrementSent   (bench_client.cc:204): Not done after 25 seconds.
+DELIVERY (parallel)
+20240525-003143-3759 65487 * Begin           (client.cc:130):    Begin Transaction
+20240525-003143-4098 65487 * IncrementSent   (bench_client.cc:204): Not done after 25 seconds.
+DELIVERY (parallel)
+20240525-003143-4099 65487 * Begin           (client.cc:130):    Begin Transaction
+20240525-003143-4452 65487 * IncrementSent   (bench_client.cc:204): Not done after 25 seconds.
+DELIVERY (parallel)
+20240525-003143-4453 65487 * Begin           (client.cc:130):    Begin Transaction
+20240525-003143-4816 65487 * IncrementSent   (bench_client.cc:204): Not done after 25 seconds.
+DELIVERY (parallel)
+20240525-003143-4817 65487 * Begin           (client.cc:130):    Begin Transaction
+20240525-003143-5176 65487 * IncrementSent   (bench_client.cc:204): Not done after 25 seconds.
+DELIVERY (parallel)
+20240525-003143-5177 65487 * Begin           (client.cc:130):    Begin Transaction
+20240525-003143-5566 65487 * IncrementSent   (bench_client.cc:204): Not done after 25 seconds.
+DELIVERY (parallel)
+20240525-003143-5568 65487 * Begin           (client.cc:130):    Begin Transaction
+20240525-003143-5926 65487 * IncrementSent   (bench_client.cc:204): Not done after 25 seconds.
+DELIVERY (parallel)
+20240525-003143-5927 65487 * Begin           (client.cc:130):    Begin Transaction
+20240525-003143-6287 65487 * IncrementSent   (bench_client.cc:204): Not done after 25 seconds.
+PAYMENT (parallel)
+20240525-003143-6289 65487 * Begin           (client.cc:130):    Begin Transaction
+20240525-003143-6616 65487 * IncrementSent   (bench_client.cc:204): Not done after 25 seconds.
+NEW ORDER (parallel)
+20240525-003143-6617 65487 * Begin           (client.cc:130):    Begin Transaction
+Tx commit failed
+ERROR:  restart transaction: TransactionRetryWithProtoRefreshError: TransactionRetryError: retry txn (RETRY_SERIALIZABLE - failed preemptive refresh due to a conflict: committed value on key /Table/113/1/3/0): "sql txn" meta={id=c05710fb key=/Table/106/1/3/1/0 pri=0.00805822 epo=0 ts=1719297105.650924262,1 min=1719297103.661099398,0 seq=20} lock=true stat=PENDING rts=1719297103.661099398,0 wto=false gul=1719297104.161099398,0
+HINT:  See: https://www.cockroachlabs.com/docs/v22.2/transaction-retry-error-reference.html#retry_serializable
+
+20240525-003145-7623 65487 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 2
+NEW ORDER (parallel)
+20240525-003145-7646 65487 * Begin           (client.cc:130):    Begin Transaction
+20240525-003147-0808 65487 * Cleanup         (benchmark.cc:1843): clean up with signal 0
+Tx write transaction rollback
+ERROR:  restart transaction: TransactionRetryWithProtoRefreshError: WriteTooOldError: write for key /Table/106/1/3/1/0 at timestamp 1719297105.764050723,0 too old; wrote at 1719297106.874171244,2: "sql txn" meta={id=5f0c6f87 key=/Table/106/1/3/1/0 pri=0.00269008 epo=0 ts=1719297106.874171244,2 min=1719297105.764050723,0 seq=0} lock=true stat=PENDING rts=1719297105.764050723,0 wto=false gul=1719297106.264050723,0
+HINT:  See: https://www.cockroachlabs.com/docs/v22.2/transaction-retry-error-reference.html
+
+CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE
+CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE
+CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE
+CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE
+CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE
+CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE
+CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE
+CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE
+CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE
+CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE
+CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE
+CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE
+CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE
+CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE
+CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE
+CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE
+catch abort
+20240525-003147-1326 65487 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 2
+NEW ORDER (parallel)
+20240525-003147-1348 65487 * Begin           (client.cc:130):    Begin Transaction
+Tx write transaction rollback
+ERROR:  restart transaction: TransactionRetryWithProtoRefreshError: WriteTooOldError: write for key /Table/106/1/3/1/0 at timestamp 1719297107.134359434,0 too old; wrote at 1719297107.139668059,2: "sql txn" meta={id=ed9dbfda key=/Table/106/1/3/1/0 pri=0.00486141 epo=0 ts=1719297107.139668059,2 min=1719297107.134359434,0 seq=0} lock=true stat=PENDING rts=1719297107.134359434,0 wto=false gul=1719297107.634359434,0
+HINT:  See: https://www.cockroachlabs.com/docs/v22.2/transaction-retry-error-reference.html
+
+CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE
+CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE
+CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE
+CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE
+CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE
+CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE
+CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE
+CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE
+CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE
+CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE
+CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE
+CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE
+CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE
+CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE
+CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE
+CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE
+catch abort
+20240525-003147-3876 65487 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 8
+NEW ORDER (parallel)
+20240525-003147-3958 65487 * Begin           (client.cc:130):    Begin Transaction
+20240525-003147-5155 65487 * IncrementSent   (bench_client.cc:196): Starting cooldown after 29 seconds.
+20240525-003147-5156 65487 * Finish          (bench_client.cc:220): Completed 43 requests in 24.714431 seconds
+DELIVERY (parallel)
+20240525-003147-5157 65487 * Begin           (client.cc:130):    Begin Transaction
+20240525-003147-5483 65487 * IncrementSent   (bench_client.cc:204): Not done after 29 seconds.
+DELIVERY (parallel)
+20240525-003147-5484 65487 * Begin           (client.cc:130):    Begin Transaction
+20240525-003147-5810 65487 * IncrementSent   (bench_client.cc:204): Not done after 29 seconds.
+DELIVERY (parallel)
+20240525-003147-5811 65487 * Begin           (client.cc:130):    Begin Transaction
+20240525-003147-6124 65487 * IncrementSent   (bench_client.cc:204): Not done after 29 seconds.
+DELIVERY (parallel)
+20240525-003147-6125 65487 * Begin           (client.cc:130):    Begin Transaction
+20240525-003147-6431 65487 * IncrementSent   (bench_client.cc:204): Not done after 29 seconds.
+DELIVERY (parallel)
+20240525-003147-6431 65487 * Begin           (client.cc:130):    Begin Transaction
+20240525-003147-6738 65487 * IncrementSent   (bench_client.cc:204): Not done after 29 seconds.
+DELIVERY (parallel)
+20240525-003147-6740 65487 * Begin           (client.cc:130):    Begin Transaction
+20240525-003147-7034 65487 * IncrementSent   (bench_client.cc:204): Not done after 29 seconds.
+DELIVERY (parallel)
+20240525-003147-7035 65487 * Begin           (client.cc:130):    Begin Transaction
+20240525-003147-7337 65487 * IncrementSent   (bench_client.cc:204): Not done after 29 seconds.
+DELIVERY (parallel)
+20240525-003147-7338 65487 * Begin           (client.cc:130):    Begin Transaction
+20240525-003147-7623 65487 * IncrementSent   (bench_client.cc:204): Not done after 29 seconds.
+DELIVERY (parallel)
+20240525-003147-7624 65487 * Begin           (client.cc:130):    Begin Transaction
+20240525-003147-7909 65487 * IncrementSent   (bench_client.cc:204): Not done after 29 seconds.
+DELIVERY (parallel)
+20240525-003147-7910 65487 * Begin           (client.cc:130):    Begin Transaction
+20240525-003147-8210 65487 * IncrementSent   (bench_client.cc:204): Not done after 30 seconds.
+PAYMENT (parallel)
+20240525-003147-8210 65487 * Begin           (client.cc:130):    Begin Transaction
+20240525-003147-8509 65487 * IncrementSent   (bench_client.cc:204): Not done after 30 seconds.
+NEW ORDER (parallel)
+20240525-003147-8510 65487 * Begin           (client.cc:130):    Begin Transaction
+20240525-003147-9710 65487 * IncrementSent   (bench_client.cc:204): Not done after 30 seconds.
+NEW ORDER (parallel)
+20240525-003147-9711 65487 * Begin           (client.cc:130):    Begin Transaction
+Tx write transaction rollback
+ERROR:  restart transaction: TransactionRetryWithProtoRefreshError: WriteTooOldError: write for key /Table/106/1/2/2/0 at timestamp 1719297107.970430645,0 too old; wrote at 1719297107.971781943,1: "sql txn" meta={id=17ccf062 key=/Table/106/1/2/2/0 pri=0.00481410 epo=0 ts=1719297107.971781943,1 min=1719297107.970430645,0 seq=0} lock=true stat=PENDING rts=1719297107.970430645,0 wto=false gul=1719297108.470430645,0
+HINT:  See: https://www.cockroachlabs.com/docs/v22.2/transaction-retry-error-reference.html
+
+CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE
+CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE
+CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE
+CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE
+CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE
+CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE
+CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE
+CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE
+CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE
+CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE
+CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE
+CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE
+CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE
+CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE
+CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE
+CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE
+CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE
+CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE
+CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE
+CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE
+catch abort
+20240525-003148-0680 65487 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 2
+NEW ORDER (parallel)
+20240525-003148-0702 65487 * Begin           (client.cc:130):    Begin Transaction
+20240525-003148-1536 65487 * IncrementSent   (bench_client.cc:204): Not done after 30 seconds.
+NEW ORDER (parallel)
+20240525-003148-1537 65487 * Begin           (client.cc:130):    Begin Transaction
+20240525-003148-2704 65487 * IncrementSent   (bench_client.cc:204): Not done after 30 seconds.
+NEW ORDER (parallel)
+20240525-003148-2706 65487 * Begin           (client.cc:130):    Begin Transaction
+Tx write transaction rollback
+ERROR:  restart transaction: TransactionRetryWithProtoRefreshError: WriteTooOldError: write for key /Table/106/1/3/3/0 at timestamp 1719297108.270016731,0 too old; wrote at 1719297108.270016731,2: "sql txn" meta={id=2959cdcb key=/Table/106/1/3/3/0 pri=0.00165747 epo=0 ts=1719297108.270016731,2 min=1719297108.270016731,0 seq=0} lock=true stat=PENDING rts=1719297108.270016731,0 wto=false gul=1719297108.770016731,0
+HINT:  See: https://www.cockroachlabs.com/docs/v22.2/transaction-retry-error-reference.html
+
+CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE
+CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE
+CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE
+CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE
+CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE
+CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE
+CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE
+CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE
+CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE
+CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE
+CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE
+CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE
+CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE
+CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE
+CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE
+CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE
+CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE
+CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE
+CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE
+CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE
+CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE
+CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE
+CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE
+CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE
+CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE
+CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE
+catch abort
+20240525-003148-3765 65487 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 1
+NEW ORDER (parallel)
+20240525-003148-3778 65487 * Begin           (client.cc:130):    Begin Transaction
+20240525-003148-4905 65487 * IncrementSent   (bench_client.cc:204): Not done after 30 seconds.
+PAYMENT (parallel)
+20240525-003148-4906 65487 * Begin           (client.cc:130):    Begin Transaction
+20240525-003148-5263 65487 * IncrementSent   (bench_client.cc:204): Not done after 30 seconds.
+PAYMENT (parallel)
+20240525-003148-5265 65487 * Begin           (client.cc:130):    Begin Transaction
+20240525-003148-5608 65487 * IncrementSent   (bench_client.cc:204): Not done after 30 seconds.
+PAYMENT (parallel)
+20240525-003148-5610 65487 * Begin           (client.cc:130):    Begin Transaction
+20240525-003148-5844 65487 * IncrementSent   (bench_client.cc:204): Not done after 30 seconds.
+PAYMENT (parallel)
+20240525-003148-5846 65487 * Begin           (client.cc:130):    Begin Transaction
+20240525-003148-6083 65487 * IncrementSent   (bench_client.cc:204): Not done after 30 seconds.
+NEW ORDER (parallel)
+20240525-003148-6084 65487 * Begin           (client.cc:130):    Begin Transaction
+20240525-003148-7438 65487 * IncrementSent   (bench_client.cc:204): Not done after 30 seconds.
+STOCK_LEVEL (parallel)
+20240525-003148-7439 65487 * Begin           (client.cc:130):    Begin Transaction
+20240525-003148-7672 65487 * IncrementSent   (bench_client.cc:204): Not done after 30 seconds.
+NEW ORDER (parallel)
+20240525-003148-7674 65487 * Begin           (client.cc:130):    Begin Transaction
+20240525-003148-8541 65487 * IncrementSent   (bench_client.cc:200): Finished cooldown after 31 seconds.
+20240525-003148-8542 65487 * CooldownDone    (bench_client.cc:115): Finished cooldown period.
+20240525-003148-8542 65487 * CooldownDone    (bench_client.cc:122): Median latency is 36402259 ns (36 ms)
+20240525-003148-8542 65487 * CooldownDone    (bench_client.cc:130): Average latency is 561570030 ns (561 ms)
+20240525-003148-8543 65487 * CooldownDone    (bench_client.cc:134): 90th percentile latency is 130061775 ns (130 ms)
+20240525-003148-8543 65487 * CooldownDone    (bench_client.cc:138): 95th percentile latency is 139467893 ns (139 ms)
+20240525-003148-8544 65487 * CooldownDone    (bench_client.cc:142): 99th percentile latency is 18656053367 ns (18 s)
+20240525-003148-8545 65487 * LATENCY total: 25 ms 561 ms/33 ms 18 s (44 samples, 24 s total)
+20240525-003148-8545 65487 *      16 ms |          7 | =======
+20240525-003148-8545 65487 *      33 ms |         24 | ========================
+20240525-003148-8546 65487 *      67 ms |          9 | =========
+20240525-003148-8547 65487 *     134 ms |          2 | ==
+20240525-003148-8547 65487 *        ... |
+20240525-003148-8547 65487 *    2147 ms |          1 | =
+20240525-003148-8548 65487 *    4294 ms |          0 |
+20240525-003148-8548 65487 *    8589 ms |          0 |
+20240525-003148-8549 65487 *       17 s |          1 | =
+Inserted events:
+  0x617000000280 [fd  6] Read Persist Internal
+Active events:
+Inserted events:
+  0x617000000280 [fd  6] Read Persist Internal
+Active events:
+20240525-003148-8562 65487 * Cleanup         (benchmark.cc:1874): Finished Cleanup. Exiting
+
+=================================================================
+==65487==ERROR: LeakSanitizer: detected memory leaks
+
+Direct leak of 208 byte(s) in 1 object(s) allocated from:
+    #0 0x55f04d530737 in operator new(unsigned long) (/mnt/extra/indicus/bin/benchmark+0x3c6737)
+    #1 0x55f04d42508e in main store/benchmark/async/benchmark.cc:1185
+    #2 0x7f5fb5a98082 in __libc_start_main ../csu/libc-start.c:308
+
+Direct leak of 64 byte(s) in 8 object(s) allocated from:
+    #0 0x55f04d530737 in operator new(unsigned long) (/mnt/extra/indicus/bin/benchmark+0x3c6737)
+    #1 0x55f04d60b5dd in ThreadPool::start(int, int, bool, bool, int) lib/threadpool.cc:222
+    #2 0x55f04d5f41a1 in TCPTransport::TCPTransport(double, double, int, bool, int, int, bool, bool, int) lib/tcptransport.cc:170
+    #3 0x55f04d424669 in main store/benchmark/async/benchmark.cc:1031
+    #4 0x7f5fb5a98082 in __libc_start_main ../csu/libc-start.c:308
+
+Indirect leak of 34 byte(s) in 1 object(s) allocated from:
+    #0 0x55f04d530737 in operator new(unsigned long) (/mnt/extra/indicus/bin/benchmark+0x3c6737)
+    #1 0x55f04d625ffb in void std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >::_M_construct<char*>(char*, char*, std::forward_iterator_tag) /usr/include/c++/9/bits/basic_string.tcc:219
+    #2 0x55f04d90e84f in void std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >::_M_construct_aux<char*>(char*, char*, std::__false_type) /usr/include/c++/9/bits/basic_string.h:251
+    #3 0x55f04d90e84f in void std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >::_M_construct<char*>(char*, char*) /usr/include/c++/9/bits/basic_string.h:270
+    #4 0x55f04d90e84f in std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >::basic_string(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&) /usr/include/c++/9/bits/basic_string.h:455
+    #5 0x55f04d90e84f in KeyManager::KeyManager(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, crypto::KeyType, bool, unsigned long, unsigned long, unsigned long) lib/keymanager.cc:35
+    #6 0x55f04d4250e1 in main store/benchmark/async/benchmark.cc:1185
+    #7 0x7f5fb5a98082 in __libc_start_main ../csu/libc-start.c:308
+
+SUMMARY: AddressSanitizer: 306 byte(s) leaked in 10 allocation(s).

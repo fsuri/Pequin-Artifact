@@ -1,0 +1,636 @@
+cpu_count  1 
+get_nprocs  8 
+starting client threadpool
+Num_cpus: 8 
+num hosts=24; num_threads=1
+20240525-133733-6692 76382 * Client          (client.cc:84):     Site .liamcrdb.pequin-pg0.utah.cloudlab.us 
+
+20240525-133733-6694 76382 * Client          (client.cc:88):     Connecting to gateway postgresql://root@us-east-1-0.liamcrdb.pequin-pg0.utah.cloudlab.us:7087/defaultdb?sslmode=disable
+20240525-133733-6729 76382 * Client          (client.cc:112):    Connected successfully after 1 tries
+20240525-133733-6729 76382 * Client          (client.cc:115):    Established TaoPQ connection to backend
+20240525-133733-6729 76382 * Client          (client.cc:121):    Client successfully started
+20240525-133733-6730 76382 * BenchmarkClient (bench_client.cc:56): Delay between requests: 2 ms
+PAYMENT
+20240525-133733-6813 76382 * Begin           (client.cc:130):    Begin Transaction
+NEW ORDER
+20240525-133733-7945 76382 * Begin           (client.cc:130):    Begin Transaction
+NEW ORDER
+20240525-133733-8885 76382 * Begin           (client.cc:130):    Begin Transaction
+NEW ORDER
+20240525-133733-9643 76382 * Begin           (client.cc:130):    Begin Transaction
+PAYMENT
+20240525-133734-0461 76382 * Begin           (client.cc:130):    Begin Transaction
+NEW ORDER
+20240525-133734-0835 76382 * Begin           (client.cc:130):    Begin Transaction
+NEW ORDER
+20240525-133734-1784 76382 * Begin           (client.cc:130):    Begin Transaction
+NEW ORDER
+20240525-133734-2439 76382 * Begin           (client.cc:130):    Begin Transaction
+NEW ORDER
+20240525-133734-3406 76382 * Begin           (client.cc:130):    Begin Transaction
+PAYMENT
+20240525-133734-4439 76382 * Begin           (client.cc:130):    Begin Transaction
+PAYMENT
+20240525-133734-4775 76382 * Begin           (client.cc:130):    Begin Transaction
+NEW ORDER
+20240525-133734-5135 76382 * Begin           (client.cc:130):    Begin Transaction
+PAYMENT
+20240525-133734-6017 76382 * Begin           (client.cc:130):    Begin Transaction
+DELIVERY TX
+20240525-133734-6407 76382 * Begin           (client.cc:130):    Begin Transaction
+DELIVERY TX
+20240525-133734-6704 76382 * Begin           (client.cc:130):    Begin Transaction
+DELIVERY TX
+20240525-133734-7025 76382 * Begin           (client.cc:130):    Begin Transaction
+DELIVERY TX
+20240525-133734-7352 76382 * Begin           (client.cc:130):    Begin Transaction
+DELIVERY TX
+20240525-133734-7695 76382 * Begin           (client.cc:130):    Begin Transaction
+DELIVERY TX
+20240525-133734-8009 76382 * Begin           (client.cc:130):    Begin Transaction
+DELIVERY TX
+20240525-133734-8314 76382 * Begin           (client.cc:130):    Begin Transaction
+DELIVERY TX
+20240525-133734-8641 76382 * Begin           (client.cc:130):    Begin Transaction
+DELIVERY TX
+20240525-133734-8979 76382 * Begin           (client.cc:130):    Begin Transaction
+DELIVERY TX
+20240525-133734-9334 76382 * Begin           (client.cc:130):    Begin Transaction
+DELIVERY TX
+20240525-133734-9708 76382 * Begin           (client.cc:130):    Begin Transaction
+DELIVERY TX
+20240525-133735-0004 76382 * Begin           (client.cc:130):    Begin Transaction
+DELIVERY TX
+20240525-133735-0304 76382 * Begin           (client.cc:130):    Begin Transaction
+DELIVERY TX
+20240525-133735-0634 76382 * Begin           (client.cc:130):    Begin Transaction
+DELIVERY TX
+20240525-133735-1094 76382 * Begin           (client.cc:130):    Begin Transaction
+DELIVERY TX
+20240525-133735-1515 76382 * Begin           (client.cc:130):    Begin Transaction
+DELIVERY TX
+20240525-133735-1878 76382 * Begin           (client.cc:130):    Begin Transaction
+DELIVERY TX
+20240525-133735-2164 76382 * Begin           (client.cc:130):    Begin Transaction
+DELIVERY TX
+20240525-133735-2480 76382 * Begin           (client.cc:130):    Begin Transaction
+DELIVERY TX
+20240525-133735-2771 76382 * Begin           (client.cc:130):    Begin Transaction
+NEW ORDER
+20240525-133735-3072 76382 * Begin           (client.cc:130):    Begin Transaction
+PAYMENT
+20240525-133735-4527 76382 * Begin           (client.cc:130):    Begin Transaction
+NEW ORDER
+20240525-133735-4794 76382 * Begin           (client.cc:130):    Begin Transaction
+Tx write transaction rollback
+ERROR:  restart transaction: TransactionRetryWithProtoRefreshError: WriteTooOldError: write for key /Table/106/1/7/2/0 at timestamp 1719344255.479746652,0 too old; wrote at 1719344255.487333876,1: "sql txn" meta={id=8f4c6c79 key=/Table/106/1/7/2/0 pri=0.01502931 epo=0 ts=1719344255.487333876,1 min=1719344255.479746652,0 seq=0} lock=true stat=PENDING rts=1719344255.479746652,0 wto=false gul=1719344255.979746652,0
+HINT:  See: https://www.cockroachlabs.com/docs/v22.2/transaction-retry-error-reference.html
+
+catch abort
+20240525-133735-6421 76382 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 1
+NEW ORDER
+20240525-133735-6434 76382 * Begin           (client.cc:130):    Begin Transaction
+PAYMENT
+20240525-133735-7180 76382 * Begin           (client.cc:130):    Begin Transaction
+PAYMENT
+20240525-133735-7701 76382 * Begin           (client.cc:130):    Begin Transaction
+NEW ORDER
+20240525-133735-8105 76382 * Begin           (client.cc:130):    Begin Transaction
+PAYMENT
+20240525-133735-9977 76382 * Begin           (client.cc:130):    Begin Transaction
+NEW ORDER
+20240525-133736-0456 76382 * Begin           (client.cc:130):    Begin Transaction
+NEW ORDER
+20240525-133736-1074 76382 * Begin           (client.cc:130):    Begin Transaction
+ORDER_STATUS
+20240525-133736-2980 76382 * Begin           (client.cc:130):    Begin Transaction
+NEW ORDER
+20240525-133736-3182 76382 * Begin           (client.cc:130):    Begin Transaction
+NEW ORDER
+20240525-133736-5267 76382 * Begin           (client.cc:130):    Begin Transaction
+PAYMENT
+20240525-133736-6559 76382 * Begin           (client.cc:130):    Begin Transaction
+NEW ORDER
+20240525-133736-6898 76382 * Begin           (client.cc:130):    Begin Transaction
+NEW ORDER
+20240525-133736-8255 76382 * Begin           (client.cc:130):    Begin Transaction
+PAYMENT
+20240525-133737-0014 76382 * Begin           (client.cc:130):    Begin Transaction
+NEW ORDER
+20240525-133737-0540 76382 * Begin           (client.cc:130):    Begin Transaction
+PAYMENT
+20240525-133737-1671 76382 * Begin           (client.cc:130):    Begin Transaction
+PAYMENT
+20240525-133737-1984 76382 * Begin           (client.cc:130):    Begin Transaction
+PAYMENT
+20240525-133737-2338 76382 * Begin           (client.cc:130):    Begin Transaction
+NEW ORDER
+20240525-133737-2676 76382 * Begin           (client.cc:130):    Begin Transaction
+PAYMENT
+20240525-133737-3948 76382 * Begin           (client.cc:130):    Begin Transaction
+NEW ORDER
+20240525-133737-4315 76382 * Begin           (client.cc:130):    Begin Transaction
+PAYMENT
+20240525-133737-5490 76382 * Begin           (client.cc:130):    Begin Transaction
+NEW ORDER
+20240525-133737-6082 76382 * Begin           (client.cc:130):    Begin Transaction
+NEW ORDER
+20240525-133737-7763 76382 * Begin           (client.cc:130):    Begin Transaction
+NEW ORDER
+20240525-133737-8441 76382 * Begin           (client.cc:130):    Begin Transaction
+NEW ORDER
+20240525-133737-9388 76382 * Begin           (client.cc:130):    Begin Transaction
+NEW ORDER
+20240525-133738-0828 76382 * Begin           (client.cc:130):    Begin Transaction
+DELIVERY TX
+20240525-133738-2006 76382 * Begin           (client.cc:130):    Begin Transaction
+DELIVERY TX
+20240525-133738-2320 76382 * Begin           (client.cc:130):    Begin Transaction
+DELIVERY TX
+20240525-133738-2636 76382 * Begin           (client.cc:130):    Begin Transaction
+DELIVERY TX
+20240525-133738-2976 76382 * Begin           (client.cc:130):    Begin Transaction
+DELIVERY TX
+20240525-133738-3270 76382 * Begin           (client.cc:130):    Begin Transaction
+DELIVERY TX
+20240525-133738-3607 76382 * Begin           (client.cc:130):    Begin Transaction
+DELIVERY TX
+20240525-133738-3903 76382 * Begin           (client.cc:130):    Begin Transaction
+DELIVERY TX
+20240525-133738-4358 76382 * Begin           (client.cc:130):    Begin Transaction
+DELIVERY TX
+20240525-133738-4711 76382 * Begin           (client.cc:130):    Begin Transaction
+DELIVERY TX
+20240525-133738-5034 76382 * Begin           (client.cc:130):    Begin Transaction
+NEW ORDER
+20240525-133738-5316 76382 * Begin           (client.cc:130):    Begin Transaction
+PAYMENT
+20240525-133738-6613 76382 * Begin           (client.cc:130):    Begin Transaction
+20240525-133738-6834 76382 * WarmupDone      (bench_client.cc:106): Completed warmup period of 5 seconds with 72 requests
+20240525-133738-6945 76382 * IncrementSent   (bench_client.cc:204): Not done after 5 seconds.
+NEW ORDER
+20240525-133738-6946 76382 * Begin           (client.cc:130):    Begin Transaction
+20240525-133738-8639 76382 * IncrementSent   (bench_client.cc:204): Not done after 5 seconds.
+NEW ORDER
+20240525-133738-8641 76382 * Begin           (client.cc:130):    Begin Transaction
+20240525-133738-9424 76382 * IncrementSent   (bench_client.cc:204): Not done after 5 seconds.
+PAYMENT
+20240525-133738-9425 76382 * Begin           (client.cc:130):    Begin Transaction
+20240525-133738-9941 76382 * IncrementSent   (bench_client.cc:204): Not done after 5 seconds.
+PAYMENT
+20240525-133738-9942 76382 * Begin           (client.cc:130):    Begin Transaction
+20240525-133739-0279 76382 * IncrementSent   (bench_client.cc:204): Not done after 5 seconds.
+NEW ORDER
+20240525-133739-0280 76382 * Begin           (client.cc:130):    Begin Transaction
+20240525-133739-1566 76382 * IncrementSent   (bench_client.cc:204): Not done after 5 seconds.
+PAYMENT
+20240525-133739-1567 76382 * Begin           (client.cc:130):    Begin Transaction
+20240525-133739-2099 76382 * IncrementSent   (bench_client.cc:204): Not done after 5 seconds.
+PAYMENT
+20240525-133739-2100 76382 * Begin           (client.cc:130):    Begin Transaction
+20240525-133739-2449 76382 * IncrementSent   (bench_client.cc:204): Not done after 5 seconds.
+PAYMENT
+20240525-133739-2450 76382 * Begin           (client.cc:130):    Begin Transaction
+20240525-133739-2796 76382 * IncrementSent   (bench_client.cc:204): Not done after 5 seconds.
+NEW ORDER
+20240525-133739-2796 76382 * Begin           (client.cc:130):    Begin Transaction
+20240525-133739-4002 76382 * IncrementSent   (bench_client.cc:204): Not done after 5 seconds.
+NEW ORDER
+20240525-133739-4004 76382 * Begin           (client.cc:130):    Begin Transaction
+Tx write transaction rollback
+ERROR:  restart transaction: TransactionRetryWithProtoRefreshError: WriteTooOldError: write for key /Table/106/1/7/3/0 at timestamp 1719344259.400663246,0 too old; wrote at 1719344259.455495775,1: "sql txn" meta={id=27475cc9 key=/Table/106/1/7/3/0 pri=0.01592706 epo=0 ts=1719344259.455495775,1 min=1719344259.400663246,0 seq=0} lock=true stat=PENDING rts=1719344259.400663246,0 wto=false gul=1719344259.900663246,0
+HINT:  See: https://www.cockroachlabs.com/docs/v22.2/transaction-retry-error-reference.html
+
+catch abort
+20240525-133739-5612 76382 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 2
+NEW ORDER
+20240525-133739-5633 76382 * Begin           (client.cc:130):    Begin Transaction
+Tx commit failed
+ERROR:  restart transaction: TransactionRetryWithProtoRefreshError: TransactionRetryError: retry txn (RETRY_SERIALIZABLE - failed preemptive refresh due to a conflict: committed value on key /Table/113/1/7/0): "sql txn" meta={id=6685cfe5 key=/Table/106/1/7/3/0 pri=0.04067393 epo=0 ts=1719344259.564123739,2 min=1719344259.564123739,0 seq=28} lock=true stat=PENDING rts=1719344259.564123739,0 wto=false gul=1719344260.064123739,0
+HINT:  See: https://www.cockroachlabs.com/docs/v22.2/transaction-retry-error-reference.html#retry_serializable
+
+20240525-133739-8340 76382 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 2
+NEW ORDER
+20240525-133739-8362 76382 * Begin           (client.cc:130):    Begin Transaction
+20240525-133740-0636 76382 * IncrementSent   (bench_client.cc:204): Not done after 6 seconds.
+PAYMENT
+20240525-133740-0637 76382 * Begin           (client.cc:130):    Begin Transaction
+20240525-133740-0892 76382 * IncrementSent   (bench_client.cc:204): Not done after 6 seconds.
+NEW ORDER
+20240525-133740-0893 76382 * Begin           (client.cc:130):    Begin Transaction
+20240525-133740-1928 76382 * IncrementSent   (bench_client.cc:204): Not done after 6 seconds.
+PAYMENT
+20240525-133740-1929 76382 * Begin           (client.cc:130):    Begin Transaction
+20240525-133740-2247 76382 * IncrementSent   (bench_client.cc:204): Not done after 6 seconds.
+NEW ORDER
+20240525-133740-2248 76382 * Begin           (client.cc:130):    Begin Transaction
+20240525-133740-3677 76382 * IncrementSent   (bench_client.cc:204): Not done after 6 seconds.
+NEW ORDER
+20240525-133740-3678 76382 * Begin           (client.cc:130):    Begin Transaction
+20240525-133740-4436 76382 * IncrementSent   (bench_client.cc:204): Not done after 6 seconds.
+NEW ORDER
+20240525-133740-4437 76382 * Begin           (client.cc:130):    Begin Transaction
+20240525-133740-5941 76382 * IncrementSent   (bench_client.cc:204): Not done after 6 seconds.
+PAYMENT
+20240525-133740-5942 76382 * Begin           (client.cc:130):    Begin Transaction
+Tx write transaction rollback
+ERROR:  restart transaction: TransactionRetryWithProtoRefreshError: WriteTooOldError: write for key /Table/113/1/4/0 at timestamp 1719344260.594414771,0 too old; wrote at 1719344260.594541628,1: "sql txn" meta={id=7961e42a key=/Table/113/1/4/0 pri=0.00703097 epo=0 ts=1719344260.594541628,1 min=1719344260.594414771,0 seq=0} lock=true stat=PENDING rts=1719344260.594414771,0 wto=false gul=1719344261.094414771,0
+HINT:  See: https://www.cockroachlabs.com/docs/v22.2/transaction-retry-error-reference.html
+
+catch abort
+20240525-133740-6325 76382 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 2
+PAYMENT
+20240525-133740-6346 76382 * Begin           (client.cc:130):    Begin Transaction
+20240525-133740-6717 76382 * IncrementSent   (bench_client.cc:204): Not done after 6 seconds.
+DELIVERY TX
+20240525-133740-6718 76382 * Begin           (client.cc:130):    Begin Transaction
+20240525-133740-6989 76382 * IncrementSent   (bench_client.cc:204): Not done after 7 seconds.
+DELIVERY TX
+20240525-133740-6989 76382 * Begin           (client.cc:130):    Begin Transaction
+20240525-133740-7255 76382 * IncrementSent   (bench_client.cc:204): Not done after 7 seconds.
+DELIVERY TX
+20240525-133740-7256 76382 * Begin           (client.cc:130):    Begin Transaction
+20240525-133740-7544 76382 * IncrementSent   (bench_client.cc:204): Not done after 7 seconds.
+DELIVERY TX
+20240525-133740-7545 76382 * Begin           (client.cc:130):    Begin Transaction
+20240525-133740-7835 76382 * IncrementSent   (bench_client.cc:204): Not done after 7 seconds.
+DELIVERY TX
+20240525-133740-7836 76382 * Begin           (client.cc:130):    Begin Transaction
+20240525-133740-8115 76382 * IncrementSent   (bench_client.cc:204): Not done after 7 seconds.
+DELIVERY TX
+20240525-133740-8116 76382 * Begin           (client.cc:130):    Begin Transaction
+20240525-133740-8389 76382 * IncrementSent   (bench_client.cc:204): Not done after 7 seconds.
+DELIVERY TX
+20240525-133740-8390 76382 * Begin           (client.cc:130):    Begin Transaction
+20240525-133740-8675 76382 * IncrementSent   (bench_client.cc:204): Not done after 7 seconds.
+DELIVERY TX
+20240525-133740-8676 76382 * Begin           (client.cc:130):    Begin Transaction
+20240525-133740-8945 76382 * IncrementSent   (bench_client.cc:204): Not done after 7 seconds.
+DELIVERY TX
+20240525-133740-8946 76382 * Begin           (client.cc:130):    Begin Transaction
+20240525-133740-9225 76382 * IncrementSent   (bench_client.cc:204): Not done after 7 seconds.
+DELIVERY TX
+20240525-133740-9225 76382 * Begin           (client.cc:130):    Begin Transaction
+20240525-133740-9497 76382 * IncrementSent   (bench_client.cc:204): Not done after 7 seconds.
+NEW ORDER
+20240525-133740-9499 76382 * Begin           (client.cc:130):    Begin Transaction
+20240525-133741-0218 76382 * IncrementSent   (bench_client.cc:204): Not done after 7 seconds.
+NEW ORDER
+20240525-133741-0219 76382 * Begin           (client.cc:130):    Begin Transaction
+20240525-133741-0889 76382 * IncrementSent   (bench_client.cc:204): Not done after 7 seconds.
+NEW ORDER
+20240525-133741-0890 76382 * Begin           (client.cc:130):    Begin Transaction
+20240525-133741-2086 76382 * IncrementSent   (bench_client.cc:204): Not done after 7 seconds.
+NEW ORDER
+20240525-133741-2087 76382 * Begin           (client.cc:130):    Begin Transaction
+20240525-133741-2601 76382 * IncrementSent   (bench_client.cc:204): Not done after 7 seconds.
+PAYMENT
+20240525-133741-2602 76382 * Begin           (client.cc:130):    Begin Transaction
+20240525-133741-2902 76382 * IncrementSent   (bench_client.cc:204): Not done after 7 seconds.
+PAYMENT
+20240525-133741-2903 76382 * Begin           (client.cc:130):    Begin Transaction
+Tx write transaction rollback
+ERROR:  restart transaction: TransactionRetryWithProtoRefreshError: WriteTooOldError: write for key /Table/113/1/9/0 at timestamp 1719344261.290634759,0 too old; wrote at 1719344261.290634759,2: "sql txn" meta={id=76934852 key=/Table/113/1/9/0 pri=0.00072396 epo=0 ts=1719344261.290634759,2 min=1719344261.290634759,0 seq=0} lock=true stat=PENDING rts=1719344261.290634759,0 wto=false gul=1719344261.790634759,0
+HINT:  See: https://www.cockroachlabs.com/docs/v22.2/transaction-retry-error-reference.html
+
+catch abort
+20240525-133741-3283 76382 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 1
+PAYMENT
+20240525-133741-3295 76382 * Begin           (client.cc:130):    Begin Transaction
+20240525-133741-3529 76382 * IncrementSent   (bench_client.cc:204): Not done after 7 seconds.
+DELIVERY TX
+20240525-133741-3530 76382 * Begin           (client.cc:130):    Begin Transaction
+20240525-133741-3845 76382 * IncrementSent   (bench_client.cc:204): Not done after 7 seconds.
+DELIVERY TX
+20240525-133741-3845 76382 * Begin           (client.cc:130):    Begin Transaction
+20240525-133741-4155 76382 * IncrementSent   (bench_client.cc:204): Not done after 7 seconds.
+DELIVERY TX
+20240525-133741-4156 76382 * Begin           (client.cc:130):    Begin Transaction
+20240525-133741-4406 76382 * IncrementSent   (bench_client.cc:204): Not done after 7 seconds.
+DELIVERY TX
+20240525-133741-4407 76382 * Begin           (client.cc:130):    Begin Transaction
+20240525-133741-4674 76382 * IncrementSent   (bench_client.cc:204): Not done after 7 seconds.
+DELIVERY TX
+20240525-133741-4675 76382 * Begin           (client.cc:130):    Begin Transaction
+20240525-133741-4916 76382 * IncrementSent   (bench_client.cc:204): Not done after 7 seconds.
+DELIVERY TX
+20240525-133741-4917 76382 * Begin           (client.cc:130):    Begin Transaction
+20240525-133741-5162 76382 * IncrementSent   (bench_client.cc:204): Not done after 7 seconds.
+DELIVERY TX
+20240525-133741-5163 76382 * Begin           (client.cc:130):    Begin Transaction
+20240525-133741-5427 76382 * IncrementSent   (bench_client.cc:204): Not done after 7 seconds.
+DELIVERY TX
+20240525-133741-5428 76382 * Begin           (client.cc:130):    Begin Transaction
+20240525-133741-5682 76382 * IncrementSent   (bench_client.cc:204): Not done after 7 seconds.
+DELIVERY TX
+20240525-133741-5682 76382 * Begin           (client.cc:130):    Begin Transaction
+20240525-133741-5933 76382 * IncrementSent   (bench_client.cc:204): Not done after 7 seconds.
+DELIVERY TX
+20240525-133741-5934 76382 * Begin           (client.cc:130):    Begin Transaction
+20240525-133741-6191 76382 * IncrementSent   (bench_client.cc:204): Not done after 7 seconds.
+DELIVERY TX
+20240525-133741-6191 76382 * Begin           (client.cc:130):    Begin Transaction
+20240525-133741-6445 76382 * IncrementSent   (bench_client.cc:204): Not done after 7 seconds.
+DELIVERY TX
+20240525-133741-6446 76382 * Begin           (client.cc:130):    Begin Transaction
+20240525-133741-6714 76382 * IncrementSent   (bench_client.cc:204): Not done after 7 seconds.
+DELIVERY TX
+20240525-133741-6715 76382 * Begin           (client.cc:130):    Begin Transaction
+20240525-133741-6971 76382 * IncrementSent   (bench_client.cc:204): Not done after 8 seconds.
+DELIVERY TX
+20240525-133741-6972 76382 * Begin           (client.cc:130):    Begin Transaction
+20240525-133741-7252 76382 * IncrementSent   (bench_client.cc:204): Not done after 8 seconds.
+DELIVERY TX
+20240525-133741-7254 76382 * Begin           (client.cc:130):    Begin Transaction
+20240525-133741-7529 76382 * IncrementSent   (bench_client.cc:204): Not done after 8 seconds.
+DELIVERY TX
+20240525-133741-7529 76382 * Begin           (client.cc:130):    Begin Transaction
+20240525-133741-7800 76382 * IncrementSent   (bench_client.cc:204): Not done after 8 seconds.
+DELIVERY TX
+20240525-133741-7801 76382 * Begin           (client.cc:130):    Begin Transaction
+20240525-133741-8094 76382 * IncrementSent   (bench_client.cc:204): Not done after 8 seconds.
+DELIVERY TX
+20240525-133741-8096 76382 * Begin           (client.cc:130):    Begin Transaction
+20240525-133741-8361 76382 * IncrementSent   (bench_client.cc:204): Not done after 8 seconds.
+DELIVERY TX
+20240525-133741-8362 76382 * Begin           (client.cc:130):    Begin Transaction
+20240525-133741-8634 76382 * IncrementSent   (bench_client.cc:204): Not done after 8 seconds.
+DELIVERY TX
+20240525-133741-8635 76382 * Begin           (client.cc:130):    Begin Transaction
+20240525-133741-8898 76382 * IncrementSent   (bench_client.cc:204): Not done after 8 seconds.
+NEW ORDER
+20240525-133741-8900 76382 * Begin           (client.cc:130):    Begin Transaction
+20240525-133741-9929 76382 * IncrementSent   (bench_client.cc:204): Not done after 8 seconds.
+NEW ORDER
+20240525-133741-9930 76382 * Begin           (client.cc:130):    Begin Transaction
+20240525-133742-1200 76382 * IncrementSent   (bench_client.cc:204): Not done after 8 seconds.
+PAYMENT
+20240525-133742-1201 76382 * Begin           (client.cc:130):    Begin Transaction
+Tx write transaction rollback
+ERROR:  restart transaction: TransactionRetryWithProtoRefreshError: WriteTooOldError: write for key /Table/113/1/2/0 at timestamp 1719344262.120330570,0 too old; wrote at 1719344262.130683660,1: "sql txn" meta={id=7b98d59a key=/Table/113/1/2/0 pri=0.01427988 epo=0 ts=1719344262.130683660,1 min=1719344262.120330570,0 seq=0} lock=true stat=PENDING rts=1719344262.120330570,0 wto=false gul=1719344262.620330570,0
+HINT:  See: https://www.cockroachlabs.com/docs/v22.2/transaction-retry-error-reference.html
+
+catch abort
+20240525-133742-2233 76382 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 2
+PAYMENT
+20240525-133742-2256 76382 * Begin           (client.cc:130):    Begin Transaction
+20240525-133742-2591 76382 * IncrementSent   (bench_client.cc:204): Not done after 8 seconds.
+NEW ORDER
+20240525-133742-2591 76382 * Begin           (client.cc:130):    Begin Transaction
+20240525-133742-3253 76382 * IncrementSent   (bench_client.cc:204): Not done after 8 seconds.
+STOCK_LEVEL (parallel)
+20240525-133742-3254 76382 * Begin           (client.cc:130):    Begin Transaction
+20240525-133742-3499 76382 * IncrementSent   (bench_client.cc:204): Not done after 8 seconds.
+PAYMENT
+20240525-133742-3500 76382 * Begin           (client.cc:130):    Begin Transaction
+20240525-133742-3732 76382 * IncrementSent   (bench_client.cc:204): Not done after 8 seconds.
+NEW ORDER
+20240525-133742-3733 76382 * Begin           (client.cc:130):    Begin Transaction
+20240525-133742-4903 76382 * IncrementSent   (bench_client.cc:204): Not done after 8 seconds.
+NEW ORDER
+20240525-133742-4905 76382 * Begin           (client.cc:130):    Begin Transaction
+20240525-133742-5826 76382 * IncrementSent   (bench_client.cc:204): Not done after 8 seconds.
+NEW ORDER
+20240525-133742-5827 76382 * Begin           (client.cc:130):    Begin Transaction
+20240525-133742-6664 76382 * IncrementSent   (bench_client.cc:204): Not done after 8 seconds.
+ORDER_STATUS
+20240525-133742-6665 76382 * Begin           (client.cc:130):    Begin Transaction
+20240525-133742-6833 76382 * IncrementSent   (bench_client.cc:204): Not done after 9 seconds.
+PAYMENT
+20240525-133742-6834 76382 * Begin           (client.cc:130):    Begin Transaction
+20240525-133742-7069 76382 * IncrementSent   (bench_client.cc:204): Not done after 9 seconds.
+STOCK_LEVEL (parallel)
+20240525-133742-7070 76382 * Begin           (client.cc:130):    Begin Transaction
+20240525-133742-7312 76382 * IncrementSent   (bench_client.cc:204): Not done after 9 seconds.
+STOCK_LEVEL (parallel)
+20240525-133742-7314 76382 * Begin           (client.cc:130):    Begin Transaction
+20240525-133742-7529 76382 * IncrementSent   (bench_client.cc:204): Not done after 9 seconds.
+PAYMENT
+20240525-133742-7530 76382 * Begin           (client.cc:130):    Begin Transaction
+20240525-133742-7877 76382 * IncrementSent   (bench_client.cc:204): Not done after 9 seconds.
+NEW ORDER
+20240525-133742-7879 76382 * Begin           (client.cc:130):    Begin Transaction
+20240525-133742-8649 76382 * IncrementSent   (bench_client.cc:204): Not done after 9 seconds.
+ORDER_STATUS
+20240525-133742-8650 76382 * Begin           (client.cc:130):    Begin Transaction
+20240525-133742-8820 76382 * IncrementSent   (bench_client.cc:204): Not done after 9 seconds.
+PAYMENT
+20240525-133742-8821 76382 * Begin           (client.cc:130):    Begin Transaction
+20240525-133742-9064 76382 * IncrementSent   (bench_client.cc:204): Not done after 9 seconds.
+PAYMENT
+20240525-133742-9065 76382 * Begin           (client.cc:130):    Begin Transaction
+20240525-133742-9319 76382 * IncrementSent   (bench_client.cc:204): Not done after 9 seconds.
+NEW ORDER
+20240525-133742-9319 76382 * Begin           (client.cc:130):    Begin Transaction
+20240525-133743-0286 76382 * IncrementSent   (bench_client.cc:204): Not done after 9 seconds.
+STOCK_LEVEL (parallel)
+20240525-133743-0287 76382 * Begin           (client.cc:130):    Begin Transaction
+20240525-133743-0450 76382 * IncrementSent   (bench_client.cc:204): Not done after 9 seconds.
+PAYMENT
+20240525-133743-0450 76382 * Begin           (client.cc:130):    Begin Transaction
+20240525-133743-0684 76382 * IncrementSent   (bench_client.cc:204): Not done after 9 seconds.
+NEW ORDER
+20240525-133743-0685 76382 * Begin           (client.cc:130):    Begin Transaction
+20240525-133743-1285 76382 * IncrementSent   (bench_client.cc:204): Not done after 9 seconds.
+NEW ORDER
+20240525-133743-1287 76382 * Begin           (client.cc:130):    Begin Transaction
+20240525-133743-2383 76382 * IncrementSent   (bench_client.cc:204): Not done after 9 seconds.
+NEW ORDER
+20240525-133743-2384 76382 * Begin           (client.cc:130):    Begin Transaction
+Tx commit failed
+ERROR:  restart transaction: TransactionRetryWithProtoRefreshError: TransactionRetryError: retry txn (RETRY_SERIALIZABLE - failed preemptive refresh due to a conflict: committed value on key /Table/113/1/9/0): "sql txn" meta={id=c0ac7e53 key=/Table/106/1/9/3/0 pri=0.00979467 epo=0 ts=1719344264.173883552,2 min=1719344263.238620361,0 seq=18} lock=true stat=PENDING rts=1719344263.238620361,0 wto=false gul=1719344263.738620361,0
+HINT:  See: https://www.cockroachlabs.com/docs/v22.2/transaction-retry-error-reference.html#retry_serializable
+
+20240525-133744-3306 76382 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 2
+NEW ORDER
+20240525-133744-3329 76382 * Begin           (client.cc:130):    Begin Transaction
+Tx commit failed
+ERROR:  restart transaction: TransactionRetryWithProtoRefreshError: TransactionRetryError: retry txn (RETRY_SERIALIZABLE - failed preemptive refresh due to a conflict: committed value on key /Table/113/1/9/0): "sql txn" meta={id=bffcdc57 key=/Table/106/1/9/3/0 pri=0.02439856 epo=0 ts=1719344266.456129325,1 min=1719344264.333202038,0 seq=18} lock=true stat=PENDING rts=1719344264.333202038,0 wto=false gul=1719344264.833202038,0
+HINT:  See: https://www.cockroachlabs.com/docs/v22.2/transaction-retry-error-reference.html#retry_serializable
+
+20240525-133746-5347 76382 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 4
+NEW ORDER
+20240525-133746-5389 76382 * Begin           (client.cc:130):    Begin Transaction
+Tx commit failed
+ERROR:  restart transaction: TransactionRetryWithProtoRefreshError: TransactionRetryError: retry txn (RETRY_SERIALIZABLE - failed preemptive refresh due to a conflict: committed value on key /Table/113/1/9/0): "sql txn" meta={id=22cb0b95 key=/Table/106/1/9/3/0 pri=0.01909006 epo=0 ts=1719344267.721709733,1 min=1719344266.539229072,0 seq=18} lock=true stat=PENDING rts=1719344266.539229072,0 wto=false gul=1719344267.039229072,0
+HINT:  See: https://www.cockroachlabs.com/docs/v22.2/transaction-retry-error-reference.html#retry_serializable
+
+20240525-133747-8394 76382 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 6
+NEW ORDER
+20240525-133747-8457 76382 * Begin           (client.cc:130):    Begin Transaction
+Tx commit failed
+ERROR:  restart transaction: TransactionRetryWithProtoRefreshError: TransactionRetryError: retry txn (RETRY_SERIALIZABLE - failed preemptive refresh due to a conflict: committed value on key /Table/113/1/9/0): "sql txn" meta={id=dcac88d5 key=/Table/106/1/9/3/0 pri=0.02706246 epo=0 ts=1719344269.654880039,1 min=1719344267.846099186,0 seq=18} lock=true stat=PENDING rts=1719344267.846099186,0 wto=false gul=1719344268.346099186,0
+HINT:  See: https://www.cockroachlabs.com/docs/v22.2/transaction-retry-error-reference.html#retry_serializable
+
+20240525-133749-7499 76382 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 14
+NEW ORDER
+20240525-133749-7641 76382 * Begin           (client.cc:130):    Begin Transaction
+Tx write transaction rollback
+ERROR:  restart transaction: TransactionRetryWithProtoRefreshError: WriteTooOldError: write for key /Table/106/1/9/3/0 at timestamp 1719344269.764455770,0 too old; wrote at 1719344271.507041111,2: "sql txn" meta={id=b2912330 key=/Table/106/1/9/3/0 pri=0.00208151 epo=0 ts=1719344271.507041111,2 min=1719344269.764455770,0 seq=0} lock=true stat=PENDING rts=1719344269.764455770,0 wto=false gul=1719344270.264455770,0
+HINT:  See: https://www.cockroachlabs.com/docs/v22.2/transaction-retry-error-reference.html
+
+catch abort
+20240525-133751-6857 76382 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 22
+NEW ORDER
+20240525-133751-7080 76382 * Begin           (client.cc:130):    Begin Transaction
+Tx write transaction rollback
+ERROR:  restart transaction: TransactionRetryWithProtoRefreshError: WriteTooOldError: write for key /Table/106/1/9/3/0 at timestamp 1719344271.708421940,0 too old; wrote at 1719344271.732433544,2: "sql txn" meta={id=084c36ad key=/Table/106/1/9/3/0 pri=0.05016816 epo=0 ts=1719344271.732433544,2 min=1719344271.708421940,0 seq=0} lock=true stat=PENDING rts=1719344271.708421940,0 wto=false gul=1719344272.208421940,0
+HINT:  See: https://www.cockroachlabs.com/docs/v22.2/transaction-retry-error-reference.html
+
+catch abort
+20240525-133751-9134 76382 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 56
+NEW ORDER
+20240525-133751-9697 76382 * Begin           (client.cc:130):    Begin Transaction
+Tx commit failed
+ERROR:  restart transaction: TransactionRetryWithProtoRefreshError: TransactionRetryError: retry txn (RETRY_SERIALIZABLE - failed preemptive refresh due to a conflict: committed value on key /Table/113/1/9/0): "sql txn" meta={id=59a0c9e3 key=/Table/106/1/9/3/0 pri=0.01034983 epo=0 ts=1719344273.175134608,1 min=1719344271.970001220,0 seq=18} lock=true stat=PENDING rts=1719344271.970001220,0 wto=false gul=1719344272.470001220,0
+HINT:  See: https://www.cockroachlabs.com/docs/v22.2/transaction-retry-error-reference.html#retry_serializable
+
+20240525-133753-3312 76382 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 65
+NEW ORDER
+20240525-133753-3965 76382 * Begin           (client.cc:130):    Begin Transaction
+Tx commit failed
+ERROR:  restart transaction: TransactionRetryWithProtoRefreshError: TransactionRetryError: retry txn (RETRY_SERIALIZABLE - failed preemptive refresh due to a conflict: committed value on key /Table/113/1/9/0): "sql txn" meta={id=549e78ab key=/Table/106/1/9/3/0 pri=0.02152473 epo=0 ts=1719344275.143905723,1 min=1719344273.397282024,0 seq=18} lock=true stat=PENDING rts=1719344273.397282024,0 wto=false gul=1719344273.897282024,0
+HINT:  See: https://www.cockroachlabs.com/docs/v22.2/transaction-retry-error-reference.html#retry_serializable
+
+20240525-133755-2688 76382 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 176
+NEW ORDER
+20240525-133755-4450 76382 * Begin           (client.cc:130):    Begin Transaction
+Tx commit failed
+ERROR:  restart transaction: TransactionRetryWithProtoRefreshError: TransactionRetryError: retry txn (RETRY_SERIALIZABLE - failed preemptive refresh due to a conflict: committed value on key /Table/113/1/9/0): "sql txn" meta={id=bd87af5c key=/Table/106/1/9/3/0 pri=0.00388841 epo=0 ts=1719344277.047785977,2 min=1719344275.445369875,0 seq=18} lock=true stat=PENDING rts=1719344275.445369875,0 wto=false gul=1719344275.945369875,0
+HINT:  See: https://www.cockroachlabs.com/docs/v22.2/transaction-retry-error-reference.html#retry_serializable
+
+20240525-133757-2347 76382 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 176
+NEW ORDER
+20240525-133757-4109 76382 * Begin           (client.cc:130):    Begin Transaction
+Tx commit failed
+ERROR:  restart transaction: TransactionRetryWithProtoRefreshError: TransactionRetryError: retry txn (RETRY_SERIALIZABLE - failed preemptive refresh due to a conflict: committed value on key /Table/113/1/9/0): "sql txn" meta={id=27f41a25 key=/Table/106/1/9/3/0 pri=0.00391579 epo=0 ts=1719344279.102048179,1 min=1719344277.411254812,0 seq=18} lock=true stat=PENDING rts=1719344277.411254812,0 wto=false gul=1719344277.911254812,0
+HINT:  See: https://www.cockroachlabs.com/docs/v22.2/transaction-retry-error-reference.html#retry_serializable
+
+20240525-133759-2205 76382 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 191
+NEW ORDER
+20240525-133759-4117 76382 * Begin           (client.cc:130):    Begin Transaction
+Tx commit failed
+ERROR:  restart transaction: TransactionRetryWithProtoRefreshError: TransactionRetryError: retry txn (RETRY_SERIALIZABLE - failed preemptive refresh due to a conflict: committed value on key /Table/113/1/9/0): "sql txn" meta={id=003401e0 key=/Table/106/1/9/3/0 pri=0.00889073 epo=0 ts=1719344281.245066749,1 min=1719344279.412014532,0 seq=18} lock=true stat=PENDING rts=1719344279.412014532,0 wto=false gul=1719344279.912014532,0
+HINT:  See: https://www.cockroachlabs.com/docs/v22.2/transaction-retry-error-reference.html#retry_serializable
+
+20240525-133801-3683 76382 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 169
+NEW ORDER
+20240525-133801-5376 76382 * Begin           (client.cc:130):    Begin Transaction
+20240525-133802-9562 76382 * Cleanup         (benchmark.cc:1843): clean up with signal 0
+Tx commit failed
+ERROR:  restart transaction: TransactionRetryWithProtoRefreshError: TransactionRetryError: retry txn (RETRY_SERIALIZABLE - failed preemptive refresh due to a conflict: committed value on key /Table/113/1/9/0): "sql txn" meta={id=1b870f2e key=/Table/106/1/9/3/0 pri=0.00033514 epo=0 ts=1719344283.344049187,1 min=1719344281.538032257,0 seq=18} lock=true stat=PENDING rts=1719344281.538032257,0 wto=false gul=1719344282.038032257,0
+HINT:  See: https://www.cockroachlabs.com/docs/v22.2/transaction-retry-error-reference.html#retry_serializable
+
+20240525-133803-4807 76382 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 222
+NEW ORDER
+20240525-133803-7030 76382 * Begin           (client.cc:130):    Begin Transaction
+Tx commit failed
+ERROR:  restart transaction: TransactionRetryWithProtoRefreshError: TransactionRetryError: retry txn (RETRY_SERIALIZABLE - failed preemptive refresh due to a conflict: committed value on key /Table/113/1/9/0): "sql txn" meta={id=67791374 key=/Table/106/1/9/3/0 pri=0.02413914 epo=0 ts=1719344285.599067195,2 min=1719344283.703426980,0 seq=18} lock=true stat=PENDING rts=1719344283.703426980,0 wto=false gul=1719344284.203426980,0
+HINT:  See: https://www.cockroachlabs.com/docs/v22.2/transaction-retry-error-reference.html#retry_serializable
+
+20240525-133805-8641 76382 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 155
+NEW ORDER
+20240525-133806-0193 76382 * Begin           (client.cc:130):    Begin Transaction
+Tx write transaction rollback
+ERROR:  restart transaction: TransactionRetryWithProtoRefreshError: WriteTooOldError: write for key /Table/106/1/9/3/0 at timestamp 1719344286.019801650,0 too old; wrote at 1719344286.733475235,2: "sql txn" meta={id=b7a7f49c key=/Table/106/1/9/3/0 pri=0.07009362 epo=0 ts=1719344286.733475235,2 min=1719344286.019801650,0 seq=0} lock=true stat=PENDING rts=1719344286.019801650,0 wto=false gul=1719344286.519801650,0
+HINT:  See: https://www.cockroachlabs.com/docs/v22.2/transaction-retry-error-reference.html
+
+catch abort
+20240525-133806-8577 76382 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 138
+NEW ORDER
+20240525-133806-9959 76382 * Begin           (client.cc:130):    Begin Transaction
+Tx write transaction rollback
+ERROR:  restart transaction: TransactionRetryWithProtoRefreshError: WriteTooOldError: write for key /Table/106/1/9/3/0 at timestamp 1719344286.996264939,0 too old; wrote at 1719344286.996449727,1: "sql txn" meta={id=f88a05fe key=/Table/106/1/9/3/0 pri=0.01631407 epo=0 ts=1719344286.996449727,1 min=1719344286.996264939,0 seq=0} lock=true stat=PENDING rts=1719344286.996264939,0 wto=false gul=1719344287.496264939,0
+HINT:  See: https://www.cockroachlabs.com/docs/v22.2/transaction-retry-error-reference.html
+
+catch abort
+20240525-133807-1708 76382 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 162
+NEW ORDER
+20240525-133807-3330 76382 * Begin           (client.cc:130):    Begin Transaction
+Tx write transaction rollback
+ERROR:  restart transaction: TransactionRetryWithProtoRefreshError: WriteTooOldError: write for key /Table/106/1/9/3/0 at timestamp 1719344287.333464765,0 too old; wrote at 1719344287.410195726,2: "sql txn" meta={id=f6f9949f key=/Table/106/1/9/3/0 pri=0.01069661 epo=0 ts=1719344287.410195726,2 min=1719344287.333464765,0 seq=0} lock=true stat=PENDING rts=1719344287.333464765,0 wto=false gul=1719344287.833464765,0
+HINT:  See: https://www.cockroachlabs.com/docs/v22.2/transaction-retry-error-reference.html
+
+catch abort
+20240525-133807-5357 76382 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 159
+NEW ORDER
+20240525-133807-6950 76382 * Begin           (client.cc:130):    Begin Transaction
+Tx write transaction rollback
+ERROR:  restart transaction: TransactionRetryWithProtoRefreshError: WriteTooOldError: write for key /Table/106/1/9/3/0 at timestamp 1719344287.695415422,0 too old; wrote at 1719344287.716062318,1: "sql txn" meta={id=63b6b249 key=/Table/106/1/9/3/0 pri=0.00452027 epo=0 ts=1719344287.716062318,1 min=1719344287.695415422,0 seq=0} lock=true stat=PENDING rts=1719344287.695415422,0 wto=false gul=1719344288.195415422,0
+HINT:  See: https://www.cockroachlabs.com/docs/v22.2/transaction-retry-error-reference.html
+
+catch abort
+20240525-133807-8382 76382 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 224
+NEW ORDER
+20240525-133808-0624 76382 * Begin           (client.cc:130):    Begin Transaction
+Tx write transaction rollback
+ERROR:  restart transaction: TransactionRetryWithProtoRefreshError: WriteTooOldError: write for key /Table/106/1/9/3/0 at timestamp 1719344288.062788368,0 too old; wrote at 1719344288.086942601,1: "sql txn" meta={id=aea2a75d key=/Table/106/1/9/3/0 pri=0.04189932 epo=0 ts=1719344288.086942601,1 min=1719344288.062788368,0 seq=0} lock=true stat=PENDING rts=1719344288.062788368,0 wto=false gul=1719344288.562788368,0
+HINT:  See: https://www.cockroachlabs.com/docs/v22.2/transaction-retry-error-reference.html
+
+catch abort
+20240525-133808-2175 76382 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 245
+NEW ORDER
+20240525-133808-4627 76382 * Begin           (client.cc:130):    Begin Transaction
+Tx write transaction rollback
+ERROR:  restart transaction: TransactionRetryWithProtoRefreshError: WriteTooOldError: write for key /Table/106/1/9/3/0 at timestamp 1719344288.463106050,0 too old; wrote at 1719344288.463106050,2: "sql txn" meta={id=49c7fc95 key=/Table/106/1/9/3/0 pri=0.00275653 epo=0 ts=1719344288.463106050,2 min=1719344288.463106050,0 seq=0} lock=true stat=PENDING rts=1719344288.463106050,0 wto=false gul=1719344288.963106050,0
+HINT:  See: https://www.cockroachlabs.com/docs/v22.2/transaction-retry-error-reference.html
+
+catch abort
+20240525-133808-6304 76382 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 174
+NEW ORDER
+20240525-133808-8047 76382 * Begin           (client.cc:130):    Begin Transaction
+20240525-133808-9777 76382 * IncrementSent   (bench_client.cc:196): Starting cooldown after 35 seconds.
+20240525-133808-9778 76382 * Finish          (bench_client.cc:220): Completed 77 requests in 30.316575 seconds
+NEW ORDER
+20240525-133808-9780 76382 * Begin           (client.cc:130):    Begin Transaction
+20240525-133809-0962 76382 * IncrementSent   (bench_client.cc:200): Finished cooldown after 35 seconds.
+20240525-133809-0963 76382 * CooldownDone    (bench_client.cc:115): Finished cooldown period.
+20240525-133809-0964 76382 * CooldownDone    (bench_client.cc:122): Median latency is 29296536 ns (29 ms)
+20240525-133809-0964 76382 * CooldownDone    (bench_client.cc:130): Average latency is 388574634 ns (388 ms)
+20240525-133809-0965 76382 * CooldownDone    (bench_client.cc:134): 90th percentile latency is 126951451 ns (126 ms)
+20240525-133809-0965 76382 * CooldownDone    (bench_client.cc:138): 95th percentile latency is 150441158 ns (150 ms)
+20240525-133809-0966 76382 * CooldownDone    (bench_client.cc:142): 99th percentile latency is 25739365473 ns (25 s)
+20240525-133809-0967 76382 * LATENCY total: 16 ms 388 ms/16 ms 25 s (78 samples, 30 s total)
+20240525-133809-0967 76382 *    8388 us |          1 | =
+20240525-133809-0968 76382 *      16 ms |         44 | ============================================
+20240525-133809-0968 76382 *      33 ms |         11 | ===========
+20240525-133809-0968 76382 *      67 ms |         16 | ================
+20240525-133809-0969 76382 *     134 ms |          4 | ====
+20240525-133809-0969 76382 *     268 ms |          0 |
+20240525-133809-0970 76382 *     536 ms |          1 | =
+20240525-133809-0970 76382 *        ... |
+20240525-133809-0970 76382 *       17 s |          1 | =
+Inserted events:
+  0x617000000280 [fd  6] Read Persist Internal
+Active events:
+Inserted events:
+  0x617000000280 [fd  6] Read Persist Internal
+Active events:
+20240525-133809-0986 76382 * Cleanup         (benchmark.cc:1874): Finished Cleanup. Exiting
+
+=================================================================
+==76382==ERROR: LeakSanitizer: detected memory leaks
+
+Direct leak of 208 byte(s) in 1 object(s) allocated from:
+    #0 0x5636cd95a637 in operator new(unsigned long) (/mnt/extra/indicus/bin/benchmark+0x3c6637)
+    #1 0x5636cd84ef8e in main store/benchmark/async/benchmark.cc:1185
+    #2 0x7fe0fc387082 in __libc_start_main ../csu/libc-start.c:308
+
+Direct leak of 64 byte(s) in 8 object(s) allocated from:
+    #0 0x5636cd95a637 in operator new(unsigned long) (/mnt/extra/indicus/bin/benchmark+0x3c6637)
+    #1 0x5636cda354dd in ThreadPool::start(int, int, bool, bool, int) lib/threadpool.cc:222
+    #2 0x5636cda1e0a1 in TCPTransport::TCPTransport(double, double, int, bool, int, int, bool, bool, int) lib/tcptransport.cc:170
+    #3 0x5636cd84e569 in main store/benchmark/async/benchmark.cc:1031
+    #4 0x7fe0fc387082 in __libc_start_main ../csu/libc-start.c:308
+
+Indirect leak of 34 byte(s) in 1 object(s) allocated from:
+    #0 0x5636cd95a637 in operator new(unsigned long) (/mnt/extra/indicus/bin/benchmark+0x3c6637)
+    #1 0x5636cda4fefb in void std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >::_M_construct<char*>(char*, char*, std::forward_iterator_tag) /usr/include/c++/9/bits/basic_string.tcc:219
+    #2 0x5636cdd3874f in void std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >::_M_construct_aux<char*>(char*, char*, std::__false_type) /usr/include/c++/9/bits/basic_string.h:251
+    #3 0x5636cdd3874f in void std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >::_M_construct<char*>(char*, char*) /usr/include/c++/9/bits/basic_string.h:270
+    #4 0x5636cdd3874f in std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >::basic_string(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&) /usr/include/c++/9/bits/basic_string.h:455
+    #5 0x5636cdd3874f in KeyManager::KeyManager(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, crypto::KeyType, bool, unsigned long, unsigned long, unsigned long) lib/keymanager.cc:35
+    #6 0x5636cd84efe1 in main store/benchmark/async/benchmark.cc:1185
+    #7 0x7fe0fc387082 in __libc_start_main ../csu/libc-start.c:308
+
+SUMMARY: AddressSanitizer: 306 byte(s) leaked in 10 allocation(s).

@@ -1,0 +1,35 @@
+Cluster successfully initialized
+ALTER ROLE
+CREATE TABLE
+CREATE TABLE
+CREATE INDEX
+CREATE TABLE
+CREATE TABLE
+CREATE TABLE
+CREATE TABLE
+CREATE TABLE
+CREATE INDEX
+CREATE TABLE
+CREATE TABLE
+CREATE TABLE
+job_id	status	fraction_completed	rows	index_entries	bytes
+980660400520593409	succeeded	1	100	0	1300
+job_id	status	fraction_completed	rows	index_entries	bytes
+980660403249315841	succeeded	1	300000	300000	176250900
+job_id	status	fraction_completed	rows	index_entries	bytes
+980660421941166081	succeeded	1	100	0	10180
+job_id	status	fraction_completed	rows	index_entries	bytes
+980660424629846017	succeeded	1	300000	0	17093942
+job_id	status	fraction_completed	rows	index_entries	bytes
+980660429446840321	succeeded	1	100000	0	7855666
+job_id	status	fraction_completed	rows	index_entries	bytes
+980660432943218689	succeeded	1	90000	0	1170000
+job_id	status	fraction_completed	rows	index_entries	bytes
+980660436056375297	succeeded	1	300000	300000	13384500
+job_id	status	fraction_completed	rows	index_entries	bytes
+980660441865256961	succeeded	1	3003800	0	172350300
+job_id	status	fraction_completed	rows	index_entries	bytes
+980660468795375617	succeeded	1	1000000	0	321656500
+job_id	status	fraction_completed	rows	index_entries	bytes
+980660490578329601	succeeded	1	10	0	988
+Yeet the stats

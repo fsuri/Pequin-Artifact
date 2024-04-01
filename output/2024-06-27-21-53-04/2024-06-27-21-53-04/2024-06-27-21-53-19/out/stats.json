@@ -1,0 +1,11 @@
+{
+  "aggregate": {},
+  "run_stats": {},
+  "runs": [
+    {
+      "attempts": 1,
+      "tx_attempted_failure_percentage": 0.0,
+      "tx_successful_failure_percentage": 0.0
+    }
+  ]
+}

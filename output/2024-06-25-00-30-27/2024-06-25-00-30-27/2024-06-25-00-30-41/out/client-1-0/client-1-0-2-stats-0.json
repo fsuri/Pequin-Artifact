@@ -1,0 +1,10 @@
+{
+    "payment_attempts": 31,
+    "payment_committed": 17,
+    "new_order_2": 24,
+    "new_order_attempts": 34,
+    "new_order_committed": 10,
+    "payment_backoff": 82,
+    "payment_2": 14,
+    "new_order_backoff": 2662
+}

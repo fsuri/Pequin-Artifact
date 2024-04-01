@@ -1,0 +1,16 @@
+{
+    "delivery_attempts": 100,
+    "stock_level_committed": 9,
+    "new_order_attempts": 149,
+    "new_order_2": 13,
+    "stock_level_attempts": 9,
+    "payment_committed": 118,
+    "new_order_committed": 136,
+    "payment_backoff": 3,
+    "payment_attempts": 120,
+    "delivery_committed": 100,
+    "order_status_attempts": 9,
+    "order_status_committed": 9,
+    "new_order_backoff": 28,
+    "payment_2": 2
+}

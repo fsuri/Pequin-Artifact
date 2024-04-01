@@ -1,0 +1,39 @@
+cpu_count  1 
+get_nprocs  8 
+starting client threadpool
+Num_cpus: 8 
+num hosts=24; num_threads=1
+20240525-004230-4797 66199 * Client          (client.cc:84):     Site .liamcrdb.pequin-pg0.utah.cloudlab.us 
+
+20240525-004230-4798 66199 * Client          (client.cc:88):     Connecting to gateway postgresql://root@us-east-1-0.liamcrdb.pequin-pg0.utah.cloudlab.us:7087/defaultdb?sslmode=disable
+20240525-004230-4829 66199 * Client          (client.cc:112):    Connected successfully after 1 tries
+20240525-004230-4830 66199 * Client          (client.cc:115):    Established TaoPQ connection to backend
+20240525-004230-4830 66199 * Client          (client.cc:121):    Client successfully started
+20240525-004230-4831 66199 * BenchmarkClient (bench_client.cc:56): Delay between requests: 2 ms
+ORDER_STATUS
+20240525-004230-4913 66199 * Begin           (client.cc:130):    Begin Transaction
+Tx query failed
+ERROR:  relation "order_line" is offline: importing
+
+catch abort
+20240525-004230-5531 66199 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 2
+ORDER_STATUS
+20240525-004230-5553 66199 * Begin           (client.cc:130):    Begin Transaction
+NEW ORDER (parallel)
+20240525-004230-5763 66199 * Begin           (client.cc:130):    Begin Transaction
+catch abort
+20240525-004230-5948 66199 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 1
+NEW ORDER (parallel)
+20240525-004230-5959 66199 * Begin           (client.cc:130):    Begin Transaction
+20240525-004230-5960 66199 PANIC Begin           (client.cc:133):    why is tr not nullptr???
+20240525-004230-5964 66199 ! Backtrace       (message.cc:180):   /mnt/extra/indicus/bin/benchmark(+0x323f20) [0x55894c2f8f20]
+20240525-004230-5964 66199 ! Backtrace       (message.cc:180):   /mnt/extra/indicus/bin/benchmark(+0x47f47f) [0x55894c45447f]
+20240525-004230-5965 66199 ! Backtrace       (message.cc:180):   /mnt/extra/indicus/bin/benchmark(+0x47f5cd) [0x55894c4545cd]
+20240525-004230-5965 66199 ! Backtrace       (message.cc:180):   /mnt/extra/indicus/bin/benchmark(+0x1158c9b) [0x55894d12dc9b]
+20240525-004230-5965 66199 ! Backtrace       (message.cc:180):   /mnt/extra/indicus/bin/benchmark(+0x58b423) [0x55894c560423]
+20240525-004230-5966 66199 ! Backtrace       (message.cc:180):   /mnt/extra/indicus/bin/benchmark(+0x11c0f40) [0x55894d195f40]
+20240525-004230-5966 66199 ! Backtrace       (message.cc:180):   /mnt/extra/indicus/bin/benchmark(+0x46c8a1) [0x55894c4418a1]
+20240525-004230-5966 66199 ! Backtrace       (message.cc:180):   /mnt/extra/indicus/bin/benchmark(+0x408410) [0x55894c3dd410]
+20240525-004230-5967 66199 ! Backtrace       (message.cc:180):   /lib/x86_64-linux-gnu/libstdc++.so.6(+0xd6de4) [0x7f77aaae6de4]
+20240525-004230-5967 66199 ! Backtrace       (message.cc:180):   /lib/x86_64-linux-gnu/libpthread.so.0(+0x8609) [0x7f77ac81a609]
+20240525-004230-5967 66199 ! Backtrace       (message.cc:180):   /lib/x86_64-linux-gnu/libc.so.6(clone+0x43) [0x7f77aa7cb133]

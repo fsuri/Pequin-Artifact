@@ -1,0 +1,32 @@
+cpu_count  1 
+get_nprocs  8 
+starting client threadpool
+Num_cpus: 8 
+num hosts=24; num_threads=1
+20240525-131814-9907 74387 * Client          (client.cc:84):     Site .liamcrdb.pequin-pg0.utah.cloudlab.us 
+
+20240525-131814-9909 74387 * Client          (client.cc:88):     Connecting to gateway postgresql://root@us-east-1-0.liamcrdb.pequin-pg0.utah.cloudlab.us:7087/defaultdb?sslmode=disable
+20240525-131814-9944 74387 * Client          (client.cc:112):    Connected successfully after 1 tries
+20240525-131814-9944 74387 * Client          (client.cc:115):    Established TaoPQ connection to backend
+20240525-131814-9945 74387 * Client          (client.cc:121):    Client successfully started
+20240525-131814-9946 74387 * BenchmarkClient (bench_client.cc:56): Delay between requests: 2 ms
+NEW ORDER
+20240525-131815-0031 74387 * Begin           (client.cc:130):    Begin Transaction
+catch abort
+20240525-131815-0418 74387 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 1
+NEW ORDER
+20240525-131815-0431 74387 * Begin           (client.cc:130):    Begin Transaction
+20240525-131815-0432 74387 PANIC Begin           (client.cc:133):    why is tr not nullptr???
+20240525-131815-0438 74387 ! Backtrace       (message.cc:180):   /mnt/extra/indicus/bin/benchmark(+0x323e20) [0x558aebd2ce20]
+20240525-131815-0439 74387 ! Backtrace       (message.cc:180):   /mnt/extra/indicus/bin/benchmark(+0x47f37f) [0x558aebe8837f]
+20240525-131815-0439 74387 ! Backtrace       (message.cc:180):   /mnt/extra/indicus/bin/benchmark(+0x47f4cd) [0x558aebe884cd]
+20240525-131815-0439 74387 ! Backtrace       (message.cc:180):   /mnt/extra/indicus/bin/benchmark(+0x1158b9b) [0x558aecb61b9b]
+20240525-131815-0440 74387 ! Backtrace       (message.cc:180):   /mnt/extra/indicus/bin/benchmark(+0x58b323) [0x558aebf94323]
+20240525-131815-0440 74387 ! Backtrace       (message.cc:180):   /mnt/extra/indicus/bin/benchmark(+0x11c0e0e) [0x558aecbc9e0e]
+20240525-131815-0441 74387 ! Backtrace       (message.cc:180):   /mnt/extra/indicus/bin/benchmark(+0x46c7a1) [0x558aebe757a1]
+20240525-131815-0441 74387 ! Backtrace       (message.cc:180):   /mnt/extra/indicus/bin/benchmark(+0x46de42) [0x558aebe76e42]
+20240525-131815-0442 74387 ! Backtrace       (message.cc:180):   /mnt/extra/indicus/bin/benchmark(+0x46589f) [0x558aebe6e89f]
+20240525-131815-0442 74387 ! Backtrace       (message.cc:180):   /mnt/extra/indicus/bin/benchmark(+0x408276) [0x558aebe11276]
+20240525-131815-0443 74387 ! Backtrace       (message.cc:180):   /lib/x86_64-linux-gnu/libstdc++.so.6(+0xd6de4) [0x7fc29cc4ede4]
+20240525-131815-0443 74387 ! Backtrace       (message.cc:180):   /lib/x86_64-linux-gnu/libpthread.so.0(+0x8609) [0x7fc29e982609]
+20240525-131815-0444 74387 ! Backtrace       (message.cc:180):   /lib/x86_64-linux-gnu/libc.so.6(clone+0x43) [0x7fc29c933133]

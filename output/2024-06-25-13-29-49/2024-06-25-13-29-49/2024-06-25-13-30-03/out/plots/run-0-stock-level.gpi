@@ -1,0 +1,7 @@
+set datafile separator ','
+set key bottom right
+set xlabel 'Latency (ms)'
+set ylabel 'Cumulative ratio of operations'
+set terminal pngcairo size 800,600 enhanced font 'DejaVu Sans,12'
+set output outfile
+plot datafile0 title 'Protocol' with lines

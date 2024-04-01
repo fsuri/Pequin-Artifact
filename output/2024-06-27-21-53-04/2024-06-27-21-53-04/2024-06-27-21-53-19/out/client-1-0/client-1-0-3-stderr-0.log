@@ -1,0 +1,467 @@
+cpu_count  1 
+get_nprocs  8 
+starting client threadpool
+Num_cpus: 8 
+num hosts=24; num_threads=1
+20240527-215410-3734 110992 * Client          (client.cc:84):     Site .liamcrdb.pequin-pg0.utah.cloudlab.us 
+
+20240527-215410-3735 110992 * Client          (client.cc:88):     Connecting to gateway postgresql://root@us-east-1-0.liamcrdb.pequin-pg0.utah.cloudlab.us:7087/defaultdb?sslmode=disable
+20240527-215410-3770 110992 * Client          (client.cc:112):    Connected successfully after 1 tries
+20240527-215410-3771 110992 * Client          (client.cc:115):    Established TaoPQ connection to backend
+20240527-215410-3771 110992 * Client          (client.cc:121):    Client successfully started
+20240527-215410-3772 110992 * BenchmarkClient (bench_client.cc:56): Delay between requests: 2 ms
+STOCK_LEVEL (parallel)
+20240527-215410-3855 110992 * Begin           (client.cc:130):    Begin Transaction
+Tx query failed
+ERROR:  relation "stock" is offline: importing
+
+catch abort
+20240527-215410-4485 110992 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 2
+STOCK_LEVEL (parallel)
+20240527-215410-4507 110992 * Begin           (client.cc:130):    Begin Transaction
+Tx query failed
+ERROR:  relation "stock" is offline: importing
+
+catch abort
+20240527-215410-5302 110992 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 9
+STOCK_LEVEL (parallel)
+20240527-215410-5469 110992 * Begin           (client.cc:130):    Begin Transaction
+Tx query failed
+ERROR:  relation "stock" is offline: importing
+
+catch abort
+20240527-215410-5640 110992 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 13
+STOCK_LEVEL (parallel)
+20240527-215410-5772 110992 * Begin           (client.cc:130):    Begin Transaction
+Tx query failed
+ERROR:  relation "stock" is offline: importing
+
+catch abort
+20240527-215410-5913 110992 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 33
+STOCK_LEVEL (parallel)
+20240527-215410-6245 110992 * Begin           (client.cc:130):    Begin Transaction
+Tx query failed
+ERROR:  relation "stock" is offline: importing
+
+catch abort
+20240527-215410-6392 110992 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 72
+STOCK_LEVEL (parallel)
+20240527-215410-7115 110992 * Begin           (client.cc:130):    Begin Transaction
+Tx query failed
+ERROR:  relation "stock" is offline: importing
+
+catch abort
+20240527-215410-7269 110992 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 155
+STOCK_LEVEL (parallel)
+20240527-215410-8821 110992 * Begin           (client.cc:130):    Begin Transaction
+Tx query failed
+ERROR:  relation "stock" is offline: importing
+
+catch abort
+20240527-215410-8971 110992 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 236
+STOCK_LEVEL (parallel)
+20240527-215411-1334 110992 * Begin           (client.cc:130):    Begin Transaction
+Tx query failed
+ERROR:  relation "stock" is offline: importing
+
+catch abort
+20240527-215411-1482 110992 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 237
+STOCK_LEVEL (parallel)
+20240527-215411-3855 110992 * Begin           (client.cc:130):    Begin Transaction
+Tx query failed
+ERROR:  relation "stock" is offline: importing
+
+catch abort
+20240527-215411-4010 110992 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 233
+STOCK_LEVEL (parallel)
+20240527-215411-6343 110992 * Begin           (client.cc:130):    Begin Transaction
+Tx query failed
+ERROR:  relation "stock" is offline: importing
+
+catch abort
+20240527-215411-6502 110992 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 220
+STOCK_LEVEL (parallel)
+20240527-215411-8705 110992 * Begin           (client.cc:130):    Begin Transaction
+Tx query failed
+ERROR:  relation "stock" is offline: importing
+
+catch abort
+20240527-215411-8855 110992 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 175
+STOCK_LEVEL (parallel)
+20240527-215412-0608 110992 * Begin           (client.cc:130):    Begin Transaction
+Tx query failed
+ERROR:  relation "stock" is offline: importing
+
+catch abort
+20240527-215412-0763 110992 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 233
+STOCK_LEVEL (parallel)
+20240527-215412-3096 110992 * Begin           (client.cc:130):    Begin Transaction
+Tx query failed
+ERROR:  relation "stock" is offline: importing
+
+catch abort
+20240527-215412-3253 110992 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 202
+STOCK_LEVEL (parallel)
+20240527-215412-5276 110992 * Begin           (client.cc:130):    Begin Transaction
+Tx query failed
+ERROR:  relation "stock" is offline: importing
+
+catch abort
+20240527-215412-5421 110992 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 247
+STOCK_LEVEL (parallel)
+20240527-215412-7896 110992 * Begin           (client.cc:130):    Begin Transaction
+Tx query failed
+ERROR:  relation "stock" is offline: importing
+
+catch abort
+20240527-215412-8049 110992 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 170
+STOCK_LEVEL (parallel)
+20240527-215412-9752 110992 * Begin           (client.cc:130):    Begin Transaction
+Tx query failed
+ERROR:  relation "stock" is offline: importing
+
+catch abort
+20240527-215412-9895 110992 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 169
+STOCK_LEVEL (parallel)
+20240527-215413-1587 110992 * Begin           (client.cc:130):    Begin Transaction
+Tx query failed
+ERROR:  relation "stock" is offline: importing
+
+catch abort
+20240527-215413-1745 110992 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 149
+STOCK_LEVEL (parallel)
+20240527-215413-3238 110992 * Begin           (client.cc:130):    Begin Transaction
+Tx query failed
+ERROR:  relation "stock" is offline: importing
+
+catch abort
+20240527-215413-3385 110992 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 126
+STOCK_LEVEL (parallel)
+20240527-215413-4648 110992 * Begin           (client.cc:130):    Begin Transaction
+Tx query failed
+ERROR:  relation "stock" is offline: importing
+
+catch abort
+20240527-215413-4802 110992 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 153
+STOCK_LEVEL (parallel)
+20240527-215413-6335 110992 * Begin           (client.cc:130):    Begin Transaction
+Tx query failed
+ERROR:  relation "stock" is offline: importing
+
+catch abort
+20240527-215413-6493 110992 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 249
+STOCK_LEVEL (parallel)
+20240527-215413-8986 110992 * Begin           (client.cc:130):    Begin Transaction
+Tx query failed
+ERROR:  relation "stock" is offline: importing
+
+catch abort
+20240527-215413-9138 110992 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 249
+STOCK_LEVEL (parallel)
+20240527-215414-1631 110992 * Begin           (client.cc:130):    Begin Transaction
+Tx query failed
+ERROR:  relation "stock" is offline: importing
+
+catch abort
+20240527-215414-1782 110992 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 185
+STOCK_LEVEL (parallel)
+20240527-215414-3634 110992 * Begin           (client.cc:130):    Begin Transaction
+Tx query failed
+ERROR:  relation "stock" is offline: importing
+
+catch abort
+20240527-215414-3796 110992 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 168
+STOCK_LEVEL (parallel)
+20240527-215414-5479 110992 * Begin           (client.cc:130):    Begin Transaction
+Tx query failed
+ERROR:  relation "stock" is offline: importing
+
+catch abort
+20240527-215414-5637 110992 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 175
+STOCK_LEVEL (parallel)
+20240527-215414-7390 110992 * Begin           (client.cc:130):    Begin Transaction
+Tx query failed
+ERROR:  relation "stock" is offline: importing
+
+catch abort
+20240527-215414-7545 110992 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 162
+STOCK_LEVEL (parallel)
+20240527-215414-9167 110992 * Begin           (client.cc:130):    Begin Transaction
+Tx query failed
+ERROR:  relation "stock" is offline: importing
+
+catch abort
+20240527-215414-9322 110992 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 127
+STOCK_LEVEL (parallel)
+20240527-215415-0594 110992 * Begin           (client.cc:130):    Begin Transaction
+Tx query failed
+ERROR:  relation "stock" is offline: importing
+
+catch abort
+20240527-215415-0742 110992 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 166
+STOCK_LEVEL (parallel)
+20240527-215415-2405 110992 * Begin           (client.cc:130):    Begin Transaction
+Tx query failed
+ERROR:  relation "stock" is offline: importing
+
+catch abort
+20240527-215415-2564 110992 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 125
+STOCK_LEVEL (parallel)
+20240527-215415-3817 110992 * Begin           (client.cc:130):    Begin Transaction
+Tx query failed
+ERROR:  relation "stock" is offline: importing
+
+20240527-215415-3869 110992 * WarmupDone      (bench_client.cc:106): Completed warmup period of 5 seconds with 0 requests
+catch abort
+20240527-215415-3974 110992 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 145
+STOCK_LEVEL (parallel)
+20240527-215415-5427 110992 * Begin           (client.cc:130):    Begin Transaction
+Tx query failed
+ERROR:  relation "stock" is offline: importing
+
+catch abort
+20240527-215415-5580 110992 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 184
+STOCK_LEVEL (parallel)
+20240527-215415-7423 110992 * Begin           (client.cc:130):    Begin Transaction
+Tx query failed
+ERROR:  relation "stock" is offline: importing
+
+catch abort
+20240527-215415-7580 110992 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 245
+STOCK_LEVEL (parallel)
+20240527-215416-0033 110992 * Begin           (client.cc:130):    Begin Transaction
+Tx query failed
+ERROR:  relation "stock" is offline: importing
+
+catch abort
+20240527-215416-0184 110992 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 190
+STOCK_LEVEL (parallel)
+20240527-215416-2087 110992 * Begin           (client.cc:130):    Begin Transaction
+Tx query failed
+ERROR:  relation "stock" is offline: importing
+
+catch abort
+20240527-215416-2237 110992 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 159
+STOCK_LEVEL (parallel)
+20240527-215416-3830 110992 * Begin           (client.cc:130):    Begin Transaction
+Tx query failed
+ERROR:  relation "stock" is offline: importing
+
+catch abort
+20240527-215416-3985 110992 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 173
+STOCK_LEVEL (parallel)
+20240527-215416-5718 110992 * Begin           (client.cc:130):    Begin Transaction
+Tx query failed
+ERROR:  relation "stock" is offline: importing
+
+catch abort
+20240527-215416-5879 110992 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 242
+STOCK_LEVEL (parallel)
+20240527-215416-8302 110992 * Begin           (client.cc:130):    Begin Transaction
+Tx query failed
+ERROR:  relation "stock" is offline: importing
+
+catch abort
+20240527-215416-8456 110992 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 219
+STOCK_LEVEL (parallel)
+20240527-215417-0649 110992 * Begin           (client.cc:130):    Begin Transaction
+Tx query failed
+ERROR:  relation "stock" is offline: importing
+
+catch abort
+20240527-215417-0804 110992 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 243
+STOCK_LEVEL (parallel)
+20240527-215417-3236 110992 * Begin           (client.cc:130):    Begin Transaction
+Tx query failed
+ERROR:  relation "stock" is offline: importing
+
+catch abort
+20240527-215417-3378 110992 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 126
+STOCK_LEVEL (parallel)
+20240527-215417-4640 110992 * Begin           (client.cc:130):    Begin Transaction
+Tx query failed
+ERROR:  relation "stock" is offline: importing
+
+catch abort
+20240527-215417-4802 110992 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 162
+STOCK_LEVEL (parallel)
+20240527-215417-6424 110992 * Begin           (client.cc:130):    Begin Transaction
+Tx query failed
+ERROR:  relation "stock" is offline: importing
+
+catch abort
+20240527-215417-6580 110992 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 152
+STOCK_LEVEL (parallel)
+20240527-215417-8103 110992 * Begin           (client.cc:130):    Begin Transaction
+Tx query failed
+ERROR:  relation "stock" is offline: importing
+
+catch abort
+20240527-215417-8247 110992 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 174
+STOCK_LEVEL (parallel)
+20240527-215417-9992 110992 * Begin           (client.cc:130):    Begin Transaction
+Tx query failed
+ERROR:  relation "stock" is offline: importing
+
+catch abort
+20240527-215418-0132 110992 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 217
+STOCK_LEVEL (parallel)
+20240527-215418-2305 110992 * Begin           (client.cc:130):    Begin Transaction
+Tx query failed
+ERROR:  relation "stock" is offline: importing
+
+catch abort
+20240527-215418-2450 110992 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 144
+STOCK_LEVEL (parallel)
+20240527-215418-3893 110992 * Begin           (client.cc:130):    Begin Transaction
+Tx query failed
+ERROR:  relation "stock" is offline: importing
+
+catch abort
+20240527-215418-4040 110992 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 139
+STOCK_LEVEL (parallel)
+20240527-215418-5433 110992 * Begin           (client.cc:130):    Begin Transaction
+Tx query failed
+ERROR:  relation "stock" is offline: importing
+
+catch abort
+20240527-215418-5581 110992 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 193
+STOCK_LEVEL (parallel)
+20240527-215418-7514 110992 * Begin           (client.cc:130):    Begin Transaction
+Tx query failed
+ERROR:  relation "stock" is offline: importing
+
+catch abort
+20240527-215418-7668 110992 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 220
+STOCK_LEVEL (parallel)
+20240527-215418-9871 110992 * Begin           (client.cc:130):    Begin Transaction
+Tx query failed
+ERROR:  relation "stock" is offline: importing
+
+catch abort
+20240527-215419-0012 110992 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 167
+STOCK_LEVEL (parallel)
+20240527-215419-1685 110992 * Begin           (client.cc:130):    Begin Transaction
+Tx query failed
+ERROR:  relation "stock" is offline: importing
+
+catch abort
+20240527-215419-1841 110992 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 246
+STOCK_LEVEL (parallel)
+20240527-215419-4305 110992 * Begin           (client.cc:130):    Begin Transaction
+Tx query failed
+ERROR:  relation "stock" is offline: importing
+
+catch abort
+20240527-215419-4464 110992 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 228
+STOCK_LEVEL (parallel)
+20240527-215419-6747 110992 * Begin           (client.cc:130):    Begin Transaction
+Tx query failed
+ERROR:  relation "stock" is offline: importing
+
+catch abort
+20240527-215419-6900 110992 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 242
+STOCK_LEVEL (parallel)
+20240527-215419-9323 110992 * Begin           (client.cc:130):    Begin Transaction
+Tx query failed
+ERROR:  relation "stock" is offline: importing
+
+catch abort
+20240527-215419-9479 110992 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 130
+STOCK_LEVEL (parallel)
+20240527-215420-0781 110992 * Begin           (client.cc:130):    Begin Transaction
+Tx query failed
+ERROR:  relation "stock" is offline: importing
+
+catch abort
+20240527-215420-0929 110992 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 147
+STOCK_LEVEL (parallel)
+20240527-215420-2402 110992 * Begin           (client.cc:130):    Begin Transaction
+Tx query failed
+ERROR:  relation "stock" is offline: importing
+
+catch abort
+20240527-215420-2560 110992 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 212
+STOCK_LEVEL (parallel)
+20240527-215420-4683 110992 * Begin           (client.cc:130):    Begin Transaction
+Tx query failed
+ERROR:  relation "stock" is offline: importing
+
+catch abort
+20240527-215420-4830 110992 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 140
+STOCK_LEVEL (parallel)
+20240527-215420-6233 110992 * Begin           (client.cc:130):    Begin Transaction
+Tx query failed
+ERROR:  relation "stock" is offline: importing
+
+catch abort
+20240527-215420-6392 110992 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 138
+STOCK_LEVEL (parallel)
+20240527-215420-7775 110992 * Begin           (client.cc:130):    Begin Transaction
+Tx query failed
+ERROR:  relation "stock" is offline: importing
+
+catch abort
+20240527-215420-7927 110992 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 198
+STOCK_LEVEL (parallel)
+20240527-215420-9910 110992 * Begin           (client.cc:130):    Begin Transaction
+Tx query failed
+ERROR:  relation "stock" is offline: importing
+
+catch abort
+20240527-215421-0061 110992 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 234
+STOCK_LEVEL (parallel)
+20240527-215421-2404 110992 * Begin           (client.cc:130):    Begin Transaction
+Tx query failed
+ERROR:  relation "stock" is offline: importing
+
+catch abort
+20240527-215421-2552 110992 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 156
+STOCK_LEVEL (parallel)
+20240527-215421-4115 110992 * Begin           (client.cc:130):    Begin Transaction
+Tx query failed
+ERROR:  relation "stock" is offline: importing
+
+catch abort
+20240527-215421-4268 110992 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 247
+STOCK_LEVEL (parallel)
+20240527-215421-6740 110992 * Begin           (client.cc:130):    Begin Transaction
+Tx query failed
+ERROR:  relation "stock" is offline: importing
+
+catch abort
+20240527-215421-6893 110992 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 213
+STOCK_LEVEL (parallel)
+20240527-215421-9025 110992 * Begin           (client.cc:130):    Begin Transaction
+Tx query failed
+ERROR:  relation "stock" is offline: importing
+
+catch abort
+20240527-215421-9171 110992 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 203
+STOCK_LEVEL (parallel)
+20240527-215422-1204 110992 * Begin           (client.cc:130):    Begin Transaction
+Tx query failed
+ERROR:  relation "stock" is offline: importing
+
+catch abort
+20240527-215422-1348 110992 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 246
+STOCK_LEVEL (parallel)
+20240527-215422-3811 110992 * Begin           (client.cc:130):    Begin Transaction
+PAYMENT
+20240527-215422-4180 110992 * Begin           (client.cc:130):    Begin Transaction
+catch abort
+20240527-215422-4311 110992 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 3
+PAYMENT
+20240527-215422-4343 110992 * Begin           (client.cc:130):    Begin Transaction
+20240527-215422-4344 110992 PANIC Begin           (client.cc:133):    why is tr not nullptr???
+20240527-215422-4352 110992 ! Backtrace       (message.cc:180):   /mnt/extra/indicus/bin/benchmark(+0x323e20) [0x55bed7d5ce20]
+20240527-215422-4352 110992 ! Backtrace       (message.cc:180):   /mnt/extra/indicus/bin/benchmark(+0x47f37f) [0x55bed7eb837f]
+20240527-215422-4353 110992 ! Backtrace       (message.cc:180):   /mnt/extra/indicus/bin/benchmark(+0x47f4cd) [0x55bed7eb84cd]
+20240527-215422-4353 110992 ! Backtrace       (message.cc:180):   /mnt/extra/indicus/bin/benchmark(+0x1158b9b) [0x55bed8b91b9b]
+20240527-215422-4354 110992 ! Backtrace       (message.cc:180):   /mnt/extra/indicus/bin/benchmark(+0x58b323) [0x55bed7fc4323]
+20240527-215422-4354 110992 ! Backtrace       (message.cc:180):   /mnt/extra/indicus/bin/benchmark(+0x11cbaaf) [0x55bed8c04aaf]
+20240527-215422-4355 110992 ! Backtrace       (message.cc:180):   /mnt/extra/indicus/bin/benchmark(+0x46c7a1) [0x55bed7ea57a1]
+20240527-215422-4355 110992 ! Backtrace       (message.cc:180):   /mnt/extra/indicus/bin/benchmark(+0x408310) [0x55bed7e41310]
+20240527-215422-4356 110992 ! Backtrace       (message.cc:180):   /lib/x86_64-linux-gnu/libstdc++.so.6(+0xd6de4) [0x7fcc8ba99de4]
+20240527-215422-4356 110992 ! Backtrace       (message.cc:180):   /lib/x86_64-linux-gnu/libpthread.so.0(+0x8609) [0x7fcc8d7cd609]
+20240527-215422-4357 110992 ! Backtrace       (message.cc:180):   /lib/x86_64-linux-gnu/libc.so.6(clone+0x43) [0x7fcc8b77e133]

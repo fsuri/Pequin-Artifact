@@ -1,0 +1,1378 @@
+cpu_count  1 
+get_nprocs  8 
+starting client threadpool
+Num_cpus: 8 
+num hosts=24; num_threads=1
+20240525-133109-4292 74531 * Client          (client.cc:84):     Site .liamcrdb.pequin-pg0.utah.cloudlab.us 
+
+20240525-133109-4294 74531 * Client          (client.cc:88):     Connecting to gateway postgresql://root@us-east-1-0.liamcrdb.pequin-pg0.utah.cloudlab.us:7087/defaultdb?sslmode=disable
+20240525-133109-4338 74531 * Client          (client.cc:112):    Connected successfully after 1 tries
+20240525-133109-4338 74531 * Client          (client.cc:115):    Established TaoPQ connection to backend
+20240525-133109-4339 74531 * Client          (client.cc:121):    Client successfully started
+20240525-133109-4340 74531 * BenchmarkClient (bench_client.cc:56): Delay between requests: 2 ms
+PAYMENT
+20240525-133109-4424 74531 * Begin           (client.cc:130):    Begin Transaction
+Tx write transaction rollback
+ERROR:  restart transaction: TransactionRetryWithProtoRefreshError: WriteTooOldError: write for key /Table/113/1/6/0 at timestamp 1719343869.442957372,0 too old; wrote at 1719343869.442957372,2: "sql txn" meta={id=65061887 key=/Table/113/1/6/0 pri=0.03637797 epo=0 ts=1719343869.442957372,2 min=1719343869.442957372,0 seq=0} lock=true stat=PENDING rts=1719343869.442957372,0 wto=false gul=1719343869.942957372,0
+HINT:  See: https://www.cockroachlabs.com/docs/v22.2/transaction-retry-error-reference.html
+
+catch abort
+20240525-133109-5187 74531 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 2
+PAYMENT
+20240525-133109-5209 74531 * Begin           (client.cc:130):    Begin Transaction
+Tx write transaction rollback
+ERROR:  restart transaction: TransactionRetryWithProtoRefreshError: WriteTooOldError: write for key /Table/113/1/6/0 at timestamp 1719343869.521392936,0 too old; wrote at 1719343869.521392936,2: "sql txn" meta={id=3ecd6c17 key=/Table/113/1/6/0 pri=0.02053664 epo=0 ts=1719343869.521392936,2 min=1719343869.521392936,0 seq=0} lock=true stat=PENDING rts=1719343869.521392936,0 wto=false gul=1719343870.021392936,0
+HINT:  See: https://www.cockroachlabs.com/docs/v22.2/transaction-retry-error-reference.html
+
+catch abort
+20240525-133109-5942 74531 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 4
+PAYMENT
+20240525-133109-5984 74531 * Begin           (client.cc:130):    Begin Transaction
+PAYMENT
+20240525-133109-6416 74531 * Begin           (client.cc:130):    Begin Transaction
+NEW ORDER
+20240525-133109-6909 74531 * Begin           (client.cc:130):    Begin Transaction
+PAYMENT
+20240525-133109-7819 74531 * Begin           (client.cc:130):    Begin Transaction
+PAYMENT
+20240525-133109-8126 74531 * Begin           (client.cc:130):    Begin Transaction
+NEW ORDER
+20240525-133109-8503 74531 * Begin           (client.cc:130):    Begin Transaction
+PAYMENT
+20240525-133109-9226 74531 * Begin           (client.cc:130):    Begin Transaction
+PAYMENT
+20240525-133109-9718 74531 * Begin           (client.cc:130):    Begin Transaction
+NEW ORDER
+20240525-133110-0374 74531 * Begin           (client.cc:130):    Begin Transaction
+STOCK_LEVEL (parallel)
+20240525-133110-1484 74531 * Begin           (client.cc:130):    Begin Transaction
+NEW ORDER
+20240525-133110-1706 74531 * Begin           (client.cc:130):    Begin Transaction
+Tx write transaction rollback
+ERROR:  restart transaction: TransactionRetryWithProtoRefreshError: WriteTooOldError: write for key /Table/106/1/10/4/0 at timestamp 1719343870.170985945,0 too old; wrote at 1719343870.199371551,1: "sql txn" meta={id=8ab5d65d key=/Table/106/1/10/4/0 pri=0.00914680 epo=0 ts=1719343870.199371551,1 min=1719343870.170985945,0 seq=0} lock=true stat=PENDING rts=1719343870.170985945,0 wto=false gul=1719343870.670985945,0
+HINT:  See: https://www.cockroachlabs.com/docs/v22.2/transaction-retry-error-reference.html
+
+catch abort
+20240525-133110-3453 74531 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 1
+NEW ORDER
+20240525-133110-3466 74531 * Begin           (client.cc:130):    Begin Transaction
+PAYMENT
+20240525-133110-4199 74531 * Begin           (client.cc:130):    Begin Transaction
+NEW ORDER
+20240525-133110-4512 74531 * Begin           (client.cc:130):    Begin Transaction
+NEW ORDER
+20240525-133110-5131 74531 * Begin           (client.cc:130):    Begin Transaction
+PAYMENT
+20240525-133110-5813 74531 * Begin           (client.cc:130):    Begin Transaction
+NEW ORDER
+20240525-133110-6127 74531 * Begin           (client.cc:130):    Begin Transaction
+PAYMENT
+20240525-133110-7547 74531 * Begin           (client.cc:130):    Begin Transaction
+PAYMENT
+20240525-133110-7939 74531 * Begin           (client.cc:130):    Begin Transaction
+Tx write transaction rollback
+ERROR:  restart transaction: TransactionRetryWithProtoRefreshError: WriteTooOldError: write for key /Table/113/1/9/0 at timestamp 1719343870.794173800,0 too old; wrote at 1719343870.803837568,2: "sql txn" meta={id=6a50e9e2 key=/Table/113/1/9/0 pri=0.00619385 epo=0 ts=1719343870.803837568,2 min=1719343870.794173800,0 seq=0} lock=true stat=PENDING rts=1719343870.794173800,0 wto=false gul=1719343871.294173800,0
+HINT:  See: https://www.cockroachlabs.com/docs/v22.2/transaction-retry-error-reference.html
+
+catch abort
+20240525-133110-8683 74531 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 1
+PAYMENT
+20240525-133110-8696 74531 * Begin           (client.cc:130):    Begin Transaction
+STOCK_LEVEL (parallel)
+20240525-133110-8977 74531 * Begin           (client.cc:130):    Begin Transaction
+PAYMENT
+20240525-133110-9727 74531 * Begin           (client.cc:130):    Begin Transaction
+PAYMENT
+20240525-133111-0039 74531 * Begin           (client.cc:130):    Begin Transaction
+Tx write transaction rollback
+ERROR:  restart transaction: TransactionRetryWithProtoRefreshError: WriteTooOldError: write for key /Table/113/1/6/0 at timestamp 1719343871.004231341,0 too old; wrote at 1719343871.004231341,2: "sql txn" meta={id=bb5ef138 key=/Table/113/1/6/0 pri=0.04540682 epo=0 ts=1719343871.004231341,2 min=1719343871.004231341,0 seq=0} lock=true stat=PENDING rts=1719343871.004231341,0 wto=false gul=1719343871.504231341,0
+HINT:  See: https://www.cockroachlabs.com/docs/v22.2/transaction-retry-error-reference.html
+
+catch abort
+20240525-133111-0548 74531 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 2
+PAYMENT
+20240525-133111-0570 74531 * Begin           (client.cc:130):    Begin Transaction
+NEW ORDER
+20240525-133111-0868 74531 * Begin           (client.cc:130):    Begin Transaction
+PAYMENT
+20240525-133111-1739 74531 * Begin           (client.cc:130):    Begin Transaction
+NEW ORDER
+20240525-133111-2359 74531 * Begin           (client.cc:130):    Begin Transaction
+NEW ORDER
+20240525-133111-3634 74531 * Begin           (client.cc:130):    Begin Transaction
+NEW ORDER
+20240525-133111-4259 74531 * Begin           (client.cc:130):    Begin Transaction
+Tx write transaction rollback
+ERROR:  restart transaction: TransactionRetryWithProtoRefreshError: WriteTooOldError: write for key /Table/106/1/8/5/0 at timestamp 1719343871.426267534,0 too old; wrote at 1719343871.427274886,1: "sql txn" meta={id=44dda8a9 key=/Table/106/1/8/5/0 pri=0.01223879 epo=0 ts=1719343871.427274886,1 min=1719343871.426267534,0 seq=0} lock=true stat=PENDING rts=1719343871.426267534,0 wto=false gul=1719343871.926267534,0
+HINT:  See: https://www.cockroachlabs.com/docs/v22.2/transaction-retry-error-reference.html
+
+catch abort
+20240525-133111-5728 74531 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 2
+NEW ORDER
+20240525-133111-5750 74531 * Begin           (client.cc:130):    Begin Transaction
+NEW ORDER
+20240525-133111-7759 74531 * Begin           (client.cc:130):    Begin Transaction
+PAYMENT
+20240525-133111-8593 74531 * Begin           (client.cc:130):    Begin Transaction
+PAYMENT
+20240525-133111-8890 74531 * Begin           (client.cc:130):    Begin Transaction
+PAYMENT
+20240525-133111-9241 74531 * Begin           (client.cc:130):    Begin Transaction
+PAYMENT
+20240525-133111-9700 74531 * Begin           (client.cc:130):    Begin Transaction
+NEW ORDER
+20240525-133112-0323 74531 * Begin           (client.cc:130):    Begin Transaction
+NEW ORDER
+20240525-133112-1197 74531 * Begin           (client.cc:130):    Begin Transaction
+PAYMENT
+20240525-133112-2625 74531 * Begin           (client.cc:130):    Begin Transaction
+PAYMENT
+20240525-133112-3049 74531 * Begin           (client.cc:130):    Begin Transaction
+STOCK_LEVEL (parallel)
+20240525-133112-3373 74531 * Begin           (client.cc:130):    Begin Transaction
+PAYMENT
+20240525-133112-3787 74531 * Begin           (client.cc:130):    Begin Transaction
+NEW ORDER
+20240525-133112-4215 74531 * Begin           (client.cc:130):    Begin Transaction
+NEW ORDER
+20240525-133112-4948 74531 * Begin           (client.cc:130):    Begin Transaction
+PAYMENT
+20240525-133112-6012 74531 * Begin           (client.cc:130):    Begin Transaction
+NEW ORDER
+20240525-133112-6638 74531 * Begin           (client.cc:130):    Begin Transaction
+Tx commit failed
+ERROR:  restart transaction: TransactionRetryWithProtoRefreshError: TransactionRetryError: retry txn (RETRY_SERIALIZABLE - failed preemptive refresh due to a conflict: committed value on key /Table/113/1/10/0): "sql txn" meta={id=f536df47 key=/Table/106/1/10/2/0 pri=0.03086515 epo=0 ts=1719343872.710261155,1 min=1719343872.664266313,0 seq=30} lock=true stat=PENDING rts=1719343872.664266313,0 wto=false gul=1719343873.164266313,0
+HINT:  See: https://www.cockroachlabs.com/docs/v22.2/transaction-retry-error-reference.html#retry_serializable
+
+20240525-133112-7957 74531 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 2
+NEW ORDER
+20240525-133112-7979 74531 * Begin           (client.cc:130):    Begin Transaction
+NEW ORDER
+20240525-133113-0143 74531 * Begin           (client.cc:130):    Begin Transaction
+PAYMENT
+20240525-133113-1327 74531 * Begin           (client.cc:130):    Begin Transaction
+ORDER_STATUS
+20240525-133113-1923 74531 * Begin           (client.cc:130):    Begin Transaction
+NEW ORDER
+20240525-133113-2110 74531 * Begin           (client.cc:130):    Begin Transaction
+NEW ORDER
+20240525-133113-3604 74531 * Begin           (client.cc:130):    Begin Transaction
+PAYMENT
+20240525-133113-4646 74531 * Begin           (client.cc:130):    Begin Transaction
+NEW ORDER
+20240525-133113-5317 74531 * Begin           (client.cc:130):    Begin Transaction
+PAYMENT
+20240525-133113-6187 74531 * Begin           (client.cc:130):    Begin Transaction
+STOCK_LEVEL (parallel)
+20240525-133113-6518 74531 * Begin           (client.cc:130):    Begin Transaction
+PAYMENT
+20240525-133113-6772 74531 * Begin           (client.cc:130):    Begin Transaction
+NEW ORDER
+20240525-133113-7235 74531 * Begin           (client.cc:130):    Begin Transaction
+PAYMENT
+20240525-133113-9028 74531 * Begin           (client.cc:130):    Begin Transaction
+NEW ORDER
+20240525-133113-9370 74531 * Begin           (client.cc:130):    Begin Transaction
+PAYMENT
+20240525-133114-0687 74531 * Begin           (client.cc:130):    Begin Transaction
+PAYMENT
+20240525-133114-1145 74531 * Begin           (client.cc:130):    Begin Transaction
+DELIVERY TX
+20240525-133114-1609 74531 * Begin           (client.cc:130):    Begin Transaction
+DELIVERY TX
+20240525-133114-1945 74531 * Begin           (client.cc:130):    Begin Transaction
+DELIVERY TX
+20240525-133114-2313 74531 * Begin           (client.cc:130):    Begin Transaction
+DELIVERY TX
+20240525-133114-2678 74531 * Begin           (client.cc:130):    Begin Transaction
+DELIVERY TX
+20240525-133114-3020 74531 * Begin           (client.cc:130):    Begin Transaction
+DELIVERY TX
+20240525-133114-3337 74531 * Begin           (client.cc:130):    Begin Transaction
+DELIVERY TX
+20240525-133114-3670 74531 * Begin           (client.cc:130):    Begin Transaction
+DELIVERY TX
+20240525-133114-4015 74531 * Begin           (client.cc:130):    Begin Transaction
+DELIVERY TX
+20240525-133114-4346 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133114-4438 74531 * WarmupDone      (bench_client.cc:106): Completed warmup period of 5 seconds with 63 requests
+20240525-133114-4681 74531 * IncrementSent   (bench_client.cc:204): Not done after 5 seconds.
+DELIVERY TX
+20240525-133114-4682 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133114-5061 74531 * IncrementSent   (bench_client.cc:204): Not done after 5 seconds.
+NEW ORDER
+20240525-133114-5061 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133114-5710 74531 * IncrementSent   (bench_client.cc:204): Not done after 5 seconds.
+NEW ORDER
+20240525-133114-5712 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133114-7269 74531 * IncrementSent   (bench_client.cc:204): Not done after 5 seconds.
+NEW ORDER
+20240525-133114-7271 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133114-7961 74531 * IncrementSent   (bench_client.cc:204): Not done after 5 seconds.
+NEW ORDER
+20240525-133114-7962 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133114-8925 74531 * IncrementSent   (bench_client.cc:204): Not done after 5 seconds.
+ORDER_STATUS
+20240525-133114-8926 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133114-9105 74531 * IncrementSent   (bench_client.cc:204): Not done after 5 seconds.
+NEW ORDER
+20240525-133114-9106 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133115-0432 74531 * IncrementSent   (bench_client.cc:204): Not done after 5 seconds.
+PAYMENT
+20240525-133115-0434 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133115-0933 74531 * IncrementSent   (bench_client.cc:204): Not done after 5 seconds.
+DELIVERY TX
+20240525-133115-0934 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133115-1308 74531 * IncrementSent   (bench_client.cc:204): Not done after 5 seconds.
+DELIVERY TX
+20240525-133115-1309 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133115-1637 74531 * IncrementSent   (bench_client.cc:204): Not done after 5 seconds.
+DELIVERY TX
+20240525-133115-1638 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133115-1996 74531 * IncrementSent   (bench_client.cc:204): Not done after 5 seconds.
+DELIVERY TX
+20240525-133115-1997 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133115-2376 74531 * IncrementSent   (bench_client.cc:204): Not done after 5 seconds.
+DELIVERY TX
+20240525-133115-2377 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133115-2748 74531 * IncrementSent   (bench_client.cc:204): Not done after 5 seconds.
+DELIVERY TX
+20240525-133115-2749 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133115-3186 74531 * IncrementSent   (bench_client.cc:204): Not done after 5 seconds.
+DELIVERY TX
+20240525-133115-3187 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133115-3528 74531 * IncrementSent   (bench_client.cc:204): Not done after 5 seconds.
+DELIVERY TX
+20240525-133115-3529 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133115-3938 74531 * IncrementSent   (bench_client.cc:204): Not done after 5 seconds.
+DELIVERY TX
+20240525-133115-3939 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133115-4371 74531 * IncrementSent   (bench_client.cc:204): Not done after 5 seconds.
+DELIVERY TX
+20240525-133115-4372 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133115-4814 74531 * IncrementSent   (bench_client.cc:204): Not done after 6 seconds.
+PAYMENT
+20240525-133115-4815 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133115-5284 74531 * IncrementSent   (bench_client.cc:204): Not done after 6 seconds.
+DELIVERY TX
+20240525-133115-5285 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133115-5698 74531 * IncrementSent   (bench_client.cc:204): Not done after 6 seconds.
+DELIVERY TX
+20240525-133115-5699 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133115-6081 74531 * IncrementSent   (bench_client.cc:204): Not done after 6 seconds.
+DELIVERY TX
+20240525-133115-6082 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133115-6454 74531 * IncrementSent   (bench_client.cc:204): Not done after 6 seconds.
+DELIVERY TX
+20240525-133115-6456 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133115-6858 74531 * IncrementSent   (bench_client.cc:204): Not done after 6 seconds.
+DELIVERY TX
+20240525-133115-6859 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133115-7262 74531 * IncrementSent   (bench_client.cc:204): Not done after 6 seconds.
+DELIVERY TX
+20240525-133115-7262 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133115-7607 74531 * IncrementSent   (bench_client.cc:204): Not done after 6 seconds.
+DELIVERY TX
+20240525-133115-7608 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133115-7968 74531 * IncrementSent   (bench_client.cc:204): Not done after 6 seconds.
+DELIVERY TX
+20240525-133115-7969 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133115-8320 74531 * IncrementSent   (bench_client.cc:204): Not done after 6 seconds.
+DELIVERY TX
+20240525-133115-8321 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133115-8687 74531 * IncrementSent   (bench_client.cc:204): Not done after 6 seconds.
+DELIVERY TX
+20240525-133115-8688 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133115-9070 74531 * IncrementSent   (bench_client.cc:204): Not done after 6 seconds.
+PAYMENT
+20240525-133115-9071 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133115-9502 74531 * IncrementSent   (bench_client.cc:204): Not done after 6 seconds.
+PAYMENT
+20240525-133115-9503 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133116-0201 74531 * IncrementSent   (bench_client.cc:204): Not done after 6 seconds.
+PAYMENT
+20240525-133116-0202 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133116-0541 74531 * IncrementSent   (bench_client.cc:204): Not done after 6 seconds.
+NEW ORDER
+20240525-133116-0542 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133116-1745 74531 * IncrementSent   (bench_client.cc:204): Not done after 6 seconds.
+NEW ORDER
+20240525-133116-1746 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133116-2863 74531 * IncrementSent   (bench_client.cc:204): Not done after 6 seconds.
+PAYMENT
+20240525-133116-2864 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133116-3374 74531 * IncrementSent   (bench_client.cc:204): Not done after 6 seconds.
+PAYMENT
+20240525-133116-3375 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133116-3799 74531 * IncrementSent   (bench_client.cc:204): Not done after 6 seconds.
+NEW ORDER
+20240525-133116-3801 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133116-5657 74531 * IncrementSent   (bench_client.cc:204): Not done after 7 seconds.
+STOCK_LEVEL (parallel)
+20240525-133116-5658 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133116-6470 74531 * IncrementSent   (bench_client.cc:204): Not done after 7 seconds.
+PAYMENT
+20240525-133116-6472 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133116-7118 74531 * IncrementSent   (bench_client.cc:204): Not done after 7 seconds.
+PAYMENT
+20240525-133116-7119 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133116-7644 74531 * IncrementSent   (bench_client.cc:204): Not done after 7 seconds.
+NEW ORDER
+20240525-133116-7645 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133116-8796 74531 * IncrementSent   (bench_client.cc:204): Not done after 7 seconds.
+PAYMENT
+20240525-133116-8797 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133116-9200 74531 * IncrementSent   (bench_client.cc:204): Not done after 7 seconds.
+PAYMENT
+20240525-133116-9201 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133116-9902 74531 * IncrementSent   (bench_client.cc:204): Not done after 7 seconds.
+NEW ORDER
+20240525-133116-9904 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133117-1163 74531 * IncrementSent   (bench_client.cc:204): Not done after 7 seconds.
+NEW ORDER
+20240525-133117-1165 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133117-1978 74531 * IncrementSent   (bench_client.cc:204): Not done after 7 seconds.
+PAYMENT
+20240525-133117-1979 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133117-2610 74531 * IncrementSent   (bench_client.cc:204): Not done after 7 seconds.
+PAYMENT
+20240525-133117-2611 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133117-3107 74531 * IncrementSent   (bench_client.cc:204): Not done after 7 seconds.
+PAYMENT
+20240525-133117-3108 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133117-3474 74531 * IncrementSent   (bench_client.cc:204): Not done after 7 seconds.
+NEW ORDER
+20240525-133117-3475 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133117-4764 74531 * IncrementSent   (bench_client.cc:204): Not done after 8 seconds.
+PAYMENT
+20240525-133117-4764 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133117-5100 74531 * IncrementSent   (bench_client.cc:204): Not done after 8 seconds.
+PAYMENT
+20240525-133117-5101 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133117-5453 74531 * IncrementSent   (bench_client.cc:204): Not done after 8 seconds.
+NEW ORDER
+20240525-133117-5454 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133117-6524 74531 * IncrementSent   (bench_client.cc:204): Not done after 8 seconds.
+NEW ORDER
+20240525-133117-6526 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133117-7600 74531 * IncrementSent   (bench_client.cc:204): Not done after 8 seconds.
+NEW ORDER
+20240525-133117-7602 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133117-8913 74531 * IncrementSent   (bench_client.cc:204): Not done after 8 seconds.
+NEW ORDER
+20240525-133117-8914 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133118-0211 74531 * IncrementSent   (bench_client.cc:204): Not done after 8 seconds.
+NEW ORDER
+20240525-133118-0214 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133118-1282 74531 * IncrementSent   (bench_client.cc:204): Not done after 8 seconds.
+NEW ORDER
+20240525-133118-1283 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133118-2030 74531 * IncrementSent   (bench_client.cc:204): Not done after 8 seconds.
+DELIVERY TX
+20240525-133118-2032 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133118-2456 74531 * IncrementSent   (bench_client.cc:204): Not done after 8 seconds.
+DELIVERY TX
+20240525-133118-2456 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133118-2834 74531 * IncrementSent   (bench_client.cc:204): Not done after 8 seconds.
+DELIVERY TX
+20240525-133118-2835 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133118-3233 74531 * IncrementSent   (bench_client.cc:204): Not done after 8 seconds.
+DELIVERY TX
+20240525-133118-3234 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133118-3644 74531 * IncrementSent   (bench_client.cc:204): Not done after 8 seconds.
+DELIVERY TX
+20240525-133118-3645 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133118-3992 74531 * IncrementSent   (bench_client.cc:204): Not done after 8 seconds.
+DELIVERY TX
+20240525-133118-3993 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133118-4339 74531 * IncrementSent   (bench_client.cc:204): Not done after 8 seconds.
+DELIVERY TX
+20240525-133118-4340 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133118-4761 74531 * IncrementSent   (bench_client.cc:204): Not done after 9 seconds.
+DELIVERY TX
+20240525-133118-4761 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133118-5073 74531 * IncrementSent   (bench_client.cc:204): Not done after 9 seconds.
+DELIVERY TX
+20240525-133118-5074 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133118-5489 74531 * IncrementSent   (bench_client.cc:204): Not done after 9 seconds.
+DELIVERY TX
+20240525-133118-5490 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133118-5829 74531 * IncrementSent   (bench_client.cc:204): Not done after 9 seconds.
+PAYMENT
+20240525-133118-5830 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133118-6254 74531 * IncrementSent   (bench_client.cc:204): Not done after 9 seconds.
+NEW ORDER
+20240525-133118-6255 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133118-7133 74531 * IncrementSent   (bench_client.cc:204): Not done after 9 seconds.
+PAYMENT
+20240525-133118-7134 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133118-7535 74531 * IncrementSent   (bench_client.cc:204): Not done after 9 seconds.
+NEW ORDER
+20240525-133118-7536 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133118-8651 74531 * IncrementSent   (bench_client.cc:204): Not done after 9 seconds.
+NEW ORDER
+20240525-133118-8653 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133118-9782 74531 * IncrementSent   (bench_client.cc:204): Not done after 9 seconds.
+PAYMENT
+20240525-133118-9783 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133119-0158 74531 * IncrementSent   (bench_client.cc:204): Not done after 9 seconds.
+NEW ORDER
+20240525-133119-0159 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133119-1111 74531 * IncrementSent   (bench_client.cc:204): Not done after 9 seconds.
+PAYMENT
+20240525-133119-1112 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133119-1937 74531 * IncrementSent   (bench_client.cc:204): Not done after 9 seconds.
+PAYMENT
+20240525-133119-1938 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133119-2334 74531 * IncrementSent   (bench_client.cc:204): Not done after 9 seconds.
+NEW ORDER
+20240525-133119-2336 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133119-3301 74531 * IncrementSent   (bench_client.cc:204): Not done after 9 seconds.
+PAYMENT
+20240525-133119-3302 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133119-3908 74531 * IncrementSent   (bench_client.cc:204): Not done after 9 seconds.
+NEW ORDER
+20240525-133119-3910 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133119-4609 74531 * IncrementSent   (bench_client.cc:204): Not done after 10 seconds.
+NEW ORDER
+20240525-133119-4611 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133119-5486 74531 * IncrementSent   (bench_client.cc:204): Not done after 10 seconds.
+ORDER_STATUS
+20240525-133119-5487 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133119-5676 74531 * IncrementSent   (bench_client.cc:204): Not done after 10 seconds.
+PAYMENT
+20240525-133119-5677 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133119-6481 74531 * IncrementSent   (bench_client.cc:204): Not done after 10 seconds.
+STOCK_LEVEL (parallel)
+20240525-133119-6482 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133119-7398 74531 * IncrementSent   (bench_client.cc:204): Not done after 10 seconds.
+NEW ORDER
+20240525-133119-7400 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133119-8341 74531 * IncrementSent   (bench_client.cc:204): Not done after 10 seconds.
+ORDER_STATUS
+20240525-133119-8342 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133119-8528 74531 * IncrementSent   (bench_client.cc:204): Not done after 10 seconds.
+PAYMENT
+20240525-133119-8529 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133119-9016 74531 * IncrementSent   (bench_client.cc:204): Not done after 10 seconds.
+PAYMENT
+20240525-133119-9017 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133119-9535 74531 * IncrementSent   (bench_client.cc:204): Not done after 10 seconds.
+NEW ORDER
+20240525-133119-9536 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133120-1089 74531 * IncrementSent   (bench_client.cc:204): Not done after 10 seconds.
+NEW ORDER
+20240525-133120-1090 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133120-2015 74531 * IncrementSent   (bench_client.cc:204): Not done after 10 seconds.
+NEW ORDER
+20240525-133120-2017 74531 * Begin           (client.cc:130):    Begin Transaction
+Tx write transaction rollback
+ERROR:  restart transaction: TransactionRetryWithProtoRefreshError: WriteTooOldError: write for key /Table/106/1/1/2/0 at timestamp 1719343880.202492398,0 too old; wrote at 1719343880.222533643,1: "sql txn" meta={id=71c1fb9d key=/Table/106/1/1/2/0 pri=0.03874381 epo=0 ts=1719343880.222533643,1 min=1719343880.202492398,0 seq=0} lock=true stat=PENDING rts=1719343880.202492398,0 wto=false gul=1719343880.702492398,0
+HINT:  See: https://www.cockroachlabs.com/docs/v22.2/transaction-retry-error-reference.html
+
+catch abort
+20240525-133120-4158 74531 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 2
+NEW ORDER
+20240525-133120-4180 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133120-5156 74531 * IncrementSent   (bench_client.cc:204): Not done after 11 seconds.
+STOCK_LEVEL (parallel)
+20240525-133120-5157 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133120-5337 74531 * IncrementSent   (bench_client.cc:204): Not done after 11 seconds.
+NEW ORDER
+20240525-133120-5339 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133121-7570 74531 * IncrementSent   (bench_client.cc:204): Not done after 12 seconds.
+PAYMENT
+20240525-133121-7571 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133121-8050 74531 * IncrementSent   (bench_client.cc:204): Not done after 12 seconds.
+PAYMENT
+20240525-133121-8051 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133121-8403 74531 * IncrementSent   (bench_client.cc:204): Not done after 12 seconds.
+NEW ORDER
+20240525-133121-8404 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133121-9280 74531 * IncrementSent   (bench_client.cc:204): Not done after 12 seconds.
+PAYMENT
+20240525-133121-9281 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133121-9706 74531 * IncrementSent   (bench_client.cc:204): Not done after 12 seconds.
+NEW ORDER
+20240525-133121-9708 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133122-1395 74531 * IncrementSent   (bench_client.cc:204): Not done after 12 seconds.
+NEW ORDER
+20240525-133122-1397 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133122-2045 74531 * IncrementSent   (bench_client.cc:204): Not done after 12 seconds.
+NEW ORDER
+20240525-133122-2046 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133122-3467 74531 * IncrementSent   (bench_client.cc:204): Not done after 12 seconds.
+PAYMENT
+20240525-133122-3467 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133122-3875 74531 * IncrementSent   (bench_client.cc:204): Not done after 12 seconds.
+NEW ORDER
+20240525-133122-3876 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133122-4598 74531 * IncrementSent   (bench_client.cc:204): Not done after 13 seconds.
+PAYMENT
+20240525-133122-4599 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133122-5029 74531 * IncrementSent   (bench_client.cc:204): Not done after 13 seconds.
+PAYMENT
+20240525-133122-5029 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133122-5638 74531 * IncrementSent   (bench_client.cc:204): Not done after 13 seconds.
+NEW ORDER
+20240525-133122-5639 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133122-6319 74531 * IncrementSent   (bench_client.cc:204): Not done after 13 seconds.
+NEW ORDER
+20240525-133122-6321 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133122-8040 74531 * IncrementSent   (bench_client.cc:204): Not done after 13 seconds.
+PAYMENT
+20240525-133122-8041 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133122-8344 74531 * IncrementSent   (bench_client.cc:204): Not done after 13 seconds.
+ORDER_STATUS
+20240525-133122-8345 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133122-8522 74531 * IncrementSent   (bench_client.cc:204): Not done after 13 seconds.
+NEW ORDER
+20240525-133122-8524 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133122-9822 74531 * IncrementSent   (bench_client.cc:204): Not done after 13 seconds.
+PAYMENT
+20240525-133122-9823 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133123-0218 74531 * IncrementSent   (bench_client.cc:204): Not done after 13 seconds.
+NEW ORDER
+20240525-133123-0220 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133123-1474 74531 * IncrementSent   (bench_client.cc:204): Not done after 13 seconds.
+NEW ORDER
+20240525-133123-1476 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133123-2109 74531 * IncrementSent   (bench_client.cc:204): Not done after 13 seconds.
+NEW ORDER
+20240525-133123-2111 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133123-3120 74531 * IncrementSent   (bench_client.cc:204): Not done after 13 seconds.
+NEW ORDER
+20240525-133123-3122 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133123-4458 74531 * IncrementSent   (bench_client.cc:204): Not done after 14 seconds.
+NEW ORDER
+20240525-133123-4459 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133123-5543 74531 * IncrementSent   (bench_client.cc:204): Not done after 14 seconds.
+DELIVERY TX
+20240525-133123-5544 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133123-5862 74531 * IncrementSent   (bench_client.cc:204): Not done after 14 seconds.
+DELIVERY TX
+20240525-133123-5863 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133123-6151 74531 * IncrementSent   (bench_client.cc:204): Not done after 14 seconds.
+DELIVERY TX
+20240525-133123-6152 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133123-6447 74531 * IncrementSent   (bench_client.cc:204): Not done after 14 seconds.
+DELIVERY TX
+20240525-133123-6448 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133123-6750 74531 * IncrementSent   (bench_client.cc:204): Not done after 14 seconds.
+DELIVERY TX
+20240525-133123-6751 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133123-7041 74531 * IncrementSent   (bench_client.cc:204): Not done after 14 seconds.
+DELIVERY TX
+20240525-133123-7042 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133123-7413 74531 * IncrementSent   (bench_client.cc:204): Not done after 14 seconds.
+DELIVERY TX
+20240525-133123-7414 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133123-7706 74531 * IncrementSent   (bench_client.cc:204): Not done after 14 seconds.
+DELIVERY TX
+20240525-133123-7707 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133123-8149 74531 * IncrementSent   (bench_client.cc:204): Not done after 14 seconds.
+DELIVERY TX
+20240525-133123-8150 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133123-8467 74531 * IncrementSent   (bench_client.cc:204): Not done after 14 seconds.
+DELIVERY TX
+20240525-133123-8468 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133123-8786 74531 * IncrementSent   (bench_client.cc:204): Not done after 14 seconds.
+PAYMENT
+20240525-133123-8788 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133123-9210 74531 * IncrementSent   (bench_client.cc:204): Not done after 14 seconds.
+NEW ORDER
+20240525-133123-9211 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133123-9969 74531 * IncrementSent   (bench_client.cc:204): Not done after 14 seconds.
+PAYMENT
+20240525-133123-9970 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133124-0369 74531 * IncrementSent   (bench_client.cc:204): Not done after 14 seconds.
+PAYMENT
+20240525-133124-0370 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133124-0677 74531 * IncrementSent   (bench_client.cc:204): Not done after 14 seconds.
+NEW ORDER
+20240525-133124-0678 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133124-1706 74531 * IncrementSent   (bench_client.cc:204): Not done after 14 seconds.
+PAYMENT
+20240525-133124-1707 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133124-1995 74531 * IncrementSent   (bench_client.cc:204): Not done after 14 seconds.
+ORDER_STATUS
+20240525-133124-1996 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133124-2212 74531 * IncrementSent   (bench_client.cc:204): Not done after 14 seconds.
+PAYMENT
+20240525-133124-2213 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133124-2893 74531 * IncrementSent   (bench_client.cc:204): Not done after 14 seconds.
+PAYMENT
+20240525-133124-2895 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133124-3376 74531 * IncrementSent   (bench_client.cc:204): Not done after 14 seconds.
+NEW ORDER
+20240525-133124-3378 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133124-4558 74531 * IncrementSent   (bench_client.cc:204): Not done after 15 seconds.
+PAYMENT
+20240525-133124-4559 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133124-4963 74531 * IncrementSent   (bench_client.cc:204): Not done after 15 seconds.
+NEW ORDER
+20240525-133124-4964 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133124-5561 74531 * IncrementSent   (bench_client.cc:204): Not done after 15 seconds.
+NEW ORDER
+20240525-133124-5564 74531 * Begin           (client.cc:130):    Begin Transaction
+Tx write transaction rollback
+ERROR:  restart transaction: TransactionRetryWithProtoRefreshError: WriteTooOldError: write for key /Table/106/1/6/4/0 at timestamp 1719343884.556959658,0 too old; wrote at 1719343884.593098697,1: "sql txn" meta={id=bf2ca3ec key=/Table/106/1/6/4/0 pri=0.03766012 epo=0 ts=1719343884.593098697,1 min=1719343884.556959658,0 seq=0} lock=true stat=PENDING rts=1719343884.556959658,0 wto=false gul=1719343885.056959658,0
+HINT:  See: https://www.cockroachlabs.com/docs/v22.2/transaction-retry-error-reference.html
+
+catch abort
+20240525-133124-6887 74531 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 2
+NEW ORDER
+20240525-133124-6909 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133124-7758 74531 * IncrementSent   (bench_client.cc:204): Not done after 15 seconds.
+PAYMENT
+20240525-133124-7759 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133124-8175 74531 * IncrementSent   (bench_client.cc:204): Not done after 15 seconds.
+NEW ORDER
+20240525-133124-8176 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133124-9382 74531 * IncrementSent   (bench_client.cc:204): Not done after 15 seconds.
+NEW ORDER
+20240525-133124-9384 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133125-0045 74531 * IncrementSent   (bench_client.cc:204): Not done after 15 seconds.
+PAYMENT
+20240525-133125-0046 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133125-0571 74531 * IncrementSent   (bench_client.cc:204): Not done after 15 seconds.
+PAYMENT
+20240525-133125-0572 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133125-0948 74531 * IncrementSent   (bench_client.cc:204): Not done after 15 seconds.
+PAYMENT
+20240525-133125-0950 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133125-1462 74531 * IncrementSent   (bench_client.cc:204): Not done after 15 seconds.
+PAYMENT
+20240525-133125-1463 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133125-1931 74531 * IncrementSent   (bench_client.cc:204): Not done after 15 seconds.
+NEW ORDER
+20240525-133125-1931 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133125-2961 74531 * IncrementSent   (bench_client.cc:204): Not done after 15 seconds.
+NEW ORDER
+20240525-133125-2963 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133125-4123 74531 * IncrementSent   (bench_client.cc:204): Not done after 15 seconds.
+PAYMENT
+20240525-133125-4124 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133125-4548 74531 * IncrementSent   (bench_client.cc:204): Not done after 16 seconds.
+PAYMENT
+20240525-133125-4549 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133125-4932 74531 * IncrementSent   (bench_client.cc:204): Not done after 16 seconds.
+NEW ORDER
+20240525-133125-4933 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133125-6143 74531 * IncrementSent   (bench_client.cc:204): Not done after 16 seconds.
+DELIVERY TX
+20240525-133125-6144 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133125-6471 74531 * IncrementSent   (bench_client.cc:204): Not done after 16 seconds.
+DELIVERY TX
+20240525-133125-6472 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133125-6813 74531 * IncrementSent   (bench_client.cc:204): Not done after 16 seconds.
+DELIVERY TX
+20240525-133125-6814 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133125-7111 74531 * IncrementSent   (bench_client.cc:204): Not done after 16 seconds.
+DELIVERY TX
+20240525-133125-7112 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133125-7518 74531 * IncrementSent   (bench_client.cc:204): Not done after 16 seconds.
+DELIVERY TX
+20240525-133125-7519 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133125-7816 74531 * IncrementSent   (bench_client.cc:204): Not done after 16 seconds.
+DELIVERY TX
+20240525-133125-7817 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133125-8090 74531 * IncrementSent   (bench_client.cc:204): Not done after 16 seconds.
+DELIVERY TX
+20240525-133125-8091 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133125-8398 74531 * IncrementSent   (bench_client.cc:204): Not done after 16 seconds.
+DELIVERY TX
+20240525-133125-8399 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133125-8723 74531 * IncrementSent   (bench_client.cc:204): Not done after 16 seconds.
+DELIVERY TX
+20240525-133125-8724 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133125-8987 74531 * IncrementSent   (bench_client.cc:204): Not done after 16 seconds.
+DELIVERY TX
+20240525-133125-8988 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133125-9317 74531 * IncrementSent   (bench_client.cc:204): Not done after 16 seconds.
+NEW ORDER
+20240525-133125-9319 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133126-0887 74531 * IncrementSent   (bench_client.cc:204): Not done after 16 seconds.
+DELIVERY TX
+20240525-133126-0888 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133126-1322 74531 * IncrementSent   (bench_client.cc:204): Not done after 16 seconds.
+DELIVERY TX
+20240525-133126-1324 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133126-1611 74531 * IncrementSent   (bench_client.cc:204): Not done after 16 seconds.
+DELIVERY TX
+20240525-133126-1611 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133126-1911 74531 * IncrementSent   (bench_client.cc:204): Not done after 16 seconds.
+DELIVERY TX
+20240525-133126-1912 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133126-2199 74531 * IncrementSent   (bench_client.cc:204): Not done after 16 seconds.
+DELIVERY TX
+20240525-133126-2200 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133126-2486 74531 * IncrementSent   (bench_client.cc:204): Not done after 16 seconds.
+DELIVERY TX
+20240525-133126-2486 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133126-2826 74531 * IncrementSent   (bench_client.cc:204): Not done after 16 seconds.
+DELIVERY TX
+20240525-133126-2827 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133126-3127 74531 * IncrementSent   (bench_client.cc:204): Not done after 16 seconds.
+DELIVERY TX
+20240525-133126-3128 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133126-3469 74531 * IncrementSent   (bench_client.cc:204): Not done after 16 seconds.
+DELIVERY TX
+20240525-133126-3470 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133126-3739 74531 * IncrementSent   (bench_client.cc:204): Not done after 16 seconds.
+DELIVERY TX
+20240525-133126-3740 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133126-4049 74531 * IncrementSent   (bench_client.cc:204): Not done after 16 seconds.
+NEW ORDER
+20240525-133126-4050 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133126-5958 74531 * IncrementSent   (bench_client.cc:204): Not done after 17 seconds.
+NEW ORDER
+20240525-133126-5959 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133126-7155 74531 * IncrementSent   (bench_client.cc:204): Not done after 17 seconds.
+NEW ORDER
+20240525-133126-7157 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133126-8043 74531 * IncrementSent   (bench_client.cc:204): Not done after 17 seconds.
+NEW ORDER
+20240525-133126-8044 74531 * Begin           (client.cc:130):    Begin Transaction
+Tx write transaction rollback
+ERROR:  restart transaction: TransactionRetryWithProtoRefreshError: WriteTooOldError: write for key /Table/106/1/3/4/0 at timestamp 1719343886.805564348,0 too old; wrote at 1719343886.805564348,2: "sql txn" meta={id=69ebb5ad key=/Table/106/1/3/4/0 pri=0.04326566 epo=0 ts=1719343886.805564348,2 min=1719343886.805564348,0 seq=0} lock=true stat=PENDING rts=1719343886.805564348,0 wto=false gul=1719343887.305564348,0
+HINT:  See: https://www.cockroachlabs.com/docs/v22.2/transaction-retry-error-reference.html
+
+catch abort
+20240525-133126-9182 74531 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 1
+NEW ORDER
+20240525-133126-9194 74531 * Begin           (client.cc:130):    Begin Transaction
+Tx commit failed
+ERROR:  restart transaction: TransactionRetryWithProtoRefreshError: TransactionRetryError: retry txn (RETRY_SERIALIZABLE - failed preemptive refresh due to a conflict: committed value on key /Table/113/1/3/0): "sql txn" meta={id=0243881e key=/Table/106/1/3/4/0 pri=0.04134006 epo=0 ts=1719343886.960232992,1 min=1719343886.919737202,0 seq=18} lock=true stat=PENDING rts=1719343886.919737202,0 wto=false gul=1719343887.419737202,0
+HINT:  See: https://www.cockroachlabs.com/docs/v22.2/transaction-retry-error-reference.html#retry_serializable
+
+20240525-133127-0615 74531 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 3
+NEW ORDER
+20240525-133127-0647 74531 * Begin           (client.cc:130):    Begin Transaction
+Tx write transaction rollback
+ERROR:  restart transaction: TransactionRetryWithProtoRefreshError: WriteTooOldError: write for key /Table/106/1/3/4/0 at timestamp 1719343887.065097561,0 too old; wrote at 1719343887.103468705,2: "sql txn" meta={id=0d645178 key=/Table/106/1/3/4/0 pri=0.02383618 epo=0 ts=1719343887.103468705,2 min=1719343887.065097561,0 seq=0} lock=true stat=PENDING rts=1719343887.065097561,0 wto=false gul=1719343887.565097561,0
+HINT:  See: https://www.cockroachlabs.com/docs/v22.2/transaction-retry-error-reference.html
+
+catch abort
+20240525-133127-2566 74531 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 7
+NEW ORDER
+20240525-133127-2639 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133127-4145 74531 * IncrementSent   (bench_client.cc:204): Not done after 17 seconds.
+STOCK_LEVEL (parallel)
+20240525-133127-4146 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133127-4359 74531 * IncrementSent   (bench_client.cc:204): Not done after 17 seconds.
+PAYMENT
+20240525-133127-4360 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133127-4628 74531 * IncrementSent   (bench_client.cc:204): Not done after 18 seconds.
+PAYMENT
+20240525-133127-4629 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133127-5309 74531 * IncrementSent   (bench_client.cc:204): Not done after 18 seconds.
+PAYMENT
+20240525-133127-5311 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133127-5584 74531 * IncrementSent   (bench_client.cc:204): Not done after 18 seconds.
+ORDER_STATUS
+20240525-133127-5585 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133127-5827 74531 * IncrementSent   (bench_client.cc:204): Not done after 18 seconds.
+NEW ORDER
+20240525-133127-5828 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133127-6932 74531 * IncrementSent   (bench_client.cc:204): Not done after 18 seconds.
+NEW ORDER
+20240525-133127-6932 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133127-7913 74531 * IncrementSent   (bench_client.cc:204): Not done after 18 seconds.
+NEW ORDER
+20240525-133127-7914 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133127-8766 74531 * IncrementSent   (bench_client.cc:204): Not done after 18 seconds.
+PAYMENT
+20240525-133127-8767 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133127-9158 74531 * IncrementSent   (bench_client.cc:204): Not done after 18 seconds.
+NEW ORDER
+20240525-133127-9160 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133128-0439 74531 * IncrementSent   (bench_client.cc:204): Not done after 18 seconds.
+PAYMENT
+20240525-133128-0440 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133128-0866 74531 * IncrementSent   (bench_client.cc:204): Not done after 18 seconds.
+NEW ORDER
+20240525-133128-0868 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133128-2398 74531 * IncrementSent   (bench_client.cc:204): Not done after 18 seconds.
+PAYMENT
+20240525-133128-2399 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133128-2785 74531 * IncrementSent   (bench_client.cc:204): Not done after 18 seconds.
+NEW ORDER
+20240525-133128-2787 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133128-4776 74531 * IncrementSent   (bench_client.cc:204): Not done after 19 seconds.
+DELIVERY TX
+20240525-133128-4777 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133128-5084 74531 * IncrementSent   (bench_client.cc:204): Not done after 19 seconds.
+DELIVERY TX
+20240525-133128-5084 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133128-5369 74531 * IncrementSent   (bench_client.cc:204): Not done after 19 seconds.
+DELIVERY TX
+20240525-133128-5371 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133128-5736 74531 * IncrementSent   (bench_client.cc:204): Not done after 19 seconds.
+DELIVERY TX
+20240525-133128-5736 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133128-6215 74531 * IncrementSent   (bench_client.cc:204): Not done after 19 seconds.
+DELIVERY TX
+20240525-133128-6216 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133128-6569 74531 * IncrementSent   (bench_client.cc:204): Not done after 19 seconds.
+DELIVERY TX
+20240525-133128-6571 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133128-6924 74531 * IncrementSent   (bench_client.cc:204): Not done after 19 seconds.
+DELIVERY TX
+20240525-133128-6924 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133128-7245 74531 * IncrementSent   (bench_client.cc:204): Not done after 19 seconds.
+DELIVERY TX
+20240525-133128-7247 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133128-7551 74531 * IncrementSent   (bench_client.cc:204): Not done after 19 seconds.
+DELIVERY TX
+20240525-133128-7552 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133128-7899 74531 * IncrementSent   (bench_client.cc:204): Not done after 19 seconds.
+DELIVERY TX
+20240525-133128-7900 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133128-8209 74531 * IncrementSent   (bench_client.cc:204): Not done after 19 seconds.
+NEW ORDER
+20240525-133128-8211 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133129-0136 74531 * IncrementSent   (bench_client.cc:204): Not done after 19 seconds.
+PAYMENT
+20240525-133129-0137 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133129-0466 74531 * IncrementSent   (bench_client.cc:204): Not done after 19 seconds.
+NEW ORDER
+20240525-133129-0467 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133129-1742 74531 * IncrementSent   (bench_client.cc:204): Not done after 19 seconds.
+PAYMENT
+20240525-133129-1742 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133129-2349 74531 * IncrementSent   (bench_client.cc:204): Not done after 19 seconds.
+NEW ORDER
+20240525-133129-2350 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133129-3240 74531 * IncrementSent   (bench_client.cc:204): Not done after 19 seconds.
+NEW ORDER
+20240525-133129-3241 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133129-4238 74531 * IncrementSent   (bench_client.cc:204): Not done after 19 seconds.
+DELIVERY TX
+20240525-133129-4239 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133129-4600 74531 * IncrementSent   (bench_client.cc:204): Not done after 20 seconds.
+DELIVERY TX
+20240525-133129-4601 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133129-4970 74531 * IncrementSent   (bench_client.cc:204): Not done after 20 seconds.
+DELIVERY TX
+20240525-133129-4971 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133129-5341 74531 * IncrementSent   (bench_client.cc:204): Not done after 20 seconds.
+DELIVERY TX
+20240525-133129-5342 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133129-5737 74531 * IncrementSent   (bench_client.cc:204): Not done after 20 seconds.
+DELIVERY TX
+20240525-133129-5738 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133129-6122 74531 * IncrementSent   (bench_client.cc:204): Not done after 20 seconds.
+DELIVERY TX
+20240525-133129-6123 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133129-6516 74531 * IncrementSent   (bench_client.cc:204): Not done after 20 seconds.
+DELIVERY TX
+20240525-133129-6517 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133129-6987 74531 * IncrementSent   (bench_client.cc:204): Not done after 20 seconds.
+DELIVERY TX
+20240525-133129-6988 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133129-7365 74531 * IncrementSent   (bench_client.cc:204): Not done after 20 seconds.
+DELIVERY TX
+20240525-133129-7366 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133129-7738 74531 * IncrementSent   (bench_client.cc:204): Not done after 20 seconds.
+DELIVERY TX
+20240525-133129-7740 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133129-8143 74531 * IncrementSent   (bench_client.cc:204): Not done after 20 seconds.
+NEW ORDER
+20240525-133129-8144 74531 * Begin           (client.cc:130):    Begin Transaction
+Tx write transaction rollback
+ERROR:  restart transaction: TransactionRetryWithProtoRefreshError: WriteTooOldError: write for key /Table/106/1/3/5/0 at timestamp 1719343889.815485100,0 too old; wrote at 1719343889.815485100,2: "sql txn" meta={id=defafb0f key=/Table/106/1/3/5/0 pri=0.04013055 epo=0 ts=1719343889.815485100,2 min=1719343889.815485100,0 seq=0} lock=true stat=PENDING rts=1719343889.815485100,0 wto=false gul=1719343890.315485100,0
+HINT:  See: https://www.cockroachlabs.com/docs/v22.2/transaction-retry-error-reference.html
+
+catch abort
+20240525-133129-9126 74531 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 1
+NEW ORDER
+20240525-133129-9139 74531 * Begin           (client.cc:130):    Begin Transaction
+Tx write transaction rollback
+ERROR:  restart transaction: TransactionRetryWithProtoRefreshError: WriteTooOldError: write for key /Table/106/1/3/5/0 at timestamp 1719343889.914392661,0 too old; wrote at 1719343889.914392661,2: "sql txn" meta={id=71a08729 key=/Table/106/1/3/5/0 pri=0.04351228 epo=0 ts=1719343889.914392661,2 min=1719343889.914392661,0 seq=0} lock=true stat=PENDING rts=1719343889.914392661,0 wto=false gul=1719343890.414392661,0
+HINT:  See: https://www.cockroachlabs.com/docs/v22.2/transaction-retry-error-reference.html
+
+catch abort
+20240525-133129-9805 74531 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 2
+NEW ORDER
+20240525-133129-9827 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133130-0964 74531 * IncrementSent   (bench_client.cc:204): Not done after 20 seconds.
+DELIVERY TX
+20240525-133130-0965 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133130-1320 74531 * IncrementSent   (bench_client.cc:204): Not done after 20 seconds.
+DELIVERY TX
+20240525-133130-1321 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133130-1654 74531 * IncrementSent   (bench_client.cc:204): Not done after 20 seconds.
+DELIVERY TX
+20240525-133130-1654 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133130-2027 74531 * IncrementSent   (bench_client.cc:204): Not done after 20 seconds.
+DELIVERY TX
+20240525-133130-2028 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133130-2368 74531 * IncrementSent   (bench_client.cc:204): Not done after 20 seconds.
+DELIVERY TX
+20240525-133130-2369 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133130-2760 74531 * IncrementSent   (bench_client.cc:204): Not done after 20 seconds.
+DELIVERY TX
+20240525-133130-2761 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133130-3330 74531 * IncrementSent   (bench_client.cc:204): Not done after 20 seconds.
+DELIVERY TX
+20240525-133130-3330 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133130-3770 74531 * IncrementSent   (bench_client.cc:204): Not done after 20 seconds.
+DELIVERY TX
+20240525-133130-3770 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133130-4177 74531 * IncrementSent   (bench_client.cc:204): Not done after 20 seconds.
+DELIVERY TX
+20240525-133130-4178 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133130-4544 74531 * IncrementSent   (bench_client.cc:204): Not done after 21 seconds.
+DELIVERY TX
+20240525-133130-4545 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133130-4896 74531 * IncrementSent   (bench_client.cc:204): Not done after 21 seconds.
+NEW ORDER
+20240525-133130-4897 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133130-6369 74531 * IncrementSent   (bench_client.cc:204): Not done after 21 seconds.
+PAYMENT
+20240525-133130-6370 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133130-6656 74531 * IncrementSent   (bench_client.cc:204): Not done after 21 seconds.
+PAYMENT
+20240525-133130-6657 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133130-7034 74531 * IncrementSent   (bench_client.cc:204): Not done after 21 seconds.
+PAYMENT
+20240525-133130-7036 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133130-7513 74531 * IncrementSent   (bench_client.cc:204): Not done after 21 seconds.
+STOCK_LEVEL (parallel)
+20240525-133130-7514 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133130-7674 74531 * IncrementSent   (bench_client.cc:204): Not done after 21 seconds.
+PAYMENT
+20240525-133130-7675 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133130-7988 74531 * IncrementSent   (bench_client.cc:204): Not done after 21 seconds.
+NEW ORDER
+20240525-133130-7990 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133130-9315 74531 * IncrementSent   (bench_client.cc:204): Not done after 21 seconds.
+STOCK_LEVEL (parallel)
+20240525-133130-9316 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133130-9609 74531 * IncrementSent   (bench_client.cc:204): Not done after 21 seconds.
+PAYMENT
+20240525-133130-9610 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133131-0314 74531 * IncrementSent   (bench_client.cc:204): Not done after 21 seconds.
+PAYMENT
+20240525-133131-0315 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133131-0780 74531 * IncrementSent   (bench_client.cc:204): Not done after 21 seconds.
+NEW ORDER
+20240525-133131-0781 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133131-3452 74531 * IncrementSent   (bench_client.cc:204): Not done after 21 seconds.
+STOCK_LEVEL (parallel)
+20240525-133131-3453 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133131-4250 74531 * IncrementSent   (bench_client.cc:204): Not done after 21 seconds.
+NEW ORDER
+20240525-133131-4252 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133131-5271 74531 * IncrementSent   (bench_client.cc:204): Not done after 22 seconds.
+PAYMENT
+20240525-133131-5272 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133131-5713 74531 * IncrementSent   (bench_client.cc:204): Not done after 22 seconds.
+NEW ORDER
+20240525-133131-5714 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133131-7453 74531 * IncrementSent   (bench_client.cc:204): Not done after 22 seconds.
+PAYMENT
+20240525-133131-7454 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133131-8180 74531 * IncrementSent   (bench_client.cc:204): Not done after 22 seconds.
+PAYMENT
+20240525-133131-8181 74531 * Begin           (client.cc:130):    Begin Transaction
+Tx write transaction rollback
+ERROR:  restart transaction: TransactionRetryWithProtoRefreshError: WriteTooOldError: write for key /Table/113/1/4/0 at timestamp 1719343891.818506487,0 too old; wrote at 1719343891.819716286,1: "sql txn" meta={id=3fcdd4d1 key=/Table/113/1/4/0 pri=0.10044114 epo=0 ts=1719343891.819716286,1 min=1719343891.818506487,0 seq=0} lock=true stat=PENDING rts=1719343891.818506487,0 wto=false gul=1719343892.318506487,0
+HINT:  See: https://www.cockroachlabs.com/docs/v22.2/transaction-retry-error-reference.html
+
+catch abort
+20240525-133131-8757 74531 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 2
+PAYMENT
+20240525-133131-8779 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133131-9160 74531 * IncrementSent   (bench_client.cc:204): Not done after 22 seconds.
+NEW ORDER
+20240525-133131-9161 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133132-0452 74531 * IncrementSent   (bench_client.cc:204): Not done after 22 seconds.
+STOCK_LEVEL (parallel)
+20240525-133132-0453 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133132-0606 74531 * IncrementSent   (bench_client.cc:204): Not done after 22 seconds.
+ORDER_STATUS
+20240525-133132-0606 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133132-0802 74531 * IncrementSent   (bench_client.cc:204): Not done after 22 seconds.
+PAYMENT
+20240525-133132-0803 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133132-1154 74531 * IncrementSent   (bench_client.cc:204): Not done after 22 seconds.
+ORDER_STATUS
+20240525-133132-1154 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133132-1352 74531 * IncrementSent   (bench_client.cc:204): Not done after 22 seconds.
+PAYMENT
+20240525-133132-1353 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133132-1721 74531 * IncrementSent   (bench_client.cc:204): Not done after 22 seconds.
+PAYMENT
+20240525-133132-1722 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133132-2199 74531 * IncrementSent   (bench_client.cc:204): Not done after 22 seconds.
+NEW ORDER
+20240525-133132-2201 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133132-4821 74531 * IncrementSent   (bench_client.cc:204): Not done after 23 seconds.
+PAYMENT
+20240525-133132-4821 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133132-5192 74531 * IncrementSent   (bench_client.cc:204): Not done after 23 seconds.
+PAYMENT
+20240525-133132-5193 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133132-5537 74531 * IncrementSent   (bench_client.cc:204): Not done after 23 seconds.
+NEW ORDER
+20240525-133132-5538 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133132-7032 74531 * IncrementSent   (bench_client.cc:204): Not done after 23 seconds.
+NEW ORDER
+20240525-133132-7034 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133132-8921 74531 * IncrementSent   (bench_client.cc:204): Not done after 23 seconds.
+PAYMENT
+20240525-133132-8922 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133132-9423 74531 * IncrementSent   (bench_client.cc:204): Not done after 23 seconds.
+STOCK_LEVEL (parallel)
+20240525-133132-9424 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133132-9887 74531 * IncrementSent   (bench_client.cc:204): Not done after 23 seconds.
+PAYMENT
+20240525-133132-9888 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133133-0429 74531 * IncrementSent   (bench_client.cc:204): Not done after 23 seconds.
+PAYMENT
+20240525-133133-0431 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133133-0818 74531 * IncrementSent   (bench_client.cc:204): Not done after 23 seconds.
+DELIVERY TX
+20240525-133133-0819 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133133-1258 74531 * IncrementSent   (bench_client.cc:204): Not done after 23 seconds.
+DELIVERY TX
+20240525-133133-1259 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133133-1671 74531 * IncrementSent   (bench_client.cc:204): Not done after 23 seconds.
+DELIVERY TX
+20240525-133133-1671 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133133-2041 74531 * IncrementSent   (bench_client.cc:204): Not done after 23 seconds.
+DELIVERY TX
+20240525-133133-2042 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133133-2458 74531 * IncrementSent   (bench_client.cc:204): Not done after 23 seconds.
+DELIVERY TX
+20240525-133133-2459 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133133-2907 74531 * IncrementSent   (bench_client.cc:204): Not done after 23 seconds.
+DELIVERY TX
+20240525-133133-2908 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133133-3308 74531 * IncrementSent   (bench_client.cc:204): Not done after 23 seconds.
+DELIVERY TX
+20240525-133133-3309 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133133-3645 74531 * IncrementSent   (bench_client.cc:204): Not done after 23 seconds.
+DELIVERY TX
+20240525-133133-3646 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133133-4041 74531 * IncrementSent   (bench_client.cc:204): Not done after 23 seconds.
+DELIVERY TX
+20240525-133133-4042 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133133-4628 74531 * IncrementSent   (bench_client.cc:204): Not done after 24 seconds.
+DELIVERY TX
+20240525-133133-4629 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133133-5030 74531 * IncrementSent   (bench_client.cc:204): Not done after 24 seconds.
+PAYMENT
+20240525-133133-5031 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133133-5412 74531 * IncrementSent   (bench_client.cc:204): Not done after 24 seconds.
+PAYMENT
+20240525-133133-5413 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133133-5802 74531 * IncrementSent   (bench_client.cc:204): Not done after 24 seconds.
+NEW ORDER
+20240525-133133-5803 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133133-6823 74531 * IncrementSent   (bench_client.cc:204): Not done after 24 seconds.
+PAYMENT
+20240525-133133-6824 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133133-7525 74531 * IncrementSent   (bench_client.cc:204): Not done after 24 seconds.
+NEW ORDER
+20240525-133133-7527 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133133-8622 74531 * IncrementSent   (bench_client.cc:204): Not done after 24 seconds.
+NEW ORDER
+20240525-133133-8624 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133134-0184 74531 * IncrementSent   (bench_client.cc:204): Not done after 24 seconds.
+PAYMENT
+20240525-133134-0185 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133134-0581 74531 * IncrementSent   (bench_client.cc:204): Not done after 24 seconds.
+PAYMENT
+20240525-133134-0582 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133134-0959 74531 * IncrementSent   (bench_client.cc:204): Not done after 24 seconds.
+PAYMENT
+20240525-133134-0961 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133134-1363 74531 * IncrementSent   (bench_client.cc:204): Not done after 24 seconds.
+NEW ORDER
+20240525-133134-1364 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133134-3147 74531 * IncrementSent   (bench_client.cc:204): Not done after 24 seconds.
+NEW ORDER
+20240525-133134-3151 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133134-5421 74531 * IncrementSent   (bench_client.cc:204): Not done after 25 seconds.
+NEW ORDER
+20240525-133134-5422 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133134-6554 74531 * IncrementSent   (bench_client.cc:204): Not done after 25 seconds.
+PAYMENT
+20240525-133134-6556 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133134-6959 74531 * IncrementSent   (bench_client.cc:204): Not done after 25 seconds.
+PAYMENT
+20240525-133134-6960 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133134-7302 74531 * IncrementSent   (bench_client.cc:204): Not done after 25 seconds.
+STOCK_LEVEL (parallel)
+20240525-133134-7303 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133134-7864 74531 * IncrementSent   (bench_client.cc:204): Not done after 25 seconds.
+ORDER_STATUS
+20240525-133134-7865 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133134-8045 74531 * IncrementSent   (bench_client.cc:204): Not done after 25 seconds.
+ORDER_STATUS
+20240525-133134-8045 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133134-8232 74531 * IncrementSent   (bench_client.cc:204): Not done after 25 seconds.
+PAYMENT
+20240525-133134-8233 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133134-8832 74531 * IncrementSent   (bench_client.cc:204): Not done after 25 seconds.
+NEW ORDER
+20240525-133134-8833 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133134-9643 74531 * IncrementSent   (bench_client.cc:204): Not done after 25 seconds.
+PAYMENT
+20240525-133134-9643 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133135-0120 74531 * IncrementSent   (bench_client.cc:204): Not done after 25 seconds.
+PAYMENT
+20240525-133135-0121 74531 * Begin           (client.cc:130):    Begin Transaction
+Tx write transaction rollback
+ERROR:  restart transaction: TransactionRetryWithProtoRefreshError: WriteTooOldError: write for key /Table/113/1/7/0 at timestamp 1719343895.012512188,0 too old; wrote at 1719343895.012512188,2: "sql txn" meta={id=7951453d key=/Table/113/1/7/0 pri=0.02084803 epo=0 ts=1719343895.012512188,2 min=1719343895.012512188,0 seq=0} lock=true stat=PENDING rts=1719343895.012512188,0 wto=false gul=1719343895.512512188,0
+HINT:  See: https://www.cockroachlabs.com/docs/v22.2/transaction-retry-error-reference.html
+
+catch abort
+20240525-133135-0648 74531 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 2
+PAYMENT
+20240525-133135-0671 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133135-1055 74531 * IncrementSent   (bench_client.cc:204): Not done after 25 seconds.
+NEW ORDER
+20240525-133135-1057 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133135-2455 74531 * IncrementSent   (bench_client.cc:204): Not done after 25 seconds.
+PAYMENT
+20240525-133135-2456 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133135-2996 74531 * IncrementSent   (bench_client.cc:204): Not done after 25 seconds.
+PAYMENT
+20240525-133135-2997 74531 * Begin           (client.cc:130):    Begin Transaction
+Tx write transaction rollback
+ERROR:  restart transaction: TransactionRetryWithProtoRefreshError: WriteTooOldError: write for key /Table/113/1/9/0 at timestamp 1719343895.299988460,0 too old; wrote at 1719343895.309945084,1: "sql txn" meta={id=30254e42 key=/Table/113/1/9/0 pri=0.03940007 epo=0 ts=1719343895.309945084,1 min=1719343895.299988460,0 seq=0} lock=true stat=PENDING rts=1719343895.299988460,0 wto=false gul=1719343895.799988460,0
+HINT:  See: https://www.cockroachlabs.com/docs/v22.2/transaction-retry-error-reference.html
+
+catch abort
+20240525-133135-3758 74531 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 2
+PAYMENT
+20240525-133135-3780 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133135-4141 74531 * IncrementSent   (bench_client.cc:204): Not done after 25 seconds.
+PAYMENT
+20240525-133135-4141 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133135-4820 74531 * IncrementSent   (bench_client.cc:196): Starting cooldown after 26 seconds.
+20240525-133135-4821 74531 * Finish          (bench_client.cc:220): Completed 293 requests in 21.047443 seconds
+NEW ORDER
+20240525-133135-4821 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133135-5670 74531 * IncrementSent   (bench_client.cc:204): Not done after 26 seconds.
+PAYMENT
+20240525-133135-5671 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133135-6275 74531 * IncrementSent   (bench_client.cc:204): Not done after 26 seconds.
+PAYMENT
+20240525-133135-6276 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133135-6711 74531 * IncrementSent   (bench_client.cc:204): Not done after 26 seconds.
+PAYMENT
+20240525-133135-6712 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133135-7098 74531 * IncrementSent   (bench_client.cc:204): Not done after 26 seconds.
+PAYMENT
+20240525-133135-7100 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133135-7910 74531 * IncrementSent   (bench_client.cc:204): Not done after 26 seconds.
+NEW ORDER
+20240525-133135-7912 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133136-0481 74531 * IncrementSent   (bench_client.cc:204): Not done after 26 seconds.
+NEW ORDER
+20240525-133136-0481 74531 * Begin           (client.cc:130):    Begin Transaction
+Tx write transaction rollback
+ERROR:  restart transaction: TransactionRetryWithProtoRefreshError: WriteTooOldError: write for key /Table/106/1/3/1/0 at timestamp 1719343896.048488858,0 too old; wrote at 1719343896.128320760,1: "sql txn" meta={id=c19f724c key=/Table/106/1/3/1/0 pri=0.00563338 epo=0 ts=1719343896.128320760,1 min=1719343896.048488858,0 seq=0} lock=true stat=PENDING rts=1719343896.048488858,0 wto=false gul=1719343896.548488858,0
+HINT:  See: https://www.cockroachlabs.com/docs/v22.2/transaction-retry-error-reference.html
+
+catch abort
+20240525-133136-2988 74531 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 2
+NEW ORDER
+20240525-133136-3010 74531 * Begin           (client.cc:130):    Begin Transaction
+Tx write transaction rollback
+ERROR:  restart transaction: TransactionRetryWithProtoRefreshError: WriteTooOldError: write for key /Table/106/1/3/1/0 at timestamp 1719343896.301394405,0 too old; wrote at 1719343896.316814040,1: "sql txn" meta={id=ed31a9aa key=/Table/106/1/3/1/0 pri=0.02021389 epo=0 ts=1719343896.316814040,1 min=1719343896.301394405,0 seq=0} lock=true stat=PENDING rts=1719343896.301394405,0 wto=false gul=1719343896.801394405,0
+HINT:  See: https://www.cockroachlabs.com/docs/v22.2/transaction-retry-error-reference.html
+
+catch abort
+20240525-133136-5233 74531 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 2
+NEW ORDER
+20240525-133136-5255 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133136-7370 74531 * IncrementSent   (bench_client.cc:204): Not done after 27 seconds.
+NEW ORDER
+20240525-133136-7372 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133136-8744 74531 * IncrementSent   (bench_client.cc:204): Not done after 27 seconds.
+ORDER_STATUS
+20240525-133136-8745 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133136-8960 74531 * IncrementSent   (bench_client.cc:204): Not done after 27 seconds.
+NEW ORDER
+20240525-133136-8962 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133137-0322 74531 * IncrementSent   (bench_client.cc:204): Not done after 27 seconds.
+ORDER_STATUS
+20240525-133137-0324 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133137-0535 74531 * IncrementSent   (bench_client.cc:204): Not done after 27 seconds.
+PAYMENT
+20240525-133137-0536 74531 * Begin           (client.cc:130):    Begin Transaction
+Tx write transaction rollback
+ERROR:  restart transaction: TransactionRetryWithProtoRefreshError: WriteTooOldError: write for key /Table/113/1/6/0 at timestamp 1719343897.054293671,0 too old; wrote at 1719343897.054293671,2: "sql txn" meta={id=bf57dbbb key=/Table/113/1/6/0 pri=0.04996206 epo=0 ts=1719343897.054293671,2 min=1719343897.054293671,0 seq=0} lock=true stat=PENDING rts=1719343897.054293671,0 wto=false gul=1719343897.554293671,0
+HINT:  See: https://www.cockroachlabs.com/docs/v22.2/transaction-retry-error-reference.html
+
+catch abort
+20240525-133137-1085 74531 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 1
+PAYMENT
+20240525-133137-1097 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133137-1438 74531 * IncrementSent   (bench_client.cc:204): Not done after 27 seconds.
+PAYMENT
+20240525-133137-1439 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133137-1825 74531 * IncrementSent   (bench_client.cc:204): Not done after 27 seconds.
+NEW ORDER
+20240525-133137-1826 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133137-3937 74531 * IncrementSent   (bench_client.cc:204): Not done after 27 seconds.
+NEW ORDER
+20240525-133137-3938 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133137-5432 74531 * IncrementSent   (bench_client.cc:204): Not done after 28 seconds.
+NEW ORDER
+20240525-133137-5434 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133137-7023 74531 * IncrementSent   (bench_client.cc:204): Not done after 28 seconds.
+DELIVERY TX
+20240525-133137-7024 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133137-7429 74531 * IncrementSent   (bench_client.cc:204): Not done after 28 seconds.
+DELIVERY TX
+20240525-133137-7430 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133137-7806 74531 * IncrementSent   (bench_client.cc:204): Not done after 28 seconds.
+DELIVERY TX
+20240525-133137-7807 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133137-8195 74531 * IncrementSent   (bench_client.cc:204): Not done after 28 seconds.
+DELIVERY TX
+20240525-133137-8197 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133137-8624 74531 * IncrementSent   (bench_client.cc:204): Not done after 28 seconds.
+DELIVERY TX
+20240525-133137-8625 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133137-9045 74531 * IncrementSent   (bench_client.cc:204): Not done after 28 seconds.
+DELIVERY TX
+20240525-133137-9047 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133137-9425 74531 * IncrementSent   (bench_client.cc:204): Not done after 28 seconds.
+DELIVERY TX
+20240525-133137-9427 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133137-9883 74531 * IncrementSent   (bench_client.cc:204): Not done after 28 seconds.
+DELIVERY TX
+20240525-133137-9884 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133138-0262 74531 * IncrementSent   (bench_client.cc:204): Not done after 28 seconds.
+DELIVERY TX
+20240525-133138-0263 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133138-0650 74531 * IncrementSent   (bench_client.cc:204): Not done after 28 seconds.
+DELIVERY TX
+20240525-133138-0652 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133138-1040 74531 * IncrementSent   (bench_client.cc:204): Not done after 28 seconds.
+PAYMENT
+20240525-133138-1041 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133138-1494 74531 * IncrementSent   (bench_client.cc:204): Not done after 28 seconds.
+NEW ORDER
+20240525-133138-1495 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133138-3313 74531 * IncrementSent   (bench_client.cc:204): Not done after 28 seconds.
+PAYMENT
+20240525-133138-3314 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133138-3734 74531 * IncrementSent   (bench_client.cc:204): Not done after 28 seconds.
+NEW ORDER
+20240525-133138-3735 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133138-6210 74531 * IncrementSent   (bench_client.cc:204): Not done after 29 seconds.
+NEW ORDER
+20240525-133138-6212 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133138-7161 74531 * Cleanup         (benchmark.cc:1843): clean up with signal 0
+20240525-133138-8203 74531 * IncrementSent   (bench_client.cc:204): Not done after 29 seconds.
+PAYMENT
+20240525-133138-8205 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133138-8573 74531 * IncrementSent   (bench_client.cc:204): Not done after 29 seconds.
+NEW ORDER
+20240525-133138-8575 74531 * Begin           (client.cc:130):    Begin Transaction
+Tx write transaction rollback
+ERROR:  restart transaction: TransactionRetryWithProtoRefreshError: WriteTooOldError: write for key /Table/106/1/7/1/0 at timestamp 1719343898.857958793,0 too old; wrote at 1719343898.902778892,2: "sql txn" meta={id=feeb085c key=/Table/106/1/7/1/0 pri=0.00520498 epo=0 ts=1719343898.902778892,2 min=1719343898.857958793,0 seq=0} lock=true stat=PENDING rts=1719343898.857958793,0 wto=false gul=1719343899.357958793,0
+HINT:  See: https://www.cockroachlabs.com/docs/v22.2/transaction-retry-error-reference.html
+
+catch abort
+20240525-133139-2030 74531 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 1
+NEW ORDER
+20240525-133139-2042 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133139-3537 74531 * IncrementSent   (bench_client.cc:204): Not done after 29 seconds.
+PAYMENT
+20240525-133139-3538 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133139-3972 74531 * IncrementSent   (bench_client.cc:204): Not done after 29 seconds.
+PAYMENT
+20240525-133139-3973 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133139-4325 74531 * IncrementSent   (bench_client.cc:204): Not done after 29 seconds.
+NEW ORDER
+20240525-133139-4326 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133139-5362 74531 * IncrementSent   (bench_client.cc:204): Not done after 30 seconds.
+STOCK_LEVEL (parallel)
+20240525-133139-5363 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133139-5535 74531 * IncrementSent   (bench_client.cc:204): Not done after 30 seconds.
+NEW ORDER
+20240525-133139-5537 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133139-7139 74531 * IncrementSent   (bench_client.cc:204): Not done after 30 seconds.
+NEW ORDER
+20240525-133139-7141 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133139-9030 74531 * IncrementSent   (bench_client.cc:204): Not done after 30 seconds.
+PAYMENT
+20240525-133139-9031 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133139-9411 74531 * IncrementSent   (bench_client.cc:204): Not done after 30 seconds.
+PAYMENT
+20240525-133139-9412 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133139-9755 74531 * IncrementSent   (bench_client.cc:204): Not done after 30 seconds.
+NEW ORDER
+20240525-133139-9756 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133140-1681 74531 * IncrementSent   (bench_client.cc:204): Not done after 30 seconds.
+NEW ORDER
+20240525-133140-1682 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133140-2845 74531 * IncrementSent   (bench_client.cc:204): Not done after 30 seconds.
+PAYMENT
+20240525-133140-2847 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133140-3278 74531 * IncrementSent   (bench_client.cc:204): Not done after 30 seconds.
+PAYMENT
+20240525-133140-3280 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133140-3708 74531 * IncrementSent   (bench_client.cc:204): Not done after 30 seconds.
+NEW ORDER
+20240525-133140-3709 74531 * Begin           (client.cc:130):    Begin Transaction
+20240525-133140-4730 74531 * IncrementSent   (bench_client.cc:200): Finished cooldown after 31 seconds.
+20240525-133140-4730 74531 * CooldownDone    (bench_client.cc:115): Finished cooldown period.
+20240525-133140-4731 74531 * CooldownDone    (bench_client.cc:122): Median latency is 42442394 ns (42 ms)
+20240525-133140-4731 74531 * CooldownDone    (bench_client.cc:130): Average latency is 71478626 ns (71 ms)
+20240525-133140-4731 74531 * CooldownDone    (bench_client.cc:134): 90th percentile latency is 131126005 ns (131 ms)
+20240525-133140-4731 74531 * CooldownDone    (bench_client.cc:138): 95th percentile latency is 173928588 ns (173 ms)
+20240525-133140-4731 74531 * CooldownDone    (bench_client.cc:142): 99th percentile latency is 313929180 ns (313 ms)
+20240525-133140-4732 74531 * LATENCY total: 15 ms 71 ms/33 ms 1223 ms (294 samples, 21 s total)
+20240525-133140-4732 74531 *    8388 us |          2 | 
+20240525-133140-4732 74531 *      16 ms |         54 | ===================
+20240525-133140-4733 74531 *      33 ms |        141 | ==================================================
+20240525-133140-4733 74531 *      67 ms |         71 | =========================
+20240525-133140-4733 74531 *     134 ms |         22 | =======
+20240525-133140-4734 74531 *     268 ms |          2 | 
+20240525-133140-4734 74531 *     536 ms |          1 | 
+20240525-133140-4734 74531 *    1073 ms |          1 | 
+Inserted events:
+  0x617000000280 [fd  6] Read Persist Internal
+Active events:
+Inserted events:
+  0x617000000280 [fd  6] Read Persist Internal
+Active events:
+20240525-133140-4746 74531 * Cleanup         (benchmark.cc:1874): Finished Cleanup. Exiting
+
+=================================================================
+==74531==ERROR: LeakSanitizer: detected memory leaks
+
+Direct leak of 208 byte(s) in 1 object(s) allocated from:
+    #0 0x558379466637 in operator new(unsigned long) (/mnt/extra/indicus/bin/benchmark+0x3c6637)
+    #1 0x55837935af8e in main store/benchmark/async/benchmark.cc:1185
+    #2 0x7f90d1b0a082 in __libc_start_main ../csu/libc-start.c:308
+
+Direct leak of 64 byte(s) in 8 object(s) allocated from:
+    #0 0x558379466637 in operator new(unsigned long) (/mnt/extra/indicus/bin/benchmark+0x3c6637)
+    #1 0x5583795414dd in ThreadPool::start(int, int, bool, bool, int) lib/threadpool.cc:222
+    #2 0x55837952a0a1 in TCPTransport::TCPTransport(double, double, int, bool, int, int, bool, bool, int) lib/tcptransport.cc:170
+    #3 0x55837935a569 in main store/benchmark/async/benchmark.cc:1031
+    #4 0x7f90d1b0a082 in __libc_start_main ../csu/libc-start.c:308
+
+Indirect leak of 34 byte(s) in 1 object(s) allocated from:
+    #0 0x558379466637 in operator new(unsigned long) (/mnt/extra/indicus/bin/benchmark+0x3c6637)
+    #1 0x55837955befb in void std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >::_M_construct<char*>(char*, char*, std::forward_iterator_tag) /usr/include/c++/9/bits/basic_string.tcc:219
+    #2 0x55837984474f in void std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >::_M_construct_aux<char*>(char*, char*, std::__false_type) /usr/include/c++/9/bits/basic_string.h:251
+    #3 0x55837984474f in void std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >::_M_construct<char*>(char*, char*) /usr/include/c++/9/bits/basic_string.h:270
+    #4 0x55837984474f in std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >::basic_string(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&) /usr/include/c++/9/bits/basic_string.h:455
+    #5 0x55837984474f in KeyManager::KeyManager(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, crypto::KeyType, bool, unsigned long, unsigned long, unsigned long) lib/keymanager.cc:35
+    #6 0x55837935afe1 in main store/benchmark/async/benchmark.cc:1185
+    #7 0x7f90d1b0a082 in __libc_start_main ../csu/libc-start.c:308
+
+SUMMARY: AddressSanitizer: 306 byte(s) leaked in 10 allocation(s).

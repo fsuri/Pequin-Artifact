@@ -1,0 +1,115 @@
+20240525-004159-2430 77007 * main            (server.cc:464):    Starting server.
+20240525-004159-2435 77007 * main            (server.cc:527):    process_id flag = 0
+20240525-004159-2435 77007 * main            (server.cc:528):    total_processes flag = 1
+cpu_count  8 
+get_nprocs  8 
+starting server threadpool
+process_id: 0, total_processes: 1 
+Total Num_cpus on server: 8 
+Num_cpus used for replica #0: 8 
+Threadpool threads: start 1, end 8 
+THREADPOOL SETUP: Trying to pin thread to core: 1 + 0
+20240525-004159-2441 77007 * start           (threadpool.cc:182): Finished server-side threadpool configurations
+THREADPOOL SETUP: Trying to pin thread to core: 2 + 0
+20240525-004159-2444 77007 * start           (threadpool.cc:182): Finished server-side threadpool configurations
+THREADPOOL SETUP: Trying to pin thread to core: 3 + 0
+20240525-004159-2448 77007 * start           (threadpool.cc:182): Finished server-side threadpool configurations
+THREADPOOL SETUP: Trying to pin thread to core: 4 + 0
+20240525-004159-2451 77007 * start           (threadpool.cc:182): Finished server-side threadpool configurations
+THREADPOOL SETUP: Trying to pin thread to core: 5 + 0
+20240525-004159-2455 77007 * start           (threadpool.cc:182): Finished server-side threadpool configurations
+THREADPOOL SETUP: Trying to pin thread to core: 6 + 0
+20240525-004159-2457 77007 * start           (threadpool.cc:182): Finished server-side threadpool configurations
+THREADPOOL SETUP: Trying to pin thread to core: 7 + 0
+20240525-004159-2460 77007 * start           (threadpool.cc:182): Finished server-side threadpool configurations
+20240525-004159-2464 77007 * main            (server.cc:619):    Sql bench? 1, file path: /mnt/extra/benchmark_data/sql-tpcc-tables-schema.json
+20240525-004159-2478 77007 * main            (server.cc:913):    Starting CRDB Server Object
+20240525-004159-2479 77007 * Server          (server.cc:43):     Starting Replica: g: 0, idx: 2, id: 2
+20240525-004159-2480 77007 * Server          (server.cc:46):     Finished starting replica
+20240525-004159-2858 77007 * Server          (server.cc:129):    Debug start initalizing
+20240525-004159-2858 77007 * Server          (server.cc:131):    Invoke start script: cockroach start --join=us-east-1-0.liamcrdb.pequin-pg0.utah.cloudlab.us:7087,us-east-1-1.liamcrdb.pequin-pg0.utah.cloudlab.us:7087,us-east-1-2.liamcrdb.pequin-pg0.utah.cloudlab.us:7087 --insecure --listen-addr=us-east-1-2.liamcrdb.pequin-pg0.utah.cloudlab.us:7087 --advertise-sql-addr=us-east-1-2.liamcrdb.pequin-pg0.utah.cloudlab.us:7087 --http-addr=us-east-1-2.liamcrdb.pequin-pg0.utah.cloudlab.us:8071 --log="sinks: {file-groups: {ops: {channels: [OPS, HEALTH, SQL_SCHEMA], filter: ERROR}}, stderr: {filter: NONE}}" --store=type=mem,size=90% --locality=region=0,zone=us-east-1-2 --background 
+20240525-004159-2911 77007 * Server          (server.cc:134):    Cockroach node 2 started. Listening us-east-1-2.liamcrdb.pequin-pg0.utah.cloudlab.us:7087
+20240525-004159-2912 77007 * Server          (server.cc:141):    Invoke init script: cockroach init --insecure --host=us-east-1-2.liamcrdb.pequin-pg0.utah.cloudlab.us:7087
+warning: node not ready to perform cluster initialization: initial connection heartbeat failed: rpc error: code = Unavailable desc = connection error: desc = "transport: Error while dialing dial tcp 128.110.217.66:7087: connect: connection refused" (retrying)
+*
+* WARNING: ALL SECURITY CONTROLS HAVE BEEN DISABLED!
+* 
+* This mode is intended for non-production testing only.
+* 
+* In this mode:
+* - Your cluster is open to any client that can access us-east-1-2.liamcrdb.pequin-pg0.utah.cloudlab.us.
+* - Intruders with access to your machine or network can observe client-server traffic.
+* - Intruders can log in without password and read or write any data in the cluster.
+* - Intruders can consume all your server's resources and cause unavailability.
+*
+*
+* INFO: To start a secure server without mandating TLS for clients,
+* consider --accept-sql-without-tls instead. For other options, see:
+* 
+* - https://go.crdb.dev/issue-v/53404/v22.2
+* - https://www.cockroachlabs.com/docs/v22.2/secure-a-cluster.html
+*
+*
+* WARNING: Running a server without --sql-addr, with a combined RPC/SQL listener, is deprecated.
+* This feature will be removed in the next version of CockroachDB.
+*
+*
+* INFO: initial startup completed.
+* Node will now attempt to join a running cluster, or wait for `cockroach init`.
+* Client connections will be accepted after this completes successfully.
+* Check the log file(s) for progress. 
+*
+20240525-004200-9091 77007 * Server          (server.cc:143):    Cluster initliazed by node 2. Listening us-east-1-2.liamcrdb.pequin-pg0.utah.cloudlab.us:7087
+20240525-004200-9092 77007 * Server          (server.cc:153):    Issuing SQL command cockroach sql --insecure --host=us-east-1-2.liamcrdb.pequin-pg0.utah.cloudlab.us:7087 --execute="ALTER DATABASE defaultdb SET lock_timeout = '50ms';" --user=root
+20240525-004201-6586 77007 * Server          (server.cc:173):    File server started on port 3000 at path: /mnt/extra/benchmark_data/
+20240525-004201-6587 77007 * main            (server.cc:917):    Finished creating CRDB Server Object
+20240525-004201-6587 77007 * main            (server.cc:991):    Benchmark: SQL with Loaded Table Registry
+20240525-004201-6594 77007 * CreateTable     (server.cc:211):    Create Table: EarliestNewOrder
+20240525-004201-6595 77007 * exec_sql        (server.cc:28):     Issuing SQL command cockroach sql --insecure --host=us-east-1-2.liamcrdb.pequin-pg0.utah.cloudlab.us:7087 --execute="CREATE TABLE IF NOT EXISTS EarliestNewOrder (eno_w_id INTEGER, eno_d_id INTEGER, eno_o_id INTEGER, PRIMARY KEY (eno_w_id, eno_d_id));"
+20240525-004202-2661 77007 * CreateTable     (server.cc:211):    Create Table: customer
+20240525-004202-2662 77007 * exec_sql        (server.cc:28):     Issuing SQL command cockroach sql --insecure --host=us-east-1-2.liamcrdb.pequin-pg0.utah.cloudlab.us:7087 --execute="CREATE TABLE IF NOT EXISTS customer (c_w_id INT, c_d_id INT, c_id INT, c_first TEXT, c_middle TEXT, c_last TEXT, c_street_1 TEXT, c_street_2 TEXT, c_city TEXT, c_state TEXT, c_zip TEXT, c_phone TEXT, c_since INT, c_credit TEXT, c_credit_lim INT, c_discount INT, c_balance INT, c_ytd_payment INT, c_payment_cnt INT, c_delivery_cnt INT, c_data TEXT, PRIMARY KEY (c_w_id, c_d_id, c_id));"
+20240525-004202-8931 77007 * exec_sql        (server.cc:28):     Issuing SQL command cockroach sql --insecure --host=us-east-1-2.liamcrdb.pequin-pg0.utah.cloudlab.us:7087 --execute="CREATE INDEX CustomerByName ON customer(c_w_id, c_d_id, c_last);"
+20240525-004203-6860 77007 * CreateTable     (server.cc:211):    Create Table: district
+20240525-004203-6861 77007 * exec_sql        (server.cc:28):     Issuing SQL command cockroach sql --insecure --host=us-east-1-2.liamcrdb.pequin-pg0.utah.cloudlab.us:7087 --execute="CREATE TABLE IF NOT EXISTS district (d_w_id INT, d_id INT, d_name TEXT, d_street_1 TEXT, d_street_2 TEXT, d_city TEXT, d_state TEXT, d_zip TEXT, d_tax INT, d_ytd INT, d_next_o_id INT, PRIMARY KEY (d_w_id, d_id));"
+20240525-004204-3115 77007 * CreateTable     (server.cc:211):    Create Table: history
+20240525-004204-3116 77007 * exec_sql        (server.cc:28):     Issuing SQL command cockroach sql --insecure --host=us-east-1-2.liamcrdb.pequin-pg0.utah.cloudlab.us:7087 --execute="CREATE TABLE IF NOT EXISTS history (h_c_id INT, h_c_d_id INT, h_c_w_id INT, h_d_id INT, h_w_id INT, h_date INT, h_amount INT, h_data TEXT);"
+20240525-004205-0113 77007 * CreateTable     (server.cc:211):    Create Table: item
+20240525-004205-0113 77007 * exec_sql        (server.cc:28):     Issuing SQL command cockroach sql --insecure --host=us-east-1-2.liamcrdb.pequin-pg0.utah.cloudlab.us:7087 --execute="CREATE TABLE IF NOT EXISTS item (i_id INT, i_im_id INT, i_name TEXT, i_price INT, i_data TEXT, PRIMARY KEY (i_id));"
+20240525-004205-6237 77007 * CreateTable     (server.cc:211):    Create Table: new_order
+20240525-004205-6238 77007 * exec_sql        (server.cc:28):     Issuing SQL command cockroach sql --insecure --host=us-east-1-2.liamcrdb.pequin-pg0.utah.cloudlab.us:7087 --execute="CREATE TABLE IF NOT EXISTS new_order (no_w_id INTEGER, no_d_id INTEGER, no_o_id INTEGER, PRIMARY KEY (no_w_id, no_d_id, no_o_id));"
+20240525-004206-3066 77007 * CreateTable     (server.cc:211):    Create Table: oorder
+20240525-004206-3066 77007 * exec_sql        (server.cc:28):     Issuing SQL command cockroach sql --insecure --host=us-east-1-2.liamcrdb.pequin-pg0.utah.cloudlab.us:7087 --execute="CREATE TABLE IF NOT EXISTS oorder (o_w_id INTEGER, o_d_id INTEGER, o_id INTEGER, o_c_id INTEGER, o_entry_d INTEGER, o_carrier_id INTEGER, o_ol_cnt INTEGER, o_all_local BOOLEAN, PRIMARY KEY (o_w_id, o_d_id, o_id));"
+20240525-004206-9615 77007 * exec_sql        (server.cc:28):     Issuing SQL command cockroach sql --insecure --host=us-east-1-2.liamcrdb.pequin-pg0.utah.cloudlab.us:7087 --execute="CREATE INDEX OrderByCustomer ON oorder(o_w_id, o_d_id, o_c_id);"
+20240525-004207-7920 77007 * CreateTable     (server.cc:211):    Create Table: order_line
+20240525-004207-7922 77007 * exec_sql        (server.cc:28):     Issuing SQL command cockroach sql --insecure --host=us-east-1-2.liamcrdb.pequin-pg0.utah.cloudlab.us:7087 --execute="CREATE TABLE IF NOT EXISTS order_line (ol_w_id INTEGER, ol_d_id INTEGER, ol_o_id INTEGER, ol_number INTEGER, ol_i_id INTEGER, ol_supply_w_id INTEGER, ol_delivery_d INTEGER, ol_quantity INTEGER, ol_amount INTEGER, ol_dist_info TEXT, PRIMARY KEY (ol_w_id, ol_d_id, ol_o_id, ol_number));"
+20240525-004208-4041 77007 * CreateTable     (server.cc:211):    Create Table: stock
+20240525-004208-4043 77007 * exec_sql        (server.cc:28):     Issuing SQL command cockroach sql --insecure --host=us-east-1-2.liamcrdb.pequin-pg0.utah.cloudlab.us:7087 --execute="CREATE TABLE IF NOT EXISTS stock (s_i_id INT, s_w_id INT, s_quantity INT, s_dist_01 TEXT, s_dist_02 TEXT, s_dist_03 TEXT, s_dist_04 TEXT, s_dist_05 TEXT, s_dist_06 TEXT, s_dist_07 TEXT, s_dist_08 TEXT, s_dist_09 TEXT, s_dist_10 TEXT, s_ytd INT, s_order_cnt INT, s_remote_cnt INT, s_data TEXT, PRIMARY KEY (s_i_id, s_w_id));"
+20240525-004209-1293 77007 * CreateTable     (server.cc:211):    Create Table: warehouse
+20240525-004209-1293 77007 * exec_sql        (server.cc:28):     Issuing SQL command cockroach sql --insecure --host=us-east-1-2.liamcrdb.pequin-pg0.utah.cloudlab.us:7087 --execute="CREATE TABLE IF NOT EXISTS warehouse (w_id INT, w_name TEXT, w_street_1 TEXT, w_street_2 TEXT, w_city TEXT, w_state TEXT, w_zip TEXT, w_tax INT, w_ytd INT, PRIMARY KEY (w_id));"
+20240525-004209-7443 77007 * LoadTableData   (server.cc:231):    Loading table from path: /mnt/extra/benchmark_data/sql-tpcc-data/EarliestNewOrder.csv
+20240525-004209-7445 77007 * LoadTableData   (server.cc:240):    Load Table Data for table: EarliestNewOrder
+20240525-004209-7446 77007 * exec_sql        (server.cc:28):     Issuing SQL command cockroach sql --insecure --host=us-east-1-2.liamcrdb.pequin-pg0.utah.cloudlab.us:7087 --execute="IMPORT INTO EarliestNewOrder (eno_w_id,eno_d_id,eno_o_id) CSV DATA ('http://localhost:3000/sql-tpcc-data/EarliestNewOrder.csv') WITH skip = '1'"
+20240525-004210-4723 77007 * LoadTableData   (server.cc:231):    Loading table from path: /mnt/extra/benchmark_data/sql-tpcc-data/customer.csv
+20240525-004210-4724 77007 * LoadTableData   (server.cc:240):    Load Table Data for table: customer
+20240525-004210-4725 77007 * exec_sql        (server.cc:28):     Issuing SQL command cockroach sql --insecure --host=us-east-1-2.liamcrdb.pequin-pg0.utah.cloudlab.us:7087 --execute="IMPORT INTO customer (c_w_id,c_d_id,c_id,c_first,c_middle,c_last,c_street_1,c_street_2,c_city,c_state,c_zip,c_phone,c_since,c_credit,c_credit_lim,c_discount,c_balance,c_ytd_payment,c_payment_cnt,c_delivery_cnt,c_data) CSV DATA ('http://localhost:3000/sql-tpcc-data/customer.csv') WITH skip = '1'"
+20240525-004215-3898 77007 * LoadTableData   (server.cc:231):    Loading table from path: /mnt/extra/benchmark_data/sql-tpcc-data/district.csv
+20240525-004215-3898 77007 * LoadTableData   (server.cc:240):    Load Table Data for table: district
+20240525-004215-3899 77007 * exec_sql        (server.cc:28):     Issuing SQL command cockroach sql --insecure --host=us-east-1-2.liamcrdb.pequin-pg0.utah.cloudlab.us:7087 --execute="IMPORT INTO district (d_w_id,d_id,d_name,d_street_1,d_street_2,d_city,d_state,d_zip,d_tax,d_ytd,d_next_o_id) CSV DATA ('http://localhost:3000/sql-tpcc-data/district.csv') WITH skip = '1'"
+20240525-004216-1167 77007 * LoadTableData   (server.cc:231):    Loading table from path: /mnt/extra/benchmark_data/sql-tpcc-data/history.csv
+20240525-004216-1169 77007 * LoadTableData   (server.cc:240):    Load Table Data for table: history
+20240525-004216-1169 77007 * exec_sql        (server.cc:28):     Issuing SQL command cockroach sql --insecure --host=us-east-1-2.liamcrdb.pequin-pg0.utah.cloudlab.us:7087 --execute="IMPORT INTO history (h_c_id,h_c_d_id,h_c_w_id,h_d_id,h_w_id,h_date,h_amount,h_data) CSV DATA ('http://localhost:3000/sql-tpcc-data/history.csv') WITH skip = '1'"
+20240525-004217-6378 77007 * LoadTableData   (server.cc:231):    Loading table from path: /mnt/extra/benchmark_data/sql-tpcc-data/item.csv
+20240525-004217-6379 77007 * LoadTableData   (server.cc:240):    Load Table Data for table: item
+20240525-004217-6379 77007 * exec_sql        (server.cc:28):     Issuing SQL command cockroach sql --insecure --host=us-east-1-2.liamcrdb.pequin-pg0.utah.cloudlab.us:7087 --execute="IMPORT INTO item (i_id,i_im_id,i_name,i_price,i_data) CSV DATA ('http://localhost:3000/sql-tpcc-data/item.csv') WITH skip = '1'"
+20240525-004218-7104 77007 * LoadTableData   (server.cc:231):    Loading table from path: /mnt/extra/benchmark_data/sql-tpcc-data/new_order.csv
+20240525-004218-7105 77007 * LoadTableData   (server.cc:240):    Load Table Data for table: new_order
+20240525-004218-7105 77007 * exec_sql        (server.cc:28):     Issuing SQL command cockroach sql --insecure --host=us-east-1-2.liamcrdb.pequin-pg0.utah.cloudlab.us:7087 --execute="IMPORT INTO new_order (no_w_id,no_d_id,no_o_id) CSV DATA ('http://localhost:3000/sql-tpcc-data/new_order.csv') WITH skip = '1'"
+20240525-004219-5588 77007 * LoadTableData   (server.cc:231):    Loading table from path: /mnt/extra/benchmark_data/sql-tpcc-data/oorder.csv
+20240525-004219-5589 77007 * LoadTableData   (server.cc:240):    Load Table Data for table: oorder
+20240525-004219-5590 77007 * exec_sql        (server.cc:28):     Issuing SQL command cockroach sql --insecure --host=us-east-1-2.liamcrdb.pequin-pg0.utah.cloudlab.us:7087 --execute="IMPORT INTO oorder (o_w_id,o_d_id,o_id,o_c_id,o_entry_d,o_carrier_id,o_ol_cnt,o_all_local) CSV DATA ('http://localhost:3000/sql-tpcc-data/oorder.csv') WITH skip = '1'"
+20240525-004221-6033 77007 * LoadTableData   (server.cc:231):    Loading table from path: /mnt/extra/benchmark_data/sql-tpcc-data/order_line.csv
+20240525-004221-6034 77007 * LoadTableData   (server.cc:240):    Load Table Data for table: order_line
+20240525-004221-6035 77007 * exec_sql        (server.cc:28):     Issuing SQL command cockroach sql --insecure --host=us-east-1-2.liamcrdb.pequin-pg0.utah.cloudlab.us:7087 --execute="IMPORT INTO order_line (ol_w_id,ol_d_id,ol_o_id,ol_number,ol_i_id,ol_supply_w_id,ol_delivery_d,ol_quantity,ol_amount,ol_dist_info) CSV DATA ('http://localhost:3000/sql-tpcc-data/order_line.csv') WITH skip = '1'"
+20240525-004230-5365 77007 * LoadTableData   (server.cc:231):    Loading table from path: /mnt/extra/benchmark_data/sql-tpcc-data/stock.csv
+20240525-004230-5366 77007 * LoadTableData   (server.cc:240):    Load Table Data for table: stock
+20240525-004230-5366 77007 * exec_sql        (server.cc:28):     Issuing SQL command cockroach sql --insecure --host=us-east-1-2.liamcrdb.pequin-pg0.utah.cloudlab.us:7087 --execute="IMPORT INTO stock (s_i_id,s_w_id,s_quantity,s_dist_01,s_dist_02,s_dist_03,s_dist_04,s_dist_05,s_dist_06,s_dist_07,s_dist_08,s_dist_09,s_dist_10,s_ytd,s_order_cnt,s_remote_cnt,s_data) CSV DATA ('http://localhost:3000/sql-tpcc-data/stock.csv') WITH skip = '1'"

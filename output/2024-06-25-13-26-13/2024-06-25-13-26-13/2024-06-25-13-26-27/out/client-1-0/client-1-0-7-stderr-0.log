@@ -1,0 +1,50 @@
+cpu_count  1 
+get_nprocs  8 
+starting client threadpool
+Num_cpus: 8 
+num hosts=24; num_threads=1
+20240525-132703-7141 79897 * Client          (client.cc:84):     Site .liamcrdb.pequin-pg0.utah.cloudlab.us 
+
+20240525-132703-7142 79897 * Client          (client.cc:88):     Connecting to gateway postgresql://root@us-east-1-0.liamcrdb.pequin-pg0.utah.cloudlab.us:7087/defaultdb?sslmode=disable
+20240525-132703-7189 79897 * Client          (client.cc:112):    Connected successfully after 1 tries
+20240525-132703-7189 79897 * Client          (client.cc:115):    Established TaoPQ connection to backend
+20240525-132703-7190 79897 * Client          (client.cc:121):    Client successfully started
+20240525-132703-7190 79897 * BenchmarkClient (bench_client.cc:56): Delay between requests: 2 ms
+DELIVERY TX
+20240525-132703-7273 79897 * Begin           (client.cc:130):    Begin Transaction
+DELIVERY TX
+20240525-132703-8025 79897 * Begin           (client.cc:130):    Begin Transaction
+DELIVERY TX
+20240525-132703-8407 79897 * Begin           (client.cc:130):    Begin Transaction
+DELIVERY TX
+20240525-132703-8904 79897 * Begin           (client.cc:130):    Begin Transaction
+DELIVERY TX
+20240525-132703-9274 79897 * Begin           (client.cc:130):    Begin Transaction
+DELIVERY TX
+20240525-132703-9626 79897 * Begin           (client.cc:130):    Begin Transaction
+DELIVERY TX
+20240525-132704-0047 79897 * Begin           (client.cc:130):    Begin Transaction
+DELIVERY TX
+20240525-132704-0408 79897 * Begin           (client.cc:130):    Begin Transaction
+DELIVERY TX
+20240525-132704-0820 79897 * Begin           (client.cc:130):    Begin Transaction
+DELIVERY TX
+20240525-132704-1147 79897 * Begin           (client.cc:130):    Begin Transaction
+NEW ORDER
+20240525-132704-1499 79897 * Begin           (client.cc:130):    Begin Transaction
+catch abort
+20240525-132704-1619 79897 * SendNext        (sync_transaction_bench_client. TXN was aborted. Need to retry. First backoff for milisecs: 2
+NEW ORDER
+20240525-132704-1641 79897 * Begin           (client.cc:130):    Begin Transaction
+20240525-132704-1641 79897 PANIC Begin           (client.cc:133):    why is tr not nullptr???
+20240525-132704-1644 79897 ! Backtrace       (message.cc:180):   /mnt/extra/indicus/bin/benchmark(+0x323e20) [0x55830a9fbe20]
+20240525-132704-1645 79897 ! Backtrace       (message.cc:180):   /mnt/extra/indicus/bin/benchmark(+0x47f37f) [0x55830ab5737f]
+20240525-132704-1645 79897 ! Backtrace       (message.cc:180):   /mnt/extra/indicus/bin/benchmark(+0x47f4cd) [0x55830ab574cd]
+20240525-132704-1646 79897 ! Backtrace       (message.cc:180):   /mnt/extra/indicus/bin/benchmark(+0x1158b9b) [0x55830b830b9b]
+20240525-132704-1646 79897 ! Backtrace       (message.cc:180):   /mnt/extra/indicus/bin/benchmark(+0x58b323) [0x55830ac63323]
+20240525-132704-1646 79897 ! Backtrace       (message.cc:180):   /mnt/extra/indicus/bin/benchmark(+0x11c0e0e) [0x55830b898e0e]
+20240525-132704-1646 79897 ! Backtrace       (message.cc:180):   /mnt/extra/indicus/bin/benchmark(+0x46c7a1) [0x55830ab447a1]
+20240525-132704-1647 79897 ! Backtrace       (message.cc:180):   /mnt/extra/indicus/bin/benchmark(+0x408310) [0x55830aae0310]
+20240525-132704-1647 79897 ! Backtrace       (message.cc:180):   /lib/x86_64-linux-gnu/libstdc++.so.6(+0xd6de4) [0x7fe08d3a4de4]
+20240525-132704-1647 79897 ! Backtrace       (message.cc:180):   /lib/x86_64-linux-gnu/libpthread.so.0(+0x8609) [0x7fe08f0d8609]
+20240525-132704-1648 79897 ! Backtrace       (message.cc:180):   /lib/x86_64-linux-gnu/libc.so.6(clone+0x43) [0x7fe08d089133]

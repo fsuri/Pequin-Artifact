@@ -44,6 +44,7 @@ namespace taopq_wrapper
 	public:
     TaoPQQueryResultWrapper(std::unique_ptr<tao::pq::result> taopq_result)
         : result(std::move(taopq_result)) {}
+    TaoPQQueryResultWrapper() : result(nullptr) {}
 
   // Delete copy constructor and assignment operator to enforce ownership of taopq_result
     TaoPQQueryResultWrapper(const TaoPQQueryResultWrapper&) = delete;

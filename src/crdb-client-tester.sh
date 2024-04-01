@@ -1,11 +1,11 @@
 store/benchmark/async/benchmark --config_path "/home/liam/Code/Pequin-Artifact/testing/toy.config" \
- --data_file_path "/home/liam/Code/Pequin-Artifact/src/store/benchmark/async/sql/tpcc/auctionmark_profile" \
+ --data_file_path "/home/liam/Code/Pequin-Artifact/src/store/benchmark/async/sql/auctionmark/auctionmark_profile" \
  --num_client_hosts 1 \
  --num_groups 1 \
  --num_shards 1 \
  --protocol_mode "crdb" \
  --num_keys 1 \
- --benchmark tpcc-sql \
+ --benchmark auctionmark-sql \
  --num_ops_txn 2 \
  --exp_duration 5 \
  --client_id 0 \

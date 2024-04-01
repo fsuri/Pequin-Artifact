@@ -175,18 +175,22 @@ void Server::CreateTable(const std::string &table_name, const std::vector<std::p
   std::string sql_statement("CREATE TABLE IF NOT EXISTS");
   sql_statement += " " + table_name;
   UW_ASSERT(!column_data_types.empty());
-  UW_ASSERT(!primary_key_col_idx.empty());
   sql_statement += " (";
   for (auto &[col, type] : column_data_types) {
     sql_statement += col + " " + type + ", ";
   }
-  sql_statement += "PRIMARY KEY ";
-  sql_statement += "(";
-  for (auto &p_idx : primary_key_col_idx) {
-    sql_statement += (column_data_types[p_idx].first + ", ");
+  if (!primary_key_col_idx.empty()) {
+    sql_statement += "PRIMARY KEY ";
+    sql_statement += "(";
+    for (auto &p_idx : primary_key_col_idx) {
+      sql_statement += (column_data_types[p_idx].first + ", ");
+    }
+    sql_statement.resize(sql_statement.size() - 2);  // remove trailing ", "
+    sql_statement += ")";
+  } else {
+    sql_statement.resize(sql_statement.size() - 2);  // remove trailing ", "
   }
-  sql_statement.resize(sql_statement.size() - 2);  // remove trailing ", "
-  sql_statement += "));";
+  sql_statement += ");";
 
   Notice("Create Table: %s", table_name.c_str());
   Server::exec_sql(sql_statement);
