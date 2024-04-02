@@ -427,7 +427,7 @@ DEFINE_string(stats_file, "", "path to file for server stats");
 
 DEFINE_bool(store_mode, true, "true => Runs Table-store + CC-store (SQL); false => Runs pure KV-store");
 
-DEFINE_bool(local_config, true, "this flag determinse whether to use local or remote config directory");
+DEFINE_bool(local_config, false, "this flag determinse whether to use local or remote config directory");
 
 /**
  * Benchmark settings.
@@ -855,11 +855,14 @@ int main(int argc, char **argv) {
      // HotStuffPG
   case PROTO_HOTSTUFF_PG: {
       std::cerr << "Shir: check FLAGS_replica_idx:    "<<  FLAGS_replica_idx <<"\n";
+      std::cerr << "Shir: check FLAGS_local_config:    "<<  FLAGS_local_config <<"\n";
 
       server = new hotstuffpgstore::Server(config, &keyManager,
                                      FLAGS_group_idx, FLAGS_replica_idx, FLAGS_num_shards, FLAGS_num_groups,
                                      FLAGS_indicus_sign_messages, FLAGS_indicus_validate_proofs,
                                      FLAGS_indicus_watermark_time_delta, part, tport, FLAGS_local_config);
+
+      std::cerr << "Shir: starting the replica \n";
 
       replica = new hotstuffpgstore::Replica(config, &keyManager,
                                        dynamic_cast<hotstuffpgstore::App *>(server),
@@ -869,6 +872,7 @@ int main(int argc, char **argv) {
                                        FLAGS_indicus_use_coordinator, FLAGS_indicus_request_tx,
 
              protocol_cpu, FLAGS_local_config, FLAGS_num_shards, tport, FLAGS_async_server);
+      std::cerr << "Shir: started!!! the replica \n";
 
       break;
   }
@@ -1005,6 +1009,7 @@ int main(int argc, char **argv) {
     Notice("Shir: debugging server 222222222222\n");
 
     Notice("Benchmark: SQL with Loaded Table Registry");
+    std::cerr<<"Benchmark: SQL with Loaded Table Registry\n";
     std::ifstream generated_tables(FLAGS_data_file_path);
     json tables_to_load;
     try {
@@ -1051,6 +1056,8 @@ int main(int argc, char **argv) {
           // }
        }
        Notice("Shir: done setting tables\n");
+      std::cerr<<"Shir: done setting tables\n";
+
 
   }
   else if (FLAGS_data_file_path.length() > 0 && FLAGS_keys_path.empty()) {

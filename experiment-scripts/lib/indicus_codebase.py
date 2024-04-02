@@ -311,6 +311,15 @@ class IndicusCodebase(ExperimentCodebase):
     def get_replica_cmd(self, config, i, k, group, run, local_exp_directory,
             remote_exp_directory):
         name, ext = os.path.splitext(config['network_config_file_name'])
+
+
+        print("Shir XOXOXOXOXOXXOXOXOXOXOXOXOXXOXOXOXOXOXOXOXXOXOXOXOXOXOXOXXOXOXOXOXOXOXOXXOXOX")
+        print("Shir XOXOXOXOXOXXOXOXOXOXOXOXOXXOXOXOXOXOXOXOXXOXOXOXOXOXOXOXXOXOXOXOXOXOXOXXOXOX")
+        print("Shir XOXOXOXOXOXXOXOXOXOXOXOXOXXOXOXOXOXOXOXOXXOXOXOXOXOXOXOXXOXOXOXOXOXOXOXXOXOX")
+        print(config['local_config'])
+        
+
+
         if  'run_locally' in config and config['run_locally']:
             path_to_server_bin = os.path.join(config['src_directory'],
                     config['bin_directory_name'], config['server_bin_name'])

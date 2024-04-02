@@ -58,6 +58,7 @@ Server::Server(const transport::Configuration& config, KeyManager *keyManager,
   std::string db_name = "db1";
   if (localConfig){
     Debug("Shir: 55555555555555");
+    std::cerr<<"Shir: 55555555555555\n";
     db_name = "db" + std::to_string(1 + idx);
   }
   //separate host, otherwise use the above so they all reference a different database
@@ -66,7 +67,7 @@ Server::Server(const transport::Configuration& config, KeyManager *keyManager,
   // password should match the one created in Pequin-Artifact/pg_setup/postgres_service.sh script
   // port should match the one that appears when executing "pg_lsclusters -h"
   std::string connection_str = "host=localhost user=pequin_user password=123 dbname=" + db_name + " port=5432";
-
+  std::cerr<<"Shir: 33333333333333333333333333333333333333333333333333333333333\n";
   Debug("Shir: 33333333333333333333333333333333333333333333333333333333333");
   Debug("Shir: connection str is:  ");
   // Debug(connection_str);
@@ -77,6 +78,8 @@ Server::Server(const transport::Configuration& config, KeyManager *keyManager,
   connectionPool = tao::pq::connection_pool::create(connection_str);
 
   Debug("PostgreSQL client created! Id: %d", idx);
+  std::cerr << "PostgreSQL client created! Id:  "<< idx <<"\n";
+
 }
 
 Server::~Server() {}
@@ -399,11 +402,13 @@ void Server::CreateIndex(const std::string &table_name, const std::vector<std::p
 void Server::LoadTableData(const std::string &table_name, const std::string &table_data_path, 
     const std::vector<std::pair<std::string, std::string>> &column_names_and_types, const std::vector<uint32_t> &primary_key_col_idx){
   Debug("Shir: Load Table data!");
+  std::cerr<<"Shir: Load Table data\n";
   std::string copy_table_statement = fmt::format("COPY {0} FROM {1} DELIMITER ',' CSV HEADER", table_name, table_data_path);
 }
 
 void Server::LoadTableRows(const std::string &table_name, const std::vector<std::pair<std::string, std::string>> &column_data_types, const row_segment_t *row_segment, const std::vector<uint32_t> &primary_key_col_idx, int segment_no, bool load_cc){
   Debug("Shir: Load Table rows!");
+  std::cerr<< "Shir: Load Table rows!\n";
   std::string sql_statement = this->GenerateLoadStatement(table_name,*row_segment,0);
   this->exec_statement(sql_statement);
 }
@@ -433,6 +438,8 @@ std::string Server::GenerateLoadStatement(const std::string &table_name, const s
     load_statement.resize(load_statement.length()-2); //remove trailing ", "
     load_statement += ";";
     Debug("Generate Load Statement for Table %s. Segment %d. Statement: %s", table_name.c_str(), segment_no, load_statement.substr(0, 1000).c_str());
+    std::cerr<< "Shir: Generate Load Statement for Tab!\n";
+
     return load_statement;
 }
 

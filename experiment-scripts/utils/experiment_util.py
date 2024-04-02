@@ -262,6 +262,22 @@ def start_servers(config, local_exp_directory, remote_exp_directory, run):
                 #perm = 'sudo chmod +x ~/indicus/bin/server'
                 #run_remote_command_async(perm, config['emulab_user'], server_host)
 
+            
+            ## set-up dbs for pg-smr
+            if config['replication_protocol'] == 'hotstuffpg':
+                print("66666666666666666666666666666666666666666666666666666666")
+                print("Shir: setting up databases for postgres usage")
+                # Dropping old pg cluster (if exists)
+                cmd7 = 'sudo /usr/local/etc/postgres_service.sh -r'
+                run_remote_command_sync(cmd7, config['emulab_user'], server_host)
+                # Creating a single db per machine
+                cmd8 = 'sudo /usr/local/etc/postgres_service.sh -n 1'
+                run_remote_command_sync(cmd8, config['emulab_user'], server_host)
+                print("Waiting for the setup")
+
+                time.sleep(config['server_load_time'])
+
+
             ##
             cmd3 = 'source /opt/intel/oneapi/setvars.sh --force; '
             #run_remote_command_async(cmd3, config['emulab_user'], server_host, detach=False)
@@ -271,6 +287,8 @@ def start_servers(config, local_exp_directory, remote_exp_directory, run):
             #cmd5 = 'export LD_PRELOAD=/usr/local/lib/libjemalloc.so;'
             cmd6 = 'source /usr/local/etc/set_env.sh;' # echo $LD_PRELOAD;' #; source .bashrc' #TODO: Or try sourcing .bashrc //Replace cmd4+cmd5..
             cmd = cmd6 + cmd
+
+
             server_threads.append(run_remote_command_async(cmd,
                 config['emulab_user'], server_host, detach=False))
         else:
@@ -279,14 +297,6 @@ def start_servers(config, local_exp_directory, remote_exp_directory, run):
         time.sleep(0.1)
     time.sleep(1)
 
-    ## set-up dbs for pg-smr
-    if config['replication_protocol'] == 'hotstuffpg':
-        # Dropping old pg cluster (if exists)
-        cmd7 = 'sudo /usr/local/etc/postgres_service.sh -r'
-        run_remote_command_async(cmd7, config['emulab_user'], server_host)
-        # Creating a single db per machine
-        cmd8 = 'sudo /usr/local/etc/postgres_service.sh -n 1'
-        run_remote_command_async(cmd8, config['emulab_user'], server_host)
 
     return server_threads
 

@@ -63,6 +63,8 @@ Replica::Replica(const transport::Configuration &config, KeyManager *keyManager,
   }
 
     Debug("Initialized replica at %d %d", groupIdx, idx);
+    std::cerr<<"Initialized replica at %d %d\n", groupIdx, idx;
+    std::cerr<<"Shir: local config flag:    "<<local_config<<"\n";
   
   stats = app->mutableStats();
   for (uint64_t i = 1; i <= maxBatchSize; i++) {

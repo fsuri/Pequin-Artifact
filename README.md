@@ -88,7 +88,19 @@ Helpful info regarding mounting :
 3. Folders can be removed only after they are unmounted.
 
 
-Clarify next:
-3. change #define LOCAL_CONFIG_DIR "/home/sc3348/Pesto/Pequin-Artifact/src/scripts/config/" in '/home/sc3348/Pesto/Pequin-Artifact/src/store/hotstuffstore/libhotstuff/examples/local_config_dir.h'
-4. pipelined hotstuff
-5. code is run from src folder
+
+
+
+#### Installing postgres
+
+To install postgres it is possible to run `/pg_setup/postgres_service.sh`, which is installing postgres, if not already installed. However, sometimes if previous postgres installetion existed it might be better to completely uninstall it `/pg_setup/postgres_service.sh -u`.
+
+To manually install:
+1. `sudo echo "ssl-cert:x:115" >> /etc/group`
+2. `sudo apt install postgresql`
+3. `sudo sed -i '$ d' /etc/group`
+4. `sudo apt install postgresql-common`
+
+Then, remove the main cluster (if it was created during the installation then it prevents from connecting to our designated one later):
+5. `sudo pg_dropcluster --stop 12 main`
+6. `sudo systemctl daemon-reload`

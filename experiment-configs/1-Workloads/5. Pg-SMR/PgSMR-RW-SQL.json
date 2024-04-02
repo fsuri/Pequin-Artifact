@@ -27,7 +27,7 @@
   "max_range": 3,
   "point_op_freq": 50,
   "read_only": "false",
-
+  "local_config": "false",
 
 
   "client_abort_backoff": 2,
