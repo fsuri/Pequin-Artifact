@@ -44,16 +44,15 @@ void BinderContext::AddRegularTable(const std::string &db_name,
     gettimeofday(&now, NULL);
    uint64_t microseconds_start2 = now.tv_sec * 1000*1000 + now.tv_usec;
 
-   std::cerr << "table_name: " << table_name << ". Alias: " << table_alias << std::endl;
+   //std::cerr << "table_name: " << table_name << ". Alias: " << table_alias << std::endl;
 
   //TODO: Somehow bind to txn context without looking up?
 
   auto table_object = catalog::Catalog::GetInstance()->GetTableCatalogEntry(txn, db_name, schema_name, table_name);
 
-   std::cerr << "table_name (post): " << table_name << ". Alias: " << table_alias << std::endl;
 
-      gettimeofday(&now, NULL);
-      uint64_t microseconds_end2 = now.tv_sec * 1000 *1000 + now.tv_usec;
+  gettimeofday(&now, NULL);
+  uint64_t microseconds_end2 = now.tv_sec * 1000 *1000 + now.tv_usec;
  
   //Should not take more than 1 ms (already generous) to parse and prepare.
    auto duration2 = microseconds_end2 - microseconds_start2;
@@ -61,19 +60,11 @@ void BinderContext::AddRegularTable(const std::string &db_name,
     Warning("GetTablecatalogEntry exceeded 50us: %d", duration2);
   }
 
-  for(auto &[name, _]: regular_table_alias_map_){
-    std::cerr << "already stored names: " << name << std::endl;
-  }
-
   if (regular_table_alias_map_.find(table_alias) != regular_table_alias_map_.end() || nested_table_alias_map_.find(table_alias) != nested_table_alias_map_.end()) {
     Panic("duplicate");
     throw Exception("Duplicate alias " + table_alias);
   }
   regular_table_alias_map_[table_alias] = table_object;
-
-    for(auto &[name, _]: regular_table_alias_map_){
-    std::cerr << "currently stored names: " << name << std::endl;
-  }
 }
 
 void BinderContext::AddNestedTable(

@@ -91,7 +91,8 @@ void Optimizer::OptimizeLoop(int root_group_id, std::shared_ptr<PropertySet> req
   // Perform rewrite first
   task_stack->Push(new TopDownRewrite(root_group_id, root_context, RewriteRuleSetName::PREDICATE_PUSH_DOWN));
 
-  task_stack->Push(new BottomUpRewrite(root_group_id, root_context, RewriteRuleSetName::UNNEST_SUBQUERY, false));
+  //FIXME: CAN DO WITHOUT?
+  //task_stack->Push(new BottomUpRewrite(root_group_id, root_context, RewriteRuleSetName::UNNEST_SUBQUERY, false));
 
   std::cerr << "ExecTaskStack. " << std::endl;
   ExecuteTaskStack(*task_stack, root_group_id, root_context);  //FIXME: TODO: FS: This seems to be expensive. Can we change this?
@@ -99,6 +100,7 @@ void Optimizer::OptimizeLoop(int root_group_id, std::shared_ptr<PropertySet> req
   // Perform optimization after the rewrite
   task_stack->Push(new OptimizeGroup(metadata_.memo.GetGroupByID(root_group_id), root_context));
 
+    //FIXME: CAN DO WITHOUT?
   // Derive stats for the only one logical expression before optimizing
   //task_stack->Push(new DeriveStats(metadata_.memo.GetGroupByID(root_group_id)->GetLogicalExpression(), ExprSet{}, root_context));
 
@@ -133,11 +135,16 @@ shared_ptr<planner::AbstractPlan> Optimizer::BuildPelotonPlanTree(const std::uni
   // Get the physical properties the final plan must output
   auto query_info = GetQueryInfo(parse_tree);
 
+
+  //std::cerr << "query_info: " << query_info.physical_props->ToString() << std::endl;
+
   try {
     OptimizeLoop(root_id, query_info.physical_props);  //FIXME: TODO: FS: This seems to be expensive. Can we change this?
   } catch (OptimizerException &e) {
     LOG_WARN("Optimize Loop ended prematurely: %s", e.what());
   }
+
+  //std::cerr << "query_info (post) " << query_info.physical_props->ToString() << std::endl;
 
   try {
     auto best_plan = ChooseBestPlan(root_id, query_info.physical_props, query_info.output_exprs);
@@ -408,16 +415,15 @@ void Optimizer::ExecuteTaskStack(
   //   timer.Start();
   // }
   // Iterate through the task stack
-  std::cerr << "task stack size: " << task_stack.Size() << std::endl;
+  //std::cerr << "task stack size: " << task_stack.Size() << std::endl;
   while (!task_stack.Empty() && !root_group->HasExpressions(required_props)) {
-    std::cerr << "loop invocation" << std::endl;
     // Check to see if we have at least one plan, and if we have exceeded our timeout limit
     // if (timer.GetDuration() >= timeout_limit && root_group->HasExpressions(required_props)) {
     //   throw OptimizerException("Optimizer task execution duration " + std::to_string(timer.GetDuration()) + " exceeds timeout limit " + std::to_string(timeout_limit));
     // }
     // timer.Reset();
     auto task = task_stack.Pop();
-    std::cerr << "task stack size remaining: " << task_stack.Size() << std::endl;
+    //std::cerr << "task stack size remaining: " << task_stack.Size() << std::endl;
     
     gettimeofday(&now, NULL);
     uint64_t miliseconds_start2 = now.tv_sec * 1000 * 1000 + now.tv_usec;
@@ -432,7 +438,7 @@ void Optimizer::ExecuteTaskStack(
     Warning("TaskExecute exceeded 50us: %d", duration2);
   }
 
-    std::cerr << "task stack size remaining (post execute): " << task_stack.Size() << std::endl;
+   // std::cerr << "task stack size remaining (post execute): " << task_stack.Size() << std::endl;
     //timer.Stop();
   }
 

@@ -219,7 +219,7 @@ void GetToSeqScan::Transform(
     UNUSED_ATTRIBUTE OptimizeContext *context) const {
   const LogicalGet *get = input->Op().As<LogicalGet>();
 
-  std::cerr << "TRANSFORM: Get to Seq Scan" << std::endl;
+  //std::cerr << "TRANSFORM: Get to Seq Scan" << std::endl;
 
   auto result_plan = std::make_shared<OperatorExpression>(
       PhysicalSeqScan::make(get->get_id, get->table, get->table_alias,
@@ -260,7 +260,7 @@ void GetToIndexScan::Transform(
   UNUSED_ATTRIBUTE std::vector<std::shared_ptr<OperatorExpression>> children = input->Children();
   PELOTON_ASSERT(children.size() == 0);
 
-   std::cerr << "TRANSFORM: Get to Index Scan" << std::endl;
+  // std::cerr << "TRANSFORM: Get to Index Scan" << std::endl;
     //std::cerr << "input: " << input->GetInfo() << std::endl;
 
   const LogicalGet *get = input->Op().As<LogicalGet>();
@@ -309,11 +309,11 @@ void GetToIndexScan::Transform(
   }
 
   if (get->predicates.empty()) {
-     std::cerr << "USE SEQ SCAN FOR THIS KIND OF PRED" << std::endl;
+     //std::cerr << "USE SEQ SCAN FOR THIS KIND OF PRED" << std::endl;
   }
   // Check whether any index can fulfill predicate predicate evaluation
   if (!get->predicates.empty()) {
-    std::cerr << "USE INDEX FOR THIS KIND OF PRED" << std::endl;
+    //std::cerr << "USE INDEX FOR THIS KIND OF PRED" << std::endl;
     std::vector<oid_t> key_column_id_list;
     std::vector<ExpressionType> expr_type_list;
     std::vector<type::Value> value_list;
@@ -335,7 +335,7 @@ void GetToIndexScan::Transform(
         else{ //NOTE: FIXME: THIS IS A HACK TO BE ABLE TO CONSIDER REFLEXIVE COLUMN NAMES FOR THE HEURISTIC
           auto column_ref = (expression::TupleValueExpression *) expr->GetChild(1);
           std::string col_name(column_ref->GetColumnName());
-          std::cerr << "reflexive: " << col_name << std::endl;
+          //std::cerr << "reflexive: " << col_name << std::endl;
           auto column_id = get->table->GetColumnCatalogEntry(col_name)->GetColumnId();
         
           key_column_id_list.push_back(column_id);
@@ -421,7 +421,7 @@ void GetToIndexScan::Transform(
         }
       }
      
-      std::cerr << "is primary? " << is_primary_index << ". min_distance: " << min_distance << std::endl;
+      //std::cerr << "is primary? " << is_primary_index << ". min_distance: " << min_distance << std::endl;
       //If index fully covers the condition. //Give preference to primary key.
       if(index_key_column_id_list.size() == index_col_set.size()) min_distance = is_primary_index? -2 : -1;
      
@@ -429,7 +429,7 @@ void GetToIndexScan::Transform(
 
       
       if (min_distance < closest_index || (min_distance == closest_index && index_key_column_id_list.size() > max_num_matching_cols )){
-        std::cerr << "Adding index plan for table " << get->table->GetTableName() << std::endl;
+        //std::cerr << "Adding index plan for table " << get->table->GetTableName() << std::endl;
         auto index_scan_op = PhysicalIndexScan::make(
             get->get_id, get->table, get->table_alias, get->predicates,
             get->is_for_update, index_id, index_key_column_id_list,

@@ -571,6 +571,16 @@ void PelotonTableStore::ExecPointRead(const std::string &query_statement, std::s
   // GetResult(status);
   GetResult(status, tcop, counter);
 
+   //TESTING HOW LONG THIS TAKES: FIXME: REMOVE 
+  gettimeofday(&now, NULL);
+  uint64_t microseconds_end = now.tv_sec * 1000 * 1000 + now.tv_usec;
+ 
+  //Should not take more than 1 ms (already generous) to parse and prepare.
+  auto duration = microseconds_end - microseconds_start;
+  if(duration > 500){
+    Warning("PointRead exceeded 500us: %d", duration);
+  }
+
   if (committedProof == nullptr) {
     Debug("The commit proof after executing point read is null");
   } else {
@@ -588,16 +598,6 @@ void PelotonTableStore::ExecPointRead(const std::string &query_statement, std::s
 
   Debug("End readLat on core: %d", core);
   Latency_End(&readLats[core]);
-
-  //TESTING HOW LONG THIS TAKES: FIXME: REMOVE 
-  gettimeofday(&now, NULL);
-  uint64_t microseconds_end = now.tv_sec * 1000 * 1000 + now.tv_usec;
- 
-  //Should not take more than 1 ms (already generous) to parse and prepare.
-  auto duration = microseconds_end - microseconds_start;
-  if(duration > 500){
-    Warning("PointRead exceeded 500us: %d", duration);
-  }
 
   return;
 }
@@ -656,13 +656,13 @@ void PelotonTableStore::TransformPointResult(proto::Write *write, Timestamp &com
     //if tuple_descriptor.empty() => could write value = "" (empty) => frontend will handle it
     if(write->committed_value() == "r"){ //only consume a row if the row exists for this version (i.e. write nothing to result if version was delete)
       row = queryResultBuilder.new_row();
-      Debug("Committed row has %lu cols", tuple_descriptor.size());
+      //Debug("Committed row has %lu cols", tuple_descriptor.size());
       for (unsigned int i = 0; i < tuple_descriptor.size(); i++) {
         std::string &column_name = std::get<0>(tuple_descriptor[i]);
         queryResultBuilder.add_column(column_name);
         size_t index = (rows - 1) * tuple_descriptor.size() + i;
         //Debug("Index in result array is %lu", index);
-        std::cerr << "Commit. Col: " << i << ". Val: " << (result[index]) << std::endl;
+        //std::cerr << "Commit. Col: " << i << ". Val: " << (result[index]) << std::endl;
         queryResultBuilder.AddToRow(row, result[index]); // Note: rows-1 == last row == Committed
       }
     }
@@ -697,7 +697,7 @@ void PelotonTableStore::TransformPointResult(proto::Write *write, Timestamp &com
         std::string &column_name = std::get<0>(tuple_descriptor[i]);
         queryResultBuilder.add_column(column_name);
         size_t index = 0 * tuple_descriptor.size() + i;
-        std::cerr << "Prep. Col: " << i << ". Val: " << (result[index]) << std::endl;
+        //std::cerr << "Prep. Col: " << i << ". Val: " << (result[index]) << std::endl;
         queryResultBuilder.AddToRow(row, result[index]); // Note: first row == Prepared (if present)
       }
     }
@@ -720,6 +720,7 @@ void PelotonTableStore::TransformPointResult(proto::Write *write, Timestamp &com
   }
    
   Debug("Read Committed? %d. read Prepared? %d", write->has_committed_value(), write->has_prepared_value());
+
   return;
 }
 

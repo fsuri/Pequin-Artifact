@@ -170,7 +170,7 @@ Server::Server(const transport::Configuration &config, int groupIdx, int idx,
       table_store = new ToyTableStore(); // Just a black hole
     } else {
       int num_threads = std::thread::hardware_concurrency();
-      if(num_threads > 8) num_threads = 8;
+      if(num_threads > 8) Warning("more than 8 threads"); //num_threads = 8;
       //num_threads = num_threads - 2; //technically only need 6 since we use 1 thread for networking and 1 thread as mainThread
       table_store = new PelotonTableStore(&params.query_params, table_registry_path,
           std::bind(&Server::FindTableVersion, this, 

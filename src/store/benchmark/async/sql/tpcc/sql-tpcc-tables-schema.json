@@ -305,8 +305,8 @@
     ],
     "indexes": {
       "OrderByCustomer": [
+        0,
         1,
-        2,
         3
       ]
     },

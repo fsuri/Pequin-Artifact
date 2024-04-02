@@ -430,7 +430,7 @@ void GenerateOrderTable(uint32_t num_warehouses, uint32_t c_load_ol_i_id,
   writer.add_table(table_name, column_names_and_types, primary_key_col_idx);
 
   std::string index_name = "OrderByCustomer";
-  const std::vector<uint32_t> index_col_idx {1, 2, 3};
+  const std::vector<uint32_t> index_col_idx {0, 1, 3};
   writer.add_index(table_name, index_name, index_col_idx);
 
   table_name = ORDER_LINE_TABLE;

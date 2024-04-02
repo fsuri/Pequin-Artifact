@@ -477,11 +477,12 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
     int num_tuples_examined = 0;
   #endif
 
-  std::cerr << "Number of rows to check " << tuple_location_ptrs.size() << std::endl;
-  int max_size = std::min((int)tuple_location_ptrs.size(), INT_MAX);
-  tuple_location_ptrs.resize(max_size);
-  tuple_location_ptrs.shrink_to_fit();
+  // std::cerr << "Number of rows to check " << tuple_location_ptrs.size() << std::endl;
+  // int max_size = std::min((int)tuple_location_ptrs.size(), INT_MAX);
+  // tuple_location_ptrs.resize(max_size);
+  // tuple_location_ptrs.shrink_to_fit();
   std::cerr << "Primary Index Scan on Table: " << table_->GetName()  << ". Number of rows to check (bounded): " << tuple_location_ptrs.size() << std::endl;
+   if(tuple_location_ptrs.size() > 200) Warning("Potentially inefficient scan. Sanity check!");
   //if(tuple_location_ptrs.size() > 150) Panic("doing full scan");
   if(current_txn->IsPointRead()) UW_ASSERT(tuple_location_ptrs.size() == 1);
   // for every tuple that is found in the index.
@@ -598,7 +599,7 @@ void IndexScanExecutor::ManageReadSet(ItemPointer &tuple_location, std::shared_p
       UW_ASSERT(val.GetTypeId() != type::TypeId::DECIMAL); //FIXME: We need to get a non-decimal encoding. Results like 1.3e+12 are not useable by us. (or client needs to do this as well)
       primary_key_cols.push_back(val.ToString());
       Debug("Read set. Primary col %d has value: %s", col_idx, val.ToString().c_str());
-      std::cerr << "primary col: " << col_idx << std::endl;
+      //std::cerr << "primary col: " << col_idx << std::endl;
     }
 
 
@@ -859,8 +860,8 @@ bool IndexScanExecutor::FindRightRowVersion(const Timestamp &timestamp, std::sha
       // We are done if we read k prepared versions
       done = num_iters >= current_txn->GetKPreparedVersions();
     }
-    std::cerr << "Num_iters: " << num_iters << std::endl;
-    std::cerr << "Max_Prepared_versions: " << current_txn->GetKPreparedVersions() << std::endl;
+    // std::cerr << "Num_iters: " << num_iters << std::endl;
+    // std::cerr << "Max_Prepared_versions: " << current_txn->GetKPreparedVersions() << std::endl;
   }
 
   //Current tuple was not readable.
@@ -2062,12 +2063,13 @@ bool IndexScanExecutor::ExecSecondaryIndexLookup() {
 #endif
   auto storage_manager = storage::StorageManager::GetInstance();
 
-  std::cerr << "Secondary Number of rows to check " << tuple_location_ptrs.size() << std::endl;
-  int max_size = std::min((int)tuple_location_ptrs.size(), INT_MAX);
-  //if(current_txn->IsPointRead()) max_size = 1; //UW_ASSERT(tuple_location_ptrs.size() == 1);
-  tuple_location_ptrs.resize(max_size);
-  tuple_location_ptrs.shrink_to_fit();
+  // std::cerr << "Secondary Number of rows to check " << tuple_location_ptrs.size() << std::endl;
+  // int max_size = std::min((int)tuple_location_ptrs.size(), INT_MAX);
+  // //if(current_txn->IsPointRead()) max_size = 1; //UW_ASSERT(tuple_location_ptrs.size() == 1);
+  // tuple_location_ptrs.resize(max_size);
+  // tuple_location_ptrs.shrink_to_fit();
    std::cerr << "Secondary Index Scan on Table: " << table_->GetName()  << ". Number of rows to check (bounded): " << tuple_location_ptrs.size() << std::endl;
+  if(tuple_location_ptrs.size() > 100) Warning("Potentially inefficient scan. Sanity check!");
   
   //if(tuple_location_ptrs.size() > 150) Panic("doing full scan");
   

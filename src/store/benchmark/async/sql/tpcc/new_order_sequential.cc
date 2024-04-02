@@ -30,7 +30,7 @@
 
 #include "store/benchmark/async/sql/tpcc/tpcc_utils.h"
 
-namespace tpcc_sql {
+namespace tpcc_sql { 
 
 SQLNewOrder::SQLNewOrder(uint32_t timeout, uint32_t w_id, uint32_t C,
     uint32_t num_warehouses, std::mt19937 &gen) :
