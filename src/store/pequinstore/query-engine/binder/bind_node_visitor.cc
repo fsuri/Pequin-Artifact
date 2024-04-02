@@ -39,6 +39,13 @@ void BindNodeVisitor::BindNameToNode(parser::SQLStatement *tree) {
 }
 
 void BindNodeVisitor::Visit(parser::SelectStatement *node) {
+  
+   //TESTING HOW LONG THIS TAKES: FIXME: REMOVE 
+  struct timeval now;
+    gettimeofday(&now, NULL);
+   uint64_t microseconds_start2 = now.tv_sec * 1000*1000 + now.tv_usec;
+
+
   context_ = std::make_shared<BinderContext>(context_);
   if (node->from_table != nullptr) {
     node->from_table->Accept(this);
@@ -84,6 +91,15 @@ void BindNodeVisitor::Visit(parser::SelectStatement *node) {
   // Temporarily discard const to update the depth
   const_cast<parser::SelectStatement *>(node)->depth = context_->GetDepth();
   context_ = context_->GetUpperContext();
+
+     gettimeofday(&now, NULL);
+      uint64_t microseconds_end2 = now.tv_sec * 1000 *1000 + now.tv_usec;
+ 
+  //Should not take more than 1 ms (already generous) to parse and prepare.
+   auto duration2 = microseconds_end2 - microseconds_start2;
+  if(duration2 > 100){
+    Warning("BindNameToNode (VISIT SELECT) exceeded 100us: %d", duration2);
+  }
 }
 
 // Some sub query nodes inside SelectStatement
@@ -184,6 +200,12 @@ void BindNodeVisitor::Visit(parser::CreateStatement *node) {
   node->TryBindDatabaseName(default_database_name_);
 }
 void BindNodeVisitor::Visit(parser::InsertStatement *node) {
+
+   //TESTING HOW LONG THIS TAKES: FIXME: REMOVE 
+  struct timeval now;
+    gettimeofday(&now, NULL);
+   uint64_t microseconds_start2 = now.tv_sec * 1000*1000 + now.tv_usec;
+
   node->TryBindDatabaseName(default_database_name_);
   context_ = std::make_shared<BinderContext>(nullptr);
   context_->AddRegularTable(node->GetDatabaseName(), node->GetSchemaName(),
@@ -192,6 +214,15 @@ void BindNodeVisitor::Visit(parser::InsertStatement *node) {
     node->select->Accept(this);
   }
   context_ = nullptr;
+
+      gettimeofday(&now, NULL);
+      uint64_t microseconds_end2 = now.tv_sec * 1000 *1000 + now.tv_usec;
+ 
+  //Should not take more than 1 ms (already generous) to parse and prepare.
+   auto duration2 = microseconds_end2 - microseconds_start2;
+  if(duration2 > 100){
+    Warning("BindNameToNode (VISIT INSERT) exceeded 100us: %d", duration2);
+  }
 }
 void BindNodeVisitor::Visit(parser::DropStatement *node) {
   node->TryBindDatabaseName(default_database_name_);

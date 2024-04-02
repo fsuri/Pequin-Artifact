@@ -29,6 +29,7 @@
 
 #include "../catalog/abstract_catalog.h"
 #include "../executor/logical_tile.h"
+#include "../catalog/catalog_cache.h"
 
 namespace peloton {
 namespace catalog {
@@ -89,10 +90,8 @@ class DatabaseCatalogEntry {
       const std::string &index_name, const std::string &schema_name);
 
   // cache for table name to oid translation
-  std::unordered_map<oid_t, std::shared_ptr<TableCatalogEntry>>
-      table_catalog_entries_cache_;
-  std::unordered_map<std::string, std::shared_ptr<TableCatalogEntry>>
-      table_catalog_entries_cache_by_name;
+  std::unordered_map<oid_t, std::shared_ptr<TableCatalogEntry>> table_catalog_entries_cache_;
+  std::unordered_map<std::string, std::shared_ptr<TableCatalogEntry>> table_catalog_entries_cache_by_name;
   bool valid_table_catalog_entries;
 
   // Pointer to its corresponding transaction
@@ -156,6 +155,10 @@ class DatabaseCatalog : public AbstractCatalog {
     SKEY_DATABASE_NAME = 1,
     // Add new indexes here in creation order
   };
+
+   /** cache for table catalog objects */
+  catalog::CatalogCache catalog_cache_;
+   std::unordered_map<std::string, std::shared_ptr<TableCatalogEntry>> table_catalog_entries_cache_by_name_;
 };
 
 }  // namespace catalog

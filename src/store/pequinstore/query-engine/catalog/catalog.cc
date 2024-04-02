@@ -1437,29 +1437,30 @@ std::shared_ptr<TableCatalogEntry> Catalog::GetTableCatalogEntry(
     concurrency::TransactionContext *txn, const std::string &database_name,
     const std::string &schema_name, const std::string &table_name) {
   if (txn == nullptr) {
-    throw CatalogException("Do not have transaction to get table object " +
-                           database_name + "." + table_name);
+    throw CatalogException("Do not have transaction to get table object " + database_name + "." + table_name);
   }
 
-  LOG_TRACE("Looking for table %s in database %s", table_name.c_str(),
-            database_name.c_str());
+  LOG_TRACE("Looking for table %s in database %s", table_name.c_str(), database_name.c_str());
+
+  fprintf(stderr, "Looking for database %s\n", database_name.c_str());
+  //FIXME: This does a secondary index scan on pg_database
 
   // Check in pg_database, throw exception and abort txn if not exists
-  auto database_object = DatabaseCatalog::GetInstance(nullptr, nullptr, nullptr)
-                             ->GetDatabaseCatalogEntry(txn, database_name);
+  auto database_object = DatabaseCatalog::GetInstance(nullptr, nullptr, nullptr)->GetDatabaseCatalogEntry(txn, database_name);
 
   if (!database_object || database_object->GetDatabaseOid() == INVALID_OID) {
     throw CatalogException("Database " + database_name + " is not found");
   }
 
+  fprintf(stderr, "Looking for table %s in database %s\n", table_name.c_str(), database_name.c_str());
+   //FIXME: This does a secondary index scan on pg_table
+  
   // Check in pg_table using txn
-  auto table_object =
-      database_object->GetTableCatalogEntry(table_name, schema_name);
+  auto table_object = database_object->GetTableCatalogEntry(table_name, schema_name);
 
   if (!table_object || table_object->GetTableOid() == INVALID_OID) {
     // throw table not found exception and explicitly abort txn
-    throw CatalogException("Table " + schema_name + "." + table_name +
-                           " is not found");
+    throw CatalogException("Table " + schema_name + "." + table_name + " is not found");
   }
 
   return table_object;

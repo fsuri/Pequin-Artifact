@@ -50,15 +50,15 @@ class BinderContext {
    * clause)
    */
   void AddRegularTable(parser::TableRef *table_ref,
-                       const std::string default_database_name,
+                       const std::string &default_database_name,
                        concurrency::TransactionContext *txn);
 
   /**
    * @brief Update the table alias map given a table reference (in the from
    * clause)
    */
-  void AddRegularTable(const std::string db_name, const std::string schema_name,
-                       std::string table_name, const std::string table_alias,
+  void AddRegularTable(const std::string &db_name, const std::string &schema_name,
+                       const std::string &table_name, const std::string &table_alias,
                        concurrency::TransactionContext *txn);
 
   /**
@@ -154,10 +154,8 @@ class BinderContext {
 
  private:
   /** @brief Map table alias to table obj */
-  std::unordered_map<std::string, std::shared_ptr<catalog::TableCatalogEntry>>
-      regular_table_alias_map_;
-  std::unordered_map<std::string, std::unordered_map<std::string, type::TypeId>>
-      nested_table_alias_map_;
+  std::unordered_map<std::string, std::shared_ptr<catalog::TableCatalogEntry>> regular_table_alias_map_;
+  std::unordered_map<std::string, std::unordered_map<std::string, type::TypeId>> nested_table_alias_map_;
   std::shared_ptr<BinderContext> upper_context_;
   int depth_ = 0;
 };

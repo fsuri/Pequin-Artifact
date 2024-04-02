@@ -100,7 +100,7 @@ void Optimizer::OptimizeLoop(int root_group_id, std::shared_ptr<PropertySet> req
   task_stack->Push(new OptimizeGroup(metadata_.memo.GetGroupByID(root_group_id), root_context));
 
   // Derive stats for the only one logical expression before optimizing
-  task_stack->Push(new DeriveStats(metadata_.memo.GetGroupByID(root_group_id)->GetLogicalExpression(), ExprSet{}, root_context));
+  //task_stack->Push(new DeriveStats(metadata_.memo.GetGroupByID(root_group_id)->GetLogicalExpression(), ExprSet{}, root_context));
 
   std::cerr << "ExecTaskStack2. " << std::endl;
   ExecuteTaskStack(*task_stack, root_group_id, root_context);  //FIXME: TODO: FS: This seems to be expensive. Can we change this?

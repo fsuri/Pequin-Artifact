@@ -53,16 +53,14 @@ bool DatabaseCatalogEntry::InsertTableCatalogEntry(
     return false;
   }
 
-  std::string key =
-      table_catalog_entry->GetSchemaName() + "." + table_catalog_entry->GetTableName();
+  std::string key = table_catalog_entry->GetSchemaName() + "." + table_catalog_entry->GetTableName();
   if (table_catalog_entries_cache_by_name.find(key) != table_catalog_entries_cache_by_name.end()) {
     LOG_DEBUG("Table %s already exists in cache!",
               table_catalog_entry->GetTableName().c_str());
     return false;
   }
 
-  table_catalog_entries_cache_.insert(
-      std::make_pair(table_catalog_entry->GetTableOid(), table_catalog_entry));
+  table_catalog_entries_cache_.insert(std::make_pair(table_catalog_entry->GetTableOid(), table_catalog_entry));
   table_catalog_entries_cache_by_name.insert(std::make_pair(key, table_catalog_entry));
   return true;
 }
@@ -147,9 +145,12 @@ std::shared_ptr<TableCatalogEntry> DatabaseCatalogEntry::GetTableCatalogEntry(
 std::shared_ptr<TableCatalogEntry> DatabaseCatalogEntry::GetTableCatalogEntry(
     const std::string &table_name, const std::string &schema_name,
     bool cached_only) {
+    
+    //FIXME: NOT FINDING ANYTHING IN CACHE?
   std::string key = schema_name + "." + table_name;
   auto it = table_catalog_entries_cache_by_name.find(key);
   if (it != table_catalog_entries_cache_by_name.end()) {
+    std::cerr << "CACHE HIT TABLE" << std::endl;
     return it->second;
   }
 
@@ -157,6 +158,7 @@ std::shared_ptr<TableCatalogEntry> DatabaseCatalogEntry::GetTableCatalogEntry(
     // cache miss return empty object
     return nullptr;
   } else {
+     std::cerr << "CACHE MISS TABLE" << std::endl;
     // cache miss get from pg_table
     auto pg_table = Catalog::GetInstance()
                         ->GetSystemCatalogs(database_oid_)
@@ -247,8 +249,7 @@ std::shared_ptr<IndexCatalogEntry> DatabaseCatalogEntry::GetCachedIndexCatalogEn
 DatabaseCatalog *DatabaseCatalog::GetInstance(concurrency::TransactionContext *txn,
                                              storage::Database *pg_catalog,
                                              type::AbstractPool *pool) {
-  static DatabaseCatalog
-      database_catalog{txn, pg_catalog, pool};
+  static DatabaseCatalog database_catalog{txn, pg_catalog, pool};
   return &database_catalog;
 }
 
@@ -378,29 +379,33 @@ std::shared_ptr<DatabaseCatalogEntry> DatabaseCatalog::GetDatabaseCatalogEntry(
   if (txn == nullptr) {
     throw CatalogException("Transaction is invalid!");
   }
+
+  //FIXME: SEEMINGLY ALWAYS MISSING CACHE? 
+  //TODO: Make the cache global instead of per TX.
   // try get from cache
+  //auto database_object = catalog_cache_.GetDatabaseObject(database_name);
+ 
   auto database_object = txn->catalog_cache.GetDatabaseObject(database_name);
-  if (database_object) return database_object;
+  if (database_object){
+    std::cerr << "CACHE HIT DB" << std::endl;
+    return database_object;
+  } 
+  std::cerr << "CACHE MISS DB" << std::endl;
 
   // cache miss, get from pg_database
   std::vector<oid_t> column_ids(all_column_ids_);
   oid_t index_offset = IndexId::SKEY_DATABASE_NAME;  // Index of database_name
   std::vector<type::Value> values;
-  values.push_back(
-      type::ValueFactory::GetVarcharValue(database_name, nullptr).Copy());
+  values.push_back(type::ValueFactory::GetVarcharValue(database_name, nullptr).Copy());
 
-  auto result_tiles =
-      GetResultWithIndexScan(txn,
-                             column_ids,
-                             index_offset,
-                             values);
+  auto result_tiles = GetResultWithIndexScan(txn, column_ids, index_offset, values);
 
   if (result_tiles->size() == 1 && (*result_tiles)[0]->GetTupleCount() == 1) {
-    auto database_object =
-        std::make_shared<DatabaseCatalogEntry>(txn, (*result_tiles)[0].get());
+    auto database_object = std::make_shared<DatabaseCatalogEntry>(txn, (*result_tiles)[0].get()); //FIXME: what Txn to pick here? pick a random txn?
     if (database_object) {
       // insert into cache
       bool success = txn->catalog_cache.InsertDatabaseObject(database_object);
+      //bool success = catalog_cache_.InsertDatabaseObject(database_object); //FIXME: doesn't work
       PELOTON_ASSERT(success == true);
       (void)success;
     }
