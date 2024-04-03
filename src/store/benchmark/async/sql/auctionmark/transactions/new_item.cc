@@ -208,7 +208,7 @@ transaction_status_t NewItem::Execute(SyncClient &client) {
   client.Write(insertItem, timeout, true);          
                      
    //Insert ITEM_ATTRIBUTE tuples
-  std::string insertItemAttribute = "INSERT INTO " + std::string(TABLE_ITEM_ATTR) + " (ia_id, ia_i_id, ia_u_id, ia_gav_id, ia_gag_id, ia_sattr0) VALUES ('{}', '{}', '{}', '{}', '{}', '', '')";
+  std::string insertItemAttribute = "INSERT INTO " + std::string(TABLE_ITEM_ATTR) + " (ia_id, ia_i_id, ia_u_id, ia_gav_id, ia_gag_id, ia_sattr0) VALUES ('{}', '{}', '{}', '{}', '{}', '')";
   //std::string insertItemAttribute = fmt::format("INSERT INTO {} (ia_id, ia_i_id, ia_u_id, ia_gav_id, ia_gag_id, ia_sattr0) VALUES('{}', '{}', '{}', '{}', '{}', '')", TABLE_ITEM_ATTR);
   for(int i = 0; i< gav_ids.size(); ++i){
     std::string unique_elem_id = GetUniqueElementId(item_id, i);

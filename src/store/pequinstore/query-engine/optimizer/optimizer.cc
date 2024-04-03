@@ -416,7 +416,7 @@ void Optimizer::ExecuteTaskStack(
   // }
   // Iterate through the task stack
   //std::cerr << "task stack size: " << task_stack.Size() << std::endl;
-  while (!task_stack.Empty() && !root_group->HasExpressions(required_props)) {
+  while (!task_stack.Empty()) {
     // Check to see if we have at least one plan, and if we have exceeded our timeout limit
     // if (timer.GetDuration() >= timeout_limit && root_group->HasExpressions(required_props)) {
     //   throw OptimizerException("Optimizer task execution duration " + std::to_string(timer.GetDuration()) + " exceeds timeout limit " + std::to_string(timeout_limit));
