@@ -427,7 +427,7 @@ DEFINE_string(stats_file, "", "path to file for server stats");
 
 DEFINE_bool(store_mode, true, "true => Runs Table-store + CC-store (SQL); false => Runs pure KV-store");
 
-DEFINE_bool(local_config, false, "this flag determinse whether to use local or remote config directory");
+DEFINE_bool(local_config, true, "this flag determinse whether to use local or remote config directory");
 
 /**
  * Benchmark settings.
@@ -855,7 +855,11 @@ int main(int argc, char **argv) {
      // HotStuffPG
   case PROTO_HOTSTUFF_PG: {
       std::cerr << "Shir: check FLAGS_replica_idx:    "<<  FLAGS_replica_idx <<"\n";
-      std::cerr << "Shir: check FLAGS_local_config:    "<<  FLAGS_local_config <<"\n";
+      if (FLAGS_local_config){
+        std::cerr << "Shir: using local config (server)\n";
+      } else{
+        std::cerr << "Shir: using remote config (server)\n";
+      }
 
       server = new hotstuffpgstore::Server(config, &keyManager,
                                      FLAGS_group_idx, FLAGS_replica_idx, FLAGS_num_shards, FLAGS_num_groups,
@@ -869,9 +873,7 @@ int main(int argc, char **argv) {
                                        FLAGS_group_idx, FLAGS_replica_idx, FLAGS_indicus_sign_messages,
                                        FLAGS_indicus_sig_batch, FLAGS_indicus_sig_batch_timeout,
                                        FLAGS_pbft_esig_batch, FLAGS_pbft_esig_batch_timeout,
-                                       FLAGS_indicus_use_coordinator, FLAGS_indicus_request_tx,
-
-             protocol_cpu, FLAGS_local_config, FLAGS_num_shards, tport, FLAGS_async_server);
+                                       FLAGS_indicus_use_coordinator, FLAGS_indicus_request_tx, protocol_cpu, FLAGS_local_config, FLAGS_num_shards, tport, FLAGS_async_server);
       std::cerr << "Shir: started!!! the replica \n";
 
       break;

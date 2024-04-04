@@ -21,7 +21,7 @@ namespace hotstuffstore {
         void initialize(int argc, char** argv);
 
     public:
-        IndicusInterface(int shardId, int replicaId, int cpuId, bool local_config=false);
+        IndicusInterface(int shardId, int replicaId, int cpuId, bool local_config=true);
 
         void propose(const std::string& hash, hotstuff_exec_callback execb);
     };

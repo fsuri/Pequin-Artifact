@@ -57,8 +57,7 @@ Server::Server(const transport::Configuration& config, KeyManager *keyManager,
   // system(command);
   std::string db_name = "db1";
   if (localConfig){
-    Debug("Shir: 55555555555555");
-    std::cerr<<"Shir: 55555555555555\n";
+    std::cerr << "Shir: using local config (pg server)\n";
     db_name = "db" + std::to_string(1 + idx);
   }
   //separate host, otherwise use the above so they all reference a different database
@@ -68,9 +67,6 @@ Server::Server(const transport::Configuration& config, KeyManager *keyManager,
   // port should match the one that appears when executing "pg_lsclusters -h"
   std::string connection_str = "host=localhost user=pequin_user password=123 dbname=" + db_name + " port=5432";
   std::cerr<<"Shir: 33333333333333333333333333333333333333333333333333333333333\n";
-  Debug("Shir: 33333333333333333333333333333333333333333333333333333333333");
-  Debug("Shir: connection str is:  ");
-  // Debug(connection_str);
   std::cerr << connection_str <<"\n";
   Debug("Shir: 33333333333333333333333333333333333333333333333333333333333");
 

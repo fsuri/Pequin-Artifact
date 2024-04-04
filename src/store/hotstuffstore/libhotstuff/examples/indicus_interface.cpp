@@ -19,6 +19,12 @@ namespace hotstuffstore {
         shardId(shardId), replicaId(replicaId), cpuId(cpuId), local_config(local_config)
     {
 
+        if (local_config){
+        std::cerr << "Shir: using local config (hotstuffstore)\n";
+        } else{
+        std::cerr << "Shir: using remote config (hotstuffstore)\n";
+        }
+
         std::cerr<<"Shir: did it get here1?\n";
 
         hotstuff::hotstuff_core_offset = (cpuId + 4) % 8;
@@ -27,9 +33,7 @@ namespace hotstuffstore {
         std::cerr<<"Shir: did it get here? local config:   "<< local_config<<"\n";
 
         if (local_config){
-            std::cerr<<"Shir: did it get here aaa bbb?\n";
-
-            // config_dir_base = LOCAL_CONFIG_DIR;
+            std::cerr << "Shir: using local config (hotstuffstore)\n";
             auto curr_path=std::filesystem::current_path();
             auto target_dir="src";
             while (!curr_path.empty()) {
