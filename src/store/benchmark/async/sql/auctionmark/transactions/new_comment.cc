@@ -62,6 +62,9 @@ transaction_status_t NewComment::Execute(SyncClient &client) {
   //getItemComments
   statement = fmt::format("SELECT i_num_comments FROM {} WHERE i_id = '{}' AND i_u_id = '{}'", TABLE_ITEM, item_id, seller_id);
   client.Query(statement, queryResult, timeout);
+  if(queryResult->empty()){
+    Panic("item does not exist?");
+  }
   deserialize(ic_id, queryResult);
   ++ic_id;
 

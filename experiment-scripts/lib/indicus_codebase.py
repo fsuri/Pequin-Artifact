@@ -27,6 +27,8 @@ import ipaddress
 
 from lib.experiment_codebase import *
 
+## GFLAGS NOTE: For booleans must use %s=val. Gflags does not support space for boolean.
+
 class IndicusCodebase(ExperimentCodebase):
 
     def get_client_cmd(self, config, i, j, k, run, local_exp_directory,
@@ -84,7 +86,7 @@ class IndicusCodebase(ExperimentCodebase):
             if 'read_quorum' in config['replication_protocol_settings']:
                 client_command += ' --indicus_read_quorum %s' % config['replication_protocol_settings']['read_quorum']
             if 'optimistic_read_quorum' in config['replication_protocol_settings']:
-                client_command += ' --indicus_optimistic_read_quorum %s' % str(config['replication_protocol_settings']['optimistic_read_quorum']).lower()
+                client_command += ' --indicus_optimistic_read_quorum=%s' % str(config['replication_protocol_settings']['optimistic_read_quorum']).lower()
             if 'read_dep' in config['replication_protocol_settings']:
                 client_command += ' --indicus_read_dep %s' % config['replication_protocol_settings']['read_dep']
             if 'read_messages' in config['replication_protocol_settings']:
@@ -233,8 +235,12 @@ class IndicusCodebase(ExperimentCodebase):
             client_command += ' --partitioner %s' % config['partitioner']
 
         if 'benchmark_type' in config and config['benchmark_type'] == 'sql_bench':
-            client_command += ' --sql_bench %s' % config['benchmark_type']
+            client_command += ' --sql_bench=%s' % config['benchmark_type']
+            client_command += ' --store_mode=%s' % config['benchmark_type']
             client_command += ' --data_file_path %s' % config['benchmark_schema_file_path'] #file path to schema
+        else:
+            client_command += ' --sql_bench=false'
+            client_command += ' --store_mode=false'
 
         if config['benchmark_name'] == 'retwis':
             client_command += ' --num_keys %d' % config['client_num_keys']
@@ -531,8 +537,12 @@ class IndicusCodebase(ExperimentCodebase):
             replica_command += ' --debug_stats'
 
         if 'benchmark_type' in config and config['benchmark_type'] == 'sql_bench':
-            replica_command += ' --sql_bench %s' % config['benchmark_type']
+            replica_command += ' --sql_bench=%s' % config['benchmark_type']
+            replica_command += ' --store_mode=%s' % config['benchmark_type']
             replica_command += ' --data_file_path %s' % config['benchmark_schema_file_path'] #file path to schema
+        else:
+            replica_command += ' --sql_bench=false'
+            replica_command += ' --store_mode=false'
 
         if config['benchmark_name'] == 'retwis':
             replica_command += ' --num_keys %d' % config['client_num_keys']
