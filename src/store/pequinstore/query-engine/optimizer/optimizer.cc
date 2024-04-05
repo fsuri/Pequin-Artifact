@@ -65,16 +65,17 @@ Optimizer::Optimizer(const CostModels cost_model) : metadata_(nullptr) {
 
   switch (cost_model) {
     case CostModels::DEFAULT: {
-      std::cerr << "default" << std::endl;
+       Debug("Using Default cost model. ");
       metadata_ = OptimizerMetadata(std::unique_ptr<AbstractCostModel>(new DefaultCostModel));
       break;
     }
     case CostModels::POSTGRES: {
+       Debug("Using Postgres cost model. ");
       metadata_ = OptimizerMetadata(std::unique_ptr<AbstractCostModel>(new PostgresCostModel));
       break;
     }
     case CostModels::TRIVIAL: {
-       std::cerr << "trivial" << std::endl;
+       Debug("Using Trivial cost model. ");
       metadata_ = OptimizerMetadata(std::unique_ptr<AbstractCostModel>(new TrivialCostModel));
       break;
     }
@@ -94,7 +95,7 @@ void Optimizer::OptimizeLoop(int root_group_id, std::shared_ptr<PropertySet> req
   //FIXME: CAN DO WITHOUT?
   //task_stack->Push(new BottomUpRewrite(root_group_id, root_context, RewriteRuleSetName::UNNEST_SUBQUERY, false));
 
-  std::cerr << "ExecTaskStack. " << std::endl;
+  Debug("ExecTaskStack. ");
   ExecuteTaskStack(*task_stack, root_group_id, root_context);  //FIXME: TODO: FS: This seems to be expensive. Can we change this?
 
   // Perform optimization after the rewrite
@@ -104,7 +105,7 @@ void Optimizer::OptimizeLoop(int root_group_id, std::shared_ptr<PropertySet> req
   // Derive stats for the only one logical expression before optimizing
   //task_stack->Push(new DeriveStats(metadata_.memo.GetGroupByID(root_group_id)->GetLogicalExpression(), ExprSet{}, root_context));
 
-  std::cerr << "ExecTaskStack2. " << std::endl;
+   Debug("ExecTaskStack2. ");
   ExecuteTaskStack(*task_stack, root_group_id, root_context);  //FIXME: TODO: FS: This seems to be expensive. Can we change this?
 }
 

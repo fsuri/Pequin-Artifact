@@ -541,6 +541,8 @@ The client should finish within 10 seconds and the output file `client-0.out` sh
    
 To run experiments on [Cloudlab](https://www.cloudlab.us/) you will need to request an account with your academic email (if you do not already have one) and create a new project  To request an account click [here](https://cloudlab.us/signup.php). You can create a new project either directly while requesting an account, or by selecting "Start/Join project" in your account drop down menu.
 
+ > :warning: **[NOTE]** On Cloudlab, make sure to select `bash` as your default shell in your Account settings.
+
 We have included screenshots below for easy usebility. Follow the [cloudlab manual](http://docs.cloudlab.us/) if you need additional information for any of the outlined steps. 
 
 If you face any issues with registering, please make a post at the [Cloudlab forum](https://groups.google.com/g/cloudlab-users?pli=1). Replies are usually very swift during workdays on US mountain time (MT). Alternatively -- but *not recommended* --, if you are unable to get access to create a new project, request to join project "pequin" and wait to be accepted. Reach out to Florian Suri-Payer <fsp@cs.cornell.edu> if you are not accepted, or unsure how to join.

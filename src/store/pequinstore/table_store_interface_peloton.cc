@@ -584,7 +584,7 @@ void PelotonTableStore::ExecPointRead(const std::string &query_statement, std::s
   if (committedProof == nullptr) {
     Debug("The commit proof after executing point read is null");
   } else {
-    Debug("The commit proof is not null");
+    //Debug("The commit proof is not null");
 
     /*auto proof_ts = Timestamp(committedProof->txn().timestamp());
     Debug("ExecPointRead Proof ts is %lu, %lu", proof_ts.getTimestamp(),

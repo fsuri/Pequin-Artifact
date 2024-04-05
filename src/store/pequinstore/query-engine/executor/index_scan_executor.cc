@@ -161,15 +161,15 @@ bool IndexScanExecutor::DExecute() {
         return false;
     }
     else if (index_->GetIndexType() == IndexConstraintType::PRIMARY_KEY) {
-      Debug("Doing a primary index scan");
-      std::cerr << "Doing a primary index scan for table " << table_->GetName() << std::endl;
+      Debug("Doing a primary index scan for table: %s", table_->GetName().c_str());
       is_primary_index = true;
       auto status = ExecPrimaryIndexLookup();
       if (status == false)
         return false;
     } else {
-      Debug("Doing a secondary index scan");
-      std::cerr << "Doing a secondary index scan for table " << table_->GetName() << std::endl;
+     
+      Debug("Doing a secondary index scan for table: %s", table_->GetName().c_str());
+     
       auto status = ExecSecondaryIndexLookup();
       if (status == false)
         return false;
@@ -227,7 +227,7 @@ void IndexScanExecutor::SetTableColVersions(concurrency::TransactionContext *cur
     //bool is_metadata_table_ = table_->GetName().substr(0,3) == "pg_"; //don't do any of the Pequin features for meta data tables..
     //UW_ASSERT(!is_metadata_table_);
     if (!current_txn->IsPointRead() && current_txn->CheckPredicatesInitialized() && !is_metadata_table_) {
-      std::cerr << "Read Table/Col versions" << std::endl;
+     Debug("Read Table/Col versions for TS:[%lu:%lu]", current_txn_timestamp.getTimestamp(), current_txn_timestamp.getID());
 
       //shorthands
       bool get_read_set = current_txn->GetHasReadSetMgr();
@@ -248,7 +248,7 @@ void IndexScanExecutor::SetTableColVersions(concurrency::TransactionContext *cur
         if(predicate_ != nullptr) std::cerr << "pred: " << predicate_->GetInfo() << std::endl;
 
         for (auto &col : column_names) {
-          std::cerr << "Col name is " << col << std::endl;
+          Debug("Col name is: %s", col.c_str());
           current_txn->GetTableVersion()(EncodeTableCol(table_->GetName(), col), current_txn_timestamp, get_read_set, query_read_set_mgr, find_snapshot, ss_mgr, perform_read_on_snapshot, snapshot_set);
           //col_names.push_back(col);
         }
@@ -276,9 +276,10 @@ bool IndexScanExecutor::IsImplicitPointRead(concurrency::TransactionContext *cur
 
   auto sql_interpreter = current_txn->GetSqlInterpreter();
 
-  std::cerr << "check Is point: " << predicate_->expr_name_ << std::endl;
+  
 
   is_implicit_point_read_ = sql_interpreter->IsPoint(predicate_->expr_name_, table_->GetName(), true);
+  Debug("check Pred: %s. IsPoint: %d ", predicate_->expr_name_.c_str(), is_implicit_point_read_);
   //Note: We are currently using the relaxed = true argument
   //In this mode, we treat the predicate as a point read even if it is stronger than just the primary keys. E.g. say x is pkey, but predicate is x=5 AND name='xyz'
   //This means that we are giving up on incorporating the additional semantics of name=`xyz` for CC. The ActiveReadSet will throw a conflict if *anything* about the row changes
@@ -318,13 +319,12 @@ bool IndexScanExecutor::IsImplicitPointRead(concurrency::TransactionContext *cur
 
     //b) TODO: Check if all are conjuctors... //Check if ==..
 
-  std::cerr << predicate_->expr_name_ << " -> IS IMPLICIT POINT READ: " << is_implicit_point_read_ << std::endl;
 
-  for(auto &val: values_){ //Note: values_ holds all values of the index_predicate (i.e. subset primary key ones)
-    UW_ASSERT(val.GetTypeId() != type::TypeId::DECIMAL);
-    std::cerr << "VALUE POINT: " << val.ToString() << std::endl;
-  }
-  std::cerr << "here" << std::endl;
+  //FIXME: Only testing code
+  // for(auto &val: values_){ //Note: values_ holds all values of the index_predicate (i.e. subset primary key ones)
+  //   UW_ASSERT(val.GetTypeId() != type::TypeId::DECIMAL);
+  //   std::cerr << "VALUE POINT: " << val.ToString() << std::endl;
+  // }
   
   return is_implicit_point_read_;
 }
@@ -374,9 +374,9 @@ void IndexScanExecutor::SetPredicate(concurrency::TransactionContext *current_tx
   //const_cast<peloton::expression::AbstractExpression *>(predicate_)->DeduceExpressionName();
   auto &pred = predicate_->expr_name_;
   query_read_set_mgr->ExtendPredicate(pred);
-  std::cerr << "Adding new read set predicate instance: " << pred << std::endl;
+  Debug("Adding new read set predicate instance: %s", pred.c_str());
 
-  std::cerr << "Num preds: " << query_read_set_mgr->read_set->read_predicates_size() << std::endl;
+  Debug("Num preds: %d", query_read_set_mgr->read_set->read_predicates_size());
 
   // // // Index predicate in string form
   //     /*std::string index_pred = "";
@@ -415,7 +415,6 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
   SetPredicate(current_txn, query_read_set_mgr); // NOTE: MUST add predicate before index scan component; in case index scan doesn't find anything, we still need pred.
   SetTableColVersions(current_txn, query_read_set_mgr, current_txn_timestamp);
 
-  std::cerr << "MAKING IT HERE" << std::endl;
   ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
   std::vector<ItemPointer *> tuple_location_ptrs;
@@ -455,7 +454,7 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
   if (tuple_location_ptrs.size() == 0) {
     // std::cerr << "No tuples retrieved in the index" << std::endl;
     LOG_TRACE("no tuple is retrieved from index.");
-    std::cerr << " Found no matching rows in table: " << table_->GetName() << std::endl;
+    Debug(" Found no matching rows in table: %s", table_->GetName().c_str());
 
     if(is_implicit_point_read_) TryForceReadSetAddition(current_txn, query_read_set_mgr, Timestamp(0));
     return false;
@@ -478,10 +477,9 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
   #endif
 
   // std::cerr << "Number of rows to check " << tuple_location_ptrs.size() << std::endl;
-  // int max_size = std::min((int)tuple_location_ptrs.size(), INT_MAX);
-  // tuple_location_ptrs.resize(max_size);
-  // tuple_location_ptrs.shrink_to_fit();
-  std::cerr << "Primary Index Scan on Table: " << table_->GetName()  << ". Number of rows to check (bounded): " << tuple_location_ptrs.size() << std::endl;
+  
+  Debug("Primary Index Scan on Table: %s. Number of rows to check: %d", table_->GetName().c_str(), tuple_location_ptrs.size());
+  //std::cerr << "Primary Index Scan on Table: " << table_->GetName()  << ". Number of rows to check (bounded): " << tuple_location_ptrs.size() << std::endl;
    if(tuple_location_ptrs.size() > 200) Warning("Potentially inefficient scan. Sanity check!");
   //if(tuple_location_ptrs.size() > 150) Panic("doing full scan");
   if(current_txn->IsPointRead()) UW_ASSERT(tuple_location_ptrs.size() == 1);
@@ -492,9 +490,6 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
     CheckRow(*tuple_location_ptr, transaction_manager, current_txn, storage_manager, visible_tuple_locations, visible_tuple_set);
   }
 
-  std::cerr << "Number of checked rows " << tuple_location_ptrs.size() << std::endl;
-
-  // std::cerr << "Outside for loop" << std::endl;
   LOG_TRACE("Examined %d tuples from index %s", num_tuples_examined, index_->GetName().c_str());
 
   LOG_TRACE("%ld tuples before pruning boundaries", visible_tuple_locations.size());
@@ -1096,7 +1091,7 @@ void IndexScanExecutor::RefinePointRead(concurrency::TransactionContext *current
   std::string *res_val = tile_group_header->GetCommitOrPrepare(tuple_location.offset) && !concurrent_upgrade ? current_txn->GetCommittedValue() : current_txn->GetPreparedValue();
   if(eval || *res_val == "r"){ //FIXME: The second cond is a hack to not change this value once it's set (for the bugged version that reads via SecondaryIndex) 
     *res_val = "r"; //passed predicate, is "readable"
-    if(eval) std::cerr << "hitting point read. Tuple: " << tuple_location.block << "," << tuple_location.offset << std::endl;
+    //if(eval) std::cerr << "hitting point read. Tuple: " << tuple_location.block << "," << tuple_location.offset << std::endl;
   }
   else{
     *res_val = tile_group_header->IsDeleted(tuple_location.offset) ? "d" : "f"; 
@@ -1143,7 +1138,7 @@ void IndexScanExecutor::SetPointRead(concurrency::TransactionContext *current_tx
     *commit_ts = write_timestamp; //Use either this line to copy TS, OR the SetCommitTs func below to set ref. Don't need both...  (can also get TS via: commit_proof->txn().timestamp())
   
     Debug("PointRead CommittedTS:[%lu:%lu]", current_txn->GetCommitTimestamp()->getTimestamp(), current_txn->GetCommitTimestamp()->getID());
-    fprintf(stderr,"PointRead CommittedTS:[%lu:%lu] \n", current_txn->GetCommitTimestamp()->getTimestamp(), current_txn->GetCommitTimestamp()->getID());
+    //fprintf(stderr,"PointRead CommittedTS:[%lu:%lu] \n", current_txn->GetCommitTimestamp()->getTimestamp(), current_txn->GetCommitTimestamp()->getID());
     //current_txn->SetCommitTimestamp(&committed_timestamp); 
 
     Debug("Setting the commit proof");

@@ -234,7 +234,6 @@ executor::ExecutionResult TrafficCop::ExecuteReadHelper(
     size_t thread_id) {
 
   Debug("ExecuteReadHelper with mode: %d", mode);
-  std::cerr << "MAKING IT HERE TEEEEEEEEEEEEEEEEEEEEEEEEST" << std::endl;
 
   auto &curr_state = GetCurrentTxnState();
 

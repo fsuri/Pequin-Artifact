@@ -141,7 +141,7 @@ _Message_VA(enum Message_Type type, FILE *fp,
             ++fbasename;
         else
             fbasename = fname;
-        char filepos[32];
+        char filepos[50];
         snprintf(filepos, sizeof(filepos)/sizeof(filepos[0]),
                  "(%s:%d):", fbasename, line);
         fprintf(fp, "%-15s %-19s ",
@@ -209,12 +209,11 @@ Message_DoFrees(void)
 bool
 _Message_DebugEnabled(const char *fname)
 {
-    static bool parsed;
-    static char *buf;
-    static char **pats;
-    static int nPats;
-    if (!parsed) {
-        parsed = true;
+    bool parsed;
+    char *buf;
+    char **pats;
+    int nPats;
+
         const char *env = getenv("DEBUG");
         if (env && strlen(env)) {
             buf = strdup(env);
@@ -238,7 +237,7 @@ _Message_DebugEnabled(const char *fname)
                 }
             }
         }
-    }
+
     if (!buf)
         return false;
 
