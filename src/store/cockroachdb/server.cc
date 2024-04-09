@@ -142,9 +142,9 @@ Server::Server(const transport::Configuration &config, KeyManager *keyManager,
     Notice("Cluster initliazed by node %d. Listening %s:%s", id, host.c_str(),
            port.c_str());
 
-    Server::exec_sql(
-        "CREATE TABLE IF NOT EXISTS datastore ( key_ TEXT PRIMARY KEY, val_ "
-        "TEXT NOT NULL)");
+    // Server::exec_sql(
+    //     "CREATE TABLE IF NOT EXISTS datastore ( key_ TEXT PRIMARY KEY, val_ "
+    //     "TEXT NOT NULL)");
   }
   if (idx == numShards - 1) {
     // If node is the last one in the group, serve as load balancer
@@ -155,6 +155,10 @@ Server::Server(const transport::Configuration &config, KeyManager *keyManager,
     Notice("Invoke proxy script: %s", proxy_cmd.c_str());
     status = system(proxy_cmd.c_str());
   }
+
+  std::string file_server_cmd = "python3 -m http.server 3000 &";
+  status = system(file_server_cmd.c_str());
+  Notice("File server started on port 3000");
 }
 
 void Server::Load(const string &key, const string &value,
@@ -304,6 +308,6 @@ void Server::LoadTable(
 
 // Stats &Server::GetStats() { return stats; }
 
-Server::~Server() { system("pkill -9 -f cockroach"); }
+Server::~Server() { system("pkill -9 -f cockroach; pkill -f \"python3 -m http.server\""); }
 
 }  // namespace cockroachdb

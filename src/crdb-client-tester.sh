@@ -1,4 +1,4 @@
-store/benchmark/async/benchmark --config_path "/home/liam/Code/Pequin-Artifact/testing/toy.config" \
+DEBUG=store/cockroachdb/* store/benchmark/async/benchmark --config_path "/home/liam/Code/Pequin-Artifact/testing/toy.config" \
  --data_file_path "/home/liam/Code/Pequin-Artifact/src/store/benchmark/async/sql/auctionmark/auctionmark_profile" \
  --num_client_hosts 1 \
  --num_groups 1 \

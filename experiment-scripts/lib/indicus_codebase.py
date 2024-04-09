@@ -359,6 +359,8 @@ class IndicusCodebase(ExperimentCodebase):
         else:
             n = 2 * config['fault_tolerance'] + 1
         xx = len(config['server_names']) // n
+        if xx == 0:
+            xx = 1
 
         client_threads = 1 if not 'client_threads_per_process' in config else config['client_threads_per_process']
 
@@ -624,11 +626,14 @@ class IndicusCodebase(ExperimentCodebase):
                 n = 2 * config['fault_tolerance'] + 1
             x = len(config['server_names']) // n
             for group in range(config['num_groups']):
-                process_idx = group // x
+                if x > 0:
+                    process_idx = group // x
+                else:
+                    process_idx = 0
                 print('f %d' % config['fault_tolerance'], file=f)
                 print('group', file=f)
                 for i in range(n):
-                    server_idx = i * x + (group % x)
+                    server_idx = (i * x + group) % len(config['server_names'])
                     if 'run_locally' in config and config['run_locally']:
                         print('replica %s:%d' % ('localhost',
                             config['server_port'] + process_idx

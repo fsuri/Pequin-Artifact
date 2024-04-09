@@ -10,8 +10,8 @@
   ],
   "replication_protocol": ["crdb"],
   "client_protocol_mode": ["crdb"],
-  "num_shards": [2],
-  "num_groups": [2],
+  "num_shards": [1],
+  "num_groups": [1],
 
   "client_num_keys": 1000,
   "_client_num_keys": 10000000,
@@ -75,13 +75,13 @@
   "project_name": "pequin-pg0",
   "fault_tolerance": 1,
   
-  "_server_names": [
+  "server_names": [
    
     ["us-east-1-0", "us-east-1-1", "us-east-1-2"]
 	
   ],
   
-  "server_names": [
+  "_server_names": [
    
     ["us-east-1-0", "us-east-1-1", "us-east-1-2", 
      "eu-west-1-0", "eu-west-1-1", "eu-west-1-2"]
