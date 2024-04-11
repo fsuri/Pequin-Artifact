@@ -132,6 +132,8 @@ public:
 
   void handleMessage(const TransportAddress &remote, const string &type, const string &data);
 
+  void fillPipeline(string digest, TransportAddress* clientAddr);
+
   Stats* stats;
 
   std::pair<::google::protobuf::Message*,uint64_t> deserializeMsgAndObtainID(const string& type, const string& msg);
