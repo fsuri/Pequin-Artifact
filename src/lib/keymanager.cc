@@ -37,10 +37,10 @@ KeyManager::KeyManager(const std::string &keyPath, crypto::KeyType t, bool preco
   //Check if we have enough keys generated.
   std::string last_required_key_file = keyPath + "/" + std::to_string(replica_total+client_total-1) + ".priv";
   struct stat buffer;
-  if(stat (last_required_key_file.c_str(), &buffer) != 0){
-   Panic("Insufficient number of keys for number of replicas and clients. "
-     "Require %d keys.", replica_total + client_total);
-  }
+  // if(stat (last_required_key_file.c_str(), &buffer) != 0){
+  //  Panic("Insufficient number of keys for number of replicas and clients. "
+  //    "Require %d keys.", replica_total + client_total);
+  // }
 }
 
 

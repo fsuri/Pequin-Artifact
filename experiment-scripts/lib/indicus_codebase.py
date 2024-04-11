@@ -214,8 +214,8 @@ class IndicusCodebase(ExperimentCodebase):
 
         if config['replication_protocol'] == 'crdb':
             if 'sign_messages' in config['replication_protocol_settings']:
-                replica_command += ' --indicus_sign_messages=%s' % str(config['replication_protocol_settings']['sign_messages']).lower()
-                replica_command += ' --indicus_key_path %s' % config['replication_protocol_settings']['key_path']
+                client_command += ' --indicus_sign_messages=%s' % str(config['replication_protocol_settings']['sign_messages']).lower()
+                client_command += ' --indicus_key_path %s' % config['replication_protocol_settings']['key_path']
 
         if 'client_debug_stats' in config and config['client_debug_stats']:
             client_command += ' --debug_stats'
