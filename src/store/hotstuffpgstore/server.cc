@@ -31,6 +31,7 @@
 #include <sys/time.h>
 #include <cstdlib>
 #include <fmt/core.h>
+#include <regex>
 
 namespace hotstuffpgstore {
 
@@ -192,6 +193,7 @@ void Server::Execute_Callback(const string& type, const string& msg, std::functi
         reply->set_status(REPLY_FAIL);
         results.push_back(returnMessage(reply));
       }else{
+        std::cerr<< type<<"\n";
         Panic("Should not try to issue parallel operations that aren't sql_query");
       }
     }
@@ -219,11 +221,24 @@ void Server::Execute_Callback(const string& type, const string& msg, std::functi
     reply->set_status(REPLY_OK);
     reply->set_sql_res(res_builder->get_result()->SerializeAsString());
   } catch(tao::pq::sql_error e) {
-    markTxnTerminated(t);
-    t.release();
-    Debug("An exception caugth while using postgres.");
-    reply->set_status(REPLY_FAIL);
-  }  
+    Debug("A exception caugth while using postgres.");
+ 
+    if (std::regex_match(e.sqlstate, std::regex("40..."))){
+      Debug("A concurrency exception caugth while using postgres.");
+      markTxnTerminated(t);
+      t.release();
+      reply->set_status(REPLY_FAIL);
+    } else if (std::regex_match(e.sqlstate, std::regex("23..."))){ // Application errors
+    // markTxnTerminated(t);
+    // t.release();
+    // sql::QueryResultProtoBuilder* res_builder = createResult();
+    // reply->set_status(REPLY_OK);
+    // reply->set_sql_res(res_builder->get_result()->SerializeAsString());
+    }else{
+      std::cerr<< e.sqlstate << std::endl;
+      Panic("Unexpected postgres exception");
+    }
+  }
 
   return returnMessage(reply);
 }
@@ -237,8 +252,23 @@ void Server::Execute_Callback(const string& type, const string& msg, std::functi
     Debug("TryCommit went through successfully.");
     reply->set_status(REPLY_OK);
   } catch(tao::pq::sql_error e) {
-    Debug("An exception caugth while using postgres.");
-    reply->set_status(REPLY_FAIL);
+    Debug("A exception caugth while using postgres."); 
+    if (std::regex_match(e.sqlstate, std::regex("40..."))){
+      Debug("A concurrency exception caugth while using postgres.");
+      markTxnTerminated(t);
+      t.release();
+      reply->set_status(REPLY_FAIL);
+    } else if (std::regex_match(e.sqlstate, std::regex("23..."))){ // Application errors
+    // markTxnTerminated(t);
+    // t.release();
+    // sql::QueryResultProtoBuilder* res_builder = createResult();
+    // reply->set_status(REPLY_OK);
+    // reply->set_sql_res(res_builder->get_result()->SerializeAsString());
+    }else{
+      std::cerr<< e.sqlstate << std::endl;
+      Panic("Unexpected postgres exception");
+    }
+
   }
   markTxnTerminated(t);
   return returnMessage(reply);
