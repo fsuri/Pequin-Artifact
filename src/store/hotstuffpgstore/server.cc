@@ -135,7 +135,15 @@ std::vector<::google::protobuf::Message*> Server::Execute(const string& type, co
       reply->set_req_id(sql_rpc.req_id());
       reply->set_status(REPLY_FAIL);
       results.push_back(returnMessage(reply));
+    } else if (type == try_commit.GetTypeName()) {
+      Debug("tr is null - trycommit ");
+      UW_ASSERT(is_aborted);
+      proto::TryCommitReply* reply = new proto::TryCommitReply();
+      reply->set_req_id(try_commit.req_id());
+      reply->set_status(REPLY_FAIL); // OR should it be reply_ok?
+      results.push_back(returnMessage(reply));
     }else{
+      // shir: when should we get here?
       Panic("Should not try to issue parallel operations that aren't sql_query");
     }
   }
@@ -192,6 +200,13 @@ void Server::Execute_Callback(const string& type, const string& msg, std::functi
         reply->set_req_id(sql_rpc.req_id());
         reply->set_status(REPLY_FAIL);
         results.push_back(returnMessage(reply));
+      } else if (type == try_commit.GetTypeName()) {
+      Debug("tr is null - trycommit ");
+      UW_ASSERT(is_aborted);
+      proto::TryCommitReply* reply = new proto::TryCommitReply();
+      reply->set_req_id(try_commit.req_id());
+      reply->set_status(REPLY_OK); // OR should it be reply_ok?
+      results.push_back(returnMessage(reply));
       }else{
         std::cerr<< type<<"\n";
         Panic("Should not try to issue parallel operations that aren't sql_query");
@@ -223,17 +238,13 @@ void Server::Execute_Callback(const string& type, const string& msg, std::functi
   } catch(tao::pq::sql_error e) {
     Debug("A exception caugth while using postgres.");
  
-    if (std::regex_match(e.sqlstate, std::regex("40..."))){
+    if (std::regex_match(e.sqlstate, std::regex("40...")) || std::regex_match(e.sqlstate, std::regex("55P03"))){ // Concurrency errors
       Debug("A concurrency exception caugth while using postgres.");
-      markTxnTerminated(t);
+      markTxnTerminated(t,"sql_rpc, concurrency problem");
       t.release();
       reply->set_status(REPLY_FAIL);
     } else if (std::regex_match(e.sqlstate, std::regex("23..."))){ // Application errors
-    // markTxnTerminated(t);
-    // t.release();
-    // sql::QueryResultProtoBuilder* res_builder = createResult();
-    // reply->set_status(REPLY_OK);
-    // reply->set_sql_res(res_builder->get_result()->SerializeAsString());
+      reply->set_status(REPLY_OK);
     }else{
       std::cerr<< e.sqlstate << std::endl;
       Panic("Unexpected postgres exception");
@@ -244,7 +255,8 @@ void Server::Execute_Callback(const string& type, const string& msg, std::functi
 }
 
 ::google::protobuf::Message* Server::HandleTryCommit(txnStatusMap::accessor &t, std::shared_ptr<tao::pq::transaction> tr, uint64_t req_id) {
-  Debug("Trying to commit a txn");
+  Debug("Trying to commit a txn %d",req_id);
+  std::cerr<<"the tr pointer for commit is :     "<< tr << "\n";
   proto::TryCommitReply* reply = new proto::TryCommitReply();
   reply->set_req_id(req_id);
   try {
@@ -252,31 +264,30 @@ void Server::Execute_Callback(const string& type, const string& msg, std::functi
     Debug("TryCommit went through successfully.");
     reply->set_status(REPLY_OK);
   } catch(tao::pq::sql_error e) {
+    std::cerr<< e.sqlstate << std::endl;
     Debug("A exception caugth while using postgres."); 
-    if (std::regex_match(e.sqlstate, std::regex("40..."))){
-      Debug("A concurrency exception caugth while using postgres.");
-      markTxnTerminated(t);
-      t.release();
-      reply->set_status(REPLY_FAIL);
-    } else if (std::regex_match(e.sqlstate, std::regex("23..."))){ // Application errors
-    // markTxnTerminated(t);
-    // t.release();
-    // sql::QueryResultProtoBuilder* res_builder = createResult();
-    // reply->set_status(REPLY_OK);
-    // reply->set_sql_res(res_builder->get_result()->SerializeAsString());
-    }else{
-      std::cerr<< e.sqlstate << std::endl;
-      Panic("Unexpected postgres exception");
-    }
+    reply->set_status(REPLY_FAIL);
+    // Shir: do we need diffenet codes here?
+    // if (std::regex_match(e.sqlstate, std::regex("40..."))){ // Concurrency errors
+    //   Debug("A concurrency exception caugth while using postgres.");
+    //   markTxnTerminated(t);
+    //   t.release();
+    //   reply->set_status(REPLY_FAIL);
+    // } else if (std::regex_match(e.sqlstate, std::regex("23..."))){ // Application errors
+    //   reply->set_status(REPLY_OK);
+    // }else{
+    //   std::cerr<< e.sqlstate << std::endl;
+    //   Panic("Unexpected postgres exception");
+    // }
 
   }
-  markTxnTerminated(t);
+  markTxnTerminated(t,"trycommit");
   return returnMessage(reply);
 }
 
 ::google::protobuf::Message* Server::HandleUserAbort(txnStatusMap::accessor &t, std::shared_ptr<tao::pq::transaction> tr) {
   tr->rollback();
-  markTxnTerminated(t);
+  markTxnTerminated(t,"");
   return nullptr;
 }
 
@@ -318,8 +329,9 @@ uint64_t Server::getThreadID(const std::string &key){
 }
 
 // fields are < connection, transaction tr, bool was_aborted>
-void Server::markTxnTerminated(txnStatusMap::accessor &t){
-  Debug("Shir: terminating txn");
+void Server::markTxnTerminated(txnStatusMap::accessor &t,string from){
+  std::cerr<<"Shir: terminating txn from  "<< from.c_str() << "with tr pointer:    "<< get<1>(t->second) <<"\n";
+
   get<0>(t->second) = nullptr;
   get<1>(t->second) = nullptr;
   get<2>(t->second) = true;

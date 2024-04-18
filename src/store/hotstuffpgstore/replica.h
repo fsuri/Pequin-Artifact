@@ -101,6 +101,9 @@ public:
   std::unordered_map<uint64_t, std::string> pendingBatchedDigests;
   std::unordered_map<uint64_t, std::string> bStatNames;
 
+  bool bubbleTimerRunning;
+  int proposedCounter;
+  
   bool EbatchTimerRunning;
   int EbatchTimerId;
   std::vector<::google::protobuf::Message*> EpendingBatchedMessages;
@@ -132,6 +135,7 @@ public:
 
   void handleMessage(const TransportAddress &remote, const string &type, const string &data);
 
+  void proposeBubble(string digest, TransportAddress* clientAddr);
   void fillPipeline(string digest, TransportAddress* clientAddr);
 
   Stats* stats;

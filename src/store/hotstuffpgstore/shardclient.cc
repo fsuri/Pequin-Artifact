@@ -137,17 +137,15 @@ void ShardClient::HandleSQL_RPCReply(const proto::SQL_RPCReply& reply, const pro
     Debug("Shir: got an additional reply. request:  %lu now has  %lu replies.",reqId,pendingSQL_RPC->numReceivedReplies);
     // Debug("Shir: the current reply status is %lu",reply.status());
 
+ 
+    bool status_changed_to_ok=false;
     if(reply.status() == REPLY_OK && pendingSQL_RPC->status == REPLY_FAIL) {
-      pendingSQL_RPC->status = REPLY_OK;
+      status_changed_to_ok=true;
     }
 
     // Updating a previously failed sql_rpc-- only for deterministic mode
-    if(!async_server && reply.status() == REPLY_OK) {
-      Debug("Shir: query reply was OK");
-      if(pendingSQL_RPC->status == REPLY_FAIL) {
-        Debug("Updating sql_rpc reply signed");
+    if(!async_server && status_changed_to_ok) {
         pendingSQL_RPC->status = REPLY_OK;
-      }
     }
 
     if(signMessages) {
@@ -161,7 +159,10 @@ void ShardClient::HandleSQL_RPCReply(const proto::SQL_RPCReply& reply, const pro
       if(async_server && replica_id == 0) {
         Debug("Updating leader reply.");
         pendingSQL_RPC->hasLeaderReply=true;
-        pendingSQL_RPC->leaderReply = reply.sql_res();
+        pendingSQL_RPC->leaderReply = reply.sql_res(); // this might be empty if status is failed
+        if (status_changed_to_ok){
+          pendingSQL_RPC->status = REPLY_OK;
+        }
       }
             std::cerr <<"Shir: (2) For SQL_rpc req id: "<<reqId<<" There are "<<pendingSQL_RPC->numReceivedReplies<<" replies \n";
     } 
