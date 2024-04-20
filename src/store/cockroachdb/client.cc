@@ -116,20 +116,6 @@ Client::Client(const transport::Configuration &config, uint64_t id, int nShards,
     }
     else{
       Panic("TaoPQ connection to backend could not be established");
-    } 
-
-    // Prepare put function. Use PostgreSQL's upsert feature (i.e. if exists
-    // update else insert)
-    try{
-       conn->prepare("put",
-                  "INSERT INTO datastore(key_, val_) VALUES(\'$1\', \'$2\') ON "
-                  "CONFLICT (key_) "
-                  "DO UPDATE SET val_ = \'$2\';");
-
-      // Prepare get function. Use point query
-      conn->prepare("get", "SELECT val_ FROM datastore WHERE key_ = \'$1\'");
-    } catch (const std::exception &e) {
-      Panic("Failed to prepare Put/Get statements: %s", e.what());
     }
 
     Notice("Client successfully started");
