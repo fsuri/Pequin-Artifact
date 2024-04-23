@@ -564,7 +564,6 @@ void Server::RecordReadPredicatesAndWrites(const proto::Transaction &txn, const 
   }
   Debug("Prepare: predSet has [%d] read preds", predSet->size());
  
-
   for(auto &pred: *predSet){
     std::cerr << "Record pred: " << pred.pred_instances()[0] << std::endl;
     TablePredicateMap::accessor tp;
@@ -579,6 +578,7 @@ void Server::RecordReadPredicatesAndWrites(const proto::Transaction &txn, const 
     tp.release();
     Debug("Insert ReadPred for table: %s. Read TS [%lu:%lu]", pred.table_name().c_str(), ts.getTimestamp(), ts.getID());
   }
+  //if(predSet->size()>1) Panic("stop test");
   
    // for(auto &query_md : txn.query_set()){
   //   const proto::QueryGroupMeta &group_meta = query_md.group_meta().at(groupIdx); //only need to look at the pred for partitions this group is responsible for (Note: we don't support partitions currently)

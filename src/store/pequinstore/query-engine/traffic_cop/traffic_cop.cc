@@ -735,12 +735,12 @@ executor::ExecutionResult TrafficCop::ExecuteWriteHelper(
   // Set whether to force materialize
   txn->SetForceMaterialize(forceMaterialize);
 
-  Notice("IN WRITE HELPER: Txn %s is trying to %s", pequinstore::BytesToHex(*txn_dig, 16).c_str(), commit_or_prepare? "commit" : "prepare");
-  Notice("Commit or prepare is %d", txn->GetCommitOrPrepare());
-  Notice("Commit or prepare is %d", commit_or_prepare);
+  Debug("IN WRITE HELPER: Txn %s is trying to %s", pequinstore::BytesToHex(*txn_dig, 16).c_str(), commit_or_prepare? "commit" : "prepare");
+  // Notice("Commit or prepare is %d", txn->GetCommitOrPrepare());
+  // Notice("Commit or prepare is %d", commit_or_prepare);
 
-  std::cerr << "Commit Or Prepare:" << commit_or_prepare << std::endl;
-  std::cerr << "Txn: Commit Or Prepare:" << txn->GetCommitOrPrepare() << std::endl;
+  // std::cerr << "Commit Or Prepare:" << commit_or_prepare << std::endl;
+  // std::cerr << "Txn: Commit Or Prepare:" << txn->GetCommitOrPrepare() << std::endl;
   // skip if already aborted
   if (curr_state.second == ResultType::ABORTED) {
     // If the transaction state is ABORTED, the transaction should be aborted

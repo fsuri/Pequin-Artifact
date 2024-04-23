@@ -641,6 +641,9 @@ void Client::QueryResultCallback(PendingQuery *pendingQuery,
         // }
 
          for(auto &pred: *query_read_set->mutable_read_predicates()){
+            if(!txn.read_predicates().empty() && pred.pred_instances_size() == 1){ //This is just a simple check that sees if there are 2 consecutive preds (that only have 1 instantiation) with the same pred_instance
+                if(pred.pred_instances()[0] == txn.read_predicates()[txn.read_predicates_size()-1].pred_instances()[0]) continue;
+            }
             proto::ReadPredicate *add_pred = txn.add_read_predicates();
             *add_pred = std::move(pred);
          }

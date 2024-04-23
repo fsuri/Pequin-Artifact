@@ -233,13 +233,16 @@ std::string PelotonTableStore::TransformResult(peloton::ResultType &status, std:
   // Add rows
   unsigned int rows = result.size() / tuple_descriptor.size();
   for (unsigned int i = 0; i < rows; i++) {
-    std::cerr << "Row[" << i << "]" << std::endl;
+    //std::cerr << "Row[" << i << "]" << std::endl;
+    Debug("Row[%d]", i);
+
     RowProto *row = queryResultBuilder.new_row();
     for (unsigned int j = 0; j < tuple_descriptor.size(); j++) {
       // Use interface addtorow, and pass in field to that row
       //std::string r = result[i * tuple_descriptor.size() + j];
       queryResultBuilder.AddToRow(row, result[i * tuple_descriptor.size() + j]);
-      std::cerr << "  Col: " << (std::get<0>(tuple_descriptor[j]))<< ". Value: " << (result[i * tuple_descriptor.size() + j]) << std::endl;
+      Debug("   Col: %s. Value: %s", std::get<0>(tuple_descriptor[j]), result[i * tuple_descriptor.size() + j]);
+      //std::cerr << "  Col: " << (std::get<0>(tuple_descriptor[j]))<< ". Value: " << (result[i * tuple_descriptor.size() + j]) << std::endl;
     }
   }
 

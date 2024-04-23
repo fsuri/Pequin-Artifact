@@ -754,9 +754,8 @@ void Server::SendQueryReply(QueryMetaData *query_md){
                 smsgs.push_back(queryResultReply->mutable_signed_result());
                 SignMessages(msgs, keyManager->GetPrivateKey(id), id, smsgs, params.merkleBranchFactor);
             }
-            std::cerr << "about to send to: " << query_md->original_client << std::endl;
+
             this->transport->SendMessage(this, *query_md->original_client, *queryResultReply);
-             std::cerr << "managed to send" << std::endl;
              Debug("Sent Signed Query Result for Query[%lu:%lu]", result->query_seq_num(), result->client_id());
             //delete queryResultReply;
             

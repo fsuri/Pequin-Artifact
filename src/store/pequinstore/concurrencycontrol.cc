@@ -407,6 +407,14 @@ proto::ConcurrencyControl::Result Server::mergeTxReadSets(const ReadSet *&readSe
           int n = query_rs_mut->read_predicates_size(); 
           for(int i = 0; i < n; ++i){
             auto next_pred = query_rs_mut->mutable_read_predicates()->ReleaseLast();
+            //Skip some duplicates.. (Note: Not currently guaranteed that predicates are in order..)
+            if(!mergedReadSet->read_predicates().empty() && next_pred->pred_instances_size() == 1){
+              //This is just a simple check that sees if there are 2 consecutive preds (that only have 1 instantiation) with the same pred_instance
+                if(next_pred->pred_instances()[0] ==  mergedReadSet->read_predicates()[mergedReadSet->read_predicates_size()-1].pred_instances()[0]){
+                  delete next_pred;
+                  continue;
+                }
+            } 
             Debug("Merge read pred: [%s]: %s", next_pred->table_name().c_str(), next_pred->pred_instances()[0].c_str());
             mergedReadSet->mutable_read_predicates()->AddAllocated(next_pred);
           }

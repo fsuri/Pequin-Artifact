@@ -394,31 +394,34 @@ ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple,
     //If TX tries to write to a tuple that it previously wrote itself (i.e. prepared)
     //Distinguish whether we are trying to rollback a prepare, or upgrade it to commit.
     if (ts == transaction->GetBasilTimestamp()) {
-      std::cerr << "IN INSERT TUPLE Txn: " << pequinstore::BytesToHex(*transaction->GetTxnDig(), 16) << std::endl;
-       std::cerr << "IN INSERT TUPLE Txn: Commit Or Prepare:" << transaction->GetCommitOrPrepare() << std::endl;
+      Debug("In INSERT TUPLE. txn: %s. Commit (or prepare) ? %d", pequinstore::BytesToHex(*transaction->GetTxnDig(), 16), transaction->GetCommitOrPrepare());
+      // std::cerr << "IN INSERT TUPLE Txn: " << pequinstore::BytesToHex(*transaction->GetTxnDig(), 16) << std::endl;
+      //  std::cerr << "IN INSERT TUPLE Txn: Commit Or Prepare:" << transaction->GetCommitOrPrepare() << std::endl;
      
-      std::cerr << "Duplicate" << std::endl;
+      // std::cerr << "Duplicate" << std::endl;
       is_duplicate = true;
       bool is_prepared = !curr_tile_group_header->GetCommitOrPrepare(curr_pointer.offset);
 
       /** TODO: Add check to make sure it's prepared */
       if (transaction->GetUndoDelete() && is_prepared) {
-        std::cerr << "In undo delete for purge" << std::endl;
+        Debug("In UndoDelete for Purge [txn: %s]", pequinstore::BytesToHex(*transaction->GetTxnDig(), 16));
+        //std::cerr << "In undo delete for purge" << std::endl;
         // Purge this tuple
         // Set the linked list pointers
         auto prev_loc = curr_tile_group_header->GetPrevItemPointer(curr_pointer.offset);
         auto next_loc = curr_tile_group_header->GetNextItemPointer(curr_pointer.offset);
 
         if (!prev_loc.IsNull() && !next_loc.IsNull()) {
-          std::cerr << "Updating both pointers" << std::endl;
+           Debug("Updating both pointers (purge inbetween) [txn: %s]", pequinstore::BytesToHex(*transaction->GetTxnDig(), 16));
+          //std::cerr << "Updating both pointers" << std::endl;
           auto prev_tgh = this->GetTileGroupById(prev_loc.block)->GetHeader();
           auto next_tgh = this->GetTileGroupById(next_loc.block)->GetHeader();
-          std::cerr << "prev loc" << prev_loc.block << ", " << prev_loc.offset << std::endl;
-          std::cerr << "next loc" << next_loc.block << ", " << next_loc.offset << std::endl;
+          //d::cerr << "next loc" << next_loc.block << ", " << next_loc.offset << std::endl;
           prev_tgh->SetNextItemPointer(prev_loc.offset, next_loc);
           next_tgh->SetPrevItemPointer(next_loc.offset, prev_loc);
         } else if (prev_loc.IsNull() && !next_loc.IsNull()) {
-          std::cerr << "Updating head pointer" << std::endl;
+          //std::cerr << "Updating head pointer" << std::endl;
+           Debug("Updating head pointer (purge latest) [txn: %s]", pequinstore::BytesToHex(*transaction->GetTxnDig(), 16));
           auto next_tgh = this->GetTileGroupById(next_loc.block)->GetHeader();
           next_tgh->SetPrevItemPointer(next_loc.offset, ItemPointer(INVALID_OID, INVALID_OID));
           ItemPointer *index_entry_ptr = next_tgh->GetIndirection(next_loc.offset);
@@ -431,7 +434,8 @@ ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple,
           PELOTON_ASSERT(res == true);
 
         } else if (next_loc.IsNull() && !prev_loc.IsNull()) {
-          std::cerr << "Updating prev pointer" << std::endl;
+          //std::cerr << "Updating prev pointer" << std::endl;
+           Debug("Updating prev pointer [txn: %s]", pequinstore::BytesToHex(*transaction->GetTxnDig(), 16));
           auto prev_tgh = this->GetTileGroupById(prev_loc.block)->GetHeader();
           prev_tgh->SetNextItemPointer(prev_loc.offset, ItemPointer(INVALID_OID, INVALID_OID));
         }
@@ -473,23 +477,30 @@ ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple,
           
           Debug("Wrote commit proof for tuple: [%lu:%lu]", curr_pointer.block, curr_pointer.offset);
         } else {
-          std::cerr << "Should upgrade is " << should_upgrade << std::endl;
-          std::cerr << "Current tuple is: " << (curr_tile_group_header->GetCommitOrPrepare(curr_pointer.offset)? "committed" : "prepared") << std::endl;
-          std::cerr << "Transaction is " << (transaction->GetCommitOrPrepare()? "committing" : "preparing") << std::endl;
-          std::cerr << "Same columns is " << same_columns << std::endl;
-          std::cerr << "Timestamp is " << ts.getTimestamp() << ", " << ts.getID() << std::endl;
-          std::cerr << "Txn timestamp is " << transaction->GetBasilTimestamp().getTimestamp() << ", " << transaction->GetBasilTimestamp().getID() << std::endl;
+          // std::cerr << "Should upgrade is " << should_upgrade << std::endl;
+          // std::cerr << "Current tuple is: " << (curr_tile_group_header->GetCommitOrPrepare(curr_pointer.offset)? "committed" : "prepared") << std::endl;
+          // std::cerr << "Transaction is " << (transaction->GetCommitOrPrepare()? "committing" : "preparing") << std::endl;
+          // std::cerr << "Same columns is " << same_columns << std::endl;
+          // std::cerr << "Timestamp is " << ts.getTimestamp() << ", " << ts.getID() << std::endl;
+          // std::cerr << "Txn timestamp is " << transaction->GetBasilTimestamp().getTimestamp() << ", " << transaction->GetBasilTimestamp().getID() << std::endl;
 
-          std::cerr << "Current tuple txn is: " << pequinstore::BytesToHex(*curr_tile_group_header->GetTxnDig(curr_pointer.offset),16) << std::endl;
-          std::cerr << "Current txn is: " << pequinstore::BytesToHex(*transaction->GetTxnDig(),16) << std::endl;
+          // std::cerr << "Current tuple txn is: " << pequinstore::BytesToHex(*curr_tile_group_header->GetTxnDig(curr_pointer.offset),16) << std::endl;
+          // std::cerr << "Current txn is: " << pequinstore::BytesToHex(*transaction->GetTxnDig(),16) << std::endl;
           
-             Debug("Duplicate access to tile-group-header:offset [%lu:%lu]", curr_pointer.block, curr_pointer.offset);
+          // Debug("Duplicate access to tile-group-header:offset [%lu:%lu]", curr_pointer.block, curr_pointer.offset);
+
+          Debug("Try Upgrade [txn: %s]. Should upgrade? %d. Current commit/prepare state: %d. Txn state: %d. Same columns? %d. TS[%lu:%lu]. TXN-TS[%lu:%lu]. Dig[%s]. TXN-Dig[%s]. tile-group-header:offset [%lu:%lu]", 
+                  pequinstore::BytesToHex(*transaction->GetTxnDig(), 16), should_upgrade, curr_tile_group_header->GetCommitOrPrepare(curr_pointer.offset), transaction->GetCommitOrPrepare(),
+                  same_columns, ts.getTimestamp(), ts.getID(), transaction->GetBasilTimestamp().getTimestamp(), transaction->GetBasilTimestamp().getID(),
+                  pequinstore::BytesToHex(*curr_tile_group_header->GetTxnDig(curr_pointer.offset),16), pequinstore::BytesToHex(*transaction->GetTxnDig(),16),
+                  curr_pointer.block, curr_pointer.offset);
           if(curr_tile_group_header->GetCommitOrPrepare(curr_pointer.offset) == transaction->GetCommitOrPrepare() ) Panic("Tried to prepare twice or commit twice for same TX");
         }
       }
 
     } else {
-      std::cerr << "Data table performing update" << std::endl;
+      Debug("Data table performing update");
+      //std::cerr << "Data table performing update" << std::endl;
       is_duplicate = false;
 
       ItemPointer location = GetEmptyTupleSlot(tuple);
@@ -517,7 +528,7 @@ ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple,
       IncreaseTupleCount(1);
 
       if (result == false) {
-        std::cerr << "The result is false" << std::endl;
+        //std::cerr << "The result is false" << std::endl;
         Debug("InsertTuple result false");
         // std::cerr << "result is false" << std::endl;
         //  check_fk = false;
