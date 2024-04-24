@@ -36,10 +36,10 @@
 ThreadPool::ThreadPool() {}
 
 //TODO: Make this an input param.
-static bool running_locally = false; //allow using more than 8 cores for local testing.
+//static bool running_locally = false; //allow using more than 8 cores for local testing.
 
 void ThreadPool::start(int process_id, int total_processes, bool hyperthreading,
-                       bool server, int mode) {
+                       bool server, int mode, bool optimize_for_dev_machine) {
   // printf("starting threadpool \n");
   // if hardware_concurrency is wrong try this:
   cpu_set_t cpuset;
@@ -61,16 +61,17 @@ void ThreadPool::start(int process_id, int total_processes, bool hyperthreading,
 
     bool put_all_threads_on_same_core = false;
 
-    if (running_locally) num_cpus = 16;
-    if (num_cpus > 8 && !running_locally) {
+    if (optimize_for_dev_machine){
+      num_cpus = 16;
+      fprintf(stderr, "(Using Dev Machine: Total Num_cpus on server downregulated to: %d \n", num_cpus);
+    } 
+    if (num_cpus > 8 && !optimize_for_dev_machine) {
       num_cpus = 8;
-      fprintf(stderr, "Total Num_cpus on server downregulated to: %d \n",
-              num_cpus);
+      fprintf(stderr, "Total Num_cpus on server downregulated to: %d \n", num_cpus);
     }
 
     num_cpus /= total_processes;
-    fprintf(stderr, "Num_cpus used for replica #%d: %d \n", process_id,
-            num_cpus);
+    fprintf(stderr, "Num_cpus used for replica #%d: %d \n", process_id, num_cpus);
     int offset = process_id * num_cpus; // Offset that determines where first
                                         // core of the server begins.
     uint32_t num_threads = (uint32_t)std::max(1, num_cpus);
@@ -110,7 +111,7 @@ void ThreadPool::start(int process_id, int total_processes, bool hyperthreading,
       cpu_set_t cpuset;
       CPU_ZERO(&cpuset);
       CPU_SET(i + offset, &cpuset);
-      if (i + offset > 7 && !running_locally)
+      if (i + offset > 7 && !optimize_for_dev_machine)
         return; // XXX This is a hack to support the non-crypto experiment that does not actually use multiple cores
 
       // Mainthread   -- this is ONE thread on which any workload that must be sequential should be run.

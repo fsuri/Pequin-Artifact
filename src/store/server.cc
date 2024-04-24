@@ -331,6 +331,8 @@ DEFINE_bool(indicus_replica_gossip, false, "use gossip between replicas to excha
 /*
  Pequin settings
 */
+DEFINE_bool(optimize_tpool_for_dev_machine, false, "use 16 instead of 8 cores when running on dev machine for faster loading");
+
 DEFINE_uint32(pequin_snapshot_prepared_k, 1, "number of prepared reads to include in snapshot (before reaching first committed version)");
 
 DEFINE_bool(pequin_query_eager_exec, true, "skip query sync protocol and execute optimistically on local state");
@@ -518,7 +520,7 @@ int main(int argc, char **argv) {
 			// 	tport = new TCPTransport(0.0, 0.0, 0, false, 0, 1);
 			// 	break;
 			// }
-      tport = new TCPTransport(0.0, 0.0, 0, false, FLAGS_indicus_process_id, FLAGS_indicus_total_processes, FLAGS_indicus_hyper_threading, true, threadpool_mode);
+      tport = new TCPTransport(0.0, 0.0, 0, false, FLAGS_indicus_process_id, FLAGS_indicus_total_processes, FLAGS_indicus_hyper_threading, true, threadpool_mode, FLAGS_optimize_tpool_for_dev_machine);
 			 //TODO: add: process_id + total processes (max_grpid/ machines (= servers/n))
       break;
     case TRANS_UDP:

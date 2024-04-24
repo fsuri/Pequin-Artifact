@@ -165,9 +165,9 @@ BindToPort(int fd, const string &host, const string &port)
 }
 
 TCPTransport::TCPTransport(double dropRate, double reorderRate,
-			   int dscp, bool handleSignals, int process_id, int total_processes, bool hyperthreading, bool server, int mode)
+			   int dscp, bool handleSignals, int process_id, int total_processes, bool hyperthreading, bool server, int mode, bool optimize_tpool_for_dev_machine)
 {
-    tp.start(process_id, total_processes, hyperthreading, server, mode);
+    tp.start(process_id, total_processes, hyperthreading, server, mode, optimize_tpool_for_dev_machine);
 
     lastTimerId = 0;
 
