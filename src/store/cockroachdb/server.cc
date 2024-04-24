@@ -25,7 +25,7 @@ void Server::exec_sql(std::string sql) {
   std::string crdb_command = "cockroach sql --insecure --host=" + host +
                              std::string() + ":" + port + " --execute=\"" +
                              sql + "\"";
-  //Notice("Issuing SQL command %s", crdb_command.c_str());
+  Notice("Issuing SQL command %s", crdb_command.c_str());
   int status = system(crdb_command.c_str());
   stats.Increment("sql_commands_executed", 1);
 }
