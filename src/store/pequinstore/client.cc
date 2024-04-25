@@ -106,6 +106,7 @@ Client::Client(transport::Configuration *config, uint64_t id, int nShards,
   if(sql_bench){
      Debug("Register tables from: %s", table_registry.c_str());
      sql_interpreter.RegisterTables(table_registry);
+     sql_interpreter.RegisterPartitioner(part, nShards, nGroups, -1);
   }
 }
 
@@ -296,15 +297,17 @@ void Client::Write(std::string &write_statement, write_callback wcb,
     std::function<void(int, query_result::QueryResult*)>  write_continuation;
     bool skip_query_interpretation = false;
 
+    uint64_t point_target_group;
+
     //Write must stay in scope until the TX is done (because the Transformation creates String Views on it that it needs). Discard upon finishing TX
     pendingWriteStatements.push_back(write_statement);
-    sql_interpreter.TransformWriteStatement(pendingWriteStatements.back(), read_statement, write_continuation, wcb, skip_query_interpretation);
+    sql_interpreter.TransformWriteStatement(pendingWriteStatements.back(), read_statement, write_continuation, wcb, point_target_group, skip_query_interpretation);
 
     Debug("Transformed Write into re-con read_statement: %s", read_statement.c_str());
     
   
-    if(read_statement.empty()){
-      //TODO: Add to writes directly.  //TODO: Call write_continuation for Insert ; for Point Delete -- > OR: Call them inside Transform.
+    if(read_statement.empty()){ //Must be point operation (Insert/Delete)
+      //Add to writes directly.  //Call write_continuation for Insert ; for Point Delete -- > OR: Call them inside Transform.
       //NOTE: must return a QueryResult... 
       Debug("No read statement, immediately writing");
       sql::QueryResultProtoWrapper *write_result = new sql::QueryResultProtoWrapper(""); //TODO: replace with real result.
@@ -316,6 +319,16 @@ void Client::Write(std::string &write_statement, write_callback wcb,
           //   //Only cache if we did a Select *, i.e. we have the full row, and thus it can be used by Update.
           //   if(size_t pos = pendingQuery->queryMsg.query_cmd().find("SELECT *"); pos != std::string::npos) point_read_cache[key] = result;
           // } 
+
+       
+      //FIXME: Just for testing currently:
+      if(point_target_group != 0) Panic("Trying to use a Shard other than 0");  
+      if (!IsParticipant(point_target_group)) {
+        txn.add_involved_groups(point_target_group);
+        bclient[point_target_group]->Begin(client_seq_num);
+      }
+                
+  
     }
     else{
       //  auto qcb = [this, write_continuation, wcb](int status, const query_result::QueryResult *result) mutable { 

@@ -457,6 +457,7 @@ int main(int argc, char **argv) {
 
 
   //////
+  /*
   std::mt19937 test_rand;
    auto test_part = WarehouseSQLPartitioner(1, test_rand);
   std::string tbl = "warehouse";
@@ -515,8 +516,40 @@ int main(int argc, char **argv) {
   // std::cerr << "TEST5: " << w_id << std::endl;
 
   UW_ASSERT(FLAGS_sql_bench);
-  Panic("stop test");
 
+
+
+  // uint32_t w_id = *reinterpret_cast<const uint32_t*>(key.c_str() + 1);
+  std::string t1 = "1_table";
+  std::string t15 = "15_table";
+
+  std::cerr << "t1: " << t1[0] << std::endl; 
+   std::cerr << "t15: " << t15[0] << std::endl; 
+
+  enum test {
+    a, b, c,d,e,f,g,h,i,j,k,l
+  };
+
+  char t[2];
+  t[0] = static_cast<char>(test::l);
+  t[1] = 't';
+  std::string test_t(t, sizeof(t));
+  std::cerr << "test_t: " << test_t << std::endl;
+  std::cerr << "t: " << test_t[0] << std::endl; 
+  UW_ASSERT(test_t[0]== 11);
+
+
+  auto rw_part = RWSQLPartitioner(10);
+  tbl = "15t";
+  test_put = "15t#12";
+  shard = rw_part(tbl, test_put, 2, 1, grps, true);
+  std::cerr << "RW-TEST: " << shard << std::endl;
+  shard = rw_part(tbl, test_put, 2, 1, grps, false);
+  std::cerr << "RW-TEST2: " << shard << std::endl;
+
+
+  //Panic("stop test");
+  */
   
 
 
@@ -611,7 +644,6 @@ int main(int argc, char **argv) {
 
 
   std::mt19937 unused;
- 
   switch (partType) {
     case DEFAULT:
     {
@@ -644,7 +676,7 @@ int main(int argc, char **argv) {
     default:
       NOT_REACHABLE();
   }
-
+  
   // parse occ type
   occ_type_t occ_type = OCC_TYPE_UNKNOWN;
   int numOCCTypes = sizeof(occ_type_args);
@@ -708,7 +740,8 @@ int main(int argc, char **argv) {
           //Create Table
           
       for(int i=0; i<FLAGS_num_tables; ++i){
-        string table_name = "table_" + std::to_string(i);
+        //string table_name = "table_" + std::to_string(i);
+        string table_name = "t" + std::to_string(i);
         table_writer.add_table(table_name, column_names_and_types, primary_key_col_idx);
       }
 
@@ -1058,6 +1091,7 @@ int main(int argc, char **argv) {
   } 
   //SQL Benchmarks -- they all require a schema file!
   else if(FLAGS_sql_bench && FLAGS_data_file_path.length() > 0 && FLAGS_keys_path.empty()) {
+     UW_ASSERT(FLAGS_num_shards == 1 || proto == PROTO_PEQUIN); // Currently only Pequin supports more than 1 shard.
      Notice("Benchmark: SQL with Loaded Table Registry");
        std::ifstream generated_tables(FLAGS_data_file_path);
        json tables_to_load;
@@ -1088,7 +1122,13 @@ int main(int argc, char **argv) {
           const std::vector<std::pair<std::string, std::string>> &column_names_and_types = table_args["column_names_and_types"];
           const std::vector<uint32_t> &primary_key_col_idx = table_args["primary_key_col_idx"];
 
+          //If Table has no pre-generated data: Generate some (This is done for RW-SQL)
           if(!table_args.contains("row_data_path")) { //RW-SQL ==> generate rows 
+
+            // Skip loading relevant tables for this shard. //TODO: Assert that this is using RWSQLPartitioner
+            std::vector<int> dummyTxnGroups;
+            if ((*part)(table_name, "", FLAGS_num_shards, FLAGS_group_idx, dummyTxnGroups, false) % FLAGS_num_groups != FLAGS_group_idx) continue;
+
             //std::vector<std::vector<std::string>> values;
             row_segment_t *values = new row_segment_t();
             for(int j=0; j<FLAGS_num_keys_per_table; ++j){

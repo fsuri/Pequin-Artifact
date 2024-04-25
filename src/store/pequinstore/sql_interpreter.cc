@@ -72,6 +72,15 @@ using namespace std;
     // 3. Proto Wrapper -> WriteCont: deCerialize Proto (perform arithmetic) + Stringify TableWrite     //Note: Can only stringify basic types; if we want to support Array, then we need to serialize somehow
     // 4. TableWrite -> Peloton: De-stringify into correct type.
 
+//server side only
+void SQLTransformer::RegisterPartitioner(Partitioner *part_, uint32_t num_shards_, uint32_t num_groups_, uint32_t groupIdx_){
+    part = part_;
+    num_shards = num_shards_;
+    num_groups = num_groups_;
+    groupIdx = groupIdx_;
+}
+
+
 void SQLTransformer::RegisterTables(std::string &table_registry){ //TODO: This table registry file does not need to include the rows.
 
     Debug("Register tables from registry: %s", table_registry.c_str());
@@ -135,7 +144,6 @@ void SQLTransformer::RegisterTables(std::string &table_registry){ //TODO: This t
     }
 }
 
-
 bool SQLTransformer::InterpretQueryRange(const std::string &_query, std::string &table_name, std::vector<std::string> &p_col_values, bool relax){
     //Using Syntax from: https://www.postgresqltutorial.com/postgresql-tutorial/postgresql-select/
 
@@ -173,7 +181,8 @@ bool SQLTransformer::InterpretQueryRange(const std::string &_query, std::string 
 }
 
 void SQLTransformer::TransformWriteStatement(std::string &_write_statement, 
-    std::string &read_statement, std::function<void(int, query_result::QueryResult*)>  &write_continuation, write_callback &wcb, bool skip_query_interpretation){
+    std::string &read_statement, std::function<void(int, query_result::QueryResult*)>  &write_continuation, write_callback &wcb, 
+    uint64_t &target_group, bool skip_query_interpretation){
 
     //match on write type:
     size_t pos = 0;
@@ -189,7 +198,7 @@ void SQLTransformer::TransformWriteStatement(std::string &_write_statement,
 
     //Case 1) INSERT INTO <table_name> (<column_list>) VALUES (<value_list>)
     if( (pos = write_statement.find(insert_hook) != string::npos)){   //  if(write_statement.rfind("INSERT", 0) == 0){
-        TransformInsert(pos, write_statement, read_statement, write_continuation, wcb);
+        TransformInsert(pos, write_statement, read_statement, write_continuation, wcb, target_group);
     }
     //Case 2) UPDATE <table_name> SET {(column = value)} WHERE <condition>
     else if( (pos = write_statement.find(update_hook) != string::npos)){  //  else if(write_statement.rfind("UPDATE", 0) == 0){
@@ -197,7 +206,7 @@ void SQLTransformer::TransformWriteStatement(std::string &_write_statement,
     }
     //Case 3) DELETE FROM <table_name> WHERE <condition>
     else if( (pos = write_statement.find(delete_hook) != string::npos)){  //   else if(write_statement.rfind("DELETE", 0) == 0){
-        TransformDelete(pos, write_statement, read_statement, write_continuation, wcb, skip_query_interpretation);
+        TransformDelete(pos, write_statement, read_statement, write_continuation, wcb, target_group, skip_query_interpretation);
     }
     else{
         Panic("Currently only support the following Write statement operations: INSERT, DELETE, UPDATE");
@@ -208,7 +217,7 @@ void SQLTransformer::TransformWriteStatement(std::string &_write_statement,
 
 //TODO: Modify to support multi-row insert -> create row in TableWrite for each parsed result.
 void SQLTransformer::TransformInsert(size_t pos, std::string_view &write_statement,
-    std::string &read_statement, std::function<void(int, query_result::QueryResult*)>  &write_continuation, write_callback &wcb){
+    std::string &read_statement, std::function<void(int, query_result::QueryResult*)>  &write_continuation, write_callback &wcb, uint64_t &target_group){
     //Based on Syntax from: https://www.postgresqltutorial.com/postgresql-tutorial/postgresql-insert/ 
     // https://www.postgresqltutorial.com/postgresql-tutorial/postgresql-insert-multiple-rows/ https://www.digitalocean.com/community/tutorials/sql-insert-multiple-rows (TODO: Not yet implemented)
 
@@ -419,6 +428,10 @@ void SQLTransformer::TransformInsert(size_t pos, std::string_view &write_stateme
         *row_update->mutable_column_values() = {value_list.begin(), value_list.end()};
         row_update->set_write_set_idx(txn->write_set_size()-1);
         
+        //Invoke partitioner function to figure out which group/shard we want to send to.
+        std::vector<int> txnGroups(txn->involved_groups().begin(), txn->involved_groups().end());   
+        target_group = (*part)(table_name, row_update->column_values(), num_shards, -1, txnGroups) % num_groups;
+
         // for(auto &[col_name, col_idx]: col_registry_ptr->col_name_index){
         //     std::string *col_val = row_update->add_column_values();
         //     *col_val = std::move(value_list[col_idx]);
@@ -739,7 +752,8 @@ void SQLTransformer::TransformUpdate(size_t pos, std::string_view &write_stateme
 
 
 void SQLTransformer::TransformDelete(size_t pos, std::string_view &write_statement, 
-    std::string &read_statement, std::function<void(int, query_result::QueryResult*)>  &write_continuation, write_callback &wcb, bool skip_query_interpretation){
+    std::string &read_statement, std::function<void(int, query_result::QueryResult*)>  &write_continuation, write_callback &wcb, 
+    uint64_t &target_group, bool skip_query_interpretation){
     //Based on Syntax from: https://www.postgresqltutorial.com/postgresql-tutorial/postgresql-delete/ 
     
      //Case 3) DELETE FROM <table_name> WHERE <condition>
@@ -813,6 +827,10 @@ void SQLTransformer::TransformDelete(size_t pos, std::string_view &write_stateme
             std::string &col_value = (*row_update->mutable_column_values())[col_registry.col_name_index[col_name]];
             col_value = std::move(p_col_values.at(col_idx++));
         }
+
+          //Invoke partitioner function to figure out which group/shard we want to send to.
+        std::vector<int> txnGroups(txn->involved_groups().begin(), txn->involved_groups().end());   
+        target_group = (*part)(table_name, row_update->column_values(), num_shards, -1, txnGroups) % num_groups;
     
         /*TEST CODE ONLY*/
         // std::string test_purge_statement;
@@ -985,6 +1003,10 @@ void SQLTransformer::GenerateTableWriteStatement(std::string &write_statement, s
     bool has_delete = false;
 
     for(auto &row: table_write.rows()){
+
+        UW_ASSERT(part);
+        if ((*part)(table_name, row.column_values(), num_shards, groupIdx, dummyTxnGroups) % num_groups != groupIdx) continue; 
+
         //Alternatively: Move row contents to a vector and use: fmt::join(vec, ",")
         if(row.has_deletion() && row.deletion()){
 
@@ -1070,6 +1092,8 @@ void SQLTransformer::GenerateTableWriteStatement(std::string &write_statement, s
     const ColRegistry &col_registry = TableRegistry.at(table_name);
 
     for(auto &row: table_write.rows()){
+          UW_ASSERT(part);
+        if ((*part)(table_name, row.column_values(), num_shards, groupIdx, dummyTxnGroups) % num_groups != groupIdx) continue; 
         
         if(row.has_deletion() && row.deletion()){
             delete_statements.push_back("");
@@ -1153,8 +1177,11 @@ void SQLTransformer::GenerateTablePurgeStatement(std::string &purge_statement, c
     //NOTE: Inserts must always insert -- even if value exists ==> Insert new row.
     purge_statement = fmt::format("INSERT INTO {0} VALUES ", table_name);
     
-    for(auto &row: table_write.rows()){
-        //Alternatively: Move row contents to a vector and use: fmt::join(vec, ",")
+    for(auto &row: table_write.rows()){  //Alternatively: Move row contents to a vector and use: fmt::join(vec, ",")
+        UW_ASSERT(part);
+        if ((*part)(table_name, row.column_values(), num_shards, groupIdx, dummyTxnGroups) % num_groups != groupIdx) continue; 
+
+       
 
         purge_statement += "(";
         if(fine_grained_quotes){ // Use this to add fine grained quotes:
@@ -1190,6 +1217,10 @@ void SQLTransformer::GenerateTablePurgeStatement_DEPRECATED(std::string &purge_s
 
     for(auto &row: table_write.rows()){
         //Alternatively: Move row contents to a vector and use: fmt::join(vec, ",")
+
+         UW_ASSERT(part);
+        if ((*part)(table_name, row.column_values(), num_shards, groupIdx, dummyTxnGroups) % num_groups != groupIdx) continue; 
+
         for(auto &[col_name, p_idx]: col_registry.primary_key_cols_idx){
             if(fine_grained_quotes){
                 if(col_registry.col_quotes[p_idx]) purge_conds[col_name].push_back("\'" + row.column_values()[p_idx] + "\'");
@@ -1222,6 +1253,10 @@ void SQLTransformer::GenerateTablePurgeStatement_DEPRECATED(std::vector<std::str
 
     for(auto &row: table_write.rows()){
          //generate a purge statement per row.
+
+         UW_ASSERT(part);
+        if ((*part)(table_name, row.column_values(), num_shards, groupIdx, dummyTxnGroups) % num_groups != groupIdx) continue; 
+
         purge_statements.push_back("");
         std::string &purge_statement = purge_statements.back();
         purge_statement = fmt::format("DELETE FROM {0} WHERE ", table_name);

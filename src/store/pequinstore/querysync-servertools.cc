@@ -504,6 +504,9 @@ void Server::ForceMaterialization(const proto::ConcurrencyControl::Result &resul
     
 }
 
+
+//TODO: Improve Precision for Multi-shard TXs.
+  // In ApplyTableWrites: Only write rows in TableWrites that are to this shard.  //TODO: FIXME: must support parsing from TableWrite row... (or Insert statement...)
 void Server::ApplyTableWrites(const proto::Transaction &txn, const Timestamp &ts,
                 const std::string &txn_digest, const proto::CommittedProof *commit_proof, bool commit_or_prepare, bool forceMaterialize){
 

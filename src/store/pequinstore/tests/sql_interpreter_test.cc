@@ -64,6 +64,7 @@ static QueryParameters query_params(true,
                                   0UL       // FLAGS_pequin_monotonicity_grace
                                   );
 
+static DefaultSQLPartitioner dummy_part;
 
 void test_registry(){
   std::cerr << std::endl << "Test Registry" << std::endl;
@@ -99,6 +100,7 @@ void test_insert(){
   SQLTransformer sql_interpreter(&query_params);
   std::string table_registry = file_name + "-tables-schema.json";
   sql_interpreter.RegisterTables(table_registry);
+  sql_interpreter.RegisterPartitioner(&dummy_part, 1, 1, 0);
   proto::Transaction txn;
   sql_interpreter.NewTx(&txn);
 
@@ -115,7 +117,8 @@ void test_insert(){
 
   std::cerr << write_statement << std::endl;
 
-  sql_interpreter.TransformWriteStatement(write_statement, read_statement, write_continuation, wcb);
+  uint64_t dummy_target_table;
+  sql_interpreter.TransformWriteStatement(write_statement, read_statement, write_continuation, wcb, dummy_target_table);
 
 
   query_result::QueryResult *res = new sql::QueryResultProtoWrapper("");
@@ -157,6 +160,7 @@ void test_update(){
   SQLTransformer sql_interpreter(&query_params);
   std::string table_registry = file_name + "-tables-schema.json";
   sql_interpreter.RegisterTables(table_registry);
+  sql_interpreter.RegisterPartitioner(&dummy_part, 1, 1, 0);
   proto::Transaction txn;
   sql_interpreter.NewTx(&txn);
 
@@ -171,7 +175,8 @@ void test_update(){
 
   std::cerr << write_statement << std::endl;
 
-  sql_interpreter.TransformWriteStatement(write_statement, read_statement, write_continuation, wcb);
+  uint64_t dummy_target_table;
+  sql_interpreter.TransformWriteStatement(write_statement, read_statement, write_continuation, wcb, dummy_target_table);
 
 
   // std::vector<std::string> result_row;
@@ -238,9 +243,11 @@ void test_delete(){
   SQLTransformer sql_interpreter(&query_params);
   std::string table_registry = file_name + "-tables-schema.json";
   sql_interpreter.RegisterTables(table_registry);
+  sql_interpreter.RegisterPartitioner(&dummy_part, 1, 1, 0);
   proto::Transaction txn;
   sql_interpreter.NewTx(&txn);
 
+  uint64_t dummy_target_table;
 
   //DELETE FROM <table_name> WHERE <condition>
   std::string write_statement = "DELETE FROM user WHERE col2 = 'giraffe' AND col3 = 'apple';";
@@ -255,7 +262,8 @@ void test_delete(){
 
   std::cerr << write_statement << std::endl;
 
-  sql_interpreter.TransformWriteStatement(write_statement, read_statement, write_continuation, wcb);
+  
+  sql_interpreter.TransformWriteStatement(write_statement, read_statement, write_continuation, wcb, dummy_target_table);
 
 
   // std::vector<std::string> result_row;
@@ -316,7 +324,7 @@ void test_delete(){
  
   std::cerr << write_statement << std::endl;
 
-  sql_interpreter.TransformWriteStatement(write_statement, read_statement, write_continuation, wcb);
+  sql_interpreter.TransformWriteStatement(write_statement, read_statement, write_continuation, wcb, dummy_target_table);
 
   std::cerr << "Read Statement: " << read_statement << std::endl;
 
@@ -351,6 +359,7 @@ void test_cond(){
   SQLTransformer sql_interpreter(&query_params);
   std::string table_registry = file_name + "-tables-schema.json";
   sql_interpreter.RegisterTables(table_registry);
+  sql_interpreter.RegisterPartitioner(&dummy_part, 1, 1, 0);
   proto::Transaction txn;
   sql_interpreter.NewTx(&txn);
 
@@ -484,6 +493,7 @@ void test_write(){
    SQLTransformer sql_interpreter(&query_params);
   std::string table_registry = file_name + "-tables-schema.json";
   sql_interpreter.RegisterTables(table_registry);
+  sql_interpreter.RegisterPartitioner(&dummy_part, 1, 1, 0);
   proto::Transaction txn;
   sql_interpreter.NewTx(&txn);
 
@@ -529,6 +539,7 @@ void test_predicates(){
    SQLTransformer sql_interpreter(&query_params);
   std::string table_registry = file_name + "-tables-schema.json";
   sql_interpreter.RegisterTables(table_registry);
+  sql_interpreter.RegisterPartitioner(&dummy_part, 1, 1, 0);
   proto::Transaction txn;
   sql_interpreter.NewTx(&txn);
 

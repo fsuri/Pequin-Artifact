@@ -195,7 +195,7 @@ std::string Server::GetEncodedRow(const proto::Transaction &txn, const RowUpdate
   //Instead of looping over table rows and getting the encoded write key, we could also loop over the write keys directly, and get the row via the index
   //Note: We'd still somehow need access to the table in question (for CheckRead preds its easy, we already have it passed, but for CheckWrites it's annoying)
 
-   //NOTE: We now Correct the write set idx in case of sorting! So the on demand encoding is never needed.
+   //NOTE: We now Correct the write set idx in case of sorting! So the on demand encoding is never needed. (TODO: This is not robust to Byz clients lying about the encoded write set key.)
    UW_ASSERT(txn.write_set().size() > row.write_set_idx());
   return txn.write_set()[row.write_set_idx()].key();
 
@@ -270,8 +270,10 @@ proto::ConcurrencyControl::Result Server::CheckReadPred(const Timestamp &txn_ts,
     for(auto &row: txn_table_write.rows()){
       
       const std::string &write_key = GetEncodedRow(*write_txn, row, pred.table_name());
-   
 
+      // if write does not apply to this shard, continue.
+      if (!IsKeyOwned(write_key)) continue;
+   
       Debug("TX_ts: [%lu:%lu]. Pred: [%s]: compare vs write key [%s]", txn_ts.getTimestamp(), txn_ts.getID(), pred.table_name().c_str(), write_key.c_str());
 
       // /* DEBUG PRINTS FOR WRITE TXN. PRINT TABLE ROWS AND WRITE SET*/
@@ -442,6 +444,9 @@ proto::ConcurrencyControl::Result Server::CheckTableWrites(const proto::Transact
           //NOTE: checking just for key presence is enough! If it is present, then Normal CC check will already have handled conflicts.
       
       const std::string &write_key = GetEncodedRow(txn, row, table_name);
+
+       // if write does not apply to this shard, continue.
+      if (!IsKeyOwned(write_key)) continue;
 
       const ReadSet &txn_read_set = read_txn->has_merged_read_set() ? read_txn->read_set() : read_txn->merged_read_set().read_set();
       if(std::find_if(txn_read_set.begin(), txn_read_set.end(), [write_key](const ReadMessage &read){return read.key()==write_key;}) != txn_read_set.end()){

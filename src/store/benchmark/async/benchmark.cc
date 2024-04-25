@@ -1078,7 +1078,8 @@ int main(int argc, char **argv) {
         //Create Table
         
     for(int i=0; i<FLAGS_num_tables; ++i){
-      string table_name = "table_" + std::to_string(i);
+      //string table_name = "table_" + std::to_string(i);
+      string table_name = "t" + std::to_string(i);
       table_writer.add_table(table_name, column_names_and_types, primary_key_col_idx);
     }
 
@@ -1114,19 +1115,24 @@ int main(int argc, char **argv) {
     case WAREHOUSE:
     {
       if(FLAGS_sql_bench){
+        UW_ASSERT(benchMode == BENCH_TPCC_SQL);
         part = new WarehouseSQLPartitioner(FLAGS_tpcc_num_warehouses, rand);
       }
       else{
+        UW_ASSERT(benchMode == BENCH_TPCC_SYNC || benchMode == BENCH_TPCC);
         part = new WarehousePartitioner(FLAGS_tpcc_num_warehouses, rand);
       }
       break;
     }
     case RW_SQL:
+    {
+      UW_ASSERT(benchMode == BENCH_RW_SQL);
       part = new RWSQLPartitioner(FLAGS_num_tables);
+    }
     default:
       NOT_REACHABLE();
   }
-
+  
 	std::string latencyFile;
   std::string latencyRawFile;
   std::vector<uint64_t> latencies;

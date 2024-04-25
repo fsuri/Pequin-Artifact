@@ -52,6 +52,8 @@ message RowUpdates {
     optional int32 row_idx = 5; //Idx of the RowUpdate (stored by writeset) (used to find correct row update from WriteMessage for proof
     //Note: This only works if we are NOT sorting the write set. If we are, then the assigned index may be wrong. (Need to either fix it post sorting, or not use this)
     optional int32 write_set_idx = 6; //Idx of the write set entry == encoded key (stored by TableWrites) //
+
+    optional bool not_relevant_to_local_shard = 7; //LOCAL marker: Don't need to store this RowUpdate
 }
 
 message TableWrite {
@@ -70,6 +72,8 @@ message TableWrite {
     optional bool changed_table = 6;         //Records locally at client whether or not the table was changed (i.e. whether to set Tableversion)
    
     //repeated string primary_cols = 5;
+
+    optional bool not_relevant_to_local_shard = 7; //LOCAL marker: Don't need to store this TableWrite.
 }
 
 //Deprecated -- unused.
