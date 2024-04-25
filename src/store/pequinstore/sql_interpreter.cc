@@ -141,6 +141,9 @@ void SQLTransformer::RegisterTables(std::string &table_registry){ //TODO: This t
             }
             Debug(fmt::format("Secondary Index: {} with key cols: [{}]", index_name, fmt::join(index_cols,"|")).c_str());
         }
+
+        //Register all Tables for read/write set encodings
+        NameToNumeric(table_name);
     }
 }
 

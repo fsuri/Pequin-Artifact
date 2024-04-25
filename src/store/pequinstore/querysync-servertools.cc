@@ -505,8 +505,7 @@ void Server::ForceMaterialization(const proto::ConcurrencyControl::Result &resul
 }
 
 
-//TODO: Improve Precision for Multi-shard TXs.
-  // In ApplyTableWrites: Only write rows in TableWrites that are to this shard.  //TODO: FIXME: must support parsing from TableWrite row... (or Insert statement...)
+//Note: for Multi-shard TXs only want to write the rows that are relevant to the shard managed by this replica. The ownership logic happens inside the sql_interpreter GenerateWriteSatement logic.
 void Server::ApplyTableWrites(const proto::Transaction &txn, const Timestamp &ts,
                 const std::string &txn_digest, const proto::CommittedProof *commit_proof, bool commit_or_prepare, bool forceMaterialize){
 

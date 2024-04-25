@@ -2015,10 +2015,7 @@ void Server::Prepare(const std::string &txnDigest, const proto::Transaction &txn
         const std::string &write_key = GetEncodedRow(txn, row, table_name);
 
         // if write does not apply to this shard, continue.
-        if (!IsKeyOwned(write_key)){
-          //TODO: Mark row as not locally relevant. (default = relevant). NOT threadsafe if we write to TXN itself.
-          continue;
-        }
+        if (!IsKeyOwned(write_key)) continue;
         write_table_version = true;
 
         std::pair<std::shared_mutex,std::map<Timestamp, const proto::Transaction *>> &x = preparedWrites[write_key];

@@ -564,7 +564,8 @@ void Server::FindTableVersion(const std::string &key_name, const Timestamp &ts,
       readSetMgr->AddToDepSet(TransactionDigest(*mostRecentPrepared, params.hashDigest), mostRecentPrepared->timestamp());
 
        //Add Table to Read Set. Note: This is PURELY to have a read key in order to lock mutex for parallel CC check. The TS does not matter.
-      if(params.parallel_CCC) readSetMgr->AddToReadSet(key_name, mostRecentPrepared->timestamp(), true); //is_table_col_version = true
+      //if(params.parallel_CCC) readSetMgr->AddToReadSet(key_name, mostRecentPrepared->timestamp(), true); //is_table_col_version = true
+      if(params.parallel_CCC) readSetMgr->AddToReadSet(NameToNumeric(key_name), mostRecentPrepared->timestamp(), true); //is_table_col_version = true
     }
     else{ //Read committed
       TimestampMessage tsm;
@@ -572,7 +573,8 @@ void Server::FindTableVersion(const std::string &key_name, const Timestamp &ts,
       if(params.query_params.useSemanticCC) readSetMgr->SetPredicateTableVersion(tsm); //Add to current pred
 
        //Add Table to Read Set. Note: This is PURELY to have a read key in order to lock mutex for parellel CC check. The TS does not matter.
-      if(params.parallel_CCC) readSetMgr->AddToReadSet(key_name, tsm, true); // is_table_col_version = true
+      //if(params.parallel_CCC) readSetMgr->AddToReadSet(key_name, tsm, true); // is_table_col_version = true
+      if(params.parallel_CCC) readSetMgr->AddToReadSet(NameToNumeric(key_name), tsm, true); // is_table_col_version = true
     }
   }
 
