@@ -378,3 +378,104 @@ uint64_t WarehouseSQLPartitioner::operator()(const std::string &table_name, cons
       }
   }
 }
+
+
+/* Some testing code */
+//////
+  /*
+  std::mt19937 test_rand;
+   auto test_part = WarehouseSQLPartitioner(1, test_rand);
+  std::string tbl = "warehouse";
+  const std::vector<int> grps;
+  std::string test_put = "warehouse#15";
+  auto shard = test_part(tbl, test_put, 2, 1, grps, true);
+  std::cerr << "TEST: " << shard << std::endl;
+
+  std::string test_query = "SELECT * FROM warehouse WHERE w_id = 15;";
+  shard = test_part(tbl, test_query, 2, 1, grps, false);
+  std::cerr << "TEST2: " << shard << std::endl;
+  std::string test_query2 = "SELECT * FROM warehouse WHERE w_id = 15 AND d_id = 2;";
+  shard = test_part(tbl, test_query2, 2, 1, grps, false);
+  std::cerr << "TEST3: " << shard << std::endl;
+
+
+   tbl = "stock";
+   std::string test_put2 = "stock#4#15";
+  shard = test_part(tbl, test_put2, 2, 1, grps, true);
+  std::cerr << "TEST4: " << shard << std::endl;
+
+  std::string test_query3 = "SELECT * FROM stock WHERE s_i_id = 2 AND s_w_id = 15;";
+  shard = test_part(tbl, test_query3, 2, 1, grps, false);
+  std::cerr << "TEST5: " << shard << std::endl;
+
+
+  //Test 2 generics: 1 that ends in 2, 1 that has 3 or more
+
+   tbl = "district";
+   std::string test_put3 = "district#15#5";
+   auto sum_id = test_part(tbl, test_put3, 2, 1, grps, true);
+  std::cerr << "TEST6: " << sum_id << std::endl;
+
+  std::string test_query4 = "SELECT * FROM district WHERE d_id = 5 AND d_w_id = 15;";
+  shard = test_part(tbl, test_query4, 2, 1, grps, false);
+  std::cerr << "TEST7: " << shard << std::endl;
+
+   tbl = "customer";
+   std::string test_put4 = "customer#15#5#4";
+  shard = test_part(tbl, test_put4, 2, 1, grps, true);
+  std::cerr << "TEST8: " << shard << std::endl;
+
+  std::string test_query5 = "SELECT * FROM customer WHERE c_w_id = 15 AND c_d_id = 5 AND c_id = 4;";
+  shard = test_part(tbl, test_query5, 2, 1, grps, false);
+  std::cerr << "TEST9: " << shard << std::endl;
+
+  //Test History TODO: FIXME:
+
+  //  tbl = "history";
+  //  std::string test_put2 = "history";
+  // w_id = test_part(tbl, test_put2, 2, 1, grps, true);
+  // std::cerr << "TEST4: " << w_id << std::endl;
+
+  // std::string test_query3 = "SELECT * FROM stock WHERE s_i_id = 2 AND s_w_id = 15;";
+  // w_id = test_part(tbl, test_query3, 2, 1, grps, false);
+  // std::cerr << "TEST5: " << w_id << std::endl;
+
+  UW_ASSERT(FLAGS_sql_bench);
+
+
+
+  // uint32_t w_id = *reinterpret_cast<const uint32_t*>(key.c_str() + 1);
+  std::string t1 = "1_table";
+  std::string t15 = "15_table";
+
+  std::cerr << "t1: " << t1[0] << std::endl; 
+   std::cerr << "t15: " << t15[0] << std::endl; 
+
+  enum test {
+    a, b, c,d,e,f,g,h,i,j,k,l
+  };
+
+  char t[2];
+  t[0] = static_cast<char>(test::l);
+  t[1] = 't';
+  std::string test_t(t, sizeof(t));
+  std::cerr << "test_t: " << test_t << std::endl;
+  std::cerr << "t: " << test_t[0] << std::endl; 
+  UW_ASSERT(test_t[0]== 11);
+
+
+  auto rw_part = RWSQLPartitioner(10);
+  tbl = "15t";
+  test_put = "15t#12";
+  shard = rw_part(tbl, test_put, 2, 1, grps, true);
+  std::cerr << "RW-TEST: " << shard << std::endl;
+  shard = rw_part(tbl, test_put, 2, 1, grps, false);
+  std::cerr << "RW-TEST2: " << shard << std::endl;
+
+
+  //Panic("stop test");
+  */
+  
+
+
+  /////
