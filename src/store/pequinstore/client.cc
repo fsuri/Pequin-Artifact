@@ -403,36 +403,6 @@ void Client::Query(const std::string &query, query_callback qcb,
     //Assume for now only touching one group. (single sharded system)
     PendingQuery *pendingQuery = new PendingQuery(this, query_seq_num, query, qcb, cache_result);
     pendingQueries[query_seq_num] = pendingQuery;
-
-    std::vector<uint64_t> involved_groups = {0};//{0UL, 1UL};
-    pendingQuery->SetInvolvedGroups(involved_groups);
-    Debug("[group %i] designated as Query Execution Manager for query [%lu:%lu]", pendingQuery->queryMsg.query_manager(), client_seq_num, query_seq_num);
-    pendingQuery->SetQueryId(this);
-
-    // std::vector<uint64_t> involved_groups = {0UL};
-    // uint64_t query_manager = involved_groups[0];
-    // Debug("[group %i] designated as Query Execution Manager for query [%lu:%lu]", query_manager, client_seq_num, query_seq_num);
-
-        //TODO: just create a new object.. allocate is easier..
-    
-    // queryMsg.Clear();
-    // queryMsg.set_client_id(client_id);
-    // queryMsg.set_query_seq_num(query_seq_num);
-    // *queryMsg.mutable_query_cmd() = std::move(query);
-    // *queryMsg.mutable_timestamp() = txn.timestamp();
-    // queryMsg.set_query_manager(query_manager);
-    
-    //TODO: store --> so we can access it with query_seq_num if necessary for retry.
-      
-
-
-    // If needed, add this shard to set of participants and send BEGIN.
-    for(auto &i: pendingQuery->involved_groups){
-       if (!IsParticipant(i)) {
-        txn.add_involved_groups(i);
-        bclient[i]->Begin(client_seq_num);
-      }
-    }
   
     //TODO: Check col conditions. --> Switch between QueryResultCallback and PointQueryResultCallback
     
@@ -454,6 +424,28 @@ void Client::Query(const std::string &query, query_callback qcb,
     //Alternatively: Instead of storing the key, we could also let servers provide the keys and wait for f+1 matching keys. But then we'd have to wait for 2f+1 reads in total... ==> Client stores key
 
 
+    //std::vector<uint64_t> involved_groups = {0};//{0UL, 1UL};
+      // Contact the appropriate shard to get the value.
+    std::vector<int> txnGroups(txn.involved_groups().begin(), txn.involved_groups().end());
+
+    //Invoke partitioner function to figure out which group/shard we need to request from. 
+    int target_group = (*part)(pendingQuery->table_name, query, nshards, -1, txnGroups, false) % ngroups;
+    //FIXME: Just for testing currently:
+    if(target_group != 0) Panic("Trying to use a Shard other than 0");
+
+    std::vector<uint64_t> involved_groups = {target_group};
+    pendingQuery->SetInvolvedGroups(involved_groups);
+    Debug("[group %i] designated as Query Execution Manager for query [%lu:%lu]", pendingQuery->queryMsg.query_manager(), client_seq_num, query_seq_num);
+    pendingQuery->SetQueryId(this);
+
+   
+    // If needed, add this shard to set of participants and send BEGIN.
+    for(auto &i: pendingQuery->involved_groups){
+       if (!IsParticipant(i)) {
+        txn.add_involved_groups(i);
+        bclient[i]->Begin(client_seq_num);
+      }
+    }
   
     //Could send table_name always? Then we know how to lookup table_version (NOTE: Won't work for joins etc though..)
 

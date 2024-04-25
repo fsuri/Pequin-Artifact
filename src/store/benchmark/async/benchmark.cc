@@ -632,12 +632,14 @@ DEFINE_uint64(max_backoff, 5000, "max time to sleep after aborting.");
 const std::string partitioner_args[] = {
 	"default",
   "warehouse_dist_items",
-  "warehouse"
+  "warehouse",
+  "rw_sql",
 };
 const partitioner_t parts[] {
   DEFAULT,
   WAREHOUSE_DIST_ITEMS,
-  WAREHOUSE
+  WAREHOUSE,
+  RW_SQL
 };
 static bool ValidatePartitioner(const char* flagname,
     const std::string &value) {
@@ -1094,14 +1096,33 @@ int main(int argc, char **argv) {
 
   switch (partType) {
     case DEFAULT:
-      part = new DefaultPartitioner();
+    {
+      if(FLAGS_sql_bench){
+        part = new DefaultSQLPartitioner();
+      }
+      else{
+        part = new DefaultPartitioner();
+      }
       break;
+    }
     case WAREHOUSE_DIST_ITEMS:
+    {
+      if(FLAGS_sql_bench) Panic("deprecated partitioner for sql bench");
       part = new WarehouseDistItemsPartitioner(FLAGS_tpcc_num_warehouses);
       break;
+    }
     case WAREHOUSE:
-      part = new WarehousePartitioner(FLAGS_tpcc_num_warehouses, rand);
+    {
+      if(FLAGS_sql_bench){
+        part = new WarehouseSQLPartitioner(FLAGS_tpcc_num_warehouses, rand);
+      }
+      else{
+        part = new WarehousePartitioner(FLAGS_tpcc_num_warehouses, rand);
+      }
       break;
+    }
+    case RW_SQL:
+      part = new RWSQLPartitioner(FLAGS_num_tables);
     default:
       NOT_REACHABLE();
   }

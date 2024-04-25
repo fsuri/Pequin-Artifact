@@ -886,7 +886,15 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
 
 
   inline bool IsKeyOwned(const std::string &key) const {
-    return static_cast<int>((*part)(key, numShards, groupIdx, dummyTxnGroups) % numGroups) == groupIdx;
+    if(sql_bench){
+      return static_cast<int>((*part)("", key, numShards, groupIdx, dummyTxnGroups, true) % numGroups) == groupIdx; 
+      //It's wasteful to incur a copy of the "table-name" for each single key... 
+      //TODO: For writes: Try to get table_name from Write. //TODO: Maybe just check anyways?
+      //TODO: Instead of copying Table Name + copying values to w_id => can we try just casting? reinterpret cast?
+    }
+    else{
+      return static_cast<int>((*part)(key, numShards, groupIdx, dummyTxnGroups) % numGroups) == groupIdx;
+    }
   }
 
   // Global objects.

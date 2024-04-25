@@ -657,16 +657,12 @@ proto::ConcurrencyControl::Result Server::DoMVTSOOCCCheck(
 
     //2) Validate read set conflicts.
     for (const auto &read : readSet){//txn.read_set()) {
-      // TODO: remove this check when txns only contain read set/write set for the
-      //   shards stored at this replica
-      if (!IsKeyOwned(read.key())) {
+       if(read.is_table_col_version()){   //Don't do the OCC check for table_versions (likewise, Prepare/Commit won't write them) (//TODO: Also skip column versions. Note: Currently just disabled col versions)
         continue;
       }
 
-        //FIXME: We added read version to read set, but it's not marked as col_version?
-        //Likewise, write should not be marked?
-        //TODO: Prepare/Commit should not be writing these keys.
-      if(read.is_table_col_version()){   //Don't do the OCC check for table_versions (//TODO: Also skip column versions. Note: Currently just disabled col versions)
+      if (!IsKeyOwned(read.key())) {
+         // TODO: Eventually modify TXs to only contain the read/write set relevant to the shard. In that case can remove this check
         continue;
       }
 
@@ -766,13 +762,14 @@ proto::ConcurrencyControl::Result Server::DoMVTSOOCCCheck(
 
     //3) Validate write set for conflicts.
     for (const auto &write : txn.write_set()) {
-      if (!IsKeyOwned(write.key())) { //Only do OCC check for keys in this group.
-        continue;
-      }
       if(write.is_table_col_version()){   //Don't do the OCC check for table_versions (//TODO: Also skip column versions. Note: Currently just disabled col versions)
         continue;
       }
-
+      
+      if (!IsKeyOwned(write.key())) { //Only do OCC check for keys in this group.
+        continue;
+      }
+    
       // Check for conflicts against committed reads.
       auto committedReadsItr = committedReads.find(write.key());
 
