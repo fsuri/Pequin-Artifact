@@ -51,7 +51,7 @@
 
 #include "store/common/failures.h"
 
-#include "store/common/backend/sql_engine/table_kv_encoder.h"
+#include "store/common/table_kv_encoder.h"
 
 #include "lib/compression/TurboPFor-Integer-Compression/vp4.h"
 #include "lib/compression/FrameOfReference/include/compression.h"

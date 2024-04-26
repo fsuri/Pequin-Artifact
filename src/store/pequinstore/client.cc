@@ -106,6 +106,7 @@ Client::Client(transport::Configuration *config, uint64_t id, int nShards,
   if(sql_bench){
      Debug("Register tables from: %s", table_registry.c_str());
      sql_interpreter.RegisterTables(table_registry);
+     sql_interpreter.RegisterPartitioner(part, nShards, nGroups, -1);
   }
 }
 
@@ -296,15 +297,17 @@ void Client::Write(std::string &write_statement, write_callback wcb,
     std::function<void(int, query_result::QueryResult*)>  write_continuation;
     bool skip_query_interpretation = false;
 
+    uint64_t point_target_group;
+
     //Write must stay in scope until the TX is done (because the Transformation creates String Views on it that it needs). Discard upon finishing TX
     pendingWriteStatements.push_back(write_statement);
-    sql_interpreter.TransformWriteStatement(pendingWriteStatements.back(), read_statement, write_continuation, wcb, skip_query_interpretation);
+    sql_interpreter.TransformWriteStatement(pendingWriteStatements.back(), read_statement, write_continuation, wcb, point_target_group, skip_query_interpretation);
 
     Debug("Transformed Write into re-con read_statement: %s", read_statement.c_str());
     
   
-    if(read_statement.empty()){
-      //TODO: Add to writes directly.  //TODO: Call write_continuation for Insert ; for Point Delete -- > OR: Call them inside Transform.
+    if(read_statement.empty()){ //Must be point operation (Insert/Delete)
+      //Add to writes directly.  //Call write_continuation for Insert ; for Point Delete -- > OR: Call them inside Transform.
       //NOTE: must return a QueryResult... 
       Debug("No read statement, immediately writing");
       sql::QueryResultProtoWrapper *write_result = new sql::QueryResultProtoWrapper(""); //TODO: replace with real result.
@@ -316,6 +319,16 @@ void Client::Write(std::string &write_statement, write_callback wcb,
           //   //Only cache if we did a Select *, i.e. we have the full row, and thus it can be used by Update.
           //   if(size_t pos = pendingQuery->queryMsg.query_cmd().find("SELECT *"); pos != std::string::npos) point_read_cache[key] = result;
           // } 
+
+       
+      //FIXME: Just for testing currently:
+      if(point_target_group != 0) Panic("Trying to use a Shard other than 0");  
+      if (!IsParticipant(point_target_group)) {
+        txn.add_involved_groups(point_target_group);
+        bclient[point_target_group]->Begin(client_seq_num);
+      }
+                
+  
     }
     else{
       //  auto qcb = [this, write_continuation, wcb](int status, const query_result::QueryResult *result) mutable { 
@@ -855,7 +868,8 @@ void Client::AddWriteSetIdx(proto::Transaction &txn){
   for(int i=0; i<txn.write_set_size();++i){
     auto &write = txn.write_set()[i];
     if(write.is_table_col_version()){
-      curr_table = &write.key(); //Note: This works because we've inserted write keys for all of our Tablewrites.
+      //curr_table = &write.key(); //Note: This works because we've inserted write keys for all of our Tablewrites, and the write keys are sorted.
+      curr_table = NumericToName(write.key()); //Note: This works because we've inserted write keys for all of our Tablewrites.
       UW_ASSERT(txn.table_writes().count(*curr_table));
     }
     else{
@@ -884,16 +898,21 @@ void Client::Commit(commit_callback ccb, commit_timeout_callback ctcb,
       //Only update TableVersion if we inserted/deleted a row
       if(table_write.has_changed_table() && table_write.changed_table()){  //TODO: Set changed_table for insert and delete.
           WriteMessage *table_ver = txn.add_write_set();
-          table_ver->set_key(table_name);
+          //table_ver->set_key(table_name);
+          table_ver->set_key(NameToNumeric(table_name));
           table_ver->set_value("");
           table_ver->set_is_table_col_version(true);
           table_ver->mutable_rowupdates()->set_row_idx(-1); 
       }
     }
 
-    Debug("PRINT WRITE SET"); //FIXME: REMOVE THIS. JUST FOR TESTING
+    Debug("Try Commit. PRINT WRITE SET"); //FIXME: REMOVE THIS. JUST FOR TESTING
     for(auto &write: txn.write_set()){
       Debug("key: %s. table_v? %d. deletion? %d", write.key().c_str(), write.is_table_col_version(), write.rowupdates().has_deletion() ? write.rowupdates().deletion() : 2);
+    }
+     Debug("Try Commit. PRINT READ SET"); //FIXME: REMOVE THIS. JUST FOR TESTING
+    for(auto &read: txn.read_set()){
+      Debug("key: %s. TS[%lu:%lu], is_table_v? %d", read.key().c_str(), read.readtime().timestamp(), read.readtime().id(), read.is_table_col_version());
     }
 
     //TODO: Remove duplicate Writes and TableWrites 
@@ -932,6 +951,7 @@ void Client::Commit(commit_callback ccb, commit_timeout_callback ctcb,
         return;
       }
     }
+
 
     PendingRequest *req = new PendingRequest(client_seq_num, this);
     pendingReqs[client_seq_num] = req;

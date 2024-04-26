@@ -12,7 +12,7 @@
 
 #include "../executor/seq_scan_executor.h"
 
-#include "../../store/common/backend/sql_engine/table_kv_encoder.h"
+#include "../../store/common/table_kv_encoder.h"
 #include "../common/container_tuple.h"
 #include "../common/internal_types.h"
 #include "../common/logger.h"

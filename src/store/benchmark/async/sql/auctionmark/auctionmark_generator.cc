@@ -36,17 +36,17 @@
 
 
 DEFINE_int32(client_total, 100, "number of clients");
- //FIXME: THIS IS A PROBLEM. NOT REALLY COMPATIBLE WITH OUR EXPERIMENTAL FRAMEWORK since num_clients isn't known at Data generation Time
-                          //HOW DOES client id impact contention? => Could we just generate a larger amount of clients, and then not use them?
-//TODO: Instead of static loading, write a script that calls the generator on demand
-//TODO: Could multithread the generation...
+ //FIXME: is knowing the client_total at generation time important? 
+ // It's not really compatible with our experimental framework since we like to generate data once, and then try different client configs 
+          //HOW DOES client id impact contention? => Could we just generate a larger amount of clients, and then not use them?
+
 //It seems like that if num_clients > actual number of clients we use, then some clients will simply be responsible for multiple users. 
       //I.e. client is responsible for all users:  user_id % num_clients == client_id
       //If num_clients < actual number of clients, then some clients will be responsible for 0 users.
 
 //NOTE: I don't think this number actually matters at all. We set it again in the profile during runtime!
 
-DEFINE_double(scale_factor, 1.0, "scaling factor"); //MUST SET IN THE CONSTANTS
+DEFINE_double(scale_factor, 1.0, "scaling factor"); 
 
 
 namespace auctionmark {
@@ -410,7 +410,7 @@ int GenerateGlobalAttributeGroupTable(TableWriter &writer, int n_categories, Auc
   for (int i = 0; i < TABLESIZE_GLOBAL_ATTRIBUTE_GROUP; i++){
     uint32_t category_id = std::uniform_int_distribution<uint32_t>(0, n_categories - 1)(gen);
     int id = ++category_groups[category_id];
-    int count = std::uniform_int_distribution<int>(1, TABLESIZE_GLOBAL_ATTRIBUTE_VALUE_PER_GROUP)(gen);
+    int count = std::uniform_int_distribution<int>(1, TABLESIZE_GLOBAL_ATTRIBUTE_VALUE_PER_GROUP * FLAGS_scale_factor)(gen);
 
     total_count += count;
     GlobalAttributeGroupId gag_id(category_id, id, count);
@@ -462,13 +462,15 @@ std::vector<UserId> GenerateUserAcctTable(TableWriter &writer, AuctionMarkProfil
   Zipf randomRating(gen, USER_MIN_RATING, USER_MAX_RATING, 1.0001);
   Zipf randomBalance(gen, USER_MIN_BALANCE, USER_MAX_BALANCE, 1.001);
 
-  int max_items = std::max(1, (int) ceil(ITEM_ITEMS_PER_SELLER_MAX * SCALE_FACTOR));
+  int max_items = std::max(1, (int) ceil(ITEM_ITEMS_PER_SELLER_MAX * FLAGS_scale_factor));
   Zipf randomNumItems(gen, ITEM_ITEMS_PER_SELLER_MIN, max_items, ITEM_ITEMS_PER_SELLER_SIGMA);
 
    //A histogram for the number of users that have the number of items listed ItemCount -> # of Users
   //profile.users_per_item_count = std::vector<int>(max_items+1); //In vector form, there may be many itemCounts that have 0 users. => Easier to use map.
 
-  for (int i = 0; i < TABLESIZE_USERACCT; i++){
+  uint64_t num_users = TABLESIZE_USERACCT * FLAGS_scale_factor;
+
+  for (int i = 0; i < num_users; i++){  
     int num_items = (int) randomNumItems.next_long();
     profile.users_per_item_count[num_items]++;   //increment value freq by 1 count.
   }
@@ -481,7 +483,7 @@ std::vector<UserId> GenerateUserAcctTable(TableWriter &writer, AuctionMarkProfil
 
   std::vector<UserId> user_ids;
 
-  for (int i = 0; i < TABLESIZE_USERACCT; i++)
+  for (int i = 0; i < num_users; i++)
   {
     UserId u_id = *idGenerator.next(); //Gen will never fail for client id = -1
     user_ids.push_back(u_id);
@@ -1135,7 +1137,7 @@ int main(int argc, char *argv[]) {
 
   std::mt19937_64 gen;
  
-  auctionmark::AuctionMarkProfile profile(-1, FLAGS_client_total, auctionmark::SCALE_FACTOR);
+  auctionmark::AuctionMarkProfile profile(-1, FLAGS_client_total, FLAGS_scale_factor);
   struct timeval time;
   gettimeofday(&time, NULL);
   profile.set_loader_start_time(auctionmark::get_ts(time));

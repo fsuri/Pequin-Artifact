@@ -33,8 +33,11 @@
 #include <random>
 #include <vector>
 #include <map>
+#include <string_view>
+#include <google/protobuf/message.h>
 
 #include "lib/message.h"
+#include "store/common/common-proto.pb.h"
 
 enum partitioner_t {
   DEFAULT = 0,
@@ -51,6 +54,9 @@ class Partitioner {
   virtual uint64_t operator()(const std::string &key, uint64_t numShards, int group, const std::vector<int> &txnGroups) = 0;
   //Use this for SQL-mode. If is_key = true: input is of type encoded key. If false: input is of type query statement
   virtual uint64_t operator()(const std::string &table_name, const std::string &input, uint64_t numShards, int group, const std::vector<int> &txnGroups, bool is_key = false) = 0;
+
+  virtual uint64_t operator()(const std::string &table_name, const google::protobuf::RepeatedPtrField<std::string> &col_values, uint64_t numShards, int group, const std::vector<int> &txnGroups) = 0;
+  
 };
 
 class DefaultPartitioner : public Partitioner {
@@ -63,6 +69,10 @@ class DefaultPartitioner : public Partitioner {
 
   inline uint64_t operator()(const std::string &table_name, const std::string &input, uint64_t nshards,
     int group, const std::vector<int> &txnGroups, bool is_key) {Panic("Invoking SQL partitioner in KV-mode.");}
+
+  inline uint64_t operator()(const std::string &table_name, const google::protobuf::RepeatedPtrField<std::string> &col_values, uint64_t numShards, int group, const std::vector<int> &txnGroups) {
+    Panic("This partitioner does not support RowUpdates");
+  }
  private:
   std::hash<std::string> hash;
 };
@@ -76,6 +86,10 @@ class WarehouseDistItemsPartitioner : public Partitioner {
 
   inline uint64_t operator()(const std::string &table_name, const std::string &input, uint64_t nshards,
     int group, const std::vector<int> &txnGroups, bool is_key) {Panic("Invoking SQL partitioner in KV-mode.");}
+
+  inline uint64_t operator()(const std::string &table_name, const google::protobuf::RepeatedPtrField<std::string> &col_values, uint64_t numShards, int group, const std::vector<int> &txnGroups) {
+    Panic("This partitioner does not support RowUpdates");
+  }
 
  private:
   const uint64_t numWarehouses;
@@ -92,6 +106,10 @@ class WarehousePartitioner : public Partitioner {
 
   inline uint64_t operator()(const std::string &table_name, const std::string &input, uint64_t nshards,
     int group, const std::vector<int> &txnGroups, bool is_key) {Panic("Invoking SQL partitioner in KV-mode.");}
+  
+  inline uint64_t operator()(const std::string &table_name, const google::protobuf::RepeatedPtrField<std::string> &col_values, uint64_t numShards, int group, const std::vector<int> &txnGroups) {
+    Panic("This partitioner does not support RowUpdates");
+  }
 
  private:
   const uint64_t numWarehouses;
@@ -124,6 +142,10 @@ class DefaultSQLPartitioner : public Partitioner {
       int group, const std::vector<int> &txnGroups, bool is_key){
         return 0;
       }
+  
+  inline uint64_t operator()(const std::string &table_name, const google::protobuf::RepeatedPtrField<std::string> &col_values, uint64_t numShards, int group, const std::vector<int> &txnGroups) {
+    return 0;
+  }
 };
 
 class RWSQLPartitioner : public Partitioner {
@@ -137,40 +159,21 @@ class RWSQLPartitioner : public Partitioner {
   //Partition by Table.
   virtual uint64_t operator()(const std::string &table_name, const std::string &input, uint64_t numShards,
       int group, const std::vector<int> &txnGroups, bool is_key = false);
+
+  virtual uint64_t operator()(const std::string &table_name, const google::protobuf::RepeatedPtrField<std::string> &col_values, uint64_t numShards, int group, const std::vector<int> &txnGroups);
+  
  private:
   const uint64_t numTables;
-  std::hash<std::string> hash;
+  //std::hash<std::string> hash;
+  std::hash<std::string_view> hash;
 };
 
 
 
 class WarehouseSQLPartitioner : public Partitioner {
-  enum TPCC_Table {
-    WAREHOUSE, 
-    DISTRICT, 
-    ITEM,
-    CUSTOMER,
-    STOCK, 
-    HISTORY,
-    NEW_ORDER,
-    ORDER,
-    ORDER_LINE,
-    EARLIEST_NEW_ORDER
-  };
  public:
   WarehouseSQLPartitioner(uint64_t numWarehouses, std::mt19937 &rd) :
-      numWarehouses(numWarehouses), rd(rd) {
-        tables["warehouse"] = TPCC_Table::WAREHOUSE;
-        tables["district"] = TPCC_Table::DISTRICT;
-        tables["item"] = TPCC_Table::ITEM;
-        tables["customer"] = TPCC_Table::CUSTOMER;
-        tables["stock"] = TPCC_Table::STOCK;
-        tables["history"] = TPCC_Table::HISTORY;
-        tables["new_order"] = TPCC_Table::NEW_ORDER;
-        tables["order"] = TPCC_Table::ORDER;
-        tables["order_line"] = TPCC_Table::ORDER_LINE;
-        tables["EarliestNewOrder"] = TPCC_Table::EARLIEST_NEW_ORDER;
-      }
+      numWarehouses(numWarehouses), rd(rd) { }
   virtual ~WarehouseSQLPartitioner() {}
 
   inline uint64_t operator()(const std::string &key, uint64_t nshards,
@@ -180,8 +183,9 @@ class WarehouseSQLPartitioner : public Partitioner {
   virtual uint64_t operator()(const std::string &table_name, const std::string &input, uint64_t numShards,
       int group, const std::vector<int> &txnGroups, bool is_key = false);
 
+  virtual uint64_t operator()(const std::string &table_name, const google::protobuf::RepeatedPtrField<std::string> &col_values, uint64_t numShards, int group, const std::vector<int> &txnGroups);
+
  private:
-  std::map<std::string, TPCC_Table> tables;
   const uint64_t numWarehouses;
   std::mt19937 &rd;
 };

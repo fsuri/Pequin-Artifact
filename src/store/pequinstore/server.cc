@@ -182,6 +182,8 @@ Server::Server(const transport::Configuration &config, int groupIdx, int idx,
 
     // table_store->RegisterTableSchema(table_registry_path);
 
+    table_store->sql_interpreter.RegisterPartitioner(part, numShards, numGroups, groupIdx);
+
     // TODO: Create lambda/function for setting Table Version
     // Look at store and preparedWrites ==> pick larger (if read_prepared true)
     // Add it to QueryReadSetMgr
@@ -606,7 +608,6 @@ std::vector<row_segment_t*> Server::ParseTableDataFromCSV(const std::string &tab
 
     std::vector<row_segment_t*> table_row_segments = {new row_segment_t};
 
-
     while(getline(row_data, row_line)){
       //std::cerr << "row_line: " << row_line;
 
@@ -630,6 +631,14 @@ std::vector<row_segment_t*> Server::ParseTableDataFromCSV(const std::string &tab
         primary_cols.push_back(&(row_values[i]));
       }
       std::string enc_key = EncodeTableRow(table_name, primary_cols);
+
+      //Only load if in local partition. If not => remove last row_values val. 
+      if(((*part)("", enc_key, numShards, groupIdx, dummyTxnGroups, true) % numGroups) != groupIdx){
+        Panic("shouldnt be getting here when testing without sharding. TODO: Remove this line when testing WITH sharding");
+        row_segment->pop_back();
+        continue;
+      }
+
       Load(enc_key, "", Timestamp());
     }
 
@@ -674,6 +683,7 @@ void Server::LoadTableRows(const std::string &table_name, const std::vector<std:
     }
    
     //Load it into CC-Store (Note: Only if we haven't already done it while reading from CSV)
+                //Note: Partitioning has already been checked: For RW-SQL it happens at server.cc level. For all others it happens in ParseFromCSV.
     if(load_cc){
       Debug("Load segment %d of table %s", segment_no, table_name.c_str());
       for(auto &row: *row_segment){
@@ -1934,7 +1944,7 @@ void Server::Prepare(const std::string &txnDigest, const proto::Transaction &txn
 
   for (const auto &read : readSet) {
     bool table_v = read.has_is_table_col_version() && read.is_table_col_version(); //don't need to record reads to TableVersion (not checked for normal cc)
-    if (IsKeyOwned(read.key()) && !table_v) { 
+    if (!table_v && IsKeyOwned(read.key())) { 
       //preparedReads[read.key()].insert(p.first->second.second);
       //preparedReads[read.key()].insert(a->second.second);
 
@@ -1959,14 +1969,12 @@ void Server::Prepare(const std::string &txnDigest, const proto::Transaction &txn
   std::vector<const std::string*> table_and_col_versions; 
 
   for (const auto &write : writeSet) {
-    if (IsKeyOwned(write.key())) {
-
-       //Skip applying TableVersion until after TableWrites have been applied; Same for TableColVersions. Currenty those are both marked as delay.
+      //Skip applying TableVersion until after TableWrites have been applied; Same for TableColVersions. Currenty those are both marked as delay.
        //Note: Delay flag set by client is not BFT robust -- server has to infer on it's own. Ok for current prototype. //TODO: turn into parsing at some point
-      if(write.has_is_table_col_version() && write.is_table_col_version()){
-        table_and_col_versions.push_back(&write.key());
-        continue;
-      }   
+    if(write.has_is_table_col_version() && write.is_table_col_version()){
+      table_and_col_versions.push_back(&write.key());
+      continue;
+    }   
       //Also need to do this for TableColVersions...  //write them aside in a little map (just keep a pointer ref to the position)
       //Currently rely on unique_delim to figure out it is a TableColVersion. Ideally check that prefix is table_name too.
       // size_t pos;
@@ -1978,6 +1986,8 @@ void Server::Prepare(const std::string &txnDigest, const proto::Transaction &txn
       //Not really BFT, but it simplifies. Otherwise have to go and consult the TableRegistry...
       //Attack: Byz client applies version after tablewrite..Causes honest Tx to not respect safety.
 
+    if (IsKeyOwned(write.key())) { 
+
       std::pair<std::shared_mutex,std::map<Timestamp, const proto::Transaction *>> &x = preparedWrites[write.key()];
       std::unique_lock lock(x.first);
       x.second.insert(pWrite);
@@ -1987,6 +1997,41 @@ void Server::Prepare(const std::string &txnDigest, const proto::Transaction &txn
       //TODO: Insert into table as well.
     }
   }
+
+  //TODO: Improve Precision for Multi-shard TXs.
+  // 1. In Prepare/Commit: Only write Table version if there is a write to THIS shard.
+  // 2. In RegisterWrites (for semanticCC): only register if there is a write to THIS shard. 
+  //   => This minimizes unecessary CC work. (CC-checks in which no write is owned)
+     
+  //Solution:
+  // Loop through TableWrites instead of looping through Write set
+  // Lookup associated write set key.
+  /* 
+  for (const auto &[table_name, table_write] : txn.table_writes()){
+    bool write_table_version = false; //only write TableVersion if one key is owned. 
+    //for each row
+      for(auto &row: table_write.rows()){
+      
+        const std::string &write_key = GetEncodedRow(txn, row, table_name);
+
+        // if write does not apply to this shard, continue.
+        if (!IsKeyOwned(write_key)) continue;
+        write_table_version = true;
+
+        std::pair<std::shared_mutex,std::map<Timestamp, const proto::Transaction *>> &x = preparedWrites[write_key];
+        std::unique_lock lock(x.first);
+        x.second.insert(pWrite);
+
+      }
+    if(write_table_version) table_and_col_versions.push_back(&table_name);
+    else {
+      //TODO: Mark Table as not locally relevant. NOT threadsafe if we write to TXN itself.
+      //TODO: Could keep a "list" of relevant TableWrites, and pass this to RecordReadPrepdicatesAndWrites
+    }
+  }
+  */
+
+
 
   if(params.query_params.useSemanticCC){
     RecordReadPredicatesAndWrites(*ongoingTxn, ts, false);
@@ -2128,7 +2173,7 @@ void Server::UpdateCommittedReads(proto::Transaction *txn, const std::string &tx
 
   for (const auto &read : *readSet) {
      bool table_v = read.has_is_table_col_version() && read.is_table_col_version(); //Don't need to record read table versions, not checked by normal cc
-    if (!IsKeyOwned(read.key()) || table_v) {
+    if (table_v || !IsKeyOwned(read.key())) {
       continue;
     }
     // store.commitGet(read.key(), read.readtime(), ts);   //SEEMINGLY NEVER
@@ -2153,18 +2198,7 @@ void Server::CommitToStore(proto::CommittedProof *proof, proto::Transaction *txn
   UpdateCommittedReads(txn, txnDigest, ts, proof);
 
   for (const auto &write : txn->write_set()) {
-    if (!IsKeyOwned(write.key())) {
-      continue;
-    }
 
-    Debug("COMMIT[%lu,%lu] Committing write for key %s.", txn->client_id(), txn->client_seq_num(), write.key().c_str());
-    
-    if(write.has_value()) val.val = write.value();
-    else if(!params.query_params.sql_mode){
-      Panic("When running in KV-store mode write should always have a value");
-    }
-    
-    
     //Skip applying TableVersion until after TableWrites have been applied; Same for TableColVersions. Currenty those are both marked as delay.
     //Note: Delay flag set by client is not BFT robust -- server has to infer on it's own. Ok for current prototype. //TODO: turn into parsing at some point
     if(write.has_is_table_col_version() && write.is_table_col_version()){
@@ -2179,6 +2213,17 @@ void Server::CommitToStore(proto::CommittedProof *proof, proto::Transaction *txn
     //   continue;
     // }
 
+    if (!IsKeyOwned(write.key())) {
+      continue;
+    }
+
+    Debug("COMMIT[%lu,%lu] Committing write for key %s.", txn->client_id(), txn->client_seq_num(), write.key().c_str());
+    
+    if(write.has_value()) val.val = write.value();
+    else if(!params.query_params.sql_mode){
+      Panic("When running in KV-store mode write should always have a value");
+    }
+    
     UW_ASSERT(txn->has_txndigest());
     if(!txn->has_txndigest()) *txn->mutable_txndigest() = txnDigest;
 

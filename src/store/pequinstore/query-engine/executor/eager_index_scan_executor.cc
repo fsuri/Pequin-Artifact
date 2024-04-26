@@ -32,7 +32,7 @@
 #include "../storage/tile_group_header.h"
 #include "../type/value.h"
 #include "lib/message.h"
-#include "store/common/backend/sql_engine/table_kv_encoder.h"
+#include "store/common/table_kv_encoder.h"
 #include "store/pequinstore/pequin-proto.pb.h"
 
 namespace peloton {

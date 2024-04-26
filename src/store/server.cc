@@ -456,71 +456,6 @@ int main(int argc, char **argv) {
   Notice("Starting server.");
 
 
-  //////
-  std::mt19937 test_rand;
-   auto test_part = WarehouseSQLPartitioner(1, test_rand);
-  std::string tbl = "warehouse";
-  const std::vector<int> grps;
-  std::string test_put = "warehouse#15";
-  auto shard = test_part(tbl, test_put, 2, 1, grps, true);
-  std::cerr << "TEST: " << shard << std::endl;
-
-  std::string test_query = "SELECT * FROM warehouse WHERE w_id = 15;";
-  shard = test_part(tbl, test_query, 2, 1, grps, false);
-  std::cerr << "TEST2: " << shard << std::endl;
-  std::string test_query2 = "SELECT * FROM warehouse WHERE w_id = 15 AND d_id = 2;";
-  shard = test_part(tbl, test_query2, 2, 1, grps, false);
-  std::cerr << "TEST3: " << shard << std::endl;
-
-
-   tbl = "stock";
-   std::string test_put2 = "stock#4#15";
-  shard = test_part(tbl, test_put2, 2, 1, grps, true);
-  std::cerr << "TEST4: " << shard << std::endl;
-
-  std::string test_query3 = "SELECT * FROM stock WHERE s_i_id = 2 AND s_w_id = 15;";
-  shard = test_part(tbl, test_query3, 2, 1, grps, false);
-  std::cerr << "TEST5: " << shard << std::endl;
-
-
-  //Test 2 generics: 1 that ends in 2, 1 that has 3 or more
-
-   tbl = "district";
-   std::string test_put3 = "district#15#5";
-   auto sum_id = test_part(tbl, test_put3, 2, 1, grps, true);
-  std::cerr << "TEST6: " << sum_id << std::endl;
-
-  std::string test_query4 = "SELECT * FROM district WHERE d_id = 5 AND d_w_id = 15;";
-  shard = test_part(tbl, test_query4, 2, 1, grps, false);
-  std::cerr << "TEST7: " << shard << std::endl;
-
-   tbl = "customer";
-   std::string test_put4 = "customer#15#5#4";
-  shard = test_part(tbl, test_put4, 2, 1, grps, true);
-  std::cerr << "TEST8: " << shard << std::endl;
-
-  std::string test_query5 = "SELECT * FROM customer WHERE c_w_id = 15 AND c_d_id = 5 AND c_id = 4;";
-  shard = test_part(tbl, test_query5, 2, 1, grps, false);
-  std::cerr << "TEST9: " << shard << std::endl;
-
-  //Test History TODO: FIXME:
-
-  //  tbl = "history";
-  //  std::string test_put2 = "history";
-  // w_id = test_part(tbl, test_put2, 2, 1, grps, true);
-  // std::cerr << "TEST4: " << w_id << std::endl;
-
-  // std::string test_query3 = "SELECT * FROM stock WHERE s_i_id = 2 AND s_w_id = 15;";
-  // w_id = test_part(tbl, test_query3, 2, 1, grps, false);
-  // std::cerr << "TEST5: " << w_id << std::endl;
-
-  UW_ASSERT(FLAGS_sql_bench);
-  Panic("stop test");
-
-  
-
-
-  /////
 
   // parse configuration
   std::ifstream configStream(FLAGS_config_path);
@@ -611,7 +546,6 @@ int main(int argc, char **argv) {
 
 
   std::mt19937 unused;
- 
   switch (partType) {
     case DEFAULT:
     {
@@ -644,7 +578,7 @@ int main(int argc, char **argv) {
     default:
       NOT_REACHABLE();
   }
-
+  
   // parse occ type
   occ_type_t occ_type = OCC_TYPE_UNKNOWN;
   int numOCCTypes = sizeof(occ_type_args);
@@ -708,7 +642,8 @@ int main(int argc, char **argv) {
           //Create Table
           
       for(int i=0; i<FLAGS_num_tables; ++i){
-        string table_name = "table_" + std::to_string(i);
+        //string table_name = "table_" + std::to_string(i);
+        string table_name = "t" + std::to_string(i);
         table_writer.add_table(table_name, column_names_and_types, primary_key_col_idx);
       }
 
@@ -1058,6 +993,7 @@ int main(int argc, char **argv) {
   } 
   //SQL Benchmarks -- they all require a schema file!
   else if(FLAGS_sql_bench && FLAGS_data_file_path.length() > 0 && FLAGS_keys_path.empty()) {
+     UW_ASSERT(FLAGS_num_shards == 1 || proto == PROTO_PEQUIN); // Currently only Pequin supports more than 1 shard.
      Notice("Benchmark: SQL with Loaded Table Registry");
        std::ifstream generated_tables(FLAGS_data_file_path);
        json tables_to_load;
@@ -1088,7 +1024,13 @@ int main(int argc, char **argv) {
           const std::vector<std::pair<std::string, std::string>> &column_names_and_types = table_args["column_names_and_types"];
           const std::vector<uint32_t> &primary_key_col_idx = table_args["primary_key_col_idx"];
 
+          //If Table has no pre-generated data: Generate some (This is done for RW-SQL)
           if(!table_args.contains("row_data_path")) { //RW-SQL ==> generate rows 
+
+            // Skip loading relevant tables for this shard. //TODO: Assert that this is using RWSQLPartitioner
+            std::vector<int> dummyTxnGroups;
+            if ((*part)(table_name, "", FLAGS_num_shards, FLAGS_group_idx, dummyTxnGroups, false) % FLAGS_num_groups != FLAGS_group_idx) continue;
+
             //std::vector<std::vector<std::string>> values;
             row_segment_t *values = new row_segment_t();
             for(int j=0; j<FLAGS_num_keys_per_table; ++j){
