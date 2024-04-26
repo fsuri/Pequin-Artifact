@@ -6,4 +6,5 @@ SRCS += $(addprefix $(d), pingserver.cc \
 LIB-store-backend := $(o)kvstore.o $(o)lockserver.o $(o)txnstore.o $(o)versionstore.o $(o)versionstore_safe.o \
 	$(o)pingserver.o
 
-include $(d)tests/Rules.mk $(d)sql_engine/Rules.mk
+include $(d)tests/Rules.mk
+#include $(d)tests/Rules.mk $(d)sql_engine/Rules.mk

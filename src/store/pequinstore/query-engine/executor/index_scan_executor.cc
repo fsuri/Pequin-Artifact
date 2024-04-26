@@ -38,7 +38,7 @@
 #include "../type/value.h"
 #include "lib/message.h"
 #include "store/pequinstore/query-engine/common/item_pointer.h"
-#include "store/common/backend/sql_engine/table_kv_encoder.h"
+#include "store/common/table_kv_encoder.h"
 #include "store/pequinstore/pequin-proto.pb.h"
 
 

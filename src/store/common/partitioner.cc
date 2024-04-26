@@ -27,7 +27,7 @@
 #include "store/common/partitioner.h"
 
 #include "lib/message.h"
-#include "store/common/backend/sql_engine/table_kv_encoder.h"
+#include "store/common/table_kv_encoder.h"
 #include <iostream>
 #include <string_view>
 
@@ -133,22 +133,40 @@ uint64_t RWSQLPartitioner::operator()(const std::string &table_name, const std::
     int group, const std::vector<int> &txnGroups, bool is_key) {
   if(nshards == 1) return 0;
 
-  if(is_key){
-    //input = encoded, must extract table_v
-    std::string_view key(input);
-    size_t w_pos = key.find(unique_delimiter);
-     if(w_pos == std::string::npos) Panic("Cannot find table_name");
-
-    std::cerr << "key case: " << hash(key.substr(0, w_pos)) << std::endl;
-    return hash(key.substr(0, w_pos)) % nshards;
+  //Shard based off Table numeric; this creates a perfect partition by tables. (Note: If we want, we could store the table names directly as numeric..)
+  if(is_key){ 
+    size_t w_pos = input.find(unique_delimiter);
+    if(w_pos == std::string::npos) Panic("Cannot find table_name");
+    return std::stoi(input.substr(0, w_pos)) % nshards;
   }
   else{
     UW_Assert(!table_name.empty());
-    std::cerr << "tbl case: " << hash(std::string_view(table_name)) << std::endl;
-    return hash(std::string_view(table_name)) % nshards;
+    return std::stoi(NameToNumeric(table_name)) % nshards;
   }
 
-  //return hash(table_name) % nshards;
+  //Alternative version: turn numeric to name, and hash. Con: Hash not necessarily evenly distributed, and thus not guaranteed that all shards have the same amount of tables.
+  /*
+  if(is_key){
+    //input = encoded, must extract table_v
+    // std::string_view key(input);
+    // size_t w_pos = key.find(unique_delimiter);
+    size_t w_pos = input.find(unique_delimiter);
+     if(w_pos == std::string::npos) Panic("Cannot find table_name");
+
+    // std::cerr << "key case: " << hash(key.substr(0, w_pos)) << std::endl;
+    // return hash(key.substr(0, w_pos)) % nshards;
+
+    const std::string &extracted_name = *NumericToName(input.substr(0, w_pos));
+    return hash(extracted_name) % nshards;
+  }
+  else{
+    UW_Assert(!table_name.empty());
+    // std::cerr << "tbl case: " << hash(std::string_view(table_name)) << std::endl;
+    // return hash(std::string_view(table_name)) % nshards;
+    return hash(table_name) % nshards;
+  }
+  */
+
 };
 
 uint64_t RWSQLPartitioner::operator()(const std::string &table_name, const google::protobuf::RepeatedPtrField<std::string> &col_values, uint64_t nshards, int group, const std::vector<int> &txnGroups){
@@ -164,7 +182,11 @@ uint64_t WarehouseSQLPartitioner::operator()(const std::string &table_name, cons
     
   if(nshards == 1) return 0;
 
-  switch (is_key? input[0] : table_name[0]) { //Note: if `is_key` then input = encoded key. If not, then input = query, and we have to check the table_name
+  //Note: if `is_key` then input = encoded key. If not, then input = query, and we have to check the table_name
+  //const char &t = is_key? input[0] : table_name[0];
+  //TODO: Can we get rid of this copy of input[0]?
+  const char &t = is_key? (*NumericToName({input[0]}))[0] : table_name[0];   //Note: the first char of input is the numeric encoding (because TPCC has only 10 tables, i.e. numerics 0-9)
+  switch (t) { 
     case 'w':  // WAREHOUSE
     case 's':  // STOCK
     {

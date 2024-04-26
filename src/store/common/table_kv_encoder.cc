@@ -1,6 +1,6 @@
 #include <vector>
 #include <string>
-#include "store/common/backend/sql_engine/table_kv_encoder.h"
+#include "store/common/table_kv_encoder.h"
 #include "lib/assert.h"
 #include <iostream>
 
