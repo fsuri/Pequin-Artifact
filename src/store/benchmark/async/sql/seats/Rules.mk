@@ -7,7 +7,7 @@ OBJ-sql-seats-transaction := $(LIB-store-frontend) $(o)seats_transaction.o
 OBJ-sql-seats-client := $(o)seats_profile.o $(o)seats_client.o
 
 LIB-sql-seats := $(OBJ-sql-seats-client) $(OBJ-sql-seats-transaction) $(o)delete_reservation.o \
-	$(o)find_flights.o $(o)find_open_seats.o $(o)new_reservation.o $(o)update_customer.o $(o)update_reservation.o $(o)reservation.o \
+	$(o)find_flights.o $(o)find_open_seats.o $(o)new_reservation.o $(o)update_customer.o $(o)update_reservation.o \
 
 $(d)sql_seats_generator: $(LIB-io-utils) $(o)seats_profile.o $(o)seats_generator.o
 

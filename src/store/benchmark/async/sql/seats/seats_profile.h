@@ -24,7 +24,7 @@ struct SEATSReservation {
 public: 
     SEATSReservation(int64_t r_id, int64_t c_id, CachedFlight flight, int64_t seat_num) 
     : r_id(r_id), c_id(c_id), flight(flight), seat_num(seat_num) {}
-    ~SEATSReservation();
+    ~SEATSReservation(){};
 
     int64_t r_id;   //reservation id
     int64_t c_id;   //customer id  //FIXME: CustomerID should be (id, depart_airport_id)
