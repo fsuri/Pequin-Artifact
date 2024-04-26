@@ -2,12 +2,13 @@
 #define SEATS_SQL_UPDATE_CUSTOMER_H 
 
 #include "store/benchmark/async/sql/seats/seats_transaction.h"
+#include "store/benchmark/async/sql/seats/seats_profile.h"
 
 namespace seats_sql {
 
 class SQLUpdateCustomer:public SEATSSQLTransaction {
     public: 
-        SQLUpdateCustomer(uint32_t timeout, std::mt19937 &gen);
+        SQLUpdateCustomer(uint32_t timeout, std::mt19937 &gen, SeatsProfile &profile);
         virtual ~SQLUpdateCustomer();
         virtual transaction_status_t Execute(SyncClient &client);
     private:
@@ -16,6 +17,7 @@ class SQLUpdateCustomer:public SEATSSQLTransaction {
         int64_t update_ff;
         int64_t attr0; 
         int64_t attr1;
+        SeatsProfile &profile;
 };
 
 struct GetCustomerResultRow {

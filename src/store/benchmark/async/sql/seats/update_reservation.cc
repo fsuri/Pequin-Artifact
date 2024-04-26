@@ -1,20 +1,20 @@
 #include "store/benchmark/async/sql/seats/update_reservation.h"
 #include "store/benchmark/async/sql/seats/seats_constants.h"
-#include "store/benchmark/async/sql/seats/reservation.h"
+
 #include <fmt/core.h>
 
 namespace seats_sql {
-SQLUpdateReservation::SQLUpdateReservation(uint32_t timeout, std::mt19937 &gen, std::queue<SEATSReservation> &update_res, std::queue<SEATSReservation> &delete_res)
-    : SEATSSQLTransaction(timeout), gen_(&gen) {
-        if (!update_res.empty()) {
-            SEATSReservation r = update_res.front();
+SQLUpdateReservation::SQLUpdateReservation(uint32_t timeout, std::mt19937 &gen, SeatsProfile &profile)
+    : SEATSSQLTransaction(timeout), gen_(&gen), profile(profile) {
+        if (!profile.update_reservations.empty()) {
+            SEATSReservation r = profile.update_reservations.front();
             r_id = r.r_id;
             c_id = r.c_id;
             flight = r.flight;
             f_id = flight.flight_id;
             seatnum = std::uniform_int_distribution<int>(1, TOTAL_SEATS_PER_FLIGHT)(gen);
             while(seatnum == r.seat_num) seatnum = std::uniform_int_distribution<int>(1, TOTAL_SEATS_PER_FLIGHT)(gen); //pick a new seat
-            update_res.pop();
+            profile.update_reservations.pop();
         } else { 
             // no reservations to update so make this transaction fail
             Panic("should not be triggered");
@@ -26,8 +26,7 @@ SQLUpdateReservation::SQLUpdateReservation(uint32_t timeout, std::mt19937 &gen, 
         }
         attr_idx = std::uniform_int_distribution<int64_t>(0, 3)(gen);
         attr_val = std::uniform_int_distribution<int64_t>(1, 100000)(gen);
-        update_q = &update_res;
-        delete_q = &delete_res;
+       
 
         std::cerr << "UPDATE_RESERVATION: " << r_id << ". Flight:" << f_id << ". New seat: " << seatnum << std::endl;
         Debug("UPDATE_RESERVATION");
@@ -90,11 +89,11 @@ transaction_status_t SQLUpdateReservation::Execute(SyncClient &client) {
 
     if (std::uniform_int_distribution<int>(1, 100)(*gen_) < PROB_Q_DELETE_RESERVATION){
          std::cerr << "UPDATE_RES: PUSH TO DELETE Q. r_id: " << r_id <<". c_id: " << c_id << ". flight_id: " << flight.flight_id << std::endl;
-        delete_q->push(SEATSReservation(r_id, c_id, flight, seatnum));
+        profile.delete_reservations.push(SEATSReservation(r_id, c_id, flight, seatnum));
     }
     else{
          std::cerr << "UPDATE_RES: PUSH TO UPDATE Q. r_id: " << r_id <<". c_id: " << c_id << ". flight_id: " << flight.flight_id << std::endl;
-        update_q->push(SEATSReservation(r_id, c_id, flight, seatnum));
+        profile.update_reservations.push(SEATSReservation(r_id, c_id, flight, seatnum));
     }
 
     return result;

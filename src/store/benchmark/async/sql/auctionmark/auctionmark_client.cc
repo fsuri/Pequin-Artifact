@@ -44,14 +44,15 @@
 namespace auctionmark
 {
 AuctionMarkClient::AuctionMarkClient(
-    SyncClient &client, Transport &transport, const std::string &profile_file_path, uint64_t client_id, uint64_t num_clients,
+    SyncClient &client, Transport &transport, const std::string &profile_file_path, uint32_t scale_factor,
+    uint64_t client_id, uint64_t num_clients,
     int numRequests, int expDuration, uint64_t delay, int warmupSec,
     int cooldownSec, int tputInterval, uint32_t abortBackoff, bool retryAborted,
     uint32_t maxBackoff, uint32_t maxAttempts, const uint32_t timeout, const std::string &latencyFilename)
     : SyncTransactionBenchClient(client, transport, client_id, numRequests,
                                     expDuration, delay, warmupSec, cooldownSec,
                                     tputInterval, abortBackoff, retryAborted, maxBackoff, maxAttempts, timeout,
-                                    latencyFilename), profile(client_id, num_clients, DEFAULT_SCALE_FACTOR) //default scale Factor -- Will be overridden by load_profile
+                                    latencyFilename), profile(client_id, num_clients, scale_factor) //default scale Factor -- Will be overridden by load_profile
 {
   lastOp = "";
   gen.seed(client_id);
@@ -63,6 +64,7 @@ AuctionMarkClient::AuctionMarkClient(
   profile.load_profile(profile_file_path, client_id); 
   profile.set_and_get_client_start_time();
   profile.update_and_get_current_time();
+  UW_ASSERT((double) scale_factor == profile.get_scale_factor());
 
   std::cerr << "loader start time (scaled):" << profile.get_loader_start_time() << std::endl;
   std::cerr << "client start time (scaled):" << profile.get_client_start_time() << std::endl; //FIXME: This has not been scaled!

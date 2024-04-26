@@ -4,37 +4,34 @@
 #include <random>
 #include <queue>
 #include "store/benchmark/async/sync_transaction_bench_client.h"
-#include "store/benchmark/async/sql/seats/reservation.h"
 
-#include "cached_flight.h"
+
+#include "store/benchmark/async/sql/seats/seats_profile.h"
 
 namespace seats_sql {
 
 
 class SEATSSQLClient : public SyncTransactionBenchClient {
  public:
-  SEATSSQLClient(SyncClient &client, Transport &transport, const std::string &profile_file_path, uint64_t id,
-      uint64_t numRequests, uint64_t expDuration, uint64_t delay, uint64_t warmupSec,
+  SEATSSQLClient(SyncClient &client, Transport &transport, const std::string &profile_file_path, uint32_t scale_factor,
+      uint64_t id, uint64_t numRequests, uint64_t expDuration, uint64_t delay, uint64_t warmupSec,
       uint64_t cooldownSec, uint64_t tputInterval, uint32_t abortBackoff, bool retryAborted, 
       uint64_t maxBackoff, int64_t maxAttempts,
       uint64_t timeout, const std::string &latencyFilename="");
   virtual ~SEATSSQLClient();
-  std::queue<SEATSReservation> insert_reservations; 
-  std::queue<SEATSReservation> update_reservation;
-  std::queue<SEATSReservation> delete_reservation;
-
+  
  protected:
   virtual SyncTransaction *GetNextTransaction();
   virtual std::string GetLastOp() const;
 
   std::string lastOp;
   std::mt19937 gen;      
-  uint64_t seats_id;              // need this for generating res id
-  int64_t num_res_made;       // number of reservations made by client
+ 
   bool started_workload;      
   std::string last_op_;
 
-  std::vector<CachedFlight> cached_flight_ids;
+  SeatsProfile profile;
+
 };
 
 } //namespace seats_sql

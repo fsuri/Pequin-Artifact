@@ -1,9 +1,12 @@
-#include "store/benchmark/async/sql/seats/cached_flight.h"
+
+#include "store/benchmark/async/sql/seats/seats_profile.h"
 
 namespace seats_sql {
 
-// https://github.com/cmu-db/benchbase/blob/main/src/main/java/com/oltpbenchmark/benchmarks/seats/SEATSProfile.java#L417
-bool addFlightToCache(std::vector<CachedFlight> &cached_flights, CachedFlight cf, std::mt19937 &gen) {
+
+// // https://github.com/cmu-db/benchbase/blob/main/src/main/java/com/oltpbenchmark/benchmarks/seats/SEATSProfile.java#L417
+// // https://github.com/cmu-db/benchbase/blob/main/src/main/java/com/oltpbenchmark/benchmarks/seats/SEATSProfile.java#L417
+bool SeatsProfile::addFlightToCache(CachedFlight cf, std::mt19937 &gen) {
   if (cached_flights.size() < seats_sql::CACHE_LIMIT_FLIGHT_IDS) {
     cached_flights.push_back(cf);
     return true;

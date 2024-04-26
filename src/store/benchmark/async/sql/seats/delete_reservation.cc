@@ -5,13 +5,13 @@
 
 namespace seats_sql{
 
-SQLDeleteReservation::SQLDeleteReservation(uint32_t timeout, std::mt19937 &gen, std::queue<SEATSReservation> &existing_res, std::queue<SEATSReservation> &insert_res) : 
-    SEATSSQLTransaction(timeout), gen_(&gen) {
+SQLDeleteReservation::SQLDeleteReservation(uint32_t timeout, std::mt19937 &gen, SeatsProfile &profile) : 
+    SEATSSQLTransaction(timeout), gen_(&gen), profile(profile) {
         
 
-        UW_ASSERT(!existing_res.empty());
-        SEATSReservation r = existing_res.front();
-        existing_res.pop();
+        UW_ASSERT(!profile.delete_reservations.empty());
+        SEATSReservation r = profile.delete_reservations.front();
+        profile.delete_reservations.pop();
 
         std::cerr << "DELETE_RESERVATION: " << r.r_id  << std::endl;
         Debug("DELETE_RESERVATION");
@@ -35,8 +35,6 @@ SQLDeleteReservation::SQLDeleteReservation(uint32_t timeout, std::mt19937 &gen, 
             ff_al_id = flight.airline_id; 
         }
         //Default: Delete using their CustomerId 
-        
-        q = &insert_res;
     }
 
 SQLDeleteReservation::~SQLDeleteReservation() {}
@@ -161,7 +159,7 @@ transaction_status_t SQLDeleteReservation::Execute(SyncClient &client) {
 
     //Re-queue reservation
     int requeue = std::uniform_int_distribution<int>(1, 100)(*gen_);
-    if (requeue <= PROB_REQUEUE_DELETED_RESERVATION) q->push(SEATSReservation(NULL_ID, c_id, flight, seat));
+    if (requeue <= PROB_REQUEUE_DELETED_RESERVATION) profile.insert_reservations.push(SEATSReservation(NULL_ID, c_id, flight, seat));
 
     Debug("Deleted reservation on flight %s for customer %s. [seatsLeft=%d]", f_id, c_id, seats_left + 1);
     

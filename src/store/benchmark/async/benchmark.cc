@@ -676,6 +676,11 @@ DEFINE_string(keys_path, "", "path to file containing keys in the system"
 		" (for retwis)");
 DEFINE_uint64(num_keys, 0, "number of keys to generate (for retwis");
 
+/**
+ * Seats/Auctionmark setting
+*/
+DEFINE_uint32(benchbase_scale_factor, 1, "scale factor for seats/auctionmark");
+
 const std::string keys_args[] = {
 	"uniform",
   "zipf"
@@ -1728,7 +1733,7 @@ int main(int argc, char **argv) {
         {
           UW_ASSERT(syncClient != nullptr);
           std::string profile_file_path = std::filesystem::path(FLAGS_data_file_path).replace_filename(seats_sql::PROFILE_FILE_NAME);
-          bench = new seats_sql::SEATSSQLClient( *syncClient, *tport, profile_file_path,
+          bench = new seats_sql::SEATSSQLClient( *syncClient, *tport, profile_file_path, FLAGS_benchbase_scale_factor,
               seed, FLAGS_num_requests, FLAGS_exp_duration, FLAGS_delay,
               FLAGS_warmup_secs, FLAGS_cooldown_secs, FLAGS_tput_interval,
               FLAGS_abort_backoff, FLAGS_retry_aborted, FLAGS_max_backoff, FLAGS_max_attempts, FLAGS_message_timeout);
@@ -1738,7 +1743,7 @@ int main(int argc, char **argv) {
         {
           UW_ASSERT(syncClient != nullptr);
           std::string profile_file_path = std::filesystem::path(FLAGS_data_file_path).replace_filename(auctionmark::PROFILE_FILE_NAME);
-          bench = new auctionmark::AuctionMarkClient( *syncClient, *tport, profile_file_path,
+          bench = new auctionmark::AuctionMarkClient( *syncClient, *tport, profile_file_path, FLAGS_benchbase_scale_factor,
               clientId, client_total, FLAGS_num_requests, FLAGS_exp_duration, FLAGS_delay,
               FLAGS_warmup_secs, FLAGS_cooldown_secs, FLAGS_tput_interval,
               FLAGS_abort_backoff, FLAGS_retry_aborted, FLAGS_max_backoff, FLAGS_max_attempts, FLAGS_message_timeout);

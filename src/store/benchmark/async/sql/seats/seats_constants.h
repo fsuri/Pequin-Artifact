@@ -7,7 +7,7 @@
 #include <vector>
 namespace seats_sql {
 
-const int SCALE_FACTOR = 1; //5;
+const int DEFAULT_SCALE_FACTOR = 1; 
 
 static const std::string PROFILE_FILE_NAME = "sql-seats-data/cached_flights.csv";
 
@@ -33,12 +33,12 @@ const int FREQUENCY_UPDATE_RESERVATION = 15;
 const std::vector<int> NEAR_DISTANCES = {5, 10, 25, 50, 100};
 const int MAX_NEAR_DISTANCE = NEAR_DISTANCES.back();
 
-const int NUM_FLIGHTS = SCALE_FACTOR * 10000; //FIXME: WHERE IS THIS FROM?
+//const int NUM_FLIGHTS = SCALE_FACTOR * 10000; 
 
 /** The number of days in the past and future that we will generate flight information for */
-const int FLIGHTS_DAYS_PAST = 1;  //FIXME: Used by loader to generate flights
+const int FLIGHTS_DAYS_PAST = 0; //1; //TODO: The original benchbase code uses past days 1, but I don't really see any use in this... 
 const int FLIGHTS_DAYS_FUTURES = 50;
-const int FLIGHTS_PER_DAY_MIN = 1125; //FIXME: Used by loader to generate reservations
+const int FLIGHTS_PER_DAY_MIN = 1125; 
 const int FLIGHTS_PER_DAY_MAX = 1875;
 
 //Number of seats available per flight 
@@ -55,12 +55,8 @@ const double FLIGHT_TRAVEL_RATE = 570.0;
 // ----------------------------------------------------------------
 
 /** Default number of customers in the database */
-const int NUM_CUSTOMERS = SCALE_FACTOR * 100000;
+const int NUM_CUSTOMERS = 100000;
 
-/** Max Number of FREQUENT_FLYER records per CUSTOMER */
- //TODO: int CUSTOMER_NUM_FREQUENTFLYERS_MIN = 0; //FIXME: USED in Loader to generate Frequentflyer Table.
- //TODO: int CUSTOMER_NUM_FREQUENTFLYERS_MAX = 10;
- //TODO:  double CUSTOMER_NUM_FREQUENTFLYERS_SIGMA = 2.0;
 
 // The maximum number of days that we allow a customer to wait before needing a reservation on a return to their original departure airport
   //TODO: int CUSTOMER_RETURN_FLIGHT_DAYS_MIN = 1;  //FIXME: Used in Loader Reservation class?
@@ -131,7 +127,9 @@ const int64_t MS_IN_DAY = 86400000L;
 const int64_t MS_IN_HOUR = MS_IN_DAY / 24;
 
 // Oldest time.
-const std::time_t MIN_TS = 1697218894000; //FIXME: This is Friday Oct 13th 2023... Arbitrary?
+const std::time_t TODAY = 1697218894000; //Note: This is Friday Oct 13th 2023 (any fixed time will do.)
+//FIXME: Turn these two into profile flags.
+const std::time_t MIN_TS = 1697218894000; 
 const std::time_t MAX_TS = MIN_TS + MS_IN_DAY * FLIGHTS_DAYS_FUTURES; //50 days in advance
 
 // ----------------------------------------------------------------

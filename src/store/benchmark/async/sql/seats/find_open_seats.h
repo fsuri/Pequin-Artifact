@@ -2,21 +2,22 @@
 #define SEATS_SQL_FIND_OPEN_SEATS_H 
 
 #include "store/benchmark/async/sql/seats/seats_transaction.h"
-#include "store/benchmark/async/sql/seats/reservation.h"
+
 #include <random>
 #include <queue>
+#include "store/benchmark/async/sql/seats/seats_profile.h"
 
 namespace seats_sql {
 
 class SQLFindOpenSeats: public SEATSSQLTransaction {
     public: 
-        SQLFindOpenSeats(uint32_t timeout, std::mt19937 &gen, std::queue<SEATSReservation> &new_res_queue, std::vector<CachedFlight> &cached_flight_ids);
+        SQLFindOpenSeats(uint32_t timeout, std::mt19937 &gen, SeatsProfile &profile);
         virtual ~SQLFindOpenSeats();
         virtual transaction_status_t Execute(SyncClient &client);
     private:
         CachedFlight f_id;  // flight id
-        std::queue<SEATSReservation> *q;
         std::mt19937 *gen_;
+        SeatsProfile &profile;
 };
 
 struct GetFlightResultRow {

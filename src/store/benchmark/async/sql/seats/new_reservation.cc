@@ -6,27 +6,24 @@
 
 namespace seats_sql {
     
-SQLNewReservation::SQLNewReservation(uint32_t timeout, std::mt19937 &gen, int64_t r_id, std::queue<SEATSReservation> &insert_res, std::queue<SEATSReservation> &update_res, std::queue<SEATSReservation> &delete_res) : 
-    SEATSSQLTransaction(timeout), r_id(r_id), gen_(&gen) {
-        if (!insert_res.empty()) {
-            SEATSReservation res = insert_res.front();
+SQLNewReservation::SQLNewReservation(uint32_t timeout, std::mt19937 &gen, int64_t r_id, SeatsProfile &profile) : 
+    SEATSSQLTransaction(timeout), r_id(r_id), gen_(&gen), profile(profile) {
+        if (!profile.insert_reservations.empty()) {
+            SEATSReservation res = profile.insert_reservations.front();
             f_id = res.flight.flight_id; 
             flight = res.flight;
             seatnum = res.seat_num;
             if (res.c_id != NULL_ID) 
                 c_id = res.c_id;
             else
-                c_id = std::uniform_int_distribution<int64_t>(1, NUM_CUSTOMERS)(gen);
+                c_id = std::uniform_int_distribution<int64_t>(1, profile.num_customers)(gen);
             
             if (seatnum == -1)   
                 seatnum = std::uniform_int_distribution<int64_t>(1, TOTAL_SEATS_PER_FLIGHT)(gen);
 
-            insert_res.pop();
+            profile.insert_reservations.pop();
         } else { 
             Panic("should not be triggered");
-            f_id = std::uniform_int_distribution<int64_t>(1, NUM_FLIGHTS)(gen);
-            seatnum = std::uniform_int_distribution<int64_t>(1, TOTAL_SEATS_PER_FLIGHT)(gen);
-            c_id = std::uniform_int_distribution<int64_t>(1, NUM_CUSTOMERS)(gen);
         }
         time = std::time(nullptr);
         attributes.reserve(NEW_RESERVATION_ATTRS_SIZE);
@@ -35,9 +32,7 @@ SQLNewReservation::SQLNewReservation(uint32_t timeout, std::mt19937 &gen, int64_
             attributes.push_back(attr_dist(gen));
         }
         price = std::uniform_real_distribution<double>(MIN_RESERVATION_PRICE, MAX_RESERVATION_PRICE)(gen); //TODO: Should be 2x this?
-        update_q = &update_res;
-        delete_q = &delete_res;
-
+       
          fprintf(stderr,"NEW_RESERVATION %ld. for customer %ld. Flight: %d. Seatnum: %d.  \n", r_id, c_id, f_id, seatnum);
      Debug("NEW_RESERVATION for customer %ld", c_id);
     }
@@ -171,11 +166,11 @@ transaction_status_t SQLNewReservation::Execute(SyncClient &client) {
 
     if (std::uniform_int_distribution<int>(1, 100)(*gen_) < PROB_Q_DELETE_RESERVATION){
         std::cerr << "NEW_RES: PUSH TO DELETE Q. r_id: " << r_id <<". c_id: " << c_id << ". flight_id: " << flight.flight_id << std::endl;
-        delete_q->push(SEATSReservation(r_id, c_id, flight, seatnum));
+        profile.delete_reservations.push(SEATSReservation(r_id, c_id, flight, seatnum));
     }
     else{
          std::cerr << "NEW_RES: PUSH TO UPDATE Q. r_id: " << r_id <<". c_id: " << c_id << ". flight_id: " << flight.flight_id << std::endl;
-        update_q->push(SEATSReservation(r_id, c_id, flight, seatnum));
+        profile.update_reservations.push(SEATSReservation(r_id, c_id, flight, seatnum));
     }
 
     return result;

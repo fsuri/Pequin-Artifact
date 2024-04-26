@@ -2,7 +2,8 @@
 #define SEATS_SQL_UTILS_H
 
 #include "store/benchmark/async/sql/seats/seats_constants.h"
-#include "store/benchmark/async/sql/seats/cached_flight.h"
+#include "store/benchmark/async/sql/seats/seats_profile.h"
+
 #include <gflags/gflags.h>
 #include <random>
 #include <sstream>
