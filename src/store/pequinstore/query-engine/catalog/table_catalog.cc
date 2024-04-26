@@ -519,6 +519,13 @@ TableCatalogEntry::GetConstraintCatalogEntry(oid_t constraint_oid,
   return nullptr;
 }
 
+// Get instance of the global table catalog
+TableCatalog *TableCatalog::GetInstance(concurrency::TransactionContext *txn,
+                           storage::Database *database, type::AbstractPool *pool) {
+  static TableCatalog global_table_catalog(txn, database, pool);
+  return &global_table_catalog;
+}
+
 TableCatalog::~TableCatalog() {}
 
 /*@brief   private function for initialize schema of pg_table
