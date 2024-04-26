@@ -51,7 +51,7 @@ AuctionMarkClient::AuctionMarkClient(
     : SyncTransactionBenchClient(client, transport, client_id, numRequests,
                                     expDuration, delay, warmupSec, cooldownSec,
                                     tputInterval, abortBackoff, retryAborted, maxBackoff, maxAttempts, timeout,
-                                    latencyFilename), profile(client_id, num_clients, SCALE_FACTOR)
+                                    latencyFilename), profile(client_id, num_clients, DEFAULT_SCALE_FACTOR) //default scale Factor -- Will be overridden by load_profile
 {
   lastOp = "";
   gen.seed(client_id);

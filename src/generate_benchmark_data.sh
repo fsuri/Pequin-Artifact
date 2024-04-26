@@ -32,7 +32,7 @@ if [ "$BENCHMARK_NAME" = "seats" ]; then
 fi
  
 if [ "$BENCHMARK_NAME" = "auctionmark" ]; then
-	./$GENERATOR_NAME
+	./$GENERATOR_NAME --scale_factor=$SCALE_FACTOR
 fi
 
 #done
