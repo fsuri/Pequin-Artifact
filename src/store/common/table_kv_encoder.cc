@@ -5,6 +5,7 @@
 #include <iostream>
 
 std::string NameToNumeric(const std::string &table_name){
+  
   auto itr = name_to_numerics.find(table_name);
   if(itr != name_to_numerics.end()) return std::to_string(itr->second);
 
@@ -25,6 +26,7 @@ std::string NameToNumeric(const std::string &table_name){
 }
 
 std::string* NumericToName(const std::string &numeric){
+  
    auto itr = numerics_to_name.find(numeric);
   if(itr != numerics_to_name.end()) return &itr->second;
 

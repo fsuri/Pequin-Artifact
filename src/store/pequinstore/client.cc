@@ -869,6 +869,7 @@ void Client::AddWriteSetIdx(proto::Transaction &txn){
     auto &write = txn.write_set()[i];
     if(write.is_table_col_version()){
       //curr_table = &write.key(); //Note: This works because we've inserted write keys for all of our Tablewrites, and the write keys are sorted.
+      //Use this if we convert NamesToNumerics
       curr_table = NumericToName(write.key()); //Note: This works because we've inserted write keys for all of our Tablewrites.
       UW_ASSERT(txn.table_writes().count(*curr_table));
     }
