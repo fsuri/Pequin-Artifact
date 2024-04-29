@@ -50,19 +50,12 @@ Server::Server(const transport::Configuration& config, KeyManager *keyManager,
 
   tp->AddIndexedThreads(number_of_threads);
 
-  // Start the cluster before trying to connect:
-  // version and cluster name should match the ones in Pequin-Artifact/pg_setup/postgres_service.sh script
-  // const char* scriptName = "../pg_setup/postgres_service.sh -r";
-  // std::system(scriptName);
-  // const char* command = "sudo pg_ctlcluster 12 pgdata start";
-  // system(command);
+  //separate for local configuration we set up different db name for each servers, otherwise they can share the db name
   std::string db_name = "db1";
   if (localConfig){
     std::cerr << "Shir: using local config (pg server)\n";
     db_name = "db" + std::to_string(1 + idx);
   }
-  //separate host, otherwise use the above so they all reference a different database
-  // std::string db_name = "db" + std::to_string(1 + idx);
 
   // password should match the one created in Pequin-Artifact/pg_setup/postgres_service.sh script
   // port should match the one that appears when executing "pg_lsclusters -h"

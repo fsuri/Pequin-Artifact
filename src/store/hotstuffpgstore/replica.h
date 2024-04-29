@@ -121,6 +121,8 @@ public:
   // the next sequence number to be executed
   uint64_t execSeqNum;
   uint64_t execBatchNum;
+  uint64_t bubbles;
+  
   // map from seqnum to the digest pending execution at that sequence number
   std::unordered_map<uint64_t, std::string> pendingExecutions;
 
@@ -135,9 +137,9 @@ public:
 
   void handleMessage(const TransportAddress &remote, const string &type, const string &data);
 
-  void proposeBubble(string digest, TransportAddress* clientAddr);
-  void fillPipeline(string digest, TransportAddress* clientAddr);
-
+  void proposeBubble(string digest);
+  
+  void bubbleCB(uint64_t currProposedCounter);
   Stats* stats;
 
   std::pair<::google::protobuf::Message*,uint64_t> deserializeMsgAndObtainID(const string& type, const string& msg);

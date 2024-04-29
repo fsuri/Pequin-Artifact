@@ -50,41 +50,13 @@ Replica::Replica(const transport::Configuration &config, KeyManager *keyManager,
   // initial seqnum
   nextSeqNum = 0;
   execSeqNum = 0;
+  bubbles=0;
 
   batchTimerRunning = false;
   nextBatchNum = 0;
 
   bubbleTimerRunning=false;
   proposedCounter=0;
-
-
-
-
-  // // auto currProposedCounter = proposedCounter;
-  // TransportAddress* clientAddr=0;
-  // auto digest="FDFSD";
-  // std::function<void(uint64_t currProposedCounter)> bubbleCB = [this, digest, clientAddr, transport, bubbleCB](uint64_t currProposedCounter) {
-  //   bubbleTimerRunning=false;
-  //   Debug("Bubble timer expired, check if seqnum has changed");
-  //   Debug("Current was %d, and now is: %d",currProposedCounter,this->proposedCounter);
-  //   if (this->proposedCounter - currProposedCounter<3){ //size of pipeline
-  //     Debug("No progress was made, filling the pipeline with bubbles.");
-  //     fillPipeline(digest, clientAddr); // or just bubble?
-  //   }else{
-  //     Debug("not filling this time");
-  //   }
-
-  //   Debug("Starting bubble timer");
-
-  //   transport->Timer(10, [this, bubbleCB](){
-  //     bubbleCB(this->proposedCounter);
-  //   });
-
-  // };
-
-  // transport->Timer(10, [this, bubbleCB](){
-  //   bubbleCB(this->proposedCounter);
-  // });
 
 
 
@@ -113,7 +85,47 @@ Replica::Replica(const transport::Configuration &config, KeyManager *keyManager,
       sessionKeys[i] = std::string(8, (char) i + 0x30) + std::string(8, (char) idx + 0x30);
     }
   }
+
+  // transport->Timer(100, [this, pc = proposedCounter](){
+  //   this->bubbleCB(pc);
+  // });
+
 }
+
+void Replica::bubbleCB(uint64_t currProposedCounter){
+  executeSlots();
+
+ bubbleTimerRunning=false;
+  Debug("Bubble timer expired, check if seqnum has changed");
+  auto pc =this->proposedCounter;
+  Debug("Current was %d, and now is: %d",currProposedCounter,pc);
+  if (this->proposedCounter == currProposedCounter){ //size of pipeline
+
+    // if (bubbles<4){
+
+    
+    Debug("No progress was made, filling the pipeline with bubbles.");
+    auto digest="Bubble"+std::to_string(pc+ rand());
+    proposeBubble(digest);
+    bubbles++;
+    // }
+    // else{
+    //   Debug("already proposed 3 bubbles");
+    // }
+  }else{
+    Debug("not filling this time");
+  }
+
+  // if (bubbles<4){
+
+  Debug("Starting bubble timer");
+  transport->Timer(500, [this,pc](){
+    this->bubbleCB(pc); 
+  });
+  // }
+}
+
+
 
 Replica::~Replica() {}
 
@@ -233,60 +245,38 @@ void Replica::HandleRequest(const TransportAddress &remote,
     Debug("Shir:   hopefully with this digest:");
     DebugHash(digest);
 
+    proposeBubble("InitBubble1");
+
 
     hotstuffpg_interface.propose(digest, execb); // Shir: sending the execb to hotstuff
     proposedCounter++;
     Debug("Execb proposed");
-
-
-    auto currProposedCounter = proposedCounter;
-    std::function<void(uint64_t currProposedCounter)> bubbleCB = [this, digest, clientAddr](uint64_t currProposedCounter) {
-      bubbleTimerRunning=false;
-      Debug("Bubble timer expired, check if seqnum has changed");
-      Debug("Current was %d, and now is: %d",currProposedCounter,this->proposedCounter);
-      if (this->proposedCounter - currProposedCounter<3){ //size of pipeline
-        Debug("No progress was made, filling the pipeline with bubbles.");
-        fillPipeline(digest, clientAddr);
- //     proposeBubble(digest, clientAddr);
-
-      }else{
-        Debug("not filling this time");
-      }
-    };
-
-    if (!bubbleTimerRunning) {
-      bubbleTimerRunning = true;
-      Debug("Starting bubble timer");
-      transport->Timer(10, [this, bubbleCB,currProposedCounter](){
-        bubbleCB(currProposedCounter);
-        });
-    }
+ 
+    proposeBubble("bubble"+digest+"1");
+    proposeBubble("bubble"+digest+"2");
+    proposeBubble("bubble"+digest+"3");
 
   
   }
 }
 
 
-void Replica::proposeBubble(string digest, TransportAddress* clientAddr){
+void Replica::proposeBubble(string digest){
   proto::PackedMessage bubblePackedMsg;
   std::string digest_mb("mitz"+digest);
-  auto execb_bubble = [this, digest_mb, bubblePackedMsg,clientAddr ](const std::string &digest_paramm, uint32_t seqnumm) {
-  auto f = [this, digest_mb, bubblePackedMsg,clientAddr, digest_paramm, seqnumm](){
-    requests[digest_mb] = bubblePackedMsg;
-    replyAddrs[digest_mb] = clientAddr;
-    pendingExecutions[seqnumm] = digest_mb;
-    return (void*) true;
-  };
-  transport->DispatchTP_main(f);
+  auto execb_bubble = [this, digest_mb, bubblePackedMsg](const std::string &digest_paramm, uint32_t seqnumm) {
+    auto f = [this, digest_mb, bubblePackedMsg, digest_paramm, seqnumm](){
+      requests[digest_mb] = bubblePackedMsg;
+      replyAddrs[digest_mb] = nullptr;
+      pendingExecutions[seqnumm] = digest_mb;
+      Debug("Adding bubble to pending executions, with seqnum %d",seqnumm);
+      executeSlots();
+      return (void*) true;
+    };
+    transport->DispatchTP_main(f);
   };
   hotstuffpg_interface.propose(digest_mb, execb_bubble);
-
-}
-
-void Replica::fillPipeline(string digest, TransportAddress* clientAddr){
-  proposeBubble("1"+digest,clientAddr);
-  proposeBubble("2"+digest,clientAddr);
-  proposeBubble("3"+digest,clientAddr);
+  proposedCounter++;
 }
 
 void Replica::executeSlots() {

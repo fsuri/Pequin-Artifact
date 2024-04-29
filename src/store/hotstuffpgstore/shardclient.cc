@@ -302,6 +302,7 @@ void ShardClient::Query(const std::string &query,  const Timestamp &ts, uint64_t
   Debug("Sending Query id: %lu", reqId);
 
   transport->SendMessageToGroup(this, group_idx, request);
+  // transport->SendMessageToReplica(this,0,request);
 
   PendingSQL_RPC psr;
   psr.srcb = srcb;
