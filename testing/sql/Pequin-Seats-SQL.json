@@ -21,7 +21,7 @@
    "server_load_time": 16,
   
   "_SEATS_SQL_ARGS_" :0,
-  	  "_TODO: SCALE FACTOR; max_airports, k_nearest?": 0,
+  	  "scale_factor": 1,
 	 
 
   "client_abort_backoff": 2,

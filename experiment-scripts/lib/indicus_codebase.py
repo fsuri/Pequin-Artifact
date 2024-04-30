@@ -284,9 +284,11 @@ class IndicusCodebase(ExperimentCodebase):
             client_command += ' --num_customers %d' % config['smallbank_num_customers']
             client_command += ' --hotspot_probability %f' % config['smallbank_hotspot_probability']
             client_command += ' --customer_name_file_path %s' % config['smallbank_customer_name_file_path']
+        
+        elif config['benchmark_name'] == 'seats-sql' or config['benchmark_name'] == 'auctionmark-sql':
+            client_command += ' --benchbase_scale_factor %d ' % config['scale_factor']
 
-     #TODO: ADD AUCTIONMARK + SEATS Arguments/Scale factor?
-
+    
 
         if 'client_wrap_command' in config and len(config['client_wrap_command']) > 0:
             client_command = config['client_wrap_command'] % client_command
