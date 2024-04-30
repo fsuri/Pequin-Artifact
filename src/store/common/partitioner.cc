@@ -141,7 +141,7 @@ uint64_t RWSQLPartitioner::operator()(const std::string &table_name, const std::
   }
   else{
     UW_Assert(!table_name.empty());
-    return std::stoi(NameToNumeric(table_name)) % nshards;
+    return std::stoi(EncodeTable(table_name)) % nshards;
   }
 
   //Alternative version: turn numeric to name, and hash. Con: Hash not necessarily evenly distributed, and thus not guaranteed that all shards have the same amount of tables.
@@ -156,7 +156,7 @@ uint64_t RWSQLPartitioner::operator()(const std::string &table_name, const std::
     // std::cerr << "key case: " << hash(key.substr(0, w_pos)) << std::endl;
     // return hash(key.substr(0, w_pos)) % nshards;
 
-    const std::string &extracted_name = *NumericToName(input.substr(0, w_pos));
+    const std::string &extracted_name = *DecodeTable(input.substr(0, w_pos));
     return hash(extracted_name) % nshards;
   }
   else{
@@ -185,7 +185,7 @@ uint64_t WarehouseSQLPartitioner::operator()(const std::string &table_name, cons
   //Note: if `is_key` then input = encoded key. If not, then input = query, and we have to check the table_name
   //const char &t = is_key? input[0] : table_name[0];
   //TODO: Can we get rid of this copy of input[0]?
-  const char &t = is_key? (*NumericToName({input[0]}))[0] : table_name[0];   //Note: the first char of input is the numeric encoding (because TPCC has only 10 tables, i.e. numerics 0-9)
+  const char &t = is_key? (*DecodeTable({input[0]}))[0] : table_name[0];   //Note: the first char of input is the numeric encoding (because TPCC has only 10 tables, i.e. numerics 0-9)
   switch (t) { 
     case 'w':  // WAREHOUSE
     case 's':  // STOCK

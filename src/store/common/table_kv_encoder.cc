@@ -4,7 +4,8 @@
 #include "lib/assert.h"
 #include <iostream>
 
-std::string NameToNumeric(const std::string &table_name){
+std::string EncodeTable(const std::string &table_name){
+  //return table_name; //Use this if want to disable Table Encoding
   
   auto itr = name_to_numerics.find(table_name);
   if(itr != name_to_numerics.end()) return std::to_string(itr->second);
@@ -23,9 +24,11 @@ std::string NameToNumeric(const std::string &table_name){
   // }
 
   return std::to_string(new_numeric);
+ 
 }
 
-std::string* NumericToName(const std::string &numeric){
+//Use this in pequinstore/client.cc AddWriteSetIdx
+std::string* DecodeTable(const std::string &numeric){
   
    auto itr = numerics_to_name.find(numeric);
   if(itr != numerics_to_name.end()) return &itr->second;
@@ -33,12 +36,17 @@ std::string* NumericToName(const std::string &numeric){
   Panic("Have not stored conversion for numeric: %s", numeric.c_str());
 }
 
+std::string EncodeTableCol(const std::string &table_name, const std::string &col_name){
+  return table_name + unique_delimiter + col_name;
+}
+
+
 //TODO: input: convert row_name type into byte array. E.g. Int: static_cast<char*>(static_cast<void*>(&x)); String: str.c_str();
 std::string EncodeTableRow(const std::string &table_name, const std::vector<std::string> &primary_key_column_values){  //std::string &row_name
   
   //Note: Assuming unique delimiter that is neither part of table_nor string.
   //std::string encoding = table_name;
-  std::string encoding = NameToNumeric(table_name);
+  std::string encoding = EncodeTable(table_name);
   for(auto primary_column_value: primary_key_column_values){
     encoding += unique_delimiter + std::move(primary_column_value);
   }
@@ -50,7 +58,7 @@ std::string EncodeTableRow(const std::string &table_name, const std::vector<cons
   
   //Note: Assuming unique delimiter that is neither part of table_nor string.
     //std::string encoding = table_name;
-  std::string encoding = NameToNumeric(table_name);
+  std::string encoding = EncodeTable(table_name);
   for(auto primary_column_value: primary_key_column_values){
     encoding += unique_delimiter + (*primary_column_value);  
   }
@@ -63,7 +71,7 @@ std::string EncodeTableRow(const std::string &table_name, const std::vector<cons
   
   //Note: Assuming unique delimiter that is neither part of table_nor string.
     //std::string encoding = table_name;
-  std::string encoding = NameToNumeric(table_name);
+  std::string encoding = EncodeTable(table_name);
   for(int i = 0; i < primary_key_column_values.size(); ++i){
     const std::string *p_col_val = primary_key_column_values[i];
     encoding += unique_delimiter + ((*p_col_quotes)[i] ? p_col_val->substr(1, p_col_val->length()-2) : *p_col_val);
@@ -76,17 +84,13 @@ std::string EncodeTableRow(const std::string &table_name, const std::vector<cons
   
   //Note: Assuming unique delimiter that is neither part of table_nor string.
    //std::string encoding = table_name;
-  std::string encoding = NameToNumeric(table_name);
+  std::string encoding = EncodeTable(table_name);
   for(auto primary_column_value: primary_key_column_values){
     encoding += unique_delimiter;
     encoding += *primary_column_value;
   }
   return encoding;
   //return table_name + unique_delimiter + row_name;
-}
-
-std::string EncodeTableCol(const std::string &table_name, const std::string &col_name){
-  return table_name + unique_delimiter + col_name;
 }
 
 
@@ -96,7 +100,7 @@ void DecodeTableRow(const std::string &enc_key, std::string &table_name, std::ve
 
   UW_ASSERT(pos != std::string::npos);
   //table_name = enc_key.substr(0, pos);
-  table_name = *NumericToName(enc_key.substr(0, pos));
+  table_name = *DecodeTable(enc_key.substr(0, pos));
 
   //row_name = enc_key.substr(pos + unique_delimiter.length()); //For "single row name"  //, enc_key.length());
 

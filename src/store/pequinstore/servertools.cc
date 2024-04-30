@@ -483,21 +483,23 @@ void Server::ManageDispatchSupplyTx(const TransportAddress &remote, const std::s
 // materialize from snapshot!
   //TODO: FIXME: If there is none in snapshot => don't pick genesis version: pick greatest.
 
-void Server::FindTableVersion(const std::string &key_name, const Timestamp &ts, 
+void Server::FindTableVersion(const std::string &table_name, const Timestamp &ts,  
                               bool add_to_read_set, QueryReadSetMgr *readSetMgr, 
                               bool add_to_snapshot, SnapshotManager *snapshotMgr,
                               bool materialize_from_snapshot, const snapshot *ss_txns){
+
+  const std::string &table_key = EncodeTable(table_name); //TODO: Note: If we use ColVersions then "table_name" might also be a ColName. In that case must use EncodeTableCol... (pass a bool is_col)
   
-  Debug("FindTableVersion for key %s. Called from TS[%lu:%lu]. AddToRead? %d. AddToSnap? %d. Read Materialized? %d",
-         key_name.c_str(), ts.getTimestamp(), ts.getID(), add_to_read_set, add_to_snapshot, materialize_from_snapshot);
+  Debug("FindTableVersion for table %s [key:%s]. Called from TS[%lu:%lu]. AddToRead? %d. AddToSnap? %d. Read Materialized? %d",
+         table_name.c_str(), table_key.c_str(), ts.getTimestamp(), ts.getID(), add_to_read_set, add_to_snapshot, materialize_from_snapshot);
 
   //Read committed
   std::pair<Timestamp, Server::Value> tsVal;
 
   //Find the latest committed version (that, if materializing, is in the snapshot) 
-  bool committed_exists = store.get(key_name, ts, tsVal);
+  bool committed_exists = store.get(table_key, ts, tsVal);
   if(!committed_exists){ //skip getting col version if the col is not an indexed one!!
-    Panic("NOTE: All Tables and Indexed Columns must have a genesis version. Key in question: %s", key_name.c_str());  
+    Panic("NOTE: All Tables and Indexed Columns must have a genesis version. Key in question: %s", table_key.c_str());  
     //Note: CreateTable() writes the genesis version for table and primary index. CreateIndex writes genesis version for Col Versions.
   }
   if(materialize_from_snapshot){
@@ -513,17 +515,17 @@ void Server::FindTableVersion(const std::string &key_name, const Timestamp &ts,
         break; //found 
       }
       if(tsVal.first.getTimestamp() == 0UL){ //stop at genesis
-        store.get(key_name, ts, tsVal); //simply pick highTS if there is nothing in snapshot.
+        store.get(table_key, ts, tsVal); //simply pick highTS if there is nothing in snapshot.
         break;
       }
       //find next older version
       //Note: get fetches the last version <=, but we want stricly < TS. thus we search for tsVal.first-1 //TODO: Change get to use lower_bound?
       tsVal.first.setTimestamp(tsVal.first.getTimestamp()-1);
-      committed_exists = store.get(key_name, tsVal.first, tsVal);
+      committed_exists = store.get(table_key, tsVal.first, tsVal);
     }
   }
 
-  //if(key_name == "useracct_feedback") Panic("test stop");
+  //if(table_name == "useracct_feedback") Panic("test stop");
   //NOTE: Don't really need to check prepareds: Since TableVersion is just used to bound the number of comparisons...
 
   //Find the latest prepared version that is greater than the committed version (that, if materializing, is in the snapshot) 
@@ -533,7 +535,7 @@ void Server::FindTableVersion(const std::string &key_name, const Timestamp &ts,
 
   //Read prepared
   if(occType == MVTSO && params.maxDepDepth > -2){    //TODO: possibly set RTS too here. Note: currently being set for whole Query ReadSet after exec. 
-      mostRecentPrepared = FindPreparedVersion(key_name, ts, committed_exists, tsVal);
+      mostRecentPrepared = FindPreparedVersion(table_key, ts, committed_exists, tsVal);
   }
 
   if(materialize_from_snapshot){
@@ -547,7 +549,7 @@ void Server::FindTableVersion(const std::string &key_name, const Timestamp &ts,
       //find next older version
       //Note: FindPreparedVersion fetches the last version <= TS, but we want stricly < TS. thus we search for timestamp()-1 //TODO: Change FindPreparedVersion to use lower_bound?
       
-      mostRecentPrepared = FindPreparedVersion(key_name, Timestamp(mostRecentPrepared->timestamp().timestamp()-1, mostRecentPrepared->timestamp().id()), committed_exists, tsVal);
+      mostRecentPrepared = FindPreparedVersion(table_key, Timestamp(mostRecentPrepared->timestamp().timestamp()-1, mostRecentPrepared->timestamp().id()), committed_exists, tsVal);
 
     }
   }
@@ -564,8 +566,8 @@ void Server::FindTableVersion(const std::string &key_name, const Timestamp &ts,
       readSetMgr->AddToDepSet(TransactionDigest(*mostRecentPrepared, params.hashDigest), mostRecentPrepared->timestamp());
 
        //Add Table to Read Set. Note: This is PURELY to have a read key in order to lock mutex for parallel CC check. The TS does not matter.
-      //if(params.parallel_CCC) readSetMgr->AddToReadSet(key_name, mostRecentPrepared->timestamp(), true); //is_table_col_version = true
-      if(params.parallel_CCC) readSetMgr->AddToReadSet(NameToNumeric(key_name), mostRecentPrepared->timestamp(), true); //is_table_col_version = true
+      //if(params.parallel_CCC) readSetMgr->AddToReadSet(table_key, mostRecentPrepared->timestamp(), true); //is_table_col_version = true
+      if(params.parallel_CCC) readSetMgr->AddToReadSet(table_key, mostRecentPrepared->timestamp(), true); //is_table_col_version = true
     }
     else{ //Read committed
       TimestampMessage tsm;
@@ -573,8 +575,8 @@ void Server::FindTableVersion(const std::string &key_name, const Timestamp &ts,
       if(params.query_params.useSemanticCC) readSetMgr->SetPredicateTableVersion(tsm); //Add to current pred
 
        //Add Table to Read Set. Note: This is PURELY to have a read key in order to lock mutex for parellel CC check. The TS does not matter.
-      //if(params.parallel_CCC) readSetMgr->AddToReadSet(key_name, tsm, true); // is_table_col_version = true
-      if(params.parallel_CCC) readSetMgr->AddToReadSet(NameToNumeric(key_name), tsm, true); // is_table_col_version = true
+      //if(params.parallel_CCC) readSetMgr->AddToReadSet(table_key, tsm, true); // is_table_col_version = true
+      if(params.parallel_CCC) readSetMgr->AddToReadSet(table_key, tsm, true); // is_table_col_version = true
     }
   }
 

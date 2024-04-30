@@ -143,7 +143,7 @@ void SQLTransformer::RegisterTables(std::string &table_registry){ //TODO: This t
         }
 
         //Register all Tables for read/write set encodings
-        NameToNumeric(table_name);
+        EncodeTable(table_name);
     }
 }
 

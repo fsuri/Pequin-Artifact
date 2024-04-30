@@ -129,7 +129,7 @@ bool Server::CheckMonotonicTableColVersions(const std::string &txn_digest, const
 //Easiest is to add them to the TXN. But then the TXN doesn't fulfill Hash anymore...
     //Need to store them to some extra merged_set, and include them on demand for dep checks (and wakeup dep checks)
 
-proto::ConcurrencyControl::Result Server::CheckPredicates(const proto::Transaction &txn, const Timestamp &txn_ts, const ReadSet &txn_read_set, const PredSet &pred_set, std::set<std::string> &dynamically_active_dependencies){ 
+proto::ConcurrencyControl::Result Server::CheckPredicates(const proto::Transaction &txn, const Timestamp &txn_ts, const ReadSet &txn_read_set, const PredSet &pred_set, std::set<std::string> &dynamically_active_dependencies){
   
     Debug("Checking for Semantic Conflicts. TX_ts: [%lu:%lu]. Num preds: %d. Num TableWrites: %d", txn_ts.getTimestamp(), txn_ts.getID(), pred_set.size(), txn.table_writes().size());
    
@@ -253,6 +253,7 @@ proto::ConcurrencyControl::Result Server::CheckReadPred(const Timestamp &txn_ts,
     const Timestamp &curr_ts = itr->first;
      Debug("TX_ts: [%lu:%lu]. Check vs Write_Ts [%lu:%lu]", txn_ts.getTimestamp(), txn_ts.getID(), curr_ts.getTimestamp(), curr_ts.getID());
      //if(curr_ts > txn_ts) continue;
+    UW_ASSERT(curr_ts < txn_ts);
    
     //Skip comparing against table version itself. We've already seen it, it cannot possibly be a new write.
     if(curr_ts.getTimestamp() == pred.table_version().timestamp() && curr_ts.getID() == pred.table_version().id()) continue;
@@ -326,7 +327,7 @@ proto::ConcurrencyControl::Result Server::CheckReadPred(const Timestamp &txn_ts,
       bool conflict = false;
       //for(auto &pred_instance: instantiated_preds){
 
-      if(!row.deletion()){ //Note: Deletion by default Eval to false.
+      if(!row.deletion()){ //Note: Deletion by default Eval to false (i.e. cannot be an unseen conflict)
         for(auto &pred_instance: pred.pred_instances()){
          conflict = EvaluatePred(pred_instance, row, pred.table_name());
         
@@ -473,7 +474,7 @@ proto::ConcurrencyControl::Result Server::CheckTableWrites(const proto::Transact
 
         //only check if this write is still relevant to the Reader. Note: This case should never happen, such writes should not be able to be admitted
         if(txn_ts.getTimestamp() + write_monotonicity_grace < pred.table_version().timestamp()){
-          Panic("non-monotinic write should never be admitted"); 
+          Panic("non-monotonic write should never be admitted"); 
           //NOTE: Not quite true locally. This replica might not have seen a TableVersion high enough to cause this TX to be rejected; meanwhile, the read might have read the TableVersion elsewhere
           //-- but as a whole, a quorum of replicas should be rejecting this tx.
           continue;

@@ -869,8 +869,9 @@ void Client::AddWriteSetIdx(proto::Transaction &txn){
     auto &write = txn.write_set()[i];
     if(write.is_table_col_version()){
       //curr_table = &write.key(); //Note: This works because we've inserted write keys for all of our Tablewrites, and the write keys are sorted.
-      //Use this if we convert NamesToNumerics
-      curr_table = NumericToName(write.key()); //Note: This works because we've inserted write keys for all of our Tablewrites.
+      //Use DecodeTable if we are using TableEncoding. If not, use line above.
+      curr_table = DecodeTable(write.key()); //Note: This works because we've inserted write keys for all of our Tablewrites.
+      Warning("Print: Curr Table: %s", curr_table->c_str());
       UW_ASSERT(txn.table_writes().count(*curr_table));
     }
     else{
@@ -900,7 +901,7 @@ void Client::Commit(commit_callback ccb, commit_timeout_callback ctcb,
       if(table_write.has_changed_table() && table_write.changed_table()){  //TODO: Set changed_table for insert and delete.
           WriteMessage *table_ver = txn.add_write_set();
           //table_ver->set_key(table_name);
-          table_ver->set_key(NameToNumeric(table_name));
+          table_ver->set_key(EncodeTable(table_name));
           table_ver->set_value("");
           table_ver->set_is_table_col_version(true);
           table_ver->mutable_rowupdates()->set_row_idx(-1); 
