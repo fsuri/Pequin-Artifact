@@ -28,7 +28,7 @@ if [ "$BENCHMARK_NAME" = "tpcc" ]; then
 fi
 
 if [ "$BENCHMARK_NAME" = "seats" ]; then
-	./$GENERATOR_NAME --max_airports=$MAX_AIRPORTS --k_nearest_airports=$K_NEAREST_AIRPORTS
+	./$GENERATOR_NAME --scale_factor=$SCALE_FACTOR --max_airports=$MAX_AIRPORTS --k_nearest_airports=$K_NEAREST_AIRPORTS
 fi
  
 if [ "$BENCHMARK_NAME" = "auctionmark" ]; then
