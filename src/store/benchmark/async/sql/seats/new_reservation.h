@@ -26,6 +26,8 @@ class SQLNewReservation:public SEATSSQLTransaction {
        
         std::mt19937 *gen_;
         SeatsProfile &profile;
+
+        bool has_reservation;
 };
 
 }

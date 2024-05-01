@@ -15,7 +15,7 @@ SQLDeleteReservation::SQLDeleteReservation(uint32_t timeout, std::mt19937 &gen, 
 
         std::cerr << "DELETE_RESERVATION: " << r.r_id  << std::endl;
         Debug("DELETE_RESERVATION");
-        c_id = r.c_id;
+        c_id = r.c_id; //Default: Delete using Customer Id
         flight = r.flight;
         f_id = flight.flight_id;
         c_id_str = "";
@@ -156,12 +156,17 @@ transaction_status_t SQLDeleteReservation::Execute(SyncClient &client) {
 
 
      //////////////// UPDATE PROFILE /////////////////////
+    
+    //Remove booking from cache
+    auto &seats = profile.getSeatsBitSet(f_id);
+    seats[seat-1] = 0;
+    //profile.deleteCustomerBooking(c_id, f_id);
 
     //Re-queue reservation
     int requeue = std::uniform_int_distribution<int>(1, 100)(*gen_);
     if (requeue <= PROB_REQUEUE_DELETED_RESERVATION) profile.insert_reservations.push(SEATSReservation(NULL_ID, c_id, flight, seat));
 
-    Debug("Deleted reservation on flight %s for customer %s. [seatsLeft=%d]", f_id, c_id, seats_left + 1);
+    Debug("Deleted reservation on flight %s for customer %d. [seatsLeft=%d]", f_id, c_id, seats_left + 1);
     
 
     return result;

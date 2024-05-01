@@ -19,7 +19,8 @@ class SQLUpdateReservation:public SEATSSQLTransaction {
         CachedFlight flight;  // flight  that customer has a reservation on
         int64_t f_id;
 
-        int64_t seatnum;    // seat that the customer has a reservation on
+        int64_t curr_seat;  // seat that the customer has a reservation on
+        int64_t seatnum;    // seat that the customer is requesting to change to
         int64_t attr_idx;   // idx to index into reserve_seats; determine what attribute to update
         int64_t attr_val;   // value that attribute is updated to 
         std::vector<std::string> reserve_seats = {"R_IATTR00", "R_IATTR01", "R_IATTR02", "R_IATTR03"};

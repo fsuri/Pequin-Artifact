@@ -7,7 +7,6 @@
 #include "store/benchmark/async/sql/seats/update_reservation.h"
 #include "store/benchmark/async/sql/seats/seats_constants.h"
 
-#include "store/benchmark/async/sql/seats/seats_util.h"
 #include <cmath>
 #include <queue>
 
@@ -23,63 +22,12 @@ SEATSSQLClient::SEATSSQLClient(SyncClient &client, Transport &transport, const s
       uint64_t timeout, const std::string &latencyFilename) :       
       SyncTransactionBenchClient(client, transport, id, numRequests,
         expDuration, delay, warmupSec, cooldownSec, tputInterval, abortBackoff,
-        retryAborted, maxBackoff, maxAttempts, timeout, latencyFilename), profile(id, scale_factor) { 
+        retryAborted, maxBackoff, maxAttempts, timeout, latencyFilename), profile(id, scale_factor, gen) { 
             gen.seed(id);
             started_workload = false;
 
 
-      //PLACEHOLDER CODE:
-      //TODO: Make this cleaner. Pass in actual path. Apply Flight cache more broadly
-      
-      /* std::string filename = "store/benchmark/async/sql/seats/sql-seats-data/flight.csv";
-      std::ifstream file (filename);
-
-      std::string row_line;
-      getline(file, row_line); //skip header
-      while(getline(file, row_line)){
-        std::string value;
-        std::stringstream row(row_line);
-        std::vector<std::string> row_values;
-
-        while (getline(row, value, ',')) {
-          row_values.push_back(std::move(value));
-          if(row_values.size() == 5) break;
-        }
-
-        CachedFlight flight;
-        flight.flight_id = std::stol(row_values[0]);
-        flight.airline_id = std::stol(row_values[1]);
-        flight.depart_ap_id = std::stol(row_values[2]);
-        flight.depart_time = std::stol(row_values[3]);
-        flight.arrive_ap_id = std::stol(row_values[4]);
-
-        profile.cached_flights.push_back(std::move(flight));
-
-        if(profile.cached_flights.size() == seats_sql::CACHE_LIMIT_FLIGHT_IDS) break;  
-        //TODO: Instead of reading the first 10k at every client: Each client should cache a random different 10k
-      }*/
-
-     
-      //TODO: Ideally every client should cache a random different 10k...
-      std::cerr << "profile file path: " << profile_file_path << std::endl;
-      std::ifstream file (profile_file_path);
-      skipCSVHeader(file);
-      for (int i = 0; i < CACHE_LIMIT_FLIGHT_IDS; i++) {
-        std::vector<std::string> row = readCSVRow(file);
-        if (row.size() < 5) break;
-
-        CachedFlight cf;
-        cf.flight_id = std::stol(row[0]); 
-        cf.airline_id = std::stol(row[1]); 
-        cf.depart_ap_id = std::stol(row[2]);
-        cf.depart_time = std::stol(row[3]);
-        cf.arrive_ap_id = std::stol(row[4]);
-
-        profile.cached_flights.push_back(cf);
-      }
-      std::shuffle(profile.cached_flights.begin(), profile.cached_flights.end(), gen);
-
-      UW_ASSERT(!profile.cached_flights.empty());
+     profile.LoadProfile(profile_file_path);
 }
 
 SEATSSQLClient::~SEATSSQLClient() {}

@@ -12,17 +12,13 @@ SQLUpdateReservation::SQLUpdateReservation(uint32_t timeout, std::mt19937 &gen, 
             c_id = r.c_id;
             flight = r.flight;
             f_id = flight.flight_id;
+            curr_seat = r.seat_num;
             seatnum = std::uniform_int_distribution<int>(1, TOTAL_SEATS_PER_FLIGHT)(gen);
-            while(seatnum == r.seat_num) seatnum = std::uniform_int_distribution<int>(1, TOTAL_SEATS_PER_FLIGHT)(gen); //pick a new seat
+            while(seatnum == curr_seat) seatnum = std::uniform_int_distribution<int>(1, TOTAL_SEATS_PER_FLIGHT)(gen); //pick a new seat
             profile.update_reservations.pop();
         } else { 
             // no reservations to update so make this transaction fail
             Panic("should not be triggered");
-            c_id = NULL_ID;
-            r_id = NULL_ID;
-            flight = CachedFlight();
-            f_id = NULL_ID;
-            seatnum = 0;
         }
         attr_idx = std::uniform_int_distribution<int64_t>(0, 3)(gen);
         attr_val = std::uniform_int_distribution<int64_t>(1, 100000)(gen);
@@ -86,6 +82,10 @@ transaction_status_t SQLUpdateReservation::Execute(SyncClient &client) {
     if(result != transaction_status_t::COMMITTED) return result;
 
      //////////////// UPDATE PROFILE /////////////////////
+
+    auto &seats = profile.getSeatsBitSet(f_id);
+    seats[seatnum-1] = 1; //set new seat
+    seats[curr_seat-1] = 0;      //unset old seat
 
     if (std::uniform_int_distribution<int>(1, 100)(*gen_) < PROB_Q_DELETE_RESERVATION){
          std::cerr << "UPDATE_RES: PUSH TO DELETE Q. r_id: " << r_id <<". c_id: " << c_id << ". flight_id: " << flight.flight_id << std::endl;

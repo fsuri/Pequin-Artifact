@@ -13,7 +13,7 @@
 #include <queue>
 #include <unordered_set>
 
-#include "seats_util.h"
+//#include "seats_util.h"
 
 DEFINE_int32(max_airports, -1, "number of airports (-1 == uncapped)");
 DEFINE_int32(k_nearest_airports, 10, "number of distances stored (nearest k)");
@@ -21,6 +21,8 @@ DEFINE_int32(k_nearest_airports, 10, "number of distances stored (nearest k)");
 DEFINE_int32(scale_factor, 1, "scaling factor"); 
 
 //TABLE GENERATORS
+
+namespace seats_sql {
 
 std::unordered_map<std::string, int64_t> GenerateCountryTable(TableWriter &writer) {
     std::vector<std::pair<std::string, std::string>> column_names_and_types;
@@ -32,7 +34,7 @@ std::unordered_map<std::string, int64_t> GenerateCountryTable(TableWriter &write
 
     std::string table_name = seats_sql::COUNTRY_TABLE;
     writer.add_table(table_name, column_names_and_types, primary_key_col_idx);
-    std::ifstream file (COUNTRY_SEATS_TABLE);
+    std::ifstream file (seats_sql::COUNTRY_SEATS_TABLE);
    
     std::unordered_map<std::string, int64_t> ret;
     skipCSVHeader(file);  // skipped first row since it is just column names
@@ -71,7 +73,7 @@ std::vector<std::pair<double, double>> GenerateAirportTable(TableWriter &writer,
     std::string table_name = seats_sql::AIRPORT_TABLE;
     writer.add_table(table_name, column_names_and_types, primary_key_col_idx);
 
-    std::ifstream file (AIRPORT_SEATS_TABLE);
+    std::ifstream file (seats_sql::AIRPORT_SEATS_TABLE);
     
     std::mt19937 gen;
     std::vector<std::pair<double, double>> airport_long_lats; 
@@ -119,6 +121,10 @@ std::vector<std::pair<double, double>> GenerateAirportTable(TableWriter &writer,
       writer.add_row(table_name, values);
     }
     file.close();
+
+    std::cerr << "WRITE AP ID" << std::endl;
+    writeAirportIDs(ap_code_to_id); //write to profile.
+
     return airport_long_lats;
 }
 
@@ -317,7 +323,7 @@ void GenerateCustomerTable(TableWriter &writer) {
       //values.reserve(44);
       values.push_back(std::to_string(c_id));       // c_id
       values.push_back(std::to_string(c_id));       // c_id_str
-      values.push_back(std::to_string(std::uniform_int_distribution<int>(1, seats_sql::NUM_AIRPORTS)(gen)));
+      values.push_back(std::to_string(std::uniform_int_distribution<int>(1, seats_sql::NUM_AIRPORTS)(gen)));  //TODO: Create a map in profile: <airport_id -> max_customers> 
       values.push_back(std::to_string(std::uniform_real_distribution<float>(1000, 10000)(gen)));
       
       for (int sattr = 0; sattr < 20; sattr++) {
@@ -414,16 +420,6 @@ time_t convertStrToTime(std::string time) {
   return 3600000 * stoi(hour) + 60000 * stoi(min);
 } 
 
-std::pair<std::string, std::string> convertAPConnToAirports(std::string apconn) {
-  std::stringstream ss(apconn);
-  std::pair<std::string, std::string> ret; 
-  std::string temp; 
-  getline(ss, temp, '"');
-  getline(ss, ret.first, '-');
-  getline(ss, ret.second, '"');
-
-  return ret;
-}
 
 std::vector<int> GenerateFlightTable(TableWriter &writer, std::vector<std::vector<double>> &airport_distances, std::unordered_map<std::string, int64_t> ap_code_to_id, 
             std::vector<std::pair<int64_t, int64_t>> &f_id_to_ap_conn) {
@@ -452,10 +448,16 @@ std::vector<int> GenerateFlightTable(TableWriter &writer, std::vector<std::vecto
 
 
     // load histograms
-    std::ifstream fa_hist (FLIGHTS_AIRPORT_HISTO_FN);
-    histogram flight_airp_hist = createFPAHistogram(fa_hist);
+    std::ifstream fa_hist (seats_sql::FLIGHTS_AIRPORT_HISTO_FN);
+    histogram flight_airp_hist = createFPAHistogram(fa_hist); //flight frequencies (airport pairs)
     fa_hist.close(); 
-    std::ifstream ft_hist (FLIGHTS_TIME_HISTO_FN);
+
+    std::ifstream faf_hist (seats_sql::FLIGHTS_AIRPORT_HISTO_FN);
+    std::map<std::string, histogram> airport_flights = createFPAHistograms(faf_hist); //flight frequencies *between* airports 
+    writeAirportFlights(airport_flights);
+    faf_hist.close();
+
+    std::ifstream ft_hist (seats_sql::FLIGHTS_TIME_HISTO_FN);
     histogram flight_time_hist = createFPTHistogram(ft_hist);
     ft_hist.close();
     // generate data
@@ -508,7 +510,7 @@ std::vector<int> GenerateFlightTable(TableWriter &writer, std::vector<std::vecto
 
           // cached flights are the latest departing flights, capped at CACHE_LIMIT_FLIGHTS 
           // https://github.com/cmu-db/benchbase/blob/main/src/main/java/com/oltpbenchmark/benchmarks/seats/procedures/LoadConfig.java#L55
-          seats_sql::CachedFlight cf = seats_sql::CachedFlight();
+          seats_sql::CachedFlight cf;
           cf.flight_id = f_id; cf.airline_id = f_al_id; cf.depart_ap_id = dep_ap_id; cf.arrive_ap_id = arr_ap_id; cf.depart_time = dep_time;
           if (cached_flights.size() == seats_sql::CACHE_LIMIT_FLIGHT_IDS) cached_flights.pop();
           cached_flights.push(cf);
@@ -538,11 +540,13 @@ std::vector<int> GenerateFlightTable(TableWriter &writer, std::vector<std::vecto
     }
 
     writeCachedFlights(cached_flights);
-    //FIXME: Why does find flight pick same start and end time.
     return flight_to_num_reserved;
 }
 
+//TODO: Technically Benchbase generates Reservations in a bit more subtle way by trying to account for "returning" and "home-base" customers.
+        //However, this appears to be irrelevant in the actual workload, so I don't think it actually matters.
 void GenReservations(){
+  //TODO: ScalingDataIterable for Reservations? total scales with scale_factor  => I don't think it is relevant..
   /*
   for all flights:
     //depart airport
@@ -576,9 +580,6 @@ void GenReservations(){
   */
 }
 
-//TODO: what does our outbound code do??
-
-//TODO: ScalingDataIterable for Reservations? total scales with scale_factor  => I don't think it is relevant..
 
 void GenerateReservationTable(TableWriter &writer, std::vector<int> flight_to_num_reserved, std::vector<std::pair<int64_t, int64_t>> &fl_to_ap_conn) {
     std::vector<std::pair<std::string, std::string>> column_names_and_types; 
@@ -607,6 +608,8 @@ void GenerateReservationTable(TableWriter &writer, std::vector<int> flight_to_nu
 
     //uint64_t total = (seats_sql::FLIGHTS_PER_DAY_MIN + seats_sql::FLIGHTS_PER_DAY_MAX) / 2 * FLAGS_scale_factor;
 
+     uint64_t num_customers = FLAGS_scale_factor * seats_sql::NUM_CUSTOMERS;
+
     std::vector<std::queue<int64_t>> outbound_customers_per_ap_id(seats_sql::NUM_AIRPORTS, std::queue<int64_t>());
     //for (int f_id = 1; f_id <= 20; f_id++) {
     for (int f_id = 1; f_id <= flight_to_num_reserved.size(); f_id++) {  //For each flight: Create reservation for each occupied seat.
@@ -625,9 +628,9 @@ void GenerateReservationTable(TableWriter &writer, std::vector<int> flight_to_nu
 
         //TODO: Pick Customer in a more principled way (with returning and local customers). 
         //For now, just pick a random one.
-        c_id = std::uniform_int_distribution<int>(1, seats_sql::NUM_CUSTOMERS)(gen);
+        c_id = std::uniform_int_distribution<int>(1, num_customers)(gen);
         while(!flight_customer_ids.insert(c_id).second){  //Don't allow the same customer to have two seats.
-           c_id = std::uniform_int_distribution<int>(1, seats_sql::NUM_CUSTOMERS)(gen);
+           c_id = std::uniform_int_distribution<int>(1, num_customers)(gen);
         }
 
         // if (outbound_customers_per_ap_id[arr_ap_id-1].empty()) {
@@ -666,7 +669,7 @@ void GenerateReservationTable(TableWriter &writer, std::vector<int> flight_to_nu
     }
 }
 
-
+}
 
 int main(int argc, char *argv[]) {
     gflags::SetUsageMessage("generates json file containing SQL tables for SEATS data\n");
@@ -677,24 +680,24 @@ int main(int argc, char *argv[]) {
     TableWriter writer = TableWriter(file_name);
     std::cerr << "Generating SEATS Tables" << std::endl;
     // generate all tables
-    auto co_code_to_id = GenerateCountryTable(writer);
+    auto co_code_to_id = seats_sql::GenerateCountryTable(writer);
     std::cerr << "Finished Country" << std::endl;
-    GenerateAirlineTable(writer, co_code_to_id);
+    seats_sql::GenerateAirlineTable(writer, co_code_to_id);
     std::cerr << "Finished Airline" << std::endl;
     std::unordered_map<std::string, int64_t> ap_code_to_id;
-    auto airport_coords = GenerateAirportTable(writer, co_code_to_id, ap_code_to_id);
+    auto airport_coords =seats_sql::GenerateAirportTable(writer, co_code_to_id, ap_code_to_id);
     std::cerr << "Finished Airport" << std::endl;
-    auto airport_dists = GenerateAirportDistanceTableBounded(writer, airport_coords);
+    auto airport_dists = seats_sql::GenerateAirportDistanceTableBounded(writer, airport_coords);
     //std::vector<std::vector<double>> airport_dists = std::vector<std::vector<double>>(seats_sql::NUM_AIRPORTS, std::vector<double>(seats_sql::NUM_AIRPORTS, 0.0));
     std::cerr << "Finished AirportDistance" << std::endl;
     std::vector<std::pair<int64_t, int64_t>> f_id_to_ap_conn;
-    auto flight_reserves = GenerateFlightTable(writer, airport_dists, ap_code_to_id, f_id_to_ap_conn);
+    auto flight_reserves = seats_sql::GenerateFlightTable(writer, airport_dists, ap_code_to_id, f_id_to_ap_conn);
     std::cerr << "Finished Flights" << std::endl;
-    GenerateReservationTable(writer, flight_reserves, f_id_to_ap_conn);
+    seats_sql::GenerateReservationTable(writer, flight_reserves, f_id_to_ap_conn);
     std::cerr << "Finished Reservation" << std::endl;
-    GenerateCustomerTable(writer);
+    seats_sql::GenerateCustomerTable(writer);
     std::cerr << "Finished Customer" << std::endl;
-    GenerateFrequentFlyerTable(writer);
+    seats_sql::GenerateFrequentFlyerTable(writer);
     std::cerr << "Finished FrequentFlyer" << std::endl;
     writer.flush();
     auto end_time = std::time(0);

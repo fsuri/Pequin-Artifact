@@ -51,17 +51,19 @@ void inline load_row(GetFlightResultRow &store, std::unique_ptr<query_result::Ro
 
 struct GetSeatsResultRow {
 public: 
-    GetSeatsResultRow() : r_id(0), r_f_id(0), r_seat(0) {}
+    GetSeatsResultRow() : r_id(0), r_c_id(0), r_f_id(0), r_seat(0) {}
     ~GetSeatsResultRow() {} 
     int64_t r_id;
+    int64_t r_c_id;
     int64_t r_f_id;
     int64_t r_seat;
 };
 
 void inline load_row(GetSeatsResultRow &store, std::unique_ptr<query_result::Row> row) {
     row->get(0, &store.r_id);
-    row->get(1, &store.r_f_id);
-    row->get(2, &store.r_seat);
+    row->get(1, &store.r_c_id);
+    row->get(2, &store.r_f_id);
+    row->get(3, &store.r_seat);
 }
 
 }

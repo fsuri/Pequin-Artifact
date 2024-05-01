@@ -5,11 +5,11 @@
 #include <string> 
 #include <limits>
 #include <vector>
+
 namespace seats_sql {
 
 const int DEFAULT_SCALE_FACTOR = 1; 
 
-static const std::string PROFILE_FILE_NAME = "sql-seats-data/cached_flights.csv";
 
 const int64_t NULL_ID = std::numeric_limits<int64_t>::min();
 const int64_t MAX_BIG_INT = std::numeric_limits<int64_t>::max() - 1;

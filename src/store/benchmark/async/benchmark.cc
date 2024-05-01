@@ -1732,7 +1732,7 @@ int main(int argc, char **argv) {
       case BENCH_SEATS_SQL:
         {
           UW_ASSERT(syncClient != nullptr);
-          std::string profile_file_path = std::filesystem::path(FLAGS_data_file_path).replace_filename(seats_sql::PROFILE_FILE_NAME);
+          std::string profile_file_path = std::filesystem::path(FLAGS_data_file_path).replace_filename(seats_sql::PROFILE_LOCATION);
           bench = new seats_sql::SEATSSQLClient( *syncClient, *tport, profile_file_path, FLAGS_benchbase_scale_factor,
               seed, FLAGS_num_requests, FLAGS_exp_duration, FLAGS_delay,
               FLAGS_warmup_secs, FLAGS_cooldown_secs, FLAGS_tput_interval,
