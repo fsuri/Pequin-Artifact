@@ -72,8 +72,6 @@ def kill_servers(config, executor, kill_args=' -9'):
         n = 5 * config['fault_tolerance'] + 1
     elif config['replication_protocol'] == 'pbft' or config['replication_protocol'] == 'hotstuff' or config['replication_protocol'] == 'bftsmart' or config['replication_protocol'] == 'augustus':
         n = 3 * config['fault_tolerance'] + 1
-    elif config['fault_tolerance'] == 'crdb':
-        n = config['fault_tolerance']
     else:
         n = 2 * config['fault_tolerance'] + 1
 
@@ -258,8 +256,6 @@ def start_servers(config, local_exp_directory, remote_exp_directory, run):
         n = 5 * config['fault_tolerance'] + 1
     elif config['replication_protocol'] == 'pbft' or config['replication_protocol'] == 'hotstuff' or config['replication_protocol'] == 'bftsmart' or config['replication_protocol'] == 'augustus':
         n = 3 * config['fault_tolerance'] + 1
-    elif config['replication_protocol'] == 'crdb':
-        n = 1
     else:
         n = 2 * config['fault_tolerance'] + 1
     x = len(config['server_names']) // n

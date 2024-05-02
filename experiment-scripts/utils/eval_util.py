@@ -145,8 +145,6 @@ def calculate_statistics_for_run(config, local_out_directory, run):
         n = 5 * config['fault_tolerance'] + 1
     elif config['replication_protocol'] == 'pbft' or config['replication_protocol'] == 'hotstuff' or config['replication_protocol'] == 'bftsmart' or config['replication_protocol'] == 'augustus':
         n = 3 * config['fault_tolerance'] + 1
-    elif config['replication_protocol'] == 'crdb':
-        n = 1
     else:
         n = 2 * config['fault_tolerance'] + 1
     xx = len(config['server_names']) // n
