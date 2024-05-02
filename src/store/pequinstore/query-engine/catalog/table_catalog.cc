@@ -340,6 +340,8 @@ TableCatalog::TableCatalog(concurrency::TransactionContext *,
                            storage::Database *database, type::AbstractPool *)
     : AbstractCatalog(database, InitializeSchema().release(), TABLE_CATALOG_OID,
                       TABLE_CATALOG_NAME) {
+  std::cerr << "Table catalog constructor called" << std::endl;
+  std::cerr << "Table catalog oid is " << TABLE_CATALOG_OID << std::endl;
   // Add indexes for pg_namespace
   AddIndex(TABLE_CATALOG_NAME "_pkey", TABLE_CATALOG_PKEY_OID,
            {ColumnId::TABLE_OID}, IndexConstraintType::PRIMARY_KEY);
