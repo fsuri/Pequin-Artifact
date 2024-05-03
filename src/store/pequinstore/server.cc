@@ -210,6 +210,29 @@ Server::Server(const transport::Configuration &config, int groupIdx, int idx,
     write_msg->mutable_rowupdates()->set_row_idx(0);
     committed["toy_txn"] = real_proof;
   }
+
+
+  // struct timeval now;
+  // gettimeofday(&now, NULL);
+  // uint64_t miliseconds_start2 = now.tv_sec * 1000 * 1000 + now.tv_usec;
+
+  // int x = 0;
+  // for(int i = 0; i < 10000; ++i){
+  //   x += std::rand(); //rand val so compiler cannot optimize away
+  // }
+  // //=> this takes roughly 100us
+
+  // gettimeofday(&now, NULL);
+  // uint64_t miliseconds_end2 = now.tv_sec * 1000 * 1000 + now.tv_usec;
+ 
+  // //Should not take more than 1 ms (already generous) to parse and prepare.
+  // auto duration2 = miliseconds_end2 - miliseconds_start2;
+  // if(duration2 > 50){
+  //   Warning("TEST EXCECUTE exceeded 50us: %d", duration2);
+  // }
+  //  std::cerr << "duration: " << duration2 << std::endl;
+  // Panic("stop time test");
+
 }
 
 Server::~Server() {
