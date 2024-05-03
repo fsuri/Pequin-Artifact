@@ -6,7 +6,7 @@ NUM_GROUPS=1
 CONFIG="0_local_test_outputs/configs/shard-r1.config"
 PROTOCOL="pequin"
 STORE=${PROTOCOL}store
-DURATION=10
+DURATION=5
 ZIPF=0.0
 NUM_OPS_TX=1
 NUM_KEYS_IN_DB=1
@@ -17,11 +17,11 @@ SQL_BENCH="true"
 #BENCHMARK="rw-sql"
 #FILE_PATH="0_local_test_outputs/rw-sql/rw-sql.json"
 
-#BENCHMARK="tpcc-sql"
-#FILE_PATH="store/benchmark/async/sql/tpcc/sql-tpcc-tables-schema.json"
+BENCHMARK="tpcc-sql"
+FILE_PATH="store/benchmark/async/sql/tpcc/sql-tpcc-tables-schema.json"
 
-BENCHMARK="seats-sql"
-FILE_PATH="store/benchmark/async/sql/seats/sql-seats-tables-schema.json"
+#BENCHMARK="seats-sql"
+#FILE_PATH="store/benchmark/async/sql/seats/sql-seats-tables-schema.json"
 
 #BENCHMARK="auctionmark-sql"
 #FILE_PATH="store/benchmark/async/sql/auctionmark/sql-auctionmark-tables-schema.json"
