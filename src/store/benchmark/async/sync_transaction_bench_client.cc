@@ -30,6 +30,7 @@
 #include <iostream>
 #include <random>
 #include <thread>
+#include <sys/time.h>
 
 SyncTransactionBenchClient::SyncTransactionBenchClient(SyncClient &client,
     Transport &transport, uint64_t id, int numRequests, int expDuration,
@@ -51,6 +52,7 @@ void SyncTransactionBenchClient::SendNext() {
   SendNext(&result);
 }
 
+
 static int tries = 0;
 void SyncTransactionBenchClient::SendNext(transaction_status_t *result) {
   currTxn = GetNextTransaction();
@@ -58,13 +60,25 @@ void SyncTransactionBenchClient::SendNext(transaction_status_t *result) {
   *result = ABORTED_SYSTEM; // default to failure
   while (true) {
     try {
+      struct timeval now;
+      gettimeofday(&now, NULL);
+      uint64_t miliseconds_start2 = now.tv_sec * 1000 * 1000 + now.tv_usec;
+      
       *result = currTxn->Execute(client);
+
+       gettimeofday(&now, NULL);
+        uint64_t miliseconds_end2 = now.tv_sec * 1000 * 1000 + now.tv_usec;
+      
+        //Should not take more than 1 ms (already generous) to parse and prepare.
+        auto duration2 = miliseconds_end2 - miliseconds_start2;
+        Warning("Transaction latency in us [%d ms]: %d", duration2, duration2/1000); //TODO: Count the exec latency and commit latency separately. //Count from begin to "commit call" (INSIDE CLIENT)
+        
     }
     catch(...){
       std::cerr <<"catch abort" << std::endl;
       *result = ABORTED_SYSTEM; //ABORTED_USER;
     }
-    usleep(10000); //sleep 10 miliseconds to guarantee Tx are sequential FIXME: THIS IS PURELY fOR DEBUGGING PURPOSES
+    //usleep(10000); //sleep 10 miliseconds to guarantee Tx are sequential FIXME: THIS IS PURELY fOR DEBUGGING PURPOSES
     // Panic("stop after one");
     //if(++tries==2) Panic("stop after two");
     stats.Increment(GetLastOp() + "_attempts", 1);

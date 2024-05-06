@@ -211,6 +211,23 @@ Server::Server(const transport::Configuration &config, int groupIdx, int idx,
     committed["toy_txn"] = real_proof;
   }
 
+  // std::string test_dig = "digest1";
+  // uint64_t data[4];
+  // const uint8_t *arr = (const uint8_t *)test_dig.c_str();
+  // //bit_per_datum = sizeof(uint64_t) * 8.
+  // //_len = 256/64 = 4
+  // //N=256
+  //  arr += 256 / 8;
+  // for (uint64_t *ptr = data + 4; ptr > data;)
+  // {
+  //     uint64_t x = 0;
+  //     for (unsigned j = 0; j < sizeof(uint64_t); j++)
+  //         x = (x << 8) | *(--arr);
+  //     *(--ptr) = x;
+  // }
+  // std::cerr << "data: " << data << std::endl;
+  // Panic("test");
+
 
   // struct timeval now;
   // gettimeofday(&now, NULL);

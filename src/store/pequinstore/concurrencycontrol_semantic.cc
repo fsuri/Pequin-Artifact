@@ -111,12 +111,12 @@ bool Server::CheckMonotonicTableColVersions(const std::string &txn_digest, const
     const Timestamp &highTS = tw->second.rbegin()->first; // == last TX TS
     
     //NOTE: only comparing on the real time component currently.
-    if(txn.timestamp().timestamp() + write_monotonicity_grace <= highTS.getTimestamp()){
-      Warning("Aborting txn: %s. Non monotonic Table/Col Write to [%s]! ms_diff: %lu [ts_diff: %lu]. ms_grace: %lu [ts_grace: %lu]. writeTxnTS: %lu < highTS: %lu", 
+    if(timeServer.TStoMS(txn.timestamp().timestamp()) + params.query_params.monotonicityGrace <= timeServer.TStoMS(highTS.getTimestamp())) {
+      Warning("Aborting txn: %s. Non monotonic Table/Col Write to [%s]! ms_diff: %lu. ms_grace: %lu. writeTxnTS: %lu [%lu ms] < highTS: %lu [%lu ms]", 
           BytesToHex(txn_digest, 16).c_str(), table_name.c_str(), 
-          timeServer.TStoMS(highTS.getTimestamp() - txn.timestamp().timestamp()), highTS.getTimestamp() - txn.timestamp().timestamp(), //diffs
-          params.query_params.monotonicityGrace,  write_monotonicity_grace,  //grace
-          txn.timestamp().timestamp(), highTS.getTimestamp());
+          timeServer.TStoMS(highTS.getTimestamp()) - timeServer.TStoMS(txn.timestamp().timestamp()),  //diff
+          params.query_params.monotonicityGrace,  //grace
+          txn.timestamp().timestamp(), timeServer.TStoMS(txn.timestamp().timestamp()),  highTS.getTimestamp(), timeServer.TStoMS(highTS.getTimestamp()));
 
       return false;
     } 
