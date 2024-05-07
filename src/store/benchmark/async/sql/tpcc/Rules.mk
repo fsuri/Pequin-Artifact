@@ -10,9 +10,11 @@ OBJ-sql-tpcc-transaction := $(LIB-store-frontend) $(o)tpcc_transaction.o
 
 OBJ-sql-tpcc-client := $(o)tpcc_client.o
 
+#parallel version
 #LIB-sql-tpcc := $(OBJ-sql-tpcc-client) $(OBJ-sql-tpcc-transaction) $(o)new_order.o \
 	$(o)payment.o $(o)order_status.o $(o)stock_level.o $(o)delivery.o $(o)tpcc_utils.o
 
+#sequential version
 LIB-sql-tpcc := $(OBJ-sql-tpcc-client) $(OBJ-sql-tpcc-transaction) $(o)new_order_sequential.o \
 	$(o)payment_sequential.o $(o)order_status.o $(o)stock_level.o $(o)delivery_sequential.o $(o)tpcc_utils.o
 

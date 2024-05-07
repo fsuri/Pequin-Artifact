@@ -96,6 +96,8 @@ transaction_status_t SQLNewOrder::Execute(SyncClient &client) {
   std::cerr << "NEW ORDER" << std::endl;
   Debug("Warehouse: %u", w_id);
 
+  std::cerr << "OL_CNT: " << unsigned(ol_cnt) << std::endl;
+
   client.Begin(timeout);
 
   // (1) Retrieve row from WAREHOUSE, extract tax rate

@@ -137,6 +137,7 @@ Client::~Client()
 void Client::Begin(begin_callback bcb, begin_timeout_callback btcb,
       uint32_t timeout, bool retry) {
 
+      
   // fail the current txn iff failuer timer is up and
   // the number of txn is a multiple of frequency
   //only fail fresh transactions
@@ -181,6 +182,13 @@ void Client::Begin(begin_callback bcb, begin_timeout_callback btcb,
     point_read_cache.clear();
 
     pendingQueries.clear(); //shouldn't be necessary to call, should be empty anyways
+
+    //FIXME: Just for profiling.
+  if(PROFILING_LAT){
+     struct timespec ts_start;
+    clock_gettime(CLOCK_MONOTONIC, &ts_start);
+    exec_start_ms = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
+  }
 
     bcb(client_seq_num);
   });
@@ -399,6 +407,12 @@ void Client::Write(std::string &write_statement, write_callback wcb,
 void Client::Query(const std::string &query, query_callback qcb,
     query_timeout_callback qtcb, uint32_t timeout, bool cache_result, bool skip_query_interpretation) {
 
+   if(PROFILING_LAT){
+     struct timespec ts_start;
+    clock_gettime(CLOCK_MONOTONIC, &ts_start);
+    query_start_ms = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
+  }
+
   UW_ASSERT(query.length() < ((uint64_t)1<<32)); //Protobuf cannot handle strings longer than 2^32 bytes --> cannot handle "arbitrarily" complex queries: If this is the case, we need to break down the query command.
 
   transport->Timer(0, [this, query, qcb, qtcb, timeout, cache_result, skip_query_interpretation]() mutable {
@@ -506,6 +520,16 @@ void Client::PointQueryResultCallback(PendingQuery *pendingQuery,
                                   int status, const std::string &key, const std::string &result, const Timestamp &read_time, const proto::Dependency &dep, bool hasDep, bool addReadSet) 
 { 
   
+   if(PROFILING_LAT){
+     struct timespec ts_start;
+    clock_gettime(CLOCK_MONOTONIC, &ts_start);
+    query_end_ms = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
+    
+    //Should not take more than 1 ms (already generous) to parse and prepare.
+    auto duration = query_end_ms - query_start_ms;
+    Warning("Query exec latency in ms [%d]", duration/1000);
+  }
+
   if (addReadSet) { 
     //Note: We must add to read set even if result = empty (i.e. there was no write). In that case, mutable_read time will be empty. (default = 0)
     Debug("Adding key %s read set with readtime [%lu:%lu]", key.c_str(), read_time.getTimestamp(), read_time.getID());
@@ -563,6 +587,16 @@ void Client::PointQueryResultCallback(PendingQuery *pendingQuery,
 void Client::QueryResultCallback(PendingQuery *pendingQuery,  
                                   int status, int group, proto::ReadSet *query_read_set, std::string &result_hash, std::string &result, bool success) 
 { 
+
+  if(PROFILING_LAT){
+     struct timespec ts_start;
+    clock_gettime(CLOCK_MONOTONIC, &ts_start);
+    query_end_ms = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
+    
+    //Should not take more than 1 ms (already generous) to parse and prepare.
+    auto duration = query_end_ms - query_start_ms;
+    Warning("Query exec latency in ms [%d]", duration/1000);
+  }
       //FIXME: If success: add readset/result hash to datastructure. If group==query manager, record result. If all shards received ==> upcall. 
       //If failure: re-set datastructure and try again. (any shard can report failure to sync)
       //Note: Ongoing shard clients PendingQuery implicitly maps to current retry_version
@@ -884,6 +918,17 @@ void Client::Commit(commit_callback ccb, commit_timeout_callback ctcb,
     uint32_t timeout) {
   transport->Timer(0, [this, ccb, ctcb, timeout]() {
 
+    if(PROFILING_LAT){
+       struct timespec ts_start;
+      clock_gettime(CLOCK_MONOTONIC, &ts_start);
+      exec_end_ms = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
+      commit_start_ms = exec_end_ms;
+      
+        //Should not take more than 1 ms (already generous) to parse and prepare.
+        auto duration = exec_end_ms - exec_start_ms;
+        Warning("Transaction total execution latency in ms [%d]", duration/1000);
+    }
+    
     uint64_t ns = Latency_End(&executeLatency);
     Latency_Start(&commitLatency);
 
@@ -1403,6 +1448,16 @@ void Client::WritebackProcessing(PendingRequest *req){
 }
 
 void Client::Writeback(PendingRequest *req) {
+
+  if(PROFILING_LAT){
+    struct timespec ts_start;
+    clock_gettime(CLOCK_MONOTONIC, &ts_start);
+    commit_end_ms = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
+    
+    //Should not take more than 1 ms (already generous) to parse and prepare.
+    auto duration = commit_end_ms - commit_start_ms;
+    Warning("Transaction commit latency in ms [%d]", duration/1000);
+  }
 
   //total_writebacks++;
   Debug("WRITEBACK[%lu:%lu] result %s", client_id, req->id, req->decision ?  "ABORT" : "COMMIT");

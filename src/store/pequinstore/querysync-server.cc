@@ -288,7 +288,7 @@ void Server::ProcessPointQuery(const uint64_t &reqId, proto::Query *query, const
 
     Timestamp ts(query->timestamp()); 
 
-    Debug("PointQuery[%lu:%lu] %s.", query->query_seq_num(), query->client_id(), query->query_cmd().c_str());
+    Debug("PointQuery[%lu:%lu] (query_seq, client_id) %s.", query->query_seq_num(), query->client_id(), query->query_cmd().c_str());
 
     if (CheckHighWatermark(ts)) {
         // ignore request if beyond high watermark

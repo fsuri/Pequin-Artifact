@@ -40,9 +40,9 @@ void BinderContext::AddRegularTable(const std::string &db_name,
                                       //TODO: FIXME: THIS SEEMS TO BE EXPENSIVE
   // using catalog object to retrieve meta-data
     //TESTING HOW LONG THIS TAKES: FIXME: REMOVE 
-  struct timeval now;
-    gettimeofday(&now, NULL);
-   uint64_t microseconds_start2 = now.tv_sec * 1000*1000 + now.tv_usec;
+  struct timespec ts_start;
+  clock_gettime(CLOCK_MONOTONIC, &ts_start);
+  uint64_t microseconds_start2 = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
 
    //std::cerr << "table_name: " << table_name << ". Alias: " << table_alias << std::endl;
 
@@ -51,8 +51,8 @@ void BinderContext::AddRegularTable(const std::string &db_name,
   auto table_object = catalog::Catalog::GetInstance()->GetTableCatalogEntry(txn, db_name, schema_name, table_name);
 
 
-  gettimeofday(&now, NULL);
-  uint64_t microseconds_end2 = now.tv_sec * 1000 *1000 + now.tv_usec;
+  clock_gettime(CLOCK_MONOTONIC, &ts_start);
+  uint64_t microseconds_end2 = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
  
   //Should not take more than 1 ms (already generous) to parse and prepare.
    auto duration2 = microseconds_end2 - microseconds_start2;
@@ -191,9 +191,9 @@ void BinderContext::GenerateAllColumnExpressions(
     std::vector<std::unique_ptr<expression::AbstractExpression>> &exprs) {
 
       //TESTING HOW LONG THIS TAKES: FIXME: REMOVE 
-  struct timeval now;
-    gettimeofday(&now, NULL);
-   uint64_t microseconds_start2 = now.tv_sec * 1000*1000 + now.tv_usec;
+  struct timespec ts_start;
+  clock_gettime(CLOCK_MONOTONIC, &ts_start);
+  uint64_t microseconds_start = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
    
 
   for (auto &entry : regular_table_alias_map_) {
@@ -226,13 +226,14 @@ void BinderContext::GenerateAllColumnExpressions(
     }
   }
 
-     gettimeofday(&now, NULL);
-      uint64_t microseconds_end2 = now.tv_sec * 1000 *1000 + now.tv_usec;
+
+  clock_gettime(CLOCK_MONOTONIC, &ts_start);
+  uint64_t microseconds_end = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
  
   //Should not take more than 1 ms (already generous) to parse and prepare.
-   auto duration2 = microseconds_end2 - microseconds_start2;
-  if(duration2 > 50){
-    Warning("GenerateAllColumnExpressions exceeded 50us: %d", duration2);
+   auto duration = microseconds_end - microseconds_start;
+  if(duration > 50){
+    Warning("GenerateAllColumnExpressions exceeded 50us: %d", duration);
   }
 
 }

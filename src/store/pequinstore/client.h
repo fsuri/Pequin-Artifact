@@ -61,6 +61,7 @@
 
 namespace pequinstore {
 
+static bool PROFILING_LAT = true; 
 
 static bool TEST_READ_SET = true;  //print out read set
 
@@ -408,6 +409,13 @@ class Client : public ::Client {
   struct Latency_t getLatency;
   size_t getIdx;
   struct Latency_t commitLatency;
+
+  uint64_t exec_start_ms;
+  uint64_t exec_end_ms;
+  uint64_t query_start_ms;
+  uint64_t query_end_ms;
+  uint64_t commit_start_ms;
+  uint64_t commit_end_ms;
 };
 
 } // namespace pequinstore

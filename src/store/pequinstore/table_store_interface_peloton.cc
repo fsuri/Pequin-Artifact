@@ -157,9 +157,10 @@ std::shared_ptr<peloton::Statement>
 PelotonTableStore::ParseAndPrepare(const std::string &query_statement, peloton::tcop::TrafficCop *tcop) {
 
   //TESTING HOW LONG THIS TAKES: FIXME: REMOVE 
-  struct timeval now;
-  gettimeofday(&now, NULL);
-  uint64_t microseconds_start = now.tv_sec * 1000 * 1000 + now.tv_usec;
+  struct timespec ts_start;
+  clock_gettime(CLOCK_MONOTONIC, &ts_start);
+  uint64_t microseconds_start = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
+
   ///////////
 
   UW_ASSERT(!query_statement.empty());
@@ -182,8 +183,8 @@ PelotonTableStore::ParseAndPrepare(const std::string &query_statement, peloton::
   Debug("Finished preparing statement: %s", query_statement.substr(0, 1000).c_str());
 
   //TESTING HOW LONG THIS TAKES: FIXME: REMOVE 
-  gettimeofday(&now, NULL);
-  uint64_t microseconds_end = now.tv_sec * 1000 * 1000 + now.tv_usec ;
+  clock_gettime(CLOCK_MONOTONIC, &ts_start);
+  uint64_t microseconds_end = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
  
   //Should not take more than 1 ms (already generous) to parse and prepare.
   auto duration = microseconds_end - microseconds_start;
@@ -512,8 +513,11 @@ std::string PelotonTableStore::ExecReadQuery(const std::string &query_statement,
 
   Debug("End readLat on core: %d", core);
   Latency_End(&readLats[core]);
+
+  Debug("Finished Execute ReadQuery: %s. TS: [%lu:%lu]", query_statement.c_str(), ts.getTimestamp(), ts.getID());
   return std::move(res); // return TransformResult(status, statement, result)
 }
+
 
 // Execute a point read on the Table backend and return a query_result/proto (in
 // serialized form) as well as a commitProof (note, the read set is implicit)
@@ -551,9 +555,9 @@ void PelotonTableStore::ExecPointRead(const std::string &query_statement, std::s
   auto statement = ParseAndPrepare(query_statement, tcop);
 
   //FIXME: REMOVE: JUST FOR TESTING
-   struct timeval now;
-  gettimeofday(&now, NULL);
-  uint64_t microseconds_start = now.tv_sec * 1000 * 1000 + now.tv_usec;
+  struct timespec ts_start;
+  clock_gettime(CLOCK_MONOTONIC, &ts_start);
+  uint64_t microseconds_start = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
 
   // ExecuteStatment
   std::vector<peloton::type::Value> param_values;
@@ -575,13 +579,18 @@ void PelotonTableStore::ExecPointRead(const std::string &query_statement, std::s
   GetResult(status, tcop, counter);
 
    //TESTING HOW LONG THIS TAKES: FIXME: REMOVE 
-  gettimeofday(&now, NULL);
-  uint64_t microseconds_end = now.tv_sec * 1000 * 1000 + now.tv_usec;
+   struct timespec ts_end;
+  clock_gettime(CLOCK_MONOTONIC, &ts_end);
+   uint64_t microseconds_end = ts_end.tv_sec * 1000 * 1000 + ts_end.tv_nsec / 1000;
+
  
   //Should not take more than 1 ms (already generous) to parse and prepare.
   auto duration = microseconds_end - microseconds_start;
+  std::cerr << "micro_start: " << microseconds_start << std::endl;
+   std::cerr << "micro_end: " << microseconds_end << std::endl;
+
   if(duration > 500){
-    Warning("PointRead exceeded 500us: %d", duration);
+    Warning("PointRead exceeded 500us: %d. Q[%s] TS[%lu:%lu]", duration, query_statement.c_str(), ts.getTimestamp(), ts.getID());
   }
 
   if (committedProof == nullptr) {
@@ -593,7 +602,7 @@ void PelotonTableStore::ExecPointRead(const std::string &query_statement, std::s
     Debug("ExecPointRead Proof ts is %lu, %lu", proof_ts.getTimestamp(),
           proof_ts.getID());*/
 
-    Debug("ExecPointRead committed ts is %lu, %lu",
+    Debug("ExecPointRead[%lu:%lu] committed ts is %lu, %lu", ts.getTimestamp(), ts.getID(),
           committed_timestamp.getTimestamp(), committed_timestamp.getID());
   }
 
@@ -601,6 +610,8 @@ void PelotonTableStore::ExecPointRead(const std::string &query_statement, std::s
 
   Debug("End readLat on core: %d", core);
   Latency_End(&readLats[core]);
+
+  Debug("Finish ExecPointRead for query statement: %s with Timestamp[%lu:%lu]", query_statement.c_str(), ts.getTimestamp(), ts.getID());
 
   return;
 }
@@ -940,9 +951,9 @@ void PelotonTableStore::ApplyTableWrite(const std::string &table_name, const Tab
     auto statement = ParseAndPrepare(write_statement, tcop);
 
      //FIXME: REMOVE: JUST FOR TESTING
-   struct timeval now;
-  gettimeofday(&now, NULL);
-  uint64_t miliseconds_start = now.tv_sec * 1000 + now.tv_usec / 1000;
+   struct timespec ts_start;
+  clock_gettime(CLOCK_MONOTONIC, &ts_start);
+  uint64_t microseconds_start = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
 
     // ExecuteStatment
     std::vector<peloton::type::Value> param_values;
@@ -965,13 +976,14 @@ void PelotonTableStore::ApplyTableWrite(const std::string &table_name, const Tab
     else
       Panic("Write failure");
 
-      gettimeofday(&now, NULL);
-  uint64_t miliseconds_end = now.tv_sec * 1000 + now.tv_usec / 1000;
+
+  clock_gettime(CLOCK_MONOTONIC, &ts_start);
+  uint64_t microseconds_end = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
  
   //Should not take more than 1 ms (already generous) to parse and prepare.
-  auto duration = miliseconds_end - miliseconds_start;
-  if(duration > 1){
-    Warning("ApplyTableWrite exceeded 1ms: %d", duration); 
+  auto duration = microseconds_end - microseconds_start;
+  if(duration > 1000){
+    Warning("ApplyTableWrite exceeded 1000us: %d", duration); 
   }
   }
 
@@ -1148,9 +1160,9 @@ std::string PelotonTableStore::EagerExecAndSnapshot(const std::string &query_sta
   auto statement = ParseAndPrepare(query_statement, tcop);
 
      //TESTING HOW LONG THIS TAKES: FIXME: REMOVE 
-  struct timeval now;
-  gettimeofday(&now, NULL);
-  uint64_t miliseconds_start = now.tv_sec * 1000 + now.tv_usec / 1000;
+  struct timespec ts_start;
+  clock_gettime(CLOCK_MONOTONIC, &ts_start);
+  uint64_t microseconds_start = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
 
   // ExecuteStatment
   std::vector<peloton::type::Value> param_values;
@@ -1176,16 +1188,16 @@ std::string PelotonTableStore::EagerExecAndSnapshot(const std::string &query_sta
 
 
     //TESTING HOW LONG THIS TAKES: FIXME: REMOVE 
-  gettimeofday(&now, NULL);
-  uint64_t miliseconds_end = now.tv_sec * 1000 + now.tv_usec / 1000;
+  clock_gettime(CLOCK_MONOTONIC, &ts_start);
+  uint64_t microseconds_end = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
  
   //Should not take more than 1 ms (already generous) to parse and prepare.
-  auto duration = miliseconds_end - miliseconds_start;
-  if(duration > 1){
-    Warning("ScanRead exceeded 1ms: %d", duration); 
+  auto duration = microseconds_end - microseconds_start;
+  if(duration > 1000){
+    Warning("ScanRead exceeded 1000us: %d us", duration); 
   }
 
-
+  Debug("Finish Execute EagerExecAndSnapshot: %s. TS: [%lu:%lu]", query_statement.c_str(), ts.getTimestamp(), ts.getID());
   return std::move(res);
 }
 

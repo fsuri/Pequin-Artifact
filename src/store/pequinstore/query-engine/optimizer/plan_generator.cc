@@ -117,9 +117,9 @@ void PlanGenerator::Visit(const PhysicalSeqScan *op) {
 void PlanGenerator::Visit(const PhysicalIndexScan *op) {
 
        //TESTING HOW LONG THIS TAKES: FIXME: REMOVE 
-  struct timeval now;
-    gettimeofday(&now, NULL);
-  uint64_t microseconds_start2 = now.tv_sec * 1000 * 1000+ now.tv_usec;
+  struct timespec ts_start;
+  clock_gettime(CLOCK_MONOTONIC, &ts_start);
+  uint64_t microseconds_start = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
 
   vector<oid_t> column_ids = GenerateColumnsForScan();
   auto predicate = GeneratePredicateForScan(expression::ExpressionUtil::JoinAnnotatedExprs(op->predicates), op->table_alias, op->table_);
@@ -132,11 +132,12 @@ void PlanGenerator::Visit(const PhysicalIndexScan *op) {
       storage::StorageManager::GetInstance()->GetTableWithOid(op->table_->GetDatabaseOid(), op->table_->GetTableOid()),
       predicate.release(), column_ids, index_scan_desc, false));
 
-      gettimeofday(&now, NULL);
-    uint64_t microseconds_end2 = now.tv_sec * 1000 * 1000 + now.tv_usec;
+
+  clock_gettime(CLOCK_MONOTONIC, &ts_start);
+  uint64_t microseconds_end = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
  
   //Should not take more than 1 ms (already generous) to parse and prepare.
-  auto duration2 = microseconds_end2 - microseconds_start2;
+  auto duration2 = microseconds_end - microseconds_start;
   if(duration2 > 50){
     Warning("Visit(Index) exceeded 50us: %d", duration2);
   }

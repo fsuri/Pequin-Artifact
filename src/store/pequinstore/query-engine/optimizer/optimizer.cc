@@ -407,9 +407,9 @@ void Optimizer::ExecuteTaskStack(
 
 
    //TESTING HOW LONG THIS TAKES: FIXME: REMOVE 
-  struct timeval now;
-  gettimeofday(&now, NULL);
-  uint64_t microseconds_start = now.tv_sec * 1000 * 1000 + now.tv_usec;
+  struct timespec ts_start;
+  clock_gettime(CLOCK_MONOTONIC, &ts_start);
+  uint64_t microseconds_start = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
 
   //FIXME: FS: Timer seems unecessary?
   // if (timer.GetInvocations() == 0) {
@@ -426,17 +426,19 @@ void Optimizer::ExecuteTaskStack(
     auto task = task_stack.Pop();
     //std::cerr << "task stack size remaining: " << task_stack.Size() << std::endl;
     
-    gettimeofday(&now, NULL);
-    uint64_t miliseconds_start2 = now.tv_sec * 1000 * 1000 + now.tv_usec;
+  
+  clock_gettime(CLOCK_MONOTONIC, &ts_start);
+  uint64_t microseconds_start2 = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
+
     task->execute();
 
-     gettimeofday(&now, NULL);
-    uint64_t miliseconds_end2 = now.tv_sec * 1000 * 1000 + now.tv_usec;
+  clock_gettime(CLOCK_MONOTONIC, &ts_start);
+  uint64_t microseconds_end2 = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
  
   //Should not take more than 1 ms (already generous) to parse and prepare.
-  auto duration2 = miliseconds_end2 - miliseconds_start2;
+  auto duration2 = microseconds_end2 - microseconds_start2;
   if(duration2 > 50){
-    Warning("TaskExecute exceeded 50us: %d", duration2);
+    Warning("TaskExecute exceeded 50us: %d us", duration2);
   }
 
    // std::cerr << "task stack size remaining (post execute): " << task_stack.Size() << std::endl;
@@ -444,13 +446,13 @@ void Optimizer::ExecuteTaskStack(
   }
 
 
-   gettimeofday(&now, NULL);
-  uint64_t microseconds_end = now.tv_sec * 1000 * 1000  + now.tv_usec;
+  clock_gettime(CLOCK_MONOTONIC, &ts_start);
+  uint64_t microseconds_end = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
  
   //Should not take more than 1 ms (already generous) to parse and prepare.
   auto duration = microseconds_end - microseconds_start;
   if(duration > 200){
-    Warning("ExecuteTaskStack exceeded 200us: %d", duration);
+    Warning("ExecuteTaskStack exceeded 200us: %d us", duration);
   }
 }
 

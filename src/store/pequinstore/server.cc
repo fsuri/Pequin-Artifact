@@ -2096,6 +2096,7 @@ void Server::Prepare(const std::string &txnDigest, const proto::Transaction &txn
   // transport->DispatchTP_noCB(std::move(f));
 
   ApplyTableWrites(*ongoingTxn, ts, txnDigest, nullptr, false);
+  
   // for (const auto &[table_name, table_write] : txn.table_writes()){
   //   ApplyTableWrites(table_name, table_write, ts, txnDigest, nullptr, false);
   //   //Apply TableVersion  ==> currently moved below
