@@ -259,7 +259,8 @@ proto::ConcurrencyControl::Result Server::CheckReadPred(const Timestamp &txn_ts,
     if(curr_ts.getTimestamp() == pred.table_version().timestamp() && curr_ts.getID() == pred.table_version().id()) continue;
 
     //Bound how far we need to check by the READ Table/Col Version - grace. I.e. look at all writes s.t. read.TS >= write.TS write.TS > read.TableVersion - grace
-    if(curr_ts.getTimestamp() + write_monotonicity_grace < pred.table_version().timestamp()) break;  //bound iterations until read table version
+        //if(curr_ts.getTimestamp() + write_monotonicity_grace < pred.table_version().timestamp()) break;   //this math is wrong!
+    if(timeServer.TStoMS(curr_ts.getTimestamp()) + params.query_params.monotonicityGrace < timeServer.TStoMS(pred.table_version().timestamp())) break; //bound iterations until read table version
 
     Debug("TX_ts: [%lu:%lu]. Pred: [%s]: compare vs write TS[%lu:%lu]", txn_ts.getTimestamp(), txn_ts.getID(), pred.table_name().c_str(), itr->first.getTimestamp(), itr->first.getID());
     auto &[write_txn, commit_or_prepare] = itr->second;
@@ -473,7 +474,8 @@ proto::ConcurrencyControl::Result Server::CheckTableWrites(const proto::Transact
         if(txn_ts.getTimestamp() == pred.table_version().timestamp() && txn_ts.getID() == pred.table_version().id()) continue;
 
         //only check if this write is still relevant to the Reader. Note: This case should never happen, such writes should not be able to be admitted
-        if(txn_ts.getTimestamp() + write_monotonicity_grace < pred.table_version().timestamp()){
+        //if(txn_ts.getTimestamp() + write_monotonicity_grace < pred.table_version().timestamp()){ //this is wrong!.
+        if(timeServer.TStoMS(txn_ts.getTimestamp()) + params.query_params.monotonicityGrace < timeServer.TStoMS(pred.table_version().timestamp())){
           Panic("non-monotonic write should never be admitted"); 
           //NOTE: Not quite true locally. This replica might not have seen a TableVersion high enough to cause this TX to be rejected; meanwhile, the read might have read the TableVersion elsewhere
           //-- but as a whole, a quorum of replicas should be rejecting this tx.

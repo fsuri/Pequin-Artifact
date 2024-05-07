@@ -189,7 +189,7 @@ PelotonTableStore::ParseAndPrepare(const std::string &query_statement, peloton::
   //Should not take more than 1 ms (already generous) to parse and prepare.
   auto duration = microseconds_end - microseconds_start;
   if(duration > 500){
-    if(size_t insert_pos = query_statement.find("INSERT"); insert_pos != std::string::npos) Warning("ParseAndPrepare exceeded 500us (INSERT): %d", duration);
+    if(size_t insert_pos = query_statement.find("INSERT"); insert_pos != std::string::npos) Warning("ParseAndPrepare[%s] exceeded 500us (INSERT): %d", query_statement.c_str(), duration);
     else Warning("ParseAndPrepare exceeded 500us (SELECT): %d", duration);
 
   }
@@ -578,20 +578,25 @@ void PelotonTableStore::ExecPointRead(const std::string &query_statement, std::s
   // GetResult(status);
   GetResult(status, tcop, counter);
 
+  std::vector<peloton::FieldInfo> tuple_descriptor;
+  if (status == peloton::ResultType::SUCCESS) {
+    tuple_descriptor = statement->GetTupleDescriptor();
+  }
+  else{
+    Panic("no result for point read. We always expect a result for current workload");
+    write->Clear(); //wipe everything -- "has_committed"/has_prepared may be set, even if there is not actually a result (because we call _mutable in tcop)
+    Debug("Read Committed? %d. read Prepared? %d", write->has_committed_value(), write->has_prepared_value());
+    return; //empty read
+  }
+
    //TESTING HOW LONG THIS TAKES: FIXME: REMOVE 
    struct timespec ts_end;
   clock_gettime(CLOCK_MONOTONIC, &ts_end);
    uint64_t microseconds_end = ts_end.tv_sec * 1000 * 1000 + ts_end.tv_nsec / 1000;
 
- 
-  //Should not take more than 1 ms (already generous) to parse and prepare.
   auto duration = microseconds_end - microseconds_start;
-  std::cerr << "micro_start: " << microseconds_start << std::endl;
-   std::cerr << "micro_end: " << microseconds_end << std::endl;
-
-  if(duration > 500){
-    Warning("PointRead exceeded 500us: %d. Q[%s] TS[%lu:%lu]", duration, query_statement.c_str(), ts.getTimestamp(), ts.getID());
-  }
+  Warning("PointRead EXEC: %d. Q[%s] TS[%lu:%lu]", duration, query_statement.c_str(), ts.getTimestamp(), ts.getID()); //FIXME: WHY IS THIS WRONG/NOT TRIGGERING?
+  
 
   if (committedProof == nullptr) {
     Debug("The commit proof after executing point read is null");
@@ -606,10 +611,15 @@ void PelotonTableStore::ExecPointRead(const std::string &query_statement, std::s
           committed_timestamp.getTimestamp(), committed_timestamp.getID());
   }
 
-  TransformPointResult(write, committed_timestamp, prepared_timestamp, txn_dig, status, statement, result);
+  TransformPointResult(write, committed_timestamp, prepared_timestamp, txn_dig, status, tuple_descriptor, result);
 
   Debug("End readLat on core: %d", core);
   Latency_End(&readLats[core]);
+
+  clock_gettime(CLOCK_MONOTONIC, &ts_end);
+  microseconds_end = ts_end.tv_sec * 1000 * 1000 + ts_end.tv_nsec / 1000;
+  duration = microseconds_end - microseconds_start;
+  Warning("PointRead EXEC FULL: %d. Q[%s] TS[%lu:%lu]", duration, query_statement.c_str(), ts.getTimestamp(), ts.getID()); //FIXME: WHY IS THIS WRONG/NOT TRIGGERING?
 
   Debug("Finish ExecPointRead for query statement: %s with Timestamp[%lu:%lu]", query_statement.c_str(), ts.getTimestamp(), ts.getID());
 
@@ -619,18 +629,22 @@ void PelotonTableStore::ExecPointRead(const std::string &query_statement, std::s
 //  ExecPointRead should translate enc_primary_key into a query_statement to be exec by ExecReadQuery.
 //(Alternatively: Could already send a Sql command from the client) ==> Should do it at the client, so that we can keep whatever Select specification, e.g. * or specific cols...
 void PelotonTableStore::TransformPointResult(proto::Write *write, Timestamp &committed_timestamp, Timestamp &prepared_timestamp, std::shared_ptr<std::string> txn_dig,
-    peloton::ResultType &status, std::shared_ptr<peloton::Statement> statement, std::vector<peloton::ResultValue> &result) {
+    peloton::ResultType &status, std::vector<peloton::FieldInfo> &tuple_descriptor, std::vector<peloton::ResultValue> &result) {
 
-  std::vector<peloton::FieldInfo> tuple_descriptor;
-  if (status == peloton::ResultType::SUCCESS) {
-    tuple_descriptor = statement->GetTupleDescriptor();
-  }
-  else{
-    Panic("no result for point read. We always expect a result for current workload");
-    write->Clear(); //wipe everything -- "has_committed"/has_prepared may be set, even if there is not actually a result (because we call _mutable in tcop)
-    Debug("Read Committed? %d. read Prepared? %d", write->has_committed_value(), write->has_prepared_value());
-    return; //empty read
-  }
+  // std::vector<peloton::FieldInfo> tuple_descriptor;
+  // if (status == peloton::ResultType::SUCCESS) {
+  //   tuple_descriptor = statement->GetTupleDescriptor();
+  // }
+  // else{
+  //   Panic("no result for point read. We always expect a result for current workload");
+  //   write->Clear(); //wipe everything -- "has_committed"/has_prepared may be set, even if there is not actually a result (because we call _mutable in tcop)
+  //   Debug("Read Committed? %d. read Prepared? %d", write->has_committed_value(), write->has_prepared_value());
+  //   return; //empty read
+  // }
+
+  struct timespec ts_start;
+  clock_gettime(CLOCK_MONOTONIC, &ts_start);
+  uint64_t microseconds_start = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
 
   Debug("Transform PointResult");
   // Change Peloton result into query proto.
@@ -641,7 +655,7 @@ void PelotonTableStore::TransformPointResult(proto::Write *write, Timestamp &com
   //Notes on expected behavior.
   //If we did read a committed/prepared value, but it doesn't hit the predicate, the result should be empty, but we should still be sending the proof/version 
  
-  
+ 
 
   //FIXME: REMOVE THIS ONCE SECONDARY INDEX BUG IS FIXED. THIS JUST A SHORT-TERM FIX TO IGNORE INVALID PREP READS
   // value should only be "f" if it does hit primary key, but the predicate is stronger than that... But secondary index scan violates this.
@@ -734,6 +748,13 @@ void PelotonTableStore::TransformPointResult(proto::Write *write, Timestamp &com
   }
    
   Debug("Read Committed? %d. read Prepared? %d", write->has_committed_value(), write->has_prepared_value());
+
+   struct timespec ts_end;
+  clock_gettime(CLOCK_MONOTONIC, &ts_end);
+   uint64_t microseconds_end = ts_end.tv_sec * 1000 * 1000 + ts_end.tv_nsec / 1000;
+
+  auto duration = microseconds_end - microseconds_start;
+  Warning("TransformPoint Latency: %d us.", duration); 
 
   return;
 }

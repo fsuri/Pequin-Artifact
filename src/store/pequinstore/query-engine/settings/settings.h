@@ -100,14 +100,14 @@ SETTING_int(monoqueue_task_queue_size,
 // Size of the MonoQueue worker pool
 SETTING_int(monoqueue_worker_pool_size,
             "MonoQueue Worker Pool Size (default: 8)", //4
-            8, // 4, 
+            16,// 8  // 4, 
             1, 32,
             false, false)
 
 // Number of connection threads used by peloton
 SETTING_int(connection_thread_count,
             "Number of connection threads (default: 8)",
-            8, //std::thread::hardware_concurrency(),
+            16, //8, //std::thread::hardware_concurrency(),
             1, 64,
             false, false)
 

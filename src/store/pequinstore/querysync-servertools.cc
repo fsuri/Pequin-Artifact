@@ -59,6 +59,10 @@ std::string Server::ExecQuery(QueryReadSetMgr &queryReadSetMgr, QueryMetaData *q
     //TODO: Must be able to report exec failure (e.g. materialized snapshot inconsistent) -- note that if eagerly executiong (no materialization) there is no concept of failure.
 
 
+    struct timespec ts_start;
+    clock_gettime(CLOCK_MONOTONIC, &ts_start);
+    uint64_t microseconds_start = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
+
      if(TEST_READ_MATERIALIZED) TEST_READ_MATERIALIZED_f();
 
         /////////////////////////////////////////////////////////////
@@ -89,7 +93,7 @@ std::string Server::ExecQuery(QueryReadSetMgr &queryReadSetMgr, QueryMetaData *q
         }
     } 
     if(read_materialized){
-        Warning("READ FROM MARTERIALIZED SNAPSHOT NOT YET STABLE TESTED");
+        Warning("READ FROM MATERIALIZED SNAPSHOT NOT YET STABLE TESTED");
         serialized_result = table_store->ExecReadQueryOnMaterializedSnapshot(query_md->query_cmd, query_md->ts, queryReadSetMgr, query_md->merged_ss_msg->merged_txns());
     } 
 
@@ -106,102 +110,114 @@ std::string Server::ExecQuery(QueryReadSetMgr &queryReadSetMgr, QueryMetaData *q
 
      //If MVTSO: Read prepared (handled by predicate in table_store), Set RTS
     if(occType == MVTSO && params.rtsMode > 0){
-        Debug("Set up all RTS for Query[%lu:%lu]", query_md->query_seq_num, query_md->client_id);
+        Debug("Set up all RTS for Query[%lu:%lu]", query_md->client_id, query_md->query_seq_num);
         for(auto &read: queryReadSetMgr.read_set->read_set()){
             SetRTS(query_md->ts, read.key());
         }
         //TODO: On Abort, Clear RTS.
     }
 
-    for(auto &read : queryReadSetMgr.read_set->read_set()){
-        Debug("Read key %s with version [%lu:%lu]", read.key().c_str(), read.readtime().timestamp(), read.readtime().id());
-    }
-    for(auto &dep : queryReadSetMgr.read_set->deps()){
-        Debug("Dependency on Txn: %s", BytesToHex(dep.write().prepared_txn_digest(), 16).c_str());
-    }
+    /////////////////// THE FOLLOWING IS JUST DEBUG CODE
 
+            if(TEST_READ_SET){
 
-    if(TEST_READ_SET){
+                for(auto const&[tx_id, proof] : committed){
+                    if(tx_id == "toy_txn") continue;
+                    const proto::Transaction *txn = &proof->txn();
+                    for(auto &write: txn->write_set()){
+                        queryReadSetMgr.AddToReadSet(write.key(), txn->timestamp());
+                        Debug("Added read key %s and ts to read set", write.key().c_str());
+                    }
+                    //queryReadSetMgr.AddToDepSet(tx_id, query_md->useOptimisticTxId, txn->timestamp());
+                }
+                
+                //Creating Dummy keys for testing 
+                for(int i=5;i > 0; --i){
+                    TimestampMessage ts;
+                    ts.set_id(query_md->ts.getID());
+                    ts.set_timestamp(query_md->ts.getTimestamp());
+                    std::string dummy_key = groupIdx == 0 ? "dummy_key_g1_" + std::to_string(i) : "dummy_key_g2_" + std::to_string(i);
 
-        for(auto const&[tx_id, proof] : committed){
-            if(tx_id == "toy_txn") continue;
-            const proto::Transaction *txn = &proof->txn();
-            for(auto &write: txn->write_set()){
-                queryReadSetMgr.AddToReadSet(write.key(), txn->timestamp());
-                Debug("Added read key %s and ts to read set", write.key().c_str());
+                    queryReadSetMgr.AddToReadSet(dummy_key, ts);
+                    //query_md->read_set[dummy_key] = ts; //query_md->ts;
+                    //replaced with repeated field -> directly in result object.
+                
+                    // ReadMessage *read = query_md->queryResultReply->mutable_result()->mutable_query_read_set()->add_read_set();
+                    // //ReadMessage *read = query_md->queryResult->mutable_query_read_set()->add_read_set();
+                    // read->set_key(dummy_key);
+                    // *read->mutable_readtime() = ts;
+                }
+                //Creating Dummy deps for testing 
+            
+                    //Write to Query Result; Release/Re-allocate temporarily if not sending;
+                    //For caching:
+                        // Cache the deps --> During CC: look through the data structure.
+                    //For non-caching:
+                        // Add the deps to SyncReply --> Let client choose whether to include them (only if proposed them in merge; marked as prep) --> During CC: Look through the included deps.
+
+                //During execution only read prepared if depth allowed.
+                //  i.e. if (params.maxDepDepth == -1 || DependencyDepth(txn) <= params.maxDepDepth)  (maxdepth = -1 means no limit)
+                if (params.query_params.readPrepared && params.maxDepDepth > -2) {
+
+                    //JUST FOR TESTING.
+                    for(preparedMap::const_iterator i=prepared.begin(); i!=prepared.end(); ++i ) {
+                        const std::string &tx_id = i->first;
+                        const proto::Transaction *txn = i->second.second;
+
+                        queryReadSetMgr.AddToDepSet(tx_id, txn->timestamp());
+
+                        // proto::Dependency *add_dep = query_md->queryResultReply->mutable_result()->mutable_query_read_set()->add_deps();
+                        // add_dep->set_involved_group(groupIdx);
+                        // add_dep->mutable_write()->set_prepared_txn_digest(tx_id);
+                        // Debug("Adding Dep: %s", BytesToHex(add_dep->write().prepared_txn_digest(), 16).c_str());
+                        // //Note: Send merged TS.
+                        // if(query_md->useOptimisticTxId){
+                        //     //MergeTimestampId(txn->timestamp().timestamp(), txn->timestamp().id()
+                        //     add_dep->mutable_write()->mutable_prepared_timestamp()->set_timestamp(txn->timestamp().timestamp());
+                        //     add_dep->mutable_write()->mutable_prepared_timestamp()->set_id(txn->timestamp().id());
+                        // }
+                    }
+                }
             }
-            //queryReadSetMgr.AddToDepSet(tx_id, query_md->useOptimisticTxId, txn->timestamp());
-        }
-        
-        //Creating Dummy keys for testing 
-        for(int i=5;i > 0; --i){
-            TimestampMessage ts;
-            ts.set_id(query_md->ts.getID());
-            ts.set_timestamp(query_md->ts.getTimestamp());
-            std::string dummy_key = groupIdx == 0 ? "dummy_key_g1_" + std::to_string(i) : "dummy_key_g2_" + std::to_string(i);
 
-            queryReadSetMgr.AddToReadSet(dummy_key, ts);
-            //query_md->read_set[dummy_key] = ts; //query_md->ts;
-            //replaced with repeated field -> directly in result object.
-        
-            // ReadMessage *read = query_md->queryResultReply->mutable_result()->mutable_query_read_set()->add_read_set();
-            // //ReadMessage *read = query_md->queryResult->mutable_query_read_set()->add_read_set();
-            // read->set_key(dummy_key);
-            // *read->mutable_readtime() = ts;
-        }
-        //Creating Dummy deps for testing 
+
+            if(PRINT_READ_SET){
+                for(auto &read : queryReadSetMgr.read_set->read_set()){
+                    Debug("Read key %s with version [%lu:%lu]", read.key().c_str(), read.readtime().timestamp(), read.readtime().id());
+                }
+                for(auto &dep : queryReadSetMgr.read_set->deps()){
+                    Debug("Dependency on Txn: %s", BytesToHex(dep.write().prepared_txn_digest(), 16).c_str());
+                }
+            }
+
+            //Just for testing: Creating Dummy result 
+            if(TEST_QUERY) return TEST_QUERY_f(query_md->query_seq_num);
+
+            if(PRINT_RESULT_ROWS){
+                query_result::QueryResult *q_result = new sql::QueryResultProtoWrapper(serialized_result);
+                Debug("Result size: %d. Result rows affected: %d", q_result->size(), q_result->rows_affected());
+
+                for(int i = 0; i < q_result->size(); ++i){
+                    std::unique_ptr<query_result::Row> row = (*q_result)[i]; 
+                    Debug("Checking row at index: %d", i);
+                    // For col in col_updates update the columns specified by update_cols. Set value to update_values
+                    for(int j=0; j<row->num_columns(); ++j){
+                        const std::string &col = row->name(j);
+                        std::unique_ptr<query_result::Field> field = (*row)[j];
+                        const std::string &field_val = field->get();
+                        Debug("  %s:  %s", col.c_str(), field_val.c_str());
+                    }
+                }
+            }
+    //// END DEBUG CODE        
     
-            //Write to Query Result; Release/Re-allocate temporarily if not sending;
-            //For caching:
-                // Cache the deps --> During CC: look through the data structure.
-            //For non-caching:
-                // Add the deps to SyncReply --> Let client choose whether to include them (only if proposed them in merge; marked as prep) --> During CC: Look through the included deps.
-
-        //During execution only read prepared if depth allowed.
-        //  i.e. if (params.maxDepDepth == -1 || DependencyDepth(txn) <= params.maxDepDepth)  (maxdepth = -1 means no limit)
-        if (params.query_params.readPrepared && params.maxDepDepth > -2) {
-
-            //JUST FOR TESTING.
-            for(preparedMap::const_iterator i=prepared.begin(); i!=prepared.end(); ++i ) {
-                const std::string &tx_id = i->first;
-                const proto::Transaction *txn = i->second.second;
-
-                queryReadSetMgr.AddToDepSet(tx_id, txn->timestamp());
-
-                // proto::Dependency *add_dep = query_md->queryResultReply->mutable_result()->mutable_query_read_set()->add_deps();
-                // add_dep->set_involved_group(groupIdx);
-                // add_dep->mutable_write()->set_prepared_txn_digest(tx_id);
-                // Debug("Adding Dep: %s", BytesToHex(add_dep->write().prepared_txn_digest(), 16).c_str());
-                // //Note: Send merged TS.
-                // if(query_md->useOptimisticTxId){
-                //     //MergeTimestampId(txn->timestamp().timestamp(), txn->timestamp().id()
-                //     add_dep->mutable_write()->mutable_prepared_timestamp()->set_timestamp(txn->timestamp().timestamp());
-                //     add_dep->mutable_write()->mutable_prepared_timestamp()->set_id(txn->timestamp().id());
-                // }
-            }
-        }
-    }
-
-    //Just for testing: Creating Dummy result 
-    if(TEST_QUERY) return TEST_QUERY_f(query_md->query_seq_num);
-
-    if(true){
-        query_result::QueryResult *q_result = new sql::QueryResultProtoWrapper(serialized_result);
-         Debug("Result size: %d. Result rows affected: %d", q_result->size(), q_result->rows_affected());
-
-        for(int i = 0; i < q_result->size(); ++i){
-        std::unique_ptr<query_result::Row> row = (*q_result)[i]; 
-        Debug("Checking row at index: %d", i);
-        // For col in col_updates update the columns specified by update_cols. Set value to update_values
-        for(int j=0; j<row->num_columns(); ++j){
-            const std::string &col = row->name(j);
-            std::unique_ptr<query_result::Field> field = (*row)[j];
-            const std::string &field_val = field->get();
-            Debug("  %s:  %s", col.c_str(), field_val.c_str());
-        }
-    }
-  
-    }
+    //FIXME: REMOVE
+    struct timespec ts_end;
+    clock_gettime(CLOCK_MONOTONIC, &ts_end);
+    uint64_t microseconds_end = ts_end.tv_sec * 1000 * 1000 + ts_end.tv_nsec / 1000;
+    auto duration = microseconds_end - microseconds_start;
+    Warning("Query exec duration: %d us. Q[%s] [%lu:%lu]", duration, query_md->query_cmd.c_str(), query_md->client_id, query_md->query_seq_num);
+    
    
     return serialized_result;
 }
@@ -210,12 +226,12 @@ void Server::ExecQueryEagerly(queryMetaDataMap::accessor &q, QueryMetaData *quer
 
     query_md->executed_query = true;
 
-    Debug("Eagerly Execute Query[%lu:%lu:%lu].", query_md->query_seq_num, query_md->client_id, query_md->retry_version);
+    Debug("Eagerly Execute Query[%lu:%lu:%lu].", query_md->client_id, query_md->query_seq_num, query_md->retry_version);
     QueryReadSetMgr queryReadSetMgr(query_md->queryResultReply->mutable_result()->mutable_query_read_set(), groupIdx, false); 
 
     std::string result(ExecQuery(queryReadSetMgr, query_md, false, true)); //eager = true
     
-    Debug("Got result for Query[%lu:%lu:%lu].", query_md->query_seq_num, query_md->client_id, query_md->retry_version);
+    Debug("Got result for Query[%lu:%lu:%lu].", query_md->client_id, query_md->query_seq_num, query_md->retry_version);
 
     if(TEST_QUERY) TEST_QUERY_f(result);
    
@@ -833,7 +849,7 @@ void Server::UpdateWaitingQueries(const std::string &txnDigest, bool is_abort){
 
                      //Note: is_waiting -> make sure query is waiting. E.g. missing_txn could be empty because we re-tried the query and now are not missing any. In this case is_waiting will be set to false. -> no need to call callback
                      // (Note: This is handled by retry_version check now. Can remove is_waiting.)
-                     Debug("Waking Query[%lu:%lu:%lu]", query_md->query_seq_num, query_md->client_id, query_md->retry_version);
+                     Debug("Waking Query[%lu:%lu:%lu]", query_md->client_id, query_md->query_seq_num, query_md->retry_version);
                     //Note: is_waiting -> make sure query is waiting. E.g. missing_txn could be empty because we re-tried the query and now are not missing any. In this case is_waiting will be set to false. -> no need to call callback
                     HandleSyncCallback(q, query_md, queryId); //TODO: Should this be dispatched again? So that multiple waiting queries don't execute sequentially?
                 }
@@ -850,7 +866,7 @@ void Server::UpdateWaitingQueries(const std::string &txnDigest, bool is_abort){
 
             if(query_md->is_waiting && query_md->retry_version == retry_version){ 
                 //6) Erase txn from snapshot if abort.
-                Debug("Remove TX[%s] from merged_ss of Query[%lu:%lu:%lu]", BytesToHex(txnDigest, 16).c_str(), query_md->query_seq_num, query_md->client_id, query_md->retry_version);
+                Debug("Remove TX[%s] from merged_ss of Query[%lu:%lu:%lu]", BytesToHex(txnDigest, 16).c_str(), query_md->client_id, query_md->query_seq_num, query_md->retry_version);
                 query_md->merged_ss_msg->mutable_merged_txns()->erase(txnDigest); 
             }
         }

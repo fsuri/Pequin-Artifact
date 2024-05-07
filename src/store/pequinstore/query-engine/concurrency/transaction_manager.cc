@@ -67,7 +67,7 @@ TransactionContext *TransactionManager::BeginTransaction(
     txn->SetReadOnly();
   }
 
-  txn->SetTimestamp(function::DateFunctions::Now());
+  //txn->SetTimestamp(function::DateFunctions::Now());
 
   //std::cerr << "begin txn at the end" << std::endl;
   return txn;

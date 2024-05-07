@@ -211,9 +211,23 @@ Server::Server(const transport::Configuration &config, int groupIdx, int idx,
     committed["toy_txn"] = real_proof;
   }
 
-  // std::string test_dig = "digest1";
+
+  // std::string short_s("dummy");
+  // std::string short_s2("dummy");
+  // std::string long_s("extrasuperlongdummy");
+  // std::string long_s2("extrasuperlongdummy");
+  // std::cerr << "short cap: " << short_s.capacity() << std::endl;
+  //  std::cerr << "long cap: " << long_s.capacity() << std::endl;
+  //  short_s += "1";
+  //  short_s2 += "1";
+  // //  long_s += "1";
+  // //  long_s2 += "1";
+  //  std::cerr << "short cap: " << short_s.capacity() << std::endl;
+  //   std::cerr << "long cap: " << long_s.capacity() << std::endl;
+
+  // // std::string test_dig = "digest1";
   // uint64_t data[4];
-  // const uint8_t *arr = (const uint8_t *)test_dig.c_str();
+  // const uint8_t *arr = (const uint8_t *)short_s.c_str();
   // //bit_per_datum = sizeof(uint64_t) * 8.
   // //_len = 256/64 = 4
   // //N=256
@@ -225,8 +239,63 @@ Server::Server(const transport::Configuration &config, int groupIdx, int idx,
   //         x = (x << 8) | *(--arr);
   //     *(--ptr) = x;
   // }
-  // std::cerr << "data: " << data << std::endl;
+  // for(int i =0; i<4; ++i){
+  //    std::cerr << "data : " << data[i] << std::endl;
+  // }
+
+  //  uint64_t data2[4];
+  // const uint8_t *arr2 = (const uint8_t *)short_s2.c_str();
+  // //bit_per_datum = sizeof(uint64_t) * 8.
+  // //_len = 256/64 = 4
+  // //N=256
+  //  arr2 += 256 / 8;
+  // for (uint64_t *ptr = data2 + 4; ptr > data2;)
+  // {
+  //     uint64_t x = 0;
+  //     for (unsigned j = 0; j < sizeof(uint64_t); j++)
+  //         x = (x << 8) | *(--arr2);
+  //     *(--ptr) = x;
+  // }
+  // for(int i =0; i<4; ++i){
+  //    std::cerr << "data2 : " << data2[i] << std::endl;
+  // }
+
+  //  uint64_t data3[4];
+  // const uint8_t *arr3 = (const uint8_t *)long_s.c_str();
+  // //bit_per_datum = sizeof(uint64_t) * 8.
+  // //_len = 256/64 = 4
+  // //N=256
+  //  arr3 += 256 / 8;
+  // for (uint64_t *ptr = data3 + 4; ptr > data3;)
+  // {
+  //     uint64_t x = 0;
+  //     for (unsigned j = 0; j < sizeof(uint64_t); j++)
+  //         x = (x << 8) | *(--arr3);
+  //     *(--ptr) = x;
+  // }
+  // for(int i =0; i<4; ++i){
+  //    std::cerr << "data3 : " << data3[i] << std::endl;
+  // }
+
+  // uint64_t data4[4];
+  // const uint8_t *arr4 = (const uint8_t *)long_s2.c_str();
+  // //bit_per_datum = sizeof(uint64_t) * 8.
+  // //_len = 256/64 = 4
+  // //N=256
+  //  arr4 += 256 / 8;
+  // for (uint64_t *ptr = data4 + 4; ptr > data4;)
+  // {
+  //     uint64_t x = 0;
+  //     for (unsigned j = 0; j < sizeof(uint64_t); j++)
+  //         x = (x << 8) | *(--arr4);
+  //     *(--ptr) = x;
+  // }
+  // for(int i =0; i<4; ++i){
+  //    std::cerr << "data4 : " << data4[i] << std::endl;
+  // }
+
   // Panic("test");
+
 
 
   // struct timeval now;

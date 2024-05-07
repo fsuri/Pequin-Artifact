@@ -477,7 +477,7 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
   #endif
 
   Debug("Primary Index Scan on Table: %s. Number of rows to check: %d", table_->GetName().c_str(), tuple_location_ptrs.size());
-  //std::cerr << "Primary Index Scan on Table: " << table_->GetName()  << ". Number of rows to check: " << tuple_location_ptrs.size() << std::endl;
+  std::cerr << "Primary Index Scan on Table: " << table_->GetName()  << ". Number of rows to check: " << tuple_location_ptrs.size() << std::endl;
    if(tuple_location_ptrs.size() > 200) Warning("Potentially inefficient scan. Sanity check!");
   //if(tuple_location_ptrs.size() > 150) Panic("doing full scan");
   if(current_txn->IsPointRead()) UW_ASSERT(tuple_location_ptrs.size() == 1);
@@ -2061,7 +2061,7 @@ bool IndexScanExecutor::ExecSecondaryIndexLookup() {
   // //if(current_txn->IsPointRead()) max_size = 1; //UW_ASSERT(tuple_location_ptrs.size() == 1);
   // tuple_location_ptrs.resize(max_size);
   // tuple_location_ptrs.shrink_to_fit();
-  //std::cerr << "Secondary Index Scan on Table: " << table_->GetName()  << ". Number of rows to check: " << tuple_location_ptrs.size() << std::endl;
+  std::cerr << "Secondary Index Scan on Table: " << table_->GetName()  << ". Number of rows to check: " << tuple_location_ptrs.size() << std::endl;
   Debug("Secondary Index Scan on Table [%s]. Number of rows to check: %d", table_->GetName().c_str(), tuple_location_ptrs.size());
   if(tuple_location_ptrs.size() > 100) Warning("Potentially inefficient scan. Sanity check!");
   

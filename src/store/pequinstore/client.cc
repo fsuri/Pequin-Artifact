@@ -527,7 +527,7 @@ void Client::PointQueryResultCallback(PendingQuery *pendingQuery,
     
     //Should not take more than 1 ms (already generous) to parse and prepare.
     auto duration = query_end_ms - query_start_ms;
-    Warning("Query exec latency in ms [%d]", duration/1000);
+    Warning("Query exec latency in ms [%d]. in us [%d]", duration/1000, duration);
   }
 
   if (addReadSet) { 
@@ -595,7 +595,7 @@ void Client::QueryResultCallback(PendingQuery *pendingQuery,
     
     //Should not take more than 1 ms (already generous) to parse and prepare.
     auto duration = query_end_ms - query_start_ms;
-    Warning("Query exec latency in ms [%d]", duration/1000);
+    Warning("Query exec latency in ms [%d]. in us [%d]", duration/1000, duration);
   }
       //FIXME: If success: add readset/result hash to datastructure. If group==query manager, record result. If all shards received ==> upcall. 
       //If failure: re-set datastructure and try again. (any shard can report failure to sync)

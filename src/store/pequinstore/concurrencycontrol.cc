@@ -57,9 +57,6 @@
 
 namespace pequinstore {
 
-  static bool PRINT_READ_SET = true;
-
-
 //TODO: Problem: FIXME: Probably not safe to modify transaction. -- must hold ongoing lock for entire duration of any tx uses? --> not possible..
 //Solution: Store elsewhere (don't override read-set) -- Refactor CC and Prepare to take read set pointer as argument -- in non-query case, let that read set point to normal readset.
 //Can we still edit read_set_merge field? If so, that is a good place to store it to re-use for Commit -- Test if that causes problems with sending out tx in parallel. (might result in corrupted protobuf messages)
@@ -1651,7 +1648,19 @@ uint64_t Server::DependencyDepth(const proto::Transaction *txn) const {
 }
 
 bool Server::CheckHighWatermark(const Timestamp &ts) {
+  // struct timespec ts_end3;
+  // clock_gettime(CLOCK_MONOTONIC, &ts_end3);
+  // uint64_t microseconds_start = ts_end3.tv_sec * 1000 * 1000 + ts_end3.tv_nsec / 1000;
+
   Timestamp highWatermark(timeServer.GetTime());
+
+  // clock_gettime(CLOCK_MONOTONIC, &ts_end3);
+  // uint64_t microseconds_end3 = ts_end3.tv_sec * 1000 * 1000 + ts_end3.tv_nsec / 1000;
+  // auto duration3 = microseconds_end3 - microseconds_start;
+  // if(duration3 > 1000) Warning("CheckHighWatermark took %d us", duration3);
+
+
+
   // add delta to current local time
   highWatermark.setTimestamp(highWatermark.getTimestamp() + timeDelta);
   Debug("High watermark: %lu.", highWatermark.getTimestamp());
