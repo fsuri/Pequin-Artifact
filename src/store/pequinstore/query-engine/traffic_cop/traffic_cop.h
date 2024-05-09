@@ -383,7 +383,8 @@ private:
   std::shared_ptr<Statement> statement_;
 
   // Default database name
-  std::string default_database_name_ = DEFAULT_DB_NAME;
+ // std::string default_database_name_ = DEFAULT_DB_NAME;
+  std::string default_database_name_ = CATALOG_DATABASE_NAME;
 
   int rows_affected_;
 

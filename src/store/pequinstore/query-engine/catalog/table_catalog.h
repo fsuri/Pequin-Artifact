@@ -183,11 +183,15 @@ class TableCatalog : public AbstractCatalog {
   friend class Catalog;
 
  public:
-  TableCatalog(concurrency::TransactionContext *txn,
+  /*TableCatalog(concurrency::TransactionContext *txn,
                storage::Database *pg_catalog,
-               type::AbstractPool *pool);
+               type::AbstractPool *pool);*/
 
   ~TableCatalog();
+
+  // Global Singleton
+  static TableCatalog *GetInstance(concurrency::TransactionContext *txn,
+                           storage::Database *database, type::AbstractPool *pool);
 
   inline oid_t GetNextOid() { return oid_++ | TABLE_OID_MASK; }
 
@@ -218,6 +222,10 @@ class TableCatalog : public AbstractCatalog {
   // Read Related API
   //===--------------------------------------------------------------------===//
  private:
+  TableCatalog(concurrency::TransactionContext *txn,
+               storage::Database *pg_catalog,
+               type::AbstractPool *pool);
+
   std::shared_ptr<TableCatalogEntry> GetTableCatalogEntry(concurrency::TransactionContext *txn,
                                                           oid_t table_oid);
 

@@ -92,16 +92,16 @@ SETTING_double(bnlj_buffer_size,
 // Size of the MonoQueue task queue
 SETTING_int(monoqueue_task_queue_size,
             "MonoQueue Task Queue Size (default: 32)",
-            32, 
+            32,  //This is the initial size of the job queue. It can dynamically resize however.
             8, 128,
             false, false)
 
-//TODO: FIXME: Technically only need 6 if we have 8 cores since 2 are unused...
+//NOTE: Pequinstore sidesteps the use of Worker Pool currently -> can just set number of workers to 0.
 // Size of the MonoQueue worker pool
 SETTING_int(monoqueue_worker_pool_size,
-            "MonoQueue Worker Pool Size (default: 8)", //4
-            16,// 8  // 4, 
-            1, 32,
+            "MonoQueue Worker Pool Size (default: 0)", //8 //4
+            0,// 8  // 4,  //TODO: Technically only need 6 if we have 8 cores since 2 are unused...
+            0, 32,
             false, false)
 
 // Number of connection threads used by peloton

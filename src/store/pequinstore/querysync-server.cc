@@ -348,6 +348,7 @@ void Server::ProcessPointQuery(const uint64_t &reqId, proto::Query *query, const
     uint64_t microseconds_end = ts_end.tv_sec * 1000 * 1000 + ts_end.tv_nsec / 1000;
     auto duration = microseconds_end - microseconds_start;
     Warning("PointQuery exec duration: %d us.[%lu:%lu]", duration,  query->client_id(), query->query_seq_num());
+    if(duration > 10000) Warning("PointQuery took more than 10ms");
 
     ////////////
     

@@ -528,6 +528,7 @@ void Client::PointQueryResultCallback(PendingQuery *pendingQuery,
     //Should not take more than 1 ms (already generous) to parse and prepare.
     auto duration = query_end_ms - query_start_ms;
     Warning("Query exec latency in ms [%d]. in us [%d]", duration/1000, duration);
+    if(duration > 20000) Warning("PointQuery exec exceeded 20ms");
   }
 
   if (addReadSet) { 

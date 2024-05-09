@@ -96,13 +96,15 @@ void ThreadPool::start(int process_id, int total_processes, bool hyperthreading,
       //     num_core_for_hotstuff = 0;
       // }
       end = end - num_core_for_hotstuff; // use last core for Hotstuff only
-    } else if (mode == 2) {              // TxBFTSmart
+    } else if (mode == 2) {              // TxBFTSmart && Pequin
       start = 0;                         // use all cores
     } else
       Panic("No valid system defined");
 
     Debug("Network Process running on CPU %d.", sched_getcpu());
     running = true;
+    
+    fprintf(stderr, "Threadpool running with %d main thread, and %d worker threads \n", 1, end-start);
     for (uint32_t i = start; i < end; i++) {
       std::thread *t;
 
@@ -131,7 +133,7 @@ void ThreadPool::start(int process_id, int total_processes, bool hyperthreading,
             job();
           }
         });
-        std::cerr << "THREADPOOL SETUP: Trying to pin thread to core: " << i << " + " << offset << std::endl;
+        std::cerr << "THREADPOOL SETUP: Trying to pin thread " << i << " to core: " << (i+offset) << std::endl;
         int rc = pthread_setaffinity_np(t->native_handle(), sizeof(cpu_set_t),  &cpuset);
         if (rc != 0) {
           Panic("Error calling pthread_setaffinity_np: %d", rc);
@@ -164,7 +166,7 @@ void ThreadPool::start(int process_id, int total_processes, bool hyperthreading,
             }
           }
         });
-        std::cerr << "THREADPOOL SETUP: Trying to pin thread to core: " << i << " + " << offset << std::endl;
+        std::cerr << "THREADPOOL SETUP: Trying to pin thread " << i << " to core: " << (i+offset) << std::endl;
         int rc = pthread_setaffinity_np(t->native_handle(), sizeof(cpu_set_t), &cpuset);
         if (rc != 0) {
           Panic("Error calling pthread_setaffinity_np: %d", rc);
@@ -182,7 +184,6 @@ void ThreadPool::start(int process_id, int total_processes, bool hyperthreading,
       // t->detach();
       Notice("Finished server-side threadpool configurations");
     }
-    
   }
   //CLIENT THREADPOOL 
   else {

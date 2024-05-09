@@ -45,6 +45,7 @@ void UtilTestTaskCallback(void *arg) {
 
 void ContinueAfterComplete(std::atomic_int &counter_) {
   while (counter_.load() == 1) {
+    Panic("should never get triggered now that TrafficCop executions are no longer asynchronous");
     usleep(2); // TODO: Instead of busy looping turn this into a callback. Note:
                // in that case it's tricky to manage that the tpool will
                // schedule the CB to the right core
@@ -121,7 +122,7 @@ void PelotonTableStore::Init(int num_threads) {
   // Init Peloton default DB
   auto &txn_manager =  peloton::concurrency::TransactionManagerFactory::GetInstance();
   auto txn = txn_manager.BeginTransaction();
-  peloton::catalog::Catalog::GetInstance()->CreateDatabase(txn, DEFAULT_DB_NAME);
+  //peloton::catalog::Catalog::GetInstance()->CreateDatabase(txn, DEFAULT_DB_NAME);
   txn_manager.CommitTransaction(txn);
   // traffic_cop_ = peloton::tcop::TrafficCop(UtilTestTaskCallback, &counter_);
 
@@ -188,9 +189,9 @@ PelotonTableStore::ParseAndPrepare(const std::string &query_statement, peloton::
  
   //Should not take more than 1 ms (already generous) to parse and prepare.
   auto duration = microseconds_end - microseconds_start;
-  if(duration > 500){
-    if(size_t insert_pos = query_statement.find("INSERT"); insert_pos != std::string::npos) Warning("ParseAndPrepare[%s] exceeded 500us (INSERT): %d", query_statement.c_str(), duration);
-    else Warning("ParseAndPrepare exceeded 500us (SELECT): %d", duration);
+  if(duration > 1000){
+    if(size_t insert_pos = query_statement.find("INSERT"); insert_pos != std::string::npos) Warning("ParseAndPrepare[%s] exceeded 1000us (INSERT): %d", query_statement.substr(0, 1000).c_str(), duration);
+    else Warning("ParseAndPrepare exceeded 1000us (SELECT): %d. Q[%s]", duration, query_statement.substr(0, 1000).c_str());
 
   }
   /////////////
@@ -203,7 +204,7 @@ void PelotonTableStore::GetResult(peloton::ResultType &status, peloton::tcop::Tr
   // busy loop.
   if (tcop->GetQueuing()) {
     ContinueAfterComplete(*c);
-    tcop->ExecuteStatementPlanGetResult();
+    //tcop->ExecuteStatementPlanGetResult(); //This line does not seem to be necessary. Our Queries are not transactional inside Peloton, so no need to "Commit" them.
     status = tcop->ExecuteStatementGetResult();
     tcop->SetQueuing(false);
   }
@@ -325,7 +326,7 @@ void PelotonTableStore::ExecRaw(const std::string &sql_statement) {
   if (status == peloton::ResultType::SUCCESS)
     Debug("RawExec success");
   else
-    Debug("RawExec failure");
+    Panic("RawExec failure");
 }
 
 // void PelotonTableStore::LoadTable(const std::string &load_statement, const std::string &txn_digest, const Timestamp &ts, const proto::CommittedProof *committedProof) {
@@ -594,7 +595,7 @@ void PelotonTableStore::ExecPointRead(const std::string &query_statement, std::s
   clock_gettime(CLOCK_MONOTONIC, &ts_end);
    uint64_t microseconds_end = ts_end.tv_sec * 1000 * 1000 + ts_end.tv_nsec / 1000;
 
-  auto duration = microseconds_end - microseconds_start;
+  auto duration = microseconds_end - microseconds_start;  
   Warning("PointRead EXEC: %d. Q[%s] TS[%lu:%lu]", duration, query_statement.c_str(), ts.getTimestamp(), ts.getID()); //FIXME: WHY IS THIS WRONG/NOT TRIGGERING?
   
 
@@ -620,6 +621,9 @@ void PelotonTableStore::ExecPointRead(const std::string &query_statement, std::s
   microseconds_end = ts_end.tv_sec * 1000 * 1000 + ts_end.tv_nsec / 1000;
   duration = microseconds_end - microseconds_start;
   Warning("PointRead EXEC FULL: %d. Q[%s] TS[%lu:%lu]", duration, query_statement.c_str(), ts.getTimestamp(), ts.getID()); //FIXME: WHY IS THIS WRONG/NOT TRIGGERING?
+  if(duration > 5000){
+    Warning("PointRead EXEC FULL exceeded 5000us: %d us. Q[%s] TS[%lu:%lu]", duration, query_statement.c_str(), ts.getTimestamp(), ts.getID());
+  }
 
   Debug("Finish ExecPointRead for query statement: %s with Timestamp[%lu:%lu]", query_statement.c_str(), ts.getTimestamp(), ts.getID());
 

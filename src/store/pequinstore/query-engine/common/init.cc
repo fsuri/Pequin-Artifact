@@ -32,8 +32,7 @@ namespace peloton {
 ThreadPool thread_pool;
 
 void PelotonInit::Initialize() {
-  CONNECTION_THREAD_COUNT = settings::SettingsManager::GetInt(
-      settings::SettingId::connection_thread_count);
+  CONNECTION_THREAD_COUNT = settings::SettingsManager::GetInt(settings::SettingId::connection_thread_count);
   LOGGING_THREAD_COUNT = 1;
   GC_THREAD_COUNT = 1;
   EPOCH_THREAD_COUNT = 1;
@@ -41,6 +40,8 @@ void PelotonInit::Initialize() {
   // set max thread number.
   thread_pool.Initialize(0, CONNECTION_THREAD_COUNT + 3);
 
+  std::cerr << "CALLING INIT" << std::endl;
+  exit(0);
   // start worker pool
   threadpool::MonoQueuePool::GetInstance().Startup();
 
@@ -49,7 +50,7 @@ void PelotonInit::Initialize() {
     threadpool::MonoQueuePool::GetBrainInstance().Startup();
   }*/
 
-  // start parallel execution pool
+  // start parallel execution pool 
   threadpool::MonoQueuePool::GetExecutionInstance().Startup();
 
   int parallelism = (CONNECTION_THREAD_COUNT + 3) / 4;

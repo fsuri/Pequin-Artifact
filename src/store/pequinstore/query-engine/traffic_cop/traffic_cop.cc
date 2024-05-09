@@ -182,8 +182,7 @@ executor::ExecutionResult TrafficCop::ExecuteHelper(
     return p_status_;
   }
 
-  auto on_complete = [&result, this](executor::ExecutionResult p_status,
-                                     std::vector<ResultValue> &&values) {
+  auto on_complete = [&result, this](executor::ExecutionResult p_status, std::vector<ResultValue> &&values) {
     // std::cerr << "Made it to on complete execute helper" << std::endl;
     this->p_status_ = p_status;
     // std::cerr << "The status is " << p_status.m_error_message << std::endl;
@@ -196,16 +195,15 @@ executor::ExecutionResult TrafficCop::ExecuteHelper(
     Debug("Completed Task Callback Execute helper");
   };
 
-  auto &pool = threadpool::MonoQueuePool::GetInstance();
-  pool.SubmitTask([plan, txn, &params, &result_format, on_complete] {
-    executor::PlanExecutor::ExecutePlan(plan, txn, params, result_format,
-                                        on_complete);
-  });
+  // auto &pool = threadpool::MonoQueuePool::GetInstance();
+  // pool.SubmitTask([plan, txn, &params, &result_format, on_complete] {
+  //   executor::PlanExecutor::ExecutePlan(plan, txn, params, result_format, on_complete);
+  // });
+  executor::PlanExecutor::ExecutePlan(plan, txn, params, result_format, on_complete);
 
   is_queuing_ = true;
 
-  LOG_TRACE("Check Tcop_txn_state Size After ExecuteHelper %lu",
-            tcop_txn_state_.size());
+  LOG_TRACE("Check Tcop_txn_state Size After ExecuteHelper %lu",tcop_txn_state_.size());
   return p_status_;
 }
 
@@ -306,12 +304,14 @@ executor::ExecutionResult TrafficCop::ExecuteReadHelper(
     task_callback_(task_callback_arg_);
   };
 
-  auto &pool = threadpool::MonoQueuePool::GetInstance();
-
+ 
   Debug("submit read query with TS [%lu:%lu]", basil_timestamp.getTimestamp(), basil_timestamp.getID());
-  pool.SubmitTask([plan, txn, &params, &result_format, on_complete] {
-    executor::PlanExecutor::ExecutePlan(plan, txn, params, result_format, on_complete);
-  });
+ 
+  executor::PlanExecutor::ExecutePlan(plan, txn, params, result_format, on_complete);
+  // auto &pool = threadpool::MonoQueuePool::GetInstance();
+  // pool.SubmitTask([plan, txn, &params, &result_format, on_complete] {
+  //   executor::PlanExecutor::ExecutePlan(plan, txn, params, result_format, on_complete);
+  // });
 
   is_queuing_ = true;
 
@@ -390,14 +390,14 @@ executor::ExecutionResult TrafficCop::ExecuteReadHelper(
     task_callback_(task_callback_arg_);
   };
 
-  auto &pool = threadpool::MonoQueuePool::GetInstance();
 
-  Debug("submit read query with TS [%lu:%lu]", basil_timestamp.getTimestamp(),
-        basil_timestamp.getID());
-  pool.SubmitTask([plan, txn, &params, &result_format, on_complete] {
-    executor::PlanExecutor::ExecutePlan(plan, txn, params, result_format,
-                                        on_complete);
-  });
+  Debug("submit read query with TS [%lu:%lu]", basil_timestamp.getTimestamp(), basil_timestamp.getID());
+
+  // auto &pool = threadpool::MonoQueuePool::GetInstance();
+  // pool.SubmitTask([plan, txn, &params, &result_format, on_complete] {
+  //   executor::PlanExecutor::ExecutePlan(plan, txn, params, result_format, on_complete);
+  // });
+  executor::PlanExecutor::ExecutePlan(plan, txn, params, result_format, on_complete);
 
   is_queuing_ = true;
 
@@ -469,8 +469,7 @@ executor::ExecutionResult TrafficCop::ExecuteSnapshotReadHelper(
     return p_status_;
   }
 
-  auto on_complete = [&result, this](executor::ExecutionResult p_status,
-                                     std::vector<ResultValue> &&values) {
+  auto on_complete = [&result, this](executor::ExecutionResult p_status, std::vector<ResultValue> &&values) {
     // std::cerr << "Made it to on complete" << std::endl;
     this->p_status_ = p_status;
     // std::cerr << "The status is " << p_status.m_error_message << std::endl;
@@ -482,14 +481,12 @@ executor::ExecutionResult TrafficCop::ExecuteSnapshotReadHelper(
     task_callback_(task_callback_arg_);
   };
 
-  auto &pool = threadpool::MonoQueuePool::GetInstance();
-
-  Debug("submit read query with TS [%lu:%lu]", basil_timestamp.getTimestamp(),
-        basil_timestamp.getID());
-  pool.SubmitTask([plan, txn, &params, &result_format, on_complete] {
-    executor::PlanExecutor::ExecutePlan(plan, txn, params, result_format,
-                                        on_complete);
-  });
+  Debug("submit read query with TS [%lu:%lu]", basil_timestamp.getTimestamp(), basil_timestamp.getID());
+  // auto &pool = threadpool::MonoQueuePool::GetInstance();
+  // pool.SubmitTask([plan, txn, &params, &result_format, on_complete] {
+  //   executor::PlanExecutor::ExecutePlan(plan, txn, params, result_format, on_complete);
+  // });
+  executor::PlanExecutor::ExecutePlan(plan, txn, params, result_format, on_complete);
 
   is_queuing_ = true;
 
@@ -576,14 +573,14 @@ executor::ExecutionResult TrafficCop::ExecuteFindSnapshotHelper(
     task_callback_(task_callback_arg_);
   };
 
-  auto &pool = threadpool::MonoQueuePool::GetInstance();
+  
 
-  Debug("submit read query with TS [%lu:%lu]", basil_timestamp.getTimestamp(),
-        basil_timestamp.getID());
-  pool.SubmitTask([plan, txn, &params, &result_format, on_complete] {
-    executor::PlanExecutor::ExecutePlan(plan, txn, params, result_format,
-                                        on_complete);
-  });
+  Debug("submit read query with TS [%lu:%lu]", basil_timestamp.getTimestamp(), basil_timestamp.getID());
+  auto &pool = threadpool::MonoQueuePool::GetInstance();
+  // pool.SubmitTask([plan, txn, &params, &result_format, on_complete] {
+  //   executor::PlanExecutor::ExecutePlan(plan, txn, params, result_format, on_complete);
+  // });
+  executor::PlanExecutor::ExecutePlan(plan, txn, params, result_format, on_complete);
 
   is_queuing_ = true;
 
@@ -662,14 +659,14 @@ executor::ExecutionResult TrafficCop::ExecuteEagerExecAndSnapshotHelper(
     task_callback_(task_callback_arg_);
   };
 
-  auto &pool = threadpool::MonoQueuePool::GetInstance();
+ 
 
-  Debug("submit read query with TS [%lu:%lu]", basil_timestamp.getTimestamp(),
-        basil_timestamp.getID());
-  pool.SubmitTask([plan, txn, &params, &result_format, on_complete] {
-    executor::PlanExecutor::ExecutePlan(plan, txn, params, result_format,
-                                        on_complete);
-  });
+  Debug("submit read query with TS [%lu:%lu]", basil_timestamp.getTimestamp(), basil_timestamp.getID());
+  // auto &pool = threadpool::MonoQueuePool::GetInstance();
+  // pool.SubmitTask([plan, txn, &params, &result_format, on_complete] {
+  //   executor::PlanExecutor::ExecutePlan(plan, txn, params, result_format, on_complete);
+  // });
+  executor::PlanExecutor::ExecutePlan(plan, txn, params, result_format, on_complete);
 
   is_queuing_ = true;
 
@@ -766,10 +763,11 @@ executor::ExecutionResult TrafficCop::ExecuteWriteHelper(
     task_callback_(task_callback_arg_);
   };
 
-  auto &pool = threadpool::MonoQueuePool::GetInstance();
-  pool.SubmitTask([plan, txn, &params, &result_format, on_complete] {
-    executor::PlanExecutor::ExecutePlan(plan, txn, params, result_format,on_complete);
-  });
+  executor::PlanExecutor::ExecutePlan(plan, txn, params, result_format,on_complete);
+  // auto &pool = threadpool::MonoQueuePool::GetInstance();
+  // pool.SubmitTask([plan, txn, &params, &result_format, on_complete] {
+  //   executor::PlanExecutor::ExecutePlan(plan, txn, params, result_format,on_complete);
+  // });
 
   is_queuing_ = true;
 
@@ -847,16 +845,15 @@ executor::ExecutionResult TrafficCop::ExecutePurgeHelper(
     task_callback_(task_callback_arg_);
   };
 
-  auto &pool = threadpool::MonoQueuePool::GetInstance();
-  pool.SubmitTask([plan, txn, &params, &result_format, on_complete] {
-    executor::PlanExecutor::ExecutePlan(plan, txn, params, result_format,
-                                        on_complete);
-  });
+  // auto &pool = threadpool::MonoQueuePool::GetInstance();
+  // pool.SubmitTask([plan, txn, &params, &result_format, on_complete] {
+  //   executor::PlanExecutor::ExecutePlan(plan, txn, params, result_format, on_complete);
+  // });
+  executor::PlanExecutor::ExecutePlan(plan, txn, params, result_format, on_complete);
 
   is_queuing_ = true;
 
-  LOG_TRACE("Check Tcop_txn_state Size After ExecuteHelper %lu",
-            tcop_txn_state_.size());
+  LOG_TRACE("Check Tcop_txn_state Size After ExecuteHelper %lu", tcop_txn_state_.size());
   return p_status_;
 }
 
@@ -962,15 +959,16 @@ executor::ExecutionResult TrafficCop::ExecutePointReadHelper(
 
   // skip if already aborted
   if (curr_state.second == ResultType::ABORTED) {
-    // If the transaction state is ABORTED, the transaction should be aborted
-    // but Peloton didn't explicitly abort it yet since it didn't receive a
-    // COMMIT/ROLLBACK.
-    // Here, it receive queries other than COMMIT/ROLLBACK in an broken
-    // transaction,
-    // it should tell the client that these queries will not be executed.
+    Panic("I don't think a point read should ever abort");
+    // If the transaction state is ABORTED, the transaction should be aborted but Peloton didn't explicitly abort it yet since it didn't receive a COMMIT/ROLLBACK.
+    // Here, it receive queries other than COMMIT/ROLLBACK in an broken transaction, it should tell the client that these queries will not be executed.
     p_status_.m_result = ResultType::TO_ABORT;
     return p_status_;
   }
+
+
+  auto dummy = [](){};
+ 
 
   auto on_complete = [&result, this](executor::ExecutionResult p_status,
                                      std::vector<ResultValue> &&values) {
@@ -987,11 +985,13 @@ executor::ExecutionResult TrafficCop::ExecutePointReadHelper(
     // std::cerr << "End of on complete" << std::endl;
   };
 
-  auto &pool = threadpool::MonoQueuePool::GetInstance();
-  pool.SubmitTask([plan, txn, &params, &result_format, on_complete] {
-    executor::PlanExecutor::ExecutePlan(plan, txn, params, result_format,
-                                        on_complete);
-  });
+  executor::PlanExecutor::ExecutePlan(plan, txn, params, result_format, on_complete);
+  //TODO: On complete/ ContinueAfterComplete in GetResult is not necessary?
+
+  // auto &pool = threadpool::MonoQueuePool::GetInstance();
+  // pool.SubmitTask([plan, txn, &params, &result_format, on_complete] {
+  //   executor::PlanExecutor::ExecutePlan(plan, txn, params, result_format, on_complete);
+  // });
 
   is_queuing_ = true;
 
@@ -1032,16 +1032,10 @@ void TrafficCop::ExecuteStatementPlanGetResult() {
 
 /*
  * Prepare a statement based on parse tree. Begin a transaction if necessary.
- * If the query is not issued in a transaction (if txn_stack is empty and it's
- * not
- * BEGIN query), Peloton will create a new transation for it. single_stmt
- * transaction.
+ * If the query is not issued in a transaction (if txn_stack is empty and it's not BEGIN query), Peloton will create a new transation for it. single_stmt transaction.
  * Otherwise, it's a multi_stmt transaction.
- * TODO(Yuchen): We do not need a query string to prepare a statement and the
- * query string may
- * contain the information of multiple statements rather than the single one.
- * Hack here. We store
- * the query string inside Statement objects for printing infomation.
+ * TODO(Yuchen): We do not need a query string to prepare a statement and the query string may contain the information of multiple statements rather than the single one.
+ * Hack here. We store the query string inside Statement objects for printing infomation.
  */
 std::shared_ptr<Statement> TrafficCop::PrepareStatement(
     const std::string &stmt_name, const std::string &query_string,

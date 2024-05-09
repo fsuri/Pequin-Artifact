@@ -88,10 +88,12 @@ Catalog::Catalog() : pool_(new type::EphemeralPool()) {
  */
 void Catalog::BootstrapSystemCatalogs(concurrency::TransactionContext *txn,
                                       storage::Database *database) {
+  std::cerr << "Begin bootstrap system catalogs" << std::endl;
   oid_t database_oid = database->GetOid();
   catalog_map_.emplace(database_oid,
                        std::shared_ptr<SystemCatalogs>(
                            new SystemCatalogs(txn, database, pool_.get())));
+  std::cerr << "Create new system catalogs" << std::endl;
   auto system_catalogs = catalog_map_[database_oid];
 
   // Create indexes on catalog tables, insert them into pg_index
@@ -200,9 +202,11 @@ void Catalog::BootstrapSystemCatalogs(concurrency::TransactionContext *txn,
 
   // Insert catalog tables into pg_table
   // pg_database record is shared across different databases
+  std::cerr << "Bootstrap first table catalog insert" << std::endl;
   system_catalogs->GetTableCatalog()->InsertTable(
       txn, CATALOG_DATABASE_OID, CATALOG_SCHEMA_NAME, DATABASE_CATALOG_OID,
       DATABASE_CATALOG_NAME, ROW_STORE_LAYOUT_OID, pool_.get());
+  std::cerr << "Bootstrap second table catalog insert" << std::endl;
   system_catalogs->GetTableCatalog()->InsertTable(
       txn, database_oid, CATALOG_SCHEMA_NAME, SCHEMA_CATALOG_OID,
       SCHEMA_CATALOG_NAME, ROW_STORE_LAYOUT_OID, pool_.get());
@@ -274,12 +278,12 @@ ResultType Catalog::CreateDatabase(concurrency::TransactionContext *txn,
                            database_name);
   }
 
-  //std::cerr << "Create databse 0.2" << std::endl;
+  std::cerr << "Create databse 0.2" << std::endl;
   auto pg_database = DatabaseCatalog::GetInstance(nullptr, nullptr, nullptr);
-  //std::cerr << "Create databse 0.6" << std::endl;
+  std::cerr << "Create databse 0.6" << std::endl;
   auto storage_manager = storage::StorageManager::GetInstance();
 
-  //std::cerr << "Create databse 1" << std::endl;
+  std::cerr << "Create databse 1" << std::endl;
 
   // Check if a database with the same name exists
   auto database_object =
@@ -288,13 +292,14 @@ ResultType Catalog::CreateDatabase(concurrency::TransactionContext *txn,
   if (database_object != nullptr)
     throw CatalogException("Database " + database_name + " already exists");
 
-  //std::cerr << "Create databse 2" << std::endl;
+  std::cerr << "Create databse 2" << std::endl;
 
   // Create actual database
   oid_t database_oid = pg_database->GetNextOid();
+  std::cout << "Database oid is " << database_oid << std::endl;
 
   storage::Database *database = new storage::Database(database_oid);
-  //std::cerr << "Create databse 3" << std::endl;
+  std::cerr << "Create databse 3" << std::endl;
 
   // TODO: This should be deprecated, dbname should only exists in pg_db
   database->setDBName(database_name);
@@ -303,7 +308,7 @@ ResultType Catalog::CreateDatabase(concurrency::TransactionContext *txn,
     storage_manager->AddDatabaseToStorageManager(database);
   }
 
-  //std::cerr << "Create databse 4" << std::endl;
+  std::cerr << "Create databse 4" << std::endl;
 
   // put database object into rw_object_set
   txn->RecordCreate(database_oid, INVALID_OID, INVALID_OID);
@@ -311,14 +316,14 @@ ResultType Catalog::CreateDatabase(concurrency::TransactionContext *txn,
   // Insert database record into pg_db
   pg_database->InsertDatabase(txn, database_oid, database_name, pool_.get());
 
-  //std::cerr << "Create databse 5" << std::endl;
+  std::cerr << "Create databse 5" << std::endl;
 
   // add core & non-core system catalog tables into database
   BootstrapSystemCatalogs(txn, database);
 
   catalog_map_[database_oid]->Bootstrap(txn, database_name);
 
-  //std::cerr << "Create databse 6" << std::endl;
+  std::cerr << "Create databse 6" << std::endl;
 
   LOG_TRACE("Database %s created. Returning RESULT_SUCCESS.",
             database_name.c_str());
@@ -425,6 +430,7 @@ ResultType Catalog::CreateTable(concurrency::TransactionContext *txn,
   auto pg_attribute =
       catalog_map_[database_object->GetDatabaseOid()]->GetColumnCatalog();
   oid_t table_oid = pg_table->GetNextOid();
+  std::cerr << "Table " << table_name << " inserted with oid " << table_oid << std::endl;
   bool own_schema = true;
   bool adapt_table = false;
   auto table = storage::TableFactory::GetDataTable(
