@@ -199,12 +199,13 @@ PelotonTableStore::ParseAndPrepare(const std::string &query_statement, peloton::
   return statement;
 }
 
+//TODO: FIXME: Now that we sidestep the Peloton WorkerPool all of this isn't really necessary anymore => it's not a synchronous blocking execution, so we know that when we get here it is done.
 void PelotonTableStore::GetResult(peloton::ResultType &status, peloton::tcop::TrafficCop *tcop, std::atomic_int *c) {
   // busy loop until result is ready. TODO: Change into callback style to avoid
   // busy loop.
   if (tcop->GetQueuing()) {
     ContinueAfterComplete(*c);
-    //tcop->ExecuteStatementPlanGetResult(); //This line does not seem to be necessary. Our Queries are not transactional inside Peloton, so no need to "Commit" them.
+    tcop->ExecuteStatementPlanGetResult(); //This line does not seem to be necessary. Our Queries are not transactional inside Peloton, so no need to "Commit" them.
     status = tcop->ExecuteStatementGetResult();
     tcop->SetQueuing(false);
   }

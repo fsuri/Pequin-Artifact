@@ -94,6 +94,8 @@ ResultType TrafficCop::BeginQueryHelper(size_t thread_id) {
 }
 
 ResultType TrafficCop::CommitQueryHelper() {
+
+
   // do nothing if we have no active txns
   if (tcop_txn_state_.empty())
     return ResultType::NOOP;
@@ -102,14 +104,14 @@ ResultType TrafficCop::CommitQueryHelper() {
   auto txn = curr_state.first;
   auto &txn_manager = concurrency::TransactionManagerFactory::GetInstance();
   // I catch the exception (ex. table not found) explicitly,
-  // If this exception is caused by a query in a transaction,
-  // I will block following queries in that transaction until 'COMMIT' or
-  // 'ROLLBACK' After receive 'COMMIT', see if it is rollback or really commit.
+  // If this exception is caused by a query in a transaction, 
+  // I will block following queries in that transaction until 'COMMIT' or  'ROLLBACK' After receive 'COMMIT', see if it is rollback or really commit.
   if (curr_state.second != ResultType::ABORTED) {
     // txn committed
     return txn_manager.CommitTransaction(txn);
   } else {
     // otherwise, rollback
+    Panic("Abort should never happen when using Pequinstore Peloton interface");
     return txn_manager.AbortTransaction(txn);
   }
 }
@@ -251,6 +253,8 @@ executor::ExecutionResult TrafficCop::ExecuteReadHelper(
   }
 
   /////////////////////// SET PEQUIN TXN ARGS //////////////////////////////////////
+  txn->SetReadOnly(); //THIS IS A READ QUERY
+
   txn->SetSqlInterpreter(sql_interpreter);
   // Set TableRegistry pointer
   //txn->SetTableRegistry(table_reg);
@@ -919,6 +923,8 @@ executor::ExecutionResult TrafficCop::ExecutePointReadHelper(
     tcop_txn_state_.emplace(txn, ResultType::SUCCESS);
   }
 
+  txn->SetReadOnly(); //THIS IS A READ QUERY
+
   // Set the Basil timestamp
   txn->SetBasilTimestamp(basil_timestamp);
   // Set the predicate
@@ -952,7 +958,6 @@ executor::ExecutionResult TrafficCop::ExecutePointReadHelper(
 
   // Is a point read query
   txn->SetIsPointRead(true);
-  
 
 
    Debug("PointRead for: Basil Timestamp to [%lu:%lu]. IsPoint: %d", txn->GetBasilTimestamp().getTimestamp(), txn->GetBasilTimestamp().getID(), txn->IsPointRead());
