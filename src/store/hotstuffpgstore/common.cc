@@ -169,7 +169,9 @@ std::string string_to_hex(const std::string& input)
 }
 
 void DebugHash(const std::string& hash) {
-  Debug("Hash: %s", string_to_hex(hash).substr(0,10).c_str());
+  std::string hex_hash =string_to_hex(hash);
+  Debug("Hash: %s", hex_hash.substr(hex_hash.size() - 10).c_str());
+  // Debug("Hash: %s", string_to_hex(hash).substr(0,10).c_str());
 }
 
 

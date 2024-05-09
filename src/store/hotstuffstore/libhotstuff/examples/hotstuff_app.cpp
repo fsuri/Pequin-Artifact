@@ -80,6 +80,8 @@ class HotStuffApp: public HotStuff {
     /** The listen address for client RPC */
     NetAddr clisten_addr;
 
+    std::set<uint256_t> hashed_digests;
+
     std::unordered_map<const uint256_t, promise_t> unconfirmed;
 
     using conn_t = ClientNetwork<opcode_t>::conn_t;
@@ -204,11 +206,20 @@ void HotStuffApp::client_request_cmd_handler(MsgReqCmd &&msg, const conn_t &conn
 void HotStuffApp::interface_propose(const string &hash,  std::function<void(const std::string&, uint32_t seqnum)> cb) {
     std::cout << "interface propose reached" << std::endl;
     uint256_t cmd_hash((const uint8_t *)hash.c_str());
+
+
+    if (!this->hashed_digests.insert(cmd_hash).second){
+        std::cerr << "Panic:  duplicate hash per Hotstuff requests with hash "<<hash << std::endl;
+        abort;
+        exit(1);
+    }
+
     exec_command(cmd_hash, [this, hash, cb](Finality fin) {
             std::cout << "height: " << fin.cmd_height << ", idx: " << fin.cmd_idx << std::endl;
             assert(fin.cmd_height >= 1);
             uint32_t seqnum = (fin.cmd_height - 1) * blk_size + fin.cmd_idx;
-            std::cout << seqnum << std::endl;
+            std::cout << "Shir: seq is:  "<< seqnum << std::endl;
+            // std::cout << seqnum << std::endl;
             cb(hash, seqnum);
     });
 }

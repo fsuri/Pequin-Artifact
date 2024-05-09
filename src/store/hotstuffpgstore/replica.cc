@@ -55,9 +55,7 @@ Replica::Replica(const transport::Configuration &config, KeyManager *keyManager,
   batchTimerRunning = false;
   nextBatchNum = 0;
 
-  bubbleTimerRunning=false;
   proposedCounter=0;
-
 
 
   EbatchTimerRunning = false;
@@ -86,43 +84,30 @@ Replica::Replica(const transport::Configuration &config, KeyManager *keyManager,
     }
   }
 
-  // transport->Timer(100, [this, pc = proposedCounter](){
-  //   this->bubbleCB(pc);
-  // });
+  transport->Timer(10, [this, pc = proposedCounter](){
+    this->bubbleCB(pc);
+  });
 
 }
 
 void Replica::bubbleCB(uint64_t currProposedCounter){
-  executeSlots();
-
- bubbleTimerRunning=false;
+  // executeSlots();
   Debug("Bubble timer expired, check if seqnum has changed");
   auto pc =this->proposedCounter;
   Debug("Current was %d, and now is: %d",currProposedCounter,pc);
-  if (this->proposedCounter == currProposedCounter){ //size of pipeline
-
-    // if (bubbles<4){
-
-    
+  if (this->proposedCounter == currProposedCounter){ 
     Debug("No progress was made, filling the pipeline with bubbles.");
-    auto digest="Bubble"+std::to_string(pc+ rand());
-    proposeBubble(digest);
-    bubbles++;
-    // }
-    // else{
-    //   Debug("already proposed 3 bubbles");
-    // }
-  }else{
-    Debug("not filling this time");
+    proposeBubble();
   }
+  // else{
+  //   Debug("not filling this time");
+  // }
 
-  // if (bubbles<4){
 
   Debug("Starting bubble timer");
-  transport->Timer(500, [this,pc](){
+  transport->Timer(10, [this,pc](){
     this->bubbleCB(pc); 
   });
-  // }
 }
 
 
@@ -244,38 +229,43 @@ void Replica::HandleRequest(const TransportAddress &remote,
     Debug("Proposing execb");
     Debug("Shir:   hopefully with this digest:");
     DebugHash(digest);
-
-    proposeBubble("InitBubble1");
-
-
-    hotstuffpg_interface.propose(digest, execb); // Shir: sending the execb to hotstuff
+    hotstuffpg_interface.propose(digest, execb);
     proposedCounter++;
     Debug("Execb proposed");
- 
-    proposeBubble("bubble"+digest+"1");
-    proposeBubble("bubble"+digest+"2");
-    proposeBubble("bubble"+digest+"3");
-
-  
   }
 }
 
 
-void Replica::proposeBubble(string digest){
+void Replica::proposeBubble(){
+
+  // create a dummy digest to propose to Hotstuff. Proposals have to be of length 32 chars, and unique.
+  // string dummy_digest_init(std::to_string(bubbles)+"dummy"+std::string(32, '0'));
+  // string dummy_digest = dummy_digest_init.substr(0,32);
+  string dummy_digest_init(std::string(32, '0')+std::to_string(bubbles));
+  string dummy_digest = dummy_digest_init.substr(dummy_digest_init.length()-32);
+
+  std::cerr<< "Dummy create is: "<<dummy_digest<<"\n";
+  bubbles++;
+
+  Debug("Bubble %s size is:  %d and capacity is: %d",dummy_digest.c_str(),dummy_digest.length(),dummy_digest.capacity());
+
   proto::PackedMessage bubblePackedMsg;
-  std::string digest_mb("mitz"+digest);
-  auto execb_bubble = [this, digest_mb, bubblePackedMsg](const std::string &digest_paramm, uint32_t seqnumm) {
-    auto f = [this, digest_mb, bubblePackedMsg, digest_paramm, seqnumm](){
-      requests[digest_mb] = bubblePackedMsg;
-      replyAddrs[digest_mb] = nullptr;
-      pendingExecutions[seqnumm] = digest_mb;
-      Debug("Adding bubble to pending executions, with seqnum %d",seqnumm);
+  bubblePackedMsg.set_msg("dummy");
+  bubblePackedMsg.set_type("dummy");
+
+  auto execb_bubble = [this, dummy_digest, bubblePackedMsg](const std::string &digest_paramm, uint32_t seqnumm) {
+    auto f = [this, dummy_digest, bubblePackedMsg, digest_paramm, seqnumm](){
+      Debug("Adding %s to pending executions in seqnum %d",dummy_digest.c_str(),seqnumm);
+      requests[dummy_digest] = bubblePackedMsg;
+      replyAddrs[dummy_digest] = nullptr;
+      pendingExecutions[seqnumm] = dummy_digest;
       executeSlots();
       return (void*) true;
     };
     transport->DispatchTP_main(f);
   };
-  hotstuffpg_interface.propose(digest_mb, execb_bubble);
+
+  hotstuffpg_interface.propose(dummy_digest, execb_bubble);
   proposedCounter++;
 }
 

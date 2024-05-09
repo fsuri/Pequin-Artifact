@@ -101,7 +101,6 @@ public:
   std::unordered_map<uint64_t, std::string> pendingBatchedDigests;
   std::unordered_map<uint64_t, std::string> bStatNames;
 
-  bool bubbleTimerRunning;
   int proposedCounter;
   
   bool EbatchTimerRunning;
@@ -137,7 +136,7 @@ public:
 
   void handleMessage(const TransportAddress &remote, const string &type, const string &data);
 
-  void proposeBubble(string digest);
+  void proposeBubble();
   
   void bubbleCB(uint64_t currProposedCounter);
   Stats* stats;

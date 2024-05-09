@@ -11,6 +11,7 @@ namespace hotstuffstore {
 
     void IndicusInterface::propose(const std::string& hash, hotstuff_exec_callback execb) {
         std::cout << "############# Shir: HotStuff Interface #############" << std::endl;
+        std::cout << "############# Shir: Digest proposed:   "<<hash<<" #############" << std::endl;
         hotstuff_papp->interface_propose(hash, execb);
         std::cout << "############# HotStuff Interface Proposed #############" << std::endl;
     }
@@ -176,6 +177,7 @@ namespace hotstuffstore {
             std::cerr << "USING ROUND-ROBIN PACEMAKER" << std::endl;  //Note: It appears that the RR pacemaker performs better. 
             pmaker = new hotstuff::PaceMakerRR(ec, parent_limit, opt_base_timeout->get(), opt_prop_delay->get());
         }
+        std::cerr << "HOTSTUFF BLOCK SIZE IS: "<<  opt_blk_size->get() << std::endl;  
 
         HotStuffApp::Net::Config repnet_config;
         ClientNetwork<opcode_t>::Config clinet_config;
